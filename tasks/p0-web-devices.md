@@ -1,10 +1,11 @@
 ---
 title: Settings: security and devices
-status: todo
-owner:
+status: in_progress
+owner: dell26/agent-4
 deps: [p0-web-settings,p0-auth-tokens]
 touches: [web/src/app/features/settings/security]
 prio: 2
+lease_until: 2026-10-20T13:58:12Z
 ---
 ## Goal
 Show and revoke Android devices; regenerate recovery codes.
