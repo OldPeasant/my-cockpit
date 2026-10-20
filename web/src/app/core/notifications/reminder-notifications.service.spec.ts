@@ -36,6 +36,27 @@ describe('ReminderNotificationsService', () => {
   let messages$: ReturnType<typeof vi.fn>;
   let action: Subject<void>;
   let snackBar: { open: ReturnType<typeof vi.fn> };
+  /** The toast on screen; like MatSnackBar, opening another one dismisses it. */
+  let shownToast: { dismiss: () => void } | undefined;
+
+  /** A MatSnackBar double that shows one toast at a time, like the real one. */
+  function openToast() {
+    shownToast?.dismiss();
+    action = new Subject();
+    const toastAction = action;
+    const dismissed = new Subject<void>();
+    const ref = {
+      onAction: () => toastAction.asObservable(),
+      afterDismissed: () => dismissed.asObservable(),
+      dismiss: () => {
+        if (shownToast === ref) shownToast = undefined;
+        dismissed.next();
+        dismissed.complete();
+      },
+    };
+    shownToast = ref;
+    return ref;
+  }
 
   function create(
     permission: NotificationPermissionState = 'default',
@@ -45,7 +66,8 @@ describe('ReminderNotificationsService', () => {
     fired = new Subject();
     messages$ = vi.fn(() => fired.asObservable());
     action = new Subject();
-    snackBar = { open: vi.fn(() => ({ onAction: () => action.asObservable() })) };
+    shownToast = undefined;
+    snackBar = { open: vi.fn(openToast) };
     TestBed.configureTestingModule({
       providers: [
         provideRouter([]),
@@ -349,11 +371,71 @@ describe('ReminderNotificationsService', () => {
 
     fired.next(reminder());
     fired.next(reminder({ title: 'Water the plants' }));
+    shownToast?.dismiss();
 
     expect(snackBar.open.mock.calls.map((call) => call[0])).toEqual([
       'Reminder: Call the plumber',
       'Reminder: Water the plants',
     ]);
+  });
+
+  it('shows reminders that fire together one after the other, in order', () => {
+    create('denied');
+
+    fired.next(reminder());
+    fired.next(reminder({ title: 'Water the plants' }));
+    fired.next(reminder({ title: undefined, available: false }));
+
+    expect(snackBar.open).toHaveBeenCalledTimes(1);
+    shownToast?.dismiss();
+    expect(snackBar.open).toHaveBeenCalledTimes(2);
+    shownToast?.dismiss();
+    expect(snackBar.open.mock.calls.map((call) => [call[0], call[1]])).toEqual([
+      ['Reminder: Call the plumber', 'Open'],
+      ['Reminder: Water the plants', 'Open'],
+      ['Reminder', 'Dismiss'],
+    ]);
+    shownToast?.dismiss();
+    expect(snackBar.open).toHaveBeenCalledTimes(3);
+  });
+
+  it('opens the item of a queued reminder from its own toast', () => {
+    create('unsupported');
+    const navigate = vi.spyOn(TestBed.inject(Router), 'navigateByUrl').mockResolvedValue(true);
+
+    fired.next(reminder());
+    fired.next(reminder({ title: 'Water the plants', deepLink: '/tasks/plants' }));
+    shownToast?.dismiss();
+    action.next();
+
+    expect(navigate).toHaveBeenCalledTimes(1);
+    expect(navigate).toHaveBeenCalledWith('/tasks/plants');
+  });
+
+  it('toasts a reminder that fires after the queue ran empty right away', () => {
+    create('denied');
+
+    fired.next(reminder());
+    shownToast?.dismiss();
+    fired.next(reminder({ title: 'Water the plants' }));
+
+    expect(snackBar.open).toHaveBeenCalledTimes(2);
+    expect(snackBar.open).toHaveBeenLastCalledWith(
+      'Reminder: Water the plants',
+      'Open',
+      expect.anything(),
+    );
+  });
+
+  it('drops queued reminder toasts when the app is destroyed', () => {
+    create('denied');
+
+    fired.next(reminder());
+    fired.next(reminder({ title: 'Water the plants' }));
+    TestBed.resetTestingModule();
+    shownToast?.dismiss();
+
+    expect(snackBar.open).toHaveBeenCalledTimes(1);
   });
 
   describe('with a failing localStorage', () => {

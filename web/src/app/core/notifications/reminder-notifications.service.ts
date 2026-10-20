@@ -34,6 +34,12 @@ export class ReminderNotificationsService {
 
   private readonly permissionState = signal<NotificationPermissionState>(this.browser.permission());
   private readonly wanted = signal(this.readStored());
+  /**
+   * Reminder toasts waiting for the one on screen: MatSnackBar shows one at a time, and a burst of
+   * reminders (the server fires them in batches) would otherwise replace each other.
+   */
+  private readonly toasts: { title: string | undefined; link: string | undefined }[] = [];
+  private toasting = false;
 
   /** The browser's permission, as last seen (see {@link refresh}). */
   readonly permission = this.permissionState.asReadonly();
@@ -41,10 +47,12 @@ export class ReminderNotificationsService {
   readonly switchedOn = this.wanted.asReadonly();
 
   constructor() {
+    const destroyRef = inject(DestroyRef);
     inject(ChangeEventsService)
       .messages$<ReminderResponse>(REMINDER_EVENT_NAME)
-      .pipe(takeUntilDestroyed(inject(DestroyRef)))
+      .pipe(takeUntilDestroyed(destroyRef))
       .subscribe((reminder) => this.remind(reminder));
+    destroyRef.onDestroy(() => (this.toasts.length = 0));
   }
 
   /** Whether reminders show as browser notifications right now. */
@@ -104,13 +112,24 @@ export class ReminderNotificationsService {
     }
   }
 
+  /** Queues a reminder toast; it shows once the toasts before it are dismissed. */
   private toast(title: string | undefined, link: string | undefined): void {
+    this.toasts.push({ title, link });
+    if (!this.toasting) this.showNextToast();
+  }
+
+  private showNextToast(): void {
+    const next = this.toasts.shift();
+    this.toasting = next !== undefined;
+    if (!next) return;
+    const { title, link } = next;
     const message = title ? $localize`:@@reminders.toast:Reminder: ${title}:title:` : REMINDER;
     const action = link
       ? $localize`:@@reminders.toast.open:Open`
       : $localize`:@@notification.dismiss:Dismiss`;
     const ref = this.snackBar.open(message, action, { duration: REMINDER_TOAST_DURATION_MS });
     if (link) ref.onAction().subscribe(() => void this.router.navigateByUrl(link));
+    ref.afterDismissed().subscribe(() => this.showNextToast());
   }
 
   private readStored(): boolean {

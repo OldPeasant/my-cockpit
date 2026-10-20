@@ -82,3 +82,65 @@ Remaining unresolved findings:
 ## Final status
 
 All validated findings fixed and validation passed.
+
+---
+
+# Second review — fixes
+
+Date: 2026-10-20
+
+Task: web-reminders - Browser notifications for reminders
+
+Scope: current task, finding CR-1 (P2) from the second review in `reviews/web-reminders/review.md` (revision 37685c7f), approved by the parent worker
+
+## Fixed findings
+
+### Second review — CR-1 — The toast fallback shows only the last of several reminders that fire together
+
+Files changed:
+- `web/src/app/core/notifications/reminder-notifications.service.ts`
+- `web/src/app/core/notifications/reminder-notifications.service.spec.ts`
+
+Problem:
+`toast()` called `MatSnackBar.open()` for each reminder. MatSnackBar shows one snackbar at a time, and `open()` dismisses the current one. The server fires due reminders in batches, so with browser notifications off, blocked, unsupported or refused, a burst of reminders lost every toast except the last one.
+
+Fix:
+The service now queues reminder toasts. `toast()` adds the reminder (title, link) to a private queue and opens it at once only when no reminder toast is showing. Each opened toast subscribes to `afterDismissed()` and then opens the next queued one (by timeout, the Open/Dismiss action, or another snackbar replacing it). The message, the Open/Dismiss action, the 15 s duration and the per-reminder `navigateByUrl(deepLink)` on Open are unchanged. No new message was added, so `i18n:extract` was not needed. `DestroyRef.onDestroy` clears the queue, so nothing queued opens after the app is torn down.
+
+Tests: the `MatSnackBar` double in the spec now models the real one-at-a-time behavior (opening a toast dismisses the shown one and emits its `afterDismissed`, and each toast has its own action). New specs:
+- three reminders in a burst open one toast at a time, in order, with the right action each (Open, Open, Dismiss), and nothing more opens after the last one;
+- Open on a queued reminder's toast navigates to that reminder's own deep link;
+- a reminder after the queue ran empty is toasted right away;
+- queued toasts are dropped when the service is destroyed.
+The existing spec "toasts every fired reminder while notifications are unsupported" now dismisses the first toast before checking that both were shown. With the double, a second toast cannot appear while the first is still showing, and that is the behavior this fix requires.
+Regression check: with the HEAD version of the service and the new specs, "shows reminders that fire together one after the other, in order" and "drops queued reminder toasts when the app is destroyed" fail. With the fix, they pass.
+
+Validation:
+- `cd web && npx ng test --watch=false --include src/app/core/notifications` — Pass (3 files, 57 tests)
+- `cd web && npm run check` — Pass
+
+## Not fixed
+
+None. Note: a later non-reminder app toast (`NotificationService.info/error`) still replaces a reminder toast on screen. The reminder is no longer lost from the queue: the next queued reminder opens when it is dismissed. The replaced reminder's toast itself was not re-shown, because the preferred fix is limited to queuing reminder toasts.
+
+## Validation summary
+
+Focused tests:
+- `cd web && npx ng test --watch=false --include src/app/core/notifications` — Pass, 57 tests
+- `npx prettier --check` on both changed files — Pass
+
+Full test suite:
+- `cd web && npm run check` (api:check, lint `--max-warnings=0`, e2e typecheck, `ng test`, `ng build`) — Pass, 33 test files / 540 tests. The build shows the existing initial-bundle budget warning (591 kB vs 500 kB). It is a warning, not an error, and this fix did not cause it.
+
+Lint/type-check/build:
+- Included in `npm run check` — Pass. The Playwright e2e toast spec (one reminder) was not run, because it needs the running stack. Its path is unchanged for a single reminder: the toast opens at once.
+
+`.taskcheck`:
+- Pass (`sh scripts/check.sh` -> "all checks passed")
+
+Remaining unresolved findings:
+0
+
+## Final status
+
+All validated findings fixed and validation passed.
