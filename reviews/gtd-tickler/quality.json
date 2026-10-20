@@ -1,0 +1,21 @@
+{
+  "schema": 1,
+  "task": "gtd-tickler",
+  "reviewed_revision": "ce9907782cc99a0f0ebc8a0ff43405b13c50e3fc",
+  "helpers": {
+    "test-writer":   {"status": "completed", "report": "reviews/gtd-tickler/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/gtd-tickler/review.md"},
+    "fixer":         {"status": "completed", "report": "reviews/gtd-tickler/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "releaseDue KDoc linked non-existent gtd.infra.TicklerJob; now [TicklerJob]"},
+    {"id": "CR-2", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "getTask OpenAPI description now mentions the on-read release; api/openapi.yaml regenerated"}
+  ],
+  "validation": [
+    {"command": "cd server && ./gradlew cleanTest test --tests 'ch.sonensei.cockpit.gtd.*' --tests '*OpenApiContractTest'", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
