@@ -1,11 +1,11 @@
 ---
 title: Projects, areas, contexts API and next-step rules
 status: in_progress
-owner: dell26/agent-3
+owner: R1963MACOS/agent-1
 deps: [gtd-tasks-api]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/gtd,server/src/test/kotlin/ch/sonensei/cockpit/gtd,server/src/main/resources/db/migration/gtd]
 prio: 1
-lease_until: 2026-10-20T17:48:23Z
+lease_until: 2026-10-20T18:11:13Z
 releases: 1
 extended: 
 ---
