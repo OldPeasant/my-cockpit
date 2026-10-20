@@ -18,3 +18,4 @@ CRUD for local calendars and events (SPEC.md §6.4).
 - [ ] API documented: `api/openapi.yaml` regenerated (`UPDATE_OPENAPI=1 ./gradlew test --tests '*OpenApiContractTest'`) and `OpenApiContractTest` passes without the flag
 
 ## Notes
+- ASSUMPTION (2026-10-20 18:37+0200 by dell26/agent-3): Service, DTOs and EVENT TrashContributor live in calendar/api (the task's touches); no separate calendar/domain package was created
