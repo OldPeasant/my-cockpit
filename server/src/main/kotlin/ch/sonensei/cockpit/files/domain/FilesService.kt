@@ -12,6 +12,7 @@ import ch.sonensei.cockpit.core.web.NotFoundException
 import ch.sonensei.cockpit.files.infra.BlobStore
 import ch.sonensei.cockpit.files.infra.FileRepository
 import ch.sonensei.cockpit.files.infra.FolderRepository
+import ch.sonensei.cockpit.files.infra.ThumbnailStore
 import org.slf4j.LoggerFactory
 import org.springframework.context.ApplicationEventPublisher
 import org.springframework.dao.DataIntegrityViolationException
@@ -31,8 +32,8 @@ import java.util.UUID
  *
  * Deleting a folder moves its whole subtree to the Trash with one deletion time; only the folder itself is listed in
  * the Trash. Restoring it brings back what was deleted with it; purging it deletes the subtree and its blobs.
- * Blobs are written before the row and removed again when the transaction rolls back; a purged file's blob is deleted
- * only after the transaction commits.
+ * Blobs are written before the row and removed again when the transaction rolls back; a purged file's blob (and its
+ * cached thumbnails) is deleted only after the transaction commits.
  *
  * Concurrency: inserting a file or folder locks its target folder `FOR SHARE` (and requires it to be active), and
  * deleting a folder locks every folder of its subtree `FOR UPDATE` before collecting the contents. So an insert racing
@@ -46,6 +47,7 @@ class FilesService(
 	private val folders: FolderRepository,
 	private val files: FileRepository,
 	private val blobs: BlobStore,
+	private val thumbnails: ThumbnailStore,
 	private val search: SearchIndexer,
 	private val changes: ChangeEventPublisher,
 	private val events: ApplicationEventPublisher,
@@ -434,6 +436,7 @@ class FilesService(
 	private fun deleteBlob(key: String) {
 		try {
 			blobs.delete(key)
+			thumbnails.delete(key)
 		} catch (e: java.io.IOException) {
 			log.warn("Could not delete blob {}", key, e)
 		}

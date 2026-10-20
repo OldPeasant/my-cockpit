@@ -1715,6 +1715,131 @@ paths:
       summary: Download a file
       tags:
       - Files
+  /api/v1/files/{id}/preview:
+    get:
+      description: "Text files (`text/*`, JSON, XML, YAML): the first 256 KB decoded\
+        \ as UTF-8 (never cut inside a character; invalid bytes become U+FFFD), as\
+        \ `text/markdown` for Markdown and `text/plain` otherwise, with `X-Preview-Truncated`.\
+        \ PDFs, audio, video and JPEG/PNG/WebP/GIF images: the contents with their\
+        \ mime type, `inline`, with `Range` support, for the client's own viewer."
+      operationId: previewFile
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - description: "Byte range(s) of an inline preview, e.g. `bytes=0-1023`"
+        in: header
+        name: Range
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                type: string
+                format: binary
+          description: The preview
+          headers:
+            Content-Disposition:
+              description: inline; filename and RFC 6266 filename*
+              schema:
+                type: string
+              style: simple
+            X-Preview-Truncated:
+              description: "Text only: `true` when the file is longer than 256 KB"
+              schema:
+                type: boolean
+              style: simple
+        "206":
+          content:
+            '*/*':
+              schema:
+                type: string
+                format: binary
+          description: The requested range(s) of an inline preview
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: "Not found or in the Trash (or, when given, the target folder)"
+        "415":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: No preview for this file type
+      summary: Preview of a file
+      tags:
+      - Files
+  /api/v1/files/{id}/thumbnail:
+    get:
+      description: "For JPEG, PNG, WebP and GIF images (the first frame): the image\
+        \ scaled so that its longer side is at most `size` pixels (never enlarged),\
+        \ EXIF orientation applied. JPEG for JPEG images, PNG otherwise. Thumbnails\
+        \ are cached on the server; the contents of a file never change, so clients\
+        \ may cache them too."
+      operationId: getFileThumbnail
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - description: "Longer side in pixels: 256 or 1024"
+        in: query
+        name: size
+        required: false
+        schema:
+          type: string
+          enum:
+          - "256"
+          - "1024"
+      responses:
+        "200":
+          content:
+            image/jpeg:
+              schema:
+                type: string
+                format: binary
+            image/png:
+              schema:
+                type: string
+                format: binary
+          description: The thumbnail
+        "400":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: Invalid or unknown fields
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: "Not found or in the Trash (or, when given, the target folder)"
+        "415":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: "Not a JPEG, PNG, WebP or GIF image"
+        "422":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: The contents could not be decoded as an image (or it is too
+            large to thumbnail)
+      summary: Thumbnail of an image file
+      tags:
+      - Files
   /api/v1/folders:
     post:
       operationId: createFolder

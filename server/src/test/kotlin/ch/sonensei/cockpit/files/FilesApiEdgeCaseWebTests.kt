@@ -670,7 +670,7 @@ class FilesApiEdgeCaseWebTests(
 		// OpenAPI 3 requires `schema` or `content` on each parameter; the Android client generator validates this.
 		val paths = mockMvc.get("/v3/api-docs").andExpect { status { isOk() } }.json()["paths"]
 		val filesPaths = paths.propertyNames().filter { p -> listOf(FILES, FOLDERS, DRIVE, UPLOADS).any { p.startsWith(it) } }
-		filesPaths.size shouldBe 12
+		filesPaths.size shouldBe 14
 		val withoutSchema =
 			filesPaths.flatMap { path ->
 				val operations = paths[path]

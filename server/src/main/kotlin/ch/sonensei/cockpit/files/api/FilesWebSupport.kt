@@ -17,11 +17,18 @@ internal const val PROBLEM_JSON = MediaType.APPLICATION_PROBLEM_JSON_VALUE
  * replaced by `_`) for old clients, and the exact name as `filename*` (RFC 8187, UTF-8, percent-encoded).
  */
 internal object ContentDispositions {
-	fun attachment(name: String): String {
+	fun attachment(name: String): String = disposition("attachment", name)
+
+	fun inline(name: String): String = disposition("inline", name)
+
+	private fun disposition(
+		type: String,
+		name: String,
+	): String {
 		val fallback = name.map { if (it.code in 0x20..0x7e && it != '"' && it != '\\') it else '_' }.joinToString("")
 		// URLEncoder does form encoding: spaces become `+` and `*` stays, but neither is an RFC 8187 attr-char.
 		val encoded = URLEncoder.encode(name, Charsets.UTF_8).replace("+", "%20").replace("*", "%2A")
-		return "attachment; filename=\"$fallback\"; filename*=UTF-8''$encoded"
+		return "$type; filename=\"$fallback\"; filename*=UTF-8''$encoded"
 	}
 }
 
