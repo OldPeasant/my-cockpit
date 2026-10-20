@@ -20,3 +20,4 @@ Markdown notes with images, tags, pins and history (SPEC.md §8.1).
 
 ## Notes
 - ASSUMPTION (2026-10-21 01:10+0200 by dell26/agent-3): Note history: before a title/body change the previous content is kept as a revision, but at most one per 5 minutes (autosave sessions keep the pre-session state, not every keystroke); a revision restore always keeps the replaced content. Revisions are earlier versions only (current content not listed); numbered per note; newest 20 kept.
+- ASSUMPTION (2026-10-21 01:10+0200 by dell26/agent-3): GET /api/v1/notes defaults to non-archived notes; archived=true lists only archived, archived=all both. Order: pinned first, then updatedAt desc, id desc.
