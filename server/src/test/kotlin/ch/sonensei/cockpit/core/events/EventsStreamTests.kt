@@ -21,6 +21,7 @@ import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.MvcResult
 import org.springframework.test.web.servlet.get
 import org.springframework.transaction.support.TransactionTemplate
+import java.time.Duration
 import java.time.Instant
 
 /**
@@ -101,6 +102,15 @@ class EventsStreamTests(
 				.lines()
 				.single { it.startsWith("data:") && it.contains(id.toString()) }
 		data shouldBe "data:{\"type\":\"NOTE\",\"id\":\"$id\",\"op\":\"UPDATED\",\"at\":\"2026-03-14T09:26:53.589Z\"}"
+	}
+
+	@Test
+	@WithCockpitUser
+	fun `without configuration a stream ends after 15 minutes`() {
+		val result = connect()
+
+		// The application's hub, wired with the default cockpit.events.stream-timeout (no test override).
+		(result.request.asyncContext as MockAsyncContext).timeout shouldBe Duration.ofMinutes(15).toMillis()
 	}
 
 	private fun connect(): MvcResult {

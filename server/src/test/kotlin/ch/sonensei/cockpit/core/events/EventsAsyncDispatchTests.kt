@@ -87,6 +87,9 @@ class EventsAsyncDispatchTests(
 		// Passed the authorization rules (a rejection answers 401 before the DispatcherServlet) and reached the controller.
 		dispatched.response.status shouldNotBe 401
 		(dispatched.handler as HandlerMethod).method.name shouldBe "stream"
+		// The timeout completes the emitter, so the stream ends normally, not with an AsyncRequestTimeoutException.
+		result.asyncResult shouldBe null
+		dispatched.resolvedException shouldBe null
 	}
 
 	private companion object {
