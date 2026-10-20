@@ -1,11 +1,11 @@
 ---
 title: OAuth connections for Google and Microsoft
-status: todo
-owner: 
+status: in_progress
+owner: dell26/agent-1
 deps: [p0-crypto,p0-auth-login,p0-settings]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/core/oauth,server/src/test/kotlin/ch/sonensei/cockpit/core/oauth,server/src/main/resources/db/migration/core-oauth,docs/oauth-setup.md]
 prio: 1
-lease_until: 
+lease_until: 2026-10-20T14:19:37Z
 releases: 1
 extended: 
 ---
