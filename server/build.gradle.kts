@@ -1,6 +1,7 @@
 plugins {
 	kotlin("jvm") version "2.3.21"
 	kotlin("plugin.spring") version "2.3.21"
+	kotlin("plugin.jpa") version "2.3.21"
 	id("org.springframework.boot") version "4.1.1"
 	id("io.spring.dependency-management") version "1.1.7"
 	id("org.jlleitschuh.gradle.ktlint") version "14.2.0"
@@ -75,6 +76,13 @@ kotlin {
 	compilerOptions {
 		freeCompilerArgs.addAll("-Xjsr305=strict", "-Xannotation-default-target=param-property")
 	}
+}
+
+// JPA entities must be open for Hibernate proxies (plugin.jpa adds the no-arg constructors).
+allOpen {
+	annotation("jakarta.persistence.Entity")
+	annotation("jakarta.persistence.MappedSuperclass")
+	annotation("jakarta.persistence.Embeddable")
 }
 
 // `test` (part of `check`): unit tests + Spring tests against the shared Postgres Testcontainer.

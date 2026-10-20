@@ -36,7 +36,8 @@ class PostgresTestBaseTests(
 	fun `Flyway ran against the container`() {
 		val tables =
 			jdbc.queryForObject(
-				"select count(*) from information_schema.tables where table_name = 'flyway_schema_history'",
+				"select count(*) from information_schema.tables " +
+					"where table_name = 'flyway_schema_history' and table_schema = current_schema()",
 				Int::class.java,
 			)
 		tables shouldBe 1

@@ -20,7 +20,13 @@ import java.net.http.HttpResponse
 class ExternalToolingSmokeTests {
 	@Test
 	fun `GreenMail receives a message over SMTP`() {
-		GreenMailUtil.sendTextEmailTest("alice@example.test", "bob@example.test", "Hello", "Fictitious body")
+		GreenMailUtil.sendTextEmail(
+			"alice@example.test",
+			"bob@example.test",
+			"Hello",
+			"Fictitious body",
+			greenMail.smtp.serverSetup,
+		)
 
 		greenMail.waitForIncomingEmail(5_000, 1) shouldBe true
 		greenMail.receivedMessages.single().subject shouldBe "Hello"
@@ -47,6 +53,6 @@ class ExternalToolingSmokeTests {
 	companion object {
 		@JvmField
 		@RegisterExtension
-		val greenMail: GreenMailExtension = GreenMailExtension(ServerSetupTest.SMTP)
+		val greenMail: GreenMailExtension = GreenMailExtension(ServerSetupTest.SMTP.dynamicPort())
 	}
 }

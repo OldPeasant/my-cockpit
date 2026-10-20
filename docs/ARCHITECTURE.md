@@ -7,7 +7,7 @@ How agents work is in `AGENTS.md`, and the review evidence contract is in `docs/
 
 | Part | Folder | Stack |
 |---|---|---|
-| Server | `server/` | Kotlin 2.3.21, Spring Boot 4.1.1 (Web MVC, Actuator, Validation, Security, Data JPA/Hibernate, Flyway 12 + `flyway-database-postgresql`), PostgreSQL 16 (JDBC driver from the Boot BOM), JDK 21 (Gradle toolchain), Gradle 9.8.1 wrapper, ktlint (Gradle plugin 14.2.0), JaCoCo |
+| Server | `server/` | Kotlin 2.3.21 (+ `plugin.spring`, `plugin.jpa` with all-open for JPA entities), Spring Boot 4.1.1 (Web MVC, Actuator, Validation, Security, Data JPA/Hibernate, Flyway 12 + `flyway-database-postgresql`), PostgreSQL 16 (JDBC driver from the Boot BOM), JDK 21 (Gradle toolchain), Gradle 9.8.1 wrapper, ktlint (Gradle plugin 14.2.0), JaCoCo |
 | Server libraries | `server/` | springdoc-openapi 3.0.0, logstash-logback-encoder 8.1 (JSON logs use Boot structured logging, `logstash` format), Angus Mail (Boot BOM), ical4j 4.1.1, ez-vcard 0.12.1, flexmark 0.64.8 (core + GFM strikethrough/tasklist, tables, autolink), jsoup 1.21.2, Thumbnailator 0.4.20, java-uuid-generator 5.1.0 (UUIDv7), BouncyCastle `bcprov-jdk18on` 1.81 (Argon2 with spring-security-crypto), java-otp 0.4.0 (TOTP), webauthn4j-core 0.29.5 |
 | Server tests | `server/` | JUnit 5, Kotest assertions 6.0.4, MockK 1.14.6, springmockk 5.0.1, Testcontainers 2.0 (`testcontainers-postgresql`, `-junit-jupiter`, `spring-boot-testcontainers`), WireMock 3.13.1 (standalone), GreenMail 2.1.5 (`greenmail-junit5`) |
 | Web | `web/` | Angular 22.2 (standalone, signals, zoneless), TypeScript 6.0, Vitest 5 via `@angular/build:unit-test` + jsdom, angular-eslint, `@vitest/coverage-v8` |
