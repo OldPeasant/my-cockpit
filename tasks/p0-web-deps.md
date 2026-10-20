@@ -5,7 +5,7 @@ owner: dell26/agent-2
 deps: []
 touches: [web/package.json,web/package-lock.json,web/angular.json,web/src/styles.scss,web/src/index.html,web/src/app/app.config.ts,web/src/theme]
 prio: 1
-lease_until: 2026-10-20T08:51:38Z
+lease_until: 2026-10-20T08:56:42Z
 ---
 ## Goal
 Add the web libraries the spec needs up front (SPEC.md §2.1) and a Material 3 light/dark theme.
