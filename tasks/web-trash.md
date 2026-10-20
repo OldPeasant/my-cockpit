@@ -11,7 +11,8 @@ lease_until: 2026-10-20T20:11:12Z
 List, restore, permanently delete (SPEC.md §4.2).
 
 ## Acceptance criteria
-- [ ] Trash lists deleted items of all types with deletion date and 'purged in N days'; restore and delete permanently (confirm)
+- [x] Trash lists deleted items of all types with deletion date and 'purged in N days'; restore and delete permanently (confirm)
+  - verified (2026-10-20 21:55+0200 by dell26/agent-6): Vitest trash-page.spec.ts (npx ng test --watch=false --include='src/app/features/trash/**/*.spec.ts') renders all item types with deletion date + 'purged in N days/today', restore POST and confirm-dialog DELETE flows -> 85 passed; route /trash lazy-loads TrashPage (app.spec.ts)
 - [ ] Vitest component/service tests cover restore and delete flows; `cd web && npm run check` passes
 
 ## Notes
