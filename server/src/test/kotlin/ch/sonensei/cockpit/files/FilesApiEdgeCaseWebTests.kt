@@ -708,6 +708,50 @@ class FilesApiEdgeCaseWebTests(
 		}
 	}
 
+	@Test
+	fun `an explicit null folder id on create means the drive root, as the contract allows`() {
+		val folder = postJson(FOLDERS, """{"name":"Receipts","parentId":null}""").andExpect { status { isCreated() } }.json()
+		folder["parentId"].isNull shouldBe true
+		folder["path"].asString() shouldBe "/Receipts"
+		val upload = postJson(UPLOADS, """{"name":"scan.pdf","folderId":null,"size":1}""").andExpect { status { isCreated() } }.json()
+		upload["folderId"].isNull shouldBe true
+	}
+
+	@Test
+	fun `listFolder and getUpload answer a client that accepts only application json, also with errors`() {
+		// The generated web client sends `Accept: application/json` for these operations.
+		val folder = newFolder("Inbox")
+		mockMvc
+			.get(DRIVE) { accept = MediaType.APPLICATION_JSON }
+			.andExpect {
+				status { isOk() }
+				content { contentTypeCompatibleWith(MediaType.APPLICATION_JSON) }
+				jsonPath("$.items[0].folder.id") { value(folder) }
+			}
+		val id = createUpload("""{"name":"a.bin","size":1}""")
+		mockMvc
+			.get("$UPLOADS/$id") { accept = MediaType.APPLICATION_JSON }
+			.andExpect {
+				status { isOk() }
+				content { contentTypeCompatibleWith(MediaType.APPLICATION_JSON) }
+				jsonPath("$.id") { value(id) }
+			}
+		mockMvc
+			.get(DRIVE) {
+				accept = MediaType.APPLICATION_JSON
+				param("folderId", UNKNOWN)
+			}.andExpect {
+				status { isNotFound() }
+				jsonPath("$.status") { value(404) }
+			}
+		mockMvc
+			.get("$UPLOADS/$UNKNOWN") { accept = MediaType.APPLICATION_JSON }
+			.andExpect {
+				status { isNotFound() }
+				jsonPath("$.status") { value(404) }
+			}
+	}
+
 	private companion object {
 		const val FILES = "/api/v1/files"
 		const val FOLDERS = "/api/v1/folders"
