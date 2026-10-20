@@ -27,6 +27,8 @@ export type { SetupResponse } from './models/setup-response';
 export type { SetupStatusResponse } from './models/setup-status-response';
 export type { TokenRequest } from './models/token-request';
 export type { TokenResponse } from './models/token-response';
+export type { TrashItemResponse } from './models/trash-item-response';
+export type { TrashPageResponse } from './models/trash-page-response';
 
 export type { ListDevices$Params as ListDevices$Params } from './fn/auth/list-devices';
 export { listDevices as listDevices } from './fn/auth/list-devices';
@@ -60,3 +62,9 @@ export type { ConfirmSetupTotp$Params as ConfirmSetupTotp$Params } from './fn/se
 export { confirmSetupTotp as confirmSetupTotp } from './fn/setup/confirm-setup-totp';
 export type { GetSetupStatus$Params as GetSetupStatus$Params } from './fn/setup/get-setup-status';
 export { getSetupStatus as getSetupStatus } from './fn/setup/get-setup-status';
+export type { ListTrash$Params as ListTrash$Params } from './fn/trash/list-trash';
+export { listTrash as listTrash } from './fn/trash/list-trash';
+export type { PurgeTrashItem$Params as PurgeTrashItem$Params } from './fn/trash/purge-trash-item';
+export { purgeTrashItem as purgeTrashItem } from './fn/trash/purge-trash-item';
+export type { RestoreTrashItem$Params as RestoreTrashItem$Params } from './fn/trash/restore-trash-item';
+export { restoreTrashItem as restoreTrashItem } from './fn/trash/restore-trash-item';

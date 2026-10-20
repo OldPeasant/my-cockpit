@@ -15,6 +15,8 @@ tags:
   name: Setup
 - description: Links between items of any type
   name: Links
+- description: "Deleted items: list, restore, delete permanently"
+  name: Trash
 paths:
   /api/v1/auth/devices:
     get:
@@ -499,6 +501,125 @@ paths:
       summary: Whether the first-run setup still has to be completed
       tags:
       - Setup
+  /api/v1/trash:
+    get:
+      description: "Most recently deleted first (ties by type, then id). Items are\
+        \ purged automatically at `purgeAt`, 30 days after their deletion."
+      operationId: listTrash
+      parameters:
+      - description: Opaque cursor from the previous page's `nextCursor`
+        in: query
+        name: cursor
+        required: false
+        schema:
+          type: string
+      - description: "Page size, 1..200 (default 50)"
+        in: query
+        name: limit
+        required: false
+        schema:
+          type: integer
+          format: int32
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TrashPageResponse"
+          description: One page of the Trash
+        "400":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: Invalid cursor or limit
+      summary: Deleted items of all types
+      tags:
+      - Trash
+  /api/v1/trash/{type}/{id}:
+    delete:
+      description: Only items in the Trash can be deleted permanently; their links
+        are removed as well.
+      operationId: purgeTrashItem
+      parameters:
+      - description: Type of the item
+        in: path
+        name: type
+        required: true
+        schema:
+          type: string
+          enum:
+          - TASK
+          - PROJECT
+          - NOTE
+          - EVENT
+          - EMAIL
+          - FILE
+          - FOLDER
+          - CONTACT
+          - BOOKMARK
+          - JOURNAL_ENTRY
+          - HABIT
+      - description: Id of the item
+        in: path
+        name: id
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        "204":
+          description: Deleted permanently
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: No such item in the Trash
+      summary: Delete an item permanently
+      tags:
+      - Trash
+  /api/v1/trash/{type}/{id}/restore:
+    post:
+      operationId: restoreTrashItem
+      parameters:
+      - description: Type of the item
+        in: path
+        name: type
+        required: true
+        schema:
+          type: string
+          enum:
+          - TASK
+          - PROJECT
+          - NOTE
+          - EVENT
+          - EMAIL
+          - FILE
+          - FOLDER
+          - CONTACT
+          - BOOKMARK
+          - JOURNAL_ENTRY
+          - HABIT
+      - description: Id of the item
+        in: path
+        name: id
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        "204":
+          description: Restored
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: No such item in the Trash
+      summary: Restore a deleted item
+      tags:
+      - Trash
 components:
   schemas:
     ChangeEvent:
@@ -989,3 +1110,56 @@ components:
       - refreshToken
       - refreshTokenExpiresAt
       - tokenType
+    TrashItemResponse:
+      type: object
+      properties:
+        deletedAt:
+          type: string
+          format: date-time
+        icon:
+          type: string
+          description: Material Symbols icon name
+        id:
+          type: string
+          format: uuid
+        purgeAt:
+          type: string
+          format: date-time
+          description: When the item will be purged automatically
+        subtitle:
+          type: string
+        title:
+          type: string
+        type:
+          type: string
+          enum:
+          - TASK
+          - PROJECT
+          - NOTE
+          - EVENT
+          - EMAIL
+          - FILE
+          - FOLDER
+          - CONTACT
+          - BOOKMARK
+          - JOURNAL_ENTRY
+          - HABIT
+      required:
+      - deletedAt
+      - icon
+      - id
+      - purgeAt
+      - title
+      - type
+    TrashPageResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/TrashItemResponse"
+        nextCursor:
+          type: string
+          description: Cursor of the next page; absent on the last page
+      required:
+      - items

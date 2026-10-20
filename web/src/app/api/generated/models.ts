@@ -21,3 +21,5 @@ export type { SetupResponse } from './models/setup-response';
 export type { SetupStatusResponse } from './models/setup-status-response';
 export type { TokenRequest } from './models/token-request';
 export type { TokenResponse } from './models/token-response';
+export type { TrashItemResponse } from './models/trash-item-response';
+export type { TrashPageResponse } from './models/trash-page-response';
