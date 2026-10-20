@@ -16,6 +16,7 @@
           type="checkbox"
           [id]="uid + '-step-' + item.id"
           [checked]="item.done"
+          [disabled]="busy()"
           (change)="toggleItem(item)"
         />
         <label class="step-text" [for]="uid + '-step-' + item.id">{{ item.text }}</label>
@@ -47,6 +48,7 @@
           <button
             type="button"
             class="icon"
+            [disabled]="busy()"
             (click)="removeItem(item)"
             i18n-aria-label="@@taskDetail.stepRemove"
             aria-label="Remove step"

@@ -316,6 +316,43 @@ describe('TaskChecklist', () => {
       expect(updates[1].item.version).toBe(1);
       expect(alert()).toBeUndefined();
     });
+
+    it('lets no second toggle or remove start while a change is saving', async () => {
+      await render();
+      const pending = deferred<ChecklistItemResponse>();
+      const original = service.updateChecklistItem;
+      service.updateChecklistItem = async (old, body) => {
+        updates.push({ item: old, body });
+        return pending.promise;
+      };
+      try {
+        await click(checkboxes()[0]);
+        expect(checkboxes().every((box) => box.disabled)).toBe(true);
+        expect(buttons('Remove step').every((b) => b.disabled)).toBe(true);
+
+        // Even an event that reaches the disabled controls starts no overlapping request.
+        checkboxes()[0].dispatchEvent(new Event('change'));
+        checkboxes()[2].dispatchEvent(new Event('change'));
+        buttons('Remove step')[1].dispatchEvent(new Event('click'));
+        await refresh();
+        expect(updates).toHaveLength(1);
+        expect(deletes).toEqual([]);
+        expect(count()).toBe('2/3');
+
+        pending.resolve(item('a', 0, { done: true, version: 2 }));
+        await refresh();
+        expect(checkboxes().every((box) => !box.disabled)).toBe(true);
+        expect(buttons('Remove step').every((b) => !b.disabled)).toBe(true);
+
+        // The next toggle sends the version the server answered.
+        service.updateChecklistItem = original;
+        await click(checkboxes()[0]);
+        expect(updates.map((u) => u.item.version)).toEqual([1, 2]);
+        expect(alert()).toBeUndefined();
+      } finally {
+        service.updateChecklistItem = original;
+      }
+    });
   });
 
   describe('remove', () => {
@@ -434,6 +471,8 @@ describe('TaskChecklist', () => {
         expect(buttons('Move up').every((b) => b.disabled)).toBe(true);
         expect(buttons('Move down').every((b) => b.disabled)).toBe(true);
         expect(addButton().disabled).toBe(true);
+        expect(checkboxes().every((box) => box.disabled)).toBe(true);
+        expect(buttons('Remove step').every((b) => b.disabled)).toBe(true);
         pending.resolve(item('b', 0, { done: true, version: 2 }));
         await refresh();
         expect(buttons('Move up').map((b) => b.disabled)).toEqual([true, false, false]);

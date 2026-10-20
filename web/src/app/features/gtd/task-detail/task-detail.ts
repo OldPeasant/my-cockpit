@@ -59,6 +59,7 @@ export const LIST_OPTIONS: readonly { readonly value: TaskListName; readonly lab
 export const CONFLICT_MESSAGE = $localize`:@@taskDetail.conflict:This task was changed elsewhere. It has been reloaded with the latest version; make your changes again.`;
 
 type LoadState = 'loading' | 'ready' | 'notFound' | 'deleted' | 'failed';
+type LoadKind = 'initial' | 'background' | 'conflict';
 
 /**
  * Edits every field of a task (SPEC.md §5.2): title, Markdown notes, list, project, contexts,
@@ -143,7 +144,7 @@ export class TaskDetail {
     void this.projects.ensureLoaded();
     effect(() => {
       const id = this.taskId();
-      untracked(() => void this.load(id, true));
+      untracked(() => void this.load(id, 'initial'));
     });
     const events = inject(ChangeEventsService);
     events
@@ -155,7 +156,7 @@ export class TaskDetail {
       .subscribe((event) => {
         if (event.op === 'DELETED') this.state.set('deleted');
         // Someone else changed it: show the new version unless the user is editing.
-        else if (!this.dirty() && !this.saving()) void this.load(this.taskId(), false);
+        else if (!this.dirty() && !this.saving()) void this.load(this.taskId(), 'background');
       });
     inject(DestroyRef).onDestroy(() => clearTimeout(this.savedTimer));
   }
@@ -207,8 +208,17 @@ export class TaskDetail {
     this.edit({ repeat, customRule });
   }
 
-  protected setRepeatMode(mode: RecurrenceMode | undefined): void {
-    if (mode) this.edit({ repeatMode: mode });
+  /**
+   * A recurring task always has a mode: pressing the chosen mode again (which clears the
+   * segmented group) puts the current mode back instead of leaving none shown.
+   */
+  protected setRepeatMode(
+    mode: RecurrenceMode | undefined,
+    picker: Segmented<RecurrenceMode>,
+  ): void {
+    const current = this.draft()?.repeatMode;
+    if (!mode) picker.value.set(current);
+    else if (mode !== current) this.edit({ repeatMode: mode });
   }
 
   /** Puts the form back to the saved task. */
@@ -240,6 +250,8 @@ export class TaskDetail {
     this.saveError.set(null);
     this.serverErrors.set({});
     this.conflict.set(false);
+    // A background reload started before this save would answer with an older version.
+    this.loadSeq++;
     let current = task;
     try {
       const move = moveFor(current, draft);
@@ -259,13 +271,13 @@ export class TaskDetail {
   }
 
   protected retryLoad(): void {
-    void this.load(this.taskId(), true);
+    void this.load(this.taskId(), 'initial');
   }
 
   private async failed(error: unknown): Promise<void> {
     if (error instanceof ApiError && error.status === 412) {
       this.conflict.set(true);
-      await this.load(this.taskId(), false);
+      await this.load(this.taskId(), 'conflict');
       return;
     }
     if (error instanceof ApiError && error.status === 400 && error.errors.length) {
@@ -277,13 +289,19 @@ export class TaskDetail {
     this.saveError.set(messageOf(error));
   }
 
-  /** Loads the task; `initial` shows the loading state. */
-  private async load(id: string, initial: boolean): Promise<void> {
+  /**
+   * Loads the task. An `initial` load shows the loading state; a `conflict` load replaces the
+   * form after a 412; a `background` load (a change event) is dropped when the user started
+   * editing or saving meanwhile, or when it answers with an older version than the one shown.
+   */
+  private async load(id: string, kind: LoadKind): Promise<void> {
     const seq = ++this.loadSeq;
+    const initial = kind === 'initial';
     if (initial) this.state.set('loading');
     try {
       const task = await this.service.get(id);
       if (seq !== this.loadSeq) return;
+      if (kind === 'background' && this.isStale(task)) return;
       this.task.set(task);
       this.draft.set(draftOf(task));
       this.state.set('ready');
@@ -293,6 +311,12 @@ export class TaskDetail {
       else if (initial || this.state() !== 'ready') this.state.set('failed');
       else this.saveError.set(messageOf(error));
     }
+  }
+
+  /** A background answer must not replace edits, a running save or a newer version. */
+  private isStale(task: TaskResponse): boolean {
+    const shown = this.task();
+    return this.dirty() || this.saving() || (!!shown && task.version < shown.version);
   }
 
   private flashSaved(): void {

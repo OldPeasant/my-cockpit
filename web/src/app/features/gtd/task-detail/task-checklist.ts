@@ -67,7 +67,9 @@ export class TaskChecklist {
     });
   }
 
+  /** Changes run one at a time, so each sends the version the server answered last. */
   protected async toggleItem(item: ChecklistItemResponse): Promise<void> {
+    if (this.busy()) return;
     this.replace({ ...item, done: !item.done });
     await this.change(
       async () => this.replace(await this.service.updateChecklistItem(item, { done: !item.done })),
@@ -76,6 +78,7 @@ export class TaskChecklist {
   }
 
   protected async removeItem(item: ChecklistItemResponse): Promise<void> {
+    if (this.busy()) return;
     const before = this.items();
     this.items.update((items) => items.filter((other) => other.id !== item.id));
     await this.change(

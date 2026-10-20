@@ -565,6 +565,66 @@ describe('TaskDetail', () => {
       expect(field<HTMLTextAreaElement>('#td-title').value).toBe('Second task');
     });
 
+    /** Holds the next GET of the task until `release` is called with its answer. */
+    function holdNextGet(): (answer: TaskResponse) => void {
+      let release!: (answer: TaskResponse) => void;
+      const held = new Promise<TaskResponse>((resolve) => (release = resolve));
+      let used = false;
+      answer = (fn) => {
+        if (fn !== getTask || used) return undefined;
+        used = true;
+        return held;
+      };
+      return release;
+    }
+
+    it('keeps what the user typed while a background reload was running', async () => {
+      await render();
+      const release = holdNextGet();
+      events.next({ type: 'TASK', id: 't1', op: 'UPDATED' } as ChangeEvent);
+      await refresh();
+      await type('#td-title', 'Typed meanwhile');
+
+      release(task({ title: 'Renamed elsewhere', version: 2 }));
+      await refresh();
+
+      expect(field<HTMLTextAreaElement>('#td-title').value).toBe('Typed meanwhile');
+      expect(saveButton().disabled).toBe(false);
+    });
+
+    it('does not replace a newer save with an older background reload', async () => {
+      await render();
+      const release = holdNextGet();
+      events.next({ type: 'TASK', id: 't1', op: 'UPDATED' } as ChangeEvent);
+      await refresh();
+      await type('#td-title', 'Saved title');
+      await save();
+      expect(callsOf(updateTask)[0].params).toMatchObject({ 'If-Match': '"1"' });
+
+      // The GET started before the save answers with version 1.
+      release(task({ version: 1 }));
+      await refresh();
+      expect(field<HTMLTextAreaElement>('#td-title').value).toBe('Saved title');
+      expect(text()).not.toContain(CONFLICT_MESSAGE);
+
+      await type('#td-title', 'Saved again');
+      await save();
+      expect(callsOf(updateTask)[1].params).toMatchObject({ 'If-Match': '"2"' });
+    });
+
+    it('ignores a background answer older than the version shown', async () => {
+      await render(task({ version: 3 }));
+      server = task({ title: 'Older copy', version: 2 });
+      events.next({ type: 'TASK', id: 't1', op: 'UPDATED' } as ChangeEvent);
+      await refresh();
+      expect(field<HTMLTextAreaElement>('#td-title').value).toBe('Call the plumber');
+
+      server = task({ title: 'Newer copy', version: 4 });
+      events.next({ type: 'TASK', id: 't1', op: 'UPDATED' } as ChangeEvent);
+      await refresh();
+      expect(field<HTMLTextAreaElement>('#td-title').value).toBe('Newer copy');
+    });
+
     it('ignores a late load failure of the previous task', async () => {
       let failFirst!: () => void;
       const first = new Promise<never>(
@@ -596,6 +656,65 @@ describe('TaskDetail', () => {
     await refresh();
     expect(after.getAttribute('aria-pressed')).toBe('true');
     expect(saveButton().disabled).toBe(true);
+  });
+
+  it('links every field error to its field', async () => {
+    await render(task({ list: 'SCHEDULED', scheduledDate: '2026-11-01' }));
+    const describedBy = (selector: string) => field(selector).getAttribute('aria-describedby');
+    const errorText = (selector: string) =>
+      element.querySelector(`#${describedBy(selector)}`)?.textContent?.trim();
+
+    expect(describedBy('#td-scheduled')).toBeNull();
+    await type('#td-scheduled', '');
+    expect(errorText('#td-scheduled')).toBeTruthy();
+
+    await type('#td-estimate', '1.5');
+    expect(errorText('#td-estimate')).toBeTruthy();
+
+    await type('#td-tickler', '2000-01-01');
+    expect(errorText('#td-tickler')).toBeTruthy();
+
+    await choose('#td-repeat', 'custom');
+    await type('#td-rule', 'FREQ=HOURLY');
+    expect(errorText('#td-rule')).toBe('Tasks repeat DAILY, WEEKLY, MONTHLY or YEARLY.');
+    // The rule's error sits in the rule's row.
+    expect(field('#td-rule').closest('.row')!.textContent).toContain(
+      'Tasks repeat DAILY, WEEKLY, MONTHLY or YEARLY.',
+    );
+
+    await choose('#td-list', 'WAITING');
+    await type('#td-waiting', 'x'.repeat(501));
+    expect(errorText('#td-waiting')).toBe('Keep this under 500 characters.');
+  });
+
+  it('links a server error on notes and due time to the field', async () => {
+    await render();
+    await type('#td-notes', 'Some notes');
+    answer = (fn) =>
+      fn === updateTask
+        ? Promise.reject(
+            new ApiError(400, 'Bad Request', undefined, undefined, undefined, [
+              { field: 'notesMd', message: 'is too long' },
+              { field: 'dueTime', message: 'needs a due date' },
+            ]),
+          )
+        : undefined;
+    await save();
+    expect(
+      element.querySelector(`#${field('#td-notes').getAttribute('aria-describedby')}`)?.textContent,
+    ).toContain('is too long');
+    const time = field('input[type=time]');
+    expect(
+      element.querySelector(`#${time.getAttribute('aria-describedby')}`)?.textContent,
+    ).toContain('needs a due date');
+  });
+
+  it('announces the save shortcuts on the save button', async () => {
+    await render();
+    expect(saveButton().getAttribute('aria-keyshortcuts')).toBe(
+      'Control+Enter Meta+Enter Control+S Meta+S',
+    );
+    expect(saveButton().querySelector('kbd')?.getAttribute('aria-hidden')).toBe('true');
   });
 
   it('removes the recurrence with "none"', async () => {

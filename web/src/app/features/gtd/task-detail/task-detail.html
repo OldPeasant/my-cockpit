@@ -79,12 +79,13 @@
                 rows="8"
                 [value]="d.notesMd"
                 [attr.aria-invalid]="!!error('notesMd')"
+                [attr.aria-describedby]="error('notesMd') ? 'td-notes-error' : null"
                 (input)="edit({ notesMd: text($event) })"
                 i18n-placeholder="@@taskDetail.notesPlaceholder"
                 placeholder="Details, links, **anything** that helps"
               ></textarea>
               @if (error('notesMd'); as message) {
-                <p class="field-error">{{ message }}</p>
+                <p id="td-notes-error" class="field-error">{{ message }}</p>
               }
             </div>
 
@@ -112,10 +113,11 @@
                     type="date"
                     [value]="d.scheduledDate"
                     [attr.aria-invalid]="!!error('scheduledDate')"
+                    [attr.aria-describedby]="error('scheduledDate') ? 'td-scheduled-error' : null"
                     (input)="edit({ scheduledDate: text($event) })"
                   />
                   @if (error('scheduledDate'); as message) {
-                    <p class="field-error">{{ message }}</p>
+                    <p id="td-scheduled-error" class="field-error">{{ message }}</p>
                   }
                 </div>
               }
@@ -127,12 +129,13 @@
                     type="text"
                     [value]="d.waitingForText"
                     [attr.aria-invalid]="!!error('waitingForText')"
+                    [attr.aria-describedby]="error('waitingForText') ? 'td-waiting-error' : null"
                     (input)="edit({ waitingForText: text($event) })"
                     i18n-placeholder="@@taskDetail.waitingPlaceholder"
                     placeholder="Person or answer"
                   />
                   @if (error('waitingForText'); as message) {
-                    <p class="field-error">{{ message }}</p>
+                    <p id="td-waiting-error" class="field-error">{{ message }}</p>
                   }
                 </div>
                 @if (task()?.list === 'WAITING') {
@@ -197,13 +200,14 @@
                       inputmode="numeric"
                       [value]="d.estimate"
                       [attr.aria-invalid]="!!error('estimate')"
+                      [attr.aria-describedby]="error('estimate') ? 'td-estimate-error' : null"
                       (input)="edit({ estimate: text($event) })"
                     />
                     <span i18n="@@taskDetail.minutes">min</span>
                   </span>
                 </div>
                 @if (error('estimate'); as message) {
-                  <p class="field-error">{{ message }}</p>
+                  <p id="td-estimate-error" class="field-error">{{ message }}</p>
                 }
               </div>
             </fieldset>
@@ -223,13 +227,14 @@
                     type="time"
                     [value]="d.dueTime"
                     [attr.aria-invalid]="!!error('dueTime')"
+                    [attr.aria-describedby]="error('dueTime') ? 'td-due-time-error' : null"
                     (input)="edit({ dueTime: text($event) })"
                     i18n-aria-label="@@taskDetail.dueTime"
                     aria-label="Due time"
                   />
                 </span>
                 @if (error('dueTime'); as message) {
-                  <p class="field-error">{{ message }}</p>
+                  <p id="td-due-time-error" class="field-error">{{ message }}</p>
                 }
               </div>
               <div class="row">
@@ -240,10 +245,11 @@
                   [min]="today()"
                   [value]="d.ticklerDate"
                   [attr.aria-invalid]="!!error('ticklerDate')"
+                  [attr.aria-describedby]="error('ticklerDate') ? 'td-tickler-error' : null"
                   (input)="edit({ ticklerDate: text($event) })"
                 />
                 @if (error('ticklerDate'); as message) {
-                  <p class="field-error">{{ message }}</p>
+                  <p id="td-tickler-error" class="field-error">{{ message }}</p>
                 } @else {
                   <p class="hint" i18n="@@taskDetail.ticklerHint">
                     Hidden until then, then back in the Inbox.
@@ -270,22 +276,26 @@
                     spellcheck="false"
                     [value]="d.customRule"
                     [attr.aria-invalid]="!!error('customRule')"
+                    [attr.aria-describedby]="error('customRule') ? 'td-rule-error' : null"
                     (input)="edit({ customRule: text($event) })"
                     placeholder="FREQ=WEEKLY;BYDAY=MO"
                   />
+                  @if (error('customRule'); as message) {
+                    <p id="td-rule-error" class="field-error">{{ message }}</p>
+                  }
                 </div>
-              }
-              @if (error('customRule'); as message) {
-                <p class="field-error">{{ message }}</p>
+              } @else if (error('customRule'); as message) {
+                <p class="field-error" role="alert">{{ message }}</p>
               }
               @if (d.repeat !== 'none') {
                 <div class="row wide">
                   <span class="label" i18n="@@taskDetail.repeatFrom">Next one</span>
                   <app-segmented
+                    #modePicker
                     [options]="modes"
                     [label]="repeatModeLabel"
                     [value]="d.repeatMode"
-                    (valueChange)="setRepeatMode($event)"
+                    (valueChange)="setRepeatMode($event, modePicker)"
                   />
                 </div>
               }
@@ -312,9 +322,14 @@
               Discard
             </button>
           }
-          <button type="submit" class="primary" [disabled]="!dirty() || !valid() || saving()">
+          <button
+            type="submit"
+            class="primary"
+            aria-keyshortcuts="Control+Enter Meta+Enter Control+S Meta+S"
+            [disabled]="!dirty() || !valid() || saving()"
+          >
             <ng-container i18n="@@taskDetail.save">Save changes</ng-container>
-            <kbd>Ctrl ↵</kbd>
+            <kbd aria-hidden="true" i18n="@@taskDetail.saveShortcut">Ctrl/⌘ ↵</kbd>
           </button>
         </footer>
       </form>
