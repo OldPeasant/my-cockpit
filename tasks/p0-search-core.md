@@ -17,7 +17,8 @@ One search across all modules (SPEC.md §4.4).
   - verified (2026-10-20 15:45+0200 by dell26/agent-5): cd server && ./gradlew test --tests 'ch.sonensei.cockpit.core.search.*' at beea32c -> 51 tests, 0 failures; incl. SearchIndexer upsert/delete tests (replace text, refresh recency, delete by type)
 - [x] `GET /api/v1/search?q=&types=&limit=` ranks by `ts_rank` + recency, falls back to trigram similarity for short/fuzzy queries, groups by type
   - verified (2026-10-20 15:45+0200 by dell26/agent-5): cd server && ./gradlew test --tests 'ch.sonensei.cockpit.core.search.*' at beea32c -> 51 tests, 0 failures; ranking (title before body, recency), trigram fallback (typo, fill-up, type filter) and grouping tests over GET /api/v1/search pass
-- [ ] Tests: prefix match, typo tolerance on titles, type filter, deleted items not found; `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.core.search.*'` passes (Postgres via Testcontainers where persistence is involved)
+- [x] Tests: prefix match, typo tolerance on titles, type filter, deleted items not found; `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.core.search.*'` passes (Postgres via Testcontainers where persistence is involved)
+  - verified (2026-10-20 15:45+0200 by dell26/agent-5): cd server && ./gradlew test --tests 'ch.sonensei.cockpit.core.search.*' with Testcontainers Postgres -> 51 tests (SearchEdgeCaseTests 32, SearchServiceTests 13, SearchWebTests 6), 0 failures; covers prefix, typo, type filter, deleted items
 - [ ] API documented: `api/openapi.yaml` regenerated (`UPDATE_OPENAPI=1 ./gradlew test --tests '*OpenApiContractTest'`) and `OpenApiContractTest` passes without the flag
 
 ## Notes
