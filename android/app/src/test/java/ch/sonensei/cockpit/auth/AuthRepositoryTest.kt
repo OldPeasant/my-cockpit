@@ -1,6 +1,7 @@
 package ch.sonensei.cockpit.auth
 
 import android.content.Context
+import androidx.lifecycle.viewModelScope
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import ch.sonensei.cockpit.core.network.AccessTokenInterceptor
@@ -15,11 +16,16 @@ import ch.sonensei.cockpit.core.network.generated.apis.AuthApi
 import ch.sonensei.cockpit.core.network.serverConfigDataStore
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.test.resetMain
+import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.test.setMain
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.jsonObject
@@ -35,8 +41,10 @@ import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import java.io.File
+import java.util.concurrent.TimeUnit
 
 /** [AuthRepository] against a fake server: login answers, stored tokens, logout. */
+@OptIn(ExperimentalCoroutinesApi::class)
 @RunWith(AndroidJUnit4::class)
 class AuthRepositoryTest {
     private val server = MockWebServer()
@@ -367,9 +375,58 @@ class AuthRepositoryTest {
             assertEquals(1, cachesCleared)
         }
 
+    @Test
+    fun `logout gives up on a server that does not answer the revocation and still logs out`() =
+        runTest {
+            server.enqueue(json(200, TOKEN_BODY))
+            login()
+            // The revocation answer would come far after the 5 s limit; virtual time reaches the limit at once.
+            server.enqueue(revocationAnsweredAfter(60))
+
+            repository.logout()
+
+            assertEquals(AuthRepository.REVOKE_TIMEOUT_MS, testScheduler.currentTime)
+            assertEquals(2, server.requestCount)
+            assertNull(tokenStore.current())
+            assertEquals(1, cachesCleared)
+        }
+
+    @Test
+    fun `a logout started from the app still forgets the tokens when its screen goes away during the revocation`() {
+        Dispatchers.setMain(UnconfinedTestDispatcher())
+        try {
+            runBlocking {
+                server.enqueue(json(200, TOKEN_BODY))
+                login()
+                server.takeRequest()
+            }
+            // The server answers the revocation slowly; the user leaves the app meanwhile (the view model is cleared).
+            server.enqueue(revocationAnsweredAfter(1))
+            val viewModel = SessionViewModel(tokenStore, repository)
+
+            viewModel.logout()
+            assertEquals("DELETE", server.takeRequest().method)
+            viewModel.viewModelScope.cancel()
+
+            val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(7)
+            while (tokenStore.current() != null && System.nanoTime() < deadline) Thread.sleep(50)
+            assertNull("tokens must not survive a logout the user started", tokenStore.current())
+            assertNull(tokenStore.session.value)
+        } finally {
+            Dispatchers.resetMain()
+        }
+    }
+
     private suspend fun login() = repository.login(serverAddress(), "alex", "pw", SecondFactor.Totp("123456"))
 
     private fun serverAddress() = server.url("/").toString()
+
+    private fun revocationAnsweredAfter(seconds: Long) =
+        MockResponse
+            .Builder()
+            .code(204)
+            .headersDelay(seconds, TimeUnit.SECONDS)
+            .build()
 
     private fun json(
         code: Int,
