@@ -17,3 +17,4 @@ Show and revoke Android devices; regenerate recovery codes.
 - [ ] `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.core.auth.*'` passes (Postgres via Testcontainers where persistence is involved) for the recovery code endpoint
 
 ## Notes
+- ASSUMPTION (2026-10-20 15:45+0200 by dell26/agent-4): POST /api/v1/auth/recovery-codes shares the global LoginThrottle with login (wrong TOTP counts as a failed attempt, 429 + Retry-After when blocked) so a stolen session cannot brute-force TOTP; wrong TOTP is a 400 with field 'totp', not 401, so the SPA does not treat it as a logout
