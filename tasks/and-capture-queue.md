@@ -17,3 +17,4 @@ Offline-first capture (SPEC.md §9.3).
 - [ ] `cd android && ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.capture.queue.*'` passes, covering offline write, upload ordering, idempotent retry (MockWebServer), attachment cleanup (Robolectric/Compose UI tests for screens)
 
 ## Notes
+- ASSUMPTION (2026-10-21 01:15+0200 by dell26/agent-1): Pending captures are NOT cleared on logout (not a SessionCache): they exist nowhere else yet; the job just waits (retry with backoff) until someone is logged in again. Single-user app, so they go to the next login.
