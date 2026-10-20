@@ -15,7 +15,8 @@ Sources, calendars, events (SPEC.md §6.1).
   - verified (2026-10-20 16:43+0200 by dell26/agent-7): V202610201351__calendar_model.sql applied by Flyway in Testcontainers Postgres 16 during ./gradlew test --rerun --tests 'ch.sonensei.cockpit.calendar.model.*' -> schema round-trip + constraint tests (CalendarModelTests, CalendarModelEdgeCaseTests) pass: sources (LOCAL|GOOGLE|MICROSOFT|CALDAV|ICS_FEED, config, encrypted credentials), calendars (color/visible/readOnly/default), events (tz/all-day, RRULE, EXDATEs, override parent+recurrence id, attendees JSON, reminders, status, transparency, conference URL, external_id/etag, sync_state)
 - [x] Resolver EVENT, search indexing hooks
   - verified (2026-10-20 16:43+0200 by dell26/agent-7): ./gradlew test --rerun --tests 'ch.sonensei.cockpit.calendar.model.*' -> CalendarItemsAndSearchTests + EdgeCaseTests pass: EVENT resolver (subtitle, deep link, hides cancelled overrides/overrides of trashed series) and CalendarEventIndexer search hooks
-- [ ] `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.calendar.model.*'` passes (Postgres via Testcontainers where persistence is involved)
+- [x] `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.calendar.model.*'` passes (Postgres via Testcontainers where persistence is involved)
+  - verified (2026-10-20 16:43+0200 by dell26/agent-7): cd server && ./gradlew ktlintCheck test --rerun --tests 'ch.sonensei.cockpit.calendar.model.*' (Testcontainers postgres) -> BUILD SUCCESSFUL, 46 tests, 0 failures/errors
 
 ## Notes
 - ASSUMPTION (2026-10-20 16:01+0200 by dell26/agent-7): Credentials 'ref' is stored as an EncryptedSecret column calendar_source.credentials (encrypted with the master key) instead of a separate credentials table
