@@ -33,7 +33,11 @@ try {
     .sort()
     .filter((file) => expected.get(file) !== actual.get(file))
     .map((file) =>
-      !actual.has(file) ? `missing: ${file}` : !expected.has(file) ? `stale: ${file}` : `changed: ${file}`,
+      !actual.has(file)
+        ? `missing: ${file}`
+        : !expected.has(file)
+          ? `stale: ${file}`
+          : `changed: ${file}`,
     );
   if (diffs.length > 0) {
     console.error(`${committed} is out of date with ../api/openapi.yaml:`);
