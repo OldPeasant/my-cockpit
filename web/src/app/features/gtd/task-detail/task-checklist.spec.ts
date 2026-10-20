@@ -569,5 +569,35 @@ describe('TaskChecklist', () => {
         service.deleteChecklistItem = original;
       }
     });
+
+    it('does not reload or warn for the new task when a toggle of the previous task gets a 412 late', async () => {
+      await render();
+      const pending = deferred<ChecklistItemResponse>();
+      const original = service.updateChecklistItem;
+      service.updateChecklistItem = async (old, body) => {
+        updates.push({ item: old, body });
+        return pending.promise;
+      };
+      try {
+        await click(checkboxes()[0]);
+        host.id.set('t2');
+        await refresh();
+        expect(texts()).toEqual(['Other task step']);
+
+        // The toggle of t1 meets a newer version after the editor switched to t2.
+        pending.reject(new ApiError(412, 'Precondition Failed'));
+        await refresh();
+        expect(loads).toEqual(['t1', 't2']);
+        expect(alert()).toBeUndefined();
+        expect(texts()).toEqual(['Other task step']);
+
+        // The finished change no longer blocks the new task's checklist.
+        expect(checkboxes().every((box) => !box.disabled)).toBe(true);
+        await typeNew('Fill the watering can');
+        expect(addButton().disabled).toBe(false);
+      } finally {
+        service.updateChecklistItem = original;
+      }
+    });
   });
 });

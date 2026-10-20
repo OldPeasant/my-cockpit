@@ -979,4 +979,42 @@ describe('TaskDetail', () => {
     expect(field<HTMLTextAreaElement>('#td-title').value).toBe('Water the plants');
     expect(saveButton().disabled).toBe(true);
   });
+
+  it('shows no save error for the new task when a save of the previous task fails late', async () => {
+    let rejectSave!: () => void;
+    let firstSave = true;
+    answer = (fn, params) => {
+      if (fn === getTask && params['id'] === 't2') {
+        return Promise.resolve(task({ id: 't2', title: 'Water the plants', version: 7 }));
+      }
+      if (fn === updateTask && firstSave) {
+        firstSave = false;
+        return new Promise<never>(
+          (_, reject) =>
+            (rejectSave = () =>
+              reject(new ApiError(500, 'Internal Server Error', 'The server failed.'))),
+        );
+      }
+      return undefined;
+    };
+    await render();
+    await type('#td-title', 'Call the plumber today');
+    await save();
+    host.id.set('t2');
+    await refresh();
+
+    // The save of t1 fails after the editor switched to t2.
+    rejectSave();
+    await refresh();
+    expect(element.querySelector('.bar [role=alert]')).toBeNull();
+    expect(text()).not.toContain('The server failed.');
+    expect(field<HTMLTextAreaElement>('#td-title').value).toBe('Water the plants');
+
+    // The finished save no longer blocks saving t2.
+    await type('#td-title', 'Water the plants twice');
+    expect(saveButton().disabled).toBe(false);
+    await save();
+    expect(callsOf(updateTask)).toHaveLength(2);
+    expect(callsOf(updateTask)[1].params).toMatchObject({ id: 't2', 'If-Match': '"7"' });
+  });
 });
