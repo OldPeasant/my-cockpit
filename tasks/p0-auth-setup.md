@@ -17,7 +17,8 @@ Single-user setup flow (SPEC.md §4.1): available only while no user exists.
   - verified (2026-10-20 12:05+0200 by dell26/agent-4): SetupWebTests 'every setup endpoint answers 409 once the account is active' + SetupEdgeCaseTests (active stays closed after 2 days); 'TOTP secret is stored encrypted' reads app_user.totp_secret via JDBC -> ciphertext, SecretCipher.decrypt == secret -> pass
 - [x] Tests compute TOTP codes from the secret (RFC 6238 test vectors pass); `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.core.auth.*'` passes (Postgres via Testcontainers where persistence is involved)
   - verified (2026-10-20 12:05+0200 by dell26/agent-4): TotpTests 'RFC 6238 test vectors pass' (SHA1/256/512, 8 digits, all 18 vectors); cd server && ./gradlew test --rerun --tests 'ch.sonensei.cockpit.core.auth.*' --tests '*OpenApiContractTest' against Postgres Testcontainer -> BUILD SUCCESSFUL, 50 tests, 0 failures
-- [ ] API documented: `api/openapi.yaml` regenerated (`UPDATE_OPENAPI=1 ./gradlew test --tests '*OpenApiContractTest'`) and `OpenApiContractTest` passes without the flag
+- [x] API documented: `api/openapi.yaml` regenerated (`UPDATE_OPENAPI=1 ./gradlew test --tests '*OpenApiContractTest'`) and `OpenApiContractTest` passes without the flag
+  - verified (2026-10-20 12:05+0200 by dell26/agent-4): cd server && UPDATE_OPENAPI=1 ./gradlew test --tests '*OpenApiContractTest' -> api/openapi.yaml regenerated (no diff vs committed); then ./gradlew test --rerun --tests '*OpenApiContractTest' without flag -> pass; web: npm run api:gen + api:check -> up to date
 
 ## Notes
 - ASSUMPTION (2026-10-20 11:43+0200 by dell26/agent-4): Migration lives in db/migration/core/ (V202610201000__core_auth_user.sql), not core-auth/: MigrationConventionTests requires folder == module name [a-z0-9]+, so a hyphenated folder fails the check.
