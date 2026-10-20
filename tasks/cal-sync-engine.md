@@ -1,12 +1,13 @@
 ---
 title: Calendar sync engine
-status: in_progress
-owner: dell26/agent-2
+status: todo
+owner: 
 deps: [cal-local-api]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/calendar/sync,server/src/test/kotlin/ch/sonensei/cockpit/calendar/sync]
 prio: 1
-lease_until: 2026-10-21T00:01:10Z
-extended: dell26/agent-2
+lease_until: 
+extended: 
+releases: 1
 ---
 ## Goal
 Provider-independent two-way sync framework (SPEC.md §6.2).
@@ -27,3 +28,4 @@ Provider-independent two-way sync framework (SPEC.md §6.2).
 - ASSUMPTION (2026-10-21 00:42+0200 by dell26/agent-2): Scheduler ticks every 30 s (cockpit.calendar.sync.tick) and syncs sources whose adapter pollInterval passed since the last attempt; POST /sources/{id}/sync runs synchronously, returns 200 with the status (errors in sync.lastError), 409 for LOCAL or types without adapter. GET /sources omits config (ICS URLs may hold tokens) and credentials.
 - extended by dell26/agent-2: Implementation, API, openapi, ADR 0002, fake-adapter tests and code review (reviews/cal-sync-engine/review.md) are committed. Left: (1) fix review CR-2 (normalize/validate remote events; WIP test CalendarSyncOverrideTests 'an invalid remote change of a known event is skipped...' fails at line 209: Broken vs Standup) and confirm CR-1 is fixed (other override tests pass); decide on P3 CR-3..CR-5; (2) re-run test-writer + code-reviewer on final code, fixer report if needed; (3) tasks.py verify for all 6 criteria, quality.json, done. Note: core ClockConfigurationTests failed once on nanosecond precision (flaky, unrelated to this task).
 - ASSUMPTION (2026-10-21 01:26+0200 by dell26/agent-2): Moved isWebUrl/ruleParts/isValidRule/isEmail into CalendarEventService companion (outside touches) so sync normalization reuses API validation; CR-4 (brief revert of an edit by a sync fetched before write-through) deferred, converges on next poll
+- release by dell26/agent-2: Done: adapter interface+registry, scheduler, write-through (beforeCommit), sources API + POST sync, openapi regenerated, ADR 0002, fake-adapter tests, review round 1 fixed (CR-1,2,3,5; CR-4 deferred by assumption), re-review in reviews/cal-sync-engine/review.md. Last commit 81b1c739 adds test-writer re-run tests (uncommitted tests.md not yet written). Sync suite: 90 tests, 1 fails: CalendarSyncOverrideTests 'a provider answering a write-through with an event it cannot be stored as fails the edit with 502...' gets 500 -> production bug: normalization failure of the provider's answer in CalendarWriteThrough must map to 502 Problem Details. Left: (1) fix that; (2) re-review CR-1 (P2): after normalization drops/truncates remote fields (attendees, reminders, conference URL, description), a later local edit writes the reduced event back to the provider - fix (e.g. keep raw remote fields / only send changed fields) or record an assumption + test documenting it; CR-2 (P3, tryLock refetch skip) at discretion; (3) fixer report, then re-run test-writer (writes tests.md incl. coverage) and code-reviewer on final code; (4) tasks.py verify 1-6, quality.json, .taskcheck, done.
