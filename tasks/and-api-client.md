@@ -1,10 +1,11 @@
 ---
 title: Android API client and auth plumbing
-status: todo
-owner:
+status: in_progress
+owner: dell26/agent-2
 deps: [and-shell,p0-auth-tokens]
 touches: [android/app/build.gradle.kts,android/app/src/main/java/ch/sonensei/cockpit/core/network,android/app/src/test/java/ch/sonensei/cockpit/core/network]
 prio: 1
+lease_until: 2026-10-20T13:16:16Z
 ---
 ## Goal
 Retrofit client generated from the OpenAPI contract, with token handling.
