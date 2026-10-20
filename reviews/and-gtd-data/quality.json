@@ -1,0 +1,33 @@
+{
+  "schema": 1,
+  "task": "and-gtd-data",
+  "reviewed_revision": "c7ff89728f5c38e5af4a3e99518d3232ea12775b",
+  "helpers": {
+    "test-writer": {"status": "completed", "report": "reviews/and-gtd-data/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/and-gtd-data/review.md"},
+    "fixer": {"status": "completed", "report": "reviews/and-gtd-data/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "R1-CR-1", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "round 1: concurrent refreshes of a view could overwrite newer data; loads now serialized per view"},
+    {"id": "R1-CR-2", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "round 1: a refresh in flight at logout could refill the cache; write lock + clear epoch drops it"},
+    {"id": "R1-CR-3", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "round 1: SSE tests passed without change events; now exact per-route load counts on an open stream"},
+    {"id": "R1-CR-4", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "round 1: double load on screen start; first connection no longer reloads, only reconnects"},
+    {"id": "R1-CR-5", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "round 1: SQLiteException during refresh broke the flow; mapped to Failed(null)"},
+    {"id": "R1-TW-1", "source": "test-writer", "severity": "Low", "disposition": "fixed",
+     "note": "round 1: rows could be emitted with refreshedAt null; rows+meta now read in one transaction"},
+    {"id": "R2-CR-1", "source": "code-reviewer", "severity": "P3", "disposition": "accepted",
+     "note": "round 2: a change between the initial load and the first SSE subscription is missed until the next matching change, reconnect or 15-min periodic sync; narrow window, recorded as assumption"},
+    {"id": "R2-CR-2", "source": "code-reviewer", "severity": "P3", "disposition": "accepted",
+     "note": "round 2: a load failing after logout can set the offline flag again; cleared by the next successful load, which each screen start triggers immediately; no data leaks"}
+  ],
+  "validation": [
+    {"command": "cd android && ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.gtd.data.*' ktlintCheck lintDebug", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
