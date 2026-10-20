@@ -4,26 +4,33 @@ Date: 2026-10-20
 
 Task: p0-auth-login - Login with password + TOTP, sessions, CSRF, lockout
 
-Scope: `git diff beb6dc5f09d0e07a81f9cf9106e318733a331253..d8a9416fffd65f45d0a39b56ec348bac22c84806` (the 5 `p0-auth-login:` commits; base = merge-base with origin/main). Committed changes only; the working tree was clean.
+Scope: `git diff 23edd3c563f77c5be6c77cea88decf2a6b0bc1a8..HEAD`, excluding `tasks/`. This is the second review pass, on the final code revision `6222476ab1fcb51d2ead8eac566addac5aa44984`. HEAD `a71d976` only changes `reviews/p0-auth-login/tests.md` compared with 6222476. Committed changes only. The working tree was clean before and after the test runs.
 
 Requirements:
-- `tasks/p0-auth-login.md` acceptance criteria 1-7 and the 6 recorded assumptions (`python tasks.py assumptions`)
-- SPEC.md §4.1 (authentication & security), §4.2 (ids, timestamps, Problem Details)
-- docs/ARCHITECTURE.md conventions, AGENTS.md project notes, docs/QUALITY.md (report contract)
-- docs/adr/0001-web-sessions-in-database.md (added by this task)
+- `tasks/p0-auth-login.md`: acceptance criteria 1-7 and the 7 recorded assumptions (including the CR-1/CR-2 assumption from 12:51)
+- SPEC.md §4.1 (authentication and security) and §4.2 (conventions)
+- docs/ARCHITECTURE.md, AGENTS.md project notes (log hygiene, Problem Details, OpenAPI regeneration, migrations), docs/QUALITY.md (report contract)
+- docs/adr/0001-web-sessions-in-database.md
+- Previous review, fix and test reports in `reviews/p0-auth-login/`
 
 Git range:
 - Branch: main
-- HEAD: d8a9416fffd65f45d0a39b56ec348bac22c84806
-- Base/start: beb6dc5f09d0e07a81f9cf9106e318733a331253
-- Commits reviewed: 5 (f91fa8c, 43ceb13, c7bb6f9, 7c3b0c2, d8a9416)
+- HEAD: a71d9765bcf6fd6b84a3dd2eba84e32516bb9f27 (code revision 6222476ab1fcb51d2ead8eac566addac5aa44984)
+- Base/start: 23edd3c563f77c5be6c77cea88decf2a6b0bc1a8
+- Commits reviewed: 10 (f7c1b45, cc12f97, 3e8dca8, 1928589, a556101, 5d07198, a04d5ab, 8076afd, 6222476, a71d976)
 
-Commands run:
-- `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.core.auth.*'` (Testcontainers Postgres) -> 108 tests, 0 failures, 0 errors, 0 skipped (summed from `build/test-results/test/TEST-ch.sonensei.cockpit.core.auth.*.xml`)
+Commands run (by this reviewer, on HEAD a71d976 = code 6222476):
+- `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.core.auth.*'` (Testcontainers Postgres) -> BUILD SUCCESSFUL. 118 tests, 0 failures, 0 errors, 0 skipped, summed from `build/test-results/test/TEST-ch.sonensei.cockpit.core.auth.*.xml`.
+- `cd server && ./gradlew test --tests '*OpenApiContractTest'` (without `UPDATE_OPENAPI`) -> BUILD SUCCESSFUL. 1 test, 0 failures. `git status --short` was empty afterwards, so `api/openapi.yaml` matches the running server.
 
-Files read in full: `AuthController.kt`, `LoginService.kt`, `LoginThrottle.kt`, `AuthSession.kt`, `UserAccount.kt`, `SecurityConfiguration.kt`, `SessionAuthenticationFilter.kt`, `SessionCookies.kt`, `AuthSessionRepository.kt`, the Flyway migration, `application-dev.properties`, `BaseEntity.kt`, `ProblemDetailsAdvice.kt`, `WithCockpitUser.kt`; tests inspected by name and in the relevant parts (concurrency, throttle, CSRF, cookies, SPA, log hygiene).
+Files read in full: `AuthController.kt`, `LoginService.kt`, `LoginThrottle.kt`, `AuthSession.kt`, `UserAccount.kt`, `AuthSessionRepository.kt`, `SecurityConfiguration.kt`, `SessionAuthenticationFilter.kt`, `SessionCookies.kt`, `UserAccountRepository.kt`, the Flyway migration `V202610201100__core_auth_session.sql`, `application-dev.properties`, `WithCockpitUser.kt`, `LoginServiceThrottleTests.kt`, `CsrfCookieWebTests.kt`, and the relevant parts of `LoginEdgeCaseTests.kt`, `SecurityConfigurationTests.kt`, `SpaFallbackTests.kt`, `BaseEntity.kt` and `ProblemDetailsAdvice.kt`.
 
-Summary: 0 P0, 1 P1, 0 P2, 1 P3
+Summary: 0 P0, 0 P1, 1 P2, 0 P3
+
+## Status of the previous findings
+
+- **CR-1 (login backoff bypass through parallel requests): resolved.** `LoginThrottle.tryBeginAttempt()` (`LoginThrottle.kt:39-47`) checks the block and counts the attempt in one `@Synchronized` step. `LoginService.login()` calls it before any credential work (`LoginService.kt:45`). Only `recordSuccess()` takes the count back, and it now runs after `sessions.saveAndFlush(...)` (`LoginService.kt:61-67`, the TW-1 fix). So a login that throws, including the 409 race on a recovery code (the optimistic lock fails in the flush), stays counted as a failure. Regression tests: `parallel logins with a wrong password cannot slip past the backoff` (12 parallel `LoginService.login` calls give exactly 5 `InvalidCredentials` and 7 `Throttled`), `concurrent attempts are admitted atomically...`, and the 4 `LoginServiceThrottleTests` (including the TW-1 test `an attempt that throws while creating its session...`). All pass. The recorded assumptions still hold: attempts 1-4 are free, from the 5th a 30 s block doubles per further failure up to 1 h, blocked attempts do not count, and a success resets.
+- **CR-2 (CSRF token not rotated on login): resolved.** `SessionCookies.rotateCsrfToken()` saves a newly generated token through the same `CookieCsrfTokenRepository` instance the filter chain uses (`SessionCookies.kt:44-60`, `SecurityConfiguration.kt:64`). `AuthController` calls it after a successful login (`AuthController.kt:91`) and on every logout (`AuthController.kt:115`). A failed login keeps the existing cookie. `CsrfCookieWebTests` covers all three cases, and the new cookie has the expected attributes (not HttpOnly, Secure, Path=/, SameSite=Lax).
 
 ## P0 Critical
 
@@ -31,32 +38,35 @@ None.
 
 ## P1 High
 
-- [ ] **CR-1 | Login backoff can be bypassed by parallel requests (check-then-act race)**
-    - File: `server/src/main/kotlin/ch/sonensei/cockpit/core/auth/domain/LoginService.kt:43` (with `:47-51`) and `server/src/main/kotlin/ch/sonensei/cockpit/core/auth/domain/LoginThrottle.kt:26-38`
-    - Category: Security
-    - Problem: `login()` calls `throttle.retryAfter()` first, then runs the Argon2id password check (and, on the recovery-code path, one Argon2id check per unused code), and only afterwards calls `throttle.recordFailure()`. Each throttle method is `@Synchronized` on its own, but the check and the record are not one atomic step, and nothing limits in-flight attempts. Any number of requests arriving while no block is active (the 4 free attempts, or right after a block expires) all pass the check before any of them records its failure. With Tomcat's default 200 worker threads an attacker gets up to ~200 guesses per block window instead of 1, which defeats the "5 consecutive failures -> exponential backoff" protection (SPEC.md §4.1, criterion 4) for exactly the adversarial case it exists for. The existing test `concurrent failures are all counted` (`LoginThrottleTests.kt:89`) only calls `recordFailure()` in parallel, so it does not cover this; the web tests make sequential calls only.
-    - Why it matters: the throttle is the only brute-force protection on the single owner account; it is effective against a sequential client but not against a parallel one.
-    - Suggested fix: make admission atomic, e.g. a `LoginThrottle.tryBegin()` that, under the same lock, rejects while blocked and otherwise counts the attempt as in flight (pessimistically treat it as a failure and undo on success, or allow at most one in-flight credential check and answer 429 to the rest). Add a test that fires more than `FREE_ATTEMPTS` wrong logins concurrently through `LoginService.login` and asserts that at most `FREE_ATTEMPTS` of them reach the credential check (the rest get `Throttled`).
+None.
 
 ## P2 Medium
 
-None.
+- [ ] **CR-1 | Parallel requests with the same expired session cookie can return 500 instead of 401**
+    - File: `server/src/main/kotlin/ch/sonensei/cockpit/core/auth/domain/LoginService.kt:81` (called from `server/src/main/kotlin/ch/sonensei/cockpit/core/auth/infra/SessionAuthenticationFilter.kt:31`)
+    - Category: Correctness
+    - Problem: when `authenticate()` finds an expired session, it removes it with `sessions.delete(session)`, which is an entity delete. `AuthSession` extends `BaseEntity`, which has a `@Version` field, so Hibernate issues `delete ... where id=? and version=?` and treats 0 affected rows as an optimistic-lock failure. Suppose several requests carry the same expired cookie. All of them load the row before the first one commits. Under Postgres READ COMMITTED, the later deletes wait for the first transaction to commit, then match 0 rows and throw `OptimisticLockingFailureException` when `authenticate()` commits. The exception is raised inside the security filter, not in a controller, so `ProblemDetailsAdvice` (which maps it to 409) never sees it. Those requests end in a server error instead of the anonymous 401 they should get. This situation is normal use, not an edge case. A browser-session cookie stays in the browser while the server ends the session after 12 h idle (recorded assumption 2). An SPA tab left open overnight that loads several endpoints in parallel on return sends the same expired cookie in all of them. Other code paths already avoid this. `logout()` and `login()` use bulk deletes (`deleteByTokenHash`, `deleteExpired`) that do not check the row count, and `touch()` is deliberately a bulk update for the same reason (see its KDoc). No test sends concurrent requests with an expired session.
+    - Why it matters: at the moment the session expires, the client gets sporadic 500s and error log entries instead of a clean 401 that sends the user to the login screen. This breaks the "unauthenticated -> 401" contract of criterion 5 under concurrency.
+    - Suggested fix: delete the expired session with a bulk query that tolerates a row that is already gone, for example `sessions.deleteByTokenHash(session.tokenHash)` or a `@Modifying` delete by id, as `logout()` already does. Add a test that sends several parallel `authenticate(token)` calls, or parallel `GET /api/v1/auth/me`, with one expired token, and asserts that all of them return null/401 without an exception.
 
 ## P3 Low
 
-- [ ] **CR-2 | CSRF token is not rotated on login**
-    - File: `server/src/main/kotlin/ch/sonensei/cockpit/core/auth/api/AuthController.kt:86-90` (with `SecurityConfiguration.kt:60-66`)
-    - Category: Security
-    - Problem: Spring Security normally replaces the CSRF token when a user authenticates (`CsrfAuthenticationStrategy`), so a token planted before login can't be reused after it. This login is a custom controller and never goes through Spring's session authentication strategy, so the pre-login `XSRF-TOKEN` stays valid for the authenticated session. Exploiting this needs an attacker who can already set cookies for the origin (a sibling subdomain, or a man in the middle on plain HTTP). That is why the priority is low.
-    - Why it matters: it is defence in depth that Spring gives by default and this login quietly drops. The token is also independent of the session, so it is never tied to the logged-in session.
-    - Suggested fix: after a successful login (and after logout), clear the CSRF token through the configured `CsrfTokenRepository` (`saveToken(null, request, response)`), so the next request gets a fresh `XSRF-TOKEN`. Add a test that the cookie is replaced on login.
+None.
 
 ## Notes (not findings)
 
-- Verified and found correct: cookie attributes (`HttpOnly`, `SameSite=Lax`, `Secure` unless `cockpit.auth.secure-cookie=false`, which only the dev profile sets); the remembered cookie's 30-day sliding Max-Age is re-issued when the expiry slides; non-remembered sessions use a browser-session cookie plus a 12 h idle limit on the server (assumption 2); tokens are stored only as SHA-256 hashes (256-bit `SecureRandom`); the stateless chain sets no `JSESSIONID`; CSRF double-submit via `.spa()` with a custom repository, and login/logout require the header (assumption 4); setup is still exempt; a uniform 401 `Invalid credentials` for a wrong username, password, TOTP or recovery code, a dummy Argon2 hash when no account exists, and the second factor checked even when the password is wrong; a recovery code is consumed only on full success. A concurrent reuse of the same recovery code is stopped by `@Version` optimistic locking (the second request gets a 409 and its transaction rolls back), and a test covers it; `Retry-After` rounds up to whole seconds; secrets are hidden by the `toString` overrides, and a test checks the log output. `/actuator/health` and SPA GET/HEAD are public, `/api/**`, `/actuator/**` and the API docs return 401, and `@WithCockpitUser`/`cockpitUser()` are in place.
-- `python tasks.py verify p0-auth-login` shows all 7 criteria still unrecorded. The parent records them after the quality workflow (AGENTS.md step 7), so this is not reported as a finding. Criterion 6 was re-run here (see "Commands run"). Criterion 7 (OpenAPI contract) was not re-run in this review: `api/openapi.yaml` contains the three auth operations and the `LoginRequest`/`MeResponse` schemas, and the generated web client is part of the diff.
-- Unauthenticated 401s and CSRF 403s are plain responses, not Problem Details. That comes from the earlier task p0-auth-setup and is outside this diff.
+- Verified as correct on the final code:
+  - **Cookies:** the session cookie is `HttpOnly` and `SameSite=Lax`. It is `Secure` unless `cockpit.auth.secure-cookie=false`, which only the dev profile sets. With remember device it is persistent with a sliding 30-day `Max-Age` that is re-issued when the expiry slides; without it, it is a browser-session cookie plus a 12 h server idle limit. Tokens are 256 bits from `SecureRandom` and stored only as SHA-256 hashes.
+  - **Sessions and CSRF:** no servlet session or `JSESSIONID` is created. CSRF uses the double-submit cookie via `.spa()`, and login/logout also need the header. Setup stays exempt.
+  - **Failed logins:** the response is the same 401 Problem Detail for a wrong username, password, TOTP or recovery code. A dummy Argon2 hash is checked when no account exists, and all unused recovery codes are compared, so timing gives nothing away. A recovery code is used up only on full success. 429 responses carry `Retry-After` rounded up to whole seconds. Validation errors (400) are rejected before the throttle and do not count.
+  - **Public and protected routes:** `/actuator/health` and SPA GET/HEAD are public. `/api/**`, other actuator paths and the API docs answer 401. `@WithCockpitUser` and `cockpitUser()` work in other modules' MockMvc tests.
+  - **Log hygiene:** logs contain no username, password, code or token at INFO. `toString` overrides hide the secrets, and a captured-output test checks this.
+  - **Migration:** the Flyway migration follows the `core/V<yyyyMMddHHmm>__core_...` naming.
+- Not independently reproduced: the fix report says an authenticated response also re-issues `XSRF-TOKEN` (an expired cookie followed by a new one), apparently through Spring's default session-authentication strategy. The 12:51 assumption records per-response rotation as intended, and double-submit compares cookie and header of the same request. If a state-changing request is built from the old cookie value while a parallel response replaces the cookie, it could get a 403, but this is unlikely. That is a decision for the humans reviewing the assumption, not a finding here.
+- Accepted residual risk, as in the fix and test reports: an error that only appears at transaction commit, after `recordSuccess()`, would still reset the backoff. `saveAndFlush` makes this very unlikely.
+- Unauthenticated 401 and CSRF 403 responses are plain status codes, not Problem Details (`HttpStatusEntryPoint`). This predates the task (p0-auth-setup) and the API does not document a 403, so it is not raised here.
+- `python tasks.py verify` evidence is recorded by the parent after the quality workflow (AGENTS.md step 7). This review re-ran criteria 6 and 7 itself (see "Commands run").
 
 ## Review conclusion
 
-Material issues found; fix before completing the task.
+Material issues found; fix before completing the task. (One P2 resilience defect, CR-1. Both earlier findings are resolved, and no acceptance criterion is unmet.)
