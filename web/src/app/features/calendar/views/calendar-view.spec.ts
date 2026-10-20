@@ -3,9 +3,10 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { By } from '@angular/platform-browser';
 import { ActivatedRoute, convertToParamMap, Router } from '@angular/router';
 import { DatesSetInfo, EventInput, FullCalendarComponent } from '@fullcalendar/angular';
-import { Subject } from 'rxjs';
+import { filter, Subject } from 'rxjs';
 import {
   Api,
+  ChangeEvent,
   listCalendars,
   listEventOccurrences,
   Settings,
@@ -15,6 +16,7 @@ import { ChangeEventsService } from '../../../core/events';
 import { NotificationService } from '../../../core/http';
 import { SettingsService } from '../../settings/settings.service';
 import { fakeSettings } from '../../settings/testing';
+import calendarRoutes from '../calendar.routes';
 import CalendarView from './calendar-view';
 import { fakeCalendar, fakeOccurrence } from './testing';
 
@@ -36,8 +38,28 @@ function week(): DatesSetInfo {
   } as unknown as DatesSetInfo;
 }
 
+/** The week after {@link week} (CEST, after the DST change). */
+function nextWeek(): DatesSetInfo {
+  return {
+    start: new Date('2026-03-29T22:00:00Z'),
+    end: new Date('2026-04-05T22:00:00Z'),
+    view: { type: 'timeGridWeek', currentStart: new Date('2026-03-29T22:00:00Z') },
+  } as unknown as DatesSetInfo;
+}
+
+describe('calendar routes', () => {
+  it('lazy-loads the calendar view at /calendar', async () => {
+    const [route] = calendarRoutes;
+    expect(route.path).toBe('');
+    expect(route.title).toBe('Calendar');
+    expect(await route.loadComponent!()).toMatchObject({ default: CalendarView });
+  });
+});
+
 describe('CalendarView', () => {
   let calls: Call[];
+  let resyncs: Subject<void>;
+  let changes: Subject<ChangeEvent>;
   let settings: ReturnType<typeof signal<Settings | null>>;
   let settingsLoad: ReturnType<typeof vi.fn>;
   let navigate: ReturnType<typeof vi.fn>;
@@ -59,7 +81,10 @@ describe('CalendarView', () => {
         { provide: Api, useValue: api() },
         {
           provide: ChangeEventsService,
-          useValue: { resync$: new Subject<void>(), events$: () => new Subject() },
+          useValue: {
+            resync$: resyncs.asObservable(),
+            events$: (type: string) => changes.pipe(filter((event) => event.type === type)),
+          },
         },
         { provide: SettingsService, useValue: { settings, load: settingsLoad } },
         { provide: NotificationService, useValue: notifications },
@@ -90,6 +115,8 @@ describe('CalendarView', () => {
 
   beforeEach(() => {
     calls = [];
+    resyncs = new Subject<void>();
+    changes = new Subject<ChangeEvent>();
     settings = signal<Settings | null>(
       fakeSettings({ timeZone: 'Europe/Zurich', weekStart: 'MONDAY' }),
     );
@@ -269,5 +296,192 @@ describe('CalendarView', () => {
     expect(root.textContent).toContain('The calendars could not be loaded.');
     root.querySelector<HTMLButtonElement>('.calendar-panel button')!.click();
     expect(callsOf(listCalendars)).toHaveLength(2);
+  });
+
+  it('falls back to the week view for an invalid URL view and date', async () => {
+    await render({ view: 'year', date: '2026-02-30' });
+    const view = options()!;
+    expect(view.initialView).toBe('timeGridWeek');
+    expect(view.initialDate).toBeUndefined();
+  });
+
+  it('opens the day and agenda views of the URL', async () => {
+    await render({ view: 'day', date: '2026-03-29' });
+    expect(options()!.initialView).toBe('timeGridDay');
+    expect(options()!.initialDate).toBe('2026-03-29');
+    TestBed.resetTestingModule();
+    await render({ view: 'agenda' });
+    expect(options()!.initialView).toBe('listWeek');
+  });
+
+  it('follows changed settings (time zone and week start)', async () => {
+    await render();
+    expect(options()!.timeZone).toBe('Europe/Zurich');
+    expect(options()!.firstDay).toBe(1);
+    settings.set(fakeSettings({ timeZone: 'Asia/Tokyo', weekStart: 'SATURDAY' }));
+    await fixture.whenStable();
+    expect(options()!.timeZone).toBe('Asia/Tokyo');
+    expect(options()!.firstDay).toBe(6);
+  });
+
+  it('puts the view and the date in the settings time zone into the URL', async () => {
+    settings.set(fakeSettings({ timeZone: 'America/New_York', weekStart: 'SUNDAY' }));
+    await render();
+    // Sunday 2026-03-22 00:00 in New York (EDT, -04:00).
+    options()!.datesSet!({
+      start: new Date('2026-03-22T04:00:00Z'),
+      end: new Date('2026-03-23T04:00:00Z'),
+      view: { type: 'timeGridDay', currentStart: new Date('2026-03-22T04:00:00Z') },
+    } as unknown as DatesSetInfo);
+    expect(navigate).toHaveBeenLastCalledWith(
+      [],
+      expect.objectContaining({
+        queryParams: { view: 'day', date: '2026-03-22' },
+        queryParamsHandling: 'merge',
+        replaceUrl: true,
+      }),
+    );
+  });
+
+  it('shows the occurrences of the newest range when answers arrive out of order', async () => {
+    await render();
+    await answerCalendars(fakeCalendar('family'));
+    options()!.datesSet!(week());
+    await fixture.whenStable();
+    const thisWeek = callsOf(listEventOccurrences).at(-1)!;
+    options()!.datesSet!(nextWeek());
+    await fixture.whenStable();
+    const following = callsOf(listEventOccurrences).at(-1)!;
+    expect(following.params).toMatchObject({
+      from: '2026-03-29T22:00:00.000Z',
+      to: '2026-04-05T22:00:00.000Z',
+    });
+
+    following.resolve({ items: [fakeOccurrence('Next week', { calendarId: 'family' })] });
+    await settle();
+    thisWeek.resolve({ items: [fakeOccurrence('This week', { calendarId: 'family' })] });
+    await settle();
+    await fixture.whenStable();
+    expect(titles()).toEqual(['Next week']);
+  });
+
+  it('refetches the range on a SSE resync and with the ids of new calendars', async () => {
+    await render();
+    await answerCalendars(fakeCalendar('family'));
+    options()!.datesSet!(week());
+    await fixture.whenStable();
+    callsOf(listEventOccurrences)
+      .at(-1)!
+      .resolve({ items: [fakeOccurrence('Swim', { calendarId: 'family' })] });
+    await settle();
+    const loads = callsOf(listEventOccurrences).length;
+
+    resyncs.next();
+    await fixture.whenStable();
+    expect(callsOf(listCalendars)).toHaveLength(2);
+    expect(callsOf(listEventOccurrences)).toHaveLength(loads + 1);
+    const stale = callsOf(listEventOccurrences).at(-1)!;
+
+    // The resync brought a new calendar: its events are fetched too.
+    await answerCalendars(fakeCalendar('family'), fakeCalendar('school', { color: '#6a1b9a' }));
+    const fresh = callsOf(listEventOccurrences).at(-1)!;
+    expect(fresh).not.toBe(stale);
+    expect(fresh.params).toMatchObject({ calendarIds: ['family', 'school'] });
+
+    fresh.resolve({
+      items: [
+        fakeOccurrence('Swim', { calendarId: 'family' }),
+        fakeOccurrence('Parents evening', { calendarId: 'school' }),
+      ],
+    });
+    await settle();
+    stale.resolve({ items: [fakeOccurrence('Swim', { calendarId: 'family' })] });
+    await settle();
+    await fixture.whenStable();
+    expect(titles()).toEqual(['Swim', 'Parents evening']);
+    expect(events()[1].color).toBe('#6a1b9a');
+  });
+
+  it('shows an event created elsewhere after its change notification', async () => {
+    await render();
+    await answerCalendars(fakeCalendar('family'));
+    options()!.datesSet!(week());
+    await fixture.whenStable();
+    callsOf(listEventOccurrences).at(-1)!.resolve({ items: [] });
+    await settle();
+    await fixture.whenStable();
+    expect(titles()).toEqual([]);
+
+    changes.next({ type: 'EVENT', id: 'e1', op: 'CREATED', at: '2026-03-23T08:00:00Z' });
+    const refetch = callsOf(listEventOccurrences).at(-1)!;
+    expect(refetch.params).toEqual({
+      from: '2026-03-22T23:00:00.000Z',
+      to: '2026-03-29T22:00:00.000Z',
+      calendarIds: ['family'],
+    });
+    refetch.resolve({ items: [fakeOccurrence('Dentist', { calendarId: 'family' })] });
+    await settle();
+    await fixture.whenStable();
+    expect(titles()).toEqual(['Dentist']);
+  });
+
+  it('shows a calendar again and its events when it is checked', async () => {
+    await render();
+    await answerCalendars(fakeCalendar('family', { visible: false, name: 'Family' }));
+    options()!.datesSet!(week());
+    await fixture.whenStable();
+    callsOf(listEventOccurrences)
+      .at(-1)!
+      .resolve({ items: [fakeOccurrence('Swim', { calendarId: 'family' })] });
+    await settle();
+    await fixture.whenStable();
+    const box = root.querySelector<HTMLInputElement>('input[type="checkbox"]')!;
+    expect(box.checked).toBe(false);
+    expect(titles()).toEqual([]);
+
+    box.click();
+    await fixture.whenStable();
+    expect(titles()).toEqual(['Swim']);
+    await settle();
+    expect(callsOf(updateCalendar)[0].params).toMatchObject({ body: { visible: true } });
+  });
+
+  it('shows each calendar with its color and hides occurrences of unknown calendars', async () => {
+    await render();
+    await answerCalendars(
+      fakeCalendar('family', { color: '#c62828' }),
+      fakeCalendar('work', { color: undefined }),
+    );
+    const labels = [...root.querySelectorAll<HTMLElement>('.calendar-toggle')];
+    expect(labels.map((label) => label.style.getPropertyValue('--app-calendar-color'))).toEqual([
+      '#c62828',
+      'var(--mat-sys-primary)',
+    ]);
+
+    options()!.datesSet!(week());
+    await fixture.whenStable();
+    callsOf(listEventOccurrences)
+      .at(-1)!
+      .resolve({
+        items: [
+          fakeOccurrence('Swim', { calendarId: 'family' }),
+          fakeOccurrence('Orphan', { calendarId: 'deleted' }),
+        ],
+      });
+    await settle();
+    await fixture.whenStable();
+    expect(titles()).toEqual(['Swim']);
+    expect(events()[0].color).toBe('#c62828');
+  });
+
+  it('keeps the calendar list when a reload after a resync fails', async () => {
+    await render();
+    await answerCalendars(fakeCalendar('family', { name: 'Family' }));
+    resyncs.next();
+    callsOf(listCalendars).at(-1)!.reject(new Error('offline'));
+    await settle();
+    await fixture.whenStable();
+    expect(root.textContent).not.toContain('The calendars could not be loaded.');
+    expect(root.querySelectorAll('input[type="checkbox"]')).toHaveLength(1);
   });
 });

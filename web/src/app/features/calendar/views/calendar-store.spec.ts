@@ -131,6 +131,108 @@ describe('CalendarStore', () => {
     expect(visible()).toEqual(['family:false']);
   });
 
+  it('ignores the error of an older list request after a newer one succeeded', async () => {
+    const first = store.load();
+    const second = store.load();
+    calls[1].resolve({ items: [fakeCalendar('family')] });
+    await second;
+    calls[0].reject(new Error('offline'));
+    await first;
+    expect(store.error()).toBeNull();
+    expect(visible()).toEqual(['family:true']);
+  });
+
+  it('keeps a later toggle shown when an earlier save of the same calendar fails', async () => {
+    await loaded(fakeCalendar('family', { version: 1 }));
+    const off = store.setVisible(store.calendars()[0], false);
+    const on = store.setVisible(store.calendars()[0], true);
+    await settle();
+    callsOf(updateCalendar)[0].reject(new Error('412'));
+    await expect(off).rejects.toThrow('412');
+    // The rollback of the failed save must not undo the newer toggle.
+    expect(visible()).toEqual(['family:true']);
+
+    await settle();
+    const second = callsOf(updateCalendar)[1];
+    // Nothing was saved: the second save still sends the version the list returned.
+    expect(second.params).toEqual({ id: 'family', 'If-Match': '"1"', body: { visible: true } });
+    second.resolve(fakeCalendar('family', { version: 2, visible: true }));
+    await on;
+    expect(visible()).toEqual(['family:true']);
+  });
+
+  it('rolls back to the saved state when the later of two toggles fails', async () => {
+    await loaded(fakeCalendar('family', { version: 1 }));
+    const off = store.setVisible(store.calendars()[0], false);
+    const on = store.setVisible(store.calendars()[0], true);
+    await settle();
+    callsOf(updateCalendar)[0].resolve(fakeCalendar('family', { version: 2, visible: false }));
+    await off;
+    await settle();
+    callsOf(updateCalendar)[1].reject(new Error('412'));
+    await expect(on).rejects.toThrow('412');
+    expect(visible()).toEqual(['family:false']);
+  });
+
+  it('saves toggles of different calendars one after the other', async () => {
+    await loaded(fakeCalendar('family'), fakeCalendar('work', { version: 7 }));
+    const [family, work] = store.calendars();
+    const a = store.setVisible(family, false);
+    const b = store.setVisible(work, false);
+    expect(visible()).toEqual(['family:false', 'work:false']);
+    await settle();
+    expect(callsOf(updateCalendar)).toHaveLength(1);
+    callsOf(updateCalendar)[0].resolve(fakeCalendar('family', { version: 2, visible: false }));
+    await a;
+    await settle();
+    expect(callsOf(updateCalendar)[1].params).toEqual({
+      id: 'work',
+      'If-Match': '"7"',
+      body: { visible: false },
+    });
+    callsOf(updateCalendar)[1].resolve(fakeCalendar('work', { version: 8, visible: false }));
+    await b;
+    expect(visible()).toEqual(['family:false', 'work:false']);
+  });
+
+  it('keeps an unsaved toggle shown over a list reloaded by a resync', async () => {
+    await loaded(fakeCalendar('family'));
+    const done = store.setVisible(store.calendars()[0], false);
+    resyncs.next();
+    callsOf(listCalendars)
+      .at(-1)!
+      .resolve({ items: [fakeCalendar('family'), fakeCalendar('school')] });
+    await settle();
+    expect(visible()).toEqual(['family:false', 'school:true']);
+
+    callsOf(updateCalendar)[0].resolve(fakeCalendar('family', { version: 2, visible: false }));
+    await done;
+    expect(visible()).toEqual(['family:false', 'school:true']);
+  });
+
+  it('saves a queued toggle with its own version when a resync dropped the calendar', async () => {
+    await loaded(fakeCalendar('family'), fakeCalendar('work', { version: 5 }));
+    const [family, work] = store.calendars();
+    const first = store.setVisible(family, false);
+    const second = store.setVisible(work, false);
+    resyncs.next();
+    callsOf(listCalendars)
+      .at(-1)!
+      .resolve({ items: [fakeCalendar('family')] });
+    await settle();
+    callsOf(updateCalendar)[0].resolve(fakeCalendar('family', { version: 2, visible: false }));
+    await first;
+    await settle();
+    expect(callsOf(updateCalendar)[1].params).toEqual({
+      id: 'work',
+      'If-Match': '"5"',
+      body: { visible: false },
+    });
+    callsOf(updateCalendar)[1].reject(new Error('404'));
+    await expect(second).rejects.toThrow('404');
+    expect(visible()).toEqual(['family:false']);
+  });
+
   it('reloads after a SSE resync', async () => {
     await loaded(fakeCalendar('family'));
     resyncs.next();

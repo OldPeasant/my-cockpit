@@ -16,6 +16,9 @@ interface Call {
 const WEEK = { from: '2026-03-22T23:00:00.000Z', to: '2026-03-29T22:00:00.000Z' };
 const NEXT_WEEK = { from: '2026-03-29T22:00:00.000Z', to: '2026-04-05T22:00:00.000Z' };
 
+/** Lets pending promise callbacks run. */
+const settle = () => new Promise((resolve) => setTimeout(resolve));
+
 describe('OccurrenceStore', () => {
   let calls: Call[];
   let changes: Subject<ChangeEvent>;
@@ -120,6 +123,51 @@ describe('OccurrenceStore', () => {
 
     resyncs.next();
     expect(calls).toHaveLength(3);
+  });
+
+  it('stays loading while a newer request is pending when an older one answers', async () => {
+    const first = store.load(WEEK, ['work']);
+    void store.load(NEXT_WEEK, ['work']);
+    calls[0].resolve({ items: [occurrence('This week')] });
+    await first;
+    expect(store.loading()).toBe(true);
+    expect(titles()).toEqual([]);
+    expect(store.loaded()).toBe(false);
+  });
+
+  it('drops a pending answer when the calendars become empty', async () => {
+    const first = store.load(WEEK, ['work']);
+    await store.load(WEEK, []);
+    calls[0].resolve({ items: [occurrence('Standup')] });
+    await first;
+    expect(calls).toHaveLength(1);
+    expect(titles()).toEqual([]);
+    expect(store.loading()).toBe(false);
+  });
+
+  it('shows the answer of a refetch that started while a load was pending', async () => {
+    const first = store.load(WEEK, ['work']);
+    changes.next({ type: 'EVENT', id: 'e1', op: 'UPDATED', at: '2026-03-23T08:00:00Z' });
+    expect(calls[1].params).toEqual({ ...WEEK, calendarIds: ['work'] });
+
+    calls[1].resolve({ items: [occurrence('Moved standup')] });
+    await settle();
+    calls[0].resolve({ items: [occurrence('Standup')] });
+    await first;
+    expect(titles()).toEqual(['Moved standup']);
+    expect(store.loading()).toBe(false);
+  });
+
+  it('keeps the shown occurrences when a refetch fails', async () => {
+    const first = store.load(WEEK, ['work']);
+    calls[0].resolve({ items: [occurrence('Standup')] });
+    await first;
+    resyncs.next();
+    calls[1].reject(new Error('offline'));
+    await settle();
+    expect(store.error()).toBeInstanceOf(Error);
+    expect(titles()).toEqual(['Standup']);
+    expect(store.loading()).toBe(false);
   });
 
   it('does not fetch on events before the first load', () => {

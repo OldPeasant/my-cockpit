@@ -29,6 +29,34 @@ describe('calendar views', () => {
     expect(parseDate(undefined)).toBeUndefined();
   });
 
+  it('rejects out-of-range and decorated dates, accepts leap days', () => {
+    expect(parseDate('2028-02-29')).toBe('2028-02-29');
+    expect(parseDate('2026-02-29')).toBeUndefined();
+    expect(parseDate('2026-13-01')).toBeUndefined();
+    expect(parseDate('2026-00-10')).toBeUndefined();
+    expect(parseDate('2026-04-31')).toBeUndefined();
+    expect(parseDate('2026-03-00')).toBeUndefined();
+    expect(parseDate('2026-03-29T00:00')).toBeUndefined();
+    expect(parseDate(' 2026-03-29')).toBeUndefined();
+    expect(parseDate('')).toBeUndefined();
+    expect(parseDate(null)).toBeUndefined();
+  });
+
+  it('ignores empty and prototype view names from the URL', () => {
+    expect(parseView('')).toBe('week');
+    expect(parseView('__proto__')).toBe('week');
+    expect(parseView('constructor')).toBe('week');
+    expect(parseView('WEEK')).toBe('week');
+    expect(parseView('month')).toBe('month');
+  });
+
+  it('formats the date of an instant across the DST change', () => {
+    // 2026-03-29 00:30 CET and 23:30 CEST are both on the 29th in Zurich.
+    expect(dateIn(new Date('2026-03-28T23:30:00Z'), 'Europe/Zurich')).toBe('2026-03-29');
+    expect(dateIn(new Date('2026-03-29T21:30:00Z'), 'Europe/Zurich')).toBe('2026-03-29');
+    expect(dateIn(new Date('2026-03-29T22:30:00Z'), 'Europe/Zurich')).toBe('2026-03-30');
+  });
+
   it('formats the date of an instant in a time zone', () => {
     // 23:30 UTC on the 28th is already the 29th in Zurich, still the 28th in New York.
     const instant = new Date('2026-03-28T23:30:00Z');
@@ -40,6 +68,9 @@ describe('calendar views', () => {
     expect(firstDay('SUNDAY')).toBe(0);
     expect(firstDay('MONDAY')).toBe(1);
     expect(firstDay('SATURDAY')).toBe(6);
+    expect(firstDay('WEDNESDAY')).toBe(3);
+    // An unknown value (a newer server) falls back to Sunday instead of an invalid -1.
+    expect(firstDay('HOLIDAY' as Parameters<typeof firstDay>[0])).toBe(0);
   });
 
   it('maps a timed occurrence to an event in its calendar color', () => {
