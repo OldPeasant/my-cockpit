@@ -17,3 +17,4 @@ Keep the header cache in sync (SPEC.md §7.2).
 
 ## Notes
 - ASSUMPTION (2026-10-20 19:02+0200 by dell26/agent-1): Subject fallback: every message without References/In-Reply-To is threaded by normalized subject (Re/Fwd/AW/SV... prefixes and [list] tags stripped), so unrelated mails with the same subject (e.g. a weekly newsletter) share a conversation, like Gmail. Thread key = root Message-ID or 'subject:<normalized>'
+- ASSUMPTION (2026-10-20 19:02+0200 by dell26/agent-1): A message gone from the server (expunged, moved, or not found again after a UIDVALIDITY resync) is deleted from the cache unless an item links to it; linked rows are only detached and are taken over by a later message with the same Message-ID
