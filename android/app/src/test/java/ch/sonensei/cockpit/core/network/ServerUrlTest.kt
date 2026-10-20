@@ -66,6 +66,8 @@ class ServerUrlTest {
             "cockpit.example.org",
             "ftp://example.org",
             "https://user:pw@example.org",
+            "https://user@example.org",
+            "https://:pw@example.org",
             "https://example.org/?a=1",
             "https://example.org/#x",
         ).forEach { assertEquals(it, Invalid(Reason.MALFORMED), ServerUrlValidator.validate(it)) }

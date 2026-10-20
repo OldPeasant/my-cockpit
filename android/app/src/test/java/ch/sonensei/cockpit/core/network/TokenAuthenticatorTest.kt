@@ -140,6 +140,35 @@ class TokenAuthenticatorTest {
         }
 
     @Test
+    fun `concurrent 401s with a rejected refresh refresh once and log out once`() =
+        runBlocking {
+            tokenStore.save(AuthTokens("old-access", "old-refresh"))
+            refreshResponse = {
+                MockResponse
+                    .Builder()
+                    .code(401)
+                    .headersDelay(300, TimeUnit.MILLISECONDS)
+                    .build()
+            }
+            val logouts = CopyOnWriteArrayList<LogoutReason>()
+            val collector =
+                async(kotlinx.coroutines.Dispatchers.Unconfined, start = kotlinx.coroutines.CoroutineStart.UNDISPATCHED) {
+                    session.loggedOut.collect { logouts += it }
+                }
+
+            val codes =
+                withTimeout(10_000) {
+                    (1..8).map { async(kotlinx.coroutines.Dispatchers.IO) { api.getCurrentUser().code() } }.awaitAll()
+                }
+
+            assertEquals(List(8) { 401 }, codes)
+            assertEquals(1, refreshCalls.get())
+            assertNull(tokenStore.current())
+            assertEquals(listOf(LogoutReason.REFRESH_REJECTED), logouts)
+            collector.cancel()
+        }
+
+    @Test
     fun `a server error during refresh keeps the tokens`() =
         runBlocking {
             tokenStore.save(AuthTokens("old-access", "old-refresh"))
