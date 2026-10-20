@@ -123,6 +123,23 @@ describe('AuthService', () => {
     expect(await second).toBe(true);
   });
 
+  it('does not cache a failed setup status: shows a toast and asks again next time', async () => {
+    const failure = auth.setupRequired().catch((error: unknown) => error);
+    await tick();
+    backend
+      .expectOne('/api/v1/setup/status')
+      .flush({ status: 502, title: 'Bad Gateway' }, { status: 502, statusText: 'Bad Gateway' });
+    const error = await failure;
+    expect(error).toBeInstanceOf(ApiError);
+    expect((error as ApiError).status).toBe(502);
+    expect(notifications.error).toHaveBeenCalledTimes(1);
+
+    const second = auth.setupRequired();
+    await tick();
+    backend.expectOne('/api/v1/setup/status').flush({ setupRequired: false });
+    expect(await second).toBe(false);
+  });
+
   it('rejects wrong credentials with 401, without a toast or a redirect', async () => {
     const router = TestBed.inject(Router);
     const navigate = vi.spyOn(router, 'navigate');

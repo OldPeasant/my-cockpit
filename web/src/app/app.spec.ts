@@ -221,6 +221,22 @@ describe('App routes with auth guards', () => {
     expect(page().querySelector('app-coming-soon h1')?.textContent?.trim()).toBe('Trash');
   });
 
+  it('shows the login form (not a blank page) while the server fails, and recovers afterwards', async () => {
+    const outage = () => Promise.reject(new Error('502 Bad Gateway'));
+    auth.setupRequired.mockImplementation(outage);
+    await harness.navigateByUrl('/inbox');
+    expect(router.url).toBe('/login?returnUrl=%2Finbox');
+    expect(page().querySelector('app-shell')).toBeNull();
+    expect(page().querySelector('app-login form')).not.toBeNull();
+
+    // Server back (the session cookie was valid all along): retrying the section opens it.
+    auth.setupRequired.mockImplementation(() => Promise.resolve(false));
+    state.loggedIn = true;
+    await harness.navigateByUrl('/inbox');
+    expect(router.url).toBe('/inbox');
+    expect(page().querySelector('app-shell')).not.toBeNull();
+  });
+
   it('sends a logged-in user from /login straight to the return URL', async () => {
     state.loggedIn = true;
     await harness.navigateByUrl('/login?returnUrl=%2Fnotes');
