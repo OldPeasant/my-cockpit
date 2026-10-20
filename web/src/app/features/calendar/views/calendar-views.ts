@@ -74,7 +74,9 @@ export function toEventInput(
   const className = classNames.join(' ');
   return {
     // One series has many occurrences: the original start tells them apart.
-    id: occurrence.occurrence ? `${occurrence.eventId}@${occurrence.occurrence}` : occurrence.eventId,
+    id: occurrence.occurrence
+      ? `${occurrence.eventId}@${occurrence.occurrence}`
+      : occurrence.eventId,
     title: occurrence.title,
     allDay: occurrence.allDay,
     start: occurrence.allDay ? occurrence.startDate : occurrence.start,

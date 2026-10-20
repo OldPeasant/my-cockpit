@@ -34,7 +34,12 @@ export class CalendarStore {
   });
   /** Ids of the visible calendars. */
   readonly visibleIds = computed(
-    () => new Set(this.calendars().filter((c) => c.visible).map((c) => c.id)),
+    () =>
+      new Set(
+        this.calendars()
+          .filter((c) => c.visible)
+          .map((c) => c.id),
+      ),
   );
   /** Each calendar by id. */
   readonly byId = computed(() => new Map(this.calendars().map((c) => [c.id, c])));
