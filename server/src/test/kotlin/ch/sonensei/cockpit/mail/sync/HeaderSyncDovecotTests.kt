@@ -63,7 +63,14 @@ class HeaderSyncDovecotTests(
 	) : GenericContainer<DovecotContainer>(DockerImageName.parse(IMAGE)) {
 		init {
 			withExposedPorts(IMAP_PORT)
-			withCopyToContainer(Transferable.of(config), "/etc/dovecot/conf.d/90-test.conf")
+			// The image's dovecot.conf includes conf.d/*.conf, but the folder does not exist and not every container
+			// engine creates missing parents on copy (Podman does not), so the start command puts the file in place.
+			withCopyToContainer(Transferable.of(config), "/tmp/90-test.conf")
+			withCommand(
+				"sh",
+				"-c",
+				"mkdir -p /etc/dovecot/conf.d && cp /tmp/90-test.conf /etc/dovecot/conf.d/ && exec /usr/sbin/dovecot -F",
+			)
 			waitingFor(Wait.forLogMessage(".*starting up for imap.*", 1))
 		}
 	}
@@ -216,7 +223,6 @@ class HeaderSyncDovecotTests(
 	@Test
 	fun `with CONDSTORE only, flags changed since the cached HIGHESTMODSEQ and expunges are reconciled`() {
 		val mail = Mailbox(condstoreServer)
-		System.err.println("DEBUGCAP " + condstoreServer.execInContainer("doveconf", "imap_capability").stdout + condstoreServer.execInContainer("cat", "/etc/dovecot/conf.d/90-test.conf").stdout)
 		val before = syncedThenChanged(mail)
 		val uidOfA = cached(before, "<a@example.test>").uid!!
 		val uidOfC = cached(before, "<c@example.test>").uid!!
