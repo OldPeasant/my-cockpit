@@ -1,10 +1,12 @@
 package ch.sonensei.cockpit.core.events
 
 import ch.sonensei.cockpit.core.auth.WithCockpitUser
+import ch.sonensei.cockpit.core.events.domain.ChangeEvent
 import ch.sonensei.cockpit.core.events.domain.ChangeEventPublisher
 import ch.sonensei.cockpit.core.events.domain.ChangeOp
 import ch.sonensei.cockpit.core.persistence.UuidV7
 import ch.sonensei.cockpit.support.PostgresTestBase
+import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
 import io.kotest.matchers.string.shouldNotContain
 import io.kotest.matchers.string.shouldStartWith
@@ -17,6 +19,7 @@ import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.MvcResult
 import org.springframework.test.web.servlet.get
 import org.springframework.transaction.support.TransactionTemplate
+import java.time.Instant
 
 /**
  * `GET /api/v1/events` end to end: events published in real (Postgres) transactions reach a connected client only
@@ -72,6 +75,21 @@ class EventsStreamTests(
 		}
 
 		awaitBody(result) { it.contains(id.toString()) } shouldContain "\"op\":\"DELETED\""
+	}
+
+	@Test
+	@WithCockpitUser
+	fun `the event data is the ChangeEvent as JSON with an ISO-8601 timestamp`() {
+		val result = connect()
+		val id = UuidV7.generate()
+
+		publisher.publish(ChangeEvent("NOTE", id, ChangeOp.UPDATED, Instant.parse("2026-03-14T09:26:53.589Z")))
+
+		val data =
+			awaitBody(result) { it.contains(id.toString()) }
+				.lines()
+				.single { it.startsWith("data:") && it.contains(id.toString()) }
+		data shouldBe "data:{\"type\":\"NOTE\",\"id\":\"$id\",\"op\":\"UPDATED\",\"at\":\"2026-03-14T09:26:53.589Z\"}"
 	}
 
 	private fun connect(): MvcResult {

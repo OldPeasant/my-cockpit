@@ -1,8 +1,14 @@
 package ch.sonensei.cockpit.core.events
 
 import ch.sonensei.cockpit.core.events.api.EventsController
+import ch.sonensei.cockpit.core.events.domain.ChangeEvent
+import ch.sonensei.cockpit.core.events.domain.ChangeOp
 import ch.sonensei.cockpit.core.events.infra.SseEventHub
+import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.string.shouldContain
+import io.kotest.matchers.string.shouldNotContain
+import io.kotest.matchers.string.shouldStartWith
 import jakarta.servlet.AsyncEvent
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Test
@@ -12,6 +18,8 @@ import org.springframework.test.web.servlet.get
 import org.springframework.test.web.servlet.setup.MockMvcBuilders
 import java.io.IOException
 import java.time.Duration
+import java.time.Instant
+import java.util.UUID
 
 /** Heartbeats and cleanup of the hub, without a Spring context (short heartbeat). */
 class SseEventHubTests {
@@ -51,6 +59,78 @@ class SseEventHubTests {
 
 		hub.clientCount shouldBe 0
 	}
+
+	@Test
+	fun `a new stream starts with a connected comment and heartbeats are comment lines without data`() {
+		val result = connect()
+
+		result.body() shouldStartWith ":connected\n\n"
+		awaitUntil { result.body().contains(":heartbeat\n\n") }
+		result.body() shouldNotContain "data:"
+		result.body() shouldNotContain "event:"
+	}
+
+	@Test
+	fun `a client whose stream times out is removed`() {
+		val result = connect()
+		val context = result.asyncContext()
+
+		context.listeners.forEach { it.onTimeout(AsyncEvent(context)) }
+
+		hub.clientCount shouldBe 0
+	}
+
+	@Test
+	fun `an event outside a transaction reaches every connected client as a named JSON event`() {
+		val first = connect()
+		val second = connect()
+		val id = UUID.fromString("0192f0c4-7a1e-7c3d-9b2a-1f2e3d4c5b6a")
+
+		hub.onChange(ChangeEvent("TASK", id, ChangeOp.UPDATED, Instant.parse("2026-03-14T09:26:53Z")))
+
+		for (result in listOf(first, second)) {
+			awaitUntil { result.body().contains(id.toString()) }
+			result.body() shouldContain "event:${SseEventHub.EVENT_NAME}\ndata:{"
+			result.body() shouldContain "\"id\":\"$id\""
+			result.body() shouldContain "\"op\":\"UPDATED\""
+		}
+	}
+
+	@Test
+	fun `a client that cannot be written to is dropped and the others still get the event`() {
+		val healthy = connect()
+		val broken = hub.subscribe()
+		hub.clientCount shouldBe 2
+		// Completed but never attached to a response: the next send throws, as for a client that went away.
+		broken.complete()
+		val id = UUID.fromString("0192f0c4-7a1e-7c3d-9b2a-1f2e3d4c5b6b")
+
+		hub.onChange(ChangeEvent("TASK", id, ChangeOp.CREATED, Instant.parse("2026-03-14T09:26:53Z")))
+
+		awaitUntil { healthy.body().contains(id.toString()) }
+		awaitUntil { hub.clientCount == 1 }
+	}
+
+	@Test
+	fun `destroy completes every stream and forgets the clients`() {
+		val results = listOf(connect(), connect())
+		hub.clientCount shouldBe 2
+
+		hub.destroy()
+
+		hub.clientCount shouldBe 0
+		// Completing an emitter ends its async request; a still-open stream would time out here.
+		results.forEach { it.getAsyncResult(5_000) }
+	}
+
+	@Test
+	fun `the heartbeat interval must be positive`() {
+		for (heartbeat in listOf(Duration.ZERO, Duration.ofSeconds(-25))) {
+			shouldThrow<IllegalArgumentException> { SseEventHub(heartbeat) }
+		}
+	}
+
+	private fun MvcResult.body() = response.getContentAsString(Charsets.UTF_8)
 
 	private fun connect(): MvcResult = mockMvc.get(EventsController.PATH).andExpect { request { asyncStarted() } }.andReturn()
 
