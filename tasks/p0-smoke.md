@@ -16,3 +16,4 @@ Automate SPEC.md §13.2 Phase 0 and write the project README.
 - [ ] Any defect found is fixed here or recorded as a new task
 
 ## Notes
+- ASSUMPTION (2026-10-20 18:36+0200 by dell26/agent-1): Phase 0 step 1 is automated against the e2e stack (deploy/docker-compose.e2e.yml: server + Postgres, no Caddy), as the criterion says: the spec checks /actuator/health is UP, not behind the proxy. The Caddy path is covered by step 6 (H, owner's deploy).
