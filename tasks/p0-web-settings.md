@@ -17,3 +17,4 @@ Settings page with one sub-route per section, created up front so section tasks 
 
 ## Notes
 - ASSUMPTION (2026-10-20 14:37+0200 by dell26/agent-3): Server theme sync at login: provideSettingsSync() (settings folder) is added to the shell route providers in app.routes.ts (outside touches, one line); it loads GET /settings whenever AuthService.user() becomes set and applies its theme via ThemeService.setMode. Load failures are silent and keep the local theme.
+- ASSUMPTION (2026-10-20 14:37+0200 by dell26/agent-3): General opens at /settings itself (no redirect to /settings/general) so the auth guard's returnUrl stays /settings; other sections at /settings/<gtd|security|calendars|integrations|mail|backup>. app.spec.ts placeholder test now skips /settings (BUILT list) and has a settings-page test.
