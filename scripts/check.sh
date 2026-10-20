@@ -19,7 +19,12 @@ step "web: eslint + tests + build"
 (cd web && { [ node_modules/.package-lock.json -nt package-lock.json ] || npm ci --no-audit --no-fund; } \
   && npm run -s check)
 
-step "android: ktlint + unit tests + lint"
-(cd android && ./gradlew --quiet ktlintCheck testDebugUnitTest lintDebug)
+if [ "${COCKPIT_NO_ANDROID:-}" = 1 ]; then
+  # Machines without an Android SDK; they don't claim Android tasks either (TASK_SKIP_TOUCHES=android).
+  step "android: SKIPPED (COCKPIT_NO_ANDROID=1), checked on machines with the Android SDK"
+else
+  step "android: ktlint + unit tests + lint"
+  (cd android && ./gradlew --quiet ktlintCheck testDebugUnitTest lintDebug)
+fi
 
 step "all checks passed"
