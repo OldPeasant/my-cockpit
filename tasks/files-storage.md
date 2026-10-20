@@ -16,7 +16,8 @@ Folders, file metadata and on-disk blobs (SPEC.md §8.2).
   - verified (2026-10-20 17:21+0200 by dell26/agent-5): cd server && ./gradlew test --rerun --tests 'ch.sonensei.cockpit.files.*' (Postgres via Testcontainers) at c54fce3 -> 90 tests, 0 failures; migration files/V202610201345__files_model.sql applied by Flyway, FilesEdgeCaseTests 'database rejects ... duplicate specials' + case-insensitive unique folder name tests, BlobStoreTests (ab/cd/<uuid> layout, temp+move, no temp left on failure) pass
 - [x] Special folders `/Attachments/{Tasks,Notes,Mail,Journal}` created on demand and protected from deletion/rename
   - verified (2026-10-20 17:21+0200 by dell26/agent-5): cd server && ./gradlew test --rerun --tests 'ch.sonensei.cockpit.files.*' (Postgres via Testcontainers) at c54fce3 -> 90 tests, 0 failures; FilesServiceTests 'special folders are created on demand below Attachments, once', 'special folders cannot be deleted or renamed' (409), FilesEdgeCaseTests adoption tests pass
-- [ ] Resolvers FILE/FOLDER, search indexing of names, trash contributor (purge deletes the blob)
+- [x] Resolvers FILE/FOLDER, search indexing of names, trash contributor (purge deletes the blob)
+  - verified (2026-10-20 17:21+0200 by dell26/agent-5): cd server && ./gradlew test --rerun --tests 'ch.sonensei.cockpit.files.*' (Postgres via Testcontainers) at c54fce3 -> 90 tests, 0 failures; FilesServiceTests 'FILE and FOLDER resolvers and trash contributors are registered', 'resolvers show name, path...', 'names are searchable...', 'purging a folder deletes the whole subtree with blobs...', FilesConcurrencyTests purge/restore races pass
 - [ ] `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.files.*'` passes (Postgres via Testcontainers where persistence is involved) incl. path traversal in names rejected
 
 ## Notes
