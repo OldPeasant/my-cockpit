@@ -5,7 +5,7 @@ owner: dell26/agent-2
 deps: [reminders-core,p0-web-sse]
 touches: [web/src/app/core/notifications]
 prio: 2
-lease_until: 2026-10-20T19:04:44Z
+lease_until: 2026-10-20T19:08:18Z
 ---
 ## Goal
 Show reminders as browser notifications (SPEC.md §4.6).
