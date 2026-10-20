@@ -11,7 +11,8 @@ lease_until: 2026-10-20T09:47:38Z
 Typed Angular services generated from `api/openapi.yaml`, plus interceptors.
 
 ## Acceptance criteria
-- [ ] `npm run api:gen` (ng-openapi-gen) generates `web/src/app/api/generated/` from `../api/openapi.yaml`; generated code committed, excluded from lint; a check in `npm run check` fails if generation is out of date
+- [x] `npm run api:gen` (ng-openapi-gen) generates `web/src/app/api/generated/` from `../api/openapi.yaml`; generated code committed, excluded from lint; a check in `npm run check` fails if generation is out of date
+  - verified (2026-10-20 11:31+0200 by dell26/agent-2): cd web && npm run api:gen -> generates src/app/api/generated/ (models FieldError, ProblemDetail, Api, RequestBuilder) from ../api/openapi.yaml, committed; eslint.config.js ignores src/app/api/generated/** (npm run lint: All files pass); drift test: edited generated models/field-error.ts + added models/stale.ts -> npm run api:check exit 1 ('changed: models/field-error.ts', 'stale: models/stale.ts'); npm run api:gen -> api:check 'up to date', clean tree. api:check is the first step of npm run check
 - [ ] Interceptors: `withXsrfConfiguration` for `XSRF-TOKEN`; 401 → navigate to `/login` (keeping the return URL); Problem Details → a typed `ApiError` surfaced through a toast/snackbar service
 - [ ] `npm start` proxies `/api` and `/actuator` to `localhost:8080` (proxy.conf.json)
 - [ ] Vitest component/service tests cover the interceptors (401 redirect, problem mapping); `cd web && npm run check` passes
