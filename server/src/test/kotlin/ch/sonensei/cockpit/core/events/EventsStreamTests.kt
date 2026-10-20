@@ -10,11 +10,13 @@ import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
 import io.kotest.matchers.string.shouldNotContain
 import io.kotest.matchers.string.shouldStartWith
+import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc
 import org.springframework.http.MediaType
+import org.springframework.mock.web.MockAsyncContext
 import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.MvcResult
 import org.springframework.test.web.servlet.get
@@ -33,6 +35,15 @@ class EventsStreamTests(
 	@Autowired private val transactions: TransactionTemplate,
 ) : PostgresTestBase() {
 	private enum class Kind { TASK }
+
+	private val streams = mutableListOf<MvcResult>()
+
+	/** Ends the streams this test opened, so they don't stay connected in the shared application context. */
+	@AfterEach
+	fun closeStreams() {
+		streams.forEach { (it.request.asyncContext as MockAsyncContext).complete() }
+		streams.clear()
+	}
 
 	@Test
 	fun `the stream needs a login`() {
@@ -100,6 +111,7 @@ class EventsStreamTests(
 					request { asyncStarted() }
 					status { isOk() }
 				}.andReturn()
+		streams += result
 		result.response.contentType!! shouldStartWith MediaType.TEXT_EVENT_STREAM_VALUE
 		return result
 	}

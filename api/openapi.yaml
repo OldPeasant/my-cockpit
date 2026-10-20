@@ -88,11 +88,12 @@ paths:
       - Auth
   /api/v1/events:
     get:
-      description: "A Server-Sent Events stream that stays open. Each committed change\
-        \ arrives as an event named `change` whose data is a `ChangeEvent` JSON object;\
-        \ clients refetch the item. Comment lines (`:heartbeat`) arrive every 25 seconds\
-        \ and carry no data. Events are not replayed: after a reconnect, clients refetch\
-        \ what they show."
+      description: "A Server-Sent Events stream. Each committed change arrives as\
+        \ an event named `change` whose data is a `ChangeEvent` JSON object; clients\
+        \ refetch the item. Comment lines (`:heartbeat`) arrive every 25 seconds and\
+        \ carry no data. Events are not replayed: after a reconnect, clients refetch\
+        \ what they show. The server ends each stream after 15 minutes; clients reconnect\
+        \ (EventSource does so automatically), which checks the login again."
       operationId: streamEvents
       responses:
         "200":

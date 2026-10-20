@@ -15,6 +15,7 @@ import org.junit.jupiter.api.Test
 import org.springframework.mock.web.MockAsyncContext
 import org.springframework.test.web.servlet.MvcResult
 import org.springframework.test.web.servlet.get
+import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.asyncDispatch
 import org.springframework.test.web.servlet.setup.MockMvcBuilders
 import java.io.IOException
 import java.time.Duration
@@ -23,7 +24,7 @@ import java.util.UUID
 
 /** Heartbeats and cleanup of the hub, without a Spring context (short heartbeat). */
 class SseEventHubTests {
-	private val hub = SseEventHub(Duration.ofMillis(50))
+	private val hub = SseEventHub(Duration.ofMillis(50), STREAM_TIMEOUT)
 	private val mockMvc = MockMvcBuilders.standaloneSetup(EventsController(hub)).build()
 
 	@AfterEach
@@ -126,8 +127,42 @@ class SseEventHubTests {
 	@Test
 	fun `the heartbeat interval must be positive`() {
 		for (heartbeat in listOf(Duration.ZERO, Duration.ofSeconds(-25))) {
-			shouldThrow<IllegalArgumentException> { SseEventHub(heartbeat) }
+			shouldThrow<IllegalArgumentException> { SseEventHub(heartbeat, STREAM_TIMEOUT) }
 		}
+	}
+
+	@Test
+	fun `the stream timeout must be positive`() {
+		for (timeout in listOf(Duration.ZERO, Duration.ofMinutes(-15))) {
+			shouldThrow<IllegalArgumentException> { SseEventHub(Duration.ofMillis(50), timeout) }
+		}
+	}
+
+	@Test
+	fun `a stream uses the configured timeout`() {
+		connect().asyncContext().timeout shouldBe STREAM_TIMEOUT.toMillis()
+	}
+
+	@Test
+	fun `a stream that times out ends normally instead of with an error`() {
+		val result = connect()
+		val context = result.asyncContext()
+
+		context.listeners.forEach { it.onTimeout(AsyncEvent(context)) }
+
+		hub.clientCount shouldBe 0
+		// Without completing on timeout Spring resolves the request with an AsyncRequestTimeoutException (503).
+		result.getAsyncResult(5_000) shouldBe null
+		mockMvc.perform(asyncDispatch(result)).andReturn().resolvedException shouldBe null
+	}
+
+	@Test
+	fun `an event after the hub is destroyed is dropped without failing the publisher`() {
+		hub.destroy()
+
+		hub.onChange(ChangeEvent("TASK", UUID.fromString("0192f0c4-7a1e-7c3d-9b2a-1f2e3d4c5b6c"), ChangeOp.DELETED, Instant.EPOCH))
+
+		hub.clientCount shouldBe 0
 	}
 
 	private fun MvcResult.body() = response.getContentAsString(Charsets.UTF_8)
@@ -142,5 +177,10 @@ class SseEventHubTests {
 			check(System.nanoTime() < deadline) { "Condition not met in time" }
 			Thread.sleep(10)
 		}
+	}
+
+	private companion object {
+		/** Not the default (15 min), to show the configured value is used. MockMvc never fires it on its own. */
+		val STREAM_TIMEOUT: Duration = Duration.ofSeconds(90)
 	}
 }

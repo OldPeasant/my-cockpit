@@ -11,6 +11,7 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter
 import java.time.Duration
 import java.util.concurrent.CopyOnWriteArraySet
 import java.util.concurrent.Executors
+import java.util.concurrent.RejectedExecutionException
 import java.util.concurrent.TimeUnit
 
 /**
@@ -20,6 +21,9 @@ import java.util.concurrent.TimeUnit
  *   transaction that rolls back is dropped. An event published outside a transaction is forwarded right away.
  * - Every [heartbeat] (default 25 s) each client gets a comment line, which keeps proxies from closing an idle
  *   stream and reveals clients that went away.
+ * - Every stream ends after [streamTimeout] (default 15 min). EventSource clients reconnect on their own, and each
+ *   reconnect passes the authorization filters again, so a stream outlives the end of its login (logout, expiry,
+ *   revocation) by at most that time.
  * - A client is removed when its stream completes, times out, fails, or a write to it fails.
  *
  * Sends run on one background thread, so a commit never waits for a client's socket.
@@ -27,6 +31,7 @@ import java.util.concurrent.TimeUnit
 @Component
 class SseEventHub(
 	@Value("\${cockpit.events.heartbeat:PT25S}") private val heartbeat: Duration,
+	@Value("\${cockpit.events.stream-timeout:PT15M}") private val streamTimeout: Duration,
 ) : DisposableBean {
 	private val log = LoggerFactory.getLogger(javaClass)
 	private val emitters = CopyOnWriteArraySet<SseEmitter>()
@@ -37,17 +42,25 @@ class SseEventHub(
 
 	init {
 		require(heartbeat.isPositive) { "cockpit.events.heartbeat must be positive" }
+		require(streamTimeout.isPositive) { "cockpit.events.stream-timeout must be positive" }
 		sender.scheduleAtFixedRate(::sendHeartbeat, heartbeat.toMillis(), heartbeat.toMillis(), TimeUnit.MILLISECONDS)
 	}
 
 	/** Number of connected clients. */
 	val clientCount: Int get() = emitters.size
 
-	/** A new stream for one client; it stays open until the client disconnects or the server stops. */
+	/**
+	 * A new stream for one client; it stays open until [streamTimeout] passes, the client disconnects or the server
+	 * stops. On the timeout the stream ends normally, so the client simply reconnects.
+	 */
 	fun subscribe(): SseEmitter {
-		val emitter = SseEmitter(NO_TIMEOUT)
+		val emitter = SseEmitter(streamTimeout.toMillis())
 		emitter.onCompletion { emitters.remove(emitter) }
-		emitter.onTimeout { emitters.remove(emitter) }
+		emitter.onTimeout {
+			emitters.remove(emitter)
+			// Completing here ends the committed response cleanly instead of with an AsyncRequestTimeoutException (503).
+			runCatching { emitter.complete() }
+		}
 		emitter.onError { emitters.remove(emitter) }
 		emitters.add(emitter)
 		// The first bytes flush the response headers, so the client (and any proxy) sees the stream open at once.
@@ -57,15 +70,20 @@ class SseEventHub(
 
 	@TransactionalEventListener(fallbackExecution = true)
 	fun onChange(event: ChangeEvent) {
-		sender.execute {
-			emitters.forEach { emitter ->
-				trySend(emitter) {
-					SseEmitter
-						.event()
-						.name(EVENT_NAME)
-						.data(event, MediaType.APPLICATION_JSON)
+		try {
+			sender.execute {
+				emitters.forEach { emitter ->
+					trySend(emitter) {
+						SseEmitter
+							.event()
+							.name(EVENT_NAME)
+							.data(event, MediaType.APPLICATION_JSON)
+					}
 				}
 			}
+		} catch (e: RejectedExecutionException) {
+			// The hub is shut down (server stopping): the change itself succeeded, so don't fail its publisher.
+			log.debug("Dropping change event, SSE hub is shut down: {}", e.toString())
 		}
 	}
 
@@ -97,8 +115,5 @@ class SseEventHub(
 	companion object {
 		/** The SSE `event:` name of a [ChangeEvent]. */
 		const val EVENT_NAME = "change"
-
-		/** Servlet async timeout 0: the stream never times out; dead clients are found by the heartbeat. */
-		private const val NO_TIMEOUT = 0L
 	}
 }
