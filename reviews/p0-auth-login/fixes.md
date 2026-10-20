@@ -81,3 +81,55 @@ Remaining unresolved findings:
 ## Final status
 
 All validated findings fixed and validation passed.
+
+---
+
+# Fix Report (second pass)
+
+Date: 2026-10-20
+
+Task: p0-auth-login - Login with password + TOTP, sessions, CSRF, lockout
+
+Scope: current task; finding TW-1 from `reviews/p0-auth-login/tests.md` (second test pass, revision 44bff9b). Uncommitted working-tree change on top of 44bff9b.
+
+## Fixed findings
+
+### TW-1 — A login that throws after the credential check resets the backoff although it did not succeed
+
+Files changed:
+- `server/src/main/kotlin/ch/sonensei/cockpit/core/auth/domain/LoginService.kt`
+
+Problem:
+`LoginService.login()` called `throttle.recordSuccess()` before `sessions.deleteExpired(now)` and `sessions.saveAndFlush(...)`. If creating the session threw (for example a database outage or a constraint error raised by the flush), no session existed and the request failed, but the failure counter and any block had already been reset. Confirmed: `LoginServiceThrottleTests > an attempt that throws while creating its session is not a success and does not reset the backoff` failed with `Expected PT30S but actual was null`.
+
+Fix:
+`throttle.recordSuccess()` now runs after `sessions.saveAndFlush(...)` returns, with a one-line comment saying why. `saveAndFlush` writes the row inside the method, so constraint and connection errors surface before the reset. An attempt that throws earlier stays counted as a failure by `tryBeginAttempt()`. The test was not changed. Not covered by this fix: an error raised only at transaction commit, after `login()` returns. The flush makes that unlikely, and it was not part of the finding.
+
+Validation:
+- `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.core.auth.*'` — Pass (118 tests, 0 failures, 0 errors, 0 skipped; includes the TW-1 test)
+
+## Not fixed
+
+None.
+
+## Validation summary
+
+Focused tests:
+- `cd server && ./gradlew ktlintFormat` — no further changes needed
+- `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.core.auth.*'` — Pass (118 tests, 0 failures)
+
+Full test suite:
+- `cd server && ./gradlew check` — Pass (BUILD SUCCESSFUL; 664 server tests, 0 failures, 0 errors, 0 skipped)
+
+Lint/type-check/build:
+- ktlint and Kotlin compile are part of `./gradlew check` — Pass
+
+`.taskcheck`:
+- `sh scripts/check.sh` — Pass ("all checks passed")
+
+Remaining unresolved findings:
+0
+
+## Final status
+
+All validated findings fixed and validation passed.

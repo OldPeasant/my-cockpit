@@ -57,13 +57,14 @@ class LoginService(
 			secondFactor.code.markUsed(now)
 			log.info("Recovery code used for login; {} unused codes left", account.recoveryCodes.count { !it.isUsed })
 		}
-		throttle.recordSuccess()
 		sessions.deleteExpired(now)
 		val token = newToken()
 		val session =
 			sessions.saveAndFlush(
 				AuthSession(account, hash(token), credentials.rememberDevice, now, now.plus(AuthSession.idleLifetime(credentials.rememberDevice))),
 			)
+		// Only a login whose session was written counts as a success; one that throws before stays a failure.
+		throttle.recordSuccess()
 		log.info("Login succeeded (remember device: {})", credentials.rememberDevice)
 		return LoginResult.Success(SessionGrant(token, session.rememberDevice, principalOf(account)))
 	}
