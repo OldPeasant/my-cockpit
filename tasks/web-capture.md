@@ -17,3 +17,4 @@ Capture from anywhere (SPEC.md §4.5), provided through the shell's `CAPTURE_DIA
 - [ ] Playwright `e2e/capture/capture.spec.ts` passes against the e2e stack (`npm run e2e -- e2e/capture/capture.spec.ts`, see p0-e2e-harness): Q opens the dialog, three captures appear in the inbox
 
 ## Notes
+- ASSUMPTION (2026-10-21 01:50+0200 by dell26/agent-2): Capture text field is a single-line input (Enter=save, Shift+Enter=save+keep open); notes is a textarea where Enter adds a line and Ctrl/Cmd+Enter saves. Multi-line text capture is left to notes.
