@@ -11,7 +11,8 @@ lease_until: 2026-10-20T09:21:47Z
 Encrypt external credentials with the master key (SPEC.md §4.1).
 
 ## Acceptance criteria
-- [ ] `SecretCipher` encrypts/decrypts with AES-256-GCM (random nonce, versioned format) using `COCKPIT_MASTER_KEY` (base64, 32 bytes); startup fails with a clear message if it is missing/invalid outside tests
+- [x] `SecretCipher` encrypts/decrypts with AES-256-GCM (random nonce, versioned format) using `COCKPIT_MASTER_KEY` (base64, 32 bytes); startup fails with a clear message if it is missing/invalid outside tests
+  - verified (2026-10-20 11:03+0200 by dell26/agent-1): cd server && ./gradlew test --tests 'ch.sonensei.cockpit.core.crypto.*' (Testcontainers postgres:16-alpine via Podman) -> SecretCipherTests 7/7 (AES/GCM/NoPadding, 12-byte random nonce, version byte 0x01 as AAD), MasterKeyTests 7/7, MasterKeyStartupTests 5/5: real CockpitServerApplication fails to start with empty/invalid cockpit.crypto.master-key (FailureAnalyzer message 'COCKPIT_MASTER_KEY is not set ... openssl rand -base64 32', key never echoed), starts with a valid key, reads COCKPIT_MASTER_KEY from env outside tests
 - [ ] `EncryptedSecret` JPA converter stores ciphertext; the type's `toString`/Jackson serialization never reveal the value (tests)
 - [ ] Tests: round trip, tampered ciphertext rejected, wrong key rejected; `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.core.crypto.*'` passes (Postgres via Testcontainers where persistence is involved)
 
