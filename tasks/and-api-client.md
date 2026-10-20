@@ -5,7 +5,7 @@ owner: dell26/agent-1
 deps: [and-shell,p0-auth-tokens]
 touches: [android/app/build.gradle.kts,android/app/src/main/java/ch/sonensei/cockpit/core/network,android/app/src/test/java/ch/sonensei/cockpit/core/network]
 prio: 1
-lease_until: 2026-10-20T15:31:02Z
+lease_until: 2026-10-20T15:36:04Z
 releases: 1
 extended: 
 ---
