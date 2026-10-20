@@ -18,7 +18,8 @@ Generic reminders for any item (SPEC.md §4.6).
   - verified (2026-10-20 16:50+0200 by dell26/agent-3): ./gradlew test --tests 'ch.sonensei.cockpit.core.reminders.*' (ReminderSchedulerRunTests, ReminderEventsStreamTests, ReminderGtdResolverTests: due reminder fired once, firedAt set, 'reminder' SSE event with resolved task/project title delivered after commit) -> pass
 - [x] `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.core.reminders.*'` passes (Postgres via Testcontainers where persistence is involved) with the test clock (fires once, not twice after restart)
   - verified (2026-10-20 16:50+0200 by dell26/agent-3): cd server && ./gradlew test --tests 'ch.sonensei.cockpit.core.reminders.*' --tests '*OpenApiContractTest' on rebased HEAD (Testcontainers Postgres, test clock; ReminderServiceTests restart case: second service instance does not re-fire) -> BUILD SUCCESSFUL, 53 tests, 0 failures
-- [ ] API documented: `api/openapi.yaml` regenerated (`UPDATE_OPENAPI=1 ./gradlew test --tests '*OpenApiContractTest'`) and `OpenApiContractTest` passes without the flag
+- [x] API documented: `api/openapi.yaml` regenerated (`UPDATE_OPENAPI=1 ./gradlew test --tests '*OpenApiContractTest'`) and `OpenApiContractTest` passes without the flag
+  - verified (2026-10-20 16:50+0200 by dell26/agent-3): UPDATE_OPENAPI=1 ./gradlew test --tests '*OpenApiContractTest' regenerated api/openapi.yaml (+ npm run api:gen web client, commit c4c7dcc); then ./gradlew test --tests '*OpenApiContractTest' without the flag on rebased HEAD -> pass
 
 ## Notes
 - ASSUMPTION (2026-10-20 15:37+0200 by dell26/agent-3): SSE: a fired reminder is sent as SSE event 'reminder' with a ReminderResponse (incl. item title/deepLink) as data, via a new generic ClientNotification event that SseEventHub (core/events, outside touches; small addition) forwards after commit; ChangeEvent stays content-free. Every reminder change also sends a 'change' event of type REMINDER
