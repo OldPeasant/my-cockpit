@@ -18,3 +18,4 @@ Single-user setup flow (SPEC.md §4.1): available only while no user exists.
 
 ## Notes
 - ASSUMPTION (2026-10-20 11:43+0200 by dell26/agent-4): Migration lives in db/migration/core/ (V202610201000__core_auth_user.sql), not core-auth/: MigrationConventionTests requires folder == module name [a-z0-9]+, so a hyphenated folder fails the check.
+- ASSUMPTION (2026-10-20 11:43+0200 by dell26/agent-4): After setup, POST /setup and /setup/confirm-totp answer 409; GET /setup/status stays 200 with setupRequired=false so the web client can route to login (informational, not a setup action).
