@@ -16,3 +16,4 @@ Reusable 'Linked items' panel for every detail view (SPEC.md §4.3).
 - [ ] Vitest component/service tests cover listing, adding via search, removal; `cd web && npm run check` passes
 
 ## Notes
+- ASSUMPTION (2026-10-20 17:30+0200 by dell26/agent-1): Item icons are inline SVG glyphs chosen by ItemType (the app ships no Material Symbols font); the server's icon name is kept as data-icon on the tile
