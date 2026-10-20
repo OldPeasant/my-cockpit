@@ -423,6 +423,46 @@ describe('GeneralSettings', () => {
     );
   });
 
+  it('does not send a label again that only gains spaces while its save is in flight', async () => {
+    await setup();
+
+    editLabel('Label for low energy', 'Tired');
+    await tick();
+    const first = http.expectOne({ method: 'PATCH', url: PATH });
+    editLabel('Label for low energy', '  Tired ');
+    first.flush(fakeSettings({ energyLabels: { LOW: 'Tired', MEDIUM: 'Medium', HIGH: 'High' } }), {
+      headers: { ETag: '"2"' },
+    });
+    await tick();
+    await fixture.whenStable();
+
+    http.expectNone({ method: 'PATCH', url: PATH });
+    expect(root.textContent).toContain('Saved');
+  });
+
+  it('saves the original label when it is changed back while its save is in flight', async () => {
+    await setup();
+
+    editLabel('Label for low energy', 'Tired');
+    await tick();
+    const first = http.expectOne({ method: 'PATCH', url: PATH });
+    editLabel('Label for low energy', 'Low');
+    first.flush(fakeSettings({ energyLabels: { LOW: 'Tired', MEDIUM: 'Medium', HIGH: 'High' } }), {
+      headers: { ETag: '"2"' },
+    });
+    await tick();
+    const second = http.expectOne({ method: 'PATCH', url: PATH });
+    expect(second.request.body).toEqual({
+      energyLabels: { LOW: 'Low', MEDIUM: 'Medium', HIGH: 'High' },
+    });
+    expect(second.request.headers.get('If-Match')).toBe('"2"');
+    second.flush(fakeSettings(), { headers: { ETag: '"3"' } });
+    await tick();
+    await fixture.whenStable();
+
+    expect(input('Label for low energy').value).toBe('Low');
+  });
+
   it('keeps a label the user changes again while its own save fails', async () => {
     await setup();
 
