@@ -1,12 +1,12 @@
 ---
 title: Server dependencies, profiles and test infrastructure
-status: in_progress
-owner: R1963MACOS/agent-2
+status: todo
+owner: 
 deps: []
 touches: [server/build.gradle.kts,server/src/main/resources/application.properties,server/src/main/resources/application-dev.properties,server/src/main/resources/application-e2e.properties,server/src/test/kotlin/ch/sonensei/cockpit/support]
 prio: 1
-lease_until: 2026-10-20T09:00:08Z
-releases: 0
+lease_until: 
+releases: 1
 extended: 
 ---
 ## Goal
@@ -31,3 +31,4 @@ Add every server library the spec needs up front (SPEC.md §2.1), so later tasks
 - ASSUMPTION (2026-10-20 10:21+0200 by dell26/agent-1) [confirmed 2026-10-20 10:25+0200 by Peter Gürtler]: integrationTest reuses the test source set and selects by JUnit tag 'external' (@ExternalTest) instead of a separate source set; Hibernate ddl-auto=validate and open-in-view=false as base defaults.
 - ASSUMPTION (2026-10-20 10:38+0200 by dell26/agent-1): Fixed tests/test_quality_gate.py (outside touches): it leaked the runner's TASKS_ROOT into tasks.py, so .taskcheck failed with 'exists' and wrote stray tasks/a,b,c.md into the clone; one-line env filter fix
 - release by dell26/agent-1: handed off by dell26/agent-1: You've hit your session limit · resets 2pm (Europe/Berlin)
+- release by R1963MACOS/agent-2: All 5 criteria verified (earlier run). Re-test + re-review done at 50e57c0 (no new findings), reports committed in 7acb719. Blocked only on environment: Docker daemon not running on R1963MACOS, so Testcontainers suites fail and quality.json validation can't honestly say pass. Left: with Docker/Podman up, run cd server && ./gradlew check, set quality.json validation results to 'pass' (reviewed_revision 50e57c0 stays valid), then tasks.py done.
