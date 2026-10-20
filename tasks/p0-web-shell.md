@@ -11,7 +11,8 @@ lease_until: 2026-10-20T10:17:58Z
 The layout every feature plugs into (SPEC.md §9.1). Creates a lazy route + placeholder page for every feature so feature tasks only touch their own folder.
 
 ## Acceptance criteria
-- [ ] Left navigation with all sections of SPEC.md §9.1 (Dashboard … Settings, plus Logbook and Trash); responsive (collapses to a drawer < 900 px)
+- [x] Left navigation with all sections of SPEC.md §9.1 (Dashboard … Settings, plus Logbook and Trash); responsive (collapses to a drawer < 900 px)
+  - verified (2026-10-20 11:58+0200 by dell26/agent-2): cd web && npx ng test --watch=false (shell.spec.ts: nav renders all 18 sections incl. Logbook+Trash; BreakpointObserver stubbed at (max-width: 899.98px) -> sidenav mode over/closed + menu button, wide -> side/open; app.spec.ts navigates every section with real routes) -> 124 passed. Not checked in a real browser (Playwright browser install not permitted here)
 - [ ] `app.routes.ts` lazy-loads `features/<feature>/<feature>.routes.ts` for every section; each placeholder file renders a 'coming soon' page; the routes file names are listed in `web/src/app/features/README.md`
 - [ ] Top bar with search field (opens the command palette), capture '+' button; hotkeys `Ctrl+K` (palette), `Q` / `Ctrl+Shift+Space` (capture, ignored while typing in inputs), `?` (shortcut overview). Capture and palette contents are provided via injection tokens (`CAPTURE_DIALOG`, `PALETTE_PROVIDERS`) with placeholder implementations
 - [ ] Theme toggle light/dark/system, applied before first paint and remembered in localStorage (read/write wrapped in try/catch); a `ThemeService` exposes it so p0-web-settings can sync it with the server settings
