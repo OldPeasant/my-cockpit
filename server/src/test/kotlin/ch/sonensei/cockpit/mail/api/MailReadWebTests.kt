@@ -95,7 +95,7 @@ class MailReadWebTests(
 		received: String,
 		threadKey: String? = null,
 		seen: Boolean = false,
-		messageId: String = "<${UUID.randomUUID()}@example.test>",
+		messageId: String? = "<${UUID.randomUUID()}@example.test>",
 	) = messages.save(
 		MailMessage(folder.accountId, folder.id, nextUid++).apply {
 			this.subject = subject
@@ -386,6 +386,26 @@ class MailReadWebTests(
 		body["text"].asString() shouldBe "Only <b>text</b>"
 		body["remoteImageCount"].asInt() shouldBe 0
 		body["remoteImagesBlocked"].asBoolean() shouldBe false
+	}
+
+	@Test
+	fun `the thread endpoint keeps the requested copy of a duplicated message`() {
+		val inboxCopy = message(workInbox, "Plan", "2026-10-01T08:00:00Z", threadKey = "t1", messageId = "<plan@example.test>")
+		val archiveCopy = message(workArchive, "Plan (copy)", "2026-10-01T08:00:00Z", threadKey = "t1", messageId = "<plan@example.test>")
+
+		getJson("/api/v1/mail/messages/${archiveCopy.id}/thread")["items"].strings("id") shouldContainExactly
+			listOf(archiveCopy.id.toString())
+		getJson("/api/v1/mail/messages/${inboxCopy.id}/thread")["items"].strings("id") shouldContainExactly
+			listOf(inboxCopy.id.toString())
+	}
+
+	@Test
+	fun `messages without Message-ID are never merged in the thread endpoint`() {
+		val first = message(workInbox, "Note", "2026-10-01T08:00:00Z", threadKey = "t1", messageId = null)
+		val second = message(workArchive, "Note", "2026-10-01T08:00:00Z", threadKey = "t1", messageId = null)
+
+		getJson("/api/v1/mail/messages/${first.id}/thread")["items"].strings("id") shouldContainExactly
+			listOf(first.id, second.id).sorted().map(UUID::toString)
 	}
 
 	@Test

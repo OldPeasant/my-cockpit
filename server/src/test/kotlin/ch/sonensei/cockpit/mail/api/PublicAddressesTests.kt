@@ -60,4 +60,27 @@ class PublicAddressesTests {
 	fun `public internet addresses are public`(address: String) {
 		PublicAddresses.isPublic(InetAddress.getByName(address)) shouldBe true
 	}
+
+	/** Just outside each blocked range: the policy must not over-block ordinary internet hosts. */
+	@ParameterizedTest
+	@ValueSource(
+		strings = [
+			"1.0.0.1", "11.0.0.1", "126.255.255.255", "128.0.0.1", "169.253.255.255", "169.255.0.1", "192.0.1.1",
+			"192.88.98.1", "198.17.255.255", "198.20.0.1", "198.51.99.1", "203.0.112.1", "223.255.255.254",
+			"2001:4860:4860::8888", "2003::1",
+		],
+	)
+	fun `addresses just outside the blocked ranges are public`(address: String) {
+		PublicAddresses.isPublic(InetAddress.getByName(address)) shouldBe true
+	}
+
+	/**
+	 * IPv6 counterparts of ranges the policy documents as blocked: the local-use NAT64 prefix 64:ff9b:1::/48
+	 * (RFC 8215, here embedding 10.0.0.1), benchmarking 2001:2::/48 (RFC 5180) and documentation 3fff::/20 (RFC 9637).
+	 */
+	@ParameterizedTest
+	@ValueSource(strings = ["64:ff9b:1::a00:1", "2001:2::1", "3fff::1"])
+	fun `IPv6 local-use NAT64, benchmarking and documentation addresses are not public`(address: String) {
+		PublicAddresses.isPublic(InetAddress.getByName(address)) shouldBe false
+	}
 }
