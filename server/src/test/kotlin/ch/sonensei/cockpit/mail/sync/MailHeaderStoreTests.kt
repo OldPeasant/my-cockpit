@@ -406,6 +406,38 @@ class MailHeaderStoreTests(
 	}
 
 	@Test
+	fun `a reply before its parent that refers to the root stays with the root arriving last in another batch`() {
+		store.upsert(account.id, inbox.id, listOf(remote(1, "<c@example.test>", subject = "Re: Plan", inReplyTo = "<b@example.test>")))
+		store.upsert(
+			account.id,
+			archive.id,
+			listOf(remote(1, "<b@example.test>", subject = "Re: Plan", inReplyTo = "<a@example.test>", references = "<a@example.test>")),
+		)
+		store.upsert(account.id, other.id, listOf(remote(1, "<a@example.test>", subject = "Unrelated subject")))
+
+		listOf(row(inbox, 1), row(archive, 1), row(other, 1)).map { it.threadKey } shouldBe List(3) { "<a@example.test>" }
+	}
+
+	@Test
+	fun `linkedDetachedMessageIds lists the Message-IDs of linked detached rows of that folder only`() {
+		store.upsert(
+			account.id,
+			inbox.id,
+			listOf(remote(1, "<a@example.test>"), remote(2, "<b@example.test>"), remote(3, null, subject = "No id")),
+		)
+		store.upsert(account.id, archive.id, listOf(remote(1, "<z@example.test>")))
+		link(row(inbox, 1))
+		link(row(inbox, 3))
+		link(row(archive, 1))
+		store.linkedDetachedMessageIds(inbox.id).shouldBeEmpty()
+
+		store.detachFolder(inbox.id)
+		store.detachFolder(archive.id)
+
+		store.linkedDetachedMessageIds(inbox.id) shouldContainExactly listOf("<a@example.test>")
+	}
+
+	@Test
 	fun `finish records the folder state`() {
 		val at = Instant.parse("2026-10-20T10:00:00Z")
 

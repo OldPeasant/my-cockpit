@@ -88,9 +88,12 @@ object MailThreading {
 				?: normalizeSubject(subject).takeIf { it.isNotEmpty() }?.let { SUBJECT_KEY_PREFIX + it }
 				?: messageId
 				?: "id:$fallbackId"
-		// The root's conversation first (parents are root-first), then those keyed by this message or a parent.
+		// The conversation of the first cached parent (parents are root-first). With no parent cached yet, a reply is
+		// keyed by its root, so that the root and later replies find it there; conversations keyed provisionally by this
+		// message or an intermediate parent merge into it. Only a message without parents keeps a provisional key.
 		val key =
 			parents.firstNotNullOfOrNull { known[it] }
+				?: parents.firstOrNull()
 				?: provisional.firstOrNull { it in provisionalExisting }
 				?: default
 		val merged = (known.values + provisionalExisting).toSet() - key

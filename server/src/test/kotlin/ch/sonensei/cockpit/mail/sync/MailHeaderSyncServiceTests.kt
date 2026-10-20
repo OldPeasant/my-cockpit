@@ -14,9 +14,11 @@ import io.kotest.matchers.shouldBe
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
+import io.mockk.verifyOrder
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import java.time.Clock
+import java.time.Duration
 import java.time.Instant
 import java.time.ZoneOffset
 import java.util.Optional
@@ -66,6 +68,8 @@ class MailHeaderSyncServiceTests {
 		var uids: List<Long> = emptyList()
 		var flags: List<RemoteFlagState> = emptyList()
 		var changedSince: List<RemoteFlagState> = emptyList()
+		var received: Map<Long, Instant> = emptyMap()
+		var messageIdMatches: List<Long> = emptyList()
 		val calls = mutableListOf<String>()
 
 		override fun uidsSince(since: Instant): List<Long> {
@@ -78,9 +82,14 @@ class MailHeaderSyncServiceTests {
 			return uids.filter { it >= fromUid }
 		}
 
-		override fun uidsBelow(uid: Long): List<Long> {
-			calls += "uidsBelow $uid"
-			return uids.filter { it < uid }
+		override fun receivedDates(uids: List<Long>): Map<Long, Instant> {
+			calls += "receivedDates $uids"
+			return uids.mapNotNull { uid -> received[uid]?.let { uid to it } }.toMap()
+		}
+
+		override fun uidsWithMessageIds(messageIds: Collection<String>): List<Long> {
+			calls += "uidsWithMessageIds ${messageIds.sorted()}"
+			return messageIdMatches
 		}
 
 		override fun headers(uids: List<Long>): List<RemoteMessage> {
@@ -276,27 +285,49 @@ class MailHeaderSyncServiceTests {
 	}
 
 	@Test
-	fun `loadOlder fetches the newest messages below the oldest cached UID`() {
+	fun `loadOlder fetches the most recently arrived messages missing from the cache, whatever their UID`() {
 		cachedState(uidNext = 20)
 		every { store.locatedUids(folder.id) } returns listOf(10, 15)
 		remote.status = remote.status.copy(uidNext = 20)
 		remote.uids = (1L..19L).toList()
+		// UID order is not arrival order: 18 and 19 were moved in late but arrived long ago, 4..7 arrived most recently.
+		remote.received = remote.uids.associateWith { now.minus(Duration.ofDays(400 + 19 - it)) } +
+			listOf(4L, 5L, 6L, 7L).associateWith { now.minus(Duration.ofDays(300 + it)) }
 
 		service.loadOlder(folder.id, limit = 4) shouldBe OlderMessagesResult(loaded = 4, hasMore = true)
 
-		upserted() shouldContainExactly listOf(6, 7, 8, 9)
-		remote.calls shouldContainExactly listOf("uidsBelow 10", "headers [6, 7, 8, 9]")
+		upserted() shouldContainExactly listOf(4, 5, 6, 7)
+		remote.calls shouldContainExactly
+			listOf("uidsFrom 1", "receivedDates ${(1L..19L).filter { it != 10L && it != 15L }}", "headers [4, 5, 6, 7]")
 	}
 
 	@Test
-	fun `loadOlder in an empty cache starts below UIDNEXT`() {
+	fun `loadOlder ranks messages without a date last and ties by UID`() {
+		cachedState(uidNext = 5)
+		every { store.locatedUids(folder.id) } returns emptyList()
+		remote.status = remote.status.copy(uidNext = 5)
+		remote.uids = listOf(1, 2, 3, 4)
+		val day = now.minus(Duration.ofDays(500))
+		remote.received = mapOf(1L to day, 2L to day, 3L to now.minus(Duration.ofDays(600)))
+
+		service.loadOlder(folder.id, limit = 1) shouldBe OlderMessagesResult(loaded = 1, hasMore = true)
+		upserted() shouldContainExactly listOf(2)
+
+		every { store.locatedUids(folder.id) } returns listOf(2)
+		service.loadOlder(folder.id, limit = 2) shouldBe OlderMessagesResult(loaded = 2, hasMore = true)
+		upserted() shouldContainExactly listOf(2, 1, 3)
+	}
+
+	@Test
+	fun `loadOlder takes every missing message without reading dates when they fit into the limit`() {
 		cachedState(uidNext = 4)
 		every { store.locatedUids(folder.id) } returns emptyList()
 		remote.status = remote.status.copy(uidNext = 4)
 		remote.uids = listOf(1, 2, 3)
 
 		service.loadOlder(folder.id) shouldBe OlderMessagesResult(loaded = 3, hasMore = false)
-		remote.calls.first() shouldBe "uidsBelow 4"
+		remote.calls shouldContainExactly listOf("uidsFrom 1", "headers [1, 2, 3]")
+		verify { changes.publish("MAIL_FOLDER", folder.id, ChangeOp.UPDATED) }
 	}
 
 	@Test
@@ -309,6 +340,67 @@ class MailHeaderSyncServiceTests {
 		remote.calls.first().startsWith("uidsSince") shouldBe true
 		verify { store.finish(folder.id, remote.status, now) }
 		verify(exactly = 0) { changes.publish(any<String>(), any(), any()) }
+	}
+
+	@Test
+	fun `loadOlder announces the change when only its implicit full sync changed the cache`() {
+		cachedState()
+		remote.status = remote.status.copy(uidValidity = 8)
+		remote.uids = listOf(1, 2)
+		every { store.locatedUids(folder.id) } returns listOf(1L, 2L)
+
+		service.loadOlder(folder.id) shouldBe OlderMessagesResult(loaded = 0, hasMore = false)
+
+		verify(exactly = 1) { changes.publish("MAIL_FOLDER", folder.id, ChangeOp.UPDATED) }
+	}
+
+	@Test
+	fun `loadOlder of a folder that cannot hold messages loads nothing and opens nothing`() {
+		folder.selectable = false
+
+		service.loadOlder(folder.id) shouldBe OlderMessagesResult(loaded = 0, hasMore = false)
+
+		opened shouldBe 0
+		verify(exactly = 0) { changes.publish(any<String>(), any(), any()) }
+	}
+
+	@Test
+	fun `a resync looks up linked rows the window missed by Message-ID before pruning`() {
+		cachedState()
+		remote.status = remote.status.copy(uidValidity = 8)
+		remote.uids = listOf(5)
+		every { store.linkedDetachedMessageIds(folder.id) } returns listOf("<2@example.test>", "<3@example.test>", "<9@example.test>")
+		every { store.locatedUids(folder.id) } returns listOf(5)
+		// The server matches substrings: 23 has another Message-ID (`<23@example.test>`) and must not be taken.
+		remote.messageIdMatches = listOf(2, 3, 5, 23)
+		every { store.pruneDetached(folder.id) } returns 1
+
+		val result = service.syncFolder(folder.id)
+
+		remote.calls shouldContainExactly
+			listOf(
+				"uidsSince 2026-04-20T10:00:00Z",
+				"headers [5]",
+				"uidsWithMessageIds [<2@example.test>, <3@example.test>, <9@example.test>]",
+				"headers [2, 3, 23]",
+			)
+		upserted() shouldContainExactly listOf(5, 2, 3)
+		verifyOrder {
+			store.upsert(account.id, folder.id, match { batch -> batch.map { it.uid } == listOf(2L, 3L) })
+			store.pruneDetached(folder.id)
+		}
+		result shouldBe FolderSyncResult(folder.id, full = true, created = 3, updated = 0, removed = 1)
+	}
+
+	@Test
+	fun `a resync without linked detached rows does not search by Message-ID`() {
+		cachedState()
+		remote.status = remote.status.copy(uidValidity = 8)
+		every { store.linkedDetachedMessageIds(folder.id) } returns emptyList()
+
+		service.syncFolder(folder.id)
+
+		remote.calls.none { it.startsWith("uidsWithMessageIds") } shouldBe true
 	}
 
 	@Test

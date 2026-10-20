@@ -90,6 +90,46 @@ class MailThreadingTests {
 	}
 
 	@Test
+	fun `a reply before its parent that refers to the root keeps the conversation together when the root arrives last`() {
+		val mail = Mailbox()
+		// c only knows its parent b; b refers to the root a; a arrives last with a subject of its own.
+		mail.receive("<c@example.test>", inReplyTo = "<b@example.test>")
+		mail.receive("<b@example.test>", inReplyTo = "<a@example.test>", references = "<a@example.test>")
+		mail.keyOf("<c@example.test>") shouldBe "<a@example.test>"
+		mail.keyOf("<b@example.test>") shouldBe "<a@example.test>"
+
+		mail.receive("<a@example.test>", "Unrelated subject")
+
+		mail.keyOf("<a@example.test>") shouldBe "<a@example.test>"
+		mail.keyOf("<b@example.test>") shouldBe "<a@example.test>"
+		mail.keyOf("<c@example.test>") shouldBe "<a@example.test>"
+	}
+
+	@Test
+	fun `a root without subject arriving after its replies joins them`() {
+		val mail = Mailbox()
+		mail.receive("<c@example.test>", subject = null, inReplyTo = "<b@example.test>")
+		mail.receive("<b@example.test>", subject = null, inReplyTo = "<a@example.test>")
+
+		mail.receive("<a@example.test>", subject = null)
+
+		setOf(mail.keyOf("<a@example.test>"), mail.keyOf("<b@example.test>"), mail.keyOf("<c@example.test>")) shouldBe
+			setOf("<a@example.test>")
+	}
+
+	@Test
+	fun `a reply before its parent joins the root's subject conversation once the parent arrives`() {
+		val mail = Mailbox()
+		mail.receive("<a@example.test>", "Budget")
+		mail.receive("<c@example.test>", inReplyTo = "<b@example.test>")
+
+		mail.receive("<b@example.test>", inReplyTo = "<a@example.test>", references = "<a@example.test>")
+
+		mail.keyOf("<b@example.test>") shouldBe "subject:budget"
+		mail.keyOf("<c@example.test>") shouldBe "subject:budget"
+	}
+
+	@Test
 	fun `messages without references fall back to the normalized subject`() {
 		val mail = Mailbox()
 		mail.receive("<a@example.test>", "Budget 2026")

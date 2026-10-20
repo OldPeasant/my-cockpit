@@ -101,6 +101,15 @@ class MailHeaderStore(
 		messages.flush()
 	}
 
+	/** The Message-IDs of the folder's detached rows that an item links to (to look for them on the server again). */
+	@Transactional(readOnly = true)
+	fun linkedDetachedMessageIds(folderId: UUID): List<String> =
+		messages
+			.findByFolderIdAndUidIsNull(folderId)
+			.filter { it.messageIdHeader != null && isLinked(it) }
+			.mapNotNull { it.messageIdHeader }
+			.distinct()
+
 	/** After a resync: rows of the folder that were not found again are removed (or stay detached when linked). */
 	@Transactional
 	fun pruneDetached(folderId: UUID): Int {

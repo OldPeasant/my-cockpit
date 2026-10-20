@@ -74,8 +74,14 @@ interface RemoteFolder {
 	/** UIDs of all messages with a UID of at least [fromUid]. */
 	fun uidsFrom(fromUid: Long): List<Long>
 
-	/** UIDs of all messages with a UID below [uid]. */
-	fun uidsBelow(uid: Long): List<Long>
+	/** The arrival time (INTERNALDATE) of the messages with these UIDs (UIDs no longer on the server are left out). */
+	fun receivedDates(uids: List<Long>): Map<Long, Instant>
+
+	/**
+	 * UIDs of the messages whose `Message-ID` header contains one of [messageIds] (a server-side substring match, so
+	 * the caller compares the fetched headers). Ids the server cannot be asked for (non-ASCII, line breaks) are skipped.
+	 */
+	fun uidsWithMessageIds(messageIds: Collection<String>): List<Long>
 
 	/** Headers of the messages with these UIDs (UIDs no longer on the server are left out). */
 	fun headers(uids: List<Long>): List<RemoteMessage>

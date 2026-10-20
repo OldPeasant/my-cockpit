@@ -121,7 +121,31 @@ private class ImapRemoteFolder(
 
 	override fun uidsFrom(fromUid: Long): List<Long> = if (empty) emptyList() else search("UID $fromUid:*").filter { it >= fromUid }
 
-	override fun uidsBelow(uid: Long): List<Long> = if (uid <= 1) emptyList() else search("UID 1:${uid - 1}")
+	override fun receivedDates(uids: List<Long>): Map<Long, Instant> =
+		if (uids.isEmpty()) {
+			emptyMap()
+		} else {
+			fetch(uids, "UID INTERNALDATE")
+				.mapNotNull { (uid, r) ->
+					r
+						.getItem(INTERNALDATE::class.java)
+						?.date
+						?.toInstant()
+						?.let { uid to it }
+				}.toMap()
+		}
+
+	override fun uidsWithMessageIds(messageIds: Collection<String>): List<Long> =
+		messageIds
+			.filter { id -> id.isNotEmpty() && id.all { it in ' '..'~' } }
+			.distinct()
+			.chunked(MESSAGE_ID_SEARCH_CHUNK)
+			.flatMap { chunk ->
+				// `OR a OR b c`: prefix ORs nest to the right, so n criteria need n - 1 ORs.
+				val criteria = chunk.map { "HEADER Message-ID ${quoted(it)}" }
+				search(criteria.dropLast(1).joinToString("") { "OR $it " } + criteria.last())
+			}.distinct()
+			.sorted()
 
 	override fun headers(uids: List<Long>): List<RemoteMessage> {
 		if (uids.isEmpty()) return emptyList()
@@ -255,7 +279,12 @@ private class ImapRemoteFolder(
 
 	private companion object {
 		const val FETCH_CHUNK = 500
+		const val MESSAGE_ID_SEARCH_CHUNK = 20
 		const val SNIPPET_FETCH_BYTES = 2048
+
+		/** An IMAP quoted string (RFC 9051 §4.3); the caller only passes printable ASCII. */
+		fun quoted(value: String) = "\"" + value.replace("\\", "\\\\").replace("\"", "\\\"") + "\""
+
 		val IMAP_DATE: DateTimeFormatter = DateTimeFormatter.ofPattern("d-MMM-yyyy", Locale.ENGLISH)
 	}
 }

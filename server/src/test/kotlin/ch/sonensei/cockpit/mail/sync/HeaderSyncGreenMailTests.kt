@@ -278,6 +278,69 @@ class HeaderSyncGreenMailTests(
 	}
 
 	@Test
+	fun `older mail is picked by arrival date, not by UID`() {
+		val now = Instant.now()
+		append(
+			"Archive",
+			mail("<recent@example.test>", "Recent", received = now.minus(10, ChronoUnit.DAYS)),
+			mail("<ancient@example.test>", "Ancient", received = now.minus(900, ChronoUnit.DAYS)),
+		)
+		// Archived later: a high UID, but it arrived long ago (COPY/MOVE keep INTERNALDATE).
+		append("Archive", mail("<archived@example.test>", "Archived", received = now.minus(400, ChronoUnit.DAYS)))
+		val archive = folder("Archive")
+		sync.syncFolder(archive.id)
+		cached(archive).map { it.messageIdHeader } shouldBe listOf("<recent@example.test>")
+
+		sync.loadOlder(archive.id, limit = 1) shouldBe OlderMessagesResult(loaded = 1, hasMore = true)
+		cached(archive).map { it.messageIdHeader } shouldBe listOf("<recent@example.test>", "<archived@example.test>")
+
+		sync.loadOlder(archive.id, limit = 1) shouldBe OlderMessagesResult(loaded = 1, hasMore = false)
+		cached(archive).map { it.messageIdHeader } shouldBe
+			listOf("<recent@example.test>", "<ancient@example.test>", "<archived@example.test>")
+	}
+
+	@Test
+	fun `a reply that arrives before its parent stays in the conversation when the root arrives last`() {
+		append(
+			"INBOX",
+			mail("<c@example.test>", "Re: Offsite", inReplyTo = "<b@example.test>"),
+			mail("<other@example.test>", "Unrelated subject"),
+		)
+		val inbox = folder("INBOX")
+		sync.syncFolder(inbox.id)
+		append("INBOX", mail("<b@example.test>", "Re: Offsite", inReplyTo = "<a@example.test>", references = "<a@example.test>"))
+		sync.syncFolder(inbox.id)
+		cached(inbox, "<c@example.test>").threadKey shouldBe "<a@example.test>"
+
+		// The root comes last, filed in another folder, with a subject of its own.
+		append("Sent", mail("<a@example.test>", "Unrelated subject"))
+		val sent = folder("Sent")
+		sync.syncFolder(sent.id)
+
+		cached(sent, "<a@example.test>").threadKey shouldBe "<a@example.test>"
+		cached(inbox, "<b@example.test>").threadKey shouldBe "<a@example.test>"
+		cached(inbox, "<c@example.test>").threadKey shouldBe "<a@example.test>"
+		cached(inbox, "<other@example.test>").threadKey shouldBe "subject:unrelated subject"
+	}
+
+	@Test
+	fun `a reply that connects two cached conversations merges them in the database`() {
+		append(
+			"INBOX",
+			mail("<c@example.test>", "Re: Plan", inReplyTo = "<b@example.test>"),
+			mail("<a@example.test>", "Plan"),
+		)
+		val inbox = folder("INBOX")
+		sync.syncFolder(inbox.id)
+		cached(inbox, "<c@example.test>").threadKey shouldNotBe cached(inbox, "<a@example.test>").threadKey
+
+		append("INBOX", mail("<b@example.test>", "Re: Plan", inReplyTo = "<a@example.test>", references = "<a@example.test>"))
+		sync.syncFolder(inbox.id)
+
+		cached(inbox).map { it.threadKey }.toSet() shouldBe setOf("subject:plan")
+	}
+
+	@Test
 	fun `an incremental sync reconciles new, deleted and flag-changed messages`() {
 		append(
 			"INBOX",
@@ -363,6 +426,27 @@ class HeaderSyncGreenMailTests(
 		// The other message is gone from the server, but it is linked too (as the link's target), so it stays detached.
 		messages.findById(target.id).orElseThrow().isLocated shouldBe false
 		folders.findById(projects.id).orElseThrow().uidValidity shouldNotBe validity
+	}
+
+	@Test
+	fun `a resync finds linked messages older than the window again by Message-ID`() {
+		val old = Instant.now().minus(500, ChronoUnit.DAYS)
+		append("Projects", mail("<recent@example.test>", "Recent"), mail("<old@example.test>", "Old", received = old))
+		val projects = folder("Projects")
+		sync.syncFolder(projects.id)
+		sync.loadOlder(projects.id).loaded shouldBe 1
+		val linked = cached(projects, "<old@example.test>")
+		links.create(ItemRef(ItemType.EMAIL, linked.id), ItemRef(ItemType.EMAIL, cached(projects, "<recent@example.test>").id), null)
+
+		// New UIDVALIDITY; the old message is still there, outside the window.
+		recreate("Projects", mail("<old@example.test>", "Old", received = old), mail("<recent@example.test>", "Recent"))
+		val result = sync.syncFolder(projects.id)
+
+		result.full shouldBe true
+		result.removed shouldBe 0
+		cached(projects, "<old@example.test>").id shouldBe linked.id
+		cached(projects, "<old@example.test>").uid shouldBe 1
+		cached(projects).map { it.messageIdHeader } shouldContainExactlyInAnyOrder listOf("<old@example.test>", "<recent@example.test>")
 	}
 
 	@Test

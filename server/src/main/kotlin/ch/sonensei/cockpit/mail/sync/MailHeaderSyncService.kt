@@ -11,6 +11,7 @@ import ch.sonensei.cockpit.mail.model.MailFolderRepository
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
 import java.time.Clock
+import java.time.Instant
 import java.time.ZoneOffset
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
@@ -43,7 +44,8 @@ data class OlderMessagesResult(
  * - **Incremental sync**: messages from the cached UIDNEXT on are new; flags and expunges are reconciled with QRESYNC
  *   (changes and VANISHED reported on open) when the server supports it, else with CONDSTORE (`CHANGEDSINCE` the cached
  *   HIGHESTMODSEQ, plus a UID search for expunges), else by fetching the flags of every cached UID.
- * - **Older mail on demand** ([loadOlder]): the next messages below the oldest cached UID.
+ *   Linked rows the window pass did not find are then looked up by Message-ID before the rest is removed.
+ * - **Older mail on demand** ([loadOlder]): the most recently arrived messages missing from the cache.
  *
  * Syncs of the same folder run one after another. A folder whose content changed publishes a `MAIL_FOLDER` change
  * event.
@@ -100,34 +102,47 @@ class MailHeaderSyncService(
 			}.also(::announce)
 
 	/**
-	 * Loads up to [limit] messages older than the oldest cached one (by UID) into the cache, e.g. when the list is
-	 * scrolled past the sync window. A folder that was never synced (or whose UIDVALIDITY changed) is synced first.
+	 * Loads up to [limit] of the messages missing from the cache into it, the most recently arrived (INTERNALDATE)
+	 * first, e.g. when the list is scrolled past the sync window. Messages are picked by what is missing, not by UID,
+	 * because UID order is not arrival order (a message moved into an archive keeps its old date but gets a new UID).
+	 * A folder that was never synced (or whose UIDVALIDITY changed) is synced first. A folder that cannot hold
+	 * messages (`\Noselect`) has nothing to load.
 	 */
 	fun loadOlder(
 		folderId: UUID,
 		limit: Int = DEFAULT_OLDER_LIMIT,
 	): OlderMessagesResult {
 		require(limit > 0) { "limit must be positive" }
+		var changed = false
 		val result =
 			lock(folderId).withLock {
 				val folder = folder(folderId)
 				val account = account(folder.accountId)
+				if (!folder.selectable) return@withLock OlderMessagesResult(0, false)
 				mailbox.withFolder(account, folder.path, null) { remote ->
 					if (folder.uidValidity != remote.status.uidValidity) {
-						full(account, folder, remote)
+						changed = full(account, folder, remote).changedAnything
 					}
-					val oldest = store.locatedUids(folder.id).firstOrNull() ?: remote.status.uidNext
-					val older = remote.uidsBelow(oldest)
-					val batch = older.takeLast(limit)
+					val cached = store.locatedUids(folder.id).toHashSet()
+					val missing = remote.uidsFrom(1).filter { it !in cached }
+					val batch =
+						if (missing.size <= limit) {
+							missing
+						} else {
+							val dates = remote.receivedDates(missing)
+							missing
+								.sortedWith(compareByDescending<Long> { dates[it] ?: Instant.EPOCH }.thenByDescending { it })
+								.take(limit)
+								.sorted()
+						}
 					val counts =
 						batch.chunked(BATCH_SIZE).fold(StoreCounts()) { acc, uids ->
-							acc +
-								store.upsert(account.id, folder.id, remote.headers(uids))
+							acc + store.upsert(account.id, folder.id, remote.headers(uids))
 						}
-					OlderMessagesResult(counts.created + counts.updated, older.size > batch.size)
+					OlderMessagesResult(counts.created + counts.updated, missing.size > batch.size)
 				}
 			}
-		if (result.loaded > 0) changes.publish(FOLDER_EVENT, folderId, ChangeOp.UPDATED)
+		if (changed || result.loaded > 0) changes.publish(FOLDER_EVENT, folderId, ChangeOp.UPDATED)
 		return result
 	}
 
@@ -151,9 +166,30 @@ class MailHeaderSyncService(
 			remote.uidsSince(since).chunked(BATCH_SIZE).fold(StoreCounts()) { acc, uids ->
 				acc + store.upsert(account.id, folder.id, remote.headers(uids))
 			}
-		if (resync) counts += StoreCounts(removed = store.pruneDetached(folder.id))
+		if (resync) {
+			counts += retakeLinked(account, folder, remote)
+			counts += StoreCounts(removed = store.pruneDetached(folder.id))
+		}
 		store.finish(folder.id, remote.status, clock.instant())
 		return FolderSyncResult(folder.id, full = true, counts.created, counts.updated, counts.removed)
+	}
+
+	/**
+	 * After the window pass of a resync: linked rows still detached may belong to messages older than the window that
+	 * are still in the folder. They are looked up by Message-ID so the links keep pointing at a located message.
+	 */
+	private fun retakeLinked(
+		account: MailAccount,
+		folder: MailFolder,
+		remote: RemoteFolder,
+	): StoreCounts {
+		val wanted = store.linkedDetachedMessageIds(folder.id).toSet()
+		if (wanted.isEmpty()) return StoreCounts()
+		val located = store.locatedUids(folder.id).toHashSet()
+		return remote.uidsWithMessageIds(wanted).filter { it !in located }.chunked(BATCH_SIZE).fold(StoreCounts()) { acc, uids ->
+			// The server matches substrings: only the exact Message-IDs are taken.
+			acc + store.upsert(account.id, folder.id, remote.headers(uids).filter { it.messageId in wanted })
+		}
 	}
 
 	private fun incremental(
@@ -193,8 +229,10 @@ class MailHeaderSyncService(
 	}
 
 	private fun announce(result: FolderSyncResult) {
-		if (result.created + result.updated + result.removed > 0) changes.publish(FOLDER_EVENT, result.folderId, ChangeOp.UPDATED)
+		if (result.changedAnything) changes.publish(FOLDER_EVENT, result.folderId, ChangeOp.UPDATED)
 	}
+
+	private val FolderSyncResult.changedAnything: Boolean get() = created + updated + removed > 0
 
 	private fun lock(folderId: UUID) = locks.computeIfAbsent(folderId) { ReentrantLock() }
 
