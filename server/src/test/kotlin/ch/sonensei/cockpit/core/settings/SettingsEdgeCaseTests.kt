@@ -180,6 +180,31 @@ class SettingsEdgeCaseTests(
 	}
 
 	@Test
+	fun `resetting a key that is not set keeps the ETag while other settings are stored`(events: ApplicationEvents) {
+		patch("""{"theme": "dark", "weekStart": "SUNDAY"}""").andExpect { header { string(ETAG, "\"1\"") } }
+		patch("""{"mailImagePolicy": null, "theme": "dark"}""", "\"1\"").andExpect {
+			status { isOk() }
+			header { string(ETAG, "\"1\"") }
+			jsonPath("$.theme") { value("dark") }
+			jsonPath("$.weekStart") { value("SUNDAY") }
+			jsonPath("$.mailImagePolicy") { value("block") }
+		}
+		events.stream(SettingsChangedEvent::class.java).count() shouldBe 1
+	}
+
+	@Test
+	fun `a PATCH with changed and unchanged keys bumps the ETag once and reports the changed key only`(events: ApplicationEvents) {
+		patch("""{"theme": "dark"}""").andExpect { header { string(ETAG, "\"1\"") } }
+		patch("""{"theme": "dark", "weekStart": "SUNDAY"}""", "\"1\"").andExpect {
+			status { isOk() }
+			header { string(ETAG, "\"2\"") }
+			jsonPath("$.weekStart") { value("SUNDAY") }
+		}
+		events.stream(SettingsChangedEvent::class.java).toList() shouldContainExactly
+			listOf(SettingsChangedEvent(setOf("theme")), SettingsChangedEvent(setOf("weekStart")))
+	}
+
+	@Test
 	fun `a failed or unchanged update publishes no event`(events: ApplicationEvents) {
 		shouldThrow<InvalidRequestException> { settings.update(mapOf("theme" to "sepia")) }
 		settings.update(mapOf("theme" to "system"))

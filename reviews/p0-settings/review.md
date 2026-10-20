@@ -4,29 +4,43 @@ Date: 2026-10-20
 
 Task: p0-settings - User settings API
 
-Scope: task commits ec2544f and 2acd96c (`git diff 85dc521..2acd96c`), committed revision 2acd96c only
+Scope: final task revision 7b196531e61c513515f7189d75190dd427afee6d against its merge-base with origin/main (task commits bde946a, 9eaa88d, 9b86aa8, 7b19653), excluding `reviews/` and `tasks/`. Pass 2: verifies the fixes for TW-1 and CR-1..CR-3 and re-reviews the whole task change.
 
 Requirements:
 - tasks/p0-settings.md acceptance criteria and recorded assumptions
 - SPEC.md §4.2 (UUIDv7, version/ETag/If-Match, Problem Details) and §4.7 (settings)
-- docs/ARCHITECTURE.md (server package conventions), AGENTS.md project notes, api/README.md
-- Existing conventions: core/web/ETags.kt, core/web/ProblemDetailsAdvice.kt, core/persistence/BaseEntity.kt, core/auth
+- docs/ARCHITECTURE.md (server packages, persistence and migration conventions, API contract), AGENTS.md project notes
+- Pass-1 review (CR-1..CR-3), reviews/p0-settings/tests.md (TW-1), reviews/p0-settings/fixes.md
 
 Git range:
 - Branch: main
-- HEAD: 2acd96cfe5bb9ae689f298b80f57852639f9fcb1
-- Base/start: 85dc52177d1680c601860c7da275755e44ca580c
-- Commits reviewed: 2
+- HEAD: 7b196531e61c513515f7189d75190dd427afee6d (confirmed from `.git/refs/heads/main`)
+- Base/start: merge-base of HEAD and origin/main (pass-1 base 85dc52177d1680c601860c7da275755e44ca580c)
+- Commits reviewed: 4
 
-Summary: 0 P0, 0 P1, 1 P2, 2 P3
+Method note: shell access was not available to this reviewer, so `git diff` could not be run. The review read every task file in full at the current checkout (HEAD = 7b19653): `core/settings/api/SettingsController.kt`, `api/SettingsSchemas.kt`, `domain/SettingDefinition.kt`, `domain/SettingsService.kt`, `domain/UserSettings.kt`, `infra/UserSettingsRepository.kt`, migrations `core/V202610201130__core_settings.sql` and `core/V202610201145__core_settings_overrides_object.sql`, `api/openapi.yaml`, and `SettingsEdgeCaseTests.kt`. The parent stated that only test files under `core/settings` may differ from HEAD in the working tree, so the production files read are taken to be the committed revision. Test results were not re-run here. They come from the fixer and test-writer reports.
+
+Summary: 0 P0, 0 P1, 0 P2, 0 P3
+
+## Pass-1 findings and their resolution
+
+- **TW-1 | A no-op PATCH bumped the ETag**: fixed. `SettingsService.update()` (SettingsService.kt:88-105) now reassigns `overrides` only when a key changed or a stored key was removed on reset, so Hibernate sees a clean entity and keeps the version. The paths were checked: setting the current value, setting the default while unset, and resetting an unset key all leave the entity clean. Resetting a stored value that is no longer valid removes it without publishing an event. Covered by `setting a key to the value it already has keeps the ETag` and `resetting a stored value its definition no longer accepts removes it`.
+- **CR-1 | 409 conflict paths untested**: resolved. The first-row race is covered by `there is at most one settings row` (unique index) and `a concurrently created settings row is a conflict` (DataIntegrityViolationException -> ConflictException). The concurrent update is covered by `a concurrent change of the existing settings is a conflict and changes nothing`. That test bumps `version` inside the `checkVersion` callback, asserts `OptimisticLockingFailureException`, and checks that version and value are unchanged afterwards.
+- **CR-2 | SettingsPatch enums excluded `null`**: fixed. `SettingsPatchNullEnums` (SettingsSchemas.kt:65-84) appends a real `null` to every enum in SettingsPatch. It is idempotent and keeps `types` and `description`. api/openapi.yaml:409-444 now lists `- null` for mailImagePolicy, theme and weekStart. The `Settings` response schema is unchanged, which is correct. Covered by `the documented patch allows null for the enum settings`.
+- **CR-3 | A malformed `overrides` document broke every read**: fixed. A new migration, `V202610201145__core_settings_overrides_object.sql`, adds `check (jsonb_typeof(overrides) = 'object')`. The applied migration was not edited, and the folder and module token follow the convention. Together with `not null`, the column can only hold an object, so `readOverrides` cannot meet a non-object document. Covered by `the stored overrides must be a JSON object` (`[]`, JSON `null` and a string are rejected).
+
+## Re-review of the whole change
 
 Verified as correct:
-- GET returns every registered key with defaults (timeZone Europe/Zurich, weekStart MONDAY, theme system, energy/creativity labels, mailImagePolicy block, mailImageAllowedSenders []) and an ETag; PATCH validates every key and type, rejects unknown keys and invalid values with one FieldError per key (400, Problem Details) and stores nothing.
-- SettingsService: modules register keys as SettingDefinition beans or via register() (duplicates rejected, same instance idempotent), read them type-safely with get(); SettingsChangedEvent carries only actually changed keys.
-- Optimistic locking: If-Match is checked against the row version (428 missing, 412 stale); concurrent updates of the existing row fail on the JPA version check, mapped to 409 by ProblemDetailsAdvice. The first-create race is guarded by the unique index on `((true))`, and the duplicate insert becomes 409 via the DataIntegrityViolationException catch in create().
-- Stored values that a definition no longer accepts, and keys that are no longer registered, read as defaults and do not leak into the response.
-- Migration follows the naming convention (folder deviation from `touches` recorded as an assumption); entity uses BaseEntity (UUIDv7, timestamps, version). Only keys are logged, at DEBUG. Endpoints require authentication (tested).
-- api/openapi.yaml and the generated web client match the controller (paths, operation ids, If-Match header, 400/409/412/428 responses, Settings/SettingsPatch schemas).
+- AC1: GET returns every registered key with its default (timeZone Europe/Zurich, weekStart MONDAY, theme system, energy/creativity labels, mailImagePolicy block, mailImageAllowedSenders []) and an ETag. PATCH validates every key and type, answers 400 Problem Details with one FieldError per unknown key or invalid value (a `null` for an unknown key is still unknown), and stores nothing on error. Validation runs before the If-Match check.
+- AC2: `SettingsService.register()` (ConcurrentHashMap, duplicate key rejected, same instance idempotent) and `SettingDefinition` beans collected at startup. `get()` is type-safe and requires a registered definition. `SettingsChangedEvent` carries only the keys whose value changed.
+- SPEC §4.2: PATCH requires If-Match (428 when missing, 412 when stale, through `ETags`). The version is the ETag of the whole document, with `"0"` when there is no row. A concurrent first create gives 409 through the unique index, and a concurrent update gives 409 through `@Version`. The entity extends BaseEntity (UUIDv7, timestamps, version).
+- Stored values that a definition no longer accepts, and keys that are no longer registered, read as defaults. They are not returned and are not lost on other changes.
+- Security: the endpoints are under the authenticated `/api/v1` (tested by `settings need a login`). Only keys are logged, at DEBUG. No values or secrets are logged. No unsafe query or HTML construction.
+- AC4: api/openapi.yaml matches the controller (paths, operation ids, the If-Match header, 200/400/409/412/428, Settings/SettingsPatch with additionalProperties for module keys). The fixer reports the generated web client unchanged after `npm run api:gen`.
+- Architecture: the `core.settings.{api,domain,infra}` split is respected. The schema change is a new migration. The `SettingsSchemas` classes are documentation-only and clearly marked as such.
+
+Observation (not a finding): `SettingsChangedEvent` is published inside the update transaction, before commit. No listener exists yet. A future listener that must see the committed value (e.g. rescheduling daily jobs on a timeZone change) should use `@TransactionalEventListener(phase = AFTER_COMMIT)`.
 
 ## P0 Critical
 
@@ -38,31 +52,12 @@ None.
 
 ## P2 Medium
 
-- [ ] **CR-1 | The 409 conflict paths (first-create race, concurrent update) have no tests**
-    - File: `server/src/main/kotlin/ch/sonensei/cockpit/core/settings/domain/SettingsService.kt:123`
-    - Category: Tests
-    - Problem: `create()` relies on the `user_settings_single_row` unique index plus the `DataIntegrityViolationException` -> `ConflictException` translation, and concurrent updates of an existing row rely on the `@Version` check raising `OptimisticLockingFailureException`. Neither SettingsServiceTests nor SettingsWebTests exercises these paths: no test inserts a competing row or performs a stale-version save, so a regression (e.g. the index being dropped, a different exception type surfacing, or `checkVersion` being bypassed) would produce a second settings row or a 500 without any test failing. The 409 response is part of the documented API contract.
-    - Why it matters: this concurrency logic is subtle and regression-prone. The single-row invariant is what keeps `findFirstBy()` deterministic.
-    - Suggested fix: add Testcontainers tests that (a) insert a row through JdbcTemplate after the service has read "no row" (or call `update` with a `checkVersion` callback that inserts the competing row) and assert `ConflictException` with nothing stored, and (b) bump `version` through JdbcTemplate inside the `checkVersion` callback and assert a 409 / `OptimisticLockingFailureException`. Also assert that a second raw insert into `user_settings` violates the unique index.
+None.
 
 ## P3 Low
 
-- [ ] **CR-2 | SettingsPatch schema: `null` is allowed by `type` but rejected by `enum`**
-    - File: `server/src/main/kotlin/ch/sonensei/cockpit/core/settings/api/SettingsSchemas.kt:43`
-    - Category: Integration
-    - Problem: `weekStart`, `theme` and `mailImagePolicy` in SettingsPatch are declared as `type: [string, "null"]` with an `enum` that does not contain `null` (api/openapi.yaml, SettingsPatch). In JSON Schema / OpenAPI 3.1, `enum` applies independently of `type`, so `{"theme": null}`, which is the documented reset operation, is invalid against the published schema. The generated TypeScript happens to allow `null`, but strict validators or other generators (e.g. a future Android client) will not.
-    - Why it matters: the documented reset semantics contradict the published contract for these three keys.
-    - Suggested fix: include `null` in the allowable values (or describe these properties with `oneOf`/`anyOf` of the enum and `null`), regenerate api/openapi.yaml and the web client.
-
-- [ ] **CR-3 | A malformed `overrides` document breaks every settings read**
-    - File: `server/src/main/resources/db/migration/core/V202610201130__core_settings.sql:9`
-    - Category: Correctness
-    - Problem: `readOverrides` (SettingsService.kt:136) deserializes `overrides` as `Map<String, Any?>`. The column accepts any jsonb, so a non-object value (`[]`, `null` JSON, a string), for example written by a restore or a manual fix, makes `get()`, `timeZone()`, `current()` and `update()` all throw, producing a 500 on GET/PATCH and breaking every module that reads the time zone. Invalid values inside a valid object are already handled gracefully. A non-object document is not.
-    - Why it matters: stored state read back should not be able to break the whole settings feature. The backup/restore tasks (backup-contrib-core) will write this table.
-    - Suggested fix: add `check (jsonb_typeof(overrides) = 'object')` to the table, which is cheap since the migration is not yet applied on main, and/or treat a non-object document as empty in `readOverrides`.
+None.
 
 ## Review conclusion
 
-Material issues found; fix before completing the task. None blocks the acceptance criteria. CR-1 is a test gap that the test-writer can close. CR-2 and CR-3 are small contract and robustness fixes.
-
-Note (not a finding, not verified): `overrides` is a String mapped as JSON. If Hibernate returns PostgreSQL's normalized jsonb text (with spaces), the compact string written back by `update()` differs even for a no-op PATCH, and the version/ETag would advance without a change. A test asserting that a no-op PATCH keeps the version would settle this.
+No material issues found. All pass-1 findings (CR-1..CR-3) and TW-1 are resolved in revision 7b19653.
