@@ -19,7 +19,8 @@ Backup export in format version 1 (SPEC.md §10.2).
   - verified (2026-10-20 22:22+0200 by dell26/agent-5): cd server && ./gradlew test --rerun --tests 'ch.sonensei.cockpit.backup.*' --tests '*OpenApiContractTest' (Testcontainers Postgres, squashed on main 0dddb664) -> BackupWebTests 12, BackupJobServiceTests 7, BackupEventsStreamTests 1, ZipBackupFormatTests 11 pass (POST async job, SSE BACKUP events, download application/zip with README.md, manifest.json formatVersion/appVersion/createdAt/counts/sha256, data/, files/, readable/)
 - [x] `BackupRoundTripTest` harness: seeds all `BackupFixture`s, exports, wipes DB + data dir, imports, deep-compares canonical JSON and file hashes
   - verified (2026-10-20 22:22+0200 by dell26/agent-5): cd server && ./gradlew test --rerun --tests 'ch.sonensei.cockpit.backup.*' --tests '*OpenApiContractTest' (Testcontainers Postgres, squashed on main 0dddb664) -> BackupRoundTripTest pass (seeds all BackupFixtures, exports, wipes DB + data dir, imports, deep-compares canonical JSON and file hashes)
-- [ ] `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.backup.*'` passes (Postgres via Testcontainers where persistence is involved)
+- [x] `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.backup.*'` passes (Postgres via Testcontainers where persistence is involved)
+  - verified (2026-10-20 22:22+0200 by dell26/agent-5): cd server && ./gradlew test --rerun --tests 'ch.sonensei.cockpit.backup.*' --tests '*OpenApiContractTest' (Testcontainers Postgres, squashed on main 0dddb664) -> BUILD SUCCESSFUL, 67 backup tests + 1 contract test, 0 failures/errors/skips
 - [ ] API documented: `api/openapi.yaml` regenerated (`UPDATE_OPENAPI=1 ./gradlew test --tests '*OpenApiContractTest'`) and `OpenApiContractTest` passes without the flag
 
 ## Notes
