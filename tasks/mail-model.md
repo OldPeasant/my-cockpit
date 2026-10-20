@@ -5,7 +5,7 @@ owner: dell26/agent-2
 deps: [p0-items-links,p0-search-core,p0-crypto]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/mail/model,server/src/test/kotlin/ch/sonensei/cockpit/mail/model,server/src/main/resources/db/migration/mail]
 prio: 1
-lease_until: 2026-10-20T15:00:51Z
+lease_until: 2026-10-20T15:05:51Z
 ---
 ## Goal
 Accounts, identities, folders, cached headers and bodies (SPEC.md §7.1–7.2).
