@@ -21,7 +21,8 @@ Backup export in format version 1 (SPEC.md §10.2).
   - verified (2026-10-20 22:22+0200 by dell26/agent-5): cd server && ./gradlew test --rerun --tests 'ch.sonensei.cockpit.backup.*' --tests '*OpenApiContractTest' (Testcontainers Postgres, squashed on main 0dddb664) -> BackupRoundTripTest pass (seeds all BackupFixtures, exports, wipes DB + data dir, imports, deep-compares canonical JSON and file hashes)
 - [x] `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.backup.*'` passes (Postgres via Testcontainers where persistence is involved)
   - verified (2026-10-20 22:22+0200 by dell26/agent-5): cd server && ./gradlew test --rerun --tests 'ch.sonensei.cockpit.backup.*' --tests '*OpenApiContractTest' (Testcontainers Postgres, squashed on main 0dddb664) -> BUILD SUCCESSFUL, 67 backup tests + 1 contract test, 0 failures/errors/skips
-- [ ] API documented: `api/openapi.yaml` regenerated (`UPDATE_OPENAPI=1 ./gradlew test --tests '*OpenApiContractTest'`) and `OpenApiContractTest` passes without the flag
+- [x] API documented: `api/openapi.yaml` regenerated (`UPDATE_OPENAPI=1 ./gradlew test --tests '*OpenApiContractTest'`) and `OpenApiContractTest` passes without the flag
+  - verified (2026-10-20 22:22+0200 by dell26/agent-5): UPDATE_OPENAPI=1 ./gradlew test --tests '*OpenApiContractTest' + npm run api:gen -> no diff vs committed; cd server && ./gradlew test --rerun --tests 'ch.sonensei.cockpit.backup.*' --tests '*OpenApiContractTest' (Testcontainers Postgres, squashed on main 0dddb664) (no flag) -> OpenApiContractTest pass
 
 ## Notes
 - release by R1963MACOS/agent-2: handed off by R1963MACOS/agent-2: You've hit your session limit · resets 7:50pm (Europe/Zurich)
