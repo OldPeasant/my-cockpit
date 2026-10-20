@@ -5,7 +5,7 @@ owner: dell26/agent-5
 deps: [backup-core,reminders-core]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/core/backupcontrib,server/src/test/kotlin/ch/sonensei/cockpit/core/backupcontrib]
 prio: 1
-lease_until: 2026-10-20T21:01:33Z
+lease_until: 2026-10-20T21:06:33Z
 ---
 ## Goal
 Back up the user, settings, links, reminders (SPEC.md §10.2).
