@@ -234,6 +234,21 @@ class PersistenceConventionsTests(
 	}
 
 	@Test
+	fun `an entity compares with a detached uninitialized proxy without touching the session`() {
+		val saved = repository.save(PersistenceFixture("Detached"))
+		val other = repository.save(PersistenceFixture("Unrelated"))
+
+		// Outside a transaction the repository call closes its session, so the proxy is detached.
+		val detached = repository.getReferenceById(saved.id)
+		Hibernate.isInitialized(detached) shouldBe false
+
+		// Only the receiving side is safe: methods called on the proxy itself (hashCode, toString) still load it.
+		(saved == detached) shouldBe true
+		(other == detached) shouldBe false
+		Hibernate.isInitialized(detached) shouldBe false
+	}
+
+	@Test
 	fun `the first core migration creates no tables`() {
 		val schema = "core_first_migration"
 		try {
