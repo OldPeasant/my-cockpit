@@ -370,6 +370,44 @@ class UsageLimitHandOffConflictWipRefused(ConflictLimitRunner):
         self.assertEqual(self.sessions(), 1)
 
 
+# FAKE_AGENT, but every over-budget review puts the task on hold for a human
+REVIEW_HOLD_AGENT = FAKE_AGENT.replace('''    if "Nearly done" in prompt:
+        tp("extend", tid, "--note", "almost there")
+''', '''    tp("hold", tid, "which database? SPEC.md says nothing")
+''', 1)
+assert REVIEW_HOLD_AGENT != FAKE_AGENT
+
+
+class ReviewHoldRefused(PushRunner):
+    """The agent chooses `hold` in its over-budget review and the remote refuses the push: the runner must not
+    run its own release over it (that would lose the hold and its reason). Blocked with the hold as the retry;
+    once pushes work, the task ends up on hold with the agent's reason, not back on the board."""
+    fake_agent, mode, budget, retry = REVIEW_HOLD_AGENT, "", 1, 5
+
+    def test_refused_hold_in_a_review_is_kept_as_a_hold(self):
+        # claim + work (ci.yml), then the review: hold -> refused
+        self.wait_for("BLOCKED log", lambda: "BLOCKED on a" in self.log.read_text(), timeout=120)
+        self.assert_blocked_without_new_sessions(2)
+        self.assertEqual(self.state("a")["hold"], "")
+        self.wait_for("a hold retry", lambda: "retrying to put a on hold" in self.log.read_text(), timeout=30)
+        (self.tmp / "remote.git" / "hooks" / "pre-receive").unlink()  # a human fixed the token
+        self.wait_for("a on hold", lambda: self.state("a")["hold"] != "", timeout=60)
+        self.wait_for("hold log", lambda: "put a on hold for a human" in self.log.read_text(), timeout=30)
+        a = self.state("a")
+        self.assertEqual((a["status"], a["hold"]), ("todo", "which database? SPEC.md says nothing"))
+        self.assertNotEqual(a["owner"], "box/agent-1")
+        self.assertNotIn("review that decided nothing", a["text"])
+        self.assertNotIn("handed back by", a["text"])
+        log = self.log.read_text()
+        self.assertNotIn("release FAILED", log)  # no runner release over the agent's hold
+        self.assertNotIn("retrying to release a", log)
+        self.assertNotIn("released a for another agent", log)
+        blocked = log.split("BLOCKED on a")[1].split("put a on hold for a human")[0]
+        self.assertNotIn("session start", blocked, log)  # no session while it was blocked (after it: b, fine)
+        wip = sh(self.tmp, "git", "--git-dir=remote.git", "ls-tree", "-r", "--name-only", "wip/a").stdout
+        self.assertIn(".github/workflows/ci.yml", wip)  # the work is saved for whoever fixes it
+
+
 # FAKE_AGENT, but the over-budget review that decides nothing (no "Nearly done" offer) first commits notes.txt
 # while another clone pushes a conflicting notes.txt to main: the runner's force_release() then stops with
 # CONFLICT while catching up (not a push failure)

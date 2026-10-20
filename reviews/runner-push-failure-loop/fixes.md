@@ -4,94 +4,65 @@ Date: 2026-10-20
 
 Task: runner-push-failure-loop - Runner: stop the loop when release/hold cannot push
 
-Scope: findings CR-1..CR-3 of reviews/runner-push-failure-loop/review.md (reviewed revision 8237fd5), plus a
-racy test the parent reported (RetryAfterFix). The parent committed a draft fix in 85900c2. This fixer checked
-that draft against each finding and added the test fixes.
+Scope: findings CR-1 and CR-2 of reviews/runner-push-failure-loop/review.md (reviewed revision 9a6fd2f5). Base
+commit 5cc4dcf6, fixed on top of HEAD 4485d57e. Earlier findings (old CR-1..CR-3 and PARENT-1, on 8237fd5) were
+fixed in an earlier fix round, and the review confirms that.
 
 ## Fixed findings
 
-### CR-1 - The agent's refused hold is retried as a release, so the hold reason is lost
+### CR-1 - A refused `hold` chosen in an over-budget review is replaced by a release, so the hold and its reason are lost
 
-Files changed (draft 85900c2, checked here and kept as is):
-- `tasks.py`
+Files changed:
 - `agents.py`
 - `tests/test_push_failure.py`
 
 Problem:
-When an agent's `tasks.py hold` push was refused, `block(tid, err)` stored no command. The blocked retry then
-ran `release --handoff`, which put the task back on `todo` with no hold and dropped the agent's reason.
+In the session loop, the over-budget review branch called `force_release()` before the runner read the
+session's push failure. Suppose the agent ran `tasks.py hold` in its review and the remote refused the push.
+`force_release()` then ran a `tasks.py release` of its own. That release was refused too, and it overwrote the
+push-failure record: `cmd=release`, with no reason. `give_up()` consumed that record and blocked the task with
+no hold reason. When pushes worked again, the blocked retry released the task back to `todo`, and the agent's
+hold and reason were lost. The finding was confirmed with the new test before the fix: it logged "release
+FAILED for a" and then "retrying to release a", and the test failed.
 
 Fix:
-`tasks.py` now stores the hold reason (`REASON[0]`, set from `a.reason` only for `hold`) in the push-failure
-JSON. The session path calls `block(tid, err, hold=pf.get("reason"))` when `pf["cmd"] == "hold"`. A `done`
-streak passes its own hold text. The blocked loop retries `tasks.py hold <id> <reason>` whenever a hold reason
-is stored. If that hold retry is refused again, `give_up()` calls `block(tid, err)` with no reason, and
-`blocked.get(tid)[2]` keeps the stored reason. TasksPy.test_hold_with_refused_wip_push checks the stored
-reason. HoldRefusedInSession now removes the hook and checks that the task ends `todo` with hold
-"cannot finish", that no release was tried, that there is no "handed back" note, and that no session ran while
+`pf = push_failure(t0)` is now read right after the session ends, before the review branch. If `pf` belongs to
+the reviewed task and its `cmd` is not `done`, the review's own `release`/`hold` was refused. The runner then
+does not call `force_release()`: that release would be refused too, and it would overwrite the hold. The task
+stays in `now_mine`, so it is not added to `avoid`, and the existing `pf` handling calls
+`block(tid, err, hold=pf.get("reason"))`. A refused review `done` keeps the earlier behaviour (force_release,
+then the done-streak count), because skipping the release there would only start another review session.
+Regression test `ReviewHoldRefused` uses a fake agent whose review always runs `hold`, against WORKFLOW_HOOK.
+It asserts that the task is blocked with no new sessions, that the retry is a hold, and that no
+"release FAILED", "retrying to release a" or "released a for another agent" line is logged. After the hook is
+removed, it asserts that the task ends `todo` with hold "which database? SPEC.md says nothing", has no
+"review that decided nothing" or "handed back by" note, has its work on `wip/a`, and that no session ran while
 the task was blocked.
 
 Validation:
-- `python -m unittest tests.test_push_failure` - Pass (27 tests)
+- `python -m unittest tests.test_push_failure.ReviewHoldRefused` before the fix: Fail (reproduced: "release FAILED for a", then the release retries)
+- `python -m unittest tests.test_push_failure.ReviewHoldRefused` after the fix: Pass (1 test, 15.2 s)
 
-### CR-2 - The hold retry of a done-blocked task can throw away uncommitted changes
-
-Files changed (draft 85900c2, checked here and kept as is):
-- `agents.py`
-- `tests/test_push_failure.py`
-
-Problem:
-The `done`-streak hold retry called `give_up()` without committing a dirty tree first. The
-`reset --hard @{u}` fallback in `give_up()` could then delete uncommitted changes.
-
-Fix:
-`give_up()` now aborts a merge in progress and commits a dirty tree (`wip: <id> (before <label>)`) before it
-runs `tasks.py`. That covers every caller: the hold retry, `force_release()` and `hand_off()`. Those two still
-commit first themselves, which does no harm. The new test DoneRefusedDirtyTree leaves an uncommitted file after
-each failed `done`. It checks that all 3 lines end up on `wip/a` and that the commit "wip: a (before hold)"
-exists.
-
-Validation:
-- `python -m unittest tests.test_push_failure` - Pass (DoneRefusedDirtyTree included)
-
-### CR-3 - Stale comment for `blocked`
-
-Files changed (draft 85900c2, checked here and kept as is):
-- `agents.py`
-
-Problem:
-The comment described a 2-element value. The entries actually have 3, and the third one decides between a hold
-retry and a release.
-
-Fix:
-The comment now reads `[push error, next retry (epoch), hold reason or None]`, says that the retry is
-`hold <reason>` when a reason is stored and a release otherwise, and points to `block()`. The `block()`
-docstring and the module docstring say the same.
-
-Validation:
-- Code read at HEAD.
-
-### PARENT-1 - Racy test: wait on the board, then assert a log line
+### CR-2 - `force_release()` and `hand_off()` repeat the merge-abort and dirty-commit steps that `give_up()` now runs
 
 Files changed:
-- `tests/test_push_failure.py`
+- `agents.py`
 
 Problem:
-RetryAfterFix waited until "pushes had failed" showed up in the board task, then asserted the log line
-"released a for another agent". `force_release()` writes that line only after `give_up()` returns, and that
-happens after the board push. The test could therefore read the log before the line was written. The same
-pattern (wait for `hold` on the board, then assert "put a on hold for a human" in the log) was in
-DoneRefusedOnlyOnMain (and DoneRefusedDirtyTree, which inherits it), DoneBlockedHoldRefused and
-HoldRefusedInSession. In those tests, the `blocked` slice that ends at that log line could also include later
-sessions.
+`give_up()` aborts an unfinished merge and commits a dirty tree for every caller. `force_release()` and
+`hand_off()` still ran both steps themselves first, so the same logic existed in three places.
 
 Fix:
-After the board wait, each of these tests now also waits (`wait_for`, 30 s) for its log line before it reads
-the log. No assertion was weakened. TakenAwayWhileBlocked was checked and needs no change: "parked local work"
-is logged before the session that claims b. UsageLimitHandOffConflict already waits for its log line.
+Removed both copies. A short comment and a docstring line in each caller say that `give_up()` does this. It
+was safe: `give_up()` runs the same steps first, before it calls `tasks.py`, for every task in `hand_off()`'s
+loop. For `force_release()` the commit message stays "wip: <id> (before release)", because its label is
+"release". For `hand_off()` the message is now "wip: <id> (before hand-off)" instead of
+"wip: <id> (handed off: <reason>)". The reason is still in the board note ("handed off by ...: <reason>"), and
+no test or tool reads the commit message.
 
 Validation:
-- `python -m unittest tests.test_push_failure` - Pass (27 tests, 344.9 s)
+- `python -m unittest tests.test_push_failure` - Pass (includes the UsageLimitHandOff*, ReviewReleaseConflict* and DoneRefusedDirtyTree/MergeInProgress tests)
+- `python -m unittest tests.test_overbudget` - Pass
 
 ## Not fixed
 
@@ -100,10 +71,11 @@ None.
 ## Validation summary
 
 Focused tests:
-- `python -m unittest tests.test_push_failure` - Pass (27 tests in 344.9 s)
+- `python -m unittest tests.test_push_failure.ReviewHoldRefused` - Fail before the fix (finding reproduced), Pass after it
 
 Full test suite:
-- `python -m unittest discover tests` - Pass (83 tests in 433.2 s)
+- `python -m unittest tests.test_push_failure` - Pass (30 tests in 401.9 s)
+- `python -m unittest tests.test_overbudget` - Pass (9 tests in 44.4 s)
 
 Lint/type-check/build:
 - Not applicable (Python runner scripts; no lint configured for agents.py/tasks.py)

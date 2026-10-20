@@ -502,12 +502,7 @@ def cmd_run(a):
         """We can't work for a while (usage limit): give our tasks back, with the work saved to
         wip/<task> by `release`, so agents on other machines continue them instead of waiting."""
         for t in [t for t in tasks.load().values() if t["status"] == "in_progress" and t["owner"] == a.owner]:
-            tid = t["id"]
-            if tasks.merge_state():
-                sh("git", tasks.merge_state(), "--abort", cwd=clone)
-            if sh("git", "status", "--porcelain", cwd=clone).stdout.strip():
-                sh("git", "add", "-A", cwd=clone)
-                sh("git", "commit", "-qm", f"wip: {tid} (handed off: {one_line(reason, 60)})", cwd=clone)
+            tid = t["id"]  # give_up() aborts an unfinished merge and commits a dirty tree first
             note = f"handed off by {a.owner}: {one_line(reason, 120)}"
             last = give_up(tid, ["release", tid, "--handoff", "--note", note], "hand-off")
             if last is None:
@@ -596,12 +591,8 @@ def cmd_run(a):
     def force_release(tid, note, handoff=False):
         """A review that decided nothing: commit what is there and give the task to another agent. Over
         budget is not a reason for a human; a counted release still holds it after MAX_RELEASES.
-        Returns True if the task is no longer ours; else (the release could not push) the task is blocked."""
-        if tasks.merge_state():
-            sh("git", tasks.merge_state(), "--abort", cwd=clone)
-        if sh("git", "status", "--porcelain", cwd=clone).stdout.strip():
-            sh("git", "add", "-A", cwd=clone)
-            sh("git", "commit", "-qm", f"wip: {tid} (before release)", cwd=clone)
+        Returns True if the task is no longer ours; else (the release could not push) the task is blocked.
+        (give_up() aborts an unfinished merge and commits a dirty tree first.)"""
         last = give_up(tid, ["release", tid, "--note", note, *(["--handoff"] if handoff else [])], "release")
         if last is not None:
             log(f"released {tid} for another agent: {last}")
@@ -769,6 +760,9 @@ def cmd_run(a):
         log(f"session {'killed, ' + why if why else f'exit {p.returncode}'}: {one_line(tail, 300)}")
         failed = not why and (p.returncode != 0 or errored[0])
         fails = fails + 1 if failed else 0
+        # a push tasks.py could not do in this session; read before force_release() below, whose own refused
+        # release would overwrite it (and lose e.g. the reason of a hold the agent chose in its review)
+        pf = push_failure(t0)
         if not failed and not (why or "").startswith("task taken over"):
             now_mine = {t["id"]: t for t in tasks.load().values()
                         if t["status"] == "in_progress" and t["owner"] == a.owner}
@@ -779,7 +773,9 @@ def cmd_run(a):
                     spent[tid] = [0, 0]
                 s = spent.setdefault(tid, [0, 0])
                 s[0], s[1] = s[0] + 1, s[1] + time.time() - t0
-            if review and review[0] in now_mine:
+            # the review's own release/hold was refused: no release over it (it would be refused too); blocked below
+            refused = bool(review and pf and pf.get("task") == review[0] and pf.get("cmd") != "done")
+            if review and review[0] in now_mine and not refused:
                 tid, was_extended = review
                 if (was_extended or now_mine[tid]["extended"] != a.owner) and force_release(  # nothing decided
                         tid, f"over budget after {spent[tid][0]} sessions (~{int(spent[tid][1] // 60)} min) and a "
@@ -789,7 +785,6 @@ def cmd_run(a):
                 avoid[review[0]] = time.time() + a.avoid
                 spent.pop(review[0], None)
                 held.discard(review[0])  # else the next heartbeat reports it LOST and kills the next session
-        pf = push_failure(t0)  # a push tasks.py could not do in this session
         if pf and pf.get("task") in {t["id"] for t in owned()}:
             tid, err = pf["task"], pf.get("error", "?")
             if pf.get("cmd") != "done":  # release/hold/...: the task can't even be given back
