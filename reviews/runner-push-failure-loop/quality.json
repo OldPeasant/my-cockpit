@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "task": "runner-push-failure-loop",
-  "reviewed_revision": "dd1f9a27d013257a3c78370483485a28f50629c7",
+  "reviewed_revision": "b0bee11aa5b73006cc9c561581c20caada72b87a",
   "helpers": {
     "test-writer":   {"status": "completed", "report": "reviews/runner-push-failure-loop/tests.md"},
     "code-reviewer": {"status": "completed", "report": "reviews/runner-push-failure-loop/review.md"},

@@ -21,7 +21,7 @@ In the session loop, the over-budget review branch called `force_release()` befo
 session's push failure. Suppose the agent ran `tasks.py hold` in its review and the remote refused the push.
 `force_release()` then ran a `tasks.py release` of its own. That release was refused too, and it overwrote the
 push-failure record: `cmd=release`, with no reason. `give_up()` consumed that record and blocked the task with
-no hold reason. When pushes worked again, the blocked retry released the task back to `todo`, and the agent's
+no hold reason. When pushes worked again, the blocked retry released the task back to the open (unclaimed) state, and the agent's
 hold and reason were lost. The finding was confirmed with the new test before the fix: it logged "release
 FAILED for a" and then "retrying to release a", and the test failed.
 
@@ -35,7 +35,7 @@ then the done-streak count), because skipping the release there would only start
 Regression test `ReviewHoldRefused` uses a fake agent whose review always runs `hold`, against WORKFLOW_HOOK.
 It asserts that the task is blocked with no new sessions, that the retry is a hold, and that no
 "release FAILED", "retrying to release a" or "released a for another agent" line is logged. After the hook is
-removed, it asserts that the task ends `todo` with hold "which database? SPEC.md says nothing", has no
+removed, it asserts that the task ends open (unclaimed) with hold "which database? SPEC.md says nothing", has no
 "review that decided nothing" or "handed back by" note, has its work on `wip/a`, and that no session ran while
 the task was blocked.
 
