@@ -5,7 +5,7 @@ owner: dell26/agent-2
 deps: [p0-web-api-client]
 touches: [web/src/app/shell,web/src/app/app.routes.ts,web/src/app/app.ts,web/src/app/app.html,web/src/app/app.scss,web/src/app/app.spec.ts,web/src/app/features]
 prio: 1
-lease_until: 2026-10-20T10:07:50Z
+lease_until: 2026-10-20T10:12:54Z
 ---
 ## Goal
 The layout every feature plugs into (SPEC.md §9.1). Creates a lazy route + placeholder page for every feature so feature tasks only touch their own folder.
