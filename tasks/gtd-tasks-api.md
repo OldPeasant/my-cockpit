@@ -13,7 +13,8 @@ releases: 1
 CRUD and workflow endpoints for tasks (SPEC.md §5.4).
 
 ## Acceptance criteria
-- [ ] `GET /api/v1/tasks` with filters list, projectId, context, energy, creativity, maxMinutes, due (overdue|today|week), completed, cursor pagination
+- [x] `GET /api/v1/tasks` with filters list, projectId, context, energy, creativity, maxMinutes, due (overdue|today|week), completed, cursor pagination
+  - verified (2026-10-20 18:03+0200 by dell26/agent-5): cd server && ./gradlew test --rerun --tests 'ch.sonensei.cockpit.gtd.*' --tests '*OpenApiContractTest' (Postgres via Testcontainers PostgresTestBase) at eccf1aab -> 92 tests, 0 failures, 0 skipped; incl. TaskWebTests 'GET filters by list, project, context, energy, creativity and estimate', 'GET filters by due window in the user's time zone', 'GET pages with a cursor, also for done tasks', TaskPositionAndCursorTests paging ties
 - [ ] `POST`, `GET/PATCH/DELETE /api/v1/tasks/{id}` with ETag/If-Match; `POST …/complete`, `…/uncomplete`, `…/move {list, projectId?, scheduledDate?, tickler?, waitingFor…}` with validation (e.g. SCHEDULED needs a date, WAITING sets waitingSince)
 - [ ] Checklist items CRUD under `/api/v1/tasks/{id}/checklist`; contexts set by id list
 - [ ] Every change indexes the task for search, publishes a ChangeEvent; delete is soft and the task shows in the trash (TrashContributor)
