@@ -74,7 +74,47 @@ class SettingTypeTests {
 	}
 
 	@Test
+	fun `types reject null and accept values exactly at their limits`() {
+		SettingType.Text().parse("x".repeat(200)) shouldBe "x".repeat(200)
+		SettingType.Text().parse("x".repeat(201)).shouldBeNull()
+		SettingType.Text().parse(null).shouldBeNull()
+		SettingType.Flag.parse(null).shouldBeNull()
+		SettingType.TimeZone.parse(null).shouldBeNull()
+		SettingType.OneOf("a").parse(null).shouldBeNull()
+
+		val number = SettingType.WholeNumber(-2..2)
+		number.parse(-2) shouldBe -2
+		number.parse(-3).shouldBeNull()
+		number.parse(1.toShort()) shouldBe 1
+		number.parse(2.toByte()) shouldBe 2
+		number.parse(BigInteger.ONE) shouldBe 1
+		number.parse(Long.MAX_VALUE).shouldBeNull()
+		number.parse(null).shouldBeNull()
+
+		val labels = SettingType.Labels(listOf("A"), maxLength = 3)
+		labels.parse(mapOf("A" to "abc")) shouldBe mapOf("A" to "abc")
+		labels.parse(mapOf("A" to null)).shouldBeNull()
+
+		val list = SettingType.TextList(maxItems = 2, maxLength = 3)
+		list.parse(listOf("abc", "def")) shouldBe listOf("abc", "def")
+		list.parse(listOf(" a", "a ")).shouldBeNull()
+		list.parse(listOf("a", null)).shouldBeNull()
+	}
+
+	@Test
+	fun `the core settings have the defaults of the spec`() {
+		CoreSettings.TIME_ZONE.default shouldBe "Europe/Zurich"
+		CoreSettings.WEEK_START.default shouldBe "MONDAY"
+		CoreSettings.THEME.default shouldBe "system"
+		CoreSettings.MAIL_IMAGE_POLICY.default shouldBe "block"
+		val keys = CoreSettings.ALL.map { it.key }
+		keys.distinct() shouldBe keys
+	}
+
+	@Test
 	fun `definitions need a lowerCamelCase key and a valid default`() {
+		shouldThrow<IllegalArgumentException> { SettingDefinition("a" + "b".repeat(64), SettingType.Flag, true, "Key too long") }
+		SettingDefinition("a" + "b".repeat(63), SettingType.Flag, true, "Longest key").key.length shouldBe 64
 		CoreSettings.ALL.forEach { it.type.parse(it.default) shouldBe it.default }
 		shouldThrow<IllegalArgumentException> { SettingDefinition("Theme", SettingType.Flag, true, "Bad key") }
 		shouldThrow<IllegalArgumentException> { SettingDefinition("mail.policy", SettingType.Flag, true, "Bad key") }
