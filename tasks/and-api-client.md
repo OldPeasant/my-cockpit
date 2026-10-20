@@ -13,7 +13,8 @@ extended:
 Retrofit client generated from the OpenAPI contract, with token handling.
 
 ## Acceptance criteria
-- [ ] openapi-generator Gradle plugin generates Kotlin (Retrofit2 + kotlinx.serialization) models/APIs from `../api/openapi.yaml` at build time (not committed)
+- [x] openapi-generator Gradle plugin generates Kotlin (Retrofit2 + kotlinx.serialization) models/APIs from `../api/openapi.yaml` at build time (not committed)
+  - verified (2026-10-20 17:05+0200 by dell26/agent-1): cd android && ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.core.network.*' --rerun-tasks -> openApiGenerate ran from ../api/openapi.yaml, 48 generated .kt files under android/app/build (git-ignored), git ls-files tracks 0 generated sources; generated AuthApi used by AuthApiTokenRefresher, tests pass
 - [ ] OkHttp interceptor adds the access token; an `Authenticator` refreshes on 401 once (concurrent requests share one refresh, test with MockWebServer); a refresh failure logs out
 - [ ] Server base URL configurable (DataStore), validated as https (http allowed for localhost/emulator)
 - [ ] `cd android && ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.core.network.*'` passes, covering token injection, single refresh for concurrent 401s, logout on refresh failure (Robolectric/Compose UI tests for screens)
