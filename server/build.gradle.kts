@@ -87,10 +87,17 @@ allOpen {
 
 // `test` (part of `check`): unit tests + Spring tests against the shared Postgres Testcontainer.
 // `integrationTest` (not part of `check`): tests tagged `external` (GreenMail, Radicale, WireMock, ...).
+// The contract file and UPDATE_OPENAPI are inputs, so OpenApiContractTest is not skipped as UP-TO-DATE
+// when api/openapi.yaml changed or a regeneration is requested (see api/README.md).
 tasks.test {
 	useJUnitPlatform {
 		excludeTags("external")
 	}
+	inputs
+		.files("../api/openapi.yaml")
+		.withPropertyName("openApiContract")
+		.withPathSensitivity(PathSensitivity.NONE)
+	inputs.property("updateOpenApi", providers.environmentVariable("UPDATE_OPENAPI").orElse(""))
 }
 
 tasks.register<Test>("integrationTest") {
@@ -118,7 +125,7 @@ tasks.register<Test>("updateOpenApi") {
 	outputs.upToDateWhen { false }
 }
 
-// Coverage:./gradlew test jacocoTestReport -> build/reports/jacoco/test/ (XML for tools, HTML for people)
+// Coverage: ./gradlew test jacocoTestReport -> build/reports/jacoco/test/ (XML for tools, HTML for people)
 tasks.jacocoTestReport {
 	dependsOn(tasks.test)
 	reports {

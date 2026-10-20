@@ -106,8 +106,37 @@ class ApiConventionsWebTests(
 		}
 
 		@Test
-		fun `missing required parameter gives 400 problem`() {
-			mockMvc.get("$BASE/bounded").isProblem(400)
+		fun `missing required parameter gives 400 problem with a field error`() {
+			mockMvc.get("$BASE/bounded").isProblem(400).andExpect {
+				jsonPath("$.errors.length()") { value(1) }
+				jsonPath("$.errors[0].field") { value("count") }
+				jsonPath("$.errors[0].message") { value("is required") }
+			}
+		}
+
+		@Test
+		fun `missing required header gives 400 problem with a field error`() {
+			mockMvc.get("$BASE/client").isProblem(400).andExpect {
+				jsonPath("$.errors.length()") { value(1) }
+				jsonPath("$.errors[0].field") { value("X-Client-Name") }
+				jsonPath("$.errors[0].message") { value("is required") }
+			}
+		}
+
+		@Test
+		fun `wrongly typed parameter gives 400 with a field error that does not echo the value`() {
+			val body =
+				mockMvc
+					.get("$BASE/bounded?count=fictitious-value")
+					.isProblem(400)
+					.andExpect {
+						jsonPath("$.errors.length()") { value(1) }
+						jsonPath("$.errors[0].field") { value("count") }
+						jsonPath("$.errors[0].message") { value("has an invalid value") }
+					}.andReturn()
+					.response.contentAsString
+			body shouldNotContain "fictitious-value"
+			body shouldNotContain "Exception"
 		}
 
 		@Test
@@ -203,6 +232,17 @@ class ApiConventionsWebTests(
 					.andReturn()
 					.response.contentAsString
 			body shouldNotContain "ConventionsTestApi"
+		}
+
+		@Test
+		fun `any optimistic locking failure gives 409 without internals`() {
+			val body =
+				mockMvc
+					.get("$BASE/optimistic-lock-generic")
+					.isProblem(409)
+					.andReturn()
+					.response.contentAsString
+			body shouldNotContain "another transaction"
 		}
 
 		@Test
@@ -339,7 +379,10 @@ class ApiConventionsWebTests(
 
 		@Test
 		fun `non-numeric limit gives 400`() {
-			mockMvc.get("$BASE/numbers?limit=abc").isProblem(400)
+			mockMvc.get("$BASE/numbers?limit=abc").isProblem(400).andExpect {
+				jsonPath("$.errors[0].field") { value("limit") }
+				jsonPath("$.errors[0].message") { value("has an invalid value") }
+			}
 		}
 
 		@Test

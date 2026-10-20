@@ -2,19 +2,24 @@ package ch.sonensei.cockpit.core.web
 
 import jakarta.validation.ConstraintViolationException
 import org.slf4j.LoggerFactory
+import org.springframework.beans.TypeMismatchException
+import org.springframework.dao.OptimisticLockingFailureException
 import org.springframework.http.HttpHeaders
 import org.springframework.http.HttpStatus
 import org.springframework.http.HttpStatusCode
 import org.springframework.http.ProblemDetail
 import org.springframework.http.ResponseEntity
-import org.springframework.orm.ObjectOptimisticLockingFailureException
 import org.springframework.security.access.AccessDeniedException
 import org.springframework.security.core.AuthenticationException
 import org.springframework.web.bind.MethodArgumentNotValidException
+import org.springframework.web.bind.MissingRequestHeaderException
+import org.springframework.web.bind.MissingServletRequestParameterException
+import org.springframework.web.bind.ServletRequestBindingException
 import org.springframework.web.bind.annotation.ExceptionHandler
 import org.springframework.web.bind.annotation.RestControllerAdvice
 import org.springframework.web.context.request.WebRequest
 import org.springframework.web.method.annotation.HandlerMethodValidationException
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException
 import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler
 
 /**
@@ -36,9 +41,8 @@ class ProblemDetailsAdvice : ResponseEntityExceptionHandler() {
 		return ResponseEntity.status(ex.status).body(problem)
 	}
 
-	@ExceptionHandler(ObjectOptimisticLockingFailureException::class)
-	fun handleOptimisticLock(ex: ObjectOptimisticLockingFailureException): ResponseEntity<ProblemDetail> =
-		handleApiException(ConflictException())
+	@ExceptionHandler(OptimisticLockingFailureException::class)
+	fun handleOptimisticLock(ex: OptimisticLockingFailureException): ResponseEntity<ProblemDetail> = handleApiException(ConflictException())
 
 	@ExceptionHandler(ConstraintViolationException::class)
 	fun handleConstraintViolation(ex: ConstraintViolationException): ResponseEntity<ProblemDetail> =
@@ -84,6 +88,37 @@ class ProblemDetailsAdvice : ResponseEntityExceptionHandler() {
 			}
 		return validationProblem(errors, headers)
 	}
+
+	// Wrongly typed and missing request values are validation errors too: name the parameter or
+	// header, but never echo the raw value or conversion internals.
+	override fun handleTypeMismatch(
+		ex: TypeMismatchException,
+		headers: HttpHeaders,
+		status: HttpStatusCode,
+		request: WebRequest,
+	): ResponseEntity<Any>? {
+		val field = (ex as? MethodArgumentTypeMismatchException)?.name ?: ex.propertyName ?: "parameter"
+		return validationProblem(listOf(FieldError(field, "has an invalid value")), headers)
+	}
+
+	override fun handleMissingServletRequestParameter(
+		ex: MissingServletRequestParameterException,
+		headers: HttpHeaders,
+		status: HttpStatusCode,
+		request: WebRequest,
+	): ResponseEntity<Any>? = validationProblem(listOf(FieldError(ex.parameterName, "is required")), headers)
+
+	override fun handleServletRequestBindingException(
+		ex: ServletRequestBindingException,
+		headers: HttpHeaders,
+		status: HttpStatusCode,
+		request: WebRequest,
+	): ResponseEntity<Any>? =
+		if (ex is MissingRequestHeaderException) {
+			validationProblem(listOf(FieldError(ex.headerName, "is required")), headers)
+		} else {
+			super.handleServletRequestBindingException(ex, headers, status, request)
+		}
 
 	private fun validationProblem(
 		errors: List<FieldError>,

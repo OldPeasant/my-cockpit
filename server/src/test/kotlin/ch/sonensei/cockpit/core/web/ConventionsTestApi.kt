@@ -6,6 +6,7 @@ import jakarta.validation.constraints.Min
 import jakarta.validation.constraints.NotBlank
 import jakarta.validation.constraints.Size
 import org.springframework.boot.test.context.TestConfiguration
+import org.springframework.dao.OptimisticLockingFailureException
 import org.springframework.http.HttpHeaders.IF_MATCH
 import org.springframework.http.ResponseEntity
 import org.springframework.orm.ObjectOptimisticLockingFailureException
@@ -129,6 +130,14 @@ class ConventionsTestApi {
 
 		@GetMapping("/optimistic-lock")
 		fun optimisticLock(): Nothing = throw ObjectOptimisticLockingFailureException(Item::class.java, "a")
+
+		@GetMapping("/optimistic-lock-generic")
+		fun optimisticLockGeneric(): Nothing = throw OptimisticLockingFailureException("Row was updated by another transaction")
+
+		@GetMapping("/client")
+		fun client(
+			@RequestHeader("X-Client-Name") clientName: String,
+		): Map<String, String> = mapOf("client" to clientName)
 
 		@GetMapping("/invalid")
 		fun invalid(): Nothing = throw InvalidRequestException("due", "must be in the future")
