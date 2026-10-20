@@ -16,3 +16,4 @@ Encrypt external credentials with the master key (SPEC.md §4.1).
 - [ ] Tests: round trip, tampered ciphertext rejected, wrong key rejected; `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.core.crypto.*'` passes (Postgres via Testcontainers where persistence is involved)
 
 ## Notes
+- ASSUMPTION (2026-10-20 10:49+0200 by dell26/agent-1): Master key is read from property cockpit.master-key (= ${COCKPIT_MASTER_KEY:}); all test contexts get a fictitious key from server/src/test/resources/config/application.properties (outside the task's touches, needed so every SpringBootTest starts). The dev and e2e profiles have NO default key: bootRun/e2e must export COCKPIT_MASTER_KEY (documented in ARCHITECTURE.md).
