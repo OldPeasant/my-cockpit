@@ -81,4 +81,30 @@ describe('TrashService', () => {
     await expect(done).rejects.toMatchObject({ status: 404 });
     expect(notifications.error).not.toHaveBeenCalled();
   });
+
+  it('rejects a failed restore with the problem detail and does not toast it', async () => {
+    const done = service.restore(NOTE);
+    http
+      .expectOne(`/api/v1/trash/NOTE/${NOTE.id}/restore`)
+      .flush(
+        { title: 'Conflict', status: 409, detail: 'The project of this task is deleted' },
+        { status: 409, statusText: 'Conflict' },
+      );
+
+    await expect(done).rejects.toMatchObject({
+      status: 409,
+      userMessage: 'The project of this task is deleted',
+    });
+    expect(notifications.error).not.toHaveBeenCalled();
+  });
+
+  it('rejects a failed list without toasting it', async () => {
+    const page = service.list();
+    http
+      .expectOne((r) => r.url === '/api/v1/trash')
+      .flush({ title: 'Unavailable', status: 503 }, { status: 503, statusText: 'Unavailable' });
+
+    await expect(page).rejects.toMatchObject({ status: 503 });
+    expect(notifications.error).not.toHaveBeenCalled();
+  });
 });
