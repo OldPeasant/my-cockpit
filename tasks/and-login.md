@@ -13,7 +13,8 @@ releases: 1
 Login screen and token storage (SPEC.md §9.2 item 1).
 
 ## Acceptance criteria
-- [ ] Login screen: server URL, username, password, TOTP / recovery code; errors and 429 backoff shown
+- [x] Login screen: server URL, username, password, TOTP / recovery code; errors and 429 backoff shown
+  - verified (2026-10-20 22:02+0200 by dell26/agent-5): cd android && ./gradlew ktlintCheck testDebugUnitTest --tests 'ch.sonensei.cockpit.auth.*' (Robolectric Compose LoginScreenTest + LoginViewModelTest: URL/username/password/TOTP+recovery-code fields, invalid-credential/network errors, 429 Retry-After countdown) -> BUILD SUCCESSFUL, 122 tests, 0 failures at 3334c04d
 - [ ] Tokens stored encrypted (Keystore-backed); app start routes to login or home; logout clears tokens and caches
 - [ ] `cd android && ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.auth.*'` passes, covering login success/failure states, token persistence, logout (Robolectric/Compose UI tests for screens)
 
