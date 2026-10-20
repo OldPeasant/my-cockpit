@@ -1,0 +1,27 @@
+{
+  "schema": 1,
+  "task": "cal-recurrence",
+  "reviewed_revision": "3684d9f9c8ed8c79258253f302eef9cded81dabb",
+  "helpers": {
+    "test-writer":   {"status": "completed", "report": "reviews/cal-recurrence/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/cal-recurrence/review.md"},
+    "fixer":         {"status": "completed", "report": "reviews/cal-recurrence/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "TW-1", "source": "test-writer", "severity": "P2", "disposition": "fixed",
+     "note": "round 1: cancelled override shown when its master is not among the candidates; fixed in 5c2cddae"},
+    {"id": "CR-1 (review 1)", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "round 1: one unparsable RRULE made the whole expansion throw; now falls back to the seed and logs WARN with the event id only (5c2cddae)"},
+    {"id": "CR-2 (review 1)", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "round 1: orphan overrides ignored CANCELLED (same bug as TW-1); fixed in 5c2cddae"},
+    {"id": "CR-3 (review 1)", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "round 1: ambiguous DST-end times now normalised to the earlier offset (5c2cddae)"},
+    {"id": "CR-1 (review 2)", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "occurrence at ambiguous DST-end time lost when range ends in the repeated hour; fixed with DST_END_MARGIN (dd907a20), regression tests added; third review found 0 issues"}
+  ],
+  "validation": [
+    {"command": "cd server && ./gradlew test --offline --rerun --tests 'ch.sonensei.cockpit.calendar.recurrence.*'", "result": "pass (56 tests, 0 failures)"},
+    {"command": "sh scripts/check.sh (.taskcheck)", "result": "pass (all checks passed)"}
+  ]
+}
