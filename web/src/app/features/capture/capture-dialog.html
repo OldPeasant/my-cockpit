@@ -1,0 +1,133 @@
+<div
+  class="capture"
+  [class.dragging]="dragging()"
+  (paste)="onPaste($event)"
+  (dragover)="onDragOver($event)"
+  (dragleave)="dragging.set(false)"
+  (drop)="onDrop($event)"
+>
+  <header class="head">
+    <h2 id="capture-title" class="title" i18n="@@capture.title">Capture</h2>
+    @if (savedCount() > 0) {
+      <p class="count" aria-live="polite" i18n="@@capture.savedCount">
+        {savedCount(), plural, =1 {1 item captured} other {{{savedCount()}} items captured}}
+      </p>
+    }
+  </header>
+
+  <input
+    #textField
+    id="capture-text"
+    class="text"
+    type="text"
+    autocomplete="off"
+    i18n-aria-label="@@capture.textLabel"
+    aria-label="What do you want to capture?"
+    i18n-placeholder="@@capture.textPlaceholder"
+    placeholder="What's on your mind?"
+    aria-describedby="capture-preview"
+    [value]="text()"
+    (input)="text.set($any($event.target).value)"
+    (keydown)="onTextKeydown($event)"
+  />
+
+  <div id="capture-preview" class="preview" aria-live="polite">
+    @if (text().trim() && preview(); as p) {
+      <p class="preview-title">
+        @if (p.title) {
+          {{ p.title }}
+        } @else {
+          <span class="muted" i18n="@@capture.previewNoTitle">No title yet</span>
+        }
+      </p>
+      <ul class="tokens" i18n-aria-label="@@capture.previewLabel" aria-label="Recognized">
+        @if (p.list === 'WAITING') {
+          <li class="token waiting">
+            @if (p.waitingFor) {
+              <ng-container i18n="@@capture.waitingFor">Waiting for {{ p.waitingFor }}</ng-container>
+            } @else {
+              <ng-container i18n="@@capture.waiting">Waiting</ng-container>
+            }
+          </li>
+        } @else {
+          <li class="token list" i18n="@@capture.inbox">Inbox</li>
+        }
+        @if (p.project; as project) {
+          <li class="token project">#{{ project.title }}</li>
+        }
+        @for (context of p.contexts; track context.id) {
+          <li class="token context">&#64;{{ context.name }}</li>
+        }
+        @if (p.dueDate) {
+          <li class="token due" i18n="@@capture.due">Due {{ p.dueDate | date: 'EEE, MMM d' }}</li>
+        }
+      </ul>
+    } @else {
+      <p class="hint" i18n="@@capture.syntaxHint">
+        Add <code>#project</code>, <code>&#64;context</code>, <code>!today</code>,
+        <code>!tomorrow</code> or <code>!2026-11-03</code>, and <code>^name</code> for waiting.
+      </p>
+    }
+  </div>
+
+  <textarea
+    class="notes"
+    rows="3"
+    i18n-aria-label="@@capture.notesLabel"
+    aria-label="Notes"
+    i18n-placeholder="@@capture.notesPlaceholder"
+    placeholder="Notes (optional)"
+    [value]="notes()"
+    (input)="notes.set($any($event.target).value)"
+    (keydown)="onNotesKeydown($event)"
+  ></textarea>
+
+  <div class="files">
+    @if (files().length > 0) {
+      <p class="files-note" i18n="@@capture.filesNotSaved">
+        Attachments can't be saved yet, so these files stay out of the capture:
+      </p>
+      <ul class="file-list">
+        @for (name of files(); track $index) {
+          <li>
+            <span class="file-name">{{ name }}</span>
+            <button
+              type="button"
+              class="link"
+              i18n-aria-label="@@capture.removeFile"
+              aria-label="Remove {{ name }}"
+              (click)="removeFile($index)"
+              i18n="@@capture.remove"
+            >
+              Remove
+            </button>
+          </li>
+        }
+      </ul>
+    } @else {
+      <p class="drop" i18n="@@capture.dropHint">Drop or paste a file here to attach it.</p>
+    }
+  </div>
+
+  <footer class="foot">
+    <p class="keys">
+      <span><kbd>Enter</kbd> <ng-container i18n="@@capture.keySave">save</ng-container></span>
+      <span
+        ><kbd>Shift+Enter</kbd>
+        <ng-container i18n="@@capture.keySaveNext">save and add another</ng-container></span
+      >
+    </p>
+    <div class="actions">
+      <button type="button" class="quiet" (click)="cancel()" i18n="@@capture.cancel">Cancel</button>
+      <button
+        type="button"
+        class="primary"
+        [disabled]="saving() || !text().trim()"
+        (click)="submit()"
+        i18n="@@capture.save"
+      >
+        Save to Inbox
+      </button>
+    </div>
+  </footer>
+</div>

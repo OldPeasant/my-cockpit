@@ -2,12 +2,13 @@ import { createEnvironmentInjector, EnvironmentInjector, InjectionToken } from '
 import { TestBed } from '@angular/core/testing';
 import { MatDialog } from '@angular/material/dialog';
 import { CAPTURE_DIALOG } from '../../shell/shell-tokens';
-import { CapturePlaceholder } from './capture-placeholder';
-import { PlaceholderCaptureDialog, provideCapture } from './capture.providers';
+import { provideHttp } from '../../core/http';
+import { CaptureDialog } from './capture-dialog';
+import { provideCapture, QuickCaptureDialog } from './capture.providers';
 
-describe('provideCapture (placeholder)', () => {
+describe('provideCapture', () => {
   beforeEach(() => {
-    TestBed.configureTestingModule({ providers: [provideCapture()] });
+    TestBed.configureTestingModule({ providers: [provideCapture(), provideHttp()] });
   });
 
   afterEach(() => {
@@ -18,26 +19,24 @@ describe('provideCapture (placeholder)', () => {
     return TestBed.inject(MatDialog).openDialogs.map((ref) => ref.componentInstance);
   }
 
-  it('provides CAPTURE_DIALOG with the placeholder implementation', () => {
-    expect(TestBed.inject(CAPTURE_DIALOG)).toBeInstanceOf(PlaceholderCaptureDialog);
+  it('provides CAPTURE_DIALOG with the quick capture dialog', () => {
+    expect(TestBed.inject(CAPTURE_DIALOG)).toBeInstanceOf(QuickCaptureDialog);
   });
 
-  it('opens the lazily loaded placeholder dialog with a close button', async () => {
+  it('opens the lazily loaded dialog with the text field focused; Cancel closes it', async () => {
     TestBed.inject(CAPTURE_DIALOG).open();
     await vi.waitFor(() => expect(openDialogs()).toHaveLength(1));
-    expect(openDialogs()[0]).toBeInstanceOf(CapturePlaceholder);
+    expect(openDialogs()[0]).toBeInstanceOf(CaptureDialog);
 
     const dialog = await vi.waitFor(() => {
-      const el = document.querySelector('app-capture-placeholder');
+      const el = document.querySelector('app-capture-dialog');
       expect(el).not.toBeNull();
       return el!;
     });
-    await vi.waitFor(() =>
-      expect(dialog.querySelector('[mat-dialog-title]')?.textContent?.trim()).toBe('Capture'),
-    );
-    expect(dialog.textContent).toContain('Quick capture to the inbox is coming soon.');
+    await vi.waitFor(() => expect(dialog.querySelector('h2')?.textContent?.trim()).toBe('Capture'));
+    await vi.waitFor(() => expect(document.activeElement?.id).toBe('capture-text'));
 
-    dialog.querySelector<HTMLButtonElement>('button[mat-dialog-close]')!.click();
+    dialog.querySelector<HTMLButtonElement>('button.quiet')!.click();
     await vi.waitFor(() => expect(openDialogs()).toEqual([]));
   });
 
@@ -56,7 +55,7 @@ describe('provideCapture (placeholder)', () => {
         expect(first).toBeDefined();
         return first;
       });
-      expect(ref.componentInstance).toBeInstanceOf(CapturePlaceholder);
+      expect(ref.componentInstance).toBeInstanceOf(CaptureDialog);
       expect(ref.componentRef!.injector.get(ROUTE_ONLY, null)).toBe('from the route');
     } finally {
       TestBed.inject(MatDialog).closeAll();

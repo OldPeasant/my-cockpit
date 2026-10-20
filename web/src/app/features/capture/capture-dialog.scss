@@ -1,0 +1,254 @@
+// One quiet sheet: the big text line is the focus, and the preview right below reads the text back
+// the way the inbox will show it, each recognized token tinted by its kind.
+
+:host {
+  display: block;
+}
+
+.capture {
+  display: flex;
+  flex-direction: column;
+  gap: var(--app-space-3);
+  padding: var(--app-space-4) var(--app-space-4) var(--app-space-3);
+  outline: 2px dashed transparent;
+  outline-offset: -6px;
+  transition: outline-color 120ms ease;
+
+  &.dragging {
+    outline-color: var(--app-accent);
+  }
+}
+
+.head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--app-space-3);
+}
+
+.title {
+  margin: 0;
+  color: var(--app-fg-muted);
+  font: var(--mat-sys-title-small);
+}
+
+.count {
+  margin: 0;
+  color: var(--app-fg-muted);
+  font: var(--mat-sys-label-medium);
+}
+
+.text {
+  box-sizing: border-box;
+  width: 100%;
+  padding: var(--app-space-2) 0;
+  border: 0;
+  border-bottom: 2px solid var(--app-border);
+  background: transparent;
+  color: var(--app-fg);
+  font: var(--mat-sys-headline-small);
+  outline: none;
+
+  &:focus {
+    border-bottom-color: var(--app-accent);
+  }
+
+  &::placeholder {
+    color: var(--app-fg-muted);
+    opacity: 0.7;
+  }
+}
+
+.preview {
+  min-height: 56px;
+}
+
+.preview-title {
+  margin: 0 0 var(--app-space-2);
+  color: var(--app-fg);
+  font: var(--mat-sys-title-medium);
+  overflow-wrap: anywhere;
+}
+
+.muted,
+.hint {
+  color: var(--app-fg-muted);
+}
+
+.hint {
+  margin: 0;
+  font: var(--mat-sys-body-medium);
+
+  code {
+    padding: 0 var(--app-space-1);
+    border-radius: 4px;
+    background: var(--mat-sys-surface-container-high);
+    color: var(--app-fg);
+    font: inherit;
+  }
+}
+
+.tokens {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--app-space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.token {
+  padding: 2px var(--app-space-2);
+  border-inline-start: 3px solid currentcolor;
+  border-radius: 2px;
+  background: var(--mat-sys-surface-container);
+  font: var(--mat-sys-label-large);
+
+  &.list,
+  &.waiting {
+    color: var(--app-fg-muted);
+  }
+
+  &.project {
+    color: var(--mat-sys-tertiary);
+  }
+
+  &.context {
+    color: var(--mat-sys-secondary);
+  }
+
+  &.due {
+    color: var(--mat-sys-primary);
+  }
+}
+
+.notes {
+  box-sizing: border-box;
+  width: 100%;
+  padding: var(--app-space-2) var(--app-space-3);
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius);
+  background: transparent;
+  color: var(--app-fg);
+  font: var(--mat-sys-body-large);
+  resize: vertical;
+
+  &:focus-visible {
+    outline: 2px solid var(--app-accent);
+    outline-offset: -1px;
+  }
+}
+
+.files {
+  color: var(--app-fg-muted);
+  font: var(--mat-sys-body-small);
+}
+
+.drop,
+.files-note {
+  margin: 0;
+}
+
+.file-list {
+  margin: var(--app-space-1) 0 0;
+  padding: 0;
+  list-style: none;
+
+  li {
+    display: flex;
+    align-items: center;
+    gap: var(--app-space-2);
+  }
+}
+
+.file-name {
+  overflow: hidden;
+  color: var(--app-fg);
+  text-decoration: line-through;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--app-space-3);
+  padding-top: var(--app-space-2);
+}
+
+.keys {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--app-space-3);
+  margin: 0;
+  color: var(--app-fg-muted);
+  font: var(--mat-sys-label-medium);
+}
+
+kbd {
+  display: inline-block;
+  padding: 0 var(--app-space-1);
+  border: 1px solid currentcolor;
+  border-radius: 4px;
+  font: var(--mat-sys-label-small);
+  line-height: 18px;
+}
+
+.actions {
+  display: flex;
+  gap: var(--app-space-2);
+  margin-inline-start: auto;
+}
+
+button {
+  display: inline-flex;
+  align-items: center;
+  min-height: 36px;
+  padding: 0 var(--app-space-3);
+  border-radius: var(--app-radius);
+  font: var(--mat-sys-label-large);
+  cursor: pointer;
+
+  &:focus-visible {
+    outline: 2px solid var(--app-accent);
+    outline-offset: 2px;
+  }
+
+  &:disabled {
+    cursor: default;
+    opacity: 0.45;
+  }
+}
+
+.primary {
+  border: 1px solid var(--app-accent);
+  background: var(--app-accent);
+  color: var(--mat-sys-on-primary);
+}
+
+.quiet {
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--app-fg-muted);
+
+  &:hover {
+    color: var(--app-fg);
+  }
+}
+
+.link {
+  min-height: 24px;
+  padding: 0 var(--app-space-1);
+  border: 0;
+  background: transparent;
+  color: var(--app-accent);
+  font: var(--mat-sys-label-medium);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .capture {
+    transition: none;
+  }
+}

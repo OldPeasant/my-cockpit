@@ -7,7 +7,7 @@ import { routes } from './app.routes';
 import { AuthService } from './core/auth';
 import { provideFakeSession } from './core/auth/testing';
 import { provideSilentEventSource } from './core/events/testing';
-import { CapturePlaceholder } from './features/capture/capture-placeholder';
+import { CaptureDialog } from './features/capture/capture-dialog';
 import { CommandsPaletteProvider } from './features/search/commands-palette.provider';
 import { LazySearchPaletteProvider } from './features/search/search.providers';
 import { CommandPalette } from './shell/command-palette';
@@ -105,11 +105,11 @@ describe('App', () => {
     expect(TestBed.inject(Router).url).toBe('/no-such-section');
   });
 
-  it('wires the capture placeholder into the shell: Q opens its dialog', async () => {
+  it('wires the capture dialog into the shell: Q opens its dialog', async () => {
     await harness.navigateByUrl('/');
     keydown({ key: 'q' });
     await vi.waitFor(() => expect(openDialogs()).toHaveLength(1));
-    expect(openDialogs()[0]).toBeInstanceOf(CapturePlaceholder);
+    expect(openDialogs()[0]).toBeInstanceOf(CaptureDialog);
   });
 
   // Regression guard for the route-level providers in app.routes.ts: the palette dialog must see
@@ -146,7 +146,7 @@ describe('App', () => {
     expect(root.querySelector('app-trash-page h1')?.textContent?.trim()).toBe('Trash');
   });
 
-  // CR-1/CR-2 follow-up: every dialog the shell opens (shortcut overview, capture placeholder)
+  // CR-1/CR-2 follow-up: every dialog the shell opens (shortcut overview, capture)
   // resolves its providers through the shell route, like the palette.
   it('opens the shortcut overview and the capture dialog with the shell route providers', async () => {
     await harness.navigateByUrl('/');
@@ -166,7 +166,7 @@ describe('App', () => {
 
     keydown({ key: 'q' });
     await vi.waitFor(() => expect(openDialogs()).toHaveLength(1));
-    expect(openDialogs()[0]).toBeInstanceOf(CapturePlaceholder);
+    expect(openDialogs()[0]).toBeInstanceOf(CaptureDialog);
     expect(routeProviders()).toEqual(paletteProviders);
   });
 });
