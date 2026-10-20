@@ -1674,6 +1674,8 @@ paths:
       - description: "Byte range(s), e.g. `bytes=0-1023`"
         in: header
         name: Range
+        schema:
+          type: string
       responses:
         "200":
           content:

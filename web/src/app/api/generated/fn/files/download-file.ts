@@ -14,7 +14,7 @@ export interface DownloadFile$Params {
 /**
  * Byte range(s), e.g. `bytes=0-1023`
  */
-  Range?: any;
+  Range?: string;
 }
 
 export function downloadFile(http: HttpClient, rootUrl: string, params: DownloadFile$Params, context?: HttpContext): Observable<StrictHttpResponse<Blob>> {

@@ -130,7 +130,12 @@ class FileController(
 	)
 	@ApiResponse(responseCode = "416", description = "The range is not satisfiable")
 	@FilesNotFoundResponse
-	@Parameter(name = HttpHeaders.RANGE, `in` = ParameterIn.HEADER, description = "Byte range(s), e.g. `bytes=0-1023`")
+	@Parameter(
+		name = HttpHeaders.RANGE,
+		`in` = ParameterIn.HEADER,
+		description = "Byte range(s), e.g. `bytes=0-1023`",
+		schema = Schema(type = "string"),
+	)
 	fun download(
 		@PathVariable id: UUID,
 	): ResponseEntity<Resource> {
