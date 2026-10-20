@@ -17,3 +17,4 @@ Modules publish change events; clients receive them over SSE (SPEC.md §2).
 - [ ] API documented: `api/openapi.yaml` regenerated (`UPDATE_OPENAPI=1 ./gradlew test --tests '*OpenApiContractTest'`) and `OpenApiContractTest` passes without the flag
 
 ## Notes
+- ASSUMPTION (2026-10-20 13:35+0200 by dell26/agent-4): ChangeEvent.type is a String; a secondary constructor/publish overload takes any Enum (its name), since ItemType does not exist yet (p0-items-links) and events also carry non-item kinds like REMINDER
