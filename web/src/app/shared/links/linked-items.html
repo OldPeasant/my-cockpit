@@ -1,0 +1,175 @@
+<section class="panel" [attr.aria-labelledby]="uid + '-heading'">
+  <header class="head">
+    <h2 [id]="uid + '-heading'" class="heading" tabindex="-1" #heading>
+      <ng-container i18n="@@links.heading">Linked items</ng-container>
+      @if (links(); as links) {
+        @if (links.length > 0) {
+          <span class="count">{{ links.length }}</span>
+        }
+      }
+    </h2>
+    @if (!adding()) {
+      <button mat-button type="button" class="add" #addButton (click)="openSearch()">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" />
+        </svg>
+        <ng-container i18n="@@links.add">Add link</ng-container>
+      </button>
+    }
+  </header>
+
+  @if (adding()) {
+    <div class="search">
+      <div class="search-field">
+        <input
+          #searchInput
+          class="query"
+          type="search"
+          role="combobox"
+          aria-autocomplete="list"
+          [attr.aria-expanded]="results().length > 0"
+          [attr.aria-controls]="uid + '-results'"
+          [attr.aria-activedescendant]="activeId()"
+          [attr.aria-busy]="searching() || linking()"
+          i18n-aria-label="@@links.searchLabel"
+          aria-label="Find an item to link"
+          i18n-placeholder="@@links.searchPlaceholder"
+          placeholder="Find a task, note, email…"
+          autocomplete="off"
+          [value]="query()"
+          [disabled]="linking()"
+          (input)="onInput($any($event.target).value)"
+          (keydown)="onKeydown($event)"
+        />
+        <button
+          mat-button
+          type="button"
+          class="cancel"
+          (click)="closeSearch()"
+          i18n="@@links.cancel"
+        >
+          Cancel
+        </button>
+      </div>
+      <div
+        [id]="uid + '-results'"
+        class="results"
+        role="listbox"
+        i18n-aria-label="@@links.resultsLabel"
+        aria-label="Items to link"
+      >
+        @for (group of results(); track group.type) {
+          <div role="group" class="group" [attr.aria-label]="group.label">
+            <div class="group-name" aria-hidden="true">{{ group.label }}</div>
+            @for (hit of group.items; track hit.id) {
+              <div
+                role="option"
+                class="option"
+                [id]="optionId(hit)"
+                [class.active]="isActive(hit)"
+                [attr.aria-selected]="isActive(hit)"
+                (click)="addLink(hit)"
+                (keydown.enter)="addLink(hit)"
+                tabindex="-1"
+              >
+                <app-item-type-icon [type]="hit.type" [icon]="hit.icon" />
+                <span class="text">
+                  <span class="title">{{ hit.title }}</span>
+                  @if (hit.subtitle) {
+                    <span class="subtitle">{{ hit.subtitle }}</span>
+                  }
+                </span>
+              </div>
+            }
+          </div>
+        }
+      </div>
+      <p class="search-status" aria-live="polite">
+        @if (searchError(); as error) {
+          <span class="error">{{ error }}</span>
+        } @else if (searching()) {
+          <ng-container i18n="@@links.searching">Searching…</ng-container>
+        } @else if (query().trim() && results().length === 0) {
+          <ng-container i18n="@@links.noResults"
+            >Nothing to link matches. Try another word.</ng-container
+          >
+        }
+      </p>
+    </div>
+  }
+
+  @if (actionError(); as error) {
+    <p class="error" role="alert">{{ error }}</p>
+  }
+
+  @if (loadError(); as error) {
+    <div class="load-error" role="alert">
+      <p class="error">{{ error }}</p>
+      <button mat-button type="button" (click)="reload()" i18n="@@links.retry">Try again</button>
+    </div>
+  } @else if (links() === null) {
+    <p class="hint" i18n="@@links.loading">Loading links…</p>
+  } @else {
+    <ul class="links" #list>
+      @for (row of rows(); track row.link.id) {
+        <li class="row" [class.unavailable]="!row.other.available">
+          <app-item-type-icon [type]="row.other.type" [icon]="row.other.icon" />
+          <span class="text">
+            @if (row.other.available && row.other.deepLink) {
+              <a class="title" [routerLink]="row.other.deepLink">{{ title(row.other) }}</a>
+            } @else {
+              <span class="title">{{ title(row.other) }}</span>
+            }
+            <span class="subtitle">
+              {{ typeLabel(row.other.type) }}
+              @if (row.other.available && row.other.subtitle) {
+                <span aria-hidden="true">, </span>{{ row.other.subtitle }}
+              }
+            </span>
+          </span>
+          @if (row.link.origin === 'MANUAL') {
+            <button
+              mat-icon-button
+              type="button"
+              class="remove"
+              [disabled]="removing().has(row.link.id)"
+              [attr.aria-label]="removeLabel(row)"
+              [title]="removeLabel(row)"
+              (click)="remove(row)"
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path
+                  d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"
+                />
+              </svg>
+            </button>
+          } @else {
+            <span
+              class="inline"
+              i18n-title="@@links.inlineTitle"
+              title="Linked in the item's text. Edit the text to remove it."
+              i18n="@@links.inline"
+              >In text</span
+            >
+          }
+        </li>
+      } @empty {
+        <li class="empty" i18n="@@links.empty">
+          No linked items yet. Add a link to connect related work.
+        </li>
+      }
+    </ul>
+  }
+
+  @if (createActions().length > 0) {
+    <div
+      class="create"
+      role="group"
+      i18n-aria-label="@@links.createLabel"
+      aria-label="Create linked"
+    >
+      <span class="create-label" aria-hidden="true" i18n="@@links.create">Create linked</span>
+      <ng-content select="[appLinkedCreate]" />
+    </div>
+  }
+</section>
