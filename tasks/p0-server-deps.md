@@ -17,7 +17,8 @@ Add every server library the spec needs up front (SPEC.md §2.1), so later tasks
   - verified (2026-10-20 10:37+0200 by dell26/agent-1): read server/src/main/resources/application.properties -> datasource from ${SPRING_DATASOURCE_URL/USERNAME/PASSWORD}, flyway.locations=classpath:db/migration, out-of-order=true, write-dates-as-timestamps=false; application-dev/-e2e.properties exist; ./gradlew test -> DatasourcePropertiesTests, FlywayConfigurationTests, ProfileTests (Default JSON logstash, Dev, E2e) pass
 - [x] `support/PostgresTestBase` (or an equivalent `@ServiceConnection` setup) starts one shared Postgres 16 container per test JVM; a sample repository-less `@SpringBootTest` using it passes with `./gradlew test` on Podman (DOCKER_HOST set as in ARCHITECTURE.md) — record the run
   - verified (2026-10-20 10:37+0200 by dell26/agent-1): cd server && ./gradlew test --rerun-tasks on Podman (Testcontainers connected to unix:///run/user/1000/podman/podman.sock) -> BUILD SUCCESSFUL in 11s, 9 suites / 21 tests, 0 failures/errors; PostgresTestBaseTests + ProfileTests share one postgres:16 container via @ServiceConnection
-- [ ] `./gradlew integrationTest` runs only tests tagged `external` and is not part of `check`; `./gradlew check` still finishes in < 60 s warm (record time)
+- [x] `./gradlew integrationTest` runs only tests tagged `external` and is not part of `check`; `./gradlew check` still finishes in < 60 s warm (record time)
+  - verified (2026-10-20 10:37+0200 by dell26/agent-1): cd server && ./gradlew integrationTest --rerun-tasks -> BUILD SUCCESSFUL, results only for ExternalToolingSmokeTests (2 tests); ./gradlew check --console=plain task list has no integrationTest and test results exclude it; warm ./gradlew check --rerun-tasks --profile -> total build time 11.957s (< 60 s)
 - [ ] ARCHITECTURE.md stack table and Testing section updated (test vs integrationTest, Podman variables)
 
 ## Notes
