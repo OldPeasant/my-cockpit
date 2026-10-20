@@ -46,7 +46,10 @@ describe('App', () => {
     expect(root.querySelector('app-coming-soon h1')?.textContent?.trim()).toBe('Dashboard');
   });
 
-  it.each(NAV_SECTIONS.map((s) => [s.path, s.label]))(
+  /** Sections whose feature is built and so no longer shows the placeholder. */
+  const BUILT = ['/settings'];
+
+  it.each(NAV_SECTIONS.filter((s) => !BUILT.includes(s.path)).map((s) => [s.path, s.label]))(
     'lazy-loads a coming soon page for %s',
     async (path, label) => {
       await harness.navigateByUrl(path);
@@ -61,6 +64,14 @@ describe('App', () => {
       expect(active?.getAttribute('aria-current')).toBe('page');
     },
   );
+
+  it('lazy-loads the settings page at /settings', async () => {
+    await harness.navigateByUrl('/settings');
+    const root = harness.routeNativeElement as HTMLElement;
+    expect(root.querySelector('app-settings-layout h1')?.textContent?.trim()).toBe('Settings');
+    expect(document.title).toBe('Settings');
+    expect(root.querySelector('a.link.active')?.getAttribute('aria-current')).toBe('page');
+  });
 
   it('shows a not found page for unknown URLs', async () => {
     await harness.navigateByUrl('/no-such-section');

@@ -1,0 +1,109 @@
+h2 {
+  margin: 0 0 var(--app-space-2);
+  font: var(--mat-sys-title-large);
+}
+
+.note {
+  color: var(--app-fg-muted);
+}
+
+.load-error {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--app-space-3);
+  color: var(--app-danger);
+}
+
+// One setting per row: what it is on the left, the control on the right.
+.row {
+  display: grid;
+  grid-template-columns: minmax(0, 16rem) minmax(0, 1fr);
+  gap: var(--app-space-2) var(--app-space-5);
+  padding: var(--app-space-4) 0;
+  border-top: 1px solid var(--app-border);
+}
+
+h3 {
+  margin: 0 0 var(--app-space-1);
+  font: var(--mat-sys-title-small);
+}
+
+.describe p {
+  margin: 0;
+  max-width: 40ch;
+  color: var(--app-fg-muted);
+  font: var(--mat-sys-body-medium);
+}
+
+.control {
+  min-width: 0;
+}
+
+.control > mat-form-field {
+  width: min(100%, 20rem);
+}
+
+.scale {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--app-space-2);
+}
+
+// Three bars showing the step of the scale a label belongs to.
+.level {
+  display: inline-flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 14px;
+  padding: 0 var(--app-space-1) 0 var(--app-space-3);
+
+  i {
+    width: 3px;
+    border-radius: 1px;
+    background: var(--app-border);
+
+    &:nth-child(1) {
+      height: 6px;
+    }
+    &:nth-child(2) {
+      height: 10px;
+    }
+    &:nth-child(3) {
+      height: 14px;
+    }
+  }
+
+  &[data-level='1'] i:nth-child(-n + 1),
+  &[data-level='2'] i:nth-child(-n + 2),
+  &[data-level='3'] i:nth-child(-n + 3) {
+    background: var(--app-accent);
+  }
+}
+
+.field-error {
+  margin: var(--app-space-1) 0 0;
+  color: var(--app-danger);
+  font: var(--mat-sys-body-small);
+}
+
+.status {
+  min-height: 1.25rem;
+  margin: var(--app-space-1) 0 0;
+  color: var(--app-fg-muted);
+  font: var(--mat-sys-body-small);
+
+  &[data-state='failed'] {
+    color: var(--app-danger);
+  }
+}
+
+@media (max-width: 720px) {
+  .row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .scale {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

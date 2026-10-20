@@ -2,6 +2,7 @@ import { Routes } from '@angular/router';
 import { authGuard, loginGuard, setupGuard } from './core/auth';
 import { provideCapture } from './features/capture/capture.providers';
 import { provideSearch } from './features/search/search.providers';
+import { provideSettingsSync } from './features/settings/settings.providers';
 import { provideNavigationPalette } from './shell/navigation-palette.provider';
 
 /**
@@ -26,7 +27,12 @@ export const routes: Routes = [
     path: '',
     canActivate: [authGuard],
     loadComponent: () => import('./shell/shell'),
-    providers: [provideNavigationPalette(), provideCapture(), provideSearch()],
+    providers: [
+      provideNavigationPalette(),
+      provideCapture(),
+      provideSearch(),
+      provideSettingsSync(),
+    ],
     children: [
       {
         path: '',

@@ -1,0 +1,169 @@
+<section class="general" aria-labelledby="general-title">
+  <h2 id="general-title" i18n="@@settings.general">General</h2>
+
+  @if (loading()) {
+    <p class="note" role="status" i18n="@@settings.loading">Loading settings…</p>
+  } @else if (loadError(); as message) {
+    <div class="load-error" role="alert">
+      <p i18n="@@settings.loadFailed">Settings could not be loaded: {{ message }}</p>
+      <button mat-stroked-button type="button" (click)="load()" i18n="@@settings.retry">
+        Try again
+      </button>
+    </div>
+  } @else {
+    <form [formGroup]="form" (submit)="$event.preventDefault()">
+      <div class="row">
+        <div class="describe">
+          <h3 id="tz-label" i18n="@@settings.timeZone">Time zone</h3>
+          <p i18n="@@settings.timeZone.hint">Used for due dates, reminders and the calendar.</p>
+        </div>
+        <div class="control">
+          <mat-form-field subscriptSizing="dynamic">
+            <input
+              matInput
+              formControlName="timeZone"
+              aria-labelledby="tz-label"
+              [matAutocomplete]="zoneList"
+              (blur)="timeZoneBlur()"
+              (keydown.enter)="timeZoneBlur()"
+            />
+            <mat-autocomplete #zoneList (optionSelected)="save('timeZone')">
+              @for (zone of zoneOptions(); track zone) {
+                <mat-option [value]="zone">{{ zone }}</mat-option>
+              }
+            </mat-autocomplete>
+            @if (form.controls.timeZone.hasError('unknownZone')) {
+              <mat-error i18n="@@settings.timeZone.unknown"
+                >Pick a time zone from the list.</mat-error
+              >
+            }
+          </mat-form-field>
+          <ng-container *ngTemplateOutlet="status; context: { $implicit: 'timeZone' }" />
+        </div>
+      </div>
+
+      <div class="row">
+        <div class="describe">
+          <h3 id="week-label" i18n="@@settings.weekStart">Week starts on</h3>
+          <p i18n="@@settings.weekStart.hint">First day in the calendar and the weekly views.</p>
+        </div>
+        <div class="control">
+          <mat-form-field subscriptSizing="dynamic">
+            <mat-select
+              formControlName="weekStart"
+              aria-labelledby="week-label"
+              (selectionChange)="save('weekStart')"
+            >
+              @for (day of weekDays; track day) {
+                <mat-option [value]="day">{{ weekDayLabels[day] }}</mat-option>
+              }
+            </mat-select>
+          </mat-form-field>
+          <ng-container *ngTemplateOutlet="status; context: { $implicit: 'weekStart' }" />
+        </div>
+      </div>
+
+      <div class="row">
+        <div class="describe">
+          <h3 id="theme-label" i18n="@@settings.theme">Theme</h3>
+          <p i18n="@@settings.theme.hint">Applies on every device you sign in with.</p>
+        </div>
+        <div class="control">
+          <mat-button-toggle-group
+            formControlName="theme"
+            aria-labelledby="theme-label"
+            hideSingleSelectionIndicator
+            (change)="save('theme')"
+          >
+            @for (mode of themeModes; track mode) {
+              <mat-button-toggle [value]="mode">{{ themeLabels[mode] }}</mat-button-toggle>
+            }
+          </mat-button-toggle-group>
+          <ng-container *ngTemplateOutlet="status; context: { $implicit: 'theme' }" />
+        </div>
+      </div>
+
+      <div class="row">
+        <div class="describe">
+          <h3 i18n="@@settings.energyLabels">Energy levels</h3>
+          <p i18n="@@settings.energyLabels.hint">
+            How tasks are labelled when you pick them by energy, from lowest to highest.
+          </p>
+        </div>
+        <div class="control">
+          <div class="scale" formGroupName="energyLabels">
+            @for (level of energyLevels; track level; let i = $index) {
+              <mat-form-field subscriptSizing="dynamic">
+                <span matPrefix class="level" [attr.data-level]="i + 1" aria-hidden="true"
+                  ><i></i><i></i><i></i
+                ></span>
+                <input
+                  matInput
+                  [formControlName]="level"
+                  maxlength="40"
+                  [attr.aria-label]="energyAria[level]"
+                  (change)="save('energyLabels')"
+                />
+              </mat-form-field>
+            }
+          </div>
+          <ng-container *ngTemplateOutlet="labelError; context: { $implicit: 'energyLabels' }" />
+          <ng-container *ngTemplateOutlet="status; context: { $implicit: 'energyLabels' }" />
+        </div>
+      </div>
+
+      <div class="row">
+        <div class="describe">
+          <h3 i18n="@@settings.creativityLabels">Creativity levels</h3>
+          <p i18n="@@settings.creativityLabels.hint">
+            From routine work to work that needs fresh ideas.
+          </p>
+        </div>
+        <div class="control">
+          <div class="scale" formGroupName="creativityLabels">
+            @for (level of creativityLevels; track level; let i = $index) {
+              <mat-form-field subscriptSizing="dynamic">
+                <span matPrefix class="level" [attr.data-level]="i + 1" aria-hidden="true"
+                  ><i></i><i></i><i></i
+                ></span>
+                <input
+                  matInput
+                  [formControlName]="level"
+                  maxlength="40"
+                  [attr.aria-label]="creativityAria[level]"
+                  (change)="save('creativityLabels')"
+                />
+              </mat-form-field>
+            }
+          </div>
+          <ng-container
+            *ngTemplateOutlet="labelError; context: { $implicit: 'creativityLabels' }"
+          />
+          <ng-container *ngTemplateOutlet="status; context: { $implicit: 'creativityLabels' }" />
+        </div>
+      </div>
+    </form>
+  }
+</section>
+
+<ng-template #labelError let-field>
+  @if (form.get(field)?.invalid) {
+    <p class="field-error" i18n="@@settings.labels.invalid">Each label needs 1 to 40 characters.</p>
+  }
+</ng-template>
+
+<ng-template #status let-field>
+  <p class="status" [attr.data-state]="stateOf(field)" role="status">
+    @switch (stateOf(field)) {
+      @case ('saving') {
+        <ng-container i18n="@@settings.saving">Saving…</ng-container>
+      }
+      @case ('saved') {
+        <ng-container i18n="@@settings.saved">Saved</ng-container>
+      }
+      @case ('failed') {
+        <ng-container i18n="@@settings.notSaved">Not saved, previous value restored</ng-container>
+      }
+    }
+  </p>
+</ng-template>
