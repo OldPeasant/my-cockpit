@@ -17,7 +17,8 @@ Restore from a backup zip (SPEC.md §10.1).
   - verified (2026-10-21 01:51+0200 by dell26/agent-4): server/gradlew -p server test --tests 'ch.sonensei.cockpit.backup.*' (RestoreWebTests: upload report w/ format version, counts, sha256 problems, warnings, data unchanged; confirm writes pre-restore zip and replaces all data in one tx, pre-restore zip restores replaced data) against Testcontainers Postgres -> 132 tests, 0 failures
 - [x] `java -jar cockpit-server.jar --restore=/path/backup.zip` restores on a fresh install and exits; the setup flow is then skipped
   - verified (2026-10-21 01:52+0200 by dell26/agent-4): bootJar cockpit-server-0.0.1-SNAPSHOT.jar --restore=<backup.zip> against a fresh Postgres container (test-writer, .tmp/e2e) -> exit 0, pre-restore written, 'setup is skipped'; normal start then GET /api/v1/setup/status -> setupRequired:false; missing file exit 2, corrupt zip exit 1; plus RestoreCliTests (Testcontainers) pass
-- [ ] Corrupt zip / wrong format version / sha mismatch → rejected with a clear report, data untouched (tests)
+- [x] Corrupt zip / wrong format version / sha mismatch → rejected with a clear report, data untouched (tests)
+  - verified (2026-10-21 01:52+0200 by dell26/agent-4): RestoreWebTests + ZipBackupReaderValidationTests + RestoreCliTests: corrupt zip / wrong format version / sha256 mismatch / empty upload -> valid:false with problem, no id, data unchanged; server/gradlew -p server test --tests 'ch.sonensei.cockpit.backup.*' -> pass
 - [ ] `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.backup.*'` passes (Postgres via Testcontainers where persistence is involved)
 - [ ] API documented: `api/openapi.yaml` regenerated (`UPDATE_OPENAPI=1 ./gradlew test --tests '*OpenApiContractTest'`) and `OpenApiContractTest` passes without the flag
 
