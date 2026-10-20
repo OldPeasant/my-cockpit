@@ -34,6 +34,11 @@ class EncryptedSecretTests {
 		secret shouldNotBe EncryptedSecret("other")
 	}
 
+	@Test
+	fun `a secret is never equal to its plain string`() {
+		(secret as Any).equals("imap-password-fictitious") shouldBe false
+	}
+
 	data class Holder(
 		val user: String,
 		val password: EncryptedSecret,

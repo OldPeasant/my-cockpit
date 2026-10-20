@@ -3,6 +3,7 @@ package ch.sonensei.cockpit.core.crypto
 import ch.sonensei.cockpit.CockpitServerApplication
 import ch.sonensei.cockpit.support.PostgresTestBase
 import ch.sonensei.cryptofixture.SecretFixtureEntity
+import io.kotest.assertions.throwables.shouldThrowAny
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldNotContain
 import jakarta.persistence.EntityManager
@@ -15,6 +16,7 @@ import org.springframework.boot.test.context.TestConfiguration
 import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.transaction.support.TransactionTemplate
 import tools.jackson.databind.json.JsonMapper
+import java.util.Base64
 import java.util.UUID
 
 /**
@@ -60,6 +62,25 @@ class EncryptedSecretPersistenceTests(
 
 		jdbc.queryForObject("select secret from crypto_secret_fixture where id = ?", String::class.java, id) shouldBe null
 		transactions.execute { entityManager.find(SecretFixtureEntity::class.java, id) }!!.secret shouldBe null
+	}
+
+	@Test
+	fun `stored secret written with another master key or tampered is not loaded`() {
+		val foreignKey = SecretCipher(ByteArray(32) { 42 }).encrypt("oauth-refresh-token-fictitious")
+		val tampered =
+			Base64.getDecoder().decode(cipher.encrypt("oauth-refresh-token-fictitious")).let { bytes ->
+				bytes[bytes.size - 1] = (bytes[bytes.size - 1].toInt() xor 1).toByte()
+				Base64.getEncoder().encodeToString(bytes)
+			}
+
+		listOf(foreignKey, tampered).forEach { stored ->
+			val id = UUID.randomUUID()
+			jdbc.update("insert into crypto_secret_fixture (id, secret) values (?, ?)", id, stored)
+
+			val error = shouldThrowAny { transactions.execute { entityManager.find(SecretFixtureEntity::class.java, id) } }
+			generateSequence(error) { it.cause }.any { it is SecretDecryptionException } shouldBe true
+			generateSequence(error) { it.cause }.forEach { (it.message ?: "") shouldNotContain "oauth-refresh-token" }
+		}
 	}
 
 	@Test
