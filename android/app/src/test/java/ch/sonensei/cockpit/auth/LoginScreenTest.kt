@@ -19,6 +19,7 @@ import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextInput
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -83,6 +84,27 @@ class LoginScreenTest {
         assertTrue(state.useRecoveryCode)
         composeRule.onNodeWithText("Recovery code").performScrollTo().assertIsDisplayed()
         composeRule.onNodeWithText("Use the authenticator app instead").performScrollTo().assertIsDisplayed()
+    }
+
+    @Test
+    fun `the toggle switches back from recovery code to authenticator code`() {
+        var state by mutableStateOf(LoginUiState(useRecoveryCode = true))
+        composeRule.setContent {
+            LoginScreen(
+                state = state,
+                onServerUrlChange = {},
+                onUsernameChange = {},
+                onPasswordChange = {},
+                onCodeChange = {},
+                onUseRecoveryCodeChange = { state = state.copy(useRecoveryCode = it) },
+                onSubmit = {},
+            )
+        }
+
+        composeRule.onNodeWithText("Use the authenticator app instead").performScrollTo().performClick()
+
+        assertFalse(state.useRecoveryCode)
+        composeRule.onNodeWithText("Code from your authenticator app").performScrollTo().assertIsDisplayed()
     }
 
     @Test
