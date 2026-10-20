@@ -17,7 +17,8 @@ Setup wizard and login UI (SPEC.md §4.1).
   - verified (2026-10-20 13:54+0200 by dell26/agent-2): Vitest login.spec.ts in cd web && npm run check on 1d7dd9c -> pass: password+TOTP, recovery-code switch, remember device sent, 429 shows 'Too many failed attempts. Try again in N s.' from Retry-After (fallback 60 s) counting down with submit disabled
 - [x] Auth guard on all shell routes; logout in the top bar menu; `/login` redirects to the return URL after success
   - verified (2026-10-20 13:54+0200 by dell26/agent-2): Vitest auth.guards.spec.ts, app.spec.ts (real app.routes: all 20 shell URLs -> /login?returnUrl=..., login from /trash returns to /trash, open-redirect rejected) and shell.spec.ts (account menu Sign out -> AuthService.logout + /login) in cd web && npm run check on 1d7dd9c -> pass
-- [ ] Vitest component/service tests cover setup and login forms, guard redirects; `cd web && npm run check` passes
+- [x] Vitest component/service tests cover setup and login forms, guard redirects; `cd web && npm run check` passes
+  - verified (2026-10-20 13:54+0200 by dell26/agent-2): cd web && npm run check on 1d7dd9c -> api:check ok, lint clean, 247 tests passed, build ok; sh scripts/check.sh -> all checks passed
 
 ## Notes
 - ASSUMPTION (2026-10-20 13:36+0200 by dell26/agent-2): QR code: added the qrcode npm library (+@types/qrcode), drawing its module matrix as an inline SVG path (no canvas, works under jsdom); allowed as CommonJS in angular.json
