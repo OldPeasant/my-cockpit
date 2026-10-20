@@ -501,6 +501,42 @@ class AuthRepositoryTest {
         }
 
     @Test
+    fun `a user logout whose revocation needed a token refresh still clears tokens and caches exactly once`() =
+        runBlocking {
+            // The access token expired: the revocation gets a 401, the refresh rotates the tokens and the retried revocation
+            // succeeds. The tokens changed but are still there, so the logout itself must forget them and clear the caches.
+            val rotated = AuthTokens("access-2", "refresh-2")
+            val authenticator = TokenAuthenticator(tokenStore, { RefreshResult.Success(rotated) }, session)
+            val withAuthenticator =
+                CockpitHttp
+                    .retrofit(CockpitHttp.okHttpClient(ServerUrlInterceptor(serverUrls), AccessTokenInterceptor(tokenStore), authenticator))
+                    .create(AuthApi::class.java)
+            val owner = CoroutineScope(Dispatchers.Unconfined + SupervisorJob())
+            var cleared = 0
+            val refreshing =
+                AuthRepository(serverUrls, withAuthenticator, tokenStore, session, setOf(SessionCache { cleared++ }), owner, Dispatchers.IO)
+            server.enqueue(json(200, TOKEN_BODY))
+            assertEquals(LoginResult.Success, refreshing.login(serverAddress(), "alex", "pw", SecondFactor.Totp("123456")))
+            server.takeRequest()
+            server.enqueue(json(401, PROBLEM))
+            server.enqueue(MockResponse.Builder().code(204).build())
+
+            refreshing.logout()
+
+            val first = server.takeRequest()
+            val retried = server.takeRequest()
+            assertEquals("DELETE", first.method)
+            assertEquals("Bearer access-1", first.headers["Authorization"])
+            assertEquals("DELETE", retried.method)
+            assertEquals("Bearer access-2", retried.headers["Authorization"])
+            assertEquals("/api/v1/auth/devices/$DEVICE_ID", retried.url.encodedPath)
+            assertNull(tokenStore.current())
+            assertNull(tokenStore.session.value)
+            assertEquals(1, cleared)
+            owner.cancel()
+        }
+
+    @Test
     fun `a failing cache neither stops the others nor the logout`() =
         runBlocking {
             val cleared = mutableListOf<String>()
