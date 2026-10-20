@@ -2,252 +2,183 @@
 
 Date: 2026-10-20
 
-Task: reminders-core - Reminders and notifications backend
+Task: reminders-core - Reminders and notifications backend (rerun on the final code after the CR-1/CR-2 fixes)
 
-Scope: `d26c6d66e4d949160af48f66baf8a0b094846ab2..d12c4ec111a4484ae20b99a4b4213407c123abab` (one task commit
-`d12c4ec`, base and commit supplied by the parent worker; branch `main`, working tree clean before testing). Production
-files: the five `core/reminders` Kotlin files, the Flyway migration, `core/events/domain/ClientNotification.kt` and
-the `SseEventHub.kt` change. Generated `api/openapi.yaml` and `web/src/app/api/generated/**` are out of test scope.
+Scope: `git diff 3f0c01c6983106a3c91f1493a7c8842b0f566951..266252450e788bab2fa92a1c10a5b7c7fb67593c` on branch
+`main` (base and task commits supplied by the parent worker): `e1b919f` (implementation), `b7828f2` (review report),
+`8238e1c` (fixes CR-1/CR-2: `ReminderItems` isolates item resolvers in `REQUIRES_NEW` read-only transactions,
+`ReminderRepository.deleteReminder` bulk delete without version check), `c4c7dcc` (regenerated `api/openapi.yaml` and
+web client), `2662524` (WIP `ReminderGtdResolverTests.kt` from an earlier interrupted test-writer rerun). Plus this
+run's uncommitted addition to `ReminderGtdResolverTests.kt` (see snapshot below). Earlier `tests.md` content described
+a pre-fix revision and is fully replaced.
 
 Requirements:
-- `tasks/reminders-core.md` acceptance criteria and the four recorded assumptions (SSE `reminder` event via
-  `ClientNotification`, channel `NOTIFICATION`, scheduler polling with `SKIP LOCKED`, API shape incl. `GET /{id}`,
-  `upcoming` limit 1000, `ItemDeletedEvent` cleanup)
-- `SPEC.md` §4.6 (reminders), §4.2 (API conventions: Problem Details, UUIDv7, ISO-8601)
-- `docs/ARCHITECTURE.md` "Coverage" and "Persistence conventions"; `AGENTS.md` project notes
-- Parent worker instructions (MockMvc API, scheduler wiring, SSE delivery after commit, restart, rollback)
+- `tasks/reminders-core.md` acceptance criteria 1-4 and its five ASSUMPTION notes (SSE `reminder` event via
+  `ClientNotification`, channel `NOTIFICATION`, polling scheduler with `SKIP LOCKED` and silent firing for gone items,
+  API shape incl. `GET /{id}`, immutable reminders, `upcoming` max 1000, `ItemDeletedEvent` cleanup, migration folder)
+- `SPEC.md` §4.6 (reminders), §4.3 (ItemResolver), §4.2 (API conventions)
+- `docs/ARCHITECTURE.md` "Coverage"; `docs/QUALITY.md`; `AGENTS.md` project notes
+- `reviews/reminders-core/review.md` findings CR-1 and CR-2 (behaviour the fixes must guarantee)
 
 ## Test files changed
 
-- `server/src/test/kotlin/ch/sonensei/cockpit/core/reminders/ReminderWebTests.kt` (new)
-- `server/src/test/kotlin/ch/sonensei/cockpit/core/reminders/ReminderEventsStreamTests.kt` (new)
-- `server/src/test/kotlin/ch/sonensei/cockpit/core/reminders/ReminderSchedulerTests.kt` (new; classes
-  `ReminderSchedulerRunTests`, `ReminderSchedulerEnabledTests`, `ReminderSchedulerDisabledTests`)
-- `server/src/test/kotlin/ch/sonensei/cockpit/core/reminders/ReminderServiceEdgeCaseTests.kt` (new)
-- `server/src/test/kotlin/ch/sonensei/cockpit/core/events/ClientNotificationTests.kt` (new; classes
-  `ClientNotificationHubTests`, `ClientNotificationStreamTests`)
+- `server/src/test/kotlin/ch/sonensei/cockpit/core/reminders/ReminderGtdResolverTests.kt` (WIP file from `2662524`
+  reviewed, kept unchanged, 3 tests added in this run)
 
-No existing test was modified, weakened, skipped or deleted. No production code was changed.
+Tests from the fix commit reviewed without changes: `ReminderTransactionalResolverTests.kt` (CR-1, failing
+`@Transactional` resolver), the two CR-2 tests in `ReminderServiceEdgeCaseTests.kt`.
 
 ## Tests added or updated
 
-Count: 40 (ReminderWebTests 12, ReminderEventsStreamTests 3, ReminderServiceEdgeCaseTests 14,
-ReminderSchedulerRunTests 3, ReminderSchedulerEnabledTests 1, ReminderSchedulerDisabledTests 2,
-ClientNotificationHubTests 3, ClientNotificationStreamTests 2). The 5 existing `ReminderServiceTests` were kept.
+Count: 3 added in this run (plus the 4 WIP tests committed in `2662524` in `ReminderGtdResolverTests`, reviewed and
+kept unchanged).
+
+Added (real gtd `TASK`/`PROJECT` resolvers, which are `@Transactional` proxies, no fakes):
+- `creating a reminder for a missing or trashed real task is rejected`: the existence check in `create` still sees the
+  Trash with the real resolver; nothing is stored.
+- `a reminder of a real project fires with the project title and deep link`: the `PROJECT` resolver path through
+  `ReminderItems` in the firing transaction.
+- `listings resolve tasks and projects together and keep reminders of a trashed task unavailable`: `upcoming`
+  (`resolveAll` with its per-item cache) over mixed item types, a trashed item and a repeated item, order preserved.
+
+WIP tests reviewed and kept: `a reminder of a real task fires once with the task title and deep link`,
+`a reminder of a task moved to the Trash is marked fired without notification`,
+`a reminder can be created in the transaction that creates its task and resolves after the commit`,
+`a firing batch resolves each real task in its own transaction while the reminders stay locked`.
 
 ## Requirement coverage
 
-Focused command (F): `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.core.reminders.*' --tests 'ch.sonensei.cockpit.core.events.*'`
-(Postgres 16 via Testcontainers, `MutableClock` test clock, fake item resolvers).
+Focused command (F): `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.core.reminders.*' --tests 'ch.sonensei.cockpit.core.events.*' --tests '*OpenApiContractTest' jacocoTestReport`
+(Postgres via Testcontainers, `MutableClock` test clock).
 
 | Requirement | Tests | Command | Result |
 |---|---|---|---|
-| AC1 `reminder` table + POST creates (201, Location, UUIDv7, resolved item, default channel, past time allowed, type without resolver accepted) | `POST creates a pending reminder with the resolved item and its location`, `POST accepts an explicit channel, a time in the past and an item type without a resolver` | F | Pass |
-| AC1 POST validation (missing itemType/itemId/remindAt, unknown item, bad enum/channel/instant, malformed/empty body -> 400 Problem Details, nothing stored) | `POST rejects missing fields, an unknown item and invalid values` | F | Pass |
-| AC1 GET list by item (fired and pending, earliest first, other items excluded, empty list, failing resolver -> unavailable) and 400 for missing/invalid itemType/itemId | `GET lists the reminders of one item, fired or not, earliest first`, `GET of a list with a failing resolver still answers with the item unavailable`, `GET needs a valid itemType and itemId` | F | Pass |
-| AC1 GET by id / DELETE (200, 204, 404 unknown, 400 malformed, second DELETE 404) | `GET by id returns the reminder, an unknown id is 404 and a malformed one 400`, `DELETE removes the reminder and a second DELETE is 404`, `get and delete of an unknown reminder are not found` | F | Pass |
-| AC1 `GET /upcoming?until=` (unfired only, overdue included, `until` inclusive, 1 microsecond later excluded, empty, 400 without/invalid until, max 1000) | `GET upcoming returns unfired reminders up to until, overdue ones included and the boundary inclusive`, `GET upcoming needs a valid until`, `upcoming returns at most MAX_UPCOMING reminders, earliest first` | F | Pass |
-| AC1 security: 401 without login on every endpoint, 403 without CSRF for POST/DELETE | `reminders need a login`, `state-changing requests need the CSRF token` | F | Pass |
-| AC2 scheduler fires due reminders once and sets firedAt (exact boundary, overdue after downtime, batch of 100 per call, backlog drained by one run) | `a reminder fires exactly at its time, not a microsecond before`, `an overdue reminder from while the server was down fires once on the next run`, `fireDue fires at most one batch per call, earliest first`, `a backlog larger than one batch fires completely in one run`, `run repeats while a whole batch fired and stops at the first partial batch`, `run with nothing due fires once and stops`, `a failing run is logged instead of thrown, so the next scheduled run retries` | F | Pass |
-| AC2 scheduler bean wiring (enabled with `poll-interval=PT0.1S` fires by itself; disabled in tests -> no bean) | `the background scheduler fires a due reminder once and leaves a future one pending` (context closed with `@DirtiesContext`), `without the scheduler enabled no scheduler bean exists` | F | Pass |
-| AC2 `reminder` SSE event with resolved item title reaches a connected client, only after commit; separate `change` REMINDER/UPDATED event | `a fired reminder reaches a connected client after the commit as a reminder event with the item title` | F | Pass |
-| AC2 rollback -> no notification, reminder stays due and fires exactly once later | `a rolled-back firing sends no reminder event and the reminder fires once later`, `a notification of a rolled-back transaction is dropped, a committed one is sent after the commit` | F | Pass |
-| AC2 item gone -> fired silently; resolver failing / no resolver -> event without title | `a reminder of a deleted item sends no reminder event`, `a failing resolver still sends the notification, without a title`, `a reminder of an item type without a resolver fires with a notification without a title` | F | Pass |
-| AC3 fires once, not twice after restart (test clock) and never twice under concurrent schedulers (`SKIP LOCKED`) | existing `a fired reminder does not fire again after a restart`, `a reminder another transaction is firing is skipped instead of waited for or fired twice`, `a reminder cannot be marked fired twice` | F | Pass |
-| Change events CREATED/UPDATED/DELETED; ItemDeletedEvent removes only that item's reminders; deleted reminder never fires | `create, fire and delete publish CREATED, UPDATED and DELETED change events`, `deleting an item removes only its reminders and an item without reminders publishes nothing`, `a deleted reminder never fires` | F | Pass |
-| `ClientNotification` / `SseEventHub.onNotification` (named JSON event to all clients, outside a transaction right away, dropped after destroy, blank/`change` name rejected) | `ClientNotificationHubTests` (3), `a notification published outside a transaction is sent right away` | F | Pass |
-| remindAt stored at microsecond precision | `remindAt is stored at microsecond precision` | F | Pass |
-| AC3 `./gradlew test --tests 'ch.sonensei.cockpit.core.reminders.*'` passes | all of the above in `core.reminders` | F (3 extra repeated runs with `cleanTest`, all exit 0) | Pass |
-| Migration follows the project's layout convention (ARCHITECTURE "Persistence conventions") | existing `MigrationConventionTests.every migration lives in a module folder and is named V yyyyMMddHHmm __ module _ desc` | `./gradlew test` (full) | Fail: TW-1 |
-| AC4 `api/openapi.yaml` regenerated, `OpenApiContractTest` passes | existing `OpenApiContractTest` (no new test) | `./gradlew test` (full) | Pass |
+| AC1: `reminder` table + `GET/POST/DELETE /api/v1/reminders` (itemType, itemId, remindAt), `GET /upcoming?until=` | `ReminderWebTests` (12: POST create/validation/channel/CSRF/login, GET list/by id/404/400, upcoming incl. boundary and validation, DELETE + second DELETE 404) | F | Pass |
+| AC1: DELETE racing with the scheduler does not fail on the version (CR-2) | `ReminderServiceEdgeCaseTests`: `deleting a reminder while the scheduler fires it succeeds instead of failing on its version`, `a fired reminder can be deleted although the scheduler changed its version` | F | Pass |
+| AC2: scheduler fires due reminders once and sets `firedAt` | `ReminderServiceTests`, `ReminderServiceEdgeCaseTests` (exact time, overdue, batch limit, SKIP LOCKED concurrency, markFired twice), `ReminderSchedulerTests` (5 across 3 classes) | F | Pass |
+| AC2: `reminder` SSE event with the resolved item title, after commit | `ReminderEventsStreamTests` (3, incl. rollback), `ClientNotificationHubTests`, `ClientNotificationStreamTests`, `ReminderGtdResolverTests` real task/project title and deep link | F | Pass |
+| AC2: a failing real (`@Transactional`) resolver neither rolls back the batch nor breaks reads (CR-1) | `ReminderTransactionalResolverTests` (3), `ReminderGtdResolverTests.a firing batch resolves each real task in its own transaction while the reminders stay locked` | F | Pass |
+| ASSUMPTION: gone (trashed/deleted) item -> marked fired without notification; create for unknown item rejected | `ReminderGtdResolverTests` (trashed task fires silently; missing or trashed task rejected), `ReminderServiceTests`, `ReminderTransactionalResolverTests` | F | Pass |
+| ASSUMPTION: permanently deleted item loses its reminders (`ItemDeletedEvent`) | `ReminderServiceTests.changes publish REMINDER change events and a permanently deleted item loses its reminders`, `ReminderServiceEdgeCaseTests.deleting an item removes only its reminders...` (fake resolvers; gtd has no `TrashContributor` yet, so no end-to-end purge path exists) | F | Pass |
+| AC3: reminders tests pass with Testcontainers and the test clock (fires once, not twice after restart) | `ReminderServiceTests.a fired reminder does not fire again after a restart` and all `core.reminders.*` (52 tests) | F | Pass |
+| AC4: `api/openapi.yaml` regenerated, `OpenApiContractTest` passes without the flag | `OpenApiContractTest` | F (no `UPDATE_OPENAPI`) | Pass |
 
 ## Focused test execution
 
 Command:
 
-`cd server && ./gradlew test --tests 'ch.sonensei.cockpit.core.reminders.*' --tests 'ch.sonensei.cockpit.core.events.*'`
-and `cd server && ./gradlew ktlintCheck`
+`cd server && ./gradlew test --tests 'ch.sonensei.cockpit.core.reminders.*' --tests 'ch.sonensei.cockpit.core.events.*' --tests '*OpenApiContractTest' jacocoTestReport`
 
 Result:
 
-Pass. 73 tests in `core.reminders` (40: 35 new + 5 existing) and `core.events` (33: 5 new + 28 existing),
-0 failures; repeated three more times with
-`cleanTest`, all exit 0. `ktlintCheck` exit 0.
+Pass. BUILD SUCCESSFUL (2026-10-20 16:38:05 -> 16:39:32 +02:00). 86 tests, 0 failures, 0 errors, 0 skipped:
+ReminderEventsStreamTests 3, ReminderGtdResolverTests 7, ReminderSchedulerDisabledTests 2,
+ReminderSchedulerEnabledTests 1, ReminderSchedulerRunTests 3, ReminderServiceEdgeCaseTests 16, ReminderServiceTests 5,
+ReminderTransactionalResolverTests 3, ReminderWebTests 12 (reminders: 52); ChangeEventTests 6,
+ClientNotificationHubTests 3, ClientNotificationStreamTests 2, EventsAsyncDispatchTests 1, EventsHttpStreamTests 2,
+EventsStreamTests 5, SseEventHubTests 14 (events: 33); OpenApiContractTest 1.
+
+Also: `cd server && ./gradlew ktlintCheck` -> BUILD SUCCESSFUL (after `./gradlew ktlintFormat`, which changed only the
+new test file).
 
 ## Full test execution
 
 Command:
 
-`cd server && ./gradlew cleanTest cleanJacocoTestReport test jacocoTestReport` (2026-10-20 15:48:29 to 15:51:01 +02:00)
+`cd server && ./gradlew check`
 
 Result:
 
-Fail: 995 tests, 1 failed: `MigrationConventionTests > every migration lives in a module folder and is named V
-yyyyMMddHHmm __ module _ desc()` (TW-1). `jacocoTestReport` did not run because `test` failed.
-
-An earlier full run (15:43:08 to 15:45:20) additionally had a failure in the pre-existing
-`EventsStreamTests > an event of a committed transaction reaches a connected client, a rolled-back one does not()`:
-the assertion read the stream while the event JSON was half written (`..."op":"` then end of body). It passed in the
-final full run and in all focused runs. This is a read-while-writing race in that test's `awaitBody` condition (it
-waits for the id, then asserts on later fields), not a production defect; the same race initially hit one of my new
-tests, which now wait for a complete event (`data:...\n\n`). Recorded as observation TW-2 (not changed: it is an
-existing test outside this scope).
+Pass. BUILD SUCCESSFUL in 3m 24s (2026-10-20 16:40 -> 16:43 +02:00); 1118 server tests, 0 failures, 0 errors,
+0 skipped; ktlint and the other check tasks passed.
 
 ## .taskcheck
 
 Result:
 
-Fail. `sh scripts/check.sh` (15:52:38 to 15:55:26 +02:00): `tfp: completion gate tests` passed; `server: ktlint +
-tests` failed with 995 tests, 1 failed (`MigrationConventionTests`, TW-1). The script stops there (`set -e`), so the
-web and android steps were not run.
+Pass. `sh scripts/check.sh` (2026-10-20 16:43:50 -> 16:45:05 +02:00) -> "== all checks passed" (server, web lint/tests/build,
+android ktlint + unit tests + lint).
 
 ## Bugs found
 
-### Reminder migration violates the migration layout convention and breaks the server check
+None. No production defect was found on the final revision.
 
-Finding ID:
-
-`TW-1`
-
-Test:
-
-`ch.sonensei.cockpit.core.persistence.MigrationConventionTests.every migration lives in a module folder and is named V yyyyMMddHHmm __ module _ desc()`
-
-Production source:
-
-`server/src/main/resources/db/migration/core-reminders/V202610201500__core_reminders.sql`
-
-Requirement:
-
-docs/ARCHITECTURE.md "Persistence conventions" / AGENTS.md: migrations live in
-`db/migration/MODULE/V{yyyyMMddHHmm}__MODULE_DESC.sql`; the folder must equal the MODULE part of the file
-name, which the test matches with `[a-z0-9]+` (no hyphen). `.taskcheck` (`./gradlew check`) must pass for `done`.
-
-Expected behavior:
-
-The folder name equals the module in the file name, e.g. `core/V202610201500__core_reminders.sql` or
-`reminders/V202610201500__reminders_reminder.sql` (which one is the parent's call; the task's `touches` names
-`db/migration/core-reminders`, so a path change may need an assumption).
-
-Actual behavior:
-
-`AssertionFailedError: core-reminders/V202610201500__core_reminders.sql expected core-reminders but was core`;
-`./gradlew test`, `./gradlew check` and `.taskcheck` fail.
-
-Severity:
-
-High (blocks `.taskcheck` and therefore `tasks.py done`).
-
-Fix required:
-
-`Yes - production code must be fixed by the parent worker / fixer.`
-
-### Observation: pre-existing SSE stream test reads a half-written event
-
-Finding ID:
-
-`TW-2`
-
-Test:
-
-`ch.sonensei.cockpit.core.events.EventsStreamTests.an event of a committed transaction reaches a connected client, a rolled-back one does not()`
-
-Production source:
-
-None (test-side race in `EventsStreamTests.awaitBody` usage).
-
-Requirement:
-
-Deterministic tests.
-
-Expected behavior:
-
-The test waits for the complete event before asserting on its fields.
-
-Actual behavior:
-
-Failed once in 1 of 2 full runs and passed in every other run; the body ended mid-JSON.
-
-Severity:
-
-Low.
-
-Fix required:
-
-No production fix. Optional test hardening outside this task's scope (wait for `\n\n` after the event), for the
-parent to decide.
-
-## Coverage
-
-Status: verified for the task test selection (fresh run, exit 0). Whole-suite coverage unavailable: the full run
-exits 1 because of TW-1, so JaCoCo produced no report for it.
-
-Metric: whole-file coverage of task-changed production files.
-Changed-line coverage: 173/176 executable added lines (98.3%), 42/44 branches on added lines (95.5%); method:
-JaCoCo XML per-line `ci`/`mb`/`cb` counters intersected with added lines of `git diff -U0 d26c6d6..d12c4ec` per
-file (script `.tmp/tw_changed_lines.py`, Git-ignored); removed and non-executable lines are not counted.
-
-Evidence:
-- Task id, immutable base, measured HEAD, and task-owned commits/file-scope source: `reminders-core`; base
-  `d26c6d66e4d949160af48f66baf8a0b094846ab2`; HEAD `d12c4ec111a4484ae20b99a4b4213407c123abab`; task commit `d12c4ec`
-  and base supplied by the parent, confirmed with `git diff --stat d26c6d6..HEAD` (only reminder, events and
-  generated API files).
-- Source/test snapshot identifier (including uncommitted inputs): HEAD `d12c4ec` with no production changes, plus
-  untracked tests (sha256 prefix): `ReminderEventsStreamTests.kt` a36b9f23971609ff, `ReminderSchedulerTests.kt`
-  725893b376d02f15, `ReminderServiceEdgeCaseTests.kt` 997335201480aa41, `ReminderServiceTests.kt` (committed)
-  ba1813184f317f77, `ReminderWebTests.kt` 630f758e6bbcccb8, `ClientNotificationTests.kt` d1452850c3b03d76.
-- Exact included files: `server/src/main/kotlin/ch/sonensei/cockpit/core/reminders/api/ReminderController.kt`,
-  `.../reminders/domain/Reminder.kt`, `.../reminders/domain/ReminderService.kt`,
-  `.../reminders/infra/ReminderRepository.kt`, `.../reminders/infra/ReminderScheduler.kt`,
-  `.../core/events/domain/ClientNotification.kt`, `.../core/events/infra/SseEventHub.kt`. Excluded: the SQL migration
-  (not instrumentable by JaCoCo; exercised by Flyway in every Testcontainers test), `api/openapi.yaml` and
-  `web/src/app/api/generated/**` (generated), `server/src/test/**`. No renamed or deleted files.
-- Provider/version, command, working directory, and test selection: JaCoCo via the Gradle `jacoco` plugin (default
-  tool version of the project's Gradle 9.8.1; not pinned in `build.gradle.kts`);
-  `./gradlew cleanTest cleanJacocoTestReport test --tests 'ch.sonensei.cockpit.core.reminders.*' --tests 'ch.sonensei.cockpit.core.events.*' jacocoTestReport`
-  in `server/`.
-- Run start/completion time and exit status: 2026-10-20 15:51:09 to 15:51:39 +02:00, exit 0.
-- Generated report paths and report hashes/run identifier: `server/build/reports/jacoco/test/jacocoTestReport.xml`
-  (written 15:51:38, sha256 d8abe73bd00a449b06e797bf295b0ad36a3598acf6c6b31132d1ad80adff247b); report was cleaned
-  first with `cleanJacocoTestReport`.
-- Evidence outputs are fresh and inputs stayed unchanged: yes; test file hashes and `git status` identical before
-  and after the run; no production file changed.
-- Final run after latest test additions and production fixes: yes for the tests (no test changed after the run);
-  no production fix has been made yet, so the numbers describe the pre-fix revision `d12c4ec`. A TW-1 fix (moving or
-  renaming the SQL file) does not change any instrumented Kotlin file, but evidence must be refreshed per
-  docs/QUALITY.md if code changes.
-
-Values below use covered/total (percentage); zero-denominator or unsupported metrics are N/A.
-
-| Changed file | Statements (JaCoCo instructions) | Branches | Functions (methods) | Lines |
-|---|---:|---:|---:|---:|
-| `core/reminders/api/ReminderController.kt` | 313/360 (86.9%) | 11/12 (91.7%) | 31/33 (93.9%) | 76/78 (97.4%) |
-| `core/reminders/domain/Reminder.kt` | 105/123 (85.4%) | 4/4 (100%) | 13/14 (92.9%) | 21/22 (95.5%) |
-| `core/reminders/domain/ReminderService.kt` | 413/414 (99.8%) | 17/18 (94.4%) | 20/20 (100%) | 55/55 (100%) |
-| `core/reminders/infra/ReminderRepository.kt` | N/A (interface, no executable code) | N/A | N/A | N/A |
-| `core/reminders/infra/ReminderScheduler.kt` | 34/34 (100%) | 2/2 (100%) | 4/4 (100%) | 10/10 (100%) |
-| `core/events/domain/ClientNotification.kt` | 43/43 (100%) | 8/8 (100%) | 3/3 (100%) | 6/6 (100%) |
-| `core/events/infra/SseEventHub.kt` (whole file, mostly pre-existing) | 289/310 (93.2%) | 4/4 (100%) | 17/17 (100%) | 51/51 (100%) |
-| Aggregate (summed counters, 6 measured files; ReminderRepository N/A; migration excluded) | 1197/1284 (93.2%) | 46/48 (95.8%) | 88/91 (96.7%) | 219/222 (98.6%) |
-
-| File and uncovered lines/branch locations | Required behavior or risk | Action/test added or reason left uncovered |
-|---|---|---|
-| `ReminderController.kt:180,195,198,211` (data-class headers and default-argument values of `ReminderItemResponse`/`ReminderResponse`) | Kotlin-generated `copy`/`equals`/`toString` and synthetic default-argument constructors | Justified gap: generated code, the responses are always built with every argument |
-| `ReminderController.kt:233` (`checkNotNull(reminder.createdAt)` failure branch) | Defensive: a persisted reminder always has `createdAt` | Justified gap: not reachable through the API |
-| `Reminder.kt:28,38-40` (JPA no-arg constructor, default-argument constructor) | Generated by the Kotlin JPA plugin / default `channel`/`id` | Justified gap: generated |
-| `ReminderService.kt:150` (`isGone` when `exists()` returns true although `resolve()` returned null) | A resolver whose `exists` and `resolve` disagree; the reminder then fires with a title-less notification | Justified gap: needs a resolver inconsistent with the `ItemResolver.exists` default; the "gone", "failing" and "no resolver" paths are tested |
-| `SseEventHub.kt:64,116,122` (`runCatching { emitter.complete() }` lambdas) | Pre-existing cleanup code, not changed by the task | Out of task scope; the task's added lines in this file are 5/5 covered |
+Observation (not a defect, no fix requested): because `ReminderItems` resolves display data in a `REQUIRES_NEW`
+transaction, a caller that creates an item and its reminder in one transaction gets the reminder back with
+`item == null` until that transaction commits. The existence check still runs in the caller's transaction, so creation
+succeeds, and the KDoc of `ReminderService.create` documents it; the REST API is not affected (the item is always
+committed before `POST /reminders`). Each resolver call also borrows a second pool connection while the firing
+transaction holds its own; acceptable for a single-user server, noted for awareness.
 
 ## Unable to test
 
-- AC4 (OpenAPI regenerated): not re-tested with new tests; the existing `OpenApiContractTest` passed in the full
-  run without `UPDATE_OPENAPI`.
-- Real browser notification display and the Android local alarm: client-side, outside this server task.
-- Web and Android parts of `.taskcheck`: not reached because the server step fails on TW-1.
+- End-to-end permanent delete of a real gtd task (Trash purge -> `ItemDeletedEvent` -> reminders removed): the gtd module
+  has no `TrashContributor` yet, so no production path purges a task. The `ItemDeletedEvent` listener is tested with
+  fake resolvers. Follow-up belongs to the task that adds the gtd Trash.
+- Android sync consumption of `upcoming` and the browser notification: outside this task (server only).
 
 ## Summary
 
-Tests added; production defects were discovered and must be passed to the `fixer` before task completion (TW-1: the
-migration path breaks `MigrationConventionTests`, `./gradlew check` and `.taskcheck`). All 40 new tests and the
-existing reminder and events tests pass; task-scoped coverage is high with only generated or defensive code
-uncovered.
+Tests added and all validation passed. Tests and task-scoped coverage are sufficient; no production defects found on
+the final revision (CR-1 and CR-2 fixes are covered by passing tests).
+
+## Coverage
+
+Status: verified (fresh JaCoCo run on the final revision plus this run's test addition).
+
+Metric: whole-file coverage of task-changed production files.
+Changed-line coverage: not measured (JaCoCo setup has no changed-line support; not reconstructed by hand).
+
+Evidence:
+- Task id, immutable base, measured HEAD, and task-owned commits/file-scope source: `reminders-core`; base
+  `3f0c01c6983106a3c91f1493a7c8842b0f566951` and commits `e1b919f b7828f2 8238e1c c4c7dcc 2662524` supplied by the
+  parent and matching `git log 3f0c01c..HEAD`; measured HEAD `266252450e788bab2fa92a1c10a5b7c7fb67593c`; file scope
+  from `git diff --name-only 3f0c01c..HEAD -- server/src/main web/src android/app/src/main`.
+- Source/test snapshot identifier (including uncommitted inputs): HEAD `2662524` plus one uncommitted test file,
+  `ReminderGtdResolverTests.kt` sha256 `2468ab6530c29b863fabe7b3df3abdb312ab4abcb0ecf0ae81b3a7ccbd68e80e` (identical before
+  and after the runs; no production file uncommitted).
+- Exact included files: `core/events/domain/ClientNotification.kt`, `core/events/infra/SseEventHub.kt`,
+  `core/reminders/api/ReminderController.kt`, `core/reminders/domain/Reminder.kt`, `core/reminders/domain/ReminderItems.kt`,
+  `core/reminders/domain/ReminderService.kt`, `core/reminders/infra/ReminderRepository.kt`,
+  `core/reminders/infra/ReminderScheduler.kt` (under `server/src/main/kotlin/ch/sonensei/cockpit/`). Excluded: the Flyway
+  migration `V202610201538__core_reminders.sql` (SQL, not instrumentable; applied by every Testcontainers test);
+  `web/src/app/api/generated/**` (generated client, no behaviour of this task; web coverage not run). No renamed or
+  deleted files.
+- Provider/version, command, working directory, and test selection: Gradle `jacoco` plugin (JaCoCo via Gradle 9.8.1,
+  JVM 21.0.12.1); `./gradlew test --tests 'ch.sonensei.cockpit.core.reminders.*' --tests 'ch.sonensei.cockpit.core.events.*' --tests '*OpenApiContractTest' jacocoTestReport`
+  in `server/`; the 86 tests listed above.
+- Run start/completion time and exit status: 2026-10-20T16:38:05+02:00 -> 16:39:32+02:00, exit 0.
+- Generated report paths and report hashes/run identifier: `server/build/reports/jacoco/test/jacocoTestReport.xml`
+  (sha256 `e1fea3a705540e2c9f6b269630108efe98cb7962c9b59c29a45c762d8b898058`, written 16:39:32), exec
+  `server/build/jacoco/test.exec` written 16:39:28.
+- Evidence outputs are fresh and inputs stayed unchanged: yes; test task re-executed (test input changed), report and
+  exec timestamps inside the run window, test-result timestamps 14:38-14:39Z, snapshot hash unchanged afterwards.
+- Final run after latest test additions and production fixes: yes (after `8238e1c` fixes and after this run's added tests).
+
+Values below use covered/total (percentage); zero-denominator or unsupported metrics are N/A. JaCoCo counts
+instructions (reported as Statements).
+
+| Changed file | Statements | Branches | Functions | Lines |
+|---|---:|---:|---:|---:|
+| `core/events/domain/ClientNotification.kt` | 43/43 (100%) | 8/8 (100%) | 3/3 (100%) | 6/6 (100%) |
+| `core/events/infra/SseEventHub.kt` | 289/310 (93.2%) | 4/4 (100%) | 17/17 (100%) | 51/51 (100%) |
+| `core/reminders/api/ReminderController.kt` | 313/360 (86.9%) | 11/12 (91.7%) | 31/33 (93.9%) | 76/78 (97.4%) |
+| `core/reminders/domain/Reminder.kt` | 105/123 (85.4%) | 4/4 (100%) | 13/14 (92.9%) | 21/22 (95.5%) |
+| `core/reminders/domain/ReminderItems.kt` | 151/152 (99.3%) | 9/10 (90.0%) | 5/5 (100%) | 16/16 (100%) |
+| `core/reminders/domain/ReminderService.kt` | 327/327 (100%) | 12/12 (100%) | 18/18 (100%) | 48/48 (100%) |
+| `core/reminders/infra/ReminderRepository.kt` | N/A | N/A | N/A | N/A |
+| `core/reminders/infra/ReminderScheduler.kt` | 34/34 (100%) | 2/2 (100%) | 4/4 (100%) | 10/10 (100%) |
+| **Aggregate (7 measured files, summed counters)** | 1262/1349 (93.6%) | 50/52 (96.2%) | 91/94 (96.8%) | 228/231 (98.7%) |
+
+`ReminderRepository.kt` is a Spring Data interface without default methods: JaCoCo lists the source file with no
+executable counters (zero denominator, N/A); its queries run through the Spring Data proxy and are exercised by the
+service, scheduler, concurrency and web tests above. Excluded from the aggregate: the migration and the generated web
+client (see above). No scoped file is missing from the report.
+
+| File and uncovered lines/branch locations | Required behavior or risk | Action/test added or reason left uncovered |
+|---|---|---|
+| `ReminderController.kt:180,190-198` (`ReminderItemResponse`/`ReminderResponse` default-argument constructors), `:208,211` (`ReminderListResponse` synthetic members) | none: Kotlin-generated default-parameter constructors; the main constructors are covered by every API test | Non-material, left uncovered |
+| `ReminderController.kt:233` (1 branch: `checkNotNull(reminder.createdAt)` failing) | defensive; `createdAt` is set on persist, a reminder returned by the service is always persisted | Non-material, left uncovered |
+| `Reminder.kt:28,38-40` (JPA/default-argument synthetic constructors) | none: Hibernate no-arg/default-argument constructors | Non-material, left uncovered |
+| `ReminderItems.kt:46` (1 branch: `TransactionTemplate.execute` returning `null`) | not reachable: the callback always returns a non-null Boolean; the failure path (`runCatching` -> `false`) is covered by `ReminderTransactionalResolverTests` | Non-material, left uncovered |
+| `SseEventHub.kt:64,116,122` (`runCatching { emitter.complete() }` lambdas on timeout/send failure/destroy) | best-effort cleanup inside already-tested paths (`SseEventHubTests`) | Non-material, left uncovered |

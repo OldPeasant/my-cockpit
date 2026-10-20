@@ -5,13 +5,18 @@ import ch.sonensei.cockpit.core.items.domain.ItemRef
 import ch.sonensei.cockpit.core.items.domain.ItemType
 import ch.sonensei.cockpit.core.persistence.MutableClock
 import ch.sonensei.cockpit.core.persistence.MutableClockTestConfiguration
+import ch.sonensei.cockpit.core.persistence.UuidV7
 import ch.sonensei.cockpit.core.reminders.api.ReminderResponse
 import ch.sonensei.cockpit.core.reminders.domain.ReminderService
 import ch.sonensei.cockpit.core.reminders.infra.ReminderRepository
+import ch.sonensei.cockpit.core.web.InvalidRequestException
+import ch.sonensei.cockpit.gtd.domain.Project
 import ch.sonensei.cockpit.gtd.domain.Task
 import ch.sonensei.cockpit.gtd.domain.TaskList
+import ch.sonensei.cockpit.gtd.infra.ProjectRepository
 import ch.sonensei.cockpit.gtd.infra.TaskRepository
 import ch.sonensei.cockpit.support.PostgresTestBase
+import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
@@ -37,6 +42,7 @@ class ReminderGtdResolverTests(
 	@Autowired private val service: ReminderService,
 	@Autowired private val repository: ReminderRepository,
 	@Autowired private val tasks: TaskRepository,
+	@Autowired private val projects: ProjectRepository,
 	@Autowired private val clock: MutableClock,
 	@Autowired private val transactions: TransactionTemplate,
 ) : PostgresTestBase() {
@@ -115,5 +121,48 @@ class ReminderGtdResolverTests(
 
 		reminderNotifications().map { it.item.title }.toSet() shouldBe titles.toSet()
 		repository.findAll().all { it.firedAt == start } shouldBe true
+	}
+
+	@Test
+	fun `creating a reminder for a missing or trashed real task is rejected`() {
+		val trashed = tasks.save(Task("Already in the Trash", TaskList.NEXT))
+		transactions.execute {
+			tasks.findById(trashed.id).get().softDelete(clock)
+		}
+
+		shouldThrow<InvalidRequestException> { service.create(ItemRef(ItemType.TASK, UuidV7.generate()), start) }
+		shouldThrow<InvalidRequestException> { service.create(ref(trashed), start) }
+
+		repository.findAll().shouldBeEmpty()
+	}
+
+	@Test
+	fun `a reminder of a real project fires with the project title and deep link`() {
+		val project = projects.save(Project("Plan the fictitious offsite"))
+		val created = service.create(ItemRef(ItemType.PROJECT, project.id), start)
+		created.item?.deepLink shouldBe "/projects/${project.id}"
+
+		service.fireDue() shouldBe 1
+
+		val fired = reminderNotifications().single()
+		fired.item.title shouldBe "Plan the fictitious offsite"
+		fired.item.deepLink shouldBe "/projects/${project.id}"
+	}
+
+	@Test
+	fun `listings resolve tasks and projects together and keep reminders of a trashed task unavailable`() {
+		val task = tasks.save(Task("Fictitious listing task", TaskList.NEXT))
+		val project = projects.save(Project("Fictitious listing project"))
+		val gone = tasks.save(Task("Trashed listing task", TaskList.NEXT))
+		service.create(ref(task), start.plus(Duration.ofMinutes(1)))
+		service.create(ItemRef(ItemType.PROJECT, project.id), start.plus(Duration.ofMinutes(2)))
+		service.create(ref(gone), start.plus(Duration.ofMinutes(3)))
+		service.create(ref(task), start.plus(Duration.ofMinutes(4)))
+		transactions.execute {
+			tasks.findById(gone.id).get().softDelete(clock)
+		}
+
+		service.upcoming(start.plus(Duration.ofHours(1))).map { it.item?.title } shouldBe
+			listOf("Fictitious listing task", "Fictitious listing project", null, "Fictitious listing task")
 	}
 }
