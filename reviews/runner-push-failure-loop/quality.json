@@ -1,0 +1,30 @@
+{
+  "schema": 1,
+  "task": "runner-push-failure-loop",
+  "reviewed_revision": "dd1f9a27d013257a3c78370483485a28f50629c7",
+  "helpers": {
+    "test-writer":   {"status": "completed", "report": "reviews/runner-push-failure-loop/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/runner-push-failure-loop/review.md"},
+    "fixer":         {"status": "completed", "report": "reviews/runner-push-failure-loop/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "R1-CR-1", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "first review round (8237fd5): an agent's refused hold was retried as a release; now retried as that hold with its reason"},
+    {"id": "R1-CR-2", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "first review round: a hold retry could reset away uncommitted changes; give_up() commits a dirty tree / aborts a merge first"},
+    {"id": "R1-CR-3", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "first review round: stale comment on the blocked state"},
+    {"id": "R2-CR-1", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "review on 9a6fd2f5: a refused hold chosen in an over-budget review was replaced by a release; fixed by the fixer (fixes.md), test ReviewHoldRefused"},
+    {"id": "R2-CR-2", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "review on 9a6fd2f5: duplicated merge-abort/dirty-commit steps in force_release()/hand_off(); fixed by the fixer (fixes.md)"},
+    {"id": "R3-CR-1", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "review on 9e8fe809: no test for a refused done inside an over-budget review; test-writer added ReviewDoneRefused (dd1f9a27), final review confirms"}
+  ],
+  "validation": [
+    {"command": "python -m unittest tests.test_push_failure", "result": "pass"},
+    {"command": "python -m unittest discover tests (test-writer, 87 tests)", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
