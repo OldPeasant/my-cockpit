@@ -19,3 +19,4 @@ One search across all modules (SPEC.md §4.4).
 
 ## Notes
 - ASSUMPTION (2026-10-20 15:14+0200 by dell26/agent-5): Migration lives in db/migration/core/ (V202610201500__core_search_document.sql), not the core-search folder named in touches: MigrationConventionTests requires folder == module prefix [a-z0-9]+, so 'core-search' is impossible
+- ASSUMPTION (2026-10-20 15:14+0200 by dell26/agent-5): Trigram fallback = fill-up: full-text (every query word as prefix, simple OR english config) runs first; when it returns fewer than limit items, titles with word_similarity >= 0.4 fill the rest, ranked after. Short queries are served by the prefix tsquery. Transposed letters early in a word (pulmber) can fall below 0.4
