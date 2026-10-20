@@ -9,6 +9,7 @@ import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import org.flywaydb.core.Flyway
 import org.hibernate.Hibernate
+import org.hibernate.LazyInitializationException
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
@@ -246,6 +247,18 @@ class PersistenceConventionsTests(
 		(saved == detached) shouldBe true
 		(other == detached) shouldBe false
 		Hibernate.isInitialized(detached) shouldBe false
+	}
+
+	@Test
+	fun `toString names the entity class and id, and on a detached proxy it fails as documented`() {
+		val saved = repository.save(PersistenceFixture("Printable"))
+
+		repository.findById(saved.id).orElseThrow().toString() shouldBe "PersistenceFixture(id=${saved.id})"
+
+		// BaseEntity KDoc and ARCHITECTURE.md: toString/hashCode on an uninitialized proxy load it, so they fail once detached.
+		val detached = repository.getReferenceById(saved.id)
+		shouldThrow<LazyInitializationException> { detached.toString() }
+		shouldThrow<LazyInitializationException> { detached.hashCode() }
 	}
 
 	@Test
