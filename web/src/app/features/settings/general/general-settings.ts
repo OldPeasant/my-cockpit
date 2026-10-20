@@ -135,6 +135,8 @@ export default class GeneralSettings {
   private readonly baseline = new Map<string, unknown>();
   /** Saves per row that have not answered yet. */
   private readonly pending = new Map<GeneralField, number>();
+  /** Per row: the value of its latest save, which the server holds once its pending saves answer. */
+  private readonly lastSent = new Map<GeneralField, unknown>();
 
   private readonly zoneQuery = toSignal(this.form.controls.timeZone.valueChanges, {
     initialValue: '',
@@ -162,15 +164,20 @@ export default class GeneralSettings {
     }
   }
 
-  /** Saves one row when its value is valid and differs from the saved one. */
+  /**
+   * Saves one row when its value is valid and differs from the saved one, or, while saves of the
+   * row are pending, from the last one sent (the settings only show the save currently running).
+   */
   protected async save(field: GeneralField): Promise<void> {
     const control = this.form.controls[field];
     const saved = this.service.settings();
     if (!saved || control.invalid) return;
     const value = trimmed(control.getRawValue());
-    if (sameValue(value, saved[field])) return;
+    const latest = this.pending.get(field) ? this.lastSent.get(field) : saved[field];
+    if (sameValue(value, latest)) return;
 
     this.setState(field, 'saving');
+    this.lastSent.set(field, value);
     for (const [path, input] of this.inputs(field)) this.baseline.set(path, input.getRawValue());
     this.pending.set(field, (this.pending.get(field) ?? 0) + 1);
     try {

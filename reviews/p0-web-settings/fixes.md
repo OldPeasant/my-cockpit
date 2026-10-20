@@ -93,6 +93,55 @@ I did not run the new tests against the original production code: a temporary fi
 Remaining unresolved findings:
 0
 
+## Second review fixes
+
+Scope: finding CR-1 (P2) of the second review (`reviews/p0-web-settings/review.md`, reviewed HEAD 729d8b46b038b47360fb60b4c0e87b1d72c7ef8d), approved by the parent worker. The fix is an uncommitted change in the working tree on `main`.
+
+### Fixed findings
+
+#### CR-1 (second review) - Changing a row back to its in-flight value while a newer save is queued was not saved
+
+Files changed:
+- `web/src/app/features/settings/general/general-settings.ts`
+- `web/src/app/features/settings/general/general-settings.spec.ts`
+
+Problem:
+`save()` skipped a change equal to `service.settings()[field]`. That signal shows only the save that is running, not the saves queued behind it. Example: label "Low" -> "A" (PATCH 1 in flight) -> "B" (queued) -> "A" again. The third change was skipped, PATCH 2 then stored "B", and because the input no longer matched its baseline, `refresh()` left it showing "A" with the state "Saved". The theme, week start and time zone rows had the same problem.
+
+Fix:
+A new per-row map `lastSent` keeps the value of the row's latest save. `save()` now compares the new value with `lastSent` while the row has saves pending (`pending.get(field) > 0`). When nothing is pending it compares with the saved settings, as before. So A -> B -> A queues a third save of "A", and the final state matches the server. Nothing else changed. New tests:
+- `saves a label changed back to its in-flight value while a newer save is queued`: Low -> Tired -> Sleepy -> Tired before the first PATCH answers. It expects 3 PATCHes, the third sending `Tired` with `If-Match: "3"`, and the input ending at `Tired`.
+- `saves a theme picked back while a newer theme save is queued`: Dark (PATCH in flight) -> System -> Dark. It expects the third PATCH to send `theme: 'dark'` with `If-Match: "3"`, `ThemeService.mode()` to end at `dark` and the Dark toggle to be checked.
+
+Both tests fail on the unfixed `general-settings.ts`: I stashed only that file with `git stash push <file>`, ran the tests and restored it right away. Both pass with the fix.
+
+Validation:
+- `cd web && npx prettier --write src/app/features/settings/general/general-settings.ts src/app/features/settings/general/general-settings.spec.ts` - Pass (no further changes; `prettier --check` clean)
+- `cd web && npx ng test --watch=false --include 'src/app/features/settings/**/*.spec.ts'` - without the fix: 2 failed / 42 passed (the two new tests); with the fix: Pass, 3 files, 44 tests
+
+### Not fixed
+
+None.
+
+### Validation summary
+
+Focused tests:
+- `cd web && npx ng test --watch=false --include 'src/app/features/settings/**/*.spec.ts'` - Pass: 3 files, 44 tests (42 before plus 2 new; no test weakened, skipped or removed)
+
+Full test suite:
+- `cd web && npm run check` - Pass (exit 0): `ng lint` "All files pass linting.", `ng test` 22 files, 319 tests passed, `ng build` complete
+
+Lint/type-check/build:
+- Covered by `npm run check` above - Pass
+
+`.taskcheck`:
+- Pass: `sh scripts/check.sh` ended with "== all checks passed"
+
+Coverage was not re-measured by the fixer. It belongs to the test-writer's re-run on the final code.
+
+Remaining unresolved findings:
+0
+
 ## Final status
 
-All validated findings fixed and validation passed.
+All validated findings fixed and validation passed. That covers TW-1 and CR-1..CR-4 from the first review, plus CR-1 from the second review.

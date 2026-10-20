@@ -370,6 +370,59 @@ describe('GeneralSettings', () => {
     );
   });
 
+  it('saves a label changed back to its in-flight value while a newer save is queued', async () => {
+    await setup();
+    const labels = (low: string) => ({ LOW: low, MEDIUM: 'Medium', HIGH: 'High' });
+
+    editLabel('Label for low energy', 'Tired');
+    await tick();
+    const first = http.expectOne({ method: 'PATCH', url: PATH });
+    editLabel('Label for low energy', 'Sleepy');
+    editLabel('Label for low energy', 'Tired');
+    first.flush(fakeSettings({ energyLabels: labels('Tired') }), { headers: { ETag: '"2"' } });
+    await tick();
+    const second = http.expectOne({ method: 'PATCH', url: PATH });
+    expect(second.request.body).toEqual({ energyLabels: labels('Sleepy') });
+    second.flush(fakeSettings({ energyLabels: labels('Sleepy') }), { headers: { ETag: '"3"' } });
+    await tick();
+    const third = http.expectOne({ method: 'PATCH', url: PATH });
+    expect(third.request.body).toEqual({ energyLabels: labels('Tired') });
+    expect(third.request.headers.get('If-Match')).toBe('"3"');
+    third.flush(fakeSettings({ energyLabels: labels('Tired') }), { headers: { ETag: '"4"' } });
+    await tick();
+    await fixture.whenStable();
+
+    expect(input('Label for low energy').value).toBe('Tired');
+  });
+
+  it('saves a theme picked back while a newer theme save is queued', async () => {
+    await setup();
+    const theme = TestBed.inject(ThemeService);
+
+    toggle('Dark').click();
+    await tick();
+    const first = http.expectOne({ method: 'PATCH', url: PATH });
+    toggle('System').click();
+    toggle('Dark').click();
+    first.flush(fakeSettings({ theme: 'dark' }), { headers: { ETag: '"2"' } });
+    await tick();
+    const second = http.expectOne({ method: 'PATCH', url: PATH });
+    expect(second.request.body).toEqual({ theme: 'system' });
+    second.flush(fakeSettings({ theme: 'system' }), { headers: { ETag: '"3"' } });
+    await tick();
+    const third = http.expectOne({ method: 'PATCH', url: PATH });
+    expect(third.request.body).toEqual({ theme: 'dark' });
+    expect(third.request.headers.get('If-Match')).toBe('"3"');
+    third.flush(fakeSettings({ theme: 'dark' }), { headers: { ETag: '"4"' } });
+    await tick();
+    await fixture.whenStable();
+
+    expect(theme.mode()).toBe('dark');
+    expect(toggle('Dark').closest('mat-button-toggle')?.classList).toContain(
+      'mat-button-toggle-checked',
+    );
+  });
+
   it('keeps a label the user changes again while its own save fails', async () => {
     await setup();
 
