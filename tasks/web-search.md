@@ -18,3 +18,4 @@ Ctrl+K palette with global search and commands (SPEC.md §4.4).
 
 ## Notes
 - ASSUMPTION (2026-10-20 18:55+0200 by dell26/agent-4): Palette search: queries shorter than 2 characters (trimmed) are not sent, 200 ms debounce, limit 20; results without a deepLink (module without resolver) are left out since there is nothing to open
+- ASSUMPTION (2026-10-20 18:55+0200 by dell26/agent-4): Commands: only 'New task' (opens CAPTURE_DIALOG) is added; 'Go to <section>' already comes from the shell. Result groups use the singular item type labels (Task, Note) from shared/links itemTypeLabel
