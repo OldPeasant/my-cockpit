@@ -152,6 +152,83 @@ class TokenAuthenticatorTest {
             assertEquals(AuthTokens("old-access", "old-refresh"), tokenStore.current())
         }
 
+    @Test
+    fun `a refreshed token that is rejected too is not refreshed again`() =
+        runBlocking {
+            tokenStore.save(AuthTokens("old-access", "old-refresh"))
+            refreshResponse = { tokenResponse(access = "still-rejected", refresh = "rotated-refresh") }
+
+            val response = withTimeout(10_000) { api.getCurrentUser() }
+
+            assertEquals(401, response.code())
+            assertEquals(listOf("Bearer old-access", "Bearer still-rejected"), authorizations)
+            assertEquals(1, refreshCalls.get())
+            // The rotated tokens are kept: the server accepted the refresh, only the request was refused.
+            assertEquals(AuthTokens("still-rejected", "rotated-refresh"), tokenStore.current())
+        }
+
+    @Test
+    fun `an Authorization header set by the caller is not overwritten`() {
+        tokenStore.save(AuthTokens("stored-access", "stored-refresh"))
+        val client =
+            CockpitHttp.okHttpClient(ServerUrlInterceptor { server.url("/") }, AccessTokenInterceptor(tokenStore), null)
+        val request =
+            okhttp3.Request
+                .Builder()
+                .url("${PLACEHOLDER_BASE_URL}api/v1/auth/me")
+                .header(AUTHORIZATION, "Bearer new-access")
+                .build()
+
+        client.newCall(request).execute().use { assertEquals(200, it.code) }
+
+        assertEquals(listOf("Bearer new-access"), authorizations)
+    }
+
+    @Test
+    fun `a network error during refresh fails the request and keeps the tokens`() =
+        runBlocking {
+            tokenStore.save(AuthTokens("old-access", "old-refresh"))
+            val closed = MockWebServer()
+            closed.start()
+            val unreachable = closed.url("/")
+            closed.close()
+            val refresher =
+                AuthApiTokenRefresher(retrofitApi(CockpitHttp.okHttpClient(ServerUrlInterceptor { unreachable }, null, null)))
+            val client =
+                CockpitHttp.okHttpClient(
+                    ServerUrlInterceptor { server.url("/") },
+                    AccessTokenInterceptor(tokenStore),
+                    TokenAuthenticator(tokenStore, refresher, session),
+                )
+
+            val response = retrofitApi(client).getCurrentUser()
+
+            assertEquals(401, response.code())
+            assertEquals(0, refreshCalls.get())
+            assertTrue(session.isLoggedIn)
+            assertEquals(AuthTokens("old-access", "old-refresh"), tokenStore.current())
+        }
+
+    @Test
+    fun `a malformed refresh answer fails like a server error instead of crashing the call`() =
+        runBlocking {
+            tokenStore.save(AuthTokens("old-access", "old-refresh"))
+            refreshResponse = {
+                MockResponse
+                    .Builder()
+                    .code(200)
+                    .addHeader("Content-Type", "text/html")
+                    .body("<html>captive portal</html>")
+                    .build()
+            }
+
+            val response = withTimeout(10_000) { api.getCurrentUser() }
+
+            assertEquals(401, response.code())
+            assertEquals(1, refreshCalls.get())
+            assertEquals(AuthTokens("old-access", "old-refresh"), tokenStore.current())
+        }
+
     private fun retrofitApi(client: OkHttpClient): AuthApi = CockpitHttp.retrofit(client).create(AuthApi::class.java)
 
     private fun meResponse() =
