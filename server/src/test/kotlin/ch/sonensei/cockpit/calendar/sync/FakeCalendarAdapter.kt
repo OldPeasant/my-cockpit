@@ -37,9 +37,15 @@ class FakeCalendarAdapter : CalendarProviderAdapter {
 	/** The writes the engine made: `create|update|delete <uid>[@<recurrence>] if-match=<etag>`. */
 	val writes = mutableListOf<String>()
 
-	var failListing: CalendarProviderException? = null
-	val failFetch = mutableMapOf<String, CalendarProviderException>()
-	var failWrites: CalendarProviderException? = null
+	var failListing: RuntimeException? = null
+	val failFetch = mutableMapOf<String, RuntimeException>()
+	var failWrites: RuntimeException? = null
+
+	/** Fails only the writes of one kind (`create`, `update`, `delete`). */
+	val failWriteOps = mutableMapOf<String, RuntimeException>()
+
+	/** Answers a fetch instead of the store when it returns non-null (to script pages or act during a run). */
+	var fetchHook: ((calendar: String, cursor: String?) -> RemoteEventChanges?)? = null
 	var rejectCursor = false
 
 	/** Page size of fetches (to exercise `hasMore`). */
@@ -54,6 +60,8 @@ class FakeCalendarAdapter : CalendarProviderAdapter {
 		failListing = null
 		failFetch.clear()
 		failWrites = null
+		failWriteOps.clear()
+		fetchHook = null
 		rejectCursor = false
 		pageSize = Int.MAX_VALUE
 		seriesShareEtag = false
@@ -107,6 +115,7 @@ class FakeCalendarAdapter : CalendarProviderAdapter {
 	): RemoteEventChanges {
 		fetchCursors += calendarExternalId to cursor
 		failFetch[calendarExternalId]?.let { throw it }
+		fetchHook?.invoke(calendarExternalId, cursor)?.let { return it }
 		val events = store.getValue(calendarExternalId)
 		// Cursor "<log position>" or "full:<offset>" while paging through a complete listing.
 		if (cursor == null || rejectCursor || cursor.startsWith("full:")) {
@@ -142,6 +151,7 @@ class FakeCalendarAdapter : CalendarProviderAdapter {
 	): RemoteEvent {
 		writes += "create ${label(event.key)}"
 		failWrites?.let { throw it }
+		failWriteOps["create"]?.let { throw it }
 		return put(calendarExternalId, event)
 	}
 
@@ -153,6 +163,7 @@ class FakeCalendarAdapter : CalendarProviderAdapter {
 	): RemoteEvent {
 		writes += "update ${label(event.key)} if-match=$ifMatch"
 		failWrites?.let { throw it }
+		failWriteOps["update"]?.let { throw it }
 		val current = store.getValue(calendarExternalId)[event.key]
 		if (current != null && ifMatch != null && current.etag != ifMatch) throw RemoteEventChangedException()
 		return put(calendarExternalId, event)
@@ -166,6 +177,7 @@ class FakeCalendarAdapter : CalendarProviderAdapter {
 	): String? {
 		writes += "delete ${label(key)} if-match=$ifMatch"
 		failWrites?.let { throw it }
+		failWriteOps["delete"]?.let { throw it }
 		val current = store.getValue(calendarExternalId)[key] ?: return null
 		if (ifMatch != null && current.etag != ifMatch) throw RemoteEventChangedException()
 		remove(calendarExternalId, key)
