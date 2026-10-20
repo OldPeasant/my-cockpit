@@ -13,7 +13,8 @@ Generic trash for soft-deleted items (SPEC.md §4.2).
 ## Acceptance criteria
 - [x] `TrashContributor` interface per module (list deleted, restore, purge); `GET /api/v1/trash`, `POST /api/v1/trash/{type}/{id}/restore`, `DELETE /api/v1/trash/{type}/{id}`
   - verified (2026-10-20 15:30+0200 by R1963MACOS/agent-2): cd server && ./gradlew test --tests 'ch.sonensei.cockpit.core.trash.*' (Testcontainers postgres:16-alpine, Docker Desktop) -> TrashWebTests: GET /api/v1/trash lists/pages, POST /{type}/{id}/restore 204/404, DELETE /{type}/{id} 204/404, 400 bad type/id; TrashContributor interface (listDeleted/restore/purge) exercised via fake contributors; 51 tests incl. contract, 0 failures
-- [ ] Scheduled job purges items deleted > 30 days ago (test with the test clock)
+- [x] Scheduled job purges items deleted > 30 days ago (test with the test clock)
+  - verified (2026-10-20 15:30+0200 by R1963MACOS/agent-2): cd server && ./gradlew test --tests 'ch.sonensei.cockpit.core.trash.*' -> TrashServiceTests/TrashUnitTests with MutableClock test clock: item deleted exactly 30 days ago kept, purged 1 us/1 ns later, links removed, failing item retried next run; job registered as cron '0 30 3 * * *' (ScheduledTaskHolder) -> pass
 - [ ] Tests with a fake contributor; `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.core.trash.*'` passes (Postgres via Testcontainers where persistence is involved)
 - [ ] API documented: `api/openapi.yaml` regenerated (`UPDATE_OPENAPI=1 ./gradlew test --tests '*OpenApiContractTest'`) and `OpenApiContractTest` passes without the flag
 
