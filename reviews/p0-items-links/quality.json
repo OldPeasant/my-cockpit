@@ -1,0 +1,81 @@
+{
+  "schema": 1,
+  "task": "p0-items-links",
+  "reviewed_revision": "7346e9f0a3e3762f2bf9ab0d769999404ac1324c",
+  "helpers": {
+    "test-writer": {
+      "status": "completed",
+      "report": "reviews/p0-items-links/tests.md"
+    },
+    "code-reviewer": {
+      "status": "completed",
+      "report": "reviews/p0-items-links/review.md"
+    },
+    "fixer": {
+      "status": "completed",
+      "report": "reviews/p0-items-links/fixes.md"
+    }
+  },
+  "fixes_required": true,
+  "findings": [
+    {
+      "id": "TW-1",
+      "source": "test-writer",
+      "severity": "Medium",
+      "disposition": "fixed",
+      "note": "earlier round: sync removed a pair's link while the other end still wanted it; MANUAL and SYNC links made independent"
+    },
+    {
+      "id": "TW-2",
+      "source": "test-writer",
+      "severity": "High",
+      "disposition": "fixed",
+      "note": "earlier round: link tests exhausted the shared test connection pool; tests share one Spring context"
+    },
+    {
+      "id": "R1-CR-1",
+      "source": "code-reviewer",
+      "severity": "P1",
+      "disposition": "fixed",
+      "note": "earlier review CR-1: migration version collided with core_settings on main; renumbered to V202610201400 (fixes.md)"
+    },
+    {
+      "id": "R1-CR-2",
+      "source": "code-reviewer",
+      "severity": "P2",
+      "disposition": "fixed",
+      "note": "earlier review CR-2: DELETE removed SYNC links and origin was not exposed; origin in LinkResponse, DELETE of SYNC link -> 409 (fixes.md)"
+    },
+    {
+      "id": "R1-CR-3",
+      "source": "code-reviewer",
+      "severity": "P3",
+      "disposition": "fixed",
+      "note": "earlier review CR-3: outdated pair-uniqueness assumption, replaced by a new task assumption"
+    },
+    {
+      "id": "CR-1",
+      "source": "code-reviewer",
+      "severity": "P3",
+      "disposition": "fixed",
+      "note": "stale migration file name in the 13:35 assumption; replacement assumption recorded with tasks.py assume (no code change)"
+    },
+    {
+      "id": "CR-2",
+      "source": "code-reviewer",
+      "severity": "P3",
+      "disposition": "accepted",
+      "note": "label length checked before trim in the API but after trim in the service; padded 200-char label gets 400, harmless; recorded as task assumption"
+    }
+  ],
+  "validation": [
+    {
+      "command": "cd server && ./gradlew test --rerun --tests 'ch.sonensei.cockpit.core.items.*' --tests '*OpenApiContractTest' (Testcontainers Postgres, 66 tests)",
+      "result": "pass"
+    },
+    {
+      "command": "sh scripts/check.sh (.taskcheck)",
+      "result": "pass"
+    }
+  ]
+}
