@@ -132,7 +132,8 @@ pagination helpers live in `server/.../core/web` (summary in `api/README.md`).
 | `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` | android | |
 | `python3 tests/test_quality_gate.py` (and the other `tests/test_*.py`, `bash tests/test_publish.sh`) | TFP tooling | |
 
-CI (`.github/workflows/ci.yml`, GitHub Actions, on every push and PR) runs `sh scripts/check.sh`,
+CI (`.github/workflows/ci.yml`, GitHub Actions, on pushes to `main` and on PRs; commits that only touch
+`tasks/`, `reviews/` or `BOARD.md` are skipped, and runs on `main` are never cancelled) runs `sh scripts/check.sh`,
 `./gradlew integrationTest` and `docker build .` with the runtimes above. Lint it with
 `docker run --rm -v "$PWD:/repo:Z" -w /repo docker.io/rhysd/actionlint:latest` after editing.
 

@@ -1,18 +1,30 @@
 # CI runs exactly what agents run (AGENTS.md, docs/ARCHITECTURE.md "Test"), with the same runtimes:
 # JDK 21 (Gradle toolchain in server/build.gradle.kts, compileOptions in android/app/build.gradle.kts),
 # Node from .nvmrc, Android SDK platform 37 + build-tools 36 (ARCHITECTURE.md "Install").
+# Triggers: pushes to main and pull requests. Board-only and review-evidence commits (tasks/, reviews/,
+# BOARD.md) don't start CI; wip/* backups and status/* branches are not built. Runs on main are never
+# cancelled, so every finished task gets a complete result; other refs cancel superseded runs.
 name: CI
 
 on:
   push:
+    branches: [main]
+    paths-ignore:
+      - "tasks/**"
+      - "reviews/**"
+      - "BOARD.md"
   pull_request:
+    paths-ignore:
+      - "tasks/**"
+      - "reviews/**"
+      - "BOARD.md"
 
 permissions:
   contents: read
 
 concurrency:
   group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 env:
   JAVA_VERSION: "21"
