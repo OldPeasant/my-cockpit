@@ -66,7 +66,10 @@ sealed interface LoginResult {
     data object ServerError : LoginResult
 }
 
-/** Clears data cached for the logged-in user; features contribute theirs to the set Hilt injects. */
+/**
+ * Clears data cached for the logged-in user; features contribute theirs to the set Hilt injects. If [clear] throws, the
+ * failure is ignored and the other caches are still cleared.
+ */
 fun interface SessionCache {
     suspend fun clear()
 }
@@ -159,6 +162,7 @@ class AuthRepository internal constructor(
      */
     suspend fun logout() =
         withContext(NonCancellable) {
+            val wasLoggedIn = tokenStore.current() != null
             try {
                 tokenStore.session.value?.deviceId?.let { id ->
                     try {
@@ -170,12 +174,26 @@ class AuthRepository internal constructor(
                     }
                 }
             } finally {
+                // Revoking an already revoked device gets a 401 whose refresh is rejected: the network layer then logs out
+                // and the app-scope collector clears the caches. Clear them here only if that did not happen, so each
+                // logout clears them exactly once.
+                val loggedOutMeanwhile = wasLoggedIn && tokenStore.current() == null
                 session.logout(LogoutReason.USER)
-                clearCaches()
+                if (!loggedOutMeanwhile) clearCaches()
             }
         }
 
-    private suspend fun clearCaches() = caches.forEach { it.clear() }
+    private suspend fun clearCaches() =
+        caches.forEach { cache ->
+            try {
+                cache.clear()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: Exception) {
+                // A failing cache must neither keep the others from being cleared nor crash the logout or end the
+                // collector. Not logged: the exception may carry user data.
+            }
+        }
 
     private fun deviceName(): String =
         listOf(Build.MANUFACTURER, Build.MODEL)

@@ -10,9 +10,11 @@ import ch.sonensei.cockpit.core.network.AuthSession
 import ch.sonensei.cockpit.core.network.AuthTokens
 import ch.sonensei.cockpit.core.network.CockpitHttp
 import ch.sonensei.cockpit.core.network.LogoutReason
+import ch.sonensei.cockpit.core.network.RefreshResult
 import ch.sonensei.cockpit.core.network.ServerUrlInterceptor
 import ch.sonensei.cockpit.core.network.ServerUrlRepository
 import ch.sonensei.cockpit.core.network.ServerUrlValidation
+import ch.sonensei.cockpit.core.network.TokenAuthenticator
 import ch.sonensei.cockpit.core.network.generated.apis.AuthApi
 import ch.sonensei.cockpit.core.network.serverConfigDataStore
 import kotlinx.coroutines.CoroutineDispatcher
@@ -467,6 +469,79 @@ class AuthRepositoryTest {
 
             assertNull(tokenStore.current())
             assertEquals(1, appCachesCleared)
+            owner.cancel()
+        }
+
+    @Test
+    fun `a user logout of a device the server already revoked clears the caches exactly once`() =
+        runBlocking {
+            // The revocation goes through the client with the authenticator: its 401 triggers a refresh that the server
+            // rejects, so the network layer logs out (and the app scope clears the caches) before the logout's own pass.
+            val authenticator = TokenAuthenticator(tokenStore, { RefreshResult.Rejected }, session)
+            val withAuthenticator =
+                CockpitHttp
+                    .retrofit(CockpitHttp.okHttpClient(ServerUrlInterceptor(serverUrls), AccessTokenInterceptor(tokenStore), authenticator))
+                    .create(AuthApi::class.java)
+            val owner = CoroutineScope(Dispatchers.Unconfined + SupervisorJob())
+            var cleared = 0
+            val revoked =
+                AuthRepository(serverUrls, withAuthenticator, tokenStore, session, setOf(SessionCache { cleared++ }), owner, Dispatchers.IO)
+            server.enqueue(json(200, TOKEN_BODY))
+            assertEquals(LoginResult.Success, revoked.login(serverAddress(), "alex", "pw", SecondFactor.Totp("123456")))
+            server.takeRequest()
+            server.enqueue(json(401, PROBLEM))
+
+            revoked.logout()
+
+            assertEquals("DELETE", server.takeRequest().method)
+            assertEquals(2, server.requestCount)
+            assertNull(tokenStore.current())
+            assertEquals(1, cleared)
+            owner.cancel()
+        }
+
+    @Test
+    fun `a failing cache neither stops the others nor the logout`() =
+        runBlocking {
+            val cleared = mutableListOf<String>()
+            val withFailingCache =
+                AuthRepository(
+                    serverUrls,
+                    authApi,
+                    tokenStore,
+                    session,
+                    setOf(SessionCache { error("fictitious cache failure") }, SessionCache { cleared += "mail" }),
+                )
+            tokenStore.login(AuthTokens("access-1", "refresh-1"), null)
+
+            withFailingCache.logout()
+
+            assertNull(tokenStore.current())
+            assertEquals(listOf("mail"), cleared)
+        }
+
+    @Test
+    fun `a failing cache does not stop later logouts by the network layer from clearing the caches`() =
+        runBlocking {
+            val owner = CoroutineScope(Dispatchers.Unconfined + SupervisorJob())
+            var cleared = 0
+            AuthRepository(
+                serverUrls,
+                authApi,
+                tokenStore,
+                session,
+                setOf(SessionCache { error("fictitious cache failure") }, SessionCache { cleared++ }),
+                owner,
+                Dispatchers.IO,
+            )
+
+            repeat(2) {
+                val tokens = AuthTokens("access-$it", "refresh-$it")
+                tokenStore.login(tokens, DEVICE_ID)
+                assertTrue(session.logoutIfCurrent(tokens, LogoutReason.REFRESH_REJECTED))
+            }
+
+            assertEquals(2, cleared)
             owner.cancel()
         }
 

@@ -76,7 +76,9 @@ class PersistentTokenStore(
             session
                 ?.let { Json.encodeToString(Record(it.tokens.accessToken, it.tokens.refreshToken, it.deviceId)) }
                 ?.let { cipher.encrypt(it.toByteArray()) }
-        prefs.edit {
+        // Tokens are written synchronously: the server retires a rotated refresh token, so losing a queued write to a
+        // process kill would bring back a retired token, whose reuse revokes the device. Callers are off the main thread.
+        prefs.edit(commit = encrypted != null) {
             if (encrypted == null) remove(KEY_SESSION) else putString(KEY_SESSION, Base64.encodeToString(encrypted, Base64.NO_WRAP))
         }
     }

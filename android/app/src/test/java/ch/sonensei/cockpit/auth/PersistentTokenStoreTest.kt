@@ -77,6 +77,18 @@ class PersistentTokenStoreTest {
     }
 
     @Test
+    fun `logins and rotated tokens are written to disk synchronously`() {
+        val recording = RecordingPrefs(prefs)
+        val store = PersistentTokenStore(recording, cipher)
+
+        store.login(TOKENS, DEVICE_ID)
+        assertTrue(store.replace(TOKENS, AuthTokens("access-2", "refresh-2")))
+
+        assertEquals(listOf("commit", "commit"), recording.writes)
+        assertEquals(AuthTokens("access-2", "refresh-2"), PersistentTokenStore(prefs, cipher).current())
+    }
+
+    @Test
     fun `replace refuses when the tokens changed meanwhile`() {
         val store = PersistentTokenStore(prefs, cipher)
         store.login(TOKENS, DEVICE_ID)
@@ -209,6 +221,26 @@ class PersistentTokenStoreTest {
 
         assertFalse(text.contains(TOKENS.accessToken))
         assertFalse(text.contains(TOKENS.refreshToken))
+    }
+
+    /** Records whether each write is committed synchronously or applied asynchronously. */
+    private class RecordingPrefs(
+        private val delegate: SharedPreferences,
+    ) : SharedPreferences by delegate {
+        val writes = mutableListOf<String>()
+
+        override fun edit(): SharedPreferences.Editor = RecordingEditor(delegate.edit())
+
+        private inner class RecordingEditor(
+            private val editor: SharedPreferences.Editor,
+        ) : SharedPreferences.Editor by editor {
+            override fun commit(): Boolean = editor.commit().also { writes += "commit" }
+
+            override fun apply() {
+                editor.apply()
+                writes += "apply"
+            }
+        }
     }
 
     /** AES-GCM with an in-memory key: same format as the Keystore cipher. */

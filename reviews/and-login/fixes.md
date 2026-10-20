@@ -94,3 +94,89 @@ Remaining unresolved findings:
 ## Final status
 
 All validated findings fixed and validation passed.
+
+# Fix Report - round 2
+
+Date: 2026-10-20
+
+Task: and-login - Android login and secure token storage
+
+Scope: the three P3 findings CR-1, CR-2 and CR-3 of the second review (`reviews/and-login/review.md`, reviewed revision 69121421). Changes stay inside `android/app/src/main/java/ch/sonensei/cockpit/auth` and `android/app/src/test/java/ch/sonensei/cockpit/auth`. Each new test was checked to fail against the code before the fix (the fixes were reverted temporarily: 4 of 54 tests in the two classes failed) and to pass with it.
+
+## Fixed findings
+
+### CR-1 - A user logout of an already revoked device clears the caches twice, concurrently (P3)
+
+Files changed:
+- `android/app/src/main/java/ch/sonensei/cockpit/auth/AuthRepository.kt`
+- `android/app/src/test/java/ch/sonensei/cockpit/auth/AuthRepositoryTest.kt`
+
+Problem:
+If the device was already revoked, the DELETE of a user logout got a 401, the `TokenAuthenticator` refresh was rejected, and `session.logoutIfCurrent(..., REFRESH_REJECTED)` made the app-scope collector clear the caches. The `finally` block of `logout()` then cleared them a second time, possibly at the same time.
+
+Fix:
+`logout()` notes whether tokens were stored when it started. In `finally` it clears the caches only if the tokens were not cleared by someone else during the revocation. If they were, that logout was already emitted on `AuthSession.loggedOut` with a reason other than `USER`, and the collector clears the caches. Each logout therefore clears them exactly once. The inline clearing of a normal user logout is unchanged, so it stays synchronous and the existing tests are unaffected.
+
+New test: `a user logout of a device the server already revoked clears the caches exactly once`. It uses the real `TokenAuthenticator` with a refresher that answers `Rejected`, and the DELETE answers 401. The test checks that the tokens are gone and that the cache was cleared once.
+
+Validation:
+- `cd android && ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.auth.AuthRepositoryTest'` - Pass (fails with the old code: 2 clears instead of 1)
+
+### CR-2 - A failing SessionCache crashes the app and stops later cache clears (P3)
+
+Files changed:
+- `android/app/src/main/java/ch/sonensei/cockpit/auth/AuthRepository.kt`
+- `android/app/src/test/java/ch/sonensei/cockpit/auth/AuthRepositoryTest.kt`
+
+Problem:
+`clearCaches()` let an exception from one `SessionCache.clear()` escape. The caches after it were skipped, `logout()` threw into `viewModelScope` (crash), and the app-scope collector ended, so later logouts cleared no caches.
+
+Fix:
+`clearCaches()` runs each cache in its own try/catch. It rethrows `CancellationException` and ignores other exceptions. They are not logged, because the exception may carry user data. The `SessionCache` KDoc now says that a failure is ignored and the other caches are still cleared.
+
+New tests: `a failing cache neither stops the others nor the logout` (user logout with a throwing cache followed by a working one) and `a failing cache does not stop later logouts by the network layer from clearing the caches` (two network-layer logouts; the working cache is cleared both times, so the collector survived).
+
+Validation:
+- `cd android && ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.auth.AuthRepositoryTest'` - Pass (both fail with the old code)
+
+### CR-3 - Rotated tokens are persisted with an asynchronous apply() (P3)
+
+Files changed:
+- `android/app/src/main/java/ch/sonensei/cockpit/auth/PersistentTokenStore.kt`
+- `android/app/src/test/java/ch/sonensei/cockpit/auth/PersistentTokenStoreTest.kt`
+
+Problem:
+`set()` wrote with `apply()`. A process kill after `replace()` returned but before the queued write reached the disk would bring back the retired refresh token on the next start. The server revokes the device when it sees that token again.
+
+Fix:
+`set()` uses `prefs.edit(commit = encrypted != null)`. Every write that stores tokens (`login`, `save`, `replace` with new tokens) is now committed synchronously. Removals (logout, `clear()`, or a failed encryption) keep `apply()`. The only production callers that write tokens already run off the main thread: `AuthRepository.login` on `ioDispatcher`, and `TokenAuthenticator` calls `replace` on an OkHttp thread.
+
+New test: `logins and rotated tokens are written to disk synchronously`. It wraps the preferences in a recording `SharedPreferences`/`Editor`, then checks that a login and a rotation each end in `commit()` and that a fresh store loads the rotated tokens.
+
+Validation:
+- `cd android && ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.auth.PersistentTokenStoreTest'` - Pass (fails with the old code)
+
+## Not fixed
+
+None.
+
+## Validation summary
+
+Focused tests:
+- `cd android && ./gradlew ktlintCheck testDebugUnitTest --tests 'ch.sonensei.cockpit.auth.*' --rerun` - Pass (115 tests, 0 failures)
+
+Full test suite:
+- `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` - BUILD SUCCESSFUL
+
+Lint/type-check/build:
+- ktlintCheck and lintDebug - Pass (included above)
+
+`.taskcheck`:
+- `sh scripts/check.sh` - Pass ("all checks passed")
+
+Remaining unresolved findings:
+0
+
+## Final status
+
+All validated findings fixed and validation passed.
