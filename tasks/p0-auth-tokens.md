@@ -19,7 +19,8 @@ Bearer-token authentication for the Android client with device management (SPEC.
   - verified (2026-10-20 14:45+0200 by dell26/agent-5): same run -> GET /api/v1/auth/devices lists devices, DELETE /api/v1/auth/devices/{id} 204/404, revoked device's access and refresh tokens -> 401 (DeviceTokenWebTests)
 - [x] `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.core.auth.*'` passes (Postgres via Testcontainers where persistence is involved)
   - verified (2026-10-20 14:45+0200 by dell26/agent-5): cd server && ./gradlew test --tests 'ch.sonensei.cockpit.core.auth.*' --tests '*OpenApiContractTest' at 679bcaf (Postgres via Testcontainers) -> 166 tests, 0 failures, 0 errors
-- [ ] API documented: `api/openapi.yaml` regenerated (`UPDATE_OPENAPI=1 ./gradlew test --tests '*OpenApiContractTest'`) and `OpenApiContractTest` passes without the flag
+- [x] API documented: `api/openapi.yaml` regenerated (`UPDATE_OPENAPI=1 ./gradlew test --tests '*OpenApiContractTest'`) and `OpenApiContractTest` passes without the flag
+  - verified (2026-10-20 14:45+0200 by dell26/agent-5): cd server && ./gradlew updateOpenApi (UPDATE_OPENAPI path) after rebase -> api/openapi.yaml regenerated with token/refresh/devices ops; then OpenApiContractTest without flag -> pass, file unchanged; cd web && npm run api:check -> generated client up to date
 
 ## Notes
 - ASSUMPTION (2026-10-20 14:11+0200 by dell26/agent-5): Access tokens are opaque random tokens (SHA-256 hash on the auth_device row, looked up per request), not JWTs: no signing key to manage and revocation is immediate.
