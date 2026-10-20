@@ -17,3 +17,4 @@ Data layer for GTD screens with offline read cache (SPEC.md §9.3).
 
 ## Notes
 - ASSUMPTION (2026-10-21 00:04+0200 by dell26/agent-5): GTD read cache is its own Room database (gtd/data/GtdCacheDatabase, gtd_cache.db) with destructive migration, not a shared app database: it only holds copies of server data and the task's touches are limited to gtd/data; and-capture-queue can keep pending_capture in its own DB.
+- ASSUMPTION (2026-10-21 00:04+0200 by dell26/agent-5): Today view = listTasks(due=overdue) followed by listTasks(due=today), de-duplicated (SPEC 5.x Today: due/overdue tasks). Projects cache holds all projects of every status; screens filter.
