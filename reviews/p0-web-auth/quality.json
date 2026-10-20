@@ -1,0 +1,25 @@
+{
+  "schema": 1,
+  "task": "p0-web-auth",
+  "reviewed_revision": "1d7dd9c129338970f1ced186ab542f11ee0c7499",
+  "helpers": {
+    "test-writer": {"status": "completed", "report": "reviews/p0-web-auth/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/p0-web-auth/review.md"},
+    "fixer": {"status": "completed", "report": "reviews/p0-web-auth/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "guards and logout now survive a server outage (non-401 errors) instead of a blank page or unhandled rejection"},
+    {"id": "CR-2", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "backoff countdown no longer inside role=alert; only the static sentence is announced"},
+    {"id": "CR-3", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "npm run i18n:extract, messages.xlf updated"},
+    {"id": "CR-4", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "setup.spec download test restores URL.createObjectURL/revokeObjectURL"}
+  ],
+  "validation": [
+    {"command": "cd web && npm run check", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}

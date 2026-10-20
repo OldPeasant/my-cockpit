@@ -4,7 +4,7 @@ Date: 2026-10-20
 
 Task: p0-web-auth - Web setup and login pages
 
-Scope: committed changes of the task at the final revision, `git diff babb06f4..2a12481 -- web docs` (commits e0d4772, 677d9ec, 75edee3, 2a12481). This is the second review; it verifies the fixes for CR-1 to CR-4 of the first review (revision 677d9ec) and re-reviews the final task code. Uncommitted working-tree changes were not reviewed (there were none at review time).
+Scope: committed changes of the task at the final revision 1d7dd9c129338970f1ced186ab542f11ee0c7499, `git diff babb06f4..1d7dd9c -- web docs` (commits e0d4772, 677d9ec, 75edee3, 2a12481, 1d7dd9c). This is the third review pass. The second pass fully reviewed revision 2a12481 (all task code, fixes for CR-1 to CR-4). This pass reviews the delta `2a12481..1d7dd9c`, which adds two tests from the test-writer's second pass and updated reports. It also confirms that no production code changed after 2a12481. Uncommitted working-tree changes were not reviewed (there were none at review time).
 
 Requirements:
 - tasks/p0-web-auth.md acceptance criteria 1-4 and recorded assumptions (#1-#6)
@@ -15,31 +15,46 @@ Requirements:
 
 Git range:
 - Branch: main
-- HEAD: 2a1248148a9ada920a70f31f49f9240b5011dc72
+- HEAD: 1d7dd9c129338970f1ced186ab542f11ee0c7499
 - Base/start: babb06f4ff5c279f43422fb658dd7be5eb9bacfc
-- Commits reviewed: 4 (e0d4772, 677d9ec, 75edee3, 2a12481)
+- Commits reviewed: 5 (e0d4772, 677d9ec, 75edee3, 2a12481, 1d7dd9c). The second pass reviewed e0d4772 to 2a12481. This pass reviewed 1d7dd9c.
 
-Commands run (read-only): `git log --oneline babb06f4..2a12481`, `git diff --stat babb06f4..2a12481`, `git diff 75edee3..2a12481 -- web ':!web/src/locale'`, `git status --short` (clean), `grep` on `web/src/locale/messages.xlf` (ids `login.*` 15, `setup.*` 32, `topbar.*` 6 = 53, equal to the 53 distinct `@@login/setup/topbar` ids in the task's templates and code; `login.backoff` and `login.backoffWait` present). Full reads of `auth.guards.ts`, `auth.service.ts`, `login.ts`, `login.html`, `setup.ts`, `shell.ts`, `app.routes.ts`. The reviewer did not run `npm run check`; the fixer reports `cd web && npm run check` and `sh scripts/check.sh` passing (245 web tests), and criterion 4 evidence has to come from the parent's own run on 2a12481.
+Commands run (read-only):
+- `git rev-parse HEAD`: 1d7dd9c129338970f1ced186ab542f11ee0c7499
+- `git status --short`: clean
+- `git diff --stat 2a12481 HEAD`: only `reviews/p0-web-auth/review.md`, `reviews/p0-web-auth/tests.md`, `web/src/app/app.spec.ts` (+16) and `web/src/app/core/auth/auth.service.spec.ts` (+17)
+- `git diff --stat 2a12481 HEAD -- . ':!reviews'`: only the two spec files. No production code, config, dependency or generated file changed after 2a12481.
+- `git diff 2a12481 HEAD -- web`
+- I read the test setup of both spec files and checked them against `auth.service.ts` (`setupRequired` cache) and `auth.guards.ts` (catch paths).
+- The reviewer tried to run the two specs with `npx ng test --watch=false --include ...`, but the sandbox denied the command, so they were not run here. Criterion 4 evidence must come from the parent's own `cd web && npm run check` / `sh scripts/check.sh` run on 1d7dd9c.
 
-Summary: 0 P0, 0 P1, 0 P2, 0 P3 (open). Previous findings CR-1 to CR-4: all resolved.
+Previous passes (unchanged):
+- Second pass on 2a12481: 0 P0, 0 P1, 0 P2, 0 P3.
+- First-review findings CR-1 to CR-4 were all resolved.
+
+This pass: 0 P0, 0 P1, 0 P2, 0 P3.
+
+Summary: 0 P0, 0 P1, 0 P2, 0 P3
 
 ## Status of previous findings
 
-- [x] **CR-1 (P2) | Guard failures other than 401 leave a blank page or a half-logged-out shell** - Resolved.
-    - `auth.guards.ts`: `authGuard` now catches failures of `/setup/status` and `/me` and redirects to `/login?returnUrl=...`; `loginGuard` shows the login form on failure; `setupGuard` shows the setup form when the status is unknown (server answers 409 if setup was already done, which the setup form shows as `userMessage`). The 401/setup/logged-in paths are unchanged. Because `setupRequired()` only caches a successful answer, the next navigation after the outage asks again, so a recovered server leads to the right page.
-    - `shell.ts:114`: `navigateByUrl(LOGIN_PATH).catch(() => false)` removes the unhandled rejection after logout.
-    - Tests: 5 new guard tests with a 502 from `/setup/status` or `/me` (`auth.guards.spec.ts`), 1 shell test with a rejecting navigation (`shell.spec.ts`).
-- [x] **CR-2 (P3) | Backoff countdown re-announced every second** - Resolved. `login.html:61-66`: only the static "Too many failed attempts." is in `role="alert"`; the ticking "Try again in N s." is outside the live region. `login.spec.ts` checks both the visible text and that the alert text stays static while counting down.
-- [x] **CR-3 (P3) | New i18n messages not extracted** - Resolved. `messages.xlf` contains all 53 task message ids (see commands above).
-- [x] **CR-4 (P3) | Download test leaks global `URL` stubs** - Resolved. `setup.spec.ts:139-143` saves the originals and restores them in `onTestFinished`, which also runs when an assertion fails.
+- [x] **CR-1 (P2) | Guard failures other than 401 leave a blank page or a half-logged-out shell**: Resolved in 2a12481. Unchanged since then. The two new tests strengthen the coverage of this fix (see below).
+- [x] **CR-2 (P3) | Backoff countdown re-announced every second**: Resolved in 2a12481. Unchanged.
+- [x] **CR-3 (P3) | New i18n messages not extracted**: Resolved in 2a12481. Unchanged.
+- [x] **CR-4 (P3) | Download test leaks global `URL` stubs**: Resolved in 2a12481. Unchanged.
 
-## Re-review of the final code
+## Review of the delta 2a12481..1d7dd9c (tests only)
 
-- Criterion 1 (setup page): unchanged since the first review and still correct; `setupGuard` restricts `/setup` to setup-needed (with the outage fallback above).
-- Criterion 2 (login page): password + TOTP, recovery-code switch, remember device, 429 countdown from `Retry-After` (60 s fallback), submit disabled while blocked.
-- Criterion 3 (guard, logout, return URL): `authGuard` on the shell route covers all children; logout in the top bar account menu; `/login` follows a `safeReturnUrl`-filtered return URL (no open redirect).
-- Criterion 4 (tests): specs cover setup and login forms, guard redirects including the new outage paths, `AuthService`, `ApiError` retry-after parsing, QR code and shell logout. `npm run check` result to be recorded by the parent.
-- Security: no change to the session/CSRF handling reviewed before; the new `catch` blocks only swallow errors in navigation decisions, never grant access (`authGuard` returns `true` only after a successful `/me`).
+- `web/src/app/app.spec.ts`: new test "shows the login form (not a blank page) while the server fails, and recovers afterwards".
+    - It uses the real app routes with a mocked `AuthService`. `setupRequired` rejects with a 502, and the test asserts the redirect to `/login?returnUrl=%2Finbox`, that no shell is rendered, and that the login form is rendered.
+    - The test then restores the mock, sets a valid session and navigates again. It asserts that `/inbox` opens in the shell.
+    - This covers CR-1's outage path and the recovery path end-to-end through the router. It asserts behavior (URL, rendered elements), not implementation.
+    - Per-test isolation holds: `state` and `auth` are recreated in `beforeEach`, so `mockImplementation` does not leak into other tests.
+- `web/src/app/core/auth/auth.service.spec.ts`: new test "does not cache a failed setup status: shows a toast and asks again next time".
+    - A 502 from `/api/v1/setup/status` rejects with `ApiError` (status 502) and shows exactly one error toast. A second call sends a new request and returns its result.
+    - This matches `auth.service.ts:45-50`, which only assigns the cache after a successful response. It pins the "only a successful answer is cached" behavior that the guard recovery relies on.
+    - `afterEach(() => backend.verify())` ensures that no unexpected request is left open.
+- Neither test weakens, skips or removes existing tests. No debug output or test-data concerns.
 
 ## P0 Critical
 
@@ -59,4 +74,6 @@ None.
 
 ## Review conclusion
 
-No material issues found. All four findings of the first review (CR-1 to CR-4) are fixed on revision 2a12481 with tests, and the final code meets the acceptance criteria; the parent worker must still record its own `npm run check` / `.taskcheck` run on this revision as evidence for criterion 4.
+No material issues found. Since 2a12481, only tests and reports have changed: no production code changed. The two added tests are correct and meaningful regression tests for the CR-1 outage and recovery behavior.
+
+The conclusion from the second pass still holds on revision 1d7dd9c129338970f1ced186ab542f11ee0c7499: the code meets the acceptance criteria. The parent worker must still record its own `npm run check` / `.taskcheck` run on this revision as evidence for criterion 4.
