@@ -7,6 +7,8 @@ import { routes } from './app.routes';
 import { AuthService } from './core/auth';
 import { provideFakeSession } from './core/auth/testing';
 import { CapturePlaceholder } from './features/capture/capture-placeholder';
+import { CommandsPaletteProvider } from './features/search/commands-palette.provider';
+import { SearchPaletteProvider } from './features/search/search-palette.provider';
 import { CommandPalette } from './shell/command-palette';
 import { NAV_SECTIONS } from './shell/nav-sections';
 import { NavigationPaletteProvider } from './shell/navigation-palette.provider';
@@ -104,7 +106,7 @@ describe('App', () => {
       );
     await vi.waitFor(() => {
       TestBed.tick();
-      expect(labels()).toEqual(NAV_SECTIONS.map((s) => s.label));
+      expect(labels()).toEqual([...NAV_SECTIONS.map((s) => s.label), 'New task']);
     });
 
     const input = palette.querySelector<HTMLInputElement>('input')!;
@@ -125,19 +127,24 @@ describe('App', () => {
   // resolves its providers through the shell route, like the palette.
   it('opens the shortcut overview and the capture dialog with the shell route providers', async () => {
     await harness.navigateByUrl('/');
+    const paletteProviders = [
+      expect.any(NavigationPaletteProvider),
+      expect.any(CommandsPaletteProvider),
+      expect.any(SearchPaletteProvider),
+    ];
     const routeProviders = (index = 0): readonly unknown[] =>
       TestBed.inject(MatDialog).openDialogs[index].componentRef!.injector.get(PALETTE_PROVIDERS);
 
     keydown({ key: '?', shiftKey: true });
     expect(openDialogs()[0]).toBeInstanceOf(ShortcutsDialog);
-    expect(routeProviders()).toEqual([expect.any(NavigationPaletteProvider)]);
+    expect(routeProviders()).toEqual(paletteProviders);
     TestBed.inject(MatDialog).closeAll();
     await vi.waitFor(() => expect(openDialogs()).toEqual([]));
 
     keydown({ key: 'q' });
     await vi.waitFor(() => expect(openDialogs()).toHaveLength(1));
     expect(openDialogs()[0]).toBeInstanceOf(CapturePlaceholder);
-    expect(routeProviders()).toEqual([expect.any(NavigationPaletteProvider)]);
+    expect(routeProviders()).toEqual(paletteProviders);
   });
 });
 
