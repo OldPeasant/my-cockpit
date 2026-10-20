@@ -15,3 +15,6 @@ Local notifications for reminders (SPEC.md §9.2).
 - [ ] `cd android && ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.reminders.*'` passes, covering scheduling/cancelling on sync changes (ShadowAlarmManager) (Robolectric/Compose UI tests for screens)
 
 ## Notes
+- From reminders-core review (CR-2, P3): `GET /api/v1/reminders/upcoming` returns reminders whose item is
+  trashed/deleted and those whose item lookup failed alike as `item.available=false`; the server skips notifying only
+  for gone items. Decide how Android treats `available=false` (skip, or extend the API to distinguish the cases).

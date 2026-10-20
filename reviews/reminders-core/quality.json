@@ -1,0 +1,26 @@
+{
+  "schema": 1,
+  "task": "reminders-core",
+  "reviewed_revision": "9d2f201ea7ad3624de79650e268896d239da0b1f",
+  "helpers": {
+    "test-writer": {"status": "completed", "report": "reviews/reminders-core/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/reminders-core/review.md"},
+    "fixer": {"status": "completed", "report": "reviews/reminders-core/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "CR-1 (first review)", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "failing transactional item resolver rolled back the whole firing batch; resolvers now run in REQUIRES_NEW via ReminderItems (fixes.md)"},
+    {"id": "CR-2 (first review)", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "DELETE racing with the scheduler returned 409; bulk delete without version check (fixes.md)"},
+    {"id": "CR-1 (rerun)", "source": "code-reviewer", "severity": "P3", "disposition": "accepted",
+     "note": "item lookups borrow a second pooled connection; acceptable for a single-user server, recorded as an assumption"},
+    {"id": "CR-2 (rerun)", "source": "code-reviewer", "severity": "P3", "disposition": "deferred",
+     "note": "upcoming does not distinguish gone items from failed lookups (both available=false); follow-up noted in task and-reminders"}
+  ],
+  "validation": [
+    {"command": "cd server && ./gradlew test --tests 'ch.sonensei.cockpit.core.reminders.*' --tests 'ch.sonensei.cockpit.core.events.*' --tests '*OpenApiContractTest'", "result": "pass"},
+    {"command": "cd server && ./gradlew check", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
