@@ -101,7 +101,12 @@ data class ProjectPatchRequest(
 
 @Schema(description = "The project's new next step")
 data class NextStepRequest(
-	@get:Schema(description = "An open task of the project; `null` clears the next step", types = ["string", "null"], format = "uuid")
+	@get:Schema(
+		description = "An open task of the project; `null` clears the next step",
+		types = ["string", "null"],
+		format = "uuid",
+		requiredMode = RequiredMode.REQUIRED,
+	)
 	val taskId: UUID? = null,
 )
 

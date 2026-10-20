@@ -39,6 +39,7 @@ import io.swagger.v3.oas.annotations.parameters.RequestBody as DocumentedBody
 @Tag(name = "Projects", description = "GTD projects, areas of focus and contexts")
 class AreaController(
 	private val areas: AreaService,
+	private val jsonMapper: JsonMapper,
 ) {
 	@GetMapping(produces = [MediaType.APPLICATION_JSON_VALUE])
 	@Operation(operationId = "listAreas", summary = "All areas in order")
@@ -73,7 +74,12 @@ class AreaController(
 	): ResponseEntity<AreaResponse> = areas.get(id).let { ETags.ok(AreaResponse.of(it), it.version) }
 
 	@PatchMapping("/{id}", consumes = [MediaType.APPLICATION_JSON_VALUE], produces = [MediaType.APPLICATION_JSON_VALUE, PROBLEM_JSON])
-	@Operation(operationId = "updateArea", summary = "Change an area")
+	@Operation(
+		operationId = "updateArea",
+		summary = "Change an area",
+		description = "Only the fields sent change; neither can be cleared. Unknown fields are rejected.",
+	)
+	@DocumentedBody(content = [Content(schema = Schema(implementation = UpdateAreaRequest::class))])
 	@AreaOkResponse
 	@BadRequestResponse
 	@NotFoundResponse
@@ -81,11 +87,13 @@ class AreaController(
 	fun update(
 		@PathVariable id: UUID,
 		@Parameter(description = "ETag of the area") @RequestHeader(HttpHeaders.IF_MATCH, required = false) ifMatch: String?,
-		@RequestBody request: UpdateAreaRequest,
-	): ResponseEntity<AreaResponse> =
-		areas
-			.update(id, request.title, request.position) { ETags.checkIfMatch(ifMatch, it) }
+		@RequestBody body: Map<String, Any?>,
+	): ResponseEntity<AreaResponse> {
+		val patch = jsonMapper.parsePatch(body, UpdateAreaRequest::class.java, AREA_PATCH_FIELDS, AREA_PATCH_FIELDS)
+		return areas
+			.update(id, patch.request.title, patch.request.position) { ETags.checkIfMatch(ifMatch, it) }
 			.let { ETags.ok(AreaResponse.of(it), it.version) }
+	}
 
 	@PutMapping("/order", consumes = [MediaType.APPLICATION_JSON_VALUE], produces = [MediaType.APPLICATION_JSON_VALUE, PROBLEM_JSON])
 	@Operation(operationId = "orderAreas", summary = "Reorder all areas")
@@ -110,6 +118,10 @@ class AreaController(
 	): ResponseEntity<Void> {
 		areas.delete(id) { ETags.checkIfMatch(ifMatch, it) }
 		return ResponseEntity.status(HttpStatus.NO_CONTENT).build()
+	}
+
+	private companion object {
+		val AREA_PATCH_FIELDS = setOf("title", "position")
 	}
 }
 

@@ -22,6 +22,9 @@ interface TaskRepository :
 	/** A project's tasks (open and done, not deleted), in project order. */
 	fun findByProjectIdAndDeletedAtIsNullOrderByPositionAscIdAsc(projectId: UUID): List<Task>
 
+	/** Every task of a project, also deleted ones, in project order. */
+	fun findByProjectIdOrderByPositionAscIdAsc(projectId: UUID): List<Task>
+
 	/** The highest position in a project (`null` when it has no tasks). */
 	@Query("select max(t.position) from Task t where t.projectId = :projectId and t.deletedAt is null")
 	fun maxPositionInProject(projectId: UUID): Int?

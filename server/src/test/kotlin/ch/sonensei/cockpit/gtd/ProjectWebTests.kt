@@ -275,22 +275,40 @@ class ProjectWebTests(
 	}
 
 	@Test
-	fun `purging a project from the Trash keeps its tasks without a project`() {
+	fun `purging a project from the Trash keeps its tasks without a project, with a new version and a change event`(
+		events: ApplicationEvents,
+	) {
 		val project = newProject()
 		val id = project.id()
+		val loose = newTask(null, "Buy paint")
 		val task = newTask(id)
+		val trashed = newTask(id, "Order tiles")
 		nextStep(id, task).andExpect { status { isOk() } }
+		mockMvc
+			.delete("$TASKS/$trashed") {
+				with(csrf())
+				header(HttpHeaders.IF_MATCH, "*")
+			}.andExpect { status { isNoContent() } }
 		mockMvc
 			.delete("$PROJECTS/$id") {
 				with(csrf())
 				header(HttpHeaders.IF_MATCH, fetch(id).etag())
 			}.andExpect { status { isNoContent() } }
+		val before = fetchTask(task)
+		val trashedVersion = jdbc.queryForObject("select version from task where id = ?::uuid", Long::class.java, trashed)
+		events.clear()
+
 		mockMvc.delete("/api/v1/trash/PROJECT/$id") { with(csrf()) }.andExpect { status { is2xxSuccessful() } }
+
 		jdbc.queryForObject("select count(*) from project", Int::class.java) shouldBe 0
-		mockMvc.get("$TASKS/$task").andExpect {
-			status { isOk() }
-			jsonPath("$.projectId") { doesNotExist() }
-		}
+		val after = fetchTask(task)
+		after.get("projectId").let { it == null || it.isNull } shouldBe true
+		after.get("version").asLong() shouldBe before.get("version").asLong() + 1
+		after.get("position").asInt() shouldBe fetchTask(loose).get("position").asInt() + 1
+		jdbc.queryForObject("select project_id from task where id = ?::uuid", String::class.java, trashed) shouldBe null
+		jdbc.queryForObject("select version from task where id = ?::uuid", Long::class.java, trashed) shouldBe trashedVersion!! + 1
+		events.changes("TASK") shouldContainExactly listOf(ChangeOp.UPDATED to task)
+		events.changes() shouldContainExactly listOf(ChangeOp.DELETED to id)
 	}
 
 	// --- list
@@ -351,6 +369,31 @@ class ProjectWebTests(
 			status { isOk() }
 			jsonPath("$.nextTaskId") { doesNotExist() }
 			jsonPath("$.stalled") { value(true) }
+		}
+	}
+
+	@Test
+	fun `next-step without a taskId key or with unknown fields is 400 and keeps the next step`() {
+		val id = newProject().id()
+		val task = newTask(id)
+		nextStep(id, task).andExpect { status { isOk() } }
+		listOf("""{}""", """{"taskID":null}""", """{"taskId":null,"extra":1}""", """{"taskId":"nope"}""").forEach { body ->
+			mockMvc
+				.post("$PROJECTS/$id/next-step") {
+					with(csrf())
+					contentType = MediaType.APPLICATION_JSON
+					content = body
+				}.isProblem(400)
+		}
+		mockMvc
+			.post("$PROJECTS/$id/next-step") {
+				with(csrf())
+				contentType = MediaType.APPLICATION_JSON
+				content = """{"taskID":"$task"}"""
+			}.isProblem(400, "taskId", "taskID")
+		fetch(id).let {
+			it.get("nextTaskId").asString() shouldBe task
+			it.get("version").asLong() shouldBe 1
 		}
 	}
 

@@ -159,6 +159,22 @@ class AreaContextWebTests(
 	}
 
 	@Test
+	fun `area PATCH rejects nulls, unknown fields and bad values without changing or announcing the area`(events: ApplicationEvents) {
+		val area = created(AREAS, """{"title":"Work"}""")
+		val path = "$AREAS/${area.id()}"
+		patch(path, """{"title":null}""", area.etag()).isProblem(400, "title")
+		patch(path, """{"position":null}""", area.etag()).isProblem(400, "position")
+		patch(path, """{"titel":"Job"}""", area.etag()).isProblem(400, "titel")
+		patch(path, """{"position":"first"}""", area.etag()).isProblem(400, "position")
+		mockMvc.get(path).andExpect {
+			status { isOk() }
+			header { string(HttpHeaders.ETAG, "\"0\"") }
+			jsonPath("$.title") { value("Work") }
+		}
+		events.changes("AREA") shouldContainExactly listOf(ChangeOp.CREATED to area.id())
+	}
+
+	@Test
 	fun `PUT areas order needs every area exactly once`() {
 		val a = created(AREAS, """{"title":"A"}""").id()
 		val b = created(AREAS, """{"title":"B"}""").id()

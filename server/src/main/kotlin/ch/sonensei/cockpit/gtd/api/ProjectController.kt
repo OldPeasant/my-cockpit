@@ -2,6 +2,8 @@ package ch.sonensei.cockpit.gtd.api
 
 import ch.sonensei.cockpit.core.web.CursorRequest
 import ch.sonensei.cockpit.core.web.ETags
+import ch.sonensei.cockpit.core.web.FieldError
+import ch.sonensei.cockpit.core.web.InvalidRequestException
 import ch.sonensei.cockpit.gtd.domain.ProjectChanges
 import ch.sonensei.cockpit.gtd.domain.ProjectFilter
 import ch.sonensei.cockpit.gtd.domain.ProjectService
@@ -150,8 +152,9 @@ class ProjectController(
 		summary = "Designate the project's next step",
 		description =
 			"The task must be an open task of the project (create a new one with `POST /tasks` and `projectId` first); " +
-				"`taskId: null` clears the next step. `If-Match` is optional.",
+				"`taskId: null` clears the next step. `taskId` must be sent; other fields are rejected. `If-Match` is optional.",
 	)
+	@DocumentedBody(content = [Content(schema = Schema(implementation = NextStepRequest::class))])
 	@ProjectOkResponse
 	@BadRequestResponse
 	@NotFoundResponse
@@ -159,13 +162,19 @@ class ProjectController(
 	fun setNextStep(
 		@PathVariable id: UUID,
 		@Parameter(description = "ETag of the project (optional)") @RequestHeader(HttpHeaders.IF_MATCH, required = false) ifMatch: String?,
-		@RequestBody request: NextStepRequest,
-	): ResponseEntity<ProjectResponse> =
-		respond(
+		@RequestBody body: Map<String, Any?>,
+	): ResponseEntity<ProjectResponse> {
+		// Only an explicit `"taskId": null` clears the next step; a body without the key (or a misspelled one) is a 400.
+		val errors = (body.keys - NEXT_STEP_FIELDS).sorted().map { FieldError(it, "is not a field of this request") }.toMutableList()
+		if (NEXT_STEP_TASK_ID !in body) errors += FieldError(NEXT_STEP_TASK_ID, "must be sent (null clears the next step)")
+		if (errors.isNotEmpty()) throw InvalidRequestException(errors)
+		val request = jsonMapper.parsePatch(body, NextStepRequest::class.java, NEXT_STEP_FIELDS, emptySet()).request
+		return respond(
 			projects.setNextStep(id, request.taskId) { version ->
 				if (!ifMatch.isNullOrBlank()) ETags.checkIfMatch(ifMatch, version)
 			},
 		)
+	}
 
 	@PutMapping("/{id}/order", consumes = [MediaType.APPLICATION_JSON_VALUE], produces = [MediaType.APPLICATION_JSON_VALUE, PROBLEM_JSON])
 	@Operation(
@@ -187,6 +196,8 @@ class ProjectController(
 
 	private companion object {
 		val PATCH_FIELDS = setOf("title", "descriptionMd", "areaId", "status", "dueDate", "reviewDate")
+		const val NEXT_STEP_TASK_ID = "taskId"
+		val NEXT_STEP_FIELDS = setOf(NEXT_STEP_TASK_ID)
 	}
 }
 

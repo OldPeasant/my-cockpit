@@ -10,5 +10,5 @@ export interface NextStepRequest {
   /**
    * An open task of the project; `null` clears the next step
    */
-  taskId?: (string | null);
+  taskId: (string | null);
 }

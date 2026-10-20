@@ -183,6 +183,8 @@ paths:
       tags:
       - Projects
     patch:
+      description: Only the fields sent change; neither can be cleared. Unknown fields
+        are rejected.
       operationId: updateArea
       parameters:
       - in: path
@@ -1314,7 +1316,7 @@ paths:
     post:
       description: "The task must be an open task of the project (create a new one\
         \ with `POST /tasks` and `projectId` first); `taskId: null` clears the next\
-        \ step. `If-Match` is optional."
+        \ step. `taskId` must be sent; other fields are rejected. `If-Match` is optional."
       operationId: setProjectNextStep
       parameters:
       - in: path
@@ -3284,6 +3286,8 @@ components:
           - "null"
           format: uuid
           description: An open task of the project; `null` clears the next step
+      required:
+      - taskId
     OAuthConnectionResponse:
       type: object
       properties:
