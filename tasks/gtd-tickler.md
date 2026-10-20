@@ -17,3 +17,4 @@ Ticklers return to the inbox, scheduled tasks become next actions (SPEC.md §5.1
 
 ## Notes
 - ASSUMPTION (2026-10-20 20:52+0200 by dell26/agent-4): Releasing a SCHEDULED task to NEXT clears its scheduledDate (the existing invariant allows scheduledDate only on SCHEDULED); a released tickler also clears scheduledDate and waiting-for fields since it lands in INBOX
+- ASSUMPTION (2026-10-20 20:52+0200 by dell26/agent-4): The on-read check runs on GET /tasks and GET /tasks/{id}; its failures (e.g. a concurrent run) are logged and never fail the read. The job runs at 00:05 in the user's zone via a trigger that rereads the zone setting for each run; disabled in tests via cockpit.gtd.tickler.scheduler.enabled=false
