@@ -7,7 +7,9 @@ How agents work is in `AGENTS.md`, and the review evidence contract is in `docs/
 
 | Part | Folder | Stack |
 |---|---|---|
-| Server | `server/` | Kotlin 2.3.21, Spring Boot 4.1.1 (Web MVC, Actuator, Validation), JDK 21 (Gradle toolchain), Gradle 9.8.1 wrapper, ktlint (Gradle plugin 14.2.0), JUnit 5, JaCoCo |
+| Server | `server/` | Kotlin 2.3.21, Spring Boot 4.1.1 (Web MVC, Actuator, Validation, Security, Data JPA/Hibernate, Flyway 12 + `flyway-database-postgresql`), PostgreSQL 16 (JDBC driver from the Boot BOM), JDK 21 (Gradle toolchain), Gradle 9.8.1 wrapper, ktlint (Gradle plugin 14.2.0), JaCoCo |
+| Server libraries | `server/` | springdoc-openapi 3.0.0, logstash-logback-encoder 8.1 (JSON logs use Boot structured logging, `logstash` format), Angus Mail (Boot BOM), ical4j 4.1.1, ez-vcard 0.12.1, flexmark 0.64.8 (core + GFM strikethrough/tasklist, tables, autolink), jsoup 1.21.2, Thumbnailator 0.4.20, java-uuid-generator 5.1.0 (UUIDv7), BouncyCastle `bcprov-jdk18on` 1.81 (Argon2 with spring-security-crypto), java-otp 0.4.0 (TOTP), webauthn4j-core 0.29.5 |
+| Server tests | `server/` | JUnit 5, Kotest assertions 6.0.4, MockK 1.14.6, springmockk 5.0.1, Testcontainers 2.0 (`testcontainers-postgresql`, `-junit-jupiter`, `spring-boot-testcontainers`), WireMock 3.13.1 (standalone), GreenMail 2.1.5 (`greenmail-junit5`) |
 | Web | `web/` | Angular 22.2 (standalone, signals, zoneless), TypeScript 6.0, Vitest 5 via `@angular/build:unit-test` + jsdom, angular-eslint, `@vitest/coverage-v8` |
 | Android | `android/` | AGP 9.4.1 (built-in Kotlin), Kotlin 2.3.21 + Compose compiler plugin, Compose BOM 2026.09.00, Material 3, compileSdk 37 / targetSdk 36 / minSdk 29, JDK 21, Gradle 9.8.1 wrapper, ktlint, Android Lint, JUnit 4, JaCoCo |
 | Tooling | root | TFP (`tasks.py`, `agents.py`), Python 3.10+ |
@@ -69,8 +71,8 @@ $SDK/cmdline-tools/latest/bin/sdkmanager --install "platform-tools" "platforms;a
 default location on macOS is `~/Library/Android/sdk`. There, `export ANDROID_HOME=...` in your
 shell profile before starting agents.
 
-**Docker/Podman** is only needed for Testcontainers-based integration tests (added by later
-tasks). With Podman (rootless), set:
+**Docker/Podman** is needed for the server tests (Testcontainers Postgres, also in `.taskcheck`) and
+the integration tests. With Podman (rootless), set:
 
 ```sh
 export DOCKER_HOST=unix://$XDG_RUNTIME_DIR/podman/podman.sock
@@ -84,7 +86,7 @@ variables (and `nvm use`) in that shell, or in your shell profile.
 
 | Part | Command | Notes |
 |---|---|---|
-| Server | `cd server && ./gradlew bootRun` | http://localhost:8080, health at `/actuator/health` |
+| Server | `cd server && ./gradlew bootRun --args='--spring.profiles.active=dev'` | http://localhost:8080, health at `/actuator/health`. Needs Postgres 16 at `localhost:5432/cockpit` (user/password `cockpit`) or `SPRING_DATASOURCE_*`, e.g. `podman run -d -p 5432:5432 -e POSTGRES_DB=cockpit -e POSTGRES_USER=cockpit -e POSTGRES_PASSWORD=cockpit postgres:16-alpine` |
 | Web | `cd web && npm ci && npm start` | http://localhost:4200. A dev proxy from `/api` to `:8080` comes with the first API task |
 | Android | `cd android && ./gradlew installDebug` | needs a device/emulator (`adb devices`). Only humans can verify on a real device |
 
@@ -95,8 +97,9 @@ Defined in `SPEC.md` §11. Introduced by the tasks that need them, and listed he
 | Variable | Used by | Purpose |
 |---|---|---|
 | `ANDROID_HOME` | android build, check | Android SDK location |
-| `DOCKER_HOST`, `TESTCONTAINERS_RYUK_DISABLED` | integration tests | Podman instead of Docker |
-| `COCKPIT_DATA_DIR`, `COCKPIT_MASTER_KEY`, `COCKPIT_DOMAIN`, `SPRING_DATASOURCE_*`, `GOOGLE_CLIENT_ID/SECRET`, `MS_CLIENT_ID/SECRET/TENANT` | server | see SPEC.md §11 (not yet used) |
+| `DOCKER_HOST`, `TESTCONTAINERS_RYUK_DISABLED` | server tests, integration tests | Podman instead of Docker |
+| `SPRING_DATASOURCE_URL`, `_USERNAME`, `_PASSWORD` | server | Postgres connection (`application.properties`) |
+| `COCKPIT_DATA_DIR`, `COCKPIT_MASTER_KEY`, `COCKPIT_DOMAIN`, `GOOGLE_CLIENT_ID/SECRET`, `MS_CLIENT_ID/SECRET/TENANT` | server | see SPEC.md §11 (not yet used) |
 
 Never commit secrets: `.env` files are Git-ignored, and `deploy/.env.example` holds placeholders only.
 
@@ -114,10 +117,23 @@ API task lands, the only endpoint is `GET /actuator/health`.
 | Command | What | Time |
 |---|---|---|
 | `sh scripts/check.sh` (= `.taskcheck`) | TFP gate tests, server ktlint + tests, web eslint + Vitest + build, android ktlint + unit tests + Android Lint | ~25 s warm, ~3 min on a cold clone (downloads) |
-| `cd server && ./gradlew check` | server lint + all tests | |
+| `cd server && ./gradlew check` | server lint + `test` (unit tests + Spring tests against the shared Postgres Testcontainer; needs Docker/Podman) | ~12 s warm |
+| `cd server && ./gradlew integrationTest` | server tests tagged `external` (`@ExternalTest`: GreenMail, Radicale, WireMock, ...). Not part of `check`/`.taskcheck` | |
 | `cd web && npm run check` | web lint + tests + production build | |
 | `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` | android | |
 | `python3 tests/test_quality_gate.py` (and the other `tests/test_*.py`, `bash tests/test_publish.sh`) | TFP tooling | |
+
+Server test infrastructure (`server/src/test/kotlin/ch/sonensei/cockpit/support/`):
+- Spring tests that need the database extend `PostgresTestBase`: one `postgres:16-alpine` container
+  per test JVM, wired in through `@ServiceConnection` (datasource + Flyway). Keep Spring test
+  configurations uniform so the context cache can reuse contexts.
+- Tests against external systems are annotated `@ExternalTest` (JUnit tag `external`). `test` excludes
+  them, `integrationTest` runs only them.
+- Docker/Podman is required for `./gradlew test`, and therefore for `.taskcheck`. With Podman set
+  `DOCKER_HOST` and `TESTCONTAINERS_RYUK_DISABLED=true` (see "Install").
+
+Server profiles: none = production-like (JSON logs in Logstash format, datasource from
+`SPRING_DATASOURCE_*`), `dev` = plain-text logs and local defaults, `e2e` = the end-to-end stack.
 
 Rules:
 - `.taskcheck` must stay below 2 minutes. Slow suites (Testcontainers integration tests, Playwright

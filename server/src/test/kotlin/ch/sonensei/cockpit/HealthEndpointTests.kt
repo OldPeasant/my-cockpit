@@ -1,5 +1,6 @@
 package ch.sonensei.cockpit
 
+import ch.sonensei.cockpit.support.PostgresTestBase
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
@@ -11,7 +12,7 @@ import org.springframework.test.web.servlet.get
 @AutoConfigureMockMvc
 class HealthEndpointTests(
 	@Autowired private val mockMvc: MockMvc,
-) {
+) : PostgresTestBase() {
 	@Test
 	fun `health endpoint reports UP`() {
 		mockMvc.get("/actuator/health").andExpect {
