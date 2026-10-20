@@ -25,6 +25,9 @@ import java.util.UUID
  * - `version`: optimistic locking; a stale update fails with Spring's `OptimisticLockingFailureException`.
  *
  * Implements [Persistable] so `save()` of an entity with an assigned id inserts directly instead of merging.
+ *
+ * Equality is by entity class and id. `entity == proxy` does not load an uninitialized lazy proxy, but calling
+ * `equals`/`hashCode`/`toString` on the proxy itself does (and fails once it is detached): compare ids instead.
  */
 @MappedSuperclass
 @EntityListeners(AuditingEntityListener::class)
@@ -76,10 +79,10 @@ abstract class BaseEntity(
 
 	override fun hashCode(): Int = id.hashCode()
 
-	override fun toString(): String = "${entityClass(this).simpleName}(id=$id)"
+	override fun toString(): String = "${javaClass.simpleName}(id=$id)"
 
 	private companion object {
-		/** The entity class, read from a lazy proxy without initializing it (unlike `Hibernate.getClass`). */
+		/** The entity class, read from a lazy proxy argument without initializing it (unlike `Hibernate.getClass`). */
 		fun entityClass(entity: Any): Class<*> =
 			if (entity is HibernateProxy) entity.hibernateLazyInitializer.persistentClass else entity.javaClass
 	}

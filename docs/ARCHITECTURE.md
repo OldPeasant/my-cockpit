@@ -189,7 +189,8 @@ All outputs are Git-ignored (`build/`, `coverage/`). To get task-scoped coverage
 Building blocks in `ch.sonensei.cockpit.core.persistence` (SPEC.md §4.2):
 - **Entities** extend `BaseEntity` (or `SoftDeletableEntity` for user content that goes to the Trash).
   Tables declare `id uuid primary key, created_at timestamptz not null, updated_at timestamptz not null,
-  version bigint not null` (+ `deleted_at timestamptz` for soft delete).
+  version bigint not null` (+ `deleted_at timestamptz` for soft delete). Equality is by class and id;
+  `equals`/`hashCode`/`toString` called on an uninitialized lazy proxy load it, so compare ids for detached references.
 - **Ids** are UUIDv7 (`UuidV7.generate()`), created in the entity constructor. A client id (offline
   capture, idempotent create) is passed to the constructor and must be a UUIDv7.
 - **Time:** inject the `Clock` bean (UTC) and never call `Instant.now()`. `createdAt`/`updatedAt` come from it
