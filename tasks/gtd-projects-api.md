@@ -5,7 +5,7 @@ owner: dell26/agent-5
 deps: [gtd-tasks-api]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/gtd,server/src/test/kotlin/ch/sonensei/cockpit/gtd,server/src/main/resources/db/migration/gtd]
 prio: 1
-lease_until: 2026-10-20T16:56:59Z
+lease_until: 2026-10-20T17:02:00Z
 ---
 ## Goal
 Projects with next step, areas and contexts (SPEC.md §5.1–5.2).
