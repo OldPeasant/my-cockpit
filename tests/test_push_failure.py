@@ -462,6 +462,40 @@ class DoneRefusedOnlyOnMain(PushRunner):
         self.assertNotEqual(self.state("a")["owner"], "box/agent-1")
 
 
+class DoneBlockedHoldRefused(PushRunner):
+    """`done` keeps failing to push and the hold retry is refused too (wip/a is refused like main): the task stays
+    blocked, every retry is a hold again (never a release, even after a failed hold re-blocked it), no session
+    starts; once pushes work, the next retry puts the task on hold for a human."""
+    mode, budget, retry = "done", 10, 5
+
+    def test_refused_hold_retry_stays_blocked_then_holds_once_pushes_work(self):
+        self.wait_for("BLOCKED log", lambda: "BLOCKED on a" in self.log.read_text(), timeout=120)
+        self.wait_for("2 failed hold retries", lambda: self.log.read_text().count("hold FAILED for a") >= 2, timeout=60)
+        log = self.log.read_text()
+        self.assertIn("retrying to put a on hold", log)
+        self.assertIn("workflow scope", log.split("hold FAILED for a")[1].splitlines()[0])  # git's push error
+        self.assertNotIn("retrying to release a", log)
+        self.assertNotIn("put a on hold for a human", log)
+        self.assertEqual(self.sessions(), 3, log)
+        a = self.state("a")
+        self.assertEqual((a["status"], a["owner"], a["hold"]), ("in_progress", "box/agent-1", ""))
+        s = self.status()
+        self.assertEqual((s["state"], s["task"]), ("blocked", "a"))
+        self.assertIn("workflow scope", s["error"])
+        (self.tmp / "remote.git" / "hooks" / "pre-receive").unlink()  # a human fixed the token
+        self.wait_for("a on hold", lambda: self.state("a")["hold"] != "", timeout=60)
+        a = self.state("a")
+        self.assertIn("done failed to push 3 sessions in a row", a["hold"])
+        self.assertNotEqual(a["owner"], "box/agent-1")  # (field() reads an empty owner: as the next line)
+        log = self.log.read_text()
+        self.assertIn("put a on hold for a human", log)
+        self.assertNotIn("retrying to release a", log)
+        wip = sh(self.tmp, "git", "--git-dir=remote.git", "ls-tree", "-r", "--name-only", "wip/a").stdout
+        self.assertIn(".github/workflows/ci.yml", wip)  # the work is saved for whoever fixes it
+        blocked = log.split("BLOCKED on a")[1].split("put a on hold for a human")[0]
+        self.assertNotIn("session start", blocked, log)  # no session while it was blocked (after it: b, fine)
+
+
 # Sessions scripted by FAKE_MODE, a comma list, one entry per session (the last one repeats): `release`,
 # `hold`, `done` or `done:<word>` (the hook's error then names <word>, so the push error differs), `work`
 # (commit, no tasks.py push: a session without a push failure).
