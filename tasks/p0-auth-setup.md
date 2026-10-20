@@ -1,10 +1,11 @@
 ---
 title: First-run setup: owner account, password hashing, TOTP enrollment
-status: todo
-owner:
+status: in_progress
+owner: dell26/agent-4
 deps: [p0-db-conventions,p0-api-conventions,p0-crypto]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/core/auth,server/src/test/kotlin/ch/sonensei/cockpit/core/auth,server/src/main/resources/db/migration/core-auth]
 prio: 1
+lease_until: 2026-10-20T09:56:29Z
 ---
 ## Goal
 Single-user setup flow (SPEC.md §4.1): available only while no user exists.
