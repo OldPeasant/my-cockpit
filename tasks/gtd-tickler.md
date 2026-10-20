@@ -5,7 +5,7 @@ owner: dell26/agent-4
 deps: [gtd-recurrence]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/gtd,server/src/test/kotlin/ch/sonensei/cockpit/gtd,server/src/main/resources/db/migration/gtd]
 prio: 1
-lease_until: 2026-10-20T19:23:34Z
+lease_until: 2026-10-20T19:28:35Z
 ---
 ## Goal
 Ticklers return to the inbox, scheduled tasks become next actions (SPEC.md §5.1).
