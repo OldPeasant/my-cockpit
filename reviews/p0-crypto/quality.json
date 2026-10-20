@@ -1,0 +1,21 @@
+{
+  "schema": 1,
+  "task": "p0-crypto",
+  "reviewed_revision": "8ca99fc4ce32857ad6da9611a32319127f5cae7d",
+  "helpers": {
+    "test-writer": {"status": "completed", "report": "reviews/p0-crypto/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/p0-crypto/review.md"},
+    "fixer": {"status": "completed", "report": "reviews/p0-crypto/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "exported COCKPIT_MASTER_KEY overrode the test key; property renamed to cockpit.crypto.master-key, regression test added"},
+    {"id": "CR-2", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "recorded assumption named the old property; corrected assumption recorded with tasks.py assume"}
+  ],
+  "validation": [
+    {"command": "cd server && ./gradlew ktlintCheck test --tests 'ch.sonensei.cockpit.core.crypto.*' --rerun-tasks", "result": "pass"},
+    {"command": "cd server && ./gradlew check", "result": "pass"}
+  ]
+}
