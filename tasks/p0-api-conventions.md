@@ -18,3 +18,4 @@ Common REST conventions (SPEC.md §4.2) and the committed OpenAPI contract that 
 - [ ] `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.core.web.*'` passes (Postgres via Testcontainers where persistence is involved)
 
 ## Notes
+- ASSUMPTION (2026-10-20 10:52+0200 by dell26/agent-2): Cursor pagination: default limit 50, allowed 1..200; out-of-range limit is rejected with 400 (field error 'limit') rather than clamped. Cursor = base64url of a module-chosen keyset string.
