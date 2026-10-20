@@ -1,0 +1,200 @@
+@if (!processing()) {
+  <section class="inbox" aria-labelledby="inbox-title">
+    <header class="head">
+      <h1 id="inbox-title" i18n="@@inbox.title">Inbox</h1>
+      @if (tasks.items().length > 0) {
+        <button type="button" class="primary" (click)="startProcessing()">
+          <ng-container i18n="@@inbox.process">Process inbox</ng-container>
+          <kbd>P</kbd>
+        </button>
+      }
+    </header>
+
+    @if (tasks.loaded()) {
+      @for (task of tasks.items(); track task.id) {
+        <app-task-row
+          [task]="task"
+          [contexts]="contexts.byId()"
+          [projects]="projects.byId()"
+          (toggleDone)="complete($event)"
+          (open)="open($event)"
+        />
+      } @empty {
+        <p class="empty" i18n="@@inbox.empty">
+          Your inbox is empty. Press <kbd>Q</kbd> to capture something.
+        </p>
+      }
+    } @else if (tasks.error()) {
+      <p class="empty" i18n="@@inbox.loadError">The inbox could not be loaded.</p>
+    } @else {
+      <p class="empty" i18n="@@inbox.loading">Loading…</p>
+    }
+  </section>
+} @else {
+  <section class="desk" aria-labelledby="inbox-process-title">
+    <div
+      class="progress"
+      role="progressbar"
+      i18n-aria-label="@@inbox.progress"
+      aria-label="Processed"
+      aria-valuemin="0"
+      aria-valuemax="100"
+      [attr.aria-valuenow]="progress()"
+    >
+      <span class="bar" [style.inline-size.%]="progress()"></span>
+    </div>
+    <header class="desk-head">
+      <h1 id="inbox-process-title" class="visually-hidden" i18n="@@inbox.processTitle">
+        Process inbox
+      </h1>
+      <p class="left" aria-live="polite" i18n="@@inbox.left">
+        {queue().length, plural, =0 {No items left} =1 {1 item left} other {{{queue().length}} items left}}
+      </p>
+      <button type="button" class="quiet" (click)="stopProcessing()">
+        <ng-container i18n="@@inbox.stop">Back to list</ng-container>
+        <kbd>Esc</kbd>
+      </button>
+    </header>
+
+    @if (current(); as task) {
+      <article class="item" [attr.aria-label]="task.title">
+        <h2 class="item-title">{{ task.title }}</h2>
+        @if (task.notesMd) {
+          <p class="notes">{{ task.notesMd }}</p>
+        }
+
+        <div class="clarify">
+          <app-energy-picker
+            [value]="clarification().energy"
+            (valueChange)="updateClarification({ energy: $event })"
+          />
+          <app-creativity-picker
+            [value]="clarification().creativity"
+            (valueChange)="updateClarification({ creativity: $event })"
+          />
+          <app-estimate-picker
+            [value]="clarification().timeEstimateMin"
+            (valueChange)="updateClarification({ timeEstimateMin: $event })"
+          />
+          <app-context-chips
+            [contexts]="contexts.items()"
+            [selected]="clarification().contextIds"
+            (selectedChange)="updateClarification({ contextIds: $event })"
+          />
+        </div>
+
+        @if (prompt(); as action) {
+          <form class="prompt" (submit)="confirmPrompt($event)">
+            @switch (action) {
+              @case ('waiting') {
+                <label>
+                  <span i18n="@@inbox.prompt.waitingFor">Waiting for (optional)</span>
+                  <input
+                    #promptField
+                    type="text"
+                    [value]="promptText()"
+                    (input)="promptText.set($any($event.target).value)"
+                  />
+                </label>
+              }
+              @case ('schedule') {
+                <label>
+                  <span i18n="@@inbox.prompt.scheduleDate">Show in Next on</span>
+                  <input
+                    #promptField
+                    type="date"
+                    required
+                    [min]="today()"
+                    [value]="promptDate()"
+                    (input)="promptDate.set($any($event.target).value)"
+                  />
+                </label>
+              }
+              @case ('tickler') {
+                <label>
+                  <span i18n="@@inbox.prompt.ticklerDate">Back in the inbox on</span>
+                  <input
+                    #promptField
+                    type="date"
+                    required
+                    [min]="tomorrow()"
+                    [value]="promptDate()"
+                    (input)="promptDate.set($any($event.target).value)"
+                  />
+                </label>
+              }
+              @case ('project') {
+                <label>
+                  <span i18n="@@inbox.prompt.project">Project</span>
+                  <select
+                    #promptField
+                    [value]="promptProject()"
+                    (change)="promptProject.set($any($event.target).value)"
+                  >
+                    @for (project of openProjects(); track project.id) {
+                      <option [value]="project.id" [selected]="project.id === promptProject()">
+                        {{ project.title }}
+                      </option>
+                    }
+                    <option [value]="newProject" [selected]="promptProject() === newProject"
+                      i18n="@@inbox.prompt.newProject">New project…</option>
+                  </select>
+                </label>
+                @if (promptProject() === newProject) {
+                  <label>
+                    <span i18n="@@inbox.prompt.projectTitle">New project title</span>
+                    <input
+                      type="text"
+                      required
+                      [value]="promptText()"
+                      (input)="promptText.set($any($event.target).value)"
+                    />
+                  </label>
+                }
+              }
+            }
+            <div class="prompt-actions">
+              <button type="submit" class="primary" [disabled]="!promptValid()">
+                <ng-container i18n="@@inbox.prompt.confirm">Move</ng-container>
+                <kbd>Enter</kbd>
+              </button>
+              <button type="button" class="quiet" (click)="cancelPrompt()">
+                <ng-container i18n="@@inbox.prompt.cancel">Cancel</ng-container>
+                <kbd>Esc</kbd>
+              </button>
+            </div>
+          </form>
+        } @else {
+          <div class="actions">
+            @for (group of groups; track group.label) {
+              <div class="group" role="group" [attr.aria-label]="group.label">
+                <span class="group-label" aria-hidden="true">{{ group.label }}</span>
+                @for (info of group.actions; track info.action) {
+                  <button
+                    type="button"
+                    class="action"
+                    [class.trash]="info.action === 'trash'"
+                    [disabled]="info.disabled"
+                    [attr.aria-keyshortcuts]="info.disabled ? null : info.key"
+                    (click)="choose(info.action)"
+                  >
+                    <span>{{ info.label }}</span>
+                    <kbd>{{ info.key }}</kbd>
+                  </button>
+                }
+              </div>
+            }
+          </div>
+        }
+      </article>
+    } @else {
+      <div class="zero">
+        <p class="zero-title" i18n="@@inbox.zero">Inbox zero.</p>
+        <p class="zero-text" i18n="@@inbox.zeroText">Everything is where it belongs.</p>
+        <button type="button" class="primary" (click)="stopProcessing()" i18n="@@inbox.zeroBack">
+          Back to the inbox
+        </button>
+      </div>
+    }
+  </section>
+}

@@ -149,6 +149,8 @@ export class TaskStore extends ListStore<TaskResponse, TaskQuery> {
  */
 export function matchesTask(task: TaskResponse, query: TaskQuery, today = localDate()): boolean {
   if (Boolean(query.completed) !== Boolean(task.completedAt)) return false;
+  // Tasks in a tickler are hidden until their date.
+  if (task.ticklerDate && task.ticklerDate > today) return false;
   if (query.list && task.list !== query.list) return false;
   if (query.projectId && task.projectId !== query.projectId) return false;
   if (query.context && !task.contextIds.includes(query.context)) return false;

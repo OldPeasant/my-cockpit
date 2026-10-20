@@ -1,7 +1,6 @@
 import { Routes } from '@angular/router';
-import { ComingSoon } from '../../../shell/coming-soon';
+import { InboxPage } from './inbox-page';
 
-// Placeholder until the inbox feature task replaces it.
 export default [
-  { path: '', title: $localize`:@@nav.inbox:Inbox`, component: ComingSoon },
+  { path: '', title: $localize`:@@nav.inbox:Inbox`, component: InboxPage },
 ] satisfies Routes;
