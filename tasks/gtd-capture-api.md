@@ -5,7 +5,7 @@ owner: dell26/agent-4
 deps: [gtd-tickler]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/gtd,server/src/test/kotlin/ch/sonensei/cockpit/gtd,server/src/main/resources/db/migration/gtd]
 prio: 1
-lease_until: 2026-10-20T20:24:11Z
+lease_until: 2026-10-20T20:29:11Z
 ---
 ## Goal
 Idempotent capture used by web and Android (SPEC.md §4.5, §5.4).
