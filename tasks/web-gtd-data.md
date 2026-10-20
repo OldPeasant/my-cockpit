@@ -15,7 +15,8 @@ Signal-based stores for tasks/projects/contexts and reusable task UI pieces.
 ## Acceptance criteria
 - [x] Stores load via the generated client, update optimistically with rollback on error, refetch on SSE `resync` and apply ChangeEvents
   - verified (2026-10-20 21:29+0200 by dell26/agent-2): npx ng test --include src/app/features/gtd/**/*.spec.ts (Vitest/jsdom, fake Api + fake ChangeEventsService) -> 83 passed: stores load via generated fns (listTasks/listProjects/listContexts paging), optimistic update/move/complete/remove/setNextStep with rollback on rejected request, resync$ refetches, DELETED event removes item, other events refetch
-- [ ] Out-of-order safety: a slower older list request never overwrites a newer one (test reverses response order)
+- [x] Out-of-order safety: a slower older list request never overwrites a newer one (test reverses response order)
+  - verified (2026-10-20 21:29+0200 by dell26/agent-2): task-store.spec.ts 'never lets a slower older list answer overwrite a newer one' resolves the newer request first, then the older -> passes (also query-switch and error variants)
 - [ ] Shared components: task row (checkbox, title, chips for context/energy/due/project), energy/creativity/estimate pickers, context chips
 - [ ] Vitest component/service tests cover store ordering, optimistic update rollback, task row rendering; `cd web && npm run check` passes
 
