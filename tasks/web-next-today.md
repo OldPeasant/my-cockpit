@@ -18,3 +18,4 @@ Filterable next actions and the Today view (SPEC.md §5.3).
 
 ## Notes
 - ASSUMPTION (2026-10-20 22:43+0200 by dell26/agent-4): Saved Next presets are stored in a new server setting 'nextActionPresets' (registered in gtd/infra/GtdSettings.kt, TextList of JSON texts {name, filter}, max 50) because /api/v1/settings rejects unknown keys and SettingType has no object-list type.
+- ASSUMPTION (2026-10-20 22:43+0200 by dell26/agent-4): Area filter is applied client-side (task's project.areaId) since GET /api/v1/tasks has no area parameter; tasks without a project never match an area.
