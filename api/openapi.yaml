@@ -8,23 +8,12 @@ tags:
 - description: "Connections to Google and Microsoft accounts, shared by calendar,\
     \ mail and contacts"
   name: OAuth
-- description: "Reminders for items of any type. When a reminder is due, the server\
-    \ fires it once and sends the SSE event `reminder` on `GET /api/v1/events` with\
-    \ a `ReminderResponse` as data. Every change also sends a `change` event of type\
-    \ `REMINDER`."
-  name: Reminders
-- description: Change notifications (Server-Sent Events)
-  name: Events
+- description: Calendars and their events
+  name: Calendars
 - description: Web login sessions and device tokens
   name: Auth
-- description: "IMAP/SMTP accounts with password, and Google/Microsoft accounts through\
-    \ an OAuth connection (XOAUTH2). Passwords are write-only. Changes send `change`\
-    \ events of type `MAIL_ACCOUNT` and `MAIL_FOLDER`."
-  name: Mail accounts
 - description: GTD tasks
   name: Tasks
-- description: Global search across all item types
-  name: Search
 - description: User settings
   name: Settings
 - description: First-run creation of the owner account
@@ -35,6 +24,19 @@ tags:
   name: Links
 - description: "Deleted items: list, restore, delete permanently"
   name: Trash
+- description: "Reminders for items of any type. When a reminder is due, the server\
+    \ fires it once and sends the SSE event `reminder` on `GET /api/v1/events` with\
+    \ a `ReminderResponse` as data. Every change also sends a `change` event of type\
+    \ `REMINDER`."
+  name: Reminders
+- description: Change notifications (Server-Sent Events)
+  name: Events
+- description: "IMAP/SMTP accounts with password, and Google/Microsoft accounts through\
+    \ an OAuth connection (XOAUTH2). Passwords are write-only. Changes send `change`\
+    \ events of type `MAIL_ACCOUNT` and `MAIL_FOLDER`."
+  name: Mail accounts
+- description: Global search across all item types
+  name: Search
 paths:
   /api/v1/areas:
     get:
@@ -497,6 +499,457 @@ paths:
       summary: Rotate a device's tokens
       tags:
       - Auth
+  /api/v1/calendar/calendars:
+    get:
+      description: "Every calendar of every source, ordered by name."
+      operationId: listCalendars
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CalendarListResponse"
+          description: The calendars
+      summary: List calendars
+      tags:
+      - Calendars
+    post:
+      description: The calendar is stored in the cockpit. The first calendar becomes
+        the default for new events.
+      operationId: createCalendar
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateCalendarRequest"
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CalendarResponse"
+          description: Created
+          headers:
+            ETag:
+              description: "Version of the calendar, for If-Match"
+              schema:
+                type: string
+              style: simple
+        "400":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: Invalid fields
+      summary: Create a local calendar
+      tags:
+      - Calendars
+  /api/v1/calendar/calendars/{id}:
+    get:
+      operationId: getCalendar
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CalendarResponse"
+          description: The calendar
+          headers:
+            ETag:
+              description: "Version of the calendar, for If-Match"
+              schema:
+                type: string
+              style: simple
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: No such calendar
+      summary: One calendar
+      tags:
+      - Calendars
+    patch:
+      description: "Only the fields sent change. Also allowed for calendars of external\
+        \ sources (e.g. color, visibility)."
+      operationId: updateCalendar
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - description: ETag of the calendar
+        in: header
+        name: If-Match
+        required: false
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CalendarPatchRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CalendarResponse"
+          description: Changed; the calendar with its new ETag
+          headers:
+            ETag:
+              description: New version of the calendar
+              schema:
+                type: string
+              style: simple
+        "400":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: Invalid or unknown fields
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: No such calendar
+        "409":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: Changed concurrently
+        "412":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: If-Match does not match the current ETag
+        "428":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: If-Match is missing
+      summary: Change a calendar
+      tags:
+      - Calendars
+  /api/v1/calendar/events:
+    get:
+      description: "Every occurrence overlapping [from, to) of the events of the given\
+        \ calendars (default: the visible ones), series expanded, ordered by start.\
+        \ All-day events count by the days the range touches in the user's time zone.\
+        \ The range is at most 400 days."
+      operationId: listEventOccurrences
+      parameters:
+      - description: "Start of the range (inclusive), ISO-8601 date-time"
+        in: query
+        name: from
+        required: true
+        schema:
+          type: string
+          format: date-time
+      - description: "End of the range (exclusive), ISO-8601 date-time"
+        in: query
+        name: to
+        required: true
+        schema:
+          type: string
+          format: date-time
+      - description: Only these calendars (comma-separated or repeated); default the
+          visible calendars
+        in: query
+        name: calendarIds
+        required: false
+        schema:
+          type: array
+          items:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OccurrenceListResponse"
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/OccurrenceListResponse"
+          description: The occurrences
+        "400":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: Missing or invalid range
+      summary: Occurrences in a range
+      tags:
+      - Calendars
+    post:
+      description: "In a local calendar (default: the default calendar). With a client-generated\
+        \ `id` (UUIDv7) the create is idempotent: repeating it returns the existing\
+        \ event (200) unchanged."
+      operationId: createEvent
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateEventRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EventResponse"
+          description: An event with this id already exists; it is returned unchanged
+          headers:
+            ETag:
+              description: "Version of the event, for If-Match"
+              schema:
+                type: string
+              style: simple
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EventResponse"
+          description: Created
+          headers:
+            ETag:
+              description: "Version of the event, for If-Match"
+              schema:
+                type: string
+              style: simple
+        "400":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: "Invalid fields, an unknown calendar, or no calendar given\
+            \ and no default calendar"
+        "409":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: "The id belongs to an event in the Trash, or the calendar is\
+            \ read-only or not local"
+      summary: Create an event
+      tags:
+      - Calendars
+  /api/v1/calendar/events/{id}:
+    delete:
+      description: "A single event or a whole series (ALL) goes to the Trash; THIS\
+        \ removes one occurrence (EXDATE, or its override is cancelled); FOLLOWING\
+        \ ends the series before the occurrence. Scope defaults as for PATCH."
+      operationId: deleteEvent
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - description: Which occurrences of a series to delete
+        in: query
+        name: scope
+        required: false
+        schema:
+          type: string
+          enum:
+          - THIS
+          - FOLLOWING
+          - ALL
+      - description: "Original start of the occurrence: an instant (timed series)\
+          \ or a date (all-day series)"
+        in: query
+        name: occurrence
+        required: false
+        schema:
+          type: string
+      - description: ETag of the addressed event
+        in: header
+        name: If-Match
+        required: false
+        schema:
+          type: string
+      responses:
+        "204":
+          description: Deleted
+        "400":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: "Invalid or unknown fields, or a missing, malformed or mismatching\
+            \ occurrence"
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: "No such event or occurrence, or the event is in the Trash"
+        "409":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: "Changed concurrently, or the calendar is read-only or not\
+            \ local"
+        "412":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: If-Match does not match the current ETag
+        "428":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: If-Match is missing
+      summary: Delete an event or occurrences of a series
+      tags:
+      - Calendars
+    get:
+      description: "An event, series master or override."
+      operationId: getEvent
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EventResponse"
+          description: The event
+          headers:
+            ETag:
+              description: "Version of the event, for If-Match"
+              schema:
+                type: string
+              style: simple
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: "No such event, or it is in the Trash"
+      summary: One event
+      tags:
+      - Calendars
+    patch:
+      description: "Only the fields sent change; `null` clears a field. For a series\
+        \ master `scope` defaults to ALL; THIS and FOLLOWING need `occurrence`. THIS\
+        \ changes the occurrence's override (created on first change), FOLLOWING splits\
+        \ the series and returns the new series, ALL changes the master (overrides\
+        \ that still had the old value of a field take the new one). Addressing an\
+        \ override stands for its occurrence (`scope` defaults to THIS). A single\
+        \ event ignores `scope`."
+      operationId: updateEvent
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - description: Which occurrences of a series to change
+        in: query
+        name: scope
+        required: false
+        schema:
+          type: string
+          enum:
+          - THIS
+          - FOLLOWING
+          - ALL
+      - description: "Original start of the occurrence: an instant (timed series)\
+          \ or a date (all-day series)"
+        in: query
+        name: occurrence
+        required: false
+        schema:
+          type: string
+      - description: ETag of the addressed event
+        in: header
+        name: If-Match
+        required: false
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EventPatchRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EventResponse"
+          description: "Changed; the event holding the change (event, override or\
+            \ new series) with its ETag"
+          headers:
+            ETag:
+              description: Version of the returned event
+              schema:
+                type: string
+              style: simple
+        "400":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: "Invalid or unknown fields, or a missing, malformed or mismatching\
+            \ occurrence"
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: "No such event or occurrence, or the event is in the Trash"
+        "409":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: "Changed concurrently, or the calendar is read-only or not\
+            \ local"
+        "412":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: If-Match does not match the current ETag
+        "428":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: If-Match is missing
+      summary: Change an event or occurrences of a series
+      tags:
+      - Calendars
   /api/v1/contexts:
     get:
       operationId: listContexts
@@ -2980,6 +3433,108 @@ components:
       - position
       - title
       - version
+    AttendeeDto:
+      type: object
+      description: An invited person
+      properties:
+        email:
+          type: string
+          maxLength: 320
+        name:
+          type: string
+          maxLength: 200
+        status:
+          type: string
+          description: Default NEEDS_ACTION
+          enum:
+          - NEEDS_ACTION
+          - ACCEPTED
+          - DECLINED
+          - TENTATIVE
+          - DELEGATED
+      required:
+      - email
+    CalendarListResponse:
+      type: object
+      description: "Every calendar, ordered by name"
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/CalendarResponse"
+      required:
+      - items
+    CalendarPatchRequest:
+      type: object
+      description: "Changes to a calendar: only the fields sent change. `isDefault:\
+        \ true` makes it the calendar for new events (the previous default loses the\
+        \ flag). `color` can be cleared with `null`."
+      properties:
+        color:
+          type:
+          - string
+          - "null"
+          example: "#3366ff"
+        isDefault:
+          type: boolean
+        name:
+          type: string
+          maxLength: 200
+        visible:
+          type: boolean
+    CalendarResponse:
+      type: object
+      description: A calendar. `version` is also sent as the ETag.
+      properties:
+        color:
+          type: string
+          description: CSS hex color
+          example: "#3366ff"
+        createdAt:
+          type: string
+          format: date-time
+        id:
+          type: string
+          format: uuid
+        isDefault:
+          type: boolean
+          description: The calendar for new events (at most one)
+        name:
+          type: string
+        readOnly:
+          type: boolean
+          description: Its events cannot be changed
+        sourceId:
+          type: string
+          format: uuid
+        sourceType:
+          type: string
+          enum:
+          - LOCAL
+          - GOOGLE
+          - MICROSOFT
+          - CALDAV
+          - ICS_FEED
+        updatedAt:
+          type: string
+          format: date-time
+        version:
+          type: integer
+          format: int64
+        visible:
+          type: boolean
+          description: Shown in the calendar views
+      required:
+      - createdAt
+      - id
+      - isDefault
+      - name
+      - readOnly
+      - sourceId
+      - sourceType
+      - updatedAt
+      - version
+      - visible
     ChangeEvent:
       type: object
       description: A change notification. Clients refetch the item; the event carries
@@ -3234,6 +3789,26 @@ components:
           maxLength: 200
       required:
       - title
+    CreateCalendarRequest:
+      type: object
+      description: A new local calendar (stored in the cockpit)
+      properties:
+        color:
+          type: string
+          description: CSS hex color `#rrggbb`
+          example: "#3366ff"
+        isDefault:
+          type: boolean
+          description: Make it the calendar for new events. The first calendar becomes
+            the default anyway.
+        name:
+          type: string
+          maxLength: 200
+        visible:
+          type: boolean
+          description: Default true
+      required:
+      - name
     CreateChecklistItemRequest:
       type: object
       description: "A new checklist item, added at the end"
@@ -3263,6 +3838,75 @@ components:
           description: "Default: at the end"
       required:
       - name
+    CreateEventRequest:
+      type: object
+      description: "A new event. Timed: `start`, `end` (default `start` + 1 hour)\
+        \ and `timeZone` (default the user's); all-day (`allDay: true`): `startDate`\
+        \ and the exclusive `endDate` (default the day after). `calendarId` defaults\
+        \ to the default calendar."
+      properties:
+        allDay:
+          type: boolean
+          description: Default false
+        attendees:
+          type: array
+          items:
+            $ref: "#/components/schemas/AttendeeDto"
+        calendarId:
+          type: string
+          format: uuid
+        conferenceUrl:
+          type: string
+        description:
+          type: string
+        end:
+          type: string
+          format: date-time
+        endDate:
+          type: string
+          format: date
+        id:
+          type: string
+          format: uuid
+          description: Client-generated UUIDv7 for an idempotent create
+        location:
+          type: string
+        reminderMinutes:
+          type: array
+          items:
+            type: integer
+            format: int32
+        rrule:
+          type: string
+          description: iCalendar RRULE (the `RRULE:` prefix is optional)
+          example: FREQ=WEEKLY;BYDAY=MO
+        start:
+          type: string
+          format: date-time
+        startDate:
+          type: string
+          format: date
+        status:
+          type: string
+          description: Default CONFIRMED
+          enum:
+          - CONFIRMED
+          - TENTATIVE
+          - CANCELLED
+        timeZone:
+          type: string
+          example: Europe/Zurich
+        title:
+          type: string
+          maxLength: 500
+        transparency:
+          type: string
+          description: Default OPAQUE
+          enum:
+          - OPAQUE
+          - TRANSPARENT
+      required:
+      - title
     CreateLinkRequest:
       type: object
       properties:
@@ -3495,6 +4139,185 @@ components:
       - id
       - lastSeenAt
       - name
+    EventPatchRequest:
+      type: object
+      description: "Changes to an event: only the fields sent change, `null` clears\
+        \ a field (`title` cannot be cleared). Time fields not sent keep their value,\
+        \ the duration is kept when only `start` (or `startDate`) changes. With `scope=THIS|FOLLOWING`,\
+        \ or `scope=ALL` with an `occurrence`, the time fields are the new times of\
+        \ that occurrence. `rrule` and `calendarId` cannot change for a single occurrence\
+        \ (`scope=THIS`)."
+      properties:
+        allDay:
+          type: boolean
+        attendees:
+          type: array
+          description: Replaces the attendees
+          items:
+            $ref: "#/components/schemas/AttendeeDto"
+        calendarId:
+          type: string
+          format: uuid
+        conferenceUrl:
+          type:
+          - string
+          - "null"
+        description:
+          type:
+          - string
+          - "null"
+        end:
+          type: string
+          format: date-time
+        endDate:
+          type: string
+          format: date
+        location:
+          type:
+          - string
+          - "null"
+        reminderMinutes:
+          type: array
+          description: Replaces the reminders
+          items:
+            type: integer
+            format: int32
+        rrule:
+          type:
+          - string
+          - "null"
+          description: '`null` makes a series a single event'
+        start:
+          type: string
+          format: date-time
+        startDate:
+          type: string
+          format: date
+        status:
+          type: string
+          description: CANCELLED on an occurrence removes it
+          enum:
+          - CONFIRMED
+          - TENTATIVE
+          - CANCELLED
+        timeZone:
+          type: string
+        title:
+          type: string
+          maxLength: 500
+        transparency:
+          type: string
+          enum:
+          - OPAQUE
+          - TRANSPARENT
+    EventResponse:
+      type: object
+      description: "An event, a series master (`rrule` set) or the override of one\
+        \ occurrence of a series (`seriesId` and `recurrenceId` set). Timed events\
+        \ have `start`/`end` and `timeZone`, all-day events `startDate` and the exclusive\
+        \ `endDate`. `version` is also sent as the ETag."
+      properties:
+        allDay:
+          type: boolean
+        attendees:
+          type: array
+          items:
+            $ref: "#/components/schemas/AttendeeDto"
+        calendarId:
+          type: string
+          format: uuid
+        conferenceUrl:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        description:
+          type: string
+        end:
+          type: string
+          format: date-time
+        endDate:
+          type: string
+          format: date
+          description: "Exclusive: a one-day event on the 3rd ends on the 4th"
+        exdates:
+          type: array
+          description: "Excluded occurrences (original starts: instants, or dates\
+            \ for all-day series)"
+          items:
+            type: string
+        id:
+          type: string
+          format: uuid
+        location:
+          type: string
+        recurrenceId:
+          type: string
+          description: The original start of the occurrence an override replaces
+        reminderMinutes:
+          type: array
+          description: Minutes before the start of each reminder
+          items:
+            type: integer
+            format: int32
+        rrule:
+          type: string
+          description: iCalendar RRULE without the `RRULE:` prefix (series masters)
+          example: FREQ=WEEKLY;BYDAY=MO
+        seriesId:
+          type: string
+          format: uuid
+          description: The series master of an override
+        start:
+          type: string
+          format: date-time
+        startDate:
+          type: string
+          format: date
+        status:
+          type: string
+          enum:
+          - CONFIRMED
+          - TENTATIVE
+          - CANCELLED
+        syncState:
+          type: string
+          enum:
+          - LOCAL
+          - SYNCED
+          - PENDING
+          - ERROR
+        timeZone:
+          type: string
+          description: IANA zone id the timed event was planned in
+          example: Europe/Zurich
+        title:
+          type: string
+        transparency:
+          type: string
+          enum:
+          - OPAQUE
+          - TRANSPARENT
+        updatedAt:
+          type: string
+          format: date-time
+        version:
+          type: integer
+          format: int64
+      required:
+      - allDay
+      - attendees
+      - calendarId
+      - createdAt
+      - exdates
+      - id
+      - reminderMinutes
+      - status
+      - syncState
+      - title
+      - transparency
+      - updatedAt
+      - version
     FieldError:
       type: object
       description: A validation error of one request field or parameter.
@@ -3928,6 +4751,82 @@ components:
       - configured
       - provider
       - slug
+    OccurrenceListResponse:
+      type: object
+      description: "The occurrences overlapping the range, ordered by start"
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/OccurrenceResponse"
+      required:
+      - items
+    OccurrenceResponse:
+      type: object
+      description: "One occurrence in a range. `eventId` is the event that provides\
+        \ its data (the series master for a generated occurrence, the override for\
+        \ a changed one, the event itself for a single event); `version` is that event's.\
+        \ Occurrences of a series have `seriesId` and `occurrence` (the original start),\
+        \ which identify them for `?scope=&occurrence=` edits."
+      properties:
+        allDay:
+          type: boolean
+        calendarId:
+          type: string
+          format: uuid
+        conferenceUrl:
+          type: string
+        end:
+          type: string
+          format: date-time
+        endDate:
+          type: string
+          format: date
+          description: Exclusive
+        eventId:
+          type: string
+          format: uuid
+        location:
+          type: string
+        occurrence:
+          type: string
+          description: "Original start of the occurrence: an instant, or a date for\
+            \ all-day series"
+        seriesId:
+          type: string
+          format: uuid
+        start:
+          type: string
+          format: date-time
+        startDate:
+          type: string
+          format: date
+        status:
+          type: string
+          enum:
+          - CONFIRMED
+          - TENTATIVE
+          - CANCELLED
+        timeZone:
+          type: string
+        title:
+          type: string
+        transparency:
+          type: string
+          enum:
+          - OPAQUE
+          - TRANSPARENT
+        version:
+          type: integer
+          format: int64
+      required:
+      - allDay
+      - calendarId
+      - eventId
+      - status
+      - title
+      - transparency
+      - version
     OrderRequest:
       type: object
       description: A new order of all items

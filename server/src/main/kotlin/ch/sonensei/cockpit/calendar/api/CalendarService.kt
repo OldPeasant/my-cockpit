@@ -79,11 +79,12 @@ class CalendarService(
 	): CalendarView {
 		val calendar = load(id)
 		checkVersion(calendar.version)
+		// First: makeDefault flushes, which would otherwise write this calendar's other changes as an extra version.
+		fields.isDefault?.let { if (it.value) makeDefault(calendar) else calendar.isDefault = false }
 		fields.name?.let { calendar.name = it.value.trim() }
 		fields.color?.let { calendar.color = it.value }
 		fields.visible?.let { calendar.visible = it.value }
 		validate(calendar)
-		fields.isDefault?.let { if (it.value) makeDefault(calendar) else calendar.isDefault = false }
 		val saved = calendars.saveAndFlush(calendar)
 		changes.publish(CALENDAR_CHANGE_TYPE, saved.id, ChangeOp.UPDATED)
 		return view(saved)

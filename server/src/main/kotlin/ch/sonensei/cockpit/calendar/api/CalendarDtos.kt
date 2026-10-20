@@ -10,6 +10,7 @@ import ch.sonensei.cockpit.calendar.model.EventSyncState
 import ch.sonensei.cockpit.calendar.model.EventTransparency
 import ch.sonensei.cockpit.calendar.model.OccurrenceId
 import ch.sonensei.cockpit.calendar.recurrence.Occurrence
+import com.fasterxml.jackson.annotation.JsonProperty
 import io.swagger.v3.oas.annotations.media.Schema
 import io.swagger.v3.oas.annotations.media.Schema.RequiredMode
 import jakarta.validation.constraints.NotNull
@@ -33,6 +34,7 @@ data class CalendarResponse(
 	@get:Schema(description = "Shown in the calendar views", requiredMode = RequiredMode.REQUIRED) val visible: Boolean,
 	@get:Schema(description = "Its events cannot be changed", requiredMode = RequiredMode.REQUIRED) val readOnly: Boolean,
 	@get:Schema(description = "The calendar for new events (at most one)", requiredMode = RequiredMode.REQUIRED)
+	@get:JsonProperty("isDefault")
 	val isDefault: Boolean,
 	@get:Schema(requiredMode = RequiredMode.REQUIRED) val createdAt: Instant,
 	@get:Schema(requiredMode = RequiredMode.REQUIRED) val updatedAt: Instant,
@@ -73,6 +75,8 @@ data class CreateCalendarRequest(
 	@get:Schema(description = "Default true")
 	val visible: Boolean? = null,
 	@get:Schema(description = "Make it the calendar for new events. The first calendar becomes the default anyway.")
+	@param:JsonProperty("isDefault")
+	@get:JsonProperty("isDefault")
 	val isDefault: Boolean? = null,
 )
 
@@ -86,6 +90,8 @@ data class CalendarPatchRequest(
 	@get:Schema(maxLength = 200) val name: String? = null,
 	@get:Schema(types = ["string", "null"], example = "#3366ff") val color: String? = null,
 	val visible: Boolean? = null,
+	@param:JsonProperty("isDefault")
+	@get:JsonProperty("isDefault")
 	val isDefault: Boolean? = null,
 )
 
