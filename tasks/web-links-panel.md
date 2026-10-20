@@ -18,3 +18,4 @@ Reusable 'Linked items' panel for every detail view (SPEC.md §4.3).
 ## Notes
 - ASSUMPTION (2026-10-20 17:30+0200 by dell26/agent-1): Item icons are inline SVG glyphs chosen by ItemType (the app ships no Material Symbols font); the server's icon name is kept as data-icon on the tile
 - ASSUMPTION (2026-10-20 17:30+0200 by dell26/agent-1): 'create linked…' slot = content projection of elements marked appLinkedCreate (shown in a 'Create linked' row); features call the panel's public reload() after creating the linked item. No live refresh: the server emits no LINK change events
+- ASSUMPTION (2026-10-20 17:30+0200 by dell26/agent-1): SYNC links (inline note links) show 'In text' instead of a remove button, since DELETE rejects them with 409; unavailable items stay removable. messages.xlf not re-extracted: the panel is not used by any route yet, and extract only collects reachable components
