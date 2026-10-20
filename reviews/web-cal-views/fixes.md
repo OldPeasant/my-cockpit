@@ -4,7 +4,7 @@ Date: 2026-10-21
 
 Task: web-cal-views - Calendar views (SPEC.md §6.3)
 
-Scope: current task; findings CR-1 and CR-2 from `reviews/web-cal-views/review.md` (code at HEAD 49aa93ee, base 63d16ee2).
+Scope: current task; findings CR-1 and CR-2 from `reviews/web-cal-views/review.md` (code at HEAD 49aa93ee, base 63d16ee2); round 2: finding TW-1 from `reviews/web-cal-views/tests.md` (code at HEAD e26468c1).
 
 ## Fixed findings
 
@@ -48,6 +48,21 @@ Test changes:
 Validation:
 - `cd web && npx ng test --watch=false --include='src/app/features/calendar/**/*.spec.ts'` — Pass (4 files, 62 tests)
 
+### TW-1 — A save answer overwrites a newer calendar state that a list answer already brought
+
+Files changed:
+- `web/src/app/features/calendar/views/calendar-store.ts`
+
+Problem:
+In `save()`, the PATCH answer replaced the calendar unconditionally. If a list answer with a newer version (for example version 3, changed elsewhere) arrived before the PATCH answer (version 2), the store fell back to version 2 and its older color. The next toggle then sent `If-Match: "2"` and was refused with 412.
+
+Fix:
+The save answer is now merged by version, the same way `newest()` merges list answers. The known entry is kept when its `version` is higher than the saved one; otherwise the saved calendar replaces it. The test-writer's failing test `CalendarStore > keeps a newer calendar from a list answer over a save answer that arrives after it` is unchanged and now passes.
+
+Validation:
+- `cd web && npx ng test --watch=false --include='src/app/features/calendar/**/*.spec.ts'` — Pass (4 files, 67 tests)
+- `cd web && npm run check` — Pass ("All files pass linting.", 55 test files / 967 tests passed, build succeeded with the known initial-bundle budget warning, 634.21 kB vs 500 kB)
+
 ## Not fixed
 
 None.
@@ -56,9 +71,11 @@ None.
 
 Focused tests:
 - `cd web && npx ng test --watch=false --include='src/app/features/calendar/**/*.spec.ts'` — Pass (4 files, 62 tests)
+- Round 2 (TW-1), same command — Pass (4 files, 67 tests)
 
 Full test suite:
 - `cd web && npm run check` (api:check, lint with `--max-warnings=0`, e2e:typecheck, test:ci, ng build) — Pass: "All files pass linting.", 55 test files / 962 tests passed, build succeeded. The build prints a warning that the initial bundle exceeds its budget (634.21 kB vs 500 kB). The check still passes, and the warning is unrelated to these changes: they only touch the lazy `calendar-view` chunk.
+- Round 2 (TW-1): `cd web && npm run check` — Pass: "All files pass linting.", 55 test files / 967 tests passed, build succeeded (same budget warning).
 
 Lint/type-check/build:
 - Included in `npm run check` above — Pass

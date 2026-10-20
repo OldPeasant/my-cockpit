@@ -90,7 +90,10 @@ export class CalendarStore {
         'If-Match': `"${current.version}"`,
         body: { visible },
       });
-      this.server.update((all) => all.map((c) => (c.id === saved.id ? saved : c)));
+      // A list answer that arrived first may already hold a newer version of this calendar.
+      this.server.update((all) =>
+        all.map((c) => (c.id === saved.id && c.version <= saved.version ? saved : c)),
+      );
     } finally {
       // A later toggle of the same calendar owns the pending state now.
       if (this.pendingVisible().get(calendar.id) === visible) this.setPending(calendar.id);
