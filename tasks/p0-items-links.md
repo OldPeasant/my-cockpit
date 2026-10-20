@@ -20,3 +20,4 @@ The cross-module link system (SPEC.md §4.3).
 ## Notes
 - ASSUMPTION (2026-10-20 13:35+0200 by dell26/agent-3): Migration lives in db/migration/core/ (V202610201130__core_items_link.sql), not the core-items folder named in touches: MigrationConventionTests requires a [a-z0-9]+ module folder matching the file prefix.
 - ASSUMPTION (2026-10-20 13:35+0200 by dell26/agent-3): link has an extra origin column (MANUAL|SYNC) plus BaseEntity's updated_at/version: LinkService.sync replaces only SYNC links of the source, so manual links from a note survive re-syncing its inline links.
+- ASSUMPTION (2026-10-20 13:35+0200 by dell26/agent-3): A pair of items is linked at most once in either direction (unique index on least/greatest of both ends): POST of an existing pair -> 409, sync skips it. Self-links -> 400.
