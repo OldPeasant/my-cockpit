@@ -1,11 +1,11 @@
 ---
 title: IMAP/SMTP connectivity and folder sync
-status: todo
-owner: 
+status: in_progress
+owner: dell26/agent-1
 deps: [mail-model,oauth-connections]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/mail/imap,server/src/test/kotlin/ch/sonensei/cockpit/mail/imap]
 prio: 1
-lease_until: 
+lease_until: 2026-10-20T17:01:16Z
 extended: 
 releases: 1
 ---
