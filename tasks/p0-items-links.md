@@ -19,7 +19,8 @@ The cross-module link system (SPEC.md §4.3).
   - verified (2026-10-20 15:02+0200 by dell26/agent-5): cd server && ./gradlew test --rerun --tests 'ch.sonensei.cockpit.core.items.*' (Testcontainers Postgres) -> LinkWebTests 23/23 pass: POST/DELETE/GET both directions, missing resolver, deleted item and throwing resolver -> unavailable with 200
 - [x] `LinkService.sync(source, targets)` replaces the links a source owns (used for inline note links later); deleting an item removes its links via an event
   - verified (2026-10-20 15:02+0200 by dell26/agent-5): same run -> LinkServiceTests 19/19 + LinkServiceEdgeCaseTests 17/17 pass: sync replaces only the source's SYNC links, ItemDeletedEvent removes links in both directions
-- [ ] Tests with a fake resolver; `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.core.items.*'` passes (Postgres via Testcontainers where persistence is involved)
+- [x] Tests with a fake resolver; `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.core.items.*'` passes (Postgres via Testcontainers where persistence is involved)
+  - verified (2026-10-20 15:02+0200 by dell26/agent-5): cd server && ./gradlew test --rerun --tests 'ch.sonensei.cockpit.core.items.*' with FakeItemResolvers, Postgres via Testcontainers (PostgresTestBase) -> 65 tests, 0 failures, 0 skipped
 - [ ] API documented: `api/openapi.yaml` regenerated (`UPDATE_OPENAPI=1 ./gradlew test --tests '*OpenApiContractTest'`) and `OpenApiContractTest` passes without the flag
 
 ## Notes
