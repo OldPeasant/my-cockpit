@@ -18,7 +18,8 @@ Edit all task fields (SPEC.md §5.2).
   - verified (2026-10-21 00:26+0200 by dell26/agent-3): cd web && npx ng test --watch=false --include='src/app/features/gtd/task-detail/**/*.spec.ts' -> 173 passed incl. 'saves changed fields with If-Match', 'on 412 says the task changed elsewhere and reloads it', checklist 412 reload tests
 - [x] Linked items panel included
   - verified (2026-10-21 00:26+0200 by dell26/agent-3): cd web && npx ng test --watch=false --include='src/app/features/gtd/task-detail/**/*.spec.ts' -> 'shows every field of the task' asserts app-linked-items rendered for the task ref; passed
-- [ ] Vitest component/service tests cover form validation, 412 handling, recurrence presets; `cd web && npm run check` passes
+- [x] Vitest component/service tests cover form validation, 412 handling, recurrence presets; `cd web && npm run check` passes
+  - verified (2026-10-21 00:26+0200 by dell26/agent-3): cd web && npx ng test --watch=false --include='src/app/features/gtd/task-detail/**/*.spec.ts' -> 6 files/173 passed (validation, 412, presets); cd web && npm run check -> api:check, lint, e2e typecheck, 1074 tests, build pass; sh scripts/check.sh -> all checks passed
 
 ## Notes
 - ASSUMPTION (2026-10-20 23:04+0200 by dell26/agent-3): The editor is a routed page /tasks/:id (inbox and search already link there) laid out as a panel; TaskDetail is a standalone component that a dialog can embed later. Added the 'tasks' route to gtd/gtd.routes.ts (outside touches, one line, as features/README.md says for new GTD views)
