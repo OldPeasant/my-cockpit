@@ -18,3 +18,4 @@ Sources, calendars, events (SPEC.md §6.1).
 ## Notes
 - ASSUMPTION (2026-10-20 16:01+0200 by dell26/agent-7): Credentials 'ref' is stored as an EncryptedSecret column calendar_source.credentials (encrypted with the master key) instead of a separate credentials table
 - ASSUMPTION (2026-10-20 16:01+0200 by dell26/agent-7): Recurrence ids and EXDATEs are stored as the occurrence's original start: timestamptz for timed series, date for all-day series (calendar_event_exdate table, recurrence_id_at/recurrence_id_date); reminders as integer[] minutes before; all-day end_date is exclusive (iCalendar DTEND)
+- ASSUMPTION (2026-10-20 16:01+0200 by dell26/agent-7): sync_state values LOCAL|SYNCED|PENDING|ERROR; source sync cursor/last-sync/error columns are left to cal-sync-engine (its own migration)
