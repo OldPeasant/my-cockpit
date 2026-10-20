@@ -7,6 +7,7 @@ import io.kotest.matchers.shouldNotBe
 import io.kotest.matchers.string.shouldNotContain
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
+import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.boot.test.context.TestConfiguration
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc
@@ -19,6 +20,10 @@ import org.springframework.test.web.servlet.get
 import org.springframework.test.web.servlet.head
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.RestController
+import org.springframework.web.servlet.HandlerMapping
+import org.springframework.web.servlet.handler.SimpleUrlHandlerMapping
+import org.springframework.web.servlet.resource.CachingResourceResolver
+import org.springframework.web.servlet.resource.ResourceHttpRequestHandler
 import java.nio.file.Files
 import java.nio.file.Path
 
@@ -167,6 +172,16 @@ class SpaFallbackTests(
 	@Test
 	fun `api root with trailing slash is 404, not index html`() {
 		mockMvc.get("/api/").andExpect { status { isNotFound() } }
+	}
+
+	@Test
+	fun `resource chain keeps no unbounded resolver cache`(
+		@Autowired @Qualifier("resourceHandlerMapping") mapping: HandlerMapping,
+	) {
+		// A CachingResourceResolver would keep one entry per distinct client-route URL, forever.
+		val handler = (mapping as SimpleUrlHandlerMapping).handlerMap["/**"] as ResourceHttpRequestHandler
+		handler.resourceResolvers.any { it is CachingResourceResolver } shouldBe false
+		handler.resourceResolvers.any { it is SpaFallbackResourceResolver } shouldBe true
 	}
 
 	// A test-only API endpoint: controllers must still win over the catch-all resource handler.

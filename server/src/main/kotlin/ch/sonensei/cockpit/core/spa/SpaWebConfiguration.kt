@@ -16,6 +16,8 @@ import org.springframework.web.servlet.resource.PathResourceResolver
  * over. Paths under `/api/` and `/actuator/` never fall back: an unknown API path stays a 404 instead of HTML.
  * Everything is sent with `Cache-Control: no-cache`, so a deploy never leaves a stale `index.html`
  * pointing at deleted hashed bundles (unchanged files cost only a 304).
+ * The chain runs without Spring's caching resolver: its cache has no size limit, and the fallback would add
+ * an entry for every distinct client-route URL.
  */
 @Configuration
 class SpaWebConfiguration(
@@ -26,7 +28,7 @@ class SpaWebConfiguration(
 			.addResourceHandler("/**")
 			.addResourceLocations(location)
 			.setCacheControl(CacheControl.noCache())
-			.resourceChain(true)
+			.resourceChain(false)
 			.addResolver(SpaFallbackResourceResolver())
 	}
 

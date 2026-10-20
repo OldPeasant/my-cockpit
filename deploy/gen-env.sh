@@ -10,6 +10,14 @@ if [ -z "$domain" ]; then
 	echo "usage: sh deploy/gen-env.sh <domain> [--force]" >&2
 	exit 2
 fi
+# A host name such as cockpit.example.org or localhost: it goes into a sed replacement below.
+case "$domain" in
+	*[!A-Za-z0-9.-]* | [.-]*)
+		echo "invalid domain '$domain': use a host name (letters, digits, dots, hyphens)" >&2
+		echo "usage: sh deploy/gen-env.sh <domain> [--force]" >&2
+		exit 2
+		;;
+esac
 if [ -e .env ] && [ "${2:-}" != "--force" ]; then
 	echo "deploy/.env already exists; not overwriting it (pass --force to replace it, keys included)" >&2
 	exit 1

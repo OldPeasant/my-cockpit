@@ -56,6 +56,8 @@ All settings are in `deploy/.env` (template: `.env.example`): `COCKPIT_DOMAIN`, 
 compose file.
 
 Security headers (HSTS, CSP, `X-Content-Type-Options`, `frame-ancestors`, ...) are set in `Caddyfile`.
+They replace the server's headers, except `Content-Security-Policy`: Caddy's app-wide CSP is only a default,
+used when the server sent none, so the server can send a stricter CSP for a single response.
 Caddy hides `/actuator/*` except `/actuator/health`.
 
 ## Host backup

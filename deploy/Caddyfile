@@ -5,7 +5,10 @@
 {$COCKPIT_DOMAIN} {
 	encode zstd gzip
 
-	# Applied after the proxied response (`defer`), so these win over headers from the server.
+	# Applied after the proxied response (`defer`), so these win over headers from the server, except
+	# Content-Security-Policy: `?` sets it only when the server sent none, so a stricter per-response CSP
+	# from the server (e.g. for the sandboxed HTML email, SPEC.md §4.1) is kept. Such a CSP replaces this
+	# one completely, so it must bring its own frame-ancestors.
 	header {
 		defer
 		Strict-Transport-Security "max-age=31536000; includeSubDomains"
@@ -18,7 +21,7 @@
 		# script, the browser console reports the new hash: update it here.
 		# style-src 'unsafe-inline': Angular component styles and the inlined critical CSS.
 		# frame-ancestors 'none' replaces X-Frame-Options.
-		Content-Security-Policy "default-src 'self'; script-src 'self' 'sha256-LMY6wYoFV9I4wWzxaq1N/dTpl4iurQktw706UCHK3vM='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; worker-src 'self' blob:; frame-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
+		?Content-Security-Policy "default-src 'self'; script-src 'self' 'sha256-LMY6wYoFV9I4wWzxaq1N/dTpl4iurQktw706UCHK3vM='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; worker-src 'self' blob:; frame-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
 		-Server
 		-X-Powered-By
 	}
