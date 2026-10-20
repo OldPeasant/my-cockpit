@@ -31,8 +31,10 @@ import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.context.annotation.Import
 import org.springframework.dao.DataIntegrityViolationException
+import org.springframework.dao.OptimisticLockingFailureException
 import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.transaction.support.TransactionTemplate
+import java.time.Duration
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalTime
@@ -303,6 +305,197 @@ class GtdRepositoryTests(
 	}
 
 	@Test
+	fun `values outside the project status, energy, creativity and recurrence mode enums are rejected`() {
+		val project = projects.save(Project("Valid project"))
+		val task = tasks.save(Task("Valid task"))
+
+		shouldThrow<DataIntegrityViolationException> { jdbc.update("update project set status = 'ARCHIVED' where id = ?", project.id) }
+		shouldThrow<DataIntegrityViolationException> { jdbc.update("update task set energy = 'EXTREME' where id = ?", task.id) }
+		shouldThrow<DataIntegrityViolationException> { jdbc.update("update task set creativity = 'GENIUS' where id = ?", task.id) }
+		shouldThrow<DataIntegrityViolationException> { jdbc.update("update task set recurrence_mode = 'DAILY' where id = ?", task.id) }
+		shouldThrow<DataIntegrityViolationException> { jdbc.update("update task set list = null where id = ?", task.id) }
+		shouldThrow<DataIntegrityViolationException> { jdbc.update("update task set list = 'inbox' where id = ?", task.id) }
+	}
+
+	@Test
+	fun `every enum value round-trips through the database`() {
+		val ids =
+			TaskList.entries.map { list ->
+				tasks.save(Task("On $list", list)).id
+			}
+		ids.zip(TaskList.entries).forEach { (id, list) -> tasks.findActiveById(id)!!.list shouldBe list }
+
+		Energy.entries.forEach { energy ->
+			tasks
+				.findActiveById(
+					tasks.save(Task("E").apply { this.energy = energy }).id,
+				)!!
+				.energy shouldBe energy
+		}
+		Creativity.entries.forEach { c -> tasks.findActiveById(tasks.save(Task("C").apply { creativity = c }).id)!!.creativity shouldBe c }
+		RecurrenceMode.entries.forEach { mode ->
+			tasks.findActiveById(tasks.save(Task("R").apply { recurrenceMode = mode }).id)!!.recurrenceMode shouldBe mode
+		}
+		ProjectStatus.entries.forEach { status ->
+			val project = projects.save(Project("P $status", status))
+			projects.findActiveById(project.id)!!.status shouldBe status
+			projects.findByStatusAndDeletedAtIsNullOrderByIdAsc(status).map { it.id } shouldContainExactly listOf(project.id)
+		}
+	}
+
+	@Test
+	fun `a zero time estimate and a due date without a time are accepted`() {
+		val saved =
+			tasks.save(
+				Task("Quick check").apply {
+					timeEstimateMin = 0
+					dueDate = LocalDate.of(2026, 6, 1)
+				},
+			)
+
+		val loaded = tasks.findActiveById(saved.id).shouldNotBeNull()
+		loaded.timeEstimateMin shouldBe 0
+		loaded.dueDate shouldBe LocalDate.of(2026, 6, 1)
+		loaded.dueTime.shouldBeNull()
+	}
+
+	@Test
+	fun `a project's area and next step must exist`() {
+		val missing = UuidV7.generate()
+
+		shouldThrow<DataIntegrityViolationException> { projects.save(Project("No area").apply { areaId = missing }) }
+		shouldThrow<DataIntegrityViolationException> { projects.save(Project("No next step").apply { nextTaskId = missing }) }
+	}
+
+	@Test
+	fun `changing a task's contexts replaces the stored set`() {
+		val home = contexts.save(Context("@home"))
+		val phone = contexts.save(Context("@phone"))
+		val errands = contexts.save(Context("@errands"))
+		val task = tasks.save(Task("Order groceries").apply { contextIds = mutableSetOf(home.id, phone.id) })
+
+		tx.executeWithoutResult {
+			tasks.findActiveById(task.id)!!.contextIds.apply {
+				remove(phone.id)
+				add(errands.id)
+			}
+		}
+
+		val loaded = tx.execute { tasks.findActiveById(task.id).shouldNotBeNull().also { it.contextIds.size } }
+		loaded.contextIds shouldContainExactlyInAnyOrder listOf(home.id, errands.id)
+		jdbc.queryForObject("select count(*) from task_context where task_id = ?", Int::class.java, task.id) shouldBe 2
+	}
+
+	@Test
+	fun `an update bumps the version and updated time, and a stale update is rejected`() {
+		val saved = tasks.save(Task("Write report", TaskList.NEXT))
+		val stale = tasks.findActiveById(saved.id).shouldNotBeNull()
+		clock.advance(Duration.ofMinutes(5))
+
+		tx.executeWithoutResult { tasks.findActiveById(saved.id)!!.title = "Write the annual report" }
+
+		val current = tasks.findActiveById(saved.id).shouldNotBeNull()
+		current.version shouldBe 1
+		current.updatedAt shouldBe MutableClockTestConfiguration.START.plus(Duration.ofMinutes(5))
+		current.createdAt shouldBe MutableClockTestConfiguration.START
+		stale.version shouldBe 0
+		stale.title = "Concurrent edit"
+		shouldThrow<OptimisticLockingFailureException> { tasks.save(stale) }
+		tasks.findActiveById(saved.id)!!.title shouldBe "Write the annual report"
+	}
+
+	@Test
+	fun `processing a task and editing areas, contexts and checklist items are persisted`() {
+		val task = tasks.save(Task("Inbox idea"))
+		val area = areas.save(Area("Hobby"))
+		val context = contexts.save(Context("@desk"))
+		val step = checklist.save(ChecklistItem(task.id, "Sketch"))
+
+		tx.executeWithoutResult {
+			tasks.findActiveById(task.id)!!.list = TaskList.NEXT
+			areas.findById(area.id).orElseThrow().apply {
+				title = "Hobbies"
+				position = 4
+			}
+			contexts.findById(context.id).orElseThrow().apply {
+				name = "@workbench"
+				color = "#00aa55"
+				position = 2
+			}
+			checklist.findById(step.id).orElseThrow().apply {
+				text = "Sketch the layout"
+				done = true
+				position = 1
+			}
+		}
+
+		tasks.findActiveById(task.id)!!.list shouldBe TaskList.NEXT
+		tasks.findByListAndCompletedAtIsNullAndDeletedAtIsNullOrderByPositionAscIdAsc(TaskList.INBOX).shouldContainExactly(emptyList())
+		areas.findById(area.id).orElseThrow().apply {
+			title shouldBe "Hobbies"
+			position shouldBe 4
+			version shouldBe 1
+		}
+		contexts.findByNameIgnoreCase("@WORKBENCH").shouldNotBeNull().apply {
+			id shouldBe context.id
+			color shouldBe "#00aa55"
+			position shouldBe 2
+		}
+		checklist.findById(step.id).orElseThrow().apply {
+			text shouldBe "Sketch the layout"
+			done shouldBe true
+			position shouldBe 1
+		}
+	}
+
+	@Test
+	fun `a stale project update is rejected`() {
+		val saved = projects.save(Project("Paint fence"))
+		val stale = projects.findActiveById(saved.id).shouldNotBeNull()
+		tx.executeWithoutResult { projects.findActiveById(saved.id)!!.status = ProjectStatus.COMPLETED }
+
+		stale.title = "Paint the fence white"
+		shouldThrow<OptimisticLockingFailureException> { projects.save(stale) }
+		projects.findActiveById(saved.id)!!.status shouldBe ProjectStatus.COMPLETED
+	}
+
+	@Test
+	fun `a restored task is back in normal reads and list queries`() {
+		val task = tasks.save(Task("Back from trash", TaskList.NEXT))
+		tx.executeWithoutResult { tasks.findActiveById(task.id)!!.softDelete(clock) }
+		tasks.findByListAndCompletedAtIsNullAndDeletedAtIsNullOrderByPositionAscIdAsc(TaskList.NEXT).shouldContainExactly(emptyList())
+
+		tx.executeWithoutResult { tasks.findById(task.id).orElseThrow().restore() }
+
+		tasks
+			.findActiveById(task.id)
+			.shouldNotBeNull()
+			.deletedAt
+			.shouldBeNull()
+		tasks.findByListAndCompletedAtIsNullAndDeletedAtIsNullOrderByPositionAscIdAsc(TaskList.NEXT).map { it.id } shouldContainExactly
+			listOf(task.id)
+		tasks.findAllDeleted().shouldContainExactly(emptyList())
+	}
+
+	@Test
+	fun `tasks with equal positions keep creation order`() {
+		val first = tasks.save(Task("First", TaskList.SOMEDAY))
+		val second = tasks.save(Task("Second", TaskList.SOMEDAY))
+		val third = tasks.save(Task("Third", TaskList.SOMEDAY))
+
+		tasks.findByListAndCompletedAtIsNullAndDeletedAtIsNullOrderByPositionAscIdAsc(TaskList.SOMEDAY).map { it.id } shouldContainExactly
+			listOf(first.id, second.id, third.id)
+		tasks.findByListAndCompletedAtIsNullAndDeletedAtIsNullOrderByPositionAscIdAsc(TaskList.INBOX).shouldContainExactly(emptyList())
+	}
+
+	@Test
+	fun `an unknown context name is not found`() {
+		contexts.save(Context("@office"))
+
+		contexts.findByNameIgnoreCase("@home").shouldBeNull()
+	}
+
+	@Test
 	fun `list, project and due queries can use the indexes`() {
 		val indexes =
 			jdbc.queryForList(
@@ -311,7 +504,19 @@ class GtdRepositoryTests(
 			)
 
 		indexes.containsAll(
-			listOf("task_open_list", "task_project", "task_due_date", "project_status", "checklist_item_task", "task_context_context"),
+			listOf(
+				"task_open_list",
+				"task_project",
+				"task_due_date",
+				"task_scheduled_date",
+				"task_tickler_date",
+				"task_completed_at",
+				"project_status",
+				"project_area",
+				"project_due_date",
+				"checklist_item_task",
+				"task_context_context",
+			),
 		) shouldBe true
 	}
 }

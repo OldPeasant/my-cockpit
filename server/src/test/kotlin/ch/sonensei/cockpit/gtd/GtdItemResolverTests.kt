@@ -76,6 +76,62 @@ class GtdItemResolverTests(
 	}
 
 	@Test
+	fun `every open task list has a readable subtitle`() {
+		val resolver = registry.find(ItemType.TASK)!!
+		val expected =
+			mapOf(
+				TaskList.INBOX to "Inbox",
+				TaskList.NEXT to "Next",
+				TaskList.WAITING to "Waiting For",
+				TaskList.SOMEDAY to "Someday/Maybe",
+				TaskList.SCHEDULED to "Scheduled",
+			)
+		expected.keys shouldBe TaskList.entries.toSet()
+
+		expected.forEach { (list, label) ->
+			val task = tasks.save(Task("Task on $list", list))
+			resolver.resolve(task.id) shouldBe ResolvedItem("Task on $list", label, "radio_button_unchecked", "/tasks/${task.id}")
+		}
+	}
+
+	@Test
+	fun `every project status has a readable subtitle`() {
+		val resolver = registry.find(ItemType.PROJECT)!!
+		val expected =
+			mapOf(
+				ProjectStatus.ACTIVE to "Active",
+				ProjectStatus.ON_HOLD to "On hold",
+				ProjectStatus.SOMEDAY to "Someday/Maybe",
+				ProjectStatus.COMPLETED to "Completed",
+				ProjectStatus.DROPPED to "Dropped",
+			)
+		expected.keys shouldBe ProjectStatus.entries.toSet()
+
+		expected.forEach { (status, label) ->
+			val project = projects.save(Project("Project $status", status))
+			resolver.resolve(project.id) shouldBe ResolvedItem("Project $status", label, "folder_open", "/projects/${project.id}")
+			resolver.exists(project.id) shouldBe true
+		}
+	}
+
+	@Test
+	fun `a restored task and project resolve again`() {
+		val task = tasks.save(Task("Restored task", TaskList.SOMEDAY))
+		val project = projects.save(Project("Restored project"))
+		tx.executeWithoutResult {
+			tasks.findActiveById(task.id)!!.softDelete(clock)
+			projects.findActiveById(project.id)!!.softDelete(clock)
+		}
+		tx.executeWithoutResult {
+			tasks.findById(task.id).orElseThrow().restore()
+			projects.findById(project.id).orElseThrow().restore()
+		}
+
+		registry.find(ItemType.TASK)!!.resolve(task.id)?.deepLink shouldBe "/tasks/${task.id}"
+		registry.find(ItemType.PROJECT)!!.resolve(project.id)?.deepLink shouldBe "/projects/${project.id}"
+	}
+
+	@Test
 	fun `missing and soft-deleted items do not resolve`() {
 		val task = tasks.save(Task("Trashed task"))
 		val project = projects.save(Project("Trashed project"))
@@ -87,6 +143,7 @@ class GtdItemResolverTests(
 		registry.find(ItemType.TASK)!!.resolve(task.id).shouldBeNull()
 		registry.find(ItemType.TASK)!!.exists(task.id) shouldBe false
 		registry.find(ItemType.PROJECT)!!.resolve(project.id).shouldBeNull()
+		registry.find(ItemType.PROJECT)!!.exists(project.id) shouldBe false
 		registry.find(ItemType.TASK)!!.resolve(UuidV7.generate()).shouldBeNull()
 		registry.find(ItemType.PROJECT)!!.resolve(UuidV7.generate()).shouldBeNull()
 	}
