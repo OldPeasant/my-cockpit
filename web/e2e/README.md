@@ -35,7 +35,7 @@ Specs live in `e2e/<feature>/*.spec.ts`. Import `test` and `expect` from `suppor
 Helpers in `support/api.ts`: `totp(secret, at?)`, `setupAccount`, `loginViaApi`, and the e2e-only server hooks
 `resetStack` (`POST /api/test/reset`: empties the database, resets clock and login lockout) and `setClock`
 (`POST /api/test/clock {now}`: the server clock jumps to `now` and runs on from there). After `setClock`,
-compute TOTP codes for the server's time. A spec that resets the stack removes the shared account: run it
+compute TOTP codes for the server's time; a jump of more than 30 days expires the worker's `loggedIn` session. A spec that resets the stack removes the shared account: run it
 with `test.describe.configure({ mode: 'serial' })` and set up its own account (and, with several workers, don't
 mix it with specs that use `loggedIn`).
 
