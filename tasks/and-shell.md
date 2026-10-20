@@ -18,3 +18,4 @@ App skeleton every feature plugs into, with one placeholder screen per feature p
 
 ## Notes
 - ASSUMPTION (2026-10-20 11:08+0200 by dell26/agent-1): Placeholder screens live in the subpackage the owning feature task touches (Calendar in calendar/agenda, Mail in mail/list, Waiting+Someday in gtd/lists, Bookmarks in a new bookmarks package), so feature tasks replace them without editing the shell; signature <Feature>Screen(modifier).
+- ASSUMPTION (2026-10-20 11:08+0200 by dell26/agent-1): Navigation uses string routes from a CockpitDestination enum (not type-safe @Serializable routes) because no destination takes arguments yet; reselecting More from a More sub-screen returns to the More list instead of restoring it.
