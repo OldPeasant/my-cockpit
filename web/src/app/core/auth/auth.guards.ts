@@ -23,26 +23,44 @@ export function safeReturnUrl(value: string | null | undefined): string {
 export const authGuard: CanActivateFn = async (_route, state): Promise<boolean | UrlTree> => {
   const auth = inject(AuthService);
   const router = inject(Router);
-  if (await auth.setupRequired()) return router.parseUrl(SETUP_PATH);
-  if (await auth.checkSession()) return true;
-  return router.createUrlTree([LOGIN_PATH], { queryParams: { [RETURN_URL_PARAM]: state.url } });
+  const toLogin = router.createUrlTree([LOGIN_PATH], {
+    queryParams: { [RETURN_URL_PARAM]: state.url },
+  });
+  try {
+    if (await auth.setupRequired()) return router.parseUrl(SETUP_PATH);
+    if (await auth.checkSession()) return true;
+  } catch {
+    // Server unreachable or failing (the interceptor already showed a toast): the login page
+    // stays usable and leads back here, instead of a blank page from a rejected navigation.
+  }
+  return toLogin;
 };
 
 /** `/setup`: only reachable while setup is needed. */
 export const setupGuard: CanActivateFn = async (): Promise<boolean | UrlTree> => {
   const auth = inject(AuthService);
   const router = inject(Router);
-  return (await auth.setupRequired()) || router.parseUrl(LOGIN_PATH);
+  try {
+    return (await auth.setupRequired()) || router.parseUrl(LOGIN_PATH);
+  } catch {
+    // Status unknown (server failing, toast shown): show the form; the server answers 409
+    // if setup was already done.
+    return true;
+  }
 };
 
 /** `/login`: setup first while no user exists; a logged-in user goes straight to the return URL. */
 export const loginGuard: CanActivateFn = async (route): Promise<boolean | UrlTree> => {
   const auth = inject(AuthService);
   const router = inject(Router);
-  if (await auth.setupRequired()) return router.parseUrl(SETUP_PATH);
-  // Always ask the server: a 401 elsewhere (expired session) leads here while the cache says yes.
-  if (await auth.checkSession(true)) {
-    return router.parseUrl(safeReturnUrl(route.queryParamMap.get(RETURN_URL_PARAM)));
+  try {
+    if (await auth.setupRequired()) return router.parseUrl(SETUP_PATH);
+    // Always ask the server: a 401 elsewhere (expired session) leads here while the cache says yes.
+    if (await auth.checkSession(true)) {
+      return router.parseUrl(safeReturnUrl(route.queryParamMap.get(RETURN_URL_PARAM)));
+    }
+  } catch {
+    // Server unreachable or failing (toast shown): show the login form rather than a blank page.
   }
   return true;
 };

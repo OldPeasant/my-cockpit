@@ -3,6 +3,7 @@ import { TestBed } from '@angular/core/testing';
 import { provideRouter, Router } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
 import { authGuard, loginGuard, safeReturnUrl, setupGuard } from './auth.guards';
+import { ApiError } from '../http';
 import { AuthService } from './auth.service';
 
 @Component({ template: 'page' })
@@ -11,6 +12,7 @@ class Page {}
 describe('auth guards', () => {
   let setupRequired: boolean;
   let loggedIn: boolean;
+  let setupStatus: ReturnType<typeof vi.fn>;
   let checkSession: ReturnType<typeof vi.fn>;
   let harness: RouterTestingHarness;
   let router: Router;
@@ -19,6 +21,7 @@ describe('auth guards', () => {
     setupRequired = false;
     loggedIn = false;
     checkSession = vi.fn(() => Promise.resolve(loggedIn));
+    setupStatus = vi.fn(() => Promise.resolve(setupRequired));
     TestBed.configureTestingModule({
       providers: [
         provideRouter([
@@ -35,7 +38,7 @@ describe('auth guards', () => {
         ]),
         {
           provide: AuthService,
-          useValue: { setupRequired: () => Promise.resolve(setupRequired), checkSession },
+          useValue: { setupRequired: setupStatus, checkSession },
         },
       ],
     });
@@ -114,6 +117,40 @@ describe('auth guards', () => {
     it('sends to /setup while setup is needed', async () => {
       setupRequired = true;
       await harness.navigateByUrl('/login');
+      expect(router.url).toBe('/setup');
+    });
+  });
+
+  describe('when the server fails (unreachable, 5xx)', () => {
+    const outage = () => Promise.reject(new ApiError(502, 'Bad Gateway'));
+
+    it('authGuard sends to /login with the return URL when /setup/status fails', async () => {
+      setupStatus.mockImplementation(outage);
+      await harness.navigateByUrl('/inbox');
+      expect(router.url).toBe('/login?returnUrl=%2Finbox');
+    });
+
+    it('authGuard sends to /login with the return URL when /me fails', async () => {
+      checkSession.mockImplementation(outage);
+      await harness.navigateByUrl('/inbox');
+      expect(router.url).toBe('/login?returnUrl=%2Finbox');
+    });
+
+    it('loginGuard shows the login page when /setup/status fails', async () => {
+      setupStatus.mockImplementation(outage);
+      await harness.navigateByUrl('/login');
+      expect(router.url).toBe('/login');
+    });
+
+    it('loginGuard shows the login page when /me fails', async () => {
+      checkSession.mockImplementation(outage);
+      await harness.navigateByUrl('/login');
+      expect(router.url).toBe('/login');
+    });
+
+    it('setupGuard shows /setup when the setup status is unknown', async () => {
+      setupStatus.mockImplementation(outage);
+      await harness.navigateByUrl('/setup');
       expect(router.url).toBe('/setup');
     });
   });

@@ -59,8 +59,10 @@
     >
 
     @if (blocked()) {
-      <p class="notice" role="alert" i18n="@@login.backoff">
-        Too many failed attempts. Try again in {{ waitSeconds() }} s.
+      <!-- Only the static sentence is a live region: the countdown must not be re-announced every second. -->
+      <p class="notice backoff">
+        <span role="alert" i18n="@@login.backoff">Too many failed attempts.</span>&ngsp;
+        <span class="wait" i18n="@@login.backoffWait">Try again in {{ waitSeconds() }} s.</span>
       </p>
     } @else if (error()) {
       <p class="notice" role="alert">{{ error() }}</p>

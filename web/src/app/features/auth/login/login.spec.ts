@@ -135,17 +135,23 @@ describe('Login', () => {
     root.querySelector('form')!.dispatchEvent(new Event('submit'));
     await vi.advanceTimersByTimeAsync(0);
     fixture().detectChanges();
+    const notice = () =>
+      root.querySelector('.notice.backoff')?.textContent?.replace(/\s+/g, ' ').trim();
     const alert = () => root.querySelector('[role=alert]')?.textContent?.trim();
     const button = () => root.querySelector<HTMLButtonElement>('button[type=submit]')!;
-    expect(alert()).toBe('Too many failed attempts. Try again in 3 s.');
+    expect(notice()).toBe('Too many failed attempts. Try again in 3 s.');
+    // Only the static sentence is announced; the ticking countdown stays out of the live region.
+    expect(alert()).toBe('Too many failed attempts.');
     expect(button().disabled).toBe(true);
 
     await vi.advanceTimersByTimeAsync(1000);
     fixture().detectChanges();
-    expect(alert()).toBe('Too many failed attempts. Try again in 2 s.');
+    expect(notice()).toBe('Too many failed attempts. Try again in 2 s.');
+    expect(alert()).toBe('Too many failed attempts.');
 
     await vi.advanceTimersByTimeAsync(2000);
     fixture().detectChanges();
+    expect(notice()).toBeUndefined();
     expect(alert()).toBeUndefined();
     expect(button().disabled).toBe(false);
   });
@@ -158,15 +164,16 @@ describe('Login', () => {
     root.querySelector('form')!.dispatchEvent(new Event('submit'));
     await vi.advanceTimersByTimeAsync(0);
     fixture().detectChanges();
-    const alert = () => root.querySelector('[role=alert]')?.textContent?.trim();
-    expect(alert()).toBe('Too many failed attempts. Try again in 60 s.');
+    const notice = () =>
+      root.querySelector('.notice.backoff')?.textContent?.replace(/\s+/g, ' ').trim();
+    expect(notice()).toBe('Too many failed attempts. Try again in 60 s.');
 
     await vi.advanceTimersByTimeAsync(59_000);
     fixture().detectChanges();
-    expect(alert()).toBe('Too many failed attempts. Try again in 1 s.');
+    expect(notice()).toBe('Too many failed attempts. Try again in 1 s.');
     await vi.advanceTimersByTimeAsync(1000);
     fixture().detectChanges();
-    expect(alert()).toBeUndefined();
+    expect(notice()).toBeUndefined();
   });
 
   it('ignores a submit (e.g. Enter) during the backoff and accepts one afterwards', async () => {

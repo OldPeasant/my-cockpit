@@ -269,6 +269,21 @@ describe('Shell', () => {
     expect(TestBed.inject(Router).url).toBe('/login');
   });
 
+  it('does not leave an unhandled rejection when the navigation to the login page fails', async () => {
+    await setup();
+    const logout = vi.spyOn(TestBed.inject(AuthService), 'logout');
+    const navigate = vi
+      .spyOn(TestBed.inject(Router), 'navigateByUrl')
+      .mockRejectedValue(new Error('guard failed'));
+    root.querySelector<HTMLButtonElement>('button.account')!.click();
+    await fixture.whenStable();
+    document.querySelector<HTMLButtonElement>('button.logout')!.click();
+    await fixture.whenStable();
+    await Promise.resolve();
+    expect(navigate).toHaveBeenCalledWith('/login');
+    expect(logout).toHaveBeenCalledTimes(1);
+  });
+
   it('keeps the side navigation open after following a link on wide screens', async () => {
     await setup(false);
     const sidenav: MatSidenav = fixture.debugElement.query(

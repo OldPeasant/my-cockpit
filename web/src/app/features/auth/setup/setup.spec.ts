@@ -136,7 +136,11 @@ describe('Setup', () => {
     await createAccount();
     const createObjectURL = vi.fn<(blob: Blob) => string>(() => 'blob:codes');
     const revokeObjectURL = vi.fn();
+    const original = { createObjectURL: URL.createObjectURL, revokeObjectURL: URL.revokeObjectURL };
     Object.assign(URL, { createObjectURL, revokeObjectURL });
+    onTestFinished(() => {
+      Object.assign(URL, original);
+    });
     const click = vi
       .spyOn(HTMLAnchorElement.prototype, 'click')
       .mockImplementation(() => undefined);
