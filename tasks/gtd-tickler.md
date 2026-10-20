@@ -13,7 +13,8 @@ Ticklers return to the inbox, scheduled tasks become next actions (SPEC.md §5.1
 ## Acceptance criteria
 - [x] Tasks with `ticklerDate` are excluded from all list queries until that date
   - verified (2026-10-20 21:32+0200 by dell26/agent-4): cd server && ./gradlew cleanTest test --tests 'ch.sonensei.cockpit.gtd.*' --tests '*OpenApiContractTest' (Postgres via Testcontainers) -> 225 tests, 0 failures, 0 errors; TicklerWebTests/TicklerEdgeCaseTests: tickler task hidden from every list, context/due/estimate/energy filters, Logbook and paging until its date; listed on the date (inclusive)
-- [ ] Job at 00:05 user-local time (and an on-read check) moves due ticklers to INBOX and due SCHEDULED tasks to NEXT, publishing ChangeEvents
+- [x] Job at 00:05 user-local time (and an on-read check) moves due ticklers to INBOX and due SCHEDULED tasks to NEXT, publishing ChangeEvents
+  - verified (2026-10-20 21:32+0200 by dell26/agent-4): cd server && ./gradlew cleanTest test --tests 'ch.sonensei.cockpit.gtd.*' --tests '*OpenApiContractTest' (Postgres via Testcontainers) -> 225 tests, 0 failures, 0 errors; TicklerJobTests: trigger registered at 00:05 user zone, ticklers->INBOX, SCHEDULED->NEXT with UPDATED ChangeEvents (ApplicationEvents), on-read release on GET /tasks and GET /tasks/{id}, failing run swallowed
 - [ ] `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.gtd.*'` passes (Postgres via Testcontainers where persistence is involved) using the test clock (advance 2 days → task back in inbox)
 
 ## Notes
