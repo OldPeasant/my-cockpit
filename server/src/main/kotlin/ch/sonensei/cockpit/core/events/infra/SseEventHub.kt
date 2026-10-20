@@ -1,6 +1,7 @@
 package ch.sonensei.cockpit.core.events.infra
 
 import ch.sonensei.cockpit.core.events.domain.ChangeEvent
+import ch.sonensei.cockpit.core.events.domain.ClientNotification
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.DisposableBean
 import org.springframework.beans.factory.annotation.Value
@@ -19,6 +20,7 @@ import java.util.concurrent.TimeUnit
  *
  * - [onChange] forwards every [ChangeEvent] after the publishing transaction commits; an event published in a
  *   transaction that rolls back is dropped. An event published outside a transaction is forwarded right away.
+ * - [onNotification] does the same for a [ClientNotification], under its own event name (e.g. `reminder`).
  * - Every [heartbeat] (default 25 s) each client gets a comment line, which keeps proxies from closing an idle
  *   stream and reveals clients that went away.
  * - Every stream ends after [streamTimeout] (default 15 min). EventSource clients reconnect on their own, and each
@@ -69,21 +71,30 @@ class SseEventHub(
 	}
 
 	@TransactionalEventListener(fallbackExecution = true)
-	fun onChange(event: ChangeEvent) {
+	fun onChange(event: ChangeEvent) = broadcast(EVENT_NAME, event)
+
+	/** Forwards a [ClientNotification] as SSE event of its name, after the publishing transaction commits. */
+	@TransactionalEventListener(fallbackExecution = true)
+	fun onNotification(notification: ClientNotification) = broadcast(notification.name, notification.data)
+
+	private fun broadcast(
+		name: String,
+		data: Any,
+	) {
 		try {
 			sender.execute {
 				emitters.forEach { emitter ->
 					trySend(emitter) {
 						SseEmitter
 							.event()
-							.name(EVENT_NAME)
-							.data(event, MediaType.APPLICATION_JSON)
+							.name(name)
+							.data(data, MediaType.APPLICATION_JSON)
 					}
 				}
 			}
 		} catch (e: RejectedExecutionException) {
 			// The hub is shut down (server stopping): the change itself succeeded, so don't fail its publisher.
-			log.debug("Dropping change event, SSE hub is shut down: {}", e.toString())
+			log.debug("Dropping {} event, SSE hub is shut down: {}", name, e.toString())
 		}
 	}
 

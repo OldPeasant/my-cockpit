@@ -4,6 +4,7 @@
 export type { ChangeEvent } from './models/change-event';
 export type { ConfirmTotpRequest } from './models/confirm-totp-request';
 export type { CreateLinkRequest } from './models/create-link-request';
+export type { CreateReminderRequest } from './models/create-reminder-request';
 export type { DeviceResponse } from './models/device-response';
 export type { FieldError } from './models/field-error';
 export type { ItemRefDto } from './models/item-ref-dto';
@@ -16,6 +17,9 @@ export type { OAuthConnectionResponse } from './models/o-auth-connection-respons
 export type { OAuthProviderResponse } from './models/o-auth-provider-response';
 export type { ProblemDetail } from './models/problem-detail';
 export type { RefreshRequest } from './models/refresh-request';
+export type { ReminderItemResponse } from './models/reminder-item-response';
+export type { ReminderListResponse } from './models/reminder-list-response';
+export type { ReminderResponse } from './models/reminder-response';
 export type { SearchGroupResponse } from './models/search-group-response';
 export type { SearchItemResponse } from './models/search-item-response';
 export type { SearchResponse } from './models/search-response';
