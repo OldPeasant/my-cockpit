@@ -11,7 +11,8 @@ lease_until: 2026-10-20T17:27:54Z
 Ctrl+K palette with global search and commands (SPEC.md §4.4).
 
 ## Acceptance criteria
-- [ ] Palette (via `PALETTE_PROVIDERS`) shows grouped search results as you type (debounced, out-of-order safe) and commands (new task, go to …)
+- [x] Palette (via `PALETTE_PROVIDERS`) shows grouped search results as you type (debounced, out-of-order safe) and commands (new task, go to …)
+  - verified (2026-10-20 19:10+0200 by dell26/agent-4): npx ng test --include src/app/features/search (palette with provideSearch shows Task/Note groups as you type, 200ms debounce, older query request cancelled; New task opens CAPTURE_DIALOG; Go to from shell) -> 35 passed; npm run e2e -- e2e/search/search.spec.ts (docker compose e2e stack) -> Task group result and Commands/Go to rows shown, passed
 - [ ] Enter opens the selected result's deep link
 - [ ] Vitest component/service tests cover result grouping, stale response ignored, keyboard navigation; `cd web && npm run check` passes
 - [ ] Playwright `e2e/search/search.spec.ts` passes against the e2e stack (`npm run e2e -- e2e/search/search.spec.ts`, see p0-e2e-harness): search 'passport' finds the task
