@@ -18,3 +18,4 @@ Folders, file metadata and on-disk blobs (SPEC.md §8.2).
 
 ## Notes
 - ASSUMPTION (2026-10-20 15:59+0200 by dell26/agent-5): Deleting a folder trashes its whole subtree with one deletedAt; only trash roots (items whose parent is active) are listed in the Trash; restore brings back items with the same deletedAt, purge removes the whole subtree incl. blobs. Descendants cannot be restored/purged on their own (404).
+- ASSUMPTION (2026-10-20 15:59+0200 by dell26/agent-5): Folder names unique per parent case-insensitively (lower(name)) among non-trashed folders; file names are NOT unique (like Google Drive). Restoring a folder whose name is taken renames it 'Name (2)'.
