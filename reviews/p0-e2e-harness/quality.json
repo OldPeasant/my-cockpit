@@ -1,0 +1,28 @@
+{
+  "schema": 1,
+  "task": "p0-e2e-harness",
+  "reviewed_revision": "872129d01098e2422ebda54eaaeb7dc58434c931",
+  "helpers": {
+    "test-writer": {"status": "completed", "report": "reviews/p0-e2e-harness/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/p0-e2e-harness/review.md"},
+    "fixer": {"status": "completed", "report": "reviews/p0-e2e-harness/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "per-project E2E_IMAGE tag (67a3e21)"},
+    {"id": "CR-2", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "SIGINT/SIGTERM forwarded to the Playwright child, exit 130/143 after teardown (67a3e21)"},
+    {"id": "CR-3", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "e2e:typecheck runs in npm run check (67a3e21)"},
+    {"id": "CR-4", "source": "code-reviewer", "severity": "P3", "disposition": "accepted",
+     "note": "SIGTERM sent only to node during the blocking compose up is handled once the stack is up; Ctrl-C signals the whole process group and the next run starts with down -v, so a leaked stack is cleaned up; optional hardening"},
+    {"id": "TW-1", "source": "test-writer", "severity": "High", "disposition": "fixed",
+     "note": "full server suite hit Postgres 'too many clients'; @DirtiesContext on the task's e2e test contexts (872129d, test files only, reviewed in the third review pass)"}
+  ],
+  "validation": [
+    {"command": "cd web && npm run e2e -- e2e/support/smoke.spec.ts", "result": "pass"},
+    {"command": "cd server && ./gradlew test --tests '*testsupport*'", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
