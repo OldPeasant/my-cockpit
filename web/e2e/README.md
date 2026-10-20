@@ -12,14 +12,16 @@ npm run e2e -- support/smoke.spec.ts            # one spec (any Playwright CLI a
 
 `npm run e2e` (`support/run-e2e.mjs`) builds and starts the stack on a free port of 127.0.0.1 (one compose
 project per clone), waits for `/actuator/health`, runs Playwright (chromium) with `E2E_BASE_URL`, prints the
-server log on failure and tears the stack down with its volumes. Options (environment):
+server log on failure and tears the stack down with its volumes. The server image is tagged per project
+(`localhost/<project>:latest`, kept for the layer cache). SIGINT/SIGTERM stop the Playwright run, tear the stack
+down and exit non-zero (130/143). Options (environment):
 
-| Variable | Effect |
-|---|---|
-| `E2E_COMPOSE` | compose command, default `docker compose` (e.g. `podman-compose`) |
-| `E2E_PORT` | host port of the server instead of a free one |
-| `E2E_KEEP=1` | keep the stack running afterwards (prints the `down` command) |
-| `E2E_BASE_URL` | run against an already running e2e stack, no compose up/down |
+| Variable       | Effect                                                            |
+| -------------- | ----------------------------------------------------------------- |
+| `E2E_COMPOSE`  | compose command, default `docker compose` (e.g. `podman-compose`) |
+| `E2E_PORT`     | host port of the server instead of a free one                     |
+| `E2E_KEEP=1`   | keep the stack running afterwards (prints the `down` command)     |
+| `E2E_BASE_URL` | run against an already running e2e stack, no compose up/down      |
 
 Reports: `test-results/` (traces and screenshots of failures), `playwright-report/` (`npx playwright show-report`).
 
@@ -39,4 +41,5 @@ compute TOTP codes for the server's time; a jump of more than 30 days expires th
 with `test.describe.configure({ mode: 'serial' })` and set up its own account (and, with several workers, don't
 mix it with specs that use `loggedIn`).
 
-Test data is fictitious. `npm run e2e:typecheck` type-checks the suites, `npm run lint` lints them.
+Test data is fictitious. `npm run e2e:typecheck` type-checks the suites, `npm run lint` lints them (both run in
+`npm run check`).

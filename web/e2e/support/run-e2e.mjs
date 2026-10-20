@@ -16,6 +16,18 @@ const webDir = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const composeFile = resolve(webDir, '../deploy/docker-compose.e2e.yml');
 const playwrightArgs = process.argv.slice(2);
 const HEALTH_TIMEOUT_MS = 180_000;
+const SIGNAL_EXIT = { SIGINT: 130, SIGTERM: 143 };
+
+// The signal that interrupted the run (if any) and the running Playwright process, which gets it forwarded:
+// a SIGTERM sent only to this process (e.g. by `timeout`) must stop the tests too, not only Ctrl-C.
+let interrupted = null;
+let playwrightChild = null;
+for (const signal of Object.keys(SIGNAL_EXIT)) {
+  process.on(signal, () => {
+    interrupted ??= signal;
+    playwrightChild?.kill(signal);
+  });
+}
 
 async function main() {
   if (process.env.E2E_BASE_URL) {
@@ -26,7 +38,8 @@ async function main() {
   const project = `cockpit-e2e-${createHash('sha256').update(webDir).digest('hex').slice(0, 8)}`;
   const [composeCmd, ...composeBase] = (process.env.E2E_COMPOSE ?? 'docker compose').split(' ');
   const composeArgs = [...composeBase, '-p', project, '-f', composeFile];
-  const env = { ...process.env, E2E_PORT: port };
+  // Own image tag per project: with a shared tag, another clone's build could replace it between build and run.
+  const env = { ...process.env, E2E_PORT: port, E2E_IMAGE: `localhost/${project}:latest` };
   const compose = (args, options = {}) =>
     spawnSync(composeCmd, [...composeArgs, ...args], { stdio: 'inherit', env, ...options });
   const down = () => {
@@ -37,13 +50,6 @@ async function main() {
     console.log('[e2e] tearing down the stack');
     compose(['down', '-v'], { stdio: ['ignore', 'ignore', 'inherit'] });
   };
-
-  let interrupted = false;
-  for (const signal of ['SIGINT', 'SIGTERM']) {
-    process.on(signal, () => {
-      interrupted = true;
-    });
-  }
 
   const started = Date.now();
   console.log(`[e2e] starting ${project} on port ${port}`);
@@ -56,7 +62,7 @@ async function main() {
   }
   const baseUrl = `http://127.0.0.1:${port}`;
   try {
-    await waitForHealth(baseUrl, () => interrupted);
+    await waitForHealth(baseUrl, () => interrupted !== null);
   } catch (error) {
     console.error(`[e2e] ${error.message}`);
     compose(['logs', '--tail', '200', 'server']);
@@ -67,7 +73,7 @@ async function main() {
   let status = 1;
   try {
     status = await runPlaywright(baseUrl);
-    if (status !== 0) compose(['logs', '--tail', '100', 'server']);
+    if (status !== 0 && !interrupted) compose(['logs', '--tail', '100', 'server']);
   } finally {
     down();
   }
@@ -102,13 +108,21 @@ async function waitForHealth(baseUrl, isInterrupted) {
 
 function runPlaywright(baseUrl) {
   return new Promise((resolveRun) => {
+    if (interrupted) return resolveRun(1);
     const child = spawn('npx', ['playwright', 'test', ...playwrightArgs], {
       cwd: webDir,
       stdio: 'inherit',
       env: { ...process.env, E2E_BASE_URL: baseUrl },
     });
-    child.on('exit', (code) => resolveRun(code ?? 1));
+    playwrightChild = child;
+    child.on('exit', (code) => {
+      playwrightChild = null;
+      resolveRun(code ?? 1);
+    });
   });
 }
 
-process.exitCode = await main();
+const status = await main();
+// An interrupted run never counts as passed, even if the tests had finished.
+process.exitCode = interrupted ? SIGNAL_EXIT[interrupted] : status;
+if (interrupted) console.error(`[e2e] interrupted by ${interrupted}`);

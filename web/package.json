@@ -15,7 +15,7 @@
     "api:check": "node scripts/api-gen-check.mjs",
     "e2e": "node e2e/support/run-e2e.mjs",
     "e2e:typecheck": "tsc -p e2e/tsconfig.json",
-    "check": "npm run api:check && npm run lint && npm run test:ci && ng build"
+    "check": "npm run api:check && npm run lint && npm run e2e:typecheck && npm run test:ci && ng build"
   },
   "private": true,
   "packageManager": "npm@11.19.0",

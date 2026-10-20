@@ -9,7 +9,8 @@ services:
     build:
       context: ..
       dockerfile: Dockerfile
-    image: localhost/cockpit-server:e2e
+    # Per compose project (set by run-e2e.mjs), so parallel clones never run each other's build.
+    image: ${E2E_IMAGE:-localhost/cockpit-server:e2e}
     depends_on:
       postgres:
         condition: service_healthy
