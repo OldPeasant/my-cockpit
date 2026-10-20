@@ -20,6 +20,7 @@ import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc
 import org.springframework.http.HttpHeaders
 import org.springframework.http.MediaType
 import org.springframework.jdbc.core.JdbcTemplate
+import org.springframework.security.test.context.support.WithAnonymousUser
 import org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf
 import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.ResultActionsDsl
@@ -326,6 +327,74 @@ class MailAccountWebTests(
 				status { isOk() }
 				jsonPath("$.roleOverridden") { value(false) }
 			}
+	}
+
+	@Test
+	fun `syncWindowMonths is accepted from 1 to 600 and rejected outside`() {
+		createOk(imapSmtpAccount + ("syncWindowMonths" to 1))["syncWindowMonths"].asInt() shouldBe 1
+		createOk(imapSmtpAccount + mapOf("displayName" to "Long", "syncWindowMonths" to 600))["syncWindowMonths"].asInt() shouldBe 600
+		listOf(0, 601).forEach { months ->
+			create(imapSmtpAccount + ("syncWindowMonths" to months))
+				.andExpect { status { isBadRequest() } }
+				.fields("errors", "field") shouldBe listOf("syncWindowMonths")
+		}
+		val id = createOk()["id"].asString()
+		patch(id, mapOf("syncWindowMonths" to 0)).andExpect { status { isBadRequest() } }
+	}
+
+	@Test
+	fun `a display name is limited to 200 characters`() {
+		createOk(imapSmtpAccount + ("displayName" to "a".repeat(200)))
+		create(imapSmtpAccount + ("displayName" to "a".repeat(201)))
+			.andExpect { status { isBadRequest() } }
+			.fields("errors", "field") shouldBe listOf("displayName")
+	}
+
+	@Test
+	fun `an unknown account answers 404 on every account endpoint`() {
+		val unknown = UuidV7.generate()
+		val base = "${MailAccountController.BASE}/$unknown"
+
+		mockMvc.get(base).andExpect { status { isNotFound() } }
+		patch(unknown, mapOf("displayName" to "Office")).andExpect { status { isNotFound() } }
+		mockMvc
+			.delete(base) {
+				with(csrf())
+				header(HttpHeaders.IF_MATCH, "\"0\"")
+			}.andExpect { status { isNotFound() } }
+		mockMvc.post("$base/test") { with(csrf()) }.andExpect { status { isNotFound() } }
+		mockMvc.post("$base/folders/sync") { with(csrf()) }.andExpect { status { isNotFound() } }
+	}
+
+	@Test
+	fun `a stale folder ETag answers 412 and a missing one 428`() {
+		val accountId = UUID.fromString(createOk()["id"].asString())
+		val folder = folders.save(MailFolder(accountId, "Old", "Old"))
+		val url = "${MailAccountController.BASE}/$accountId/folders/${folder.id}"
+
+		mockMvc
+			.patch(url) {
+				with(csrf())
+				contentType = MediaType.APPLICATION_JSON
+				content = """{"role":"ARCHIVE"}"""
+			}.andExpect { status { isEqualTo(428) } }
+		mockMvc
+			.patch(url) {
+				with(csrf())
+				contentType = MediaType.APPLICATION_JSON
+				content = """{"role":"ARCHIVE"}"""
+				header(HttpHeaders.IF_MATCH, "\"5\"")
+			}.andExpect { status { isEqualTo(412) } }
+		folders.findById(folder.id).get().role shouldBe null
+	}
+
+	@Test
+	@WithAnonymousUser
+	fun `the account API requires login`() {
+		mockMvc.get(MailAccountController.BASE).andExpect { status { isUnauthorized() } }
+		create(imapSmtpAccount).andExpect { status { isUnauthorized() } }
+		mockMvc.post("${MailAccountController.BASE}/${UuidV7.generate()}/test") { with(csrf()) }.andExpect { status { isUnauthorized() } }
+		accounts.count() shouldBe 0
 	}
 
 	@Test
