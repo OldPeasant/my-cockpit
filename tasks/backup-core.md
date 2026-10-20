@@ -1,11 +1,13 @@
 ---
 title: Backup export: zip format and orchestration
-status: in_progress
-owner: R1963MACOS/agent-2
+status: todo
+owner: 
 deps: [p0-settings,p0-items-links,p0-crypto]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/backup,server/src/test/kotlin/ch/sonensei/cockpit/backup]
 prio: 1
-lease_until: 2026-10-20T14:01:51Z
+lease_until: 
+releases: 0
+extended: 
 ---
 ## Goal
 Backup export in format version 1 (SPEC.md §10.2).
@@ -18,3 +20,4 @@ Backup export in format version 1 (SPEC.md §10.2).
 - [ ] API documented: `api/openapi.yaml` regenerated (`UPDATE_OPENAPI=1 ./gradlew test --tests '*OpenApiContractTest'`) and `OpenApiContractTest` passes without the flag
 
 ## Notes
+- release by R1963MACOS/agent-2: handed off by R1963MACOS/agent-2: You've hit your session limit · resets 7:50pm (Europe/Zurich)
