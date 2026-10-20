@@ -11,6 +11,7 @@ import ch.sonensei.cockpit.gtd.domain.TaskList
 import org.springframework.data.jpa.repository.JpaRepository
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor
 import org.springframework.data.jpa.repository.Query
+import java.time.LocalDate
 import java.util.UUID
 
 interface TaskRepository :
@@ -32,6 +33,21 @@ interface TaskRepository :
 	/** The highest position of the tasks without a project in a list (`null` when there are none). */
 	@Query("select max(t.position) from Task t where t.list = :list and t.projectId is null and t.deletedAt is null")
 	fun maxPositionInList(list: TaskList): Int?
+
+	/** Open tasks whose tickler date is [today] or earlier, in the order they were put away. */
+	@Query(
+		"select t from Task t where t.ticklerDate <= :today and t.completedAt is null and t.deletedAt is null " +
+			"order by t.ticklerDate, t.position, t.id",
+	)
+	fun findDueTicklers(today: LocalDate): List<Task>
+
+	/** Open SCHEDULED tasks (not in a tickler) whose scheduled date is [today] or earlier, in date order. */
+	@Query(
+		"select t from Task t where t.list = ch.sonensei.cockpit.gtd.domain.TaskList.SCHEDULED " +
+			"and t.scheduledDate <= :today and t.ticklerDate is null and t.completedAt is null and t.deletedAt is null " +
+			"order by t.scheduledDate, t.position, t.id",
+	)
+	fun findDueScheduled(today: LocalDate): List<Task>
 
 	/** Every task with the context, also done and deleted ones. */
 	@Query("select t from Task t join t.contextIds c where c = :contextId")

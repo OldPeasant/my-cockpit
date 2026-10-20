@@ -56,8 +56,9 @@ class TaskService(
 	private val clock: Clock,
 ) {
 	/**
-	 * One page of tasks matching [filter]. Open tasks are ordered by position, then id; done tasks (the Logbook) by
-	 * completion time, newest first.
+	 * One page of tasks matching [filter], without tasks whose tickler date is still to come (callers run [releaseDue]
+	 * first, so due ticklers and scheduled tasks are on their new lists). Open tasks are ordered by position, then id;
+	 * done tasks (the Logbook) by completion time, newest first.
 	 */
 	@Transactional(readOnly = true)
 	fun list(
@@ -211,6 +212,34 @@ class TaskService(
 		}
 	}
 
+	/**
+	 * Releases what is due today in the user's time zone (SPEC.md §5.1): open tasks whose tickler date has come go back
+	 * to the INBOX (their tickler, scheduled date and waiting-for fields are cleared), then open SCHEDULED tasks whose
+	 * date has come become NEXT actions (their scheduled date is cleared). A scheduled task in a tickler waits for the
+	 * tickler. Each moved task is announced as `UPDATED`. Runs from [ch.sonensei.cockpit.gtd.infra.TicklerJob] and
+	 * before tasks are read, so nothing depends on the job having run.
+	 *
+	 * @return the number of tasks moved
+	 */
+	fun releaseDue(): Int {
+		val today = today()
+		val ticklers = tasks.findDueTicklers(today)
+		ticklers.forEach { task ->
+			task.ticklerDate = null
+			task.scheduledDate = null
+			task.waitingSince = null
+			task.waitingForContactId = null
+			task.waitingForText = null
+			moveTo(task, TaskList.INBOX)
+		}
+		val scheduled = tasks.findDueScheduled(today)
+		scheduled.forEach { task ->
+			task.scheduledDate = null
+			moveTo(task, TaskList.NEXT)
+		}
+		return ticklers.size + scheduled.size
+	}
+
 	/** Moves the task to the Trash. */
 	fun delete(
 		id: UUID,
@@ -265,6 +294,17 @@ class TaskService(
 		val saved = tasks.saveAndFlush(task)
 		changed(saved)
 		return saved
+	}
+
+	/** Puts a task on [list] (at the end of it, unless it is ordered within a project), saves and announces it. */
+	private fun moveTo(
+		task: Task,
+		list: TaskList,
+	) {
+		val moved = task.list != list
+		task.list = list
+		if (moved && task.projectId == null) task.position = nextPosition(task)
+		changed(tasks.saveAndFlush(task))
 	}
 
 	/**
@@ -413,6 +453,9 @@ class TaskService(
 				} else {
 					cb.isNull(root.get<Instant>("completedAt"))
 				}
+			// A task in a tickler is hidden until its date (SPEC.md §5.1).
+			val ticklerDate = root.get<LocalDate>("ticklerDate")
+			predicates += cb.or(cb.isNull(ticklerDate), cb.lessThanOrEqualTo(ticklerDate, today()))
 			filter.list?.let { predicates += cb.equal(root.get<TaskList>("list"), it) }
 			filter.projectId?.let { predicates += cb.equal(root.get<UUID>("projectId"), it) }
 			filter.contextId?.let { predicates += cb.isMember(it, root.get<Collection<UUID>>("contextIds")) }

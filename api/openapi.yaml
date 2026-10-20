@@ -2596,11 +2596,13 @@ paths:
       - Setup
   /api/v1/tasks:
     get:
-      description: "Tasks matching every given filter, not in the Trash. Open tasks\
-        \ (default) are ordered by position, then id; with `completed=true` the done\
-        \ tasks (Logbook) are returned, newest first. `due` is relative to today in\
-        \ the user's time zone: OVERDUE before today, TODAY today, WEEK today and\
-        \ the next 6 days. `maxMinutes` only matches tasks with an estimate."
+      description: "Tasks matching every given filter, not in the Trash and not in\
+        \ a tickler (`ticklerDate` after today). Due ticklers move back to the INBOX\
+        \ and due SCHEDULED tasks to NEXT before the list is read. Open tasks (default)\
+        \ are ordered by position, then id; with `completed=true` the done tasks (Logbook)\
+        \ are returned, newest first. `due` is relative to today in the user's time\
+        \ zone: OVERDUE before today, TODAY today, WEEK today and the next 6 days.\
+        \ `maxMinutes` only matches tasks with an estimate."
       operationId: listTasks
       parameters:
       - description: Only tasks on this list

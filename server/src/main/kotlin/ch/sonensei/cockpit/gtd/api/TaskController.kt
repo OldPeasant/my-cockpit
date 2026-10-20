@@ -11,6 +11,7 @@ import ch.sonensei.cockpit.gtd.domain.TaskChanges
 import ch.sonensei.cockpit.gtd.domain.TaskFilter
 import ch.sonensei.cockpit.gtd.domain.TaskList
 import ch.sonensei.cockpit.gtd.domain.TaskService
+import ch.sonensei.cockpit.gtd.domain.TicklerJob
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.Parameter
 import io.swagger.v3.oas.annotations.headers.Header
@@ -48,6 +49,7 @@ import io.swagger.v3.oas.annotations.parameters.RequestBody as DocumentedBody
 @Tag(name = "Tasks", description = "GTD tasks")
 class TaskController(
 	private val tasks: TaskService,
+	private val tickler: TicklerJob,
 	private val jsonMapper: JsonMapper,
 ) {
 	@GetMapping(produces = [MediaType.APPLICATION_JSON_VALUE])
@@ -55,9 +57,11 @@ class TaskController(
 		operationId = "listTasks",
 		summary = "List tasks",
 		description =
-			"Tasks matching every given filter, not in the Trash. Open tasks (default) are ordered by position, then " +
-				"id; with `completed=true` the done tasks (Logbook) are returned, newest first. `due` is relative to " +
-				"today in the user's time zone: OVERDUE before today, TODAY today, WEEK today and the next 6 days. " +
+			"Tasks matching every given filter, not in the Trash and not in a tickler (`ticklerDate` after today). " +
+				"Due ticklers move back to the INBOX and due SCHEDULED tasks to NEXT before the list is read. " +
+				"Open tasks (default) are ordered by position, then id; with `completed=true` the done tasks (Logbook) " +
+				"are returned, newest first. `due` is relative to today in the user's time zone: OVERDUE before today, " +
+				"TODAY today, WEEK today and the next 6 days. " +
 				"`maxMinutes` only matches tasks with an estimate.",
 	)
 	@ApiResponse(responseCode = "200", description = "One page of tasks")
@@ -97,6 +101,8 @@ class TaskController(
 					?: throw InvalidRequestException("due", "must be one of overdue, today, week")
 			}
 		val filter = TaskFilter(list, projectId, context, energy, creativity, maxMinutes, dueFilter, completed)
+		// The on-read check: what became due since the last tickler run is on its new list (SPEC.md §5.1).
+		tickler.run()
 		val page = tasks.list(filter, CursorRequest.of(cursor, limit))
 		return TaskPageResponse(page.items.map(TaskResponse::of), page.nextCursor)
 	}
@@ -171,7 +177,10 @@ class TaskController(
 	)
 	fun get(
 		@PathVariable id: UUID,
-	): ResponseEntity<TaskResponse> = respond(tasks.get(id))
+	): ResponseEntity<TaskResponse> {
+		tickler.run()
+		return respond(tasks.get(id))
+	}
 
 	@PatchMapping("/{id}", consumes = [MediaType.APPLICATION_JSON_VALUE], produces = [MediaType.APPLICATION_JSON_VALUE, PROBLEM_JSON])
 	@Operation(
