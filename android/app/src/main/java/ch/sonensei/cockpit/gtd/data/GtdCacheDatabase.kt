@@ -73,6 +73,12 @@ data class CacheMetaEntity(
     }
 }
 
+/** The rows of a cached view together with its refresh time, read in one transaction so both belong to the same replace. */
+data class CachedRows<E>(
+    val rows: List<E>,
+    val meta: CacheMetaEntity?,
+)
+
 @Dao
 abstract class GtdCacheDao {
     @Query("SELECT * FROM cached_task WHERE view = :view ORDER BY ordinal")
@@ -86,6 +92,27 @@ abstract class GtdCacheDao {
 
     @Query("SELECT * FROM cache_meta WHERE `key` = :key")
     abstract fun observeMeta(key: String): Flow<CacheMetaEntity?>
+
+    @Transaction
+    open suspend fun taskRows(view: String): CachedRows<CachedTaskEntity> = CachedRows(tasks(view), meta(view))
+
+    @Transaction
+    open suspend fun projectRows(): CachedRows<CachedProjectEntity> = CachedRows(projects(), meta(CacheMetaEntity.PROJECTS))
+
+    @Transaction
+    open suspend fun contextRows(): CachedRows<CachedContextEntity> = CachedRows(contexts(), meta(CacheMetaEntity.CONTEXTS))
+
+    @Query("SELECT * FROM cached_task WHERE view = :view ORDER BY ordinal")
+    protected abstract suspend fun tasks(view: String): List<CachedTaskEntity>
+
+    @Query("SELECT * FROM cached_project ORDER BY ordinal")
+    protected abstract suspend fun projects(): List<CachedProjectEntity>
+
+    @Query("SELECT * FROM cached_context ORDER BY ordinal")
+    protected abstract suspend fun contexts(): List<CachedContextEntity>
+
+    @Query("SELECT * FROM cache_meta WHERE `key` = :key")
+    protected abstract suspend fun meta(key: String): CacheMetaEntity?
 
     /** Replaces everything cached for [view] in one transaction, so readers never see a half-written view. */
     @Transaction

@@ -9,6 +9,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.channelFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.conflate
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import java.time.Clock
 import java.time.Instant
@@ -16,12 +17,14 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
- * Observes [rows] of the cache as [Cached] values and, while observed, reloads the view with [refresh] whenever
- * [triggers] fire. The cache is the single source: a reload replaces it, and the screen sees the new rows from Room.
+ * Observes the cached view as [Cached] values and, while observed, reloads it with [refresh] whenever [triggers] fire.
+ * The cache is the single source: a reload replaces it, and the screen sees the new rows from Room. Every replace and
+ * the logout clear write the view's [meta] row, so on each [meta] change the rows and their refresh time are [read]
+ * again together.
  */
 private fun <E, T> cachedView(
-    rows: Flow<List<E>>,
     meta: Flow<CacheMetaEntity?>,
+    read: suspend () -> CachedRows<E>,
     connectivity: GtdConnectivity,
     triggers: Flow<Unit>,
     refresh: suspend () -> RefreshResult,
@@ -29,8 +32,8 @@ private fun <E, T> cachedView(
 ): Flow<Cached<List<T>>> =
     channelFlow {
         launch { triggers.conflate().collect { refresh() } }
-        combine(rows, meta, connectivity.offline) { entities, m, offline ->
-            Cached(entities.map(toDomain), offline, m?.let { Instant.ofEpochMilli(it.refreshedAtEpochMs) })
+        combine(meta.map { read() }, connectivity.offline) { cached, offline ->
+            Cached(cached.rows.map(toDomain), offline, cached.meta?.let { Instant.ofEpochMilli(it.refreshedAtEpochMs) })
         }.collect { send(it) }
     }
 
@@ -54,8 +57,8 @@ class TaskRepository internal constructor(
     /** The last loaded tasks of [view]; while collected, the view reloads on start and on task changes. */
     fun observe(view: TaskView): Flow<Cached<List<GtdTask>>> =
         cachedView(
-            rows = dao.observeTasks(view.name),
             meta = dao.observeMeta(view.name),
+            read = { dao.taskRows(view.name) },
             connectivity = connectivity,
             triggers = triggers.on(ChangeTypes.TASK),
             refresh = { refresh(view) },
@@ -64,15 +67,17 @@ class TaskRepository internal constructor(
 
     /** Loads [view] from the server and, if that worked, replaces its cached copy. */
     suspend fun refresh(view: TaskView): RefreshResult =
-        connectivity.refreshing {
-            val tasks =
+        connectivity.refreshing(
+            view.name,
+            load = {
                 when (view) {
                     TaskView.INBOX -> load(list = ListListTasks.INBOX)
                     TaskView.NEXT -> load(list = ListListTasks.NEXT)
                     TaskView.TODAY -> (load(due = DueListTasks.OVERDUE) + load(due = DueListTasks.TODAY)).distinctBy { it.id }
                 }
-            dao.replaceTasks(view.name, tasks.mapIndexed { i, task -> task.toEntity(view, i) }, clock.millis())
-        }
+            },
+            store = { tasks -> dao.replaceTasks(view.name, tasks.mapIndexed { i, task -> task.toEntity(view, i) }, clock.millis()) },
+        )
 
     private suspend fun load(
         list: ListListTasks? = null,
@@ -105,8 +110,8 @@ class ProjectRepository internal constructor(
     /** The last loaded projects; while collected, they reload on start and on project or task changes (stalled). */
     fun observe(): Flow<Cached<List<GtdProject>>> =
         cachedView(
-            rows = dao.observeProjects(),
             meta = dao.observeMeta(CacheMetaEntity.PROJECTS),
+            read = dao::projectRows,
             connectivity = connectivity,
             triggers = triggers.on(ChangeTypes.PROJECT, ChangeTypes.TASK),
             refresh = ::refresh,
@@ -114,15 +119,17 @@ class ProjectRepository internal constructor(
         )
 
     suspend fun refresh(): RefreshResult =
-        connectivity.refreshing {
-            val projects =
+        connectivity.refreshing(
+            CacheMetaEntity.PROJECTS,
+            load = {
                 allPages(
                     page = { cursor -> api.listProjects(cursor = cursor, limit = PAGE_SIZE) },
                     items = { it.items },
                     nextCursor = { it.nextCursor },
                 )
-            dao.replaceProjects(projects.mapIndexed { i, project -> project.toEntity(i) }, clock.millis())
-        }
+            },
+            store = { projects -> dao.replaceProjects(projects.mapIndexed { i, project -> project.toEntity(i) }, clock.millis()) },
+        )
 }
 
 /** All contexts in their order. */
@@ -145,8 +152,8 @@ class ContextRepository internal constructor(
     /** The last loaded contexts; while collected, they reload on start and on context changes. */
     fun observe(): Flow<Cached<List<GtdContext>>> =
         cachedView(
-            rows = dao.observeContexts(),
             meta = dao.observeMeta(CacheMetaEntity.CONTEXTS),
+            read = dao::contextRows,
             connectivity = connectivity,
             triggers = triggers.on(ChangeTypes.CONTEXT),
             refresh = ::refresh,
@@ -154,8 +161,9 @@ class ContextRepository internal constructor(
         )
 
     suspend fun refresh(): RefreshResult =
-        connectivity.refreshing {
-            val contexts = body(api.listContexts()).items
-            dao.replaceContexts(contexts.mapIndexed { i, context -> context.toEntity(i) }, clock.millis())
-        }
+        connectivity.refreshing(
+            CacheMetaEntity.CONTEXTS,
+            load = { body(api.listContexts()).items },
+            store = { contexts -> dao.replaceContexts(contexts.mapIndexed { i, context -> context.toEntity(i) }, clock.millis()) },
+        )
 }

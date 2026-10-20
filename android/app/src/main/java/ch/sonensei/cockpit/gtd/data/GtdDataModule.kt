@@ -57,7 +57,7 @@ object GtdDataModule {
     ): SessionCache =
         SessionCache {
             scheduler.cancel()
-            withContext(Dispatchers.IO) { database.clearAllTables() }
-            connectivity.reset()
+            // Excludes cache writes and drops the answers of loads still running, so they cannot refill the cache.
+            connectivity.clearing { withContext(Dispatchers.IO) { database.clearAllTables() } }
         }
 }

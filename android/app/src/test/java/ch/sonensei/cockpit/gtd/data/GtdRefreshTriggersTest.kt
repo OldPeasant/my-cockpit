@@ -54,27 +54,53 @@ class GtdRefreshTriggersTest {
         return calls
     }
 
-    /** How often `triggers.on(types)` fires until the stream has been refused twice after its one connection. */
+    /** How often `triggers.on(types)` fires until the stream has been called [until] times (refused at the end). */
     private suspend fun CoroutineScope.countTriggers(
         vararg types: String,
         calls: AtomicInteger,
+        until: Int = 3,
     ): Int {
         val count = AtomicInteger()
         val job = launch(Dispatchers.Default) { gtd!!.triggers.on(*types).collect { count.incrementAndGet() } }
-        // Two refused reconnects after the first connection: its signals were all delivered by then.
-        withTimeout(5_000) { while (calls.get() < 3) delay(10) }
+        // Two refused reconnects after the last connection: its signals were all delivered by then.
+        withTimeout(5_000) { while (calls.get() < until) delay(10) }
         job.cancel()
         return count.get()
     }
 
     @Test
-    fun `a view reloads at start, on connect and on its own change types only`() =
+    fun `a view reloads at start and on its own change types only`() =
         runBlocking {
             harness()
             val calls = oneConnection(change("CONTEXT") + change("PROJECT") + change("TASK") + change("AREA"))
 
-            // Start + Connected + TASK.
-            assertEquals(3, countTriggers(ChangeTypes.TASK, calls = calls))
+            // Start + TASK; the first connection is covered by the load at start.
+            assertEquals(2, countTriggers(ChangeTypes.TASK, calls = calls))
+        }
+
+    @Test
+    fun `a view reloads after a reconnect, which may have missed changes`() =
+        runBlocking {
+            harness()
+            val calls = AtomicInteger()
+            // Connected (ends), refused, connected again (ends), refused...
+            dispatcher.events = { if (calls.incrementAndGet() in setOf(1, 3)) sse("") else status(503) }
+
+            // Start + Reconnected.
+            assertEquals(2, countTriggers(ChangeTypes.TASK, calls = calls, until = 5))
+        }
+
+    @Test
+    fun `a view still loads at start when the stream cannot connect`() =
+        runBlocking {
+            harness()
+            val calls = AtomicInteger()
+            dispatcher.events = {
+                calls.incrementAndGet()
+                status(503)
+            }
+
+            assertEquals(1, countTriggers(ChangeTypes.TASK, calls = calls))
         }
 
     @Test
@@ -83,8 +109,8 @@ class GtdRefreshTriggersTest {
             harness()
             val calls = oneConnection(change("CONTEXT") + change("PROJECT") + change("TASK"))
 
-            // Start + Connected + PROJECT + TASK, as the Projects view (stalled depends on tasks).
-            assertEquals(4, countTriggers(ChangeTypes.PROJECT, ChangeTypes.TASK, calls = calls))
+            // Start + PROJECT + TASK, as the Projects view (stalled depends on tasks).
+            assertEquals(3, countTriggers(ChangeTypes.PROJECT, ChangeTypes.TASK, calls = calls))
             assertTrue(gtd!!.scheduler.scheduled > 0)
         }
 

@@ -27,8 +27,14 @@ import javax.inject.Singleton
 
 /** What the server's change stream (`GET /api/v1/events`) tells the GTD views. */
 sealed interface ChangeSignal {
-    /** The stream is (again) open; changes made while it was closed are not replayed, so views reload. */
+    /** The stream opened on its first attempt after it started; the views load on start anyway. */
     data object Connected : ChangeSignal
+
+    /**
+     * The stream is open again after a refusal, a drop or the server ending it; changes made meanwhile are not replayed,
+     * so views reload.
+     */
+    data object Reconnected : ChangeSignal
 
     /** An item of [type] (e.g. `TASK`) changed. */
     data class Changed(
@@ -48,6 +54,7 @@ class GtdChangeStream internal constructor(
     scope: CoroutineScope,
     private val ioDispatcher: CoroutineDispatcher,
     private val retryDelaysMs: List<Long>,
+    stopTimeoutMs: Long = STOP_TIMEOUT_MS,
 ) {
     @Inject
     constructor(client: OkHttpClient) : this(
@@ -64,14 +71,15 @@ class GtdChangeStream internal constructor(
 
     val signals: SharedFlow<ChangeSignal> =
         channelFlow { connectLoop() }
-            .shareIn(scope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS))
+            .shareIn(scope, SharingStarted.WhileSubscribed(stopTimeoutMs))
 
     private suspend fun ProducerScope<ChangeSignal>.connectLoop() {
         var failures = 0
+        var first = true
         while (isActive) {
             val ended =
                 try {
-                    readStream()
+                    readStream(if (first) ChangeSignal.Connected else ChangeSignal.Reconnected)
                     true
                 } catch (e: CancellationException) {
                     throw e
@@ -80,13 +88,14 @@ class GtdChangeStream internal constructor(
                     // the exception may carry user data.
                     false
                 }
+            first = false
             failures = if (ended) 0 else failures + 1
             delay(if (ended) retryDelaysMs.first() else retryDelaysMs[minOf(failures, retryDelaysMs.size) - 1])
         }
     }
 
-    /** Reads one connection until the server ends it; throws if it cannot be opened or breaks. */
-    private suspend fun ProducerScope<ChangeSignal>.readStream() {
+    /** Reads one connection (sending [opened] once open) until the server ends it; throws if it cannot be opened or breaks. */
+    private suspend fun ProducerScope<ChangeSignal>.readStream(opened: ChangeSignal) {
         val call =
             streamClient.newCall(
                 Request
@@ -107,7 +116,7 @@ class GtdChangeStream internal constructor(
         try {
             withContext(ioDispatcher) { call.execute() }.use { response ->
                 if (!response.isSuccessful) throw IOException("HTTP ${response.code}")
-                send(ChangeSignal.Connected)
+                send(opened)
                 val source = response.body.source()
                 val parser = SseParser()
                 while (true) {

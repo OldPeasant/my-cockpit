@@ -80,6 +80,9 @@ class RoutingDispatcher : Dispatcher() {
 
     @Volatile var events: () -> MockResponse = { status(503) }
 
+    /** Runs on the server thread after an API call's answer was taken from its queue, e.g. to hold it back. */
+    @Volatile var beforeAnswer: (RecordedRequest) -> Unit = {}
+
     fun enqueue(
         key: String,
         response: MockResponse,
@@ -92,7 +95,9 @@ class RoutingDispatcher : Dispatcher() {
         val path = request.url.encodedPath
         if (path == "/api/v1/events") return events()
         val key = listOfNotNull(path, request.url.queryParameter("list"), request.url.queryParameter("due")?.lowercase()).joinToString("|")
-        return synchronized(routes) { routes[key] }?.poll() ?: status(404)
+        val response = synchronized(routes) { routes[key] }?.poll() ?: status(404)
+        beforeAnswer(request)
+        return response
     }
 }
 
@@ -101,6 +106,7 @@ class GtdHarness(
     val server: MockWebServer,
     val dispatcher: RoutingDispatcher,
     retryDelaysMs: List<Long> = listOf(50L),
+    stopTimeoutMs: Long = GtdChangeStream.STOP_TIMEOUT_MS,
 ) : AutoCloseable {
     private val context: Context = ApplicationProvider.getApplicationContext()
     val database: GtdCacheDatabase =
@@ -114,7 +120,7 @@ class GtdHarness(
     val scheduler = FakeScheduler()
     private val client = OkHttpClient()
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
-    val changes = GtdChangeStream(client, server.url("/").toString(), scope, Dispatchers.IO, retryDelaysMs)
+    val changes = GtdChangeStream(client, server.url("/").toString(), scope, Dispatchers.IO, retryDelaysMs, stopTimeoutMs)
     val triggers = GtdRefreshTriggers(changes, scheduler)
     private val retrofit =
         Retrofit
