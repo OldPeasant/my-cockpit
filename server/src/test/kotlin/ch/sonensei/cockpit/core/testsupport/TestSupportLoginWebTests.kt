@@ -22,6 +22,7 @@ import org.springframework.http.HttpHeaders
 import org.springframework.http.MediaType
 import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf
+import org.springframework.test.annotation.DirtiesContext
 import org.springframework.test.context.ActiveProfiles
 import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.MvcResult
@@ -34,8 +35,10 @@ import java.time.Instant
 /**
  * The e2e hooks against an active account (profile `e2e`): reset with sessions and recovery codes present, the shifted
  * clock driving TOTP, session expiry and the login lockout, and the hooks not opening the rest of the API.
+ * The e2e context is closed afterwards, so it does not hold database connections for the rest of the run.
  */
 @SpringBootTest
+@DirtiesContext
 @AutoConfigureMockMvc
 @ActiveProfiles("e2e")
 class TestSupportLoginWebTests(

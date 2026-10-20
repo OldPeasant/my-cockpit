@@ -20,6 +20,7 @@ import org.springframework.context.ApplicationContext
 import org.springframework.http.MediaType
 import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf
+import org.springframework.test.annotation.DirtiesContext
 import org.springframework.test.context.ActiveProfiles
 import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.get
@@ -30,8 +31,10 @@ import java.time.Instant
 
 /** The e2e hooks `POST /api/test/clock` and `POST /api/test/reset`: present only with profile `e2e`. */
 class TestSupportWebTests {
+	// Closed afterwards (like TestSupportLoginWebTests), so the e2e context does not hold database connections.
 	@Nested
 	@SpringBootTest
+	@DirtiesContext
 	@AutoConfigureMockMvc
 	@ActiveProfiles("e2e")
 	inner class E2eProfile(

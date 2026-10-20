@@ -4,29 +4,45 @@ Date: 2026-10-20
 
 Task: p0-e2e-harness - Playwright e2e harness against the compose stack
 
-Scope: `git diff 0d7d42c..HEAD` (server `core/testsupport` main and test, `deploy/docker-compose.e2e.yml`, `web/playwright.config.ts`, `web/e2e/**`, `web/package.json`, `web/angular.json`, `web/.gitignore`, `docs/ARCHITECTURE.md`, `reviews/p0-e2e-harness/tests.md`). Committed changes only; the worktree was clean.
+Scope: `git diff bdd9ca3d084505a3c0d2a00e2d0155ff56d57cc7..67a3e21` (second pass on the final code). This covers the server `core/testsupport` main and test code, `deploy/docker-compose.e2e.yml`, `web/playwright.config.ts`, `web/e2e/**`, `web/package.json`, `web/angular.json`, `web/.gitignore`, `docs/ARCHITECTURE.md` and the review artifacts. I paid particular attention to fix commit 67a3e21. I reviewed committed changes only and ignored uncommitted test-writer edits in the worktree.
 
 Requirements:
-- `tasks/p0-e2e-harness.md` acceptance criteria and the three recorded assumptions (clock = real time + offset; `/api/test/**` public and CSRF-free in profile `e2e` only; loggedIn fixture with a file lock shared by workers)
-- `SPEC.md` (§4.1 login/TOTP, testing section), `docs/ARCHITECTURE.md` (Testing, profiles, environment variables), `AGENTS.md` project notes
-- Parent instructions (focus: criteria, test-hook security, runner robustness, multi-worker fixtures, conventions)
+- `tasks/p0-e2e-harness.md`: the four acceptance criteria and three recorded assumptions (the clock is real time plus an offset; `/api/test/**` is public and CSRF-free in profile `e2e` only; the loggedIn fixture shares one setup through a file lock)
+- `SPEC.md` §4.1, `docs/ARCHITECTURE.md` (Testing, profiles, environment variables), `AGENTS.md` project notes
+- The earlier review (CR-1..CR-3) and `reviews/p0-e2e-harness/fixes.md`
+- Parent instructions: second pass, focused on the per-project `E2E_IMAGE` tag, signal forwarding in `run-e2e.mjs`, and `e2e:typecheck` in `npm run check`
 
 Git range:
 - Branch: main
-- HEAD: 95c9cb6e706fe1648b0c2e840bd8b8d4be236ec7
-- Base/start: 0d7d42c31558bd84b91a454775bfebb48d2d054f
-- Commits reviewed: 4 (6dd2df7, 64f7e01, 5c3138c, 95c9cb6)
+- HEAD: 67a3e214e437650d65b362380e308eac6cecaeea
+- Base/start: bdd9ca3d084505a3c0d2a00e2d0155ff56d57cc7
+- Commits reviewed: 6 (8dd904f, 146cc20, 89be721, 9d1e346, ac3a929, 67a3e21)
 
-Summary: 0 P0, 0 P1, 0 P2, 3 P3
+Summary: 0 P0, 0 P1, 0 P2, 1 P3
 
-## What I checked
+## Commands run
 
-- AC1: ran `cd web && npm run e2e` (Podman 5.8.9 with the `docker compose` shim to podman-compose 1.6.0). Result: image built from cache, stack healthy after 19 s, 2 passed, stack torn down. Playwright CLI arguments go straight through (`process.argv.slice(2)`), so `npm run e2e -- <spec>` runs one spec. The compose stack uses profile `e2e`, Postgres runs on tmpfs, and the port is published on 127.0.0.1 only.
-- AC2 with several workers (the test-writer could not cover this): ran `npm run e2e -- --workers=3 --fully-parallel --repeat-each=4`. Result: 8 passed using 3 workers. The setup ran once under the mkdir lock and each worker logged in with its own storage state. otplib 13 `generateSync({ epoch })` takes seconds (checked in `node_modules/otplib/dist/class.d.ts`), which matches `api.ts`.
-- AC3: ran `cd server && ./gradlew test --tests '*testsupport*'`. Result: BUILD SUCCESSFUL. Both the controller and the configuration are `@Profile("e2e")`. The tests show that in the default and `dev` profiles there are no beans and the paths are 403 (no CSRF), 401 (no login) or 404 (with login). The public chain only matches `/api/test/**`, and its tests confirm it does not open `/api/v1/**`. The `@Primary` `ShiftableClock` replaces the `ClockConfiguration` clock, which `LoginThrottle`, `LoginService`, `SetupService` and the auditing `DateTimeProvider` use. Sessions are stored in the database (`auth_session`), so truncate ends them. The only other in-memory auth state, `LoginThrottle`, is cleared. No Flyway migration inserts seed data, so truncating every table except `flyway_schema_history` gives a fresh state.
-- AC4: `support/smoke.spec.ts` covers UI login plus the shell, and the `loggedIn` fixture plus the shell. `docs/ARCHITECTURE.md` lists the run time, and `scripts/check.sh` has no e2e step.
-- `npm run e2e:typecheck` passes.
-- Security: no real secrets. The compose values are marked fictitious. `@Hidden` keeps the hooks out of `api/openapi.yaml`. A WARN at startup announces the open hooks. The Secure cookie is turned off only through env in the e2e compose file.
+- `cd web && npm run -s e2e:typecheck`: pass (exit 0)
+- `cd web && node --check e2e/support/run-e2e.mjs`: pass
+- `cd web && npx prettier --check e2e playwright.config.ts package.json`: all files formatted
+- `cd web && npm run e2e` (Podman, `docker compose` shim to podman-compose): pass. The build log shows `COMMIT localhost/cockpit-e2e-72159f73:latest` (the per-project tag from CR-1). The stack was healthy after 77 s (the server jar was rebuilt) and both smoke tests passed: `2 passed (3.2s)`. Afterwards the log shows `[e2e] tearing down the stack`, and the runner exited 0.
+- `cd server && ./gradlew test --tests '*testsupport*'`: could not complete, twice. Both attempts failed inside Gradle's own result handling (`NoSuchFileException .../in-progress-results-generic.bin`, then `EOFException`). `pgrep` showed another Gradle test worker running in this same clone's `server/build` (the concurrent test-writer), so the two runs collided on the results directory. No test assertion failed. Commit 67a3e21 does not touch any server file. The server code is the same code the first pass reviewed and ran successfully (`BUILD SUCCESSFUL`), and I re-read it in full for this pass.
+- `python tasks.py verify p0-e2e-harness` (read-only listing): all four criteria are still unrecorded.
+
+## Earlier findings (first pass)
+
+- **CR-1 (shared e2e image tag): resolved.** `deploy/docker-compose.e2e.yml:13` now uses `image: ${E2E_IMAGE:-localhost/cockpit-server:e2e}`, and `run-e2e.mjs:42` sets `E2E_IMAGE=localhost/<project>:latest` in the env that every compose call uses. My run confirms the per-project tag. When the compose file is used directly, it still falls back to the old tag.
+- **CR-2 (SIGTERM not forwarded to Playwright): resolved for the Playwright phase.** The handlers are now installed at module level (`run-e2e.mjs:23-30`) and forward the signal to `playwrightChild`. They also cover the `E2E_BASE_URL` path. `runPlaywright` does not start Playwright after an interruption (`:111`). The exit status is 130/143 after teardown (`:125-128`). The server-log dump is skipped on interruption (`:76`). The fixer's SIGTERM test (exit 143, stack and Playwright gone) is consistent with the code. A gap remains during the `compose up --build` phase; see CR-4.
+- **CR-3 (no automated type check of e2e suites): resolved.** `web/package.json:62` runs `npm run e2e:typecheck` in `check`, which `scripts/check.sh` (`.taskcheck`) runs. I ran it and it passes.
+
+No regressions found in the fix commit. Other changes in it: the README now documents the per-project tag, the signal behavior and the check, and its table was realigned by prettier (format only).
+
+## Acceptance criteria (code and runs)
+
+- AC1: `npm run e2e` runs `down -v`, then `up -d --build` on the e2e compose file (profile `e2e`, Postgres on tmpfs), then polls `/actuator/health`, runs `npx playwright test` (chromium project only) and finally `down -v`. Arguments pass through with `process.argv.slice(2)`. Confirmed by my run above.
+- AC2: the worker-scoped `account` fixture runs the setup through the API under an mkdir lock (TOTP from otplib `generateSync`) and shares the account through a file. `sessionState` logs in once per worker and stores the storage state. `loggedIn` uses that state. The first pass covered the multi-worker case with a 3-worker run. The fix commit does not change the fixtures.
+- AC3: `TestSupportController` and `TestSupportConfiguration` are both `@Profile("e2e")` and `@Hidden`. The public filter chain matches only `/api/test/**`. Reset truncates every table except `flyway_schema_history`, resets the clock and clears the login throttle. `TestSupportWebTests` / `TestSupportLoginWebTests` cover the endpoints being absent in other profiles. These files are unchanged since the first pass, which ran them successfully. This pass could not re-run them (see Commands run).
+- AC4: `support/smoke.spec.ts` covers a UI login that ends on the shell, and the `loggedIn` fixture opening the shell. Both passed in my run. `docs/ARCHITECTURE.md` records the run time, and `scripts/check.sh` has no e2e step.
 
 ## P0 Critical
 
@@ -42,27 +58,13 @@ None.
 
 ## P3 Low
 
-- [ ] **CR-1 | The e2e server image tag is shared by all clones on a host**
-    - File: `deploy/docker-compose.e2e.yml:12`
-    - Category: Integration
-    - Problem: The runner gives each clone its own compose project (`run-e2e.mjs:564`, "so parallel clones on the same machine get separate stacks"). But every clone builds and runs the same fixed tag, `localhost/cockpit-server:e2e`. With podman-compose, `up -d --build` first runs `podman build -t localhost/cockpit-server:e2e` and then creates the container from the tag. If another clone (the agents share the user's Podman store) finishes its build between those two steps, this clone's stack runs the other clone's server code.
-    - Why it matters: An e2e run can then pass or fail against code from another task. That is wrong evidence for a criterion. The window is small but real with several agents on one machine.
-    - Suggested fix: Make the tag per project, e.g. `image: localhost/cockpit-server:${E2E_IMAGE_TAG:-e2e}`, and set `E2E_IMAGE_TAG` to the project name in `run-e2e.mjs`'s `env`. Optionally remove the image on teardown with `down --rmi local`.
-
-- [ ] **CR-2 | SIGTERM to the runner does not stop the Playwright run**
-    - File: `web/e2e/support/run-e2e.mjs:579-584` (with `runPlaywright`, `:641-649`)
+- [ ] **CR-4 | A SIGTERM sent only to the runner is not handled while the stack is building or starting**
+    - File: `web/e2e/support/run-e2e.mjs:57-58` (with `:44`, `:25-30`)
     - Category: Quality
-    - Problem: The SIGINT/SIGTERM handlers only set `interrupted`. That flag is checked only around `up` and in `waitForHealth`. A SIGTERM sent only to the node process (for example, a runner or `timeout` killing `npm run e2e`) is not passed on to the `npx playwright test` child. Because a handler is installed, node also does not exit. The whole suite keeps running to the end before teardown, and the exit status ignores the interruption. Ctrl-C still works because the terminal signals the whole process group.
-    - Why it matters: A caller that times out and then escalates to SIGKILL leaves the stack running until the next `npm run e2e` in the same clone, which then runs `down -v` first. Interrupting a long future suite does not take effect quickly.
-    - Suggested fix: Keep a reference to the spawned child. In the signal handler, call `child?.kill(signal)` and return a non-zero status when `interrupted` is set.
-
-- [ ] **CR-3 | No automated check type-checks the e2e suites**
-    - File: `web/package.json:16` (with `:17`)
-    - Category: Tests
-    - Problem: `e2e:typecheck` (`tsc -p e2e/tsconfig.json`) only runs by hand. `npm run check` (and so `.taskcheck`) runs lint over `e2e/**`, but lint does not check types. Playwright only transpiles. A type error in `support/fixtures.ts` or `api.ts`, which every later web task uses, then shows up only at e2e run time, or not at all on a branch nobody runs.
-    - Why it matters: The fixtures are a shared contract for all later web tasks. A cheap static check would catch a broken fixture signature in `.taskcheck` without starting the stack.
-    - Suggested fix: Add `npm run e2e:typecheck` to the `check` script. It takes a few seconds and needs no browser or stack.
+    - Problem: `compose up -d --build` runs through `spawnSync`, which blocks Node's event loop. A SIGTERM sent only to the node process during this phase (the same case CR-2 was about, e.g. `timeout npm run e2e`) is not forwarded to the compose process. Because a handler is installed, it also does not end node. The handler runs only after the build and `up` have finished; then `:59` tears the stack down and the runner exits 143. On a cold or changed source, this phase is the longest of the run (77 s in my run, minutes on a cold clone). Ctrl-C is not affected because the terminal signals the whole process group. The README (`web/e2e/README.md:400`) says SIGINT/SIGTERM stop the run, which is true only after `up` has returned.
+    - Why it matters: a caller that sends SIGTERM and escalates to SIGKILL after a grace period (`timeout -k`, an agent runner) kills node before the deferred teardown runs. The started stack then keeps running until the next `npm run e2e` in that clone runs its initial `down -v`.
+    - Suggested fix: run `up` with the async `spawn`, keep the child like `playwrightChild`, and forward the signal to it from the same handler. Or state in the README that a SIGTERM takes effect only once the stack is up. This is optional hardening and does not block the task.
 
 ## Review conclusion
 
-No material issues found. All acceptance criteria are met by the code and by the runs I repeated (e2e default run, 3-worker e2e run, server testsupport tests). The three P3 items are optional hardening. Note: `python tasks.py verify p0-e2e-harness` still shows all four criteria unrecorded. The parent worker must record the evidence before `done`.
+No material issues found. CR-1, CR-2 and CR-3 are resolved, and the fix commit introduces no regressions. My e2e run confirms AC1 and AC4 again, including the new per-project image tag. CR-4 is optional P3 hardening. Before `done`, the parent worker must still record evidence for all four criteria with `tasks.py verify` (none is recorded yet). It should re-run `./gradlew test --tests '*testsupport*'` when no other Gradle run is using this clone's `server/build`, because my two attempts collided with a concurrent run.
