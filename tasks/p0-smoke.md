@@ -17,3 +17,4 @@ Automate SPEC.md §13.2 Phase 0 and write the project README.
 
 ## Notes
 - ASSUMPTION (2026-10-20 18:36+0200 by dell26/agent-1): Phase 0 step 1 is automated against the e2e stack (deploy/docker-compose.e2e.yml: server + Postgres, no Caddy), as the criterion says: the spec checks /actuator/health is UP, not behind the proxy. The Caddy path is covered by step 6 (H, owner's deploy).
+- ASSUMPTION (2026-10-20 18:36+0200 by dell26/agent-1): Phase demo specs (e2e/phase<N>/) run as their own Playwright project 'phase-demos' that every other spec depends on, because they reset the stack, trigger the global login backoff and move the server clock; a failing demo skips the rest (rerun with --no-deps). Edited web/playwright.config.ts outside the task's touches for this.
