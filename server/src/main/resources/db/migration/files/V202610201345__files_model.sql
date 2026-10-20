@@ -1,5 +1,5 @@
 -- Files (web drive, SPEC.md §8.2): a folder tree and file metadata. Blob contents live on disk under
--- ${COCKPIT_DATA_DIR}/blobs/<storage_key> (files.infra.BlobStore). A null parent_id / folder_id is the drive root.
+-- the data directory (COCKPIT_DATA_DIR), blobs/<storage_key> (files.infra.BlobStore). A null parent_id / folder_id is the drive root.
 
 create table folder (
     id         uuid primary key,
