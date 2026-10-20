@@ -11,7 +11,8 @@ lease_until: 2026-10-20T23:25:46Z
 Day/week/month/agenda (SPEC.md §6.3).
 
 ## Acceptance criteria
-- [ ] FullCalendar with week (default), day, month, list views, week start + time zone from settings, calendar visibility toggles with colors
+- [x] FullCalendar with week (default), day, month, list views, week start + time zone from settings, calendar visibility toggles with colors
+  - verified (2026-10-21 01:09+0200 by dell26/agent-4): calendar-view.ts/calendar-store.ts reviewed (review.md final, no findings); calendar-view.spec.ts covers default week, day/month/list views, settings week start + time zone, colored visibility toggles; e2e views.spec.ts checks all 4 views -> pass
 - [ ] Loads occurrences for the visible range (out-of-order safe), live updates via SSE
 - [ ] Vitest component/service tests cover range loading and toggles; `cd web && npm run check` passes
 - [ ] Playwright `e2e/calendar-views/views.spec.ts` passes against the e2e stack (`npm run e2e -- e2e/calendar-views/views.spec.ts`, see p0-e2e-harness): weekly event shows correctly across the DST week
