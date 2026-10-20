@@ -15,7 +15,8 @@ File operations (SPEC.md §8.2).
 ## Acceptance criteria
 - [x] Multipart upload; chunked resumable upload for > 50 MB (`POST /uploads`, `PUT /uploads/{id}/chunks/{n}`, `POST /uploads/{id}/complete` verifies size + sha256); max size from config (default 5 GB)
   - verified (2026-10-20 23:50+0200 by dell26/agent-2): cd server && ./gradlew test --tests 'ch.sonensei.cockpit.files.*' (Testcontainers Postgres) -> 175/175 pass; FilesWebTests multipart + 60 MB chunked + wrong sha256/size, UploadServiceTests size check, FilesMaxSizeWebTests (cockpit.files.max-size=1KB -> 413/400), default 5 GB accepted/6 GB rejected
-- [ ] Download with `Range` support and correct `Content-Disposition` (RFC 6266 filename*); folder download as streamed zip
+- [x] Download with `Range` support and correct `Content-Disposition` (RFC 6266 filename*); folder download as streamed zip
+  - verified (2026-10-20 23:50+0200 by dell26/agent-2): same run -> pass: FilesWebTests 'downloads support Range requests' (206/suffix/416), FilesApiEdgeCaseWebTests partial download + multipart/byteranges + filename* on 206, FilesApiSupportTests RFC 6266 encoding round-trip, 'a folder downloads as a streamed zip' (async, timeout -1)
 - [ ] Rename, move (no cycles), delete (trash), new folder, list folder (cursor), disk usage endpoint
 - [ ] `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.files.*'` passes (Postgres via Testcontainers where persistence is involved) incl. resume after a missing chunk and a 60 MB chunked upload
 - [ ] API documented: `api/openapi.yaml` regenerated (`UPDATE_OPENAPI=1 ./gradlew test --tests '*OpenApiContractTest'`) and `OpenApiContractTest` passes without the flag
