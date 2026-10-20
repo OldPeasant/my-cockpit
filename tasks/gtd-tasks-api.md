@@ -1,11 +1,11 @@
 ---
 title: Tasks API
-status: todo
-owner: 
+status: in_progress
+owner: dell26/agent-5
 deps: [gtd-model,p0-search-core,p0-trash-core,p0-events-sse]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/gtd,server/src/test/kotlin/ch/sonensei/cockpit/gtd,server/src/main/resources/db/migration/gtd]
 prio: 1
-lease_until: 
+lease_until: 2026-10-20T16:04:41Z
 extended: 
 releases: 1
 ---
