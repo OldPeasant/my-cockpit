@@ -451,6 +451,107 @@ describe('LinkedItems', () => {
 
       expect(titles()).toEqual(['Holiday ideas', 'Flight to Lisbon']);
     });
+
+    it('keeps the newer links when an older load of the same item fails last', async () => {
+      await start();
+      const older = expectList(TASK);
+      const reloaded = fixture.componentInstance.panel().reload();
+      await settle();
+
+      expectList(TASK).flush({ items: [link('l1', end('NOTE', NOTE_ID, 'Holiday ideas'))] });
+      await reloaded;
+      await settle();
+      older.flush({ status: 500, title: 'Server error' }, { status: 500, statusText: 'Error' });
+      await settle();
+
+      expect(root.querySelector('.load-error')).toBeNull();
+      expect(titles()).toEqual(['Holiday ideas']);
+    });
+  });
+
+  describe('changing the item', () => {
+    const other: ItemRefDto = { type: 'TASK', id: OTHER_TASK_ID };
+
+    it('clears the action error of the previous item', async () => {
+      await setup([link('l1', end('NOTE', NOTE_ID, 'Holiday ideas'))]);
+      (root.querySelector('button.remove') as HTMLElement).click();
+      await settle();
+      http
+        .expectOne({ method: 'DELETE', url: '/api/v1/links/l1' })
+        .flush({ status: 500, title: 'Server error' }, { status: 500, statusText: 'Error' });
+      await settle();
+      expect(root.querySelector('[role="alert"]')).not.toBeNull();
+
+      fixture.componentInstance.item.set(other);
+      await settle();
+      expectList(other).flush({ items: [] });
+      await settle();
+
+      expect(root.querySelector('[role="alert"]')).toBeNull();
+    });
+
+    it('closes the open search without moving the focus', async () => {
+      await setup([]);
+      await openAndSearch('lis', hits(['EVENT', EVENT_ID, 'Flight to Lisbon']));
+      const outside = document.createElement('button');
+      document.body.appendChild(outside);
+      outside.focus();
+
+      fixture.componentInstance.item.set(other);
+      await settle();
+      expectList(other).flush({ items: [] });
+      await settle();
+
+      expect(root.querySelector('input.query')).toBeNull();
+      expect(document.activeElement).toBe(outside);
+      outside.remove();
+
+      button('Add link').click();
+      await settle();
+      expect((root.querySelector('input.query') as HTMLInputElement).value).toBe('');
+      // The cleared query reaches the search after the debounce, like after Cancel.
+      await tick(LINK_SEARCH_DEBOUNCE_MS + 10);
+      await settle();
+      expect(root.querySelector('[role="option"]')).toBeNull();
+    });
+
+    it('ignores a removal error of the previous item', async () => {
+      await setup([link('l1', end('NOTE', NOTE_ID, 'Holiday ideas'))]);
+      (root.querySelector('button.remove') as HTMLElement).click();
+      await settle();
+      const remove = http.expectOne({ method: 'DELETE', url: '/api/v1/links/l1' });
+
+      fixture.componentInstance.item.set(other);
+      await settle();
+      expectList(other).flush({ items: [link('l2', end('EVENT', EVENT_ID, 'Flight to Lisbon'))] });
+      await settle();
+      remove.flush({ status: 500, title: 'Server error' }, { status: 500, statusText: 'Error' });
+      await settle();
+
+      expect(root.querySelector('[role="alert"]')).toBeNull();
+      expect(titles()).toEqual(['Flight to Lisbon']);
+    });
+
+    it('ignores a linking error of the previous item', async () => {
+      await setup([]);
+      await openAndSearch('lis', hits(['EVENT', EVENT_ID, 'Flight to Lisbon']));
+      (root.querySelector('[role="option"]') as HTMLElement).click();
+      await settle();
+      const create = http.expectOne({ method: 'POST', url: '/api/v1/links' });
+
+      fixture.componentInstance.item.set(other);
+      await settle();
+      expectList(other).flush({ items: [] });
+      await settle();
+      create.flush(
+        { status: 422, title: 'Unprocessable', detail: 'The target item does not exist.' },
+        { status: 422, statusText: 'Unprocessable Entity' },
+      );
+      await settle();
+
+      expect(root.querySelector('[role="alert"]')).toBeNull();
+      expect(root.querySelector('input.query')).toBeNull();
+    });
   });
 
   describe('removing', () => {

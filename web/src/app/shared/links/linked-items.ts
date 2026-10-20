@@ -95,6 +95,11 @@ export class LinkedItems {
   /** Whether a create request is running. */
   protected readonly linking = signal(false);
 
+  /** Counts the loads: only the latest one may apply its result or error. */
+  private loadSeq = 0;
+  /** Counts the item changes: a remove or add that finished for an earlier item is ignored. */
+  private itemSeq = 0;
+
   protected readonly rows = computed<LinkRow[]>(() => {
     return (this.links() ?? []).map((link) => ({ link, other: otherEnd(link) }));
   });
@@ -144,7 +149,13 @@ export class LinkedItems {
   constructor() {
     effect(() => {
       const item = this.item();
-      untracked(() => void this.load(item));
+      untracked(() => {
+        // A new item: drop what belonged to the previous one (no focus move, the user did not act here).
+        this.itemSeq++;
+        this.actionError.set(null);
+        this.resetSearch();
+        void this.load(item);
+      });
     });
   }
 
@@ -168,12 +179,14 @@ export class LinkedItems {
 
   protected async remove(row: LinkRow): Promise<void> {
     const id = row.link.id;
+    const itemSeq = this.itemSeq;
     this.removing.update((ids) => new Set(ids).add(id));
     this.actionError.set(null);
     try {
       await this.service.remove(id);
-      this.dropLink(id);
+      if (itemSeq === this.itemSeq) this.dropLink(id);
     } catch (error) {
+      if (itemSeq !== this.itemSeq) return;
       // Already removed elsewhere: the list just catches up.
       if (error instanceof ApiError && error.status === 404) this.dropLink(id);
       else this.actionError.set(message(error));
@@ -193,9 +206,7 @@ export class LinkedItems {
   }
 
   protected closeSearch(): void {
-    this.adding.set(false);
-    this.query.set('');
-    this.active.set(0);
+    this.resetSearch();
     afterNextRender(() => this.addButton()?.nativeElement.focus(), { injector: this.injector });
   }
 
@@ -238,13 +249,17 @@ export class LinkedItems {
   protected async addLink(hit: SearchItemResponse): Promise<void> {
     if (this.linking()) return;
     const item = this.item();
+    const itemSeq = this.itemSeq;
     this.linking.set(true);
     this.actionError.set(null);
     try {
       const link = await this.service.create(item, hit);
-      if (sameItem(item, this.item())) this.links.update((links) => [...(links ?? []), link]);
+      // After an item change the search is closed already and the link belongs to another item.
+      if (itemSeq !== this.itemSeq) return;
+      this.links.update((links) => [...(links ?? []), link]);
       this.closeSearch();
     } catch (error) {
+      if (itemSeq !== this.itemSeq) return;
       if (error instanceof ApiError && error.status === 409) {
         // Linked meanwhile (another tab or device): show the link that exists.
         this.closeSearch();
@@ -257,14 +272,21 @@ export class LinkedItems {
     }
   }
 
+  private resetSearch(): void {
+    this.adding.set(false);
+    this.query.set('');
+    this.active.set(0);
+  }
+
   private async load(item: ItemRefDto): Promise<void> {
+    const seq = ++this.loadSeq;
     this.loadError.set(null);
     this.links.set(null);
     try {
       const links = await this.service.list(item);
-      if (sameItem(item, this.item())) this.links.set(links);
+      if (seq === this.loadSeq) this.links.set(links);
     } catch (error) {
-      if (sameItem(item, this.item())) this.loadError.set(message(error));
+      if (seq === this.loadSeq) this.loadError.set(message(error));
     }
   }
 
@@ -292,10 +314,6 @@ export class LinkedItems {
 function otherEnd(link: LinkResponse): LinkEndResponse {
   // The direction is relative to the queried item; a create response is seen from its source.
   return link.direction === 'OUTGOING' ? link.target : link.source;
-}
-
-function sameItem(a: ItemRefDto, b: ItemRefDto): boolean {
-  return a.type === b.type && a.id === b.id;
 }
 
 function key(item: ItemRefDto): string {
