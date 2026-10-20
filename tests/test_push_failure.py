@@ -286,6 +286,10 @@ class UsageLimitHandOffRefused(PushRunner):
                       sh(self.clone, "git", "ls-tree", "-r", "--name-only", "HEAD").stdout)
         self.assertNotIn("wip/a", sh(self.tmp, "git", "--git-dir=remote.git", "branch").stdout)
         self.assertEqual(self.sessions(), 1)
+        self.wait_for("limit wait", lambda: "usage limit" in self.log.read_text().split("BLOCKED on a")[1])
+        s = self.status()  # waiting out the usage limit, but still shown as blocked on a
+        self.assertEqual((s["state"], s["task"]), ("blocked", "a"))
+        self.assertIn("workflow scope", s["error"])
 
 
 # FAKE_AGENT's `limit`, but before the usage limit another clone pushes a conflicting notes.txt to main, so the
@@ -349,7 +353,9 @@ class UsageLimitHandOffConflictWipRefused(ConflictLimitRunner):
         log = self.log.read_text()
         self.assertIn("workflow scope", log.split("hand-off FAILED for a")[1].splitlines()[0])  # git's push error
         self.assertNotIn("handed off a", log)
-        self.assertIn("workflow scope", self.status()["error"])  # (state: `limited` while the usage limit lasts)
+        s = self.status()  # waiting out the usage limit, but still shown as blocked on a
+        self.assertEqual((s["state"], s["task"]), ("blocked", "a"))
+        self.assertIn("workflow scope", s["error"])
         a = self.state("a")
         self.assertEqual((a["status"], a["owner"]), ("in_progress", "box/agent-1"))
         self.assertNotIn("handed off by", a["text"])
@@ -359,6 +365,101 @@ class UsageLimitHandOffConflictWipRefused(ConflictLimitRunner):
         self.assertEqual(sh(self.clone, "git", "status", "--porcelain").stdout.strip(), "")  # rebase aborted
         self.assertNotIn("wip/a", sh(self.tmp, "git", "--git-dir=remote.git", "branch").stdout)
         self.assertEqual(self.sessions(), 1)
+
+
+# FAKE_AGENT, but the over-budget review that decides nothing (no "Nearly done" offer) first commits notes.txt
+# while another clone pushes a conflicting notes.txt to main: the runner's force_release() then stops with
+# CONFLICT while catching up (not a push failure)
+CONFLICT_DEF = '''def conflict(tid):
+    with open("notes.txt", "w") as f:
+        f.write("agent version\\n")
+    subprocess.run(["git", "add", "-A"], capture_output=True)
+    subprocess.run(["git", "commit", "-qm", f"notes for {tid}"], capture_output=True)
+    other = os.path.join("..", "..", "other")
+    subprocess.run(["git", "clone", "-q", os.path.join("..", "..", "remote.git"), other], capture_output=True)
+    with open(os.path.join(other, "notes.txt"), "w") as f:
+        f.write("someone else's version\\n")
+    for c in (["add", "-A"], ["-c", "user.name=other", "-c", "user.email=o@t", "commit", "-qm", "other notes"],
+              ["push", "-q", "origin", "HEAD:main"]):
+        subprocess.run(["git", *c], cwd=other, capture_output=True)
+'''
+REVIEW_CONFLICT_AGENT = FAKE_AGENT.replace('if "do NOT continue', CONFLICT_DEF + 'if "do NOT continue', 1).replace(
+    '    result("reviewed")', '    if "Nearly done" not in prompt:\n        conflict(tid)\n    result("reviewed")', 1)
+assert REVIEW_CONFLICT_AGENT.count("conflict(tid)") == 2
+
+
+class ReviewReleaseConflict(PushRunner):
+    """force_release() after a review that decided nothing, when `release` fails with CONFLICT and the remote takes
+    every push: like hand_off(), the work goes to wip/a, the clone is reset to @{u} and the release is redone."""
+    fake_agent, mode, budget = REVIEW_CONFLICT_AGENT, "", 1
+
+    def before_start(self):
+        pass  # the remote takes every push
+
+    def test_conflict_in_force_release_saves_work_to_wip_and_releases(self):
+        self.wait_for("released log", lambda: "released a for another agent" in self.log.read_text(), timeout=120)
+        log = self.log.read_text()
+        self.assertNotIn("release FAILED", log)
+        self.assertNotIn("BLOCKED", log)
+        a = self.state("a")
+        self.assertEqual((a["status"], a["releases"], a["hold"]), ("todo", "1", ""))  # a counted release
+        self.assertIn("review that decided nothing", a["text"])
+        wip = sh(self.tmp, "git", "--git-dir=remote.git", "log", "--format=%s", "wip/a").stdout
+        self.assertIn("notes for a", wip)
+        self.assertIn("work on a", wip)
+        self.assertNotIn("work on a", sh(self.tmp, "git", "--git-dir=remote.git", "log", "--format=%s", "main").stdout)
+
+
+class ReviewReleaseConflictWipRefused(ReviewReleaseConflict):
+    """The same CONFLICT, but the remote refuses the fallback push to wip/a: blocked with git's push error (not
+    the last line of the conflict help), the work stays in the clone."""
+
+    def before_start(self):
+        hook(self.tmp, WORKFLOW_HOOK)  # the other clone's notes.txt passes; the agent's ci.yml commits do not
+
+    def test_conflict_in_force_release_saves_work_to_wip_and_releases(self):
+        self.wait_for("release FAILED log", lambda: "release FAILED for a" in self.log.read_text(), timeout=120)
+        log = self.log.read_text()
+        self.assertIn("workflow scope", log.split("release FAILED for a")[1].splitlines()[0])
+        self.assertNotIn("disagree on design", log)
+        self.assertNotIn("released a for another agent", log)
+        self.assertIn("work on a", sh(self.clone, "git", "log", "--format=%s", "HEAD").stdout)  # not reset away
+        self.assert_blocked_without_new_sessions(4)
+        self.assertNotIn("disagree on design", self.status()["error"])
+
+
+# WORKFLOW_HOOK for main only: wip/<id> and board commits pass, `done` (the work on main) is refused
+MAIN_WORKFLOW_HOOK = WORKFLOW_HOOK.replace('  [ "$new" = "$z" ] && continue\n',
+                                           '  [ "$new" = "$z" ] && continue\n  [ "$ref" = refs/heads/main ] || continue\n', 1)
+assert MAIN_WORKFLOW_HOOK != WORKFLOW_HOOK
+
+
+class DoneRefusedOnlyOnMain(PushRunner):
+    """`done` keeps failing to push, but release would work: after the streak the retry puts the task on hold
+    (a human must fix it) instead of releasing it, so the runner can't claim it again and loop."""
+    mode, budget, retry = "done", 10, 5
+
+    def before_start(self):
+        hook(self.tmp, MAIN_WORKFLOW_HOOK)
+
+    def done_fails_of_a(self):
+        return self.log.read_text().count("done could not push a ")
+
+    def test_done_streak_puts_the_task_on_hold_not_back_on_the_board(self):
+        self.wait_for("a on hold", lambda: self.state("a")["hold"] != "", timeout=180)
+        a = self.state("a")
+        self.assertEqual(a["status"], "todo")
+        self.assertNotEqual(a["owner"], "box/agent-1")  # (field() reads an empty owner: as the next line)
+        self.assertIn("done failed to push 3 sessions in a row", a["hold"])
+        log = self.log.read_text()
+        self.assertIn("put a on hold for a human", log)
+        self.assertNotIn("retrying to release a", log)
+        wip = sh(self.tmp, "git", "--git-dir=remote.git", "ls-tree", "-r", "--name-only", "wip/a").stdout
+        self.assertIn(".github/workflows/ci.yml", wip)  # the work is saved for whoever fixes it
+        time.sleep(10)  # the runner goes on (with b), never back to a
+        self.assertEqual(self.done_fails_of_a(), 3, self.log.read_text())
+        self.assertNotEqual(self.state("a")["hold"], "")
+        self.assertNotEqual(self.state("a")["owner"], "box/agent-1")
 
 
 # Sessions scripted by FAKE_MODE, a comma list, one entry per session (the last one repeats): `release`,
@@ -460,6 +561,29 @@ class TakenAwayWhileBlocked(SeqRunner):
 
 class DroppedWhileBlocked(TakenAwayWhileBlocked):
     how = ("drop", "a", "--note", "not wanted any more", "--force")
+
+
+class TakenAwayWithNothingLeft(SeqRunner):
+    """A human takes the blocked task away and nothing else is ready: the runner waits without a session, and
+    its status no longer shows the old push error."""
+    mode = "release"
+
+    def before_start(self):
+        super().before_start()
+        self.tp("hold", "b", "not now", who="human")
+
+    def test_status_error_is_cleared_when_the_blocked_task_is_taken_away(self):
+        self.wait_for("BLOCKED log", lambda: "BLOCKED on a" in self.log.read_text())
+        self.wait_for("blocked status", lambda: self.status()["state"] == "blocked")
+        self.assertIn("workflow scope", self.status()["error"])
+        sh(self.w, "git", "pull", "-q")
+        self.tp("hold", "a", "a human looks at the token", "--force", who="human")
+        self.wait_for("unblocked log", lambda: "a is no longer ours" in self.log.read_text(), timeout=120)
+        self.wait_for("waiting status", lambda: self.status()["state"] == "waiting")
+        s = self.status()
+        self.assertIsNone(s["task"])
+        self.assertIsNone(s.get("error"))
+        self.assertEqual(self.sessions(), 1)
 
 
 class OldPushFailureIgnored(SeqRunner):
