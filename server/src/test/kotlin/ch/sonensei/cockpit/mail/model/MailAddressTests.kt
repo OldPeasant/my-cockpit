@@ -87,6 +87,13 @@ class MailAddressTests {
 	}
 
 	@Test
+	fun `the mailbox shape is checked per group member and allows an at sign in a quoted local part`() {
+		MailAddress.parseList("Team: <>, Ann <ann@example.com>, @@@;") shouldContainExactly
+			listOf(MailAddress("ann@example.com", "Ann"))
+		MailAddress.parseList("\"a@b\"@example.com") shouldContainExactly listOf(MailAddress("\"a@b\"@example.com"))
+	}
+
+	@Test
 	fun `other malformed entries are kept as the lenient parser read them`() {
 		MailAddress.parseList("Ann <ann@example.com") shouldContainExactly listOf(MailAddress("Ann <ann@example.com"))
 	}
