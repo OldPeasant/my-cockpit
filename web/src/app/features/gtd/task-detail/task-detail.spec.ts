@@ -74,9 +74,12 @@ describe('TaskDetail', () => {
     }
   }
 
+  let host: Host;
+
   async function render(initial: TaskResponse = task()): Promise<void> {
     server = initial;
     const fixture = TestBed.createComponent(Host);
+    host = fixture.componentInstance;
     element = fixture.nativeElement;
     document.body.appendChild(element);
     fixture.detectChanges();
@@ -333,5 +336,360 @@ describe('TaskDetail', () => {
     events.next({ type: 'TASK', id: 't1', op: 'DELETED' } as ChangeEvent);
     await refresh();
     expect(text()).toContain('This task was moved to the Trash.');
+  });
+
+  describe('close', () => {
+    const closeButton = () => field<HTMLButtonElement>('button[aria-label="Close"]');
+
+    afterEach(() => vi.restoreAllMocks());
+
+    it('closes at once without changes', async () => {
+      const confirm = vi.spyOn(window, 'confirm');
+      await render();
+      closeButton().click();
+      expect(confirm).not.toHaveBeenCalled();
+      expect(host.closed).toBe(1);
+    });
+
+    it('asks before dropping unsaved changes and stays when the user cancels', async () => {
+      const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
+      await render();
+      await type('#td-title', 'Half typed');
+      closeButton().click();
+      await refresh();
+      expect(confirm).toHaveBeenCalledWith('Discard your unsaved changes?');
+      expect(host.closed).toBe(0);
+      expect(field<HTMLTextAreaElement>('#td-title').value).toBe('Half typed');
+    });
+
+    it('closes after the user confirms dropping the changes', async () => {
+      vi.spyOn(window, 'confirm').mockReturnValue(true);
+      await render();
+      await type('#td-title', 'Half typed');
+      closeButton().click();
+      expect(host.closed).toBe(1);
+      expect(callsOf(updateTask)).toHaveLength(0);
+    });
+
+    it('goes back from a missing task', async () => {
+      answer = (fn) =>
+        fn === getTask ? Promise.reject(new ApiError(404, 'Not Found')) : undefined;
+      await render();
+      [...element.querySelectorAll('button')].find((b) => b.textContent?.includes('Back'))!.click();
+      expect(host.closed).toBe(1);
+    });
+
+    it('goes back from a task moved to the Trash', async () => {
+      await render();
+      events.next({ type: 'TASK', id: 't1', op: 'DELETED' } as ChangeEvent);
+      await refresh();
+      [...element.querySelectorAll('button')].find((b) => b.textContent?.includes('Back'))!.click();
+      expect(host.closed).toBe(1);
+    });
+  });
+
+  describe('save errors', () => {
+    it('shows a generic API error, keeps the changes and allows another try', async () => {
+      await render();
+      await type('#td-title', 'Keep me');
+      answer = (fn) =>
+        fn === updateTask
+          ? Promise.reject(new ApiError(500, 'Internal Server Error', 'The server failed.'))
+          : undefined;
+
+      await save();
+
+      expect(element.querySelector('.bar [role=alert]')?.textContent).toContain(
+        'The server failed.',
+      );
+      expect(text()).not.toContain(CONFLICT_MESSAGE);
+      expect(field<HTMLTextAreaElement>('#td-title').value).toBe('Keep me');
+      expect(saveButton().disabled).toBe(false);
+      expect(callsOf(getTask)).toHaveLength(1);
+
+      answer = undefined;
+      await save();
+      expect(callsOf(updateTask)).toHaveLength(2);
+      expect(element.querySelector('.bar [role=alert]')).toBeNull();
+      expect(text()).toContain('Saved');
+    });
+
+    it('shows a fallback message for an unexpected error', async () => {
+      await render();
+      await type('#td-title', 'Keep me');
+      answer = (fn) => (fn === updateTask ? Promise.reject(new TypeError('boom')) : undefined);
+      await save();
+      expect(text()).toContain('Something went wrong. Try again.');
+    });
+
+    it('keeps a move that went through when the patch after it fails', async () => {
+      await render();
+      await choose('#td-list', 'WAITING');
+      await type('#td-waiting', 'Bea');
+      answer = (fn) =>
+        fn === updateTask ? Promise.reject(new ApiError(503, 'Service Unavailable')) : undefined;
+
+      await save();
+      expect(text()).toContain('Service Unavailable');
+      expect(callsOf(moveTask)).toHaveLength(1);
+
+      // The retry does not move again and patches the moved version.
+      answer = undefined;
+      await save();
+      expect(callsOf(moveTask)).toHaveLength(1);
+      expect(callsOf(updateTask)[1].params).toMatchObject({
+        'If-Match': '"2"',
+        body: { waitingForText: 'Bea' },
+      });
+    });
+
+    it('shows a server error on the estimate under the estimate field', async () => {
+      await render();
+      await type('#td-estimate', '30');
+      answer = (fn) =>
+        fn === updateTask
+          ? Promise.reject(
+              new ApiError(400, 'Bad Request', undefined, undefined, undefined, [
+                { field: 'timeEstimateMin', message: 'is too large' },
+              ]),
+            )
+          : undefined;
+      await save();
+      expect(field('#td-estimate').getAttribute('aria-invalid')).toBe('true');
+      expect(text()).toContain('is too large');
+
+      // Editing clears the server errors.
+      await type('#td-estimate', '20');
+      expect(text()).not.toContain('is too large');
+    });
+
+    it('on 412 of a move says the task changed elsewhere and reloads it', async () => {
+      await render();
+      await choose('#td-list', 'SOMEDAY');
+      answer = (fn) => {
+        if (fn !== moveTask) return undefined;
+        server = task({ list: 'NEXT', title: 'Moved elsewhere', version: 3 });
+        return Promise.reject(new ApiError(412, 'Precondition Failed'));
+      };
+      await save();
+      expect(text()).toContain(CONFLICT_MESSAGE);
+      expect(callsOf(updateTask)).toHaveLength(0);
+      expect(field<HTMLSelectElement>('#td-list').value).toBe('NEXT');
+      expect(field<HTMLTextAreaElement>('#td-title').value).toBe('Moved elsewhere');
+    });
+  });
+
+  describe('tickler', () => {
+    it('moves the task with its tickler date', async () => {
+      await render();
+      await type('#td-tickler', '2099-03-01');
+      await save();
+      expect(callsOf(moveTask)).toHaveLength(1);
+      expect(callsOf(moveTask)[0].params).toMatchObject({
+        id: 't1',
+        'If-Match': '"1"',
+        body: { list: 'NEXT', ticklerDate: '2099-03-01' },
+      });
+      expect(callsOf(updateTask)).toHaveLength(0);
+    });
+
+    it('refuses a tickler date that is not in the future', async () => {
+      await render();
+      await type('#td-tickler', '2001-01-01');
+      expect(text()).toContain('Pick a date after today.');
+      expect(saveButton().disabled).toBe(true);
+    });
+
+    it('sends the scheduled date together with the list', async () => {
+      await render();
+      await choose('#td-list', 'SCHEDULED');
+      await type('#td-scheduled', '2099-04-02');
+      await save();
+      expect(callsOf(moveTask)[0].params['body']).toEqual({
+        list: 'SCHEDULED',
+        scheduledDate: '2099-04-02',
+      });
+    });
+  });
+
+  describe('loading', () => {
+    it('shows a load failure and loads again on retry', async () => {
+      let fail = true;
+      answer = (fn) =>
+        fn === getTask && fail ? Promise.reject(new ApiError(0, 'Offline')) : undefined;
+      await render();
+      expect(text()).toContain('The task could not be loaded.');
+
+      fail = false;
+      [...element.querySelectorAll('button')]
+        .find((b) => b.textContent?.includes('Try again'))!
+        .click();
+      await refresh();
+      expect(field<HTMLTextAreaElement>('#td-title').value).toBe('Call the plumber');
+    });
+
+    it('ignores a change event of another task', async () => {
+      await render();
+      events.next({ type: 'TASK', id: 'other', op: 'DELETED' } as ChangeEvent);
+      events.next({ type: 'TASK', id: 'other', op: 'UPDATED' } as ChangeEvent);
+      await refresh();
+      expect(callsOf(getTask)).toHaveLength(1);
+      expect(field<HTMLTextAreaElement>('#td-title')).not.toBeNull();
+    });
+
+    it('shows a background reload failure without leaving the form', async () => {
+      await render();
+      answer = (fn) =>
+        fn === getTask ? Promise.reject(new ApiError(503, 'Service Unavailable')) : undefined;
+      events.next({ type: 'TASK', id: 't1', op: 'UPDATED' } as ChangeEvent);
+      await refresh();
+      expect(field<HTMLTextAreaElement>('#td-title').value).toBe('Call the plumber');
+      expect(text()).toContain('Service Unavailable');
+    });
+
+    it('shows only the newest task when the id changes during a load', async () => {
+      let releaseFirst!: () => void;
+      const first = new Promise<void>((resolve) => (releaseFirst = resolve));
+      answer = (fn, params) => {
+        if (fn !== getTask) return undefined;
+        if (params['id'] === 't1') return first.then(() => task({ title: 'Stale first task' }));
+        return Promise.resolve(task({ id: 't2', title: 'Second task' }));
+      };
+      await render();
+      host.id.set('t2');
+      await refresh();
+      expect(field<HTMLTextAreaElement>('#td-title').value).toBe('Second task');
+
+      releaseFirst();
+      await refresh();
+      expect(field<HTMLTextAreaElement>('#td-title').value).toBe('Second task');
+    });
+
+    it('ignores a late load failure of the previous task', async () => {
+      let failFirst!: () => void;
+      const first = new Promise<never>(
+        (_, reject) => (failFirst = () => reject(new ApiError(404, 'Not Found'))),
+      );
+      answer = (fn, params) => {
+        if (fn !== getTask) return undefined;
+        if (params['id'] === 't1') return first;
+        return Promise.resolve(task({ id: 't2', title: 'Second task' }));
+      };
+      await render();
+      host.id.set('t2');
+      await refresh();
+
+      failFirst();
+      await refresh();
+      expect(text()).not.toContain('This task does not exist');
+      expect(field<HTMLTextAreaElement>('#td-title').value).toBe('Second task');
+    });
+  });
+
+  it('keeps the repeat mode when the chosen mode is pressed again', async () => {
+    await render(task({ recurrenceRule: 'FREQ=DAILY', recurrenceMode: 'AFTER_COMPLETION' }));
+    const after = [...element.querySelectorAll<HTMLButtonElement>('app-segmented button')].find(
+      (b) => b.textContent?.includes('After completion'),
+    )!;
+    expect(after.getAttribute('aria-pressed')).toBe('true');
+    after.click();
+    await refresh();
+    expect(after.getAttribute('aria-pressed')).toBe('true');
+    expect(saveButton().disabled).toBe(true);
+  });
+
+  it('removes the recurrence with "none"', async () => {
+    await render(task({ recurrenceRule: 'FREQ=DAILY', recurrenceMode: 'FIXED' }));
+    await choose('#td-repeat', 'none');
+    await save();
+    expect(callsOf(updateTask)[0].params['body']).toEqual({
+      recurrenceRule: null,
+      recurrenceMode: null,
+    });
+  });
+
+  it('edits energy, creativity, estimate, project and due date and saves them', async () => {
+    await render(task({ energy: 'LOW', timeEstimateMin: 15 }));
+    const option = (group: string, label: string) =>
+      [
+        ...element.querySelectorAll<HTMLButtonElement>(
+          `app-segmented [aria-label="${group}"] button`,
+        ),
+      ].find((b) => b.textContent?.trim() === label)!;
+
+    expect(option('Energy', 'Low').getAttribute('aria-pressed')).toBe('true');
+    option('Energy', 'High').click();
+    option('Creativity', 'Creative').click();
+    await refresh();
+    // Choosing a quick pick fills the minutes; pressing it again clears the estimate.
+    option('Time estimate', '1 h').click();
+    await refresh();
+    expect(field('#td-estimate').value).toBe('60');
+    option('Time estimate', '1 h').click();
+    await refresh();
+    expect(field('#td-estimate').value).toBe('');
+    await choose('#td-project', 'p1');
+    await type('#td-due', '2099-05-06');
+    await type('input[type=time]', '07:45');
+
+    await save();
+
+    expect(callsOf(updateTask)[0].params['body']).toEqual({
+      energy: 'HIGH',
+      creativity: 'CREATIVE',
+      timeEstimateMin: null,
+      projectId: 'p1',
+      dueDate: '2099-05-06',
+      dueTime: '07:45',
+    });
+  });
+
+  it('marks a typed estimate that is not whole minutes', async () => {
+    await render();
+    await type('#td-estimate', '1.5');
+    expect(field('#td-estimate').getAttribute('aria-invalid')).toBe('true');
+    expect(saveButton().disabled).toBe(true);
+    // No quick pick is shown as chosen for an invalid value.
+    expect(
+      element.querySelectorAll('app-segmented [aria-label="Time estimate"] [aria-pressed=true]'),
+    ).toHaveLength(0);
+  });
+
+  it('saves with Ctrl+S and not with a plain key', async () => {
+    await render();
+    await type('#td-title', 'Shortcut');
+    field('#td-title').dispatchEvent(new KeyboardEvent('keydown', { key: 's', bubbles: true }));
+    await refresh();
+    expect(callsOf(updateTask)).toHaveLength(0);
+    field('#td-title').dispatchEvent(
+      new KeyboardEvent('keydown', { key: 's', metaKey: true, bubbles: true }),
+    );
+    await refresh();
+    expect(callsOf(updateTask)).toHaveLength(1);
+  });
+
+  it('does not save twice while a save is running', async () => {
+    await render();
+    await type('#td-title', 'Once');
+    let release!: () => void;
+    answer = (fn, params) => {
+      if (fn !== updateTask) return undefined;
+      return new Promise<void>((resolve) => (release = resolve)).then(() => {
+        server = { ...server, ...(params['body'] as object), version: server.version + 1 };
+        return server;
+      });
+    };
+    saveButton().click();
+    await refresh();
+    expect(text()).toContain('Saving…');
+    expect(saveButton().disabled).toBe(true);
+    field('#td-title').dispatchEvent(
+      new KeyboardEvent('keydown', { key: 'Enter', ctrlKey: true, bubbles: true }),
+    );
+    await refresh();
+    expect(callsOf(updateTask)).toHaveLength(1);
+    release();
+    await refresh();
+    expect(text()).toContain('Saved');
   });
 });

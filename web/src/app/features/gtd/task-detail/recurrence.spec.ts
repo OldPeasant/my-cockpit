@@ -50,6 +50,10 @@ describe('recurrenceProblem', () => {
     'FREQ=WEEKLY;UNTIL=20271231',
     'FREQ=WEEKLY;UNTIL=20271231T000000Z;WKST=MO',
     'FREQ=MONTHLY;BYDAY=MO,TU;BYSETPOS=1',
+    'FREQ=MONTHLY;BYDAY=MO,TU;BYSETPOS=-1',
+    'FREQ=YEARLY;BYWEEKNO=1,53',
+    'FREQ=YEARLY;BYWEEKNO=-1',
+    'FREQ=YEARLY;BYYEARDAY=1,366,-366',
   ])('accepts %s', (rule) => {
     expect(recurrenceProblem(rule)).toBeNull();
   });
@@ -68,6 +72,13 @@ describe('recurrenceProblem', () => {
     ['garbage', 'not a valid'],
     ['FREQ=MONTHLY;BYMONTHDAY=32', 'not a valid'],
     ['FREQ=YEARLY;BYMONTH=13', 'not a valid'],
+    ['FREQ=YEARLY;BYWEEKNO=54', 'not a valid'],
+    ['FREQ=YEARLY;BYWEEKNO=0', 'not a valid'],
+    ['FREQ=YEARLY;BYYEARDAY=367', 'not a valid'],
+    ['FREQ=MONTHLY;BYDAY=MO;BYSETPOS=1,', 'not a valid'],
+    ['FREQ=DAILY;BYMONTHDAY=', 'not a valid'],
+    ['FREQ=WEEKLY;WKST=XX', 'not a valid'],
+    ['FREQ=WEEKLY;UNTIL=2027-12-31', 'not a valid'],
   ])('rejects %s', (rule, message) => {
     expect(recurrenceProblem(rule)).toContain(message);
   });
