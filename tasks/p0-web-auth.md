@@ -5,7 +5,7 @@ owner: dell26/agent-2
 deps: [p0-web-shell,p0-auth-login]
 touches: [web/src/app/features/auth,web/src/app/core/auth,web/src/app/app.routes.ts]
 prio: 1
-lease_until: 2026-10-20T11:54:13Z
+lease_until: 2026-10-20T11:59:19Z
 ---
 ## Goal
 Setup wizard and login UI (SPEC.md §4.1).
