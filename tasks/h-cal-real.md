@@ -9,9 +9,9 @@ hold: HUMAN TASK for the owner: deploy phase 4, connect real calendars
 prio: 2
 ---
 ## Goal
-Owner verifies two-way sync with real Google and Microsoft calendars.
+Owner verifies two-way sync with a real Google calendar (Microsoft: h-ms-real).
 
 ## Acceptance criteria
-- [ ] Event created in the cockpit appears in Google within seconds; a Google change appears in ≤ 5 min; same for Microsoft
+- [ ] Event created in the cockpit appears in Google within seconds; a Google change appears in ≤ 5 min
 
 ## Notes
