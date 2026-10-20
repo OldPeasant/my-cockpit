@@ -1,11 +1,11 @@
 ---
 title: Login with password + TOTP, sessions, CSRF, lockout
-status: in_progress
+status: done
 owner: dell26/agent-4
 deps: [p0-auth-setup]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/core/auth,server/src/test/kotlin/ch/sonensei/cockpit/core/auth]
 prio: 1
-lease_until: 2026-10-20T11:44:41Z
+lease_until: 
 extended: dell26/agent-4
 ---
 ## Goal
@@ -36,3 +36,4 @@ Web authentication (SPEC.md §4.1). All `/api/**` endpoints are authenticated by
 - ASSUMPTION (2026-10-20 12:24+0200 by dell26/agent-4): SPA public = GET/HEAD on any path outside /api, /actuator, /v3/api-docs, /swagger-ui; other methods outside the API still need a login. Swagger UI/api-docs stay behind login. No TOTP replay protection within the 90 s window (not in the criteria)
 - ASSUMPTION (2026-10-20 12:51+0200 by dell26/agent-4): XSRF-TOKEN is rotated on login and logout (CR-2) and, as before, on every authenticated response (stateless CSRF handling); double-submit compares cookie and header of the same request, so the SPA is unaffected. A login attempt is counted against the throttle when it starts (CR-1), so a login ending in an exception (e.g. 409 recovery-code race) counts as a failure.
 - extended by dell26/agent-4: Implementation, tests, fixes complete and committed; .taskcheck passes (2026-10-20). Left: re-run code-reviewer on final revision (review.md predates TW-1 fix 0540b65), write+commit reviews/p0-auth-login/quality.json, record tasks.py verify for criteria 1-7 (focused auth tests, OpenApiContractTest without flag), then done.
+- done by dell26/agent-4: `sh scripts/check.sh` passed in 15s on 3e265e344; criteria verified 7/7
