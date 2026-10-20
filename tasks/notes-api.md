@@ -1,10 +1,11 @@
 ---
 title: Notes API
-status: todo
-owner:
+status: in_progress
+owner: dell26/agent-3
 deps: [files-api,p0-search-core,p0-trash-core,p0-events-sse,runner-version-skew]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/notes,server/src/test/kotlin/ch/sonensei/cockpit/notes,server/src/main/resources/db/migration/notes]
 prio: 1
+lease_until: 2026-10-20T23:18:09Z
 ---
 ## Goal
 Markdown notes with images, tags, pins and history (SPEC.md §8.1).
