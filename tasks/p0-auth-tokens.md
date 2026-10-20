@@ -1,10 +1,11 @@
 ---
 title: Device tokens for the Android app
-status: todo
-owner:
+status: in_progress
+owner: dell26/agent-5
 deps: [p0-auth-login]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/core/auth,server/src/test/kotlin/ch/sonensei/cockpit/core/auth]
 prio: 1
+lease_until: 2026-10-20T12:25:06Z
 ---
 ## Goal
 Bearer-token authentication for the Android client with device management (SPEC.md §4.1).
