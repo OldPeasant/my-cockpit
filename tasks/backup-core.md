@@ -13,7 +13,8 @@ extended:
 Backup export in format version 1 (SPEC.md §10.2).
 
 ## Acceptance criteria
-- [ ] `BackupContributor` interface (export canonical JSON/JSONL, readable mirrors, import) with ordering; `BackupFixture` interface for tests
+- [x] `BackupContributor` interface (export canonical JSON/JSONL, readable mirrors, import) with ordering; `BackupFixture` interface for tests
+  - verified (2026-10-20 22:22+0200 by dell26/agent-5): backup/domain/BackupContributor.kt (export/readable/import + ordering) and test BackupFixture.kt; cd server && ./gradlew test --rerun --tests 'ch.sonensei.cockpit.backup.*' --tests '*OpenApiContractTest' (Testcontainers Postgres, squashed on main 0dddb664) -> BackupContributorRegistryTests 6/6 pass
 - [ ] `POST /api/v1/backup` starts an async job (progress via SSE), `GET /api/v1/backup/{id}/download` streams the zip: README.md, manifest.json (formatVersion, appVersion, createdAt, counts, sha256 per file), data/, files/, readable/
 - [ ] `BackupRoundTripTest` harness: seeds all `BackupFixture`s, exports, wipes DB + data dir, imports, deep-compares canonical JSON and file hashes
 - [ ] `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.backup.*'` passes (Postgres via Testcontainers where persistence is involved)
