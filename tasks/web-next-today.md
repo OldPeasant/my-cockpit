@@ -5,7 +5,7 @@ owner: dell26/agent-4
 deps: [web-gtd-data]
 touches: [web/src/app/features/gtd/next,web/src/app/features/gtd/today]
 prio: 1
-lease_until: 2026-10-20T22:25:12Z
+lease_until: 2026-10-20T22:30:17Z
 extended: dell26/agent-4
 ---
 ## Goal
