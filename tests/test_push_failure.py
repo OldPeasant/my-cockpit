@@ -408,6 +408,37 @@ class ReviewHoldRefused(PushRunner):
         self.assertIn(".github/workflows/ci.yml", wip)  # the work is saved for whoever fixes it
 
 
+# FAKE_AGENT, but every over-budget review tries to finish the task with `done`
+REVIEW_DONE_AGENT = FAKE_AGENT.replace('''    if "Nearly done" in prompt:
+        tp("extend", tid, "--note", "almost there")
+''', '''    tp("done", tid, "--force")
+''', 1)
+assert REVIEW_DONE_AGENT != FAKE_AGENT
+
+
+class ReviewDoneRefused(PushRunner):
+    """The agent runs `done` in its over-budget review and the remote refuses the push. Unlike a refused
+    release/hold (ReviewHoldRefused), the task was not given up: the runner still runs its own release over it
+    (refused too: blocked at once, retry = release) and counts the `done` failure in the streak."""
+    fake_agent, mode, budget, retry = REVIEW_DONE_AGENT, "", 1, 5
+
+    def test_refused_done_in_a_review_still_force_releases_and_blocks(self):
+        # claim + work (ci.yml), then the review: done -> refused, force_release -> refused
+        self.wait_for("BLOCKED log", lambda: "BLOCKED on a" in self.log.read_text(), timeout=120)
+        self.assert_blocked_without_new_sessions(2)  # blocked after the first review, not after 3 more reviews
+        log = self.log.read_text()
+        self.assertIn("release FAILED for a", log)  # the runner's own release ran (and was refused)
+        self.assertIn("done could not push a (1/3 sessions in a row)", log)  # read before the release's failure
+        self.assertNotIn("(2/3 sessions in a row)", log)
+        self.assertNotIn("released a for another agent", log)
+        self.assertEqual(self.state("a")["hold"], "")
+        # the block's retry is the runner's release, not a hold (one done failure is no streak yet)
+        self.wait_for("a release retry", lambda: "retrying to release a" in self.log.read_text(), timeout=30)
+        log = self.log.read_text()
+        self.assertNotIn("retrying to put a on hold", log)
+        self.assertEqual(self.sessions(), 2, log)
+
+
 # FAKE_AGENT, but the over-budget review that decides nothing (no "Nearly done" offer) first commits notes.txt
 # while another clone pushes a conflicting notes.txt to main: the runner's force_release() then stops with
 # CONFLICT while catching up (not a push failure)
