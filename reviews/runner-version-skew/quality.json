@@ -1,0 +1,19 @@
+{
+  "schema": 1,
+  "task": "runner-version-skew",
+  "reviewed_revision": "106f3253ecdcfd0cf9612e67ad166d2ea2361857",
+  "helpers": {
+    "test-writer": {"status": "completed", "report": "reviews/runner-version-skew/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/runner-version-skew/review.md"},
+    "fixer": {"status": "completed", "report": "reviews/runner-version-skew/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "GitHub ruleset rejections (GH013, push declined) now count as refusals"}
+  ],
+  "validation": [
+    {"command": "python -m unittest tests.<module> for each tests/test_*.py (117 tests)", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
