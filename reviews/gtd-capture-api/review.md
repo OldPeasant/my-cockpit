@@ -2,30 +2,38 @@
 
 Date: 2026-10-20
 
-Task: gtd-capture-api - Quick capture endpoint and syntax parser
+Task: gtd-capture-api - Quick capture endpoint and syntax parser (re-review of the final code)
 
-Scope: task commits 3c67be38 (code + tests) and 67fef4a0 (regenerated OpenAPI contract and web client) on top of base b657f97a (`git diff b657f97a..67fef4a0`), committed changes only
+Scope: all task commits f36994ac..ef78f079 (f36994ac, 683024fc, a7488dc4, b130fb98, 19c0d41e, ef78f079), merged at HEAD 25d551a6; `git diff 08890ec1..HEAD`, committed changes only. The untracked test file the concurrent test-writer is adding (`CaptureSideEffectWebTests.kt`) is not part of this review.
 
 Requirements:
-- tasks/gtd-capture-api.md acceptance criteria and the four recorded assumptions in its Notes
+- tasks/gtd-capture-api.md acceptance criteria #1-#5 and the five recorded assumptions in its Notes
 - SPEC.md §4.2 (UUIDv7, ETag, Problem Details), §4.3 (links), §4.5 (quick capture), §5.4 (API sketch), §9.3 (offline capture)
-- AGENTS.md project notes (module boundaries, generated files, conventions)
-- Existing conventions in TaskController/TaskService (idempotent create, race handling), LinkService, FileItemResolver
+- AGENTS.md project notes (module boundaries, generated files, logging), docs/ARCHITECTURE.md conventions
+- Prior review (CR-1..CR-5) and reviews/gtd-capture-api/fixes.md
 
 Git range:
 - Branch: main
-- HEAD: 67fef4a0
-- Base/start: b657f97aef465ebcbcb633b105ee58e0635f4200
-- Commits reviewed: 2
+- HEAD: 25d551a6
+- Base/start: 08890ec1b5dfe3cea622bac699bfad9e8647d282
+- Commits reviewed: 6 task commits (plus the merge commit 25d551a6)
 
-Summary: 0 P0, 0 P1, 3 P2, 2 P3
+Summary: 0 P0, 0 P1, 0 P2, 2 P3
 
-Criteria check (from the code; no evidence recorded yet in `tasks.py verify`, that is the parent's step):
-- #1 met in code: `POST /api/v1/capture` creates INBOX (WAITING with `^`), 201 + ETag + Location; repeated id returns 200 with the existing task, no duplicate, no re-linking of files; trashed id gives 409; non-UUIDv7 id gives 400 (via `TaskService.create`). Tested in CaptureWebTests.
-- #2 met in code: `CaptureParser` is a pure object, unit-tested; `#project` case-insensitive, unknown kept as text; `@context`; `!today|!tomorrow|!YYYY-MM-DD`; `^waiting`; `/capture/preview` returns the parse result read-only.
-- #3 met in code: file ids are de-duplicated, validated against the FILE resolver (unknown/trashed -> 400 `fileIds`) and linked through `LinkService.create` in the same transaction.
-- #5: `api/openapi.yaml` and `web/src/app/api/generated/` contain both operations and the new schemas; consistent with the DTOs.
-- Module boundaries respected: gtd uses only core `LinkService`/`ItemResolverRegistry`, not the files module. One transaction per capture; preview and the race fallback are read-only. Authentication required (test present).
+## Resolution of the prior findings
+
+- CR-1 (body lines rewritten): resolved. `splitLines` keeps the lines after the title verbatim (only leading/trailing blank lines dropped, CRLF to LF); `normalizeLine` runs on the title line only, in both `parse` and `plain` (`CaptureParser.kt:105-148`). Covered by `body lines keep their indentation, tabs and inner blank lines`, `plain splits lines but never parses and keeps the body verbatim` and the web test `body lines are stored verbatim, with and without parsing`.
+- CR-2 (tokens parsed in the body): resolved. `TOKEN.replace` runs only on the title line (`CaptureParser.kt:75-77`); a title line of only recognized tokens takes the next line, unparsed, as the title. KDoc, the `CapturePreviewResponse` schema, `api/openapi.yaml` and the generated web model all say "Only the title line ... is parsed" (19c0d41e). Covered by parser and web tests, including `a later line never sets project, contexts, due date or waiting, even when the title line has none`.
+- CR-3 (concurrent duplicate id untested): resolved. `a concurrent capture with the same id returns 200 with the winner's task and links no files again` (CaptureWebTests.kt:230) forces the race with a held transaction and asserts 200, one task row and one file link; fixes.md records a mutation check showing the test reaches the fallback branch.
+- CR-4 (trailing punctuation removed): resolved. A recognized token is replaced by its trailing punctuation or by the whitespace before it (`CaptureParser.kt:96-102`). Covered by `trailing punctuation is not part of a token and stays in the title` and `several trailing punctuation marks are stripped from the value and stay in the title`.
+- CR-5 (relative dates in offline captures): accepted as an assumption (tasks/gtd-capture-api.md Notes, 22:05 entry), no code change; the parent decided this. Not reported again.
+
+Criteria check, from the code (no evidence is recorded in `tasks.py verify` yet; the parent still has to record it):
+- #1 met in code: 201 + ETag + Location for a new capture to INBOX (WAITING with `^`); a repeated id returns 200 with the existing task, unchanged, without linking files again, also in the race path; trashed id 409; non-UUIDv7 id 400 through `TaskService.create`. Tests in CaptureWebTests and CaptureEdgeCaseWebTests.
+- #2 met in code: `CaptureParser` is a pure `object` with no I/O, `today` and the candidates are passed in; tested by CaptureParserTests and CaptureParserEdgeCaseTests; `/capture/preview` is read-only and returns the parse result.
+- #3 met in code: file ids are de-duplicated, checked against the FILE resolver (unknown or trashed gives 400 `fileIds`) and linked through core `LinkService.create` in the capture transaction.
+- #4 / #5: not executed by this reviewer (a test-writer is running in the same clone); the parent must run and record them. The contract in `api/openapi.yaml` and `web/src/app/api/generated/` matches the DTOs, including the 19c0d41e description change.
+- Architecture: gtd depends only on core `LinkService`/`ItemResolverRegistry`/`SettingsService`, not on the files module; one repository method added in `gtd.infra`; no migration needed; no logging of capture text or notes; Problem Details through the existing `InvalidRequestException`/`ConflictException`.
 
 ## P0 Critical
 
@@ -37,43 +45,24 @@ None.
 
 ## P2 Medium
 
-- [ ] **CR-1 | Body lines of the captured text are rewritten: indentation stripped and whitespace collapsed, also with `parse: false`**
-    - File: `server/src/main/kotlin/ch/sonensei/cockpit/gtd/domain/CaptureParser.kt:115`
-    - Category: Correctness
-    - Problem: `splitTitle` runs `replace(Regex("[ \t]+"), " ").trim()` on every line, not just the title line, and the result of the remaining lines becomes `extraNotes`, which is put in front of the Markdown `notesMd`. `plain()` (used for `parse: false`) uses the same function. A shared text such as `"Title\n    code block\n  - nested item\nA\tB"` ends up in the notes as `"code block\n- nested item\nA B"`.
-    - Why it matters: The recorded assumption says the rest of the text goes into the notes "so long shared text is not lost". Android share and offline capture (§4.5, §9.3) send long shared text through this path. Markdown indentation (code blocks, nested lists) and tabs are silently changed in stored user content, and `parse: false` ("keeps the text as it is") does not keep it.
-    - Suggested fix: Normalize whitespace only on the title line. Keep the remaining lines verbatim, at most dropping leading/trailing blank lines. Add a test with indented and tab-containing body lines for both `parse` and `plain`.
-
-- [ ] **CR-2 | Capture tokens are interpreted and removed in the body lines (notes), not only in the title line**
-    - File: `server/src/main/kotlin/ch/sonensei/cockpit/gtd/domain/CaptureParser.kt:71`
-    - Category: Correctness
-    - Problem: `TOKEN.replace(text)` runs over the whole multi-line text before it is split into title and notes. The lookbehind `\s` also matches a newline. In the rest of the text, any `^word` after whitespace moves the task to WAITING and sets `waitingFor`, `!today`/`!2026-..` sets the due date, and `@ctx`/`#project` tokens that name existing items are removed. Example: `"Read article\nsee footnote ^1 and ask @home"` gives a WAITING task with waitingFor `"1"`, and `@home` is stripped from the notes. Neither the task's assumptions nor the KDoc of `ParsedCapture` ("title is the first line of the text without the recognized tokens, extraNotes the rest of the text") say that tokens in the body count. No test covers a token on a later line.
-    - Why it matters: Shared web or email text often contains `@name`, `#tag`, `^` or `!` sequences. With `parse` defaulting to true, such a capture can land on the wrong list with a wrong due date, and its notes lose text. The user does not see this, because only the title line is visible in the capture field.
-    - Suggested fix: Parse tokens only in the first non-blank line, and pass the remaining lines through unchanged. If body parsing is intended, record it as an assumption, make sure the notes keep the text, and add tests either way.
-
-- [ ] **CR-3 | The concurrent duplicate-id path of `POST /capture` is untested**
-    - File: `server/src/main/kotlin/ch/sonensei/cockpit/gtd/api/CaptureController.kt:66`
-    - Category: Tests
-    - Problem: The `catch (DataIntegrityViolationException)` branch, which answers a racing repeat of the same client id through `captures.existing(id)`, has no test. CaptureWebTests only covers sequential repeats, which return early through `existingCreate`. The same branch in TaskController is also untested, so nothing covers this behavior.
-    - Why it matters: SPEC.md §9.3 makes capture the target of a WorkManager retry queue. A retry while the first request is still running is the realistic case where idempotency can break, and the result would be a 500 or a duplicate instead of 200.
-    - Suggested fix: Add a Testcontainers test that sends two captures with the same UUIDv7 in parallel (for example two threads and a latch, or by calling the service from two transactions). Assert one 201, one 200 with the same task, one task row, and file links only once.
+None.
 
 ## P3 Low
 
-- [ ] **CR-4 | Trailing punctuation is removed together with a recognized token**
-    - File: `server/src/main/kotlin/ch/sonensei/cockpit/gtd/domain/CaptureParser.kt:89`
+- [ ] **CR-6 | A `null` element in `fileIds` gives a server error instead of a 400**
+    - File: `server/src/main/kotlin/ch/sonensei/cockpit/gtd/api/CaptureDtos.kt:29`
     - Category: Correctness
-    - Problem: The token's value is matched without its trailing `.,;:!?)`, but the replacement removes the whole match (`match.value`), including that punctuation. `"Buy tiles (for #garden)"` becomes the title `"Buy tiles (for"`, and `"Call @phone, then"` loses its comma.
-    - Why it matters: The titles that result are a little broken. The KDoc says the punctuation is "not part of its value", so a reader expects it to stay in the text.
-    - Suggested fix: Replace a recognized token with the stripped suffix (`match.value.removePrefix(sigil + value)`), not with `""`, and adjust the test `trailing punctuation is not part of a token`.
+    - Problem: `fileIds: List<UUID>?` has no element constraint, and the Kotlin Jackson module (no strict null checks are configured in `server/src/main`) lets `{"text":"x","fileIds":[null]}` through as a list containing `null`. `CaptureService.capture` then passes it to `ItemResolver.exists(id: UUID)` (`CaptureService.kt:58`), whose non-null parameter check throws a `NullPointerException`, i.e. an unhandled error rather than a Problem Details 400. `capture rejects malformed bodies` (CaptureEdgeCaseWebTests.kt:360) covers `"not-a-uuid"` but not `null`. The same pattern exists in the older `TaskRequest.contextIds`, so this is consistent with existing code, but the capture endpoint is the one fed by client retry queues.
+    - Why it matters: A malformed client payload should get a 400 the client can show, not a 5xx that a retry queue (SPEC.md §9.3) would retry forever.
+    - Suggested fix: Annotate the elements (`List<@NotNull UUID>?` with `@field:Valid`/type-use constraint) or reject `null` elements in `toCommand()` with `InvalidRequestException("fileIds", ...)`, and add the `[null]` case to `capture rejects malformed bodies`.
 
-- [ ] **CR-5 | `!today`/`!tomorrow` in an offline capture resolve to the upload date, not the capture date**
-    - File: `server/src/main/kotlin/ch/sonensei/cockpit/gtd/domain/CaptureService.kt:95`
-    - Category: Correctness
-    - Problem: Relative due dates are resolved with the server clock when the request arrives. An Android capture queued offline (SPEC.md §9.3, which stores `created_at` locally) and uploaded the next day gets a due date one day later than the user meant. The request has no way to carry the capture time, and no assumption records this behavior.
-    - Why it matters: Offline capture is a main use of this endpoint. The shifted due dates are silent and only happen across a day boundary.
-    - Suggested fix: Either record the behavior as an assumption, or accept an optional client capture timestamp or date (for example `capturedAt`) and use it as "today" when it is present. Another option is for the Android client to resolve relative tokens before it queues the capture.
+- [ ] **CR-7 | The request schema does not describe how the title is chosen**
+    - File: `server/src/main/kotlin/ch/sonensei/cockpit/gtd/api/CaptureDtos.kt:15`
+    - Category: Quality
+    - Problem: The `CaptureRequest` description says "The first line of `text` becomes the title". The code uses the first non-blank line, and with `parse` a title line of only recognized tokens makes the next non-blank line the title (`CaptureParser.kt:107-111`). Neither the request nor the preview schema mentions this fallback, so web and Android clients reading `api/openapi.yaml` see a different rule than the server applies.
+    - Why it matters: Small contract drift; client authors (web capture dialog, Android share) may build a preview or validation on the documented rule.
+    - Suggested fix: Say "the first non-blank line" and mention the token-only fallback in the `CaptureRequest`/`CapturePreviewResponse` descriptions, then regenerate `api/openapi.yaml` and the web client.
 
 ## Review conclusion
 
-Material issues found; fix before completing the task.
+No material issues found. The prior findings CR-1 to CR-4 are resolved in the code and covered by tests, CR-5 is recorded as an assumption. CR-6 and CR-7 are low-priority and optional. The parent still has to run and record criteria #4 and #5 (`./gradlew test --tests 'ch.sonensei.cockpit.gtd.*'`, `OpenApiContractTest` without the flag) and `.taskcheck`.
