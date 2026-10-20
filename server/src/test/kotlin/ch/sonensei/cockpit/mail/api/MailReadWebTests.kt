@@ -1,6 +1,7 @@
 package ch.sonensei.cockpit.mail.api
 
 import ch.sonensei.cockpit.core.auth.WithCockpitUser
+import ch.sonensei.cockpit.core.web.CursorRequest
 import ch.sonensei.cockpit.mail.model.MailAccount
 import ch.sonensei.cockpit.mail.model.MailAccountRepository
 import ch.sonensei.cockpit.mail.model.MailAccountType
@@ -23,12 +24,14 @@ import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc
 import org.springframework.http.HttpHeaders
+import org.springframework.http.MediaType
 import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.security.test.context.support.WithAnonymousUser
 import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.get
 import tools.jackson.databind.JsonNode
 import tools.jackson.databind.json.JsonMapper
+import java.net.URLEncoder
 import java.time.Instant
 import java.util.UUID
 
@@ -282,6 +285,95 @@ class MailReadWebTests(
 		bodies.put(message.id, "Text", null)
 		attachments.save(message.id, emptyList())
 		mockMvc.get("/api/v1/mail/messages/${message.id}/attachments/2").andExpect { status { isNotFound() } }
+	}
+
+	@Test
+	fun `cursors with a malformed time or id are rejected`() {
+		listOf("yesterday|${UUID.randomUUID()}", "2026-10-01T08:00:00Z|not-a-uuid", "2026-10-01T08:00:00Z|${UUID.randomUUID()}|x")
+			.map(CursorRequest::encodeCursor)
+			.forEach { cursor ->
+				mockMvc.get("/api/v1/mail/messages?cursor=$cursor").andExpect {
+					status { isBadRequest() }
+					content { contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON) }
+				}
+			}
+	}
+
+	@Test
+	fun `an empty folder lists nothing, also threaded`() {
+		subjects(getJson("/api/v1/mail/messages?folderId=${workArchive.id}")) shouldContainExactly emptyList()
+		subjects(getJson("/api/v1/mail/messages?folderId=${workArchive.id}&threaded=true")) shouldContainExactly emptyList()
+	}
+
+	@Test
+	fun `a page exactly as long as the limit has no next cursor`() {
+		message(workInbox, "A", "2026-10-01T08:00:00Z")
+		message(workInbox, "B", "2026-10-02T08:00:00Z")
+
+		getJson("/api/v1/mail/messages?folderId=${workInbox.id}&limit=2")["nextCursor"].isNull shouldBe true
+		getJson("/api/v1/mail/messages?folderId=${workInbox.id}&limit=1")["nextCursor"].isNull shouldBe false
+	}
+
+	@Test
+	fun `cid references match case-insensitively, with or without brackets, and unknown ones lose their source`() {
+		val message = message(workInbox, "Inline images", "2026-10-01T08:00:00Z")
+		bodies.put(
+			message.id,
+			null,
+			"""<p><img src="CID:Logo@Example.Test"><img src="cid:<logo@example.test>"><img alt="gone" src="cid:missing@example.test"></p>""",
+		)
+		attachments.save(message.id, listOf(MailAttachment("1.2", "logo.png", "image/png", 10, inline = true, contentId = "logo@example.test")))
+
+		val html = getJson("/api/v1/mail/messages/${message.id}")["body"]["html"].asString()
+
+		Regex("""/api/v1/mail/messages/${message.id}/attachments/1\.2\?inline=true""").findAll(html).count() shouldBe 2
+		html shouldNotContain "missing@example.test"
+		html shouldContain "alt=\"gone\""
+		html shouldNotContain "cid:"
+	}
+
+	@Test
+	fun `a plain-text message has no HTML and no remote images`() {
+		val message = message(workInbox, "Plain", "2026-10-01T08:00:00Z")
+		bodies.put(message.id, "Only <b>text</b>", null)
+		attachments.save(message.id, emptyList())
+
+		val body = getJson("/api/v1/mail/messages/${message.id}")["body"]
+
+		body["html"].isNull shouldBe true
+		body["text"].asString() shouldBe "Only <b>text</b>"
+		body["remoteImageCount"].asInt() shouldBe 0
+		body["remoteImagesBlocked"].asBoolean() shouldBe false
+	}
+
+	@Test
+	fun `a message without thread key is its own conversation`() {
+		val single = message(workInbox, "Alone", "2026-10-01T08:00:00Z")
+
+		getJson("/api/v1/mail/messages/${single.id}/thread")["items"].strings("id") shouldContainExactly listOf(single.id.toString())
+	}
+
+	@Test
+	fun `unknown messages are 404 for the thread and attachment endpoints too`() {
+		mockMvc.get("/api/v1/mail/messages/${UUID.randomUUID()}/thread").andExpect { status { isNotFound() } }
+		mockMvc.get("/api/v1/mail/messages/${UUID.randomUUID()}/attachments/1").andExpect { status { isNotFound() } }
+		mockMvc.get("/api/v1/mail/messages/not-a-uuid").andExpect { status { isBadRequest() } }
+	}
+
+	@Test
+	fun `the image proxy refuses internal addresses and non-http URLs by default`() {
+		listOf("http://127.0.0.1/a.png", "http://169.254.169.254/latest/meta-data", "http://[::1]/a.png", "https://images.example.test:8443/a.png")
+			.forEach { url ->
+				mockMvc.get("/api/v1/mail/image-proxy?url=${URLEncoder.encode(url, Charsets.UTF_8)}").andExpect {
+					status { isBadRequest() }
+					content { contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON) }
+					jsonPath("$.errorCode") { value("BLOCKED_ADDRESS") }
+				}
+			}
+		mockMvc.get("/api/v1/mail/image-proxy?url=javascript%3Aalert(1)").andExpect {
+			status { isBadRequest() }
+			jsonPath("$.errorCode") { value("INVALID_URL") }
+		}
 	}
 
 	@Test
