@@ -1,0 +1,33 @@
+{
+  "schema": 1,
+  "task": "files-api",
+  "reviewed_revision": "d1a3bd012eaa3e9208edc8e8011c1195176b735d",
+  "helpers": {
+    "test-writer": {"status": "completed", "report": "reviews/files-api/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/files-api/review.md"},
+    "fixer": {"status": "completed", "report": "reviews/files-api/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P1", "disposition": "fixed",
+     "note": "streamed folder zip cut off by default async timeout; spring.mvc.async.request-timeout=-1 + test"},
+    {"id": "CR-2", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "configured max size tested on the multipart path (FilesMaxSizeWebTests)"},
+    {"id": "CR-3", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "chunk PUT racing complete/abort no longer leaves an orphaned chunk directory"},
+    {"id": "CR-4", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "unused helper and duplicated logic removed"},
+    {"id": "CR2-1", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "second-round review: parentId/folderId nullable in OpenAPI (133a5b3d)"},
+    {"id": "CR2-2", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "second-round review: listFolder/getUpload 200 bodies JSON-only in OpenAPI (133a5b3d)"},
+    {"id": "TW-1-range", "source": "test-writer", "severity": "Medium", "disposition": "fixed",
+     "note": "earlier test report: Range header parameter had no schema in openapi.yaml, breaking Android openApiGenerate; string schema added (c27b5850)"},
+    {"id": "TW-1", "source": "test-writer", "severity": "P3", "disposition": "fixed",
+     "note": "unnecessary !! in DriveQueries.totals caused a compiler warning; removed (d1a3bd01)"}
+  ],
+  "validation": [
+    {"command": "server/gradlew -p server test --rerun --tests 'ch.sonensei.cockpit.files.*' --tests '*OpenApiContractTest' jacocoTestReport ktlintCheck", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
