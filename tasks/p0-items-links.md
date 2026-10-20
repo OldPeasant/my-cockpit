@@ -5,7 +5,7 @@ owner: dell26/agent-5
 deps: [p0-auth-login]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/core/items,server/src/test/kotlin/ch/sonensei/cockpit/core/items,server/src/main/resources/db/migration/core-items]
 prio: 1
-lease_until: 2026-10-20T13:10:25Z
+lease_until: 2026-10-20T13:15:00Z
 releases: 1
 extended: 
 ---
