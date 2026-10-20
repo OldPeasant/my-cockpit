@@ -258,7 +258,13 @@
               </div>
               <div class="row">
                 <label for="td-repeat" i18n="@@taskDetail.repeat">Repeat</label>
-                <select id="td-repeat" (change)="setRepeat($any(text($event)))">
+                <select
+                  id="td-repeat"
+                  [attr.aria-describedby]="
+                    d.repeat !== 'custom' && error('customRule') ? 'td-repeat-error' : null
+                  "
+                  (change)="setRepeat($any(text($event)))"
+                >
                   @for (option of presets; track option.value) {
                     <option [value]="option.value" [selected]="option.value === d.repeat">
                       {{ option.label }}
@@ -285,7 +291,7 @@
                   }
                 </div>
               } @else if (error('customRule'); as message) {
-                <p class="field-error" role="alert">{{ message }}</p>
+                <p id="td-repeat-error" class="field-error" role="alert">{{ message }}</p>
               }
               @if (d.repeat !== 'none') {
                 <div class="row wide">

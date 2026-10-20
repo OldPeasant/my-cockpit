@@ -612,6 +612,49 @@ describe('TaskDetail', () => {
       expect(callsOf(updateTask)[1].params).toMatchObject({ 'If-Match': '"2"' });
     });
 
+    it('still applies the conflict reload when a background reload was pending', async () => {
+      await render();
+      let releaseBackground!: (answer: TaskResponse) => void;
+      const background = new Promise<TaskResponse>((resolve) => (releaseBackground = resolve));
+      let gets = 0;
+      answer = (fn) => {
+        if (fn === getTask && ++gets === 1) return background;
+        if (fn === updateTask) {
+          server = task({ title: 'Theirs', version: 5 });
+          return Promise.reject(new ApiError(412, 'Precondition Failed'));
+        }
+        return undefined;
+      };
+      events.next({ type: 'TASK', id: 't1', op: 'UPDATED' } as ChangeEvent);
+      await refresh();
+      await type('#td-title', 'Mine');
+      await save();
+
+      expect(text()).toContain(CONFLICT_MESSAGE);
+      expect(field<HTMLTextAreaElement>('#td-title').value).toBe('Theirs');
+
+      // The background GET started before the save answers late with the old copy.
+      releaseBackground(task({ title: 'Old copy', version: 1 }));
+      await refresh();
+      expect(field<HTMLTextAreaElement>('#td-title').value).toBe('Theirs');
+
+      answer = undefined;
+      await type('#td-title', 'Mine again');
+      await save();
+      expect(callsOf(updateTask)[1].params).toMatchObject({ 'If-Match': '"5"' });
+    });
+
+    it('shows a change made elsewhere after the own save', async () => {
+      await render();
+      await type('#td-title', 'Saved title');
+      await save();
+      server = task({ title: 'Renamed elsewhere', version: 3 });
+      events.next({ type: 'TASK', id: 't1', op: 'UPDATED' } as ChangeEvent);
+      await refresh();
+      expect(field<HTMLTextAreaElement>('#td-title').value).toBe('Renamed elsewhere');
+      expect(saveButton().disabled).toBe(true);
+    });
+
     it('ignores a background answer older than the version shown', async () => {
       await render(task({ version: 3 }));
       server = task({ title: 'Older copy', version: 2 });
@@ -656,6 +699,41 @@ describe('TaskDetail', () => {
     await refresh();
     expect(after.getAttribute('aria-pressed')).toBe('true');
     expect(saveButton().disabled).toBe(true);
+  });
+
+  it('switches the repeat mode after the chosen one was pressed again', async () => {
+    await render(task({ recurrenceRule: 'FREQ=DAILY', recurrenceMode: 'AFTER_COMPLETION' }));
+    const modeButton = (label: string) =>
+      [...element.querySelectorAll<HTMLButtonElement>('app-segmented button')].find((b) =>
+        b.textContent?.includes(label),
+      )!;
+    modeButton('After completion').click();
+    await refresh();
+    modeButton('On schedule').click();
+    await refresh();
+    expect(modeButton('On schedule').getAttribute('aria-pressed')).toBe('true');
+    expect(modeButton('After completion').getAttribute('aria-pressed')).toBe('false');
+
+    await save();
+    expect(callsOf(updateTask)[0].params).toMatchObject({ body: { recurrenceMode: 'FIXED' } });
+  });
+
+  it('links a server rule error to the repeat choice when no custom rule is edited', async () => {
+    await render(task({ recurrenceRule: 'FREQ=DAILY', recurrenceMode: 'FIXED' }));
+    expect(field('#td-repeat').getAttribute('aria-describedby')).toBeNull();
+    await type('#td-title', 'Renamed');
+    answer = (fn) =>
+      fn === updateTask
+        ? Promise.reject(
+            new ApiError(400, 'Bad Request', undefined, undefined, undefined, [
+              { field: 'recurrenceRule', message: 'is not supported' },
+            ]),
+          )
+        : undefined;
+    await save();
+    const describedBy = field('#td-repeat').getAttribute('aria-describedby');
+    expect(describedBy).toBe('td-repeat-error');
+    expect(element.querySelector(`#${describedBy}`)?.textContent).toContain('is not supported');
   });
 
   it('links every field error to its field', async () => {
