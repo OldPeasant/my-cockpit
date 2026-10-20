@@ -3,6 +3,8 @@
 
 export type { ConfirmTotpRequest } from './models/confirm-totp-request';
 export type { FieldError } from './models/field-error';
+export type { LoginRequest } from './models/login-request';
+export type { MeResponse } from './models/me-response';
 export type { ProblemDetail } from './models/problem-detail';
 export type { SetupRequest } from './models/setup-request';
 export type { SetupResponse } from './models/setup-response';

@@ -1,48 +1,28 @@
 package ch.sonensei.cockpit.core.auth
 
 import ch.sonensei.cockpit.support.PostgresTestBase
+import io.kotest.matchers.shouldNotBe
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc
 import org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf
-import org.springframework.test.context.DynamicPropertyRegistry
-import org.springframework.test.context.DynamicPropertySource
 import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.delete
 import org.springframework.test.web.servlet.get
 import org.springframework.test.web.servlet.head
 import org.springframework.test.web.servlet.post
 import org.springframework.test.web.servlet.put
-import java.nio.file.Files
-import java.nio.file.Path
 
 /**
  * Which requests need a login: the API by default; health, setup, login/logout and the SPA stay public.
- * Runs with a fake web build, so the SPA fallback is really served.
  */
 @SpringBootTest
 @AutoConfigureMockMvc
 class SecurityConfigurationTests(
 	@Autowired private val mockMvc: MockMvc,
 ) : PostgresTestBase() {
-	companion object {
-		private const val INDEX_HTML = "<!doctype html><title>Cockpit fixture</title><app-root></app-root>"
-
-		private val webBuild: Path =
-			Files.createTempDirectory("cockpit-security-spa").also {
-				Files.writeString(it.resolve("index.html"), INDEX_HTML)
-				Files.writeString(it.resolve("main-ABC123.js"), "console.log('fixture')")
-			}
-
-		@JvmStatic
-		@DynamicPropertySource
-		fun spaLocation(registry: DynamicPropertyRegistry) {
-			registry.add("cockpit.spa.location") { webBuild.toUri().toString() }
-		}
-	}
-
 	@Test
 	fun `setup status and health are public`() {
 		mockMvc.get("/api/v1/setup/status").andExpect { status { isOk() } }
@@ -50,22 +30,19 @@ class SecurityConfigurationTests(
 	}
 
 	@Test
-	fun `the SPA, its files and the index fallback for client routes are public`() {
-		mockMvc.get("/").andExpect {
-			status { isOk() }
-			forwardedUrl("/index.html")
+	fun `client routes and SPA files are public`() {
+		// No web build in this context: an anonymous GET outside the API reaches the resource handler (404), not a 401.
+		// SpaFallbackTests checks the served files and the index fallback anonymously.
+		for (path in listOf("/", "/inbox", "/settings/devices", "/main-ABC123.js")) {
+			mockMvc
+				.get(path)
+				.andReturn()
+				.response.status shouldNotBe 401
 		}
-		mockMvc.get("/index.html").andExpect {
-			status { isOk() }
-			content { string(INDEX_HTML) }
-		}
-		mockMvc.get("/main-ABC123.js").andExpect { status { isOk() } }
-		mockMvc.get("/inbox").andExpect {
-			status { isOk() }
-			content { string(INDEX_HTML) }
-		}
-		mockMvc.head("/settings/devices").andExpect { status { isOk() } }
-		mockMvc.get("/missing-XYZ.js").andExpect { status { isNotFound() } }
+		mockMvc
+			.head("/inbox")
+			.andReturn()
+			.response.status shouldNotBe 401
 	}
 
 	@Test

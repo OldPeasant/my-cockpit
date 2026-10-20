@@ -9,11 +9,19 @@ export { Api } from './api';
 
 export type { ConfirmTotpRequest } from './models/confirm-totp-request';
 export type { FieldError } from './models/field-error';
+export type { LoginRequest } from './models/login-request';
+export type { MeResponse } from './models/me-response';
 export type { ProblemDetail } from './models/problem-detail';
 export type { SetupRequest } from './models/setup-request';
 export type { SetupResponse } from './models/setup-response';
 export type { SetupStatusResponse } from './models/setup-status-response';
 
+export type { Login$Params as Login$Params } from './fn/auth/login';
+export { login as login } from './fn/auth/login';
+export type { Logout$Params as Logout$Params } from './fn/auth/logout';
+export { logout as logout } from './fn/auth/logout';
+export type { GetCurrentUser$Params as GetCurrentUser$Params } from './fn/auth/get-current-user';
+export { getCurrentUser as getCurrentUser } from './fn/auth/get-current-user';
 export type { StartSetup$Params as StartSetup$Params } from './fn/setup/start-setup';
 export { startSetup as startSetup } from './fn/setup/start-setup';
 export type { ConfirmSetupTotp$Params as ConfirmSetupTotp$Params } from './fn/setup/confirm-setup-totp';

@@ -5,9 +5,83 @@ info:
 servers:
 - url: /
 tags:
+- description: Web login sessions
+  name: Auth
 - description: First-run creation of the owner account
   name: Setup
 paths:
+  /api/v1/auth/login:
+    post:
+      description: "Sends exactly one of `totp` and `recoveryCode`; a recovery code\
+        \ works only once. On success the session cookie is set: persistent for a\
+        \ sliding 30 days with `rememberDevice`, a browser-session cookie otherwise.\
+        \ After 5 consecutive failures further attempts are blocked for an exponentially\
+        \ growing time."
+      operationId: login
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MeResponse"
+          description: "Logged in, session cookie set"
+        "400":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: "Missing fields, or not exactly one of totp and recoveryCode"
+        "401":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: Wrong credentials (does not say which part was wrong)
+        "429":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: Too many failed attempts; retry after the given number of seconds
+          headers:
+            Retry-After:
+              description: Seconds to wait
+              schema:
+                type: integer
+              style: simple
+      summary: Log in with password and a TOTP or recovery code
+      tags:
+      - Auth
+  /api/v1/auth/logout:
+    post:
+      operationId: logout
+      responses:
+        "204":
+          description: Logged out (also when there was no session)
+      summary: End the current session and clear its cookie
+      tags:
+      - Auth
+  /api/v1/auth/me:
+    get:
+      operationId: getCurrentUser
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MeResponse"
+          description: Logged in
+        "401":
+          description: Not logged in
+      summary: The logged-in user
+      tags:
+      - Auth
   /api/v1/setup:
     post:
       description: "Returns the TOTP secret and recovery codes exactly once. Calling\
@@ -106,6 +180,44 @@ components:
       required:
       - field
       - message
+    LoginRequest:
+      type: object
+      properties:
+        password:
+          type: string
+          format: password
+          maxLength: 256
+          minLength: 0
+        recoveryCode:
+          type: string
+          description: "One of the recovery codes, instead of totp"
+          example: abcde-fghjk
+          maxLength: 64
+          minLength: 0
+        rememberDevice:
+          type: boolean
+          description: Keep the session for a sliding 30 days instead of the browser
+            session
+        totp:
+          type: string
+          description: Current 6-digit code from the authenticator app
+          example: 123456
+          maxLength: 16
+          minLength: 0
+        username:
+          type: string
+          maxLength: 64
+          minLength: 0
+      required:
+      - password
+      - username
+    MeResponse:
+      type: object
+      properties:
+        username:
+          type: string
+      required:
+      - username
     ProblemDetail:
       type: object
       description: "RFC 9457 Problem Details, the body of every error response."

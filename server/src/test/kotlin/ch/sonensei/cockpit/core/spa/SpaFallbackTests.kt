@@ -1,5 +1,6 @@
 package ch.sonensei.cockpit.core.spa
 
+import ch.sonensei.cockpit.core.auth.WithCockpitUser
 import ch.sonensei.cockpit.support.PostgresTestBase
 import io.kotest.assertions.withClue
 import io.kotest.matchers.shouldBe
@@ -12,7 +13,6 @@ import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.boot.test.context.TestConfiguration
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc
 import org.springframework.context.annotation.Import
-import org.springframework.security.test.context.support.WithMockUser
 import org.springframework.test.context.DynamicPropertyRegistry
 import org.springframework.test.context.DynamicPropertySource
 import org.springframework.test.web.servlet.MockMvc
@@ -29,8 +29,7 @@ import java.nio.file.Path
 
 @SpringBootTest
 @AutoConfigureMockMvc
-// Until p0-auth-login makes the SPA public, Boot's default security answers anonymous requests with 401.
-@WithMockUser
+// Anonymous on purpose: the SPA is public (SecurityConfiguration), only the API needs a login.
 @Import(SpaFallbackTests.ProbeApi::class)
 class SpaFallbackTests(
 	@Autowired private val mockMvc: MockMvc,
@@ -100,12 +99,16 @@ class SpaFallbackTests(
 	}
 
 	@Test
+	// Logged in, so the API answers with its own status instead of 401.
+	@WithCockpitUser
 	fun `unknown api path is 404, not index html`() {
 		mockMvc.get("/api/v1/does-not-exist").andExpect { status { isNotFound() } }
 		mockMvc.get("/api").andExpect { status { isNotFound() } }
 	}
 
 	@Test
+	// Logged in, so the API answers with its own status instead of 401.
+	@WithCockpitUser
 	fun `actuator is not shadowed by the fallback`() {
 		mockMvc.get("/actuator/health").andExpect {
 			status { isOk() }
@@ -151,6 +154,8 @@ class SpaFallbackTests(
 	}
 
 	@Test
+	// Logged in, so the API answers with its own status instead of 401.
+	@WithCockpitUser
 	fun `existing api endpoint is not shadowed by the catch-all handler`() {
 		mockMvc.get("/api/v1/spa-probe").andExpect {
 			status { isOk() }
@@ -170,6 +175,8 @@ class SpaFallbackTests(
 	}
 
 	@Test
+	// Logged in, so the API answers with its own status instead of 401.
+	@WithCockpitUser
 	fun `api root with trailing slash is 404, not index html`() {
 		mockMvc.get("/api/").andExpect { status { isNotFound() } }
 	}

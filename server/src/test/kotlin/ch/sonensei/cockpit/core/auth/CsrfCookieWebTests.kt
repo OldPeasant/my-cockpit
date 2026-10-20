@@ -17,6 +17,7 @@ import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc
 import org.springframework.http.HttpHeaders
 import org.springframework.http.MediaType
 import org.springframework.jdbc.core.JdbcTemplate
+import org.springframework.test.annotation.DirtiesContext
 import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.MvcResult
 import org.springframework.test.web.servlet.get
@@ -27,9 +28,11 @@ import java.time.Clock
 /**
  * The real double-submit flow, as the Angular client does it: the `XSRF-TOKEN` cookie from a first GET is echoed in
  * `X-XSRF-TOKEN`. Its own context (the property below): Spring Security's `csrf()` test helper, used by other tests,
- * replaces the CSRF token repository of the shared filter chain, and this test must see the real one.
+ * replaces the CSRF token repository of the shared filter chain, and this test must see the real one. The context is
+ * closed afterwards, so it does not hold database connections for the rest of the run.
  */
 @SpringBootTest(properties = ["cockpit.test.context=real-csrf-repository"])
+@DirtiesContext
 @AutoConfigureMockMvc
 class CsrfCookieWebTests(
 	@Autowired private val mockMvc: MockMvc,
