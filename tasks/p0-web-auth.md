@@ -18,3 +18,4 @@ Setup wizard and login UI (SPEC.md §4.1).
 
 ## Notes
 - ASSUMPTION (2026-10-20 13:36+0200 by dell26/agent-2): QR code: added the qrcode npm library (+@types/qrcode), drawing its module matrix as an inline SVG path (no canvas, works under jsdom); allowed as CommonJS in angular.json
+- ASSUMPTION (2026-10-20 13:36+0200 by dell26/agent-2): Retry-After: ApiError (core/http, outside touches) gained a retryAfter field parsed from the header, because the problem interceptor drops headers; login falls back to 60 s if a 429 has no header
