@@ -17,7 +17,8 @@ Typed Angular services generated from `api/openapi.yaml`, plus interceptors.
   - verified (2026-10-20 11:31+0200 by dell26/agent-2): provideHttp() in app.config.ts: withXsrfConfiguration(XSRF-TOKEN/X-XSRF-TOKEN), loginRedirectInterceptor (401 -> /login?returnUrl=<current url>), problemInterceptor (Problem Details -> ApiError + NotificationService/MatSnackBar toast); cd web && npm run test:ci -> interceptors.spec.ts/api-error.spec.ts/notification.service.spec.ts/app.config.spec.ts pass (XSRF header on POST, 401 redirect with returnUrl, problem mapping, toast)
 - [x] `npm start` proxies `/api` and `/actuator` to `localhost:8080` (proxy.conf.json)
   - verified (2026-10-20 11:31+0200 by dell26/agent-2): node stub HTTP server on 127.0.0.1:8080 + cd web && npm start -- --port 4321 (angular.json serve proxyConfig=proxy.conf.json) -> fetch GET localhost:4321/api/tasks?x=1 -> 200 'stub-backend GET /api/tasks?x=1'; POST /actuator/health -> 200 'stub-backend POST /actuator/health'; GET / -> 200 Angular index.html (not proxied)
-- [ ] Vitest component/service tests cover the interceptors (401 redirect, problem mapping); `cd web && npm run check` passes
+- [x] Vitest component/service tests cover the interceptors (401 redirect, problem mapping); `cd web && npm run check` passes
+  - verified (2026-10-20 11:31+0200 by dell26/agent-2): cd web && npm run check at final revision -> api:check up to date, lint all files pass, Vitest 6 files / 56 tests passed (incl. 401 redirect + problem mapping specs), ng build ok; coverage of task production files 100% statements/branches (reviews/p0-web-api-client/tests.md)
 
 ## Notes
 - ASSUMPTION (2026-10-20 11:16+0200 by dell26/agent-2): 401 redirect goes to /login?returnUrl=<current URL incl. query>; no redirect when already on /login or /setup, or when the request sets HttpContext SKIP_LOGIN_REDIRECT (for login/session probes). p0-web-auth should read the 'returnUrl' param.
