@@ -256,7 +256,9 @@ export class LinkedItems {
       const link = await this.service.create(item, hit);
       // After an item change the search is closed already and the link belongs to another item.
       if (itemSeq !== this.itemSeq) return;
-      this.links.update((links) => [...(links ?? []), link]);
+      // A load still pending may predate the new link: load again instead of appending to nothing.
+      if (this.links() === null) void this.reload();
+      else this.links.update((links) => [...(links ?? []), link]);
       this.closeSearch();
     } catch (error) {
       if (itemSeq !== this.itemSeq) return;

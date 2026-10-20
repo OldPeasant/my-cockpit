@@ -552,6 +552,68 @@ describe('LinkedItems', () => {
       expect(root.querySelector('[role="alert"]')).toBeNull();
       expect(root.querySelector('input.query')).toBeNull();
     });
+
+    it('ignores a successful removal of the previous item without moving the focus', async () => {
+      await setup([link('l1', end('NOTE', NOTE_ID, 'Holiday ideas'))]);
+      (root.querySelector('button.remove') as HTMLElement).click();
+      await settle();
+      const remove = http.expectOne({ method: 'DELETE', url: '/api/v1/links/l1' });
+
+      fixture.componentInstance.item.set(other);
+      await settle();
+      expectList(other).flush({ items: [link('l2', end('EVENT', EVENT_ID, 'Flight to Lisbon'))] });
+      await settle();
+      (document.activeElement as HTMLElement | null)?.blur();
+      remove.flush(null, { status: 204, statusText: 'No Content' });
+      await settle();
+
+      expect(titles()).toEqual(['Flight to Lisbon']);
+      expect(document.activeElement).toBe(document.body);
+    });
+
+    it('ignores a conflict (409) of the previous item without reloading', async () => {
+      await setup([]);
+      await openAndSearch('lis', hits(['EVENT', EVENT_ID, 'Flight to Lisbon']));
+      (root.querySelector('[role="option"]') as HTMLElement).click();
+      await settle();
+      const create = http.expectOne({ method: 'POST', url: '/api/v1/links' });
+
+      fixture.componentInstance.item.set(other);
+      await settle();
+      expectList(other).flush({ items: [] });
+      await settle();
+      create.flush({ status: 409, title: 'Conflict' }, { status: 409, statusText: 'Conflict' });
+      await settle();
+
+      // No list request follows (afterEach verifies there is none outstanding).
+      http.expectNone((r) => r.method === 'GET' && r.url === '/api/v1/links');
+      expect(root.querySelector('[role="alert"]')).toBeNull();
+      expect(titles()).toEqual([]);
+    });
+
+    it('does not add a link twice when the item changes away and back while linking', async () => {
+      await setup([]);
+      await openAndSearch('lis', hits(['EVENT', EVENT_ID, 'Flight to Lisbon']));
+      (root.querySelector('[role="option"]') as HTMLElement).click();
+      await settle();
+      const create = http.expectOne({ method: 'POST', url: '/api/v1/links' });
+
+      fixture.componentInstance.item.set(other);
+      await settle();
+      expectList(other).flush({ items: [] });
+      fixture.componentInstance.item.set(TASK);
+      await settle();
+      // The reload of the original item already sees the new link on the server.
+      expectList(TASK).flush({ items: [link('l1', end('EVENT', EVENT_ID, 'Flight to Lisbon'))] });
+      await settle();
+      create.flush(link('l1', end('EVENT', EVENT_ID, 'Flight to Lisbon')), {
+        status: 201,
+        statusText: 'Created',
+      });
+      await settle();
+
+      expect(titles()).toEqual(['Flight to Lisbon']);
+    });
   });
 
   describe('removing', () => {
@@ -934,6 +996,30 @@ describe('LinkedItems', () => {
       expect(root.querySelector('[role="alert"]')).toBeNull();
       expectList(TASK).flush({ items: [link('l7', end('EVENT', EVENT_ID, 'Flight to Lisbon'))] });
       await settle();
+      expect(titles()).toEqual(['Flight to Lisbon']);
+    });
+
+    it('keeps a link added while the list is reloading (CR-4)', async () => {
+      await setup([]);
+      await openAndSearch('lis', hits(['EVENT', EVENT_ID, 'Flight to Lisbon']));
+
+      (root.querySelector('[role="option"]') as HTMLElement).click();
+      await settle();
+      const create = http.expectOne({ method: 'POST', url: '/api/v1/links' });
+      void fixture.componentInstance.panel().reload();
+      await settle();
+      const pending = expectList(TASK);
+      create.flush(link('l1', end('EVENT', EVENT_ID, 'Flight to Lisbon')), {
+        status: 201,
+        statusText: 'Created',
+      });
+      await settle();
+      // The pending list predates the link; a fresh load follows and wins.
+      pending.flush({ items: [] });
+      await settle();
+      expectList(TASK).flush({ items: [link('l1', end('EVENT', EVENT_ID, 'Flight to Lisbon'))] });
+      await settle();
+
       expect(titles()).toEqual(['Flight to Lisbon']);
     });
 
