@@ -3,9 +3,11 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { MatDialog } from '@angular/material/dialog';
 import { MatSidenav } from '@angular/material/sidenav';
 import { By } from '@angular/platform-browser';
-import { provideRouter } from '@angular/router';
+import { provideRouter, Router } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
 import { BehaviorSubject, of } from 'rxjs';
+import { AuthService } from '../core/auth';
+import { provideFakeSession } from '../core/auth/testing';
 import { CommandPalette } from './command-palette';
 import { NAV_SECTIONS } from './nav-sections';
 import { provideNavigationPalette } from './navigation-palette.provider';
@@ -25,7 +27,8 @@ describe('Shell', () => {
     breakpoint = new BehaviorSubject<BreakpointState>({ matches: compact, breakpoints: {} });
     TestBed.configureTestingModule({
       providers: [
-        provideRouter([]),
+        provideRouter([{ path: 'login', children: [] }]),
+        provideFakeSession('demo'),
         provideNavigationPalette(),
         { provide: CAPTURE_DIALOG, useValue: capture },
         { provide: BreakpointObserver, useValue: { observe: () => breakpoint } },
@@ -242,6 +245,28 @@ describe('Shell', () => {
     root.querySelector<HTMLButtonElement>('button.theme')!.click();
     await fixture.whenStable();
     expect(checked()).toEqual(['false', 'false', 'true']);
+  });
+
+  it('signs out from the account menu and shows the login page', async () => {
+    await setup();
+    const logout = vi.spyOn(TestBed.inject(AuthService), 'logout');
+    root.querySelector<HTMLButtonElement>('button.account')!.click();
+    await fixture.whenStable();
+    expect(document.querySelector('.account-name')?.textContent?.trim()).toBe('demo');
+    document.querySelector<HTMLButtonElement>('button.logout')!.click();
+    await fixture.whenStable();
+    expect(logout).toHaveBeenCalledTimes(1);
+    expect(TestBed.inject(Router).url).toBe('/login');
+  });
+
+  it('shows the login page even when signing out fails on the server', async () => {
+    await setup();
+    vi.spyOn(TestBed.inject(AuthService), 'logout').mockRejectedValue(new Error('offline'));
+    root.querySelector<HTMLButtonElement>('button.account')!.click();
+    await fixture.whenStable();
+    document.querySelector<HTMLButtonElement>('button.logout')!.click();
+    await fixture.whenStable();
+    expect(TestBed.inject(Router).url).toBe('/login');
   });
 
   it('keeps the side navigation open after following a link on wide screens', async () => {

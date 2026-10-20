@@ -107,13 +107,10 @@ export class Shell {
     this.capture.open();
   }
 
-  /** Ends the session, then shows the login page (also when the server call failed). */
+  /** Ends the session, then shows the login page (also when the server call failed: toast). */
   protected async logout(): Promise<void> {
-    try {
-      await this.auth.logout();
-    } finally {
-      await this.router.navigateByUrl(LOGIN_PATH);
-    }
+    await this.auth.logout().catch(() => undefined);
+    await this.router.navigateByUrl(LOGIN_PATH);
   }
 
   protected toggleDrawer(): void {

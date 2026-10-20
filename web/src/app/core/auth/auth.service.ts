@@ -73,10 +73,13 @@ export class AuthService {
     return me;
   }
 
-  /** Ends the session on the server; the local state is cleared even when that call fails. */
+  /**
+   * Ends the session on the server; the local state is cleared even when that call fails
+   * (the error is shown as a toast and rethrown).
+   */
   async logout(): Promise<void> {
     try {
-      await this.api.invoke(logout, undefined, quiet());
+      await this.api.invoke(logout, undefined, noRedirect());
     } finally {
       this.current.set(null);
     }
