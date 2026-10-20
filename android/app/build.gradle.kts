@@ -1,3 +1,5 @@
+import org.gradle.testing.jacoco.plugins.JacocoTaskExtension
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
@@ -6,6 +8,8 @@ plugins {
     alias(libs.plugins.hilt)
     alias(libs.plugins.room)
     alias(libs.plugins.ktlint)
+    // Applied up front so every Test task has its JaCoCo extension when the block below configures it.
+    jacoco
 }
 
 android {
@@ -48,6 +52,14 @@ android {
         warningsAsErrors = true
         abortOnError = true
         disable += setOf("GradleDependency", "NewerVersionAvailable", "AndroidGradlePluginVersion", "OldTargetApi")
+    }
+}
+
+tasks.withType<Test>().configureEach {
+    extensions.configure<JacocoTaskExtension> {
+        // Robolectric loads app classes without a code source location; without this JaCoCo records 0 coverage.
+        isIncludeNoLocationClasses = true
+        excludes = listOf("jdk.internal.*")
     }
 }
 
