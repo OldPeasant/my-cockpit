@@ -22,3 +22,4 @@ Setup wizard and login UI (SPEC.md §4.1).
 - ASSUMPTION (2026-10-20 13:37+0200 by dell26/agent-2): Logout lives in a new account icon menu in the top bar (shell.html/shell.ts, outside touches), showing the username; a failed logout call still navigates to /login after a toast
 - ASSUMPTION (2026-10-20 13:37+0200 by dell26/agent-2): Setup does not log in automatically: after TOTP confirmation it shows a toast and goes to /login, since the server's confirm-totp creates no session
 - ASSUMPTION (2026-10-20 13:37+0200 by dell26/agent-2): Return URL: only same-app absolute paths are followed (not //host, scheme or /login|/setup); anything else falls back to the dashboard (open-redirect protection)
+- ASSUMPTION (2026-10-20 13:37+0200 by dell26/agent-2): Auth state: setup status and /me are cached in AuthService; the login guard re-asks /me each time because a 401 elsewhere lands there while the cache still says logged in
