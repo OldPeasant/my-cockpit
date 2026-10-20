@@ -13,7 +13,8 @@ The remaining GTD lists (SPEC.md §5.3).
 ## Acceptance criteria
 - [x] Waiting For sorted by waitingSince with 'follow up' (creates a task); Someday with 'activate'; Scheduled grouped by date; Logbook (completed, by day, uncomplete)
   - verified (2026-10-20 23:52+0200 by dell26/agent-6): Implemented in web/src/app/features/gtd/lists (routes /waiting, /someday, /scheduled, /logbook); cd web && npx ng test --include 'src/app/features/gtd/lists/**/*.spec.ts' -> list-pages.spec: Waiting sorted oldest waitingSince first + Follow up creates NEXT task (createTask body) and keeps item; Someday Activate -> moveTask {list:NEXT}; Scheduled grouped by date (Today/Tomorrow/date headings); Logbook completed:true grouped by day newest first, checkbox -> uncompleteTask; all pass
-- [ ] Vitest component/service tests cover sorting and actions; `cd web && npm run check` passes
+- [x] Vitest component/service tests cover sorting and actions; `cd web && npm run check` passes
+  - verified (2026-10-20 23:52+0200 by dell26/agent-6): cd web && npm run check -> lint clean, 47 files / 812 tests passed (incl. list-views.spec + list-pages.spec covering sorting, grouping, follow up, activate, uncomplete, rollback), ng build ok; sh scripts/check.sh -> all checks passed
 - [ ] Playwright `e2e/gtd-lists/lists.spec.ts` passes against the e2e stack (`npm run e2e -- e2e/gtd-lists/lists.spec.ts`, see p0-e2e-harness): waiting item sorted by waitingSince; logbook shows completed task
 
 ## Notes
