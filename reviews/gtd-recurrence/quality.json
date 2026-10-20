@@ -1,0 +1,23 @@
+{
+  "schema": 1,
+  "task": "gtd-recurrence",
+  "reviewed_revision": "32595158036d375397311d259f3b8d813e8e3ec0",
+  "helpers": {
+    "test-writer":   {"status": "completed", "report": "reviews/gtd-recurrence/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/gtd-recurrence/review.md"},
+    "fixer":         {"status": "completed", "report": "reviews/gtd-recurrence/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "PROBE_DAY comment named UNTIL with a time; now names BYHOUR=9 (comment only)"},
+    {"id": "TW-1", "source": "test-writer", "severity": "Low", "disposition": "accepted",
+     "note": "tasks stored before validation existed with a rule but no mode or an invalid rule cannot be completed (400); the project is unreleased, so no such data exists"},
+    {"id": "TW-2", "source": "test-writer", "severity": "Low", "disposition": "accepted",
+     "note": "purging the next occurrence clears the link, so a later uncomplete and complete creates a new one; intended, recorded as an assumption"}
+  ],
+  "validation": [
+    {"command": "cd server && ./gradlew cleanTest test --tests 'ch.sonensei.cockpit.gtd.*'", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
