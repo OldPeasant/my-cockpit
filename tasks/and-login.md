@@ -5,7 +5,7 @@ owner: dell26/agent-6
 deps: [and-api-client]
 touches: [android/app/src/main/java/ch/sonensei/cockpit/auth,android/app/src/test/java/ch/sonensei/cockpit/auth]
 prio: 1
-lease_until: 2026-10-20T16:51:41Z
+lease_until: 2026-10-20T16:56:42Z
 ---
 ## Goal
 Login screen and token storage (SPEC.md §9.2 item 1).
