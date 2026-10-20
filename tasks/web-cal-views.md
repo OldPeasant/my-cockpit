@@ -5,7 +5,7 @@ owner: dell26/agent-4
 deps: [p0-web-shell,cal-local-api,p0-web-sse,p0-e2e-harness]
 touches: [web/src/app/features/calendar/views]
 prio: 1
-lease_until: 2026-10-20T22:35:20Z
+lease_until: 2026-10-20T22:40:18Z
 ---
 ## Goal
 Day/week/month/agenda (SPEC.md §6.3).
