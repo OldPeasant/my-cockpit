@@ -1,0 +1,3 @@
+# Files the openapi-generator must not write (see openApiGenerate in build.gradle.kts).
+# core.network builds the Retrofit instance itself; the generated ApiClient would need extra converters.
+**/infrastructure/ApiClient.kt

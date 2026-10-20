@@ -27,6 +27,7 @@ robolectric = "4.16"
 mockk = "1.14.6"
 coroutines = "1.10.2"
 turbine = "1.2.1"
+openapiGenerator = "7.26.0"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -96,3 +97,4 @@ ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }
 hilt = { id = "com.google.dagger.hilt.android", version.ref = "hilt" }
 room = { id = "androidx.room", version.ref = "room" }
 ktlint = { id = "org.jlleitschuh.gradle.ktlint", version.ref = "ktlint" }
+openapi-generator = { id = "org.openapi.generator", version.ref = "openapiGenerator" }

@@ -8,6 +8,7 @@ plugins {
     alias(libs.plugins.hilt)
     alias(libs.plugins.room)
     alias(libs.plugins.ktlint)
+    alias(libs.plugins.openapi.generator)
     // Applied up front so every Test task has its JaCoCo extension when the block below configures it.
     jacoco
 }
@@ -60,6 +61,62 @@ tasks.withType<Test>().configureEach {
         // Robolectric loads app classes without a code source location; without this JaCoCo records 0 coverage.
         isIncludeNoLocationClasses = true
         excludes = listOf("jdk.internal.*")
+    }
+}
+
+// Retrofit client from the API contract, generated at build time into build/ (never committed).
+val openApiOutputDir = layout.buildDirectory.dir("generated/openapi")
+
+openApiGenerate {
+    generatorName.set("kotlin")
+    inputSpec.set(rootProject.file("../api/openapi.yaml").absolutePath)
+    outputDir.set(openApiOutputDir.get().asFile.absolutePath)
+    packageName.set("ch.sonensei.cockpit.core.network.generated")
+    library.set("jvm-retrofit2")
+    configOptions.set(
+        mapOf(
+            "serializationLibrary" to "kotlinx_serialization",
+            "useCoroutines" to "true",
+            "dateLibrary" to "java8",
+            "enumPropertyNaming" to "UPPERCASE",
+            "sourceFolder" to "src/main/kotlin",
+        ),
+    )
+    // Open objects (additionalProperties: true, e.g. settings registered by other modules) become JSON objects:
+    // the Kotlin generator emits invalid code for them.
+    schemaMappings.set(
+        mapOf(
+            "Settings" to "kotlinx.serialization.json.JsonObject",
+            "SettingsPatch" to "kotlinx.serialization.json.JsonObject",
+        ),
+    )
+    // core.network builds Retrofit itself, so the generated ApiClient is skipped. Only src/main/kotlin is compiled.
+    ignoreFileOverride.set(file("openapi-generator-ignore").absolutePath)
+    cleanupOutput.set(true)
+    generateApiDocumentation.set(false)
+    generateModelDocumentation.set(false)
+    generateApiTests.set(false)
+    generateModelTests.set(false)
+}
+
+androidComponents {
+    onVariants { variant ->
+        variant.sources.kotlin?.addStaticSourceDirectory(
+            openApiOutputDir
+                .get()
+                .dir("src/main/kotlin")
+                .asFile.absolutePath,
+        )
+    }
+}
+
+tasks.named { it.startsWith("compile") || it.startsWith("ksp") }.configureEach {
+    dependsOn(tasks.openApiGenerate)
+}
+
+ktlint {
+    filter {
+        exclude { it.file.path.contains("/build/generated/") }
     }
 }
 
