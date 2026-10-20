@@ -11,7 +11,9 @@
     "lint": "ng lint --max-warnings=0",
     "test:ci": "ng test --watch=false",
     "coverage": "ng test --watch=false --coverage --coverage-reporters=text-summary --coverage-reporters=json-summary --coverage-reporters=json --coverage-reporters=lcov",
-    "check": "npm run lint && npm run test:ci && ng build"
+    "api:gen": "ng-openapi-gen",
+    "api:check": "node scripts/api-gen-check.mjs",
+    "check": "npm run api:check && npm run lint && npm run test:ci && ng build"
   },
   "private": true,
   "packageManager": "npm@11.19.0",
