@@ -13,6 +13,7 @@ import ch.sonensei.cockpit.core.events.domain.ChangeOp
 import ch.sonensei.cockpit.core.web.ConflictException
 import ch.sonensei.cockpit.core.web.NotFoundException
 import io.kotest.assertions.throwables.shouldThrow
+import io.kotest.assertions.withClue
 import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.AfterEach
@@ -191,6 +192,64 @@ class BackupJobServiceTests {
 		val next = jobs.start()
 		awaitFinished(next.id) shouldBe BackupJobState.COMPLETED
 		Files.exists(jobs.zip(next.id).second) shouldBe true
+	}
+
+	@Test
+	fun `exclusive runs the block and returns its result while no backup runs`() {
+		jobs.exclusive { "restored" } shouldBe "restored"
+
+		val done = jobs.start()
+		awaitFinished(done.id) shouldBe BackupJobState.COMPLETED
+		withClue("a finished backup does not block") { jobs.exclusive { 42 } shouldBe 42 }
+	}
+
+	@Test
+	fun `exclusive refuses with 409 and does not run the block while a backup runs`() {
+		module.gate = CountDownLatch(1)
+		val running = jobs.start()
+		var ran = false
+
+		shouldThrow<ConflictException> { jobs.exclusive { ran = true } }.message shouldBe "A backup is running"
+		ran shouldBe false
+
+		module.gate!!.countDown()
+		awaitFinished(running.id) shouldBe BackupJobState.COMPLETED
+		jobs.exclusive { ran = true }
+		ran shouldBe true
+	}
+
+	@Test
+	fun `a backup started during an exclusive block waits until the block is finished`() {
+		val started = CountDownLatch(1)
+		var starter: Thread? = null
+		var jobId: UUID? = null
+
+		jobs.exclusive {
+			val thread =
+				Thread {
+					jobId = jobs.start().id
+					started.countDown()
+				}.apply { start() }
+			starter = thread
+			val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10)
+			while (thread.state != Thread.State.BLOCKED) {
+				check(System.nanoTime() < deadline) { "start() did not block" }
+				Thread.sleep(5)
+			}
+			started.count shouldBe 1L
+		}
+
+		started.await(10, TimeUnit.SECONDS) shouldBe true
+		starter!!.join(10_000)
+		awaitFinished(jobId!!) shouldBe BackupJobState.COMPLETED
+	}
+
+	@Test
+	fun `an exception of the block propagates and does not block later backups`() {
+		shouldThrow<IllegalStateException> { jobs.exclusive { error("restore failed") } }
+
+		val next = jobs.start()
+		awaitFinished(next.id) shouldBe BackupJobState.COMPLETED
 	}
 
 	@Test

@@ -1,25 +1,37 @@
 package ch.sonensei.cockpit.backup
 
 import ch.sonensei.cockpit.backup.domain.BackupFormat
+import ch.sonensei.cockpit.backup.domain.BackupJobService
+import ch.sonensei.cockpit.backup.domain.BackupJobState
 import ch.sonensei.cockpit.backup.domain.BackupService
 import ch.sonensei.cockpit.backup.domain.RestoreService
 import ch.sonensei.cockpit.core.auth.WithCockpitUser
 import ch.sonensei.cockpit.core.auth.infra.UserAccountRepository
 import ch.sonensei.cockpit.core.backupcontrib.UserBackupFixture
+import io.kotest.assertions.withClue
 import io.kotest.matchers.collections.shouldBeEmpty
+import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.collections.shouldContainExactlyInAnyOrder
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.shouldNotBe
+import io.kotest.matchers.string.shouldEndWith
+import io.kotest.matchers.string.shouldNotContain
 import io.kotest.matchers.string.shouldStartWith
 import org.hamcrest.Matchers.containsString
 import org.hamcrest.Matchers.hasItem
+import org.hamcrest.Matchers.not
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.extension.ExtendWith
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
+import org.springframework.boot.test.system.CapturedOutput
+import org.springframework.boot.test.system.OutputCaptureExtension
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc
 import org.springframework.context.annotation.Import
+import org.springframework.http.MediaType
 import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf
 import org.springframework.test.context.DynamicPropertyRegistry
@@ -29,10 +41,14 @@ import org.springframework.test.web.servlet.ResultActionsDsl
 import org.springframework.test.web.servlet.post
 import org.springframework.transaction.support.TransactionTemplate
 import tools.jackson.databind.JsonNode
+import tools.jackson.databind.node.ObjectNode
 import java.io.ByteArrayOutputStream
 import java.nio.file.Files
 import java.nio.file.Path
+import java.time.Clock
 import java.util.UUID
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 import kotlin.io.path.listDirectoryEntries
 import kotlin.io.path.name
 import kotlin.io.path.readBytes
@@ -45,6 +61,7 @@ import kotlin.io.path.readBytes
 @AutoConfigureMockMvc
 @Import(TestFixtureBackupConfiguration::class, FailingImportBackupConfiguration::class)
 @WithCockpitUser
+@ExtendWith(OutputCaptureExtension::class)
 class RestoreWebTests(
 	@Autowired private val mockMvc: MockMvc,
 	@Autowired private val backups: BackupService,
@@ -53,6 +70,8 @@ class RestoreWebTests(
 	@Autowired private val users: UserAccountRepository,
 	@Autowired private val testFixtures: TestFixtureBackupContributor,
 	@Autowired private val failing: FailingImportBackupContributor,
+	@Autowired private val jobs: BackupJobService,
+	@Autowired private val clock: Clock,
 ) {
 	private val mapper get() = backups.canonicalJson
 
@@ -68,6 +87,9 @@ class RestoreWebTests(
 	@AfterEach
 	fun tearDown() {
 		failing.fail = false
+		failing.failExport = false
+		failing.exportGate?.countDown()
+		failing.exportGate = null
 	}
 
 	private fun export(): ByteArray = ByteArrayOutputStream().also { backups.export(it) }.toByteArray()
@@ -261,6 +283,201 @@ class RestoreWebTests(
 		}
 
 		titles() shouldBe before
+	}
+
+	private fun awaitFinished(job: UUID) {
+		val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(30)
+		while (jobs.get(job).state == BackupJobState.RUNNING) {
+			check(System.nanoTime() < deadline) { "Backup $job did not finish" }
+			Thread.sleep(10)
+		}
+	}
+
+	@Test
+	fun `confirm while a backup runs is 409, keeps the upload and changes nothing`() {
+		val zip = export()
+		changeData()
+		val before = titles()
+		val id = report(zip)["id"].asString()
+		val gate = CountDownLatch(1).also { failing.exportGate = it }
+		val running = jobs.start()
+
+		confirm(id).andExpect {
+			status { isConflict() }
+			content { contentType("application/problem+json") }
+		}
+		titles() shouldBe before
+		Files.exists(dataDir.resolve(RestoreService.PRE_RESTORE_DIR)) shouldBe false
+
+		failing.exportGate = null
+		gate.countDown()
+		awaitFinished(running.id)
+		jobs.get(running.id).state shouldBe BackupJobState.COMPLETED
+		withClue("the upload was kept, so the restore can be confirmed once the backup is finished") {
+			confirm(id).andExpect { status { isOk() } }
+		}
+		titles() shouldNotBe before
+	}
+
+	@Test
+	fun `a new upload discards the previous one`() {
+		val zip = export()
+		val first = report(zip)["id"].asString()
+		val second = report(zip)["id"].asString()
+
+		second shouldNotBe first
+		confirm(first).andExpect { status { isNotFound() } }
+		confirm(second).andExpect { status { isOk() } }
+	}
+
+	@Test
+	fun `an invalid upload discards the previous valid one too`() {
+		val first = report(export())["id"].asString()
+
+		report("not a zip".toByteArray())["valid"].asBoolean() shouldBe false
+
+		confirm(first).andExpect { status { isNotFound() } }
+	}
+
+	@Test
+	fun `an upload sent as application octet-stream is accepted`() {
+		mockMvc
+			.post(BASE) {
+				with(csrf())
+				contentType = MediaType.APPLICATION_OCTET_STREAM
+				content = export()
+			}.andExpect {
+				status { isOk() }
+				jsonPath("$.valid") { value(true) }
+				jsonPath("$.id") { isString() }
+			}
+	}
+
+	@Test
+	fun `an upload of another content type is 415`() {
+		mockMvc
+			.post(BASE) {
+				with(csrf())
+				contentType = MediaType.TEXT_PLAIN
+				content = export()
+			}.andExpect { status { isUnsupportedMediaType() } }
+	}
+
+	@Test
+	fun `a backup of another app version is valid with a warning`() {
+		val zip =
+			Zips.edit(export(), mapper, updateManifest = false) { entries ->
+				val manifest = mapper.readTree(entries.getValue(BackupFormat.MANIFEST)) as ObjectNode
+				manifest.put("appVersion", "0.0.1-fictitious")
+				entries[BackupFormat.MANIFEST] = mapper.writeValueAsBytes(manifest)
+			}
+
+		val report = report(zip)
+
+		report["valid"].asBoolean() shouldBe true
+		report["appVersion"].asString() shouldBe "0.0.1-fictitious"
+		report["warnings"].values().map { it.asString() } shouldContain
+			"Created by My Cockpit 0.0.1-fictitious; this is version ${backups.appVersion}"
+	}
+
+	@Test
+	fun `a backup of the same app version has no version warning`() {
+		report(export())["warnings"].values().map { it.asString() }.none { it.startsWith("Created by My Cockpit") } shouldBe true
+	}
+
+	@Test
+	fun `a backup without owner account warns that the setup starts again`() {
+		jdbc.update("delete from app_user")
+
+		val report = report(export())
+
+		report["valid"].asBoolean() shouldBe true
+		report["warnings"].values().map { it.asString() } shouldContain
+			"The backup has no owner account: the setup starts again after the restore"
+	}
+
+	@Test
+	fun `data a contributor cannot read for its warnings makes the upload invalid, with the file named and no id`() {
+		val zip =
+			Zips.edit(export(), mapper, updateManifest = true) { entries ->
+				entries["data/user.json"] = "{\"username\":\"jdoe\"".toByteArray()
+			}
+		val before = titles()
+
+		val report = report(zip)
+
+		report["valid"].asBoolean() shouldBe false
+		report["id"].isNull shouldBe true
+		report["formatVersion"].asInt() shouldBe BackupFormat.VERSION
+		report["problems"].values().map { it.asString() } shouldContainExactly listOf("data/user.json is not valid")
+		report.toString() shouldNotContain "jdoe"
+		titles() shouldBe before
+	}
+
+	@Test
+	fun `a pre-restore backup never overwrites an earlier one of the same minute`() {
+		val zip = export()
+		val preRestoreDir = Files.createDirectories(dataDir.resolve(RestoreService.PRE_RESTORE_DIR))
+		// Both minutes the confirm may run in; the placeholders stand for earlier restores.
+		val now = clock.instant()
+		val earlier =
+			listOf(now, now.plusSeconds(60)).map { preRestoreDir.resolve(BackupFormat.fileName(it)) }.distinct().onEach {
+				Files.writeString(it, "earlier pre-restore backup")
+			}
+		val id = report(zip)["id"].asString()
+
+		val result =
+			confirm(id)
+				.andExpect { status { isOk() } }
+				.andReturn()
+				.response.contentAsString
+		val preRestore = mapper.readTree(result)["preRestoreBackup"].asString()
+
+		preRestore shouldEndWith "-2.zip"
+		earlier.forEach { Files.readString(it) shouldBe "earlier pre-restore backup" }
+		Zips.read(dataDir.resolve(preRestore).readBytes()).keys shouldContain BackupFormat.MANIFEST
+	}
+
+	@Test
+	fun `a failing pre-restore backup changes nothing, leaves no partial zip and uses up the upload`() {
+		val zip = export()
+		changeData()
+		val before = titles()
+		val files = dataFiles()
+		val id = report(zip)["id"].asString()
+		failing.failExport = true
+
+		confirm(id).andExpect {
+			status { isInternalServerError() }
+			content { string(not(containsString("Secret title"))) }
+		}
+
+		titles() shouldBe before
+		dataFiles() shouldBe files
+		dataDir.resolve(RestoreService.PRE_RESTORE_DIR).listDirectoryEntries().shouldBeEmpty()
+		dataDir
+			.listDirectoryEntries()
+			.map { it.name }
+			.filter { it.startsWith(".restore-") }
+			.shouldBeEmpty()
+		failing.failExport = false
+		confirm(id).andExpect { status { isNotFound() } }
+	}
+
+	@Test
+	fun `a failing pre-restore backup logs no user content from the contributor's error`(output: CapturedOutput) {
+		val id = report(export())["id"].asString()
+		failing.failExport = true
+
+		confirm(id).andExpect { status { isInternalServerError() } }
+
+		// Like a failing import (RestoreService.replace) and a failing backup job: the class name only at WARN and above.
+		output.all shouldNotContain "Secret title"
+	}
+
+	@Test
+	fun `confirm with an id that is not a UUID is 400`() {
+		confirm("not-a-uuid").andExpect { status { isBadRequest() } }
 	}
 
 	companion object {

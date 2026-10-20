@@ -4,16 +4,24 @@ import ch.sonensei.cockpit.backup.domain.BackupFileEntry
 import ch.sonensei.cockpit.backup.domain.BackupFormat
 import ch.sonensei.cockpit.backup.domain.BackupManifest
 import ch.sonensei.cockpit.backup.domain.InvalidBackupException
+import ch.sonensei.cockpit.backup.domain.json
+import ch.sonensei.cockpit.backup.domain.jsonLines
+import ch.sonensei.cockpit.backup.infra.BackupInspection
 import ch.sonensei.cockpit.backup.infra.ZipBackupReader
 import io.kotest.assertions.throwables.shouldThrow
+import io.kotest.assertions.withClue
+import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
-import io.kotest.matchers.string.shouldContain
+import io.kotest.matchers.string.shouldNotContain
+import io.kotest.matchers.string.shouldStartWith
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
 import tools.jackson.databind.json.JsonMapper
+import tools.jackson.databind.node.ArrayNode
+import tools.jackson.databind.node.ObjectNode
 import tools.jackson.module.kotlin.KotlinModule
 import java.nio.file.Files
 import java.nio.file.Path
@@ -261,6 +269,162 @@ class ZipBackupReaderValidationTests {
 		val corrupt = dir.resolve("corrupt.zip").also { Files.write(it, bytes) }
 
 		problems(corrupt) shouldContainExactly listOf("data/big.jsonl cannot be read")
+	}
+
+	/** The valid manifest as a JSON object, to break one field of it. */
+	private fun manifestTree() = mapper.valueToTree<ObjectNode>(manifest())
+
+	@Test
+	fun `a manifest without a numeric format version is not valid`() {
+		listOf<(ObjectNode) -> Unit>(
+			{ it.remove("formatVersion") },
+			{ it.putNull("formatVersion") },
+			{ it.put("formatVersion", "1") },
+			{ it.putArray("formatVersion").add(1) },
+		).forEach { change ->
+			val manifest = manifestTree().also(change)
+			problems(zip(manifest = mapper.writeValueAsBytes(manifest))) shouldContainExactly listOf("manifest.json is not valid")
+		}
+	}
+
+	@Test
+	fun `a fractional or out-of-range format version is unsupported, not invalid`() {
+		problems(zip(manifest = mapper.writeValueAsBytes(manifestTree().put("formatVersion", 1.5)))).single() shouldStartWith
+			"Unsupported format version 1.5"
+		problems(zip(manifest = mapper.writeValueAsBytes(manifestTree().put("formatVersion", 4_294_967_297L)))) shouldContainExactly
+			listOf("Unsupported format version 4294967297 (supported: 1)")
+	}
+
+	@Test
+	fun `a manifest of another format version is reported as unsupported even without the fields of version 1`() {
+		problems(zip(manifest = "{\"formatVersion\":2,\"somethingNew\":true}".toByteArray())) shouldContainExactly
+			listOf("Unsupported format version 2 (supported: 1)")
+	}
+
+	@Test
+	fun `null entries in the manifest's files or counts are not valid`() {
+		listOf<(ObjectNode) -> Unit>(
+			{ (it["files"] as ArrayNode).addNull() },
+			{ (it["files"] as ArrayNode).add("README.md") },
+			{ (it["counts"] as ObjectNode).putNull("tasks") },
+			{ (it["counts"] as ObjectNode).put("tasks", "two") },
+			{ it.putNull("files") },
+		).forEachIndexed { index, change ->
+			val manifest = manifestTree().also(change)
+			withClue("change $index") {
+				problems(zip(manifest = mapper.writeValueAsBytes(manifest))) shouldContainExactly listOf("manifest.json is not valid")
+			}
+		}
+	}
+
+	@Test
+	fun `a manifest that is not JSON is not valid`() {
+		problems(zip(manifest = "{\"formatVersion\":1,".toByteArray())) shouldContainExactly listOf("manifest.json is not valid")
+	}
+
+	@Test
+	fun `a zip without manifest is reported`() {
+		problems(zip(manifest = null)) shouldContainExactly listOf("manifest.json is missing")
+	}
+
+	@Test
+	fun `inspect returns the manifest and no problems for a valid backup`() {
+		val inspection = ZipBackupReader.inspect(zip(), mapper)
+
+		inspection.problems.shouldBeEmpty()
+		inspection.manifest shouldBe manifest()
+	}
+
+	@Test
+	fun `inspect returns the manifest together with the problems when files don't match it`() {
+		val inspection = ZipBackupReader.inspect(zip(validFiles + ("data/tasks.jsonl" to "{}\n".toByteArray())), mapper)
+
+		inspection.manifest shouldBe manifest()
+		inspection.problems shouldContainExactly listOf("data/tasks.jsonl does not match its sha256 in the manifest")
+	}
+
+	@Test
+	fun `inspect returns no manifest for a file that is no zip, or whose manifest is missing, invalid or of another version`() {
+		val notZip = dir.resolve("not.zip").also { Files.write(it, "PK not really".toByteArray()) }
+		ZipBackupReader.inspect(notZip, mapper) shouldBe BackupInspection(null, listOf("Not a zip file"))
+		ZipBackupReader.inspect(zip(manifest = null), mapper) shouldBe BackupInspection(null, listOf("manifest.json is missing"))
+		ZipBackupReader.inspect(zip(manifest = "[]".toByteArray()), mapper) shouldBe
+			BackupInspection(null, listOf("manifest.json is not valid"))
+		ZipBackupReader.inspect(zip(manifest = mapper.writeValueAsBytes(manifest(formatVersion = 2))), mapper) shouldBe
+			BackupInspection(null, listOf("Unsupported format version 2 (supported: 1)"))
+	}
+
+	@Test
+	fun `inspect closes the zip, so the file can be deleted afterwards`() {
+		val path = zip()
+		ZipBackupReader.inspect(path, mapper)
+
+		Files.delete(path)
+		Files.exists(path) shouldBe false
+	}
+
+	/** A valid backup with these data files besides [validFiles], all listed in its manifest. */
+	private fun withData(data: Map<String, ByteArray>): Path {
+		val entries = validFiles + data
+		return zip(entries, mapper.writeValueAsBytes(manifest(entries.map { (path, bytes) -> entry(path, bytes) })))
+	}
+
+	private data class Title(
+		val title: String,
+	)
+
+	@Test
+	fun `data is read through json and jsonLines, blank lines skipped`() {
+		val zip = withData(mapOf("data/profile.json" to "{\"title\":\"Jane Fictitious\"}".toByteArray()))
+
+		ZipBackupReader.open(zip, mapper).use { reader ->
+			reader.formatVersion shouldBe BackupFormat.VERSION
+			reader.has("profile") shouldBe true
+			reader.has("tasks") shouldBe true
+			reader.has("absent") shouldBe false
+			reader.json<Title>("profile") shouldBe Title("Jane Fictitious")
+			reader.json<Title>("absent") shouldBe null
+			val titles = mutableListOf<String>()
+			reader.jsonLines<Title>("tasks") { titles += it.title }
+			reader.jsonLines<Title>("absent") { titles += "never" }
+			titles shouldContainExactly listOf("Call plumber", "Buy milk")
+			reader.file("Documents/invoice.txt")!!.use { String(it.readAllBytes()) } shouldBe "Fictitious invoice 2025"
+			reader.file("Documents/missing.txt") shouldBe null
+		}
+	}
+
+	@Test
+	fun `a json data file that does not parse or is null fails with its name only, not its content`() {
+		listOf("{\"title\":\"Secret diary entry\"", "null", "[\"Secret diary entry\"]").forEach { content ->
+			val zip = withData(mapOf("data/profile.json" to content.toByteArray()))
+
+			ZipBackupReader.open(zip, mapper).use { reader ->
+				val e = shouldThrow<InvalidBackupException> { reader.json<Title>("profile") }
+				e.problems shouldContainExactly listOf("data/profile.json is not valid")
+				e.problems.single() shouldNotContain "Secret"
+				(e.message ?: "") shouldNotContain "Secret"
+			}
+		}
+	}
+
+	@Test
+	fun `a jsonl record that does not parse or is null fails with its file and line, not its content`() {
+		// content, line of the bad record, records consumed before it
+		listOf(
+			Triple("{\"title\":\"Call plumber\"}\n\n{\"title\":\"Secret diary entry\"\n", 3, 1),
+			Triple("{\"title\":\"Call plumber\"}\nnull\n", 2, 1),
+			Triple("{\"wrong\":\"Secret diary entry\"}\n", 1, 0),
+		).forEach { (content, line, before) ->
+			val zip = withData(mapOf("data/diary.jsonl" to content.toByteArray()))
+
+			ZipBackupReader.open(zip, mapper).use { reader ->
+				val read = mutableListOf<String>()
+				val e = shouldThrow<InvalidBackupException> { reader.jsonLines<Title>("diary") { read += it.title } }
+				e.problems shouldContainExactly listOf("data/diary.jsonl line $line is not valid")
+				(e.message ?: "") shouldNotContain "Secret"
+				read shouldBe List(before) { "Call plumber" }
+			}
+		}
 	}
 
 	private fun indexOf(

@@ -19,19 +19,31 @@ import java.nio.file.Path
 import java.security.MessageDigest
 import java.sql.DriverManager
 import java.util.HexFormat
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 import java.util.zip.ZipEntry
 import java.util.zip.ZipInputStream
 import java.util.zip.ZipOutputStream
 import kotlin.io.path.listDirectoryEntries
 
-/** A contributor without data whose import fails on demand ([fail]), after the ones it depends on have imported. */
+/**
+ * A contributor without data whose import fails on demand ([fail]), after the ones it depends on have imported. Its
+ * export waits for [exportGate] when set, to keep a backup running, and fails on demand ([failExport]).
+ */
 class FailingImportBackupContributor : BackupContributor {
 	override val id = "failing-import"
 	override val dependsOn = setOf(TestFixtureBackupContributor.ID)
 
 	@Volatile var fail = false
 
-	override fun export(writer: BackupDataWriter) = Unit
+	@Volatile var exportGate: CountDownLatch? = null
+
+	@Volatile var failExport = false
+
+	override fun export(writer: BackupDataWriter) {
+		exportGate?.await(30, TimeUnit.SECONDS)
+		check(!failExport) { "Export failed for 'Secret title'" }
+	}
 
 	override fun import(reader: BackupDataReader) = check(!fail) { "Import failed for 'Secret title'" }
 }
