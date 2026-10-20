@@ -137,7 +137,9 @@ describe('Setup', () => {
     const createObjectURL = vi.fn<(blob: Blob) => string>(() => 'blob:codes');
     const revokeObjectURL = vi.fn();
     Object.assign(URL, { createObjectURL, revokeObjectURL });
-    const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined);
+    const click = vi
+      .spyOn(HTMLAnchorElement.prototype, 'click')
+      .mockImplementation(() => undefined);
     root.querySelector<HTMLButtonElement>('button.download')!.click();
     const anchor = click.mock.contexts[0] as HTMLAnchorElement;
     expect(anchor.download).toBe(RECOVERY_CODES_FILE);
@@ -165,6 +167,62 @@ describe('Setup', () => {
     expect(TestBed.inject(Router).url).toBe('/login');
   });
 
+  it('shows the field errors of a rejected account', async () => {
+    auth.startSetup.mockRejectedValueOnce(
+      new ApiError(400, 'Bad Request', 'Validation failed.', undefined, undefined, [
+        { field: 'username', message: 'Username is taken.' },
+        { field: 'password', message: 'Password is too common.' },
+      ]),
+    );
+    await createAccount();
+    expect(root.querySelector('[role=alert]')?.textContent?.trim()).toBe(
+      'Username is taken. Password is too common.',
+    );
+    expect(root.querySelector('h1')?.textContent).toContain('Create your account');
+  });
+
+  it('shows the server message for a 400 without field errors before enrollment', async () => {
+    auth.startSetup.mockRejectedValueOnce(new ApiError(400, 'Bad Request', 'Fictitious reason.'));
+    await createAccount();
+    const alert = root.querySelector('[role=alert]')?.textContent;
+    expect(alert).toContain('Fictitious reason.');
+    expect(alert).not.toContain('That code is not valid.');
+  });
+
+  it('creates the account only once when submitted twice quickly', async () => {
+    let resolve!: (value: SetupResponse) => void;
+    auth.startSetup.mockImplementationOnce(() => new Promise((r) => (resolve = r)));
+    type('username', 'demo');
+    type('password', 'correct horse battery');
+    type('confirm', 'correct horse battery');
+    const form = root.querySelector('form')!;
+    form.dispatchEvent(new Event('submit'));
+    form.dispatchEvent(new Event('submit'));
+    await harness.fixture.whenStable();
+    expect(auth.startSetup).toHaveBeenCalledTimes(1);
+    expect(root.querySelector<HTMLButtonElement>('button[type=submit]')!.disabled).toBe(true);
+    resolve(ENROLLMENT);
+    await settle();
+    expect(root.querySelector('h1')?.textContent).toContain('Connect your authenticator app');
+  });
+
+  it('keeps "Copy codes" when the clipboard refuses', async () => {
+    clipboard.copy.mockReturnValueOnce(false);
+    await createAccount();
+    root.querySelector<HTMLButtonElement>('button.copy')!.click();
+    await settle();
+    expect(root.querySelector('button.copy')?.textContent?.trim()).toBe('Copy codes');
+  });
+
+  it('rejects a confirmation code that is not 6 digits', async () => {
+    await createAccount();
+    root.querySelector<HTMLInputElement>('mat-checkbox input')!.click();
+    type('code', '12a456');
+    await submit();
+    expect(auth.confirmSetup).not.toHaveBeenCalled();
+    expect(root.textContent).toContain('Enter the 6 digits shown in the app.');
+  });
+
   it('shows a wrong code and lets the user retry', async () => {
     auth.confirmSetup.mockRejectedValueOnce(new ApiError(400, 'Bad Request'));
     await createAccount();
@@ -174,5 +232,20 @@ describe('Setup', () => {
     expect(root.querySelector('[role=alert]')?.textContent).toContain('That code is not valid.');
     expect(root.querySelector<HTMLInputElement>('input[name=code]')!.value).toBe('');
     expect(TestBed.inject(Router).url).toBe('/setup');
+  });
+
+  it('confirms the code only once when submitted twice quickly', async () => {
+    let resolve!: () => void;
+    auth.confirmSetup.mockImplementationOnce(() => new Promise<void>((r) => (resolve = r)));
+    await createAccount();
+    root.querySelector<HTMLInputElement>('mat-checkbox input')!.click();
+    type('code', '123456');
+    const form = root.querySelector('form')!;
+    form.dispatchEvent(new Event('submit'));
+    form.dispatchEvent(new Event('submit'));
+    await harness.fixture.whenStable();
+    expect(auth.confirmSetup).toHaveBeenCalledTimes(1);
+    resolve();
+    await vi.waitFor(() => expect(TestBed.inject(Router).url).toBe('/login'));
   });
 });

@@ -4,6 +4,7 @@ import { provideRouter, Router } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
 import { App } from './app';
 import { routes } from './app.routes';
+import { AuthService } from './core/auth';
 import { provideFakeSession } from './core/auth/testing';
 import { CapturePlaceholder } from './features/capture/capture-placeholder';
 import { CommandPalette } from './shell/command-palette';
@@ -126,5 +127,104 @@ describe('App', () => {
     await vi.waitFor(() => expect(openDialogs()).toHaveLength(1));
     expect(openDialogs()[0]).toBeInstanceOf(CapturePlaceholder);
     expect(routeProviders()).toEqual([expect.any(NavigationPaletteProvider)]);
+  });
+});
+
+// p0-web-auth: the guards are wired into the real app routes (setup, login, every shell route).
+describe('App routes with auth guards', () => {
+  let harness: RouterTestingHarness;
+  let router: Router;
+  let state: { setupRequired: boolean; loggedIn: boolean };
+  let auth: {
+    setupRequired: ReturnType<typeof vi.fn>;
+    checkSession: ReturnType<typeof vi.fn>;
+    login: ReturnType<typeof vi.fn>;
+    user: () => { username: string } | null;
+    loggedIn: () => boolean;
+    logout: ReturnType<typeof vi.fn>;
+  };
+
+  beforeEach(async () => {
+    state = { setupRequired: false, loggedIn: false };
+    auth = {
+      setupRequired: vi.fn(() => Promise.resolve(state.setupRequired)),
+      checkSession: vi.fn(() => Promise.resolve(state.loggedIn)),
+      login: vi.fn(() => {
+        state.loggedIn = true;
+        return Promise.resolve({ username: 'demo' });
+      }),
+      user: () => (state.loggedIn ? { username: 'demo' } : null),
+      loggedIn: () => state.loggedIn,
+      logout: vi.fn(() => Promise.resolve()),
+    };
+    TestBed.configureTestingModule({
+      providers: [provideRouter(routes), { provide: AuthService, useValue: auth }],
+    });
+    harness = await RouterTestingHarness.create();
+    router = TestBed.inject(Router);
+  });
+
+  afterEach(() => {
+    TestBed.inject(MatDialog).closeAll();
+  });
+
+  /** The whole rendered app (the routed element itself is the page component). */
+  function page(): HTMLElement {
+    return harness.fixture.nativeElement as HTMLElement;
+  }
+
+  it('sends every URL to the setup page while setup is needed', async () => {
+    state.setupRequired = true;
+    for (const url of ['/', '/inbox', '/login', '/no-such-section']) {
+      await harness.navigateByUrl(url);
+      expect(router.url).toBe('/setup');
+    }
+    expect(page().querySelector('app-setup h1')?.textContent).toContain('Create your account');
+    expect(document.title).toBe('Set up My Cockpit');
+  });
+
+  it('closes the setup page once setup is done', async () => {
+    await harness.navigateByUrl('/setup');
+    expect(router.url).toBe('/login');
+    expect(page().querySelector('app-login h1')?.textContent).toContain('Sign in');
+  });
+
+  it.each(['/', ...NAV_SECTIONS.map((s) => s.path), '/no-such-section'])(
+    'guards the shell route %s: without a session it shows the login page with the return URL',
+    async (path) => {
+      await harness.navigateByUrl(path);
+      expect(router.url).toBe(`/login?returnUrl=${encodeURIComponent(path)}`);
+      expect(page().querySelector('app-shell')).toBeNull();
+      expect(page().querySelector('app-login')).not.toBeNull();
+      expect(document.title).toBe('Sign in');
+    },
+  );
+
+  it('signs in on /login and returns to the URL that needed the session', async () => {
+    await harness.navigateByUrl('/trash');
+    expect(router.url).toBe('/login?returnUrl=%2Ftrash');
+
+    const root = page();
+    const type = (selector: string, value: string): void => {
+      const input = root.querySelector<HTMLInputElement>(selector)!;
+      input.value = value;
+      input.dispatchEvent(new Event('input'));
+    };
+    type('input[formControlName=username]', 'demo');
+    type('input[formControlName=password]', 'a fictitious password');
+    type('input[name=totp]', '123456');
+    root.querySelector('form')!.dispatchEvent(new Event('submit'));
+
+    await vi.waitFor(() => expect(router.url).toBe('/trash'));
+    await harness.fixture.whenStable();
+    expect(auth.login).toHaveBeenCalledTimes(1);
+    expect(page().querySelector('app-coming-soon h1')?.textContent?.trim()).toBe('Trash');
+  });
+
+  it('sends a logged-in user from /login straight to the return URL', async () => {
+    state.loggedIn = true;
+    await harness.navigateByUrl('/login?returnUrl=%2Fnotes');
+    expect(router.url).toBe('/notes');
+    expect(auth.checkSession).toHaveBeenCalledWith(true);
   });
 });

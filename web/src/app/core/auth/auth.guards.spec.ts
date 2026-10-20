@@ -93,6 +93,18 @@ describe('auth guards', () => {
       expect(router.url).toBe('/inbox');
     });
 
+    it('sends a logged-in user without a return URL to the dashboard', async () => {
+      loggedIn = true;
+      await harness.navigateByUrl('/login');
+      expect(router.url).toBe('/');
+    });
+
+    it('does not loop when the return URL is the login page itself', async () => {
+      loggedIn = true;
+      await harness.navigateByUrl('/login?returnUrl=%2Flogin%3FreturnUrl%3D%252Finbox');
+      expect(router.url).toBe('/');
+    });
+
     it('ignores a return URL to another site', async () => {
       loggedIn = true;
       await harness.navigateByUrl('/login?returnUrl=%2F%2Fevil.example');
@@ -110,6 +122,13 @@ describe('auth guards', () => {
     it.each([
       ['/inbox?x=1', '/inbox?x=1'],
       [null, '/'],
+      [undefined, '/'],
+      ['inbox', '/'],
+      ['/', '/'],
+      [
+        '/notes/0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5b#top',
+        '/notes/0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5b#top',
+      ],
       ['', '/'],
       ['https://evil.example', '/'],
       ['//evil.example', '/'],

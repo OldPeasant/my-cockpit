@@ -150,6 +150,127 @@ describe('Login', () => {
     expect(button().disabled).toBe(false);
   });
 
+  it('waits 60 s when a 429 comes without Retry-After', async () => {
+    await open();
+    vi.useFakeTimers();
+    login.mockRejectedValueOnce(new ApiError(429, 'Too Many Requests'));
+    fill();
+    root.querySelector('form')!.dispatchEvent(new Event('submit'));
+    await vi.advanceTimersByTimeAsync(0);
+    fixture().detectChanges();
+    const alert = () => root.querySelector('[role=alert]')?.textContent?.trim();
+    expect(alert()).toBe('Too many failed attempts. Try again in 60 s.');
+
+    await vi.advanceTimersByTimeAsync(59_000);
+    fixture().detectChanges();
+    expect(alert()).toBe('Too many failed attempts. Try again in 1 s.');
+    await vi.advanceTimersByTimeAsync(1000);
+    fixture().detectChanges();
+    expect(alert()).toBeUndefined();
+  });
+
+  it('ignores a submit (e.g. Enter) during the backoff and accepts one afterwards', async () => {
+    await open();
+    vi.useFakeTimers();
+    login.mockRejectedValueOnce(
+      new ApiError(429, 'Too Many Requests', undefined, undefined, undefined, [], 2),
+    );
+    fill();
+    root.querySelector('form')!.dispatchEvent(new Event('submit'));
+    await vi.advanceTimersByTimeAsync(0);
+    fixture().detectChanges();
+    expect(login).toHaveBeenCalledTimes(1);
+    // The code was cleared after the failure: type a new one and press Enter while blocked.
+    type('input[name=totp]', '654321');
+    root.querySelector('form')!.dispatchEvent(new Event('submit'));
+    await vi.advanceTimersByTimeAsync(0);
+    expect(login).toHaveBeenCalledTimes(1);
+
+    await vi.advanceTimersByTimeAsync(2000);
+    root.querySelector('form')!.dispatchEvent(new Event('submit'));
+    await vi.advanceTimersByTimeAsync(0);
+    expect(login).toHaveBeenCalledTimes(2);
+  });
+
+  it('stops the backoff countdown when the page is left', async () => {
+    await open();
+    vi.useFakeTimers();
+    login.mockRejectedValueOnce(
+      new ApiError(429, 'Too Many Requests', undefined, undefined, undefined, [], 30),
+    );
+    const setIntervalSpy = vi.spyOn(globalThis, 'setInterval');
+    const clearIntervalSpy = vi.spyOn(globalThis, 'clearInterval');
+    fill();
+    root.querySelector('form')!.dispatchEvent(new Event('submit'));
+    await vi.advanceTimersByTimeAsync(0);
+    const index = setIntervalSpy.mock.calls.findIndex((call) => call[1] === 1000);
+    const countdown = setIntervalSpy.mock.results[index]?.value;
+    expect(countdown).toBeDefined();
+    expect(clearIntervalSpy).not.toHaveBeenCalledWith(countdown);
+    fixture().destroy();
+    expect(clearIntervalSpy).toHaveBeenCalledWith(countdown);
+    setIntervalSpy.mockRestore();
+    clearIntervalSpy.mockRestore();
+  });
+
+  it('sends a single login request when the form is submitted twice quickly', async () => {
+    await open();
+    let resolve!: (value: { username: string }) => void;
+    login.mockImplementationOnce(() => new Promise((r) => (resolve = r)));
+    fill();
+    const form = root.querySelector('form')!;
+    form.dispatchEvent(new Event('submit'));
+    form.dispatchEvent(new Event('submit'));
+    await fixture().whenStable();
+    expect(login).toHaveBeenCalledTimes(1);
+    expect(root.querySelector<HTMLButtonElement>('button[type=submit]')!.disabled).toBe(true);
+    resolve({ username: 'demo' });
+    await vi.waitFor(() => expect(router.url).toBe('/'));
+  });
+
+  it('switches back from the recovery code to the authenticator code', async () => {
+    await open();
+    const toggle = () => root.querySelector<HTMLButtonElement>('button.switch')!;
+    expect(toggle().textContent?.trim()).toBe('Use a recovery code');
+    toggle().click();
+    await fixture().whenStable();
+    expect(toggle().textContent?.trim()).toBe('Use the authenticator app instead');
+    expect(root.querySelector('input[name=recoveryCode]')).not.toBeNull();
+    toggle().click();
+    await fixture().whenStable();
+    expect(root.querySelector('input[name=recoveryCode]')).toBeNull();
+    fill();
+    await submit();
+    expect(login).toHaveBeenCalledWith({
+      username: 'demo',
+      password: 'a long password',
+      rememberDevice: false,
+      totp: '123456',
+    });
+  });
+
+  it('does not send an empty recovery code', async () => {
+    await open();
+    root.querySelector<HTMLButtonElement>('button.switch')!.click();
+    await fixture().whenStable();
+    type('input[formControlName=username]', 'demo');
+    type('input[formControlName=password]', 'a long password');
+    await submit();
+    expect(login).not.toHaveBeenCalled();
+  });
+
+  it('lets the user retry with a new code after wrong credentials', async () => {
+    await open();
+    login.mockRejectedValueOnce(new ApiError(401, 'Unauthorized'));
+    fill();
+    await submit();
+    expect(root.querySelector('[role=alert]')).not.toBeNull();
+    type('input[name=totp]', '654321');
+    await submit();
+    expect(login).toHaveBeenCalledTimes(2);
+    expect(router.url).toBe('/');
+  });
+
   it('shows the server message on other errors', async () => {
     await open();
     login.mockRejectedValueOnce(new ApiError(0, 'The server cannot be reached.'));

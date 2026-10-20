@@ -1,4 +1,4 @@
-import { HttpErrorResponse } from '@angular/common/http';
+import { HttpErrorResponse, HttpHeaders } from '@angular/common/http';
 import { ApiError } from './api-error';
 
 function response(status: number, error: unknown): HttpErrorResponse {
@@ -98,6 +98,60 @@ describe('ApiError', () => {
       expect(error.title).toBe('The request failed (HTTP 400).');
       expect(error.detail).toBeUndefined();
       expect(error.errors).toEqual([]);
+    });
+
+    describe('retryAfter (Retry-After header)', () => {
+      function throttled(retryAfter: string | null, body: unknown = null): HttpErrorResponse {
+        return new HttpErrorResponse({
+          status: 429,
+          statusText: 'Too Many Requests',
+          error: body,
+          url: '/api/v1/auth/login',
+          headers:
+            retryAfter === null
+              ? new HttpHeaders()
+              : new HttpHeaders({ 'Retry-After': retryAfter }),
+        });
+      }
+
+      it('reads delay-seconds from a response with a problem body', () => {
+        const error = ApiError.from(throttled('42', { status: 429, title: 'Too Many Requests' }));
+
+        expect(error.status).toBe(429);
+        expect(error.title).toBe('Too Many Requests');
+        expect(error.retryAfter).toBe(42);
+      });
+
+      it('reads delay-seconds from a response without a problem body', () => {
+        const error = ApiError.from(throttled('7'));
+
+        expect(error.title).toBe('The request failed (HTTP 429).');
+        expect(error.retryAfter).toBe(7);
+      });
+
+      it.each([
+        ['0', 0],
+        [' 15 ', 15],
+        ['900', 900],
+      ])('parses %j as %i seconds', (header, seconds) => {
+        expect(ApiError.from(throttled(header)).retryAfter).toBe(seconds);
+      });
+
+      it.each([
+        ['no header', null],
+        ['an empty header', ''],
+        ['a blank header', '   '],
+        ['an HTTP-date', 'Wed, 21 Oct 2026 07:28:00 GMT'],
+        ['a negative number', '-5'],
+        ['a decimal number', '1.5'],
+        ['text', 'soon'],
+      ])('is undefined for %s', (_case, header) => {
+        expect(ApiError.from(throttled(header)).retryAfter).toBeUndefined();
+      });
+
+      it('is undefined when built directly without it', () => {
+        expect(new ApiError(429, 'Too Many Requests').retryAfter).toBeUndefined();
+      });
     });
 
     it.each([
