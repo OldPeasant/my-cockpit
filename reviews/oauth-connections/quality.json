@@ -1,0 +1,27 @@
+{
+  "schema": 1,
+  "task": "oauth-connections",
+  "reviewed_revision": "809a5538e17c27a8b3650ab2f037ee50ee50a4bb",
+  "helpers": {
+    "test-writer":   {"status": "completed", "report": "reviews/oauth-connections/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/oauth-connections/review.md"},
+    "fixer":         {"status": "completed", "report": "reviews/oauth-connections/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "R1-CR-1", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "first review round (dd2a7a6), CR-1 in fixes.md: token refresh not coordinated with disconnect/reconnect; fixed with a per-connection lock, confirmed present by the current review"},
+    {"id": "TW-1", "source": "test-writer", "severity": "Low", "disposition": "fixed",
+     "note": "OAuth test contexts exhausted Postgres connections in the full suite; fixed in test code (DirtiesContext), confirmed resolved in the current tests.md"},
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P3", "disposition": "accepted",
+     "note": "ID token iss/aud not checked; token comes directly from the provider's token endpoint over TLS (OIDC Core 3.1.3.7), recorded as task assumption"},
+    {"id": "CR-2", "source": "code-reviewer", "severity": "P3", "disposition": "accepted",
+     "note": "Microsoft connection lists only Graph scopes as granted; mail scopes are obtained per resource from the same refresh token (task assumption), display-only"},
+    {"id": "CR-3", "source": "code-reviewer", "severity": "P3", "disposition": "deferred",
+     "note": "COCKPIT_OAUTH_PUBLICURL not passed by deploy/docker-compose.yml (outside this task's touches); follow-up task deploy-oauth-env"}
+  ],
+  "validation": [
+    {"command": "cd server && ./gradlew test --tests 'ch.sonensei.cockpit.core.oauth.*' --tests '*OpenApiContractTest'", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
