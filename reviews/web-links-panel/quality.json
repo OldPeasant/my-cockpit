@@ -15,7 +15,7 @@
      "note": "same defect as CR-1, failing test now passes"},
     {"id": "CR-2", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
      "note": "action error and open search are reset on item change; stale add/remove results ignored (fixer)"},
-    {"id": "CR-3", "source": "code-reviewer", "severity": "P3", "disposition": "rejected",
+    {"id": "CR-3", "source": "code-reviewer", "severity": "P3", "disposition": "invalid",
      "note": "error and conflict paths were already covered by the test-writer's tests"},
     {"id": "CR-4", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
      "note": "link added during a pending load now triggers a reload (commit 4e5d4d94), with tests; verified in review round 3"},
