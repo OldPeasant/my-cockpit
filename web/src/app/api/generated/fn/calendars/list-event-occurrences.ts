@@ -36,7 +36,7 @@ export function listEventOccurrences(http: HttpClient, rootUrl: string, params: 
   }
 
   return http.request(
-    rb.build({ responseType: 'json', accept: 'application/problem+json', context })
+    rb.build({ responseType: 'json', accept: 'application/json', context })
   ).pipe(
     filter((r: any): r is HttpResponse<any> => r instanceof HttpResponse),
     map((r: HttpResponse<any>) => {

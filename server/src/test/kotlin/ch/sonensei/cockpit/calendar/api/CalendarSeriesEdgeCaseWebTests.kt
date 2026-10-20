@@ -478,11 +478,30 @@ class CalendarSeriesEdgeCaseWebTests(
 	fun `a failed occurrence change creates no override`() {
 		val series = weekly()
 
-		api.patchEvent(series.id(), """{"reminderMinutes":[-1]}""", "?scope=THIS&occurrence=2026-03-09T08:00:00Z").isProblem(400, "reminderMinutes")
+		api
+			.patchEvent(
+				series.id(),
+				"""{"reminderMinutes":[-1]}""",
+				"?scope=THIS&occurrence=2026-03-09T08:00:00Z",
+			).isProblem(400, "reminderMinutes")
 		api.patchEvent(series.id(), """{"title":" "}""", "?scope=FOLLOWING&occurrence=2026-03-09T08:00:00Z").isProblem(400, "title")
 
 		rowCount() shouldBe 1
 		api.event(series.id()).text("rrule") shouldBe "FREQ=WEEKLY"
+	}
+
+	@Test
+	fun `a THIS change racing another one for the same occurrence is a conflict`() {
+		val series = weekly()
+		val first = api.patchEventOk(series.id(), """{"title":"First tab"}""", "?scope=THIS&occurrence=2026-03-09T08:00:00Z")
+		// Simulates the race: the other request's override exists in the database but this request did not see it
+		// (the service looks up only overrides that are not deleted). Creating the override does not change the master,
+		// so If-Match on the master still matches.
+		jdbc.update("update calendar_event set deleted_at = now() where id = ?::uuid", first.id())
+
+		api.patchEvent(series.id(), """{"title":"Second tab"}""", "?scope=THIS&occurrence=2026-03-09T08:00:00Z").isProblem(409)
+
+		rowCount() shouldBe 2
 	}
 
 	// --- Trash

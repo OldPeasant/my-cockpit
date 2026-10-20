@@ -23,6 +23,7 @@ import ch.sonensei.cockpit.core.web.NotFoundException
 import net.fortuna.ical4j.model.Recur
 import org.hibernate.Hibernate
 import org.springframework.context.ApplicationEventPublisher
+import org.springframework.dao.DataIntegrityViolationException
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import java.net.URI
@@ -219,7 +220,15 @@ class CalendarEventService(
 		applyContent(override, fields)
 		fields.timing?.let { override.setTiming(Timing.resolve(Timing.of(override), it, settings.timeZone())) }
 		validate(override)
-		return events.saveAndFlush(override).also { changed(it, if (existing == null) ChangeOp.CREATED else ChangeOp.UPDATED) }
+		val saved =
+			try {
+				events.saveAndFlush(override)
+			} catch (e: DataIntegrityViolationException) {
+				// A concurrent change of the same occurrence created its override first (If-Match saw the master only).
+				if (existing == null) throw ConflictException("The occurrence was changed concurrently")
+				throw e
+			}
+		return saved.also { changed(it, if (existing == null) ChangeOp.CREATED else ChangeOp.UPDATED) }
 	}
 
 	private fun deleteOccurrence(
@@ -250,11 +259,12 @@ class CalendarEventService(
 		applyContent(master, fields)
 		fields.calendarId?.let { master.calendarId = it.value }
 		fields.rrule?.let { master.rrule = normalizeRule(it.value) }
-		fields.timing?.let { input ->
-			// The time fields are the new times of the occurrence the client changed (the first one by default).
-			val shown = override?.let(Timing::of) ?: occurrence?.let(oldTiming::occurrence) ?: oldTiming
-			master.setTiming(oldTiming.shifted(shown, Timing.resolve(shown, input, settings.timeZone())))
-		}
+		val requested =
+			fields.timing?.let { input ->
+				// The time fields are the new times of the occurrence the client changed (the first one by default).
+				val shown = override?.let(Timing::of) ?: occurrence?.let(oldTiming::occurrence) ?: oldTiming
+				Timing.resolve(shown, input, settings.timeZone()).also { master.setTiming(oldTiming.shifted(shown, it)) }
+			}
 		validate(master)
 		val after = EventContent.of(master)
 		val overrides = overridesOf(master)
@@ -266,7 +276,7 @@ class CalendarEventService(
 		master.exdates.clear()
 		val moved = Timing.of(master) != oldTiming || master.rrule != oldRule
 		val saved = events.saveAndFlush(master)
-		carryExceptions(oldTiming, oldTiming, saved, exdates, overrides, rekey = moved)
+		carryExceptions(oldTiming, oldTiming, saved, exdates, overrides, rekey = moved, addressed = addressedTiming(override, requested))
 		val result = events.saveAndFlush(saved)
 		changed(result)
 		return result
@@ -292,10 +302,11 @@ class CalendarEventService(
 		applyContent(next, fields)
 		fields.calendarId?.let { next.calendarId = it.value }
 		fields.rrule?.let { next.rrule = normalizeRule(it.value) }
-		fields.timing?.let { input ->
-			val shown = override?.let(Timing::of) ?: originalTiming
-			next.setTiming(originalTiming.shifted(shown, Timing.resolve(shown, input, settings.timeZone())))
-		}
+		val requested =
+			fields.timing?.let { input ->
+				val shown = override?.let(Timing::of) ?: originalTiming
+				Timing.resolve(shown, input, settings.timeZone()).also { next.setTiming(originalTiming.shifted(shown, it)) }
+			}
 		validate(next)
 		val after = EventContent.of(next)
 
@@ -310,7 +321,15 @@ class CalendarEventService(
 		val savedMaster = events.saveAndFlush(master)
 		changed(savedMaster)
 		val saved = events.saveAndFlush(next)
-		carryExceptions(oldTiming, originalTiming, saved, laterExdates, laterOverrides, rekey = true)
+		carryExceptions(
+			oldTiming,
+			originalTiming,
+			saved,
+			laterExdates,
+			laterOverrides,
+			rekey = true,
+			addressed = addressedTiming(override, requested),
+		)
 		val result = events.saveAndFlush(saved)
 		changed(result, ChangeOp.CREATED)
 		return result
@@ -334,7 +353,8 @@ class CalendarEventService(
 	 * to [target]'s first occurrence (for `ALL` the series itself, before its change). With [rekey], each exception moves
 	 * like that occurrence moved; one that is then no occurrence of [target] (or of another kind) is dropped. An override
 	 * that was not moved from its occurrence moves along; overrides whose master or recurrence id changes are recreated
-	 * (the database keeps both fixed).
+	 * (the database keeps both fixed). The override of the occurrence the client changed ([addressed]: its recurrence id
+	 * and requested times) gets the requested times.
 	 */
 	private fun carryExceptions(
 		oldMasterTiming: Timing,
@@ -343,6 +363,7 @@ class CalendarEventService(
 		exdates: Collection<OccurrenceId>,
 		overrides: Collection<CalendarEvent>,
 		rekey: Boolean,
+		addressed: Pair<OccurrenceId, Timing>? = null,
 	) {
 		val to = Timing.of(target)
 		val newId: (OccurrenceId) -> OccurrenceId? = { id ->
@@ -356,7 +377,11 @@ class CalendarEventService(
 			when {
 				moved == null -> deleteOverride(override)
 				moved == id && override.parentEventId == target.id -> {
-					if (Timing.of(override) == oldMasterTiming.occurrence(id)) override.setTiming(to.occurrence(id))
+					val requested = addressed?.takeIf { it.first == id }?.second
+					when {
+						requested != null -> override.setTiming(requested)
+						Timing.of(override) == oldMasterTiming.occurrence(id) -> override.setTiming(to.occurrence(id))
+					}
 					changed(events.saveAndFlush(override))
 				}
 				else -> replaced += override to moved
@@ -365,8 +390,11 @@ class CalendarEventService(
 		// Delete first: the recreated overrides may take recurrence ids of deleted ones.
 		val copies =
 			replaced.map { (override, moved) ->
-				val unmoved = Timing.of(override) == oldMasterTiming.occurrence(override.recurrenceId!!)
-				val timing = if (unmoved) to.occurrence(moved) else Timing.of(override)
+				val id = override.recurrenceId!!
+				val unmoved = Timing.of(override) == oldMasterTiming.occurrence(id)
+				val timing =
+					addressed?.takeIf { it.first == id }?.second
+						?: if (unmoved) to.occurrence(moved) else Timing.of(override)
 				deleteOverride(override)
 				Triple(EventContent.of(override), moved, timing)
 			}
@@ -375,6 +403,12 @@ class CalendarEventService(
 			changed(events.saveAndFlush(newOverride(target, moved, content, timing)), ChangeOp.CREATED)
 		}
 	}
+
+	/** The recurrence id of the addressed [override] with the [requested] times, when the client sent times for it. */
+	private fun addressedTiming(
+		override: CalendarEvent?,
+		requested: Timing?,
+	): Pair<OccurrenceId, Timing>? = if (override != null && requested != null) override.recurrenceId!! to requested else null
 
 	private fun newOverride(
 		master: CalendarEvent,
@@ -552,7 +586,12 @@ class CalendarEventService(
 		changes.publish(ItemType.EVENT, event.id, op)
 	}
 
-	private fun load(id: UUID): CalendarEvent = events.findActiveById(id) ?: throw NotFoundException("Event not found")
+	/** An event that is not in the Trash; an override shares its series master's Trash state. */
+	private fun load(id: UUID): CalendarEvent =
+		events
+			.findActiveById(id)
+			?.takeIf { !it.isOverride || events.findActiveById(it.parentEventId!!) != null }
+			?: throw NotFoundException("Event not found")
 
 	private fun initialized(event: CalendarEvent): CalendarEvent = event.also { Hibernate.initialize(it.exdates) }
 

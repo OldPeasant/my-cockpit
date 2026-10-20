@@ -684,9 +684,6 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/OccurrenceListResponse"
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/OccurrenceListResponse"
           description: The occurrences
         "400":
           content:

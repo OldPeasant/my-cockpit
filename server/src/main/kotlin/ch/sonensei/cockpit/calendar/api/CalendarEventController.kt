@@ -56,7 +56,11 @@ class CalendarEventController(
 				"series expanded, ordered by start. All-day events count by the days the range touches in the user's " +
 				"time zone. The range is at most 400 days.",
 	)
-	@ApiResponse(responseCode = "200", description = "The occurrences")
+	@ApiResponse(
+		responseCode = "200",
+		description = "The occurrences",
+		content = [Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = Schema(implementation = OccurrenceListResponse::class))],
+	)
 	@ApiResponse(
 		responseCode = "400",
 		description = "Missing or invalid range",

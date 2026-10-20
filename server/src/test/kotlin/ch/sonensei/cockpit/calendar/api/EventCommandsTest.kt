@@ -273,7 +273,10 @@ class EventCommandsTest {
 			master.moveOccurrenceId(OccurrenceId.of(at("2026-03-09T08:00:00Z")), allDay("2026-03-02", "2026-03-03")) shouldBe null
 			allDay("2026-03-02", "2026-03-03").moveOccurrenceId(OccurrenceId.of(date("2026-03-09")), master) shouldBe null
 			master.moveOccurrenceId(OccurrenceId.of(date("2026-03-09")), master) shouldBe null
-			allDay("2026-03-02", "2026-03-03").moveOccurrenceId(OccurrenceId.of(at("2026-03-09T08:00:00Z")), allDay("2026-03-03", "2026-03-04")) shouldBe
+			allDay(
+				"2026-03-02",
+				"2026-03-03",
+			).moveOccurrenceId(OccurrenceId.of(at("2026-03-09T08:00:00Z")), allDay("2026-03-03", "2026-03-04")) shouldBe
 				null
 		}
 	}

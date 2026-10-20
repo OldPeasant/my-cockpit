@@ -31,7 +31,10 @@ class CalendarEventControllerRaceTest {
 			setTimed(Instant.parse("2026-03-02T13:00:00Z"), Instant.parse("2026-03-02T14:00:00Z"), ZoneId.of("Europe/Zurich"))
 			val now = Instant.parse("2026-03-01T10:00:00Z")
 			listOf("createdAt", "updatedAt").forEach { name ->
-				BaseEntity::class.java.getDeclaredField(name).apply { isAccessible = true }.set(this, now)
+				BaseEntity::class.java
+					.getDeclaredField(name)
+					.apply { isAccessible = true }
+					.set(this, now)
 			}
 		}
 
@@ -41,7 +44,10 @@ class CalendarEventControllerRaceTest {
 		every { service.create(id, any()) } throws DataIntegrityViolationException("duplicate key value violates calendar_event_pkey")
 		every { service.existingCreate(id) } returns CreatedEvent(storedEvent(id), created = false)
 
-		val response = controller.create(CreateEventRequest(id = id, title = "Dentist (second tab)", start = Instant.parse("2026-03-02T13:00:00Z")))
+		val response =
+			controller.create(
+				CreateEventRequest(id = id, title = "Dentist (second tab)", start = Instant.parse("2026-03-02T13:00:00Z")),
+			)
 
 		response.statusCode shouldBe HttpStatus.OK
 		response.headers.getFirst(HttpHeaders.ETAG) shouldBe "\"0\""
