@@ -18,3 +18,4 @@ Login screen and token storage (SPEC.md §9.2 item 1).
 ## Notes
 - ASSUMPTION (2026-10-20 17:55+0200 by dell26/agent-6): Tokens are encrypted with AES-256-GCM using a key generated in the Android Keystore directly (javax.crypto), not Tink/EncryptedSharedPreferences: EncryptedSharedPreferences is deprecated and Tink's AndroidKeysetManager falls back to a cleartext keyset when the Keystore fails. Without a usable Keystore the tokens stay in memory only (fail closed).
 - ASSUMPTION (2026-10-20 17:55+0200 by dell26/agent-6): Passkey login (SPEC 9.2 item 1) is left to the and-passkeys task; this task's criteria only name password + TOTP/recovery code.
+- ASSUMPTION (2026-10-20 17:55+0200 by dell26/agent-6): Logout revokes this device on the server (DELETE /api/v1/auth/devices/{own id}, best effort, 5 s timeout) before clearing tokens, so a copied refresh token stops working; offline logout still clears locally.
