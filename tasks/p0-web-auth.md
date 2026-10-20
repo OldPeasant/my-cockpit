@@ -13,7 +13,8 @@ Setup wizard and login UI (SPEC.md §4.1).
 ## Acceptance criteria
 - [x] Setup page (only reachable while setup is needed): username/password form, QR code of the otpauth URI, recovery codes with copy/download, TOTP confirmation
   - verified (2026-10-20 13:54+0200 by dell26/agent-2): Vitest setup.spec.ts + qr-code.spec.ts + auth.guards.spec.ts (setupGuard) in cd web && npm run check on 1d7dd9c -> pass: account form (12-char/match/username rules), QR SVG of otpauthUri, secret, 10 codes with copy (CDK Clipboard) and .txt download, TOTP confirm -> /login; /setup redirects to /login once setup is done. Not tried in a real browser against the server (no E2E named)
-- [ ] Login page: password + TOTP, 'use a recovery code' switch, remember device; shows the backoff wait time on 429
+- [x] Login page: password + TOTP, 'use a recovery code' switch, remember device; shows the backoff wait time on 429
+  - verified (2026-10-20 13:54+0200 by dell26/agent-2): Vitest login.spec.ts in cd web && npm run check on 1d7dd9c -> pass: password+TOTP, recovery-code switch, remember device sent, 429 shows 'Too many failed attempts. Try again in N s.' from Retry-After (fallback 60 s) counting down with submit disabled
 - [ ] Auth guard on all shell routes; logout in the top bar menu; `/login` redirects to the return URL after success
 - [ ] Vitest component/service tests cover setup and login forms, guard redirects; `cd web && npm run check` passes
 
