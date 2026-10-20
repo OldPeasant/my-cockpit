@@ -18,3 +18,4 @@ Offline-first capture (SPEC.md §9.3).
 
 ## Notes
 - ASSUMPTION (2026-10-21 01:15+0200 by dell26/agent-1): Pending captures are NOT cleared on logout (not a SessionCache): they exist nowhere else yet; the job just waits (retry with backoff) until someone is logged in again. Single-user app, so they go to the next login.
+- ASSUMPTION (2026-10-21 01:15+0200 by dell26/agent-1): 409 on POST /capture (id belongs to a task in the Trash) counts as sent like 200, since the capture already reached the server. Other 4xx (400/413/...) mark the capture 'rejected': kept in the queue with lastError, counted as pending, but not retried automatically. 401/408/429/5xx/IO errors retry with exponential backoff (30 s).
