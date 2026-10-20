@@ -12,9 +12,7 @@
     {"id": "CR-1", "source": "code-reviewer", "severity": "P3", "disposition": "accepted",
      "note": "expectNone with a string URL in the debounce unit test cannot fail; the debounce is still covered by the palette test 'never sends the requests of queries replaced within the debounce' (isSearch matcher) and http.verify in afterEach"},
     {"id": "CR-1 (first review, e176a5b3)", "source": "code-reviewer", "severity": "P2", "disposition": "accepted",
-     "note": "no loading/failed state while searching; the shell PaletteProvider contract has none, extending it is a shell change outside touches; recorded with tasks.py assume"},
-    {"id": "CR-2 (first review, e176a5b3)", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
-     "note": "retry after a failed lazy load is now tested in search.providers.spec.ts (test-writer)"}
+     "note": "no loading/failed state while searching; the shell PaletteProvider contract has none, extending it is a shell change outside touches; recorded with tasks.py assume. (The first review's CR-2, a missing retry test, was covered by the test-writer before the final review, which lists it as resolved.)"}
   ],
   "validation": [
     {"command": "cd web && npm run check", "result": "pass"},
