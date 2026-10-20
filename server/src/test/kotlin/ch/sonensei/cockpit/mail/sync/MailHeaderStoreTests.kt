@@ -210,6 +210,22 @@ class MailHeaderStoreTests(
 	}
 
 	@Test
+	fun `answered alone and draft alone are flag changes`() {
+		store.upsert(account.id, inbox.id, listOf(remote(1, "<a@example.test>"), remote(2, "<b@example.test>")))
+
+		val counts =
+			store.reconcile(
+				inbox.id,
+				listOf(RemoteFlagState(1, RemoteFlags(answered = true)), RemoteFlagState(2, RemoteFlags(draft = true))),
+				emptySet(),
+			)
+
+		counts shouldBe StoreCounts(updated = 2)
+		row(inbox, 1).answered shouldBe true
+		row(inbox, 2).draft shouldBe true
+	}
+
+	@Test
 	fun `a keyword removed on the server is a change`() {
 		store.upsert(account.id, inbox.id, listOf(remote(1, "<a@example.test>", flags = RemoteFlags(keywords = listOf("\$Forwarded")))))
 
@@ -416,6 +432,17 @@ class MailHeaderStoreTests(
 		store.upsert(account.id, other.id, listOf(remote(1, "<a@example.test>", subject = "Unrelated subject")))
 
 		listOf(row(inbox, 1), row(archive, 1), row(other, 1)).map { it.threadKey } shouldBe List(3) { "<a@example.test>" }
+	}
+
+	@Test
+	fun `a root synced after its reply still shares the subject conversation of other messages without references`() {
+		// INBOX is synced before Sent: the colleague's reply arrives first, then the sent root, then a reminder that
+		// has no References/In-Reply-To but the same subject (subject fallback).
+		store.upsert(account.id, inbox.id, listOf(remote(1, "<reply@example.test>", subject = "Re: Offsite", inReplyTo = "<root@example.test>")))
+		store.upsert(account.id, archive.id, listOf(remote(1, "<root@example.test>", subject = "Offsite")))
+		store.upsert(account.id, other.id, listOf(remote(1, "<reminder@example.test>", subject = "Offsite")))
+
+		listOf(row(inbox, 1), row(archive, 1), row(other, 1)).map { it.threadKey }.toSet().size shouldBe 1
 	}
 
 	@Test

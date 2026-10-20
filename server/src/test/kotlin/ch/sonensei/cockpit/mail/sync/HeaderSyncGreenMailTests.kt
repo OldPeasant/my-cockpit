@@ -450,6 +450,30 @@ class HeaderSyncGreenMailTests(
 	}
 
 	@Test
+	fun `a resync finds many linked old messages again with batched Message-ID searches`() {
+		val old = Instant.now().minus(500, ChronoUnit.DAYS)
+		// More than one search batch (20 Message-IDs per UID SEARCH, nested ORs), plus an old message nothing links to.
+		val oldIds = (1..22).map { "<old-$it@example.test>" }
+		val oldMails = { (oldIds + "<unlinked-old@example.test>").map { mail(it, "Old $it", received = old) }.toTypedArray() }
+		append("Projects", mail("<recent@example.test>", "Recent"), *oldMails())
+		val projects = folder("Projects")
+		sync.syncFolder(projects.id)
+		sync.loadOlder(projects.id).loaded shouldBe 23
+		val recent = cached(projects, "<recent@example.test>")
+		val linkedIds = oldIds.associateWith { cached(projects, it).id }
+		linkedIds.values.forEach { links.create(ItemRef(ItemType.EMAIL, it), ItemRef(ItemType.EMAIL, recent.id), null) }
+
+		recreate("Projects", *oldMails(), mail("<recent@example.test>", "Recent"))
+		val result = sync.syncFolder(projects.id)
+
+		result.full shouldBe true
+		// Every linked old row is located again under its own id; only the unlinked old one is not fetched again.
+		oldIds.forEach { id -> cached(projects, id).id shouldBe linkedIds.getValue(id) }
+		cached(projects).map { it.messageIdHeader } shouldContainExactlyInAnyOrder oldIds + "<recent@example.test>"
+		result.removed shouldBe 1
+	}
+
+	@Test
 	fun `a resync removes rows that nothing links to`() {
 		append("Projects", mail("<p1@example.test>", "Plan"))
 		val projects = folder("Projects")

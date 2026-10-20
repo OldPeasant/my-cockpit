@@ -143,6 +143,38 @@ class MailThreadingTests {
 		mail.keyOf("<d@example.test>") shouldBe "subject:holidays"
 	}
 
+	/**
+	 * a and d have neither References nor In-Reply-To and the same subject, so the subject fallback puts them into one
+	 * conversation; b replies to a. The result must not depend on the order the three arrive in (UID order, folder order).
+	 */
+	@ParameterizedTest
+	@CsvSource(
+		value = [
+			"a,b,d",
+			"a,d,b",
+			"b,a,d",
+			"b,d,a",
+			"d,a,b",
+			"d,b,a",
+		],
+	)
+	fun `a root, its reply and another message with the root's subject share one conversation in any arrival order`(
+		first: String,
+		second: String,
+		third: String,
+	) {
+		val mail = Mailbox()
+		for (name in listOf(first, second, third)) {
+			when (name) {
+				"a" -> mail.receive("<a@example.test>", "Budget")
+				"b" -> mail.receive("<b@example.test>", "Re: Budget", inReplyTo = "<a@example.test>")
+				"d" -> mail.receive("<d@example.test>", "Budget")
+			}
+		}
+
+		setOf(mail.keyOf("<a@example.test>"), mail.keyOf("<b@example.test>"), mail.keyOf("<d@example.test>")).size shouldBe 1
+	}
+
 	@Test
 	fun `a reply to a subject-threaded message joins that conversation`() {
 		val mail = Mailbox()

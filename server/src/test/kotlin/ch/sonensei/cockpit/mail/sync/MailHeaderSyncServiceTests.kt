@@ -8,6 +8,7 @@ import ch.sonensei.cockpit.mail.model.MailAccountType
 import ch.sonensei.cockpit.mail.model.MailFolder
 import ch.sonensei.cockpit.mail.model.MailFolderRepository
 import ch.sonensei.cockpit.mail.model.MailSecurity
+import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.shouldBe
@@ -237,6 +238,35 @@ class MailHeaderSyncServiceTests {
 	}
 
 	@Test
+	fun `with CONDSTORE but no cached HIGHESTMODSEQ the flags of every cached UID are fetched`() {
+		cachedState(uidNext = 12, highestModSeq = null)
+		remote.status = RemoteFolderStatus(7, 12, 120, condstore = true, qresync = false)
+		every { store.locatedUids(folder.id) } returns listOf(3, 5)
+		remote.flags = listOf(RemoteFlagState(3, RemoteFlags(seen = true), 110))
+
+		service.syncFolder(folder.id)
+
+		remote.calls shouldContainExactly listOf("flagsFrom 3")
+		verify { store.reconcile(folder.id, remote.flags, setOf(5L)) }
+		// Nothing to resynchronize from: the folder is opened without a QRESYNC state.
+		openedWith shouldBe null
+	}
+
+	@Test
+	fun `with CONDSTORE on a folder without MODSEQ support (NOMODSEQ) the flags of every cached UID are fetched`() {
+		cachedState(uidNext = 12, highestModSeq = 100)
+		remote.status = RemoteFolderStatus(7, 12, null, condstore = true, qresync = false)
+		every { store.locatedUids(folder.id) } returns listOf(3, 5)
+		remote.flags = listOf(RemoteFlagState(3, RemoteFlags()), RemoteFlagState(5, RemoteFlags(flagged = true)))
+
+		service.syncFolder(folder.id)
+
+		remote.calls shouldContainExactly listOf("flagsFrom 3")
+		verify { store.reconcile(folder.id, remote.flags, emptySet()) }
+		verify { store.finish(folder.id, remote.status, now) }
+	}
+
+	@Test
 	fun `with QRESYNC the changes reported on open are applied without further reads`() {
 		cachedState(uidNext = 12, highestModSeq = 100)
 		remote.status = RemoteFolderStatus(7, 13, 130, condstore = true, qresync = true)
@@ -352,6 +382,15 @@ class MailHeaderSyncServiceTests {
 		service.loadOlder(folder.id) shouldBe OlderMessagesResult(loaded = 0, hasMore = false)
 
 		verify(exactly = 1) { changes.publish("MAIL_FOLDER", folder.id, ChangeOp.UPDATED) }
+	}
+
+	@Test
+	fun `loadOlder rejects a limit that is not positive without opening the folder`() {
+		cachedState()
+
+		shouldThrow<IllegalArgumentException> { service.loadOlder(folder.id, limit = 0) }
+
+		opened shouldBe 0
 	}
 
 	@Test
