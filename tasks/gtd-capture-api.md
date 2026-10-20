@@ -19,7 +19,8 @@ Idempotent capture used by web and Android (SPEC.md §4.5, §5.4).
   - verified (2026-10-20 23:25+0200 by dell26/agent-6): same run -> CaptureParserTests 20/20 + CaptureParserEdgeCaseTests 28/28 (pure parser: #project case-insensitive/unknown kept, @context, !today/!tomorrow/!YYYY-MM-DD, ^waiting) and /capture/preview web tests pass
 - [x] `fileIds` are linked to the task via the link system
   - verified (2026-10-20 23:25+0200 by dell26/agent-6): same run -> CaptureWebTests file-link tests + CaptureSideEffectWebTests 3/3 pass (GET /api/v1/links shows TASK->FILE link from both sides; rejected capture leaves no link)
-- [ ] `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.gtd.*'` passes (Postgres via Testcontainers where persistence is involved)
+- [x] `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.gtd.*'` passes (Postgres via Testcontainers where persistence is involved)
+  - verified (2026-10-20 23:26+0200 by dell26/agent-6): cd server && ./gradlew test --tests 'ch.sonensei.cockpit.gtd.*' --tests '*OpenApiContractTest' at 1e2aa34f, Postgres via Testcontainers -> BUILD SUCCESSFUL, 318 tests, 0 failures/errors/skipped
 - [ ] API documented: `api/openapi.yaml` regenerated (`UPDATE_OPENAPI=1 ./gradlew test --tests '*OpenApiContractTest'`) and `OpenApiContractTest` passes without the flag
 
 ## Notes
