@@ -75,7 +75,10 @@ Before running `tasks.py done`, the parent worker must complete this quality wor
    fix is needed, record "fixer not required" with the reason in `quality.json`.
 5. Re-run relevant tests after fixes.
 6. If the code changed after the review (fixes included), run `test-writer` and `code-reviewer` again
-   on the final code. Evidence for an earlier revision is stale, and `done` rejects it.
+   on the final code. Evidence for an earlier revision is stale, and `done` rejects it. Only changed code
+   lines count (`done` compares `git patch-id`, `docs/QUALITY.md` "Freshness"): rebasing, merging main,
+   squashing, or commits touching only `tasks/`/`reviews/` keep the evidence fresh, even though the
+   commit hash changes. Don't re-run the helpers for that; set `reviewed_revision` to the new hash.
 7. Record the evidence for each acceptance criterion with `tasks.py verify` (see "Evidence"), using
    what you and the helpers actually ran.
 8. Run `.taskcheck`.
