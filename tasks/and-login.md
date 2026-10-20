@@ -5,7 +5,7 @@ owner: dell26/agent-6
 deps: [and-api-client]
 touches: [android/app/src/main/java/ch/sonensei/cockpit/auth,android/app/src/test/java/ch/sonensei/cockpit/auth]
 prio: 1
-lease_until: 2026-10-20T17:11:52Z
+lease_until: 2026-10-20T17:16:55Z
 extended: dell26/agent-6
 ---
 ## Goal
