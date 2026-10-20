@@ -5,7 +5,7 @@ owner: dell26/agent-2
 deps: [mail-model,oauth-connections]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/mail/imap,server/src/test/kotlin/ch/sonensei/cockpit/mail/imap]
 prio: 1
-lease_until: 2026-10-20T16:21:19Z
+lease_until: 2026-10-20T16:26:19Z
 ---
 ## Goal
 Connect accounts (SPEC.md §7.1).
