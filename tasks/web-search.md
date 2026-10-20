@@ -17,7 +17,8 @@ Ctrl+K palette with global search and commands (SPEC.md §4.4).
   - verified (2026-10-20 19:10+0200 by dell26/agent-4): npm run e2e -- e2e/search/search.spec.ts against the docker compose e2e stack: ArrowDown to the result, Enter -> URL /tasks/<created id>, palette closed, passed; unit: Enter navigates to deepLink (navigateByUrl spy) passed
 - [x] Vitest component/service tests cover result grouping, stale response ignored, keyboard navigation; `cd web && npm run check` passes
   - verified (2026-10-20 19:10+0200 by dell26/agent-4): cd web && npm run check at 9868beb0 -> api:check, lint, e2e:typecheck ok, 30 files / 471 Vitest tests passed (grouping, stale response cancelled, arrow-key navigation), ng build ok (pre-existing initial budget warning)
-- [ ] Playwright `e2e/search/search.spec.ts` passes against the e2e stack (`npm run e2e -- e2e/search/search.spec.ts`, see p0-e2e-harness): search 'passport' finds the task
+- [x] Playwright `e2e/search/search.spec.ts` passes against the e2e stack (`npm run e2e -- e2e/search/search.spec.ts`, see p0-e2e-harness): search 'passport' finds the task
+  - verified (2026-10-20 19:10+0200 by dell26/agent-4): cd web && npm run e2e -- e2e/search/search.spec.ts (run-e2e.mjs, deploy/docker-compose.e2e.yml stack, chromium) at 9868beb0 -> 7 passed (5 phase-demos + 2 search specs incl. search passport finds the task)
 
 ## Notes
 - ASSUMPTION (2026-10-20 18:55+0200 by dell26/agent-4): Palette search: queries shorter than 2 characters (trimmed) are not sent, 200 ms debounce, limit 20; results without a deepLink (module without resolver) are left out since there is nothing to open
