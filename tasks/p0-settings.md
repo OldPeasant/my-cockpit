@@ -5,7 +5,7 @@ owner: dell26/agent-5
 deps: [p0-auth-login]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/core/settings,server/src/test/kotlin/ch/sonensei/cockpit/core/settings,server/src/main/resources/db/migration/core-settings]
 prio: 1
-lease_until: 2026-10-20T12:19:20Z
+lease_until: 2026-10-20T12:24:26Z
 ---
 ## Goal
 Key-value user settings with typed defaults (SPEC.md §4.7).
