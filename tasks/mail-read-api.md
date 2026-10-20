@@ -1,11 +1,11 @@
 ---
 title: Mail read API
-status: in_progress
-owner: dell26/agent-5
+status: todo
+owner: 
 deps: [mail-header-sync,mail-sanitizer]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/mail/api,server/src/test/kotlin/ch/sonensei/cockpit/mail/api]
 prio: 1
-lease_until: 2026-10-21T00:10:58Z
+lease_until: 
 releases: 1
 extended: 
 ---
@@ -29,3 +29,4 @@ List and read messages (SPEC.md §7.4).
 - ASSUMPTION (2026-10-21 00:03+0200 by dell26/agent-1): Older mail on demand (SPEC.md §7.2, MailHeaderSyncService.loadOlder) is not part of this task: GET /mail/messages stays a pure header-cache read (no IMAP round trip in a list call); the API for loading older mail is the follow-up task mail-load-older (review CR-1).
 - release by dell26/agent-1: Implementation complete and committed (list/read/thread/attachments/image proxy/body cache, OpenAPI regenerated, 2 review+fix rounds; sh scripts/check.sh passes at b1db3c8b). Left, finalization only: (1) run test-writer on final code -> reviews/mail-read-api/tests.md is MISSING (needs task-scoped coverage), (2) re-run code-reviewer on final code (fixes in f05c7d51 + tests in b1db3c8b made review.md stale), fixer only if new findings, (3) run ./gradlew test --tests 'ch.sonensei.cockpit.mail.api.*' incl. external GreenMail + OpenApiContractTest without flag and record tasks.py verify 1-4, (4) write quality.json, commit, tasks.py done. Follow-up mail-load-older already exists for review CR-1.
 - ASSUMPTION (2026-10-21 01:14+0200 by dell26/agent-5): Mail read infrastructure (MailBodyAttachmentStore, MailMessageListQuery, MailContentLoader, RemoteImageFetcher) lives in mail.api instead of mail.infra because the task's touches only allow mail/api; moving it is left to a later refactoring (review CR-2).
+- release by dell26/agent-5: handed back by dell26/agent-5: pushes had failed (remote: fatal error in commit_refs | To https://github.com/OldPeasant/my-cockpit.git | ! [remote rejected] 1e371877dea2…); continue from wip/mail-read-api
