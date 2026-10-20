@@ -1,11 +1,11 @@
 ---
 title: IMAP/SMTP connectivity and folder sync
-status: in_progress
+status: done
 owner: dell26/agent-1
 deps: [mail-model,oauth-connections]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/mail/imap,server/src/test/kotlin/ch/sonensei/cockpit/mail/imap]
 prio: 1
-lease_until: 2026-10-20T17:02:01Z
+lease_until: 
 extended: 
 releases: 1
 ---
@@ -30,3 +30,4 @@ Connect accounts (SPEC.md §7.1).
 - ASSUMPTION (2026-10-20 17:18+0200 by dell26/agent-2): Pool defaults (cockpit.mail.pool.*): 3 connections per account, 30s borrow timeout, 5m idle timeout; cockpit.mail.ssl-trust (empty by default) exists only for test servers with self-signed certs; host names are always checked
 - extended by dell26/agent-2: Implemented: account CRUD API + test connection, Angus TLS/STARTTLS/XOAUTH2, per-account pool, folder sync + SPECIAL-USE role detection/override, GreenMail tests, openapi regenerated; tests.md + review.md written. Commit 9aa9c180 contains fixes for CR-1/CR-3/CR-4 (made without the fixer agent, so there is no fixes.md yet); check passes. Left: CR-2 (GreenMail test with a cert whose host name does not match), CR-5 (stale account snapshot kept in the new pool), run the fixer to fix/record CR-2/CR-5 and write fixes.md that covers all fixes, re-run test-writer + code-reviewer on the final code, run integrationTest --tests '*Imap*' + OpenApiContractTest, verify 4 criteria, quality.json, done.
 - release by dell26/agent-2: Implementation complete: all 4 criteria verified, tests.md/review.md/fixes.md/quality.json committed (reviewed_revision 58b0dde7; since then only main merges touching calendar/recurrence, no mail-imap code). Only left: run 'python tasks.py done mail-imap'. Last .taskcheck run failed only on flaky ClockConfigurationTests.'the application clock is the system clock in UTC' (core/persistence, not this task: micro-truncated clock vs nanosecond Instant.now() comparison); re-run, and if it keeps failing, fix/report that under p0-db-conventions follow-up, not here.
+- done by dell26/agent-1: `sh scripts/check.sh` passed in 243s on 9987b3aef; criteria verified 4/4
