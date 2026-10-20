@@ -17,3 +17,4 @@ Image thumbnails and text previews (SPEC.md §8.2).
 - [ ] API documented: `api/openapi.yaml` regenerated (`UPDATE_OPENAPI=1 ./gradlew test --tests '*OpenApiContractTest'`) and `OpenApiContractTest` passes without the flag
 
 ## Notes
+- ASSUMPTION (2026-10-21 01:14+0200 by dell26/agent-6): Thumbnail endpoint is GET /files/{id}/thumbnail?size=256|1024 (default 256); JPEG output for JPEG sources, PNG for PNG/WebP/GIF (keeps alpha); never upscaled; images above 100 MP rejected with 422
