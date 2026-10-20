@@ -14,6 +14,7 @@ import ch.sonensei.cockpit.files.infra.FileRepository
 import ch.sonensei.cockpit.files.infra.FolderRepository
 import org.slf4j.LoggerFactory
 import org.springframework.context.ApplicationEventPublisher
+import org.springframework.dao.DataIntegrityViolationException
 import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -32,6 +33,10 @@ import java.util.UUID
  * the Trash. Restoring it brings back what was deleted with it; purging it deletes the subtree and its blobs.
  * Blobs are written before the row and removed again when the transaction rolls back; a purged file's blob is deleted
  * only after the transaction commits.
+ *
+ * Concurrency: inserting a file or folder locks its target folder `FOR SHARE` (and requires it to be active), and
+ * deleting a folder locks every folder of its subtree `FOR UPDATE` before collecting the contents. So an insert racing
+ * a delete either commits first (and is trashed with the folder) or waits and then fails with [NotFoundException].
  */
 @Service
 @Transactional
@@ -79,9 +84,9 @@ class FilesService(
 		id: UUID? = null,
 	): Folder {
 		val valid = FileNames.validate(name)
-		parentId?.let(::folder)
+		parentId?.let(::lockActiveFolder)
 		if (sibling(parentId, valid) != null) throw nameTaken()
-		val folder = folders.save(Folder(valid, parentId, id))
+		val folder = flushedName { folders.saveAndFlush(Folder(valid, parentId, id)) }
 		indexed(folder)
 		changes.publish(ItemType.FOLDER, folder.id, ChangeOp.CREATED)
 		return folder
@@ -98,13 +103,15 @@ class FilesService(
 		val other = sibling(folder.parentId, valid)
 		if (other != null && other.id != folder.id) throw nameTaken()
 		folder.name = valid
+		flushedName { folders.flush() }
 		indexed(folder)
 		changes.publish(ItemType.FOLDER, folder.id, ChangeOp.UPDATED)
 		return folder
 	}
 
 	/**
-	 * Moves the folder and everything below it to the Trash.
+	 * Moves the folder and everything below it to the Trash. The subtree's folders are locked `FOR UPDATE` first, so
+	 * no file or folder can be inserted into them until the delete commits (see [lockActiveFolder]).
 	 *
 	 * @throws ConflictException for a special folder
 	 */
@@ -112,7 +119,7 @@ class FilesService(
 		val folder = folder(id)
 		if (folder.isSpecial) throw ConflictException("Special folders cannot be deleted")
 		val at = clock.storableInstant()
-		val subtree = folders.findAllById(folders.findSubtreeIds(id)).filter { !it.isDeleted }
+		val subtree = folders.findAllById(lockSubtree(id)).filter { !it.isDeleted }
 		val contained = files.findByFolderIdIn(subtree.map { it.id }).filter { !it.isDeleted }
 		subtree.forEach {
 			it.trashAt(at)
@@ -146,6 +153,8 @@ class FilesService(
 		folderId?.let(::folder)
 		val blob = blobs.write(content, maxSize)
 		afterCompletion { committed -> if (!committed) deleteBlob(blob.key) }
+		// Writing the blob can take long: check again, under a lock, that the folder was not deleted meanwhile.
+		folderId?.let(::lockActiveFolder)
 		val file = files.save(FileItem(valid, folderId, mime.ifBlank { DEFAULT_MIME }, blob.size, blob.sha256, blob.key, id))
 		indexed(file)
 		changes.publish(ItemType.FILE, file.id, ChangeOp.CREATED)
@@ -183,7 +192,13 @@ class FilesService(
 		val existing = sibling(parentId, kind.folderName)
 		val folder =
 			if (existing != null) {
-				existing.also { it.special = kind }
+				// Adopt the user folder, with the special folder's spelling (it cannot be renamed afterwards).
+				existing.also {
+					it.special = kind
+					it.name = kind.folderName
+					indexed(it)
+					changes.publish(ItemType.FOLDER, it.id, ChangeOp.UPDATED)
+				}
 			} else {
 				folders.save(Folder(kind.folderName, parentId).apply { special = kind }).also {
 					indexed(it)
@@ -235,11 +250,29 @@ class FilesService(
 	 * Deletes a folder listed in the Trash permanently, with every folder and file below it and their blobs (after
 	 * commit). Links and search documents of the contents go too; those of the folder itself are removed by the
 	 * caller's [ItemDeletedEvent]. `false` when the folder is not listed in the Trash.
+	 *
+	 * Only rows in the Trash are ever purged. An active folder or file found below the folder (which the locking in
+	 * [deleteFolder] and [storeFile] prevents) is not deleted but moved to the drive root, with its own subtree, so it
+	 * survives; an active folder gets a free name there ([freeName]).
 	 */
 	fun purgeFolder(id: UUID): Boolean {
 		if (trashedFolders().none { it.id == id }) return false
-		val subtreeIds = folders.findSubtreeIds(id)
-		val contained = files.findByFolderIdIn(subtreeIds)
+		val subtree = folders.findAllById(lockSubtree(id))
+		val children = subtree.groupBy { it.parentId }
+		val purged = mutableListOf<Folder>()
+		val pending = ArrayDeque(subtree.filter { it.id == id })
+		while (pending.isNotEmpty()) {
+			val next = pending.removeFirst()
+			if (next.isDeleted) {
+				purged += next
+				pending += children[next.id].orEmpty()
+			} else {
+				rescue(next)
+			}
+		}
+		val subtreeIds = purged.map { it.id }
+		val (contained, strays) = files.findByFolderIdIn(subtreeIds).partition { it.isDeleted }
+		strays.forEach { rescue(it) }
 		if (contained.isNotEmpty()) files.deleteAllByIds(contained.map { it.id })
 		folders.deleteAllByIds(subtreeIds)
 		contained.forEach {
@@ -263,6 +296,48 @@ class FilesService(
 		afterCompletion { committed -> if (committed) deleteBlob(key) }
 		return true
 	}
+
+	/** Moves an active folder found below a purged folder to the root, so the purge does not delete it. */
+	private fun rescue(folder: Folder) {
+		log.warn("Active folder {} found below a purged folder, moved to the root", folder.id)
+		folder.name = freeName(null, folder.name)
+		folder.parentId = null
+		indexed(folder)
+		changes.publish(ItemType.FOLDER, folder.id, ChangeOp.UPDATED)
+	}
+
+	/** Moves an active file found in a purged folder to the root, so the purge does not delete it. */
+	private fun rescue(file: FileItem) {
+		log.warn("Active file {} found in a purged folder, moved to the root", file.id)
+		file.folderId = null
+		changes.publish(ItemType.FILE, file.id, ChangeOp.UPDATED)
+	}
+
+	/** The folder [id], locked `FOR SHARE` while the transaction runs; see [FolderRepository.lockActiveForShare]. */
+	private fun lockActiveFolder(id: UUID): Folder = folders.lockActiveForShare(id) ?: throw NotFoundException("Folder not found")
+
+	/**
+	 * Locks [id] and every folder below it `FOR UPDATE` and returns their ids. Repeats until no new folder appears,
+	 * since a folder committed between reading the tree and locking it would otherwise be missed.
+	 */
+	private fun lockSubtree(id: UUID): List<UUID> {
+		var locked = emptySet<UUID>()
+		while (true) {
+			val ids = folders.findSubtreeIds(id)
+			if (locked.containsAll(ids)) return ids
+			folders.lockForUpdate(ids)
+			locked = ids.toSet()
+		}
+	}
+
+	/** Runs [write] (which flushes a folder name) and turns a violation of the unique name index into a 409. */
+	private fun <T> flushedName(write: () -> T): T =
+		try {
+			write()
+		} catch (_: DataIntegrityViolationException) {
+			// A concurrent request took the name between the sibling check and the insert/update.
+			throw nameTaken()
+		}
 
 	private fun sibling(
 		parentId: UUID?,

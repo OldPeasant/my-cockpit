@@ -4,6 +4,8 @@ import ch.sonensei.cockpit.core.persistence.SoftDeletableRepository
 import ch.sonensei.cockpit.files.domain.FileItem
 import ch.sonensei.cockpit.files.domain.Folder
 import ch.sonensei.cockpit.files.domain.SpecialFolder
+import jakarta.persistence.LockModeType
+import org.springframework.data.jpa.repository.Lock
 import org.springframework.data.jpa.repository.Modifying
 import org.springframework.data.jpa.repository.Query
 import java.util.UUID
@@ -21,6 +23,20 @@ interface FolderRepository : SoftDeletableRepository<Folder> {
 		parentId: UUID,
 		name: String,
 	): Folder?
+
+	/**
+	 * The folder [id] when it is not in the Trash, locked `FOR SHARE` until the transaction ends, so a concurrent
+	 * [lockForUpdate] (folder delete) waits for the caller to commit, and the caller waits for a running delete (and
+	 * then gets `null`). Used before inserting a file or folder into it.
+	 */
+	@Lock(LockModeType.PESSIMISTIC_READ)
+	@Query("select f from Folder f where f.id = :id and f.deletedAt is null")
+	fun lockActiveForShare(id: UUID): Folder?
+
+	/** Locks the folders [ids] `FOR UPDATE` until the transaction ends (in id order, to avoid deadlocks). */
+	@Lock(LockModeType.PESSIMISTIC_WRITE)
+	@Query("select f from Folder f where f.id in :ids order by f.id")
+	fun lockForUpdate(ids: Collection<UUID>): List<Folder>
 
 	/** [id] and the ids of all folders below it, in or out of the Trash. */
 	@Query(
