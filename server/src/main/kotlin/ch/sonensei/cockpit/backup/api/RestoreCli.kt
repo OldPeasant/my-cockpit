@@ -7,14 +7,13 @@ import ch.sonensei.cockpit.backup.domain.RestoreReport
 import ch.sonensei.cockpit.backup.domain.RestoreService
 import ch.sonensei.cockpit.core.auth.domain.SetupService
 import org.springframework.boot.SpringApplication
-import org.springframework.boot.WebApplicationType
 import java.io.PrintStream
 import java.nio.file.Files
 import java.nio.file.Path
 
 /**
  * Disaster recovery on a fresh install (SPEC.md §10.1): `java -jar cockpit-server.jar --restore=/path/backup.zip`
- * starts the application without the web server, validates the backup, replaces all data with it like a confirmed
+ * starts the application without listening on a port, validates the backup, replaces all data with it like a confirmed
  * restore (the current data, if any, goes to `pre-restore/` first) and exits. The next normal start skips the setup
  * flow when the backup contains the owner account.
  */
@@ -36,8 +35,9 @@ object RestoreCli {
 			out.println("Restore: $path is not a file")
 			return 2
 		}
-		val application = SpringApplication(CockpitServerApplication::class.java).apply { setWebApplicationType(WebApplicationType.NONE) }
-		application.run(*args.filterNot { it.startsWith(OPTION) }.toTypedArray()).use { context ->
+		// `server.port=-1`: the full (web) application context, but the web server does not listen.
+		val arguments = args.filterNot { it.startsWith(OPTION) || it.startsWith("--server.port=") } + "--server.port=-1"
+		SpringApplication.run(CockpitServerApplication::class.java, *arguments.toTypedArray()).use { context ->
 			val restores = context.getBean(RestoreService::class.java)
 			val report = restores.validate(path)
 			print(report, out)
