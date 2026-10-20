@@ -20,3 +20,4 @@ CRUD for local calendars and events (SPEC.md §6.4).
 ## Notes
 - ASSUMPTION (2026-10-20 18:37+0200 by dell26/agent-3): Service, DTOs and EVENT TrashContributor live in calendar/api (the task's touches); no separate calendar/domain package was created
 - ASSUMPTION (2026-10-20 18:37+0200 by dell26/agent-3): POST /calendar/calendars creates LOCAL calendars only, in a single LOCAL source 'Cockpit' created on demand; the first calendar becomes the default; no DELETE for calendars (SPEC 6.4 lists only GET/POST/PATCH)
+- ASSUMPTION (2026-10-20 18:37+0200 by dell26/agent-3): Event writes are only allowed in LOCAL, non-read-only calendars (409 otherwise); write-through to providers is left to cal-sync-engine
