@@ -1,0 +1,26 @@
+{
+  "schema": 1,
+  "task": "p0-web-shell",
+  "reviewed_revision": "2ac2815c9eb422e8435ccac43d8daf485e330e26",
+  "helpers": {
+    "test-writer": {"status": "completed", "report": "reviews/p0-web-shell/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/p0-web-shell/review.md"},
+    "fixer": {"status": "completed", "report": "reviews/p0-web-shell/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "TW-1", "source": "test-writer", "severity": "High", "disposition": "fixed",
+     "note": "palette opened without the shell injector, so route-level PALETTE_PROVIDERS were invisible; fixed in a999e94, regression test in app.spec.ts"},
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P1", "disposition": "fixed",
+     "note": "same defect as TW-1; Shell passes its injector to MatDialog.open"},
+    {"id": "CR-2", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "capture placeholder dialog now opened with the caller's injector"},
+    {"id": "CR-3", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "behaviour kept (only Ctrl+K works while a dialog is open); assumption corrected, comment and Ctrl+Shift+Space test added"}
+  ],
+  "validation": [
+    {"command": "cd web && npm run check", "result": "pass"},
+    {"command": "cd web && npm run coverage", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
