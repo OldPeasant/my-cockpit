@@ -12,7 +12,8 @@ extended: dell26/agent-4
 Show and revoke Android devices; regenerate recovery codes.
 
 ## Acceptance criteria
-- [ ] Lists devices (name, last used) with revoke + confirm dialog
+- [x] Lists devices (name, last used) with revoke + confirm dialog
+  - verified (2026-10-20 17:03+0200 by dell26/agent-4): cd web && npm run check (Vitest security-settings.spec.ts: lists devices with name + last use, revoke after confirm dialog, cancel/dismiss keeps device) -> pass; code review of 4ad721f confirms list + confirm dialog
 - [ ] Server: `POST /api/v1/auth/recovery-codes` (requires current TOTP) regenerates codes; UI shows them once
 - [ ] Vitest component/service tests cover device list, revoke flow; `cd web && npm run check` passes
 - [ ] `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.core.auth.*'` passes (Postgres via Testcontainers where persistence is involved) for the recovery code endpoint
