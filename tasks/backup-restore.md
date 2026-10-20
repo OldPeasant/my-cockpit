@@ -5,7 +5,7 @@ owner: dell26/agent-6
 deps: [backup-core]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/backup,server/src/test/kotlin/ch/sonensei/cockpit/backup]
 prio: 1
-lease_until: 2026-10-20T22:52:06Z
+lease_until: 2026-10-20T22:57:08Z
 ---
 ## Goal
 Restore from a backup zip (SPEC.md §10.1).
