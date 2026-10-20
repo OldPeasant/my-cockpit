@@ -137,6 +137,12 @@ class FilesService(
 	 * Stores [content] as a new file in [folderId] (`null`: the root). The blob is removed again if the transaction
 	 * rolls back. File names need not be unique.
 	 *
+	 * [content] is read inside this method's transaction, so a pooled database connection stays checked out while it
+	 * streams. Callers should pass content that is already buffered locally (e.g. a multipart upload Spring has stored
+	 * in memory or a temporary file), not a stream fed by a slow client, so a few slow uploads cannot exhaust the pool.
+	 * The target folder is locked only after the blob is written (see [lockActiveFolder]), so no row lock is held
+	 * during the transfer.
+	 *
 	 * @throws ch.sonensei.cockpit.core.web.InvalidRequestException for an invalid name ([FileNames.validate])
 	 * @throws NotFoundException when the folder does not exist or is in the Trash
 	 * @throws ch.sonensei.cockpit.files.infra.BlobTooLargeException when [content] exceeds [maxSize] bytes
