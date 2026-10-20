@@ -11,7 +11,8 @@ lease_until: 2026-10-20T20:20:47Z
 Keep the header cache in sync (SPEC.md §7.2).
 
 ## Acceptance criteria
-- [ ] Initial sync of the configured window (default 12 months), older on demand; incremental via UIDNEXT/flags, CONDSTORE/QRESYNC when supported; UIDVALIDITY change → resync folder
+- [x] Initial sync of the configured window (default 12 months), older on demand; incremental via UIDNEXT/flags, CONDSTORE/QRESYNC when supported; UIDVALIDITY change → resync folder
+  - verified (2026-10-20 22:05+0200 by dell26/agent-1): cd server && ./gradlew test --tests 'ch.sonensei.cockpit.mail.sync.*' (MailHeaderSyncServiceTests 23/23: window initial sync, loadOlder by INTERNALDATE, UIDNEXT/flags incremental, CONDSTORE/QRESYNC branches, UIDVALIDITY resync) + ./gradlew integrationTest --tests 'ch.sonensei.cockpit.mail.sync.*' at cde8b0b2 (GreenMail 14/14 incl. older-on-demand and UIDVALIDITY resync; Dovecot 2.3.21 Testcontainers CONDSTORE/QRESYNC 2/2) -> all pass
 - [ ] Threading by References/In-Reply-To with subject fallback
 - [ ] `external` GreenMail tests: new/deleted/flag-changed messages reconciled; unit tests for threading
 
