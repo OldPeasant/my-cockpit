@@ -243,3 +243,6 @@ Other commands: `list`, `status`, `check` (validates deps/cycles), `graph` (writ
     library in the `*-deps` tasks. If you still need one, add exactly that line; on a conflict keep both sides.
   - `docs/ARCHITECTURE.md` and `docs/adr/` are shared docs: keep edits small, and on a conflict keep both sides.
 - **Human tasks** (`h-*`) are on hold for the owner. Never claim them, and don't depend on them.
+- **Scratch files:** put temporary scripts and outputs in `.tmp/` inside your clone (Git-ignored), never in `/tmp`
+  or your home directory: writes outside the clone are denied. Prefer plain commands over `cd /absolute/path && ...`:
+  your working directory already is the clone root.

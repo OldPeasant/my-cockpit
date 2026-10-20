@@ -4,3 +4,5 @@
 # TFP runtime files
 board.html
 __pycache__/
+# scratch space for agents and helpers (instead of /tmp)
+.tmp/
