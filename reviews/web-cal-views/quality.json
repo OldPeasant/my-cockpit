@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "task": "web-cal-views",
-  "reviewed_revision": "a71c49ec19025d9d792b688ac7b6339e9ead6c43",
+  "reviewed_revision": "34d71dea59ddfca4117d0895a762d3559cfe1ba4",
   "helpers": {
     "test-writer":   {"status": "completed", "report": "reviews/web-cal-views/tests.md"},
     "code-reviewer": {"status": "completed", "report": "reviews/web-cal-views/review.md"},
