@@ -11,7 +11,8 @@ lease_until: 2026-10-20T16:21:34Z
 Reusable 'Linked items' panel for every detail view (SPEC.md §4.3).
 
 ## Acceptance criteria
-- [ ] Panel lists links of an item (icon, title, subtitle, deep link; unavailable items greyed out), remove link
+- [x] Panel lists links of an item (icon, title, subtitle, deep link; unavailable items greyed out), remove link
+  - verified (2026-10-20 18:04+0200 by dell26/agent-1): npx ng test --watch=false --include='src/app/shared/links/**/*.spec.ts' (Vitest, listing/unavailable/remove/404/SYNC tests) -> 3 files, 70 passed
 - [ ] 'Add link' searches all types as you type (search API) and creates the link; 'create linked…' slot lets features add actions
 - [ ] Vitest component/service tests cover listing, adding via search, removal; `cd web && npm run check` passes
 
