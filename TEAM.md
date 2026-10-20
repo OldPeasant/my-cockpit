@@ -36,6 +36,7 @@ but the laptop must stay awake.
 Dashboard: board, your agents, start/stop buttons. It runs on your laptop and manages your clone:
 ```bash
 python dashboard/server.py     # opens http://127.0.0.1:8765/ (agents started there inherit this shell's env)
+# lead's laptop: runs as a systemd service, see docs/OPERATIONS.md
 ```
 Or on the command line:
 ```bash
