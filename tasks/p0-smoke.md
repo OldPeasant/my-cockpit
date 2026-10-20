@@ -11,7 +11,8 @@ lease_until: 2026-10-20T16:56:59Z
 Automate SPEC.md §13.2 Phase 0 and write the project README.
 
 ## Acceptance criteria
-- [ ] `web/e2e/phase0/*.spec.ts` covers demo steps 1–5 (setup, TOTP login, backoff after 5 failures, recovery code single use, palette, theme persists across reload) and passes against the e2e stack
+- [x] `web/e2e/phase0/*.spec.ts` covers demo steps 1–5 (setup, TOTP login, backoff after 5 failures, recovery code single use, palette, theme persists across reload) and passes against the e2e stack
+  - verified (2026-10-20 18:39+0200 by dell26/agent-1): npm --prefix web run e2e (podman-compose deploy/docker-compose.e2e.yml stack: server + Postgres, Playwright chromium, projects phase-demos then chromium) -> 7 passed; e2e/phase0/demo.spec.ts steps 1-5 all pass. Step 1 checks /actuator/health on the Caddy-less e2e stack (see assumption #1); the proxy path stays with step 6 (H)
 - [ ] README.md: what this is, 5-line quick start (dev), deploy pointer, links to SPEC/ARCHITECTURE/TEAM
 - [ ] Any defect found is fixed here or recorded as a new task
 
