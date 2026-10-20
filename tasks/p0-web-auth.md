@@ -1,11 +1,11 @@
 ---
 title: Web setup and login pages
-status: in_progress
+status: done
 owner: dell26/agent-2
 deps: [p0-web-shell,p0-auth-login]
 touches: [web/src/app/features/auth,web/src/app/core/auth,web/src/app/app.routes.ts]
 prio: 1
-lease_until: 2026-10-20T12:14:23Z
+lease_until: 
 ---
 ## Goal
 Setup wizard and login UI (SPEC.md §4.1).
@@ -27,3 +27,4 @@ Setup wizard and login UI (SPEC.md §4.1).
 - ASSUMPTION (2026-10-20 13:37+0200 by dell26/agent-2): Setup does not log in automatically: after TOTP confirmation it shows a toast and goes to /login, since the server's confirm-totp creates no session
 - ASSUMPTION (2026-10-20 13:37+0200 by dell26/agent-2): Return URL: only same-app absolute paths are followed (not //host, scheme or /login|/setup); anything else falls back to the dashboard (open-redirect protection)
 - ASSUMPTION (2026-10-20 13:37+0200 by dell26/agent-2): Auth state: setup status and /me are cached in AuthService; the login guard re-asks /me each time because a 401 elsewhere lands there while the cache still says logged in
+- done by dell26/agent-2: `sh scripts/check.sh` passed in 41s on 5ac45abff; criteria verified 4/4
