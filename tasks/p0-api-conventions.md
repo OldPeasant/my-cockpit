@@ -5,7 +5,7 @@ owner: dell26/agent-2
 deps: [p0-server-deps]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/core/web,server/src/test/kotlin/ch/sonensei/cockpit/core/web,api]
 prio: 1
-lease_until: 2026-10-20T09:11:40Z
+lease_until: 2026-10-20T09:17:20Z
 ---
 ## Goal
 Common REST conventions (SPEC.md §4.2) and the committed OpenAPI contract that both clients use.
