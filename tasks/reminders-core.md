@@ -17,3 +17,4 @@ Generic reminders for any item (SPEC.md §4.6).
 - [ ] API documented: `api/openapi.yaml` regenerated (`UPDATE_OPENAPI=1 ./gradlew test --tests '*OpenApiContractTest'`) and `OpenApiContractTest` passes without the flag
 
 ## Notes
+- ASSUMPTION (2026-10-20 15:37+0200 by dell26/agent-3): SSE: a fired reminder is sent as SSE event 'reminder' with a ReminderResponse (incl. item title/deepLink) as data, via a new generic ClientNotification event that SseEventHub (core/events, outside touches; small addition) forwards after commit; ChangeEvent stays content-free. Every reminder change also sends a 'change' event of type REMINDER
