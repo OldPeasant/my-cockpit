@@ -16,7 +16,8 @@ services:
     environment:
       COCKPIT_DOMAIN: ${COCKPIT_DOMAIN:?set COCKPIT_DOMAIN in deploy/.env}
     volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      # `z`: relabel for SELinux hosts (Fedora/RHEL), otherwise Caddy can't read the file. No-op elsewhere.
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro,z
       - caddy-data:/data
       - caddy-config:/config
 
