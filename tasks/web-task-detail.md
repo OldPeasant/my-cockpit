@@ -19,3 +19,4 @@ Edit all task fields (SPEC.md §5.2).
 ## Notes
 - ASSUMPTION (2026-10-20 23:04+0200 by dell26/agent-3): The editor is a routed page /tasks/:id (inbox and search already link there) laid out as a panel; TaskDetail is a standalone component that a dialog can embed later. Added the 'tasks' route to gtd/gtd.routes.ts (outside touches, one line, as features/README.md says for new GTD views)
 - ASSUMPTION (2026-10-20 23:04+0200 by dell26/agent-3): Notes are a plain monospace Markdown textarea (no preview/CodeMirror): no Markdown renderer exists in the web app yet; web-notes-editor builds the Markdown editor
+- ASSUMPTION (2026-10-20 23:04+0200 by dell26/agent-3): Waiting for is edited as free text (waitingForText) plus 'since' date; picking a contact (waitingForContactId) is left for web-contacts
