@@ -9,7 +9,7 @@ import java.time.Instant
  * Lockout after repeated login failures (SPEC.md §4.1). The first [FREE_ATTEMPTS] consecutive failures cost
  * nothing; from then on every failure blocks further attempts for [BASE_DELAY] doubled per extra failure, at most
  * [MAX_DELAY]. A successful login resets it. Attempts while blocked are rejected without checking credentials and do
- * not count as failures.
+ * not count as failures. Every admitted attempt counts as a failure until it succeeds ([tryBeginAttempt]).
  *
  * The counter is global, not per client address: there is only one account, and an attacker could rotate
  * addresses. It lives in memory, so a server restart resets it.
@@ -29,12 +29,21 @@ class LoginThrottle(
 		return if (remaining.isPositive) remaining else null
 	}
 
+	/**
+	 * Admits one login attempt, or returns how long the caller must still wait (the attempt is then rejected without
+	 * checking credentials and does not count). Check and count are one atomic step: an admitted attempt counts as a
+	 * failure right away, before its credentials are checked, and only [recordSuccess] takes that back. So parallel
+	 * requests cannot all pass the check before any of them is counted: at most [FREE_ATTEMPTS] get through before
+	 * the block starts.
+	 */
 	@Synchronized
-	fun recordFailure() {
+	fun tryBeginAttempt(): Duration? {
+		retryAfter()?.let { return it }
 		failures++
 		if (failures >= FREE_ATTEMPTS) {
 			blockedUntil = clock.instant().plus(delayAfter(failures))
 		}
+		return null
 	}
 
 	@Synchronized

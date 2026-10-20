@@ -5,9 +5,12 @@ import ch.sonensei.cockpit.core.auth.domain.SetupService
 import ch.sonensei.cockpit.core.auth.domain.Totp
 import ch.sonensei.cockpit.core.auth.infra.SessionCookies
 import ch.sonensei.cockpit.support.PostgresTestBase
+import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.shouldNotBe
 import io.kotest.matchers.string.shouldContain
+import io.kotest.matchers.string.shouldNotBeBlank
 import io.kotest.matchers.string.shouldNotContain
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
@@ -87,13 +90,105 @@ class CsrfCookieWebTests(
 				}.andExpect { status { isOk() } }
 				.andReturn()
 		val session = loggedIn.response.getCookie(SessionCookies.NAME).shouldNotBeNull()
+		val rotated = loggedIn.response.getCookie(XSRF_COOKIE).shouldNotBeNull()
 
 		mockMvc
 			.post("/api/v1/auth/logout") {
-				cookie(session, xsrf)
-				header(XSRF_HEADER, xsrf.value)
+				cookie(session, rotated)
+				header(XSRF_HEADER, rotated.value)
 			}.andExpect { status { isNoContent() } }
 		mockMvc.get("/api/v1/auth/me") { cookie(session) }.andExpect { status { isUnauthorized() } }
+	}
+
+	@Test
+	fun `login and logout replace the XSRF-TOKEN cookie, so a token from before is not the one used after`() {
+		val before =
+			mockMvc
+				.get("/api/v1/setup/status")
+				.andReturn()
+				.response
+				.getCookie(XSRF_COOKIE)
+				.shouldNotBeNull()
+
+		val loggedIn =
+			mockMvc
+				.post("/api/v1/auth/login") {
+					contentType = MediaType.APPLICATION_JSON
+					content = loginBody()
+					cookie(before)
+					header(XSRF_HEADER, before.value)
+				}.andExpect { status { isOk() } }
+				.andReturn()
+		val session = loggedIn.response.getCookie(SessionCookies.NAME).shouldNotBeNull()
+		// Exactly one new XSRF-TOKEN cookie, with the usual attributes.
+		xsrfSetCookie(loggedIn)
+		val afterLogin = loggedIn.response.getCookie(XSRF_COOKIE).shouldNotBeNull()
+		afterLogin.value.shouldNotBeBlank()
+		afterLogin.value shouldNotBe before.value
+		afterLogin.isHttpOnly shouldBe false
+		afterLogin.secure shouldBe true
+		afterLogin.path shouldBe "/"
+		afterLogin.getAttribute("SameSite") shouldBe "Lax"
+
+		val loggedOut =
+			mockMvc
+				.post("/api/v1/auth/logout") {
+					cookie(session, afterLogin)
+					header(XSRF_HEADER, afterLogin.value)
+				}.andExpect { status { isNoContent() } }
+				.andReturn()
+		val afterLogout = lastXsrfValue(loggedOut)
+		afterLogout.shouldNotBeBlank()
+		afterLogout shouldNotBe afterLogin.value
+	}
+
+	@Test
+	fun `logout without a session replaces the XSRF-TOKEN cookie too`() {
+		val before =
+			mockMvc
+				.get("/api/v1/setup/status")
+				.andReturn()
+				.response
+				.getCookie(XSRF_COOKIE)
+				.shouldNotBeNull()
+
+		val loggedOut =
+			mockMvc
+				.post("/api/v1/auth/logout") {
+					cookie(before)
+					header(XSRF_HEADER, before.value)
+				}.andExpect { status { isNoContent() } }
+				.andReturn()
+
+		val after = lastXsrfValue(loggedOut)
+		after.shouldNotBeBlank()
+		after shouldNotBe before.value
+	}
+
+	@Test
+	fun `a failed login keeps the XSRF-TOKEN cookie`() {
+		val xsrf =
+			mockMvc
+				.get("/api/v1/setup/status")
+				.andReturn()
+				.response
+				.getCookie(XSRF_COOKIE)
+				.shouldNotBeNull()
+
+		val failed =
+			mockMvc
+				.post("/api/v1/auth/login") {
+					contentType = MediaType.APPLICATION_JSON
+					content =
+						jsonMapper.writeValueAsString(
+							mapOf("username" to USERNAME, "password" to "wrong-fictitious-password", "totp" to "000000"),
+						)
+					cookie(xsrf)
+					header(XSRF_HEADER, xsrf.value)
+				}.andExpect { status { isUnauthorized() } }
+				.andReturn()
+
+		failed.response.getCookie(XSRF_COOKIE).shouldBeNull()
 	}
 
 	@Test
@@ -132,6 +227,14 @@ class CsrfCookieWebTests(
 		result.response
 			.getHeaders(HttpHeaders.SET_COOKIE)
 			.single { it.startsWith("$XSRF_COOKIE=") }
+
+	/** The value of the last `XSRF-TOKEN` cookie the response sets: the one the browser keeps. */
+	private fun lastXsrfValue(result: MvcResult): String =
+		result.response
+			.getHeaders(HttpHeaders.SET_COOKIE)
+			.last { it.startsWith("$XSRF_COOKIE=") }
+			.substringAfter("=")
+			.substringBefore(";")
 
 	private fun loginBody(): String =
 		jsonMapper.writeValueAsString(

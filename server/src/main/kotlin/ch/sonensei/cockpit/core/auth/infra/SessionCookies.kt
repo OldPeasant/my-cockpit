@@ -38,10 +38,23 @@ class SessionCookies(
 	 * Angular's `XSRF-TOKEN` cookie: readable by the SPA (not `HttpOnly`), with the same `Secure` and `SameSite`
 	 * attributes as the session cookie.
 	 */
-	fun csrfTokenRepository(): CookieCsrfTokenRepository =
+	private val csrfTokens: CookieCsrfTokenRepository =
 		CookieCsrfTokenRepository.withHttpOnlyFalse().apply {
 			setCookieCustomizer { it.secure(secure).sameSite("Lax").path("/") }
 		}
+
+	fun csrfTokenRepository(): CookieCsrfTokenRepository = csrfTokens
+
+	/**
+	 * Replaces the `XSRF-TOKEN` cookie with a fresh token, as Spring Security does when a user logs in, so the token a
+	 * client held before login (or logout) is not carried over. The SPA reads the new cookie for its next request.
+	 */
+	fun rotateCsrfToken(
+		request: HttpServletRequest,
+		response: HttpServletResponse,
+	) {
+		csrfTokens.saveToken(csrfTokens.generateToken(request), request, response)
+	}
 
 	fun clear(response: HttpServletResponse) {
 		response.addHeader(HttpHeaders.SET_COOKIE, cookie("", Duration.ZERO).toString())

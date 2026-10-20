@@ -75,6 +75,7 @@ class AuthController(
 	)
 	fun login(
 		@Valid @RequestBody request: LoginRequest,
+		httpRequest: HttpServletRequest,
 		response: HttpServletResponse,
 	): ResponseEntity<Any> {
 		val totp = request.totp?.takeIf { it.isNotBlank() }
@@ -86,6 +87,7 @@ class AuthController(
 		return when (val result = loginService.login(credentials)) {
 			is LoginResult.Success -> {
 				cookies.write(response, result.grant.token, result.grant.rememberDevice)
+				cookies.rotateCsrfToken(httpRequest, response)
 				ResponseEntity.ok(MeResponse(result.grant.principal.username))
 			}
 
@@ -111,6 +113,7 @@ class AuthController(
 	) {
 		cookies.read(request)?.let(loginService::logout)
 		cookies.clear(response)
+		cookies.rotateCsrfToken(request, response)
 	}
 
 	@GetMapping("/me", produces = [MediaType.APPLICATION_JSON_VALUE])

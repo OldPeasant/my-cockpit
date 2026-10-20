@@ -28,7 +28,8 @@ import org.springframework.web.filter.OncePerRequestFilter
  * - Logins are sessions in the database ([SessionAuthenticationFilter], cookie [SessionCookies.NAME]); there is no
  *   servlet `HttpSession`.
  * - CSRF: double-submit cookie in Angular's convention. The `XSRF-TOKEN` cookie is set on every response that has
- *   none yet; state-changing requests must echo it in `X-XSRF-TOKEN`, login and logout included.
+ *   none yet and replaced with a fresh token on login and logout; state-changing requests must echo it in
+ *   `X-XSRF-TOKEN`, login and logout included.
  * - Unauthenticated requests get a plain 401 (no login form or basic-auth challenge).
  */
 @Configuration(proxyBeanMethods = false)

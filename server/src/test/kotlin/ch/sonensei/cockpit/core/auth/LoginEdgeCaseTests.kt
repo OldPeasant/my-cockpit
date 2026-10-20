@@ -251,6 +251,21 @@ class LoginEdgeCaseTests(
 	}
 
 	@Test
+	fun `parallel logins with a wrong password cannot slip past the backoff`() {
+		val credentials = LoginCredentials(USERNAME, "wrong-fictitious-password", currentCode(), null, false)
+
+		val outcomes = concurrently(PARALLEL_GUESSES) { loginService.login(credentials) }
+
+		outcomes.mapNotNull { it.exceptionOrNull() }.shouldBeEmpty()
+		val results = outcomes.map { it.getOrThrow() }
+		// Only the free attempts reach the credential check; all others are rejected without it.
+		results.count { it == LoginResult.InvalidCredentials } shouldBe LoginThrottle.FREE_ATTEMPTS
+		results.count { it is LoginResult.Throttled } shouldBe PARALLEL_GUESSES - LoginThrottle.FREE_ATTEMPTS
+		throttle.retryAfter() shouldBe LoginThrottle.BASE_DELAY
+		login().isProblem(429)
+	}
+
+	@Test
 	fun `Retry-After is rounded up to whole seconds and the block ends exactly then`() {
 		repeat(LoginThrottle.FREE_ATTEMPTS) { login(password = "wrong-fictitious-password").isProblem(401) }
 
@@ -394,6 +409,7 @@ class LoginEdgeCaseTests(
 		const val USERNAME = "jane.doe"
 		const val PASSWORD = "correct-horse-battery-staple"
 		const val THREADS = 4
+		const val PARALLEL_GUESSES = 12
 		val START: Instant = MutableClockTestConfiguration.START
 		val MESSAGE = Regex("\"message\":\"((?:[^\"\\\\]|\\\\.)*)\"")
 	}

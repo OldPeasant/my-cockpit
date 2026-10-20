@@ -40,7 +40,8 @@ class LoginService(
 
 	@Transactional
 	fun login(credentials: LoginCredentials): LoginResult {
-		throttle.retryAfter()?.let { return LoginResult.Throttled(it) }
+		// Admission counts the attempt as a failure up front, so parallel requests cannot slip past the backoff.
+		throttle.tryBeginAttempt()?.let { return LoginResult.Throttled(it) }
 		val account = users.findFirstBy()?.takeIf { it.isActive }
 		val now = clock.instant().truncatedTo(ChronoUnit.MICROS)
 
@@ -48,7 +49,6 @@ class LoginService(
 		val usernameMatches = account != null && account.username == credentials.username
 		val secondFactor = account?.let { checkSecondFactor(it, credentials, now) }
 		if (account == null || !passwordMatches || !usernameMatches || secondFactor == null) {
-			throttle.recordFailure()
 			log.info("Login failed")
 			return LoginResult.InvalidCredentials
 		}
