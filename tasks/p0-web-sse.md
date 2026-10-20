@@ -13,7 +13,8 @@ A shared service that keeps one SSE connection and dispatches change events to f
 ## Acceptance criteria
 - [x] `ChangeEventsService` connects after login to `/api/v1/events`, reconnects with backoff, exposes `events$(type)` per item type
   - verified (2026-10-20 14:29+0200 by dell26/agent-4): npx ng test --watch=false --include src/app/core/events/change-events.service.spec.ts -> 28 passed: connects to /api/v1/events (EventSource withCredentials) when AuthService.loggedIn, closes on logout; backoff 1s..30s cap with fake timers; events$(type) filters by type
-- [ ] On reconnect it emits a `resync` signal so stores can refetch (missed events)
+- [x] On reconnect it emits a `resync` signal so stores can refetch (missed events)
+  - verified (2026-10-20 14:29+0200 by dell26/agent-4): same spec -> resync$ emits once per reconnect, not on the first connect of a login (tests: emits resync after a reconnect; does not resync on the first connect of a new login)
 - [ ] Vitest component/service tests cover dispatch by type, reconnect with backoff using fake timers, resync on reconnect; `cd web && npm run check` passes
 
 ## Notes
