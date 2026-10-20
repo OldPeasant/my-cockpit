@@ -517,5 +517,53 @@ describe('TaskChecklist', () => {
       expect(alert()).toBeUndefined();
       expect(texts()).toEqual(['Other task step']);
     });
+
+    it('does not show a step added to the previous task in the new one', async () => {
+      await render();
+      const pending = deferred<ChecklistItemResponse>();
+      const original = service.addChecklistItem;
+      service.addChecklistItem = async (taskId, text) => {
+        added.push({ taskId, text });
+        return pending.promise;
+      };
+      try {
+        await typeNew('Buy fittings');
+        await click(addButton());
+        host.id.set('t2');
+        await refresh();
+        expect(texts()).toEqual(['Other task step']);
+
+        // The add for t1 answers after the editor switched to t2.
+        pending.resolve(item('n1', 3, { text: 'Buy fittings' }));
+        await refresh();
+        expect(added).toEqual([{ taskId: 't1', text: 'Buy fittings' }]);
+        expect(texts()).toEqual(['Other task step']);
+      } finally {
+        service.addChecklistItem = original;
+      }
+    });
+
+    it('does not put the steps of the previous task back when its remove fails late', async () => {
+      await render();
+      const pending = deferred<void>();
+      const original = service.deleteChecklistItem;
+      service.deleteChecklistItem = async (old) => {
+        deletes.push(old);
+        return pending.promise;
+      };
+      try {
+        await click(buttons('Remove step')[0]);
+        host.id.set('t2');
+        await refresh();
+        expect(texts()).toEqual(['Other task step']);
+
+        // The remove for t1 fails after the editor switched to t2: its rollback must not apply.
+        pending.reject(new ApiError(500, 'Internal Server Error'));
+        await refresh();
+        expect(texts()).toEqual(['Other task step']);
+      } finally {
+        service.deleteChecklistItem = original;
+      }
+    });
   });
 });

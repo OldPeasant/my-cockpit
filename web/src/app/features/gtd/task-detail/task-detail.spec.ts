@@ -889,4 +889,65 @@ describe('TaskDetail', () => {
     await refresh();
     expect(text()).toContain('Saved');
   });
+
+  it('hides the "Saved" note again after a moment', async () => {
+    await render();
+    await type('#td-title', 'Saved for a moment');
+    const status = () => field<HTMLElement>('.bar-status').textContent?.trim();
+    vi.useFakeTimers();
+    try {
+      saveButton().click();
+      for (let i = 0; i < 3; i++) {
+        await vi.advanceTimersByTimeAsync(0);
+        TestBed.tick();
+      }
+      expect(status()).toBe('Saved');
+
+      await vi.advanceTimersByTimeAsync(2400);
+      TestBed.tick();
+      expect(status()).toBe('Saved');
+
+      await vi.advanceTimersByTimeAsync(200);
+      TestBed.tick();
+      expect(status()).toBe('');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('keeps showing the new task when a save of the previous task answers late', async () => {
+    let releaseSave!: () => void;
+    answer = (fn, params) => {
+      if (fn === getTask && params['id'] === 't2') {
+        return Promise.resolve(task({ id: 't2', title: 'Water the plants', version: 7 }));
+      }
+      if (fn === updateTask) {
+        return new Promise<void>((resolve) => (releaseSave = resolve)).then(() => ({
+          ...server,
+          ...(params['body'] as object),
+          version: server.version + 1,
+        }));
+      }
+      return undefined;
+    };
+    await render();
+    await type('#td-title', 'Call the plumber today');
+    await save();
+    expect(text()).toContain('Saving…');
+
+    // The user opens another task (e.g. through a linked item) while the save is running.
+    host.id.set('t2');
+    await refresh();
+    expect(field<HTMLTextAreaElement>('#td-title').value).toBe('Water the plants');
+
+    releaseSave();
+    await refresh();
+    expect(callsOf(updateTask)[0].params).toMatchObject({ id: 't1' });
+    expect(field<HTMLTextAreaElement>('#td-title').value).toBe('Water the plants');
+
+    // A later edit saves t2 with t2's version, not t1.
+    await type('#td-title', 'Water the plants twice');
+    await save();
+    expect(callsOf(updateTask)[1].params).toMatchObject({ id: 't2', 'If-Match': '"7"' });
+  });
 });
