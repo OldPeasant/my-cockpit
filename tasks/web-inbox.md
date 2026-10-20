@@ -18,3 +18,4 @@ Keyboard-driven one-item-at-a-time processing (SPEC.md §5.3).
 
 ## Notes
 - ASSUMPTION (2026-10-20 22:10+0200 by dell26/agent-6): Inbox shortcuts: P process (list), D do it, N next, P to project, W waiting, S schedule, T tickler, M someday (S was taken), R/C reference/calendar (disabled), X or Delete trash, Esc back/cancel; Q stays the global capture key.
+- ASSUMPTION (2026-10-20 22:10+0200 by dell26/agent-6): 'To project' moves the item to NEXT with the chosen (or newly created) active project; 'Tickler' moves it to INBOX with a future ticklerDate (default tomorrow); 'Waiting' asks for an optional free-text person (no contact picker yet).
