@@ -1,0 +1,24 @@
+{
+  "schema": 1,
+  "task": "p0-web-api-client",
+  "reviewed_revision": "8b0ae525be87a4bf9003b42b9d551f1006094e1b",
+  "helpers": {
+    "test-writer": {"status": "completed", "report": "reviews/p0-web-api-client/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/p0-web-api-client/review.md"},
+    "fixer": {"status": "completed", "report": "reviews/p0-web-api-client/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "npm run i18n:extract: messages.xlf now has http.error.* and notification.dismiss"},
+    {"id": "CR-2", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "ARCHITECTURE.md Run/Testing rows describe proxy.conf.json and the api:check step"},
+    {"id": "TW-1", "source": "test-writer", "severity": "Low", "disposition": "accepted",
+     "note": "ApiError.from ignores Blob/ArrayBuffer error bodies (generic message); no download endpoint exists yet, the endpoint task can parse its body if needed"}
+  ],
+  "validation": [
+    {"command": "cd web && npm run check", "result": "pass"},
+    {"command": "cd web && npm run api:check after manual drift (fails) and after npm run api:gen (up to date)", "result": "pass"},
+    {"command": "cd web && npm run coverage", "result": "pass"}
+  ]
+}
