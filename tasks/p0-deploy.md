@@ -1,10 +1,11 @@
 ---
 title: Docker image, compose stack, Caddy
-status: todo
-owner:
+status: in_progress
+owner: dell26/agent-3
 deps: [p0-web-deps,p0-api-conventions]
 touches: [Dockerfile,.dockerignore,deploy,server/src/main/kotlin/ch/sonensei/cockpit/core/spa,server/src/test/kotlin/ch/sonensei/cockpit/core/spa]
 prio: 1
+lease_until: 2026-10-20T09:32:19Z
 ---
 ## Goal
 Deployable stack (SPEC.md §11).
