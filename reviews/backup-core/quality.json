@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "task": "backup-core",
-  "reviewed_revision": "bc4ad499bb4bf7224e6ec162811d399ffe27d133",
+  "reviewed_revision": "71b68f276b872fbf46195afa699e03e70a374c73",
   "helpers": {
     "test-writer": {"status": "completed", "report": "reviews/backup-core/tests.md"},
     "code-reviewer": {"status": "completed", "report": "reviews/backup-core/review.md"},
