@@ -1,10 +1,11 @@
 ---
 title: Backup restore: validation, full replace, CLI
-status: todo
-owner:
+status: in_progress
+owner: dell26/agent-6
 deps: [backup-core]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/backup,server/src/test/kotlin/ch/sonensei/cockpit/backup]
 prio: 1
+lease_until: 2026-10-20T22:16:16Z
 ---
 ## Goal
 Restore from a backup zip (SPEC.md §10.1).
