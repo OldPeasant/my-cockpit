@@ -1,0 +1,33 @@
+{
+  "schema": 1,
+  "task": "web-reminders",
+  "reviewed_revision": "44eb8e8fd2c17c1b9d7335df00b492f8a30da2b2",
+  "helpers": {
+    "test-writer":   {"status": "completed", "report": "reviews/web-reminders/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/web-reminders/review.md"},
+    "fixer":         {"status": "completed", "report": "reviews/web-reminders/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "R1-CR-1", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "permission hint tied to the switch for assistive technology (first review)"},
+    {"id": "R1-CR-2", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "permission state re-read when the user returns to the page (first review)"},
+    {"id": "R1-CR-3", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "duplicate 'inside My Cockpit' text removed (first review)"},
+    {"id": "R2-CR-1", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "toast fallback showed only the last of a burst of reminders; reminder toasts are queued (second review)"},
+    {"id": "TW-1", "source": "test-writer", "severity": "Medium", "disposition": "fixed",
+     "note": "real-MatSnackBar test from the interrupted third test round: the next queued reminder pushed away an app message that replaced a reminder toast; fixed by the parent (commit 'queued reminder waits for an app message'), then re-tested and re-reviewed"},
+    {"id": "TW-2", "source": "test-writer", "severity": "Low", "disposition": "accepted",
+     "note": "with an empty queue a new reminder toast replaces an app message on screen (normal MatSnackBar behavior); recorded as an assumption"},
+    {"id": "E2E-1", "source": "test-writer", "severity": "Low", "disposition": "fixed",
+     "note": "toast e2e got 403 from an XSRF cookie race on app start; the test now waits for the settings switch (parent fix, re-tested and re-reviewed)"}
+  ],
+  "validation": [
+    {"command": "cd web && npx ng test --watch=false --include src/app/core/notifications", "result": "pass"},
+    {"command": "cd web && npm run check", "result": "pass"},
+    {"command": "cd web && npm run e2e -- e2e/reminders/notifications.spec.ts --repeat-each=3 --workers=1", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
