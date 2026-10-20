@@ -4,32 +4,46 @@ Date: 2026-10-20
 
 Task: cal-recurrence - Recurrence expansion
 
-Scope: The task's code changes from base e5c45b44 up to the task commit (4b0e570, rebased as ede9e8b on main with identical server files; the diff between them touches only `tasks/*.md`). Files reviewed: `server/src/main/kotlin/ch/sonensei/cockpit/calendar/recurrence/OccurrenceExpander.kt` and `server/src/test/kotlin/ch/sonensei/cockpit/calendar/recurrence/OccurrenceExpanderTests.kt`. Board-only `tasks/*.md` changes and the test-writer's uncommitted `OccurrenceExpanderEdgeCaseTests.kt` are out of scope.
+Scope: Second review, of the final code after the fixes in `reviews/cal-recurrence/fixes.md`. It covers all task commits from base 5537ffa9 to revision ba2e34f2 (67d8680e, 53b64bc2, a59471a4, 7a15f449, ba2e34f2). That chain has since been rebased onto main: 57f063c8, 5add4814, b902721d, 62bd3ae0, b6e92400, on base 172d59d6. `git diff ba2e34f2 b6e92400 -- server reviews/cal-recurrence` is empty, so the reviewed server code is the same in both. Files reviewed in full:
+- `server/src/main/kotlin/ch/sonensei/cockpit/calendar/recurrence/OccurrenceExpander.kt`
+- `server/src/test/kotlin/ch/sonensei/cockpit/calendar/recurrence/OccurrenceExpanderTests.kt`
+- `server/src/test/kotlin/ch/sonensei/cockpit/calendar/recurrence/OccurrenceExpanderEdgeCaseTests.kt`
+
+Board-only `tasks/*.md` commits are out of scope. So are the review reports, apart from checking that the fixes they describe are present.
 
 Requirements:
-- tasks/cal-recurrence.md (acceptance criteria 1-3 and the three recorded assumptions)
-- SPEC.md §6.1 (RRULE + EXDATE + overrides, time-zone aware), §6.4 (`GET /calendar/events` returns expanded occurrences), §12 (RRULE expansion unit tests)
-- docs/ARCHITECTURE.md (ical4j 4.1.1 in the stack), AGENTS.md project notes
-- Calendar model: `CalendarEvent`, `OccurrenceId`, `CalendarEventRepository.findCandidatesInRange`, migration `V202610201351__calendar_model.sql` (constraints guarantee non-null start/end per form)
+- tasks/cal-recurrence.md: acceptance criteria 1-3 and the six recorded assumptions, three of them confirmed by a human
+- SPEC.md §6.1 (RRULE, EXDATE and overrides, time-zone aware) and §6.4
+- docs/ARCHITECTURE.md (ical4j in the stack) and the AGENTS.md project notes (logging rules, module layout)
+- The calendar model in `calendar/model/CalendarEvent.kt` (`OccurrenceId`, exdates, rrule)
+- The previous review (CR-1 to CR-3), the test report (TW-1) and `reviews/cal-recurrence/fixes.md`
 
 Git range:
 - Branch: main
-- HEAD: ede9e8b0dc544c339386e3d116031c84bd548219
-- Base/start: e5c45b44d3144647824cd28217b67d3620da2aed
-- Commits reviewed: 1 code commit (4b0e570 / ede9e8b). The other commits in the range are board-only (assume, heartbeat, confirm, verify)
+- HEAD: ba2e34f2adf038e167a7a46e559b52c16be1d3fd as supplied. The clone's HEAD is now b6e92400761853cb9e3a1333dc5e1e9e5bc8b4fb, which is the same task code after a rebase.
+- Base/start: 5537ffa91f44c8f44d5311076731fb7f738c87f8 (rebased base: 172d59d6)
+- Commits reviewed: 5
+- Uncommitted changes: none
 
-Summary: 0 P0, 0 P1, 2 P2, 1 P3
+Summary: 0 P0, 0 P1, 0 P2, 1 P3
 
 Verification performed:
-- `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.calendar.recurrence.*'` -> BUILD SUCCESSFUL.
-- A scratch harness in `.tmp/cr-cal-recurrence` (a plain Gradle project with ical4j 4.1.1 and the compiled server classes, run with `./gradlew -p ../.tmp/cr-cal-recurrence run --offline`) called `OccurrenceExpander` directly. Results:
-  - COUNT applies when the range starts after the seed: `FREQ=WEEKLY;COUNT=3` with the range after the 3rd occurrence gives 0 occurrences. ical4j counts candidates before periodStart toward COUNT.
-  - A zero-length series occurrence exactly at `from` is included, so periodStart is not exclusive.
-  - UTC UNTIL, floating UNTIL and DATE-TIME UNTIL on an all-day series are all inclusive and correct.
-  - A nonexistent local time at DST start is shifted forward (02:30 to 03:30+02:00), as the assumption says.
-  - `BYMONTHDAY=31` skips short months. `FREQ=YEARLY` on 29 Feb lands only in leap years.
-  - Performance measured on a cold JVM, one series per call: DAILY since 1990 over 1 week took 39 ms. HOURLY since 2000 over 3 h took 176 ms. MINUTELY;INTERVAL=15 since 2025 took 39 ms. All-day DAILY since 1990 took 8 ms. ical4j iterates from the seed, so cost grows with series age times frequency. This is acceptable for the realistic DAILY/WEEKLY cases and is not reported as a finding.
-- The acceptance criteria are all met by the code and tests. CR-1 to CR-3 are about resilience and edge-case correctness.
+- Ran `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.calendar.recurrence.*' --offline`: BUILD SUCCESSFUL. OccurrenceExpanderTests ran 13 tests and OccurrenceExpanderEdgeCaseTests ran 37, all passing with 0 failures, errors or skips.
+- Status of the earlier findings, checked against the current code:
+  - **CR-1 (an unparsable RRULE broke the whole range): resolved.** `recurOrEmpty` (`OccurrenceExpander.kt:170-180`) wraps the ical4j parse and expansion for both all-day and timed series. On failure only DTSTART remains, and overrides and EXDATEs still apply. The WARN line logs only the event id and the exception class name, which follows the logging rule in AGENTS.md. Tests cover:
+    - invalid, blank and `BYDAY=XX` rules alongside a valid event;
+    - an all-day series with a bad rule;
+    - overrides on a series with a bad rule;
+    - the log content, via `CapturedOutput`.
+
+    A date-only UNTIL on a timed series is now rewritten to a floating end-of-day value (`:158`, `:236`). This matches the recorded assumption and is tested, including the zone-versus-UTC case.
+  - **CR-2 / TW-1 (cancelled orphan overrides were shown): resolved.** The orphan path now filters `EventStatus.CANCELLED` (`:100`), the same way `expandSeries` does (`:130`). The test `cancelled override is never shown, also when its master is not among the candidates` covers it.
+  - **CR-3 (an ambiguous DST-end time followed the seed's offset): resolved.** Generated dates are normalised with `withEarlierOffsetAtOverlap()`. The seed's own local date-time is the one exception and stays exactly as stored (`:164`). Tests cover a winter-time seed, a seed at the later ambiguous instant, and EXDATE/override matching at the ambiguous time. One new boundary issue introduced by this normalisation is reported as CR-1 below.
+- Acceptance criteria:
+  - Criterion 1 is met by the code. It is pure and needs no persistence, as the confirmed assumption states.
+  - Criterion 2 is covered by named tests for weekly series across DST start and end in Europe/Zurich, all-day series, moved and cancelled occurrences, COUNT and UNTIL, and monthly by weekday.
+  - Criterion 3: the command passes as run above. Testcontainers is not needed because nothing here touches persistence.
+  - `python tasks.py verify cal-recurrence` still lists all three criteria as unverified. The parent worker records that evidence before `done`, so this is not a finding at this stage.
 
 ## P0 Critical
 
@@ -41,35 +55,23 @@ None.
 
 ## P2 Medium
 
-- [ ] **CR-1 | One unparsable RRULE makes the whole range expansion throw**
-    - File: `server/src/main/kotlin/ch/sonensei/cockpit/calendar/recurrence/OccurrenceExpander.kt:140`, `:150` (called for every master from `expand` at `:87`)
-    - Category: Correctness
-    - Problem: `Recur<LocalDate>(rule)` / `Recur<ZonedDateTime>(rule)` and `getDates` are called without any error handling, and `rrule` is free text (no validation in `CalendarEvent` or in the schema). The scratch harness showed these failures:
-      - `FREQ=FORTNIGHTLY` throws `IllegalArgumentException: No enum constant ...Frequency.FORTNIGHTLY`.
-      - A blank rule throws `IllegalArgumentException: Missing expected token`.
-      - `BYDAY=XX` throws `IllegalArgumentException`.
-      - A timed series with a DATE-only UNTIL (`FREQ=DAILY;UNTIL=20260108`) throws `UnsupportedTemporalTypeException: Unsupported unit: Seconds`. This value form is invalid under RFC 5545 but common in third-party ICS/CalDAV data.
-
-      `expand(listOf(badSeries, goodSingleEvent), range)` throws, so the valid events are lost too.
-    - Why it matters: `expand` is meant to serve `GET /api/v1/calendar/events` (SPEC.md §6.4) over all candidates of the requested calendars. Events come from Google, Microsoft, CalDAV and ICS feeds (§6.1/§6.2). A single malformed or loosely formed rule from a provider would take down the whole calendar view (every range that includes that series), not just that one event.
-    - Suggested fix: In `originalStarts`, catch the parse/expansion failure for that series and fall back to the master's own occurrence (seed only) or skip the series. Log the event id (not its content) at WARN. Consider normalizing a DATE-only UNTIL on a timed series (end of that day in the event's zone) since providers emit it. Add a test that `expand` still returns the other events when one series has an invalid rule.
-
-- [ ] **CR-2 | Orphan overrides ignore CANCELLED, so a cancelled occurrence is shown as an event**
-    - File: `server/src/main/kotlin/ch/sonensei/cockpit/calendar/recurrence/OccurrenceExpander.kt:88-93`
-    - Category: Correctness
-    - Problem: For overrides whose master is in `events`, `expandSeries` drops `EventStatus.CANCELLED` overrides (`:121-122`). The orphan path in `expand` (master not among the candidates) has no such filter. Scratch check: a master `FREQ=WEEKLY` starting 2026-06-08 and a CANCELLED override at 2026-06-01 09:00, expanded over 2026-06-01..06-02, returned 1 occurrence with status CANCELLED. With the master present the same override yields 0. `findCandidatesInRange` leaves the master out when it starts at or after `to` while still returning all its live overrides, so the repository path produces this input. Example: an override that lies before the series' current DTSTART after the series start was moved or truncated.
-    - Why it matters: The class contract (KDoc `:68-69`) and the model (`CalendarEvent` KDoc) say a CANCELLED override removes the occurrence. Here a removed occurrence shows up as a visible event in day/week views. The result also depends on whether the master happened to be in the candidate set.
-    - Suggested fix: Apply the same `status != EventStatus.CANCELLED` filter to orphans, and add a test for a cancelled orphan override.
+None.
 
 ## P3 Low
 
-- [ ] **CR-3 | Ambiguous DST-end times resolve by the seed's offset, not always to the earlier offset as recorded**
-    - File: `server/src/main/kotlin/ch/sonensei/cockpit/calendar/recurrence/OccurrenceExpander.kt:146-151`
+- [ ] **CR-1 | An occurrence at an ambiguous DST-end time is lost when the range ends inside the repeated hour**
+    - File: `server/src/main/kotlin/ch/sonensei/cockpit/calendar/recurrence/OccurrenceExpander.kt:156-164`
     - Category: Correctness
-    - Problem: The recorded assumption says ambiguous local times at DST end use the earlier (summer) offset. That holds only when the seed is in summer time, which is the case the test at `OccurrenceExpanderTests.kt:85-97` covers. ical4j derives each candidate from the seed `ZonedDateTime`, which keeps the seed's offset when the local time is ambiguous. Scratch check: `FREQ=WEEKLY` seeded 2025-11-02T02:30 Europe/Zurich (+01:00) gives the 2026-10-25 occurrence at 02:30+01:00 (01:30Z), the later instant. A summer seed gives 02:30+02:00 (00:30Z).
-    - Why it matters: Occurrence ids (`OccurrenceId.at`) for that one occurrence differ from the RFC 5545 §3.3.5 reading ("refers to the first occurrence of the referenced time"). A synced RECURRENCE-ID or EXDATE resolved with java.time's default (earlier offset) would then not match the generated occurrence: the override would appear next to the unmodified occurrence instead of replacing it. This only affects events between 02:00 and 03:00 on the DST-end day, hence low.
-    - Suggested fix: Normalize generated candidates with `ZonedDateTime.withEarlierOffsetAtOverlap()` before `toInstant()` (or build them via `LocalDateTime.atZone(zone)`), and add a test with a winter-time seed. Alternatively, correct the recorded assumption to describe the actual behavior.
+    - Problem: Two things combine here:
+      - ical4j picks candidates up to `periodEnd = range.to.atZone(zone)`, using the seed's offset for an ambiguous local time.
+      - The code then moves each candidate to the earlier offset (`withEarlierOffsetAtOverlap()`), which can make it start up to one hour before the instant ical4j filtered on.
+
+      Example: a weekly series seeded in winter time (2026-01-04 02:30 Europe/Zurich, 30 min) and a range ending at 2026-10-25T01:00Z (02:00+01:00, inside the repeated hour). ical4j's candidate is 02:30+01:00 = 01:30Z. That is after `periodEnd`, so ical4j never returns it. After normalisation the occurrence would be [00:30Z, 01:00Z), which overlaps the range and should be returned, but it is missing. The same happens for any `range.to` in (00:30Z, 01:30Z] on that day.
+
+      This follows from the code. I did not run it, because this review may not add scratch code. No test covers a range end inside the repeated hour; the existing DST-end tests use midnight boundaries.
+    - Why it matters: Views and API clients get no occurrence for that slot, while a range a few minutes longer returns it. The trigger is narrow: a range end in the repeated hour, plus a series at that hour whose seed is in the other offset. Hence low priority.
+    - Suggested fix: Widen the timed `periodEnd` given to ical4j by the zone's largest offset jump. A fixed `plusHours(1)`, or better `Duration.ofHours(2)` for zones with larger shifts, is enough, because `overlaps(...)` already filters the result exactly. Add a test with a winter-time seed and `range.to` = 2026-10-25T01:00Z.
 
 ## Review conclusion
 
-Material issues found; fix before completing the task. CR-1 and CR-2 are P2 correctness and resilience defects in the expander's own contract. Each has a small, local fix and a matching test. CR-3 is optional.
+No material issues found. All earlier findings (CR-1, CR-2, CR-3 and TW-1) are resolved in revision ba2e34f2, and each has a regression test. The only new finding is the P3 boundary edge case above. It is optional and does not block completing the task.
