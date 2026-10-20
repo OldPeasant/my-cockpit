@@ -18,3 +18,4 @@ Entities, migrations and repositories for tasks, projects, areas, contexts, chec
 
 ## Notes
 - ASSUMPTION (2026-10-20 15:16+0200 by dell26/agent-3): waiting_for_contact_id has no FK: contacts live in another module (and are not built yet), like link item ids
+- ASSUMPTION (2026-10-20 15:16+0200 by dell26/agent-3): Projects are soft-deletable (deleted_at) like tasks; areas, contexts and checklist items are hard-deleted (FKs set null / cascade). Context names are unique case-insensitively
