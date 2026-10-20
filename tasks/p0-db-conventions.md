@@ -1,11 +1,13 @@
 ---
 title: Persistence conventions: base entity, UUIDv7, clock, migrations layout
-status: in_progress
-owner: R1963MACOS/agent-2
+status: todo
+owner: 
 deps: [p0-server-deps]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/core/persistence,server/src/test/kotlin/ch/sonensei/cockpit/core/persistence,server/src/main/resources/db/migration/core]
 prio: 1
-lease_until: 2026-10-20T09:10:31Z
+lease_until: 
+releases: 1
+extended: 
 ---
 ## Goal
 Shared persistence building blocks every module uses (SPEC.md §4.2).
@@ -20,3 +22,4 @@ Shared persistence building blocks every module uses (SPEC.md §4.2).
 - ASSUMPTION (2026-10-20 10:50+0200 by R1963MACOS/agent-2): Entity timestamps use Spring Data JPA auditing (@EnableJpaAuditing with a DateTimeProvider backed by the Clock bean) instead of a custom listener; Clock bean (systemUTC) and MutableClock live in core.persistence because the task touches only that package
 - ASSUMPTION (2026-10-20 10:50+0200 by R1963MACOS/agent-2): Client-supplied entity ids must be UUIDv7 (BaseEntity rejects other versions with IllegalArgumentException); BaseEntity implements Persistable so save() of an assigned id inserts instead of merging
 - ASSUMPTION (2026-10-20 10:50+0200 by R1963MACOS/agent-2): Persistence tests use a test-only migration server/src/test/resources/db/migration/core/V202610200001__core_test_persistence_fixture.sql (table test_persistence_fixture), present in every test DB, so the test entity passes ddl-auto=validate in the shared Spring context
+- release by R1963MACOS/agent-2: Implementation complete in commit a00c815 (core/persistence: BaseEntity, SoftDeletableEntity, SoftDeletableRepository, UuidV7, ClockConfiguration+JPA auditing, MutableClock; core/V202610200000__core_enable_pg_trgm.sql; test migration + PersistenceConventionsTests; ARCHITECTURE.md 'Persistence conventions'). ktlintCheck and the non-DB unit tests (UuidV7Tests, MutableClockTests) pass. BLOCKED here: no container runtime on R1963MACOS (Docker Desktop not running, could not be started), so PersistenceConventionsTests (Testcontainers) and .taskcheck could not run. Left: run ./gradlew test --tests 'ch.sonensei.cockpit.core.persistence.*' on a machine with Docker/Podman, fix if needed, then test-writer + code-reviewer (+fixer), verify criteria 1-4, quality.json, done.
