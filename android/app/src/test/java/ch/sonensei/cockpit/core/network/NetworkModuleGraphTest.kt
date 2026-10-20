@@ -1,5 +1,6 @@
 package ch.sonensei.cockpit.core.network
 
+import ch.sonensei.cockpit.auth.PersistentTokenStore
 import ch.sonensei.cockpit.core.network.generated.apis.AuthApi
 import ch.sonensei.cockpit.core.network.generated.apis.EventsApi
 import ch.sonensei.cockpit.core.network.generated.apis.SettingsApi
@@ -87,7 +88,7 @@ class NetworkModuleGraphTest {
         assertNotNull(eventsApi)
         assertNotNull(settingsApi)
         assertNotNull(setupApi)
-        assertSame(tokenStore, (tokenStore as? InMemoryTokenStore))
+        assertSame(tokenStore, (tokenStore as? PersistentTokenStore))
         assertNotNull(client.authenticator as? TokenAuthenticator)
         tokenStore.save(AuthTokens("graph-access", "graph-refresh"))
         assertEquals(true, session.isLoggedIn)

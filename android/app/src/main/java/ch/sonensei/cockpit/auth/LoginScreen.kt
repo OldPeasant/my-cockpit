@@ -198,7 +198,12 @@ private fun ErrorMessage(error: LoginError) {
         color = MaterialTheme.colorScheme.errorContainer,
         contentColor = MaterialTheme.colorScheme.onErrorContainer,
         shape = MaterialTheme.shapes.medium,
-        modifier = Modifier.fillMaxWidth().testTag(LoginTags.ERROR).semantics { liveRegion = LiveRegionMode.Polite },
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .testTag(
+                    LoginTags.ERROR,
+                ).semantics(mergeDescendants = true) { liveRegion = LiveRegionMode.Polite },
     ) {
         Text(
             text = stringResource(error.messageRes()),

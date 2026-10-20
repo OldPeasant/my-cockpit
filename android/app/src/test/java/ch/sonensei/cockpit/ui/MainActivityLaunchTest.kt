@@ -1,16 +1,12 @@
 package ch.sonensei.cockpit.ui
 
 import androidx.compose.ui.test.assertIsDisplayed
-import androidx.compose.ui.test.assertIsSelected
-import androidx.compose.ui.test.hasText
-import androidx.compose.ui.test.isSelectable
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithTag
-import androidx.compose.ui.test.performClick
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import ch.sonensei.cockpit.CockpitApp
 import ch.sonensei.cockpit.MainActivity
-import ch.sonensei.cockpit.ui.navigation.CockpitDestination
+import ch.sonensei.cockpit.auth.LoginTags
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -28,12 +24,8 @@ class MainActivityLaunchTest {
     }
 
     @Test
-    fun showsTheShellOnTodayAndNavigatesFromTheBottomBar() {
-        composeRule.onNodeWithTag(screenTag(CockpitDestination.Today)).assertIsDisplayed()
-        composeRule.onNode(hasText("Today") and isSelectable()).assertIsSelected()
-
-        composeRule.onNode(hasText("Calendar") and isSelectable()).performClick()
-
-        composeRule.onNodeWithTag(screenTag(CockpitDestination.Calendar)).assertIsDisplayed()
+    fun startsOnTheLoginScreenWithoutStoredTokens() {
+        // The shell after login is covered by auth.AppStartRoutingTest.
+        composeRule.onNodeWithTag(LoginTags.SCREEN).assertIsDisplayed()
     }
 }
