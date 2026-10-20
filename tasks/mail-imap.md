@@ -17,3 +17,4 @@ Connect accounts (SPEC.md §7.1).
 - [ ] API documented: `api/openapi.yaml` regenerated (`UPDATE_OPENAPI=1 ./gradlew test --tests '*OpenApiContractTest'`) and `OpenApiContractTest` passes without the flag
 
 ## Notes
+- ASSUMPTION (2026-10-20 17:17+0200 by dell26/agent-2): Account API lives in mail/imap (task touches) as /api/v1/mail/accounts plus POST /{id}/test, GET /{id}/folders, POST /{id}/folders/sync, PATCH /{id}/folders/{folderId}; 'test connection' tests the stored account only (no test of unsaved settings), failures are 200 with per-protocol errorCode
