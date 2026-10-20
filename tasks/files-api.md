@@ -19,7 +19,8 @@ File operations (SPEC.md §8.2).
   - verified (2026-10-20 23:50+0200 by dell26/agent-2): same run -> pass: FilesWebTests 'downloads support Range requests' (206/suffix/416), FilesApiEdgeCaseWebTests partial download + multipart/byteranges + filename* on 206, FilesApiSupportTests RFC 6266 encoding round-trip, 'a folder downloads as a streamed zip' (async, timeout -1)
 - [x] Rename, move (no cycles), delete (trash), new folder, list folder (cursor), disk usage endpoint
   - verified (2026-10-20 23:50+0200 by dell26/agent-2): same run -> pass: rename/move with ETag, move into self/descendant -> 409, concurrent crossing moves (FilesConcurrencyTests), delete -> Trash, create folder, cursor listing, GET /drive/usage
-- [ ] `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.files.*'` passes (Postgres via Testcontainers where persistence is involved) incl. resume after a missing chunk and a 60 MB chunked upload
+- [x] `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.files.*'` passes (Postgres via Testcontainers where persistence is involved) incl. resume after a missing chunk and a 60 MB chunked upload
+  - verified (2026-10-20 23:50+0200 by dell26/agent-2): cd server && ./gradlew test --rerun --tests 'ch.sonensei.cockpit.files.*' --tests '*OpenApiContractTest' ktlintCheck jacocoTestReport -> exit 0, 175 tests 0 failures incl. 'an upload resumes after a missing chunk' and 'a 60 MB file uploads in chunks'
 - [ ] API documented: `api/openapi.yaml` regenerated (`UPDATE_OPENAPI=1 ./gradlew test --tests '*OpenApiContractTest'`) and `OpenApiContractTest` passes without the flag
 
 ## Notes
