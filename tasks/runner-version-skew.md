@@ -27,3 +27,4 @@ Two runner bugs seen on 2026-10-20 after the runner-push-failure-loop fix:
 - After done: back-port to upstream TFP (`tfp/`, OldPeasant/tfp), the tooling files are identical there.
 
 ## Notes
+- ASSUMPTION (2026-10-20 21:36+0200 by dell26/agent-2): Runner imports tasks.py from agents.py's own folder (the human's checkout, same commit as agents.py) instead of fast-forwarding the clone: the clone may hold unpushed task work that a fast-forward can't move past. Falls back to the clone's tasks.py only if none sits next to agents.py. Subprocess calls (tasks.py heartbeat/release in the clone) still use the clone's copy, which tasks.py's own sync updates.
