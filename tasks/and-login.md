@@ -17,3 +17,4 @@ Login screen and token storage (SPEC.md §9.2 item 1).
 
 ## Notes
 - ASSUMPTION (2026-10-20 17:55+0200 by dell26/agent-6): Tokens are encrypted with AES-256-GCM using a key generated in the Android Keystore directly (javax.crypto), not Tink/EncryptedSharedPreferences: EncryptedSharedPreferences is deprecated and Tink's AndroidKeysetManager falls back to a cleartext keyset when the Keystore fails. Without a usable Keystore the tokens stay in memory only (fail closed).
+- ASSUMPTION (2026-10-20 17:55+0200 by dell26/agent-6): Passkey login (SPEC 9.2 item 1) is left to the and-passkeys task; this task's criteria only name password + TOTP/recovery code.
