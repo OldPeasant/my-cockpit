@@ -113,6 +113,44 @@ describe('ReminderNotificationsToggle', () => {
     expect(hint()).toBe('');
   });
 
+  it('ignores a second click while the browser asks', async () => {
+    await setup('default');
+    let answer: (permission: NotificationPermission) => void = () => undefined;
+    let requests = 0;
+    browser.requestPermission = () => {
+      requests++;
+      return new Promise<NotificationPermission>((resolve) => {
+        answer = resolve;
+      });
+    };
+
+    await click();
+    // Still focusable and clickable (disabledInteractive), but it must not ask twice.
+    await click();
+
+    expect(requests).toBe(1);
+    expect(disabled()).toBe(true);
+
+    answer('denied');
+    browser.current = 'denied';
+    await new Promise((resolve) => setTimeout(resolve));
+    await fixture.whenStable();
+
+    expect(requests).toBe(1);
+    expect(button().getAttribute('aria-checked')).toBe('false');
+    expect(localStorage.getItem(REMINDER_NOTIFICATIONS_STORAGE_KEY)).toBeNull();
+  });
+
+  it('ignores clicks when the browser has no notifications', async () => {
+    await setup('unsupported');
+
+    await click();
+
+    expect(browser.requests).toBe(0);
+    expect(button().getAttribute('aria-checked')).toBe('false');
+    expect(localStorage.getItem(REMINDER_NOTIFICATIONS_STORAGE_KEY)).toBeNull();
+  });
+
   it('springs back but stays usable when the permission prompt fails', async () => {
     await setup('default');
     browser.requestPermission = () => Promise.reject(new Error('prompt dismissed'));
@@ -209,6 +247,52 @@ describe('ReminderNotificationsToggle', () => {
 
     expect(disabled()).toBe(false);
     expect(root.querySelector('.hint')?.getAttribute('data-permission')).toBe('granted');
+  });
+
+  it('does not re-read the permission when the page is hidden', async () => {
+    await setup('denied');
+    const refresh = vi.spyOn(TestBed.inject(ReminderNotificationsService), 'refresh');
+    const visibility = vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('hidden');
+    try {
+      browser.current = 'granted';
+      document.dispatchEvent(new Event('visibilitychange'));
+      await fixture.whenStable();
+
+      expect(refresh).not.toHaveBeenCalled();
+      expect(disabled()).toBe(true);
+      expect(hint()).toContain('Notifications are blocked for this site');
+    } finally {
+      visibility.mockRestore();
+    }
+  });
+
+  it('can be switched on without a prompt once the permission was allowed in the site settings', async () => {
+    await setup('denied');
+
+    browser.current = 'granted';
+    window.dispatchEvent(new Event('focus'));
+    await fixture.whenStable();
+    await click();
+
+    expect(browser.requests).toBe(0);
+    expect(button().getAttribute('aria-checked')).toBe('true');
+    expect(localStorage.getItem(REMINDER_NOTIFICATIONS_STORAGE_KEY)).toBe('on');
+  });
+
+  it('gives each switch its own hint id', async () => {
+    await setup('default');
+    const second = TestBed.createComponent(ReminderNotificationsToggle);
+    await second.whenStable();
+    const secondRoot = second.nativeElement as HTMLElement;
+
+    const firstId = root.querySelector('.hint')?.id;
+    const secondId = secondRoot.querySelector('.hint')?.id;
+    expect(firstId).toBeTruthy();
+    expect(secondId).toBeTruthy();
+    expect(secondId).not.toBe(firstId);
+    expect(
+      secondRoot.querySelector('button[role="switch"]')?.getAttribute('aria-describedby'),
+    ).toBe(secondId);
   });
 
   it('stops listening for focus and visibility once destroyed', async () => {

@@ -568,6 +568,14 @@ describe('GeneralSettings', () => {
       expect(reminderHint()).toContain("This browser can't show notifications");
     });
 
+    it('explains the in-app fallback only once while the switch is off', async () => {
+      await setup([{ provide: BROWSER_NOTIFICATIONS, useValue: new FakeBrowserNotifications() }]);
+
+      expect(reminderSwitch()?.getAttribute('aria-checked')).toBe('false');
+      expect(reminderHint()).toContain('Reminders appear inside My Cockpit');
+      expect(root.textContent?.match(/inside My Cockpit/g) ?? []).toHaveLength(1);
+    });
+
     it('switches browser notifications on from the settings page without saving a setting', async () => {
       const browser = new FakeBrowserNotifications();
       await setup([{ provide: BROWSER_NOTIFICATIONS, useValue: browser }]);
