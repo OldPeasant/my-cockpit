@@ -11,7 +11,8 @@ lease_until: 2026-10-20T15:05:51Z
 Accounts, identities, folders, cached headers and bodies (SPEC.md §7.1–7.2).
 
 ## Acceptance criteria
-- [ ] Migrations: mail_account (type IMAP_SMTP|GOOGLE|MICROSOFT, hosts/ports/TLS, encrypted password or oauth connection, signature, notify flag), identity, mail_folder (path, role, uidvalidity, uidnext, highestmodseq), mail_message (account, folder, uid, Message-ID, headers, flags, size, hasAttachments, snippet, thread key), body cache table/files with size accounting
+- [x] Migrations: mail_account (type IMAP_SMTP|GOOGLE|MICROSOFT, hosts/ports/TLS, encrypted password or oauth connection, signature, notify flag), identity, mail_folder (path, role, uidvalidity, uidnext, highestmodseq), mail_message (account, folder, uid, Message-ID, headers, flags, size, hasAttachments, snippet, thread key), body cache table/files with size accounting
+  - verified (2026-10-20 16:46+0200 by dell26/agent-2): cd server && ./gradlew test --tests 'ch.sonensei.cockpit.mail.model.*' (Postgres 16 Testcontainers; Flyway applies V202610201402__mail_model.sql) -> 70 passed; MailModelPersistenceTests/MailModelConstraintTests cover mail_account (types, hosts/ports/TLS, encrypted password vs oauth connection, signature, notify), identity, mail_folder sync state, mail_message columns, mail_body size accounting + LRU eviction (MailBodyCacheTests)
 - [ ] Resolver EMAIL (re-resolve by Message-ID when UID changed)
 - [ ] `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.mail.model.*'` passes (Postgres via Testcontainers where persistence is involved)
 
