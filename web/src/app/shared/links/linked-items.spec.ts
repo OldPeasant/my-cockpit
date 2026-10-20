@@ -6,6 +6,7 @@ import { ItemRefDto, LinkEndResponse, LinkResponse } from '../../api/generated';
 import { NotificationService, provideHttp } from '../../core/http';
 import { LinkedCreate } from './linked-create';
 import { LINK_SEARCH_DEBOUNCE_MS, LinkedItems } from './linked-items';
+import { LinksService } from './links.service';
 
 const TASK: ItemRefDto = { type: 'TASK', id: '0192f0c4-0000-7000-8000-0000000000a1' };
 const NOTE_ID = '0192f0c4-0000-7000-8000-0000000000b1';
@@ -111,6 +112,8 @@ describe('LinkedItems', () => {
     const input = root.querySelector('input.query') as HTMLInputElement;
     input.value = text;
     input.dispatchEvent(new Event('input'));
+    // Let the query reach the search stream before the debounce wait starts.
+    await settle();
     await tick(LINK_SEARCH_DEBOUNCE_MS + 10);
     await settle();
   }
@@ -335,5 +338,567 @@ describe('LinkedItems', () => {
     expectList(TASK).flush({ items: [] });
     await settle();
     expect(root.querySelector('.empty')).not.toBeNull();
+  });
+
+  /** Creates the panel without answering its first list request. */
+  async function start(): Promise<void> {
+    TestBed.configureTestingModule({
+      providers: [
+        provideHttp(),
+        provideHttpClientTesting(),
+        provideRouter([]),
+        { provide: NotificationService, useValue: { error: vi.fn(), info: vi.fn() } },
+      ],
+    });
+    http = TestBed.inject(HttpTestingController);
+    fixture = TestBed.createComponent(Host);
+    root = fixture.nativeElement as HTMLElement;
+    await settle();
+  }
+
+  function searchRequest(query: string) {
+    return http.expectOne((r) => r.url === '/api/v1/search' && r.params.get('q') === query);
+  }
+
+  function optionTitles(): string[] {
+    return [...root.querySelectorAll('[role="option"] .title')].map((el) => el.textContent!.trim());
+  }
+
+  function status(): string {
+    return root.querySelector('.search-status')?.textContent?.trim() ?? '';
+  }
+
+  function hits(...items: [LinkEndResponse['type'], string, string][]) {
+    const groups = new Map<string, { type: string; items: object[] }>();
+    for (const [type, id, title] of items) {
+      const group = groups.get(type) ?? { type, items: [] };
+      group.items.push({ type, id, title, subtitle: `${title} subtitle`, updatedAt: 'x' });
+      groups.set(type, group);
+    }
+    return { groups: [...groups.values()] };
+  }
+
+  async function openAndSearch(query: string, response: object): Promise<void> {
+    button('Add link').click();
+    await settle();
+    await type(query);
+    searchRequest(query).flush(response);
+    await settle();
+  }
+
+  describe('loading', () => {
+    it('shows a loading hint and no count until the links arrive', async () => {
+      await start();
+
+      expect(root.querySelector('.hint')?.textContent).toContain('Loading links');
+      expect(root.querySelector('.links')).toBeNull();
+      expect(root.querySelector('.count')).toBeNull();
+
+      expectList(TASK).flush({ items: [] });
+      await settle();
+      expect(root.querySelector('.hint')).toBeNull();
+      expect(root.querySelector('.count')).toBeNull();
+    });
+
+    it('ignores a list response for the previous item that answers after the new one', async () => {
+      await start();
+      const first = expectList(TASK);
+      const other: ItemRefDto = { type: 'TASK', id: OTHER_TASK_ID };
+      fixture.componentInstance.item.set(other);
+      await settle();
+
+      expectList(other).flush({ items: [link('l1', end('NOTE', NOTE_ID, 'Holiday ideas'))] });
+      await settle();
+      first.flush({ items: [link('l2', end('EVENT', EVENT_ID, 'Flight to Lisbon'))] });
+      await settle();
+
+      expect(titles()).toEqual(['Holiday ideas']);
+    });
+
+    it('ignores a failure of the previous item load that answers after the new one', async () => {
+      await start();
+      const first = expectList(TASK);
+      const other: ItemRefDto = { type: 'TASK', id: OTHER_TASK_ID };
+      fixture.componentInstance.item.set(other);
+      await settle();
+
+      expectList(other).flush({ items: [] });
+      await settle();
+      first.flush({ status: 500, title: 'Server error' }, { status: 500, statusText: 'Error' });
+      await settle();
+
+      expect(root.querySelector('.load-error')).toBeNull();
+      expect(root.querySelector('.empty')).not.toBeNull();
+    });
+
+    it('keeps the newer links when an older load of the same item answers last', async () => {
+      await start();
+      const older = expectList(TASK);
+      const reloaded = fixture.componentInstance.panel().reload();
+      await settle();
+      const newer = expectList(TASK);
+
+      newer.flush({
+        items: [
+          link('l1', end('NOTE', NOTE_ID, 'Holiday ideas')),
+          link('l2', end('EVENT', EVENT_ID, 'Flight to Lisbon')),
+        ],
+      });
+      await reloaded;
+      await settle();
+      older.flush({ items: [link('l1', end('NOTE', NOTE_ID, 'Holiday ideas'))] });
+      await settle();
+
+      expect(titles()).toEqual(['Holiday ideas', 'Flight to Lisbon']);
+    });
+  });
+
+  describe('removing', () => {
+    it('disables the remove button while the removal runs', async () => {
+      await setup([link('l1', end('NOTE', NOTE_ID, 'Holiday ideas'))]);
+
+      const remove = root.querySelector('button.remove') as HTMLButtonElement;
+      remove.click();
+      await settle();
+      expect(remove.disabled).toBe(true);
+
+      http
+        .expectOne({ method: 'DELETE', url: '/api/v1/links/l1' })
+        .flush({ status: 500, title: 'Server error' }, { status: 500, statusText: 'Error' });
+      await settle();
+      expect((root.querySelector('button.remove') as HTMLButtonElement).disabled).toBe(false);
+    });
+
+    it('drops a link that was already removed elsewhere (404) without an error', async () => {
+      await setup([
+        link('l1', end('NOTE', NOTE_ID, 'Holiday ideas')),
+        link('l2', end('EVENT', EVENT_ID, 'Flight to Lisbon')),
+      ]);
+
+      (root.querySelector('button.remove') as HTMLElement).click();
+      await settle();
+      http
+        .expectOne({ method: 'DELETE', url: '/api/v1/links/l1' })
+        .flush({ status: 404, title: 'Not Found' }, { status: 404, statusText: 'Not Found' });
+      await settle();
+
+      expect(titles()).toEqual(['Flight to Lisbon']);
+      expect(root.querySelector('[role="alert"]')).toBeNull();
+    });
+
+    it('moves the focus to the next row after removing a link', async () => {
+      await setup([
+        link('l1', end('NOTE', NOTE_ID, 'Holiday ideas')),
+        link('l2', end('EVENT', EVENT_ID, 'Flight to Lisbon')),
+        link('l3', end('TASK', OTHER_TASK_ID, 'Book hotel')),
+      ]);
+
+      const middle = root.querySelector(
+        'button[aria-label="Remove link to Flight to Lisbon"]',
+      ) as HTMLButtonElement;
+      middle.focus();
+      middle.click();
+      await settle();
+      http
+        .expectOne({ method: 'DELETE', url: '/api/v1/links/l2' })
+        .flush(null, { status: 204, statusText: 'No Content' });
+      await settle();
+
+      expect(titles()).toEqual(['Holiday ideas', 'Book hotel']);
+      expect(document.activeElement?.getAttribute('aria-label')).toBe('Remove link to Book hotel');
+    });
+
+    it('moves the focus to the previous row after removing the last row', async () => {
+      await setup([
+        link('l1', end('NOTE', NOTE_ID, 'Holiday ideas')),
+        link('l2', end('EVENT', EVENT_ID, 'Flight to Lisbon')),
+      ]);
+
+      const last = root.querySelector(
+        'button[aria-label="Remove link to Flight to Lisbon"]',
+      ) as HTMLButtonElement;
+      last.focus();
+      last.click();
+      await settle();
+      http
+        .expectOne({ method: 'DELETE', url: '/api/v1/links/l2' })
+        .flush(null, { status: 204, statusText: 'No Content' });
+      await settle();
+
+      expect(document.activeElement?.getAttribute('aria-label')).toBe(
+        'Remove link to Holiday ideas',
+      );
+    });
+
+    it('moves the focus to the heading after removing the only link', async () => {
+      await setup([link('l1', end('NOTE', NOTE_ID, 'Holiday ideas'))]);
+
+      const remove = root.querySelector('button.remove') as HTMLButtonElement;
+      remove.focus();
+      remove.click();
+      await settle();
+      http
+        .expectOne({ method: 'DELETE', url: '/api/v1/links/l1' })
+        .flush(null, { status: 204, statusText: 'No Content' });
+      await settle();
+
+      expect(document.activeElement).toBe(root.querySelector('h2.heading'));
+      expect(root.querySelector('.empty')).not.toBeNull();
+    });
+
+    it('leaves the focus alone when the user moved it elsewhere during the removal', async () => {
+      await setup([
+        link('l1', end('NOTE', NOTE_ID, 'Holiday ideas')),
+        link('l2', end('EVENT', EVENT_ID, 'Flight to Lisbon')),
+      ]);
+
+      (root.querySelector('button.remove') as HTMLButtonElement).click();
+      await settle();
+      button('Add link').focus();
+      http
+        .expectOne({ method: 'DELETE', url: '/api/v1/links/l1' })
+        .flush(null, { status: 204, statusText: 'No Content' });
+      await settle();
+
+      expect(titles()).toEqual(['Flight to Lisbon']);
+      expect(document.activeElement).toBe(button('Add link'));
+    });
+  });
+
+  describe('searching', () => {
+    it('shows "Searching…" while pending, then the hits with their subtitles', async () => {
+      await setup([]);
+      button('Add link').click();
+      await settle();
+      await type('lis');
+
+      expect(status()).toBe('Searching…');
+      expect(root.querySelector('input.query')?.getAttribute('aria-busy')).toBe('true');
+      searchRequest('lis').flush(hits(['EVENT', EVENT_ID, 'Flight to Lisbon']));
+      await settle();
+
+      expect(status()).toBe('');
+      expect(optionTitles()).toEqual(['Flight to Lisbon']);
+      expect(root.querySelector('[role="option"] .subtitle')?.textContent?.trim()).toBe(
+        'Flight to Lisbon subtitle',
+      );
+      expect(root.querySelector('input.query')?.getAttribute('aria-expanded')).toBe('true');
+    });
+
+    it('does not search for a blank query', async () => {
+      await setup([]);
+      button('Add link').click();
+      await settle();
+      await type('   ');
+
+      http.expectNone((r) => r.url === '/api/v1/search');
+      expect(status()).toBe('');
+    });
+
+    it('says nothing matches when every hit is filtered out', async () => {
+      await setup([link('l1', end('NOTE', NOTE_ID, 'Holiday ideas'))]);
+
+      await openAndSearch('holiday', hits(['NOTE', NOTE_ID, 'Holiday ideas']));
+
+      expect(optionTitles()).toEqual([]);
+      expect(status()).toContain('Nothing to link matches');
+      expect(root.querySelector('input.query')?.getAttribute('aria-expanded')).toBe('false');
+    });
+
+    it('shows the search error and recovers with the next query', async () => {
+      await setup([]);
+      button('Add link').click();
+      await settle();
+      await type('lis');
+      searchRequest('lis').flush(
+        { status: 503, title: 'Search unavailable' },
+        { status: 503, statusText: 'Unavailable' },
+      );
+      await settle();
+
+      expect(root.querySelector('.search-status .error')?.textContent).toContain(
+        'Search unavailable',
+      );
+      expect(optionTitles()).toEqual([]);
+
+      await type('lisb');
+      searchRequest('lisb').flush(hits(['EVENT', EVENT_ID, 'Flight to Lisbon']));
+      await settle();
+      expect(root.querySelector('.search-status .error')).toBeNull();
+      expect(optionTitles()).toEqual(['Flight to Lisbon']);
+    });
+
+    it('shows a generic message when the search fails unexpectedly', async () => {
+      await setup([]);
+      vi.spyOn(TestBed.inject(LinksService), 'search').mockRejectedValue(new Error('boom'));
+      button('Add link').click();
+      await settle();
+      await type('lis');
+      await settle();
+
+      expect(root.querySelector('.search-status .error')?.textContent).toContain(
+        'Something went wrong.',
+      );
+    });
+
+    it('ignores an older search that answers after a newer query', async () => {
+      await setup([]);
+      button('Add link').click();
+      await settle();
+      await type('li');
+      const older = searchRequest('li');
+      await type('lis');
+      const newer = searchRequest('lis');
+
+      newer.flush(hits(['EVENT', EVENT_ID, 'Flight to Lisbon']));
+      await settle();
+      older.flush(hits(['TASK', OTHER_TASK_ID, 'Little errands']));
+      await settle();
+
+      expect(optionTitles()).toEqual(['Flight to Lisbon']);
+    });
+
+    it('ignores a failing older search that answers after a newer query', async () => {
+      await setup([]);
+      button('Add link').click();
+      await settle();
+      await type('li');
+      const older = searchRequest('li');
+      await type('lis');
+      const newer = searchRequest('lis');
+
+      newer.flush(hits(['EVENT', EVENT_ID, 'Flight to Lisbon']));
+      await settle();
+      older.flush({ status: 500, title: 'Server error' }, { status: 500, statusText: 'Error' });
+      await settle();
+
+      expect(optionTitles()).toEqual(['Flight to Lisbon']);
+      expect(root.querySelector('.search-status .error')).toBeNull();
+    });
+
+    it('shows no results when the query is cleared while a search is pending', async () => {
+      await setup([]);
+      button('Add link').click();
+      await settle();
+      await type('lis');
+      const pending = searchRequest('lis');
+      await type('');
+
+      pending.flush(hits(['EVENT', EVENT_ID, 'Flight to Lisbon']));
+      await settle();
+
+      expect(optionTitles()).toEqual([]);
+      expect(status()).toBe('');
+    });
+
+    it('moves through the results with the arrow keys, wrapping around', async () => {
+      await setup([]);
+      await openAndSearch(
+        'b',
+        hits(
+          ['TASK', OTHER_TASK_ID, 'Book hotel'],
+          ['NOTE', NOTE_ID, 'Booking notes'],
+          ['EVENT', EVENT_ID, 'Boarding'],
+        ),
+      );
+      const input = root.querySelector('input.query') as HTMLInputElement;
+      const active = () => root.querySelector('[role="option"].active .title')?.textContent?.trim();
+
+      expect(active()).toBe('Book hotel');
+      input.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowUp' }));
+      await settle();
+      expect(active()).toBe('Boarding');
+      expect(input.getAttribute('aria-activedescendant')).toBe(
+        root.querySelector('[role="option"].active')?.id,
+      );
+      input.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown' }));
+      await settle();
+      expect(active()).toBe('Book hotel');
+    });
+
+    it('ignores Enter and arrows when there are no results', async () => {
+      await setup([]);
+      await openAndSearch('zzz', { groups: [] });
+      const input = root.querySelector('input.query') as HTMLInputElement;
+
+      for (const key of ['ArrowDown', 'ArrowUp', 'Enter']) {
+        input.dispatchEvent(new KeyboardEvent('keydown', { key }));
+        await settle();
+      }
+
+      http.expectNone({ method: 'POST', url: '/api/v1/links' });
+      expect(input.getAttribute('aria-activedescendant')).toBeNull();
+    });
+
+    it('closes the search with Cancel and returns the focus to "Add link"', async () => {
+      await setup([]);
+      button('Add link').click();
+      await settle();
+      await type('lis');
+      searchRequest('lis').flush(hits(['EVENT', EVENT_ID, 'Flight to Lisbon']));
+      await settle();
+
+      button('Cancel').click();
+      await settle();
+
+      expect(root.querySelector('input.query')).toBeNull();
+      expect(document.activeElement).toBe(button('Add link'));
+      await tick(LINK_SEARCH_DEBOUNCE_MS + 10);
+
+      // Opening again starts with an empty query and searches the same word again.
+      button('Add link').click();
+      await settle();
+      expect((root.querySelector('input.query') as HTMLInputElement).value).toBe('');
+      await type('lis');
+      searchRequest('lis').flush({ groups: [] });
+      await settle();
+    });
+  });
+
+  describe('adding', () => {
+    it('links a result chosen with Enter on the option itself', async () => {
+      await setup([]);
+      await openAndSearch('lis', hits(['EVENT', EVENT_ID, 'Flight to Lisbon']));
+
+      root
+        .querySelector('[role="option"]')!
+        .dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }));
+      await settle();
+
+      http
+        .expectOne({ method: 'POST', url: '/api/v1/links' })
+        .flush(link('l1', end('EVENT', EVENT_ID, 'Flight to Lisbon')), {
+          status: 201,
+          statusText: 'Created',
+        });
+      await settle();
+      expect(titles()).toEqual(['Flight to Lisbon']);
+    });
+
+    it('creates the link only once when a result is chosen twice', async () => {
+      await setup([]);
+      await openAndSearch('lis', hits(['EVENT', EVENT_ID, 'Flight to Lisbon']));
+
+      const option = root.querySelector('[role="option"]') as HTMLElement;
+      option.click();
+      await settle();
+      expect((root.querySelector('input.query') as HTMLInputElement).disabled).toBe(true);
+      option.click();
+      await settle();
+
+      const create = http.expectOne({ method: 'POST', url: '/api/v1/links' });
+      create.flush(link('l1', end('EVENT', EVENT_ID, 'Flight to Lisbon')), {
+        status: 201,
+        statusText: 'Created',
+      });
+      await settle();
+      expect(titles()).toEqual(['Flight to Lisbon']);
+    });
+
+    it('keeps the search open and shows the error when linking fails', async () => {
+      await setup([]);
+      await openAndSearch('lis', hits(['EVENT', EVENT_ID, 'Flight to Lisbon']));
+
+      (root.querySelector('[role="option"]') as HTMLElement).click();
+      await settle();
+      http
+        .expectOne({ method: 'POST', url: '/api/v1/links' })
+        .flush(
+          { status: 422, title: 'Unprocessable', detail: 'The target item does not exist.' },
+          { status: 422, statusText: 'Unprocessable Entity' },
+        );
+      await settle();
+
+      expect(root.querySelector('[role="alert"]')?.textContent).toContain(
+        'The target item does not exist.',
+      );
+      const input = root.querySelector('input.query') as HTMLInputElement;
+      expect(input).not.toBeNull();
+      expect(input.disabled).toBe(false);
+      expect(titles()).toEqual([]);
+    });
+
+    it('reloads the list when the link already exists (409)', async () => {
+      await setup([]);
+      await openAndSearch('lis', hits(['EVENT', EVENT_ID, 'Flight to Lisbon']));
+
+      (root.querySelector('[role="option"]') as HTMLElement).click();
+      await settle();
+      http
+        .expectOne({ method: 'POST', url: '/api/v1/links' })
+        .flush({ status: 409, title: 'Conflict' }, { status: 409, statusText: 'Conflict' });
+      await settle();
+
+      expect(root.querySelector('input.query')).toBeNull();
+      expect(root.querySelector('[role="alert"]')).toBeNull();
+      expectList(TASK).flush({ items: [link('l7', end('EVENT', EVENT_ID, 'Flight to Lisbon'))] });
+      await settle();
+      expect(titles()).toEqual(['Flight to Lisbon']);
+    });
+
+    it('does not show a link created for the previous item after the item changed', async () => {
+      await setup([]);
+      await openAndSearch('lis', hits(['EVENT', EVENT_ID, 'Flight to Lisbon']));
+
+      (root.querySelector('[role="option"]') as HTMLElement).click();
+      await settle();
+      const create = http.expectOne({ method: 'POST', url: '/api/v1/links' });
+      expect(create.request.body.source).toEqual(TASK);
+
+      const other: ItemRefDto = { type: 'TASK', id: OTHER_TASK_ID };
+      fixture.componentInstance.item.set(other);
+      await settle();
+      expectList(other).flush({ items: [] });
+      await settle();
+      create.flush(link('l1', end('EVENT', EVENT_ID, 'Flight to Lisbon')), {
+        status: 201,
+        statusText: 'Created',
+      });
+      await settle();
+
+      expect(titles()).toEqual([]);
+    });
+
+    it('clears an earlier action error when adding starts', async () => {
+      await setup([link('l1', end('NOTE', NOTE_ID, 'Holiday ideas'))]);
+      (root.querySelector('button.remove') as HTMLElement).click();
+      await settle();
+      http
+        .expectOne({ method: 'DELETE', url: '/api/v1/links/l1' })
+        .flush({ status: 500, title: 'Server error' }, { status: 500, statusText: 'Error' });
+      await settle();
+      expect(root.querySelector('[role="alert"]')).not.toBeNull();
+
+      button('Add link').click();
+      await settle();
+
+      expect(root.querySelector('[role="alert"]')).toBeNull();
+    });
+  });
+});
+
+describe('LinkedItems without create-linked actions', () => {
+  it('hides the "Create linked" row', async () => {
+    TestBed.configureTestingModule({
+      providers: [
+        provideHttp(),
+        provideHttpClientTesting(),
+        provideRouter([]),
+        { provide: NotificationService, useValue: { error: vi.fn(), info: vi.fn() } },
+      ],
+    });
+    const http = TestBed.inject(HttpTestingController);
+    const fixture = TestBed.createComponent(LinkedItems);
+    fixture.componentRef.setInput('item', TASK);
+    await tick();
+    await fixture.whenStable();
+    http.expectOne((r) => r.url === '/api/v1/links').flush({ items: [] });
+    await tick();
+    await fixture.whenStable();
+
+    const root = fixture.nativeElement as HTMLElement;
+    expect(root.querySelector('.empty')).not.toBeNull();
+    expect(root.querySelector('.create')).toBeNull();
+    http.verify();
   });
 });
