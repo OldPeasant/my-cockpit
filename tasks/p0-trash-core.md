@@ -1,10 +1,11 @@
 ---
 title: Trash: listing, restore, purge
-status: todo
-owner:
+status: in_progress
+owner: R1963MACOS/agent-2
 deps: [p0-items-links]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/core/trash,server/src/test/kotlin/ch/sonensei/cockpit/core/trash]
 prio: 2
+lease_until: 2026-10-20T13:28:01Z
 ---
 ## Goal
 Generic trash for soft-deleted items (SPEC.md §4.2).
