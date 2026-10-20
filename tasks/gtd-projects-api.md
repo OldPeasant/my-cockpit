@@ -19,3 +19,4 @@ Projects with next step, areas and contexts (SPEC.md §5.1–5.2).
 
 ## Notes
 - ASSUMPTION (2026-10-20 18:25+0200 by dell26/agent-5): Stalled = ACTIVE project whose nextTaskId is not an open task of the project (unset, done, in Trash, or moved to another project); projects in other statuses are never stalled. Open tasks without a designated next step do not count.
+- ASSUMPTION (2026-10-20 18:25+0200 by dell26/agent-5): needsNextStep in the complete response is true iff the completed task is the nextTaskId of its ACTIVE (not trashed) project; nextTaskId keeps pointing to the done task (project shows as stalled) so uncomplete restores it.
