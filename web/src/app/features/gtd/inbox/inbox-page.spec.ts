@@ -53,6 +53,9 @@ describe('InboxPage', () => {
   let calls: Call[];
   let inbox: TaskResponse[];
   let element: HTMLElement;
+  /** Answers a call instead of the default fake server when it returns a promise. */
+  let answer:
+    ((fn: unknown, params: Record<string, unknown>) => Promise<unknown> | undefined) | undefined;
 
   const callsOf = (fn: unknown) => calls.filter((call) => call.fn === fn);
 
@@ -87,9 +90,12 @@ describe('InboxPage', () => {
 
   beforeEach(() => {
     calls = [];
+    answer = undefined;
     const api = {
       invoke: async (fn: unknown, params: Record<string, unknown> = {}) => {
         calls.push({ fn, params });
+        const custom = answer?.(fn, params);
+        if (custom) return custom;
         if (fn === listTasks) return { items: inbox };
         if (fn === listContexts) return { items: [HOME] };
         if (fn === listProjects) return { items: [KITCHEN] };
@@ -318,5 +324,403 @@ describe('InboxPage', () => {
     const navigate = vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
     element.querySelector<HTMLButtonElement>('app-task-row .title')!.click();
     expect(navigate).toHaveBeenCalledWith(['/tasks', 't1']);
+  });
+
+  it('completes an item from its list checkbox', async () => {
+    await render([task('t1')]);
+    element.querySelector<HTMLInputElement>('app-task-row input.check')!.click();
+    await refresh();
+    expect(callsOf(completeTask)[0].params).toMatchObject({ id: 't1', 'If-Match': '"1"' });
+    expect(element.querySelectorAll('app-task-row').length).toBe(0);
+  });
+
+  const progress = () => element.querySelector('[role=progressbar]')?.getAttribute('aria-valuenow');
+
+  describe('when the server refuses', () => {
+    it('brings a failed move back as the current item, not counted as processed', async () => {
+      await render([task('t1'), task('t2')]);
+      answer = (fn) => (fn === moveTask ? Promise.reject(new Error('409')) : undefined);
+      await press('p');
+
+      await press('n');
+
+      expect(callsOf(moveTask)).toHaveLength(1);
+      expect(title()).toBe('Item t1');
+      expect(left()).toBe('2 items left');
+      expect(progress()).toBe('0');
+    });
+
+    it('brings an item back when its move fails after the next item came up', async () => {
+      await render([task('t1'), task('t2')]);
+      let reject!: (error: unknown) => void;
+      answer = (fn, params) =>
+        fn === moveTask && params['id'] === 't1'
+          ? new Promise((_, rejectMove) => (reject = rejectMove))
+          : undefined;
+      await press('p');
+
+      await press('n');
+      // t1 is still being moved: t2 is offered meanwhile.
+      expect(title()).toBe('Item t2');
+      expect(left()).toBe('1 item left');
+
+      reject(new Error('412'));
+      await refresh();
+
+      expect(title()).toBe('Item t1');
+      expect(left()).toBe('2 items left');
+      // It can be processed again, with the version it still has.
+      answer = undefined;
+      await press('m');
+      expect(callsOf(moveTask).at(-1)!.params).toMatchObject({
+        id: 't1',
+        'If-Match': '"1"',
+        body: { list: 'SOMEDAY' },
+      });
+    });
+
+    it('does not move an item whose attributes could not be saved', async () => {
+      await render([task('t1'), task('t2')]);
+      answer = (fn) => (fn === updateTask ? Promise.reject(new Error('400')) : undefined);
+      await press('p');
+      button('High')!.click();
+      await refresh();
+
+      await press('n');
+
+      expect(callsOf(updateTask)).toHaveLength(1);
+      expect(callsOf(moveTask)).toHaveLength(0);
+      expect(title()).toBe('Item t1');
+      expect(left()).toBe('2 items left');
+    });
+
+    it('keeps saved attributes when only the move fails, then moves with the new version', async () => {
+      await render([task('t1')]);
+      answer = (fn) => (fn === moveTask ? Promise.reject(new Error('500')) : undefined);
+      await press('p');
+      button('High')!.click();
+      await refresh();
+
+      await press('n');
+      expect(callsOf(updateTask)).toHaveLength(1);
+      expect(title()).toBe('Item t1');
+      expect(button('High')!.getAttribute('aria-pressed')).toBe('true');
+
+      answer = undefined;
+      await press('n');
+      // The attributes are saved already: no second update, the move sends version 2.
+      expect(callsOf(updateTask)).toHaveLength(1);
+      expect(callsOf(moveTask).at(-1)!.params).toMatchObject({ id: 't1', 'If-Match': '"2"' });
+      expect(element.textContent).toContain('Inbox zero.');
+    });
+
+    it('keeps an item in the list when completing it from its checkbox fails', async () => {
+      await render([task('t1')]);
+      answer = (fn) => (fn === completeTask ? Promise.reject(new Error('412')) : undefined);
+      element.querySelector<HTMLInputElement>('app-task-row input.check')!.click();
+      await refresh();
+      expect(callsOf(completeTask)).toHaveLength(1);
+      expect(element.querySelectorAll('app-task-row').length).toBe(1);
+    });
+
+    it('brings a failed Trash back', async () => {
+      await render([task('t1')]);
+      answer = (fn) => (fn === deleteTask ? Promise.reject(new Error('412')) : undefined);
+      await press('p');
+      await press('x');
+      expect(title()).toBe('Item t1');
+      expect(left()).toBe('1 item left');
+    });
+
+    it('shows that the inbox could not be loaded, and P does nothing', async () => {
+      answer = (fn) => (fn === listTasks ? Promise.reject(new Error('503')) : undefined);
+      await render([task('t1')]);
+      expect(element.textContent).toContain('The inbox could not be loaded.');
+      await press('p');
+      expect(element.querySelector('.desk')).toBeNull();
+    });
+  });
+
+  describe('keyboard', () => {
+    function overlayButton(): HTMLButtonElement {
+      const overlay = document.createElement('div');
+      overlay.className = 'cdk-overlay-container';
+      const inner = document.createElement('button');
+      overlay.appendChild(inner);
+      document.body.appendChild(overlay);
+      return inner;
+    }
+
+    afterEach(() => document.querySelectorAll('.cdk-overlay-container').forEach((o) => o.remove()));
+
+    it('ignores keys inside dialogs (the overlay container)', async () => {
+      await render([task('t1')]);
+      await press('p');
+      const inDialog = overlayButton();
+
+      await press('n', inDialog);
+      await press('x', inDialog);
+      await press('Escape', inDialog);
+
+      expect(callsOf(moveTask)).toHaveLength(0);
+      expect(callsOf(deleteTask)).toHaveLength(0);
+      expect(title()).toBe('Item t1');
+    });
+
+    it('does not start processing from a dialog or an input', async () => {
+      await render([task('t1')]);
+      const input = document.createElement('input');
+      element.appendChild(input);
+
+      await press('p', overlayButton());
+      await press('p', input);
+
+      expect(element.querySelector('.desk')).toBeNull();
+    });
+
+    it('accepts upper-case keys and ignores repeats and other modifiers', async () => {
+      await render([task('t1'), task('t2')]);
+      await press('P');
+      document.body.dispatchEvent(
+        new KeyboardEvent('keydown', { key: 'n', repeat: true, bubbles: true, cancelable: true }),
+      );
+      for (const modifier of ['altKey', 'metaKey'] as const) {
+        document.body.dispatchEvent(
+          new KeyboardEvent('keydown', { key: 'n', [modifier]: true, bubbles: true }),
+        );
+      }
+      await refresh();
+      expect(callsOf(moveTask)).toHaveLength(0);
+
+      await press('N');
+      expect(callsOf(moveTask)[0].params).toMatchObject({ id: 't1', body: { list: 'NEXT' } });
+    });
+
+    it('ignores action keys in the list and Escape outside processing', async () => {
+      await render([task('t1')]);
+      await press('n');
+      await press('x');
+      await press('Escape');
+      expect(callsOf(moveTask)).toHaveLength(0);
+      expect(callsOf(deleteTask)).toHaveLength(0);
+      expect(element.querySelectorAll('app-task-row').length).toBe(1);
+    });
+
+    it('does not start processing an empty inbox with P', async () => {
+      await render([]);
+      await press('p');
+      expect(element.querySelector('.desk')).toBeNull();
+    });
+
+    it('ignores action keys while a prompt is open', async () => {
+      await render([task('t1')]);
+      await press('p');
+      await press('s');
+      await press('n');
+      await press('x');
+      expect(callsOf(moveTask)).toHaveLength(0);
+      expect(callsOf(deleteTask)).toHaveLength(0);
+      expect(element.querySelector('.prompt')).not.toBeNull();
+    });
+
+    it('marks the enabled action buttons with their shortcut', async () => {
+      await render([task('t1')]);
+      await press('p');
+      expect(button('Next')!.getAttribute('aria-keyshortcuts')).toBe('N');
+      expect(button('Trash')!.getAttribute('aria-keyshortcuts')).toBe('X');
+      expect(button('To reference')!.hasAttribute('aria-keyshortcuts')).toBe(false);
+    });
+  });
+
+  describe('prompts', () => {
+    const form = () => element.querySelector<HTMLFormElement>('.prompt')!;
+    const submit = () => element.querySelector<HTMLButtonElement>('.prompt button[type=submit]')!;
+
+    async function setDate(value: string): Promise<void> {
+      const date = element.querySelector<HTMLInputElement>('.prompt input[type=date]')!;
+      date.value = value;
+      date.dispatchEvent(new Event('input'));
+      await refresh();
+    }
+
+    it('rejects a tickler date of today or earlier', async () => {
+      await render([task('t1')]);
+      await press('p');
+      await press('t');
+      const date = element.querySelector<HTMLInputElement>('.prompt input[type=date]')!;
+      expect(date.min).toBe(addDays(localDate(), 1));
+
+      for (const value of [localDate(), addDays(localDate(), -1), '']) {
+        await setDate(value);
+        expect(submit().disabled).toBe(true);
+        form().requestSubmit();
+        await refresh();
+      }
+      expect(callsOf(moveTask)).toHaveLength(0);
+      expect(title()).toBe('Item t1');
+
+      await setDate(addDays(localDate(), 30));
+      expect(submit().disabled).toBe(false);
+      form().requestSubmit();
+      await refresh();
+      expect(callsOf(moveTask)[0].params['body']).toEqual({
+        list: 'INBOX',
+        ticklerDate: addDays(localDate(), 30),
+      });
+    });
+
+    it('needs a date to schedule', async () => {
+      await render([task('t1')]);
+      await press('p');
+      await press('s');
+      await setDate('');
+      expect(submit().disabled).toBe(true);
+      form().requestSubmit();
+      await refresh();
+      expect(callsOf(moveTask)).toHaveLength(0);
+    });
+
+    it('moves to Waiting without a person when none or only blanks are given', async () => {
+      await render([task('t1'), task('t2')]);
+      await press('p');
+      await press('w');
+      form().requestSubmit();
+      await refresh();
+      await press('w');
+      const text = element.querySelector<HTMLInputElement>('.prompt input[type=text]')!;
+      expect(text.value).toBe('');
+      text.value = '   ';
+      text.dispatchEvent(new Event('input'));
+      form().requestSubmit();
+      await refresh();
+
+      const bodies = callsOf(moveTask).map((call) => call.params['body'] as object);
+      expect(bodies).toHaveLength(2);
+      for (const body of bodies) {
+        expect(JSON.parse(JSON.stringify(body))).toEqual({ list: 'WAITING' });
+      }
+    });
+
+    it('needs a title for a new project and offers only active projects', async () => {
+      answer = (fn) =>
+        fn === listProjects
+          ? Promise.resolve({
+              items: [{ ...KITCHEN, id: 'p9', title: 'Old garage', status: 'COMPLETED' }],
+            })
+          : undefined;
+      await render([task('t1')]);
+      await press('p');
+      await press('p');
+
+      const select = element.querySelector<HTMLSelectElement>('.prompt select')!;
+      expect([...select.options].map((option) => option.textContent?.trim())).toEqual([
+        'New project…',
+      ]);
+      expect(select.value).toBe('');
+      const name = element.querySelector<HTMLInputElement>('.prompt input[type=text]')!;
+      for (const value of ['', '   ']) {
+        name.value = value;
+        name.dispatchEvent(new Event('input'));
+        await refresh();
+        expect(submit().disabled).toBe(true);
+        form().requestSubmit();
+        await refresh();
+      }
+      expect(callsOf(createProject)).toHaveLength(0);
+      expect(callsOf(moveTask)).toHaveLength(0);
+    });
+
+    it('closes the prompt with Cancel without moving', async () => {
+      await render([task('t1')]);
+      await press('p');
+      await press('t');
+      button('Cancel')!.click();
+      await refresh();
+      expect(element.querySelector('.prompt')).toBeNull();
+      expect(callsOf(moveTask)).toHaveLength(0);
+      // The actions are back and work again.
+      await press('n');
+      expect(callsOf(moveTask)).toHaveLength(1);
+    });
+  });
+
+  describe('processing', () => {
+    it('runs an action from its button', async () => {
+      await render([task('t1'), task('t2')]);
+      await press('p');
+      button('Someday')!.click();
+      await refresh();
+      button('Do it')!.click();
+      await refresh();
+      expect(callsOf(moveTask)[0].params).toMatchObject({ id: 't1', body: { list: 'SOMEDAY' } });
+      expect(callsOf(completeTask)[0].params).toMatchObject({ id: 't2' });
+    });
+
+    it('shows the progress and the items left until inbox zero', async () => {
+      await render([task('t1'), task('t2')]);
+      await press('p');
+      expect(progress()).toBe('0');
+      await press('n');
+      expect(progress()).toBe('50');
+      expect(left()).toBe('1 item left');
+      await press('n');
+      expect(progress()).toBe('100');
+      expect(left()).toBe('No items left');
+
+      button('Back to the inbox')!.click();
+      await refresh();
+      expect(element.textContent).toContain('Your inbox is empty');
+    });
+
+    it('starts from the Process inbox button and goes back with Back to list', async () => {
+      await render([task('t1')]);
+      button('Process inbox')!.click();
+      await refresh();
+      expect(title()).toBe('Item t1');
+      button('Back to list')!.click();
+      await refresh();
+      expect(element.querySelector('.desk')).toBeNull();
+      expect(element.querySelectorAll('app-task-row').length).toBe(1);
+    });
+
+    it('starts each item with its own attributes, not the draft of the previous one', async () => {
+      await render([task('t1'), task('t2', { energy: 'LOW' })]);
+      await press('p');
+      button('High')!.click();
+      await refresh();
+      await press('n');
+
+      expect(title()).toBe('Item t2');
+      expect(button('High')!.getAttribute('aria-pressed')).toBe('false');
+      expect(button('Low')!.getAttribute('aria-pressed')).toBe('true');
+      await press('n');
+      expect(callsOf(updateTask).map((call) => call.params['id'])).toEqual(['t1']);
+    });
+
+    it('clears an attribute with null', async () => {
+      await render([task('t1', { energy: 'LOW', contextIds: ['c1'] })]);
+      await press('p');
+      button('Low')!.click();
+      button('@home')!.click();
+      await refresh();
+      await press('n');
+      expect(callsOf(updateTask)[0].params['body']).toEqual({ energy: null, contextIds: [] });
+    });
+
+    it('trashes without saving the draft attributes', async () => {
+      await render([task('t1')]);
+      await press('p');
+      button('High')!.click();
+      await refresh();
+      await press('x');
+      expect(callsOf(updateTask)).toHaveLength(0);
+      expect(callsOf(deleteTask)[0].params).toMatchObject({ id: 't1', 'If-Match': '"1"' });
+    });
+
+    it('shows the notes of the item', async () => {
+      await render([task('t1', { notesMd: 'Ask about the warranty' })]);
+      await press('p');
+      expect(element.querySelector('.notes')?.textContent).toContain('Ask about the warranty');
+    });
   });
 });

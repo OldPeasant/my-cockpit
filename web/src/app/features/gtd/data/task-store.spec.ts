@@ -13,6 +13,7 @@ import {
   updateTask,
 } from '../../../api/generated';
 import { ChangeEventsService } from '../../../core/events';
+import { addDays, localDate } from './dates';
 import { matchesTask, TASK_PAGE_SIZE, TaskStore } from './task-store';
 
 /** A request the test answers when it wants to, so it controls the order of answers. */
@@ -373,6 +374,36 @@ describe('TaskStore', () => {
     expect(store.items().map((t) => t.id)).toEqual(['a']);
   });
 
+  it('hides a task put in a tickler from the Inbox, also after the server answered', async () => {
+    const done = store.load({ list: 'INBOX' });
+    const item = task('a', { list: 'INBOX' });
+    callsOf(listTasks)[0].resolve(page([item]));
+    await done;
+    const later = addDays(localDate(), 7);
+
+    const moved = store.move(item, { list: 'INBOX', ticklerDate: later });
+    expect(store.items()).toEqual([]);
+    expect(callsOf(moveTask)[0].params['body']).toEqual({ list: 'INBOX', ticklerDate: later });
+    callsOf(moveTask)[0].resolve({ ...item, ticklerDate: later, version: 2 });
+    await moved;
+
+    expect(store.items()).toEqual([]);
+  });
+
+  it('brings a task back to the Inbox when its tickler move fails', async () => {
+    const done = store.load({ list: 'INBOX' });
+    const item = task('a', { list: 'INBOX' });
+    callsOf(listTasks)[0].resolve(page([item]));
+    await done;
+
+    const moved = store.move(item, { list: 'INBOX', ticklerDate: addDays(localDate(), 1) });
+    expect(store.items()).toEqual([]);
+    callsOf(moveTask)[0].reject(new Error('ticklerDate must be in the future'));
+    await expect(moved).rejects.toThrow('ticklerDate');
+
+    expect(store.items()).toEqual([item]);
+  });
+
   it('moves a task to Scheduled with its date', async () => {
     const done = store.load({ list: 'SCHEDULED' });
     callsOf(listTasks)[0].resolve(page([]));
@@ -478,6 +509,23 @@ describe('matchesTask', () => {
     expect(matchesTask(due('2026-10-19'), { due: 'today' }, today)).toBe(false);
     expect(matchesTask(due('2026-10-20'), { due: 'week' }, today)).toBe(true);
     expect(matchesTask(due('2026-10-19'), { due: 'week' }, today)).toBe(false);
+  });
+
+  it('hides a task whose tickler date is still to come, on every list (server rule)', () => {
+    const tickler = (ticklerDate: string, fields: Partial<TaskResponse> = {}) =>
+      task('a', { list: 'INBOX', ticklerDate, ...fields });
+    // Tomorrow and later: hidden.
+    expect(matchesTask(tickler('2026-10-21'), { list: 'INBOX' }, today)).toBe(false);
+    expect(matchesTask(tickler('2027-01-01'), { list: 'INBOX' }, today)).toBe(false);
+    expect(matchesTask(tickler('2026-10-21'), {}, today)).toBe(false);
+    expect(matchesTask(tickler('2026-10-21', { list: 'NEXT' }), { list: 'NEXT' }, today)).toBe(
+      false,
+    );
+    // Today or earlier (not yet released by the job): shown, as `ticklerDate <= today` on the server.
+    expect(matchesTask(tickler('2026-10-20'), { list: 'INBOX' }, today)).toBe(true);
+    expect(matchesTask(tickler('2026-10-19'), { list: 'INBOX' }, today)).toBe(true);
+    // Without a tickler date the other filters decide.
+    expect(matchesTask(task('b', { list: 'INBOX' }), { list: 'INBOX' }, today)).toBe(true);
   });
 
   it('applies due windows relative to today', () => {

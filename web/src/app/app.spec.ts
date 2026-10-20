@@ -52,7 +52,7 @@ describe('App', () => {
   });
 
   /** Sections whose feature is built and so no longer shows the placeholder. */
-  const BUILT = ['/settings', '/trash'];
+  const BUILT = ['/settings', '/trash', '/inbox'];
 
   it.each(NAV_SECTIONS.filter((s) => !BUILT.includes(s.path)).map((s) => [s.path, s.label]))(
     'lazy-loads a coming soon page for %s',
@@ -75,6 +75,15 @@ describe('App', () => {
     const root = harness.routeNativeElement as HTMLElement;
     expect(root.querySelector('app-settings-layout h1')?.textContent?.trim()).toBe('Settings');
     expect(document.title).toBe('Settings');
+    expect(root.querySelector('a.link.active')?.getAttribute('aria-current')).toBe('page');
+  });
+
+  it('lazy-loads the inbox page at /inbox', async () => {
+    await harness.navigateByUrl('/inbox');
+    const root = harness.routeNativeElement as HTMLElement;
+    expect(root.querySelector('app-inbox-page h1')?.textContent?.trim()).toBe('Inbox');
+    expect(root.querySelector('app-coming-soon')).toBeNull();
+    expect(document.title).toBe('Inbox');
     expect(root.querySelector('a.link.active')?.getAttribute('aria-current')).toBe('page');
   });
 
