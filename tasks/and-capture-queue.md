@@ -5,7 +5,7 @@ owner: dell26/agent-1
 deps: [and-login,gtd-capture-api,files-api]
 touches: [android/app/src/main/java/ch/sonensei/cockpit/capture/queue,android/app/src/test/java/ch/sonensei/cockpit/capture/queue]
 prio: 1
-lease_until: 2026-10-20T23:54:31Z
+lease_until: 2026-10-20T23:59:31Z
 ---
 ## Goal
 Offline-first capture (SPEC.md §9.3).
