@@ -58,4 +58,34 @@ class TaskRecurrenceTests {
 		TaskRecurrence.remainingRule("COUNT=2;FREQ=DAILY") shouldBe "COUNT=1;FREQ=DAILY"
 		TaskRecurrence.remainingRule("FREQ=DAILY;COUNT=1") shouldBe null
 	}
+
+	@Test
+	fun `a COUNT is matched case-insensitively and a COUNT of 1 is valid`() {
+		TaskRecurrence.remainingRule("FREQ=DAILY;count=3") shouldBe "FREQ=DAILY;COUNT=2"
+		TaskRecurrence.problem("FREQ=DAILY;COUNT=1") shouldBe null
+	}
+
+	@Test
+	fun `a COUNT series yields its next date while occurrences remain`() {
+		val day = LocalDate.of(2026, 10, 19)
+		TaskRecurrence.nextDate("FREQ=DAILY;COUNT=2", day, day) shouldBe LocalDate.of(2026, 10, 20)
+	}
+
+	@Test
+	fun `an UNTIL with a UTC time, as calendar clients write it, is accepted and ends the series by day`() {
+		val rule = "FREQ=DAILY;UNTIL=20261020T120000Z"
+		TaskRecurrence.problem(rule) shouldBe null
+		TaskRecurrence.nextDate(rule, LocalDate.of(2026, 10, 19), LocalDate.of(2026, 10, 19)) shouldBe LocalDate.of(2026, 10, 20)
+		TaskRecurrence.nextDate(rule, LocalDate.of(2026, 10, 19), LocalDate.of(2026, 10, 20)) shouldBe null
+	}
+
+	@Test
+	fun `a rule with a time of day part ical4j cannot expand over days is rejected`() {
+		TaskRecurrence.problem("FREQ=DAILY;BYHOUR=9") shouldBe "is not a valid RRULE"
+	}
+
+	@Test
+	fun `the RRULE prefix is rejected in any case`() {
+		TaskRecurrence.problem("rrule:FREQ=DAILY") shouldBe "must not start with RRULE:"
+	}
 }
