@@ -11,7 +11,8 @@ lease_until: 2026-10-20T13:25:59Z
 Settings page with one sub-route per section, created up front so section tasks only touch their own folder.
 
 ## Acceptance criteria
-- [ ] `settings.routes.ts` has child routes + placeholders for: general, gtd, security, calendars, integrations, mail, backup
+- [x] `settings.routes.ts` has child routes + placeholders for: general, gtd, security, calendars, integrations, mail, backup
+  - verified (2026-10-20 15:08+0200 by dell26/agent-3): read web/src/app/features/settings/settings.routes.ts + ran 'cd web && npx ng test --watch=false --include src/app/features/settings/**/*.spec.ts' (incl. settings.routes.spec.ts) -> general at /settings (pathMatch full, loads general/general-settings), ComingSoon placeholders for gtd, security, calendars, integrations, mail, backup; 3 files / 46 tests passed
 - [ ] General section edits time zone (IANA list), week start, theme, energy/creativity labels via the settings API with optimistic update + error rollback; the server theme setting wins over the local one at login (ThemeService)
 - [ ] Vitest component/service tests cover general section save and rollback on error; `cd web && npm run check` passes
 
