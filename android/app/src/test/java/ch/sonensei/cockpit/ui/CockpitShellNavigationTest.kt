@@ -194,6 +194,43 @@ class CockpitShellNavigationTest {
     }
 
     @Test
+    fun tabKeepsItsSavedStateAcrossAVisitToAMoreSubScreen() {
+        tab("Inbox").performClick()
+        composeRule.waitForIdle()
+        val entryId = currentEntryId()
+        composeRule.runOnUiThread { navController.currentBackStackEntry!!.savedStateHandle["probe"] = "inbox-draft" }
+
+        openMoreItem("Notes")
+        assertShown(CockpitDestination.Notes)
+        tab("Inbox").performClick()
+        composeRule.waitForIdle()
+
+        assertShown(CockpitDestination.Inbox)
+        assertEquals(entryId, currentEntryId())
+        assertEquals(
+            "inbox-draft",
+            composeRule.runOnUiThread { navController.currentBackStackEntry!!.savedStateHandle.get<String>("probe") },
+        )
+        assertEquals("today", previousRoute())
+    }
+
+    @Test
+    fun moreListReopenedAfterASubScreenHasOnlyTodayBelowIt() {
+        openMoreItem("Habits")
+        tab("Inbox").performClick()
+        tab("More").performClick()
+        composeRule.waitForIdle()
+
+        assertEquals("more", currentRoute())
+        assertEquals("today", previousRoute())
+
+        pressSystemBack()
+
+        assertShown(CockpitDestination.Today)
+        assertNull(previousRoute())
+    }
+
+    @Test
     fun leavingMoreFromASubScreenAndComingBackShowsTheMoreList() {
         openMoreItem("Habits")
         tab("Inbox").performClick()
