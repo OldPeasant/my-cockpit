@@ -5,7 +5,7 @@ owner: dell26/agent-4
 deps: [p0-auth-login]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/core/events,server/src/test/kotlin/ch/sonensei/cockpit/core/events]
 prio: 1
-lease_until: 2026-10-20T12:04:53Z
+lease_until: 2026-10-20T12:09:57Z
 ---
 ## Goal
 Modules publish change events; clients receive them over SSE (SPEC.md §2).
