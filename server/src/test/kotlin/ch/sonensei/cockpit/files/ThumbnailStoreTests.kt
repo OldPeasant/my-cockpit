@@ -88,6 +88,17 @@ class ThumbnailStoreTests {
 	}
 
 	@Test
+	fun `an image with a valid signature but a truncated header is undecodable and caches nothing`() {
+		// The PNG signature selects the PNG reader, but the IHDR chunk is cut off, so reading the size fails.
+		val key = blob(png(40, 20).copyOfRange(0, 14))
+
+		val e = shouldThrow<UndecodableImageException> { store.thumbnail(key, 256, ThumbnailFormat.PNG) }
+		e.message shouldBe "The image could not be decoded"
+		store.root.resolve("256/$key.png").isRegularFile() shouldBe false
+		tempFiles().shouldBeEmpty()
+	}
+
+	@Test
 	fun `a png thumbnail keeps transparency`() {
 		val image = BufferedImage(512, 512, BufferedImage.TYPE_INT_ARGB) // fully transparent
 		val g = image.createGraphics()

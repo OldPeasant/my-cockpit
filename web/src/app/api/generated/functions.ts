@@ -101,6 +101,12 @@ export type { UpdateFile$Params as UpdateFile$Params } from './fn/files/update-f
 export { updateFile as updateFile } from './fn/files/update-file';
 export type { DownloadFile$Params as DownloadFile$Params } from './fn/files/download-file';
 export { downloadFile as downloadFile } from './fn/files/download-file';
+export type { PreviewFile$Params as PreviewFile$Params } from './fn/files/preview-file';
+export { previewFile as previewFile } from './fn/files/preview-file';
+export type { GetFileThumbnail$Jpeg$Params as GetFileThumbnail$Jpeg$Params } from './fn/files/get-file-thumbnail-jpeg';
+export { getFileThumbnail$Jpeg as getFileThumbnail$Jpeg } from './fn/files/get-file-thumbnail-jpeg';
+export type { GetFileThumbnail$Png$Params as GetFileThumbnail$Png$Params } from './fn/files/get-file-thumbnail-png';
+export { getFileThumbnail$Png as getFileThumbnail$Png } from './fn/files/get-file-thumbnail-png';
 export type { CreateFolder$Params as CreateFolder$Params } from './fn/files/create-folder';
 export { createFolder as createFolder } from './fn/files/create-folder';
 export type { GetFolder$Params as GetFolder$Params } from './fn/files/get-folder';
