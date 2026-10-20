@@ -420,6 +420,59 @@ describe('CalendarView', () => {
     });
   });
 
+  it('hides the events of a calendar hidden elsewhere without a refetch', async () => {
+    await render();
+    await answerCalendars(fakeCalendar('family'), fakeCalendar('work'));
+    options()!.datesSet!(week());
+    await fixture.whenStable();
+    callsOf(listEventOccurrences)
+      .at(-1)!
+      .resolve({
+        items: [
+          fakeOccurrence('Swim', { calendarId: 'family' }),
+          fakeOccurrence('Standup', { calendarId: 'work' }),
+        ],
+      });
+    await settle();
+    await fixture.whenStable();
+    const loads = callsOf(listEventOccurrences).length;
+
+    changes.next({ type: 'CALENDAR', id: 'work', op: 'UPDATED', at: '2026-03-23T08:00:00Z' });
+    await answerCalendars(
+      fakeCalendar('family'),
+      fakeCalendar('work', { version: 2, visible: false }),
+    );
+    expect(titles()).toEqual(['Swim']);
+    const boxes = [...root.querySelectorAll<HTMLInputElement>('input[type="checkbox"]')];
+    expect(boxes.map((box) => box.checked)).toEqual([true, false]);
+    expect(callsOf(listEventOccurrences)).toHaveLength(loads);
+  });
+
+  it('refetches without a calendar deleted elsewhere and removes its toggle', async () => {
+    await render();
+    await answerCalendars(fakeCalendar('family'), fakeCalendar('work'));
+    options()!.datesSet!(week());
+    await fixture.whenStable();
+    callsOf(listEventOccurrences)
+      .at(-1)!
+      .resolve({
+        items: [
+          fakeOccurrence('Swim', { calendarId: 'family' }),
+          fakeOccurrence('Standup', { calendarId: 'work' }),
+        ],
+      });
+    await settle();
+    await fixture.whenStable();
+
+    changes.next({ type: 'CALENDAR', id: 'work', op: 'DELETED', at: '2026-03-23T08:00:00Z' });
+    await answerCalendars(fakeCalendar('family'));
+    expect(titles()).toEqual(['Swim']);
+    expect(root.querySelectorAll('input[type="checkbox"]')).toHaveLength(1);
+    expect(callsOf(listEventOccurrences).at(-1)!.params).toMatchObject({
+      calendarIds: ['family'],
+    });
+  });
+
   it('shows an event created elsewhere after its change notification', async () => {
     await render();
     await answerCalendars(fakeCalendar('family'));

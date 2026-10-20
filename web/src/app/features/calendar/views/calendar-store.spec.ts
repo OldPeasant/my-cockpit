@@ -293,6 +293,63 @@ describe('CalendarStore', () => {
     await done;
   });
 
+  it('drops a calendar deleted elsewhere after its change notification', async () => {
+    await loaded(fakeCalendar('family'), fakeCalendar('work', { version: 4 }));
+    changes.next({ type: 'CALENDAR', id: 'work', op: 'DELETED', at: '2026-03-23T08:00:00Z' });
+    callsOf(listCalendars)
+      .at(-1)!
+      .resolve({ items: [fakeCalendar('family')] });
+    await settle();
+    // The known (higher) version of a calendar missing from the answer must not keep it.
+    expect(visible()).toEqual(['family:true']);
+    expect(store.byId().has('work')).toBe(false);
+    expect([...store.visibleIds()]).toEqual(['family']);
+  });
+
+  it('keeps a toggle shown when its own change notification is answered before the save', async () => {
+    await loaded(fakeCalendar('family', { version: 1 }));
+    const done = store.setVisible(store.calendars()[0], false);
+    await settle();
+    // The server committed the save and notified; the reload answers before the PATCH does.
+    changes.next({ type: 'CALENDAR', id: 'family', op: 'UPDATED', at: '2026-03-23T08:00:00Z' });
+    callsOf(listCalendars)
+      .at(-1)!
+      .resolve({ items: [fakeCalendar('family', { version: 2, visible: false })] });
+    await settle();
+    expect(visible()).toEqual(['family:false']);
+
+    callsOf(updateCalendar)[0].resolve(fakeCalendar('family', { version: 2, visible: false }));
+    await done;
+    expect(visible()).toEqual(['family:false']);
+    expect(store.calendars()[0].version).toBe(2);
+  });
+
+  it('keeps a newer calendar from a list answer over a save answer that arrives after it', async () => {
+    await loaded(fakeCalendar('family', { version: 1, color: '#2e7d32' }));
+    const done = store.setVisible(store.calendars()[0], false);
+    await settle();
+    // Saved as version 2, then changed elsewhere (version 3); the list answer with version 3
+    // arrives before the PATCH answer with version 2.
+    changes.next({ type: 'CALENDAR', id: 'family', op: 'UPDATED', at: '2026-03-23T08:00:00Z' });
+    callsOf(listCalendars)
+      .at(-1)!
+      .resolve({
+        items: [fakeCalendar('family', { version: 3, visible: false, color: '#c62828' })],
+      });
+    await settle();
+    callsOf(updateCalendar)[0].resolve(fakeCalendar('family', { version: 2, visible: false }));
+    await done;
+
+    expect(store.calendars()[0].version).toBe(3);
+    expect(store.calendars()[0].color).toBe('#c62828');
+    // The next toggle must send the current version, not the one the older save returned.
+    const next = store.setVisible(store.calendars()[0], true);
+    await settle();
+    expect(callsOf(updateCalendar)[1].params['If-Match']).toBe('"3"');
+    callsOf(updateCalendar)[1].resolve(fakeCalendar('family', { version: 4, visible: true }));
+    await next;
+  });
+
   it('falls back to the theme color for calendars without one', () => {
     expect(calendarColor(fakeCalendar('a', { color: '#123456' }))).toBe('#123456');
     expect(calendarColor(fakeCalendar('a', { color: undefined }))).toBe(DEFAULT_CALENDAR_COLOR);
