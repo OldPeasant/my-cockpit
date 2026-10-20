@@ -15,7 +15,8 @@ Add the web libraries the spec needs up front (SPEC.md §2.1) and a Material 3 l
 ## Acceptance criteria
 - [x] package.json adds: @angular/material + @angular/cdk, @angular/localize, CodeMirror 6 (`@codemirror/*`, markdown language), @fullcalendar/angular + core/daygrid/timegrid/interaction/list/rrule, TipTap (`@tiptap/core`, starter-kit, link, image), pdfjs-dist, ng-openapi-gen (dev), @playwright/test + otplib (dev), @axe-core/playwright (dev); `npm ci` works from the lockfile
   - verified (2026-10-20 10:48+0200 by R1963MACOS/agent-1): cd web && npm ci (node 24.21.0, npm 11.19.0) -> installed from lockfile, no errors; npm ls --depth=0 lists @angular/material+cdk+localize 22.2.3, @codemirror/* incl lang-markdown, @fullcalendar/angular+core+rrule 7.1.3 and fullcalendar 7.1.3 (exports daygrid/timegrid/interaction/list), @tiptap/core+starter-kit+extension-link+extension-image 3.32.0, pdfjs-dist 6.4.299, ng-openapi-gen, @playwright/test, otplib, @axe-core/playwright; nothing missing or invalid
-- [ ] Material 3 theme with design tokens on `:root`, light + dark (`prefers-color-scheme` + explicit `data-theme` override); no hard-coded colors in `app.*`
+- [x] Material 3 theme with design tokens on `:root`, light + dark (`prefers-color-scheme` + explicit `data-theme` override); no hard-coded colors in `app.*`
+  - verified (2026-10-20 10:48+0200 by R1963MACOS/agent-1): cd web && npm run check (ng build) then grep built dist/web/browser/styles-*.css -> :root has color-scheme:light dark with --mat-sys-* light-dark() tokens and --app-* tokens, :root[data-theme=light]{color-scheme:light} and :root[data-theme=dark]{color-scheme:dark} present; grep for #hex/rgb/hsl in web/src/app/app.* -> no matches
 - [ ] `@angular/localize` set up (`$localize`/`i18n` usable, English source locale)
 - [ ] `npm run check` passes; ARCHITECTURE.md stack table updated
 
