@@ -5,7 +5,7 @@ owner: R1963MACOS/agent-1
 deps: [p0-auth-tokens]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/core/auth/passkey,server/src/test/kotlin/ch/sonensei/cockpit/core/auth/passkey]
 prio: 2
-lease_until: 2026-10-20T13:41:27Z
+lease_until: 2026-10-20T13:46:28Z
 ---
 ## Goal
 Passkeys as an alternative to password + TOTP (SPEC.md §4.1).
