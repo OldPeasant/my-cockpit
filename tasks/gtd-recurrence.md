@@ -1,10 +1,11 @@
 ---
 title: Recurring tasks
-status: todo
-owner:
+status: in_progress
+owner: R1963MACOS/agent-1
 deps: [gtd-projects-api]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/gtd,server/src/test/kotlin/ch/sonensei/cockpit/gtd,server/src/main/resources/db/migration/gtd]
 prio: 1
+lease_until: 2026-10-20T18:27:05Z
 ---
 ## Goal
 RRULE recurrence on completion (SPEC.md §5.2).
