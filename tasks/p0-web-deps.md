@@ -17,7 +17,8 @@ Add the web libraries the spec needs up front (SPEC.md §2.1) and a Material 3 l
   - verified (2026-10-20 10:48+0200 by R1963MACOS/agent-1): cd web && npm ci (node 24.21.0, npm 11.19.0) -> installed from lockfile, no errors; npm ls --depth=0 lists @angular/material+cdk+localize 22.2.3, @codemirror/* incl lang-markdown, @fullcalendar/angular+core+rrule 7.1.3 and fullcalendar 7.1.3 (exports daygrid/timegrid/interaction/list), @tiptap/core+starter-kit+extension-link+extension-image 3.32.0, pdfjs-dist 6.4.299, ng-openapi-gen, @playwright/test, otplib, @axe-core/playwright; nothing missing or invalid
 - [x] Material 3 theme with design tokens on `:root`, light + dark (`prefers-color-scheme` + explicit `data-theme` override); no hard-coded colors in `app.*`
   - verified (2026-10-20 10:48+0200 by R1963MACOS/agent-1): cd web && npm run check (ng build) then grep built dist/web/browser/styles-*.css -> :root has color-scheme:light dark with --mat-sys-* light-dark() tokens and --app-* tokens, :root[data-theme=light]{color-scheme:light} and :root[data-theme=dark]{color-scheme:dark} present; grep for #hex/rgb/hsl in web/src/app/app.* -> no matches
-- [ ] `@angular/localize` set up (`$localize`/`i18n` usable, English source locale)
+- [x] `@angular/localize` set up (`$localize`/`i18n` usable, English source locale)
+  - verified (2026-10-20 10:48+0200 by R1963MACOS/agent-1): angular.json i18n.sourceLocale=en, @angular/localize/init polyfill; cd web && npm run check -> app.spec.ts (English source title via $localize, i18n template text) and app.i18n.spec.ts (loadTranslations for ids app.title/app.scaffold renders translations) pass, 7/7 tests
 - [ ] `npm run check` passes; ARCHITECTURE.md stack table updated
 
 ## Notes
