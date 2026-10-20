@@ -48,6 +48,12 @@ class RestoreCliTests(
 	private fun cli(
 		zip: Path,
 		vararg extra: String,
+	): Pair<Int, String> = cliWithDataDir(zip, dataDir, *extra)
+
+	private fun cliWithDataDir(
+		zip: Path,
+		dir: Path,
+		vararg extra: String,
 	): Pair<Int, String> {
 		val (url, username, password) = RestoreTestDatabases.create(DATABASE)
 		val out = ByteArrayOutputStream()
@@ -58,7 +64,7 @@ class RestoreCliTests(
 					"--spring.datasource.url=$url",
 					"--spring.datasource.username=$username",
 					"--spring.datasource.password=$password",
-					"--cockpit.data-dir=$dataDir",
+					"--cockpit.data-dir=$dir",
 					*extra,
 				),
 				PrintStream(out, true, Charsets.UTF_8),
@@ -219,6 +225,55 @@ class RestoreCliTests(
 		output shouldContain "Restore: The current data could not be backed up; nothing was changed (see the log)"
 		usernames() shouldBe listOf("mmuster")
 		dataDir.listDirectoryEntries().map { it.name } shouldBe listOf("pre-restore")
+	}
+
+	@Test
+	fun `a restore over existing data replaces it and saves it to pre-restore first`(
+		@TempDir work: Path,
+	) {
+		transactions.executeWithoutResult { UserBackupFixture(users).seed() }
+		val zip = work.resolve("backup.zip")
+		zip.outputStream().use { backups.export(it) }
+		jdbc.update("update app_user set username = 'mmuster'")
+
+		val (code, output) = cli(zip)
+
+		code shouldBe 0
+		output shouldContain "setup is skipped"
+		usernames() shouldBe listOf("jdoe")
+		val saved =
+			Zips.read(
+				dataDir
+					.resolve("pre-restore")
+					.listDirectoryEntries()
+					.single()
+					.toFile()
+					.readBytes(),
+			)
+		String(saved.getValue("data/user.json")) shouldContain "mmuster"
+	}
+
+	@Test
+	fun `restores into a data directory that does not exist yet`(
+		@TempDir work: Path,
+	) {
+		transactions.executeWithoutResult { UserBackupFixture(users).seed() }
+		val zip = work.resolve("backup.zip")
+		zip.outputStream().use { backups.export(it) }
+		RestoreTestDatabases.wipe(jdbc, dataDir)
+		val freshDataDir = work.resolve("not-created-yet")
+
+		val (code, output) = cliWithDataDir(zip, freshDataDir)
+
+		code shouldBe 0
+		output shouldContain "setup is skipped"
+		usernames() shouldBe listOf("jdoe")
+		freshDataDir
+			.resolve("pre-restore")
+			.listDirectoryEntries()
+			.single()
+			.name
+			.endsWith(".zip") shouldBe true
 	}
 
 	@Test

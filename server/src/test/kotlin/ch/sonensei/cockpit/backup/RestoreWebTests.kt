@@ -618,6 +618,33 @@ class RestoreWebTests(
 	}
 
 	@Test
+	fun `the pre-restore backup is a valid backup that brings the replaced data back`() {
+		val zip = export()
+		changeData()
+		val replacedTitles = titles()
+		val replacedFiles = dataFiles()
+		val result =
+			confirm(report(zip)["id"].asString())
+				.andExpect { status { isOk() } }
+				.andReturn()
+				.response.contentAsString
+		val preRestore = dataDir.resolve(mapper.readTree(result)["preRestoreBackup"].asString()).readBytes()
+		titles() shouldNotBe replacedTitles
+
+		val undo = report(preRestore)
+		undo["valid"].asBoolean() shouldBe true
+		undo["problems"].size() shouldBe 0
+		undo["counts"]["test_fixtures"].asLong() shouldBe 4
+		confirm(undo["id"].asString()).andExpect { status { isOk() } }
+
+		titles() shouldBe replacedTitles
+		dataFiles() shouldBe replacedFiles
+		withClue("each restore kept its own pre-restore backup") {
+			dataDir.resolve(RestoreService.PRE_RESTORE_DIR).listDirectoryEntries().size shouldBe 2
+		}
+	}
+
+	@Test
 	fun `confirm with an id that is not a UUID is 400`() {
 		confirm("not-a-uuid").andExpect { status { isBadRequest() } }
 	}
