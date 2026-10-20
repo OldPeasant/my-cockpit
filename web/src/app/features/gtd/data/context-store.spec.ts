@@ -104,6 +104,35 @@ describe('ContextStore', () => {
     expect(store.loaded()).toBe(true);
   });
 
+  it('settles every waiting caller when the shared load fails, then retries once', async () => {
+    const first = store.ensureLoaded();
+    const second = store.ensureLoaded();
+    expect(callsOf(listContexts)).toHaveLength(1);
+
+    const error = new Error('offline');
+    callsOf(listContexts)[0].reject(error);
+    await Promise.all([first, second]);
+    expect(store.loaded()).toBe(false);
+    expect(store.error()).toBe(error);
+
+    const retryA = store.ensureLoaded();
+    const retryB = store.ensureLoaded();
+    expect(callsOf(listContexts)).toHaveLength(2);
+    callsOf(listContexts)[1].resolve({ items: [context('home')] });
+    await Promise.all([retryA, retryB]);
+    expect(names()).toEqual(['@home']);
+  });
+
+  it("sends the version of the caller's copy as If-Match for updates and deletes", async () => {
+    const stale = context('home');
+    await loaded([context('home', { version: 4 })]);
+
+    void store.update(stale, { name: '@house' });
+    expect(callsOf(updateContext)[0].params['If-Match']).toBe('"1"');
+    void store.remove(stale);
+    expect(callsOf(deleteContext)[0].params['If-Match']).toBe('"1"');
+  });
+
   it('updates optimistically (null clears the color) and takes the server answer', async () => {
     const home = context('home', { color: '#3366ff' });
     await loaded([home]);

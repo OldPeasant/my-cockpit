@@ -132,6 +132,41 @@ describe('ProjectStore', () => {
     expect(store.loaded()).toBe(true);
   });
 
+  it('settles a waiting caller when a later page of the shared load fails', async () => {
+    const first = store.ensureLoaded();
+    const second = store.ensureLoaded();
+    callsOf(listProjects)[0].resolve(page([project('b')], 'c1'));
+    await settle();
+
+    const error = new Error('offline');
+    callsOf(listProjects)[1].reject(error);
+    await Promise.all([first, second]);
+    expect(store.loaded()).toBe(false);
+    expect(store.error()).toBe(error);
+    expect(store.loading()).toBe(false);
+
+    void store.ensureLoaded();
+    expect(callsOf(listProjects)).toHaveLength(3);
+    expect(callsOf(listProjects)[2].params['cursor']).toBeUndefined();
+  });
+
+  it("sends the version of the caller's copy as If-Match, so a stale copy gets a conflict", async () => {
+    const stale = project('p');
+    await loaded([project('p', { version: 5 })]);
+
+    void store.setNextStep(stale, 't1');
+    expect(callsOf(setProjectNextStep)[0].params['If-Match']).toBe('"1"');
+    void store.update(stale, { title: 'Renamed' });
+    expect(callsOf(updateProject)[0].params['If-Match']).toBe('"1"');
+
+    // The current (optimistic) state still carries the server's version 5.
+    void store.setNextStep(store.find('p')!, 't2');
+    expect(callsOf(setProjectNextStep)[1].params['If-Match']).toBe('"5"');
+
+    void store.remove(stale);
+    expect(callsOf(deleteProject)[0].params['If-Match']).toBe('"1"');
+  });
+
   it('sets the next step at once and takes the server answer', async () => {
     const p = project('p', { stalled: true });
     await loaded([p]);
