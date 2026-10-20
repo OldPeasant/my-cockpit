@@ -533,6 +533,77 @@ class OccurrenceExpanderEdgeCaseTests {
 		expander.expand(listOf(cancelled), range("2026-06-01T00:00", "2026-07-01T00:00")).shouldBeEmpty()
 	}
 
+	// --- Third-pass gaps: the search margin past the range end (DST_END_MARGIN) ---
+
+	@Test
+	fun `occurrences starting within two hours after the range end are excluded`() {
+		// Every 30 minutes: the 10:00, 10:30, 11:00 and 11:30 candidates lie past the exclusive range end.
+		val halfHourly = timed("2026-05-04T08:00", "2026-05-04T08:15", "FREQ=MINUTELY;INTERVAL=30")
+		localStarts(expander.expandSeries(halfHourly, emptyList(), range("2026-05-04T08:00", "2026-05-04T10:00"))) shouldContainExactly
+			listOf("2026-05-04T08:00", "2026-05-04T08:30", "2026-05-04T09:00", "2026-05-04T09:30")
+		// Zero-duration occurrences just after the end are excluded too.
+		val instants = timed("2026-05-04T08:00", "2026-05-04T08:00", "FREQ=HOURLY")
+		localStarts(expander.expandSeries(instants, emptyList(), range("2026-05-04T08:00", "2026-05-04T09:59:59"))) shouldContainExactly
+			listOf("2026-05-04T08:00", "2026-05-04T09:00")
+		// A series or single event starting one hour after the range end has nothing in it.
+		val later = timed("2026-05-04T11:00", "2026-05-04T12:00", "FREQ=DAILY")
+		expander.expandSeries(later, emptyList(), range("2026-05-04T08:00", "2026-05-04T10:00")).shouldBeEmpty()
+		val single = timed("2026-05-04T10:00:01", "2026-05-04T10:30")
+		expander.expand(listOf(single, later), range("2026-05-04T08:00", "2026-05-04T10:00")).shouldBeEmpty()
+		// Exactly two hours and well after the end: past the search margin as well.
+		for (start in listOf("2026-05-04T12:00", "2026-05-05T09:00")) {
+			val muchLater = timed(start, LocalDateTime.parse(start).plusMinutes(30).toString(), "FREQ=MINUTELY;INTERVAL=30")
+			expander.expandSeries(muchLater, emptyList(), range("2026-05-04T08:00", "2026-05-04T10:00")).shouldBeEmpty()
+		}
+	}
+
+	@Test
+	fun `an occurrence at the ambiguous DST-end time is excluded when the range ends at or before it`() {
+		// Winter-time seed; the occurrence is 02:30+02:00 (00:30Z), ical4j's candidate 01:30Z is inside the margin.
+		val event = timed("2026-01-04T02:30", "2026-01-04T03:00", "FREQ=WEEKLY;BYDAY=SU")
+		val from = Instant.parse("2026-10-24T22:00:00Z")
+		for (to in listOf("2026-10-25T00:15:00Z", "2026-10-25T00:30:00Z")) {
+			expander.expandSeries(event, emptyList(), OccurrenceRange(from, Instant.parse(to), zurich)).shouldBeEmpty()
+		}
+		// A range starting when the occurrence ends (01:00Z, inside the repeated hour) does not contain it either.
+		expander
+			.expandSeries(event, emptyList(), OccurrenceRange(Instant.parse("2026-10-25T01:00:00Z"), Instant.parse("2026-10-25T02:00:00Z"), zurich))
+			.shouldBeEmpty()
+	}
+
+	@Test
+	fun `a summer-time series at the ambiguous DST-end time is found when the range ends inside the repeated hour`() {
+		val event = timed("2026-10-18T02:30", "2026-10-18T03:00", "FREQ=WEEKLY;BYDAY=SU")
+		val from = Instant.parse("2026-10-24T22:00:00Z")
+		expander.expandSeries(event, emptyList(), OccurrenceRange(from, Instant.parse("2026-10-25T01:00:00Z"), zurich)).map {
+			it.start
+		} shouldContainExactly listOf(Instant.parse("2026-10-25T00:30:00Z"))
+		expander.expandSeries(event, emptyList(), OccurrenceRange(from, Instant.parse("2026-10-25T00:30:00Z"), zurich)).shouldBeEmpty()
+	}
+
+	@Test
+	fun `COUNT and UNTIL still end the series when its end lies inside the margin after the range`() {
+		// COUNT=3: 08:00, 09:00, 10:00. A range ending at 10:30 must not gain occurrences past the third.
+		val counted = timed("2026-05-04T08:00", "2026-05-04T08:15", "FREQ=HOURLY;COUNT=3")
+		localStarts(expander.expandSeries(counted, emptyList(), range("2026-05-04T07:00", "2026-05-04T10:30"))) shouldContainExactly
+			listOf("2026-05-04T08:00", "2026-05-04T09:00", "2026-05-04T10:00")
+		localStarts(expander.expandSeries(counted, emptyList(), range("2026-05-04T07:00", "2026-05-04T09:30"))) shouldContainExactly
+			listOf("2026-05-04T08:00", "2026-05-04T09:00")
+		// UNTIL 10:00 local (08:00Z), inclusive; the margin does not extend the series.
+		val until = timed("2026-05-04T08:00", "2026-05-04T08:15", "FREQ=HOURLY;UNTIL=20260504T080000Z")
+		localStarts(expander.expandSeries(until, emptyList(), range("2026-05-04T07:00", "2026-05-04T10:30"))) shouldContainExactly
+			listOf("2026-05-04T08:00", "2026-05-04T09:00", "2026-05-04T10:00")
+	}
+
+	@Test
+	fun `an override whose original occurrence lies just after the range end is shown only at its own time`() {
+		val master = timed("2026-05-04T08:00", "2026-05-04T08:30", "FREQ=HOURLY;COUNT=6")
+		// The 11:00 occurrence (inside the search margin of a range ending at 10:00) moves to 09:15.
+		val movedIn = timed("2026-05-04T09:15", "2026-05-04T09:45").apply { overrideOf(master, OccurrenceId.of(at("2026-05-04T11:00"))) }
+		localStarts(expander.expand(listOf(master, movedIn), range("2026-05-04T08:00", "2026-05-04T10:00"))) shouldContainExactly
+			listOf("2026-05-04T08:00", "2026-05-04T09:00", "2026-05-04T09:15")
+	}
+
 	@Test
 	fun `expand with no events or only deleted events yields nothing`() {
 		expander.expand(emptyList(), range("2026-06-01T00:00", "2026-06-08T00:00")).shouldBeEmpty()

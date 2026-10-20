@@ -2,14 +2,24 @@
 
 Date: 2026-10-20
 
-Task: cal-recurrence - Recurrence expansion (second pass, after fixes in `reviews/cal-recurrence/fixes.md`)
+Task: cal-recurrence - Recurrence expansion (third pass, after the CR-1 fix of the second review in `reviews/cal-recurrence/fixes.md`)
 
-Scope: task commits on base `5537ffa91f44c8f44d5311076731fb7f738c87f8` (heartbeat commit, supplied by the parent): `67d8680e`, `53b64bc2`, `a59471a4`, `7a15f449` (HEAD `7a15f449df126fd9fde0003090e8b05a3ef05d60`), branch `main`, plus this pass's uncommitted test addition in `OccurrenceExpanderEdgeCaseTests.kt`. Production change in scope: `server/src/main/kotlin/ch/sonensei/cockpit/calendar/recurrence/OccurrenceExpander.kt` (new file). `git diff --stat 5537ffa9..HEAD` lists only that file, the two test files in `server/src/test/kotlin/ch/sonensei/cockpit/calendar/recurrence/` and `reviews/cal-recurrence/*`, so no unrelated work is included.
+Scope: The task's commits sit on base `3a4ef4513a7beaedd6216d2976f96e2ab7b61a86`, which the parent supplied. They are the `cal-recurrence:` commits `c015be14`, `8ea3faf2`, `2e64fe47`, `74b7b9a7`, `99ff9fd9`, `46158c0b` and `824e0e0e`, up to HEAD `824e0e0eee14f6fa1ad4b840709fe9d6075aa397` on branch `main`. This pass also includes an uncommitted test addition in `OccurrenceExpanderEdgeCaseTests.kt`.
+
+`git diff --stat 3a4ef451..HEAD` lists only these files:
+- `OccurrenceExpander.kt`, the production file;
+- the two test files in `server/src/test/kotlin/ch/sonensei/cockpit/calendar/recurrence/`;
+- `reviews/cal-recurrence/*`.
+
+No unrelated work is included. This pass focuses on the only production change since the last report: `824e0e0e`. It moves the ical4j search end for timed series to `range.to + DST_END_MARGIN`, where the margin is 2h.
 
 Requirements:
-- `tasks/cal-recurrence.md` acceptance criteria and recorded assumptions (pure expander, user-zone all-day overlap, earlier offset at DST end and forward shift at DST start, override precedence and standalone orphans, first-occurrence fallback for an invalid RRULE, date-only UNTIL in the event's zone)
-- SPEC.md §6.1 (via the task), `docs/ARCHITECTURE.md` "Coverage", AGENTS.md
-- `reviews/cal-recurrence/fixes.md` (TW-1, CR-1, CR-2, CR-3) and the regression tests of `7a15f449` (not duplicated)
+- `tasks/cal-recurrence.md`: acceptance criteria and recorded assumptions.
+- SPEC.md §6.1 (via the task), `docs/ARCHITECTURE.md` "Coverage", AGENTS.md.
+- `reviews/cal-recurrence/fixes.md`, finding CR-1 of the second review. Its claims checked here:
+  - the exact overlap filter still drops the extra candidates;
+  - the start needs no margin;
+  - COUNT and UNTIL are unaffected.
 
 ## Test files changed
 
@@ -17,24 +27,33 @@ Requirements:
 
 ## Tests added or updated
 
-Count: 3 added, 0 changed. Total in scope: 50 (13 in `OccurrenceExpanderTests`, 37 in `OccurrenceExpanderEdgeCaseTests`).
+Count: 5 added, 0 changed. Total in scope: 56 (13 in `OccurrenceExpanderTests`, 43 in `OccurrenceExpanderEdgeCaseTests`). The fixer's regression test for the range that ends inside the repeated hour already exists and is not duplicated.
 
-- `an EXDATE or override at the nonexistent DST-start time matches the shifted occurrence`: mirrors the DST-end EXDATE regression test for the DST-start gap. An EXDATE or override recurrence id for 2026-03-29 02:30 Zurich, which does not exist, resolves to 01:30Z. It must remove or replace the shifted 03:30 occurrence.
-- `a UTC UNTIL equal to an occurrence after the DST change includes it`: a weekly 09:00 Zurich series with `UNTIL=20260330T070000Z` includes the 30 March occurrence, which is in summer time. `...T065959Z` excludes it. This checks that UNTIL is inclusive and that UTC UNTIL interacts correctly with the wall-clock shift.
-- `a cancelled all-day override removes that date of the series`: covers a cancelled occurrence of an all-day series, both with and without its master among the candidates. Before this pass, cancellation was tested only for timed series.
+- `occurrences starting within two hours after the range end are excluded`:
+  - A 30-minute series with range end 10:00 returns only 08:00 to 09:30. The 10:00 to 11:30 candidates fall inside the margin and are dropped.
+  - Zero-duration hourly occurrences just after the end are excluded.
+  - A series or single event that starts inside the margin is excluded.
+  - Series that start exactly 2h after the end, or a day after it, are excluded. These cases cover the timed early return `if (!seed.isBefore(periodEnd))`. No test reached it any more, because with the margin the old "seed at range end" test no longer triggers it.
+- `an occurrence at the ambiguous DST-end time is excluded when the range ends at or before it`:
+  - The series is seeded in winter time. Its ical4j candidate, 01:30Z, now falls inside the margin, and the occurrence normalises to 00:30Z.
+  - Ranges ending at 00:15Z and at 00:30Z (the exclusive end) return nothing.
+  - A range starting at the occurrence's end (01:00Z) returns nothing either.
+- `a summer-time series at the ambiguous DST-end time is found when the range ends inside the repeated hour`: the summer-seeded counterpart of the fixer's test. It also checks the exclusive end.
+- `COUNT and UNTIL still end the series when its end lies inside the margin after the range`: for `FREQ=HOURLY;COUNT=3` and for a UTC `UNTIL`, the margin adds no occurrences beyond the series end. A range ending between two occurrences cuts correctly.
+- `an override whose original occurrence lies just after the range end is shown only at its own time`: the 11:00 occurrence, which is inside the margin, is moved into the range. It appears once at 09:15, and the original does not appear.
 
 ## Requirement coverage
 
 | Requirement | Tests | Command | Result |
 |---|---|---|---|
-| AC1: `OccurrenceExpander` (ical4j) expands RRULE/EXDATE/overrides in the event's zone into instants for [from, to) | `OccurrenceExpanderTests` (all 13), `OccurrenceExpanderEdgeCaseTests` range-boundary, zone, override, invalid-rule, UNTIL and DST tests, incl. the 3 new ones | `cd server && ./gradlew test --rerun --tests 'ch.sonensei.cockpit.calendar.recurrence.*' jacocoTestReport` | Pass |
-| AC2: weekly across DST start/end (Europe/Zurich) | `weekly series keeps its wall-clock time across DST start/end in Europe-Zurich`, `nonexistent local time at DST start ...`, `occurrence spanning the DST start ...`, `ambiguous time at DST end uses the earlier offset ...`, `a series starting at the later of two ambiguous times ...`, `an EXDATE or override at the ambiguous DST-end time ...`, new `an EXDATE or override at the nonexistent DST-start time ...`, new `a UTC UNTIL equal to an occurrence after the DST change ...` | same | Pass |
-| AC2: all-day events | `all-day series recurs by date`, `all-day single event and exdates of an all-day series`, `all-day range days follow the user's zone, not UTC`, `range ending one minute after midnight ...`, `multi-day all-day occurrence ...`, `all-day override is shown on its new date`, `all-day series starting on or after the last day ...`, `an all-day series with an invalid rule ...`, new `a cancelled all-day override removes that date of the series` | same | Pass |
-| AC2: moved and cancelled occurrences | `moved occurrence is shown at its new time, cancelled and excluded ones are removed`, `occurrence moved into or out of the range ...`, `deleted override no longer replaces its occurrence`, `override is shown even when its recurrence id is also excluded ...`, `override whose master is not among the candidates ...`, `cancelled override is never shown, also when its master is not among the candidates`, `overrides still apply to a series with an invalid rule`, new cancelled all-day override test | same | Pass |
-| AC2: COUNT/UNTIL | `COUNT limits the series ...`, `UNTIL ends the series inclusively`, `excluded occurrences still count toward COUNT`, `exhausted COUNT series ...`, `a date-only UNTIL on a timed series includes that whole day ...`, `a date-only UNTIL ... in the event's zone, not in UTC`, new `a UTC UNTIL equal to an occurrence after the DST change includes it` | same | Pass |
-| AC2: monthly by weekday | `monthly by weekday` (2TU and -1FR with COUNT; the 2TU series crosses the DST start) | same | Pass |
-| AC3: `./gradlew test --tests 'ch.sonensei.cockpit.calendar.recurrence.*'` passes (Testcontainers where persistence is involved) | All 50 tests in the package. The expander is pure (confirmed assumption), so no persistence or Testcontainers is involved. | `cd server && ./gradlew test --rerun --tests 'ch.sonensei.cockpit.calendar.recurrence.*' jacocoTestReport` | Pass (50 tests, 0 failures, 0 skipped) |
-| Assumption: invalid RRULE keeps DTSTART and logs WARN with the event id only | `a series with an invalid rule keeps its first occurrence ...`, `an all-day series with an invalid rule ...`, `an invalid rule is logged at WARN with the event id only ...` | same | Pass |
+| AC1: `OccurrenceExpander` (ical4j) expands RRULE/EXDATE/overrides in the event's zone into instants for [from, to) | `OccurrenceExpanderTests` (all 13) and the range-boundary, zone, override, invalid-rule, UNTIL and DST tests in `OccurrenceExpanderEdgeCaseTests`. New this pass: the margin exclusion test and the override-from-margin test. | `cd server && ./gradlew test --rerun --tests 'ch.sonensei.cockpit.calendar.recurrence.*' jacocoTestReport` | Pass |
+| AC2: weekly across DST start/end (Europe/Zurich) | Existing DST tests and `an occurrence at the ambiguous DST-end time is found when the range ends inside the repeated hour` (fixer). New this pass: `... is excluded when the range ends at or before it` and `a summer-time series at the ambiguous DST-end time ...` | same | Pass |
+| AC2: all-day events | Existing all-day tests. The margin change does not touch the all-day path. | same | Pass |
+| AC2: moved and cancelled occurrences | Existing override and cancellation tests. New this pass: `an override whose original occurrence lies just after the range end ...` | same | Pass |
+| AC2: COUNT/UNTIL | Existing COUNT/UNTIL tests. New this pass: `COUNT and UNTIL still end the series when its end lies inside the margin after the range` | same | Pass |
+| AC2: monthly by weekday | `monthly by weekday` | same | Pass |
+| AC3: `./gradlew test --tests 'ch.sonensei.cockpit.calendar.recurrence.*'` passes (Testcontainers where persistence is involved) | All 56 tests in the package. The expander is pure (confirmed assumption), so no persistence or Testcontainers is involved. | `cd server && ./gradlew test --rerun --tests 'ch.sonensei.cockpit.calendar.recurrence.*' jacocoTestReport` | Pass (56 tests, 0 failures, 0 skipped) |
+| Assumption: invalid RRULE keeps DTSTART and logs WARN with the event id only | Existing invalid-rule tests | same | Pass |
 
 ## Focused test execution
 
@@ -42,11 +61,9 @@ Command:
 
 `cd server && ./gradlew test --rerun --tests 'ch.sonensei.cockpit.calendar.recurrence.*' jacocoTestReport`
 
-`--rerun` was needed: without it Gradle reported `:test UP-TO-DATE` and would have reused cached results.
-
 Result:
 
-Pass: BUILD SUCCESSFUL, 50 tests, 0 failures, 0 errors, 0 skipped (`OccurrenceExpanderTests` 13, `OccurrenceExpanderEdgeCaseTests` 37).
+Pass: BUILD SUCCESSFUL, 56 tests, 0 failures, 0 errors, 0 skipped. `OccurrenceExpanderEdgeCaseTests` ran 43 and `OccurrenceExpanderTests` ran 13.
 
 ## Full test execution
 
@@ -56,68 +73,93 @@ Command:
 
 Result:
 
-Pass: BUILD SUCCESSFUL in 4m 51s. JUnit XML totals: 1297 tests, 0 failures, 0 errors, 0 skipped, in 116 suites.
+Pass: BUILD SUCCESSFUL in 4m 17s (17:52:28 to 17:56:46 +02:00). ktlint main/test checks passed. JUnit XML totals: 1393 tests, 0 failures, 0 errors, 0 skipped, in 122 suites.
 
 ## .taskcheck
 
 Result:
 
-Pass: `sh scripts/check.sh` printed "all checks passed" (TFP gate, server, web, android), 17:39:51 to 17:41:25 +02:00.
+Pass: `sh scripts/check.sh` printed "== all checks passed". It ran from 17:56:55 to 17:59:39 +02:00.
 
 ## Bugs found
 
-None. The final revision behaved as required in every new test, and no existing test failed.
-
-Observation, not a bug: `expand` shows a live override standalone when its master was passed in but is soft-deleted. `isDeleted` filters the master out before the master ids are collected. This matches the documented contract that "an override whose master is missing is shown on its own". In practice the candidate query does not return deleted masters, so the expander cannot tell the two cases apart. Whether deleting a series also deletes its overrides belongs to the event write/sync tasks, not to this task. The parent may decide whether it needs an assumption.
+None. The margin change behaved as required in every new test:
+- candidates in the margin are dropped by the overlap filter;
+- COUNT and UNTIL are not extended;
+- the summer- and winter-seeded DST-end cases are both correct;
+- no existing test failed.
 
 ## Coverage
 
-Status: verified (fresh run on the final revision, including the tests added in this pass).
+Status: verified. This is a fresh run on HEAD `824e0e0e` plus this pass's test additions.
 
 Metric: whole-file coverage of task-changed production files.
-Changed-line coverage: the task added `OccurrenceExpander.kt` as a new file, so every executable line in it is an added line. Changed-line coverage therefore equals the whole-file LINE counter: 103/104 (99.0%). Changed-branch coverage is not inferred separately: it equals the whole-file BRANCH counter because the whole file is new.
+
+Changed-line coverage: the task added `OccurrenceExpander.kt` as a new file at base `3a4ef451`, so every executable line in it is an added line. Changed-line coverage therefore equals the whole-file LINE counter: 104/105 (99.0%). Changed-branch coverage equals the whole-file BRANCH counter for the same reason.
 
 Evidence:
-- Task id, immutable base, measured HEAD, and task-owned commits/file-scope source: `cal-recurrence`. Base `5537ffa91f44c8f44d5311076731fb7f738c87f8`, measured HEAD `7a15f449df126fd9fde0003090e8b05a3ef05d60`. Task commits `67d8680e`, `53b64bc2`, `a59471a4` and `7a15f449` were supplied by the parent worker and cross-checked with `git log`/`git diff --stat 5537ffa9..HEAD` and with the task's `touches`.
-- Source/test snapshot identifier, including uncommitted inputs: HEAD `7a15f449` plus an uncommitted `OccurrenceExpanderEdgeCaseTests.kt`. SHA-256 of the files measured:
-  - `OccurrenceExpander.kt`: `2c97034e1322bc7a3ff858822a222a45849be18dffafd874e2f164ebff8ac1c9` (unchanged from HEAD)
-  - `OccurrenceExpanderEdgeCaseTests.kt`: `55bbb647ab510208b3cbe9d1ca1cd41fe85ca2766f2151350fb772491747613e` (uncommitted, this pass)
+- **Task and scope:**
+  - Task: `cal-recurrence`.
+  - Base: `3a4ef4513a7beaedd6216d2976f96e2ab7b61a86`.
+  - Measured HEAD: `824e0e0eee14f6fa1ad4b840709fe9d6075aa397`.
+  - The parent supplied the task commits (`git log 3a4ef451..HEAD`: seven `cal-recurrence:` commits). They were cross-checked with `git diff --stat 3a4ef451..HEAD`.
+- **Snapshot:** HEAD `824e0e0e` plus an uncommitted `OccurrenceExpanderEdgeCaseTests.kt`. SHA-256 of the measured files:
+  - `OccurrenceExpander.kt`: `85891501f78ef68fc75fcaf28abfa4f3476c0ee114025f89b7a02c90071d84b7` (unchanged from HEAD)
+  - `OccurrenceExpanderEdgeCaseTests.kt`: `9156107dba729a1d81c696d1303ef8ef181d4115c77810f105ebee2cd36cc5c9` (uncommitted, this pass)
   - `OccurrenceExpanderTests.kt`: `88ba4880d675f9a1b37ac6598ad9b4570ddc44fca748cd0ccf43c78e3cc2c96f`
-- Exact included files; renamed/deleted/excluded files and reasons: included `server/src/main/kotlin/ch/sonensei/cockpit/calendar/recurrence/OccurrenceExpander.kt`. No renames or deletions. Excluded: the test files and `reviews/cal-recurrence/*` (documentation).
-- Provider/version, command, working directory, and test selection: JaCoCo 0.8.15 through the Gradle `jacoco` plugin. Command `./gradlew test --rerun --tests 'ch.sonensei.cockpit.calendar.recurrence.*' jacocoTestReport`, run in `server/`. Test selection: package `ch.sonensei.cockpit.calendar.recurrence` (50 tests).
-- Run start/completion time and exit status: 2026-10-20T17:34:40+02:00 to 17:34:48+02:00, BUILD SUCCESSFUL (exit 0).
-- Generated report paths and report hashes/run identifier: `server/build/reports/jacoco/test/jacocoTestReport.xml`, modified 2026-10-20 17:34:48.633 +02:00, SHA-256 `def3f8c970a10a4ff63eca14d653d0ac69aa2b36b20767069f155932bd8b31cc`. The JUnit XML timestamps are 15:34:46Z and 15:34:47Z.
-- Evidence outputs are fresh and inputs stayed unchanged: yes. `--rerun` forced test execution, and the report mtime falls inside the run window. The SHA-256 hashes of all three files were identical before and after the run.
-- Final run after latest test additions and production fixes: yes. The run is after the `a59471a4` fixes, the `7a15f449` regression tests and this pass's 3 tests. No production code changed during this pass.
+- **Files:**
+  - Included: `server/src/main/kotlin/ch/sonensei/cockpit/calendar/recurrence/OccurrenceExpander.kt`.
+  - No renames or deletions.
+  - Excluded: the test files, and `reviews/cal-recurrence/*` (documentation).
+- **Provider and command:**
+  - Provider: JaCoCo 0.8.15 through the Gradle `jacoco` plugin.
+  - Command: `./gradlew test --rerun --tests 'ch.sonensei.cockpit.calendar.recurrence.*' jacocoTestReport`, run in `server/`.
+  - Test selection: package `ch.sonensei.cockpit.calendar.recurrence` (56 tests).
+  - The report was read with `.tmp/jacoco_scope.py`, which uses the provider's native counters.
+- **Run time and status:** 2026-10-20T17:52:09+02:00 to 17:52:18+02:00, BUILD SUCCESSFUL.
+- **Report:**
+  - Path: `server/build/reports/jacoco/test/jacocoTestReport.xml`.
+  - Modified 2026-10-20 17:52:18.217 +02:00.
+  - SHA-256: `c6025256c5f999c4db5f1a1843089c45be28aa662bfd4ab1e2e10f62326c4da4`.
+  - JUnit XML timestamps: 15:52:16Z and 15:52:17Z.
+- **Freshness:** yes.
+  - `--rerun` forced test execution.
+  - The report's modification time falls inside the run window.
+  - `sha256sum -c` matched all three files after the run and again after `./gradlew check`.
+- **Final run:** yes. This run is after the `824e0e0e` fix and all of this pass's tests. No production code changed during this pass.
 
-Values below use covered/total (percentage); zero-denominator or unsupported metrics are N/A.
+An earlier run in this pass (17:51:27 to 17:51:47, before the last added case) showed line 160 newly uncovered. It covered branches 80/96. That run is superseded and not reported as the result.
+
+Values below use covered/total (percentage).
 
 | Changed file | Statements (JaCoCo INSTRUCTION) | Branches | Functions (METHOD) | Lines |
 |---|---:|---:|---:|---:|
-| `server/src/main/kotlin/ch/sonensei/cockpit/calendar/recurrence/OccurrenceExpander.kt` | 900/938 (95.9%) | 81/96 (84.4%) | 32/33 (97.0%) | 103/104 (99.0%) |
+| `server/src/main/kotlin/ch/sonensei/cockpit/calendar/recurrence/OccurrenceExpander.kt` | 909/949 (95.8%) | 81/96 (84.4%) | 32/34 (94.1%) | 104/105 (99.0%) |
 
-Aggregate (one file, no missing or unmeasured files): equal to the row above. No coverage threshold is defined: ARCHITECTURE.md says "It is not a gate".
-
-These numbers are identical to those of the pre-addition run of this pass (17:33:28, report SHA-256 `feb43af1...`). The 3 new tests add behavioral checks on paths that were already executed, not new lines or branches.
+Aggregate: one file, with no missing or unmeasured files, so it equals the row above. No coverage threshold is defined: ARCHITECTURE.md says "It is not a gate".
 
 | File and uncovered lines/branch locations | Required behavior or risk | Action/test added or reason left uncovered |
 |---|---|---|
-| `OccurrenceExpander.kt:118, 143, 144, 151, 152, 207, 208, 210, 211` (one missed `?:` or `?.` null branch each) | Defensive handling of inconsistent rows: a timed event with null `startAt`/`endAt`, or an all-day event with null `startDate`/`endDate` | Not reachable through the public API. `setTimed`/`setAllDay` always set both values (protected setters), and the DB check constraint in `V202610201351__calendar_model.sql` requires them. Justified gap. |
-| `OccurrenceExpander.kt:101` (1 missed branch: `asOccurrence` returns null for an orphan override) | Same inconsistent-row guard on the orphan path | Not reachable for the same reason. Justified gap. |
-| `OccurrenceExpander.kt:189, 192, 196` (3 missed branches; `else null` at line 196 is the only missed line) | `seriesOccurrence` receiving an `OccurrenceId` of the other kind (date for a timed series or instant for an all-day one) | Unreachable: `originalStarts` only produces ids of the master's own kind. Justified gap. |
-| `OccurrenceExpander.kt:232` (2 missed branches: null `timeZone` falls back to UTC) | Recorded assumption: "in the event's zone (UTC if none)" | `timeZone` has a protected setter, `setTimed` always sets it, and the DB constraint requires `time_zone` for timed events. A test would need reflection on the JPA field. Justified defensive gap: not a reachable path. |
-| `OccurrenceExpander.kt:236` (2 missed instructions in the companion object) | None (synthetic companion constructor bytecode) | Non-material. |
+| `OccurrenceExpander.kt:160` (timed early return when the seed is at or after `range.to + 2h`) | Series starting after the range yield nothing | The margin moved this line out of reach of the earlier tests. It is now covered by `occurrences starting within two hours after the range end are excluded`. |
+| `OccurrenceExpander.kt:118, 143, 144, 151, 152, 210, 211, 213, 214` (one missed `?:`/`?.` null branch each) | Defensive handling of inconsistent rows: a timed event with null `startAt`/`endAt`, or an all-day event with null `startDate`/`endDate` | Not reachable through the public API. `setTimed`/`setAllDay` always set both values, and the DB check constraint requires them. Justified gap. |
+| `OccurrenceExpander.kt:101` (1 missed branch: `asOccurrence` returns null for an orphan override) | Same inconsistent-row guard on the orphan path | Not reachable, for the same reason. Justified gap. |
+| `OccurrenceExpander.kt:192, 195, 199` (3 missed branches; `else null` at line 199 is the only missed line) | `seriesOccurrence` receiving an `OccurrenceId` of the other kind | Unreachable: `originalStarts` only produces ids of the master's own kind. Justified gap. |
+| `OccurrenceExpander.kt:235` (2 missed branches: a null `timeZone` falls back to UTC) | Recorded assumption: "in the event's zone (UTC if none)" | `setTimed` always sets the zone, and the DB constraint requires `time_zone` for timed events. Justified defensive gap. |
+| `OccurrenceExpander.kt:239, 242` (synthetic `Companion.getDATE_ONLY_UNTIL`/`getDST_END_MARGIN`, 2 instructions each) | None: Kotlin accessors that the class does not call, because it reads the fields directly | Non-material. They explain METHOD going from 32/33 to 32/34: the new constant adds one synthetic getter. |
 
 ## Unable to test
 
-- The UTC fallback for a timed event without a time zone (line 232): it cannot be constructed through the public API and is rejected by the DB constraint. It does not need a follow-up unless another task makes `time_zone` nullable for timed events.
-- Integration with `findCandidatesInRange` (repository plus expander) is out of scope. The confirmed assumption makes the expander pure, and the consumer (calendar API/service) belongs to a later task. Follow-up belongs to that task.
+- The UTC fallback for a timed event without a time zone (line 235): it cannot be constructed through the public API, and the DB constraint rejects it. It needs no follow-up unless another task makes `time_zone` nullable for timed events.
+- A zone with a DST jump larger than 2h, to check whether the margin is still enough: no such zone exists in the current tz database. This is the fixer's stated premise ("more than the largest DST offset jump"). It is not testable with real zone data, and no follow-up is needed.
+- Integration with `findCandidatesInRange` is out of scope. The expander is pure (confirmed assumption), and its consumer belongs to a later task.
 
 ## Summary
 
-Tests and task-scoped coverage are sufficient; no production defects found. This pass added 3 behavioral tests:
-- DST-start EXDATE/override matching;
-- UTC UNTIL across the DST change;
-- cancelled all-day override.
+Tests and task-scoped coverage are sufficient, and no production defects were found. This pass added 5 tests for the `DST_END_MARGIN` change:
+- exclusion of occurrences and series inside or past the margin, which restores coverage of the timed early return at line 160;
+- exclusion at the DST-end ambiguous time;
+- the summer-seeded DST-end case;
+- COUNT/UNTIL not extended by the margin;
+- an override moved from the margin into the range.
 
-The focused suite (50 tests), `./gradlew check` (1297 tests) and `.taskcheck` all pass on the final revision. The remaining uncovered branches are unreachable defensive guards.
+The focused suite (56 tests), `./gradlew check` (1393 tests) and `.taskcheck` all pass on the final revision. The remaining uncovered branches are unreachable defensive guards.
