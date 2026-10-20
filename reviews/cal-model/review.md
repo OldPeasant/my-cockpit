@@ -4,22 +4,22 @@ Date: 2026-10-20
 
 Task: cal-model - Calendar data model
 
-Scope: task commit 4255c5b on top of base a661293 (`git diff a661293..4255c5b`), production code under `server/src/main/kotlin/ch/sonensei/cockpit/calendar/model/` and `server/src/main/resources/db/migration/calendar/V202610201351__calendar_model.sql`. Tests in `server/src/test/kotlin/ch/sonensei/cockpit/calendar/model/` at 4255c5b were read for coverage context only, since a test-writer is changing them in parallel.
+Scope: second review, after the fixes. It covers the whole task change on `main` from the merge base `6696b237831304c577bb02bd001dd824f9d4e20f` (`git merge-base HEAD origin/main`) to HEAD `b56fdef895c20fd76b133e5367c14430b73bae00`: production code in `server/src/main/kotlin/ch/sonensei/cockpit/calendar/model/`, the migration `server/src/main/resources/db/migration/calendar/V202610201351__calendar_model.sql`, the tests in `server/src/test/kotlin/ch/sonensei/cockpit/calendar/model/`, and `reviews/cal-model/`. The parent named HEAD `93bada8` and fix commit `676a3df`. Those are the same commits before a rebase onto a heartbeat commit. `git diff 93bada8 HEAD` changes only `tasks/cal-model.md` (lease field), so the code reviewed here is identical to `93bada8`. The fix commit is now `3ed4ecf`. Only committed changes were reviewed, and the working tree was clean.
 
 Requirements:
-- tasks/cal-model.md acceptance criteria and recorded assumptions
-- SPEC.md sections 4.2, 4.3, 4.4, 6.1, 6.2
-- docs/ARCHITECTURE.md conventions (migrations, Postgres 16, PostgresTestBase)
-- AGENTS.md project notes (migration naming, assumptions, logging of secrets)
-- Existing core contracts: BaseEntity, SoftDeletableEntity/Repository, ItemResolver, SearchIndexer, TrashContributor, EncryptedSecret/EncryptedSecretConverter; gtd module resolvers as the convention reference
+- tasks/cal-model.md acceptance criteria and the five recorded assumptions
+- SPEC.md sections 4.3, 4.4, 6.1, 6.2
+- docs/ARCHITECTURE.md and AGENTS.md project notes (migration path and naming, conventions, logging)
+- Previous reports: reviews/cal-model/review.md (CR-1..CR-4), reviews/cal-model/tests.md (TW-1), reviews/cal-model/fixes.md
+- Core contracts: ItemResolver/ResolvedItem, SearchIndexer, SoftDeletableEntity/Repository, EncryptedSecret
 
 Git range:
 - Branch: main
-- HEAD: 4255c5b
-- Base/start: a661293219643f84f49b2709692db50452122eea
-- Commits reviewed: 1
+- HEAD: b56fdef895c20fd76b133e5367c14430b73bae00 (code-identical to 93bada8)
+- Base/start: 6696b237831304c577bb02bd001dd824f9d4e20f
+- Commits reviewed: 5 (8f510ee, dde805c, 3ed4ecf, 8af5c69, b56fdef)
 
-Summary: 0 P0, 0 P1, 1 P2, 3 P3
+Summary: 0 P0, 0 P1, 0 P2, 0 P3
 
 ## P0 Critical
 
@@ -31,45 +31,30 @@ None.
 
 ## P2 Medium
 
-- [ ] **CR-1 | Range query returns live overrides of a trashed series, unlike the resolver and indexer**
-    - File: `server/src/main/kotlin/ch/sonensei/cockpit/calendar/model/CalendarRepositories.kt:36`
-    - Category: Correctness
-    - Problem: `findCandidatesInRange` returns every override with `e.parentEventId is not null and e.deletedAt is null`. It does not check whether the series master is deleted. Soft-deleting a master does not soft-delete its overrides: the indexer treats them as sharing the master's Trash state, but leaves their `deleted_at` null. So the query returns overrides of a series that is in the Trash. `EventItemResolver` (line 26) and `CalendarEventIndexer.index` hide exactly these rows, which is the recorded assumption ("overrides of a deleted series are neither indexed nor resolved"). The candidate query, which the view and expansion code will use, does not hide them. The range test (`CalendarModelTests` "range candidates ...") has no case with a deleted master.
-    - Why it matters: Unless every later consumer (cal-recurrence, cal-local-api) re-checks the master, a moved occurrence of a deleted series still appears in the calendar views. The rule "an override shares its master's Trash state" would then live in several places.
-    - Suggested fix: Exclude overrides whose master is deleted inside the query, e.g. `e.parentEventId is not null and exists (select 1 from CalendarEvent m where m.id = e.parentEventId and m.deletedAt is null)`. Optionally limit it to masters that are themselves candidates. Then add a range-test case with a soft-deleted master and a live override.
+None.
 
 ## P3 Low
 
-- [ ] **CR-2 | An override can be placed in a different calendar than its series**
-    - File: `server/src/main/kotlin/ch/sonensei/cockpit/calendar/model/CalendarEvent.kt:166`
-    - Category: Correctness
-    - Problem: `overrideOf` checks that the master is a recurring non-override, but not that `calendarId == master.calendarId`. `calendarId` is a mutable `var`, and the schema has no constraint tying `calendar_event.calendar_id` of an override to its parent's. `findCandidatesInRange` filters by calendar, so an override in another calendar is returned without its master, or the master without its override.
-    - Why it matters: Later sync and move code (moving a series to another calendar, provider imports) can silently split a series across calendars, and expansion then gives wrong occurrences.
-    - Suggested fix: Add `require(calendarId == master.calendarId)` in `overrideOf`. Document, or enforce in the later service, that moving a master moves its overrides.
+None.
 
-- [ ] **CR-3 | Unique (calendar_id, external_id) forces a non-obvious external-id encoding for CalDAV/ICS overrides**
-    - File: `server/src/main/resources/db/migration/calendar/V202610201351__calendar_model.sql:98`
-    - Category: Integration
-    - Problem: In iCalendar (CalDAV, ICS feeds), a series master and its RECURRENCE-ID overrides share one UID. The partial unique index on `(calendar_id, external_id)` rejects overrides that store the same UID as their master. `findByCalendarIdAndExternalId` also assumes one row per external id. Google and Microsoft give instances their own ids, so they are not affected.
-    - Why it matters: cal-caldav and cal-ics must either leave `external_id` null on overrides or invent a compound id. Neither the migration comment nor the KDoc says which, so the two adapters may choose differently.
-    - Suggested fix: Document the intended convention in the migration comment and the `CalendarEvent` KDoc, e.g. "overrides of iCalendar sources keep `external_id` null and are found by parent + recurrence id". Alternatively, scope the index to `parent_event_id is null`.
+## Verification of previous findings
 
-- [ ] **CR-4 | "One default calendar overall" is an open-spec decision without a recorded assumption**
-    - File: `server/src/main/resources/db/migration/calendar/V202610201351__calendar_model.sql:38`
-    - Category: Quality
-    - Problem: `calendar_single_default` allows at most one default calendar across all sources. SPEC.md 6.1 lists "default for new events" as a per-calendar flag without saying whether the scope is global or per source. The four recorded assumptions do not cover this choice. AGENTS.md asks for `tasks.py assume` on decisions the spec leaves open.
-    - Why it matters: A human reviewing assumptions cannot see or revisit this choice, and a per-source interpretation later would need a migration.
-    - Suggested fix: Record the assumption with `python tasks.py assume cal-model "..."` (parent worker). No code change needed if global is intended.
+- TW-1 (cancelled override resolved): fixed. `EventItemResolver.kt:29` now resolves an override only when it is not `CANCELLED` and its master is active. This matches `CalendarEventIndexer.apply` and the recorded assumption. A cancelled single event still resolves. Covered by `a cancelled override does not resolve` and `a cancelled single event still resolves and is indexed`.
+- CR-1 (range query returned live overrides of a trashed series): fixed. `CalendarRepositories.kt:37-44` returns an override only when an `exists` subquery finds its master with `deletedAt is null`. The date conditions now apply only to rows with `parentEventId is null`. The KDoc matches. Covered on the exclusion side, including `restore()` (`CalendarModelEdgeCaseTests` line 369), and on the inclusion side for cancelled and out-of-range overrides of a live series (line 450).
+- CR-2 (override in a different calendar): fixed. `CalendarEvent.kt:172` has `require(calendarId == master.calendarId)`, and the KDoc states it. Covered by `an override must be in the calendar of its series`.
+- CR-3 (unique external id vs. iCalendar overrides): fixed. The partial index is now limited to `parent_event_id is null` (migration lines 98-101). The convention is documented in the migration and the `CalendarEvent` KDoc. The lookup was renamed to `findByCalendarIdAndExternalIdAndParentEventIdIsNull`, and no stale callers remain. The migration was edited, but it is not on `origin/main` (`git ls-tree origin/main` of the calendar migration folder is empty), so no applied migration changed.
+- CR-4 (global single default, open in the spec): resolved by a recorded assumption. tasks/cal-model.md has the 16:20 entry "At most one default calendar overall (partial unique index calendar_single_default) ...". No code change is needed.
 
 ## Notes (verified, no finding)
 
-- All criterion-1 columns are present with matching check constraints. Enum CHECK values match the Kotlin enums. `nulls not distinct` needs PostgreSQL 15+, and the project uses postgres:16-alpine. The migration path and name follow the `<module>/V<yyyyMMddHHmm>__<module>_<desc>.sql` convention.
-- Credentials use `EncryptedSecret`, which has an auto-applied converter, a redacted `toString` and redacted JSON. No secrets or contents are logged.
-- `setTimed` takes a `ZoneId`, so `time_zone` always holds a valid id and `ZoneId.of` in the resolver cannot fail on rows written through the entity.
-- The resolver follows the gtd resolver convention (read-only transaction, `findActiveById`).
-- Trash contribution and backup belong to cal-local-api and backup-contrib-calendar, so they are not reported here.
-- The reviewer could not run the Testcontainers suite (command execution for Gradle was denied in this session). Criterion 3 needs evidence from the parent worker or test-writer run.
+- Criterion 1: every listed column is present. Source type and enum CHECK values match the Kotlin enums. Config is a JSON object, and credentials are an `EncryptedSecret` (recorded assumption). The calendar table has color, visible, read_only and is_default. The event table covers timed with tz id or all-day dates (enforced by check constraints), rrule, exdates (`calendar_event_exdate`), override parent and recurrence id, attendees JSON array, reminders, status, transparency, conference URL, external_id, external_etag and sync_state. The migration path and name follow the project naming convention (module folder, timestamp version, `calendar_` prefix). `nulls not distinct` needs PostgreSQL 15+, and the project uses PostgreSQL 16.
+- Criterion 2: `EventItemResolver` (ItemType.EVENT, deep link `/calendar/events/{id}`) and `CalendarEventIndexer` (`index` and `unindexCalendar`) follow the recorded assumptions. The master and its overrides share one Trash state consistently across the resolver, the indexer and the range query.
+- Criterion 3: the reviewer reran `cd server && ./gradlew ktlintCheck test --tests 'ch.sonensei.cockpit.calendar.model.*'` (Testcontainers PostgreSQL) on this revision. Result: BUILD SUCCESSFUL. Fresh result XMLs (2026-10-20T14:40-14:41Z) show 46 tests: CalendarModelTests 11, CalendarModelEdgeCaseTests 17, CalendarItemsAndSearchTests 7, CalendarItemsAndSearchEdgeCaseTests 11. All passed, with 0 failures, 0 errors and 0 skipped. ktlint is clean.
+- An element-collection delete with a null column (exdates set of `OccurrenceId`) works against Postgres. This is shown by `exdates can be added and removed on a saved series`, which reloads in a new transaction.
+- No secrets, event bodies or note contents are logged. The credentials have a redacted `toString` via `EncryptedSecret`.
+- Trash contribution, backup and moving a series together with its overrides belong to later calendar tasks, so they are not reported here.
+- `python tasks.py verify cal-model` lists all three criteria as not yet verified. Recording that evidence is the parent worker's next step (AGENTS.md quality step 7), so it is not a finding at this point.
 
 ## Review conclusion
 
-Material issues found; fix before completing the task. CR-1 should be fixed or explicitly dispositioned. CR-2 to CR-4 are low-priority cleanups and documentation.
+No material issues found.
