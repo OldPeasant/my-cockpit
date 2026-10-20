@@ -1,11 +1,11 @@
 ---
 title: Web GTD data layer and shared task components
-status: todo
-owner: 
+status: in_progress
+owner: dell26/agent-2
 deps: [p0-web-shell,p0-web-sse,gtd-projects-api,p0-e2e-harness]
 touches: [web/src/app/features/gtd/data,web/src/app/features/gtd/ui]
 prio: 1
-lease_until: 
+lease_until: 2026-10-20T19:29:10Z
 releases: 0
 extended: 
 ---
