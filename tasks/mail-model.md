@@ -15,7 +15,8 @@ Accounts, identities, folders, cached headers and bodies (SPEC.md §7.1–7.2).
   - verified (2026-10-20 16:46+0200 by dell26/agent-2): cd server && ./gradlew test --tests 'ch.sonensei.cockpit.mail.model.*' (Postgres 16 Testcontainers; Flyway applies V202610201402__mail_model.sql) -> 70 passed; MailModelPersistenceTests/MailModelConstraintTests cover mail_account (types, hosts/ports/TLS, encrypted password vs oauth connection, signature, notify), identity, mail_folder sync state, mail_message columns, mail_body size accounting + LRU eviction (MailBodyCacheTests)
 - [x] Resolver EMAIL (re-resolve by Message-ID when UID changed)
   - verified (2026-10-20 16:46+0200 by dell26/agent-2): cd server && ./gradlew test --tests 'ch.sonensei.cockpit.mail.model.MailItemResolverTests' (in the package run) -> pass: detached/moved/UIDVALIDITY-changed rows re-resolve by account + Message-ID, same folder preferred, other accounts never, stale UIDs of deleted folders ignored
-- [ ] `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.mail.model.*'` passes (Postgres via Testcontainers where persistence is involved)
+- [x] `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.mail.model.*'` passes (Postgres via Testcontainers where persistence is involved)
+  - verified (2026-10-20 16:46+0200 by dell26/agent-2): cd server && ./gradlew ktlintCheck test --tests 'ch.sonensei.cockpit.mail.model.*' (Testcontainers Postgres) at 03d2a72 -> 70 tests, 0 failures; sh scripts/check.sh -> all checks passed
 
 ## Notes
 - ASSUMPTION (2026-10-20 16:07+0200 by dell26/agent-2): Model code lives in package ch.sonensei.cockpit.mail.model (flat: entities, repositories, EMAIL resolver, body cache), as the task's touches name mail/model, instead of mail.{domain,infra}.
