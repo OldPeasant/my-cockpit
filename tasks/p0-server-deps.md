@@ -1,11 +1,13 @@
 ---
 title: Server dependencies, profiles and test infrastructure
-status: in_progress
-owner: dell26/agent-1
+status: todo
+owner: 
 deps: []
 touches: [server/build.gradle.kts,server/src/main/resources/application.properties,server/src/main/resources/application-dev.properties,server/src/main/resources/application-e2e.properties,server/src/test/kotlin/ch/sonensei/cockpit/support]
 prio: 1
-lease_until: 2026-10-20T08:56:37Z
+lease_until: 
+releases: 0
+extended: 
 ---
 ## Goal
 Add every server library the spec needs up front (SPEC.md §2.1), so later tasks rarely touch the build file, and set up the test infrastructure: Postgres via Testcontainers (singleton container) in `test`, external-system tests (GreenMail, Radicale, WireMock) tagged `external` in a separate `integrationTest` task.
@@ -28,3 +30,4 @@ Add every server library the spec needs up front (SPEC.md §2.1), so later tasks
 - ASSUMPTION (2026-10-20 10:21+0200 by dell26/agent-1) [confirmed 2026-10-20 10:26+0200 by Peter Gürtler]: Spring Security starter added without a SecurityFilterChain: Boot defaults apply (everything secured except /actuator/health, generated user) until p0-auth-setup adds the real config. Existing context tests now extend PostgresTestBase because JPA/Flyway need a database, so ./gradlew test (and .taskcheck) needs Docker/Podman.
 - ASSUMPTION (2026-10-20 10:21+0200 by dell26/agent-1) [confirmed 2026-10-20 10:25+0200 by Peter Gürtler]: integrationTest reuses the test source set and selects by JUnit tag 'external' (@ExternalTest) instead of a separate source set; Hibernate ddl-auto=validate and open-in-view=false as base defaults.
 - ASSUMPTION (2026-10-20 10:38+0200 by dell26/agent-1): Fixed tests/test_quality_gate.py (outside touches): it leaked the runner's TASKS_ROOT into tasks.py, so .taskcheck failed with 'exists' and wrote stray tasks/a,b,c.md into the clone; one-line env filter fix
+- release by dell26/agent-1: handed off by dell26/agent-1: You've hit your session limit · resets 2pm (Europe/Berlin)
