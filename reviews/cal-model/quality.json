@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "task": "cal-model",
-  "reviewed_revision": "41e96b00f55b4e03ee2c0257281be3e8af1f1ed1",
+  "reviewed_revision": "73dff50703f6d19c19290a43a5d6610fe83fff0e",
   "helpers": {
     "test-writer":   {"status": "completed", "report": "reviews/cal-model/tests.md"},
     "code-reviewer": {"status": "completed", "report": "reviews/cal-model/review.md"},
