@@ -368,6 +368,8 @@ paths:
         required: true
         schema:
           type: string
+          maxLength: 200
+          minLength: 1
       - description: Only these item types (comma-separated or repeated); all types
           when absent
         in: query
@@ -394,7 +396,9 @@ paths:
         name: limit
         required: false
         schema:
-          type: string
+          type: integer
+          format: int32
+          default: 20
           maximum: 50
           minimum: 1
       responses:

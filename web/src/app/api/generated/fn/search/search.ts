@@ -24,7 +24,7 @@ export interface Search$Params {
 /**
  * Maximum number of items, 1..50
  */
-  limit?: string;
+  limit?: number;
 }
 
 export function search(http: HttpClient, rootUrl: string, params: Search$Params, context?: HttpContext): Observable<StrictHttpResponse<SearchResponse>> {

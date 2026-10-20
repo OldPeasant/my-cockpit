@@ -65,17 +65,26 @@ class SearchService(
 		if (words.isEmpty()) return emptyList()
 		val typeNames = (types.ifEmpty { ItemType.entries.toSet() }).map { it.name }
 		val prefixQuery = words.joinToString(" & ") { "'$it':*" }
-		val hits = documents.fullText(prefixQuery, typeNames, limit, clock.instant()).toMutableList()
-		if (hits.size < limit) {
-			val found = hits.mapTo(HashSet()) { it.item }
+		// More candidates than needed: hits the resolver leaves out (e.g. items in the Trash) must not shorten the page.
+		val candidates = limit * CANDIDATE_FACTOR
+		val fullTextHits = documents.fullText(prefixQuery, typeNames, candidates, clock.instant())
+		val results =
+			fullTextHits
+				.asSequence()
+				.mapNotNull(::resolve)
+				.take(limit)
+				.toMutableList()
+		if (results.size < limit) {
+			val found = fullTextHits.mapTo(HashSet()) { it.item }
 			documents
-				.similarTitles(words.joinToString(" "), typeNames, limit, FUZZY_THRESHOLD)
+				.similarTitles(words.joinToString(" "), typeNames, candidates, FUZZY_THRESHOLD)
+				.asSequence()
 				.filter { it.item !in found }
-				.take(limit - hits.size)
-				.let(hits::addAll)
+				.mapNotNull(::resolve)
+				.take(limit - results.size)
+				.let(results::addAll)
 		}
-		return hits
-			.mapNotNull(::resolve)
+		return results
 			.groupBy { it.hit.item.type }
 			.map { (type, results) -> SearchGroup(type, results) }
 	}
@@ -96,6 +105,9 @@ class SearchService(
 		const val MAX_LIMIT = 50
 		const val MAX_QUERY_LENGTH = 200
 		private const val MAX_WORDS = 20
+
+		/** Candidates fetched per query as a multiple of `limit`, so that hits left out by their resolver get replaced. */
+		private const val CANDIDATE_FACTOR = 2
 
 		/** Minimum `word_similarity` of query and title for a fuzzy hit; one typo in a short word stays above it. */
 		const val FUZZY_THRESHOLD = 0.4

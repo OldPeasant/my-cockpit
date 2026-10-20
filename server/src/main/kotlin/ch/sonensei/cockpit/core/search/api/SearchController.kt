@@ -45,13 +45,25 @@ class SearchController(
 		content = [Content(mediaType = PROBLEM_JSON, schema = Schema(ref = "#/components/schemas/ProblemDetail"))],
 	)
 	fun search(
-		@Parameter(description = "Search text") @RequestParam q: String,
+		@Parameter(
+			description = "Search text",
+			schema = Schema(type = "string", minLength = 1, maxLength = SearchService.MAX_QUERY_LENGTH),
+		)
+		@RequestParam
+		q: String,
 		@Parameter(description = "Only these item types (comma-separated or repeated); all types when absent")
 		@RequestParam(required = false)
 		types: List<ItemType>?,
 		@Parameter(
 			description = "Maximum number of items, 1..${SearchService.MAX_LIMIT}",
-			schema = Schema(defaultValue = "${SearchService.DEFAULT_LIMIT}", minimum = "1", maximum = "${SearchService.MAX_LIMIT}"),
+			schema =
+				Schema(
+					type = "integer",
+					format = "int32",
+					defaultValue = "${SearchService.DEFAULT_LIMIT}",
+					minimum = "1",
+					maximum = "${SearchService.MAX_LIMIT}",
+				),
 		)
 		@RequestParam(required = false)
 		limit: Int?,

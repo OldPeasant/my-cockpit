@@ -6,6 +6,8 @@ import ch.sonensei.cockpit.core.search.domain.SearchHit
 import org.springframework.jdbc.core.RowMapper
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate
 import org.springframework.stereotype.Repository
+import org.springframework.transaction.annotation.Propagation
+import org.springframework.transaction.annotation.Transactional
 import java.sql.Timestamp
 import java.time.Instant
 import java.util.UUID
@@ -60,7 +62,14 @@ class SearchDocumentRepository(
 			HIT,
 		)
 
-	/** Documents whose title contains a word similar to [text] (`word_similarity` ≥ [threshold]), most similar first. */
+	/**
+	 * Documents whose title contains a word similar to [text] (`word_similarity` ≥ [threshold]), most similar first.
+	 *
+	 * Needs the caller's transaction: the threshold is set transaction-locally (`set_config(..., true)`) by one statement
+	 * and only reaches the query in the next one when both run in the same transaction on the same connection. Without
+	 * one the query would silently use the default threshold, so a missing transaction fails instead.
+	 */
+	@Transactional(propagation = Propagation.MANDATORY)
 	fun similarTitles(
 		text: String,
 		types: Collection<String>,

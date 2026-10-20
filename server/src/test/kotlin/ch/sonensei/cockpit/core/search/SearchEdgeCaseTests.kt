@@ -9,7 +9,9 @@ import ch.sonensei.cockpit.core.items.domain.ItemType
 import ch.sonensei.cockpit.core.persistence.UuidV7
 import ch.sonensei.cockpit.core.search.domain.SearchIndexer
 import ch.sonensei.cockpit.core.search.domain.SearchService
+import ch.sonensei.cockpit.core.search.infra.SearchDocumentRepository
 import ch.sonensei.cockpit.support.PostgresTestBase
+import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.collections.shouldContainExactlyInAnyOrder
@@ -27,6 +29,7 @@ import org.springframework.http.MediaType
 import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.get
+import org.springframework.transaction.IllegalTransactionStateException
 
 /**
  * Edge cases of the global search beyond [SearchServiceTests] and [SearchWebTests]: ranking and grouping order, the
@@ -44,6 +47,7 @@ class SearchEdgeCaseTests(
 	@Autowired private val fakes: FakeItemResolvers,
 	@Autowired private val jdbc: JdbcTemplate,
 	@Autowired private val events: ApplicationEventPublisher,
+	@Autowired private val documents: SearchDocumentRepository,
 ) : PostgresTestBase() {
 	@BeforeEach
 	fun setUp() {
@@ -153,6 +157,35 @@ class SearchEdgeCaseTests(
 		fakes.tasks.remove(trashed.id)
 
 		found("plumbr").shouldBeEmpty()
+	}
+
+	@Test
+	fun `a hit its resolver leaves out is replaced by the next match`() {
+		val trashed = task("Call plumber")
+		val second = task("Pay plumber")
+		val third = task("Ask plumber")
+		ageDays(second, 10)
+		ageDays(third, 20)
+		fakes.tasks.remove(trashed.id)
+
+		found("plumber", limit = 2) shouldContainExactly listOf(second, third)
+	}
+
+	@Test
+	fun `fuzzy hits fill up places of full-text hits the resolver leaves out`() {
+		val trashed = task("Call plumber")
+		val exact = task("Pay plumber")
+		val typo = task("Ask plumbr")
+		fakes.tasks.remove(trashed.id)
+
+		found("plumber", limit = 2) shouldContainExactly listOf(exact, typo)
+	}
+
+	@Test
+	fun `fuzzy title lookup outside a transaction fails instead of using the default threshold`() {
+		shouldThrow<IllegalTransactionStateException> {
+			documents.similarTitles("plumber", listOf(ItemType.TASK.name), 10, SearchService.FUZZY_THRESHOLD)
+		}
 	}
 
 	// --- resolvers and events ---------------------------------------------------------------------------------------
