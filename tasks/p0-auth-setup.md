@@ -13,7 +13,8 @@ Single-user setup flow (SPEC.md §4.1): available only while no user exists.
 ## Acceptance criteria
 - [x] `GET /api/v1/setup/status` tells whether setup is needed; `POST /api/v1/setup` creates the user (username, password ≥ 12 chars, Argon2id hash) and returns a TOTP secret + otpauth URI + 10 recovery codes (stored hashed); `POST /api/v1/setup/confirm-totp` activates it with a valid code
   - verified (2026-10-20 12:05+0200 by dell26/agent-4): cd server && ./gradlew test --rerun --tests 'ch.sonensei.cockpit.core.auth.*' (Postgres 16 Testcontainer) -> SetupWebTests/SetupEdgeCaseTests pass: GET /api/v1/setup/status, POST /api/v1/setup (username, password >=12, argon2id hash, base32 secret + otpauth URI + 10 Argon2id-hashed recovery codes), POST /api/v1/setup/confirm-totp activates with a computed code
-- [ ] After a user exists every setup endpoint returns 409/404 (test); the TOTP secret is stored encrypted (p0-crypto)
+- [x] After a user exists every setup endpoint returns 409/404 (test); the TOTP secret is stored encrypted (p0-crypto)
+  - verified (2026-10-20 12:05+0200 by dell26/agent-4): SetupWebTests 'every setup endpoint answers 409 once the account is active' + SetupEdgeCaseTests (active stays closed after 2 days); 'TOTP secret is stored encrypted' reads app_user.totp_secret via JDBC -> ciphertext, SecretCipher.decrypt == secret -> pass
 - [ ] Tests compute TOTP codes from the secret (RFC 6238 test vectors pass); `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.core.auth.*'` passes (Postgres via Testcontainers where persistence is involved)
 - [ ] API documented: `api/openapi.yaml` regenerated (`UPDATE_OPENAPI=1 ./gradlew test --tests '*OpenApiContractTest'`) and `OpenApiContractTest` passes without the flag
 
