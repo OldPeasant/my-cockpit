@@ -19,3 +19,4 @@ Generic trash for soft-deleted items (SPEC.md §4.2).
 ## Notes
 - ASSUMPTION (2026-10-20 15:13+0200 by R1963MACOS/agent-2): GET /api/v1/trash merges all contributors in memory (sorted deletedAt desc, then ItemType order, then id desc) with a keyset cursor; fine for a single user's 30-day trash, contributors return all their deleted items
 - ASSUMPTION (2026-10-20 15:13+0200 by R1963MACOS/agent-2): Purge job runs daily at 03:30 UTC (property cockpit.trash.purge-cron); purges items with deletedAt strictly older than 30 days; each item in its own transaction, failures retried next run. @EnableScheduling lives in core.trash (TrashSchedulingConfiguration)
+- ASSUMPTION (2026-10-20 15:13+0200 by R1963MACOS/agent-2): TrashService (not the contributors) publishes ItemDeletedEvent on purge (removes links) and ChangeEvents: restore -> UPDATED, purge -> DELETED; restore/purge of an item not in the trash or of a type without contributor -> 404
