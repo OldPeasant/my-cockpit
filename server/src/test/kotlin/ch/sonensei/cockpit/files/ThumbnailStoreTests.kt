@@ -146,6 +146,18 @@ class ThumbnailStoreTests {
 	}
 
 	@Test
+	fun `temporary files left by an interrupted render are removed at startup, cached thumbnails are kept`() {
+		val key = blob(png(300, 300))
+		val cached = store.thumbnail(key, 256, ThumbnailFormat.PNG)
+		val leftover = Files.write(store.root.resolve("tmp/thumb-123.png"), byteArrayOf(1, 2, 3))
+
+		ThumbnailStore(dataDir, blobs)
+
+		Files.exists(leftover) shouldBe false
+		cached.isRegularFile() shouldBe true
+	}
+
+	@Test
 	fun `storage keys that are not blob keys are refused`() {
 		shouldThrow<IllegalArgumentException> { store.thumbnail("../../etc/passwd", 256, ThumbnailFormat.PNG) }
 		shouldThrow<IllegalArgumentException> { store.delete("../x") }

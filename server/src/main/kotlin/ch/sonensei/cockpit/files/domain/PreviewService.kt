@@ -4,6 +4,8 @@ import ch.sonensei.cockpit.files.infra.BlobStore
 import ch.sonensei.cockpit.files.infra.ThumbnailFormat
 import ch.sonensei.cockpit.files.infra.ThumbnailStore
 import org.springframework.stereotype.Service
+import org.springframework.util.InvalidMimeTypeException
+import org.springframework.util.MimeTypeUtils
 import java.nio.ByteBuffer
 import java.nio.charset.CodingErrorAction
 import java.nio.file.Path
@@ -80,8 +82,7 @@ class PreviewService(
 		val mime = baseMime(file.mime)
 		return when {
 			isText(mime) -> text(file, if (mime == MARKDOWN) MARKDOWN else PLAIN)
-			mime == "application/pdf" || mime.startsWith("audio/") || mime.startsWith("video/") || mime in THUMBNAIL_MIMES ->
-				Preview.Inline(blobs.path(file.storageKey), mime, file.name)
+			isInline(mime) && isValidMime(mime) -> Preview.Inline(blobs.path(file.storageKey), mime, file.name)
 			else -> throw PreviewNotSupportedException("No preview for files of type $mime")
 		}
 	}
@@ -110,6 +111,17 @@ class PreviewService(
 		internal fun baseMime(mime: String): String = mime.substringBefore(';').trim().lowercase(Locale.ROOT)
 
 		internal fun isText(mime: String): Boolean = mime.startsWith("text/") || mime in TEXT_APPLICATION_MIMES
+
+		private fun isInline(mime: String): Boolean =
+			mime == "application/pdf" || mime.startsWith("audio/") || mime.startsWith("video/") || mime in THUMBNAIL_MIMES
+
+		/** Whether [mime] can be sent as `Content-Type`: valid syntax (e.g. not `video/`) and no wildcard. */
+		private fun isValidMime(mime: String): Boolean =
+			try {
+				MimeTypeUtils.parseMimeType(mime).let { !it.isWildcardType && !it.isWildcardSubtype }
+			} catch (_: InvalidMimeTypeException) {
+				false
+			}
 
 		/**
 		 * The largest length `<= limit` that does not cut a UTF-8 sequence of [bytes] in two: when the sequence starting

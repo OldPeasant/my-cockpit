@@ -5,6 +5,7 @@ import org.springframework.beans.factory.annotation.Value
 import org.springframework.stereotype.Component
 import java.io.IOException
 import java.nio.file.Files
+import java.nio.file.NoSuchFileException
 import java.nio.file.Path
 import java.nio.file.StandardCopyOption
 import javax.imageio.ImageIO
@@ -39,10 +40,16 @@ class ThumbnailStore(
 	val root: Path = dataDir.toAbsolutePath().normalize().resolve("thumbnails")
 	private val tmp: Path = root.resolve("tmp")
 
+	init {
+		// Temporary files left behind by renders that were interrupted when the process stopped.
+		if (Files.isDirectory(tmp)) Files.list(tmp).use { entries -> entries.forEach(Files::deleteIfExists) }
+	}
+
 	/**
 	 * The cached thumbnail of the blob [storageKey] whose longer side is at most [size] pixels, rendered first if needed.
 	 *
 	 * @throws UndecodableImageException when the blob is not a decodable image
+	 * @throws NoSuchFileException when the blob was deleted while the thumbnail was rendered
 	 */
 	fun thumbnail(
 		storageKey: String,
@@ -58,6 +65,11 @@ class ThumbnailStore(
 			render(source, size, format, temp)
 			Files.createDirectories(target.parent)
 			Files.move(temp, target, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING)
+			// The blob was purged while rendering: its [delete] already ran, so remove the thumbnail it could not see.
+			if (!Files.exists(source)) {
+				Files.deleteIfExists(target)
+				throw NoSuchFileException(source.toString())
+			}
 		} finally {
 			Files.deleteIfExists(temp)
 		}

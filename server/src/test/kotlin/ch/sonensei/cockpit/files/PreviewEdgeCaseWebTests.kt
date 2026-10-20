@@ -4,6 +4,7 @@ import ch.sonensei.cockpit.core.auth.WithCockpitUser
 import ch.sonensei.cockpit.files.domain.FilesService
 import ch.sonensei.cockpit.files.infra.ThumbnailStore
 import ch.sonensei.cockpit.support.PostgresTestBase
+import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
 import org.junit.jupiter.api.AfterEach
@@ -28,7 +29,9 @@ import java.nio.ByteBuffer
 import java.util.UUID
 import java.util.zip.CRC32
 import javax.imageio.ImageIO
+import kotlin.io.path.exists
 import kotlin.io.path.isRegularFile
+import kotlin.io.path.listDirectoryEntries
 
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -176,6 +179,13 @@ class PreviewEdgeCaseWebTests(
 			content { contentType("application/problem+json") }
 			jsonPath("$.detail") { value("The image has more than ${ThumbnailStore.MAX_PIXELS} pixels") }
 		}
+		cachedThumbnails(id).forEach { it.isRegularFile() shouldBe false }
+		thumbnails.root
+			.resolve("tmp")
+			.takeIf { it.exists() }
+			?.listDirectoryEntries()
+			.orEmpty()
+			.shouldBeEmpty()
 	}
 
 	@Test
@@ -311,6 +321,17 @@ class PreviewEdgeCaseWebTests(
 		preview(id).andExpect {
 			status { isUnsupportedMediaType() }
 			content { contentType("application/problem+json") }
+		}
+	}
+
+	@Test
+	fun `audio and video files with a malformed stored mime type have no preview instead of a server error`() {
+		listOf("video/", "audio/mpeg x", "audio/*").forEach { mime ->
+			val id = upload("Broken.media", ByteArray(4), mime)
+			preview(id).andExpect {
+				status { isUnsupportedMediaType() }
+				content { contentType("application/problem+json") }
+			}
 		}
 	}
 
