@@ -5,7 +5,7 @@ owner: dell26/agent-2
 deps: [p0-deploy,p0-web-auth]
 touches: [web/playwright.config.ts,web/e2e/support,deploy/docker-compose.e2e.yml,server/src/main/kotlin/ch/sonensei/cockpit/core/testsupport,server/src/test/kotlin/ch/sonensei/cockpit/core/testsupport]
 prio: 1
-lease_until: 2026-10-20T12:19:24Z
+lease_until: 2026-10-20T12:24:30Z
 ---
 ## Goal
 Browser tests against the real stack, used by all later web tasks and the phase smoke tests.
