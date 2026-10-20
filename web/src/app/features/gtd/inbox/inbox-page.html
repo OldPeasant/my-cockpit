@@ -25,7 +25,12 @@
         </p>
       }
     } @else if (tasks.error()) {
-      <p class="empty" i18n="@@inbox.loadError">The inbox could not be loaded.</p>
+      <div role="alert">
+        <p class="empty" i18n="@@inbox.loadError">The inbox could not be loaded.</p>
+        <button type="button" class="action" (click)="retry()" i18n="@@inbox.retry">
+          Try again
+        </button>
+      </div>
     } @else {
       <p class="empty" i18n="@@inbox.loading">Loading…</p>
     }
@@ -134,6 +139,7 @@
                     #promptField
                     [value]="promptProject()"
                     (change)="promptProject.set($any($event.target).value)"
+                    (keydown.enter)="confirmPrompt($event)"
                   >
                     @for (project of openProjects(); track project.id) {
                       <option [value]="project.id" [selected]="project.id === promptProject()">

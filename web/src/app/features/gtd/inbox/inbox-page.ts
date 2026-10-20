@@ -64,6 +64,8 @@ export class InboxPage {
   );
   /** The item being processed. */
   protected readonly current = computed<TaskResponse | undefined>(() => this.queue()[0]);
+  /** The id of {@link current}: unlike it, it does not change when the item is refetched. */
+  private readonly currentId = computed(() => this.current()?.id);
   /** Percentage of the items processed since the processing mode started. */
   protected readonly progress = computed(() => {
     const done = this.processed();
@@ -71,14 +73,27 @@ export class InboxPage {
     return total === 0 ? 100 : Math.round((done / total) * 100);
   });
 
-  /** Attributes set inline for the current item; reset when the next item comes up. */
-  protected readonly clarification = linkedSignal<string | undefined, Clarification>({
-    source: () => this.current()?.id,
-    computation: () => clarificationOf(this.current()),
+  /**
+   * The attributes the user set inline for the current item; reset when the next item comes up.
+   * Only these are saved, so a concurrent change to the other fields is kept.
+   */
+  private readonly changes = linkedSignal<string | undefined, Partial<Clarification>>({
+    source: this.currentId,
+    computation: () => ({}),
   });
+  /** The attributes shown for the current item: its own, with the inline changes over them. */
+  protected readonly clarification = computed<Clarification>(() => ({
+    ...clarificationOf(this.current()),
+    ...this.changes(),
+  }));
+  /**
+   * Projects created by "New project" for an item whose move then failed, by item id: a retry
+   * offers that project instead of creating a second one.
+   */
+  private readonly createdProjects = new Map<string, string>();
   /** The action waiting for its value (a date, a person, a project), if any. */
   protected readonly prompt = linkedSignal<string | undefined, PromptAction | null>({
-    source: () => this.current()?.id,
+    source: this.currentId,
     computation: () => null,
   });
   protected readonly promptDate = signal('');
@@ -123,7 +138,12 @@ export class InboxPage {
   }
 
   protected updateClarification(change: Partial<Clarification>): void {
-    this.clarification.update((current) => ({ ...current, ...change }));
+    this.changes.update((current) => ({ ...current, ...change }));
+  }
+
+  /** Fetches the inbox again after a failed load. */
+  protected retry(): void {
+    void this.tasks.refresh();
   }
 
   protected open(task: TaskResponse): void {
@@ -136,14 +156,17 @@ export class InboxPage {
 
   /** Runs `action` on the current item, or asks for its value first. */
   protected choose(action: InboxAction): void {
-    if (!this.current()) return;
+    const task = this.current();
+    if (!task) return;
     if (!isPromptAction(action)) {
       void this.run(action);
       return;
     }
     this.promptDate.set(action === 'schedule' || action === 'tickler' ? this.tomorrow() : '');
     this.promptText.set('');
-    this.promptProject.set(this.openProjects()[0]?.id ?? NEW_PROJECT);
+    this.promptProject.set(
+      this.createdProjects.get(task.id) ?? this.openProjects()[0]?.id ?? NEW_PROJECT,
+    );
     this.prompt.set(action);
   }
 
@@ -193,7 +216,7 @@ export class InboxPage {
   private async run(action: InboxAction): Promise<void> {
     const task = this.current();
     if (!task) return;
-    const clarification = this.clarification();
+    const changes = this.changes();
     const value = {
       date: this.promptDate(),
       text: this.promptText().trim(),
@@ -205,7 +228,7 @@ export class InboxPage {
       if (action === 'trash') {
         await this.tasks.remove(task);
       } else {
-        const patch = clarificationPatch(task, clarification);
+        const patch = clarificationPatch(task, { ...clarificationOf(task), ...changes });
         const base = Object.keys(patch).length ? await this.tasks.update(task, patch) : task;
         await this.apply(action, base, value);
       }
@@ -247,11 +270,13 @@ export class InboxPage {
         await move({ list: 'INBOX', ticklerDate: value.date });
         return;
       case 'project': {
-        const projectId =
-          value.project === NEW_PROJECT
-            ? (await this.projects.create({ title: value.text })).id
-            : value.project;
+        let projectId = value.project;
+        if (projectId === NEW_PROJECT) {
+          projectId = (await this.projects.create({ title: value.text })).id;
+          this.createdProjects.set(task.id, projectId);
+        }
         await move({ list: 'NEXT', projectId });
+        this.createdProjects.delete(task.id);
         return;
       }
       default:

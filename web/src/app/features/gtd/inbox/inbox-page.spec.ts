@@ -53,6 +53,7 @@ describe('InboxPage', () => {
   let calls: Call[];
   let inbox: TaskResponse[];
   let element: HTMLElement;
+  let resync: Subject<void>;
   /** Answers a call instead of the default fake server when it returns a promise. */
   let answer:
     ((fn: unknown, params: Record<string, unknown>) => Promise<unknown> | undefined) | undefined;
@@ -113,8 +114,9 @@ describe('InboxPage', () => {
         throw new Error('unexpected call');
       },
     };
+    resync = new Subject<void>();
     const events = {
-      resync$: new Subject<void>(),
+      resync$: resync,
       events$: () => new Subject<ChangeEvent>(),
     };
     TestBed.configureTestingModule({
@@ -237,6 +239,20 @@ describe('InboxPage', () => {
     expect(callsOf(moveTask)[0].params['body']).toEqual({ list: 'NEXT', projectId: 'p1' });
   });
 
+  it('Enter on the project choice moves the item', async () => {
+    await render([task('t1')]);
+    await press('p');
+    await press('p');
+    const select = element.querySelector<HTMLSelectElement>('.prompt select')!;
+    expect(document.activeElement).toBe(select);
+
+    await press('Enter', select);
+
+    expect(callsOf(moveTask)).toHaveLength(1);
+    expect(callsOf(moveTask)[0].params['body']).toEqual({ list: 'NEXT', projectId: 'p1' });
+    expect(element.textContent).toContain('Inbox zero.');
+  });
+
   it('P can create a new project for the item', async () => {
     await render([task('t1')]);
     await press('p');
@@ -285,6 +301,37 @@ describe('InboxPage', () => {
     });
     // The move uses the version the update returned.
     expect(callsOf(moveTask)[0].params).toMatchObject({ id: 't1', 'If-Match': '"2"' });
+  });
+
+  it('sends only the attributes changed inline, keeping a concurrent change', async () => {
+    await render([task('t1', { energy: 'LOW' })]);
+    await press('p');
+    button('Creative')!.click();
+    await refresh();
+
+    // Another device changes the item while it is shown: the store refetches it.
+    inbox = [task('t1', { energy: 'HIGH', timeEstimateMin: 30, contextIds: ['c1'], version: 2 })];
+    resync.next();
+    await refresh();
+    expect(button('High')!.getAttribute('aria-pressed')).toBe('true');
+    expect(button('Creative')!.getAttribute('aria-pressed')).toBe('true');
+
+    await press('n');
+
+    expect(callsOf(updateTask)).toHaveLength(1);
+    expect(callsOf(updateTask)[0].params).toMatchObject({ id: 't1', 'If-Match': '"2"' });
+    expect(callsOf(updateTask)[0].params['body']).toEqual({ creativity: 'CREATIVE' });
+  });
+
+  it('keeps an open prompt when the item is refetched', async () => {
+    await render([task('t1')]);
+    await press('p');
+    await press('s');
+    inbox = [task('t1', { notesMd: 'Changed elsewhere', version: 2 })];
+    resync.next();
+    await refresh();
+    expect(element.querySelector('.prompt')).not.toBeNull();
+    expect(element.querySelector('.notes')?.textContent).toContain('Changed elsewhere');
   });
 
   it('does not send an update when nothing was changed', async () => {
@@ -423,6 +470,36 @@ describe('InboxPage', () => {
       expect(element.querySelectorAll('app-task-row').length).toBe(1);
     });
 
+    it('offers the created project on a retry when the move after New project failed', async () => {
+      await render([task('t1')]);
+      answer = (fn) => (fn === moveTask ? Promise.reject(new Error('412')) : undefined);
+      await press('p');
+      await press('p');
+      const select = element.querySelector<HTMLSelectElement>('.prompt select')!;
+      select.value = '';
+      select.dispatchEvent(new Event('change'));
+      await refresh();
+      const name = element.querySelector<HTMLInputElement>('.prompt input[type=text]')!;
+      name.value = 'Plan the trip';
+      name.dispatchEvent(new Event('input'));
+      element.querySelector<HTMLFormElement>('.prompt')!.requestSubmit();
+      await refresh();
+      expect(callsOf(createProject)).toHaveLength(1);
+      expect(title()).toBe('Item t1');
+
+      answer = undefined;
+      await press('p');
+      const retry = element.querySelector<HTMLSelectElement>('.prompt select')!;
+      expect(retry.value).toBe('p2');
+      expect(element.querySelector('.prompt input[type=text]')).toBeNull();
+      element.querySelector<HTMLFormElement>('.prompt')!.requestSubmit();
+      await refresh();
+
+      expect(callsOf(createProject)).toHaveLength(1);
+      expect(callsOf(moveTask).at(-1)!.params['body']).toEqual({ list: 'NEXT', projectId: 'p2' });
+      expect(element.textContent).toContain('Inbox zero.');
+    });
+
     it('brings a failed Trash back', async () => {
       await render([task('t1')]);
       answer = (fn) => (fn === deleteTask ? Promise.reject(new Error('412')) : undefined);
@@ -430,6 +507,21 @@ describe('InboxPage', () => {
       await press('x');
       expect(title()).toBe('Item t1');
       expect(left()).toBe('1 item left');
+    });
+
+    it('loads the inbox again with Try again after a load error', async () => {
+      answer = (fn) => (fn === listTasks ? Promise.reject(new Error('503')) : undefined);
+      await render([task('t1')]);
+      expect(element.textContent).toContain('The inbox could not be loaded.');
+
+      answer = undefined;
+      button('Try again')!.click();
+      await refresh();
+
+      expect(callsOf(listTasks)).toHaveLength(2);
+      expect(callsOf(listTasks)[1].params).toMatchObject({ list: 'INBOX' });
+      expect(element.textContent).not.toContain('The inbox could not be loaded.');
+      expect(element.querySelectorAll('app-task-row').length).toBe(1);
     });
 
     it('shows that the inbox could not be loaded, and P does nothing', async () => {
