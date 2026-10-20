@@ -1,10 +1,11 @@
 ---
 title: Android offline capture queue
-status: todo
-owner:
+status: in_progress
+owner: dell26/agent-1
 deps: [and-login,gtd-capture-api,files-api]
 touches: [android/app/src/main/java/ch/sonensei/cockpit/capture/queue,android/app/src/test/java/ch/sonensei/cockpit/capture/queue]
 prio: 1
+lease_until: 2026-10-20T23:30:01Z
 ---
 ## Goal
 Offline-first capture (SPEC.md §9.3).
