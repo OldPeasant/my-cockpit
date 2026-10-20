@@ -1,7 +1,10 @@
-import { signal } from '@angular/core';
+import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
+import { EnvironmentProviders, Provider, signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
+import { provideRouter } from '@angular/router';
 import { ChangeEvent } from '../../api/generated';
 import { AuthService } from '../auth';
+import { NotificationService, provideHttp } from '../http';
 import {
   CHANGE_EVENT_NAME,
   ChangeEventsService,
@@ -42,6 +45,20 @@ class FakeEventSource {
   }
 }
 
+/** The real HTTP stack (interceptors included) against a testing backend, toasts recorded. */
+function httpProviders(
+  notifications: Pick<NotificationService, 'error'>,
+): (Provider | EnvironmentProviders)[] {
+  return [
+    provideHttp(),
+    provideHttpClientTesting(),
+    provideRouter([]),
+    { provide: NotificationService, useValue: notifications },
+  ];
+}
+
+const ME_PATH = '/api/v1/auth/me';
+
 function change(type: string, id = '0190a5c8-0000-7000-8000-000000000001'): ChangeEvent {
   return { type, id, op: 'UPDATED', at: '2026-10-20T10:00:00Z' };
 }
@@ -51,6 +68,8 @@ describe('ChangeEventsService', () => {
   let loggedIn: ReturnType<typeof signal<boolean>>;
   /** `AuthService.checkSession`: by default the session is still valid. */
   let checkSession: ReturnType<typeof vi.fn<(refresh?: boolean) => Promise<boolean>>>;
+  let notifications: { error: ReturnType<typeof vi.fn<(message: string) => void>> };
+  let backend: HttpTestingController;
 
   const latest = () => sources[sources.length - 1];
 
@@ -58,8 +77,10 @@ describe('ChangeEventsService', () => {
     sources = [];
     loggedIn = signal(initiallyLoggedIn);
     checkSession = vi.fn(async () => loggedIn());
+    notifications = { error: vi.fn() };
     TestBed.configureTestingModule({
       providers: [
+        ...httpProviders(notifications),
         {
           provide: AuthService,
           useValue: {
@@ -78,9 +99,22 @@ describe('ChangeEventsService', () => {
         { provide: RECONNECT_BACKOFF, useValue: { initialMs: 1000, maxMs: 8000 } },
       ],
     });
+    backend = TestBed.inject(HttpTestingController);
     const service = TestBed.inject(ChangeEventsService);
     TestBed.tick();
     return service;
+  }
+
+  /** Fails the current stream and answers the session probe it sends. */
+  async function failWithProbe(status: number | 'network'): Promise<void> {
+    latest().fail();
+    await vi.advanceTimersByTimeAsync(0);
+    const probe = backend.expectOne(ME_PATH);
+    expect(probe.request.method).toBe('GET');
+    if (status === 'network') probe.error(new ProgressEvent('error'), { status: 0 });
+    else if (status === 200) probe.flush({ username: 'demo' });
+    else probe.flush({ status, title: 'Error' }, { status, statusText: 'Error' });
+    await vi.advanceTimersByTimeAsync(0);
   }
 
   beforeEach(() => vi.useFakeTimers());
@@ -343,45 +377,60 @@ describe('ChangeEventsService', () => {
     expect(first.onerror).toBeNull();
   });
 
-  it('re-checks the session after a failed connection attempt', async () => {
+  it('probes the session after a failed connection attempt, and reconnects while it is valid', async () => {
     create();
-    latest().fail();
-    await vi.advanceTimersByTimeAsync(0);
-    expect(checkSession).toHaveBeenCalledTimes(1);
-    expect(checkSession).toHaveBeenCalledWith(true);
+    await failWithProbe(200);
 
+    expect(checkSession).not.toHaveBeenCalled();
     await vi.advanceTimersByTimeAsync(1000);
     expect(sources).toHaveLength(2);
   });
 
-  it('stops reconnecting when the session is gone', async () => {
+  it('logs out and stops reconnecting when the probe answers 401', async () => {
     create();
     checkSession.mockImplementation(async () => {
       loggedIn.set(false); // what AuthService does on a 401
       return false;
     });
-    latest().fail();
-    await vi.advanceTimersByTimeAsync(0);
+
+    await failWithProbe(401);
     TestBed.tick();
 
+    expect(checkSession).toHaveBeenCalledExactlyOnceWith(true);
     await vi.advanceTimersByTimeAsync(60_000);
     expect(sources).toHaveLength(1);
-    expect(checkSession).toHaveBeenCalledTimes(1);
+    expect(notifications.error).not.toHaveBeenCalled();
   });
 
-  it('keeps reconnecting with backoff when the session check fails', async () => {
+  it('keeps the backoff going without toasts while the server is unavailable or unreachable', async () => {
     create();
-    checkSession.mockRejectedValue(new Error('network down'));
 
-    for (const delay of [1000, 2000, 4000]) {
-      latest().fail();
+    for (const [status, delay] of [
+      [503, 1000],
+      ['network', 2000],
+      [502, 4000],
+    ] as const) {
       const before = sources.length;
+      await failWithProbe(status);
       await vi.advanceTimersByTimeAsync(delay - 1);
       expect(sources).toHaveLength(before);
       await vi.advanceTimersByTimeAsync(1);
       expect(sources).toHaveLength(before + 1);
     }
-    expect(checkSession).toHaveBeenCalledTimes(3);
+
+    expect(notifications.error).not.toHaveBeenCalled();
+    expect(checkSession).not.toHaveBeenCalled();
+  });
+
+  it('keeps reconnecting when the session re-check after a 401 fails', async () => {
+    create();
+    checkSession.mockRejectedValue(new Error('network down'));
+
+    await failWithProbe(401);
+    await vi.advanceTimersByTimeAsync(1000);
+
+    expect(checkSession).toHaveBeenCalledTimes(1);
+    expect(sources).toHaveLength(2);
   });
 });
 
@@ -419,6 +468,7 @@ describe('ChangeEventsService defaults', () => {
     const sources: FakeEventSource[] = [];
     TestBed.configureTestingModule({
       providers: [
+        ...httpProviders({ error: vi.fn() }),
         {
           provide: AuthService,
           useValue: { loggedIn: signal(true).asReadonly(), checkSession: async () => true },

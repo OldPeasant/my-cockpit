@@ -45,6 +45,30 @@ Removed the guard. The test "ignores errors of a stream it already closed" only 
 Validation:
 - `cd web && npx ng test --watch=false --include src/app/core/events/change-events.service.spec.ts` — Pass
 
+### FX-1 — CR-1 follow-up: a toast on every reconnect failure during an outage (found by the parent worker)
+
+Files changed:
+- `web/src/app/core/events/change-events.service.ts`
+- `web/src/app/core/events/change-events.service.spec.ts`
+
+Problem:
+The CR-1 fix (committed as 8b118fc) called `AuthService.checkSession(true)` after every stream failure. That request sets only `SKIP_LOGIN_REDIRECT`, not `SILENT_ERRORS`. During a network or server outage, `problemInterceptor` therefore showed an error toast for every reconnect failure (status 0, or 502/503 while the server restarts).
+
+Fix:
+The change stays inside `web/src/app/core/events`, and AuthService is unchanged. `ChangeEventsService` now probes the session itself with `inject(Api).invoke(getCurrentUser, undefined, context)`. The context sets both `SKIP_LOGIN_REDIRECT` and `SILENT_ERRORS`, so the probe never shows a toast or redirects. The service calls `auth.checkSession(true)` only when the probe rejects with an `ApiError` of status 401. AuthService then turns logged-out, and its 401 does not toast. The effect stops the stream and cancels the pending reconnect. The service ignores every other probe error and any rejection of that re-check, so the backoff keeps retrying.
+
+Tests: the spec now uses the real HTTP stack: `provideHttp()` (interceptors included), `provideHttpClientTesting()`, `provideRouter([])` and a spy `NotificationService`. `HttpTestingController` answers `GET /api/v1/auth/me`. The CR-1 tests were replaced with:
+- "probes the session after a failed connection attempt, and reconnects while it is valid": a 200 answer leaves AuthService alone, and the stream reconnects after 1 s.
+- "logs out and stops reconnecting when the probe answers 401": the service calls `checkSession(true)` once and opens no new stream within 60 s. No toast is shown.
+- "keeps the backoff going without toasts while the server is unavailable or unreachable": with a 503, a network error (status 0) and a 502, reconnects follow 1 s, 2 s, 4 s. `NotificationService.error` and `checkSession` are never called.
+- "keeps reconnecting when the session re-check after a 401 fails": if the re-check rejects, the service still reconnects.
+
+The "caps the default backoff at 30 s" test also got the HTTP providers, because the service now injects `Api`. I set `SILENT_ERRORS` to false temporarily and ran the suite: the no-toast test failed. With the fix, it passes.
+
+Validation:
+- `cd web && npx ng test --watch=false --include src/app/core/events/change-events.service.spec.ts` — Pass (25 tests)
+- `cd web && npm run check` — Pass, exit 0
+
 ## Not fixed
 
 None.
@@ -52,16 +76,16 @@ None.
 ## Validation summary
 
 Focused tests:
-- `cd web && npx ng test --watch=false --include src/app/core/events/change-events.service.spec.ts` — Pass, 24 tests
+- `cd web && npx ng test --watch=false --include src/app/core/events/change-events.service.spec.ts` — Pass, 25 tests (after FX-1)
 
 Full test suite:
-- `cd web && npm run check` (lint with --max-warnings=0, api check, 19 test files with 271 tests, production build) — Pass, exit 0
+- `cd web && npm run check` (lint with --max-warnings=0, api check, 19 test files with 272 tests, production build) — Pass, exit 0 (after FX-1)
 
 Lint/type-check/build:
 - Included in `npm run check` above — Pass
 
 `.taskcheck`:
-- `sh scripts/check.sh` — Pass, exit 0
+- `sh scripts/check.sh` — Pass, exit 0 (also re-run after FX-1)
 
 Remaining unresolved findings:
 0

@@ -1,7 +1,9 @@
+import { HttpContext } from '@angular/common/http';
 import { DestroyRef, effect, inject, Injectable, InjectionToken, signal } from '@angular/core';
 import { filter, Observable, Subject } from 'rxjs';
-import { ChangeEvent } from '../../api/generated';
+import { Api, ChangeEvent, getCurrentUser } from '../../api/generated';
 import { AuthService } from '../auth';
+import { ApiError, SILENT_ERRORS, SKIP_LOGIN_REDIRECT } from '../http';
 
 /** The server's SSE stream of change notifications (SPEC.md §2). */
 export const EVENTS_PATH = '/api/v1/events';
@@ -43,6 +45,7 @@ export const EVENT_SOURCE_FACTORY = new InjectionToken<(url: string) => EventSou
 @Injectable({ providedIn: 'root' })
 export class ChangeEventsService {
   private readonly auth = inject(AuthService);
+  private readonly api = inject(Api);
   private readonly openEventSource = inject(EVENT_SOURCE_FACTORY);
   private readonly backoff = inject(RECONNECT_BACKOFF);
 
@@ -106,11 +109,21 @@ export class ChangeEventsService {
 
   /**
    * EventSource can't see status codes, so a failure may be an expired or revoked session (401).
-   * Asking the server ends the login then, and the effect stops the stream and the pending retry.
-   * If that request fails as well (e.g. network down), the backoff just keeps retrying.
+   * A silent probe (no toast, no login redirect) asks the server; only on a 401 does AuthService
+   * re-check and end the login, and the effect then stops the stream and the pending retry.
+   * Any other failure (network down, 502/503 during a restart) is ignored: the backoff keeps
+   * retrying without a toast per attempt.
    */
   private checkSession(): void {
-    this.auth.checkSession(true).catch(() => undefined);
+    const context = new HttpContext().set(SKIP_LOGIN_REDIRECT, true).set(SILENT_ERRORS, true);
+    this.api.invoke(getCurrentUser, undefined, context).then(
+      () => undefined,
+      (error: unknown) => {
+        if (error instanceof ApiError && error.status === 401) {
+          this.auth.checkSession(true).catch(() => undefined);
+        }
+      },
+    );
   }
 
   private scheduleReconnect(): void {
