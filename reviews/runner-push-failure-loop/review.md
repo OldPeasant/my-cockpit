@@ -4,30 +4,30 @@ Date: 2026-10-20
 
 Task: runner-push-failure-loop - Runner: stop the loop when release/hold cannot push
 
-Scope: the full task diff `git diff 5cc4dcf620d2c9a11cd6e2b444224cefb649e1d3..HEAD` for agents.py, tasks.py, tests/test_push_failure.py and tests/test_overbudget.py (task commits 9c1da9f1..e357353e, merged into HEAD). Production code was read in full at HEAD. Reviewed revision: 9a6fd2f5965342550b37931d08675272e456f2d6
+Scope: the full task diff `git diff 6645dab9d8afdcd12747f1d372a5103ab90abec1..HEAD` for agents.py, tasks.py, tests/test_push_failure.py and tests/test_overbudget.py (task commits 174b994a..9e8fe809). The production code was read in full at HEAD, with a focus on the fix commit 9e8fe809 (earlier CR-1 and CR-2). Reviewed revision: 9e8fe8090c562beee3731a7b80ea01fcf65a49e8
 
 Requirements:
 - tasks/runner-push-failure-loop.md (goal, 4 acceptance criteria, notes and assumptions)
-- AGENTS.md (task protocol, Evidence, quality gate, project notes)
+- AGENTS.md (task protocol, Evidence, quality gate)
 - docs/QUALITY.md (report contract)
-- Existing conventions in tasks.py and agents.py (give_back(), save_work(), update(), MAX_RELEASES, hand_off(), force_release())
+- reviews/runner-push-failure-loop/fixes.md (the fixer's claims, checked against the code)
+- Existing conventions in agents.py and tasks.py
 
 Git range:
 - Branch: main
-- HEAD: 9a6fd2f5965342550b37931d08675272e456f2d6
-- Base/start: 5cc4dcf620d2c9a11cd6e2b444224cefb649e1d3
-- Commits reviewed: 11 task commits (9c1da9f1, de4232d9, 70e3fdcb, 4b3fd146, 08393073, b2893e6e, 6ae15386, a89b15a6, f8347bdc, 819fe8d9, e357353e), plus board-only claim/release/merge commits and unrelated web-search commits in the range, which were not reviewed
+- HEAD: 9e8fe8090c562beee3731a7b80ea01fcf65a49e8
+- Base/start: 6645dab9d8afdcd12747f1d372a5103ab90abec1
+- Commits reviewed: 13 (174b994a, 3965319e, 33bebc29, 8ad21aaf, 87579784, 6cf2569d, f09c182e, aa636597, a6056170, ecf43167, 2961d1a8, 3b6396bf, 9e8fe809)
 
-Uncommitted changes at review time: `tests/test_push_failure.py` is modified in the working tree. A test-writer was editing it at the same time, so the uncommitted edits were not reviewed. The tests reviewed are the ones committed at HEAD.
+Uncommitted changes at review time: `tests/test_push_failure.py` has 25 added lines in the working tree. A test-writer was adding them at the same time. They were not reviewed. Only the committed code was reviewed.
 
-Validation: the reviewer could not run the test suites, because permission to run tests was denied in this session. The test-writer, fixer and parent report the runs: `python -m unittest tests.test_push_failure` passed with 27 tests and later 28 tests, and `python -m unittest discover tests` passed with 83 tests. `python tasks.py verify runner-push-failure-loop` shows that no criterion has evidence recorded yet. The parent must record it before `done`.
+Validation run by the reviewer: `python -m unittest tests.test_push_failure.ReviewHoldRefused tests.test_push_failure.ReviewReleaseRefused tests.test_push_failure.ReviewReleaseConflict tests.test_push_failure.UsageLimitHandOffRefused tests.test_push_failure.UsageLimitHandOffConflict` -> 5 tests OK (29.5 s). The working tree contains the test-writer's uncommitted additions, but they only add lines after line 408 and do not change these classes' committed tests. `python tasks.py verify runner-push-failure-loop` shows that no criterion has recorded evidence yet. The parent must record it before `done`.
 
-Status of the previous review's findings (on 8237fd5):
-- Old CR-1 (an agent's refused `hold` was retried as a release): fixed for the normal session path. tasks.py now puts `reason` in the push-failure JSON for `hold` (tasks.py:294, 311-312, 1401). The session path calls `block(tid, err, hold=pf.get("reason"))` (agents.py:796), and the blocked loop retries `hold <reason>` (agents.py:665-670). A re-block keeps the stored reason (agents.py:550). HoldRefusedInSession checks this end to end. The over-budget review path still has the same problem; see CR-1 below.
-- Old CR-2 (a hold retry could reset away uncommitted changes): fixed. `give_up()` now aborts an unfinished merge and commits a dirty tree before it runs tasks.py (agents.py:563-567), so every caller is covered. Tests: DoneRefusedDirtyTree, DoneRefusedMergeInProgress.
-- Old CR-3 (stale comment on `blocked`): fixed (agents.py:614-615).
+Status of the previous review's findings (on 9a6fd2f5):
+- CR-1 (a refused `hold` chosen in an over-budget review was replaced by a release): fixed. `pf = push_failure(t0)` is now read before the review branch (agents.py:765). If the review's own non-`done` command was refused (`refused`, agents.py:777), `force_release()` is skipped (agents.py:778). The task stays in `now_mine`, so it is not added to `avoid`. The block at agents.py:788-791 then stores the hold reason, and the blocked loop retries `hold <reason>` (agents.py:656-661). The regression test ReviewHoldRefused checks the whole sequence and passed in the reviewer's run. A refused `done` in a review still goes through `force_release()`: `refused` is false for `cmd == "done"`. Its own refused release blocks the task, and the session's `done` failure, which is now read first, still counts toward the done streak (agents.py:792-801). There is no regression there. The streak now also counts in this path, which it did not before, because the release's record used to overwrite it.
+- CR-2 (duplicated merge-abort/dirty-commit steps): fixed. `give_up()` (agents.py:558-562) is now the only copy. `force_release()` and `hand_off()` call it directly. The hand-off commit message is now "wip: <id> (before hand-off)". No test, tool or doc reads the old "handed off: <reason>" commit subject (checked by grep). The reason is still in the board note "handed off by ...".
 
-Summary: 0 P0, 0 P1, 1 P2, 1 P3
+Summary: 0 P0, 0 P1, 0 P2, 1 P3
 
 ## P0 Critical
 
@@ -39,28 +39,23 @@ None.
 
 ## P2 Medium
 
-- [ ] **CR-1 | A refused `hold` chosen in an over-budget review is replaced by a release, so the hold and its reason are lost**
-    - File: `agents.py:782-787` (review branch calls `force_release()`) runs before `agents.py:792` (`pf = push_failure(t0)`)
-    - Category: Correctness
-    - Problem: The REVIEW prompt offers hold as one of its choices. Take the p0-ci case: the agent chooses `tasks.py hold <id> "<reason>"` in the review, and the remote refuses the push. tasks.py writes the push-failure file with `cmd=hold` and the reason, and the task is still ours. The runner then gets to the review branch first. `now_mine[tid]["extended"] != a.owner` is true, so it calls `force_release()`. That runs a counted `tasks.py release`, which is refused again. That run overwrites the push-failure file with `cmd=release` and no reason, and `give_up()` consumes it through `push_failure()`. `block(tid, err)` then stores no hold reason. Line 792 finds no file, so the session's hold failure is never seen. When pushes work again, the blocked retry runs `release --handoff` (agents.py:671-674). The task goes back to `todo` with no hold, and the agent's reason is not kept anywhere. The old CR-1 fix covers only the normal session path. No test covers a review session in which the hold is refused: ReviewReleaseRefused uses a review that decides nothing.
-    - Why it matters: Criterion 1 says a failed hold leaves the task on hold, or the agent is told plainly that only a human can fix it. Here the runner overrides the decision the agent made in its review and returns the task to the board. Another agent can then claim a task its owner said needs a human, which is the bouncing this task is meant to stop. The extra `release` attempt is also pointless, because the session has just shown that pushes are refused.
-    - Suggested fix: Read the session's push failure before the review branch. For example, move `pf = push_failure(t0)` above the `review` handling. If `pf` is for the reviewed task, skip `force_release()` and use the existing `block(tid, err, hold=...)` handling, so a refused `hold` keeps its reason. Add a runner test: a review session whose fake agent runs `hold` against WORKFLOW_HOOK. It should assert that no "release FAILED" line is logged, the task is blocked, and once the hook is removed the task ends on hold with the agent's reason.
+None.
 
 ## P3 Low
 
-- [ ] **CR-2 | `force_release()` and `hand_off()` repeat the merge-abort and dirty-commit steps that `give_up()` now runs**
-    - File: `agents.py:600-604` (force_release), `agents.py:506-510` (hand_off), duplicated by `agents.py:563-567` (give_up)
-    - Category: Quality
-    - Problem: Since the CR-2 fix, `give_up()` aborts an unfinished merge and commits a dirty tree for every caller. `force_release()` still does both steps before it calls `give_up()`, and `hand_off()` does the same. The copies in the callers never find anything left to do in `give_up()`. The only difference is the commit message: `hand_off()` uses "handed off: <reason>".
-    - Why it matters: There are now three copies of the "save the tree before giving the task back" logic. A later change to one copy, such as a new merge state or the untracked-file handling, can quietly drift from the others.
-    - Suggested fix: Drop the two steps from `force_release()`. If the message in `hand_off()` matters, pass it to `give_up()` as its label. Otherwise drop the steps there too.
+- [ ] **CR-1 | No test covers a refused `done` inside an over-budget review, the branch the CR-1 fix deliberately kept**
+    - File: `agents.py:777` (`pf.get("cmd") != "done"` in `refused`)
+    - Category: Tests
+    - Problem: The fix splits the review path on the session's push-failure command. A refused `release`/`hold`/`extend` skips `force_release()`. A refused `done` still runs it, and the done streak is then counted on top. ReviewHoldRefused covers the first branch. ReviewReleaseRefused and ReviewReleaseConflict* cover reviews that decide nothing, with no session push failure. No test runs a review session whose agent calls `done` against a refusing remote. So no test covers the `cmd == "done"` side of the new condition, or the interplay between the block set by `force_release()` and the streak count that follows.
+    - Why it matters: The condition is new and easy to invert or widen in a later edit, for example by dropping the `!= "done"`. Nothing would fail. A review `done` would then skip the release, and the task would get another review session instead of being blocked.
+    - Suggested fix: Add a runner test with a fake agent whose review runs `done` against WORKFLOW_HOOK. Assert "release FAILED for a" and "BLOCKED on a", a "(1/3 sessions in a row)" log line, and no new sessions (`assert_blocked_without_new_sessions`).
 
 ## Review conclusion
 
-Material issues found; fix before completing the task.
+No material issues found.
 
-Notes on the criteria (from reading the code at HEAD; the reviewer did not run the tests):
-- Criterion 1: met for `release` and `hold`. A refused push to `wip/<id>` (save_work, tasks.py:932-936) or of the board commit (update(), tasks.py:488-493, including the `publish()` path) prints `PUSH FAILED: <git error>`, adds a plain "Only a human can fix it" hint and exits 1 through `sys.exit`, with no traceback. TasksPy tests cover the wip push, the board push, a protected main, and a hold of an unclaimed task. CR-1 is about what the runner then does with a hold refused during a review.
-- Criterion 2: met. After `force_release()` or a review session, the runner checks the exit code and `owned_ids()`. It logs "release FAILED" (or "hand-off FAILED"/"hold FAILED"), never "released", and goes to state `blocked` with the error in `logs/<agent>.status.json`. It retries every `--blocked-retry` s (default 1800) and starts no session on the task in between. The blocked entry is cleared when a human takes the task away.
-- Criterion 3: met. Three sessions in a row with the same `done` push error block the task; the key ignores commit hashes. The error is shown in the log and the status, and the retry is a hold, so the task can't bounce back.
-- Criterion 4: the tests use pre-receive hooks in a bare remote, as the criterion asks. They show that release and hold exit non-zero with the message and that the runner does not resume the task. `sh scripts/check.sh` must still be run and recorded by the parent. As noted above, no criterion has recorded evidence yet.
+Notes on the criteria (from reading the code at HEAD, plus the focused test run above):
+- Criterion 1: met. A refused push to `wip/<id>` (save_work, tasks.py:932-936) or of the board commit (update(), tasks.py:488-493, including the `publish()` path) prints `PUSH FAILED: <git error>` with an "Only a human can fix it" hint. It exits non-zero through `sys.exit`, with no traceback. The TasksPy tests cover both cases.
+- Criterion 2: met. After `force_release()`, a review session or a hand-off, `give_up()` checks the exit code and `owned_ids()`. It logs "<label> FAILED", never "released", and `block()` publishes state `blocked` with the error to `logs/<agent>.status.json`. Retries are spaced by `--blocked-retry` (default 1800 s), and no session starts on the task in between. The block is cleared when a human takes the task away.
+- Criterion 3: met. The same `done` push error (commit hashes normalised) in 3 sessions in a row blocks the task, with the error in the log and status. The retry is a hold, so the task cannot bounce back to the board.
+- Criterion 4: the tests use pre-receive hooks in a bare remote as asked. `sh scripts/check.sh` passing must still be recorded with `tasks.py verify`, together with criteria 1-3.
