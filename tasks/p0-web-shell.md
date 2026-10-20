@@ -18,3 +18,4 @@ The layout every feature plugs into (SPEC.md §9.1). Creates a lazy route + plac
 - [ ] Vitest component/service tests cover navigation rendering, hotkeys ignored in inputs, theme switching; `cd web && npm run check` passes
 
 ## Notes
+- ASSUMPTION (2026-10-20 11:40+0200 by dell26/agent-2): Theme is applied before first paint by web/public/theme-init.js (synchronous <script src> in index.html, outside the task touches) instead of an inline script, so a strict CSP (p0-deploy) needs no hash; key 'cockpit.theme', data-theme='light|dark|system' on <html>.
