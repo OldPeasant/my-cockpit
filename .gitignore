@@ -1,0 +1,6 @@
+.idea/
+# TFP upstream clone (reference copy, not part of this repo)
+/tfp/
+# TFP runtime files
+board.html
+__pycache__/
