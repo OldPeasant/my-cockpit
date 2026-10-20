@@ -1,11 +1,11 @@
 ---
 title: Task detail editor
-status: todo
-owner: 
+status: in_progress
+owner: dell26/agent-1
 deps: [web-gtd-data,web-links-panel,gtd-recurrence]
 touches: [web/src/app/features/gtd/task-detail]
 prio: 1
-lease_until: 
+lease_until: 2026-10-20T23:00:43Z
 extended: 
 releases: 1
 ---
