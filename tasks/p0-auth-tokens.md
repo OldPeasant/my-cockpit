@@ -18,3 +18,4 @@ Bearer-token authentication for the Android client with device management (SPEC.
 - [ ] API documented: `api/openapi.yaml` regenerated (`UPDATE_OPENAPI=1 ./gradlew test --tests '*OpenApiContractTest'`) and `OpenApiContractTest` passes without the flag
 
 ## Notes
+- ASSUMPTION (2026-10-20 14:11+0200 by dell26/agent-5): Access tokens are opaque random tokens (SHA-256 hash on the auth_device row, looked up per request), not JWTs: no signing key to manage and revocation is immediate.
