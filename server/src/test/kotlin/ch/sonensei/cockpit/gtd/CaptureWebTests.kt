@@ -9,6 +9,8 @@ import ch.sonensei.cockpit.core.persistence.MutableClock
 import ch.sonensei.cockpit.core.persistence.MutableClockTestConfiguration
 import ch.sonensei.cockpit.core.persistence.UuidV7
 import ch.sonensei.cockpit.files.domain.FilesService
+import ch.sonensei.cockpit.gtd.domain.CaptureCommand
+import ch.sonensei.cockpit.gtd.domain.CaptureService
 import ch.sonensei.cockpit.gtd.domain.Context
 import ch.sonensei.cockpit.gtd.domain.Project
 import ch.sonensei.cockpit.gtd.domain.ProjectStatus
@@ -32,9 +34,15 @@ import org.springframework.security.test.web.servlet.request.SecurityMockMvcRequ
 import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.ResultActionsDsl
 import org.springframework.test.web.servlet.post
+import org.springframework.transaction.support.TransactionTemplate
 import tools.jackson.databind.JsonNode
 import tools.jackson.databind.json.JsonMapper
+import java.time.Duration
 import java.util.UUID
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
+import javax.sql.DataSource
 
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -50,6 +58,9 @@ class CaptureWebTests(
 	@Autowired private val linkRows: LinkRepository,
 	@Autowired private val clock: MutableClock,
 	@Autowired private val jdbc: JdbcTemplate,
+	@Autowired private val captures: CaptureService,
+	@Autowired private val transactions: TransactionTemplate,
+	@Autowired private val dataSource: DataSource,
 ) : PostgresTestBase() {
 	@BeforeEach
 	@AfterEach
@@ -171,6 +182,23 @@ class CaptureWebTests(
 	}
 
 	@Test
+	fun `body lines are stored verbatim, with and without parsing`() {
+		contexts.save(Context("@home"))
+		val body = "    code block\n  - nested item @home\nA\tB ^1 !today"
+		listOf(true, false).forEach { parse ->
+			val request = mapOf("text" to "Read  this @home\n\n$body\n", "parse" to parse)
+			capture(jsonMapper.writeValueAsString(request))
+				.andExpect {
+					status { isCreated() }
+					jsonPath("$.title") { value(if (parse) "Read this" else "Read this @home") }
+					jsonPath("$.notesMd") { value(body) }
+					jsonPath("$.list") { value("INBOX") }
+					jsonPath("$.dueDate") { doesNotExist() }
+				}
+		}
+	}
+
+	@Test
 	fun `file ids are linked to the task, once each`() {
 		val scan = storedFile("scan.txt")
 		val photo = storedFile("photo.txt")
@@ -192,6 +220,61 @@ class CaptureWebTests(
 		capture(body).andExpect { status { isOk() } }
 		links.linksOf(ItemRef(ItemType.TASK, id)).size shouldBe 1
 	}
+
+	/**
+	 * Two captures with the same client id at the same time (an Android retry while the first upload still runs). The
+	 * first capture keeps its inserted task uncommitted until the HTTP capture waits for the row lock, so the HTTP
+	 * capture always loses the insert race and answers through the controller's fallback.
+	 */
+	@Test
+	fun `a concurrent capture with the same id returns 200 with the winner's task and links no files again`() {
+		val scan = storedFile("scan.txt")
+		val id = UuidV7.generate()
+		val inserted = CountDownLatch(1)
+		val pool = Executors.newSingleThreadExecutor()
+		val competitor =
+			pool.submit<Boolean> {
+				transactions.execute {
+					val created = captures.capture(CaptureCommand(id, "File the receipt", fileIds = listOf(scan.id))).created
+					inserted.countDown()
+					val deadline = System.nanoTime() + Duration.ofSeconds(30).toNanos()
+					while (lockWaiters() == 0) {
+						check(System.nanoTime() < deadline) { "the HTTP capture never waited for the competing insert" }
+						Thread.sleep(20)
+					}
+					created
+				}
+			}
+		try {
+			inserted.await(30, TimeUnit.SECONDS) shouldBe true
+			val retry = mapOf("id" to id, "text" to "File the receipt, retried", "fileIds" to listOf(scan.id))
+			capture(jsonMapper.writeValueAsString(retry))
+				.andExpect {
+					status { isOk() }
+					jsonPath("$.id") { value(id.toString()) }
+					jsonPath("$.title") { value("File the receipt") }
+				}
+			competitor.get(30, TimeUnit.SECONDS) shouldBe true
+		} finally {
+			pool.shutdownNow()
+		}
+		taskCount() shouldBe 1
+		links.linksOf(ItemRef(ItemType.TASK, id)).map { it.target.ref } shouldBe listOf(ItemRef(ItemType.FILE, scan.id))
+	}
+
+	/** On a connection of its own: inside a transaction, Postgres answers pg_stat_activity from a snapshot. */
+	private fun lockWaiters(): Int =
+		dataSource.connection.use { connection ->
+			connection
+				.prepareStatement(
+					"select count(*) from pg_stat_activity where wait_event_type = 'Lock' and query ilike '%insert into task %'",
+				).use { statement ->
+					statement.executeQuery().use { rows ->
+						rows.next()
+						rows.getInt(1)
+					}
+				}
+		}
 
 	@Test
 	fun `an unknown or deleted file is rejected and nothing is created`() {

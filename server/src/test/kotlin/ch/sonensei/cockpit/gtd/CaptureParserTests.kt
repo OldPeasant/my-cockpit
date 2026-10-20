@@ -108,11 +108,15 @@ class CaptureParserTests {
 	}
 
 	@Test
-	fun `trailing punctuation is not part of a token`() {
+	fun `trailing punctuation is not part of a token and stays in the title`() {
 		parse("Call mom @phone, tomorrow is due !tomorrow.").let {
 			it.contexts shouldBe listOf(phone)
 			it.dueDate shouldBe today.plusDays(1)
-			it.title shouldBe "Call mom tomorrow is due"
+			it.title shouldBe "Call mom, tomorrow is due."
+		}
+		parse("Buy tiles (for #garden) today").let {
+			it.project shouldBe garden
+			it.title shouldBe "Buy tiles (for) today"
 		}
 	}
 
@@ -133,7 +137,7 @@ class CaptureParserTests {
 	fun `the first non-blank line is the title, the rest extra notes`() {
 		parse("\n  Read   article @home\n\nhttps://example.org/a\nsecond line  \n").let {
 			it.title shouldBe "Read article"
-			it.extraNotes shouldBe "https://example.org/a\nsecond line"
+			it.extraNotes shouldBe "https://example.org/a\nsecond line  "
 			it.contexts shouldBe listOf(home)
 		}
 	}
@@ -157,5 +161,34 @@ class CaptureParserTests {
 	@Test
 	fun `plain keeps the syntax as text`() {
 		CaptureParser.plain("#garden Plant @home\nnotes") shouldBe ParsedCapture("#garden Plant @home", "notes")
+	}
+
+	@Test
+	fun `body lines keep their indentation, tabs and inner blank lines`() {
+		val body = "    code block\n  - nested item\n\nA\tB  C"
+		val text = "\n  Title   with\tspaces @home \n\n$body\n\n  \n"
+		parse(text).let {
+			it.title shouldBe "Title with spaces"
+			it.contexts shouldBe listOf(home)
+			it.extraNotes shouldBe body
+		}
+		CaptureParser.plain(text) shouldBe ParsedCapture("Title with spaces @home", body)
+	}
+
+	@Test
+	fun `tokens on later lines are not parsed and stay in the notes`() {
+		val body = "see footnote ^1 and ask @home\n#garden !today !2026-04-01 ^waiting"
+		parse("Read article\n$body") shouldBe ParsedCapture("Read article", body)
+	}
+
+	@Test
+	fun `a title line of only tokens takes the next line as the title, unparsed`() {
+		parse("#garden !today\n\nPlant tulips @home\n  bulbs").let {
+			it.project shouldBe garden
+			it.dueDate shouldBe today
+			it.contexts shouldBe emptyList()
+			it.title shouldBe "Plant tulips @home"
+			it.extraNotes shouldBe "  bulbs"
+		}
 	}
 }
