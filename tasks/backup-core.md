@@ -1,10 +1,11 @@
 ---
 title: Backup export: zip format and orchestration
-status: todo
-owner:
+status: in_progress
+owner: R1963MACOS/agent-2
 deps: [p0-settings,p0-items-links,p0-crypto]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/backup,server/src/test/kotlin/ch/sonensei/cockpit/backup]
 prio: 1
+lease_until: 2026-10-20T13:55:24Z
 ---
 ## Goal
 Backup export in format version 1 (SPEC.md §10.2).
