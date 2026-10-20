@@ -29,20 +29,35 @@ interface TaskRepository :
 	/** The highest position of the tasks without a project in a list (`null` when there are none). */
 	@Query("select max(t.position) from Task t where t.list = :list and t.projectId is null and t.deletedAt is null")
 	fun maxPositionInList(list: TaskList): Int?
+
+	/** Every task with the context, also done and deleted ones. */
+	@Query("select t from Task t join t.contextIds c where c = :contextId")
+	fun findAllWithContext(contextId: UUID): List<Task>
 }
 
-interface ProjectRepository : SoftDeletableRepository<Project> {
+interface ProjectRepository :
+	SoftDeletableRepository<Project>,
+	JpaSpecificationExecutor<Project> {
 	fun findByStatusAndDeletedAtIsNullOrderByIdAsc(status: ProjectStatus): List<Project>
+
+	/** The projects of an area, also deleted ones. */
+	fun findByAreaId(areaId: UUID): List<Project>
 }
 
 interface AreaRepository : JpaRepository<Area, UUID> {
 	fun findAllByOrderByPositionAscIdAsc(): List<Area>
+
+	@Query("select max(a.position) from Area a")
+	fun maxPosition(): Int?
 }
 
 interface ContextRepository : JpaRepository<Context, UUID> {
 	fun findAllByOrderByPositionAscIdAsc(): List<Context>
 
 	fun findByNameIgnoreCase(name: String): Context?
+
+	@Query("select max(c.position) from Context c")
+	fun maxPosition(): Int?
 }
 
 interface ChecklistItemRepository : JpaRepository<ChecklistItem, UUID> {

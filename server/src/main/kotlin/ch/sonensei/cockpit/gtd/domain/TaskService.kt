@@ -130,14 +130,22 @@ class TaskService(
 		checkVersion: (Long) -> Unit,
 	): Task = modify(id, checkVersion, keepPosition = fields.position != null) { apply(it, fields) }
 
-	/** Marks the task done (keeps the first completion time when it is already done). */
+	/**
+	 * Marks the task done (keeps the first completion time when it is already done). When it is the next step of an
+	 * active project, that project is now stalled: [CompletedTask.needsNextStep] tells the client to ask for a new one.
+	 */
 	fun complete(
 		id: UUID,
 		checkVersion: (Long) -> Unit,
-	): Task =
-		modify(id, checkVersion) { task ->
-			if (task.completedAt == null) task.completedAt = clock.storableInstant()
-		}
+	): CompletedTask {
+		val task =
+			modify(id, checkVersion) { task ->
+				if (task.completedAt == null) task.completedAt = clock.storableInstant()
+			}
+		val project = task.projectId?.let(projects::findActiveById)
+		val needsNextStep = project != null && project.status == ProjectStatus.ACTIVE && project.nextTaskId == task.id
+		return CompletedTask(task, needsNextStep)
+	}
 
 	/** Makes a done task open again, on the list it was on. */
 	fun uncomplete(

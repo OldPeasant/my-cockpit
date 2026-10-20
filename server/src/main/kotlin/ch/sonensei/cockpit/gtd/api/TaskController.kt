@@ -2,9 +2,7 @@ package ch.sonensei.cockpit.gtd.api
 
 import ch.sonensei.cockpit.core.web.CursorRequest
 import ch.sonensei.cockpit.core.web.ETags
-import ch.sonensei.cockpit.core.web.FieldError
 import ch.sonensei.cockpit.core.web.InvalidRequestException
-import ch.sonensei.cockpit.gtd.domain.Change
 import ch.sonensei.cockpit.gtd.domain.Creativity
 import ch.sonensei.cockpit.gtd.domain.DueFilter
 import ch.sonensei.cockpit.gtd.domain.Energy
@@ -37,7 +35,6 @@ import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.RestController
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder
-import tools.jackson.core.JacksonException
 import tools.jackson.databind.json.JsonMapper
 import java.util.UUID
 import io.swagger.v3.oas.annotations.parameters.RequestBody as DocumentedBody
@@ -253,13 +250,24 @@ class TaskController(
 	@Operation(
 		operationId = "completeTask",
 		summary = "Mark a task done",
-		description = "Completing a done task keeps its completion time. `If-Match` is optional.",
+		description =
+			"Completing a done task keeps its completion time. `needsNextStep` is true when the task is the next step of " +
+				"an ACTIVE project: the client then asks for a new next step (`POST /projects/{id}/next-step`). `If-Match` is optional.",
 	)
-	@WorkflowResponses
+	@ApiResponse(
+		responseCode = "200",
+		description = "The done task with its new ETag, and whether its project needs a new next step",
+		headers = [Header(name = HttpHeaders.ETAG, description = "New version of the task", schema = Schema(type = "string"))],
+		content = [Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = Schema(implementation = CompletedTaskResponse::class))],
+	)
+	@WorkflowErrorResponses
 	fun complete(
 		@PathVariable id: UUID,
 		@Parameter(description = "ETag of the task (optional)") @RequestHeader(HttpHeaders.IF_MATCH, required = false) ifMatch: String?,
-	): ResponseEntity<TaskResponse> = respond(tasks.complete(id) { checkOptionalIfMatch(ifMatch, it) })
+	): ResponseEntity<CompletedTaskResponse> {
+		val result = tasks.complete(id) { checkOptionalIfMatch(ifMatch, it) }
+		return ETags.ok(CompletedTaskResponse(TaskResponse.of(result.task), result.needsNextStep), result.task.version)
+	}
 
 	@PostMapping("/{id}/uncomplete", produces = [MediaType.APPLICATION_JSON_VALUE, PROBLEM_JSON])
 	@Operation(
@@ -295,49 +303,27 @@ class TaskController(
 		if (!ifMatch.isNullOrBlank()) ETags.checkIfMatch(ifMatch, version)
 	}
 
-	/**
-	 * The PATCH body as [TaskChanges]: [TaskPatchRequest] converts the values, the JSON object tells which fields were
-	 * sent (absent: unchanged, `null`: cleared).
-	 */
+	/** The PATCH body as [TaskChanges]. */
 	private fun parsePatch(body: Map<String, Any?>): TaskChanges {
-		val sent = body.keys
-		val unknown = sent - PATCH_FIELDS
-		if (unknown.isNotEmpty()) {
-			throw InvalidRequestException(unknown.sorted().map { FieldError(it, "is not a field that PATCH can change") })
-		}
-		val request =
-			try {
-				jsonMapper.convertValue(body, TaskPatchRequest::class.java)
-			} catch (e: JacksonException) {
-				val field = e.path.mapNotNull { it.propertyName }.firstOrNull() ?: "body"
-				throw InvalidRequestException(field, "has an invalid value")
-			}
-		val notNullable = listOf("title", "position", "contextIds").filter { it in sent && body[it] == null }
-		if (notNullable.isNotEmpty()) throw InvalidRequestException(notNullable.map { FieldError(it, "must not be null") })
-
-		fun <T> change(
-			name: String,
-			value: T,
-		): Change<T>? = if (name in sent) Change(value) else null
-
-		return with(request) {
+		val patch = jsonMapper.parsePatch(body, TaskPatchRequest::class.java, PATCH_FIELDS, NOT_NULLABLE)
+		return with(patch.request) {
 			TaskChanges(
-				title = if ("title" in sent) Change(title!!) else null,
-				notesMd = change("notesMd", notesMd),
-				projectId = change("projectId", projectId),
-				position = if ("position" in sent) Change(position!!) else null,
-				energy = change("energy", energy),
-				creativity = change("creativity", creativity),
-				timeEstimateMin = change("timeEstimateMin", timeEstimateMin),
-				contextIds = if ("contextIds" in sent) Change(contextIds!!.toSet()) else null,
-				dueDate = change("dueDate", dueDate),
-				dueTime = change("dueTime", dueTime),
-				scheduledDate = change("scheduledDate", scheduledDate),
-				waitingForContactId = change("waitingForContactId", waitingForContactId),
-				waitingForText = change("waitingForText", waitingForText),
-				waitingSince = change("waitingSince", waitingSince),
-				recurrenceRule = change("recurrenceRule", recurrenceRule),
-				recurrenceMode = change("recurrenceMode", recurrenceMode),
+				title = patch.required("title", title),
+				notesMd = patch.change("notesMd", notesMd),
+				projectId = patch.change("projectId", projectId),
+				position = patch.required("position", position),
+				energy = patch.change("energy", energy),
+				creativity = patch.change("creativity", creativity),
+				timeEstimateMin = patch.change("timeEstimateMin", timeEstimateMin),
+				contextIds = patch.required("contextIds", contextIds?.toSet()),
+				dueDate = patch.change("dueDate", dueDate),
+				dueTime = patch.change("dueTime", dueTime),
+				scheduledDate = patch.change("scheduledDate", scheduledDate),
+				waitingForContactId = patch.change("waitingForContactId", waitingForContactId),
+				waitingForText = patch.change("waitingForText", waitingForText),
+				waitingSince = patch.change("waitingSince", waitingSince),
+				recurrenceRule = patch.change("recurrenceRule", recurrenceRule),
+				recurrenceMode = patch.change("recurrenceMode", recurrenceMode),
 			)
 		}
 	}
@@ -362,10 +348,11 @@ class TaskController(
 				"recurrenceRule",
 				"recurrenceMode",
 			)
+		val NOT_NULLABLE = setOf("title", "position", "contextIds")
 	}
 }
 
-/** The responses of the workflow actions (complete, uncomplete, move). */
+/** The responses of the workflow actions that return the task (uncomplete, move). */
 @Target(AnnotationTarget.FUNCTION)
 @Retention(AnnotationRetention.RUNTIME)
 @ApiResponse(
@@ -374,6 +361,12 @@ class TaskController(
 	headers = [Header(name = HttpHeaders.ETAG, description = "New version of the task", schema = Schema(type = "string"))],
 	content = [Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = Schema(implementation = TaskResponse::class))],
 )
+@WorkflowErrorResponses
+annotation class WorkflowResponses
+
+/** The error responses of the workflow actions (complete, uncomplete, move). */
+@Target(AnnotationTarget.FUNCTION, AnnotationTarget.ANNOTATION_CLASS)
+@Retention(AnnotationRetention.RUNTIME)
 @ApiResponse(
 	responseCode = "400",
 	description = "Invalid request",
@@ -394,6 +387,6 @@ class TaskController(
 	description = "If-Match was sent and does not match the current ETag",
 	content = [Content(mediaType = PROBLEM_JSON, schema = Schema(ref = "#/components/schemas/ProblemDetail"))],
 )
-annotation class WorkflowResponses
+annotation class WorkflowErrorResponses
 
 internal const val PROBLEM_JSON = MediaType.APPLICATION_PROBLEM_JSON_VALUE

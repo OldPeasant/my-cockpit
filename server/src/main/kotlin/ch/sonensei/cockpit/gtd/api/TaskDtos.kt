@@ -9,6 +9,7 @@ import ch.sonensei.cockpit.gtd.domain.Task
 import ch.sonensei.cockpit.gtd.domain.TaskChanges
 import ch.sonensei.cockpit.gtd.domain.TaskList
 import ch.sonensei.cockpit.gtd.domain.TaskMove
+import com.fasterxml.jackson.annotation.JsonUnwrapped
 import io.swagger.v3.oas.annotations.media.Schema
 import io.swagger.v3.oas.annotations.media.Schema.RequiredMode
 import io.swagger.v3.oas.models.OpenAPI
@@ -78,6 +79,16 @@ data class TaskResponse(
 			)
 	}
 }
+
+@Schema(description = "A task after `/complete`: the task's fields, and whether its project needs a new next step")
+data class CompletedTaskResponse(
+	@get:JsonUnwrapped val task: TaskResponse,
+	@get:Schema(
+		description = "The task was the next step of an ACTIVE project, which is now stalled: ask the user for a new next step",
+		requiredMode = RequiredMode.REQUIRED,
+	)
+	val needsNextStep: Boolean,
+)
 
 @Schema(description = "One page of tasks")
 data class TaskPageResponse(

@@ -17,10 +17,6 @@ tags:
   name: Events
 - description: Web login sessions and device tokens
   name: Auth
-- description: "IMAP/SMTP accounts with password, and Google/Microsoft accounts through\
-    \ an OAuth connection (XOAUTH2). Passwords are write-only. Changes send `change`\
-    \ events of type `MAIL_ACCOUNT` and `MAIL_FOLDER`."
-  name: Mail accounts
 - description: GTD tasks
   name: Tasks
 - description: Global search across all item types
@@ -29,11 +25,230 @@ tags:
   name: Settings
 - description: First-run creation of the owner account
   name: Setup
+- description: "GTD projects, areas of focus and contexts"
+  name: Projects
 - description: Links between items of any type
   name: Links
 - description: "Deleted items: list, restore, delete permanently"
   name: Trash
 paths:
+  /api/v1/areas:
+    get:
+      operationId: listAreas
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AreaListResponse"
+          description: The areas
+      summary: All areas in order
+      tags:
+      - Projects
+    post:
+      operationId: createArea
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateAreaRequest"
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AreaResponse"
+          description: Created
+          headers:
+            ETag:
+              description: "Version of the area, for If-Match"
+              schema:
+                type: string
+              style: simple
+        "400":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: Invalid or unknown fields
+      summary: Create an area
+      tags:
+      - Projects
+  /api/v1/areas/order:
+    put:
+      operationId: orderAreas
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OrderRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AreaListResponse"
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/AreaListResponse"
+          description: All areas in the new order
+        "400":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: Invalid or unknown fields
+      summary: Reorder all areas
+      tags:
+      - Projects
+  /api/v1/areas/{id}:
+    delete:
+      description: Deleted for good (areas have no Trash); its projects no longer
+        have an area.
+      operationId: deleteArea
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - description: ETag of the area
+        in: header
+        name: If-Match
+        required: false
+        schema:
+          type: string
+      responses:
+        "204":
+          description: Deleted
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: "Not found (projects: or in the Trash)"
+        "409":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: "Changed concurrently, or (contexts) the name is taken"
+        "412":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: If-Match does not match the current ETag
+        "428":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: If-Match is missing
+      summary: Delete an area
+      tags:
+      - Projects
+    get:
+      operationId: getArea
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AreaResponse"
+          description: The area with its (new) ETag
+          headers:
+            ETag:
+              description: "Version of the area, for If-Match"
+              schema:
+                type: string
+              style: simple
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: "Not found (projects: or in the Trash)"
+      summary: One area
+      tags:
+      - Projects
+    patch:
+      operationId: updateArea
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - description: ETag of the area
+        in: header
+        name: If-Match
+        required: false
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateAreaRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AreaResponse"
+          description: The area with its (new) ETag
+          headers:
+            ETag:
+              description: "Version of the area, for If-Match"
+              schema:
+                type: string
+              style: simple
+        "400":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: Invalid or unknown fields
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: "Not found (projects: or in the Trash)"
+        "409":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: "Changed concurrently, or (contexts) the name is taken"
+        "412":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: If-Match does not match the current ETag
+        "428":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: If-Match is missing
+      summary: Change an area
+      tags:
+      - Projects
   /api/v1/auth/devices:
     get:
       operationId: listDevices
@@ -276,6 +491,229 @@ paths:
       summary: Rotate a device's tokens
       tags:
       - Auth
+  /api/v1/contexts:
+    get:
+      operationId: listContexts
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ContextListResponse"
+          description: The contexts
+      summary: All contexts in order
+      tags:
+      - Projects
+    post:
+      operationId: createContext
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateContextRequest"
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ContextResponse"
+          description: Created
+          headers:
+            ETag:
+              description: "Version of the context, for If-Match"
+              schema:
+                type: string
+              style: simple
+        "400":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: Invalid or unknown fields
+        "409":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: A context with this name exists
+      summary: Create a context
+      tags:
+      - Projects
+  /api/v1/contexts/order:
+    put:
+      operationId: orderContexts
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OrderRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ContextListResponse"
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ContextListResponse"
+          description: All contexts in the new order
+        "400":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: Invalid or unknown fields
+      summary: Reorder all contexts
+      tags:
+      - Projects
+  /api/v1/contexts/{id}:
+    delete:
+      description: Deleted for good; it is removed from its tasks.
+      operationId: deleteContext
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - description: ETag of the context
+        in: header
+        name: If-Match
+        required: false
+        schema:
+          type: string
+      responses:
+        "204":
+          description: Deleted
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: "Not found (projects: or in the Trash)"
+        "409":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: "Changed concurrently, or (contexts) the name is taken"
+        "412":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: If-Match does not match the current ETag
+        "428":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: If-Match is missing
+      summary: Delete a context
+      tags:
+      - Projects
+    get:
+      operationId: getContext
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ContextResponse"
+          description: The context with its (new) ETag
+          headers:
+            ETag:
+              description: "Version of the context, for If-Match"
+              schema:
+                type: string
+              style: simple
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: "Not found (projects: or in the Trash)"
+      summary: One context
+      tags:
+      - Projects
+    patch:
+      description: Only the fields sent change; `null` clears `color`.
+      operationId: updateContext
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - description: ETag of the context
+        in: header
+        name: If-Match
+        required: false
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ContextPatchRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ContextResponse"
+          description: The context with its (new) ETag
+          headers:
+            ETag:
+              description: "Version of the context, for If-Match"
+              schema:
+                type: string
+              style: simple
+        "400":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: Invalid or unknown fields
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: "Not found (projects: or in the Trash)"
+        "409":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: "Changed concurrently, or (contexts) the name is taken"
+        "412":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: If-Match does not match the current ETag
+        "428":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: If-Match is missing
+      summary: Change a context
+      tags:
+      - Projects
   /api/v1/events:
     get:
       description: "A Server-Sent Events stream. Each committed change arrives as\
@@ -413,348 +851,6 @@ paths:
       summary: Remove a manual link
       tags:
       - Links
-  /api/v1/mail/accounts:
-    get:
-      operationId: listMailAccounts
-      responses:
-        "200":
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/MailAccountListResponse"
-          description: The accounts (passwords are never returned)
-      summary: "All mail accounts, by display name"
-      tags:
-      - Mail accounts
-    post:
-      description: "`IMAP_SMTP` accounts need servers, username and password. `GOOGLE`/`MICROSOFT`\
-        \ accounts need `oauthConnectionId` (a connection of that provider, see `/api/v1/oauth`)\
-        \ and no password; servers default to the provider's and the username to the\
-        \ connection's email address. The servers are not contacted: use `POST /{id}/test`\
-        \ and `POST /{id}/folders/sync` afterwards."
-      operationId: createMailAccount
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/CreateMailAccountRequest"
-        required: true
-      responses:
-        "201":
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/MailAccountResponse"
-          description: Created; `Location` points to the account
-        "400":
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/ProblemDetail"
-          description: Invalid request
-      summary: Add a mail account
-      tags:
-      - Mail accounts
-  /api/v1/mail/accounts/{id}:
-    delete:
-      description: Removes the account with its cached folders and messages. Mail
-        on the server is not touched.
-      operationId: deleteMailAccount
-      parameters:
-      - in: path
-        name: id
-        required: true
-        schema:
-          type: string
-          format: uuid
-      - description: The account's ETag
-        in: header
-        name: If-Match
-        required: true
-        schema:
-          type: string
-      responses:
-        "204":
-          description: Removed
-        "404":
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/ProblemDetail"
-          description: No such account
-        "412":
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/ProblemDetail"
-          description: If-Match is stale
-        "428":
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/ProblemDetail"
-          description: If-Match is missing
-      summary: Remove a mail account
-      tags:
-      - Mail accounts
-    get:
-      operationId: getMailAccount
-      parameters:
-      - in: path
-        name: id
-        required: true
-        schema:
-          type: string
-          format: uuid
-      responses:
-        "200":
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/MailAccountResponse"
-          description: "The account, with its version as ETag"
-          headers:
-            ETag:
-              schema:
-                type: string
-              style: simple
-        "404":
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/ProblemDetail"
-          description: No such account
-      summary: One mail account
-      tags:
-      - Mail accounts
-    patch:
-      description: "Absent (or null) fields stay unchanged; the type cannot change.\
-        \ A server is changed as a whole (host, port and security together). `password`\
-        \ replaces the stored one; an empty `signatureMd` removes the signature. Changing\
-        \ servers or credentials closes the account's open IMAP connections."
-      operationId: updateMailAccount
-      parameters:
-      - in: path
-        name: id
-        required: true
-        schema:
-          type: string
-          format: uuid
-      - description: The account's ETag
-        in: header
-        name: If-Match
-        required: true
-        schema:
-          type: string
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/UpdateMailAccountRequest"
-        required: true
-      responses:
-        "200":
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/MailAccountResponse"
-          description: "The changed account, with its new ETag"
-          headers:
-            ETag:
-              schema:
-                type: string
-              style: simple
-        "400":
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/ProblemDetail"
-          description: Invalid request
-        "404":
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/ProblemDetail"
-          description: No such account
-        "412":
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/ProblemDetail"
-          description: If-Match is stale
-        "428":
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/ProblemDetail"
-          description: If-Match is missing
-      summary: Change a mail account
-      tags:
-      - Mail accounts
-  /api/v1/mail/accounts/{id}/folders:
-    get:
-      description: "The folder list of the last sync, by path. Empty before the first\
-        \ sync."
-      operationId: listMailFolders
-      parameters:
-      - in: path
-        name: id
-        required: true
-        schema:
-          type: string
-          format: uuid
-      responses:
-        "200":
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/MailFolderListResponse"
-          description: The folders
-        "404":
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/ProblemDetail"
-          description: No such account
-      summary: The account's folders (cached)
-      tags:
-      - Mail accounts
-  /api/v1/mail/accounts/{id}/folders/sync:
-    post:
-      description: "Adds new folders, removes vanished ones (their cached messages\
-        \ stay as link targets) and detects roles via SPECIAL-USE (RFC 6154) or well-known\
-        \ names. Roles set by hand are kept."
-      operationId: syncMailFolders
-      parameters:
-      - in: path
-        name: id
-        required: true
-        schema:
-          type: string
-          format: uuid
-      responses:
-        "200":
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/MailFolderListResponse"
-          description: The folders after the sync
-        "404":
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/ProblemDetail"
-          description: No such account
-        "502":
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/ProblemDetail"
-          description: The mail server could not be reached or rejected the login;
-            `errorCode` says why
-      summary: Read the folder list from the server
-      tags:
-      - Mail accounts
-  /api/v1/mail/accounts/{id}/folders/{folderId}:
-    patch:
-      description: "`{\"role\": \"ARCHIVE\"}` makes the folder the account's Archive\
-        \ (the folder that had the role loses it); `{\"role\": null}` gives it no\
-        \ role. Either way detection leaves it alone from then on. `{\"automatic\"\
-        : true}` hands the folder back to detection on the next sync."
-      operationId: updateMailFolder
-      parameters:
-      - in: path
-        name: id
-        required: true
-        schema:
-          type: string
-          format: uuid
-      - in: path
-        name: folderId
-        required: true
-        schema:
-          type: string
-          format: uuid
-      - description: The folder's ETag
-        in: header
-        name: If-Match
-        required: true
-        schema:
-          type: string
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/UpdateMailFolderRequest"
-        required: true
-      responses:
-        "200":
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/MailFolderResponse"
-          description: "The changed folder, with its new ETag"
-          headers:
-            ETag:
-              schema:
-                type: string
-              style: simple
-        "400":
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/ProblemDetail"
-          description: Invalid request
-        "404":
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/ProblemDetail"
-          description: No such folder
-        "412":
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/ProblemDetail"
-          description: If-Match is stale
-        "428":
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/ProblemDetail"
-          description: If-Match is missing
-      summary: Set a folder's role by hand
-      tags:
-      - Mail accounts
-  /api/v1/mail/accounts/{id}/test:
-    post:
-      description: "Logs in to the IMAP and the SMTP server with the stored settings.\
-        \ Failures are reported in the body (200), per protocol, as an error code\
-        \ with a fixed message."
-      operationId: testMailAccountConnection
-      parameters:
-      - in: path
-        name: id
-        required: true
-        schema:
-          type: string
-          format: uuid
-      responses:
-        "200":
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ConnectionTestResponse"
-          description: The outcome per protocol
-        "404":
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/ProblemDetail"
-          description: No such account
-      summary: Test the connection
-      tags:
-      - Mail accounts
   /api/v1/oauth/connections:
     get:
       operationId: listOAuthConnections
@@ -976,6 +1072,359 @@ paths:
       summary: Start connecting a provider account (browser navigation)
       tags:
       - OAuth
+  /api/v1/projects:
+    get:
+      description: "Projects matching every given filter, not in the Trash, ordered\
+        \ by title, then id."
+      operationId: listProjects
+      parameters:
+      - description: Only projects with this status
+        in: query
+        name: status
+        required: false
+        schema:
+          type: string
+          enum:
+          - ACTIVE
+          - ON_HOLD
+          - SOMEDAY
+          - COMPLETED
+          - DROPPED
+      - description: Only projects in this area
+        in: query
+        name: areaId
+        required: false
+        schema:
+          type: string
+          format: uuid
+      - description: "true: only stalled projects, false: only projects that are not\
+          \ stalled"
+        in: query
+        name: stalled
+        required: false
+        schema:
+          type: boolean
+      - description: Cursor from the previous page
+        in: query
+        name: cursor
+        required: false
+        schema:
+          type: string
+      - description: "Page size, 1-200 (default 50)"
+        in: query
+        name: limit
+        required: false
+        schema:
+          type: integer
+          format: int32
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProjectPageResponse"
+          description: One page of projects
+        "400":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: Invalid or unknown fields
+      summary: List projects
+      tags:
+      - Projects
+    post:
+      operationId: createProject
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateProjectRequest"
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProjectResponse"
+          description: Created
+          headers:
+            ETag:
+              description: "Version of the project, for If-Match"
+              schema:
+                type: string
+              style: simple
+        "400":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: Invalid or unknown fields
+      summary: Create a project
+      tags:
+      - Projects
+  /api/v1/projects/{id}:
+    delete:
+      description: Its tasks keep their project.
+      operationId: deleteProject
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - description: ETag of the project
+        in: header
+        name: If-Match
+        required: false
+        schema:
+          type: string
+      responses:
+        "204":
+          description: In the Trash
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: "Not found (projects: or in the Trash)"
+        "409":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: "Changed concurrently, or (contexts) the name is taken"
+        "412":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: If-Match does not match the current ETag
+        "428":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: If-Match is missing
+      summary: Move a project to the Trash
+      tags:
+      - Projects
+    get:
+      operationId: getProject
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProjectResponse"
+          description: The project with its (new) ETag
+          headers:
+            ETag:
+              description: "Version of the project, for If-Match"
+              schema:
+                type: string
+              style: simple
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: "Not found (projects: or in the Trash)"
+      summary: One project
+      tags:
+      - Projects
+    patch:
+      description: Only the fields sent change; `null` clears a field. Unknown fields
+        (including `nextTaskId`) are rejected.
+      operationId: updateProject
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - description: ETag of the project
+        in: header
+        name: If-Match
+        required: false
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProjectPatchRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProjectResponse"
+          description: The project with its (new) ETag
+          headers:
+            ETag:
+              description: "Version of the project, for If-Match"
+              schema:
+                type: string
+              style: simple
+        "400":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: Invalid or unknown fields
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: "Not found (projects: or in the Trash)"
+        "409":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: "Changed concurrently, or (contexts) the name is taken"
+        "412":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: If-Match does not match the current ETag
+        "428":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: If-Match is missing
+      summary: Change a project
+      tags:
+      - Projects
+  /api/v1/projects/{id}/next-step:
+    post:
+      description: "The task must be an open task of the project (create a new one\
+        \ with `POST /tasks` and `projectId` first); `taskId: null` clears the next\
+        \ step. `If-Match` is optional."
+      operationId: setProjectNextStep
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - description: ETag of the project (optional)
+        in: header
+        name: If-Match
+        required: false
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/NextStepRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProjectResponse"
+          description: The project with its (new) ETag
+          headers:
+            ETag:
+              description: "Version of the project, for If-Match"
+              schema:
+                type: string
+              style: simple
+        "400":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: Invalid or unknown fields
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: "Not found (projects: or in the Trash)"
+        "409":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: "Changed concurrently, or (contexts) the name is taken"
+        "412":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: If-Match does not match the current ETag
+        "428":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: If-Match is missing
+      summary: Designate the project's next step
+      tags:
+      - Projects
+  /api/v1/projects/{id}/order:
+    put:
+      description: "The listed tasks come first, in the given order, then the project's\
+        \ other tasks (open and done) in their previous order. Changes the tasks'\
+        \ `position` (and version), not the project."
+      operationId: orderProjectTasks
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+          format: uuid
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OrderTasksRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TaskListResponse"
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/TaskListResponse"
+          description: All tasks of the project (not in the Trash) in the new order
+        "400":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: Invalid or unknown fields
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: "Not found (projects: or in the Trash)"
+      summary: Order the project's tasks
+      tags:
+      - Projects
   /api/v1/reminders:
     get:
       description: "All reminders of the item, fired or not, earliest first."
@@ -1649,8 +2098,10 @@ paths:
       - Tasks
   /api/v1/tasks/{id}/complete:
     post:
-      description: Completing a done task keeps its completion time. `If-Match` is
-        optional.
+      description: "Completing a done task keeps its completion time. `needsNextStep`\
+        \ is true when the task is the next step of an ACTIVE project: the client\
+        \ then asks for a new next step (`POST /projects/{id}/next-step`). `If-Match`\
+        \ is optional."
       operationId: completeTask
       parameters:
       - in: path
@@ -1670,8 +2121,9 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/TaskResponse"
-          description: The changed task with its new ETag
+                $ref: "#/components/schemas/CompletedTaskResponse"
+          description: "The done task with its new ETag, and whether its project needs\
+            \ a new next step"
           headers:
             ETag:
               description: New version of the task
@@ -2150,6 +2602,36 @@ paths:
       - Trash
 components:
   schemas:
+    AreaListResponse:
+      type: object
+      description: All areas in order
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/AreaResponse"
+      required:
+      - items
+    AreaResponse:
+      type: object
+      description: An area of focus. `version` is also sent as the ETag.
+      properties:
+        id:
+          type: string
+          format: uuid
+        position:
+          type: integer
+          format: int32
+        title:
+          type: string
+        version:
+          type: integer
+          format: int64
+      required:
+      - id
+      - position
+      - title
+      - version
     ChangeEvent:
       type: object
       description: A change notification. Clients refetch the item; the event carries
@@ -2214,6 +2696,114 @@ components:
             $ref: "#/components/schemas/ChecklistItemResponse"
       required:
       - items
+    CompletedTaskResponse:
+      type: object
+      description: "A task after `/complete`: the task's fields, and whether its project\
+        \ needs a new next step"
+      properties:
+        completedAt:
+          type: string
+          format: date-time
+          description: When the task was done; `null` while it is open
+        contextIds:
+          type: array
+          items:
+            type: string
+            format: uuid
+        createdAt:
+          type: string
+          format: date-time
+        creativity:
+          type: string
+          enum:
+          - ROUTINE
+          - MIXED
+          - CREATIVE
+        dueDate:
+          type: string
+          format: date
+          description: Local date in the user's time zone
+        dueTime:
+          type: string
+          format: time
+          example: 14:30:00
+        energy:
+          type: string
+          enum:
+          - LOW
+          - MEDIUM
+          - HIGH
+        id:
+          type: string
+          format: uuid
+        list:
+          type: string
+          enum:
+          - INBOX
+          - NEXT
+          - WAITING
+          - SOMEDAY
+          - SCHEDULED
+        needsNextStep:
+          type: boolean
+          description: "The task was the next step of an ACTIVE project, which is\
+            \ now stalled: ask the user for a new next step"
+        notesMd:
+          type: string
+        position:
+          type: integer
+          format: int32
+          description: "Order within the project, or within the list for tasks without\
+            \ a project"
+        projectId:
+          type: string
+          format: uuid
+        recurrenceMode:
+          type: string
+          enum:
+          - FIXED
+          - AFTER_COMPLETION
+        recurrenceRule:
+          type: string
+          description: iCalendar RRULE without the `RRULE:` prefix
+          example: FREQ=WEEKLY;BYDAY=MO
+        scheduledDate:
+          type: string
+          format: date
+        ticklerDate:
+          type: string
+          format: date
+          description: "While set, the task is hidden; on that date it returns to\
+            \ the Inbox"
+        timeEstimateMin:
+          type: integer
+          format: int32
+        title:
+          type: string
+        updatedAt:
+          type: string
+          format: date-time
+        version:
+          type: integer
+          format: int64
+        waitingForContactId:
+          type: string
+          format: uuid
+        waitingForText:
+          type: string
+        waitingSince:
+          type: string
+          format: date
+      required:
+      - contextIds
+      - createdAt
+      - id
+      - list
+      - needsNextStep
+      - position
+      - title
+      - updatedAt
+      - version
     ConfirmTotpRequest:
       type: object
       properties:
@@ -2224,16 +2814,68 @@ components:
           minLength: 1
       required:
       - code
-    ConnectionTestResponse:
+    ContextListResponse:
       type: object
+      description: All contexts in order
       properties:
-        imap:
-          $ref: "#/components/schemas/ProtocolTestResponse"
-        smtp:
-          $ref: "#/components/schemas/ProtocolTestResponse"
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/ContextResponse"
       required:
-      - imap
-      - smtp
+      - items
+    ContextPatchRequest:
+      type: object
+      description: "Changes to a context: only the fields sent change; `null` clears\
+        \ `color` (the others cannot be cleared)"
+      properties:
+        color:
+          type:
+          - string
+          - "null"
+          description: Hex color (`#rgb` or `#rrggbb`)
+        name:
+          type: string
+          maxLength: 100
+        position:
+          type: integer
+          format: int32
+    ContextResponse:
+      type: object
+      description: A context such as `@home`. `version` is also sent as the ETag.
+      properties:
+        color:
+          type: string
+          description: "Hex color, e.g. `#3366ff`"
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        position:
+          type: integer
+          format: int32
+        version:
+          type: integer
+          format: int64
+      required:
+      - id
+      - name
+      - position
+      - version
+    CreateAreaRequest:
+      type: object
+      description: A new area
+      properties:
+        position:
+          type: integer
+          format: int32
+          description: "Default: at the end"
+        title:
+          type: string
+          maxLength: 200
+      required:
+      - title
     CreateChecklistItemRequest:
       type: object
       description: "A new checklist item, added at the end"
@@ -2245,6 +2887,24 @@ components:
           maxLength: 1000
       required:
       - text
+    CreateContextRequest:
+      type: object
+      description: A new context. Names are trimmed and unique regardless of case.
+      properties:
+        color:
+          type: string
+          description: Hex color (`#rgb` or `#rrggbb`)
+          example: "#3366ff"
+        name:
+          type: string
+          example: '@home'
+          maxLength: 100
+        position:
+          type: integer
+          format: int32
+          description: "Default: at the end"
+      required:
+      - name
     CreateLinkRequest:
       type: object
       properties:
@@ -2260,59 +2920,35 @@ components:
       required:
       - source
       - target
-    CreateMailAccountRequest:
+    CreateProjectRequest:
       type: object
+      description: A new project. Only `title` is required; the status defaults to
+        ACTIVE.
       properties:
-        displayName:
-          type: string
-          description: Defaults to the email address
-          maxLength: 200
-          minLength: 0
-        emailAddress:
-          type: string
-          format: email
-          minLength: 1
-        imap:
-          $ref: "#/components/schemas/MailServerRequest"
-          description: Required for IMAP_SMTP; defaults to the provider's server for
-            GOOGLE/MICROSOFT
-        notifyNewMail:
-          type: boolean
-          description: Notify about new mail in the Inbox; defaults to true
-        oauthConnectionId:
+        areaId:
           type: string
           format: uuid
-          description: "GOOGLE/MICROSOFT only: the OAuth connection to log in with"
-        password:
+        descriptionMd:
           type: string
-          description: "IMAP_SMTP only: password or app password. Write-only"
-          writeOnly: true
-        signatureMd:
+        dueDate:
           type: string
-          description: Markdown
-        smtp:
-          $ref: "#/components/schemas/MailServerRequest"
-          description: Required for IMAP_SMTP; defaults to the provider's server for
-            GOOGLE/MICROSOFT
-        syncWindowMonths:
-          type: integer
-          format: int32
-          description: Months of headers cached on the first sync; defaults to 12
-          maximum: 600
-          minimum: 1
-        type:
+          format: date
+        reviewDate:
+          type: string
+          format: date
+        status:
           type: string
           enum:
-          - IMAP_SMTP
-          - GOOGLE
-          - MICROSOFT
-        username:
+          - ACTIVE
+          - ON_HOLD
+          - SOMEDAY
+          - COMPLETED
+          - DROPPED
+        title:
           type: string
-          description: Required for IMAP_SMTP; defaults to the connection's email
-            for GOOGLE/MICROSOFT
+          maxLength: 500
       required:
-      - emailAddress
-      - type
+      - title
     CreateReminderRequest:
       type: object
       properties:
@@ -2597,173 +3233,6 @@ components:
       required:
       - password
       - username
-    MailAccountListResponse:
-      type: object
-      properties:
-        items:
-          type: array
-          items:
-            $ref: "#/components/schemas/MailAccountResponse"
-      required:
-      - items
-    MailAccountResponse:
-      type: object
-      properties:
-        createdAt:
-          type: string
-          format: date-time
-        displayName:
-          type: string
-        emailAddress:
-          type: string
-        hasPassword:
-          type: boolean
-          description: Whether a password is stored (it is never returned)
-        id:
-          type: string
-          format: uuid
-        imap:
-          $ref: "#/components/schemas/MailServerResponse"
-        notifyNewMail:
-          type: boolean
-        oauthConnectionId:
-          type: string
-          format: uuid
-        signatureMd:
-          type: string
-        smtp:
-          $ref: "#/components/schemas/MailServerResponse"
-        syncWindowMonths:
-          type: integer
-          format: int32
-        type:
-          type: string
-          enum:
-          - IMAP_SMTP
-          - GOOGLE
-          - MICROSOFT
-        updatedAt:
-          type: string
-          format: date-time
-        username:
-          type: string
-        version:
-          type: integer
-          format: int64
-          description: The ETag value for If-Match
-      required:
-      - createdAt
-      - displayName
-      - emailAddress
-      - hasPassword
-      - id
-      - imap
-      - notifyNewMail
-      - smtp
-      - syncWindowMonths
-      - type
-      - updatedAt
-      - username
-      - version
-    MailFolderListResponse:
-      type: object
-      properties:
-        items:
-          type: array
-          items:
-            $ref: "#/components/schemas/MailFolderResponse"
-      required:
-      - items
-    MailFolderResponse:
-      type: object
-      properties:
-        accountId:
-          type: string
-          format: uuid
-        delimiter:
-          type: string
-          description: Hierarchy delimiter; absent for flat namespaces
-        id:
-          type: string
-          format: uuid
-        lastSyncedAt:
-          type: string
-          format: date-time
-        name:
-          type: string
-          description: Last path segment
-        path:
-          type: string
-          description: "Full IMAP path, e.g. INBOX/Projects"
-        role:
-          type: string
-          enum:
-          - INBOX
-          - SENT
-          - DRAFTS
-          - TRASH
-          - ARCHIVE
-          - SPAM
-        roleOverridden:
-          type: boolean
-          description: The role was set by hand
-        selectable:
-          type: boolean
-          description: false for folders that only group children
-        version:
-          type: integer
-          format: int64
-          description: The ETag value for If-Match
-      required:
-      - accountId
-      - id
-      - name
-      - path
-      - roleOverridden
-      - selectable
-      - version
-    MailServerRequest:
-      type: object
-      properties:
-        host:
-          type: string
-          example: imap.example.com
-          maxLength: 253
-          minLength: 0
-        port:
-          type: integer
-          format: int32
-          example: 993
-          maximum: 65535
-          minimum: 1
-        security:
-          type: string
-          enum:
-          - SSL_TLS
-          - STARTTLS
-          - NONE
-      required:
-      - host
-      - port
-      - security
-    MailServerResponse:
-      type: object
-      properties:
-        host:
-          type: string
-        port:
-          type: integer
-          format: int32
-        security:
-          type: string
-          enum:
-          - SSL_TLS
-          - STARTTLS
-          - NONE
-      required:
-      - host
-      - port
-      - security
     MeResponse:
       type: object
       properties:
@@ -2805,6 +3274,16 @@ components:
           type: string
       required:
       - list
+    NextStepRequest:
+      type: object
+      description: The project's new next step
+      properties:
+        taskId:
+          type:
+          - string
+          - "null"
+          format: uuid
+          description: An open task of the project; `null` clears the next step
     OAuthConnectionResponse:
       type: object
       properties:
@@ -2869,6 +3348,31 @@ components:
       - configured
       - provider
       - slug
+    OrderRequest:
+      type: object
+      description: A new order of all items
+      properties:
+        ids:
+          type: array
+          description: "Every id exactly once, in the new order"
+          items:
+            type: string
+            format: uuid
+      required:
+      - ids
+    OrderTasksRequest:
+      type: object
+      description: A new order of a project's tasks
+      properties:
+        taskIds:
+          type: array
+          description: Tasks of the project in their new order; its other tasks follow
+            in their previous order
+          items:
+            type: string
+            format: uuid
+      required:
+      - taskIds
     ProblemDetail:
       type: object
       description: "RFC 9457 Problem Details, the body of every error response."
@@ -2894,27 +3398,114 @@ components:
       required:
       - status
       - title
-    ProtocolTestResponse:
+    ProjectPageResponse:
       type: object
+      description: One page of projects
       properties:
-        errorCode:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/ProjectResponse"
+        nextCursor:
           type: string
-          description: Why it failed; absent when ok
-          enum:
-          - AUTHENTICATION_FAILED
-          - TLS_FAILED
-          - TIMEOUT
-          - CONNECTION_FAILED
-          - OAUTH_RECONNECT_REQUIRED
-          - OAUTH_UNAVAILABLE
-          - POOL_EXHAUSTED
-        message:
-          type: string
-          description: "A fixed, displayable message for errorCode"
-        ok:
-          type: boolean
+          description: Cursor of the next page; `null` on the last page
       required:
-      - ok
+      - items
+    ProjectPatchRequest:
+      type: object
+      description: "Changes to a project: only the fields sent change, `null` clears\
+        \ a field (`title` and `status` cannot be cleared). The next step is set with\
+        \ `/next-step`."
+      properties:
+        areaId:
+          type:
+          - string
+          - "null"
+          format: uuid
+        descriptionMd:
+          type:
+          - string
+          - "null"
+        dueDate:
+          type:
+          - string
+          - "null"
+          format: date
+        reviewDate:
+          type:
+          - string
+          - "null"
+          format: date
+        status:
+          type: string
+          description: "COMPLETED records `completedAt`, any other status clears it"
+          enum:
+          - ACTIVE
+          - ON_HOLD
+          - SOMEDAY
+          - COMPLETED
+          - DROPPED
+        title:
+          type: string
+          maxLength: 500
+    ProjectResponse:
+      type: object
+      description: A GTD project. `version` is also sent as the ETag.
+      properties:
+        areaId:
+          type: string
+          format: uuid
+        completedAt:
+          type: string
+          format: date-time
+          description: When the status became COMPLETED; `null` otherwise
+        createdAt:
+          type: string
+          format: date-time
+        descriptionMd:
+          type: string
+        dueDate:
+          type: string
+          format: date
+        id:
+          type: string
+          format: uuid
+        nextTaskId:
+          type: string
+          format: uuid
+          description: "The designated next step (a task of the project), set with\
+            \ `POST /next-step`"
+        reviewDate:
+          type: string
+          format: date
+        stalled:
+          type: boolean
+          description: "ACTIVE, and the next step is not an open task of the project\
+            \ (none set, done, in the Trash or moved away)"
+        status:
+          type: string
+          enum:
+          - ACTIVE
+          - ON_HOLD
+          - SOMEDAY
+          - COMPLETED
+          - DROPPED
+        title:
+          type: string
+        updatedAt:
+          type: string
+          format: date-time
+        version:
+          type: integer
+          format: int64
+      required:
+      - createdAt
+      - id
+      - stalled
+      - status
+      - title
+      - updatedAt
+      - version
     RecoveryCodesResponse:
       type: object
       properties:
@@ -3257,6 +3848,16 @@ components:
           type: boolean
       required:
       - setupRequired
+    TaskListResponse:
+      type: object
+      description: A list of tasks in order
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/TaskResponse"
+      required:
+      - items
     TaskPageResponse:
       type: object
       description: One page of tasks
@@ -3582,6 +4183,16 @@ components:
           description: Cursor of the next page; absent on the last page
       required:
       - items
+    UpdateAreaRequest:
+      type: object
+      description: Changes to an area; fields not sent stay unchanged
+      properties:
+        position:
+          type: integer
+          format: int32
+        title:
+          type: string
+          maxLength: 200
     UpdateChecklistItemRequest:
       type: object
       description: Changes to a checklist item; fields not sent stay unchanged
@@ -3594,54 +4205,3 @@ components:
         text:
           type: string
           maxLength: 1000
-    UpdateMailAccountRequest:
-      type: object
-      properties:
-        displayName:
-          type: string
-          maxLength: 200
-          minLength: 0
-        emailAddress:
-          type: string
-          format: email
-        imap:
-          $ref: "#/components/schemas/MailServerRequest"
-        notifyNewMail:
-          type: boolean
-        oauthConnectionId:
-          type: string
-          format: uuid
-          description: GOOGLE/MICROSOFT only
-        password:
-          type: string
-          description: "IMAP_SMTP only: replaces the stored password. Write-only"
-          writeOnly: true
-        signatureMd:
-          type: string
-          description: Markdown; empty removes the signature
-        smtp:
-          $ref: "#/components/schemas/MailServerRequest"
-        syncWindowMonths:
-          type: integer
-          format: int32
-          maximum: 600
-          minimum: 1
-        username:
-          type: string
-    UpdateMailFolderRequest:
-      type: object
-      properties:
-        automatic:
-          type: boolean
-          description: "true: let detection choose the role again on the next sync"
-        role:
-          type: string
-          description: The role to set by hand; null for no role. Ignored when automatic
-            is true
-          enum:
-          - INBOX
-          - SENT
-          - DRAFTS
-          - TRASH
-          - ARCHIVE
-          - SPAM
