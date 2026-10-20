@@ -137,9 +137,13 @@ export abstract class ListStore<T extends Versioned, Q> {
     return this.byId().get(id);
   }
 
-  /** The `If-Match` of `item`: the list may know a newer version than the caller's copy. */
+  /**
+   * The `If-Match` of `item`: the version of the caller's copy, so a change based on a stale copy
+   * gets a conflict (412) instead of overwriting a newer version (SPEC.md §4.2). Callers that want
+   * the latest state pass {@link find}`(id)`; views render from {@link items}, so their copy is current.
+   */
   protected ifMatch(item: T): string {
-    return etag(Math.max(item.version, this.server().find((other) => other.id === item.id)?.version ?? 0));
+    return etag(item.version);
   }
 
   /**

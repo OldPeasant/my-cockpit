@@ -31,9 +31,17 @@ export class ProjectStore extends ListStore<ProjectResponse, ProjectQuery> {
     super('PROJECT', ['TASK']);
   }
 
-  /** Loads all projects unless they are loaded or loading. */
-  async ensureLoaded(): Promise<void> {
-    if (!this.loaded() && !this.loading()) await this.load({});
+  /** The running {@link ensureLoaded} load, shared by concurrent callers. */
+  private pendingLoad?: Promise<void>;
+
+  /**
+   * Loads all projects unless they are loaded; resolves once the load settled (also for callers that
+   * arrive while it is running).
+   */
+  ensureLoaded(): Promise<void> {
+    if (this.loaded()) return Promise.resolve();
+    this.pendingLoad ??= this.load({}).finally(() => (this.pendingLoad = undefined));
+    return this.pendingLoad;
   }
 
   /** Creates a project; it shows once the server answered. */

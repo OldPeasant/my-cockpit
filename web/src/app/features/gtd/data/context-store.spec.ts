@@ -24,6 +24,9 @@ function context(id: string, fields: Partial<ContextResponse> = {}): ContextResp
   return { id, name: `@${id}`, position: 1, version: 1, ...fields };
 }
 
+/** Lets pending promise callbacks run. */
+const settle = () => new Promise((resolve) => setTimeout(resolve));
+
 describe('ContextStore', () => {
   let calls: Call[];
   let changes: Subject<ChangeEvent>;
@@ -72,12 +75,32 @@ describe('ContextStore', () => {
     expect(callsOf(listContexts)).toHaveLength(1);
   });
 
-  it('does not start a second request while loading', async () => {
+  it('lets a second caller wait for the running load instead of starting another', async () => {
     const first = store.ensureLoaded();
-    await store.ensureLoaded();
+    let secondDone = false;
+    const second = store.ensureLoaded().then(() => (secondDone = true));
     expect(callsOf(listContexts)).toHaveLength(1);
-    callsOf(listContexts)[0].resolve({ items: [] });
+
+    await settle();
+    expect(secondDone).toBe(false);
+
+    callsOf(listContexts)[0].resolve({ items: [context('home')] });
+    await second;
+    expect(names()).toEqual(['@home']);
     await first;
+    expect(store.loaded()).toBe(true);
+  });
+
+  it('can retry ensureLoaded after a failed load', async () => {
+    const failed = store.ensureLoaded();
+    callsOf(listContexts)[0].reject(new Error('offline'));
+    await failed;
+    expect(store.loaded()).toBe(false);
+
+    const retried = store.ensureLoaded();
+    expect(callsOf(listContexts)).toHaveLength(2);
+    callsOf(listContexts)[1].resolve({ items: [context('home')] });
+    await retried;
     expect(store.loaded()).toBe(true);
   });
 

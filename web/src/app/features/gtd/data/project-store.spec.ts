@@ -78,7 +78,7 @@ describe('ProjectStore', () => {
   it('loads all projects once with ensureLoaded, following cursors, ordered by title', async () => {
     const done = store.ensureLoaded();
     // A second caller while loading does not start another request.
-    await store.ensureLoaded();
+    void store.ensureLoaded();
     expect(callsOf(listProjects)).toHaveLength(1);
     expect(callsOf(listProjects)[0].params).toEqual({
       cursor: undefined,
@@ -97,6 +97,22 @@ describe('ProjectStore', () => {
     // Already loaded: no new request.
     await store.ensureLoaded();
     expect(callsOf(listProjects)).toHaveLength(2);
+  });
+
+  it('lets a second caller wait until the running load has all pages', async () => {
+    const first = store.ensureLoaded();
+    let secondDone = false;
+    const second = store.ensureLoaded().then(() => (secondDone = true));
+
+    callsOf(listProjects)[0].resolve(page([project('b', { title: 'Write novel' })], 'c1'));
+    await settle();
+    expect(secondDone).toBe(false);
+    expect(callsOf(listProjects)).toHaveLength(2);
+
+    callsOf(listProjects)[1].resolve(page([project('a', { title: 'Plan garden' })]));
+    await second;
+    expect(titles()).toEqual(['Plan garden', 'Write novel']);
+    await first;
   });
 
   it('can retry ensureLoaded after a failed load', async () => {

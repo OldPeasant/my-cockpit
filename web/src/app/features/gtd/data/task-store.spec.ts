@@ -220,12 +220,15 @@ describe('TaskStore', () => {
     expect(store.find('a')).toMatchObject({ title: 'New', version: 2 });
   });
 
-  it('sends the newest known version as If-Match', async () => {
+  it("sends the version of the caller's copy as If-Match, so a stale copy gets a conflict", async () => {
     const stale = task('a');
     await loaded([task('a', { version: 3 })]);
 
     void store.update(stale, { title: 'x' });
-    expect(callsOf(updateTask)[0].params['If-Match']).toBe('"3"');
+    expect(callsOf(updateTask)[0].params['If-Match']).toBe('"1"');
+
+    void store.update(store.find('a')!, { title: 'y' });
+    expect(callsOf(updateTask)[1].params['If-Match']).toBe('"3"');
   });
 
   it('refetches on an SSE resync', async () => {

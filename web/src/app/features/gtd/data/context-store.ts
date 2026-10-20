@@ -23,9 +23,17 @@ export class ContextStore extends ListStore<ContextResponse, ContextQuery> {
     super('CONTEXT');
   }
 
-  /** Loads the contexts unless they are loaded or loading. */
-  async ensureLoaded(): Promise<void> {
-    if (!this.loaded() && !this.loading()) await this.load({});
+  /** The running {@link ensureLoaded} load, shared by concurrent callers. */
+  private pendingLoad?: Promise<void>;
+
+  /**
+   * Loads the contexts unless they are loaded; resolves once the load settled (also for callers that
+   * arrive while it is running).
+   */
+  ensureLoaded(): Promise<void> {
+    if (this.loaded()) return Promise.resolve();
+    this.pendingLoad ??= this.load({}).finally(() => (this.pendingLoad = undefined));
+    return this.pendingLoad;
   }
 
   /** Creates a context; it shows once the server answered. */
