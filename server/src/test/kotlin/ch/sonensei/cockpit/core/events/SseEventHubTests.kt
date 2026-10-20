@@ -113,6 +113,18 @@ class SseEventHubTests {
 	}
 
 	@Test
+	fun `a heartbeat alone drops a client that cannot be written to`() {
+		val healthy = connect()
+		val broken = hub.subscribe()
+		broken.complete()
+		hub.clientCount shouldBe 2
+
+		// No event is published: only the next heartbeat write can reveal the dead client.
+		awaitUntil { hub.clientCount == 1 }
+		awaitUntil { healthy.body().contains(":heartbeat\n\n") }
+	}
+
+	@Test
 	fun `destroy completes every stream and forgets the clients`() {
 		val results = listOf(connect(), connect())
 		hub.clientCount shouldBe 2
