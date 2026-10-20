@@ -1,11 +1,13 @@
 ---
 title: Runner: stop the loop when release/hold cannot push
-status: in_progress
-owner: dell26/agent-7
+status: todo
+owner: 
 deps: []
 touches: [agents.py,tasks.py,tests]
 prio: 1
-lease_until: 2026-10-20T16:21:31Z
+lease_until: 
+releases: 1
+extended: 
 ---
 ## Goal
 A push that keeps failing (e.g. a token without `workflow` scope, so GitHub rejects `.github/workflows/*`) must
@@ -23,3 +25,4 @@ the full check.
 
 ## Notes
 - ASSUMPTION (2026-10-20 17:28+0200 by dell26/agent-7): Fixed the test-writer's hand_off() observation in scope (same refused-push loop on the usage-limit path); left the pre-existing cmd_hold() stale-clone observation (Low, human command path) out of scope
+- release by dell26/agent-7: Implementation done (HEAD: give_up() shared by release/hand-off; done-blocked tasks go on hold on retry); python -m unittest tests.test_push_failure -> 25 OK. Left: code changed after the last review, so re-run test-writer + code-reviewer on HEAD, write reviews/runner-push-failure-loop/quality.json, tasks.py verify #1-#4, then done. Note: sh scripts/check.sh had 1 failing server Gradle test (1337 run) unrelated to agents.py/tasks.py; recheck on latest main.
