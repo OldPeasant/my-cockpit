@@ -36,7 +36,7 @@ interface MailMessageRepository : JpaRepository<MailMessage, UUID> {
 	): MailMessage?
 
 	/** Located copies of a message in an account (the same Message-ID can be in several folders), oldest row first. */
-	fun findByAccountIdAndMessageIdHeaderAndUidIsNotNullOrderByIdAsc(
+	fun findByAccountIdAndMessageIdHeaderAndFolderIdIsNotNullAndUidIsNotNullOrderByIdAsc(
 		accountId: UUID,
 		messageIdHeader: String,
 	): List<MailMessage>
@@ -47,7 +47,8 @@ interface MailMessageRepository : JpaRepository<MailMessage, UUID> {
 		messageIdHeader: String,
 	): List<MailMessage>
 
-	fun findByAccountIdAndThreadKeyAndUidIsNotNullOrderByReceivedAtAscIdAsc(
+	/** Located messages of a conversation in an account, by arrival. */
+	fun findByAccountIdAndThreadKeyAndFolderIdIsNotNullAndUidIsNotNullOrderByReceivedAtAscIdAsc(
 		accountId: UUID,
 		threadKey: String,
 	): List<MailMessage>

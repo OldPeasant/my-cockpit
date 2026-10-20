@@ -192,13 +192,10 @@ class MailModelPersistenceTests(
 		messages.saveAndFlush(message)
 		identities.save(MailIdentity(account.id, "Ann", "ann@example.com"))
 
-		jdbc.update("update mail_message set uid = null where id = ?", message.id)
 		folders.deleteById(folder.id)
-		messages
-			.findById(message.id)
-			.get()
-			.folderId
-			.shouldBeNull()
+		val kept = messages.findById(message.id).get()
+		kept.folderId.shouldBeNull()
+		kept.isLocated shouldBe false
 
 		accounts.deleteById(account.id)
 		messages.count() shouldBe 0

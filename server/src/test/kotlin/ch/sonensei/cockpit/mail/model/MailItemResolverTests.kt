@@ -113,6 +113,20 @@ class MailItemResolverTests(
 	}
 
 	@Test
+	fun `a located row whose folder was deleted re-resolves to a copy in another folder`() {
+		val projects = folders.save(MailFolder(account.id, "Projects", "Projects"))
+		val linked = messages.save(message(projects, 5, "<a@example.com>"))
+		val copy = messages.save(message(archive, 3, "<a@example.com>"))
+		folders.deleteById(projects.id)
+
+		messages
+			.findById(linked.id)
+			.get()
+			.uid shouldBe 5
+		resolver.resolve(linked.id)?.deepLink shouldBe "/mail/messages/${copy.id}"
+	}
+
+	@Test
 	fun `a located message resolves to itself even when other copies exist`() {
 		val located = messages.save(message(archive, 3, "<a@example.com>"))
 		messages.save(message(inbox, 1, "<a@example.com>"))

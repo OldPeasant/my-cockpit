@@ -162,16 +162,16 @@ class MailModelConstraintTests(
 	}
 
 	@Test
-	fun `a UID without folder, a non-positive UID and a negative size are rejected by the database`() {
+	fun `a non-positive UID and a negative size are rejected by the database`() {
 		val account = accounts.save(imapAccount())
 		val inbox = folders.save(MailFolder(account.id, "INBOX", "INBOX"))
 		val message = messages.saveAndFlush(MailMessage(account.id, inbox.id, 5))
 
 		shouldThrow<DataIntegrityViolationException> {
-			jdbc.update("update mail_message set folder_id = null where id = ?", message.id)
+			jdbc.update("update mail_message set uid = 0 where id = ?", message.id)
 		}
 		shouldThrow<DataIntegrityViolationException> {
-			jdbc.update("update mail_message set uid = 0 where id = ?", message.id)
+			jdbc.update("update mail_message set folder_id = null, uid = -1 where id = ?", message.id)
 		}
 		shouldThrow<DataIntegrityViolationException> {
 			messages.saveAndFlush(MailMessage(account.id, inbox.id, 6).apply { sizeBytes = -1 })
@@ -187,7 +187,9 @@ class MailModelConstraintTests(
 		val b = messages.saveAndFlush(message(account.id, archive.id, 1, "<same@example.com>"))
 		val detached = messages.saveAndFlush(message(account.id, inbox.id, 2, "<same@example.com>").apply { detach() })
 
-		messages.findByAccountIdAndMessageIdHeaderAndUidIsNotNullOrderByIdAsc(account.id, "<same@example.com>").map { it.id } shouldContainExactly
+		messages.findByAccountIdAndMessageIdHeaderAndFolderIdIsNotNullAndUidIsNotNullOrderByIdAsc(account.id, "<same@example.com>").map {
+			it.id
+		} shouldContainExactly
 			listOf(a.id, b.id)
 		messages.findByAccountIdAndMessageIdHeaderOrderByIdAsc(account.id, "<same@example.com>").map { it.id } shouldContainExactly
 			listOf(a.id, b.id, detached.id)
@@ -203,7 +205,7 @@ class MailModelConstraintTests(
 		messages.save(message(account.id, inbox.id, 2, "<x@example.com>", "<root@example.com>", "2026-10-19T11:00:00Z").apply { detach() })
 		messages.save(message(account.id, inbox.id, 3, "<o@example.com>", "<other@example.com>", "2026-10-19T09:00:00Z"))
 
-		messages.findByAccountIdAndThreadKeyAndUidIsNotNullOrderByReceivedAtAscIdAsc(account.id, "<root@example.com>").map {
+		messages.findByAccountIdAndThreadKeyAndFolderIdIsNotNullAndUidIsNotNullOrderByReceivedAtAscIdAsc(account.id, "<root@example.com>").map {
 			it.id
 		} shouldContainExactly
 			listOf(root.id, reply.id)
@@ -245,13 +247,39 @@ class MailModelConstraintTests(
 	fun `deleting a folder keeps its messages as link targets`() {
 		val account = accounts.save(imapAccount())
 		val folder = folders.save(MailFolder(account.id, "Projects", "Projects"))
-		val message = messages.saveAndFlush(message(account.id, folder.id, 3, "<a@example.com>"))
+		val message = messages.saveAndFlush(message(account.id, folder.id, 3, "<a@example.com>", "<a@example.com>"))
+		val other = folders.save(MailFolder(account.id, "Other", "Other"))
+		val copy = messages.saveAndFlush(message(account.id, other.id, 3, "<a@example.com>", "<a@example.com>"))
 
 		folders.deleteById(folder.id)
 
 		val kept = messages.findById(message.id).get()
 		kept.folderId.shouldBeNull()
 		kept.isLocated shouldBe false
+		// The stale UID left behind is not a located copy, nor a thread member.
+		messages.findByAccountIdAndMessageIdHeaderAndFolderIdIsNotNullAndUidIsNotNullOrderByIdAsc(account.id, "<a@example.com>").map {
+			it.id
+		} shouldContainExactly listOf(copy.id)
+		messages.findByAccountIdAndThreadKeyAndFolderIdIsNotNullAndUidIsNotNullOrderByReceivedAtAscIdAsc(account.id, "<a@example.com>").map {
+			it.id
+		} shouldContainExactly listOf(copy.id)
+	}
+
+	@Test
+	fun `stale UIDs of a deleted folder do not collide and the row can be located again`() {
+		val account = accounts.save(imapAccount())
+		val a = folders.save(MailFolder(account.id, "A", "A"))
+		val b = folders.save(MailFolder(account.id, "B", "B"))
+		val first = messages.saveAndFlush(message(account.id, a.id, 1, "<1@example.com>"))
+		messages.saveAndFlush(message(account.id, b.id, 1, "<2@example.com>"))
+
+		folders.deleteById(a.id)
+		folders.deleteById(b.id)
+
+		val inbox = folders.save(MailFolder(account.id, "INBOX", "INBOX"))
+		val stale = messages.findById(first.id).get()
+		stale.locate(inbox.id, 1)
+		messages.saveAndFlush(stale).isLocated shouldBe true
 	}
 
 	private fun message(

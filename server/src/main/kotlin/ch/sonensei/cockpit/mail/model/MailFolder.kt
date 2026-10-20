@@ -12,7 +12,8 @@ import java.util.UUID
 /**
  * A cached IMAP folder (SPEC.md §7.2). [path] is unique per account, a [role] at most once per account. The sync
  * state ([uidValidity], [uidNext], [highestModSeq]) is what the server reported at [lastSyncedAt]; a changed
- * UIDVALIDITY invalidates every cached UID of the folder.
+ * UIDVALIDITY invalidates every cached UID of the folder. Deleting a folder keeps its messages as link targets with no
+ * folder (see [MailMessage.isLocated]).
  */
 @Entity
 @Table(name = "mail_folder")

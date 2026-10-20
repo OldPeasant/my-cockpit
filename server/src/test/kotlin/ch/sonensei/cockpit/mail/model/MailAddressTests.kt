@@ -75,7 +75,20 @@ class MailAddressTests {
 			MailAddress.parseList(header).forEach { it.address.isNotBlank() shouldBe true }
 		}
 		MailAddress.parseList("Ann <>").shouldBeEmpty()
-		MailAddress.parseList("ann@example.com, \"bad").first() shouldBe MailAddress("ann@example.com")
+		MailAddress.parseList("ann@example.com, \"bad") shouldContainExactly listOf(MailAddress("ann@example.com"))
+	}
+
+	@Test
+	fun `entries without an at sign between local part and domain are dropped`() {
+		listOf("<<>>", "<", ">", "@@@", "@example.com", "ann@", "(unclosed comment", "\"bad", "a b c").forEach { header ->
+			MailAddress.parseList(header).shouldBeEmpty()
+		}
+		MailAddress.parseList("Ann <ann@example.com> c <") shouldContainExactly listOf(MailAddress("ann@example.com", "Ann"))
+	}
+
+	@Test
+	fun `other malformed entries are kept as the lenient parser read them`() {
+		MailAddress.parseList("Ann <ann@example.com") shouldContainExactly listOf(MailAddress("Ann <ann@example.com"))
 	}
 
 	@Test

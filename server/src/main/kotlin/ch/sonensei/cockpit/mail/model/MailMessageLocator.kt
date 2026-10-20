@@ -19,7 +19,7 @@ class MailMessageLocator(
 		val message = messages.findById(id).orElse(null) ?: return null
 		if (message.isLocated) return message
 		val messageId = message.messageIdHeader ?: return null
-		val copies = messages.findByAccountIdAndMessageIdHeaderAndUidIsNotNullOrderByIdAsc(message.accountId, messageId)
+		val copies = messages.findByAccountIdAndMessageIdHeaderAndFolderIdIsNotNullAndUidIsNotNullOrderByIdAsc(message.accountId, messageId)
 		return copies.firstOrNull { it.folderId == message.folderId } ?: copies.firstOrNull()
 	}
 }

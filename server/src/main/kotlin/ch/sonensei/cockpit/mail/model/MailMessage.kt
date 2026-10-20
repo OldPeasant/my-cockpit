@@ -13,10 +13,12 @@ import java.util.UUID
 /**
  * Cached headers of one message (SPEC.md §7.2) and the link target of an EMAIL item (SPEC.md §4.3).
  *
- * [folderId] + [uid] are where the message currently is. When the sync no longer finds it there (moved, expunged,
- * UIDVALIDITY changed) it may keep the row with [uid] `null` (see [detach]) so links to it survive; [MailMessageLocator]
- * then finds the message again by [accountId] + [messageIdHeader]. [threadKey] groups a conversation (References /
- * In-Reply-To, fallback normalized subject), computed by the sync.
+ * [folderId] + [uid] are where the message currently is; the row is located ([isLocated]) only when both are set.
+ * When the sync no longer finds it there (moved, expunged, UIDVALIDITY changed) it may keep the row with [uid] `null`
+ * (see [detach]) so links to it survive; [MailMessageLocator] then finds the message again by [accountId] +
+ * [messageIdHeader]. Deleting its folder also keeps the row: the database sets [folderId] to `null` and a [uid] left
+ * behind is stale and means nothing. [threadKey] groups a conversation (References / In-Reply-To, fallback normalized
+ * subject), computed by the sync.
  */
 @Entity
 @Table(name = "mail_message")
@@ -116,8 +118,11 @@ class MailMessage(
 	@Column(name = "snippet")
 	var snippet: String? = null
 
-	/** Whether the message is currently at [folderId]/[uid] on the server, as far as the cache knows. */
-	val isLocated: Boolean get() = uid != null
+	/**
+	 * Whether the message is currently at [folderId]/[uid] on the server, as far as the cache knows. Needs both: a [uid]
+	 * whose folder was deleted ([folderId] `null`) is stale.
+	 */
+	val isLocated: Boolean get() = folderId != null && uid != null
 
 	/** Records the message's (new) location, e.g. after a move or a UIDVALIDITY resync. */
 	fun locate(

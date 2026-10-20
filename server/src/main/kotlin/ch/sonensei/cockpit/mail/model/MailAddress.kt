@@ -1,6 +1,5 @@
 package ch.sonensei.cockpit.mail.model
 
-import jakarta.mail.internet.AddressException
 import jakarta.mail.internet.InternetAddress
 import jakarta.persistence.AttributeConverter
 import jakarta.persistence.Converter
@@ -15,20 +14,23 @@ data class MailAddress(
 
 	companion object {
 		/**
-		 * Parses an address list header value (lenient, like most mail clients). Groups are flattened to their
-		 * members; entries without an address are dropped. A list that cannot be parsed at all gives no addresses.
+		 * Parses an address list header value leniently, like most mail clients: it never fails, and valid entries
+		 * are kept next to malformed ones. Groups are flattened to their members. Entries whose address has no `@`
+		 * with text on both sides (e.g. `<`, `@@@`, an empty `<>`) are dropped. Everything else is kept as the
+		 * parser read it, without further RFC 5322 validation, so a broken entry such as `Ann <ann@example.com`
+		 * (no closing `>`) comes through with that text as its address.
 		 */
 		fun parseList(header: String?): List<MailAddress> {
 			if (header.isNullOrBlank()) return emptyList()
-			val parsed =
-				try {
-					InternetAddress.parseHeader(header, false)
-				} catch (_: AddressException) {
-					return emptyList()
-				}
-			return parsed.flatMap { it.flatten() }.mapNotNull { mailbox ->
-				mailbox.address?.takeIf { it.isNotBlank() }?.let { MailAddress(it, mailbox.personal?.takeIf(String::isNotBlank)) }
+			// Lenient mode (strict = false) does not throw on malformed input; it returns what it could read.
+			return InternetAddress.parseHeader(header, false).flatMap { it.flatten() }.mapNotNull { mailbox ->
+				mailbox.address?.takeIf(::hasMailboxShape)?.let { MailAddress(it, mailbox.personal?.takeIf(String::isNotBlank)) }
 			}
+		}
+
+		private fun hasMailboxShape(address: String): Boolean {
+			val at = address.lastIndexOf('@')
+			return at > 0 && at < address.length - 1
 		}
 
 		fun formatList(addresses: List<MailAddress>): String = addresses.joinToString(", ")

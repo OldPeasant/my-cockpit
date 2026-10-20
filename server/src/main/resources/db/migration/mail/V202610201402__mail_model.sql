@@ -78,9 +78,11 @@ create table mail_folder (
 create unique index mail_folder_path on mail_folder (account_id, path);
 create unique index mail_folder_role_per_account on mail_folder (account_id, role) where role is not null;
 
--- Cached headers. A row is the link target of an EMAIL item (SPEC.md §4.3): uid is null while the message is not
+-- Cached headers. A row is the link target of an EMAIL item (SPEC.md §4.3). It is located (the message is at
+-- folder_id/uid on the server) only when both folder_id and uid are non-null. uid is null while the message is not
 -- (or no longer) at that location, and resolvers then find it again by account + message_id_header.
--- folder_id survives a folder deletion as null for the same reason.
+-- A folder deletion keeps the row for the same reason: folder_id becomes null and any uid left behind is stale and
+-- means nothing (so the uid check below cannot require a folder, or the cascade would fail).
 create table mail_message (
     id                 uuid primary key,
     created_at         timestamptz not null,
@@ -111,7 +113,7 @@ create table mail_message (
     size_bytes         bigint      not null default 0,
     has_attachments    boolean     not null default false,
     snippet            text,
-    constraint mail_message_uid check (uid is null or (uid > 0 and folder_id is not null)),
+    constraint mail_message_uid check (uid is null or uid > 0),
     constraint mail_message_size check (size_bytes >= 0)
 );
 
