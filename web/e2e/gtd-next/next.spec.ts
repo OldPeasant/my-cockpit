@@ -61,31 +61,37 @@ test.describe('next actions', () => {
     await page.getByLabel('Preset name').fill(preset);
     await page.getByRole('button', { name: 'Save preset' }).click();
     const presets = page.getByRole('group', { name: 'Saved filters' });
-    await expect(presets.getByRole('button', { name: preset })).toHaveAttribute(
+    await expect(presets.getByRole('button', { name: preset, exact: true })).toHaveAttribute(
       'aria-pressed',
       'true',
     );
 
     await page.getByRole('button', { name: 'Clear filters' }).first().click();
     await expect(list.getByRole('button', { name: tooLong, exact: true })).toBeVisible();
-    await presets.getByRole('button', { name: preset }).click();
+    await presets.getByRole('button', { name: preset, exact: true }).click();
     await expect(list.getByRole('button', { name: match, exact: true })).toBeVisible();
     await expect(list.getByRole('button', { name: tooLong, exact: true })).toBeHidden();
 
     await presets.getByRole('button', { name: `Delete preset “${preset}”` }).click();
-    await expect(presets.getByRole('button', { name: preset })).toBeHidden();
+    await expect(presets.getByRole('button', { name: preset, exact: true })).toBeHidden();
   });
 });
 
 /** API helpers with the page's session (CSRF header from its cookie). */
 async function apiOf(request: APIRequestContext) {
-  const xsrf = (await request.storageState()).cookies.find((c) => c.name === 'XSRF-TOKEN');
-  expect(xsrf, 'XSRF-TOKEN cookie').toBeDefined();
-  const headers = { 'X-XSRF-TOKEN': xsrf!.value };
+  // Read the cookie before every change: the server may send a new token with any answer.
+  const headers = async (): Promise<Record<string, string>> => {
+    const xsrf = (await request.storageState()).cookies.find((c) => c.name === 'XSRF-TOKEN');
+    expect(xsrf, 'XSRF-TOKEN cookie').toBeDefined();
+    return { 'X-XSRF-TOKEN': xsrf!.value };
+  };
   return {
     /** The id of the context `name`, created unless it exists. */
     async context(name: string): Promise<string> {
-      const created = await request.post('/api/v1/contexts', { headers, data: { name } });
+      const created = await request.post('/api/v1/contexts', {
+        headers: await headers(),
+        data: { name },
+      });
       if (created.status() === 201) return ((await created.json()) as { id: string }).id;
       expect(created.status(), 'create context').toBe(409);
       const all = (await (await request.get('/api/v1/contexts')).json()) as {
@@ -95,7 +101,7 @@ async function apiOf(request: APIRequestContext) {
     },
     /** Creates a task, returns its title. */
     async task(data: Record<string, unknown>): Promise<string> {
-      const response = await request.post('/api/v1/tasks', { headers, data });
+      const response = await request.post('/api/v1/tasks', { headers: await headers(), data });
       expect(response.status(), 'create task').toBe(201);
       return data['title'] as string;
     },
