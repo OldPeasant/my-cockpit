@@ -13,7 +13,8 @@ One search across all modules (SPEC.md §4.4).
 ## Acceptance criteria
 - [x] `search_document` table with `tsvector` (simple + english configs) + GIN index and `pg_trgm` index on title
   - verified (2026-10-20 15:45+0200 by dell26/agent-5): cd server && ./gradlew test --tests 'ch.sonensei.cockpit.core.search.*' --tests '*OpenApiContractTest' (Postgres 16 Testcontainers) at beea32c -> 52 tests, 0 failures; incl. 'the migration creates a GIN index on tsv and a trigram index on title' and 'tsv holds both the exact and the English-stemmed words'
-- [ ] `SearchIndexer.upsert/delete(itemType, id, title, body)` API for modules
+- [x] `SearchIndexer.upsert/delete(itemType, id, title, body)` API for modules
+  - verified (2026-10-20 15:45+0200 by dell26/agent-5): cd server && ./gradlew test --tests 'ch.sonensei.cockpit.core.search.*' at beea32c -> 51 tests, 0 failures; incl. SearchIndexer upsert/delete tests (replace text, refresh recency, delete by type)
 - [ ] `GET /api/v1/search?q=&types=&limit=` ranks by `ts_rank` + recency, falls back to trigram similarity for short/fuzzy queries, groups by type
 - [ ] Tests: prefix match, typo tolerance on titles, type filter, deleted items not found; `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.core.search.*'` passes (Postgres via Testcontainers where persistence is involved)
 - [ ] API documented: `api/openapi.yaml` regenerated (`UPDATE_OPENAPI=1 ./gradlew test --tests '*OpenApiContractTest'`) and `OpenApiContractTest` passes without the flag
