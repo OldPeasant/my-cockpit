@@ -1,11 +1,11 @@
 ---
 title: Backup export: zip format and orchestration
-status: todo
-owner: 
+status: in_progress
+owner: dell26/agent-7
 deps: [p0-settings,p0-items-links,p0-crypto]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/backup,server/src/test/kotlin/ch/sonensei/cockpit/backup]
 prio: 1
-lease_until: 
+lease_until: 2026-10-20T17:33:46Z
 releases: 1
 extended: 
 ---
