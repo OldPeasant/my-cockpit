@@ -18,3 +18,4 @@ File operations (SPEC.md §8.2).
 - [ ] API documented: `api/openapi.yaml` regenerated (`UPDATE_OPENAPI=1 ./gradlew test --tests '*OpenApiContractTest'`) and `OpenApiContractTest` passes without the flag
 
 ## Notes
+- ASSUMPTION (2026-10-20 20:57+0200 by dell26/agent-3): API layout: /api/v1/folders (POST, GET/PATCH/DELETE {id}, GET {id}/zip), /api/v1/files (multipart POST, GET {id}, GET {id}/content, PATCH, DELETE), /api/v1/drive?folderId= (cursor listing: folders first then files, by lower(name), id) and /api/v1/drive/usage, /api/v1/uploads (POST, GET {id}, PUT {id}/chunks/{n}, POST {id}/complete, DELETE {id}); PATCH bodies {name, parentId|folderId} with null = drive root; If-Match required for PATCH/DELETE
