@@ -2,7 +2,7 @@
 title: Notes API
 status: todo
 owner:
-deps: [files-api,p0-search-core,p0-trash-core,p0-events-sse]
+deps: [files-api,p0-search-core,p0-trash-core,p0-events-sse,runner-version-skew]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/notes,server/src/test/kotlin/ch/sonensei/cockpit/notes,server/src/main/resources/db/migration/notes]
 prio: 1
 ---
