@@ -18,3 +18,4 @@ Capture from anywhere (SPEC.md §4.5), provided through the shell's `CAPTURE_DIA
 
 ## Notes
 - ASSUMPTION (2026-10-21 01:50+0200 by dell26/agent-2): Capture text field is a single-line input (Enter=save, Shift+Enter=save+keep open); notes is a textarea where Enter adds a line and Ctrl/Cmd+Enter saves. Multi-line text capture is left to notes.
+- ASSUMPTION (2026-10-21 01:50+0200 by dell26/agent-2): Attachment placeholder: dropped/pasted files are listed (struck through) with a note that they can't be saved yet and are never sent; real upload via fileIds comes with phase 2 files.
