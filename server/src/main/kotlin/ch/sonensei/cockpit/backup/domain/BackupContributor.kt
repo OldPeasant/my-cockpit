@@ -12,6 +12,7 @@ import java.io.OutputStream
  * - [export] writes the module's canonical data (`data/`, lossless, the only part restore reads) and blobs (`files/`).
  * - [readable] writes human-readable mirrors (`readable/`: Markdown, ICS, vCard, ...), regenerated on every backup.
  * - [import] recreates the module's data from a backup into an empty install (the caller wipes it first).
+ * - [restoreWarnings] adds the module's warnings to the restore validation report.
  *
  * All contributors export and write mirrors in one read-only transaction (one consistent snapshot) and import in one
  * transaction, in dependency order: a contributor's dependencies are exported and imported before it.
@@ -28,6 +29,12 @@ interface BackupContributor {
 	fun readable(writer: BackupReadableWriter) {}
 
 	fun import(reader: BackupDataReader)
+
+	/**
+	 * What the owner should know before restoring this backup, for the validation report (e.g. "the TOTP secret is not
+	 * in the backup"). Plain sentences without user content: the report shows them as they are.
+	 */
+	fun restoreWarnings(reader: BackupDataReader): List<String> = emptyList()
 }
 
 /**

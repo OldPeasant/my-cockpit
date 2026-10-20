@@ -89,6 +89,34 @@ class BackupService(
 			reader.manifest
 		}
 
+	/**
+	 * Every contributor's [BackupContributor.restoreWarnings] for the backup at [source], in dependency order.
+	 *
+	 * @throws InvalidBackupException when the zip, its manifest, its format version or the data read is invalid
+	 */
+	fun restoreWarnings(source: Path): List<String> =
+		ZipBackupReader.open(source, canonicalJson).use { reader ->
+			contributors.ordered.flatMap { it.restoreWarnings(reader) }
+		}
+
+	/**
+	 * Imports the backup at [source] in one transaction that first runs [wipe] (which empties the database), so the
+	 * data is replaced completely or, on any failure, not at all.
+	 *
+	 * @throws InvalidBackupException when the zip, its manifest, its format version or its data is invalid
+	 */
+	fun replace(
+		source: Path,
+		wipe: () -> Unit,
+	): BackupManifest =
+		ZipBackupReader.open(source, canonicalJson).use { reader ->
+			importTransaction.executeWithoutResult { _ ->
+				wipe()
+				contributors.ordered.forEach { it.import(reader) }
+			}
+			reader.manifest
+		}
+
 	private fun readme(manifest: BackupManifest): String =
 		buildString {
 			appendLine("# My Cockpit backup")

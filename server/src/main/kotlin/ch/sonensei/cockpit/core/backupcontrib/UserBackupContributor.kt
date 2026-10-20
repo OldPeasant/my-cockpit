@@ -81,6 +81,23 @@ class UserBackupContributor(
 		if (user.totpConfirmedAt != null) warnTotpNotRestored(user.recoveryCodes.count { it.usedAt == null })
 	}
 
+	override fun restoreWarnings(reader: BackupDataReader): List<String> {
+		val user = reader.json<UserBackup>(USER) ?: return listOf("The backup has no owner account: the setup starts again after the restore")
+		if (user.totpConfirmedAt ==
+			null
+		) {
+			return listOf("The backup's owner account has not finished the setup: it starts again after the restore")
+		}
+		val unused = user.recoveryCodes.count { it.usedAt == null }
+		return listOf(
+			if (unused == 0) {
+				"The TOTP secret is not in the backup and no recovery code is left: the owner cannot sign in after the restore"
+			} else {
+				"The TOTP secret is not in the backup: sign in with one of the $unused unused recovery codes and set up TOTP again"
+			},
+		)
+	}
+
 	private fun warnTotpNotRestored(unusedRecoveryCodes: Int) {
 		if (unusedRecoveryCodes == 0) {
 			log.warn(

@@ -81,6 +81,17 @@ class BackupJobService(
 		return job
 	}
 
+	/**
+	 * Runs [block] (a restore) while no backup runs: [start] waits until it is finished.
+	 *
+	 * @throws ConflictException (409) while a backup is running
+	 */
+	@Synchronized
+	fun <T> exclusive(block: () -> T): T {
+		if (jobs.values.any { it.state == BackupJobState.RUNNING }) throw ConflictException("A backup is running")
+		return block()
+	}
+
 	/** @throws NotFoundException (404) for an unknown or discarded job */
 	fun get(id: UUID): BackupJob = jobs[id] ?: throw NotFoundException("Backup not found")
 

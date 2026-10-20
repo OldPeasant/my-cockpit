@@ -6,17 +6,25 @@ import ch.sonensei.cockpit.backup.domain.BackupManifest
 import ch.sonensei.cockpit.backup.domain.InvalidBackupException
 import tools.jackson.core.JacksonException
 import tools.jackson.core.type.TypeReference
+import tools.jackson.databind.JsonNode
 import tools.jackson.databind.json.JsonMapper
 import java.io.IOException
 import java.io.InputStream
 import java.io.OutputStream
 import java.nio.file.Path
-import java.util.zip.ZipException
 import java.util.zip.ZipFile
+
+/** Result of [ZipBackupReader.inspect]: [manifest] is `null` when it cannot be read; [problems] is empty for a valid backup. */
+data class BackupInspection(
+	val manifest: BackupManifest?,
+	val problems: List<String>,
+)
 
 /**
  * Reads a backup zip that [open] has validated: the manifest is readable, its format version is supported, every
- * file it lists exists with the listed sha256 and size, and the zip holds no other files.
+ * file it lists exists with the listed sha256 and size, and the zip holds no other files. Data that does not parse
+ * (only possible in a hand-edited zip whose manifest was updated too) fails with [InvalidBackupException] naming the
+ * file and line, never its content.
  */
 class ZipBackupReader private constructor(
 	private val zip: ZipFile,
@@ -31,7 +39,16 @@ class ZipBackupReader private constructor(
 	override fun <T : Any> json(
 		name: String,
 		type: TypeReference<T>,
-	): T? = dataEntry(name, "json")?.let { entry -> zip.getInputStream(entry).use { mapper.readValue(it, type) } }
+	): T? {
+		val entry = dataEntry(name, "json") ?: return null
+		val value: T? =
+			try {
+				zip.getInputStream(entry).use { mapper.readValue(it, type) }
+			} catch (e: JacksonException) {
+				null
+			}
+		return value ?: throw InvalidBackupException(listOf("${entry.name} is not valid"))
+	}
 
 	override fun <T : Any> jsonLines(
 		name: String,
@@ -40,7 +57,17 @@ class ZipBackupReader private constructor(
 	) {
 		val entry = dataEntry(name, "jsonl") ?: return
 		zip.getInputStream(entry).bufferedReader(Charsets.UTF_8).useLines { lines ->
-			lines.filter { it.isNotBlank() }.forEach { consumer(mapper.readValue(it, type)) }
+			lines.forEachIndexed { index, line ->
+				if (line.isBlank()) return@forEachIndexed
+				val record: T? =
+					try {
+						mapper.readValue(line, type)
+					} catch (e: JacksonException) {
+						null
+					}
+				// The line number only: the line itself is user content.
+				consumer(record ?: throw InvalidBackupException(listOf("${entry.name} line ${index + 1} is not valid")))
+			}
 		}
 	}
 
@@ -65,12 +92,7 @@ class ZipBackupReader private constructor(
 			path: Path,
 			mapper: JsonMapper,
 		): ZipBackupReader {
-			val zip =
-				try {
-					ZipFile(path.toFile())
-				} catch (e: ZipException) {
-					throw InvalidBackupException(listOf("Not a zip file"))
-				}
+			val zip = openZip(path)
 			try {
 				val manifest = readManifest(zip, mapper)
 				val problems = validate(zip, manifest)
@@ -82,24 +104,67 @@ class ZipBackupReader private constructor(
 			}
 		}
 
+		/**
+		 * Validates [path] like [open], for a validation report, and closes it again: the manifest when it can be read
+		 * (also when files don't match it) and every problem found.
+		 */
+		fun inspect(
+			path: Path,
+			mapper: JsonMapper,
+		): BackupInspection {
+			val zip =
+				try {
+					openZip(path)
+				} catch (e: InvalidBackupException) {
+					return BackupInspection(null, e.problems)
+				}
+			return zip.use {
+				try {
+					val manifest = readManifest(zip, mapper)
+					BackupInspection(manifest, validate(zip, manifest))
+				} catch (e: InvalidBackupException) {
+					BackupInspection(null, e.problems)
+				}
+			}
+		}
+
+		private fun openZip(path: Path): ZipFile =
+			try {
+				ZipFile(path.toFile())
+			} catch (e: IOException) {
+				// ZipException included: whatever it is, it cannot be read as a zip.
+				throw InvalidBackupException(listOf("Not a zip file"))
+			}
+
 		private fun readManifest(
 			zip: ZipFile,
 			mapper: JsonMapper,
 		): BackupManifest {
 			val entry = zip.getEntry(BackupFormat.MANIFEST) ?: throw InvalidBackupException(listOf("${BackupFormat.MANIFEST} is missing"))
-			val manifest: BackupManifest =
+			val invalid = InvalidBackupException(listOf("${BackupFormat.MANIFEST} is not valid"))
+			val tree: JsonNode =
 				try {
-					// A manifest that is JSON `null` reads as null.
-					zip.getInputStream(entry).use { mapper.readValue<BackupManifest?>(it, BackupManifest::class.java) }
+					zip.getInputStream(entry).use { mapper.readTree(it) }
 				} catch (e: JacksonException) {
-					null
-				} ?: throw InvalidBackupException(listOf("${BackupFormat.MANIFEST} is not valid"))
-			if (manifest.formatVersion != BackupFormat.VERSION) {
+					throw invalid
+				} catch (e: IOException) {
+					throw invalid
+				}
+			// The format version first: a manifest of another version need not have the fields of this one.
+			val version = tree.get("formatVersion")
+			if (version == null || !version.isNumber) throw invalid
+			if (!version.isIntegralNumber || !version.canConvertToInt() || version.asInt() != BackupFormat.VERSION) {
 				throw InvalidBackupException(
-					listOf("Unsupported format version ${manifest.formatVersion} (supported: ${BackupFormat.VERSION})"),
+					listOf("Unsupported format version ${version.asString()} (supported: ${BackupFormat.VERSION})"),
 				)
 			}
-			return manifest
+			// Jackson's Kotlin module would let JSON nulls into the lists and maps of non-null types.
+			if (tree.path("files").any { !it.isObject } || tree.path("counts").any { !it.isNumber }) throw invalid
+			return try {
+				mapper.treeToValue(tree, BackupManifest::class.java)
+			} catch (e: JacksonException) {
+				null
+			} ?: throw invalid
 		}
 
 		private fun validate(
