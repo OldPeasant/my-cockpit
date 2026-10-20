@@ -28,4 +28,31 @@ class UserZoneCronTriggerTests {
 
 		trigger.nextExecution(contextAt("2026-03-01T08:00:00Z")) shouldBe Instant.parse("2026-03-01T18:35:00Z")
 	}
+
+	@Test
+	fun `the run stays at 00_05 local time across the switch to summer time`() {
+		val trigger = UserZoneCronTrigger("0 5 0 * * *") { ZoneId.of("Europe/Zurich") }
+
+		// Sunday 2026-03-29: clocks go from 02:00 CET to 03:00 CEST, after the 00:05 run.
+		trigger.nextExecution(contextAt("2026-03-28T12:00:00Z")) shouldBe Instant.parse("2026-03-28T23:05:00Z")
+		trigger.nextExecution(contextAt("2026-03-28T23:30:00Z")) shouldBe Instant.parse("2026-03-29T22:05:00Z")
+	}
+
+	@Test
+	fun `the run stays at 00_05 local time across the switch back to winter time`() {
+		val trigger = UserZoneCronTrigger("0 5 0 * * *") { ZoneId.of("Europe/Zurich") }
+
+		// Sunday 2026-10-25: clocks go from 03:00 CEST back to 02:00 CET.
+		trigger.nextExecution(contextAt("2026-10-24T12:00:00Z")) shouldBe Instant.parse("2026-10-24T22:05:00Z")
+		trigger.nextExecution(contextAt("2026-10-25T12:00:00Z")) shouldBe Instant.parse("2026-10-25T23:05:00Z")
+	}
+
+	@Test
+	fun `the run is exactly once per day, the next one planned after the last completed run`() {
+		val trigger = UserZoneCronTrigger("0 5 0 * * *") { ZoneId.of("Europe/Zurich") }
+		val ranAt = Instant.parse("2026-03-01T23:05:00Z")
+		val context = SimpleTriggerContext(ranAt, ranAt, ranAt.plusSeconds(2))
+
+		trigger.nextExecution(context) shouldBe Instant.parse("2026-03-02T23:05:00Z")
+	}
 }
