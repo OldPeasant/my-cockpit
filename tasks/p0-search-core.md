@@ -19,7 +19,8 @@ One search across all modules (SPEC.md §4.4).
   - verified (2026-10-20 15:45+0200 by dell26/agent-5): cd server && ./gradlew test --tests 'ch.sonensei.cockpit.core.search.*' at beea32c -> 51 tests, 0 failures; ranking (title before body, recency), trigram fallback (typo, fill-up, type filter) and grouping tests over GET /api/v1/search pass
 - [x] Tests: prefix match, typo tolerance on titles, type filter, deleted items not found; `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.core.search.*'` passes (Postgres via Testcontainers where persistence is involved)
   - verified (2026-10-20 15:45+0200 by dell26/agent-5): cd server && ./gradlew test --tests 'ch.sonensei.cockpit.core.search.*' with Testcontainers Postgres -> 51 tests (SearchEdgeCaseTests 32, SearchServiceTests 13, SearchWebTests 6), 0 failures; covers prefix, typo, type filter, deleted items
-- [ ] API documented: `api/openapi.yaml` regenerated (`UPDATE_OPENAPI=1 ./gradlew test --tests '*OpenApiContractTest'`) and `OpenApiContractTest` passes without the flag
+- [x] API documented: `api/openapi.yaml` regenerated (`UPDATE_OPENAPI=1 ./gradlew test --tests '*OpenApiContractTest'`) and `OpenApiContractTest` passes without the flag
+  - verified (2026-10-20 15:45+0200 by dell26/agent-5): cd server && UPDATE_OPENAPI=1 ./gradlew test --tests '*OpenApiContractTest' regenerated api/openapi.yaml (after CR-1 fix); ./gradlew test --tests '*OpenApiContractTest' without the flag at beea32c -> 1 test, 0 failures
 
 ## Notes
 - ASSUMPTION (2026-10-20 15:14+0200 by dell26/agent-5): Migration lives in db/migration/core/ (V202610201500__core_search_document.sql), not the core-search folder named in touches: MigrationConventionTests requires folder == module prefix [a-z0-9]+, so 'core-search' is impossible
