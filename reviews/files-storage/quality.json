@@ -1,0 +1,35 @@
+{
+  "schema": 1,
+  "task": "files-storage",
+  "reviewed_revision": "8e66e73bd941d4ba7fa42ac87e73f160c9308794",
+  "helpers": {
+    "test-writer": {"status": "completed", "report": "reviews/files-storage/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/files-storage/review.md"},
+    "fixer": {"status": "completed", "report": "reviews/files-storage/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "R1-CR-1", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "review 1: upload racing a folder delete left an active file in a trashed folder; folder row locks (FOR SHARE / subtree FOR UPDATE) and purge rescue of active rows, concurrency tests"},
+    {"id": "R1-CR-2", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "review 1: concurrent same-name folder create/rename now 409 instead of 500 (also test-writer observation 1)"},
+    {"id": "R1-CR-3", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "review 1: adopted user folder gets canonical special spelling, reindex and change event (also test-writer observation 2)"},
+    {"id": "R1-CR-4", "source": "code-reviewer", "severity": "P3", "disposition": "accepted",
+     "note": "review 1: upload streaming holds a DB connection; documented in storeFile KDoc, the row lock is taken only after the blob write; streaming outside the transaction belongs to files-api if needed"},
+    {"id": "R1-CR-5", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "review 1: ARCHITECTURE.md COCKPIT_DATA_DIR row updated"},
+    {"id": "R2-CR-1", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "review 2: purge racing a restore deleted the restored item; purge locks rows and re-checks deleted_at in SQL (8e66e73), 4 race tests"},
+    {"id": "R2-CR-2", "source": "code-reviewer", "severity": "P3", "disposition": "accepted",
+     "note": "review 2: restore does not lock the parent; a stranded active item is moved to the root on purge, nothing is lost"},
+    {"id": "R2-CR-3", "source": "code-reviewer", "severity": "P3", "disposition": "accepted",
+     "note": "review 2: rare unique-name races (first special-folder creation vs user 'Attachments', restore rename) give 500; DB keeps the invariant, a retry succeeds"},
+    {"id": "R2-CR-4", "source": "code-reviewer", "severity": "P3", "disposition": "accepted",
+     "note": "review 2: overlapping subtree deletes can deadlock across lockSubtree rounds; PostgreSQL aborts one transaction, data stays consistent"}
+  ],
+  "validation": [
+    {"command": "cd server && ./gradlew test --rerun --tests 'ch.sonensei.cockpit.files.*'", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
