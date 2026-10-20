@@ -2,35 +2,38 @@
 
 Date: 2026-10-20
 
-Task: gtd-tasks-api - Tasks API (re-review on the final code)
+Task: gtd-tasks-api - Tasks API (re-review of the final code, revision eccf1aab)
 
-Scope: `git diff a67434529b8fa4cd07205312c877dfda021e9b5d..HEAD -- server api web/src/app/api/generated`. Task commits: f98c23a, c438ac2 (implementation, API tests), 9d13a3c (fixes for CR-1..CR-4 of the first review), 4b839e5 (merge of main; `api/openapi.yaml` and the web client regenerated), e4a9c73 (fixer report), fdb5e3f (test-writer edge-case tests, tests.md). Reviewed revision: fdb5e3fe0608e4f4f9d167ff895514c2b2321104. Committed code only. The working tree was clean.
+Scope: `git diff dc7514b1 54f95702` (task implementation, squashed, including the CR-5 and CR-6 fixes) plus commit eccf1aab (new `TaskPositionAndCursorTests.kt`, tests.md). f21a7fae (merge of main) brings only files-storage code and does not touch `gtd`, `api/openapi.yaml` or `web/src/app/api/generated` (checked with `git diff --stat 54f95702 eccf1aab`). Committed code only. The working tree was clean.
 
 Requirements:
-- tasks/gtd-tasks-api.md: acceptance criteria 1-6 and the 4 ASSUMPTION notes
-- SPEC.md §4.2 (API conventions, ETag/If-Match, Problem Details, UUIDv7), §5.1, §5.2, §5.4 (projects have an ordered task list)
-- docs/ARCHITECTURE.md (server module and package conventions), docs/QUALITY.md, AGENTS.md project notes
-- Previous reports: reviews/gtd-tasks-api/review.md (first review, revision 3ac3056), fixes.md, tests.md
+- tasks/gtd-tasks-api.md: acceptance criteria 1-6 and the 4 ASSUMPTION notes (two confirmed by a human)
+- SPEC.md §4.2 (ETag/If-Match, Problem Details, UUIDv7), §5.2/§5.4 (projects have an ordered task list), data model `position (for ordering within project/list)`, §14
+- docs/ARCHITECTURE.md, docs/QUALITY.md, AGENTS.md project notes, api/README.md
+- Previous reports: reviews/gtd-tasks-api/review.md (stale, revision fdb5e3f), fixes.md, tests.md
 
 Git range:
 - Branch: main
-- HEAD: fdb5e3fe0608e4f4f9d167ff895514c2b2321104
-- Base/start: a67434529b8fa4cd07205312c877dfda021e9b5d
-- Commits reviewed: 6 (f98c23a, c438ac2, 9d13a3c, 4b839e5, e4a9c73, fdb5e3f)
+- HEAD: eccf1aab8b6f8b5ed77aff280153c4f286152434
+- Base/start: dc7514b1
+- Commits reviewed: 2 task commits (54f95702, eccf1aab), plus merge f21a7fae checked to leave gtd unchanged
 
-Files read in full: `TaskService.kt`, `TaskController.kt`, `TaskDtos.kt`, `ChecklistService.kt`, `ChecklistController.kt`, `TaskCommands.kt`, `TaskTrashContributor.kt`. Also the diffs of `Task.kt`, `GtdEnums.kt`, `GtdItemResolvers.kt` and `GtdRepositories.kt`, the `TaskPatchRequest` and `maxMinutes` parts of `api/openapi.yaml`, the generated `task-patch-request.ts` and `list-tasks.ts`, the CR-1/CR-4 tests in `TaskWebTests.kt`, and the repositioning tests in `TaskEdgeCaseTests.kt`.
+Files read in full: `TaskService.kt`, `TaskController.kt`, `TaskDtos.kt`, `TaskCommands.kt`, `ChecklistService.kt`, `TaskTrashContributor.kt`, `GtdRepositories.kt`, `TaskPositionAndCursorTests.kt`; the race test and test index of `TaskEdgeCaseTests.kt`; the If-Match handling of `ChecklistController.kt`.
 
-Commands run:
-- `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.gtd.*' --tests '*OpenApiContractTest'` (Postgres via Testcontainers, without `UPDATE_OPENAPI`) -> BUILD SUCCESSFUL. Fresh JUnit XML (17:21): TaskWebTests 21, TaskEdgeCaseTests 22, ChecklistWebTests 3, ChecklistEdgeCaseTests 5, GtdRepositoryTests 22, GtdItemResolverTests 8, OpenApiContractTest 1; 0 failures, 0 errors, 0 skipped.
+Checks run by this review:
+- Web client drift: `npx --no-install ng-openapi-gen --input ../api/openapi.yaml --output ../.tmp/review-gen/generated` (same options as `web/ng-openapi-gen.json`), then `diff -r` against `web/src/app/api/generated` -> identical. The committed web client matches the committed `api/openapi.yaml`.
+- Gradle tests could not be run: the sandbox denied the command. The latest JUnit XML in `server/build/test-results/test` is from 17:56 (+0200), shortly before commit eccf1aab (18:00), and the working tree is clean. It shows 0 failures, 0 errors and 0 skipped for TaskWebTests (21), TaskEdgeCaseTests (22), TaskPositionAndCursorTests (8), ChecklistWebTests (3), ChecklistEdgeCaseTests (5), GtdRepositoryTests (24), GtdItemResolverTests (8) and OpenApiContractTest (1). These are the test-writer's results, not results this review produced.
 
-Summary: 0 P0, 0 P1, 1 P2, 1 P3
+Summary: 0 P0, 0 P1, 0 P2, 1 P3
 
 ## Status of the previous findings
 
-- CR-1 (a task in a trashed project could not be changed): **resolved.** `TaskService.modify` now calls `validate(task, checkProject = task.projectId != oldProject)` (line 231), and `create` checks the project (line 106). The test `a task whose project is in the Trash can still be changed, completed and moved` covers PATCH, complete, uncomplete and move, plus the 400 when a task is put into a trashed or unknown project.
-- CR-2 (`maxMinutes` documented as a string): **resolved.** `TaskController.kt:79` uses `Schema(type = "integer", format = "int32", minimum = "0")`. The generated `list-tasks.ts` has `maxMinutes?: number`, and `OpenApiContractTest` passes without the flag.
-- CR-3 (PATCH schema did not allow `null`): **resolved.** The clearable `TaskPatchRequest` properties have `types = [..., "null"]`. `TaskPatchNullEnums` adds `null` to the enums of energy, creativity and recurrenceMode. In the generated model they are `(... | null)`, and `title`, `position` and `contextIds` stay non-nullable as documented.
-- CR-4 (create and PATCH could break the list rules): **resolved.** `validate` (lines 286-296) enforces SCHEDULED/scheduledDate and WAITING/waiting-for/waitingSince on every path. The test `create and PATCH enforce the list rules of move` covers create and PATCH, and checks that a rejected PATCH leaves the version unchanged.
+- CR-5 (a list-only move put a project task at the end of its project): **resolved.** `TaskService.modify` (lines 244-246) now repositions only when `task.projectId != oldProject || (task.projectId == null && task.list != oldList)`. Tests: `move to another list keeps a project task at its position in the project` (TaskEdgeCaseTests:398) and `move into another project ... naming its own project keeps its position` (TaskPositionAndCursorTests:140). `PATCH projectId null` (project removed) moves the task to the end of the tasks without a project in its list (TaskPositionAndCursorTests:167). `uncomplete` and `complete` never reposition.
+- CR-6 (two concurrent idempotent creates gave a 500): **resolved.** `TaskController.create` (lines 140-147) catches `DataIntegrityViolationException` and answers with `tasks.existingCreate(id)`: 200 with the existing task, or 409 if it is in the Trash. Any other integrity error, or a request without an id, is rethrown. This is correct here because the service transaction has already rolled back when the exception reaches the controller, `JpaTransactionManager` clears the EntityManager on rollback, and `spring.jpa.open-in-view=false` (application.properties:10). So `existingCreate` reads in a fresh transaction. Postgres only raises the PK violation after the competing insert has committed, so the re-read finds the row. Both outcomes have deterministic tests that use a real blocking insert: TaskEdgeCaseTests:203 (200 with ETag "0") and TaskPositionAndCursorTests:194 (409).
+
+## Test-writer note: the max-position query counts the moving task
+
+Confirmed, and it does not matter. `nextPosition` runs a JPQL `max(position)` query after the change has been applied to the managed entity. Hibernate auto-flushes before the query, so the moving task already counts in its new list or project with its old position. When its old position is at least the current maximum there, the result is `old + 1` instead of `max + 1`. For example, an Inbox task at position 7 moved to an empty NEXT list gets position 8, not 0. The task still ends up last, which is the required behavior (assumption #2). Positions are only sort keys: deletes already leave gaps, and nothing in SPEC.md or the API contract promises dense positions. No finding.
 
 ## P0 Critical
 
@@ -42,29 +45,24 @@ None.
 
 ## P2 Medium
 
-- [ ] **CR-5 | A list change puts a project task at the end of its project, so the user's project order changes**
-    - File: `server/src/main/kotlin/ch/sonensei/cockpit/gtd/domain/TaskService.kt:232` (with `nextPosition` at 307-311)
-    - Category: Correctness
-    - Problem: `modify` gives the task a new position when `task.list != oldList || task.projectId != oldProject`. For a task with a project, `nextPosition` returns the end of the *project*, because `position` is the order within the project (TaskResponse doc, SPEC.md data model "position (for ordering within project/list)"). So a `/move` that only changes the list (e.g. NEXT -> WAITING of step 2 of 5) moves the task to the end of the project's ordered task list, although the project did not change. tests.md lists this as an observation. No test covers this case: `move to another list puts the task at the end of that list` only uses tasks without a project.
-    - Why it matters: SPEC.md §5.2 says "a project has an ordered task list" with drag reorder in the project detail. A normal processing step (delegating a step, scheduling it) silently changes that order. Project detail and next-step selection (gtd-projects-api, web-gtd) depend on this order. The recorded assumption ("a task changing list/project goes to the end of the new list/project") does not decide this case: the task's project is not new.
-    - Suggested fix: Reposition only when the project changed, or when the list changed and the task has no project (`task.projectId != oldProject || (task.list != oldList && task.projectId == null)`). Add a test that moves a project task to another list and checks that its position in the project stays the same. If the current behavior is intended, record it explicitly with `tasks.py assume`.
+None.
 
 ## P3 Low
 
-- [ ] **CR-6 | Two concurrent idempotent creates with the same client id give a 500**
-    - File: `server/src/main/kotlin/ch/sonensei/cockpit/gtd/domain/TaskService.kt:94-109`
+- [ ] **CR-7 | Two position scales in one list, and the CR-5 positioning rule is not recorded as an assumption**
+    - File: `server/src/main/kotlin/ch/sonensei/cockpit/gtd/domain/TaskService.kt:244-246` and `:69` (list sort)
     - Category: Correctness
-    - Problem: An idempotent create first runs `tasks.findById(id)` and then inserts (`BaseEntity` implements `Persistable`, so `saveAndFlush` runs a plain INSERT). When two requests with the same UUIDv7 overlap, the second INSERT fails on the primary key with a `DataIntegrityViolationException`. Neither `TaskService` nor `ProblemDetailsAdvice` handles it; the advice maps only `OptimisticLockingFailureException` to 409. The client gets a 500 instead of the documented 200 with the existing task.
-    - Why it matters: The client id exists for offline capture. Such clients retry, e.g. after a timeout while the first request is still running, so this case is realistic. Data is not corrupted (the first create wins), but the client sees a server error for a request that is idempotent by contract.
-    - Suggested fix: Catch `DataIntegrityViolationException` for a client-supplied id and answer like the idempotent path (reload, then 200, or 409 if the task is in the Trash), as `LinkService` and `SetupService` already do for their unique keys. An alternative is an insert with `ON CONFLICT DO NOTHING`. A test is optional, since such a race is hard to make deterministic.
+    - Problem: A project task's `position` is its order within the project, and a task without a project has a position within its list (TaskResponse doc, `nextPosition`). After the CR-5 fix, project tasks keep their project position when they change list. `GET /tasks?list=NEXT` sorts by `position, id` across both kinds of task. So a project's step 0 and a loose NEXT task at position 0 are ordered by id, and the steps of several projects interleave with the loose tasks. The task notes only record "a task changing list/project goes to the end of the new list/project". They do not record that a project task changing only its list keeps its project position, or what order a list view has. The previous review asked for an assumption if this is intended.
+    - Why it matters: SPEC.md's `position (for ordering within project/list)` leaves this open. The order of the Next Actions and other list views (web-gtd, android) depends on this decision, so a human should see it.
+    - Suggested fix: No code change is needed for this task. Record the decision with `python tasks.py assume gtd-tasks-api "..."`: position is per project for project tasks and per list for other tasks, a list-only move keeps the project position, and list views ordered by position interleave both. Clients that need a meaningful list order then know to sort or group it themselves, or a later task can define it.
 
 ## Notes (not findings)
 
-- Criteria 1-4 are implemented as specified. Filters, cursor paging (open and Logbook), CRUD with ETag/If-Match (412/428), complete/uncomplete/move with validation, checklist CRUD with item ETags, contexts by id list, search indexing, ChangeEvents (checklist changes publish TASK UPDATED), soft delete and the TrashContributor (restore re-indexes; TrashService publishes the event) are all covered by tests against Postgres. Criteria 5 and 6 were re-run by this review (see Commands run).
-- Assumption #3 (`If-Match` optional on complete, uncomplete and move) still deviates from SPEC.md §4.2 ("updates require If-Match"). It is recorded, a sent If-Match is checked, and `@Version` still prevents lost updates. A human should confirm it.
-- The last Notes line of tasks/gtd-tasks-api.md names the fix commit as `bb6d7d0`, but the fixes are in `9d13a3c` (most likely rebased). This is task metadata, not code. The parent may want to cite the correct hash in quality.json.
-- Not reported because it is minor and has no concrete impact: an empty PATCH body `{}` re-indexes the task and publishes `UPDATED` without changing the version. The same happens for a checklist PATCH without fields.
+- Criteria 1-4 are implemented as specified and covered by tests against Postgres: filters, both cursor orders (now also with equal sort keys), CRUD with ETag/If-Match (412/428), workflow actions with validation, checklist CRUD with item ETags, contexts as an id list (duplicates stored once), search indexing, ChangeEvents, soft delete and the TrashContributor.
+- Criterion 6: the committed `api/openapi.yaml` is unchanged since 54f95702, and the merge added no controllers. The web client matches it (see above). OpenApiContractTest passed in the latest results.
+- Assumption #3 (If-Match optional on complete/uncomplete/move) deviates from SPEC.md §4.2. It has since been confirmed by a human, so it is not reported.
+- A `move` with invalid fields returns 400 before the task is loaded, so an unknown id with an invalid body gets 400 instead of 404. This is harmless and not reported.
 
 ## Review conclusion
 
-Material issues found; fix before completing the task. CR-1..CR-4 are resolved. CR-5 (P2) should be fixed, or accepted as an explicit assumption by the parent worker. CR-6 (P3) is optional.
+No material issues found. CR-5 and CR-6 are correctly resolved and tested. CR-7 (P3) only asks the parent worker to record an assumption; it needs no code change.
