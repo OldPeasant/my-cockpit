@@ -1,11 +1,11 @@
 ---
 title: Files: model and blob storage
-status: todo
-owner: 
+status: in_progress
+owner: dell26/agent-5
 deps: [p0-trash-core,p0-search-core,p0-events-sse]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/files,server/src/test/kotlin/ch/sonensei/cockpit/files,server/src/main/resources/db/migration/files]
 prio: 1
-lease_until: 
+lease_until: 2026-10-20T15:58:23Z
 extended: 
 releases: 1
 ---
