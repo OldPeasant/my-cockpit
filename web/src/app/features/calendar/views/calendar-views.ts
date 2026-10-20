@@ -71,6 +71,7 @@ export function toEventInput(
   const classNames = ['app-event'];
   if (occurrence.status === 'CANCELLED') classNames.push('app-event-cancelled');
   if (occurrence.status === 'TENTATIVE') classNames.push('app-event-tentative');
+  const className = classNames.join(' ');
   return {
     // One series has many occurrences: the original start tells them apart.
     id: occurrence.occurrence ? `${occurrence.eventId}@${occurrence.occurrence}` : occurrence.eventId,
@@ -79,7 +80,7 @@ export function toEventInput(
     start: occurrence.allDay ? occurrence.startDate : occurrence.start,
     end: occurrence.allDay ? occurrence.endDate : occurrence.end,
     color,
-    classNames,
+    className,
     extendedProps: { occurrence, calendarName: calendar?.name },
   };
 }

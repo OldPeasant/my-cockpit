@@ -147,8 +147,7 @@ app-calendar-view {
   --app-event-color: var(--fc-event-color, var(--mat-sys-primary));
 }
 
-.app-calendar .fc-timegrid-event.app-event,
-.app-calendar .fc-daygrid-block-event.app-event {
+.app-calendar .app-block-event.app-event {
   border: 0;
   border-inline-start: 3px solid var(--app-event-color);
   background: color-mix(in srgb, var(--app-event-color) 18%, var(--mat-sys-surface));

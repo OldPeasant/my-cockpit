@@ -38,7 +38,7 @@ test.describe('calendar views', () => {
       await expect(events).toHaveCount(2);
       for (const day of ['2026-03-23', '2026-03-29']) {
         await expect(eventsOn(page, day, title), `event on ${day}`).toHaveCount(1);
-        await expect(eventsOn(page, day, title)).toContainText('9');
+        await expect(eventsOn(page, day, title)).toContainText('9:00 – 10:00');
         expect(await startHour(page, day, title), `starts at 09:00 on ${day}`).toBe(9);
       }
       // Both days place the event at the same height: same wall-clock time on both sides of the change.
@@ -67,9 +67,9 @@ test.describe('calendar views', () => {
 
       // Agenda of the DST week: both occurrences at 9am.
       await page.goto('/calendar?view=agenda&date=2026-03-25');
-      const agenda = page.locator('.app-calendar').getByRole('row', { name: new RegExp(title) });
+      const agenda = page.locator('.app-calendar .app-event', { hasText: title });
       await expect(agenda).toHaveCount(2);
-      for (const row of await agenda.all()) await expect(row).toContainText(/9(:00)?\s?am/i);
+      for (const row of await agenda.all()) await expect(row).toContainText('9:00 – 10:00am');
 
       // Hiding the calendar hides its events; showing it brings them back (also after a reload).
       const toggle = page.getByRole('checkbox', { name: `Family ${run}` });
@@ -90,9 +90,9 @@ test.describe('calendar views', () => {
         end: '2026-03-26T15:00:00+01:00',
         timeZone: 'Europe/Zurich',
       });
-      await expect(
-        page.locator('.app-calendar').getByRole('row', { name: new RegExp(live) }),
-      ).toHaveCount(1);
+      await expect(page.locator('.app-calendar .app-event', { hasText: live })).toContainText(
+        '2:00 – 3:00pm',
+      );
     } finally {
       await context.close();
     }

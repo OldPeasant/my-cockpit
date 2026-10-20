@@ -97,6 +97,7 @@ export default class CalendarView {
       nowIndicator: true,
       scrollTime: '07:00:00',
       dayMaxEventRows: true,
+      blockEventClass: 'app-block-event',
       datesSet: (info) => this.onDatesSet(info, settings.timeZone),
     };
   });
