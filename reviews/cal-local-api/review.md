@@ -4,35 +4,32 @@ Date: 2026-10-20
 
 Task: cal-local-api - Calendar API for local calendars
 
-Scope: `git diff 9e2d0743e12cb9df3e5e16f10f113cdb9fbceec2 de56a2f` restricted to the task's files: `server/src/main/kotlin/ch/sonensei/cockpit/calendar/api/`, `server/src/test/kotlin/ch/sonensei/cockpit/calendar/api/`, `api/openapi.yaml`, `web/src/app/api/generated/` (checked for consistency with the contract only) and `reviews/cal-local-api/`. Committed changes only. This is a re-review. The earlier review had findings CR-1 to CR-3, and they were fixed in addf13a.
+Scope: `git diff b1708640253e120e461364a0e5ce82230387e099..d46c83e` (committed changes only). This is the final-code review after the fixes for CR-4, CR-5 (previous review) and TW-2 (test-writer). The production changes since the previous review are in `CalendarEventService.kt` (`seriesBase`, used by `updateSeries` and `splitSeries`) and `EventCommands.kt` (`EventContent.propagate`). The whole task was re-checked against its acceptance criteria.
 
-Reviewed revision: de56a2f
+Reviewed revision: d46c83e1e0669ee2321863e1fe7c78cc2874ec2d
 
 Requirements:
-- `tasks/cal-local-api.md`: the 5 acceptance criteria and the recorded ASSUMPTION notes (scope defaults, occurrence format, time-field semantics, DELETE THIS/FOLLOWING behaviour, the CALENDAR change-event type)
-- SPEC.md §4.2 (UUIDv7, ETag/If-Match, Problem Details, Trash), §6 (calendar module, §6.4 endpoint list), §14 (conventions)
-- docs/ARCHITECTURE.md, docs/QUALITY.md, AGENTS.md project notes
-- Previous review `reviews/cal-local-api/review.md` (old revision), `reviews/cal-local-api/fixes.md`, `reviews/cal-local-api/tests.md`
+- `tasks/cal-local-api.md`: the 5 acceptance criteria and the ASSUMPTION notes, including the 2026-10-20 20:20 note on the all-day kind and on CANCELLED overrides
+- SPEC.md §4.2 and §6.4, docs/ARCHITECTURE.md, docs/QUALITY.md, AGENTS.md project notes
+- `reviews/cal-local-api/fixes.md` (three cycles), the previous `reviews/cal-local-api/review.md`
 
 Git range:
 - Branch: main
-- HEAD: de56a2f
-- Base/start: 9e2d0743e12cb9df3e5e16f10f113cdb9fbceec2
-- Commits reviewed: 7 task commits (a8cae2c, cc50c8f, f939ad0, 7ac3610, addf13a, e64ad1c, de56a2f). The range also contains claim, heartbeat and board commits from other agents. They do not touch the reviewed files.
-- Uncommitted changes: none (`git status --short` is empty)
+- HEAD: d46c83e1e0669ee2321863e1fe7c78cc2874ec2d
+- Base/start: b1708640253e120e461364a0e5ce82230387e099
+- Commits reviewed: 11 (7437436 to d46c83e)
+- Uncommitted changes: `reviews/cal-local-api/tests.md` and `CalendarSeriesEdgeCaseWebTests.kt` have uncommitted changes from a concurrent test-writer. As instructed, they were not reviewed.
 
-Files read in full: `CalendarEventService.kt`, `EventCommands.kt`, `CalendarEventController.kt`, `CalendarDtos.kt`, `CalendarController.kt`, `CalendarService.kt`, `EventTrashContributor.kt`. I also read the `listEventOccurrences` section of `api/openapi.yaml` and the `accept` headers of the generated `fn/calendars/*.ts`. I listed the test names in all test classes (131 test functions plus `OpenApiContractTest`, which matches the 132 in tests.md) and read the relevant parts of `CalendarSeriesEdgeCaseWebTests.kt`.
+Files read in full: `CalendarEventService.kt`, `EventCommands.kt`. I also read the relevant parts of `OccurrenceExpander.kt` (how CANCELLED overrides are handled), the all-day and override tests in `CalendarSeriesEdgeCaseWebTests.kt` (lines 156-405), and the diff of `ReminderServiceEdgeCaseTests.kt`. The controllers, DTOs, `CalendarService`, `EventTrashContributor`, `api/openapi.yaml` and the generated client have not changed since the previous review (`git diff 6fc9bfc..HEAD -- server/src/main` touches only the two files above). I did not run Gradle in this session. Test results come from `fixes.md`.
 
-I could not run Gradle in this review session, so the test results are the ones reported in `tests.md`.
-
-Summary: 0 P0, 0 P1, 0 P2, 2 P3
+Summary: 0 P0, 0 P1, 0 P2, 1 P3
 
 ## Status of the earlier findings
 
-- **CR-1 (FOLLOWING/ALL through a moved override): resolved.** `carryExceptions` now takes the addressed override's recurrence id and requested times (`CalendarEventService.kt:366`, `:380-382`, `:395-397`). `updateSeries` and `splitSeries` pass them in through `addressedTiming` (`:279`, `:331`, `:408-411`). Regression tests: `CalendarSeriesEdgeCaseWebTests.kt:237`, `:251`, `:263`, `:290`. The content-only case stays covered (`:221`, `:317`).
-- **CR-2 (racing THIS creates end in a 500): resolved.** `updateOccurrence` turns a `DataIntegrityViolationException` from inserting a new override into `ConflictException` (409) (`CalendarEventService.kt:223-230`). An update of an existing override rethrows the exception unchanged. Deterministic regression test: `CalendarSeriesEdgeCaseWebTests.kt:562`.
-- **CR-3 (200 of `listEventOccurrences` documented as problem+json): resolved.** The 200 response now declares `application/json` (`CalendarEventController.kt:59-63`). In `api/openapi.yaml:461-472` the 200 response has only `application/json`, and `application/problem+json` appears only on the 400. The generated `list-event-occurrences.ts:39` sends `accept: 'application/json'`.
-- **TW-1 (an override of a trashed series was reachable): resolved.** `load` treats an override whose master is not active as not found (`CalendarEventService.kt:590-594`). Tested at `CalendarSeriesEdgeCaseWebTests.kt:602` and `:613`.
+- **CR-4: resolved.** `seriesBase` (`CalendarEventService.kt:292-299`) uses the addressed override as the base only when the override has the kind the series ends up with (`input.allDay`, otherwise the series' own kind). A request without `allDay` therefore never changes the series' kind. Time fields of the other kind now get a 400 from `Timing.resolve`, before any write. Tests: `CalendarSeriesEdgeCaseWebTests.kt:204` (400, nothing changed), `:223` and `:242` (a start moves or splits the series, which stays timed and keeps its EXDATE).
+- **TW-2: resolved.** When `allDay` equals the series' kind, the result is now the same as without `allDay` (`:306`, `:325`, `:368`). I traced the ALL and FOLLOWING paths by hand and they give the expected times.
+- **CR-5: resolved as specified.** `propagate` no longer changes the status of a CANCELLED override (`EventCommands.kt:240`). ALL and FOLLOWING both use it. Tests: `:748`, `:765`. The resulting trade-off is recorded with `tasks.py assume`: an override that was cancelled together with its series stays cancelled, and hidden, after the series is un-cancelled. See the conclusion.
+- CR-1 to CR-3 and TW-1 from earlier cycles are still in place (`addressedTiming`/`carryExceptions` `:375-427`, the 409 mapping `:223-230`, `load` `:606-610`).
 
 ## P0 Critical
 
@@ -48,34 +45,31 @@ None.
 
 ## P3 Low
 
-- [ ] **CR-4 | A time change with scope ALL or FOLLOWING through an all-day override of a timed series makes the whole series all-day and drops all its exceptions**
-    - File: `server/src/main/kotlin/ch/sonensei/cockpit/calendar/api/CalendarEventService.kt:265-266` (ALL) and `:307-308` (FOLLOWING); `server/src/main/kotlin/ch/sonensei/cockpit/calendar/api/EventCommands.kt:98-106` (`Timing.shifted`) and `:149` (`Timing.resolve`)
+- [ ] **CR-6 | Turning an all-day series timed through a timed override (`allDay:false` + `start`, scope ALL or FOLLOWING) gives the series a start near midnight instead of the requested time**
+    - File: `server/src/main/kotlin/ch/sonensei/cockpit/calendar/api/CalendarEventService.kt:297-298` (`seriesBase`), applied at `:266-267` (ALL) and `:323-324` (FOLLOWING); `server/src/main/kotlin/ch/sonensei/cockpit/calendar/api/EventCommands.kt:99-101` (`Timing.shifted`, Timed branch)
     - Category: Correctness
-    - Problem: `PATCH THIS {"allDay":true}` can make one occurrence of a timed series all-day (tested at `CalendarSeriesEdgeCaseWebTests.kt:186`). If the client then sends only `startDate` for that override with `scope=ALL` or `FOLLOWING`, the request does not send `allDay`. Even so, `Timing.resolve(shown, input, zone)` returns an `AllDay`, because `allDay = input.allDay ?: (current is AllDay)` and `current` is the all-day override. `oldTiming.shifted(shown, requested)` then switches on the kind of `to`, so the timed master gets an `AllDay` timing. `moved` is true, and `carryExceptions` calls `from.moveOccurrenceId(id, to)`, which returns `null` for the change from timed to all-day. As a result, every EXDATE and every override of the series is dropped. That includes the addressed override and occurrences the user had deleted earlier, which come back.
-    - Why it matters: Moving one all-day exception by a day for "all events" silently turns the whole series into all-day events and discards the user's other exceptions. The client never asked for a kind change. The task assumption says the series "moves by the same wall-clock offset", and the documented drop of exceptions only covers a requested change between timed and all-day (`PATCH ALL turns a timed series all-day...`, `:159`). The precondition is rare, so this is P3.
-    - Suggested fix: Change the series kind only when the request sends `allDay`. Otherwise, shift the master by the date offset and keep its own kind (for a timed master, move by whole days in its zone). Alternatively, reject the request with 400 when the addressed occurrence's kind differs from the series and `allDay` is not sent. Add a web test for either behaviour, or record the current behaviour with `tasks.py assume` if it is intended.
+    - Problem: When the client requests a kind change and the addressed override already has the target kind, `seriesBase` uses that override as the base. For the timed target the shift is `Duration.between(override.localStart, requested.localStart)`, and `shifted` adds it to the master's `localStart`. For an all-day master, `localStart` is midnight. Worked example, based on the setup of the test at `:343`:
+        1. Create a daily all-day series "Gym" starting 2026-03-02.
+        2. `PATCH THIS {"allDay":false,"start":"2026-03-04T17:00:00Z","timeZone":"Europe/Zurich"}` makes the occurrence of 03-04 a timed override (18:00 local time).
+        3. `PATCH <override>?scope=ALL {"allDay":false,"start":"2026-03-05T17:00:00Z"}`.
 
-- [ ] **CR-5 | Changing the status of the series with scope ALL brings back occurrences deleted with `DELETE scope=THIS`**
-    - File: `server/src/main/kotlin/ch/sonensei/cockpit/calendar/api/EventCommands.kt:237` (`EventContent.propagate`), used from `CalendarEventService.kt:271-274` and `:317-320`; the deletion happens at `CalendarEventService.kt:239-241`
-    - Category: Correctness
-    - Problem: `DELETE ?scope=THIS` on an occurrence that has an override deletes it by setting the override's `status = CANCELLED`. A later status change with ALL (or FOLLOWING) copies the new status to every override whose status equals the master's old status: `if (event.status == before.status) event.status = status`. Example sequence:
-        1. Delete one moved occurrence with THIS. Its override is now CANCELLED.
-        2. Cancel the whole series with `PATCH ALL {"status":"CANCELLED"}`.
-        3. Un-cancel it with `PATCH ALL {"status":"CONFIRMED"}`.
-
-      In step 3 `before.status` is CANCELLED, so the override deleted in step 1 becomes CONFIRMED and shows up again in `GET /calendar/events`. The propagation cannot tell "deleted with THIS" apart from "cancelled with the series".
-    - Why it matters: An occurrence the user deleted reappears without a request for it. The sequence is uncommon, so this is P3.
-    - Suggested fix: Exclude overrides that are CANCELLED from status propagation, so that a deleted occurrence never inherits a non-cancelled status from the master. Alternatively, record a THIS delete of an overridden occurrence as an EXDATE and delete the override row. Add a web test for the cancel and un-cancel sequence.
+      The computed shift is +24h. The master becomes timed at 2026-03-03T00:00 Europe/Zurich (2026-03-02T23:00Z), so every occurrence runs from 00:00 to 01:00. The user asked for 18:00. Because the kind changes, `carryExceptions` drops every override (`moveOccurrenceId` returns `null`), including the addressed one. The requested 18:00 therefore appears nowhere. FOLLOWING has the same base error for the new series. Without an override the same request works: `shown` is the all-day occurrence with a midnight base, and the analogous master path is tested at `:177`. The reverse direction (timed series, all-day override, `allDay:true`) is not affected, because the AllDay branch of `shifted` only uses dates. No test covers this combination.
+    - Why it matters: A requested change of kind puts the whole series at the wrong time of day and silently discards the time the client sent. The precondition is rare, so this is P3. It is the mirror case of CR-4/TW-2 and comes from the same base-selection rule.
+    - Suggested fix: When the series changes kind, use the original occurrence (the series' own kind) as the base. Use the override only when it, the series and the target all have the same kind: `override?.takeIf { (it is Timing.AllDay) == allDay && allDay == (original is Timing.AllDay) } ?: original`. By my trace, the existing tests at `:267` and `:288` give the same results with this base, because the override there is on its original date. Add web tests for ALL and FOLLOWING with `{"allDay":false,"start":...}` through a timed override of an all-day series. Alternatively, record the current behaviour with `tasks.py assume` if it is intended.
 
 ## Checked without findings
 
-- AC1: `GET/POST/PATCH /api/v1/calendar/calendars` and `GET /api/v1/calendar/events?from=&to=&calendarIds=` exist. The range check is in place (to > from, at most 400 days, 400 Problem Details). By default only visible calendars are listed. A new default calendar flushes the old one first, which respects the partial unique index.
-- AC2: scope defaults and occurrence parsing follow the recorded assumptions. For FOLLOWING, COUNT becomes UNTIL on the old series, and the remaining COUNT counts EXDATEs. UNTIL is `occurrence - 1s` in UTC (timed) or the day before (all-day). Overrides are recreated with delete and flush before insert, because `parent_event_id` and `recurrence_id_*` cannot change. DELETE THIS, FOLLOWING and ALL behave as documented. If-Match uses the addressed event's version, and the If-Match check runs before any write.
-- AC3: every change path calls `changed()` (re-index and change event). Overrides that are removed publish `ItemDeletedEvent` and DELETED. Trash: overrides are hidden in the list, restore re-indexes, and purge removes the overrides with their links. Tests: `CalendarEventWebTests.kt:241`, `:266`, `:328`; `CalendarSeriesEdgeCaseWebTests.kt:483-545`, `:578-648`.
-- AC5 and integration: the regenerated contract and client match the controller annotations (`accept` headers checked for all 9 generated functions). Errors are Problem Details. The idempotent create handles a lost race through `existingCreate` in a new transaction.
-- Security: the endpoints are under `/api/v1` and need authentication. No logging was added to the reviewed main code (grep for logger/println finds nothing). Input lengths, RRULE, URL scheme and e-mail are validated. No secrets or personal data were found in the diff.
-- Tests: 131 test functions across the 9 classes in `calendar.api`, plus `OpenApiContractTest`, which matches the 132 tests in tests.md. All earlier findings have regression tests.
+- AC1/AC2: endpoints, the range check, scope defaults, occurrence parsing, FOLLOWING COUNT/UNTIL handling, and DELETE THIS/FOLLOWING/ALL are unchanged since the previous review and still match the recorded assumptions. In the new code, validation (`Timing.resolve`, `validate`) runs before the first `saveAndFlush`, so a rejected kind-mismatch request writes nothing (asserted at `:204` with `rowCount`).
+- AC3: the new code paths publish change events and re-index as before. With the CR-5 change, a CANCELLED override is still de-indexed (`CalendarEventIndexer.kt:38`) and hidden by the expander (`OccurrenceExpander.kt:130`), as `:748` asserts.
+- AC5 and integration: no annotations or DTOs changed after the last regeneration, so `api/openapi.yaml` and `web/src/app/api/generated/` are still current. `fixes.md` reports that `OpenApiContractTest` passes without the flag.
+- `ReminderServiceEdgeCaseTests.kt` (outside the task's touches, recorded as an assumption): the test now uses its own two-thread executor, shut down in `finally`. The latch release is still in an inner `finally`. Assertions are not weakened.
+- Security: no new logging, inputs or endpoints. No secrets or personal data in the diff.
+- Tests: every fixed finding has a web regression test. Per `fixes.md`, the focused suite and `./gradlew check` pass on Testcontainers Postgres.
 
 ## Review conclusion
 
-No material issues found. The earlier findings CR-1 to CR-3 and the trashed-override bug (TW-1) are resolved and covered by tests. CR-4 and CR-5 are low-priority edge cases in how series edits propagate. The parent worker may fix them, or accept them with a recorded `tasks.py assume`. Neither blocks completion of the task. I did not run the test suite in this review. The parent must use its own test runs as evidence for criteria 4 and 5.
+No material issues found. CR-4, CR-5 and TW-2 are fixed correctly. I found no regression in the paths they touch, apart from the pre-existing mirror case CR-6 (P3). The parent worker may fix CR-6 or accept it with a recorded assumption. It does not block completion of the task.
+
+The CR-5 fix has a trade-off, already recorded with `tasks.py assume` for human review. `PATCH ALL {"status":"CANCELLED"}` followed by `{"status":"CONFIRMED"}` now hides every override of the series for good: the occurrences the user had moved or edited disappear from the list and from search, while the generated occurrences come back. A THIS delete of an override could instead be stored as an EXDATE and the override row deleted. That would remove the ambiguity, if the humans reject the assumption.
+
+I did not run the test suite in this review. For criteria 4 and 5 the parent must use its own test runs as evidence.

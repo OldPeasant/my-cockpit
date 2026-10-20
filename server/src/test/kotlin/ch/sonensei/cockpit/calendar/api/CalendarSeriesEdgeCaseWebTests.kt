@@ -365,6 +365,44 @@ class CalendarSeriesEdgeCaseWebTests(
 	}
 
 	@Test
+	fun `PATCH ALL or FOLLOWING with allDay true through a timed override of an all-day series behaves like without allDay`() {
+		// allDay=true is the series' own kind: the dates apply to the original all-day occurrence, not to the timed override.
+		val gym = api.createEvent("""{"title":"Gym","allDay":true,"startDate":"2026-03-02","rrule":"FREQ=DAILY;COUNT=5"}""")
+		val timed =
+			api.patchEventOk(
+				gym.id(),
+				"""{"allDay":false,"start":"2026-03-04T17:00:00Z","timeZone":"Europe/Zurich"}""",
+				"?scope=THIS&occurrence=2026-03-04",
+			)
+
+		api.patchEventOk(timed.id(), """{"allDay":true,"startDate":"2026-03-05"}""", "?scope=ALL")
+
+		val moved = api.event(gym.id())
+		moved.get("allDay").asBoolean() shouldBe true
+		moved.text("startDate") shouldBe "2026-03-03"
+		moved.text("endDate") shouldBe "2026-03-04"
+		spring().forEach { it.get("allDay").asBoolean() shouldBe true }
+		spring().map { it.text("startDate") } shouldContainExactly listOf("2026-03-03", "2026-03-04", "2026-03-05", "2026-03-06", "2026-03-07")
+
+		val hike = api.createEvent("""{"title":"Hike","allDay":true,"startDate":"2026-04-01","rrule":"FREQ=DAILY;COUNT=5"}""")
+		val timedHike =
+			api.patchEventOk(
+				hike.id(),
+				"""{"allDay":false,"start":"2026-04-03T07:00:00Z","timeZone":"Europe/Zurich"}""",
+				"?scope=THIS&occurrence=2026-04-03",
+			)
+
+		val next = api.patchEventOk(timedHike.id(), """{"allDay":true,"startDate":"2026-04-04"}""", "?scope=FOLLOWING")
+
+		next.get("allDay").asBoolean() shouldBe true
+		next.text("startDate") shouldBe "2026-04-04"
+		next.text("endDate") shouldBe "2026-04-05"
+		val hikes = spring().filter { it.text("title") == "Hike" }
+		hikes.forEach { it.get("allDay").asBoolean() shouldBe true }
+		hikes.map { it.text("startDate") } shouldContainExactly listOf("2026-04-01", "2026-04-02", "2026-04-04", "2026-04-05", "2026-04-06")
+	}
+
+	@Test
 	fun `PATCH ALL of an all-day series moves it by days with its exceptions`() {
 		val gym = api.createEvent("""{"title":"Gym","allDay":true,"startDate":"2026-03-02","rrule":"FREQ=DAILY;COUNT=5"}""")
 		deleteThis(gym.id(), "2026-03-03")

@@ -4,129 +4,97 @@ Date: 2026-10-20
 
 Task: cal-local-api - Calendar API for local calendars
 
-Scope: base `b1708640253e120e461364a0e5ce82230387e099` to HEAD `90b74a95c14c0016216d107abda4df9091ef230a` (branch `main`). Task commits (`git log b1708640..HEAD`): 7437436, 9c6c881, 910ec4c, 12502dc, 7e9b5ca, 2d7193c, 100b65e, 6fc9bfc, 90b74a9. This final round focuses on HEAD 90b74a9 (fixes CR-4 and CR-5 in `CalendarEventService.kt` and `EventCommands.kt`), and checks that the earlier tests still cover the whole task. Uncommitted at measurement: my changes to two test files (hashes under "Coverage"). No production file was uncommitted.
+Scope: base `b1708640253e120e461364a0e5ce82230387e099` to HEAD `d46c83e1e0669ee2321863e1fe7c78cc2874ec2d` (branch `main`), task commits `git log b1708640..HEAD`. This final round checks the TW-2 fix in HEAD d46c83e (`seriesBase` in `CalendarEventService.kt`) and re-measures the whole task. Uncommitted at measurement: my one new test in `CalendarSeriesEdgeCaseWebTests.kt` (hash under "Coverage"). No production file was uncommitted. `reviews/cal-local-api/review.md` was also modified by the code-reviewer; it is not a test or production input.
 
 Requirements:
-- `tasks/cal-local-api.md`: 5 acceptance criteria and the ASSUMPTION notes, in particular "the time fields are the new times of that occurrence and the series moves by the same wall-clock offset" and the 20:20 assumption (a series changes its all-day kind only when `allDay` is sent; CANCELLED overrides keep their status)
-- SPEC.md §6.4 and §4.2, as referenced by the task
-- `reviews/cal-local-api/review.md` (CR-4, CR-5) and `fixes.md` (second cycle)
+- `tasks/cal-local-api.md`: 5 acceptance criteria and the ASSUMPTION notes, in particular "the series moves by the same wall-clock offset" and the 20:20 assumption (a series changes its all-day kind only when `allDay` is sent)
+- `reviews/cal-local-api/fixes.md` "third cycle" (TW-2 fix), `review.md` (CR-6, accepted by the parent without a fix)
 - docs/ARCHITECTURE.md "Coverage"
-- Parent instructions: check that the CR-4/CR-5 fixes are covered (normal and edge cases, FOLLOWING as well as ALL, `allDay` sent explicitly), add tests only where coverage is missing
+- Parent instructions: check that the TW-2 fix is covered for ALL and FOLLOWING with `allDay` true, false and absent; add tests only where a gap remains; do not add a failing test for CR-6
+
+Execution note: the permission system blocked me from running Gradle in this session. The coordinator ran the commands below from the clone root, on HEAD d46c83e plus my uncommitted test. I checked the results myself, read-only: I read the JUnit XML in `server/build/test-results/test`, parsed the JaCoCo XML, and hashed the artifacts.
 
 ## Test files changed
 
-- `server/src/test/kotlin/ch/sonensei/cockpit/calendar/api/CalendarSeriesEdgeCaseWebTests.kt` (6 new tests)
-- `server/src/test/kotlin/ch/sonensei/cockpit/calendar/api/EventCommandsTest.kt` (2 new tests)
+- `server/src/test/kotlin/ch/sonensei/cockpit/calendar/api/CalendarSeriesEdgeCaseWebTests.kt` (1 new test)
 
 ## Tests added or updated
 
-Count: 8 (all new)
+Count: 1 (new)
 
-The fixer added 3 tests: CR-4 ALL/FOLLOWING with `startDate` rejected, CR-4 ALL with `start` through an all-day override, and CR-5 cancel and un-cancel with ALL. These gaps were still open:
+Coverage of the TW-2 fix. `seriesBase` now uses the addressed override as the base only when its kind matches `input.allDay ?: series kind`:
 
-| New test | Gap closed |
-|---|---|
-| `PATCH FOLLOWING with a start through an all-day override splits the timed series and keeps it timed` | CR-4 normal case for FOLLOWING. The new series stays timed and starts at the requested time, the later EXDATE moves with it, and every occurrence on both sides is timed. |
-| `PATCH ALL with allDay sent through an all-day override still turns the timed series all-day` | CR-4: when `allDay` is sent explicitly, the kind still changes (ALL). The series becomes all-day and moves by one day, the exceptions of the old kind are dropped (documented), and the addressed override is removed. |
-| `PATCH FOLLOWING with allDay sent through an all-day override continues the series all-day` | The same for FOLLOWING: the old part stays timed and the new part is all-day from the requested date. |
-| `PATCH ALL with allDay false and a start through an all-day override moves the series like without allDay` | CR-4 edge case: `allDay:false` is sent, which is the series' own kind. **Fails, TW-2.** |
-| `PATCH ALL through a timed override of an all-day series keeps the series all-day` | CR-4 mirror case (all-day series, timed override). Without `allDay`, `start` is rejected with 400 and nothing changes. With `startDate`, the series moves by days and stays all-day. |
-| `un-cancelling the following occurrences does not bring back a deleted occurrence` | CR-5 for FOLLOWING. The series is cancelled with ALL, then un-cancelled with FOLLOWING. The occurrence deleted with THIS after the split point stays removed (not listed, not in search), and the rest of the new series is CONFIRMED. |
-| `EventCommandsTest` `propagate gives a new status to an override that still had the old one` | Status propagation still works for overrides that are not cancelled. The existing unit test only covered an override whose status had diverged. |
-| `EventCommandsTest` `propagate keeps a cancelled override cancelled when the series is un-cancelled` | Unit-level CR-5 check. The other fields (title) still propagate to the cancelled override. |
+| Case | ALL | FOLLOWING |
+|---|---|---|
+| Timed series, all-day override, `allDay` absent | `PATCH ALL with a start through an all-day override moves the timed series and keeps its exceptions` | `PATCH FOLLOWING with a start through an all-day override splits the timed series and keeps it timed` |
+| Timed series, all-day override, `allDay:true` (kind change) | `PATCH ALL with allDay sent through an all-day override still turns the timed series all-day` | `PATCH FOLLOWING with allDay sent through an all-day override continues the series all-day` |
+| Timed series, all-day override, `allDay:false` (own kind: the TW-2 case) | `PATCH ALL with allDay false and a start through an all-day override moves the series like without allDay` (failed in the previous round, passes now) | `PATCH FOLLOWING with allDay false and a start through an all-day override splits like without allDay` (added by the fixer in d46c83e) |
+| All-day series, timed override, `allDay` absent | `PATCH ALL through a timed override of an all-day series keeps the series all-day` | not tested on its own (same `seriesBase` branch as ALL) |
+| All-day series, timed override, `allDay:true` (own kind: mirror of TW-2) | **new:** `PATCH ALL or FOLLOWING with allDay true through a timed override of an all-day series behaves like without allDay` | same new test |
+| All-day series, timed override, `allDay:false` (kind change) | CR-6. The parent accepted it without a fix, so no test was added, as instructed | same |
+
+The new test closes the mirror direction of the fix. Before d46c83e, sending `allDay:true` through a timed override of an all-day series also used the timed override as the base. The test asserts the following:
+- ALL: the series moves by one day, stays all-day, and its occurrences fall on 3-7 March.
+- FOLLOWING: the new series starts on 4 April as an all-day series, and the old part keeps 1-2 April.
 
 ## Requirement coverage
 
 | Requirement | Tests | Command | Result |
 |---|---|---|---|
-| AC1: `GET/POST/PATCH /api/v1/calendar/calendars`; `GET /api/v1/calendar/events?from=&to=&calendarIds=` returns expanded occurrences | `CalendarWebTests` (6), range/calendar tests in `CalendarEventEdgeCaseWebTests` and `CalendarEventWebTests`, `CalendarSeriesRequestWebTests` (calendarIds forms, malformed parameters, moved override listing), DST expansion in `CalendarSeriesWebTests` | `cd server && ./gradlew test --rerun --tests 'ch.sonensei.cockpit.calendar.api.*' --tests '*OpenApiContractTest'` | Pass |
-| AC2: `POST/PATCH/DELETE /api/v1/calendar/events/{id}?scope=THIS\|FOLLOWING\|ALL&occurrence=` with correct series splitting/overrides | `CalendarEventWebTests`, `CalendarSeriesWebTests` (15), `CalendarSeriesEdgeCaseWebTests` (43, incl. 6 new CR-4/CR-5 tests), `CalendarSeriesRequestWebTests` (7), `EventCommandsTest` (31), `CalendarEventControllerRaceTest` (4) | same | **Fail**: 1 test, `PATCH ALL with allDay false and a start through an all-day override moves the series like without allDay` (TW-2). All other AC2 tests pass, including every other CR-4/CR-5 test. |
-| AC3: ChangeEvents, search, trash for events | `CalendarEventWebTests`, `CalendarSeriesEdgeCaseWebTests` (change events, search after split, cancelled overrides leave search, new FOLLOWING un-cancel search check, Trash), `CalendarWebTests` | same | Pass |
-| AC4: `./gradlew test --tests 'ch.sonensei.cockpit.calendar.api.*'` passes (Postgres via Testcontainers) | all 142 tests in `ch.sonensei.cockpit.calendar.api.*` (Testcontainers Postgres via `PostgresTestBase`, Docker available) | same | **Fail**: 141 passed, 1 failed (TW-2) |
-| AC5: `api/openapi.yaml` regenerated and `OpenApiContractTest` passes without the flag | `OpenApiContractTest`, `CalendarApiContentTypeTests` | same (without `UPDATE_OPENAPI`) | Pass. Regeneration with the flag was not re-run: the CR-4/CR-5 fix changed no API annotation. |
+| AC1: `GET/POST/PATCH /api/v1/calendar/calendars`; `GET /api/v1/calendar/events?from=&to=&calendarIds=` returns expanded occurrences | `CalendarWebTests` (6), `CalendarEventWebTests` (17), `CalendarEventEdgeCaseWebTests` (17), `CalendarSeriesRequestWebTests` (7), DST expansion in `CalendarSeriesWebTests` (15) | `server/gradlew -p server ktlintFormat test --rerun --tests 'ch.sonensei.cockpit.calendar.api.*' --tests '*OpenApiContractTest'` | Pass |
+| AC2: `POST/PATCH/DELETE /api/v1/calendar/events/{id}?scope=THIS\|FOLLOWING\|ALL&occurrence=` with correct series splitting/overrides | `CalendarSeriesEdgeCaseWebTests` (45, incl. all TW-2 cases above), `CalendarSeriesWebTests` (15), `CalendarSeriesRequestWebTests` (7), `EventCommandsTest` (31), `CalendarEventControllerRaceTest` (4), `CalendarEventWebTests` | same | Pass |
+| AC3: ChangeEvents, search, trash for events | `CalendarEventWebTests`, `CalendarSeriesEdgeCaseWebTests` (change events, search after split, cancelled overrides, Trash), `CalendarWebTests` | same | Pass |
+| AC4: `./gradlew test --tests 'ch.sonensei.cockpit.calendar.api.*'` passes (Postgres via Testcontainers) | all 144 tests in `ch.sonensei.cockpit.calendar.api.*` (Testcontainers Postgres via `PostgresTestBase`, Docker available) | same | Pass (144/144) |
+| AC5: `api/openapi.yaml` regenerated and `OpenApiContractTest` passes without the flag | `OpenApiContractTest`, `CalendarApiContentTypeTests` | same (without `UPDATE_OPENAPI`) | Pass. Regeneration was not re-run because the TW-2 fix changed no API annotation. |
 
 ## Focused test execution
 
 Command:
 
-`cd server && ./gradlew test --rerun --tests 'ch.sonensei.cockpit.calendar.api.*' --tests '*OpenApiContractTest'`
+`server/gradlew -p server ktlintFormat test --rerun --tests 'ch.sonensei.cockpit.calendar.api.*' --tests '*OpenApiContractTest'` (run by the coordinator from the clone root)
 
 Result:
 
-Fail: 143 tests, 1 failed (TW-2), 0 skipped. Before my additions the fixer reported 135 tests passing for the same selection. My 8 new tests bring it to 143. 7 of them pass.
-
-Lint: `cd server && ./gradlew ktlintFormat` (no changes beyond my files), then `./gradlew ktlintCheck`. Pass.
+Pass. BUILD SUCCESSFUL with 145 tests, 0 failures, 0 errors and 0 skipped (144 in `calendar.api.*` plus `OpenApiContractTest`). The JUnit XML has 45 tests in `CalendarSeriesEdgeCaseWebTests`, including my new one, all passing. `ktlintFormat` changed nothing beyond my test file.
 
 ## Full test execution
 
 Command:
 
-`cd server && ./gradlew check`
+`server/gradlew -p server jacocoTestReport` (run by the coordinator; it reran the full server `test` task)
 
 Result:
 
-Fail: 1787 tests, 1 failed. The failure is the same TW-2 test, and every other test passed. That includes `core.reminders.ReminderServiceEdgeCaseTests`, which failed in the previous round and was fixed in 6fc9bfc. Run took 4m31s.
+Pass. BUILD SUCCESSFUL in 2m9s. The JUnit XML holds 153 suites with 1789 tests, 0 failures, 0 errors and 0 skipped (timestamps 2026-10-20T18:38:15Z to 18:40:22Z). This was the server `test` task, not `./gradlew check`, so lint beyond `ktlintFormat` did not run in this round. Web and Android suites were not run because the task changed no hand-written web or Android code.
 
 ## .taskcheck
 
 Result:
 
-Not run. `scripts/check.sh` runs the server `./gradlew check` first, and that fails on TW-2 (above), so `.taskcheck` would fail at the same step. Rerun it after TW-2 is fixed.
+Not run in this round, either by me (Gradle execution blocked) or by the coordinator. The parent runs it before `done`.
 
 ## Bugs found
 
-### Sending `allDay:false` with a start through an all-day override of a timed series moves the series to the wrong time
+None in this round. TW-2 is fixed, and its test now passes for ALL and FOLLOWING.
 
-Finding ID:
-
-`TW-2`
-
-Test:
-
-`CalendarSeriesEdgeCaseWebTests` > `PATCH ALL with allDay false and a start through an all-day override moves the series like without allDay`
-
-Production source:
-
-`server/src/main/kotlin/ch/sonensei/cockpit/calendar/api/CalendarEventService.kt:295` (`seriesBase`). The same helper is used for ALL at `:266` and for FOLLOWING at `:319`. The shift itself is computed in `EventCommands.kt` `Timing.shifted`.
-
-Requirement:
-
-Task assumption: "the time fields are the new times of that occurrence and the series moves by the same wall-clock offset". The 20:20 assumption (CR-4 fix) says the series changes its kind only when `allDay` is sent. Sending `allDay:false` to a timed series is no kind change, so the result should be the same as for the request without `allDay`. The fixer's test `PATCH ALL with a start through an all-day override moves the timed series and keeps its exceptions` asserts that result.
-
-Expected behavior:
-
-Setup: the weekly series starts Mondays at 09:00 Europe/Zurich. The occurrence of 9 March was made all-day with THIS. Then `PATCH /events/{override}?scope=ALL {"allDay":false,"start":"2026-03-10T08:00:00Z","timeZone":"Europe/Zurich"}` is sent. That occurrence now starts on 10 March at 09:00 local, so the series should move by one day and keep its 09:00 start: master start `2026-03-03T08:00:00Z`.
-
-Actual behavior:
-
-The master start becomes `2026-03-03T17:00:00Z` (18:00 local). `seriesBase` uses the override's all-day times as the base whenever `allDay` is present (`input.allDay != null`), even when the value equals the series' kind. The offset is then taken from midnight of the all-day override (9 March 00:00) to 10 March 09:00, which is 1 day and 9 hours, not from the original occurrence time (09:00). The duration also falls back to the 60-minute default instead of the series' duration. The addressed occurrence gets the requested 09:00, and every other occurrence moves to 18:00. FOLLOWING goes through the same `seriesBase` path, so it is affected too, though I did not test it separately. A likely fix is to take the override as the base only when the requested kind (`input.allDay ?: series kind`) equals the override's kind, and otherwise use the original occurrence. The parent decides the fix.
-
-Severity:
-
-Low. It needs an all-day override in a timed series plus a client that sends `allDay:false` explicitly. Once that happens, though, the whole series silently moves to the wrong time.
-
-Fix required:
-
-`Yes — production code must be fixed by the parent worker / fixer.`
-
-Not a defect, but worth noting for the parent: the CR-5 trade-off is documented in fixes.md and in the 20:20 assumption. Overrides that were cancelled together with the series stay cancelled after un-cancelling. No test asserts it.
+CR-6 (code-reviewer, P3) is the mirror case: `allDay:false` through a timed override of an all-day series uses the override as the base. The parent accepted it without a fix, and as instructed no failing test was added for it.
 
 ## Coverage
 
-Status: partial-failed. This is a fresh run, but the test command failed (exit non-zero) on TW-2, so these numbers are diagnostic only. All 7 scoped files were measured.
+Status: verified. This is a fresh, successful run on HEAD d46c83e plus my new test.
 
 Metric: whole-file coverage of task-changed production files.
-Changed-line coverage: not measured separately. All 7 production files were added by this task, so whole-file coverage equals coverage of the task's lines. For the CR-4/CR-5 lines in HEAD (`CalendarEventService.kt` 265-266, 286-295, 319; `EventCommands.kt` 227-240), JaCoCo reports no missed instructions or branches.
+Changed-line coverage: not measured separately. All 7 production files were added by this task, so whole-file coverage equals coverage of the task's lines. In the TW-2 fix (`CalendarEventService.kt:292-299`), JaCoCo reports no missed instructions and no partial branches.
 
 Evidence:
-- Task id, immutable base, measured HEAD, and task-owned commits/file-scope source: `cal-local-api`; base `b1708640253e120e461364a0e5ce82230387e099` (from the parent); HEAD `90b74a95c14c0016216d107abda4df9091ef230a`; task commits are those of `git log b1708640..HEAD`. Production scope: `git diff --name-only b1708640..HEAD -- server/src/main web/src android/app/src/main api`.
-- Source/test snapshot identifier (including uncommitted inputs): HEAD `90b74a9` plus modified `CalendarSeriesEdgeCaseWebTests.kt` sha256 `6d19ffa4e4f35dae296b73f14ad71fd3ed7c1c8c18064a10c85cc26d477be4ef` and `EventCommandsTest.kt` sha256 `5eb51076dee16fc5a6c9c115d425515261ab7c17c7a8dc92a2141816cdc14618`. The hashes were the same before and after the run, and there were no other uncommitted changes.
-- Exact included files: `server/src/main/kotlin/ch/sonensei/cockpit/calendar/api/{CalendarController,CalendarDtos,CalendarEventController,CalendarEventService,CalendarService,EventCommands,EventTrashContributor}.kt`. Excluded: `api/openapi.yaml` (generated contract with no executable code; checked by `OpenApiContractTest`) and `web/src/app/api/generated/**` (generated client, not task-authored logic). No renamed or deleted files.
-- Provider/version, command, working directory, and test selection: JaCoCo (Gradle `jacoco` plugin, project default version), run in `server/`. Command: `./gradlew test --rerun --tests 'ch.sonensei.cockpit.calendar.api.*' --tests '*OpenApiContractTest'`. Because the test task failed, the report was then generated from that run's exec data with `./gradlew jacocoTestReport -x test`.
-- Run start/completion time and exit status: 2026-10-20 18:25:00Z to 18:25:27Z. The test task failed (1 of 143). `jacocoTestReport -x test` ended with BUILD SUCCESSFUL.
-- Generated report paths and report hashes/run identifier: `server/build/jacoco/test.exec` (written 18:25:22Z), sha256 `7143f861d50a4ae605410da925d79be806990078d98134dd6737747dd1e34cce`. `server/build/reports/jacoco/test/jacocoTestReport.xml` (written 18:25:27Z), sha256 `9c8967f7f15836a41bb1b8d0315fcb3fa932e6721c5cecc62f3d48fb7ff6fba3`. Counters come from the `sourcefile` counters of package `ch/sonensei/cockpit/calendar/api`.
-- Evidence outputs are fresh and inputs stayed unchanged: yes. `--rerun` forced the run, both files were rewritten by it, and the test-file hashes did not change.
-- Final run after latest test additions and production fixes: yes for HEAD 90b74a9 with my tests. A TW-2 fix will make these numbers stale, so they need a fresh run then.
+- Task id, immutable base, measured HEAD, and task-owned commits/file-scope source: `cal-local-api`; base `b1708640253e120e461364a0e5ce82230387e099` (from the parent); HEAD `d46c83e1e0669ee2321863e1fe7c78cc2874ec2d`; scope from `git diff --name-status b1708640..HEAD -- server/src/main web/src android/app/src/main api`.
+- Source/test snapshot identifier (including uncommitted inputs): HEAD d46c83e plus the modified `CalendarSeriesEdgeCaseWebTests.kt`, sha256 `a7e6a6ce8b1e8c72a5c1fbbc0a185542786f06bf1eb3bb18c04c24536f77068a` (hashed after the run). The coordinator reports that `git status` showed only that test file and the reports as modified, so no production input changed.
+- Exact included files: `server/src/main/kotlin/ch/sonensei/cockpit/calendar/api/{CalendarController,CalendarDtos,CalendarEventController,CalendarEventService,CalendarService,EventCommands,EventTrashContributor}.kt`, all added (A) by the task. Excluded: `api/openapi.yaml` (a generated contract with no executable code, checked by `OpenApiContractTest`) and `web/src/app/api/generated/**` (a generated client, not task-authored logic). No files were renamed or deleted.
+- Provider/version, command, working directory, and test selection: JaCoCo (Gradle `jacoco` plugin, project default version). Command `server/gradlew -p server jacocoTestReport`, run from the clone root, with the full server `test` task as the test selection. Counters are the `sourcefile` counters of package `ch/sonensei/cockpit/calendar/api`.
+- Run start/completion time and exit status: tests ran from 2026-10-20T18:38:15Z to 18:40:22Z, and the report was written at 18:40:23Z. Exit status: BUILD SUCCESSFUL.
+- Generated report paths and report hashes/run identifier: `server/build/jacoco/test.exec` (written 18:40:22Z), sha256 `1426666b0569ffc2c41316053deca61582f081c0116076396821fd31a66eae09`. `server/build/reports/jacoco/test/jacocoTestReport.xml` (written 18:40:23Z), sha256 `55df1f63a218784b22d1de2aa0f96d5cbd9b02caa20837e5677bf9c32a2310fd`.
+- Evidence outputs are fresh and inputs stayed unchanged: yes. Both artifacts were written by this run, after HEAD d46c83e was committed (18:35:46Z). The JUnit XML includes the new test, and the per-file counters I parsed match the coordinator's numbers.
+- Final run after latest test additions and production fixes: yes.
 
 Values below use covered/total (percentage). "Statements" are JaCoCo instructions, because JaCoCo has no statement counter.
 
@@ -135,31 +103,32 @@ Values below use covered/total (percentage). "Statements" are JaCoCo instruction
 | `server/src/main/kotlin/ch/sonensei/cockpit/calendar/api/CalendarController.kt` | 362/366 (98.9%) | 25/26 (96.2%) | 10/11 (90.9%) | 40/40 (100.0%) |
 | `server/src/main/kotlin/ch/sonensei/cockpit/calendar/api/CalendarDtos.kt` | 1411/1505 (93.8%) | 34/40 (85.0%) | 104/122 (85.2%) | 213/213 (100.0%) |
 | `server/src/main/kotlin/ch/sonensei/cockpit/calendar/api/CalendarEventController.kt` | 653/659 (99.1%) | 35/36 (97.2%) | 12/14 (85.7%) | 72/73 (98.6%) |
-| `server/src/main/kotlin/ch/sonensei/cockpit/calendar/api/CalendarEventService.kt` | 2814/2852 (98.7%) | 325/338 (96.2%) | 49/51 (96.1%) | 340/343 (99.1%) |
+| `server/src/main/kotlin/ch/sonensei/cockpit/calendar/api/CalendarEventService.kt` | 2820/2858 (98.7%) | 325/338 (96.2%) | 49/51 (96.1%) | 341/344 (99.1%) |
 | `server/src/main/kotlin/ch/sonensei/cockpit/calendar/api/CalendarService.kt` | 496/525 (94.5%) | 44/46 (95.7%) | 22/23 (95.7%) | 64/65 (98.5%) |
 | `server/src/main/kotlin/ch/sonensei/cockpit/calendar/api/EventCommands.kt` | 1098/1192 (92.1%) | 119/128 (93.0%) | 47/55 (85.5%) | 140/141 (99.3%) |
 | `server/src/main/kotlin/ch/sonensei/cockpit/calendar/api/EventTrashContributor.kt` | 199/211 (94.3%) | 24/28 (85.7%) | 6/7 (85.7%) | 31/31 (100.0%) |
-| **Aggregate (7 files, summed counters)** | 7033/7310 (96.2%) | 606/642 (94.4%) | 250/283 (88.3%) | 900/906 (99.3%) |
+| **Aggregate (7 files, summed counters)** | 7039/7316 (96.2%) | 606/642 (94.4%) | 250/283 (88.3%) | 901/907 (99.3%) |
 
-Aggregate scope: all 7 task production files were measured and none is missing. Excluded: `api/openapi.yaml` and `web/src/app/api/generated/**` (generated, see above).
+Aggregate scope: all 7 task production files were measured, and none is missing. Excluded: `api/openapi.yaml` and `web/src/app/api/generated/**` (generated, see above).
 
 | File and uncovered lines/branch locations | Required behavior or risk | Action/test added or reason left uncovered |
 |---|---|---|
-| `CalendarEventService.kt:295` (`seriesBase`, `allDay` sent with the series' own kind) | CR-4 / the wall-clock offset assumption | Covered by the new test, which fails: TW-2. |
-| `CalendarEventService.kt:524` | Override addressed while its master is not active | Unreachable since the TW-1 fix, because `load` already returns 404. The behaviour is covered by `an override of a trashed series is not found` and `unknown and trashed events cannot be changed or deleted`. Justified gap. |
+| `CalendarEventService.kt:292-299` (`seriesBase`) | TW-2 fix: ALL and FOLLOWING, `allDay` true, false and absent, both series kinds | Fully covered (no missed instructions or branches). The new mirror test was added. CR-6 was accepted by the parent, so no test. |
+| `CalendarEventService.kt:528` | Override addressed while its master is not active | Unreachable since the TW-1 fix, because `load` already returns 404. The behavior is covered by `an override of a trashed series is not found`. Justified gap. |
 | `CalendarEventService.kt:228-229` | Rethrow of an integrity violation when updating an existing override | Defensive code. The 409 path for a new override is tested. Without fault injection there is no realistic trigger. Justified gap. |
-| `CalendarEventService.kt:87`, `:114` (partial branches) | Empty `calendarIds` list falls back to visible calendars; missing title | The fallback has no stated requirement. A missing title is rejected by bean validation first (tested). Low risk. Justified gap. |
-| `CalendarEventService.kt:490, 496, 567, 652, 675` (partial branches) | Kotlin null-safe/lambda branches in rule parsing, `isGenerated` and the URL check | Generated bytecode branches. The behaviours are tested. Justified gap. |
-| `CalendarEventService.kt:371, 378, 688` | Default-argument bridge of `carryExceptions`; companion initializer | Synthetic Kotlin code. Justified gap. |
-| `EventCommands.kt:236-242` (partial branches) | `propagate` for overrides whose description/attendees/reminders/transparency/URL diverged | The CR-5 line 240 is fully covered (new unit tests). The remaining branches are "diverged" sides of fields that are not tested one by one. The rule is the same for every field, and title, location and status are tested. Low risk. Justified gap. |
-| `EventCommands.kt:25-37, 157, 160, 164, 183, 202, 208-214` | Data-class synthetics; `Timing.resolve`/`compareTo` branches for mixed kinds | Synthetic code, or a documented invariant (one kind per series). Resolve paths are covered by `EventCommandsTest.Resolve`. Justified gap. |
-| `CalendarService.kt:25-30, 119`; `CalendarDtos.kt:244-263`; `CalendarController.kt:158, 174`; `CalendarEventController.kt:225, 254, 273`; `EventTrashContributor.kt:31, 41, 48, 55, 65` | Default constructors, companions, the `"body"` fallback for Jackson errors, Trash paths for override ids | Unchanged since the previous round. Synthetic code, or paths with no input that reaches them through the API (see the reasons in the earlier report: overrides are never trashed on their own). Justified gap. |
+| `CalendarEventService.kt:87`, `:114` (partial branches) | An empty `calendarIds` list falls back to the visible calendars; missing title | The fallback has no stated requirement. A missing title is rejected first by bean validation, which is tested. Low risk. Justified gap. |
+| `CalendarEventService.kt:494, 500, 571, 656, 679` (partial branches) | Kotlin null-safe and lambda branches in rule parsing, `isGenerated` and the URL check | Generated bytecode branches. The behaviors themselves are tested. Justified gap. |
+| `CalendarEventService.kt:375, 382, 692` | Default-argument bridge of `carryExceptions`; companion initializer | Synthetic Kotlin code. Justified gap. |
+| `EventCommands.kt:236-242` (partial branches) | `propagate` for overrides whose description, attendees, reminders, transparency or URL diverged | The same rule applies to every field. Title, location and status are tested, and so is the CR-5 line. Low risk. Justified gap. |
+| `EventCommands.kt:25-37, 157, 160, 164, 183, 202, 208-214` | Data-class synthetics; `Timing.resolve`/`compareTo` branches for mixed kinds | Synthetic code, or a documented invariant (one kind per series). `EventCommandsTest.Resolve` covers the resolve paths. Justified gap. |
+| `CalendarService.kt:25-30, 119`; `CalendarDtos.kt:244-263`; `CalendarController.kt:158, 174`; `CalendarEventController.kt:225, 254, 273`; `EventTrashContributor.kt:31, 41, 48, 55, 65` | Default constructors, companions, the `"body"` fallback for Jackson errors, Trash paths for override ids | Unchanged since the earlier rounds. Synthetic code, or paths that no API input reaches (overrides are never trashed on their own). Justified gap. |
 
 ## Unable to test
 
-- `.taskcheck` was not run, because it would fail at the server step on TW-2. It needs to run after the fix.
-- `api/openapi.yaml` regeneration (`UPDATE_OPENAPI=1`) was not re-run because the API did not change. The check without the flag passed.
+- `.taskcheck` and `./gradlew check` (lint and static checks) were not run in this round. The parent runs `.taskcheck` before `done`.
+- I could not run Gradle myself in this session because of the permission system. All execution results above come from the coordinator's runs, and I checked them read-only against the artifacts.
+- CR-6 has deliberately no test (accepted by the parent).
 
 ## Summary
 
-Tests added; production defects were discovered and must be passed to the `fixer` before task completion. The CR-4 and CR-5 fixes are covered for ALL and FOLLOWING, for an explicitly sent `allDay:true`, for the all-day series mirror case, and at unit level. All of those tests pass except TW-2 (Low): sending `allDay:false` explicitly through an all-day override of a timed series moves the series to the wrong time. Every other test in the server suite (1786 of 1787) passes. Task-scoped coverage stays high (99.3% lines, 94.4% branches), but it is diagnostic only because of the failing run.
+Tests and task-scoped coverage are sufficient; no production defects found. TW-2 is fixed and covered for ALL and FOLLOWING with `allDay` true, false and absent. One new test covers the mirror case (`allDay:true` through a timed override of an all-day series). The focused run passed 145/145 and the full server `test` task passed 1789/1789. Task-scoped coverage is 99.3% lines (901/907) and 94.4% branches (606/642), with the TW-2 code fully covered.
