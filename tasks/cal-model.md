@@ -1,11 +1,11 @@
 ---
 title: Calendar data model
-status: todo
-owner: 
+status: in_progress
+owner: dell26/agent-3
 deps: [p0-items-links,p0-search-core,p0-trash-core]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/calendar/model,server/src/test/kotlin/ch/sonensei/cockpit/calendar/model,server/src/main/resources/db/migration/calendar]
 prio: 1
-lease_until: 
+lease_until: 2026-10-20T15:17:31Z
 releases: 1
 extended: 
 ---
