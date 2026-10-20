@@ -1,10 +1,11 @@
 ---
 title: API conventions: errors, ETags, pagination, OpenAPI contract file
-status: todo
-owner:
+status: in_progress
+owner: dell26/agent-2
 deps: [p0-server-deps]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/core/web,server/src/test/kotlin/ch/sonensei/cockpit/core/web,api]
 prio: 1
+lease_until: 2026-10-20T09:05:55Z
 ---
 ## Goal
 Common REST conventions (SPEC.md §4.2) and the committed OpenAPI contract that both clients use.
