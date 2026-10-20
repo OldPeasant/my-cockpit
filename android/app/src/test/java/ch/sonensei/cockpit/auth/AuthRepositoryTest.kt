@@ -14,6 +14,7 @@ import ch.sonensei.cockpit.core.network.ServerUrlRepository
 import ch.sonensei.cockpit.core.network.ServerUrlValidation
 import ch.sonensei.cockpit.core.network.generated.apis.AuthApi
 import ch.sonensei.cockpit.core.network.serverConfigDataStore
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -21,9 +22,11 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.resetMain
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import kotlinx.serialization.json.Json
@@ -42,6 +45,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import java.io.File
 import java.util.concurrent.TimeUnit
+import kotlin.coroutines.CoroutineContext
 
 /** [AuthRepository] against a fake server: login answers, stored tokens, logout. */
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -52,8 +56,11 @@ class AuthRepositoryTest {
     private lateinit var tokenStore: PersistentTokenStore
     private lateinit var session: AuthSession
     private lateinit var serverUrls: ServerUrlRepository
+    private lateinit var authApi: AuthApi
     private lateinit var repository: AuthRepository
+    private lateinit var appScopedRepository: AuthRepository
     private var cachesCleared = 0
+    private var appCachesCleared = 0
 
     @Before
     fun setUp() {
@@ -71,7 +78,7 @@ class AuthRepositoryTest {
                 AccessTokenInterceptor(tokenStore),
                 null,
             )
-        val authApi = CockpitHttp.retrofit(client).create(AuthApi::class.java)
+        authApi = CockpitHttp.retrofit(client).create(AuthApi::class.java)
         repository = AuthRepository(serverUrls, authApi, tokenStore, session, setOf(SessionCache { cachesCleared++ }))
     }
 
@@ -380,10 +387,16 @@ class AuthRepositoryTest {
         runTest {
             server.enqueue(json(200, TOKEN_BODY))
             login()
+            server.takeRequest()
             // The revocation answer would come far after the 5 s limit; virtual time reaches the limit at once.
             server.enqueue(revocationAnsweredAfter(60))
 
-            repository.logout()
+            val logout = launch { repository.logout() }
+            runCurrent()
+            // Wait (blocking, so virtual time cannot run ahead) until the revocation reached the server; otherwise the
+            // timeout could cancel the call before OkHttp sent it.
+            assertEquals("DELETE", server.takeRequest(5, TimeUnit.SECONDS)?.method)
+            logout.join()
 
             assertEquals(AuthRepository.REVOKE_TIMEOUT_MS, testScheduler.currentTime)
             assertEquals(2, server.requestCount)
@@ -415,6 +428,77 @@ class AuthRepositoryTest {
         } finally {
             Dispatchers.resetMain()
         }
+    }
+
+    @Test
+    fun `a logout by the network layer clears the caches once`() =
+        runBlocking {
+            val owner = repositoryWithAppScope()
+            tokenStore.login(AuthTokens("access-1", "refresh-1"), DEVICE_ID)
+
+            assertTrue(session.logoutIfCurrent(AuthTokens("access-1", "refresh-1"), LogoutReason.REFRESH_REJECTED))
+
+            assertNull(tokenStore.current())
+            assertEquals(1, appCachesCleared)
+            owner.cancel()
+        }
+
+    @Test
+    fun `a logout for a server change clears the caches once`() =
+        runBlocking {
+            val owner = repositoryWithAppScope()
+            tokenStore.login(AuthTokens("access-1", "refresh-1"), DEVICE_ID)
+
+            session.logout(LogoutReason.SERVER_CHANGED)
+
+            assertEquals(1, appCachesCleared)
+            owner.cancel()
+        }
+
+    @Test
+    fun `a user logout clears the caches exactly once`() =
+        runBlocking {
+            val owner = repositoryWithAppScope()
+            tokenStore.login(AuthTokens("access-1", "refresh-1"), null)
+
+            appScopedRepository.logout()
+
+            assertNull(tokenStore.current())
+            assertEquals(1, appCachesCleared)
+            owner.cancel()
+        }
+
+    @Test
+    fun `the tokens of a login are stored off the calling thread`() =
+        runBlocking {
+            var dispatched = 0
+            val io =
+                object : CoroutineDispatcher() {
+                    override fun dispatch(
+                        context: CoroutineContext,
+                        block: Runnable,
+                    ) {
+                        dispatched++
+                        Dispatchers.IO.dispatch(context, block)
+                    }
+                }
+            val owner = CoroutineScope(Dispatchers.Unconfined + SupervisorJob())
+            val withIo = AuthRepository(serverUrls, authApi, tokenStore, session, emptySet(), owner, io)
+            server.enqueue(json(200, TOKEN_BODY))
+
+            assertEquals(LoginResult.Success, withIo.login(serverAddress(), "alex", "pw", SecondFactor.Totp("123456")))
+
+            assertTrue(dispatched > 0)
+            assertEquals(AuthTokens("access-1", "refresh-1"), tokenStore.current())
+            owner.cancel()
+        }
+
+    /** A repository whose app scope runs collectors at once, so cache clearing is observable synchronously. */
+    private fun repositoryWithAppScope(): CoroutineScope {
+        val owner = CoroutineScope(Dispatchers.Unconfined + SupervisorJob())
+        appScopedRepository =
+            AuthRepository(serverUrls, authApi, tokenStore, session, setOf(SessionCache { appCachesCleared++ }), owner, Dispatchers.IO)
+        return owner
     }
 
     private suspend fun login() = repository.login(serverAddress(), "alex", "pw", SecondFactor.Totp("123456"))

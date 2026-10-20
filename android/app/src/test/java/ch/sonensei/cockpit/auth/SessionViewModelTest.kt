@@ -9,6 +9,7 @@ import ch.sonensei.cockpit.core.network.LogoutReason
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.mockk
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
@@ -21,7 +22,7 @@ import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 
-/** [SessionViewModel]: routing state from the stored session, and cache clearing on every kind of logout. */
+/** [SessionViewModel]: routing state from the stored session, and the logout action. */
 @OptIn(ExperimentalCoroutinesApi::class)
 @RunWith(AndroidJUnit4::class)
 class SessionViewModelTest {
@@ -46,11 +47,10 @@ class SessionViewModelTest {
     }
 
     @Test
-    fun `without a session the app is logged out and no caches are cleared at start`() {
+    fun `without a session the app is logged out`() {
         val viewModel = SessionViewModel(tokenStore, repository)
 
         assertFalse(viewModel.loggedIn.value)
-        coVerify(exactly = 0) { repository.clearCaches() }
     }
 
     @Test
@@ -60,52 +60,35 @@ class SessionViewModelTest {
         val viewModel = SessionViewModel(tokenStore, repository)
 
         assertTrue(viewModel.loggedIn.value)
-        coVerify(exactly = 0) { repository.clearCaches() }
     }
 
     @Test
-    fun `a login switches to logged in without clearing caches`() {
+    fun `a login switches to logged in`() {
         val viewModel = SessionViewModel(tokenStore, repository)
 
         tokenStore.login(TOKENS, DEVICE_ID)
 
         assertTrue(viewModel.loggedIn.value)
-        coVerify(exactly = 0) { repository.clearCaches() }
     }
 
     @Test
-    fun `a logout by the network layer clears the caches`() {
+    fun `a logout by the network layer switches to logged out`() {
         tokenStore.login(TOKENS, DEVICE_ID)
         val viewModel = SessionViewModel(tokenStore, repository)
 
         AuthSession(tokenStore).logout(LogoutReason.REFRESH_REJECTED)
 
         assertFalse(viewModel.loggedIn.value)
-        coVerify(exactly = 1) { repository.clearCaches() }
     }
 
     @Test
-    fun `a rotated token keeps the session and the caches`() {
+    fun `a rotated token keeps the session`() {
         tokenStore.login(TOKENS, DEVICE_ID)
         val viewModel = SessionViewModel(tokenStore, repository)
 
         assertTrue(tokenStore.replace(TOKENS, AuthTokens("access-2", "refresh-2")))
 
         assertTrue(viewModel.loggedIn.value)
-        coVerify(exactly = 0) { repository.clearCaches() }
-    }
-
-    @Test
-    fun `every logout of a running app clears the caches again`() {
-        val viewModel = SessionViewModel(tokenStore, repository)
-
-        repeat(2) {
-            tokenStore.login(TOKENS, DEVICE_ID)
-            tokenStore.clear()
-        }
-
-        assertFalse(viewModel.loggedIn.value)
-        coVerify(exactly = 2) { repository.clearCaches() }
     }
 
     @Test
@@ -117,6 +100,37 @@ class SessionViewModelTest {
         viewModel.logout()
 
         coVerify(exactly = 1) { repository.logout() }
+        assertFalse(viewModel.loggedIn.value)
+    }
+
+    @Test
+    fun `taps while a logout runs start no second logout`() {
+        val revocation = CompletableDeferred<Unit>()
+        coEvery { repository.logout() } coAnswers {
+            revocation.await()
+            tokenStore.clear()
+        }
+        tokenStore.login(TOKENS, DEVICE_ID)
+        val viewModel = SessionViewModel(tokenStore, repository)
+
+        repeat(3) { viewModel.logout() }
+        revocation.complete(Unit)
+
+        coVerify(exactly = 1) { repository.logout() }
+        assertFalse(viewModel.loggedIn.value)
+    }
+
+    @Test
+    fun `a new logout can start once the previous one finished`() {
+        coEvery { repository.logout() } coAnswers { tokenStore.clear() }
+        val viewModel = SessionViewModel(tokenStore, repository)
+
+        repeat(2) {
+            tokenStore.login(TOKENS, DEVICE_ID)
+            viewModel.logout()
+        }
+
+        coVerify(exactly = 2) { repository.logout() }
         assertFalse(viewModel.loggedIn.value)
     }
 
