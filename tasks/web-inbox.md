@@ -17,3 +17,4 @@ Keyboard-driven one-item-at-a-time processing (SPEC.md §5.3).
 - [ ] Playwright `e2e/gtd-inbox/inbox.spec.ts` passes against the e2e stack (`npm run e2e -- e2e/gtd-inbox/inbox.spec.ts`, see p0-e2e-harness): process 3 items to an empty inbox
 
 ## Notes
+- ASSUMPTION (2026-10-20 22:10+0200 by dell26/agent-6): Inbox shortcuts: P process (list), D do it, N next, P to project, W waiting, S schedule, T tickler, M someday (S was taken), R/C reference/calendar (disabled), X or Delete trash, Esc back/cancel; Q stays the global capture key.
