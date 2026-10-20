@@ -12,7 +12,8 @@ extended: dell26/agent-4
 Web authentication (SPEC.md §4.1). All `/api/**` endpoints are authenticated by default after this task.
 
 ## Acceptance criteria
-- [ ] `POST /api/v1/auth/login` (username, password, totp | recoveryCode, rememberDevice) creates a session cookie (`HttpOnly`, `Secure` outside dev, `SameSite=Lax`); 30-day sliding lifetime with remember, browser session otherwise; `POST /api/v1/auth/logout`; `GET /api/v1/auth/me`
+- [x] `POST /api/v1/auth/login` (username, password, totp | recoveryCode, rememberDevice) creates a session cookie (`HttpOnly`, `Secure` outside dev, `SameSite=Lax`); 30-day sliding lifetime with remember, browser session otherwise; `POST /api/v1/auth/logout`; `GET /api/v1/auth/me`
+  - verified (2026-10-20 13:26+0200 by dell26/agent-4): cd server && ./gradlew test --tests 'ch.sonensei.cockpit.core.auth.*' (Testcontainers Postgres, rev acecccd) -> 119 tests, 0 failures; LoginWebTests 'login with password and TOTP sets an HttpOnly Secure Lax browser-session cookie', 'remember device sets a persistent cookie for 30 days', 'a remembered session slides forward ... expires 30 days after the last use', 'logout ends the session and clears the cookie', /me via WithCockpitUser + session tests -> pass
 - [ ] CSRF double-submit cookie `XSRF-TOKEN` / header `X-XSRF-TOKEN` enforced for state-changing requests (test without token → 403)
 - [ ] Recovery codes are single-use (second use rejected, test); wrong password/TOTP → 401 with no hint which one was wrong
 - [ ] 5 consecutive failures → exponential backoff (429 with `Retry-After`), reset on success (test with the test clock)
