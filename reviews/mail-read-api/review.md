@@ -1,48 +1,24 @@
 # Code Review
 
-Date: 2026-10-20
+Date: 2026-10-21
 
 Task: mail-read-api - Mail read API
 
-Scope: final task code after the fixes for the first review: `git diff 77cb393e..HEAD`. Task commits are 225500c8..84759e20, merged into HEAD 55866563. Committed changes only. The working tree was clean at review time. A test-writer was adding tests under `server/src/test/.../mail/api` at the same time, and those tests were not reviewed.
+Scope: `git diff f13bb21ecd893e1596050797c46652c3769ab095...HEAD` (third review round, on the final code including the test-writer commit). Reviewed revision: `aad84511681ee208d0276130f1bb660d1e60db06`. Production code: `server/src/main/kotlin/ch/sonensei/cockpit/mail/api/*` (7 files), migrations `V202610202000__mail_body_attachments.sql` and `V202610202300__mail_message_list_sort.sql`, `api/openapi.yaml`, and the generated web client. I also read the existing `MailBodyCache`, `MailMessageLocator`, `CursorPage` and `SessionCookies` for context.
 
 Requirements:
-- tasks/mail-read-api.md acceptance criteria #1-#4 and the recorded assumptions #1-#6 (`python tasks.py assumptions`)
-- mail-header-sync assumptions #3/#5 (`loadOlder` as a service method, with "mail-read-api owns the API")
-- SPEC.md §4.1 (untrusted HTML, sandbox, image proxy), §4.2 (cursor pagination, Problem Details, ETag), §7.2 (body cache LRU, older mail loaded on demand), §7.3, §7.4
-- docs/ARCHITECTURE.md and AGENTS.md project notes (module boundaries, migrations, logging, generated OpenAPI/client)
-- The previous review and fix report: reviews/mail-read-api/review.md (first round), reviews/mail-read-api/fixes.md
+- `tasks/mail-read-api.md` acceptance criteria 1-4 and the ASSUMPTION notes (list scopes, threading, no \Seen, the attachment metadata table, image proxy limits and SSRF, attachment download headers, older mail deferred to `mail-load-older`)
+- SPEC.md §4.1 (HTML mail is untrusted, image proxy), §4.2 (cursor pagination, Problem Details, ETag), §7.2 (body cache LRU, size-bounded), §7.3, §7.4
+- `docs/ARCHITECTURE.md` conventions, `AGENTS.md` project notes
+- the earlier `reviews/mail-read-api/review.md` and `fixes.md`, plus `reviews/mail-read-api/tests.md` (TW-1)
 
 Git range:
-- Branch: main
-- HEAD: 55866563d9cde373b6d35cbf7259a604b71f57ad
-- Base/start: 77cb393e735d1eb17c8061e23f5163007652910a
-- Commits reviewed: 10 non-merge commits (225500c8..84759e20, plus the claim/release bookkeeping commits) and merge 55866563
+- Branch: main (local clone of the task work, with origin/main merged)
+- HEAD: aad84511681ee208d0276130f1bb660d1e60db06
+- Base/start: f13bb21ecd893e1596050797c46652c3769ab095 (merge-base with origin/main)
+- Commits reviewed: 16 (including 2 merge commits). There are no uncommitted changes.
 
-Summary: 0 P0, 0 P1, 1 P2, 2 P3
-
-Earlier findings, checked against the current code:
-- CR-1 (no image proxy web tests) is resolved. `MailImageProxyWebTests` checks the 200 headers (type, nosniff, CSP sandbox, private cache, inline) and the 400/502/504 Problem Details with `errorCode`.
-- CR-2 (no eviction test) is resolved. `MailBodyCacheEvictionGreenMailTests` runs with `body-cache-max-bytes=1`: reading B evicts A's `mail_body` and `mail_body_attachments` rows, and reading A again goes back to IMAP. `MailBodyAttachmentStoreTests` covers the cascade.
-- CR-3 (time budget) is resolved. `DeadlineSocket` sets `soTimeout` to the time left before every read, and the TLS handshake reads through the same stream. DNS runs on a helper thread bounded by the deadline. Connect uses `min(connectTimeout, remaining)`. There are tests for the trickle, the handshake and the hanging resolver.
-- CR-4 (client abort) is resolved. `MailReadService.copy` returns write and flush failures instead of throwing them, so `withStore` keeps the connection. `AttachmentDownloadAbortedException` is handled at DEBUG. There are unit and GreenMail tests.
-- CR-5 (sort index) is resolved. `V202610202300__mail_message_list_sort.sql` adds partial expression indexes that match `coalesce(received_at, created_at) desc, id desc`. It is a new migration, and no applied one was edited.
-- CR-6 (cid decoding) is resolved. Escapes are percent-decoded with `+` kept as a plus, with the value as written as a fallback, and there is a test.
-- CR-7 (OpenAPI) is resolved. `getMailMessage` declares 400/404/502/503 and `downloadMailAttachment` declares 404/502/503 in `api/openapi.yaml`.
-
-Also checked and found correct:
-- Keyset pagination in flat and threaded mode: the cursor applies after `position = 1`.
-- Scope validation (404 for an unknown account or folder, 400 for a folder of another account).
-- The read-only IMAP path: `READ_ONLY`, `peek = true`, UIDVALIDITY check, and the folder closed in `finally`.
-- Attachment part ids: they must match the cached list and the strict section regex.
-- Attachment response headers: octet-stream plus `attachment`, inline only for raster types, nosniff, CSP sandbox, `no-store`, and an encoded filename with directories and control characters removed.
-- SSRF controls: scheme and userinfo checks, port policy, every resolved address checked, the connection pinned to the checked IP, every redirect checked again, TLS endpoint identification plus SNI, raster-only types, identity encoding, size limits with Content-Length, chunked or neither, and limits on header count and line length.
-- `allow-private-networks` is not set in any main resource.
-- Body and attachment metadata are written in one transaction, and a body cached without metadata counts as a cache miss.
-- Nothing logs URLs, bodies or server text at INFO.
-- The new code stays inside the mail module's service and repository boundaries.
-
-Acceptance-criterion evidence: `python tasks.py verify mail-read-api` shows no criterion recorded yet (#1-#4 are all open). The parent worker has to record what was run, including the `external` GreenMail run for #3 and the `OpenApiContractTest` run without the flag for #4, before `done`. I did not run the Gradle suites myself, because a test-writer was changing the same test source set at the same time.
+Summary: 0 P0, 1 P1, 0 P2, 1 P3
 
 ## P0 Critical
 
@@ -50,33 +26,35 @@ None.
 
 ## P1 High
 
-None.
+- [ ] **CR-1 | The SSRF address policy allows non-public IPv6 ranges, and the committed tests for them fail (AC2, AC3, .taskcheck)**
+    - File: `server/src/main/kotlin/ch/sonensei/cockpit/mail/api/RemoteImageFetcher.kt:98-117`
+    - Category: Security
+    - Problem: This is the same issue as TW-1 in `tests.md`, confirmed by reading the code. `isPublicV6` takes an embedded IPv4 address only from the well-known NAT64 prefix `64:ff9b::/96`, where bytes 4-11 must all be zero. The local-use NAT64 prefix `64:ff9b:1::/48` (RFC 8215) therefore falls through to the generic check and counts as public, even when it embeds `10.0.0.1`. The same happens to benchmarking `2001:2::/48`, because the code only checks `2001:0::/32` and `2001:db8::/32`, and to documentation `3fff::/20`. The KDoc at lines 58-62 says NAT64, benchmarking and documentation ranges are rejected. A related gap: the IPv4-translated form `::ffff:0:a.b.c.d` (`::ffff:0:0:0/96`, used by SIIT) is not treated as embedding IPv4 either, because the mapped-address check requires bytes 0-9 to be zero. `PublicAddressesTests` (line 82) now has a test for the first three ranges that fails on purpose, so `./gradlew test --tests 'ch.sonensei.cockpit.mail.api.*'` fails (3 of 202) and so does `sh scripts/check.sh`.
+    - Why it matters: In a deployment that uses a local NAT64 or SIIT translator, an attacker-controlled DNS name that resolves to `64:ff9b:1::<private IPv4>` reaches internal IPv4 hosts through the image proxy. That bypasses the SSRF protection AC2 requires. Until this is fixed, AC3 and the `done` check cannot pass.
+    - Suggested fix: In `isPublicV6`, treat all of `64:ff9b::/32`-style NAT64 prefixes as not public: block `64:ff9b:1::/48` outright, or extract the embedded IPv4 address and check it. Also block `2001:2::/48` and `3fff::/20`, and either block `::ffff:0:0:0/96` or check its embedded IPv4 address. Then rerun the TW-1 test, the mail.api package and `.taskcheck`.
 
 ## P2 Medium
 
-- [ ] **CR-1 | Nothing calls the older-mail loader, so the list ends at the cached 12-month window**
-    - File: `server/src/main/kotlin/ch/sonensei/cockpit/mail/api/MailMessageListQuery.kt:51` (list reads only cached rows); `server/src/main/kotlin/ch/sonensei/cockpit/mail/sync/MailHeaderSyncService.kt:111` (`loadOlder`, no caller)
-    - Category: Integration
-    - Problem: SPEC.md §7.2 says headers are cached for a window, with "older loaded on demand when scrolling". The mail-header-sync task built this only as `MailHeaderSyncService.loadOlder(folderId, limit)`. Its assumption #3 says "No REST endpoint here (mail-read-api owns the API)". `GET /api/v1/mail/messages` reads only the header cache ("Only cached headers are read") and returns `nextCursor: null` at the end of the cache. No other endpoint calls `loadOlder` (grep over `server/src/main`, `web/src`, `android` finds no caller), and no task on the board (web-mail-list, mail-search, mail-sync-perf) plans it. mail-read-api also recorded no assumption that defers it.
-    - Why it matters: Once the cache window ends, clients cannot scroll to older mail in a folder. The infinite scroll in web-mail-list will stop there. The open decision fell between two tasks and nobody recorded it.
-    - Suggested fix: Pick one. (a) For folder-scoped lists, call `loadOlder` when the cached rows run out and keep paging (or add a small endpoint such as `POST /api/v1/mail/folders/{id}/load-older`), with a test. (b) Record a `tasks.py assume` that older-on-demand is out of this task and add a follow-up task so the gap is tracked.
+None.
 
 ## P3 Low
 
-- [ ] **CR-2 | A 404 from the IMAP path closes a working pooled connection**
-    - File: `server/src/main/kotlin/ch/sonensei/cockpit/mail/api/MailContentLoader.kt:110` (also lines 115 and 116, and `MailReadService.kt:147`)
-    - Category: Quality
-    - Problem: `NotFoundException` is thrown inside `pool.withStore` in four cases: the folder is gone, UIDVALIDITY changed, the message was expunged, or a part is missing. `ImapConnectionPool.withStore` (lines 86-92) sets `healthy = true` only when the block returns normally, so every such 404 throws away a working connection. This is the same pattern CR-4 of the first review fixed for client aborts, here on the not-found path.
-    - Why it matters: A client that opens messages expunged since the last sync, which is common between syncs, causes a reconnect and login for every request. That is extra load on accounts with few connections allowed.
-    - Suggested fix: Return a "gone" result from the block and throw `NotFoundException` after `withStore` returns, the same way `clientFailure` is handled in `MailReadService.attachment`.
+- [ ] **CR-2 | Persistence, IMAP and HTTP client code is in the `mail.api` package**
+    - File: `server/src/main/kotlin/ch/sonensei/cockpit/mail/api/MailContentLoader.kt:28` (`MailBodyAttachmentStore`, JDBC), `MailMessageListQuery.kt:47` (JDBC), `RemoteImageFetcher.kt:133` (socket HTTP client)
+    - Category: Architecture
+    - Problem: `docs/ARCHITECTURE.md` line 191 says server packages are `<module>.{api,domain,infra}`. This task puts a JDBC store, a SQL list query, the IMAP content loader and a raw-socket HTTP client into `mail.api`, next to the controller. The mail module already departs from the convention (`model`, `imap`, `sanitize`, `sync`), and the task's `touches` only allowed `mail/api`, so this is a deliberate trade-off rather than an error.
+    - Why it matters: Later mail tasks (`mail-actions-api`, `mail-search`, `mail-load-older`) will probably reuse the content loader and the list query. With infrastructure in the web layer's package, it is less clear where new code belongs.
+    - Suggested fix: Do not change this inside this task. Record it with `tasks.py assume` or a note in `quality.json`, and move these classes to the mail module's infra/model packages in a later task that touches them.
 
-- [ ] **CR-3 | The image proxy gives 500 and leaks the socket on runtime exceptions while setting up the request, for example an https host with a trailing dot**
-    - File: `server/src/main/kotlin/ch/sonensei/cockpit/mail/api/RemoteImageFetcher.kt:337` (with the catch clauses at lines 278-288)
-    - Category: Correctness
-    - Problem: `request()` closes `plain` and maps errors only for `RemoteImageException`, `SocketTimeoutException` and `IOException`. Any other exception escapes without closing the connected socket. One that can happen: `SNIHostName(target.host)` throws `IllegalArgumentException` for a host name the JDK refuses as an SNI name, such as a fully qualified name with a trailing dot (`https://example.com./a.png`, which `URI` accepts and DNS resolves). The generic `ProblemDetailsAdvice` handler then answers 500 instead of a `RemoteImageError` problem.
-    - Why it matters: The image URLs come from untrusted mail. A crafted URL produces 500 responses and leaves an open TCP connection until GC finalizes it, instead of the documented 400/502.
-    - Suggested fix: Close `plain` in a `catch (e: RuntimeException)` branch (or use a `finally` with a success flag). Strip a single trailing dot from the host before SNI, or skip SNI when `SNIHostName` refuses the name. Map whatever is left to `UPSTREAM_FAILED`/`INVALID_URL`, and add a protocol test for the trailing-dot host.
+## Verified without findings
+
+- AC1: list scopes match the assumptions (unified Inbox by role, an account's Inbox, a folder with an account check). Flat and threaded SQL use a keyset on `coalesce(received_at, created_at) desc, id desc`, and partial expression indexes match it. The cursor round-trips at microsecond precision against `timestamptz`, and malformed cursors and limits give 400. Threaded counts are per scope. The thread endpoint is account-bound, deduplicated by Message-ID (keeping the requested copy) and sorted oldest first. `GET /messages/{id}` returns sanitized HTML, text, `cid:` rewriting with percent-decoding, the PROXY rewrite, an ETag, and attachment metadata.
+- No \Seen side effect: folders are opened with `READ_ONLY` and messages fetched with `peek = true`.
+- AC2 attachments: streamed in 16 KiB chunks while the IMAP connection is held. Downloads are always `application/octet-stream` + `attachment`, except `inline=true` for the raster allow-list. `nosniff`, a `default-src 'none'; sandbox` CSP and `no-store` are set. Filenames have control characters removed and are encoded by Spring's `ContentDisposition` (RFC 5987), so there is no header injection. The part id is validated by a regex before navigating the MIME tree, and text/html body parts are never downloadable.
+- AC2 image proxy (apart from CR-1): http/https only, no userinfo, ports 80/443. Every resolved address is checked, and the connection is pinned to the checked address (DNS rebinding). Each redirect is checked again, up to `maxRedirects`. One deadline covers DNS, connect, TLS and every read. Content-Length and chunked bodies are capped at `maxSize`. The type must be on a raster allow-list (no SVG), and compressed encodings are rejected. The request target comes from `java.net.URI` raw components, which reject CR/LF, so there is no request-line injection. No upstream headers are passed on, and error details hold no URL.
+- AC2 body cache: `MailBodyCache.put` evicts LRU down to `body-cache-max-bytes`. `mail_body_attachments` cascades with its body, so a cache hit needs both. Reads touch `last_accessed_at`.
+- AC4: `api/openapi.yaml` and the generated client contain the five operations with their 400/404/502/503/504 responses. According to `tests.md`, `OpenApiContractTest` passes without the flag. The previous rounds' CR-2/CR-3 (pooled connection on 404, socket close and trailing-dot SNI) are fixed in the current code.
 
 ## Review conclusion
 
-Material issues found; fix before completing the task. There are no P0 or P1 findings, and all seven findings of the first review are resolved in the current code. CR-1 needs a fix or a recorded assumption plus a follow-up task. CR-2 and CR-3 are small resilience fixes, or their disposition can be recorded in `quality.json`.
+Material issues found; fix before completing the task. CR-1 (TW-1) must be fixed so that the SSRF protection matches its documented contract and the mail.api tests and `.taskcheck` pass again. CR-2 needs only a recorded disposition.
