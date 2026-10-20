@@ -1,11 +1,11 @@
 ---
 title: Calendar API for local calendars
-status: in_progress
+status: done
 owner: R1963MACOS/agent-2
 deps: [cal-recurrence,p0-events-sse]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/calendar/api,server/src/test/kotlin/ch/sonensei/cockpit/calendar/api]
 prio: 1
-lease_until: 2026-10-20T19:06:33Z
+lease_until: 
 releases: 1
 extended: 
 ---
@@ -36,3 +36,4 @@ CRUD for local calendars and events (SPEC.md §6.4).
 - ASSUMPTION (2026-10-20 20:14+0200 by R1963MACOS/agent-2): Fixed order-dependent core.reminders.ReminderServiceEdgeCaseTests (outside touches): it ran its async fire/delete on the shared ForkJoin common pool, whose threads may not see the test's recorded ApplicationEvents depending on test order; it now uses its own executor. Needed for .taskcheck to pass (main alone passed, with this task's tests it failed consistently).
 - ASSUMPTION (2026-10-20 20:20+0200 by R1963MACOS/agent-2): PATCH scope=ALL/FOLLOWING changes a series' all-day kind only when allDay is sent explicitly; date fields that don't match the series kind give 400. CANCELLED overrides keep their status when the series status changes with ALL, so an occurrence deleted with THIS stays deleted after cancelling and un-cancelling the series (other overrides cancelled along with the series also stay cancelled).
 - ASSUMPTION (2026-10-20 20:40+0200 by R1963MACOS/agent-2): CR-6 (P3) accepted: PATCH ALL/FOLLOWING with allDay:false through a timed override of an all-day series measures the shift from the override, so the converted series may not land at the requested time. Pre-existing rare edge case; a kind change drops all overrides anyway. Follow-up fix: use the original occurrence as base when the series changes kind.
+- done by R1963MACOS/agent-2: `sh scripts/check.sh` passed in 177s on 19d057396; criteria verified 5/5
