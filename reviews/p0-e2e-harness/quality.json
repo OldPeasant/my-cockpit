@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "task": "p0-e2e-harness",
-  "reviewed_revision": "872129d01098e2422ebda54eaaeb7dc58434c931",
+  "reviewed_revision": "b87fa130ad2701cb4fd1d9a39d08c99c4c5c334f",
   "helpers": {
     "test-writer": {"status": "completed", "report": "reviews/p0-e2e-harness/tests.md"},
     "code-reviewer": {"status": "completed", "report": "reviews/p0-e2e-harness/review.md"},
