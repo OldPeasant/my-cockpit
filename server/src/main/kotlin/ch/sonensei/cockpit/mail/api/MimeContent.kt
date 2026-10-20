@@ -111,8 +111,9 @@ internal object MimeContent {
 			sizeBytes = encoded?.let { if (encoding == "base64") it * 3 / 4 else it },
 			inline = inline,
 			contentId =
+				// IMAPBodyPart answers getContentID from the BODYSTRUCTURE; getHeader would need another fetch.
 				safely {
-					part.getHeader("Content-ID")?.firstOrNull()
+					(part as? MimePart)?.contentID ?: part.getHeader("Content-ID")?.firstOrNull()
 				}?.trim()?.removePrefix("<")?.removeSuffix(">")?.takeIf { it.isNotBlank() },
 		)
 	}
