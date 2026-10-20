@@ -24,7 +24,8 @@ Web authentication (SPEC.md §4.1). All `/api/**` endpoints are authenticated by
   - verified (2026-10-20 13:27+0200 by dell26/agent-4): cd server && ./gradlew test --tests 'ch.sonensei.cockpit.core.auth.*' (Testcontainers Postgres, rev acecccd) -> 119 tests, 0 failures; SecurityConfigurationTests 'API endpoints, actuator and API docs answer 401 without authentication', 'setup status and health are public', 'client routes and SPA files are public'; WithCockpitUser used by SecurityConfigurationTests and core.spa.SpaFallbackTests -> pass
 - [x] `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.core.auth.*'` passes (Postgres via Testcontainers where persistence is involved)
   - verified (2026-10-20 13:27+0200 by dell26/agent-4): cd server && ./gradlew test --tests 'ch.sonensei.cockpit.core.auth.*' (Testcontainers Postgres, rev acecccd) -> 119 tests, 0 failures, 0 errors, 0 skipped (also ./gradlew clean check by test-writer -> 665 tests pass)
-- [ ] API documented: `api/openapi.yaml` regenerated (`UPDATE_OPENAPI=1 ./gradlew test --tests '*OpenApiContractTest'`) and `OpenApiContractTest` passes without the flag
+- [x] API documented: `api/openapi.yaml` regenerated (`UPDATE_OPENAPI=1 ./gradlew test --tests '*OpenApiContractTest'`) and `OpenApiContractTest` passes without the flag
+  - verified (2026-10-20 13:27+0200 by dell26/agent-4): cd server && UPDATE_OPENAPI=1 ./gradlew test --tests '*OpenApiContractTest' -> BUILD SUCCESSFUL; cd web && npm run api:gen; git status --short -> empty (api/openapi.yaml + generated client current); ./gradlew test --tests '*OpenApiContractTest' without flag -> BUILD SUCCESSFUL
 
 ## Notes
 - ASSUMPTION (2026-10-20 12:24+0200 by dell26/agent-4): Sessions are rows in a new auth_session table (SHA-256 of a random 256-bit cookie token), not servlet HttpSession/Spring Session: they survive restarts for the 30-day sliding lifetime and need no new library; cookie name COCKPIT_SESSION, Path=/
