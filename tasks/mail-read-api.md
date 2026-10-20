@@ -19,3 +19,4 @@ List and read messages (SPEC.md §7.4).
 ## Notes
 - ASSUMPTION (2026-10-20 22:37+0200 by dell26/agent-1): GET /mail/messages: accountId alone lists that account's Inbox (role INBOX); neither param = unified Inbox of all accounts; folderId = that folder. The q= search parameter is left to the mail-search task.
 - ASSUMPTION (2026-10-20 22:37+0200 by dell26/agent-1): Threaded list: one item per (account, threadKey) = newest message in the listed scope; threadSize/threadUnread are counted within that scope only. GET /messages/{id}/thread returns the whole conversation across the account's folders, deduplicated by Message-ID.
+- ASSUMPTION (2026-10-20 22:37+0200 by dell26/agent-1): Reading a message never sets \Seen (EXAMINE + BODY.PEEK); clients mark read via the actions API (mail-actions-api).
