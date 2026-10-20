@@ -1,0 +1,43 @@
+# End-to-end test stack: the server image with profile `e2e` and a fresh, throwaway Postgres.
+# Started and torn down by `cd web && npm run e2e` (web/e2e/support/run-e2e.mjs); not for deployment.
+# No Caddy and no TLS: Playwright talks plain HTTP to the server, published on 127.0.0.1 only.
+# All secrets below are fictitious test values.
+name: cockpit-e2e
+
+services:
+  server:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    image: localhost/cockpit-server:e2e
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:${E2E_PORT:-18090}:8080"
+    environment:
+      SPRING_PROFILES_ACTIVE: e2e
+      COCKPIT_DOMAIN: localhost
+      COCKPIT_DATA_DIR: /data
+      # base64 of "cockpit-e2e-master-key-not-real!" (fictitious)
+      COCKPIT_MASTER_KEY: Y29ja3BpdC1lMmUtbWFzdGVyLWtleS1ub3QtcmVhbCE=
+      # Plain HTTP: the session cookie cannot be Secure.
+      COCKPIT_AUTH_SECURE_COOKIE: "false"
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/cockpit_e2e
+      SPRING_DATASOURCE_USERNAME: cockpit
+      SPRING_DATASOURCE_PASSWORD: e2e-not-secret
+
+  postgres:
+    image: docker.io/library/postgres:16-alpine
+    environment:
+      POSTGRES_DB: cockpit_e2e
+      POSTGRES_USER: cockpit
+      POSTGRES_PASSWORD: e2e-not-secret
+    # In memory: every stack starts empty and nothing is left behind.
+    tmpfs:
+      - /var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cockpit -d cockpit_e2e"]
+      interval: 2s
+      timeout: 5s
+      retries: 30

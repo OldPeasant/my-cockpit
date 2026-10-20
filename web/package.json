@@ -13,6 +13,8 @@
     "coverage": "ng test --watch=false --coverage --coverage-reporters=text-summary --coverage-reporters=json-summary --coverage-reporters=json --coverage-reporters=lcov",
     "api:gen": "ng-openapi-gen",
     "api:check": "node scripts/api-gen-check.mjs",
+    "e2e": "node e2e/support/run-e2e.mjs",
+    "e2e:typecheck": "tsc -p e2e/tsconfig.json",
     "check": "npm run api:check && npm run lint && npm run test:ci && ng build"
   },
   "private": true,

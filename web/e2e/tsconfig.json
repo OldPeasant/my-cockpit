@@ -1,0 +1,12 @@
+/* Type check of the Playwright suites and config (`npm run e2e:typecheck`); Playwright itself only transpiles them. */
+{
+  "extends": "../tsconfig.json",
+  "compilerOptions": {
+    "types": ["node"],
+    "module": "preserve",
+    "moduleResolution": "bundler",
+    "strict": true,
+    "noEmit": true
+  },
+  "include": ["**/*.ts", "../playwright.config.ts"]
+}
