@@ -5,7 +5,7 @@ owner: dell26/agent-6
 deps: [p0-web-shell,p0-trash-core,p0-e2e-harness]
 touches: [web/src/app/features/trash]
 prio: 2
-lease_until: 2026-10-20T19:56:21Z
+lease_until: 2026-10-20T20:01:07Z
 ---
 ## Goal
 List, restore, permanently delete (SPEC.md §4.2).
