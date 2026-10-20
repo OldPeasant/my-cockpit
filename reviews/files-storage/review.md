@@ -4,41 +4,41 @@ Date: 2026-10-20
 
 Task: files-storage - Files: model and blob storage
 
-Scope: re-review of the final code after fixes, committed changes only: `git diff d373732efc3d32affba8c45cb78fe2870ebcd90d..e2876a8e61f1bd0312b0929d1fe25b1c4f2e7608 -- . ':!tasks' ':!reviews'`. That covers the files module main and test code, the Flyway migration `files/V202610201345__files_model.sql`, `cockpit.data-dir` in the main and test `application.properties`, `server/.gitignore` and the `COCKPIT_DATA_DIR` row in `docs/ARCHITECTURE.md`. The working tree was clean.
+Scope: final review after the last fix, committed changes only: `git diff 04049cf47bd466ff94ab23b55873a6d15c840a9a..c54fce3a0583c7234ccbdd71ea81c0f0b35a7e7d -- . ':!tasks' ':!reviews'`. That covers the files module main and test code, the Flyway migration `files/V202610201345__files_model.sql`, `cockpit.data-dir` in the main and test `application.properties`, `server/.gitignore` and the `COCKPIT_DATA_DIR` row in `docs/ARCHITECTURE.md`. The focus is the CR-1 fix in c54fce3 (purge vs restore). The working tree was clean when the review started.
 
-Reviewed revision: e2876a8e61f1bd0312b0929d1fe25b1c4f2e7608
+Reviewed revision: c54fce3a0583c7234ccbdd71ea81c0f0b35a7e7d
 
 Requirements:
 - tasks/files-storage.md: acceptance criteria and recorded assumptions
-- SPEC.md §8.2, §4.2 (Trash), §4.3 (resolvers), §4.4 (search), §11 (COCKPIT_DATA_DIR)
+- SPEC.md §8.2, §4.2 (Trash)
 - docs/ARCHITECTURE.md, AGENTS.md project notes, docs/QUALITY.md
-- core contracts: `TrashContributor` ("an item that is not deleted is never purged"), `TrashService`, `TrashPurgeJob`, `ItemResolver`, `SearchIndexer`, `SoftDeletableEntity`/`BaseEntity` (`@Version`)
-- previous review (CR-1..CR-5), reviews/files-storage/fixes.md, reviews/files-storage/tests.md
+- core contracts: `TrashContributor.purge` ("an item that is not deleted is never purged"), `TrashService` (one transaction per restore/purge), `TrashPurgeJob`, `SearchIndexer` (`onItemDeleted`), `ProblemDetailsAdvice` (`OptimisticLockingFailureException` -> 409)
+- previous review (CR-1 P2, CR-2..CR-4 P3) and reviews/files-storage/fixes.md
 
 Git range:
 - Branch: main
-- HEAD: e2876a8e61f1bd0312b0929d1fe25b1c4f2e7608
-- Base/start: d373732efc3d32affba8c45cb78fe2870ebcd90d
-- Commits reviewed: 7 (396a5c2, 6d3f3fd, 92e0837, d3ffb0b, 9cd6132, 0c463cc, e2876a8)
+- HEAD: c54fce3a0583c7234ccbdd71ea81c0f0b35a7e7d
+- Base/start: 04049cf47bd466ff94ab23b55873a6d15c840a9a
+- Commits reviewed: 9 (2bc14da, 6364e3b, c0551e0, 04e1267, 7409ea2, dec5a80, f77dff3, 1310ab8, c54fce3)
 
 Commands run:
-- `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.files.*' --rerun ktlintCheck` -> BUILD SUCCESSFUL. JUnit XML: FilesServiceTests 24, FilesConcurrencyTests 8, FilesEdgeCaseTests 23, FileNamesTests 16, BlobStoreTests 5, FileIconTests 10. That is 86 tests, 0 failures, 0 errors, 0 skipped (Postgres via Testcontainers). ktlintCheck clean.
-- Read-only inspection with `git log`, `git diff`, `grep` and file reads of the core trash/persistence contracts.
+- `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.files.*' ktlintCheck` -> BUILD SUCCESSFUL, ktlintCheck clean (test task was up to date).
+- `cd server && ./gradlew test --rerun --tests 'ch.sonensei.cockpit.files.*'` run three times. The first run ended with BUILD FAILED after 36s, and the output tail showed no failing test. A test-writer was running Gradle in the same clone at the same time, which is the likely cause, but this could not be confirmed. The next two runs passed (BUILD SUCCESSFUL). The JUnit XML of the last run shows FilesServiceTests 24, FilesConcurrencyTests 12, FilesEdgeCaseTests 23, FileNamesTests 16, BlobStoreTests 5 and FileIconTests 10: 90 tests, 0 failures, 0 errors, 0 skipped (Postgres via Testcontainers).
+- Read-only inspection with `git log`, `git show`, `git diff`, `grep` and file reads.
 
-Prior findings:
-- CR-1 (an upload racing a folder delete, then a purge deletes an active file): resolved. `storeFile` and `createFolder` re-check the target folder under `FOR SHARE` (`lockActiveForShare`, PESSIMISTIC_READ, `deleted_at is null` in SQL, so it is re-evaluated after waiting). `deleteFolder` locks the subtree `FOR UPDATE` in id order and repeats until no new folder appears. `purgeFolder` deletes only trashed rows and moves active ones to the root. Covered by four lock-wait tests (`pg_stat_activity`) and a purge-rescue test.
-- CR-2 (a same-name race gives 500): resolved for `createFolder` and `renameFolder` (`flushedName` maps `DataIntegrityViolationException` to `ConflictException`). Tests cover create/create and rename/create. CR-4 below lists the paths that are still unmapped.
-- CR-3 (adoption spelling and event): resolved. The folder is renamed to `kind.folderName`, reindexed, and an `UPDATED` event is published. The test checks this.
-- CR-4 (upload holds a connection): accepted as documented. The `storeFile` KDoc tells callers to pass buffered content. The share lock is taken only after the blob write.
-- CR-5 (docs row): resolved. The row matches `cockpit.data-dir=${COCKPIT_DATA_DIR:data}` and the test value `build/test-data`.
+Verification of the CR-1 fix (purge racing a restore):
+- `purgeFile` (`FilesService.kt:307-314`) now starts with `FileRepository.lockTrashed` (`FilesRepositories.kt:87-89`): PESSIMISTIC_WRITE, `where f.id = :id and f.deletedAt is not null`. Under READ COMMITTED, a purge that waits for a committing restore re-evaluates `deleted_at is not null` on the new row version, gets no row and returns `false`, so `TrashService` returns 404. When the purge locks first, the restore's versioned UPDATE waits. After the purge commits, that UPDATE fails with `OptimisticLockingFailureException`, which maps to 409. The blob hook is registered only after both checks pass, and it deletes the blob only on commit.
+- `purgeFolder` (`FilesService.kt:266-301`) now calls `lockSubtree` before it loads anything. `TrashService.purge` runs one transaction per item, and `TrashPurgeJob` runs one per entry, so the persistence context is empty at that point. The entities are therefore loaded by the locking read and are current. The trash-root check (`findTrashRoots`) evaluates `deletedAt` in SQL with a fresh statement snapshot. The stale managed instance that caused the old bug can no longer occur.
+- Deadlock check: `restoreFolder` updates folder rows before file rows. The folders are loaded first, and the root rename is flushed by the following native `findSubtreeIds` query. So a restore that waits on the purge's folder locks holds no file-row locks that the purge later needs. The restore's `search_document` upserts insert new rows, because trashing deleted the old ones. The purge's `ItemDeletedEvent` deletes do not wait on rows they cannot see. Overlapping `deleteFolder(ancestor)` and `purgeFolder(trashed child)` lock in id order within a round. They fall under the existing cross-round residual CR-4, and nothing new was introduced. Two concurrent purges of the same item: the second waits, then sees no row or no subtree and returns 404.
+- Tests: four new lock-wait tests in `FilesConcurrencyTests` cover both orders for a file and for a folder. Each test forces the interleaving with latches and `pg_stat_activity`. They assert that the restored item and its blob survive, or that the restore fails and the row and the blob are gone. fixes.md records a mutation check (the old order makes the "restore commits first" tests fail).
 
 Acceptance criteria check:
-1. Migrations and atomic blobs: met. `folder` has the tree and a unique `(parent_id, lower(name)) nulls not distinct where deleted_at is null`. `file` has name, mime, size, sha256 and storage_key. `BlobStore.write` writes to a temp file, runs `force(true)`, then does an `ATOMIC_MOVE` to `blobs/ab/cd/<uuid>`.
-2. Special folders: met. They are created on demand under an advisory lock, a user folder in that place is adopted with the canonical spelling, and rename/delete return 409.
-3. Resolvers, search and trash contributor: met. The purge deletes blobs after commit, and a rollback of a store removes its blob. CR-1 below describes a concurrency gap in purge.
-4. Tests pass, including path traversal: met. 86 of 86 pass. They cover `..`, `.`, separators and control characters at the `FileNames` and service level, plus key traversal in `BlobStore.path`.
+1. Migrations and atomic blobs: met. `folder` has the tree and a unique `(parent_id, lower(name)) nulls not distinct where deleted_at is null`. `file` has name, mime, size, sha256 and storage_key. `BlobStore.write` writes to a temp file under `blobs/tmp`, runs `force(true)`, then does an `ATOMIC_MOVE` to `blobs/ab/cd/<uuid>`.
+2. Special folders: met. They are created on demand under an advisory lock, a user folder in that place is adopted with the canonical spelling, and rename/delete return 409 (`ConflictException`).
+3. Resolvers FILE/FOLDER, search indexing of names, trash contributors: met. The purge deletes blobs after commit and now never purges a concurrently restored item.
+4. Tests pass, including path traversal: met. 90 of 90 pass on the final revision. They cover `..`, `.`, separators and control characters in `FileNames` and at the service level, plus key traversal in `BlobStore.path`.
 
-Summary: 0 P0, 0 P1, 1 P2, 3 P3
+Summary: 0 P0, 0 P1, 0 P2, 3 P3
 
 ## P0 Critical
 
@@ -50,36 +50,33 @@ None.
 
 ## P2 Medium
 
-- [ ] **CR-1 | Purge racing a restore of the same item permanently deletes the restored (active) file and its blob**
-    - File: `server/src/main/kotlin/ch/sonensei/cockpit/files/domain/FilesService.kt:298-303` (`purgeFile`), `:264-266` (`purgeFolder`); `server/src/main/kotlin/ch/sonensei/cockpit/files/infra/FilesRepositories.kt:83-84` (`FileRepository.deleteAllByIds`)
-    - Category: Correctness
-    - Problem: `purgeFile` checks that the file is a trash root with a plain read (`trashedFiles()`, no lock). It then runs a bulk JPQL `delete from FileItem f where f.id in :ids` with no `deletedAt is not null` condition and no version check, and deletes the blob after commit. A `restoreFile` of the same file that commits between the check and the delete (a user clicks Restore in one tab and Delete forever in another, or restores at the moment `TrashPurgeJob` purges the expired item) is overwritten. The file the user just restored is deleted permanently, together with its blob, and the restore had already reported success. `purgeFolder` has the same gap for the root folder. The root is loaded unlocked by `trashedFolders()`, and the later `lockSubtree` query returns the same managed (stale) instance, so the root still appears deleted and is bulk-deleted. Its restored children are loaded fresh and survive only through `rescue`, which scatters them to the drive root. The locking added for CR-1 covers insert-vs-delete but not purge-vs-restore.
-    - Why it matters: it breaks the `TrashContributor.purge` contract ("an item that is not deleted is never purged") and the stated guarantee in the `purgeFolder` KDoc ("Only rows in the Trash are ever purged"). The result is silent loss of a file the user explicitly restored. The window is narrow, but the loss is permanent.
-    - Suggested fix: in `purgeFile`, lock the row `FOR UPDATE` and re-check `deleted_at` in SQL (for example a PESSIMISTIC_WRITE query `where id = :id and deletedAt is not null`), or make the bulk delete conditional (`... and f.deletedAt is not null`) and return `false` when 0 rows were affected. In `purgeFolder`, decide on the root after `lockSubtree` from fresh state, for example a locked query with `deletedAt is not null` or `entityManager.refresh`. Then a racing restore either waits or causes a 404. Add a lock-wait test in `FilesConcurrencyTests`: restore holds its transaction open, purge waits, and the file must survive.
+None. CR-1 of the previous review is resolved (see "Verification of the CR-1 fix").
 
 ## P3 Low
 
+The parent worker accepted these as non-blocking. They are still present in the code and are listed here unchanged so the record stays complete.
+
 - [ ] **CR-2 | Restore does not lock the parent, so an item can be restored into a folder that is being deleted**
-    - File: `server/src/main/kotlin/ch/sonensei/cockpit/files/domain/FilesService.kt:229-253` (`restoreFolder`, `restoreFile`)
+    - File: `server/src/main/kotlin/ch/sonensei/cockpit/files/domain/FilesService.kt:231-255` (`restoreFolder`, `restoreFile`)
     - Category: Correctness
-    - Problem: `storeFile` and `createFolder` now lock their target folder `FOR SHARE`, but the restore paths do not lock the parent. Take a `restoreFile` (or `restoreFolder`) whose parent is deleted concurrently. The delete's `FOR UPDATE` on the subtree does not touch the file row, and it does not change the already-trashed folder row it locks. The restore therefore commits an active item under a trashed folder. That item is searchable and resolvable while its folder is in the Trash, and it is not in the Trash itself. When the parent is purged, `rescue` moves it to the root, so no data is lost.
-    - Why it matters: it leaves the tree inconsistent in the same way the CR-1 fix of the previous review was meant to prevent. It is a narrow race and recoverable.
-    - Suggested fix: in `restoreFolder` and `restoreFile`, call `lockActiveFolder(parentId)` when the parent is not the root, after finding the trash root. The parent is active by definition of a trash root, so a racing delete then makes the restore wait and fail with 404.
+    - Problem: the restore paths do not call `lockActiveFolder(parentId)`. A restore that races a delete of its parent can commit an active item under a trashed folder. The item is visible in search while its folder is in the Trash. A later purge of the parent moves it to the root through `rescue`, so no data is lost.
+    - Why it matters: a narrow race that leaves the tree inconsistent but recoverable.
+    - Suggested fix: after finding the trash root, call `lockActiveFolder(parentId)` when the parent is not the root.
 
 - [ ] **CR-3 | Some unique-name races still surface as 500 instead of 409**
-    - File: `server/src/main/kotlin/ch/sonensei/cockpit/files/domain/FilesService.kt:209` (`specialFolder`, `folders.save` without flush or mapping), `:232` (`restoreFolder`, `freeName` then a flush at commit), `:309` (`rescue`)
+    - File: `server/src/main/kotlin/ch/sonensei/cockpit/files/domain/FilesService.kt:211` (`specialFolder`), `:234` (`restoreFolder` `freeName`), `:319` (`rescue`)
     - Category: Correctness
-    - Problem: `flushedName` covers only `createFolder` and `renameFolder`. A user `createFolder("Attachments")` that commits during the first `specialFolder(ATTACHMENTS)` call still fails the special-folder side with `DataIntegrityViolationException` at commit. fixes.md records this as a residual. The same happens when a folder is restored and another folder takes its `freeName` result concurrently. `ProblemDetailsAdvice` maps these to 500.
-    - Why it matters: the database keeps the invariant and a retry succeeds, but clients get a server error instead of the documented 409.
-    - Suggested fix: flush inside `flushedName` in `restoreFolder` too. For `specialFolder`, also take the advisory lock in `createFolder` when `parentId` is null and the name matches `Attachments` case-insensitively, or retry once in a new transaction. Otherwise record the residual with `tasks.py assume`.
+    - Problem: only `createFolder` and `renameFolder` go through `flushedName`. A concurrent same-name insert during special-folder creation, a folder restore or a rescue fails at commit with `DataIntegrityViolationException`, which maps to 500.
+    - Why it matters: the database keeps the invariant and a retry works, but the client gets a server error instead of 409.
+    - Suggested fix: wrap these writes in `flushedName` with an explicit flush, or record the residual with `tasks.py assume`.
 
-- [ ] **CR-4 | Two overlapping folder deletes can deadlock across `lockSubtree` rounds**
-    - File: `server/src/main/kotlin/ch/sonensei/cockpit/files/domain/FilesService.kt:329-337`
+- [ ] **CR-4 | Overlapping subtree locks can deadlock across `lockSubtree` rounds**
+    - File: `server/src/main/kotlin/ch/sonensei/cockpit/files/domain/FilesService.kt:339-347`
     - Category: Correctness
-    - Problem: each `lockForUpdate` call locks its ids in id order. A second round, triggered when a folder appeared meanwhile, locks a superset again in id order, but by then the first round's rows are already held. So two transactions working on overlapping subtrees (for example deleting a parent and a child at the same time while a subfolder is being created) are not guaranteed a global lock order. PostgreSQL detects the deadlock and aborts one transaction with a `CannotAcquireLockException`/`PessimisticLockingFailureException`, which surfaces as 500.
-    - Why it matters: the outcome is a rare spurious 500 on delete, not corruption, because the aborted transaction rolls back cleanly.
-    - Suggested fix: accept and document it, or map the lock failure to 409 so the client can retry. No structural change is needed.
+    - Problem: each round locks in id order, but a second round re-locks a superset while the first round's rows are still held. Two overlapping `deleteFolder` or `purgeFolder` calls are therefore not guaranteed a global lock order when a folder appears between rounds. PostgreSQL aborts one of them, and that surfaces as 500.
+    - Why it matters: a rare spurious 500 and a clean rollback, with no corruption.
+    - Suggested fix: map the lock failure to 409, or document it as accepted.
 
 ## Review conclusion
 
-Material issues found; fix before completing the task. All four acceptance criteria are met, CR-1 to CR-5 of the previous review are resolved or deliberately accepted (CR-4 as documentation), and the 86 files tests pass with ktlint clean. The remaining P2 (CR-1: purge racing a restore can permanently delete a restored file and its blob) should be fixed, or explicitly accepted by the parent with a recorded assumption, before `done`. CR-2 to CR-4 are low-priority improvements.
+No material issues found. The CR-1 fix is correct. It closes the purge-vs-restore race for files and folders in both orders, it adds no deadlock between purge and restore, and the four new lock-wait tests cover it. All four acceptance criteria are met on c54fce3. The 90 files tests pass (two consecutive passing runs; one earlier failed run most likely came from a concurrent Gradle run in the same clone and could not be attributed to the code), and ktlint is clean. The remaining P3 findings CR-2 to CR-4 were accepted by the parent as non-blocking.
