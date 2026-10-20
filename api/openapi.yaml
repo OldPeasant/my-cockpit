@@ -1,0 +1,45 @@
+openapi: 3.1.0
+info:
+  title: My Cockpit API
+  version: v1
+servers:
+- url: /
+paths: {}
+components:
+  schemas:
+    FieldError:
+      type: object
+      description: A validation error of one request field or parameter.
+      properties:
+        field:
+          type: string
+        message:
+          type: string
+      required:
+      - field
+      - message
+    ProblemDetail:
+      type: object
+      description: "RFC 9457 Problem Details, the body of every error response."
+      properties:
+        detail:
+          type: string
+        errors:
+          type: array
+          description: "Field errors, only on 400 validation errors."
+          items:
+            $ref: "#/components/schemas/FieldError"
+        instance:
+          type: string
+          format: uri
+        status:
+          type: integer
+          format: int32
+        title:
+          type: string
+        type:
+          type: string
+          format: uri
+      required:
+      - status
+      - title

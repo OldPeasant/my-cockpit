@@ -105,7 +105,20 @@ tasks.register<Test>("integrationTest") {
 	shouldRunAfter(tasks.test)
 }
 
-// Coverage: ./gradlew test jacocoTestReport -> build/reports/jacoco/test/ (XML for tools, HTML for people)
+// Regenerates api/openapi.yaml (same as `UPDATE_OPENAPI=1 ./gradlew test --tests '*OpenApiContractTest'`, see api/README.md).
+tasks.register<Test>("updateOpenApi") {
+	description = "Regenerates the API contract api/openapi.yaml from the running server."
+	group = "documentation"
+	val testSourceSet = sourceSets.test.get()
+	testClassesDirs = testSourceSet.output.classesDirs
+	classpath = testSourceSet.runtimeClasspath
+	useJUnitPlatform()
+	filter { includeTestsMatching("*OpenApiContractTest") }
+	environment("UPDATE_OPENAPI", "1")
+	outputs.upToDateWhen { false }
+}
+
+// Coverage:./gradlew test jacocoTestReport -> build/reports/jacoco/test/ (XML for tools, HTML for people)
 tasks.jacocoTestReport {
 	dependsOn(tasks.test)
 	reports {

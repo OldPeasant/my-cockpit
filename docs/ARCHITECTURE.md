@@ -32,7 +32,7 @@ Every CI job, Dockerfile or build that downloads its own runtime must use these 
 server/      Spring Boot app, base package ch.sonensei.cockpit (modules: SPEC.md §3)
 web/         Angular SPA, built into the server's static resources for deployment (later task)
 android/     Android app, namespace/applicationId ch.sonensei.cockpit
-api/         openapi.yaml, generated from the server (later task)
+api/         openapi.yaml, generated from the server (how to regenerate: api/README.md)
 deploy/      docker-compose.yml, Caddyfile (later task)
 docs/        this file, QUALITY.md, adr/
 scripts/     check.sh (the fast check)
@@ -114,7 +114,8 @@ The contract lives in `api/openapi.yaml`, which is generated from the server (sp
 clients generate or derive their models from it. Contract tasks come before the backend and client
 tasks that use the contract. A change to the contract updates the server, regenerates
 `api/openapi.yaml` and updates the clients, in the same task or a dependent one. Until the first
-API task lands, the only endpoint is `GET /actuator/health`.
+API task lands, the only endpoint is `GET /actuator/health`. Errors, ETag/If-Match and cursor
+pagination helpers live in `server/.../core/web` (summary in `api/README.md`).
 
 ## Testing
 
