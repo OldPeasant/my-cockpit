@@ -166,6 +166,14 @@ describe('Shell', () => {
     expect(capture.open).not.toHaveBeenCalled();
   });
 
+  it('does not open capture with Ctrl+Shift+Space while a dialog is open', async () => {
+    await setup();
+    keydown({ key: '?', shiftKey: true });
+    const event = keydown({ key: ' ', code: 'Space', ctrlKey: true, shiftKey: true });
+    expect(capture.open).not.toHaveBeenCalled();
+    expect(event.defaultPrevented).toBe(false);
+  });
+
   it('switches the theme from the theme menu', async () => {
     await setup();
     const theme = TestBed.inject(ThemeService);

@@ -1,5 +1,5 @@
 import { BreakpointObserver } from '@angular/cdk/layout';
-import { ChangeDetectionStrategy, Component, inject, viewChild } from '@angular/core';
+import { ChangeDetectionStrategy, Component, Injector, inject, viewChild } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { MatButtonModule } from '@angular/material/button';
 import { MatDialog } from '@angular/material/dialog';
@@ -35,6 +35,8 @@ export const COMPACT_QUERY = '(max-width: 899.98px)';
 })
 export class Shell {
   private readonly dialog = inject(MatDialog);
+  /** Dialogs open with this injector so they see the providers registered on the shell route. */
+  private readonly injector = inject(Injector);
   private readonly capture = inject(CAPTURE_DIALOG);
   protected readonly theme = inject(ThemeService);
 
@@ -57,6 +59,8 @@ export class Shell {
 
   protected onKeydown(event: KeyboardEvent): void {
     const action = shellActionFor(event);
+    // While any dialog is open, every shortcut except Ctrl+K (palette) is ignored,
+    // including Q, Ctrl+Shift+Space and ?.
     if (!action || (this.dialog.openDialogs.length > 0 && action !== 'palette')) {
       return;
     }
@@ -73,7 +77,11 @@ export class Shell {
         this.capture.open();
         break;
       case 'shortcuts':
-        this.dialog.open(ShortcutsDialog, { width: '480px', maxWidth: '95vw' });
+        this.dialog.open(ShortcutsDialog, {
+          width: '480px',
+          maxWidth: '95vw',
+          injector: this.injector,
+        });
         break;
     }
   }
@@ -87,6 +95,7 @@ export class Shell {
       maxWidth: '95vw',
       position: { top: '12vh' },
       ariaLabel: $localize`:@@palette.title:Command palette`,
+      injector: this.injector,
     });
   }
 

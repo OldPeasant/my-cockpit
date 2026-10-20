@@ -19,6 +19,7 @@ import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 })
 export class CapturePlaceholder {}
 
+/** Opens the dialog with the caller's injector, so its content sees route-level providers. */
 export function openCapturePlaceholder(injector: Injector): void {
-  injector.get(MatDialog).open(CapturePlaceholder, { width: '480px', maxWidth: '95vw' });
+  injector.get(MatDialog).open(CapturePlaceholder, { width: '480px', maxWidth: '95vw', injector });
 }
