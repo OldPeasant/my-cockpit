@@ -1,6 +1,6 @@
 # My Cockpit — Product & Technical Specification
 
-Status: v1.0 (2026-10-20) · Source of truth for implementation by AI agents.
+Status: v1.1 (2026-10-20), awaiting approval · Source of truth for implementation by AI agents.
 Origin: `BRAINSTORM.md` + Q&A session.
 
 ---
@@ -78,7 +78,7 @@ native Android app, running on the owner's Linux server.
 | Layer | Choice |
 |---|---|
 | Server language | Kotlin 2.x on JVM 21 |
-| Framework | Spring Boot 3.5+ (Web MVC, Security, Data JPA or jOOQ — **use Spring Data JPA + Hibernate**, Validation, Scheduling) |
+| Framework | Spring Boot 4.1 (Web MVC, Security, Data JPA or jOOQ — **use Spring Data JPA + Hibernate**, Validation, Scheduling) |
 | DB | PostgreSQL 16+, migrations with **Flyway** |
 | Search | PostgreSQL full-text search (`tsvector` + GIN), `pg_trgm` for fuzzy titles |
 | Mail | Eclipse Angus Mail (Jakarta Mail) for IMAP/SMTP incl. XOAUTH2, IMAP IDLE |
@@ -87,9 +87,9 @@ native Android app, running on the owner's Linux server.
 | Markdown | flexmark-java (server-side rendering for export/search text extraction) |
 | Auth | Spring Security, session cookie (web), bearer tokens (Android), TOTP (RFC 6238), WebAuthn/passkeys (webauthn4j / Spring Security WebAuthn) |
 | Build | Gradle (Kotlin DSL), monorepo |
-| Web client | Angular 20+ (standalone components, signals, new control flow), Angular Material or PrimeNG — **use Angular Material + CDK**, CodeMirror 6 for Markdown editing |
+| Web client | Angular 22 (standalone components, zoneless, signals, new control flow), Angular Material or PrimeNG — **use Angular Material + CDK**, CodeMirror 6 for Markdown editing |
 | Android | Kotlin, Jetpack Compose, Material 3, Hilt, Retrofit/OkHttp + kotlinx.serialization, Room (capture queue + read cache), WorkManager, DataStore |
-| Tests | JUnit 5, Kotest assertions, Testcontainers (Postgres, GreenMail for IMAP/SMTP, Radicale for CalDAV), MockK; Angular: Vitest/Jest + Playwright e2e; Android: JUnit + Compose UI tests |
+| Tests | JUnit 5, Kotest assertions, Testcontainers (Postgres, GreenMail for IMAP/SMTP, Radicale for CalDAV), MockK; Angular: Vitest + Playwright e2e; Android: JUnit + Compose UI tests |
 | Deployment | Docker Compose: `caddy`, `cockpit-server`, `postgres` |
 
 ---
@@ -120,7 +120,7 @@ my-cockpit/
 └── docs/                   # ADRs, backup format reference
 ```
 
-Base package: `ch.sonensei.cockpit` (adjust if desired). Each module package has `api/` (controllers,
+Base package: `ch.sonensei.cockpit`. Each module package has `api/` (controllers,
 DTOs), `domain/` (entities, services), `infra/` (external integrations, repositories).
 
 ---
@@ -674,6 +674,130 @@ Web Push, iTIP invitations for local events, CardDAV, PDF full-text search, Germ
 UnifiedPush for Android, performance tuning, accessibility audit.
 
 ---
+
+### 13.1 Goals and priorities (MoSCoW)
+
+Goal: replace the owner's separate task, calendar, mail, notes and file tools with one
+self-hosted cockpit that the owner uses daily, on desktop (web) and phone (Android). There is no
+deadline: quality comes before speed, but every phase must end deployable and usable.
+
+| Priority | Scope |
+|---|---|
+| **Must** | Phase 0 foundation (auth with TOTP, deploy), GTD core (§5), quick capture (§4.5), links + search (§4.3, §4.4), notes (§8.1), files (§8.2), backup/restore (§10), Android capture + GTD (§9.2 items 1–3, §9.3), calendar with two-way sync (§6), mail full client (§7) |
+| **Should** | Reminders/notifications (§4.6), contacts (§8.3), weekly review (§8.6), dashboard (§8.7), Android calendar/mail/notes/files (§9.2 items 4–7), passkeys |
+| **Could** | Bookmarks (§8.4), journal & habits (§8.5), Android extras (§9.2 item 8), everything in phase 7 |
+| **Won't (v1)** | see §13.4 |
+
+### 13.2 Demo scripts (acceptance per phase)
+
+The final smoke-test task of each phase runs its script end to end, automated wherever possible:
+Playwright against `docker compose up` for web, and API calls or JVM tests otherwise. Steps that
+only a human can run are marked (H). Each script also runs every earlier phase's script, as a
+regression test.
+
+**Phase 0 — Foundation**
+1. `docker compose up` on a clean machine (with a generated `.env`) starts caddy, server and
+   postgres. `/actuator/health` is UP behind the proxy.
+2. Open the web app → setup flow → create a user, scan the TOTP secret (the test computes the
+   code), store the recovery codes.
+3. Log out → log in with password + TOTP → the app shell with navigation appears. A wrong TOTP is
+   rejected, and 5 failures trigger the backoff.
+4. Log in with a recovery code once, then the same code again → rejected.
+5. Open the command palette with `Ctrl+K`. Switching light/dark theme persists across a reload.
+6. (H) Deploy on the owner's server with the real domain and get a valid TLS certificate.
+
+**Phase 1 — GTD core**
+1. Quick capture (`Q`) of "Call plumber", "Plan holiday #Holiday" and "Buy milk !tomorrow @errands".
+   All three are in the Inbox with the parsed project, due date and context.
+2. Process the Inbox: "Call plumber" → Next, `@phone`, energy LOW, 5 min. "Plan holiday" → new
+   project "Holiday", which becomes its next step. "Buy milk" → Next. The Inbox is empty.
+3. The Next view filtered to `@phone` and ≤ 15 min shows only "Call plumber". Completing it moves it
+   to the Logbook.
+4. Complete "Plan holiday" → the "choose next step" prompt appears. Skipping it makes the project
+   show as stalled.
+5. Create "Renew passport" with tickler = today + 2 days. It is hidden from all lists. With the
+   clock advanced 2 days (test clock), the tickler job puts it back in the Inbox.
+6. A weekly recurring task completed on Monday creates the next occurrence for the next Monday. An
+   AFTER_COMPLETION task completed late is due relative to the completion date.
+7. "Waiting for: Anna — contract" appears in Waiting For, sorted by `waitingSince`.
+8. Link two tasks. Each shows the other under "Linked items". Global search for "passport" finds the
+   task.
+9. Delete a task → it is in the Trash → restore it.
+
+**Phase 2 — Notes, files, backup**
+1. Create a note with Markdown, a checklist and a pasted image. The preview renders the image, and
+   toggling a checklist item is saved.
+2. Upload a 60 MB file (chunked) and a PDF to `/Documents`. The image thumbnail and the PDF preview
+   work. Rename, move and download the folder as a zip.
+3. Link the note to a project and the PDF to a task. Search finds the note's text.
+4. Create a backup → download the zip. `readable/` contains the Markdown tasks/projects/notes with
+   working image links, and `files/` the original tree.
+5. Wipe (a fresh install with new volumes) → restore the zip → all phase 1 and 2 data, links,
+   files and settings are identical (the round-trip test also runs in CI). Login works.
+   Without a backup passphrase, TOTP re-enrollment is forced.
+
+**Phase 3 — Android v1**
+1. Log in on an emulator with password + TOTP.
+2. In airplane mode: share a URL from the browser and a photo from the gallery to the app, and use
+   the widget to capture "Pay rent". The pending count is 3.
+3. Network back → within a minute all 3 are in the Inbox (web shows them), the photo attached.
+   Re-running the sync creates no duplicates.
+4. Process the Inbox on the phone. The Next/Today/Projects views match the web.
+5. A task with a reminder fires a local notification at the due time (emulator clock).
+6. (H) The same on the owner's real phone: share target, widget, quick-settings tile, offline capture.
+
+**Phase 4 — Calendar**
+1. Create a local calendar and a weekly event with one moved occurrence. Day, week and month
+   views are correct across a DST change.
+2. CalDAV (Radicale in the test): an event created in the cockpit appears on the server, and an
+   event changed on the server appears in the cockpit after a sync.
+3. Google/Microsoft: sync logic verified against WireMock recordings (incremental sync token/delta,
+   412 conflict → refetch). (H) Connect the real Google and Microsoft accounts. An event created in
+   the cockpit appears in Google Calendar within seconds, and vice versa within ≤ 5 min.
+4. Edit "this and following" on a recurring event → correct split on all providers.
+5. Task overlay shows due tasks in week view. "Create note for event" links the two.
+
+**Phase 5 — Mail**
+1. Add an IMAP/SMTP account (GreenMail in the test). The folders appear and the unified inbox lists
+   the messages.
+2. A message arriving via SMTP shows up without reload (IDLE + SSE).
+3. Mark read/unread, flag, move to a folder, archive, delete, mark as spam. GreenMail reflects
+   every action.
+4. An HTML mail containing a script and a remote image renders sanitized, with the images blocked
+   until "load images".
+5. Reply with an attachment from Files → the draft autosaves to Drafts, the sent mail is in Sent,
+   and GreenMail received it.
+6. "→ Inbox task" on a mail creates a linked task. "→ Waiting For" from a sent mail names the
+   recipient.
+7. (H) Connect the real Gmail and Microsoft 365 accounts via OAuth and triage one day of mail.
+
+**Phase 6 — Contacts, bookmarks, journal & habits, weekly review, dashboard**
+1. Create contacts, import a vCard, see the birthdays calendar. The contact page shows their mails,
+   events and Waiting For items.
+2. Share a URL on Android → Read later. The title and favicon were fetched, and the item is in the
+   queue on the web.
+3. Write today's journal entry with an image. A habit "3× per week" shows its streak after 3 checks.
+4. Complete a weekly review wizard end to end. The dashboard shows "Last weekly review: today".
+5. The backup round trip covers all new entities.
+
+**Phase 7** — each item gets its own acceptance criteria when it is planned.
+
+### 13.3 Tasks only a human can do
+
+Agents prepare these (scripts, docs, checklists), and the board holds them as tasks with
+`quality: exempt` for the owner:
+- **Server deploy, DNS and TLS:** the domain, the DNS record, the first deploy on the Linux server,
+  running the phase demo scripts against production.
+- **OAuth app registration:** a Google Cloud project (Calendar, People, Gmail scopes) and an Azure
+  app (Graph, IMAP/SMTP), entered into the server `.env` (needed from phase 4).
+- **Real-device Android tests:** install the APK on the owner's phone and run the (H) steps.
+
+### 13.4 Out of scope (v1)
+
+Multi-user, sharing and roles. WebDAV and desktop sync clients. Full offline-first sync (only
+capture works offline). Imports from other tools (Todoist, Keep, Evernote). End-to-end encryption
+of content. Play Store distribution. Firebase/FCM. Mail content in backups. Scheduled automatic
+backups (on demand only; host-level backup is the owner's job, see §11).
 
 ## 14. Instructions for implementing agents
 
