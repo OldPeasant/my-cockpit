@@ -5,15 +5,20 @@ import ch.sonensei.cockpit.calendar.model.CalendarSourceType
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
+import io.kotest.matchers.types.shouldBeInstanceOf
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertDoesNotThrow
 import org.junit.jupiter.api.assertThrows
+import org.springframework.boot.context.annotation.UserConfigurations
+import org.springframework.boot.test.context.runner.ApplicationContextRunner
+import org.springframework.scheduling.config.FixedDelayTask
+import org.springframework.scheduling.config.ScheduledTaskHolder
 import java.time.Duration
 
-/** The parts of the sync engine that need no database: the adapter registry and the scheduler tick. */
+/** The parts of the sync engine that need no database: the adapter registry, the scheduler tick and its wiring. */
 class CalendarSyncUnitTests {
 	private class StubAdapter(
 		override val sourceType: CalendarSourceType,
@@ -114,5 +119,50 @@ class CalendarSyncUnitTests {
 		assertDoesNotThrow { scheduler.run() }
 
 		verify(exactly = 2) { sync.syncDue() }
+	}
+
+	private val schedulerContext =
+		ApplicationContextRunner()
+			.withConfiguration(UserConfigurations.of(CalendarSyncSchedulingConfiguration::class.java))
+			.withBean(CalendarSyncService::class.java, { mockk<CalendarSyncService>(relaxed = true) })
+
+	@Test
+	fun `the scheduler is on by default and checks every tick`() {
+		// A long tick, so the check does not run while the context is open.
+		schedulerContext.withPropertyValues("cockpit.calendar.sync.tick=PT1H").run { context ->
+			context.getBeansOfType(CalendarSyncScheduler::class.java).size shouldBe 1
+			val task =
+				context
+					.getBeansOfType(ScheduledTaskHolder::class.java)
+					.values
+					.flatMap { it.scheduledTasks }
+					.single()
+					.task
+					.shouldBeInstanceOf<FixedDelayTask>()
+			task.intervalDuration shouldBe Duration.ofHours(1)
+			task.initialDelayDuration shouldBe Duration.ofHours(1)
+		}
+	}
+
+	@Test
+	fun `the scheduler ticks every 30 seconds without configuration`() {
+		schedulerContext.run { context ->
+			val task =
+				context
+					.getBeansOfType(ScheduledTaskHolder::class.java)
+					.values
+					.flatMap { it.scheduledTasks }
+					.single()
+					.task
+					.shouldBeInstanceOf<FixedDelayTask>()
+			task.intervalDuration shouldBe Duration.ofSeconds(30)
+		}
+	}
+
+	@Test
+	fun `the scheduler is off when disabled, as in the tests`() {
+		schedulerContext.withPropertyValues("cockpit.calendar.sync.scheduler.enabled=false").run { context ->
+			context.getBeansOfType(CalendarSyncScheduler::class.java).size shouldBe 0
+		}
 	}
 }

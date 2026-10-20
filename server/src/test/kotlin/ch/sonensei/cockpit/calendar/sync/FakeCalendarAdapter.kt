@@ -77,7 +77,10 @@ class FakeCalendarAdapter : CalendarProviderAdapter {
 		store.getOrPut(externalId) { mutableMapOf() }
 	}
 
-	/** Stores [event] (as the provider changing it) with a new etag; returns the stored copy. */
+	/**
+	 * Stores [event] (as the provider changing it) with a new etag; returns the stored copy. With [seriesShareEtag] the
+	 * series is one resource (CalDAV): every event of it gets the new etag.
+	 */
 	fun put(
 		calendar: String,
 		event: RemoteEvent,
@@ -85,6 +88,7 @@ class FakeCalendarAdapter : CalendarProviderAdapter {
 		val stored = event.copy(etag = "etag-${++etags}")
 		store.getValue(calendar)[event.key] = stored
 		changeLog += calendar to event.key
+		if (seriesShareEtag) shareEtag(calendar, event.key.externalId, stored.etag!!)
 		return stored
 	}
 
@@ -94,6 +98,15 @@ class FakeCalendarAdapter : CalendarProviderAdapter {
 	) {
 		store.getValue(calendar).remove(key)
 		changeLog += calendar to key
+	}
+
+	private fun shareEtag(
+		calendar: String,
+		uid: String,
+		etag: String,
+	) {
+		val events = store.getValue(calendar)
+		events.keys.filter { it.externalId == uid }.forEach { events[it] = events.getValue(it).copy(etag = etag) }
 	}
 
 	fun event(
@@ -187,6 +200,11 @@ class FakeCalendarAdapter : CalendarProviderAdapter {
 				.keys
 				.filter { it.externalId == key.externalId }
 				.forEach { remove(calendarExternalId, it) }
+		} else if (seriesShareEtag) {
+			// Removing an exception changes the series resource: it gets a new etag, which the provider returns.
+			val etag = "etag-${++etags}"
+			shareEtag(calendarExternalId, key.externalId, etag)
+			return etag
 		}
 		return null
 	}
