@@ -13,7 +13,8 @@ Show reminders as browser notifications (SPEC.md §4.6).
 ## Acceptance criteria
 - [x] Asks for Notification permission from a user gesture (settings toggle), shows a notification on the `reminder` SSE event; in-app toast fallback
   - verified (2026-10-20 20:52+0200 by dell26/agent-2): cd web && npm run e2e -- e2e/reminders/notifications.spec.ts --repeat-each=3 --workers=1 (Playwright chromium vs deploy/docker-compose.e2e.yml, Notification API stubbed since headless Chromium has no prompt) -> 11 passed: settings switch requests permission inside the click (userActivation.isActive=true), fired reminder SSE shows a browser notification and no toast; without permission a toast shows and its Open action navigates to /tasks/<id>
-- [ ] Vitest component/service tests cover permission states and fallback; `cd web && npm run check` passes
+- [x] Vitest component/service tests cover permission states and fallback; `cd web && npm run check` passes
+  - verified (2026-10-20 21:02+0200 by dell26/agent-2): cd web && npm run check on 44eb8e8f -> exit 0, lint clean, 549 tests passed (reminder-notifications.service.spec covers default/granted/denied/unsupported permission, refused show() and toast fallback/queue; general-settings spec covers the toggle), build OK; npm run coverage -> reminder-notifications.service.ts 100%
 
 ## Notes
 - ASSUMPTION (2026-10-20 18:48+0200 by dell26/agent-2): The browser-notification switch is stored per browser in localStorage (cockpit.reminderNotifications), not as a server setting: the Notification permission is per browser too, and SPEC 4.7 lists no such setting.
