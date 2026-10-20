@@ -17,7 +17,8 @@ Image thumbnails and text previews (SPEC.md §8.2).
   - verified (2026-10-21 01:50+0200 by dell26/agent-6): same run at a1c205cf -> PreviewWebTests/PreviewTextTests/PreviewEdgeCaseWebTests pass: text/markdown preview first 256 KB UTF-8 safe, PDF/audio/video inline with correct mime and Range 206, invalid mime 415
 - [x] `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.files.*'` passes (Postgres via Testcontainers where persistence is involved)
   - verified (2026-10-21 01:50+0200 by dell26/agent-6): server/gradlew -p server test --tests 'ch.sonensei.cockpit.files.*' (Docker/Testcontainers) at a1c205cf -> 222 tests, 0 failures, 0 skipped
-- [ ] API documented: `api/openapi.yaml` regenerated (`UPDATE_OPENAPI=1 ./gradlew test --tests '*OpenApiContractTest'`) and `OpenApiContractTest` passes without the flag
+- [x] API documented: `api/openapi.yaml` regenerated (`UPDATE_OPENAPI=1 ./gradlew test --tests '*OpenApiContractTest'`) and `OpenApiContractTest` passes without the flag
+  - verified (2026-10-21 01:50+0200 by dell26/agent-6): api/openapi.yaml regenerated with UPDATE_OPENAPI=1 in implementation commit; server/gradlew -p server test --tests '*OpenApiContractTest' without flag at a1c205cf -> 1 passed, no diff; web client regenerated (npm run api:gen)
 
 ## Notes
 - ASSUMPTION (2026-10-21 01:14+0200 by dell26/agent-6): Thumbnail endpoint is GET /files/{id}/thumbnail?size=256|1024 (default 256); JPEG output for JPEG sources, PNG for PNG/WebP/GIF (keeps alpha); never upscaled; images above 100 MP rejected with 422
