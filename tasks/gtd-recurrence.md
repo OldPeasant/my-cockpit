@@ -11,7 +11,8 @@ lease_until: 2026-10-20T18:56:32Z
 RRULE recurrence on completion (SPEC.md §5.2).
 
 ## Acceptance criteria
-- [ ] Tasks accept `recurrenceRule` (validated RRULE via ical4j) and `recurrenceMode` FIXED|AFTER_COMPLETION
+- [x] Tasks accept `recurrenceRule` (validated RRULE via ical4j) and `recurrenceMode` FIXED|AFTER_COMPLETION
+  - verified (2026-10-20 20:37+0200 by R1963MACOS/agent-1): cd server && ./gradlew test --tests 'ch.sonensei.cockpit.gtd.*' (Postgres 16 Testcontainers) -> TaskRecurrenceTests (ical4j validation: valid day-based rules, invalid/prefix/sub-daily/COUNT=0 rejected) and TaskRecurrenceWebTests 'POST and PATCH accept a valid RRULE with a mode', 'invalid rules and a rule without a mode or a mode without a rule are 400' pass
 - [ ] Completing a recurring task creates exactly one next occurrence (FIXED: next RRULE date after the current due date; AFTER_COMPLETION: relative to completion date in the user's time zone); no pre-generation; uncomplete does not create duplicates
 - [ ] `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.gtd.*'` passes (Postgres via Testcontainers where persistence is involved) incl. weekly Monday case, late AFTER_COMPLETION case, DST boundary
 
