@@ -30,7 +30,9 @@ import java.util.UUID
  * (excluded occurrences). An override is a separate event with [parentEventId] (the master) and [recurrenceId] (the
  * original start of the occurrence it replaces); a [EventStatus.CANCELLED] override removes the occurrence.
  *
- * [externalId], [externalEtag] and [syncState] tie the row to the provider's copy (SPEC.md §6.2).
+ * [externalId], [externalEtag] and [syncState] tie the row to the provider's copy (SPEC.md §6.2). [externalId] is unique
+ * per calendar among non-overrides only: an iCalendar override keeps its master's UID and is identified by
+ * [parentEventId] and [recurrenceId].
  */
 @Entity
 @Table(name = "calendar_event")
@@ -157,13 +159,17 @@ class CalendarEvent(
 		timeZone = null
 	}
 
-	/** Makes this event the override of the occurrence [occurrence] of the series [master]. Only once, before saving. */
+	/**
+	 * Makes this event the override of the occurrence [occurrence] of the series [master], which must be in the same
+	 * calendar. Only once, before saving.
+	 */
 	fun overrideOf(
 		master: CalendarEvent,
 		occurrence: OccurrenceId,
 	) {
 		check(parentEventId == null) { "The event already overrides an occurrence" }
 		require(master.isRecurring && !master.isOverride) { "Only an occurrence of a recurring series can be overridden" }
+		require(calendarId == master.calendarId) { "An override is in the calendar of its series" }
 		parentEventId = master.id
 		recurrenceIdAt = occurrence.at
 		recurrenceIdDate = occurrence.date

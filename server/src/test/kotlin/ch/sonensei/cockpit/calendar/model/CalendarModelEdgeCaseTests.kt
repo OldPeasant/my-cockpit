@@ -186,8 +186,59 @@ class CalendarModelEdgeCaseTests(
 		shouldThrow<DataIntegrityViolationException> {
 			events.saveAndFlush(CalendarEvent(calendar.id, "C").apply { setAllDay(LocalDate.of(2026, 1, 2)) }.apply { externalId = "ext-1" })
 		}
-		events.findByCalendarIdAndExternalId(other.id, "ext-1")!!.title shouldBe "B"
-		events.findByCalendarIdAndExternalId(calendar.id, "missing").shouldBeNull()
+		events.findByCalendarIdAndExternalIdAndParentEventIdIsNull(other.id, "ext-1")!!.title shouldBe "B"
+		events.findByCalendarIdAndExternalIdAndParentEventIdIsNull(calendar.id, "missing").shouldBeNull()
+	}
+
+	@Test
+	fun `iCalendar overrides may share their master's external id, and the lookup by external id returns the master`() {
+		val calendar = localCalendar()
+		val master =
+			events.saveAndFlush(
+				CalendarEvent(calendar.id, "Standup").apply {
+					setAllDay(LocalDate.of(2026, 10, 19))
+					rrule = "FREQ=DAILY"
+					externalId = "uid-1@example.test"
+				},
+			)
+		listOf(LocalDate.of(2026, 10, 20), LocalDate.of(2026, 10, 21)).forEach { day ->
+			events.saveAndFlush(
+				CalendarEvent(calendar.id, "Standup (moved)").apply {
+					setAllDay(day.plusDays(7))
+					overrideOf(master, OccurrenceId.of(day))
+					externalId = "uid-1@example.test"
+				},
+			)
+		}
+
+		events.findByCalendarIdAndExternalIdAndParentEventIdIsNull(calendar.id, "uid-1@example.test")!!.id shouldBe master.id
+		events.findByParentEventIdOrderByIdAsc(master.id).map { it.externalId } shouldBe List(2) { "uid-1@example.test" }
+		// A second master with the same UID is still rejected.
+		shouldThrow<DataIntegrityViolationException> {
+			events.saveAndFlush(
+				CalendarEvent(calendar.id, "Duplicate").apply {
+					setAllDay(LocalDate.of(2026, 10, 19))
+					externalId = "uid-1@example.test"
+				},
+			)
+		}
+	}
+
+	@Test
+	fun `an override must be in the calendar of its series`() {
+		val calendar = localCalendar()
+		val other = localCalendar("Other")
+		val master =
+			events.save(
+				CalendarEvent(calendar.id, "Standup").apply {
+					setAllDay(LocalDate.of(2026, 10, 19))
+					rrule = "FREQ=DAILY"
+				},
+			)
+		val elsewhere = CalendarEvent(other.id, "Standup (elsewhere)").apply { setAllDay(LocalDate.of(2026, 10, 21)) }
+
+		shouldThrow<IllegalArgumentException> { elsewhere.overrideOf(master, OccurrenceId.of(LocalDate.of(2026, 10, 20))) }
+		elsewhere.isOverride shouldBe false
 	}
 
 	@Test
@@ -368,12 +419,30 @@ class CalendarModelEdgeCaseTests(
 				},
 			)
 
+		var deletedMaster = timed("deleted master", "2026-10-01T10:00:00Z", "2026-10-01T11:00:00Z", rrule = "FREQ=DAILY")
+		val overrideOfDeletedMaster =
+			events.save(
+				CalendarEvent(calendar.id, "override of deleted master").apply {
+					setTimed(Instant.parse("2026-10-21T10:00:00Z"), Instant.parse("2026-10-21T11:00:00Z"), zurich)
+					overrideOf(deletedMaster, OccurrenceId.of(Instant.parse("2026-10-20T10:00:00Z")))
+				},
+			)
+		deletedMaster.softDelete(clock)
+		deletedMaster = events.save(deletedMaster)
+
 		val found =
 			events.findCandidatesInRange(listOf(calendar.id, second.id), from, to, fromDate, toDate).map { it.title }
 
 		found shouldContainExactlyInAnyOrder
 			listOf(spanning, inSecondCalendar, seriesInside, allDaySpan, allDaySeries).map { it.title }
 		(deletedOverride.title in found) shouldBe false
+		(overrideOfDeletedMaster.title in found) shouldBe false
+
+		// Restoring the master brings back the series and its live override.
+		deletedMaster.restore()
+		deletedMaster = events.save(deletedMaster)
+		events.findCandidatesInRange(listOf(calendar.id), from, to, fromDate, toDate).map { it.title } shouldContainExactlyInAnyOrder
+			listOf(spanning, seriesInside, allDaySpan, allDaySeries, deletedMaster, overrideOfDeletedMaster).map { it.title }
 		events.findCandidatesInRange(listOf(UUID.randomUUID()), from, to, fromDate, toDate) shouldBe emptyList()
 	}
 }

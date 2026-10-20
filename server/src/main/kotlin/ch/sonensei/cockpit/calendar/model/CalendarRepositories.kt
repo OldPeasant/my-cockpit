@@ -27,15 +27,19 @@ interface CalendarEventRepository : SoftDeletableRepository<CalendarEvent> {
 	 * Events of [calendarIds] that may have an occurrence in [from, to): single events overlapping the range, every
 	 * series master starting before [to] (its expansion decides), and all overrides of those calendars (an override
 	 * can move an occurrence into the range). Timed events compare instants, all-day events the dates
-	 * [fromDate, toDate) (the range in the user's zone). Not deleted.
+	 * [fromDate, toDate) (the range in the user's zone). Not deleted; an override also not when its series master is
+	 * deleted (it shares the master's Trash state).
 	 */
 	@Query(
 		"""
 		select e from CalendarEvent e
 		where e.calendarId in :calendarIds and e.deletedAt is null and (
-			e.parentEventId is not null
-			or (e.allDay = false and e.startAt < :to and (e.rrule is not null or e.endAt > :from or (e.endAt = e.startAt and e.startAt >= :from)))
-			or (e.allDay = true and e.startDate < :toDate and (e.rrule is not null or e.endDate > :fromDate))
+			(e.parentEventId is not null
+				and exists (select 1 from CalendarEvent m where m.id = e.parentEventId and m.deletedAt is null))
+			or (e.parentEventId is null and (
+				(e.allDay = false and e.startAt < :to and (e.rrule is not null or e.endAt > :from or (e.endAt = e.startAt and e.startAt >= :from)))
+				or (e.allDay = true and e.startDate < :toDate and (e.rrule is not null or e.endDate > :fromDate))
+			))
 		)
 		order by e.id
 		""",
@@ -51,7 +55,11 @@ interface CalendarEventRepository : SoftDeletableRepository<CalendarEvent> {
 	/** The overrides of a series, deleted or not. */
 	fun findByParentEventIdOrderByIdAsc(parentEventId: UUID): List<CalendarEvent>
 
-	fun findByCalendarIdAndExternalId(
+	/**
+	 * The series master or single event with the provider id [externalId]. Overrides are not returned: in iCalendar
+	 * they share their master's UID and are identified by parent and recurrence id.
+	 */
+	fun findByCalendarIdAndExternalIdAndParentEventIdIsNull(
 		calendarId: UUID,
 		externalId: String,
 	): CalendarEvent?

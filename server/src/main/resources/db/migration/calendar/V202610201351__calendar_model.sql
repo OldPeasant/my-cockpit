@@ -95,7 +95,10 @@ create index calendar_event_recurring on calendar_event (calendar_id) where dele
 create index calendar_event_parent on calendar_event (parent_event_id) where parent_event_id is not null;
 create unique index calendar_event_override_occurrence on calendar_event (parent_event_id, recurrence_id_at, recurrence_id_date)
     nulls not distinct where parent_event_id is not null;
-create unique index calendar_event_external_id on calendar_event (calendar_id, external_id) where external_id is not null;
+-- external_id is unique per calendar among masters and single events only. Overrides are identified by
+-- (parent_event_id, recurrence id): iCalendar overrides (RECURRENCE-ID) share their master's UID.
+create unique index calendar_event_external_id on calendar_event (calendar_id, external_id)
+    where external_id is not null and parent_event_id is null;
 
 create table calendar_event_exdate (
     event_id           uuid not null references calendar_event (id) on delete cascade,

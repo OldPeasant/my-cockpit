@@ -151,7 +151,7 @@ class CalendarModelTests(
 			loaded.recurrenceId.shouldBeNull()
 			loaded.createdAt shouldBe MutableClockTestConfiguration.START
 		}
-		events.findByCalendarIdAndExternalId(calendar.id, "evt-1")!!.id shouldBe saved.id
+		events.findByCalendarIdAndExternalIdAndParentEventIdIsNull(calendar.id, "evt-1")!!.id shouldBe saved.id
 	}
 
 	@Test

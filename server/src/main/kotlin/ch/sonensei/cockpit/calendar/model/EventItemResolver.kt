@@ -13,7 +13,7 @@ import java.util.UUID
 /**
  * Events in generic views (SPEC.md §4.3): subtitle is the start ("Tue 20 Oct 2026, 14:00" in the event's zone,
  * "Tue 20 Oct 2026, all day"), with "(repeats)" for a series; deep link `/calendar/events/{id}`. An override of a
- * series in the Trash does not resolve.
+ * series in the Trash and a cancelled override (a removed occurrence) do not resolve, as in [CalendarEventIndexer].
  */
 @Component
 class EventItemResolver(
@@ -23,14 +23,18 @@ class EventItemResolver(
 
 	@Transactional(readOnly = true)
 	override fun resolve(id: UUID): ResolvedItem? =
-		events.findActiveById(id)?.takeIf { !it.isOverride || events.findActiveById(it.parentEventId!!) != null }?.let {
-			ResolvedItem(
-				title = it.title,
-				subtitle = it.startLabel() + if (it.isRecurring) " (repeats)" else "",
-				icon = "event",
-				deepLink = "/calendar/events/${it.id}",
-			)
-		}
+		events
+			.findActiveById(id)
+			?.takeIf {
+				!it.isOverride || (it.status != EventStatus.CANCELLED && events.findActiveById(it.parentEventId!!) != null)
+			}?.let {
+				ResolvedItem(
+					title = it.title,
+					subtitle = it.startLabel() + if (it.isRecurring) " (repeats)" else "",
+					icon = "event",
+					deepLink = "/calendar/events/${it.id}",
+				)
+			}
 
 	private fun CalendarEvent.startLabel(): String =
 		if (allDay) {
