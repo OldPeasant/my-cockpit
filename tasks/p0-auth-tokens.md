@@ -19,3 +19,4 @@ Bearer-token authentication for the Android client with device management (SPEC.
 
 ## Notes
 - ASSUMPTION (2026-10-20 14:11+0200 by dell26/agent-5): Access tokens are opaque random tokens (SHA-256 hash on the auth_device row, looked up per request), not JWTs: no signing key to manage and revocation is immediate.
+- ASSUMPTION (2026-10-20 14:12+0200 by dell26/agent-5): Refresh tokens expire after 90 days without a refresh (SPEC only says long-lived); expired devices are deleted lazily on the next token issue/refresh.
