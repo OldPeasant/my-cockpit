@@ -5,7 +5,7 @@ owner: dell26/agent-1
 deps: [p0-server-deps]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/core/crypto,server/src/test/kotlin/ch/sonensei/cockpit/core/crypto]
 prio: 1
-lease_until: 2026-10-20T09:06:01Z
+lease_until: 2026-10-20T09:06:37Z
 ---
 ## Goal
 Encrypt external credentials with the master key (SPEC.md §4.1).
