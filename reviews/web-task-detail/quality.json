@@ -1,0 +1,39 @@
+{
+  "schema": 1,
+  "task": "web-task-detail",
+  "reviewed_revision": "0357d8601d41972c1a0cba54ba672c861e0db15a",
+  "helpers": {
+    "test-writer": {"status": "completed", "report": "reviews/web-task-detail/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/web-task-detail/review.md"},
+    "fixer": {"status": "completed", "report": "reviews/web-task-detail/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "TW-1", "source": "test-writer", "severity": "Low", "disposition": "fixed",
+     "note": "pressing the chosen repeat mode again cleared the selection"},
+    {"id": "R1 CR-1", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "background reload overwrote typed edits / stale reload replaced a newer save"},
+    {"id": "R1 CR-2", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "checklist toggle and remove serialized"},
+    {"id": "R1 CR-3", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "field errors linked via aria-describedby"},
+    {"id": "R1 CR-4", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "save shortcut hint i18n and aria-keyshortcuts"},
+    {"id": "R2 CR-1", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "late save of the previous task after a route id change ignored (same as TW-2)"},
+    {"id": "TW-2", "source": "test-writer", "severity": "Medium", "disposition": "fixed",
+     "note": "same as R2 CR-1"},
+    {"id": "TW-3", "source": "test-writer", "severity": "Low", "disposition": "fixed",
+     "note": "late checklist add for the previous task ignored"},
+    {"id": "TW-4", "source": "test-writer", "severity": "Low", "disposition": "fixed",
+     "note": "late failed checklist change for the previous task ignored"},
+    {"id": "R2 CR-2", "source": "code-reviewer", "severity": "P3", "disposition": "accepted",
+     "note": "only Close confirms discarding unsaved edits; link navigation does not. No criterion requires it; recorded as assumption #6 on web-task-detail"},
+    {"id": "R3 CR-1", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "text typed while a save runs is kept and stays dirty"}
+  ],
+  "validation": [
+    {"command": "cd web && npx ng test --watch=false --include='src/app/features/gtd/task-detail/**/*.spec.ts'", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
