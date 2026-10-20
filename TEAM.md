@@ -33,6 +33,11 @@ Agents run in the background in `../my-cockpit-agents/`, one clone each. You can
 but the laptop must stay awake.
 
 ## 3. Watch
+Dashboard: board, your agents, start/stop buttons. It runs on your laptop and manages your clone:
+```bash
+python dashboard/server.py     # opens http://127.0.0.1:8765/ (agents started there inherit this shell's env)
+```
+Or on the command line:
 ```bash
 python tasks.py watch           # then open the printed board.html link in a browser
 python agents.py status         # your agents: alive? working on what?
