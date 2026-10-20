@@ -1,10 +1,11 @@
 ---
 title: Runner: stop the loop when release/hold cannot push
-status: todo
-owner:
+status: in_progress
+owner: dell26/agent-7
 deps: []
 touches: [agents.py,tasks.py,tests]
 prio: 1
+lease_until: 2026-10-20T15:16:46Z
 ---
 ## Goal
 A push that keeps failing (e.g. a token without `workflow` scope, so GitHub rejects `.github/workflows/*`) must
