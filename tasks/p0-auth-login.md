@@ -5,7 +5,7 @@ owner: dell26/agent-4
 deps: [p0-auth-setup]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/core/auth,server/src/test/kotlin/ch/sonensei/cockpit/core/auth]
 prio: 1
-lease_until: 2026-10-20T11:09:27Z
+lease_until: 2026-10-20T11:14:28Z
 ---
 ## Goal
 Web authentication (SPEC.md §4.1). All `/api/**` endpoints are authenticated by default after this task.
