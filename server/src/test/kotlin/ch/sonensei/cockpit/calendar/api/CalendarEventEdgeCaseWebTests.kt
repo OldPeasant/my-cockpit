@@ -132,6 +132,34 @@ class CalendarEventEdgeCaseWebTests(
 	}
 
 	@Test
+	fun `POST without a title is rejected`() {
+		api.postJson(EVENTS, """{"start":"2026-03-02T13:00:00Z"}""").isProblem(400, "title")
+		api.postJson(EVENTS, """{"title":null,"start":"2026-03-02T13:00:00Z"}""").isProblem(400, "title")
+	}
+
+	@Test
+	fun `PATCH changes attendees, reminders, status and transparency`() {
+		val event = api.createEvent("""{"title":"Dentist","start":"2026-03-02T13:00:00Z"}""")
+		event.text("status") shouldBe "CONFIRMED"
+		event.text("transparency") shouldBe "OPAQUE"
+
+		val changed =
+			api.patchEventOk(
+				event.id(),
+				"""{"attendees":[{"email":" ada@example.com ","name":"Ada"}],"reminderMinutes":[10,60],""" +
+					""""status":"TENTATIVE","transparency":"TRANSPARENT"}""",
+			)
+
+		changed.text("status") shouldBe "TENTATIVE"
+		changed.text("transparency") shouldBe "TRANSPARENT"
+		changed.get("reminderMinutes").values().map { it.asInt() } shouldContainExactly listOf(10, 60)
+		changed.get("attendees").values().map { it.text("email") to it.text("status") } shouldContainExactly
+			listOf("ada@example.com" to "NEEDS_ACTION")
+		api.event(event.id()).text("transparency") shouldBe "TRANSPARENT"
+		api.patchEvent(event.id(), """{"status":"MAYBE"}""").isProblem(400, "status")
+	}
+
+	@Test
 	fun `a single event cannot move to a read-only or unknown calendar`() {
 		val event = api.createEvent("""{"title":"Dentist","start":"2026-03-02T13:00:00Z"}""")
 		val holidays = api.createCalendar("""{"name":"Holidays"}""").id()
@@ -267,5 +295,19 @@ class CalendarEventEdgeCaseWebTests(
 			.values()
 			.filter { it.get("isDefault").asBoolean() }
 			.map { it.id() } shouldContainExactlyInAnyOrder listOf(second.id())
+	}
+
+	@Test
+	fun `POST of a default calendar takes the flag from the previous default`() {
+		val work = api.createCalendar("""{"name":"Work","isDefault":true}""")
+
+		work.get("isDefault").asBoolean() shouldBe true
+		api
+			.read(mockMvc.get(CALENDARS))
+			.get("items")
+			.values()
+			.filter { it.get("isDefault").asBoolean() }
+			.map { it.id() } shouldContainExactly listOf(work.id())
+		api.createEvent("""{"title":"x","start":"2026-03-02T13:00:00Z"}""").text("calendarId") shouldBe work.id()
 	}
 }

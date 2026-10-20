@@ -260,6 +260,74 @@ class CalendarSeriesEdgeCaseWebTests(
 	}
 
 	@Test
+	fun `PATCH FOLLOWING through the series and an occurrence with a moved override puts it at the requested time`() {
+		val series = weekly()
+		val moved = api.patchEventOk(series.id(), """{"start":"2026-03-24T08:00:00Z"}""", "?scope=THIS&occurrence=2026-03-23T08:00:00Z")
+		// Another moved override later in the series: it is carried over and keeps its own moved time.
+		api.patchEventOk(series.id(), """{"start":"2026-04-07T07:00:00Z","title":"Tuesday"}""", "?scope=THIS&occurrence=2026-04-06T07:00:00Z")
+
+		// Addressed through the master and occurrence=, not through the override id: one hour later from there on.
+		val next =
+			api.patchEventOk(series.id(), """{"start":"2026-03-24T09:00:00Z"}""", "?scope=FOLLOWING&occurrence=2026-03-23T08:00:00Z")
+
+		next.text("start") shouldBe "2026-03-23T09:00:00Z"
+		api.event(series.id()).text("rrule") shouldBe "FREQ=WEEKLY;UNTIL=20260323T075959Z"
+		assertGone(moved.id())
+		spring().map { it.text("occurrence") to it.text("start") } shouldContainExactlyInAnyOrder
+			listOf(
+				"2026-03-02T08:00:00Z" to "2026-03-02T08:00:00Z",
+				"2026-03-09T08:00:00Z" to "2026-03-09T08:00:00Z",
+				"2026-03-16T08:00:00Z" to "2026-03-16T08:00:00Z",
+				"2026-03-23T09:00:00Z" to "2026-03-24T09:00:00Z",
+				"2026-03-30T08:00:00Z" to "2026-03-30T08:00:00Z",
+				"2026-04-06T08:00:00Z" to "2026-04-07T07:00:00Z",
+				"2026-04-13T08:00:00Z" to "2026-04-13T08:00:00Z",
+			)
+		spring().single { it.text("occurrence") == "2026-04-06T08:00:00Z" }.text("title") shouldBe "Tuesday"
+	}
+
+	@Test
+	fun `PATCH ALL changing only the end through a moved override keeps it in place with the requested end`() {
+		val series = weekly()
+		val moved = api.patchEventOk(series.id(), """{"start":"2026-03-24T08:00:00Z"}""", "?scope=THIS&occurrence=2026-03-23T08:00:00Z")
+		val titled = api.patchEventOk(series.id(), """{"title":"Kick-off"}""", "?scope=THIS&occurrence=2026-03-09T08:00:00Z")
+
+		// Every occurrence lasts 90 minutes; the start of the series does not move.
+		val result = api.patchEventOk(moved.id(), """{"end":"2026-03-24T09:30:00Z"}""", "?scope=ALL")
+
+		result.text("start") shouldBe "2026-03-02T08:00:00Z"
+		result.text("end") shouldBe "2026-03-02T09:30:00Z"
+		// The recurrence ids did not change: both overrides were kept, not recreated.
+		api.event(moved.id()).let {
+			it.text("start") shouldBe "2026-03-24T08:00:00Z"
+			it.text("end") shouldBe "2026-03-24T09:30:00Z"
+		}
+		api.event(titled.id()).text("end") shouldBe "2026-03-09T09:30:00Z"
+		spring().map { it.text("start") to it.text("end") }.take(4) shouldContainExactly
+			listOf(
+				"2026-03-02T08:00:00Z" to "2026-03-02T09:30:00Z",
+				"2026-03-09T08:00:00Z" to "2026-03-09T09:30:00Z",
+				"2026-03-16T08:00:00Z" to "2026-03-16T09:30:00Z",
+				"2026-03-24T08:00:00Z" to "2026-03-24T09:30:00Z",
+			)
+		rowCount() shouldBe 3
+	}
+
+	@Test
+	fun `PATCH ALL with content only keeps a moved override at its moved time`() {
+		val series = weekly()
+		val moved = api.patchEventOk(series.id(), """{"start":"2026-03-24T08:00:00Z"}""", "?scope=THIS&occurrence=2026-03-23T08:00:00Z")
+
+		api.patchEventOk(series.id(), """{"title":"Weekly"}""")
+
+		api.event(moved.id()).let {
+			it.text("title") shouldBe "Weekly"
+			it.text("start") shouldBe "2026-03-24T08:00:00Z"
+		}
+		spring().single { it.text("occurrence") == "2026-03-23T08:00:00Z" }.text("start") shouldBe "2026-03-24T08:00:00Z"
+	}
+
+	@Test
 	fun `an override may name its own occurrence`() {
 		val series = weekly()
 		val override = api.patchEventOk(series.id(), """{"title":"Special"}""", "?scope=THIS&occurrence=2026-03-09T08:00:00Z")
@@ -539,6 +607,28 @@ class CalendarSeriesEdgeCaseWebTests(
 
 		assertGone(special.id())
 		api.patchEvent(special.id(), """{"title":"x"}""", ifMatch = "*").isProblem(404)
+	}
+
+	@Test
+	fun `an override of a trashed series cannot be deleted and is reachable again after restore`(events: ApplicationEvents) {
+		val series = weekly()
+		val special = api.patchEventOk(series.id(), """{"title":"Special"}""", "?scope=THIS&occurrence=2026-03-16T08:00:00Z")
+		val etag = CalendarApi.etag(special)
+		api.deleteEvent(series.id()).andExpect { status { isNoContent() } }
+		val announced = events.changes().size
+
+		api.deleteEvent(special.id(), ifMatch = etag).isProblem(404)
+		api.deleteEvent(special.id(), "?scope=ALL", ifMatch = etag).isProblem(404)
+		api.patchEvent(special.id(), """{"title":"x"}""", "?scope=FOLLOWING", ifMatch = etag).isProblem(404)
+		spring().shouldBeEmpty()
+		events.changes().size shouldBe announced
+
+		mockMvc.post("/api/v1/trash/EVENT/${series.id()}/restore") { with(csrf()) }.andExpect { status { isNoContent() } }
+
+		api.event(special.id()).text("title") shouldBe "Special"
+		api.deleteEvent(special.id()).andExpect { status { isNoContent() } }
+		api.event(special.id()).text("status") shouldBe "CANCELLED"
+		spring().size shouldBe 6
 	}
 
 	@Test
