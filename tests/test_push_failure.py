@@ -27,7 +27,7 @@ done
 REFUSE_ALL_HOOK = "#!/bin/sh\necho 'remote: Permission to the repo denied' >&2\nexit 1\n"
 
 FAKE_AGENT = r'''
-import json, os, subprocess, sys
+import json, os, subprocess, sys, time
 prompt, mode = sys.argv[-1], os.environ.get("FAKE_MODE", "")
 def tp(*a):
     p = subprocess.run([sys.executable, "tasks.py", *a], capture_output=True, text=True)
@@ -58,6 +58,10 @@ if tid:
         tp("release", tid, "--note", "cannot finish")
     elif mode == "done":
         tp("done", tid, "--force")
+    elif mode == "limit":  # out of tokens: the runner hands the task off (release --handoff)
+        print(json.dumps({"type": "result", "subtype": "error", "is_error": True,
+                          "result": f"Claude AI usage limit reached|{int(time.time()) + 3600}"}), flush=True)
+        sys.exit(1)
 result("worked")
 '''
 
@@ -261,6 +265,27 @@ class RetryAfterFix(PushRunner):
         self.assertEqual(self.state("a")["hold"], "")  # (the runner may claim it again now: pushes work)
         wip = sh(self.tmp, "git", "--git-dir=remote.git", "ls-tree", "-r", "--name-only", "wip/a").stdout
         self.assertIn(".github/workflows/ci.yml", wip)
+
+
+class UsageLimitHandOffRefused(PushRunner):
+    mode, budget = "limit", 10
+
+    def test_refused_hand_off_keeps_the_work_and_blocks(self):
+        # usage limit -> hand_off(): `release --handoff` fails (wip/a refused), the fallback wip push fails too:
+        # no reset to @{u}, no second release; the task stays ours and the runner is blocked on it
+        self.wait_for("hand-off FAILED log", lambda: "hand-off FAILED for a" in self.log.read_text())
+        self.wait_for("BLOCKED log", lambda: "BLOCKED on a" in self.log.read_text())
+        log = self.log.read_text()
+        self.assertIn("workflow scope", log.split("hand-off FAILED for a")[1].splitlines()[0])
+        self.assertNotIn("handed off a", log)
+        a = self.state("a")
+        self.assertEqual((a["status"], a["owner"]), ("in_progress", "box/agent-1"))
+        self.assertNotIn("handed off by", a["text"])
+        self.assertIn("work on a", sh(self.clone, "git", "log", "--format=%s", "HEAD").stdout)  # not reset away
+        self.assertIn(".github/workflows/ci.yml",
+                      sh(self.clone, "git", "ls-tree", "-r", "--name-only", "HEAD").stdout)
+        self.assertNotIn("wip/a", sh(self.tmp, "git", "--git-dir=remote.git", "branch").stdout)
+        self.assertEqual(self.sessions(), 1)
 
 
 # Sessions scripted by FAKE_MODE, a comma list, one entry per session (the last one repeats): `release`,

@@ -507,11 +507,19 @@ def cmd_run(a):
                 sh("git", "add", "-A", cwd=clone)
                 sh("git", "commit", "-qm", f"wip: {tid} (handed off: {one_line(reason, 60)})", cwd=clone)
             note = f"handed off by {a.owner}: {one_line(reason, 120)}"
+            t0 = time.time()
             p = sh(sys.executable, "tasks.py", "release", tid, "--handoff", "--note", note, cwd=clone)
             if p.returncode:  # e.g. a conflict while catching up: save the work to wip/<task> ourselves
                 if tasks.merge_state():
                     sh("git", tasks.merge_state(), "--abort", cwd=clone)
-                sh("git", "push", "-q", "-f", "origin", f"HEAD:refs/heads/{tasks.wip_branch(tid)}", cwd=clone)
+                pf = push_failure(t0)
+                w = None if pf else sh("git", "push", "-q", "-f", "origin",
+                                       f"HEAD:refs/heads/{tasks.wip_branch(tid)}", cwd=clone)
+                if pf or w.returncode:  # the remote refuses our pushes: keep the work here, don't reset it away
+                    err = pf.get("error", "?") if pf else (w.stderr or w.stdout).strip() or "push to wip failed"
+                    log(f"hand-off FAILED for {tid} (exit {p.returncode}): {one_line(err, 300)}")
+                    block(tid, err)
+                    continue  # still ours: stays in `held`, the blocked loop retries the release
                 sh("git", "fetch", "-q", cwd=clone)
                 sh("git", "reset", "-q", "--hard", "@{u}", cwd=clone)
                 p = sh(sys.executable, "tasks.py", "release", tid, "--handoff", "--note", note, cwd=clone)
