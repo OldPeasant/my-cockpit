@@ -1017,4 +1017,37 @@ describe('TaskDetail', () => {
     expect(callsOf(updateTask)).toHaveLength(2);
     expect(callsOf(updateTask)[1].params).toMatchObject({ id: 't2', 'If-Match': '"7"' });
   });
+
+  it('finishes a move of the previous task without touching the new one or showing "Saved"', async () => {
+    let releaseMove!: () => void;
+    answer = (fn, params) => {
+      if (fn === getTask && params['id'] === 't2') {
+        return Promise.resolve(task({ id: 't2', title: 'Water the plants', version: 7 }));
+      }
+      if (fn === moveTask) {
+        return new Promise<void>((resolve) => (releaseMove = resolve)).then(() => {
+          server = { ...server, ...(params['body'] as object), version: server.version + 1 };
+          return server;
+        });
+      }
+      return undefined;
+    };
+    await render();
+    await choose('#td-list', 'WAITING');
+    await type('#td-title', 'Call the plumber again');
+    await save();
+    host.id.set('t2');
+    await refresh();
+
+    // The move of t1 answers after the editor switched to t2; the PATCH of t1 still follows.
+    releaseMove();
+    await refresh();
+    expect(callsOf(moveTask)[0].params).toMatchObject({ id: 't1' });
+    expect(callsOf(updateTask)).toHaveLength(1);
+    expect(callsOf(updateTask)[0].params).toMatchObject({ id: 't1', 'If-Match': '"2"' });
+    expect(field<HTMLTextAreaElement>('#td-title').value).toBe('Water the plants');
+    expect(field<HTMLSelectElement>('#td-list').value).toBe('NEXT');
+    expect(field<HTMLElement>('.bar-status').textContent?.trim()).toBe('');
+    expect(saveButton().disabled).toBe(true);
+  });
 });

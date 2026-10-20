@@ -599,5 +599,32 @@ describe('TaskChecklist', () => {
         service.updateChecklistItem = original;
       }
     });
+
+    it('leaves the new task checklist as it is when a toggle of the previous task succeeds late', async () => {
+      await render();
+      const pending = deferred<ChecklistItemResponse>();
+      const original = service.updateChecklistItem;
+      service.updateChecklistItem = async (old, body) => {
+        updates.push({ item: old, body });
+        return pending.promise;
+      };
+      try {
+        await click(checkboxes()[0]);
+        host.id.set('t2');
+        await refresh();
+        expect(texts()).toEqual(['Other task step']);
+
+        // The toggle of t1 answers after the editor switched to t2.
+        pending.resolve(item('a', 0, { done: true, version: 2 }));
+        await refresh();
+        expect(updates.map((update) => update.item.taskId)).toEqual(['t1']);
+        expect(texts()).toEqual(['Other task step']);
+        expect(checkboxes().map((box) => box.checked)).toEqual([false]);
+        expect(alert()).toBeUndefined();
+        expect(checkboxes().every((box) => !box.disabled)).toBe(true);
+      } finally {
+        service.updateChecklistItem = original;
+      }
+    });
   });
 });
