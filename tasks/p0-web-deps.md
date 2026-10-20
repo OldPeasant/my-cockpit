@@ -8,7 +8,7 @@ prio: 1
 lease_until: 
 releases: 0
 extended: 
-hold: Implementation, verify evidence and review evidence (reviews/p0-web-deps, reviewed bdb9141) are complete and committed; web check passes. done is REFUSED only because .taskcheck's server tests need Te
+hold: 
 ---
 ## Goal
 Add the web libraries the spec needs up front (SPEC.md §2.1) and a Material 3 light/dark theme.
