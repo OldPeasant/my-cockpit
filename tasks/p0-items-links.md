@@ -17,7 +17,8 @@ The cross-module link system (SPEC.md §4.3).
   - verified (2026-10-20 15:02+0200 by dell26/agent-5): Compared ItemType.kt with SPEC.md §4.3 -> all 11 types (TASK..HABIT) present; ItemResolver has type/resolve/exists, ResolvedItem has title/subtitle/icon/deepLink, ItemResolverRegistry.find(type); ItemResolverRegistryTests 5/5 pass
 - [x] `link` table + `POST /api/v1/links`, `DELETE /api/v1/links/{id}`, `GET /api/v1/links?type=&id=` returning links in both directions, each end resolved via its resolver (missing resolver/item → marked `unavailable`, not an error)
   - verified (2026-10-20 15:02+0200 by dell26/agent-5): cd server && ./gradlew test --rerun --tests 'ch.sonensei.cockpit.core.items.*' (Testcontainers Postgres) -> LinkWebTests 23/23 pass: POST/DELETE/GET both directions, missing resolver, deleted item and throwing resolver -> unavailable with 200
-- [ ] `LinkService.sync(source, targets)` replaces the links a source owns (used for inline note links later); deleting an item removes its links via an event
+- [x] `LinkService.sync(source, targets)` replaces the links a source owns (used for inline note links later); deleting an item removes its links via an event
+  - verified (2026-10-20 15:02+0200 by dell26/agent-5): same run -> LinkServiceTests 19/19 + LinkServiceEdgeCaseTests 17/17 pass: sync replaces only the source's SYNC links, ItemDeletedEvent removes links in both directions
 - [ ] Tests with a fake resolver; `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.core.items.*'` passes (Postgres via Testcontainers where persistence is involved)
 - [ ] API documented: `api/openapi.yaml` regenerated (`UPDATE_OPENAPI=1 ./gradlew test --tests '*OpenApiContractTest'`) and `OpenApiContractTest` passes without the flag
 
