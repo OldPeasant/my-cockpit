@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "task": "p0-web-deps",
-  "reviewed_revision": "bdb91418024288742e38bb73feac34c115fe6518",
+  "reviewed_revision": "18b5eefd72ac1406d606daa18a427ec94e22f386",
   "helpers": {
     "test-writer": {"status": "completed", "report": "reviews/p0-web-deps/tests.md"},
     "code-reviewer": {"status": "completed", "report": "reviews/p0-web-deps/review.md"},
