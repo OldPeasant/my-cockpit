@@ -19,7 +19,8 @@ The layout every feature plugs into (SPEC.md §9.1). Creates a lazy route + plac
   - verified (2026-10-20 11:58+0200 by dell26/agent-2): cd web && npx ng test --watch=false: shell.spec.ts/hotkeys.spec.ts (Ctrl+K palette, Q and Ctrl+Shift+Space capture, ? overview, Q/? ignored in input/textarea/contenteditable, search field + '+' button), app.spec.ts with real routes: Ctrl+K, type, Enter navigates via PALETTE_PROVIDERS; Q opens CAPTURE_DIALOG placeholder -> 124 passed
 - [x] Theme toggle light/dark/system, applied before first paint and remembered in localStorage (read/write wrapped in try/catch); a `ThemeService` exposes it so p0-web-settings can sync it with the server settings
   - verified (2026-10-20 11:58+0200 by dell26/agent-2): cd web && npx ng test --watch=false: theme.service.spec.ts (default system, restore, invalid value, setMode applies data-theme + localStorage, localStorage throwing), theme-init.spec.ts runs public/theme-init.js (loaded sync from index.html head) incl. throwing storage, shell.spec.ts theme menu -> pass. Pre-paint timing not observed in a real browser
-- [ ] Vitest component/service tests cover navigation rendering, hotkeys ignored in inputs, theme switching; `cd web && npm run check` passes
+- [x] Vitest component/service tests cover navigation rendering, hotkeys ignored in inputs, theme switching; `cd web && npm run check` passes
+  - verified (2026-10-20 11:58+0200 by dell26/agent-2): cd web && npm run check -> api:check ok, lint clean, 13 files/124 tests passed, build ok (initial 451.66 kB); sh scripts/check.sh -> all checks passed
 
 ## Notes
 - ASSUMPTION (2026-10-20 11:40+0200 by dell26/agent-2): Theme is applied before first paint by web/public/theme-init.js (synchronous <script src> in index.html, outside the task touches) instead of an inline script, so a strict CSP (p0-deploy) needs no hash; key 'cockpit.theme', data-theme='light|dark|system' on <html>.
