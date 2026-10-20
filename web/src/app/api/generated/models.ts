@@ -6,6 +6,8 @@ export type { FieldError } from './models/field-error';
 export type { LoginRequest } from './models/login-request';
 export type { MeResponse } from './models/me-response';
 export type { ProblemDetail } from './models/problem-detail';
+export type { Settings } from './models/settings';
+export type { SettingsPatch } from './models/settings-patch';
 export type { SetupRequest } from './models/setup-request';
 export type { SetupResponse } from './models/setup-response';
 export type { SetupStatusResponse } from './models/setup-status-response';

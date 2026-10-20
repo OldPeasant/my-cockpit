@@ -46,7 +46,10 @@ class SettingsServiceTests(
 		settings.timeZone() shouldBe ZoneId.of("Europe/Zurich")
 		settings.get(CoreSettings.ENERGY_LABELS) shouldBe mapOf("LOW" to "Low", "MEDIUM" to "Medium", "HIGH" to "High")
 		settings.current().version shouldBe 0
-		settings.current().values.keys.toList() shouldContainExactly CoreSettings.ALL.map { it.key }.sorted()
+		settings
+			.current()
+			.values.keys
+			.toList() shouldContainExactly CoreSettings.ALL.map { it.key }.sorted()
 	}
 
 	@Test
@@ -85,7 +88,10 @@ class SettingsServiceTests(
 		settings.update(mapOf("theme" to "dark"))
 		jdbc.update("update user_settings set overrides = '{\"theme\": \"sepia\", \"removedKey\": 1}'::jsonb")
 		settings.get(CoreSettings.THEME) shouldBe "system"
-		settings.current().values.keys.toList() shouldContainExactly CoreSettings.ALL.map { it.key }.sorted()
+		settings
+			.current()
+			.values.keys
+			.toList() shouldContainExactly CoreSettings.ALL.map { it.key }.sorted()
 	}
 
 	@Test
