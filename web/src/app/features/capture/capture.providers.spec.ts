@@ -1,3 +1,4 @@
+import { createEnvironmentInjector, EnvironmentInjector, InjectionToken } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { MatDialog } from '@angular/material/dialog';
 import { CAPTURE_DIALOG } from '../../shell/shell-tokens';
@@ -38,5 +39,28 @@ describe('provideCapture (placeholder)', () => {
 
     dialog.querySelector<HTMLButtonElement>('button[mat-dialog-close]')!.click();
     await vi.waitFor(() => expect(openDialogs()).toEqual([]));
+  });
+
+  // Regression guard for CR-2: the dialog content must resolve providers from the injector that
+  // provides CAPTURE_DIALOG (the shell route in app.routes.ts), not only from the root injector.
+  it('opens the dialog with the injector that provides CAPTURE_DIALOG', async () => {
+    const ROUTE_ONLY = new InjectionToken<string>('ROUTE_ONLY');
+    const route = createEnvironmentInjector(
+      [provideCapture(), { provide: ROUTE_ONLY, useValue: 'from the route' }],
+      TestBed.inject(EnvironmentInjector),
+    );
+    try {
+      route.get(CAPTURE_DIALOG).open();
+      const ref = await vi.waitFor(() => {
+        const [first] = TestBed.inject(MatDialog).openDialogs;
+        expect(first).toBeDefined();
+        return first;
+      });
+      expect(ref.componentInstance).toBeInstanceOf(CapturePlaceholder);
+      expect(ref.componentRef!.injector.get(ROUTE_ONLY, null)).toBe('from the route');
+    } finally {
+      TestBed.inject(MatDialog).closeAll();
+      route.destroy();
+    }
   });
 });

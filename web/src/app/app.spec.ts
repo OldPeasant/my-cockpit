@@ -7,6 +7,9 @@ import { routes } from './app.routes';
 import { CapturePlaceholder } from './features/capture/capture-placeholder';
 import { CommandPalette } from './shell/command-palette';
 import { NAV_SECTIONS } from './shell/nav-sections';
+import { NavigationPaletteProvider } from './shell/navigation-palette.provider';
+import { PALETTE_PROVIDERS } from './shell/shell-tokens';
+import { ShortcutsDialog } from './shell/shortcuts-dialog';
 
 describe('App', () => {
   let harness: RouterTestingHarness;
@@ -103,5 +106,24 @@ describe('App', () => {
     await harness.fixture.whenStable();
     const root = harness.routeNativeElement as HTMLElement;
     expect(root.querySelector('app-coming-soon h1')?.textContent?.trim()).toBe('Trash');
+  });
+
+  // CR-1/CR-2 follow-up: every dialog the shell opens (shortcut overview, capture placeholder)
+  // resolves its providers through the shell route, like the palette.
+  it('opens the shortcut overview and the capture dialog with the shell route providers', async () => {
+    await harness.navigateByUrl('/');
+    const routeProviders = (index = 0): readonly unknown[] =>
+      TestBed.inject(MatDialog).openDialogs[index].componentRef!.injector.get(PALETTE_PROVIDERS);
+
+    keydown({ key: '?', shiftKey: true });
+    expect(openDialogs()[0]).toBeInstanceOf(ShortcutsDialog);
+    expect(routeProviders()).toEqual([expect.any(NavigationPaletteProvider)]);
+    TestBed.inject(MatDialog).closeAll();
+    await vi.waitFor(() => expect(openDialogs()).toEqual([]));
+
+    keydown({ key: 'q' });
+    await vi.waitFor(() => expect(openDialogs()).toHaveLength(1));
+    expect(openDialogs()[0]).toBeInstanceOf(CapturePlaceholder);
+    expect(routeProviders()).toEqual([expect.any(NavigationPaletteProvider)]);
   });
 });

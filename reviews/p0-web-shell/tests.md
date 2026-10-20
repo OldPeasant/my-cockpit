@@ -4,90 +4,96 @@ Date: 2026-10-20
 
 Task: p0-web-shell - Application shell: navigation, top bar, palette skeleton, placeholders
 
-Scope: task commits `d600444a71bf87e29e298e4ce64598d70aa8cd22..ca6af091c5db9a0c02e17e628d73b58ea08b8817` (one commit, `ca6af09 p0-web-shell: app shell ...`, branch `main`), as supplied by the parent worker and checked against the task's acceptance criteria and `touches`. Plus the uncommitted test files listed below (no uncommitted production changes).
+Scope: task commits `d600444a71bf87e29e298e4ce64598d70aa8cd22..a999e943a3b8905c58fbc9ae3aeb5bfafc1f69d3` on branch `main`. Code commits: `307e57f` (implementation), `ce2c6f1` (first test-writer tests and report) and `a999e94` (fixes for TW-1/CR-1, CR-2 and CR-3, see `reviews/p0-web-shell/fixes.md`). The parent worker supplied the base and the range. The other commits in the range only change `tasks/` (claim, assume, verify and heartbeat commits, some from other agents' tasks) and `reviews/`. The scope also includes the uncommitted test changes listed below. There are no uncommitted production changes. This is a re-test after the fixes. It replaces the earlier report, which described the pre-fix revision `ca6af09` (now `307e57f`).
 
 Requirements:
-- `tasks/p0-web-shell.md` acceptance criteria and recorded assumptions (theme-init.js, hotkey rules, GTD URLs, provider tokens, lazy shell)
-- `SPEC.md` §9.1 (via the task), `docs/ARCHITECTURE.md` "Coverage", `docs/QUALITY.md`, `AGENTS.md`
-- Existing test conventions in `web/src/app/**/*.spec.ts` (Vitest via `@angular/build:unit-test`, jsdom, zoneless TestBed)
+- `tasks/p0-web-shell.md`: acceptance criteria and recorded assumptions, including the corrected hotkey rule (every shortcut except Ctrl+K is ignored while a dialog is open)
+- `reviews/p0-web-shell/fixes.md` (fixes to verify) and `reviews/p0-web-shell/review.md` (CR-1..CR-3)
+- `SPEC.md` §9.1 (cited by the task), `docs/ARCHITECTURE.md` "Coverage", `docs/QUALITY.md`, `AGENTS.md`
+- Existing test conventions in `web/src/app/**/*.spec.ts` (Vitest via `@angular/build:unit-test`, jsdom, zoneless TestBed, `RouterTestingHarness`)
 
 ## Test files changed
 
-- `web/src/app/app.spec.ts` (modified: 2 integration tests through the real `app.routes.ts`)
-- `web/src/app/shell/shell.spec.ts` (modified: 5 tests)
-- `web/src/app/shell/command-palette.spec.ts` (modified: 1 test)
-- `web/src/app/shell/hotkeys.spec.ts` (modified: 1 assertion added to an existing test)
-- `web/src/app/shell/theme-init.spec.ts` (new: pre-paint script `public/theme-init.js`)
-- `web/src/app/shell/pages.spec.ts` (new: `NotFound`, `ShortcutsDialog`)
-- `web/src/app/features/capture/capture.providers.spec.ts` (new: placeholder `CAPTURE_DIALOG`)
+This run (uncommitted, on top of HEAD `a999e94`):
 
-No existing test was removed, weakened or skipped.
+- `web/src/app/app.spec.ts`: 1 test added
+- `web/src/app/shell/shell.spec.ts`: 1 test added in a new `describe`
+- `web/src/app/features/capture/capture.providers.spec.ts`: 1 test added
+
+Earlier test changes are already committed (`ce2c6f1` and the fixer's `a999e94`): `app.spec.ts`, `shell/shell.spec.ts`, `shell/command-palette.spec.ts`, `shell/hotkeys.spec.ts`, `shell/theme-init.spec.ts`, `shell/pages.spec.ts` and `features/capture/capture.providers.spec.ts`.
+
+No existing test was removed, weakened or skipped. The TW-1 regression test in `app.spec.ts` was not changed.
 
 ## Tests added or updated
 
-Count: 22 new tests (98 -> 120 in the web suite), 1 existing test extended.
+Count: 3 new tests in this run. The web suite went from 121 tests (after the fixer) to 124.
 
-- theme-init.spec.ts: `applies the stored mode light|dark|system to <html>` (3), `falls back to system when nothing is stored`, `falls back to system for the invalid stored value "neon"|""|"DARK"|"\"dark\""` (4), `falls back to system without throwing when localStorage is unavailable`, `reads what ThemeService remembers, so the next page load starts with the chosen theme`. The script is re-executed per test with `vi.resetModules()` + dynamic import, i.e. the real file shipped in `public/` is run.
-- capture.providers.spec.ts: `provides CAPTURE_DIALOG with the placeholder implementation`, `opens the lazily loaded placeholder dialog with a close button`.
-- pages.spec.ts: `NotFound explains the dead end and links back to the dashboard`, `ShortcutsDialog lists every shell shortcut with its keys and description`.
-- app.spec.ts: `wires the capture placeholder into the shell: Q opens its dialog`, `wires the navigation commands into the palette: Ctrl+K, type, Enter navigates` (**fails, TW-1**).
-- shell.spec.ts: `opens the palette with Ctrl+K while typing in an input and while another dialog is open`, `opens capture with Ctrl+Shift+Space while typing in an input`, `does not open the shortcut overview twice`, `marks the current theme in the theme menu`, `keeps the side navigation open after following a link on wide screens`.
-- command-palette.spec.ts: `shows the empty state without providers and ignores Enter and arrow keys`.
-- hotkeys.spec.ts: `maps Q and Ctrl+Shift+Space to capture` now also covers a space key reported without `code`.
+- `app.spec.ts` > `App` > `opens the shortcut overview and the capture dialog with the shell route providers`. Uses the real `app.routes.ts`. It presses `?` and checks that the `ShortcutsDialog` component injector resolves `PALETTE_PROVIDERS` to the shell route's `[NavigationPaletteProvider]`, not to the root default `[]`. It then closes the dialog, presses `Q`, and checks the same for the lazily opened `CapturePlaceholder`. This guards the CR-2 fix and the `injector: this.injector` change for the shortcuts dialog in `shell.ts`.
+- `capture.providers.spec.ts` > `opens the dialog with the injector that provides CAPTURE_DIALOG`. It creates a child `EnvironmentInjector` with `provideCapture()` and a token that exists only there, opens `CAPTURE_DIALOG` from that injector, and checks that the dialog component can inject the token. This is a unit-level regression guard for CR-2 (`openCapturePlaceholder` passes its injector to `MatDialog.open`).
+- `shell.spec.ts` > `Shell with route-level palette providers` > `shows the rows of every provider registered on the shell route`. It loads `Shell` on a route that registers `provideNavigationPalette()` plus a second fictitious `PALETTE_PROVIDERS` (multi) provider, the same way `provideSearch()` will. It clicks the search field and checks that the palette shows both groups (`Go to`, `Notes`). This covers the documented plug-in point for the search feature. The earlier shell and palette specs registered providers only at the TestBed root, which is how TW-1 slipped through.
+
+The fixer's test was also verified: `shell.spec.ts` > `does not open capture with Ctrl+Shift+Space while a dialog is open` (CR-3).
 
 ## Requirement coverage
 
 | Requirement | Tests | Command | Result |
 |---|---|---|---|
-| AC1 Left navigation with all SPEC §9.1 sections incl. Logbook and Trash | shell.spec `renders a link for every navigation section, Logbook and Trash included` (existing); app.spec `lazy-loads a coming soon page for %s` (existing, 18 cases, active link + aria-current) | `cd web && npx ng test --watch=false` | Pass |
-| AC1 Responsive: drawer below 900 px | shell.spec `shows the navigation side by side on wide screens`, `collapses the navigation to a drawer below 900 px`, `switches between side navigation and drawer when the width changes` (existing); `keeps the side navigation open after following a link on wide screens` (new). BreakpointObserver is stubbed; the real 899.98 px media query in a browser was not exercised | `cd web && npx ng test --watch=false` | Pass (jsdom, breakpoint stubbed) |
-| AC2 `app.routes.ts` lazy-loads every `features/<feature>/<feature>.routes.ts`; each renders 'coming soon' | app.spec `lazy-loads a coming soon page for %s` (existing, all 18 sections), `renders the shell with the dashboard placeholder at /`, `shows a not found page for unknown URLs` (existing); pages.spec `NotFound explains the dead end and links back to the dashboard` (new) | `cd web && npx ng test --watch=false` | Pass |
-| AC2 Routes file names listed in `features/README.md` | Not automated (no file-system access from the jsdom test build). Checked manually: all 18 routes files under `web/src/app/features/**` appear in the README table | manual read of `web/src/app/features/README.md` vs `git diff --name-only` | Pass (manual) |
-| AC3 Search field opens the palette; `Ctrl+K` opens the palette (also in inputs, also over another dialog, only once) | shell.spec `opens the command palette with Ctrl+K and from the search field, only once` (existing); `opens the palette with Ctrl+K while typing in an input and while another dialog is open` (new); hotkeys.spec (existing) | `cd web && npx ng test --watch=false` | Pass |
-| AC3 Capture '+' button, `Q` / `Ctrl+Shift+Space`, ignored while typing | shell.spec `opens capture with Q, Ctrl+Shift+Space and the + button`, `ignores Q and ? while typing in an input`, `does not open capture while a dialog is open` (existing); `opens capture with Ctrl+Shift+Space while typing in an input` (new); hotkeys.spec (existing + extended) | `cd web && npx ng test --watch=false` | Pass |
-| AC3 `?` shortcut overview | shell.spec `opens the shortcut overview with ?` (existing), `does not open the shortcut overview twice` (new); pages.spec `ShortcutsDialog lists every shell shortcut ...` (new) | `cd web && npx ng test --watch=false` | Pass |
-| AC3 `CAPTURE_DIALOG` placeholder implementation, wired via `app.routes.ts` | capture.providers.spec (2 new); app.spec `wires the capture placeholder into the shell: Q opens its dialog` (new) | `cd web && npx ng test --watch=false` | Pass |
-| AC3 Palette contents provided via `PALETTE_PROVIDERS` with placeholder implementation (shell 'Go to' commands) | command-palette.spec (existing 6, new 1; providers registered at TestBed root) | `cd web && npx ng test --watch=false` | Pass |
-| AC3 Same, in the real app wiring (providers registered on the shell route in `app.routes.ts`) | app.spec `wires the navigation commands into the palette: Ctrl+K, type, Enter navigates` (new) | `cd web && npx ng test --watch=false` | **Fail - TW-1** |
-| AC4 Theme toggle light/dark/system, `ThemeService` exposes it | theme.service.spec (existing 5); shell.spec `switches the theme from the theme menu` (existing), `marks the current theme in the theme menu` (new) | `cd web && npx ng test --watch=false` | Pass |
-| AC4 Remembered in localStorage, read/write wrapped in try/catch | theme.service.spec `keeps working when localStorage throws` (existing); theme-init.spec `falls back to system without throwing when localStorage is unavailable` (new) | `cd web && npx ng test --watch=false` | Pass |
-| AC4 Applied before first paint (`public/theme-init.js`, loaded from index.html) | theme-init.spec (10 new, runs the real script) | `cd web && npx ng test --watch=false` | Pass for the script's behaviour. That `index.html` loads it synchronously before the bundle was checked by reading `web/src/index.html` (`<script src="theme-init.js">` in `<head>`); no-flash in a real browser: Not run (no browser/Playwright run in this task) |
-| AC5 Vitest tests cover navigation rendering, hotkeys ignored in inputs, theme switching | see rows above | `cd web && npx ng test --watch=false` | Pass (those tests pass) |
-| AC5 `cd web && npm run check` passes | whole web check | `cd web && npm run check` | **Fail** (api:check pass, lint pass, test:ci 1 failed / 119 passed - TW-1; `ng build` not reached in that run, passed separately with `npx ng build`) |
+| AC1 Left navigation with all SPEC §9.1 sections incl. Logbook and Trash | shell.spec `renders a link for every navigation section, Logbook and Trash included`; app.spec `lazy-loads a coming soon page for %s` (18 cases, active link + aria-current) | `cd web && npm run check` (test:ci) | Pass |
+| AC1 Responsive: drawer below 900 px | shell.spec `shows the navigation side by side on wide screens`, `collapses the navigation to a drawer below 900 px`, `switches between side navigation and drawer when the width changes`, `keeps the side navigation open after following a link on wide screens`. BreakpointObserver is stubbed. | `cd web && npm run check` (test:ci) | Pass in jsdom with a stubbed breakpoint. The real media query in a browser was not run. |
+| AC2 `app.routes.ts` lazy-loads every `features/<feature>/<feature>.routes.ts`; each renders 'coming soon' | app.spec `lazy-loads a coming soon page for %s` (18), `renders the shell with the dashboard placeholder at /`, `shows a not found page for unknown URLs`; pages.spec `NotFound explains the dead end ...` | `cd web && npm run check` (test:ci) | Pass |
+| AC2 Routes file names listed in `features/README.md` | Not automated: the jsdom test build has no file-system access. Checked by reading `web/src/app/features/README.md` against `git diff --name-only d600444..HEAD`: all 18 routes files are listed. | manual read | Pass (manual) |
+| AC3 Search field and `Ctrl+K` open the palette (also in inputs, also over another dialog, only once) | shell.spec `opens the command palette with Ctrl+K and from the search field, only once`, `opens the palette with Ctrl+K while typing in an input and while another dialog is open`; hotkeys.spec | `cd web && npm run check` (test:ci) | Pass |
+| AC3 Capture '+' button, `Q` / `Ctrl+Shift+Space`, ignored while typing; all shortcuts except Ctrl+K ignored while a dialog is open (corrected assumption, CR-3) | shell.spec `opens capture with Q, Ctrl+Shift+Space and the + button`, `ignores Q and ? while typing in an input`, `opens capture with Ctrl+Shift+Space while typing in an input`, `does not open capture while a dialog is open`, `does not open capture with Ctrl+Shift+Space while a dialog is open` (fixer); hotkeys.spec | `cd web && npm run check` (test:ci) | Pass |
+| AC3 `?` shortcut overview | shell.spec `opens the shortcut overview with ?`, `does not open the shortcut overview twice`; pages.spec `ShortcutsDialog lists every shell shortcut ...` | `cd web && npm run check` (test:ci) | Pass |
+| AC3 `CAPTURE_DIALOG` placeholder implementation, wired via `app.routes.ts`, dialog opened with the route injector (CR-2) | capture.providers.spec (3 tests, incl. new `opens the dialog with the injector that provides CAPTURE_DIALOG`); app.spec `wires the capture placeholder into the shell: Q opens its dialog`, new `opens the shortcut overview and the capture dialog with the shell route providers` | `cd web && npm run check` (test:ci); focused verbose run (see below) | Pass |
+| AC3 Palette contents via `PALETTE_PROVIDERS` with a placeholder implementation, in the real app wiring (TW-1 / CR-1) | app.spec `wires the navigation commands into the palette: Ctrl+K, type, Enter navigates` (TW-1 regression test, unchanged); shell.spec new `shows the rows of every provider registered on the shell route`; command-palette.spec (7) | `cd web && npm run check` (test:ci); focused verbose run | Pass. The TW-1 test failed on `ca6af09` and now passes. |
+| AC4 Theme toggle light/dark/system, `ThemeService` exposes it | theme.service.spec (5); shell.spec `switches the theme from the theme menu`, `marks the current theme in the theme menu` | `cd web && npm run check` (test:ci) | Pass |
+| AC4 Remembered in localStorage, read/write in try/catch | theme.service.spec `keeps working when localStorage throws`; theme-init.spec `falls back to system without throwing when localStorage is unavailable` | `cd web && npm run check` (test:ci) | Pass |
+| AC4 Applied before first paint (`public/theme-init.js`, loaded from `index.html`) | theme-init.spec (10 tests that run the real script) | `cd web && npm run check` (test:ci) | Pass for the script's logic. That `web/src/index.html` loads it with a synchronous `<script src="theme-init.js">` in `<head>` was checked by reading the file. No-flash in a real browser: Not run (no browser run in this task). |
+| AC5 Vitest tests cover navigation rendering, hotkeys ignored in inputs, theme switching | see rows above | `cd web && npm run check` (test:ci) | Pass |
+| AC5 `cd web && npm run check` passes | whole web check | `cd web && npm run check` (run as `npm --prefix web run check`) | Pass (exit 0): api:check up to date, lint clean, test:ci 13 files / 124 tests passed, `ng build` success, initial total 451.66 kB |
 
 ## Focused test execution
 
 Command:
 
-`cd web && npx ng test --watch=false --include src/app/shell` (and per new spec file with `--include <file>`)
+`npm --prefix web run test:ci -- --reporters=verbose --include src/app/app.spec.ts --include src/app/shell/shell.spec.ts --include src/app/features/capture/capture.providers.spec.ts`
 
 Result:
 
-Pass (6 files, 45 tests). `--include src/app/app.spec.ts`: 1 failed (TW-1), 22 passed.
+Pass: 3 files, 44 tests. The verbose output shows these as passed: the TW-1 test `wires the navigation commands into the palette: Ctrl+K, type, Enter navigates`, the fixer's `does not open capture with Ctrl+Shift+Space while a dialog is open`, and the 3 new tests.
+
+Not run: a mutation check of the 3 new tests against the pre-fix `shell.ts` / `capture-placeholder.ts` from `307e57f`. It needs a scratch copy of `web/`, and the copy commands (`rsync`/`cp -r`) required approval that this session does not have. Production files in the clone must not be changed. By reading the code, each new assertion depends on the dialog injector chaining to the route injector, which the pre-fix code did not do. Pre-fix, the dialogs would see the root default `PALETTE_PROVIDERS = []`, the child-only token would be `null`, and the palette would show no groups. So the new tests would be expected to fail on the pre-fix revision. The TW-1 test is the executed proof: it failed on `ca6af09` in the earlier run and passes now.
 
 ## Full test execution
 
 Command:
 
-`cd web && npm run check` (= `npm run api:check && npm run lint && npm run test:ci && ng build`); also `npm run lint`, `npx ng build` separately
+`cd web && npm run check` (run as `npm --prefix web run check`, 2026-10-20 ~11:53:55 +02:00)
 
 Result:
 
-Fail. `api:check`: generated client up to date. `lint`: All files pass linting. `test:ci`: 13 files, 120 tests, 1 failed (TW-1), 119 passed. `npx ng build` run on its own: success.
+Pass (exit 0). `api:check`: `src/app/api/generated is up to date.` `lint`: `All files pass linting.` `test:ci`: 13 files, 124 tests passed. `ng build`: success, initial total 451.66 kB.
+
+Formatting of the changed spec files: `npx --prefix web prettier --check web/src/app/app.spec.ts web/src/app/shell/shell.spec.ts web/src/app/features/capture/capture.providers.spec.ts` -> all use Prettier style. Prettier was run only on these 3 spec files, never on `src/app/api/generated`.
 
 ## .taskcheck
 
 Result:
 
-Fail. `sh scripts/check.sh` (2026-10-20 11:44:48 -> 11:45:24 +02:00): the web step failed on the single TW-1 test (1 failed / 119 passed); earlier steps in the script output (18 Python tests) passed. Before the new tests were added the web suite was green (98/98), so the failure is the new regression test exposing TW-1, not a broken test.
+Pass. `sh scripts/check.sh` ran 2026-10-20 11:54:36 -> 11:54:51 +02:00, exit 0, output ended with `== all checks passed`. The web step showed 13 files / 124 tests passed.
 
 ## Bugs found
 
-### Command palette never sees the route-level PALETTE_PROVIDERS: it is always empty in the real app
+None new in this run.
+
+Previous findings and their disposition after the fixes in `a999e94`:
+
+### Command palette never sees the route-level PALETTE_PROVIDERS (resolved)
 
 Finding ID:
 
-`TW-1`
+`TW-1` (same defect as CR-1)
 
 Test:
 
@@ -95,48 +101,74 @@ Test:
 
 Production source:
 
-`web/src/app/shell/shell.ts:85` (`this.dialog.open(CommandPalette, {...})` in `openPalette()`), in combination with `web/src/app/app.routes.ts:15` (`providers: [provideNavigationPalette(), provideCapture(), provideSearch()]` on the lazy shell route) and the root default `web/src/app/shell/shell-tokens.ts:37` (`factory: () => []`).
+`web/src/app/shell/shell.ts` (`openPalette()`, now `injector: this.injector`)
 
 Requirement:
 
-AC3: "Capture and palette contents are provided via injection tokens (`CAPTURE_DIALOG`, `PALETTE_PROVIDERS`) with placeholder implementations"; task note: "extra PALETTE_PROVIDERS (multi) from features/search/search.providers.ts provideSearch(); the shell adds 'Go to <section>' palette commands."
+AC3: palette contents are provided via `PALETTE_PROVIDERS`; the shell adds 'Go to <section>' commands; `provideSearch()` on the shell route adds more.
 
 Expected behavior:
 
-With the real `routes`, pressing Ctrl+K (or clicking the search field) opens the palette listing the 18 "Go to <section>" commands; typing `trash` + Enter navigates to `/trash`. Providers added later by `provideSearch()` must also appear.
+With the real routes, Ctrl+K opens a palette that lists the 18 'Go to' commands, and `trash` + Enter navigates to `/trash`.
 
 Actual behavior:
 
-The palette shows only "Nothing matches. Try another word." for every query. `MatDialog` is root-provided and `open()` is called without `injector`/`viewContainerRef`, so the CDK dialog builds the component injector on the root injector (`node_modules/@angular/cdk/fesm2022/dialog.mjs:535-558`: `parent: userInjector || this._injector`). `CommandPalette` therefore injects the root default `PALETTE_PROVIDERS = []` instead of the providers registered on the shell route. The existing `shell.spec.ts` / `command-palette.spec.ts` miss this because they register `provideNavigationPalette()` at the TestBed root. Confirmed by a throw-away copy of the new test with `provideNavigationPalette()` additionally at the root: 23/23 passed (copy deleted afterwards).
+On `a999e94` it works as expected and the test passes. On `ca6af09` the palette was always empty.
 
 Severity:
 
-High (the palette is non-functional in the shipped app, and the search feature's documented plug-in point `provideSearch()` cannot work).
+High
 
 Fix required:
 
-`Yes — production code must be fixed by the parent worker / fixer.`
+`No` — fixed in `a999e94` and verified by the unchanged regression test plus the new route-level test in `shell.spec.ts`. Disposition: fixed.
 
-(Direction for the fixer, not a requirement: open the dialog with the shell's own injector, e.g. `injector` or `viewContainerRef` in the `MatDialog.open` config. The same root-injector effect applies to `openCapturePlaceholder` and `ShortcutsDialog`; harmless today because those dialogs inject nothing route-scoped.)
+CR-2 (capture placeholder dialog opened without the route injector) is fixed and verified by the 2 new tests listed above. CR-3 (hotkey rule while a dialog is open) is verified by the fixer's test, which passes. The behavior matches the corrected assumption in the task file.
+
+## Unable to test
+
+- Real-browser behavior: the 900 px media query in a real viewport, and whether `theme-init.js` prevents a theme flash before Angular boots. jsdom has no layout or paint, and no Playwright run is part of this task. The script's logic is tested by running the real file. This needs follow-up only if the parent wants browser evidence (a Playwright check outside `.taskcheck`).
+- `features/README.md` listing every routes file: checked by hand, as described above. No follow-up needed.
+- The pre-fix mutation run of the 3 new tests: not run (approval needed for a scratch copy; see "Focused test execution"). No follow-up needed, because the TW-1 regression test already demonstrated the failure on the pre-fix code.
+
+## Summary
+
+Tests added and all validation passed. The fixes for TW-1/CR-1, CR-2 and CR-3 are verified:
+- the TW-1 regression test in `app.spec.ts` passes;
+- 3 new tests guard the route-injector wiring for the palette, the shortcut overview and the capture placeholder;
+- `cd web && npm run check`, `npm run coverage` and `.taskcheck` pass on HEAD `a999e94` plus the new uncommitted tests.
+
+No production defects remain open. Task-scoped coverage: 100% statements (290/290), lines (222/222) and functions (75/75), and 95.73% branches (157/164), over 35 files. The 7 uncovered branches are non-material compiler-generated or fallback branches.
 
 ## Coverage
 
-Status: partial-failed. The project's coverage command `cd web && npm run coverage` exited non-zero (1 failing test, TW-1) and wrote no report (`web/coverage/web` absent after the run). The numbers below come from a diagnostic run of the same command that deselects only the TW-1 test with `--filter`, so they are diagnostic, not a passing validation. In that run the palette-wiring path of TW-1 is not exercised.
+Status: verified. The run is fresh, exited 0, and measured the final revision `a999e94` plus the uncommitted tests from this run.
 
 Metric: whole-file coverage of task-changed production files.
-Changed-line coverage: not measured separately. All 33 executable scoped files are new in this task except `app.ts` and `app.routes.ts`; since every executable line of every scoped file is covered in the diagnostic run (221/221), no changed executable line is uncovered in that run.
+Changed-line coverage: not measured with a separate tool. All 35 scoped executable files are new in this task except `app.ts` and `app.routes.ts`. Every executable line of every scoped file is covered (222/222), so no changed executable line is uncovered. That includes the lines changed by the fix commit `a999e94` in `shell.ts` (32/32 lines) and `capture-placeholder.ts` (7/7 lines). Changed-branch coverage is not inferred from this.
 
 Evidence:
-- Task id, immutable base, measured HEAD, and task-owned commits/file-scope source: `p0-web-shell`; base `d600444a71bf87e29e298e4ce64598d70aa8cd22` (supplied by the parent); measured HEAD `ca6af091c5db9a0c02e17e628d73b58ea08b8817`; task-owned commit `ca6af09` (only commit in `d600444..HEAD`); file scope from `git diff --name-only d600444..HEAD -- web/src web/public`, matching the task `touches` (plus `web/public/theme-init.js` and `web/src/index.html` per the recorded assumption).
-- Source/test snapshot identifier (including uncommitted inputs): production = HEAD `ca6af09` (no uncommitted production changes). Uncommitted test files, sha256 prefixes: `app.spec.ts` bf682a1cad2a5466, `shell/command-palette.spec.ts` af05c82893d7a03b, `shell/hotkeys.spec.ts` 29b07f978a2e0b6a, `shell/pages.spec.ts` 31b2a600b613664b, `shell/shell.spec.ts` 8e5153fc29dc541f, `shell/theme-init.spec.ts` 1fad11140b11df3f, `shell/theme.service.spec.ts` (unchanged) b165b5c01083b786, `features/capture/capture.providers.spec.ts` ecbc609da3b42356. Hashes identical before and after the final runs.
-- Exact included files: `web/public/theme-init.js`, `web/src/app/app.ts`, `web/src/app/app.routes.ts`, all 23 `.ts` files under `web/src/app/features/**` changed by the task, and `web/src/app/shell/{coming-soon,command-palette,hotkeys,nav-sections,navigation-palette.provider,not-found,shell-tokens,shell,shortcuts-dialog,theme.service}.ts` (35 files). Excluded: `shell/shell.html`, `shell/command-palette.html`, `app.html` (templates compiled into the component files, counted there), `*.scss`, `app.scss` (styles), `features/README.md`, `web/src/index.html` (static markup), `web/src/locale/messages.xlf` (generated i18n). No renamed or deleted files. No scoped file is missing from the report.
-- Provider/version, command, working directory, and test selection: Vitest 5.0.5 + `@vitest/coverage-v8` 5.0.5, Node v24.21.0, via `@angular/build:unit-test`; working directory `web/`. (1) `npm run coverage` (all specs). (2) `npm run coverage -- --filter '^(?!.*wires the navigation commands into the palette)' --coverage-include 'src/app/shell/**/*.ts' --coverage-include 'src/app/features/**/*.ts' --coverage-include 'src/app/app.ts' --coverage-include 'src/app/app.routes.ts' --coverage-include 'public/theme-init.js'` (all 13 spec files, 119 tests run, 1 deselected). `--coverage-include` only restricts the report to the task scope and makes unexecuted scoped files visible. No config file changed.
-- Run start/completion time and exit status: (1) 2026-10-20 11:45:29 -> ~11:45:36 +02:00, exit non-zero (1 failed / 119 passed), no report written. (2) 11:45:36 -> 11:45:41 +02:00, exit 0, 119 passed / 1 skipped by filter.
-- Generated report paths and report hashes/run identifier: `web/coverage/web/coverage-summary.json` sha256 62745a961224f63df0227547a8e45f9b43a1c419a1dd07ecb7cd05cdc42e8047; `web/coverage/web/coverage-final.json` sha256 fe746b2af5cd74fd5c49415fd11a12120cc5e5630576b50627d46c97150c4c94; `web/coverage/web/lcov.info` sha256 b055b19b23c984d9dd1e3f319a93fd4b2be4590a7e2f5a4ce29a99ea377c0d54 (Git-ignored).
-- Evidence outputs are fresh and inputs stayed unchanged: run (1) left no `coverage/web` directory, so run (2)'s files (all mtimes 11:45:4x) were created by run (2). Test file hashes and `git status` were the same before and after.
-- Final run after latest test additions and production fixes: yes for the latest test additions; no production fix has been made yet (TW-1 open), so this measures pre-fix revision `ca6af09`. Coverage must be re-measured after the fix.
+- Task id, immutable base, measured HEAD, and task-owned commits/file-scope source: `p0-web-shell`. Base `d600444a71bf87e29e298e4ce64598d70aa8cd22` (supplied by the parent). Measured HEAD `a999e943a3b8905c58fbc9ae3aeb5bfafc1f69d3`. Task-owned code commits: `307e57f`, `ce2c6f1`, `a999e94`. The file scope comes from `git diff --name-only d600444..HEAD -- web/src web/public`, minus `*.spec.ts`. It matches the task `touches`, plus `web/public/theme-init.js` and `web/src/index.html` per the recorded assumption.
+- Source/test snapshot identifier (including uncommitted inputs): production = HEAD `a999e94`, with no uncommitted production changes. Uncommitted test files (sha256 prefixes): `web/src/app/app.spec.ts` e6dd160bf9c6401f, `web/src/app/shell/shell.spec.ts` 7994384afdc02d1a, `web/src/app/features/capture/capture.providers.spec.ts` 7fb8989386df9391. Fixed production files for reference: `shell/shell.ts` 82a3811e887a79a2, `features/capture/capture-placeholder.ts` c9388efffcf6612f. The hashes and `git status` were taken at 11:54:08 (before coverage) and again after `.taskcheck`, and they were identical.
+- Exact included files (35): `web/public/theme-init.js`, `web/src/app/app.ts`, `web/src/app/app.routes.ts`, the 23 `.ts` files under `web/src/app/features/**` that the task changed, and `web/src/app/shell/{coming-soon,command-palette,hotkeys,nav-sections,navigation-palette.provider,not-found,shell-tokens,shell,shortcuts-dialog,theme.service}.ts`. Excluded files:
+  - `app.html`, `shell/shell.html` and `shell/command-palette.html`: templates compiled into the component files and counted there;
+  - `app.scss`, `shell/shell.scss` and `shell/command-palette.scss`: styles;
+  - `features/README.md`: documentation;
+  - `web/src/index.html`: static markup;
+  - `web/src/locale/messages.xlf`: generated i18n.
 
-Values below use covered/total (percentage); zero-denominator or unsupported metrics are N/A. Diagnostic run (2).
+  No files were renamed or deleted, and no scoped file is missing from the report.
+- Provider/version, command, working directory, and test selection: Vitest 5.0.5 + `@vitest/coverage-v8` via `@angular/build:unit-test`, working directory `web/` (through `npm --prefix web`). Two runs:
+  - (1) `npm run coverage`: all specs, a repository-wide report; only the totals are recorded here.
+  - (2) `npm run coverage -- --coverage-include 'src/app/shell/**/*.ts' --coverage-include 'src/app/features/**/*.ts' --coverage-include 'src/app/app.ts' --coverage-include 'src/app/app.routes.ts' --coverage-include 'public/theme-init.js'`: all 13 spec files, 124 tests, nothing deselected. `--coverage-include` only restricts the report to the task scope and makes unexecuted scoped files visible.
+
+  No configuration was changed.
+- Run start/completion time and exit status: (1) ~11:54:15 -> 11:54:22 +02:00, exit 0, 124 passed. Its repository-wide totals were 512/656 statements, 237/376 branches, 113/137 functions and 394/527 lines. These are not task metrics. (2) 11:54:25 -> 11:54:29 +02:00, exit 0, 124 passed.
+- Generated report paths and report hashes/run identifier (run 2, Git-ignored): `web/coverage/web/coverage-summary.json` sha256 a5eb1644e7414822c1251495523b47803ebd04a4866907991aeab1f0ef9d8a11; `web/coverage/web/coverage-final.json` sha256 eff71ece669de8b46fdac4c11099acaa046bd67344e031d7bca61c5a0958401f; `web/coverage/web/lcov.info` sha256 2f02ea430ddd531183ac026694d2b8cfe6ed44950e26c4d8ec7f432afe85948f.
+- Evidence outputs are fresh and inputs stayed unchanged: all report files have mtime 2026-10-20 11:54:29, which is run 2's completion time. The summary lists exactly the 35 scoped files. The input hashes were the same before and after.
+- Final run after latest test additions and production fixes: yes. The run covers the fixer's revision `a999e94` and all 3 tests added in this run.
+
+Values below use covered/total (percentage); zero-denominator or unsupported metrics are N/A. Run (2).
 
 | Changed file | Statements | Branches | Functions | Lines |
 |---|---:|---:|---:|---:|
@@ -155,25 +187,16 @@ Values below use covered/total (percentage); zero-denominator or unsupported met
 | `web/src/app/shell/navigation-palette.provider.ts` | 11/11 (100%) | 5/5 (100%) | 5/5 (100%) | 9/9 (100%) |
 | `web/src/app/shell/not-found.ts` | 15/15 (100%) | 8/9 (88.89%) | 1/1 (100%) | 7/7 (100%) |
 | `web/src/app/shell/shell-tokens.ts` | 3/3 (100%) | N/A (0/0) | 1/1 (100%) | 3/3 (100%) |
-| `web/src/app/shell/shell.ts` | 38/38 (100%) | 22/22 (100%) | 10/10 (100%) | 31/31 (100%) |
+| `web/src/app/shell/shell.ts` | 39/39 (100%) | 22/22 (100%) | 10/10 (100%) | 32/32 (100%) |
 | `web/src/app/shell/shortcuts-dialog.ts` | 29/29 (100%) | 10/11 (90.91%) | 1/1 (100%) | 15/15 (100%) |
 | `web/src/app/shell/theme.service.ts` | 20/20 (100%) | 9/9 (100%) | 5/5 (100%) | 17/17 (100%) |
-| **Aggregate (35 files, summed counters)** | **289/289 (100%)** | **157/164 (95.73%)** | **75/75 (100%)** | **221/221 (100%)** |
+| **Aggregate (35 files, summed counters)** | **290/290 (100%)** | **157/164 (95.73%)** | **75/75 (100%)** | **222/222 (100%)** |
 
-Aggregate excludes only the non-executable files listed under "Exact included files"; no scoped executable file is unmeasured. Diagnostic only: the run deselected the failing TW-1 test.
+The aggregate leaves out only the non-executable files named under "Exact included files". No scoped executable file is unmeasured.
 
 | File and uncovered lines/branch locations | Required behavior or risk | Action/test added or reason left uncovered |
 |---|---|---|
-| `app.ts:12`, `capture-placeholder.ts:20`, `command-palette.ts:22`, `not-found.ts:32`, `shortcuts-dialog.ts:53`, `coming-soon.ts:32` (one `if` branch each, on the `export class` line) | None: branches generated by the Angular compiler for component metadata (dev-mode/class-metadata guards), mapped to the class declaration | Non-material; not reachable from tests in a meaningful way |
-| `coming-soon.ts:33` (`snapshot.title ?? ''` fallback) | Placeholder page of a route without `title` | Non-material: every placeholder routes file sets a title (asserted for all 18 sections in app.spec) |
-| Before the new tests: `command-palette.ts:68,71,91-92` (no rows / no providers), `shell-tokens.ts:37` (root default), `shell.ts:102` (link click on wide screen), `hotkeys.ts:56` (space without `code`) | Empty-state and edge behavior of palette, drawer, hotkeys | Covered by the new tests `shows the empty state without providers ...`, `keeps the side navigation open ...`, extended `maps Q and Ctrl+Shift+Space to capture` |
-| `shell.ts:85` palette opened with the real route-level providers | AC3 palette contents via `PALETTE_PROVIDERS` | Line is executed, but the behavior is wrong: TW-1 (failing test kept) |
-
-## Unable to test
-
-- Real-browser behavior: the 900 px media query in a real viewport, and that `theme-init.js` prevents a theme flash before Angular boots. jsdom has no layout/paint; no Playwright run is part of this task. The script logic itself is tested by running the real file. Follow-up only if the parent wants browser evidence (a Playwright check, outside `.taskcheck`).
-- `features/README.md` listing every routes file: the unit-test build has no file-system access, so this was checked manually (all 18 files listed). No follow-up needed.
-
-## Summary
-
-Tests added; production defects were discovered and must be passed to the `fixer` before task completion. TW-1 (High): the command palette opened by the shell resolves `PALETTE_PROVIDERS` from the root injector, so the route-level navigation and search providers never appear and the palette is always empty in the real app. The regression test in `web/src/app/app.spec.ts` fails until this is fixed; `cd web && npm run check` and `.taskcheck` fail on that test only. Coverage was not verified: the standard coverage command failed, and the diagnostic numbers (100% statements/lines/functions, 95.73% branches over 35 files) skip the failing test and must be re-measured after the fix.
+| `app.ts:12`, `capture-placeholder.ts:20`, `command-palette.ts:22`, `not-found.ts:32`, `shortcuts-dialog.ts:53`, `coming-soon.ts:32` (one branch each, mapped to the `export class` line) | None. These branches are generated by the Angular compiler for component metadata (dev-mode/class-metadata guards). | Non-material: tests cannot reach them in a meaningful way |
+| `coming-soon.ts:33` (`snapshot.title ?? ''` fallback) | Placeholder page for a route without a `title` | Non-material: every placeholder routes file sets a title (asserted for all 18 sections in app.spec) |
+| `shell.ts` dialog `injector` config (lines changed in `a999e94`) | AC3: palette and dialogs see the route-level providers (TW-1/CR-1, CR-2) | Covered by executed lines and by behavior: TW-1 regression test, plus new tests in app.spec and shell.spec |
+| `capture-placeholder.ts:24` `openCapturePlaceholder` with `injector` | CR-2 | Covered: new capture.providers.spec test and new app.spec test |

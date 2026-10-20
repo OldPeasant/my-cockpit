@@ -4,12 +4,13 @@ import { MatDialog } from '@angular/material/dialog';
 import { MatSidenav } from '@angular/material/sidenav';
 import { By } from '@angular/platform-browser';
 import { provideRouter } from '@angular/router';
-import { BehaviorSubject } from 'rxjs';
+import { RouterTestingHarness } from '@angular/router/testing';
+import { BehaviorSubject, of } from 'rxjs';
 import { CommandPalette } from './command-palette';
 import { NAV_SECTIONS } from './nav-sections';
 import { provideNavigationPalette } from './navigation-palette.provider';
 import { Shell } from './shell';
-import { CAPTURE_DIALOG } from './shell-tokens';
+import { CAPTURE_DIALOG, PALETTE_PROVIDERS, PaletteProvider } from './shell-tokens';
 import { ShortcutsDialog } from './shortcuts-dialog';
 import { ThemeService } from './theme.service';
 
@@ -251,5 +252,55 @@ describe('Shell', () => {
     root.querySelector<HTMLAnchorElement>('nav a.link')!.click();
     await fixture.whenStable();
     expect(sidenav.opened).toBe(true);
+  });
+});
+
+// The plug-in point for feature providers (e.g. provideSearch()): PALETTE_PROVIDERS registered on
+// the route that loads the shell, not at the root, show up in the palette next to the "Go to" rows.
+describe('Shell with route-level palette providers', () => {
+  afterEach(() => {
+    TestBed.inject(MatDialog).closeAll();
+  });
+
+  it('shows the rows of every provider registered on the shell route', async () => {
+    const searchLike: PaletteProvider = {
+      items: (query) =>
+        of([{ id: 'note-1', group: 'Notes', label: `Fictitious note ${query}`, run: vi.fn() }]),
+    };
+    TestBed.configureTestingModule({
+      providers: [
+        provideRouter([
+          {
+            path: '',
+            component: Shell,
+            providers: [
+              provideNavigationPalette(),
+              { provide: PALETTE_PROVIDERS, useValue: searchLike, multi: true },
+              { provide: CAPTURE_DIALOG, useValue: { open: vi.fn() } },
+            ],
+          },
+        ]),
+        {
+          provide: BreakpointObserver,
+          useValue: { observe: () => of({ matches: false, breakpoints: {} }) },
+        },
+      ],
+    });
+    const harness = await RouterTestingHarness.create('/');
+    const root = harness.routeNativeElement as HTMLElement;
+    root.querySelector<HTMLButtonElement>('button.search')!.click();
+    expect(TestBed.inject(MatDialog).openDialogs[0].componentInstance).toBeInstanceOf(
+      CommandPalette,
+    );
+
+    const groups = (): string[] =>
+      Array.from(document.querySelectorAll('app-command-palette .group-name')).map(
+        (e) => e.textContent?.trim() ?? '',
+      );
+    await vi.waitFor(() => {
+      TestBed.tick();
+      expect(groups()).toEqual(['Go to', 'Notes']);
+    });
+    expect(document.querySelector('app-command-palette')?.textContent).toContain('Fictitious note');
   });
 });
