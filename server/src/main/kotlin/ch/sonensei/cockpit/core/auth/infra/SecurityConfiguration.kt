@@ -59,7 +59,10 @@ class SecurityConfiguration {
 					.authenticated()
 			}.csrf {
 				// The setup flow runs before any session or CSRF cookie exists; it is only open while no account is active.
-				it.spa().ignoringRequestMatchers("$SETUP_PATH/**", SETUP_PATH)
+				it
+					.spa()
+					.csrfTokenRepository(cookies.csrfTokenRepository())
+					.ignoringRequestMatchers("$SETUP_PATH/**", SETUP_PATH)
 			}.sessionManagement { it.sessionCreationPolicy(SessionCreationPolicy.STATELESS) }
 			.requestCache { it.disable() }
 			.addFilterBefore(SessionAuthenticationFilter(login, cookies), CsrfFilter::class.java)

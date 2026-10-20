@@ -6,6 +6,7 @@ import jakarta.servlet.http.HttpServletResponse
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.http.HttpHeaders
 import org.springframework.http.ResponseCookie
+import org.springframework.security.web.csrf.CookieCsrfTokenRepository
 import org.springframework.stereotype.Component
 import java.time.Duration
 
@@ -32,6 +33,15 @@ class SessionCookies(
 		val maxAge = if (rememberDevice) AuthSession.REMEMBERED_LIFETIME else null
 		response.addHeader(HttpHeaders.SET_COOKIE, cookie(token, maxAge).toString())
 	}
+
+	/**
+	 * Angular's `XSRF-TOKEN` cookie: readable by the SPA (not `HttpOnly`), with the same `Secure` and `SameSite`
+	 * attributes as the session cookie.
+	 */
+	fun csrfTokenRepository(): CookieCsrfTokenRepository =
+		CookieCsrfTokenRepository.withHttpOnlyFalse().apply {
+			setCookieCustomizer { it.secure(secure).sameSite("Lax").path("/") }
+		}
 
 	fun clear(response: HttpServletResponse) {
 		response.addHeader(HttpHeaders.SET_COOKIE, cookie("", Duration.ZERO).toString())
