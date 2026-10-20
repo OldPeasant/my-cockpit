@@ -2,6 +2,7 @@ package ch.sonensei.cockpit.auth
 
 import android.content.Context
 import android.content.SharedPreferences
+import android.util.Base64
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import ch.sonensei.cockpit.core.network.AuthTokens
@@ -85,6 +86,18 @@ class PersistentTokenStoreTest {
     }
 
     @Test
+    fun `a refresh finishing after a logout does not log back in`() {
+        val store = PersistentTokenStore(prefs, cipher)
+        store.login(TOKENS, DEVICE_ID)
+        store.clear()
+
+        assertFalse(store.replace(TOKENS, AuthTokens("access-2", "refresh-2")))
+
+        assertNull(store.current())
+        assertTrue(prefs.all.isEmpty())
+    }
+
+    @Test
     fun `replace with null logs out`() {
         val store = PersistentTokenStore(prefs, cipher)
         store.login(TOKENS, DEVICE_ID)
@@ -131,11 +144,63 @@ class PersistentTokenStoreTest {
     }
 
     @Test
+    fun `when a new login cannot be encrypted the previous record does not stay on disk`() {
+        PersistentTokenStore(prefs, cipher).login(TOKENS, DEVICE_ID)
+        val encryptFails =
+            object : TokenCipher {
+                override fun encrypt(plain: ByteArray): ByteArray? = null
+
+                override fun decrypt(encrypted: ByteArray): ByteArray? = cipher.decrypt(encrypted)
+            }
+        val store = PersistentTokenStore(prefs, encryptFails)
+        assertEquals(TOKENS, store.current())
+        val other = AuthTokens("access-other", "refresh-other")
+
+        store.login(other, null)
+
+        assertEquals(other, store.current())
+        assertTrue(prefs.all.isEmpty())
+        assertNull("a restart must not bring back the previous account", PersistentTokenStore(prefs, cipher).current())
+    }
+
+    @Test
+    fun `a stored record without a device id still loads`() {
+        val record = """{"accessToken":"access-old","refreshToken":"refresh-old"}"""
+        prefs
+            .edit()
+            .putString(PersistentTokenStore.KEY_SESSION, Base64.encodeToString(cipher.encrypt(record.toByteArray()), Base64.NO_WRAP))
+            .commit()
+
+        assertEquals(DeviceSession(AuthTokens("access-old", "refresh-old"), null), PersistentTokenStore(prefs, cipher).session.value)
+    }
+
+    @Test
+    fun `a decrypted record that is not a token record counts as logged out and is deleted`() {
+        prefs
+            .edit()
+            .putString(PersistentTokenStore.KEY_SESSION, Base64.encodeToString(cipher.encrypt("[1,2,3]".toByteArray()), Base64.NO_WRAP))
+            .commit()
+
+        assertNull(PersistentTokenStore(prefs, cipher).current())
+        assertTrue(prefs.all.isEmpty())
+    }
+
+    @Test
     fun `the Keystore cipher fails closed where there is no Android Keystore`() {
         val keystore = KeystoreTokenCipher()
 
         assertNull(keystore.encrypt("secret".toByteArray()))
         assertNull(keystore.decrypt(byteArrayOf(12, 1, 2, 3)))
+    }
+
+    @Test
+    fun `the Keystore cipher rejects records too short to hold an iv and ciphertext`() {
+        val keystore = KeystoreTokenCipher()
+
+        assertNull(keystore.decrypt(byteArrayOf()))
+        assertNull(keystore.decrypt(byteArrayOf(0, 1, 2)))
+        assertNull(keystore.decrypt(byteArrayOf(-1, 1, 2)))
+        assertNull(keystore.decrypt(byteArrayOf(12, 1, 2)))
     }
 
     @Test

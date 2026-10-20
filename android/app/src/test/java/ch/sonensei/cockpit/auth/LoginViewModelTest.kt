@@ -5,8 +5,10 @@ import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceTimeBy
@@ -163,6 +165,116 @@ class LoginViewModelTest {
             assertNull(viewModel.uiState.value.error)
             assertTrue(viewModel.uiState.value.canSubmit)
             coVerify(exactly = 1) { repository.login(any(), any(), any(), any()) }
+        }
+
+    @Test
+    fun `without a configured server the address field stays empty`() =
+        runTest(dispatcher) {
+            every { repository.serverUrl } returns flowOf(null)
+
+            val viewModel = LoginViewModel(repository)
+            advanceUntilIdle()
+
+            assertEquals("", viewModel.uiState.value.serverUrl)
+        }
+
+    @Test
+    fun `a configured server arriving late does not overwrite a typed address`() =
+        runTest(dispatcher) {
+            val configured = MutableSharedFlow<String?>()
+            every { repository.serverUrl } returns configured
+            val viewModel = LoginViewModel(repository)
+            runCurrent()
+
+            viewModel.onServerUrlChange("https://typed.example.org")
+            configured.emit("https://cockpit.example.org/")
+            advanceUntilIdle()
+
+            assertEquals("https://typed.example.org", viewModel.uiState.value.serverUrl)
+        }
+
+    @Test
+    fun `blank fields do not count as filled in`() =
+        runTest(dispatcher) {
+            val viewModel = filledIn()
+
+            viewModel.onPasswordChange("   ")
+            assertFalse(viewModel.uiState.value.canSubmit)
+            viewModel.onPasswordChange("pw")
+            viewModel.onServerUrlChange(" ")
+            assertFalse(viewModel.uiState.value.canSubmit)
+        }
+
+    @Test
+    fun `submitting twice while the first attempt runs sends one request`() =
+        runTest(dispatcher) {
+            val answer = CompletableDeferred<LoginResult>()
+            coEvery { repository.login(any(), any(), any(), any()) } coAnswers { answer.await() }
+            val viewModel = filledIn()
+
+            viewModel.submit()
+            runCurrent()
+            viewModel.submit()
+            runCurrent()
+            assertTrue(viewModel.uiState.value.submitting)
+
+            answer.complete(LoginResult.WrongCredentials)
+            advanceUntilIdle()
+
+            coVerify(exactly = 1) { repository.login(any(), any(), any(), any()) }
+            assertFalse(viewModel.uiState.value.submitting)
+        }
+
+    @Test
+    fun `a new attempt clears the previous error while it runs`() =
+        runTest(dispatcher) {
+            val second = CompletableDeferred<LoginResult>()
+            coEvery { repository.login(any(), any(), any(), any()) } returns LoginResult.Network coAndThen { second.await() }
+            val viewModel = filledIn()
+            viewModel.submit()
+            advanceUntilIdle()
+            assertEquals(LoginError.NETWORK, viewModel.uiState.value.error)
+
+            viewModel.submit()
+            runCurrent()
+
+            assertNull(viewModel.uiState.value.error)
+            assertTrue(viewModel.uiState.value.submitting)
+            second.complete(LoginResult.Success)
+            advanceUntilIdle()
+            assertNull(viewModel.uiState.value.error)
+        }
+
+    @Test
+    fun `too many attempts asks for a fresh code but keeps the password`() =
+        runTest(dispatcher) {
+            coEvery { repository.login(any(), any(), any(), any()) } returns LoginResult.TooManyAttempts(5)
+            val viewModel = filledIn()
+
+            viewModel.submit()
+            runCurrent()
+
+            assertEquals("", viewModel.uiState.value.code)
+            assertEquals("pw", viewModel.uiState.value.password)
+        }
+
+    @Test
+    fun `switching the second factor clears a form error but not the wait`() =
+        runTest(dispatcher) {
+            coEvery { repository.login(any(), any(), any(), any()) } returns LoginResult.ServerError andThen
+                LoginResult.TooManyAttempts(10)
+            val viewModel = filledIn()
+            viewModel.submit()
+            advanceUntilIdle()
+
+            viewModel.onUseRecoveryCodeChange(true)
+            assertNull(viewModel.uiState.value.error)
+
+            viewModel.onCodeChange("abcde-fghjk")
+            viewModel.submit()
+            runCurrent()
+            viewModel.onUseRecoveryCodeChange(false)
+            assertEquals(LoginError.TOO_MANY_ATTEMPTS, viewModel.uiState.value.error)
         }
 
     @Test

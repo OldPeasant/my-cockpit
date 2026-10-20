@@ -3,6 +3,9 @@ package ch.sonensei.cockpit.auth
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
@@ -11,6 +14,7 @@ import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performImeAction
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextInput
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -113,6 +117,77 @@ class LoginScreenTest {
             .assertIsNotEnabled()
             .assertTextContains("Signing in…")
         composeRule.onNodeWithTag(LoginTags.USERNAME).assertIsNotEnabled()
+    }
+
+    @Test
+    fun `each error shows its own message`() {
+        var state by mutableStateOf(LoginUiState())
+        composeRule.setContent { LoginScreen(state, {}, {}, {}, {}, {}, {}) }
+        val messages =
+            mapOf(
+                LoginError.SERVER_URL_MALFORMED to "Enter the server address as an http(s) URL",
+                LoginError.SERVER_URL_HTTPS_REQUIRED to "The server needs an https address",
+                LoginError.INVALID_REQUEST to "The server could not read the sign-in request",
+                LoginError.WRONG_CREDENTIALS to "Username, password or code is wrong",
+                LoginError.TOO_MANY_ATTEMPTS to "Too many failed attempts",
+                LoginError.NETWORK to "The server cannot be reached",
+                LoginError.SERVER to "The server had a problem signing you in",
+            )
+        assertEquals(LoginError.entries.toSet(), messages.keys)
+
+        composeRule.onNodeWithTag(LoginTags.ERROR).assertDoesNotExist()
+        messages.forEach { (error, message) ->
+            state = LoginUiState(error = error)
+            composeRule.onNodeWithTag(LoginTags.ERROR).performScrollTo().assertTextContains(message, substring = true)
+        }
+    }
+
+    @Test
+    fun `only a server address error marks the address field`() {
+        var state by mutableStateOf(LoginUiState(error = LoginError.SERVER_URL_HTTPS_REQUIRED))
+        composeRule.setContent { LoginScreen(state, {}, {}, {}, {}, {}, {}) }
+        val markedAsError = SemanticsMatcher.keyIsDefined(SemanticsProperties.Error)
+
+        composeRule.onNodeWithTag(LoginTags.SERVER_URL).assert(markedAsError)
+        state = LoginUiState(error = LoginError.SERVER_URL_MALFORMED)
+        composeRule.onNodeWithTag(LoginTags.SERVER_URL).assert(markedAsError)
+        state = LoginUiState(error = LoginError.WRONG_CREDENTIALS)
+        composeRule.onNodeWithTag(LoginTags.SERVER_URL).assert(!markedAsError)
+    }
+
+    @Test
+    fun `the password field is masked`() {
+        show(filled)
+
+        composeRule.onNodeWithTag(LoginTags.PASSWORD).assert(SemanticsMatcher.keyIsDefined(SemanticsProperties.Password))
+        composeRule.onNodeWithTag(LoginTags.USERNAME).assert(SemanticsMatcher.keyNotDefined(SemanticsProperties.Password))
+    }
+
+    @Test
+    fun `done on the keyboard in the code field submits`() {
+        var submitted = 0
+        composeRule.setContent { LoginScreen(filled, {}, {}, {}, {}, {}, { submitted++ }) }
+
+        composeRule.onNodeWithTag(LoginTags.CODE).performScrollTo().performImeAction()
+
+        assertEquals(1, submitted)
+    }
+
+    @Test
+    fun `a one second wait reads in the singular`() {
+        show(filled.copy(error = LoginError.TOO_MANY_ATTEMPTS, retryAfterSeconds = 1))
+
+        composeRule.onNodeWithTag(LoginTags.SUBMIT).performScrollTo().assertTextContains("Try again in 1 second")
+    }
+
+    @Test
+    fun `while signing in the second factor toggle is locked too`() {
+        show(filled.copy(submitting = true))
+
+        composeRule.onNodeWithTag(LoginTags.TOGGLE_FACTOR).performScrollTo().assertIsNotEnabled()
+        composeRule.onNodeWithTag(LoginTags.SERVER_URL).assertIsNotEnabled()
+        composeRule.onNodeWithTag(LoginTags.PASSWORD).assertIsNotEnabled()
+        composeRule.onNodeWithTag(LoginTags.CODE).assertIsNotEnabled()
     }
 
     private fun show(state: LoginUiState) =

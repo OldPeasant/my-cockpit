@@ -209,6 +209,164 @@ class AuthRepositoryTest {
             assertEquals(1, cachesCleared)
         }
 
+    @Test
+    fun `the second factor is sent without surrounding spaces`() =
+        runBlocking {
+            server.enqueue(json(200, TOKEN_BODY))
+            server.enqueue(json(200, TOKEN_BODY))
+
+            repository.login(serverAddress(), "alex", "pw", SecondFactor.Totp(" 123456 "))
+            repository.login(serverAddress(), "alex", "pw", SecondFactor.RecoveryCode("\tabcde-fghjk "))
+
+            val totp = Json.parseToJsonElement(server.takeRequest().body!!.utf8()).jsonObject
+            assertEquals("123456", totp["totp"]!!.jsonPrimitive.content)
+            val recovery = Json.parseToJsonElement(server.takeRequest().body!!.utf8()).jsonObject
+            assertEquals("abcde-fghjk", recovery["recoveryCode"]!!.jsonPrimitive.content)
+        }
+
+    @Test
+    fun `the password is sent exactly as typed`() =
+        runBlocking {
+            server.enqueue(json(200, TOKEN_BODY))
+
+            repository.login(serverAddress(), "alex", " pass word ", SecondFactor.Totp("123456"))
+
+            val body = Json.parseToJsonElement(server.takeRequest().body!!.utf8()).jsonObject
+            assertEquals(" pass word ", body["password"]!!.jsonPrimitive.content)
+        }
+
+    @Test
+    fun `429 with a zero, negative or padded Retry-After waits at least one second`() =
+        runBlocking {
+            listOf("0", "-5", " 7 ").forEach { header ->
+                server.enqueue(json(429, PROBLEM).newBuilder().addHeader("Retry-After", header).build())
+            }
+
+            assertEquals(LoginResult.TooManyAttempts(1), login())
+            assertEquals(LoginResult.TooManyAttempts(1), login())
+            assertEquals(LoginResult.TooManyAttempts(7), login())
+            assertNull(tokenStore.current())
+        }
+
+    @Test
+    fun `other error statuses are server errors`() =
+        runBlocking {
+            listOf(403, 404, 503).forEach { server.enqueue(json(it, PROBLEM)) }
+
+            repeat(3) { assertEquals(LoginResult.ServerError, login()) }
+            assertNull(tokenStore.current())
+        }
+
+    @Test
+    fun `a body that is not json is a server error`() =
+        runBlocking {
+            server.enqueue(json(200, "<html>proxy login</html>"))
+
+            assertEquals(LoginResult.ServerError, login())
+            assertNull(tokenStore.current())
+        }
+
+    @Test
+    fun `a success without a body is a server error`() =
+        runBlocking {
+            server.enqueue(MockResponse.Builder().code(204).build())
+
+            assertEquals(LoginResult.ServerError, login())
+            assertNull(tokenStore.current())
+        }
+
+    @Test
+    fun `a token answer with an unreadable date or device id is a server error`() =
+        runBlocking {
+            server.enqueue(json(200, TOKEN_BODY.replace("2026-10-20T12:15:00Z", "yesterday")))
+            server.enqueue(json(200, TOKEN_BODY.replace(DEVICE_ID, "device-1")))
+
+            assertEquals(LoginResult.ServerError, login())
+            assertEquals(LoginResult.ServerError, login())
+            assertNull(tokenStore.current())
+        }
+
+    @Test
+    fun `a failed login keeps an existing session`() =
+        runBlocking {
+            server.enqueue(json(200, TOKEN_BODY))
+            login()
+            server.enqueue(json(401, PROBLEM))
+
+            assertEquals(LoginResult.WrongCredentials, login())
+            assertEquals(AuthTokens("access-1", "refresh-1"), tokenStore.current())
+        }
+
+    @Test
+    fun `logout without a known device id makes no request and still logs out`() =
+        runBlocking {
+            tokenStore.login(AuthTokens("access-1", "refresh-1"), null)
+
+            repository.logout()
+
+            assertEquals(0, server.requestCount)
+            assertNull(tokenStore.current())
+            assertEquals(1, cachesCleared)
+        }
+
+    @Test
+    fun `logout still happens locally when the server refuses the revocation`() =
+        runBlocking {
+            server.enqueue(json(200, TOKEN_BODY))
+            login()
+            server.enqueue(json(500, PROBLEM))
+
+            repository.logout()
+
+            assertEquals(2, server.requestCount)
+            assertNull(tokenStore.current())
+            assertEquals(1, cachesCleared)
+        }
+
+    @Test
+    fun `logout with a malformed stored device id still logs out`() =
+        runBlocking {
+            tokenStore.login(AuthTokens("access-1", "refresh-1"), "not-a-uuid")
+
+            repository.logout()
+
+            assertEquals(0, server.requestCount)
+            assertNull(tokenStore.current())
+            assertEquals(1, cachesCleared)
+        }
+
+    @Test
+    fun `logout clears every contributed cache`() =
+        runBlocking {
+            val cleared = mutableListOf<String>()
+            val withCaches =
+                AuthRepository(
+                    serverUrls,
+                    CockpitHttp
+                        .retrofit(CockpitHttp.okHttpClient(ServerUrlInterceptor(serverUrls), AccessTokenInterceptor(tokenStore), null))
+                        .create(AuthApi::class.java),
+                    tokenStore,
+                    session,
+                    setOf(SessionCache { cleared += "notes" }, SessionCache { cleared += "mail" }),
+                )
+            tokenStore.login(AuthTokens("access-1", "refresh-1"), null)
+
+            withCaches.logout()
+
+            assertEquals(setOf("notes", "mail"), cleared.toSet())
+            assertEquals(2, cleared.size)
+        }
+
+    @Test
+    fun `logging out while logged out is harmless`() =
+        runBlocking {
+            repository.logout()
+
+            assertNull(tokenStore.current())
+            assertEquals(0, server.requestCount)
+            assertEquals(1, cachesCleared)
+        }
+
     private suspend fun login() = repository.login(serverAddress(), "alex", "pw", SecondFactor.Totp("123456"))
 
     private fun serverAddress() = server.url("/").toString()
