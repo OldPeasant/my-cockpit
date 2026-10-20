@@ -6,6 +6,7 @@ deps: [mail-model,oauth-connections]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/mail/imap,server/src/test/kotlin/ch/sonensei/cockpit/mail/imap]
 prio: 1
 lease_until: 2026-10-20T16:26:19Z
+extended: dell26/agent-2
 ---
 ## Goal
 Connect accounts (SPEC.md §7.1).
@@ -22,3 +23,4 @@ Connect accounts (SPEC.md §7.1).
 - ASSUMPTION (2026-10-20 17:17+0200 by dell26/agent-2): Provider defaults: Gmail imap.gmail.com:993 TLS / smtp.gmail.com:465 TLS; Microsoft outlook.office365.com:993 TLS / smtp.office365.com:587 STARTTLS; OAuth username defaults to the connection email
 - ASSUMPTION (2026-10-20 17:18+0200 by dell26/agent-2): Role detection: SPECIAL-USE attributes from plain LIST (Angus has no LIST RETURN (SPECIAL-USE)), All counts as Archive when there is no Archive attribute, then English/German well-known names; PATCH folder {automatic:true} only clears the override, the role is recomputed on the next sync
 - ASSUMPTION (2026-10-20 17:18+0200 by dell26/agent-2): Pool defaults (cockpit.mail.pool.*): 3 connections per account, 30s borrow timeout, 5m idle timeout; cockpit.mail.ssl-trust (empty by default) exists only for test servers with self-signed certs; host names are always checked
+- extended by dell26/agent-2: Implemented: account CRUD API + test connection, Angus TLS/STARTTLS/XOAUTH2, per-account pool, folder sync + SPECIAL-USE role detection/override, GreenMail tests, openapi regenerated; tests.md + review.md written. Commit 9aa9c180 contains fixes for CR-1/CR-3/CR-4 (made without the fixer agent, so there is no fixes.md yet); check passes. Left: CR-2 (GreenMail test with a cert whose host name does not match), CR-5 (stale account snapshot kept in the new pool), run the fixer to fix/record CR-2/CR-5 and write fixes.md that covers all fixes, re-run test-writer + code-reviewer on the final code, run integrationTest --tests '*Imap*' + OpenApiContractTest, verify 4 criteria, quality.json, done.
