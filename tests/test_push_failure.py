@@ -5,7 +5,7 @@ traceback or a silent loop, and the runner stops starting sessions on such a tas
 retries only every --blocked-retry s and gives the task back once pushes work again.
 Runs tasks.py and agents.py (with a scripted fake agent) against a local bare remote whose pre-receive
 hook refuses commits touching .github/workflows/. Run: python3 tests/test_push_failure.py"""
-import json, sys, time, unittest
+import json, re, sys, time, unittest
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -153,6 +153,35 @@ class TasksPy(Board):
         self.assertIn("RELEASED a", p.stdout)
         self.assertNotIn("PUSH FAILED", p.stdout + p.stderr)
 
+    def test_release_with_wip_saved_but_board_push_refused(self):
+        # the remote takes wip/a but refuses main (e.g. a protected branch): PUSH FAILED, task still ours
+        hook(self.tmp, "#!/bin/sh\nwhile read o n ref; do [ \"$ref\" = refs/heads/main ] && "
+                       "{ echo 'protected branch main' >&2; exit 1; }; done\nexit 0\n")
+        self.commit_workflow()
+        p = self.tp("release", "a", "--note", "x", who=self.who, check=False)
+        out = p.stdout + p.stderr
+        self.assertNotEqual(p.returncode, 0, out)
+        self.assertIn("PUSH FAILED: ", out)
+        self.assertIn("protected branch main", out.split("PUSH FAILED: ")[1].splitlines()[0])
+        self.assertNotIn("Traceback", out)
+        t = self.remote_task("a")
+        self.assertEqual((field(t, "status"), field(t, "owner")), ("in_progress", self.who))
+        wip = sh(self.tmp, "git", "--git-dir=remote.git", "ls-tree", "-r", "--name-only", "wip/a").stdout
+        self.assertIn(".github/workflows/ci.yml", wip)  # the work is safe on wip/a
+        self.assertEqual(self.failure_file()["cmd"], "release")
+
+    def test_hold_of_unclaimed_task_with_refused_board_push(self):
+        hook(self.tmp, REFUSE_ALL_HOOK)
+        p = self.tp("hold", "b", "needs a human", who=self.who, check=False)
+        out = p.stdout + p.stderr
+        self.assertNotEqual(p.returncode, 0, out)
+        self.assertIn("PUSH FAILED: ", out)
+        self.assertIn("Permission to the repo denied", out)
+        self.assertNotIn("Traceback", out)
+        self.assertNotIn("ON HOLD", out)
+        self.assertEqual(field(self.remote_task("b"), "hold"), "")
+        self.assertEqual(self.failure_file()["task"], "b")
+
 
 class PushRunner(Runner):
     fake_agent = FAKE_AGENT
@@ -232,6 +261,129 @@ class RetryAfterFix(PushRunner):
         self.assertEqual(self.state("a")["hold"], "")  # (the runner may claim it again now: pushes work)
         wip = sh(self.tmp, "git", "--git-dir=remote.git", "ls-tree", "-r", "--name-only", "wip/a").stdout
         self.assertIn(".github/workflows/ci.yml", wip)
+
+
+# Sessions scripted by FAKE_MODE, a comma list, one entry per session (the last one repeats): `release`,
+# `hold`, `done` or `done:<word>` (the hook's error then names <word>, so the push error differs), `work`
+# (commit, no tasks.py push: a session without a push failure).
+SEQ_AGENT = r"""
+import json, os, subprocess, sys
+prompt = sys.argv[-1]
+def tp(*a):
+    p = subprocess.run([sys.executable, "tasks.py", *a], capture_output=True, text=True)
+    print(p.stdout + p.stderr, flush=True)
+    return p.stdout
+def result(text):
+    print(json.dumps({"type": "result", "subtype": "success", "is_error": False, "result": text}), flush=True)
+seq, count = os.environ.get("FAKE_MODE", "work").split(","), os.path.join("..", "fake-sessions")
+n = int(open(count).read()) if os.path.exists(count) else 0
+open(count, "w").write(str(n + 1))
+mode = seq[min(n, len(seq) - 1)]
+if "You already own task `" in prompt:
+    tid = prompt.split("You already own task `")[1].split("`")[0]
+else:
+    out = tp("claim")
+    tid = out.split("CLAIMED ")[1].split()[0] if "CLAIMED " in out else None
+if tid:
+    os.makedirs(".github/workflows", exist_ok=True)
+    with open(".github/workflows/ci.yml", "a") as f:
+        f.write("# more\n")
+    subprocess.run(["git", "add", "-A"], capture_output=True)
+    subprocess.run(["git", "commit", "-qm", f"work on {tid}"], capture_output=True)
+    if mode == "release":
+        tp("release", tid, "--note", "cannot finish")
+    elif mode == "hold":
+        tp("hold", tid, "cannot finish")
+    elif mode.startswith("done"):
+        open(os.path.join("..", "..", "hookmsg"), "w").write(mode.partition(":")[2] or "same")
+        tp("done", tid, "--force")
+result(f"{mode} on {tid}")
+"""
+# WORKFLOW_HOOK, but the error names the word in <tmp>/hookmsg (the hook runs in remote.git)
+MSG_HOOK = WORKFLOW_HOOK.replace("refusing to allow", "rule $(cat ../hookmsg 2>/dev/null): refusing to allow")
+
+
+class SeqRunner(PushRunner):
+    fake_agent = SEQ_AGENT
+    budget = 100  # no over-budget reviews in these tests
+
+    def before_start(self):
+        hook(self.tmp, MSG_HOOK)
+
+    def done_counts(self):
+        return [int(n) for n in re.findall(r"done could not push a \((\d)/3 sessions in a row\)", self.log.read_text())]
+
+
+class HoldRefusedInSession(SeqRunner):
+    mode = "hold"
+
+    def test_failed_hold_in_a_session_blocks_at_once(self):
+        self.wait_for("BLOCKED log", lambda: "BLOCKED on a" in self.log.read_text())
+        self.assert_blocked_without_new_sessions(1)
+        self.assertEqual(self.state("a")["hold"], "")
+
+
+class DoneStreakDifferentErrors(SeqRunner):
+    mode = "done:one,done:two,done:one,done:two,done:two,done:two"
+
+    def test_a_different_push_error_restarts_the_streak(self):
+        self.wait_for("BLOCKED log", lambda: "BLOCKED on a" in self.log.read_text(), timeout=180)
+        self.assertEqual(self.done_counts(), [1, 1, 1, 1, 2, 3], self.log.read_text())
+        self.assert_blocked_without_new_sessions(6)
+        self.assertIn("rule two", self.status()["error"])
+
+
+class DoneStreakBrokenBySession(SeqRunner):
+    mode = "done,done,work,done,done,done"
+
+    def test_a_session_without_push_failure_restarts_the_streak(self):
+        self.wait_for("BLOCKED log", lambda: "BLOCKED on a" in self.log.read_text(), timeout=180)
+        self.assertEqual(self.done_counts(), [1, 2, 1, 2, 3], self.log.read_text())
+        self.assert_blocked_without_new_sessions(6)
+
+
+class TakenAwayWhileBlocked(SeqRunner):
+    mode = "release,work"
+    how = ("hold", "a", "a human looks at the token", "--force")
+
+    def test_task_taken_away_by_a_human_unblocks_the_runner(self):
+        self.wait_for("BLOCKED log", lambda: "BLOCKED on a" in self.log.read_text())
+        self.wait_for("blocked status", lambda: self.status()["state"] == "blocked")
+        sh(self.w, "git", "pull", "-q")  # (`hold` decides on the clone's view of the task before it syncs)
+        self.tp(*self.how, who="human")
+        self.wait_for("unblocked log", lambda: "a is no longer ours" in self.log.read_text(), timeout=120)  # idles <= 60 s
+        self.wait_for("b claimed", lambda: self.state("b")["owner"] == "box/agent-1", timeout=60)
+        self.assertIn("parked local work", self.log.read_text())  # a's refused commits don't ride along with b
+        self.assertNotIn("retrying to release a", self.log.read_text())
+        self.wait_for("a session on b", lambda: self.status()["task"] == "b" and self.status()["state"] != "blocked")
+        self.assertIsNone(self.status().get("error"))
+        self.assertNotEqual(self.state("a")["owner"], "box/agent-1")
+
+
+class DroppedWhileBlocked(TakenAwayWhileBlocked):
+    how = ("drop", "a", "--note", "not wanted any more", "--force")
+
+
+class OldPushFailureIgnored(SeqRunner):
+    mode = "work"
+
+    def before_start(self):
+        super().before_start()
+        rel = sh(self.clone, "git", "rev-parse", "--git-path", "tfp-push-failed").stdout.strip()
+        self.failure = self.clone / rel
+        self.failure.write_text(json.dumps(dict(task="a", cmd="release", error="old error", at=0)))
+
+    def test_a_failure_from_before_the_session_does_not_block(self):
+        self.wait_for("3 sessions", lambda: self.sessions() >= 3)
+        self.assertNotIn("BLOCKED", self.log.read_text())
+        self.assertFalse(self.failure.exists())  # consumed
+        self.assertEqual(self.state("a")["owner"], "box/agent-1")
+
+
+class OtherTaskPushFailureIgnored(OldPushFailureIgnored):
+    def before_start(self):
+        super().before_start()  # a failure of task b (not ours), recorded "now"
+        self.failure.write_text(json.dumps(dict(task="b", cmd="release", error="b error", at=int(time.time()) + 600)))
 
 
 if __name__ == "__main__":
