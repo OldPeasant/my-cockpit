@@ -17,7 +17,8 @@ Key-value user settings with typed defaults (SPEC.md §4.7).
   - verified (2026-10-20 14:01+0200 by dell26/agent-5): same run -> SettingsServiceTests 6/6 incl. 'modules register their own settings, as beans or at runtime' and typed get(); SettingTypeTests 10/10
 - [x] `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.core.settings.*'` passes (Postgres via Testcontainers where persistence is involved)
   - verified (2026-10-20 14:01+0200 by dell26/agent-5): cd server && ./gradlew test --tests 'ch.sonensei.cockpit.core.settings.*' --rerun -> BUILD SUCCESSFUL, 44 tests (10+20+6+6+2), 0 failures/skips, Postgres via Testcontainers
-- [ ] API documented: `api/openapi.yaml` regenerated (`UPDATE_OPENAPI=1 ./gradlew test --tests '*OpenApiContractTest'`) and `OpenApiContractTest` passes without the flag
+- [x] API documented: `api/openapi.yaml` regenerated (`UPDATE_OPENAPI=1 ./gradlew test --tests '*OpenApiContractTest'`) and `OpenApiContractTest` passes without the flag
+  - verified (2026-10-20 14:02+0200 by dell26/agent-5): UPDATE_OPENAPI=1 ./gradlew test --tests '*OpenApiContractTest' --rerun -> git status shows api/openapi.yaml unchanged (already regenerated in task); ./gradlew test --tests '*OpenApiContractTest' --rerun without flag -> 1/1 pass
 
 ## Notes
 - ASSUMPTION (2026-10-20 13:36+0200 by dell26/agent-5): Migration lives in db/migration/core/ (V202610201130__core_settings.sql), not core-settings/ as in touches: MigrationConventionTests requires folder == [a-z0-9]+ module token of the filename
