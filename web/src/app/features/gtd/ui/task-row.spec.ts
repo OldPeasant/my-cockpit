@@ -92,6 +92,15 @@ describe('TaskRow', () => {
     expect(element.querySelector('.chip.due.overdue')).toBeNull();
   });
 
+  it('colors the context dot and omits a project that is not known', () => {
+    render(task({ contextIds: ['c1'], projectId: 'gone', timeEstimateMin: 0 }));
+
+    expect(element.querySelector<HTMLElement>('.chip.context .dot')?.style.background).toContain(
+      'rgb(255, 0, 0)',
+    );
+    expect(chips()).toEqual(['@home', '0 min']);
+  });
+
   it('hides the project chip when showProject is off', () => {
     render(task({ projectId: 'p1' }), { showProject: false });
     expect(chips()).toEqual([]);

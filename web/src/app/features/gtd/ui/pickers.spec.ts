@@ -39,8 +39,9 @@ describe('GTD pickers', () => {
     detect = () => fixture.detectChanges();
   });
 
-  const buttons = (selector: string) =>
-    [...element.querySelectorAll<HTMLButtonElement>(`${selector} button`)];
+  const buttons = (selector: string) => [
+    ...element.querySelectorAll<HTMLButtonElement>(`${selector} button`),
+  ];
   const pressed = (selector: string) =>
     buttons(selector)
       .filter((button) => button.getAttribute('aria-pressed') === 'true')
@@ -59,9 +60,9 @@ describe('GTD pickers', () => {
       '1 h',
       '2 h+',
     ]);
-    expect(element.querySelector('app-energy-picker [role=group]')?.getAttribute('aria-label')).toBe(
-      'Energy',
-    );
+    expect(
+      element.querySelector('app-energy-picker [role=group]')?.getAttribute('aria-label'),
+    ).toBe('Energy');
     expect(pressed('app-creativity-picker')).toEqual(['Mixed']);
   });
 
@@ -78,6 +79,12 @@ describe('GTD pickers', () => {
 
     buttons('app-estimate-picker')[1].click();
     expect(host.estimate()).toBe(15);
+
+    // Switching straight from one creativity to another.
+    buttons('app-creativity-picker')[2].click();
+    detect();
+    expect(host.creativity()).toBe('CREATIVE');
+    expect(pressed('app-creativity-picker')).toEqual(['Creative']);
   });
 
   it('disables the options', () => {

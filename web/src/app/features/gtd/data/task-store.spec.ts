@@ -4,9 +4,12 @@ import {
   Api,
   ChangeEvent,
   completeTask,
+  createTask,
+  deleteTask,
   listTasks,
   moveTask,
   TaskResponse,
+  uncompleteTask,
   updateTask,
 } from '../../../api/generated';
 import { ChangeEventsService } from '../../../core/events';
@@ -209,7 +212,9 @@ describe('TaskStore', () => {
     const saved = store.update(a, { title: 'New' });
     callsOf(updateTask)[0].resolve(task('a', { title: 'New', version: 2 }));
     await saved;
-    callsOf(listTasks).at(-1)!.resolve(page([a]));
+    callsOf(listTasks)
+      .at(-1)!
+      .resolve(page([a]));
     await refetch;
 
     expect(store.find('a')).toMatchObject({ title: 'New', version: 2 });
@@ -252,6 +257,183 @@ describe('TaskStore', () => {
     changes.next({ type: 'NOTE', op: 'UPDATED', id: 'n', at: '2026-10-20T10:00:02Z' });
     expect(callsOf(listTasks)).toHaveLength(2);
   });
+
+  it('keeps the error of a newer failed request when an older one succeeds later', async () => {
+    const older = store.load({ list: 'NEXT' });
+    const newer = store.refresh();
+    const [first, second] = callsOf(listTasks);
+    const error = new Error('offline');
+    second.reject(error);
+    await newer;
+    first.resolve(page([task('old')]));
+    await older;
+
+    expect(store.error()).toBe(error);
+    expect(store.items()).toEqual([]);
+    expect(store.loading()).toBe(false);
+  });
+
+  it('ends loading after a failed load and recovers on a retry', async () => {
+    const failed = store.load({ list: 'NEXT' });
+    const error = new Error('503');
+    callsOf(listTasks)[0].reject(error);
+    await failed;
+    expect(store.loading()).toBe(false);
+    expect(store.loaded()).toBe(false);
+    expect(store.error()).toBe(error);
+
+    const retry = store.refresh();
+    expect(store.loading()).toBe(true);
+    callsOf(listTasks)[1].resolve(page([task('a')]));
+    await retry;
+    expect(store.error()).toBeNull();
+    expect(store.loaded()).toBe(true);
+    expect(store.items().map((t) => t.id)).toEqual(['a']);
+  });
+
+  it('clears the old items when switching to another query, but not on the same query', async () => {
+    await loaded([task('a')]);
+
+    void store.load({ list: 'NEXT' });
+    expect(store.items().map((t) => t.id)).toEqual(['a']);
+    expect(store.loaded()).toBe(true);
+
+    void store.load({ list: 'INBOX' });
+    expect(store.items()).toEqual([]);
+    expect(store.loaded()).toBe(false);
+    expect(callsOf(listTasks).at(-1)!.params['list']).toBe('INBOX');
+  });
+
+  it('keeps the newer server answer when two writes to the same task answer in reverse order', async () => {
+    const a = task('a');
+    await loaded([a]);
+
+    const first = store.update(a, { title: 'First' });
+    const second = store.update(a, { title: 'Second' });
+    expect(store.find('a')?.title).toBe('Second');
+    const [firstCall, secondCall] = callsOf(updateTask);
+
+    secondCall.resolve(task('a', { title: 'Second', version: 3 }));
+    await second;
+    firstCall.resolve(task('a', { title: 'First', version: 2 }));
+    await first;
+
+    expect(store.find('a')).toMatchObject({ title: 'Second', version: 3 });
+  });
+
+  it('keeps the other optimistic write when one of two overlapping writes fails', async () => {
+    const a = task('a');
+    await loaded([a]);
+
+    const title = store.update(a, { title: 'Renamed' });
+    const energy = store.update(a, { energy: 'HIGH' });
+    expect(store.find('a')).toMatchObject({ title: 'Renamed', energy: 'HIGH' });
+
+    callsOf(updateTask)[0].reject(new Error('412'));
+    await expect(title).rejects.toThrow('412');
+    // The second write was built on the first one's optimistic state and is still pending.
+    expect(store.find('a')?.energy).toBe('HIGH');
+
+    callsOf(updateTask)[1].resolve(task('a', { energy: 'HIGH', version: 2 }));
+    await energy;
+    expect(store.find('a')).toMatchObject({ title: 'Task a', energy: 'HIGH', version: 2 });
+  });
+
+  it('does not bring back a task deleted by an event while a list request was running', async () => {
+    await loaded([task('a'), task('b', { position: 2 })]);
+
+    const refetch = store.refresh();
+    changes.next({ type: 'TASK', op: 'DELETED', id: 'a', at: '2026-10-20T10:00:00Z' });
+    // The refetch started before the deletion answers with the deleted task still in it.
+    callsOf(listTasks)[1].resolve(page([task('a'), task('b', { position: 2 })]));
+    await refetch;
+
+    expect(store.items().map((t) => t.id)).toEqual(['b']);
+  });
+
+  it('keeps a task created while an older list request runs, and forgets old local changes', async () => {
+    await loaded([task('a')]);
+
+    const refetch = store.refresh();
+    const created = store.create({ title: 'Book dentist' });
+    callsOf(createTask)[0].resolve(task('n', { position: 2 }));
+    await created;
+    // The list answer was computed before the task existed.
+    callsOf(listTasks)[1].resolve(page([task('a')]));
+    await refetch;
+    expect(store.items().map((t) => t.id)).toEqual(['a', 'n']);
+
+    // A later list answer is authoritative again: the old local change no longer protects 'n'.
+    const later = store.refresh();
+    callsOf(listTasks)[2].resolve(page([task('a')]));
+    await later;
+    expect(store.items().map((t) => t.id)).toEqual(['a']);
+  });
+
+  it('moves a task to Scheduled with its date', async () => {
+    const done = store.load({ list: 'SCHEDULED' });
+    callsOf(listTasks)[0].resolve(page([]));
+    await done;
+
+    void store.move(task('a'), { list: 'SCHEDULED', scheduledDate: '2026-11-02' });
+    expect(store.find('a')).toMatchObject({ list: 'SCHEDULED', scheduledDate: '2026-11-02' });
+  });
+
+  it('shows a created task only if it matches the query', async () => {
+    await loaded([]);
+
+    const inbox = store.create({ title: 'Buy milk' });
+    callsOf(createTask)[0].resolve(task('i', { list: 'INBOX' }));
+    await inbox;
+    expect(store.items()).toEqual([]);
+
+    const next = store.create({ title: 'Call Bob' });
+    callsOf(createTask)[1].resolve(task('n'));
+    expect((await next).id).toBe('n');
+    expect(store.items().map((t) => t.id)).toEqual(['n']);
+  });
+
+  it('removes a task and keeps it gone once the server confirmed it', async () => {
+    const a = task('a');
+    await loaded([a]);
+
+    const removed = store.remove(a);
+    expect(store.items()).toEqual([]);
+    expect(callsOf(deleteTask)[0].params).toEqual({ id: 'a', 'If-Match': '"1"' });
+    callsOf(deleteTask)[0].resolve(undefined);
+    await removed;
+    expect(store.items()).toEqual([]);
+  });
+
+  it('reopens a done task in the Logbook: it leaves the list, and comes back on an error', async () => {
+    const done = store.load({ completed: true });
+    const older = task('o', { completedAt: '2026-10-18T10:00:00Z' });
+    const newer = task('n', { completedAt: '2026-10-19T10:00:00Z' });
+    callsOf(listTasks)[0].resolve(page([older, newer]));
+    await done;
+    expect(store.items().map((t) => t.id)).toEqual(['n', 'o']);
+
+    const reopened = store.uncomplete(older);
+    expect(store.items().map((t) => t.id)).toEqual(['n']);
+    callsOf(uncompleteTask)[0].reject(new Error('409'));
+    await expect(reopened).rejects.toThrow('409');
+    expect(store.items().map((t) => t.id)).toEqual(['n', 'o']);
+  });
+
+  it('moves a task to Waiting with its waiting-for fields and keeps it in a Waiting list', async () => {
+    const done = store.load({ list: 'WAITING' });
+    callsOf(listTasks)[0].resolve(page([]));
+    await done;
+    const a = task('a', { scheduledDate: '2026-11-01' });
+
+    void store.move(a, { list: 'WAITING', waitingForText: 'Reply from Carol' });
+    // A task moved into the shown list appears at once, without fields of its old list.
+    expect(store.find('a')).toMatchObject({
+      list: 'WAITING',
+      waitingForText: 'Reply from Carol',
+      scheduledDate: undefined,
+    });
+  });
 });
 
 describe('matchesTask', () => {
@@ -267,6 +449,32 @@ describe('matchesTask', () => {
     expect(matchesTask(t, { maxMinutes: 15 }, today)).toBe(true);
     expect(matchesTask(t, { maxMinutes: 5 }, today)).toBe(false);
     expect(matchesTask(task('b'), { maxMinutes: 5 }, today)).toBe(false);
+  });
+
+  it('applies project, energy and creativity filters', () => {
+    const t = task('a', { projectId: 'p1', energy: 'LOW', creativity: 'ROUTINE' });
+    expect(matchesTask(t, { projectId: 'p1', energy: 'LOW', creativity: 'ROUTINE' }, today)).toBe(
+      true,
+    );
+    expect(matchesTask(t, { projectId: 'p2' }, today)).toBe(false);
+    expect(matchesTask(t, { energy: 'HIGH' }, today)).toBe(false);
+    expect(matchesTask(t, { creativity: 'CREATIVE' }, today)).toBe(false);
+    expect(matchesTask(task('b'), { energy: 'LOW' }, today)).toBe(false);
+  });
+
+  it('matches only open tasks unless completed is asked for', () => {
+    const done = task('a', { completedAt: '2026-10-19T10:00:00Z' });
+    expect(matchesTask(done, {}, today)).toBe(false);
+    expect(matchesTask(done, { completed: true }, today)).toBe(true);
+    expect(matchesTask(done, { completed: false }, today)).toBe(false);
+  });
+
+  it('applies due windows relative to today at their edges', () => {
+    const due = (dueDate: string) => task('a', { dueDate });
+    expect(matchesTask(due('2026-10-21'), { due: 'today' }, today)).toBe(false);
+    expect(matchesTask(due('2026-10-19'), { due: 'today' }, today)).toBe(false);
+    expect(matchesTask(due('2026-10-20'), { due: 'week' }, today)).toBe(true);
+    expect(matchesTask(due('2026-10-19'), { due: 'week' }, today)).toBe(false);
   });
 
   it('applies due windows relative to today', () => {
