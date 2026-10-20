@@ -153,7 +153,10 @@ class OccurrenceExpander {
 		val zone = zoneOf(master)
 		val seed = start.atZone(zone)
 		val periodStart = range.from.minus(duration).atZone(zone)
-		val periodEnd = range.to.atZone(zone)
+		// ical4j filters by the seed's offset, and the normalisation below can move a candidate up to one offset jump
+		// earlier, so look a little past the range end (the caller's exact overlap filter drops the extra ones). The start
+		// needs no margin: the normalisation never moves a candidate later.
+		val periodEnd = range.to.plus(DST_END_MARGIN).atZone(zone)
 		if (!seed.isBefore(periodEnd)) return emptyList()
 		val timedRule = rule.replace(DATE_ONLY_UNTIL, "$1T235959")
 		val dates =
@@ -234,5 +237,8 @@ class OccurrenceExpander {
 	private companion object {
 		/** A DATE-only UNTIL (invalid on a timed series in RFC 5545, but emitted by providers); group 1 is kept. */
 		val DATE_ONLY_UNTIL = Regex("""(?i)((?:^|;)UNTIL=\d{8})(?=;|$)""")
+
+		/** More than the largest DST offset jump of any zone (up to one hour today). */
+		val DST_END_MARGIN: Duration = Duration.ofHours(2)
 	}
 }

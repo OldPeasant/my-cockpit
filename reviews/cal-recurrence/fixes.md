@@ -4,67 +4,30 @@ Date: 2026-10-20
 
 Task: cal-recurrence - Recurrence expansion
 
-Scope: current task. Findings TW-1 (`reviews/cal-recurrence/tests.md`) and CR-1, CR-2, CR-3 (`reviews/cal-recurrence/review.md`), on top of HEAD `3517e09`. Files changed: `server/src/main/kotlin/ch/sonensei/cockpit/calendar/recurrence/OccurrenceExpander.kt` and `server/src/test/kotlin/ch/sonensei/cockpit/calendar/recurrence/OccurrenceExpanderEdgeCaseTests.kt`.
+Scope: Current task, second fix round. This round covers finding CR-1 (P3) of the second review in `reviews/cal-recurrence/review.md`, on top of HEAD `f9c1e1cf`. The first round's fixes (TW-1, and CR-1, CR-2 and CR-3 of the first review) are already in earlier commits (b902721d, 62bd3ae0). This round changes `server/src/main/kotlin/ch/sonensei/cockpit/calendar/recurrence/OccurrenceExpander.kt` and `server/src/test/kotlin/ch/sonensei/cockpit/calendar/recurrence/OccurrenceExpanderEdgeCaseTests.kt`.
 
 ## Fixed findings
 
-### TW-1 / CR-2 - Orphan overrides ignore CANCELLED
-
-Files changed:
-- `server/src/main/kotlin/ch/sonensei/cockpit/calendar/recurrence/OccurrenceExpander.kt`
-
-Problem:
-In `expand`, an override whose master is not among the inputs was shown standalone even if its status was CANCELLED. `expandSeries` already drops cancelled overrides, so the result depended on whether the master was among the candidates.
-
-Fix:
-The orphan path now applies the same `status != EventStatus.CANCELLED` filter before it builds the occurrence. The test-writer's failing test `cancelled override is never shown, also when its master is not among the candidates` is unchanged and now passes.
-
-Validation:
-- `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.calendar.recurrence.*'` - Pass (44 tests)
-
-### CR-1 - One unparsable RRULE makes the whole range expansion throw
+### CR-1 - An occurrence at an ambiguous DST-end time is lost when the range ends inside the repeated hour
 
 Files changed:
 - `server/src/main/kotlin/ch/sonensei/cockpit/calendar/recurrence/OccurrenceExpander.kt`
 - `server/src/test/kotlin/ch/sonensei/cockpit/calendar/recurrence/OccurrenceExpanderEdgeCaseTests.kt`
 
 Problem:
-If ical4j could not parse or expand an RRULE, it threw from `Recur(...)` or `getDates`. Examples: `FREQ=FORTNIGHTLY`, a blank rule, `BYDAY=XX`, or a date-only UNTIL on a timed series. The exception aborted `expand` for every event in the range.
+ical4j selects candidates up to `range.to` using the offset of the series seed. `withEarlierOffsetAtOverlap()` can then move a candidate up to one hour earlier. Take a weekly 02:30 Europe/Zurich series seeded in winter time (DTSTART 2026-01-04T02:30, `FREQ=WEEKLY;BYDAY=SU`) and a range ending inside the repeated hour on 2026-10-25, for example at 01:00Z. ical4j's candidate is 01:30Z, which is past the range end, so it is never generated. The normalised occurrence, which starts at 00:30Z, overlaps the range but was not returned. I confirmed this first: the new regression test failed before the fix ("38 tests completed, 1 failed").
 
 Fix:
-This follows the recorded assumption. Each series' ical4j call is now wrapped in `recurOrEmpty`, which catches `RuntimeException`. On failure it returns no generated dates, so only DTSTART remains. That first occurrence is still filtered by range overlap, and overrides and EXDATEs are applied as usual. It logs one WARN line with the event id and the exception's simple class name. It does not log the rule, title, description or stack trace. The logger uses the project idiom `LoggerFactory.getLogger(javaClass)`.
+For timed series, the period end passed to ical4j is now `range.to + 2h` (`DST_END_MARGIN`). Two hours is more than the largest DST offset jump in any zone. The existing exact `overlaps(...)` filter in `expandSeries` still removes every occurrence outside the range, so results outside the edge case do not change.
 
-Bonus: a DATE-only `UNTIL=yyyyMMdd` on a timed series is now rewritten to the floating `UNTIL=yyyyMMddT235959`, which ical4j evaluates in the event's zone. The series then runs through the end of that day instead of falling back. The rewrite is a single anchored regex on the `UNTIL` part and applies only to timed series. All-day series are unchanged because ical4j already handles them.
+The start needs no margin: `withEarlierOffsetAtOverlap()` never moves a candidate later, so a candidate ical4j leaves out before `periodStart` would only move further before the range. COUNT and UNTIL are unaffected, because COUNT counts from DTSTART and UNTIL is part of the rule, not of the query period.
 
-Regression tests added:
-- `a series with an invalid rule keeps its first occurrence and does not break the other events`: covers `FREQ=FORTNIGHTLY`, blank and `BYDAY=XX`, each with a valid single event alongside, inside and outside the range.
-- `an all-day series with an invalid rule keeps its first occurrence`
-- `overrides still apply to a series with an invalid rule`
-- `a date-only UNTIL on a timed series includes that whole day in the event's zone`: covers UNTIL both at the end and at the start of the rule, and a 23:30 start.
+New test: `an occurrence at the ambiguous DST-end time is found when the range ends inside the repeated hour`. It uses the winter-time seed above and three range ends inside the repeated hour (00:45Z, 01:00Z, 01:30Z), and expects exactly the 00:30Z occurrence each time.
 
 Validation:
-- `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.calendar.recurrence.*'` - Pass. The WARN lines in the test output contain only the event id and the exception class.
-- Mutation check: with the UNTIL rewrite removed, the date-only UNTIL test fails.
-
-### CR-3 - Ambiguous DST-end times resolve by the seed's offset
-
-Files changed:
-- `server/src/main/kotlin/ch/sonensei/cockpit/calendar/recurrence/OccurrenceExpander.kt`
-- `server/src/test/kotlin/ch/sonensei/cockpit/calendar/recurrence/OccurrenceExpanderEdgeCaseTests.kt`
-
-Problem:
-ical4j keeps the seed's offset for an ambiguous local time. A series seeded in winter time therefore placed the 2026-10-25 02:30 Europe/Zurich occurrence at the later instant (01:30Z). That contradicts the recorded assumption (earlier offset) and RFC 5545 §3.3.5.
-
-Fix:
-Generated timed dates are now normalised with `ZonedDateTime.withEarlierOffsetAtOverlap()`. The one exception is the date with the seed's own local date-time, which maps to the seed itself. This keeps DTSTART exactly as stored, even when it is the later of two ambiguous times, and does not create a duplicate first occurrence. Nonexistent times (DST start) are unaffected.
-
-Regression tests added:
-- `ambiguous time at DST end uses the earlier offset also for a series starting in winter time`: a series starting 2026-01-04T02:30 weekly on Sunday puts the 2026-10-25 occurrence at 2026-10-25T00:30:00Z, and the occurrence id matches.
-- `a series starting at the later of two ambiguous times keeps its start as the first occurrence`
-
-Validation:
-- `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.calendar.recurrence.*'` - Pass
-- Mutation check: with the normalisation removed, the winter-seed test fails.
+- `./gradlew test --offline --rerun --tests 'ch.sonensei.cockpit.calendar.recurrence.OccurrenceExpanderEdgeCaseTests'` without the fix - Fail (1 of 38 tests failed, the new test, as expected)
+- `cd server && ./gradlew ktlintFormat` - Pass (no further changes)
+- `cd server && ./gradlew test --offline --rerun --tests 'ch.sonensei.cockpit.calendar.recurrence.*'` with the fix - Pass (OccurrenceExpanderEdgeCaseTests 38, OccurrenceExpanderTests 13; 0 failures, errors or skips)
 
 ## Not fixed
 
@@ -73,17 +36,16 @@ None.
 ## Validation summary
 
 Focused tests:
-- `cd server && ./gradlew ktlintFormat` - applied, then `ktlintCheck` (part of `check`) passed
-- `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.calendar.recurrence.*'` - Pass (44 tests, 0 failures)
+- `cd server && ./gradlew test --offline --rerun --tests 'ch.sonensei.cockpit.calendar.recurrence.*'` - Pass (51 tests)
 
 Full test suite:
-- `cd server && ./gradlew check` (ktlint and all server tests) - BUILD SUCCESSFUL
+- `cd server && ./gradlew check --offline` - BUILD SUCCESSFUL (server lint and all server tests)
 
 Lint/type-check/build:
-- Covered by `./gradlew check` above (ktlintCheck, compile)
+- `cd server && ./gradlew ktlintFormat` and `./gradlew check --offline` (includes ktlintCheck) - Pass
 
 `.taskcheck`:
-- `sh scripts/check.sh` - Pass ("all checks passed": TFP gate, server, web, android). The web budget warning (initial bundle 501.24 kB over 500 kB) existed before this change and is unrelated: the web part was not touched.
+- Not run by the fixer: only server code changed, and `./gradlew check` passed. The parent worker runs `.taskcheck` before `done`.
 
 Remaining unresolved findings:
 0

@@ -442,6 +442,17 @@ class OccurrenceExpanderEdgeCaseTests {
 	}
 
 	@Test
+	fun `an occurrence at the ambiguous DST-end time is found when the range ends inside the repeated hour`() {
+		// Winter-time seed: ical4j's candidate is 02:30+01:00 (01:30Z), the occurrence is 02:30+02:00 (00:30Z).
+		val event = timed("2026-01-04T02:30", "2026-01-04T03:00", "FREQ=WEEKLY;BYDAY=SU")
+		val from = Instant.parse("2026-10-24T22:00:00Z")
+		for (to in listOf("2026-10-25T00:45:00Z", "2026-10-25T01:00:00Z", "2026-10-25T01:30:00Z")) {
+			expander.expandSeries(event, emptyList(), OccurrenceRange(from, Instant.parse(to), zurich)).map { it.start } shouldContainExactly
+				listOf(Instant.parse("2026-10-25T00:30:00Z"))
+		}
+	}
+
+	@Test
 	fun `a date-only UNTIL on a timed series ends with that day in the event's zone, not in UTC`() {
 		// 21:00 in New York on 2026-01-08 is 02:00Z on 2026-01-09: still on the UNTIL day locally.
 		val evening = timed("2026-01-06T21:00", "2026-01-06T22:00", "FREQ=DAILY;UNTIL=20260108", zone = newYork)
