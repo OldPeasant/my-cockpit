@@ -18,3 +18,4 @@ Key-value user settings with typed defaults (SPEC.md §4.7).
 
 ## Notes
 - ASSUMPTION (2026-10-20 13:36+0200 by dell26/agent-5): Migration lives in db/migration/core/ (V202610201130__core_settings.sql), not core-settings/ as in touches: MigrationConventionTests requires folder == [a-z0-9]+ module token of the filename
+- ASSUMPTION (2026-10-20 13:36+0200 by dell26/agent-5): Storage: one user_settings row with a jsonb object of changed keys only; unset/reset/no-longer-valid values read as defaults. The row version is the ETag of the whole settings document; PATCH requires If-Match (428/412) like every PATCH (SPEC 4.2); no row = ETag "0"
