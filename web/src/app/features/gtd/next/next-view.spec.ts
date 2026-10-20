@@ -1,3 +1,5 @@
+import { Location } from '@angular/common';
+import { provideLocationMocks } from '@angular/common/testing';
 import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { TestbedHarnessEnvironment } from '@angular/cdk/testing/testbed';
@@ -401,6 +403,64 @@ describe('NextView', () => {
       await area.clickOptions({ text: 'Any area' });
       await stable();
       expect(url()).toBe(`/next?project=${KITCHEN.id}`);
+    });
+
+    it('removes the project with "Any project", keeping the area', async () => {
+      serverTasks = [CALL_PLUMBER, WRITE_REPORT, WATER_PLANTS];
+      await open(`/next?area=${HOUSE.id}&project=${KITCHEN.id}`);
+      const loader = TestbedHarnessEnvironment.loader(harness.fixture);
+      const [, projectSelect] = await loader.getAllHarnesses(MatSelectHarness);
+
+      await projectSelect.open();
+      await projectSelect.clickOptions({ text: 'Any project' });
+      await stable();
+
+      expect(url()).toBe(`/next?area=${HOUSE.id}`);
+      expect(lastQuery()).not.toHaveProperty('projectId');
+      expect(shownTitles()).toEqual(['Call the plumber']);
+    });
+
+    it('follows the URL when it changes while the view is open (a link, back and forward)', async () => {
+      // A simulated browser history: back() and forward() pop states like the browser does.
+      TestBed.configureTestingModule({ providers: [provideLocationMocks()] });
+      serverTasks = [CALL_PLUMBER, WATER_PLANTS];
+      await open('/next');
+      const router = TestBed.inject(Router);
+      // As at bootstrap: the router follows the history (popstate) from now on.
+      router.initialNavigation();
+      await stable();
+
+      await router.navigateByUrl(`/next?context=${PHONE.id}&maxMinutes=15`);
+      await stable();
+      expect(lastQuery()).toMatchObject({ context: PHONE.id, maxMinutes: 15 });
+      expect(option('Context', '@phone').getAttribute('aria-pressed')).toBe('true');
+      expect(option('Time available', '≤ 15 min').getAttribute('aria-pressed')).toBe('true');
+
+      await click(option('Energy', 'Low'));
+      expect(urlQuery()).toEqual({ context: PHONE.id, maxMinutes: '15', energy: 'LOW' });
+
+      TestBed.inject(Location).back();
+      await stable();
+      expect(urlQuery()).toEqual({ context: PHONE.id, maxMinutes: '15' });
+      expect(lastQuery()).toEqual({
+        list: 'NEXT',
+        context: PHONE.id,
+        maxMinutes: 15,
+        cursor: undefined,
+        limit: TASK_PAGE_SIZE,
+      });
+      expect(option('Energy', 'Low').getAttribute('aria-pressed')).toBe('false');
+
+      TestBed.inject(Location).back();
+      await stable();
+      expect(url()).toBe('/next');
+      expect(lastQuery()).toEqual({ list: 'NEXT', cursor: undefined, limit: TASK_PAGE_SIZE });
+      expect(option('Context', '@phone').getAttribute('aria-pressed')).toBe('false');
+
+      TestBed.inject(Location).forward();
+      await stable();
+      expect(urlQuery()).toEqual({ context: PHONE.id, maxMinutes: '15' });
+      expect(lastQuery()).toMatchObject({ context: PHONE.id, maxMinutes: 15 });
     });
 
     it('explains an empty filtered list and offers to clear the filters', async () => {
