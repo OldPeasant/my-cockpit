@@ -19,6 +19,7 @@ import retrofit2.converter.kotlinx.serialization.asConverterFactory
 import java.io.File
 import java.time.Clock
 import java.time.Instant
+import java.time.ZoneId
 import java.time.ZoneOffset
 
 /** Fictitious ids, readable in failures. */
@@ -46,6 +47,19 @@ fun answer(
         .body(body)
         .build()
 
+/** A clock that moves one second forward on every read, so captures and failures get distinct, ordered times. */
+class TickingClock(
+    start: Instant = Instant.parse("2026-10-20T10:00:00Z"),
+) : Clock() {
+    private var next = start
+
+    override fun instant(): Instant = next.also { next = next.plusSeconds(1) }
+
+    override fun getZone(): ZoneId = ZoneOffset.UTC
+
+    override fun withZone(zone: ZoneId?): Clock = this
+}
+
 class RecordingScheduler : CaptureSyncScheduler {
     @Volatile var scheduled = 0
 
@@ -58,6 +72,7 @@ class RecordingScheduler : CaptureSyncScheduler {
 class QueueHarness(
     server: MockWebServer,
     loggedIn: Boolean = true,
+    val clock: Clock = Clock.fixed(Instant.parse("2026-10-20T10:00:00Z"), ZoneOffset.UTC),
 ) : AutoCloseable {
     private val context: Context = ApplicationProvider.getApplicationContext()
     val database: CaptureQueueDatabase =
@@ -69,7 +84,6 @@ class QueueHarness(
     val root = File(context.filesDir, "capture-test-${System.nanoTime()}")
     val store = AttachmentStore(root, context.contentResolver)
     val scheduler = RecordingScheduler()
-    val clock: Clock = Clock.fixed(Instant.parse("2026-10-20T10:00:00Z"), ZoneOffset.UTC)
     val session = mockk<AuthSession> { every { isLoggedIn } returns loggedIn }
     val queue = CaptureQueue(dao, store, scheduler, clock)
     private val retrofit =
