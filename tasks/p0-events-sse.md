@@ -19,3 +19,4 @@ Modules publish change events; clients receive them over SSE (SPEC.md §2).
 ## Notes
 - ASSUMPTION (2026-10-20 13:35+0200 by dell26/agent-4): ChangeEvent.type is a String; a secondary constructor/publish overload takes any Enum (its name), since ItemType does not exist yet (p0-items-links) and events also carry non-item kinds like REMINDER
 - ASSUMPTION (2026-10-20 13:35+0200 by dell26/agent-4): Events published outside a transaction are delivered right away (@TransactionalEventListener fallbackExecution=true), so non-transactional publishers (schedulers, sync) work; transactional ones only after commit
+- ASSUMPTION (2026-10-20 13:35+0200 by dell26/agent-4): SecurityConfiguration (auth infra, outside touches) permits DispatcherType.ASYNC: the async dispatch that ends an SSE stream skips the session filter and was rejected with an error log; the original request is still authorized
