@@ -17,3 +17,4 @@ Browser tests against the real stack, used by all later web tasks and the phase 
 - [ ] One spec `support/smoke.spec.ts` (login, see shell) passes; the run time is recorded in ARCHITECTURE.md (e2e is not part of `.taskcheck`)
 
 ## Notes
+- ASSUMPTION (2026-10-20 14:06+0200 by dell26/agent-2): e2e test clock is real time + offset (keeps ticking after POST /api/test/clock), not a frozen MutableClock, so sessions/throttle behave normally; reset also resets the clock offset and the in-memory login throttle
