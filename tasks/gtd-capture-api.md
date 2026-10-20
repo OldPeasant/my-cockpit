@@ -5,7 +5,7 @@ owner: dell26/agent-6
 deps: [gtd-tickler]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/gtd,server/src/test/kotlin/ch/sonensei/cockpit/gtd,server/src/main/resources/db/migration/gtd]
 prio: 1
-lease_until: 2026-10-20T21:11:12Z
+lease_until: 2026-10-20T21:16:13Z
 releases: 1
 extended: 
 ---
