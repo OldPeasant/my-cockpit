@@ -4,9 +4,95 @@ info:
   version: v1
 servers:
 - url: /
-paths: {}
+tags:
+- description: First-run creation of the owner account
+  name: Setup
+paths:
+  /api/v1/setup:
+    post:
+      description: Returns the TOTP secret and recovery codes exactly once. Calling
+        it again before the TOTP is confirmed replaces the pending account.
+      operationId: startSetup
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SetupRequest"
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SetupResponse"
+          description: "Account created, TOTP confirmation pending"
+        "400":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: Invalid username or password
+        "409":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: Setup is already complete
+      summary: Create the owner account and start the TOTP enrollment
+      tags:
+      - Setup
+  /api/v1/setup/confirm-totp:
+    post:
+      operationId: confirmSetupTotp
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ConfirmTotpRequest"
+        required: true
+      responses:
+        "204":
+          description: "Setup complete, the account is active"
+        "400":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: The code is not valid for the TOTP secret
+        "409":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: "Setup is already complete, or was not started"
+      summary: Activate the account with a code from the authenticator app
+      tags:
+      - Setup
+  /api/v1/setup/status:
+    get:
+      operationId: getSetupStatus
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SetupStatusResponse"
+          description: OK
+      summary: Whether the first-run setup still has to be completed
+      tags:
+      - Setup
 components:
   schemas:
+    ConfirmTotpRequest:
+      type: object
+      properties:
+        code:
+          type: string
+          description: Current 6-digit code from the authenticator app
+          example: 123456
+          minLength: 1
+      required:
+      - code
     FieldError:
       type: object
       description: A validation error of one request field or parameter.
@@ -43,3 +129,45 @@ components:
       required:
       - status
       - title
+    SetupRequest:
+      type: object
+      properties:
+        password:
+          type: string
+          format: password
+          maxLength: 256
+          minLength: 12
+        username:
+          type: string
+          maxLength: 64
+          minLength: 1
+          pattern: "[\\p{L}\\p{N}._@-]+"
+      required:
+      - password
+      - username
+    SetupResponse:
+      type: object
+      properties:
+        otpauthUri:
+          type: string
+          description: "otpauth:// URI of the secret, for the QR code"
+        recoveryCodes:
+          type: array
+          description: "10 single-use recovery codes, shown only now"
+          items:
+            type: string
+        totpSecret:
+          type: string
+          description: "TOTP secret, base32 without padding (HMAC-SHA1, 6 digits,\
+            \ 30 s)"
+      required:
+      - otpauthUri
+      - recoveryCodes
+      - totpSecret
+    SetupStatusResponse:
+      type: object
+      properties:
+        setupRequired:
+          type: boolean
+      required:
+      - setupRequired
