@@ -1,0 +1,31 @@
+{
+  "schema": 1,
+  "task": "gtd-capture-api",
+  "reviewed_revision": "4b34bc6487fb8faf7c81e933aa5b791b9158869d",
+  "helpers": {
+    "test-writer": {"status": "completed", "report": "reviews/gtd-capture-api/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/gtd-capture-api/review.md"},
+    "fixer": {"status": "completed", "report": "reviews/gtd-capture-api/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "body lines kept verbatim, only the title line is normalized"},
+    {"id": "CR-2", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "tokens are parsed only in the title line"},
+    {"id": "CR-3", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "concurrent duplicate-id race test added"},
+    {"id": "CR-4", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "trailing punctuation stays in the title"},
+    {"id": "CR-5", "source": "code-reviewer", "severity": "P3", "disposition": "accepted",
+     "note": "relative due tokens resolved with the server clock; recorded as an assumption, and-capture-queue may resolve client-side"},
+    {"id": "CR-6", "source": "code-reviewer", "severity": "P3", "disposition": "invalid",
+     "note": "Jackson 3 already rejects a null fileIds element with a 400 Problem Details; regression test added"},
+    {"id": "CR-7", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "schema descriptions document first non-blank line and token-only title fallback; contract and web client regenerated"}
+  ],
+  "validation": [
+    {"command": "cd server && ./gradlew test --tests 'ch.sonensei.cockpit.gtd.*' --tests '*OpenApiContractTest'", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
