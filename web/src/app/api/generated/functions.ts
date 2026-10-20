@@ -23,6 +23,8 @@ export type { CreateLink$Params as CreateLink$Params } from './fn/links/create-l
 export { createLink as createLink } from './fn/links/create-link';
 export type { DeleteLink$Params as DeleteLink$Params } from './fn/links/delete-link';
 export { deleteLink as deleteLink } from './fn/links/delete-link';
+export type { Search$Params as Search$Params } from './fn/search/search';
+export { search as search } from './fn/search/search';
 export type { GetSettings$Params as GetSettings$Params } from './fn/settings/get-settings';
 export { getSettings as getSettings } from './fn/settings/get-settings';
 export type { UpdateSettings$Params as UpdateSettings$Params } from './fn/settings/update-settings';

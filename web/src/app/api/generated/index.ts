@@ -20,6 +20,9 @@ export type { LoginRequest } from './models/login-request';
 export type { MeResponse } from './models/me-response';
 export type { ProblemDetail } from './models/problem-detail';
 export type { RefreshRequest } from './models/refresh-request';
+export type { SearchGroupResponse } from './models/search-group-response';
+export type { SearchItemResponse } from './models/search-item-response';
+export type { SearchResponse } from './models/search-response';
 export type { Settings } from './models/settings';
 export type { SettingsPatch } from './models/settings-patch';
 export type { SetupRequest } from './models/setup-request';
@@ -52,6 +55,8 @@ export type { CreateLink$Params as CreateLink$Params } from './fn/links/create-l
 export { createLink as createLink } from './fn/links/create-link';
 export type { DeleteLink$Params as DeleteLink$Params } from './fn/links/delete-link';
 export { deleteLink as deleteLink } from './fn/links/delete-link';
+export type { Search$Params as Search$Params } from './fn/search/search';
+export { search as search } from './fn/search/search';
 export type { GetSettings$Params as GetSettings$Params } from './fn/settings/get-settings';
 export { getSettings as getSettings } from './fn/settings/get-settings';
 export type { UpdateSettings$Params as UpdateSettings$Params } from './fn/settings/update-settings';
