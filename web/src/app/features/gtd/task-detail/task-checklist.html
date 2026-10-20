@@ -1,0 +1,87 @@
+<section [attr.aria-labelledby]="uid + '-title'">
+  <div class="head">
+    <h2 [id]="uid + '-title'" i18n="@@taskDetail.checklist">Checklist</h2>
+    @if (items().length) {
+      <span class="count">{{ doneCount() }}/{{ items().length }}</span>
+    }
+  </div>
+  @if (error(); as message) {
+    <p class="banner" role="alert">{{ message }}</p>
+  }
+  <ul class="checklist" cdkDropList (cdkDropListDropped)="drop($event)">
+    @for (item of items(); track item.id; let i = $index, last = $last) {
+      <li class="step" cdkDrag [class.done]="item.done">
+        <span class="grip" cdkDragHandle aria-hidden="true">⋮⋮</span>
+        <input
+          type="checkbox"
+          [id]="uid + '-step-' + item.id"
+          [checked]="item.done"
+          (change)="toggleItem(item)"
+        />
+        <label class="step-text" [for]="uid + '-step-' + item.id">{{ item.text }}</label>
+        <span class="step-actions">
+          <button
+            type="button"
+            class="icon"
+            [disabled]="i === 0 || busy()"
+            (click)="reorder(i, i - 1)"
+            i18n-aria-label="@@taskDetail.stepUp"
+            aria-label="Move up"
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M7.41 15.41 12 10.83l4.59 4.58L18 14l-6-6-6 6z" />
+            </svg>
+          </button>
+          <button
+            type="button"
+            class="icon"
+            [disabled]="last || busy()"
+            (click)="reorder(i, i + 1)"
+            i18n-aria-label="@@taskDetail.stepDown"
+            aria-label="Move down"
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M7.41 8.59 12 13.17l4.59-4.58L18 10l-6 6-6-6z" />
+            </svg>
+          </button>
+          <button
+            type="button"
+            class="icon"
+            (click)="removeItem(item)"
+            i18n-aria-label="@@taskDetail.stepRemove"
+            aria-label="Remove step"
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path
+                d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"
+              />
+            </svg>
+          </button>
+        </span>
+      </li>
+    }
+  </ul>
+  <div class="add-step">
+    <label class="visually-hidden" [for]="uid + '-new'" i18n="@@taskDetail.newStep">
+      New step
+    </label>
+    <input
+      [id]="uid + '-new'"
+      type="text"
+      [value]="newItem()"
+      (input)="newItem.set(text($event))"
+      (keydown.enter)="addItem($event)"
+      i18n-placeholder="@@taskDetail.newStepPlaceholder"
+      placeholder="Add a step"
+    />
+    <button
+      class="quiet"
+      type="button"
+      [disabled]="!newItem().trim() || busy()"
+      (click)="addItem($event)"
+      i18n="@@taskDetail.addStep"
+    >
+      Add
+    </button>
+  </div>
+</section>

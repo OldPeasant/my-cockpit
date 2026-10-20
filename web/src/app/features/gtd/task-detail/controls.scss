@@ -1,0 +1,83 @@
+// Form controls and buttons of the task detail editor and its checklist.
+input[type='text'],
+input[type='date'],
+input[type='time'],
+select,
+.notes {
+  box-sizing: border-box;
+  min-height: 36px;
+  padding: 0 var(--app-space-2);
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius);
+  background: var(--mat-sys-surface);
+  color: var(--app-fg);
+  font: var(--mat-sys-body-medium);
+
+  &:focus-visible {
+    outline: 2px solid var(--app-accent);
+    outline-offset: -1px;
+  }
+
+  &[aria-invalid='true'] {
+    border-color: var(--app-danger);
+  }
+}
+
+button {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--app-space-2);
+  min-height: 36px;
+  padding: 0 var(--app-space-3);
+  border: 1px solid transparent;
+  border-radius: var(--app-radius);
+  background: transparent;
+  color: var(--app-fg);
+  font: var(--mat-sys-label-large);
+  cursor: pointer;
+
+  &:focus-visible {
+    outline: 2px solid var(--app-accent);
+    outline-offset: 2px;
+  }
+
+  &:disabled {
+    cursor: default;
+    opacity: 0.45;
+  }
+}
+
+.primary {
+  background: var(--mat-sys-primary);
+  color: var(--mat-sys-on-primary);
+}
+
+.quiet {
+  border-color: var(--app-border);
+}
+
+.icon {
+  justify-content: center;
+  width: 40px;
+  padding: 0;
+  border-radius: 50%;
+
+  svg {
+    width: 22px;
+    height: 22px;
+    fill: currentcolor;
+  }
+
+  &:hover:not(:disabled) {
+    background: var(--mat-sys-surface-container-high);
+  }
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}

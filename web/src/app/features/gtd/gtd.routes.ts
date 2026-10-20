@@ -13,4 +13,5 @@ export default [
   { path: 'someday', loadChildren: () => import('./lists/someday.routes') },
   { path: 'scheduled', loadChildren: () => import('./lists/scheduled.routes') },
   { path: 'logbook', loadChildren: () => import('./lists/logbook.routes') },
+  { path: 'tasks', loadChildren: () => import('./task-detail/task-detail.routes') },
 ] satisfies Routes;

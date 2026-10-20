@@ -1,0 +1,323 @@
+@switch (state()) {
+  @case ('loading') {
+    <p class="status" i18n="@@taskDetail.loading">Loading…</p>
+  }
+  @case ('notFound') {
+    <div class="status" role="alert">
+      <p i18n="@@taskDetail.notFound">This task does not exist or is in the Trash.</p>
+      <button type="button" class="quiet" (click)="closed.emit()" i18n="@@taskDetail.back">
+        Back
+      </button>
+    </div>
+  }
+  @case ('deleted') {
+    <div class="status" role="alert">
+      <p i18n="@@taskDetail.deleted">This task was moved to the Trash.</p>
+      <button type="button" class="quiet" (click)="closed.emit()" i18n="@@taskDetail.back">
+        Back
+      </button>
+    </div>
+  }
+  @case ('failed') {
+    <div class="status" role="alert">
+      <p i18n="@@taskDetail.loadError">The task could not be loaded.</p>
+      <button type="button" class="quiet" (click)="retryLoad()" i18n="@@taskDetail.retry">
+        Try again
+      </button>
+    </div>
+  }
+  @case ('ready') {
+    @if (draft(); as d) {
+      <form class="sheet" (submit)="$event.preventDefault(); save()" novalidate>
+        <header class="top">
+          <button
+            type="button"
+            class="icon"
+            (click)="close()"
+            i18n-aria-label="@@taskDetail.close"
+            aria-label="Close"
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z" />
+            </svg>
+          </button>
+          @if (task()?.completedAt) {
+            <span class="done" i18n="@@taskDetail.completed">Done</span>
+          }
+        </header>
+
+        @if (conflict()) {
+          <p class="banner conflict" role="alert">{{ conflictMessage }}</p>
+        }
+
+        <div class="columns">
+          <div class="main">
+            <label class="visually-hidden" for="td-title" i18n="@@taskDetail.title">Title</label>
+            <textarea
+              id="td-title"
+              class="title"
+              rows="1"
+              [value]="d.title"
+              [attr.maxlength]="maxTitle"
+              [attr.aria-invalid]="!!error('title')"
+              [attr.aria-describedby]="error('title') ? 'td-title-error' : null"
+              (input)="edit({ title: text($event) })"
+              (keydown.enter)="$event.preventDefault()"
+            ></textarea>
+            @if (error('title'); as message) {
+              <p id="td-title-error" class="field-error">{{ message }}</p>
+            }
+
+            <div class="block">
+              <div class="block-head">
+                <label for="td-notes" i18n="@@taskDetail.notes">Notes</label>
+                <span class="hint" i18n="@@taskDetail.notesHint">Markdown</span>
+              </div>
+              <textarea
+                id="td-notes"
+                class="notes"
+                rows="8"
+                [value]="d.notesMd"
+                [attr.aria-invalid]="!!error('notesMd')"
+                (input)="edit({ notesMd: text($event) })"
+                i18n-placeholder="@@taskDetail.notesPlaceholder"
+                placeholder="Details, links, **anything** that helps"
+              ></textarea>
+              @if (error('notesMd'); as message) {
+                <p class="field-error">{{ message }}</p>
+              }
+            </div>
+
+            <app-task-checklist class="block" [taskId]="taskId()" />
+          </div>
+
+          <aside class="facts">
+            <fieldset class="group">
+              <legend i18n="@@taskDetail.group.where">Where</legend>
+              <div class="row">
+                <label for="td-list" i18n="@@taskDetail.list">List</label>
+                <select id="td-list" [value]="d.list" (change)="setList($any(text($event)))">
+                  @for (option of lists; track option.value) {
+                    <option [value]="option.value" [selected]="option.value === d.list">
+                      {{ option.label }}
+                    </option>
+                  }
+                </select>
+              </div>
+              @if (d.list === 'SCHEDULED') {
+                <div class="row">
+                  <label for="td-scheduled" i18n="@@taskDetail.scheduledDate">Scheduled for</label>
+                  <input
+                    id="td-scheduled"
+                    type="date"
+                    [value]="d.scheduledDate"
+                    [attr.aria-invalid]="!!error('scheduledDate')"
+                    (input)="edit({ scheduledDate: text($event) })"
+                  />
+                  @if (error('scheduledDate'); as message) {
+                    <p class="field-error">{{ message }}</p>
+                  }
+                </div>
+              }
+              @if (d.list === 'WAITING') {
+                <div class="row">
+                  <label for="td-waiting" i18n="@@taskDetail.waitingFor">Waiting for</label>
+                  <input
+                    id="td-waiting"
+                    type="text"
+                    [value]="d.waitingForText"
+                    [attr.aria-invalid]="!!error('waitingForText')"
+                    (input)="edit({ waitingForText: text($event) })"
+                    i18n-placeholder="@@taskDetail.waitingPlaceholder"
+                    placeholder="Person or answer"
+                  />
+                  @if (error('waitingForText'); as message) {
+                    <p class="field-error">{{ message }}</p>
+                  }
+                </div>
+                @if (task()?.list === 'WAITING') {
+                  <div class="row">
+                    <label for="td-waiting-since" i18n="@@taskDetail.waitingSince">Since</label>
+                    <input
+                      id="td-waiting-since"
+                      type="date"
+                      [value]="d.waitingSince"
+                      (input)="edit({ waitingSince: text($event) })"
+                    />
+                  </div>
+                }
+              }
+              <div class="row">
+                <label for="td-project" i18n="@@taskDetail.project">Project</label>
+                <select id="td-project" (change)="edit({ projectId: text($event) })">
+                  <option value="" [selected]="!d.projectId" i18n="@@taskDetail.noProject">
+                    No project
+                  </option>
+                  @for (project of projectOptions(); track project.id) {
+                    <option [value]="project.id" [selected]="project.id === d.projectId">
+                      {{ project.title }}
+                    </option>
+                  }
+                </select>
+              </div>
+              <div class="row wide">
+                <span class="label" i18n="@@taskDetail.contexts">Contexts</span>
+                <app-context-chips
+                  [contexts]="contexts.items()"
+                  [selected]="d.contextIds"
+                  (selectedChange)="edit({ contextIds: $event })"
+                />
+              </div>
+            </fieldset>
+
+            <fieldset class="group">
+              <legend i18n="@@taskDetail.group.effort">Effort</legend>
+              <div class="row wide">
+                <span class="label" i18n="@@gtd.energy.label">Energy</span>
+                <app-energy-picker [value]="d.energy" (valueChange)="setEnergy($event)" />
+              </div>
+              <div class="row wide">
+                <span class="label" i18n="@@gtd.creativity.label">Creativity</span>
+                <app-creativity-picker
+                  [value]="d.creativity"
+                  (valueChange)="setCreativity($event)"
+                />
+              </div>
+              <div class="row wide">
+                <label for="td-estimate" i18n="@@gtd.estimate.label">Time estimate</label>
+                <div class="estimate">
+                  <app-estimate-picker
+                    [value]="estimateValue(d)"
+                    (valueChange)="setEstimate($event)"
+                  />
+                  <span class="minutes">
+                    <input
+                      id="td-estimate"
+                      type="text"
+                      inputmode="numeric"
+                      [value]="d.estimate"
+                      [attr.aria-invalid]="!!error('estimate')"
+                      (input)="edit({ estimate: text($event) })"
+                    />
+                    <span i18n="@@taskDetail.minutes">min</span>
+                  </span>
+                </div>
+                @if (error('estimate'); as message) {
+                  <p class="field-error">{{ message }}</p>
+                }
+              </div>
+            </fieldset>
+
+            <fieldset class="group">
+              <legend i18n="@@taskDetail.group.when">When</legend>
+              <div class="row">
+                <label for="td-due" i18n="@@taskDetail.due">Due</label>
+                <span class="pair">
+                  <input
+                    id="td-due"
+                    type="date"
+                    [value]="d.dueDate"
+                    (input)="edit({ dueDate: text($event) })"
+                  />
+                  <input
+                    type="time"
+                    [value]="d.dueTime"
+                    [attr.aria-invalid]="!!error('dueTime')"
+                    (input)="edit({ dueTime: text($event) })"
+                    i18n-aria-label="@@taskDetail.dueTime"
+                    aria-label="Due time"
+                  />
+                </span>
+                @if (error('dueTime'); as message) {
+                  <p class="field-error">{{ message }}</p>
+                }
+              </div>
+              <div class="row">
+                <label for="td-tickler" i18n="@@taskDetail.tickler">Tickler</label>
+                <input
+                  id="td-tickler"
+                  type="date"
+                  [min]="today()"
+                  [value]="d.ticklerDate"
+                  [attr.aria-invalid]="!!error('ticklerDate')"
+                  (input)="edit({ ticklerDate: text($event) })"
+                />
+                @if (error('ticklerDate'); as message) {
+                  <p class="field-error">{{ message }}</p>
+                } @else {
+                  <p class="hint" i18n="@@taskDetail.ticklerHint">
+                    Hidden until then, then back in the Inbox.
+                  </p>
+                }
+              </div>
+              <div class="row">
+                <label for="td-repeat" i18n="@@taskDetail.repeat">Repeat</label>
+                <select id="td-repeat" (change)="setRepeat($any(text($event)))">
+                  @for (option of presets; track option.value) {
+                    <option [value]="option.value" [selected]="option.value === d.repeat">
+                      {{ option.label }}
+                    </option>
+                  }
+                </select>
+              </div>
+              @if (d.repeat === 'custom') {
+                <div class="row">
+                  <label for="td-rule" i18n="@@taskDetail.rule">Rule</label>
+                  <input
+                    id="td-rule"
+                    type="text"
+                    class="mono"
+                    spellcheck="false"
+                    [value]="d.customRule"
+                    [attr.aria-invalid]="!!error('customRule')"
+                    (input)="edit({ customRule: text($event) })"
+                    placeholder="FREQ=WEEKLY;BYDAY=MO"
+                  />
+                </div>
+              }
+              @if (error('customRule'); as message) {
+                <p class="field-error">{{ message }}</p>
+              }
+              @if (d.repeat !== 'none') {
+                <div class="row wide">
+                  <span class="label" i18n="@@taskDetail.repeatFrom">Next one</span>
+                  <app-segmented
+                    [options]="modes"
+                    [label]="repeatModeLabel"
+                    [value]="d.repeatMode"
+                    (valueChange)="setRepeatMode($event)"
+                  />
+                </div>
+              }
+            </fieldset>
+          </aside>
+        </div>
+
+        <app-linked-items class="links" [item]="ref()" />
+
+        <footer class="bar" [class.dirty]="dirty()">
+          <p class="bar-status" aria-live="polite">
+            @if (saveError(); as message) {
+              <span class="field-error" role="alert">{{ message }}</span>
+            } @else if (saving()) {
+              <ng-container i18n="@@taskDetail.saving">Saving…</ng-container>
+            } @else if (dirty()) {
+              <ng-container i18n="@@taskDetail.unsaved">Unsaved changes</ng-container>
+            } @else if (saved()) {
+              <ng-container i18n="@@taskDetail.saved">Saved</ng-container>
+            }
+          </p>
+          @if (dirty()) {
+            <button type="button" class="quiet" (click)="discard()" i18n="@@taskDetail.discard">
+              Discard
+            </button>
+          }
+          <button type="submit" class="primary" [disabled]="!dirty() || !valid() || saving()">
+            <ng-container i18n="@@taskDetail.save">Save changes</ng-container>
+            <kbd>Ctrl ↵</kbd>
+          </button>
+        </footer>
+      </form>
+    }
+  }
+}
