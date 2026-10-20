@@ -201,6 +201,44 @@ class CalendarSeriesEdgeCaseWebTests(
 	}
 
 	@Test
+	fun `PATCH ALL or FOLLOWING with dates through an all-day override of a timed series is rejected and changes nothing`() {
+		val series = weekly()
+		deleteThis(series.id(), "2026-03-16T08:00:00Z")
+		val allDay = api.patchEventOk(series.id(), """{"allDay":true}""", "?scope=THIS&occurrence=2026-03-09T08:00:00Z")
+
+		// Without "allDay" the request keeps the series timed, so all-day fields do not fit it.
+		api.patchEvent(allDay.id(), """{"startDate":"2026-03-10"}""", "?scope=ALL").isProblem(400, "startDate")
+		api.patchEvent(allDay.id(), """{"startDate":"2026-03-10"}""", "?scope=FOLLOWING").isProblem(400, "startDate")
+
+		val unchanged = api.event(series.id())
+		unchanged.get("allDay").asBoolean() shouldBe false
+		unchanged.text("start") shouldBe "2026-03-02T08:00:00Z"
+		exdates(unchanged) shouldContainExactly listOf("2026-03-16T08:00:00Z")
+		api.event(allDay.id()).text("startDate") shouldBe "2026-03-09"
+		spring().size shouldBe 6
+		rowCount() shouldBe 2
+	}
+
+	@Test
+	fun `PATCH ALL with a start through an all-day override moves the timed series and keeps its exceptions`() {
+		val series = weekly()
+		deleteThis(series.id(), "2026-03-16T08:00:00Z")
+		val allDay = api.patchEventOk(series.id(), """{"allDay":true}""", "?scope=THIS&occurrence=2026-03-09T08:00:00Z")
+
+		// The occurrence of 9 March now starts on the 10th at 09:00 Zurich time: the series moves by one day.
+		api.patchEventOk(allDay.id(), """{"start":"2026-03-10T08:00:00Z"}""", "?scope=ALL")
+
+		val moved = api.event(series.id())
+		moved.get("allDay").asBoolean() shouldBe false
+		moved.text("start") shouldBe "2026-03-03T08:00:00Z"
+		exdates(moved) shouldContainExactly listOf("2026-03-17T08:00:00Z")
+		val occurrences = spring()
+		occurrences.size shouldBe 6
+		occurrences.forEach { it.get("allDay").asBoolean() shouldBe false }
+		occurrences.starts().take(3) shouldContainExactly listOf("2026-03-03T08:00:00Z", "2026-03-10T08:00:00Z", "2026-03-24T08:00:00Z")
+	}
+
+	@Test
 	fun `PATCH ALL of an all-day series moves it by days with its exceptions`() {
 		val gym = api.createEvent("""{"title":"Gym","allDay":true,"startDate":"2026-03-02","rrule":"FREQ=DAILY;COUNT=5"}""")
 		deleteThis(gym.id(), "2026-03-03")
@@ -540,6 +578,23 @@ class CalendarSeriesEdgeCaseWebTests(
 		searchTitle(cancelled.id()) shouldBe null
 		searchTitle(later.id()) shouldBe null
 		searchedIds() shouldContainExactly listOf(series.id())
+	}
+
+	@Test
+	fun `cancelling and un-cancelling the series with ALL does not bring back a deleted occurrence`() {
+		val series = weekly()
+		val removed = api.patchEventOk(series.id(), """{"title":"Removed"}""", "?scope=THIS&occurrence=2026-03-09T08:00:00Z")
+		api.deleteEvent(removed.id()).andExpect { status { isNoContent() } }
+
+		api.patchEventOk(series.id(), """{"status":"CANCELLED"}""")
+		api.patchEventOk(series.id(), """{"status":"CONFIRMED"}""")
+
+		api.event(removed.id()).text("status") shouldBe "CANCELLED"
+		val occurrences = spring()
+		occurrences.size shouldBe 6
+		occurrences.none { it.text("occurrence") == "2026-03-09T08:00:00Z" } shouldBe true
+		occurrences.forEach { it.text("status") shouldBe "CONFIRMED" }
+		searchTitle(removed.id()) shouldBe null
 	}
 
 	@Test

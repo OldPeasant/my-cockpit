@@ -224,7 +224,10 @@ data class EventContent(
 		event.conferenceUrl = conferenceUrl
 	}
 
-	/** Gives [event] (an override) each field that changed from [before] to this, where it still had the old value. */
+	/**
+	 * Gives [event] (an override) each field that changed from [before] to this, where it still had the old value. A
+	 * CANCELLED override (a removed occurrence) keeps its status, so that a series status change never brings it back.
+	 */
 	fun propagate(
 		before: EventContent,
 		event: CalendarEvent,
@@ -234,7 +237,7 @@ data class EventContent(
 		if (event.location == before.location) event.location = location
 		if (event.attendees == before.attendees) event.attendees = attendees
 		if (event.reminderMinutes == before.reminderMinutes) event.reminderMinutes = reminderMinutes
-		if (event.status == before.status) event.status = status
+		if (event.status == before.status && event.status != EventStatus.CANCELLED) event.status = status
 		if (event.transparency == before.transparency) event.transparency = transparency
 		if (event.conferenceUrl == before.conferenceUrl) event.conferenceUrl = conferenceUrl
 	}

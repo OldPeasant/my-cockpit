@@ -105,3 +105,73 @@ Remaining unresolved findings:
 ## Final status
 
 All validated findings fixed and validation passed. `ClockConfigurationTests` is flaky outside this task's scope; it failed once and passed on the re-run.
+
+# Fix Report - second cycle (CR-4, CR-5)
+
+Date: 2026-10-20
+
+Task: cal-local-api - Local calendar API (SPEC.md §6.4)
+
+Scope: findings CR-4 and CR-5 of the re-review in `reviews/cal-local-api/review.md` (HEAD 9c6ba28)
+
+## Fixed findings
+
+### CR-4 - A time change with scope ALL or FOLLOWING through an all-day override of a timed series makes the whole series all-day and drops its exceptions
+
+Files changed:
+- `server/src/main/kotlin/ch/sonensei/cockpit/calendar/api/CalendarEventService.kt`
+- `server/src/test/kotlin/ch/sonensei/cockpit/calendar/api/CalendarSeriesEdgeCaseWebTests.kt`
+
+Problem:
+`updateSeries` and `splitSeries` resolved the request's time fields against the addressed override. When the override was all-day and the series timed, `Timing.resolve` defaulted `allDay` to the override's kind. A PATCH with only `startDate` therefore turned the series all-day, and the timed-to-all-day change dropped every EXDATE and override.
+
+Fix:
+A new helper `seriesBase` chooses the times the request applies to. It takes the addressed override's times only when `allDay` is sent or the override has the same kind as the series. Otherwise it takes the series' own original occurrence. The series changes kind only when `allDay` is sent. Time fields of the other kind (for example `startDate` for a timed series) are now rejected with 400 Problem Details instead of being converted silently. `Timing.shifted` and `Timing.resolve` are unchanged.
+
+Validation:
+- New test `PATCH ALL or FOLLOWING with dates through an all-day override of a timed series is rejected and changes nothing`: 400 with field `startDate` for ALL and for FOLLOWING. The series stays timed and keeps its start and EXDATE, the override is unchanged, and no rows are added.
+- New test `PATCH ALL with a start through an all-day override moves the timed series and keeps its exceptions`: the series moves by one day, stays timed, and its EXDATE moves with it.
+- `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.calendar.api.*' --tests '*OpenApiContractTest'` - Pass
+
+### CR-5 - Changing the status of the series with scope ALL brings back occurrences deleted with `DELETE scope=THIS`
+
+Files changed:
+- `server/src/main/kotlin/ch/sonensei/cockpit/calendar/api/EventCommands.kt`
+- `server/src/test/kotlin/ch/sonensei/cockpit/calendar/api/CalendarSeriesEdgeCaseWebTests.kt`
+
+Problem:
+`EventContent.propagate` copied a new master status onto every override that still had the old status. An override that was CANCELLED because its occurrence had been deleted became CONFIRMED again when the series was un-cancelled, so the deleted occurrence reappeared.
+
+Fix:
+`propagate` no longer changes the status of a CANCELLED override (a removed occurrence). This applies to ALL and FOLLOWING, which share `propagate`.
+Trade-off for the parent to note: the model cannot tell a deleted occurrence apart from an override that was cancelled together with its series. After `PATCH ALL {"status":"CANCELLED"}` followed by `{"status":"CONFIRMED"}`, the series' other (non-deleted) overrides stay CANCELLED, which means removed. Before this fix they came back. This follows the reviewer's and the parent's chosen fix. The alternative, recording a THIS delete of an override as an EXDATE and deleting the override row, would avoid the trade-off but changes the DELETE THIS behaviour that existing tests assert. Consider recording this with `tasks.py assume`.
+
+Validation:
+- New test `cancelling and un-cancelling the series with ALL does not bring back a deleted occurrence`: the deleted override stays CANCELLED, 6 of 7 occurrences are listed and all are CONFIRMED, and the override is not in the search index.
+- `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.calendar.api.*' --tests '*OpenApiContractTest'` - Pass
+
+## Not fixed
+
+None.
+
+## Validation summary
+
+Focused tests:
+- `cd server && ./gradlew ktlintFormat` - Pass
+- `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.calendar.api.*' --tests '*OpenApiContractTest'` (Testcontainers Postgres on Docker) - Pass: 135 tests, 0 failures, 0 skipped. That is the earlier 132 plus 3 new tests in CalendarSeriesEdgeCaseWebTests.
+
+Full test suite:
+- `cd server && ./gradlew check` - Pass (BUILD SUCCESSFUL)
+
+Lint/type-check/build:
+- ktlint and compilation are covered by `./gradlew check` - Pass. No API annotations changed, so `api/openapi.yaml` and the generated web client do not need to be regenerated (OpenApiContractTest passes).
+
+`.taskcheck`:
+- `sh scripts/check.sh` - Pass ("all checks passed"; android SKIPPED with COCKPIT_NO_ANDROID=1)
+
+Remaining unresolved findings:
+0
+
+## Final status
+
+All validated findings fixed and validation passed.

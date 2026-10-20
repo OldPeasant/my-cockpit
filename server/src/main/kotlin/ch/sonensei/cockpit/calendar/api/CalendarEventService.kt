@@ -262,7 +262,8 @@ class CalendarEventService(
 		val requested =
 			fields.timing?.let { input ->
 				// The time fields are the new times of the occurrence the client changed (the first one by default).
-				val shown = override?.let(Timing::of) ?: occurrence?.let(oldTiming::occurrence) ?: oldTiming
+				val original = occurrence?.let(oldTiming::occurrence) ?: oldTiming
+				val shown = seriesBase(override?.let(Timing::of), original, input)
 				Timing.resolve(shown, input, settings.timeZone()).also { master.setTiming(oldTiming.shifted(shown, it)) }
 			}
 		validate(master)
@@ -281,6 +282,17 @@ class CalendarEventService(
 		changed(result)
 		return result
 	}
+
+	/**
+	 * The times a series edit's time fields apply to: those of the addressed [override], or the [original] occurrence when
+	 * there is none or when the override is of another kind (timed/all-day) than the series and the request does not send
+	 * `allDay` (a series changes its kind only on request; time fields of the other kind are then rejected with 400).
+	 */
+	private fun seriesBase(
+		override: Timing?,
+		original: Timing,
+		input: TimingInput,
+	): Timing = override?.takeIf { input.allDay != null || it::class == original::class } ?: original
 
 	// --- FOLLOWING
 
@@ -304,7 +316,7 @@ class CalendarEventService(
 		fields.rrule?.let { next.rrule = normalizeRule(it.value) }
 		val requested =
 			fields.timing?.let { input ->
-				val shown = override?.let(Timing::of) ?: originalTiming
+				val shown = seriesBase(override?.let(Timing::of), originalTiming, input)
 				Timing.resolve(shown, input, settings.timeZone()).also { next.setTiming(originalTiming.shifted(shown, it)) }
 			}
 		validate(next)
