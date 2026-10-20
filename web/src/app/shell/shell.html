@@ -74,7 +74,7 @@
             role="menuitemradio"
             [attr.aria-checked]="theme.mode() === mode"
             [class.selected]="theme.mode() === mode"
-            (click)="theme.setMode(mode)"
+            (click)="setTheme(mode)"
           >
             {{ themeLabels[mode] }}
           </button>

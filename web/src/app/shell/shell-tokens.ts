@@ -1,5 +1,6 @@
-import { InjectionToken } from '@angular/core';
+import { inject, InjectionToken } from '@angular/core';
 import { Observable } from 'rxjs';
+import { ThemeMode, ThemeService } from './theme.service';
 
 /**
  * Opens the quick capture dialog (SPEC.md §4.5). The shell calls it from the '+' button and the
@@ -10,6 +11,23 @@ export interface CaptureDialog {
 }
 
 export const CAPTURE_DIALOG = new InjectionToken<CaptureDialog>('CAPTURE_DIALOG');
+
+/**
+ * Saves the theme chosen in the top bar. Without a provider it applies only in this browser;
+ * `features/settings/settings.providers.ts` also saves it as the user's setting, so it survives the
+ * server theme that is loaded after each login and reload.
+ */
+export interface ThemePreference {
+  set(mode: ThemeMode): void;
+}
+
+export const THEME_PREFERENCE = new InjectionToken<ThemePreference>('THEME_PREFERENCE', {
+  providedIn: 'root',
+  factory: () => {
+    const theme = inject(ThemeService);
+    return { set: (mode) => theme.setMode(mode) };
+  },
+});
 
 /** One selectable row of the command palette. Rows are shown grouped by `group`, in order. */
 export interface PaletteItem {

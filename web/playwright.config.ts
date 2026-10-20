@@ -24,5 +24,19 @@ export default defineConfig({
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
   },
-  projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
+  projects: [
+    // The phase demo scripts (SPEC.md §13.2) reset the stack, trigger the global login backoff and move the server
+    // clock, so they run on their own, before every other spec (`--no-deps` skips them).
+    {
+      name: 'phase-demos',
+      testMatch: /phase\d+\/.*\.spec\.ts$/,
+      use: { ...devices['Desktop Chrome'] },
+    },
+    {
+      name: 'chromium',
+      testIgnore: /phase\d+\//,
+      dependencies: ['phase-demos'],
+      use: { ...devices['Desktop Chrome'] },
+    },
+  ],
 });

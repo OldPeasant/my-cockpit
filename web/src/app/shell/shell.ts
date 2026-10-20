@@ -12,7 +12,7 @@ import { LOGIN_PATH } from '../core/http';
 import { CommandPalette } from './command-palette';
 import { ShellAction, shellActionFor } from './hotkeys';
 import { NAV_GROUPS } from './nav-sections';
-import { CAPTURE_DIALOG } from './shell-tokens';
+import { CAPTURE_DIALOG, THEME_PREFERENCE } from './shell-tokens';
 import { ShortcutsDialog } from './shortcuts-dialog';
 import { THEME_MODES, ThemeMode, ThemeService } from './theme.service';
 
@@ -41,6 +41,7 @@ export class Shell {
   private readonly injector = inject(Injector);
   private readonly capture = inject(CAPTURE_DIALOG);
   protected readonly theme = inject(ThemeService);
+  private readonly themePreference = inject(THEME_PREFERENCE);
   protected readonly auth = inject(AuthService);
   private readonly router = inject(Router);
 
@@ -101,6 +102,10 @@ export class Shell {
       ariaLabel: $localize`:@@palette.title:Command palette`,
       injector: this.injector,
     });
+  }
+
+  protected setTheme(mode: ThemeMode): void {
+    this.themePreference.set(mode);
   }
 
   protected openCapture(): void {
