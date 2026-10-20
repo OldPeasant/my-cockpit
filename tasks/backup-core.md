@@ -1,11 +1,11 @@
 ---
 title: Backup export: zip format and orchestration
-status: in_progress
+status: done
 owner: dell26/agent-5
 deps: [p0-settings,p0-items-links,p0-crypto]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/backup,server/src/test/kotlin/ch/sonensei/cockpit/backup]
 prio: 1
-lease_until: 2026-10-20T20:51:28Z
+lease_until: 
 releases: 1
 extended: 
 ---
@@ -33,3 +33,4 @@ Backup export in format version 1 (SPEC.md §10.2).
 - ASSUMPTION (2026-10-20 19:16+0200 by dell26/agent-7): Review CR-4 (P3): ZipBackupReader manifest with null entries in files[] may surface as raw NPE instead of InvalidBackupException; only reachable with a hand-edited zip. Deferred to backup-restore together with CR-3 (restore validation report).
 - release by R1963MACOS/agent-2: handed off by R1963MACOS/agent-2: You've hit your session limit · resets 12:50am (Europe/Zurich)
 - ASSUMPTION (2026-10-20 22:22+0200 by dell26/agent-5): Review CR-5 (P3): BackupJobService.destroy() leaves an in-progress zip and the cockpit-backups* temp dir behind on shutdown; owner-only temp dir, negligible impact, accepted for now.
+- done by dell26/agent-5: `sh scripts/check.sh` passed in 57s on 91fdbed28; criteria verified 5/5
