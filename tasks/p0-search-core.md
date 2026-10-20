@@ -5,7 +5,7 @@ owner: dell26/agent-5
 deps: [p0-items-links]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/core/search,server/src/test/kotlin/ch/sonensei/cockpit/core/search,server/src/main/resources/db/migration/core-search]
 prio: 1
-lease_until: 2026-10-20T13:27:54Z
+lease_until: 2026-10-20T13:30:05Z
 ---
 ## Goal
 One search across all modules (SPEC.md §4.4).
