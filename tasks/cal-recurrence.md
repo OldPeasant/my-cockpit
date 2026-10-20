@@ -16,7 +16,8 @@ Expand events into occurrences in a range (SPEC.md §6.1).
   - verified (2026-10-20 18:07+0200 by dell26/agent-3): cd server && ./gradlew test --offline --rerun --tests 'ch.sonensei.cockpit.calendar.recurrence.*' -> OccurrenceExpanderTests 13 + OccurrenceExpanderEdgeCaseTests 43 passed; OccurrenceExpander uses ical4j Recur in the event zone, applies EXDATE/overrides, filters to [from,to)
 - [x] Tests: weekly across DST start/end (Europe/Zurich), all-day events, moved and cancelled occurrences, COUNT/UNTIL, monthly by weekday
   - verified (2026-10-20 18:07+0200 by dell26/agent-3): same run -> named tests pass: weekly across DST start/end Europe/Zurich, all-day series/single, moved+cancelled overrides, COUNT, UNTIL, monthly by weekday (OccurrenceExpanderTests.kt) plus DST-end edge cases
-- [ ] `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.calendar.recurrence.*'` passes (Postgres via Testcontainers where persistence is involved)
+- [x] `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.calendar.recurrence.*'` passes (Postgres via Testcontainers where persistence is involved)
+  - verified (2026-10-20 18:07+0200 by dell26/agent-3): cd server && ./gradlew test --offline --rerun --tests 'ch.sonensei.cockpit.calendar.recurrence.*' -> BUILD SUCCESSFUL, 56 tests, 0 failures/errors/skips; expander is pure, no persistence so no Testcontainers involved
 
 ## Notes
 - ASSUMPTION (2026-10-20 17:07+0200 by dell26/agent-3) [confirmed 2026-10-20 17:09+0200 by Peter Gürtler]: Expander is pure (no persistence): expand(candidates, OccurrenceRange(from,to,userZone)); all-day occurrences overlap by the days [fromDate,toDate) the range touches in the user's zone, consistent with findCandidatesInRange
