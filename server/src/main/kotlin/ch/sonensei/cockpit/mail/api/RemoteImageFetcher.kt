@@ -58,7 +58,9 @@ fun interface HostResolver {
 /**
  * Which addresses the image proxy may connect to: public unicast internet addresses only. Rejects loopback,
  * unspecified, private (RFC 1918, ULA), CGNAT, link-local, multicast, broadcast, documentation and benchmarking
- * ranges, and IPv6 transition addresses that embed one of those IPv4 addresses (mapped, NAT64, 6to4).
+ * ranges, and IPv6 transition addresses that embed one of those IPv4 addresses (mapped, compatible, well-known
+ * NAT64, 6to4). The local-use NAT64 prefix 64:ff9b:1::/48 and SIIT IPv4-translated addresses ::ffff:0:0:0/96 are
+ * rejected outright, whatever IPv4 address they embed.
  */
 object PublicAddresses {
 	fun isPublic(address: InetAddress): Boolean {
@@ -111,6 +113,14 @@ object PublicAddresses {
 			(b[0] and 0xfe) == 0xfc ||
 				// 2001:db8::/32 documentation, 2001::/32 Teredo.
 				(b[0] == 0x20 && b[1] == 0x01 && ((b[2] == 0x0d && b[3] == 0xb8) || (b[2] == 0 && b[3] == 0))) ||
+				// 2001:2::/48 benchmarking (RFC 5180).
+				(b[0] == 0x20 && b[1] == 0x01 && b[2] == 0 && b[3] == 0x02 && b[4] == 0 && b[5] == 0) ||
+				// 3fff::/20 documentation (RFC 9637).
+				(b[0] == 0x3f && b[1] >= 0xf0) ||
+				// 64:ff9b:1::/48 local-use NAT64 (RFC 8215).
+				(b[0] == 0 && b[1] == 0x64 && b[2] == 0xff && b[3] == 0x9b && b[4] == 0 && b[5] == 0x01) ||
+				// ::ffff:0:0:0/96 SIIT IPv4-translated.
+				(b.subList(0, 8).all { it == 0 } && b[8] == 0xff && b[9] == 0xff && b[10] == 0 && b[11] == 0) ||
 				// 100::/64 discard.
 				(b[0] == 0x01 && b.subList(1, 8).all { it == 0 })
 		)

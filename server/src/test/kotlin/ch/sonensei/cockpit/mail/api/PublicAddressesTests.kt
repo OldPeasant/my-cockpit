@@ -83,4 +83,11 @@ class PublicAddressesTests {
 	fun `IPv6 local-use NAT64, benchmarking and documentation addresses are not public`(address: String) {
 		PublicAddresses.isPublic(InetAddress.getByName(address)) shouldBe false
 	}
+
+	/** SIIT IPv4-translated addresses (::ffff:0:0:0/96) are blocked whatever IPv4 address they embed. */
+	@ParameterizedTest
+	@ValueSource(strings = ["::ffff:0:a00:1", "::ffff:0:808:808"])
+	fun `IPv6 SIIT IPv4-translated addresses are not public`(address: String) {
+		PublicAddresses.isPublic(InetAddress.getByName(address)) shouldBe false
+	}
 }
