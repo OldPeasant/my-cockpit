@@ -800,7 +800,8 @@ paths:
       tags:
       - Calendars
     post:
-      description: "In a local calendar (default: the default calendar). With a client-generated\
+      description: "In a local or synced calendar (default: the default calendar);\
+        \ in a synced one it is created at the provider first. With a client-generated\
         \ `id` (UUIDv7) the create is idempotent: repeating it returns the existing\
         \ event (200) unchanged."
       operationId: createEvent
@@ -848,7 +849,14 @@ paths:
               schema:
                 $ref: "#/components/schemas/ProblemDetail"
           description: "The id belongs to an event in the Trash, or the calendar is\
-            \ read-only or not local"
+            \ read-only or cannot be changed"
+        "502":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: The calendar provider of a synced calendar failed; nothing
+            was created
       summary: Create an event
       tags:
       - Calendars
@@ -856,7 +864,9 @@ paths:
     delete:
       description: "A single event or a whole series (ALL) goes to the Trash; THIS\
         \ removes one occurrence (EXDATE, or its override is cancelled); FOLLOWING\
-        \ ends the series before the occurrence. Scope defaults as for PATCH."
+        \ ends the series before the occurrence. Scope defaults as for PATCH. Events\
+        \ of synced calendars are deleted at the provider first, and here for good\
+        \ (no Trash)."
       operationId: deleteEvent
       parameters:
       - in: path
@@ -909,8 +919,10 @@ paths:
             application/problem+json:
               schema:
                 $ref: "#/components/schemas/ProblemDetail"
-          description: "Changed concurrently, or the calendar is read-only or not\
-            \ local"
+          description: "Changed concurrently, the calendar is read-only or cannot\
+            \ be changed, a synced event cannot move to another calendar, or the event\
+            \ was changed at the provider (the cockpit fetched the new version: reload\
+            \ and retry)"
         "412":
           content:
             application/problem+json:
@@ -923,6 +935,13 @@ paths:
               schema:
                 $ref: "#/components/schemas/ProblemDetail"
           description: If-Match is missing
+        "502":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: The calendar provider of a synced calendar failed; nothing
+            was changed
       summary: Delete an event or occurrences of a series
       tags:
       - Calendars
@@ -965,7 +984,8 @@ paths:
         \ the series and returns the new series, ALL changes the master (overrides\
         \ that still had the old value of a field take the new one). Addressing an\
         \ override stands for its occurrence (`scope` defaults to THIS). A single\
-        \ event ignores `scope`."
+        \ event ignores `scope`. Events of synced calendars are changed at the provider\
+        \ first and cannot move to another calendar."
       operationId: updateEvent
       parameters:
       - in: path
@@ -1035,8 +1055,10 @@ paths:
             application/problem+json:
               schema:
                 $ref: "#/components/schemas/ProblemDetail"
-          description: "Changed concurrently, or the calendar is read-only or not\
-            \ local"
+          description: "Changed concurrently, the calendar is read-only or cannot\
+            \ be changed, a synced event cannot move to another calendar, or the event\
+            \ was changed at the provider (the cockpit fetched the new version: reload\
+            \ and retry)"
         "412":
           content:
             application/problem+json:
@@ -1049,7 +1071,64 @@ paths:
               schema:
                 $ref: "#/components/schemas/ProblemDetail"
           description: If-Match is missing
+        "502":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: The calendar provider of a synced calendar failed; nothing
+            was changed
       summary: Change an event or occurrences of a series
+      tags:
+      - Calendars
+  /api/v1/calendar/sources:
+    get:
+      description: "Every source (the local one and connected accounts and feeds)\
+        \ in creation order, with its sync status."
+      operationId: listCalendarSources
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CalendarSourceListResponse"
+          description: The sources
+      summary: List calendar sources
+      tags:
+      - Calendars
+  /api/v1/calendar/sources/{id}/sync:
+    post:
+      description: "Fetches the source's calendars and their changes from the provider\
+        \ and waits until done. A failing provider is reported in `sync.lastError`,\
+        \ not as an error response."
+      operationId: syncCalendarSource
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CalendarSourceResponse"
+          description: "Synced (or failed, see `sync`); the source with its new status"
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: No such source
+        "409":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: The source is local or its type cannot be synced yet
+      summary: Sync a source now
       tags:
       - Calendars
   /api/v1/capture:
@@ -4722,6 +4801,58 @@ components:
       - updatedAt
       - version
       - visible
+    CalendarSourceListResponse:
+      type: object
+      description: Every calendar source in creation order
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/CalendarSourceResponse"
+      required:
+      - items
+    CalendarSourceResponse:
+      type: object
+      description: "A calendar source: the local calendars, or a connected account\
+        \ or feed. Settings and secrets are not shown."
+      properties:
+        createdAt:
+          type: string
+          format: date-time
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        sync:
+          $ref: "#/components/schemas/SyncStatusResponse"
+          description: Sync status; null when the source is not synced
+        syncable:
+          type: boolean
+          description: Whether the source is synced with its provider (false for LOCAL
+            and for types without support yet)
+        type:
+          type: string
+          enum:
+          - LOCAL
+          - GOOGLE
+          - MICROSOFT
+          - CALDAV
+          - ICS_FEED
+        updatedAt:
+          type: string
+          format: date-time
+        version:
+          type: integer
+          format: int64
+      required:
+      - createdAt
+      - id
+      - name
+      - syncable
+      - type
+      - updatedAt
+      - version
     CaptureContextResponse:
       type: object
       description: A context named with `@`
@@ -6971,6 +7102,38 @@ components:
           type: boolean
       required:
       - setupRequired
+    SyncStatusResponse:
+      type: object
+      description: The sync status of a source
+      properties:
+        lastAttemptAt:
+          type: string
+          format: date-time
+          description: Start of the last sync run
+        lastError:
+          type: string
+          description: What failed in the last run; null when it succeeded
+        lastSuccessAt:
+          type: string
+          format: date-time
+          description: Start of the last run without errors
+        nextSyncAt:
+          type: string
+          format: date-time
+          description: When the scheduler syncs next
+        pollIntervalSeconds:
+          type: integer
+          format: int64
+        state:
+          type: string
+          enum:
+          - NEVER
+          - OK
+          - ERROR
+      required:
+      - nextSyncAt
+      - pollIntervalSeconds
+      - state
     TaskListResponse:
       type: object
       description: A list of tasks in order

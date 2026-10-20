@@ -86,8 +86,9 @@ class CalendarEventController(
 		operationId = "createEvent",
 		summary = "Create an event",
 		description =
-			"In a local calendar (default: the default calendar). With a client-generated `id` (UUIDv7) the create is " +
-				"idempotent: repeating it returns the existing event (200) unchanged.",
+			"In a local or synced calendar (default: the default calendar); in a synced one it is created at the provider " +
+				"first. With a client-generated `id` (UUIDv7) the create is idempotent: repeating it returns the existing " +
+				"event (200) unchanged.",
 	)
 	@ApiResponse(
 		responseCode = "201",
@@ -108,7 +109,12 @@ class CalendarEventController(
 	)
 	@ApiResponse(
 		responseCode = "409",
-		description = "The id belongs to an event in the Trash, or the calendar is read-only or not local",
+		description = "The id belongs to an event in the Trash, or the calendar is read-only or cannot be changed",
+		content = [Content(mediaType = PROBLEM_JSON, schema = Schema(ref = "#/components/schemas/ProblemDetail"))],
+	)
+	@ApiResponse(
+		responseCode = "502",
+		description = "The calendar provider of a synced calendar failed; nothing was created",
 		content = [Content(mediaType = PROBLEM_JSON, schema = Schema(ref = "#/components/schemas/ProblemDetail"))],
 	)
 	fun create(
@@ -161,7 +167,8 @@ class CalendarEventController(
 				"FOLLOWING need `occurrence`. THIS changes the occurrence's override (created on first change), " +
 				"FOLLOWING splits the series and returns the new series, ALL changes the master (overrides that still " +
 				"had the old value of a field take the new one). Addressing an override stands for its occurrence " +
-				"(`scope` defaults to THIS). A single event ignores `scope`.",
+				"(`scope` defaults to THIS). A single event ignores `scope`. Events of synced calendars are changed at the " +
+				"provider first and cannot move to another calendar.",
 	)
 	@DocumentedBody(content = [Content(schema = Schema(implementation = EventPatchRequest::class))])
 	@EventChangeResponses
@@ -190,7 +197,8 @@ class CalendarEventController(
 		summary = "Delete an event or occurrences of a series",
 		description =
 			"A single event or a whole series (ALL) goes to the Trash; THIS removes one occurrence (EXDATE, or its " +
-				"override is cancelled); FOLLOWING ends the series before the occurrence. Scope defaults as for PATCH.",
+				"override is cancelled); FOLLOWING ends the series before the occurrence. Scope defaults as for PATCH. Events " +
+				"of synced calendars are deleted at the provider first, and here for good (no Trash).",
 	)
 	@EventChangeResponses
 	@ApiResponse(responseCode = "204", description = "Deleted")
@@ -289,7 +297,9 @@ class CalendarEventController(
 )
 @ApiResponse(
 	responseCode = "409",
-	description = "Changed concurrently, or the calendar is read-only or not local",
+	description =
+		"Changed concurrently, the calendar is read-only or cannot be changed, a synced event cannot move to another " +
+			"calendar, or the event was changed at the provider (the cockpit fetched the new version: reload and retry)",
 	content = [Content(mediaType = PROBLEM_JSON, schema = Schema(ref = "#/components/schemas/ProblemDetail"))],
 )
 @ApiResponse(
@@ -300,6 +310,11 @@ class CalendarEventController(
 @ApiResponse(
 	responseCode = "428",
 	description = "If-Match is missing",
+	content = [Content(mediaType = PROBLEM_JSON, schema = Schema(ref = "#/components/schemas/ProblemDetail"))],
+)
+@ApiResponse(
+	responseCode = "502",
+	description = "The calendar provider of a synced calendar failed; nothing was changed",
 	content = [Content(mediaType = PROBLEM_JSON, schema = Schema(ref = "#/components/schemas/ProblemDetail"))],
 )
 annotation class EventChangeResponses

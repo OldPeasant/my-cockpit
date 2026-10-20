@@ -83,6 +83,10 @@ export type { DeleteEvent$Params as DeleteEvent$Params } from './fn/calendars/de
 export { deleteEvent as deleteEvent } from './fn/calendars/delete-event';
 export type { UpdateEvent$Params as UpdateEvent$Params } from './fn/calendars/update-event';
 export { updateEvent as updateEvent } from './fn/calendars/update-event';
+export type { ListCalendarSources$Params as ListCalendarSources$Params } from './fn/calendars/list-calendar-sources';
+export { listCalendarSources as listCalendarSources } from './fn/calendars/list-calendar-sources';
+export type { SyncCalendarSource$Params as SyncCalendarSource$Params } from './fn/calendars/sync-calendar-source';
+export { syncCalendarSource as syncCalendarSource } from './fn/calendars/sync-calendar-source';
 export type { Capture$Params as Capture$Params } from './fn/capture/capture';
 export { capture as capture } from './fn/capture/capture';
 export type { PreviewCapture$Params as PreviewCapture$Params } from './fn/capture/preview-capture';
