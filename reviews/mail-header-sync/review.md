@@ -4,37 +4,58 @@ Date: 2026-10-20
 
 Task: mail-header-sync - Header sync and threading
 
-Scope: TFP task mail-header-sync, production code at 4c0da7f0 (`git diff 8cc71438..4c0da7f0`), plus the tests in
-`server/src/test/kotlin/ch/sonensei/cockpit/mail/sync/` as present in the working tree (including the uncommitted
-`ImapHelpersTests.kt` the parallel test-writer was adding).
+Scope: TFP task mail-header-sync, final revision cde8b0b2 (task diff `7982562b..cde8b0b2`). This round checks that
+the fixes for the earlier findings CR-1..CR-5 and TW-1 hold, and looks for new problems in the final code. Test files
+the parallel test-writer changed after cde8b0b2 are not reviewed.
 
 Requirements:
-- tasks/mail-header-sync.md (acceptance criteria 1-3 and the four recorded assumptions)
-- SPEC.md §7.2 (sync model, threading), §4.3 (EMAIL links survive moves, re-resolve by Message-ID)
-- docs/ARCHITECTURE.md and AGENTS.md project notes (module boundaries, logging rules, Flyway, conventions)
-- Parent instructions: focus on IMAP protocol use, transaction/persistence correctness, concurrency, logging,
-  maintainability
+- tasks/mail-header-sync.md (acceptance criteria 1-3 and the six recorded assumptions)
+- SPEC.md §7.2 (sync model, threading), §4.3 (EMAIL links survive moves and UID changes)
+- docs/ARCHITECTURE.md and AGENTS.md project notes (module boundaries, logging rules, conventions)
+- reviews/mail-header-sync/fixes.md (rounds 1 and 2) and the previous review.md (CR-1..CR-6)
+- Parent instructions: review the final revision, check the earlier fixes, keep the CR-6 status
 
 Git range:
 - Branch: main
-- HEAD: 4c0da7f0ff43f34900567783b2800111b8a3e669
-- Base/start: 8cc71438019634eff8bf2c56d888454ade504fd0
-- Commits reviewed: 2 (51b6e4f5, 4c0da7f0)
+- HEAD: cde8b0b2f6b4ee3b4e895aed5f4b7c4aa995bbf9 (read from `.git/refs/heads/main`)
+- Base/start: 7982562bfa14d1979d9b8b2c884ce23f4df04b57
+- Commits reviewed: the task commits in 7982562b..cde8b0b2
 
-Summary: 0 P0, 0 P1, 3 P2, 3 P3
+Summary: 0 P0, 0 P1, 0 P2, 3 P3 (CR-6 deferred from the earlier round, CR-7 and CR-8 new)
 
-Note on execution: running `./gradlew test` / `./gradlew integrationTest` was denied by the sandbox in this review
-session, so test results were not observed here. The findings below come from reading the code at 4c0da7f0. The
-parent worker has to record its own test runs as evidence (`tasks.py verify` lists no evidence yet).
+Limits of this review session: the sandbox denied every shell command. That ruled out `git diff`, `git log`,
+running tests and `tasks.py verify`. So the review reads the final content of every production file in the task's
+touches (`server/src/main/kotlin/ch/sonensei/cockpit/mail/sync/`: `MailThreading.kt`, `MailHeaderSyncService.kt`,
+`MailHeaderStore.kt`, `MailSyncRepository.kt`, `ImapRemoteMailbox.kt`, `RemoteFolder.kt`) and parts of the tests,
+at HEAD = cde8b0b2. I could not check the exact diff hunks, the commit list, or changes outside those files (if
+any). The parent worker must base its `tasks.py verify` evidence on its own test runs (the unit suites, the GreenMail
+and Dovecot `integrationTest` runs). This review did not see any of those runs.
 
-Checked and found sound (no finding): raw `UID SEARCH` / `UID FETCH` construction (only numbers, IMAP dates and
-BODYSTRUCTURE-derived sections, no injection), the `n:*` filtering (RFC 9051 §6.4.8) in `uidsFrom` and in open-ended
-fetches, the `(CHANGEDSINCE m)` modifier placement, the forwarding of non-FETCH responses before `handleResult`,
-the read-only `EXAMINE` with CONDSTORE/QRESYNC chosen by capability, the order of Hibernate auto-flushes in `upsert`
-(new rows and reattached rows are flushed before the next thread/reattach query, so the partial unique index
-`(folder_id, uid)` cannot be hit by duplicates within a batch), detach-before-resync committed in its own
-transaction, `finish` reloading `MailFolder` fresh (no stale version), idempotent recovery when a sync fails half way
-(`finish` not reached, so the next run repeats safely), and logging (only folder/account ids at INFO).
+Earlier findings checked in the final code:
+- CR-1 (reply before a parent that refers to the root): fixed. In `MailThreading.assign` (lines 87-101) a reply with
+  no cached parent is keyed by its root (`parents.firstOrNull()`), and every existing provisional key (its own id,
+  intermediate parents) is merged into it. Hand trace of c(irt b), b(refs a), a: `<b>` -> `<a>` with `<b>` merged ->
+  `subject:...` with `<a>` merged. The result is one conversation.
+- TW-1 (order-dependent subject fallback): fixed. A message without parents always takes `default` (its subject key,
+  else its own Message-ID, else `id:<row>`), whatever arrived before it. Provisional keys equal to its Message-ID are
+  merged in (line 100). I traced the orders b,a,d / b,d,a / d,b,a: all end in `subject:budget`. The KDoc (lines
+  21-31) matches the behaviour. Thread keys cannot collide across kinds (`<...>`, `subject:`, `id:`).
+- CR-2 (older on demand by UID): fixed. `loadOlder` loads the missing UIDs ranked by INTERNALDATE (lines 126-137),
+  and assumption 5 records this.
+- CR-3 (CONDSTORE/QRESYNC and the DB merge path untested): addressed by `HeaderSyncDovecotTests` and the GreenMail
+  merge tests, per fixes.md. I could not run them here (see limits above).
+- CR-4 (linked rows older than the window stay detached after a resync): fixed. `retakeLinked` (lines 181-193) uses
+  a batched, quoted `UID SEARCH OR HEADER Message-ID ...` limited to printable ASCII, keeps only exact Message-ID
+  matches, and runs before `pruneDetached`.
+- CR-5 (`loadOlder` on `\Noselect` folders, lost change event): fixed (lines 121 and 145).
+
+Checked and found sound (no finding): the raw IMAP commands (`UID SEARCH`/`UID FETCH`) contain only numbers, IMAP
+dates, BODYSTRUCTURE sections and quoted printable-ASCII Message-IDs, so no injection is possible. Also sound: the
+`n:*` filtering, the `(CHANGEDSINCE m)` modifier, the read-only `EXAMINE` with QRESYNC only when a known state
+exists, and how the incremental sync picks QRESYNC, CONDSTORE or a full flag fetch. UIDNEXT and HIGHESTMODSEQ are
+taken from the open-time status, so messages and flag changes that arrive during a sync are picked up again by the
+next sync, and the `!in known` filter prevents duplicates. Detaching happens before the resync, and `finish` reloads
+the folder. Per-folder locking is in place. The INFO logs contain only folder and account ids.
 
 ## P0 Critical
 
@@ -46,109 +67,49 @@ None.
 
 ## P2 Medium
 
-- [ ] **CR-1 | Threading splits a conversation when a reply arrives before a parent that itself refers to the root**
-    - File: `server/src/main/kotlin/ch/sonensei/cockpit/mail/sync/MailThreading.kt:92`
-    - Category: Correctness
-    - Problem: When a message has parents, the key prefers an existing key that equals the message's *own*
-      Message-ID (`provisional.firstOrNull { it in provisionalExisting }`, line 94) over its root (`parents.first()`).
-      The conversation then stays keyed by an intermediate message, and a root that arrives later only looks for
-      conversations keyed by its own Message-ID (line 85), so it never joins. Trace with the test helper `Mailbox` in
-      `MailThreadingTests`: `receive("<c>", inReplyTo = "<b>")` -> key `<b>`; `receive("<b>", inReplyTo = "<a>",
-      references = "<a>")` -> parents `[<a>]`, `<a>` unknown, existing `{<b>}` -> key stays `<b>`, nothing merged;
-      `receive("<a>", "Unrelated subject")` -> no parents, `<a>` is no existing key -> `subject:unrelated subject`.
-      a ends up apart from b and c. The existing test `a message that connects two conversations merges them` only
-      passes because a arrives before b. This contradicts the KDoc ("a message joins ... the conversation of every
-      cached message that refers to it") and criterion 2, and the result depends on arrival order (UID order within a
-      folder, path order across folders in `syncAccount`, for example replies in INBOX before the root in Sent).
-    - Why it matters: Conversations shown in the threaded view are split depending on sync order. Replies that only
-      carry In-Reply-To (no References) are common enough to make this visible.
-    - Suggested fix: When the message has parents and none of them is cached, key it by its root (`parents.first()`)
-      and merge every `provisionalExisting` key (including its own Message-ID) into that key, instead of keeping the
-      own-id key. Then later messages and the root find the root key. Add the c, b, a sequence above as a unit test,
-      plus a variant where the root has no subject.
-
-- [ ] **CR-2 | "Older on demand" by UID never loads old-dated messages whose UID is above the oldest cached UID**
-    - File: `server/src/main/kotlin/ch/sonensei/cockpit/mail/sync/MailHeaderSyncService.kt:119`
-    - Category: Correctness
-    - Problem: The full sync selects the window by INTERNALDATE (`uidsSince`, line 151), but `loadOlder` only takes
-      UIDs below the lowest cached UID (lines 119-121). In folders whose UID order is not date order, messages that
-      are outside the window but have a UID above the lowest cached one are never fetched. Neither `loadOlder` nor the
-      incremental sync (which only fetches UIDs from the cached UIDNEXT on) reaches them. Typical case: an Archive
-      folder. COPY/MOVE keep INTERNALDATE, so a message received two years ago and archived last week has a high UID
-      and an old date. With one recently-dated message at a low UID in the cache, every such message stays missing
-      from the cache for good.
-    - Why it matters: SPEC.md §7.2 says "older loaded on demand when scrolling", and lists sort by `received_at`.
-      Scrolling past the window silently skips mail, and the folder looks complete when it is not. The recorded
-      assumption ("the next messages below the oldest cached UID") does not mention this consequence.
-    - Suggested fix: Select older mail by what is missing from the cache, not by a UID bound. For example, `UID SEARCH
-      BEFORE <oldest cached received date>` (or `UID SEARCH ALL` minus the cached UIDs), then fetch the newest
-      `limit` of those by INTERNALDATE. Add a GreenMail test that appends a message with an old INTERNALDATE after
-      newer ones. If the UID approach is kept on purpose, record this limitation in the assumption so a human can
-      decide.
-
-- [ ] **CR-3 | The CONDSTORE/QRESYNC IMAP code and the DB thread-merge path are never executed in tests**
-    - File: `server/src/main/kotlin/ch/sonensei/cockpit/mail/sync/ImapRemoteMailbox.kt:71` (also `:90`, `:142`;
-      `MailHeaderStore.kt:143`)
-    - Category: Tests
-    - Problem: GreenMail offers neither CONDSTORE nor QRESYNC (the test KDoc says so). `MailHeaderSyncServiceTests`
-      replaces `RemoteFolder` and `MailHeaderStore` with fakes and mocks. As a result these paths never run anywhere:
-      - the `ResyncData` open;
-      - the conversion of Angus `MessageVanishedEvent`/`MessageChangedEvent` into `QresyncChanges`, including
-        `folder.getUID` on the open-time messages;
-      - `UID FETCH n:* (UID FLAGS MODSEQ) (CHANGEDSINCE m)` and MODSEQ parsing;
-      - the HIGHESTMODSEQ read.
-
-      Only the service's branch selection is tested. Likewise no GreenMail/Postgres test makes a message connect two
-      existing conversations. So `RepositoryThreadIndex` (`threadKeys`/`existingThreadKeys` JPQL with the
-      interface projection) and the `findByAccountIdAndThreadKeyIn` rewrite of merged keys are untested against the
-      database. The GreenMail tests only cover root-before-reply.
-    - Why it matters: Criterion 1 names CONDSTORE/QRESYNC. These are the most protocol-sensitive lines (Angus event
-      semantics, response shapes), and only a real server can show a mistake there. Recording "verified" for that part
-      of criterion 1 on the strength of fakes would not be evidence.
-    - Suggested fix: Add an `external` test against a Dovecot Testcontainer (it supports CONDSTORE and QRESYNC). Cover
-      flag change, expunge, and new mail through both the CONDSTORE and the QRESYNC path. Add a GreenMail test where a
-      reply arrives before its parent, so the merge rewrite runs against Postgres. If Dovecot is out of reach now,
-      mark that part of criterion 1 as skipped with the reason instead of claiming it.
+None.
 
 ## P3 Low
 
-- [ ] **CR-4 | After a UIDVALIDITY resync, linked messages older than the window stay detached although still on the server**
-    - File: `server/src/main/kotlin/ch/sonensei/cockpit/mail/sync/MailHeaderSyncService.kt:142`
-    - Category: Correctness
-    - Problem: `full()` detaches every row (line 142) but only fetches the sync window (line 151). A linked message
-      older than the window (for example one loaded earlier via `loadOlder`) is still on the server, but stays
-      detached until someone calls `loadOlder` far enough back. Until then `MailMessageLocator.current` finds no
-      located copy, and the "Linked items" panel shows the email as gone.
-    - Why it matters: SPEC.md §4.3 wants email links to survive UID changes. This case is rare (UIDVALIDITY changes
-      seldom), but the link breaks without anything telling the user.
-    - Suggested fix: After the window pass of a resync, look up the remaining linked detached rows by Message-ID
-      (`UID SEARCH HEADER Message-ID <id>`, batched) and re-take them before `pruneDetached`.
-
-- [ ] **CR-5 | `loadOlder` opens `\Noselect` folders and drops the result of the sync it runs first**
-    - File: `server/src/main/kotlin/ch/sonensei/cockpit/mail/sync/MailHeaderSyncService.kt:115`
-    - Category: Quality
-    - Problem: Unlike `syncFolder` (which checks `folder.selectable`), `loadOlder` opens any folder. For a
-      `\Noselect` folder the Angus open failure is turned into a `MailConnectionException`, which reports a
-      connection problem that is not one. When `loadOlder` runs `full()` first (line 117), the created/removed counts
-      are discarded. So if no older message is loaded afterwards, no `MAIL_FOLDER` change event is published even
-      though the cache changed (line 130).
-    - Why it matters: The future mail-read-api endpoint will show a misleading error, and clients miss the refresh
-      after an implicit full sync.
-    - Suggested fix: Return `OlderMessagesResult(0, false)` for non-selectable folders, and publish the event when
-      either the `full()` result or the older batch changed something.
-
 - [ ] **CR-6 | `isLinked` resolves every linked item through all module resolvers just to test for existence**
-    - File: `server/src/main/kotlin/ch/sonensei/cockpit/mail/sync/MailHeaderStore.kt:141`
+  (status: deferred, out of the task's touches, recorded as assumption 6 in the task file)
+    - File: `server/src/main/kotlin/ch/sonensei/cockpit/mail/sync/MailHeaderStore.kt:150`
     - Category: Quality
-    - Problem: `isLinked` calls `LinkService.linksOf`, which loads the links and then calls the `ItemResolver` of
-      both ends of every link (tasks, notes, the email itself through `MailMessageLocator`). It runs once per vanished
-      message in `reconcile` and once per detached row in `pruneDetached`, inside the sync transaction.
-    - Why it matters: The cost is a query per removed row plus resolver work for every linked item, all to answer a
-      yes/no question. A resolver failure there is only logged at WARN, so the extra coupling adds noise and slows
-      large resyncs.
-    - Suggested fix: Add a cheap existence query to the link service (for example `hasLinks(ItemRef)` backed by an
-      `exists` query on `link`), or one batched query for all candidate ids, and use it here.
+    - Problem: The code is unchanged since the earlier round. `isLinked` calls `LinkService.linksOf`, which loads the
+      links and resolves both ends of each one. This runs once per vanished or detached row in `reconcile`,
+      `linkedDetachedMessageIds` and `pruneDetached`, all inside the sync transaction.
+    - Why it matters: It is correct but slow on large resyncs, and resolver failures add WARN noise.
+    - Suggested fix: Make it a follow-up task (it is outside this task's touches): add
+      `LinkService.hasLinks(ItemRef)` backed by an `exists` query and use it here. The parent worker should add the
+      follow-up with `tasks.py new` if none exists yet, so the deferral is not lost.
+
+- [ ] **CR-7 | Each `loadOlder` call reads INTERNALDATE for every uncached message in the folder**
+    - File: `server/src/main/kotlin/ch/sonensei/cockpit/mail/sync/MailHeaderSyncService.kt:127`
+    - Category: Correctness (resilience/performance)
+    - Problem: When more than `limit` messages are missing, `remote.receivedDates(missing)` (line 132) fetches
+      `UID INTERNALDATE` for all of them, one `UID FETCH` per 500 UIDs, and also runs `UID SEARCH UID 1:*` (line 127).
+      This repeats on every page. For example, a 60,000-message archive with a 12-month window of 5,000 cached
+      messages costs about 110 FETCH round trips per page of 100. Scrolling to the end costs O(N²/limit) in total.
+      fixes.md mentions this under "Notes", but no assumption records it.
+    - Why it matters: "Older on demand when scrolling" (SPEC.md §7.2) becomes slow on exactly the large folders where
+      it is used most. The folder lock is held the whole time, which also blocks the background sync of that folder.
+    - Suggested fix: Narrow the candidates before reading dates. For example, use `UID SEARCH BEFORE <oldest cached
+      received_at + 1 day>` minus the cached UIDs, and fall back to the full missing set only when that comes back
+      empty. Or record the cost as an assumption so a human can accept it.
+
+- [ ] **CR-8 | The service KDoc puts the resync "retake linked rows" step under the incremental-sync bullet**
+    - File: `server/src/main/kotlin/ch/sonensei/cockpit/mail/sync/MailHeaderSyncService.kt:47`
+    - Category: Quality
+    - Problem: The sentence "Linked rows the window pass did not find are then looked up by Message-ID before the
+      rest is removed." is the last line of the **Incremental sync** bullet (lines 44-47). The behaviour it describes
+      (`retakeLinked`, line 170) only runs in the full sync after a UIDVALIDITY change.
+    - Why it matters: Readers of the class contract will believe the incremental sync searches by Message-ID, and it
+      does not.
+    - Suggested fix: Move the sentence into the **Full sync** bullet (after "found again by Message-ID").
 
 ## Review conclusion
 
-Material issues found; fix before completing the task.
+No material issues found. The earlier findings CR-1..CR-5 and TW-1 are resolved in the final code. CR-6 remains
+deferred as outside the task's touches. CR-7 and CR-8 are optional low-priority improvements. Because the sandbox
+blocked shell access, this conclusion rests on reading the final files, not on the exact diff or on observed test
+runs (see "Limits of this review session").
