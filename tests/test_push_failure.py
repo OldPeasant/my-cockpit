@@ -483,6 +483,34 @@ class DoneRefusedDirtyTree(DoneRefusedOnlyOnMain):
                       sh(self.tmp, "git", "--git-dir=remote.git", "log", "--format=%s", "wip/a").stdout)
 
 
+class DoneRefusedMergeInProgress(DoneRefusedOnlyOnMain):
+    """As DoneRefusedOnlyOnMain, but the last session leaves an unfinished merge after its failed `done`: the hold
+    retry aborts it before it commits a dirty tree, so the half-done merge never ends up on wip/a."""
+    fake_agent = FAKE_AGENT.replace('        tp("done", tid, "--force")\n', '''        tp("done", tid, "--force")
+        n = int(open(".git/fake-dones").read()) + 1 if os.path.exists(".git/fake-dones") else 1
+        open(".git/fake-dones", "w").write(str(n))
+        if n == 3:  # the session that starts the block: leave a merge in progress behind
+            git = lambda *a: subprocess.run(["git", *a], capture_output=True)
+            branch = subprocess.run(["git", "rev-parse", "--abbrev-ref", "HEAD"], capture_output=True,
+                                    text=True).stdout.strip()
+            git("checkout", "-qb", "side")
+            open("half-merged.txt", "w").write("from an unfinished merge\\n")
+            git("add", "half-merged.txt")
+            git("commit", "-qm", "side work")
+            git("checkout", "-q", branch)
+            git("merge", "--no-ff", "--no-commit", "side")
+''', 1)
+    assert fake_agent != FAKE_AGENT
+
+    def test_done_streak_puts_the_task_on_hold_not_back_on_the_board(self):
+        super().test_done_streak_puts_the_task_on_hold_not_back_on_the_board()
+        wip = sh(self.tmp, "git", "--git-dir=remote.git", "ls-tree", "-r", "--name-only", "wip/a").stdout
+        self.assertNotIn("half-merged.txt", wip)  # aborted, not committed as "wip: a (before hold)"
+        self.assertNotIn("wip: a (before hold)",
+                         sh(self.tmp, "git", "--git-dir=remote.git", "log", "--format=%s", "wip/a").stdout)
+        self.assertFalse((self.clone / ".git" / "MERGE_HEAD").exists())
+
+
 class DoneBlockedHoldRefused(PushRunner):
     """`done` keeps failing to push and the hold retry is refused too (wip/a is refused like main): the task stays
     blocked, every retry is a hold again (never a release, even after a failed hold re-blocked it), no session
