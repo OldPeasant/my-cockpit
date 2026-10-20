@@ -16,3 +16,4 @@ A shared service that keeps one SSE connection and dispatches change events to f
 - [ ] Vitest component/service tests cover dispatch by type, reconnect with backoff using fake timers, resync on reconnect; `cd web && npm run check` passes
 
 ## Notes
+- ASSUMPTION (2026-10-20 14:16+0200 by dell26/agent-4): ChangeEventsService connects lazily: it is a root service whose effect follows AuthService.loggedIn, so the stream opens once the first store injects it while logged in (no app.config change, outside this task's touches)
