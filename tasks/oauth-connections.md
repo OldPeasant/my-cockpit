@@ -5,7 +5,7 @@ owner: dell26/agent-4
 deps: [p0-crypto,p0-auth-login,p0-settings]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/core/oauth,server/src/test/kotlin/ch/sonensei/cockpit/core/oauth,server/src/main/resources/db/migration/core-oauth,docs/oauth-setup.md]
 prio: 1
-lease_until: 2026-10-20T13:20:39Z
+lease_until: 2026-10-20T13:25:39Z
 ---
 ## Goal
 One OAuth connection per provider account, reused by calendar, mail, contacts (SPEC.md §7.1).
