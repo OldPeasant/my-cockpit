@@ -18,3 +18,4 @@ Deployable stack (SPEC.md §11).
 - [ ] `deploy/host-backup.sh` example (pg_dump + data dir via restic) and `deploy/README.md` with first-deploy steps
 
 ## Notes
+- ASSUMPTION (2026-10-20 11:16+0200 by dell26/agent-3): Spring Security is still Boot's default (no SecurityFilterChain yet), so the SPA answers anonymous requests with 401; SpaFallbackTests run with @WithMockUser. Making the SPA public is p0-auth-login's criterion, so this task adds no security config.
