@@ -1,0 +1,16 @@
+{
+  "schema": 1,
+  "task": "gtd-model",
+  "reviewed_revision": "c468948a8948d64f2b5376c83557cbea3ab7641d",
+  "helpers": {
+    "test-writer": {"status": "completed", "report": "reviews/gtd-model/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/gtd-model/review.md"},
+    "fixer": {"status": "not_required", "reason": "test-writer found no production bugs and code-reviewer reported no findings"}
+  },
+  "fixes_required": false,
+  "findings": [],
+  "validation": [
+    {"command": "cd server && ./gradlew cleanTest test --tests 'ch.sonensei.cockpit.gtd.*'", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
