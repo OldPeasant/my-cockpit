@@ -35,6 +35,16 @@ export type { CompleteOAuthConnection$Params as CompleteOAuthConnection$Params }
 export { completeOAuthConnection as completeOAuthConnection } from './fn/o-auth/complete-o-auth-connection';
 export type { StartOAuthConnection$Params as StartOAuthConnection$Params } from './fn/o-auth/start-o-auth-connection';
 export { startOAuthConnection as startOAuthConnection } from './fn/o-auth/start-o-auth-connection';
+export type { ListReminders$Params as ListReminders$Params } from './fn/reminders/list-reminders';
+export { listReminders as listReminders } from './fn/reminders/list-reminders';
+export type { CreateReminder$Params as CreateReminder$Params } from './fn/reminders/create-reminder';
+export { createReminder as createReminder } from './fn/reminders/create-reminder';
+export type { ListUpcomingReminders$Params as ListUpcomingReminders$Params } from './fn/reminders/list-upcoming-reminders';
+export { listUpcomingReminders as listUpcomingReminders } from './fn/reminders/list-upcoming-reminders';
+export type { GetReminder$Params as GetReminder$Params } from './fn/reminders/get-reminder';
+export { getReminder as getReminder } from './fn/reminders/get-reminder';
+export type { DeleteReminder$Params as DeleteReminder$Params } from './fn/reminders/delete-reminder';
+export { deleteReminder as deleteReminder } from './fn/reminders/delete-reminder';
 export type { Search$Params as Search$Params } from './fn/search/search';
 export { search as search } from './fn/search/search';
 export type { GetSettings$Params as GetSettings$Params } from './fn/settings/get-settings';

@@ -8,6 +8,11 @@ tags:
 - description: "Connections to Google and Microsoft accounts, shared by calendar,\
     \ mail and contacts"
   name: OAuth
+- description: "Reminders for items of any type. When a reminder is due, the server\
+    \ fires it once and sends the SSE event `reminder` on `GET /api/v1/events` with\
+    \ a `ReminderResponse` as data. Every change also sends a `change` event of type\
+    \ `REMINDER`."
+  name: Reminders
 - description: Change notifications (Server-Sent Events)
   name: Events
 - description: Web login sessions and device tokens
@@ -575,6 +580,159 @@ paths:
       summary: Start connecting a provider account (browser navigation)
       tags:
       - OAuth
+  /api/v1/reminders:
+    get:
+      description: "All reminders of the item, fired or not, earliest first."
+      operationId: listReminders
+      parameters:
+      - description: Type of the item
+        in: query
+        name: itemType
+        required: true
+        schema:
+          type: string
+          enum:
+          - TASK
+          - PROJECT
+          - NOTE
+          - EVENT
+          - EMAIL
+          - FILE
+          - FOLDER
+          - CONTACT
+          - BOOKMARK
+          - JOURNAL_ENTRY
+          - HABIT
+      - description: Id of the item
+        in: query
+        name: itemId
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReminderListResponse"
+          description: The item's reminders (empty when it has none or does not exist)
+        "400":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: Missing or invalid itemType or itemId
+      summary: The reminders of an item
+      tags:
+      - Reminders
+    post:
+      description: "A time in the past is allowed: the reminder fires on the next\
+        \ scheduler run (within seconds). An item that does not exist is rejected;\
+        \ an item whose type has no module yet is accepted."
+      operationId: createReminder
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateReminderRequest"
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReminderResponse"
+          description: Created; `Location` points to the reminder
+        "400":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: Invalid request or unknown item
+      summary: Add a reminder to an item
+      tags:
+      - Reminders
+  /api/v1/reminders/upcoming:
+    get:
+      description: "Reminders that have not fired yet and are due at or before `until`,\
+        \ overdue ones included, earliest first, at most 1000. The Android app schedules\
+        \ local alarms from them."
+      operationId: listUpcomingReminders
+      parameters:
+      - description: Latest reminder time to include (ISO-8601 instant)
+        example: 2026-10-27T00:00:00Z
+        in: query
+        name: until
+        required: true
+        schema:
+          type: string
+          format: date-time
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReminderListResponse"
+          description: The pending reminders
+        "400":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: Missing or invalid until
+      summary: "Reminders not fired yet, up to a time"
+      tags:
+      - Reminders
+  /api/v1/reminders/{id}:
+    delete:
+      description: "Reminders never change after creation (only the server sets `firedAt`),\
+        \ so no `If-Match` is needed."
+      operationId: deleteReminder
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        "204":
+          description: Removed
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: No such reminder
+      summary: Remove a reminder
+      tags:
+      - Reminders
+    get:
+      operationId: getReminder
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReminderResponse"
+          description: The reminder
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: No such reminder
+      summary: One reminder
+      tags:
+      - Reminders
   /api/v1/search:
     get:
       description: "Every word of `q` must match the start of a word of an item's\
@@ -978,6 +1136,39 @@ components:
       required:
       - source
       - target
+    CreateReminderRequest:
+      type: object
+      properties:
+        channel:
+          type: string
+          description: Defaults to NOTIFICATION
+          enum:
+          - NOTIFICATION
+        itemId:
+          type: string
+          format: uuid
+        itemType:
+          type: string
+          enum:
+          - TASK
+          - PROJECT
+          - NOTE
+          - EVENT
+          - EMAIL
+          - FILE
+          - FOLDER
+          - CONTACT
+          - BOOKMARK
+          - JOURNAL_ENTRY
+          - HABIT
+        remindAt:
+          type: string
+          format: date-time
+          description: When to remind (ISO-8601 instant)
+      required:
+      - itemId
+      - itemType
+      - remindAt
     DeviceResponse:
       type: object
       properties:
@@ -1253,6 +1444,80 @@ components:
           minLength: 0
       required:
       - refreshToken
+    ReminderItemResponse:
+      type: object
+      description: "The reminded item. Without `available`, only type and id are set."
+      properties:
+        available:
+          type: boolean
+          description: False when the item no longer exists or its type has no resolver
+        deepLink:
+          type: string
+          description: "Client route of the item's detail view, e.g. /tasks/{id}"
+        icon:
+          type: string
+          description: Material Symbols icon name
+        id:
+          type: string
+          format: uuid
+        title:
+          type: string
+        type:
+          type: string
+          enum:
+          - TASK
+          - PROJECT
+          - NOTE
+          - EVENT
+          - EMAIL
+          - FILE
+          - FOLDER
+          - CONTACT
+          - BOOKMARK
+          - JOURNAL_ENTRY
+          - HABIT
+      required:
+      - available
+      - id
+      - type
+    ReminderListResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/ReminderResponse"
+      required:
+      - items
+    ReminderResponse:
+      type: object
+      description: A reminder; also the data of the `reminder` SSE event
+      properties:
+        channel:
+          type: string
+          enum:
+          - NOTIFICATION
+        createdAt:
+          type: string
+          format: date-time
+        firedAt:
+          type: string
+          format: date-time
+          description: When the server fired it; absent while pending
+        id:
+          type: string
+          format: uuid
+        item:
+          $ref: "#/components/schemas/ReminderItemResponse"
+        remindAt:
+          type: string
+          format: date-time
+      required:
+      - channel
+      - createdAt
+      - id
+      - item
+      - remindAt
     SearchGroupResponse:
       type: object
       properties:
