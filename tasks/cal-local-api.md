@@ -5,7 +5,7 @@ owner: R1963MACOS/agent-2
 deps: [cal-recurrence,p0-events-sse]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/calendar/api,server/src/test/kotlin/ch/sonensei/cockpit/calendar/api]
 prio: 1
-lease_until: 2026-10-20T18:11:19Z
+lease_until: 2026-10-20T18:16:10Z
 releases: 1
 extended: 
 ---
