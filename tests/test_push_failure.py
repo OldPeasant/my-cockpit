@@ -260,6 +260,8 @@ class RetryAfterFix(PushRunner):
         self.assertEqual(self.sessions(), 1)
         h.unlink()  # a human fixed the token
         self.wait_for("a handed back", lambda: "pushes had failed" in self.state("a")["text"], timeout=60)
+        # the board push comes first, the log line once give_up() returned
+        self.wait_for("released log", lambda: "released a for another agent" in self.log.read_text(), timeout=30)
         log = self.log.read_text()
         self.assertIn("released a for another agent", log.split("retrying to release a")[-1])
         self.assertIn("handed back by box/agent-1", self.state("a")["text"])
@@ -448,6 +450,7 @@ class DoneRefusedOnlyOnMain(PushRunner):
 
     def test_done_streak_puts_the_task_on_hold_not_back_on_the_board(self):
         self.wait_for("a on hold", lambda: self.state("a")["hold"] != "", timeout=180)
+        self.wait_for("hold log", lambda: "put a on hold for a human" in self.log.read_text(), timeout=30)
         a = self.state("a")
         self.assertEqual(a["status"], "todo")
         self.assertNotEqual(a["owner"], "box/agent-1")  # (field() reads an empty owner: as the next line)
@@ -502,6 +505,7 @@ class DoneBlockedHoldRefused(PushRunner):
         self.assertIn("workflow scope", s["error"])
         (self.tmp / "remote.git" / "hooks" / "pre-receive").unlink()  # a human fixed the token
         self.wait_for("a on hold", lambda: self.state("a")["hold"] != "", timeout=60)
+        self.wait_for("hold log", lambda: "put a on hold for a human" in self.log.read_text(), timeout=30)
         a = self.state("a")
         self.assertIn("done failed to push 3 sessions in a row", a["hold"])
         self.assertNotEqual(a["owner"], "box/agent-1")  # (field() reads an empty owner: as the next line)
@@ -577,6 +581,7 @@ class HoldRefusedInSession(SeqRunner):
         self.wait_for("a hold retry", lambda: "retrying to put a on hold" in self.log.read_text(), timeout=30)
         (self.tmp / "remote.git" / "hooks" / "pre-receive").unlink()  # a human fixed the token
         self.wait_for("a on hold", lambda: self.state("a")["hold"] != "", timeout=60)
+        self.wait_for("hold log", lambda: "put a on hold for a human" in self.log.read_text(), timeout=30)
         a = self.state("a")
         self.assertEqual((a["status"], a["hold"]), ("todo", "cannot finish"))  # the agent's own reason
         self.assertNotEqual(a["owner"], "box/agent-1")
