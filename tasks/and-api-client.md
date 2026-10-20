@@ -1,11 +1,11 @@
 ---
 title: Android API client and auth plumbing
-status: todo
-owner: 
+status: in_progress
+owner: dell26/agent-1
 deps: [and-shell,p0-auth-tokens]
 touches: [android/app/build.gradle.kts,android/app/src/main/java/ch/sonensei/cockpit/core/network,android/app/src/test/java/ch/sonensei/cockpit/core/network]
 prio: 1
-lease_until: 
+lease_until: 2026-10-20T14:38:59Z
 releases: 1
 extended: 
 ---
