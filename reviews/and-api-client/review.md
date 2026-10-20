@@ -4,36 +4,52 @@ Date: 2026-10-20
 
 Task: and-api-client - Android API client and auth plumbing
 
-Scope: `git diff 84979c21..d0edbce2` (base 84979c21 = main at claim; task commits 26ee3d5a..748e7b62, merged in d0edbce2). This is the second review round. The reviewed revision is d0edbce20440da638f5e4cc7460a2660a7217a29. Only committed production code was reviewed. An uncommitted test change from the parallel test-writer (`TokenAuthenticatorTest.kt`) is outside this scope.
+Scope: `git diff da92d052..28b0d42d -- android api docs` (da92d052 = `git merge-base HEAD origin/main`; task commits 26ee3d5a..c44b15b0, latest main merged in 28b0d42d). This is the third review round. The reviewed revision is 28b0d42d. The focus is the round-2 fixes in c44b15b0 (CR-5, CR-6, CR-7) plus a9650e58, with the whole task change re-checked against the acceptance criteria. The merge commit 28b0d42d only touches `tasks/*.md` (checked with `git diff c44b15b0 28b0d42d --stat`). The working tree was clean when the review started.
 
 Requirements:
-- `tasks/and-api-client.md`: acceptance criteria 1-4 and the six recorded assumptions
-- `SPEC.md` §4.1 (Android refresh/access tokens) and §9.2 (Android client, server URL setting)
-- `docs/ARCHITECTURE.md` (stack table, conventions) and `AGENTS.md` project notes
-- `api/README.md`
-- Earlier round: `reviews/and-api-client/fixes.md` (TW-1, TW-2, CR-1..CR-4)
+- `tasks/and-api-client.md`: acceptance criteria 1-4 and the recorded assumptions
+- `tasks/and-login.md` (the consumer of `setServerUrl` and `TokenStore`, used to judge CR-7)
+- `SPEC.md` §4.1 and §9.2, `docs/ARCHITECTURE.md`, `AGENTS.md` project notes
+- Earlier rounds: `reviews/and-api-client/fixes.md`, the round-2 `review.md`
 
 Git range:
 - Branch: main
-- HEAD: d0edbce20440da638f5e4cc7460a2660a7217a29
-- Base/start: 84979c21
-- Commits reviewed: 7 task commits + 1 merge commit
+- HEAD: 28b0d42d
+- Base/start: da92d0527f5bb04b8cee5f31debd6af7f8f55e85
+- Commits reviewed: 9 task commits + 2 merge commits (d0edbce2, 28b0d42d)
 
-Summary: 0 P0, 0 P1, 1 P2, 2 P3
+Summary: 0 P0, 0 P1, 0 P2, 0 P3
 
 ## Earlier findings re-checked
 
-- CR-1 / TW-1 / TW-2: fixed. `TokenRefresher.kt:37-49` maps `IOException`, `SerializationException`, `IllegalArgumentException` and `DateTimeException` to `Failed`. Nothing escapes to OkHttp's thread for the decoding failures the tests cover (malformed body, missing fields, bad UUID, bad date, unknown enum).
-- CR-2: fixed. `ServerUrl.kt:79-91` logs out with `SERVER_CHANGED` under `AuthSession.refreshLock` before it stores a URL with a different origin. The logout runs outside the DataStore edit, so there is no deadlock with `ServerUrlInterceptor`'s read. `ServerUrlInterceptor` runs before `AccessTokenInterceptor`, so a request that reads the new URL cannot carry the old tokens. The remaining window (an in-flight 401 from the old server retried with a newly issued access token) is recorded as an assumption.
-- CR-3: fixed. `TokenStore.replace` is a synchronized compare-and-set. `TokenAuthenticator` applies a refresh result, or logs out via `logoutIfCurrent`, only if the tokens are unchanged. Unit tests cover each interleaving.
-- CR-4: fixed. `serverConfigDataStore` uses `ReplaceFileCorruptionHandler`, and `readablePrefs()` maps an `IOException` to empty preferences.
+- **CR-5 (= TW-3): fixed.** See `TokenAuthenticator.kt:29-33, 43, 47, 59-63`.
+  - Both `failedRefreshes++` and `failedFrom = current` are written under `session.refreshLock`. The counter is `@Volatile`, so the read before the lock (line 43) sees every committed failure. `failedFrom` is read and written only under the lock.
+  - The interleavings work out as follows:
+    - Waiter A reads the counter, then a refresh from pair T fails while A waits. A finds `current == T == failedFrom` with a changed counter and gives up. This is the intended shared failure.
+    - A newer 401 reads the counter after the failure, sees no change, and refreshes again. This matches the documented behavior.
+    - After the failure, a successful refresh or a new login replaces T. A's `current.accessToken != sentToken`, so A retries with the stored token, unaffected by the guard.
+    - A second failure from T while A waits still matches `failedFrom`. A failure from another pair cannot reach line 47 for A, because A's sent token equals `current.accessToken`.
+  - A request can give up only because of a failure that finished after its own 401 reached the authenticator. That failed refresh was then running, or was queued ahead of it, for the same pair. So a request is never refused because of an unrelated, older failure.
+  - Success, Rejected and the CAS paths are unchanged.
+  - The MockWebServer test (8 synchronous calls, slow 503 refresh, then a working refresh) checks exactly 1 and then 2 refresh calls. `fixes.md` reports that it fails with the guard disabled (8 calls).
+- **CR-6: fixed.** See `ServerUrl.kt:90-94`. The `synchronized` block runs inside `withContext(Dispatchers.IO)`, so the caller's thread suspends instead of blocking.
+  - If the caller is cancelled while it waits, the logout still happens when the lock is acquired. `withContext` then throws on exit, so the new URL is not stored. The result is logged out with the old URL, which is the safe direction.
+  - The test `a server change during a running refresh does not block the calling thread` shows that a single-thread caller dispatcher stays free while the change waits.
+- **CR-7: fixed, and it does not log out wrongly on first setup.** See `ServerUrl.kt:88`.
+  - The logout now also runs when `previous == null`, but only if `session.isLoggedIn`.
+  - On a first setup there are no tokens. `ServerUrlInterceptor` throws `No server URL configured` without a stored URL (`ServerUrl.kt:127`), so a login request cannot even be sent before the URL is stored. The flow `and-login` describes (server URL + credentials on one login screen) therefore has to store the URL before it gets tokens, and CR-7 then does nothing.
+  - The only way to be logged in without a stored URL is unreadable or replaced settings, or tokens that were restored without their settings. Logging out is the correct hardening there.
+  - The KDoc (`ServerUrl.kt:79-80`) states this contract for `and-login`.
+  - The test change (the first URL is now set before the login) matches the real flow and is not a weakened assertion: the same-origin and invalid-URL checks are kept, and a new test covers both null-previous cases (corrupt file, empty store).
 
-Checked without findings:
-- Generation happens at build time only (`git ls-files android | grep -c generated/openapi` -> 0). Generated sources are excluded from ktlint, and the generated `ApiClient` is ignored.
-- Cleartext: `ServerUrlValidator.CLEARTEXT_HOSTS` matches `network_security_config.xml`, and the base config denies cleartext. URLs with user info, a query or a fragment are rejected.
-- The refresh uses a separate client without the token interceptor or authenticator, so there is no recursion. A caller-set `Authorization` header is kept.
-- Nothing is logged, and `AuthTokens.toString()` is redacted.
-- The stack table in `docs/ARCHITECTURE.md` and `api/README.md` are updated. The INTERNET permission is recorded as an assumption.
+## Acceptance criteria
+
+1. Build-time generation: `android/app/build.gradle.kts` generates Retrofit2 + kotlinx.serialization sources from `../api/openapi.yaml` into the build directory. No generated sources are tracked (unchanged since round 2, already confirmed there).
+2. Interceptor and Authenticator: `AccessTokenInterceptor` adds the bearer token. `TokenAuthenticator` refreshes once per 401 (`priorResponse` guard), and concurrent 401s share one refresh for Success, Rejected and now also Failed. A rejected refresh logs out (`logoutIfCurrent`). MockWebServer tests cover each case.
+3. Server URL: stored in DataStore and validated (https only, http only for `CLEARTEXT_HOSTS`, and the list matches `network_security_config.xml`, checked by `NetworkSecurityConfigTest`). The URL is rewritten per request.
+4. Tests: `core.network.*` covers token injection, single refresh for concurrent 401s (success, rejected, failed), and logout on refresh failure. I did not run Gradle in this round, to avoid contention with the parallel test-writer. The pass results come from `fixes.md` and the test-writer, and the parent worker must record its own run with `tasks.py verify`.
+
+Checked without findings: no logging of tokens (`AuthTokens.toString()` is redacted), the refresh client has no authenticator or token interceptor, and the docs (stack table, `api/README.md`) are updated. No secrets are committed.
 
 ## P0 Critical
 
@@ -45,29 +61,12 @@ None.
 
 ## P2 Medium
 
-- [ ] **CR-5 | Concurrent 401s with a failing refresh repeat the refresh once per waiting request, one after another under the lock**
-    - File: `android/app/src/main/java/ch/sonensei/cockpit/core/network/TokenAuthenticator.kt:33-47`
-    - Category: Correctness (resilience)
-    - Problem: requests that get a 401 while a refresh runs wait on `session.refreshLock`. When that refresh returns `RefreshResult.Failed` (5xx, timeout, unreachable server, undecodable body), the tokens stay the same. Each waiting thread then finds `current.accessToken == sentToken` and starts its own refresh. N concurrent 401s therefore cause N refresh calls, one at a time. Each holds the lock for up to OkHttp's default connect/read timeouts (10 s each). Single-flight holds only for the `Success` and `Rejected` outcomes. No committed test covers concurrent 401s with a failing refresh. The test-writer's uncommitted `DIAG` test probes this case.
-    - Why it matters: the refresh is not shared when the server is unhealthy, so a burst of N calls becomes N refresh calls. The burst fails only after about N times the timeout instead of one, and `setServerUrl` (which takes the same lock) is blocked for that whole time. Criterion 2 asks that concurrent requests share one refresh.
-    - Suggested fix: record the outcome of the last refresh for the token pair it started from. For example, keep `lastFailed: AuthTokens?` (or a refresh generation counter) under the lock. A waiter whose `current` equals the pair that just failed then returns null without refreshing again. Clear the marker on the next successful save or replace. Add a MockWebServer test: 8 concurrent 401s, a slow 503 refresh, exactly 1 refresh call, tokens kept.
+None.
 
 ## P3 Low
 
-- [ ] **CR-6 | `setServerUrl` can block the caller's thread for a whole refresh**
-    - File: `android/app/src/main/java/ch/sonensei/cockpit/core/network/ServerUrl.kt:84-86`
-    - Category: Quality
-    - Problem: the suspend function enters `synchronized(session.refreshLock)` on the caller's dispatcher. While a refresh holds the lock (a network call, see CR-5), the calling thread blocks instead of suspending. The settings screen will most likely call it from `Dispatchers.Main` (viewModelScope).
-    - Why it matters: the UI freezes, with a risk of an ANR, when the user changes the server while a refresh hangs. Suspend functions are expected to be safe to call from the main thread.
-    - Suggested fix: run the locked section in `withContext(Dispatchers.IO)`, or document that it is not main-safe. Fixing CR-5 shortens how long it can block.
-
-- [ ] **CR-7 | No previous URL (unreadable settings) keeps the tokens on a server change**
-    - File: `android/app/src/main/java/ch/sonensei/cockpit/core/network/ServerUrl.kt:82-83`
-    - Category: Security (hardening)
-    - Problem: `previous` is null both when no URL was ever stored and when `readablePrefs()` turned an `IOException` into empty preferences (CR-4 path). In both cases no logout happens. If the read fails while the user is logged in and a different server is then saved, the tokens are kept and sent to the new host. This also applies once `and-login` persists tokens across a corrupt-file reset.
-    - Why it matters: binding tokens to their issuing server (the CR-2 fix) depends on reading the previous URL. Being logged in without a known server origin is an anomaly, and it should not let the tokens go to the new host.
-    - Suggested fix: when `previous` is null and `session.isLoggedIn`, log out as well (`SERVER_CHANGED`). This costs nothing in the normal first-setup case, where there are no tokens yet.
+None.
 
 ## Review conclusion
 
-Material issues found; fix before completing the task. CR-5 is a P2 resilience gap in criterion 2's single-flight refresh. CR-6 and CR-7 are low-priority hardening. The earlier findings CR-1..CR-4, TW-1 and TW-2 are confirmed fixed.
+No material issues found. CR-5, CR-6 and CR-7 are correctly fixed in 28b0d42d without introducing races or a wrongful logout on first setup. The earlier findings CR-1..CR-4, TW-1 and TW-2 are still fixed.

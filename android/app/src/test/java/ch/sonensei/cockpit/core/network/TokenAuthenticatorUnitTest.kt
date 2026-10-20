@@ -157,6 +157,57 @@ class TokenAuthenticatorUnitTest {
     }
 
     @Test
+    fun `a 401 waiting for a refresh that fails gives up, and a later 401 refreshes again`() {
+        tokenStore.save(AuthTokens("old-access", "old-refresh"))
+        val failing = WaitingRefresher(RefreshResult.Failed)
+        val authenticator = TokenAuthenticator(tokenStore, failing, session)
+        val firstRetry = AtomicReference<Request?>(bearer("unset"))
+        val secondRetry = AtomicReference<Request?>(bearer("unset"))
+        val first = Thread { firstRetry.set(authenticator.authenticate(null, unauthorized(bearer("old-access")))) }
+        val second = Thread { secondRetry.set(authenticator.authenticate(null, unauthorized(bearer("old-access")))) }
+
+        first.start()
+        assertTrue(failing.started.await(5, TimeUnit.SECONDS))
+        second.start()
+        // BLOCKED on the refresh lock: the second 401 is waiting for the running refresh.
+        awaitBlocked(second)
+        failing.finish.countDown()
+        first.join(5_000)
+        second.join(5_000)
+
+        assertNull(firstRetry.get())
+        assertNull(secondRetry.get())
+        assertEquals(listOf("old-refresh"), failing.refreshedWith)
+        assertEquals(AuthTokens("old-access", "old-refresh"), tokenStore.current())
+
+        // A 401 that arrives after the failure is not a waiter of it: it may refresh again (and fails again).
+        assertNull(authenticator.authenticate(null, unauthorized(bearer("old-access"))))
+        assertEquals(listOf("old-refresh", "old-refresh"), failing.refreshedWith)
+    }
+
+    @Test
+    fun `a 401 waiting for a failed refresh refreshes itself when the tokens changed meanwhile`() {
+        tokenStore.save(AuthTokens("old-access", "old-refresh"))
+        // The failing refresh started from old-refresh; meanwhile the refresh token was replaced (same access token).
+        val failing =
+            WaitingRefresher(RefreshResult.Failed) { tokenStore.save(AuthTokens("old-access", "rotated-refresh")) }
+        val authenticator = TokenAuthenticator(tokenStore, failing, session)
+        val first = Thread { authenticator.authenticate(null, unauthorized(bearer("old-access"))) }
+        val second = Thread { authenticator.authenticate(null, unauthorized(bearer("old-access"))) }
+
+        first.start()
+        assertTrue(failing.started.await(5, TimeUnit.SECONDS))
+        second.start()
+        awaitBlocked(second)
+        failing.finish.countDown()
+        first.join(5_000)
+        second.join(5_000)
+
+        // The failure was for other tokens, so the waiter does not give up on the current ones.
+        assertEquals(listOf("old-refresh", "rotated-refresh"), failing.refreshedWith)
+    }
+
+    @Test
     fun `a user logout clears the tokens and emits USER`() =
         runBlocking {
             tokenStore.save(AuthTokens("old-access", "old-refresh"))
@@ -288,6 +339,30 @@ class TokenAuthenticatorUnitTest {
         },
         session,
     )
+
+    /** A refresher that answers [result] only after [finish] opened, running [beforeAnswer] first; it records its calls. */
+    private class WaitingRefresher(
+        private val result: RefreshResult,
+        private val beforeAnswer: () -> Unit = {},
+    ) : TokenRefresher {
+        val started = CountDownLatch(1)
+        val finish = CountDownLatch(1)
+        val refreshedWith = CopyOnWriteArrayList<String>()
+
+        override fun refresh(refreshToken: String): RefreshResult {
+            refreshedWith += refreshToken
+            started.countDown()
+            finish.await(5, TimeUnit.SECONDS)
+            beforeAnswer()
+            return result
+        }
+    }
+
+    private fun awaitBlocked(thread: Thread) {
+        val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5)
+        while (thread.state != Thread.State.BLOCKED && System.nanoTime() < deadline) Thread.yield()
+        assertEquals(Thread.State.BLOCKED, thread.state)
+    }
 
     private fun request() = Request.Builder().url("https://server.invalid/api/v1/auth/me").build()
 

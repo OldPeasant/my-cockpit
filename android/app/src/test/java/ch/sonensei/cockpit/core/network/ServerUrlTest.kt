@@ -15,6 +15,7 @@ import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.async
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import mockwebserver3.MockResponse
@@ -385,6 +386,19 @@ class ServerUrlTest {
         }
 
     @Test
+    fun `settings the production store cannot read (not only a corrupt file) count as not configured`() =
+        runBlocking {
+            val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+            // A directory instead of a file: an IOException the corruption handler does not handle.
+            val unreadable = File(tmp.root, "dir.preferences_pb").apply { mkdirs() }
+            val repository = ServerUrlRepository(serverConfigDataStore(scope) { unreadable }, session)
+
+            // The read ends with "not configured" instead of failing its collector.
+            assertEquals(listOf<HttpUrl?>(null), repository.serverUrl.toList())
+            scope.cancel()
+        }
+
+    @Test
     fun `the production settings store replaces a corrupt file so the URL can be set again`() =
         runBlocking {
             val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
@@ -444,9 +458,18 @@ class ServerUrlTest {
                     }
                 }.apply { start() }
             assertTrue(lockHeld.await(5, TimeUnit.SECONDS))
-            val callerThread = Executors.newSingleThreadExecutor().asCoroutineDispatcher()
+            val callerThreadRef = AtomicReference<Thread>()
+            val callerThread =
+                Executors.newSingleThreadExecutor { task -> Thread(task).also { callerThreadRef.set(it) } }.asCoroutineDispatcher()
 
             val change = scope.async(callerThread) { repository.setServerUrl("https://other.example.org") }
+            // Wait until the change really waits for the lock (and is not just suspended in the DataStore read),
+            // otherwise the check below would also pass for an implementation that blocks its caller.
+            val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5)
+            while (blockedThreadsIn("setServerUrl").isEmpty() && System.nanoTime() < deadline) Thread.yield()
+            val blocked = blockedThreadsIn("setServerUrl")
+            assertEquals(1, blocked.size)
+            assertTrue("the caller's thread must not wait for the lock", callerThreadRef.get() !in blocked)
             // While the change waits for the lock, its caller's only thread is still free for other work.
             val callerFree = withTimeout(5_000) { scope.async(callerThread) { true }.await() }
             releaseLock.countDown()
@@ -460,8 +483,12 @@ class ServerUrlTest {
         }
 
     /** Whether some thread is blocked on a monitor inside [method] (or a coroutine block of it). */
-    private fun aThreadIsBlockedIn(method: String): Boolean =
-        Thread.getAllStackTraces().any { (thread, stack) ->
-            thread.state == Thread.State.BLOCKED && stack.any { it.toString().contains(method) }
-        }
+    private fun aThreadIsBlockedIn(method: String): Boolean = blockedThreadsIn(method).isNotEmpty()
+
+    /** The threads blocked on a monitor inside [method] (or a coroutine block of it). */
+    private fun blockedThreadsIn(method: String): Set<Thread> =
+        Thread
+            .getAllStackTraces()
+            .filter { (thread, stack) -> thread.state == Thread.State.BLOCKED && stack.any { it.toString().contains(method) } }
+            .keys
 }
