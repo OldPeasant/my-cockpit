@@ -15,7 +15,8 @@ CRUD for local calendars and events (SPEC.md §6.4).
 ## Acceptance criteria
 - [x] `GET/POST/PATCH /api/v1/calendar/calendars`; `GET /api/v1/calendar/events?from=&to=&calendarIds=` returns expanded occurrences
   - verified (2026-10-20 20:43+0200 by R1963MACOS/agent-2): server/gradlew -p server test --rerun --tests 'ch.sonensei.cockpit.calendar.api.*' (Testcontainers Postgres, Docker) -> CalendarWebTests/CalendarEventWebTests (calendars CRUD, events?from=&to=&calendarIds= expanded occurrences, range validation) all pass; 145/145 tests
-- [ ] `POST/PATCH/DELETE /api/v1/calendar/events/{id}?scope=THIS|FOLLOWING|ALL&occurrence=` with correct series splitting/overrides for local events
+- [x] `POST/PATCH/DELETE /api/v1/calendar/events/{id}?scope=THIS|FOLLOWING|ALL&occurrence=` with correct series splitting/overrides for local events
+  - verified (2026-10-20 20:43+0200 by R1963MACOS/agent-2): same run -> CalendarSeriesEdgeCaseWebTests + series request tests (POST/PATCH/DELETE with scope THIS|FOLLOWING|ALL&occurrence=, splitting, overrides, CR-1/4/5, TW-2) pass; 145/145, 0 failures
 - [ ] ChangeEvents, search, trash for events
 - [ ] `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.calendar.api.*'` passes (Postgres via Testcontainers where persistence is involved)
 - [ ] API documented: `api/openapi.yaml` regenerated (`UPDATE_OPENAPI=1 ./gradlew test --tests '*OpenApiContractTest'`) and `OpenApiContractTest` passes without the flag
