@@ -3,8 +3,10 @@ package ch.sonensei.cockpit.mail.sanitize
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldNotContain
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.Timeout
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.ValueSource
+import java.util.concurrent.TimeUnit
 
 class InlineStyleSanitizerTests {
 	@Test
@@ -151,5 +153,45 @@ class InlineStyleSanitizerTests {
 		// at the next ';', so a browser would apply `position: fixed` here (CSS Syntax 3, 4.3.5).
 		val style = InlineStyleSanitizer.sanitize("font-family: \"a$newline; position: fixed; top: 0; x: \"")
 		style shouldNotContain "position"
+	}
+
+	@Test
+	fun `a newline outside quotes is plain whitespace`() {
+		InlineStyleSanitizer.sanitize("color: red;\r\n\u000cfont-family: \"Arial\"") shouldBe "color: red; font-family: \"Arial\""
+	}
+
+	@Test
+	@Timeout(value = 2, unit = TimeUnit.SECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
+	fun `many unclosed comments just below the length cap are handled in linear time`() {
+		val style = "color: red; x: " + "/*".repeat((InlineStyleSanitizer.MAX_STYLE_LENGTH - 20) / 2)
+		InlineStyleSanitizer.sanitize(style) shouldBe "color: red"
+	}
+
+	@Test
+	@Timeout(value = 2, unit = TimeUnit.SECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
+	fun `a huge hostile style is dropped quickly`() {
+		InlineStyleSanitizer.sanitize("color: red; x: " + "/*".repeat(100_000)) shouldBe ""
+		InlineStyleSanitizer.sanitize("a".repeat(1_000_000)) shouldBe ""
+	}
+
+	@ParameterizedTest
+	@ValueSource(
+		strings = [
+			"width: -1url(https://tracker.example/a)",
+			"width: 9_url (https://tracker.example/a)",
+			"width: --url\t(https://tracker.example/a)",
+			"width: calc(1px + -image-set(x))",
+		],
+	)
+	fun `a forbidden function name is found also behind other name characters`(declaration: String) {
+		InlineStyleSanitizer.sanitize(declaration) shouldBe ""
+	}
+
+	@Test
+	@Timeout(value = 2, unit = TimeUnit.SECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
+	fun `a style at the length cap is still sanitized`() {
+		val style = "color: red; font-family: " + "a".repeat(InlineStyleSanitizer.MAX_STYLE_LENGTH - 25)
+		style.length shouldBe InlineStyleSanitizer.MAX_STYLE_LENGTH
+		InlineStyleSanitizer.sanitize(style) shouldBe style
 	}
 }
