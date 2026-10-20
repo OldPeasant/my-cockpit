@@ -4,31 +4,60 @@ Date: 2026-10-20
 
 Task: and-shell (Android app shell: theme, navigation, placeholders)
 
-Scope: `git diff 12e99dabc244ec4a629b9b123d0e21974486a462..448f750d08bb6539b0048ec552388114f2e8ea07` (task commits c20dbfc implementation, 448f750 tests + tests.md). Reviewed revision: 448f750d08bb6539b0048ec552388114f2e8ea07.
+Scope: `git diff 12e99dabc244ec4a629b9b123d0e21974486a462..1a190a6cc3d726bd02a4ce825b83910def86dcc1`, limited to the task commits f4d5745 (implementation), abd1b6b (tests), 062c0e3 (first review), 3b7f866 (CR-1 fix) and 1a190a6 (re-test). The range also holds other agents' work merged into main (server `core/web`, `api/`, p0-api-conventions reviews, TFP tooling); that work is outside this task and was not reviewed. Reviewed revision: 1a190a6cc3d726bd02a4ce825b83910def86dcc1.
 
 Requirements:
-- `tasks/and-shell.md` acceptance criteria and the three recorded assumptions (`python tasks.py assumptions`)
-- `SPEC.md` (§2.1 Android stack, §9.2, §12 tests)
-- `docs/ARCHITECTURE.md` (Android: MVVM, one package per feature, externalized strings, lint warnings as errors, Coverage)
+- `tasks/and-shell.md` acceptance criteria and its three recorded assumptions
+- `SPEC.md` (Android stack, tests)
+- `docs/ARCHITECTURE.md` (Android conventions, externalized strings, lint, Coverage)
 - `AGENTS.md` project notes and conventions
-- `touches` of the other `tasks/and-*.md` (placeholder package ownership)
+- Previous review (`reviews/and-shell/review.md` at 062c0e3, CR-1), `reviews/and-shell/fixes.md`, `reviews/and-shell/tests.md`
 - Parent worker instructions
 
 Git range:
 - Branch: main
-- HEAD: 448f750d08bb6539b0048ec552388114f2e8ea07
+- HEAD: 1a190a6cc3d726bd02a4ce825b83910def86dcc1
 - Base/start: 12e99dabc244ec4a629b9b123d0e21974486a462
-- Commits reviewed: 2 (c20dbfc, 448f750)
+- Commits reviewed: 5 (task commits)
 - Uncommitted changes: none
 
-Summary: 0 P0, 0 P1, 1 P2, 0 P3
+Summary: 0 P0, 0 P1, 0 P2, 0 P3
+
+## CR-1 re-check (previous review)
+
+Resolved. `CockpitShell.kt:109` now uses `popUpTo(start) { saveState = true }` unconditionally, and `restoreState = destination != More` (line 111) is unchanged. So the tab being left is always saved, and More always opens on its list. I traced the cases by hand:
+- tab, then More, then tab: the tab is saved and restored.
+- More sub-screen, then tab, then More: More plus its sub-screen are saved but not restored, so a fresh More list opens with only Today below it.
+- Reselecting the current tab: it is saved and restored in place.
+
+None of these leave stale entries. The KDoc (lines 100-106) describes the behavior correctly. These regression tests cover it:
+- `tabKeepsItsSavedStateAcrossAVisitToMore` covers Inbox, Calendar and Mail, checking the entry id and a `SavedStateHandle` value.
+- `tabKeepsItsSavedStateAcrossAVisitToAMoreSubScreen`
+- `moreIsNotRestoredAfterBeingLeft`
+- `moreListReopenedAfterASubScreenHasOnlyTodayBelowIt`
+
+All four run through the production `CockpitShell(navController)` in `CockpitShellNavigationTest`. fixes.md reports that the first one fails against the old line.
 
 ## Acceptance criteria check
 
-1. `CockpitApp` is `@HiltAndroidApp` and registered in the manifest (`android:name=".CockpitApp"`, recorded assumption #3). `MainActivity` is `@AndroidEntryPoint`. `CockpitTheme` uses Material 3 with dynamic color on API 31+, a fallback palette before that, and dark mode following the system. The bottom bar holds Today, Inbox, Calendar, Mail and More, and More lists the 12 required items in the required order (`CockpitDestination`). Met.
-2. There is one placeholder `<Feature>Screen(modifier)` per destination, each in the package its owning feature task touches (gtd/today, gtd/inbox, calendar/agenda, mail/list, gtd/next, gtd/projects, gtd/lists, notes, files, contacts, bookmarks, journal, habits, review, settings). I checked these against the `touches` of the other `and-*` tasks, and they match assumption #1. All of them are listed in `android/README.md`. Met.
-3. User-facing strings (labels, back content description, placeholder body) are in `res/values/strings.xml`. I found no hard-coded UI text in `android/app/src/main/java`. Met.
-4. `ch.sonensei.cockpit.ui.*` contains Robolectric Compose UI tests that cover switching between all bottom-bar destinations, the More sub-screens, back behavior and the back stack. The test-writer reports 39 passed. I did not re-run them in this review; the parent records the evidence. Met, subject to the recorded evidence.
+1. Met.
+   - `CockpitApp` is `@HiltAndroidApp` and registered in the manifest (`android:name=".CockpitApp"`, assumption #3). `MainActivity` is `@AndroidEntryPoint`.
+   - `CockpitTheme` uses Material 3 with dynamic color on API 31+, a fallback palette before that, and dark mode following the system.
+   - The bottom bar holds Today, Inbox, Calendar, Mail and More. The More list holds the 12 required items in the required order (`CockpitDestination`).
+2. Met. There is one placeholder `<Feature>Screen(modifier)` per destination, each in the package its feature task owns (assumption #1). All of them are listed in `android/README.md`.
+3. Met. All UI text comes from `res/values/strings.xml`. A search of `app/src/main/java` for string literals found only routes and test tags, no user-facing text.
+4. Met. I ran `cd android && ./gradlew ktlintCheck testDebugUnitTest --tests 'ch.sonensei.cockpit.ui.*' lintDebug` at HEAD. BUILD SUCCESSFUL, 43 tests, 0 failures, 0 errors, 0 skipped:
+
+   | Suite | Tests |
+   |---|---|
+   | CockpitShellNavigationTest | 13 |
+   | CockpitDestinationTest | 11 |
+   | CockpitThemeTest | 9 |
+   | CockpitShellTest | 6 |
+   | MainActivityLaunchTest | 2 |
+   | PlaceholderScreenTest | 2 |
+
+   Navigation between all bottom-bar destinations is covered by `CockpitShellTest.bottomBarSwitchesBetweenAllMainDestinations` and the back-stack tests.
 
 ## P0 Critical
 
@@ -40,12 +69,7 @@ None.
 
 ## P2 Medium
 
-- [ ] **CR-1 | Opening More discards the saved state of the tab being left, which contradicts "each tab keeps its state"**
-    - File: `android/app/src/main/java/ch/sonensei/cockpit/ui/CockpitShell.kt:106`
-    - Category: Correctness
-    - Problem: `popUpTo(...) { saveState = destination != CockpitDestination.More }` picks `saveState` based on the *target* tab. In Navigation, `saveState` controls whether the destinations being *popped* are saved, and those belong to the tab being left. So tapping More from Inbox, Calendar or Mail pops that tab without saving it. The next time the user returns to that tab, `restoreState = true` has nothing to restore, and the tab starts fresh. The KDoc at line 101 and the README say "each tab keeps its state". Assumption #2 only covers More being reset, not the other tabs losing their state. `CockpitShellTest.tabKeepsItsPlaceWhenComingBack` (test line 115) does not catch this, for two reasons: the placeholders hold no state, and the test never visits More.
-    - Why it matters: Feature tasks cannot edit the shell (they only touch their own packages). Once Inbox, Mail or Calendar keep `rememberSaveable` state (scroll position, filters, selection), every visit to More would silently reset it, and the owning feature task could not fix that.
-    - Suggested fix: Always save the state of the tab being left (`saveState = true`), and keep `restoreState = destination != More` so that More still opens on its list. Alternatively, decide `saveState` from the current destination rather than the target. Then add a test that puts a `rememberSaveable` value or a nested entry in a tab, goes to More and back, and asserts the value survived. This can be a test-only composable driven through the same `navigateToTopLevel` logic, or an assertion on the back stack / saved state.
+None.
 
 ## P3 Low
 
@@ -53,4 +77,4 @@ None.
 
 ## Review conclusion
 
-Material issues found; fix before completing the task. All acceptance criteria are met. The one P2 finding is a tab-state defect in the shared navigation helper that later feature tasks cannot fix themselves, so it should be resolved here.
+No material issues found.
