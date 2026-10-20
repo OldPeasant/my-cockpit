@@ -5,7 +5,7 @@ owner: dell26/agent-1
 deps: [p0-e2e-harness,p0-web-settings,p0-web-sse,p0-ci,p0-web-devices,p0-trash-core,p0-search-core]
 touches: [web/e2e/phase0,README.md]
 prio: 1
-lease_until: 2026-10-20T16:27:59Z
+lease_until: 2026-10-20T16:31:40Z
 ---
 ## Goal
 Automate SPEC.md §13.2 Phase 0 and write the project README.
