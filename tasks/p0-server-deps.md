@@ -18,3 +18,4 @@ Add every server library the spec needs up front (SPEC.md §2.1), so later tasks
 - [ ] ARCHITECTURE.md stack table and Testing section updated (test vs integrationTest, Podman variables)
 
 ## Notes
+- ASSUMPTION (2026-10-20 10:21+0200 by dell26/agent-1): JSON logging uses Spring Boot's built-in structured logging (logging.structured.format.console=logstash) instead of a logback-spring.xml; logstash-logback-encoder is declared as required but not wired yet. The dev profile blanks the property for plain logs; tests use the default profile and therefore log JSON.
