@@ -5,7 +5,7 @@ owner: dell26/agent-3
 deps: [cal-recurrence,p0-events-sse]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/calendar/api,server/src/test/kotlin/ch/sonensei/cockpit/calendar/api]
 prio: 1
-lease_until: 2026-10-20T17:18:03Z
+lease_until: 2026-10-20T17:23:08Z
 ---
 ## Goal
 CRUD for local calendars and events (SPEC.md §6.4).
