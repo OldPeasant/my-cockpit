@@ -318,6 +318,41 @@ class FilesApiEdgeCaseWebTests(
 	}
 
 	@Test
+	fun `a partial download keeps the attachment header, and several ranges come as multipart byteranges`() {
+		val id = upload("Zählerstände.txt", "abcdefghijklmnopqrstuvwxyz".toByteArray())["id"].asString()
+		mockMvc.get("$FILES/$id/content") { header(HttpHeaders.RANGE, "bytes=0-0") }.andExpect {
+			status { isPartialContent() }
+			header { string(HttpHeaders.CONTENT_RANGE, "bytes 0-0/26") }
+			header {
+				string(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"Z_hlerst_nde.txt\"; filename*=UTF-8''Z%C3%A4hlerst%C3%A4nde.txt")
+			}
+			content { string("a") }
+		}
+		// The last byte exactly, and an open-ended range starting at it.
+		mockMvc.get("$FILES/$id/content") { header(HttpHeaders.RANGE, "bytes=25-") }.andExpect {
+			status { isPartialContent() }
+			header { string(HttpHeaders.CONTENT_RANGE, "bytes 25-25/26") }
+			content { string("z") }
+		}
+		// One past the last byte is not satisfiable.
+		mockMvc.get("$FILES/$id/content") { header(HttpHeaders.RANGE, "bytes=26-") }.andExpect {
+			status { isRequestedRangeNotSatisfiable() }
+		}
+		val multi =
+			mockMvc
+				.get("$FILES/$id/content") { header(HttpHeaders.RANGE, "bytes=0-1,24-25") }
+				.andExpect { status { isPartialContent() } }
+				.andReturn()
+				.response
+		multi.contentType!!.startsWith("multipart/byteranges") shouldBe true
+		val body = multi.contentAsString
+		body.contains("Content-Range: bytes 0-1/26") shouldBe true
+		body.contains("Content-Range: bytes 24-25/26") shouldBe true
+		body.contains("ab") shouldBe true
+		body.contains("yz") shouldBe true
+	}
+
+	@Test
 	fun `a part without a content type gets the mime type guessed from its name`() {
 		val file =
 			mockMvc

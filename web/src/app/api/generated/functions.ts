@@ -79,6 +79,10 @@ export type { DeleteEvent$Params as DeleteEvent$Params } from './fn/calendars/de
 export { deleteEvent as deleteEvent } from './fn/calendars/delete-event';
 export type { UpdateEvent$Params as UpdateEvent$Params } from './fn/calendars/update-event';
 export { updateEvent as updateEvent } from './fn/calendars/update-event';
+export type { Capture$Params as Capture$Params } from './fn/capture/capture';
+export { capture as capture } from './fn/capture/capture';
+export type { PreviewCapture$Params as PreviewCapture$Params } from './fn/capture/preview-capture';
+export { previewCapture as previewCapture } from './fn/capture/preview-capture';
 export type { ListFolder$Params as ListFolder$Params } from './fn/files/list-folder';
 export { listFolder as listFolder } from './fn/files/list-folder';
 export type { GetDriveUsage$Params as GetDriveUsage$Params } from './fn/files/get-drive-usage';
