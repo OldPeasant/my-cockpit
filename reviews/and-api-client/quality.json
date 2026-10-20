@@ -1,0 +1,37 @@
+{
+  "schema": 1,
+  "task": "and-api-client",
+  "reviewed_revision": "8515b2698a4d47a19359ba4d0781a7fc1dc52ec9",
+  "helpers": {
+    "test-writer": {"status": "completed", "report": "reviews/and-api-client/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/and-api-client/review.md"},
+    "fixer": {"status": "completed", "report": "reviews/and-api-client/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "TW-1", "source": "test-writer", "severity": "High", "disposition": "fixed",
+     "note": "malformed refresh body crashed the OkHttp thread; mapped to RefreshResult.Failed (5e3dba70)"},
+    {"id": "TW-2", "source": "test-writer", "severity": "High", "disposition": "fixed",
+     "note": "invalid date-time in refresh answer crashed the OkHttp thread; DateTimeException mapped to Failed (37a91ef1)"},
+    {"id": "TW-3", "source": "test-writer", "severity": "Low", "disposition": "fixed",
+     "note": "same as CR-5: concurrent 401s each refreshed again after a failed refresh (08c90955)"},
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P1", "disposition": "fixed",
+     "note": "same as TW-1 (5e3dba70)"},
+    {"id": "CR-2", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "tokens bound to server origin: cross-origin setServerUrl logs out with SERVER_CHANGED (5e3dba70)"},
+    {"id": "CR-3", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "refresh no longer overwrites a concurrent login/logout: TokenStore.replace CAS + logoutIfCurrent (5e3dba70)"},
+    {"id": "CR-4", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "corrupt server-config DataStore replaced via ReplaceFileCorruptionHandler, IOException read as empty (5e3dba70)"},
+    {"id": "CR-5", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "waiters on a failed refresh share its failure instead of refreshing one by one (08c90955)"},
+    {"id": "CR-6", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "setServerUrl takes the refresh lock in withContext(Dispatchers.IO), main-safe (08c90955)"},
+    {"id": "CR-7", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "setting a URL while logged in without a readable previous URL logs out (08c90955)"}
+  ],
+  "validation": [
+    {"command": "cd android && ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.core.network.*' ktlintCheck --rerun-tasks", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
