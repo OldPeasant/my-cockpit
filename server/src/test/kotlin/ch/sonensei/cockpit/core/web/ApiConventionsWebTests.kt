@@ -140,6 +140,15 @@ class ApiConventionsWebTests(
 		}
 
 		@Test
+		fun `other request binding errors keep the default 400 problem`() {
+			// A missing cookie is a ServletRequestBindingException but not a missing header: it is
+			// delegated to Spring's default handling and must stay a 400 Problem, not become a 500.
+			mockMvc.get("$BASE/cookie").isProblem(400).andExpect {
+				jsonPath("$.errors") { doesNotExist() }
+			}
+		}
+
+		@Test
 		fun `unsupported method gives 405 problem`() {
 			mockMvc.delete("$BASE/conflict") { with(csrf()) }.isProblem(405)
 		}
@@ -240,7 +249,9 @@ class ApiConventionsWebTests(
 				mockMvc
 					.get("$BASE/optimistic-lock-generic")
 					.isProblem(409)
-					.andReturn()
+					.andExpect {
+						jsonPath("$.detail") { value("The resource was changed concurrently") }
+					}.andReturn()
 					.response.contentAsString
 			body shouldNotContain "another transaction"
 		}

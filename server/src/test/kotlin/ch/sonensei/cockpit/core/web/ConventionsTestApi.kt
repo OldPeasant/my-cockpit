@@ -14,6 +14,7 @@ import org.springframework.security.access.AccessDeniedException
 import org.springframework.security.authentication.BadCredentialsException
 import org.springframework.stereotype.Service
 import org.springframework.validation.annotation.Validated
+import org.springframework.web.bind.annotation.CookieValue
 import org.springframework.web.bind.annotation.DeleteMapping
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PatchMapping
@@ -138,6 +139,11 @@ class ConventionsTestApi {
 		fun client(
 			@RequestHeader("X-Client-Name") clientName: String,
 		): Map<String, String> = mapOf("client" to clientName)
+
+		@GetMapping("/cookie")
+		fun cookie(
+			@CookieValue("fictitious-hint") hint: String,
+		): Map<String, String> = mapOf("hint" to hint)
 
 		@GetMapping("/invalid")
 		fun invalid(): Nothing = throw InvalidRequestException("due", "must be in the future")
