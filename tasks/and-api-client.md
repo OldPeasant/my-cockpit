@@ -5,7 +5,7 @@ owner: dell26/agent-2
 deps: [and-shell,p0-auth-tokens]
 touches: [android/app/build.gradle.kts,android/app/src/main/java/ch/sonensei/cockpit/core/network,android/app/src/test/java/ch/sonensei/cockpit/core/network]
 prio: 1
-lease_until: 2026-10-20T14:10:26Z
+lease_until: 2026-10-20T14:15:26Z
 ---
 ## Goal
 Retrofit client generated from the OpenAPI contract, with token handling.
