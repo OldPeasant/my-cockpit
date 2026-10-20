@@ -477,6 +477,51 @@ class OccurrenceExpanderEdgeCaseTests {
 		output.all shouldNotContain "confidential offsite"
 	}
 
+	// --- Second-pass gaps ---
+
+	@Test
+	fun `an EXDATE or override at the nonexistent DST-start time matches the shifted occurrence`() {
+		// 2026-03-29 02:30 does not exist in Zurich; java.time resolves it to 03:30+02:00 (01:30Z), like the occurrence.
+		val gap = OccurrenceId.of(at("2026-03-29T02:30"))
+		gap.at shouldBe Instant.parse("2026-03-29T01:30:00Z")
+		val range = range("2026-03-28T00:00", "2026-03-30T00:00")
+		val excluded = timed("2026-03-22T02:30", "2026-03-22T03:00", "FREQ=WEEKLY").apply { exdates.add(gap) }
+		expander.expandSeries(excluded, emptyList(), range).shouldBeEmpty()
+
+		val master = timed("2026-03-22T02:30", "2026-03-22T03:00", "FREQ=WEEKLY")
+		val moved = timed("2026-03-29T11:00", "2026-03-29T11:30").apply { overrideOf(master, gap) }
+		expander.expand(listOf(master, moved), range).single().apply {
+			event shouldBe moved
+			occurrenceId shouldBe gap
+		}
+	}
+
+	@Test
+	fun `a UTC UNTIL equal to an occurrence after the DST change includes it`() {
+		// Weekly Monday 09:00 Zurich; 2026-03-30 09:00 is 07:00Z (summer time), the UNTIL instant.
+		val event = timed("2026-03-16T09:00", "2026-03-16T10:00", "FREQ=WEEKLY;BYDAY=MO;UNTIL=20260330T070000Z")
+		localStarts(expander.expandSeries(event, emptyList(), range("2026-03-01T00:00", "2026-05-01T00:00"))) shouldContainExactly
+			listOf("2026-03-16T09:00", "2026-03-23T09:00", "2026-03-30T09:00")
+		// One second earlier excludes it.
+		val earlier = timed("2026-03-16T09:00", "2026-03-16T10:00", "FREQ=WEEKLY;BYDAY=MO;UNTIL=20260330T065959Z")
+		localStarts(expander.expandSeries(earlier, emptyList(), range("2026-03-01T00:00", "2026-05-01T00:00"))) shouldContainExactly
+			listOf("2026-03-16T09:00", "2026-03-23T09:00")
+	}
+
+	@Test
+	fun `a cancelled all-day override removes that date of the series`() {
+		val master = allDay("2026-06-01", rrule = "FREQ=WEEKLY;COUNT=3")
+		val cancelled =
+			allDay("2026-06-08").apply {
+				overrideOf(master, OccurrenceId.of(LocalDate.parse("2026-06-08")))
+				status = EventStatus.CANCELLED
+			}
+		startDates(expander.expand(listOf(master, cancelled), range("2026-06-01T00:00", "2026-07-01T00:00"))) shouldContainExactly
+			listOf("2026-06-01", "2026-06-15")
+		// Without its master among the candidates it does not reappear either.
+		expander.expand(listOf(cancelled), range("2026-06-01T00:00", "2026-07-01T00:00")).shouldBeEmpty()
+	}
+
 	@Test
 	fun `expand with no events or only deleted events yields nothing`() {
 		expander.expand(emptyList(), range("2026-06-01T00:00", "2026-06-08T00:00")).shouldBeEmpty()
