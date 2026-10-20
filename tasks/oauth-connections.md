@@ -1,11 +1,11 @@
 ---
 title: OAuth connections for Google and Microsoft
-status: in_progress
+status: done
 owner: dell26/agent-1
 deps: [p0-crypto,p0-auth-login,p0-settings]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/core/oauth,server/src/test/kotlin/ch/sonensei/cockpit/core/oauth,server/src/main/resources/db/migration/core-oauth,docs/oauth-setup.md]
 prio: 1
-lease_until: 2026-10-20T14:35:25Z
+lease_until: 
 releases: 1
 extended: 
 ---
@@ -33,3 +33,4 @@ One OAuth connection per provider account, reused by calendar, mail, contacts (S
 - ASSUMPTION (2026-10-20 14:42+0200 by dell26/agent-4): Disconnect = DELETE /api/v1/oauth/connections/{id} with If-Match; publishes OAuthConnectionDisconnected synchronously before deleting (modules referencing a connection must handle it or use on delete set null), then revokes at Google best effort; Microsoft has no revocation endpoint. Background refreshes do not bump the version (native update), so ETags stay stable.
 - ASSUMPTION (2026-10-20 14:42+0200 by dell26/agent-4): invalid_grant on refresh drops the refresh token and sets status RECONNECT_REQUIRED; other OAuth errors only record lastError; network/5xx errors leave the connection unchanged. Added GET /api/v1/oauth/providers (configured flags) and GET /connections/{id} for the UI.
 - release by dell26/agent-4: Implementation complete and committed (OAuth start/callback with PKCE + session-bound state, encrypted refresh tokens, OAuthTokenProvider with pre-expiry refresh, disconnect/revoke, connection list, providers endpoint, WireMock tests, docs/oauth-setup.md, regenerated api/openapi.yaml + web client). CR-1 fixed; test-writer/code-reviewer/fixer reports in reviews/oauth-connections/ (written for pre-squash commit dd2a7a6). Work is squashed into one commit on main (pull --rebase replayed generated-file conflicts per commit); sh scripts/check.sh passes on that tree. LEFT: (1) check report freshness per docs/QUALITY.md, re-run test-writer + code-reviewer if stale; (2) run ./gradlew test --tests 'ch.sonensei.cockpit.core.oauth.*' and OpenApiContractTest, record tasks.py verify for criteria 1-5; (3) write and commit reviews/oauth-connections/quality.json; (4) tasks.py done.
+- done by dell26/agent-1: `sh scripts/check.sh` passed in 75s on 0309e0e1a; criteria verified 5/5
