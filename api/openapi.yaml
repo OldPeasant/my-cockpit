@@ -5,6 +5,9 @@ info:
 servers:
 - url: /
 tags:
+- description: "Connections to Google and Microsoft accounts, shared by calendar,\
+    \ mail and contacts"
+  name: OAuth
 - description: Change notifications (Server-Sent Events)
   name: Events
 - description: Web login sessions and device tokens
@@ -351,6 +354,227 @@ paths:
       summary: Remove a manual link
       tags:
       - Links
+  /api/v1/oauth/connections:
+    get:
+      operationId: listOAuthConnections
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/OAuthConnectionResponse"
+          description: All connections (tokens are never returned)
+      summary: "The connected accounts with their status, oldest first"
+      tags:
+      - OAuth
+  /api/v1/oauth/connections/{id}:
+    delete:
+      description: "Removes the connection and its tokens, and revokes the refresh\
+        \ token at Google (Microsoft has no revocation endpoint: remove the app under\
+        \ the account's privacy settings). Calendar sources and mail accounts using\
+        \ the connection stop syncing."
+      operationId: disconnectOAuthConnection
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - description: The connection's ETag
+        in: header
+        name: If-Match
+        required: true
+        schema:
+          type: string
+      responses:
+        "204":
+          description: Disconnected
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: No such connection
+        "412":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: If-Match is stale
+        "428":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: If-Match is missing
+      summary: Disconnect an account
+      tags:
+      - OAuth
+    get:
+      operationId: getOAuthConnection
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OAuthConnectionResponse"
+          description: "The connection, with its version as ETag"
+          headers:
+            ETag:
+              schema:
+                type: string
+              style: simple
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: No such connection
+      summary: One connection
+      tags:
+      - OAuth
+  /api/v1/oauth/providers:
+    get:
+      operationId: listOAuthProviders
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/OAuthProviderResponse"
+          description: Both providers
+      summary: The providers and whether their OAuth app is configured
+      tags:
+      - OAuth
+  /api/v1/oauth/{provider}/callback:
+    get:
+      description: "Accepts only the state of a pending flow of the same browser session,\
+        \ exchanges the code and stores the encrypted refresh token. Redirects to\
+        \ `/settings/integrations` with `oauth=connected&provider=&purpose=&connectionId=`\
+        \ or `oauth=error&provider=&error=` (`invalid_state`, `access_denied`, `token_exchange_failed`,\
+        \ `no_refresh_token`) and, when known, `purpose=`."
+      operationId: completeOAuthConnection
+      parameters:
+      - in: path
+        name: provider
+        required: true
+        schema:
+          type: string
+          enum:
+          - google
+          - microsoft
+      - in: query
+        name: code
+        required: false
+        schema:
+          type: string
+      - in: query
+        name: state
+        required: false
+        schema:
+          type: string
+      - in: query
+        name: error
+        required: false
+        schema:
+          type: string
+      responses:
+        "302":
+          description: Redirect to the SPA
+          headers:
+            Location:
+              description: The SPA page showing the outcome
+              schema:
+                type: string
+              style: simple
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: Unknown provider
+      summary: The provider's redirect back (browser navigation)
+      tags:
+      - OAuth
+  /api/v1/oauth/{provider}/start:
+    get:
+      description: "Redirects to the provider's consent screen (authorization code\
+        \ flow with PKCE) asking for the combined calendar, mail and contacts scopes.\
+        \ The flow is bound to the current browser session and expires after 10 minutes.\
+        \ Connecting an account that is already connected updates that connection."
+      operationId: startOAuthConnection
+      parameters:
+      - in: path
+        name: provider
+        required: true
+        schema:
+          type: string
+          enum:
+          - google
+          - microsoft
+      - description: What the account is connected for; passed back to the SPA after
+          the callback
+        in: query
+        name: purpose
+        required: true
+        schema:
+          type: string
+          enum:
+          - CALENDAR
+          - MAIL
+          - CONTACTS
+      responses:
+        "302":
+          content:
+            '*/*':
+              schema:
+                type: object
+          description: Redirect to the provider
+          headers:
+            Location:
+              description: The provider's authorization URL
+              schema:
+                type: string
+              style: simple
+        "400":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: Missing or unknown purpose
+        "401":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: No browser session
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: Unknown provider
+        "409":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: The provider's OAuth app is not configured on this server
+      summary: Start connecting a provider account (browser navigation)
+      tags:
+      - OAuth
   /api/v1/search:
     get:
       description: "Every word of `q` must match the start of a word of an item's\
@@ -930,6 +1154,70 @@ components:
           type: string
       required:
       - username
+    OAuthConnectionResponse:
+      type: object
+      properties:
+        createdAt:
+          type: string
+          format: date-time
+        displayName:
+          type: string
+        email:
+          type: string
+          description: "The account's email address, if the provider shared it"
+        id:
+          type: string
+          format: uuid
+        lastError:
+          type: string
+          description: "OAuth error code of the last failed token refresh, e.g. invalid_grant"
+        lastRefreshedAt:
+          type: string
+          format: date-time
+        provider:
+          type: string
+          enum:
+          - GOOGLE
+          - MICROSOFT
+        scopes:
+          type: array
+          description: Granted scopes
+          items:
+            type: string
+        status:
+          type: string
+          enum:
+          - CONNECTED
+          - RECONNECT_REQUIRED
+        version:
+          type: integer
+          format: int64
+          description: The ETag value for If-Match
+      required:
+      - createdAt
+      - id
+      - provider
+      - scopes
+      - status
+      - version
+    OAuthProviderResponse:
+      type: object
+      properties:
+        configured:
+          type: boolean
+          description: Whether the server has client id and secret for this provider
+        provider:
+          type: string
+          enum:
+          - GOOGLE
+          - MICROSOFT
+        slug:
+          type: string
+          description: "The path segment of /api/v1/oauth/{provider}/start"
+      required:
+      - configured
+      - provider
+      - slug
     ProblemDetail:
       type: object
       description: "RFC 9457 Problem Details, the body of every error response."

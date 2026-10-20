@@ -12,6 +12,8 @@ export type { LinkListResponse } from './models/link-list-response';
 export type { LinkResponse } from './models/link-response';
 export type { LoginRequest } from './models/login-request';
 export type { MeResponse } from './models/me-response';
+export type { OAuthConnectionResponse } from './models/o-auth-connection-response';
+export type { OAuthProviderResponse } from './models/o-auth-provider-response';
 export type { ProblemDetail } from './models/problem-detail';
 export type { RefreshRequest } from './models/refresh-request';
 export type { SearchGroupResponse } from './models/search-group-response';

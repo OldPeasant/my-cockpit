@@ -23,6 +23,18 @@ export type { CreateLink$Params as CreateLink$Params } from './fn/links/create-l
 export { createLink as createLink } from './fn/links/create-link';
 export type { DeleteLink$Params as DeleteLink$Params } from './fn/links/delete-link';
 export { deleteLink as deleteLink } from './fn/links/delete-link';
+export type { ListOAuthConnections$Params as ListOAuthConnections$Params } from './fn/o-auth/list-o-auth-connections';
+export { listOAuthConnections as listOAuthConnections } from './fn/o-auth/list-o-auth-connections';
+export type { GetOAuthConnection$Params as GetOAuthConnection$Params } from './fn/o-auth/get-o-auth-connection';
+export { getOAuthConnection as getOAuthConnection } from './fn/o-auth/get-o-auth-connection';
+export type { DisconnectOAuthConnection$Params as DisconnectOAuthConnection$Params } from './fn/o-auth/disconnect-o-auth-connection';
+export { disconnectOAuthConnection as disconnectOAuthConnection } from './fn/o-auth/disconnect-o-auth-connection';
+export type { ListOAuthProviders$Params as ListOAuthProviders$Params } from './fn/o-auth/list-o-auth-providers';
+export { listOAuthProviders as listOAuthProviders } from './fn/o-auth/list-o-auth-providers';
+export type { CompleteOAuthConnection$Params as CompleteOAuthConnection$Params } from './fn/o-auth/complete-o-auth-connection';
+export { completeOAuthConnection as completeOAuthConnection } from './fn/o-auth/complete-o-auth-connection';
+export type { StartOAuthConnection$Params as StartOAuthConnection$Params } from './fn/o-auth/start-o-auth-connection';
+export { startOAuthConnection as startOAuthConnection } from './fn/o-auth/start-o-auth-connection';
 export type { Search$Params as Search$Params } from './fn/search/search';
 export { search as search } from './fn/search/search';
 export type { GetSettings$Params as GetSettings$Params } from './fn/settings/get-settings';
