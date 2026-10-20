@@ -4,105 +4,176 @@ Date: 2026-10-20
 
 Task: p0-web-deps - Web dependencies, theme and i18n baseline
 
-Scope: base `fda2f0926bf562603f7243a8ceb9abd40c8163c4` .. HEAD `ca3afc3a299e482eb20ec0438f6ac0723c383d69` on `main`
-(task commits `4b778d3`, `ca3afc3`, supplied by the parent worker; `git diff fda2f09..HEAD -- web docs`).
-Working tree before this run: clean. Uncommitted inputs at measurement time: only the test files listed below.
+Scope: final task revision `c5af6ea15b6537db42936d7c1d68179f63a34e33` ("p0-web-deps: reword i18n spec isolation comment"),
+measured at its rebased equivalent HEAD `eb2681fe093bc03dce0bbfff77370f8e2be88b8f` on `main`. The base is
+`ac8d94516a08bf8422ff2039a79ef4a49c6f5cf4` (parent of the first task commit after the latest rebase).
+
+Task commits after the rebase: `08043e0`, `7d63aff`, `61f270b`, `771cb9e`, `a81c577`, `eb2681f`. Before the
+rebase they were `75cc358`, `40710a8`, `faf31ed`, `3a50c06`, `11176b0`, `c5af6ea`, on base `ef7ea3f`, as
+supplied by the parent worker. Diff: `git diff ac8d945..eb2681f -- web docs`.
+
+`git diff c5af6ea eb2681f -- web` is empty, and the blob of `web/src/app/app.i18n.spec.ts` is
+`84492783323e9cef781295a3fffd40e00a91a49f` in both. So the tested web code at `eb2681f` is byte-identical
+to `c5af6ea`. The rebase only brought in other tasks' commits (board/verify commits, `p0-server-deps`
+server and docs files).
+
+This report replaces an earlier one written for a pre-rebase revision. Code changes since that revision:
+- `11176b0` (now `a81c577`) adds `"options": {"isolate": true}` on the `test` target in `web/angular.json`, plus a comment in `web/src/app/app.i18n.spec.ts`. This addresses review finding CR-3.
+- `c5af6ea` (now `eb2681f`) rewords that comment only (2 comment lines, no code change).
+
+Note on concurrency: while this report was being written, the parent's `tasks.py verify` / `pull --rebase --autostash`
+rewrote history several times. `npm run check` and `npm run coverage` ran on `c5af6ea` (08:47Z) and again
+on `eb2681f` (08:48Z), with identical results. HEAD was confirmed to be `eb2681f` before and after the final runs.
+The single-worker robustness runs and the probe ran on `11176b0`. Their web inputs differ from `eb2681f`
+only by the reworded comment, so they still apply.
+
+Uncommitted inputs: none under `web/`. During the final runs, the working tree differed from HEAD only in
+`reviews/p0-web-deps/tests.md` and `reviews/p0-web-deps/review.md`. These are reports, not test inputs,
+and the test-writer did not change `review.md`. The temporary probe files (see "i18n spec robustness")
+existed only during the `11176b0` run and were deleted.
 
 Requirements:
 - `tasks/p0-web-deps.md` acceptance criteria and its recorded assumptions
+- `reviews/p0-web-deps/review.md` finding CR-3 (i18n spec robustness)
 - `docs/ARCHITECTURE.md` (stack table, "Coverage", conventions: externalized i18n strings)
 - `docs/QUALITY.md` (report contract)
 - `AGENTS.md` project notes
 
 ## Test files changed
 
-- `web/src/app/app.spec.ts` (3 tests added; existing 2 tests unchanged; Prettier-formatted the existing `configureTestingModule` chain)
-- `web/src/app/app.i18n.spec.ts` (new)
+- None in this run. The task's test files at HEAD are `web/src/app/app.spec.ts` (3 tests added by the task next to the 2 scaffold tests) and `web/src/app/app.i18n.spec.ts` (new, 2 tests). They were re-run and assessed, not modified.
 
 ## Tests added or updated
 
-Count: 5
+Count: 0
 
-- `App > renders the English source title without the $localize message id metadata` - exact `h1` text `My Cockpit` (the `:@@app.title:` metablock is stripped, so `$localize` is the real runtime)
-- `App > renders the i18n-marked scaffold text in the English source locale` - exact `<p i18n="@@app.scaffold">` text
-- `App > provides the $localize runtime global (polyfill @angular/localize/init)` - `$localize` is a function in the test runtime and returns the source text for a message with an id
-- `App i18n > translates the title through $localize using the app.title message id` - after `loadTranslations({'app.title': 'Mein Cockpit', ...})` the `h1` renders the translation, which proves the title goes through `$localize` with id `app.title` (a static string would fail)
-- `App i18n > translates the i18n template text using the app.scaffold message id` - the `i18n` template text renders the loaded translation for id `app.scaffold`
+The existing tests are adequate for the testable acceptance criteria (see the table below):
+- `App > renders the English source title without the $localize message id metadata`
+- `App > renders the i18n-marked scaffold text in the English source locale`
+- `App > provides the $localize runtime global (polyfill @angular/localize/init)`
+- `App i18n > translates the title through $localize using the app.title message id`
+- `App i18n > translates the i18n template text using the app.scaffold message id`
 
-The translation tests sit in their own spec file because Angular caches a component's i18n template
-constants on its first render. Translations are loaded before the first render and cleared in `afterEach`.
+The translation tests would fail if the title were a static string or the paragraph lacked `i18n="@@app.scaffold"`.
+The remaining criteria (dependency manifest, Sass theme, documentation) have no runtime behavior that the
+Vitest/jsdom setup can test (see "Unable to test"). More tests would only repeat what these already check.
+
+## i18n spec robustness (CR-3)
+
+Revision: `11176b0`. Its test and production inputs are identical to `eb2681f` except for the reworded comment.
+
+Method: two temporary Vitest runner configs passed with `--runner-config`. Each set `maxWorkers: 1`,
+`fileParallelism: false` and a custom `sequence.sequencer` that forces the spec file order and prints it.
+The configs and the probe spec were deleted after the run.
+
+| Run (all from `web/`) | Isolation | Forced order (printed by sequencer) | Result |
+|---|---|---|---|
+| `npx ng test --watch=false --runner-config=tw-probe-i18n-last.config.mjs --reporters=verbose` | `true` (angular.json) | `app.spec.ts` -> `app.i18n.spec.ts` | Pass, 2 files / 7 tests |
+| `npx ng test --watch=false --runner-config=tw-probe-i18n-first.config.mjs --reporters=verbose` | `true` (angular.json) | `app.i18n.spec.ts` -> `app.spec.ts` | Pass, 2 files / 7 tests |
+| same, plus `--isolate=false` | `false` (negative control) | `app.spec.ts` -> `app.i18n.spec.ts` | Pass, 2 files / 7 tests |
+| same, plus `--isolate=false` | `false` (negative control) | `app.i18n.spec.ts` -> `app.spec.ts` | Pass, 2 files / 7 tests |
+
+The negative control also passed, so I checked the caching premise directly with a temporary probe spec
+(`npx ng test --watch=false --include=src/app/tw-probe.spec.ts`, then deleted). In one test, one module
+graph, the probe rendered `App` with no translations, called `TestBed.resetTestingModule()`, loaded
+translations, and rendered again. Observed values: before = `Scaffold. The application shell is built by
+the board's tasks.`; after: `h1` = `Mein Cockpit`, `p` = `Gerüst.`. The template `i18n` text was **not**
+stuck on the first render's English. In this setup, TestBed resets between tests already make the
+translations take effect.
+
+Conclusion: the i18n spec passes with one worker in both file orders, with and without isolation.
+CR-3 is resolved: `isolate: true` is harmless and costs nothing measurable (about 0.6 s either way).
+At `c5af6ea`/`eb2681f`, the comment no longer claims that the spec relies on isolation.
 
 ## Requirement coverage
 
 | Requirement | Tests | Command | Result |
 |---|---|---|---|
-| AC1: package.json adds the listed libraries; `npm ci` works from the lockfile | None (dependency manifest; no runtime behavior to unit-test). `npm ls --depth=0` reported no missing/invalid packages against the installed tree | `cd web && npm ls --depth=0` | Not testable as a unit test. `npm ci` itself not run: it reinstalls dependencies, which the test-writer may not do. The parent should run it for the AC1 evidence |
-| AC2: Material 3 tokens on `:root`, light + dark via `prefers-color-scheme` and `data-theme` override | No unit test (see "Unable to test"). Checked in the compiled build output `web/dist/web/browser/styles-LD4DV62L.css`: `:root{color-scheme:light dark;--mat-sys-*: light-dark(...)...}`, `--app-bg: var(--mat-sys-surface)`, `--app-space-4: 24px`, `--mat-sys-body-medium: 400 .875rem / 1.25rem Roboto, ...`, `:root[data-theme=light]{color-scheme:light}`, `:root[data-theme=dark]{color-scheme:dark}`, `body{...background:var(--app-bg);color:var(--app-fg);font:var(--mat-sys-body-medium)}` | `cd web && npm run check` (ng build), then `grep -oE` on the built `styles-*.css` | Pass (build-output inspection, not an automated test) |
-| AC2: no hard-coded colors in `app.*` | No unit test. Literal-color scan of `web/src/app/app.ts`, `app.html`, `app.scss` (hex, `rgb()/rgba()`, `hsl()/hsla()`, common named colors): no match. `app.scss` uses only `--app-*` vars | `grep -nEi '#[0-9a-f]{3,8}\b\|rgba?\(\|hsla?\(\|\b(white\|black\|red\|blue\|green\|gray\|grey)\b' web/src/app/app.{ts,html,scss}` | Pass (manual scan) |
-| AC3: `@angular/localize` set up, `$localize` usable, English source locale | `renders the English source title without the $localize message id metadata`, `provides the $localize runtime global (polyfill @angular/localize/init)`, `translates the title through $localize using the app.title message id` | `cd web && npm run test:ci` | Pass |
-| AC3: `i18n` usable in templates | `renders the i18n-marked scaffold text in the English source locale`, `translates the i18n template text using the app.scaffold message id` | `cd web && npm run test:ci` | Pass |
-| AC3: English source locale (`angular.json` `i18n.sourceLocale: en`, `src/locale/messages.xlf` `source-language="en"`) | Not covered by a unit test. Confirmed in the diff | inspection of `git diff fda2f09..HEAD -- web/angular.json web/src/locale/messages.xlf` | Not testable in Vitest (build config) |
-| AC4: `npm run check` passes | Whole web suite, including the new tests | `cd web && npm run check` | Pass (lint "All files pass linting.", 2 test files / 7 tests passed, `ng build` succeeded) |
-| AC4: ARCHITECTURE.md stack table updated | Not testable (documentation). Diff shows the updated Web row and install note | `git diff fda2f09..HEAD -- docs/ARCHITECTURE.md` | Not testable |
+| AC1: package.json adds the listed libraries; `npm ci` works from the lockfile | None (dependency manifest, no runtime behavior). `npm ls --depth=0` lists every required package (`@angular/material`/`cdk`/`localize` 22.2.3, `@codemirror/*` + `lang-markdown`, `@fullcalendar/angular`/`core`/`rrule` 7.1.3 + `fullcalendar` 7.1.3 per the recorded v7 assumption, `@tiptap/core`/`starter-kit`/`extension-link`/`extension-image` 3.32.0, `pdfjs-dist` 6.4.299, `ng-openapi-gen` 1.1.0, `@playwright/test` 1.64.1, `otplib` 13.5.0, `@axe-core/playwright` 4.14.0). No missing or invalid entries | `npm --prefix web ls --depth=0` (on `11176b0`; `web/package*.json` unchanged since) | Not testable as a unit test. `npm ci` not run by the test-writer, because it reinstalls dependencies. The parent reports that `npm ci` succeeded and must record that evidence itself |
+| AC2: Material 3 tokens on `:root`, light + dark via `prefers-color-scheme` and `data-theme` override | No automated test (see "Unable to test"). The build output `web/dist/web/browser/styles-LD4DV62L.css` (same file name and content hash in the `eb2681f` build) contains `:root{color-scheme:light dark`, `--app-bg: var(--mat-sys-surface)`, `:root[data-theme=light]{color-scheme:light}`, `:root[data-theme=dark]{color-scheme:dark}`, `body{margin:0;background:var(--app-bg);color:var(--app-fg);font:var(--mat-sys-body-medium)}` | `npm --prefix web run check`, then `grep -oE` on the built `styles-LD4DV62L.css` | Pass (build-output inspection, not an automated test) |
+| AC2: no hard-coded colors in `app.*` | No unit test. Literal-color scan of `web/src/app/app.ts`, `app.html` and `app.scss` (hex, `rgb()/rgba()`, `hsl()/hsla()`, common named colors): no match (grep exit 1) | `grep -nEi '#[0-9a-f]{3,8}\b\|rgba?\(\|hsla?\(\|\b(white\|black\|red\|blue\|green\|gray\|grey)\b' web/src/app/app.{ts,html,scss}` | Pass (manual scan) |
+| AC3: `@angular/localize` set up, `$localize` usable, English source locale | `renders the English source title without the $localize message id metadata`, `provides the $localize runtime global (polyfill @angular/localize/init)`, `translates the title through $localize using the app.title message id` | `npm --prefix web run check` (its `test:ci` step) on `eb2681f`; also the four single-worker runs above | Pass |
+| AC3: `i18n` usable in templates | `renders the i18n-marked scaffold text in the English source locale`, `translates the i18n template text using the app.scaffold message id` | `npm --prefix web run check` on `eb2681f`; also the four single-worker runs above | Pass |
+| AC3: English source locale in the build config (`angular.json` `i18n.sourceLocale: en`, `src/locale/messages.xlf` `source-language="en"`) | No unit test. Confirmed in the diff | `git diff ac8d945..eb2681f -- web/angular.json web/src/locale/messages.xlf` | Not testable in Vitest (build config) |
+| AC4: `npm run check` passes | Whole web suite | `npm --prefix web run check` on `eb2681f` | Pass: lint "All files pass linting.", 2 test files / 7 tests passed, `ng build` succeeded |
+| AC4: ARCHITECTURE.md stack table updated | Not testable (documentation). After the rebase's conflict resolution, the task diff still shows the updated Web row and the `npm ci` / Playwright install note | `git diff 9a8930b..69412d6 -- docs/ARCHITECTURE.md` (an intermediate rebase of the same commits) | Not testable |
+| CR-3: i18n spec independent of worker layout and spec order | Both spec files | Four single-worker runs (table above) | Pass |
 
 ## Focused test execution
 
 Command:
 
-`cd web && npm run test:ci`
+`cd web && npx ng test --watch=false --runner-config=tw-probe-i18n-last.config.mjs --reporters=verbose` and the same with `tw-probe-i18n-first.config.mjs` (temporary single-worker configs, deleted after the run; see above)
 
 Result:
 
-Pass - 2 test files, 7 tests passed (baseline before changes: 1 file, 2 tests passed).
+Pass: 2 files, 7 tests in each forced order. The negative controls with `--isolate=false` also passed.
 
 ## Full test execution
 
 Command:
 
-`cd web && npm run check` (= `npm run lint && npm run test:ci && ng build`)
+`npm --prefix web run check` (= `npm run lint && npm run test:ci && ng build`)
 
 Result:
 
-Pass - lint clean, 7/7 tests passed, production build succeeded (`styles-LD4DV62L.css` 9.59 kB).
-Also: `npx prettier --check` on the two spec files passes after formatting.
+Pass on HEAD `eb2681f` (= `c5af6ea` for `web/`): lint clean, 2 files / 7 tests passed (run at
+2026-10-20T08:48:49Z), production build succeeded (`main-EFEVWPV5.js` 208.52 kB, `styles-LD4DV62L.css` 9.59 kB).
+Identical earlier passes: on `c5af6ea` at 08:47:20Z, and on `11176b0` at 08:41:39Z.
+Server and Android are untouched by this task and were not run.
 
 ## .taskcheck
 
 Result:
 
 Not run: `sh scripts/check.sh` was refused by this session's command permissions (approval required).
-The web part of it (`npm run check`) ran and passed. The parent worker must run `.taskcheck` itself.
-Server and Android are untouched by this task.
+Its web part (`npm run check`) ran and passed, see above. The parent worker must run `.taskcheck`.
 
 ## Bugs found
 
 None. No production defect was found.
 
+Note for the parent (not a production defect, no fix required): the earlier note about the comment in
+`web/src/app/app.i18n.spec.ts` was addressed in `c5af6ea`. The comment still says Angular caches i18n
+template constants on first render. The probe shows this does not bite across TestBed resets in this
+setup, so the claim is conservative and harmless. No change is needed.
+
 ## Coverage
 
-Status: verified (for the instrumentable TypeScript/template files in scope; see exclusions).
+Status: verified for the instrumentable TypeScript/template files in scope (see exclusions).
 
 Metric: whole-file coverage of task-changed production files.
-Changed-line coverage: measured for the two instrumented files by intersecting the changed lines of
-`git diff fda2f09..HEAD` with the source-mapped `DA` records in `lcov.info`: `web/src/app/app.ts` line 11
-(hits 6) and `web/src/app/app.html` line 3 (hits 6) -> 2/2 changed executable lines covered (100%).
-Changed-branch coverage: not measured.
+Changed-line coverage: measured by intersecting the added/modified lines of the task diff (`git diff -U0`)
+with the source-mapped `DA` records in `web/coverage/web/lcov.info`. Results: `web/src/app/app.ts` line 11
+(`DA:11,6`) and `web/src/app/app.html` line 3 (`DA:3,6`), so 2/2 changed executable lines are covered (100%).
+`web/src/main.ts` changed lines (1-2, 7) are unmeasured, see exclusions. Changed-branch coverage: not measured.
 
 Evidence:
-- Task id, immutable base, measured HEAD, and task-owned commits/file-scope source: `p0-web-deps`; base `fda2f0926bf562603f7243a8ceb9abd40c8163c4`; HEAD `ca3afc3a299e482eb20ec0438f6ac0723c383d69`; task commits `4b778d3`, `ca3afc3` as supplied by the parent worker and matching the task file's assumptions; file scope from `git diff --name-only fda2f09..HEAD -- web/src`.
-- Source/test snapshot identifier (including uncommitted inputs): HEAD `ca3afc3` + uncommitted test files, sha256 (paths relative to `web/`):
-  - `src/app/app.ts` `a679d1eb28f95978da745c27f05ac7ab0f0557115a0ddd5e26f5f21a2c722ce9`
-  - `src/app/app.html` `2b8bb2d1debe58746fbeee00acdf8c94268e1fb85ee1741b4165d6efb471718d`
-  - `src/app/app.scss` `8409e873f48e0c65c6a258eb973b758b6f1d5f2b70511430c457dfa615c24107`
-  - `src/main.ts` `739f0bb61f0fc5da35837c512b3dd6e6bdfc4c410d8cdbef925014e06bbe06fc`
-  - `src/app/app.spec.ts` `fb5ceba3a4ed63bf60b9511cf4b47db7b6bd9c85c9a014a18522aeb2e2251e20`
-  - `src/app/app.i18n.spec.ts` `845c8f8a124804782d6eaee8b89c62f33d9b69dba99d0a73e0fa9612d90209d1`
-- Exact included files: `web/src/app/app.ts`, `web/src/app/app.html`. Excluded: `web/src/main.ts` (bootstrap entry point, not imported by any spec, so v8 has no data for it; one-line formatting change plus the `@angular/localize` types reference: no instrumentable behavior), `web/src/app/app.scss`, `web/src/styles.scss`, `web/src/theme/_theme.scss` (Sass, not instrumentable by v8; checked through the build output above), `web/src/locale/messages.xlf` (generated i18n source), `web/angular.json`, `web/package.json`, `web/package-lock.json`, `web/tsconfig.app.json`, `web/tsconfig.spec.json` (configuration), `docs/ARCHITECTURE.md` (documentation). No renamed or deleted files.
-- Provider/version, command, working directory, and test selection: Vitest 5.0.5 + `@vitest/coverage-v8` 5.0.5 via `@angular/build:unit-test`; `npm run coverage`; working directory `web/`; all specs (`app.spec.ts`, `app.i18n.spec.ts`).
-- Run start/completion time and exit status: 2026-10-20T08:35:42Z - 08:35:44Z (UTC); 2 files / 7 tests passed, coverage summary printed (exit 0).
-- Generated report paths and report hashes/run identifier: `web/coverage/web/coverage-final.json` (sha256 `2a3b1113652bc5af7526719d9f87b00940ca02b6fd3c544a585eb7a3550dd1a1`), `web/coverage/web/coverage-summary.json`, `web/coverage/web/lcov.info`, `web/coverage/web/lcov-report/` (all Git-ignored).
-- Evidence outputs are fresh and inputs stayed unchanged: report files were rewritten at 10:35 local (08:35Z) by this run; the inputs were hashed before the run and not edited during or after it.
-- Final run after latest test additions and production fixes: yes for the test additions. No production fixes were made. Any later production change makes these numbers stale.
+- Task id, immutable base, measured HEAD, and task-owned commits/file-scope source:
+  - Task `p0-web-deps`, measured HEAD `eb2681fe093bc03dce0bbfff77370f8e2be88b8f`.
+  - It is the rebased equivalent of `c5af6ea15b6537db42936d7c1d68179f63a34e33`; `git diff c5af6ea eb2681f -- web` is empty.
+  - Base `ac8d94516a08bf8422ff2039a79ef4a49c6f5cf4`, the parent of the first task commit `08043e0`.
+  - Task commits are the six `p0-web-deps:` / `wip: p0-web-deps` commits on top of that base. They match the parent-supplied list and the task file.
+  - File scope comes from `git diff --name-status` over the task commits, `-- web/src`.
+- Source/test snapshot identifier (including uncommitted inputs): HEAD `eb2681f`, no uncommitted inputs under `web/`. Git blob ids, identical at `c5af6ea`:
+  - `web/src/app/app.ts` `9d2dc11691fdccfd467d18b75086dffbf1f4ab18`
+  - `web/src/app/app.html` `e3367aac3d739b8e9d3e665e93d98b1a7ad3b00b`
+  - `web/src/main.ts` `dc13603859a4fee0cf1551355d1d94f70181f456`
+  - `web/src/app/app.spec.ts` `5e6f52aafb7bebb610fb525bd4c58207ba0ba3b0`
+  - `web/src/app/app.i18n.spec.ts` `84492783323e9cef781295a3fffd40e00a91a49f`
+  - `web/angular.json` `ec7436b1cc10aa4d5ab5357bd74a12cf75dc608c`
+- Exact included files: `web/src/app/app.ts`, `web/src/app/app.html`.
+- Excluded files, all modified or added, none renamed or deleted:
+  - `web/src/main.ts`: the bootstrap entry point. No spec imports it, so v8 has no data for it. The change is a `@angular/localize` types reference plus one formatting line, with no behavior to instrument. `ng build` compiles it.
+  - `web/src/app/app.scss`, `web/src/styles.scss`, `web/src/theme/_theme.scss`: Sass, which v8 cannot instrument. Checked through the build output above.
+  - `web/src/locale/messages.xlf`: the extracted i18n source.
+  - `web/angular.json`, `web/package.json`, `web/package-lock.json`, `web/tsconfig.app.json`, `web/tsconfig.spec.json`: configuration.
+  - `docs/ARCHITECTURE.md`: documentation.
+- Provider/version, command, working directory, and test selection: Vitest 5.0.5 + `@vitest/coverage-v8` 5.0.5 via `@angular/build:unit-test` (`isolate: true`); `npm --prefix web run coverage` (= `ng test --watch=false --coverage` with text-summary/json-summary/json/lcov reporters); working directory `web/`; all specs (`app.spec.ts`, `app.i18n.spec.ts`).
+- Run start/completion time and exit status: final run on `eb2681f`, Vitest start 2026-10-20T08:48:52Z, finished by 08:48:53Z (UTC). 2 files / 7 tests passed, coverage summary printed, exit 0. An identical run on `c5af6ea` started at 08:47:25Z.
+- Generated report paths and report hashes/run identifier: `web/coverage/web/coverage-final.json` (git blob `9c704df0a79cfa4dcaabace02993fcfc9593255a`, identical across the `11176b0`, `c5af6ea` and `eb2681f` runs, as expected for unchanged code), `web/coverage/web/coverage-summary.json`, `web/coverage/web/lcov.info`, `web/coverage/web/lcov-report/` (all Git-ignored).
+- Evidence outputs are fresh and inputs stayed unchanged: `lcov.info` has mtime 10:48 local (08:48Z), written by the final run. `git rev-parse HEAD` returned `eb2681f` immediately before and after the check and coverage runs.
+- Final run after latest test additions and production fixes: yes. The final run is on `eb2681f` (= `c5af6ea` for `web/`). No tests were added and no production fixes were made in this run.
 
 Values below use covered/total (percentage); zero-denominator or unsupported metrics are N/A.
 
@@ -112,22 +183,27 @@ Values below use covered/total (percentage); zero-denominator or unsupported met
 | `web/src/app/app.html` | 7/7 (100%) | N/A (0/0) | N/A (0/0) | 4/4 (100%) |
 | Aggregate (these 2 files only) | 13/13 (100%) | 8/9 (88.88%) | 1/1 (100%) | 6/6 (100%) |
 
-The aggregate excludes `web/src/main.ts` (unmeasured, see above) and the Sass/config/doc files (not instrumentable).
-These numbers do not cover the theme. The theme was checked only through the compiled CSS.
+The aggregate excludes `web/src/main.ts` (unmeasured, see above) and the Sass, config and doc files (not
+instrumentable). These numbers do not cover the theme. The theme was checked only through the compiled CSS.
 
 | File and uncovered lines/branch locations | Required behavior or risk | Action/test added or reason left uncovered |
 |---|---|---|
-| `web/src/app/app.ts:10` branch 1 (`BRDA:10,1,0,0`, an `if` source-mapped onto the `export class App` line) | None. It is the Angular-compiler-generated factory path (`ɵfac` for subclass/inherited construction), not task code | Left uncovered: generated code, not reachable through the public component API |
-| `web/src/main.ts` (no data) | Bootstrap with `appConfig`. The task only reformatted it and added a types reference | Left unmeasured: entry point. `ng build` in `npm run check` compiles it |
+| `web/src/app/app.ts:10` branch 1 (`BRDA:10,1,0,0`, source-mapped onto `export class App`) | None. It is the compiler-generated factory path (`ɵfac` for inherited construction), not task code | Left uncovered: generated code, not reachable through the component's public API |
+| `web/src/main.ts` (no data) | Bootstrap with `appConfig`. The task only added a types reference and reformatted it | Left unmeasured: entry point. `ng build` in `npm run check` compiles it |
 | `web/src/theme/_theme.scss`, `web/src/styles.scss`, `web/src/app/app.scss` | AC2 tokens and light/dark overrides | No automated test, see "Unable to test". Checked in the build output |
 
 ## Unable to test
 
-- **Compiled global CSS (theme tokens on `:root`, `color-scheme`, `data-theme` overrides) and "no literal colors in `src/app`" as automated Vitest tests.** Unit tests are bundled by `@angular/build:unit-test` against `tsconfig.spec.json` (types: `vitest/globals`, `@angular/localize`). Global styles are not injected into the jsdom test page, and jsdom does not resolve `light-dark()` or `color-scheme`. Reading or compiling the SCSS from a spec would need `node:fs`/`sass` imports. The project has no `@types/node`, so those imports fail type-checking unless we add a new ambient declaration file or a dependency. Neither fits the current conventions or the test-writer's permissions. The behavior was checked by inspecting the build output and scanning the sources (see the table above). Follow-up (optional): if the project wants this as a regression test, a small Playwright check is the natural place, in the existing slow non-check suite: set `<html data-theme="dark">`, emulate `prefers-color-scheme`, and assert the computed `--mat-sys-surface` and `color-scheme`. That belongs to a task that sets up the E2E suite.
-- **`npm ci` from the lockfile** (AC1): not run because it reinstalls `node_modules`. The parent worker should run `cd web && npm ci` and record it.
-- **`.taskcheck`**: not run because this session lacked permission (see above).
+- **Compiled global CSS (theme tokens on `:root`, `color-scheme`, `data-theme` overrides) as automated Vitest tests.** `@angular/build:unit-test` does not inject global styles into the jsdom page, and jsdom does not resolve `light-dark()` or `color-scheme`. Reading or compiling the SCSS from a spec would need `node:fs`/`sass` with `@types/node`, which the project does not have. Adding it would be a new dependency, outside the test-writer's permissions. Checked by build-output inspection and a source scan instead. Optional follow-up: a Playwright check in the slow non-check suite (`data-theme="dark"`, emulated `prefers-color-scheme`, assert the computed `--mat-sys-surface` and `color-scheme`), for a task that sets up E2E.
+- **`npm ci` from the lockfile** (AC1): not run by the test-writer, because it reinstalls `node_modules`. The parent states that it succeeded and must record that evidence.
+- **`.taskcheck`**: not run because this session lacked permission. The parent must run it.
 - **Runtime light/dark switching in a real browser**: needs a browser. Not run.
 
 ## Summary
 
-Tests added and all validation that ran passed (`npm run test:ci`, `npm run check`, `npm run coverage`). No production defects were found. `$localize`/`i18n` behavior is covered by tests that would fail if the strings were not localized. The theme acceptance criterion was checked only in the build output, not by an automated test. The parent worker must still run `.taskcheck` and `npm ci`.
+Tests and task-scoped coverage are sufficient; no production defects found. `npm run check` and
+`npm run coverage` pass on `eb2681f`, the rebased equivalent of `c5af6ea` with byte-identical `web/`.
+The i18n spec passes in a single worker in both spec orders, both with `isolate: true` and without it,
+so CR-3 is resolved. No tests were added: the existing ones cover `$localize`/`i18n` meaningfully, and
+the remaining criteria cannot be unit-tested. The theme was checked only in the build output. The parent
+worker must still run `.taskcheck` and record the `npm ci` evidence.
