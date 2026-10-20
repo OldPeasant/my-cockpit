@@ -112,6 +112,7 @@ class DeviceTokenUnitTests {
 		listOf("Bearer ", "Bearer    ", "bearer \t").forEach { header ->
 			val request = request(header)
 			BearerAuthenticationFilter.hasBearerHeader(request) shouldBe true
+			BearerAuthenticationFilter.withBearerHeader.matches(request) shouldBe true
 			BearerAuthenticationFilter.bearerToken(request).shouldBeNull()
 		}
 	}
@@ -121,12 +122,13 @@ class DeviceTokenUnitTests {
 		listOf(null, "", "Basic amFuZTpzZWNyZXQ=", "Token $ACCESS_TOKEN", "Bear $ACCESS_TOKEN", "Bearer$ACCESS_TOKEN").forEach { header ->
 			val request = request(header)
 			BearerAuthenticationFilter.hasBearerHeader(request) shouldBe false
+			BearerAuthenticationFilter.withBearerHeader.matches(request) shouldBe false
 			BearerAuthenticationFilter.bearerToken(request).shouldBeNull()
 		}
 	}
 
 	@Test
-	fun `a valid bearer token authenticates the request and marks it as bearer-authenticated`() {
+	fun `a valid bearer token authenticates the request`() {
 		val principal = CockpitPrincipal(UUID.randomUUID(), USERNAME)
 		val devices = mockk<DeviceTokenService> { every { authenticate(ACCESS_TOKEN) } returns principal }
 		val request = request("Bearer $ACCESS_TOKEN")
@@ -135,12 +137,11 @@ class DeviceTokenUnitTests {
 		BearerAuthenticationFilter(devices).doFilter(request, MockHttpServletResponse(), chain)
 
 		SecurityContextHolder.getContext().authentication!!.principal shouldBe principal
-		BearerAuthenticationFilter.isBearerAuthenticated.matches(request) shouldBe true
 		chain.request shouldBe request
 	}
 
 	@Test
-	fun `an unknown bearer token leaves the request anonymous, unmarked and passes it on`() {
+	fun `an unknown bearer token leaves the request anonymous and passes it on`() {
 		val devices = mockk<DeviceTokenService> { every { authenticate(any()) } returns null }
 		val request = request("Bearer not-an-access-token")
 		val chain = MockFilterChain()
@@ -148,7 +149,6 @@ class DeviceTokenUnitTests {
 		BearerAuthenticationFilter(devices).doFilter(request, MockHttpServletResponse(), chain)
 
 		SecurityContextHolder.getContext().authentication.shouldBeNull()
-		BearerAuthenticationFilter.isBearerAuthenticated.matches(request) shouldBe false
 		chain.request shouldBe request
 	}
 
@@ -163,7 +163,6 @@ class DeviceTokenUnitTests {
 		BearerAuthenticationFilter(devices).doFilter(request, MockHttpServletResponse(), MockFilterChain())
 
 		SecurityContextHolder.getContext().authentication shouldBe existing
-		BearerAuthenticationFilter.isBearerAuthenticated.matches(request) shouldBe false
 		verify(exactly = 0) { devices.authenticate(any()) }
 	}
 

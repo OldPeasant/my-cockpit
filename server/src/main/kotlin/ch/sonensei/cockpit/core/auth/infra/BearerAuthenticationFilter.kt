@@ -14,8 +14,10 @@ import org.springframework.web.filter.OncePerRequestFilter
  * with a bearer header is never authenticated by its session cookie as well: an unknown, expired or revoked token
  * leaves it anonymous, so the authorization rules answer 401.
  *
- * A request authenticated by a bearer token is marked ([isBearerAuthenticated]) so CSRF protection skips it: a
- * browser never attaches such a header on its own, so there is nothing to forge.
+ * CSRF protection skips every request with a bearer header, valid or not ([withBearerHeader]): such a request is never
+ * authenticated by its session cookie, and a browser cannot add an `Authorization` header to a cross-site request
+ * without a CORS preflight, so there is nothing to forge. An invalid token thus answers 401 (not 403), so the app knows
+ * to refresh.
  */
 class BearerAuthenticationFilter(
 	private val devices: DeviceTokenService,
@@ -31,7 +33,6 @@ class BearerAuthenticationFilter(
 				val context = SecurityContextHolder.createEmptyContext()
 				context.authentication = CockpitAuthentication(principal)
 				SecurityContextHolder.setContext(context)
-				request.setAttribute(AUTHENTICATED_ATTRIBUTE, true)
 			}
 		}
 		chain.doFilter(request, response)
@@ -39,7 +40,6 @@ class BearerAuthenticationFilter(
 
 	companion object {
 		private const val PREFIX = "Bearer "
-		private val AUTHENTICATED_ATTRIBUTE = "${BearerAuthenticationFilter::class.java.name}.authenticated"
 
 		/** True if the request carries an `Authorization: Bearer` header (valid or not). */
 		fun hasBearerHeader(request: HttpServletRequest): Boolean =
@@ -53,7 +53,7 @@ class BearerAuthenticationFilter(
 				?.trim()
 				?.takeIf { it.isNotEmpty() }
 
-		/** Matches requests this filter authenticated with a valid bearer token. */
-		val isBearerAuthenticated = RequestMatcher { it.getAttribute(AUTHENTICATED_ATTRIBUTE) == true }
+		/** Matches requests with an `Authorization: Bearer` header, valid or not ([hasBearerHeader]). */
+		val withBearerHeader = RequestMatcher { hasBearerHeader(it) }
 	}
 }

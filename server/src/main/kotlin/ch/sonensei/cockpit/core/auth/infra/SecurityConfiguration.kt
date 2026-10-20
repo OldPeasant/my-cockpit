@@ -31,8 +31,9 @@ import org.springframework.web.filter.OncePerRequestFilter
  *   ([BearerAuthenticationFilter]); it gets them from the public token endpoints.
  * - CSRF: double-submit cookie in Angular's convention. The `XSRF-TOKEN` cookie is set on every response that has
  *   none yet and replaced with a fresh token on login and logout; state-changing requests must echo it in
- *   `X-XSRF-TOKEN`, login and logout included. Bearer-authenticated requests and the token endpoints (called by the
- *   app, which has no cookies; their response is unreadable cross-origin) are exempt.
+ *   `X-XSRF-TOKEN`, login and logout included. Requests with an `Authorization: Bearer` header, valid or not (never
+ *   authenticated by their cookie, and a browser can't add the header cross-site without a CORS preflight), and the
+ *   token endpoints (called by the app, which has no cookies; their response is unreadable cross-origin) are exempt.
  * - Unauthenticated requests get a plain 401 (no login form or basic-auth challenge).
  */
 @Configuration(proxyBeanMethods = false)
@@ -69,7 +70,7 @@ class SecurityConfiguration {
 					.spa()
 					.csrfTokenRepository(cookies.csrfTokenRepository())
 					.ignoringRequestMatchers("$SETUP_PATH/**", SETUP_PATH, TOKEN_PATH, TOKEN_REFRESH_PATH)
-					.ignoringRequestMatchers(BearerAuthenticationFilter.isBearerAuthenticated)
+					.ignoringRequestMatchers(BearerAuthenticationFilter.withBearerHeader)
 			}.sessionManagement { it.sessionCreationPolicy(SessionCreationPolicy.STATELESS) }
 			.requestCache { it.disable() }
 			.addFilterBefore(BearerAuthenticationFilter(devices), CsrfFilter::class.java)

@@ -161,7 +161,7 @@ class DeviceTokenWebTests(
 				cookie(Cookie(SessionCookies.NAME, session))
 				bearer("not-an-access-token")
 			}.andExpect { status { isUnauthorized() } }
-		// An invalid bearer token does not lift CSRF protection either.
+		// With a bearer header the cookie is ignored, so an invalid token is a 401 (the app refreshes), not a CSRF 403.
 		mockMvc
 			.patch("/api/v1/settings") {
 				cookie(Cookie(SessionCookies.NAME, session))
@@ -169,7 +169,7 @@ class DeviceTokenWebTests(
 				header(HttpHeaders.IF_MATCH, "*")
 				contentType = MediaType.APPLICATION_JSON
 				content = """{"theme": "dark"}"""
-			}.andExpect { status { isForbidden() } }
+			}.andExpect { status { isUnauthorized() } }
 	}
 
 	@Test
