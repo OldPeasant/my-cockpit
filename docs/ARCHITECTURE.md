@@ -106,7 +106,9 @@ Defined in `SPEC.md` §11. Introduced by the tasks that need them, and listed he
 | `E2E_COMPOSE`, `E2E_PORT`, `E2E_KEEP`, `E2E_BASE_URL` | `npm run e2e` | compose command, port, keep the stack, or use a running one (`web/e2e/README.md`) |
 | `SPRING_DATASOURCE_URL`, `_USERNAME`, `_PASSWORD` | server | Postgres connection (`application.properties`) |
 | `COCKPIT_MASTER_KEY` | server | AES-256-GCM key for stored credentials (base64, 32 bytes, `core.crypto`). Required: startup fails without it. Tests use a fictitious key from `server/src/test/resources/config/application.properties` |
-| `COCKPIT_DATA_DIR`, `COCKPIT_DOMAIN`, `GOOGLE_CLIENT_ID/SECRET`, `MS_CLIENT_ID/SECRET/TENANT` | server | see SPEC.md §11 (not yet used) |
+| `GOOGLE_CLIENT_ID/SECRET`, `MS_CLIENT_ID/SECRET/TENANT` | server | OAuth apps (`core.oauth`); unset = provider disabled. Setup: `docs/oauth-setup.md` |
+| `COCKPIT_DOMAIN` | server | public host; OAuth redirect URIs are `https://<domain>/api/v1/oauth/<provider>/callback` (`cockpit.oauth.public-url`, dev profile: `http://localhost:4200`) |
+| `COCKPIT_DATA_DIR` | server | see SPEC.md §11 (not yet used) |
 
 Never commit secrets: `.env` files are Git-ignored, and `deploy/.env.example` holds placeholders only.
 
