@@ -263,6 +263,43 @@ class CalendarSyncOverrideTests(
 	}
 
 	@Test
+	fun `an incremental override of a series that is itself invalid keeps the cursor, a full fetch would not help`() {
+		sync.sync(source.id)
+		val series = remote("s", "Weekly", rrule = "FREQ=SOMETIMES").copy(etag = "e1")
+		val override = remote("s", "Weekly (late)", start = SECOND).copy(key = RemoteEventKey("s", at(SECOND)), etag = "e2")
+		fake.fetchHook = { _, cursor -> if (cursor == null) null else RemoteEventChanges(events = listOf(override, series), cursor = "99") }
+
+		sync.sync(source.id)
+
+		lastError() shouldBe "Work: 2 events could not be stored"
+		local("s").shouldBeNull()
+		fake.fetchCursors.clear()
+		fake.fetchHook = { _, _ -> RemoteEventChanges(cursor = "100") }
+
+		sync.sync(source.id)
+
+		fake.fetchCursors shouldContainExactly listOf("work" to "99")
+		lastError().shouldBeNull()
+	}
+
+	@Test
+	fun `a full fetch with an override without its series stores the cursor, the next sync stays incremental`() {
+		val override = remote("s", "Weekly (late)", start = SECOND).copy(key = RemoteEventKey("s", at(SECOND)), etag = "e2")
+		fake.fetchHook =
+			{ _, cursor -> if (cursor == null) RemoteEventChanges(events = listOf(override), cursor = "7", complete = true) else null }
+
+		sync.sync(source.id)
+
+		lastError() shouldBe "Work: 1 events could not be stored"
+		fake.fetchCursors.clear()
+		fake.fetchHook = { _, _ -> RemoteEventChanges(cursor = "8") }
+
+		sync.sync(source.id)
+
+		fake.fetchCursors shouldContainExactly listOf("work" to "7")
+	}
+
+	@Test
 	fun `a deletion on an earlier page than a re-creation of the same event keeps the event`() {
 		fake.put("work", remote("a", "Standup"))
 		sync.sync(source.id)
@@ -320,6 +357,35 @@ class CalendarSyncOverrideTests(
 		local("bad").shouldBeNull()
 		local("ok")!!.rrule shouldBe "FREQ=WEEKLY;COUNT=2"
 		lastError() shouldBe "Work: 1 events could not be stored"
+	}
+
+	@Test
+	fun `the provider's answer to a write-through is normalized like pulled events`() {
+		fake.put("work", remote("a", "Standup"))
+		sync.sync(source.id)
+		val id = local("a")!!.id
+		fake.normalizeWrites = { it.copy(conferenceUrl = "javascript:alert(1)", reminderMinutes = it.reminderMinutes + -1) }
+
+		api.patchEventOk(id.toString(), """{"title":"Retro","reminderMinutes":[15]}""")
+
+		val stored = local("a")!!
+		stored.title shouldBe "Retro"
+		stored.conferenceUrl.shouldBeNull()
+		stored.reminderMinutes shouldContainExactly listOf(15)
+	}
+
+	@Test
+	fun `a provider answering a write-through with an event it cannot be stored as fails the edit with 502, the local copy stays`() {
+		fake.put("work", remote("a", "Standup"))
+		sync.sync(source.id)
+		val id = local("a")!!.id
+		val start = Instant.parse("2026-03-03T10:00:00Z")
+		fake.normalizeWrites = { it.copy(timing = Timing.Timed(start, start.minusSeconds(3600), ZURICH)) }
+
+		// A malformed provider answer is a provider failure (task assumption: other provider failures -> 502).
+		api.patchEvent(id.toString(), """{"title":"Retro"}""").isProblem(502)
+
+		local("a")!!.title shouldBe "Standup"
 	}
 
 	// --- write-through: search and conflicts (CR-3, CR-5)
@@ -450,6 +516,20 @@ class CalendarSyncOverrideTests(
 		sync.sync(source.id)
 
 		calendars.findById(calendarId()).get().readOnly shouldBe true
+	}
+
+	@Test
+	fun `an event cannot be created in a calendar of a synced source that the provider does not know yet`() {
+		val unsynced = calendars.saveAndFlush(Calendar(source.id, "Not synced yet")).id
+
+		api
+			.postJson(
+				CalendarApi.EVENTS,
+				"""{"calendarId":"$unsynced","title":"New","start":"2026-03-04T09:00:00Z","end":"2026-03-04T10:00:00Z"}""",
+			).isProblem(409)
+
+		fake.writes.shouldBeEmpty()
+		events.findIdsByCalendarId(unsynced).shouldBeEmpty()
 	}
 
 	@Test
