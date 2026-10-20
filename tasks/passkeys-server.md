@@ -16,3 +16,4 @@ Passkeys as an alternative to password + TOTP (SPEC.md §4.1).
 - [ ] API documented: `api/openapi.yaml` regenerated (`UPDATE_OPENAPI=1 ./gradlew test --tests '*OpenApiContractTest'`) and `OpenApiContractTest` passes without the flag
 
 ## Notes
+- ASSUMPTION (2026-10-20 15:01+0200 by R1963MACOS/agent-1): Registration step-up: the TOTP code is checked when registration starts (options call), not recovery codes; wrong codes count against the shared LoginThrottle and return 403 (not 401, so clients don't treat it as logged out).
