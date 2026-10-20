@@ -5,7 +5,7 @@ owner: dell26/agent-1
 deps: [mail-model,oauth-connections]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/mail/imap,server/src/test/kotlin/ch/sonensei/cockpit/mail/imap]
 prio: 1
-lease_until: 2026-10-20T17:01:16Z
+lease_until: 2026-10-20T17:02:01Z
 extended: 
 releases: 1
 ---
