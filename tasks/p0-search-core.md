@@ -18,3 +18,4 @@ One search across all modules (SPEC.md §4.4).
 - [ ] API documented: `api/openapi.yaml` regenerated (`UPDATE_OPENAPI=1 ./gradlew test --tests '*OpenApiContractTest'`) and `OpenApiContractTest` passes without the flag
 
 ## Notes
+- ASSUMPTION (2026-10-20 15:14+0200 by dell26/agent-5): Migration lives in db/migration/core/ (V202610201500__core_search_document.sql), not the core-search folder named in touches: MigrationConventionTests requires folder == module prefix [a-z0-9]+, so 'core-search' is impossible
