@@ -17,3 +17,4 @@ Back up the user, settings, links, reminders (SPEC.md §10.2).
 ## Notes
 - ASSUMPTION (2026-10-20 22:39+0200 by dell26/agent-5): The TOTP secret is not in user.json: the secrets mechanism (data/secrets.enc.json) doesn't exist yet (task backup-secrets, which this task doesn't depend on). On import the user gets a fresh random TOTP secret, so they sign in with a recovery code; backup-secrets should add the secret to secrets.enc.json and the forced re-enrollment flag.
 - ASSUMPTION (2026-10-20 22:39+0200 by dell26/agent-5): Settings go to data/settings.json (own 'settings' contributor), not into user.json as the SPEC 10.2 tree suggests, because the criterion asks for separate user and settings contributors and they are separate modules.
+- ASSUMPTION (2026-10-20 22:39+0200 by dell26/agent-5): Login sessions, Android devices and retired refresh tokens are not backed up (short-lived token hashes): after a restore the owner signs in again and re-pairs devices.
