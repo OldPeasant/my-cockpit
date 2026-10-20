@@ -17,7 +17,8 @@ Day/week/month/agenda (SPEC.md §6.3).
   - verified (2026-10-21 01:09+0200 by dell26/agent-4): cd web && npx ng test --watch=false --include='src/app/features/calendar/**/*.spec.ts' -> 68 passed (incl. out-of-order range answers dropped, SSE EVENT/CALENDAR change reloads)
 - [x] Vitest component/service tests cover range loading and toggles; `cd web && npm run check` passes
   - verified (2026-10-21 01:09+0200 by dell26/agent-4): cd web && npm run check -> lint clean, 55 files / 968 tests passed, build ok; calendar coverage 249/249 stmts, 92/93 branches
-- [ ] Playwright `e2e/calendar-views/views.spec.ts` passes against the e2e stack (`npm run e2e -- e2e/calendar-views/views.spec.ts`, see p0-e2e-harness): weekly event shows correctly across the DST week
+- [x] Playwright `e2e/calendar-views/views.spec.ts` passes against the e2e stack (`npm run e2e -- e2e/calendar-views/views.spec.ts`, see p0-e2e-harness): weekly event shows correctly across the DST week
+  - verified (2026-10-21 01:09+0200 by dell26/agent-4): cd web && npm run e2e -- e2e/calendar-views/views.spec.ts against docker compose e2e stack built from this checkout (test-writer final round, rev a8d05719+tests) -> 6 passed incl. 'weekly event shows correctly across the DST week' (chromium)
 
 ## Notes
 - ASSUMPTION (2026-10-21 00:32+0200 by dell26/agent-4): Calendar visibility toggles persist the calendar's 'visible' flag on the server (PATCH /calendar/calendars/{id}); the view fetches occurrences of all calendars and filters by visibility client-side, so a toggle needs no refetch.
