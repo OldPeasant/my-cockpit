@@ -1,0 +1,26 @@
+{
+  "schema": 1,
+  "task": "backup-contrib-core",
+  "reviewed_revision": "d3620d37ee0129ecdc6c4605053fe0997f370a8d",
+  "helpers": {
+    "test-writer":   {"status": "completed", "report": "reviews/backup-contrib-core/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/backup-contrib-core/review.md"},
+    "fixer":         {"status": "completed", "report": "reviews/backup-contrib-core/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "TW-1", "source": "test-writer", "severity": "Medium", "disposition": "fixed",
+     "note": "BackupWebTests hard-coded export step count 3; now uses backups.exportSteps (061a0337)"},
+    {"id": "CR-1 (pass 1)", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "restored account has unknown TOTP secret: WARN without secrets on import, KDoc, tracked hand-off in tasks/backup-secrets.md (criterion + deps/touches); forced re-enrollment itself belongs to backup-secrets"},
+    {"id": "CR-2 (pass 1)", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "import-only behavior and readable mirrors untested: CoreBackupContributorsTests (11 tests)"},
+    {"id": "CR-1 (pass 2)", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "backup-secrets front matter now lists backup-contrib-core in deps and core/backupcontrib, core/auth in touches (d3620d37)"}
+  ],
+  "validation": [
+    {"command": "cd server && ./gradlew test --rerun --tests 'ch.sonensei.cockpit.core.backupcontrib.*' --tests '*BackupRoundTripTest' --tests '*BackupWebTests' jacocoTestReport", "result": "pass"},
+    {"command": "cd server && ./gradlew check", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
