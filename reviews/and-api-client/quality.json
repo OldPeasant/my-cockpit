@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "task": "and-api-client",
-  "reviewed_revision": "8515b2698a4d47a19359ba4d0781a7fc1dc52ec9",
+  "reviewed_revision": "3327a54486dac3ec13cb4ab36ab469ff598fbe06",
   "helpers": {
     "test-writer": {"status": "completed", "report": "reviews/and-api-client/tests.md"},
     "code-reviewer": {"status": "completed", "report": "reviews/and-api-client/review.md"},
