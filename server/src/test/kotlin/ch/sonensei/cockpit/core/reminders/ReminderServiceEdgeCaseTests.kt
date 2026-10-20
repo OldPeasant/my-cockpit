@@ -37,6 +37,7 @@ import java.time.Duration
 import java.time.Instant
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.CountDownLatch
+import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.TimeoutException
 
@@ -260,28 +261,35 @@ class ReminderServiceEdgeCaseTests(
 		val created = service.create(task, start).reminder
 		val locked = CountDownLatch(1)
 		val release = CountDownLatch(1)
+		// Own threads, created by this test: they inherit its recorded ApplicationEvents. Shared common-pool
+		// threads may have been created by an earlier test and then miss the events published here.
+		val executor = Executors.newFixedThreadPool(2)
 
-		// The scheduler fires the reminder (bumping its version) and keeps its transaction open.
-		val firing =
-			CompletableFuture.supplyAsync {
-				transactions.execute {
-					val fired = service.fireDue()
-					locked.countDown()
-					release.await(10, TimeUnit.SECONDS)
-					fired
-				}
-			}
-		locked.await(10, TimeUnit.SECONDS) shouldBe true
-
-		// The delete waits for the firing to commit, then removes the (now fired) row.
-		val deleting = CompletableFuture.runAsync { service.delete(created.id) }
 		try {
-			shouldThrow<TimeoutException> { deleting.get(500, TimeUnit.MILLISECONDS) }
+			// The scheduler fires the reminder (bumping its version) and keeps its transaction open.
+			val firing =
+				CompletableFuture.supplyAsync({
+					transactions.execute {
+						val fired = service.fireDue()
+						locked.countDown()
+						release.await(10, TimeUnit.SECONDS)
+						fired
+					}
+				}, executor)
+			locked.await(10, TimeUnit.SECONDS) shouldBe true
+
+			// The delete waits for the firing to commit, then removes the (now fired) row.
+			val deleting = CompletableFuture.runAsync({ service.delete(created.id) }, executor)
+			try {
+				shouldThrow<TimeoutException> { deleting.get(500, TimeUnit.MILLISECONDS) }
+			} finally {
+				release.countDown()
+			}
+			firing.get(10, TimeUnit.SECONDS) shouldBe 1
+			deleting.get(10, TimeUnit.SECONDS)
 		} finally {
-			release.countDown()
+			executor.shutdownNow()
 		}
-		firing.get(10, TimeUnit.SECONDS) shouldBe 1
-		deleting.get(10, TimeUnit.SECONDS)
 
 		repository.findById(created.id).isPresent shouldBe false
 		reminderChanges().last() shouldBe (ChangeOp.DELETED to created.id)

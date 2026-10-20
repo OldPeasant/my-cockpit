@@ -4,34 +4,35 @@ Date: 2026-10-20
 
 Task: cal-local-api - Calendar API for local calendars
 
-Scope: `git diff 9be84bf7..3d08c222 -- server/ api/` (committed changes only). The generated web client (`web/src/app/api/generated/`) was checked only for consistency with `api/openapi.yaml`.
+Scope: `git diff 9e2d0743e12cb9df3e5e16f10f113cdb9fbceec2 de56a2f` restricted to the task's files: `server/src/main/kotlin/ch/sonensei/cockpit/calendar/api/`, `server/src/test/kotlin/ch/sonensei/cockpit/calendar/api/`, `api/openapi.yaml`, `web/src/app/api/generated/` (checked for consistency with the contract only) and `reviews/cal-local-api/`. Committed changes only. This is a re-review. The earlier review had findings CR-1 to CR-3, and they were fixed in addf13a.
+
+Reviewed revision: de56a2f
 
 Requirements:
-- `tasks/cal-local-api.md`: acceptance criteria and the recorded ASSUMPTION notes
-- SPEC.md §4.2 (UUIDv7, ETag/If-Match, Problem Details, soft delete/Trash), §4.3, §4.4 (search), §6.1, §6.2, §6.4
-- docs/ARCHITECTURE.md and docs/QUALITY.md
-- AGENTS.md project notes (module boundaries, generated files, no logging of content)
-- Parent agent instructions (focus on series splitting, overrides, EXDATEs, DST, all-day, COUNT/UNTIL, locking, change events, search, Trash, JPA pitfalls, OpenAPI accuracy)
+- `tasks/cal-local-api.md`: the 5 acceptance criteria and the recorded ASSUMPTION notes (scope defaults, occurrence format, time-field semantics, DELETE THIS/FOLLOWING behaviour, the CALENDAR change-event type)
+- SPEC.md §4.2 (UUIDv7, ETag/If-Match, Problem Details, Trash), §6 (calendar module, §6.4 endpoint list), §14 (conventions)
+- docs/ARCHITECTURE.md, docs/QUALITY.md, AGENTS.md project notes
+- Previous review `reviews/cal-local-api/review.md` (old revision), `reviews/cal-local-api/fixes.md`, `reviews/cal-local-api/tests.md`
 
 Git range:
 - Branch: main
-- HEAD: 3d08c2229e259a7ae5d30e6afbcda397fe6a5902
-- Base/start: 9be84bf73ca170ddaa7300e1d7f4d6ac78048a4d
-- Commits reviewed: 2 (3880a7f9 implementation; 3d08c222 tests, regenerated openapi.yaml and web client)
-- Uncommitted changes: none at review start
+- HEAD: de56a2f
+- Base/start: 9e2d0743e12cb9df3e5e16f10f113cdb9fbceec2
+- Commits reviewed: 7 task commits (a8cae2c, cc50c8f, f939ad0, 7ac3610, addf13a, e64ad1c, de56a2f). The range also contains claim, heartbeat and board commits from other agents. They do not touch the reviewed files.
+- Uncommitted changes: none (`git status --short` is empty)
 
-Files read in full: `CalendarController.kt`, `CalendarService.kt`, `CalendarEventController.kt`, `CalendarEventService.kt`, `EventCommands.kt`, `CalendarDtos.kt`, `EventTrashContributor.kt`, the three test classes (key sections). Context read: `calendar/model/*` (entity, repositories, indexer, item resolver), `calendar/recurrence/OccurrenceExpander.kt`, migration `V202610201351__calendar_model.sql`, `core/web/ProblemDetailsAdvice.kt`, `core/web/ETags.kt`, `core/trash/domain/TrashContributor.kt` and `TrashService.kt`, `core/events/domain/ChangeEventPublisher.kt`.
+Files read in full: `CalendarEventService.kt`, `EventCommands.kt`, `CalendarEventController.kt`, `CalendarDtos.kt`, `CalendarController.kt`, `CalendarService.kt`, `EventTrashContributor.kt`. I also read the `listEventOccurrences` section of `api/openapi.yaml` and the `accept` headers of the generated `fn/calendars/*.ts`. I listed the test names in all test classes (131 test functions plus `OpenApiContractTest`, which matches the 132 in tests.md) and read the relevant parts of `CalendarSeriesEdgeCaseWebTests.kt`.
 
-Commands and results:
-- `git log --oneline 9be84bf7..3d08c222` -> 2 commits as above.
-- `git diff --stat 9be84bf7..3d08c222 -- server/ api/` -> 12 files, +3807 lines.
-- `./gradlew test --tests 'ch.sonensei.cockpit.calendar.api.*'` -> could not be run by the reviewer: the sandbox denied running Gradle. Instead I read the existing results in `server/build/test-results/test/` (written 2026-10-20 18:39 local, after commit 3d08c222 at 18:37): CalendarEventWebTests 17 tests, CalendarSeriesWebTests 15, CalendarWebTests 6; 0 failures, 0 errors, 0 skipped. The parent should re-run this itself before recording evidence.
-- `grep -A2 "application/problem+json:" api/openapi.yaml | grep -F schemas/ | grep -v ProblemDetail` -> `OccurrenceListResponse` (new) and `ChecklistResponse` (existing precedent).
-- `grep -rln "accept: 'application/problem+json'" web/src/app/api/generated/fn` -> `calendars/list-event-occurrences.ts`, `tasks/list-checklist-items.ts`.
+I could not run Gradle in this review session, so the test results are the ones reported in `tests.md`.
 
-Findings CR-1 to CR-3 were found by reading the code and tracing it by hand. I could not run a reproducing test, because the reviewer may not add tests and Gradle could not be run.
+Summary: 0 P0, 0 P1, 0 P2, 2 P3
 
-Summary: 0 P0, 0 P1, 1 P2, 2 P3
+## Status of the earlier findings
+
+- **CR-1 (FOLLOWING/ALL through a moved override): resolved.** `carryExceptions` now takes the addressed override's recurrence id and requested times (`CalendarEventService.kt:366`, `:380-382`, `:395-397`). `updateSeries` and `splitSeries` pass them in through `addressedTiming` (`:279`, `:331`, `:408-411`). Regression tests: `CalendarSeriesEdgeCaseWebTests.kt:237`, `:251`, `:263`, `:290`. The content-only case stays covered (`:221`, `:317`).
+- **CR-2 (racing THIS creates end in a 500): resolved.** `updateOccurrence` turns a `DataIntegrityViolationException` from inserting a new override into `ConflictException` (409) (`CalendarEventService.kt:223-230`). An update of an existing override rethrows the exception unchanged. Deterministic regression test: `CalendarSeriesEdgeCaseWebTests.kt:562`.
+- **CR-3 (200 of `listEventOccurrences` documented as problem+json): resolved.** The 200 response now declares `application/json` (`CalendarEventController.kt:59-63`). In `api/openapi.yaml:461-472` the 200 response has only `application/json`, and `application/problem+json` appears only on the 400. The generated `list-event-occurrences.ts:39` sends `accept: 'application/json'`.
+- **TW-1 (an override of a trashed series was reachable): resolved.** `load` treats an override whose master is not active as not found (`CalendarEventService.kt:590-594`). Tested at `CalendarSeriesEdgeCaseWebTests.kt:602` and `:613`.
 
 ## P0 Critical
 
@@ -43,42 +44,38 @@ None.
 
 ## P2 Medium
 
-- [ ] **CR-1 | FOLLOWING / ALL on an occurrence that already has a moved override do not move that occurrence to the requested times**
-    - File: `server/src/main/kotlin/ch/sonensei/cockpit/calendar/api/CalendarEventService.kt:296` (also `:255`, `:368-369`)
-    - Category: Correctness
-    - Problem: For `scope=FOLLOWING` (and for `scope=ALL` addressed through an override or `occurrence=`), the new series times come from `originalTiming.shifted(shown, requested)`, where `shown` is the override's current (moved) times. The override is then carried over by `carryExceptions`. Because the override was moved earlier, `unmoved` is false, so it keeps its old times (`val timing = if (unmoved) to.occurrence(moved) else Timing.of(override)`). It is recreated at the new recurrence id with those old times, and the addressed occurrence never gets the times the client sent. Example with the weekly 09:00 series used in the tests:
-        1. `PATCH ?scope=THIS&occurrence=<23 Mar 09:00>` moves 23 March to 11:00.
-        2. `PATCH ?scope=FOLLOWING&occurrence=<23 Mar 09:00>` with `start` = 14:00 starts the new series at 12:00, since 09:00 + (14:00 - 11:00) = 12:00.
-        3. The recreated override for its first occurrence still shows 23 March at 11:00. No occurrence is at 14:00.
-
-      `ALL` behaves the same way: the series shifts by +3h, and the dragged occurrence stays at 11:00. This contradicts the documented API contract in `EventPatchRequest` (`CalendarDtos.kt:286`, "the time fields are the new times of that occurrence") and the task assumption "the time fields are the new times of that occurrence and the series moves by the same wall-clock offset". No test covers FOLLOWING or ALL with time fields on an occurrence that has a moved override. `PATCH FOLLOWING splits the series...` and `PATCH ALL with an occurrence moves the series...` only move generated occurrences.
-    - Why it matters: Dragging an already moved occurrence in the week view (SPEC §6.3) and picking "this and following" or "all" makes the dragged event snap back to its old time, while every other occurrence moves. The user's change is silently lost for the occurrence they actually edited.
-    - Suggested fix: In `splitSeries` and `updateSeries`, when `override` (the addressed occurrence's override) is set and `fields.timing` was sent, give that override the resolved requested times (`Timing.resolve(shown, input, zone)`) after the carry or recreation. One way is to pass the addressed recurrence id and its new timing into `carryExceptions`. Add web tests for FOLLOWING and for ALL with `start` on an occurrence that was first moved with THIS. Content fields are a separate question: `PATCH ALL passes changed fields on...` asserts on purpose that the addressed override keeps its own values. Record that as a decision (`tasks.py assume`) if it stays.
+None.
 
 ## P3 Low
 
-- [ ] **CR-2 | Concurrent or double-submitted `scope=THIS` edits of the same generated occurrence end in a generic 500**
-    - File: `server/src/main/kotlin/ch/sonensei/cockpit/calendar/api/CalendarEventService.kt:218` (insert via `events.saveAndFlush(override)` in `updateOccurrence`)
+- [ ] **CR-4 | A time change with scope ALL or FOLLOWING through an all-day override of a timed series makes the whole series all-day and drops all its exceptions**
+    - File: `server/src/main/kotlin/ch/sonensei/cockpit/calendar/api/CalendarEventService.kt:265-266` (ALL) and `:307-308` (FOLLOWING); `server/src/main/kotlin/ch/sonensei/cockpit/calendar/api/EventCommands.kt:98-106` (`Timing.shifted`) and `:149` (`Timing.resolve`)
     - Category: Correctness
-    - Problem: If-Match is checked against the master's version, and creating an override does not change the master. So two concurrent THIS PATCHes (double click, client retry) for the same occurrence both pass the check. Both then insert an override, and the second one violates the unique index `calendar_event_override_occurrence (parent_event_id, recurrence_id_at, recurrence_id_date)`. The resulting `DataIntegrityViolationException` is not mapped by `ProblemDetailsAdvice`, so the client gets `500 An unexpected error occurred` and an ERROR log. The documented answer for concurrent changes is `409 Changed concurrently`.
-    - Why it matters: A plausible user action produces a server error instead of the documented conflict response, and the client cannot tell it is safe to reload and retry.
-    - Suggested fix: Bump the master's version when an override is created (for example, touch the master so its `@Version` increments), so the loser fails with `OptimisticLockingFailureException` (409). Or catch `DataIntegrityViolationException` around override creation and throw `ConflictException`.
+    - Problem: `PATCH THIS {"allDay":true}` can make one occurrence of a timed series all-day (tested at `CalendarSeriesEdgeCaseWebTests.kt:186`). If the client then sends only `startDate` for that override with `scope=ALL` or `FOLLOWING`, the request does not send `allDay`. Even so, `Timing.resolve(shown, input, zone)` returns an `AllDay`, because `allDay = input.allDay ?: (current is AllDay)` and `current` is the all-day override. `oldTiming.shifted(shown, requested)` then switches on the kind of `to`, so the timed master gets an `AllDay` timing. `moved` is true, and `carryExceptions` calls `from.moveOccurrenceId(id, to)`, which returns `null` for the change from timed to all-day. As a result, every EXDATE and every override of the series is dropped. That includes the addressed override and occurrences the user had deleted earlier, which come back.
+    - Why it matters: Moving one all-day exception by a day for "all events" silently turns the whole series into all-day events and discards the user's other exceptions. The client never asked for a kind change. The task assumption says the series "moves by the same wall-clock offset", and the documented drop of exceptions only covers a requested change between timed and all-day (`PATCH ALL turns a timed series all-day...`, `:159`). The precondition is rare, so this is P3.
+    - Suggested fix: Change the series kind only when the request sends `allDay`. Otherwise, shift the master by the date offset and keep its own kind (for a timed master, move by whole days in its zone). Alternatively, reject the request with 400 when the addressed occurrence's kind differs from the series and `allDay` is not sent. Add a web test for either behaviour, or record the current behaviour with `tasks.py assume` if it is intended.
 
-- [ ] **CR-3 | `listEventOccurrences` documents its 200 body as `application/problem+json`, and the generated client asks for it**
-    - File: `server/src/main/kotlin/ch/sonensei/cockpit/calendar/api/CalendarEventController.kt:59`
-    - Category: Integration
-    - Problem: The 200 `@ApiResponse` has no `content`, so springdoc takes both `produces` types. `api/openapi.yaml` lists `OccurrenceListResponse` under `application/problem+json`, and the generated `web/src/app/api/generated/fn/calendars/list-event-occurrences.ts` sends `accept: 'application/problem+json'`. Successful occurrence lists are then served with a Problem Details content type. The other new GET endpoints (`getEvent`, `getCalendar`) avoid this by declaring `content = [Content(mediaType = APPLICATION_JSON_VALUE, ...)]` on the 200 response. `ChecklistController` has the same pre-existing issue.
-    - Why it matters: The API contract is inaccurate. Clients or interceptors that treat `application/problem+json` as an error format would misread successful responses.
-    - Suggested fix: Add `content = [Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = Schema(implementation = OccurrenceListResponse::class))]` to the 200 response, then regenerate `api/openapi.yaml` and the web client.
+- [ ] **CR-5 | Changing the status of the series with scope ALL brings back occurrences deleted with `DELETE scope=THIS`**
+    - File: `server/src/main/kotlin/ch/sonensei/cockpit/calendar/api/EventCommands.kt:237` (`EventContent.propagate`), used from `CalendarEventService.kt:271-274` and `:317-320`; the deletion happens at `CalendarEventService.kt:239-241`
+    - Category: Correctness
+    - Problem: `DELETE ?scope=THIS` on an occurrence that has an override deletes it by setting the override's `status = CANCELLED`. A later status change with ALL (or FOLLOWING) copies the new status to every override whose status equals the master's old status: `if (event.status == before.status) event.status = status`. Example sequence:
+        1. Delete one moved occurrence with THIS. Its override is now CANCELLED.
+        2. Cancel the whole series with `PATCH ALL {"status":"CANCELLED"}`.
+        3. Un-cancel it with `PATCH ALL {"status":"CONFIRMED"}`.
+
+      In step 3 `before.status` is CANCELLED, so the override deleted in step 1 becomes CONFIRMED and shows up again in `GET /calendar/events`. The propagation cannot tell "deleted with THIS" apart from "cancelled with the series".
+    - Why it matters: An occurrence the user deleted reappears without a request for it. The sequence is uncommon, so this is P3.
+    - Suggested fix: Exclude overrides that are CANCELLED from status propagation, so that a deleted occurrence never inherits a non-cancelled status from the master. Alternatively, record a THIS delete of an overridden occurrence as an EXDATE and delete the override row. Add a web test for the cancel and un-cancel sequence.
 
 ## Checked without findings
 
-- Calendars: GET/POST/PATCH match the AC. The single default is flushed before a new default is set (partial unique index). Calendar change events use type `CALENDAR` (assumption recorded). If-Match is enforced through `ETags.checkIfMatch` (428/412).
-- Events: the UUIDv7 check on client ids, the idempotent create, and the 409 for ids in the Trash all work. The `DataIntegrityViolationException` retry in the controller runs a new transaction (the service transaction has already rolled back; `open-in-view=false`).
-- Series logic: COUNT is converted to UNTIL on the old series, and the remaining COUNT includes EXDATEs (RFC 5545). UNTIL is `occurrence - 1s` in UTC (timed) or the day before (all-day). Wall-clock shifting across DST and zone changes is consistent between `Timing.shifted` and `moveOccurrenceId`. Exceptions are dropped when the kind changes (timed/all-day). Override recreation deletes and flushes before inserting, which respects the immutable `parent_event_id`/`recurrence_id_*` columns and the unique index.
-- Search and Trash: `CalendarEventIndexer.index` runs on every change, including override cascade. Removed overrides publish `ItemDeletedEvent` (search and links cleaned). Purge removes overrides with their links. `TrashService` publishes the master's change and delete events.
-- Security: all endpoints are under `/api/v1` and need a login (tested). No new logging of event content. Input lengths, URL scheme, e-mail and the RRULE are validated. Errors are Problem Details.
+- AC1: `GET/POST/PATCH /api/v1/calendar/calendars` and `GET /api/v1/calendar/events?from=&to=&calendarIds=` exist. The range check is in place (to > from, at most 400 days, 400 Problem Details). By default only visible calendars are listed. A new default calendar flushes the old one first, which respects the partial unique index.
+- AC2: scope defaults and occurrence parsing follow the recorded assumptions. For FOLLOWING, COUNT becomes UNTIL on the old series, and the remaining COUNT counts EXDATEs. UNTIL is `occurrence - 1s` in UTC (timed) or the day before (all-day). Overrides are recreated with delete and flush before insert, because `parent_event_id` and `recurrence_id_*` cannot change. DELETE THIS, FOLLOWING and ALL behave as documented. If-Match uses the addressed event's version, and the If-Match check runs before any write.
+- AC3: every change path calls `changed()` (re-index and change event). Overrides that are removed publish `ItemDeletedEvent` and DELETED. Trash: overrides are hidden in the list, restore re-indexes, and purge removes the overrides with their links. Tests: `CalendarEventWebTests.kt:241`, `:266`, `:328`; `CalendarSeriesEdgeCaseWebTests.kt:483-545`, `:578-648`.
+- AC5 and integration: the regenerated contract and client match the controller annotations (`accept` headers checked for all 9 generated functions). Errors are Problem Details. The idempotent create handles a lost race through `existingCreate` in a new transaction.
+- Security: the endpoints are under `/api/v1` and need authentication. No logging was added to the reviewed main code (grep for logger/println finds nothing). Input lengths, RRULE, URL scheme and e-mail are validated. No secrets or personal data were found in the diff.
+- Tests: 131 test functions across the 9 classes in `calendar.api`, plus `OpenApiContractTest`, which matches the 132 tests in tests.md. All earlier findings have regression tests.
 
 ## Review conclusion
 
-Material issues found; fix before completing the task. CR-1 is a correctness defect in the documented FOLLOWING/ALL time semantics for occurrences that already have a moved override, and it has no test. CR-2 and CR-3 are low-priority robustness and contract-accuracy issues that the parent may fix or record as accepted. Because I could not run the test suite myself, the parent must re-run `./gradlew test --tests 'ch.sonensei.cockpit.calendar.api.*'` for evidence.
+No material issues found. The earlier findings CR-1 to CR-3 and the trashed-override bug (TW-1) are resolved and covered by tests. CR-4 and CR-5 are low-priority edge cases in how series edits propagate. The parent worker may fix them, or accept them with a recorded `tasks.py assume`. Neither blocks completion of the task. I did not run the test suite in this review. The parent must use its own test runs as evidence for criteria 4 and 5.
