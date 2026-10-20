@@ -2,6 +2,7 @@ package ch.sonensei.cockpit.backup.api
 
 import ch.sonensei.cockpit.CockpitServerApplication
 import ch.sonensei.cockpit.backup.domain.InvalidBackupException
+import ch.sonensei.cockpit.backup.domain.PreRestoreBackupFailedException
 import ch.sonensei.cockpit.backup.domain.RestoreFailedException
 import ch.sonensei.cockpit.backup.domain.RestoreReport
 import ch.sonensei.cockpit.backup.domain.RestoreService
@@ -24,7 +25,7 @@ object RestoreCli {
 
 	/**
 	 * Runs the restore named by [OPTION] in [args] (the other arguments configure the application as usual) and returns
-	 * the exit code: 0 restored, 1 invalid backup or failed import (nothing changed), 2 no such file.
+	 * the exit code: 0 restored, 1 invalid backup, failed pre-restore backup or failed import (nothing changed), 2 no such file.
 	 */
 	fun run(
 		args: Array<String>,
@@ -53,6 +54,9 @@ object RestoreCli {
 					out.println("Restore: the backup could not be imported; nothing was changed")
 					return 1
 				} catch (e: RestoreFailedException) {
+					out.println("Restore: ${e.message} (see the log)")
+					return 1
+				} catch (e: PreRestoreBackupFailedException) {
 					out.println("Restore: ${e.message} (see the log)")
 					return 1
 				}

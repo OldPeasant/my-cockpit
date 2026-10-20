@@ -3202,6 +3202,13 @@ paths:
                 $ref: "#/components/schemas/ProblemDetail"
           description: "The backup's data could not be imported; nothing changed.\
             \ `problems` lists why, if known."
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: The current data could not be backed up to `pre-restore/` first;
+            nothing changed
       summary: Replace all data with an uploaded backup
       tags:
       - Backup

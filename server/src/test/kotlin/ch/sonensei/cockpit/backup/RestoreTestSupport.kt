@@ -28,7 +28,8 @@ import kotlin.io.path.listDirectoryEntries
 
 /**
  * A contributor without data whose import fails on demand ([fail]), after the ones it depends on have imported. Its
- * export waits for [exportGate] when set, to keep a backup running, and fails on demand ([failExport]).
+ * export waits for [exportGate] when set, to keep a backup running, and fails on demand ([failExport]); its restore
+ * warnings fail on demand ([failWarnings]) with an exception other than InvalidBackupException.
  */
 class FailingImportBackupContributor : BackupContributor {
 	override val id = "failing-import"
@@ -40,9 +41,16 @@ class FailingImportBackupContributor : BackupContributor {
 
 	@Volatile var failExport = false
 
+	@Volatile var failWarnings = false
+
 	override fun export(writer: BackupDataWriter) {
 		exportGate?.await(30, TimeUnit.SECONDS)
 		check(!failExport) { "Export failed for 'Secret title'" }
+	}
+
+	override fun restoreWarnings(reader: BackupDataReader): List<String> {
+		check(!failWarnings) { "Warnings failed for 'Secret title'" }
+		return emptyList()
 	}
 
 	override fun import(reader: BackupDataReader) = check(!fail) { "Import failed for 'Secret title'" }

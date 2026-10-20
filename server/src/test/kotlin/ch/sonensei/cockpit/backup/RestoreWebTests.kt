@@ -15,6 +15,7 @@ import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.collections.shouldContainExactlyInAnyOrder
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
+import io.kotest.matchers.string.shouldContain
 import io.kotest.matchers.string.shouldEndWith
 import io.kotest.matchers.string.shouldNotContain
 import io.kotest.matchers.string.shouldStartWith
@@ -88,6 +89,7 @@ class RestoreWebTests(
 	fun tearDown() {
 		failing.fail = false
 		failing.failExport = false
+		failing.failWarnings = false
 		failing.exportGate?.countDown()
 		failing.exportGate = null
 	}
@@ -415,6 +417,42 @@ class RestoreWebTests(
 	}
 
 	@Test
+	fun `a null recovery code makes the upload invalid with the file named`() {
+		val zip =
+			Zips.edit(export(), mapper, updateManifest = true) { entries ->
+				val user = mapper.readTree(entries.getValue("data/user.json")) as ObjectNode
+				user.putArray("recoveryCodes").addNull()
+				entries["data/user.json"] = mapper.writeValueAsBytes(user)
+			}
+		val before = titles()
+
+		val report = report(zip)
+
+		report["valid"].asBoolean() shouldBe false
+		report["id"].isNull shouldBe true
+		report["problems"].values().map { it.asString() } shouldContainExactly listOf("data/user.json is not valid")
+		report.toString() shouldNotContain "jdoe"
+		titles() shouldBe before
+	}
+
+	@Test
+	fun `a contributor failing on its warnings makes the upload invalid with a content-free problem`(output: CapturedOutput) {
+		val zip = export()
+		val before = titles()
+		failing.failWarnings = true
+
+		val report = report(zip)
+
+		report["valid"].asBoolean() shouldBe false
+		report["id"].isNull shouldBe true
+		report["problems"].values().map { it.asString() } shouldContainExactly listOf("The backup's data is not valid")
+		report.toString() shouldNotContain "Secret title"
+		output.all shouldContain "Reading the backup's data for its restore warnings failed: java.lang.IllegalStateException"
+		output.all shouldNotContain "Secret title"
+		titles() shouldBe before
+	}
+
+	@Test
 	fun `a pre-restore backup never overwrites an earlier one of the same minute`() {
 		val zip = export()
 		val preRestoreDir = Files.createDirectories(dataDir.resolve(RestoreService.PRE_RESTORE_DIR))
@@ -449,7 +487,9 @@ class RestoreWebTests(
 
 		confirm(id).andExpect {
 			status { isInternalServerError() }
+			content { contentType("application/problem+json") }
 			content { string(not(containsString("Secret title"))) }
+			jsonPath("$.detail") { value("The current data could not be backed up; nothing was changed") }
 		}
 
 		titles() shouldBe before

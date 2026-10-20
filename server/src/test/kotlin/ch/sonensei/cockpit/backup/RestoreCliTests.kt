@@ -19,6 +19,7 @@ import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.test.context.DynamicPropertyRegistry
 import org.springframework.test.context.DynamicPropertySource
 import org.springframework.transaction.support.TransactionTemplate
+import tools.jackson.databind.node.ObjectNode
 import java.io.ByteArrayOutputStream
 import java.io.PrintStream
 import java.nio.file.Files
@@ -172,6 +173,52 @@ class RestoreCliTests(
 		output shouldContain "Restore: The backup could not be imported; nothing was changed (see the log)"
 		usernames() shouldBe listOf("mmuster")
 		jdbc.queryForObject("select count(*) from link", Long::class.java) shouldBe linksBefore
+	}
+
+	@Test
+	fun `a backup with a null recovery code exits with 1 and a report`(
+		@TempDir work: Path,
+	) {
+		transactions.executeWithoutResult { UserBackupFixture(users).seed() }
+		val exported = ByteArrayOutputStream().also { backups.export(it) }.toByteArray()
+		val zip = work.resolve("backup.zip")
+		Files.write(
+			zip,
+			Zips.edit(exported, backups.canonicalJson, updateManifest = true) { entries ->
+				val user = backups.canonicalJson.readTree(entries.getValue("data/user.json")) as ObjectNode
+				user.putArray("recoveryCodes").addNull()
+				entries["data/user.json"] = backups.canonicalJson.writeValueAsBytes(user)
+			},
+		)
+		jdbc.update("update app_user set username = 'mmuster'")
+
+		val (code, output) = cli(zip)
+
+		code shouldBe 1
+		output shouldContain "user: 1"
+		output shouldContain "Problem: data/user.json is not valid"
+		output shouldContain "Restore: the backup is not valid; nothing was changed"
+		usernames() shouldBe listOf("mmuster")
+		Files.exists(dataDir.resolve("pre-restore")) shouldBe false
+	}
+
+	@Test
+	fun `a failing pre-restore backup exits with 1 and changes nothing`(
+		@TempDir work: Path,
+	) {
+		transactions.executeWithoutResult { UserBackupFixture(users).seed() }
+		val zip = work.resolve("backup.zip")
+		zip.outputStream().use { backups.export(it) }
+		jdbc.update("update app_user set username = 'mmuster'")
+		// A file where the pre-restore folder belongs: the current data cannot be backed up.
+		dataDir.resolve("pre-restore").writeText("in the way")
+
+		val (code, output) = cli(zip)
+
+		code shouldBe 1
+		output shouldContain "Restore: The current data could not be backed up; nothing was changed (see the log)"
+		usernames() shouldBe listOf("mmuster")
+		dataDir.listDirectoryEntries().map { it.name } shouldBe listOf("pre-restore")
 	}
 
 	@Test

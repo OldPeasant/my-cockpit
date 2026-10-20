@@ -1,6 +1,7 @@
 package ch.sonensei.cockpit.backup.api
 
 import ch.sonensei.cockpit.backup.domain.InvalidBackupException
+import ch.sonensei.cockpit.backup.domain.PreRestoreBackupFailedException
 import ch.sonensei.cockpit.backup.domain.RestoreFailedException
 import ch.sonensei.cockpit.backup.domain.RestoreReport
 import ch.sonensei.cockpit.backup.domain.RestoreResult
@@ -80,6 +81,11 @@ class RestoreController(
 		description = "The backup's data could not be imported; nothing changed. `problems` lists why, if known.",
 		content = [Content(mediaType = PROBLEM_JSON, schema = Schema(ref = "#/components/schemas/ProblemDetail"))],
 	)
+	@ApiResponse(
+		responseCode = "500",
+		description = "The current data could not be backed up to `pre-restore/` first; nothing changed",
+		content = [Content(mediaType = PROBLEM_JSON, schema = Schema(ref = "#/components/schemas/ProblemDetail"))],
+	)
 	fun confirm(
 		@Parameter(description = "Id of the upload, from its validation report") @PathVariable id: UUID,
 	): RestoreResultResponse = restores.confirm(id).toResponse()
@@ -89,6 +95,13 @@ class RestoreController(
 
 	@ExceptionHandler(RestoreFailedException::class)
 	fun handleFailed(ex: RestoreFailedException): ResponseEntity<ProblemDetail> = unprocessable(emptyList())
+
+	@ExceptionHandler(PreRestoreBackupFailedException::class)
+	fun handlePreRestoreFailed(ex: PreRestoreBackupFailedException): ResponseEntity<ProblemDetail> =
+		ResponseEntity
+			.status(HttpStatus.INTERNAL_SERVER_ERROR)
+			.contentType(MediaType.APPLICATION_PROBLEM_JSON)
+			.body(ProblemDetail.forStatusAndDetail(HttpStatus.INTERNAL_SERVER_ERROR, ex.message))
 
 	private fun unprocessable(problems: List<String>): ResponseEntity<ProblemDetail> {
 		val problem =

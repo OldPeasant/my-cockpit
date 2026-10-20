@@ -44,6 +44,9 @@ data class RestoreResult(
 /** The backup passed validation, but its data could not be imported (e.g. it breaks a constraint); nothing changed. */
 class RestoreFailedException : RuntimeException("The backup could not be imported; nothing was changed")
 
+/** The current data could not be saved to `pre-restore/` before a restore, so the restore did not start. */
+class PreRestoreBackupFailedException : RuntimeException("The current data could not be backed up; nothing was changed")
+
 /**
  * Restore (SPEC.md §10.1): [upload] stores a backup zip and returns its validation report without changing any data;
  * [confirm] replaces all data with it. The replace saves the current data as a backup to
@@ -89,6 +92,7 @@ class RestoreService(
 	 * @throws ch.sonensei.cockpit.core.web.ConflictException (409) while a backup is running
 	 * @throws InvalidBackupException when the backup's data turns out to be invalid while importing
 	 * @throws RestoreFailedException when the import fails for another reason
+	 * @throws PreRestoreBackupFailedException when the current data cannot be backed up first
 	 */
 	@Synchronized
 	fun confirm(id: UUID): RestoreResult {
@@ -120,6 +124,11 @@ class RestoreService(
 				warnings += backups.restoreWarnings(path)
 			} catch (e: InvalidBackupException) {
 				problems += e.problems
+			} catch (e: RuntimeException) {
+				// A contributor failing on data it did not expect; its message may quote user content: details only at DEBUG.
+				log.warn("Reading the backup's data for its restore warnings failed: {}", e.javaClass.name)
+				log.debug("Restore warnings failure", e)
+				problems += "The backup's data is not valid"
 			}
 		}
 		val valid = problems.isEmpty()
@@ -141,9 +150,18 @@ class RestoreService(
 	 *
 	 * @throws InvalidBackupException when the backup is invalid
 	 * @throws RestoreFailedException when the import fails for another reason
+	 * @throws PreRestoreBackupFailedException when the current data cannot be backed up first
 	 */
 	fun replace(path: Path): RestoreResult {
-		val preRestore = preRestoreBackup()
+		val preRestore =
+			try {
+				preRestoreBackup()
+			} catch (e: Exception) {
+				// The export runs every contributor, whose messages may quote user content: details only at DEBUG.
+				log.warn("Pre-restore backup failed: {}", e.javaClass.name)
+				log.debug("Pre-restore backup failure", e)
+				throw PreRestoreBackupFailedException()
+			}
 		val stash = stashDataDir()
 		val manifest =
 			try {
