@@ -12,6 +12,7 @@ How agents work is in `AGENTS.md`, and the review evidence contract is in `docs/
 | Server tests | `server/` | JUnit 5, Kotest assertions 6.0.4, MockK 1.14.6, springmockk 5.0.1, Testcontainers 2.0 (`testcontainers-postgresql`, `-junit-jupiter`, `spring-boot-testcontainers`), WireMock 3.13.1 (standalone), GreenMail 2.1.5 (`greenmail-junit5`) |
 | Android | `android/` | AGP 9.4.1 (built-in Kotlin), Kotlin 2.3.21 + Compose compiler plugin, Compose BOM 2026.09.00, Material 3, compileSdk 37 / targetSdk 36 / minSdk 29, JDK 21, Gradle 9.8.1 wrapper, ktlint, Android Lint, JUnit 4, JaCoCo; libraries (versions in `android/gradle/libs.versions.toml`): KSP 2.3.4, Hilt 2.59 (+ androidx.hilt 1.3.0 for Navigation/WorkManager), Navigation Compose 2.9.6, Retrofit 3.0.0 + kotlinx.serialization converter, OkHttp 5.3.0, kotlinx.serialization 1.9.0, Room 2.8.4 (schemas in `android/app/schemas/`), WorkManager 2.11.0, DataStore 1.1.7, Tink 1.18.0 (local encryption), Credential Manager 1.5.0, Glance 1.1.1, Coil 3.3.0; tests: Robolectric 4.16 + Compose UI test (v2 rules, in `testDebugUnitTest`), MockK 1.14.6, kotlinx-coroutines-test 1.10.2, Turbine 1.2.1, OkHttp MockWebServer |
 | Web | `web/` | Angular 22.2 (standalone, signals, zoneless), TypeScript 6.0, Vitest 5 via `@angular/build:unit-test` + jsdom, angular-eslint, `@vitest/coverage-v8`; Angular Material + CDK 22.2 (Material 3 theme in `web/src/theme/`: `--mat-sys-*`/`--app-*` tokens on `:root`, light/dark via `prefers-color-scheme` or `<html data-theme="light|dark">`), `@angular/localize` (source locale `en`, `npm run i18n:extract` → `src/locale/messages.xlf`), CodeMirror 6 (+ `@codemirror/lang-markdown`), FullCalendar 7 (`@fullcalendar/angular`, `fullcalendar` with daygrid/timegrid/interaction/list subpaths, `@fullcalendar/rrule` + `rrule`), TipTap 3 (core, starter-kit, link, image), pdfjs-dist 6; dev: ng-openapi-gen, Playwright + `@axe-core/playwright`, otplib |
+| Deploy | `Dockerfile`, `deploy/` | Multi-stage image (`node:24-bookworm-slim` → `eclipse-temurin:21-jdk` → `eclipse-temurin:21-jre`, non-root uid 10001), Docker Compose / podman-compose with `caddy:2` and `postgres:16-alpine`, restic (optional host backup) |
 | Tooling | root | TFP (`tasks.py`, `agents.py`), Python 3.10+ |
 
 The skeletons are deliberately minimal. Tasks add PostgreSQL, Flyway, Spring Security,
@@ -30,10 +31,10 @@ Every CI job, Dockerfile or build that downloads its own runtime must use these 
 
 ```
 server/      Spring Boot app, base package ch.sonensei.cockpit (modules: SPEC.md §3)
-web/         Angular SPA, built into the server's static resources for deployment (later task)
+web/         Angular SPA, built into the server's static resources by the Dockerfile (core/spa serves it)
 android/     Android app, namespace/applicationId ch.sonensei.cockpit
 api/         openapi.yaml, generated from the server (how to regenerate: api/README.md)
-deploy/      docker-compose.yml, Caddyfile (later task)
+deploy/      docker-compose.yml, Caddyfile, .env.example, gen-env.sh, host-backup.sh (deploy/README.md)
 docs/        this file, QUALITY.md, adr/
 scripts/     check.sh (the fast check)
 tasks/       TFP task board, one file per task
@@ -92,6 +93,7 @@ variables (and `nvm use`) in that shell, or in your shell profile.
 | Server | `cd server && ./gradlew bootRun --args='--spring.profiles.active=dev'` | http://localhost:8080, health at `/actuator/health`. Needs Postgres 16 at `localhost:5432/cockpit` (user/password `cockpit`) or `SPRING_DATASOURCE_*`, e.g. `podman run -d -p 5432:5432 -e POSTGRES_DB=cockpit -e POSTGRES_USER=cockpit -e POSTGRES_PASSWORD=cockpit postgres:16-alpine`. Also needs `COCKPIT_MASTER_KEY`, e.g. `export COCKPIT_MASTER_KEY=$(openssl rand -base64 32)` (keep it: stored credentials need the same key) |
 | Web | `cd web && npm ci && npm start` | http://localhost:4200. The dev proxy (`web/proxy.conf.json`) forwards `/api` and `/actuator` to `localhost:8080` |
 | Android | `cd android && ./gradlew installDebug` | needs a device/emulator (`adb devices`). Only humans can verify on a real device |
+| Full stack | `sh deploy/gen-env.sh localhost` (set ports ≥ 1024 for rootless Podman), then `docker compose -f deploy/docker-compose.yml up --build` | Caddy + server image + Postgres; see `deploy/README.md`. Image only: `docker build .` |
 
 ## Environment variables
 
