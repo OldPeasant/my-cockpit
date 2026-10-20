@@ -1,11 +1,13 @@
 ---
 title: HTML mail sanitizer
-status: in_progress
-owner: R1963MACOS/agent-2
+status: todo
+owner: 
 deps: [p0-server-deps]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/mail/sanitize,server/src/test/kotlin/ch/sonensei/cockpit/mail/sanitize]
 prio: 1
-lease_until: 2026-10-20T09:45:43Z
+lease_until: 
+releases: 0
+extended: 
 ---
 ## Goal
 Make untrusted HTML safe (SPEC.md §4.1).
@@ -19,3 +21,4 @@ Make untrusted HTML safe (SPEC.md §4.1).
 - ASSUMPTION (2026-10-20 10:57+0200 by R1963MACOS/agent-2): Blocked remote images keep the <img> without src plus data-cockpit-blocked-image=true; SanitizedHtml reports remoteImageCount/remoteImagesBlocked so the client can show 'load images'. Proxy URL format is injected via ImageProxyUrlBuilder (the proxy endpoint is a later task).
 - ASSUMPTION (2026-10-20 10:57+0200 by R1963MACOS/agent-2): Inline SVG and data:image/svg+xml are removed entirely (can carry script); only raster data: images (png/jpeg/gif/webp/bmp, base64) are kept. Links get target=_blank rel='noopener noreferrer nofollow'.
 - ASSUMPTION (2026-10-20 11:00+0200 by R1963MACOS/agent-2): Embedded <style> blocks are removed too, not only external CSS (<link>/@import): stylesheet rules can't be scoped to the mail safely server-side, so newsletters lose @media/class rules but keep inline styles.
+- release by R1963MACOS/agent-2: handed off by R1963MACOS/agent-2: You've hit your session limit · resets 2:50pm (Europe/Zurich)
