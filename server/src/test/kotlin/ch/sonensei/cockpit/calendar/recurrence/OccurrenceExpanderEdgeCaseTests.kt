@@ -341,6 +341,85 @@ class OccurrenceExpanderEdgeCaseTests {
 		expander.expand(listOf(movedThenCancelled), range("2026-06-01T00:00", "2026-06-08T00:00")).shouldBeEmpty()
 	}
 
+	// --- Rules ical4j cannot parse or expand (CR-1) ---
+
+	@Test
+	fun `a series with an invalid rule keeps its first occurrence and does not break the other events`() {
+		val single = timed("2026-06-03T12:00", "2026-06-03T13:00", title = "Fictitious lunch")
+		listOf("FREQ=FORTNIGHTLY", "", "FREQ=WEEKLY;BYDAY=XX").forEach { rule ->
+			val bad = timed("2026-06-01T09:00", "2026-06-01T10:00", rule)
+			val occurrences = expander.expand(listOf(bad, single), range("2026-06-01T00:00", "2026-06-15T00:00"))
+			occurrences.map { it.event } shouldContainExactly listOf(bad, single)
+			occurrences.first().apply {
+				start shouldBe at("2026-06-01T09:00")
+				end shouldBe at("2026-06-01T10:00")
+				seriesId shouldBe bad.id
+				occurrenceId shouldBe OccurrenceId.of(at("2026-06-01T09:00"))
+			}
+			// The first occurrence is still subject to the range.
+			expander.expand(listOf(bad, single), range("2026-06-02T00:00", "2026-06-15T00:00")).map { it.event } shouldContainExactly
+				listOf(single)
+		}
+	}
+
+	@Test
+	fun `an all-day series with an invalid rule keeps its first occurrence`() {
+		val bad = allDay("2026-06-01", rrule = "FREQ=FORTNIGHTLY")
+		startDates(expander.expandSeries(bad, emptyList(), range("2026-06-01T00:00", "2026-07-01T00:00"))) shouldContainExactly
+			listOf("2026-06-01")
+	}
+
+	@Test
+	fun `overrides still apply to a series with an invalid rule`() {
+		val bad = timed("2026-06-01T09:00", "2026-06-01T10:00", "FREQ=FORTNIGHTLY")
+		val moved =
+			timed("2026-06-01T15:00", "2026-06-01T16:00").apply { overrideOf(bad, OccurrenceId.of(at("2026-06-01T09:00"))) }
+		val occurrences = expander.expand(listOf(bad, moved), range("2026-06-01T00:00", "2026-06-15T00:00"))
+		occurrences.single().apply {
+			event shouldBe moved
+			start shouldBe at("2026-06-01T15:00")
+			seriesId shouldBe bad.id
+		}
+	}
+
+	@Test
+	fun `a date-only UNTIL on a timed series includes that whole day in the event's zone`() {
+		val event = timed("2026-01-05T09:00", "2026-01-05T10:00", "FREQ=DAILY;UNTIL=20260108")
+		localStarts(expander.expandSeries(event, emptyList(), range("2026-01-01T00:00", "2026-02-01T00:00"))) shouldContainExactly
+			listOf("2026-01-05T09:00", "2026-01-06T09:00", "2026-01-07T09:00", "2026-01-08T09:00")
+		val late = timed("2026-01-05T23:30", "2026-01-05T23:45", "UNTIL=20260106;FREQ=DAILY")
+		localStarts(expander.expandSeries(late, emptyList(), range("2026-01-01T00:00", "2026-02-01T00:00"))) shouldContainExactly
+			listOf("2026-01-05T23:30", "2026-01-06T23:30")
+	}
+
+	// --- Ambiguous local times at DST end (CR-3) ---
+
+	@Test
+	fun `ambiguous time at DST end uses the earlier offset also for a series starting in winter time`() {
+		// 2026-10-25 02:30 exists twice in Zurich (+02:00 and +01:00); the seed is in winter time (+01:00).
+		val event = timed("2026-01-04T02:30", "2026-01-04T03:00", "FREQ=WEEKLY;BYDAY=SU")
+		val occurrences = expander.expandSeries(event, emptyList(), range("2026-10-18T00:00", "2026-11-02T00:00"))
+		occurrences.map { it.start } shouldContainExactly
+			listOf(
+				Instant.parse("2026-10-18T00:30:00Z"),
+				Instant.parse("2026-10-25T00:30:00Z"),
+				Instant.parse("2026-11-01T01:30:00Z"),
+			)
+		occurrences[1].occurrenceId shouldBe OccurrenceId.of(Instant.parse("2026-10-25T00:30:00Z"))
+	}
+
+	@Test
+	fun `a series starting at the later of two ambiguous times keeps its start as the first occurrence`() {
+		val laterStart = Instant.parse("2026-10-25T01:30:00Z") // 02:30+01:00, the second 02:30 in Zurich
+		val event =
+			CalendarEvent(calendarId, "Fictitious night shift").apply {
+				setTimed(laterStart, laterStart.plus(Duration.ofMinutes(30)), zurich)
+				rrule = "FREQ=WEEKLY;COUNT=2"
+			}
+		expander.expandSeries(event, emptyList(), range("2026-10-24T00:00", "2026-11-03T00:00")).map { it.start } shouldContainExactly
+			listOf(laterStart, Instant.parse("2026-11-01T01:30:00Z"))
+	}
+
 	@Test
 	fun `expand with no events or only deleted events yields nothing`() {
 		expander.expand(emptyList(), range("2026-06-01T00:00", "2026-06-08T00:00")).shouldBeEmpty()

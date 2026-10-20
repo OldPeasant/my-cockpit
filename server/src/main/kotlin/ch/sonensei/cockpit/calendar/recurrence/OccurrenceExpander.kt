@@ -4,6 +4,7 @@ import ch.sonensei.cockpit.calendar.model.CalendarEvent
 import ch.sonensei.cockpit.calendar.model.EventStatus
 import ch.sonensei.cockpit.calendar.model.OccurrenceId
 import net.fortuna.ical4j.model.Recur
+import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Component
 import java.time.Duration
 import java.time.Instant
@@ -67,9 +68,15 @@ data class Occurrence(
  * recurs by date. The start of the master is always the first occurrence (RFC 5545). EXDATEs remove occurrences; an
  * override replaces the occurrence of its recurrence id with its own times, a [EventStatus.CANCELLED] override removes
  * it. An override is shown wherever its own times are, even if its original occurrence is outside the range.
+ *
+ * Ambiguous local times (DST end) resolve to the earlier offset, nonexistent ones (DST start) are shifted forward. A
+ * DATE-only UNTIL on a timed series includes that whole day in the event's zone. A series whose RRULE cannot be parsed
+ * or expanded keeps only its first occurrence (DTSTART), so one bad rule does not break the whole range.
  */
 @Component
 class OccurrenceExpander {
+	private val log = LoggerFactory.getLogger(javaClass)
+
 	/**
 	 * Expands [events] (single events, series masters and overrides, e.g. the range candidates of
 	 * `CalendarEventRepository.findCandidatesInRange`) into the occurrences overlapping [range], ordered by start.
@@ -90,6 +97,7 @@ class OccurrenceExpander {
 				.filterKeys { it !in masterIds }
 				.values
 				.flatten()
+				.filter { it.status != EventStatus.CANCELLED }
 				.mapNotNull { override -> asOccurrence(override, seriesId = null, occurrenceId = null)?.takeIf { overlaps(it, range) } }
 		return (occurrences + orphans).sortedWith(compareBy({ sortKey(it, range.zone) }, { it.event.id }))
 	}
@@ -137,7 +145,7 @@ class OccurrenceExpander {
 			val periodStart = range.fromDate.minusDays(days)
 			val periodEnd = range.toDate
 			if (!seed.isBefore(periodEnd)) return emptyList()
-			val dates = Recur<LocalDate>(rule).getDates(seed, maxOf(seed, periodStart), periodEnd)
+			val dates = recurOrEmpty(master) { Recur<LocalDate>(rule).getDates(seed, maxOf(seed, periodStart), periodEnd) }
 			return (listOf(seed) + dates).distinct().map { OccurrenceId.of(it) }
 		}
 		val start = master.startAt ?: return emptyList()
@@ -147,9 +155,29 @@ class OccurrenceExpander {
 		val periodStart = range.from.minus(duration).atZone(zone)
 		val periodEnd = range.to.atZone(zone)
 		if (!seed.isBefore(periodEnd)) return emptyList()
-		val dates = Recur<ZonedDateTime>(rule).getDates(seed, maxOf(seed, periodStart), periodEnd)
+		val timedRule = rule.replace(DATE_ONLY_UNTIL, "$1T235959")
+		val dates =
+			recurOrEmpty(master) {
+				Recur<ZonedDateTime>(timedRule)
+					.getDates(seed, maxOf(seed, periodStart), periodEnd)
+					// ical4j keeps the seed's offset for an ambiguous local time; use the earlier one (RFC 5545 §3.3.5).
+					.map { if (it.toLocalDateTime() == seed.toLocalDateTime()) seed else it.withEarlierOffsetAtOverlap() }
+			}
 		return (listOf(seed) + dates).map { it.toInstant() }.distinct().map { OccurrenceId.of(it) }
 	}
+
+	/** The dates [expansion] yields, or none (only DTSTART remains) if ical4j cannot parse or expand the rule. */
+	private fun <T> recurOrEmpty(
+		master: CalendarEvent,
+		expansion: () -> List<T>,
+	): List<T> =
+		try {
+			expansion()
+		} catch (e: RuntimeException) {
+			// Only the event id and the failure type are logged: neither the rule nor the event's content.
+			log.warn("Cannot expand the RRULE of calendar event {} ({}); showing its first occurrence only", master.id, e.javaClass.simpleName)
+			emptyList()
+		}
 
 	/** The generated occurrence of [master] originally starting at [id], with the master's duration. */
 	private fun seriesOccurrence(
@@ -202,4 +230,9 @@ class OccurrenceExpander {
 	): Instant = occurrence.start ?: occurrence.startDate!!.atStartOfDay(zone).toInstant()
 
 	private fun zoneOf(event: CalendarEvent): ZoneId = event.timeZone?.let(ZoneId::of) ?: ZoneOffset.UTC
+
+	private companion object {
+		/** A DATE-only UNTIL (invalid on a timed series in RFC 5545, but emitted by providers); group 1 is kept. */
+		val DATE_ONLY_UNTIL = Regex("""(?i)((?:^|;)UNTIL=\d{8})(?=;|$)""")
+	}
 }
