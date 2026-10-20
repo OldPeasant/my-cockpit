@@ -1,11 +1,11 @@
 ---
 title: Quick capture endpoint and syntax parser
-status: todo
-owner: 
+status: in_progress
+owner: dell26/agent-6
 deps: [gtd-tickler]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/gtd,server/src/test/kotlin/ch/sonensei/cockpit/gtd,server/src/main/resources/db/migration/gtd]
 prio: 1
-lease_until: 
+lease_until: 2026-10-20T21:11:12Z
 releases: 1
 extended: 
 ---
