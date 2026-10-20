@@ -1,11 +1,11 @@
 ---
 title: Backup export: zip format and orchestration
-status: in_progress
-owner: R1963MACOS/agent-2
+status: todo
+owner: 
 deps: [p0-settings,p0-items-links,p0-crypto]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/backup,server/src/test/kotlin/ch/sonensei/cockpit/backup]
 prio: 1
-lease_until: 2026-10-20T19:19:50Z
+lease_until: 
 releases: 1
 extended: 
 ---
@@ -26,3 +26,4 @@ Backup export in format version 1 (SPEC.md §10.2).
 - ASSUMPTION (2026-10-20 18:43+0200 by dell26/agent-4): Review CR-3 (P3): ZipBackupReader passes a JSON null .jsonl line as null and lets malformed lines surface as raw Jackson errors; only reachable with a hand-edited zip, import rolls back. Deferred to backup-restore, which owns the restore validation report.
 - release by dell26/agent-4: Implementation complete, squashed into one commit on top of main (merge + regenerating openapi.yaml/web client gave no diff). Reports in reviews/backup-core/: review.md (final: 0 P0/P1/P2, 1 P3 = CR-3, deferred to backup-restore via assume), tests.md, fixes.md (CR-1, CR-2 fixed). sh scripts/check.sh passed before the final merge. Left: (1) reports name revision 30ea3b6 (pre-squash hash, backup code identical), so reviewed_revision is stale per docs/QUALITY.md: rerun test-writer + code-reviewer on HEAD; (2) run 'cd server && ./gradlew test --tests ch.sonensei.cockpit.backup.*' + OpenApiContractTest, record verify #1-#5; (3) write reviews/backup-core/quality.json (fixer ran for CR-1/CR-2; CR-3 deferred), commit; (4) .taskcheck and tasks.py done.
 - ASSUMPTION (2026-10-20 19:16+0200 by dell26/agent-7): Review CR-4 (P3): ZipBackupReader manifest with null entries in files[] may surface as raw NPE instead of InvalidBackupException; only reachable with a hand-edited zip. Deferred to backup-restore together with CR-3 (restore validation report).
+- release by R1963MACOS/agent-2: handed off by R1963MACOS/agent-2: You've hit your session limit · resets 12:50am (Europe/Zurich)
