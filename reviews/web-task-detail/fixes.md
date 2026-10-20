@@ -238,3 +238,71 @@ Remaining unresolved findings:
 
 All validated findings fixed and validation passed. R2 CR-2 was left unfixed on purpose: the
 parent worker excluded it from this task.
+
+## Round 3
+
+Date: 2026-10-21
+
+Task: web-task-detail - Task detail editor
+
+Scope: R3 CR-1 from the third `review.md` (reviewed revision 94325b03), `web/src/app/features/gtd/task-detail` only. Changes are uncommitted; the parent worker commits them.
+
+### Fixed findings
+
+### R3 CR-1 - Text typed while a save is running is overwritten when the save finishes
+
+Files changed:
+- `web/src/app/features/gtd/task-detail/task-detail.ts`
+- `web/src/app/features/gtd/task-detail/task-detail.spec.ts`
+
+Problem:
+When a save succeeded, `save()` always ran `this.draft.set(draftOf(current))`. The form stays
+editable while a save runs, so any text typed before the PATCH (or move + PATCH) answered was
+replaced by the saved version, and "Unsaved changes" disappeared. Confirmed against the code at
+HEAD before changing it.
+
+Fix:
+`save()` still sets `task` to the saved version, so the next save uses its ETag. It replaces the
+draft only if `this.draft()` is still the same object the save started from. If the user edited
+meanwhile, their draft stays. `dirty` and `patchFor` compare it with the new `task`, so the form
+stays dirty and the next save sends only the remaining changes. The "Saved" flash still runs, and
+the status bar shows "Unsaved changes" first while the form is dirty. The error and conflict paths
+did not change.
+
+Tests added:
+- `keeps what the user typed while a save was running`: types into `#td-notes` while the PATCH is
+  pending. After the answer, the notes text and the title are kept, "Unsaved changes" is shown and
+  Save is enabled. The next save sends `If-Match: "2"` with body `{ notesMd: 'Typed while saving' }`
+  only. This test fails without the fix (checked by reverting the one line: 1 failed, 170 passed).
+- `is not dirty when the text typed during a save matches the saved version`: an edit during the
+  save that ends up equal to the saved value leaves the form clean.
+
+Validation:
+- `cd web && npx ng test --watch=false --include='src/app/features/gtd/task-detail/**/*.spec.ts'` - Pass: 6 files, 171 tests passed
+
+### Not fixed
+
+None in this round. R2 CR-2 is still excluded by the parent worker's decision (see above).
+
+### Validation summary
+
+Focused tests:
+- `cd web && npx ng test --watch=false --include='src/app/features/gtd/task-detail/**/*.spec.ts'` - Pass: 6 files, 171 tests passed
+- `cd web && npx prettier --check src/app/features/gtd/task-detail` - Pass: "All matched files use Prettier code style!"
+- `cd web && npm run lint` - Pass: "All files pass linting."
+
+Full test suite:
+- `cd web && npm run check` - Pass: 53 files, 983 tests passed
+
+Lint/type-check/build:
+- included in `npm run check` - Pass
+
+`.taskcheck`:
+- `sh scripts/check.sh` from the repository root - Pass ("== all checks passed")
+
+Remaining unresolved findings:
+0 from round 3 (R2 CR-2 stays excluded by decision)
+
+### Final status
+
+All validated findings fixed and validation passed.

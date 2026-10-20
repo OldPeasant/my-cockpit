@@ -261,7 +261,8 @@ export class TaskDetail {
       // The editor switched to another task meanwhile: the save stays done, the form is not ours.
       if (task.id !== this.taskId()) return;
       this.task.set(current);
-      this.draft.set(draftOf(current));
+      // Edits made while the save ran stay: they are compared with the saved version now.
+      if (this.draft() === draft) this.draft.set(draftOf(current));
       this.flashSaved();
     } catch (error) {
       // Neither the result nor a conflict reload of the previous task belongs to the new one.

@@ -890,6 +890,60 @@ describe('TaskDetail', () => {
     expect(text()).toContain('Saved');
   });
 
+  it('keeps what the user typed while a save was running', async () => {
+    await render(task({ notesMd: 'Old notes' }));
+    await type('#td-title', 'Call the plumber today');
+    let release!: () => void;
+    answer = (fn, params) => {
+      if (fn !== updateTask || callsOf(updateTask).length > 1) return undefined;
+      return new Promise<void>((resolve) => (release = resolve)).then(() => {
+        server = { ...server, ...(params['body'] as object), version: server.version + 1 };
+        return server;
+      });
+    };
+    saveButton().click();
+    await refresh();
+    await type('#td-notes', 'Typed while saving');
+    release();
+    await refresh();
+
+    expect(field<HTMLTextAreaElement>('#td-notes').value).toBe('Typed while saving');
+    expect(field<HTMLTextAreaElement>('#td-title').value).toBe('Call the plumber today');
+    expect(text()).toContain('Unsaved changes');
+    expect(saveButton().disabled).toBe(false);
+
+    await save();
+
+    expect(callsOf(updateTask)).toHaveLength(2);
+    expect(callsOf(updateTask)[1].params).toMatchObject({ 'If-Match': '"2"' });
+    expect(callsOf(updateTask)[1].params['body']).toEqual({ notesMd: 'Typed while saving' });
+    expect(text()).toContain('Saved');
+    expect(text()).not.toContain('Unsaved changes');
+  });
+
+  it('is not dirty when the text typed during a save matches the saved version', async () => {
+    await render();
+    await type('#td-notes', 'Draft');
+    let release!: () => void;
+    answer = (fn, params) => {
+      if (fn !== updateTask) return undefined;
+      return new Promise<void>((resolve) => (release = resolve)).then(() => {
+        server = { ...server, ...(params['body'] as object), version: server.version + 1 };
+        return server;
+      });
+    };
+    saveButton().click();
+    await refresh();
+    await type('#td-notes', 'Draft!');
+    await type('#td-notes', 'Draft');
+    release();
+    await refresh();
+
+    expect(field<HTMLTextAreaElement>('#td-notes').value).toBe('Draft');
+    expect(text()).not.toContain('Unsaved changes');
+    expect(saveButton().disabled).toBe(true);
+  });
+
   it('hides the "Saved" note again after a moment', async () => {
     await render();
     await type('#td-title', 'Saved for a moment');
