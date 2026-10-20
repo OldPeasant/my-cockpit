@@ -12,7 +12,8 @@ extended: dell26/agent-2
 Connect accounts (SPEC.md §7.1).
 
 ## Acceptance criteria
-- [ ] Account CRUD API (`/api/v1/mail/accounts`, secrets write-only) with 'test connection'; Angus Mail sessions with TLS/STARTTLS, XOAUTH2 for Google/MS
+- [x] Account CRUD API (`/api/v1/mail/accounts`, secrets write-only) with 'test connection'; Angus Mail sessions with TLS/STARTTLS, XOAUTH2 for Google/MS
+  - verified (2026-10-20 18:34+0200 by dell26/agent-2): ./gradlew test --tests 'ch.sonensei.cockpit.mail.imap.*' (MailAccountWebTests 18, MailAccountServiceTests 15, MailSessionsTests 25, MailSecretRedactionTests 4 incl. write-only password, TLS/STARTTLS/XOAUTH2 session props) + ./gradlew integrationTest --tests '*Imap*' (GreenMail TLS, STARTTLS, XOAUTH2 login, test-connection, 127.0.0.1 host mismatch -> TLS_FAILED) -> all pass, 0 failures
 - [ ] Connection pool per account with limits; folder list with SPECIAL-USE role detection and manual override
 - [ ] `external` tests against GreenMail (`./gradlew integrationTest --tests '*Imap*'`); unit tests for role detection
 - [ ] API documented: `api/openapi.yaml` regenerated (`UPDATE_OPENAPI=1 ./gradlew test --tests '*OpenApiContractTest'`) and `OpenApiContractTest` passes without the flag
