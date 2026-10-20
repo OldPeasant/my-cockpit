@@ -1,0 +1,21 @@
+{
+  "schema": 1,
+  "task": "p0-auth-setup",
+  "reviewed_revision": "9e44529584f0bef2b42f158b9ed0717685cf7397",
+  "helpers": {
+    "test-writer": {"status": "completed", "report": "reviews/p0-auth-setup/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/p0-auth-setup/review.md"},
+    "fixer": {"status": "completed", "report": "reviews/p0-auth-setup/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "pending owner account replaceable only with the same username + password, or after 1 h of abandonment; otherwise 409"},
+    {"id": "CR-2", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "test that the database rejects a second app_user row (app_user_single_row index)"}
+  ],
+  "validation": [
+    {"command": "cd server && ./gradlew test --tests 'ch.sonensei.cockpit.core.auth.*' --tests '*OpenApiContractTest'", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
