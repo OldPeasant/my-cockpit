@@ -35,6 +35,23 @@ exit 0
 ''')
 
 
+def flaky_hook(tmp, times):
+    """The connection drops during each of the next `times` pushes (git: `the remote end hung up unexpectedly`):
+    an error that is neither a lost race nor a refusal. Counts them in remote.git/drops."""
+    return hook(tmp, f'''#!/bin/sh
+n=$(cat drops 2>/dev/null || echo 0)
+[ "$n" -ge {times} ] && exit 0
+echo $((n + 1)) > drops
+kill -9 $PPID
+exit 1
+''')
+
+
+def drops(tmp):
+    f = tmp / "remote.git" / "drops"
+    return int(f.read_text()) if f.exists() else 0
+
+
 def races(tmp):
     f = tmp / "remote.git" / "races"
     return int(f.read_text()) if f.exists() else 0
@@ -105,9 +122,22 @@ class Classify(unittest.TestCase):
                     "`.github/workflows/ci.yml` without `workflow` scope)",
                     # a hook that happens to mention a race word is still a hook refusal
                     "remote: fetch first, then try | ! [remote rejected] main -> main (pre-receive hook declined)",
-                    "fatal: Could not read from remote repository.",  # unknown: treated as refused, as before
+                    # a server with receive.denyNonFastForwards refuses a forced push (wip): no race can cause it
+                    "remote: error: denying non-fast-forward refs/heads/wip/x (you should pull first) | "
+                    "To /x/remote.git | ! [remote rejected] HEAD -> wip/x (non-fast-forward) | "
+                    "error: failed to push some refs to '/x/remote.git'"):
+            self.assertFalse(tasks.lost_race(err), err)
+            self.assertTrue(tasks.refused(err), err)
+
+    def test_unknown_errors_are_neither(self):  # retried like a race, reported as PUSH FAILED after 5 attempts
+        for err in ("error: RPC failed; HTTP 500 curl 22 The requested URL returned error: 500 | "
+                    "fatal: the remote end hung up unexpectedly",
+                    "send-pack: unexpected disconnect while reading sideband packet | "
+                    "fatal: the remote end hung up unexpectedly",
+                    "fatal: Could not read from remote repository.",
                     ""):
             self.assertFalse(tasks.lost_race(err), err)
+            self.assertFalse(tasks.refused(err), err)
 
 
 class Races(Board):
@@ -173,6 +203,57 @@ class Races(Board):
         self.assertIn("Only a human can fix it", out)
         self.assertNotIn("BUSY", out)
         self.assertTrue(self.failure_file().exists())
+
+    def assert_refused(self, p):
+        out = p.stdout + p.stderr
+        self.assertNotEqual(p.returncode, 0, out)
+        self.assertIn("PUSH FAILED: ", out)
+        self.assertIn("Only a human can fix it", out)
+        self.assertNotIn("BUSY", out)
+        self.assertTrue(self.failure_file().exists())
+
+    def test_forced_wip_push_denied_as_non_fast_forward_is_refused(self):
+        sh(self.tmp, "git", "--git-dir=remote.git", "config", "receive.denyNonFastForwards", "true")
+        other = sh(self.w, "git", "commit-tree", "HEAD^{tree}", "-m", "unrelated").stdout.strip()
+        sh(self.w, "git", "push", "-q", "origin", f"{other}:refs/heads/wip/a")
+        (self.w / "work.txt").write_text("work\n")
+        sh(self.w, "git", "add", "-A")
+        sh(self.w, "git", "commit", "-qm", "work")
+        p = self.tp("release", "a", "--note", "x", who=self.who, check=False)
+        self.assert_refused(p)
+        self.assertIn("denying non-fast-forward", p.stdout + p.stderr)
+
+    def test_board_push_that_fails_once_for_an_unknown_reason_is_retried(self):
+        flaky_hook(self.tmp, 1)
+        p = self.tp("release", "a", "--note", "x", who=self.who, check=False)
+        out = p.stdout + p.stderr
+        self.assertEqual(p.returncode, 0, out)
+        self.assertIn("RELEASED a", out)
+        self.assertNotIn("PUSH FAILED", out)
+        self.assertEqual(drops(self.tmp), 1)
+        self.assertFalse(self.failure_file().exists())
+        self.assertEqual(field(self.remote_task("a"), "status"), "todo")
+
+    def test_wip_push_that_fails_once_for_an_unknown_reason_is_retried(self):
+        (self.w / "work.txt").write_text("work\n")
+        sh(self.w, "git", "add", "-A")
+        sh(self.w, "git", "commit", "-qm", "work")
+        flaky_hook(self.tmp, 1)  # the first push is the one to wip/a
+        p = self.tp("release", "a", "--note", "x", who=self.who, check=False)
+        out = p.stdout + p.stderr
+        self.assertEqual(p.returncode, 0, out)
+        self.assertNotIn("PUSH FAILED", out)
+        self.assertEqual(drops(self.tmp), 1)
+        self.assertFalse(self.failure_file().exists())
+        wip = sh(self.tmp, "git", "--git-dir=remote.git", "ls-tree", "--name-only", "wip/a").stdout
+        self.assertIn("work.txt", wip)
+
+    def test_board_push_that_keeps_failing_for_an_unknown_reason_fails_after_5_attempts(self):
+        flaky_hook(self.tmp, 100)
+        p = self.tp("release", "a", "--note", "x", who=self.who, check=False)
+        self.assert_refused(p)
+        self.assertIn("hung up unexpectedly", p.stdout + p.stderr)
+        self.assertEqual(drops(self.tmp), 5)
 
     def test_board_push_that_loses_to_concurrent_pushes_is_not_refused(self):
         race_hook(self.tmp, "release: a", 5)  # another agent's push lands during each of our 5 attempts
@@ -269,6 +350,27 @@ class AgentReleaseLosesRaces(PushRunner):
         self.assertNotIn("PUSH FAILED", log)
         self.assertNotIn("Traceback", log)
         self.assertNotEqual(self.status()["state"], "blocked")
+
+
+class ForceReleaseKeepsLosingRaces(PushRunner):
+    """The runner's own release (give_up) loses every race in all of its 6 attempts (30 races): the task is not
+    blocked (nothing for a human), the next round's review and release go through."""
+    mode, budget = "", 1
+
+    def before_start(self):
+        race_hook(self.tmp, "release: a", 30)
+
+    def test_give_up_does_not_block_a_task_whose_release_only_lost_races(self):
+        self.wait_for("released log", lambda: "released a for another agent" in self.log.read_text(), timeout=300)
+        log = self.log.read_text()
+        self.assertEqual(races(self.tmp), 30)
+        self.assertIn("release of a lost every push race to other agents, trying again later", log)
+        self.assertNotIn("release FAILED", log)
+        self.assertNotIn("BLOCKED", log)
+        self.assertNotIn("Traceback", log)
+        a = self.state("a")
+        self.assertNotEqual(a["owner"], "box/agent-1")
+        self.assertIn("release by box/agent-1", a["text"])
 
 
 class ForceReleaseLosesRaces(PushRunner):
