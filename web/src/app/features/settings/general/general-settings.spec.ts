@@ -341,6 +341,78 @@ describe('GeneralSettings', () => {
     );
   });
 
+  it('keeps the second theme picked when the first one fails', async () => {
+    await setup();
+    const theme = TestBed.inject(ThemeService);
+
+    toggle('Dark').click();
+    toggle('System').click();
+    await tick();
+    http
+      .expectOne({ method: 'PATCH', url: PATH })
+      .flush({ status: 400, title: 'Bad Request' }, { status: 400, statusText: 'Bad Request' });
+    await tick();
+    await fixture.whenStable();
+
+    expect(toggle('System').closest('mat-button-toggle')?.classList).toContain(
+      'mat-button-toggle-checked',
+    );
+    const second = http.expectOne({ method: 'PATCH', url: PATH });
+    expect(second.request.body).toEqual({ theme: 'system' });
+    expect(second.request.headers.get('If-Match')).toBe('"1"');
+    second.flush(fakeSettings({ theme: 'system' }), { headers: { ETag: '"2"' } });
+    await tick();
+    await fixture.whenStable();
+
+    expect(theme.mode()).toBe('system');
+    expect(toggle('System').closest('mat-button-toggle')?.classList).toContain(
+      'mat-button-toggle-checked',
+    );
+  });
+
+  it('keeps a label the user changes again while its own save fails', async () => {
+    await setup();
+
+    editLabel('Label for low energy', 'Tired');
+    await tick();
+    const req = http.expectOne({ method: 'PATCH', url: PATH });
+    const low = input('Label for low energy');
+    low.value = 'Exhausted';
+    low.dispatchEvent(new Event('input'));
+    req.flush({ status: 400, title: 'Bad Request' }, { status: 400, statusText: 'Bad Request' });
+    await tick();
+    await fixture.whenStable();
+
+    expect(low.value).toBe('Exhausted');
+    expect(input('Label for high energy').value).toBe('High');
+  });
+
+  it('keeps a time zone being typed while another row reloads after a 412', async () => {
+    await setup();
+
+    typeZone('Asia/Tok');
+    toggle('Dark').click();
+    await tick();
+    http
+      .expectOne({ method: 'PATCH', url: PATH })
+      .flush(
+        { status: 412, title: 'Precondition Failed' },
+        { status: 412, statusText: 'Precondition Failed' },
+      );
+    await tick();
+    http
+      .expectOne({ method: 'GET', url: PATH })
+      .flush(fakeSettings({ timeZone: 'UTC', weekStart: 'SUNDAY' }), { headers: { ETag: '"7"' } });
+    await tick();
+    await fixture.whenStable();
+
+    expect(zoneField().value).toBe('Asia/Tok');
+    expect(root.querySelector('mat-select')?.textContent).toContain('Sunday');
+    expect(toggle('Light').closest('mat-button-toggle')?.classList).toContain(
+      'mat-button-toggle-checked',
+    );
+  });
+
   it('offers IANA time zones including UTC', () => {
     const zones = timeZones();
     expect(zones).toContain('Europe/Zurich');
