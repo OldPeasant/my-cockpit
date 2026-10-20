@@ -1,10 +1,11 @@
 ---
 title: Persistence conventions: base entity, UUIDv7, clock, migrations layout
-status: todo
-owner:
+status: in_progress
+owner: R1963MACOS/agent-2
 deps: [p0-server-deps]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/core/persistence,server/src/test/kotlin/ch/sonensei/cockpit/core/persistence,server/src/main/resources/db/migration/core]
 prio: 1
+lease_until: 2026-10-20T09:06:14Z
 ---
 ## Goal
 Shared persistence building blocks every module uses (SPEC.md §4.2).
