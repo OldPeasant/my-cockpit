@@ -333,8 +333,9 @@ class MailHeaderStoreTests(
 			),
 		)
 
-		row(inbox, 1).threadKey shouldBe "<root@example.test>"
-		row(inbox, 2).threadKey shouldBe "<root@example.test>"
+		// The root has no references: the conversation takes its subject key.
+		row(inbox, 1).threadKey shouldBe "subject:plan"
+		row(inbox, 2).threadKey shouldBe "subject:plan"
 	}
 
 	@Test
@@ -431,7 +432,7 @@ class MailHeaderStoreTests(
 		)
 		store.upsert(account.id, other.id, listOf(remote(1, "<a@example.test>", subject = "Unrelated subject")))
 
-		listOf(row(inbox, 1), row(archive, 1), row(other, 1)).map { it.threadKey } shouldBe List(3) { "<a@example.test>" }
+		listOf(row(inbox, 1), row(archive, 1), row(other, 1)).map { it.threadKey } shouldBe List(3) { "subject:unrelated subject" }
 	}
 
 	@Test

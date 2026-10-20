@@ -70,9 +70,10 @@ class MailThreadingTests {
 		mail.receive("<b@example.test>", inReplyTo = "<a@example.test>", references = "<a@example.test>")
 		mail.receive("<a@example.test>")
 
-		mail.keyOf("<a@example.test>") shouldBe "<a@example.test>"
-		mail.keyOf("<b@example.test>") shouldBe "<a@example.test>"
-		mail.keyOf("<c@example.test>") shouldBe "<a@example.test>"
+		// The root has no references, so the merged conversation takes its subject key.
+		mail.keyOf("<a@example.test>") shouldBe "subject:budget"
+		mail.keyOf("<b@example.test>") shouldBe "subject:budget"
+		mail.keyOf("<c@example.test>") shouldBe "subject:budget"
 	}
 
 	@Test
@@ -100,9 +101,9 @@ class MailThreadingTests {
 
 		mail.receive("<a@example.test>", "Unrelated subject")
 
-		mail.keyOf("<a@example.test>") shouldBe "<a@example.test>"
-		mail.keyOf("<b@example.test>") shouldBe "<a@example.test>"
-		mail.keyOf("<c@example.test>") shouldBe "<a@example.test>"
+		mail.keyOf("<a@example.test>") shouldBe "subject:unrelated subject"
+		mail.keyOf("<b@example.test>") shouldBe "subject:unrelated subject"
+		mail.keyOf("<c@example.test>") shouldBe "subject:unrelated subject"
 	}
 
 	@Test

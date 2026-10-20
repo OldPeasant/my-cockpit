@@ -317,9 +317,11 @@ class HeaderSyncGreenMailTests(
 		val sent = folder("Sent")
 		sync.syncFolder(sent.id)
 
-		cached(sent, "<a@example.test>").threadKey shouldBe "<a@example.test>"
-		cached(inbox, "<b@example.test>").threadKey shouldBe "<a@example.test>"
-		cached(inbox, "<c@example.test>").threadKey shouldBe "<a@example.test>"
+		// The root has no references, so the conversation takes its subject key and, by subject fallback, also holds
+		// the other reference-less message with the same subject.
+		cached(sent, "<a@example.test>").threadKey shouldBe "subject:unrelated subject"
+		cached(inbox, "<b@example.test>").threadKey shouldBe "subject:unrelated subject"
+		cached(inbox, "<c@example.test>").threadKey shouldBe "subject:unrelated subject"
 		cached(inbox, "<other@example.test>").threadKey shouldBe "subject:unrelated subject"
 	}
 

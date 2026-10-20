@@ -90,11 +90,11 @@ object MailThreading {
 				?: "id:$fallbackId"
 		// The conversation of the first cached parent (parents are root-first). With no parent cached yet, a reply is
 		// keyed by its root, so that the root and later replies find it there; conversations keyed provisionally by this
-		// message or an intermediate parent merge into it. Only a message without parents keeps a provisional key.
+		// message or an intermediate parent merge into it. A message without parents always takes its subject key (else
+		// its own Message-ID), whatever arrived before it: replies keyed provisionally by its Message-ID merge into that
+		// key, so they also join other reference-less messages with the same subject, in any arrival order.
 		val key =
 			parents.firstNotNullOfOrNull { known[it] }
-				?: parents.firstOrNull()
-				?: provisional.firstOrNull { it in provisionalExisting }
 				?: default
 		val merged = (known.values + provisionalExisting).toSet() - key
 		return ThreadAssignment(key, merged)
