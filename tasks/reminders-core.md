@@ -1,11 +1,11 @@
 ---
 title: Reminders and notifications backend
-status: in_progress
+status: done
 owner: dell26/agent-3
 deps: [p0-events-sse,p0-items-links]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/core/reminders,server/src/test/kotlin/ch/sonensei/cockpit/core/reminders,server/src/main/resources/db/migration/core-reminders]
 prio: 2
-lease_until: 2026-10-20T15:16:49Z
+lease_until: 
 extended: dell26/agent-3
 ---
 ## Goal
@@ -30,3 +30,4 @@ Generic reminders for any item (SPEC.md §4.6).
 - extended by dell26/agent-3: Implementation + CR-1/CR-2 fixes committed, openapi regenerated, reminders tests pass. Left: rerun test-writer + code-reviewer on final code (fixes made earlier evidence stale; ReminderGtdResolverTests just committed), verify criteria 1-4, run .taskcheck, write quality.json, done.
 - ASSUMPTION (2026-10-20 16:50+0200 by dell26/agent-3): Reminder item lookups (ReminderItems) run in a separate REQUIRES_NEW read-only transaction, so each lookup borrows a second pooled DB connection while the request/firing transaction holds one; accepted for a single-user server (review rerun CR-1, P3).
 - ASSUMPTION (2026-10-20 16:50+0200 by dell26/agent-3): GET /reminders/upcoming returns reminders of trashed/deleted items and of items whose resolver failed alike as available=false; the server skips notifying only for gone items. Android (and-reminders) should not schedule alarms for available=false items or the API should distinguish them (review rerun CR-2, P3, deferred to and-reminders).
+- done by dell26/agent-3: `sh scripts/check.sh` passed in 36s on 8307fc932; criteria verified 4/4
