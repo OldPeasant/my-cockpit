@@ -362,6 +362,18 @@ class MailFolderSyncTests(
 	}
 
 	@Test
+	fun `an account deleted while its folders are listed is not found and nothing is stored`() {
+		every { root.list("*") } answers {
+			jdbc.update("delete from mail_account where id = ?", account.id)
+			arrayOf(imapFolder("INBOX", emptyList()), imapFolder("Sent", listOf("\\Sent")))
+		}
+
+		shouldThrow<NotFoundException> { service.sync(account.id) }
+
+		jdbc.queryForObject("select count(*) from mail_folder where account_id = ?", Int::class.java, account.id) shouldBe 0
+	}
+
+	@Test
 	fun `an override of an unknown folder or a folder of another account is not found`() {
 		sync("INBOX" to emptyList())
 		val inbox = folder("INBOX")

@@ -1,5 +1,6 @@
 package ch.sonensei.cockpit.mail.imap
 
+import ch.sonensei.cockpit.core.crypto.EncryptedSecret
 import ch.sonensei.cockpit.core.oauth.domain.OAuthConnectionDisconnected
 import ch.sonensei.cockpit.core.oauth.domain.OAuthProvider
 import ch.sonensei.cockpit.mail.model.MailAccount
@@ -7,6 +8,7 @@ import ch.sonensei.cockpit.mail.model.MailAccountRepository
 import ch.sonensei.cockpit.mail.model.MailAccountType
 import ch.sonensei.cockpit.mail.model.MailSecurity
 import io.kotest.assertions.throwables.shouldThrow
+import io.kotest.assertions.withClue
 import io.kotest.matchers.shouldBe
 import io.mockk.every
 import io.mockk.mockk
@@ -139,6 +141,78 @@ class ImapConnectionPoolTests {
 	}
 
 	@Test
+	fun `an idle connection is not reused after any connection setting changed`() {
+		val changes: List<Pair<String, MailAccount.() -> Unit>> =
+			listOf(
+				"port" to { imapPort = 143 },
+				"security" to { imapSecurity = MailSecurity.STARTTLS },
+				"username" to { username = "jane.doe" },
+				"password" to { password = EncryptedSecret("fictitious-secret-2") },
+				"OAuth connection" to { oauthConnectionId = UUID.fromString("0192f0c4-7a1e-7c3d-9b2a-1f2e3d4c5b70") },
+			)
+		changes.forEach { (setting, change) ->
+			val pool = pool()
+			val before = account(id = account.id).apply { password = EncryptedSecret("fictitious-secret-1") }
+			val old = pool.withStore(before) { it }
+
+			val after = account(id = account.id).apply { password = EncryptedSecret("fictitious-secret-1") }.apply(change)
+			val current = pool.withStore(after) { it }
+
+			withClue(setting) {
+				(current === old) shouldBe false
+				verify(exactly = 1) { old.close() }
+				pool.openConnections(account.id) shouldBe 1
+			}
+		}
+	}
+
+	@Test
+	fun `the password is compared by value, so a reloaded account with the same password reuses the connection`() {
+		val pool = pool()
+		val first = pool.withStore(account(id = account.id).apply { password = EncryptedSecret("fictitious-secret-1") }) { it }
+
+		val reloaded = account(id = account.id).apply { password = EncryptedSecret("fictitious-secret-1") }
+
+		(pool.withStore(reloaded) { it } === first) shouldBe true
+		verify(exactly = 0) { first.close() }
+	}
+
+	@Test
+	fun `a connection a stale caller returns after the update is closed on the next borrow of the updated account`() {
+		val pool = pool()
+		val stale = account(id = account.id)
+		val updated = account(id = account.id, imapHost = "imap.new.example.test")
+		val staleInUse = CountDownLatch(1)
+		val release = CountDownLatch(1)
+		val executor = Executors.newSingleThreadExecutor()
+		try {
+			val staleCall =
+				executor.submit<IMAPStore> {
+					pool.withStore(stale) {
+						staleInUse.countDown()
+						release.await(10, TimeUnit.SECONDS)
+						it
+					}
+				}
+			staleInUse.await(10, TimeUnit.SECONDS) shouldBe true
+			val current = pool.withStore(updated) { it }
+			release.countDown()
+			val returnedStale = staleCall.get(10, TimeUnit.SECONDS)
+			pool.idleConnections(account.id) shouldBe 2
+
+			(pool.withStore(updated) { it } === current) shouldBe true
+
+			verify(exactly = 1) { returnedStale.close() }
+			verify(exactly = 0) { current.close() }
+			pool.openConnections(account.id) shouldBe 1
+		} finally {
+			release.countDown()
+			executor.shutdown()
+			executor.awaitTermination(10, TimeUnit.SECONDS)
+		}
+	}
+
+	@Test
 	fun `the eviction sweep closes expired idle connections without a borrow and keeps fresh ones`() {
 		val pool = pool()
 		val other = account()
@@ -168,6 +242,32 @@ class ImapConnectionPoolTests {
 		}
 
 		pool.idleConnections(account.id) shouldBe 1
+	}
+
+	@Test
+	fun `the eviction sweep keeps an idle connection just younger than the idle timeout`() {
+		val pool = pool()
+		val store = pool.withStore(account) { it }
+
+		clock.now = clock.now.plus(Duration.ofMinutes(5).minusMillis(1))
+		pool.evictExpired()
+
+		verify(exactly = 0) { store.close() }
+		pool.idleConnections(account.id) shouldBe 1
+	}
+
+	@Test
+	fun `the eviction sweep does nothing for evicted accounts and an empty pool`() {
+		val pool = pool()
+		pool.evictExpired()
+		val store = pool.withStore(account) { it }
+		pool.evict(account.id)
+
+		clock.now = clock.now.plus(Duration.ofHours(1))
+		pool.evictExpired()
+
+		verify(exactly = 1) { store.close() }
+		pool.openConnections(account.id) shouldBe 0
 	}
 
 	@Test

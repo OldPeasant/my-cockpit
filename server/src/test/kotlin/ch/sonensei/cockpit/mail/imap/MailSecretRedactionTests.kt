@@ -4,6 +4,8 @@ import ch.qos.logback.classic.Level
 import ch.qos.logback.classic.Logger
 import ch.qos.logback.classic.spi.ILoggingEvent
 import ch.qos.logback.core.read.ListAppender
+import ch.sonensei.cockpit.core.crypto.EncryptedSecret
+import ch.sonensei.cockpit.mail.model.MailAccount
 import ch.sonensei.cockpit.mail.model.MailAccountType
 import ch.sonensei.cockpit.mail.model.MailSecurity
 import io.kotest.matchers.shouldBe
@@ -52,6 +54,25 @@ class MailSecretRedactionTests {
 
 		create.toString() shouldNotContain "fictitious-secret-1"
 		update.toString() shouldNotContain "fictitious-secret-2"
+	}
+
+	@Test
+	fun `the connection settings kept per pooled connection never show the password`() {
+		val account =
+			MailAccount(
+				type = MailAccountType.IMAP_SMTP,
+				displayName = "Work",
+				emailAddress = "jane.doe@example.test",
+				imapHost = "imap.example.test",
+				imapPort = 993,
+				imapSecurity = MailSecurity.SSL_TLS,
+				smtpHost = "smtp.example.test",
+				smtpPort = 465,
+				smtpSecurity = MailSecurity.SSL_TLS,
+				username = "jane",
+			).apply { password = EncryptedSecret("fictitious-secret-1") }
+
+		ImapConnectionSettings.of(account).toString() shouldNotContain "fictitious-secret-1"
 	}
 
 	@Test

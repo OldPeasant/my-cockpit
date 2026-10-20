@@ -18,6 +18,7 @@ import ch.sonensei.cockpit.mail.model.MailSecurity
 import ch.sonensei.cockpit.support.PostgresTestBase
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.collections.shouldBeEmpty
+import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import io.mockk.every
 import io.mockk.just
@@ -33,12 +34,15 @@ import org.springframework.context.ApplicationEventPublisher
 import org.springframework.http.HttpHeaders
 import org.springframework.http.MediaType
 import org.springframework.jdbc.core.JdbcTemplate
+import org.springframework.scheduling.config.FixedDelayTask
+import org.springframework.scheduling.config.ScheduledTaskHolder
 import org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf
 import org.springframework.test.context.event.ApplicationEvents
 import org.springframework.test.context.event.RecordApplicationEvents
 import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.patch
 import tools.jackson.databind.json.JsonMapper
+import java.time.Duration
 import java.util.UUID
 
 /** MAIL_ACCOUNT events, pool eviction events, OAuth account changes and the connection test (no mail server). */
@@ -108,6 +112,20 @@ class MailAccountServiceTests(
 	private fun ApplicationEvents.connectionChanges() = stream(MailAccountConnectionChanged::class.java).toList().map { it.accountId }
 
 	private fun etag(account: MailAccount) = "\"${account.version}\""
+
+	@Test
+	fun `the pool's idle eviction sweep is scheduled every minute`(
+		@Autowired holders: List<ScheduledTaskHolder>,
+	) {
+		val task =
+			holders
+				.flatMap { it.scheduledTasks }
+				.map { it.task }
+				.filterIsInstance<FixedDelayTask>()
+				.singleOrNull { it.toString().endsWith("ImapConnectionPool.evictExpired") }
+
+		task.shouldNotBeNull().intervalDuration shouldBe Duration.ofMinutes(1)
+	}
 
 	@Test
 	fun `create publishes CREATED and no connection change`(events: ApplicationEvents) {
