@@ -1,10 +1,11 @@
 ---
 title: Phase 0 demo script + README
-status: todo
-owner:
+status: in_progress
+owner: dell26/agent-1
 deps: [p0-e2e-harness,p0-web-settings,p0-web-sse,p0-ci,p0-web-devices,p0-trash-core,p0-search-core]
 touches: [web/e2e/phase0,README.md]
 prio: 1
+lease_until: 2026-10-20T16:27:59Z
 ---
 ## Goal
 Automate SPEC.md §13.2 Phase 0 and write the project README.
