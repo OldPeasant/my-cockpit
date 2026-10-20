@@ -397,6 +397,16 @@ def cmd_stop(a):
 
 
 # ---------- per-agent loop ----------
+def import_tasks(clone):
+    """The tasks.py next to this agents.py (same checkout, so the same version), working on `clone` via
+    TASKS_ROOT. Not the clone's own copy: a clone that is behind main has an older tasks.py, and the runner
+    would crash on whatever this agents.py needs that it lacks. Only without one here, the clone's."""
+    here = Path(__file__).resolve().parent
+    sys.path.insert(0, str(here if (here / "tasks.py").exists() else clone))
+    import tasks
+    return tasks
+
+
 def park(clone, log):
     """Move local work that belongs to no task we own (lease lost, released, crash) onto a local
     lost/<time> branch and reset to origin, so it never reaches main with the next task."""
@@ -429,8 +439,7 @@ def cmd_run(a):
         if not (shim / "python").exists():
             (shim / "python").symlink_to(sys.executable)
         os.environ["PATH"] = f"{shim}{os.pathsep}{os.environ['PATH']}"
-    sys.path.insert(0, str(clone))
-    import tasks
+    tasks = import_tasks(clone)
     log = lambda m: print(f"[{time.strftime('%H:%M:%S')}] {m}", flush=True)
     log(f"{a.name} up as {a.owner}; lease {a.lease}s; cmd: {a.cmd}")
     if not hb.exists():
@@ -563,9 +572,13 @@ def cmd_run(a):
 
         def run():
             t0 = time.time()
-            p = sh(sys.executable, "tasks.py", *cmd, cwd=clone)
-            if tasks.merge_state():
-                sh("git", tasks.merge_state(), "--abort", cwd=clone)
+            for _ in range(3):  # pushes that lost every race to other agents: not refused, try again
+                p = sh(sys.executable, "tasks.py", *cmd, cwd=clone)
+                if tasks.merge_state():
+                    sh("git", tasks.merge_state(), "--abort", cwd=clone)
+                if not p.returncode or tasks.RACE_HINT not in p.stdout + p.stderr:
+                    break
+                time.sleep(5)
             return p, push_failure(t0)
         p, pf = run()
         err = None
@@ -583,7 +596,7 @@ def cmd_run(a):
         if not err and p.returncode == 0 and tid not in owned_ids():
             return out[-1]
         err = err or (pf.get("error", "?") if pf else next(  # the error, not the last line of a help text
-            (l for l in out if l.startswith(("PUSH FAILED", "CONFLICT", "REFUSED", "git ", "no such task"))), out[-1]))
+            (l for l in out if l.startswith(("PUSH FAILED", "BUSY", "CONFLICT", "REFUSED", "git ", "no such task"))), out[-1]))
         log(f"{label} FAILED for {tid} (exit {p.returncode}): {one_line(err, 300)}")
         block(tid, err)
         return None
