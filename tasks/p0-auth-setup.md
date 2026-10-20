@@ -17,3 +17,4 @@ Single-user setup flow (SPEC.md §4.1): available only while no user exists.
 - [ ] API documented: `api/openapi.yaml` regenerated (`UPDATE_OPENAPI=1 ./gradlew test --tests '*OpenApiContractTest'`) and `OpenApiContractTest` passes without the flag
 
 ## Notes
+- ASSUMPTION (2026-10-20 11:43+0200 by dell26/agent-4): Migration lives in db/migration/core/ (V202610201000__core_auth_user.sql), not core-auth/: MigrationConventionTests requires folder == module name [a-z0-9]+, so a hyphenated folder fails the check.
