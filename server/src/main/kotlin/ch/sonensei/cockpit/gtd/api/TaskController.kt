@@ -163,7 +163,13 @@ class TaskController(
 	}
 
 	@GetMapping("/{id}", produces = [MediaType.APPLICATION_JSON_VALUE, PROBLEM_JSON])
-	@Operation(operationId = "getTask", summary = "One task")
+	@Operation(
+		operationId = "getTask",
+		summary = "One task",
+		description =
+			"Due ticklers move back to the INBOX and due SCHEDULED tasks to NEXT before the task is read, " +
+				"so its list, dates and ETag may differ from an earlier read.",
+	)
 	@ApiResponse(
 		responseCode = "200",
 		description = "The task",

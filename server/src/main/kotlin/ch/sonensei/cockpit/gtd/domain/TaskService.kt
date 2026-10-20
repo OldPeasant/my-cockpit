@@ -216,7 +216,7 @@ class TaskService(
 	 * Releases what is due today in the user's time zone (SPEC.md §5.1): open tasks whose tickler date has come go back
 	 * to the INBOX (their tickler, scheduled date and waiting-for fields are cleared), then open SCHEDULED tasks whose
 	 * date has come become NEXT actions (their scheduled date is cleared). A scheduled task in a tickler waits for the
-	 * tickler. Each moved task is announced as `UPDATED`. Runs from [ch.sonensei.cockpit.gtd.infra.TicklerJob] and
+	 * tickler. Each moved task is announced as `UPDATED`. Runs from [TicklerJob] and
 	 * before tasks are read, so nothing depends on the job having run.
 	 *
 	 * @return the number of tasks moved

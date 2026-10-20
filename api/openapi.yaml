@@ -2797,6 +2797,9 @@ paths:
       tags:
       - Tasks
     get:
+      description: "Due ticklers move back to the INBOX and due SCHEDULED tasks to\
+        \ NEXT before the task is read, so its list, dates and ETag may differ from\
+        \ an earlier read."
       operationId: getTask
       parameters:
       - in: path
