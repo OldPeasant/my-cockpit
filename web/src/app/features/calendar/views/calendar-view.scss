@@ -1,0 +1,172 @@
+// FullCalendar's skeleton and classic theme CSS are global styles (angular.json). Unscoped
+// (ViewEncapsulation.None) to reach FullCalendar's DOM: every selector starts with a class of this page.
+
+app-calendar-view {
+  display: block;
+  height: 100%;
+}
+
+.calendar-page {
+  display: grid;
+  grid-template-columns: 14rem minmax(0, 1fr);
+  gap: var(--app-space-4);
+  box-sizing: border-box;
+  height: 100%;
+  min-height: 36rem;
+  padding: var(--app-space-4);
+
+  @media (max-width: 720px) {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(32rem, 1fr);
+    padding: var(--app-space-3);
+  }
+
+  h1 {
+    margin: 0 0 var(--app-space-4);
+    font: var(--mat-sys-headline-small);
+  }
+
+  h2 {
+    margin: 0 0 var(--app-space-2);
+    color: var(--app-fg-muted);
+    font: var(--mat-sys-title-small);
+  }
+}
+
+.calendar-list {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.calendar-toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--app-space-2);
+  padding: 6px var(--app-space-2);
+  border-radius: var(--mat-sys-corner-small);
+  cursor: pointer;
+  font: var(--mat-sys-body-medium);
+
+  &:hover {
+    background: color-mix(in srgb, var(--app-calendar-color) 10%, transparent);
+  }
+
+  // The checkbox is the calendar's color swatch.
+  input {
+    flex: none;
+    width: 18px;
+    height: 18px;
+    margin: 0;
+    accent-color: var(--app-calendar-color);
+    cursor: pointer;
+  }
+
+  input:focus-visible {
+    outline: 2px solid var(--mat-sys-primary);
+    outline-offset: 2px;
+  }
+
+  input:not(:checked) + .calendar-name {
+    color: var(--app-fg-muted);
+  }
+}
+
+.calendar-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.calendar-main {
+  display: flex;
+  flex-direction: column;
+  gap: var(--app-space-3);
+  min-height: 0;
+}
+
+.calendar-note,
+.calendar-banner {
+  color: var(--app-fg-muted);
+  font: var(--mat-sys-body-medium);
+
+  p {
+    margin: 0 0 var(--app-space-2);
+  }
+}
+
+.calendar-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--app-space-3);
+  padding: var(--app-space-2) var(--app-space-3);
+  border-radius: var(--app-radius);
+  background: var(--mat-sys-error-container);
+  color: var(--mat-sys-on-error-container);
+
+  p {
+    margin: 0;
+  }
+}
+
+// The classic theme's palette, mapped to the app's Material 3 tokens (light and dark).
+.app-calendar {
+  display: block;
+  flex: 1;
+  min-height: 0;
+
+  --fc-classic-button: var(--mat-sys-surface-container-high);
+  --fc-classic-button-border: var(--mat-sys-outline-variant);
+  --fc-classic-button-strong: var(--mat-sys-secondary-container);
+  --fc-classic-button-strong-border: var(--mat-sys-outline);
+  --fc-classic-button-outline: var(--mat-sys-primary);
+  --fc-classic-button-foreground: var(--mat-sys-on-surface);
+  --fc-classic-primary: var(--mat-sys-primary);
+  --fc-classic-primary-foreground: var(--mat-sys-on-primary);
+  --fc-classic-highlight: color-mix(in srgb, var(--mat-sys-primary) 12%, transparent);
+  --fc-classic-today: color-mix(in srgb, var(--mat-sys-tertiary) 8%, transparent);
+  --fc-classic-now: var(--mat-sys-error);
+  --fc-classic-background: var(--mat-sys-surface);
+  --fc-classic-faint: color-mix(in srgb, var(--mat-sys-on-surface) 4%, transparent);
+  --fc-classic-muted: color-mix(in srgb, var(--mat-sys-on-surface) 8%, transparent);
+  --fc-classic-strong: color-mix(in srgb, var(--mat-sys-on-surface) 14%, transparent);
+  --fc-classic-foreground: var(--mat-sys-on-surface);
+  --fc-classic-faint-foreground: var(--mat-sys-outline);
+  --fc-classic-muted-foreground: var(--mat-sys-on-surface-variant);
+  --fc-classic-border: var(--mat-sys-outline-variant);
+  --fc-classic-strong-border: var(--mat-sys-outline);
+
+  font: var(--mat-sys-body-medium);
+}
+
+// Events: a solid edge in the calendar's color over a light tint of it, text in the page color.
+.app-calendar .app-event {
+  --app-event-color: var(--fc-event-color, var(--mat-sys-primary));
+}
+
+.app-calendar .fc-timegrid-event.app-event,
+.app-calendar .fc-daygrid-block-event.app-event {
+  border: 0;
+  border-inline-start: 3px solid var(--app-event-color);
+  background: color-mix(in srgb, var(--app-event-color) 18%, var(--mat-sys-surface));
+  color: var(--mat-sys-on-surface);
+}
+
+.app-calendar .app-event-tentative {
+  opacity: 0.75;
+  border-inline-start-style: dashed;
+}
+
+.app-calendar .app-event-cancelled {
+  opacity: 0.6;
+  text-decoration: line-through;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app-calendar * {
+    transition: none !important;
+  }
+}

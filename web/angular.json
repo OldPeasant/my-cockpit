@@ -33,7 +33,11 @@
                 "input": "public"
               }
             ],
-            "styles": ["src/styles.scss"],
+            "styles": [
+              "fullcalendar/skeleton.css",
+              "fullcalendar/themes/classic/theme.css",
+              "src/styles.scss"
+            ],
             "polyfills": ["@angular/localize/init"],
             "allowedCommonJsDependencies": ["qrcode"]
           },

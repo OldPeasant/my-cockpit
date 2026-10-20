@@ -1,0 +1,58 @@
+<section class="calendar-page" aria-labelledby="calendar-title">
+  <aside class="calendar-panel" aria-labelledby="calendar-list-title">
+    <h1 id="calendar-title" i18n="@@calendar.title">Calendar</h1>
+    <h2 id="calendar-list-title" i18n="@@calendar.calendars">Calendars</h2>
+    @if (calendars.error() && !calendars.loaded()) {
+      <div class="calendar-note" role="alert">
+        <p i18n="@@calendar.calendarsFailed">The calendars could not be loaded.</p>
+        <button mat-stroked-button type="button" (click)="retryEvents()" i18n="@@calendar.retry">
+          Try again
+        </button>
+      </div>
+    } @else if (!calendars.loaded()) {
+      <p class="calendar-note" role="status" i18n="@@calendar.calendarsLoading">Loading…</p>
+    } @else if (calendars.calendars().length === 0) {
+      <p class="calendar-note" i18n="@@calendar.noCalendars">
+        No calendars yet. Add one in the settings to see its events here.
+      </p>
+    } @else {
+      <ul class="calendar-list">
+        @for (calendar of calendars.calendars(); track calendar.id) {
+          <li>
+            <label class="calendar-toggle" [style.--app-calendar-color]="color(calendar)">
+              <input
+                type="checkbox"
+                [checked]="calendar.visible"
+                (change)="toggle(calendar, $any($event.target).checked)"
+              />
+              <span class="calendar-name">{{ calendar.name }}</span>
+            </label>
+          </li>
+        }
+      </ul>
+    }
+  </aside>
+
+  <div class="calendar-main">
+    @if (occurrences.error()) {
+      <div class="calendar-banner" role="alert">
+        <p i18n="@@calendar.eventsFailed">The events could not be loaded.</p>
+        <button mat-stroked-button type="button" (click)="retryEvents()" i18n="@@calendar.retry">
+          Try again
+        </button>
+      </div>
+    }
+    @if (options(); as options) {
+      <full-calendar class="app-calendar" [options]="options" [events]="events()" />
+    } @else if (settingsFailed()) {
+      <div class="calendar-note" role="alert">
+        <p i18n="@@calendar.settingsFailed">The calendar settings could not be loaded.</p>
+        <button mat-stroked-button type="button" (click)="loadSettings()" i18n="@@calendar.retry">
+          Try again
+        </button>
+      </div>
+    } @else {
+      <p class="calendar-note" role="status" i18n="@@calendar.loading">Loading the calendar…</p>
+    }
+  </div>
+</section>
