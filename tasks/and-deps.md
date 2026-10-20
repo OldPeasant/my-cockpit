@@ -5,7 +5,7 @@ owner: dell26/agent-3
 deps: []
 touches: [android/gradle/libs.versions.toml,android/build.gradle.kts,android/app/build.gradle.kts,android/gradle.properties]
 prio: 1
-lease_until: 2026-10-20T09:13:04Z
+lease_until: 2026-10-20T09:18:04Z
 ---
 ## Goal
 Add the Android libraries the spec needs up front (SPEC.md §2.1, §9.2).
