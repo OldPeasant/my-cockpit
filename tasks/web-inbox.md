@@ -17,7 +17,8 @@ Keyboard-driven one-item-at-a-time processing (SPEC.md §5.3).
   - verified (2026-10-20 22:41+0200 by dell26/agent-6): inbox-page.spec.ts inline-attribute tests (energy, creativity, contexts, estimate PATCHed before the action, If-Match chain uses returned version; only user-changed fields sent) -> pass in npm --prefix web run check (757 tests)
 - [x] Vitest component/service tests cover each action calls the right API, keyboard shortcuts; `cd web && npm run check` passes
   - verified (2026-10-20 22:42+0200 by dell26/agent-6): npm --prefix web run check (api:check, lint --max-warnings=0, e2e:typecheck, ng test 45 files/757 tests, ng build) -> exit 0; inbox-page/inbox-actions/task-store specs cover per-action API calls and keyboard shortcuts
-- [ ] Playwright `e2e/gtd-inbox/inbox.spec.ts` passes against the e2e stack (`npm run e2e -- e2e/gtd-inbox/inbox.spec.ts`, see p0-e2e-harness): process 3 items to an empty inbox
+- [x] Playwright `e2e/gtd-inbox/inbox.spec.ts` passes against the e2e stack (`npm run e2e -- e2e/gtd-inbox/inbox.spec.ts`, see p0-e2e-harness): process 3 items to an empty inbox
+  - verified (2026-10-20 22:43+0200 by dell26/agent-6): npm --prefix web run e2e -- e2e/gtd-inbox/inbox.spec.ts (podman-compose e2e stack: real server+postgres image, chromium) on final code 2597cf93 -> 6 passed incl. 'inbox processing > process 3 items to an empty inbox'
 
 ## Notes
 - ASSUMPTION (2026-10-20 22:10+0200 by dell26/agent-6): Inbox shortcuts: P process (list), D do it, N next, P to project, W waiting, S schedule, T tickler, M someday (S was taken), R/C reference/calendar (disabled), X or Delete trash, Esc back/cancel; Q stays the global capture key.
