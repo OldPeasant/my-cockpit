@@ -1,0 +1,28 @@
+{
+  "schema": 1,
+  "task": "p0-server-deps",
+  "reviewed_revision": "930738a22b5bf1ad8b7d9a387d012de86c6ac73d",
+  "helpers": {
+    "test-writer":   {"status": "completed", "report": "reviews/p0-server-deps/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/p0-server-deps/review.md"},
+    "fixer":         {"status": "completed", "report": "reviews/p0-server-deps/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "kotlin plugin.jpa + allOpen for JPA annotations; covered by JpaCompilerPluginTests"},
+    {"id": "CR-2", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "GreenMail smoke test uses a dynamic port"},
+    {"id": "CR-3", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "flyway_schema_history check scoped to current_schema()"},
+    {"id": "CR-4", "source": "code-reviewer", "severity": "P3", "disposition": "deferred",
+     "note": "Boot's generated default user/password logged at WARN until p0-auth-setup defines the real user store and SecurityFilterChain (confirmed assumption #3)"},
+    {"id": "CR-5", "source": "code-reviewer", "severity": "P3", "disposition": "accepted",
+     "note": "test-only weakness: the abstract @MappedSuperclass fixture is non-final regardless of the plugin; the @Entity/@Embeddable fixtures and the unannotated control class still detect a missing plugin"}
+  ],
+  "validation": [
+    {"command": "cd server && ./gradlew test --rerun-tasks (Podman)", "result": "pass"},
+    {"command": "cd server && ./gradlew check --rerun-tasks", "result": "pass"},
+    {"command": "cd server && ./gradlew integrationTest --rerun-tasks", "result": "pass"}
+  ]
+}
