@@ -1,0 +1,23 @@
+{
+  "schema": 1,
+  "task": "p0-auth-tokens",
+  "reviewed_revision": "dbe082adb28178a55df8b1efb0e92beae0611fca",
+  "helpers": {
+    "test-writer":   {"status": "completed", "report": "reviews/p0-auth-tokens/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/p0-auth-tokens/review.md"},
+    "fixer":         {"status": "completed", "report": "reviews/p0-auth-tokens/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "TW-1", "source": "test-writer", "severity": "P1", "disposition": "fixed",
+     "note": "revoked/expired bearer token answered 403 (CSRF) instead of 401 on writes; CSRF now skipped for any bearer header (1e51c46), covered by regression tests"},
+    {"id": "CR-OBS-1", "source": "code-reviewer", "severity": "P3", "disposition": "accepted",
+     "note": "strict refresh reuse detection has no grace window (follows AC1); the Android client must serialize refreshes"}
+  ],
+  "validation": [
+    {"command": "cd server && ./gradlew test --tests 'ch.sonensei.cockpit.core.auth.*' --tests '*OpenApiContractTest'", "result": "pass (166 tests, 0 failures)"},
+    {"command": "cd web && npm run api:check", "result": "pass (generated client up to date)"},
+    {"command": "cd server && ./gradlew check jacocoTestReport", "result": "pass (783 tests)"},
+    {"command": "sh scripts/check.sh", "result": "pass (== all checks passed)"}
+  ]
+}
