@@ -1,0 +1,21 @@
+{
+  "schema": 1,
+  "task": "and-deps",
+  "reviewed_revision": "177102607c993ae08492e66819ee02b7a0d7ac73",
+  "helpers": {
+    "test-writer":   {"status": "completed", "report": "reviews/and-deps/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/and-deps/review.md"},
+    "fixer":         {"status": "completed", "report": "reviews/and-deps/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "TW-1", "source": "test-writer", "severity": "Medium", "disposition": "fixed",
+     "note": "JaCoCo recorded 0 coverage for Robolectric-loaded classes; jacoco plugin + isIncludeNoLocationClasses"},
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "same defect as TW-1, confirmed and fixed in android/app/build.gradle.kts"}
+  ],
+  "validation": [
+    {"command": "cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug --rerun-tasks", "result": "pass"},
+    {"command": "cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug createDebugUnitTestCoverageReport --rerun-tasks", "result": "pass"}
+  ]
+}
