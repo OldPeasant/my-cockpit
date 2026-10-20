@@ -1,0 +1,28 @@
+{
+  "schema": 1,
+  "task": "p0-auth-login",
+  "reviewed_revision": "acecccd9342b8447e4cac31d8f777e57003dcd41",
+  "helpers": {
+    "test-writer": {"status": "completed", "report": "reviews/p0-auth-login/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/p0-auth-login/review.md"},
+    "fixer": {"status": "completed", "report": "reviews/p0-auth-login/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P1", "disposition": "fixed",
+     "note": "first review pass: parallel logins could bypass the backoff; throttle check and count now atomic (tryBeginAttempt)"},
+    {"id": "CR-2", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "first review pass: XSRF-TOKEN not rotated on login; now rotated on login and logout"},
+    {"id": "TW-1", "source": "test-writer", "severity": "Medium", "disposition": "fixed",
+     "note": "a login that threw while creating its session reset the backoff; reset now happens after the session is saved"},
+    {"id": "CR-1 (second pass)", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "parallel requests with one expired session cookie could get 500; expired session removed with bulk deleteByTokenHash"}
+  ],
+  "validation": [
+    {"command": "cd server && ./gradlew test --tests 'ch.sonensei.cockpit.core.auth.*'", "result": "pass"},
+    {"command": "cd server && UPDATE_OPENAPI=1 ./gradlew test --tests '*OpenApiContractTest' && cd ../web && npm run api:gen && git status --short (empty)", "result": "pass"},
+    {"command": "cd server && ./gradlew test --tests '*OpenApiContractTest'", "result": "pass"},
+    {"command": "cd server && ./gradlew clean check", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
