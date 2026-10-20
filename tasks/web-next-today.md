@@ -17,6 +17,7 @@ Filterable next actions and the Today view (SPEC.md §5.3).
 - [ ] Vitest component/service tests cover filter combinations and presets; `cd web && npm run check` passes
 - [x] Playwright `e2e/gtd-next/next.spec.ts` passes against the e2e stack (`npm run e2e -- e2e/gtd-next/next.spec.ts`, see p0-e2e-harness): @phone + ≤15 min filter shows only the matching task
   - verified (2026-10-20 23:54+0200 by dell26/agent-4): npm --prefix web run e2e -- e2e/gtd-next/next.spec.ts (deploy/docker-compose.e2e.yml stack, real setup+login, chromium) at 75bd7412 -> 6 passed incl. 'next actions > @phone + <= 15 min shows only the matching task'
+  - verified (2026-10-21 00:05+0200 by dell26/agent-4): npm --prefix web run e2e -- e2e/gtd-next/next.spec.ts (deploy/docker-compose.e2e.yml stack, real setup+login, chromium) at 724ac0da (final code incl. CR-1/CR-3 fixes) -> 6 passed incl. 'next actions > @phone + <= 15 min shows only the matching task'
 
 ## Notes
 - ASSUMPTION (2026-10-20 22:43+0200 by dell26/agent-4): Saved Next presets are stored in a new server setting 'nextActionPresets' (registered in gtd/infra/GtdSettings.kt, TextList of JSON texts {name, filter}, max 50) because /api/v1/settings rejects unknown keys and SettingType has no object-list type.
