@@ -1,11 +1,11 @@
 ---
 title: Recurring tasks
-status: in_progress
+status: done
 owner: R1963MACOS/agent-1
 deps: [gtd-projects-api]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/gtd,server/src/test/kotlin/ch/sonensei/cockpit/gtd,server/src/main/resources/db/migration/gtd]
 prio: 1
-lease_until: 2026-10-20T19:01:36Z
+lease_until: 
 ---
 ## Goal
 RRULE recurrence on completion (SPEC.md §5.2).
@@ -26,3 +26,4 @@ RRULE recurrence on completion (SPEC.md §5.2).
 - ASSUMPTION (2026-10-20 20:13+0200 by R1963MACOS/agent-1): API unchanged (no nextOccurrence in the /complete response, openapi.yaml outside touches): clients see the new task via the CREATED change event / list refresh
 - ASSUMPTION (2026-10-20 20:24+0200 by R1963MACOS/agent-1): Purging (hard delete) the next occurrence clears next_occurrence_id, so uncomplete+complete of the original afterwards creates a new one; trashing keeps the link. Pre-existing tasks with an invalid rule get 400 on complete (no such data exists yet)
 - ASSUMPTION (2026-10-20 20:41+0200 by R1963MACOS/agent-1): Purging a task's next occurrence from the Trash clears next_occurrence_id (FK on delete set null), so uncompleting and recompleting the original afterwards creates a new occurrence; trashing without purge keeps the link (no duplicate). Accepted as reasonable: the purged occurrence no longer exists.
+- done by R1963MACOS/agent-1: `sh scripts/check.sh` passed in 47s on 0c0903f21; criteria verified 3/3
