@@ -255,6 +255,40 @@ class MailReadGreenMailTests(
 	}
 
 	@Test
+	fun `a folder deleted on the server since the last sync is 404 and keeps the connection`() {
+		remote { store ->
+			val archive = store.getFolder("Archive")
+			archive.create(Folder.HOLDS_MESSAGES)
+			archive.appendMessages(arrayOf(newsletter()))
+		}
+		folderService.sync(account.id)
+		val archive = checkNotNull(folders.findByAccountIdAndPath(account.id, "Archive"))
+		sync.syncFolder(archive.id)
+		val message = messages.findByFolderIdAndUidIsNotNull(archive.id).single()
+		remote { store -> store.getFolder("Archive").delete(true) }
+
+		mockMvc.get("/api/v1/mail/messages/${message.id}").andExpect { status { isNotFound() } }
+		pool.idleConnections(account.id) shouldBe 1
+	}
+
+	@Test
+	fun `a changed UIDVALIDITY is 404 for reads and downloads and keeps the connection`() {
+		val message = synced()
+		val csvPart = read(message)["attachments"][1]["partId"].asString()
+		// The cached UIDs belong to an older UIDVALIDITY than the server's, so they no longer name this message.
+		jdbc.update("update mail_folder set uidvalidity = uidvalidity + 1 where id = ?", message.folderId)
+
+		// The cached metadata lists the part, but the download needs the server copy.
+		mockMvc.get("/api/v1/mail/messages/${message.id}/attachments/$csvPart").andExpect { status { isNotFound() } }
+		pool.idleConnections(account.id) shouldBe 1
+
+		// Without the cached body, reading needs the server copy as well.
+		jdbc.update("delete from mail_body where message_id = ?", message.id)
+		mockMvc.get("/api/v1/mail/messages/${message.id}").andExpect { status { isNotFound() } }
+		pool.idleConnections(account.id) shouldBe 1
+	}
+
+	@Test
 	fun `an unreachable server is 502 with an error code`() {
 		val message = synced()
 		greenMail.stop()

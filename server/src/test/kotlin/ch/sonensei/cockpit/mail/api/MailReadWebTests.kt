@@ -361,6 +361,20 @@ class MailReadWebTests(
 	}
 
 	@Test
+	fun `resolving cid images leaves proxied remote images alone`() {
+		val message = message(workInbox, "Mixed images", "2026-10-01T08:00:00Z")
+		bodies.put(message.id, null, """<p><img src="https://images.example.test/a.png"><img src="cid:logo@example.test"></p>""")
+		attachments.save(message.id, listOf(MailAttachment("2", "logo.png", "image/png", 10, inline = true, contentId = "logo@example.test")))
+
+		val body = getJson("/api/v1/mail/messages/${message.id}?remoteImages=PROXY")["body"]
+
+		val html = body["html"].asString()
+		html shouldContain "/api/v1/mail/image-proxy?url=https%3A%2F%2Fimages.example.test%2Fa.png"
+		html shouldContain "/api/v1/mail/messages/${message.id}/attachments/2?inline=true"
+		body["remoteImageCount"].asInt() shouldBe 1
+	}
+
+	@Test
 	fun `a plain-text message has no HTML and no remote images`() {
 		val message = message(workInbox, "Plain", "2026-10-01T08:00:00Z")
 		bodies.put(message.id, "Only <b>text</b>", null)

@@ -2,7 +2,9 @@ package ch.sonensei.cockpit.mail.api
 
 import io.kotest.matchers.shouldBe
 import org.junit.jupiter.params.ParameterizedTest
+import org.junit.jupiter.params.provider.CsvSource
 import org.junit.jupiter.params.provider.ValueSource
+import java.net.Inet6Address
 import java.net.InetAddress
 
 class PublicAddressesTests {
@@ -18,6 +20,34 @@ class PublicAddressesTests {
 	)
 	fun `internal and special addresses are not public`(address: String) {
 		PublicAddresses.isPublic(InetAddress.getByName(address)) shouldBe false
+	}
+
+	/**
+	 * A resolver may return IPv4-mapped (`::ffff:a.b.c.d`) or IPv4-compatible (`::a.b.c.d`) addresses as real IPv6
+	 * addresses (the JDK's own parser turns them into IPv4 ones); the embedded IPv4 address decides.
+	 */
+	@ParameterizedTest
+	@CsvSource(
+		"127.0.0.1, true, false",
+		"169.254.169.254, true, false",
+		"192.168.1.1, true, false",
+		"10.0.0.1, false, false",
+		"8.8.8.8, true, true",
+		"8.8.8.8, false, true",
+	)
+	fun `IPv6 addresses embedding an IPv4 address are judged by the embedded one`(
+		ipv4: String,
+		mapped: Boolean,
+		public: Boolean,
+	) {
+		val bytes = ByteArray(16)
+		if (mapped) {
+			bytes[10] = 0xff.toByte()
+			bytes[11] = 0xff.toByte()
+		}
+		InetAddress.getByName(ipv4).address.copyInto(bytes, 12)
+
+		PublicAddresses.isPublic(Inet6Address.getByAddress(null, bytes, -1)) shouldBe public
 	}
 
 	@ParameterizedTest
