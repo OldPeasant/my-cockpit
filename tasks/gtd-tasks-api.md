@@ -20,3 +20,4 @@ CRUD and workflow endpoints for tasks (SPEC.md §5.4).
 
 ## Notes
 - ASSUMPTION (2026-10-20 16:06+0200 by dell26/agent-6): GET /tasks: 'context' filter takes a context id (UUID), not a name; due windows are relative to today in the user's time zone: overdue = before today, today = exactly today, week = today..today+6; maxMinutes only matches tasks with an estimate; completed defaults to false (open tasks), completed=true gives the Logbook ordered by completedAt desc; tickler-hidden tasks are NOT excluded here (left to gtd-tickler)
+- ASSUMPTION (2026-10-20 16:06+0200 by dell26/agent-6): move: absent projectId keeps the project (use PATCH projectId:null to remove); scheduledDate only allowed with SCHEDULED and cleared on leaving it; waiting-for fields only allowed with WAITING and cleared (with waitingSince) on leaving it; ticklerDate must be in the future and an omitted ticklerDate clears it; a task changing list/project goes to the end of the new list/project
