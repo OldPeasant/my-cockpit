@@ -5,7 +5,7 @@ owner: dell26/agent-1
 deps: [p0-deploy]
 touches: [.github]
 prio: 2
-lease_until: 2026-10-20T12:24:16Z
+lease_until: 2026-10-20T12:29:18Z
 ---
 ## Goal
 CI that runs what agents run, with the same runtimes.
