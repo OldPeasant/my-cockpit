@@ -22,7 +22,7 @@
   ],
   "validation": [
     {"command": "cd server && ./gradlew integrationTest --rerun-tasks (at 50e57c0)", "result": "pass: only ExternalToolingSmokeTests, 2/2"},
-    {"command": "cd server && ./gradlew check --rerun-tasks (at 50e57c0, Docker daemon not running)", "result": "ktlint + compile pass; Docker-free tests DatasourcePropertiesTests 4/4, JpaCompilerPluginTests 4/4 pass; 7 Testcontainers suites could not start (no Docker)"},
+    {"command": "cd server && ./gradlew check --rerun-tasks (at 50e57c0 code, Podman on dell26)", "result": "pass: BUILD SUCCESSFUL in 12s, ktlint pass, 9 suites / 21 tests, 0 failures/errors"},
     {"command": "cd server && ./gradlew test --rerun-tasks (Podman, pre-rebase revision with identical server code per git range-diff)", "result": "pass: 21 tests"}
   ]
 }
