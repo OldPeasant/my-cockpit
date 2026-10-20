@@ -5,7 +5,7 @@ owner: dell26/agent-2
 deps: [web-gtd-data,gtd-capture-api]
 touches: [web/src/app/features/capture]
 prio: 1
-lease_until: 2026-10-21T00:11:16Z
+lease_until: 2026-10-21T00:16:19Z
 ---
 ## Goal
 Capture from anywhere (SPEC.md §4.5), provided through the shell's `CAPTURE_DIALOG` token.
