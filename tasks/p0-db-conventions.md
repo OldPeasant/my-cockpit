@@ -1,11 +1,11 @@
 ---
 title: Persistence conventions: base entity, UUIDv7, clock, migrations layout
-status: todo
-owner: 
+status: in_progress
+owner: R1963MACOS/agent-1
 deps: [p0-server-deps]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/core/persistence,server/src/test/kotlin/ch/sonensei/cockpit/core/persistence,server/src/main/resources/db/migration/core]
 prio: 1
-lease_until: 
+lease_until: 2026-10-20T09:16:57Z
 releases: 0
 extended: 
 hold: 
