@@ -4,29 +4,29 @@ Date: 2026-10-20
 
 Task: files-api - Files API: upload, download, operations
 
-Scope: committed range `857df5c0..30203425` (`git diff 857df5c0c9ec96e03a1d04f9299ae2a0f01a92db..30203425`), excluding `tasks/`. Committed changes only; the working tree was clean when checked. This review replaces the earlier review of the pre-fix code and checks the fixer's changes for the earlier CR-1 to CR-4 (`reviews/files-api/fixes.md`).
+Scope: `git diff 6e420c3ff144629e2215cb3b3aa86785f6d178a1..4e2decc5`, excluding `tasks/` and `reviews/`, as given by the parent worker. This is the final revision after the rebase onto main. Committed changes only. The working tree has uncommitted changes only in `reviews/files-api/` (review.md, tests.md), which are outside the reviewed code. All changed production sources, the configuration, the migration and the build file were read in full. Test names and selected test bodies were inspected. The generated contract (`api/openapi.yaml`) and web client were spot-checked against the controllers. The reviewer did not run any build or test command. The parent reports 175 passing focused tests.
 
 Requirements:
-- tasks/files-api.md acceptance criteria and the recorded assumptions (Notes)
-- SPEC.md §8.2 (Files), §4.2 API conventions
-- docs/ARCHITECTURE.md, AGENTS.md project notes (module boundaries, Flyway layout, Problem Details, ETag/If-Match, "API changes: server first, regenerate api/openapi.yaml, then clients")
-- api/README.md (regenerating the contract and the clients), scripts/check.sh (`.taskcheck`)
+- `tasks/files-api.md`: acceptance criteria 1-5 and the ASSUMPTION notes (API layout, resumable-upload rules, max size, downloads, folder moves)
+- SPEC.md §8.2 and §4.2 (as reflected in the task), `docs/ARCHITECTURE.md`, AGENTS.md project notes (module packages, Flyway location, Problem Details, ETag/If-Match, generated files)
+- Earlier `reviews/files-api/review.md`, `fixes.md` and `tests.md`
 
 Git range:
 - Branch: main
-- HEAD: 302034257d75fe191de4dfdaeb47aeb540aed60b
-- Base/start: 857df5c0c9ec96e03a1d04f9299ae2a0f01a92db
-- Commits reviewed: 6 (0534a5fd, 7e761d77, 89b447dc, aaa1b6fd, 1d26c431, 30203425)
+- HEAD: 4e2decc5 (reviewed revision)
+- Base/start: 6e420c3ff144629e2215cb3b3aa86785f6d178a1 (origin/main)
+- Commits reviewed: 3 (bc1c124c, b491adfd, 4e2decc5)
 
-Summary: 0 P0, 1 P1, 0 P2, 0 P3
+Summary: 0 P0, 0 P1, 1 P2, 1 P3
 
-## Verification of earlier findings
+## Verification against the acceptance criteria
 
-- CR-1 (zip async timeout): fixed. `application.properties` sets `spring.mvc.async.request-timeout=-1`. The setting is passed to the servlet `AsyncContext`, where a value of 0 or less means no timeout. `FilesWebTests` "a folder downloads as a streamed zip" checks `asyncContext.timeout == -1`. SSE emitters set their own timeout, so the global setting does not affect them.
-- CR-2 (configured max size not tested): fixed. `FilesMaxSizeWebTests` uses `@TestPropertySource(cockpit.files.max-size=1KB)` and checks four things: multipart 1025 bytes -> 413 Problem Details with no row stored, 1024 bytes -> 201, `POST /uploads` above the limit -> 400 `size`, and that `spring.servlet.multipart.max-file-size` resolves to `1KB`. MockMvc does not enforce the container multipart limit, so the 413 here comes from `BlobTooLargeException`. The property-resolution assertion covers the container wiring. This is adequate.
-- CR-3 (orphaned chunk after a race): fixed. `UploadService.putChunk` (`UploadService.kt:108-123`) checks again that the session exists after the write. If the session is gone, it deletes the chunks and returns 404. On an `IOException` it does the same when the session is gone. If `complete` is still holding the row when the check runs, `complete`'s own after-commit cleanup removes the chunk. Two regression tests in `UploadServiceTests` cover the deleted-row case and the real-abort case.
-- CR-4 (unused helper, duplicated rename logic): fixed. `ContentDispositions.inline` is removed. `renameFolder` and `renameFile` now delegate to `updateFolder` and `updateFile` (`FilesService.kt:98-101`, `206-209`).
-- `server/build.gradle.kts`: the test JVM now gets `maxHeapSize = "1g"`. This is an intentional, commented, one-line change to a shared build file. The reviewer did not run Gradle (as instructed), so this review does not confirm that `./gradlew check` now passes, or how long it takes.
+- AC1: Multipart upload is in `FileController.upload`. The chunked flow is in `UploadController`/`UploadService`/`ChunkStore`: `POST /uploads`, `PUT /uploads/{id}/chunks/{n}` with exact lengths and atomic moves, and `POST /uploads/{id}/complete`. Complete runs under a row lock, checks size and SHA-256, and rolls the blob back on a mismatch. The max size comes from `cockpit.files.max-size` (default 5GB). Spring's multipart limit follows it, and the 413 response is tested. Met in code.
+- AC2: Download uses `ResponseEntity<Resource>` and Spring's region support (206, multipart byteranges, 416). `ContentDispositions.attachment` produces the ASCII fallback plus `filename*=UTF-8''`. The folder zip is a `StreamingResponseBody` with `spring.mvc.async.request-timeout=-1`. `FileNames.validate` forbids `/`, `\`, `.` and `..`, so zip paths cannot escape. Met in code.
+- AC3: Rename and move go through `updateFile`/`updateFolder`. Moves into the folder's own subtree are rejected under `pg_advisory_xact_lock`, and a concurrency test covers it. Delete goes to the Trash with If-Match (412/428). New folder, the cursor listing (keyset on kind, lower(name), id) and `/drive/usage` are present. Met in code.
+- AC4: The suite includes `a 60 MB file uploads in chunks and downloads identical` and `an upload resumes after a missing chunk`, plus `@SpringBootTest` persistence tests. The reviewer did not re-run them.
+- AC5: `api/openapi.yaml` has the files operations, and the `Range` parameter now has a string schema (`openapi.yaml:1676-1678`). The reviewer did not re-run `OpenApiContractTest`.
+- Earlier findings: TW-1 is resolved (Range schema). Fixes CR-1 to CR-4 from `fixes.md` are still in place. The earlier P3 (problem+json Accept) is still open, see CR-2.
 
 ## P0 Critical
 
@@ -34,36 +34,28 @@ None.
 
 ## P1 High
 
-- [ ] **CR-1 | `api/openapi.yaml` was regenerated, but the generated web client was not, so `.taskcheck` fails at `npm run api:check`**
-    - File: `api/openapi.yaml:1` (the paths `/api/v1/drive`, `/api/v1/files`, `/api/v1/folders`, `/api/v1/uploads` and 11 new schemas were added in this range). The counterpart that is missing is `web/src/app/api/generated/`.
-    - Category: Integration
-    - Problem: The range adds about 1100 lines to `api/openapi.yaml`: 13 operations tagged `Files` and the schemas `CompleteUploadRequest`, `CreateFolderRequest`, `CreateUploadRequest`, `DriveEntryResponse`, `DrivePageResponse`, `DriveUsageResponse`, `FilePatchRequest`, `FileResponse`, `FolderPatchRequest`, `FolderResponse`, `FolderSummary` and `UploadResponse`. No file under `web/` changed (`git diff --stat 857df5c0..30203425 -- web` is empty). At HEAD, `web/src/app/api/generated/fn/` has no `files/` folder and no files/upload/drive models. `web/ng-openapi-gen.json` generates every tag (no include or exclude filter). `web/scripts/api-gen-check.mjs`, which runs as part of `npm run check`, regenerates the client from `../api/openapi.yaml` and fails on any missing or changed file. `scripts/check.sh` (`.taskcheck`) runs `npm run -s check` for the web part, so the project check fails on this HEAD.
-    - Why it matters: AGENTS.md requires "server first, regenerate `api/openapi.yaml`, then clients", and api/README.md says to regenerate the web client after the contract changes. `tasks.py done` runs `.taskcheck` and will refuse the task. The web client also stays out of sync with the server contract that other tasks build on.
-    - Suggested fix: Run `cd web && npm run api:gen` and commit the regenerated `web/src/app/api/generated/` together with the contract. Then run `npm run check` (or the full `sh scripts/check.sh`) and record the result. This is a generated-file change outside the task's `touches`, as other API tasks did (e.g. cal-local-api, gtd-projects-api). It is not hand-written web code.
+None.
 
 ## P2 Medium
 
-None.
+- [ ] **CR-1 | The OpenAPI contract does not allow `null` for `parentId`/`folderId` in the PATCH bodies, so generated clients cannot move an item to the drive root**
+    - File: `server/src/main/kotlin/ch/sonensei/cockpit/files/api/FilesDtos.kt:150-160` (contract: `api/openapi.yaml:5545-5555`, `5596-5606`; client: `web/src/app/api/generated/models/folder-patch-request.ts`)
+    - Category: Integration
+    - Problem: The server treats `"parentId": null` (folders) and `"folderId": null` (files) as "move to the drive root". `parseFilesPatch` does this, and `FilesWebTests.kt:319,331` test it. But `FolderPatchRequest.parentId` and `FilePatchRequest.folderId` have no `types = ["string", "null"]`. The generated OpenAPI 3.1 schema is therefore plain `type: string, format: uuid`, and the generated TypeScript model is `parentId?: string`. In that contract, `null` is an invalid value: strict TS clients and Android generators cannot send it without a cast or hand-written JSON. The project already uses `types = ["string", "null"]` for this purpose in PATCH DTOs (`gtd/api/ProjectDtos.kt:96`, `areaId`; `core/settings/api/SettingsSchemas.kt`). The schema description says `null` is allowed, which contradicts the schema itself.
+    - Why it matters: Moving to the root is part of AC3 ("move"). The documented API (AC5, SPEC §4.2 "API changes: server first, regenerate, then clients") does not express it, so the web and Android files features will hit this as soon as they implement "move to root".
+    - Suggested fix: Annotate `FolderPatchRequest.parentId` and `FilePatchRequest.folderId` with `@get:Schema(types = ["string", "null"], format = "uuid")`, as `ProjectDtos.kt:96` does. Then regenerate `api/openapi.yaml` (`UPDATE_OPENAPI=1 ./gradlew test --tests '*OpenApiContractTest'`) and the web client (`npm run api:gen`). Do the same for the nullable response fields that are always present (`FolderResponse.parentId`, `FileResponse.folderId`, `UploadResponse.folderId`, `DrivePageResponse.nextCursor`, `special`) if the project wants response schemas to validate the `null` values the server actually sends.
 
 ## P3 Low
 
-None.
+- [ ] **CR-2 | `listFolder` and `getUpload` document their 200 body under `application/problem+json`, so the generated client requests success responses with `Accept: application/problem+json` (carried over, still open)**
+    - File: `server/src/main/kotlin/ch/sonensei/cockpit/files/api/DriveController.kt:31`, `server/src/main/kotlin/ch/sonensei/cockpit/files/api/UploadController.kt:68`
+    - Category: Integration
+    - Problem: Both methods declare `produces = [APPLICATION_JSON_VALUE, PROBLEM_JSON]` and a 200 `@ApiResponse` without `content`. springdoc lists the return type under both media types, and ng-openapi-gen picks the problem type: `web/src/app/api/generated/fn/files/list-folder.ts:39` and `get-upload.ts:23` send `accept: 'application/problem+json'`. By contrast, `get-file.ts:23` sends `application/json`, because `FileOkResponse` declares the content explicitly. The same pattern exists elsewhere in the codebase, so it is not unique to this task.
+    - Why it matters: Successful listings and upload statuses can come back labelled `Content-Type: application/problem+json`. Clients that treat that type as an error can misread them. It is also inconsistent with the other files endpoints.
+    - Suggested fix: Declare the 200 content explicitly: `content = [Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = Schema(implementation = DrivePageResponse::class))]`, and the same with `UploadResponse::class`. Then regenerate the contract and the web client. This can be done together with CR-1.
 
 ## Review conclusion
 
 Material issues found; fix before completing the task.
 
-The server implementation covers the functional criteria:
-- multipart upload, and resumable uploads with size and SHA-256 checks on complete, a missing-chunks 409, and a configurable maximum size;
-- downloads with `Range` (through Spring resource regions), an RFC 6266 `filename*` header with an ASCII fallback, and a streamed folder zip with no async timeout;
-- rename and move with cycle prevention under an advisory lock, delete to the Trash with If-Match, new folder, cursor listing and disk usage;
-- consistent Problem Details and ETag handling.
-
-The earlier CR-1 to CR-4 are resolved. The remaining blocker is the stale generated web client, which makes `.taskcheck` fail.
-
-Before `done`, the parent worker must also run and record the evidence the criteria name, because the reviewer did not run Gradle:
-- criterion 4: `./gradlew test --tests 'ch.sonensei.cockpit.files.*'`, with Testcontainers, including the 60 MB chunked upload test and the missing-chunk resume test;
-- criterion 5: `OpenApiContractTest` without the update flag;
-- the full `.taskcheck`. The task notes ask for it to stay under about 2 minutes now that the 60 MB test runs inside it with the 1 GB heap.
-
-No criterion of `tasks/files-api.md` was ticked at review time.
+The functional behavior matches the acceptance criteria and is well tested, including races between chunk writes and complete/abort, crossing folder moves, moves into a folder being trashed, and rollback of the blob on a hash mismatch. No security, data-loss or correctness defects were found. The remaining item that matters is CR-1: the published API contract does not allow `null` for the move-to-root fields that the server requires. Fixing it means a small annotation change plus regenerating the contract and the web client. CR-2 is optional cleanup that fits into the same regeneration.
