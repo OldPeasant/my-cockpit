@@ -24,6 +24,7 @@ import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc
 import org.springframework.context.ApplicationEventPublisher
 import org.springframework.dao.DataIntegrityViolationException
+import org.springframework.dao.OptimisticLockingFailureException
 import org.springframework.http.HttpHeaders.ETAG
 import org.springframework.http.HttpHeaders.IF_MATCH
 import org.springframework.http.MediaType
@@ -238,6 +239,40 @@ class SettingsEdgeCaseTests(
 			}
 		val service = SettingsService(repository, JsonMapper(), mockk<ApplicationEventPublisher>(), definitions)
 		shouldThrow<ConflictException> { service.update(mapOf("theme" to "dark")) }
+	}
+
+	@Test
+	fun `a concurrent change of the existing settings is a conflict and changes nothing`() {
+		settings.update(mapOf("theme" to "dark"))
+		shouldThrow<OptimisticLockingFailureException> {
+			settings.update(mapOf("theme" to "light")) {
+				// Another client changes the row between the If-Match check and the save.
+				jdbc.update("update user_settings set version = version + 1")
+			}
+		}
+		settings.current().version shouldBe 1
+		settings.get(CoreSettings.THEME) shouldBe "dark"
+	}
+
+	@Test
+	fun `the stored overrides must be a JSON object`() {
+		settings.update(mapOf("theme" to "dark"))
+		for (document in listOf("[]", "null", "\"dark\"")) {
+			shouldThrow<DataIntegrityViolationException> {
+				jdbc.update("update user_settings set overrides = ?::jsonb", document)
+			}
+		}
+		settings.get(CoreSettings.THEME) shouldBe "dark"
+	}
+
+	@Test
+	fun `the documented patch allows null for the enum settings`() {
+		mockMvc.get("/v3/api-docs").andExpect {
+			status { isOk() }
+			for (key in listOf("theme", "weekStart", "mailImagePolicy")) {
+				jsonPath("$.components.schemas.SettingsPatch.properties.$key.enum[-1]") { value(null) }
+			}
+		}
 	}
 
 	private companion object {

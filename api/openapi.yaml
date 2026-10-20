@@ -413,6 +413,7 @@ components:
           enum:
           - block
           - allow
+          - null
         theme:
           type:
           - string
@@ -421,6 +422,7 @@ components:
           - light
           - dark
           - system
+          - null
         timeZone:
           type:
           - string
@@ -439,6 +441,7 @@ components:
           - FRIDAY
           - SATURDAY
           - SUNDAY
+          - null
     SetupRequest:
       type: object
       properties:

@@ -85,16 +85,24 @@ class SettingsService(
 		val settings = existing ?: create()
 		val overrides = readOverrides(settings).toMutableMap()
 		val changed = mutableSetOf<String>()
+		var dirty = false
 		for ((key, value) in parsed) {
 			val definition = definitions.getValue(key)
 			if (valueOf(definition, overrides) == (value ?: definition.default)) {
-				if (value == null) overrides.remove(key)
+				// Resetting a stored value its definition no longer accepts cleans it up without changing the value.
+				if (value == null && overrides.containsKey(key)) {
+					overrides.remove(key)
+					dirty = true
+				}
 				continue
 			}
 			if (value == null) overrides.remove(key) else overrides[key] = value
 			changed += key
+			dirty = true
 		}
-		settings.overrides = jsonMapper.writeValueAsString(overrides.toSortedMap())
+		// Reassigned only on a real change: Postgres returns jsonb reformatted, so rewriting the same document would
+		// still make the entity dirty and bump its version (the ETag).
+		if (dirty) settings.overrides = jsonMapper.writeValueAsString(overrides.toSortedMap())
 		val saved = repository.saveAndFlush(settings)
 		if (changed.isNotEmpty()) {
 			log.debug("Settings changed: {}", changed.sorted())

@@ -3,6 +3,10 @@ package ch.sonensei.cockpit.core.settings.api
 import io.swagger.v3.oas.annotations.media.Schema
 import io.swagger.v3.oas.annotations.media.Schema.AdditionalPropertiesValue
 import io.swagger.v3.oas.annotations.media.Schema.RequiredMode
+import io.swagger.v3.oas.models.OpenAPI
+import io.swagger.v3.oas.models.media.JsonSchema
+import org.springdoc.core.customizers.OpenApiCustomizer
+import org.springframework.stereotype.Component
 
 // Documentation only: the API reads and writes plain JSON objects (SettingsService validates them), and these classes
 // describe the core keys (CoreSettings) for the generated clients. Settings of other modules are additional properties.
@@ -53,3 +57,28 @@ class SettingsPatch(
 	@field:Schema(description = "Distinct sender addresses or domains", types = ["array", "null"])
 	val mailImageAllowedSenders: List<String>?,
 )
+
+/**
+ * Adds `null` to the enums of [SettingsPatch]: `null` resets a setting, and in OpenAPI 3.1 `enum` restricts the value
+ * besides `type`. `allowableValues` can only list strings (it would document the string "null").
+ */
+@Component
+class SettingsPatchNullEnums : OpenApiCustomizer {
+	override fun customise(openApi: OpenAPI) {
+		val properties =
+			openApi.components
+				?.schemas
+				?.get("SettingsPatch")
+				?.properties ?: return
+		for ((name, property) in properties) {
+			val values = property.enum ?: continue
+			if (null in values) continue
+			properties[name] =
+				JsonSchema().apply {
+					types = property.types
+					description = property.description
+					enum = (values + null).toMutableList()
+				}
+		}
+	}
+}
