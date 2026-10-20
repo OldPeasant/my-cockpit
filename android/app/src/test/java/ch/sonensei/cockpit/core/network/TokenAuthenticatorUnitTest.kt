@@ -175,6 +175,77 @@ class TokenAuthenticatorUnitTest {
         assertFalse(text, text.contains("secret"))
     }
 
+    @Test
+    fun `a user logout during a successful refresh stays logged out`() {
+        tokenStore.save(AuthTokens("old-access", "old-refresh"))
+        val racing =
+            racingAuthenticator(RefreshResult.Success(AuthTokens("new-access", "new-refresh"))) { session.logout(LogoutReason.USER) }
+
+        assertNull(racing.authenticate(null, unauthorized(bearer("old-access"))))
+        assertNull(tokenStore.current())
+        assertFalse(session.isLoggedIn)
+    }
+
+    @Test
+    fun `a login during a successful refresh keeps the new login and retries with it`() {
+        tokenStore.save(AuthTokens("old-access", "old-refresh"))
+        val racing =
+            racingAuthenticator(RefreshResult.Success(AuthTokens("new-access", "new-refresh"))) {
+                tokenStore.save(AuthTokens("login-access", "login-refresh"))
+            }
+
+        val retry = racing.authenticate(null, unauthorized(bearer("old-access")))
+
+        assertEquals("Bearer login-access", retry?.header(AUTHORIZATION))
+        assertEquals(AuthTokens("login-access", "login-refresh"), tokenStore.current())
+    }
+
+    @Test
+    fun `a rejected stale refresh does not log out a login that happened meanwhile`() =
+        runBlocking {
+            tokenStore.save(AuthTokens("old-access", "old-refresh"))
+            val logouts = CopyOnWriteArrayList<LogoutReason>()
+            val collector =
+                async(Dispatchers.Unconfined, start = CoroutineStart.UNDISPATCHED) { session.loggedOut.collect { logouts += it } }
+            val racing = racingAuthenticator(RefreshResult.Rejected) { tokenStore.save(AuthTokens("login-access", "login-refresh")) }
+
+            val retry = racing.authenticate(null, unauthorized(bearer("old-access")))
+
+            assertEquals("Bearer login-access", retry?.header(AUTHORIZATION))
+            assertEquals(AuthTokens("login-access", "login-refresh"), tokenStore.current())
+            assertEquals(emptyList<LogoutReason>(), logouts)
+            collector.cancel()
+        }
+
+    @Test
+    fun `replace only swaps the tokens it expects`() {
+        val first = AuthTokens("a1", "r1")
+        val second = AuthTokens("a2", "r2")
+        tokenStore.save(first)
+
+        assertFalse(tokenStore.replace(second, null))
+        assertEquals(first, tokenStore.current())
+        assertTrue(tokenStore.replace(first, second))
+        assertEquals(second, tokenStore.current())
+        assertTrue(tokenStore.replace(second, null))
+        assertNull(tokenStore.current())
+        assertFalse(tokenStore.replace(second, first))
+        assertNull(tokenStore.current())
+    }
+
+    /** An authenticator whose refresh lets [meanwhile] (a logout or login on another thread) run before it answers. */
+    private fun racingAuthenticator(
+        result: RefreshResult,
+        meanwhile: () -> Unit,
+    ) = TokenAuthenticator(
+        tokenStore,
+        {
+            Thread(meanwhile).apply { start() }.join(5_000)
+            result
+        },
+        session,
+    )
+
     private fun request() = Request.Builder().url("https://server.invalid/api/v1/auth/me").build()
 
     private fun bearer(token: String) = request().withBearer(token)

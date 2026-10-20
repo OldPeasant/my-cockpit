@@ -21,6 +21,15 @@ interface TokenStore {
     fun save(tokens: AuthTokens)
 
     fun clear()
+
+    /**
+     * Replaces the tokens with [new] (null clears them) only if they still equal [expected], atomically. Returns
+     * whether it did, so a slow refresh cannot undo a logout or a login that happened meanwhile.
+     */
+    fun replace(
+        expected: AuthTokens,
+        new: AuthTokens?,
+    ): Boolean
 }
 
 /** Keeps the tokens in memory only; the login task replaces it with Keystore-backed storage. */
@@ -33,11 +42,23 @@ class InMemoryTokenStore
 
         override fun current(): AuthTokens? = tokens
 
+        @Synchronized
         override fun save(tokens: AuthTokens) {
             this.tokens = tokens
         }
 
+        @Synchronized
         override fun clear() {
             tokens = null
+        }
+
+        @Synchronized
+        override fun replace(
+            expected: AuthTokens,
+            new: AuthTokens?,
+        ): Boolean {
+            if (tokens != expected) return false
+            tokens = new
+            return true
         }
     }

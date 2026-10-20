@@ -3,8 +3,10 @@ package ch.sonensei.cockpit.core.network
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.emptyPreferences
 import androidx.datastore.preferences.core.stringPreferencesKey
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.runBlocking
@@ -61,17 +63,41 @@ class ServerUrlRepository
     @Inject
     constructor(
         @param:ServerConfigStore private val dataStore: DataStore<Preferences>,
+        private val session: AuthSession,
     ) {
-        /** The configured URL, or null before the user set one. */
+        /** The configured URL, or null before the user set one or while the settings cannot be read. */
         val serverUrl: Flow<HttpUrl?> =
-            dataStore.data.map { prefs -> prefs[SERVER_URL]?.let { (ServerUrlValidator.validate(it) as? ServerUrlValidation.Valid)?.url } }
+            readablePrefs()
+                .map { prefs -> prefs[SERVER_URL]?.let { (ServerUrlValidator.validate(it) as? ServerUrlValidation.Valid)?.url } }
 
-        /** Stores [raw] if it is valid; returns the validation either way. */
+        /**
+         * Stores [raw] if it is valid; returns the validation either way. Moving to another origin (scheme, host, port)
+         * logs out first, so the tokens never reach a server that did not issue them. The logout waits for a running
+         * refresh (which still goes to the previous server) and happens before the new URL is stored, so requests that
+         * see the new URL see no tokens.
+         */
         suspend fun setServerUrl(raw: String): ServerUrlValidation {
             val result = ServerUrlValidator.validate(raw)
-            if (result is ServerUrlValidation.Valid) dataStore.edit { it[SERVER_URL] = result.url.toString() }
+            if (result is ServerUrlValidation.Valid) {
+                val previous = readablePrefs().first()[SERVER_URL]
+                if (previous != null && !sameOrigin(previous.toHttpUrlOrNull(), result.url)) {
+                    synchronized(session.refreshLock) {
+                        if (session.isLoggedIn) session.logout(LogoutReason.SERVER_CHANGED)
+                    }
+                }
+                dataStore.edit { it[SERVER_URL] = result.url.toString() }
+            }
             return result
         }
+
+        /** The settings; an unreadable file counts as empty (not configured) instead of failing the reader. */
+        private fun readablePrefs(): Flow<Preferences> =
+            dataStore.data.catch { if (it is IOException) emit(emptyPreferences()) else throw it }
+
+        private fun sameOrigin(
+            a: HttpUrl?,
+            b: HttpUrl,
+        ): Boolean = a != null && a.scheme == b.scheme && a.host == b.host && a.port == b.port
 
         private companion object {
             val SERVER_URL = stringPreferencesKey("server_url")

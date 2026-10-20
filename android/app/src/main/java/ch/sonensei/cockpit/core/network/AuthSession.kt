@@ -14,6 +14,9 @@ enum class LogoutReason {
 
     /** The user logged out. */
     USER,
+
+    /** The user pointed the app at another server; tokens are only ever sent to the server that issued them. */
+    SERVER_CHANGED,
 }
 
 /** Logs the device out: forgets its tokens and tells the UI, which then shows the login screen. */
@@ -29,10 +32,26 @@ class AuthSession
         /** Emits once per logout; collectors that are not subscribed at that moment miss it. */
         val loggedOut: SharedFlow<LogoutReason> = logouts.asSharedFlow()
 
+        /**
+         * Held by [TokenAuthenticator] while a refresh runs. A server change logs out under it, so a refresh never
+         * sends the refresh token to a server that was configured after the refresh started.
+         */
+        internal val refreshLock = Any()
+
         val isLoggedIn: Boolean get() = tokenStore.current() != null
 
         fun logout(reason: LogoutReason) {
             tokenStore.clear()
             logouts.tryEmit(reason)
+        }
+
+        /** Logs out only if the stored tokens are still [tokens]; returns whether it did. */
+        fun logoutIfCurrent(
+            tokens: AuthTokens,
+            reason: LogoutReason,
+        ): Boolean {
+            if (!tokenStore.replace(tokens, null)) return false
+            logouts.tryEmit(reason)
+            return true
         }
     }

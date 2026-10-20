@@ -2,8 +2,10 @@ package ch.sonensei.cockpit.core.network
 
 import android.content.Context
 import androidx.datastore.core.DataStore
+import androidx.datastore.core.handlers.ReplaceFileCorruptionHandler
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.emptyPreferences
 import androidx.datastore.preferences.preferencesDataStoreFile
 import ch.sonensei.cockpit.core.network.generated.apis.AuthApi
 import ch.sonensei.cockpit.core.network.generated.apis.EventsApi
@@ -16,11 +18,15 @@ import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.serialization.json.Json
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import retrofit2.Retrofit
 import retrofit2.converter.kotlinx.serialization.asConverterFactory
+import java.io.File
 import javax.inject.Qualifier
 import javax.inject.Singleton
 
@@ -61,6 +67,17 @@ object CockpitHttp {
             .build()
 }
 
+/** The server-config DataStore; an unreadable file is replaced by empty settings instead of failing every read. */
+internal fun serverConfigDataStore(
+    scope: CoroutineScope = CoroutineScope(Dispatchers.IO + SupervisorJob()),
+    produceFile: () -> File,
+): DataStore<Preferences> =
+    PreferenceDataStoreFactory.create(
+        corruptionHandler = ReplaceFileCorruptionHandler { emptyPreferences() },
+        scope = scope,
+        produceFile = produceFile,
+    )
+
 @Module
 @InstallIn(SingletonComponent::class)
 abstract class NetworkBindings {
@@ -79,7 +96,7 @@ object NetworkModule {
     @ServerConfigStore
     fun serverConfigStore(
         @ApplicationContext context: Context,
-    ): DataStore<Preferences> = PreferenceDataStoreFactory.create { context.preferencesDataStoreFile("server_config") }
+    ): DataStore<Preferences> = serverConfigDataStore { context.preferencesDataStoreFile("server_config") }
 
     @Provides
     @Singleton

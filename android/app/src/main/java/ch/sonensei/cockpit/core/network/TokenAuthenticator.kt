@@ -11,7 +11,9 @@ import javax.inject.Singleton
  * Answers a 401 by refreshing the tokens once and retrying the request with the new access token.
  *
  * Concurrent 401s share one refresh: whoever comes second sees that the stored access token differs from the one its
- * request was sent with and retries with the stored one. A rejected refresh logs the device out.
+ * request was sent with and retries with the stored one. A rejected refresh logs the device out. The result of a refresh
+ * is applied only if the stored tokens are still the ones it started from, so a logout or login during the refresh
+ * wins; the request is then retried with whatever is stored now.
  */
 @Singleton
 class TokenAuthenticator
@@ -21,8 +23,6 @@ class TokenAuthenticator
         private val refresher: TokenRefresher,
         private val session: AuthSession,
     ) : Authenticator {
-        private val lock = Any()
-
         override fun authenticate(
             route: Route?,
             response: Response,
@@ -30,20 +30,26 @@ class TokenAuthenticator
             val sentToken = response.request.bearerToken() ?: return null
             // Refresh once: a 401 for a request that was already retried is final.
             if (response.priorResponse != null) return null
-            synchronized(lock) {
+            synchronized(session.refreshLock) {
                 val current = tokenStore.current() ?: return null
                 if (current.accessToken != sentToken) return response.request.withBearer(current.accessToken)
                 return when (val result = refresher.refresh(current.refreshToken)) {
                     is RefreshResult.Success -> {
-                        tokenStore.save(result.tokens)
-                        response.request.withBearer(result.tokens.accessToken)
+                        if (tokenStore.replace(current, result.tokens)) {
+                            response.request.withBearer(result.tokens.accessToken)
+                        } else {
+                            retryWithStored(response)
+                        }
                     }
                     RefreshResult.Rejected -> {
-                        session.logout(LogoutReason.REFRESH_REJECTED)
-                        null
+                        if (session.logoutIfCurrent(current, LogoutReason.REFRESH_REJECTED)) null else retryWithStored(response)
                     }
                     RefreshResult.Failed -> null
                 }
             }
         }
+
+        /** The tokens changed during the refresh (logout or new login): use the stored ones, if any. */
+        private fun retryWithStored(response: Response): Request? =
+            tokenStore.current()?.let { response.request.withBearer(it.accessToken) }
     }
