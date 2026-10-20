@@ -1,11 +1,11 @@
 ---
 title: Web dependencies, theme and i18n baseline
-status: in_progress
+status: done
 owner: dell26/agent-3
 deps: []
 touches: [web/package.json,web/package-lock.json,web/angular.json,web/src/styles.scss,web/src/index.html,web/src/app/app.config.ts,web/src/theme]
 prio: 1
-lease_until: 2026-10-20T09:23:09Z
+lease_until: 
 releases: 0
 extended: 
 hold: 
@@ -31,3 +31,4 @@ Add the web libraries the spec needs up front (SPEC.md §2.1) and a Material 3 l
 - release by dell26/agent-2: handed off by dell26/agent-2: You've hit your session limit · resets 2pm (Europe/Berlin)
 - hold by R1963MACOS/agent-1: Implementation, verify evidence and review evidence (reviews/p0-web-deps, reviewed bdb9141) are complete and committed; web check passes. done is REFUSED only because .taskcheck's server tests need Testcontainers Postgres and the Docker daemon is not running on R1963MACOS (Cannot connect to the Docker daemon at ~/.docker/run/docker.sock; agent may not start Docker Desktop). Start Docker on this machine (or run done from a machine with Docker), unhold, and run: python tasks.py done p0-web-deps
 - ASSUMPTION (2026-10-20 11:03+0200 by dell26/agent-3): reviewed_revision bdb9141 (agent-1's machine) was lost in rebases; set it to 18b5eef, the rebased CR-4 commit with identical web/ and reviews/ content (git diff origin/wip/p0-web-deps HEAD -- web reviews empty); done's patch-id check confirms equivalence. Only the ARCHITECTURE.md conflict with main's Android row was resolved (kept both).
+- done by dell26/agent-3: `sh scripts/check.sh` passed in 38s on c7ca2823e; criteria verified 4/4
