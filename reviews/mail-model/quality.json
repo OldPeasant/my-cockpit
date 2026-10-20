@@ -1,0 +1,23 @@
+{
+  "schema": 1,
+  "task": "mail-model",
+  "reviewed_revision": "03d2a7257a74bbfb4ed6a6d123d4d92b85380a2b",
+  "helpers": {
+    "test-writer": {"status": "completed", "report": "reviews/mail-model/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/mail-model/review.md"},
+    "fixer": {"status": "completed", "report": "reviews/mail-model/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "TW-1", "source": "test-writer", "severity": "Medium", "disposition": "fixed",
+     "note": "folder deletion with located messages violated mail_message_uid check; check relaxed, isLocated and locator/thread queries require folder_id (7621d6e)"},
+    {"id": "TW-2", "source": "test-writer", "severity": "Low", "disposition": "fixed",
+     "note": "parseList drops entries without local@domain shape; KDoc matches behavior (7621d6e)"},
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P3", "disposition": "accepted",
+     "note": "body cache eviction query sorts mail_body on every put; correct, small cost at personal-use volumes; revisit with real data volumes in perf-tuning"}
+  ],
+  "validation": [
+    {"command": "cd server && ./gradlew ktlintCheck test --tests 'ch.sonensei.cockpit.mail.model.*'", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
