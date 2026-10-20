@@ -5,7 +5,7 @@
     class="check"
     [checked]="done()"
     [attr.aria-label]="done() ? reopenLabel(task.title) : completeLabel(task.title)"
-    (click)="$event.preventDefault(); toggle.emit(task)"
+    (click)="$event.preventDefault(); toggleDone.emit(task)"
   />
   <button type="button" class="title" (click)="open.emit(task)">{{ task.title }}</button>
   <ul class="chips">

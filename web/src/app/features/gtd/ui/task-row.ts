@@ -14,7 +14,7 @@ type DueState = 'overdue' | 'today' | 'later';
  *
  * ```html
  * <app-task-row [task]="task" [contexts]="contexts.byId()" [projects]="projects.byId()"
- *               (toggle)="store.complete($event)" (open)="openDetail($event)" />
+ *               (toggleDone)="store.complete($event)" (open)="openDetail($event)" />
  * ```
  */
 @Component({
@@ -36,7 +36,7 @@ export class TaskRow {
   readonly today = input(localDate());
 
   /** The checkbox was clicked: complete the task, or reopen it when it is done. */
-  readonly toggle = output<TaskResponse>();
+  readonly toggleDone = output<TaskResponse>();
   /** The title was clicked. */
   readonly open = output<TaskResponse>();
 

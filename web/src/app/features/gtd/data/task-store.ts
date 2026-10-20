@@ -94,7 +94,8 @@ export class TaskStore extends ListStore<TaskResponse, TaskQuery> {
           id: task.id,
           'If-Match': this.ifMatch(task),
         });
-        const { needsNextStep: _, ...done } = completed;
+        const done: Partial<CompletedTaskResponse> = { ...completed };
+        delete done.needsNextStep;
         return done as TaskResponse;
       },
     );

@@ -102,7 +102,7 @@ describe('TaskRow', () => {
     render(value);
     const toggled: TaskResponse[] = [];
     const opened: TaskResponse[] = [];
-    fixture.componentInstance.toggle.subscribe((t) => toggled.push(t));
+    fixture.componentInstance.toggleDone.subscribe((t) => toggled.push(t));
     fixture.componentInstance.open.subscribe((t) => opened.push(t));
 
     const check = element.querySelector<HTMLInputElement>('input[type=checkbox]')!;
