@@ -17,3 +17,4 @@ List and read messages (SPEC.md §7.4).
 - [ ] API documented: `api/openapi.yaml` regenerated (`UPDATE_OPENAPI=1 ./gradlew test --tests '*OpenApiContractTest'`) and `OpenApiContractTest` passes without the flag
 
 ## Notes
+- ASSUMPTION (2026-10-20 22:37+0200 by dell26/agent-1): GET /mail/messages: accountId alone lists that account's Inbox (role INBOX); neither param = unified Inbox of all accounts; folderId = that folder. The q= search parameter is left to the mail-search task.
