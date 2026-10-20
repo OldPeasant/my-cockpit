@@ -1,10 +1,11 @@
 ---
 title: Task detail editor
-status: todo
-owner:
+status: in_progress
+owner: dell26/agent-3
 deps: [web-gtd-data,web-links-panel,gtd-recurrence]
 touches: [web/src/app/features/gtd/task-detail]
 prio: 1
+lease_until: 2026-10-20T21:15:26Z
 ---
 ## Goal
 Edit all task fields (SPEC.md §5.2).
