@@ -84,6 +84,8 @@ export type { RegenerateRecoveryCodesRequest } from './models/regenerate-recover
 export type { ReminderItemResponse } from './models/reminder-item-response';
 export type { ReminderListResponse } from './models/reminder-list-response';
 export type { ReminderResponse } from './models/reminder-response';
+export type { RestoreReportResponse } from './models/restore-report-response';
+export type { RestoreResultResponse } from './models/restore-result-response';
 export type { SearchGroupResponse } from './models/search-group-response';
 export type { SearchItemResponse } from './models/search-item-response';
 export type { SearchResponse } from './models/search-response';
@@ -166,6 +168,10 @@ export type { GetBackup$Params as GetBackup$Params } from './fn/backup/get-backu
 export { getBackup as getBackup } from './fn/backup/get-backup';
 export type { DownloadBackup$Params as DownloadBackup$Params } from './fn/backup/download-backup';
 export { downloadBackup as downloadBackup } from './fn/backup/download-backup';
+export type { UploadRestore$Params as UploadRestore$Params } from './fn/backup/upload-restore';
+export { uploadRestore as uploadRestore } from './fn/backup/upload-restore';
+export type { ConfirmRestore$Params as ConfirmRestore$Params } from './fn/backup/confirm-restore';
+export { confirmRestore as confirmRestore } from './fn/backup/confirm-restore';
 export type { ListCalendars$Params as ListCalendars$Params } from './fn/calendars/list-calendars';
 export { listCalendars as listCalendars } from './fn/calendars/list-calendars';
 export type { CreateCalendar$Params as CreateCalendar$Params } from './fn/calendars/create-calendar';

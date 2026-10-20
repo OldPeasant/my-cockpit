@@ -3130,6 +3130,81 @@ paths:
       summary: One reminder
       tags:
       - Reminders
+  /api/v1/restore:
+    post:
+      description: "Stores the backup zip and returns its validation report; no data\
+        \ changes. A valid backup gets an `id` to confirm the restore with; an invalid\
+        \ one (`valid: false`, see `problems`) is discarded. A new upload discards\
+        \ the previous one."
+      operationId: uploadRestore
+      requestBody:
+        content:
+          application/zip:
+            schema:
+              type: string
+              format: binary
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RestoreReportResponse"
+          description: The validation report
+      summary: Upload a backup and validate it
+      tags:
+      - Backup
+  /api/v1/restore/{id}/confirm:
+    post:
+      description: "Saves the current data as a backup to `pre-restore/` in the data\
+        \ directory, then replaces all data with the upload, in one transaction: on\
+        \ failure nothing changes. Sessions are replaced too, so the client signs\
+        \ in again afterwards. The upload is used up, also when the restore fails."
+      operationId: confirmRestore
+      parameters:
+      - description: "Id of the upload, from its validation report"
+        in: path
+        name: id
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RestoreResultResponse"
+          description: Restored
+        "400":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: Invalid id
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: "No such upload (unknown, invalid, discarded by a newer one\
+            \ or used up)"
+        "409":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: A backup is running
+        "422":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: "The backup's data could not be imported; nothing changed.\
+            \ `problems` lists why, if known."
+      summary: Replace all data with an uploaded backup
+      tags:
+      - Backup
   /api/v1/search:
     get:
       description: "Every word of `q` must match the start of a word of an item's\
@@ -6466,6 +6541,67 @@ components:
       - id
       - item
       - remindAt
+    RestoreReportResponse:
+      type: object
+      description: Validation report of an uploaded backup
+      properties:
+        appVersion:
+          type: string
+          description: "Version of My Cockpit that created the backup, if readable"
+        counts:
+          type: object
+          additionalProperties:
+            type: integer
+            format: int64
+          description: "Records per data name, e.g. `tasks`"
+        createdAt:
+          type: string
+          format: date-time
+          description: "When the backup was created, if readable"
+        formatVersion:
+          type: integer
+          format: int32
+          description: "Format version from the manifest, if readable"
+        id:
+          type: string
+          format: uuid
+          description: Id to confirm the restore with; only for a valid backup
+        problems:
+          type: array
+          description: "Why it cannot be restored: not a zip, wrong format version,\
+            \ sha256 mismatches, ..."
+          items:
+            type: string
+        valid:
+          type: boolean
+          description: Whether the backup can be restored
+        warnings:
+          type: array
+          description: What to know before confirming; no obstacle to the restore
+          items:
+            type: string
+      required:
+      - counts
+      - problems
+      - valid
+      - warnings
+    RestoreResultResponse:
+      type: object
+      description: A completed restore
+      properties:
+        counts:
+          type: object
+          additionalProperties:
+            type: integer
+            format: int64
+          description: Records restored per data name
+        preRestoreBackup:
+          type: string
+          description: "Backup of the replaced data, relative to the data directory"
+          example: pre-restore/cockpit-backup-2026-10-20T1530Z.zip
+      required:
+      - counts
+      - preRestoreBackup
     SearchGroupResponse:
       type: object
       properties:

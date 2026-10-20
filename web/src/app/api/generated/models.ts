@@ -78,6 +78,8 @@ export type { RegenerateRecoveryCodesRequest } from './models/regenerate-recover
 export type { ReminderItemResponse } from './models/reminder-item-response';
 export type { ReminderListResponse } from './models/reminder-list-response';
 export type { ReminderResponse } from './models/reminder-response';
+export type { RestoreReportResponse } from './models/restore-report-response';
+export type { RestoreResultResponse } from './models/restore-result-response';
 export type { SearchGroupResponse } from './models/search-group-response';
 export type { SearchItemResponse } from './models/search-item-response';
 export type { SearchResponse } from './models/search-response';
