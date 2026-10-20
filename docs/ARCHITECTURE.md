@@ -90,7 +90,7 @@ variables (and `nvm use`) in that shell, or in your shell profile.
 | Part | Command | Notes |
 |---|---|---|
 | Server | `cd server && ./gradlew bootRun --args='--spring.profiles.active=dev'` | http://localhost:8080, health at `/actuator/health`. Needs Postgres 16 at `localhost:5432/cockpit` (user/password `cockpit`) or `SPRING_DATASOURCE_*`, e.g. `podman run -d -p 5432:5432 -e POSTGRES_DB=cockpit -e POSTGRES_USER=cockpit -e POSTGRES_PASSWORD=cockpit postgres:16-alpine`. Also needs `COCKPIT_MASTER_KEY`, e.g. `export COCKPIT_MASTER_KEY=$(openssl rand -base64 32)` (keep it: stored credentials need the same key) |
-| Web | `cd web && npm ci && npm start` | http://localhost:4200. A dev proxy from `/api` to `:8080` comes with the first API task |
+| Web | `cd web && npm ci && npm start` | http://localhost:4200. The dev proxy (`web/proxy.conf.json`) forwards `/api` and `/actuator` to `localhost:8080` |
 | Android | `cd android && ./gradlew installDebug` | needs a device/emulator (`adb devices`). Only humans can verify on a real device |
 
 ## Environment variables
@@ -124,7 +124,7 @@ pagination helpers live in `server/.../core/web` (summary in `api/README.md`).
 | `sh scripts/check.sh` (= `.taskcheck`) | TFP gate tests, server ktlint + tests, web eslint + Vitest + build, android ktlint + unit tests + Android Lint | ~25 s warm, ~3 min on a cold clone (downloads) |
 | `cd server && ./gradlew check` | server lint + `test` (unit tests + Spring tests against the shared Postgres Testcontainer; needs Docker/Podman) | ~12 s warm |
 | `cd server && ./gradlew integrationTest` | server tests tagged `external` (`@ExternalTest`: GreenMail, Radicale, WireMock, ...). Not part of `check`/`.taskcheck` | |
-| `cd web && npm run check` | web lint + tests + production build | |
+| `cd web && npm run check` | web generated-client freshness check (`api:check`; `npm run api:gen` regenerates) + lint + tests + production build | |
 | `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` | android | |
 | `python3 tests/test_quality_gate.py` (and the other `tests/test_*.py`, `bash tests/test_publish.sh`) | TFP tooling | |
 
