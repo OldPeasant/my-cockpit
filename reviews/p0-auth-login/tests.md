@@ -4,169 +4,120 @@ Date: 2026-10-20
 
 Task: p0-auth-login - Login with password + TOTP, sessions, CSRF, lockout
 
-Scope: `e93430e72144890d4d99396d53647ce3f8043ab6..32595e2ecc1eb090b8d97ab601f47deecfe2ea03` on branch `main` (7 task commits,
-all prefixed `p0-auth-login:`; base and range supplied by the parent). Second pass after the fixes in `32595e2`
-(`reviews/p0-auth-login/fixes.md`: CR-1 atomic `LoginThrottle.tryBeginAttempt`, CR-2 `XSRF-TOKEN` rotation on login and
-logout). Plus one new, uncommitted test file (below). No other uncommitted changes.
+Scope: `8fdb53746871962175316feeaac371071578904b..cb1fe064bd6b6180b6bb4f27466da637991788c9` on branch `main` (9 task
+commits, all prefixed `p0-auth-login:`; base and range supplied by the parent, base = `git merge-base HEAD origin/main`).
+Third (final) pass after the TW-1 fix in `cb1fe06` (`reviews/p0-auth-login/fixes.md`, second pass: `throttle.recordSuccess()`
+moved after `sessions.saveAndFlush(...)` in `LoginService.login`). The earlier pass used base `e93430e`; `e93430e..8fdb537`
+changes only `tasks/p0-auth-login.md` and `tasks/p0-ci.md` (heartbeat lines), so the production scope is the same. No
+uncommitted or untracked changes.
 
 Requirements:
-- `tasks/p0-auth-login.md` acceptance criteria and recorded assumptions, in particular the CR-1/CR-2 assumption: "A login
-  attempt is counted against the throttle when it starts (CR-1), so a login ending in an exception (e.g. 409
-  recovery-code race) counts as a failure", and "failures 1-4 free ... a success resets"
+- `tasks/p0-auth-login.md` acceptance criteria and recorded assumptions (in particular CR-1: "a login ending in an exception
+  ... counts as a failure"; backoff: "failures 1-4 free ... a success resets")
 - SPEC.md §4.1 (via the task), `docs/ARCHITECTURE.md` "Coverage", `docs/QUALITY.md`, `AGENTS.md` (fictitious test data)
-- Parent instructions for this pass (commands to run, OpenAPI regeneration check)
+- Parent instructions for this pass (commands to run, no production changes)
 
 ## Test files changed
 
-- `server/src/test/kotlin/ch/sonensei/cockpit/core/auth/LoginServiceThrottleTests.kt` (new, untracked; plain unit test:
-  real `LoginThrottle`, `Totp`, `MutableClock`; `UserAccountRepository`/`AuthSessionRepository` mocked with MockK, which is
-  already a declared test dependency; a fast fake `PasswordEncoder` instead of Argon2)
-
-No existing test was modified. The fixer's tests from `32595e2` (CsrfCookieWebTests rotation tests, LoginThrottleTests
-admission/concurrency tests, LoginEdgeCaseTests parallel-guess test) were reviewed and cover CR-1/CR-2 at the throttle and
-HTTP level; the gap left was how `LoginService` drives the throttle when a login fails half-way, which needs forced
-failures that the Postgres-backed tests cannot produce deterministically.
+None in this pass. The TW-1 regression test
+(`server/src/test/kotlin/ch/sonensei/cockpit/core/auth/LoginServiceThrottleTests.kt`) was committed in `8f1c657` and is
+unchanged by the fix commit `cb1fe06` (only `LoginService.kt` and `fixes.md` changed there).
 
 ## Tests added or updated
 
-Count: 4 (all in LoginServiceThrottleTests)
+Count: 0
 
-- `a blocked attempt is rejected before the account is even loaded` - Pass (blocked attempts do not check credentials)
-- `a correct fifth attempt logs in and lifts the block it started` - Pass (the admission of the 5th attempt starts a block;
-  its success must lift it and reset the count)
-- `an attempt that throws during the credential check counts as a failure` - Pass (recorded assumption)
-- `an attempt that throws while creating its session is not a success and does not reset the backoff` - **Fail** (TW-1)
+Reason: the fix moved one call. The existing test `an attempt that throws while creating its session is not a success and
+does not reset the backoff` is the regression test for it (it failed before the fix with `Expected PT30S but actual was
+null` and now passes), and `a correct fifth attempt logs in and lifts the block it started` together with the web-level
+reset test in LoginWebTests covers the success path, where `recordSuccess()` must still run after the save. A failing
+`deleteExpired` takes the same path before `recordSuccess()` as a failing `saveAndFlush`, so a separate test would add
+nothing. No real gap remains for the scope; no test was added to raise numbers.
 
 ## Requirement coverage
 
 | Requirement | Tests | Command | Result |
 |---|---|---|---|
-| AC1 session cookie attributes, remember/browser lifetime, logout, me | LoginWebTests, LoginEdgeCaseTests, SessionCookiesTests, LoginSecretHidingTests (existing) | `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.core.auth.*'` | Pass |
-| AC2 CSRF double-submit, no token -> 403; token rotated on login/logout (CR-2 assumption) | CsrfCookieWebTests (incl. `login and logout replace the XSRF-TOKEN cookie...`, `logout without a session replaces...`, `a failed login keeps the XSRF-TOKEN cookie`), LoginWebTests `login and logout without the CSRF token are rejected with 403` | same | Pass |
+| AC1 session cookie attributes, remember/browser lifetime, logout, me | LoginWebTests, LoginEdgeCaseTests, SessionCookiesTests, LoginSecretHidingTests | `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.core.auth.*'` | Pass |
+| AC2 CSRF double-submit, no token -> 403; token rotated on login/logout (CR-2 assumption) | CsrfCookieWebTests, LoginWebTests `login and logout without the CSRF token are rejected with 403` | same | Pass |
 | AC3 recovery codes single-use; wrong password/TOTP -> same 401 | LoginWebTests, LoginEdgeCaseTests (recovery-code tests, concurrent recovery-code race), LoginSecretHidingTests | same | Pass |
-| AC4 5 failures -> exponential backoff, 429 + Retry-After, reset on success (test clock); atomic admission (CR-1) | LoginWebTests `5 consecutive failures...`, LoginThrottleTests (10), LoginEdgeCaseTests `parallel logins with a wrong password cannot slip past the backoff`, `Retry-After is rounded up...`; LoginServiceThrottleTests `a blocked attempt is rejected before...`, `a correct fifth attempt...`, `an attempt that throws during the credential check...` | same | Pass |
-| AC4 + assumption: a login that does not succeed (ends in an exception) counts as a failure, only a success resets | LoginServiceThrottleTests `an attempt that throws while creating its session is not a success and does not reset the backoff` | same | **Fail** (TW-1) |
-| AC5 `@WithCockpitUser`, unauthenticated `/api/**` -> 401, health + SPA public | SecurityConfigurationTests, SpaFallbackTests, LoginEdgeCaseTests (existing) | `cd server && ./gradlew clean check jacocoTestReport --continue` | Pass (these suites; the build as a whole fails because of TW-1) |
-| AC6 `./gradlew test --tests 'ch.sonensei.cockpit.core.auth.*'` passes (Testcontainers Postgres) | whole package, 15 suites / 118 tests | `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.core.auth.*'` | **Fail**: 117 pass, 1 fails (TW-1) |
-| AC7 `api/openapi.yaml` regenerated, `OpenApiContractTest` passes without the flag | OpenApiContractTest | `cd server && UPDATE_OPENAPI=1 ./gradlew test --tests '*OpenApiContractTest'`, then `cd web && npm run api:gen`, then `git status --short` / `git diff --stat -- api/ web/src/app/api/generated` -> empty; then `cd server && ./gradlew test --tests '*OpenApiContractTest'` without the flag | Pass (no diff; BUILD SUCCESSFUL both times) |
+| AC4 5 failures -> exponential backoff, 429 + Retry-After, reset on success (test clock); atomic admission (CR-1) | LoginWebTests `5 consecutive failures...`, LoginThrottleTests, LoginEdgeCaseTests `parallel logins with a wrong password cannot slip past the backoff`, `Retry-After is rounded up...`, LoginServiceThrottleTests (4 tests) | same | Pass |
+| AC4 + assumption: a login that ends in an exception counts as a failure, only a success resets (TW-1 regression) | LoginServiceThrottleTests `an attempt that throws while creating its session is not a success and does not reset the backoff`, `an attempt that throws during the credential check counts as a failure` | same | Pass |
+| AC5 `@WithCockpitUser`, unauthenticated `/api/**` -> 401, health + SPA public | SecurityConfigurationTests, SpaFallbackTests, LoginEdgeCaseTests | `cd server && ./gradlew clean check jacocoTestReport` | Pass |
+| AC6 `./gradlew test --tests 'ch.sonensei.cockpit.core.auth.*'` passes (Testcontainers Postgres) | whole package, 15 suites / 118 tests | `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.core.auth.*'` | Pass (118/118) |
+| AC7 `OpenApiContractTest` passes without the flag | OpenApiContractTest | `cd server && ./gradlew test --tests '*OpenApiContractTest'` (no `UPDATE_OPENAPI`) | Pass (1 test, BUILD SUCCESSFUL; `git status` clean afterwards). Regeneration with the flag was not repeated in this pass: the fix does not touch the API, and the previous pass's regeneration produced no diff |
 
 ## Focused test execution
 
 Command:
 
-`cd server && ./gradlew test --tests 'ch.sonensei.cockpit.core.auth.LoginServiceThrottleTests'`, then
-`cd server && ./gradlew test --tests 'ch.sonensei.cockpit.core.auth.*'` (12:54:12 - 12:54:47 +02:00)
+`cd server && ./gradlew test --tests 'ch.sonensei.cockpit.core.auth.*'` (13:02:50 - 13:03:30 +02:00)
 
 Result:
 
-Fail - 15 suites, 118 tests, 1 failure, 0 errors, 0 skipped (counted from `build/test-results/test/*.xml`). The only
-failure is `LoginServiceThrottleTests > an attempt that throws while creating its session is not a success and does not
-reset the backoff()`: `Expected PT30S but actual was null` (TW-1).
+Pass - BUILD SUCCESSFUL; 15 suites, 118 tests, 0 failures, 0 errors, 0 skipped (counted from
+`server/build/test-results/test/*.xml`).
 
 ## Full test execution
 
 Command:
 
-`cd server && ./gradlew clean check jacocoTestReport --continue` (finished 12:55:53 +02:00, ~50 s)
+`cd server && ./gradlew clean check jacocoTestReport` (13:03:41 - 13:04:31 +02:00)
 
 Result:
 
-Fail - 664 tests, 1 failed (TW-1), BUILD FAILED, non-zero exit. ktlint tasks ran (`build/reports/ktlint/*`) and reported
-no violation; OpenApiContractTest passed. Before this pass the fixer reported 660 tests passing at `32595e2`; the 4 new
-tests account for the difference.
+Pass - BUILD SUCCESSFUL; 50 suites, 664 tests, 0 failures, 0 errors, 0 skipped; ktlint tasks (main, test, script) ran
+without violations; OpenApiContractTest passed. Then `cd server && ./gradlew test --tests '*OpenApiContractTest'` without
+the flag - BUILD SUCCESSFUL (1 test, 0 failures).
 
 ## .taskcheck
 
 Result:
 
-Fail - `sh scripts/check.sh`: "tfp: completion gate tests" passed, then "server: ktlint + tests" failed with
-"664 tests completed, 1 failed" (TW-1). The web and android steps did not run after the server failure.
+Pass - `sh scripts/check.sh` (13:05:17 - 13:06:23 +02:00, about 66 s): "== all checks passed" (server, web and android
+steps).
 
 ## Bugs found
 
-### A login that throws after the credential check resets the backoff although it did not succeed
-
-Finding ID:
-
-`TW-1`
-
-Test:
-
-`LoginServiceThrottleTests > an attempt that throws while creating its session is not a success and does not reset the backoff`
-
-Production source:
-
-`server/src/main/kotlin/ch/sonensei/cockpit/core/auth/domain/LoginService.kt:59-66` (`throttle.recordSuccess()` is called
-before `sessions.deleteExpired(now)` and `sessions.saveAndFlush(...)`, inside the `@Transactional` method)
-
-Requirement:
-
-AC4 "5 consecutive failures -> exponential backoff ..., reset on success", and the recorded assumption (CR-1): "A login
-attempt is counted against the throttle when it starts, so a login ending in an exception (e.g. 409 recovery-code race)
-counts as a failure."
-
-Expected behavior:
-
-After 4 failed logins, a 5th attempt with correct credentials whose session cannot be created (the save throws, the
-transaction rolls back, no session cookie, the client gets an error) is not a success: the throttle keeps it counted as
-the 5th failure and blocks for 30 s (`throttle.retryAfter() == PT30S`).
-
-Actual behavior:
-
-`recordSuccess()` has already reset the counter and lifted the block before the session is saved, so after the exception
-`throttle.retryAfter()` is `null` and the count starts over. The rolled-back database state (recovery code not consumed, no
-session) and the in-memory throttle state disagree. The same ordering applies to the 409 recovery-code race the assumption
-names: the losing request fails in `saveAndFlush` (optimistic lock on the recovery code), after its own `recordSuccess()`.
-In that race a winner also resets the counter, so the race itself shows no visible difference; the test forces the
-failure with a mocked `saveAndFlush` to show the ordering deterministically.
-
-Severity:
-
-Low - reaching `recordSuccess()` requires the correct username, password and a valid second factor, so this does not let
-a guessing attacker bypass the backoff; it is a mismatch with the recorded rule "only a success resets" and the CR-1
-assumption. (One possible fix, for the fixer to decide: reset the throttle only once the session is saved, e.g. after
-`saveAndFlush`, or after commit via a transaction synchronization.)
-
-Fix required:
-
-`Yes — production code must be fixed by the parent worker / fixer.`
+None in this pass. TW-1 (previous pass) is fixed in `cb1fe06`: its test now passes.
 
 ## Coverage
 
-Status: partial-failed - fresh run of the full server suite on the final snapshot, but the test task failed (1 test,
-TW-1), so the numbers are diagnostic only. They are the counters of the run in which 663 of 664 tests passed.
+Status: verified - fresh, clean run of the full server suite on the final revision; all tests passed.
 
 Metric: whole-file coverage of task-changed production files.
-Changed-line coverage: not measured (no changed-line tooling is configured).
+Changed-line coverage: not measured (no changed-line tooling is configured). The fix's changed lines
+(`LoginService.kt:66-67`) are reported as covered by the whole-file line counters (no missed line in 60-70).
 
 Evidence:
 - Task id, immutable base, measured HEAD, and task-owned commits/file-scope source: `p0-auth-login`; base
-  `e93430e72144890d4d99396d53647ce3f8043ab6` (supplied by the parent); HEAD `32595e2ecc1eb090b8d97ab601f47deecfe2ea03`;
-  task commits `git log e93430e..HEAD` (7, all `p0-auth-login:`); file scope from
-  `git diff --name-only e93430e..HEAD -- server/src/main`.
-- Source/test snapshot identifier (including uncommitted inputs): HEAD `32595e2` with a clean tracked tree plus the untracked
-  `LoginServiceThrottleTests.kt` sha256 `a04c0e9b3aabebfb9556a690fa0ab50bd8b7feecb2c7cc8f0084ea67c0aff9c0` (same hash before
-  the focused run and after the coverage run; `git status --short` shows only this file).
+  `8fdb53746871962175316feeaac371071578904b` (supplied by the parent); HEAD `cb1fe064bd6b6180b6bb4f27466da637991788c9`;
+  task commits `git log 8fdb537..HEAD` (9, all `p0-auth-login:`); file scope from
+  `git diff --name-only 8fdb537..HEAD -- server/src/main`.
+- Source/test snapshot identifier (including uncommitted inputs): HEAD `cb1fe06`, clean tree (`git status --short
+  --untracked-files=all` empty before and after all runs); `git ls-files -s server/src | sha256sum` =
+  `18126984e6d2745af2a253ff33cde38709cad7aaafa23a4583c5422514d4af1d` before and after.
 - Exact included files (under `server/src/main/kotlin/ch/sonensei/cockpit/`): `core/auth/api/AuthController.kt`,
   `core/auth/domain/{AuthSession,LoginService,LoginThrottle,UserAccount}.kt`,
   `core/auth/infra/{AuthSessionRepository,SecurityConfiguration,SessionAuthenticationFilter,SessionCookies}.kt`.
-  Excluded: `application-dev.properties` (configuration; asserted by SessionCookiesTests), migration
+  Excluded: `server/src/main/resources/application-dev.properties` (configuration; asserted by SessionCookiesTests), migration
   `V202610201100__core_auth_session.sql` (SQL, exercised by every DB test, not instrumentable by JaCoCo), `api/openapi.yaml`
-  and `web/src/app/api/generated/**` (generated; checked by regeneration, see AC7), `docs/adr/0001-*`, `reviews/**` (docs).
-  No renamed or deleted files.
+  and `web/src/app/api/generated/**` (generated; checked by OpenApiContractTest), `docs/adr/0001-*`, `reviews/**` (docs).
+  No renamed or deleted files. All 9 Kotlin files are present in the report.
 - Provider/version, command, working directory, and test selection: JaCoCo via the Gradle `jacoco` plugin (default tool
-  version, not pinned in `build.gradle.kts`), Gradle 9.8.1, JDK 21.0.12.1; in `server/`:
-  `./gradlew clean check jacocoTestReport --continue` (full server suite). Because `jacocoTestReport` is skipped when
-  `test` fails, the report was then generated from that run's exec file with `./gradlew jacocoTestReport -x test`.
-- Run start/completion time and exit status: test run ended 12:55:52 +02:00 (`build/jacoco/test.exec` written 12:55:52.938),
-  BUILD FAILED (1 failed test); report generated 12:56:01 +02:00, BUILD SUCCESSFUL.
-- Generated report paths and report hashes/run identifier: `server/build/reports/jacoco/test/jacocoTestReport.xml` sha256
-  `edc114f0c5c41d344ae892630acb9881475bc94f74de1092d31ef729a70ac8b4`; exec `server/build/jacoco/test.exec` sha256
-  `3b4f66325bd5ce9a2119613a82c2f53d614a1fe23f461e63f5a6b88bce4597f3`; JaCoCo session id `dell26-3ada0098`.
-- Evidence outputs are fresh and inputs stayed unchanged: `clean` removed `build/` first (the `build/jacoco/` directory was
-  created 12:55:09 in this run); no source or test file changed during or after the run.
-- Final run after latest test additions and production fixes: yes for the test additions and the fixes in `32595e2`; a new
-  run is needed after TW-1 is fixed.
+  version, not pinned in `build.gradle.kts`), Gradle 9.8.1; in `server/`: `./gradlew clean check jacocoTestReport` (full server
+  suite). Per-file counters read from the XML with `.tmp/jacoco_scope.py` (package/sourcefile element counters INSTRUCTION,
+  BRANCH, METHOD, LINE).
+- Run start/completion time and exit status: 13:03:41 - 13:04:31 +02:00, BUILD SUCCESSFUL.
+- Generated report paths and report hashes/run identifier: `server/build/reports/jacoco/test/jacocoTestReport.xml`
+  (written 13:04:31.46) sha256 `a4bbc87b33e6b2882748c5e607b4210573fdf3b1b9927c76bb68b9af860755d8`; exec
+  `server/build/jacoco/test.exec` (written 13:04:30.40) sha256
+  `a5652461c33474609d835214058a2f33d67e030fe37309e296f2c07846e68ff6`; JaCoCo session id `dell26-d8773412` (the only session
+  in the report).
+- Evidence outputs are fresh and inputs stayed unchanged: `clean` removed `build/` first, the report has a single new
+  session id, and the snapshot hash above did not change.
+- Final run after latest test additions and production fixes: yes (revision `cb1fe06`, includes the TW-1 fix; no test or
+  production change after it).
 
 Values below use covered/total (percentage); zero-denominator or unsupported metrics are N/A. Statements = JaCoCo INSTRUCTION
 counter, Functions = METHOD.
@@ -182,17 +133,14 @@ counter, Functions = METHOD.
 | `core/auth/infra/SecurityConfiguration.kt` | 221/223 (99.1%) | 2/4 (50.0%) | 10/10 (100%) | 34/34 (100%) |
 | `core/auth/infra/SessionAuthenticationFilter.kt` | 93/95 (97.9%) | 10/10 (100%) | 5/6 (83.3%) | 22/23 (95.7%) |
 | `core/auth/infra/SessionCookies.kt` | 141/141 (100%) | 14/14 (100%) | 8/8 (100%) | 25/25 (100%) |
-| **Aggregate (summed counters, 8 measured files; AuthSessionRepository has no bytecode)** | 1702/1740 (97.8%) | 134/138 (97.1%) | 113/122 (92.6%) | 270/273 (98.9%) |
+| **Aggregate (summed counters, 8 measured files; AuthSessionRepository has no bytecode, none missing)** | 1702/1740 (97.8%) | 134/138 (97.1%) | 113/122 (92.6%) | 270/273 (98.9%) |
 
-The new code from `32595e2` is fully covered: `LoginThrottle.tryBeginAttempt` (both outcomes), `SessionCookies.rotateCsrfToken`
-and the shared `csrfTokens` repository, and the two `rotateCsrfToken` calls in `AuthController` (login success, logout).
-`UserAccount.kt` is counted whole although the task changed only `RecoveryCode.isUsed`/`markUsed` (both covered).
+The counters are identical to the previous pass: the fix only reordered two statements and added a comment.
 
 | File and uncovered lines/branch locations | Required behavior or risk | Action/test added or reason left uncovered |
 |---|---|---|
-| `LoginService.kt:59-66` (covered, but the order of `recordSuccess()` and the session save is wrong for a failing save) | AC4 reset only on success; CR-1 assumption | LoginServiceThrottleTests (new), finding TW-1 |
-| `LoginService.kt:102` (2 branches: `recoveryCode == null` with `totp == null`) | not reachable through the API: the controller rejects requests without exactly one factor (tested, 400) | justified gap, defensive |
-| `LoginService.kt:147` (`CockpitPrincipal` data-class generated members) | generated code | justified gap |
+| `LoginService.kt:103` (2 branches: `recoveryCode == null` with `totp == null`) | not reachable through the API: the controller rejects requests without exactly one factor (tested, 400) | justified gap, defensive |
+| `LoginService.kt:148` (`CockpitPrincipal` data-class generated members) | generated code | justified gap |
 | `SecurityConfiguration.kt:93` (2 branches: CSRF token attribute missing/not a `CsrfToken`) | defensive; Spring always sets the attribute after `CsrfFilter` | justified gap |
 | `SessionAuthenticationFilter.kt:55` (`getCredentials`) | trivial, returns null | justified gap |
 | `AuthSession.kt:25,29,31` (unused Kotlin accessors/setters of JPA fields) | trivial | justified gap |
@@ -201,18 +149,18 @@ and the shared `csrfTokens` repository, and the two `rotateCsrfToken` calls in `
 
 ## Unable to test
 
+- An error raised only at transaction commit, after `LoginService.login()` returns (and so after `recordSuccess()`): noted
+  as out of scope in `fixes.md`; `saveAndFlush` surfaces constraint and connection errors before the reset, and forcing a
+  commit-only failure would need a fault-injecting datasource. Low risk; no follow-up needed for this task.
 - Whether the pre-login `XSRF-TOKEN` value is still accepted after login: the CSRF handling is stateless double-submit
-  (cookie and header of the same request are compared, recorded assumption), so an old value sent in both places still
-  matches by design. Not a requirement; no test, no follow-up from the tests' side.
-- The per-request `XSRF-TOKEN` re-issue on authenticated responses (observation in `fixes.md`) is pre-existing behavior and
-  covered by the assumption "rotated ... on every authenticated response"; not tested further here.
-- Real browser behavior of `SameSite=Lax`/`Secure` and browser-session cookie lifetime (needs a browser; Playwright e2e is not
-  in this task's criteria). Attributes are asserted on `Set-Cookie` headers.
+  (recorded assumption), so an old value sent in both cookie and header still matches by design. Not a requirement.
+- The per-request `XSRF-TOKEN` re-issue on authenticated responses (observation in `fixes.md`) is pre-existing behavior
+  covered by the recorded assumption; not tested further.
+- Real browser behavior of `SameSite=Lax`/`Secure` and browser-session cookie lifetime (needs a browser; Playwright e2e is
+  not in this task's criteria). The attributes are asserted on the `Set-Cookie` headers.
 
 ## Summary
 
-Tests added; production defects were discovered and must be passed to the `fixer` before task completion.
-TW-1 (Low): `LoginService.login` resets the throttle before the session is saved, so a login that fails after the credential
-check (exception while saving) resets the backoff although it did not succeed. Because the new test fails,
-`./gradlew test --tests 'ch.sonensei.cockpit.core.auth.*'`, `./gradlew check` and `.taskcheck` currently fail. The fixes for
-CR-1 and CR-2 are otherwise covered and pass; the OpenAPI regeneration produced no diff.
+Tests and task-scoped coverage are sufficient; no production defects found. The TW-1 fix in `cb1fe06` makes the regression
+test pass. The focused auth package (118 tests), `./gradlew clean check` (664 tests), `OpenApiContractTest` without the flag
+and `.taskcheck` all pass on revision `cb1fe064bd6b6180b6bb4f27466da637991788c9`.
