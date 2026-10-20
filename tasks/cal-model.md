@@ -11,7 +11,8 @@ lease_until: 2026-10-20T15:00:42Z
 Sources, calendars, events (SPEC.md §6.1).
 
 ## Acceptance criteria
-- [ ] Migrations: calendar_source (LOCAL|GOOGLE|MICROSOFT|CALDAV|ICS_FEED, config, credentials ref), calendar (color, visible, readOnly, default), calendar_event (start/end with tz id or all-day dates, RRULE, EXDATEs, override parent + recurrence id, attendees JSON, reminders, status, transparency, conference URL, external_id, external_etag, sync_state)
+- [x] Migrations: calendar_source (LOCAL|GOOGLE|MICROSOFT|CALDAV|ICS_FEED, config, credentials ref), calendar (color, visible, readOnly, default), calendar_event (start/end with tz id or all-day dates, RRULE, EXDATEs, override parent + recurrence id, attendees JSON, reminders, status, transparency, conference URL, external_id, external_etag, sync_state)
+  - verified (2026-10-20 16:43+0200 by dell26/agent-7): V202610201351__calendar_model.sql applied by Flyway in Testcontainers Postgres 16 during ./gradlew test --rerun --tests 'ch.sonensei.cockpit.calendar.model.*' -> schema round-trip + constraint tests (CalendarModelTests, CalendarModelEdgeCaseTests) pass: sources (LOCAL|GOOGLE|MICROSOFT|CALDAV|ICS_FEED, config, encrypted credentials), calendars (color/visible/readOnly/default), events (tz/all-day, RRULE, EXDATEs, override parent+recurrence id, attendees JSON, reminders, status, transparency, conference URL, external_id/etag, sync_state)
 - [ ] Resolver EVENT, search indexing hooks
 - [ ] `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.calendar.model.*'` passes (Postgres via Testcontainers where persistence is involved)
 
