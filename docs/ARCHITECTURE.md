@@ -86,7 +86,7 @@ variables (and `nvm use`) in that shell, or in your shell profile.
 
 | Part | Command | Notes |
 |---|---|---|
-| Server | `cd server && ./gradlew bootRun --args='--spring.profiles.active=dev'` | http://localhost:8080, health at `/actuator/health`. Needs Postgres 16 at `localhost:5432/cockpit` (user/password `cockpit`) or `SPRING_DATASOURCE_*`, e.g. `podman run -d -p 5432:5432 -e POSTGRES_DB=cockpit -e POSTGRES_USER=cockpit -e POSTGRES_PASSWORD=cockpit postgres:16-alpine` |
+| Server | `cd server && ./gradlew bootRun --args='--spring.profiles.active=dev'` | http://localhost:8080, health at `/actuator/health`. Needs Postgres 16 at `localhost:5432/cockpit` (user/password `cockpit`) or `SPRING_DATASOURCE_*`, e.g. `podman run -d -p 5432:5432 -e POSTGRES_DB=cockpit -e POSTGRES_USER=cockpit -e POSTGRES_PASSWORD=cockpit postgres:16-alpine`. Also needs `COCKPIT_MASTER_KEY`, e.g. `export COCKPIT_MASTER_KEY=$(openssl rand -base64 32)` (keep it: stored credentials need the same key) |
 | Web | `cd web && npm ci && npm start` | http://localhost:4200. A dev proxy from `/api` to `:8080` comes with the first API task |
 | Android | `cd android && ./gradlew installDebug` | needs a device/emulator (`adb devices`). Only humans can verify on a real device |
 
@@ -99,7 +99,8 @@ Defined in `SPEC.md` §11. Introduced by the tasks that need them, and listed he
 | `ANDROID_HOME` | android build, check | Android SDK location |
 | `DOCKER_HOST`, `TESTCONTAINERS_RYUK_DISABLED` | server tests, integration tests | Podman instead of Docker |
 | `SPRING_DATASOURCE_URL`, `_USERNAME`, `_PASSWORD` | server | Postgres connection (`application.properties`) |
-| `COCKPIT_DATA_DIR`, `COCKPIT_MASTER_KEY`, `COCKPIT_DOMAIN`, `GOOGLE_CLIENT_ID/SECRET`, `MS_CLIENT_ID/SECRET/TENANT` | server | see SPEC.md §11 (not yet used) |
+| `COCKPIT_MASTER_KEY` | server | AES-256-GCM key for stored credentials (base64, 32 bytes, `core.crypto`). Required: startup fails without it. Tests use a fictitious key from `server/src/test/resources/config/application.properties` |
+| `COCKPIT_DATA_DIR`, `COCKPIT_DOMAIN`, `GOOGLE_CLIENT_ID/SECRET`, `MS_CLIENT_ID/SECRET/TENANT` | server | see SPEC.md §11 (not yet used) |
 
 Never commit secrets: `.env` files are Git-ignored, and `deploy/.env.example` holds placeholders only.
 
