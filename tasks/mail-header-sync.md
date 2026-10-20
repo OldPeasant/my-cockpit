@@ -1,11 +1,11 @@
 ---
 title: Header sync and threading
-status: in_progress
+status: done
 owner: dell26/agent-1
 deps: [mail-imap]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/mail/sync,server/src/test/kotlin/ch/sonensei/cockpit/mail/sync]
 prio: 1
-lease_until: 2026-10-20T20:25:52Z
+lease_until: 
 ---
 ## Goal
 Keep the header cache in sync (SPEC.md §7.2).
@@ -25,3 +25,4 @@ Keep the header cache in sync (SPEC.md §7.2).
 - ASSUMPTION (2026-10-20 19:02+0200 by dell26/agent-1): Snippet = first 200 chars of the first text/plain part (else text/html via jsoup), from a 2 KB partial fetch, quoted '>' lines dropped. hasAttachments = a part with disposition attachment, a message/rfc822 part, or a named non-inline part outside multipart/related
 - ASSUMPTION (2026-10-20 21:15+0200 by dell26/agent-1): Supersedes the earlier loadOlder note: 'older on demand' (MailHeaderSyncService.loadOlder(folderId, limit=100)) loads the uncached server messages with the most recent INTERNALDATE first, not by UID, so old-dated mail appended later is not skipped (review CR-2)
 - ASSUMPTION (2026-10-20 21:15+0200 by dell26/agent-1): LinkService has no cheap existence check; MailHeaderStore.isLinked resolves the links (correct, slower on big resyncs). A LinkService.hasLinks in core/items is a follow-up outside this task's touches (review CR-6)
+- done by dell26/agent-1: `sh scripts/check.sh` passed in 111s on 892f2f274; criteria verified 3/3
