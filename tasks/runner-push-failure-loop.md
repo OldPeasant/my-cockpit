@@ -1,11 +1,11 @@
 ---
 title: Runner: stop the loop when release/hold cannot push
-status: todo
-owner: 
+status: in_progress
+owner: dell26/agent-7
 deps: []
 touches: [agents.py,tasks.py,tests]
 prio: 1
-lease_until: 
+lease_until: 2026-10-20T16:26:46Z
 releases: 1
 extended: 
 ---
