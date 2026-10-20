@@ -553,6 +553,63 @@ describe('ReminderNotificationsService', () => {
       await vi.advanceTimersByTimeAsync(8_000);
       expect(shown()).toEqual(['Reminder: Water the plants Open']);
     });
+
+    it('waits for an app message that replaced another app message, then shows the next reminder', async () => {
+      createWithRealSnackBar();
+      fired.next(reminder());
+      fired.next(reminder({ title: 'Water the plants' }));
+      await vi.advanceTimersByTimeAsync(1_000);
+      const notifications = TestBed.inject(NotificationService);
+
+      notifications.error('The server cannot be reached.');
+      await vi.advanceTimersByTimeAsync(1_000);
+      notifications.info('Task saved.');
+      await vi.advanceTimersByTimeAsync(1_000);
+      expect(shown()).toEqual(['Task saved. Dismiss']);
+
+      // The info keeps its own 4 s, although the error it replaced was shown first.
+      await vi.advanceTimersByTimeAsync(2_000);
+      expect(shown()).toEqual(['Task saved. Dismiss']);
+
+      await vi.advanceTimersByTimeAsync(2_000);
+      expect(shown()).toEqual(['Reminder: Water the plants Open']);
+    });
+
+    it('queues a reminder that fires while an app message holds the queue, behind the waiting ones', async () => {
+      createWithRealSnackBar();
+      fired.next(reminder());
+      fired.next(reminder({ title: 'Water the plants' }));
+      await vi.advanceTimersByTimeAsync(1_000);
+      TestBed.inject(NotificationService).error('The server cannot be reached.');
+      await vi.advanceTimersByTimeAsync(1_000);
+
+      fired.next(reminder({ title: 'Pay the rent' }));
+      await vi.advanceTimersByTimeAsync(1_000);
+      expect(shown()).toEqual(['The server cannot be reached. Dismiss']);
+
+      await vi.advanceTimersByTimeAsync(7_000);
+      expect(shown()).toEqual(['Reminder: Water the plants Open']);
+
+      await vi.advanceTimersByTimeAsync(16_000);
+      expect(shown()).toEqual(['Reminder: Pay the rent Open']);
+    });
+
+    it('shows no queued reminder once the app is destroyed while an app message holds the queue', async () => {
+      createWithRealSnackBar();
+      fired.next(reminder());
+      fired.next(reminder({ title: 'Water the plants' }));
+      await vi.advanceTimersByTimeAsync(1_000);
+      const snackBar = TestBed.inject(MatSnackBar);
+      TestBed.inject(NotificationService).error('The server cannot be reached.');
+      await vi.advanceTimersByTimeAsync(1_000);
+      const open = vi.spyOn(snackBar, 'open');
+
+      TestBed.resetTestingModule();
+      await vi.advanceTimersByTimeAsync(30_000);
+
+      expect(open).not.toHaveBeenCalled();
+      expect(shown()).toEqual([]);
+    });
   });
 
   describe('with a failing localStorage', () => {

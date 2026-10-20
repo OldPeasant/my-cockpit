@@ -98,6 +98,10 @@ test.describe('reminder notifications', () => {
     loggedIn: page,
   }) => {
     await page.goto('/settings');
+    // Let the app finish loading first: its first API calls renew the XSRF cookie that remindNow reads.
+    await expect(
+      page.getByRole('switch', { name: 'Show reminders as browser notifications' }),
+    ).toBeVisible();
     const id = await remindNow(page, 'Renew the library card');
 
     const toast = page.getByText('Reminder: Renew the library card');
