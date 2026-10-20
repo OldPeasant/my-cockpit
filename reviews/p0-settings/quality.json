@@ -1,0 +1,26 @@
+{
+  "schema": 1,
+  "task": "p0-settings",
+  "reviewed_revision": "101db46657045d93006b703497be15094a4ec472",
+  "helpers": {
+    "test-writer": {"status": "completed", "report": "reviews/p0-settings/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/p0-settings/review.md"},
+    "fixer": {"status": "completed", "report": "reviews/p0-settings/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "TW-1", "source": "test-writer", "severity": "Low", "disposition": "fixed",
+     "note": "a PATCH that changes nothing bumped the ETag; overrides now reassigned only on a real change"},
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "409 conflict paths (first-create race, concurrent update) now tested"},
+    {"id": "CR-2", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "SettingsPatch enums in the OpenAPI document now include null"},
+    {"id": "CR-3", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "new migration adds a check constraint: overrides must be a JSON object"}
+  ],
+  "validation": [
+    {"command": "cd server && ./gradlew test --tests 'ch.sonensei.cockpit.core.settings.*' --tests '*OpenApiContractTest' --rerun", "result": "pass"},
+    {"command": "cd server && UPDATE_OPENAPI=1 ./gradlew test --tests '*OpenApiContractTest' --rerun (api/openapi.yaml unchanged)", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
