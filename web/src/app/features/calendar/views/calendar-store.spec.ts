@@ -350,6 +350,23 @@ describe('CalendarStore', () => {
     await next;
   });
 
+  it('does not bring back a calendar deleted elsewhere when its save answers after the list', async () => {
+    await loaded(fakeCalendar('family', { version: 1 }), fakeCalendar('work'));
+    const done = store.setVisible(store.calendars()[0], false);
+    await settle();
+    // Saved as version 2, then deleted elsewhere; the list answer without it arrives first.
+    changes.next({ type: 'CALENDAR', id: 'family', op: 'DELETED', at: '2026-03-23T08:00:00Z' });
+    callsOf(listCalendars)
+      .at(-1)!
+      .resolve({ items: [fakeCalendar('work')] });
+    await settle();
+    callsOf(updateCalendar)[0].resolve(fakeCalendar('family', { version: 2, visible: false }));
+    await done;
+
+    expect(visible()).toEqual(['work:true']);
+    expect(store.byId().has('family')).toBe(false);
+  });
+
   it('falls back to the theme color for calendars without one', () => {
     expect(calendarColor(fakeCalendar('a', { color: '#123456' }))).toBe('#123456');
     expect(calendarColor(fakeCalendar('a', { color: undefined }))).toBe(DEFAULT_CALENDAR_COLOR);
