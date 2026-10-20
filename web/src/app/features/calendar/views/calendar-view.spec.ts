@@ -402,6 +402,24 @@ describe('CalendarView', () => {
     expect(events()[1].color).toBe('#6a1b9a');
   });
 
+  it('fetches the events of a calendar created elsewhere after its change notification', async () => {
+    await render();
+    await answerCalendars(fakeCalendar('family'));
+    options()!.datesSet!(week());
+    await fixture.whenStable();
+    callsOf(listEventOccurrences).at(-1)!.resolve({ items: [] });
+    await settle();
+
+    changes.next({ type: 'CALENDAR', id: 'school', op: 'CREATED', at: '2026-03-23T08:00:00Z' });
+    await fixture.whenStable();
+    expect(callsOf(listCalendars)).toHaveLength(2);
+
+    await answerCalendars(fakeCalendar('family'), fakeCalendar('school'));
+    expect(callsOf(listEventOccurrences).at(-1)!.params).toMatchObject({
+      calendarIds: ['family', 'school'],
+    });
+  });
+
   it('shows an event created elsewhere after its change notification', async () => {
     await render();
     await answerCalendars(fakeCalendar('family'));

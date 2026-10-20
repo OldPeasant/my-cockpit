@@ -1,6 +1,6 @@
 import { TestBed } from '@angular/core/testing';
-import { Subject } from 'rxjs';
-import { Api, listCalendars, updateCalendar } from '../../../api/generated';
+import { filter, Subject } from 'rxjs';
+import { Api, ChangeEvent, listCalendars, updateCalendar } from '../../../api/generated';
 import { ChangeEventsService } from '../../../core/events';
 import { calendarColor, CalendarStore, DEFAULT_CALENDAR_COLOR } from './calendar-store';
 import { fakeCalendar } from './testing';
@@ -18,6 +18,7 @@ const settle = () => new Promise((resolve) => setTimeout(resolve));
 describe('CalendarStore', () => {
   let calls: Call[];
   let resyncs: Subject<void>;
+  let changes: Subject<ChangeEvent>;
   let store: CalendarStore;
 
   const callsOf = (fn: unknown) => calls.filter((call) => call.fn === fn);
@@ -26,6 +27,7 @@ describe('CalendarStore', () => {
   beforeEach(() => {
     calls = [];
     resyncs = new Subject();
+    changes = new Subject();
     const api = {
       invoke: (fn: unknown, params: Record<string, unknown> = {}) =>
         new Promise((resolve, reject) => calls.push({ fn, params, resolve, reject })),
@@ -33,7 +35,13 @@ describe('CalendarStore', () => {
     TestBed.configureTestingModule({
       providers: [
         { provide: Api, useValue: api },
-        { provide: ChangeEventsService, useValue: { resync$: resyncs.asObservable() } },
+        {
+          provide: ChangeEventsService,
+          useValue: {
+            resync$: resyncs.asObservable(),
+            events$: (type: string) => changes.pipe(filter((event) => event.type === type)),
+          },
+        },
       ],
     });
     store = TestBed.inject(CalendarStore);
@@ -117,7 +125,30 @@ describe('CalendarStore', () => {
     expect(visible()).toEqual(['family:true']);
   });
 
-  it('ignores a list answer requested before a saved toggle', async () => {
+  it('keeps a saved toggle over a list answer requested before it', async () => {
+    await loaded(fakeCalendar('family'), fakeCalendar('work', { version: 3 }));
+    const reload = store.load();
+    const done = store.setVisible(store.calendars()[0], false);
+    await settle();
+    callsOf(updateCalendar)[0].resolve(fakeCalendar('family', { version: 2, visible: false }));
+    await done;
+    callsOf(listCalendars)
+      .at(-1)!
+      .resolve({
+        items: [
+          fakeCalendar('family'),
+          fakeCalendar('school'),
+          fakeCalendar('work', { version: 4, visible: false }),
+        ],
+      });
+    await reload;
+    // The saved calendar keeps its newer state; the other changes of the answer are shown.
+    expect(visible()).toEqual(['family:false', 'school:true', 'work:false']);
+    expect(store.byId().get('family')?.version).toBe(2);
+    expect(store.byId().get('work')?.version).toBe(4);
+  });
+
+  it('takes a calendar of a list answer when its version is newer than the saved one', async () => {
     await loaded(fakeCalendar('family'));
     const reload = store.load();
     const done = store.setVisible(store.calendars()[0], false);
@@ -126,9 +157,10 @@ describe('CalendarStore', () => {
     await done;
     callsOf(listCalendars)
       .at(-1)!
-      .resolve({ items: [fakeCalendar('family')] });
+      .resolve({ items: [fakeCalendar('family', { version: 3, visible: true })] });
     await reload;
-    expect(visible()).toEqual(['family:false']);
+    expect(visible()).toEqual(['family:true']);
+    expect(store.calendars()[0].version).toBe(3);
   });
 
   it('ignores the error of an older list request after a newer one succeeded', async () => {
@@ -237,6 +269,28 @@ describe('CalendarStore', () => {
     await loaded(fakeCalendar('family'));
     resyncs.next();
     expect(callsOf(listCalendars)).toHaveLength(2);
+  });
+
+  it('reloads after a calendar change notification, not after other changes', async () => {
+    await loaded(fakeCalendar('family', { version: 1 }));
+    changes.next({ type: 'EVENT', id: 'e1', op: 'UPDATED', at: '2026-03-23T08:00:00Z' });
+    expect(callsOf(listCalendars)).toHaveLength(1);
+
+    changes.next({ type: 'CALENDAR', id: 'school', op: 'CREATED', at: '2026-03-23T08:00:00Z' });
+    expect(callsOf(listCalendars)).toHaveLength(2);
+    callsOf(listCalendars)
+      .at(-1)!
+      .resolve({ items: [fakeCalendar('family', { version: 2 }), fakeCalendar('school')] });
+    await settle();
+    expect(visible()).toEqual(['family:true', 'school:true']);
+    expect([...store.visibleIds()]).toEqual(['family', 'school']);
+
+    // A toggle after the reload sends the version the change brought.
+    const done = store.setVisible(store.calendars()[0], false);
+    await settle();
+    expect(callsOf(updateCalendar)[0].params['If-Match']).toBe('"2"');
+    callsOf(updateCalendar)[0].resolve(fakeCalendar('family', { version: 3, visible: false }));
+    await done;
   });
 
   it('falls back to the theme color for calendars without one', () => {
