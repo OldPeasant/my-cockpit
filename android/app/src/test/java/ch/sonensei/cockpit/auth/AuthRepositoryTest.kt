@@ -680,6 +680,50 @@ class AuthRepositoryTest {
         }
 
     @Test
+    fun `cancelling the app scope stops its cache clear without blocking a later user logout from clearing every cache`() =
+        runBlocking {
+            // Unconfined: the network-layer logout below runs the collector at once, up to the first cache, which then
+            // waits (holding the clearing lock) until the app scope is cancelled.
+            val owner = CoroutineScope(Dispatchers.Unconfined + SupervisorJob())
+            val cleared = mutableListOf<String>()
+            var firstClear = true
+            val cancellable =
+                AuthRepository(
+                    serverUrls,
+                    authApi,
+                    tokenStore,
+                    session,
+                    setOf(
+                        SessionCache {
+                            cleared += "files"
+                            if (firstClear) {
+                                firstClear = false
+                                awaitCancellation()
+                            }
+                        },
+                        SessionCache { cleared += "mail" },
+                    ),
+                    owner,
+                    Dispatchers.IO,
+                )
+            val tokens = AuthTokens("access-1", "refresh-1")
+            tokenStore.login(tokens, null)
+            assertTrue(session.logoutIfCurrent(tokens, LogoutReason.REFRESH_REJECTED))
+            assertEquals(listOf("files"), cleared)
+
+            owner.cancel()
+
+            assertEquals("a real cancellation of the caller skips the remaining caches", listOf("files"), cleared)
+            tokenStore.login(AuthTokens("access-2", "refresh-2"), null)
+            // Not a child of this coroutine: a logout stuck on a lock that was never released fails the timeout instead
+            // of hanging the test (the logout itself cannot be cancelled).
+            val logout = scope.async { cancellable.logout() }
+            withTimeout(5_000) { logout.await() }
+            assertNull(tokenStore.current())
+            assertEquals(listOf("files", "files", "mail"), cleared)
+        }
+
+    @Test
     fun `a failing cache does not stop later logouts by the network layer from clearing the caches`() =
         runBlocking {
             val owner = CoroutineScope(Dispatchers.Unconfined + SupervisorJob())
