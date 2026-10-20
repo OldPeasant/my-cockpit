@@ -83,6 +83,37 @@ describe('provideSettingsSync', () => {
     http.verify();
   });
 
+  it('loads again when another user logs in after a logout', async () => {
+    const user = signal<{ username: string } | null>({ username: 'demo' });
+    TestBed.configureTestingModule({
+      providers: [
+        provideHttp(),
+        provideHttpClientTesting(),
+        provideRouter([]),
+        { provide: NotificationService, useValue: { error: vi.fn() } },
+        { provide: AuthService, useValue: { user } },
+        provideSettingsSync(),
+      ],
+    });
+    const http = TestBed.inject(HttpTestingController);
+    const theme = TestBed.inject(ThemeService);
+    TestBed.tick();
+    http.expectOne(PATH).flush(fakeSettings({ theme: 'dark' }));
+    await tick();
+
+    user.set(null);
+    TestBed.tick();
+    http.expectNone(PATH);
+
+    user.set({ username: 'other-demo' });
+    TestBed.tick();
+    http.expectOne(PATH).flush(fakeSettings({ theme: 'system' }));
+    await tick();
+
+    expect(theme.mode()).toBe('system');
+    http.verify();
+  });
+
   it('keeps the local theme without a toast when loading fails', async () => {
     localStorage.setItem('cockpit.theme', 'dark');
     const notifications = { error: vi.fn() };
