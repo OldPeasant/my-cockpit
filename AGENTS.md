@@ -208,3 +208,26 @@ claims while they replan). Agents don't use these.
 Other commands: `list`, `status`, `check` (validates deps/cycles), `graph` (writes BOARD.md + board.html),
 `heartbeat` (renews your leases; the agent runner does this for you), `redo` (see Merge conflicts),
 `extend` / `split` / `release` / `hold` (see Too big or stuck).
+
+## Project notes (My Cockpit)
+- **What to build:** `SPEC.md` (product + technical spec, source of truth). **How:** `docs/ARCHITECTURE.md`
+  (stack, install, run, test, coverage, conventions). **Review evidence:** `docs/QUALITY.md`.
+- **Parts:** `server/` (Kotlin + Spring Boot, package `ch.sonensei.cockpit`), `web/` (Angular),
+  `android/` (Kotlin + Compose). Run: `cd server && ./gradlew bootRun`, `cd web && npm start`.
+- **Test:** `sh scripts/check.sh` is `.taskcheck` (lint + unit tests of all parts, < 2 min). Per part:
+  `cd server && ./gradlew check`, `cd web && npm run check`,
+  `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug`. Coverage: see ARCHITECTURE.md "Coverage".
+  Slow suites (Testcontainers, Playwright, image builds) never go into `.taskcheck`; run them when your
+  criteria name them.
+- **Conventions every agent follows:**
+  - Lint is part of the contract: fix warnings, don't suppress them (`./gradlew ktlintFormat` formats Kotlin).
+  - Server modules (`gtd`, `calendar`, `mail`, ...) talk only through services/events; packages
+    `<module>.{api,domain,infra}`; schema changes are new Flyway migrations, never edits of applied ones.
+  - API changes: server first, regenerate `api/openapi.yaml`, then clients; Problem Details errors, UUIDv7
+    ids, ISO-8601 dates, optimistic locking via ETag/If-Match (SPEC.md §4.2).
+  - Every user-facing entity: in the link/search system, covered by backup/restore and its round-trip
+    test (SPEC.md §14).
+  - Never log secrets, email bodies or note contents at INFO or above; test data is fictitious.
+  - A deviation from SPEC.md or a decision it leaves open: record it with `tasks.py assume` and, if it is
+    architectural, an ADR in `docs/adr/NNNN-title.md`.
+  - When you add a tool, runtime or library, update the stack table and "Install" in ARCHITECTURE.md.
