@@ -1,11 +1,11 @@
 ---
 title: Change events and SSE stream
-status: in_progress
+status: done
 owner: dell26/agent-4
 deps: [p0-auth-login]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/core/events,server/src/test/kotlin/ch/sonensei/cockpit/core/events]
 prio: 1
-lease_until: 2026-10-20T12:30:05Z
+lease_until: 
 ---
 ## Goal
 Modules publish change events; clients receive them over SSE (SPEC.md §2).
@@ -26,3 +26,4 @@ Modules publish change events; clients receive them over SSE (SPEC.md §2).
 - ASSUMPTION (2026-10-20 13:35+0200 by dell26/agent-4): SecurityConfiguration (auth infra, outside touches) permits DispatcherType.ASYNC: the async dispatch that ends an SSE stream skips the session filter and was rejected with an error log; the original request is still authorized
 - ASSUMPTION (2026-10-20 13:35+0200 by dell26/agent-4): SSE: event name 'change', data = ChangeEvent JSON, initial ':connected' comment, no event ids/replay (clients refetch on reconnect), no emitter timeout (dead clients found by heartbeat write failure); sends on one background thread
 - ASSUMPTION (2026-10-20 13:58+0200 by dell26/agent-4): SSE streams end after cockpit.events.stream-timeout (default 15 min) and EventSource reconnects, so each reconnect re-checks the login; replaces the earlier 'no emitter timeout' (a stream outlives logout by at most 15 min)
+- done by dell26/agent-4: `sh scripts/check.sh` passed in 21s on 9d8472935; criteria verified 4/4
