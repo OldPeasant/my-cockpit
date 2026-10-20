@@ -25,6 +25,7 @@ import io.mockk.mockk
 import io.mockk.verify
 import jakarta.mail.Folder
 import jakarta.mail.MessagingException
+import jakarta.persistence.EntityManager
 import org.eclipse.angus.mail.imap.IMAPFolder
 import org.eclipse.angus.mail.imap.IMAPStore
 import org.junit.jupiter.api.BeforeEach
@@ -36,6 +37,9 @@ import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.test.context.event.ApplicationEvents
 import org.springframework.test.context.event.RecordApplicationEvents
 import org.springframework.transaction.support.TransactionTemplate
+import java.util.concurrent.CyclicBarrier
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
 
 /**
  * Folder sync against a scripted IMAP folder list (SPECIAL-USE attributes, which GreenMail does not send) with the real
@@ -51,6 +55,7 @@ class MailFolderSyncTests(
 	@Autowired private val folders: MailFolderRepository,
 	@Autowired private val changes: ChangeEventPublisher,
 	@Autowired private val transactions: TransactionTemplate,
+	@Autowired private val entityManager: EntityManager,
 ) : PostgresTestBase() {
 	private val pool = mockk<ImapConnectionPool>()
 	private val store = mockk<IMAPStore>()
@@ -79,7 +84,7 @@ class MailFolderSyncTests(
 					username = "jane",
 				).apply { password = EncryptedSecret("fictitious-secret-1") },
 			)
-		service = MailFolderService(accounts, folders, pool, changes, transactions)
+		service = MailFolderService(accounts, folders, pool, changes, transactions, entityManager)
 		every { pool.withStore(any(), any<(IMAPStore) -> Any?>()) } answers { secondArg<(IMAPStore) -> Any?>().invoke(store) }
 		every { store.defaultFolder } returns root
 		every { root.list("*") } answers { remote.map { (path, attributes) -> imapFolder(path, attributes) }.toTypedArray() }
@@ -414,6 +419,27 @@ class MailFolderSyncTests(
 		sync("INBOX" to emptyList(), "Sent" to listOf("\\Sent"))
 
 		folders.findByAccountIdAndPath(other.id, "Sent")!!.role shouldBe MailFolderRole.SENT
+		stored()["Sent"] shouldBe MailFolderRole.SENT
+	}
+
+	@Test
+	fun `two parallel first syncs of one account both succeed and store every folder once`() {
+		remote = listOf("INBOX" to emptyList(), "Sent" to listOf("\\Sent"), "Projects" to emptyList())
+		// Both syncs have read the server's list before either stores it, so both start from an empty cache.
+		val bothListed = CyclicBarrier(2)
+		every { root.list("*") } answers {
+			bothListed.await(10, TimeUnit.SECONDS)
+			remote.map { (path, attributes) -> imapFolder(path, attributes) }.toTypedArray()
+		}
+		val executor = Executors.newFixedThreadPool(2)
+		try {
+			val results = List(2) { executor.submit<List<MailFolder>> { service.sync(account.id) } }.map { it.get(30, TimeUnit.SECONDS) }
+
+			results.forEach { result -> result.map { it.path } shouldBe listOf("INBOX", "Projects", "Sent") }
+		} finally {
+			executor.shutdownNow()
+		}
+		folders.findByAccountIdOrderByPathAsc(account.id).map { it.path } shouldBe listOf("INBOX", "Projects", "Sent")
 		stored()["Sent"] shouldBe MailFolderRole.SENT
 	}
 }

@@ -21,6 +21,8 @@ import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.collections.shouldContainAll
 import io.kotest.matchers.collections.shouldNotContain
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.string.shouldContain
+import io.kotest.matchers.types.shouldBeInstanceOf
 import jakarta.mail.Folder
 import jakarta.mail.Session
 import org.junit.jupiter.api.BeforeEach
@@ -43,6 +45,7 @@ import tools.jackson.databind.json.JsonMapper
 import java.net.ServerSocket
 import java.nio.file.Files
 import java.nio.file.Path
+import java.security.cert.CertificateException
 import java.time.Duration
 import java.util.Properties
 import java.util.UUID
@@ -51,7 +54,8 @@ import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 
 /**
- * IMAP/SMTP against GreenMail (plain, implicit TLS with a certificate for `localhost`, XOAUTH2): connection test,
+ * IMAP/SMTP against GreenMail (plain, implicit TLS with a certificate for `localhost` that is refused under any other
+ * host name, XOAUTH2): connection test,
  * folder sync with role detection and overrides, and the connection pool. GreenMail offers no STARTTLS, which proves
  * that STARTTLS is required and never silently skipped.
  */
@@ -62,7 +66,8 @@ import java.util.concurrent.TimeUnit
 @DirtiesContext
 @TestPropertySource(
 	properties = [
-		"cockpit.mail.ssl-trust=localhost",
+		// 127.0.0.1 is trusted too, so a refusal there comes from the host name check, not from the CA check.
+		"cockpit.mail.ssl-trust=localhost 127.0.0.1",
 		"cockpit.mail.pool.max-connections-per-account=2",
 		"cockpit.mail.pool.borrow-timeout=300ms",
 		"cockpit.mail.connect-timeout=3s",
@@ -165,6 +170,25 @@ class ImapGreenMailTests(
 			)
 
 		accounts.testConnection(account.id) shouldBe ConnectionTestResult(null, null)
+	}
+
+	@Test
+	fun `a trusted certificate whose name does not match the host is refused with TLS_FAILED`() {
+		// The certificate covers only localhost; 127.0.0.1 is the same server under a name it does not cover.
+		val account =
+			passwordAccount(
+				imap = MailServer(MISMATCHED_HOST, greenMail.imaps.port, MailSecurity.SSL_TLS),
+				smtp = MailServer(MISMATCHED_HOST, greenMail.smtps.port, MailSecurity.SSL_TLS),
+			)
+
+		accounts.testConnection(account.id) shouldBe ConnectionTestResult(MailConnectionError.TLS_FAILED, MailConnectionError.TLS_FAILED)
+		val refused = shouldThrow<MailConnectionException> { pool.withStore(account) { } }
+		refused.error shouldBe MailConnectionError.TLS_FAILED
+		// The handshake fails on the name (the certificate itself is trusted via ssl-trust), not on the CA.
+		val rootCause = generateSequence<Throwable>(refused) { it.cause }.last()
+		rootCause.shouldBeInstanceOf<CertificateException>()
+		rootCause.message.orEmpty() shouldContain "subject alternative names"
+		pool.openConnections(account.id) shouldBe 0
 	}
 
 	@Test
@@ -379,6 +403,7 @@ class ImapGreenMailTests(
 
 	companion object {
 		private const val HOST = "localhost"
+		private const val MISMATCHED_HOST = "127.0.0.1"
 		private const val EMAIL = "jane.doe@example.test"
 		private const val USER = "jane"
 		private const val PASSWORD = "fictitious-password"

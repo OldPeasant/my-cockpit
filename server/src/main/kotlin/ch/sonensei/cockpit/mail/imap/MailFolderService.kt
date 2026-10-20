@@ -10,6 +10,8 @@ import ch.sonensei.cockpit.mail.model.MailFolder
 import ch.sonensei.cockpit.mail.model.MailFolderRepository
 import ch.sonensei.cockpit.mail.model.MailFolderRole
 import jakarta.mail.MessagingException
+import jakarta.persistence.EntityManager
+import jakarta.persistence.LockModeType
 import org.eclipse.angus.mail.imap.IMAPFolder
 import org.eclipse.angus.mail.imap.IMAPStore
 import org.springframework.stereotype.Service
@@ -28,6 +30,7 @@ class MailFolderService(
 	private val pool: ImapConnectionPool,
 	private val changes: ChangeEventPublisher,
 	private val transactions: TransactionTemplate,
+	private val entityManager: EntityManager,
 ) {
 	/** The cached folders of an account, by path. */
 	fun list(accountId: UUID): List<MailFolder> {
@@ -36,14 +39,22 @@ class MailFolderService(
 	}
 
 	/**
-	 * Reads the folder list from the server (outside any transaction, through the pool) and stores it.
+	 * Reads the folder list from the server (outside any transaction, through the pool) and stores it. Syncs of the
+	 * same account store one after the other (row lock on the account), so parallel syncs never insert a folder twice.
 	 *
 	 * @throws MailConnectionException when the server cannot be reached or rejects the login
 	 */
 	fun sync(accountId: UUID): List<MailFolder> {
 		val account = account(accountId)
 		val remote = pool.withStore(account) { store -> listRemote(store) }
-		return checkNotNull(transactions.execute { store(account.id, remote) })
+		return checkNotNull(
+			transactions.execute {
+				// Waits until a parallel sync of this account has committed, so the cached rows read next include its folders.
+				entityManager.find(MailAccount::class.java, account.id, LockModeType.PESSIMISTIC_WRITE)
+					?: throw NotFoundException("Mail account not found")
+				store(account.id, remote)
+			},
+		)
 	}
 
 	/**

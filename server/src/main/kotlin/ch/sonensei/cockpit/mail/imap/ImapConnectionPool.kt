@@ -6,6 +6,7 @@ import ch.sonensei.cockpit.mail.model.MailAccountRepository
 import org.eclipse.angus.mail.imap.IMAPStore
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.DisposableBean
+import org.springframework.scheduling.annotation.Scheduled
 import org.springframework.stereotype.Component
 import org.springframework.transaction.event.TransactionPhase
 import org.springframework.transaction.event.TransactionalEventListener
@@ -23,7 +24,8 @@ data class MailAccountConnectionChanged(
 
 /**
  * IMAP connections per account (SPEC.md §7.2): at most [MailImapProperties.Pool.maxConnectionsPerAccount] open at a
- * time, idle ones reused for [MailImapProperties.Pool.idleTimeout]. A caller that finds every connection busy waits up
+ * time, idle ones reused for [MailImapProperties.Pool.idleTimeout] and closed after it (checked on borrow and once a
+ * minute by [evictExpired]). A caller that finds every connection busy waits up
  * to [MailImapProperties.Pool.borrowTimeout] and then fails with [MailConnectionError.POOL_EXHAUSTED].
  *
  * ```
@@ -64,6 +66,13 @@ class ImapConnectionPool(
 	/** Closes the idle connections of an account; connections in use are closed when they come back. */
 	fun evict(accountId: UUID) {
 		pools.remove(accountId)?.retire()
+	}
+
+	/** Closes idle connections unused for [MailImapProperties.Pool.idleTimeout], also of accounts nobody borrows from. */
+	@Scheduled(fixedDelay = EVICTION_INTERVAL_SECONDS, initialDelay = EVICTION_INTERVAL_SECONDS, timeUnit = TimeUnit.SECONDS)
+	fun evictExpired() {
+		val cutoff = clock.instant().minus(properties.pool.idleTimeout)
+		pools.values.forEach { it.closeExpired(cutoff) }
 	}
 
 	/** Open connections (in use + idle) of an account. */
@@ -153,6 +162,14 @@ class ImapConnectionPool(
 			}
 		}
 
+		fun closeExpired(cutoff: Instant) {
+			val expired =
+				synchronized(this) {
+					idle.filter { !it.since.isAfter(cutoff) }.also { idle.removeAll { !it.since.isAfter(cutoff) } }
+				}
+			expired.forEach { close(it.store) }
+		}
+
 		fun retire() {
 			val toClose =
 				synchronized(this) {
@@ -165,6 +182,10 @@ class ImapConnectionPool(
 		@Synchronized fun open(): Int = inUse + idle.size
 
 		@Synchronized fun idleCount(): Int = idle.size
+	}
+
+	private companion object {
+		const val EVICTION_INTERVAL_SECONDS = 60L
 	}
 
 	private fun close(store: IMAPStore) {

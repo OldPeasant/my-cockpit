@@ -115,8 +115,8 @@ class MailAccountService(
 		val imap = request.imap ?: ProviderServers.imap(request.type)
 		val smtp = request.smtp ?: ProviderServers.smtp(request.type)
 		val username = request.username?.takeIf { it.isNotBlank() } ?: if (oauth) connectionEmail ?: request.emailAddress else null
-		if (imap == null) errors += FieldError("imapHost", "is required")
-		if (smtp == null) errors += FieldError("smtpHost", "is required")
+		if (imap == null) errors += FieldError("imap", "is required")
+		if (smtp == null) errors += FieldError("smtp", "is required")
 		if (username == null) errors += FieldError("username", "is required")
 		if (oauth) {
 			if (request.password != null) errors += FieldError("password", "must be empty for OAuth accounts")

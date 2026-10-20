@@ -105,6 +105,38 @@ class ImapConnectionPoolTests {
 	}
 
 	@Test
+	fun `the eviction sweep closes expired idle connections without a borrow and keeps fresh ones`() {
+		val pool = pool()
+		val other = account()
+		val old = pool.withStore(account) { it }
+		clock.now = clock.now.plus(Duration.ofMinutes(3))
+		val fresh = pool.withStore(other) { it }
+
+		clock.now = clock.now.plus(Duration.ofMinutes(2))
+		pool.evictExpired()
+
+		verify(exactly = 1) { old.close() }
+		verify(exactly = 0) { fresh.close() }
+		pool.openConnections(account.id) shouldBe 0
+		pool.idleConnections(other.id) shouldBe 1
+		(pool.withStore(other) { it } === fresh) shouldBe true
+	}
+
+	@Test
+	fun `the eviction sweep leaves connections in use alone`() {
+		val pool = pool()
+
+		pool.withStore(account) { store ->
+			clock.now = clock.now.plus(Duration.ofHours(1))
+			pool.evictExpired()
+			verify(exactly = 0) { store.close() }
+			pool.openConnections(account.id) shouldBe 1
+		}
+
+		pool.idleConnections(account.id) shouldBe 1
+	}
+
+	@Test
 	fun `an idle connection the server dropped is replaced`() {
 		val pool = pool()
 		val first = pool.withStore(account) { it }

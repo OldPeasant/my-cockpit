@@ -158,7 +158,7 @@ class MailAccountWebTests(
 	fun `IMAP_SMTP accounts need servers, username and password`() {
 		create(mapOf("type" to "IMAP_SMTP", "emailAddress" to "jane.doe@example.test"))
 			.andExpect { status { isBadRequest() } }
-			.fields("errors", "field") shouldBe listOf("imapHost", "password", "smtpHost", "username")
+			.fields("errors", "field") shouldBe listOf("imap", "password", "smtp", "username")
 	}
 
 	@Test
