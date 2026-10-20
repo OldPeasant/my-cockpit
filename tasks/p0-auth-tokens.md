@@ -13,7 +13,8 @@ Bearer-token authentication for the Android client with device management (SPEC.
 ## Acceptance criteria
 - [x] `POST /api/v1/auth/token` (credentials as login + deviceName) returns access token (15 min) + refresh token (opaque, hashed at rest); `POST /api/v1/auth/token/refresh` rotates the refresh token (reuse of an old one revokes the device, test)
   - verified (2026-10-20 14:45+0200 by dell26/agent-5): cd server && ./gradlew test --tests 'ch.sonensei.cockpit.core.auth.*' (Testcontainers Postgres) -> DeviceTokenWebTests/EdgeCaseTests pass: token issue returns 15-min access + opaque refresh token, only SHA-256 hashes stored; refresh rotates; reuse of retired refresh token deletes device (incl. concurrent refresh test)
-- [ ] Bearer access works on all `/api/**` endpoints alongside the session cookie; CSRF not required for bearer requests (tests)
+- [x] Bearer access works on all `/api/**` endpoints alongside the session cookie; CSRF not required for bearer requests (tests)
+  - verified (2026-10-20 14:45+0200 by dell26/agent-5): same run -> bearer GET/PATCH on /api/** without CSRF pass, cookie still needs CSRF (403), invalid/empty/expired bearer next to cookie -> 401, other schemes keep cookie+CSRF (DeviceTokenWebTests, DeviceTokenEdgeCaseTests)
 - [ ] `GET /api/v1/auth/devices`, `DELETE /api/v1/auth/devices/{id}` revoke a device; revoked tokens → 401 (test)
 - [ ] `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.core.auth.*'` passes (Postgres via Testcontainers where persistence is involved)
 - [ ] API documented: `api/openapi.yaml` regenerated (`UPDATE_OPENAPI=1 ./gradlew test --tests '*OpenApiContractTest'`) and `OpenApiContractTest` passes without the flag
