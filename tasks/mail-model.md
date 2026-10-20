@@ -1,11 +1,11 @@
 ---
 title: Mail data model
-status: in_progress
+status: done
 owner: dell26/agent-2
 deps: [p0-items-links,p0-search-core,p0-crypto]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/mail/model,server/src/test/kotlin/ch/sonensei/cockpit/mail/model,server/src/main/resources/db/migration/mail]
 prio: 1
-lease_until: 2026-10-20T15:05:51Z
+lease_until: 
 ---
 ## Goal
 Accounts, identities, folders, cached headers and bodies (SPEC.md §7.1–7.2).
@@ -25,3 +25,4 @@ Accounts, identities, folders, cached headers and bodies (SPEC.md §7.1–7.2).
 - ASSUMPTION (2026-10-20 16:07+0200 by dell26/agent-2): Body cache is a DB table mail_body (text_plain + raw unsanitized text_html, size = UTF-8 bytes of both) with LRU eviction on every put down to cockpit.mail.body-cache-max-bytes (default 2 GiB); the body just stored is never evicted even if it alone exceeds the budget. Attachments are not cached.
 - ASSUMPTION (2026-10-20 16:07+0200 by dell26/agent-2): Address headers (from/to/cc/bcc/reply-to) are stored as RFC 5322 address-list text mapped to List<MailAddress> by a converter (no jsonb); IMAP flags as booleans seen/flagged/answered/draft + keywords text[]; added sync_window_months (default 12) and identity reply_to/signature override.
 - ASSUMPTION (2026-10-20 16:47+0200 by dell26/agent-2): CR-1 (body cache eviction sorts mail_body on every put, LRU index unused) accepted as is: results are correct and the cost is small at single-user volumes; revisit in perf-tuning
+- done by dell26/agent-2: `sh scripts/check.sh` passed in 59s on 69e9547f3; criteria verified 3/3
