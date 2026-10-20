@@ -300,6 +300,26 @@ class DeviceTokenEdgeCaseTests(
 	}
 
 	@Test
+	fun `a header that skips CSRF never lets the session cookie write, and another scheme still needs the CSRF token`() {
+		val phone = tokens(issue())
+		val session = webLogin()
+
+		// An empty bearer header skips CSRF, but the cookie is ignored as well: 401, nothing revoked.
+		mockMvc
+			.delete("/api/v1/auth/devices/${phone.deviceId}") {
+				cookie(Cookie(SessionCookies.NAME, session))
+				header(HttpHeaders.AUTHORIZATION, "Bearer ")
+			}.andExpect { status { isUnauthorized() } }
+		// Any other scheme leaves the cookie in charge, so CSRF protection stays on.
+		mockMvc
+			.delete("/api/v1/auth/devices/${phone.deviceId}") {
+				cookie(Cookie(SessionCookies.NAME, session))
+				header(HttpHeaders.AUTHORIZATION, "Basic amFuZS5kb2U6ZmljdGl0aW91cw==")
+			}.andExpect { status { isForbidden() } }
+		deviceCount() shouldBe 1
+	}
+
+	@Test
 	fun `a device can revoke itself, and an id that is not a UUID is a 400`() {
 		val phone = tokens(issue())
 
