@@ -1,11 +1,11 @@
 ---
 title: Web GTD data layer and shared task components
-status: in_progress
+status: done
 owner: dell26/agent-2
 deps: [p0-web-shell,p0-web-sse,gtd-projects-api,p0-e2e-harness]
 touches: [web/src/app/features/gtd/data,web/src/app/features/gtd/ui]
 prio: 1
-lease_until: 2026-10-20T19:49:13Z
+lease_until: 
 releases: 0
 extended: 
 ---
@@ -27,3 +27,4 @@ Signal-based stores for tasks/projects/contexts and reusable task UI pieces.
 - ASSUMPTION (2026-10-20 21:12+0200 by dell26/agent-2): Did not run i18n:extract into web/src/locale/messages.xlf (shared file outside touches); new gtd.* i18n ids are in templates and get extracted by the next extract run.
 - ASSUMPTION (2026-10-20 21:12+0200 by dell26/agent-2): TaskRow's completion output is named toggleDone (not toggle) because angular-eslint forbids outputs named like native DOM events.
 - ASSUMPTION (2026-10-20 21:12+0200 by dell26/agent-2): Stores apply ChangeEvents by removing an item on its own DELETED event and refetching the list on any other event of its types (events carry no contents, SPEC §2); ProjectStore also refetches on TASK events because next steps change 'stalled'.
+- done by dell26/agent-2: `sh scripts/check.sh` passed in 87s on bd6ab7e22; criteria verified 4/4
