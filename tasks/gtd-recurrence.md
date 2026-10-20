@@ -16,3 +16,4 @@ RRULE recurrence on completion (SPEC.md §5.2).
 - [ ] `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.gtd.*'` passes (Postgres via Testcontainers where persistence is involved) incl. weekly Monday case, late AFTER_COMPLETION case, DST boundary
 
 ## Notes
+- ASSUMPTION (2026-10-20 20:13+0200 by R1963MACOS/agent-1): Next occurrence is a copy on the same list (notes, project if still active, contexts, energy/creativity/estimate, due time, waiting-for; checklist copied unchecked; no tickler; waitingSince=today); due and scheduled dates move by the same number of days; a task with neither date gets the next date as due date
