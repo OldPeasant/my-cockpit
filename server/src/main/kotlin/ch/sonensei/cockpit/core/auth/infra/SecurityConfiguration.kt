@@ -43,8 +43,9 @@ class SecurityConfiguration {
 		http
 			.authorizeHttpRequests {
 				it
-					// The forward of `/` to `/index.html` and error dispatches carry no new request of their own.
-					.dispatcherTypeMatchers(DispatcherType.FORWARD, DispatcherType.ERROR)
+					// The forward of `/` to `/index.html`, error dispatches and the async dispatch that ends a stream (SSE)
+					// carry no new request of their own; the original request was authorized.
+					.dispatcherTypeMatchers(DispatcherType.FORWARD, DispatcherType.ERROR, DispatcherType.ASYNC)
 					.permitAll()
 					.requestMatchers("/actuator/health", "/actuator/health/**", "$SETUP_PATH/**", SETUP_PATH)
 					.permitAll()

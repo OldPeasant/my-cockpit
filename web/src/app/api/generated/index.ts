@@ -7,6 +7,7 @@ export { RequestBuilder } from './request-builder';
 export type { StrictHttpResponse } from './strict-http-response';
 export { Api } from './api';
 
+export type { ChangeEvent } from './models/change-event';
 export type { ConfirmTotpRequest } from './models/confirm-totp-request';
 export type { FieldError } from './models/field-error';
 export type { LoginRequest } from './models/login-request';
@@ -24,6 +25,8 @@ export type { Logout$Params as Logout$Params } from './fn/auth/logout';
 export { logout as logout } from './fn/auth/logout';
 export type { GetCurrentUser$Params as GetCurrentUser$Params } from './fn/auth/get-current-user';
 export { getCurrentUser as getCurrentUser } from './fn/auth/get-current-user';
+export type { StreamEvents$Params as StreamEvents$Params } from './fn/events/stream-events';
+export { streamEvents as streamEvents } from './fn/events/stream-events';
 export type { GetSettings$Params as GetSettings$Params } from './fn/settings/get-settings';
 export { getSettings as getSettings } from './fn/settings/get-settings';
 export type { UpdateSettings$Params as UpdateSettings$Params } from './fn/settings/update-settings';
