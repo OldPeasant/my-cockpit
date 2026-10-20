@@ -5,7 +5,7 @@ owner: dell26/agent-2
 deps: []
 touches: [agents.py,tasks.py,tests]
 prio: 1
-lease_until: 2026-10-20T20:14:23Z
+lease_until: 2026-10-20T20:19:27Z
 ---
 ## Goal
 Two runner bugs seen on 2026-10-20 after the runner-push-failure-loop fix:
