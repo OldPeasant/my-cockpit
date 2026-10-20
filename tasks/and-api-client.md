@@ -1,11 +1,13 @@
 ---
 title: Android API client and auth plumbing
-status: in_progress
-owner: dell26/agent-2
+status: todo
+owner: 
 deps: [and-shell,p0-auth-tokens]
 touches: [android/app/build.gradle.kts,android/app/src/main/java/ch/sonensei/cockpit/core/network,android/app/src/test/java/ch/sonensei/cockpit/core/network]
 prio: 1
-lease_until: 2026-10-20T14:15:26Z
+lease_until: 
+releases: 1
+extended: 
 ---
 ## Goal
 Retrofit client generated from the OpenAPI contract, with token handling.
@@ -23,3 +25,4 @@ Retrofit client generated from the OpenAPI contract, with token handling.
 - ASSUMPTION (2026-10-20 15:06+0200 by dell26/agent-2): Refresh 400/401 = rejected -> logout (tokens cleared, AuthSession.loggedOut emits); network errors and 5xx keep the tokens and just fail the request. A 401 on an already-retried request is final (no second refresh).
 - ASSUMPTION (2026-10-20 15:06+0200 by dell26/agent-2): Retrofit uses a placeholder base URL; ServerUrlInterceptor rewrites each request to the DataStore-configured server (keeping a path prefix), so changing the server URL needs no rebuild of the client.
 - ASSUMPTION (2026-10-20 15:37+0200 by dell26/agent-2): A request already in flight to the previous server that returns 401 after a server switch + new login may be retried there with the new short-lived access token (refresh token never exposed); accepted as low risk since the old server was user-configured and trusted, not checked per-request host
+- release by dell26/agent-2: Implementation complete (generated Retrofit client, token interceptor + single-flight Authenticator, logout on refresh failure, DataStore server URL w/ https validation, MockWebServer tests). First test-writer/code-reviewer round done; findings TW-1, TW-2, CR-1..CR-4 fixed in a70b9ac/a2c399e (fixes.md). scripts/check.sh passes at a2c399e. LEFT: re-run test-writer and code-reviewer on final code (existing tests.md/review.md are stale), tasks.py verify for criteria 1-4, write+commit reviews/and-api-client/quality.json, then tasks.py done.
