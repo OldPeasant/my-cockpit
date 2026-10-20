@@ -322,6 +322,24 @@ class CalendarSeriesEdgeCaseWebTests(
 	}
 
 	@Test
+	fun `PATCH FOLLOWING with allDay false and a start through an all-day override splits like without allDay`() {
+		val series = weekly()
+		val allDay = api.patchEventOk(series.id(), """{"allDay":true}""", "?scope=THIS&occurrence=2026-03-09T08:00:00Z")
+
+		val next =
+			api.patchEventOk(
+				allDay.id(),
+				"""{"allDay":false,"start":"2026-03-10T08:00:00Z","timeZone":"Europe/Zurich"}""",
+				"?scope=FOLLOWING",
+			)
+
+		next.get("allDay").asBoolean() shouldBe false
+		next.text("start") shouldBe "2026-03-10T08:00:00Z"
+		next.text("end") shouldBe "2026-03-10T09:00:00Z"
+		spring().starts().take(3) shouldContainExactly listOf("2026-03-02T08:00:00Z", "2026-03-10T08:00:00Z", "2026-03-17T08:00:00Z")
+	}
+
+	@Test
 	fun `PATCH ALL through a timed override of an all-day series keeps the series all-day`() {
 		val gym = api.createEvent("""{"title":"Gym","allDay":true,"startDate":"2026-03-02","rrule":"FREQ=DAILY;COUNT=5"}""")
 		val timed =

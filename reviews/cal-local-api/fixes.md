@@ -175,3 +175,55 @@ Remaining unresolved findings:
 ## Final status
 
 All validated findings fixed and validation passed.
+
+# Fix Report - third cycle (TW-2)
+
+Date: 2026-10-20
+
+Task: cal-local-api - Local calendar API (SPEC.md §6.4)
+
+Scope: finding TW-2 of `reviews/cal-local-api/tests.md` (HEAD 8ef7156, base b1708640)
+
+## Fixed findings
+
+### TW-2 - `allDay:false` with a start through an all-day override of a timed series moves the series to the wrong time
+
+Files changed:
+- `server/src/main/kotlin/ch/sonensei/cockpit/calendar/api/CalendarEventService.kt`
+- `server/src/test/kotlin/ch/sonensei/cockpit/calendar/api/CalendarSeriesEdgeCaseWebTests.kt`
+
+Problem:
+`seriesBase` (used by scope ALL and FOLLOWING) took the addressed override as the base of the time fields whenever the request sent `allDay`, even when `allDay` equalled the series' own kind, so no kind change was requested. Through an all-day override of a timed series, `{"allDay":false,"start":"2026-03-10T08:00:00Z"}` was measured from midnight of the override's day instead of the original 09:00 occurrence, and the series started at 17:00Z instead of 08:00Z. Confirmed against the code and the failing test before changing it.
+
+Fix:
+`seriesBase` now uses the override only when its kind matches the kind the series gets (`input.allDay`, else the series' own kind); otherwise it uses the original occurrence. A request with `allDay` equal to the series' kind therefore behaves exactly like one without `allDay`. Kind changes (CR-4: `allDay:true` through an all-day override) still use the override as base; without `allDay` the behaviour is unchanged. KDoc updated.
+
+Validation:
+- Existing failing test `PATCH ALL with allDay false and a start through an all-day override moves the series like without allDay` - Pass (unchanged).
+- New regression test `PATCH FOLLOWING with allDay false and a start through an all-day override splits like without allDay`: the new series starts 2026-03-10T08:00:00Z, ends 09:00:00Z, and occurrences are 03-02, 03-10, 03-17 at 08:00Z - Pass. (Before the fix the same base error applied to FOLLOWING, which shares `seriesBase`.)
+- CR-4/CR-5 tests (`... with allDay sent through an all-day override ...`, `... dates through an all-day override ... is rejected ...`, `... through a timed override of an all-day series keeps the series all-day`, cancel/un-cancel tests) - Pass.
+
+## Not fixed
+
+None.
+
+## Validation summary
+
+Focused tests:
+- `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.calendar.api.*' --tests '*OpenApiContractTest'` (Testcontainers Postgres on Docker) - Pass (BUILD SUCCESSFUL, 0 failures, 0 errors, 0 skipped).
+
+Full test suite:
+- `cd server && ./gradlew check` - Pass (BUILD SUCCESSFUL).
+
+Lint/type-check/build:
+- `cd server && ./gradlew ktlintCheck` - Pass. No API annotations changed; OpenApiContractTest passes, so `api/openapi.yaml` and the web client need no regeneration.
+
+`.taskcheck`:
+- Not run by the fixer (server-only change; `./gradlew check` covers the server part). The parent worker runs it before `done`.
+
+Remaining unresolved findings:
+0
+
+## Final status
+
+All validated findings fixed and validation passed.

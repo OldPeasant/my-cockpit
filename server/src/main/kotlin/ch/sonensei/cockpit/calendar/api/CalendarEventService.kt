@@ -284,15 +284,19 @@ class CalendarEventService(
 	}
 
 	/**
-	 * The times a series edit's time fields apply to: those of the addressed [override], or the [original] occurrence when
-	 * there is none or when the override is of another kind (timed/all-day) than the series and the request does not send
-	 * `allDay` (a series changes its kind only on request; time fields of the other kind are then rejected with 400).
+	 * The times a series edit's time fields apply to: those of the addressed [override] when it is of the kind (timed/all-day)
+	 * the series gets (the requested `allDay`, else the series' own kind), otherwise those of the [original] occurrence. A
+	 * series changes its kind only on request, so `allDay` equal to the series' kind behaves like a request without it; time
+	 * fields of the other kind are then rejected with 400.
 	 */
 	private fun seriesBase(
 		override: Timing?,
 		original: Timing,
 		input: TimingInput,
-	): Timing = override?.takeIf { input.allDay != null || it::class == original::class } ?: original
+	): Timing {
+		val allDay = input.allDay ?: (original is Timing.AllDay)
+		return override?.takeIf { (it is Timing.AllDay) == allDay } ?: original
+	}
 
 	// --- FOLLOWING
 
