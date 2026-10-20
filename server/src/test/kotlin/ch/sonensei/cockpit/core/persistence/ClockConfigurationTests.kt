@@ -33,4 +33,18 @@ class ClockConfigurationTests {
 		clock.advance(Duration.ofMinutes(1))
 		provider.now.get() shouldBe start.plus(Duration.ofMinutes(1))
 	}
+
+	@Test
+	fun `the application clock ticks in microseconds, the precision of timestamptz`() {
+		val clock = configuration.clock()
+
+		repeat(100) { (clock.instant().nano % 1_000) shouldBe 0 }
+	}
+
+	@Test
+	fun `auditing timestamps are truncated to microseconds, also from a substituted clock`() {
+		val clock = MutableClock(Instant.parse("2026-05-04T03:02:01.123456789Z"))
+
+		configuration.clockDateTimeProvider(clock).now.get() shouldBe Instant.parse("2026-05-04T03:02:01.123456Z")
+	}
 }

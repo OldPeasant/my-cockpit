@@ -8,7 +8,7 @@ import jakarta.persistence.PostLoad
 import jakarta.persistence.PostPersist
 import jakarta.persistence.Transient
 import jakarta.persistence.Version
-import org.hibernate.Hibernate
+import org.hibernate.proxy.HibernateProxy
 import org.springframework.data.annotation.CreatedDate
 import org.springframework.data.annotation.LastModifiedDate
 import org.springframework.data.domain.Persistable
@@ -70,10 +70,17 @@ abstract class BaseEntity(
 	override fun equals(other: Any?): Boolean {
 		if (this === other) return true
 		if (other !is BaseEntity) return false
-		return Hibernate.getClass(this) == Hibernate.getClass(other) && id == other.getId()
+		val otherId = if (other is HibernateProxy) other.hibernateLazyInitializer.identifier else other.getId()
+		return entityClass(this) == entityClass(other) && id == otherId
 	}
 
 	override fun hashCode(): Int = id.hashCode()
 
-	override fun toString(): String = "${Hibernate.getClass(this).simpleName}(id=$id)"
+	override fun toString(): String = "${entityClass(this).simpleName}(id=$id)"
+
+	private companion object {
+		/** The entity class, read from a lazy proxy without initializing it (unlike `Hibernate.getClass`). */
+		fun entityClass(entity: Any): Class<*> =
+			if (entity is HibernateProxy) entity.hibernateLazyInitializer.persistentClass else entity.javaClass
+	}
 }

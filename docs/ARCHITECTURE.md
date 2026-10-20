@@ -193,7 +193,7 @@ Building blocks in `ch.sonensei.cockpit.core.persistence` (SPEC.md §4.2):
 - **Ids** are UUIDv7 (`UuidV7.generate()`), created in the entity constructor. A client id (offline
   capture, idempotent create) is passed to the constructor and must be a UUIDv7.
 - **Time:** inject the `Clock` bean (UTC) and never call `Instant.now()`. `createdAt`/`updatedAt` come from it
-  through JPA auditing. Tests import a `@Primary` `MutableClock` to fix or advance time.
+  through JPA auditing, at microsecond precision like `timestamptz`. Tests import a `@Primary` `MutableClock` to fix or advance time.
 - **Optimistic locking:** `@Version`. Saving a stale copy throws `OptimisticLockingFailureException`.
 - **Soft delete:** `entity.softDelete(clock)` / `restore()`. Repositories extend `SoftDeletableRepository`.
   Normal reads use `findActiveById`/`findAllActive`, and derived queries add `DeletedAtIsNull`.
@@ -202,4 +202,5 @@ Building blocks in `ch.sonensei.cockpit.core.persistence` (SPEC.md §4.2):
   subfolders and runs `out-of-order`, so parallel tasks never clash on version numbers. Never edit or
   rename an applied migration: change the schema in a new one. The first migration,
   `core/V202610200000__core_enable_pg_trgm.sql`, only enables `pg_trgm`. Module tables come in module
-  migrations. Test-only tables go to `server/src/test/resources/db/migration/<module>/`.
+  migrations. Test-only tables go to `server/src/test/resources/db/migration/<module>/` as
+  `V<yyyyMMddHHmm>_<n>__<module>_test_<desc>.sql`: the `_<n>` suffix keeps them off real version numbers.

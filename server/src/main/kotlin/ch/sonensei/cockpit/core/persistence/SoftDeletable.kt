@@ -23,12 +23,13 @@ abstract class SoftDeletableEntity(
 ) : BaseEntity(id),
 	SoftDeletable {
 	@Column(name = "deleted_at")
-	final override var deletedAt: Instant? = null
+	// Not final: Hibernate can only create lazy proxies when entity getters are open.
+	override var deletedAt: Instant? = null
 		protected set
 
 	/** Moves the entity to the Trash; deleting an already deleted entity keeps its original time. */
 	fun softDelete(clock: Clock) {
-		if (deletedAt == null) deletedAt = clock.instant()
+		if (deletedAt == null) deletedAt = clock.storableInstant()
 	}
 
 	fun restore() {

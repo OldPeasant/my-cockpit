@@ -8,6 +8,7 @@ import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import org.flywaydb.core.Flyway
+import org.hibernate.Hibernate
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
@@ -184,6 +185,23 @@ class PersistenceConventionsTests(
 	}
 
 	@Test
+	fun `sub-microsecond clock instants are stored so that saved and reloaded timestamps are equal`() {
+		clock.set(Instant.parse("2026-03-01T08:00:00.123456789Z"))
+		val expected = Instant.parse("2026-03-01T08:00:00.123456Z")
+
+		val saved = repository.save(PersistenceFixture("Nanos"))
+		saved.createdAt shouldBe expected
+		saved.updatedAt shouldBe expected
+		val deleted = tx.execute { repository.findById(saved.id).orElseThrow().apply { softDelete(clock) } }!!
+		deleted.deletedAt shouldBe expected
+
+		val reloaded = repository.findById(saved.id).orElseThrow()
+		reloaded.createdAt shouldBe saved.createdAt
+		reloaded.updatedAt shouldBe deleted.updatedAt
+		reloaded.deletedAt shouldBe deleted.deletedAt
+	}
+
+	@Test
 	fun `active rows come in creation order and deleted rows newest deletion first`() {
 		val ids = List(4) { repository.save(PersistenceFixture("Item $it")).id }
 		clock.advance(Duration.ofMinutes(1))
@@ -204,9 +222,11 @@ class PersistenceConventionsTests(
 
 		tx.executeWithoutResult {
 			val proxy = repository.getReferenceById(saved.id)
+			Hibernate.isInitialized(proxy) shouldBe false
 
-			(proxy == saved) shouldBe true
 			(saved == proxy) shouldBe true
+			Hibernate.isInitialized(proxy) shouldBe false
+			(proxy == saved) shouldBe true
 			proxy.hashCode() shouldBe saved.hashCode()
 			(proxy == other) shouldBe false
 			proxy.toString() shouldBe "PersistenceFixture(id=${saved.id})"

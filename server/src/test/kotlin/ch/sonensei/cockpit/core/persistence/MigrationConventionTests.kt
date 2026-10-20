@@ -14,6 +14,8 @@ import java.time.format.ResolverStyle
 /**
  * Guards the documented layout (docs/ARCHITECTURE.md "Persistence conventions"):
  * `db/migration/<module>/V<yyyyMMddHHmm>__<module>_<desc>.sql`, with the `pg_trgm` migration first.
+ * Test-only migrations add `_<n>` to the version and `test_` to the description
+ * (`V<yyyyMMddHHmm>_<n>__<module>_test_<desc>.sql`), so they never collide with real migrations.
  */
 class MigrationConventionTests {
 	private val migrations =
@@ -30,20 +32,23 @@ class MigrationConventionTests {
 				parts shouldHaveSize 2
 				val (module, file) = parts
 				val match = NAME.matchEntire(file).shouldNotBeNull()
-				match.groupValues[2] shouldBe module
+				match.groupValues[3] shouldBe module
 				LocalDateTime.parse(match.groupValues[1], VERSION_FORMAT)
+				withClue("a _<n> version suffix is reserved for, and required by, test-only (test_) migrations") {
+					match.groupValues[2].isNotEmpty() shouldBe match.groupValues[4].startsWith("test_")
+				}
 			}
 		}
 	}
 
 	@Test
 	fun `the core pg_trgm migration has the lowest version`() {
-		migrations.minBy { NAME.matchEntire(it.substringAfter("/"))!!.groupValues[1] } shouldBe
+		migrations.minBy { NAME.matchEntire(it.substringAfter("/"))!!.groupValues.let { v -> v[1] + v[2] } } shouldBe
 			"core/V202610200000__core_enable_pg_trgm.sql"
 	}
 
 	private companion object {
-		val NAME = Regex("""V(\d{12})__([a-z0-9]+)_[a-z0-9_]+\.sql""")
+		val NAME = Regex("""V(\d{12})(_\d+)?__([a-z0-9]+)_([a-z0-9_]+)\.sql""")
 		val VERSION_FORMAT: DateTimeFormatter =
 			DateTimeFormatter.ofPattern("uuuuMMddHHmm").withResolverStyle(ResolverStyle.STRICT)
 	}
