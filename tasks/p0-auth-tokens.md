@@ -1,11 +1,11 @@
 ---
 title: Device tokens for the Android app
-status: in_progress
+status: done
 owner: dell26/agent-5
 deps: [p0-auth-login]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/core/auth,server/src/test/kotlin/ch/sonensei/cockpit/core/auth]
 prio: 1
-lease_until: 2026-10-20T13:09:54Z
+lease_until: 
 ---
 ## Goal
 Bearer-token authentication for the Android client with device management (SPEC.md §4.1).
@@ -28,3 +28,4 @@ Bearer-token authentication for the Android client with device management (SPEC.
 - ASSUMPTION (2026-10-20 14:12+0200 by dell26/agent-5): Revoking a device (DELETE or refresh-token reuse) deletes its row; DELETE /auth/devices/{id} does not require If-Match because the device version changes on every refresh (every 15 min).
 - ASSUMPTION (2026-10-20 14:12+0200 by dell26/agent-5): POST /auth/token shares the global web login throttle and needs no CSRF token (nor does /token/refresh); requests with a valid bearer token are CSRF-exempt, a request with any bearer header is never authenticated by its session cookie.
 - ASSUMPTION (2026-10-20 14:12+0200 by dell26/agent-5): Token endpoint takes password + TOTP/recovery code only; passkey login for Android is left to the passkey task.
+- done by dell26/agent-5: `sh scripts/check.sh` passed in 135s on 5d3c51310; criteria verified 5/5
