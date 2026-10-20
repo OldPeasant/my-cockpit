@@ -158,16 +158,14 @@ describe('SearchPaletteProvider', () => {
   it('passes a server error on without a toast (the palette keeps its other rows)', () => {
     const result = collect('passport');
     vi.advanceTimersByTime(SEARCH_DEBOUNCE_MS);
-    http
-      .expectOne(isSearch('passport'))
-      .flush(
-        { title: 'Boom', status: 500 },
-        {
-          status: 500,
-          statusText: 'Server Error',
-          headers: { 'Content-Type': 'application/problem+json' },
-        },
-      );
+    http.expectOne(isSearch('passport')).flush(
+      { title: 'Boom', status: 500 },
+      {
+        status: 500,
+        statusText: 'Server Error',
+        headers: { 'Content-Type': 'application/problem+json' },
+      },
+    );
     expect(result.error).toBeDefined();
     expect(notifications.error).not.toHaveBeenCalled();
   });

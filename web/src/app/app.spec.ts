@@ -8,7 +8,7 @@ import { AuthService } from './core/auth';
 import { provideFakeSession } from './core/auth/testing';
 import { CapturePlaceholder } from './features/capture/capture-placeholder';
 import { CommandsPaletteProvider } from './features/search/commands-palette.provider';
-import { SearchPaletteProvider } from './features/search/search-palette.provider';
+import { LazySearchPaletteProvider } from './features/search/search.providers';
 import { CommandPalette } from './shell/command-palette';
 import { NAV_SECTIONS } from './shell/nav-sections';
 import { NavigationPaletteProvider } from './shell/navigation-palette.provider';
@@ -130,7 +130,7 @@ describe('App', () => {
     const paletteProviders = [
       expect.any(NavigationPaletteProvider),
       expect.any(CommandsPaletteProvider),
-      expect.any(SearchPaletteProvider),
+      expect.any(LazySearchPaletteProvider),
     ];
     const routeProviders = (index = 0): readonly unknown[] =>
       TestBed.inject(MatDialog).openDialogs[index].componentRef!.injector.get(PALETTE_PROVIDERS);
