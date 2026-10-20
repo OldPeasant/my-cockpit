@@ -4,6 +4,7 @@ import { provideRouter, Router } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
 import { App } from './app';
 import { routes } from './app.routes';
+import { provideFakeSession } from './core/auth/testing';
 import { CapturePlaceholder } from './features/capture/capture-placeholder';
 import { CommandPalette } from './shell/command-palette';
 import { NAV_SECTIONS } from './shell/nav-sections';
@@ -15,7 +16,7 @@ describe('App', () => {
   let harness: RouterTestingHarness;
 
   beforeEach(async () => {
-    TestBed.configureTestingModule({ providers: [provideRouter(routes)] });
+    TestBed.configureTestingModule({ providers: [provideRouter(routes), provideFakeSession()] });
     harness = await RouterTestingHarness.create();
   });
 

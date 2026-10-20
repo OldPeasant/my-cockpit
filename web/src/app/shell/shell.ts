@@ -5,8 +5,10 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatDialog } from '@angular/material/dialog';
 import { MatMenuModule } from '@angular/material/menu';
 import { MatSidenav, MatSidenavModule } from '@angular/material/sidenav';
-import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
+import { Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { map } from 'rxjs';
+import { AuthService } from '../core/auth';
+import { LOGIN_PATH } from '../core/http';
 import { CommandPalette } from './command-palette';
 import { ShellAction, shellActionFor } from './hotkeys';
 import { NAV_GROUPS } from './nav-sections';
@@ -39,6 +41,8 @@ export class Shell {
   private readonly injector = inject(Injector);
   private readonly capture = inject(CAPTURE_DIALOG);
   protected readonly theme = inject(ThemeService);
+  protected readonly auth = inject(AuthService);
+  private readonly router = inject(Router);
 
   protected readonly groups = NAV_GROUPS;
   protected readonly themeModes = THEME_MODES;
@@ -101,6 +105,15 @@ export class Shell {
 
   protected openCapture(): void {
     this.capture.open();
+  }
+
+  /** Ends the session, then shows the login page (also when the server call failed). */
+  protected async logout(): Promise<void> {
+    try {
+      await this.auth.logout();
+    } finally {
+      await this.router.navigateByUrl(LOGIN_PATH);
+    }
   }
 
   protected toggleDrawer(): void {

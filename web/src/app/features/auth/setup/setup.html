@@ -1,0 +1,166 @@
+<app-auth-layout>
+  @if (enrollment(); as enrollment) {
+    <h1 i18n="@@setup.enroll.title">Connect your authenticator app</h1>
+    <p class="step" i18n="@@setup.step2">Step 2 of 2</p>
+
+    <section class="block" aria-labelledby="setup-qr">
+      <h2 id="setup-qr" i18n="@@setup.qr.title">Scan the code</h2>
+      <p i18n="@@setup.qr.text">
+        Scan it with an authenticator app (e.g. Aegis, Google Authenticator). Every sign-in asks for
+        the code the app shows.
+      </p>
+      <div class="qr">
+        <app-qr-code
+          [value]="enrollment.otpauthUri"
+          i18n-label="@@setup.qr.label"
+          label="QR code for your authenticator app"
+        />
+      </div>
+      <p class="secret-label" i18n="@@setup.secret">Can't scan it? Enter this key instead:</p>
+      <code class="secret">{{ enrollment.totpSecret }}</code>
+    </section>
+
+    <section class="block" aria-labelledby="setup-codes">
+      <h2 id="setup-codes" i18n="@@setup.codes.title">Save your recovery codes</h2>
+      <p i18n="@@setup.codes.text">
+        If you lose the app, each code signs you in once. They are shown only now.
+      </p>
+      <ol class="codes">
+        @for (code of enrollment.recoveryCodes; track code) {
+          <li>
+            <code>{{ code }}</code>
+          </li>
+        }
+      </ol>
+      <div class="actions">
+        <button mat-stroked-button type="button" class="copy" (click)="copyCodes()">
+          @if (copied()) {
+            <ng-container i18n="@@setup.codes.copied">Copied</ng-container>
+          } @else {
+            <ng-container i18n="@@setup.codes.copy">Copy codes</ng-container>
+          }
+        </button>
+        <button
+          mat-stroked-button
+          type="button"
+          class="download"
+          (click)="downloadCodes()"
+          i18n="@@setup.codes.download"
+        >
+          Download codes
+        </button>
+      </div>
+    </section>
+
+    <form class="form" [formGroup]="confirmation" (ngSubmit)="confirm()" novalidate>
+      <h2 i18n="@@setup.confirm.title">Confirm</h2>
+      <mat-checkbox formControlName="saved" i18n="@@setup.confirm.saved"
+        >I saved my recovery codes</mat-checkbox
+      >
+      @if (confirmation.controls.saved.touched && confirmation.controls.saved.invalid) {
+        <p class="hint-error" i18n="@@setup.confirm.saved.required">
+          Save the codes first: they are the only way in without the app.
+        </p>
+      }
+      <mat-form-field appearance="outline">
+        <mat-label i18n="@@setup.confirm.code">Code from your authenticator app</mat-label>
+        <input
+          matInput
+          name="code"
+          formControlName="code"
+          inputmode="numeric"
+          autocomplete="one-time-code"
+          maxlength="7"
+          required
+        />
+        @if (confirmation.controls.code.hasError('pattern')) {
+          <mat-error i18n="@@setup.confirm.code.invalid"
+            >Enter the 6 digits shown in the app.</mat-error
+          >
+        }
+      </mat-form-field>
+
+      @if (error()) {
+        <p class="notice" role="alert">{{ error() }}</p>
+      }
+
+      <button
+        mat-flat-button
+        type="submit"
+        class="primary"
+        [disabled]="submitting()"
+        i18n="@@setup.confirm.submit"
+      >
+        Finish setup
+      </button>
+    </form>
+  } @else {
+    <h1 i18n="@@setup.account.title">Create your account</h1>
+    <p class="step" i18n="@@setup.step1">Step 1 of 2</p>
+    <p i18n="@@setup.account.text">My Cockpit has one account. Choose its username and password.</p>
+    <form class="form" [formGroup]="account" (ngSubmit)="createAccount()" novalidate>
+      <mat-form-field appearance="outline">
+        <mat-label i18n="@@setup.username">Username</mat-label>
+        <input
+          matInput
+          name="username"
+          formControlName="username"
+          autocomplete="username"
+          required
+        />
+        @if (account.controls.username.hasError('pattern')) {
+          <mat-error i18n="@@setup.username.invalid"
+            >Use letters, digits and . _ &#64; - only.</mat-error
+          >
+        }
+      </mat-form-field>
+      <mat-form-field appearance="outline">
+        <mat-label i18n="@@setup.password">Password</mat-label>
+        <input
+          matInput
+          type="password"
+          name="password"
+          formControlName="password"
+          autocomplete="new-password"
+          required
+        />
+        <mat-hint i18n="@@setup.password.hint"
+          >At least {{ minPasswordLength }} characters.</mat-hint
+        >
+        @if (account.controls.password.hasError('minlength')) {
+          <mat-error i18n="@@setup.password.short"
+            >Use at least {{ minPasswordLength }} characters.</mat-error
+          >
+        }
+      </mat-form-field>
+      <mat-form-field appearance="outline">
+        <mat-label i18n="@@setup.confirmPassword">Repeat password</mat-label>
+        <input
+          matInput
+          type="password"
+          name="confirm"
+          formControlName="confirm"
+          autocomplete="new-password"
+          required
+        />
+      </mat-form-field>
+      @if (account.hasError('mismatch') && account.controls.confirm.touched) {
+        <p class="hint-error" i18n="@@setup.password.mismatch">The passwords do not match.</p>
+      }
+
+      @if (error()) {
+        <p class="notice" role="alert">{{ error() }}</p>
+      }
+
+      <button
+        mat-flat-button
+        type="submit"
+        class="primary"
+        [disabled]="submitting()"
+        i18n="@@setup.account.submit"
+      >
+        Create account
+      </button>
+    </form>
+  }
+</app-auth-layout>

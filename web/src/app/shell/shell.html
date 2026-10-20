@@ -80,6 +80,34 @@
           </button>
         }
       </mat-menu>
+      <button
+        mat-icon-button
+        type="button"
+        class="account"
+        [matMenuTriggerFor]="accountMenu"
+        i18n-aria-label="@@topbar.account"
+        aria-label="Account"
+      >
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path
+            d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8m0 2c-3.3 0-8 1.7-8 5v1h16v-1c0-3.3-4.7-5-8-5"
+          />
+        </svg>
+      </button>
+      <mat-menu #accountMenu="matMenu">
+        @if (auth.user(); as user) {
+          <div class="account-name" mat-menu-item disabled>{{ user.username }}</div>
+        }
+        <button
+          mat-menu-item
+          type="button"
+          class="logout"
+          (click)="logout()"
+          i18n="@@topbar.logout"
+        >
+          Sign out
+        </button>
+      </mat-menu>
       <button mat-flat-button type="button" class="capture" (click)="openCapture()">
         <svg viewBox="0 0 24 24" aria-hidden="true">
           <path d="M11 5h2v6h6v2h-6v6h-2v-6H5v-2h6z" />

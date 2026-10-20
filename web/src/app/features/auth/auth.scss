@@ -1,0 +1,41 @@
+// Shared by the login and setup pages.
+
+h1 {
+  margin: 0 0 var(--app-space-4);
+  color: var(--app-fg);
+  font: var(--mat-sys-headline-medium);
+}
+
+h2 {
+  margin: 0 0 var(--app-space-2);
+  color: var(--app-fg);
+  font: var(--mat-sys-title-medium);
+}
+
+p {
+  margin: 0 0 var(--app-space-3);
+  color: var(--app-fg-muted);
+  font: var(--mat-sys-body-medium);
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--app-space-1);
+}
+
+.switch {
+  align-self: flex-start;
+}
+
+.notice {
+  margin: var(--app-space-2) 0 0;
+  padding: var(--app-space-2) var(--app-space-3);
+  border-left: 3px solid var(--app-danger);
+  color: var(--app-fg);
+}
+
+.primary {
+  align-self: stretch;
+  margin-top: var(--app-space-3);
+}

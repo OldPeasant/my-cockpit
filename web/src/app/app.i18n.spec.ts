@@ -2,6 +2,7 @@ import { clearTranslations, loadTranslations } from '@angular/localize';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
+import { provideFakeSession } from './core/auth/testing';
 
 // Kept in its own spec file: Angular caches a component's i18n template constants on its first
 // render, and the nav labels are evaluated when their module loads, so the translations must be
@@ -23,7 +24,7 @@ describe('App i18n', () => {
 
   it('translates the shell and placeholder texts through their message ids', async () => {
     const { routes } = await import('./app.routes');
-    TestBed.configureTestingModule({ providers: [provideRouter(routes)] });
+    TestBed.configureTestingModule({ providers: [provideRouter(routes), provideFakeSession()] });
     const harness = await RouterTestingHarness.create();
     await harness.navigateByUrl('/inbox');
     const root = harness.routeNativeElement as HTMLElement;

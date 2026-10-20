@@ -1,0 +1,59 @@
+.step {
+  margin-top: calc(-1 * var(--app-space-3));
+  font: var(--mat-sys-label-large);
+}
+
+.block {
+  margin-bottom: var(--app-space-5);
+}
+
+// The QR code is the one thing this page is about: framed and large enough to scan.
+.qr {
+  width: 200px;
+  margin: 0 0 var(--app-space-3);
+  padding: var(--app-space-2);
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius);
+  background: #fff;
+}
+
+.secret-label {
+  margin-bottom: var(--app-space-1);
+}
+
+.secret,
+.codes code {
+  font-family: ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
+  color: var(--app-fg);
+}
+
+.secret {
+  display: block;
+  overflow-wrap: anywhere;
+  font-size: 0.95rem;
+  letter-spacing: 0.08em;
+}
+
+.codes {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--app-space-1) var(--app-space-4);
+  margin: 0 0 var(--app-space-3);
+  padding: var(--app-space-3) var(--app-space-3) var(--app-space-3) var(--app-space-5);
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius);
+  background: var(--app-surface-raised);
+  color: var(--app-fg-muted);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--app-space-2);
+}
+
+.hint-error {
+  margin: 0;
+  color: var(--app-danger);
+  font: var(--mat-sys-body-small);
+}

@@ -1,0 +1,79 @@
+<app-auth-layout>
+  <h1 i18n="@@login.title">Sign in</h1>
+  <form class="form" [formGroup]="form" (ngSubmit)="submit()" novalidate>
+    <mat-form-field appearance="outline">
+      <mat-label i18n="@@login.username">Username</mat-label>
+      <input matInput formControlName="username" autocomplete="username" required />
+    </mat-form-field>
+    <mat-form-field appearance="outline">
+      <mat-label i18n="@@login.password">Password</mat-label>
+      <input
+        matInput
+        type="password"
+        formControlName="password"
+        autocomplete="current-password"
+        required
+      />
+    </mat-form-field>
+
+    @if (useRecoveryCode()) {
+      <mat-form-field appearance="outline">
+        <mat-label i18n="@@login.recoveryCode">Recovery code</mat-label>
+        <input
+          matInput
+          name="recoveryCode"
+          formControlName="recoveryCode"
+          autocomplete="off"
+          spellcheck="false"
+          required
+        />
+        <mat-hint i18n="@@login.recoveryCode.hint">Each recovery code works once.</mat-hint>
+      </mat-form-field>
+    } @else {
+      <mat-form-field appearance="outline">
+        <mat-label i18n="@@login.totp">Code from your authenticator app</mat-label>
+        <input
+          matInput
+          name="totp"
+          formControlName="totp"
+          inputmode="numeric"
+          autocomplete="one-time-code"
+          maxlength="7"
+          required
+        />
+        @if (form.controls.totp.hasError('pattern')) {
+          <mat-error i18n="@@login.totp.invalid">Enter the 6 digits shown in the app.</mat-error>
+        }
+      </mat-form-field>
+    }
+    <button mat-button type="button" class="switch" (click)="toggleRecoveryCode()">
+      @if (useRecoveryCode()) {
+        <ng-container i18n="@@login.useTotp">Use the authenticator app instead</ng-container>
+      } @else {
+        <ng-container i18n="@@login.useRecoveryCode">Use a recovery code</ng-container>
+      }
+    </button>
+
+    <mat-checkbox formControlName="rememberDevice" i18n="@@login.remember"
+      >Keep me signed in on this device for 30 days</mat-checkbox
+    >
+
+    @if (blocked()) {
+      <p class="notice" role="alert" i18n="@@login.backoff">
+        Too many failed attempts. Try again in {{ waitSeconds() }} s.
+      </p>
+    } @else if (error()) {
+      <p class="notice" role="alert">{{ error() }}</p>
+    }
+
+    <button
+      mat-flat-button
+      type="submit"
+      class="primary"
+      [disabled]="submitting() || blocked()"
+      i18n="@@login.submit"
+    >
+      Sign in
+    </button>
+  </form>
+</app-auth-layout>

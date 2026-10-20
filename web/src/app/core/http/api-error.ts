@@ -17,6 +17,8 @@ export class ApiError extends Error {
     readonly instance?: string,
     /** Field errors of a 400 validation error, else empty. */
     readonly errors: readonly FieldError[] = [],
+    /** Seconds from the `Retry-After` header (e.g. on 429), when the server sent one. */
+    readonly retryAfter?: number,
   ) {
     super(detail ?? title);
   }
@@ -28,6 +30,7 @@ export class ApiError extends Error {
 
   static from(response: HttpErrorResponse): ApiError {
     const problem = asProblem(response.error);
+    const retryAfter = retryAfterSeconds(response);
     if (problem) {
       return new ApiError(
         response.status || problem.status,
@@ -36,10 +39,26 @@ export class ApiError extends Error {
         problem.type,
         problem.instance,
         problem.errors ?? [],
+        retryAfter,
       );
     }
-    return new ApiError(response.status, fallbackTitle(response.status));
+    return new ApiError(
+      response.status,
+      fallbackTitle(response.status),
+      undefined,
+      undefined,
+      undefined,
+      [],
+      retryAfter,
+    );
   }
+}
+
+/** `Retry-After` in delay-seconds form; the HTTP-date form is not used by the server. */
+function retryAfterSeconds(response: HttpErrorResponse): number | undefined {
+  const value = response.headers?.get('Retry-After')?.trim();
+  if (!value || !/^\d+$/.test(value)) return undefined;
+  return Number(value);
 }
 
 function asProblem(body: unknown): ProblemDetail | undefined {
