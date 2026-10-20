@@ -5,7 +5,7 @@ owner: R1963MACOS/agent-1
 deps: [p0-server-deps]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/core/persistence,server/src/test/kotlin/ch/sonensei/cockpit/core/persistence,server/src/main/resources/db/migration/core]
 prio: 1
-lease_until: 2026-10-20T09:35:57Z
+lease_until: 2026-10-20T09:40:58Z
 releases: 0
 extended: 
 hold: 
