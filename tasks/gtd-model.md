@@ -17,7 +17,8 @@ Entities, migrations and repositories for tasks, projects, areas, contexts, chec
   - verified (2026-10-20 15:27+0200 by dell26/agent-3): gtd/domain/GtdEnums.kt TaskList, Energy, Creativity, ProjectStatus, RecurrenceMode + DB check constraints; enum round-trip and invalid-value tests in GtdRepositoryTests -> passed
 - [x] `ItemResolver`s for TASK and PROJECT registered (deep links `/tasks/{id}`, `/projects/{id}`)
   - verified (2026-10-20 15:27+0200 by dell26/agent-3): TaskItemResolver/ProjectItemResolver beans; GtdItemResolverTests (registry finds both, deep links /tasks/{id} and /projects/{id}, soft-deleted not resolved) against Testcontainers Postgres -> 8 passed
-- [ ] Repository tests on Postgres: save/load all fields, soft delete excluded; `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.gtd.*'` passes (Postgres via Testcontainers where persistence is involved)
+- [x] Repository tests on Postgres: save/load all fields, soft delete excluded; `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.gtd.*'` passes (Postgres via Testcontainers where persistence is involved)
+  - verified (2026-10-20 15:27+0200 by dell26/agent-3): cd server && ./gradlew cleanTest test --tests 'ch.sonensei.cockpit.gtd.*' with Testcontainers postgres:16-alpine -> BUILD SUCCESSFUL, 30 tests, 0 failures (save/load all fields, soft delete excluded)
 
 ## Notes
 - ASSUMPTION (2026-10-20 15:16+0200 by dell26/agent-3): waiting_for_contact_id has no FK: contacts live in another module (and are not built yet), like link item ids
