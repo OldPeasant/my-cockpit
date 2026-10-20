@@ -4,31 +4,32 @@ Date: 2026-10-21
 
 Task: cal-sync-engine - Calendar sync engine
 
-Scope: `git diff 014f681287dc65e0391dc97d55d11467249cafcd..2212fc0b35ec35695702d66719815796910ff425` (committed changes only)
+Scope: Re-review after fixes. Committed task changes `git diff d19902e3b1201d579d56258b477b7652b4c6b4a1..4d95ab3bc6ae33e8a3f726bb09c8df184e35cb40`, excluding heartbeat/assume/claim commits and other tasks' commits. The focus is on the fix commits 9fcf7279 (WIP tests) and c0bb5fc5 (fixes for CR-1, CR-2, CR-3, CR-5 of the previous review); the rest of the task diff was re-checked for interactions with them.
 
 Requirements:
-- tasks/cal-sync-engine.md (acceptance criteria 1-6 and the recorded assumptions)
-- SPEC.md §6.2 (two-way sync, remote is the source of truth, write-through, 412 handling), §4.2 (API conventions)
+- tasks/cal-sync-engine.md (acceptance criteria 1-6 and the recorded assumptions, including the CR-4 deferral and the move of the validation helpers into the `CalendarEventService` companion)
+- SPEC.md §6.2 (two-way sync, remote is the source of truth, write-through), §4.2 (API conventions)
 - docs/ARCHITECTURE.md, AGENTS.md project notes, docs/QUALITY.md
 - docs/adr/0002-calendar-write-through-before-commit.md
+- Previous review: reviews/cal-sync-engine/review.md (2212fc0b revision); fixer report: reviews/cal-sync-engine/fixes.md
 
 Git range:
 - Branch: main
-- HEAD: 2212fc0b35ec35695702d66719815796910ff425
-- Base/start: 014f681287dc65e0391dc97d55d11467249cafcd
-- Commits reviewed: 5 (35059bb5, 718b349d, 796c4aa4, af0ea678, 2212fc0b)
+- HEAD: 4d95ab3bc6ae33e8a3f726bb09c8df184e35cb40
+- Base/start: d19902e3b1201d579d56258b477b7652b4c6b4a1
+- Commits reviewed: 9 task commits (5ebdd5b1, 36a6ea73, b2ea7087, 318f9822, 52c77f5b, 43b63bd7, 9fcf7279, c0bb5fc5, 4d95ab3b); no uncommitted changes when the review started
 
-Summary: 0 P0, 0 P1, 2 P2, 3 P3
+Summary: 0 P0, 0 P1, 1 P2, 1 P3
 
-What was checked and holds: the adapter interface covers list calendars, incremental fetch with cursor and paging,
-and create/update/delete with If-Match. The registry rejects LOCAL and duplicate adapters. The scheduler ticks with
-fixedDelay and syncs due sources under a per-source lock. Sync status and cursors live in separate tables (new Flyway
-migration in `db/migration/calendar`, FK cascade), so a sync does not bump source/calendar ETags. Write-through runs in
-`beforeCommit`; a 412 rolls back, returns 409 and refetches in a REQUIRES_NEW transaction after completion. Other
-provider failures return 502 Problem Details. `GET /sources` does not return `config` or credentials. Logs of
-unexpected errors contain only the exception type. `api/openapi.yaml` and the generated web client contain both
-endpoints. The fake-adapter tests cover incremental merge, deletions, paging, the conflict path and split/delete
-scopes. Acceptance-criterion evidence (`tasks.py verify`) has not been recorded yet; that is the parent's job.
+## Status of the previous findings
+
+- CR-1 (overrides on an earlier page than their series): resolved. `mergeEvents` (`CalendarSyncService.kt:298-340`) now takes the last change per key over all pages. It applies all masters, then all overrides, then the deletions. An override that is skipped for lack of its series in an incremental run clears the cursor (`:275`), so the next run is a full fetch. Already-invalid series are excluded, and a full fetch never clears the cursor, so this cannot loop. Tests cover override-before-series, an orphaned incremental override followed by a full refetch, and delete-then-re-create across pages.
+- CR-2 (remote events skip the API invariants): resolved for storage. `RemoteEvent.normalized()` (`RemoteEventMapping.kt:31-51`) uses the API's limits and the shared `isWebUrl`/`isValidRule`/`isEmail` helpers. `store()` normalizes before anything on the entity changes, so an invalid remote change leaves the local copy untouched. The timing checks match `EventCommands.kt:165,183`. `validate` behavior is unchanged. See the new CR-1 below for a side effect on write-through.
+- CR-3 (search index after write-through): resolved. `CalendarWriteThrough.kt:153` re-indexes after `copyFrom(stored)`, and a test checks `search_document`.
+- CR-4: deferred by the parent and recorded as an assumption in the task file. Not re-reported.
+- CR-5 (409 waits for a whole sync run): resolved. `refetch` uses `tryLock` (`CalendarSyncService.kt:145-154`), and a test checks that it returns without fetching while a run holds the lock. See the new CR-2 below for a remaining gap.
+
+Not verified here: I did not re-run the Gradle suites. A test-writer may be using the same clone at the same time, and a parallel Gradle run would interfere with it. The fixer reports `./gradlew test --tests 'ch.sonensei.cockpit.calendar.*'` -> 322 passed. Acceptance-criterion evidence (`tasks.py verify cal-sync-engine`) is still unrecorded for all 6 criteria. Recording it is the parent's job before `done`.
 
 ## P0 Critical
 
@@ -40,79 +41,28 @@ None.
 
 ## P2 Medium
 
-- [ ] **CR-1 | Overrides whose series comes on a later page are dropped for good, because the cursor still advances**
-    - File: `server/src/main/kotlin/ch/sonensei/cockpit/calendar/sync/CalendarSyncService.kt:288-305` (cursor stored at `:270-276`)
+- [ ] **CR-1 | After normalization, an unrelated local edit deletes the dropped or truncated remote data at the provider**
+    - File: `server/src/main/kotlin/ch/sonensei/cockpit/calendar/sync/RemoteEventMapping.kt:39-49` (write-back via `toRemote` at `:93-108`, used by `CalendarWriteThrough.kt:141,148`)
     - Category: Correctness
-    - Problem: `mergeEvents` puts masters before overrides only within one page
-      (`page.events.partition { ... }` inside `for (page in pages)`). Paged fetches (`hasMore`) are allowed to return an
-      override on page N and its series master on page N+1. When that happens, `upsertOverride` finds no master, logs the
-      event and counts it as skipped. The transaction then stores the new cursor anyway. The next incremental fetch does
-      not send that override again, so it stays missing until it changes at the provider or the next full fetch. The only
-      sign is "N events could not be stored" in `lastError`, and a retry cannot fix it.
-    - Why it matters: the local copy silently loses data that the provider has (SPEC.md §6.2: remote is the source of
-      truth). The paging contract in `CalendarProviderAdapter.fetchEvents` says nothing about order, so real adapters
-      (Google, Graph) can return pages in this order.
-    - Suggested fix: all pages are already in memory before the merge. Upsert the masters of all pages first, then the
-      overrides of all pages, then apply the deletions in page order. Also consider not advancing the cursor (or
-      clearing it, to force a full fetch next time) when an override was skipped for lack of its series. Add a test with
-      the override on page 1 and its master on page 2.
+    - Problem: `normalized()` permanently changes the local copy:
+        - It drops attendees that fail `isEmail`, and keeps at most `MAX_ATTENDEES` (200) attendees.
+        - It drops reminders outside `0..40320` minutes.
+        - It drops a `conferenceUrl` that is not http(s). Besides `javascript:`, this also hits legitimate `tel:`/`sip:` dial-in URIs an adapter may map there.
+        - It truncates title, description and location.
 
-- [ ] **CR-2 | Pulled remote events skip the event invariants that the API enforces, which blocks later edits and stores non-web conference URLs**
-    - File: `server/src/main/kotlin/ch/sonensei/cockpit/calendar/sync/RemoteEventMapping.kt:194-214` (used by `CalendarSyncService.kt:316,335`)
-    - Category: Correctness / Security
-    - Problem: `copyFrom` stores remote title, description, location, conferenceUrl, rrule, attendees and reminders as
-      they arrive. `CalendarEventService.validate` (`CalendarEventService.kt:666-702`) enforces http(s)-only
-      `conferenceUrl`, length limits, a valid RRULE, attendee e-mail format and the reminder range on every local change.
-      The sync path runs none of these checks.
-      - The data is untrusted: anyone can put an event into the user's provider calendar by sending an invite. Such an
-        event can store a `javascript:`/`data:` conference URL, or a description longer than `MAX_DESCRIPTION_LENGTH`.
-        Clients that rely on the server invariant (conferenceUrl is a web URL) would then render it as a link.
-      - Any later PATCH of that event runs `validate(event)` on the whole entity (e.g. `updateSingle`, line 210). It
-        returns 400 on a field the user did not touch, so the event cannot be edited from the cockpit.
-    - Why it matters: an invariant the API guarantees no longer holds. Untrusted external input gets a path around
-      server-side validation, and pulled events can become uneditable.
-    - Suggested fix: normalize remote events in the engine before storing them (the common entry point for all
-      adapters). Drop a `conferenceUrl` that is not http(s), truncate overlong text to the API limits, and drop invalid
-      attendees and reminders. Alternatively, have the validation used for edits skip unchanged fields of synced events.
-      Add a test with a remote event that carries a `javascript:` conference URL.
+      On every later local edit of the event, write-through sends the whole local event (`adapter.updateEvent(..., event.toRemote(uid), ...)`). A user who changes only the location therefore also removes those attendees, reminders and conference URL at the provider and truncates its description. This happens even though the user never touched those fields. For attendees, providers usually notify the removed people. The fixer kept the series RRULE on purpose for exactly this reason ("dropping the rule ... the next local edit would write that back to the provider"), but did not apply the same reasoning to the other fields. The CR-2 test (`CalendarSyncOverrideTests`, "remote events are kept within the API's limits ...") PATCHes the pulled event but does not check what reached the fake provider, so this goes unnoticed.
+    - Why it matters: data the provider owns is lost on the provider side (SPEC.md §6.2: remote is the source of truth), and the loss is triggered by an edit of an unrelated field. A meeting with more than 200 attendees, or one with a single malformed attendee address, loses participants at the provider.
+    - Suggested fix: separate what is stored or rendered from what is written back. One option: sanitize only what is unsafe to expose (the non-web `conferenceUrl`) and let `validate` skip invariants of fields a PATCH did not change on synced events. Another option: write back only the fields the user changed, by merging onto the provider's current version. If the lossy behavior is accepted instead, record it with `tasks.py assume`. Either way, add a test that edits a normalized event and asserts what the fake adapter received (attendees, conferenceUrl, description).
 
 ## P3 Low
 
-- [ ] **CR-3 | The search index keeps the pre-provider values after a write-through**
-    - File: `server/src/main/kotlin/ch/sonensei/cockpit/calendar/sync/CalendarWriteThrough.kt:149` (index written earlier in `CalendarEventService.changed`, `CalendarEventService.kt:628-630`)
+- [ ] **CR-2 | A refetch skipped with `tryLock` can leave the 409's "now shows the new version" untrue until the next poll**
+    - File: `server/src/main/kotlin/ch/sonensei/cockpit/calendar/sync/CalendarSyncService.kt:146-147` (message at `CalendarWriteThrough.kt:159`)
     - Category: Correctness
-    - Problem: `changed()` indexes the event, then `record()` defers the provider write to `beforeCommit`. There,
-      `event.copyFrom(stored)` overwrites the fields with the provider's normalized answer. The ADR and KDoc say "the
-      local copies take the provider's answer (normalized fields)", but the entity is not indexed again. The next sync
-      sees the same etag and SYNCED state (`isCurrent`), so it does not re-index either. Search keeps the values as the
-      user typed them for as long as the event stays unchanged.
-    - Why it matters: search results can differ from the stored event.
-    - Suggested fix: call `indexer.index(event)` (or `index(master)` after `shareEtag`) after `copyFrom` in `write()`.
-
-- [ ] **CR-4 | A sync whose fetch started before a write-through overwrites the user's new edit with the old remote copy**
-    - File: `server/src/main/kotlin/ch/sonensei/cockpit/calendar/sync/CalendarSyncService.kt:259-269, 313`
-    - Category: Correctness
-    - Problem: `syncCalendar` fetches outside any transaction and without coordinating with `CalendarWriteThrough`, which
-      takes no source lock. Take a fetch that returns event E at etag e1, followed by a user edit that writes E through
-      and commits locally at etag e2. The merge then sees `local.externalEtag (e2) != remote.etag (e1)` and copies the
-      older remote version over the local copy. The stored cursor predates the edit, so the next poll restores it. Until
-      then (up to one poll interval) the user sees the edit reverted. A further edit in that window gets a spurious 409.
-    - Why it matters: the edit visibly reverts for a short time. It converges, so this is low priority.
-    - Suggested fix: inside the merge transaction, skip a remote event when the local row was written after the fetch
-      started (e.g. compare `updatedAt` with the run's start time). Alternatively, have write-through and the merge share
-      the per-source lock.
-
-- [ ] **CR-5 | The 409 response for a remote change waits for a whole sync run of the source**
-    - File: `server/src/main/kotlin/ch/sonensei/cockpit/calendar/sync/CalendarSyncService.kt:145` (called from `CalendarWriteThrough.kt:101`)
-    - Category: Quality
-    - Problem: `refetch` runs in `afterCompletion` on the HTTP request thread and takes the source lock with the
-      blocking `withLock`. If a scheduled or manual run of the same source is in progress (all calendars, up to
-      `MAX_PAGES` pages each), the user's PATCH/DELETE stays blocked until that run ends, plus the refetch's own network
-      calls.
-    - Why it matters: an interactive request can hang for a long time.
-    - Suggested fix: use `tryLock` (a running sync brings in the new version anyway), or a timed `tryLock`.
+    - Problem: the comment says "A run in progress fetches the new version as well". That only holds if the running run fetches this calendar after the remote change. If the run has already fetched or merged this calendar (it handles calendars one after another, and the network fetch happens before the merge transaction), the new remote version is not pulled. The refetch is then dropped instead of deferred. The client gets 409 "the cockpit now shows the new version, please retry", reloads, and still sees the old version. A retry gets another 412 -> 409, which only works if that second refetch finds the lock free. Otherwise the user waits for the next poll interval.
+    - Why it matters: the conflict flow in criterion 2 ("412 -> refetch") is not guaranteed while a sync of the same source runs. The effect is a confusing extra 409, not data loss, and it converges.
+    - Suggested fix: do not drop a refetch that loses the race. Put the calendar id in a per-source "refetch after this run" set, and have the run holding the lock process that set before it releases the lock. Alternatively, run the refetch asynchronously with a blocking lock, off the request thread. Correct the comment either way.
 
 ## Review conclusion
 
-Material issues found; fix before completing the task (CR-1 and CR-2 at P2; the P3 findings at the parent's
-discretion).
+Material issues found; fix before completing the task. CR-1 (P2) causes loss of provider data on write-back, so fix it or explicitly accept it as an assumption with a test that documents the behavior. CR-2 (P3) is at the parent's discretion. The previous findings CR-1, CR-2, CR-3 and CR-5 are resolved. CR-4 remains deferred by recorded assumption.
