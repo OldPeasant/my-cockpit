@@ -20,6 +20,7 @@ import org.springframework.web.bind.annotation.RestControllerAdvice
 import org.springframework.web.context.request.WebRequest
 import org.springframework.web.method.annotation.HandlerMethodValidationException
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException
+import org.springframework.web.multipart.support.MissingServletRequestPartException
 import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler
 
 /**
@@ -107,6 +108,13 @@ class ProblemDetailsAdvice : ResponseEntityExceptionHandler() {
 		status: HttpStatusCode,
 		request: WebRequest,
 	): ResponseEntity<Any>? = validationProblem(listOf(FieldError(ex.parameterName, "is required")), headers)
+
+	override fun handleMissingServletRequestPart(
+		ex: MissingServletRequestPartException,
+		headers: HttpHeaders,
+		status: HttpStatusCode,
+		request: WebRequest,
+	): ResponseEntity<Any>? = validationProblem(listOf(FieldError(ex.requestPartName, "is required")), headers)
 
 	override fun handleServletRequestBindingException(
 		ex: ServletRequestBindingException,

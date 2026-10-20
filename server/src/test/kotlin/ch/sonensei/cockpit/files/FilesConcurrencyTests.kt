@@ -11,6 +11,7 @@ import ch.sonensei.cockpit.core.trash.domain.TrashService
 import ch.sonensei.cockpit.core.web.ConflictException
 import ch.sonensei.cockpit.core.web.NotFoundException
 import ch.sonensei.cockpit.files.domain.FilesService
+import ch.sonensei.cockpit.files.domain.MoveTarget
 import ch.sonensei.cockpit.files.domain.SpecialFolder
 import ch.sonensei.cockpit.files.infra.BlobStore
 import ch.sonensei.cockpit.files.infra.FileRepository
@@ -499,6 +500,69 @@ class FilesConcurrencyTests(
 				Triple("FOLDER", tasks.id, ChangeOp.UPDATED),
 			)
 		shouldThrow<ConflictException> { service.renameFolder(tasks.id, "tasks") }
+	}
+
+	// --- concurrent folder moves (task files-api)
+
+	@Test
+	fun `two crossing folder moves cannot create a cycle - the second waits and is rejected`() {
+		val a = service.createFolder("A", null)
+		val b = service.createFolder("B", null)
+		val moved = CountDownLatch(1)
+		val proceed = CountDownLatch(1)
+		val first =
+			pool.submit {
+				tx.execute {
+					service.updateFolder(a.id, null, MoveTarget(b.id))
+					moved.countDown()
+					check(proceed.await(TIMEOUT, TimeUnit.SECONDS))
+				}
+			}
+		moved.await(TIMEOUT, TimeUnit.SECONDS) shouldBe true
+		// Before the first move commits, B's subtree does not yet contain A: only the move lock stops the cycle.
+		val second = pool.submit { service.updateFolder(b.id, null, MoveTarget(a.id)) }
+		awaitLockWait()
+		second.isDone shouldBe false
+
+		proceed.countDown()
+		first.get(TIMEOUT, TimeUnit.SECONDS)
+		second.failure().shouldBeInstanceOf<ConflictException>()
+
+		folders.findById(a.id).orElseThrow().parentId shouldBe b.id
+		folders
+			.findById(b.id)
+			.orElseThrow()
+			.parentId
+			.shouldBeNull()
+		service.pathOf(a.id) shouldBe "/B/A"
+	}
+
+	@Test
+	fun `a folder move into a folder being trashed waits and then fails with 404`() {
+		val target = service.createFolder("Target", null)
+		val moving = service.createFolder("Moving", null)
+		val deleted = CountDownLatch(1)
+		val proceed = CountDownLatch(1)
+		val delete =
+			pool.submit {
+				tx.execute {
+					service.deleteFolder(target.id)
+					deleted.countDown()
+					check(proceed.await(TIMEOUT, TimeUnit.SECONDS))
+				}
+			}
+		deleted.await(TIMEOUT, TimeUnit.SECONDS) shouldBe true
+		val move = pool.submit { service.updateFolder(moving.id, null, MoveTarget(target.id)) }
+		awaitLockWait()
+
+		proceed.countDown()
+		delete.get(TIMEOUT, TimeUnit.SECONDS)
+		move.failure().shouldBeInstanceOf<NotFoundException>()
+		folders
+			.findById(moving.id)
+			.orElseThrow()
+			.parentId
+			.shouldBeNull()
 	}
 
 	private companion object {

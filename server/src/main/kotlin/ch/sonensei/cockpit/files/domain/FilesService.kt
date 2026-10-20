@@ -94,17 +94,45 @@ class FilesService(
 		return folder
 	}
 
-	/** @throws ConflictException for a special folder or when a sibling already has the name */
+	/** Renames the folder, see [updateFolder]. @throws ConflictException for a special folder or a taken name */
 	fun renameFolder(
 		id: UUID,
 		name: String,
+	): Folder = updateFolder(id, name, null)
+
+	/**
+	 * Renames the folder to [name] (`null`: unchanged) and/or moves it to [target] (`null`: unchanged). [checkVersion]
+	 * gets the current version first (it throws to reject a stale request). Folder moves are serialized, so two moves
+	 * running at the same time cannot create a cycle.
+	 *
+	 * @throws ConflictException for a special folder, when the target is the folder itself or below it, or when the
+	 *   target already has a folder with the name
+	 * @throws NotFoundException when the folder or the target folder does not exist or is in the Trash
+	 */
+	fun updateFolder(
+		id: UUID,
+		name: String?,
+		target: MoveTarget?,
+		checkVersion: (Long) -> Unit = {},
 	): Folder {
 		val folder = folder(id)
-		if (folder.isSpecial) throw ConflictException("Special folders cannot be renamed")
-		val valid = FileNames.validate(name)
-		val other = sibling(folder.parentId, valid)
+		checkVersion(folder.version)
+		if (folder.isSpecial) throw ConflictException("Special folders cannot be renamed or moved")
+		val newName = name?.let { FileNames.validate(it) } ?: folder.name
+		val newParent = if (target != null) target.folderId else folder.parentId
+		if (newParent != folder.parentId) {
+			jdbc.queryForList("select pg_advisory_xact_lock(?)", FOLDER_MOVE_LOCK)
+			if (newParent != null) {
+				if (newParent in folders.findSubtreeIds(id)) {
+					throw ConflictException("A folder cannot be moved into itself or a folder below it")
+				}
+				lockActiveFolder(newParent)
+			}
+		}
+		val other = sibling(newParent, newName)
 		if (other != null && other.id != folder.id) throw nameTaken()
-		folder.name = valid
+		folder.name = newName
+		folder.parentId = newParent
 		flushedName { folders.flush() }
 		indexed(folder)
 		changes.publish(ItemType.FOLDER, folder.id, ChangeOp.UPDATED)
@@ -113,12 +141,17 @@ class FilesService(
 
 	/**
 	 * Moves the folder and everything below it to the Trash. The subtree's folders are locked `FOR UPDATE` first, so
-	 * no file or folder can be inserted into them until the delete commits (see [lockActiveFolder]).
+	 * no file or folder can be inserted into them until the delete commits (see [lockActiveFolder]). [checkVersion] gets
+	 * the folder's current version first.
 	 *
 	 * @throws ConflictException for a special folder
 	 */
-	fun deleteFolder(id: UUID) {
+	fun deleteFolder(
+		id: UUID,
+		checkVersion: (Long) -> Unit = {},
+	) {
 		val folder = folder(id)
+		checkVersion(folder.version)
 		if (folder.isSpecial) throw ConflictException("Special folders cannot be deleted")
 		val at = clock.storableInstant()
 		val subtree = folders.findAllById(lockSubtree(id)).filter { !it.isDeleted }
@@ -169,19 +202,43 @@ class FilesService(
 		return file
 	}
 
+	/** Renames the file, see [updateFile]. */
 	fun renameFile(
 		id: UUID,
 		name: String,
+	): FileItem = updateFile(id, name, null)
+
+	/**
+	 * Renames the file to [name] (`null`: unchanged) and/or moves it to [target] (`null`: unchanged). [checkVersion]
+	 * gets the current version first.
+	 *
+	 * @throws NotFoundException when the file or the target folder does not exist or is in the Trash
+	 */
+	fun updateFile(
+		id: UUID,
+		name: String?,
+		target: MoveTarget?,
+		checkVersion: (Long) -> Unit = {},
 	): FileItem {
 		val file = file(id)
-		file.name = FileNames.validate(name)
+		checkVersion(file.version)
+		name?.let { file.name = FileNames.validate(it) }
+		if (target != null && target.folderId != file.folderId) {
+			target.folderId?.let(::lockActiveFolder)
+			file.folderId = target.folderId
+		}
+		files.flush()
 		indexed(file)
 		changes.publish(ItemType.FILE, file.id, ChangeOp.UPDATED)
 		return file
 	}
 
-	fun deleteFile(id: UUID) {
+	fun deleteFile(
+		id: UUID,
+		checkVersion: (Long) -> Unit = {},
+	) {
 		val file = file(id)
+		checkVersion(file.version)
 		file.trashAt(clock.storableInstant())
 		search.delete(ItemType.FILE, file.id)
 		changes.publish(ItemType.FILE, file.id, ChangeOp.DELETED)
@@ -395,5 +452,8 @@ class FilesService(
 
 		/** `pg_advisory_xact_lock` key for creating special folders (any constant unique within the application). */
 		private const val SPECIAL_FOLDER_LOCK = 0x46494C45_53504543L
+
+		/** `pg_advisory_xact_lock` key that serializes folder moves, so concurrent moves cannot create a cycle. */
+		private const val FOLDER_MOVE_LOCK = 0x46494C45_4D4F5645L
 	}
 }

@@ -14,6 +14,8 @@ tags:
   name: Auth
 - description: GTD tasks
   name: Tasks
+- description: "The drive: folders, files, uploads and downloads"
+  name: Files
 - description: Create and download backups
   name: Backup
 - description: User settings
@@ -1357,6 +1359,71 @@ paths:
       summary: Change a context
       tags:
       - Projects
+  /api/v1/drive:
+    get:
+      description: "The folders and files in a folder (not in the Trash): folders\
+        \ first, then files, each by name regardless of case."
+      operationId: listFolder
+      parameters:
+      - description: "The folder; omitted: the drive root"
+        in: query
+        name: folderId
+        required: false
+        schema:
+          type: string
+          format: uuid
+      - description: Cursor from the previous page
+        in: query
+        name: cursor
+        required: false
+        schema:
+          type: string
+      - description: "Page size, 1-200 (default 50)"
+        in: query
+        name: limit
+        required: false
+        schema:
+          type: integer
+          format: int32
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DrivePageResponse"
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/DrivePageResponse"
+          description: One page of the folder's contents
+        "400":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: Invalid or unknown fields
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: "Not found or in the Trash (or, when given, the target folder)"
+      summary: List a folder
+      tags:
+      - Files
+  /api/v1/drive/usage:
+    get:
+      operationId: getDriveUsage
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DriveUsageResponse"
+          description: "Bytes used by files (and the Trash), and the disk's size and\
+            \ free space"
+      summary: Disk usage of the drive
+      tags:
+      - Files
   /api/v1/events:
     get:
       description: "A Server-Sent Events stream. Each committed change arrives as\
@@ -1378,6 +1445,507 @@ paths:
       summary: Stream change notifications
       tags:
       - Events
+  /api/v1/files:
+    post:
+      description: "One file in the part `file`. The name is `name` or else the part's\
+        \ filename, the mime type the part's content type (or guessed from the name).\
+        \ Use the resumable `/uploads` for files above 50 MB."
+      operationId: uploadFile
+      parameters:
+      - description: "Target folder; omitted: the drive root"
+        in: query
+        name: folderId
+        required: false
+        schema:
+          type: string
+          format: uuid
+      - description: "Name of the file; default: the part's filename"
+        in: query
+        name: name
+        required: false
+        schema:
+          type: string
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+              required:
+              - file
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FileResponse"
+          description: Stored
+          headers:
+            ETag:
+              description: "Version of the file, for If-Match"
+              schema:
+                type: string
+              style: simple
+        "400":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: Invalid or unknown fields
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: "Not found or in the Trash (or, when given, the target folder)"
+        "413":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: Larger than the configured maximum file size
+      summary: Upload a file (multipart)
+      tags:
+      - Files
+  /api/v1/files/{id}:
+    delete:
+      operationId: deleteFile
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - description: ETag of the file
+        in: header
+        name: If-Match
+        required: false
+        schema:
+          type: string
+      responses:
+        "204":
+          description: In the Trash
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: "Not found or in the Trash (or, when given, the target folder)"
+        "409":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: "Changed concurrently, the folder name is taken, a special\
+            \ folder, or a move into the folder's own subtree"
+        "412":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: If-Match does not match the current ETag
+        "428":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: If-Match is missing
+      summary: Move a file to the Trash
+      tags:
+      - Files
+    get:
+      operationId: getFile
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FileResponse"
+          description: The file with its (new) ETag
+          headers:
+            ETag:
+              description: "Version of the file, for If-Match"
+              schema:
+                type: string
+              style: simple
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: "Not found or in the Trash (or, when given, the target folder)"
+      summary: Metadata of one file
+      tags:
+      - Files
+    patch:
+      description: "`name` renames, `folderId` moves the file (`null`: to the drive\
+        \ root). File names need not be unique."
+      operationId: updateFile
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - description: ETag of the file
+        in: header
+        name: If-Match
+        required: false
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FilePatchRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FileResponse"
+          description: The file with its (new) ETag
+          headers:
+            ETag:
+              description: "Version of the file, for If-Match"
+              schema:
+                type: string
+              style: simple
+        "400":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: Invalid or unknown fields
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: "Not found or in the Trash (or, when given, the target folder)"
+        "409":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: "Changed concurrently, the folder name is taken, a special\
+            \ folder, or a move into the folder's own subtree"
+        "412":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: If-Match does not match the current ETag
+        "428":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: If-Match is missing
+      summary: Rename or move a file
+      tags:
+      - Files
+  /api/v1/files/{id}/content:
+    get:
+      description: "The contents with the file's mime type, as an attachment with\
+        \ its name. Supports `Range` (`206 Partial Content`, `416` for an unsatisfiable\
+        \ range)."
+      operationId: downloadFile
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - description: "Byte range(s), e.g. `bytes=0-1023`"
+        in: header
+        name: Range
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                type: string
+                format: binary
+          description: The contents
+          headers:
+            Accept-Ranges:
+              description: bytes
+              schema:
+                type: string
+              style: simple
+            Content-Disposition:
+              description: attachment; filename and RFC 6266 filename*
+              schema:
+                type: string
+              style: simple
+        "206":
+          content:
+            '*/*':
+              schema:
+                type: string
+                format: binary
+          description: The requested range(s)
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: "Not found or in the Trash (or, when given, the target folder)"
+        "416":
+          content:
+            '*/*':
+              schema:
+                type: string
+                format: binary
+          description: The range is not satisfiable
+      summary: Download a file
+      tags:
+      - Files
+  /api/v1/folders:
+    post:
+      operationId: createFolder
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateFolderRequest"
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FolderResponse"
+          description: Created
+          headers:
+            ETag:
+              description: "Version of the folder, for If-Match"
+              schema:
+                type: string
+              style: simple
+        "400":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: Invalid or unknown fields
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: "Not found or in the Trash (or, when given, the target folder)"
+        "409":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: "Changed concurrently, the folder name is taken, a special\
+            \ folder, or a move into the folder's own subtree"
+      summary: Create a folder
+      tags:
+      - Files
+  /api/v1/folders/{id}:
+    delete:
+      operationId: deleteFolder
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - description: ETag of the folder
+        in: header
+        name: If-Match
+        required: false
+        schema:
+          type: string
+      responses:
+        "204":
+          description: In the Trash
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: "Not found or in the Trash (or, when given, the target folder)"
+        "409":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: "Changed concurrently, the folder name is taken, a special\
+            \ folder, or a move into the folder's own subtree"
+        "412":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: If-Match does not match the current ETag
+        "428":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: If-Match is missing
+      summary: Move a folder with its contents to the Trash
+      tags:
+      - Files
+    get:
+      description: List its contents with `GET /drive?folderId=`.
+      operationId: getFolder
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FolderResponse"
+          description: The folder with its (new) ETag
+          headers:
+            ETag:
+              description: "Version of the folder, for If-Match"
+              schema:
+                type: string
+              style: simple
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: "Not found or in the Trash (or, when given, the target folder)"
+      summary: One folder
+      tags:
+      - Files
+    patch:
+      description: "`name` renames, `parentId` moves the folder with everything below\
+        \ it (`null`: to the drive root). A folder cannot move into itself or below\
+        \ itself; special folders cannot be renamed or moved."
+      operationId: updateFolder
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - description: ETag of the folder
+        in: header
+        name: If-Match
+        required: false
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FolderPatchRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FolderResponse"
+          description: The folder with its (new) ETag
+          headers:
+            ETag:
+              description: "Version of the folder, for If-Match"
+              schema:
+                type: string
+              style: simple
+        "400":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: Invalid or unknown fields
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: "Not found or in the Trash (or, when given, the target folder)"
+        "409":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: "Changed concurrently, the folder name is taken, a special\
+            \ folder, or a move into the folder's own subtree"
+        "412":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: If-Match does not match the current ETag
+        "428":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: If-Match is missing
+      summary: Rename or move a folder
+      tags:
+      - Files
+  /api/v1/folders/{id}/zip:
+    get:
+      description: "Streams a zip of the folder and everything below it that is not\
+        \ in the Trash, below a top directory named like the folder. Files with the\
+        \ same name in one folder get a number (`report (2).pdf`)."
+      operationId: downloadFolder
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        "200":
+          content:
+            application/zip:
+              schema:
+                type: string
+                format: binary
+          description: The zip
+          headers:
+            Content-Disposition:
+              description: attachment with the folder name
+              schema:
+                type: string
+              style: simple
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: "Not found or in the Trash (or, when given, the target folder)"
+      summary: Download a folder as a zip
+      tags:
+      - Files
   /api/v1/links:
     get:
       description: "Each linked item appears once: when several links connect the\
@@ -3590,6 +4158,187 @@ paths:
       summary: Restore a deleted item
       tags:
       - Trash
+  /api/v1/uploads:
+    post:
+      description: The response tells the chunk size and count. Uploads not completed
+        within 7 days are deleted.
+      operationId: createUpload
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateUploadRequest"
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UploadResponse"
+          description: Created
+        "400":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: Invalid or unknown fields
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: "Not found or in the Trash (or, when given, the target folder)"
+      summary: Start a resumable upload
+      tags:
+      - Files
+  /api/v1/uploads/{id}:
+    delete:
+      description: Deletes the chunks sent so far.
+      operationId: abortUpload
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        "204":
+          description: Aborted
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: "Not found or in the Trash (or, when given, the target folder)"
+      summary: Abort an upload
+      tags:
+      - Files
+    get:
+      description: "Which chunks arrived, to resume an upload."
+      operationId: getUpload
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UploadResponse"
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/UploadResponse"
+          description: The upload
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: "Not found or in the Trash (or, when given, the target folder)"
+      summary: State of an upload
+      tags:
+      - Files
+  /api/v1/uploads/{id}/chunks/{n}:
+    put:
+      description: "Chunk `n` (0-based) with exactly `chunkSize` bytes, the last chunk\
+        \ with the rest. Sending a chunk again replaces it."
+      operationId: putUploadChunk
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - in: path
+        name: "n"
+        required: true
+        schema:
+          type: integer
+          format: int32
+      requestBody:
+        content:
+          application/octet-stream:
+            schema:
+              type: string
+              format: binary
+        required: true
+      responses:
+        "204":
+          description: Stored
+        "400":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: Invalid or unknown fields
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: "Not found or in the Trash (or, when given, the target folder)"
+      summary: Send one chunk
+      tags:
+      - Files
+  /api/v1/uploads/{id}/complete:
+    post:
+      description: "Assembles the chunks into a file, after checking that all arrived\
+        \ (409 lists the missing ones) and that the content has the declared size\
+        \ and the given SHA-256 (400 otherwise; the upload stays open). Ends the upload."
+      operationId: completeUpload
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+          format: uuid
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CompleteUploadRequest"
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FileResponse"
+          description: The new file
+          headers:
+            ETag:
+              description: "Version of the file, for If-Match"
+              schema:
+                type: string
+              style: simple
+        "400":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: Invalid or unknown fields
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: "Not found or in the Trash (or, when given, the target folder)"
+        "409":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: Chunks are missing
+      summary: Complete an upload
+      tags:
+      - Files
 components:
   schemas:
     AreaListResponse:
@@ -3945,6 +4694,15 @@ components:
             $ref: "#/components/schemas/ChecklistItemResponse"
       required:
       - items
+    CompleteUploadRequest:
+      type: object
+      description: Completes an upload
+      properties:
+        sha256:
+          type: string
+          description: Hex SHA-256 of the whole file
+      required:
+      - sha256
     CompletedTaskResponse:
       type: object
       description: "A task after `/complete`: the task's fields, and whether its project\
@@ -4253,6 +5011,19 @@ components:
           - TRANSPARENT
       required:
       - title
+    CreateFolderRequest:
+      type: object
+      description: A new folder
+      properties:
+        name:
+          type: string
+          maxLength: 255
+        parentId:
+          type: string
+          format: uuid
+          description: "The parent folder; omitted or `null`: the drive root"
+      required:
+      - name
     CreateLinkRequest:
       type: object
       properties:
@@ -4465,6 +5236,28 @@ components:
           format: date
       required:
       - title
+    CreateUploadRequest:
+      type: object
+      description: A new resumable upload
+      properties:
+        folderId:
+          type: string
+          format: uuid
+          description: "Target folder; omitted or `null`: the drive root"
+        mime:
+          type: string
+          description: Mime type; default `application/octet-stream`
+        name:
+          type: string
+          description: Name of the file
+          maxLength: 255
+        size:
+          type: integer
+          format: int64
+          description: Size of the whole file in bytes
+      required:
+      - name
+      - size
     DeviceResponse:
       type: object
       properties:
@@ -4485,6 +5278,78 @@ components:
       - id
       - lastSeenAt
       - name
+    DriveEntryResponse:
+      type: object
+      description: "An entry of a folder listing: a folder (`folder` set) or a file\
+        \ (`file` set)."
+      properties:
+        file:
+          $ref: "#/components/schemas/FileResponse"
+        folder:
+          $ref: "#/components/schemas/FolderSummary"
+        type:
+          type: string
+          enum:
+          - FOLDER
+          - FILE
+      required:
+      - type
+    DrivePageResponse:
+      type: object
+      description: "One page of a folder's contents: folders first, then files, each\
+        \ by name (regardless of case)."
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/DriveEntryResponse"
+        nextCursor:
+          type: string
+          description: Cursor of the next page; `null` on the last page
+      required:
+      - items
+    DriveUsageResponse:
+      type: object
+      description: Disk usage of the drive
+      properties:
+        fileCount:
+          type: integer
+          format: int64
+        folderCount:
+          type: integer
+          format: int64
+        maxFileSize:
+          type: integer
+          format: int64
+          description: Largest file the drive accepts
+        totalSpaceBytes:
+          type: integer
+          format: int64
+          description: Size of the disk that holds the files
+        trashBytes:
+          type: integer
+          format: int64
+          description: Bytes of the files in the Trash
+        trashFileCount:
+          type: integer
+          format: int64
+        usableSpaceBytes:
+          type: integer
+          format: int64
+          description: Free space on that disk
+        usedBytes:
+          type: integer
+          format: int64
+          description: Bytes of the files not in the Trash
+      required:
+      - fileCount
+      - folderCount
+      - maxFileSize
+      - totalSpaceBytes
+      - trashBytes
+      - trashFileCount
+      - usableSpaceBytes
+      - usedBytes
     EventPatchRequest:
       type: object
       description: "Changes to an event: only the fields sent change, `null` clears\
@@ -4675,6 +5540,146 @@ components:
       required:
       - field
       - message
+    FilePatchRequest:
+      type: object
+      description: "Changes of a file: only the fields sent change. `folderId: null`\
+        \ moves it to the drive root."
+      properties:
+        folderId:
+          type: string
+          format: uuid
+        name:
+          type: string
+          maxLength: 255
+    FileResponse:
+      type: object
+      description: A file of the drive. `version` is also sent as the ETag.
+      properties:
+        createdAt:
+          type: string
+          format: date-time
+        folderId:
+          type: string
+          format: uuid
+          description: The folder; `null` at the drive root
+        id:
+          type: string
+          format: uuid
+        mime:
+          type: string
+        name:
+          type: string
+        sha256:
+          type: string
+          description: Lowercase hex SHA-256 of the contents
+        size:
+          type: integer
+          format: int64
+          description: Size in bytes
+        updatedAt:
+          type: string
+          format: date-time
+        version:
+          type: integer
+          format: int64
+      required:
+      - createdAt
+      - id
+      - mime
+      - name
+      - sha256
+      - size
+      - updatedAt
+      - version
+    FolderPatchRequest:
+      type: object
+      description: "Changes of a folder: only the fields sent change. `parentId: null`\
+        \ moves it to the drive root."
+      properties:
+        name:
+          type: string
+          maxLength: 255
+        parentId:
+          type: string
+          format: uuid
+    FolderResponse:
+      type: object
+      description: A folder of the drive. `version` is also sent as the ETag.
+      properties:
+        createdAt:
+          type: string
+          format: date-time
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        parentId:
+          type: string
+          format: uuid
+          description: The parent folder; `null` at the drive root
+        path:
+          type: string
+          description: "Absolute path of the folder, e.g. `/Attachments/Tasks`"
+        special:
+          type: string
+          description: "Set for the auto-managed folders, which cannot be renamed,\
+            \ moved or deleted"
+          enum:
+          - ATTACHMENTS
+          - TASKS
+          - NOTES
+          - MAIL
+          - JOURNAL
+        updatedAt:
+          type: string
+          format: date-time
+        version:
+          type: integer
+          format: int64
+      required:
+      - createdAt
+      - id
+      - name
+      - path
+      - updatedAt
+      - version
+    FolderSummary:
+      type: object
+      description: "A folder in a listing (without its path, which is the listed folder's\
+        \ path plus the name)."
+      properties:
+        createdAt:
+          type: string
+          format: date-time
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        parentId:
+          type: string
+          format: uuid
+        special:
+          type: string
+          enum:
+          - ATTACHMENTS
+          - TASKS
+          - NOTES
+          - MAIL
+          - JOURNAL
+        updatedAt:
+          type: string
+          format: date-time
+        version:
+          type: integer
+          format: int64
+      required:
+      - createdAt
+      - id
+      - name
+      - updatedAt
+      - version
     ItemRefDto:
       type: object
       description: Reference to an item of any type
@@ -6102,3 +7107,46 @@ components:
           - TRASH
           - ARCHIVE
           - SPAM
+    UploadResponse:
+      type: object
+      description: "A resumable upload in progress. Send chunk `n` (0-based) with\
+        \ exactly `chunkSize` bytes (the last chunk: the rest) to `PUT /uploads/{id}/chunks/{n}`;\
+        \ `receivedChunks` tells which arrived, so an interrupted upload resumes with\
+        \ the missing ones."
+      properties:
+        chunkCount:
+          type: integer
+          format: int32
+        chunkSize:
+          type: integer
+          format: int32
+        createdAt:
+          type: string
+          format: date-time
+        folderId:
+          type: string
+          format: uuid
+        id:
+          type: string
+          format: uuid
+        mime:
+          type: string
+        name:
+          type: string
+        receivedChunks:
+          type: array
+          items:
+            type: integer
+            format: int32
+        size:
+          type: integer
+          format: int64
+      required:
+      - chunkCount
+      - chunkSize
+      - createdAt
+      - id
+      - mime
+      - name
+      - receivedChunks
+      - size

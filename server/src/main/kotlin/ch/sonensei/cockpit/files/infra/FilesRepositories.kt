@@ -4,10 +4,13 @@ import ch.sonensei.cockpit.core.persistence.SoftDeletableRepository
 import ch.sonensei.cockpit.files.domain.FileItem
 import ch.sonensei.cockpit.files.domain.Folder
 import ch.sonensei.cockpit.files.domain.SpecialFolder
+import ch.sonensei.cockpit.files.domain.UploadSession
 import jakarta.persistence.LockModeType
+import org.springframework.data.jpa.repository.JpaRepository
 import org.springframework.data.jpa.repository.Lock
 import org.springframework.data.jpa.repository.Modifying
 import org.springframework.data.jpa.repository.Query
+import java.time.Instant
 import java.util.UUID
 
 interface FolderRepository : SoftDeletableRepository<Folder> {
@@ -64,6 +67,15 @@ interface FolderRepository : SoftDeletableRepository<Folder> {
 	@Modifying(flushAutomatically = true, clearAutomatically = true)
 	@Query("delete from Folder f where f.id in :ids")
 	fun deleteAllByIds(ids: Collection<UUID>)
+}
+
+interface UploadSessionRepository : JpaRepository<UploadSession, UUID> {
+	/** The session [id], locked `FOR UPDATE` until the transaction ends, so it is completed or aborted only once. */
+	@Lock(LockModeType.PESSIMISTIC_WRITE)
+	@Query("select s from UploadSession s where s.id = :id")
+	fun lockById(id: UUID): UploadSession?
+
+	fun findByCreatedAtBefore(createdAt: Instant): List<UploadSession>
 }
 
 interface FileRepository : SoftDeletableRepository<FileItem> {

@@ -20,6 +20,11 @@ data class StoredBlob(
 	val sha256: String,
 )
 
+data class DiskSpace(
+	val total: Long,
+	val usable: Long,
+)
+
 /** The content was larger than the allowed maximum; nothing was stored. */
 class BlobTooLargeException(
 	val maxSize: Long,
@@ -74,6 +79,13 @@ class BlobStore(
 			Files.deleteIfExists(temp)
 			throw e
 		}
+	}
+
+	/** Total and usable bytes of the file system that holds the blobs. */
+	fun space(): DiskSpace {
+		Files.createDirectories(root)
+		val store = Files.getFileStore(root)
+		return DiskSpace(store.totalSpace, store.usableSpace)
 	}
 
 	/** Opens the blob for reading. @throws java.nio.file.NoSuchFileException when it does not exist */
