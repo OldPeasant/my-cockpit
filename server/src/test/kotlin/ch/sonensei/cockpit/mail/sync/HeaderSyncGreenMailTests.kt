@@ -392,6 +392,66 @@ class HeaderSyncGreenMailTests(
 		results.single().created shouldBe 1
 	}
 
+	@Test
+	fun `a folder emptied on the server removes every cached message`() {
+		append("INBOX", mail("<a@example.test>", "First"), mail("<b@example.test>", "Second"))
+		val inbox = folder("INBOX")
+		sync.syncFolder(inbox.id)
+		cached(inbox).size shouldBe 2
+
+		remote { store ->
+			val folder = store.getFolder("INBOX")
+			folder.open(Folder.READ_WRITE)
+			folder.messages.forEach { it.setFlag(Flags.Flag.DELETED, true) }
+			folder.close(true)
+		}
+
+		sync.syncFolder(inbox.id) shouldBe FolderSyncResult(inbox.id, full = false, created = 0, updated = 0, removed = 2)
+		cached(inbox).size shouldBe 0
+	}
+
+	@Test
+	fun `encoded subjects and names, html-only bodies and inline images are read from real headers`() {
+		val received = Instant.now()
+		val html =
+			object : MimeMessage(Session.getInstance(Properties())) {
+				override fun getReceivedDate(): Date = Date.from(received)
+
+				override fun updateMessageID() = Unit
+			}.apply {
+				setHeader("Message-ID", "<html@example.test>")
+				setFrom(InternetAddress("zoe.example@example.test", "Zoë Exämple", "UTF-8"))
+				// GreenMail cannot build an ENVELOPE for group syntax (e.g. `undisclosed-recipients:;`), so plain lists here.
+				setRecipients(Message.RecipientType.TO, "Jane Doe <jane.doe@example.test>")
+				setRecipients(Message.RecipientType.CC, "carl@example.test, dora@example.test")
+				setSubject("Grüezi from Zürich", "UTF-8")
+				sentDate = Date.from(received)
+				val body = MimeBodyPart().apply { setContent("<p>Hello <b>Jane</b>,</p><p>see the café plan.</p>", "text/html; charset=UTF-8") }
+				val logo =
+					MimeBodyPart().apply {
+						// Named by its Content-Type, without Content-Disposition, as many mailers send inline images.
+						dataHandler = DataHandler(ByteArrayDataSource(byteArrayOf(1, 2, 3), "image/png; name=logo.png"))
+						setHeader("Content-ID", "<logo@example.test>")
+					}
+				setContent(MimeMultipart("related", body, logo))
+				saveChanges()
+			}
+		append("INBOX", html)
+		val inbox = folder("INBOX")
+
+		sync.syncFolder(inbox.id).created shouldBe 1
+
+		val row = cached(inbox, "<html@example.test>")
+		row.subject shouldBe "Grüezi from Zürich"
+		row.from shouldBe listOf(MailAddress("zoe.example@example.test", "Zoë Exämple"))
+		row.to shouldBe listOf(MailAddress("jane.doe@example.test", "Jane Doe"))
+		row.cc shouldBe listOf(MailAddress("carl@example.test"), MailAddress("dora@example.test"))
+		row.snippet shouldBe "Hello Jane, see the café plan."
+		// The named image is part of the HTML body (multipart/related), not an attachment.
+		row.hasAttachments shouldBe false
+		row.threadKey shouldBe "subject:grüezi from zürich"
+	}
+
 	companion object {
 		private const val HOST = "localhost"
 		private const val EMAIL = "jane.doe@example.test"
