@@ -132,6 +132,10 @@ pagination helpers live in `server/.../core/web` (summary in `api/README.md`).
 | `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` | android | |
 | `python3 tests/test_quality_gate.py` (and the other `tests/test_*.py`, `bash tests/test_publish.sh`) | TFP tooling | |
 
+CI (`.github/workflows/ci.yml`, GitHub Actions, on every push and PR) runs `sh scripts/check.sh`,
+`./gradlew integrationTest` and `docker build .` with the runtimes above. Lint it with
+`docker run --rm -v "$PWD:/repo:Z" -w /repo docker.io/rhysd/actionlint:latest` after editing.
+
 Server test infrastructure (`server/src/test/kotlin/ch/sonensei/cockpit/support/`):
 - Spring tests that need the database extend `PostgresTestBase`: one `postgres:16-alpine` container
   per test JVM, wired in through `@ServiceConnection` (datasource + Flyway). Keep Spring test
