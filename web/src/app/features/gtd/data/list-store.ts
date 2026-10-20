@@ -144,10 +144,10 @@ export abstract class ListStore<T extends Versioned, Q> {
 
   /**
    * Shows `apply` on item `id` at once (returning `undefined` removes it), then runs `request`.
-   * Its answer becomes the item (`undefined`: the item is gone); on an error the change is
+   * Its answer becomes the item (no answer: the item is gone); on an error the change is
    * rolled back and the error rethrown.
    */
-  protected async mutate<R extends T | undefined>(
+  protected async mutate<R extends T | undefined | void>(
     id: string,
     apply: (item: T | undefined) => T | undefined,
     request: () => Promise<R>,
@@ -156,7 +156,7 @@ export abstract class ListStore<T extends Versioned, Q> {
     this.pending.update((all) => [...all, change]);
     try {
       const result = await request();
-      if (result) this.accept(result);
+      if (result) this.accept(result as T);
       else this.drop(id);
       return result;
     } finally {
@@ -215,7 +215,7 @@ export abstract class ListStore<T extends Versioned, Q> {
 
 /** `item` with a PATCH body applied: only the fields sent change, `null` clears a field. */
 export function patched<T extends object>(item: T, patch: object): T {
-  const next: Record<string, unknown> = { ...item };
+  const next = { ...item } as Record<string, unknown>;
   for (const [key, value] of Object.entries(patch)) {
     if (value === undefined) continue;
     if (value === null) delete next[key];

@@ -65,4 +65,12 @@ export class TaskRow {
     if (due < this.today()) return 'overdue';
     return due === this.today() ? 'today' : 'later';
   });
+
+  protected completeLabel(title: string): string {
+    return $localize`:@@gtd.row.complete:Complete “${title}:title:”`;
+  }
+
+  protected reopenLabel(title: string): string {
+    return $localize`:@@gtd.row.reopen:Reopen “${title}:title:”`;
+  }
 }
