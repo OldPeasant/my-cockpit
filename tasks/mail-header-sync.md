@@ -16,3 +16,4 @@ Keep the header cache in sync (SPEC.md §7.2).
 - [ ] `external` GreenMail tests: new/deleted/flag-changed messages reconciled; unit tests for threading
 
 ## Notes
+- ASSUMPTION (2026-10-20 19:02+0200 by dell26/agent-1): Subject fallback: every message without References/In-Reply-To is threaded by normalized subject (Re/Fwd/AW/SV... prefixes and [list] tags stripped), so unrelated mails with the same subject (e.g. a weekly newsletter) share a conversation, like Gmail. Thread key = root Message-ID or 'subject:<normalized>'
