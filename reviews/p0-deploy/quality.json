@@ -1,0 +1,27 @@
+{
+  "schema": 1,
+  "task": "p0-deploy",
+  "reviewed_revision": "f25a30f4c9372388b250fc63931ad3c05b3d29a0",
+  "helpers": {
+    "test-writer": {"status": "completed", "report": "reviews/p0-deploy/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/p0-deploy/review.md"},
+    "fixer": {"status": "completed", "report": "reviews/p0-deploy/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "resourceChain(false): no unbounded CachingResourceResolver cache filled by fallback URLs; test checks the handler chain"},
+    {"id": "CR-2", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "Caddyfile sets Content-Security-Policy only when the server sent none (?Content-Security-Policy); other headers still forced"},
+    {"id": "CR-3", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "gen-env.sh validates the domain (letters, digits, dots, hyphens) before sed; reviewed, not executed (shell scripts blocked here)"}
+  ],
+  "validation": [
+    {"command": "cd server && ./gradlew test --tests 'ch.sonensei.cockpit.core.spa.*' ktlintCheck --rerun-tasks", "result": "pass"},
+    {"command": "cd server && ./gradlew --quiet check", "result": "pass"},
+    {"command": "cd web && npm run -s check", "result": "pass"},
+    {"command": "cd android && ./gradlew --quiet ktlintCheck testDebugUnitTest lintDebug", "result": "pass"},
+    {"command": "docker compose -f deploy/docker-compose.yml build server (podman-compose) on the reviewed code", "result": "pass"},
+    {"command": "docker compose -f deploy/docker-compose.yml up -d; node .tmp/probe.js 18443 /actuator/health (TLS verified via Caddy internal CA) -> UP", "result": "pass"}
+  ]
+}

@@ -4,21 +4,39 @@ Date: 2026-10-20
 
 Task: p0-deploy - Docker image, compose stack, Caddy
 
-Scope: committed changes of task p0-deploy, `git diff 39a2396..HEAD` (Dockerfile, .dockerignore, deploy/*, server core/spa main + test, docs/ARCHITECTURE.md edits)
+Scope: re-review of the final revision. Covers all committed changes of task p0-deploy, `git diff 39a2396..f8dcb3e` (Dockerfile, .dockerignore, deploy/*, server core/spa main + test, docs/ARCHITECTURE.md edits). It also checks the fixes for CR-1..CR-3 from the first review (of b37b9e0) and the tests the test-writer added in 351ad92.
+
+Reviewed revision: f8dcb3e5f224ec05a6edfa9182c1b26b192c30c1
 
 Requirements:
-- tasks/p0-deploy.md acceptance criteria 1-5 and recorded assumptions (SPA behind Boot default security until p0-auth-login; Caddy exposes only /actuator/health*)
-- SPEC.md §4.1 (security headers via Caddy + Spring, sandboxed HTML email with CSP, master key), §11 (deployment and operations)
+- tasks/p0-deploy.md acceptance criteria 1-5 and recorded assumptions (SPA behind Boot default security until p0-auth-login; Caddy exposes only /actuator/health*, confirmed by a human)
+- SPEC.md §4.1 (security headers via Caddy + Spring, sandboxed HTML email with its own CSP, master key), §11 (deployment and operations)
 - docs/ARCHITECTURE.md (runtime versions, stack table, run instructions), AGENTS.md project notes
-- Parent agent instructions (scope, base commit, task commits)
+- reviews/p0-deploy/fixes.md, reviews/p0-deploy/tests.md
+- Parent agent instructions (scope, base commit, final revision, stack verification context)
 
 Git range:
 - Branch: main
-- HEAD: b37b9e04a4f4fa4844004b68093e590bf194d8a5
+- HEAD: f8dcb3e5f224ec05a6edfa9182c1b26b192c30c1
 - Base/start: 39a2396a330e2519e7ca417b825d3bea53505aea
-- Commits reviewed: 4 (171cd93, ed889c6, df189bb, b37b9e0)
+- Commits reviewed: 6 (171cd93, ed889c6, df189bb, b37b9e0, 351ad92, f8dcb3e)
+- Uncommitted changes: none at review start
 
-Summary: 0 P0, 0 P1, 2 P2, 1 P3
+Summary: 0 P0, 0 P1, 0 P2, 0 P3 (open). The 3 findings from the first review are all resolved.
+
+## Status of earlier findings
+
+- [x] **CR-1 | SPA fallback fills an unbounded resource cache (P2, Security): resolved**
+    - File: `server/src/main/kotlin/ch/sonensei/cockpit/core/spa/SpaWebConfiguration.kt:31`
+    - Verified: `.resourceChain(false)` registers only `SpaFallbackResourceResolver`, with no `CachingResourceResolver`, so client-route URLs no longer add cache entries. The KDoc explains why. The new test `resource chain keeps no unbounded resolver cache` (`SpaFallbackTests.kt:177`) reads the `/**` handler from `resourceHandlerMapping` and asserts that no caching resolver is in the chain and that the SPA resolver is. It tests the actual configured chain, not a mock. The existing route, static-file, 404, traversal and `no-cache` tests still cover behavior without the cache.
+
+- [x] **CR-2 | Caddy's deferred CSP overwrote every server CSP (P2, Integration): resolved**
+    - File: `deploy/Caddyfile:24`
+    - Verified: `?Content-Security-Policy "..."` sets the app-wide CSP only when the upstream sent none. HSTS, X-Content-Type-Options, Referrer-Policy, Permissions-Policy and COOP are still forced via `defer`, and `-Server`/`-X-Powered-By` are still removed. The comment (lines 8-11) and `deploy/README.md` now describe this precedence. They also warn that a server CSP must bring its own `frame-ancestors`. The fixer's `caddy adapt` output (require `Content-Security-Policy: null` around the set) matches Caddy's documented `?` semantics. The parent reports the stack was rebuilt from f8dcb3e and answers health UP through Caddy, so the changed Caddyfile loads.
+
+- [x] **CR-3 | gen-env.sh used the domain argument in sed unchecked (P3, Quality): resolved**
+    - File: `deploy/gen-env.sh:14-20`
+    - Verified by reading the code: the POSIX `case` pattern `*[!A-Za-z0-9.-]* | [.-]*` rejects any character outside letters, digits, `.` and `-`, which covers `|`, `&`, `\`, `/`, `:`, spaces and newlines. It also rejects a leading `.` or `-`. So nothing that could break the sed replacement reaches line 35. The check runs before any file is written, and the error goes to stderr with exit code 2. The documented calls (`cockpit.example.org`, `localhost`) pass. A side effect is that `host:port` values are rejected. That is correct, because ports are set separately (`COCKPIT_HTTP(S)_PORT`) and the README never passes a port in the domain. I could not run the pattern in this session, because the permission system denied running a shell snippet.
 
 ## P0 Critical
 
@@ -30,35 +48,20 @@ None.
 
 ## P2 Medium
 
-- [ ] **CR-1 | SPA fallback fills an unbounded resource cache, one entry per distinct client-route URL**
-    - File: `server/src/main/kotlin/ch/sonensei/cockpit/core/spa/SpaWebConfiguration.kt:29`
-    - Category: Security
-    - Problem: `.resourceChain(true)` puts Spring's `CachingResourceResolver` in front of `SpaFallbackResourceResolver`, and its cache is a plain `ConcurrentMapCache` with no size limit. The cache key is the request path (plus an encoding suffix), and the cached value is any non-null resource. The fallback returns `index.html` for every path without an extension outside `/api` and `/actuator`, so every distinct URL such as `/x1`, `/x2`, ... or `/projects/<random>` adds a permanent entry.
-    - Why it matters: once p0-auth-login makes the SPA public (as planned in the recorded assumption), any anonymous client can grow server heap without limit by requesting random paths, and it ends in an OutOfMemoryError. Normal use also adds one entry per visited entity URL for the life of the process. Responses are already sent with `Cache-Control: no-cache`, so the cache brings almost no benefit.
-    - Suggested fix: use `.resourceChain(false)`, which drops the caching resolver and keeps the custom resolver. Another option is to keep caching and resolve the fallback outside the cached chain. Add a test asserting that client routes still work without the cache. If caching stays, add one asserting that distinct client routes don't grow a cache.
-
-- [ ] **CR-2 | Caddy's deferred CSP overwrites every CSP the server sets, so per-response policies from Spring can't take effect**
-    - File: `deploy/Caddyfile:10` (`defer`) and `deploy/Caddyfile:21` (`Content-Security-Policy`)
-    - Category: Integration
-    - Problem: the `header` block runs with `defer` and sets `Content-Security-Policy` unconditionally, so it replaces any CSP from the proxied response. The comment at line 8 says so ("these win over headers from the server"). SPEC.md §4.1 puts the security headers in "Caddy + Spring" and asks for HTML email to be rendered in a sandboxed iframe with its own CSP. The server can only send that per-response policy (for example `default-src 'none'; img-src <proxy>; sandbox`) as a response header, and this configuration will silently replace it with the app-wide policy. The app-wide policy allows `'self'` scripts and `frame-src 'self' blob:`.
-    - Why it matters: a later mail task will add a strict CSP in Spring, its tests will pass against the server, and production behind Caddy will quietly run the weaker policy for untrusted email HTML. Nothing in this task fails today, but it builds in a header precedence that conflicts with the spec's split of responsibilities.
-    - Suggested fix: set CSP only when the upstream didn't send one: Caddy's `?Content-Security-Policy "..."` sets a default without replacing an existing header. Keep `defer`/forced set for HSTS, X-Content-Type-Options and the removed headers. Update the comment at line 8 and the deploy/README.md note to say which headers the server may override.
+None.
 
 ## P3 Low
 
-- [ ] **CR-3 | gen-env.sh puts the domain argument into the sed replacement without checking it**
-    - File: `deploy/gen-env.sh:26`
-    - Category: Quality
-    - Problem: `$domain` goes straight into `s|^COCKPIT_DOMAIN=.*|COCKPIT_DOMAIN=$domain|`. A value containing `|` breaks the sed expression, `&` inserts the matched text, and with GNU sed a `\n` sequence adds an extra line to `.env`. The script then still reports success.
-    - Why it matters: an operator who makes a typo or pastes a URL (`https://cockpit.example.org/`) gets a broken `deploy/.env`, and Caddy or the server fails later with a confusing error instead of the script failing right away.
-    - Suggested fix: check the argument against a host-name pattern before using it (for example `case "$domain" in *[!A-Za-z0-9.-]*) echo "invalid domain" >&2; exit 2;; esac`) and print the usage line otherwise.
+None.
 
 ## Notes (not findings)
 
-- Verified as correct: the Dockerfile uses Node 24 (matches `.nvmrc` = 24) and JDK 21 (matches the Gradle toolchain `JavaLanguageVersion.of(21)`). It copies `web/dist/web/browser` (the `@angular/build:application` default output, production by default) into `src/main/resources/static/` before `bootJar`, and runs as uid/gid 10001 with a `/data` it owns. `bootJar` doesn't need `../api/openapi.yaml` (only `tasks.test` declares it as an input), so the narrow `.dockerignore` context is enough. Actuator has no exposure settings, so only `health` is exposed, without details. Spring Security's `StrictHttpFirewall` rejects `;`, encoded `.`/`/` and non-normalized paths, so the Caddy `/actuator/*` filter can't be bypassed with path tricks. The `.env.example` placeholder `change-me` for `COCKPIT_MASTER_KEY` fails `MasterKey.decode` at startup, so a copied template can't run with a weak key. `deploy/.gitignore` keeps `.env` out of Git, and `gen-env.sh` writes it with umask 077.
-- I could not check that the CSP `script-src` hash matches the inline beasties script in the current Angular build: hash computation wasn't available in this read-only session. A curl health check doesn't evaluate CSP. If the hash is wrong, the non-critical stylesheet stays `media="print"`. Checking it once in a browser (no CSP violation in the console) would confirm criterion 3's CSP in practice.
-- `python tasks.py verify p0-deploy` shows no evidence recorded for any criterion yet. The parent worker still has to record evidence for criteria 1 and 4 (the podman build and the podman-compose health check through Caddy, which it says it ran).
+- Re-checked on the final diff and still correct: the Dockerfile builds web with Node 24 (`.nvmrc`) and the server with JDK 21 (Gradle toolchain). It copies `web/dist/web/browser` into `src/main/resources/static/` before `bootJar`, runs as uid/gid 10001 with a `/data` it owns, and uses a layered JRE runtime. In the compose file, only Caddy publishes ports, Postgres has a healthcheck and the server waits for it, the four named volumes include the data dir, and required secrets fail fast via `:?`. The `.env.example` placeholder master key fails `MasterKey.decode` at startup, and `deploy/.gitignore` keeps `.env` out of Git. `host-backup.sh` stages the files in a 700 directory, cleans up on exit and needs the restic credentials. Its restore paths in the README match the staging layout. The ARCHITECTURE.md stack table and run table match the files.
+- Test-writer additions (351ad92) assert behavior: `no-cache` HTML fallback, files in subdirectories and missing ones, HEAD, a real API controller not shadowed by `/**`, path traversal (raw and encoded) not reaching a file outside the web root, `/api/` stays 404, and resolver unit tests including a server started without a web build. No tests were weakened or removed.
+- Still not verified by anyone (also noted in the first review): whether the CSP `script-src` hash matches the inline Angular/beasties script of the current build. A curl health check doesn't evaluate CSP. If the hash is wrong, the non-critical stylesheet stays `media="print"`. Checking once in a browser (no CSP violation in the console) would confirm it. This doesn't block criterion 3, which asks for the headers to be configured.
+- `python tasks.py verify p0-deploy` shows criteria 1 and 4 recorded, while 2, 3 and 5 are not yet recorded. The parent worker still has to record them, for example criterion 2 with the `core.spa` test run, and criteria 3 and 5 with the files and the Caddy validate run.
+- `reviews/p0-deploy/fixes.md` says "Changes are uncommitted in the working tree". The changes are now committed in f8dcb3e. This is only wording in a helper report, not a code issue.
 
 ## Review conclusion
 
-Material issues found; fix before completing the task. Neither finding blocks an acceptance criterion. CR-1 (unbounded cache reachable by anonymous clients once the SPA is public) should be fixed before this lands. CR-2 should be fixed now or handed on to the mail/security tasks with an explicit assumption.
+No material issues found.
