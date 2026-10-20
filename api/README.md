@@ -14,7 +14,7 @@ UPDATE_OPENAPI=1 ./gradlew test --tests '*OpenApiContractTest'   # or: ./gradlew
 ```
 
 Commit the updated `api/openapi.yaml` together with the server change, then regenerate the
-clients (web: `cd web && npm run api:gen`).
+clients (web: `cd web && npm run api:gen`; Android generates its client on every build, nothing to commit).
 
 `OpenApiContractTest` runs with every `./gradlew test` (and so in `.taskcheck`): without
 `UPDATE_OPENAPI=1` it fails when the committed file differs from what the server generates.
