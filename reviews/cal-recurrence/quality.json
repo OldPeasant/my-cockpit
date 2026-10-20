@@ -21,7 +21,7 @@
      "note": "occurrence at ambiguous DST-end time lost when range ends in the repeated hour; fixed with DST_END_MARGIN (dd907a20), regression tests added; third review found 0 issues"}
   ],
   "validation": [
-    {"command": "cd server && ./gradlew test --offline --rerun --tests 'ch.sonensei.cockpit.calendar.recurrence.*'", "result": "pass (56 tests, 0 failures)"},
-    {"command": "sh scripts/check.sh (.taskcheck)", "result": "pass (all checks passed)"}
+    {"command": "cd server && ./gradlew test --offline --rerun --tests 'ch.sonensei.cockpit.calendar.recurrence.*'", "result": "pass"},
+    {"command": "sh scripts/check.sh (.taskcheck)", "result": "pass"}
   ]
 }
