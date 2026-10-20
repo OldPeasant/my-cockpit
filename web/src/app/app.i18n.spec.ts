@@ -3,7 +3,8 @@ import { TestBed } from '@angular/core/testing';
 import { App } from './app';
 
 // Kept in its own spec file: Angular caches a component's i18n template constants on its first
-// render, so the translations must be loaded before App is rendered for the first time.
+// render, so the translations must be loaded before App is rendered for the first time. This
+// relies on `isolate: true` for the test target in angular.json (each spec file gets a fresh module graph).
 describe('App i18n', () => {
   beforeEach(async () => {
     // Fictitious translations keyed by the custom message ids (@@app.title, @@app.scaffold).
