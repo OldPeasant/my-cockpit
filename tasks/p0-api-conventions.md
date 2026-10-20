@@ -19,3 +19,4 @@ Common REST conventions (SPEC.md §4.2) and the committed OpenAPI contract that 
 
 ## Notes
 - ASSUMPTION (2026-10-20 10:52+0200 by dell26/agent-2): Cursor pagination: default limit 50, allowed 1..200; out-of-range limit is rejected with 400 (field error 'limit') rather than clamped. Cursor = base64url of a module-chosen keyset string.
+- ASSUMPTION (2026-10-20 10:52+0200 by dell26/agent-2): Stale If-Match -> 412, missing -> 428, JPA optimistic-lock failure at commit -> 409; If-Match uses strong comparison (W/ tags never match), '*' matches any version.
