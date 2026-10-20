@@ -1,0 +1,30 @@
+{
+  "schema": 1,
+  "task": "web-gtd-data",
+  "reviewed_revision": "307eb6e56bae4ce9452245f7ed82d139b574ecee",
+  "helpers": {
+    "test-writer": {"status": "completed", "report": "reviews/web-gtd-data/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/web-gtd-data/review.md"},
+    "fixer": {"status": "completed", "report": "reviews/web-gtd-data/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "If-Match now sends the caller's copy version, so stale edits get 412 instead of overwriting"},
+    {"id": "CR-2", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "ensureLoaded in ContextStore/ProjectStore awaits an in-flight load"},
+    {"id": "CR-3", "source": "code-reviewer", "severity": "P3", "disposition": "accepted",
+     "note": "every change event refetches the full list (no coalescing); correct and simple, events carry no contents (SPEC §2); optimize when list sizes demand it"},
+    {"id": "CR-4", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "test-writer added project-store and context-store specs (setNextStep, ensureLoaded, events)"},
+    {"id": "TW-1", "source": "test-writer", "severity": "Low", "disposition": "accepted",
+     "note": "prettier --check flags formatting in data/task-store.ts and ui/context-chips.ts; not enforced by npm run check/.taskcheck, lint is clean"},
+    {"id": "TW-2", "source": "test-writer", "severity": "Low", "disposition": "accepted",
+     "note": "ensureLoaded can resolve before a refresh triggered by an event during the first load; the list still fills when that answer lands"}
+  ],
+  "validation": [
+    {"command": "cd web && npx ng test --watch=false --include='src/app/features/gtd/**/*.spec.ts'", "result": "pass"},
+    {"command": "cd web && npm run check", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
