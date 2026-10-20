@@ -49,15 +49,24 @@ function change(type: string, id = '0190a5c8-0000-7000-8000-000000000001'): Chan
 describe('ChangeEventsService', () => {
   let sources: FakeEventSource[];
   let loggedIn: ReturnType<typeof signal<boolean>>;
+  /** `AuthService.checkSession`: by default the session is still valid. */
+  let checkSession: ReturnType<typeof vi.fn<(refresh?: boolean) => Promise<boolean>>>;
 
   const latest = () => sources[sources.length - 1];
 
   function create(initiallyLoggedIn = true): ChangeEventsService {
     sources = [];
     loggedIn = signal(initiallyLoggedIn);
+    checkSession = vi.fn(async () => loggedIn());
     TestBed.configureTestingModule({
       providers: [
-        { provide: AuthService, useValue: { loggedIn: loggedIn.asReadonly() } },
+        {
+          provide: AuthService,
+          useValue: {
+            loggedIn: loggedIn.asReadonly(),
+            checkSession: (refresh?: boolean) => checkSession(refresh),
+          },
+        },
         {
           provide: EVENT_SOURCE_FACTORY,
           useValue: (url: string) => {
@@ -231,7 +240,10 @@ describe('ChangeEventsService', () => {
     latest().open();
 
     latest().emit(CHANGE_EVENT_NAME, '{}');
-    latest().emit(CHANGE_EVENT_NAME, '{"type":1,"id":"x","op":"UPDATED","at":"2026-10-20T10:00:00Z"}');
+    latest().emit(
+      CHANGE_EVENT_NAME,
+      '{"type":1,"id":"x","op":"UPDATED","at":"2026-10-20T10:00:00Z"}',
+    );
     latest().emit(CHANGE_EVENT_NAME, '"TASK"');
     latest().emit(CHANGE_EVENT_NAME, '');
 
@@ -319,22 +331,57 @@ describe('ChangeEventsService', () => {
     expect(sources).toHaveLength(4);
   });
 
-  it('ignores errors of a stream it already closed', () => {
+  it('detaches its handlers from a stream it closed', () => {
     create();
     const first = latest();
-    const staleOnError = first.onerror;
     first.open();
     loggedIn.set(false);
     TestBed.tick();
-    loggedIn.set(true);
+
+    expect(first.closed).toBe(true);
+    expect(first.onopen).toBeNull();
+    expect(first.onerror).toBeNull();
+  });
+
+  it('re-checks the session after a failed connection attempt', async () => {
+    create();
+    latest().fail();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(checkSession).toHaveBeenCalledTimes(1);
+    expect(checkSession).toHaveBeenCalledWith(true);
+
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(sources).toHaveLength(2);
+  });
+
+  it('stops reconnecting when the session is gone', async () => {
+    create();
+    checkSession.mockImplementation(async () => {
+      loggedIn.set(false); // what AuthService does on a 401
+      return false;
+    });
+    latest().fail();
+    await vi.advanceTimersByTimeAsync(0);
     TestBed.tick();
-    expect(sources).toHaveLength(2);
 
-    staleOnError?.(new Event('error'));
-    vi.advanceTimersByTime(60_000);
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(sources).toHaveLength(1);
+    expect(checkSession).toHaveBeenCalledTimes(1);
+  });
 
-    expect(sources).toHaveLength(2);
-    expect(latest().closed).toBe(false);
+  it('keeps reconnecting with backoff when the session check fails', async () => {
+    create();
+    checkSession.mockRejectedValue(new Error('network down'));
+
+    for (const delay of [1000, 2000, 4000]) {
+      latest().fail();
+      const before = sources.length;
+      await vi.advanceTimersByTimeAsync(delay - 1);
+      expect(sources).toHaveLength(before);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(sources).toHaveLength(before + 1);
+    }
+    expect(checkSession).toHaveBeenCalledTimes(3);
   });
 });
 
@@ -372,7 +419,10 @@ describe('ChangeEventsService defaults', () => {
     const sources: FakeEventSource[] = [];
     TestBed.configureTestingModule({
       providers: [
-        { provide: AuthService, useValue: { loggedIn: signal(true).asReadonly() } },
+        {
+          provide: AuthService,
+          useValue: { loggedIn: signal(true).asReadonly(), checkSession: async () => true },
+        },
         {
           provide: EVENT_SOURCE_FACTORY,
           useValue: (url: string) => {

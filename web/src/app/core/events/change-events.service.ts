@@ -33,7 +33,8 @@ export const EVENT_SOURCE_FACTORY = new InjectionToken<(url: string) => EventSou
  *
  * - Connected while logged in ({@link AuthService.loggedIn}), closed on logout.
  * - Reconnects itself with exponential backoff instead of EventSource's fixed retry, which also
- *   gives up for good on a non-200 answer.
+ *   gives up for good on a non-200 answer. Each failure also re-checks the session, so an expired
+ *   one logs out instead of retrying forever.
  * - The server does not replay missed events, so after every reconnect (not the first connect)
  *   {@link resync$} emits: stores refetch what they show.
  *
@@ -87,9 +88,9 @@ export class ChangeEventsService {
     source.addEventListener(CHANGE_EVENT_NAME, (message) => this.dispatch(message as MessageEvent));
     source.onerror = () => {
       // Our own backoff replaces EventSource's automatic retry.
-      if (this.source !== source) return;
       this.close();
       this.scheduleReconnect();
+      this.checkSession();
     };
   }
 
@@ -101,6 +102,15 @@ export class ChangeEventsService {
       return;
     }
     if (event && typeof event.type === 'string') this.changes.next(event);
+  }
+
+  /**
+   * EventSource can't see status codes, so a failure may be an expired or revoked session (401).
+   * Asking the server ends the login then, and the effect stops the stream and the pending retry.
+   * If that request fails as well (e.g. network down), the backoff just keeps retrying.
+   */
+  private checkSession(): void {
+    this.auth.checkSession(true).catch(() => undefined);
   }
 
   private scheduleReconnect(): void {
