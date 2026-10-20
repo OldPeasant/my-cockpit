@@ -6,6 +6,7 @@ import { App } from './app';
 import { routes } from './app.routes';
 import { AuthService } from './core/auth';
 import { provideFakeSession } from './core/auth/testing';
+import { provideSilentEventSource } from './core/events/testing';
 import { CapturePlaceholder } from './features/capture/capture-placeholder';
 import { CommandsPaletteProvider } from './features/search/commands-palette.provider';
 import { LazySearchPaletteProvider } from './features/search/search.providers';
@@ -19,7 +20,9 @@ describe('App', () => {
   let harness: RouterTestingHarness;
 
   beforeEach(async () => {
-    TestBed.configureTestingModule({ providers: [provideRouter(routes), provideFakeSession()] });
+    TestBed.configureTestingModule({
+      providers: [provideRouter(routes), provideFakeSession(), provideSilentEventSource()],
+    });
     harness = await RouterTestingHarness.create();
   });
 
@@ -176,7 +179,11 @@ describe('App routes with auth guards', () => {
       logout: vi.fn(() => Promise.resolve()),
     };
     TestBed.configureTestingModule({
-      providers: [provideRouter(routes), { provide: AuthService, useValue: auth }],
+      providers: [
+        provideRouter(routes),
+        { provide: AuthService, useValue: auth },
+        provideSilentEventSource(),
+      ],
     });
     harness = await RouterTestingHarness.create();
     router = TestBed.inject(Router);
