@@ -16,3 +16,4 @@ Accounts, identities, folders, cached headers and bodies (SPEC.md §7.1–7.2).
 - [ ] `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.mail.model.*'` passes (Postgres via Testcontainers where persistence is involved)
 
 ## Notes
+- ASSUMPTION (2026-10-20 16:07+0200 by dell26/agent-2): Model code lives in package ch.sonensei.cockpit.mail.model (flat: entities, repositories, EMAIL resolver, body cache), as the task's touches name mail/model, instead of mail.{domain,infra}.
