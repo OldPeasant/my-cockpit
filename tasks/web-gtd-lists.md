@@ -16,3 +16,4 @@ The remaining GTD lists (SPEC.md §5.3).
 - [ ] Playwright `e2e/gtd-lists/lists.spec.ts` passes against the e2e stack (`npm run e2e -- e2e/gtd-lists/lists.spec.ts`, see p0-e2e-harness): waiting item sorted by waitingSince; logbook shows completed task
 
 ## Notes
+- ASSUMPTION (2026-10-20 23:38+0200 by dell26/agent-6): Added a /scheduled route + nav entry (gtd/gtd.routes.ts, shell/nav-sections.ts, app.spec.ts BUILT list, features/README.md; outside touches, one line each) since no Scheduled section existed and features/README.md says new GTD views add their route there
