@@ -1,101 +1,126 @@
 # Test Report
 
-Date: 2026-10-20
+Date: 2026-10-21
 
 Task: files-api - Files API: upload, download, operations
 
-Scope: `git diff 6e420c3ff144629e2215cb3b3aa86785f6d178a1..4e2decc5e1e137906623b42234ef82331c844da9`, without `tasks/` and `reviews/`. The parent named the base and the task commits: bc1c124c (squashed implementation), b491adfd (TW-1 fix: string schema for the `Range` header, regenerated OpenAPI and web client), and 4e2decc5 (HEAD: web client regenerated after the rebase, plus the test `a partial download keeps the attachment header...`). I measured HEAD 4e2decc5 and added no tests, so this report describes 4e2decc5. There were no uncommitted inputs under `server/` or `api/`. The only working-tree change is `reviews/files-api/review.md`, which the code-reviewer modified, not me.
+Scope: `git diff c3b429ed64eceb70609b59999406373f0e3248fd..fa633bff1d6ed3021267e8e438102e9869c3dd1e`, without `tasks/` and `reviews/`. The parent gave the base (merge-base with origin/main) and the task commits 573bc24d, c27b5850, e48373ca, 01aa873f, 133a5b3d, 8184c4d6, merged into HEAD fa633bff. `git log c3b429ed..fa633bff` lists exactly these commits plus the merge, all prefixed "files-api:". Measured revision: fa633bff. While the run was going on, the code-reviewer committed d996a5ec, which changes only `reviews/files-api/review.md`. `git diff fa633bff..d996a5ec -- server api web` is empty, so this report applies to d996a5ec too. The previous version of this report described 4e2decc5 and is replaced here.
 
 Requirements:
 - `tasks/files-api.md`: acceptance criteria 1-5 and the Notes/ASSUMPTION lines (API layout, resumable-upload rules, max size, downloads, folder moves)
-- `SPEC.md` §8.2 (through the task), `docs/ARCHITECTURE.md` "Coverage", `AGENTS.md`
-- The previous version of this report (TW-1) and `reviews/files-api/fixes.md`
+- `SPEC.md` §8.2 (through the task), `docs/ARCHITECTURE.md` "Coverage", `docs/QUALITY.md`, `AGENTS.md`
+- `reviews/files-api/review.md` / `fixes.md` (CR-1: nullable folder ids in the OpenAPI contract, CR-2: JSON-only 200 bodies)
 
 ## Test files changed
 
-None in this run. The test files the task changed (`ChunkStoreTests.kt`, `FilesApiEdgeCaseWebTests.kt`, `FilesApiSupportTests.kt`, `FilesConcurrencyTests.kt`, `FilesMaxSizeWebTests.kt`, `FilesWebTests.kt`, `UploadServiceTests.kt` under `server/src/test/kotlin/ch/sonensei/cockpit/files/`) were already committed at HEAD.
+None in this run. The task's test files are already committed at HEAD: `ChunkStoreTests.kt`, `FilesApiEdgeCaseWebTests.kt`, `FilesApiSupportTests.kt`, `FilesConcurrencyTests.kt`, `FilesMaxSizeWebTests.kt`, `FilesWebTests.kt` and `UploadServiceTests.kt` under `server/src/test/kotlin/ch/sonensei/cockpit/files/`.
 
 ## Tests added or updated
 
 Count: 0
 
-Since the previous report, the only production change is the `schema = Schema(type = "string")` attribute on the `Range` `@Parameter` in `FileController.kt`. Two tests already cover it: `FilesApiEdgeCaseWebTests.every parameter of the files endpoints in the OpenAPI contract has a schema...` (it failed before the fix and passes now) and `OpenApiContractTest` (it checks that the committed `api/openapi.yaml` matches the generated contract). The parent's new test in 4e2decc5 covers the Range edge cases that were still open: a one-byte range, the last byte, one byte past the end (416), multiple ranges (`multipart/byteranges`), and `Content-Disposition` on a 206. I compared every acceptance criterion with the existing tests (table below) and found no real gap, so I added no tests.
+Since the last report (4e2decc5), the production changes are all in 133a5b3d, and all of them are OpenAPI annotations:
+- `FilesDtos.kt`: `types = ["string","null"], format = "uuid"` on `CreateFolderRequest.parentId`, `FolderPatchRequest.parentId`, `FilePatchRequest.folderId`, `CreateUploadRequest.folderId`.
+- `DriveController.kt` and `UploadController.kt`: the 200 response of `listFolder` / `getUpload` is documented as `application/json` with an explicit schema.
+
+These tests already cover the changes, and all of them ran in this run:
+- `FilesApiEdgeCaseWebTests` `the OpenAPI contract allows null for the folder fields that mean the drive root` covers the generated schema of all four fields.
+- `FilesApiEdgeCaseWebTests` `listFolder and getUpload document their 200 body as application json only` covers the contract.
+- `FilesApiEdgeCaseWebTests` `an explicit null folder id on create means the drive root, as the contract allows` covers runtime behavior for POST folders and uploads. Explicit `null` on PATCH is covered by `FilesWebTests` lines 319/331 (move to the root).
+- `FilesApiEdgeCaseWebTests` `listFolder and getUpload answer a client that accepts only application json, also with errors` covers 200 and 404 with `Accept: application/json`.
+- `OpenApiContractTest` checks that the committed `api/openapi.yaml` equals the generated contract.
+
+I compared every acceptance criterion with the tests again (table below) and found no meaningful gap, so I added no tests.
 
 ## Requirement coverage
 
-Focused command (F): `cd server && ./gradlew test --rerun --tests 'ch.sonensei.cockpit.files.*' --tests '*OpenApiContractTest' ktlintCheck jacocoTestReport` (2026-10-20 23:35:3x-23:36:02 +02:00, exit 0, 175 tests, 0 failures, Postgres through Testcontainers)
+Focused command (F): `cd server && ./gradlew test --rerun --tests 'ch.sonensei.cockpit.files.*' --tests '*OpenApiContractTest' jacocoTestReport ktlintCheck` (2026-10-21, finished 00:31 +02:00, BUILD SUCCESSFUL in 1m 19s, JUnit XML: 179 tests, 0 failures, 0 errors, 0 skipped. Postgres runs through Testcontainers.)
 
 | Requirement | Tests | Command | Result |
 |---|---|---|---|
 | AC1 Multipart upload | FilesWebTests `a multipart upload is stored...`, `an upload without the file part is a 400...`, `uploading into a missing folder is a 404`; FilesApiEdgeCaseWebTests `the name parameter overrides...`, `an empty file uploads and downloads`, `a part without a content type...`, `a part without a filename...` | F | Pass |
-| AC1 Chunked resumable upload; complete verifies size + sha256 | FilesWebTests `a 60 MB file uploads in chunks...`, `an upload resumes after a missing chunk`, `a wrong sha256 stores nothing...`, `chunks with the wrong length...`, `an aborted upload is gone`; FilesApiEdgeCaseWebTests resumable-upload group (8 tests); UploadServiceTests (9 tests, incl. `complete verifies the size too...`, `a chunk whose stream breaks off...`); ChunkStoreTests (12) | F | Pass |
-| AC1 Max size from config (default 5 GB) | FilesMaxSizeWebTests (3 tests, `cockpit.files.max-size=1KB`: multipart 413, declared size 400, usage and Spring multipart limit); FilesWebTests `chunks with the wrong length or number and oversized uploads...` (6 GB rejected); FilesApiEdgeCaseWebTests `upload requests are validated` (exactly 5 GB accepted), `disk usage counts...` | F | Pass |
-| AC2 Download with Range | FilesWebTests `downloads support Range requests`; FilesApiEdgeCaseWebTests `a partial download keeps the attachment header, and several ranges come as multipart byteranges` | F | Pass |
-| AC2 Content-Disposition (RFC 6266 filename*) | FilesWebTests `a multipart upload is stored...`, `a non-ASCII name gets an ASCII fallback...`; FilesApiEdgeCaseWebTests partial-download test (header on 206); FilesApiSupportTests (encoding tests, incl. a round trip through Spring's parser) | F | Pass |
-| AC2 Folder download as streamed zip | FilesWebTests `a folder downloads as a streamed zip with its subtree` (asyncStarted, async timeout -1); FilesApiEdgeCaseWebTests zip group (3) | F | Pass |
-| AC3 Rename, move (no cycles) | FilesWebTests `rename and move a file need its ETag`, `a folder cannot be moved into itself or below itself`, `moving a folder next to one with the same name...`; FilesApiEdgeCaseWebTests special-folder, trashed-target and PATCH validation tests; FilesConcurrencyTests `two crossing folder moves cannot create a cycle...`, `a folder move into a folder being trashed...` | F | Pass |
-| AC3 Delete (trash), new folder | FilesWebTests `delete moves a folder to the Trash...`; FilesApiEdgeCaseWebTests `a trashed file or folder cannot be changed...`, `a stale ETag on delete is a 412...`; FilesServiceTests / FilesEdgeCaseTests / FilesConcurrencyTests create tests | F | Pass |
-| AC3 List folder (cursor) | FilesWebTests `a folder lists folders first, then files, by name, in pages`; FilesApiEdgeCaseWebTests listing group (4) | F | Pass |
+| AC1 Chunked resumable upload (`POST /uploads`, `PUT .../chunks/{n}`, `POST .../complete` checks size + sha256) | FilesWebTests `a 60 MB file uploads in chunks...`, `an upload resumes after a missing chunk`, `a wrong sha256 stores nothing...`, `chunks with the wrong length...`, `an aborted upload is gone`; FilesApiEdgeCaseWebTests resumable-upload group, `an explicit null folder id on create...`, `listFolder and getUpload answer a client that accepts only application json...`; UploadServiceTests (9); ChunkStoreTests (12) | F | Pass |
+| AC1 Max size from config (default 5 GB) | FilesMaxSizeWebTests (4; `cockpit.files.max-size=1KB`: multipart 413, declared size 400, usage, Spring multipart limit); FilesWebTests 6 GB rejected; FilesApiEdgeCaseWebTests `upload requests are validated` (exactly 5 GB accepted) | F | Pass |
+| AC2 Download with Range | FilesWebTests `downloads support Range requests` (206, suffix range, 416); FilesApiEdgeCaseWebTests `a partial download keeps the attachment header, and several ranges come as multipart byteranges` | F | Pass |
+| AC2 Content-Disposition (RFC 6266 filename*) | FilesWebTests `a multipart upload is stored...`, `a non-ASCII name gets an ASCII fallback...`; FilesApiEdgeCaseWebTests partial-download test (header on 206); FilesApiSupportTests (11, incl. a round trip through Spring's parser) | F | Pass |
+| AC2 Folder download as a streamed zip | FilesWebTests `a folder downloads as a streamed zip with its subtree` (async, timeout -1); FilesApiEdgeCaseWebTests zip group (empty dirs, duplicate names, trashed content excluded) | F | Pass |
+| AC3 Rename, move (no cycles) | FilesWebTests `rename and move a file need its ETag`, `a folder cannot be moved into itself or below itself`, `moving a folder next to one with the same name...`; FilesApiEdgeCaseWebTests special-folder, trashed-target and PATCH-validation tests; FilesConcurrencyTests crossing moves / move into a folder being trashed | F | Pass |
+| AC3 Delete (trash), new folder | FilesWebTests `delete moves a folder to the Trash...`; FilesApiEdgeCaseWebTests `a trashed file or folder cannot be changed...`, `a stale ETag on delete is a 412...`, `an explicit null folder id on create...` | F | Pass |
+| AC3 List folder (cursor) | FilesWebTests `a folder lists folders first, then files, by name, in pages`; FilesApiEdgeCaseWebTests listing group (malformed cursors/limits 400, unknown folder 404, JSON-only Accept) | F | Pass |
 | AC3 Disk usage endpoint | FilesWebTests `disk usage counts active and trashed files`; FilesApiEdgeCaseWebTests `usage counts folders not in the Trash`; FilesMaxSizeWebTests usage test | F | Pass |
-| AC4 `./gradlew test --tests 'ch.sonensei.cockpit.files.*'` passes, incl. resume after a missing chunk and a 60 MB chunked upload | whole `files` package (174 tests) + OpenApiContractTest (1) | F | Pass (175/175) |
-| AC5 `api/openapi.yaml` regenerated, `OpenApiContractTest` passes without the flag | OpenApiContractTest | F | Pass |
-| AC5 API documented (a valid contract that clients can generate from; was TW-1) | FilesApiEdgeCaseWebTests `every parameter of the files endpoints in the OpenAPI contract has a schema...` | F | Pass. TW-1 is fixed. Android `:app:openApiGenerate`: Not run, because `.taskcheck` stopped at the server step before Android (see below). |
+| AC4 `./gradlew test --tests 'ch.sonensei.cockpit.files.*'` passes (Testcontainers) incl. resume after a missing chunk and a 60 MB chunked upload | whole `ch.sonensei.cockpit.files` package + OpenApiContractTest | F | Pass (179/179) |
+| AC5 `api/openapi.yaml` regenerated, `OpenApiContractTest` passes without the flag | OpenApiContractTest (run without `UPDATE_OPENAPI`) | F | Pass |
+| AC5 Contract quality (CR-1 nullable folder ids, CR-2 JSON-only 200 bodies, every parameter has a schema) | FilesApiEdgeCaseWebTests `the OpenAPI contract allows null...`, `listFolder and getUpload document their 200 body as application json only`, `every parameter of the files endpoints in the OpenAPI contract has a schema...` | F | Pass |
 
 ## Focused test execution
 
 Command:
 
-`cd server && ./gradlew test --rerun --tests 'ch.sonensei.cockpit.files.*' --tests '*OpenApiContractTest' ktlintCheck jacocoTestReport`
+`cd server && ./gradlew test --rerun --tests 'ch.sonensei.cockpit.files.*' --tests '*OpenApiContractTest' jacocoTestReport ktlintCheck`
 
 Result:
 
-Pass. Exit 0 (BUILD SUCCESSFUL in 28 s), 175 tests and 0 failures by the JUnit XML in `server/build/test-results/test/`. ktlintCheck passes. I used `--rerun` because the parent's identical run had left `:test` up to date. Without it, the coverage would not have come from this run.
+Pass. Exit 0, BUILD SUCCESSFUL in 1m 19s. 179 tests, 0 failures/errors/skipped, counted from `server/build/test-results/test/*.xml` (written 2026-10-21 00:31:12 +02:00). ktlintCheck passes for main and test sources. `--rerun` forced `:test` to run, so the coverage comes from this run.
+
+Kotlin compiler warnings (they do not fail the build, and they are not behavior defects):
+- `server/src/main/kotlin/ch/sonensei/cockpit/files/infra/DriveQueries.kt:64:99` Unnecessary non-null assertion (`!!`) on a non-null receiver of type `DriveQueries.Totals`. This file is task code. AGENTS.md says "fix warnings, don't suppress them", so the parent may want to remove the `!!`.
+- `server/src/test/kotlin/ch/sonensei/cockpit/files/FilesServiceTests.kt:138:19` Unnecessary `!!` on a `String`. This is a pre-existing test outside this task's diff.
 
 ## Full test execution
 
 Command:
 
-`sh scripts/check.sh` (the `.taskcheck`), run twice at HEAD 4e2decc5: 23:36:31-23:41:01 and 23:42:5x-23:46:53. Then the web step was run on its own: `npm --prefix web run -s check`.
+Not run by me in this session.
 
 Result:
 
-Fail, for a reason outside this task:
-- tfp completion-gate tests: Pass (both runs).
-- server `./gradlew --quiet check`: **Fail** in both runs. 2225 tests, exactly 1 failure, both times in `ch.sonensei.cockpit.core.persistence.ClockConfigurationTests.the application clock is the system clock in UTC` (`2026-10-20T21:45:46.885848Z should be >= 2026-10-20T21:45:46.885848360Z`). Every files test and every other server test passed. Running the class alone (`./gradlew test --rerun --tests '...ClockConfigurationTests'`) passed 4/4, so the failure depends on timing. See "Out-of-scope blocker" below.
-- web `npm run -s check` (run on its own, because `set -eu` stopped check.sh after the server step): Pass. `src/app/api/generated is up to date`, lint passes, 45 test files / 757 tests pass, the build succeeds (the only warning is the existing bundle budget warning).
-- android `ktlintCheck testDebugUnitTest lintDebug` (includes `:app:openApiGenerate`): Not run. check.sh stopped before this step, and running the Android Gradle command on its own was not approved in this session. So this run does not confirm that the TW-1 fix unblocks the Android generator. The parent must confirm it with a passing `.taskcheck`.
+Not run. The parent's notes record `sh scripts/check.sh` passing on 6a697dbb (about 4 min). Production code is unchanged since then, apart from rebase/merge hashes (no diff under `server/` or `api/` against the code that was checked). The parent must run `.taskcheck` again before `done` (`done` does this anyway).
 
 ## .taskcheck
 
 Result:
 
-Fail (2 of 2 runs). The cause is the pre-existing, timing-dependent `ClockConfigurationTests` test, not the files-api code. Android was not reached.
-
-### Out-of-scope blocker (not a files-api production bug)
-
-`server/src/test/kotlin/ch/sonensei/cockpit/core/persistence/ClockConfigurationTests.kt:19-22` (from a2de2988, p0-db-conventions, already in the base) reads `before = Instant.now()` at nanosecond precision. It then asserts `clock.instant() >= before`, but the application clock is deliberately truncated to microseconds (the test's own third case asserts this). When both calls fall in the same microsecond, the truncated value is smaller than `before`, and the test fails. Under the full suite this happened in both runs. The test is wrong, not the production clock: the expectation would have to truncate `before` to microseconds (`Instant.now().truncatedTo(ChronoUnit.MICROS)`). I did not change it, because the test is outside this task's scope and `touches`. The parent decides whether to fix it here (it blocks `done`) or in a separate task. It also blocks `.taskcheck` for every agent on main.
+Not run (see above). The parent runs it.
 
 ## Bugs found
 
-No production defects in the files-api scope. TW-1 from the previous report (the `Range` header parameter had no schema) is fixed in b491adfd. Its regression test passes, `api/openapi.yaml` contains `schema: type: string` for `Range`, and `OpenApiContractTest` passes.
+No production defects in the files-api scope.
+
+Quality note (not a bug, no test needed): the unnecessary `!!` compiler warning in `DriveQueries.kt:64`, reported above.
+
+## Unable to test
+
+- A real Tomcat async timeout for long zip streams is checked only through the MockMvc async context timeout (-1), not with a real server streaming for longer than 30 s. The criteria do not require this. No follow-up needed.
+- Android/web client generation from the regenerated contract is not part of this server-only run. The parent's `.taskcheck` covers it (web `api:gen` up-to-date check, Android `openApiGenerate`).
+
+## Summary
+
+Tests and task-scoped coverage are sufficient; no production defects found.
+
+All 5 acceptance criteria are covered by tests that pass at fa633bff: 179/179 focused tests, plus OpenApiContractTest and ktlint. The CR-1/CR-2 changes are only OpenAPI annotations. Their contract and runtime tests exist and pass. The bytecode coverage counters are identical to the previous measurement.
 
 ## Coverage
 
-Status: verified (fresh focused run at HEAD 4e2decc5, exit 0).
+Status: verified (fresh focused run at fa633bff, exit 0).
 
 Metric: whole-file coverage of task-changed production files. The numbers include old code in `FilesService.kt`, `BlobStore.kt`, `FilesRepositories.kt` and `ProblemDetailsAdvice.kt`, and hits from tests that existed before this task.
 
-Changed-line coverage: 522/534 executable added or modified lines (97.8%). Method: JaCoCo XML `line` elements with `mi+ci > 0`, intersected with the `+` lines of `git diff -U0 6e420c3f..HEAD -- server/src/main/kotlin`. A line counts as covered when `ci > 0`. Uncovered changed lines: `FilesDtos.kt` 150-154 and 156-160 (the schema-only classes `FolderPatchRequest`/`FilePatchRequest`) and `UploadService.kt` 181-182. Changed-branch coverage was not measured.
+Changed-line coverage: 522/534 executable added or modified lines (97.8%). Method: JaCoCo XML `line` elements with `mi+ci > 0`, intersected with the `+` lines of `git diff -U0 c3b429ed..HEAD` for each scoped file. A line counts as covered when `ci > 0`. Uncovered changed lines: `FilesDtos.kt` 150-154 and 156-160, and `UploadService.kt` 181-182. Changed-branch coverage was not measured.
 
 Evidence:
-- Task id, immutable base, measured HEAD, and task-owned commits/file-scope source: files-api; base `6e420c3ff144629e2215cb3b3aa86785f6d178a1` and commits bc1c124c, b491adfd, 4e2decc5, all given by the parent and matching `git log 6e420c3f..HEAD` (all "files-api:"). HEAD is `4e2decc5e1e137906623b42234ef82331c844da9`. The scope matches the task `touches`, plus the documented `ProblemDetailsAdvice` addition and `server/build.gradle.kts`.
-- Source/test snapshot identifier (including uncommitted inputs): HEAD 4e2decc5. `git diff HEAD -- server api | sha256sum` gave `e3b0c442...b855` (empty diff) before and after all runs.
-- Exact included files: `server/src/main/kotlin/ch/sonensei/cockpit/` `core/web/ProblemDetailsAdvice.kt`, `files/api/{DriveController,FileController,FilesDtos,FilesWebSupport,FolderController,UploadController}.kt`, `files/domain/{DriveService,FilesService,UploadService,UploadSession}.kt`, `files/infra/{BlobStore,ChunkStore,DriveQueries,FilesRepositories}.kt`. There are no renames or deletions. Excluded: `server/src/main/resources/application.properties` (configuration; FilesMaxSizeWebTests and the zip async-timeout assertion check its behavior), `db/migration/files/V202610201900__files_upload_session.sql` (SQL, applied by Flyway in every Testcontainers test), `server/build.gradle.kts` (build configuration), `api/openapi.yaml` and `web/src/app/api/generated/**` (generated), and the tests.
-- Provider/version, command, working directory, and test selection: JaCoCo through the Gradle `jacoco` plugin (Gradle 9.8.1, default toolVersion). Command: `./gradlew test --rerun --tests 'ch.sonensei.cockpit.files.*' --tests '*OpenApiContractTest' ktlintCheck jacocoTestReport`, run in `server/`.
-- Run start/completion time and exit status: 2026-10-20 about 23:35:35 to 23:36:02 +02:00 (exec written 23:36:00, XML 23:36:01), exit 0.
-- Generated report paths and report hashes/run identifier: `server/build/reports/jacoco/test/jacocoTestReport.xml`, sha256 `1b12017c10dc7f6041e08503877463050599e6eab4603d30ad4fc6409eb46eb0`, unchanged after the later check runs. The later `.taskcheck` runs overwrote `server/build/jacoco/test.exec`, but they did not regenerate the XML. Counters were extracted with `.tmp/tw_cov.py` (Git-ignored).
-- Evidence outputs are fresh and inputs stayed unchanged: yes. `:test` was forced with `--rerun`, the XML was regenerated by this run, and the snapshot hash was the same before and after.
-- Final run after latest test additions and production fixes: yes. It covers HEAD 4e2decc5, which includes the TW-1 fix and the parent's latest test. I added no tests.
+- Task id, immutable base, measured HEAD, and task-owned commits/file-scope source: files-api; base `c3b429ed64eceb70609b59999406373f0e3248fd`; measured HEAD `fa633bff1d6ed3021267e8e438102e9869c3dd1e`; task commits 573bc24d, c27b5850, e48373ca, 01aa873f, 133a5b3d, 8184c4d6 (from the parent, matching `git log c3b429ed..fa633bff`). The file scope comes from `git diff --stat c3b429ed..HEAD` and matches the task `touches`, plus the documented `ProblemDetailsAdvice` addition and `server/build.gradle.kts`.
+- Source/test snapshot identifier (including uncommitted inputs): HEAD fa633bff with a clean working tree. `git diff HEAD -- server api | sha256sum` gave `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855` (empty) before and after the run. There were no untracked inputs.
+- Exact included files: `server/src/main/kotlin/ch/sonensei/cockpit/` `core/web/ProblemDetailsAdvice.kt`, `files/api/{DriveController,FileController,FilesDtos,FilesWebSupport,FolderController,UploadController}.kt`, `files/domain/{DriveService,FilesService,UploadService,UploadSession}.kt`, `files/infra/{BlobStore,ChunkStore,DriveQueries,FilesRepositories}.kt`. There are no renames or deletions. Excluded:
+  - `server/src/main/resources/application.properties`: configuration. FilesMaxSizeWebTests and the zip async-timeout assertion check its behavior.
+  - `db/migration/files/V202610201900__files_upload_session.sql`: SQL that Flyway applies in every Testcontainers test.
+  - `server/build.gradle.kts`: build configuration.
+  - `api/openapi.yaml` and `web/src/app/api/generated/**`: generated files.
+  - The test sources.
+- Provider/version, command, working directory, and test selection: JaCoCo through the Gradle `jacoco` plugin (Gradle 9.8.1, default toolVersion). The command was `./gradlew test --rerun --tests 'ch.sonensei.cockpit.files.*' --tests '*OpenApiContractTest' jacocoTestReport ktlintCheck`, run in `server/`.
+- Run start/completion time and exit status: 2026-10-21, started about 00:29:50 +02:00 and completed 00:31 +02:00 (`test.exec` and XML written at 00:31, `date` 00:31:18), exit 0.
+- Generated report paths and report hashes/run identifier: `server/build/reports/jacoco/test/jacocoTestReport.xml`, sha256 `e9337cd72017d5b1b14c90c122018d6f8ab647d2107f32ee18765f34041ea418`, and `server/build/jacoco/test.exec`. Counters were extracted with `.tmp/tw4_cov.py` (Git-ignored).
+- Evidence outputs are fresh and inputs stayed unchanged: yes. `:test` was forced with `--rerun`, both artifacts were rewritten by this run, and the snapshot hash was the same before and after. The concurrent commit d996a5ec only touches `reviews/`.
+- Final run after latest test additions and production fixes: yes. It includes the CR-1/CR-2 fixes (133a5b3d) and the latest tests (8184c4d6). I added no tests.
 
 Values below use covered/total (percentage). Zero-denominator or unsupported metrics are N/A. Statements = JaCoCo INSTRUCTION, Functions = METHOD.
 
@@ -118,25 +143,14 @@ Values below use covered/total (percentage). Zero-denominator or unsupported met
 | `files/infra/FilesRepositories.kt` | N/A | N/A | N/A | N/A |
 | **Aggregate (summed counters, 15 files, none missing)** | 5421/5802 (93.4%) | 299/334 (89.5%) | 280/296 (94.6%) | 769/802 (95.9%) |
 
-`FilesRepositories.kt` holds only Spring Data interfaces. JaCoCo lists it with zero counters (no executable bytecode), so it is measured and N/A, not missing. The counters are identical to the previous report's: the TW-1 fix is an annotation attribute and adds no bytecode instructions.
+`FilesRepositories.kt` holds only Spring Data interfaces. JaCoCo lists it with zero counters, so it is measured and N/A, not missing. The counters are identical to the 4e2decc5 measurement, because the 133a5b3d changes are annotation attributes and add no bytecode instructions.
 
 | File and uncovered lines/branch locations | Required behavior or risk | Action/test added or reason left uncovered |
 |---|---|---|
-| `UploadService.kt:181-182` | Log line when deleting chunks fails (an I/O error during cleanup) | Not covered. It is defensive logging only, and triggering it needs a failing file system. Justified gap. |
-| `ProblemDetailsAdvice.kt` (whole file 40.7%; missed branches at 61, 74, 75, 87, 88, 101, 125) | Only `handleMissingServletRequestPart` belongs to this task, and `an upload without the file part is a 400 naming the part` covers it | The rest is pre-existing core code that core tests outside this selection cover. Not in task scope. |
-| `FilesDtos.kt:150-160`; branches 38, 39, 66, 67, 107, 108, 203 | `FolderPatchRequest`/`FilePatchRequest` exist only for the OpenAPI schema (PATCH parses `Map` bodies). The missed branches are the failure branches of `checkNotNull(createdAt/updatedAt)` | Non-material. The patch classes only document the API, and the null branches cannot be reached for persisted entities. |
-| `FileController.kt:83,85` (null branches) | `originalFilename == null` / `contentType == null` | The behavior is covered by `a part without a filename needs the name parameter` and `a part without a content type...`. MockMvc and Spring pass `""` or a default type instead of `null`, so the Kotlin null branches are never hit. Justified gap. |
-| `FolderController.kt` (10 missed instructions) | Exception paths of `use {}` inside the zip `StreamingResponseBody` | Non-material cleanup code generated by the compiler. The zip contents are checked by 4 tests. |
-| `DriveService.kt:80,82,111,147` | A listing row whose entity disappears between the two queries (a race); the `archiveEntries` 404 (the controller checks the folder first); a malformed-cursor sub-branch | Non-material or defensive. Cursor validation is covered by `malformed cursors and limits are 400`, and the zip 404 by `unknown ids are 404...`. |
-| `FilesService.kt:69,226,308` (branches) | Path lookup of a vanished parent; a file "move" to its current folder (a no-op); restore of an unlisted file | Defensive or pre-existing (restore is not part of this task). Left uncovered. |
-
-## Unable to test
-
-- Android client generation and Android unit tests/lint: not run. `.taskcheck` stopped at the server step both times (the `ClockConfigurationTests` flake), and running the Android Gradle step on its own was not approved in this session. Follow-up for the parent: get a `.taskcheck` run through the Android step. This confirms TW-1 end to end (`:app:openApiGenerate` accepts the regenerated `api/openapi.yaml`).
-- Real Tomcat async timeout for long zip streams: checked only through the MockMvc async context timeout (-1), not with a real server streaming for more than 30 s. This is optional and not required by the criteria.
-
-## Summary
-
-Tests and task-scoped coverage are sufficient; no production defects found.
-
-TW-1 is fixed, and all 175 focused tests (files package + OpenApiContractTest) and ktlint pass at HEAD 4e2decc5. `.taskcheck` still fails, but not because of files-api. The pre-existing, timing-dependent test `ClockConfigurationTests.the application clock is the system clock in UTC` failed in both full server runs (and passes alone). As a result, the Android step, which would confirm the TW-1 fix in the Android generator, has not run yet. The parent must resolve that test or get a passing `.taskcheck` before `done`.
+| `UploadService.kt:181-182` | Warn log when deleting the chunks fails (an I/O error during cleanup) | Defensive logging only, and it needs a failing file system to trigger. Justified gap. |
+| `ProblemDetailsAdvice.kt` (whole file 40.7%; missed lines 46-64, 85-90, 110, 125-129) | Only `handleMissingServletRequestPart` belongs to this task, and `an upload without the file part is a 400 naming the part` covers it | The rest is pre-existing core code, covered by core tests outside this selection. Not in task scope. |
+| `FilesDtos.kt:150-160`; branches 38, 39, 66, 67, 107, 108, 203 | `FolderPatchRequest`/`FilePatchRequest` exist only for the OpenAPI schema (PATCH parses `Map` bodies). The missed branches are the `checkNotNull(createdAt/updatedAt)` failures | Non-material. The schema is checked by `the OpenAPI contract allows null...` and OpenApiContractTest, and the null branches cannot be reached for persisted entities. |
+| `FileController.kt:83,85` (null branches) | `originalFilename == null` / `contentType == null` | The behavior is covered by `a part without a filename needs the name parameter` and `a part without a content type...`. Spring passes `""` or a default type, never `null`. Justified gap. |
+| `FolderController.kt` (10 missed instructions) | Exception paths of `use {}` inside the zip `StreamingResponseBody` | Compiler-generated cleanup. The zip contents are checked by 4 tests. Non-material. |
+| `DriveService.kt:80,82,111,147` (branches) | A listing row that disappears between the two queries (a race); the `archiveEntries` 404 (the controller checks the folder first); a sub-branch of malformed-cursor handling | Defensive. Cursor validation is covered by `malformed cursors and limits are 400`, and the zip 404 by `unknown ids are 404...`. |
+| `FilesService.kt:69,226,308` (branches) | Path lookup of a vanished parent; a file move to its current folder (a no-op); restore of an unlisted file | Defensive or pre-existing (restore is not part of this task). Left uncovered. |
