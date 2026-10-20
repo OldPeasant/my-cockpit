@@ -79,6 +79,15 @@ interface FileRepository : SoftDeletableRepository<FileItem> {
 	)
 	fun findTrashRoots(): List<FileItem>
 
+	/**
+	 * The file [id] when it is in the Trash, locked `FOR UPDATE` until the transaction ends. A purge locks the file with
+	 * this before deleting it: a restore running at the same time either commits first (the condition is re-evaluated
+	 * on the new row version after the wait, so this returns `null`) or waits for the purge and then fails.
+	 */
+	@Lock(LockModeType.PESSIMISTIC_WRITE)
+	@Query("select f from FileItem f where f.id = :id and f.deletedAt is not null")
+	fun lockTrashed(id: UUID): FileItem?
+
 	@Modifying(flushAutomatically = true, clearAutomatically = true)
 	@Query("delete from FileItem f where f.id in :ids")
 	fun deleteAllByIds(ids: Collection<UUID>)

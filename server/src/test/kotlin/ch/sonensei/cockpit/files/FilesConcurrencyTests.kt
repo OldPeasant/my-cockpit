@@ -29,6 +29,7 @@ import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.context.annotation.Import
+import org.springframework.dao.OptimisticLockingFailureException
 import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.test.context.event.ApplicationEvents
 import org.springframework.test.context.event.RecordApplicationEvents
@@ -45,8 +46,8 @@ import java.util.concurrent.TimeUnit
 import kotlin.io.path.walk
 
 /**
- * Races between uploads, folder creation, folder deletion and purging (review findings CR-1 to CR-3 of task
- * files-storage). Each test forces the interleaving with latches and waits for the database lock instead of relying on
+ * Races between uploads, folder creation, folder deletion, restoring and purging (review findings CR-1 to CR-3 of task
+ * files-storage, and CR-1 of its re-review). Each test forces the interleaving with latches and waits for the database lock instead of relying on
  * timing.
  */
 @SpringBootTest
@@ -289,6 +290,140 @@ class FilesConcurrencyTests(
 		inside.folderId shouldBe sub.id
 		blobs.open(inside.storageKey).use { it.readAllBytes().decodeToString() } shouldBe "nested"
 		(blobFiles() - before) shouldBe setOf(kept.storageKey, inside.storageKey)
+	}
+
+	@Test
+	fun `a purge racing a restore of the same file that commits first does nothing`() {
+		val file = service.storeFile(null, "scan.pdf", "application/pdf", "scan bytes".byteInputStream())
+		service.deleteFile(file.id)
+		val restored = CountDownLatch(1)
+		val proceed = CountDownLatch(1)
+		val restore =
+			pool.submit<Boolean> {
+				tx.execute {
+					service.restoreFile(file.id).also {
+						// The UPDATE a committing restore runs, while its transaction is still open.
+						files.flush()
+						restored.countDown()
+						check(proceed.await(TIMEOUT, TimeUnit.SECONDS))
+					}
+				}
+			}
+		restored.await(TIMEOUT, TimeUnit.SECONDS) shouldBe true
+		val purge = pool.submit<Boolean> { service.purgeFile(file.id) }
+		awaitLockWait()
+		purge.isDone shouldBe false
+
+		proceed.countDown()
+		restore.get(TIMEOUT, TimeUnit.SECONDS) shouldBe true
+
+		purge.get(TIMEOUT, TimeUnit.SECONDS) shouldBe false
+		val kept = files.findActiveById(file.id).shouldNotBeNull()
+		blobs.open(kept.storageKey).use { it.readAllBytes().decodeToString() } shouldBe "scan bytes"
+		filesTrash().shouldBeEmpty()
+	}
+
+	@Test
+	fun `a restore racing a purge of the same file that commits first fails and the file is gone`() {
+		val before = blobFiles()
+		val file = service.storeFile(null, "scan.pdf", "application/pdf", "scan bytes".byteInputStream())
+		service.deleteFile(file.id)
+		val purged = CountDownLatch(1)
+		val proceed = CountDownLatch(1)
+		val purge =
+			pool.submit<Boolean> {
+				tx.execute {
+					service.purgeFile(file.id).also {
+						purged.countDown()
+						check(proceed.await(TIMEOUT, TimeUnit.SECONDS))
+					}
+				}
+			}
+		purged.await(TIMEOUT, TimeUnit.SECONDS) shouldBe true
+		val restore = pool.submit<Boolean> { service.restoreFile(file.id) }
+		awaitLockWait()
+		restore.isDone shouldBe false
+
+		proceed.countDown()
+		purge.get(TIMEOUT, TimeUnit.SECONDS) shouldBe true
+
+		restore.failure().shouldBeInstanceOf<OptimisticLockingFailureException>()
+		files.findById(file.id).isPresent shouldBe false
+		blobFiles() shouldBe before
+		filesTrash().shouldBeEmpty()
+	}
+
+	@Test
+	fun `a purge racing a restore of the same folder that commits first does nothing`() {
+		val folder = service.createFolder("Old", null)
+		val sub = service.createFolder("Sub", folder.id)
+		val file = service.storeFile(sub.id, "keep.txt", "text/plain", "keep me".byteInputStream())
+		service.deleteFolder(folder.id)
+		val restored = CountDownLatch(1)
+		val proceed = CountDownLatch(1)
+		val restore =
+			pool.submit<Boolean> {
+				tx.execute {
+					service.restoreFolder(folder.id).also {
+						// The UPDATE a committing restore runs, while its transaction is still open.
+						files.flush()
+						restored.countDown()
+						check(proceed.await(TIMEOUT, TimeUnit.SECONDS))
+					}
+				}
+			}
+		restored.await(TIMEOUT, TimeUnit.SECONDS) shouldBe true
+		val purge = pool.submit<Boolean> { service.purgeFolder(folder.id) }
+		awaitLockWait()
+		purge.isDone shouldBe false
+
+		proceed.countDown()
+		restore.get(TIMEOUT, TimeUnit.SECONDS) shouldBe true
+
+		purge.get(TIMEOUT, TimeUnit.SECONDS) shouldBe false
+		folders
+			.findActiveById(folder.id)
+			.shouldNotBeNull()
+			.parentId
+			.shouldBeNull()
+		folders.findActiveById(sub.id).shouldNotBeNull().parentId shouldBe folder.id
+		val kept = files.findActiveById(file.id).shouldNotBeNull()
+		kept.folderId shouldBe sub.id
+		blobs.open(kept.storageKey).use { it.readAllBytes().decodeToString() } shouldBe "keep me"
+		filesTrash().shouldBeEmpty()
+	}
+
+	@Test
+	fun `a restore racing a purge of the same folder that commits first fails and the folder is gone`() {
+		val before = blobFiles()
+		val folder = service.createFolder("Old", null)
+		val sub = service.createFolder("Sub", folder.id)
+		val file = service.storeFile(sub.id, "gone.txt", "text/plain", "gone".byteInputStream())
+		service.deleteFolder(folder.id)
+		val purged = CountDownLatch(1)
+		val proceed = CountDownLatch(1)
+		val purge =
+			pool.submit<Boolean> {
+				tx.execute {
+					service.purgeFolder(folder.id).also {
+						purged.countDown()
+						check(proceed.await(TIMEOUT, TimeUnit.SECONDS))
+					}
+				}
+			}
+		purged.await(TIMEOUT, TimeUnit.SECONDS) shouldBe true
+		val restore = pool.submit<Boolean> { service.restoreFolder(folder.id) }
+		awaitLockWait()
+		restore.isDone shouldBe false
+
+		proceed.countDown()
+		purge.get(TIMEOUT, TimeUnit.SECONDS) shouldBe true
+
+		restore.failure().shouldBeInstanceOf<OptimisticLockingFailureException>()
+		folders.findAll().shouldBeEmpty()
+		files.findById(file.id).isPresent shouldBe false
+		blobFiles() shouldBe before
+		filesTrash().shouldBeEmpty()
 	}
 
 	@Test

@@ -37,6 +37,8 @@ import java.util.UUID
  * Concurrency: inserting a file or folder locks its target folder `FOR SHARE` (and requires it to be active), and
  * deleting a folder locks every folder of its subtree `FOR UPDATE` before collecting the contents. So an insert racing
  * a delete either commits first (and is trashed with the folder) or waits and then fails with [NotFoundException].
+ * Purging locks the item (a folder: its subtree) `FOR UPDATE` before it checks that it is in the Trash, so a restore
+ * racing a purge either commits first (and the purge does nothing) or waits and then fails with a stale version.
  */
 @Service
 @Transactional
@@ -262,8 +264,12 @@ class FilesService(
 	 * survives; an active folder gets a free name there ([freeName]).
 	 */
 	fun purgeFolder(id: UUID): Boolean {
+		// Lock first, then decide from the current rows (the subtree is loaded only by the locking read): a restore
+		// committed meanwhile makes this return false, and a restore started later waits for the purge and then fails
+		// with a stale version.
+		val subtreeIds = lockSubtree(id)
 		if (trashedFolders().none { it.id == id }) return false
-		val subtree = folders.findAllById(lockSubtree(id))
+		val subtree = folders.findAllById(subtreeIds)
 		val children = subtree.groupBy { it.parentId }
 		val purged = mutableListOf<Folder>()
 		val pending = ArrayDeque(subtree.filter { it.id == id })
@@ -276,16 +282,16 @@ class FilesService(
 				rescue(next)
 			}
 		}
-		val subtreeIds = purged.map { it.id }
-		val (contained, strays) = files.findByFolderIdIn(subtreeIds).partition { it.isDeleted }
+		val purgedIds = purged.map { it.id }
+		val (contained, strays) = files.findByFolderIdIn(purgedIds).partition { it.isDeleted }
 		strays.forEach { rescue(it) }
 		if (contained.isNotEmpty()) files.deleteAllByIds(contained.map { it.id })
-		folders.deleteAllByIds(subtreeIds)
+		folders.deleteAllByIds(purgedIds)
 		contained.forEach {
 			events.publishEvent(ItemDeletedEvent(ItemRef(ItemType.FILE, it.id)))
 			changes.publish(ItemType.FILE, it.id, ChangeOp.DELETED)
 		}
-		subtreeIds.filter { it != id }.forEach {
+		purgedIds.filter { it != id }.forEach {
 			events.publishEvent(ItemDeletedEvent(ItemRef(ItemType.FOLDER, it)))
 			changes.publish(ItemType.FOLDER, it, ChangeOp.DELETED)
 		}
@@ -294,9 +300,13 @@ class FilesService(
 		return true
 	}
 
-	/** Deletes a file listed in the Trash permanently, and its blob after commit. `false` when it is not listed. */
+	/**
+	 * Deletes a file listed in the Trash permanently, and its blob after commit. `false` when it is not listed. The file
+	 * is locked first ([FileRepository.lockTrashed]), so a racing restore is never overwritten.
+	 */
 	fun purgeFile(id: UUID): Boolean {
-		val file = trashedFiles().find { it.id == id } ?: return false
+		val file = files.lockTrashed(id) ?: return false
+		if (trashedFiles().none { it.id == id }) return false
 		files.deleteAllByIds(listOf(file.id))
 		val key = file.storageKey
 		afterCompletion { committed -> if (committed) deleteBlob(key) }
