@@ -30,6 +30,12 @@ tags:
   name: Links
 - description: "Deleted items: list, restore, delete permanently"
   name: Trash
+- description: "Cached message lists (unified Inbox, an account's Inbox or a folder;\
+    \ flat or threaded), messages with sanitized HTML and attachments, attachment\
+    \ downloads and the remote image proxy. Reading never marks a message as seen.\
+    \ Mail server failures are 502 (503 when the account's connections are busy) with\
+    \ an `errorCode`."
+  name: Mail messages
 - description: "Reminders for items of any type. When a reminder is due, the server\
     \ fires it once and sends the SSE event `reminder` on `GET /api/v1/events` with\
     \ a `ReminderResponse` as data. Every change also sends a `change` event of type\
@@ -2607,6 +2613,238 @@ paths:
       summary: Test the connection
       tags:
       - Mail accounts
+  /api/v1/mail/image-proxy:
+    get:
+      description: "Fetches an `http`/`https` raster image (no SVG) for \"load images\"\
+        , so the sender never sees the client. Only public internet hosts on ports\
+        \ 80/443; size and time are limited (`cockpit.mail.read.image-proxy.*`). `GET\
+        \ /messages/{id}?remoteImages=PROXY` rewrites image URLs to this endpoint."
+      operationId: proxyMailImage
+      parameters:
+      - in: query
+        name: url
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            image/*:
+              schema:
+                type: string
+                format: binary
+          description: The image
+        "400":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: "Not an http(s) URL, or not a public host or port"
+        "502":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: "The image could not be loaded, is too large or no supported\
+            \ image"
+        "504":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: The image server did not answer in time
+      summary: Load a remote image of a mail through the server
+      tags:
+      - Mail messages
+  /api/v1/mail/messages:
+    get:
+      description: "`folderId` lists that folder (`accountId`, if given, must be its\
+        \ account); `accountId` alone lists the account's Inbox; neither lists the\
+        \ unified Inbox of all accounts. With `threaded=true` each item is the newest\
+        \ message of a conversation in that list, with `threadSize` and `threadUnread`\
+        \ counted in the list; `GET /messages/{id}/thread` returns the whole conversation.\
+        \ Only cached headers are read."
+      operationId: listMailMessages
+      parameters:
+      - in: query
+        name: accountId
+        required: false
+        schema:
+          type: string
+          format: uuid
+      - in: query
+        name: folderId
+        required: false
+        schema:
+          type: string
+          format: uuid
+      - description: One item per conversation instead of per message
+        in: query
+        name: threaded
+        required: false
+        schema:
+          type: boolean
+          default: false
+      - in: query
+        name: cursor
+        required: false
+        schema:
+          type: string
+      - in: query
+        name: limit
+        required: false
+        schema:
+          type: integer
+          format: int32
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MailMessageListResponse"
+          description: One page of messages
+        "400":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: "Malformed cursor, limit or a folder of another account"
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: No such account or folder
+      summary: "List messages, newest first"
+      tags:
+      - Mail messages
+  /api/v1/mail/messages/{id}:
+    get:
+      description: "Loads the body from the server on first access, then from the\
+        \ body cache. `body.html` is sanitized (render it in a sandboxed iframe);\
+        \ remote images are removed (`remoteImages=BLOCK`, default) or rewritten to\
+        \ the image proxy (`PROXY`), `cid:` images point to the attachment download.\
+        \ A message that moved resolves to its current copy (its `id` may differ from\
+        \ the requested one)."
+      operationId: getMailMessage
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - in: query
+        name: remoteImages
+        required: false
+        schema:
+          type: string
+          default: BLOCK
+          enum:
+          - BLOCK
+          - PROXY
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MailMessageResponse"
+          description: "The message, with its version as ETag"
+          headers:
+            ETag:
+              schema:
+                type: string
+              style: simple
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: "No such message, or it is no longer on the server"
+        "502":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: The mail server failed
+      summary: "One message with headers, sanitized body and attachments"
+      tags:
+      - Mail messages
+  /api/v1/mail/messages/{id}/attachments/{partId}:
+    get:
+      description: "Streams the decoded part from the mail server. Always a download\
+        \ (`Content-Disposition: attachment`), except with `inline=true` for raster\
+        \ images (inline `cid:` images, previews)."
+      operationId: downloadMailAttachment
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - in: path
+        name: partId
+        required: true
+        schema:
+          type: string
+      - in: query
+        name: inline
+        required: false
+        schema:
+          type: boolean
+          default: false
+      responses:
+        "200":
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+          description: The attachment
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: No such message or attachment
+        "502":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: The mail server failed
+      summary: Download an attachment
+      tags:
+      - Mail messages
+  /api/v1/mail/messages/{id}/thread:
+    get:
+      description: "Every cached message of the conversation in the message's account\
+        \ (all folders), oldest first."
+      operationId: getMailThread
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MailThreadResponse"
+          description: The conversation
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: No such message
+      summary: The conversation of a message
+      tags:
+      - Mail messages
   /api/v1/oauth/connections:
     get:
       operationId: listOAuthConnections
@@ -6228,6 +6466,62 @@ components:
       - updatedAt
       - username
       - version
+    MailAddressResponse:
+      type: object
+      properties:
+        address:
+          type: string
+        name:
+          type: string
+      required:
+      - name
+    MailAttachmentResponse:
+      type: object
+      properties:
+        contentId:
+          type: string
+        contentType:
+          type: string
+        downloadUrl:
+          type: string
+          description: Relative download URL
+        filename:
+          type: string
+        inline:
+          type: boolean
+          description: A part of the body (e.g. a `cid:` image) rather than a real
+            attachment
+        partId:
+          type: string
+          description: "IMAP section, e.g. `2` or `1.2`"
+        sizeBytes:
+          type: integer
+          format: int64
+          description: Estimated decoded size
+      required:
+      - contentId
+      - filename
+      - sizeBytes
+    MailBodyResponse:
+      type: object
+      properties:
+        html:
+          type: string
+          description: "Sanitized HTML (body content only), `null` for plain-text\
+            \ mail; render in a sandboxed iframe"
+        remoteImageCount:
+          type: integer
+          format: int32
+          description: Remote images in the HTML (blocked or proxied)
+        remoteImagesBlocked:
+          type: boolean
+          description: "Remote images were removed: offer \"load images\" (`remoteImages=PROXY`)"
+        text:
+          type: string
+          description: "The text/plain part, if any"
+      required:
+      - html
+      - text
     MailFolderListResponse:
       type: object
       properties:
@@ -6285,6 +6579,174 @@ components:
       - roleOverridden
       - selectable
       - version
+    MailMessageListResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/MailMessageSummaryResponse"
+        nextCursor:
+          type: string
+          description: '`null` on the last page'
+      required:
+      - nextCursor
+    MailMessageResponse:
+      type: object
+      description: "A message with headers, sanitized body and attachments"
+      properties:
+        accountId:
+          type: string
+          format: uuid
+        answered:
+          type: boolean
+        attachments:
+          type: array
+          items:
+            $ref: "#/components/schemas/MailAttachmentResponse"
+        bcc:
+          type: array
+          items:
+            $ref: "#/components/schemas/MailAddressResponse"
+        body:
+          $ref: "#/components/schemas/MailBodyResponse"
+        cc:
+          type: array
+          items:
+            $ref: "#/components/schemas/MailAddressResponse"
+        createdAt:
+          type: string
+          format: date-time
+        draft:
+          type: boolean
+        flagged:
+          type: boolean
+        folderId:
+          type: string
+          format: uuid
+        from:
+          type: array
+          items:
+            $ref: "#/components/schemas/MailAddressResponse"
+        hasAttachments:
+          type: boolean
+        id:
+          type: string
+          format: uuid
+        inReplyTo:
+          type: string
+        keywords:
+          type: array
+          items:
+            type: string
+        messageIdHeader:
+          type: string
+          description: The Message-ID header with angle brackets
+        receivedAt:
+          type: string
+          format: date-time
+        references:
+          type: string
+        replyTo:
+          type: array
+          items:
+            $ref: "#/components/schemas/MailAddressResponse"
+        seen:
+          type: boolean
+        sentAt:
+          type: string
+          format: date-time
+        sizeBytes:
+          type: integer
+          format: int64
+        subject:
+          type: string
+        threadKey:
+          type: string
+        to:
+          type: array
+          items:
+            $ref: "#/components/schemas/MailAddressResponse"
+        updatedAt:
+          type: string
+          format: date-time
+        version:
+          type: integer
+          format: int64
+      required:
+      - inReplyTo
+      - messageIdHeader
+      - receivedAt
+      - references
+      - sentAt
+      - subject
+      - threadKey
+    MailMessageSummaryResponse:
+      type: object
+      description: A list entry (cached headers)
+      properties:
+        accountId:
+          type: string
+          format: uuid
+        answered:
+          type: boolean
+        cc:
+          type: array
+          items:
+            $ref: "#/components/schemas/MailAddressResponse"
+        draft:
+          type: boolean
+        flagged:
+          type: boolean
+        folderId:
+          type: string
+          format: uuid
+        from:
+          type: array
+          items:
+            $ref: "#/components/schemas/MailAddressResponse"
+        hasAttachments:
+          type: boolean
+        id:
+          type: string
+          format: uuid
+        receivedAt:
+          type: string
+          format: date-time
+          description: Arrival in the mailbox (INTERNALDATE)
+        seen:
+          type: boolean
+        sentAt:
+          type: string
+          format: date-time
+          description: The `Date` header
+        sizeBytes:
+          type: integer
+          format: int64
+        snippet:
+          type: string
+        subject:
+          type: string
+        threadKey:
+          type: string
+        threadSize:
+          type: integer
+          format: int32
+          description: Messages of the conversation in the list (1 when not threaded)
+        threadUnread:
+          type: integer
+          format: int32
+          description: Unread messages of the conversation in the list
+        to:
+          type: array
+          items:
+            $ref: "#/components/schemas/MailAddressResponse"
+      required:
+      - receivedAt
+      - sentAt
+      - snippet
+      - subject
+      - threadKey
     MailServerRequest:
       type: object
       properties:
@@ -6327,6 +6789,13 @@ components:
       - host
       - port
       - security
+    MailThreadResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/MailMessageSummaryResponse"
     MeResponse:
       type: object
       properties:

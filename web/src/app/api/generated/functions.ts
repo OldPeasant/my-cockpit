@@ -157,6 +157,16 @@ export type { UpdateMailFolder$Params as UpdateMailFolder$Params } from './fn/ma
 export { updateMailFolder as updateMailFolder } from './fn/mail-accounts/update-mail-folder';
 export type { TestMailAccountConnection$Params as TestMailAccountConnection$Params } from './fn/mail-accounts/test-mail-account-connection';
 export { testMailAccountConnection as testMailAccountConnection } from './fn/mail-accounts/test-mail-account-connection';
+export type { ProxyMailImage$Params as ProxyMailImage$Params } from './fn/mail-messages/proxy-mail-image';
+export { proxyMailImage as proxyMailImage } from './fn/mail-messages/proxy-mail-image';
+export type { ListMailMessages$Params as ListMailMessages$Params } from './fn/mail-messages/list-mail-messages';
+export { listMailMessages as listMailMessages } from './fn/mail-messages/list-mail-messages';
+export type { GetMailMessage$Params as GetMailMessage$Params } from './fn/mail-messages/get-mail-message';
+export { getMailMessage as getMailMessage } from './fn/mail-messages/get-mail-message';
+export type { DownloadMailAttachment$Params as DownloadMailAttachment$Params } from './fn/mail-messages/download-mail-attachment';
+export { downloadMailAttachment as downloadMailAttachment } from './fn/mail-messages/download-mail-attachment';
+export type { GetMailThread$Params as GetMailThread$Params } from './fn/mail-messages/get-mail-thread';
+export { getMailThread as getMailThread } from './fn/mail-messages/get-mail-thread';
 export type { ListOAuthConnections$Params as ListOAuthConnections$Params } from './fn/o-auth/list-o-auth-connections';
 export { listOAuthConnections as listOAuthConnections } from './fn/o-auth/list-o-auth-connections';
 export type { GetOAuthConnection$Params as GetOAuthConnection$Params } from './fn/o-auth/get-o-auth-connection';
