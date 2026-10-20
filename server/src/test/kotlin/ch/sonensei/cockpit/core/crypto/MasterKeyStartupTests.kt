@@ -14,6 +14,7 @@ import org.springframework.boot.test.system.CapturedOutput
 import org.springframework.boot.test.system.OutputCaptureExtension
 import org.springframework.core.env.ConfigurableEnvironment
 import org.springframework.core.env.StandardEnvironment
+import java.util.Base64
 
 /** Starts the real application (not a test context) against the test Postgres, with and without a master key. */
 @ExtendWith(OutputCaptureExtension::class)
@@ -52,6 +53,22 @@ class MasterKeyStartupTests : PostgresTestBase() {
 		start(environment = environment).use { context ->
 			context.isActive shouldBe true
 			context.environment.getProperty("cockpit.crypto.master-key") shouldBe TEST_KEY
+		}
+	}
+
+	@Test
+	fun `outside tests the master key is read from the COCKPIT_MASTER_KEY variable`() {
+		val deploymentKey = Base64.getEncoder().encodeToString(ByteArray(MasterKey.KEY_BYTES) { 42 })
+		val environment =
+			object : StandardEnvironment() {
+				override fun getSystemEnvironment(): Map<String, Any> = System.getenv() + (MASTER_KEY_ENV to deploymentKey)
+			}
+
+		// Only the main application.properties, as in a deployment: no fictitious key from src/test/resources/config.
+		start("--spring.config.location=classpath:/application.properties", environment = environment).use { context ->
+			context.environment.getProperty("cockpit.crypto.master-key") shouldBe deploymentKey
+			val stored = context.getBean(SecretCipher::class.java).encrypt("fictitious-imap-password")
+			SecretCipher(Base64.getDecoder().decode(deploymentKey)).decrypt(stored) shouldBe "fictitious-imap-password"
 		}
 	}
 
