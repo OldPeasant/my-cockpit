@@ -1,0 +1,24 @@
+{
+  "schema": 1,
+  "task": "p0-smoke",
+  "reviewed_revision": "5c7ac829b792dc158076d970b492a9025d419461",
+  "helpers": {
+    "test-writer": {"status": "completed", "report": "reviews/p0-smoke/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/p0-smoke/review.md"},
+    "fixer": {"status": "not_required", "reason": "No P0/P1 findings; CR-1 is resolved by the task assumption already recorded, CR-2 is a P3 docs nicety deliberately left"}
+  },
+  "fixes_required": false,
+  "findings": [
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P2", "disposition": "accepted",
+     "note": "Step 1 checks /actuator/health on the Caddy-less e2e stack as the criterion says; recorded as p0-smoke assumption #1 and in the criterion 1 evidence; the proxy path stays with step 6 (H, h-deploy-p0)"},
+    {"id": "CR-2", "source": "code-reviewer", "severity": "P3", "disposition": "accepted",
+     "note": "web/e2e/README.md already explains the phase-demos ordering and npm run e2e -- --no-deps; the dependency is intended"},
+    {"id": "TW-1", "source": "test-writer", "severity": "Low", "disposition": "out_of_scope",
+     "note": "Intermittent ClockConfigurationTests failure (micro- vs nanosecond Instant) in server code this task does not touch; tracked by task fix-flaky-clock-test"}
+  ],
+  "validation": [
+    {"command": "npm --prefix web run e2e", "result": "pass"},
+    {"command": "cd web && npx ng test --watch=false --include src/app/features/settings/settings.routes.spec.ts --include src/app/shell/shell.spec.ts", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
