@@ -1,0 +1,34 @@
+{
+  "schema": 1,
+  "task": "mail-imap",
+  "reviewed_revision": "58b0dde752c93f286419a671f68fd76ba0bbbd02",
+  "helpers": {
+    "test-writer": {"status": "completed", "report": "reviews/mail-imap/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/mail-imap/review.md"},
+    "fixer": {"status": "completed", "report": "reviews/mail-imap/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "R1-CR-1", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "round 1: parallel syncs of one account inserted folders twice (500); account row lock in the store transaction, parallel-sync test"},
+    {"id": "R1-CR-2", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "round 1: GreenMail test connects via 127.0.0.1 (cert host mismatch) and asserts TLS_FAILED"},
+    {"id": "R1-CR-3", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "round 1: create validation reports fields imap/smtp"},
+    {"id": "R1-CR-4", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "round 1: scheduled 60 s sweep closes expired idle connections"},
+    {"id": "R1-CR-5", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "round 1: pooled connections carry a connection-settings fingerprint; mismatching idle ones are closed"},
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P3", "disposition": "accepted",
+     "note": "round 2: lock orders stores but not remote listings, so an older listing can be stored after a newer one; self-heals on the next sync, mail-header-sync/mail-idle can serialize listing+store per account if needed"},
+    {"id": "CR-2", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "round 2: password-account reuse test was added by the test-writer in the same round (ImapConnectionPoolTests, commit 58b0dde7)"},
+    {"id": "CR-3", "source": "code-reviewer", "severity": "P3", "disposition": "accepted",
+     "note": "round 2: fixes.md cites pre-rebase hashes 9e0536a8/a3a14475; after rebasing on main they are e2419dea/7128f112. Report content unchanged, documentation only"}
+  ],
+  "validation": [
+    {"command": "cd server && ./gradlew test --tests '*OpenApiContractTest' --tests 'ch.sonensei.cockpit.mail.imap.*' --rerun", "result": "pass"},
+    {"command": "cd server && ./gradlew integrationTest --tests '*Imap*' --rerun", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
