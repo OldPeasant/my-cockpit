@@ -1,0 +1,51 @@
+<div class="palette">
+  <input
+    class="query"
+    type="search"
+    role="combobox"
+    aria-autocomplete="list"
+    aria-expanded="true"
+    aria-controls="app-palette-list"
+    [attr.aria-activedescendant]="activeId()"
+    i18n-aria-label="@@palette.queryLabel"
+    aria-label="Search or type a command"
+    i18n-placeholder="@@palette.queryPlaceholder"
+    placeholder="Search or type a command"
+    autocomplete="off"
+    [value]="query()"
+    (input)="onInput($any($event.target).value)"
+    (keydown)="onKeydown($event)"
+  />
+  <div
+    id="app-palette-list"
+    class="results"
+    role="listbox"
+    i18n-aria-label="@@palette.resultsLabel"
+    aria-label="Results"
+  >
+    @for (group of groups(); track group.name) {
+      <div role="group" class="group" [attr.aria-label]="group.name">
+        <div class="group-name" aria-hidden="true">{{ group.name }}</div>
+        @for (row of group.items; track row.item.id) {
+          <div
+            role="option"
+            class="option"
+            [id]="optionId(row.index)"
+            [class.active]="isActive(row.index)"
+            [attr.aria-selected]="isActive(row.index)"
+            tabindex="-1"
+            (click)="choose(row.item)"
+            (keydown.enter)="choose(row.item)"
+          >
+            <span class="label">{{ row.item.label }}</span>
+            @if (row.item.hint) {
+              <span class="hint">{{ row.item.hint }}</span>
+            }
+          </div>
+        }
+      </div>
+    } @empty {
+      <p class="empty" i18n="@@palette.empty">Nothing matches. Try another word.</p>
+    }
+  </div>
+</div>

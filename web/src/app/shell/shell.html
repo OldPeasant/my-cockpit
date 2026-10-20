@@ -1,0 +1,95 @@
+<mat-sidenav-container class="shell">
+  <mat-sidenav
+    #drawer
+    class="nav"
+    [mode]="compact() ? 'over' : 'side'"
+    [opened]="!compact()"
+    [fixedInViewport]="compact()"
+  >
+    <a class="brand" routerLink="/" (click)="onNavigate()" i18n="@@app.title">My Cockpit</a>
+    <nav i18n-aria-label="@@nav.label" aria-label="Main">
+      @for (group of groups; track group.id) {
+        <ul class="group" [attr.aria-label]="group.label">
+          @for (section of group.sections; track section.id) {
+            <li>
+              <a
+                class="link"
+                [routerLink]="section.path"
+                routerLinkActive="active"
+                [routerLinkActiveOptions]="{ exact: section.path === '/' }"
+                ariaCurrentWhenActive="page"
+                (click)="onNavigate()"
+                >{{ section.label }}</a
+              >
+            </li>
+          }
+        </ul>
+      }
+    </nav>
+  </mat-sidenav>
+
+  <mat-sidenav-content class="content">
+    <header class="topbar">
+      @if (compact()) {
+        <button
+          mat-icon-button
+          type="button"
+          class="menu"
+          i18n-aria-label="@@topbar.menu"
+          aria-label="Open navigation"
+          (click)="toggleDrawer()"
+        >
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z" />
+          </svg>
+        </button>
+      }
+      <button type="button" class="search" (click)="openPalette()">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path
+            d="M15.5 14h-.8l-.3-.3A6.5 6.5 0 1 0 9.5 16a6.5 6.5 0 0 0 4.2-1.6l.3.3v.8l5 5 1.5-1.5zm-6 0a4.5 4.5 0 1 1 0-9 4.5 4.5 0 0 1 0 9"
+          />
+        </svg>
+        <span class="search-text" i18n="@@topbar.search">Search</span>
+        <kbd class="hint">Ctrl K</kbd>
+      </button>
+      <span class="spacer"></span>
+      <button
+        mat-icon-button
+        type="button"
+        class="theme"
+        [matMenuTriggerFor]="themeMenu"
+        i18n-aria-label="@@topbar.theme"
+        aria-label="Theme"
+      >
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20m0 18V4a8 8 0 0 1 0 16" />
+        </svg>
+      </button>
+      <mat-menu #themeMenu="matMenu">
+        @for (mode of themeModes; track mode) {
+          <button
+            mat-menu-item
+            type="button"
+            role="menuitemradio"
+            [attr.aria-checked]="theme.mode() === mode"
+            [class.selected]="theme.mode() === mode"
+            (click)="theme.setMode(mode)"
+          >
+            {{ themeLabels[mode] }}
+          </button>
+        }
+      </mat-menu>
+      <button mat-flat-button type="button" class="capture" (click)="openCapture()">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M11 5h2v6h6v2h-6v6h-2v-6H5v-2h6z" />
+        </svg>
+        <span i18n="@@topbar.capture">Capture</span>
+        <kbd class="hint">Q</kbd>
+      </button>
+    </header>
+    <main class="main">
+      <router-outlet />
+    </main>
+  </mat-sidenav-content>
+</mat-sidenav-container>

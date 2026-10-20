@@ -1,8 +1,4 @@
-.placeholder {
-  padding: var(--app-space-4);
-  color: var(--app-fg);
-
-  p {
-    color: var(--app-fg-muted);
-  }
+:host {
+  display: block;
+  height: 100%;
 }
