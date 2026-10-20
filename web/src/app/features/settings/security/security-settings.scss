@@ -1,0 +1,143 @@
+h2 {
+  margin: 0 0 var(--app-space-2);
+  font: var(--mat-sys-title-large);
+}
+
+.note {
+  margin: 0;
+  color: var(--app-fg-muted);
+}
+
+.error {
+  margin: var(--app-space-2) 0 0;
+  color: var(--app-danger);
+}
+
+.load-error {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--app-space-3);
+  color: var(--app-danger);
+
+  p {
+    margin: 0;
+  }
+}
+
+// One setting per row: what it is on the left, the control on the right (as in General).
+.row {
+  display: grid;
+  grid-template-columns: minmax(0, 16rem) minmax(0, 1fr);
+  gap: var(--app-space-2) var(--app-space-5);
+  padding: var(--app-space-4) 0;
+  border-top: 1px solid var(--app-border);
+}
+
+h3 {
+  margin: 0 0 var(--app-space-1);
+  font: var(--mat-sys-title-small);
+}
+
+.describe p {
+  margin: 0;
+  max-width: 40ch;
+  color: var(--app-fg-muted);
+  font: var(--mat-sys-body-medium);
+}
+
+.control {
+  min-width: 0;
+}
+
+.devices {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+
+  li {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--app-space-3);
+    padding: var(--app-space-2) 0;
+
+    & + li {
+      border-top: 1px solid var(--app-border);
+    }
+  }
+}
+
+.device {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font: var(--mat-sys-body-large);
+}
+
+.seen {
+  color: var(--app-fg-muted);
+  font: var(--mat-sys-body-small);
+}
+
+.revoke {
+  --mat-button-text-label-text-color: var(--app-danger);
+  flex: none;
+}
+
+.regenerate {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--app-space-3);
+
+  mat-form-field {
+    width: min(100%, 16rem);
+  }
+}
+
+// The new codes: the one thing on this page the owner must act on before leaving.
+.fresh {
+  padding: var(--app-space-3);
+  border: 1px solid var(--app-accent);
+  border-radius: var(--app-radius);
+  background: var(--app-surface-raised);
+}
+
+.fresh-title {
+  margin: 0 0 var(--app-space-3);
+  font: var(--mat-sys-body-medium);
+}
+
+.codes {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--app-space-1) var(--app-space-4);
+  margin: 0 0 var(--app-space-3);
+  padding-left: var(--app-space-5);
+  color: var(--app-fg-muted);
+
+  code {
+    font-family: ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
+    color: var(--app-fg);
+    letter-spacing: 0.04em;
+  }
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--app-space-2);
+}
+
+@media (max-width: 720px) {
+  .row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

@@ -23,7 +23,11 @@ export default [
         loadComponent: () => import('./general/general-settings'),
       },
       placeholder(SETTINGS_SECTIONS.gtd),
-      placeholder(SETTINGS_SECTIONS.security),
+      {
+        path: SETTINGS_SECTIONS.security.path,
+        title: SETTINGS_SECTIONS.security.label,
+        loadComponent: () => import('./security/security-settings'),
+      },
       placeholder(SETTINGS_SECTIONS.calendars),
       placeholder(SETTINGS_SECTIONS.integrations),
       placeholder(SETTINGS_SECTIONS.mail),

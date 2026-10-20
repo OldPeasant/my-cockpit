@@ -37,9 +37,19 @@ describe('settings routes', () => {
     );
   });
 
+  it('opens Security at /settings/security', async () => {
+    const harness = await RouterTestingHarness.create();
+    await harness.navigateByUrl('/settings/security');
+    TestBed.inject(HttpTestingController).expectOne('/api/v1/auth/devices').flush([]);
+
+    expect(harness.routeNativeElement?.querySelector('app-security-settings')).not.toBeNull();
+    expect(harness.routeNativeElement?.querySelector('a.active')?.textContent?.trim()).toBe(
+      'Security',
+    );
+  });
+
   it.each([
     ['gtd', 'Tasks & projects'],
-    ['security', 'Security'],
     ['calendars', 'Calendars'],
     ['integrations', 'Integrations'],
     ['mail', 'Mail'],

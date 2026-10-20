@@ -11,6 +11,8 @@ export type { Logout$Params as Logout$Params } from './fn/auth/logout';
 export { logout as logout } from './fn/auth/logout';
 export type { GetCurrentUser$Params as GetCurrentUser$Params } from './fn/auth/get-current-user';
 export { getCurrentUser as getCurrentUser } from './fn/auth/get-current-user';
+export type { RegenerateRecoveryCodes$Params as RegenerateRecoveryCodes$Params } from './fn/auth/regenerate-recovery-codes';
+export { regenerateRecoveryCodes as regenerateRecoveryCodes } from './fn/auth/regenerate-recovery-codes';
 export type { IssueDeviceToken$Params as IssueDeviceToken$Params } from './fn/auth/issue-device-token';
 export { issueDeviceToken as issueDeviceToken } from './fn/auth/issue-device-token';
 export type { RefreshDeviceToken$Params as RefreshDeviceToken$Params } from './fn/auth/refresh-device-token';

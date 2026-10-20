@@ -1,0 +1,131 @@
+<section class="security" aria-labelledby="security-title">
+  <h2 id="security-title" i18n="@@settings.security">Security</h2>
+
+  <div class="row">
+    <div class="describe">
+      <h3 id="devices-label" #devicesHeading tabindex="-1" i18n="@@security.devices">Devices</h3>
+      <p i18n="@@security.devices.hint">
+        Phones signed in with the Android app. Revoke one you lost or no longer use.
+      </p>
+    </div>
+    <div class="control">
+      @if (loadError(); as error) {
+        <div class="load-error" role="alert">
+          <p i18n="@@security.devices.loadFailed">Devices could not be loaded: {{ error }}</p>
+          <button mat-stroked-button type="button" (click)="load()" i18n="@@settings.retry">
+            Try again
+          </button>
+        </div>
+      } @else if (devices(); as list) {
+        @if (list.length) {
+          <ul class="devices" aria-labelledby="devices-label">
+            @for (device of list; track device.id) {
+              <li>
+                <div class="device">
+                  <span class="name">{{ device.name }}</span>
+                  <span class="seen" i18n="@@security.devices.lastUsed"
+                    >Last used {{ device.lastSeenAt | date: 'medium' }}</span
+                  >
+                </div>
+                <button
+                  #revokeButton
+                  mat-button
+                  type="button"
+                  class="revoke"
+                  [disabled]="revoking().has(device.id)"
+                  (click)="revoke(device)"
+                  [attr.aria-label]="revokeLabel(device)"
+                  i18n="@@security.devices.revoke"
+                >
+                  Revoke
+                </button>
+              </li>
+            }
+          </ul>
+        } @else {
+          <p class="note" i18n="@@security.devices.none">
+            No devices. Sign in with the Android app and it shows up here.
+          </p>
+        }
+        @if (revokeError(); as error) {
+          <p class="error" role="alert" i18n="@@security.devices.revokeFailed">
+            {{ error.name }} could not be revoked: {{ error.message }}
+          </p>
+        }
+      } @else {
+        <p class="note" role="status" i18n="@@security.devices.loading">Loading devices…</p>
+      }
+    </div>
+  </div>
+
+  <div class="row">
+    <div class="describe">
+      <h3 id="codes-label" i18n="@@security.codes">Recovery codes</h3>
+      <p i18n="@@security.codes.hint">
+        Each code signs you in once if you lose your authenticator app. New codes replace all old
+        ones.
+      </p>
+    </div>
+    <div class="control">
+      @if (codes(); as list) {
+        <div class="fresh" role="region" aria-labelledby="fresh-label">
+          <p id="fresh-label" #freshTitle class="fresh-title" tabindex="-1" i18n="@@security.codes.fresh">
+            Your new recovery codes. They are shown only now; save them somewhere safe.
+          </p>
+          <ol class="codes">
+            @for (code of list; track code) {
+              <li>
+                <code>{{ code }}</code>
+              </li>
+            }
+          </ol>
+          <div class="actions">
+            <button mat-stroked-button type="button" (click)="copyCodes()">
+              @if (copied()) {
+                <ng-container i18n="@@setup.codes.copied">Copied</ng-container>
+              } @else {
+                <ng-container i18n="@@setup.codes.copy">Copy codes</ng-container>
+              }
+            </button>
+            <button
+              mat-flat-button
+              type="button"
+              (click)="doneWithCodes()"
+              i18n="@@security.codes.saved"
+            >
+              I saved them
+            </button>
+          </div>
+        </div>
+      } @else {
+        <form class="regenerate" (submit)="$event.preventDefault(); regenerate()" novalidate>
+          <mat-form-field subscriptSizing="dynamic">
+            <mat-label i18n="@@security.codes.totp">Code from authenticator app</mat-label>
+            <input
+              #totpInput
+              matInput
+              [formControl]="totp"
+              inputmode="numeric"
+              autocomplete="one-time-code"
+              maxlength="8"
+            />
+            @if (totp.touched && totp.invalid) {
+              <mat-error i18n="@@security.codes.totpInvalid">Enter the 6-digit code.</mat-error>
+            }
+          </mat-form-field>
+          <button
+            mat-stroked-button
+            type="submit"
+            [disabled]="regenerating()"
+            i18n="@@security.codes.regenerate"
+          >
+            Create new codes
+          </button>
+        </form>
+        @if (regenerateError(); as error) {
+          <p class="error" role="alert">{{ error }}</p>
+        }
+      }
+    </div>
+  </div>
+</section>

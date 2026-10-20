@@ -141,6 +141,54 @@ paths:
       summary: The logged-in user
       tags:
       - Auth
+  /api/v1/auth/recovery-codes:
+    post:
+      description: "Needs a current TOTP code and shares the login throttle. Returns\
+        \ 10 new single-use codes exactly once; all previous codes, used or not, stop\
+        \ working."
+      operationId: regenerateRecoveryCodes
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RegenerateRecoveryCodesRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecoveryCodesResponse"
+          description: New recovery codes
+        "400":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: Missing or invalid TOTP code
+        "401":
+          description: Not logged in
+        "409":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: "Setup is not complete: there is no active account"
+        "429":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: Too many failed attempts; retry after the given number of seconds
+          headers:
+            Retry-After:
+              description: Seconds to wait
+              schema:
+                type: integer
+              style: simple
+      summary: Replace all recovery codes with new ones
+      tags:
+      - Auth
   /api/v1/auth/token:
     post:
       description: "Takes the same credentials as the web login (exactly one of `totp`\
@@ -1434,6 +1482,16 @@ components:
       required:
       - status
       - title
+    RecoveryCodesResponse:
+      type: object
+      properties:
+        recoveryCodes:
+          type: array
+          description: "10 single-use recovery codes, shown only now"
+          items:
+            type: string
+      required:
+      - recoveryCodes
     RefreshRequest:
       type: object
       properties:
@@ -1444,6 +1502,17 @@ components:
           minLength: 0
       required:
       - refreshToken
+    RegenerateRecoveryCodesRequest:
+      type: object
+      properties:
+        totp:
+          type: string
+          description: Current 6-digit code from the authenticator app
+          example: 123456
+          maxLength: 16
+          minLength: 0
+      required:
+      - totp
     ReminderItemResponse:
       type: object
       description: "The reminded item. Without `available`, only type and id are set."
