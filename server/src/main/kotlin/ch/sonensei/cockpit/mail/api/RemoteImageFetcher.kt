@@ -285,6 +285,10 @@ class RemoteImageFetcher(
 			plain.close()
 			// TLS wraps a read timeout of the handshake in an SSLException.
 			throw RemoteImageException(if (timedOut(e, deadline)) RemoteImageError.TIMEOUT else RemoteImageError.UPSTREAM_FAILED, e)
+		} catch (e: RuntimeException) {
+			// Anything else the socket or TLS setup throws (e.g. an argument the JDK refuses) is an upstream failure too.
+			plain.close()
+			throw RemoteImageException(RemoteImageError.UPSTREAM_FAILED, e)
 		}
 	}
 
@@ -331,10 +335,18 @@ class RemoteImageFetcher(
 		plain: Socket,
 		target: Target,
 	): SSLSocket {
-		val socket = sslSocketFactory.createSocket(plain, target.host, target.port, true) as SSLSocket
+		// A fully qualified name (`example.com.`) names the same host; certificates and SNI use it without the dot.
+		val host = target.host.removeSuffix(".")
+		val socket = sslSocketFactory.createSocket(plain, host, target.port, true) as SSLSocket
 		val parameters = socket.sslParameters
 		parameters.endpointIdentificationAlgorithm = "HTTPS"
-		if (!target.host.startsWith("[") && !IPV4_LITERAL.matches(target.host)) parameters.serverNames = listOf(SNIHostName(target.host))
+		if (!host.startsWith("[") && !IPV4_LITERAL.matches(host)) {
+			try {
+				parameters.serverNames = listOf(SNIHostName(host))
+			} catch (_: IllegalArgumentException) {
+				// Without SNI: the certificate is still checked against the host name.
+			}
+		}
 		socket.sslParameters = parameters
 		socket.startHandshake()
 		return socket

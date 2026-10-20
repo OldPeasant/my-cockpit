@@ -21,6 +21,7 @@ import java.nio.file.Files
 import java.nio.file.Path
 import java.security.KeyStore
 import java.time.Duration
+import java.util.concurrent.CompletableFuture
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.TimeUnit
 import javax.net.ssl.SSLContext
@@ -350,6 +351,68 @@ class RemoteImageFetcherProtocolTests {
 		trusting.fetch("https://localhost:${tls.httpsPort()}/a.png").bytes.toString(Charsets.US_ASCII) shouldBe "png"
 		// Same server and certificate, but the URL names another host: the certificate does not match it.
 		failure { trusting.fetch("https://images.example.test:${tls.httpsPort()}/a.png") } shouldBe RemoteImageError.UPSTREAM_FAILED
+		// A fully qualified name (trailing dot, which the JDK refuses as an SNI name) is the same host.
+		trusting.fetch("https://localhost.:${tls.httpsPort()}/a.png").bytes.toString(Charsets.US_ASCII) shouldBe "png"
+	}
+
+	@Test
+	fun `a runtime failure while setting up the connection fails upstream and closes the socket`() {
+		val listener = ServerSocket(0, 1, InetAddress.getLoopbackAddress())
+		servers += listener
+		val closedByClient = CompletableFuture<Boolean>()
+		thread(isDaemon = true, name = "closed-by-client") {
+			runCatching {
+				listener.accept().use { client ->
+					client.soTimeout = 3000
+					closedByClient.complete(client.getInputStream().read() < 0)
+				}
+			}.onFailure { closedByClient.complete(false) }
+		}
+		val fetcher = fetcher().apply { resolver = HostResolver { listOf(InetAddress.getLoopbackAddress()) } }
+		val default =
+			javax.net.ssl.SSLSocketFactory
+				.getDefault() as javax.net.ssl.SSLSocketFactory
+		fetcher.sslSocketFactory =
+			object : javax.net.ssl.SSLSocketFactory() {
+				override fun getDefaultCipherSuites(): Array<String> = default.defaultCipherSuites
+
+				override fun getSupportedCipherSuites(): Array<String> = default.supportedCipherSuites
+
+				override fun createSocket(
+					s: Socket,
+					host: String,
+					port: Int,
+					autoClose: Boolean,
+				): Socket = throw IllegalStateException("Refused by the test")
+
+				override fun createSocket(
+					host: String,
+					port: Int,
+				): Socket = throw UnsupportedOperationException()
+
+				override fun createSocket(
+					host: String,
+					port: Int,
+					localHost: InetAddress,
+					localPort: Int,
+				): Socket = throw UnsupportedOperationException()
+
+				override fun createSocket(
+					host: InetAddress,
+					port: Int,
+				): Socket = throw UnsupportedOperationException()
+
+				override fun createSocket(
+					address: InetAddress,
+					port: Int,
+					localAddress: InetAddress,
+					localPort: Int,
+				): Socket = throw UnsupportedOperationException()
+			}
+
+		failure { fetcher.fetch("https://localhost:${listener.localPort}/a.png") } shouldBe RemoteImageError.UPSTREAM_FAILED
+		// The server sees the end of the stream at once, not only when the socket is garbage-collected.
+		closedByClient.get(5, TimeUnit.SECONDS) shouldBe true
 	}
 
 	/**

@@ -102,28 +102,43 @@ class MailContentLoader(
 		val uid = message.uid ?: throw NotFoundException(GONE)
 		val folder = message.folderId?.let { folders.findById(it).orElse(null) } ?: throw NotFoundException(GONE)
 		val account = accounts.findById(message.accountId).orElse(null) ?: throw NotFoundException(GONE)
-		return pool.withStore(account) { store ->
-			val remote = store.getFolder(folder.path) as IMAPFolder
-			try {
-				remote.open(Folder.READ_ONLY)
-			} catch (e: FolderNotFoundException) {
-				throw NotFoundException(GONE)
-			} catch (e: MessagingException) {
-				throw MailConnectionException.of(e)
+		// "Gone" is returned, not thrown, inside the block: a throw would count as an IMAP failure and drop a working
+		// pooled connection.
+		val outcome =
+			pool.withStore(account) { store ->
+				val remote = store.getFolder(folder.path) as IMAPFolder
+				try {
+					remote.open(Folder.READ_ONLY)
+				} catch (e: FolderNotFoundException) {
+					return@withStore Remote.Gone
+				} catch (e: MessagingException) {
+					throw MailConnectionException.of(e)
+				}
+				try {
+					if (folder.uidValidity != null && remote.uidValidity != folder.uidValidity) return@withStore Remote.Gone
+					val found = remote.getMessageByUID(uid) as IMAPMessage? ?: return@withStore Remote.Gone
+					found.peek = true
+					Remote.Found(block(found))
+				} catch (e: MessagingException) {
+					throw MailConnectionException.of(e)
+				} catch (e: IOException) {
+					throw MailConnectionException.of(e)
+				} finally {
+					runCatching { if (remote.isOpen) remote.close(false) }
+				}
 			}
-			try {
-				if (folder.uidValidity != null && remote.uidValidity != folder.uidValidity) throw NotFoundException(GONE)
-				val found = remote.getMessageByUID(uid) as IMAPMessage? ?: throw NotFoundException(GONE)
-				found.peek = true
-				block(found)
-			} catch (e: MessagingException) {
-				throw MailConnectionException.of(e)
-			} catch (e: IOException) {
-				throw MailConnectionException.of(e)
-			} finally {
-				runCatching { if (remote.isOpen) remote.close(false) }
-			}
+		return when (outcome) {
+			is Remote.Found -> outcome.value
+			Remote.Gone -> throw NotFoundException(GONE)
 		}
+	}
+
+	private sealed interface Remote<out T> {
+		data class Found<T>(
+			val value: T,
+		) : Remote<T>
+
+		data object Gone : Remote<Nothing>
 	}
 
 	private companion object {

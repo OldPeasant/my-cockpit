@@ -250,6 +250,8 @@ class MailReadGreenMailTests(
 		}
 
 		mockMvc.get("/api/v1/mail/messages/${message.id}").andExpect { status { isNotFound() } }
+		// The server was fine, so the connection went back to the pool instead of being closed as a failure.
+		pool.idleConnections(account.id) shouldBe 1
 	}
 
 	@Test

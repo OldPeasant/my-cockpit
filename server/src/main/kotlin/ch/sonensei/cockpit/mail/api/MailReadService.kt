@@ -141,13 +141,29 @@ class MailReadService(
 	) {
 		val message = get(id)
 		val attachment = loader.load(message).attachments.firstOrNull { it.partId == partId } ?: throw NotFoundException(ATTACHMENT_NOT_FOUND)
-		// A client failure is returned, not thrown, inside the block: a throw would count as an IMAP failure there.
-		val clientFailure =
+		// A client failure or a missing part is returned, not thrown, inside the block: a throw would count as an IMAP
+		// failure there.
+		val outcome =
 			loader.withRemoteMessage(message) { root ->
-				val part = MimeContent.findPart(root, partId) ?: throw NotFoundException(ATTACHMENT_NOT_FOUND)
-				part.inputStream.use { copy(it, open(attachment)) }
+				val part = MimeContent.findPart(root, partId) ?: return@withRemoteMessage AttachmentCopy.PartMissing
+				part.inputStream.use { copy(it, open(attachment)) }?.let { AttachmentCopy.ClientFailed(it) } ?: AttachmentCopy.Done
 			}
-		if (clientFailure != null) throw AttachmentDownloadAbortedException(clientFailure)
+		when (outcome) {
+			AttachmentCopy.Done -> Unit
+			AttachmentCopy.PartMissing -> throw NotFoundException(ATTACHMENT_NOT_FOUND)
+			is AttachmentCopy.ClientFailed -> throw AttachmentDownloadAbortedException(outcome.cause)
+		}
+	}
+
+	/** How streaming an attachment inside the IMAP block ended. */
+	private sealed interface AttachmentCopy {
+		data object Done : AttachmentCopy
+
+		data object PartMissing : AttachmentCopy
+
+		data class ClientFailed(
+			val cause: IOException,
+		) : AttachmentCopy
 	}
 
 	/**

@@ -1,5 +1,6 @@
 package ch.sonensei.cockpit.mail.api
 
+import ch.sonensei.cockpit.core.web.NotFoundException
 import ch.sonensei.cockpit.mail.model.MailMessage
 import ch.sonensei.cockpit.mail.model.MailMessageLocator
 import io.kotest.assertions.throwables.shouldThrow
@@ -105,6 +106,17 @@ class MailAttachmentDownloadTests {
 
 		shouldThrow<AttachmentDownloadAbortedException> { service.attachment(message.id, "2") { failsOnFlush } }
 
+		blockOutcome!!.isSuccess shouldBe true
+	}
+
+	@Test
+	fun `a part missing on the server is 404 without leaving the IMAP block as a failure`() {
+		// The server copy no longer has the cached part 2.
+		remote { MimeMessage(Session.getInstance(Properties())).apply { setText("Hello", "UTF-8") }.apply { saveChanges() } }
+
+		shouldThrow<NotFoundException> { service.attachment(message.id, "2") { ByteArrayOutputStream() } }
+
+		// The IMAP block ended normally, so the pool keeps the connection.
 		blockOutcome!!.isSuccess shouldBe true
 	}
 
