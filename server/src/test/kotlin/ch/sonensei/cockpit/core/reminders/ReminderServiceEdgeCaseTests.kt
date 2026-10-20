@@ -38,6 +38,7 @@ import java.time.Instant
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.TimeoutException
 
 @SpringBootTest
 @Import(FakeItemResolversConfiguration::class, MutableClockTestConfiguration::class)
@@ -251,6 +252,51 @@ class ReminderServiceEdgeCaseTests(
 		}
 		first.get(10, TimeUnit.SECONDS) shouldBe 1
 		service.fireDue() shouldBe 0
+	}
+
+	@Test
+	fun `deleting a reminder while the scheduler fires it succeeds instead of failing on its version`() {
+		val task = fakes.tasks.add("Deleted at its due time")
+		val created = service.create(task, start).reminder
+		val locked = CountDownLatch(1)
+		val release = CountDownLatch(1)
+
+		// The scheduler fires the reminder (bumping its version) and keeps its transaction open.
+		val firing =
+			CompletableFuture.supplyAsync {
+				transactions.execute {
+					val fired = service.fireDue()
+					locked.countDown()
+					release.await(10, TimeUnit.SECONDS)
+					fired
+				}
+			}
+		locked.await(10, TimeUnit.SECONDS) shouldBe true
+
+		// The delete waits for the firing to commit, then removes the (now fired) row.
+		val deleting = CompletableFuture.runAsync { service.delete(created.id) }
+		try {
+			shouldThrow<TimeoutException> { deleting.get(500, TimeUnit.MILLISECONDS) }
+		} finally {
+			release.countDown()
+		}
+		firing.get(10, TimeUnit.SECONDS) shouldBe 1
+		deleting.get(10, TimeUnit.SECONDS)
+
+		repository.findById(created.id).isPresent shouldBe false
+		reminderChanges().last() shouldBe (ChangeOp.DELETED to created.id)
+		shouldThrow<NotFoundException> { service.delete(created.id) }
+	}
+
+	@Test
+	fun `a fired reminder can be deleted although the scheduler changed its version`() {
+		val task = fakes.tasks.add("Fired, then deleted")
+		val created = service.create(task, start).reminder
+		service.fireDue() shouldBe 1
+
+		service.delete(created.id)
+
+		repository.findById(created.id).isPresent shouldBe false
 	}
 
 	@Test

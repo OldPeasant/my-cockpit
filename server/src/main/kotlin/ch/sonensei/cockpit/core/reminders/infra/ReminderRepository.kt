@@ -40,6 +40,13 @@ interface ReminderRepository : JpaRepository<Reminder, UUID> {
 		limit: Limit,
 	): List<Reminder>
 
+	/** Deletes one reminder by id without a version check; returns the number of deleted rows (0 or 1). */
+	@Modifying(flushAutomatically = true)
+	@Query("delete from Reminder r where r.id = :id")
+	fun deleteReminder(
+		@Param("id") id: UUID,
+	): Int
+
 	// No clearAutomatically: this runs in the publisher's transaction and must not detach the entities it loaded.
 	@Modifying(flushAutomatically = true)
 	@Query("delete from Reminder r where r.itemType = :type and r.itemId = :id")

@@ -11,6 +11,7 @@ import ch.sonensei.cockpit.core.items.domain.ItemResolverRegistry
 import ch.sonensei.cockpit.core.persistence.MutableClock
 import ch.sonensei.cockpit.core.persistence.MutableClockTestConfiguration
 import ch.sonensei.cockpit.core.reminders.api.ReminderResponse
+import ch.sonensei.cockpit.core.reminders.domain.ReminderItems
 import ch.sonensei.cockpit.core.reminders.domain.ReminderService
 import ch.sonensei.cockpit.core.reminders.infra.ReminderRepository
 import ch.sonensei.cockpit.support.PostgresTestBase
@@ -39,6 +40,7 @@ class ReminderServiceTests(
 	@Autowired private val fakes: FakeItemResolvers,
 	@Autowired private val clock: MutableClock,
 	@Autowired private val resolvers: ItemResolverRegistry,
+	@Autowired private val items: ReminderItems,
 	@Autowired private val changes: ChangeEventPublisher,
 	@Autowired private val publisher: ApplicationEventPublisher,
 	@Autowired private val transactions: TransactionTemplate,
@@ -88,7 +90,7 @@ class ReminderServiceTests(
 		service.fireDue() shouldBe 1
 
 		// A new service instance has no in-memory state, like the service after a server restart.
-		val restarted = ReminderService(repository, resolvers, changes, publisher, clock as Clock)
+		val restarted = ReminderService(repository, resolvers, items, changes, publisher, clock as Clock)
 		clock.advance(Duration.ofDays(1))
 		transactions.execute { restarted.fireDue() } shouldBe 0
 		reminderNotifications() shouldHaveSize 1

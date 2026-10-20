@@ -43,6 +43,7 @@ data class ReminderFiredEvent(
 class ReminderService(
 	private val reminders: ReminderRepository,
 	private val resolvers: ItemResolverRegistry,
+	private val items: ReminderItems,
 	private val changes: ChangeEventPublisher,
 	private val events: ApplicationEventPublisher,
 	private val clock: Clock,
@@ -52,7 +53,8 @@ class ReminderService(
 	/**
 	 * A reminder for [item] at [remindAt] (stored at microsecond precision). A time in the past is allowed: the
 	 * reminder fires on the next scheduler run. An item whose resolver says it does not exist is rejected; an item
-	 * without a resolver is accepted (its module may not exist yet).
+	 * without a resolver is accepted (its module may not exist yet). The existence check runs in this transaction (an
+	 * item created in it counts); the returned display data is resolved in its own transaction ([ReminderItems]).
 	 *
 	 * @throws InvalidRequestException (400) for an unknown item
 	 */
@@ -72,9 +74,14 @@ class ReminderService(
 	@Transactional(readOnly = true)
 	fun get(id: UUID): ResolvedReminder = resolve(find(id))
 
-	/** @throws NotFoundException (404) when no such reminder exists */
+	/**
+	 * Deletes by id without a version check: reminders never change after creation except for `firedAt`, which the
+	 * scheduler may set at the same moment; that must not make the delete fail.
+	 *
+	 * @throws NotFoundException (404) when no such reminder exists
+	 */
 	fun delete(id: UUID) {
-		reminders.delete(find(id))
+		if (reminders.deleteReminder(id) == 0) throw NotFoundException("Reminder not found")
 		changes.publish(TYPE, id, ChangeOp.DELETED)
 	}
 
@@ -93,8 +100,10 @@ class ReminderService(
 	/**
 	 * Fires the due reminders (at most [FIRE_BATCH] per call, earliest first): sets `firedAt` and publishes a
 	 * [ReminderFiredEvent] for each, except when the item's resolver says the item is gone (deleted or in the Trash):
-	 * that reminder is marked fired silently. Without a resolver, or when it fails, the event goes out without title. Rows another transaction is firing are skipped, and a fired reminder is never due again,
-	 * so each reminder fires exactly once, also across restarts.
+	 * that reminder is marked fired silently. Without a resolver, or when it fails, the event goes out without title; the
+	 * resolvers run in their own transactions ([ReminderItems]), so a failing one cannot roll back the batch. Rows another
+	 * transaction is firing are skipped, and a fired reminder is never due again, so each reminder fires exactly once,
+	 * also across restarts.
 	 *
 	 * @return the number of reminders marked fired; [FIRE_BATCH] means more may be due
 	 */
@@ -105,7 +114,7 @@ class ReminderService(
 			reminder.markFired(now)
 			changes.publish(TYPE, reminder.id, ChangeOp.UPDATED)
 			val resolved = resolve(reminder)
-			if (resolved.item == null && isGone(reminder.item)) {
+			if (resolved.item == null && items.isGone(reminder.item)) {
 				log.debug("Reminder {} fired without notification: {} no longer exists", reminder.id, reminder.item)
 			} else {
 				events.publishEvent(ReminderFiredEvent(resolved))
@@ -128,27 +137,10 @@ class ReminderService(
 
 	private fun resolveAll(list: List<Reminder>): List<ResolvedReminder> {
 		val cache = HashMap<ItemRef, ResolvedItem?>()
-		return list.map { ResolvedReminder(it, cache.getOrPut(it.item) { resolveItem(it.item) }) }
+		return list.map { ResolvedReminder(it, cache.getOrPut(it.item) { items.resolve(it.item) }) }
 	}
 
-	private fun resolve(reminder: Reminder) = ResolvedReminder(reminder, resolveItem(reminder.item))
-
-	private fun resolveItem(ref: ItemRef): ResolvedItem? {
-		val resolver = resolvers.find(ref.type) ?: return null
-		return try {
-			resolver.resolve(ref.id)
-		} catch (e: RuntimeException) {
-			// One broken module must not stop the reminders of every other one.
-			log.warn("ItemResolver for {} failed for {}", ref.type, ref.id, e)
-			null
-		}
-	}
-
-	/** Whether the item's resolver says it does not exist; `false` without a resolver or when the resolver fails. */
-	private fun isGone(ref: ItemRef): Boolean {
-		val resolver = resolvers.find(ref.type) ?: return false
-		return runCatching { !resolver.exists(ref.id) }.getOrDefault(false)
-	}
+	private fun resolve(reminder: Reminder) = ResolvedReminder(reminder, items.resolve(reminder.item))
 
 	companion object {
 		/** The `type` of the reminders' change events. */
