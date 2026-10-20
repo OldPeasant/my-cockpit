@@ -5,7 +5,7 @@ owner: dell26/agent-7
 deps: []
 touches: [agents.py,tasks.py,tests]
 prio: 1
-lease_until: 2026-10-20T15:56:16Z
+lease_until: 2026-10-20T16:01:21Z
 ---
 ## Goal
 A push that keeps failing (e.g. a token without `workflow` scope, so GitHub rejects `.github/workflows/*`) must
