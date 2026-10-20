@@ -198,6 +198,70 @@ class FilesConcurrencyTests(
 	}
 
 	@Test
+	fun `a folder created in a folder that is being deleted waits for the delete and fails`() {
+		val folder = service.createFolder("Inbox", null)
+		val deleted = CountDownLatch(1)
+		val proceed = CountDownLatch(1)
+		val delete =
+			pool.submit {
+				tx.execute {
+					service.deleteFolder(folder.id)
+					deleted.countDown()
+					check(proceed.await(TIMEOUT, TimeUnit.SECONDS))
+				}
+			}
+		deleted.await(TIMEOUT, TimeUnit.SECONDS) shouldBe true
+		val create = pool.submit<UUID> { service.createFolder("Late", folder.id).id }
+		awaitLockWait()
+		create.isDone shouldBe false
+
+		proceed.countDown()
+		delete.get(TIMEOUT, TimeUnit.SECONDS)
+
+		create.failure().shouldBeInstanceOf<NotFoundException>()
+		folders.findAll().map { it.id } shouldBe listOf(folder.id)
+		filesTrash() shouldBe listOf(folder.id)
+	}
+
+	@Test
+	fun `a folder delete waits for a subfolder created meanwhile and trashes it with the folder`() {
+		val parent = service.createFolder("Projects", null)
+		val created = CountDownLatch(1)
+		val proceed = CountDownLatch(1)
+		val create =
+			pool.submit<UUID> {
+				tx.execute {
+					service.createFolder("Late", parent.id).id.also {
+						created.countDown()
+						check(proceed.await(TIMEOUT, TimeUnit.SECONDS))
+					}
+				}
+			}
+		created.await(TIMEOUT, TimeUnit.SECONDS) shouldBe true
+		// The delete does not see the uncommitted subfolder yet and waits on the parent's share lock.
+		val delete = pool.submit { service.deleteFolder(parent.id) }
+		awaitLockWait()
+		delete.isDone shouldBe false
+
+		proceed.countDown()
+		val childId = create.get(TIMEOUT, TimeUnit.SECONDS).shouldNotBeNull()
+		delete.get(TIMEOUT, TimeUnit.SECONDS)
+
+		val deletedAt =
+			folders
+				.findById(parent.id)
+				.orElseThrow()
+				.deletedAt
+				.shouldNotBeNull()
+		folders.findById(childId).orElseThrow().deletedAt shouldBe deletedAt
+		folders.findActiveById(childId).shouldBeNull()
+		filesTrash() shouldBe listOf(parent.id)
+
+		trash.purge(ItemRef(ItemType.FOLDER, parent.id))
+		folders.findAll().shouldBeEmpty()
+	}
+
+	@Test
 	fun `purging a folder never deletes an active file or folder found below it`() {
 		val before = blobFiles()
 		val folder = service.createFolder("Old", null)

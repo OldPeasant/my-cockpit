@@ -313,6 +313,29 @@ class FilesEdgeCaseTests(
 	}
 
 	@Test
+	fun `a folder purge that rolls back keeps the folder, its files and their blobs`() {
+		val folder = service.createFolder("Archive", null)
+		val sub = service.createFolder("2025", folder.id)
+		val top = store("top.txt", folder.id)
+		val nested = store("nested.txt", sub.id)
+		service.deleteFolder(folder.id)
+
+		runCatching {
+			tx.executeWithoutResult {
+				service.purgeFolder(folder.id) shouldBe true
+				error("simulated failure after the purge")
+			}
+		}
+
+		folders.findById(sub.id).isPresent shouldBe true
+		files.findById(top.id).isPresent shouldBe true
+		files.findById(nested.id).isPresent shouldBe true
+		blobs.exists(top.storageKey) shouldBe true
+		blobs.exists(nested.storageKey) shouldBe true
+		service.trashedFolders().map { it.id } shouldContainExactly listOf(folder.id)
+	}
+
+	@Test
 	fun `a blob that cannot be deleted does not fail the purge`() {
 		val file = store("stuck.txt")
 		service.deleteFile(file.id)
