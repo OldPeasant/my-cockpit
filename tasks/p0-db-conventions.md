@@ -6,9 +6,9 @@ deps: [p0-server-deps]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/core/persistence,server/src/test/kotlin/ch/sonensei/cockpit/core/persistence,server/src/main/resources/db/migration/core]
 prio: 1
 lease_until: 
-releases: 1
+releases: 0
 extended: 
-hold: Needs a container runtime: Docker Desktop on R1963MACOS is not running and agents cannot start it (open -a Docker needs approval); no podman/colima/local Postgres. Implementation is complete on wip/p0
+hold: 
 ---
 ## Goal
 Shared persistence building blocks every module uses (SPEC.md §4.2).
