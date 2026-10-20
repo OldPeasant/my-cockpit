@@ -1,11 +1,11 @@
 ---
 title: Runner: stop the loop when release/hold cannot push
-status: in_progress
+status: done
 owner: dell26/agent-4
 deps: []
 touches: [agents.py,tasks.py,tests]
 prio: 1
-lease_until: 2026-10-20T18:38:24Z
+lease_until: 
 releases: 2
 extended: dell26/agent-4
 ---
@@ -32,3 +32,4 @@ the full check.
 - release by dell26/agent-7: Implementation done (HEAD: give_up() shared by release/hand-off; done-blocked tasks go on hold on retry); python -m unittest tests.test_push_failure -> 25 OK. Left: code changed after the last review, so re-run test-writer + code-reviewer on HEAD, write reviews/runner-push-failure-loop/quality.json, tasks.py verify #1-#4, then done. Note: sh scripts/check.sh had 1 failing server Gradle test (1337 run) unrelated to agents.py/tasks.py; recheck on latest main.
 - release by dell26/agent-7: Implementation complete through d00ccaa (PUSH FAILED in tasks.py release/hold, blocked state + 30-min retry in agents.py, done-streak -> hold, give_up() for release/hand-off, unfinished merge aborted before the hold commit). python -m unittest tests.test_push_failure -> 28 OK (~6 min, not in .taskcheck). Left, finalization only: code changed since review.md (b218b67/4271f37/d00ccaa), so re-run test-writer + code-reviewer on HEAD, fixer only if they find something; write reviews/runner-push-failure-loop/quality.json; tasks.py verify #1-#4 (evidence: the unittest run above); sh scripts/check.sh (earlier 1 unrelated server Gradle failure, recheck on latest main); then done.
 - extended by dell26/agent-4: All 4 criteria verified, review evidence committed and fresh (reviewed_revision b0bee11; only reviews/tasks changed since), sh scripts/check.sh passes on 1b75dba. Left: set reviewed_revision to the current HEAD if done asks for it, then python tasks.py done runner-push-failure-loop.
+- done by dell26/agent-4: `sh scripts/check.sh` passed in 33s on 5a253be5a; criteria verified 4/4
