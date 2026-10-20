@@ -4,38 +4,50 @@ Date: 2026-10-20
 
 Task: p0-trash-core - Trash: listing, restore, purge
 
-Scope: `git diff 8b7cac4..ccceabd` (production code in `server/src/main/kotlin/ch/sonensei/cockpit/core/trash/**`, tests in `server/src/test/kotlin/ch/sonensei/cockpit/core/trash/**`, the regenerated `api/openapi.yaml` and `web/src/app/api/generated/**`)
+Scope: second pass on the final code. Full task diff `git diff 8b7cac4..ef5dec1`: production code in `server/src/main/kotlin/ch/sonensei/cockpit/core/trash/**`, tests in `server/src/test/kotlin/ch/sonensei/cockpit/core/trash/**`, the regenerated `api/openapi.yaml` and `web/src/app/api/generated/**`. The review-fix delta `git diff ccceabd..ef5dec1 -- server/src/main api` was checked in detail.
 
 Requirements:
 - `tasks/p0-trash-core.md` acceptance criteria and recorded assumptions
 - SPEC.md §4.2 (soft delete, Trash, 30-day purge, cursor pagination, Problem Details) and §4.3 (ItemType, links)
 - docs/ARCHITECTURE.md (code conventions, persistence conventions, Clock)
 - AGENTS.md "Project notes"
-- Existing conventions: `ItemResolver`/`ItemResolverRegistry`, `LinkService`, `CursorRequest`, `ProblemDetailsAdvice`, `LinkController`
+- The first review of ccceabd (CR-1, CR-2) and `reviews/p0-trash-core/fixes.md`
+- Existing conventions: `ItemResolverRegistry`, `LinkController`, `CursorRequest`, `ProblemDetailsAdvice`, `server/src/main/resources/application.properties`
 
 Git range:
 - Branch: main
-- HEAD: ccceabd78146a1c783cff94176ef0cd65982e26b
+- HEAD: ef5dec1d3e5fea8ebc6912a5225750542e9178c4
 - Base/start: 8b7cac4314c702a906112ae8da84dfdc30fc6624
-- Commits reviewed: 1 (ccceabd)
+- Commits reviewed: 3 (ccceabd, 403ac8b, ef5dec1); no uncommitted changes when the review started
 
-Summary: 0 P0, 0 P1, 1 P2, 1 P3
+Summary: 0 P0, 0 P1, 0 P2, 0 P3 (open). Both earlier findings are resolved.
 
-The four acceptance criteria are implemented:
-- The `TrashContributor` interface, its registry and the three endpoints (`GET /api/v1/trash`, `POST /api/v1/trash/{type}/{id}/restore`, `DELETE /api/v1/trash/{type}/{id}`) exist.
-- The daily purge job uses the injected `Clock` and purges items deleted strictly more than 30 days ago. A test drives it with `MutableClock` and checks the boundary.
-- Tests use fake TASK and NOTE contributors on the Postgres test base.
-- The OpenAPI contract and the web client are regenerated.
+## Status of earlier findings
 
-Other points checked:
-- Cursor encoding and decoding round-trip correctly, and the keyset order is consistent between sorting and filtering.
-- Errors are returned as Problem Details: 400 for a bad cursor or limit, 400 for a bad type or id, 404 when the item is not in the Trash.
-- Purging publishes `ItemDeletedEvent` in the same transaction, so links are removed only when the purge commits.
-- Scheduling is enabled with a module-specific configuration bean name.
-- CSRF and authentication are enforced and tested.
-- No secrets or content bodies are logged.
+- [x] **CR-1 | A failing contributor breaks the whole Trash listing and the purge job (P2): Resolved**
+    - `TrashService.kt:51-55` adds a `TransactionTemplate` with `PROPAGATION_REQUIRES_NEW` and read-only. `entries()` (`TrashService.kt:79-90`) runs each `contributor.listDeleted()` inside it. The existing per-contributor `catch (RuntimeException)` stays.
+    - `list()` and `entries()` are now `@Transactional(propagation = NOT_SUPPORTED)` (`TrashService.kt:61,78`), so no shared outer transaction can be marked rollback-only or aborted by Postgres. `list()` calls `entries()` on itself, which bypasses the proxy, but `list()` carries the same annotation, so the behavior is the same.
+    - All failure modes are caught per contributor:
+        - an exception rolls back only that contributor's transaction, and `TransactionTemplate` rethrows it;
+        - if a contributor swallows its own exception after marking the transaction rollback-only, the commit throws `UnexpectedRollbackException`, which is also a `RuntimeException`;
+        - a failed rollback throws `TransactionSystemException`, also a `RuntimeException`.
+    - `spring.jpa.open-in-view=false` (`application.properties:10`), so the per-contributor transactions do not share a pre-bound EntityManager in web requests.
+    - `TrashPurgeJob.purgeExpired()` now gets the isolated `entries()`. Each `trash.purge()` already ran in its own `REQUIRED` transaction, because the job itself is not transactional, and failures are caught per item.
+    - The regression test `TrashContributorIsolationTests` runs on Postgres. Its failing contributor executes invalid SQL inside a joining `TransactionTemplate`, which reproduces both the rollback-only and the aborted-transaction mode. The test checks that the list still returns the other contributor's item and that the job still purges it while the failing type stays in the Trash. According to `fixes.md`, the test failed before the fix with `UnexpectedRollbackException`. That matches the mechanism described in CR-1.
+    - The KDoc in `TrashContributor.kt:8-12` now describes the per-contributor transaction. `TrashUnitTests` passes a no-op `AbstractPlatformTransactionManager` to the new constructor parameter, which is appropriate for a unit test.
 
-I did not run the test suite myself. Running commands was mostly denied in this session, so I could only read the code and `git diff`.
+- [x] **CR-2 | The 400 responses of restore and purge are missing from the OpenAPI contract (P3): Resolved**
+    - `TrashController.kt:61-65` and `84-88` declare `400 "Invalid type or id"` with the `ProblemDetail` schema, the same way `LinkController` and this controller's `list` do.
+    - `api/openapi.yaml` has the matching entries for `DELETE /api/v1/trash/{type}/{id}` and `POST .../restore`. The generated web client does not change, because the generator does not model error responses. `fixes.md` records `npm run api:check` as up to date.
+
+## Acceptance criteria re-check (ef5dec1)
+
+1. `TrashContributor` (with `listDeleted`, `restore` and `purge`), `TrashContributorRegistry` (fails on a duplicate type), and the three endpoints `GET /api/v1/trash`, `POST /api/v1/trash/{type}/{id}/restore` and `DELETE /api/v1/trash/{type}/{id}` are implemented. Met in code.
+2. The `TrashPurgeJob` cron is `cockpit.trash.purge-cron`, defaulting to 03:30 UTC. It uses the injected `Clock` and purges items whose `deletedAt` is strictly before now minus 30 days. Tests drive it with `MutableClock`. Met in code.
+3. Fake contributors on `PostgresTestBase` are used in `TrashServiceTests`, `TrashWebTests`, `TrashTransactionTests` and `TrashContributorIsolationTests`, plus `TrashUnitTests`. Met in code. The test run is reported in `fixes.md`.
+4. The `api/openapi.yaml` and web client regeneration is reported in `fixes.md`. Met in code.
+
+`python tasks.py verify p0-trash-core` shows no evidence recorded yet for any criterion. The parent worker records it after the quality workflow (AGENTS.md step 7), so this is not a finding. It must be done before `done`.
 
 ## P0 Critical
 
@@ -47,26 +59,12 @@ None.
 
 ## P2 Medium
 
-- [ ] **CR-1 | A failing contributor breaks the whole Trash listing and the purge job when contributors use the database, despite the stated isolation**
-    - File: `server/src/main/kotlin/ch/sonensei/cockpit/core/trash/domain/TrashService.kt:46-69` (also `TrashPurgeJob.kt:31`)
-    - Category: Correctness
-    - Problem: `list()` and `entries()` run every contributor's `listDeleted()` inside one shared `@Transactional(readOnly = true)` transaction. The code then catches `RuntimeException` per contributor so that "one broken module does not hide the rest of the Trash" (KDoc lines 43-44 and 59). That only works for contributors that touch no transactional resource, like the in-memory fakes in the tests. Real contributors will read through `SoftDeletableRepository`, and Spring Data repository methods are transactional proxies. If one of them throws, two things happen:
-        1. The participating interceptor marks the shared transaction rollback-only. Committing `list()`/`entries()` then throws `UnexpectedRollbackException`, so the caller gets a 500 instead of a partial list.
-        2. If the cause was a SQL error, PostgreSQL aborts the transaction. Every later contributor's query in the same loop also fails ("current transaction is aborted").
-
-      The scheduled `purgeExpired()` calls `trash.entries()` outside any try/catch. So one broken module stops the automatic 30-day purge for every module, not just for itself.
-    - Why it matters: The KDoc promises this resilience to future module contributors, but the code cannot deliver it once real JPA-backed contributors are registered. The test `a failing contributor is left out of the list` passes only because the fake is not transactional, so it hides the problem. A purge that silently stops for all types breaks the SPEC.md §4.2 promise that deleted items are "purged after 30 days".
-    - Suggested fix: Isolate each contributor call in its own transaction. For example, remove `@Transactional` from `list`/`entries` and wrap each `contributor.listDeleted()` in a `TransactionTemplate` with `PROPAGATION_REQUIRES_NEW` and read-only, or let each contributor own its read transaction. Also let `purgeExpired()` survive a failing `entries()` per contributor. Add a test with a fake contributor that runs its failure inside a transaction, e.g. a `@Transactional` fake bean that throws, or one that runs an invalid SQL statement. The test should show that the other contributors' items are still listed and purged.
+None.
 
 ## P3 Low
 
-- [ ] **CR-2 | The 400 responses of restore and purge are tested but missing from the OpenAPI contract**
-    - File: `server/src/main/kotlin/ch/sonensei/cockpit/core/trash/api/TrashController.kt:57-87`
-    - Category: Integration
-    - Problem: An unknown `{type}` or a malformed `{id}` returns 400 Problem Details through `ProblemDetailsAdvice.handleTypeMismatch`. `TrashWebTests` asserts this (`an unknown type or a malformed id gives 400`). But `restoreTrashItem` and `purgeTrashItem` only declare 204 and 404 (`api/openapi.yaml`, `/api/v1/trash/{type}/{id}` and `.../restore`). `listLinks` does document its 400 for an invalid type or id (`LinkController.kt:53-57`).
-    - Why it matters: The generated clients and the contract do not describe a response that the server sends and the tests check.
-    - Suggested fix: Add an `@ApiResponse(responseCode = "400", description = "Invalid type or id", ...)` with the ProblemDetail schema to both operations, then regenerate `api/openapi.yaml` and the web client.
+None.
 
 ## Review conclusion
 
-Material issues found; fix before completing the task. CR-1 is a resilience defect in the contract offered to future contributors and in the purge job, and the current tests do not catch it. CR-2 is a small gap in the contract documentation.
+No material issues found. CR-1 and CR-2 are resolved in ef5dec1, and the full task diff meets the four acceptance criteria. I did not run the test suite in this pass and read only the code and Git history. The test results above come from `fixes.md` and are not my own observation.
