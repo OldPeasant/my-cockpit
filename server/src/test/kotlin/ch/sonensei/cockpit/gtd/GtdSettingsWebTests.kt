@@ -59,6 +59,28 @@ class GtdSettingsWebTests(
 		}
 	}
 
+	@Test
+	fun `next action presets accept 50 entries and refuse a 51st`() {
+		val presets = (1..51).map { "\"{\\\"name\\\":\\\"Preset $it\\\",\\\"filter\\\":{}}\"" }
+		patch("""{"nextActionPresets": [${presets.joinToString(",")}]}""").andExpect {
+			status { isBadRequest() }
+			jsonPath("$.errors[0].field") { value("nextActionPresets") }
+		}
+		patch("""{"nextActionPresets": [${presets.take(50).joinToString(",")}]}""").andExpect {
+			status { isOk() }
+			jsonPath("$.nextActionPresets.length()") { value(50) }
+		}
+	}
+
+	@Test
+	fun `a preset longer than 2000 characters is refused`() {
+		val name = "x".repeat(2001)
+		patch("""{"nextActionPresets": ["$name"]}""").andExpect {
+			status { isBadRequest() }
+			jsonPath("$.errors[0].field") { value("nextActionPresets") }
+		}
+	}
+
 	private companion object {
 		const val URL = "/api/v1/settings"
 	}

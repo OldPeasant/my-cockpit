@@ -87,6 +87,50 @@ describe('next filter', () => {
     expect(parseFilter(params)).toEqual(filter);
   });
 
+  it('round-trips a filter with every field set through the URL and keeps it the same filter', () => {
+    const filter = {
+      context: PHONE,
+      energy: 'MEDIUM',
+      creativity: 'CREATIVE',
+      maxMinutes: 120,
+      area: AREA,
+      project: PROJECT,
+      due: 'today',
+    } as const;
+    const params = Object.fromEntries(
+      Object.entries(filterParams(filter)).map(([key, value]) => [key, String(value)]),
+    );
+    // Every value is a string in the URL, the number comes back as a number.
+    expect(params['maxMinutes']).toBe('120');
+    const parsed = parseFilter(params);
+    expect(parsed).toEqual(filter);
+    expect(sameFilter(parsed, filter)).toBe(true);
+    expect(isEmptyFilter(parsed)).toBe(false);
+  });
+
+  it('accepts every due window and rejects values that only differ in case', () => {
+    expect(parseFilter({ due: 'overdue' })).toEqual({ due: 'overdue' });
+    expect(parseFilter({ due: 'today' })).toEqual({ due: 'today' });
+    expect(parseFilter({ due: 'week' })).toEqual({ due: 'week' });
+    expect(parseFilter({ due: 'Today' })).toEqual({});
+    expect(parseFilter({ energy: 'low' })).toEqual({});
+  });
+
+  it('trims text values and rejects a zero or fractional estimate', () => {
+    expect(parseFilter({ context: `  ${PHONE} `, project: ` ${PROJECT}` })).toEqual({
+      context: PHONE,
+      project: PROJECT,
+    });
+    expect(parseFilter({ maxMinutes: '0' })).toEqual({});
+    expect(parseFilter({ maxMinutes: 0 })).toEqual({});
+    expect(parseFilter({ maxMinutes: 2.5 })).toEqual({});
+    expect(parseFilter({ maxMinutes: ' 15 ' })).toEqual({ maxMinutes: 15 });
+  });
+
+  it('ignores non-text values of text filters (e.g. in a stored preset)', () => {
+    expect(parseFilter({ context: 42, area: null, project: ['x'], energy: true })).toEqual({});
+  });
+
   it('compares filters regardless of key order and empty fields', () => {
     expect(
       sameFilter(
@@ -135,5 +179,11 @@ describe('next filter', () => {
     expect(inArea(task({ projectId: 'other' }), { area: AREA }, projects)).toBe(false);
     expect(inArea(task(), { area: AREA }, projects)).toBe(false);
     expect(inArea(task(), {}, projects)).toBe(true);
+  });
+
+  it('keeps no task of a project that is not loaded when an area is chosen', () => {
+    const projects = new Map<string, ProjectResponse>();
+    expect(inArea(task({ projectId: PROJECT }), { area: AREA }, projects)).toBe(false);
+    expect(inArea(task({ projectId: PROJECT }), { project: PROJECT }, projects)).toBe(true);
   });
 });

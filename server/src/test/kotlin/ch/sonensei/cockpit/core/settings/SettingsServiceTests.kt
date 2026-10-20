@@ -7,6 +7,7 @@ import ch.sonensei.cockpit.core.settings.domain.SettingsChangedEvent
 import ch.sonensei.cockpit.core.settings.domain.SettingsService
 import ch.sonensei.cockpit.core.settings.infra.UserSettingsRepository
 import ch.sonensei.cockpit.core.web.InvalidRequestException
+import ch.sonensei.cockpit.gtd.infra.GtdSettings
 import ch.sonensei.cockpit.support.PostgresTestBase
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.collections.shouldContainExactly
@@ -45,11 +46,12 @@ class SettingsServiceTests(
 		settings.get(CoreSettings.TIME_ZONE) shouldBe "Europe/Zurich"
 		settings.timeZone() shouldBe ZoneId.of("Europe/Zurich")
 		settings.get(CoreSettings.ENERGY_LABELS) shouldBe mapOf("LOW" to "Low", "MEDIUM" to "Medium", "HIGH" to "High")
+		settings.get(GtdSettings.NEXT_ACTION_PRESETS) shouldBe emptyList()
 		settings.current().version shouldBe 0
 		settings
 			.current()
 			.values.keys
-			.toList() shouldContainExactly CoreSettings.ALL.map { it.key }.sorted()
+			.toList() shouldContainExactly REGISTERED_KEYS
 	}
 
 	@Test
@@ -91,7 +93,7 @@ class SettingsServiceTests(
 		settings
 			.current()
 			.values.keys
-			.toList() shouldContainExactly CoreSettings.ALL.map { it.key }.sorted()
+			.toList() shouldContainExactly REGISTERED_KEYS
 	}
 
 	@Test
@@ -113,5 +115,10 @@ class SettingsServiceTests(
 		shouldThrow<IllegalArgumentException> {
 			service.get(SettingDefinition("unregistered", SettingType.Flag, false, "Not registered"))
 		}
+	}
+
+	private companion object {
+		/** Every setting of the application: the core ones and those modules register as beans. */
+		val REGISTERED_KEYS = (CoreSettings.ALL + GtdSettings.NEXT_ACTION_PRESETS).map { it.key }.sorted()
 	}
 }

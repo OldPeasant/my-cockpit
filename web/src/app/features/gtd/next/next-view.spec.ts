@@ -25,6 +25,7 @@ import { fakeSettings } from '../../settings/testing';
 import { TASK_PAGE_SIZE } from '../data';
 import { FilterPresets, MAX_PRESETS, PRESETS_SETTING } from './filter-presets';
 import NextView from './next-view';
+import nextRoutes from './next.routes';
 
 const PHONE: ContextResponse = { id: 'c-phone', name: '@phone', position: 1, version: 1 };
 const HOME: ContextResponse = { id: 'c-home', name: '@home', position: 2, version: 1 };
@@ -93,6 +94,15 @@ type Invoke = (fn: unknown, params?: Record<string, unknown>) => Promise<unknown
 
 /** Lets pending promise callbacks run. */
 const settle = () => new Promise((resolve) => setTimeout(resolve));
+
+describe('next routes', () => {
+  it('lazy-loads the Next view at the feature root, titled Next', async () => {
+    const [route] = nextRoutes;
+    expect(route.path).toBe('');
+    expect(route.title).toBe('Next');
+    expect(await route.loadComponent!()).toMatchObject({ default: NextView });
+  });
+});
 
 describe('NextView', () => {
   let taskCalls: Record<string, unknown>[];
@@ -362,6 +372,21 @@ describe('NextView', () => {
       expect(lastQuery()).toMatchObject({ projectId: KITCHEN.id });
     });
 
+    it('writes an area chosen without a project into the URL and narrows the list', async () => {
+      serverTasks = [CALL_PLUMBER, WRITE_REPORT, WATER_PLANTS];
+      await open(`/next?energy=LOW`);
+      const loader = TestbedHarnessEnvironment.loader(harness.fixture);
+      const [area] = await loader.getAllHarnesses(MatSelectHarness);
+
+      await area.open();
+      await area.clickOptions({ text: 'Work' });
+      await stable();
+
+      expect(urlQuery()).toEqual({ energy: 'LOW', area: WORK.id });
+      expect(lastQuery()).not.toHaveProperty('projectId');
+      expect(shownTitles()).toEqual(['Draft the report']);
+    });
+
     it('keeps a project of the chosen area and removes the area with "Any area"', async () => {
       await open(`/next?project=${KITCHEN.id}`);
       const loader = TestbedHarnessEnvironment.loader(harness.fixture);
@@ -418,6 +443,81 @@ describe('NextView', () => {
       answer({ items: [WATER_PLANTS] });
       await stable();
       expect(shownTitles()).toEqual(['Water the plants']);
+    });
+
+    it('shows the answer of the newest filter when an older request answers last', async () => {
+      const pending: { params: Record<string, unknown>; resolve: (value: unknown) => void }[] = [];
+      const original = api.invoke.getMockImplementation()!;
+      api.invoke.mockImplementation((fn: unknown, params?: Record<string, unknown>) => {
+        if (fn === listTasks) {
+          return new Promise((resolve) => pending.push({ params: params ?? {}, resolve }));
+        }
+        return original(fn, params);
+      });
+      await open('/next');
+      await click(option('Energy', 'Low'));
+      expect(pending.map((call) => call.params['energy'])).toEqual([undefined, 'LOW']);
+
+      // The low-energy answer first, then the stale unfiltered one.
+      pending[1].resolve({ items: [CALL_PLUMBER] });
+      await stable();
+      pending[0].resolve({ items: [CALL_PLUMBER, WRITE_REPORT, WATER_PLANTS] });
+      await stable();
+
+      expect(url()).toBe('/next?energy=LOW');
+      expect(shownTitles()).toEqual(['Call the plumber']);
+      expect(root.querySelector('.count')?.textContent?.trim()).toBe('1 action');
+    });
+
+    it('ignores a failure of an older request once the newer filter has answered', async () => {
+      const pending: { resolve: (value: unknown) => void; reject: (error: unknown) => void }[] = [];
+      const original = api.invoke.getMockImplementation()!;
+      api.invoke.mockImplementation((fn: unknown, params?: Record<string, unknown>) => {
+        if (fn === listTasks) {
+          return new Promise((resolve, reject) => pending.push({ resolve, reject }));
+        }
+        return original(fn, params);
+      });
+      await open('/next');
+      await click(option('Due', 'Today'));
+
+      pending[1].resolve({ items: [WATER_PLANTS] });
+      await stable();
+      pending[0].reject(new Error('503'));
+      await stable();
+
+      expect(root.querySelector('[role=alert]')).toBeNull();
+      expect(shownTitles()).toEqual(['Water the plants']);
+    });
+
+    it('combines all seven filters: six go to the server, the area narrows the answer', async () => {
+      serverTasks = [CALL_PLUMBER, WRITE_REPORT, WATER_PLANTS];
+      await open(
+        `/next?context=${PHONE.id}&energy=MEDIUM&creativity=MIXED&maxMinutes=30` +
+          `&area=${HOUSE.id}&project=${KITCHEN.id}&due=today`,
+      );
+
+      expect(lastQuery()).toEqual({
+        list: 'NEXT',
+        context: PHONE.id,
+        energy: 'MEDIUM',
+        creativity: 'MIXED',
+        maxMinutes: 30,
+        projectId: KITCHEN.id,
+        due: 'today',
+        cursor: undefined,
+        limit: TASK_PAGE_SIZE,
+      });
+      expect(shownTitles()).toEqual(['Call the plumber']);
+      for (const [group, label] of [
+        ['Context', '@phone'],
+        ['Energy', 'Medium'],
+        ['Creativity', 'Mixed'],
+        ['Time available', '≤ 30 min'],
+        ['Due', 'Today'],
+      ]) {
+        expect(option(group, label).getAttribute('aria-pressed')).toBe('true');
+      }
     });
 
     it('still filters by the other fields when the areas cannot be loaded', async () => {
@@ -551,6 +651,85 @@ describe('NextView', () => {
       await submitSave();
       expect(save).toHaveBeenCalledWith('Low energy', { energy: 'LOW' });
       expect(root.querySelector('form.save-preset')).toBeNull();
+    });
+
+    it('saves a preset of every filter and applies it again from an unfiltered view', async () => {
+      const everything =
+        `/next?context=${HOME.id}&energy=LOW&creativity=ROUTINE&maxMinutes=5` +
+        `&area=${HOUSE.id}&project=${KITCHEN.id}&due=overdue`;
+      await open(everything);
+
+      await click(root.querySelector<HTMLButtonElement>('.preset-add')!);
+      await typeName('Everything');
+      await submitSave();
+
+      const saved = JSON.parse((settings.current()?.[PRESETS_SETTING] as string[])[0]);
+      expect(saved).toEqual({
+        name: 'Everything',
+        filter: {
+          context: HOME.id,
+          energy: 'LOW',
+          creativity: 'ROUTINE',
+          maxMinutes: 5,
+          area: HOUSE.id,
+          project: KITCHEN.id,
+          due: 'overdue',
+        },
+      });
+
+      await click(root.querySelector<HTMLButtonElement>('button.clear')!);
+      expect(url()).toBe('/next');
+      expect(presetButton('Everything')?.getAttribute('aria-pressed')).toBe('false');
+
+      await click(presetButton('Everything')!);
+
+      expect(urlQuery()).toEqual({
+        context: HOME.id,
+        energy: 'LOW',
+        creativity: 'ROUTINE',
+        maxMinutes: '5',
+        area: HOUSE.id,
+        project: KITCHEN.id,
+        due: 'overdue',
+      });
+      expect(lastQuery()).toMatchObject({ projectId: KITCHEN.id, due: 'overdue', maxMinutes: 5 });
+      expect(presetButton('Everything')?.getAttribute('aria-pressed')).toBe('true');
+    });
+
+    it('offers "Save filter…" again once the filter differs from the active preset', async () => {
+      settings.current.set(fakeSettings({ [PRESETS_SETTING]: stored(CALLS) }));
+      await open(`/next?context=${PHONE.id}&maxMinutes=15`);
+      expect(root.querySelector('.preset-add')).toBeNull();
+
+      await click(option('Energy', 'Low'));
+
+      expect(presetButton('Quick calls')?.getAttribute('aria-pressed')).toBe('false');
+      expect(root.querySelector('.preset-add')).not.toBeNull();
+    });
+
+    it('shows presets saved on another device when the settings change', async () => {
+      await open('/next');
+      expect(presetButton('Deep work')).toBeUndefined();
+
+      settings.current.set(fakeSettings({ [PRESETS_SETTING]: stored(DEEP) }));
+      await stable();
+
+      expect(presetButton('Deep work')).toBeDefined();
+      expect(text()).not.toContain('Choose filters below');
+    });
+
+    it('closes the save form with Escape without saving', async () => {
+      await open('/next?energy=LOW');
+
+      await click(root.querySelector<HTMLButtonElement>('.preset-add')!);
+      await typeName('Low energy');
+      root
+        .querySelector<HTMLInputElement>('form.save-preset input')!
+        .dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+      await stable();
+
+      expect(root.querySelector('form.save-preset')).toBeNull();
+      expect(settings.update).not.toHaveBeenCalled();
     });
 
     it('closes the save form on cancel without saving', async () => {

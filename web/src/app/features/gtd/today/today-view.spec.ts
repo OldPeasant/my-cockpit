@@ -12,8 +12,9 @@ import {
 } from '../../../api/generated';
 import { ChangeEventsService } from '../../../core/events';
 import { TASK_PAGE_SIZE } from '../data';
-import { TODAY_SECTIONS, todaySectionProvider } from './today-sections';
+import { provideTodaySection, TODAY_SECTIONS, todaySectionProvider } from './today-sections';
 import TodayView from './today-view';
+import todayRoutes from './today.routes';
 
 const YESTERDAY = '2026-10-19';
 const TODAY = '2026-10-20';
@@ -57,6 +58,15 @@ type Invoke = (fn: unknown, params?: Record<string, unknown>) => Promise<unknown
 
 /** Lets pending promise callbacks run. */
 const settle = () => new Promise((resolve) => setTimeout(resolve));
+
+describe('today routes', () => {
+  it('lazy-loads the Today view at the feature root, titled Today', async () => {
+    const [route] = todayRoutes;
+    expect(route.path).toBe('');
+    expect(route.title).toBe('Today');
+    expect(await route.loadComponent!()).toMatchObject({ default: TodayView });
+  });
+});
 
 describe('TodayView', () => {
   let taskCalls: Call[];
@@ -272,6 +282,51 @@ describe('TodayView', () => {
     expect(sectionIds()).toEqual(['today-overdue', 'today-due']);
   });
 
+  it('retries every failed section and shows the error until all have answered', async () => {
+    configure();
+    await render();
+    call('due', 'overdue').reject(new Error('503'));
+    call('due', 'today').resolve({ items: [PAY_INVOICE] });
+    call('list', 'SCHEDULED').reject(new Error('503'));
+    await refresh();
+    expect(root.querySelector('[role=alert]')).not.toBeNull();
+
+    const before = taskCalls.length;
+    root.querySelector<HTMLButtonElement>('[role=alert] button')!.click();
+    await refresh();
+    const retried = taskCalls.slice(before);
+    expect(retried.map((c) => c.params)).toEqual([
+      { due: 'overdue', cursor: undefined, limit: TASK_PAGE_SIZE },
+      { list: 'SCHEDULED', cursor: undefined, limit: TASK_PAGE_SIZE },
+    ]);
+
+    retried[0].resolve({ items: [RENEW_PASSPORT] });
+    retried[1].reject(new Error('503'));
+    await refresh();
+    expect(root.querySelector('[role=alert]')).not.toBeNull();
+
+    root.querySelector<HTMLButtonElement>('[role=alert] button')!.click();
+    await refresh();
+    taskCalls.at(-1)!.resolve({ items: [WATER_PLANTS] });
+    await refresh();
+
+    expect(root.querySelector('[role=alert]')).toBeNull();
+    expect(sectionIds()).toEqual(['today-overdue', 'today-due', 'today-scheduled']);
+  });
+
+  it('shows open tasks of every list in the overdue and due-today sections', async () => {
+    configure();
+    await render();
+    await answer(
+      [task('t-wait', 'Chase the fictitious supplier', { list: 'WAITING', dueDate: YESTERDAY })],
+      [task('t-someday', 'Return the library book', { list: 'SOMEDAY', dueDate: TODAY })],
+      [],
+    );
+
+    expect(titlesIn('overdue')).toEqual(['Chase the fictitious supplier']);
+    expect(titlesIn('due')).toEqual(['Return the library book']);
+  });
+
   it('completes a task in its section', async () => {
     configure();
     await render();
@@ -347,6 +402,28 @@ describe('TodayView', () => {
 
       await answer([], [], []);
       expect(text()).toContain('Nothing overdue, due or scheduled today.');
+      expect(root.querySelector('app-fake-events')).not.toBeNull();
+    });
+
+    it('renders a section added with provideTodaySection (environment providers)', async () => {
+      configure([provideTodaySection({ id: 'habits', order: 20, component: FakeHabits })]);
+      await render();
+      await answer([], [PAY_INVOICE], []);
+
+      const extensions = [...root.querySelectorAll('.extension')];
+      expect(extensions.map((el) => el.getAttribute('data-section'))).toEqual(['habits']);
+      expect(extensions[0].textContent?.trim()).toBe('Habits due');
+    });
+
+    it('renders the extension sections also when the task sections fail', async () => {
+      configure([todaySectionProvider({ id: 'calendar', order: 10, component: FakeEvents })]);
+      await render();
+      call('due', 'overdue').reject(new Error('503'));
+      call('due', 'today').reject(new Error('503'));
+      call('list', 'SCHEDULED').reject(new Error('503'));
+      await refresh();
+
+      expect(root.querySelector('[role=alert]')).not.toBeNull();
       expect(root.querySelector('app-fake-events')).not.toBeNull();
     });
 
