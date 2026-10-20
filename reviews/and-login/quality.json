@@ -1,0 +1,36 @@
+{
+  "schema": 1,
+  "task": "and-login",
+  "reviewed_revision": "3334c04df40463f249c3fe4125101ef0ab49d562",
+  "helpers": {
+    "test-writer": {"status": "completed", "report": "reviews/and-login/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/and-login/review.md"},
+    "fixer": {"status": "completed", "report": "reviews/and-login/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "R1-CR-1", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "round 1: logout could be cancelled by viewModelScope before tokens were cleared"},
+    {"id": "R1-CR-2", "source": "code-reviewer", "severity": "P2", "disposition": "deferred",
+     "note": "round 1: real AndroidKeyStore round trip needs an emulator/device; deferred to h-android-device, criterion 2 recorded with verify --skip"},
+    {"id": "R1-CR-3", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "round 1: Keystore and disk work on the main thread"},
+    {"id": "R1-CR-4", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "round 1: user logout cleared caches twice, concurrently"},
+    {"id": "R2-CR-1", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "round 2: logout of an already revoked device cleared caches twice, concurrently"},
+    {"id": "R2-CR-2", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "round 2: a failing SessionCache crashed the app and stopped later clears"},
+    {"id": "R2-CR-3", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "round 2: rotated tokens persisted with asynchronous apply()"},
+    {"id": "R3-CR-1", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "round 3: a cache throwing CancellationException skipped remaining caches and ended the collector"},
+    {"id": "R3-CR-2", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "round 3: skipped inline cache clear depended on a droppable logout event"}
+  ],
+  "validation": [
+    {"command": "cd android && ./gradlew ktlintCheck testDebugUnitTest --tests 'ch.sonensei.cockpit.auth.*'", "result": "pass"},
+    {"command": "cd android && ./gradlew testDebugUnitTest --rerun createDebugUnitTestCoverageReport", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
