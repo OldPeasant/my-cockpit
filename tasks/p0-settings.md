@@ -17,3 +17,4 @@ Key-value user settings with typed defaults (SPEC.md §4.7).
 - [ ] API documented: `api/openapi.yaml` regenerated (`UPDATE_OPENAPI=1 ./gradlew test --tests '*OpenApiContractTest'`) and `OpenApiContractTest` passes without the flag
 
 ## Notes
+- ASSUMPTION (2026-10-20 13:36+0200 by dell26/agent-5): Migration lives in db/migration/core/ (V202610201130__core_settings.sql), not core-settings/ as in touches: MigrationConventionTests requires folder == [a-z0-9]+ module token of the filename
