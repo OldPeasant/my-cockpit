@@ -56,6 +56,8 @@ describe('App', () => {
     '/settings',
     '/trash',
     '/inbox',
+    '/today',
+    '/next',
     '/waiting',
     '/someday',
     '/scheduled',

@@ -1,0 +1,185 @@
+:host {
+  display: block;
+}
+
+.next {
+  max-width: 64rem;
+  padding: var(--app-space-5) var(--app-space-4);
+}
+
+.head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--app-space-2) var(--app-space-4);
+}
+
+h1 {
+  margin: 0;
+  font: var(--mat-sys-headline-medium);
+}
+
+.count,
+.note,
+.hint {
+  margin: 0;
+  color: var(--app-fg-muted);
+  font: var(--mat-sys-body-medium);
+}
+
+// Saved presets: the quick switches of the view.
+.presets {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--app-space-2);
+  margin: var(--app-space-4) 0 var(--app-space-3);
+  min-height: 2.25rem;
+}
+
+.preset {
+  display: inline-flex;
+  align-items: stretch;
+  border: 1px solid var(--app-border);
+  border-radius: 999px;
+  overflow: hidden;
+
+  &.active {
+    border-color: var(--app-accent);
+    background: var(--app-accent);
+
+    .preset-name,
+    .preset-remove {
+      color: var(--mat-sys-on-primary);
+    }
+  }
+}
+
+.preset-name,
+.preset-remove,
+.preset-add {
+  border: 0;
+  background: transparent;
+  color: var(--app-fg);
+  font: var(--mat-sys-label-large);
+  cursor: pointer;
+
+  &:focus-visible {
+    outline: 2px solid var(--app-accent);
+    outline-offset: -2px;
+  }
+}
+
+.preset-name {
+  padding: var(--app-space-2) var(--app-space-2) var(--app-space-2) var(--app-space-3);
+}
+
+.preset-remove {
+  padding: 0 var(--app-space-3) 0 var(--app-space-1);
+  color: var(--app-fg-muted);
+}
+
+.preset-add {
+  padding: var(--app-space-2) var(--app-space-3);
+  border: 1px dashed var(--app-border);
+  border-radius: 999px;
+  color: var(--app-accent);
+}
+
+.save-preset {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--app-space-2);
+  margin-bottom: var(--app-space-3);
+
+  mat-form-field {
+    width: min(100%, 20rem);
+  }
+}
+
+.error {
+  flex-basis: 100%;
+  margin: 0;
+  color: var(--app-danger);
+}
+
+.filters {
+  margin-bottom: var(--app-space-4);
+  padding: var(--app-space-3) var(--app-space-4);
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius);
+  background: var(--app-surface-raised);
+
+  summary {
+    font: var(--mat-sys-title-small);
+    cursor: pointer;
+  }
+}
+
+// One filter per row: its name on the left, the choices on the right.
+.grid {
+  display: grid;
+  grid-template-columns: minmax(0, 9rem) minmax(0, 1fr);
+  align-items: center;
+  gap: var(--app-space-3) var(--app-space-4);
+  margin-top: var(--app-space-3);
+}
+
+.label {
+  color: var(--app-fg-muted);
+  font: var(--mat-sys-label-large);
+}
+
+.selects {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--app-space-2);
+
+  mat-form-field {
+    width: min(100%, 16rem);
+  }
+}
+
+.clear {
+  margin-top: var(--app-space-2);
+}
+
+.load-error {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--app-space-3);
+  color: var(--app-danger);
+}
+
+.tasks {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--app-border);
+}
+
+.empty {
+  padding: var(--app-space-5) var(--app-space-3);
+  color: var(--app-fg-muted);
+
+  p {
+    margin: 0 0 var(--app-space-2);
+  }
+}
+
+@media (max-width: 40rem) {
+  .next {
+    padding: var(--app-space-4) var(--app-space-3);
+  }
+
+  .grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--app-space-1);
+  }
+
+  .label:not(:first-child) {
+    margin-top: var(--app-space-2);
+  }
+}

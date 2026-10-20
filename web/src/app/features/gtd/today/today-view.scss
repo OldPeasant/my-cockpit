@@ -1,0 +1,81 @@
+:host {
+  display: block;
+}
+
+.today {
+  max-width: 64rem;
+  padding: var(--app-space-5) var(--app-space-4);
+}
+
+.head {
+  margin-bottom: var(--app-space-4);
+}
+
+h1 {
+  margin: 0;
+  font: var(--mat-sys-headline-medium);
+}
+
+.date,
+.note {
+  margin: var(--app-space-1) 0 0;
+  color: var(--app-fg-muted);
+  font: var(--mat-sys-body-large);
+}
+
+.group + .group {
+  margin-top: var(--app-space-5);
+}
+
+h2 {
+  display: flex;
+  align-items: baseline;
+  gap: var(--app-space-2);
+  margin: 0 0 var(--app-space-2);
+  font: var(--mat-sys-title-medium);
+}
+
+.count {
+  color: var(--app-fg-muted);
+  font: var(--mat-sys-label-large);
+}
+
+// Overdue is the one section that asks for attention.
+.overdue h2 {
+  color: var(--app-danger);
+}
+
+.tasks {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--app-border);
+}
+
+.clear-day {
+  padding: var(--app-space-5) 0;
+  color: var(--app-fg-muted);
+
+  p {
+    margin: 0 0 var(--app-space-2);
+    font: var(--mat-sys-body-large);
+  }
+}
+
+.load-error {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--app-space-3);
+  color: var(--app-danger);
+}
+
+.extension {
+  margin-top: var(--app-space-5);
+}
+
+@media (max-width: 40rem) {
+  .today {
+    padding: var(--app-space-4) var(--app-space-3);
+  }
+}

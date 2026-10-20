@@ -1,0 +1,57 @@
+<section class="today" aria-labelledby="today-title">
+  <header class="head">
+    <h1 id="today-title" i18n="@@gtd.today.title">Today</h1>
+    <p class="date">{{ today | date: 'fullDate' }}</p>
+  </header>
+
+  @if (failed()) {
+    <div class="load-error" role="alert">
+      <p i18n="@@gtd.today.loadFailed">Today's tasks could not be loaded.</p>
+      <button mat-stroked-button type="button" (click)="retry()" i18n="@@gtd.today.retry">
+        Try again
+      </button>
+    </div>
+  } @else if (!loaded()) {
+    <p class="note" role="status" i18n="@@gtd.today.loading">Loading today…</p>
+  } @else if (nothing()) {
+    <div class="clear-day">
+      <p i18n="@@gtd.today.nothing">Nothing overdue, due or scheduled today.</p>
+      <a mat-button routerLink="/next" i18n="@@gtd.today.toNext">Pick a next action</a>
+    </div>
+  } @else {
+    @for (section of sections(); track section.id) {
+      @if (section.tasks.length) {
+        <section
+          class="group"
+          [class.overdue]="section.id === 'overdue'"
+          [attr.aria-labelledby]="'today-' + section.id"
+        >
+          <h2 [id]="'today-' + section.id">
+            {{ section.title }}
+            <span class="count">{{ section.tasks.length }}</span>
+          </h2>
+          <ul class="tasks">
+            @for (task of section.tasks; track task.id) {
+              <li>
+                <app-task-row
+                  [task]="task"
+                  [contexts]="contexts.byId()"
+                  [projects]="projects.byId()"
+                  [today]="today"
+                  (toggleDone)="toggleDone(section, $event)"
+                  (open)="open($event)"
+                />
+              </li>
+            }
+          </ul>
+        </section>
+      }
+    }
+  }
+
+  @for (extension of extensions; track extension.id) {
+    <div class="extension" [attr.data-section]="extension.id">
+      <ng-container *ngComponentOutlet="extension.component" />
+    </div>
+  }
+</section>

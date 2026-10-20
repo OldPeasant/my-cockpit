@@ -23,6 +23,7 @@ export const NAV_GROUPS: readonly NavGroup[] = [
     label: $localize`:@@nav.group.tasks:Tasks`,
     sections: [
       { id: 'inbox', path: '/inbox', label: $localize`:@@nav.inbox:Inbox` },
+      { id: 'today', path: '/today', label: $localize`:@@nav.today:Today` },
       { id: 'next', path: '/next', label: $localize`:@@nav.next:Next` },
       { id: 'projects', path: '/projects', label: $localize`:@@nav.projects:Projects` },
       { id: 'waiting', path: '/waiting', label: $localize`:@@nav.waiting:Waiting` },

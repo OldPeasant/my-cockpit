@@ -1,0 +1,189 @@
+@let filter = this.filter();
+<section class="next" aria-labelledby="next-title">
+  <header class="head">
+    <h1 id="next-title" i18n="@@gtd.next.title">Next actions</h1>
+    @if (store.loaded()) {
+      <p class="count" role="status" i18n="@@gtd.next.count">
+        {tasks().length, plural, =1 {1 action} other {{{ tasks().length }} actions}}
+      </p>
+    }
+  </header>
+
+  <div class="presets" role="group" i18n-aria-label="@@gtd.next.presets" aria-label="Saved filters">
+    @for (preset of presetStore.presets(); track preset.name) {
+      <span class="preset" [class.active]="preset === activePreset()">
+        <button
+          type="button"
+          class="preset-name"
+          [attr.aria-pressed]="preset === activePreset()"
+          (click)="applyPreset(preset)"
+        >
+          {{ preset.name }}
+        </button>
+        <button
+          type="button"
+          class="preset-remove"
+          [attr.aria-label]="removeLabel(preset.name)"
+          (click)="removePreset(preset)"
+        >
+          ×
+        </button>
+      </span>
+    }
+    @if (presetName() === null) {
+      @if (filtered() && !activePreset()) {
+        <button type="button" class="preset-add" (click)="openSave()" i18n="@@gtd.next.preset.save">
+          Save filter…
+        </button>
+      } @else if (presetStore.presets().length === 0) {
+        <span class="hint" i18n="@@gtd.next.preset.hint"
+          >Choose filters below, then save them for one-click access.</span
+        >
+      }
+    }
+  </div>
+
+  @if (presetName() !== null) {
+    <form class="save-preset" (submit)="$event.preventDefault(); savePreset()">
+      <mat-form-field subscriptSizing="dynamic">
+        <mat-label i18n="@@gtd.next.preset.name">Preset name</mat-label>
+        <input
+          matInput
+          name="presetName"
+          [maxlength]="maxPresetName"
+          [ngModel]="presetName()"
+          (ngModelChange)="presetName.set($event)"
+          (keydown.escape)="cancelSave()"
+        />
+      </mat-form-field>
+      <button mat-flat-button type="submit" i18n="@@gtd.next.preset.saveButton">Save preset</button>
+      <button mat-button type="button" (click)="cancelSave()" i18n="@@gtd.next.preset.cancel">
+        Cancel
+      </button>
+      @if (presetError(); as error) {
+        <p class="error" role="alert">{{ error }}</p>
+      }
+    </form>
+  }
+
+  <details class="filters" open>
+    <summary i18n="@@gtd.next.filters">Filters</summary>
+    <div class="grid">
+      <span class="label">{{ labels.context }}</span>
+      @if (contextOptions().length) {
+        <app-segmented
+          [label]="labels.context"
+          [options]="contextOptions()"
+          [value]="filter.context"
+          (valueChange)="set('context', $event)"
+        />
+      } @else {
+        <span class="hint" i18n="@@gtd.next.noContexts">No contexts yet</span>
+      }
+
+      <span class="label">{{ labels.estimate }}</span>
+      <app-segmented
+        [label]="labels.estimate"
+        [options]="estimateOptions"
+        [value]="filter.maxMinutes"
+        (valueChange)="set('maxMinutes', $event)"
+      />
+
+      <span class="label">{{ labels.energy }}</span>
+      <app-segmented
+        [label]="labels.energy"
+        [options]="energyOptions"
+        [value]="filter.energy"
+        (valueChange)="set('energy', $event)"
+      />
+
+      <span class="label">{{ labels.creativity }}</span>
+      <app-segmented
+        [label]="labels.creativity"
+        [options]="creativityOptions"
+        [value]="filter.creativity"
+        (valueChange)="set('creativity', $event)"
+      />
+
+      <span class="label">{{ labels.due }}</span>
+      <app-segmented
+        [label]="labels.due"
+        [options]="dueOptions"
+        [value]="filter.due"
+        (valueChange)="set('due', $event)"
+      />
+
+      <span class="label" i18n="@@gtd.next.filter.where">Area and project</span>
+      <div class="selects">
+        <mat-form-field subscriptSizing="dynamic">
+          <mat-label i18n="@@gtd.next.filter.area">Area</mat-label>
+          <mat-select
+            [value]="filter.area ?? ''"
+            (selectionChange)="set('area', $event.value || undefined)"
+          >
+            <mat-option value="" i18n="@@gtd.next.filter.anyArea">Any area</mat-option>
+            @for (area of areas(); track area.id) {
+              <mat-option [value]="area.id">{{ area.title }}</mat-option>
+            }
+          </mat-select>
+        </mat-form-field>
+        <mat-form-field subscriptSizing="dynamic">
+          <mat-label i18n="@@gtd.next.filter.project">Project</mat-label>
+          <mat-select
+            [value]="filter.project ?? ''"
+            (selectionChange)="set('project', $event.value || undefined)"
+          >
+            <mat-option value="" i18n="@@gtd.next.filter.anyProject">Any project</mat-option>
+            @for (project of projectChoices(); track project.id) {
+              <mat-option [value]="project.id">{{ project.title }}</mat-option>
+            }
+          </mat-select>
+        </mat-form-field>
+      </div>
+    </div>
+    @if (filtered()) {
+      <button mat-button type="button" class="clear" (click)="clear()" i18n="@@gtd.next.clear">
+        Clear filters
+      </button>
+    }
+  </details>
+
+  @if (store.error() && !store.loaded()) {
+    <div class="load-error" role="alert">
+      <p i18n="@@gtd.next.loadFailed">Next actions could not be loaded.</p>
+      <button mat-stroked-button type="button" (click)="store.refresh()" i18n="@@gtd.next.retry">
+        Try again
+      </button>
+    </div>
+  } @else if (!store.loaded()) {
+    <p class="note" role="status" i18n="@@gtd.next.loading">Loading next actions…</p>
+  } @else {
+    <ul class="tasks" i18n-aria-label="@@gtd.next.list" aria-label="Next actions">
+      @for (task of tasks(); track task.id) {
+        <li>
+          <app-task-row
+            [task]="task"
+            [contexts]="contexts.byId()"
+            [projects]="projects.byId()"
+            [today]="today"
+            (toggleDone)="toggleDone($event)"
+            (open)="open($event)"
+          />
+        </li>
+      } @empty {
+        <li class="empty">
+          @if (filtered()) {
+            <p i18n="@@gtd.next.emptyFiltered">No next actions match these filters.</p>
+            <button mat-button type="button" (click)="clear()" i18n="@@gtd.next.clear">
+              Clear filters
+            </button>
+          } @else {
+            <p i18n="@@gtd.next.empty">
+              No next actions. Process your inbox to decide what to do next.
+            </p>
+          }
+        </li>
+      }
+    </ul>
+  }
+</section>
