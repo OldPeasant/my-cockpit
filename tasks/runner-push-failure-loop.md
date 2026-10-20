@@ -24,7 +24,8 @@ the full check.
   - verified (2026-10-20 20:12+0200 by dell26/agent-4): python -m unittest tests.test_push_failure -> 31 OK: ReviewReleaseRefused/ReviewHoldRefused/ReviewDoneRefused/ReleaseRefused/RetryAfterFix etc. assert 'release FAILED' (never 'released'), state blocked + error in logs/<agent>.status.json, retries only every --blocked-retry (default 1800 s), no new session while blocked
 - [x] The same push error from `done` in N sessions in a row (e.g. 3) is treated the same way: blocked, with the error in the status/log; no more sessions on that task
   - verified (2026-10-20 20:12+0200 by dell26/agent-4): python -m unittest tests.test_push_failure -> 31 OK: DoneRefused (same done push error 3 sessions in a row -> blocked, error in status/log, no more sessions), DoneStreakDifferentErrors/BrokenBySession/ErrorNamesCommit check the streak rules
-- [ ] Tests in `tests/` simulate a remote that rejects pushes (e.g. a pre-receive hook in a bare repo) and show: release/hold exit non-zero with the message; the runner logic does not resume the task. `sh scripts/check.sh` passes
+- [x] Tests in `tests/` simulate a remote that rejects pushes (e.g. a pre-receive hook in a bare repo) and show: release/hold exit non-zero with the message; the runner logic does not resume the task. `sh scripts/check.sh` passes
+  - verified (2026-10-20 20:12+0200 by dell26/agent-4): tests/test_push_failure.py uses a bare remote.git with pre-receive hooks; python -m unittest tests.test_push_failure -> 31 OK; python -m unittest discover tests (test-writer) -> 87 OK; sh scripts/check.sh -> exit 0 'all checks passed'
 
 ## Notes
 - ASSUMPTION (2026-10-20 17:28+0200 by dell26/agent-7): Fixed the test-writer's hand_off() observation in scope (same refused-push loop on the usage-limit path); left the pre-existing cmd_hold() stale-clone observation (Low, human command path) out of scope
