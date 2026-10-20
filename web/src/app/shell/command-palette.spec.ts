@@ -139,4 +139,15 @@ describe('CommandPalette', () => {
     expect(run).toHaveBeenCalled();
     expect(close).toHaveBeenCalled();
   });
+
+  it('shows the empty state without providers and ignores Enter and arrow keys', async () => {
+    await setup([]);
+    expect(labels()).toEqual([]);
+    expect(root.querySelector('.empty')).not.toBeNull();
+    expect(input().getAttribute('aria-activedescendant')).toBeNull();
+    await key('ArrowDown');
+    await key('ArrowUp');
+    await key('Enter');
+    expect(close).not.toHaveBeenCalled();
+  });
 });

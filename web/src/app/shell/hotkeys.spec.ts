@@ -32,6 +32,8 @@ describe('shellActionFor', () => {
     expect(shellActionFor(press({ key: ' ', code: 'Space', ctrlKey: true, shiftKey: true }))).toBe(
       'capture',
     );
+    // Some layouts report the space key without a `code`.
+    expect(shellActionFor(press({ key: ' ', ctrlKey: true, shiftKey: true }))).toBe('capture');
   });
 
   it('maps ? to the shortcut overview', () => {

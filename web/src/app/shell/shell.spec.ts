@@ -180,4 +180,68 @@ describe('Shell', () => {
     expect(theme.mode()).toBe('dark');
     expect(document.documentElement.getAttribute('data-theme')).toBe('dark');
   });
+
+  it('opens the palette with Ctrl+K while typing in an input and while another dialog is open', async () => {
+    await setup();
+    const input = document.createElement('input');
+    document.body.appendChild(input);
+    try {
+      const event = keydown({ key: 'k', ctrlKey: true }, input);
+      expect(event.defaultPrevented).toBe(true);
+      expect(openDialogs().filter((c) => c instanceof CommandPalette)).toHaveLength(1);
+    } finally {
+      input.remove();
+    }
+    TestBed.inject(MatDialog).closeAll();
+    keydown({ key: '?', shiftKey: true });
+    keydown({ key: 'k', ctrlKey: true });
+    expect(openDialogs().some((c) => c instanceof CommandPalette)).toBe(true);
+  });
+
+  it('opens capture with Ctrl+Shift+Space while typing in an input', async () => {
+    await setup();
+    const textarea = document.createElement('textarea');
+    document.body.appendChild(textarea);
+    try {
+      keydown({ key: ' ', code: 'Space', ctrlKey: true, shiftKey: true }, textarea);
+      expect(capture.open).toHaveBeenCalledTimes(1);
+    } finally {
+      textarea.remove();
+    }
+  });
+
+  it('does not open the shortcut overview twice', async () => {
+    await setup();
+    keydown({ key: '?', shiftKey: true });
+    keydown({ key: '?', shiftKey: true });
+    expect(openDialogs().filter((c) => c instanceof ShortcutsDialog)).toHaveLength(1);
+  });
+
+  it('marks the current theme in the theme menu', async () => {
+    localStorage.setItem('cockpit.theme', 'light');
+    await setup();
+    root.querySelector<HTMLButtonElement>('button.theme')!.click();
+    await fixture.whenStable();
+    const checked = () =>
+      Array.from(document.querySelectorAll('[role="menuitemradio"]')).map((i) =>
+        i.getAttribute('aria-checked'),
+      );
+    expect(checked()).toEqual(['true', 'false', 'false']);
+    document.querySelectorAll<HTMLButtonElement>('[role="menuitemradio"]')[2].click();
+    await fixture.whenStable();
+    expect(localStorage.getItem('cockpit.theme')).toBe('system');
+    root.querySelector<HTMLButtonElement>('button.theme')!.click();
+    await fixture.whenStable();
+    expect(checked()).toEqual(['false', 'false', 'true']);
+  });
+
+  it('keeps the side navigation open after following a link on wide screens', async () => {
+    await setup(false);
+    const sidenav: MatSidenav = fixture.debugElement.query(
+      By.directive(MatSidenav),
+    ).componentInstance;
+    root.querySelector<HTMLAnchorElement>('nav a.link')!.click();
+    await fixture.whenStable();
+    expect(sidenav.opened).toBe(true);
+  });
 });
