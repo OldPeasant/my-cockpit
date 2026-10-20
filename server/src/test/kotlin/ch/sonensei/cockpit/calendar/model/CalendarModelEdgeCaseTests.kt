@@ -445,4 +445,40 @@ class CalendarModelEdgeCaseTests(
 			listOf(spanning, seriesInside, allDaySpan, allDaySeries, deletedMaster, overrideOfDeletedMaster).map { it.title }
 		events.findCandidatesInRange(listOf(UUID.randomUUID()), from, to, fromDate, toDate) shouldBe emptyList()
 	}
+
+	@Test
+	fun `range candidates keep every override of a live series, cancelled or outside the range`() {
+		val calendar = localCalendar()
+		val from = Instant.parse("2026-10-19T00:00:00Z")
+		val to = Instant.parse("2026-10-26T00:00:00Z")
+		val master =
+			events.save(
+				CalendarEvent(calendar.id, "Standup").apply {
+					setTimed(Instant.parse("2026-10-01T08:00:00Z"), Instant.parse("2026-10-01T08:15:00Z"), zurich)
+					rrule = "FREQ=DAILY"
+				},
+			)
+
+		fun override(
+			title: String,
+			occurrence: String,
+			start: String,
+			cancelled: Boolean = false,
+		) = events.save(
+			CalendarEvent(calendar.id, title).apply {
+				setTimed(Instant.parse(start), Instant.parse(start).plusSeconds(900), zurich)
+				overrideOf(master, OccurrenceId.of(Instant.parse(occurrence)))
+				if (cancelled) status = EventStatus.CANCELLED
+			},
+		)
+
+		// Expansion needs a cancelled override to remove its occurrence, and an override moved out of the range to
+		// remove the original occurrence that lies inside it.
+		val cancelled = override("cancelled", "2026-10-21T08:00:00Z", "2026-10-21T08:00:00Z", cancelled = true)
+		val movedOut = override("moved out", "2026-10-22T08:00:00Z", "2026-11-30T08:00:00Z")
+
+		val found = events.findCandidatesInRange(listOf(calendar.id), from, to, LocalDate.of(2026, 10, 19), LocalDate.of(2026, 10, 26))
+
+		found.map { it.id } shouldContainExactlyInAnyOrder listOf(master.id, cancelled.id, movedOut.id)
+	}
 }
