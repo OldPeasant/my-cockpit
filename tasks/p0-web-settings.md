@@ -16,3 +16,4 @@ Settings page with one sub-route per section, created up front so section tasks 
 - [ ] Vitest component/service tests cover general section save and rollback on error; `cd web && npm run check` passes
 
 ## Notes
+- ASSUMPTION (2026-10-20 14:37+0200 by dell26/agent-3): Server theme sync at login: provideSettingsSync() (settings folder) is added to the shell route providers in app.routes.ts (outside touches, one line); it loads GET /settings whenever AuthService.user() becomes set and applies its theme via ThemeService.setMode. Load failures are silent and keep the local theme.
