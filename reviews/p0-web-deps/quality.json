@@ -1,11 +1,11 @@
 {
   "schema": 1,
   "task": "p0-web-deps",
-  "reviewed_revision": "eb2681fe093bc03dce0bbfff77370f8e2be88b8f",
+  "reviewed_revision": "bdb91418024288742e38bb73feac34c115fe6518",
   "helpers": {
     "test-writer": {"status": "completed", "report": "reviews/p0-web-deps/tests.md"},
     "code-reviewer": {"status": "completed", "report": "reviews/p0-web-deps/review.md"},
-    "fixer": {"status": "not_required", "reason": "the only actionable finding (CR-3, test isolation) was a one-line angular.json option applied by the parent worker before the final test and review runs; remaining findings are accepted P3s"}
+    "fixer": {"status": "completed", "report": "reviews/p0-web-deps/fixes.md"}
   },
   "fixes_required": true,
   "findings": [
@@ -14,9 +14,11 @@
     {"id": "CR-2", "source": "code-reviewer", "severity": "P3", "disposition": "accepted",
      "note": "files outside declared touches (main.ts, tsconfig.*, app.*, messages.xlf) needed for localize setup and to prove criteria 2/3; recorded assumptions"},
     {"id": "CR-3", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
-     "note": "isolate: true on the angular.json test target (a81c577), comment reworded (eb2681f)"},
-    {"id": "CR-4", "source": "code-reviewer", "severity": "P3", "disposition": "accepted",
-     "note": "isolate: true not mentioned in ARCHITECTURE.md Testing; the angular.json option and the spec comment document it, optional doc line"}
+     "note": "isolate: true on the angular.json test target and reworded spec comment (4ca96bd, d8e43bf); confirmed by fixer"},
+    {"id": "CR-4", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "ARCHITECTURE.md Testing documents Vitest isolate: true (bdb9141)"},
+    {"id": "TW-1", "source": "test-writer", "severity": "Low", "disposition": "accepted",
+     "note": "ARCHITECTURE.md says app.i18n.spec.ts 'needs' isolate: true while single-worker runs without it passed; keeping the defensive setting and wording, no behavior impact"}
   ],
   "validation": [
     {"command": "cd web && npm ci", "result": "pass"},
