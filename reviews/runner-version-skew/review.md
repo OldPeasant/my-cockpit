@@ -4,35 +4,41 @@ Date: 2026-10-20
 
 Task: runner-version-skew - Runner: same tasks.py as agents.py; lost push races are not refusals
 
-Scope: `git diff 82ea1576..f39b2990` (task commits fe58efd9, 89aacea4, ecc0cc4f, a06ae304, f39b2990), production files agents.py and tasks.py reviewed in full context; tests/test_push_race.py read for coverage
+Scope: `git diff 13cf3432..80cce15e` (whole task at the final revision). The emphasis is on the two commits since the previous review: 1674e4b5 (more Classify tests) and 80cce15e (fix for the earlier CR-1). agents.py and tasks.py were reviewed in context, and tests/test_push_race.py was read for coverage.
 
 Requirements:
-- tasks/runner-version-skew.md (acceptance criteria 1-3 and the three recorded assumptions, the third superseding the second)
-- AGENTS.md task protocol (meaning of REFUSED / LOST / PUSH FAILED for agents)
+- tasks/runner-version-skew.md (acceptance criteria 1-3 and the three recorded assumptions; the third supersedes the second)
+- AGENTS.md task protocol (meaning of REFUSED / LOST / BUSY / PUSH FAILED for agents)
 - docs/QUALITY.md artifact contract
-- Earlier review (revision 407ab308) and reviews/runner-version-skew/fixes.md
+- Previous review (revision f39b2990) and reviews/runner-version-skew/fixes.md
 
 Git range:
 - Branch: main
-- HEAD: f39b2990f1ec38756347cef05c42300e445f87bd
-- Base/start: 82ea1576484141d4b2629e048930ffe0864f2bc9
-- Commits reviewed: 5. Reviewed revision: f39b2990f1ec38756347cef05c42300e445f87bd. One uncommitted change exists in tests/test_push_race.py (a concurrent test-writer). It is not reviewed.
+- HEAD: 80cce15e6a3bd14290b3f737c59b5f067b43ce32
+- Base/start: 13cf3432d1edef3434cede93e3f3f664727b98a2 (origin/main, an ancestor of HEAD)
+- Commits reviewed: 7 (218f223e, 6ebf297e, 1dea885a, 74a68af2, 3d21943d, 1674e4b5, 80cce15e)
+- Reviewed revision: 80cce15e6a3bd14290b3f737c59b5f067b43ce32
+- Uncommitted changes: tests/test_push_race.py has 8 uncommitted added lines. They come from a concurrent test-writer and add `Classify.test_ruleset_wordings_are_refusals_on_their_own`. That change is not part of the reviewed revision.
 
-Summary: 0 P0, 0 P1, 0 P2, 1 P3
+Summary: 0 P0, 0 P1, 0 P2, 0 P3
 
-## Status of earlier findings (review of 407ab308)
+## Status of earlier findings
 
-- CR-1 (forced wip push denied as non-fast-forward was classified as a race) is resolved. `denying` is in `REFUSED_ERRORS` (tasks.py:311), and a refusal word wins over race words (`lost_race`, tasks.py:321-324). The real-remote test `Races.test_forced_wip_push_denied_as_non_fast_forward_is_refused` covers it.
-- CR-2 (unknown or transient errors failed at once) is resolved. update() (tasks.py:513) and save_work() (tasks.py:969) stop early only on `refused()`. Unknown errors are retried within the 5 attempts and end as PUSH FAILED, as before this task. The third assumption records this.
-- CR-3 (give_up blocked after sustained lost races) is resolved. give_up returns None without block() when the output carries `RACE_HINT` and there is no push-failure record (agents.py:599-604). A task blocked earlier is retried after 60 s.
-- CR-4 (runner BUSY retry untested) is resolved. ForceReleaseLosesRaces, ForceReleaseKeepsLosingRaces, BlockedRetryLosesRaces and AgentReleaseLosesRaces cover it.
+- I compared the previously reviewed code with the rebased code. `git diff f39b2990 3d21943d -- tasks.py agents.py tests` is empty. The rebase changed no code, so the conclusions of the previous review still apply to commits 218f223e through 3d21943d.
+- CR-1 (P3: GitHub ruleset rejections classified as unknown and retried 5 times) is resolved. In 80cce15e, `REFUSED_ERRORS` (tasks.py:310-311) now includes `"push declined"` and `"rule violation"`. GitHub's GH013 output (`Repository rule violations found` / `(push declined due to repository rule violations)`) now counts as a refusal and fails at once with PUSH FAILED. `Classify.test_more_real_world_refusals` covers the full GH013 wording.
+
+## Misclassification check for the new refusal words
+
+`lost_race()` (tasks.py:321-324) returns False whenever any refusal word is present. Adding refusal words could therefore turn a race into a refusal, so I checked them:
+- No git race wording contains either new substring. The race wordings checked were: `(non-fast-forward)`, `(fetch first)`, `cannot lock ref ... is at X but expected Y`, `Unable to create '...lock': File exists`, `(reference already exists)`, `(failed)`, `(failed to update ref)`, `(stale info)` and `(incorrect old value provided)`. Git uses "declined" only for hooks (`hook declined`, already a refusal) and for hosting-policy rejections, so the bare substring `declined` was not added. The more specific `push declined` was used instead, which is appropriate.
+- `Classify.test_lost_races` still passes for every race message, including the upper-case variant. `test_unknown_errors_are_neither` still passes for HTTP 500, hung-up and disconnect errors. The new words did not change the unknown class.
+- `test_without_an_argument_the_last_push_error_is_classified` (1674e4b5) checks the default-argument path that update() and save_work() use. It covers one race, one refusal and one unknown error, and restores `push_error[0]` through addCleanup. The test is sound.
 
 ## Verification performed by the reviewer
 
-- `python3 -m unittest tests.test_push_race.Classify tests.test_push_race.Races tests.test_push_race.ImportTasks` -> 22 tests OK (26 s)
-- `python3 -m unittest tests.test_push_race.BehindClone` -> 1 test OK. The runner whose clone's tasks.py lacks `PUSH_FAILURE` runs 2 sessions with no Traceback or AttributeError.
-- The reviewer did not run the slower runner classes, `tests/test_push_failure.py`, the other tooling tests, or `sh scripts/check.sh`.
-- `python tasks.py verify runner-version-skew` shows criteria 1-3 still unticked. The parent worker must record evidence before `done`.
+- `python3 -m unittest tests.test_push_race.Classify` -> 6 tests OK. This run used the working tree, which includes the uncommitted test.
+- `python3 -m unittest tests.test_push_race.Races tests.test_push_race.ImportTasks tests.test_push_race.BehindClone` -> 18 tests OK (32 s).
+- I did not run the slower runner classes (AgentReleaseLosesRaces, ForceReleaseKeepsLosingRaces, BlockedRetryLosesRaces, ForceReleaseLosesRaces), `tests/test_push_failure.py`, the other tooling tests, or `sh scripts/check.sh`. The parent worker must record that evidence for criterion 3.
 
 ## P0 Critical
 
@@ -48,19 +54,17 @@ None.
 
 ## P3 Low
 
-- [ ] **CR-1 | GitHub ruleset rejections are classified as unknown and retried 5 times before PUSH FAILED**
-    - File: `tasks.py:310-311` (REFUSED_ERRORS)
-    - Category: Correctness
-    - Problem: GitHub rejects pushes that violate a repository ruleset with `remote: error: GH013: Repository rule violations found for refs/heads/main` and `! [remote rejected] main -> main (push declined due to repository rule violations)`. None of the refusal words match: `declined` is only listed as `hook declined`. None of the race words match either. So the error is "unknown": update() runs 5 sync-and-push attempts, and save_work runs 5 attempts with 1 s pauses, before PUSH FAILED. The end result is correct (PUSH FAILED plus the record), but it takes 5 attempts where the task's intent is to fail at once on a policy refusal.
-    - Why it matters: The impact is small (some extra seconds and network round trips). It is the one common hosted-remote policy rejection that the refusal list misses.
-    - Suggested fix: Add `push declined` (or `declined`) and/or `rule violations` to `REFUSED_ERRORS`, with a case in `Classify.test_more_real_world_refusals`.
+None.
 
 ## Review conclusion
 
 No material issues found.
 
-Criterion 1 is met. `import_tasks()` (agents.py:400-407) imports the tasks.py next to agents.py, and `TASKS_ROOT` points at the clone, set at agents.py:432 before the import. The clone's copy is used only as a fallback. The choice is recorded as an assumption. Subprocess calls (`heartbeat`, `release`/`hold` in give_up) still run the clone's tasks.py, as the assumption states. agents.py only depends on in-process attributes from the matching module, and a missing `RACE_HINT` in an old clone's output just skips the retry.
+Criterion 1 is met. The runner imports the tasks.py next to agents.py and falls back to the clone's copy only when there is none. The first assumption records this choice, and BehindClone covers it.
 
-Criterion 2 is met as refined by the third assumption. Refusal words fail at once with PUSH FAILED and the record. 5 lost races exit `BUSY: ... lost the push race 5 times ... try again` without writing the record, so the runner does not block the task. Errors that are still unknown after 5 attempts keep the pre-task PUSH FAILED behavior. This goes beyond the criterion's literal "only real refusals" wording, but the assumption records it deliberately.
+Criterion 2 is met as refined by the third assumption:
+- Refusal words, now including GitHub ruleset rejections, fail at once with PUSH FAILED and write the push-failure record.
+- 5 lost races exit BUSY with "lost the push race 5 times", write no record, and do not block the task.
+- Unknown errors are retried and end as PUSH FAILED.
 
-Criterion 3 is covered by tests/test_push_race.py. The parent worker still has to record the full-suite and `sh scripts/check.sh` evidence.
+Criterion 3 is covered by tests/test_push_race.py. The parent worker still has to record the full-suite and `sh scripts/check.sh` results with `tasks.py verify`. The parent also has to decide whether to commit the concurrent test-writer's uncommitted test. That test only adds to the test file, so it does not affect code freshness.

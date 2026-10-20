@@ -174,6 +174,14 @@ class Classify(unittest.TestCase):
             self.assertTrue(tasks.refused(err), err)
             self.assertFalse(tasks.lost_race(err), err)
 
+    def test_ruleset_wordings_are_refusals_on_their_own(self):  # each of "push declined"/"rule violation" alone
+        for err in ("remote: error: GH013: Repository rule violations found for refs/heads/main. | "
+                    "error: failed to push some refs to 'https://example.test/o/r.git'",
+                    " ! [remote rejected] main -> main (push declined) | "
+                    "error: failed to push some refs to 'https://example.test/o/r.git'"):
+            self.assertTrue(tasks.refused(err), err)
+            self.assertFalse(tasks.lost_race(err), err)
+
     def test_without_an_argument_the_last_push_error_is_classified(self):  # how update()/save_work() call them
         old = tasks.push_error[0]
         self.addCleanup(tasks.push_error.__setitem__, 0, old)
