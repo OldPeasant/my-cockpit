@@ -34,6 +34,8 @@ describe('ReminderNotificationsToggle', () => {
 
   const button = () => root.querySelector('button[role="switch"]') as HTMLButtonElement;
   const hint = () => root.querySelector('.hint')?.textContent?.trim() ?? '';
+  /** Disabled but still focusable (`disabledInteractive`), so its description is announced. */
+  const disabled = () => button().getAttribute('aria-disabled') === 'true';
 
   async function click(): Promise<void> {
     button().click();
@@ -65,7 +67,7 @@ describe('ReminderNotificationsToggle', () => {
     await click();
 
     expect(button().getAttribute('aria-checked')).toBe('false');
-    expect(button().disabled).toBe(true);
+    expect(disabled()).toBe(true);
     expect(hint()).toContain('Notifications are blocked for this site');
   });
 
@@ -84,7 +86,7 @@ describe('ReminderNotificationsToggle', () => {
   it('is disabled when the browser has no notifications', async () => {
     await setup('unsupported');
 
-    expect(button().disabled).toBe(true);
+    expect(disabled()).toBe(true);
     expect(hint()).toContain("This browser can't show notifications");
   });
 
@@ -98,7 +100,7 @@ describe('ReminderNotificationsToggle', () => {
 
     await click();
 
-    expect(button().disabled).toBe(true);
+    expect(disabled()).toBe(true);
     expect(hint()).toBe("Allow notifications in the browser's prompt.");
 
     answer('granted');
@@ -106,7 +108,7 @@ describe('ReminderNotificationsToggle', () => {
     await new Promise((resolve) => setTimeout(resolve));
     await fixture.whenStable();
 
-    expect(button().disabled).toBe(false);
+    expect(disabled()).toBe(false);
     expect(button().getAttribute('aria-checked')).toBe('true');
     expect(hint()).toBe('');
   });
@@ -118,7 +120,7 @@ describe('ReminderNotificationsToggle', () => {
     await click();
 
     expect(button().getAttribute('aria-checked')).toBe('false');
-    expect(button().disabled).toBe(false);
+    expect(disabled()).toBe(false);
     expect(hint()).toContain('Reminders appear inside My Cockpit');
     expect(localStorage.getItem(REMINDER_NOTIFICATIONS_STORAGE_KEY)).toBeNull();
   });
@@ -126,7 +128,7 @@ describe('ReminderNotificationsToggle', () => {
   it('switches on without asking when the permission was granted before', async () => {
     await setup('granted');
     expect(button().getAttribute('aria-checked')).toBe('false');
-    expect(button().disabled).toBe(false);
+    expect(disabled()).toBe(false);
     expect(hint()).toContain('Reminders appear inside My Cockpit');
 
     await click();
@@ -155,7 +157,7 @@ describe('ReminderNotificationsToggle', () => {
     root = fixture.nativeElement as HTMLElement;
     await fixture.whenStable();
 
-    expect(button().disabled).toBe(true);
+    expect(disabled()).toBe(true);
     expect(root.querySelector('.hint')?.getAttribute('data-permission')).toBe('denied');
     expect(hint()).toContain('Notifications are blocked for this site');
   });
@@ -165,6 +167,59 @@ describe('ReminderNotificationsToggle', () => {
     await setup('denied');
 
     expect(button().getAttribute('aria-checked')).toBe('false');
-    expect(button().disabled).toBe(true);
+    expect(disabled()).toBe(true);
+  });
+
+  it('is described by its hint and stays focusable while disabled', async () => {
+    await setup('denied');
+
+    const hintElement = root.querySelector('.hint') as HTMLElement;
+    expect(hintElement.id).not.toBe('');
+    expect(button().getAttribute('aria-describedby')).toBe(hintElement.id);
+    expect(button().disabled).toBe(false);
+    expect(button().tabIndex).toBe(0);
+    expect(document.getElementById(hintElement.id)?.textContent).toContain(
+      'Notifications are blocked for this site',
+    );
+
+    await click();
+
+    expect(browser.requests).toBe(0);
+    expect(button().getAttribute('aria-checked')).toBe('false');
+  });
+
+  it('re-reads the permission when the window gets the focus back', async () => {
+    await setup('denied');
+    expect(disabled()).toBe(true);
+
+    browser.current = 'default';
+    window.dispatchEvent(new Event('focus'));
+    await fixture.whenStable();
+
+    expect(disabled()).toBe(false);
+    expect(hint()).toContain('Reminders appear inside My Cockpit');
+  });
+
+  it('re-reads the permission when the page becomes visible again', async () => {
+    await setup('denied');
+
+    browser.current = 'granted';
+    document.dispatchEvent(new Event('visibilitychange'));
+    await fixture.whenStable();
+
+    expect(disabled()).toBe(false);
+    expect(root.querySelector('.hint')?.getAttribute('data-permission')).toBe('granted');
+  });
+
+  it('stops listening for focus and visibility once destroyed', async () => {
+    await setup('denied');
+    const service = TestBed.inject(ReminderNotificationsService);
+    const refresh = vi.spyOn(service, 'refresh');
+
+    fixture.destroy();
+    window.dispatchEvent(new Event('focus'));
+    document.dispatchEvent(new Event('visibilitychange'));
+
+    expect(refresh).not.toHaveBeenCalled();
   });
 });

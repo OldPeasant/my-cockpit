@@ -1,11 +1,22 @@
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  DestroyRef,
+  DOCUMENT,
+  inject,
+  signal,
+} from '@angular/core';
 import { MatSlideToggleChange, MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { ReminderNotificationsService } from './reminder-notifications.service';
+
+let nextHintId = 0;
 
 /**
  * The switch for browser notifications of reminders (Settings → General). Switching it on asks
  * for the browser's permission, so it must stay a direct user gesture. Explains why it can't be
- * switched on (no support, permission refused) and that reminders then show in the app.
+ * switched on (no support, permission refused) and that reminders then show in the app. The
+ * permission is re-read whenever the user comes back to the page, e.g. from the site settings.
  */
 @Component({
   selector: 'app-reminder-notifications-toggle',
@@ -17,6 +28,8 @@ import { ReminderNotificationsService } from './reminder-notifications.service';
 export class ReminderNotificationsToggle {
   private readonly service = inject(ReminderNotificationsService);
 
+  /** The hint describes the switch, so screen readers announce why it is unavailable. */
+  protected readonly hintId = `app-reminder-notifications-hint-${nextHintId++}`;
   protected readonly permission = this.service.permission;
   protected readonly asking = signal(false);
   protected readonly checked = computed(
@@ -28,6 +41,18 @@ export class ReminderNotificationsToggle {
 
   constructor() {
     this.service.refresh();
+    const document = inject(DOCUMENT);
+    const window = document.defaultView;
+    const refresh = () => this.service.refresh();
+    const visible = () => {
+      if (document.visibilityState === 'visible') refresh();
+    };
+    window?.addEventListener('focus', refresh);
+    document.addEventListener('visibilitychange', visible);
+    inject(DestroyRef).onDestroy(() => {
+      window?.removeEventListener('focus', refresh);
+      document.removeEventListener('visibilitychange', visible);
+    });
   }
 
   protected async change(event: MatSlideToggleChange): Promise<void> {

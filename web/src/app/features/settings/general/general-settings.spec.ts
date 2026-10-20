@@ -564,7 +564,7 @@ describe('GeneralSettings', () => {
 
       expect(root.textContent).toContain('Reminder notifications');
       expect(root.textContent).toContain('Only for this browser.');
-      expect(reminderSwitch()?.disabled).toBe(true);
+      expect(reminderSwitch()?.getAttribute('aria-disabled')).toBe('true');
       expect(reminderHint()).toContain("This browser can't show notifications");
     });
 
@@ -579,6 +579,8 @@ describe('GeneralSettings', () => {
 
       expect(browser.requests).toBe(1);
       expect(reminderSwitch()?.getAttribute('aria-checked')).toBe('true');
+      // The fallback is explained once, by the switch's hint, not again by the row.
+      expect(root.textContent?.match(/inside My Cockpit/g) ?? []).toHaveLength(0);
       expect(localStorage.getItem(REMINDER_NOTIFICATIONS_STORAGE_KEY)).toBe('on');
       // The switch is per browser: no PATCH to /api/v1/settings (verified in afterEach).
     });

@@ -1,11 +1,13 @@
 <mat-slide-toggle
   [checked]="checked()"
   [disabled]="blocked() || asking()"
+  disabledInteractive
+  [aria-describedby]="hintId"
   (change)="change($event)"
   i18n="@@reminders.toggle"
   >Show reminders as browser notifications</mat-slide-toggle
 >
-<p class="hint" role="status" [attr.data-permission]="permission()">
+<p class="hint" role="status" [id]="hintId" [attr.data-permission]="permission()">
   @switch (permission()) {
     @case ('unsupported') {
       <ng-container i18n="@@reminders.permission.unsupported"

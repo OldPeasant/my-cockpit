@@ -67,35 +67,35 @@
         <source>Show reminders as browser notifications</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/core/notifications/reminder-notifications-toggle.html</context>
-          <context context-type="linenumber">6,8</context>
+          <context context-type="linenumber">8,10</context>
         </context-group>
       </trans-unit>
       <trans-unit id="reminders.permission.unsupported" datatype="html">
         <source>This browser can&apos;t show notifications. Reminders appear inside My Cockpit.</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/core/notifications/reminder-notifications-toggle.html</context>
-          <context context-type="linenumber">12,15</context>
+          <context context-type="linenumber">14,17</context>
         </context-group>
       </trans-unit>
       <trans-unit id="reminders.permission.denied" datatype="html">
         <source>Notifications are blocked for this site. Allow them in the browser&apos;s site settings; until then reminders appear inside My Cockpit.</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/core/notifications/reminder-notifications-toggle.html</context>
-          <context context-type="linenumber">17,21</context>
+          <context context-type="linenumber">19,23</context>
         </context-group>
       </trans-unit>
       <trans-unit id="reminders.permission.asking" datatype="html">
         <source>Allow notifications in the browser&apos;s prompt.</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/core/notifications/reminder-notifications-toggle.html</context>
-          <context context-type="linenumber">24,26</context>
+          <context context-type="linenumber">26,28</context>
         </context-group>
       </trans-unit>
       <trans-unit id="reminders.permission.off" datatype="html">
         <source>Reminders appear inside My Cockpit while it is open.</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/core/notifications/reminder-notifications-toggle.html</context>
-          <context context-type="linenumber">28,32</context>
+          <context context-type="linenumber">30,34</context>
         </context-group>
       </trans-unit>
       <trans-unit id="reminders.untitled" datatype="html">
@@ -750,66 +750,66 @@
         </context-group>
       </trans-unit>
       <trans-unit id="settings.reminders.hint" datatype="html">
-        <source> Only for this browser. Without them, reminders show inside My Cockpit. </source>
+        <source>Only for this browser.</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/settings/general/general-settings.html</context>
-          <context context-type="linenumber">90,92</context>
+          <context context-type="linenumber">89,91</context>
         </context-group>
       </trans-unit>
       <trans-unit id="settings.energyLabels" datatype="html">
         <source>Energy levels</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/settings/general/general-settings.html</context>
-          <context context-type="linenumber">100,101</context>
+          <context context-type="linenumber">98,99</context>
         </context-group>
       </trans-unit>
       <trans-unit id="settings.energyLabels.hint" datatype="html">
         <source> How tasks are labelled when you pick them by energy, from lowest to highest. </source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/settings/general/general-settings.html</context>
-          <context context-type="linenumber">102,104</context>
+          <context context-type="linenumber">100,102</context>
         </context-group>
       </trans-unit>
       <trans-unit id="settings.creativityLabels" datatype="html">
         <source>Creativity levels</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/settings/general/general-settings.html</context>
-          <context context-type="linenumber">129,130</context>
+          <context context-type="linenumber">127,128</context>
         </context-group>
       </trans-unit>
       <trans-unit id="settings.creativityLabels.hint" datatype="html">
         <source> From routine work to work that needs fresh ideas. </source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/settings/general/general-settings.html</context>
-          <context context-type="linenumber">131,134</context>
+          <context context-type="linenumber">129,132</context>
         </context-group>
       </trans-unit>
       <trans-unit id="settings.labels.invalid" datatype="html">
         <source>Each label needs 1 to 40 characters.</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/settings/general/general-settings.html</context>
-          <context context-type="linenumber">163,167</context>
+          <context context-type="linenumber">161,165</context>
         </context-group>
       </trans-unit>
       <trans-unit id="settings.saving" datatype="html">
         <source>Saving…</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/settings/general/general-settings.html</context>
-          <context context-type="linenumber">171,173</context>
+          <context context-type="linenumber">169,171</context>
         </context-group>
       </trans-unit>
       <trans-unit id="settings.saved" datatype="html">
         <source>Saved</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/settings/general/general-settings.html</context>
-          <context context-type="linenumber">174,176</context>
+          <context context-type="linenumber">172,174</context>
         </context-group>
       </trans-unit>
       <trans-unit id="settings.notSaved" datatype="html">
         <source>Not saved, previous value restored</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/settings/general/general-settings.html</context>
-          <context context-type="linenumber">177,180</context>
+          <context context-type="linenumber">175,178</context>
         </context-group>
       </trans-unit>
       <trans-unit id="settings.weekStart.monday" datatype="html">
