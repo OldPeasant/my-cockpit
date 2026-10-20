@@ -5,7 +5,7 @@ owner: dell26/agent-4
 deps: [web-gtd-data]
 touches: [web/src/app/features/gtd/next,web/src/app/features/gtd/today]
 prio: 1
-lease_until: 2026-10-20T20:56:47Z
+lease_until: 2026-10-20T20:59:24Z
 ---
 ## Goal
 Filterable next actions and the Today view (SPEC.md §5.3).
