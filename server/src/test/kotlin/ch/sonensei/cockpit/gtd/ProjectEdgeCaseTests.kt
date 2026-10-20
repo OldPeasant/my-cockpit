@@ -745,6 +745,152 @@ class ProjectEdgeCaseTests(
 		}
 	}
 
+	// --- second review round: purge detaching tasks, next-step body, area PATCH parser
+
+	@Test
+	fun `purging a project moves its open and done tasks to the end of their own lists in project order`(events: ApplicationEvents) {
+		val looseNext = newTask(null, "Buy paint")
+		val looseWaiting = post(TASKS, """{"title":"Wait for quote","list":"WAITING"}""").andExpect { status { isCreated() } }.json().id()
+		val id = newProject()
+		val first = newTask(id, "Measure walls")
+		val second = newTask(id, "Order tiles")
+		val waiting = post(TASKS, """{"title":"Wait for tiler","list":"WAITING","projectId":"$id"}""").json().id()
+		val done = newTask(id, "Pick colour")
+		complete(done)
+		order(id, second, first).andExpect { status { isOk() } }
+		deleteWithAnyVersion("$PROJECTS/$id")
+		val versions = listOf(first, second, waiting, done).associateWith { fetchTask(it).get("version").asLong() }
+		events.clear()
+
+		mockMvc.delete("/api/v1/trash/PROJECT/$id") { with(csrf()) }.andExpect { status { is2xxSuccessful() } }
+
+		val nextBase = fetchTask(looseNext).get("position").asInt()
+		fetchTask(second).get("position").asInt() shouldBe nextBase + 1
+		fetchTask(first).get("position").asInt() shouldBe nextBase + 2
+		fetchTask(waiting).get("position").asInt() shouldBe fetchTask(looseWaiting).get("position").asInt() + 1
+		versions.forEach { (task, version) ->
+			val after = fetchTask(task)
+			after.isNullOrAbsent("projectId") shouldBe true
+			after.get("version").asLong() shouldBe version + 1
+		}
+		events.changes("TASK").map { it.second }.sorted() shouldContainExactly listOf(first, second, waiting, done).sorted()
+		events.changes("TASK").map { it.first }.toSet() shouldBe setOf(ChangeOp.UPDATED)
+	}
+
+	@Test
+	fun `a task trashed with its project can be restored after the project was purged, without a project`() {
+		val id = newProject()
+		val task = newTask(id)
+		deleteWithAnyVersion("$TASKS/$task")
+		deleteWithAnyVersion("$PROJECTS/$id")
+		mockMvc.delete("/api/v1/trash/PROJECT/$id") { with(csrf()) }.andExpect { status { is2xxSuccessful() } }
+
+		restore("TASK", task)
+		fetchTask(task).isNullOrAbsent("projectId") shouldBe true
+	}
+
+	@Test
+	fun `purging a project that is not in the Trash or does not exist changes none of its tasks`(events: ApplicationEvents) {
+		val id = newProject()
+		val task = newTask(id)
+		val version = fetchTask(task).get("version").asLong()
+		events.clear()
+
+		trash.purge(UUID.fromString(id)) shouldBe false
+		trash.purge(UuidV7.generate()) shouldBe false
+
+		fetchTask(task).let {
+			it.get("projectId").asString() shouldBe id
+			it.get("version").asLong() shouldBe version
+		}
+		events.changes("TASK").shouldBeEmpty()
+	}
+
+	@Test
+	fun `next-step with a body that is not a JSON object is 400 and keeps the next step`() {
+		val id = newProject()
+		val task = newTask(id)
+		nextStep(id, task).andExpect { status { isOk() } }
+		listOf("[]", "null", "\"$task\"", "{\"taskId\":").forEach { body ->
+			mockMvc
+				.post("$PROJECTS/$id/next-step") {
+					with(csrf())
+					contentType = MediaType.APPLICATION_JSON
+					content = body
+				}.andExpect {
+					status { isBadRequest() }
+					content { contentType(MediaType.APPLICATION_PROBLEM_JSON) }
+				}
+		}
+		fetch(id).let {
+			it.get("nextTaskId").asString() shouldBe task
+			it.get("version").asLong() shouldBe 1
+		}
+	}
+
+	@Test
+	fun `next-step body errors name every bad field, and a bad UUID names taskId`() {
+		val id = newProject()
+		mockMvc
+			.post("$PROJECTS/$id/next-step") {
+				with(csrf())
+				contentType = MediaType.APPLICATION_JSON
+				content = """{"next":1,"taskID":null}"""
+			}.isProblem(400, "next", "taskID", "taskId")
+		mockMvc
+			.post("$PROJECTS/$id/next-step") {
+				with(csrf())
+				contentType = MediaType.APPLICATION_JSON
+				content = """{"taskId":"not-a-uuid"}"""
+			}.isProblem(400, "taskId")
+	}
+
+	@Test
+	fun `next-step body validation comes before the If-Match check and the project lookup`() {
+		val id = newProject()
+		mockMvc
+			.post("$PROJECTS/$id/next-step") {
+				with(csrf())
+				contentType = MediaType.APPLICATION_JSON
+				content = "{}"
+				header(HttpHeaders.IF_MATCH, "\"9\"")
+			}.isProblem(400, "taskId")
+		nextStep(id, null, "\"9\"").isProblem(412)
+		nextStep(UuidV7.generate().toString(), null).isProblem(404)
+	}
+
+	@Test
+	fun `area PATCH changes only the fields sent and announces the change`(events: ApplicationEvents) {
+		val area = post(AREAS, """{"title":"Work"}""").andExpect { status { isCreated() } }.json()
+		val path = "$AREAS/${area.id()}"
+		patch(path, """{"position":7}""", area.etag()).andExpect {
+			status { isOk() }
+			header { string(HttpHeaders.ETAG, "\"1\"") }
+			jsonPath("$.title") { value("Work") }
+			jsonPath("$.position") { value(7) }
+		}
+		patch(path, """{"title":"Job"}""", "\"1\"").andExpect {
+			status { isOk() }
+			header { string(HttpHeaders.ETAG, "\"2\"") }
+			jsonPath("$.title") { value("Job") }
+			jsonPath("$.position") { value(7) }
+		}
+		events.changes("AREA") shouldContainExactly
+			listOf(ChangeOp.CREATED, ChangeOp.UPDATED, ChangeOp.UPDATED).map { it to area.id() }
+	}
+
+	@Test
+	fun `area PATCH reports every unknown field at once and a body that is not an object as 400`() {
+		val area = post(AREAS, """{"title":"Work"}""").andExpect { status { isCreated() } }.json()
+		val path = "$AREAS/${area.id()}"
+		patch(path, """{"name":"Job","color":"#fff"}""", area.etag()).isProblem(400, "name", "color")
+		patch(path, "[]", area.etag()).andExpect {
+			status { isBadRequest() }
+			content { contentType(MediaType.APPLICATION_PROBLEM_JSON) }
+		}
+		mockMvc.get(path).andExpect { header { string(HttpHeaders.ETAG, "\"0\"") } }
+	}
+
 	private companion object {
 		const val PROJECTS = "/api/v1/projects"
 		const val TASKS = "/api/v1/tasks"
