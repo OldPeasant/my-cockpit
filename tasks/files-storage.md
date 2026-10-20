@@ -17,3 +17,4 @@ Folders, file metadata and on-disk blobs (SPEC.md §8.2).
 - [ ] `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.files.*'` passes (Postgres via Testcontainers where persistence is involved) incl. path traversal in names rejected
 
 ## Notes
+- ASSUMPTION (2026-10-20 15:59+0200 by dell26/agent-5): Deleting a folder trashes its whole subtree with one deletedAt; only trash roots (items whose parent is active) are listed in the Trash; restore brings back items with the same deletedAt, purge removes the whole subtree incl. blobs. Descendants cannot be restored/purged on their own (404).
