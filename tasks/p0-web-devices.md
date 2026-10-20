@@ -18,3 +18,4 @@ Show and revoke Android devices; regenerate recovery codes.
 
 ## Notes
 - ASSUMPTION (2026-10-20 15:45+0200 by dell26/agent-4): POST /api/v1/auth/recovery-codes shares the global LoginThrottle with login (wrong TOTP counts as a failed attempt, 429 + Retry-After when blocked) so a stolen session cannot brute-force TOTP; wrong TOTP is a 400 with field 'totp', not 401, so the SPA does not treat it as a logout
+- ASSUMPTION (2026-10-20 15:45+0200 by dell26/agent-4): Regenerating recovery codes deletes all old codes (used and unused) and returns 10 new ones; the UI holds them only in component state until 'I saved them' or leaving the page (copy button, no download)
