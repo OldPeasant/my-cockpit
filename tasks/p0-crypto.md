@@ -1,11 +1,11 @@
 ---
 title: Secret encryption at rest
-status: in_progress
+status: done
 owner: dell26/agent-1
 deps: [p0-server-deps]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/core/crypto,server/src/test/kotlin/ch/sonensei/cockpit/core/crypto]
 prio: 1
-lease_until: 2026-10-20T09:21:47Z
+lease_until: 
 ---
 ## Goal
 Encrypt external credentials with the master key (SPEC.md §4.1).
@@ -23,3 +23,4 @@ Encrypt external credentials with the master key (SPEC.md §4.1).
 - ASSUMPTION (2026-10-20 10:49+0200 by dell26/agent-1): Stored format: base64(version byte 0x01 | 12-byte random nonce | AES-256-GCM ciphertext+128-bit tag), version byte authenticated as AAD, kept in a text column. No key id / rotation yet; a new version byte allows adding it later.
 - ASSUMPTION (2026-10-20 10:49+0200 by dell26/agent-1): EncryptedSecret holds the plaintext in memory (reveal()) and serializes to JSON as the constant "******" (redacted rather than throwing), toString is EncryptedSecret(******). A startup FailureAnalyzer (META-INF/spring.factories) prints the key error without a stack trace.
 - ASSUMPTION (2026-10-20 11:02+0200 by dell26/agent-1): Correction of the first assumption: the property is cockpit.crypto.master-key (reads COCKPIT_MASTER_KEY via a placeholder in application.properties), not cockpit.master-key, so an exported COCKPIT_MASTER_KEY cannot relax-bind over the fictitious test key (review CR-1). Rest of that assumption unchanged.
+- done by dell26/agent-1: `sh scripts/check.sh` passed in 22s on e76c03b06; criteria verified 3/3
