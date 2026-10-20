@@ -119,6 +119,12 @@ describe('followUpTask', () => {
     });
   });
 
+  it('treats a blank person as no person', () => {
+    expect(followUpTask(task('t1', { title: 'Parcel', waitingForText: '   ' })).title).toBe(
+      'Follow up: Parcel',
+    );
+  });
+
   it('works without a person', () => {
     expect(followUpTask(task('t1', { title: 'Parcel' }))).toEqual({
       title: 'Follow up: Parcel',

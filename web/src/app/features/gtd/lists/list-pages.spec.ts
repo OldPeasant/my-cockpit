@@ -50,6 +50,14 @@ describe('GTD list pages', () => {
   /** Makes the next call of `fn` fail. */
   let failing: unknown;
   let listFails: boolean;
+  /** Calls of `held.fn` wait until the test calls `held.release()`. */
+  let held: { fn: unknown; until: Promise<void>; release: () => void } | undefined;
+
+  function hold(fn: unknown): void {
+    let release!: () => void;
+    const until = new Promise<void>((resolve) => (release = resolve));
+    held = { fn, until, release };
+  }
 
   const callsOf = (fn: unknown) => calls.filter((call) => call.fn === fn);
   const titles = () =>
@@ -90,9 +98,11 @@ describe('GTD list pages', () => {
     calls = [];
     failing = undefined;
     listFails = false;
+    held = undefined;
     const api = {
       invoke: async (fn: unknown, params: Record<string, unknown> = {}) => {
         calls.push({ fn, params });
+        if (held && fn === held.fn) await held.until;
         if (fn === failing) {
           failing = undefined;
           throw new Error('refused');
@@ -182,6 +192,77 @@ describe('GTD list pages', () => {
       expect(element.textContent).toContain('Nothing to wait for.');
     });
 
+    it('accents a wait only once it is longer than a week', async () => {
+      await render(WaitingPage, [
+        task('t1', { title: 'Eight', waitingSince: addDays(today, -8) }),
+        task('t2', { title: 'Seven', waitingSince: addDays(today, -7) }),
+        task('t3', { title: 'One', waitingSince: addDays(today, -1) }),
+        task('t4', { title: 'Future', waitingSince: addDays(today, 3) }),
+      ]);
+
+      const ages = [...element.querySelectorAll('.age')];
+      expect(ages.map((a) => a.textContent?.trim())).toEqual([
+        '8 days',
+        '7 days',
+        '1 day',
+        'Today',
+      ]);
+      expect(ages.map((a) => a.classList.contains('long'))).toEqual([true, false, false, false]);
+    });
+
+    it('follow up keeps the project of the waiting task', async () => {
+      await render(WaitingPage, [
+        task('t1', { title: 'Contract', waitingSince: today, projectId: 'p-fictional' }),
+      ]);
+
+      await click(button('Follow up on “Contract”'));
+
+      expect(callsOf(createTask)[0].params['body']).toEqual({
+        title: 'Follow up: Contract',
+        list: 'NEXT',
+        projectId: 'p-fictional',
+      });
+    });
+
+    it('creates only one follow up while one is running', async () => {
+      await render(WaitingPage, waiting());
+      hold(createTask);
+
+      await click(button('Follow up on “Lease”'));
+      expect(button('Follow up on “Lease”')?.disabled).toBe(true);
+      // A second click on the (re-enabled by force) button is ignored while the first runs.
+      button('Follow up on “Lease”')!.disabled = false;
+      await click(button('Follow up on “Lease”'));
+      expect(button('Follow up on “Invoice”')?.disabled).toBe(false);
+
+      held!.release();
+      await refresh();
+
+      expect(callsOf(createTask)).toHaveLength(1);
+      expect(button('Follow up on “Lease”')?.disabled).toBe(false);
+      expect(element.querySelector('[role=status]')?.textContent?.trim()).toBe(
+        'Added “Follow up with Alex: Lease” to Next.',
+      );
+    });
+
+    it('shows a loading state until the list arrives', async () => {
+      hold(listTasks);
+      items = waiting();
+      const fixture = TestBed.createComponent(WaitingPage);
+      element = fixture.nativeElement;
+      document.body.appendChild(element);
+      await settle();
+      fixture.detectChanges();
+
+      expect(element.textContent).toContain('Loading…');
+      expect(titles()).toEqual([]);
+
+      held!.release();
+      await refresh();
+      expect(element.textContent).not.toContain('Loading…');
+      expect(titles()).toHaveLength(4);
+    });
+
     it('shows a load error with a retry', async () => {
       listFails = true;
       await render(WaitingPage, waiting());
@@ -253,6 +334,29 @@ describe('GTD list pages', () => {
       await render(SomedayPage, []);
       expect(element.textContent).toContain('No someday ideas.');
     });
+
+    it('completes a someday task from its checkbox', async () => {
+      await render(SomedayPage, someday());
+
+      await click(element.querySelector<HTMLElement>('[aria-label="Complete “Sail to Elba”"]')!);
+
+      expect(callsOf(completeTask)[0].params).toMatchObject({ id: 't1' });
+      expect(titles()).toEqual(['Learn Italian']);
+    });
+
+    it('moves the task only once on a double activate', async () => {
+      await render(SomedayPage, someday());
+      hold(moveTask);
+      const activate = button('Activate “Sail to Elba”')!;
+
+      activate.click();
+      activate.click();
+      held!.release();
+      await refresh();
+
+      expect(callsOf(moveTask)).toHaveLength(1);
+      expect(titles()).toEqual(['Learn Italian']);
+    });
   });
 
   describe('Scheduled', () => {
@@ -282,6 +386,27 @@ describe('GTD list pages', () => {
 
     it('shows an empty state', async () => {
       await render(ScheduledPage, []);
+      expect(element.textContent).toContain('Nothing scheduled.');
+    });
+
+    it('heads past dates with Yesterday and undated tasks with No date', async () => {
+      await render(ScheduledPage, [
+        task('t1', { title: 'Undated', list: 'SCHEDULED' }),
+        task('t2', { title: 'Missed', list: 'SCHEDULED', scheduledDate: addDays(today, -1) }),
+      ]);
+
+      expect(headings()).toEqual(['Yesterday', 'No date']);
+      expect(titles()).toEqual(['Missed', 'Undated']);
+    });
+
+    it('completes a scheduled task from its checkbox', async () => {
+      await render(ScheduledPage, [
+        task('t1', { title: 'Book dentist', list: 'SCHEDULED', scheduledDate: today }),
+      ]);
+
+      await click(element.querySelector<HTMLElement>('[aria-label="Complete “Book dentist”"]')!);
+
+      expect(callsOf(completeTask)[0].params).toMatchObject({ id: 't1' });
       expect(element.textContent).toContain('Nothing scheduled.');
     });
   });
@@ -332,6 +457,74 @@ describe('GTD list pages', () => {
     it('shows an empty state', async () => {
       await render(LogbookPage, []);
       expect(element.textContent).toContain('Nothing done yet.');
+    });
+
+    it('heads older days with their full date', async () => {
+      await render(LogbookPage, done());
+
+      const old = new Date(done()[3].completedAt!).toLocaleDateString('en-US', {
+        weekday: 'long',
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+      });
+      expect(headings()[2]).toBe(old);
+    });
+
+    it('shows done tasks with a checked checkbox', async () => {
+      await render(LogbookPage, done());
+
+      const boxes = [...element.querySelectorAll<HTMLInputElement>('input[type=checkbox]')];
+      expect(boxes).toHaveLength(4);
+      expect(boxes.every((box) => box.checked)).toBe(true);
+    });
+  });
+
+  describe.each([
+    ['Someday', SomedayPage, { list: 'SOMEDAY' }],
+    ['Scheduled', ScheduledPage, { list: 'SCHEDULED', scheduledDate: today }],
+    ['Logbook', LogbookPage, { list: 'NEXT', completedAt: '2026-10-01T09:00:00Z' }],
+  ] as const)('%s shared behavior', (_name, page, fields: Partial<TaskResponse>) => {
+    it('shows a loading state until the list arrives', async () => {
+      hold(listTasks);
+      items = [task('t1', { title: 'Fictional item', ...fields })];
+      const fixture = TestBed.createComponent<unknown>(page);
+      element = fixture.nativeElement;
+      document.body.appendChild(element);
+      await settle();
+      fixture.detectChanges();
+
+      expect(element.textContent).toContain('Loading…');
+
+      held!.release();
+      await refresh();
+      expect(element.textContent).not.toContain('Loading…');
+      expect(titles()).toEqual(['Fictional item']);
+    });
+
+    it('opens a task from its title', async () => {
+      await render(page, [task('t1', { title: 'Fictional item', ...fields })]);
+      const navigate = vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
+
+      await click(element.querySelector<HTMLElement>('app-task-row .title')!);
+
+      expect(navigate).toHaveBeenCalledWith(['/tasks', 't1']);
+    });
+
+    it('shows an error with a retry that loads the list', async () => {
+      listFails = true;
+      await render(page, [task('t1', { title: 'Fictional item', ...fields })]);
+      expect(element.querySelector('[role=alert]')?.textContent).toContain(
+        'The list could not be loaded.',
+      );
+      expect(titles()).toEqual([]);
+
+      listFails = false;
+      await click(button('Try again'));
+
+      expect(element.querySelector('[role=alert]')).toBeNull();
+      expect(titles()).toEqual(['Fictional item']);
+      expect(callsOf(listTasks)).toHaveLength(2);
     });
   });
 });
