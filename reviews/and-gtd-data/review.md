@@ -4,36 +4,67 @@ Date: 2026-10-21
 
 Task: and-gtd-data - Android GTD repositories and read cache
 
-Scope: `git diff c078c80e..HEAD` (commits fd0c3755 implementation, dfcd2d89 tests): `android/app/src/main/java/ch/sonensei/cockpit/gtd/data/`, `android/app/src/test/java/ch/sonensei/cockpit/gtd/data/`, `android/app/schemas/`. Uncommitted test changes by the concurrent test-writer were not reviewed.
+Scope: re-review of the final code, `git diff e1895109..6807ed13`, limited to `android/app/src/main/java/ch/sonensei/cockpit/gtd/data/`, `android/app/src/test/java/ch/sonensei/cockpit/gtd/data/` and `android/app/schemas/`. The range contains:
+- 1c2d5f2a: implementation;
+- 49816b2c and 6f2de142: tests and the earlier reports;
+- 8e477049: fixes for the previous findings CR-1..CR-5;
+- 6807ed13: the fixer report.
+
+Changes to `tasks/*.md` by other agents in the range are out of scope. A concurrent test-writer may edit test files; this review covers the code committed at 6807ed13 only.
 
 Requirements:
-- tasks/and-gtd-data.md acceptance criteria and recorded assumptions (#1-#6)
-- SPEC.md §1 (Android WorkManager 15 min + SSE), §9.3 (read cache shown read-only with an "offline" banner)
-- AGENTS.md project notes (no logging of secrets/contents, conventions)
-- Existing code: core/network (NetworkModule, ServerUrlInterceptor, AuthSession), auth (SessionCache, AuthRepository), server SseEventHub (event name, comments)
+- tasks/and-gtd-data.md acceptance criteria #1-#3 and the recorded assumptions
+- SPEC.md §9.3 (read cache shown read-only with an offline flag, 15 min periodic sync, SSE refresh)
+- AGENTS.md project notes and docs/QUALITY.md
+- Previous review (CR-1..CR-5) and reviews/and-gtd-data/fixes.md
+- Existing code: `auth/AuthRepository.kt` (`SessionCache` contract, serialized clears, logout flow)
 
 Git range:
 - Branch: main
-- HEAD: dfcd2d89c78837b35ddef4e869044c86861de4be
-- Base/start: c078c80e1b96a2a7b83308dc8f9b0bae55bc2298
-- Commits reviewed: 2
+- HEAD: 6807ed13
+- Base/start: e1895109d91ed61a589cf8a0fe113181e576c68a
+- Commits reviewed: 5 task commits (1c2d5f2a, 49816b2c, 6f2de142, 8e477049, 6807ed13). The other commits in the range are heartbeat, claim and assume commits from other agents.
 
-Summary: 0 P0, 0 P1, 3 P2, 2 P3
+Summary: 0 P0, 0 P1, 0 P2, 2 P3
 
-Checked with no findings:
-- Hilt wiring: TasksApi and ProjectsApi are provided only here, there is one `GtdSyncScheduler` binding, and `SessionCache` is added `@IntoSet` to the existing `@Multibinds` set.
-- Worker creation: the default WorkerFactory works because there is a public `(Context, WorkerParameters)` constructor plus an entry point, and the manifest still keeps the default WorkManager initializer.
-- Periodic sync: unique periodic work with KEEP, 15 min and a CONNECTED network constraint.
-- Room: the `@Transaction` replace methods delete rows, insert rows and stamp the meta row atomically. A failing page leaves the old cache intact.
-- SSE client:
-  - cancelling the collector cancels the OkHttp call;
-  - `CancellationException` is rethrown;
-  - server comments (`:connected`, `:heartbeat`) are skipped, and the `change` event name used by `SseEventHub` is handled;
-  - the events path goes through `ServerUrlInterceptor` and the shared authenticated client.
-- Logging: nothing logs exceptions, bodies or note contents.
-- Logout: it clears all tables, cancels the sync and resets the offline flag.
+## Previous findings
 
-Running `./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.gtd.data.*' lintDebug` was not permitted in this review session. The existing results in `android/app/build/test-results/testDebugUnitTest/` (2026-10-20T22:04Z) show the three committed test classes passing (GtdChangeStreamTest 5/5, GtdSyncTest and TaskRepositoryTest with no failures). The reviewer did not re-run lint.
+- **CR-1 (concurrent refreshes overwrite newer data): resolved.**
+    - What changed: `GtdConnectivity.refreshing(view, load, store)` (GtdRefresh.kt:47-61) holds a mutex per view key around load and store, and all three repositories use it.
+    - Fairness: kotlinx `Mutex` is FIFO, so the load that started last writes last.
+    - Test: `GtdCacheConsistencyTest."an older load of a view never overwrites a newer one"` is a real regression test. Without the lock, the second request would take "Newer" from the queue, store it first, and then be overwritten by "Older".
+- **CR-2 (logout refills the cache): resolved.**
+    - How it works: `clearing` increments `clears` and runs `clearAllTables()` under `writeLock`. `refreshing` reads the counter before the load and checks it again under `writeLock` before `store`, so an answer that arrives after a clear is dropped as `SessionEnded`, which maps to `Failed(null)`.
+    - Wiring: the `SessionCache` binding runs the clear on `Dispatchers.IO`, which Room's main-thread check requires.
+    - Test: covered by `GtdCacheConsistencyTest`.
+- **CR-3 (SSE tests pass without change events): resolved.**
+    - `GtdChangeStreamTest.loadsWith` delivers events on the one open stream only after the first loads, and refuses all later connections.
+    - It asserts exact load counts per path, for both matching and non-matching types.
+    - The stop timeout now has its own test.
+- **CR-4 (double load on screen start): resolved.**
+    - The stream now emits `Connected` for its first connection and `Reconnected` for later ones, and only `Reconnected` and matching `Changed` signals reload.
+    - New issue: the fix leaves a small window in which a change can be missed. See CR-1 below.
+- **CR-5 (database failure breaks the flow): resolved.** `SQLiteException` maps to `Failed(null)`. The test uses a trigger that makes inserts abort, and checks that the `observe()` collector stays alive and recovers.
+
+## Checked with no findings
+
+- **Deadlocks between the view mutex, the write lock and logout.** There is no deadlock:
+    - Lock order is always view lock, then write lock. The write lock is never held while the code waits for a view lock.
+    - `clearing` takes only the write lock. `AuthRepository.cacheClearing` takes the write lock through `SessionCache.clear`.
+    - Nothing that runs under the write lock (the Room replace, `clearAllTables`) calls back into auth or into the locks.
+    - A token refresh that fails during a load (while its view lock is held) logs out through `appScope`, which needs only the write lock.
+    - The `Mutex` is not reentrant, and no code path takes the same lock twice.
+- **Cancellation while holding locks.** `withLock` releases the lock in `finally`. `CancellationException` is not caught by `refreshing`, because none of the caught types is a supertype of it. A cancelled `refreshing` that is waiting for the view lock or the write lock leaves both consistent. `clears` is only read and written under the write lock.
+- **Room `@Transaction` on open suspend DAO methods** (`taskRows`, `projectRows`, `contextRows`, `replace*`, GtdCacheDatabase.kt:96-147). Room supports this in an abstract DAO class and runs the method inside `withTransaction`. The protected abstract queries are generated. The read methods are queries only, and `app/schemas/.../1.json` is unchanged by the fix, as it should be.
+- **Flow behaviour of `meta.map { read() }`** (GtdRepositories.kt:35):
+    - Room flows emit once when collected and again after every commit that touches `cache_meta`.
+    - Each replace upserts its meta row inside the same transaction (also for an empty list), and `clearAllTables` deletes the meta rows. So every change to rows invalidates the meta flow, and `read()` returns rows and meta from one transaction.
+    - When several invalidations arrive in a burst, Room conflates them. A read that sees a newer commit is followed by one more equal read, which is harmless.
+    - Refreshes of other views also cause re-reads, because invalidation works per table. That was already the case with the earlier per-table row flows.
+- **The offline flag and `SessionEnded`.** `Failed` leaves the flag as it is. `clearing` resets it after the clear.
+- **The worker.** `refreshAll` runs the refreshes one after another through the same locks. A dropped post-logout answer maps to `Failed`, so the worker returns `success`, not `retry`.
+- **Tests.** The existing results in `android/app/build/test-results/testDebugUnitTest/` (2026-10-21 00:35 +0200) show all 10 `gtd.data` classes passing with 0 failures, among them GtdCacheConsistencyTest 4/4, GtdChangeStreamTest 9/9 and GtdRefreshTriggersTest 6/6. This review did not re-run Gradle.
+- **Evidence.** `python tasks.py verify and-gtd-data` still shows all three criteria unrecorded. The parent worker must record them before `done`. This is not a code finding.
 
 ## P0 Critical
 
@@ -45,58 +76,24 @@ None.
 
 ## P2 Medium
 
-- [ ] **CR-1 | Concurrent refreshes of the same view can overwrite newer data with an older answer**
-    - File: `android/app/src/main/java/ch/sonensei/cockpit/gtd/data/GtdRepositories.kt:66`
-    - Category: Correctness
-    - Problem: `TaskRepository.refresh` loads from the network and then calls `dao.replaceTasks`, with nothing that serializes refreshes of the same view. `ProjectRepository.refresh` (line 116) and `ContextRepository.refresh` (line 156) work the same way. Refreshes of one view can run at the same time from independent sources:
-        - `GtdSyncWorker` (`GtdSync.refreshAll`);
-        - each `observe()` collector (Projects is observed by the Projects screen and by anything that shows a task's project; Inbox, Today and Projects all reload on `TASK` changes);
-        - SSE triggers.
-
-      A refresh that started earlier but finishes later (for example the worker's slow multi-page load) writes its older server snapshot over the result of a newer foreground refresh. Nothing corrects it until the next change event.
-    - Why it matters: the screen silently shows a stale list (a just-completed task reappears, a new one is missing), and that stale copy is what is served offline.
-    - Suggested fix: serialize loads per view inside the repository (e.g. a `Mutex` per `TaskView` or per repository around load + replace), so the load that started last always writes last. Alternatively, use a per-view request generation that discards the answers of superseded loads.
-
-- [ ] **CR-2 | A refresh in flight during logout can refill the cleared cache with the previous user's data**
-    - File: `android/app/src/main/java/ch/sonensei/cockpit/gtd/data/GtdDataModule.kt:58`
-    - Category: Correctness
-    - Problem: the `SessionCache` calls `scheduler.cancel()` and `database.clearAllTables()`, but it does not coordinate with refreshes that are already running. A request sent with the old token that answers after the clear still reaches `dao.replaceTasks`/`replaceProjects`/`replaceContexts`. It then writes the previous session's lists (including `notesMd`/`descriptionMd`) back into `gtd_cache.db`. Nothing stops these refreshes:
-        - `WorkManager.cancelUniqueWork` is asynchronous and only cancels a running `GtdSyncWorker` cooperatively;
-        - the clear does not stop foreground collectors (`cachedView`);
-        - `GtdSync.refreshAll` checks `isLoggedIn` only before it starts.
-    - Why it matters: after a logout (or a server change, or a rejected refresh token) the device keeps the previous user's GTD data. After the next login on an unreachable server, that data is shown offline as if it belonged to the new session. AGENTS.md and the `SessionCache` contract treat these caches as user data that a logout drops.
-    - Suggested fix: make clear and replace mutually exclusive and aware of the session. For example, hold a shared `Mutex` (or the one from CR-1) in both the `replace*` writes and the clear. Also take a session epoch or `isLoggedIn` check before the load and check it again inside the write, skipping the write when the session changed.
-
-- [ ] **CR-3 | The SSE refresh tests pass even when change events have no effect**
-    - File: `android/app/src/test/java/ch/sonensei/cockpit/gtd/data/GtdChangeStreamTest.kt:91`
-    - Category: Tests
-    - Problem: `a task change while the inbox is observed reloads it` and `contexts and projects reload on their own change types` (line 103) wait for a second load. But every connection already emits `ChangeSignal.Connected`, and `GtdRefreshTriggers.on` (GtdRefresh.kt:110) turns that into a reload whatever the type. So the tests pass even if:
-        - `Changed` signals were dropped entirely;
-        - the `type in types` filter were wrong (e.g. a TASK change not reloading Projects, or a CONTEXT change reloading the Inbox).
-
-      The 5 s stop timeout, which closes the connection after the last collector leaves, is also untested.
-    - Why it matters: the foreground SSE refresh is acceptance criterion 2. Its core behavior (reload on a matching change, no reload on a non-matching one) has no test that would catch a regression.
-    - Suggested fix:
-        1. Let the initial loads and the `Connected` reload settle, then count requests per route.
-        2. Deliver a `change` event on a stream that is already open, e.g. a `MockResponse` with a streamed or delayed body. Unit-testing `GtdRefreshTriggers` with a fake `signals` flow also works.
-        3. Assert exactly one extra load for a matching type and none for a non-matching type.
+None.
 
 ## P3 Low
 
-- [ ] **CR-4 | Every screen start loads its view twice**
-    - File: `android/app/src/main/java/ch/sonensei/cockpit/gtd/data/GtdRefresh.kt:107`
-    - Category: Quality
-    - Problem: `on()` merges `flowOf(Unit)` with the change stream, and the stream emits `Connected` right after it opens (the server flushes `:connected` immediately). Opening a screen therefore runs the initial load and then, milliseconds later, a full second load (all pages; Today makes two listings each time). `conflate()` only drops triggers while a load is running; it does not merge the two.
-    - Why it matters: every visit to a GTD screen doubles network traffic and server work, which costs mobile data.
-    - Suggested fix: skip the reload for the first `Connected` when it arrives right after the initial load. For example, ignore `Connected` until one load has completed after it, or reload on `Connected` only after a previous disconnect.
-
-- [ ] **CR-5 | A local database failure during refresh breaks the screen's flow**
-    - File: `android/app/src/main/java/ch/sonensei/cockpit/gtd/data/GtdRefresh.kt:31`
+- [ ] **CR-1 | A change made between the initial load and the first stream connection is missed**
+    - File: `android/app/src/main/java/ch/sonensei/cockpit/gtd/data/GtdRefresh.kt:162` (with `GtdChangeStream.kt:82`)
     - Category: Correctness
-    - Problem: `GtdConnectivity.refreshing` maps network, HTTP and parse errors to `RefreshResult`, but an exception from the Room write (e.g. `SQLiteFullException` on a full device) propagates. In `cachedView` (GtdRepositories.kt:31) it is thrown from the launched trigger collector and cancels the whole `observe()` flow. The screen then loses its cached list instead of keeping it.
-    - Why it matters: full storage is a realistic device state. The read cache should degrade (keep showing the last data) rather than fail the screen.
-    - Suggested fix: catch `SQLiteException` in `refreshing` and map it to `RefreshResult.Failed(null)`, or catch non-cancellation exceptions around `refresh()` in `cachedView`.
+    - Problem: after the CR-4 fix, the first connection (`ChangeSignal.Connected`) no longer reloads. The initial load (`flowOf(Unit)`) and the stream connection start at the same time and are independent. If the server answers the initial listing before the SSE subscription is registered, a change made by another device in between is never signalled. The view shows the older list until the next matching change, or until the next reconnect, which comes when the server ends the stream after 15 minutes.
+    - Why it matters: the window is short, but the stale list then stays visible for up to about 15 minutes, and it is also the copy served offline.
+    - Suggested fix: reload on `Connected` only when the view's initial load started before the connection opened. One way: record when the trigger flow started its first load, and reload on `Connected` only if that first load had already started. Another way: delay the initial load until the stream has connected or failed once. Either keeps one load per screen start in the common case. Add a test that holds back the events connection until the first load has answered, then expects one reload.
+
+- [ ] **CR-2 | A load that fails after a logout marks the next session offline**
+    - File: `android/app/src/main/java/ch/sonensei/cockpit/gtd/data/GtdRefresh.kt:54-60` (flag update at line 96)
+    - Category: Correctness
+    - Problem: the session check (`clears != clearsAtStart`) runs only on the store path. Take a load that started before the logout and then fails with `IOException` or a 5xx after `clearing` has called `reset()`. It still sets `offline = true`, because `refreshing(block)` records `RefreshResult.Offline` before any session check. Logout does not cancel requests already in flight, so this happens whenever the server or network drops during a logout. The flag is shared and a `@Singleton`, so after the next login the GTD screens first show the empty cache with the offline flag. This lasts until their first load succeeds, or, if that load fails with a 4xx, until a later one does.
+    - Why it matters: this is a small leftover of the same session-boundary problem that the previous CR-2 fixed for the cache rows. The previous session's outcome leaks into the new session's state.
+    - Suggested fix: also compare the clear counter on the failure path. For example, compute the result inside `refreshing(view, ...)` and update `state` only if `clears == clearsAtStart`, otherwise return `Failed(null)` without touching the flag. Extend `GtdCacheConsistencyTest."a load still running at logout ..."` with a held-back answer that fails (503), and assert that `offline` stays `false` after the clear.
 
 ## Review conclusion
 
-Material issues found; fix before completing the task.
+No material issues found. All five previous findings are resolved and no deadlock or cancellation problem was found in the fixes. The two P3 items are minor and may be fixed or deferred at the parent worker's discretion.

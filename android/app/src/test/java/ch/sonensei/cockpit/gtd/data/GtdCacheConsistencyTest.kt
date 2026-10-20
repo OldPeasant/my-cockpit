@@ -16,6 +16,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
+import java.io.IOException
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
@@ -123,6 +124,61 @@ class GtdCacheConsistencyTest {
             assertEquals(RefreshResult.Refreshed, gtd.tasks.refresh(TaskView.INBOX))
             withTimeout(5_000) { while (seen.last().data.map { it.title } != listOf("Fresh")) delay(10) }
             job.cancel()
+        }
+
+    @Test
+    fun `a load of one view does not wait for a load of another view`() =
+        runBlocking {
+            holdFirstAnswer()
+            dispatcher.enqueue("$TASKS|INBOX", json(taskPage(taskJson(1, "Call the plumber"))))
+            dispatcher.enqueue(CONTEXTS, json("""{"items":[${contextJson(2, "@home")}]}"""))
+
+            val inbox = async(Dispatchers.IO) { gtd.tasks.refresh(TaskView.INBOX) }
+            awaitRequests(1)
+
+            // The inbox answer is still held back; the contexts load must not queue behind it.
+            assertEquals(RefreshResult.Refreshed, withTimeout(3_000) { gtd.contexts.refresh() })
+            assertEquals(
+                listOf("@home"),
+                gtd.dao
+                    .observeContexts()
+                    .first()
+                    .map { it.name },
+            )
+            release.countDown()
+            assertEquals(RefreshResult.Refreshed, inbox.await())
+            assertEquals(listOf("Call the plumber"), inboxTitles())
+        }
+
+    @Test
+    fun `a failing cache write leaves the offline flag as it is`() =
+        runBlocking {
+            gtd.connectivity.refreshing { throw IOException("fictitious unreachable server") }
+            assertTrue(gtd.connectivity.offline.value)
+            gtd.database.openHelper.writableDatabase.execSQL(
+                "CREATE TRIGGER fictitious_full_disk BEFORE INSERT ON cached_task BEGIN SELECT RAISE(ABORT, 'full'); END",
+            )
+            dispatcher.enqueue("$TASKS|INBOX", json(taskPage(taskJson(1, "Lost"))))
+
+            assertEquals(RefreshResult.Failed(null), gtd.tasks.refresh(TaskView.INBOX))
+            assertTrue("a local write failure is not a reachable-server proof", gtd.connectivity.offline.value)
+            assertNull(gtd.dao.observeMeta("INBOX").first())
+        }
+
+    @Test
+    fun `an observed view shows the logout as an empty, never loaded view`() =
+        runBlocking {
+            dispatcher.enqueue("$TASKS|INBOX", json(taskPage(taskJson(1, "Previous session"))))
+            val seen = CopyOnWriteArrayList<Cached<List<GtdTask>>>()
+            val job = launch(Dispatchers.Default) { gtd.tasks.observe(TaskView.INBOX).collect { seen += it } }
+            withTimeout(5_000) { while (seen.lastOrNull()?.data?.map { it.title } != listOf("Previous session")) delay(10) }
+
+            GtdDataModule.gtdCache(gtd.database, gtd.scheduler, gtd.connectivity).clear()
+
+            withTimeout(5_000) { while (seen.last().data.isNotEmpty()) delay(10) }
+            job.cancel()
+            assertNull("no refresh time after the logout", seen.last().refreshedAt)
+            assertEquals(false, seen.last().offline)
         }
 
     @Test

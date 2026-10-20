@@ -95,6 +95,47 @@ class GtdChangeStreamTest {
             )
         }
 
+    @Test
+    fun `a stream that opens only after being refused signals a reconnect, so views loaded offline reload`() =
+        runBlocking {
+            val calls = AtomicInteger()
+            dispatcher.events = { if (calls.incrementAndGet() == 1) status(503) else sse(change("TASK")) }
+
+            val signals =
+                withTimeout(5_000) {
+                    gtd.changes.signals
+                        .take(2)
+                        .toList()
+                }
+
+            assertEquals(listOf(ChangeSignal.Reconnected, ChangeSignal.Changed("TASK")), signals)
+        }
+
+    @Test
+    fun `a stream restarted after the stop timeout signals its first connection as connected again`() =
+        runBlocking {
+            dispatcher.events = { sse(change("TASK")) }
+            GtdHarness(server, dispatcher, stopTimeoutMs = 100).use { short ->
+                val firstRun =
+                    withTimeout(5_000) {
+                        short.changes.signals
+                            .take(3)
+                            .toList()
+                    }
+                // Longer than the stop timeout: the shared connection loop is stopped.
+                delay(600)
+                val secondRun =
+                    withTimeout(5_000) {
+                        short.changes.signals
+                            .take(1)
+                            .toList()
+                    }
+
+                assertEquals(listOf(ChangeSignal.Connected, ChangeSignal.Changed("TASK"), ChangeSignal.Reconnected), firstRun)
+                assertEquals(listOf(ChangeSignal.Connected), secondRun)
+            }
+        }
+
     /**
      * Observes [views] while the stream's one connection delivers [events] only after every view finished its first
      * load (later connections are refused, so no reconnect reloads anything); returns the API calls per path.
