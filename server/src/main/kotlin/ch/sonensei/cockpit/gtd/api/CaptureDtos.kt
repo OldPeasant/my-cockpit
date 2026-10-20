@@ -12,8 +12,9 @@ import java.util.UUID
 
 @Schema(
 	description =
-		"A quick capture. The first line of `text` becomes the title, further lines go in front of `notes`. " +
-			"With `parse` (default true) the capture syntax is applied, see `POST /capture/preview`.",
+		"A quick capture. The first non-blank line of `text` becomes the title, further lines go in front of `notes`. " +
+			"With `parse` (default true) the capture syntax is applied to the title line, see `POST /capture/preview`; " +
+			"a title line of only recognized tokens makes the next non-blank line the (unparsed) title.",
 )
 data class CaptureRequest(
 	@get:Schema(description = "Client-generated UUIDv7 for an idempotent capture (offline queue)")
@@ -59,7 +60,8 @@ data class CaptureContextResponse(
 			"the rest of the text is kept as it is. Syntax (a token starts the line or follows whitespace): `#project` an " +
 			"existing project by title (case-insensitive, `-`/`_` for spaces), `@context` an existing context, " +
 			"`!today`, `!tomorrow` or `!YYYY-MM-DD` the due date, `^waiting` the WAITING list (`^name`: waiting for name). " +
-			"Recognized tokens are removed from the title; unknown ones stay as text.",
+			"Recognized tokens are removed from the title; unknown ones stay as text. A title line of only recognized " +
+			"tokens makes the next non-blank line the (unparsed) title.",
 )
 data class CapturePreviewResponse(
 	@get:Schema(description = "The task title; empty when the text has none", requiredMode = RequiredMode.REQUIRED)

@@ -3,7 +3,7 @@
 
 
 /**
- * A quick capture. The first line of `text` becomes the title, further lines go in front of `notes`. With `parse` (default true) the capture syntax is applied, see `POST /capture/preview`.
+ * A quick capture. The first non-blank line of `text` becomes the title, further lines go in front of `notes`. With `parse` (default true) the capture syntax is applied to the title line, see `POST /capture/preview`; a title line of only recognized tokens makes the next non-blank line the (unparsed) title.
  */
 export interface CaptureRequest {
 

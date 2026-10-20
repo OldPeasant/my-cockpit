@@ -359,6 +359,11 @@ class CaptureEdgeCaseWebTests(
 	@Test
 	fun `capture rejects malformed bodies`() {
 		capture("""{"text":"x","fileIds":["not-a-uuid"]}""").andExpect { status { isBadRequest() } }
+		// Jackson's Kotlin module rejects a null element of the non-null List<UUID>: Problem Details 400, not a 500.
+		capture("""{"text":"x","fileIds":[null]}""").andExpect {
+			status { isBadRequest() }
+			content { contentType("application/problem+json") }
+		}
 		capture("""{"text":"x","parse":"maybe"}""").andExpect { status { isBadRequest() } }
 		capture("""not json""").andExpect { status { isBadRequest() } }
 		taskCount() shouldBe 0
