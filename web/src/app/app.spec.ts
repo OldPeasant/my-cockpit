@@ -52,7 +52,7 @@ describe('App', () => {
   });
 
   /** Sections whose feature is built and so no longer shows the placeholder. */
-  const BUILT = ['/settings'];
+  const BUILT = ['/settings', '/trash'];
 
   it.each(NAV_SECTIONS.filter((s) => !BUILT.includes(s.path)).map((s) => [s.path, s.label]))(
     'lazy-loads a coming soon page for %s',
@@ -123,7 +123,7 @@ describe('App', () => {
     await vi.waitFor(() => expect(TestBed.inject(Router).url).toBe('/trash'));
     await harness.fixture.whenStable();
     const root = harness.routeNativeElement as HTMLElement;
-    expect(root.querySelector('app-coming-soon h1')?.textContent?.trim()).toBe('Trash');
+    expect(root.querySelector('app-trash-page h1')?.textContent?.trim()).toBe('Trash');
   });
 
   // CR-1/CR-2 follow-up: every dialog the shell opens (shortcut overview, capture placeholder)
@@ -243,7 +243,7 @@ describe('App routes with auth guards', () => {
     await vi.waitFor(() => expect(router.url).toBe('/trash'));
     await harness.fixture.whenStable();
     expect(auth.login).toHaveBeenCalledTimes(1);
-    expect(page().querySelector('app-coming-soon h1')?.textContent?.trim()).toBe('Trash');
+    expect(page().querySelector('app-trash-page h1')?.textContent?.trim()).toBe('Trash');
   });
 
   it('shows the login form (not a blank page) while the server fails, and recovers afterwards', async () => {

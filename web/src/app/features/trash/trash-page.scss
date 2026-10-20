@@ -1,0 +1,138 @@
+.trash {
+  max-width: 56rem;
+  padding: var(--app-space-5) var(--app-space-4);
+}
+
+.head {
+  margin-bottom: var(--app-space-4);
+}
+
+h1 {
+  margin: 0 0 var(--app-space-1);
+  font: var(--mat-sys-headline-medium);
+
+  &:focus-visible {
+    outline: 2px solid var(--app-accent);
+    outline-offset: 2px;
+  }
+}
+
+.hint,
+.note,
+.empty {
+  margin: 0;
+  color: var(--app-fg-muted);
+}
+
+.error {
+  margin: 0 0 var(--app-space-3);
+  color: var(--app-danger);
+}
+
+.load-error {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--app-space-3);
+  color: var(--app-danger);
+
+  p {
+    margin: 0;
+  }
+}
+
+.items {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--app-border);
+}
+
+.item {
+  display: flex;
+  align-items: center;
+  gap: var(--app-space-3);
+  padding: var(--app-space-3) 0;
+  border-bottom: 1px solid var(--app-border);
+}
+
+.text {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font: var(--mat-sys-body-large);
+}
+
+.subtitle {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--app-fg-muted);
+  font: var(--mat-sys-body-medium);
+}
+
+.dates {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--app-space-1) var(--app-space-3);
+  margin-top: var(--app-space-1);
+  color: var(--app-fg-muted);
+  font: var(--mat-sys-body-small);
+}
+
+// The countdown is the one thing that changes how urgent an item is: it turns red near the end.
+.purge {
+  font-variant-numeric: tabular-nums;
+
+  &.soon {
+    color: var(--app-danger);
+    font-weight: 500;
+  }
+}
+
+.actions {
+  display: flex;
+  flex: none;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--app-space-2);
+}
+
+.delete {
+  --mat-button-text-label-text-color: var(--app-danger);
+}
+
+.more {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--app-space-2);
+  margin-top: var(--app-space-4);
+
+  .error {
+    margin: 0;
+  }
+}
+
+@media (max-width: 720px) {
+  .trash {
+    padding: var(--app-space-4) var(--app-space-3);
+  }
+
+  .item {
+    flex-wrap: wrap;
+  }
+
+  .actions {
+    width: 100%;
+    justify-content: flex-start;
+    padding-left: calc(32px + var(--app-space-3));
+  }
+}

@@ -1,0 +1,101 @@
+<section class="trash" aria-labelledby="trash-title">
+  <header class="head">
+    <h1 id="trash-title" #heading tabindex="-1" i18n="@@nav.trash">Trash</h1>
+    <p class="hint" i18n="@@trash.hint">
+      Deleted items stay here for 30 days, then they are deleted permanently.
+    </p>
+  </header>
+
+  @if (actionError(); as error) {
+    <p class="error" role="alert" i18n="@@trash.actionFailed">
+      “{{ error.title }}” could not be changed: {{ error.message }}
+    </p>
+  }
+
+  @if (loadError(); as error) {
+    <div class="load-error" role="alert">
+      <p i18n="@@trash.loadFailed">The Trash could not be loaded: {{ error }}</p>
+      <button mat-stroked-button type="button" (click)="load()" i18n="@@trash.retry">
+        Try again
+      </button>
+    </div>
+  } @else if (items(); as list) {
+    @if (list.length) {
+      <ul class="items" aria-labelledby="trash-title">
+        @for (item of list; track item.type + ':' + item.id) {
+          <li class="item" [attr.data-type]="item.type">
+            <app-item-type-icon [type]="item.type" [icon]="item.icon" />
+            <div class="text">
+              <span class="title">{{ item.title }}</span>
+              <span class="subtitle">
+                {{ typeLabel(item) }}
+                @if (item.subtitle) {
+                  <span aria-hidden="true">, </span>{{ item.subtitle }}
+                }
+              </span>
+              <span class="dates">
+                <span class="deleted" i18n="@@trash.deletedAt"
+                  >Deleted {{ item.deletedAt | date: 'mediumDate' }}</span
+                >
+                <span
+                  class="purge"
+                  [class.soon]="soon(item)"
+                  [title]="item.purgeAt | date: 'medium'"
+                  i18n="@@trash.purgeIn"
+                  >{daysLeft(item), plural, =0 {purged today} =1 {purged in 1 day} other {purged in {{ daysLeft(item) }} days}}</span
+                >
+              </span>
+            </div>
+            <div class="actions">
+              <button
+                #restoreButton
+                mat-stroked-button
+                type="button"
+                class="restore"
+                [disabled]="isBusy(item)"
+                [attr.aria-label]="restoreLabel(item)"
+                (click)="restore(item)"
+                i18n="@@trash.restore"
+              >
+                Restore
+              </button>
+              <button
+                mat-button
+                type="button"
+                class="delete"
+                [disabled]="isBusy(item)"
+                [attr.aria-label]="purgeLabel(item)"
+                (click)="purge(item)"
+                i18n="@@trash.purge"
+              >
+                Delete permanently
+              </button>
+            </div>
+          </li>
+        }
+      </ul>
+      @if (nextCursor()) {
+        <div class="more">
+          <button
+            mat-stroked-button
+            type="button"
+            [disabled]="loadingMore()"
+            (click)="loadMore()"
+            i18n="@@trash.loadMore"
+          >
+            Show more
+          </button>
+          @if (moreError(); as error) {
+            <p class="error" role="alert">{{ error }}</p>
+          }
+        </div>
+      }
+    } @else {
+      <p class="empty" i18n="@@trash.empty">
+        The Trash is empty. Deleted tasks, notes, emails and other items show up here.
+      </p>
+    }
+  } @else {
+    <p class="note" role="status" i18n="@@trash.loading">Loading the Trash…</p>
+  }
+</section>
