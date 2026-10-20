@@ -1,11 +1,28 @@
-import { HttpClient, HttpContext } from '@angular/common/http';
+import {
+  HttpClient,
+  HttpContext,
+  HttpErrorResponse,
+  HttpHandlerFn,
+  HttpRequest,
+} from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
-import { Component } from '@angular/core';
+import { Component, inject } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter, Router } from '@angular/router';
-import { firstValueFrom } from 'rxjs';
+import { firstValueFrom, Observable, throwError } from 'rxjs';
+import {
+  Api,
+  ApiConfiguration,
+  RequestBuilder,
+  type StrictHttpResponse,
+} from '../../api/generated';
 import { ApiError } from './api-error';
-import { SILENT_ERRORS, SKIP_LOGIN_REDIRECT } from './interceptors';
+import {
+  loginRedirectInterceptor,
+  problemInterceptor,
+  SILENT_ERRORS,
+  SKIP_LOGIN_REDIRECT,
+} from './interceptors';
 import { NotificationService } from './notification.service';
 import { provideHttp } from './provide-http';
 
@@ -28,6 +45,12 @@ describe('HTTP interceptors', () => {
           { path: 'login', component: Blank },
           { path: 'setup', component: Blank },
           { path: 'gtd/next', component: Blank },
+          { path: 'old-inbox', redirectTo: 'inbox' },
+          {
+            path: 'inbox',
+            component: Blank,
+            resolve: { items: () => inject(HttpClient).get('/api/inbox') },
+          },
         ]),
         { provide: NotificationService, useValue: notifications },
       ],
@@ -83,6 +106,114 @@ describe('HTTP interceptors', () => {
       await new Promise((resolve) => setTimeout(resolve));
 
       expect(router.url).toBe('/gtd/next?context=home');
+    });
+
+    it('redirects on a 401 without a problem body', async () => {
+      const error = (await fail(401, null, undefined, {})) as ApiError;
+      await new Promise((resolve) => setTimeout(resolve));
+
+      expect(router.url).toBe('/login?returnUrl=%2Fgtd%2Fnext%3Fcontext%3Dhome');
+      expect(error.status).toBe(401);
+      expect(notifications.error).not.toHaveBeenCalled();
+    });
+
+    it('still redirects for SILENT_ERRORS requests', async () => {
+      await fail(401, null, new HttpContext().set(SILENT_ERRORS, true));
+      await new Promise((resolve) => setTimeout(resolve));
+
+      expect(router.url).toBe('/login?returnUrl=%2Fgtd%2Fnext%3Fcontext%3Dhome');
+    });
+
+    it('does not redirect on 403 but shows the problem', async () => {
+      await fail(403, { status: 403, title: 'Forbidden', detail: 'Not allowed.' });
+      await new Promise((resolve) => setTimeout(resolve));
+
+      expect(router.url).toBe('/gtd/next?context=home');
+      expect(notifications.error).toHaveBeenCalledExactlyOnceWith('Not allowed.');
+    });
+
+    it('keeps the original returnUrl when several requests fail with 401 at once', async () => {
+      const first = firstValueFrom(http.get('/api/tasks')).catch((e: unknown) => e);
+      const second = firstValueFrom(http.get('/api/projects')).catch((e: unknown) => e);
+      const unauthorized = { status: 401, statusText: 'Unauthorized' };
+      backend.expectOne('/api/tasks').flush(null, unauthorized);
+      backend.expectOne('/api/projects').flush(null, unauthorized);
+      await Promise.all([first, second]);
+      await new Promise((resolve) => setTimeout(resolve));
+
+      expect(router.url).toBe('/login?returnUrl=%2Fgtd%2Fnext%3Fcontext%3Dhome');
+    });
+
+    it('uses the URL being navigated to when a 401 arrives during a navigation', async () => {
+      const navigation = router.navigateByUrl('/inbox?filter=today').catch((e: unknown) => e);
+      await new Promise((resolve) => setTimeout(resolve));
+      backend.expectOne('/api/inbox').flush(null, { status: 401, statusText: 'Unauthorized' });
+      await navigation;
+      await new Promise((resolve) => setTimeout(resolve));
+
+      expect(router.url).toBe('/login?returnUrl=%2Finbox%3Ffilter%3Dtoday');
+    });
+
+    it('uses the redirect target as returnUrl when the navigation was redirected', async () => {
+      const navigation = router.navigateByUrl('/old-inbox').catch((e: unknown) => e);
+      await new Promise((resolve) => setTimeout(resolve));
+      backend.expectOne('/api/inbox').flush(null, { status: 401, statusText: 'Unauthorized' });
+      await navigation;
+      await new Promise((resolve) => setTimeout(resolve));
+
+      expect(router.url).toBe('/login?returnUrl=%2Finbox');
+    });
+  });
+
+  describe('non-HTTP errors', () => {
+    const request = new HttpRequest('GET', '/api/tasks');
+    const failing: HttpHandlerFn = () => throwError(() => new TypeError('fictitious failure'));
+
+    it('passes them through the problem interceptor unchanged and without a toast', async () => {
+      const result = TestBed.runInInjectionContext(() => problemInterceptor(request, failing));
+      const error = await firstValueFrom(result).catch((e: unknown) => e);
+
+      expect(error).toBeInstanceOf(TypeError);
+      expect(error).not.toBeInstanceOf(ApiError);
+      expect(notifications.error).not.toHaveBeenCalled();
+    });
+
+    it('passes them through the login redirect interceptor without navigating', async () => {
+      const result = TestBed.runInInjectionContext(() =>
+        loginRedirectInterceptor(request, failing),
+      );
+      const error = await firstValueFrom(result).catch((e: unknown) => e);
+      await new Promise((resolve) => setTimeout(resolve));
+
+      expect(error).toBeInstanceOf(TypeError);
+      expect(router.url).toBe('/gtd/next?context=home');
+    });
+
+    it('lets the login redirect interceptor rethrow the raw HTTP error', async () => {
+      const raw = new HttpErrorResponse({ status: 500, url: '/api/tasks' });
+      const result = TestBed.runInInjectionContext(() =>
+        loginRedirectInterceptor(request, () => throwError(() => raw)),
+      );
+
+      expect(await firstValueFrom(result).catch((e: unknown) => e)).toBe(raw);
+    });
+  });
+
+  describe('generated API client', () => {
+    it('is configured with an empty root URL so calls go to /api on the same origin', async () => {
+      expect(TestBed.inject(ApiConfiguration).rootUrl).toBe('');
+
+      const listTasks = (
+        client: HttpClient,
+        rootUrl: string,
+      ): Observable<StrictHttpResponse<unknown>> =>
+        client.request(new RequestBuilder(rootUrl, '/api/tasks', 'get').build()) as Observable<
+          StrictHttpResponse<unknown>
+        >;
+      const result = TestBed.inject(Api).invoke(listTasks);
+      backend.expectOne('/api/tasks').flush({ items: [] });
+
+      expect(await result).toEqual({ items: [] });
     });
   });
 
