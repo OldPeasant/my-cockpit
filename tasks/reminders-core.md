@@ -6,6 +6,7 @@ deps: [p0-events-sse,p0-items-links]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/core/reminders,server/src/test/kotlin/ch/sonensei/cockpit/core/reminders,server/src/main/resources/db/migration/core-reminders]
 prio: 2
 lease_until: 2026-10-20T14:51:43Z
+extended: dell26/agent-3
 ---
 ## Goal
 Generic reminders for any item (SPEC.md §4.6).
@@ -22,3 +23,4 @@ Generic reminders for any item (SPEC.md §4.6).
 - ASSUMPTION (2026-10-20 15:38+0200 by dell26/agent-3): Firing: scheduler polls every cockpit.reminders.poll-interval (default PT15S), SELECT ... FOR UPDATE SKIP LOCKED, sets firedAt once; overdue reminders (server was down) fire on the next run; a reminder whose item resolver says the item is gone (deleted/trash) is marked fired without notification; disabled in tests via cockpit.reminders.scheduler.enabled=false (test config)
 - ASSUMPTION (2026-10-20 15:38+0200 by dell26/agent-3): API: GET /reminders requires itemType+itemId (reminders of one item); also GET /reminders/{id}; reminders are immutable (no PATCH, delete without If-Match); upcoming?until= returns unfired reminders <= until incl. overdue, max 1000; reminders of a permanently deleted item are removed via ItemDeletedEvent
 - ASSUMPTION (2026-10-20 16:00+0200 by dell26/agent-3): Migration lives in db/migration/core/V202610201538__core_reminders.sql, not core-reminders/ as in touches: MigrationConventionTests requires folder == module name in the file name (module core; reminders are package core.reminders)
+- extended by dell26/agent-3: Implementation + CR-1/CR-2 fixes committed, openapi regenerated, reminders tests pass. Left: rerun test-writer + code-reviewer on final code (fixes made earlier evidence stale; ReminderGtdResolverTests just committed), verify criteria 1-4, run .taskcheck, write quality.json, done.
