@@ -1,11 +1,13 @@
 ---
 title: Passkeys (WebAuthn) backend
-status: in_progress
-owner: R1963MACOS/agent-1
+status: todo
+owner: 
 deps: [p0-auth-tokens]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/core/auth/passkey,server/src/test/kotlin/ch/sonensei/cockpit/core/auth/passkey]
 prio: 2
-lease_until: 2026-10-20T14:06:35Z
+lease_until: 
+releases: 0
+extended: 
 ---
 ## Goal
 Passkeys as an alternative to password + TOTP (SPEC.md §4.1).
@@ -23,3 +25,4 @@ Passkeys as an alternative to password + TOTP (SPEC.md §4.1).
 - ASSUMPTION (2026-10-20 15:02+0200 by R1963MACOS/agent-1): Passkeys are auth credentials, not user content: not added to link/search or backup/restore (restoring them would be a security risk; users re-register). Small touch-outside edits: LoginService.startSession, DeviceTokenService.issueFor, SecurityConfiguration permit/CSRF rules, migration core/V202610201300.
 - ASSUMPTION (2026-10-20 15:41+0200 by R1963MACOS/agent-1): Passkey RP defaults to COCKPIT_DOMAIN (rp-id = domain; origins = https://domain plus the request's own origin, http or https with its port, only when the request host equals the domain) so the shipped Caddy stack works without extra config; explicit COCKPIT_AUTH_PASSKEY_* still wins (review CR-1)
 - ASSUMPTION (2026-10-20 15:41+0200 by R1963MACOS/agent-1): Registration and authentication ceremonies use separate in-memory stores (256 each) so anonymous authentication-options requests cannot evict pending registrations; authentication churn can still evict other pending logins (review CR-3)
+- release by R1963MACOS/agent-1: handed off by R1963MACOS/agent-1: You've hit your session limit · resets 7:50pm (Europe/Zurich)
