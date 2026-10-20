@@ -42,7 +42,7 @@ class MasterKeyTests {
 
 	@Test
 	fun `context with a valid key provides the cipher`() {
-		contextRunner.withPropertyValues("cockpit.master-key=$validKey").run { context ->
+		contextRunner.withPropertyValues("cockpit.crypto.master-key=$validKey").run { context ->
 			context.startupFailure shouldBe null
 			val cipher = context.getBean(SecretCipher::class.java)
 			cipher.decrypt(cipher.encrypt("x")) shouldBe "x"
@@ -58,7 +58,7 @@ class MasterKeyTests {
 
 	@Test
 	fun `context fails to start with an invalid key`() {
-		contextRunner.withPropertyValues("cockpit.master-key=AAAA").run { context ->
+		contextRunner.withPropertyValues("cockpit.crypto.master-key=AAAA").run { context ->
 			context.startupFailure.shouldBeInvalidKey("must decode to 32 bytes, but has 3")
 		}
 	}

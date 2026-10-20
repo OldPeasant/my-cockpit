@@ -12,13 +12,15 @@ import org.junit.jupiter.api.extension.ExtendWith
 import org.springframework.boot.SpringApplication
 import org.springframework.boot.test.system.CapturedOutput
 import org.springframework.boot.test.system.OutputCaptureExtension
+import org.springframework.core.env.ConfigurableEnvironment
+import org.springframework.core.env.StandardEnvironment
 
 /** Starts the real application (not a test context) against the test Postgres, with and without a master key. */
 @ExtendWith(OutputCaptureExtension::class)
 class MasterKeyStartupTests : PostgresTestBase() {
 	@Test
 	fun `application refuses to start without a master key and says why`(output: CapturedOutput) {
-		val error = shouldThrowAny { start("--cockpit.master-key=") }
+		val error = shouldThrowAny { start("--cockpit.crypto.master-key=") }
 
 		generateSequence(error) { it.cause }.last().shouldBeInstanceOf<InvalidMasterKeyException>()
 		output.out shouldContain "COCKPIT_MASTER_KEY is not set"
@@ -27,7 +29,7 @@ class MasterKeyStartupTests : PostgresTestBase() {
 
 	@Test
 	fun `application refuses to start with an invalid master key without logging it`(output: CapturedOutput) {
-		shouldThrowAny { start("--cockpit.master-key=bm90LWEtcmVhbC1rZXk=") }
+		shouldThrowAny { start("--cockpit.crypto.master-key=bm90LWEtcmVhbC1rZXk=") }
 
 		output.out shouldContain "must decode to 32 bytes, but has 14"
 		output.out shouldNotContain "bm90LWEtcmVhbC1rZXk="
@@ -35,17 +37,39 @@ class MasterKeyStartupTests : PostgresTestBase() {
 
 	@Test
 	fun `application starts with a valid master key`() {
-		start("--cockpit.master-key=Y29ja3BpdC10ZXN0LW1hc3Rlci1rZXktbm90LXJlYWw=").use { context ->
+		start("--cockpit.crypto.master-key=Y29ja3BpdC10ZXN0LW1hc3Rlci1rZXktbm90LXJlYWw=").use { context ->
 			context.isActive shouldBe true
 		}
 	}
 
-	private fun start(vararg args: String) =
-		SpringApplication(CockpitServerApplication::class.java).run(
+	@Test
+	fun `an exported COCKPIT_MASTER_KEY does not override the fictitious test key`() {
+		val environment =
+			object : StandardEnvironment() {
+				override fun getSystemEnvironment(): Map<String, Any> = System.getenv() + (MASTER_KEY_ENV to "AAAA")
+			}
+
+		start(environment = environment).use { context ->
+			context.isActive shouldBe true
+			context.environment.getProperty("cockpit.crypto.master-key") shouldBe TEST_KEY
+		}
+	}
+
+	private fun start(
+		vararg args: String,
+		environment: ConfigurableEnvironment? = null,
+	) = SpringApplication(CockpitServerApplication::class.java)
+		.apply { environment?.let { setEnvironment(it) } }
+		.run(
 			"--server.port=0",
 			"--spring.datasource.url=${postgres.jdbcUrl}",
 			"--spring.datasource.username=${postgres.username}",
 			"--spring.datasource.password=${postgres.password}",
 			*args,
 		)
+
+	private companion object {
+		/** The fictitious key from `src/test/resources/config/application.properties`. */
+		const val TEST_KEY = "Y29ja3BpdC10ZXN0LW1hc3Rlci1rZXktbm90LXJlYWw="
+	}
 }

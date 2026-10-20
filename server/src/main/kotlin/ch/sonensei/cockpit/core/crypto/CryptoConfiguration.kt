@@ -7,14 +7,16 @@ import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 
 /**
- * Creates the [SecretCipher] from `cockpit.master-key` (`COCKPIT_MASTER_KEY`). The bean is eager, so the
+ * Creates the [SecretCipher] from `cockpit.crypto.master-key` (`COCKPIT_MASTER_KEY`). The bean is eager, so the
  * application refuses to start without a valid key. Tests set a fictitious key in `src/test/resources/config`.
+ * The property name deliberately does not relax-bind to `COCKPIT_MASTER_KEY`: the variable is only read through
+ * the placeholder in `application.properties`, so the test key overrides an exported variable.
  */
 @Configuration(proxyBeanMethods = false)
 class CryptoConfiguration {
 	@Bean
 	fun secretCipher(
-		@Value("\${cockpit.master-key:}") masterKey: String,
+		@Value("\${cockpit.crypto.master-key:}") masterKey: String,
 	): SecretCipher = SecretCipher(MasterKey.decode(masterKey))
 }
 
