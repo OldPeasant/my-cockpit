@@ -19,3 +19,4 @@ CRUD and workflow endpoints for tasks (SPEC.md §5.4).
 - [ ] API documented: `api/openapi.yaml` regenerated (`UPDATE_OPENAPI=1 ./gradlew test --tests '*OpenApiContractTest'`) and `OpenApiContractTest` passes without the flag
 
 ## Notes
+- ASSUMPTION (2026-10-20 16:06+0200 by dell26/agent-6): GET /tasks: 'context' filter takes a context id (UUID), not a name; due windows are relative to today in the user's time zone: overdue = before today, today = exactly today, week = today..today+6; maxMinutes only matches tasks with an estimate; completed defaults to false (open tasks), completed=true gives the Logbook ordered by completedAt desc; tickler-hidden tasks are NOT excluded here (left to gtd-tickler)
