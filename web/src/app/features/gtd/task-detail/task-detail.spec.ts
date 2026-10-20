@@ -944,6 +944,74 @@ describe('TaskDetail', () => {
     expect(saveButton().disabled).toBe(true);
   });
 
+  it('keeps text typed during a move and saves only that text next, without moving again', async () => {
+    await render();
+    await choose('#td-list', 'WAITING');
+    await type('#td-waiting', 'Anna');
+    let release!: () => void;
+    answer = (fn, params) => {
+      if (fn !== moveTask) return undefined;
+      return new Promise<void>((resolve) => (release = resolve)).then(() => {
+        server = { ...server, ...(params['body'] as object), version: server.version + 1 };
+        return server;
+      });
+    };
+    saveButton().click();
+    await refresh();
+    await type('#td-notes', 'Typed during the move');
+    release();
+    await refresh();
+
+    expect(callsOf(moveTask)).toHaveLength(1);
+    expect(callsOf(updateTask)[0].params).toMatchObject({
+      'If-Match': '"2"',
+      body: { waitingForText: 'Anna' },
+    });
+    expect(field<HTMLSelectElement>('#td-list').value).toBe('WAITING');
+    expect(field<HTMLInputElement>('#td-waiting').value).toBe('Anna');
+    expect(field<HTMLTextAreaElement>('#td-notes').value).toBe('Typed during the move');
+    expect(text()).toContain('Unsaved changes');
+
+    await save();
+
+    expect(callsOf(moveTask)).toHaveLength(1);
+    expect(callsOf(updateTask)).toHaveLength(2);
+    expect(callsOf(updateTask)[1].params).toMatchObject({ 'If-Match': '"3"' });
+    expect(callsOf(updateTask)[1].params['body']).toEqual({ notesMd: 'Typed during the move' });
+    expect(text()).not.toContain('Unsaved changes');
+  });
+
+  it('keeps text typed during a save that fails and sends it with the retry', async () => {
+    await render();
+    await type('#td-title', 'Call the plumber today');
+    let fail!: () => void;
+    answer = (fn) => {
+      if (fn !== updateTask || callsOf(updateTask).length > 1) return undefined;
+      return new Promise<never>((_, reject) => {
+        fail = () => reject(new ApiError(503, 'Service Unavailable'));
+      });
+    };
+    saveButton().click();
+    await refresh();
+    await type('#td-notes', 'Typed while saving');
+    fail();
+    await refresh();
+
+    expect(text()).toContain('Service Unavailable');
+    expect(field<HTMLTextAreaElement>('#td-title').value).toBe('Call the plumber today');
+    expect(field<HTMLTextAreaElement>('#td-notes').value).toBe('Typed while saving');
+    expect(saveButton().disabled).toBe(false);
+
+    await save();
+
+    expect(callsOf(updateTask)[1].params).toMatchObject({ 'If-Match': '"1"' });
+    expect(callsOf(updateTask)[1].params['body']).toEqual({
+      title: 'Call the plumber today',
+      notesMd: 'Typed while saving',
+    });
+    expect(text()).toContain('Saved');
+  });
+
   it('hides the "Saved" note again after a moment', async () => {
     await render();
     await type('#td-title', 'Saved for a moment');
