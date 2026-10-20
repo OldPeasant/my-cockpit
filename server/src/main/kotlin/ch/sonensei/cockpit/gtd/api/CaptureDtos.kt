@@ -55,7 +55,8 @@ data class CaptureContextResponse(
 
 @Schema(
 	description =
-		"What a capture of the text creates. Syntax (a token starts the text or follows whitespace): `#project` an " +
+		"What a capture of the text creates. Only the title line (the first non-blank line) is parsed; " +
+			"the rest of the text is kept as it is. Syntax (a token starts the line or follows whitespace): `#project` an " +
 			"existing project by title (case-insensitive, `-`/`_` for spaces), `@context` an existing context, " +
 			"`!today`, `!tomorrow` or `!YYYY-MM-DD` the due date, `^waiting` the WAITING list (`^name`: waiting for name). " +
 			"Recognized tokens are removed from the title; unknown ones stay as text.",
