@@ -1,0 +1,45 @@
+@let task = this.task();
+<div class="row" [class.done]="done()">
+  <input
+    type="checkbox"
+    class="check"
+    [checked]="done()"
+    [attr.aria-label]="done() ? reopenLabel(task.title) : completeLabel(task.title)"
+    (click)="$event.preventDefault(); toggle.emit(task)"
+  />
+  <button type="button" class="title" (click)="open.emit(task)">{{ task.title }}</button>
+  <ul class="chips">
+    @for (context of taskContexts(); track context.id) {
+      <li class="chip context">
+        <span class="dot" [style.background]="context.color ?? null" aria-hidden="true"></span>
+        {{ context.name }}
+      </li>
+    }
+    @if (energy(); as energy) {
+      <li class="chip energy" i18n="@@gtd.row.energy">{{ energy }} energy</li>
+    }
+    @if (estimate(); as estimate) {
+      <li class="chip estimate">{{ estimate }}</li>
+    }
+    @if (due(); as due) {
+      <li class="chip due" [class.overdue]="due === 'overdue'" [class.today]="due === 'today'">
+        @switch (due) {
+          @case ('overdue') {
+            <ng-container i18n="@@gtd.row.overdue"
+              >Overdue · {{ task.dueDate | date: 'MMM d' }}</ng-container
+            >
+          }
+          @case ('today') {
+            <ng-container i18n="@@gtd.row.dueToday">Due today</ng-container>
+          }
+          @default {
+            <ng-container i18n="@@gtd.row.due">Due {{ task.dueDate | date: 'MMM d' }}</ng-container>
+          }
+        }
+      </li>
+    }
+    @if (project(); as project) {
+      <li class="chip project">{{ project.title }}</li>
+    }
+  </ul>
+</div>
