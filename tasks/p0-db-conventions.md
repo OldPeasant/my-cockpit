@@ -18,3 +18,4 @@ Shared persistence building blocks every module uses (SPEC.md §4.2).
 
 ## Notes
 - ASSUMPTION (2026-10-20 10:50+0200 by R1963MACOS/agent-2): Entity timestamps use Spring Data JPA auditing (@EnableJpaAuditing with a DateTimeProvider backed by the Clock bean) instead of a custom listener; Clock bean (systemUTC) and MutableClock live in core.persistence because the task touches only that package
+- ASSUMPTION (2026-10-20 10:50+0200 by R1963MACOS/agent-2): Client-supplied entity ids must be UUIDv7 (BaseEntity rejects other versions with IllegalArgumentException); BaseEntity implements Persistable so save() of an assigned id inserts instead of merging
