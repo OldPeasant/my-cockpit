@@ -4,34 +4,33 @@ Date: 2026-10-20
 
 Task: web-links-panel - Linked items panel (shared)
 
-Scope: Final revision of the task, round 2: `git diff 3a4ef451..9bff3e37 -- web/` (all in `web/src/app/shared/links/`). Commits 91ae04e7 (implementation), dbab6d3a (test-writer tests, round-1 reports), 9bff3e37 (fixes for CR-1/TW-1 and CR-2). No uncommitted changes.
+Scope: Final revision of the task, round 3: `git diff c7a3abd6..4e5d4d94 -- web/` (all in `web/src/app/shared/links/`). Commits afe5faed (implementation), bf41efa0 (test-writer tests, round-1 reports), 31f1140b (fixes for CR-1/TW-1 and CR-2), 4e5d4d94 (fix for CR-4, round-2 tests). Committed code only. An uncommitted spec change in `linked-items.spec.ts` (from a test-writer running at the same time) was not reviewed.
 
 Requirements:
 - tasks/web-links-panel.md acceptance criteria and recorded assumptions
 - SPEC.md §4.3 (Universal items & links), §4.4 (Global search)
 - api/openapi.yaml: `GET/POST /api/v1/links`, `DELETE /api/v1/links/{id}`, `GET /api/v1/search`
 - docs/ARCHITECTURE.md, AGENTS.md project notes
-- Round-1 review (this file, previous revision) and reviews/web-links-panel/fixes.md
+- The round-2 review (this file, previous revision). Its hashes refer to commits from before the rebase: 3a4ef451 -> c7a3abd6, 91ae04e7 -> afe5faed, dbab6d3a -> bf41efa0, 9bff3e37 -> 31f1140b.
 
 Git range:
 - Branch: main
-- HEAD: 9bff3e37cc169c267365a3651f807c3c09d60b7d
-- Base/start: 3a4ef4513a7beaedd6216d2976f96e2ab7b61a86
-- Commits reviewed: 3
+- HEAD: 4e5d4d947f60fb0002db7929e6f5fdf3aaf9d931
+- Base/start: c7a3abd6485be1183f42e295798f0bb3539dfc1a
+- Commits reviewed: 4
 
-Summary: 0 P0, 0 P1, 0 P2, 1 P3
+Summary: 0 P0, 0 P1, 0 P2, 2 P3
 
-Verification done by the reviewer: `npm --prefix web run check` (api check, lint, e2e typecheck, `test:ci`, `ng build`) passed: 27 test files, 426 tests passed. The build prints the known initial-bundle budget warning (501.24 kB against 500 kB). This task does not cause it, because no route or eagerly loaded module imports the panel yet.
+Verification done by the reviewer: I ran `npm --prefix web run check` (api check, lint, e2e typecheck, `test:ci`, `ng build`) and it passed. `npm --prefix web run test:ci` reported 27 test files and 429 tests passed. The working tree included the uncommitted spec addition from the concurrent test-writer, so this count includes those tests. The build shows the known initial-bundle budget warning (501.24 kB against 500 kB). This task does not cause it, because no route imports the panel yet.
 
-Status of the round-1 findings:
-- CR-1 (an older load overwrites a newer one): Fixed. `load()` now takes a sequence number (`loadSeq`, linked-items.ts:282). It applies its result or error only when it is still the latest load. Two tests cover the case where the older load of the same item resolves last and where it fails last (linked-items.spec.ts:434, :455). Verified.
-- CR-2 (action error and open search survive an item change): Fixed. The item effect increments `itemSeq`, clears `actionError` and calls `resetSearch()` without moving the focus (linked-items.ts:150-159). `remove()` and `addLink()` ignore results that finish after an item change (lines 182-189, 252-262). The `changing the item` tests cover this, including an A -> B -> A change while a link is being created. Verified.
-- CR-3 (error and conflict paths untested): Resolved. The fixer rejected it as already covered, and that is correct. The test-writer's tests cover all four paths: 409 on add (spec:984), another add error (spec:961), 404 on remove (spec:635), and a failed search (spec:771, :794).
+Status of earlier findings:
+- CR-1 and CR-2 (round 1): still fixed in the final code. `load()` uses `loadSeq` (linked-items.ts:283-293). The item effect increments `itemSeq`, clears `actionError` and resets the search (lines 150-159). `remove()` and `addLink()` ignore results that arrive after an item change.
+- CR-4 (round 2, a link added while a load is pending vanishes): fixed and verified. When `addLink` succeeds while `links()` is null, it now calls `reload()` (linked-items.ts:260). That increments `loadSeq`, so the older pending load can no longer apply its stale list. The new list is fetched after the POST has committed, so it contains the link. This also covers the case where the earlier load failed: `links` is null and `loadError` is set, and the reload clears the error. The test "keeps a link added while the list is reloading (CR-4)" (linked-items.spec.ts, committed in 4e5d4d94) flushes the pending list without the link, then expects a second list request and the link in the panel. 4e5d4d94 also adds item-change tests for a removal or a 409 on the previous item, and for an A -> B -> A change while a link is being created.
 
 Acceptance criteria assessment:
-1. Listing (type icon, title, type label plus subtitle, `routerLink` deep link, `.unavailable` greying with an "Unavailable item" fallback) and removal of MANUAL links are implemented. SYNC links show "In text", as the recorded assumption says. Met.
-2. "Add link" runs a debounced `switchMap` search over all types (no `types` filter). It excludes the item itself and items it is already linked to, and creates the link with `POST /links` by mouse or keyboard. The create-linked slot uses `[appLinkedCreate]` content projection plus a public `reload()`. Met.
-3. Vitest component and service tests cover listing, adding via search, removal, and the error, race and focus paths. `npm run check` passes. Met.
+1. Listing: each row shows the type icon (`app-item-type-icon`), the title, the type label plus subtitle, and a `routerLink` deep link. Unavailable items are greyed out (`.unavailable`), have no link and show "Unavailable item" as a fallback title. MANUAL links can be removed. SYNC links show "In text", as the recorded assumption says. Met.
+2. Add link: the search is debounced and uses `switchMap`, so an older search cannot overwrite a newer one. It searches all types (no `types` filter) through `GET /search`. It hides the item itself and items it is already linked to. The link is created with `POST /links`, by mouse or keyboard. The create-linked slot works by projecting `[appLinkedCreate]` content, and features call the public `reload()`. Met.
+3. Vitest component and service tests cover listing, adding via search and removal, plus the error, race and focus paths. `npm run check` passes. Met.
 
 ## P0 Critical
 
@@ -47,13 +46,20 @@ None.
 
 ## P3 Low
 
-- [ ] **CR-4 | A link added while the list is still loading can vanish when that load answers**
-    - File: `web/src/app/shared/links/linked-items.ts:259`
+- [ ] **CR-5 | A link removed while a `reload()` is pending can reappear**
+    - File: `web/src/app/shared/links/linked-items.ts:187`
     - Category: Correctness
-    - Problem: "Add link" works while the list is still loading. That happens on first load, after `reload()`, after "Try again", or after an item change. On success, `addLink` appends the created link with `this.links.update(...)`. If a load started before the POST is still pending, it is still the latest load (`seq === this.loadSeq`). When it answers, it calls `this.links.set(links)` with a list that does not contain the new link. The link was created on the server but disappears from the panel until the next reload. While `links()` is null, the append also shows a one-row list in place of "Loading links…".
-    - Why it matters: Two writers change `links` without a shared request identity, so the panel can briefly misreport state after a successful action. The window is small (load latency) and a reload repairs it, so this does not block the task.
-    - Suggested fix: When `addLink` succeeds while a load is pending (`links() === null`), call `void this.reload()` instead of appending, or increment `loadSeq` and reload. Add a test that adds a link while the initial list request is still open.
+    - Problem: This is the removal version of CR-4. Suppose a feature calls the public `reload()` (for example after a "create linked…" action) while a DELETE is still running. `load()` sets `links` to null. The DELETE then succeeds, and `dropLink` filters a null list, so it does nothing. The pending GET can reach the server before the DELETE commits, because both requests run in parallel. If it does, it returns the removed link, and `load()` applies that list because it is still the latest load. The link shows again until the next reload. Clicking remove again gets a 404, which `remove()` handles by dropping the row.
+    - Why it matters: For a short time the panel shows a link that no longer exists. It needs a feature-triggered reload at the same moment as a removal, so it is rare, and a reload or a second remove fixes it.
+    - Suggested fix: Do what `addLink` does. After a successful (or 404) removal, if `links()` is null, call `void this.reload()` instead of `dropLink`. Add a test that removes a link while a `reload()` request is still open.
+
+- [ ] **CR-6 | Keyboard focus is lost when creating a link fails**
+    - File: `web/src/app/shared/links/linked-items.html:40`, `web/src/app/shared/links/linked-items.ts:263-271`
+    - Category: Quality
+    - Problem: `[disabled]="linking()"` disables the focused search input while the POST runs, and browsers take focus away from a disabled element. On success, `closeSearch()` puts the focus back on "Add link". On a non-409 error, the search stays open and the `role="alert"` error is shown, but nothing returns the focus to the input. A keyboard user who pressed Enter has to tab back in to retry. The 409 path is fine because it closes the search.
+    - Why it matters: This is a minor accessibility gap in a keyboard-first flow (combobox plus Enter).
+    - Suggested fix: In the error branch of `addLink`, call `afterNextRender(() => this.searchInput()?.nativeElement.focus(), { injector: this.injector })`. Alternatively, use `aria-disabled` or `readonly` while linking instead of `disabled`. Cover it with a focus assertion in the existing "another add error" test.
 
 ## Review conclusion
 
-No material issues found. The round-1 findings CR-1 and CR-2 are fixed and covered by tests. CR-3 was already covered. The one remaining finding, CR-4, is minor (P3) and can be fixed or recorded with a reason.
+No material issues found. CR-4 is fixed correctly and covered by a test. CR-1 and CR-2 remain fixed. All three acceptance criteria are met and `npm run check` passes. The two remaining findings (CR-5, CR-6) are minor (P3). They can be fixed or recorded with a reason.

@@ -1023,6 +1023,65 @@ describe('LinkedItems', () => {
       expect(titles()).toEqual(['Flight to Lisbon']);
     });
 
+    it('keeps showing "Loading links…" when a link is added during the first load', async () => {
+      await start();
+      const first = expectList(TASK);
+      await openAndSearch('lis', hits(['EVENT', EVENT_ID, 'Flight to Lisbon']));
+
+      (root.querySelector('[role="option"]') as HTMLElement).click();
+      await settle();
+      http
+        .expectOne({ method: 'POST', url: '/api/v1/links' })
+        .flush(link('l1', end('EVENT', EVENT_ID, 'Flight to Lisbon')), {
+          status: 201,
+          statusText: 'Created',
+        });
+      await settle();
+
+      // No one-row list in place of the loading hint, and no count yet.
+      expect(root.querySelector('.hint')?.textContent).toContain('Loading links');
+      expect(root.querySelector('.links')).toBeNull();
+      expect(root.querySelector('.count')).toBeNull();
+      expect(root.querySelector('input.query')).toBeNull();
+
+      // The first load predates the link and is superseded by the fresh one.
+      first.flush({ items: [] });
+      await settle();
+      expect(root.querySelector('.hint')).not.toBeNull();
+      expectList(TASK).flush({ items: [link('l1', end('EVENT', EVENT_ID, 'Flight to Lisbon'))] });
+      await settle();
+
+      expect(titles()).toEqual(['Flight to Lisbon']);
+      expect(root.querySelector('.count')?.textContent?.trim()).toBe('1');
+    });
+
+    it('replaces a load error with the reloaded list after a link is added', async () => {
+      await start();
+      expectList(TASK).flush(
+        { status: 500, title: 'Server error' },
+        { status: 500, statusText: 'Server Error' },
+      );
+      await settle();
+      expect(root.querySelector('.load-error')).not.toBeNull();
+
+      await openAndSearch('lis', hits(['EVENT', EVENT_ID, 'Flight to Lisbon']));
+      (root.querySelector('[role="option"]') as HTMLElement).click();
+      await settle();
+      http
+        .expectOne({ method: 'POST', url: '/api/v1/links' })
+        .flush(link('l1', end('EVENT', EVENT_ID, 'Flight to Lisbon')), {
+          status: 201,
+          statusText: 'Created',
+        });
+      await settle();
+
+      expect(root.querySelector('.load-error')).toBeNull();
+      expectList(TASK).flush({ items: [link('l1', end('EVENT', EVENT_ID, 'Flight to Lisbon'))] });
+      await settle();
+
+      expect(titles()).toEqual(['Flight to Lisbon']);
+    });
+
     it('does not show a link created for the previous item after the item changed', async () => {
       await setup([]);
       await openAndSearch('lis', hits(['EVENT', EVENT_ID, 'Flight to Lisbon']));
