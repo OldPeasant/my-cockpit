@@ -1,13 +1,13 @@
 ---
 title: Files API: upload, download, operations
-status: in_progress
-owner: dell26/agent-2
+status: todo
+owner: 
 deps: [files-storage,runner-push-failure-loop]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/files,server/src/test/kotlin/ch/sonensei/cockpit/files,server/src/main/resources/db/migration/files]
 prio: 1
-lease_until: 2026-10-20T22:40:35Z
-extended: dell26/agent-2
-releases: 1
+lease_until: 
+extended: 
+releases: 2
 ---
 ## Goal
 File operations (SPEC.md §8.2).
@@ -33,3 +33,4 @@ File operations (SPEC.md §8.2).
 - extended by dell26/agent-3: Implementation + tests committed (upload/resumable/download/zip/folder ops/usage, OpenAPI regenerated). Left: (1) .taskcheck FAILS: server :test 'Java heap space' after 4m34s, most likely the 60 MB chunked-upload / large multipart tests holding byte arrays in MockMvc; stream/generate data or tag the 60MB test as slow, keep check < 2 min. (2) fix CR-1 in reviews/files-api/review.md: set spring.mvc.async.request-timeout for streamed zip. (3) review.md is stale; tests.md missing: rerun test-writer + code-reviewer on final code, fixer if needed. (4) tasks.py verify #1-#5, quality.json, done.
 - release by dell26/agent-3: Done: full implementation + tests (multipart, resumable chunks, Range/Content-Disposition download, streamed zip, folder ops, cursor listing, usage); OpenAPI + web client regenerated on top of main (commit 86a6c2c5, squashed); earlier review findings fixed (reviews/files-api/fixes.md); test JVM heap 1g. sh scripts/check.sh (4m17s) fails ONLY on TW-1 (reviews/files-api/tests.md): the Range header param of GET /api/v1/files/{id}/content has no schema in api/openapi.yaml, which breaks Android :app:openApiGenerate; FilesApiEdgeCaseWebTests 'every parameter ... has a schema' pins it. Left: (1) fix TW-1 in FileController (string schema for the Range @Parameter, or hide it), regenerate api/openapi.yaml (UPDATE_OPENAPI=1 ./gradlew test --tests '*OpenApiContractTest') + cd web && npm run api:gen; (2) rerun test-writer + code-reviewer on final code (fixer if needed); (3) tasks.py verify 1-5, quality.json, done. Note: full check takes >4 min, above the 2 min target.
 - extended by dell26/agent-2: All 5 criteria implemented and verified; review findings CR-1 (nullable parentId/folderId in OpenAPI) and CR-2 (JSON-only 200 bodies) fixed in 3fdbde16 with contract+web client regenerated and tests added; sh scripts/check.sh passes. Left: rerun test-writer + code-reviewer on 3fdbde16 (fixes.md must record CR-1/CR-2 via fixer or note), write reviews/files-api/quality.json, tasks.py done.
+- release by dell26/agent-2: All 5 criteria implemented and verified; CR-1/CR-2 fixed (115de66a); code-reviewer re-review of the fixes committed in 6a697dbb (0 findings, review.md); test-writer added 2 tests (explicit null folder ids, JSON-only Accept) in 6a697dbb but was interrupted before writing tests.md, which is stale (describes 4e2decc5); sh scripts/check.sh passes on 6a697dbb (~4 min). Left, finalization only: (1) rerun test-writer on final code so it writes a fresh reviews/files-api/tests.md with coverage; (2) rerun code-reviewer if test changes count as code change (review.md names a2eb6da6 = pre-rebase hash of 115de66a); (3) record CR-1/CR-2 in fixes.md via fixer or 'fixer not required' in quality.json; (4) write reviews/files-api/quality.json with reviewed_revision, commit; (5) tasks.py done.
