@@ -18,3 +18,4 @@ The cross-module link system (SPEC.md §4.3).
 - [ ] API documented: `api/openapi.yaml` regenerated (`UPDATE_OPENAPI=1 ./gradlew test --tests '*OpenApiContractTest'`) and `OpenApiContractTest` passes without the flag
 
 ## Notes
+- ASSUMPTION (2026-10-20 13:35+0200 by dell26/agent-3): Migration lives in db/migration/core/ (V202610201130__core_items_link.sql), not the core-items folder named in touches: MigrationConventionTests requires a [a-z0-9]+ module folder matching the file prefix.
