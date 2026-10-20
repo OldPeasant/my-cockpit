@@ -18,3 +18,4 @@ Generic reminders for any item (SPEC.md §4.6).
 
 ## Notes
 - ASSUMPTION (2026-10-20 15:37+0200 by dell26/agent-3): SSE: a fired reminder is sent as SSE event 'reminder' with a ReminderResponse (incl. item title/deepLink) as data, via a new generic ClientNotification event that SseEventHub (core/events, outside touches; small addition) forwards after commit; ChangeEvent stays content-free. Every reminder change also sends a 'change' event of type REMINDER
+- ASSUMPTION (2026-10-20 15:37+0200 by dell26/agent-3): channel: enum with the single value NOTIFICATION (SSE/browser + Android local alarm), default when omitted; spec names the column but no values
