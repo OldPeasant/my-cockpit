@@ -5,7 +5,7 @@ owner: dell26/agent-3
 deps: [web-gtd-data,web-links-panel,gtd-recurrence]
 touches: [web/src/app/features/gtd/task-detail]
 prio: 1
-lease_until: 2026-10-20T22:06:49Z
+lease_until: 2026-10-20T22:11:52Z
 ---
 ## Goal
 Edit all task fields (SPEC.md §5.2).
