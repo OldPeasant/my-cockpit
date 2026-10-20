@@ -59,6 +59,11 @@ class TrashController(
 	@Operation(operationId = "restoreTrashItem", summary = "Restore a deleted item")
 	@ApiResponse(responseCode = "204", description = "Restored")
 	@ApiResponse(
+		responseCode = "400",
+		description = "Invalid type or id",
+		content = [Content(mediaType = PROBLEM_JSON, schema = Schema(ref = "#/components/schemas/ProblemDetail"))],
+	)
+	@ApiResponse(
 		responseCode = "404",
 		description = "No such item in the Trash",
 		content = [Content(mediaType = PROBLEM_JSON, schema = Schema(ref = "#/components/schemas/ProblemDetail"))],
@@ -76,6 +81,11 @@ class TrashController(
 		description = "Only items in the Trash can be deleted permanently; their links are removed as well.",
 	)
 	@ApiResponse(responseCode = "204", description = "Deleted permanently")
+	@ApiResponse(
+		responseCode = "400",
+		description = "Invalid type or id",
+		content = [Content(mediaType = PROBLEM_JSON, schema = Schema(ref = "#/components/schemas/ProblemDetail"))],
+	)
 	@ApiResponse(
 		responseCode = "404",
 		description = "No such item in the Trash",

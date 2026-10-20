@@ -27,6 +27,9 @@ import org.junit.jupiter.api.Test
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.ValueSource
 import org.springframework.context.ApplicationEventPublisher
+import org.springframework.transaction.TransactionDefinition
+import org.springframework.transaction.support.AbstractPlatformTransactionManager
+import org.springframework.transaction.support.DefaultTransactionStatus
 import java.time.Duration
 import java.time.Instant
 import java.util.UUID
@@ -41,7 +44,28 @@ class TrashUnitTests {
 	private val publisher = ApplicationEventPublisher { published += it }
 
 	private fun service(vararg contributors: TrashContributor = arrayOf(tasks, notes)) =
-		TrashService(TrashContributorRegistry(contributors.toList()), publisher, ChangeEventPublisher(publisher, clock))
+		TrashService(
+			TrashContributorRegistry(contributors.toList()),
+			publisher,
+			ChangeEventPublisher(publisher, clock),
+			NoTransactions,
+		)
+
+	/** No database here: transactions do nothing. */
+	private object NoTransactions : AbstractPlatformTransactionManager() {
+		private fun readResolve(): Any = NoTransactions
+
+		override fun doGetTransaction(): Any = Any()
+
+		override fun doBegin(
+			transaction: Any,
+			definition: TransactionDefinition,
+		) = Unit
+
+		override fun doCommit(status: DefaultTransactionStatus) = Unit
+
+		override fun doRollback(status: DefaultTransactionStatus) = Unit
+	}
 
 	private val trash = service()
 	private val job = TrashPurgeJob(trash, clock)

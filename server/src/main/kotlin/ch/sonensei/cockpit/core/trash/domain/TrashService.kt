@@ -12,7 +12,11 @@ import ch.sonensei.cockpit.core.web.NotFoundException
 import org.slf4j.LoggerFactory
 import org.springframework.context.ApplicationEventPublisher
 import org.springframework.stereotype.Service
+import org.springframework.transaction.PlatformTransactionManager
+import org.springframework.transaction.TransactionDefinition
+import org.springframework.transaction.annotation.Propagation
 import org.springframework.transaction.annotation.Transactional
+import org.springframework.transaction.support.TransactionTemplate
 import java.time.Duration
 import java.time.Instant
 import java.util.UUID
@@ -36,14 +40,25 @@ class TrashService(
 	private val contributors: TrashContributorRegistry,
 	private val events: ApplicationEventPublisher,
 	private val changes: ChangeEventPublisher,
+	transactions: PlatformTransactionManager,
 ) {
 	private val log = LoggerFactory.getLogger(javaClass)
+
+	/**
+	 * One read-only transaction per contributor listing: a contributor that fails (e.g. an SQL error, which aborts a
+	 * Postgres transaction, or a repository marking the transaction rollback-only) only rolls back its own listing.
+	 */
+	private val listingTransaction =
+		TransactionTemplate(transactions).apply {
+			propagationBehavior = TransactionDefinition.PROPAGATION_REQUIRES_NEW
+			isReadOnly = true
+		}
 
 	/**
 	 * One page of the Trash, most recently deleted first (then type, then id descending). A contributor that fails is
 	 * left out and logged, so one broken module does not hide the rest of the Trash.
 	 */
-	@Transactional(readOnly = true)
+	@Transactional(propagation = Propagation.NOT_SUPPORTED)
 	fun list(request: CursorRequest): CursorPage<TrashEntry> {
 		val after = request.position?.let(::parsePosition)
 		val fetched =
@@ -56,12 +71,18 @@ class TrashService(
 		return request.page(fetched, ::positionOf)
 	}
 
-	/** Every item in the Trash, unordered; contributors that fail are left out. */
-	@Transactional(readOnly = true)
+	/**
+	 * Every item in the Trash, unordered; contributors that fail are left out. Each contributor lists in its own
+	 * transaction ([listingTransaction]), so a failing one cannot break the others or this call.
+	 */
+	@Transactional(propagation = Propagation.NOT_SUPPORTED)
 	fun entries(): List<TrashEntry> =
 		contributors.all().flatMap { contributor ->
 			try {
-				contributor.listDeleted().map { TrashEntry(contributor.type, it) }
+				listingTransaction
+					.execute { contributor.listDeleted() }
+					.orEmpty()
+					.map { TrashEntry(contributor.type, it) }
 			} catch (e: RuntimeException) {
 				log.warn("TrashContributor for {} failed to list deleted items", contributor.type, e)
 				emptyList()

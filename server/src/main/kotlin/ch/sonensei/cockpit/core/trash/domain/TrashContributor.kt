@@ -8,7 +8,7 @@ import java.util.UUID
 /**
  * The Trash of one [ItemType] (SPEC.md §4.2): its soft-deleted items. Each module registers one contributor per
  * soft-deletable type it owns as a Spring bean; [TrashContributorRegistry] collects them and [TrashService] calls them
- * inside its transaction.
+ * inside its transactions ([listDeleted] in a read-only transaction of its own per contributor).
  */
 interface TrashContributor {
 	val type: ItemType
