@@ -39,5 +39,11 @@ class UuidV7Tests {
 		UuidV7.isUuidV7(UUID.randomUUID()) shouldBe false
 	}
 
+	@Test
+	fun `version 7 with a non-RFC variant and the nil id are not UUIDv7`() {
+		UuidV7.isUuidV7(UUID.fromString("018f3c1e-7b2a-7abc-c123-456789abcdef")) shouldBe false
+		UuidV7.isUuidV7(UUID(0, 0)) shouldBe false
+	}
+
 	private fun timestampMillis(id: UUID): Long = id.mostSignificantBits ushr 16
 }

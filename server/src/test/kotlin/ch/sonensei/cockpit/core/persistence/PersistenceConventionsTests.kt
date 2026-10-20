@@ -3,14 +3,17 @@ package ch.sonensei.cockpit.core.persistence
 import ch.sonensei.cockpit.support.PostgresTestBase
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.collections.shouldContainExactly
+import io.kotest.matchers.collections.shouldContainExactlyInAnyOrder
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
+import org.flywaydb.core.Flyway
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.context.annotation.Import
+import org.springframework.dao.DataIntegrityViolationException
 import org.springframework.dao.OptimisticLockingFailureException
 import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.transaction.support.TransactionTemplate
@@ -26,6 +29,7 @@ class PersistenceConventionsTests(
 	@Autowired private val appClock: Clock,
 	@Autowired private val tx: TransactionTemplate,
 	@Autowired private val jdbc: JdbcTemplate,
+	@Autowired private val flyway: Flyway,
 ) : PostgresTestBase() {
 	@BeforeEach
 	fun reset() {
@@ -151,5 +155,86 @@ class PersistenceConventionsTests(
 		tx.executeWithoutResult { repository.findById(entity.id).orElseThrow().restore() }
 
 		repository.findActiveById(entity.id).shouldNotBeNull().isDeleted shouldBe false
+	}
+
+	@Test
+	fun `creating the same client id twice fails instead of overwriting the first row`() {
+		val clientId = UuidV7.generate()
+		repository.save(PersistenceFixture("First capture", clientId))
+
+		shouldThrow<DataIntegrityViolationException> {
+			repository.save(PersistenceFixture("Replayed capture", clientId))
+		}
+
+		val stored = repository.findById(clientId).orElseThrow()
+		stored.title shouldBe "First capture"
+		stored.version shouldBe 0
+	}
+
+	@Test
+	fun `timestamps are stored as the exact UTC instant of the clock`() {
+		val saved = repository.save(PersistenceFixture("Stored instant"))
+
+		jdbc.queryForObject(
+			"select to_char(created_at at time zone 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS\"Z\"') " +
+				"from test_persistence_fixture where id = ?",
+			String::class.java,
+			saved.id,
+		) shouldBe MutableClockTestConfiguration.START.toString()
+	}
+
+	@Test
+	fun `active rows come in creation order and deleted rows newest deletion first`() {
+		val ids = List(4) { repository.save(PersistenceFixture("Item $it")).id }
+		clock.advance(Duration.ofMinutes(1))
+		tx.executeWithoutResult { repository.findById(ids[0]).orElseThrow().softDelete(clock) }
+		clock.advance(Duration.ofMinutes(1))
+		tx.executeWithoutResult { repository.findById(ids[2]).orElseThrow().softDelete(clock) }
+
+		repository.findAllActive().map { it.id } shouldContainExactly listOf(ids[1], ids[3])
+		repository.findAllDeleted().map { it.id } shouldContainExactly listOf(ids[2], ids[0])
+		// The inherited reads still see the Trash (restore, backup).
+		repository.findAll().map { it.id } shouldContainExactlyInAnyOrder ids
+	}
+
+	@Test
+	fun `a lazy proxy equals the loaded entity with the same id`() {
+		val saved = repository.save(PersistenceFixture("Proxied"))
+		val other = repository.save(PersistenceFixture("Other"))
+
+		tx.executeWithoutResult {
+			val proxy = repository.getReferenceById(saved.id)
+
+			(proxy == saved) shouldBe true
+			(saved == proxy) shouldBe true
+			proxy.hashCode() shouldBe saved.hashCode()
+			(proxy == other) shouldBe false
+			proxy.toString() shouldBe "PersistenceFixture(id=${saved.id})"
+		}
+	}
+
+	@Test
+	fun `the first core migration creates no tables`() {
+		val schema = "core_first_migration"
+		try {
+			Flyway
+				.configure()
+				.configuration(flyway.configuration)
+				.schemas(schema)
+				.defaultSchema(schema)
+				.locations("classpath:db/migration/core")
+				.target("202610200000")
+				.load()
+				.migrate()
+				.migrationsExecuted shouldBe 1
+
+			jdbc.queryForList(
+				"select table_name from information_schema.tables where table_schema = ?",
+				String::class.java,
+				schema,
+			) shouldContainExactly listOf("flyway_schema_history")
+		} finally {
+			jdbc.execute("drop schema if exists $schema cascade")
+		}
 	}
 }

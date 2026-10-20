@@ -34,4 +34,15 @@ class MutableClockTests {
 		zurich.zone shouldBe ZoneId.of("Europe/Zurich")
 		clock.withZone(ZoneOffset.UTC) shouldBe clock
 	}
+
+	@Test
+	fun `setting the time through a zoned view moves the original clock`() {
+		val clock = MutableClock(start)
+		val zurich = clock.withZone(ZoneId.of("Europe/Zurich")) as MutableClock
+
+		zurich.set(start.plusSeconds(60))
+
+		clock.instant() shouldBe start.plusSeconds(60)
+		zurich.withZone(ZoneOffset.UTC).instant() shouldBe start.plusSeconds(60)
+	}
 }
