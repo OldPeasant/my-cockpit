@@ -47,7 +47,7 @@ Added:
 the task's HEAD (`expected undefined to be 'Irgendwann'`): it navigated to `/someday` and expected
 the `app-coming-soon` placeholder, which this task replaced with the real Someday page. The test's
 own comment says it must use "a section that still shows the placeholder". I moved it to
-`/bookmarks` (still a placeholder; `web-bookmarks` is `todo`) with the same assertions
+`/bookmarks` (still a placeholder; `web-bookmarks` is not started yet) with the same assertions
 (`nav.bookmarks` -> `Lesezeichen`). No assertion was removed. Without this change
 `npm run check` and `.taskcheck` fail on the task's code. The parent should commit it with the task.
 
