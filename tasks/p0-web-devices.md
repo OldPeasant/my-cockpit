@@ -1,11 +1,11 @@
 ---
 title: Settings: security and devices
-status: in_progress
+status: done
 owner: dell26/agent-4
 deps: [p0-web-settings,p0-auth-tokens]
 touches: [web/src/app/features/settings/security]
 prio: 2
-lease_until: 2026-10-20T15:26:55Z
+lease_until: 
 extended: dell26/agent-4
 ---
 ## Goal
@@ -27,3 +27,4 @@ Show and revoke Android devices; regenerate recovery codes.
 - ASSUMPTION (2026-10-20 15:45+0200 by dell26/agent-4): Edited settings.routes.ts (outside touches) to replace the Security placeholder with the new section, as the routes file says section tasks do
 - extended by dell26/agent-4: Implementation, tests (tests.md for final code), review.md, fixes.md (CR-1..CR-4) committed; sh scripts/check.sh passes. Left: re-run code-reviewer on final code (review.md predates fixes), run ./gradlew test --tests 'ch.sonensei.cockpit.core.auth.*', record verify for #1-#4, write+commit quality.json, tasks.py done.
 - ASSUMPTION (2026-10-20 17:04+0200 by dell26/agent-4) [confirmed 2026-10-20 17:05+0200 by Peter Gürtler]: Accepted the initial bundle warning (500.02 kB vs 500 kB warning budget, +19 bytes, warning not error; review rerun CR-1 P3): likely from Angular afterNextRender/viewChildren used for focus management; budget left unchanged so a human can decide whether to raise it
+- done by dell26/agent-4: `sh scripts/check.sh` passed in 255s on 9713220e1; criteria verified 4/4
