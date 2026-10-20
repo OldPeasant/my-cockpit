@@ -3,8 +3,13 @@
 
 export type { ChangeEvent } from './models/change-event';
 export type { ConfirmTotpRequest } from './models/confirm-totp-request';
+export type { CreateLinkRequest } from './models/create-link-request';
 export type { DeviceResponse } from './models/device-response';
 export type { FieldError } from './models/field-error';
+export type { ItemRefDto } from './models/item-ref-dto';
+export type { LinkEndResponse } from './models/link-end-response';
+export type { LinkListResponse } from './models/link-list-response';
+export type { LinkResponse } from './models/link-response';
 export type { LoginRequest } from './models/login-request';
 export type { MeResponse } from './models/me-response';
 export type { ProblemDetail } from './models/problem-detail';

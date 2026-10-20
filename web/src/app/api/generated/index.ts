@@ -9,8 +9,13 @@ export { Api } from './api';
 
 export type { ChangeEvent } from './models/change-event';
 export type { ConfirmTotpRequest } from './models/confirm-totp-request';
+export type { CreateLinkRequest } from './models/create-link-request';
 export type { DeviceResponse } from './models/device-response';
 export type { FieldError } from './models/field-error';
+export type { ItemRefDto } from './models/item-ref-dto';
+export type { LinkEndResponse } from './models/link-end-response';
+export type { LinkListResponse } from './models/link-list-response';
+export type { LinkResponse } from './models/link-response';
 export type { LoginRequest } from './models/login-request';
 export type { MeResponse } from './models/me-response';
 export type { ProblemDetail } from './models/problem-detail';
@@ -39,6 +44,12 @@ export type { RefreshDeviceToken$Params as RefreshDeviceToken$Params } from './f
 export { refreshDeviceToken as refreshDeviceToken } from './fn/auth/refresh-device-token';
 export type { StreamEvents$Params as StreamEvents$Params } from './fn/events/stream-events';
 export { streamEvents as streamEvents } from './fn/events/stream-events';
+export type { ListLinks$Params as ListLinks$Params } from './fn/links/list-links';
+export { listLinks as listLinks } from './fn/links/list-links';
+export type { CreateLink$Params as CreateLink$Params } from './fn/links/create-link';
+export { createLink as createLink } from './fn/links/create-link';
+export type { DeleteLink$Params as DeleteLink$Params } from './fn/links/delete-link';
+export { deleteLink as deleteLink } from './fn/links/delete-link';
 export type { GetSettings$Params as GetSettings$Params } from './fn/settings/get-settings';
 export { getSettings as getSettings } from './fn/settings/get-settings';
 export type { UpdateSettings$Params as UpdateSettings$Params } from './fn/settings/update-settings';

@@ -13,6 +13,8 @@ tags:
   name: Settings
 - description: First-run creation of the owner account
   name: Setup
+- description: Links between items of any type
+  name: Links
 paths:
   /api/v1/auth/devices:
     get:
@@ -229,6 +231,122 @@ paths:
       summary: Stream change notifications
       tags:
       - Events
+  /api/v1/links:
+    get:
+      description: "Each linked item appears once: when several links connect the\
+        \ two items (a manual link, inline links in either direction), the manual\
+        \ one is returned, else the oldest. Oldest first by the returned link. Each\
+        \ end is resolved by its module; an end whose item no longer exists or whose\
+        \ type has no resolver yet is returned with `available: false` and only its\
+        \ type and id."
+      operationId: listLinks
+      parameters:
+      - description: Type of the item
+        in: query
+        name: type
+        required: true
+        schema:
+          type: string
+          enum:
+          - TASK
+          - PROJECT
+          - NOTE
+          - EVENT
+          - EMAIL
+          - FILE
+          - FOLDER
+          - CONTACT
+          - BOOKMARK
+          - JOURNAL_ENTRY
+          - HABIT
+      - description: Id of the item
+        in: query
+        name: id
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LinkListResponse"
+          description: The item's links (empty when it has none or does not exist)
+        "400":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: Missing or invalid type or id
+      summary: "The links of an item, in both directions"
+      tags:
+      - Links
+    post:
+      description: "The link is shown on both items. Linking an item to itself, to\
+        \ an item that does not exist, or a pair that already has a manual link (in\
+        \ either direction) is rejected; inline links of the pair do not block it."
+      operationId: createLink
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateLinkRequest"
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LinkResponse"
+          description: Created; the response is the link as seen from the source
+        "400":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: "Invalid request, self-link, or an end that does not exist"
+        "409":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: The items already have a manual link
+      summary: Link two items
+      tags:
+      - Links
+  /api/v1/links/{id}:
+    delete:
+      description: "Removes a link with origin `MANUAL` from both items. A link with\
+        \ origin `SYNC` (e.g. an inline link in a note) is rejected with 409: the\
+        \ next save of its source would recreate it, so it is removed by editing the\
+        \ source. Links never change, so no `If-Match` is needed."
+      operationId: deleteLink
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        "204":
+          description: Removed
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: No such link
+        "409":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: The link has origin `SYNC`; remove it in its source
+      summary: Remove a manual link
+      tags:
+      - Links
   /api/v1/settings:
     get:
       operationId: getSettings
@@ -420,6 +538,21 @@ components:
           minLength: 1
       required:
       - code
+    CreateLinkRequest:
+      type: object
+      properties:
+        label:
+          type: string
+          description: "Optional short label, e.g. \"origin\""
+          maxLength: 200
+          minLength: 0
+        source:
+          $ref: "#/components/schemas/ItemRefDto"
+        target:
+          $ref: "#/components/schemas/ItemRefDto"
+      required:
+      - source
+      - target
     DeviceResponse:
       type: object
       properties:
@@ -451,6 +584,113 @@ components:
       required:
       - field
       - message
+    ItemRefDto:
+      type: object
+      description: Reference to an item of any type
+      properties:
+        id:
+          type: string
+          format: uuid
+        type:
+          type: string
+          enum:
+          - TASK
+          - PROJECT
+          - NOTE
+          - EVENT
+          - EMAIL
+          - FILE
+          - FOLDER
+          - CONTACT
+          - BOOKMARK
+          - JOURNAL_ENTRY
+          - HABIT
+      required:
+      - id
+      - type
+    LinkEndResponse:
+      type: object
+      description: "One end of a link. Without `available`, only type and id are set."
+      properties:
+        available:
+          type: boolean
+          description: False when the item no longer exists or its type has no resolver
+        deepLink:
+          type: string
+          description: "Client route of the item's detail view, e.g. /tasks/{id}"
+        icon:
+          type: string
+          description: Material Symbols icon name
+        id:
+          type: string
+          format: uuid
+        subtitle:
+          type: string
+        title:
+          type: string
+        type:
+          type: string
+          enum:
+          - TASK
+          - PROJECT
+          - NOTE
+          - EVENT
+          - EMAIL
+          - FILE
+          - FOLDER
+          - CONTACT
+          - BOOKMARK
+          - JOURNAL_ENTRY
+          - HABIT
+      required:
+      - available
+      - id
+      - type
+    LinkListResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/LinkResponse"
+      required:
+      - items
+    LinkResponse:
+      type: object
+      properties:
+        createdAt:
+          type: string
+          format: date-time
+        direction:
+          type: string
+          description: Direction relative to the queried item
+          enum:
+          - OUTGOING
+          - INCOMING
+        id:
+          type: string
+          format: uuid
+        label:
+          type: string
+        origin:
+          type: string
+          description: "MANUAL: created via this API, removable with DELETE. SYNC:\
+            \ owned by its source (e.g. an inline link in a note), removed by editing\
+            \ the source"
+          enum:
+          - MANUAL
+          - SYNC
+        source:
+          $ref: "#/components/schemas/LinkEndResponse"
+        target:
+          $ref: "#/components/schemas/LinkEndResponse"
+      required:
+      - createdAt
+      - direction
+      - id
+      - origin
+      - source
+      - target
     LoginRequest:
       type: object
       properties:

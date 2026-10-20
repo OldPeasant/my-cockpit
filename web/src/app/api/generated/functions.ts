@@ -17,6 +17,12 @@ export type { RefreshDeviceToken$Params as RefreshDeviceToken$Params } from './f
 export { refreshDeviceToken as refreshDeviceToken } from './fn/auth/refresh-device-token';
 export type { StreamEvents$Params as StreamEvents$Params } from './fn/events/stream-events';
 export { streamEvents as streamEvents } from './fn/events/stream-events';
+export type { ListLinks$Params as ListLinks$Params } from './fn/links/list-links';
+export { listLinks as listLinks } from './fn/links/list-links';
+export type { CreateLink$Params as CreateLink$Params } from './fn/links/create-link';
+export { createLink as createLink } from './fn/links/create-link';
+export type { DeleteLink$Params as DeleteLink$Params } from './fn/links/delete-link';
+export { deleteLink as deleteLink } from './fn/links/delete-link';
 export type { GetSettings$Params as GetSettings$Params } from './fn/settings/get-settings';
 export { getSettings as getSettings } from './fn/settings/get-settings';
 export type { UpdateSettings$Params as UpdateSettings$Params } from './fn/settings/update-settings';
