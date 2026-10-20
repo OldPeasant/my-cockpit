@@ -18,3 +18,4 @@ RRULE recurrence on completion (SPEC.md §5.2).
 ## Notes
 - ASSUMPTION (2026-10-20 20:13+0200 by R1963MACOS/agent-1): Next occurrence is a copy on the same list (notes, project if still active, contexts, energy/creativity/estimate, due time, waiting-for; checklist copied unchecked; no tickler; waitingSince=today); due and scheduled dates move by the same number of days; a task with neither date gets the next date as due date
 - ASSUMPTION (2026-10-20 20:13+0200 by R1963MACOS/agent-1): FIXED anchors on dueDate, else scheduledDate, else the completion day, and keeps the schedule even when the next date has passed; AFTER_COMPLETION = first RRULE day after the completion day (user zone) with the series starting that day
+- ASSUMPTION (2026-10-20 20:13+0200 by R1963MACOS/agent-1): Duplicates prevented with a new column task.next_occurrence_id (migration V202610201830): only the first completion creates an occurrence; uncomplete keeps it, re-complete creates none
