@@ -13,7 +13,8 @@ extended:
 Projects with next step, areas and contexts (SPEC.md §5.1–5.2).
 
 ## Acceptance criteria
-- [ ] CRUD for projects (status, area, dueDate, reviewDate), areas (ordered), contexts (ordered, color); ordered tasks within a project (`PUT …/order`)
+- [x] CRUD for projects (status, area, dueDate, reviewDate), areas (ordered), contexts (ordered, color); ordered tasks within a project (`PUT …/order`)
+  - verified (2026-10-20 20:02+0200 by R1963MACOS/agent-1): cd server && ./gradlew cleanTest test --tests 'ch.sonensei.cockpit.gtd.*' --tests '*OpenApiContractTest' (Testcontainers Postgres) -> ProjectWebTests 18/18, AreaContextWebTests 10/10, ProjectEdgeCaseTests 37/37 pass: project CRUD w/ status/area/dueDate/reviewDate, areas+contexts ordered (PUT /areas/order, /contexts/order), context color, PUT /projects/{id}/order
 - [ ] `POST /api/v1/projects/{id}/next-step {taskId}`; `stalled` flag = ACTIVE project without an open next task, exposed in list/detail; completing a project's next task returns `needsNextStep: true` in the complete response
 - [ ] Search indexing, ChangeEvents, trash for projects
 - [ ] `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.gtd.*'` passes (Postgres via Testcontainers where persistence is involved) incl. stalled detection and the next-step prompt flag
