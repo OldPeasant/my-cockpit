@@ -17,3 +17,4 @@ Expand events into occurrences in a range (SPEC.md §6.1).
 
 ## Notes
 - ASSUMPTION (2026-10-20 17:07+0200 by dell26/agent-3): Expander is pure (no persistence): expand(candidates, OccurrenceRange(from,to,userZone)); all-day occurrences overlap by the days [fromDate,toDate) the range touches in the user's zone, consistent with findCandidatesInRange
+- ASSUMPTION (2026-10-20 17:07+0200 by dell26/agent-3): Occurrences of a timed series keep the master's exact duration and wall-clock start in the event's zone (UTC if none); ambiguous local times at DST end use the earlier (summer) offset, nonexistent ones are shifted forward (java.time rules)
