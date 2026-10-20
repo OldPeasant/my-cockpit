@@ -1,0 +1,27 @@
+{
+  "schema": 1,
+  "task": "gtd-projects-api",
+  "reviewed_revision": "6ef305614d518af3bdd4b473f097880a92efef92",
+  "helpers": {
+    "test-writer":   {"status": "completed", "report": "reviews/gtd-projects-api/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/gtd-projects-api/review.md"},
+    "fixer":         {"status": "completed", "report": "reviews/gtd-projects-api/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "R1-CR-1", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "round 1: purging a project changed its tasks without version bump or change event (fixes.md CR-1, commit e2deb13; verified in round 2 review)"},
+    {"id": "R1-CR-2", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "round 1: area PATCH ignored null and unknown fields (fixes.md CR-2, commit e2deb13; verified in round 2 review)"},
+    {"id": "R1-CR-3", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "round 1: next-step body without taskId cleared the next step (fixes.md CR-3, commit e2deb13; verified in round 2 review)"},
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P3", "disposition": "accepted",
+     "note": "stalled flag changes via task actions emit only TASK events, no PROJECT UPDATED; not required by task or SPEC, recorded as assumption (clients refresh projects on TASK events). Also noted by test-writer as observation."},
+    {"id": "CR-2", "source": "code-reviewer", "severity": "P3", "disposition": "accepted",
+     "note": "unused PatchBody.contains operator; harmless helper, not worth invalidating review evidence"}
+  ],
+  "validation": [
+    {"command": "cd server && ./gradlew cleanTest test --tests 'ch.sonensei.cockpit.gtd.*' --tests '*OpenApiContractTest'", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
