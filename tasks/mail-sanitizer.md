@@ -18,3 +18,4 @@ Make untrusted HTML safe (SPEC.md §4.1).
 ## Notes
 - ASSUMPTION (2026-10-20 10:57+0200 by R1963MACOS/agent-2): Blocked remote images keep the <img> without src plus data-cockpit-blocked-image=true; SanitizedHtml reports remoteImageCount/remoteImagesBlocked so the client can show 'load images'. Proxy URL format is injected via ImageProxyUrlBuilder (the proxy endpoint is a later task).
 - ASSUMPTION (2026-10-20 10:57+0200 by R1963MACOS/agent-2): Inline SVG and data:image/svg+xml are removed entirely (can carry script); only raster data: images (png/jpeg/gif/webp/bmp, base64) are kept. Links get target=_blank rel='noopener noreferrer nofollow'.
+- ASSUMPTION (2026-10-20 11:00+0200 by R1963MACOS/agent-2): Embedded <style> blocks are removed too, not only external CSS (<link>/@import): stylesheet rules can't be scoped to the mail safely server-side, so newsletters lose @media/class rules but keep inline styles.
