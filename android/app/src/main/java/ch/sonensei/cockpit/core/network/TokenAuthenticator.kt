@@ -11,9 +11,11 @@ import javax.inject.Singleton
  * Answers a 401 by refreshing the tokens once and retrying the request with the new access token.
  *
  * Concurrent 401s share one refresh: whoever comes second sees that the stored access token differs from the one its
- * request was sent with and retries with the stored one. A rejected refresh logs the device out. The result of a refresh
- * is applied only if the stored tokens are still the ones it started from, so a logout or login during the refresh
- * wins; the request is then retried with whatever is stored now.
+ * request was sent with and retries with the stored one. If the shared refresh failed (server error, timeout, no
+ * network), the requests that were already waiting for it give up too instead of refreshing again one after another;
+ * a 401 that arrives after the failure may refresh again. A rejected refresh logs the device out. The result of a
+ * refresh is applied only if the stored tokens are still the ones it started from, so a logout or login during the
+ * refresh wins; the request is then retried with whatever is stored now.
  */
 @Singleton
 class TokenAuthenticator
@@ -23,6 +25,13 @@ class TokenAuthenticator
         private val refresher: TokenRefresher,
         private val session: AuthSession,
     ) : Authenticator {
+        /** Counts failed refreshes; written under the refresh lock. */
+        @Volatile
+        private var failedRefreshes = 0L
+
+        /** The tokens the last failed refresh started from; guarded by the refresh lock. */
+        private var failedFrom: AuthTokens? = null
+
         override fun authenticate(
             route: Route?,
             response: Response,
@@ -30,9 +39,12 @@ class TokenAuthenticator
             val sentToken = response.request.bearerToken() ?: return null
             // Refresh once: a 401 for a request that was already retried is final.
             if (response.priorResponse != null) return null
+            // Read before waiting for the lock: a change means a refresh failed while this request waited for it.
+            val failuresSeen = failedRefreshes
             synchronized(session.refreshLock) {
                 val current = tokenStore.current() ?: return null
                 if (current.accessToken != sentToken) return response.request.withBearer(current.accessToken)
+                if (failedRefreshes != failuresSeen && current == failedFrom) return null
                 return when (val result = refresher.refresh(current.refreshToken)) {
                     is RefreshResult.Success -> {
                         if (tokenStore.replace(current, result.tokens)) {
@@ -44,7 +56,11 @@ class TokenAuthenticator
                     RefreshResult.Rejected -> {
                         if (session.logoutIfCurrent(current, LogoutReason.REFRESH_REJECTED)) null else retryWithStored(response)
                     }
-                    RefreshResult.Failed -> null
+                    RefreshResult.Failed -> {
+                        failedFrom = current
+                        failedRefreshes++
+                        null
+                    }
                 }
             }
         }

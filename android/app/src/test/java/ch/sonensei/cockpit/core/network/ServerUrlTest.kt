@@ -11,10 +11,12 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.async
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
 import mockwebserver3.MockResponse
 import mockwebserver3.MockWebServer
 import okhttp3.HttpUrl
@@ -33,6 +35,7 @@ import java.io.File
 import java.io.IOException
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.CountDownLatch
+import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicReference
 
@@ -255,9 +258,11 @@ class ServerUrlTest {
             assertTrue(refreshStarted.await(5, TimeUnit.SECONDS))
 
             val change = Thread { runBlocking { repository.setServerUrl("https://other.example.org") } }.apply { start() }
+            // The change waits for the lock on an IO thread (not its caller's), inside setServerUrl.
             val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5)
-            while (change.state != Thread.State.BLOCKED && System.nanoTime() < deadline) Thread.yield()
-            assertEquals(Thread.State.BLOCKED, change.state)
+            while (!aThreadIsBlockedIn("setServerUrl") && System.nanoTime() < deadline) Thread.yield()
+            assertTrue(aThreadIsBlockedIn("setServerUrl"))
+            assertEquals(AuthTokens("old-access", "old-refresh"), tokenStore.current())
             finishRefresh.countDown()
             refreshing.join(5_000)
             change.join(5_000)
@@ -269,7 +274,7 @@ class ServerUrlTest {
         }
 
     @Test
-    fun `setting the first URL or one on the same origin keeps the tokens`() =
+    fun `setting a URL on the same origin keeps the tokens`() =
         runBlocking {
             val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
             val repository =
@@ -277,9 +282,10 @@ class ServerUrlTest {
             val logouts = CopyOnWriteArrayList<LogoutReason>()
             val collector =
                 async(Dispatchers.Unconfined, start = CoroutineStart.UNDISPATCHED) { session.loggedOut.collect { logouts += it } }
+            // The first URL is set before the login, as in the app's setup flow.
+            repository.setServerUrl("https://cockpit.example.org")
             tokenStore.save(AuthTokens("access", "refresh"))
 
-            repository.setServerUrl("https://cockpit.example.org")
             repository.setServerUrl("https://cockpit.example.org")
             repository.setServerUrl("https://COCKPIT.example.org:443/base")
             // An invalid URL is not stored, so it is no server change either.
@@ -389,5 +395,73 @@ class ServerUrlTest {
             repository.setServerUrl("https://cockpit.example.org")
             assertEquals("https://cockpit.example.org/".toHttpUrl(), repository.serverUrl.first())
             scope.cancel()
+        }
+
+    @Test
+    fun `setting a URL while logged in without a readable previous URL logs out`() =
+        runBlocking {
+            val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+            val logouts = CopyOnWriteArrayList<LogoutReason>()
+            val collector =
+                async(Dispatchers.Unconfined, start = CoroutineStart.UNDISPATCHED) { session.loggedOut.collect { logouts += it } }
+            // Unreadable settings: the server the tokens came from is unknown.
+            val corrupt = File(tmp.root, "lost.preferences_pb").apply { writeText("not a protobuf") }
+            val unreadable = ServerUrlRepository(serverConfigDataStore(scope) { corrupt }, session)
+            tokenStore.save(AuthTokens("access", "refresh"))
+
+            unreadable.setServerUrl("https://other.example.org")
+
+            assertNull(tokenStore.current())
+            assertEquals("https://other.example.org/".toHttpUrl(), unreadable.serverUrl.first())
+            // No URL stored at all, but tokens present.
+            val empty =
+                ServerUrlRepository(PreferenceDataStoreFactory.create(scope = scope) { File(tmp.root, "f.preferences_pb") }, session)
+            tokenStore.save(AuthTokens("access", "refresh"))
+
+            empty.setServerUrl("https://cockpit.example.org")
+
+            assertNull(tokenStore.current())
+            assertEquals(List(2) { LogoutReason.SERVER_CHANGED }, logouts)
+            collector.cancel()
+            scope.cancel()
+        }
+
+    @Test
+    fun `a server change during a running refresh does not block the calling thread`() =
+        runBlocking {
+            val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+            val repository =
+                ServerUrlRepository(PreferenceDataStoreFactory.create(scope = scope) { File(tmp.root, "g.preferences_pb") }, session)
+            repository.setServerUrl("https://cockpit.example.org")
+            tokenStore.save(AuthTokens("access", "refresh"))
+            val lockHeld = CountDownLatch(1)
+            val releaseLock = CountDownLatch(1)
+            val refresh =
+                Thread {
+                    synchronized(session.refreshLock) {
+                        lockHeld.countDown()
+                        releaseLock.await(5, TimeUnit.SECONDS)
+                    }
+                }.apply { start() }
+            assertTrue(lockHeld.await(5, TimeUnit.SECONDS))
+            val callerThread = Executors.newSingleThreadExecutor().asCoroutineDispatcher()
+
+            val change = scope.async(callerThread) { repository.setServerUrl("https://other.example.org") }
+            // While the change waits for the lock, its caller's only thread is still free for other work.
+            val callerFree = withTimeout(5_000) { scope.async(callerThread) { true }.await() }
+            releaseLock.countDown()
+            withTimeout(5_000) { change.await() }
+            refresh.join(5_000)
+
+            assertTrue(callerFree)
+            assertNull(tokenStore.current())
+            callerThread.close()
+            scope.cancel()
+        }
+
+    /** Whether some thread is blocked on a monitor inside [method] (or a coroutine block of it). */
+    private fun aThreadIsBlockedIn(method: String): Boolean =
+        Thread.getAllStackTraces().any { (thread, stack) ->
+            thread.state == Thread.State.BLOCKED && stack.any { it.toString().contains(method) }
         }
 }

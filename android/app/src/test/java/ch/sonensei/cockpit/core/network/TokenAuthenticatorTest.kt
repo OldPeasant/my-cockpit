@@ -1,9 +1,13 @@
 package ch.sonensei.cockpit.core.network
 
 import ch.sonensei.cockpit.core.network.generated.apis.AuthApi
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import mockwebserver3.Dispatcher
@@ -19,6 +23,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import java.util.concurrent.CopyOnWriteArrayList
+import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 
@@ -33,6 +38,7 @@ class TokenAuthenticatorTest {
     @Volatile
     private var refreshResponse: () -> MockResponse = { tokenResponse(access = "new-access", refresh = "new-refresh") }
 
+    private lateinit var client: OkHttpClient
     private lateinit var api: AuthApi
 
     @Before
@@ -52,7 +58,7 @@ class TokenAuthenticatorTest {
         server.start()
         val serverUrl = ServerUrlInterceptor { server.url("/") }
         val refresher = AuthApiTokenRefresher(retrofitApi(CockpitHttp.okHttpClient(serverUrl, null, null)))
-        val client =
+        client =
             CockpitHttp.okHttpClient(
                 serverUrl,
                 AccessTokenInterceptor(tokenStore),
@@ -182,6 +188,49 @@ class TokenAuthenticatorTest {
         }
 
     @Test
+    fun `concurrent 401s with a failing refresh refresh once, keep the tokens and a later request refreshes again`() {
+        tokenStore.save(AuthTokens("old-access", "old-refresh"))
+        val logouts = CopyOnWriteArrayList<LogoutReason>()
+        val collector =
+            CoroutineScope(Dispatchers.Unconfined).launch(start = CoroutineStart.UNDISPATCHED) {
+                session.loggedOut.collect { logouts += it }
+            }
+        // A slow failing refresh that answers only once all 8 requests got their 401 and wait for it.
+        refreshResponse = {
+            val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5)
+            while (authorizations.size < 8 && System.nanoTime() < deadline) Thread.sleep(10)
+            Thread.sleep(300)
+            MockResponse.Builder().code(503).build()
+        }
+        val pool = Executors.newFixedThreadPool(8)
+        // Synchronous calls, so OkHttp's per-host limit for queued calls does not hold any of them back.
+        val calls =
+            (1..8).map { _ ->
+                pool.submit<Int> {
+                    client.newCall(meRequest()).execute().use { it.code }
+                }
+            }
+
+        val codes = calls.map { it.get(10, TimeUnit.SECONDS) }
+        pool.shutdown()
+
+        assertEquals(List(8) { 401 }, codes)
+        assertEquals(1, refreshCalls.get())
+        assertEquals(AuthTokens("old-access", "old-refresh"), tokenStore.current())
+        assertEquals(emptyList<LogoutReason>(), logouts)
+
+        // After the failure, a new 401 may refresh again; this time it works.
+        refreshResponse = { tokenResponse(access = "new-access", refresh = "new-refresh") }
+        val code = client.newCall(meRequest()).execute().use { it.code }
+
+        assertEquals(200, code)
+        assertEquals(2, refreshCalls.get())
+        assertEquals(AuthTokens("new-access", "new-refresh"), tokenStore.current())
+        assertEquals(emptyList<LogoutReason>(), logouts)
+        collector.cancel()
+    }
+
+    @Test
     fun `a refreshed token that is rejected too is not refreshed again`() =
         runBlocking {
             tokenStore.save(AuthTokens("old-access", "old-refresh"))
@@ -284,6 +333,12 @@ class TokenAuthenticatorTest {
         }
 
     private fun retrofitApi(client: OkHttpClient): AuthApi = CockpitHttp.retrofit(client).create(AuthApi::class.java)
+
+    private fun meRequest() =
+        okhttp3.Request
+            .Builder()
+            .url("${PLACEHOLDER_BASE_URL}api/v1/auth/me")
+            .build()
 
     private fun meResponse() =
         MockResponse

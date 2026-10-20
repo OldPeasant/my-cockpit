@@ -5,11 +5,13 @@ import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.emptyPreferences
 import androidx.datastore.preferences.core.stringPreferencesKey
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withContext
 import okhttp3.HttpUrl
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.Interceptor
@@ -74,15 +76,21 @@ class ServerUrlRepository
          * Stores [raw] if it is valid; returns the validation either way. Moving to another origin (scheme, host, port)
          * logs out first, so the tokens never reach a server that did not issue them. The logout waits for a running
          * refresh (which still goes to the previous server) and happens before the new URL is stored, so requests that
-         * see the new URL see no tokens.
+         * see the new URL see no tokens. Without a readable previous URL the tokens' server is unknown, so being logged
+         * in then logs out too. Main-safe: the wait for a running refresh happens on [Dispatchers.IO].
          */
         suspend fun setServerUrl(raw: String): ServerUrlValidation {
             val result = ServerUrlValidator.validate(raw)
             if (result is ServerUrlValidation.Valid) {
                 val previous = readablePrefs().first()[SERVER_URL]
-                if (previous != null && !sameOrigin(previous.toHttpUrlOrNull(), result.url)) {
-                    synchronized(session.refreshLock) {
-                        if (session.isLoggedIn) session.logout(LogoutReason.SERVER_CHANGED)
+                // No known previous server (never set, or the settings were unreadable) while logged in is an anomaly:
+                // the tokens' issuer is unknown, so they must not go to the new server either.
+                if (previous == null || !sameOrigin(previous.toHttpUrlOrNull(), result.url)) {
+                    // The lock may be held for a whole refresh: wait for it off the caller's (possibly main) thread.
+                    withContext(Dispatchers.IO) {
+                        synchronized(session.refreshLock) {
+                            if (session.isLoggedIn) session.logout(LogoutReason.SERVER_CHANGED)
+                        }
                     }
                 }
                 dataStore.edit { it[SERVER_URL] = result.url.toString() }
