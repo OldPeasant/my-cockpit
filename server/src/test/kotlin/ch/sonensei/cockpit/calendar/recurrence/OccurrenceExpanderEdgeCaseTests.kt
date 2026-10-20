@@ -6,8 +6,13 @@ import ch.sonensei.cockpit.calendar.model.OccurrenceId
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.string.shouldContain
+import io.kotest.matchers.string.shouldNotContain
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
+import org.junit.jupiter.api.extension.ExtendWith
+import org.springframework.boot.test.system.CapturedOutput
+import org.springframework.boot.test.system.OutputCaptureExtension
 import java.time.Clock
 import java.time.Duration
 import java.time.Instant
@@ -418,6 +423,58 @@ class OccurrenceExpanderEdgeCaseTests {
 			}
 		expander.expandSeries(event, emptyList(), range("2026-10-24T00:00", "2026-11-03T00:00")).map { it.start } shouldContainExactly
 			listOf(laterStart, Instant.parse("2026-11-01T01:30:00Z"))
+	}
+
+	@Test
+	fun `an EXDATE or override at the ambiguous DST-end time matches the occurrence of a winter-time series`() {
+		// RFC 5545 §3.3.5: 02:30 on 2026-10-25 refers to the first (summer-time) 02:30, i.e. 00:30Z.
+		val ambiguous = OccurrenceId.of(Instant.parse("2026-10-25T00:30:00Z"))
+		val range = range("2026-10-24T00:00", "2026-10-26T00:00")
+		val excluded = timed("2026-01-04T02:30", "2026-01-04T03:00", "FREQ=WEEKLY;BYDAY=SU").apply { exdates.add(ambiguous) }
+		expander.expandSeries(excluded, emptyList(), range).shouldBeEmpty()
+
+		val master = timed("2026-01-04T02:30", "2026-01-04T03:00", "FREQ=WEEKLY;BYDAY=SU")
+		val moved = timed("2026-10-25T10:00", "2026-10-25T10:30").apply { overrideOf(master, ambiguous) }
+		expander.expand(listOf(master, moved), range).single().apply {
+			event shouldBe moved
+			occurrenceId shouldBe ambiguous
+		}
+	}
+
+	@Test
+	fun `a date-only UNTIL on a timed series ends with that day in the event's zone, not in UTC`() {
+		// 21:00 in New York on 2026-01-08 is 02:00Z on 2026-01-09: still on the UNTIL day locally.
+		val evening = timed("2026-01-06T21:00", "2026-01-06T22:00", "FREQ=DAILY;UNTIL=20260108", zone = newYork)
+		localStarts(
+			expander.expandSeries(evening, emptyList(), range("2026-01-01T00:00", "2026-02-01T00:00", newYork)),
+			newYork,
+		) shouldContainExactly
+			listOf("2026-01-06T21:00", "2026-01-07T21:00", "2026-01-08T21:00")
+		// 00:30 in Auckland on 2026-01-09 is 11:30Z on 2026-01-08: already after the UNTIL day locally.
+		val night = timed("2026-01-07T00:30", "2026-01-07T01:00", "FREQ=DAILY;UNTIL=20260108", zone = auckland)
+		localStarts(
+			expander.expandSeries(night, emptyList(), range("2026-01-01T00:00", "2026-02-01T00:00", auckland)),
+			auckland,
+		) shouldContainExactly
+			listOf("2026-01-07T00:30", "2026-01-08T00:30")
+	}
+
+	@Test
+	@ExtendWith(OutputCaptureExtension::class)
+	fun `an invalid rule is logged at WARN with the event id only, never the rule or the event's content`(output: CapturedOutput) {
+		val valid = timed("2026-06-01T08:00", "2026-06-01T08:30", "FREQ=DAILY", title = "Fictitious standup")
+		expander.expand(listOf(valid), range("2026-06-01T00:00", "2026-06-08T00:00"))
+		output.all shouldNotContain "Cannot expand the RRULE"
+
+		val bad =
+			timed("2026-06-01T09:00", "2026-06-01T10:00", "FREQ=FORTNIGHTLY;X-FICTITIOUS-MARKER=Q7", title = "Fictitious confidential offsite")
+		expander.expand(listOf(bad), range("2026-06-01T00:00", "2026-06-08T00:00"))
+		val warning = output.all.lines().single { "Cannot expand the RRULE" in it }
+		warning shouldContain "WARN"
+		warning shouldContain bad.id.toString()
+		output.all shouldNotContain "FORTNIGHTLY"
+		output.all shouldNotContain "X-FICTITIOUS-MARKER"
+		output.all shouldNotContain "confidential offsite"
 	}
 
 	@Test
