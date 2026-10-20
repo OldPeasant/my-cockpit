@@ -291,6 +291,7 @@ def git(*a, check=True, env=None):
 
 PUSH_FAILURE = "tfp-push-failed"  # in the git dir: the push the remote refused last, read by agents.py
 CMD, push_error = [""], [""]  # the tasks.py command running, git's error of the last failed push
+REASON = [""]  # the reason of a `hold` running: the runner retries the hold with it once pushes work
 
 
 def pushed(*a):
@@ -307,7 +308,8 @@ def push_failed(tid, hint):
     err = push_error[0] or "unknown error"
     try:
         f = ROOT / git("rev-parse", "--git-path", PUSH_FAILURE).stdout.strip()
-        f.write_text(json.dumps(dict(task=tid, cmd=CMD[0], error=err, at=int(time.time()))))
+        f.write_text(json.dumps(dict(task=tid, cmd=CMD[0], error=err, at=int(time.time()),
+                                     **({"reason": REASON[0]} if REASON[0] else {}))))
     except OSError:
         pass
     sys.exit(f"PUSH FAILED: {err}\n{hint}")
@@ -1398,7 +1400,7 @@ def main():
     s = sp.add_parser("watch"); s.add_argument("-n", "--interval", type=int, default=20)
     s.add_argument("--once", action="store_true", help="write board.html once and exit"); s.set_defaults(f=cmd_watch)
     a = p.parse_args()
-    CMD[0] = a.cmd
+    CMD[0], REASON[0] = a.cmd, (a.reason if a.cmd == "hold" else "")
     a.f(a)
 
 

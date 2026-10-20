@@ -33,7 +33,8 @@ so GitHub rejects .github/workflows/*), tasks.py prints PUSH FAILED. If the task
 (release/hold fail) or `done` fails to push the same way in 3 sessions in a row, the runner starts no more
 sessions on it: state `blocked` with the error in the status, and it retries the release every
 --blocked-retry s (default 1800) until the push works again or a human takes the task away. A task blocked
-by `done` is put on hold instead of released, so it can't come back to the same refused push.
+by `done` is put on hold instead of released, so it can't come back to the same refused push; a refused `hold`
+of the agent is retried as that hold, with its reason.
 
 Live status: the runner reads the agent's output as it streams, turns each step into a one-line
 "doing" (e.g. `$ make check`, `editing backend/auth.py`), and force-pushes it every ~10-60 s as a
@@ -537,15 +538,16 @@ def cmd_run(a):
             return None
         return pf if isinstance(pf, dict) and pf.get("at", 0) >= int(since) else None
 
-    def block(tid, err, cmd=None):
+    def block(tid, err, hold=None):
         """Pushes for this task keep failing (e.g. a token GitHub won't let push .github/workflows/*): no more
         sessions on it. The main loop retries the release every --blocked-retry s until a push works again
-        or a human takes the task away (release --force, drop). cmd "done": blocked by a `done` push streak,
-        so the retry puts the task on hold instead (a release would let it bounce back to the same push)."""
+        or a human takes the task away (release --force, drop). With a hold reason (a `done` push streak, or
+        the agent's own refused `hold`) the retry is `hold <reason>` instead: a release would let the task
+        bounce back to the same push, or drop a hold the agent asked for."""
         if tid not in blocked:
             log(f"BLOCKED on {tid}: pushes fail ({one_line(err, 200)}); no more sessions on it until a human fixes "
                 f"it or the push works again (retrying every {a.blocked_retry // 60} min)")
-        blocked[tid] = [err, time.time() + a.blocked_retry, cmd or blocked.get(tid, [None] * 3)[2]]
+        blocked[tid] = [err, time.time() + a.blocked_retry, hold or blocked.get(tid, [None] * 3)[2]]
         publish(force=True, state="blocked", task=tid, error=err, doing_at=int(time.time()),
                 doing=f"pushes for {tid} fail, a human must fix it: {one_line(err, 100)}")
 
@@ -556,7 +558,14 @@ def cmd_run(a):
         """Run `tasks.py <cmd>` (release/hold of tid). If it fails for another reason than a refused push (e.g. a
         conflict while catching up), save the work to wip/<task> ourselves, reset to @{u} and run it again.
         Returns its last output line if the task is no longer ours; else logs "<label> FAILED", blocks the task
-        (the remote refuses our pushes: the work stays here, it is not reset away) and returns None."""
+        (the remote refuses our pushes: the work stays here, it is not reset away) and returns None.
+        A dirty tree is committed first (`release`/`hold` refuse it, and the reset would lose it)."""
+        if tasks.merge_state():
+            sh("git", tasks.merge_state(), "--abort", cwd=clone)
+        if sh("git", "status", "--porcelain", cwd=clone).stdout.strip():  # else the reset below would lose it
+            sh("git", "add", "-A", cwd=clone)
+            sh("git", "commit", "-qm", f"wip: {tid} (before {label})", cwd=clone)
+
         def run():
             t0 = time.time()
             p = sh(sys.executable, "tasks.py", *cmd, cwd=clone)
@@ -602,7 +611,9 @@ def cmd_run(a):
     fails = 0  # failed sessions in a row
     spent = {}  # task id -> [sessions, seconds] since this runner claimed it (budget: --task-budget sessions)
     avoid = {}  # task id -> until (epoch): gave it up over budget, so let another agent continue it first
-    blocked = {}  # task id -> [push error, next retry (epoch)]: still ours, but the remote refuses our pushes
+    # task id -> [push error, next retry (epoch), hold reason or None]: still ours, but the remote refuses our
+    # pushes; the retry is `hold <reason>` if there is one (see block()), else a release
+    blocked = {}
     push_fails = {}  # task id -> [error, sessions in a row whose `done` failed to push with it]
 
     def shutdown(*_):  # `agents.py stop` (flag file, or SIGTERM on POSIX): end the session too
@@ -645,16 +656,15 @@ def cmd_run(a):
             status["error"] = None
         tid = next((t["id"] for t in mine if t["id"] in blocked), None)
         if tid:  # no session on it: wait (renewing the lease), retry the release now and then
-            err, retry, cmd = blocked[tid]
+            err, retry, hold = blocked[tid]
             if time.time() < retry:
                 hhmm = time.strftime("%H:%M", time.localtime(retry))
                 idle(min(60, retry - time.time()), task=tid, state="blocked", error=err,
                      doing=f"pushes for {tid} fail, a human must fix it; retry at {hhmm}: {one_line(err, 80)}")
                 continue
-            if cmd == "done":  # released, it would come back to the same refused `done` push: a human must look
-                log(f"retrying to put {tid} on hold (blocked: done failed to push)")
-                held_out = give_up(tid, ["hold", tid, f"done failed to push {PUSH_FAIL_SESSIONS} sessions in a row "
-                                                      f"(by {a.owner}): {one_line(err, 120)}"], "hold")
+            if hold:  # a `done` streak or the agent's own hold: a release would drop it, a human must look
+                log(f"retrying to put {tid} on hold (blocked: pushes failed): {one_line(hold, 120)}")
+                held_out = give_up(tid, ["hold", tid, hold], "hold")
                 if held_out is not None:
                     log(f"put {tid} on hold for a human: {held_out}")
                 gone = held_out is not None
@@ -783,14 +793,15 @@ def cmd_run(a):
         if pf and pf.get("task") in {t["id"] for t in owned()}:
             tid, err = pf["task"], pf.get("error", "?")
             if pf.get("cmd") != "done":  # release/hold/...: the task can't even be given back
-                block(tid, err)
+                block(tid, err, hold=pf.get("reason") if pf.get("cmd") == "hold" else None)
             else:
                 key = re.sub(r"\b[0-9a-f]{7,40}\b", "<sha>", err)  # the same error, whatever commit
                 n = push_fails[tid][1] + 1 if push_fails.get(tid, [None])[0] == key else 1
                 push_fails[tid] = [key, n]
                 log(f"done could not push {tid} ({n}/{PUSH_FAIL_SESSIONS} sessions in a row): {one_line(err, 200)}")
                 if n >= PUSH_FAIL_SESSIONS:
-                    block(tid, err, cmd="done")
+                    block(tid, err, hold=f"done failed to push {PUSH_FAIL_SESSIONS} sessions in a row (by {a.owner}): "
+                                         f"{one_line(err, 120)}")
         elif not why:
             push_fails.clear()  # a session without a push failure: the streak is over
         limit = limit_info(out.read_text(encoding="utf-8", errors="replace")) if failed else None

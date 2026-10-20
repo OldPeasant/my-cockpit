@@ -129,7 +129,8 @@ class TasksPy(Board):
         self.assert_push_failed(p, "Only a human can fix it")
         self.assert_unchanged(head)
         self.assertEqual(field(self.remote_task("a"), "hold"), "")
-        self.assertEqual(self.failure_file()["cmd"], "hold")
+        f = self.failure_file()
+        self.assertEqual((f["cmd"], f["reason"]), ("hold", "needs a human"))  # the runner retries this hold
 
     def test_done_with_refused_push(self):
         head = self.commit_workflow()
@@ -462,6 +463,23 @@ class DoneRefusedOnlyOnMain(PushRunner):
         self.assertNotEqual(self.state("a")["owner"], "box/agent-1")
 
 
+class DoneRefusedDirtyTree(DoneRefusedOnlyOnMain):
+    """As DoneRefusedOnlyOnMain, but each session leaves an uncommitted file after its failed `done`: the hold
+    retry commits it first, so it ends up on wip/a instead of being reset away."""
+    fake_agent = FAKE_AGENT.replace('        tp("done", tid, "--force")\n',
+                                    '        tp("done", tid, "--force")\n'
+                                    '        open("scratch.txt", "a").write("not committed yet\\n")\n', 1)
+    assert fake_agent != FAKE_AGENT
+
+    def test_done_streak_puts_the_task_on_hold_not_back_on_the_board(self):
+        super().test_done_streak_puts_the_task_on_hold_not_back_on_the_board()
+        # one line per session: the next session commits the earlier ones, the last one only the hold retry does
+        saved = sh(self.tmp, "git", "--git-dir=remote.git", "show", "wip/a:scratch.txt").stdout
+        self.assertEqual(saved.count("not committed yet"), 3, saved)
+        self.assertIn("wip: a (before hold)",
+                      sh(self.tmp, "git", "--git-dir=remote.git", "log", "--format=%s", "wip/a").stdout)
+
+
 class DoneBlockedHoldRefused(PushRunner):
     """`done` keeps failing to push and the hold retry is refused too (wip/a is refused like main): the task stays
     blocked, every retry is a hold again (never a release, even after a failed hold re-blocked it), no session
@@ -548,12 +566,26 @@ class SeqRunner(PushRunner):
 
 
 class HoldRefusedInSession(SeqRunner):
-    mode = "hold"
+    """The agent's own `hold` is refused: blocked at once; once pushes work, the retry is that hold with the
+    agent's reason, not a release (another agent must not pick up a task its owner said needs a human)."""
+    mode, retry = "hold", 5
 
     def test_failed_hold_in_a_session_blocks_at_once(self):
         self.wait_for("BLOCKED log", lambda: "BLOCKED on a" in self.log.read_text())
         self.assert_blocked_without_new_sessions(1)
         self.assertEqual(self.state("a")["hold"], "")
+        self.wait_for("a hold retry", lambda: "retrying to put a on hold" in self.log.read_text(), timeout=30)
+        (self.tmp / "remote.git" / "hooks" / "pre-receive").unlink()  # a human fixed the token
+        self.wait_for("a on hold", lambda: self.state("a")["hold"] != "", timeout=60)
+        a = self.state("a")
+        self.assertEqual((a["status"], a["hold"]), ("todo", "cannot finish"))  # the agent's own reason
+        self.assertNotEqual(a["owner"], "box/agent-1")
+        log = self.log.read_text()
+        self.assertIn("put a on hold for a human", log)
+        self.assertNotIn("retrying to release a", log)
+        self.assertNotIn("handed back by", a["text"])
+        blocked = log.split("BLOCKED on a")[1].split("put a on hold for a human")[0]
+        self.assertNotIn("session start", blocked, log)  # no session while it was blocked (after it: b, fine)
 
 
 class DoneStreakDifferentErrors(SeqRunner):
