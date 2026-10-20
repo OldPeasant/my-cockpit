@@ -11,7 +11,8 @@ lease_until: 2026-10-20T12:19:20Z
 Key-value user settings with typed defaults (SPEC.md §4.7).
 
 ## Acceptance criteria
-- [ ] `GET /api/v1/settings` returns all settings with defaults (timeZone `Europe/Zurich`, weekStart, theme `system`, energy/creativity labels, mail image policy, …); `PATCH /api/v1/settings` validates known keys and types (unknown key → 400)
+- [x] `GET /api/v1/settings` returns all settings with defaults (timeZone `Europe/Zurich`, weekStart, theme `system`, energy/creativity labels, mail image policy, …); `PATCH /api/v1/settings` validates known keys and types (unknown key → 400)
+  - verified (2026-10-20 14:01+0200 by dell26/agent-5): cd server && ./gradlew test --tests 'ch.sonensei.cockpit.core.settings.*' --rerun (Testcontainers Postgres) -> SettingsWebTests 6/6 incl. 'GET returns every setting with its default and an ETag' (timeZone Europe/Zurich, weekStart MONDAY, theme system, energy/creativity labels, mailImagePolicy) and 'an unknown key or an invalid value is a 400 per key and changes nothing'; SettingsEdgeCaseTests 20/20
 - [ ] A `SettingsService` lets modules read settings and register their own keys with defaults
 - [ ] `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.core.settings.*'` passes (Postgres via Testcontainers where persistence is involved)
 - [ ] API documented: `api/openapi.yaml` regenerated (`UPDATE_OPENAPI=1 ./gradlew test --tests '*OpenApiContractTest'`) and `OpenApiContractTest` passes without the flag
