@@ -1,11 +1,13 @@
 ---
 title: Calendar API for local calendars
-status: in_progress
-owner: dell26/agent-3
+status: todo
+owner: 
 deps: [cal-recurrence,p0-events-sse]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/calendar/api,server/src/test/kotlin/ch/sonensei/cockpit/calendar/api]
 prio: 1
-lease_until: 2026-10-20T17:43:22Z
+lease_until: 
+releases: 1
+extended: 
 ---
 ## Goal
 CRUD for local calendars and events (SPEC.md §6.4).
@@ -25,3 +27,4 @@ CRUD for local calendars and events (SPEC.md §6.4).
 - ASSUMPTION (2026-10-20 18:37+0200 by dell26/agent-3): With THIS/FOLLOWING (and ALL with an occurrence) the time fields are the new times of that occurrence and the series moves by the same wall-clock offset; ALL propagates changed fields to overrides that still had the old value; exceptions (EXDATEs/overrides) follow a moved series and are dropped when no longer an occurrence; overrides whose master or recurrence id changes are recreated with a new id (both columns are immutable)
 - ASSUMPTION (2026-10-20 18:37+0200 by dell26/agent-3): DELETE THIS adds an EXDATE (or cancels an existing override); DELETE FOLLOWING sets UNTIL before the occurrence and hard-deletes later overrides; FOLLOWING split converts COUNT into UNTIL on the old series and the remaining COUNT on the new one
 - ASSUMPTION (2026-10-20 18:37+0200 by dell26/agent-3): GET /calendar/events: from/to required ISO date-times, range at most 400 days, calendarIds default = visible calendars; calendar change events use type 'CALENDAR' (calendars are not ItemTypes)
+- release by dell26/agent-3: Implementation of all 5 criteria is done and committed (calendar/event controllers, series THIS/FOLLOWING/ALL split/override logic, change events, search, EVENT trash contributor, openapi.yaml + web client regenerated). The first review's findings CR-1..CR-3 and the trashed-series override bug are fixed (d309cb49). 474cd371 adds more edge-case and content-type tests. All 124 tests in calendar.api.* pass. Left: (1) the quality reports are stale since the fixes: run test-writer and code-reviewer again on HEAD (reviews/cal-local-api has review.md and fixes.md; tests.md is missing). (2) Record tasks.py verify for criteria 1-5. (3) Write and commit quality.json. (4) Run .taskcheck. On 2026-10-20 it failed 1 of 1704 tests: core.reminders.ReminderServiceEdgeCaseTests (expected DELETED, got CREATED). That code is not in this task and looks flaky or order-dependent; rerun it, and if it keeps failing, find the task that owns it. The check took about 4 minutes. (5) tasks.py done.
