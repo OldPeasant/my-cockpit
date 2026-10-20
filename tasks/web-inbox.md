@@ -1,11 +1,11 @@
 ---
 title: Inbox processing mode
-status: in_progress
+status: done
 owner: dell26/agent-6
 deps: [web-gtd-data]
 touches: [web/src/app/features/gtd/inbox]
 prio: 1
-lease_until: 2026-10-20T21:06:11Z
+lease_until: 
 ---
 ## Goal
 Keyboard-driven one-item-at-a-time processing (SPEC.md §5.3).
@@ -27,3 +27,4 @@ Keyboard-driven one-item-at-a-time processing (SPEC.md §5.3).
 - ASSUMPTION (2026-10-20 22:10+0200 by dell26/agent-6): Fixed matchesTask in gtd/data/task-store.ts (outside touches, one line): tasks with a future ticklerDate no longer match a list, as on the server; otherwise a ticklered item stayed visible in the inbox.
 - ASSUMPTION (2026-10-20 22:10+0200 by dell26/agent-6): Clicking an item title in the inbox list navigates to /tasks/<id> (the deep link the search palette uses); the task detail route comes with a later task.
 - ASSUMPTION (2026-10-20 22:42+0200 by dell26/agent-6): CR-6 (P3) accepted: a project remembered after a failed 'new project' move is preselected on retry without checking it is still open; if it was deleted/completed meanwhile the move fails server-side and the item stays in the inbox, user picks another project. Rare error-path-on-error-path, not worth another fix cycle.
+- done by dell26/agent-6: `sh scripts/check.sh` passed in 60s on 87370fbae; criteria verified 4/4
