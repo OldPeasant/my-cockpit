@@ -15,7 +15,8 @@ Entities, migrations and repositories for tasks, projects, areas, contexts, chec
   - verified (2026-10-20 15:27+0200 by dell26/agent-3): gtd/V202610201311__gtd_model.sql creates task, project, area, context, task_context, checklist_item with SPEC §5.2 fields, FKs and indexes; ./gradlew test --tests 'ch.sonensei.cockpit.gtd.*' (Testcontainers postgres:16) -> GtdRepositoryTests 22 passed incl. FK/cascade/check and index-existence tests
 - [x] Enums: list (INBOX|NEXT|WAITING|SOMEDAY|SCHEDULED), energy, creativity, project status, recurrence mode
   - verified (2026-10-20 15:27+0200 by dell26/agent-3): gtd/domain/GtdEnums.kt TaskList, Energy, Creativity, ProjectStatus, RecurrenceMode + DB check constraints; enum round-trip and invalid-value tests in GtdRepositoryTests -> passed
-- [ ] `ItemResolver`s for TASK and PROJECT registered (deep links `/tasks/{id}`, `/projects/{id}`)
+- [x] `ItemResolver`s for TASK and PROJECT registered (deep links `/tasks/{id}`, `/projects/{id}`)
+  - verified (2026-10-20 15:27+0200 by dell26/agent-3): TaskItemResolver/ProjectItemResolver beans; GtdItemResolverTests (registry finds both, deep links /tasks/{id} and /projects/{id}, soft-deleted not resolved) against Testcontainers Postgres -> 8 passed
 - [ ] Repository tests on Postgres: save/load all fields, soft delete excluded; `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.gtd.*'` passes (Postgres via Testcontainers where persistence is involved)
 
 ## Notes
