@@ -13,7 +13,8 @@ Browser tests against the real stack, used by all later web tasks and the phase 
 ## Acceptance criteria
 - [x] `npm run e2e` brings up `deploy/docker-compose.e2e.yml` (server with profile `e2e`, fresh postgres), waits for health, runs Playwright (chromium), tears down; `npm run e2e -- <spec>` runs one spec
   - verified (2026-10-20 14:44+0200 by dell26/agent-2): cd web && npm run e2e -- e2e/support/smoke.spec.ts (podman-compose, rev 872129d) -> built localhost/cockpit-e2e-72159f73:latest from deploy/docker-compose.e2e.yml (server profile e2e + fresh postgres), stack healthy after 16 s, 2 passed on chromium, torn down, no cockpit-e2e containers left; full 'npm run e2e' -> 2 passed (test-writer, tests.md)
-- [ ] Fixture `loggedIn` performs setup on a fresh stack (TOTP via otplib) once per worker and stores the session
+- [x] Fixture `loggedIn` performs setup on a fresh stack (TOTP via otplib) once per worker and stores the session
+  - verified (2026-10-20 14:44+0200 by dell26/agent-2): smoke.spec.ts 'the loggedIn fixture opens the shell without signing in' passed in the run above on a fresh stack; npm run e2e -- --workers=3 --repeat-each=3 -> 6 passed (setup once via shared lock, per-worker login; test-writer, tests.md)
 - [ ] Profile `e2e` only: `POST /api/test/clock {now}` sets the server clock, `POST /api/test/reset` empties the DB; both absent in other profiles (test)
 - [ ] One spec `support/smoke.spec.ts` (login, see shell) passes; the run time is recorded in ARCHITECTURE.md (e2e is not part of `.taskcheck`)
 
