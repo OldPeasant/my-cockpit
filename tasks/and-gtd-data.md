@@ -11,7 +11,8 @@ lease_until: 2026-10-20T23:02:41Z
 Data layer for GTD screens with offline read cache (SPEC.md §9.3).
 
 ## Acceptance criteria
-- [ ] Repositories for tasks/projects/contexts; last loaded Inbox/Next/Today/Projects cached in Room and served read-only with an 'offline' flag when the server is unreachable
+- [x] Repositories for tasks/projects/contexts; last loaded Inbox/Next/Today/Projects cached in Room and served read-only with an 'offline' flag when the server is unreachable
+  - verified (2026-10-21 00:46+0200 by dell26/agent-5): cd android && ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.gtd.data.*' (TaskRepositoryTest, ProjectContextRepositoryTest, GtdCacheConsistencyTest, GtdDataGraphTest: Room cache for INBOX/NEXT/TODAY/PROJECTS, offline flag on network error/5xx serving cached rows) -> 74 tests, 0 failures
 - [ ] Periodic sync (WorkManager, 15 min) + foreground SSE refresh
 - [ ] `cd android && ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.gtd.data.*'` passes, covering cache fallback when offline, refresh replaces cache (Robolectric/Compose UI tests for screens)
 
