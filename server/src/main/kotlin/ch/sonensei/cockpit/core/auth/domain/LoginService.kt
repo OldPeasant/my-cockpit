@@ -78,7 +78,8 @@ class LoginService(
 		val session = sessions.findByTokenHash(hash(token)) ?: return null
 		val now = clock.instant().truncatedTo(ChronoUnit.MICROS)
 		if (session.isExpiredAt(now)) {
-			sessions.delete(session)
+			// A bulk delete, not an entity delete: parallel requests with the same expired cookie may find the row gone.
+			sessions.deleteByTokenHash(session.tokenHash)
 			return null
 		}
 		val renew = Duration.between(session.lastSeenAt, now) >= TOUCH_INTERVAL

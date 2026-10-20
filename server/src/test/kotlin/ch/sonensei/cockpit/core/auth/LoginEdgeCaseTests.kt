@@ -251,6 +251,25 @@ class LoginEdgeCaseTests(
 	}
 
 	@Test
+	fun `parallel requests with the same expired session all end anonymous without an error`() {
+		repeat(EXPIRED_ROUNDS) { round ->
+			val token = sessionToken(login().andReturn())
+			clock.advance(AuthSession.BROWSER_SESSION_IDLE)
+
+			val outcomes = concurrently(PARALLEL_GUESSES) { loginService.authenticate(token) }
+
+			withClue("round $round") {
+				outcomes.mapNotNull { it.exceptionOrNull() }.shouldBeEmpty()
+				outcomes.forEach { it.getOrNull() shouldBe null }
+				sessionCount() shouldBe 0
+			}
+		}
+		val token = sessionToken(login().andReturn())
+		clock.advance(AuthSession.BROWSER_SESSION_IDLE)
+		concurrently(THREADS) { me(token).andReturn().response.status }.forEach { it.getOrThrow() shouldBe 401 }
+	}
+
+	@Test
 	fun `parallel logins with a wrong password cannot slip past the backoff`() {
 		val credentials = LoginCredentials(USERNAME, "wrong-fictitious-password", currentCode(), null, false)
 
@@ -410,6 +429,7 @@ class LoginEdgeCaseTests(
 		const val PASSWORD = "correct-horse-battery-staple"
 		const val THREADS = 4
 		const val PARALLEL_GUESSES = 12
+		const val EXPIRED_ROUNDS = 5
 		val START: Instant = MutableClockTestConfiguration.START
 		val MESSAGE = Regex("\"message\":\"((?:[^\"\\\\]|\\\\.)*)\"")
 	}

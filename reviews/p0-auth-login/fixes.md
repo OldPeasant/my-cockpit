@@ -133,3 +133,58 @@ Remaining unresolved findings:
 ## Final status
 
 All validated findings fixed and validation passed.
+
+---
+
+# Fix Report (third pass)
+
+Date: 2026-10-20
+
+Task: p0-auth-login - Login with password + TOTP, sessions, CSRF, lockout
+
+Scope: current task; finding CR-1 (P2) from the second review pass in `reviews/p0-auth-login/review.md` (code revision 6222476). Uncommitted working-tree change on top of c240eb2.
+
+## Fixed findings
+
+### CR-1 (second review) — Parallel requests with the same expired session cookie can return 500 instead of 401
+
+Files changed:
+- `server/src/main/kotlin/ch/sonensei/cockpit/core/auth/domain/LoginService.kt`
+- `server/src/test/kotlin/ch/sonensei/cockpit/core/auth/LoginEdgeCaseTests.kt`
+
+Problem:
+`LoginService.authenticate()` removed an expired session with `sessions.delete(session)`. That is an entity delete on a `@Version` entity, so Hibernate runs `delete ... where id=? and version=?`. When several requests carried the same expired cookie, the later deletes matched 0 rows and threw `ObjectOptimisticLockingFailureException` inside the security filter, where `ProblemDetailsAdvice` does not apply. Confirmed before the fix: the new regression test failed in round 0 with 3 of 12 parallel calls throwing `Unexpected row count (expected row count 1 but was 0) [delete from auth_session where id=? and version=?]`.
+
+Fix:
+The expired session is now removed with the existing bulk query `sessions.deleteByTokenHash(session.tokenHash)`, which `logout()` already uses. It does not check the affected row count, so a row that another request already deleted is fine. A one-line comment says why. No repository, API or schema change.
+
+Regression test added: `LoginEdgeCaseTests > parallel requests with the same expired session all end anonymous without an error`. In 5 rounds, it logs in, lets the session expire, and runs 12 parallel `loginService.authenticate(token)` calls. It asserts that none throws, all return null, and the session row is gone. It then sends 4 parallel `GET /api/v1/auth/me` with one expired cookie and asserts that each answers 401.
+
+Validation:
+- `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.core.auth.LoginEdgeCaseTests'` before the fix — Fail (the new test, as described above; reproduces the finding)
+- `cd server && ./gradlew ktlintFormat ktlintCheck test --tests 'ch.sonensei.cockpit.core.auth.*'` after the fix — Pass (119 tests, 0 failures, 0 errors, 0 skipped, summed from `build/test-results/test/TEST-ch.sonensei.cockpit.core.auth.*.xml`)
+
+## Not fixed
+
+None.
+
+## Validation summary
+
+Focused tests:
+- `cd server && ./gradlew ktlintFormat ktlintCheck test --tests 'ch.sonensei.cockpit.core.auth.*'` — Pass (119 tests, 0 failures)
+
+Full test suite:
+- Covered by `sh scripts/check.sh` (server `./gradlew check`, web `npm run check`, android ktlint + unit tests + lint) — Pass
+
+Lint/type-check/build:
+- ktlint, Kotlin compile, web lint/build and Android lint run as part of `sh scripts/check.sh` — Pass
+
+`.taskcheck`:
+- `sh scripts/check.sh` — Pass ("all checks passed", exit 0)
+
+Remaining unresolved findings:
+0
+
+## Final status
+
+All validated findings fixed and validation passed. This covers all three fix rounds: CR-1 and CR-2 (first review), TW-1 (second test pass) and CR-1 (second review).
