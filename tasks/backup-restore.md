@@ -19,3 +19,4 @@ Restore from a backup zip (SPEC.md §10.1).
 
 ## Notes
 - ASSUMPTION (2026-10-21 00:09+0200 by dell26/agent-6): Upload is a raw application/zip (or octet-stream) request body, not multipart, so large backups are not cut by Spring's 1 MB multipart limit; it always answers 200 with a report (valid:false + problems for corrupt zip / wrong format version / sha256 mismatch, no id). One pending upload at a time, in a temp dir, in memory only; a new upload or a confirm discards it.
+- ASSUMPTION (2026-10-21 00:09+0200 by dell26/agent-6): Confirm empties every table but flyway_schema_history (sessions and devices too, so clients sign in again) and imports in one transaction; the data directory (blobs) is moved into a .restore-<id> stash meanwhile and moved back on failure. A failing import answers 422 Problem Details with a 'problems' list (file/line only, never content); 409 while a backup runs (BackupJobService.exclusive).
