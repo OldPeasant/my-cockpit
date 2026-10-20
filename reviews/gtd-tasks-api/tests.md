@@ -4,144 +4,150 @@ Date: 2026-10-20
 
 Task: gtd-tasks-api - Tasks API
 
-Scope: `git diff a67434529b8fa4cd07205312c877dfda021e9b5d..e4a9c73f39afb4f6fde842f1437a68116b41ecb0 -- server/src/main/kotlin/ch/sonensei/cockpit/gtd server/src/test/kotlin/ch/sonensei/cockpit/gtd server/src/main/resources/db/migration/gtd`. Branch `main` (local clone of agent-6), HEAD `e4a9c73f39afb4f6fde842f1437a68116b41ecb0`. Task commits f98c23a, c438ac2, 9d13a3c (the fixes for CR-1..CR-4), merge 4b839e5 (main merged in, generated files regenerated), e4a9c73 (fixer report only). Before testing, the working tree was clean. The only uncommitted inputs are the two new test files listed below.
+Scope: task commit `54f957029479fc0e3a6d71238ed05cdcd68e72af` against base `dc7514b180e106c50322a2595ca1d3c43841041e` (`git diff dc7514b1 54f95702`), measured on HEAD `f21a7faeca2228c7c379fd0b3a057f7dbb4ca0ba` (merge of `origin/wip/gtd-tasks-api` into main). `git diff 54f95702 f21a7fae` touches none of the gtd main or test sources, so the task code at HEAD is the code of 54f95702, including the CR-5 and CR-6 fixes. This report replaces the earlier test report, which described the code before those fixes.
 
 Requirements:
-- `tasks/gtd-tasks-api.md`: acceptance criteria 1-6 and the four ASSUMPTION notes (filter semantics, move rules, PATCH/If-Match rules, idempotent create)
-- `SPEC.md` §4.2 (ETag/If-Match, Trash), §5.4 (via the task); `docs/ARCHITECTURE.md` "Coverage"; `docs/QUALITY.md`
-- `reviews/gtd-tasks-api/review.md` and `fixes.md` (CR-1..CR-4 fixed behavior)
+- `tasks/gtd-tasks-api.md`: acceptance criteria 1-6 and the four recorded assumptions (two of them confirmed by a human)
+- `SPEC.md` §5.4 (Tasks API) and §4.2 (ETag/If-Match, Problem Details)
+- `docs/ARCHITECTURE.md` "Coverage", `AGENTS.md`
+- Parent instructions: CR-5 (a project task keeps its project position on a list-only move) and CR-6 (a concurrent idempotent create is answered like the repeat)
 
 ## Test files changed
 
-- `server/src/test/kotlin/ch/sonensei/cockpit/gtd/TaskEdgeCaseTests.kt` (new, 22 tests)
-- `server/src/test/kotlin/ch/sonensei/cockpit/gtd/ChecklistEdgeCaseTests.kt` (new, 5 tests)
+- `server/src/test/kotlin/ch/sonensei/cockpit/gtd/TaskPositionAndCursorTests.kt` (new, untracked; not committed, see Summary)
 
-No existing test was changed, weakened or disabled. No production code was changed.
+No existing test was changed, weakened, skipped or deleted. No production code was changed.
 
 ## Tests added or updated
 
-Count: 27
+Count: 8 (all in `TaskPositionAndCursorTests`)
 
-Both classes follow the existing `TaskWebTests` pattern: MockMvc against the full Spring context, Postgres via Testcontainers (`PostgresTestBase`), `MutableClock`, and `@RecordApplicationEvents` for ChangeEvents. The test data is fictitious. `TaskEdgeCaseTests` pins the `timeZone` setting to Europe/Zurich before each test and resets it afterwards, so it does not depend on settings left behind by other test classes.
+- `move into another project puts the task at the end of that project, naming its own project keeps its position` (CR-5, project change by move)
+- `a task without a project moving to another list goes after the loose tasks there, project positions do not count` (CR-5, list ordering)
+- `PATCH projectId null puts the task at the end of the loose tasks of its list` (positions when a task leaves its project)
+- `POST that loses the insert race against a create that is in the Trash is 409` (CR-6: the race fallback goes through `existingCreate`, which keeps the Trash rule)
+- `open tasks with the same position are paged without gaps or repeats` (cursor tie-break on id)
+- `done tasks completed at the same instant are paged without gaps or repeats, also per project` (Logbook cursor tie-break, `projectId` with `completed=true`)
+- `a blank If-Match on a workflow action counts as not sent`
+- `contexts sent twice are stored once` (contexts set by an id list)
 
 ## Requirement coverage
 
-Existing = already covered by `TaskWebTests` / `ChecklistWebTests`; New = added here. All commands ran in `server/` and used Postgres 16 via Testcontainers.
+Command for every row (one run): `cd server && ./gradlew test --rerun --tests 'ch.sonensei.cockpit.gtd.*' --tests '*OpenApiContractTest' jacocoTestReport` -> 92 tests, 0 failures, 0 errors, 0 skipped.
 
 | Requirement | Tests | Command | Result |
 |---|---|---|---|
-| AC1 filters: list, projectId, context, energy, creativity, maxMinutes, due, completed, cursor | Existing: `GET filters by list, project, context, energy, creativity and estimate`, `GET filters by due window ...`, `GET pages with a cursor, also for done tasks`, `GET rejects invalid parameters`. New: `maxMinutes includes the limit itself and never matches tasks without an estimate`, `filters combine with the Logbook, a done task does not appear in open lists`, `the last page has no cursor, a cursor of the open list is rejected for the Logbook`, `due windows and the tickler use today in the user's time zone, not in UTC`, `a done task in the Trash is not in the Logbook ...` | `./gradlew cleanTest test --tests 'ch.sonensei.cockpit.gtd.*' --tests '*OpenApiContractTest' jacocoTestReport` | Pass |
-| AC2 CRUD with ETag/If-Match (412 stale, 428 missing), complete/uncomplete, move validation (SCHEDULED needs a date, WAITING sets waitingSince, tickler in the future) | Existing: PATCH/move/complete/DELETE tests in `TaskWebTests`. New: `If-Match accepts a list of tags and the wildcard, but not a weak tag`, `move with a stale If-Match is 412 ...`, `PATCH and DELETE of a task in the Trash are 404 ...`, `completing a done task keeps the first completion time ...`, `move reports every violation at once ...`, `move keeps the tickler only while it is sent ...`, `WAITING with a contact, leaving clears it ...`, `an explicit waitingSince is kept on create ...`, `move to another list puts the task at the end of that list ...`, `PATCH into another project puts the task at the end ...`, `PATCH rejects an unknown context, null for uncleareable fields ...`, `PATCH clears enums and recurrence with null ...`, `POST accepts values at the limits ...`, `POST keeps a recurrence rule and mode as given ...`, `POST with the id of a task in the Trash is 409 ...` | same | Pass |
-| AC3 checklist CRUD with item ETags; contexts set by id list | Existing: `ChecklistWebTests` (3), PATCH contextIds in `TaskWebTests`. New: `POST returns Location and ETag and accepts done ...`, `PATCH changes only the sent fields and can reorder items`, `PATCH rejects blank and too long text ...`, `DELETE needs If-Match, unknown items are 404 ...`; for contexts: `PATCH rejects an unknown context ...`, the context round trip in the restore/purge test | same | Pass |
-| AC4 search indexing, ChangeEvents, soft delete, Trash (TrashContributor) | Existing: `POST creates an inbox task ...`, `DELETE moves the task to the Trash, restore and purge ...`. New: `every checklist change announces the task as UPDATED and re-indexes it`, `PATCH clears enums ... and updates the search index` (body indexed), `restore announces the task, purge deletes its checklist and contexts and clears it as next step`, `restore and purge of a task that is not in the Trash are 404`, `a done task in the Trash ... shows as Done in the Trash` | same | Pass |
-| AC5 `./gradlew test --tests 'ch.sonensei.cockpit.gtd.*'` passes, with API tests for filters, move validation and 412 | all of the above (81 gtd tests) | `./gradlew cleanTest test --tests 'ch.sonensei.cockpit.gtd.*' --tests '*OpenApiContractTest' jacocoTestReport` | Pass: GtdRepositoryTests 22, GtdItemResolverTests 8, TaskWebTests 21, TaskEdgeCaseTests 22, ChecklistWebTests 3, ChecklistEdgeCaseTests 5; 0 failures, 0 skipped |
-| AC6 `OpenApiContractTest` passes without `UPDATE_OPENAPI` | `OpenApiContractTest` (existing) | same run, flag not set | Pass (1 test) |
-| CR-1 a task in a trashed project can still be changed | Existing: `a task whose project is in the Trash can still be changed, completed and moved` | same | Pass |
-| CR-2 / CR-3 OpenAPI types (`maxMinutes` integer, nullable PATCH fields, `null` in enums) | `OpenApiContractTest` (compares with the committed `api/openapi.yaml`). The run covered the `TaskPatchNullEnums` customizer | same | Pass |
-| CR-4 create/PATCH enforce the list rules | Existing: `create and PATCH enforce the list rules of move`. New: `an explicit waitingSince is kept on create ...`, `POST accepts values at the limits ...` (WAITING with text) | same | Pass |
+| AC1: `GET /tasks` filters list, projectId, context, energy, creativity, maxMinutes, due (overdue/today/week), completed, cursor paging | TaskWebTests: `GET filters by list, project, context, energy, creativity and estimate`, `GET filters by due window in the user's time zone`, `GET pages with a cursor, also for done tasks`, `GET rejects invalid parameters`; TaskEdgeCaseTests: `due windows and the tickler use today in the user's time zone, not in UTC`, `maxMinutes includes the limit itself and never matches tasks without an estimate`, `filters combine with the Logbook, a done task does not appear in open lists`, `the last page has no cursor, a cursor of the open list is rejected for the Logbook`; new: `open tasks with the same position are paged without gaps or repeats`, `done tasks completed at the same instant are paged without gaps or repeats, also per project` | as above | Pass |
+| AC2: POST, GET, PATCH, DELETE with ETag/If-Match (428 missing, 412 stale) | TaskWebTests: `POST creates an inbox task with ETag and Location, indexes it and announces it`, `POST with every field and contexts`, `POST validates fields`, `POST with a client id is idempotent`, `GET of an unknown task is 404`, `PATCH changes only the sent fields, null clears, and returns the new ETag`, `PATCH needs a current If-Match`, `PATCH rejects unknown, uncleareable and invalid fields`, `DELETE moves the task to the Trash, restore and purge go through the Trash`; TaskEdgeCaseTests: `POST with the id of a task in the Trash is 409 and does not restore it`, `POST accepts values at the limits and rejects values just above them, all at once`, `PATCH rejects an unknown context, null for uncleareable fields and values of the wrong type`, `PATCH and DELETE of a task in the Trash are 404, DELETE twice is 404`, `If-Match accepts a list of tags and the wildcard, but not a weak tag` | as above | Pass |
+| AC2: CR-6, a concurrent create with the same client id is answered like the repeat | TaskEdgeCaseTests: `POST that loses the insert race against a create with the same id answers like the idempotent repeat` (200 with the existing task); new: `POST that loses the insert race against a create that is in the Trash is 409` | as above | Pass |
+| AC2: complete / uncomplete (If-Match optional, checked when sent) | TaskWebTests: `complete and uncomplete, If-Match optional but checked when sent`; TaskEdgeCaseTests: `completing a done task keeps the first completion time, uncomplete returns it to its list`; new: `a blank If-Match on a workflow action counts as not sent` | as above | Pass |
+| AC2: move with validation (SCHEDULED needs a date, WAITING sets waitingSince, waiting-for fields only on WAITING, future tickler, unknown project), 412 on stale If-Match | TaskWebTests: `move validates the list rules`, `move to SCHEDULED, WAITING and back`, `create and PATCH enforce the list rules of move`, `PATCH cannot remove the date of a SCHEDULED task`, `a task whose project is in the Trash can still be changed, completed and moved`; TaskEdgeCaseTests: `move reports every violation at once and rejects waitingForContactId outside WAITING`, `move keeps the tickler only while it is sent, tomorrow is the earliest tickler date`, `WAITING with a contact, leaving clears it, waiting again starts a new waitingSince`, `an explicit waitingSince is kept on create, a cleared one is set again by a move within WAITING`, `move with a stale If-Match is 412 and changes nothing, the wildcard is accepted` | as above | Pass |
+| AC2: positions after a move or project change (assumption: a task changing list/project goes to the end; CR-5: a project task keeps its project position on a list-only move) | TaskEdgeCaseTests: `move to another list puts the task at the end of that list and returns its current ETag`, `move to another list keeps a project task at its position in the project`, `PATCH into another project puts the task at the end of that project unless a position is sent`; new: `move into another project puts the task at the end of that project, naming its own project keeps its position`, `a task without a project moving to another list goes after the loose tasks there, project positions do not count`, `PATCH projectId null puts the task at the end of the loose tasks of its list` | as above | Pass |
+| AC3: checklist CRUD under `/tasks/{id}/checklist` with item ETags | ChecklistWebTests (3 tests), ChecklistEdgeCaseTests: `POST returns Location and ETag and accepts done, text up to 1000 characters`, `PATCH changes only the sent fields and can reorder items`, `PATCH rejects blank and too long text and keeps the item`, `DELETE needs If-Match, unknown items are 404, a task in the Trash takes no new items` | as above | Pass |
+| AC3: contexts set by id list | TaskWebTests: `POST with every field and contexts`, `PATCH changes only the sent fields, null clears, and returns the new ETag`; TaskEdgeCaseTests: `PATCH rejects an unknown context, ...`; new: `contexts sent twice are stored once` | as above | Pass |
+| AC4: every change indexes the task and publishes a ChangeEvent | TaskWebTests: `POST creates an inbox task ...`, `PATCH changes only the sent fields ...`, `complete and uncomplete ...`, `move to SCHEDULED, WAITING and back`; TaskEdgeCaseTests: `PATCH clears enums and recurrence with null and updates the search index`; ChecklistEdgeCaseTests: `every checklist change announces the task as UPDATED and re-indexes it` | as above | Pass |
+| AC4: soft delete, the task is in the Trash (TrashContributor: list, restore, purge) | TaskWebTests: `DELETE moves the task to the Trash, restore and purge go through the Trash`; TaskEdgeCaseTests: `a done task in the Trash is not in the Logbook and shows as Done in the Trash`, `restore announces the task, purge deletes its checklist and contexts and clears it as next step`, `restore and purge of a task that is not in the Trash are 404` | as above | Pass |
+| AC5: `./gradlew test --tests 'ch.sonensei.cockpit.gtd.*'` passes, Postgres via Testcontainers, incl. API tests for filters, move validation and 412 on a stale ETag | all gtd test classes (91 tests in 7 classes, all on `PostgresTestBase`) | as above | Pass |
+| AC6: `OpenApiContractTest` passes without `UPDATE_OPENAPI` | `ch.sonensei.cockpit.core.web.OpenApiContractTest` (1 test) | as above, without the flag | Pass |
 
 ## Focused test execution
 
 Command:
 
-`cd server && ./gradlew test --tests 'ch.sonensei.cockpit.gtd.TaskEdgeCaseTests' --tests 'ch.sonensei.cockpit.gtd.ChecklistEdgeCaseTests'`
+`cd server && ./gradlew test --tests 'ch.sonensei.cockpit.gtd.TaskPositionAndCursorTests' ktlintCheck`
 
 Result:
 
-Pass (21 + 5 tests at that point. The 22nd TaskEdgeCaseTests test was added afterwards, and the gtd run below included it.)
+Pass (8 tests, ktlint clean). The first run of the new tests failed one assertion of mine: I had expected an exact position (`1`) after `PATCH projectId:null`. The service gave `2`, because the auto-flush before the max-position query counts the task's own row. The task is still at the end of the list, which is what the requirement says, so I changed the assertion to "after every other loose task in the list". This is not a defect (see "Observations").
 
-Command:
+Then the requested command:
 
-`cd server && ./gradlew cleanTest test --tests 'ch.sonensei.cockpit.gtd.*' --tests '*OpenApiContractTest' jacocoTestReport`
-
-Result:
-
-Pass: BUILD SUCCESSFUL, 82 tests (81 gtd + 1 OpenApiContractTest), 0 failures, 0 errors, 0 skipped.
-
-Command:
-
-`cd server && ./gradlew ktlintCheck`
+`cd server && ./gradlew test --rerun --tests 'ch.sonensei.cockpit.gtd.*' --tests '*OpenApiContractTest' jacocoTestReport`
 
 Result:
 
-Pass (BUILD SUCCESSFUL, no violations)
+Pass: 92 tests, 0 failures, 0 errors, 0 skipped (OpenApiContractTest 1, ChecklistEdgeCaseTests 5, ChecklistWebTests 3, GtdRepositoryTests 22, GtdItemResolverTests 8, TaskEdgeCaseTests 24, TaskPositionAndCursorTests 8, TaskWebTests 21). The CR-6 race test passed in this run.
 
 ## Full test execution
 
 Command:
 
-`sh scripts/check.sh` (= `.taskcheck`: `server ./gradlew check`, `web npm run check`, `android ktlintCheck testDebugUnitTest lintDebug`)
+`sh scripts/check.sh` (contains `cd server && ./gradlew --quiet check`, the full server test suite with ktlint)
 
 Result:
 
-Pass: "== all checks passed". Server JUnit results after this run: 1239 tests, 0 failures, 0 errors, 0 skipped. Wall time about 4.5 min (17:12:17-17:16:56 +02:00, including the web and Android parts). That is above the 2 min warning and well below the 15 min limit.
+Pass ("== all checks passed").
 
 ## .taskcheck
 
 Result:
 
-Pass (see Full test execution; `.taskcheck` contains `sh scripts/check.sh`)
+Pass. I ran `sh scripts/check.sh`, the content of `.taskcheck`: TFP gate tests, server `./gradlew check`, web `npm run check` (lint, tests, build), android ktlint, unit tests and lint, all with the new test file present. The web build printed a warning that the initial bundle is 4.94 kB over its 500 kB budget. That warning does not fail the check, and the web code is outside this task's diff.
 
 ## Bugs found
 
-None. Every new test passed against the implementation at HEAD e4a9c73. No production defect was found.
+None. No test failed because of production behavior.
 
-Observations (not defects; for the parent to judge, no fix required):
-- Moving a task *with a project* to another list gives it the next position in its project, even though the project did not change: `modify` repositions on a change of list or project. This matches the recorded assumption "a task changing list/project goes to the end of the new list/project". Within the project, though, this reorders the task. Recorded only so the assumption can be confirmed.
-- The existing `TaskWebTests` read the default `timeZone` setting and do not pin it. Other test classes (e.g. `SettingsWebTests`) can change the setting in the shared database. The existing tests still pass, because at the fixed test time (08:00 UTC) the date is the same in the likely zones. The new tests pin the zone explicitly.
+Observations, not defects (no fix required):
+- `TaskService.modify` / `nextPosition` (`server/src/main/kotlin/ch/sonensei/cockpit/gtd/domain/TaskService.kt`): the max-position query auto-flushes the changed task first, so the task's own old position is counted. When the old position is the highest, the new position is old + 1, not max(others) + 1. The task still ends up last, which is what the assumption requires. The only effect is a gap in the positions.
+- `TaskController.create` (`TaskController.kt:146`): a `DataIntegrityViolationException` without a client id, or with an id whose row no longer exists, is rethrown. That path is defensive and I did not test it, see Coverage.
 
 ## Coverage
 
-Status: verified. Fresh JaCoCo run, exit 0, every test passing, over the task's production files.
+Status: verified (fresh run, exit status 0, inputs unchanged during the run).
 
-Metric: whole-file coverage of task-changed production files. It includes pre-existing code in `Task.kt`, `GtdEnums.kt`, `GtdItemResolvers.kt` and `GtdRepositories.kt`, and hits from pre-existing gtd tests (`GtdRepositoryTests`, `GtdItemResolverTests`).
-Changed-line coverage: not measured (the configured tooling has no diff-coverage support).
+Metric: whole-file coverage of task-changed production files.
+Changed-line coverage: measured separately. I intersected the added lines of `git diff --unified=0 dc7514b1..54f95702 -- server/src/main/kotlin/ch/sonensei/cockpit/gtd` with JaCoCo lines that have instructions, and counted a line as covered when `ci > 0`. Result: 572/577 executable changed lines covered (99.1%). Branch counters on the changed lines: 337/354. Those are JaCoCo line branch counters, not changed-branch coverage. The 5 missed changed lines are `TaskController.kt:346` (synthetic code of a companion object) and `TaskCommands.kt:30, 44, 68, 75` (the closing lines of data-class constructors with default arguments, i.e. synthetic default constructors).
 
 Evidence:
-- Task id, immutable base, measured HEAD, and task-owned commits/file-scope source: gtd-tasks-api. Base `a67434529b8fa4cd07205312c877dfda021e9b5d` and the task commits (f98c23a, c438ac2, 9d13a3c, merge 4b839e5, e4a9c73) came from the parent worker. The file scope is the parent's path-restricted diff, which matches the task's `touches`. HEAD is `e4a9c73f39afb4f6fde842f1437a68116b41ecb0`.
-- Source/test snapshot identifier (including uncommitted inputs): HEAD e4a9c73 with tracked files clean (`git diff --quiet HEAD -- server` passed), plus two untracked test files: `TaskEdgeCaseTests.kt` sha256 `59269f49aefa5de9d1080c9ea380f8e6a90b09edc38fcd3684a6c2f5f609b001` and `ChecklistEdgeCaseTests.kt` sha256 `a54985538bff3633fa75ea68c53511d709edf71f0c58fa72bbbf90655c5b3526`. The hashes were taken after the run and match the measured inputs: no edits were made between the run and the hashing.
-- Exact included files: `server/src/main/kotlin/ch/sonensei/cockpit/gtd/api/{ChecklistController,TaskController,TaskDtos}.kt`, `.../gtd/domain/{ChecklistService,GtdEnums,Task,TaskCommands,TaskService}.kt`, `.../gtd/infra/{GtdItemResolvers,GtdRepositories,TaskTrashContributor}.kt`. Excluded: test files (not production); `server/src/main/resources/db/migration/gtd` (no migration changed in the diff). No renames or deletions. `GtdRepositories.kt` contains only Spring Data interfaces and has no JaCoCo counters (N/A, not missing).
-- Provider/version, command, working directory, and test selection: JaCoCo 0.8.15 (Gradle `jacoco` plugin, agent `org.jacoco:org.jacoco.agent:0.8.15`). Command `./gradlew cleanTest test --tests 'ch.sonensei.cockpit.gtd.*' --tests '*OpenApiContractTest' jacocoTestReport` in `server/`. Selection: all gtd test classes plus OpenApiContractTest (AC6).
-- Run start/completion time and exit status: 2026-10-20T17:10:43+02:00 to 17:11:47+02:00, BUILD SUCCESSFUL (exit 0).
-- Generated report paths and report hashes/run identifier: `server/build/reports/jacoco/test/jacocoTestReport.xml` (written 17:11:47), sha256 `753217afd4cbbbfcc2d2ad007e27d5335028da6aee08d9fab6c2ad15fed083fc`, JaCoCo session `dell26-294ee592`. Counters were read per `<sourcefile>` with `.tmp/jacoco_scope.py`, a Git-ignored scratch script.
-- Evidence outputs are fresh and inputs stayed unchanged: yes. `cleanTest` forced the tests to rerun, and the report timestamp and session id belong to this run. No source or test file changed between the run and the hashing above.
-- Final run after latest test additions and production fixes: yes. The run includes all 27 new tests and the production code with the CR-1..CR-4 fixes (9d13a3c). No production change followed it.
+- Task id, immutable base, measured HEAD, and task-owned commits/file-scope source: `gtd-tasks-api`; base `dc7514b180e106c50322a2595ca1d3c43841041e`; task commit `54f957029479fc0e3a6d71238ed05cdcd68e72af` (given by the parent and matching the `release` note in the task file); measured HEAD `f21a7faeca2228c7c379fd0b3a057f7dbb4ca0ba`. `git diff 54f95702 f21a7fae` has no changes in `server/src/{main,test}/kotlin/ch/sonensei/cockpit/gtd`.
+- Source/test snapshot identifier (including uncommitted inputs): HEAD f21a7fae plus the one untracked file `TaskPositionAndCursorTests.kt` (sha256 `3c134c31f391c54755ee2aadb9992b1644728fe0b656c964e7a2c3c71625947b`). The sha256 of the `sha256sum` listing of `server/src/test/kotlin/ch/sonensei/cockpit/gtd/*.kt` plus `server/src/main/kotlin/ch/sonensei/cockpit/gtd/*/*.kt` (run from `server/src`) is `e7c36c5b4fe160fee91c665e6c3093fd20c50d93ced25cfb2b0f82bc92cdb061`. It was the same before and after the coverage run and after `.taskcheck`.
+- Exact included files: `gtd/api/ChecklistController.kt`, `gtd/api/TaskController.kt`, `gtd/api/TaskDtos.kt`, `gtd/domain/ChecklistService.kt`, `gtd/domain/GtdEnums.kt`, `gtd/domain/Task.kt`, `gtd/domain/TaskCommands.kt`, `gtd/domain/TaskService.kt`, `gtd/infra/GtdItemResolvers.kt`, `gtd/infra/TaskTrashContributor.kt` (all under `server/src/main/kotlin/ch/sonensei/cockpit/`). `gtd/infra/GtdRepositories.kt` is in scope but has no JaCoCo counters: it contains only Spring Data interfaces, with no executable bytecode in the file. I report it as N/A, not as covered. Excluded: `api/openapi.yaml` and `web/src/app/api/generated/**` (generated), `reviews/**` (docs), test files. Nothing was renamed or deleted.
+- Provider/version, command, working directory, and test selection: JaCoCo through the Gradle `jacoco` plugin, as configured in `server/build.gradle.kts`; Gradle 9.8.1. Command `./gradlew test --rerun --tests 'ch.sonensei.cockpit.gtd.*' --tests '*OpenApiContractTest' jacocoTestReport` in `server/`.
+- Run start/completion time and exit status: 2026-10-20T17:50:54+02:00 to 17:51:38+02:00, BUILD SUCCESSFUL (exit 0).
+- Generated report paths and report hashes/run identifier: `server/build/reports/jacoco/test/jacocoTestReport.xml` (written 17:51:38, sha256 `269c1fea4456cdcb6cae7e13496b803106d1d9e8e8c288bd11c801afe586c9ad`), from `server/build/jacoco/test.exec` (written 17:51:35). The test results are in `server/build/test-results/test/` (timestamps 15:51 UTC).
+- Evidence outputs are fresh and inputs stayed unchanged: yes. `--rerun` forced the test task to run, and the exec and XML files were written during this run. The snapshot hash was the same before and after.
+- Final run after latest test additions and production fixes: yes. It includes the CR-5/CR-6 fixes (already in 54f95702) and all 8 new tests. Nothing changed after the run.
 
-Values below use covered/total (percentage); zero-denominator or unsupported metrics are N/A. "Statements" are JaCoCo INSTRUCTION counters, because JaCoCo has no statement counter.
+Values below use covered/total (percentage); JaCoCo has no separate statement counter, so "Statements" shows INSTRUCTION counters.
 
-| Changed file | Statements | Branches | Functions | Lines |
+| Changed file | Statements (instructions) | Branches | Functions (methods) | Lines |
 |---|---:|---:|---:|---:|
 | `gtd/api/ChecklistController.kt` | 132/132 (100.0%) | 2/2 (100.0%) | 7/7 (100.0%) | 19/19 (100.0%) |
-| `gtd/api/TaskController.kt` | 637/641 (99.4%) | 42/44 (95.5%) | 19/20 (95.0%) | 84/85 (98.8%) |
+| `gtd/api/TaskController.kt` | 655/662 (98.9%) | 45/48 (93.8%) | 19/20 (95.0%) | 88/89 (98.9%) |
 | `gtd/api/TaskDtos.kt` | 1286/1378 (93.3%) | 45/56 (80.4%) | 75/97 (77.3%) | 172/172 (100.0%) |
 | `gtd/domain/ChecklistService.kt` | 232/232 (100.0%) | 18/18 (100.0%) | 7/7 (100.0%) | 34/34 (100.0%) |
 | `gtd/domain/GtdEnums.kt` | 160/160 (100.0%) | 5/5 (100.0%) | 6/6 (100.0%) | 25/25 (100.0%) |
 | `gtd/domain/Task.kt` | 178/178 (100.0%) | 2/2 (100.0%) | 42/42 (100.0%) | 27/27 (100.0%) |
-| `gtd/domain/TaskCommands.kt` | 244/449 (54.3%) | N/A | 40/44 (90.9%) | 42/46 (91.3%) |
-| `gtd/domain/TaskService.kt` | 1675/1682 (99.6%) | 199/201 (99.0%) | 34/34 (100.0%) | 183/183 (100.0%) |
+| `gtd/domain/TaskCommands.kt` | 244/449 (54.3%) | N/A (0 branches) | 40/44 (90.9%) | 42/46 (91.3%) |
+| `gtd/domain/TaskService.kt` | 1695/1702 (99.6%) | 205/207 (99.0%) | 35/35 (100.0%) | 186/186 (100.0%) |
 | `gtd/infra/GtdItemResolvers.kt` | 106/106 (100.0%) | 13/13 (100.0%) | 7/7 (100.0%) | 31/31 (100.0%) |
-| `gtd/infra/GtdRepositories.kt` | N/A | N/A | N/A | N/A |
 | `gtd/infra/TaskTrashContributor.kt` | 122/131 (93.1%) | 15/16 (93.8%) | 5/5 (100.0%) | 23/23 (100.0%) |
-| **Aggregate (summed counters, 10 measured files; `GtdRepositories.kt` has no counters)** | 4772/5089 (93.8%) | 341/357 (95.5%) | 242/269 (90.0%) | 640/645 (99.2%) |
+| `gtd/infra/GtdRepositories.kt` | N/A (interfaces only) | N/A | N/A | N/A |
 
-Before the new tests (same command without `--tests '*OpenApiContractTest'`, run at 17:03 on the same HEAD), the aggregate was: instructions 4467/5089 (87.8%), branches 291/357 (81.5%), methods 240/269 (89.2%), lines 623/645 (96.6%). The new tests closed these gaps: the 409 on a client id in the Trash, the length and estimate limits, PATCH of position/recurrence, waitingForContactId on move, the malformed-cursor path, the restore/purge "not in Trash" paths, the "Done" Trash subtitle, and the checklist partial PATCH and text limit.
+Aggregate over the 10 measured files, computed from summed counters (excludes `GtdRepositories.kt`, which has no counters): instructions 4810/5130 (93.8%), branches 350/367 (95.4%), methods 243/270 (90.0%), lines 647/652 (99.2%). The previous run on the same code before the new tests had branches at 349/367: the new tests added the blank-If-Match branch. The other new tests exercise behavior on lines that existing tests already reach, so they add assertions but no counters.
 
 | File and uncovered lines/branch locations | Required behavior or risk | Action/test added or reason left uncovered |
 |---|---|---|
-| `TaskService.kt:101` (2/4 branches) | `title` missing on create | Justified gap: the `@NotNull` bean validation on `CreateTaskRequest.title` rejects this first (covered by `POST validates fields` with `{}`), so the service guard is unreachable through the API |
-| `TaskController.kt:287` (1/6 branches) | `If-Match` sent but blank on a workflow action is treated as absent | Not material: an edge of a header-blank check. The present/absent behavior is tested |
-| `TaskController.kt:304` (1/2), `:338` | Fallback field name `body` when a Jackson error has no property path; companion init line | Not material: defensive fallback. Conversion errors with a field (`energy`, `timeEstimateMin`, `dueDate`) are tested |
-| `TaskDtos.kt:75-76` | `checkNotNull(createdAt/updatedAt)` failure branch | Unreachable for saved entities (defensive) |
-| `TaskDtos.kt:94-122, 179-185` | Generated getters/`equals`/`hashCode`/`copy`/`componentN` of the request data classes | Not behavior: Kotlin data-class boilerplate, unused by the code |
-| `TaskDtos.kt:232-238` (partial branches) | `TaskPatchNullEnums`: skip paths for missing components, non-enum and already-nullable properties | Main path covered by `OpenApiContractTest` (the generated contract matches). The skip paths are defensive |
-| `TaskCommands.kt` (instructions 54.3%) | Generated `copy`/`equals`/`hashCode`/`toString`/`componentN` of the command data classes | Not behavior: data-class boilerplate. All constructors and properties used by the service are covered |
-| `TaskTrashContributor.kt:26` (1/2 branches) | `checkNotNull(deletedAt)` failure | Unreachable: `findAllDeleted` returns only rows with `deleted_at` set |
+| `gtd/api/TaskController.kt:146` (2 of 4 branches) | Fallback after a `DataIntegrityViolationException` on create: no client id, or `existingCreate` returns null | Justified gap. Without a client id, no duplicate-key race is possible, and a lost race always leaves the winner's row. Both are defensive rethrows. The reachable CR-6 paths (a repeat that wins the race, a race against a task in the Trash) are tested. |
+| `gtd/api/TaskController.kt:312` (1 branch) | `?: "body"` when a Jackson conversion error has no property path | Justified gap. The body is already a JSON object at this point, so every conversion error is tied to a field. |
+| `gtd/api/TaskController.kt:346` | Synthetic code of the companion object | Not behavior. |
+| `gtd/api/TaskDtos.kt:75-76` (1 branch each) | `checkNotNull(createdAt/updatedAt)` failure | Not reachable for persisted tasks (JPA auditing sets them). Defensive. |
+| `gtd/api/TaskDtos.kt:122` and generated data-class methods (22 methods: `copy`, `equals`, `hashCode`, `component*`) | Kotlin-generated code of request/response DTOs | Not behavior. No tests added only to raise the numbers. |
+| `gtd/api/TaskDtos.kt:232-238` (8 branches) | `TaskPatchNullEnums` OpenAPI customizer: null-safe navigation and skip conditions | Its output is checked by `OpenApiContractTest`, which compares against the committed `api/openapi.yaml`. The remaining branches are guards for schemas that are absent or already nullable. |
+| `gtd/domain/TaskCommands.kt` (instructions 205 missed, 4 methods) | Data classes `TaskChanges`, `TaskMove`, `TaskFilter`, `ChecklistItemChanges`: generated `copy`/`equals`/`hashCode`/`toString` and default constructors | Not behavior. |
+| `gtd/domain/TaskService.kt:98` (2 branches) | `title` missing in `create` | The API rejects a missing title before the service runs (`@NotNull`, tested in `POST validates fields`). This check guards other callers of the service. |
+| `gtd/infra/TaskTrashContributor.kt:26` (1 branch) | `checkNotNull(deletedAt)` for rows returned by `findAllDeleted()` | Not reachable, because the query selects only rows with `deleted_at`. Defensive. |
 
 ## Unable to test
 
-- Concurrent modification that surfaces as 409 (Hibernate optimistic lock between load and flush) is not tested. A deterministic test needs two interleaved transactions, and this suite has no such harness for MockMvc. The documented 409 response comes from the shared core error handling. Follow-up optional, not required by the acceptance criteria.
-- Everything else in the acceptance criteria was executed. No browser, image build or external service is involved.
+- A real concurrent create race through two HTTP requests. The CR-6 tests reproduce the race deterministically: a competing uncommitted JDBC insert holds the row lock, the POST waits on it (observed through `pg_stat_activity`), and then the competitor commits. This is the race CR-6 is about, so no follow-up is needed.
+- The web client against the regenerated `api/openapi.yaml`. It is outside this server-focused scope (the parent's left-over item 1, `npm run api:gen`). The web part of `.taskcheck` (lint, tests, build) passed.
 
 ## Summary
 
-Tests and task-scoped coverage are sufficient; no production defects found. 27 tests were added, and all gtd tests, `OpenApiContractTest`, `ktlintCheck` and `.taskcheck` passed.
+Tests added and all validation passed.
+
+The 8 new tests cover CR-5 project/list positions, the CR-6 race against a task in the Trash, cursor paging over equal sort keys, a blank optional If-Match and duplicate context ids. No production defects were found. The requested gtd + OpenApiContractTest run (92 tests), `.taskcheck` and fresh task-scoped JaCoCo coverage all pass. The remaining uncovered code is defensive or compiler-generated.
+
+The new test file and this report are not committed. My role does not allow committing or staging, so the parent worker has to review and commit `server/src/test/kotlin/ch/sonensei/cockpit/gtd/TaskPositionAndCursorTests.kt` and `reviews/gtd-tasks-api/tests.md`.
