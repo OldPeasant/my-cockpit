@@ -4,40 +4,44 @@ Date: 2026-10-21
 
 Task: files-api - Files API: upload, download, operations
 
-Scope: `git diff c3b429ed64eceb70609b59999406373f0e3248fd..fa633bff`, excluding `tasks/` and `reviews/`. Reviewed revision: fa633bff (merge of `origin/wip/files-api` = 8184c4d6 into c3b429ed). Committed changes only. The working tree was clean at the start of the review.
+Scope: `git diff c3b429ed64eceb70609b59999406373f0e3248fd..2d893a71`, excluding `tasks/` and `reviews/`. Reviewed revision: 2d893a71 (final code revision). Committed changes only. The working tree was clean at the start of the review.
 
 How the scope was reviewed:
-- The merge is clean for the task's code: `git diff 5e0b966c 8184c4d6` (merge-base of the two merge parents to the task tip) and `git diff c3b429ed fa633bff`, both excluding `tasks/` and `reviews/`, are byte-identical (same SHA-1 of the diff text). So fa633bff contains exactly the task's code changes and nothing from the merge itself.
-- The previous review covered a2eb6da6. `git diff e035eaf7 a2eb6da6` and `git diff 5e0b966c 133a5b3d` (both excluding `tasks/` and `reviews/`) have the same `git patch-id`. So 133a5b3d is the same code as the reviewed a2eb6da6, and its conclusions (full review of all production sources, configuration, migration, build file, OpenAPI contract and generated web client, plus the CR-1/CR-2 verification) carry over.
-- The only code change since then is commit 8184c4d6, which adds two tests to `FilesApiEdgeCaseWebTests.kt` (no production change). It was read in full, and the helpers it uses (`postJson`, `newFolder`, `createUpload`, `DRIVE`, `UPLOADS`, `UNKNOWN`) were confirmed to exist in the same file.
-- The final revision was also re-read independently in its central parts: `UploadService.kt`, `ChunkStore.kt`, `FileController.kt`, `FilesWebSupport.kt` and `DriveService.kt`. Checked: size and SHA-256 check on complete with rollback of the stored blob, chunk length enforcement and atomic chunk writes, cleanup of chunks when a write races with complete/abort, lazy expiry of sessions, the RFC 6266 `filename*` encoding (`+` and `*` re-encoded), the PATCH parsing where an explicit `null` means the drive root, cursor parsing and validation, and the zip entries (empty directories, case-insensitive numbering of duplicates, Trash excluded).
-- Commands run, all read-only: `git log`, `git show`, `git diff`, `git patch-id`, `sha1sum`, `grep`. No Gradle or npm command was run, because a test-writer was running in the same clone at the same time. Test results come from the evidence recorded in `tasks/files-api.md`.
+- The previous review covered fa633bff (full task scope `c3b429ed..fa633bff`, 0 findings). The commits since then are d996a5ec (review report only), 4ed5c744 (test report only) and 2d893a71.
+- `git diff fa633bff..2d893a71`, excluding `reviews/`, touches exactly one file: `server/src/main/kotlin/ch/sonensei/cockpit/files/infra/DriveQueries.kt`, one line changed (the trailing `!!` after the `jdbc.queryForObject(...)` call in `totals()` is removed). `git show --stat 2d893a71` confirms that this commit changes only that file and `reviews/files-api/fixes.md`. All other task code is unchanged since fa633bff, so the conclusions of the previous review carry over.
+- `DriveQueries.kt` was read in full, together with its only caller (`DriveService.kt:90`).
+- Commands run, all read-only: `git status`, `git log`, `git show`, `git diff`, `git patch-id`, `grep`, `sed`. No Gradle or npm command was run, because a test-writer was running in the same clone at the same time. Test results come from `reviews/files-api/tests.md` and `reviews/files-api/fixes.md`.
 
 Requirements:
 - `tasks/files-api.md`: acceptance criteria 1-5 and the ASSUMPTION notes
-- SPEC.md §8.2 and §4.2 (as reflected in the task), AGENTS.md project notes, `docs/ARCHITECTURE.md`
-- Previous `reviews/files-api/review.md` (reviewed a2eb6da6, 0 findings)
+- SPEC.md §8.2 and §4.2 (as reflected in the task), AGENTS.md project notes (in particular "fix warnings, don't suppress them"), `docs/ARCHITECTURE.md`
+- Previous `reviews/files-api/review.md` (reviewed fa633bff, 0 findings)
+- `reviews/files-api/tests.md` (TW-1) and `reviews/files-api/fixes.md`
 
 Git range:
 - Branch: main
-- HEAD: fa633bff (Merge remote-tracking branch 'origin/wip/files-api')
+- HEAD: 2d893a71 (files-api: remove unnecessary !! in DriveQueries.totals (TW-1), update fixes.md)
 - Base/start: c3b429ed64eceb70609b59999406373f0e3248fd (merge-base with origin/main)
-- Commits reviewed: 7 (573bc24d, c27b5850, e48373ca, 01aa873f [reports only], 133a5b3d, 8184c4d6, merge fa633bff)
+- Commits reviewed: 3 since the previous review (d996a5ec [report only], 4ed5c744 [report only], 2d893a71); the full task range up to fa633bff was covered by the previous reviews
 
 Summary: 0 P0, 0 P1, 0 P2, 0 P3
 
 ## Changes since the previous review
 
-- `an explicit null folder id on create means the drive root, as the contract allows`: sends `"parentId": null` to `POST /folders` and `"folderId": null` to `POST /uploads`, and checks that both end up at the root. This pins the nullable contract from CR-1 for the create requests too, not only for PATCH. The test asserts behavior (status, `parentId`, `path`, `folderId`), not implementation details.
-- `listFolder and getUpload answer a client that accepts only application json, also with errors`: sends `Accept: application/json`, like the regenerated web client does, and checks 200 with a JSON body and 404 with a Problem Details body (`status` 404). This covers the risk that came with CR-2: an error must not become 406 when the client accepts only `application/json`. The test is meaningful and correctly scoped.
+- `DriveQueries.totals()`: the `!!` after `jdbc.queryForObject(sql) { rs, _ -> Totals(...) }` is removed. The project uses Spring Boot 4.1.1 (Spring Framework 7, JSpecify nullness), where `queryForObject(String, RowMapper<T>)` returns `T` and `T` is inferred from the row mapper. The mapper always builds a non-null `Totals`, so the result type is already `Totals`, as the compiler warning reported by the test-writer (`DriveQueries.kt:64:99`) says. Behavior is unchanged: `queryForObject` still throws `IncorrectResultSizeDataAccessException` if the row count is not exactly one, and the aggregate query without `group by` always returns exactly one row. The return type `Totals` of `totals()` and its caller `DriveService` are unaffected. The change resolves a warning in task code, as AGENTS.md requires.
+
+## Check of `reviews/files-api/fixes.md`
+
+- The TW-1 section matches the commit: the file, the line, the problem (the compiler warning quoted in `tests.md`) and the fix (removing the trailing `!!`) are described correctly, and the reasoning about `queryForObject` is correct.
+- The validation claims (178 tests in the files suite, `compileKotlin` without a warning in the files module) could not be re-run here because Gradle was not run. They are consistent with `tests.md`, which reports 179 tests for the same suite plus `OpenApiContractTest`.
+- The report correctly states that the full `./gradlew check` and `.taskcheck` were not re-run in the TW-1 round. The parent must still run `.taskcheck` on the final code before `done`.
+- The earlier sections (CR-1 to CR-4, CR2-1, CR2-2) are unchanged in substance and were already checked in the previous reviews.
 
 ## Verification against the acceptance criteria
 
-- AC1 (multipart and resumable upload, size and sha256 check, configurable max size): met in code. No production change since the previous full review.
-- AC2 (Range, RFC 6266 Content-Disposition, streamed folder zip): met in code. No change.
-- AC3 (rename, move without cycles, delete to Trash, new folder, cursor listing, usage): met in code. No change.
-- AC4 (focused test suite incl. resume after a missing chunk and a 60 MB chunked upload): the tests exist. The recorded evidence names the command and the result (175 tests, 0 failures). That run predates the two tests added in 8184c4d6. The reviewer did not re-run the suite. The parent should make sure the final evidence (test-writer run or `.taskcheck`) includes 8184c4d6.
-- AC5 (OpenAPI regenerated, `OpenApiContractTest` passes): 8184c4d6 changes no annotations, so `api/openapi.yaml` and the generated web client still match the code of 133a5b3d, where they were checked. The reviewer did not re-run the contract test.
+- AC1 to AC3: met in code. The only production change since fa633bff is the type-level cleanup above, which changes no behavior.
+- AC4 (focused test suite): the test-writer's run on fa633bff passed (179 tests, see `tests.md`), and the fixer reports the files suite passing after TW-1. The reviewer did not re-run it. The parent's final evidence should come from a run on 2d893a71 (the concurrent test-writer run or `.taskcheck`).
+- AC5 (OpenAPI regenerated, `OpenApiContractTest` passes): the change touches no API annotation or DTO, so `api/openapi.yaml` and the generated web client still match the code.
 
 ## P0 Critical
 
@@ -59,4 +63,4 @@ None.
 
 No material issues found.
 
-The task code at fa633bff is the same as the reviewed a2eb6da6 plus two well-targeted tests. The independent re-read of the central upload, download, PATCH and listing code found no correctness, security, integration or data-loss defects.
+The only code change since the reviewed fa633bff, removing a redundant `!!` in `DriveQueries.totals()`, is correct and changes no behavior. `fixes.md` describes it accurately. All other task code is unchanged since the previous review.
