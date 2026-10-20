@@ -5,7 +5,7 @@ owner: R1963MACOS/agent-2
 deps: [p0-items-links]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/core/trash,server/src/test/kotlin/ch/sonensei/cockpit/core/trash]
 prio: 2
-lease_until: 2026-10-20T13:31:39Z
+lease_until: 2026-10-20T13:36:41Z
 ---
 ## Goal
 Generic trash for soft-deleted items (SPEC.md §4.2).
