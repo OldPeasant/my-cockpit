@@ -38,9 +38,12 @@ import io.kotest.matchers.string.shouldNotContain
 import io.kotest.matchers.types.shouldBeInstanceOf
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.extension.ExtendWith
 import org.junit.jupiter.api.io.TempDir
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
+import org.springframework.boot.test.system.CapturedOutput
+import org.springframework.boot.test.system.OutputCaptureExtension
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc
 import org.springframework.context.annotation.Import
 import org.springframework.jdbc.core.JdbcTemplate
@@ -65,6 +68,7 @@ import kotlin.io.path.outputStream
 @SpringBootTest
 @AutoConfigureMockMvc
 @Import(MutableClockTestConfiguration::class)
+@ExtendWith(OutputCaptureExtension::class)
 class CoreBackupContributorsTests(
 	@Autowired private val backups: BackupService,
 	@Autowired private val userContributor: UserBackupContributor,
@@ -121,7 +125,9 @@ class CoreBackupContributorsTests(
 	}
 
 	@Test
-	fun `after import the owner has a new decryptable TOTP secret, the old one no longer works, and a recovery code does`() {
+	fun `after import the owner has a new decryptable TOTP secret, the old one no longer works, and a recovery code does`(
+		output: CapturedOutput,
+	) {
 		val enrollment = activeOwner()
 		val original = users.findFirstBy()!!
 		val zip = exportZip()
@@ -129,6 +135,11 @@ class CoreBackupContributorsTests(
 
 		importCore(zip)
 
+		withClue("the import warns that TOTP must be re-enrolled, without secrets or the username") {
+			output.all shouldContain "Restored owner account without its TOTP secret: the owner must sign in with a recovery code"
+			output.all shouldNotContain enrollment.totpSecret
+			output.all shouldNotContain USERNAME
+		}
 		val restored = users.findFirstBy().shouldNotBeNull()
 		restored.id shouldBe original.id
 		restored.username shouldBe USERNAME
@@ -156,6 +167,18 @@ class CoreBackupContributorsTests(
 				.verify(LoginCredentials(USERNAME, PASSWORD, totp.generate(newSecret, clock.instant()), null, false))
 				.shouldBeInstanceOf<CredentialCheck.Verified>()
 		}
+	}
+
+	@Test
+	fun `importing an owner without unused recovery codes warns that the owner is locked out`(output: CapturedOutput) {
+		activeOwner()
+		jdbc.update("update recovery_code set used_at = now()")
+		val zip = exportZip()
+		emptyCore()
+
+		importCore(zip)
+
+		output.all shouldContain "no unused recovery code left"
 	}
 
 	@Test
@@ -261,7 +284,11 @@ class CoreBackupContributorsTests(
 			"| 2026-12-24T18:00:00Z | task:${task.id} | notification |\n" +
 			"| 2027-01-15T09:30:00Z | event:${event.id} | notification |\n"
 		withClue("the data file keeps the fired reminder, so a restore does not fire it again") {
-			files.getValue("data/reminders.jsonl").lines().filter { it.isNotBlank() }.size shouldBe 3
+			files
+				.getValue("data/reminders.jsonl")
+				.lines()
+				.filter { it.isNotBlank() }
+				.size shouldBe 3
 			files.getValue("data/reminders.jsonl") shouldContain "\"firedAt\":\"2026-03-01T07:00:00.250Z\""
 		}
 	}
@@ -271,8 +298,16 @@ class CoreBackupContributorsTests(
 		val files = export()
 
 		files.getValue("readable/links.md") shouldContain "| From | To | Label | Origin |\n| --- | --- | --- | --- |\n"
-		files.getValue("readable/links.md").lines().filter { it.startsWith("| ") }.size shouldBe 2
-		files.getValue("readable/reminders.md").lines().filter { it.startsWith("| ") }.size shouldBe 2
+		files
+			.getValue("readable/links.md")
+			.lines()
+			.filter { it.startsWith("| ") }
+			.size shouldBe 2
+		files
+			.getValue("readable/reminders.md")
+			.lines()
+			.filter { it.startsWith("| ") }
+			.size shouldBe 2
 		files shouldContainKey "readable/settings.md"
 	}
 

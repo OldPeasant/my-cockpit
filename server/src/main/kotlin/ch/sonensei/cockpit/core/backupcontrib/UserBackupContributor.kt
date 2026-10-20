@@ -7,6 +7,7 @@ import ch.sonensei.cockpit.backup.domain.json
 import ch.sonensei.cockpit.core.auth.domain.Base32
 import ch.sonensei.cockpit.core.auth.domain.Totp
 import ch.sonensei.cockpit.core.crypto.SecretCipher
+import org.slf4j.LoggerFactory
 import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.stereotype.Component
 import java.time.Instant
@@ -18,12 +19,19 @@ import java.util.UUID
  * with a passphrase). Without it, [import] stores a fresh random TOTP secret, so the owner signs in with a recovery code
  * and enrolls TOTP again. Sessions and Android devices are not backed up: their tokens are short-lived, so the owner
  * signs in again after a restore.
+ *
+ * Interim limitation until the forced TOTP re-enrollment exists (task `backup-secrets`): the restored account is active
+ * with a TOTP secret nobody knows, and each recovery code login uses up a code. [import] therefore logs a WARN that the
+ * owner must sign in with a recovery code and re-enroll TOTP, and says so explicitly when the backup holds no unused
+ * recovery code, because the owner is then locked out. The warning never contains the username, secrets or hashes.
  */
 @Component
 class UserBackupContributor(
 	private val jdbc: JdbcTemplate,
 	private val cipher: SecretCipher,
 ) : BackupContributor {
+	private val log = LoggerFactory.getLogger(javaClass)
+
 	override val id = ID
 
 	override fun export(writer: BackupDataWriter) {
@@ -68,6 +76,22 @@ class UserBackupContributor(
 				user.id,
 				code.codeHash,
 				code.usedAt.toTimestampOrNull(),
+			)
+		}
+		if (user.totpConfirmedAt != null) warnTotpNotRestored(user.recoveryCodes.count { it.usedAt == null })
+	}
+
+	private fun warnTotpNotRestored(unusedRecoveryCodes: Int) {
+		if (unusedRecoveryCodes == 0) {
+			log.warn(
+				"Restored owner account without its TOTP secret and with no unused recovery code left: " +
+					"the owner cannot sign in until TOTP is re-enrolled",
+			)
+		} else {
+			log.warn(
+				"Restored owner account without its TOTP secret: the owner must sign in with a recovery code " +
+					"({} unused) and re-enroll TOTP",
+				unusedRecoveryCodes,
 			)
 		}
 	}

@@ -144,8 +144,8 @@ class BackupWebTests(
 			status { isOk() }
 			jsonPath("$.id") { value(id.toString()) }
 			jsonPath("$.state") { value("COMPLETED") }
-			jsonPath("$.stepsDone") { value(3) }
-			jsonPath("$.stepsTotal") { value(3) }
+			jsonPath("$.stepsDone") { value(backups.exportSteps) }
+			jsonPath("$.stepsTotal") { value(backups.exportSteps) }
 			jsonPath("$.fileName") { value(org.hamcrest.Matchers.matchesRegex("cockpit-backup-\\d{4}-\\d{2}-\\d{2}T\\d{4}Z\\.zip")) }
 			jsonPath("$.finishedAt") { exists() }
 		}
