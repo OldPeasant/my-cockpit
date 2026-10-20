@@ -16,7 +16,8 @@ Generic reminders for any item (SPEC.md §4.6).
   - verified (2026-10-20 16:50+0200 by dell26/agent-3): Flyway migration core/reminders + ReminderController; ./gradlew test --tests 'ch.sonensei.cockpit.core.reminders.*' (ReminderWebTests: GET/POST/DELETE /api/v1/reminders, GET /{id}, GET /upcoming?until=, Problem Details 400/404) against Testcontainers Postgres -> pass (52 reminders tests, 0 failures)
 - [x] Scheduler fires due reminders once (sets `firedAt`) and publishes a `reminder` SSE event with the resolved item title
   - verified (2026-10-20 16:50+0200 by dell26/agent-3): ./gradlew test --tests 'ch.sonensei.cockpit.core.reminders.*' (ReminderSchedulerRunTests, ReminderEventsStreamTests, ReminderGtdResolverTests: due reminder fired once, firedAt set, 'reminder' SSE event with resolved task/project title delivered after commit) -> pass
-- [ ] `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.core.reminders.*'` passes (Postgres via Testcontainers where persistence is involved) with the test clock (fires once, not twice after restart)
+- [x] `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.core.reminders.*'` passes (Postgres via Testcontainers where persistence is involved) with the test clock (fires once, not twice after restart)
+  - verified (2026-10-20 16:50+0200 by dell26/agent-3): cd server && ./gradlew test --tests 'ch.sonensei.cockpit.core.reminders.*' --tests '*OpenApiContractTest' on rebased HEAD (Testcontainers Postgres, test clock; ReminderServiceTests restart case: second service instance does not re-fire) -> BUILD SUCCESSFUL, 53 tests, 0 failures
 - [ ] API documented: `api/openapi.yaml` regenerated (`UPDATE_OPENAPI=1 ./gradlew test --tests '*OpenApiContractTest'`) and `OpenApiContractTest` passes without the flag
 
 ## Notes
