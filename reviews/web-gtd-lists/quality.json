@@ -1,0 +1,21 @@
+{
+  "schema": 1,
+  "task": "web-gtd-lists",
+  "reviewed_revision": "772e60c96273a51d69194006e61962c852030b63",
+  "helpers": {
+    "test-writer": {"status": "completed", "report": "reviews/web-gtd-lists/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/web-gtd-lists/review.md"},
+    "fixer": {"status": "not_required", "reason": "no production defects; the only finding (CR-1, P3) is accepted and the broken app.i18n.spec placeholder test was updated by the test-writer itself"}
+  },
+  "fixes_required": false,
+  "findings": [
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P3", "disposition": "accepted",
+     "note": "Logbook loads the whole completed history (paged 200 at a time); fine for a single-user v1, paging would need TaskStore changes outside this task; recorded as an assumption"}
+  ],
+  "validation": [
+    {"command": "cd web && npx ng test --include 'src/app/features/gtd/lists/**/*.spec.ts' --include src/app/app.i18n.spec.ts", "result": "pass"},
+    {"command": "cd web && npm run check", "result": "pass"},
+    {"command": "cd web && npm run e2e -- e2e/gtd-lists/lists.spec.ts", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
