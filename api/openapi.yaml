@@ -18,6 +18,8 @@ tags:
   name: Backup
 - description: User settings
   name: Settings
+- description: Quick capture to the Inbox
+  name: Capture
 - description: First-run creation of the owner account
   name: Setup
 - description: "GTD projects, areas of focus and contexts"
@@ -1048,6 +1050,90 @@ paths:
       summary: Change an event or occurrences of a series
       tags:
       - Calendars
+  /api/v1/capture:
+    post:
+      description: "Creates a task in the INBOX (WAITING with a `^` token) from `text`,\
+        \ applying the capture syntax unless `parse` is false, and links `fileIds`\
+        \ to it. With a client-generated `id` (UUIDv7) the capture is idempotent:\
+        \ repeating it returns the existing task (200) unchanged."
+      operationId: capture
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CaptureRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TaskResponse"
+          description: A task with this id already exists; it is returned unchanged
+          headers:
+            ETag:
+              description: "Version of the task, for If-Match"
+              schema:
+                type: string
+              style: simple
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TaskResponse"
+          description: Created
+          headers:
+            ETag:
+              description: "Version of the task, for If-Match"
+              schema:
+                type: string
+              style: simple
+        "400":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: "Invalid fields, a text without a title, an id that is not\
+            \ a UUIDv7 or an unknown file"
+        "409":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: The id belongs to a task in the Trash
+      summary: Capture a task
+      tags:
+      - Capture
+  /api/v1/capture/preview:
+    post:
+      description: What `POST /capture` would create from the text (with `parse`);
+        nothing is stored.
+      operationId: previewCapture
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CapturePreviewRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CapturePreviewResponse"
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/CapturePreviewResponse"
+          description: The parse result
+        "400":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: Missing or too long text
+      summary: Preview the capture syntax
+      tags:
+      - Capture
   /api/v1/contexts:
     get:
       operationId: listContexts
@@ -3684,6 +3770,113 @@ components:
       - updatedAt
       - version
       - visible
+    CaptureContextResponse:
+      type: object
+      description: A context named with `@`
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+      required:
+      - id
+      - name
+    CapturePreviewRequest:
+      type: object
+      description: A text to preview the capture syntax of
+      properties:
+        text:
+          type: string
+          maxLength: 100000
+          minLength: 0
+      required:
+      - text
+    CapturePreviewResponse:
+      type: object
+      description: "What a capture of the text creates. Syntax (a token starts the\
+        \ text or follows whitespace): `#project` an existing project by title (case-insensitive,\
+        \ `-`/`_` for spaces), `@context` an existing context, `!today`, `!tomorrow`\
+        \ or `!YYYY-MM-DD` the due date, `^waiting` the WAITING list (`^name`: waiting\
+        \ for name). Recognized tokens are removed from the title; unknown ones stay\
+        \ as text."
+      properties:
+        contexts:
+          type: array
+          items:
+            $ref: "#/components/schemas/CaptureContextResponse"
+        dueDate:
+          type: string
+          format: date
+          description: Local date in the user's time zone
+        extraNotes:
+          type: string
+          description: "The rest of the text, put in front of the notes"
+        list:
+          type: string
+          description: "INBOX, or WAITING with a `^` token"
+          enum:
+          - INBOX
+          - NEXT
+          - WAITING
+          - SOMEDAY
+          - SCHEDULED
+        project:
+          $ref: "#/components/schemas/CaptureProjectResponse"
+        title:
+          type: string
+          description: The task title; empty when the text has none
+        waitingFor:
+          type: string
+          description: Free text of `^name`
+      required:
+      - contexts
+      - list
+      - title
+    CaptureProjectResponse:
+      type: object
+      description: A project named with `#`
+      properties:
+        id:
+          type: string
+          format: uuid
+        title:
+          type: string
+      required:
+      - id
+      - title
+    CaptureRequest:
+      type: object
+      description: "A quick capture. The first line of `text` becomes the title, further\
+        \ lines go in front of `notes`. With `parse` (default true) the capture syntax\
+        \ is applied, see `POST /capture/preview`."
+      properties:
+        fileIds:
+          type: array
+          description: Uploaded files to link to the task (at most 50)
+          items:
+            type: string
+            format: uuid
+          maxItems: 50
+          minItems: 0
+        id:
+          type: string
+          format: uuid
+          description: Client-generated UUIDv7 for an idempotent capture (offline
+            queue)
+        notes:
+          type: string
+          description: Markdown notes of the task
+        parse:
+          type: boolean
+          description: Apply the capture syntax (default true); false keeps the text
+            as it is
+        text:
+          type: string
+          maxLength: 100000
+          minLength: 0
+      required:
+      - text
     ChangeEvent:
       type: object
       description: A change notification. Clients refetch the item; the event carries
