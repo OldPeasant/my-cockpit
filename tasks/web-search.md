@@ -17,3 +17,4 @@ Ctrl+K palette with global search and commands (SPEC.md §4.4).
 - [ ] Playwright `e2e/search/search.spec.ts` passes against the e2e stack (`npm run e2e -- e2e/search/search.spec.ts`, see p0-e2e-harness): search 'passport' finds the task
 
 ## Notes
+- ASSUMPTION (2026-10-20 18:55+0200 by dell26/agent-4): Palette search: queries shorter than 2 characters (trimmed) are not sent, 200 ms debounce, limit 20; results without a deepLink (module without resolver) are left out since there is nothing to open
