@@ -4,28 +4,36 @@ Date: 2026-10-20
 
 Task: p0-web-api-client - Generated API client and HTTP infrastructure
 
-Scope: committed changes of the task, `git diff 2b07bd1..HEAD` (ng-openapi-gen config and generated client, `web/scripts/api-gen-check.mjs` in `npm run check`, eslint ignore, `web/proxy.conf.json` + `angular.json` serve option, `web/src/app/core/http/*`, `app.config.ts` wiring, tests). The test report `reviews/p0-web-api-client/tests.md` was read but is not under review.
+Scope: re-review of all committed changes of the task at the final revision, `git diff 30655ee..8b0ae52`. This includes the ng-openapi-gen config and generated client, `web/scripts/api-gen-check.mjs` in `npm run check`, the eslint ignore, `web/proxy.conf.json` and the `angular.json` serve option, `web/src/app/core/http/*`, the `app.config.ts` wiring, tests, `web/src/locale/messages.xlf` and `docs/ARCHITECTURE.md`. It also checks the fixes for CR-1 and CR-2 from the previous review of revision ee787fb, using `reviews/p0-web-api-client/fixes.md`. The test and fix reports were read but are not under review.
 
 Requirements:
-- `tasks/p0-web-api-client.md` acceptance criteria and its three recorded assumptions (`python tasks.py assumptions`)
-- SPEC.md §4.1 (session cookie, CSRF double-submit cookie with Angular's `XSRF-TOKEN` convention), §4.2 (Problem Details)
-- docs/ARCHITECTURE.md (stack, Run, Testing, API sections, i18n convention), AGENTS.md project notes, `api/README.md`
+- `tasks/p0-web-api-client.md`: acceptance criteria and the three recorded assumptions
+- SPEC.md §4.1 (session cookie and CSRF `XSRF-TOKEN` convention) and §4.2 (Problem Details)
+- docs/ARCHITECTURE.md (Run, Testing, API and i18n conventions), AGENTS.md project notes, `api/README.md`
 
 Git range:
 - Branch: main
-- HEAD: ee787fb
-- Base/start: 2b07bd1bf0e34eeaa49578cf34b735215c56e16e
-- Commits reviewed: 3 (fc6b97d, dee03e6, ee787fb)
+- HEAD: 8b0ae525be87a4bf9003b42b9d551f1006094e1b
+- Base/start: 30655eee92f5b374649adf61822dd6b31a376dfa (`git merge-base HEAD origin/main`)
+- Commits reviewed: 6 (e9e7cbd, 88b773f, 320b0ab, b55c454, 6ea05d0, 8b0ae52). The first three are the rebased versions of the commits reviewed before. The other three are the review report, the fixes and the re-test report.
+- Uncommitted changes: none
 
-Summary: 0 P0, 0 P1, 0 P2, 2 P3
+Summary: 0 P0, 0 P1, 0 P2, 0 P3
 
-Verification done by the reviewer: `cd web && npm run -s check` -> api:check reported the generated client up to date, lint passed, 6 test files and 56 tests passed, production build succeeded. The working tree was clean before the review.
+Changes since the previous review:
+- `git diff ee787fb..HEAD -- web api server` shows only `web/src/locale/messages.xlf` (+32 lines). The new base (30655ee) differs from the old base (2b07bd1) only in `tasks/*.md` files, so the rebase did not change any reviewed production or test code, and the earlier review of that code still holds.
+- CR-1 fixed: `messages.xlf` now has trans-units for `http.error.unreachable`, `http.error.server`, `http.error.request` (with the `status` placeholder) and `notification.dismiss`. Their source texts and line numbers (api-error.ts:72/74/75, notification.service.ts:10/14) match the current `$localize` calls. The existing `app.scaffold` and `app.title` entries are unchanged.
+- CR-2 fixed: the ARCHITECTURE.md Run row for Web now says `web/proxy.conf.json` forwards `/api` and `/actuator` to `localhost:8080`, which matches `proxy.conf.json`. The Testing row for `npm run check` now lists `api:check` (and `npm run api:gen` to regenerate) before lint, tests and the production build, which matches the `check` script in `web/package.json`.
 
-Criterion check:
-- #1: `api:gen` runs `ng-openapi-gen` with `web/ng-openapi-gen.json` (input `../api/openapi.yaml`, output `src/app/api/generated`). The generated code is committed and ignored by `eslint.config.js`. `api:check` generates into a temp dir and compares the file sets and contents exactly (missing, stale and changed files), and it runs first in `npm run check`. The logic is correct. No automated test shows it failing on drift, so the parent should record a manual demonstration as evidence.
-- #2: `withXsrfConfiguration({cookieName: 'XSRF-TOKEN', headerName: 'X-XSRF-TOKEN'})` is set. The interceptor order is correct: errors reach `loginRedirectInterceptor` first as the raw `HttpErrorResponse`, then `problemInterceptor` maps them to `ApiError`. A 401 navigates to `/login?returnUrl=...` using the in-flight navigation target if there is one. Repeated 401s and the public paths are handled. Problem Details become a typed `ApiError` with defensive parsing, and the toast goes through `NotificationService` (MatSnackBar). `rootUrl ''` keeps calls same-origin, so Angular's XSRF interceptor adds the header.
-- #3: `proxy.conf.json` proxies `/api` and `/actuator` to `http://localhost:8080`, and `angular.json` `serve.options.proxyConfig` wires it in. Only the config was reviewed. This review did not run `npm start` against a running server.
-- #4: interceptor tests cover the 401 redirect (including edge cases), problem mapping, the fallbacks, SILENT_ERRORS, XSRF and the app config wiring. `npm run check` passes.
+What the reviewer ran on 8b0ae52:
+- `cd web && npm run -s api:check` -> "src/app/api/generated is up to date."
+- `cd web && npm run -s check` -> the chained steps all completed (api:check, lint, Vitest with 6 files and 56 tests passed, production build succeeded).
+
+Criterion check (same results as the previous review, code unchanged):
+- #1: generation config, committed generated client, lint exclusion and the exact-compare freshness check as the first step of `npm run check` are all in place.
+- #2: XSRF config is set. The 401 redirect to `/login?returnUrl=...` and the mapping of Problem Details to a typed `ApiError` toasted through `NotificationService` work, and the interceptor order is correct.
+- #3: the proxy config is wired through `angular.json`. The review checked the configuration only and did not run it against a live server.
+- #4: the interceptor tests cover the 401 redirect and problem mapping, and `npm run check` passes.
 
 ## P0 Critical
 
@@ -41,22 +49,15 @@ None.
 
 ## P3 Low
 
-- [ ] **CR-1 | New i18n strings not extracted into `messages.xlf`**
-    - File: `web/src/app/core/http/api-error.ts:72`, `web/src/app/core/http/notification.service.ts:10`
-    - Category: Quality
-    - Problem: The task adds four `$localize` messages with explicit ids (`http.error.unreachable`, `http.error.server`, `http.error.request`, `notification.dismiss`). The committed `web/src/locale/messages.xlf` still contains only `app.scaffold` and `app.title`. Last change: p0-web-deps.
-    - Why it matters: ARCHITECTURE.md says all user-facing strings are externalized, and `npm run i18n:extract` writes `src/locale/messages.xlf`. Because the committed source catalog is now out of date, translators and later diffs of the file miss these strings.
-    - Suggested fix: Run `cd web && npm run i18n:extract` and commit the updated `messages.xlf`. This is a one-file addition.
-
-- [ ] **CR-2 | ARCHITECTURE.md still describes the dev proxy as future work and leaves out `api:check`**
-    - File: `docs/ARCHITECTURE.md:93`, `docs/ARCHITECTURE.md:127`
-    - Category: Quality
-    - Problem: The Run table still says "A dev proxy from `/api` to `:8080` comes with the first API task". The proxy now exists and also covers `/actuator`. The Testing table describes `npm run check` as "web lint + tests + production build", but it now also runs the generated-client freshness check (`api:check`).
-    - Why it matters: The review checklist asks that docs on how to run and test match the configuration. An agent whose `npm run check` fails on `api:check` gets no hint from ARCHITECTURE.md. The fix is in `api-gen-check.mjs` output and `api/README.md`.
-    - Suggested fix: Make two small edits to the shared doc. Line 93 becomes "`npm start` proxies `/api` and `/actuator` to `:8080` (`proxy.conf.json`)". Line 127 becomes "generated-client check (`api:check`) + lint + tests + production build".
+None.
 
 ## Review conclusion
 
-No material issues found. The two P3 items are small documentation and catalog follow-ups. None of the criteria has evidence recorded with `tasks.py verify` yet. The parent should record:
-- for #1, a real `api:check` failure after drift, followed by a clean pass;
-- for #3, a real `npm start` proxy check, or a skip with the reason.
+No material issues found.
+
+`python tasks.py verify p0-web-api-client` still shows all four criteria unverified. The parent must record evidence before `done`:
+- #1: a real `api:check` failure after drift, followed by a clean pass;
+- #3: a real `npm start` proxy check, or a skip with the reason;
+- #2 and #4: the `npm run check` result.
+
+`.taskcheck` has not been run on this revision (the fixer could not run it). The parent must run it.
