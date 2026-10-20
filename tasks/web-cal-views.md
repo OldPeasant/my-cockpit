@@ -17,3 +17,4 @@ Day/week/month/agenda (SPEC.md §6.3).
 - [ ] Playwright `e2e/calendar-views/views.spec.ts` passes against the e2e stack (`npm run e2e -- e2e/calendar-views/views.spec.ts`, see p0-e2e-harness): weekly event shows correctly across the DST week
 
 ## Notes
+- ASSUMPTION (2026-10-21 00:32+0200 by dell26/agent-4): Calendar visibility toggles persist the calendar's 'visible' flag on the server (PATCH /calendar/calendars/{id}); the view fetches occurrences of all calendars and filters by visibility client-side, so a toggle needs no refetch.
