@@ -15,7 +15,8 @@ Reusable 'Linked items' panel for every detail view (SPEC.md §4.3).
   - verified (2026-10-20 18:04+0200 by dell26/agent-1): npx ng test --watch=false --include='src/app/shared/links/**/*.spec.ts' (Vitest, listing/unavailable/remove/404/SYNC tests) -> 3 files, 70 passed
 - [x] 'Add link' searches all types as you type (search API) and creates the link; 'create linked…' slot lets features add actions
   - verified (2026-10-20 18:04+0200 by dell26/agent-1): same focused Vitest suite: search-as-you-type over all types via GET /api/v1/search, POST /api/v1/links by click and keyboard, 409/error paths, appLinkedCreate slot + reload() -> 70 passed
-- [ ] Vitest component/service tests cover listing, adding via search, removal; `cd web && npm run check` passes
+- [x] Vitest component/service tests cover listing, adding via search, removal; `cd web && npm run check` passes
+  - verified (2026-10-20 18:04+0200 by dell26/agent-1): cd web && npm run check (api:check, lint, e2e typecheck, test:ci, ng build) -> pass, 27 files / 429 tests; coverage shared/links 99.7% statements, 100% lines
 
 ## Notes
 - ASSUMPTION (2026-10-20 17:30+0200 by dell26/agent-1): Item icons are inline SVG glyphs chosen by ItemType (the app ships no Material Symbols font); the server's icon name is kept as data-icon on the tile
