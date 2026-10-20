@@ -17,3 +17,4 @@ Entities, migrations and repositories for tasks, projects, areas, contexts, chec
 - [ ] Repository tests on Postgres: save/load all fields, soft delete excluded; `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.gtd.*'` passes (Postgres via Testcontainers where persistence is involved)
 
 ## Notes
+- ASSUMPTION (2026-10-20 15:16+0200 by dell26/agent-3): waiting_for_contact_id has no FK: contacts live in another module (and are not built yet), like link item ids
