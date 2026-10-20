@@ -409,9 +409,99 @@ class MailReadWebTests(
 	}
 
 	@Test
+	fun `threaded counts only include the conversation's messages in the listed scope`() {
+		message(workInbox, "Plan", "2026-10-01T08:00:00Z", threadKey = "t1")
+		message(workArchive, "Re: Plan (archived)", "2026-10-02T08:00:00Z", threadKey = "t1")
+		message(workArchive, "Re: Re: Plan (archived)", "2026-10-03T08:00:00Z", threadKey = "t1", seen = true)
+
+		val inbox = getJson("/api/v1/mail/messages?folderId=${workInbox.id}&threaded=true")
+		subjects(inbox) shouldContainExactly listOf("Plan")
+		inbox["items"][0]["threadSize"].asInt() shouldBe 1
+		inbox["items"][0]["threadUnread"].asInt() shouldBe 1
+
+		val unified = getJson("/api/v1/mail/messages?threaded=true")
+		subjects(unified) shouldContainExactly listOf("Plan")
+		unified["items"][0]["threadSize"].asInt() shouldBe 1
+
+		val archive = getJson("/api/v1/mail/messages?folderId=${workArchive.id}&threaded=true")
+		subjects(archive) shouldContainExactly listOf("Re: Re: Plan (archived)")
+		archive["items"][0]["threadSize"].asInt() shouldBe 2
+		archive["items"][0]["threadUnread"].asInt() shouldBe 1
+	}
+
+	@Test
+	fun `flat list items report their own unread state as conversation counts`() {
+		message(workInbox, "Read", "2026-10-01T08:00:00Z", threadKey = "t1", seen = true)
+		message(workInbox, "Unread", "2026-10-02T08:00:00Z", threadKey = "t1")
+
+		val items = getJson("/api/v1/mail/messages?folderId=${workInbox.id}")["items"]
+
+		items.strings("subject") shouldContainExactly listOf("Unread", "Read")
+		(0 until items.size()).map { items[it]["threadSize"].asInt() } shouldContainExactly listOf(1, 1)
+		(0 until items.size()).map { items[it]["threadUnread"].asInt() } shouldContainExactly listOf(1, 0)
+	}
+
+	@Test
+	fun `the thread endpoint stays in the message's account and marks each message's unread state`() {
+		val first = message(workInbox, "Plan", "2026-10-01T08:00:00Z", threadKey = "t1", seen = true)
+		val reply = message(workInbox, "Re: Plan", "2026-10-02T08:00:00Z", threadKey = "t1")
+		message(homeInbox, "Home plan", "2026-10-03T08:00:00Z", threadKey = "t1")
+
+		val items = getJson("/api/v1/mail/messages/${first.id}/thread")["items"]
+
+		items.strings("id") shouldContainExactly listOf(first.id.toString(), reply.id.toString())
+		(0 until items.size()).map { items[it]["threadSize"].asInt() } shouldContainExactly listOf(1, 1)
+		(0 until items.size()).map { items[it]["threadUnread"].asInt() } shouldContainExactly listOf(0, 1)
+	}
+
+	@Test
+	fun `messages without arrival time sort by their creation and page with the cursor`() {
+		message(workInbox, "Old", "2020-01-01T08:00:00Z")
+		messages.save(message(workInbox, "No arrival", "2020-01-02T08:00:00Z").apply { receivedAt = null })
+		message(workInbox, "Older", "2019-12-31T08:00:00Z")
+
+		subjects(getJson("/api/v1/mail/messages?folderId=${workInbox.id}")) shouldContainExactly listOf("No arrival", "Old", "Older")
+
+		val first = getJson("/api/v1/mail/messages?folderId=${workInbox.id}&limit=1")
+		subjects(first) shouldContainExactly listOf("No arrival")
+		val second = getJson("/api/v1/mail/messages?folderId=${workInbox.id}&limit=1&cursor=${first["nextCursor"].asString()}")
+		subjects(second) shouldContainExactly listOf("Old")
+	}
+
+	@Test
+	fun `an unknown remoteImages value is a 400 problem`() {
+		val message = message(workInbox, "Pictures", "2026-10-01T08:00:00Z")
+		bodies.put(message.id, null, """<img src="https://images.example.test/a.png">""")
+		attachments.save(message.id, emptyList())
+
+		mockMvc.get("/api/v1/mail/messages/${message.id}?remoteImages=ALLOW").andExpect {
+			status { isBadRequest() }
+			content { contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON) }
+		}
+	}
+
+	@Test
+	fun `a part id the cached message does not list is 404 before the mail server is asked`() {
+		val message = message(workInbox, "One attachment", "2026-10-01T08:00:00Z")
+		bodies.put(message.id, "Text", null)
+		attachments.save(message.id, listOf(MailAttachment("2", "report.pdf", "application/pdf", 5000, inline = false, contentId = null)))
+
+		// The account points at an unreachable fictitious host: a lookup on the server would be 502, not 404.
+		listOf("3", "2.1", "1", "02").forEach { partId ->
+			mockMvc.get("/api/v1/mail/messages/${message.id}/attachments/$partId").andExpect {
+				status { isNotFound() }
+				content { contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON) }
+			}
+		}
+	}
+
+	@Test
 	@WithAnonymousUser
 	fun `reading needs a login`() {
 		mockMvc.get("/api/v1/mail/messages").andExpect { status { isUnauthorized() } }
+		mockMvc.get("/api/v1/mail/messages/${UUID.randomUUID()}").andExpect { status { isUnauthorized() } }
+		mockMvc.get("/api/v1/mail/messages/${UUID.randomUUID()}/thread").andExpect { status { isUnauthorized() } }
+		mockMvc.get("/api/v1/mail/messages/${UUID.randomUUID()}/attachments/2").andExpect { status { isUnauthorized() } }
 		mockMvc.get("/api/v1/mail/image-proxy?url=https://images.example.test/a.png").andExpect { status { isUnauthorized() } }
 	}
 }
