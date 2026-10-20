@@ -1,0 +1,34 @@
+{
+  "schema": 1,
+  "task": "cal-local-api",
+  "reviewed_revision": "6abd35bcc18d97ff3c0e73a153de12607171ffba",
+  "helpers": {
+    "test-writer":   {"status": "completed", "report": "reviews/cal-local-api/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/cal-local-api/review.md"},
+    "fixer":         {"status": "completed", "report": "reviews/cal-local-api/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "FOLLOWING/ALL through a moved override now put that occurrence at the requested times"},
+    {"id": "CR-2", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "concurrent THIS edits of the same occurrence return 409 instead of 500"},
+    {"id": "CR-3", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "listEventOccurrences 200 documented as application/json only; contract and client regenerated"},
+    {"id": "TW-1", "source": "test-writer", "severity": "Medium", "disposition": "fixed",
+     "note": "an override of a trashed series is 404"},
+    {"id": "CR-4", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "series kind (timed/all-day) changes only when the request sends allDay"},
+    {"id": "CR-5", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "CANCELLED overrides keep their status when the series status propagates; trade-off recorded with tasks.py assume"},
+    {"id": "TW-2", "source": "test-writer", "severity": "Low", "disposition": "fixed",
+     "note": "allDay equal to the series kind behaves like no allDay (seriesBase), ALL and FOLLOWING"},
+    {"id": "CR-6", "source": "code-reviewer", "severity": "P3", "disposition": "accepted",
+     "note": "pre-existing rare edge case (allDay:false through a timed override of an all-day series); recorded with tasks.py assume, fix described there"}
+  ],
+  "validation": [
+    {"command": "server/gradlew -p server ktlintFormat test --rerun --tests 'ch.sonensei.cockpit.calendar.api.*' --tests '*OpenApiContractTest' (Testcontainers Postgres)", "result": "pass"},
+    {"command": "server/gradlew -p server jacocoTestReport (full server test task, 1789 tests)", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
