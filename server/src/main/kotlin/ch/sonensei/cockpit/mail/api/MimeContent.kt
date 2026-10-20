@@ -104,6 +104,8 @@ internal object MimeContent {
 		val contentType = mediaType(part)
 		val encoded = safely { part.size }?.takeIf { it >= 0 }?.toLong()
 		val encoding = safely { (part as? MimePart)?.encoding }?.lowercase()
+		// IMAPBodyPart answers getContentID from the BODYSTRUCTURE; getHeader would need another fetch.
+		val contentId = safely { (part as? MimePart)?.contentID ?: part.getHeader("Content-ID")?.firstOrNull() }
 		return MailAttachment(
 			partId = section,
 			filename = filename(part),
@@ -111,10 +113,11 @@ internal object MimeContent {
 			sizeBytes = encoded?.let { if (encoding == "base64") it * 3 / 4 else it },
 			inline = inline,
 			contentId =
-				// IMAPBodyPart answers getContentID from the BODYSTRUCTURE; getHeader would need another fetch.
-				safely {
-					(part as? MimePart)?.contentID ?: part.getHeader("Content-ID")?.firstOrNull()
-				}?.trim()?.removePrefix("<")?.removeSuffix(">")?.takeIf { it.isNotBlank() },
+				contentId
+					?.trim()
+					?.removePrefix("<")
+					?.removeSuffix(">")
+					?.takeIf { it.isNotBlank() },
 		)
 	}
 

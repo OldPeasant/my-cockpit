@@ -226,7 +226,12 @@ class MailReadWebTests(
 			),
 		)
 
-		val response = mockMvc.get("/api/v1/mail/messages/${message.id}").andExpect { status { isOk() } }.andReturn().response
+		val response =
+			mockMvc
+				.get("/api/v1/mail/messages/${message.id}")
+				.andExpect { status { isOk() } }
+				.andReturn()
+				.response
 		val read = json.readTree(response.contentAsString)
 
 		response.getHeader(HttpHeaders.ETAG) shouldBe "\"${message.version}\""

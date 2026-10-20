@@ -256,6 +256,7 @@ class MailReadGreenMailTests(
 		private const val USER = "jane"
 		private const val PASSWORD = "fictitious-password"
 		private val PNG = byteArrayOf(0x89.toByte(), 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3)
+
 		// CRLF: text parts are transmitted with canonical line ends.
 		private val CSV = "item,amount\r\nfictitious,42".toByteArray()
 

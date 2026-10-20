@@ -129,6 +129,18 @@ class RemoteImageFetcher(
 	internal var resolver: HostResolver = HostResolver { host -> InetAddress.getAllByName(host).toList() }
 	internal var sslSocketFactory: SSLSocketFactory = SSLSocketFactory.getDefault() as SSLSocketFactory
 
+	/** The SSRF policy; replaceable in tests. */
+	internal var allowAddress: (InetAddress) -> Boolean = if (limits.allowPrivateNetworks) { _ -> true } else PublicAddresses::isPublic
+	internal var allowPort: (Int) -> Boolean =
+		if (limits.allowPrivateNetworks) {
+			{ _ -> true }
+		} else {
+			{ port ->
+				port == HTTP_PORT ||
+					port == HTTPS_PORT
+			}
+		}
+
 	fun fetch(url: String): RemoteImage {
 		val deadline = System.nanoTime() + limits.timeout.toNanos()
 		var target = target(url)
@@ -174,7 +186,7 @@ class RemoteImageFetcher(
 		}
 		val https = scheme == "https"
 		val port = if (uri.port == -1) (if (https) HTTPS_PORT else HTTP_PORT) else uri.port
-		if (!limits.allowPrivateNetworks && port != HTTP_PORT && port != HTTPS_PORT) {
+		if (!allowPort(port)) {
 			throw RemoteImageException(RemoteImageError.BLOCKED_ADDRESS)
 		}
 		return Target(uri, https, host, port)
@@ -201,7 +213,7 @@ class RemoteImageFetcher(
 			}
 		if (addresses.isEmpty()) throw RemoteImageException(RemoteImageError.UPSTREAM_FAILED)
 		// All of them: otherwise a host could list a public and a private address and hope for the second.
-		if (!limits.allowPrivateNetworks && !addresses.all(PublicAddresses::isPublic)) {
+		if (!addresses.all(allowAddress)) {
 			throw RemoteImageException(RemoteImageError.BLOCKED_ADDRESS)
 		}
 		return addresses.first()
