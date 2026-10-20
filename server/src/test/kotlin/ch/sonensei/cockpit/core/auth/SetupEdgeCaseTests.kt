@@ -254,6 +254,24 @@ class SetupEdgeCaseTests(
 	}
 
 	@Test
+	fun `the one-hour abandonment rule never reopens setup once the account is active`() {
+		val secret = Base32.decode(startSetup()["totpSecret"] as String)
+		confirm(totp.generate(secret, NOW)).andExpect { status { isNoContent() } }
+		val before = jdbc.queryForMap("select id, username, password_hash, totp_secret, totp_confirmed_at from app_user")
+		clock.advance(Duration.ofDays(2))
+
+		post(SETUP, setupBody(username = "mallory.example", password = "another-fictitious-pass")).isProblem(409).andExpect {
+			jsonPath("$.detail") { value("Setup is already complete") }
+		}
+		post(SETUP, setupBody()).isProblem(409).andExpect {
+			jsonPath("$.detail") { value("Setup is already complete") }
+		}
+
+		jdbc.queryForMap("select id, username, password_hash, totp_secret, totp_confirmed_at from app_user") shouldBe before
+		jdbc.queryForObject("select count(*) from recovery_code", Int::class.java) shouldBe 10
+	}
+
+	@Test
 	fun `the database rejects a second app_user row`() {
 		setup.start(USERNAME, PASSWORD)
 		val now = Timestamp.from(NOW)
