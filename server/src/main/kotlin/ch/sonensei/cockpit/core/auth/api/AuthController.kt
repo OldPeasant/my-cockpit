@@ -38,7 +38,7 @@ import org.springframework.web.bind.annotation.RestController
  */
 @RestController
 @RequestMapping(SecurityConfiguration.AUTH_PATH)
-@Tag(name = "Auth", description = "Web login sessions")
+@Tag(name = "Auth", description = "Web login sessions and device tokens")
 class AuthController(
 	private val loginService: LoginService,
 	private val cookies: SessionCookies,

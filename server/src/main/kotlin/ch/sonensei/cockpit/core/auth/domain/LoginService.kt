@@ -40,25 +40,13 @@ class LoginService(
 
 	@Transactional
 	fun login(credentials: LoginCredentials): LoginResult {
-		// Admission counts the attempt as a failure up front, so parallel requests cannot slip past the backoff.
-		throttle.tryBeginAttempt()?.let { return LoginResult.Throttled(it) }
-		val account = users.findFirstBy()?.takeIf { it.isActive }
-		val now = clock.instant().truncatedTo(ChronoUnit.MICROS)
-
-		val passwordMatches = passwordEncoder.matches(credentials.password, account?.passwordHash ?: dummyPasswordHash)
-		val usernameMatches = account != null && account.username == credentials.username
-		val secondFactor = account?.let { checkSecondFactor(it, credentials, now) }
-		if (account == null || !passwordMatches || !usernameMatches || secondFactor == null) {
-			log.info("Login failed")
-			return LoginResult.InvalidCredentials
-		}
-
-		if (secondFactor is SecondFactor.Recovery) {
-			secondFactor.code.markUsed(now)
-			log.info("Recovery code used for login; {} unused codes left", account.recoveryCodes.count { !it.isUsed })
-		}
+		val (account, now) =
+			when (val check = verify(credentials)) {
+				is CredentialCheck.Rejected -> return check.result
+				is CredentialCheck.Verified -> check
+			}
 		sessions.deleteExpired(now)
-		val token = newToken()
+		val token = newToken(random)
 		val session =
 			sessions.saveAndFlush(
 				AuthSession(account, hash(token), credentials.rememberDevice, now, now.plus(AuthSession.idleLifetime(credentials.rememberDevice))),
@@ -68,6 +56,36 @@ class LoginService(
 		log.info("Login succeeded (remember device: {})", credentials.rememberDevice)
 		return LoginResult.Success(SessionGrant(token, session.rememberDevice, principalOf(account)))
 	}
+
+	/**
+	 * Checks [credentials] under the login throttle and marks a used recovery code. Joins the caller's transaction:
+	 * on [CredentialCheck.Verified] the caller writes its grant (session, device) and then calls [recordSuccess], so
+	 * an attempt whose grant fails to be written still counts as a failure.
+	 */
+	@Transactional
+	fun verify(credentials: LoginCredentials): CredentialCheck {
+		// Admission counts the attempt as a failure up front, so parallel requests cannot slip past the backoff.
+		throttle.tryBeginAttempt()?.let { return CredentialCheck.Rejected(LoginResult.Throttled(it)) }
+		val account = users.findFirstBy()?.takeIf { it.isActive }
+		val now = clock.instant().truncatedTo(ChronoUnit.MICROS)
+
+		val passwordMatches = passwordEncoder.matches(credentials.password, account?.passwordHash ?: dummyPasswordHash)
+		val usernameMatches = account != null && account.username == credentials.username
+		val secondFactor = account?.let { checkSecondFactor(it, credentials, now) }
+		if (account == null || !passwordMatches || !usernameMatches || secondFactor == null) {
+			log.info("Login failed")
+			return CredentialCheck.Rejected(LoginResult.InvalidCredentials)
+		}
+
+		if (secondFactor is SecondFactor.Recovery) {
+			secondFactor.code.markUsed(now)
+			log.info("Recovery code used for login; {} unused codes left", account.recoveryCodes.count { !it.isUsed })
+		}
+		return CredentialCheck.Verified(account, now)
+	}
+
+	/** Resets the login throttle once the grant of a [CredentialCheck.Verified] was written. */
+	fun recordSuccess() = throttle.recordSuccess()
 
 	/**
 	 * The principal of the session with [token], or null if the token is unknown or the session expired. A session
@@ -107,13 +125,6 @@ class LoginService(
 		return matches.firstOrNull()?.let(SecondFactor::Recovery)
 	}
 
-	private fun newToken(): String {
-		val bytes = ByteArray(TOKEN_BYTES).also(random::nextBytes)
-		return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes)
-	}
-
-	private fun principalOf(account: UserAccount) = CockpitPrincipal(account.id, account.username)
-
 	private sealed interface SecondFactor {
 		data object Totp : SecondFactor
 
@@ -124,6 +135,14 @@ class LoginService(
 
 	companion object {
 		private const val TOKEN_BYTES = 32
+
+		/** A random 256-bit token, base64url without padding. */
+		fun newToken(random: SecureRandom): String {
+			val bytes = ByteArray(TOKEN_BYTES).also(random::nextBytes)
+			return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes)
+		}
+
+		fun principalOf(account: UserAccount) = CockpitPrincipal(account.id, account.username)
 
 		/** A session's expiry is written at most this often, not on every request. */
 		val TOUCH_INTERVAL: Duration = Duration.ofMinutes(1)
@@ -149,6 +168,18 @@ data class CockpitPrincipal(
 	val userId: UUID,
 	val username: String,
 )
+
+/** The outcome of [LoginService.verify]. */
+sealed interface CredentialCheck {
+	data class Verified(
+		val account: UserAccount,
+		val now: Instant,
+	) : CredentialCheck
+
+	class Rejected(
+		val result: LoginResult,
+	) : CredentialCheck
+}
 
 sealed interface LoginResult {
 	class Success(

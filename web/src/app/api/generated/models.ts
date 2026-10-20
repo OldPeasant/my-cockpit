@@ -3,12 +3,16 @@
 
 export type { ChangeEvent } from './models/change-event';
 export type { ConfirmTotpRequest } from './models/confirm-totp-request';
+export type { DeviceResponse } from './models/device-response';
 export type { FieldError } from './models/field-error';
 export type { LoginRequest } from './models/login-request';
 export type { MeResponse } from './models/me-response';
 export type { ProblemDetail } from './models/problem-detail';
+export type { RefreshRequest } from './models/refresh-request';
 export type { Settings } from './models/settings';
 export type { SettingsPatch } from './models/settings-patch';
 export type { SetupRequest } from './models/setup-request';
 export type { SetupResponse } from './models/setup-response';
 export type { SetupStatusResponse } from './models/setup-status-response';
+export type { TokenRequest } from './models/token-request';
+export type { TokenResponse } from './models/token-response';

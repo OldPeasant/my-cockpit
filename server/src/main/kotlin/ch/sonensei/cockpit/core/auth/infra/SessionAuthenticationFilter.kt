@@ -15,7 +15,8 @@ import org.springframework.web.filter.OncePerRequestFilter
  * authorization rules then answer 401) and clears the stale cookie. A remembered session that slid forward gets its
  * persistent cookie re-issued, so the browser keeps it as long as the server does.
  *
- * An authentication that is already present (e.g. from a test's security context) is left alone.
+ * An authentication that is already present (e.g. from a test's security context) is left alone, and a request with a
+ * bearer header is left to [BearerAuthenticationFilter].
  */
 class SessionAuthenticationFilter(
 	private val login: LoginService,
@@ -27,7 +28,8 @@ class SessionAuthenticationFilter(
 		chain: FilterChain,
 	) {
 		val token = cookies.read(request)
-		if (token != null && SecurityContextHolder.getContext().authentication == null) {
+		val bearer = BearerAuthenticationFilter.hasBearerHeader(request)
+		if (token != null && !bearer && SecurityContextHolder.getContext().authentication == null) {
 			val session = login.authenticate(token)
 			if (session == null) {
 				cookies.clear(response)

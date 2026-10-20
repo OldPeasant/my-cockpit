@@ -1,5 +1,6 @@
 package ch.sonensei.cockpit.core.auth.infra
 
+import ch.sonensei.cockpit.core.auth.domain.DeviceTokenService
 import ch.sonensei.cockpit.core.auth.domain.LoginService
 import jakarta.servlet.DispatcherType
 import jakarta.servlet.FilterChain
@@ -26,10 +27,12 @@ import org.springframework.web.filter.OncePerRequestFilter
  *   setup flow (it runs before an account exists) and login/logout. The SPA (static files and the `index.html`
  *   fallback for client routes) is public for GET/HEAD; any other request outside the API needs a login too.
  * - Logins are sessions in the database ([SessionAuthenticationFilter], cookie [SessionCookies.NAME]); there is no
- *   servlet `HttpSession`.
+ *   servlet `HttpSession`. The Android app sends `Authorization: Bearer` access tokens of a device
+ *   ([BearerAuthenticationFilter]); it gets them from the public token endpoints.
  * - CSRF: double-submit cookie in Angular's convention. The `XSRF-TOKEN` cookie is set on every response that has
  *   none yet and replaced with a fresh token on login and logout; state-changing requests must echo it in
- *   `X-XSRF-TOKEN`, login and logout included.
+ *   `X-XSRF-TOKEN`, login and logout included. Bearer-authenticated requests and the token endpoints (called by the
+ *   app, which has no cookies; their response is unreadable cross-origin) are exempt.
  * - Unauthenticated requests get a plain 401 (no login form or basic-auth challenge).
  */
 @Configuration(proxyBeanMethods = false)
@@ -38,6 +41,7 @@ class SecurityConfiguration {
 	fun securityFilterChain(
 		http: HttpSecurity,
 		login: LoginService,
+		devices: DeviceTokenService,
 		cookies: SessionCookies,
 	): SecurityFilterChain =
 		http
@@ -49,7 +53,7 @@ class SecurityConfiguration {
 					.permitAll()
 					.requestMatchers("/actuator/health", "/actuator/health/**", "$SETUP_PATH/**", SETUP_PATH)
 					.permitAll()
-					.requestMatchers(HttpMethod.POST, LOGIN_PATH, LOGOUT_PATH)
+					.requestMatchers(HttpMethod.POST, LOGIN_PATH, LOGOUT_PATH, TOKEN_PATH, TOKEN_REFRESH_PATH)
 					.permitAll()
 					.requestMatchers("/api/**", "/actuator/**", "/v3/api-docs/**", "/v3/api-docs*", "/swagger-ui/**", "/swagger-ui*")
 					.authenticated()
@@ -64,9 +68,11 @@ class SecurityConfiguration {
 				it
 					.spa()
 					.csrfTokenRepository(cookies.csrfTokenRepository())
-					.ignoringRequestMatchers("$SETUP_PATH/**", SETUP_PATH)
+					.ignoringRequestMatchers("$SETUP_PATH/**", SETUP_PATH, TOKEN_PATH, TOKEN_REFRESH_PATH)
+					.ignoringRequestMatchers(BearerAuthenticationFilter.isBearerAuthenticated)
 			}.sessionManagement { it.sessionCreationPolicy(SessionCreationPolicy.STATELESS) }
 			.requestCache { it.disable() }
+			.addFilterBefore(BearerAuthenticationFilter(devices), CsrfFilter::class.java)
 			.addFilterBefore(SessionAuthenticationFilter(login, cookies), CsrfFilter::class.java)
 			.addFilterAfter(CsrfCookieFilter(), CsrfFilter::class.java)
 			.exceptionHandling { it.authenticationEntryPoint(HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED)) }
@@ -81,6 +87,8 @@ class SecurityConfiguration {
 		const val AUTH_PATH = "/api/v1/auth"
 		const val LOGIN_PATH = "$AUTH_PATH/login"
 		const val LOGOUT_PATH = "$AUTH_PATH/logout"
+		const val TOKEN_PATH = "$AUTH_PATH/token"
+		const val TOKEN_REFRESH_PATH = "$TOKEN_PATH/refresh"
 	}
 }
 
