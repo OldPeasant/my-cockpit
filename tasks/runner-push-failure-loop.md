@@ -22,3 +22,4 @@ the full check.
 - [ ] Tests in `tests/` simulate a remote that rejects pushes (e.g. a pre-receive hook in a bare repo) and show: release/hold exit non-zero with the message; the runner logic does not resume the task. `sh scripts/check.sh` passes
 
 ## Notes
+- ASSUMPTION (2026-10-20 17:28+0200 by dell26/agent-7): Fixed the test-writer's hand_off() observation in scope (same refused-push loop on the usage-limit path); left the pre-existing cmd_hold() stale-clone observation (Low, human command path) out of scope
