@@ -190,4 +190,199 @@ describe('ReminderNotificationsService', () => {
     fired.next({} as ReminderResponse);
     expect(snackBar.open).not.toHaveBeenCalled();
   });
+
+  it('ignores a null reminder event', () => {
+    create();
+    fired.next(null as unknown as ReminderResponse);
+    expect(snackBar.open).not.toHaveBeenCalled();
+    expect(browser.shown).toHaveLength(0);
+  });
+
+  it('keeps the permission undecided and the switch off when the permission prompt fails', async () => {
+    const service = create('default');
+    browser.requestPermission = vi.fn(() => Promise.reject(new Error('prompt dismissed')));
+
+    await expect(service.enable()).resolves.toBe('default');
+
+    expect(browser.requestPermission).toHaveBeenCalledTimes(1);
+    expect(service.permission()).toBe('default');
+    expect(service.switchedOn()).toBe(false);
+    expect(service.enabled()).toBe(false);
+    expect(localStorage.getItem(REMINDER_NOTIFICATIONS_STORAGE_KEY)).toBeNull();
+  });
+
+  it('asks again on the next enable after the prompt was dismissed', async () => {
+    const service = create('default');
+    browser.answer = 'default';
+    await service.enable();
+    browser.answer = 'granted';
+
+    await expect(service.enable()).resolves.toBe('granted');
+
+    expect(browser.requests).toBe(2);
+    expect(service.enabled()).toBe(true);
+  });
+
+  it('does not use a stored switch while the permission is not granted', () => {
+    localStorage.setItem(REMINDER_NOTIFICATIONS_STORAGE_KEY, 'on');
+    const service = create('default');
+
+    expect(service.switchedOn()).toBe(true);
+    expect(service.enabled()).toBe(false);
+
+    fired.next(reminder());
+
+    expect(browser.shown).toHaveLength(0);
+    expect(snackBar.open).toHaveBeenCalledWith(
+      'Reminder: Call the plumber',
+      'Open',
+      expect.anything(),
+    );
+  });
+
+  it('ignores a stored value other than on', () => {
+    localStorage.setItem(REMINDER_NOTIFICATIONS_STORAGE_KEY, 'true');
+    const service = create('granted');
+    expect(service.switchedOn()).toBe(false);
+    expect(service.enabled()).toBe(false);
+  });
+
+  it('picks up a permission granted in the browser meanwhile when a reminder fires', () => {
+    localStorage.setItem(REMINDER_NOTIFICATIONS_STORAGE_KEY, 'on');
+    const service = create('default');
+    browser.current = 'granted';
+
+    fired.next(reminder());
+
+    expect(service.permission()).toBe('granted');
+    expect(browser.shown).toHaveLength(1);
+    expect(snackBar.open).not.toHaveBeenCalled();
+  });
+
+  it('refresh re-reads the permission from the browser', () => {
+    const service = create('default');
+    browser.current = 'denied';
+    expect(service.permission()).toBe('default');
+
+    service.refresh();
+
+    expect(service.permission()).toBe('denied');
+  });
+
+  it('toasts again after notifications were switched off', async () => {
+    const service = create('default');
+    await service.enable();
+    service.disable();
+
+    fired.next(reminder());
+
+    expect(browser.shown).toHaveLength(0);
+    expect(snackBar.open).toHaveBeenCalledTimes(1);
+  });
+
+  it('gives the notification a body and one tag per reminder', () => {
+    localStorage.setItem(REMINDER_NOTIFICATIONS_STORAGE_KEY, 'on');
+    create('granted');
+
+    fired.next(reminder());
+    fired.next({ ...reminder(), id: '0190a5c8-0000-7000-8000-0000000000r2' });
+
+    expect(browser.shown.map((shown) => shown.options.tag)).toEqual([
+      'reminder-0190a5c8-0000-7000-8000-0000000000r1',
+      'reminder-0190a5c8-0000-7000-8000-0000000000r2',
+    ]);
+    expect(browser.shown[0].options.body).toBe('Reminder from My Cockpit');
+  });
+
+  it('titles the notification "Reminder" when the item has no title', () => {
+    localStorage.setItem(REMINDER_NOTIFICATIONS_STORAGE_KEY, 'on');
+    create('granted');
+
+    fired.next(reminder({ title: '' }));
+
+    expect(browser.shown[0].title).toBe('Reminder');
+  });
+
+  it('only focuses and closes on a notification click when the item is unavailable', () => {
+    localStorage.setItem(REMINDER_NOTIFICATIONS_STORAGE_KEY, 'on');
+    create('granted');
+    const navigate = vi.spyOn(TestBed.inject(Router), 'navigateByUrl').mockResolvedValue(true);
+    const focus = vi.spyOn(window, 'focus').mockImplementation(() => undefined);
+
+    fired.next(reminder({ available: false }));
+    const [{ notification }] = browser.shown;
+    notification.onclick?.(new Event('click'));
+
+    expect(focus).toHaveBeenCalled();
+    expect(notification.closed).toBe(true);
+    expect(navigate).not.toHaveBeenCalled();
+    focus.mockRestore();
+  });
+
+  it('toasts the title of an unavailable item without the Open action', () => {
+    create('granted');
+    const navigate = vi.spyOn(TestBed.inject(Router), 'navigateByUrl');
+
+    fired.next(reminder({ available: false }));
+
+    expect(snackBar.open).toHaveBeenCalledWith(
+      'Reminder: Call the plumber',
+      'Dismiss',
+      expect.objectContaining({ duration: 15_000 }),
+    );
+    action.next();
+    expect(navigate).not.toHaveBeenCalled();
+  });
+
+  it('does not open the item before the toast action is used', () => {
+    create('denied');
+    const navigate = vi.spyOn(TestBed.inject(Router), 'navigateByUrl').mockResolvedValue(true);
+
+    fired.next(reminder());
+
+    expect(snackBar.open).toHaveBeenCalledTimes(1);
+    expect(navigate).not.toHaveBeenCalled();
+  });
+
+  it('toasts every fired reminder while notifications are unsupported', () => {
+    create('unsupported');
+
+    fired.next(reminder());
+    fired.next(reminder({ title: 'Water the plants' }));
+
+    expect(snackBar.open.mock.calls.map((call) => call[0])).toEqual([
+      'Reminder: Call the plumber',
+      'Reminder: Water the plants',
+    ]);
+  });
+
+  describe('with a failing localStorage', () => {
+    afterEach(() => vi.restoreAllMocks());
+
+    it('starts switched off when reading the switch throws', () => {
+      vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
+        throw new Error('denied');
+      });
+      const service = create('granted');
+      expect(service.switchedOn()).toBe(false);
+    });
+
+    it('keeps the switch for this session when storing it throws', async () => {
+      vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+        throw new Error('quota');
+      });
+      vi.spyOn(Storage.prototype, 'removeItem').mockImplementation(() => {
+        throw new Error('denied');
+      });
+      const service = create('default');
+
+      await expect(service.enable()).resolves.toBe('granted');
+      expect(service.enabled()).toBe(true);
+      fired.next(reminder());
+      expect(browser.shown).toHaveLength(1);
+
+      expect(() => service.disable()).not.toThrow();
+      expect(service.enabled()).toBe(false);
+    });
+  });
 });

@@ -1,7 +1,13 @@
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
+import { Provider } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { NotificationService, provideHttp } from '../../../core/http';
+import {
+  BROWSER_NOTIFICATIONS,
+  REMINDER_NOTIFICATIONS_STORAGE_KEY,
+} from '../../../core/notifications';
+import { FakeBrowserNotifications } from '../../../core/notifications/testing';
 import { ThemeService } from '../../../shell/theme.service';
 import { fakeSettings } from '../testing';
 import GeneralSettings, { timeZones } from './general-settings';
@@ -16,7 +22,7 @@ describe('GeneralSettings', () => {
   let http: HttpTestingController;
   let notifications: { error: ReturnType<typeof vi.fn> };
 
-  async function setup(): Promise<void> {
+  async function setup(extraProviders: Provider[] = []): Promise<void> {
     localStorage.clear();
     notifications = { error: vi.fn() };
     TestBed.configureTestingModule({
@@ -25,6 +31,7 @@ describe('GeneralSettings', () => {
         provideHttpClientTesting(),
         provideRouter([]),
         { provide: NotificationService, useValue: notifications },
+        ...extraProviders,
       ],
     });
     http = TestBed.inject(HttpTestingController);
@@ -540,5 +547,40 @@ describe('GeneralSettings', () => {
     await tick();
     await fixture.whenStable();
     expect(input('Label for low energy').value).toBe('Low');
+  });
+
+  describe('reminder notifications row', () => {
+    const reminderSwitch = () =>
+      root.querySelector<HTMLButtonElement>(
+        'app-reminder-notifications-toggle button[role="switch"]',
+      );
+    const reminderHint = () =>
+      root.querySelector('app-reminder-notifications-toggle .hint')?.textContent?.trim() ?? '';
+
+    afterEach(() => localStorage.clear());
+
+    it('offers the switch, explaining that this browser has no notifications (jsdom)', async () => {
+      await setup();
+
+      expect(root.textContent).toContain('Reminder notifications');
+      expect(root.textContent).toContain('Only for this browser.');
+      expect(reminderSwitch()?.disabled).toBe(true);
+      expect(reminderHint()).toContain("This browser can't show notifications");
+    });
+
+    it('switches browser notifications on from the settings page without saving a setting', async () => {
+      const browser = new FakeBrowserNotifications();
+      await setup([{ provide: BROWSER_NOTIFICATIONS, useValue: browser }]);
+      expect(reminderSwitch()?.getAttribute('aria-checked')).toBe('false');
+
+      reminderSwitch()?.click();
+      await tick();
+      await fixture.whenStable();
+
+      expect(browser.requests).toBe(1);
+      expect(reminderSwitch()?.getAttribute('aria-checked')).toBe('true');
+      expect(localStorage.getItem(REMINDER_NOTIFICATIONS_STORAGE_KEY)).toBe('on');
+      // The switch is per browser: no PATCH to /api/v1/settings (verified in afterEach).
+    });
   });
 });

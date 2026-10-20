@@ -5,7 +5,10 @@ import { EMPTY } from 'rxjs';
 import { ChangeEventsService } from '../events';
 import { BROWSER_NOTIFICATIONS, NotificationPermissionState } from './browser-notifications';
 import { ReminderNotificationsToggle } from './reminder-notifications-toggle';
-import { REMINDER_NOTIFICATIONS_STORAGE_KEY } from './reminder-notifications.service';
+import {
+  REMINDER_NOTIFICATIONS_STORAGE_KEY,
+  ReminderNotificationsService,
+} from './reminder-notifications.service';
 import { FakeBrowserNotifications } from './testing';
 
 describe('ReminderNotificationsToggle', () => {
@@ -83,6 +86,78 @@ describe('ReminderNotificationsToggle', () => {
 
     expect(button().disabled).toBe(true);
     expect(hint()).toContain("This browser can't show notifications");
+  });
+
+  it('disables the switch and says to answer the prompt while the browser asks', async () => {
+    await setup('default');
+    let answer: (permission: NotificationPermission) => void = () => undefined;
+    browser.requestPermission = () =>
+      new Promise<NotificationPermission>((resolve) => {
+        answer = resolve;
+      });
+
+    await click();
+
+    expect(button().disabled).toBe(true);
+    expect(hint()).toBe("Allow notifications in the browser's prompt.");
+
+    answer('granted');
+    browser.current = 'granted';
+    await new Promise((resolve) => setTimeout(resolve));
+    await fixture.whenStable();
+
+    expect(button().disabled).toBe(false);
+    expect(button().getAttribute('aria-checked')).toBe('true');
+    expect(hint()).toBe('');
+  });
+
+  it('springs back but stays usable when the permission prompt fails', async () => {
+    await setup('default');
+    browser.requestPermission = () => Promise.reject(new Error('prompt dismissed'));
+
+    await click();
+
+    expect(button().getAttribute('aria-checked')).toBe('false');
+    expect(button().disabled).toBe(false);
+    expect(hint()).toContain('Reminders appear inside My Cockpit');
+    expect(localStorage.getItem(REMINDER_NOTIFICATIONS_STORAGE_KEY)).toBeNull();
+  });
+
+  it('switches on without asking when the permission was granted before', async () => {
+    await setup('granted');
+    expect(button().getAttribute('aria-checked')).toBe('false');
+    expect(button().disabled).toBe(false);
+    expect(hint()).toContain('Reminders appear inside My Cockpit');
+
+    await click();
+
+    expect(browser.requests).toBe(0);
+    expect(button().getAttribute('aria-checked')).toBe('true');
+    expect(localStorage.getItem(REMINDER_NOTIFICATIONS_STORAGE_KEY)).toBe('on');
+  });
+
+  it('shows a permission changed in the browser since the service started', async () => {
+    browser = new FakeBrowserNotifications();
+    browser.current = 'default';
+    TestBed.configureTestingModule({
+      providers: [
+        provideRouter([]),
+        { provide: BROWSER_NOTIFICATIONS, useValue: browser },
+        { provide: ChangeEventsService, useValue: { messages$: () => EMPTY } },
+        { provide: MatSnackBar, useValue: { open: vi.fn() } },
+      ],
+    });
+    const service = TestBed.inject(ReminderNotificationsService);
+    expect(service.permission()).toBe('default');
+    browser.current = 'denied';
+
+    fixture = TestBed.createComponent(ReminderNotificationsToggle);
+    root = fixture.nativeElement as HTMLElement;
+    await fixture.whenStable();
+
+    expect(button().disabled).toBe(true);
+    expect(root.querySelector('.hint')?.getAttribute('data-permission')).toBe('denied');
+    expect(hint()).toContain('Notifications are blocked for this site');
   });
 
   it('shows the permission refused earlier in the browser', async () => {

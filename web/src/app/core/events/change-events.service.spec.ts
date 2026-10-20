@@ -324,6 +324,92 @@ describe('ChangeEventsService', () => {
     expect(received).toEqual([{ id: 'r1' }]);
   });
 
+  it('delivers named events subscribed to before the login once the stream connects', () => {
+    const service = create(false);
+    const received: unknown[] = [];
+    service.messages$('reminder').subscribe((data) => received.push(data));
+
+    loggedIn.set(true);
+    TestBed.tick();
+    latest().open();
+    latest().emit('reminder', JSON.stringify({ id: 'r1' }));
+
+    expect(received).toEqual([{ id: 'r1' }]);
+  });
+
+  it('delivers named events subscribed to while a reconnect is pending', () => {
+    const service = create();
+    latest().fail();
+    const received: unknown[] = [];
+    service.messages$('reminder').subscribe((data) => received.push(data));
+
+    vi.advanceTimersByTime(1000);
+    latest().open();
+    latest().emit('reminder', JSON.stringify({ id: 'r1' }));
+
+    expect(sources).toHaveLength(2);
+    expect(received).toEqual([{ id: 'r1' }]);
+  });
+
+  it('keeps named events of different names apart', () => {
+    const service = create();
+    const reminders: unknown[] = [];
+    const others: unknown[] = [];
+    service.messages$('reminder').subscribe((data) => reminders.push(data));
+    service.messages$('digest').subscribe((data) => others.push(data));
+
+    latest().emit('reminder', JSON.stringify({ id: 'r1' }));
+    latest().emit('digest', JSON.stringify({ id: 'd1' }));
+
+    expect(reminders).toEqual([{ id: 'r1' }]);
+    expect(others).toEqual([{ id: 'd1' }]);
+  });
+
+  it('routes change events only to events$ and other named events only to messages$', () => {
+    const service = create();
+    const named: unknown[] = [];
+    const changes: ChangeEvent[] = [];
+    service.messages$('reminder').subscribe((data) => named.push(data));
+    service.events$('TASK').subscribe((event) => changes.push(event));
+
+    latest().emit(CHANGE_EVENT_NAME, JSON.stringify(change('TASK')));
+    latest().emit('reminder', JSON.stringify(change('TASK')));
+
+    expect(named).toEqual([change('TASK')]);
+    expect(changes).toEqual([change('TASK')]);
+  });
+
+  it('delivers each named event once after reconnects and a new login', () => {
+    const service = create();
+    const received: unknown[] = [];
+    service.messages$('reminder').subscribe((data) => received.push(data));
+    service.messages$('reminder').subscribe(() => undefined);
+    latest().fail();
+    vi.advanceTimersByTime(1000);
+    latest().open();
+    loggedIn.set(false);
+    TestBed.tick();
+    loggedIn.set(true);
+    TestBed.tick();
+    latest().open();
+
+    latest().emit('reminder', JSON.stringify({ id: 'r1' }));
+
+    expect(sources).toHaveLength(3);
+    expect(received).toEqual([{ id: 'r1' }]);
+  });
+
+  it('drops named events with empty data', () => {
+    const service = create();
+    const received: unknown[] = [];
+    service.messages$('reminder').subscribe((data) => received.push(data));
+
+    latest().emit('reminder', '');
+    latest().emit('reminder', '{"id":');
+
+    expect(received).toEqual([]);
+  });
+
   it('completes the named event streams when the app is destroyed', () => {
     const service = create();
     let completed = false;
