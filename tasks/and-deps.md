@@ -15,7 +15,8 @@ Add the Android libraries the spec needs up front (SPEC.md §2.1, §9.2).
   - verified (2026-10-20 11:00+0200 by dell26/agent-3): Inspected android/gradle/libs.versions.toml + app/build.gradle.kts: Hilt 2.59 (KSP 2.3.4), Navigation Compose, Retrofit 3 + OkHttp 5 + kotlinx.serialization converter, Room 2.8.4 (KSP), WorkManager, DataStore, Tink, Credential Manager, Glance, Coil 3, Robolectric 4.16 + Compose ui-test-junit4, MockK, coroutines-test, Turbine; ./gradlew testDebugUnitTest resolves and compiles all of them -> BUILD SUCCESSFUL; TestLibrariesSmokeTest exercises MockK/coroutines-test/Turbine -> 3 passed
 - [x] A Robolectric Compose UI test of the placeholder screen runs in `testDebugUnitTest`
   - verified (2026-10-20 11:00+0200 by dell26/agent-3): cd android && ./gradlew testDebugUnitTest --rerun-tasks -> PlaceholderScreenTest (Robolectric, v2 createComposeRule, setContent { PlaceholderScreen() } + assertIsDisplayed) 3/3 passed; JaCoCo report shows PlaceholderScreen.kt 10/11 lines covered
-- [ ] `./gradlew ktlintCheck testDebugUnitTest lintDebug` passes; ARCHITECTURE.md stack table updated
+- [x] `./gradlew ktlintCheck testDebugUnitTest lintDebug` passes; ARCHITECTURE.md stack table updated
+  - verified (2026-10-20 11:00+0200 by dell26/agent-3): cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug --rerun-tasks -> BUILD SUCCESSFUL, 6 tests 0 failures, lint-results-debug.xml 0 issues; docs/ARCHITECTURE.md Android stack row lists the added libraries and versions
 
 ## Notes
 - ASSUMPTION (2026-10-20 10:47+0200 by dell26/agent-3): Chose Tink (tink-android) over androidx.security-crypto: security-crypto 1.1 deprecated its APIs, which would trip warningsAsErrors lint once used
