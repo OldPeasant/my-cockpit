@@ -6,6 +6,7 @@ deps: [cal-local-api]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/calendar/sync,server/src/test/kotlin/ch/sonensei/cockpit/calendar/sync]
 prio: 1
 lease_until: 2026-10-20T23:30:57Z
+extended: dell26/agent-2
 ---
 ## Goal
 Provider-independent two-way sync framework (SPEC.md §6.2).
@@ -24,3 +25,4 @@ Provider-independent two-way sync framework (SPEC.md §6.2).
 - ASSUMPTION (2026-10-21 00:42+0200 by dell26/agent-2): Deleting an event of a synced calendar deletes it at the provider and locally for good (no cockpit Trash); events and calendars removed at the provider are also deleted for good with their links.
 - ASSUMPTION (2026-10-21 00:42+0200 by dell26/agent-2): Events cannot move between a synced calendar and any other calendar (409); a remote deletion of one occurrence becomes an EXDATE; remote calendar color only applies on creation (user may recolor locally).
 - ASSUMPTION (2026-10-21 00:42+0200 by dell26/agent-2): Scheduler ticks every 30 s (cockpit.calendar.sync.tick) and syncs sources whose adapter pollInterval passed since the last attempt; POST /sources/{id}/sync runs synchronously, returns 200 with the status (errors in sync.lastError), 409 for LOCAL or types without adapter. GET /sources omits config (ICS URLs may hold tokens) and credentials.
+- extended by dell26/agent-2: Implementation, API, openapi, ADR 0002, fake-adapter tests and code review (reviews/cal-sync-engine/review.md) are committed. Left: (1) fix review CR-2 (normalize/validate remote events; WIP test CalendarSyncOverrideTests 'an invalid remote change of a known event is skipped...' fails at line 209: Broken vs Standup) and confirm CR-1 is fixed (other override tests pass); decide on P3 CR-3..CR-5; (2) re-run test-writer + code-reviewer on final code, fixer report if needed; (3) tasks.py verify for all 6 criteria, quality.json, done. Note: core ClockConfigurationTests failed once on nanosecond precision (flaky, unrelated to this task).
