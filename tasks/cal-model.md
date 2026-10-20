@@ -5,7 +5,7 @@ owner: dell26/agent-7
 deps: [p0-items-links,p0-search-core,p0-trash-core]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/calendar/model,server/src/test/kotlin/ch/sonensei/cockpit/calendar/model,server/src/main/resources/db/migration/calendar]
 prio: 1
-lease_until: 2026-10-20T14:45:35Z
+lease_until: 2026-10-20T14:50:36Z
 ---
 ## Goal
 Sources, calendars, events (SPEC.md §6.1).
