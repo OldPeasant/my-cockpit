@@ -4,16 +4,79 @@ needs) must not crash, and pushes that only lost races with other agents (non-fa
 ref`, a transient `remote rejected ... (failed)`) must not be reported as refused (PUSH FAILED, the
 push-failure record that blocks the task), while a remote that really refuses (auth, hook) still is.
 Runs tasks.py and agents.py against a local bare remote. Run: python3 tests/test_push_race.py"""
-import shutil, sys, time, unittest
+import shutil, subprocess, sys, tempfile, time, unittest
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 sys.dont_write_bytecode = True
 from test_overbudget import SRC, Board, field, sh  # noqa: E402
-from test_push_failure import FAKE_AGENT, PushRunner, hook  # noqa: E402
+from test_push_failure import FAKE_AGENT, PushRunner, exempt, hook  # noqa: E402
 
 sys.path.insert(0, str(SRC))
 import tasks  # noqa: E402
+
+
+def race_hook(tmp, prefix, times):
+    """Another agent's push lands on main during each of our next `times` pushes to main whose commit subject
+    starts with `prefix` (git: `cannot lock ref ... but expected ...`, `(incorrect old value provided)`), like
+    a real race. Counts them in remote.git/races."""
+    return hook(tmp, f'''#!/bin/sh
+unset GIT_QUARANTINE_PATH
+while read old new ref; do
+  [ "$ref" = refs/heads/main ] || continue
+  case "$(git log -1 --format=%s "$new")" in "{prefix}"*) ;; *) continue ;; esac
+  n=$(cat races 2>/dev/null || echo 0)
+  [ "$n" -ge {times} ] && continue
+  echo $((n + 1)) > races
+  c=$(git commit-tree -p "$old" -m "another agent's push" "$(git rev-parse "$old^{{tree}}")")
+  git update-ref "$ref" "$c" "$old"
+done
+exit 0
+''')
+
+
+def races(tmp):
+    f = tmp / "remote.git" / "races"
+    return int(f.read_text()) if f.exists() else 0
+
+
+class ImportTasks(unittest.TestCase):
+    """agents.py's import_tasks(): the tasks.py next to agents.py, not the (maybe older) clone's copy."""
+
+    def setUp(self):
+        self.tmp = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, self.tmp, True)
+        self.clone = self.tmp / "clone"
+        self.clone.mkdir()
+        (self.clone / "tasks.py").write_text("WHICH = 'clone'\n")
+        self.empty = self.tmp / "cwd"
+        self.empty.mkdir()
+
+    def imported(self, runner_dir):
+        code = ("import sys; from pathlib import Path; sys.path.insert(0, sys.argv[1]); import agents; "
+                "t = agents.import_tasks(Path(sys.argv[2])); print(Path(t.__file__).resolve().parent); "
+                "print(getattr(t, 'WHICH', 'runner'), hasattr(t, 'PUSH_FAILURE'))")
+        p = subprocess.run([sys.executable, "-I", "-B", "-c", code, str(runner_dir), str(self.clone)],
+                           cwd=self.empty, capture_output=True, text=True)
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        return p.stdout.split("\n")
+
+    def test_uses_the_tasks_py_next_to_agents_py(self):
+        runner = self.tmp / "checkout"
+        runner.mkdir()
+        for f in ("agents.py", "tasks.py"):
+            shutil.copy(SRC / f, runner / f)
+        where, which = self.imported(runner)[:2]
+        self.assertEqual(Path(where), runner.resolve())
+        self.assertEqual(which, "runner True")
+
+    def test_falls_back_to_the_clones_tasks_py_without_one_next_to_agents_py(self):
+        runner = self.tmp / "only-agents"
+        runner.mkdir()
+        shutil.copy(SRC / "agents.py", runner / "agents.py")
+        where, which = self.imported(runner)[:2]
+        self.assertEqual(Path(where), self.clone.resolve())
+        self.assertEqual(which, "clone False")
 
 
 class Classify(unittest.TestCase):
@@ -24,7 +87,12 @@ class Classify(unittest.TestCase):
                     " ! [remote rejected] main -> main (reference already exists)",
                     " ! [remote rejected] main -> main (failed)",
                     " ! [remote rejected] main -> main (failed to update ref)",
-                    " ! [rejected]        main -> main (stale info)"):
+                    " ! [rejected]        main -> main (stale info)",
+                    # what git prints when another push landed in between (seen against a local bare remote)
+                    "remote: error: cannot lock ref 'refs/heads/main': is at d3aed29e but expected aa47698a | "
+                    "To /x/remote.git | ! [remote rejected] HEAD -> main (incorrect old value provided) | "
+                    "error: failed to push some refs to '/x/remote.git'",
+                    " ! [REJECTED] MAIN -> MAIN (NON-FAST-FORWARD)"):  # case does not matter
             self.assertTrue(tasks.lost_race(err), err)
 
     def test_refusals(self):
@@ -45,6 +113,7 @@ class Classify(unittest.TestCase):
 class Races(Board):
     """tasks.py alone against a remote whose branch is locked by another push in progress."""
     who = "x/agent-1"
+    prepare = staticmethod(exempt)  # `done` gets as far as its push
 
     def setUp(self):
         super().setUp()
@@ -105,6 +174,56 @@ class Races(Board):
         self.assertNotIn("BUSY", out)
         self.assertTrue(self.failure_file().exists())
 
+    def test_board_push_that_loses_to_concurrent_pushes_is_not_refused(self):
+        race_hook(self.tmp, "release: a", 5)  # another agent's push lands during each of our 5 attempts
+        p = self.tp("release", "a", "--note", "x", who=self.who, check=False)
+        self.assert_lost_race(p)
+        self.assertIn("incorrect old value", p.stdout + p.stderr)  # git's error is shown
+        self.assertEqual(races(self.tmp), 5)
+        p = self.tp("release", "a", "--note", "x", who=self.who, check=False)  # the others are done: works
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        self.assertIn("RELEASED a", p.stdout)
+        self.assertEqual(field(self.remote_task("a"), "status"), "todo")
+
+    def test_board_push_that_loses_four_races_succeeds_in_the_fifth_attempt(self):
+        race_hook(self.tmp, "release: a", 4)
+        p = self.tp("release", "a", "--note", "x", who=self.who, check=False)
+        out = p.stdout + p.stderr
+        self.assertEqual(p.returncode, 0, out)
+        self.assertIn("RELEASED a", out)
+        self.assertNotIn("BUSY", out)
+        self.assertEqual(races(self.tmp), 4)
+        self.assertFalse(self.failure_file().exists())
+        main = sh(self.tmp, "git", "--git-dir=remote.git", "log", "--format=%s", "main").stdout
+        self.assertEqual(main.count("another agent's push"), 4)  # the winners' commits are kept, not overwritten
+
+    def test_hold_that_loses_every_race_is_not_refused(self):
+        lock = self.lock("main")
+        p = self.tp("hold", "a", "needs a human", who=self.who, check=False)
+        self.assert_lost_race(p)
+        self.assertNotIn("ON HOLD", p.stdout)
+        self.assertEqual(field(self.remote_task("a"), "hold"), "")
+        lock.unlink()
+        p = self.tp("hold", "a", "needs a human", who=self.who, check=False)
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        self.assertEqual(field(self.remote_task("a"), "hold"), "needs a human")
+
+    def test_done_that_loses_every_race_is_not_refused_and_keeps_the_code(self):
+        (self.w / "work.txt").write_text("work\n")
+        sh(self.w, "git", "add", "-A")
+        sh(self.w, "git", "commit", "-qm", "work")
+        head = sh(self.w, "git", "rev-parse", "HEAD").stdout.strip()
+        lock = self.lock("main")
+        self.assert_lost_race(self.tp("done", "a", "--force", who=self.who, check=False))
+        self.assertEqual(sh(self.w, "git", "rev-parse", "HEAD").stdout.strip(), head)  # our code commit is kept
+        self.assertNotIn("work", sh(self.tmp, "git", "--git-dir=remote.git", "log", "--format=%s", "main").stdout
+                         .splitlines())
+        lock.unlink()
+        p = self.tp("done", "a", "--force", who=self.who, check=False)
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        self.assertEqual(field(self.remote_task("a"), "status"), "done")
+        self.assertIn("work.txt", sh(self.tmp, "git", "--git-dir=remote.git", "ls-tree", "--name-only", "main").stdout)
+
 
 class BehindClone(PushRunner):
     """The agent's clone is on an older main whose tasks.py lacks PUSH_FAILURE (which agents.py reads after
@@ -131,6 +250,45 @@ class BehindClone(PushRunner):
         self.assertNotIn("Traceback", log)
         self.assertNotIn("AttributeError", log)
         self.assertIsNone(self.proc.poll(), log)  # still running
+
+
+class AgentReleaseLosesRaces(PushRunner):
+    """The agent's own `release` loses all 5 races in its first session: the runner must not block the task
+    (no push-failure record), the next session runs and its release goes through."""
+    fake_agent, mode, budget = FAKE_AGENT, "release", 10
+
+    def before_start(self):
+        race_hook(self.tmp, "release: a", 5)
+
+    def test_lost_races_in_a_session_do_not_block_the_task(self):
+        self.wait_for("a released", lambda: "release by box/agent-1" in self.state("a")["text"], timeout=120)
+        log = self.log.read_text()
+        self.assertEqual(races(self.tmp), 5)
+        self.assertGreaterEqual(self.sessions(), 2, log)  # the release that lost every race did not stop sessions
+        self.assertNotIn("BLOCKED", log)
+        self.assertNotIn("PUSH FAILED", log)
+        self.assertNotIn("Traceback", log)
+        self.assertNotEqual(self.status()["state"], "blocked")
+
+
+class ForceReleaseLosesRaces(PushRunner):
+    """A review that decided nothing -> the runner's own release (give_up) loses all 5 races once: it tries
+    again after a pause instead of logging FAILED and blocking the task."""
+    mode, budget = "", 1
+
+    def before_start(self):
+        race_hook(self.tmp, "release: a", 5)
+
+    def test_give_up_retries_a_release_that_lost_every_race(self):
+        self.wait_for("released log", lambda: "released a for another agent" in self.log.read_text(), timeout=150)
+        log = self.log.read_text()
+        self.assertEqual(races(self.tmp), 5)
+        self.assertNotIn("release FAILED", log)
+        self.assertNotIn("BLOCKED", log)
+        self.assertNotIn("Traceback", log)
+        a = self.state("a")
+        self.assertNotEqual(a["owner"], "box/agent-1")
+        self.assertIn("release by box/agent-1", a["text"])
 
 
 if __name__ == "__main__":
