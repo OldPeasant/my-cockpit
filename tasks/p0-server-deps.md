@@ -5,7 +5,7 @@ owner: dell26/agent-1
 deps: []
 touches: [server/build.gradle.kts,server/src/main/resources/application.properties,server/src/main/resources/application-dev.properties,server/src/main/resources/application-e2e.properties,server/src/test/kotlin/ch/sonensei/cockpit/support]
 prio: 1
-lease_until: 2026-10-20T08:46:22Z
+lease_until: 2026-10-20T08:51:35Z
 ---
 ## Goal
 Add every server library the spec needs up front (SPEC.md §2.1), so later tasks rarely touch the build file, and set up the test infrastructure: Postgres via Testcontainers (singleton container) in `test`, external-system tests (GreenMail, Radicale, WireMock) tagged `external` in a separate `integrationTest` task.
