@@ -1,10 +1,11 @@
 ---
 title: Generated API client and HTTP infrastructure
-status: todo
-owner:
+status: in_progress
+owner: dell26/agent-2
 deps: [p0-web-deps,p0-api-conventions]
 touches: [web/src/app/api,web/src/app/core/http,web/proxy.conf.json,web/ng-openapi-gen.json]
 prio: 1
+lease_until: 2026-10-20T09:32:11Z
 ---
 ## Goal
 Typed Angular services generated from `api/openapi.yaml`, plus interceptors.
