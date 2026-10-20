@@ -7,7 +7,7 @@ touches: [server/src/main/kotlin/ch/sonensei/cockpit/backup,server/src/test/kotl
 prio: 1
 lease_until: 2026-10-20T16:32:23Z
 releases: 0
-extended: 
+extended: dell26/agent-4
 ---
 ## Goal
 Backup export in format version 1 (SPEC.md §10.2).
@@ -22,3 +22,4 @@ Backup export in format version 1 (SPEC.md §10.2).
 ## Notes
 - release by R1963MACOS/agent-2: handed off by R1963MACOS/agent-2: You've hit your session limit · resets 7:50pm (Europe/Zurich)
 - ASSUMPTION (2026-10-20 17:14+0200 by dell26/agent-4): Backup jobs and finished zips live in memory/temp dir only (one job at a time, a new backup discards earlier ones); progress is change events of type BACKUP on /api/v1/events, clients refetch GET /api/v1/backup/{id}. Passphrase/secrets.enc.json is left to the restore/secrets tasks.
+- extended by dell26/agent-4: Implementation complete and rebased on main (contributor/fixture interfaces, zip v1 writer/reader, async job + SSE events, download, round-trip harness, OpenAPI regenerated); backup.* (65) + OpenApiContractTest pass. Left: fix review CR-1 (BackupJobService.run catches only Exception; catch Throwable and guard deleteIfExists so the job always ends FAILED) and CR-2 (KDoc [CanonicalJson] in ZipBackupWriter); then test-writer (tests.md missing) + code-reviewer on the final revision, fixes.md, verify #1-#5, .taskcheck, quality.json, done.
