@@ -1,11 +1,11 @@
 ---
 title: Server dependencies, profiles and test infrastructure
-status: todo
-owner: 
+status: in_progress
+owner: dell26/agent-1
 deps: []
 touches: [server/build.gradle.kts,server/src/main/resources/application.properties,server/src/main/resources/application-dev.properties,server/src/main/resources/application-e2e.properties,server/src/test/kotlin/ch/sonensei/cockpit/support]
 prio: 1
-lease_until: 
+lease_until: 2026-10-20T09:03:53Z
 releases: 1
 extended: 
 ---
