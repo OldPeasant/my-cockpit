@@ -97,6 +97,37 @@ class MailItemResolverTests(
 	}
 
 	@Test
+	fun `a detached row whose folder was deleted re-resolves to the oldest copy in another folder`() {
+		val projects = folders.save(MailFolder(account.id, "Projects", "Projects"))
+		val linked = messages.save(message(projects, 5, "<a@example.com>").apply { detach() })
+		val first = messages.save(message(archive, 3, "<a@example.com>"))
+		messages.save(message(inbox, 4, "<a@example.com>"))
+		folders.deleteById(projects.id)
+
+		messages
+			.findById(linked.id)
+			.get()
+			.folderId
+			.shouldBeNull()
+		resolver.resolve(linked.id)?.deepLink shouldBe "/mail/messages/${first.id}"
+	}
+
+	@Test
+	fun `a located message resolves to itself even when other copies exist`() {
+		val located = messages.save(message(archive, 3, "<a@example.com>"))
+		messages.save(message(inbox, 1, "<a@example.com>"))
+
+		resolver.resolve(located.id)?.deepLink shouldBe "/mail/messages/${located.id}"
+	}
+
+	@Test
+	fun `a message without sender has no subtitle`() {
+		val message = messages.save(message(inbox, 10, "<a@example.com>").apply { from = emptyList() })
+
+		resolver.resolve(message.id)?.subtitle.shouldBeNull()
+	}
+
+	@Test
 	fun `a message gone from the account, or without a Message-ID, does not resolve`() {
 		val gone = messages.save(message(inbox, 10, "<gone@example.com>").apply { detach() })
 		val noId = messages.save(message(inbox, 11, null).apply { detach() })
