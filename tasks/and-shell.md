@@ -17,7 +17,8 @@ App skeleton every feature plugs into, with one placeholder screen per feature p
   - verified (2026-10-20 11:27+0200 by dell26/agent-1): 16 packages (gtd/today, gtd/inbox, calendar/agenda, mail/list, gtd/next, gtd/projects, gtd/lists, notes, files, contacts, bookmarks, journal, habits, review, settings) each with a placeholder <Feature>Screen, listed in the android/README.md table (read); CockpitShellNavigationTest opens every one through the shell -> pass
 - [x] All strings in `res/values/strings.xml`
   - verified (2026-10-20 11:27+0200 by dell26/agent-1): grep -rnE 'Text\("|contentDescription = "|label = "|title = "' android/app/src/main/java -> no matches; all 20 UI strings in res/values/strings.xml; ./gradlew lintDebug (warningsAsErrors, includes HardcodedText) -> BUILD SUCCESSFUL
-- [ ] `cd android && ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.ui.*'` passes, covering navigation between bottom-bar destinations (Robolectric/Compose UI tests for screens)
+- [x] `cd android && ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.ui.*'` passes, covering navigation between bottom-bar destinations (Robolectric/Compose UI tests for screens)
+  - verified (2026-10-20 11:27+0200 by dell26/agent-1): cd android && ./gradlew ktlintCheck lintDebug testDebugUnitTest --tests 'ch.sonensei.cockpit.ui.*' --rerun-tasks -> BUILD SUCCESSFUL, 43 tests 0 failures 0 skipped (Robolectric Compose UI: bottom-bar switching Today/Inbox/Calendar/Mail/More with selection, More items, back, tab state kept across More)
 
 ## Notes
 - ASSUMPTION (2026-10-20 11:08+0200 by dell26/agent-1): Placeholder screens live in the subpackage the owning feature task touches (Calendar in calendar/agenda, Mail in mail/list, Waiting+Someday in gtd/lists, Bookmarks in a new bookmarks package), so feature tasks replace them without editing the shell; signature <Feature>Screen(modifier).
