@@ -1,12 +1,12 @@
 ---
 title: Runner: stop the loop when release/hold cannot push
-status: in_progress
-owner: dell26/agent-7
+status: todo
+owner: 
 deps: []
 touches: [agents.py,tasks.py,tests]
 prio: 1
-lease_until: 2026-10-20T17:32:10Z
-releases: 1
+lease_until: 
+releases: 2
 extended: 
 ---
 ## Goal
@@ -26,3 +26,4 @@ the full check.
 ## Notes
 - ASSUMPTION (2026-10-20 17:28+0200 by dell26/agent-7): Fixed the test-writer's hand_off() observation in scope (same refused-push loop on the usage-limit path); left the pre-existing cmd_hold() stale-clone observation (Low, human command path) out of scope
 - release by dell26/agent-7: Implementation done (HEAD: give_up() shared by release/hand-off; done-blocked tasks go on hold on retry); python -m unittest tests.test_push_failure -> 25 OK. Left: code changed after the last review, so re-run test-writer + code-reviewer on HEAD, write reviews/runner-push-failure-loop/quality.json, tasks.py verify #1-#4, then done. Note: sh scripts/check.sh had 1 failing server Gradle test (1337 run) unrelated to agents.py/tasks.py; recheck on latest main.
+- release by dell26/agent-7: Implementation complete through d00ccaa (PUSH FAILED in tasks.py release/hold, blocked state + 30-min retry in agents.py, done-streak -> hold, give_up() for release/hand-off, unfinished merge aborted before the hold commit). python -m unittest tests.test_push_failure -> 28 OK (~6 min, not in .taskcheck). Left, finalization only: code changed since review.md (b218b67/4271f37/d00ccaa), so re-run test-writer + code-reviewer on HEAD, fixer only if they find something; write reviews/runner-push-failure-loop/quality.json; tasks.py verify #1-#4 (evidence: the unittest run above); sh scripts/check.sh (earlier 1 unrelated server Gradle failure, recheck on latest main); then done.
