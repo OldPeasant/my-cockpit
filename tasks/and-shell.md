@@ -5,7 +5,7 @@ owner: dell26/agent-1
 deps: [and-deps]
 touches: [android/app/src/main/java/ch/sonensei/cockpit,android/app/src/test/java/ch/sonensei/cockpit,android/app/src/main/res]
 prio: 1
-lease_until: 2026-10-20T09:24:07Z
+lease_until: 2026-10-20T09:26:47Z
 ---
 ## Goal
 App skeleton every feature plugs into, with one placeholder screen per feature package so feature tasks only touch their package.
