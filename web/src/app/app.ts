@@ -8,5 +8,5 @@ import { RouterOutlet } from '@angular/router';
   templateUrl: './app.html',
 })
 export class App {
-  protected readonly title = signal('My Cockpit');
+  protected readonly title = signal($localize`:@@app.title:My Cockpit`);
 }

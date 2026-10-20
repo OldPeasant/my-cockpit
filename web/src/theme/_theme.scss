@@ -1,0 +1,61 @@
+// Material 3 theme and app design tokens (SPEC.md §2.1; theme light/dark/system).
+//
+// `mat.theme` emits the `--mat-sys-*` system tokens using CSS `light-dark()`, so the active
+// scheme is driven by `color-scheme` alone:
+// - no `data-theme` attribute (or `data-theme="system"`): follows `prefers-color-scheme`;
+// - `data-theme="light"` / `data-theme="dark"` on <html>: explicit user override.
+// App components use only the `--mat-sys-*` and `--app-*` custom properties, never literal colors.
+@use '@angular/material' as mat;
+
+@mixin tokens {
+  :root {
+    color-scheme: light dark;
+
+    @include mat.theme(
+      (
+        color: (
+          primary: mat.$azure-palette,
+          tertiary: mat.$blue-palette,
+        ),
+        typography: (
+          plain-family: (
+            Roboto,
+            'Helvetica Neue',
+            Arial,
+            sans-serif,
+          ),
+          brand-family: (
+            Roboto,
+            'Helvetica Neue',
+            Arial,
+            sans-serif,
+          ),
+        ),
+        density: 0,
+      )
+    );
+
+    // App-level tokens, derived from the Material system tokens.
+    --app-bg: var(--mat-sys-surface);
+    --app-fg: var(--mat-sys-on-surface);
+    --app-fg-muted: var(--mat-sys-on-surface-variant);
+    --app-surface-raised: var(--mat-sys-surface-container);
+    --app-border: var(--mat-sys-outline-variant);
+    --app-accent: var(--mat-sys-primary);
+    --app-danger: var(--mat-sys-error);
+    --app-space-1: 4px;
+    --app-space-2: 8px;
+    --app-space-3: 16px;
+    --app-space-4: 24px;
+    --app-space-5: 32px;
+    --app-radius: var(--mat-sys-corner-medium);
+  }
+
+  :root[data-theme='light'] {
+    color-scheme: light;
+  }
+
+  :root[data-theme='dark'] {
+    color-scheme: dark;
+  }
+}

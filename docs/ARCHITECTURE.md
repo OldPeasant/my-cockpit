@@ -10,8 +10,8 @@ How agents work is in `AGENTS.md`, and the review evidence contract is in `docs/
 | Server | `server/` | Kotlin 2.3.21 (+ `plugin.spring`, `plugin.jpa` with all-open for JPA entities), Spring Boot 4.1.1 (Web MVC, Actuator, Validation, Security, Data JPA/Hibernate, Flyway 12 + `flyway-database-postgresql`), PostgreSQL 16 (JDBC driver from the Boot BOM), JDK 21 (Gradle toolchain), Gradle 9.8.1 wrapper, ktlint (Gradle plugin 14.2.0), JaCoCo |
 | Server libraries | `server/` | springdoc-openapi 3.0.0, logstash-logback-encoder 8.1 (JSON logs use Boot structured logging, `logstash` format), Angus Mail (Boot BOM), ical4j 4.1.1, ez-vcard 0.12.1, flexmark 0.64.8 (core + GFM strikethrough/tasklist, tables, autolink), jsoup 1.21.2, Thumbnailator 0.4.20, java-uuid-generator 5.1.0 (UUIDv7), BouncyCastle `bcprov-jdk18on` 1.81 (Argon2 with spring-security-crypto), java-otp 0.4.0 (TOTP), webauthn4j-core 0.29.5 |
 | Server tests | `server/` | JUnit 5, Kotest assertions 6.0.4, MockK 1.14.6, springmockk 5.0.1, Testcontainers 2.0 (`testcontainers-postgresql`, `-junit-jupiter`, `spring-boot-testcontainers`), WireMock 3.13.1 (standalone), GreenMail 2.1.5 (`greenmail-junit5`) |
-| Web | `web/` | Angular 22.2 (standalone, signals, zoneless), TypeScript 6.0, Vitest 5 via `@angular/build:unit-test` + jsdom, angular-eslint, `@vitest/coverage-v8` |
 | Android | `android/` | AGP 9.4.1 (built-in Kotlin), Kotlin 2.3.21 + Compose compiler plugin, Compose BOM 2026.09.00, Material 3, compileSdk 37 / targetSdk 36 / minSdk 29, JDK 21, Gradle 9.8.1 wrapper, ktlint, Android Lint, JUnit 4, JaCoCo; libraries (versions in `android/gradle/libs.versions.toml`): KSP 2.3.4, Hilt 2.59 (+ androidx.hilt 1.3.0 for Navigation/WorkManager), Navigation Compose 2.9.6, Retrofit 3.0.0 + kotlinx.serialization converter, OkHttp 5.3.0, kotlinx.serialization 1.9.0, Room 2.8.4 (schemas in `android/app/schemas/`), WorkManager 2.11.0, DataStore 1.1.7, Tink 1.18.0 (local encryption), Credential Manager 1.5.0, Glance 1.1.1, Coil 3.3.0; tests: Robolectric 4.16 + Compose UI test (v2 rules, in `testDebugUnitTest`), MockK 1.14.6, kotlinx-coroutines-test 1.10.2, Turbine 1.2.1, OkHttp MockWebServer |
+| Web | `web/` | Angular 22.2 (standalone, signals, zoneless), TypeScript 6.0, Vitest 5 via `@angular/build:unit-test` + jsdom, angular-eslint, `@vitest/coverage-v8`; Angular Material + CDK 22.2 (Material 3 theme in `web/src/theme/`: `--mat-sys-*`/`--app-*` tokens on `:root`, light/dark via `prefers-color-scheme` or `<html data-theme="light|dark">`), `@angular/localize` (source locale `en`, `npm run i18n:extract` → `src/locale/messages.xlf`), CodeMirror 6 (+ `@codemirror/lang-markdown`), FullCalendar 7 (`@fullcalendar/angular`, `fullcalendar` with daygrid/timegrid/interaction/list subpaths, `@fullcalendar/rrule` + `rrule`), TipTap 3 (core, starter-kit, link, image), pdfjs-dist 6; dev: ng-openapi-gen, Playwright + `@axe-core/playwright`, otplib |
 | Tooling | root | TFP (`tasks.py`, `agents.py`), Python 3.10+ |
 
 The skeletons are deliberately minimal. Tasks add PostgreSQL, Flyway, Spring Security,
@@ -53,6 +53,9 @@ locally.
 | Node 24 + npm | `nvm install 24` (reads `.nvmrc`) | `nvm install 24` | nvm-windows `nvm install 24`, or the Node 24 MSI |
 | Android SDK | see below | see below | Android Studio, or cmdline-tools as below in `%LOCALAPPDATA%\Android\Sdk` |
 | Docker or Podman | `sudo dnf install podman podman-docker` + `systemctl --user enable --now podman.socket`, or Docker Engine | Docker Desktop / Podman Desktop | Docker Desktop |
+
+Web libraries come from the lockfile (`cd web && npm ci`). Playwright browsers for the (slow, non-check)
+E2E suites: `cd web && npx playwright install --with-deps chromium`.
 
 Gradle needs no separate install: the wrappers (`./gradlew`) download it. The JDK is found through
 `JAVA_HOME` or `PATH`.
