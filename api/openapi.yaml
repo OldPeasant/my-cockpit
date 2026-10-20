@@ -17,6 +17,10 @@ tags:
   name: Events
 - description: Web login sessions and device tokens
   name: Auth
+- description: "IMAP/SMTP accounts with password, and Google/Microsoft accounts through\
+    \ an OAuth connection (XOAUTH2). Passwords are write-only. Changes send `change`\
+    \ events of type `MAIL_ACCOUNT` and `MAIL_FOLDER`."
+  name: Mail accounts
 - description: GTD tasks
   name: Tasks
 - description: Global search across all item types
@@ -853,6 +857,348 @@ paths:
       summary: Remove a manual link
       tags:
       - Links
+  /api/v1/mail/accounts:
+    get:
+      operationId: listMailAccounts
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MailAccountListResponse"
+          description: The accounts (passwords are never returned)
+      summary: "All mail accounts, by display name"
+      tags:
+      - Mail accounts
+    post:
+      description: "`IMAP_SMTP` accounts need servers, username and password. `GOOGLE`/`MICROSOFT`\
+        \ accounts need `oauthConnectionId` (a connection of that provider, see `/api/v1/oauth`)\
+        \ and no password; servers default to the provider's and the username to the\
+        \ connection's email address. The servers are not contacted: use `POST /{id}/test`\
+        \ and `POST /{id}/folders/sync` afterwards."
+      operationId: createMailAccount
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateMailAccountRequest"
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MailAccountResponse"
+          description: Created; `Location` points to the account
+        "400":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: Invalid request
+      summary: Add a mail account
+      tags:
+      - Mail accounts
+  /api/v1/mail/accounts/{id}:
+    delete:
+      description: Removes the account with its cached folders and messages. Mail
+        on the server is not touched.
+      operationId: deleteMailAccount
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - description: The account's ETag
+        in: header
+        name: If-Match
+        required: true
+        schema:
+          type: string
+      responses:
+        "204":
+          description: Removed
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: No such account
+        "412":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: If-Match is stale
+        "428":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: If-Match is missing
+      summary: Remove a mail account
+      tags:
+      - Mail accounts
+    get:
+      operationId: getMailAccount
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MailAccountResponse"
+          description: "The account, with its version as ETag"
+          headers:
+            ETag:
+              schema:
+                type: string
+              style: simple
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: No such account
+      summary: One mail account
+      tags:
+      - Mail accounts
+    patch:
+      description: "Absent (or null) fields stay unchanged; the type cannot change.\
+        \ A server is changed as a whole (host, port and security together). `password`\
+        \ replaces the stored one; an empty `signatureMd` removes the signature. Changing\
+        \ servers or credentials closes the account's open IMAP connections."
+      operationId: updateMailAccount
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - description: The account's ETag
+        in: header
+        name: If-Match
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateMailAccountRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MailAccountResponse"
+          description: "The changed account, with its new ETag"
+          headers:
+            ETag:
+              schema:
+                type: string
+              style: simple
+        "400":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: Invalid request
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: No such account
+        "412":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: If-Match is stale
+        "428":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: If-Match is missing
+      summary: Change a mail account
+      tags:
+      - Mail accounts
+  /api/v1/mail/accounts/{id}/folders:
+    get:
+      description: "The folder list of the last sync, by path. Empty before the first\
+        \ sync."
+      operationId: listMailFolders
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MailFolderListResponse"
+          description: The folders
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: No such account
+      summary: The account's folders (cached)
+      tags:
+      - Mail accounts
+  /api/v1/mail/accounts/{id}/folders/sync:
+    post:
+      description: "Adds new folders, removes vanished ones (their cached messages\
+        \ stay as link targets) and detects roles via SPECIAL-USE (RFC 6154) or well-known\
+        \ names. Roles set by hand are kept."
+      operationId: syncMailFolders
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MailFolderListResponse"
+          description: The folders after the sync
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: No such account
+        "502":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: The mail server could not be reached or rejected the login;
+            `errorCode` says why
+      summary: Read the folder list from the server
+      tags:
+      - Mail accounts
+  /api/v1/mail/accounts/{id}/folders/{folderId}:
+    patch:
+      description: "`{\"role\": \"ARCHIVE\"}` makes the folder the account's Archive\
+        \ (the folder that had the role loses it); `{\"role\": null}` gives it no\
+        \ role. Either way detection leaves it alone from then on. `{\"automatic\"\
+        : true}` hands the folder back to detection on the next sync."
+      operationId: updateMailFolder
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - in: path
+        name: folderId
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - description: The folder's ETag
+        in: header
+        name: If-Match
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateMailFolderRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MailFolderResponse"
+          description: "The changed folder, with its new ETag"
+          headers:
+            ETag:
+              schema:
+                type: string
+              style: simple
+        "400":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: Invalid request
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: No such folder
+        "412":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: If-Match is stale
+        "428":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: If-Match is missing
+      summary: Set a folder's role by hand
+      tags:
+      - Mail accounts
+  /api/v1/mail/accounts/{id}/test:
+    post:
+      description: "Logs in to the IMAP and the SMTP server with the stored settings.\
+        \ Failures are reported in the body (200), per protocol, as an error code\
+        \ with a fixed message."
+      operationId: testMailAccountConnection
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ConnectionTestResponse"
+          description: The outcome per protocol
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: No such account
+      summary: Test the connection
+      tags:
+      - Mail accounts
   /api/v1/oauth/connections:
     get:
       operationId: listOAuthConnections
@@ -2816,6 +3162,16 @@ components:
           minLength: 1
       required:
       - code
+    ConnectionTestResponse:
+      type: object
+      properties:
+        imap:
+          $ref: "#/components/schemas/ProtocolTestResponse"
+        smtp:
+          $ref: "#/components/schemas/ProtocolTestResponse"
+      required:
+      - imap
+      - smtp
     ContextListResponse:
       type: object
       description: All contexts in order
@@ -2922,6 +3278,59 @@ components:
       required:
       - source
       - target
+    CreateMailAccountRequest:
+      type: object
+      properties:
+        displayName:
+          type: string
+          description: Defaults to the email address
+          maxLength: 200
+          minLength: 0
+        emailAddress:
+          type: string
+          format: email
+          minLength: 1
+        imap:
+          $ref: "#/components/schemas/MailServerRequest"
+          description: Required for IMAP_SMTP; defaults to the provider's server for
+            GOOGLE/MICROSOFT
+        notifyNewMail:
+          type: boolean
+          description: Notify about new mail in the Inbox; defaults to true
+        oauthConnectionId:
+          type: string
+          format: uuid
+          description: "GOOGLE/MICROSOFT only: the OAuth connection to log in with"
+        password:
+          type: string
+          description: "IMAP_SMTP only: password or app password. Write-only"
+          writeOnly: true
+        signatureMd:
+          type: string
+          description: Markdown
+        smtp:
+          $ref: "#/components/schemas/MailServerRequest"
+          description: Required for IMAP_SMTP; defaults to the provider's server for
+            GOOGLE/MICROSOFT
+        syncWindowMonths:
+          type: integer
+          format: int32
+          description: Months of headers cached on the first sync; defaults to 12
+          maximum: 600
+          minimum: 1
+        type:
+          type: string
+          enum:
+          - IMAP_SMTP
+          - GOOGLE
+          - MICROSOFT
+        username:
+          type: string
+          description: Required for IMAP_SMTP; defaults to the connection's email
+            for GOOGLE/MICROSOFT
+      required:
+      - emailAddress
+      - type
     CreateProjectRequest:
       type: object
       description: A new project. Only `title` is required; the status defaults to
@@ -3235,6 +3644,173 @@ components:
       required:
       - password
       - username
+    MailAccountListResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/MailAccountResponse"
+      required:
+      - items
+    MailAccountResponse:
+      type: object
+      properties:
+        createdAt:
+          type: string
+          format: date-time
+        displayName:
+          type: string
+        emailAddress:
+          type: string
+        hasPassword:
+          type: boolean
+          description: Whether a password is stored (it is never returned)
+        id:
+          type: string
+          format: uuid
+        imap:
+          $ref: "#/components/schemas/MailServerResponse"
+        notifyNewMail:
+          type: boolean
+        oauthConnectionId:
+          type: string
+          format: uuid
+        signatureMd:
+          type: string
+        smtp:
+          $ref: "#/components/schemas/MailServerResponse"
+        syncWindowMonths:
+          type: integer
+          format: int32
+        type:
+          type: string
+          enum:
+          - IMAP_SMTP
+          - GOOGLE
+          - MICROSOFT
+        updatedAt:
+          type: string
+          format: date-time
+        username:
+          type: string
+        version:
+          type: integer
+          format: int64
+          description: The ETag value for If-Match
+      required:
+      - createdAt
+      - displayName
+      - emailAddress
+      - hasPassword
+      - id
+      - imap
+      - notifyNewMail
+      - smtp
+      - syncWindowMonths
+      - type
+      - updatedAt
+      - username
+      - version
+    MailFolderListResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/MailFolderResponse"
+      required:
+      - items
+    MailFolderResponse:
+      type: object
+      properties:
+        accountId:
+          type: string
+          format: uuid
+        delimiter:
+          type: string
+          description: Hierarchy delimiter; absent for flat namespaces
+        id:
+          type: string
+          format: uuid
+        lastSyncedAt:
+          type: string
+          format: date-time
+        name:
+          type: string
+          description: Last path segment
+        path:
+          type: string
+          description: "Full IMAP path, e.g. INBOX/Projects"
+        role:
+          type: string
+          enum:
+          - INBOX
+          - SENT
+          - DRAFTS
+          - TRASH
+          - ARCHIVE
+          - SPAM
+        roleOverridden:
+          type: boolean
+          description: The role was set by hand
+        selectable:
+          type: boolean
+          description: false for folders that only group children
+        version:
+          type: integer
+          format: int64
+          description: The ETag value for If-Match
+      required:
+      - accountId
+      - id
+      - name
+      - path
+      - roleOverridden
+      - selectable
+      - version
+    MailServerRequest:
+      type: object
+      properties:
+        host:
+          type: string
+          example: imap.example.com
+          maxLength: 253
+          minLength: 0
+        port:
+          type: integer
+          format: int32
+          example: 993
+          maximum: 65535
+          minimum: 1
+        security:
+          type: string
+          enum:
+          - SSL_TLS
+          - STARTTLS
+          - NONE
+      required:
+      - host
+      - port
+      - security
+    MailServerResponse:
+      type: object
+      properties:
+        host:
+          type: string
+        port:
+          type: integer
+          format: int32
+        security:
+          type: string
+          enum:
+          - SSL_TLS
+          - STARTTLS
+          - NONE
+      required:
+      - host
+      - port
+      - security
     MeResponse:
       type: object
       properties:
@@ -3510,6 +4086,27 @@ components:
       - title
       - updatedAt
       - version
+    ProtocolTestResponse:
+      type: object
+      properties:
+        errorCode:
+          type: string
+          description: Why it failed; absent when ok
+          enum:
+          - AUTHENTICATION_FAILED
+          - TLS_FAILED
+          - TIMEOUT
+          - CONNECTION_FAILED
+          - OAUTH_RECONNECT_REQUIRED
+          - OAUTH_UNAVAILABLE
+          - POOL_EXHAUSTED
+        message:
+          type: string
+          description: "A fixed, displayable message for errorCode"
+        ok:
+          type: boolean
+      required:
+      - ok
     RecoveryCodesResponse:
       type: object
       properties:
@@ -4209,3 +4806,54 @@ components:
         text:
           type: string
           maxLength: 1000
+    UpdateMailAccountRequest:
+      type: object
+      properties:
+        displayName:
+          type: string
+          maxLength: 200
+          minLength: 0
+        emailAddress:
+          type: string
+          format: email
+        imap:
+          $ref: "#/components/schemas/MailServerRequest"
+        notifyNewMail:
+          type: boolean
+        oauthConnectionId:
+          type: string
+          format: uuid
+          description: GOOGLE/MICROSOFT only
+        password:
+          type: string
+          description: "IMAP_SMTP only: replaces the stored password. Write-only"
+          writeOnly: true
+        signatureMd:
+          type: string
+          description: Markdown; empty removes the signature
+        smtp:
+          $ref: "#/components/schemas/MailServerRequest"
+        syncWindowMonths:
+          type: integer
+          format: int32
+          maximum: 600
+          minimum: 1
+        username:
+          type: string
+    UpdateMailFolderRequest:
+      type: object
+      properties:
+        automatic:
+          type: boolean
+          description: "true: let detection choose the role again on the next sync"
+        role:
+          type: string
+          description: The role to set by hand; null for no role. Ignored when automatic
+            is true
+          enum:
+          - INBOX
+          - SENT
+          - DRAFTS
+          - TRASH
+          - ARCHIVE
+          - SPAM
