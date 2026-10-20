@@ -14,7 +14,8 @@ Filterable next actions and the Today view (SPEC.md §5.3).
 ## Acceptance criteria
 - [x] Next view filters: context, energy, creativity, max estimate, area/project, due; filters in the URL; saved presets stored in settings
   - verified (2026-10-21 00:07+0200 by dell26/agent-4): Vitest next-view.spec.ts/next-filter.spec.ts/filter-presets.spec.ts (context, energy, creativity, max estimate, area/project, due; URL query sync incl. back/forward; presets stored in setting nextActionPresets) via npm --prefix web run check at 724ac0da -> pass; server GtdSettingsWebTests 4/4 (Testcontainers) -> pass; e2e next.spec.ts -> pass
-- [ ] Today view: overdue, due today, scheduled today (calendar events and habits are added by later tasks via extension slots)
+- [x] Today view: overdue, due today, scheduled today (calendar events and habits are added by later tasks via extension slots)
+  - verified (2026-10-21 00:07+0200 by dell26/agent-4): Vitest today-view.spec.ts (overdue, due today, scheduled today sections, TODAY_SECTIONS extension slots) via npm --prefix web run check at 724ac0da -> pass. LIMITATION: 'scheduled today' is usually empty because the server's releaseDue moves due SCHEDULED tasks to NEXT and clears scheduledDate; deferred to follow-up task gtd-scheduled-marker (recorded assumption)
 - [ ] Vitest component/service tests cover filter combinations and presets; `cd web && npm run check` passes
 - [x] Playwright `e2e/gtd-next/next.spec.ts` passes against the e2e stack (`npm run e2e -- e2e/gtd-next/next.spec.ts`, see p0-e2e-harness): @phone + ≤15 min filter shows only the matching task
   - verified (2026-10-20 23:54+0200 by dell26/agent-4): npm --prefix web run e2e -- e2e/gtd-next/next.spec.ts (deploy/docker-compose.e2e.yml stack, real setup+login, chromium) at 75bd7412 -> 6 passed incl. 'next actions > @phone + <= 15 min shows only the matching task'
