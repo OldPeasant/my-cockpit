@@ -2,7 +2,7 @@
 title: Files API: upload, download, operations
 status: todo
 owner:
-deps: [files-storage]
+deps: [files-storage,runner-push-failure-loop]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/files,server/src/test/kotlin/ch/sonensei/cockpit/files,server/src/main/resources/db/migration/files]
 prio: 1
 ---
