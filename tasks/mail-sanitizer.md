@@ -1,11 +1,11 @@
 ---
 title: HTML mail sanitizer
-status: todo
-owner: 
+status: in_progress
+owner: dell26/agent-5
 deps: [p0-server-deps]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/mail/sanitize,server/src/test/kotlin/ch/sonensei/cockpit/mail/sanitize]
 prio: 1
-lease_until: 
+lease_until: 2026-10-20T09:46:10Z
 releases: 0
 extended: 
 ---
