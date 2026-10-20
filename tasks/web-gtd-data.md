@@ -5,7 +5,7 @@ owner: dell26/agent-2
 deps: [p0-web-shell,p0-web-sse,gtd-projects-api,p0-e2e-harness]
 touches: [web/src/app/features/gtd/data,web/src/app/features/gtd/ui]
 prio: 1
-lease_until: 2026-10-20T19:34:06Z
+lease_until: 2026-10-20T19:39:09Z
 releases: 0
 extended: 
 ---
