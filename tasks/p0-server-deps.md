@@ -19,7 +19,8 @@ Add every server library the spec needs up front (SPEC.md §2.1), so later tasks
   - verified (2026-10-20 10:37+0200 by dell26/agent-1): cd server && ./gradlew test --rerun-tasks on Podman (Testcontainers connected to unix:///run/user/1000/podman/podman.sock) -> BUILD SUCCESSFUL in 11s, 9 suites / 21 tests, 0 failures/errors; PostgresTestBaseTests + ProfileTests share one postgres:16 container via @ServiceConnection
 - [x] `./gradlew integrationTest` runs only tests tagged `external` and is not part of `check`; `./gradlew check` still finishes in < 60 s warm (record time)
   - verified (2026-10-20 10:37+0200 by dell26/agent-1): cd server && ./gradlew integrationTest --rerun-tasks -> BUILD SUCCESSFUL, results only for ExternalToolingSmokeTests (2 tests); ./gradlew check --console=plain task list has no integrationTest and test results exclude it; warm ./gradlew check --rerun-tasks --profile -> total build time 11.957s (< 60 s)
-- [ ] ARCHITECTURE.md stack table and Testing section updated (test vs integrationTest, Podman variables)
+- [x] ARCHITECTURE.md stack table and Testing section updated (test vs integrationTest, Podman variables)
+  - verified (2026-10-20 10:37+0200 by dell26/agent-1): read docs/ARCHITECTURE.md -> stack table rows Server/Server libraries/Server tests list the new libs and plugins; Testing table has ./gradlew check (test, ~12 s) vs ./gradlew integrationTest (@ExternalTest, not in check); Install + Testing document DOCKER_HOST/TESTCONTAINERS_RYUK_DISABLED for Podman
 
 ## Notes
 - ASSUMPTION (2026-10-20 10:21+0200 by dell26/agent-1) [confirmed 2026-10-20 10:26+0200 by Peter Gürtler]: JSON logging uses Spring Boot's built-in structured logging (logging.structured.format.console=logstash) instead of a logback-spring.xml; logstash-logback-encoder is declared as required but not wired yet. The dev profile blanks the property for plain logs; tests use the default profile and therefore log JSON.
