@@ -18,7 +18,8 @@ Show and revoke Android devices; regenerate recovery codes.
   - verified (2026-10-20 17:03+0200 by dell26/agent-4): cd server && ./gradlew test --tests 'ch.sonensei.cockpit.core.auth.*' --rerun-tasks -> RecoveryCodeWebTests 11/11 (200 with current TOTP, wrong/missing TOTP 400, throttled 429); Vitest 'shows new recovery codes once' + 'does not keep the codes after the page is left' -> pass
 - [x] Vitest component/service tests cover device list, revoke flow; `cd web && npm run check` passes
   - verified (2026-10-20 17:03+0200 by dell26/agent-4): sh scripts/check.sh on the task merged with main (includes cd web && npm run check) -> api up to date, lint clean, 24 test files passed, build OK, all checks passed
-- [ ] `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.core.auth.*'` passes (Postgres via Testcontainers where persistence is involved) for the recovery code endpoint
+- [x] `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.core.auth.*'` passes (Postgres via Testcontainers where persistence is involved) for the recovery code endpoint
+  - verified (2026-10-20 17:03+0200 by dell26/agent-4): cd server && ./gradlew test --tests 'ch.sonensei.cockpit.core.auth.*' --rerun-tasks -> BUILD SUCCESSFUL, 20 suites 0 failures/errors; RecoveryCodeWebTests (PostgresTestBase, Testcontainers) 11 tests pass
 
 ## Notes
 - ASSUMPTION (2026-10-20 15:45+0200 by dell26/agent-4): POST /api/v1/auth/recovery-codes shares the global LoginThrottle with login (wrong TOTP counts as a failed attempt, 429 + Retry-After when blocked) so a stolen session cannot brute-force TOTP; wrong TOTP is a 400 with field 'totp', not 401, so the SPA does not treat it as a logout
