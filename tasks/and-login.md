@@ -15,7 +15,8 @@ Login screen and token storage (SPEC.md §9.2 item 1).
 ## Acceptance criteria
 - [x] Login screen: server URL, username, password, TOTP / recovery code; errors and 429 backoff shown
   - verified (2026-10-20 22:02+0200 by dell26/agent-5): cd android && ./gradlew ktlintCheck testDebugUnitTest --tests 'ch.sonensei.cockpit.auth.*' (Robolectric Compose LoginScreenTest + LoginViewModelTest: URL/username/password/TOTP+recovery-code fields, invalid-credential/network errors, 429 Retry-After countdown) -> BUILD SUCCESSFUL, 122 tests, 0 failures at 3334c04d
-- [ ] Tokens stored encrypted (Keystore-backed); app start routes to login or home; logout clears tokens and caches
+- [~] Tokens stored encrypted (Keystore-backed); app start routes to login or home; logout clears tokens and caches
+  - skipped (2026-10-20 22:02+0200 by dell26/agent-5): Encryption runs through AES-256-GCM with a Keystore key; unit tests (122 pass) cover token persistence via a JVM cipher stand-in, app-start routing to login/home and logout clearing tokens+caches, but the real AndroidKeyStore round trip needs an emulator/device, unavailable here (deferred to h-android-device)
 - [ ] `cd android && ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.auth.*'` passes, covering login success/failure states, token persistence, logout (Robolectric/Compose UI tests for screens)
 
 ## Notes
