@@ -182,6 +182,16 @@ class SearchEdgeCaseTests(
 	}
 
 	@Test
+	fun `a fuzzy hit its resolver leaves out is replaced by the next fuzzy match`() {
+		val trashed = task("Call plumbr")
+		val typo1 = task("Pay plumbar")
+		val typo2 = task("Ask plumbre")
+		fakes.tasks.remove(trashed.id)
+
+		found("plumber", limit = 2) shouldContainExactlyInAnyOrder listOf(typo1, typo2)
+	}
+
+	@Test
 	fun `fuzzy title lookup outside a transaction fails instead of using the default threshold`() {
 		shouldThrow<IllegalTransactionStateException> {
 			documents.similarTitles("plumber", listOf(ItemType.TASK.name), 10, SearchService.FUZZY_THRESHOLD)
@@ -372,6 +382,20 @@ class SearchEdgeCaseTests(
 				status { isBadRequest() }
 				content { contentType(MediaType.APPLICATION_PROBLEM_JSON) }
 			}
+	}
+
+	@Test
+	fun `the published contract types limit as an integer with its default and bounds and q with its length`() {
+		mockMvc.get("/v3/api-docs").andExpect {
+			status { isOk() }
+			jsonPath("$.paths['$BASE'].get.parameters[?(@.name == 'limit')].schema.type") { value("integer") }
+			jsonPath("$.paths['$BASE'].get.parameters[?(@.name == 'limit')].schema.default") { value(SearchService.DEFAULT_LIMIT) }
+			jsonPath("$.paths['$BASE'].get.parameters[?(@.name == 'limit')].schema.minimum") { value(1) }
+			jsonPath("$.paths['$BASE'].get.parameters[?(@.name == 'limit')].schema.maximum") { value(SearchService.MAX_LIMIT) }
+			jsonPath("$.paths['$BASE'].get.parameters[?(@.name == 'q')].schema.type") { value("string") }
+			jsonPath("$.paths['$BASE'].get.parameters[?(@.name == 'q')].schema.minLength") { value(1) }
+			jsonPath("$.paths['$BASE'].get.parameters[?(@.name == 'q')].schema.maxLength") { value(SearchService.MAX_QUERY_LENGTH) }
+		}
 	}
 
 	@Test
