@@ -47,9 +47,29 @@ exit 1
 ''')
 
 
-def drops(tmp):
-    f = tmp / "remote.git" / "drops"
+def refusing_hook(tmp, refs):
+    """The remote refuses every push to a ref matching the shell pattern `refs` (git: `(pre-receive hook
+    declined)`), like a protected branch. Counts the refused pushes in remote.git/refusals."""
+    return hook(tmp, f'''#!/bin/sh
+while read old new ref; do
+  case "$ref" in {refs})
+    n=$(cat refusals 2>/dev/null || echo 0)
+    echo $((n + 1)) > refusals
+    echo "pushes to $ref are not allowed for this account" >&2
+    exit 1 ;;
+  esac
+done
+exit 0
+''')
+
+
+def counted(tmp, name):
+    f = tmp / "remote.git" / name
     return int(f.read_text()) if f.exists() else 0
+
+
+def drops(tmp):
+    return counted(tmp, "drops")
 
 
 def races(tmp):
@@ -255,6 +275,52 @@ class Races(Board):
         self.assertIn("hung up unexpectedly", p.stdout + p.stderr)
         self.assertEqual(drops(self.tmp), 5)
 
+    def commit_work(self):
+        (self.w / "work.txt").write_text("work\n")
+        sh(self.w, "git", "add", "-A")
+        sh(self.w, "git", "commit", "-qm", "work")
+        return sh(self.w, "git", "rev-parse", "HEAD").stdout.strip()
+
+    def test_board_push_refused_by_the_remote_fails_at_once(self):
+        refusing_hook(self.tmp, "refs/heads/main")
+        p = self.tp("release", "a", "--note", "x", who=self.who, check=False)
+        self.assert_refused(p)
+        self.assertIn("hook declined", p.stdout + p.stderr)
+        self.assertEqual(counted(self.tmp, "refusals"), 1)  # retrying a refusal won't help: no 5 attempts
+        t = self.remote_task("a")
+        self.assertEqual((field(t, "status"), field(t, "owner")), ("in_progress", self.who))
+
+    def test_done_push_refused_by_the_remote_fails_at_once_and_keeps_the_code(self):
+        head = self.commit_work()
+        refusing_hook(self.tmp, "refs/heads/main")
+        p = self.tp("done", "a", "--force", who=self.who, check=False)
+        self.assert_refused(p)
+        self.assertEqual(counted(self.tmp, "refusals"), 1)
+        self.assertEqual(sh(self.w, "git", "rev-parse", "HEAD").stdout.strip(), head)
+        self.assertEqual(field(self.remote_task("a"), "status"), "in_progress")
+
+    def test_wip_push_refused_by_the_remote_fails_at_once_and_keeps_the_work(self):
+        head = self.commit_work()
+        refusing_hook(self.tmp, "refs/heads/wip/*")
+        p = self.tp("release", "a", "--note", "x", who=self.who, check=False)
+        self.assert_refused(p)
+        self.assertIn("still here, unpushed", p.stdout + p.stderr)
+        self.assertEqual(counted(self.tmp, "refusals"), 1)
+        self.assertEqual(sh(self.w, "git", "rev-parse", "HEAD").stdout.strip(), head)  # not reset away
+        t = self.remote_task("a")
+        self.assertEqual((field(t, "status"), field(t, "owner")), ("in_progress", self.who))
+
+    def test_wip_push_that_keeps_failing_for_an_unknown_reason_fails_after_5_attempts(self):
+        head = self.commit_work()
+        flaky_hook(self.tmp, 100)  # every push fails, the wip push is the first one
+        p = self.tp("release", "a", "--note", "x", who=self.who, check=False)
+        self.assert_refused(p)
+        self.assertIn("hung up unexpectedly", p.stdout + p.stderr)
+        self.assertEqual(drops(self.tmp), 5)
+        self.assertEqual(sh(self.w, "git", "rev-parse", "HEAD").stdout.strip(), head)
+        t = self.remote_task("a")
+        self.assertEqual((field(t, "status"), field(t, "owner")), ("in_progress", self.who))
+
     def test_board_push_that_loses_to_concurrent_pushes_is_not_refused(self):
         race_hook(self.tmp, "release: a", 5)  # another agent's push lands during each of our 5 attempts
         p = self.tp("release", "a", "--note", "x", who=self.who, check=False)
@@ -371,6 +437,34 @@ class ForceReleaseKeepsLosingRaces(PushRunner):
         a = self.state("a")
         self.assertNotEqual(a["owner"], "box/agent-1")
         self.assertIn("release by box/agent-1", a["text"])
+
+
+class BlockedRetryLosesRaces(PushRunner):
+    """A task blocked by a real refusal (the default PushRunner hook refuses the workflow file in wip/a): a human
+    fixes the remote, but the runner's retry then loses every race (30). That is not a reason to wait another
+    --blocked-retry: the next retry comes after about 60 s, and it releases the task."""
+    mode, budget, retry = "release", 10, 110
+
+    def test_retry_that_only_lost_races_is_retried_soon(self):
+        self.wait_for("BLOCKED log", lambda: "BLOCKED on a" in self.log.read_text())
+        race_hook(self.tmp, "release: a", 30)  # replaces the refusing hook: pushes work, but others keep winning
+        self.wait_for("lost races", lambda: "lost every push race to other agents" in self.log.read_text(),
+                      timeout=self.retry + 90)
+        self.wait_for("released log", lambda: "released a for another agent" in self.log.read_text(), timeout=150)
+        log = self.log.read_text()
+        self.assertEqual(races(self.tmp), 30)
+        self.assertNotIn("Traceback", log)
+        self.assertEqual(log.count("BLOCKED on a"), 1, log)  # the lost races did not block it again
+
+        def at(line):
+            h, m, s = map(int, line[1:9].split(":"))
+            return h * 3600 + m * 60 + s
+
+        lines = log.splitlines()
+        lost = at(next(l for l in lines if "lost every push race to other agents" in l))
+        retry = at([l for l in lines if "retrying to release a" in l][-1])
+        self.assertLess((retry - lost) % 86400, self.retry - 25, log)  # about 60 s, not --blocked-retry
+        self.assertIn("handed back by box/agent-1", self.state("a")["text"])
 
 
 class ForceReleaseLosesRaces(PushRunner):
