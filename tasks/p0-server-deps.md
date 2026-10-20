@@ -1,11 +1,11 @@
 ---
 title: Server dependencies, profiles and test infrastructure
-status: in_progress
+status: done
 owner: dell26/agent-1
 deps: []
 touches: [server/build.gradle.kts,server/src/main/resources/application.properties,server/src/main/resources/application-dev.properties,server/src/main/resources/application-e2e.properties,server/src/test/kotlin/ch/sonensei/cockpit/support]
 prio: 1
-lease_until: 2026-10-20T09:03:53Z
+lease_until: 
 releases: 1
 extended: 
 ---
@@ -32,3 +32,4 @@ Add every server library the spec needs up front (SPEC.md §2.1), so later tasks
 - ASSUMPTION (2026-10-20 10:38+0200 by dell26/agent-1): Fixed tests/test_quality_gate.py (outside touches): it leaked the runner's TASKS_ROOT into tasks.py, so .taskcheck failed with 'exists' and wrote stray tasks/a,b,c.md into the clone; one-line env filter fix
 - release by dell26/agent-1: handed off by dell26/agent-1: You've hit your session limit · resets 2pm (Europe/Berlin)
 - release by R1963MACOS/agent-2: All 5 criteria verified (earlier run). Re-test + re-review done at 50e57c0 (no new findings), reports committed in 7acb719. Blocked only on environment: Docker daemon not running on R1963MACOS, so Testcontainers suites fail and quality.json validation can't honestly say pass. Left: with Docker/Podman up, run cd server && ./gradlew check, set quality.json validation results to 'pass' (reviewed_revision 50e57c0 stays valid), then tasks.py done.
+- done by dell26/agent-1: `sh scripts/check.sh` passed in 40s on 1fee48b96; criteria verified 5/5
