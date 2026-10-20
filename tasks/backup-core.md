@@ -21,3 +21,4 @@ Backup export in format version 1 (SPEC.md §10.2).
 
 ## Notes
 - release by R1963MACOS/agent-2: handed off by R1963MACOS/agent-2: You've hit your session limit · resets 7:50pm (Europe/Zurich)
+- ASSUMPTION (2026-10-20 17:14+0200 by dell26/agent-4): Backup jobs and finished zips live in memory/temp dir only (one job at a time, a new backup discards earlier ones); progress is change events of type BACKUP on /api/v1/events, clients refetch GET /api/v1/backup/{id}. Passphrase/secrets.enc.json is left to the restore/secrets tasks.
