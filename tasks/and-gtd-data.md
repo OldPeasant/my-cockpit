@@ -15,7 +15,8 @@ Data layer for GTD screens with offline read cache (SPEC.md §9.3).
   - verified (2026-10-21 00:46+0200 by dell26/agent-5): cd android && ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.gtd.data.*' (TaskRepositoryTest, ProjectContextRepositoryTest, GtdCacheConsistencyTest, GtdDataGraphTest: Room cache for INBOX/NEXT/TODAY/PROJECTS, offline flag on network error/5xx serving cached rows) -> 74 tests, 0 failures
 - [x] Periodic sync (WorkManager, 15 min) + foreground SSE refresh
   - verified (2026-10-21 00:46+0200 by dell26/agent-5): cd android && ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.gtd.data.*' (GtdSyncTest: unique periodic work KEEP 15 min CONNECTED + worker refreshAll; GtdChangeStreamTest/GtdRefreshTriggersTest: MockWebServer SSE change events reload exactly matching views, reconnect reloads, 5s stop timeout) -> 74 tests, 0 failures
-- [ ] `cd android && ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.gtd.data.*'` passes, covering cache fallback when offline, refresh replaces cache (Robolectric/Compose UI tests for screens)
+- [x] `cd android && ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.gtd.data.*'` passes, covering cache fallback when offline, refresh replaces cache (Robolectric/Compose UI tests for screens)
+  - verified (2026-10-21 00:46+0200 by dell26/agent-5): cd android && ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.gtd.data.*' ktlintCheck lintDebug -> BUILD SUCCESSFUL, 74 tests in 10 classes, 0 failures (incl. cache fallback offline, refresh replaces cache); screen UI tests belong to screen tasks per assumption
 
 ## Notes
 - ASSUMPTION (2026-10-21 00:04+0200 by dell26/agent-5): GTD read cache is its own Room database (gtd/data/GtdCacheDatabase, gtd_cache.db) with destructive migration, not a shared app database: it only holds copies of server data and the task's touches are limited to gtd/data; and-capture-queue can keep pending_capture in its own DB.
