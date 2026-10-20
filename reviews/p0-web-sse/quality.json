@@ -1,0 +1,20 @@
+{
+  "schema": 1,
+  "task": "p0-web-sse",
+  "reviewed_revision": "1be4923ef4633d4e5de6a72d88ceb816b74efc22",
+  "helpers": {
+    "test-writer": {"status": "completed", "report": "reviews/p0-web-sse/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/p0-web-sse/review.md"},
+    "fixer": {"status": "completed", "report": "reviews/p0-web-sse/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P3", "disposition": "fixed", "note": "endless 30 s retries after session expiry; a stream failure now probes the session and logs out on 401"},
+    {"id": "CR-2", "source": "code-reviewer", "severity": "P3", "disposition": "fixed", "note": "unreachable onerror guard removed"},
+    {"id": "FX-1", "source": "parent", "severity": "P3", "disposition": "fixed", "note": "session probe made silent: no toast per failed reconnect during outages"}
+  ],
+  "validation": [
+    {"command": "cd web && npm run check", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
