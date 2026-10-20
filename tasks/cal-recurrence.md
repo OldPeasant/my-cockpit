@@ -14,7 +14,8 @@ Expand events into occurrences in a range (SPEC.md §6.1).
 ## Acceptance criteria
 - [x] `OccurrenceExpander` (ical4j) expands RRULE/EXDATE/overrides in an event's time zone into instants for [from, to)
   - verified (2026-10-20 18:07+0200 by dell26/agent-3): cd server && ./gradlew test --offline --rerun --tests 'ch.sonensei.cockpit.calendar.recurrence.*' -> OccurrenceExpanderTests 13 + OccurrenceExpanderEdgeCaseTests 43 passed; OccurrenceExpander uses ical4j Recur in the event zone, applies EXDATE/overrides, filters to [from,to)
-- [ ] Tests: weekly across DST start/end (Europe/Zurich), all-day events, moved and cancelled occurrences, COUNT/UNTIL, monthly by weekday
+- [x] Tests: weekly across DST start/end (Europe/Zurich), all-day events, moved and cancelled occurrences, COUNT/UNTIL, monthly by weekday
+  - verified (2026-10-20 18:07+0200 by dell26/agent-3): same run -> named tests pass: weekly across DST start/end Europe/Zurich, all-day series/single, moved+cancelled overrides, COUNT, UNTIL, monthly by weekday (OccurrenceExpanderTests.kt) plus DST-end edge cases
 - [ ] `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.calendar.recurrence.*'` passes (Postgres via Testcontainers where persistence is involved)
 
 ## Notes
