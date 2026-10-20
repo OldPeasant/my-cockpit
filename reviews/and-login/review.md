@@ -4,23 +4,42 @@ Date: 2026-10-20
 
 Task: and-login - Android login and secure token storage
 
-Scope: `git diff 4b1b038..HEAD` (committed changes only; uncommitted test-writer work ignored)
+Scope: `git diff 6604ff34778f12ee5d7292feab42f1490c54c8aa..69121421df27b3b3c77876a114b7f3fc99336ab3`. This is a re-review of the final code after fixes CR-1, CR-3 and CR-4 and the added tests. Committed changes only; the working tree was clean. Reviewed revision: `69121421df27b3b3c77876a114b7f3fc99336ab3`.
 
 Requirements:
-- tasks/and-login.md acceptance criteria and recorded assumptions
-- SPEC.md section 3 (Android auth: refresh token in Keystore-backed storage, 15 min access token, device revocation, login rate limiting) and section 9.2 item 1
-- docs/ARCHITECTURE.md and AGENTS.md project notes (no secret logging, feature folders, lint)
-- Server contract: server/.../core/auth/api/DeviceTokenController.kt (POST /api/v1/auth/token, DELETE /api/v1/auth/devices/{id}, 400/401/429 + Retry-After seconds)
+- tasks/and-login.md: acceptance criteria 1-3 and the recorded assumptions (direct Keystore AES-GCM that fails closed; passkeys left to and-passkeys; best-effort device revocation with a 5 s timeout; SessionCache multibinding plus cacheDir; logout under Settings; 30 s default Retry-After)
+- SPEC.md section 4.1 (Android: refresh token in Keystore-backed storage, devices revocable, login rate limiting) and section 9.2 item 1 (login with password+TOTP, server URL setting)
+- docs/ARCHITECTURE.md (Android MVVM, one package per feature, lint, coverage) and AGENTS.md project notes (no secrets logged, stay inside `touches`, fictitious test data)
+- Server contract: `server/.../core/auth/domain/DeviceTokenService.kt` and `infra/AuthDeviceRepository.kt` (refresh rotation, reuse of a retired token revokes the device)
+- Earlier evidence: reviews/and-login/review.md (first review), fixes.md, tests.md
 
 Git range:
 - Branch: main
-- HEAD: 61ecf6294fb6258502684fc570ad2017d05513a8
-- Base/start: 4b1b038ccff2a595b236aee124d17b88a4f059d9
-- Commits reviewed: 3 (a1de662, 860926e, 61ecf62)
+- HEAD: 69121421df27b3b3c77876a114b7f3fc99336ab3
+- Base/start: 6604ff34778f12ee5d7292feab42f1490c54c8aa (`git merge-base HEAD origin/main`)
+- Commits reviewed: 9 (43e71518, c906989b, e4a54e83, e53cb4b3, 56787a8d, a0173fad, 9c5a8905, f2003169, 69121421)
 
-Summary: 0 P0, 0 P1, 2 P2, 2 P3
+Summary: 0 P0, 0 P1, 0 P2, 3 P3
 
-Verified as correct: the request matches the server contract (exactly one of totp/recoveryCode, deviceName within 100 chars, 400/401/429 mapped, numeric Retry-After honoured with a 30 s fallback). The 429 countdown blocks submitting and is shown on the button. A double submit sends one request. Password and code are dropped from `LoginUiState.toString` and `AuthTokens.toString`. The new code adds no logging. AES-256-GCM uses a non-exportable Keystore key and a random IV, with AAD. Decrypt failures and malformed records count as logged out and the record is deleted. If encryption fails, nothing is written in plain text. Refresh rotation keeps the device id. Start-up routing follows `tokenStore.session`. The network layer's `TokenStore` binding now uses the persistent store.
+## Disposition of the earlier findings
+
+- **CR-1 (P2, logout cancelled before the tokens are cleared): fixed.** `AuthRepository.logout()` (AuthRepository.kt:160-176) runs in `withContext(NonCancellable)`. The revocation is limited by `withTimeoutOrNull(REVOKE_TIMEOUT_MS)`. `session.logout(USER)` and the cache clearing run in `finally`. `SessionViewModel.logout()` (SessionViewModel.kt:30-33) ignores taps while a logout job is active. The regression test `AuthRepositoryTest` "a logout started from the app still forgets the tokens when its screen goes away during the revocation" cancels `viewModelScope` during a slow DELETE and checks that the tokens are cleared. `SessionViewModelTest` covers the ignored repeated taps.
+- **CR-2 (P2, real Keystore round trip never run): partly addressed. Device-level evidence is still open.** `KeystoreTokenCipherTest` now runs the production `KeystoreTokenCipher` against a stand-in JCA provider registered as "AndroidKeyStore". The test covers the key spec, the IV/tag layout, the AAD, tamper, lost-key and replaced-key handling, and a store restart. The real hardware-backed Keystore still runs on no device or emulator, and tests.md says so. None of the three criteria has recorded evidence yet (`tasks.py verify and-login` shows all unticked). The parent should record criterion 2's device-level Keystore part as `--skip` with a reason, as the parent has already planned, and not claim it from the JVM suite. This is not repeated as a finding.
+- **CR-3 (P3, Keystore work on the main thread): fixed for login, initial decrypt accepted.** `tokenStore.login` runs in `withContext(ioDispatcher)` (AuthRepository.kt:142-144), and a counting-dispatcher test covers it. The first decrypt in `PersistentTokenStore`'s initializer still runs on whichever thread injects the store first, normally Main at cold start. The finding offered that as an optional "consider", and the fixer left it unchanged because the fix would need changes outside the task's `touches`. That is acceptable.
+- **CR-4 (P3, caches cleared twice): fixed for the normal paths.** `AuthRepository` is now the single owner. A user logout clears the caches inline. Other reasons arrive through the app-scope collector filtered to `!= USER` (AuthRepository.kt:100-105). The ViewModel observer was removed. One edge case still clears twice; see CR-1 below.
+
+Also verified as correct in the final code:
+- The request matches the server contract.
+- 400, 401 and 429 are mapped. A numeric `Retry-After` is honoured with at least 1 s, otherwise the default is 30 s.
+- The countdown blocks submit and appears on the disabled button.
+- Password and code are cleared after success; the code is also cleared after 401 and 429.
+- `LoginUiState.toString` and `AuthTokens.toString` redact secrets. The auth package has no logging.
+- `allowBackup="false"`.
+- Undecryptable or malformed stored records are deleted and count as logged out. A failed encrypt never writes plain text.
+- Refresh rotation keeps the device id.
+- Start-up routing follows `tokenStore.session`.
+- `TokenStore` is bound to `PersistentTokenStore`.
+- The removed shell-navigation assertion in `MainActivityLaunchTest` is still covered by `ui/CockpitShellNavigationTest` and `AppStartRoutingTest`.
 
 ## P0 Critical
 
@@ -32,36 +51,34 @@ None.
 
 ## P2 Medium
 
-- [ ] **CR-1 | Logout can be cancelled before the tokens are cleared, and gives no feedback during the up-to-5 s revoke**
-    - File: `android/app/src/main/java/ch/sonensei/cockpit/auth/AuthRepository.kt:124`, `android/app/src/main/java/ch/sonensei/cockpit/auth/SessionViewModel.kt:35`
-    - Category: Correctness
-    - Problem: `SessionViewModel.logout()` runs `repository.logout()` in `viewModelScope`. `logout()` first waits for `authApi.revokeDevice` (up to `REVOKE_TIMEOUT_MS` = 5 s on a slow or offline server) and only then calls `session.logout(LogoutReason.USER)` and `clearCaches()`. If the ViewModel is cleared during that wait, `CancellationException` is rethrown on purpose (line 129), so `session.logout` never runs. That happens when the user taps Log out and then leaves the app with Back, or the activity finishes. The tokens stay stored and the next start opens the shell, logged in. During the wait the shell stays fully usable with no progress indicator. Each extra tap starts another parallel logout and another revoke request.
-    - Why it matters: Criterion 2 says "logout clears tokens and caches". A logout the user started can silently not happen, and the device stays logged in on a phone the user believes is logged out.
-    - Suggested fix: Make the local part of the logout impossible to skip. Run the logout in an application-scoped or `NonCancellable` context, or capture the device id and clear the tokens and caches first, then revoke best-effort with the captured credentials. Also ignore repeated taps, or show a "logging out" state, while a logout runs. Add a test that cancels the scope during the revoke and checks that the tokens are cleared.
-
-- [ ] **CR-2 | The real Keystore cipher's encrypt/decrypt round trip is never run by any test**
-    - File: `android/app/src/main/java/ch/sonensei/cockpit/auth/TokenCipher.kt:27`
-    - Category: Tests
-    - Problem: Robolectric has no `AndroidKeyStore` provider, so `KeystoreTokenCipher` always takes the fail-closed path in unit tests (`PersistentTokenStoreTest` "fails closed where there is no Android Keystore"; `AuthRepositoryTest:56` and the Hilt routing tests therefore keep tokens in memory only). The persistence tests use a fake cipher. Nothing runs the Keystore code that the app depends on: key generation, the GCM IV/tag layout (`[ivLen][iv][ct+tag]`), the AAD, and decrypt with `GCMParameterSpec(TAG_BITS, encrypted, 1, ivLength)`. There is no `androidTest` source set.
-    - Why it matters: Criterion 2 ("Tokens stored encrypted (Keystore-backed)") has no evidence for the production cipher. A mistake in it would not crash. It would quietly fall back to keeping tokens in memory only (the login lost on every restart), and the tests would still pass.
-    - Suggested fix: Verify the round trip on an emulator or device, for example with a small instrumented test or the SPEC section 11 manual step "log in, restart, still logged in", and record that as evidence. If that is not possible here, record criterion 2's Keystore part with `verify --skip` and the reason, rather than citing the Robolectric suite.
+None.
 
 ## P3 Low
 
-- [ ] **CR-3 | Keystore and disk work runs on the main thread**
-    - File: `android/app/src/main/java/ch/sonensei/cockpit/auth/PersistentTokenStore.kt:42`, `android/app/src/main/java/ch/sonensei/cockpit/auth/AuthRepository.kt:110`
-    - Category: Quality
-    - Problem: `PersistentTokenStore` decrypts the stored record in its initializer (`MutableStateFlow(load())`), which runs when `hiltViewModel()` creates `SessionViewModel` during the first composition on the main thread. `AuthRepository.login` is called from `viewModelScope` (Main) and calls `tokenStore.login`, so `KeystoreTokenCipher.encrypt` (Keystore binder IPC) also runs on Main.
-    - Why it matters: Keystore calls can take tens to hundreds of milliseconds on some devices, which adds jank at cold start and on sign-in.
-    - Suggested fix: Wrap the `tokenStore.login(...)` call in `withContext(Dispatchers.IO)`. Consider warming the store off the main thread, for example in `Application.onCreate` on a background dispatcher, or accept the cost and document it.
+- [ ] **CR-1 | A user logout of an already revoked device clears the caches twice, concurrently**
+    - File: `android/app/src/main/java/ch/sonensei/cockpit/auth/AuthRepository.kt:103`, `android/app/src/main/java/ch/sonensei/cockpit/auth/AuthRepository.kt:165`, `android/app/src/main/java/ch/sonensei/cockpit/auth/AuthRepository.kt:173-174`
+    - Category: Correctness
+    - Problem: `authApi.revokeDevice` goes through the main client, which has the `TokenAuthenticator` (NetworkModule.kt `authApi(retrofit)`). Suppose the device was already revoked, for example from the web device list (SPEC 4.1), or its refresh token has expired. The DELETE then gets a 401, and the authenticator refreshes. The refresh is rejected, so `session.logoutIfCurrent(..., REFRESH_REJECTED)` runs. The app-scope collector on `Dispatchers.Default` reacts with `clearCaches()`. The DELETE then returns its 401, and the `finally` block runs `session.logout(USER)` and `clearCaches()` again, possibly while the collector's pass is still running. That is the situation the CR-4 fix set out to remove ("a user logout clears the caches exactly once"), and no test covers this path.
+    - Why it matters: Today the only cache is the cacheDir deletion, where this does no harm. Feature caches contributed later, such as Room clears, would run twice and at the same time.
+    - Suggested fix: In `logout()`, skip the inline `clearCaches()` when the collector has already handled a logout for this session, or let only the collector clear the caches by removing the `USER` filter and the inline call. A user logout would then clear asynchronously, though, so check the existing "user logout clears the caches" tests. Add a test in which the DELETE returns 401 and the refresh is rejected, and assert the caches are cleared exactly once.
 
-- [ ] **CR-4 | A user logout clears the caches twice, concurrently**
-    - File: `android/app/src/main/java/ch/sonensei/cockpit/auth/AuthRepository.kt:135`, `android/app/src/main/java/ch/sonensei/cockpit/auth/SessionViewModel.kt:31`
+- [ ] **CR-2 | A failing SessionCache crashes the app and stops later cache clears**
+    - File: `android/app/src/main/java/ch/sonensei/cockpit/auth/AuthRepository.kt:102-104`, `android/app/src/main/java/ch/sonensei/cockpit/auth/AuthRepository.kt:178`, `android/app/src/main/java/ch/sonensei/cockpit/auth/AuthRepository.kt:70-72`
     - Category: Quality
-    - Problem: `AuthRepository.logout()` calls `clearCaches()` after `session.logout`. `SessionViewModel` also collects `loggedIn` and calls `repository.clearCaches()` on every switch to logged out. A user logout therefore runs every `SessionCache` twice, possibly at the same time: two `deleteRecursively` passes over `cacheDir` on IO. Cache clearing also has two owners. The ViewModel observer covers only logouts while that ViewModel is alive, despite the assumption "It runs on any logout".
-    - Why it matters: Today this is harmless for the cache directory. Feature caches added later, such as Room clears, will be invoked twice and concurrently, and the split ownership makes the guarantee hard to reason about.
-    - Suggested fix: Choose one owner. For example, make a singleton react to `tokenStore.session` becoming null, and drop the explicit call in `AuthRepository.logout`, or the reverse.
+    - Problem: `clearCaches()` calls each `SessionCache.clear()` in turn without handling exceptions, and the `SessionCache` contract does not say that `clear()` must not throw. If one cache throws:
+        - the caches after it are not cleared;
+        - in `logout()` the exception leaves the `finally` block and reaches `viewModelScope.launch` with no handler, so the app crashes;
+        - in the app-scope collector (`SupervisorJob()` without a `CoroutineExceptionHandler`) the collector coroutine ends, so no later network-layer or server-change logout clears any cache until the process restarts, and the uncaught exception crashes the app.
+    - Why it matters: This task created `SessionCache` as the extension point that feature tasks contribute to, for example Room `clearAllTables()`, which can throw. The tokens are cleared before the caches, so no session is lost. But one buggy contributor would make logout crash the app and silently disable cache clearing for the rest of the session.
+    - Suggested fix: In `clearCaches()`, run each cache in its own try/catch (rethrow `CancellationException`), so every cache gets its turn and the collector survives. Alternatively, state in the `SessionCache` KDoc that `clear()` must not throw. Add a test with one throwing cache followed by a working one.
+
+- [ ] **CR-3 | Rotated tokens are persisted with an asynchronous apply()**
+    - File: `android/app/src/main/java/ch/sonensei/cockpit/auth/PersistentTokenStore.kt:79-81`
+    - Category: Correctness
+    - Problem: `set()` writes with `prefs.edit { ... }`, which uses `apply()`, so the disk write happens asynchronously. `replace()` stores the refresh token the server has just rotated. The server keeps the previous token as retired, and when a retired token is presented again it deletes the device (`DeviceTokenService.kt:57-61`). Suppose the process is killed after `replace()` returns but before the queued write reaches the disk, for example by a low-memory kill while the app is in the background. On the next start, the store loads the old refresh token, the first refresh presents a retired token, and the server revokes the device. The user is then logged out and the device disappears from the device list.
+    - Why it matters: The window is short, but the result is a forced re-login with TOTP. SPEC 4.1 expects the long-lived refresh token to keep the device logged in.
+    - Suggested fix: Use `edit(commit = true)` for the writes that store tokens (`login`, `replace`). `login` already runs on `ioDispatcher`, and `replace` runs on an OkHttp thread, so neither runs on Main. `clear()` can stay on `apply()`.
 
 ## Review conclusion
 
-Material issues found; fix before completing the task. CR-1 and CR-2 should be addressed: fix CR-1, and verify the Keystore path in CR-2 on a device or record it as skipped.
+No material issues found. The earlier P2 finding CR-1 and the P3 findings CR-3 and CR-4 are fixed. The remaining findings are P3 and do not block completion. Criterion 2's device-level Keystore evidence (earlier CR-2) must be recorded as skipped with a reason, not claimed. This review did not run Gradle; test results are taken from tests.md and fixes.md.
