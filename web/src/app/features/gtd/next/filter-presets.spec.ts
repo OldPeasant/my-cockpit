@@ -150,6 +150,35 @@ describe('FilterPresets', () => {
     await expect(presets.save('Calls', { context: PHONE })).rejects.toBe(error);
   });
 
+  it('refuses to save or delete while the settings cannot be loaded, so no preset is lost', async () => {
+    const error = new Error('offline');
+    settings.load.mockRejectedValue(error);
+
+    await expect(presets.save('Calls', { context: PHONE })).rejects.toBe(error);
+    await expect(presets.remove('Calls')).rejects.toBe(error);
+
+    expect(settings.update).not.toHaveBeenCalled();
+  });
+
+  it('loads the settings before saving, keeping the presets stored on the server', async () => {
+    settings.load.mockImplementationOnce(async () => {
+      const loaded = fakeSettings({
+        [PRESETS_SETTING]: [JSON.stringify({ name: 'Deep work', filter: { energy: 'HIGH' } })],
+      });
+      settings.current.set(loaded);
+      return loaded;
+    });
+
+    await presets.save('Calls', { context: PHONE });
+
+    expect(settings.load).toHaveBeenCalledTimes(1);
+    expect(settings.update).toHaveBeenCalledTimes(1);
+    expect(settings.stored()).toEqual([
+      { name: 'Deep work', filter: { energy: 'HIGH' } },
+      { name: 'Calls', filter: { context: PHONE } },
+    ]);
+  });
+
   it('loads the settings only when they are not loaded yet', async () => {
     await presets.ensureLoaded();
     expect(settings.load).toHaveBeenCalledTimes(1);

@@ -208,7 +208,14 @@ export default class NextView {
   }
 
   protected async removePreset(preset: FilterPreset): Promise<void> {
-    await this.presetStore.remove(preset.name).catch(() => undefined);
+    this.presetError.set(null);
+    try {
+      await this.presetStore.remove(preset.name);
+    } catch {
+      this.presetError.set(
+        $localize`:@@gtd.next.preset.removeFailed:The preset could not be deleted. Try again.`,
+      );
+    }
   }
 
   protected toggleDone(task: TaskResponse): void {

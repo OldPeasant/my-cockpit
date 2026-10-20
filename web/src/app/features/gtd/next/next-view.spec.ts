@@ -799,7 +799,7 @@ describe('NextView', () => {
 
     it('keeps the view usable when deleting a preset fails', async () => {
       settings.current.set(fakeSettings({ [PRESETS_SETTING]: stored(CALLS) }));
-      await open('/next');
+      await open('/next?energy=LOW');
       settings.update.mockRejectedValueOnce(new Error('offline'));
 
       await click(
@@ -807,6 +807,39 @@ describe('NextView', () => {
       );
 
       expect(presetButton('Quick calls')).toBeDefined();
+      expect(root.querySelector('[role=alert]')?.textContent?.trim()).toBe(
+        'The preset could not be deleted. Try again.',
+      );
+
+      // Opening the save form clears the old message.
+      await click(root.querySelector<HTMLButtonElement>('.preset-add')!);
+      expect(root.querySelector('[role=alert]')).toBeNull();
+    });
+
+    it('does not wipe the stored presets when saving after the settings failed to load', async () => {
+      settings.current.set(null);
+      settings.load.mockRejectedValueOnce(new Error('offline'));
+      await open('/next?energy=LOW');
+      expect(root.querySelectorAll('.preset')).toHaveLength(0);
+
+      // The server is reachable again and still holds a preset.
+      settings.load.mockImplementation(async () => {
+        const loaded = fakeSettings({ [PRESETS_SETTING]: stored(CALLS) });
+        settings.current.set(loaded);
+        return loaded;
+      });
+      await click(root.querySelector<HTMLButtonElement>('.preset-add')!);
+      await typeName('Low energy');
+      await submitSave();
+
+      expect(settings.update).toHaveBeenCalledTimes(1);
+      const saved = (settings.current()?.[PRESETS_SETTING] as string[]).map((text) =>
+        JSON.parse(text),
+      );
+      expect(saved.map((preset: { name: string }) => preset.name)).toEqual([
+        'Quick calls',
+        'Low energy',
+      ]);
     });
 
     it('loads the settings when the shell has not loaded them yet', async () => {

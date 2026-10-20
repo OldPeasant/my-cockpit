@@ -33,8 +33,12 @@ export class FilterPresets {
     if (!this.settings.settings()) await this.settings.load();
   }
 
-  /** Saves `filter` as `name`; a preset of the same name (any case) is replaced in place. */
-  save(name: string, filter: NextFilter): Promise<unknown> {
+  /**
+   * Saves `filter` as `name`; a preset of the same name (any case) is replaced in place. The
+   * settings are loaded first: a list built from unloaded settings would wipe the stored presets.
+   */
+  async save(name: string, filter: NextFilter): Promise<unknown> {
+    await this.ensureLoaded();
     const preset: FilterPreset = { name: name.trim(), filter: normalizeFilter(filter) };
     const presets = [...this.presets()];
     const index = presets.findIndex((other) => sameName(other.name, preset.name));
@@ -43,8 +47,9 @@ export class FilterPresets {
     return this.store(presets);
   }
 
-  /** Deletes the preset called `name`. */
-  remove(name: string): Promise<unknown> {
+  /** Deletes the preset called `name`; like {@link save}, it loads the settings first. */
+  async remove(name: string): Promise<unknown> {
+    await this.ensureLoaded();
     return this.store(this.presets().filter((preset) => !sameName(preset.name, name)));
   }
 
