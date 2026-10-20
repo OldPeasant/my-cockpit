@@ -25,4 +25,12 @@ class PlaceholderScreenTest {
 
         composeRule.onNodeWithText("My Cockpit: scaffold").assertIsDisplayed()
     }
+
+    @Test
+    fun placeholderScreenDoesNotShowOtherText() {
+        // Proves the Robolectric semantics tree is real: an absent text is not found.
+        composeRule.setContent { PlaceholderScreen() }
+
+        composeRule.onNodeWithText("Some other screen").assertDoesNotExist()
+    }
 }
