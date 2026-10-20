@@ -21,7 +21,8 @@ Projects with next step, areas and contexts (SPEC.md §5.1–5.2).
   - verified (2026-10-20 20:02+0200 by R1963MACOS/agent-1): cd server && ./gradlew cleanTest test --tests 'ch.sonensei.cockpit.gtd.*' --tests '*OpenApiContractTest' (Testcontainers Postgres) -> pass incl. 'POST creates ... indexes it and announces it', 'DELETE moves the project to the Trash, out of search and lists, and restore brings it back', Trash contributor restore/purge tests, change-event assertions
 - [x] `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.gtd.*'` passes (Postgres via Testcontainers where persistence is involved) incl. stalled detection and the next-step prompt flag
   - verified (2026-10-20 20:02+0200 by R1963MACOS/agent-1): cd server && ./gradlew cleanTest test --tests 'ch.sonensei.cockpit.gtd.*' --tests '*OpenApiContractTest' (Testcontainers Postgres) -> BUILD SUCCESSFUL, 156 gtd.* tests in 10 classes, 0 failures/errors/skips (stalled detection + needsNextStep tests included)
-- [ ] API documented: `api/openapi.yaml` regenerated (`UPDATE_OPENAPI=1 ./gradlew test --tests '*OpenApiContractTest'`) and `OpenApiContractTest` passes without the flag
+- [x] API documented: `api/openapi.yaml` regenerated (`UPDATE_OPENAPI=1 ./gradlew test --tests '*OpenApiContractTest'`) and `OpenApiContractTest` passes without the flag
+  - verified (2026-10-20 20:02+0200 by R1963MACOS/agent-1): openapi.yaml regenerated with UPDATE_OPENAPI=1 by previous owner (commit 00a09db); now cd server && ./gradlew test --tests '*OpenApiContractTest' without the flag -> 1/1 pass, git status api/ clean (no diff)
 
 ## Notes
 - ASSUMPTION (2026-10-20 18:25+0200 by dell26/agent-5): Stalled = ACTIVE project whose nextTaskId is not an open task of the project (unset, done, in Trash, or moved to another project); projects in other statuses are never stalled. Open tasks without a designated next step do not count.
