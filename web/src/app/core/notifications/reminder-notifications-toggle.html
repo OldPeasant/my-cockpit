@@ -1,0 +1,33 @@
+<mat-slide-toggle
+  [checked]="checked()"
+  [disabled]="blocked() || asking()"
+  (change)="change($event)"
+  i18n="@@reminders.toggle"
+  >Show reminders as browser notifications</mat-slide-toggle
+>
+<p class="hint" role="status" [attr.data-permission]="permission()">
+  @switch (permission()) {
+    @case ('unsupported') {
+      <ng-container i18n="@@reminders.permission.unsupported"
+        >This browser can't show notifications. Reminders appear inside My Cockpit.</ng-container
+      >
+    }
+    @case ('denied') {
+      <ng-container i18n="@@reminders.permission.denied"
+        >Notifications are blocked for this site. Allow them in the browser's site settings; until
+        then reminders appear inside My Cockpit.</ng-container
+      >
+    }
+    @default {
+      @if (asking()) {
+        <ng-container i18n="@@reminders.permission.asking"
+          >Allow notifications in the browser's prompt.</ng-container
+        >
+      } @else if (!checked()) {
+        <ng-container i18n="@@reminders.permission.off"
+          >Reminders appear inside My Cockpit while it is open.</ng-container
+        >
+      }
+    }
+  }
+</p>

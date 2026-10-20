@@ -40,7 +40,8 @@ export const EVENT_SOURCE_FACTORY = new InjectionToken<(url: string) => EventSou
  * - The server does not replay missed events, so after every reconnect (not the first connect)
  *   {@link resync$} emits: stores refetch what they show.
  *
- * Stores use {@link events$} with their item type, e.g. `events$('TASK')`.
+ * Stores use {@link events$} with their item type, e.g. `events$('TASK')`; other named events
+ * (e.g. `reminder`) come from {@link messages$}.
  */
 @Injectable({ providedIn: 'root' })
 export class ChangeEventsService {
@@ -51,6 +52,8 @@ export class ChangeEventsService {
 
   private readonly changes = new Subject<ChangeEvent>();
   private readonly resyncs = new Subject<void>();
+  /** Other named SSE events (e.g. `reminder`), by `event:` name; listened to on every connection. */
+  private readonly named = new Map<string, Subject<unknown>>();
 
   private source: EventSource | undefined;
   private reconnectTimer: ReturnType<typeof setTimeout> | undefined;
@@ -70,12 +73,27 @@ export class ChangeEventsService {
       this.disconnect();
       this.changes.complete();
       this.resyncs.complete();
+      this.named.forEach((subject) => subject.complete());
     });
   }
 
   /** Change events of one item type (an `ItemType` name such as `TASK`, or e.g. `REMINDER`). */
   events$(type: string): Observable<ChangeEvent> {
     return this.changes.pipe(filter((event) => event.type === type));
+  }
+
+  /**
+   * The JSON data of the SSE events named `name` other than {@link CHANGE_EVENT_NAME}, e.g. the
+   * `reminder` event with a `ReminderResponse`. Unparsable data is dropped.
+   */
+  messages$<T>(name: string): Observable<T> {
+    let subject = this.named.get(name);
+    if (!subject) {
+      subject = new Subject<unknown>();
+      this.named.set(name, subject);
+      this.source?.addEventListener(name, (message) => this.forward(name, message as MessageEvent));
+    }
+    return subject.asObservable() as Observable<T>;
   }
 
   private connect(): void {
@@ -89,6 +107,9 @@ export class ChangeEventsService {
       this.wasOpen = true;
     };
     source.addEventListener(CHANGE_EVENT_NAME, (message) => this.dispatch(message as MessageEvent));
+    for (const name of this.named.keys()) {
+      source.addEventListener(name, (message) => this.forward(name, message as MessageEvent));
+    }
     source.onerror = () => {
       // Our own backoff replaces EventSource's automatic retry.
       this.close();
@@ -105,6 +126,16 @@ export class ChangeEventsService {
       return;
     }
     if (event && typeof event.type === 'string') this.changes.next(event);
+  }
+
+  private forward(name: string, message: MessageEvent): void {
+    let data: unknown;
+    try {
+      data = JSON.parse(message.data as string);
+    } catch {
+      return;
+    }
+    this.named.get(name)?.next(data);
   }
 
   /**

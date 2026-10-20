@@ -1,5 +1,6 @@
 import { Routes } from '@angular/router';
 import { authGuard, loginGuard, setupGuard } from './core/auth';
+import { provideReminderNotifications } from './core/notifications';
 import { provideCapture } from './features/capture/capture.providers';
 import { provideSearch } from './features/search/search.providers';
 import { provideSettingsSync } from './features/settings/settings.providers';
@@ -32,6 +33,7 @@ export const routes: Routes = [
       provideCapture(),
       provideSearch(),
       provideSettingsSync(),
+      provideReminderNotifications(),
     ],
     children: [
       {

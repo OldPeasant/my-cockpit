@@ -17,6 +17,7 @@ import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
 import { Settings, SettingsPatch } from '../../../api/generated';
 import { ApiError } from '../../../core/http';
+import { ReminderNotificationsToggle } from '../../../core/notifications';
 import { THEME_MODES } from '../../../shell/theme.service';
 import { SettingsService } from '../settings.service';
 
@@ -65,6 +66,7 @@ export function timeZones(): string[] {
     MatSelectModule,
     NgTemplateOutlet,
     ReactiveFormsModule,
+    ReminderNotificationsToggle,
   ],
   templateUrl: './general-settings.html',
   styleUrl: './general-settings.scss',

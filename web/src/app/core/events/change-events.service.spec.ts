@@ -296,6 +296,44 @@ describe('ChangeEventsService', () => {
     expect(received).toEqual([]);
   });
 
+  it('emits the parsed data of other named events, on the current and later connections', () => {
+    const service = create();
+    latest().open();
+    const received: unknown[] = [];
+    service.messages$<{ id: string }>('reminder').subscribe((data) => received.push(data));
+
+    latest().emit('reminder', JSON.stringify({ id: 'r1' }));
+    latest().emit('reminder', 'not json');
+    latest().emit(CHANGE_EVENT_NAME, JSON.stringify(change('TASK')));
+    latest().fail();
+    vi.advanceTimersByTime(1000);
+    latest().open();
+    latest().emit('reminder', JSON.stringify({ id: 'r2' }));
+
+    expect(received).toEqual([{ id: 'r1' }, { id: 'r2' }]);
+  });
+
+  it('listens once per connection however often a named event is subscribed', () => {
+    const service = create();
+    const received: unknown[] = [];
+    service.messages$('reminder').subscribe((data) => received.push(data));
+    service.messages$('reminder').subscribe(() => undefined);
+
+    latest().emit('reminder', JSON.stringify({ id: 'r1' }));
+
+    expect(received).toEqual([{ id: 'r1' }]);
+  });
+
+  it('completes the named event streams when the app is destroyed', () => {
+    const service = create();
+    let completed = false;
+    service.messages$('reminder').subscribe({ complete: () => (completed = true) });
+
+    TestBed.resetTestingModule();
+
+    expect(completed).toBe(true);
+  });
+
   it('keeps dispatching to existing subscribers after a reconnect', () => {
     const service = create();
     const received: ChangeEvent[] = [];
@@ -442,7 +480,10 @@ describe('ChangeEventsService', () => {
     const probe = backend.expectOne(ME_PATH);
     expect(probe.request.context.get(SILENT_ERRORS)).toBe(true);
     expect(probe.request.context.get(SKIP_LOGIN_REDIRECT)).toBe(true);
-    probe.flush({ status: 401, title: 'Unauthorized' }, { status: 401, statusText: 'Unauthorized' });
+    probe.flush(
+      { status: 401, title: 'Unauthorized' },
+      { status: 401, statusText: 'Unauthorized' },
+    );
     await vi.advanceTimersByTimeAsync(0);
 
     expect(navigate).not.toHaveBeenCalled();
