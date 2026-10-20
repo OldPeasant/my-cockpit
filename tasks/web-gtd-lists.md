@@ -5,7 +5,7 @@ owner: dell26/agent-6
 deps: [web-gtd-data]
 touches: [web/src/app/features/gtd/lists]
 prio: 2
-lease_until: 2026-10-20T21:50:49Z
+lease_until: 2026-10-20T21:51:33Z
 ---
 ## Goal
 The remaining GTD lists (SPEC.md §5.3).
