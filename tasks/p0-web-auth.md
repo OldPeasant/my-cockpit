@@ -17,3 +17,4 @@ Setup wizard and login UI (SPEC.md §4.1).
 - [ ] Vitest component/service tests cover setup and login forms, guard redirects; `cd web && npm run check` passes
 
 ## Notes
+- ASSUMPTION (2026-10-20 13:36+0200 by dell26/agent-2): QR code: added the qrcode npm library (+@types/qrcode), drawing its module matrix as an inline SVG path (no canvas, works under jsdom); allowed as CommonJS in angular.json
