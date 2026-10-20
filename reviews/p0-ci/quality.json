@@ -1,0 +1,23 @@
+{
+  "schema": 1,
+  "task": "p0-ci",
+  "reviewed_revision": "609e21a9ed364d04058b6e4da4a4ef6e67aecdff",
+  "helpers": {
+    "test-writer": {"status": "completed", "report": "reviews/p0-ci/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/p0-ci/review.md"},
+    "fixer": {"status": "completed", "report": "reviews/p0-ci/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "first review: push limited to main, paths-ignore tasks/, reviews/, BOARD.md; main runs not cancel-in-progress (fixes.md)"},
+    {"id": "CR-1-rereview", "source": "code-reviewer", "severity": "P3", "disposition": "accepted",
+     "note": "re-review CR-1: a queued (not running) main run can still be superseded by a newer push; the latest run still tests all merged code, so breakage stays visible; wording nuance only"}
+  ],
+  "validation": [
+    {"command": "docker run --rm -v <repo>:/repo:Z -w /repo docker.io/rhysd/actionlint:latest (1.7.12) on 609e21a", "result": "pass"},
+    {"command": "sh scripts/check.sh (fixer, after CR-1 fix)", "result": "pass"},
+    {"command": "cd server && ./gradlew integrationTest", "result": "pass"},
+    {"command": "docker build -t cockpit-server:ci-test . (Podman 5.8.9, test-writer)", "result": "pass"}
+  ]
+}

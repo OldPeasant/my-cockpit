@@ -4,21 +4,21 @@ Date: 2026-10-20
 
 Task: p0-ci - GitHub Actions CI
 
-Scope: task commits from base 0995d28bff12d70c79389824cbd8771569b539bd (claim) to HEAD 90cbf45; reviewed files `.github/workflows/ci.yml` (new) and `docs/ARCHITECTURE.md` (CI paragraph). Board-only changes in `tasks/` were not reviewed. Only committed changes were reviewed; `reviews/p0-ci/` is untracked.
+Scope: re-review of the final revision. `git diff 0995d28bff12d70c79389824cbd8771569b539bd..609e21a -- .github docs`: `.github/workflows/ci.yml` (new) and `docs/ARCHITECTURE.md` (CI paragraph). Checked that CR-1 from the previous review (HEAD 90cbf45) is fixed, as described in `reviews/p0-ci/fixes.md`. Board-only changes in `tasks/` and the review reports were not reviewed as implementation. Only committed changes were reviewed. The working tree was clean.
 
 Requirements:
-- tasks/p0-ci.md acceptance criteria and recorded assumptions (3 parallel jobs on ubuntu-24.04, major-tag action pins, Android checked in CI)
-- docs/ARCHITECTURE.md "Stack", "Install", runtime pinning rules, "Test"
-- AGENTS.md (project notes, evidence rules)
-- Parent instructions: compare versions with .nvmrc, server/build.gradle.kts, android/app/build.gradle.kts, Dockerfile, ARCHITECTURE.md Install; validate with actionlint; check security, runner compatibility of scripts/check.sh, caching
+- tasks/p0-ci.md acceptance criteria and recorded assumptions (3 parallel jobs, major-tag action pins, Android checked in CI, triggers limited to main pushes + PRs with board/review paths ignored)
+- docs/ARCHITECTURE.md "Stack", "Install", "Test"
+- AGENTS.md (project notes, evidence rules, done flow)
+- Parent instructions: verify the CR-1 fix; assess paths-ignore on pull_request vs. required checks; assess skipping reviews/** given that `done` pushes code and reviews together; run actionlint
 
 Git range:
 - Branch: main
-- HEAD: 90cbf45d7003d44cad59c8483f7d457fe84b9d37
+- HEAD: 609e21a9ed364d04058b6e4da4a4ef6e67aecdff
 - Base/start: 0995d28bff12d70c79389824cbd8771569b539bd
-- Commits reviewed: 3 (6a9d7eb, 5d8364f assume notes; 90cbf45 implementation)
+- Commits reviewed: 13 in range. 2 change `.github`/`docs`: 0a01809 (workflow) and 609e21a (CR-1 fix + reports). The other 11 are board-only commits (assume/heartbeat).
 
-Summary: 0 P0, 0 P1, 1 P2, 0 P3
+Summary: 0 P0, 0 P1, 0 P2, 1 P3
 
 ## P0 Critical
 
@@ -30,43 +30,40 @@ None.
 
 ## P2 Medium
 
-- [ ] **CR-1 | Unfiltered push trigger + per-ref cancel-in-progress: main CI will almost never finish while agents run, and every wip backup runs the full pipeline**
-    - File: `.github/workflows/ci.yml:6-15`
-    - Category: Integration
-    - Problem: `on: push:` has no branch or path filter, and `concurrency: group: ci-${{ github.ref }}` with `cancel-in-progress: true` applies to `main` too. Most pushes to this repository's `main` change only the board. In the last day `origin/main` got 279 commits, most of them `heartbeat:` (58), `assume:` (45), `verify:` (42) and `claim:` (21), often seconds apart (e.g. 11:39:35 to 11:41:28). Each push starts all 3 jobs (check up to 40 min, integration and image up to 30 min each) and cancels the previous run on `main`. While agents work, a `main` run will almost never get to finish, so a `done` merge that breaks the build won't show a red CI result. The agent runner also force-pushes `wip/<id>` backups (`agents.py:458`), and each one starts another full 3-job run. (`status/*` branches are not affected: their commits only contain `status.json`, so they have no workflow file.)
-    - Why it matters: The task goal is "CI that runs what agents run", so it should give a usable result for each finished task on `main`. With constant cancellations it mostly reports "cancelled", and it uses a lot of runner minutes on board-only and backup commits.
-    - Suggested fix: Limit `push` to `branches: [main]` (wip backups and status branches are excluded that way; PRs still run through `pull_request`). Add `paths-ignore` for board and review evidence (`tasks/**`, `reviews/**`, `BOARD.md`) so heartbeat/claim/assume/verify commits don't start CI. Don't cancel runs on `main`, e.g. `cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}`, so every task merge gets a complete result. Record the trigger policy with `tasks.py assume`.
+None.
 
 ## P3 Low
 
-None.
+- [ ] **CR-1 | "Runs on main are never cancelled" is not fully true: GitHub concurrency still replaces a pending main run**
+    - File: `.github/workflows/ci.yml:5-6,25-27`; `docs/ARCHITECTURE.md:134`
+    - Category: Quality
+    - Problem: `cancel-in-progress: false` on main only protects the run that is *in progress*. Within a concurrency group, GitHub keeps at most one running and one pending run. When a third run is queued, it cancels the pending one, whatever `cancel-in-progress` says. So if three `done` pushes land on main while one run is still in progress, the middle push's run gets cancelled. The workflow comment ("Runs on main are never cancelled, so every finished task gets a complete result") and the ARCHITECTURE.md sentence ("runs on `main` are never cancelled") promise more than the configuration does.
+    - Why it matters: Impact is low. The surviving later run tests the cumulative code, so a breakage still shows red. But it can't be attributed to the specific task merge, and the docs mislead readers about that guarantee.
+    - Suggested fix: Either make the main group unique per commit, e.g. `group: ci-${{ github.ref == 'refs/heads/main' && github.sha || github.ref }}` (then every main push gets its own complete run), or change the comment and the doc to "a running main run is never cancelled; queued runs may be superseded by a newer push".
 
 ## Verified without findings
 
-- Acceptance criterion 1: triggers on `push` and `pull_request`. JDK 21 through `actions/setup-java` (Temurin) in the `check` and `integration` jobs. Node through `node-version-file: .nvmrc`. Android SDK through `android-actions/setup-android` with `platforms;android-37.0` and `build-tools;36.0.0`. The jobs run `sh scripts/check.sh`, `./gradlew integrationTest` (working-directory `server`) and `docker build .`.
-- Acceptance criterion 2, version match:
-  - JDK: `JAVA_VERSION: "21"` matches the `server/build.gradle.kts:16` toolchain (21), `android/app/build.gradle.kts:37-38` (`VERSION_21`) and the Dockerfile (`eclipse-temurin:21-jdk`/`21-jre`).
-  - Node: `.nvmrc` is `24`, which fits `engines` `^24.15.0` (setup-node resolves the latest 24.x) and the Dockerfile's `node:24-bookworm-slim`.
-  - Android: the SDK packages are the same as in the ARCHITECTURE.md Install section, and `compileSdk = 37`.
-  - Gradle: both wrappers are 9.8.1. `setup-gradle` only adds caching and uses the wrappers.
-- actionlint: `docker run --rm -v "<clone>:/repo:Z" -w /repo docker.io/rhysd/actionlint:latest -no-color` -> exit 0, no findings.
-- Security:
+- **CR-1 (previous review) fixed:**
+  - `push` is limited to `branches: [main]`, so `wip/*` backups and `status/*` branches no longer trigger CI.
+  - `paths-ignore` covers `tasks/**`, `reviews/**` and `BOARD.md` on both events.
+  - `cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}` is a valid boolean expression. It stops in-progress main runs from being cancelled, with the pending-run caveat in CR-1 above.
+  - `board.html` doesn't exist in the repository, so leaving it out is correct.
+- **Skipping `reviews/**` is safe.** GitHub evaluates `paths-ignore` over all files changed in the push (before..after), and skips the run only if *every* changed file matches. `cmd_done` (`tasks.py:827`, `update(..., with_code=True)`) pushes the task's code commits, its review reports and the status change in one push, so any push that carries code still runs CI. Pushes that only touch the board (heartbeat/claim/assume/verify) or only reviews are correctly skipped. Other non-code paths (`board.py`, `dashboard/`, `tasks.py`) still trigger CI, which is the safe side.
+- **paths-ignore on `pull_request` vs. required checks: no harm found.**
+  - The documented flow has no PRs: agents' work reaches main only through `tasks.py done`, which pushes directly, and `repos.txt` is absent.
+  - Nothing in the repository configures branch protection or required status checks.
+  - Known GitHub caveat for later: if a human makes these jobs required checks, a PR that only touches `tasks/`, `reviews/` or `BOARD.md` would stay "pending" and block merging. Not a defect in this task's scope.
+- **Criterion 1 (unchanged since the previous review):** JDK 21 via setup-java (Temurin), Node via `node-version-file: .nvmrc` (`24`), and Android `platforms;android-37.0` + `build-tools;36.0.0`. The jobs run `sh scripts/check.sh`, `./gradlew integrationTest` (in `server/`) and `docker build .`.
+- **Criterion 2, version match:** unchanged from the previous review (server toolchain 21, android `VERSION_21`, Dockerfile temurin 21 / node 24, `engines` ^24.15.0).
+- **Security:**
   - Workflow-level `permissions: contents: read`.
-  - No `pull_request_target`, and no `${{ github.event.* }}` interpolation into `run:` scripts.
-  - No secrets used.
-  - The image is built without a push.
-- scripts/check.sh on ubuntu-24.04:
-  - `ANDROID_HOME` is exported by setup-android (and preset on the runner), so the `~/Android/Sdk` fallback isn't used.
-  - `python3` is preinstalled.
-  - `tests/test_quality_gate.py` sets `user.email`/`user.name` locally in every temp clone it commits in (lines 35-36, 228-229), so it needs no global git identity.
-  - Docker Engine is available for Testcontainers.
-  - Without `node_modules`, `npm ci` runs.
-  - `COCKPIT_NO_ANDROID` is unset, so Android is checked.
-  - `server/gradlew`, `android/gradlew` and `scripts/check.sh` are committed with mode 100755.
-- Caching: the npm cache is keyed on `web/package-lock.json`, and setup-gradle caches `~/.gradle` for both Gradle projects. The integration job doesn't need Node: `integrationTest` is a Gradle test task in the server only.
-- Docs: the ARCHITECTURE.md CI paragraph matches the workflow and the actionlint command.
-- Evidence: the criteria aren't verified yet (`tasks.py verify p0-ci` shows both unchecked). Before `done`, the parent must record actionlint and the local runs, and skip "workflow runs green on GitHub" with a reason, as the criterion allows.
+  - No `pull_request_target`.
+  - No untrusted `${{ github.event.* }}` interpolation in `run:`.
+  - No secrets. The image is built without a push.
+- **Docs:** the ARCHITECTURE.md paragraph describes the triggers, skipped paths and actionlint command correctly, apart from CR-1.
+- **actionlint:** could not be run by this reviewer in this session: the sandbox denied Docker and any local binary lookup. `reviews/p0-ci/fixes.md` records `docker run ... rhysd/actionlint:latest -no-color` -> exit 0 on the fixed workflow. A manual check of the syntax (event filters, the concurrency expression, step keys, `working-directory`) found no problems. The parent should re-run actionlint on HEAD 609e21a when recording criterion 2.
+- **Evidence:** `tasks.py verify p0-ci` still shows both criteria unchecked. Before `done`, the parent must record actionlint and the local runs, and skip the "after push" part of criterion 2 with a reason, as the criterion allows.
 
 ## Review conclusion
 
-Material issues found; fix before completing the task.
+No material issues found. CR-1 (P3) is a minor doc/comment accuracy issue that is optional to fix.
