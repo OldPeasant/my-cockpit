@@ -17,7 +17,8 @@ Make untrusted HTML safe (SPEC.md §4.1).
   - verified (2026-10-20 11:34+0200 by dell26/agent-5): HtmlMailSanitizerTests/EdgeCaseTests/InlineStyleSanitizerTests (jsoup sanitizer: scripts, on* handlers, forms, iframes, javascript:/data: URLs except raster inline images, link/@import/style removed, remote images proxied or blocked per policy, tables + inline styles minus position/url() kept) via ./gradlew test --tests 'ch.sonensei.cockpit.mail.sanitize.*' -> 390 passed, 0 failed
 - [x] Tests with a corpus of malicious samples (OWASP XSS cheat sheet vectors) and real-world newsletters (fictitious)
   - verified (2026-10-20 11:34+0200 by dell26/agent-5): XssCorpusTests (OWASP XSS cheat sheet vectors, 230 cases) + fictitious newsletter tests in HtmlMailSanitizerTests, run with ./gradlew test --tests 'ch.sonensei.cockpit.mail.sanitize.*' -> all pass
-- [ ] `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.mail.sanitize.*'` passes (Postgres via Testcontainers where persistence is involved)
+- [x] `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.mail.sanitize.*'` passes (Postgres via Testcontainers where persistence is involved)
+  - verified (2026-10-20 11:34+0200 by dell26/agent-5): cd server && ./gradlew test --tests 'ch.sonensei.cockpit.mail.sanitize.*' ktlintCheck at be9864d (no persistence involved, no Testcontainers needed) -> BUILD SUCCESSFUL, 390 tests 0 failures
 
 ## Notes
 - ASSUMPTION (2026-10-20 10:57+0200 by R1963MACOS/agent-2): Blocked remote images keep the <img> without src plus data-cockpit-blocked-image=true; SanitizedHtml reports remoteImageCount/remoteImagesBlocked so the client can show 'load images'. Proxy URL format is injected via ImageProxyUrlBuilder (the proxy endpoint is a later task).
