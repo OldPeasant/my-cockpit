@@ -6,6 +6,7 @@ deps: [p0-web-settings,p0-auth-tokens]
 touches: [web/src/app/features/settings/security]
 prio: 2
 lease_until: 2026-10-20T15:01:40Z
+extended: dell26/agent-4
 ---
 ## Goal
 Show and revoke Android devices; regenerate recovery codes.
@@ -20,3 +21,4 @@ Show and revoke Android devices; regenerate recovery codes.
 - ASSUMPTION (2026-10-20 15:45+0200 by dell26/agent-4): POST /api/v1/auth/recovery-codes shares the global LoginThrottle with login (wrong TOTP counts as a failed attempt, 429 + Retry-After when blocked) so a stolen session cannot brute-force TOTP; wrong TOTP is a 400 with field 'totp', not 401, so the SPA does not treat it as a logout
 - ASSUMPTION (2026-10-20 15:45+0200 by dell26/agent-4): Regenerating recovery codes deletes all old codes (used and unused) and returns 10 new ones; the UI holds them only in component state until 'I saved them' or leaving the page (copy button, no download)
 - ASSUMPTION (2026-10-20 15:45+0200 by dell26/agent-4): Edited settings.routes.ts (outside touches) to replace the Security placeholder with the new section, as the routes file says section tasks do
+- extended by dell26/agent-4: Implementation, tests (tests.md for final code), review.md, fixes.md (CR-1..CR-4) committed; sh scripts/check.sh passes. Left: re-run code-reviewer on final code (review.md predates fixes), run ./gradlew test --tests 'ch.sonensei.cockpit.core.auth.*', record verify for #1-#4, write+commit quality.json, tasks.py done.
