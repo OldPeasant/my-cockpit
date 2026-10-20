@@ -5,7 +5,7 @@ owner: dell26/agent-6
 deps: [files-api]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/files,server/src/test/kotlin/ch/sonensei/cockpit/files,server/src/main/resources/db/migration/files]
 prio: 2
-lease_until: 2026-10-20T23:42:29Z
+lease_until: 2026-10-20T23:47:29Z
 ---
 ## Goal
 Image thumbnails and text previews (SPEC.md §8.2).
