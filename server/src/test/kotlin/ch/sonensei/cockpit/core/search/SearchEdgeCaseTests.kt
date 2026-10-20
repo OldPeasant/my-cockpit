@@ -186,6 +186,18 @@ class SearchEdgeCaseTests(
 		val trashed = task("Call plumbr")
 		val typo1 = task("Pay plumbar")
 		val typo2 = task("Ask plumbre")
+		ageDays(typo1, 10)
+		ageDays(typo2, 20)
+		// Precondition: the trashed item is the best fuzzy candidate, so a lookup of only `limit` candidates would
+		// return it and one other, and the page would come back one short.
+		val similarity = { item: ItemRef ->
+			jdbc.queryForObject(
+				"select word_similarity('plumber', title) from search_document where item_id = ?",
+				Double::class.java,
+				item.id,
+			)!!
+		}
+		listOf(typo1, typo2).forEach { (similarity(trashed) >= similarity(it)) shouldBe true }
 		fakes.tasks.remove(trashed.id)
 
 		found("plumber", limit = 2) shouldContainExactlyInAnyOrder listOf(typo1, typo2)
