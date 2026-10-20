@@ -5,7 +5,7 @@ owner: dell26/agent-6
 deps: [gtd-model,p0-search-core,p0-trash-core,p0-events-sse]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/gtd,server/src/test/kotlin/ch/sonensei/cockpit/gtd,server/src/main/resources/db/migration/gtd]
 prio: 1
-lease_until: 2026-10-20T15:25:47Z
+lease_until: 2026-10-20T15:30:49Z
 extended: dell26/agent-6
 ---
 ## Goal
