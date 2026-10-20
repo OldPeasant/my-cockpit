@@ -5,6 +5,7 @@ import ch.sonensei.cockpit.core.network.generated.models.RefreshRequest
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.SerializationException
 import java.io.IOException
+import java.time.DateTimeException
 import javax.inject.Inject
 
 /** Result of rotating the tokens with the server. */
@@ -41,6 +42,9 @@ class AuthApiTokenRefresher
                     // A success body that cannot be decoded is a server failure; throwing here would crash OkHttp's thread.
                     return RefreshResult.Failed
                 } catch (_: IllegalArgumentException) {
+                    return RefreshResult.Failed
+                } catch (_: DateTimeException) {
+                    // The generated OffsetDateTime adapter throws DateTimeParseException for an invalid date-time field.
                     return RefreshResult.Failed
                 }
             val body = response.body()

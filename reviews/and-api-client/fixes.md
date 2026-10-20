@@ -4,7 +4,7 @@ Date: 2026-10-20
 
 Task: and-api-client - Android API client and auth plumbing
 
-Scope: current task; findings TW-1 (`reviews/and-api-client/tests.md`) and CR-1, CR-2, CR-3, CR-4 (`reviews/and-api-client/review.md`), reviewed at HEAD ecfd091 (base 75b80f438c06233efd23a12c3a6a3383e7b25a84). The changes are uncommitted in the working tree.
+Scope: current task; finding TW-2 (`reviews/and-api-client/tests.md`, second fixer run at HEAD b3b4cc3, see its section); earlier findings TW-1 (`reviews/and-api-client/tests.md`) and CR-1, CR-2, CR-3, CR-4 (`reviews/and-api-client/review.md`), reviewed at HEAD ecfd091 (base 75b80f438c06233efd23a12c3a6a3383e7b25a84). The changes are uncommitted in the working tree.
 
 ## Fixed findings
 
@@ -88,6 +88,23 @@ Validation:
 - `ServerUrlTest.an unreadable settings file counts as not configured` - Pass.
 - `ServerUrlTest.the production settings store replaces a corrupt file so the URL can be set again` - Pass.
 
+### TW-2 - An invalid date-time in a refresh answer crashes the OkHttp thread
+
+Second fixer run, on HEAD b3b4cc3 (base c3da5a46ddc3bad27316de552b8c6c487dc62e7f). The change is uncommitted in the working tree.
+
+Files changed:
+- `android/app/src/main/java/ch/sonensei/cockpit/core/network/TokenRefresher.kt`
+
+Problem:
+A 200 refresh answer with an unparseable date-time field (for example `expiresAt: "tomorrow"`) made the generated `OffsetDateTimeAdapter` throw `java.time.format.DateTimeParseException`. It is neither an `IOException` nor a kotlinx.serialization or `IllegalArgumentException`, so it escaped `AuthApiTokenRefresher.refresh` and `TokenAuthenticator.authenticate` and reached OkHttp's dispatcher thread.
+
+Fix:
+`AuthApiTokenRefresher.refresh` now also maps `java.time.DateTimeException` (the parent of `DateTimeParseException`) to `RefreshResult.Failed`. The catch list stays explicit; `Exception` is not caught. As with TW-1, the tokens are kept, there is no logout, and the original call completes with its 401. The two TW-2 tests were not changed.
+
+Validation:
+- `cd android && ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.core.network.*'` - Pass. 60 tests, 0 failures, 0 errors, including `a success body with an invalid expiry date is a failed refresh, not a crash` (AuthApiTokenRefresherTest) and `a refresh answer with an invalid date fails like a server error instead of crashing the call` (TokenAuthenticatorTest).
+- `cd android && ./gradlew ktlintCheck lintDebug testDebugUnitTest` - BUILD SUCCESSFUL. 106 tests, 0 failures, 0 errors.
+
 ## Not fixed
 
 None.
@@ -95,6 +112,13 @@ None.
 Not part of any finding and not changed, noted for the parent worker: `TokenAuthenticator` retries a request on the host the request was originally sent to. Suppose a request to the old server is in flight, the user changes the server, logs in on the new one, and only then the old server answers 401. The retry would then carry the new server's (short-lived) access token to the old, previously trusted server. The refresh token is not affected. Closing this would mean checking the request origin in the authenticator against the configured server. That is outside these findings.
 
 ## Validation summary
+
+TW-2 run (HEAD b3b4cc3 plus the TW-2 change):
+- Focused: `cd android && ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.core.network.*'` - Pass, 60 tests, 0 failures.
+- Full Android: `cd android && ./gradlew ktlintCheck lintDebug testDebugUnitTest` - Pass, 106 tests, 0 failures; ktlintCheck and lintDebug pass.
+- `.taskcheck` (`sh scripts/check.sh`): not run in this fixer run; left to the parent worker.
+
+Earlier run (TW-1, CR-1..CR-4):
 
 Focused tests:
 - `cd android && ./gradlew ktlintFormat ktlintCheck testDebugUnitTest --tests 'ch.sonensei.cockpit.core.network.*'`. ktlintFormat fixed one wrapped line in `ServerUrl.kt`. The first run's ktlintCheck report reflected the code before formatting.
