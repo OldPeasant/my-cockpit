@@ -2,7 +2,7 @@
 title: Load older mail on demand (API for MailHeaderSyncService.loadOlder)
 status: todo
 owner:
-deps: [mail-read-api]
+deps: [mail-read-api,mail-actions-api]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/mail/api,server/src/test/kotlin/ch/sonensei/cockpit/mail/api,api/openapi.yaml,web/src/app/api/generated]
 prio: 2
 ---
