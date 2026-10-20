@@ -5,7 +5,7 @@ owner: dell26/agent-6
 deps: [web-gtd-data]
 touches: [web/src/app/features/gtd/inbox]
 prio: 1
-lease_until: 2026-10-20T20:30:59Z
+lease_until: 2026-10-20T20:36:01Z
 ---
 ## Goal
 Keyboard-driven one-item-at-a-time processing (SPEC.md §5.3).
