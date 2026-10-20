@@ -17,7 +17,8 @@ Retrofit client generated from the OpenAPI contract, with token handling.
   - verified (2026-10-20 17:05+0200 by dell26/agent-1): cd android && ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.core.network.*' --rerun-tasks -> openApiGenerate ran from ../api/openapi.yaml, 48 generated .kt files under android/app/build (git-ignored), git ls-files tracks 0 generated sources; generated AuthApi used by AuthApiTokenRefresher, tests pass
 - [x] OkHttp interceptor adds the access token; an `Authenticator` refreshes on 401 once (concurrent requests share one refresh, test with MockWebServer); a refresh failure logs out
   - verified (2026-10-20 17:05+0200 by dell26/agent-1): ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.core.network.*' -> 69 passed, 0 failed; TokenAuthenticatorTest (MockWebServer): token injection, 8 concurrent 401s -> exactly 1 refresh (success, rejected, failing 503), rejected refresh logs out; TokenAuthenticatorUnitTest covers waiters and CAS interleavings
-- [ ] Server base URL configurable (DataStore), validated as https (http allowed for localhost/emulator)
+- [x] Server base URL configurable (DataStore), validated as https (http allowed for localhost/emulator)
+  - verified (2026-10-20 17:05+0200 by dell26/agent-1): ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.core.network.*' -> ServerUrlTest (19) + NetworkSecurityConfigTest (2) pass: URL stored in DataStore, https required, http only for localhost/127.0.0.1/::1/10.0.2.2 matching network_security_config.xml, invalid URLs rejected; device enforcement of network_security_config not run (no emulator)
 - [ ] `cd android && ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.core.network.*'` passes, covering token injection, single refresh for concurrent 401s, logout on refresh failure (Robolectric/Compose UI tests for screens)
 
 ## Notes
