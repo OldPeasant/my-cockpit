@@ -17,3 +17,4 @@ Generic trash for soft-deleted items (SPEC.md §4.2).
 - [ ] API documented: `api/openapi.yaml` regenerated (`UPDATE_OPENAPI=1 ./gradlew test --tests '*OpenApiContractTest'`) and `OpenApiContractTest` passes without the flag
 
 ## Notes
+- ASSUMPTION (2026-10-20 15:13+0200 by R1963MACOS/agent-2): GET /api/v1/trash merges all contributors in memory (sorted deletedAt desc, then ItemType order, then id desc) with a keyset cursor; fine for a single user's 30-day trash, contributors return all their deleted items
