@@ -19,7 +19,8 @@ Signal-based stores for tasks/projects/contexts and reusable task UI pieces.
   - verified (2026-10-20 21:29+0200 by dell26/agent-2): task-store.spec.ts 'never lets a slower older list answer overwrite a newer one' resolves the newer request first, then the older -> passes (also query-switch and error variants)
 - [x] Shared components: task row (checkbox, title, chips for context/energy/due/project), energy/creativity/estimate pickers, context chips
   - verified (2026-10-20 21:29+0200 by dell26/agent-2): ui/task-row.spec.ts + pickers.spec.ts + labels.spec.ts rendered in TestBed -> pass: checkbox (complete/reopen aria-label, toggleDone emit), title (open), chips for contexts/energy/estimate/due (overdue/today)/project; energy/creativity/estimate pickers choose and clear; context chips toggle
-- [ ] Vitest component/service tests cover store ordering, optimistic update rollback, task row rendering; `cd web && npm run check` passes
+- [x] Vitest component/service tests cover store ordering, optimistic update rollback, task row rendering; `cd web && npm run check` passes
+  - verified (2026-10-20 21:29+0200 by dell26/agent-2): cd web && npm run check -> exit 0 (api:check up to date, lint clean, 41 files / 632 tests passed, ng build ok); sh scripts/check.sh -> all checks passed
 
 ## Notes
 - release by R1963MACOS/agent-1: handed off by R1963MACOS/agent-1: You've hit your session limit · resets 12:50am (Europe/Zurich)
