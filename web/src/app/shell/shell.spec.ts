@@ -1,4 +1,5 @@
 import { BreakpointObserver, BreakpointState } from '@angular/cdk/layout';
+import { Provider } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { MatDialog } from '@angular/material/dialog';
 import { MatSidenav } from '@angular/material/sidenav';
@@ -12,7 +13,12 @@ import { CommandPalette } from './command-palette';
 import { NAV_SECTIONS } from './nav-sections';
 import { provideNavigationPalette } from './navigation-palette.provider';
 import { Shell } from './shell';
-import { CAPTURE_DIALOG, PALETTE_PROVIDERS, PaletteProvider } from './shell-tokens';
+import {
+  CAPTURE_DIALOG,
+  PALETTE_PROVIDERS,
+  PaletteProvider,
+  THEME_PREFERENCE,
+} from './shell-tokens';
 import { ShortcutsDialog } from './shortcuts-dialog';
 import { ThemeService } from './theme.service';
 
@@ -22,7 +28,7 @@ describe('Shell', () => {
   let capture: { open: ReturnType<typeof vi.fn> };
   let breakpoint: BehaviorSubject<BreakpointState>;
 
-  async function setup(compact = false): Promise<void> {
+  async function setup(compact = false, extra: Provider[] = []): Promise<void> {
     capture = { open: vi.fn() };
     breakpoint = new BehaviorSubject<BreakpointState>({ matches: compact, breakpoints: {} });
     TestBed.configureTestingModule({
@@ -32,6 +38,7 @@ describe('Shell', () => {
         provideNavigationPalette(),
         { provide: CAPTURE_DIALOG, useValue: capture },
         { provide: BreakpointObserver, useValue: { observe: () => breakpoint } },
+        ...extra,
       ],
     });
     fixture = TestBed.createComponent(Shell);
@@ -193,6 +200,23 @@ describe('Shell', () => {
     expect(document.documentElement.getAttribute('data-theme')).toBe('dark');
   });
 
+  it('hands the theme chosen in the menu to THEME_PREFERENCE instead of setting it locally', async () => {
+    localStorage.setItem('cockpit.theme', 'light');
+    const preference = { set: vi.fn() };
+    await setup(false, [{ provide: THEME_PREFERENCE, useValue: preference }]);
+    root.querySelector<HTMLButtonElement>('button.theme')!.click();
+    await fixture.whenStable();
+    const items = document.querySelectorAll<HTMLButtonElement>('[role="menuitemradio"]');
+
+    items[1].click();
+    items[2].click();
+    await fixture.whenStable();
+
+    expect(preference.set.mock.calls).toEqual([['dark'], ['system']]);
+    expect(TestBed.inject(ThemeService).mode()).toBe('light');
+    expect(localStorage.getItem('cockpit.theme')).toBe('light');
+  });
+
   it('opens the palette with Ctrl+K while typing in an input and while another dialog is open', async () => {
     await setup();
     const input = document.createElement('input');
@@ -342,5 +366,22 @@ describe('Shell with route-level palette providers', () => {
       expect(groups()).toEqual(['Go to', 'Notes']);
     });
     expect(document.querySelector('app-command-palette')?.textContent).toContain('Fictitious note');
+  });
+});
+
+describe('THEME_PREFERENCE without a provider', () => {
+  afterEach(() => localStorage.clear());
+
+  it('applies the theme only in this browser through ThemeService', () => {
+    TestBed.configureTestingModule({});
+    const theme = TestBed.inject(ThemeService);
+    const setMode = vi.spyOn(theme, 'setMode');
+
+    TestBed.inject(THEME_PREFERENCE).set('dark');
+
+    expect(setMode).toHaveBeenCalledExactlyOnceWith('dark');
+    expect(theme.mode()).toBe('dark');
+    expect(document.documentElement.getAttribute('data-theme')).toBe('dark');
+    expect(localStorage.getItem('cockpit.theme')).toBe('dark');
   });
 });

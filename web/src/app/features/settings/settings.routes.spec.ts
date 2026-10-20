@@ -5,6 +5,11 @@ import { provideRouter, Router } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
 import { AuthService } from '../../core/auth';
 import { NotificationService, provideHttp } from '../../core/http';
+import { BreakpointObserver } from '@angular/cdk/layout';
+import { of } from 'rxjs';
+import { provideFakeSession } from '../../core/auth/testing';
+import { Shell } from '../../shell/shell';
+import { CAPTURE_DIALOG, THEME_PREFERENCE } from '../../shell/shell-tokens';
 import { ThemeService } from '../../shell/theme.service';
 import { provideSettingsSync } from './settings.providers';
 import settingsRoutes from './settings.routes';
@@ -146,5 +151,167 @@ describe('provideSettingsSync', () => {
 
     expect(TestBed.inject(ThemeService).mode()).toBe('dark');
     expect(notifications.error).not.toHaveBeenCalled();
+  });
+});
+
+describe('provideSettingsSync THEME_PREFERENCE', () => {
+  let notifications: { error: ReturnType<typeof vi.fn> };
+  let user: ReturnType<typeof signal<{ username: string } | null>>;
+
+  function configure(): { http: HttpTestingController; theme: ThemeService } {
+    notifications = { error: vi.fn() };
+    user = signal<{ username: string } | null>({ username: 'demo' });
+    TestBed.configureTestingModule({
+      providers: [
+        provideHttp(),
+        provideHttpClientTesting(),
+        provideRouter([]),
+        { provide: NotificationService, useValue: notifications },
+        { provide: AuthService, useValue: { user } },
+        provideSettingsSync(),
+      ],
+    });
+    return { http: TestBed.inject(HttpTestingController), theme: TestBed.inject(ThemeService) };
+  }
+
+  afterEach(() => localStorage.clear());
+
+  it('applies the theme at once and saves it as the setting with the loaded ETag', async () => {
+    const { http, theme } = configure();
+    TestBed.tick();
+    http.expectOne(PATH).flush(fakeSettings({ theme: 'light' }), { headers: { ETag: '"1"' } });
+    await tick();
+
+    const result = TestBed.inject(THEME_PREFERENCE).set('dark');
+    await tick();
+
+    expect(result).toBeUndefined();
+    expect(theme.mode()).toBe('dark');
+    const patch = http.expectOne({ method: 'PATCH', url: PATH });
+    expect(patch.request.headers.get('If-Match')).toBe('"1"');
+    expect(patch.request.body).toEqual({ theme: 'dark' });
+    patch.flush(fakeSettings({ theme: 'dark' }), { headers: { ETag: '"2"' } });
+    await tick();
+
+    expect(theme.mode()).toBe('dark');
+    expect(localStorage.getItem('cockpit.theme')).toBe('dark');
+    http.verify();
+  });
+
+  it('keeps the saved theme when the settings are loaded again after the next login', async () => {
+    const { http, theme } = configure();
+    TestBed.tick();
+    http.expectOne(PATH).flush(fakeSettings({ theme: 'system' }), { headers: { ETag: '"1"' } });
+    await tick();
+    TestBed.inject(THEME_PREFERENCE).set('dark');
+    await tick();
+    http
+      .expectOne({ method: 'PATCH', url: PATH })
+      .flush(fakeSettings({ theme: 'dark' }), { headers: { ETag: '"2"' } });
+    await tick();
+
+    user.set(null);
+    TestBed.tick();
+    user.set({ username: 'demo' });
+    TestBed.tick();
+    http.expectOne({ method: 'GET', url: PATH }).flush(fakeSettings({ theme: 'dark' }));
+    await tick();
+
+    expect(theme.mode()).toBe('dark');
+    http.verify();
+  });
+
+  it('rolls the theme back and shows the error without an unhandled rejection when saving fails', async () => {
+    const { http, theme } = configure();
+    TestBed.tick();
+    http.expectOne(PATH).flush(fakeSettings({ theme: 'light' }), { headers: { ETag: '"1"' } });
+    await tick();
+
+    TestBed.inject(THEME_PREFERENCE).set('dark');
+    await tick();
+    expect(theme.mode()).toBe('dark');
+    http.expectOne({ method: 'PATCH', url: PATH }).flush(
+      { status: 400, title: 'Bad Request' },
+      {
+        status: 400,
+        statusText: 'Bad Request',
+        headers: { 'Content-Type': 'application/problem+json' },
+      },
+    );
+    await tick();
+
+    expect(theme.mode()).toBe('light');
+    expect(localStorage.getItem('cockpit.theme')).toBe('light');
+    expect(notifications.error).toHaveBeenCalledTimes(1);
+    http.verify();
+  });
+
+  it('keeps the chosen theme when the login load answers after the change was sent', async () => {
+    localStorage.setItem('cockpit.theme', 'light');
+    const { http, theme } = configure();
+    TestBed.tick();
+    const loginLoad = http.expectOne(PATH);
+
+    TestBed.inject(THEME_PREFERENCE).set('dark');
+    await tick();
+    // The save loads the settings itself first, because none are cached yet.
+    const ownLoad = http.match({ method: 'GET', url: PATH });
+    expect(ownLoad).toHaveLength(1);
+    ownLoad[0].flush(fakeSettings({ theme: 'light' }), { headers: { ETag: '"1"' } });
+    await tick();
+    const patch = http.expectOne({ method: 'PATCH', url: PATH });
+    expect(theme.mode()).toBe('dark');
+
+    loginLoad.flush(fakeSettings({ theme: 'light' }), { headers: { ETag: '"1"' } });
+    await tick();
+    expect(theme.mode()).toBe('dark');
+
+    patch.flush(fakeSettings({ theme: 'dark' }), { headers: { ETag: '"2"' } });
+    await tick();
+    expect(theme.mode()).toBe('dark');
+    http.verify();
+  });
+
+  it('saves the theme picked in the shell menu when the shell route provides the sync', async () => {
+    TestBed.configureTestingModule({
+      providers: [
+        provideHttp(),
+        provideHttpClientTesting(),
+        provideFakeSession('demo'),
+        { provide: NotificationService, useValue: { error: vi.fn() } },
+        {
+          provide: BreakpointObserver,
+          useValue: { observe: () => of({ matches: false, breakpoints: {} }) },
+        },
+        provideRouter([
+          {
+            path: '',
+            component: Shell,
+            providers: [
+              provideSettingsSync(),
+              { provide: CAPTURE_DIALOG, useValue: { open: vi.fn() } },
+            ],
+          },
+        ]),
+      ],
+    });
+    const http = TestBed.inject(HttpTestingController);
+    const harness = await RouterTestingHarness.create('/');
+    TestBed.tick();
+    http.expectOne(PATH).flush(fakeSettings({ theme: 'system' }), { headers: { ETag: '"1"' } });
+    await tick();
+    const root = harness.routeNativeElement as HTMLElement;
+
+    root.querySelector<HTMLButtonElement>('button.theme')!.click();
+    await harness.fixture.whenStable();
+    document.querySelectorAll<HTMLButtonElement>('[role="menuitemradio"]')[1].click();
+    await tick();
+
+    const patch = http.expectOne({ method: 'PATCH', url: PATH });
+    expect(patch.request.body).toEqual({ theme: 'dark' });
+    patch.flush(fakeSettings({ theme: 'dark' }), { headers: { ETag: '"2"' } });
+    await tick();
+    expect(TestBed.inject(ThemeService).mode()).toBe('dark');
+    http.verify();
   });
 });
