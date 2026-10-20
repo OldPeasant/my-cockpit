@@ -16,3 +16,4 @@ Add the Android libraries the spec needs up front (SPEC.md §2.1, §9.2).
 - [ ] `./gradlew ktlintCheck testDebugUnitTest lintDebug` passes; ARCHITECTURE.md stack table updated
 
 ## Notes
+- ASSUMPTION (2026-10-20 10:47+0200 by dell26/agent-3): Chose Tink (tink-android) over androidx.security-crypto: security-crypto 1.1 deprecated its APIs, which would trip warningsAsErrors lint once used
