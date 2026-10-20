@@ -16,7 +16,8 @@ Show and revoke Android devices; regenerate recovery codes.
   - verified (2026-10-20 17:03+0200 by dell26/agent-4): cd web && npm run check (Vitest security-settings.spec.ts: lists devices with name + last use, revoke after confirm dialog, cancel/dismiss keeps device) -> pass; code review of 4ad721f confirms list + confirm dialog
 - [x] Server: `POST /api/v1/auth/recovery-codes` (requires current TOTP) regenerates codes; UI shows them once
   - verified (2026-10-20 17:03+0200 by dell26/agent-4): cd server && ./gradlew test --tests 'ch.sonensei.cockpit.core.auth.*' --rerun-tasks -> RecoveryCodeWebTests 11/11 (200 with current TOTP, wrong/missing TOTP 400, throttled 429); Vitest 'shows new recovery codes once' + 'does not keep the codes after the page is left' -> pass
-- [ ] Vitest component/service tests cover device list, revoke flow; `cd web && npm run check` passes
+- [x] Vitest component/service tests cover device list, revoke flow; `cd web && npm run check` passes
+  - verified (2026-10-20 17:03+0200 by dell26/agent-4): sh scripts/check.sh on the task merged with main (includes cd web && npm run check) -> api up to date, lint clean, 24 test files passed, build OK, all checks passed
 - [ ] `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.core.auth.*'` passes (Postgres via Testcontainers where persistence is involved) for the recovery code endpoint
 
 ## Notes
