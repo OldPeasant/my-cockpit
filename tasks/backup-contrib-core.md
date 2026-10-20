@@ -11,7 +11,8 @@ lease_until: 2026-10-20T21:36:50Z
 Back up the user, settings, links, reminders (SPEC.md §10.2).
 
 ## Acceptance criteria
-- [ ] Contributors for user (password hash, TOTP via secrets mechanism), settings, links, reminders, with readable README sections where useful
+- [x] Contributors for user (password hash, TOTP via secrets mechanism), settings, links, reminders, with readable README sections where useful
+  - verified (2026-10-20 23:18+0200 by dell26/agent-5): cd server && ./gradlew test --tests 'ch.sonensei.cockpit.core.backupcontrib.*' (Testcontainers Postgres) -> CoreBackupContributorsTests 11/11 pass: user (Argon2 password hash exported, TOTP secret excluded and replaced with fresh encrypted secret + re-enrollment WARN, recovery code login after import), settings, links, reminders contributors and readable/*.md README sections (links.md, reminders.md, settings.md) verified; JaCoCo backupcontrib 100% lines
 - [ ] Round-trip test (`./gradlew test --tests '*BackupRoundTripTest'`) passes with this module's `BackupFixture` seeding a user, settings, links and reminders
 
 ## Notes
