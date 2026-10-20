@@ -278,6 +278,64 @@ class LoginViewModelTest {
         }
 
     @Test
+    fun `another 429 after the wait starts a new wait, and an attempt after that can succeed`() =
+        runTest(dispatcher) {
+            coEvery { repository.login(any(), any(), any(), any()) } returnsMany
+                listOf(LoginResult.TooManyAttempts(2), LoginResult.TooManyAttempts(5), LoginResult.Success)
+            val viewModel = filledIn()
+
+            viewModel.submit()
+            runCurrent()
+            assertEquals(2, viewModel.uiState.value.retryAfterSeconds)
+            advanceTimeBy(2_001)
+            assertEquals(0, viewModel.uiState.value.retryAfterSeconds)
+
+            // A 429 asks for a fresh code, so the user types one before retrying.
+            viewModel.onCodeChange("222222")
+            viewModel.submit()
+            runCurrent()
+            assertEquals(LoginError.TOO_MANY_ATTEMPTS, viewModel.uiState.value.error)
+            assertEquals(5, viewModel.uiState.value.retryAfterSeconds)
+            advanceTimeBy(4_001)
+            assertEquals(1, viewModel.uiState.value.retryAfterSeconds)
+            assertFalse(viewModel.uiState.value.canSubmit)
+            advanceTimeBy(1_000)
+            assertEquals(0, viewModel.uiState.value.retryAfterSeconds)
+            assertNull(viewModel.uiState.value.error)
+
+            viewModel.onCodeChange("333333")
+            viewModel.submit()
+            advanceUntilIdle()
+
+            val state = viewModel.uiState.value
+            assertNull(state.error)
+            assertEquals(0, state.retryAfterSeconds)
+            assertFalse(state.submitting)
+            assertEquals("", state.password)
+            coVerify(exactly = 3) { repository.login(any(), any(), any(), any()) }
+            coVerify { repository.login(any(), any(), any(), SecondFactor.Totp("333333")) }
+        }
+
+    @Test
+    fun `an attempt after a failure that succeeds clears the error`() =
+        runTest(dispatcher) {
+            coEvery { repository.login(any(), any(), any(), any()) } returnsMany
+                listOf(LoginResult.Network, LoginResult.Success)
+            val viewModel = filledIn()
+
+            viewModel.submit()
+            advanceUntilIdle()
+            assertEquals(LoginError.NETWORK, viewModel.uiState.value.error)
+            assertTrue("a network error keeps the form ready to retry", viewModel.uiState.value.canSubmit)
+
+            viewModel.submit()
+            advanceUntilIdle()
+
+            assertNull(viewModel.uiState.value.error)
+            assertFalse(viewModel.uiState.value.submitting)
+        }
+
+    @Test
     fun `the state's string form hides the password and code`() {
         val text = LoginUiState(password = "secret-pw", code = "123456").toString()
 

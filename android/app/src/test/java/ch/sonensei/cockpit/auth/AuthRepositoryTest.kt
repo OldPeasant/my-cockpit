@@ -1,6 +1,7 @@
 package ch.sonensei.cockpit.auth
 
 import android.content.Context
+import android.os.Build
 import androidx.lifecycle.viewModelScope
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -43,6 +44,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.robolectric.shadows.ShadowBuild
 import java.io.File
 import java.util.concurrent.TimeUnit
 import kotlin.coroutines.CoroutineContext
@@ -492,6 +494,67 @@ class AuthRepositoryTest {
             assertEquals(AuthTokens("access-1", "refresh-1"), tokenStore.current())
             owner.cancel()
         }
+
+    @Test
+    fun `the device is named after its manufacturer and model`() =
+        runBlocking {
+            ShadowBuild.setManufacturer("Fictitious")
+            ShadowBuild.setModel("Phone 7")
+            server.enqueue(json(200, TOKEN_BODY))
+
+            login()
+
+            assertEquals("Fictitious Phone 7", sentDeviceName())
+        }
+
+    @Test
+    fun `a device without a known manufacturer or model is called Android`() =
+        runBlocking {
+            server.enqueue(json(200, TOKEN_BODY))
+            server.enqueue(json(200, TOKEN_BODY))
+
+            ShadowBuild.setManufacturer(Build.UNKNOWN)
+            ShadowBuild.setModel(" ")
+            login()
+            assertEquals("Android", sentDeviceName())
+
+            ShadowBuild.setManufacturer("")
+            ShadowBuild.setModel(Build.UNKNOWN)
+            login()
+            assertEquals("Android", sentDeviceName())
+        }
+
+    @Test
+    fun `an unknown part of the device name is left out`() =
+        runBlocking {
+            ShadowBuild.setManufacturer(Build.UNKNOWN)
+            ShadowBuild.setModel("Phone 7")
+            server.enqueue(json(200, TOKEN_BODY))
+
+            login()
+
+            assertEquals("Phone 7", sentDeviceName())
+        }
+
+    @Test
+    fun `a device name longer than the server accepts is cut to 100 characters`() =
+        runBlocking {
+            ShadowBuild.setManufacturer("M".repeat(60))
+            ShadowBuild.setModel("X".repeat(60))
+            server.enqueue(json(200, TOKEN_BODY))
+
+            assertEquals(LoginResult.Success, login())
+
+            val name = sentDeviceName()
+            assertEquals(AuthRepository.DEVICE_NAME_MAX, name.length)
+            assertEquals("M".repeat(60) + " " + "X".repeat(39), name)
+        }
+
+    private fun sentDeviceName(): String =
+        Json
+            .parseToJsonElement(server.takeRequest().body!!.utf8())
+            .jsonObject["deviceName"]!!
+            .jsonPrimitive.content
 
     /** A repository whose app scope runs collectors at once, so cache clearing is observable synchronously. */
     private fun repositoryWithAppScope(): CoroutineScope {
