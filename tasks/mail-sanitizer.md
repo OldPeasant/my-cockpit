@@ -5,7 +5,7 @@ owner: R1963MACOS/agent-2
 deps: [p0-server-deps]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/mail/sanitize,server/src/test/kotlin/ch/sonensei/cockpit/mail/sanitize]
 prio: 1
-lease_until: 2026-10-20T09:15:34Z
+lease_until: 2026-10-20T09:20:35Z
 ---
 ## Goal
 Make untrusted HTML safe (SPEC.md §4.1).
