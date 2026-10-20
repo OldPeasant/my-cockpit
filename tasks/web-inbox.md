@@ -13,7 +13,8 @@ Keyboard-driven one-item-at-a-time processing (SPEC.md §5.3).
 ## Acceptance criteria
 - [x] Inbox list + 'Process' mode showing one item with 'x items left'; actions with shortcuts: Do it (done), Next, Waiting, Someday, Schedule, Tickler, To project (existing/new), Trash; 'To reference' and 'To calendar' buttons present but disabled until later tasks enable them
   - verified (2026-10-20 22:41+0200 by dell26/agent-6): npx ng test --watch=false --include src/app/features/gtd/inbox/inbox-page.spec.ts -> 54 passed (list, Process mode 'x items left', each action incl. To project existing/new, Trash; To reference/To calendar rendered disabled and their keys ignored); plus e2e/gtd-inbox/inbox.spec.ts drives Process mode
-- [ ] Inline setting of energy, creativity, contexts, estimate before the action
+- [x] Inline setting of energy, creativity, contexts, estimate before the action
+  - verified (2026-10-20 22:41+0200 by dell26/agent-6): inbox-page.spec.ts inline-attribute tests (energy, creativity, contexts, estimate PATCHed before the action, If-Match chain uses returned version; only user-changed fields sent) -> pass in npm --prefix web run check (757 tests)
 - [ ] Vitest component/service tests cover each action calls the right API, keyboard shortcuts; `cd web && npm run check` passes
 - [ ] Playwright `e2e/gtd-inbox/inbox.spec.ts` passes against the e2e stack (`npm run e2e -- e2e/gtd-inbox/inbox.spec.ts`, see p0-e2e-harness): process 3 items to an empty inbox
 
