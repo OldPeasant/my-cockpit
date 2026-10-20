@@ -1,10 +1,11 @@
 ---
 title: Runner: same tasks.py as agents.py; lost push races are not refusals
-status: todo
-owner:
+status: in_progress
+owner: dell26/agent-2
 deps: []
 touches: [agents.py,tasks.py,tests]
 prio: 1
+lease_until: 2026-10-20T19:51:40Z
 ---
 ## Goal
 Two runner bugs seen on 2026-10-20 after the runner-push-failure-loop fix:
