@@ -2,6 +2,7 @@ package ch.sonensei.cockpit.mail.sync
 
 import ch.sonensei.cockpit.core.events.domain.ChangeEventPublisher
 import ch.sonensei.cockpit.core.events.domain.ChangeOp
+import ch.sonensei.cockpit.core.web.NotFoundException
 import ch.sonensei.cockpit.mail.model.MailAccount
 import ch.sonensei.cockpit.mail.model.MailAccountRepository
 import ch.sonensei.cockpit.mail.model.MailAccountType
@@ -23,6 +24,7 @@ import java.time.Duration
 import java.time.Instant
 import java.time.ZoneOffset
 import java.util.Optional
+import java.util.UUID
 
 class MailHeaderSyncServiceTests {
 	private val now = Instant.parse("2026-10-20T10:00:00Z")
@@ -391,6 +393,28 @@ class MailHeaderSyncServiceTests {
 		shouldThrow<IllegalArgumentException> { service.loadOlder(folder.id, limit = 0) }
 
 		opened shouldBe 0
+	}
+
+	@Test
+	fun `syncing or loading older mail of an unknown folder is not found and contacts no server`() {
+		val unknown = UUID.fromString("01900000-0000-7000-8000-00000000abcd")
+		every { folders.findById(unknown) } returns Optional.empty()
+
+		shouldThrow<NotFoundException> { service.syncFolder(unknown) }
+		shouldThrow<NotFoundException> { service.loadOlder(unknown) }
+
+		opened shouldBe 0
+		verify(exactly = 0) { changes.publish(any<String>(), any(), any()) }
+	}
+
+	@Test
+	fun `syncing a folder whose account is gone is not found and contacts no server`() {
+		every { accounts.findById(account.id) } returns Optional.empty()
+
+		shouldThrow<NotFoundException> { service.syncFolder(folder.id) }
+
+		opened shouldBe 0
+		verify(exactly = 0) { store.finish(any(), any(), any()) }
 	}
 
 	@Test
