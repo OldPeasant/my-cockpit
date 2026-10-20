@@ -7,7 +7,7 @@ import { filter, map } from 'rxjs/operators';
 import { StrictHttpResponse } from '../../strict-http-response';
 import { RequestBuilder } from '../../request-builder';
 
-import { TaskResponse } from '../../models/task-response';
+import { CompletedTaskResponse } from '../../models/completed-task-response';
 
 export interface CompleteTask$Params {
   id: string;
@@ -18,7 +18,7 @@ export interface CompleteTask$Params {
   'If-Match'?: string;
 }
 
-export function completeTask(http: HttpClient, rootUrl: string, params: CompleteTask$Params, context?: HttpContext): Observable<StrictHttpResponse<TaskResponse>> {
+export function completeTask(http: HttpClient, rootUrl: string, params: CompleteTask$Params, context?: HttpContext): Observable<StrictHttpResponse<CompletedTaskResponse>> {
   const rb = new RequestBuilder(rootUrl, completeTask.PATH, 'post');
   if (params) {
     rb.path('id', params.id, {});
@@ -30,7 +30,7 @@ export function completeTask(http: HttpClient, rootUrl: string, params: Complete
   ).pipe(
     filter((r: any): r is HttpResponse<any> => r instanceof HttpResponse),
     map((r: HttpResponse<any>) => {
-      return r as StrictHttpResponse<TaskResponse>;
+      return r as StrictHttpResponse<CompletedTaskResponse>;
     })
   );
 }
