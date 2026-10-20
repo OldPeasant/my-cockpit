@@ -1,0 +1,23 @@
+{
+  "schema": 1,
+  "task": "p0-search-core",
+  "reviewed_revision": "beea32c13daa5e0d02339493342a7eb30caabb05",
+  "helpers": {
+    "test-writer": {"status": "completed", "report": "reviews/p0-search-core/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/p0-search-core/review.md"},
+    "fixer": {"status": "completed", "report": "reviews/p0-search-core/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "limit published as type string without default; now integer int32 default 20, bounds 1..50; contract and web client regenerated"},
+    {"id": "CR-2", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "similarTitles now requires a transaction (Propagation.MANDATORY) so the trigram threshold applies"},
+    {"id": "CR-3", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "over-fetch limit*2 candidates and fill places of hits the resolver leaves out"}
+  ],
+  "validation": [
+    {"command": "cd server && ./gradlew ktlintCheck test --tests 'ch.sonensei.cockpit.core.search.*' --tests '*OpenApiContractTest'", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
