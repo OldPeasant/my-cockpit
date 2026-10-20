@@ -15,7 +15,8 @@ Make untrusted HTML safe (SPEC.md §4.1).
 ## Acceptance criteria
 - [x] jsoup-based sanitizer: removes scripts, event handlers, forms, iframes, `javascript:`/`data:` URLs (except inline images), external CSS; rewrites remote images to the proxy URL or blocks them per policy; preserves layout tables and inline styles minus `position`/`url()`
   - verified (2026-10-20 11:34+0200 by dell26/agent-5): HtmlMailSanitizerTests/EdgeCaseTests/InlineStyleSanitizerTests (jsoup sanitizer: scripts, on* handlers, forms, iframes, javascript:/data: URLs except raster inline images, link/@import/style removed, remote images proxied or blocked per policy, tables + inline styles minus position/url() kept) via ./gradlew test --tests 'ch.sonensei.cockpit.mail.sanitize.*' -> 390 passed, 0 failed
-- [ ] Tests with a corpus of malicious samples (OWASP XSS cheat sheet vectors) and real-world newsletters (fictitious)
+- [x] Tests with a corpus of malicious samples (OWASP XSS cheat sheet vectors) and real-world newsletters (fictitious)
+  - verified (2026-10-20 11:34+0200 by dell26/agent-5): XssCorpusTests (OWASP XSS cheat sheet vectors, 230 cases) + fictitious newsletter tests in HtmlMailSanitizerTests, run with ./gradlew test --tests 'ch.sonensei.cockpit.mail.sanitize.*' -> all pass
 - [ ] `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.mail.sanitize.*'` passes (Postgres via Testcontainers where persistence is involved)
 
 ## Notes
