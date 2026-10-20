@@ -17,3 +17,4 @@ Shared persistence building blocks every module uses (SPEC.md §4.2).
 - [ ] Tests: UUIDv7 ids are time-ordered; optimistic locking raises a conflict on a stale version; soft-deleted rows are excluded by the repository helper; `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.core.persistence.*'` passes (Postgres via Testcontainers where persistence is involved)
 
 ## Notes
+- ASSUMPTION (2026-10-20 10:50+0200 by R1963MACOS/agent-2): Entity timestamps use Spring Data JPA auditing (@EnableJpaAuditing with a DateTimeProvider backed by the Clock bean) instead of a custom listener; Clock bean (systemUTC) and MutableClock live in core.persistence because the task touches only that package
