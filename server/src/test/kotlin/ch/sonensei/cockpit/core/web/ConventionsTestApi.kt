@@ -9,6 +9,10 @@ import org.springframework.boot.test.context.TestConfiguration
 import org.springframework.http.HttpHeaders.IF_MATCH
 import org.springframework.http.ResponseEntity
 import org.springframework.orm.ObjectOptimisticLockingFailureException
+import org.springframework.security.access.AccessDeniedException
+import org.springframework.security.authentication.BadCredentialsException
+import org.springframework.stereotype.Service
+import org.springframework.validation.annotation.Validated
 import org.springframework.web.bind.annotation.DeleteMapping
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PatchMapping
@@ -38,9 +42,20 @@ class ConventionsTestApi {
 		val name: String?,
 	)
 
+	/** A service with Bean Validation on its methods: violations surface as ConstraintViolationException. */
+	@Service
+	@Validated
+	class Scheduler {
+		fun schedule(
+			@Min(1) days: Int,
+		): Int = days
+	}
+
 	@RestController
 	@RequestMapping(BASE)
-	class Controller {
+	class Controller(
+		private val scheduler: Scheduler,
+	) {
 		val items = ConcurrentHashMap<String, Item>()
 
 		fun reset() {
@@ -91,6 +106,23 @@ class ConventionsTestApi {
 		fun bounded(
 			@RequestParam @Min(1) @Max(5) count: Int,
 		): Map<String, Int> = mapOf("count" to count)
+
+		@GetMapping("/range")
+		fun range(
+			@RequestParam @Min(1) to: Int,
+			@RequestParam @Max(5) from: Int,
+		): Map<String, Int> = mapOf("from" to from, "to" to to)
+
+		@GetMapping("/schedule")
+		fun schedule(
+			@RequestParam days: Int,
+		): Map<String, Int> = mapOf("days" to scheduler.schedule(days))
+
+		@GetMapping("/forbidden")
+		fun forbidden(): Nothing = throw AccessDeniedException("Not your item")
+
+		@GetMapping("/bad-credentials")
+		fun badCredentials(): Nothing = throw BadCredentialsException("Token for fictitious-user expired")
 
 		@GetMapping("/conflict")
 		fun conflict(): Nothing = throw ConflictException("Name already taken")

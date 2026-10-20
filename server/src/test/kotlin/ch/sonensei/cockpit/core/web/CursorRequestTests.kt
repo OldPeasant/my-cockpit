@@ -53,4 +53,18 @@ class CursorRequestTests {
 
 		request.page(emptyList<Int>()) { it.toString() } shouldBe CursorPage(emptyList(), null)
 	}
+
+	@Test
+	fun `nextCursor points at the last returned item, not the extra fetched row`() {
+		val page = CursorRequest(null, 1).page(listOf("first", "second")) { "key-$it" }
+		page.items shouldBe listOf("first")
+		CursorRequest.of(page.nextCursor, 1).position shouldBe "key-first"
+	}
+
+	@Test
+	fun `cursor is URL-safe even for non-ASCII keysets`() {
+		val cursor = CursorRequest.encodeCursor("Zürich ?&/+ 東京")
+		Regex("[A-Za-z0-9_-]+").matches(cursor) shouldBe true
+		CursorRequest.of(cursor, null).position shouldBe "Zürich ?&/+ 東京"
+	}
 }

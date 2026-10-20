@@ -31,6 +31,14 @@ class ETagsTests {
 			ETags.checkIfMatch("\"2\"", 2)
 			ETags.checkIfMatch("\"1\", \"2\"", 2)
 			ETags.checkIfMatch("*", 2)
+			ETags.checkIfMatch("W/\"2\", \"2\"", 2)
 		}
+	}
+
+	@Test
+	fun `a list of only stale or weak tags is 412`() {
+		shouldThrow<PreconditionFailedException> { ETags.checkIfMatch("\"1\", W/\"2\", \"3\"", 2) }
+		// A tag that merely contains the version is not a match.
+		shouldThrow<PreconditionFailedException> { ETags.checkIfMatch("\"12\"", 2) }
 	}
 }

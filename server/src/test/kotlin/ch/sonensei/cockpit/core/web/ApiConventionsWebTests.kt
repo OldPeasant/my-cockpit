@@ -16,6 +16,7 @@ import org.springframework.context.annotation.Import
 import org.springframework.http.HttpHeaders.ETAG
 import org.springframework.http.HttpHeaders.IF_MATCH
 import org.springframework.http.MediaType
+import org.springframework.security.test.context.support.WithAnonymousUser
 import org.springframework.security.test.context.support.WithMockUser
 import org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf
 import org.springframework.test.web.servlet.MockMvc
@@ -68,6 +69,86 @@ class ApiConventionsWebTests(
 			mockMvc.get("$BASE/bounded?count=9").isProblem(400).andExpect {
 				jsonPath("$.errors[0].field") { value("count") }
 			}
+		}
+
+		@Test
+		fun `several invalid parameters give one 400 listing every field error sorted by field`() {
+			mockMvc.get("$BASE/range?to=0&from=9").isProblem(400).andExpect {
+				jsonPath("$.errors.length()") { value(2) }
+				jsonPath("$.errors[0].field") { value("from") }
+				jsonPath("$.errors[1].field") { value("to") }
+			}
+		}
+
+		@Test
+		fun `validation in a service gives 400 with field errors instead of 500`() {
+			mockMvc.get("$BASE/schedule?days=0").isProblem(400).andExpect {
+				jsonPath("$.detail") { value("Request validation failed") }
+				jsonPath("$.errors[0].field") { value("days") }
+				jsonPath("$.errors[0].message") { exists() }
+			}
+			mockMvc.get("$BASE/schedule?days=3").andExpect {
+				status { isOk() }
+				jsonPath("$.days") { value(3) }
+			}
+		}
+
+		@Test
+		fun `authentication failure raised in a controller stays 401 and is not turned into a 500`() {
+			val body =
+				mockMvc
+					.get("$BASE/bad-credentials")
+					.andExpect { status { isUnauthorized() } }
+					.andReturn()
+					.response.contentAsString
+			body shouldNotContain "fictitious-user"
+			body shouldNotContain "An unexpected error occurred"
+		}
+
+		@Test
+		fun `missing required parameter gives 400 problem`() {
+			mockMvc.get("$BASE/bounded").isProblem(400)
+		}
+
+		@Test
+		fun `unsupported method gives 405 problem`() {
+			mockMvc.delete("$BASE/conflict") { with(csrf()) }.isProblem(405)
+		}
+
+		@Test
+		fun `unsupported content type gives 415 problem`() {
+			mockMvc
+				.patch("$BASE/items/a") {
+					with(csrf())
+					header(IF_MATCH, "\"1\"")
+					contentType = MediaType.TEXT_PLAIN
+					content = "Beta"
+				}.isProblem(415)
+		}
+
+		@Test
+		fun `access denied stays 403 and is not turned into a 500`() {
+			val body =
+				mockMvc
+					.get("$BASE/forbidden")
+					.andExpect { status { isForbidden() } }
+					.andReturn()
+					.response.contentAsString
+			body shouldNotContain "Not your item"
+			body shouldNotContain "An unexpected error occurred"
+		}
+
+		@Test
+		@WithAnonymousUser
+		fun `unauthenticated request stays 401 and is not turned into a 500`() {
+			val body =
+				mockMvc
+					.get("$BASE/items/a")
+					.andExpect { status { isUnauthorized() } }
+					.andReturn()
+					.response.contentAsString
+			body shouldNotContain "Alpha"
+			body shouldNotContain "An unexpected error occurred"
 		}
 
 		@Test

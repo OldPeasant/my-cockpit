@@ -42,6 +42,9 @@ class OpenApiContractTest(
 
 		generated shouldContain "openapi:"
 		generated shouldContain "title: My Cockpit API"
+		// The shared error schemas are part of the contract that both clients generate from.
+		generated shouldContain "    ProblemDetail:\n"
+		generated shouldContain "    FieldError:\n"
 		// Test-only controllers must never leak into the published contract.
 		generated shouldNotContain ConventionsTestApi.BASE
 
