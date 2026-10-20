@@ -21,3 +21,4 @@ Setup wizard and login UI (SPEC.md §4.1).
 - ASSUMPTION (2026-10-20 13:36+0200 by dell26/agent-2): Retry-After: ApiError (core/http, outside touches) gained a retryAfter field parsed from the header, because the problem interceptor drops headers; login falls back to 60 s if a 429 has no header
 - ASSUMPTION (2026-10-20 13:37+0200 by dell26/agent-2): Logout lives in a new account icon menu in the top bar (shell.html/shell.ts, outside touches), showing the username; a failed logout call still navigates to /login after a toast
 - ASSUMPTION (2026-10-20 13:37+0200 by dell26/agent-2): Setup does not log in automatically: after TOTP confirmation it shows a toast and goes to /login, since the server's confirm-totp creates no session
+- ASSUMPTION (2026-10-20 13:37+0200 by dell26/agent-2): Return URL: only same-app absolute paths are followed (not //host, scheme or /login|/setup); anything else falls back to the dashboard (open-redirect protection)
