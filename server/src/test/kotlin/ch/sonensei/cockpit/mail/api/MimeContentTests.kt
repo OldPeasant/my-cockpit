@@ -21,7 +21,14 @@ import java.util.Properties
 /** The MIME tree reader on parsed messages (no IMAP server): body selection, attachment metadata and part lookup. */
 class MimeContentTests {
 	private fun parse(raw: String): MimeMessage =
-		MimeMessage(Session.getInstance(Properties()), raw.trimIndent().replace("\n", "\r\n").toByteArray(Charsets.UTF_8).inputStream())
+		MimeMessage(
+			Session.getInstance(Properties()),
+			raw
+				.trimIndent()
+				.replace("\n", "\r\n")
+				.toByteArray(Charsets.UTF_8)
+				.inputStream(),
+		)
 
 	private fun parseBytes(raw: ByteArray): MimeMessage = MimeMessage(Session.getInstance(Properties()), raw.inputStream())
 
@@ -33,7 +40,11 @@ class MimeContentTests {
 	private fun bytesOf(
 		message: MimeMessage,
 		partId: String,
-	) = MimeContent.findPart(message, partId).shouldNotBeNull().inputStream.use { it.readAllBytes() }
+	) = MimeContent
+		.findPart(message, partId)
+		.shouldNotBeNull()
+		.inputStream
+		.use { it.readAllBytes() }
 
 	/** A multipart/mixed message with a text body followed by [parts] (each a raw part with headers and content). */
 	private fun mixed(vararg parts: String): MimeMessage =
@@ -341,7 +352,10 @@ class MimeContentTests {
 		val content =
 			read(mixed("Content-Type: application/octet-stream\nContent-Disposition: attachment; filename=\"=?x-unknown?Q?a?=.bin\"\n\nx"))
 
-		content.attachments.single().filename.shouldNotBeNull()
+		content.attachments
+			.single()
+			.filename
+			.shouldNotBeNull()
 	}
 
 	@Test

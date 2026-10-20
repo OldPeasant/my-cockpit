@@ -1,6 +1,7 @@
 package ch.sonensei.cockpit.mail.api
 
 import ch.sonensei.cockpit.core.auth.WithCockpitUser
+import ch.sonensei.cockpit.mail.imap.ImapConnectionPool
 import ch.sonensei.cockpit.mail.imap.MailAccountService
 import ch.sonensei.cockpit.mail.imap.MailFolderService
 import ch.sonensei.cockpit.mail.imap.MailServer
@@ -17,6 +18,7 @@ import ch.sonensei.cockpit.support.ExternalTest
 import ch.sonensei.cockpit.support.PostgresTestBase
 import com.icegreen.greenmail.junit5.GreenMailExtension
 import com.icegreen.greenmail.util.ServerSetupTest
+import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
@@ -44,6 +46,8 @@ import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.get
 import tools.jackson.databind.JsonNode
 import tools.jackson.databind.json.JsonMapper
+import java.io.IOException
+import java.io.OutputStream
 import java.util.Properties
 
 /** Reading bodies and attachments from GreenMail: fetch on first read, cache afterwards, never mark as seen. */
@@ -62,6 +66,8 @@ class MailReadGreenMailTests(
 	@Autowired private val messages: MailSyncRepository,
 	@Autowired private val sync: MailHeaderSyncService,
 	@Autowired private val cache: MailBodyCache,
+	@Autowired private val reads: MailReadService,
+	@Autowired private val pool: ImapConnectionPool,
 ) : PostgresTestBase() {
 	private lateinit var account: MailAccount
 
@@ -210,6 +216,27 @@ class MailReadGreenMailTests(
 		logo.contentType shouldBe "image/png"
 		logo.getHeader(HttpHeaders.CONTENT_DISPOSITION).shouldNotBeNull() shouldContain "inline"
 		seenOnServer() shouldBe false
+	}
+
+	@Test
+	fun `a client that aborts a download keeps the IMAP connection`() {
+		val message = synced()
+		val csvPart = read(message)["attachments"][1]["partId"].asString()
+		val gone =
+			object : OutputStream() {
+				override fun write(b: Int) = throw IOException("Broken pipe")
+			}
+
+		shouldThrow<AttachmentDownloadAbortedException> { reads.attachment(message.id, csvPart) { gone } }
+
+		// The connection went back to the pool as healthy instead of being closed as a server failure.
+		pool.idleConnections(account.id) shouldBe 1
+		mockMvc
+			.get("/api/v1/mail/messages/${message.id}/attachments/$csvPart")
+			.andReturn()
+			.response.contentAsByteArray
+			.toList() shouldBe
+			CSV.toList()
 	}
 
 	@Test

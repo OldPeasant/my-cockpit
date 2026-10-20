@@ -20,10 +20,18 @@ import org.springframework.http.HttpHeaders
 import org.springframework.http.MediaType
 import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.get
-import java.net.URLEncoder
 
-/** The image proxy endpoint against a local image server (private networks allowed only for this test context). */
-@SpringBootTest(properties = ["cockpit.mail.read.image-proxy.allow-private-networks=true"])
+/**
+ * The image proxy endpoint against a local image server (private networks allowed only for this test context, with a
+ * 1 KB size and 1 s time limit).
+ */
+@SpringBootTest(
+	properties = [
+		"cockpit.mail.read.image-proxy.allow-private-networks=true",
+		"cockpit.mail.read.image-proxy.max-size=1KB",
+		"cockpit.mail.read.image-proxy.timeout=1s",
+	],
+)
 @AutoConfigureMockMvc
 @WithCockpitUser
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
@@ -41,7 +49,8 @@ class MailImageProxyWebTests(
 	@BeforeEach
 	fun reset() = server.resetAll()
 
-	private fun proxy(path: String) = "/api/v1/mail/image-proxy?url=" + URLEncoder.encode("http://127.0.0.1:${server.port()}$path", Charsets.UTF_8)
+	// As a parameter: a query string in the URL template would be percent-encoded a second time.
+	private fun proxy(path: String) = mockMvc.get("/api/v1/mail/image-proxy") { param("url", "http://127.0.0.1:${server.port()}$path") }
 
 	@Test
 	fun `an image is returned with its type as untrusted, privately cacheable inline content`() {
@@ -51,7 +60,7 @@ class MailImageProxyWebTests(
 			),
 		)
 
-		val response = mockMvc.get(proxy("/logo.png")).andReturn().response
+		val response = proxy("/logo.png").andReturn().response
 
 		response.status shouldBe 200
 		response.contentType shouldBe "image/png"
@@ -60,7 +69,8 @@ class MailImageProxyWebTests(
 		response.getHeader("Content-Security-Policy") shouldBe "default-src 'none'; sandbox"
 		response.getHeader(HttpHeaders.CACHE_CONTROL) shouldBe "max-age=86400, private"
 		response.getHeader(HttpHeaders.CONTENT_DISPOSITION) shouldBe "inline"
-		response.getHeader(HttpHeaders.SET_COOKIE) shouldBe null
+		// The image server's cookie is not passed on (the app's own CSRF cookie may be set).
+		response.getHeaders(HttpHeaders.SET_COOKIE).none { it.startsWith("tracking=") } shouldBe true
 	}
 
 	@Test
@@ -68,19 +78,39 @@ class MailImageProxyWebTests(
 		server.stubFor(get(urlEqualTo("/x.svg")).willReturn(aResponse().withHeader("Content-Type", "image/svg+xml").withBody("<svg/>")))
 		server.stubFor(get(urlEqualTo("/missing.png")).willReturn(aResponse().withStatus(404)))
 
-		mockMvc.get(proxy("/x.svg")).andExpect {
+		proxy("/x.svg").andExpect {
 			status { isBadGateway() }
 			content { contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON) }
 			jsonPath("$.errorCode") { value("NOT_AN_IMAGE") }
 			jsonPath("$.detail") { value("The remote resource is not a supported image") }
 		}
-		mockMvc.get(proxy("/missing.png")).andExpect {
+		proxy("/missing.png").andExpect {
 			status { isBadGateway() }
 			jsonPath("$.errorCode") { value("UPSTREAM_FAILED") }
 		}
 		mockMvc.get("/api/v1/mail/image-proxy?url=file%3A%2F%2F%2Fetc%2Fpasswd").andExpect {
 			status { isBadRequest() }
 			jsonPath("$.errorCode") { value("INVALID_URL") }
+		}
+	}
+
+	@Test
+	fun `a too large image is 502 and a slow server 504`() {
+		server.stubFor(get(urlEqualTo("/big.png")).willReturn(aResponse().withHeader("Content-Type", "image/png").withBody(ByteArray(2048))))
+		server.stubFor(
+			get(urlEqualTo("/slow.png")).willReturn(aResponse().withHeader("Content-Type", "image/png").withBody(PNG).withFixedDelay(3000)),
+		)
+
+		proxy("/big.png").andExpect {
+			status { isBadGateway() }
+			content { contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON) }
+			jsonPath("$.errorCode") { value("TOO_LARGE") }
+		}
+		proxy("/slow.png").andExpect {
+			status { isGatewayTimeout() }
+			content { contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON) }
+			jsonPath("$.errorCode") { value("TIMEOUT") }
+			jsonPath("$.detail") { value("The image server did not answer in time") }
 		}
 	}
 

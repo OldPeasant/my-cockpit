@@ -31,7 +31,6 @@ import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.get
 import tools.jackson.databind.JsonNode
 import tools.jackson.databind.json.JsonMapper
-import java.net.URLEncoder
 import java.time.Instant
 import java.util.UUID
 
@@ -333,6 +332,35 @@ class MailReadWebTests(
 	}
 
 	@Test
+	fun `cid references are compared URL-decoded, with the reference as written as fallback`() {
+		val message = message(workInbox, "Encoded inline images", "2026-10-01T08:00:00Z")
+		bodies.put(
+			message.id,
+			null,
+			"<p><img src=\"cid:part1%40example.test\"><img src=\"cid:%3Cpart1%40example.test%3E\">" +
+				"<img src=\"cid:a+b@example.test\"><img src=\"cid:100%@example.test\"></p>",
+		)
+		attachments.save(
+			message.id,
+			listOf(
+				MailAttachment("2", "one.png", "image/png", 10, inline = true, contentId = "part1@example.test"),
+				MailAttachment("3", "plus.png", "image/png", 10, inline = true, contentId = "a+b@example.test"),
+				MailAttachment("4", "percent.png", "image/png", 10, inline = true, contentId = "100%@example.test"),
+				MailAttachment("5", "space.png", "image/png", 10, inline = true, contentId = "a b@example.test"),
+			),
+		)
+
+		val html = getJson("/api/v1/mail/messages/${message.id}")["body"]["html"].asString()
+
+		Regex("""/api/v1/mail/messages/${message.id}/attachments/2\?inline=true""").findAll(html).count() shouldBe 2
+		// "+" is no encoded space in a cid: URL; a malformed escape is compared as written.
+		html shouldContain "/api/v1/mail/messages/${message.id}/attachments/3?inline=true"
+		html shouldContain "/api/v1/mail/messages/${message.id}/attachments/4?inline=true"
+		html shouldNotContain "/attachments/5"
+		html shouldNotContain "cid:"
+	}
+
+	@Test
 	fun `a plain-text message has no HTML and no remote images`() {
 		val message = message(workInbox, "Plain", "2026-10-01T08:00:00Z")
 		bodies.put(message.id, "Only <b>text</b>", null)
@@ -362,14 +390,18 @@ class MailReadWebTests(
 
 	@Test
 	fun `the image proxy refuses internal addresses and non-http URLs by default`() {
-		listOf("http://127.0.0.1/a.png", "http://169.254.169.254/latest/meta-data", "http://[::1]/a.png", "https://images.example.test:8443/a.png")
-			.forEach { url ->
-				mockMvc.get("/api/v1/mail/image-proxy?url=${URLEncoder.encode(url, Charsets.UTF_8)}").andExpect {
-					status { isBadRequest() }
-					content { contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON) }
-					jsonPath("$.errorCode") { value("BLOCKED_ADDRESS") }
-				}
+		listOf(
+			"http://127.0.0.1/a.png",
+			"http://169.254.169.254/latest/meta-data",
+			"http://[::1]/a.png",
+			"https://images.example.test:8443/a.png",
+		).forEach { url ->
+			mockMvc.get("/api/v1/mail/image-proxy") { param("url", url) }.andExpect {
+				status { isBadRequest() }
+				content { contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON) }
+				jsonPath("$.errorCode") { value("BLOCKED_ADDRESS") }
 			}
+		}
 		mockMvc.get("/api/v1/mail/image-proxy?url=javascript%3Aalert(1)").andExpect {
 			status { isBadRequest() }
 			jsonPath("$.errorCode") { value("INVALID_URL") }

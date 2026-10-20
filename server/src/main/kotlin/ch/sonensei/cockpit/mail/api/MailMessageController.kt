@@ -100,6 +100,11 @@ class MailMessageController(
 		headers = [Header(name = HttpHeaders.ETAG, schema = Schema(type = "string"))],
 	)
 	@ApiResponse(
+		responseCode = "400",
+		description = "Malformed id or unknown `remoteImages` value",
+		content = [Content(mediaType = PROBLEM_JSON, schema = Schema(ref = PROBLEM))],
+	)
+	@ApiResponse(
 		responseCode = "404",
 		description = "No such message, or it is no longer on the server",
 		content = [Content(mediaType = PROBLEM_JSON, schema = Schema(ref = PROBLEM))],
@@ -107,6 +112,11 @@ class MailMessageController(
 	@ApiResponse(
 		responseCode = "502",
 		description = "The mail server failed",
+		content = [Content(mediaType = PROBLEM_JSON, schema = Schema(ref = PROBLEM))],
+	)
+	@ApiResponse(
+		responseCode = "503",
+		description = "All connections of the account are busy (`errorCode` POOL_EXHAUSTED); retry later",
 		content = [Content(mediaType = PROBLEM_JSON, schema = Schema(ref = PROBLEM))],
 	)
 	fun get(
@@ -153,13 +163,18 @@ class MailMessageController(
 		description = "The mail server failed",
 		content = [Content(mediaType = PROBLEM_JSON, schema = Schema(ref = PROBLEM))],
 	)
+	@ApiResponse(
+		responseCode = "503",
+		description = "All connections of the account are busy (`errorCode` POOL_EXHAUSTED); retry later",
+		content = [Content(mediaType = PROBLEM_JSON, schema = Schema(ref = PROBLEM))],
+	)
 	fun attachment(
 		@PathVariable id: UUID,
 		@PathVariable partId: String,
 		@RequestParam(required = false, defaultValue = "false") inline: Boolean,
 		response: HttpServletResponse,
 	) {
-		reads.attachment(id, partId) { attachment, input ->
+		reads.attachment(id, partId) { attachment ->
 			val showInline = inline && attachment.contentType in RemoteImageFetcher.IMAGE_TYPES
 			val filename = attachment.filename ?: "attachment"
 			val disposition = if (showInline) ContentDisposition.inline() else ContentDisposition.attachment()
@@ -167,8 +182,7 @@ class MailMessageController(
 			response.setHeader(HttpHeaders.CONTENT_DISPOSITION, disposition.filename(filename, Charsets.UTF_8).build().toString())
 			untrustedContentHeaders(response)
 			response.setHeader(HttpHeaders.CACHE_CONTROL, CacheControl.noStore().headerValue)
-			input.transferTo(response.outputStream)
-			response.flushBuffer()
+			response.outputStream
 		}
 	}
 
@@ -225,6 +239,12 @@ class MailMessageController(
 		val problem = ProblemDetail.forStatusAndDetail(status, e.error.message)
 		problem.setProperty("errorCode", e.error.name)
 		return ResponseEntity.status(status).contentType(MediaType.APPLICATION_PROBLEM_JSON).body(problem)
+	}
+
+	@ExceptionHandler(AttachmentDownloadAbortedException::class)
+	fun handleDownloadAborted(e: AttachmentDownloadAbortedException) {
+		// The response is partly sent and the client is gone: nothing to answer, and no mail server failure.
+		log.debug("Attachment download aborted by the client", e.cause)
 	}
 
 	@ExceptionHandler(RemoteImageException::class)

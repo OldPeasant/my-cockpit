@@ -4,6 +4,7 @@ import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Component
 import java.io.BufferedInputStream
 import java.io.ByteArrayOutputStream
+import java.io.FilterInputStream
 import java.io.IOException
 import java.io.InputStream
 import java.net.Inet4Address
@@ -15,6 +16,12 @@ import java.net.SocketTimeoutException
 import java.net.URI
 import java.net.URISyntaxException
 import java.net.UnknownHostException
+import java.util.concurrent.CompletableFuture
+import java.util.concurrent.ExecutionException
+import java.util.concurrent.ExecutorService
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.TimeoutException
 import javax.net.ssl.SNIHostName
 import javax.net.ssl.SSLSocket
 import javax.net.ssl.SSLSocketFactory
@@ -116,7 +123,9 @@ object PublicAddresses {
  * connection goes to exactly the checked address (no second DNS lookup, so DNS rebinding cannot redirect it). TLS
  * checks the certificate against the host name (SNI). Redirects are followed up to
  * [MailReadProperties.ImageProxy.maxRedirects], each one checked again. The whole fetch must finish within
- * [MailReadProperties.ImageProxy.timeout], the image must be at most [MailReadProperties.ImageProxy.maxSize] and of a
+ * [MailReadProperties.ImageProxy.timeout]: name resolution, connecting, the TLS handshake and every read are bounded by
+ * the time left (the socket read timeout is set to it before each read), so a server that sends a byte now and then
+ * cannot stretch it. The image must be at most [MailReadProperties.ImageProxy.maxSize] and of a
  * raster type in [IMAGE_TYPES] (no SVG: it can carry scripts). No cookies, referrer or credentials are sent.
  *
  * A minimal HTTP/1.1 client over a plain socket: the JDK HTTP client cannot be pinned to a resolved address.
@@ -204,13 +213,11 @@ class RemoteImageFetcher(
 			throw RemoteImageException(RemoteImageError.UPSTREAM_FAILED, e)
 		}
 
-	private fun address(host: String): InetAddress {
-		val addresses =
-			try {
-				resolver.resolve(host)
-			} catch (e: UnknownHostException) {
-				throw RemoteImageException(RemoteImageError.UPSTREAM_FAILED, e)
-			}
+	private fun address(
+		host: String,
+		deadline: Long,
+	): InetAddress {
+		val addresses = resolve(host, deadline)
 		if (addresses.isEmpty()) throw RemoteImageException(RemoteImageError.UPSTREAM_FAILED)
 		// All of them: otherwise a host could list a public and a private address and hope for the second.
 		if (!addresses.all(allowAddress)) {
@@ -219,15 +226,41 @@ class RemoteImageFetcher(
 		return addresses.first()
 	}
 
+	/**
+	 * [resolver] within the time left. The system resolver has no timeout of its own, so the lookup runs on a helper
+	 * thread that is abandoned (it ends with the resolver's own timeout) when the deadline passes.
+	 */
+	private fun resolve(
+		host: String,
+		deadline: Long,
+	): List<InetAddress> {
+		val lookup = CompletableFuture.supplyAsync({ resolver.resolve(host) }, LOOKUPS)
+		return try {
+			lookup.get(remainingMillis(deadline), TimeUnit.MILLISECONDS)
+		} catch (e: TimeoutException) {
+			lookup.cancel(true)
+			throw RemoteImageException(RemoteImageError.TIMEOUT, e)
+		} catch (e: InterruptedException) {
+			lookup.cancel(true)
+			Thread.currentThread().interrupt()
+			throw RemoteImageException(RemoteImageError.TIMEOUT, e)
+		} catch (e: ExecutionException) {
+			when (val cause = e.cause) {
+				is UnknownHostException -> throw RemoteImageException(RemoteImageError.UPSTREAM_FAILED, cause)
+				is RuntimeException -> throw cause
+				else -> throw RemoteImageException(RemoteImageError.UPSTREAM_FAILED, cause)
+			}
+		}
+	}
+
 	private fun request(
 		target: Target,
 		deadline: Long,
 	): Response {
-		val address = address(target.host)
-		val plain = Socket()
+		val address = address(target.host, deadline)
+		val plain = DeadlineSocket(deadline)
 		try {
 			plain.connect(InetSocketAddress(address, target.port), minOf(limits.connectTimeout.toMillis(), remainingMillis(deadline)).toInt())
-			plain.soTimeout = remainingMillis(deadline).toInt()
 			val socket = if (target.https) tls(plain, target) else plain
 			socket.getOutputStream().apply {
 				write(
@@ -250,7 +283,47 @@ class RemoteImageFetcher(
 			throw RemoteImageException(RemoteImageError.TIMEOUT, e)
 		} catch (e: IOException) {
 			plain.close()
-			throw RemoteImageException(RemoteImageError.UPSTREAM_FAILED, e)
+			// TLS wraps a read timeout of the handshake in an SSLException.
+			throw RemoteImageException(if (timedOut(e, deadline)) RemoteImageError.TIMEOUT else RemoteImageError.UPSTREAM_FAILED, e)
+		}
+	}
+
+	private fun timedOut(
+		e: Throwable,
+		deadline: Long,
+	): Boolean = System.nanoTime() >= deadline || generateSequence(e) { it.cause }.take(MAX_CAUSES).any { it is SocketTimeoutException }
+
+	/**
+	 * A socket whose every read waits at most until [deadline]: the read timeout is set to the time left before each
+	 * read. TLS layered on it ([tls]) reads through [getInputStream] as well, so the handshake is bounded too.
+	 */
+	private class DeadlineSocket(
+		private val deadline: Long,
+	) : Socket() {
+		override fun getInputStream(): InputStream = DeadlineInputStream(super.getInputStream())
+
+		private inner class DeadlineInputStream(
+			input: InputStream,
+		) : FilterInputStream(input) {
+			override fun read(): Int {
+				arm()
+				return super.read()
+			}
+
+			override fun read(
+				b: ByteArray,
+				off: Int,
+				len: Int,
+			): Int {
+				arm()
+				return super.read(b, off, len)
+			}
+
+			private fun arm() {
+				val remaining = (deadline - System.nanoTime()) / NANOS_PER_MILLI
+				if (remaining <= 0) throw SocketTimeoutException("Image proxy time budget used up")
+				soTimeout = minOf(remaining, Int.MAX_VALUE.toLong()).toInt()
+			}
 		}
 	}
 
@@ -422,6 +495,11 @@ class RemoteImageFetcher(
 		private const val BUFFER_SIZE = 16 * 1024
 		private const val HEX = 16
 		private const val NANOS_PER_MILLI = 1_000_000L
+		private const val MAX_CAUSES = 10
+
+		/** Name lookups (see [resolve]); daemon threads, so a hanging lookup never blocks shutdown. */
+		private val LOOKUPS: ExecutorService =
+			Executors.newCachedThreadPool { runnable -> Thread(runnable, "image-proxy-dns").apply { isDaemon = true } }
 		private val IPV4_LITERAL = Regex("""^\d{1,3}(\.\d{1,3}){3}$""")
 	}
 }

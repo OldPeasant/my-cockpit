@@ -10,12 +10,15 @@ import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldStartWith
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.io.TempDir
 import org.springframework.util.unit.DataSize
 import java.io.ByteArrayOutputStream
 import java.net.InetAddress
 import java.net.ServerSocket
 import java.net.Socket
 import java.net.UnknownHostException
+import java.nio.file.Files
+import java.nio.file.Path
 import java.security.KeyStore
 import java.time.Duration
 import java.util.concurrent.CopyOnWriteArrayList
@@ -255,9 +258,84 @@ class RemoteImageFetcherProtocolTests {
 		failure { fetcher(timeout = Duration.ofMillis(500)).fetch(server.url()) } shouldBe RemoteImageError.TIMEOUT
 	}
 
+	/** Runs [block], returning how long it took in milliseconds. */
+	private fun millis(block: () -> Unit): Long {
+		val start = System.nanoTime()
+		block()
+		return (System.nanoTime() - start) / 1_000_000
+	}
+
 	@Test
-	fun `HTTPS checks the certificate against the host name`() {
-		val tls = WireMockServer(wireMockConfig().dynamicHttpsPort().httpDisabled(true))
+	fun `a byte just before the deadline does not extend the time budget`() {
+		val server =
+			ScriptedServer {
+				val output = it.getOutputStream()
+				output.write(head("200 OK", "Content-Type: image/png", "Content-Length: 10").toByteArray())
+				output.flush()
+				TimeUnit.MILLISECONDS.sleep(700)
+				output.write('a'.code)
+				output.flush()
+				TimeUnit.SECONDS.sleep(3)
+			}
+
+		val elapsed = millis { failure { fetcher(timeout = Duration.ofMillis(800)).fetch(server.url()) } shouldBe RemoteImageError.TIMEOUT }
+
+		// Without a per-read timeout the read after the byte would wait another full budget (about 1500 ms in total).
+		(elapsed < 1300) shouldBe true
+	}
+
+	@Test
+	fun `a TLS handshake trickling in is bounded by the time budget`() {
+		val listener = ServerSocket(0, 1, InetAddress.getLoopbackAddress())
+		servers += listener
+		thread(isDaemon = true, name = "trickling-tls") {
+			runCatching {
+				listener.accept().use { client ->
+					TimeUnit.MILLISECONDS.sleep(700)
+					// The start of a TLS handshake record, then silence.
+					client.getOutputStream().apply { write(0x16) }.flush()
+					TimeUnit.SECONDS.sleep(3)
+				}
+			}
+		}
+		val fetcher = fetcher(timeout = Duration.ofMillis(800)).apply { resolver = HostResolver { listOf(InetAddress.getLoopbackAddress()) } }
+
+		val elapsed = millis { failure { fetcher.fetch("https://localhost:${listener.localPort}/a.png") } shouldBe RemoteImageError.TIMEOUT }
+
+		(elapsed < 1300) shouldBe true
+	}
+
+	@Test
+	fun `a hanging name lookup counts against the time budget`() {
+		val fetcher =
+			fetcher(timeout = Duration.ofMillis(500)).apply {
+				resolver =
+					HostResolver {
+						TimeUnit.SECONDS.sleep(3)
+						listOf(InetAddress.getLoopbackAddress())
+					}
+			}
+
+		val elapsed = millis { failure { fetcher.fetch("http://slow-dns.example.test/a.png") } shouldBe RemoteImageError.TIMEOUT }
+
+		(elapsed < 1300) shouldBe true
+	}
+
+	@Test
+	fun `HTTPS checks the certificate against the host name`(
+		@TempDir dir: Path,
+	) {
+		val keystore = localhostKeystore(dir)
+		val tls =
+			WireMockServer(
+				wireMockConfig()
+					.dynamicHttpsPort()
+					.httpDisabled(true)
+					.keystorePath(keystore.toString())
+					.keystoreType("PKCS12")
+					.keystorePassword(KEYSTORE_PASSWORD)
+					.keyManagerPassword(KEYSTORE_PASSWORD),
+			)
 		tls.start()
 		servers += AutoCloseable { tls.stop() }
 		tls.stubFor(get(urlEqualTo("/a.png")).willReturn(aResponse().withHeader("Content-Type", "image/png").withBody("png")))
@@ -268,16 +346,53 @@ class RemoteImageFetcherProtocolTests {
 		failure { untrusted.fetch("https://localhost:${tls.httpsPort()}/a.png") } shouldBe RemoteImageError.UPSTREAM_FAILED
 
 		val trusting = fetcher().apply { resolver = loopback }
-		trusting.sslSocketFactory = trustingWireMock()
+		trusting.sslSocketFactory = trusting(keystore)
 		trusting.fetch("https://localhost:${tls.httpsPort()}/a.png").bytes.toString(Charsets.US_ASCII) shouldBe "png"
 		// Same server and certificate, but the URL names another host: the certificate does not match it.
 		failure { trusting.fetch("https://images.example.test:${tls.httpsPort()}/a.png") } shouldBe RemoteImageError.UPSTREAM_FAILED
 	}
 
-	/** An SSL socket factory that trusts the certificate of WireMock's built-in keystore (issued to `localhost`). */
-	private fun trustingWireMock(): javax.net.ssl.SSLSocketFactory {
-		val keystore = KeyStore.getInstance("JKS")
-		checkNotNull(WireMockServer::class.java.classLoader.getResourceAsStream("keystore")).use { keystore.load(it, "password".toCharArray()) }
+	/**
+	 * A fresh self-signed certificate for `localhost` (WireMock's built-in one names no host), made with the JDK's
+	 * `keytool`.
+	 */
+	private fun localhostKeystore(dir: Path): Path {
+		val keystore = dir.resolve("localhost.p12")
+		val keytool = Path.of(System.getProperty("java.home"), "bin", "keytool").toString()
+		val process =
+			ProcessBuilder(
+				keytool,
+				"-genkeypair",
+				"-alias",
+				"localhost",
+				"-keyalg",
+				"EC",
+				"-groupname",
+				"secp256r1",
+				"-dname",
+				"CN=localhost",
+				"-ext",
+				"SAN=dns:localhost",
+				"-validity",
+				"2",
+				"-storetype",
+				"PKCS12",
+				"-keystore",
+				keystore.toString(),
+				"-storepass",
+				KEYSTORE_PASSWORD,
+				"-keypass",
+				KEYSTORE_PASSWORD,
+			).redirectErrorStream(true).start()
+		val output = process.inputStream.readAllBytes().toString(Charsets.UTF_8)
+		check(process.waitFor(30, TimeUnit.SECONDS) && process.exitValue() == 0) { "keytool failed: $output" }
+		return keystore
+	}
+
+	/** An SSL socket factory that trusts exactly the certificate in [path]. */
+	private fun trusting(path: Path): javax.net.ssl.SSLSocketFactory {
+		val keystore = KeyStore.getInstance("PKCS12")
+		Files.newInputStream(path).use { keystore.load(it, KEYSTORE_PASSWORD.toCharArray()) }
 		val trusted = KeyStore.getInstance(KeyStore.getDefaultType()).apply { load(null, null) }
 		keystore.aliases().toList().forEach { trusted.setCertificateEntry(it, keystore.getCertificate(it)) }
 		val trust = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm()).apply { init(trusted) }
@@ -286,5 +401,8 @@ class RemoteImageFetcherProtocolTests {
 
 	private companion object {
 		const val MAX_BYTES = 1000L
+
+		// Protects a throwaway test key only.
+		const val KEYSTORE_PASSWORD = "fictitious-keystore-password"
 	}
 }

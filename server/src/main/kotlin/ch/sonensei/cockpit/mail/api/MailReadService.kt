@@ -15,7 +15,10 @@ import ch.sonensei.cockpit.mail.sanitize.SanitizeOptions
 import org.jsoup.Jsoup
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
+import java.io.IOException
 import java.io.InputStream
+import java.io.OutputStream
+import java.net.URLDecoder
 import java.net.URLEncoder
 import java.time.Instant
 import java.time.format.DateTimeParseException
@@ -27,6 +30,11 @@ data class MailListEntry(
 	val threadSize: Int,
 	val threadUnread: Int,
 )
+
+/** The client stopped an attachment download (writing the response failed); not a mail server failure. */
+class AttachmentDownloadAbortedException(
+	cause: IOException,
+) : RuntimeException("The client aborted the download", cause)
 
 /** The safe body of a message: sanitized HTML and/or plain text. */
 data class MailBodyView(
@@ -119,20 +127,52 @@ class MailReadService(
 	}
 
 	/**
-	 * Streams attachment [partId] of message [id] to [write] while the IMAP connection is held.
+	 * Streams attachment [partId] of message [id] into the stream [open] returns for it (the HTTP response), while the
+	 * IMAP connection is held.
 	 *
 	 * @throws NotFoundException when the message has no such attachment
+	 * @throws AttachmentDownloadAbortedException when writing to the client failed (it went away); the mail server
+	 *   was fine, so its connection is kept
 	 */
 	fun attachment(
 		id: UUID,
 		partId: String,
-		write: (MailAttachment, InputStream) -> Unit,
+		open: (MailAttachment) -> OutputStream,
 	) {
 		val message = get(id)
 		val attachment = loader.load(message).attachments.firstOrNull { it.partId == partId } ?: throw NotFoundException(ATTACHMENT_NOT_FOUND)
-		loader.withRemoteMessage(message) { root ->
-			val part = MimeContent.findPart(root, partId) ?: throw NotFoundException(ATTACHMENT_NOT_FOUND)
-			part.inputStream.use { write(attachment, it) }
+		// A client failure is returned, not thrown, inside the block: a throw would count as an IMAP failure there.
+		val clientFailure =
+			loader.withRemoteMessage(message) { root ->
+				val part = MimeContent.findPart(root, partId) ?: throw NotFoundException(ATTACHMENT_NOT_FOUND)
+				part.inputStream.use { copy(it, open(attachment)) }
+			}
+		if (clientFailure != null) throw AttachmentDownloadAbortedException(clientFailure)
+	}
+
+	/**
+	 * Copies [input] (the mail server) to [output] (the client). Read failures are thrown; a write failure ends the
+	 * copy and is returned.
+	 */
+	private fun copy(
+		input: InputStream,
+		output: OutputStream,
+	): IOException? {
+		val buffer = ByteArray(COPY_BUFFER_SIZE)
+		while (true) {
+			val read = input.read(buffer)
+			if (read < 0) break
+			try {
+				output.write(buffer, 0, read)
+			} catch (e: IOException) {
+				return e
+			}
+		}
+		return try {
+			output.flush()
+			null
+		} catch (e: IOException) {
+			e
 		}
 	}
 
@@ -166,7 +206,10 @@ class MailReadService(
 		}
 	}
 
-	/** Points `cid:` images at the inline download of their part; unknown ones lose their `src`. */
+	/**
+	 * Points `cid:` images at the inline download of their part; unknown ones lose their `src`. The reference is
+	 * URL-encoded (RFC 2392), so it is compared percent-decoded, and as written for mailers that do not encode it.
+	 */
 	private fun resolveInlineImages(
 		html: String,
 		messageId: UUID,
@@ -179,11 +222,22 @@ class MailReadService(
 			val src = img.attr("src").trim()
 			if (!src.startsWith("cid:", ignoreCase = true)) return@forEach
 			val contentId = src.substring(CID_PREFIX_LENGTH).removePrefix("<").removeSuffix(">")
-			val part = attachments.firstOrNull { it.contentId.equals(contentId, ignoreCase = true) }
+			val decoded = percentDecoded(contentId)?.removePrefix("<")?.removeSuffix(">")
+			val part =
+				attachments.firstOrNull { it.contentId.equals(decoded, ignoreCase = true) }
+					?: attachments.firstOrNull { it.contentId.equals(contentId, ignoreCase = true) }
 			if (part == null) img.removeAttr("src") else img.attr("src", attachmentUrl(messageId, part.partId, inline = true))
 		}
 		return document.body().html()
 	}
+
+	/** [value] with its `%XX` escapes decoded as UTF-8 (`+` stays a plus); `null` when an escape is malformed. */
+	private fun percentDecoded(value: String): String? =
+		try {
+			URLDecoder.decode(value.replace("+", "%2B"), Charsets.UTF_8)
+		} catch (_: IllegalArgumentException) {
+			null
+		}
 
 	companion object {
 		const val MESSAGES_PATH = "/api/v1/mail/messages"
@@ -191,6 +245,7 @@ class MailReadService(
 		private const val MESSAGE_NOT_FOUND = "Mail message not found"
 		private const val ATTACHMENT_NOT_FOUND = "Attachment not found"
 		private const val CID_PREFIX_LENGTH = 4
+		private const val COPY_BUFFER_SIZE = 16 * 1024
 
 		fun attachmentUrl(
 			messageId: UUID,

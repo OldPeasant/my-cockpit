@@ -2755,6 +2755,12 @@ paths:
               schema:
                 type: string
               style: simple
+        "400":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: Malformed id or unknown `remoteImages` value
         "404":
           content:
             application/problem+json:
@@ -2767,6 +2773,13 @@ paths:
               schema:
                 $ref: "#/components/schemas/ProblemDetail"
           description: The mail server failed
+        "503":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: All connections of the account are busy (`errorCode` POOL_EXHAUSTED);
+            retry later
       summary: "One message with headers, sanitized body and attachments"
       tags:
       - Mail messages
@@ -2814,6 +2827,13 @@ paths:
               schema:
                 $ref: "#/components/schemas/ProblemDetail"
           description: The mail server failed
+        "503":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: All connections of the account are busy (`errorCode` POOL_EXHAUSTED);
+            retry later
       summary: Download an attachment
       tags:
       - Mail messages
