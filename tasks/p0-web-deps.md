@@ -17,3 +17,4 @@ Add the web libraries the spec needs up front (SPEC.md §2.1) and a Material 3 l
 - [ ] `npm run check` passes; ARCHITECTURE.md stack table updated
 
 ## Notes
+- ASSUMPTION (2026-10-20 10:32+0200 by dell26/agent-2): FullCalendar v7 ships daygrid/timegrid/interaction/list as subpath exports of the 'fullcalendar' package (no separate @fullcalendar/daygrid etc. v7 releases); added 'fullcalendar' + @fullcalendar/core/angular/rrule (+ rrule, temporal-polyfill peers) instead of separate plugin packages
