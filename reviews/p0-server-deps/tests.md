@@ -4,134 +4,129 @@ Date: 2026-10-20
 
 Task: p0-server-deps - Server dependencies, profiles and test infrastructure
 
-Scope: final revision after review fixes. `git diff 7b924a409a95caed4378653a810545cb123782c7..f01b7c1fcd074f06d5342f1d94fe50ee9f0a532d`
-restricted to the task's code commits `2d3e527` (libraries, profiles, Postgres Testcontainer base,
-`integrationTest`), `4364631` (Flyway/datasource/profile tests) and `45fdd8e` (fixes CR-1..CR-3: `kotlin("plugin.jpa")`
-+ `allOpen` in `server/build.gradle.kts`, GreenMail dynamic port in `ExternalToolingSmokeTests`, schema-scoped query in
-`PostgresTestBaseTests`). Commits `e0b6dda` and `f01b7c1` touch only `reviews/`; the `tasks/`-only bookkeeping commits
-and the human-authored dashboard commit (`dashboard/`, `TEAM.md`) are excluded. Branch `main`, HEAD `f01b7c1`.
-Uncommitted inputs: two untracked test files (listed below), no other working-tree changes.
+Scope: re-test of the rebased final revision. `git diff 18122fd02d23a9a1dddcf2568d9c4057f35fee7f..50e57c0e19cb90fd43b7d8be4eb9d9c5208b2ab7`
+(task commits `git log 18122fd..HEAD`: `2411068`, `e1ee084`, `2d79e4f`, `ae008e6`, `5506575`, `fb49b54`, `8f7823f`,
+`50e57c0`), as supplied by the parent. Code in scope: `server/build.gradle.kts`, the three `application*.properties`,
+`server/src/test/kotlin/ch/sonensei/cockpit/support/*` plus two adjusted context tests and two Flyway fixture
+migrations, `docs/ARCHITECTURE.md`, and the one-line env filter in `tests/test_quality_gate.py` (commit `50e57c0`).
+Branch `main`, HEAD `50e57c0`. No uncommitted source or test changes; the only working-tree change during the
+runs was `reviews/p0-server-deps/review.md` (written by the parallel code-reviewer, not a test input).
 
 Requirements:
-- `tasks/p0-server-deps.md` acceptance criteria and the four confirmed assumptions
-- `reviews/p0-server-deps/review.md` (CR-1..CR-4) and `reviews/p0-server-deps/fixes.md`
+- `tasks/p0-server-deps.md` acceptance criteria, confirmed assumptions and the TASKS_ROOT note
 - `AGENTS.md` project notes, `docs/ARCHITECTURE.md` "Testing" and "Coverage", `docs/QUALITY.md`
-- Parent instructions (cover the CR-1 fix, check the other fixes, re-measure on the final code)
+- Previous report for pre-rebase revision `f01b7c1` (superseded by this one)
+- Parent instructions (re-assess on the current code; Docker Desktop is not running)
 
 ## Test files changed
 
-- `server/src/test/kotlin/ch/sonensei/cockpit/support/JpaCompilerPluginTests.kt` (new, untracked)
-- `server/src/test/kotlin/ch/sonensei/cockpit/support/JpaPluginFixtures.kt` (new, untracked; fixtures in package
-  `ch.sonensei.jpafixture`, outside the application's `ch.sonensei.cockpit` entity scan, so `ddl-auto=validate`
-  never looks for their tables)
-
-Both files were left untracked by an interrupted earlier run of this helper. Reviewed and adjusted in this run:
-removed a deprecated `isAccessible` call (the plugin-generated constructor is public), replaced the nullable check
-with a boolean helper, and added a negative control class/test.
-
-Already committed in the task and re-run here unchanged: `FlywayConfigurationTests`, `DatasourcePropertiesTests`,
-`PostgresTestBaseTests`, `ProfileTests`, `ExternalToolingSmokeTests`, `CockpitServerApplicationTests`,
-`HealthEndpointTests`, and the two Flyway fixture migrations under `server/src/test/resources/ch/sonensei/cockpit/support/flyway/`.
+- None. The existing tests already cover every testable criterion and the review fixes (see the table below).
+  The rebase did not change any test or production file contents relative to the previously tested
+  revision apart from the `tests/test_quality_gate.py` fix, which is itself test code.
 
 ## Tests added or updated
 
-Count: 4 (new test methods in `JpaCompilerPluginTests`)
+Count: 0
 
-- `JPA-annotated Kotlin classes get a no-arg constructor` (`@Entity`, `@MappedSuperclass`, `@Embeddable` fixtures)
-- `JPA-annotated Kotlin classes are open for Hibernate proxies`
-- `an entity can be instantiated through its no-arg constructor`
-- `classes without JPA annotations stay final and keep their constructors` (control: an unannotated Kotlin class
-  in the same file is final and has no no-arg constructor, so the assertions above would fail if `plugin.jpa` or the
-  `allOpen` block were removed, and `allOpen` is shown to be scoped to the JPA annotations)
+Assessment of the new `tests/test_quality_gate.py` change: `tasks.py` line 23 resolves
+`ROOT = Path(os.environ.get("TASKS_ROOT", ".")).resolve()`. The old filter dropped only `TASK_*` variables, so a
+runner-provided `TASKS_ROOT` leaked into the subprocess and pointed the gate tests at the real clone. The new
+filter `k.startswith(("TASK_", "TASKS_"))` removes it, so `tasks.py` falls back to the per-test temp `cwd`.
+Correct by inspection; it is a test-harness fix with no production behavior, so no further test was added.
 
 ## Requirement coverage
 
 | Requirement | Tests | Command | Result |
 |---|---|---|---|
-| AC1: build declares all listed libraries; `./gradlew dependencies` resolves | Not a test concern; the test source set compiles and runs against Kotest, WireMock, GreenMail, Testcontainers, Flyway and Jakarta Persistence | `cd server && ./gradlew ktlintCheck test jacocoTestReport integrationTest --rerun-tasks` | Pass (compiles and runs). `./gradlew dependencies` not run by this helper; parent records it |
-| CR-1 fix: `plugin.jpa` + `allOpen` for Entity/MappedSuperclass/Embeddable | `JpaCompilerPluginTests` (4) | same | Pass |
-| CR-2 fix: GreenMail on a dynamic port | `ExternalToolingSmokeTests.GreenMail receives a message over SMTP` (sends via `greenMail.smtp.serverSetup`) | same (`integrationTest`) | Pass |
-| CR-3 fix: Flyway history count scoped to `current_schema()` | `PostgresTestBaseTests.Flyway ran against the container`, run in the same JVM after `FlywayConfigurationTests` created its `flyway_fixture` schema | same | Pass |
-| AC2: datasource from `SPRING_DATASOURCE_*` | `DatasourcePropertiesTests` (4) | same | Pass |
-| AC2: Flyway `out-of-order=true`, `locations=classpath:db/migration` incl. module subfolders | `FlywayConfigurationTests` (2), `PostgresTestBaseTests.Flyway ran against the container` | same | Pass |
-| AC2: JSON logging in non-dev profiles | `ProfileTests$Default` (1), `ProfileTests$E2e` (2), `ProfileTests$Dev` (2) | same | Pass |
-| AC2: Jackson ISO dates | `PostgresTestBaseTests.Jackson writes dates as ISO-8601 strings` | same | Pass |
-| AC2: profiles `dev` and `e2e` exist | `ProfileTests$Dev`, `ProfileTests$E2e` | same | Pass |
-| AC3: one shared Postgres 16 container per JVM; sample `@SpringBootTest` passes on Podman | `PostgresTestBaseTests` (4), `ProfileTests` datasource-override tests, `CockpitServerApplicationTests`, `HealthEndpointTests` | same; Testcontainers log: `Resolved dockerHost=unix:///run/user/1000/podman/podman.sock`, `Server Version: 5.8.9` (Podman) | Pass |
-| AC4: `integrationTest` runs only `external` tests | `build/test-results/integrationTest` holds only `ExternalToolingSmokeTests` (2 tests); `build/test-results/test` holds 9 suites / 21 tests and no external suite | same | Pass |
-| AC4: `check` < 60 s warm | n/a | `cd server && time ./gradlew --quiet check test --rerun` | Pass: 11.6 s real (tests forced to rerun) |
-| AC5: ARCHITECTURE.md updated | Documentation, not testable by unit tests | n/a | Not testable |
+| AC1: build declares all listed libraries; dependencies resolve | Indirect: main and test source sets compile against Kotest, WireMock, GreenMail, Testcontainers, Flyway, Jakarta Persistence | `cd server && ./gradlew check --rerun-tasks` (compile + ktlint steps) | Pass for compilation and ktlint; `./gradlew dependencies` not run by this helper (parent records it) |
+| CR-1 fix: `plugin.jpa` + `allOpen` for Entity/MappedSuperclass/Embeddable | `JpaCompilerPluginTests` (4) | `cd server && ./gradlew test --tests '*DatasourcePropertiesTests' --tests '*JpaCompilerPluginTests' jacocoTestReport --rerun-tasks` | Pass (4/4) |
+| AC2: datasource from `SPRING_DATASOURCE_*` (base, dev, e2e) | `DatasourcePropertiesTests` (4) | same | Pass (4/4) |
+| AC2: Flyway `out-of-order=true`, `locations=classpath:db/migration` incl. subfolders | `FlywayConfigurationTests` (2), `PostgresTestBaseTests.Flyway ran against the container` | `cd server && ./gradlew check --rerun-tasks` | Fail (environment): `initializationError`, Testcontainers "Could not find a valid Docker environment" |
+| AC2: JSON logging in non-dev profiles; profiles `dev`/`e2e` exist | `ProfileTests$Default` (1), `$Dev` (2), `$E2e` (2) | same | Fail (environment): same Docker error |
+| AC2: Jackson ISO dates | `PostgresTestBaseTests.Jackson writes dates as ISO-8601 strings` | same | Fail (environment): same Docker error |
+| AC3: one shared Postgres 16 container per JVM; sample `@SpringBootTest` passes | `PostgresTestBaseTests` (4), `CockpitServerApplicationTests`, `HealthEndpointTests`, `ProfileTests` datasource-override tests | same | Fail (environment): Docker Desktop not running, no Podman socket reachable from this helper |
+| CR-2 fix: GreenMail on a dynamic port | `ExternalToolingSmokeTests.GreenMail receives a message over SMTP` | `cd server && ./gradlew integrationTest --rerun-tasks` | Pass |
+| AC4: `integrationTest` runs only `external` tests and is not part of `check` | `build/test-results/integrationTest` contains only `ExternalToolingSmokeTests` (2 tests, 0 failures); the `check` run's task list has no `integrationTest` and `build/test-results/test` holds 9 suites with no external suite | `./gradlew integrationTest --rerun-tasks`; `./gradlew check --rerun-tasks --console=plain` | Pass |
+| AC4: `check` < 60 s warm | n/a | `./gradlew check --rerun-tasks` | Not run meaningfully: the run failed in 20 s because the container tests could not start, so it is no timing evidence |
+| AC5: ARCHITECTURE.md updated | Documentation | n/a | Not testable |
+| TASKS_ROOT filter in `tests/test_quality_gate.py` | the whole `Gate` suite | `python3 tests/test_quality_gate.py -q` / `python3 -m unittest ...` | Not run: this helper's sandbox requires approval for these commands; `pytest` is not installed. Parent must run it (it is the first step of `.taskcheck`) |
 
 ## Focused test execution
 
 Command:
 
-`cd server && ./gradlew ktlintCheck test --tests '*JpaCompilerPluginTests'`
+`cd server && ./gradlew test --tests '*DatasourcePropertiesTests' --tests '*JpaCompilerPluginTests' jacocoTestReport --rerun-tasks --console=plain`
 
 Result:
 
-Pass (BUILD SUCCESSFUL; `JpaCompilerPluginTests`: 4 tests, 0 failures, 0 errors, 0 skipped; ktlint clean on main, test and script sources)
+Pass (BUILD SUCCESSFUL in 3 s; `DatasourcePropertiesTests` 4/4, `JpaCompilerPluginTests` 4/4, 0 failures/errors/skipped).
+
+Also: `cd server && ./gradlew integrationTest --rerun-tasks --console=plain` -> BUILD SUCCESSFUL in 4 s;
+`ExternalToolingSmokeTests` 2 tests, 0 failures/errors (GreenMail and WireMock need no container runtime).
 
 ## Full test execution
 
 Command:
 
-`cd server && ./gradlew ktlintCheck test jacocoTestReport integrationTest --rerun-tasks`
+`cd server && ./gradlew check --rerun-tasks --console=plain`
 
 Result:
 
-Pass (BUILD SUCCESSFUL in 13 s, all 15 tasks executed). `test`: 9 suites, 21 tests, 0 failures/errors/skipped
-(`CockpitServerApplicationTests` 1, `HealthEndpointTests` 1, `DatasourcePropertiesTests` 4, `FlywayConfigurationTests` 2,
-`JpaCompilerPluginTests` 4, `PostgresTestBaseTests` 4, `ProfileTests$Default` 1, `$Dev` 2, `$E2e` 2).
-`integrationTest`: `ExternalToolingSmokeTests` 2 tests, 0 failures/errors.
+Fail (environment, not a production defect). ktlint (main, test, scripts) and compilation passed. `test`: 15 tests,
+7 failed, all with `initializationError` caused by
+`java.lang.IllegalStateException: Could not find a valid Docker environment` from
+`DockerClientProviderStrategy` while initializing `PostgresTestBase.postgres` (the first class fails with
+`ExceptionInInitializerError`, the rest with `NoClassDefFoundError` of the same companion). Affected:
+`CockpitServerApplicationTests`, `HealthEndpointTests`, `FlywayConfigurationTests`, `PostgresTestBaseTests`,
+`ProfileTests$Default/$Dev/$E2e`. Passing: `DatasourcePropertiesTests` 4, `JpaCompilerPluginTests` 4.
+`docker info` at the same time: "Cannot connect to the Docker daemon at unix:///Users/peterguertler/.docker/run/docker.sock";
+`podman info` could not be run from this helper (approval required).
 
-Also: `cd server && time ./gradlew --quiet check test --rerun` -> success, 11.6 s real.
+These suites passed (21/21) on the pre-rebase revision on Podman per the previous report, and the rebase did
+not change them, but that is not evidence for revision `50e57c0`. They must be re-run with a working
+Docker/Podman before the AC2/AC3/AC4 timing evidence is recorded for this revision.
 
 ## .taskcheck
 
 Result:
 
-Not run: the helper's sandbox requires approval for `sh scripts/check.sh` and none was available. Its server part
-(`./gradlew check`) passed above. The parent must run `.taskcheck`.
+Not run: `sh scripts/check.sh` requires approval in this helper's sandbox. It would also fail here at the
+`server: ktlint + tests` step for the Docker reason above. The parent must run it with a container runtime available.
 
 ## Bugs found
 
-None.
+None. All failures are environmental (no container runtime).
 
 ## Coverage
 
-Status: not applicable for production code (the task changed no instrumentable production file); the JaCoCo run
-itself is verified (fresh, exit 0).
+Status: not applicable for production code (the task changed no JaCoCo-instrumentable production file). The
+JaCoCo run itself is fresh and exit 0, but it covers only the Docker-free subset of the suite.
 
 Metric: whole-file coverage of task-changed production files.
 Changed-line coverage: not measured (no executable production lines changed).
 
 Evidence:
 - Task id, immutable base, measured HEAD, and task-owned commits/file-scope source: `p0-server-deps`, base
-  `7b924a409a95caed4378653a810545cb123782c7`, HEAD `f01b7c1fcd074f06d5342f1d94fe50ee9f0a532d`; code commits `2d3e527`,
-  `4364631`, `45fdd8e` and review-only commits `e0b6dda`, `f01b7c1`, as supplied by the parent and checked with
-  `git show --stat`.
-- Source/test snapshot identifier (including uncommitted inputs): HEAD `f01b7c1` (no tracked modifications) plus
-  untracked `JpaCompilerPluginTests.kt` sha256 `be7398da7c6b1ce0312349910171cf45fa44cc271db836f109aa9a709e6ca529` and
-  `JpaPluginFixtures.kt` sha256 `3690f8b628ae35b4f3baff8875c9a961128abe1efb5663fc4f887eaf67027306`. Hashes and
-  `git status` identical before (10:32:54) and after (10:33:20) the run.
-- Exact included files; renamed/deleted/excluded files and reasons: `git diff --name-only 7b924a4..HEAD -- server/src/main`
-  lists only `application.properties`, `application-dev.properties`, `application-e2e.properties`: configuration
-  with no JaCoCo-instrumentable code, covered behaviourally (table above). Excluded: `server/build.gradle.kts`
-  (build config; its CR-1 effect is covered by `JpaCompilerPluginTests`), test sources/resources, `docs/`,
-  `reviews/`, `tasks/`, `dashboard/`, `TEAM.md`. No production Kotlin file added or changed; no renames or deletions.
-- Provider/version, command, working directory, and test selection: JaCoCo via Gradle `jacoco` plugin (session
-  `dell26-60459680`); `./gradlew ktlintCheck test jacocoTestReport integrationTest --rerun-tasks` in `server/`;
-  `test` task = all tests except tag `external`.
-- Run start/completion time and exit status: 2026-10-20T10:32:59+02:00 (approx., JaCoCo session start
-  1792485180937 ms) to 10:33:11+02:00, BUILD SUCCESSFUL (exit 0).
-- Generated report paths and report hashes/run identifier: `server/build/reports/jacoco/test/jacocoTestReport.xml`
-  (written 10:33:10, sha256 `5ffa716979807568c4973bd58bce28b05091ac1ff76259ccf94fdf8dc76145b5`, session
-  `dell26-60459680`), HTML in `server/build/reports/jacoco/test/html/`.
-- Evidence outputs are fresh and inputs stayed unchanged: yes (`--rerun-tasks`, report time matches the run, snapshot
-  unchanged).
-- Final run after latest test additions and production fixes: yes (after fix commit `45fdd8e` and after this run's
-  test edits).
+  `18122fd02d23a9a1dddcf2568d9c4057f35fee7f`, HEAD `50e57c0e19cb90fd43b7d8be4eb9d9c5208b2ab7`, commits from
+  `git log 18122fd..HEAD` as supplied by the parent and matched against the task's `touches`.
+- Source/test snapshot identifier (including uncommitted inputs): HEAD `50e57c0`, no uncommitted source/test
+  changes (`git status --porcelain` empty at 08:41:08Z; at 08:42:17Z only `reviews/p0-server-deps/review.md`
+  modified by the parallel reviewer).
+- Exact included files; renamed/deleted/excluded files and reasons: `git diff --name-only 18122fd..HEAD -- server/src/main web/src android/app/src/main`
+  -> `server/src/main/resources/application.properties`, `application-dev.properties`, `application-e2e.properties`:
+  configuration, not instrumentable, covered behaviourally (table above). Excluded: `server/build.gradle.kts`
+  (build config; the CR-1 effect is covered by `JpaCompilerPluginTests`), `tests/test_quality_gate.py` (test
+  code), test sources/resources, `docs/`, `reviews/`, `tasks/`. No renames or deletions.
+- Provider/version, command, working directory, and test selection: JaCoCo via the Gradle `jacoco` plugin;
+  `./gradlew test --tests '*DatasourcePropertiesTests' --tests '*JpaCompilerPluginTests' jacocoTestReport --rerun-tasks`
+  in `server/`. The full `test` + `jacocoTestReport` could not produce a report because `test` fails without Docker.
+- Run start/completion time and exit status: 2026-10-20 ~08:41:50Z (JaCoCo session start 1792485710275 ms),
+  ~3 s, BUILD SUCCESSFUL (exit 0).
+- Generated report paths and report hashes/run identifier: `server/build/reports/jacoco/test/jacocoTestReport.xml`,
+  session `R1963MACOS.local-8031bd8e` (file hash not taken: `shasum` needs approval here).
+- Evidence outputs are fresh and inputs stayed unchanged: yes (`--rerun-tasks`, session id from this run,
+  snapshot unchanged).
+- Final run after latest test additions and production fixes: yes (no changes since `50e57c0`).
 
 Values below use covered/total (percentage); zero-denominator or unsupported metrics are N/A.
 
@@ -141,26 +136,27 @@ Values below use covered/total (percentage); zero-denominator or unsupported met
 | `server/src/main/resources/application-dev.properties` | N/A (not instrumentable) | N/A | N/A | N/A |
 | `server/src/main/resources/application-e2e.properties` | N/A (not instrumentable) | N/A | N/A | N/A |
 
-No aggregate: the task coverage scope contains no instrumentable production code. For reference only (outside the
-task scope, unchanged by the task): the repository's only production class `CockpitServerApplication.kt` has
-3/12 instructions, 1/3 lines, 1/2 methods covered; the missed `main` is bootstrap code.
+No aggregate: the task coverage scope contains no instrumentable production code. The report lists only
+`CockpitServerApplication.kt`, which the task did not change.
 
 | File and uncovered lines/branch locations | Required behavior or risk | Action/test added or reason left uncovered |
 |---|---|---|
-| none in task scope | Config behaviour (datasource variables, Flyway out-of-order/subfolders, JSON logs, ISO dates, profiles) and the JPA compiler plugin setup | Covered behaviourally by `DatasourcePropertiesTests`, `FlywayConfigurationTests`, `ProfileTests`, `PostgresTestBaseTests`, `JpaCompilerPluginTests` |
+| none in task scope | Config behaviour (Flyway, JSON logs, ISO dates, profiles, shared container) | Tests exist (`FlywayConfigurationTests`, `ProfileTests`, `PostgresTestBaseTests`) but could not run on this revision without a container runtime; re-run required |
 
 ## Unable to test
 
-- `.taskcheck` (`sh scripts/check.sh`): not executed, sandbox approval required. Follow-up: parent runs it.
-- `./gradlew dependencies` (AC1): left to the parent; compiling and running both test tasks is indirect evidence only.
-- AC5 (ARCHITECTURE.md content): documentation, reviewed by the code-reviewer, not testable.
-- CR-4 (generated Spring Security password logged at WARN): accepted interim state per confirmed assumption #3,
-  deferred to the auth task; no test added in this task.
-- Hibernate proxying of a real entity at runtime: no real entities exist yet; the plugin effect is verified on
-  compiled bytecode instead. Later entity tasks exercise it through repositories.
+- All Postgres-backed `@SpringBootTest` suites (AC2 Flyway/logging/Jackson parts, AC3, the warm `check` timing
+  of AC4): Docker Desktop is not running and no Podman socket was usable. Follow-up: parent re-runs
+  `cd server && ./gradlew check` with Docker or Podman (`DOCKER_HOST`, `TESTCONTAINERS_RYUK_DISABLED` per
+  ARCHITECTURE.md) and records the result and time.
+- `tests/test_quality_gate.py` and `.taskcheck`: commands need approval in this helper's sandbox. Follow-up: parent runs both.
+- `./gradlew dependencies` (AC1): left to the parent.
+- AC5: documentation, not testable.
 
 ## Summary
 
-Tests added and all validation passed (server `ktlintCheck`, `test` 21/21, `integrationTest` 2/2, warm `check`
-11.6 s; `.taskcheck` left to the parent). The CR-1, CR-2 and CR-3 fixes are covered. No production defects found.
-Task-scoped coverage is not applicable because the task changed no instrumentable production code.
+No additional tests were necessary for the reviewed scope; no production defects found. Validation is
+incomplete because of the environment: the Docker-free unit tests (8/8), ktlint and `integrationTest` (2/2)
+pass on `50e57c0`, but the 7 Testcontainers-based suites fail to start without a container runtime, and the
+quality-gate Python tests and `.taskcheck` were not run. These must be re-run by the parent with Docker/Podman
+before the task is completed.

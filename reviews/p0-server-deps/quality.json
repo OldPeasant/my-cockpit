@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "task": "p0-server-deps",
-  "reviewed_revision": "930738a22b5bf1ad8b7d9a387d012de86c6ac73d",
+  "reviewed_revision": "50e57c0e19cb90fd43b7d8be4eb9d9c5208b2ab7",
   "helpers": {
     "test-writer":   {"status": "completed", "report": "reviews/p0-server-deps/tests.md"},
     "code-reviewer": {"status": "completed", "report": "reviews/p0-server-deps/review.md"},
@@ -10,7 +10,7 @@
   "fixes_required": true,
   "findings": [
     {"id": "CR-1", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
-     "note": "kotlin plugin.jpa + allOpen for JPA annotations; covered by JpaCompilerPluginTests"},
+     "note": "kotlin plugin.jpa + allOpen for JPA annotations; covered by JpaCompilerPluginTests (re-review at 50e57c0: fix still in place)"},
     {"id": "CR-2", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
      "note": "GreenMail smoke test uses a dynamic port"},
     {"id": "CR-3", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
@@ -21,8 +21,8 @@
      "note": "test-only weakness: the abstract @MappedSuperclass fixture is non-final regardless of the plugin; the @Entity/@Embeddable fixtures and the unannotated control class still detect a missing plugin"}
   ],
   "validation": [
-    {"command": "cd server && ./gradlew test --rerun-tasks (Podman)", "result": "pass"},
-    {"command": "cd server && ./gradlew check --rerun-tasks", "result": "pass"},
-    {"command": "cd server && ./gradlew integrationTest --rerun-tasks", "result": "pass"}
+    {"command": "cd server && ./gradlew integrationTest --rerun-tasks (at 50e57c0)", "result": "pass: only ExternalToolingSmokeTests, 2/2"},
+    {"command": "cd server && ./gradlew check --rerun-tasks (at 50e57c0, Docker daemon not running)", "result": "ktlint + compile pass; Docker-free tests DatasourcePropertiesTests 4/4, JpaCompilerPluginTests 4/4 pass; 7 Testcontainers suites could not start (no Docker)"},
+    {"command": "cd server && ./gradlew test --rerun-tasks (Podman, pre-rebase revision with identical server code per git range-diff)", "result": "pass: 21 tests"}
   ]
 }
