@@ -15,10 +15,14 @@ import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.SerializationException
@@ -68,7 +72,9 @@ sealed interface LoginResult {
 
 /**
  * Clears data cached for the logged-in user; features contribute theirs to the set Hilt injects. If [clear] throws, the
- * failure is ignored and the other caches are still cleared.
+ * failure is ignored and the other caches are still cleared; this includes a [CancellationException] that [clear] throws
+ * itself (e.g. from `withTimeout`) while its caller is not cancelled. [clear] may run more than once per logout, but
+ * never concurrently with another clear, so it must be idempotent.
  */
 fun interface SessionCache {
     suspend fun clear()
@@ -79,7 +85,8 @@ fun interface SessionCache {
  *
  * It is the only owner of cache clearing: [logout] clears the caches of a user logout itself, and every other logout
  * (the network layer rejecting the refresh token, a server change) is picked up from [AuthSession.loggedOut] in
- * [appScope], which lives as long as the app.
+ * [appScope], which lives as long as the app. Clears are serialized; a logout may clear the caches twice, but never
+ * misses a clear.
  */
 @Singleton
 class AuthRepository internal constructor(
@@ -99,6 +106,9 @@ class AuthRepository internal constructor(
         session: AuthSession,
         caches: Set<@JvmSuppressWildcards SessionCache>,
     ) : this(serverUrls, authApi, tokenStore, session, caches, CoroutineScope(SupervisorJob() + Dispatchers.Default), Dispatchers.IO)
+
+    /** Serializes [clearCaches], so a cache never runs [SessionCache.clear] twice at the same time. */
+    private val cacheClearing = Mutex()
 
     init {
         // Undispatched, so the subscription exists before the constructor returns and no logout is missed.
@@ -162,7 +172,6 @@ class AuthRepository internal constructor(
      */
     suspend fun logout() =
         withContext(NonCancellable) {
-            val wasLoggedIn = tokenStore.current() != null
             try {
                 tokenStore.session.value?.deviceId?.let { id ->
                     try {
@@ -175,23 +184,27 @@ class AuthRepository internal constructor(
                 }
             } finally {
                 // Revoking an already revoked device gets a 401 whose refresh is rejected: the network layer then logs out
-                // and the app-scope collector clears the caches. Clear them here only if that did not happen, so each
-                // logout clears them exactly once.
-                val loggedOutMeanwhile = wasLoggedIn && tokenStore.current() == null
+                // and the app-scope collector may clear the caches too. Its event can be dropped from the logout flow's
+                // one-slot buffer by the USER event below, so always clear here as well: a second (serialized) clear of
+                // idempotent caches is harmless, a missed one is not.
                 session.logout(LogoutReason.USER)
-                if (!loggedOutMeanwhile) clearCaches()
+                clearCaches()
             }
         }
 
     private suspend fun clearCaches() =
-        caches.forEach { cache ->
-            try {
-                cache.clear()
-            } catch (e: CancellationException) {
-                throw e
-            } catch (_: Exception) {
-                // A failing cache must neither keep the others from being cleared nor crash the logout or end the
-                // collector. Not logged: the exception may carry user data.
+        cacheClearing.withLock {
+            caches.forEach { cache ->
+                try {
+                    cache.clear()
+                } catch (_: CancellationException) {
+                    // Only a cancellation of the caller stops the clearing; one the cache threw itself (e.g. a
+                    // `withTimeout` inside it) is a failure of that cache like any other.
+                    currentCoroutineContext().ensureActive()
+                } catch (_: Exception) {
+                    // A failing cache must neither keep the others from being cleared nor crash the logout or end the
+                    // collector. Not logged: the exception may carry user data.
+                }
             }
         }
 

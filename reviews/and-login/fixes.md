@@ -180,3 +180,81 @@ Remaining unresolved findings:
 ## Final status
 
 All validated findings fixed and validation passed.
+
+# Fix Report - round 3
+
+Date: 2026-10-20
+
+Task: and-login - Android login and secure token storage
+
+Scope: the two P3 findings CR-1 and CR-2 of the third review (`reviews/and-login/review.md`, reviewed revision a85a759f; fixer started from HEAD 31d3d616, base 9deb2abcbc462523ca6f2b1252c8a1a52744c16d). Changes are limited to `android/app/src/main/java/ch/sonensei/cockpit/auth/AuthRepository.kt` and `android/app/src/test/java/ch/sonensei/cockpit/auth/AuthRepositoryTest.kt`. `AuthSession.kt` was not changed. Each new test was checked against the code before the fix: with `AuthRepository.kt` temporarily restored to HEAD, 4 of 42 tests in `AuthRepositoryTest` failed, and those 4 were exactly the new tests. All of them pass with the fix.
+
+## Fixed findings
+
+### CR-1 - A cache that throws a CancellationException on its own skips the remaining caches and ends the app-scope collector (P3)
+
+Files changed:
+- `android/app/src/main/java/ch/sonensei/cockpit/auth/AuthRepository.kt`
+- `android/app/src/test/java/ch/sonensei/cockpit/auth/AuthRepositoryTest.kt`
+
+Problem:
+`clearCaches()` rethrew every `CancellationException`, including a `TimeoutCancellationException` that a cache's own `withTimeout` throws while no one has cancelled the caller. Two things followed. A user logout skipped the remaining caches and threw. The app-scope collector stopped silently, so no later network-layer or server-change logout cleared any cache.
+
+Fix:
+The `CancellationException` catch now calls `currentCoroutineContext().ensureActive()`. That call rethrows only when the calling coroutine itself is cancelled, i.e. when `appScope` is cancelled for the collector. It never rethrows under the `NonCancellable` of `logout()`. Otherwise the exception is treated like any other cache failure: the code ignores it and does not log it, because the exception may carry user data. That matches how other failures are handled, since none of them is logged. The `SessionCache` KDoc now states this behavior.
+
+Tests added:
+- `a cache that times out by itself neither stops the others nor the logout`: the first cache runs `withTimeout(1) { awaitCancellation() }` and a working cache follows it. The second cache still runs and the user logout completes with the tokens cleared. On the old code it fails with `TimeoutCancellationException`.
+- `a cache that throws a cancellation by itself does not stop later logouts by the network layer from clearing the caches`: the first cache throws `CancellationException`. Two successive `REFRESH_REJECTED` logouts each still clear the working cache (2). On the old code the result was 0.
+
+Validation:
+- `cd android && ./gradlew ktlintCheck testDebugUnitTest --tests 'ch.sonensei.cockpit.auth.*'` - Pass
+
+### CR-2 - The skipped inline cache clear depends on a logout event that the SharedFlow can drop (P3)
+
+Files changed:
+- `android/app/src/main/java/ch/sonensei/cockpit/auth/AuthRepository.kt`
+- `android/app/src/test/java/ch/sonensei/cockpit/auth/AuthRepositoryTest.kt`
+
+Problem:
+`logout()` skipped its own `clearCaches()` when the tokens disappeared during the revocation, and relied on the collector seeing `REFRESH_REJECTED`. `AuthSession.loggedOut` has a one-slot `DROP_OLDEST` buffer. If the collector had not yet taken that event, the `USER` event that `logout()` emits replaced it, and no cache was cleared.
+
+Fix:
+This follows the review's option 1. `logout()` now always clears the caches itself after `session.logout(USER)`, and the `wasLoggedIn`/`loggedOutMeanwhile` skip is removed. `clearCaches()` runs under a `Mutex` (`cacheClearing.withLock`), so clears from the collector and from `logout()` never overlap. A user logout of an already revoked device can therefore clear the caches twice, one clear after the other. This is accepted: caches must be idempotent, and the `SessionCache` and `AuthRepository` KDocs now say so. `AuthSession.kt` is unchanged.
+
+Tests changed:
+- `a user logout of a device the server already revoked clears the caches exactly once` is renamed to `... clears the caches at least once`. It now asserts `cleared >= 1`. With the Unconfined collector the count is now deterministically 2.
+- `a user logout clears the caches exactly once` and `a user logout whose revocation needed a token refresh still clears tokens and caches exactly once` stay as they are. In both cases no non-USER event reaches the collector, so exactly one clear is still correct.
+
+Tests added:
+- `a user logout clears the caches even when the network layer's logout event is dropped`: the app scope runs on a `StandardTestDispatcher` that is advanced only after `logout()` returns. The revocation gets a 401 and the refresh is rejected. The test asserts that the logout itself cleared the caches (1). After `advanceUntilIdle()` the count is still 1, which shows that the collector only saw `USER` and that `REFRESH_REJECTED` was dropped. On the old code the result was 0.
+- `cache clears of a user logout and of the network layer never run concurrently`: the collector runs on `Dispatchers.Default` and uses a slow cache (`delay(200)`). The test waits until the collector is inside its clear, then runs a user logout. It asserts 2 completed clears with at most 1 active at any time. On the old code the maximum was 2 at once.
+
+Validation:
+- `cd android && ./gradlew ktlintCheck testDebugUnitTest --tests 'ch.sonensei.cockpit.auth.*'` - Pass
+- `cd android && ./gradlew testDebugUnitTest --rerun --tests 'ch.sonensei.cockpit.auth.AuthRepositoryTest'`, run 3 more times to check the timing-based tests for flakiness - Pass each time
+
+## Not fixed
+
+None.
+
+## Validation summary
+
+Focused tests:
+- `cd android && ./gradlew ktlintCheck testDebugUnitTest --tests 'ch.sonensei.cockpit.auth.*'` - Pass (120 tests in the auth package, 0 failures, 0 errors, 0 skipped, counted from `app/build/test-results/testDebugUnitTest/TEST-ch.sonensei.cockpit.auth.*.xml`)
+
+Full test suite:
+- Part of `.taskcheck` below (android: ktlint + unit tests + lint) - Pass
+
+Lint/type-check/build:
+- ktlintCheck - Pass (focused run). lintDebug - Pass (in `.taskcheck`).
+
+`.taskcheck`:
+- `sh scripts/check.sh` - Pass ("all checks passed"). The web bundle budget warning it prints was already there and is unrelated to this change.
+
+Remaining unresolved findings:
+0
+
+## Final status
+
+All validated findings fixed and validation passed.

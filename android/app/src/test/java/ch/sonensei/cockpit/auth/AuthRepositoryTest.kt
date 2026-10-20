@@ -17,21 +17,27 @@ import ch.sonensei.cockpit.core.network.ServerUrlValidation
 import ch.sonensei.cockpit.core.network.TokenAuthenticator
 import ch.sonensei.cockpit.core.network.generated.apis.AuthApi
 import ch.sonensei.cockpit.core.network.serverConfigDataStore
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
+import kotlinx.coroutines.withTimeout
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.jsonObject
@@ -49,6 +55,7 @@ import org.junit.runner.RunWith
 import org.robolectric.shadows.ShadowBuild
 import java.io.File
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicInteger
 import kotlin.coroutines.CoroutineContext
 
 /** [AuthRepository] against a fake server: login answers, stored tokens, logout. */
@@ -473,10 +480,11 @@ class AuthRepositoryTest {
         }
 
     @Test
-    fun `a user logout of a device the server already revoked clears the caches exactly once`() =
+    fun `a user logout of a device the server already revoked clears the caches at least once`() =
         runBlocking {
             // The revocation goes through the client with the authenticator: its 401 triggers a refresh that the server
-            // rejects, so the network layer logs out (and the app scope clears the caches) before the logout's own pass.
+            // rejects, so the network layer logs out (and the app scope clears the caches) before the logout's own pass,
+            // which clears them again. A double clear is accepted; a missed one is not.
             val authenticator = TokenAuthenticator(tokenStore, { RefreshResult.Rejected }, session)
             val withAuthenticator =
                 CockpitHttp
@@ -496,7 +504,77 @@ class AuthRepositoryTest {
             assertEquals("DELETE", server.takeRequest().method)
             assertEquals(2, server.requestCount)
             assertNull(tokenStore.current())
-            assertEquals(1, cleared)
+            assertTrue("caches cleared $cleared times", cleared >= 1)
+            owner.cancel()
+        }
+
+    @Test
+    fun `a user logout clears the caches even when the network layer's logout event is dropped`() =
+        runBlocking {
+            // In the app the collector runs on another thread. Here its dispatcher only runs when advanced, so the
+            // REFRESH_REJECTED event of the rejected refresh still sits in the one-slot buffer when the logout's own USER
+            // event replaces it (DROP_OLDEST): the collector never sees it.
+            val appDispatcher = StandardTestDispatcher()
+            val owner = CoroutineScope(appDispatcher + SupervisorJob())
+            val authenticator = TokenAuthenticator(tokenStore, { RefreshResult.Rejected }, session)
+            val withAuthenticator =
+                CockpitHttp
+                    .retrofit(CockpitHttp.okHttpClient(ServerUrlInterceptor(serverUrls), AccessTokenInterceptor(tokenStore), authenticator))
+                    .create(AuthApi::class.java)
+            var cleared = 0
+            val revoked =
+                AuthRepository(serverUrls, withAuthenticator, tokenStore, session, setOf(SessionCache { cleared++ }), owner, Dispatchers.IO)
+            server.enqueue(json(200, TOKEN_BODY))
+            assertEquals(LoginResult.Success, revoked.login(serverAddress(), "alex", "pw", SecondFactor.Totp("123456")))
+            server.takeRequest()
+            server.enqueue(json(401, PROBLEM))
+
+            revoked.logout()
+
+            assertEquals("DELETE", server.takeRequest().method)
+            assertNull(tokenStore.current())
+            assertEquals("the logout itself cleared the caches", 1, cleared)
+            appDispatcher.scheduler.advanceUntilIdle()
+            assertEquals("the collector only saw USER: the REFRESH_REJECTED event was dropped", 1, cleared)
+            owner.cancel()
+        }
+
+    @Test
+    fun `cache clears of a user logout and of the network layer never run concurrently`() =
+        runBlocking {
+            val owner = CoroutineScope(Dispatchers.Default + SupervisorJob())
+            val active = AtomicInteger()
+            val maxActive = AtomicInteger()
+            val done = AtomicInteger()
+            val collectorStarted = CompletableDeferred<Unit>()
+            val serialized =
+                AuthRepository(
+                    serverUrls,
+                    authApi,
+                    tokenStore,
+                    session,
+                    setOf(
+                        SessionCache {
+                            maxActive.accumulateAndGet(active.incrementAndGet(), ::maxOf)
+                            collectorStarted.complete(Unit)
+                            delay(200)
+                            active.decrementAndGet()
+                            done.incrementAndGet()
+                        },
+                    ),
+                    owner,
+                    Dispatchers.IO,
+                )
+            val tokens = AuthTokens("access-1", "refresh-1")
+            tokenStore.login(tokens, null)
+            assertTrue(session.logoutIfCurrent(tokens, LogoutReason.REFRESH_REJECTED))
+            // The collector is inside its clear (and holds the lock) when the user logout starts its own.
+            withTimeout(5_000) { collectorStarted.await() }
+
+            serialized.logout()
+
+            assertEquals(2, done.get())
+            assertEquals(1, maxActive.get())
             owner.cancel()
         }
 
@@ -554,6 +632,51 @@ class AuthRepositoryTest {
 
             assertNull(tokenStore.current())
             assertEquals(listOf("mail"), cleared)
+        }
+
+    @Test
+    fun `a cache that times out by itself neither stops the others nor the logout`() =
+        runBlocking {
+            val cleared = mutableListOf<String>()
+            val withTimingOutCache =
+                AuthRepository(
+                    serverUrls,
+                    authApi,
+                    tokenStore,
+                    session,
+                    setOf(SessionCache { withTimeout(1) { awaitCancellation() } }, SessionCache { cleared += "mail" }),
+                )
+            tokenStore.login(AuthTokens("access-1", "refresh-1"), null)
+
+            withTimingOutCache.logout()
+
+            assertNull(tokenStore.current())
+            assertEquals(listOf("mail"), cleared)
+        }
+
+    @Test
+    fun `a cache that throws a cancellation by itself does not stop later logouts by the network layer from clearing the caches`() =
+        runBlocking {
+            val owner = CoroutineScope(Dispatchers.Unconfined + SupervisorJob())
+            var cleared = 0
+            AuthRepository(
+                serverUrls,
+                authApi,
+                tokenStore,
+                session,
+                setOf(SessionCache { throw CancellationException("fictitious cache cancellation") }, SessionCache { cleared++ }),
+                owner,
+                Dispatchers.IO,
+            )
+
+            repeat(2) {
+                val tokens = AuthTokens("access-$it", "refresh-$it")
+                tokenStore.login(tokens, DEVICE_ID)
+                assertTrue(session.logoutIfCurrent(tokens, LogoutReason.REFRESH_REJECTED))
+            }
+
+            assertEquals(2, cleared)
+            owner.cancel()
         }
 
     @Test
