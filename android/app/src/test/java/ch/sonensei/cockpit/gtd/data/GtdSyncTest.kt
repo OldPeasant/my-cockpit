@@ -132,6 +132,71 @@ class GtdSyncTest {
         }
 
     @Test
+    fun `sync loads every view even after one fails and reports offline over a rejection`() =
+        runBlocking {
+            dispatcher.enqueue(CONTEXTS, status(400))
+            dispatcher.enqueue(PROJECTS, status(503))
+            dispatcher.enqueue("$TASKS|INBOX", json(taskPage(taskJson(3, "Inbox"))))
+            dispatcher.enqueue("$TASKS|NEXT", status(404))
+            dispatcher.enqueue("$TASKS|overdue", json(taskPage()))
+            dispatcher.enqueue("$TASKS|today", json(taskPage(taskJson(5, "Today", "NEXT"))))
+
+            assertEquals(RefreshResult.Offline, sync().refreshAll())
+
+            assertEquals(
+                listOf("Inbox"),
+                gtd.dao
+                    .observeTasks("INBOX")
+                    .first()
+                    .map { it.title },
+            )
+            assertEquals(
+                listOf("Today"),
+                gtd.dao
+                    .observeTasks("TODAY")
+                    .first()
+                    .map { it.title },
+            )
+            assertEquals(
+                listOf("/api/v1/contexts", "/api/v1/projects", TASKS, TASKS, TASKS, TASKS),
+                dispatcher.requests.map { it.url.encodedPath },
+            )
+        }
+
+    @Test
+    fun `sync reports the first rejection when the server is reachable`() =
+        runBlocking {
+            dispatcher.enqueue(CONTEXTS, json("""{"items":[]}"""))
+            dispatcher.enqueue(PROJECTS, status(403))
+            dispatcher.enqueue("$TASKS|INBOX", status(400))
+            dispatcher.enqueue("$TASKS|NEXT", json(taskPage()))
+            dispatcher.enqueue("$TASKS|overdue", json(taskPage()))
+            dispatcher.enqueue("$TASKS|today", json(taskPage()))
+
+            assertEquals(RefreshResult.Failed(403), sync().refreshAll())
+            assertFalse(gtd.connectivity.offline.value)
+        }
+
+    @Test
+    fun `a successful sync reports refreshed and clears the offline flag`() =
+        runBlocking {
+            server.close()
+            sync().refreshAll()
+            assertTrue(gtd.connectivity.offline.value)
+            val restarted = MockWebServer().apply { this.dispatcher = this@GtdSyncTest.dispatcher }
+            restarted.start(server.port)
+            try {
+                enqueueAllViews()
+
+                assertEquals(RefreshResult.Refreshed, sync().refreshAll())
+
+                assertFalse(gtd.connectivity.offline.value)
+            } finally {
+                restarted.close()
+            }
+        }
+
+    @Test
     fun `sync does nothing when logged out`() =
         runBlocking {
             every { session.isLoggedIn } returns false
