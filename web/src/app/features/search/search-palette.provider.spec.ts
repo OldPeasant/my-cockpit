@@ -147,6 +147,22 @@ describe('SearchPaletteProvider', () => {
     http.expectNone('/api/v1/search');
   });
 
+  it('searches for a query of exactly the minimum length (trimmed)', () => {
+    const result = collect(' pa ');
+    vi.advanceTimersByTime(SEARCH_DEBOUNCE_MS);
+    http.expectOne(isSearch('pa')).flush({ groups: [] });
+    expect(result.rows).toEqual([]);
+  });
+
+  it('shows no group for a type whose items all lack a deep link', () => {
+    const result = collect('passport');
+    vi.advanceTimersByTime(SEARCH_DEBOUNCE_MS);
+    http.expectOne(isSearch('passport')).flush({
+      groups: [{ type: 'NOTE', items: [PASSPORT.groups[1].items[1]] }, PASSPORT.groups[0]],
+    } satisfies SearchResponse);
+    expect(result.rows?.map((r) => r.group)).toEqual(['Task', 'Task']);
+  });
+
   it('sends nothing when the query changes within the debounce (unsubscribed)', () => {
     collect('pass');
     vi.advanceTimersByTime(SEARCH_DEBOUNCE_MS - 1);
