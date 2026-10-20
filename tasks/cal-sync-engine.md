@@ -5,7 +5,7 @@ owner: dell26/agent-2
 deps: [cal-local-api]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/calendar/sync,server/src/test/kotlin/ch/sonensei/cockpit/calendar/sync]
 prio: 1
-lease_until: 2026-10-20T23:51:09Z
+lease_until: 2026-10-20T23:56:09Z
 extended: dell26/agent-2
 ---
 ## Goal
