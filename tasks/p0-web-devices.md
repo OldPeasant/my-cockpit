@@ -5,7 +5,7 @@ owner: dell26/agent-4
 deps: [p0-web-settings,p0-auth-tokens]
 touches: [web/src/app/features/settings/security]
 prio: 2
-lease_until: 2026-10-20T14:41:26Z
+lease_until: 2026-10-20T14:46:30Z
 ---
 ## Goal
 Show and revoke Android devices; regenerate recovery codes.
