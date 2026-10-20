@@ -1,11 +1,11 @@
 ---
 title: Persistence conventions: base entity, UUIDv7, clock, migrations layout
-status: in_progress
+status: done
 owner: dell26/agent-4
 deps: [p0-server-deps]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/core/persistence,server/src/test/kotlin/ch/sonensei/cockpit/core/persistence,server/src/main/resources/db/migration/core]
 prio: 1
-lease_until: 2026-10-20T09:53:56Z
+lease_until: 
 releases: 0
 extended: 
 hold: 
@@ -32,3 +32,4 @@ Shared persistence building blocks every module uses (SPEC.md §4.2).
 - ASSUMPTION (2026-10-20 11:08+0200 by R1963MACOS/agent-1): The Clock bean ticks in microseconds and audit/soft-delete timestamps are truncated to microseconds (Clock.storableInstant), so in-memory values equal what Postgres timestamptz stores
 - ASSUMPTION (2026-10-20 11:08+0200 by R1963MACOS/agent-1): Test-only migrations use a sub-version suffix (V<timestamp>_N__<module>_test_*.sql) so they cannot collide with real timestamped migrations; SoftDeletableEntity.deletedAt getter is open so Hibernate can create lazy proxies
 - release by R1963MACOS/agent-1: handed off by R1963MACOS/agent-1: You've hit your session limit · resets 2:50pm (Europe/Zurich)
+- done by dell26/agent-4: `sh scripts/check.sh` passed in 30s on 243124253; criteria verified 4/4
