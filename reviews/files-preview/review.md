@@ -4,22 +4,29 @@ Date: 2026-10-21
 
 Task: files-preview - Thumbnails and previews
 
-Scope: task commits from base e350066c72369020367073624e9272f57b85584f to HEAD (`git diff e350066c..HEAD`), implementation commit 2271fe1e plus the `assume:` commits on `tasks/files-preview.md`
+Scope: task commits from base 5f362a12ebf152e0d96f83f17af8bbb4939fa79d (`git merge-base HEAD origin/main`) to HEAD f12a5000: implementation, extra tests, the fixes for CR-1..CR-3 of the previous review, the regenerated web API client and the reports. This is a re-review of the final code.
 
 Requirements:
-- tasks/files-preview.md acceptance criteria and recorded assumptions
-- SPEC.md §8.2 (Files), §4.2 (API conventions), security headers note (§ security)
+- tasks/files-preview.md acceptance criteria and its recorded assumptions
+- SPEC.md §8.2 (Files), §4.2 (API conventions)
 - docs/ARCHITECTURE.md (stack table, module conventions)
-- AGENTS.md project notes (Problem Details, generated openapi.yaml, logging, test data)
+- AGENTS.md project notes (Problem Details, generated `api/openapi.yaml` and web client, logging)
+- Previous review, fixes.md and tests.md in reviews/files-preview/
 
 Git range:
 - Branch: main
-- HEAD: 2271fe1e
-- Base/start: e350066c72369020367073624e9272f57b85584f
-- Commits reviewed: 5 (1 implementation commit, 4 assumption commits)
+- HEAD: f12a50005478ebe233110638cd714d207081deef
+- Base/start: 5f362a12ebf152e0d96f83f17af8bbb4939fa79d
+- Commits reviewed: 5 (7b2230d5, 597198f3, 2ca34eca, 8b6f2cd0, f12a5000)
 - Uncommitted changes: none
 
-Summary: 0 P0, 0 P1, 2 P2, 1 P3
+Summary: 0 P0, 0 P1, 0 P2, 2 P3
+
+## Status of the earlier findings
+
+- CR-1 (an unparseable stored audio/video mime type caused a 500): resolved. `PreviewService.isValidMime` (`PreviewService.kt:118-124`) parses the mime with `MimeTypeUtils` and rejects wildcards, so such files now get a 415 Problem Details response. The test `audio and video files with a malformed stored mime type have no preview instead of a server error` covers `video/`, `audio/mpeg x` and `audio/*`.
+- CR-2 (no test for the 100 MP guard): resolved. `PreviewEdgeCaseWebTests` `an image header claiming more than 100 megapixels is rejected with 422` asserts the 422 problem+json response and its detail, that no thumbnail was cached and that `thumbnails/tmp` is empty. `ThumbnailStoreTests` also covers the limit, a size just below it and Long overflow.
+- CR-3 (a thumbnail rendered during a purge stayed orphaned): resolved. After the atomic move, `ThumbnailStore.thumbnail` (`ThumbnailStore.kt:68-72`) deletes the target when the source blob is gone. `deleteBlob` removes the blob before the thumbnails, so whichever order the two threads run in, the cached file is removed either by `delete()` or by this check. The `init` block clears `thumbnails/tmp` at startup, and a test covers it. The race itself has no deterministic test, which is acceptable given its size. The side effect of the new exception is assessed in CR-1 below.
 
 ## P0 Critical
 
@@ -31,36 +38,32 @@ None.
 
 ## P2 Medium
 
-- [ ] **CR-1 | Inline preview answers 500 for a stored mime type that Spring cannot parse**
-    - File: `server/src/main/kotlin/ch/sonensei/cockpit/files/api/PreviewController.kt:145`
-    - Category: Correctness
-    - Problem: `Preview.Inline` calls `MediaType.parseMediaType(preview.mime)` without a guard. The mime comes from the client at upload time and is stored unvalidated (`FilesService.storeFile` only checks `ifBlank`, `UploadService.create` only trims). `PreviewService.preview` accepts any value starting with `audio/` or `video/`, so values like `video/` or `audio/mpeg x` reach `parseMediaType`. It throws `InvalidMediaTypeException`, which only the generic `ProblemDetailsAdvice.handleUnexpected` catches: the result is a 500 and an ERROR log entry. The existing download endpoint guards this case (`FileController.mediaType`, falling back to `application/octet-stream`), so preview is inconsistent with it.
-    - Why it matters: a file with slightly malformed metadata breaks its preview with a server error instead of a clear client-facing answer. The ERROR log also hides real failures.
-    - Suggested fix: parse the media type in `PreviewService.preview` (or reuse a shared helper like `FileController.mediaType`). When parsing fails, throw `PreviewNotSupportedException` (415). Add a test that uploads with such a mime.
-
-- [ ] **CR-2 | The decompression-bomb guard (MAX_PIXELS -> 422) is not tested**
-    - File: `server/src/main/kotlin/ch/sonensei/cockpit/files/infra/ThumbnailStore.kt:110` (test: `server/src/test/kotlin/ch/sonensei/cockpit/files/PreviewWebTests.kt:154`)
-    - Category: Tests
-    - Problem: the assumption on record says images above 100 MP are rejected with 422, and `dimensions()` puts this into code by reading only the header. No test covers it. `thumbnail rejects other sizes, non-images and undecodable images` covers only non-image bytes. A tiny file can trigger the guard: a PNG whose IHDR declares something like 20000x20000, with a valid CRC and a minimal IDAT. That makes a regression test cheap.
-    - Why it matters: this guard is the only protection against an upload that makes the server allocate gigabytes of heap. If a refactor drops it, for example by calling Thumbnailator before `dimensions()`, no test would fail.
-    - Suggested fix: add a web test that uploads a small PNG with a header above `MAX_PIXELS`. Assert 422 `application/problem+json`, and assert that no file is left under `thumbnails/`.
+None.
 
 ## P3 Low
 
-- [ ] **CR-3 | A thumbnail rendered while its blob is purged stays orphaned in the cache**
-    - File: `server/src/main/kotlin/ch/sonensei/cockpit/files/infra/ThumbnailStore.kt:52` (with `FilesService.deleteBlob`, `server/src/main/kotlin/ch/sonensei/cockpit/files/domain/FilesService.kt:436`)
+- [ ] **CR-1 | A purge during a thumbnail or preview request answers 500 with an ERROR log instead of 404**
+    - File: `server/src/main/kotlin/ch/sonensei/cockpit/files/infra/ThumbnailStore.kt:71` (and `server/src/main/kotlin/ch/sonensei/cockpit/files/domain/PreviewService.kt:94` for text previews)
     - Category: Correctness
-    - Problem: `thumbnail()` checks for the cached file, renders it, and then moves it into place with no coordination with `delete()`. Suppose a purge commits while a render is in flight: `deleteBlob` removes the blob and all thumbnails, and then the in-flight render moves its result into `thumbnails/<size>/<key>.<ext>`. Nothing ever deletes that file afterwards. In the same way, temp files under `thumbnails/tmp/` are left behind if the process dies mid-render.
-    - Why it matters: this is a small disk leak in a cache the class documentation promises to clean up when the blob is purged. Its impact is low in a single-user app.
-    - Suggested fix: after the move, check `Files.exists(source)` and delete the target if the blob is gone. Optionally, clear `thumbnails/tmp` at startup.
+    - Problem: the CR-3 fix throws `java.nio.file.NoSuchFileException` when the blob disappears during a render. No handler in `PreviewController` or `ProblemDetailsAdvice` maps it, so `ProblemDetailsAdvice.handleUnexpected` turns it into a 500 and logs it at ERROR. The same race already led to an unmapped exception on other paths: `blobs.open` in the text preview, and `ImageIO.createImageInputStream` in `dimensions()`, which wraps the missing file in an `IIOException` outside its try block. The window is narrow: the file must be loaded as active, and then it must be purged from the Trash before its blob is read, which in a single-user app takes deliberate concurrent action. No data is lost and the cache stays clean.
+    - Why it matters: the client receives a server error and the log reports a fault, but the true outcome is "this file no longer exists". The fix is cheap. The rare frequency is why this is rated P3 and does not block the task.
+    - Suggested fix: add `@ExceptionHandler(NoSuchFileException::class)` to `PreviewController` that answers 404 Problem Details, as for a missing file. A test can call `ThumbnailStore.thumbnail` or `PreviewService.preview` on a row whose blob was deleted directly.
+
+- [ ] **CR-2 | The thumbnail `size` query parameter is documented as a string enum, although it is an integer**
+    - File: `server/src/main/kotlin/ch/sonensei/cockpit/files/api/PreviewController.kt:75` (output in `api/openapi.yaml`, `/api/v1/files/{id}/thumbnail`, and in `web/src/app/api/generated/fn/files/get-file-thumbnail-*.ts`)
+    - Category: Integration
+    - Problem: `Schema(allowableValues = ["256", "1024"])` without a type makes springdoc emit `type: string, enum: ["256", "1024"]` with no `default`. The generated web client types the parameter as `'256' | '1024'`, and the Android generator will produce a string enum. The controller binds an `Int` that defaults to 256. Requests still work, because query values are strings on the wire, but the contract misstates the type and drops the default.
+    - Why it matters: generated clients get a less accurate model, and the documented default (256) is visible only in the description text.
+    - Suggested fix: use `Schema(type = "integer", allowableValues = ["256", "1024"], defaultValue = "256")`. Then regenerate `api/openapi.yaml` and the web client.
 
 ## Notes (not findings)
 
-- Inline serving of user-supplied content was checked. Only `application/pdf`, `audio/*`, `video/*` and exact raster image types (jpeg/png/webp/gif) are served inline. SVG and HTML are excluded or downgraded to `text/plain`. Spring Security's default `X-Content-Type-Options: nosniff` stays active (SecurityConfiguration does not disable headers). The filename goes into `Content-Disposition` through the existing escaping helper.
-- Path handling was checked. Thumbnail paths are built from `BlobStore.isValidKey`-validated storage keys and a whitelisted size, so no request input reaches the file system path.
-- The `UTF-8 boundary` logic, the 256 KB limit, U+FFFD replacement, EXIF orientation, no-upscaling, the cache, deletion on purge, 404 for trashed files, and Range/206 are implemented and covered by `PreviewWebTests` / `PreviewTextTests`.
-- At review time `python tasks.py verify files-preview` shows no evidence recorded for criteria 1-4 yet. The parent worker must record the Testcontainers run (criterion 3) and the `OpenApiContractTest` run without the flag (criterion 4) before `done`. The reviewer did not run Gradle.
+- Security of inline serving was checked again. Only PDF, `audio/*`, `video/*` (now with a parseable concrete mime) and the four raster image types are served inline. Text, including HTML, is served as `text/plain` or `text/markdown` with UTF-8. SVG is excluded. Spring Security's default `nosniff` header stays active, and the filename goes through the existing `ContentDispositions` escaping. Thumbnail paths come only from storage keys validated by `BlobStore.isValidKey` and a whitelisted size.
+- The `utf8Boundary` logic was re-checked by hand for 2/3/4-byte sequences and for stray continuation bytes. It is correct, and `PreviewTextTests` covers it.
+- `api/openapi.yaml` and `web/src/app/api/generated/` are consistent with each other. tests.md item TW-1 (client drift) is addressed by commit f12a5000. Editing the generated web client outside `touches` is recorded as an assumption.
+- The scope hashes in tests.md and fixes.md (for example 8aaa677c, 054a2d82) refer to commits from before a rebase. The code they describe matches the current HEAD.
+- `python tasks.py verify files-preview` still shows criteria 1-4 without evidence. Nothing is claimed yet, so this is not a finding, but before `done` the parent worker must record evidence for the Testcontainers run (criterion 3) and for `OpenApiContractTest` passing without the flag (criterion 4). The reviewer did not run Gradle.
 
 ## Review conclusion
 
-Material issues found; fix before completing the task.
+No material issues found. CR-1 and CR-2 are optional P3 improvements.
