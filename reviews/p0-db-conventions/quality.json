@@ -1,0 +1,28 @@
+{
+  "schema": 1,
+  "task": "p0-db-conventions",
+  "reviewed_revision": "2c12988857962c077ad23a938677af2bf33c803e",
+  "helpers": {
+    "test-writer": {"status": "completed", "report": "reviews/p0-db-conventions/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/p0-db-conventions/review.md"},
+    "fixer": {"status": "completed", "report": "reviews/p0-db-conventions/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "Clock bean ticks in microseconds; auditing and softDelete truncate to timestamptz precision (fixer, round 1)"},
+    {"id": "CR-2", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "equals reads class/id of a proxy argument without initializing it; deletedAt getter no longer final so proxies work (fixer, round 1)"},
+    {"id": "CR-3", "source": "code-reviewer", "severity": "P3", "disposition": "invalid",
+     "note": "duplicate client id test already added by the test-writer before the fix round"},
+    {"id": "CR-4", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "test-only migration renamed to V202610200000_1__ (sub-version), enforced by MigrationConventionTests (fixer, round 1)"},
+    {"id": "CR-5", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "documentation-only fix by the parent worker in 186593b (KDoc + ARCHITECTURE.md proxy-equality limits, toString uses javaClass); confirmed resolved by the final review round"}
+  ],
+  "validation": [
+    {"command": "cd server && ./gradlew ktlintCheck test --tests 'ch.sonensei.cockpit.core.persistence.*' (Docker, Postgres Testcontainers)", "result": "pass"},
+    {"command": "cd server && ./gradlew check", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
