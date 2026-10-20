@@ -1,0 +1,45 @@
+<section class="list" aria-labelledby="someday-title">
+  <header class="head">
+    <h1 id="someday-title" i18n="@@gtd.someday.title">Someday / Maybe</h1>
+  </header>
+
+  @if (tasks.loaded()) {
+    @for (task of tasks.items(); track task.id) {
+      <div class="entry">
+        <app-task-row
+          [task]="task"
+          [contexts]="contexts.byId()"
+          [projects]="projects.byId()"
+          [today]="today()"
+          (toggleDone)="toggleDone($event)"
+          (open)="open($event)"
+        />
+        <div class="aside">
+          <button
+            type="button"
+            class="action"
+            [disabled]="busy().has(task.id)"
+            [attr.aria-label]="activateLabel(task.title)"
+            (click)="activate(task)"
+            i18n="@@gtd.someday.activate"
+          >
+            Activate
+          </button>
+        </div>
+      </div>
+    } @empty {
+      <p class="empty" i18n="@@gtd.someday.empty">
+        No someday ideas. Park things you might do later here while you process the inbox.
+      </p>
+    }
+  } @else if (tasks.error()) {
+    <div role="alert">
+      <p class="empty" i18n="@@gtd.lists.loadError">The list could not be loaded.</p>
+      <button type="button" class="action" (click)="retry()" i18n="@@gtd.lists.retry">
+        Try again
+      </button>
+    </div>
+  } @else {
+    <p class="empty" i18n="@@gtd.lists.loading">Loading…</p>
+  }
+</section>

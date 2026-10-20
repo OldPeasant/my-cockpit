@@ -1,7 +1,6 @@
 import { Routes } from '@angular/router';
-import { ComingSoon } from '../../../shell/coming-soon';
+import { SomedayPage } from './someday-page';
 
-// Placeholder until the someday feature task replaces it.
 export default [
-  { path: '', title: $localize`:@@nav.someday:Someday`, component: ComingSoon },
+  { path: '', title: $localize`:@@nav.someday:Someday`, component: SomedayPage },
 ] satisfies Routes;

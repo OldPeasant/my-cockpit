@@ -1,0 +1,67 @@
+<section class="list" aria-labelledby="waiting-title">
+  <header class="head">
+    <h1 id="waiting-title" i18n="@@gtd.waiting.title">Waiting for</h1>
+  </header>
+  <p class="status" role="status">
+    @if (created(); as title) {
+      <ng-container i18n="@@gtd.waiting.created">Added “{{ title }}” to Next.</ng-container>
+    }
+  </p>
+
+  @if (tasks.loaded()) {
+    @for (task of waiting(); track task.id) {
+      <div class="entry">
+        <app-task-row
+          [task]="task"
+          [contexts]="contexts.byId()"
+          [projects]="projects.byId()"
+          [today]="today()"
+          (toggleDone)="toggleDone($event)"
+          (open)="open($event)"
+        />
+        <div class="aside">
+          <div class="waited">
+            @if (days(task); as days) {
+              <span class="age" [class.long]="long(task)" i18n="@@gtd.waiting.days">
+                {days, plural, =1 {1 day} other {{{days}} days}}
+              </span>
+            } @else if (task.waitingSince) {
+              <span class="age" i18n="@@gtd.waiting.today">Today</span>
+            }
+            @if (task.waitingForText) {
+              <span class="who" i18n="@@gtd.waiting.for">for {{ task.waitingForText }}</span>
+            }
+            @if (task.waitingSince) {
+              <span class="since" i18n="@@gtd.waiting.since"
+                >since {{ task.waitingSince | date: 'MMM d' }}</span
+              >
+            }
+          </div>
+          <button
+            type="button"
+            class="action"
+            [disabled]="busy().has(task.id)"
+            [attr.aria-label]="followUpLabel(task.title)"
+            (click)="followUp(task)"
+            i18n="@@gtd.waiting.followUp"
+          >
+            Follow up
+          </button>
+        </div>
+      </div>
+    } @empty {
+      <p class="empty" i18n="@@gtd.waiting.empty">
+        Nothing to wait for. Use “Waiting” when you process the inbox to hand something off.
+      </p>
+    }
+  } @else if (tasks.error()) {
+    <div role="alert">
+      <p class="empty" i18n="@@gtd.lists.loadError">The list could not be loaded.</p>
+      <button type="button" class="action" (click)="retry()" i18n="@@gtd.lists.retry">
+        Try again
+      </button>
+    </div>
+  } @else {
+    <p class="empty" i18n="@@gtd.lists.loading">Loading…</p>
+  }
+</section>

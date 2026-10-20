@@ -52,7 +52,15 @@ describe('App', () => {
   });
 
   /** Sections whose feature is built and so no longer shows the placeholder. */
-  const BUILT = ['/settings', '/trash', '/inbox'];
+  const BUILT = [
+    '/settings',
+    '/trash',
+    '/inbox',
+    '/waiting',
+    '/someday',
+    '/scheduled',
+    '/logbook',
+  ];
 
   it.each(NAV_SECTIONS.filter((s) => !BUILT.includes(s.path)).map((s) => [s.path, s.label]))(
     'lazy-loads a coming soon page for %s',

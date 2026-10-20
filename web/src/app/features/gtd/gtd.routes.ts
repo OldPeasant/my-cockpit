@@ -10,5 +10,6 @@ export default [
   { path: 'projects', loadChildren: () => import('./projects/projects.routes') },
   { path: 'waiting', loadChildren: () => import('./lists/waiting.routes') },
   { path: 'someday', loadChildren: () => import('./lists/someday.routes') },
+  { path: 'scheduled', loadChildren: () => import('./lists/scheduled.routes') },
   { path: 'logbook', loadChildren: () => import('./lists/logbook.routes') },
 ] satisfies Routes;

@@ -1,0 +1,55 @@
+<section class="list" aria-labelledby="scheduled-title">
+  <header class="head">
+    <h1 id="scheduled-title" i18n="@@gtd.scheduled.title">Scheduled</h1>
+  </header>
+
+  @if (tasks.loaded()) {
+    @for (group of groups(); track group.date) {
+      <section class="day" [attr.aria-labelledby]="'day-' + group.date">
+        <h2 class="day-head" [id]="'day-' + group.date">
+          @switch (relativeDay(group.date, today())) {
+            @case ('today') {
+              <ng-container i18n="@@gtd.day.today">Today</ng-container>
+            }
+            @case ('tomorrow') {
+              <ng-container i18n="@@gtd.day.tomorrow">Tomorrow</ng-container>
+            }
+            @case ('yesterday') {
+              <ng-container i18n="@@gtd.day.yesterday">Yesterday</ng-container>
+            }
+            @default {
+              @if (group.date) {
+                {{ group.date | date: 'EEEE, MMM d, y' }}
+              } @else {
+                <ng-container i18n="@@gtd.scheduled.noDate">No date</ng-container>
+              }
+            }
+          }
+        </h2>
+        @for (task of group.tasks; track task.id) {
+          <app-task-row
+            [task]="task"
+            [contexts]="contexts.byId()"
+            [projects]="projects.byId()"
+            [today]="today()"
+            (toggleDone)="toggleDone($event)"
+            (open)="open($event)"
+          />
+        }
+      </section>
+    } @empty {
+      <p class="empty" i18n="@@gtd.scheduled.empty">
+        Nothing scheduled. Schedule an inbox item to have it show up in Next on its date.
+      </p>
+    }
+  } @else if (tasks.error()) {
+    <div role="alert">
+      <p class="empty" i18n="@@gtd.lists.loadError">The list could not be loaded.</p>
+      <button type="button" class="action" (click)="retry()" i18n="@@gtd.lists.retry">
+        Try again
+      </button>
+    </div>
+  } @else {
+    <p class="empty" i18n="@@gtd.lists.loading">Loading…</p>
+  }
+</section>

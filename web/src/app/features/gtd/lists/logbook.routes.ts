@@ -1,7 +1,6 @@
 import { Routes } from '@angular/router';
-import { ComingSoon } from '../../../shell/coming-soon';
+import { LogbookPage } from './logbook-page';
 
-// Placeholder until the logbook feature task replaces it.
 export default [
-  { path: '', title: $localize`:@@nav.logbook:Logbook`, component: ComingSoon },
+  { path: '', title: $localize`:@@nav.logbook:Logbook`, component: LogbookPage },
 ] satisfies Routes;

@@ -13,6 +13,7 @@ the shell's `ComingSoon` placeholder. A feature task changes only its own folder
 | Projects  | `/projects`  | `gtd/gtd.routes.ts` → `gtd/projects/projects.routes.ts` |
 | Waiting   | `/waiting`   | `gtd/gtd.routes.ts` → `gtd/lists/waiting.routes.ts`     |
 | Someday   | `/someday`   | `gtd/gtd.routes.ts` → `gtd/lists/someday.routes.ts`     |
+| Scheduled | `/scheduled` | `gtd/gtd.routes.ts` → `gtd/lists/scheduled.routes.ts`   |
 | Logbook   | `/logbook`   | `gtd/gtd.routes.ts` → `gtd/lists/logbook.routes.ts`     |
 | Calendar  | `/calendar`  | `calendar/calendar.routes.ts`                           |
 | Mail      | `/mail`      | `mail/mail.routes.ts`                                   |

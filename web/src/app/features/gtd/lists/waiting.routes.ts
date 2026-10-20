@@ -1,7 +1,6 @@
 import { Routes } from '@angular/router';
-import { ComingSoon } from '../../../shell/coming-soon';
+import { WaitingPage } from './waiting-page';
 
-// Placeholder until the waiting feature task replaces it.
 export default [
-  { path: '', title: $localize`:@@nav.waiting:Waiting`, component: ComingSoon },
+  { path: '', title: $localize`:@@nav.waiting:Waiting`, component: WaitingPage },
 ] satisfies Routes;
