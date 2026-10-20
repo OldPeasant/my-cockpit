@@ -18,3 +18,4 @@ Connect accounts (SPEC.md §7.1).
 
 ## Notes
 - ASSUMPTION (2026-10-20 17:17+0200 by dell26/agent-2): Account API lives in mail/imap (task touches) as /api/v1/mail/accounts plus POST /{id}/test, GET /{id}/folders, POST /{id}/folders/sync, PATCH /{id}/folders/{folderId}; 'test connection' tests the stored account only (no test of unsaved settings), failures are 200 with per-protocol errorCode
+- ASSUMPTION (2026-10-20 17:17+0200 by dell26/agent-2): Sending identities (mail_identity) are not managed by this API; left to compose/settings tasks. Account creation does not contact the server; folder sync is an explicit call (header-sync/idle tasks will call MailFolderService.sync)
