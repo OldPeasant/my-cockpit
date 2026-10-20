@@ -1,10 +1,11 @@
 ---
 title: Command palette search and commands
-status: todo
-owner:
+status: in_progress
+owner: dell26/agent-4
 deps: [p0-web-shell,p0-search-core,p0-e2e-harness]
 touches: [web/src/app/features/search]
 prio: 1
+lease_until: 2026-10-20T17:09:58Z
 ---
 ## Goal
 Ctrl+K palette with global search and commands (SPEC.md §4.4).
