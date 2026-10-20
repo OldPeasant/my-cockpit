@@ -54,6 +54,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.shadows.ShadowBuild
 import java.io.File
+import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 import kotlin.coroutines.CoroutineContext
@@ -649,6 +650,41 @@ class AuthRepositoryTest {
             tokenStore.login(AuthTokens("access-1", "refresh-1"), null)
 
             withTimingOutCache.logout()
+
+            assertNull(tokenStore.current())
+            assertEquals(listOf("mail"), cleared)
+        }
+
+    @Test
+    fun `a user logout whose caller is cancelled during a cache clear still clears every cache`() =
+        runBlocking {
+            // The screen goes away while the first cache is clearing, and that cache then throws a cancellation. The
+            // logout is not cancellable, so this is not a cancellation of the clearing: the second cache is still cleared.
+            val cleared = CopyOnWriteArrayList<String>()
+            val clearing = CompletableDeferred<Unit>()
+            val proceed = CompletableDeferred<Unit>()
+            val leftBehind =
+                AuthRepository(
+                    serverUrls,
+                    authApi,
+                    tokenStore,
+                    session,
+                    setOf(
+                        SessionCache {
+                            clearing.complete(Unit)
+                            proceed.await()
+                            throw CancellationException("fictitious cache cancellation")
+                        },
+                        SessionCache { cleared += "mail" },
+                    ),
+                )
+            tokenStore.login(AuthTokens("access-1", "refresh-1"), null)
+            val logout = scope.launch { leftBehind.logout() }
+            withTimeout(5_000) { clearing.await() }
+
+            logout.cancel()
+            proceed.complete(Unit)
+            withTimeout(5_000) { logout.join() }
 
             assertNull(tokenStore.current())
             assertEquals(listOf("mail"), cleared)
