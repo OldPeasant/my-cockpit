@@ -4,42 +4,53 @@ Date: 2026-10-20
 
 Task: and-login - Android login and secure token storage
 
-Scope: `git diff 6604ff34778f12ee5d7292feab42f1490c54c8aa..69121421df27b3b3c77876a114b7f3fc99336ab3`. This is a re-review of the final code after fixes CR-1, CR-3 and CR-4 and the added tests. Committed changes only; the working tree was clean. Reviewed revision: `69121421df27b3b3c77876a114b7f3fc99336ab3`.
+Scope: `git diff 9deb2abcbc462523ca6f2b1252c8a1a52744c16d..a85a759f2b85c4d7368747b80b714996ff818abf`, all task commits, with the focus on the round-2 fix commit 7b6fd27a (`AuthRepository.kt`: caches cleared once per logout, each cache in its own try/catch; `PersistentTokenStore.kt`: `commit` for token writes) and the test added in a85a759f. Committed changes only; the working tree was clean. This is the final review round. Reviewed revision: `a85a759f2b85c4d7368747b80b714996ff818abf`.
 
 Requirements:
-- tasks/and-login.md: acceptance criteria 1-3 and the recorded assumptions (direct Keystore AES-GCM that fails closed; passkeys left to and-passkeys; best-effort device revocation with a 5 s timeout; SessionCache multibinding plus cacheDir; logout under Settings; 30 s default Retry-After)
-- SPEC.md section 4.1 (Android: refresh token in Keystore-backed storage, devices revocable, login rate limiting) and section 9.2 item 1 (login with password+TOTP, server URL setting)
-- docs/ARCHITECTURE.md (Android MVVM, one package per feature, lint, coverage) and AGENTS.md project notes (no secrets logged, stay inside `touches`, fictitious test data)
-- Server contract: `server/.../core/auth/domain/DeviceTokenService.kt` and `infra/AuthDeviceRepository.kt` (refresh rotation, reuse of a retired token revokes the device)
-- Earlier evidence: reviews/and-login/review.md (first review), fixes.md, tests.md
+- tasks/and-login.md: acceptance criteria 1-3 and the recorded assumptions:
+    - direct Keystore AES-GCM that fails closed;
+    - passkeys left to and-passkeys;
+    - best-effort device revocation with a 5 s timeout;
+    - SessionCache multibinding plus cacheDir, cleared on any logout;
+    - logout under Settings;
+    - 30 s default Retry-After.
+- SPEC.md section 4.1 (Android refresh token in Keystore-backed storage, revocable devices, login rate limiting) and section 9.2 item 1 (login with password + TOTP, server URL)
+- docs/ARCHITECTURE.md (Android MVVM, one package per feature, lint, coverage) and the AGENTS.md project notes (no secrets logged, stay inside `touches`, fictitious test data)
+- Server contract: refresh rotation; reusing a retired refresh token revokes the device
+- Earlier evidence: reviews/and-login/review.md (rounds 1 and 2), fixes.md (rounds 1 and 2), tests.md (final pass)
 
 Git range:
 - Branch: main
-- HEAD: 69121421df27b3b3c77876a114b7f3fc99336ab3
-- Base/start: 6604ff34778f12ee5d7292feab42f1490c54c8aa (`git merge-base HEAD origin/main`)
-- Commits reviewed: 9 (43e71518, c906989b, e4a54e83, e53cb4b3, 56787a8d, a0173fad, 9c5a8905, f2003169, 69121421)
+- HEAD: a85a759f2b85c4d7368747b80b714996ff818abf
+- Base/start: 9deb2abcbc462523ca6f2b1252c8a1a52744c16d (supplied by the parent)
+- Commits reviewed: 12 (43cb7794, 833b3757, d6ddcb1a, 562fff8c, f5bb2d6e, 534a9130, fca3d3f4, 87dc794a, b90238d0, 4c6e1dda, 7b6fd27a, a85a759f)
 
-Summary: 0 P0, 0 P1, 0 P2, 3 P3
+Summary: 0 P0, 0 P1, 0 P2, 2 P3
 
-## Disposition of the earlier findings
+## Status of the earlier findings
 
-- **CR-1 (P2, logout cancelled before the tokens are cleared): fixed.** `AuthRepository.logout()` (AuthRepository.kt:160-176) runs in `withContext(NonCancellable)`. The revocation is limited by `withTimeoutOrNull(REVOKE_TIMEOUT_MS)`. `session.logout(USER)` and the cache clearing run in `finally`. `SessionViewModel.logout()` (SessionViewModel.kt:30-33) ignores taps while a logout job is active. The regression test `AuthRepositoryTest` "a logout started from the app still forgets the tokens when its screen goes away during the revocation" cancels `viewModelScope` during a slow DELETE and checks that the tokens are cleared. `SessionViewModelTest` covers the ignored repeated taps.
-- **CR-2 (P2, real Keystore round trip never run): partly addressed. Device-level evidence is still open.** `KeystoreTokenCipherTest` now runs the production `KeystoreTokenCipher` against a stand-in JCA provider registered as "AndroidKeyStore". The test covers the key spec, the IV/tag layout, the AAD, tamper, lost-key and replaced-key handling, and a store restart. The real hardware-backed Keystore still runs on no device or emulator, and tests.md says so. None of the three criteria has recorded evidence yet (`tasks.py verify and-login` shows all unticked). The parent should record criterion 2's device-level Keystore part as `--skip` with a reason, as the parent has already planned, and not claim it from the JVM suite. This is not repeated as a finding.
-- **CR-3 (P3, Keystore work on the main thread): fixed for login, initial decrypt accepted.** `tokenStore.login` runs in `withContext(ioDispatcher)` (AuthRepository.kt:142-144), and a counting-dispatcher test covers it. The first decrypt in `PersistentTokenStore`'s initializer still runs on whichever thread injects the store first, normally Main at cold start. The finding offered that as an optional "consider", and the fixer left it unchanged because the fix would need changes outside the task's `touches`. That is acceptable.
-- **CR-4 (P3, caches cleared twice): fixed for the normal paths.** `AuthRepository` is now the single owner. A user logout clears the caches inline. Other reasons arrive through the app-scope collector filtered to `!= USER` (AuthRepository.kt:100-105). The ViewModel observer was removed. One edge case still clears twice; see CR-1 below.
+Round 1:
+- **CR-1 (P2, logout cancelled before the tokens are cleared): fixed.** It was verified in round 2 and is unchanged. `logout()` runs in `withContext(NonCancellable)`, and `session.logout(USER)` runs in `finally` (AuthRepository.kt:163-184).
+- **CR-2 (P2, real Keystore round trip never run): partly addressed. Device-level evidence is still open.** `KeystoreTokenCipherTest` runs the production cipher against a stand-in "AndroidKeyStore" JCA provider. tests.md states that hardware-backed key generation and OS key invalidation were not run. `tasks.py verify and-login` still shows all three criteria unticked. The parent must record the device-level Keystore part of criterion 2 with `--skip` and a reason, and must not claim it from the JVM suite.
+- **CR-3 (P3, Keystore work on the main thread): fixed for login.** The initial decrypt in the store's initializer was accepted as is.
+- **CR-4 (P3, caches cleared twice): fixed.** `AuthRepository` is the single owner of cache clearing.
 
-Also verified as correct in the final code:
-- The request matches the server contract.
-- 400, 401 and 429 are mapped. A numeric `Retry-After` is honoured with at least 1 s, otherwise the default is 30 s.
-- The countdown blocks submit and appears on the disabled button.
-- Password and code are cleared after success; the code is also cleared after 401 and 429.
-- `LoginUiState.toString` and `AuthTokens.toString` redact secrets. The auth package has no logging.
-- `allowBackup="false"`.
-- Undecryptable or malformed stored records are deleted and count as logged out. A failed encrypt never writes plain text.
-- Refresh rotation keeps the device id.
+Round 2:
+- **CR-1 (P3, a user logout of an already revoked device clears the caches twice): fixed.** It is covered by `a user logout of a device the server already revoked clears the caches exactly once`. The case "tokens rotated but still present" is covered by the new test in a85a759f. The fix depends on the app-scope collector receiving the network layer's logout event. That event can be dropped in a race; see CR-2 below.
+- **CR-2 (P3, a failing SessionCache crashes the app and stops later cache clears): fixed for ordinary exceptions.** Each cache runs in its own try/catch (AuthRepository.kt:186-196), and two tests cover it. One gap remains for a cache that throws a `CancellationException` on its own, for example from `withTimeout`; see CR-1 below.
+- **CR-3 (P3, rotated tokens persisted with `apply()`): fixed.** `prefs.edit(commit = encrypted != null)` (PersistentTokenStore.kt:79-84) commits logins and rotations synchronously. Removals keep `apply()`. The only callers that write tokens run off the main thread: `AuthRepository.login` on `ioDispatcher`, and `TokenAuthenticator.replace` on an OkHttp thread (checked with grep). A recording-editor test covers it.
+
+Also verified in the final code:
+- The login request and the mapping of 400, 401 and 429 are correct. The countdown is correct.
+- Secrets are cleared from the form after use, and `toString` redacts them.
+- The auth package has no logging.
+- Undecryptable stored records are deleted and the app fails closed.
 - Start-up routing follows `tokenStore.session`.
 - `TokenStore` is bound to `PersistentTokenStore`.
-- The removed shell-navigation assertion in `MainActivityLaunchTest` is still covered by `ui/CockpitShellNavigationTest` and `AppStartRoutingTest`.
+
+Changes outside `touches` are small hooks that the recorded assumptions name: `MainActivity`, `SettingsScreen`, the `NetworkModule` binding and a KDoc line.
+
+Test run by this review: `cd android && ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.auth.*'` -> BUILD SUCCESSFUL. A fresh run at 21:24 gave 116 tests in 10 classes, 0 failures, 0 errors and 0 skipped (counted from `app/build/test-results/testDebugUnitTest/TEST-ch.sonensei.cockpit.auth.*.xml`). This matches tests.md.
 
 ## P0 Critical
 
@@ -55,30 +66,34 @@ None.
 
 ## P3 Low
 
-- [ ] **CR-1 | A user logout of an already revoked device clears the caches twice, concurrently**
-    - File: `android/app/src/main/java/ch/sonensei/cockpit/auth/AuthRepository.kt:103`, `android/app/src/main/java/ch/sonensei/cockpit/auth/AuthRepository.kt:165`, `android/app/src/main/java/ch/sonensei/cockpit/auth/AuthRepository.kt:173-174`
+- [ ] **CR-1 | A cache that throws a CancellationException on its own skips the remaining caches and ends the app-scope collector**
+    - File: `android/app/src/main/java/ch/sonensei/cockpit/auth/AuthRepository.kt:190-191` (also the KDoc at `:69-72` and the collector at `:105-107`)
     - Category: Correctness
-    - Problem: `authApi.revokeDevice` goes through the main client, which has the `TokenAuthenticator` (NetworkModule.kt `authApi(retrofit)`). Suppose the device was already revoked, for example from the web device list (SPEC 4.1), or its refresh token has expired. The DELETE then gets a 401, and the authenticator refreshes. The refresh is rejected, so `session.logoutIfCurrent(..., REFRESH_REJECTED)` runs. The app-scope collector on `Dispatchers.Default` reacts with `clearCaches()`. The DELETE then returns its 401, and the `finally` block runs `session.logout(USER)` and `clearCaches()` again, possibly while the collector's pass is still running. That is the situation the CR-4 fix set out to remove ("a user logout clears the caches exactly once"), and no test covers this path.
-    - Why it matters: Today the only cache is the cacheDir deletion, where this does no harm. Feature caches contributed later, such as Room clears, would run twice and at the same time.
-    - Suggested fix: In `logout()`, skip the inline `clearCaches()` when the collector has already handled a logout for this session, or let only the collector clear the caches by removing the `USER` filter and the inline call. A user logout would then clear asynchronously, though, so check the existing "user logout clears the caches" tests. Add a test in which the DELETE returns 401 and the refresh is rejected, and assert the caches are cleared exactly once.
+    - Problem: `clearCaches()` rethrows every `CancellationException`, including one that the cache itself throws while nobody has cancelled the caller. The common case is a `TimeoutCancellationException` from `withTimeout` inside `clear()`, a well-known kotlinx pitfall. I checked the test-writer's observation, and it holds.
+        - In `logout()` (under `NonCancellable`), the remaining caches are skipped and `logout()` throws. The tokens are already cleared at that point (`session.logout(USER)` runs first). `viewModelScope` treats the exception as a cancellation, so there is no crash.
+        - In the app-scope collector, the exception ends the `collect` coroutine without any error. From then on, no network-layer or server-change logout clears any cache until the process restarts. Round-2 CR-2 set out to prevent exactly that failure mode.
+        - The `SessionCache` KDoc promises that "if [clear] throws, the failure is ignored and the other caches are still cleared", and this case breaks that promise.
+    - Why it matters: today's only cache is the cacheDir deletion, which does not time out, so there is no impact yet. But `SessionCache` is the extension point that feature tasks will use (for example Room clears), and a timeout there would silently turn off cache clearing on logout.
+    - Is it worth fixing now: yes. The fix is a one-line change in code this task owns, plus one test. Otherwise the documented contract is wrong for the first contributor that uses a timeout.
+    - Suggested fix: rethrow only when the caller is really cancelled. Use `catch (e: CancellationException) { currentCoroutineContext().ensureActive() }` and let the generic `catch` ignore the rest. Under `NonCancellable`, `ensureActive()` never throws. In the collector it still propagates cancellation of `appScope`. Add a test with a cache that throws `TimeoutCancellationException` (or a plain `CancellationException`) followed by a working cache. Run it once for a user logout and once for two network-layer logouts.
 
-- [ ] **CR-2 | A failing SessionCache crashes the app and stops later cache clears**
-    - File: `android/app/src/main/java/ch/sonensei/cockpit/auth/AuthRepository.kt:102-104`, `android/app/src/main/java/ch/sonensei/cockpit/auth/AuthRepository.kt:178`, `android/app/src/main/java/ch/sonensei/cockpit/auth/AuthRepository.kt:70-72`
-    - Category: Quality
-    - Problem: `clearCaches()` calls each `SessionCache.clear()` in turn without handling exceptions, and the `SessionCache` contract does not say that `clear()` must not throw. If one cache throws:
-        - the caches after it are not cleared;
-        - in `logout()` the exception leaves the `finally` block and reaches `viewModelScope.launch` with no handler, so the app crashes;
-        - in the app-scope collector (`SupervisorJob()` without a `CoroutineExceptionHandler`) the collector coroutine ends, so no later network-layer or server-change logout clears any cache until the process restarts, and the uncaught exception crashes the app.
-    - Why it matters: This task created `SessionCache` as the extension point that feature tasks contribute to, for example Room `clearAllTables()`, which can throw. The tokens are cleared before the caches, so no session is lost. But one buggy contributor would make logout crash the app and silently disable cache clearing for the rest of the session.
-    - Suggested fix: In `clearCaches()`, run each cache in its own try/catch (rethrow `CancellationException`), so every cache gets its turn and the collector survives. Alternatively, state in the `SessionCache` KDoc that `clear()` must not throw. Add a test with one throwing cache followed by a working one.
-
-- [ ] **CR-3 | Rotated tokens are persisted with an asynchronous apply()**
-    - File: `android/app/src/main/java/ch/sonensei/cockpit/auth/PersistentTokenStore.kt:79-81`
+- [ ] **CR-2 | The skipped inline cache clear depends on a logout event that the SharedFlow can drop**
+    - File: `android/app/src/main/java/ch/sonensei/cockpit/auth/AuthRepository.kt:180-182` (and `:105-107`). The buffer is configured at `android/app/src/main/java/ch/sonensei/cockpit/core/network/AuthSession.kt:30`, which predates this task.
     - Category: Correctness
-    - Problem: `set()` writes with `prefs.edit { ... }`, which uses `apply()`, so the disk write happens asynchronously. `replace()` stores the refresh token the server has just rotated. The server keeps the previous token as retired, and when a retired token is presented again it deletes the device (`DeviceTokenService.kt:57-61`). Suppose the process is killed after `replace()` returns but before the queued write reaches the disk, for example by a low-memory kill while the app is in the background. On the next start, the store loads the old refresh token, the first refresh presents a retired token, and the server revokes the device. The user is then logged out and the device disappears from the device list.
-    - Why it matters: The window is short, but the result is a forced re-login with TOTP. SPEC 4.1 expects the long-lived refresh token to keep the device logged in.
-    - Suggested fix: Use `edit(commit = true)` for the writes that store tokens (`login`, `replace`). `login` already runs on `ioDispatcher`, and `replace` runs on an OkHttp thread, so neither runs on Main. `clear()` can stay on `apply()`.
+    - Problem: the round-2 CR-1 fix skips the inline `clearCaches()` when the tokens disappeared during the revocation, and assumes that the collector clears the caches for the `REFRESH_REJECTED` event instead. `AuthSession.loggedOut` is a `MutableSharedFlow` with `extraBufferCapacity = 1` and `DROP_OLDEST`, and both events use `tryEmit`. The race runs as follows:
+        - In production the collector runs on `Dispatchers.Default`.
+        - `logoutIfCurrent(..., REFRESH_REJECTED)` is emitted on the OkHttp thread. It only queues the collector's resumption.
+        - The collector has not yet taken the value when `logout()`'s `finally` on Main calls `session.logout(USER)`.
+        - That `tryEmit(USER)` finds the one-slot buffer full and drops `REFRESH_REJECTED`.
+        - The collector then receives only `USER`, filters it out, and no cache is cleared.
+
+      The tests do not show this because they run the app scope on `Dispatchers.Unconfined`, which consumes each event synchronously inside `tryEmit` (AuthRepositoryTest.kt:485, :672). Before round 2 the inline clear always ran, so a dropped event was harmless.
+    - Why it matters: in this window, logging out a device that the server has already revoked leaves user caches in place, which goes against criterion 2 ("logout clears tokens and caches") and the recorded assumption that caches are cleared on any logout. The window is narrow. The Default thread usually wins against the Main-thread hop, and Main is also busy recomposing to the login screen at that moment. That is why this is P3.
+    - Suggested fix (inside `auth/`): prefer a possible double clear over a missed clear.
+        - Option 1: always clear inline in `logout()` and serialize `clearCaches()` with a `Mutex`. Repeated clears of idempotent caches are then harmless and never concurrent. This addresses the "concurrently" concern of round-2 CR-1.
+        - Option 2: keep the skip, but only when the collector has actually started a clear since the logout began, for example a counter that the collector increments.
+      Add a test whose app scope uses a `StandardTestDispatcher` that is advanced only after `logout()` returns, and assert that the caches were cleared at least once.
 
 ## Review conclusion
 
-No material issues found. The earlier P2 finding CR-1 and the P3 findings CR-3 and CR-4 are fixed. The remaining findings are P3 and do not block completion. Criterion 2's device-level Keystore evidence (earlier CR-2) must be recorded as skipped with a reason, not claimed. This review did not run Gradle; test results are taken from tests.md and fixes.md.
+No material issues found. All earlier P2 and P3 findings are fixed, apart from the device-level Keystore evidence, which must be recorded with `verify --skip` and a reason. The two remaining findings are P3 hardening of the `SessionCache` extension point and do not block completion. CR-1 costs one line and one test, so it is worth taking now. CR-2 is a narrow race with no data impact beyond leftover cache files today. The parent decides whether to fix it now or record it.
