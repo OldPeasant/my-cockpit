@@ -5,7 +5,7 @@ owner: dell26/agent-3
 deps: [p0-events-sse,p0-items-links]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/core/reminders,server/src/test/kotlin/ch/sonensei/cockpit/core/reminders,server/src/main/resources/db/migration/core-reminders]
 prio: 2
-lease_until: 2026-10-20T15:06:46Z
+lease_until: 2026-10-20T15:11:48Z
 extended: dell26/agent-3
 ---
 ## Goal
