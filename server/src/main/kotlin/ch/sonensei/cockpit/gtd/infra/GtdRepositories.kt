@@ -59,6 +59,9 @@ interface ProjectRepository :
 	JpaSpecificationExecutor<Project> {
 	fun findByStatusAndDeletedAtIsNullOrderByIdAsc(status: ProjectStatus): List<Project>
 
+	/** Projects (not deleted) with one of the statuses, oldest first. */
+	fun findByStatusInAndDeletedAtIsNullOrderByIdAsc(statuses: Collection<ProjectStatus>): List<Project>
+
 	/** The projects of an area, also deleted ones. */
 	fun findByAreaId(areaId: UUID): List<Project>
 }
