@@ -288,6 +288,79 @@ class UsageLimitHandOffRefused(PushRunner):
         self.assertEqual(self.sessions(), 1)
 
 
+# FAKE_AGENT's `limit`, but before the usage limit another clone pushes a conflicting notes.txt to main, so the
+# runner's `release --handoff` stops with CONFLICT while catching up (a failure that is not a push failure)
+CONFLICT_LIMIT_AGENT = FAKE_AGENT.replace('''    elif mode == "limit":''', '''    elif mode == "limit":
+        with open("notes.txt", "w") as f:
+            f.write("agent version\\n")
+        subprocess.run(["git", "add", "-A"], capture_output=True)
+        subprocess.run(["git", "commit", "-qm", f"notes for {tid}"], capture_output=True)
+        other = os.path.join("..", "..", "other")
+        subprocess.run(["git", "clone", "-q", os.path.join("..", "..", "remote.git"), other], capture_output=True)
+        with open(os.path.join(other, "notes.txt"), "w") as f:
+            f.write("someone else's version\\n")
+        for c in (["add", "-A"], ["-c", "user.name=other", "-c", "user.email=o@t", "commit", "-qm", "other notes"],
+                  ["push", "-q", "origin", "HEAD:main"]):
+            subprocess.run(["git", *c], cwd=other, capture_output=True)''', 1)
+assert CONFLICT_LIMIT_AGENT != FAKE_AGENT
+
+
+class ConflictLimitRunner(PushRunner):
+    fake_agent, mode, budget = CONFLICT_LIMIT_AGENT, "limit", 10
+
+
+class UsageLimitHandOffConflict(ConflictLimitRunner):
+    """hand_off() when `release --handoff` fails for another reason (CONFLICT) and pushes work: as before the
+    task: the work goes to wip/a by the fallback push, the clone is reset to @{u} and the release is redone."""
+
+    def before_start(self):
+        pass  # the remote takes every push
+
+    def test_hand_off_after_conflict_saves_work_to_wip_and_releases(self):
+        self.wait_for("a handed off", lambda: "handed off by" in self.state("a")["text"], timeout=120)
+        self.wait_for("hand-off log", lambda: "handed off a: RELEASED a" in self.log.read_text())
+        log = self.log.read_text()
+        self.assertNotIn("hand-off FAILED", log)
+        self.assertNotIn("BLOCKED", log)
+        a = self.state("a")
+        self.assertEqual((a["status"], a["releases"], a["hold"]), ("todo", "0", ""))
+        self.assertNotEqual(a["owner"], "box/agent-1")
+        wip = sh(self.tmp, "git", "--git-dir=remote.git", "log", "--format=%s", "wip/a").stdout
+        self.assertIn("notes for a", wip)  # the fallback push saved the work (with the rebase aborted first)
+        self.assertIn("work on a", wip)
+        main = sh(self.tmp, "git", "--git-dir=remote.git", "log", "--format=%s", "main").stdout
+        self.assertNotIn("work on a", main)  # never on main
+        self.assertIn("someone else's", sh(self.tmp, "git", "--git-dir=remote.git", "show", "main:notes.txt").stdout)
+        self.assertEqual(sh(self.clone, "git", "status", "--porcelain").stdout.strip(), "")
+        self.assertEqual(self.status()["state"], "limited")
+
+
+class UsageLimitHandOffConflictWipRefused(ConflictLimitRunner):
+    """The same CONFLICT, but the remote refuses the fallback push to wip/a (no tasks.py push failure recorded):
+    the runner keeps the work in the clone, does not reset it away, and blocks on a."""
+
+    def before_start(self):
+        hook(self.tmp, WORKFLOW_HOOK)  # notes.txt from the other clone passes; the agent's ci.yml commit does not
+
+    def test_hand_off_after_conflict_with_refused_wip_push_blocks(self):
+        self.wait_for("hand-off FAILED log", lambda: "hand-off FAILED for a" in self.log.read_text(), timeout=120)
+        self.wait_for("BLOCKED log", lambda: "BLOCKED on a" in self.log.read_text())
+        self.wait_for("limit wait", lambda: "usage limit" in self.log.read_text().split("BLOCKED on a")[1])
+        log = self.log.read_text()
+        self.assertIn("workflow scope", log.split("hand-off FAILED for a")[1].splitlines()[0])  # git's push error
+        self.assertNotIn("handed off a", log)
+        self.assertIn("workflow scope", self.status()["error"])  # (state: `limited` while the usage limit lasts)
+        a = self.state("a")
+        self.assertEqual((a["status"], a["owner"]), ("in_progress", "box/agent-1"))
+        self.assertNotIn("handed off by", a["text"])
+        head = sh(self.clone, "git", "log", "--format=%s", "HEAD").stdout
+        self.assertIn("work on a", head)  # not reset away
+        self.assertIn("notes for a", head)
+        self.assertEqual(sh(self.clone, "git", "status", "--porcelain").stdout.strip(), "")  # rebase aborted
+        self.assertNotIn("wip/a", sh(self.tmp, "git", "--git-dir=remote.git", "branch").stdout)
+        self.assertEqual(self.sessions(), 1)
+
+
 # Sessions scripted by FAKE_MODE, a comma list, one entry per session (the last one repeats): `release`,
 # `hold`, `done` or `done:<word>` (the hook's error then names <word>, so the push error differs), `work`
 # (commit, no tasks.py push: a session without a push failure).
