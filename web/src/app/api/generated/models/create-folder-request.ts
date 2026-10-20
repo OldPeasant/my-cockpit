@@ -11,5 +11,5 @@ export interface CreateFolderRequest {
   /**
    * The parent folder; omitted or `null`: the drive root
    */
-  parentId?: string;
+  parentId?: (string | null);
 }

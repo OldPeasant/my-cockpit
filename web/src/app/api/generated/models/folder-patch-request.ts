@@ -7,5 +7,5 @@
  */
 export interface FolderPatchRequest {
   name?: string;
-  parentId?: string;
+  parentId?: (string | null);
 }

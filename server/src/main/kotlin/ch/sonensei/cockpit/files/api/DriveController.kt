@@ -5,6 +5,8 @@ import ch.sonensei.cockpit.files.domain.DriveService
 import ch.sonensei.cockpit.files.domain.UploadLimits
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.Parameter
+import io.swagger.v3.oas.annotations.media.Content
+import io.swagger.v3.oas.annotations.media.Schema
 import io.swagger.v3.oas.annotations.responses.ApiResponse
 import io.swagger.v3.oas.annotations.tags.Tag
 import org.springframework.http.MediaType
@@ -28,7 +30,11 @@ class DriveController(
 		summary = "List a folder",
 		description = "The folders and files in a folder (not in the Trash): folders first, then files, each by name regardless of case.",
 	)
-	@ApiResponse(responseCode = "200", description = "One page of the folder's contents")
+	@ApiResponse(
+		responseCode = "200",
+		description = "One page of the folder's contents",
+		content = [Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = Schema(implementation = DrivePageResponse::class))],
+	)
 	@FilesBadRequestResponse
 	@FilesNotFoundResponse
 	fun list(

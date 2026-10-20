@@ -6,6 +6,6 @@
  * Changes of a file: only the fields sent change. `folderId: null` moves it to the drive root.
  */
 export interface FilePatchRequest {
-  folderId?: string;
+  folderId?: (string | null);
   name?: string;
 }

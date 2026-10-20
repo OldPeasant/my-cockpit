@@ -65,7 +65,11 @@ class UploadController(
 
 	@GetMapping("/{id}", produces = [MediaType.APPLICATION_JSON_VALUE, PROBLEM_JSON])
 	@Operation(operationId = "getUpload", summary = "State of an upload", description = "Which chunks arrived, to resume an upload.")
-	@ApiResponse(responseCode = "200", description = "The upload")
+	@ApiResponse(
+		responseCode = "200",
+		description = "The upload",
+		content = [Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = Schema(implementation = UploadResponse::class))],
+	)
 	@FilesNotFoundResponse
 	fun get(
 		@PathVariable id: UUID,

@@ -1391,9 +1391,6 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/DrivePageResponse"
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/DrivePageResponse"
           description: One page of the folder's contents
         "400":
           content:
@@ -4232,9 +4229,6 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/UploadResponse"
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/UploadResponse"
           description: The upload
         "404":
           content:
@@ -5021,7 +5015,9 @@ components:
           type: string
           maxLength: 255
         parentId:
-          type: string
+          type:
+          - string
+          - "null"
           format: uuid
           description: "The parent folder; omitted or `null`: the drive root"
       required:
@@ -5243,7 +5239,9 @@ components:
       description: A new resumable upload
       properties:
         folderId:
-          type: string
+          type:
+          - string
+          - "null"
           format: uuid
           description: "Target folder; omitted or `null`: the drive root"
         mime:
@@ -5548,7 +5546,9 @@ components:
         \ moves it to the drive root."
       properties:
         folderId:
-          type: string
+          type:
+          - string
+          - "null"
           format: uuid
         name:
           type: string
@@ -5602,7 +5602,9 @@ components:
           type: string
           maxLength: 255
         parentId:
-          type: string
+          type:
+          - string
+          - "null"
           format: uuid
     FolderResponse:
       type: object

@@ -10,7 +10,7 @@ export interface CreateUploadRequest {
   /**
    * Target folder; omitted or `null`: the drive root
    */
-  folderId?: string;
+  folderId?: (string | null);
 
   /**
    * Mime type; default `application/octet-stream`

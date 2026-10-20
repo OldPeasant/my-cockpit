@@ -685,6 +685,29 @@ class FilesApiEdgeCaseWebTests(
 		withoutSchema.shouldBeEmpty()
 	}
 
+	@Test
+	fun `the OpenAPI contract allows null for the folder fields that mean the drive root`() {
+		val schemas = mockMvc.get("/v3/api-docs").andExpect { status { isOk() } }.json()["components"]["schemas"]
+		listOf(
+			"FolderPatchRequest" to "parentId",
+			"FilePatchRequest" to "folderId",
+			"CreateFolderRequest" to "parentId",
+			"CreateUploadRequest" to "folderId",
+		).forEach { (schema, field) ->
+			val property = schemas[schema]["properties"][field]
+			property["type"].elements().map { it.asString() } shouldContainExactly listOf("string", "null")
+			property["format"].asString() shouldBe "uuid"
+		}
+	}
+
+	@Test
+	fun `listFolder and getUpload document their 200 body as application json only`() {
+		val paths = mockMvc.get("/v3/api-docs").andExpect { status { isOk() } }.json()["paths"]
+		listOf(paths[DRIVE]["get"], paths["$UPLOADS/{id}"]["get"]).forEach { operation ->
+			operation["responses"]["200"]["content"].propertyNames().toList() shouldContainExactly listOf("application/json")
+		}
+	}
+
 	private companion object {
 		const val FILES = "/api/v1/files"
 		const val FOLDERS = "/api/v1/folders"

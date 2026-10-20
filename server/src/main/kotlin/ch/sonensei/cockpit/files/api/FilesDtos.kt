@@ -143,20 +143,20 @@ data class CreateFolderRequest(
 	@field:NotNull
 	@get:Schema(requiredMode = RequiredMode.REQUIRED, maxLength = 255)
 	val name: String? = null,
-	@get:Schema(description = "The parent folder; omitted or `null`: the drive root")
+	@get:Schema(description = "The parent folder; omitted or `null`: the drive root", types = ["string", "null"], format = "uuid")
 	val parentId: UUID? = null,
 )
 
 @Schema(description = "Changes of a folder: only the fields sent change. `parentId: null` moves it to the drive root.")
 data class FolderPatchRequest(
 	@get:Schema(maxLength = 255) val name: String? = null,
-	val parentId: UUID? = null,
+	@get:Schema(types = ["string", "null"], format = "uuid") val parentId: UUID? = null,
 )
 
 @Schema(description = "Changes of a file: only the fields sent change. `folderId: null` moves it to the drive root.")
 data class FilePatchRequest(
 	@get:Schema(maxLength = 255) val name: String? = null,
-	val folderId: UUID? = null,
+	@get:Schema(types = ["string", "null"], format = "uuid") val folderId: UUID? = null,
 )
 
 @Schema(description = "A new resumable upload")
@@ -164,7 +164,7 @@ data class CreateUploadRequest(
 	@field:NotNull
 	@get:Schema(description = "Name of the file", requiredMode = RequiredMode.REQUIRED, maxLength = 255)
 	val name: String? = null,
-	@get:Schema(description = "Target folder; omitted or `null`: the drive root")
+	@get:Schema(description = "Target folder; omitted or `null`: the drive root", types = ["string", "null"], format = "uuid")
 	val folderId: UUID? = null,
 	@get:Schema(description = "Mime type; default `application/octet-stream`")
 	val mime: String? = null,
