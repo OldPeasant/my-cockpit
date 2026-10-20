@@ -15,9 +15,9 @@
      "note": "strict refresh reuse detection has no grace window (follows AC1); the Android client must serialize refreshes"}
   ],
   "validation": [
-    {"command": "cd server && ./gradlew test --tests 'ch.sonensei.cockpit.core.auth.*' --tests '*OpenApiContractTest'", "result": "pass (166 tests, 0 failures)"},
-    {"command": "cd web && npm run api:check", "result": "pass (generated client up to date)"},
-    {"command": "cd server && ./gradlew check jacocoTestReport", "result": "pass (783 tests)"},
-    {"command": "sh scripts/check.sh", "result": "pass (== all checks passed)"}
+    {"command": "cd server && ./gradlew test --tests 'ch.sonensei.cockpit.core.auth.*' --tests '*OpenApiContractTest'", "result": "pass"},
+    {"command": "cd web && npm run api:check", "result": "pass"},
+    {"command": "cd server && ./gradlew check jacocoTestReport", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
   ]
 }
