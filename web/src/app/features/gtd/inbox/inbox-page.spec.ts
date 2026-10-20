@@ -500,6 +500,32 @@ describe('InboxPage', () => {
       expect(element.textContent).toContain('Inbox zero.');
     });
 
+    it('does not move the item when creating its new project fails', async () => {
+      await render([task('t1')]);
+      answer = (fn) => (fn === createProject ? Promise.reject(new Error('400')) : undefined);
+      await press('p');
+      await press('p');
+      const select = element.querySelector<HTMLSelectElement>('.prompt select')!;
+      select.value = '';
+      select.dispatchEvent(new Event('change'));
+      await refresh();
+      const name = element.querySelector<HTMLInputElement>('.prompt input[type=text]')!;
+      name.value = 'Plan the trip';
+      name.dispatchEvent(new Event('input'));
+      element.querySelector<HTMLFormElement>('.prompt')!.requestSubmit();
+      await refresh();
+
+      expect(callsOf(createProject)).toHaveLength(1);
+      expect(callsOf(moveTask)).toHaveLength(0);
+      expect(title()).toBe('Item t1');
+      expect(left()).toBe('1 item left');
+      expect(progress()).toBe('0');
+      // No project was created, so a retry offers the existing one again, not a phantom id.
+      answer = undefined;
+      await press('p');
+      expect(element.querySelector<HTMLSelectElement>('.prompt select')!.value).toBe('p1');
+    });
+
     it('brings a failed Trash back', async () => {
       await render([task('t1')]);
       answer = (fn) => (fn === deleteTask ? Promise.reject(new Error('412')) : undefined);
@@ -797,6 +823,80 @@ describe('InboxPage', () => {
       await refresh();
       await press('n');
       expect(callsOf(updateTask)[0].params['body']).toEqual({ energy: null, contextIds: [] });
+    });
+
+    it('saves the inline attributes before Do it', async () => {
+      await render([task('t1')]);
+      await press('p');
+      button('Medium')!.click();
+      button('@home')!.click();
+      await refresh();
+
+      await press('d');
+
+      expect(callsOf(updateTask)[0].params).toMatchObject({
+        id: 't1',
+        'If-Match': '"1"',
+        body: { energy: 'MEDIUM', contextIds: ['c1'] },
+      });
+      expect(callsOf(completeTask)[0].params).toMatchObject({ id: 't1', 'If-Match': '"2"' });
+      const order = calls.map((call) => call.fn).filter((fn) => fn !== listProjects);
+      expect(order.indexOf(updateTask)).toBeLessThan(order.indexOf(completeTask));
+    });
+
+    it('saves the inline attributes before a prompted action, with the prompt value', async () => {
+      await render([task('t1')]);
+      await press('p');
+      button('Routine')!.click();
+      button('15 min')!.click();
+      await refresh();
+      await press('s');
+      // The draft survives opening the prompt.
+      expect(button('Routine')!.getAttribute('aria-pressed')).toBe('true');
+      element.querySelector<HTMLFormElement>('.prompt')!.requestSubmit();
+      await refresh();
+
+      expect(callsOf(updateTask)).toHaveLength(1);
+      expect(callsOf(updateTask)[0].params['body']).toEqual({
+        creativity: 'ROUTINE',
+        timeEstimateMin: 15,
+      });
+      expect(callsOf(moveTask)[0].params).toMatchObject({
+        id: 't1',
+        'If-Match': '"2"',
+        body: { list: 'SCHEDULED', scheduledDate: addDays(localDate(), 1) },
+      });
+    });
+
+    it('shows inbox zero when another device empties the inbox while processing', async () => {
+      await render([task('t1'), task('t2')]);
+      await press('p');
+      expect(progress()).toBe('0');
+
+      inbox = [];
+      resync.next();
+      await refresh();
+
+      expect(element.textContent).toContain('Inbox zero.');
+      expect(left()).toBe('No items left');
+      expect(progress()).toBe('100');
+    });
+
+    it('closes an open prompt when its item leaves the inbox elsewhere', async () => {
+      await render([task('t1'), task('t2')]);
+      await press('p');
+      await press('s');
+      expect(element.querySelector('.prompt')).not.toBeNull();
+
+      inbox = [task('t2')];
+      resync.next();
+      await refresh();
+
+      expect(title()).toBe('Item t2');
+      expect(element.querySelector('.prompt')).toBeNull();
+      await press('n');
+      expect(callsOf(moveTask)).toHaveLength(1);
+      expect(callsOf(moveTask)[0].params).toMatchObject({ id: 't2', body: { list: 'NEXT' } });
     });
 
     it('trashes without saving the draft attributes', async () => {
