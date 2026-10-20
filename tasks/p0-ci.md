@@ -11,7 +11,8 @@ lease_until: 2026-10-20T10:08:01Z
 CI that runs what agents run, with the same runtimes.
 
 ## Acceptance criteria
-- [ ] Workflow on push/PR: JDK 21, Node from `.nvmrc`, Android SDK (platform 37, build-tools 36); runs `sh scripts/check.sh`, `./gradlew integrationTest`, `docker build .`
+- [x] Workflow on push/PR: JDK 21, Node from `.nvmrc`, Android SDK (platform 37, build-tools 36); runs `sh scripts/check.sh`, `./gradlew integrationTest`, `docker build .`
+  - verified (2026-10-20 11:48+0200 by dell26/agent-1): .github/workflows/ci.yml at 609e21a: on push(main)/pull_request; setup-java temurin 21, setup-node node-version-file .nvmrc, setup-android 'platforms;android-37.0 build-tools;36.0.0'; jobs run 'sh scripts/check.sh', 'cd server && ./gradlew integrationTest', 'docker build .'. Same commands run locally: check.sh -> all checks passed; integrationTest -> BUILD SUCCESSFUL (2 tests); docker build . (Podman 5.8.9) -> exit 0. Run on GitHub not observed (needs push): owner checks first run
 - [ ] Versions match `.nvmrc`/Gradle toolchains (reviewer compares); workflow validated with `actionlint` or `gh workflow view` after push (if it can't run here: skip with reason, the owner checks the first run)
 
 ## Notes
