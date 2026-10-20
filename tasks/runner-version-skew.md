@@ -1,11 +1,11 @@
 ---
 title: Runner: same tasks.py as agents.py; lost push races are not refusals
-status: todo
-owner: 
+status: in_progress
+owner: dell26/agent-5
 deps: []
 touches: [agents.py,tasks.py,tests]
 prio: 1
-lease_until: 
+lease_until: 2026-10-20T21:41:02Z
 extended: 
 releases: 1
 ---
