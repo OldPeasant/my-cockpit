@@ -57,19 +57,23 @@ class ImapConnectionPoolTests {
 		clock,
 	)
 
-	private fun account(oauthConnection: UUID? = null) =
-		MailAccount(
-			type = if (oauthConnection == null) MailAccountType.IMAP_SMTP else MailAccountType.GOOGLE,
-			displayName = "Work",
-			emailAddress = "jane.doe@example.test",
-			imapHost = "imap.example.test",
-			imapPort = 993,
-			imapSecurity = MailSecurity.SSL_TLS,
-			smtpHost = "smtp.example.test",
-			smtpPort = 465,
-			smtpSecurity = MailSecurity.SSL_TLS,
-			username = "jane",
-		).apply { oauthConnectionId = oauthConnection }
+	private fun account(
+		oauthConnection: UUID? = null,
+		id: UUID? = null,
+		imapHost: String = "imap.example.test",
+	) = MailAccount(
+		type = if (oauthConnection == null) MailAccountType.IMAP_SMTP else MailAccountType.GOOGLE,
+		displayName = "Work",
+		emailAddress = "jane.doe@example.test",
+		imapHost = imapHost,
+		imapPort = 993,
+		imapSecurity = MailSecurity.SSL_TLS,
+		smtpHost = "smtp.example.test",
+		smtpPort = 465,
+		smtpSecurity = MailSecurity.SSL_TLS,
+		username = "jane",
+		id = id,
+	).apply { oauthConnectionId = oauthConnection }
 
 	private val account = account()
 
@@ -102,6 +106,36 @@ class ImapConnectionPoolTests {
 		verify(exactly = 1) { first.close() }
 		pool.openConnections(account.id) shouldBe 1
 		pool.idleConnections(account.id) shouldBe 1
+	}
+
+	@Test
+	fun `an idle connection opened with an account loaded before an update is closed instead of reused`() {
+		val pool = pool()
+		val stale = account(id = account.id)
+		val updated = account(id = account.id, imapHost = "imap.new.example.test")
+		// The update committed and evicted the pool after the caller had loaded the account: it opens a new pool.
+		pool.evict(account.id)
+		val old = pool.withStore(stale) { it }
+		pool.idleConnections(account.id) shouldBe 1
+
+		val current = pool.withStore(updated) { it }
+
+		(current === old) shouldBe false
+		verify(exactly = 1) { old.close() }
+		verify(exactly = 1) { sessions.connectImap(match { it.imapHost == "imap.new.example.test" }) }
+		pool.openConnections(account.id) shouldBe 1
+		(pool.withStore(updated) { it } === current) shouldBe true
+	}
+
+	@Test
+	fun `an idle connection is reused by another instance of the account with the same settings`() {
+		val pool = pool()
+		val first = pool.withStore(account) { it }
+
+		val reloaded = account(id = account.id).apply { displayName = "Renamed" }
+
+		(pool.withStore(reloaded) { it } === first) shouldBe true
+		verify(exactly = 0) { first.close() }
 	}
 
 	@Test

@@ -245,15 +245,7 @@ class MailAccountService(
 	}
 
 	/** What a pooled connection depends on; the password is compared by its value, never logged. */
-	private fun connectionSettings(account: MailAccount): List<Any?> =
-		listOf(
-			account.imapHost,
-			account.imapPort,
-			account.imapSecurity,
-			account.username,
-			account.password,
-			account.oauthConnectionId,
-		)
+	private fun connectionSettings(account: MailAccount) = ImapConnectionSettings.of(account)
 
 	companion object {
 		/** The `type` of account change events. */

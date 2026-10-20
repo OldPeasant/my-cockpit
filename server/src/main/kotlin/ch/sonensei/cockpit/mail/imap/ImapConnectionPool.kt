@@ -1,8 +1,10 @@
 package ch.sonensei.cockpit.mail.imap
 
+import ch.sonensei.cockpit.core.crypto.EncryptedSecret
 import ch.sonensei.cockpit.core.oauth.domain.OAuthConnectionDisconnected
 import ch.sonensei.cockpit.mail.model.MailAccount
 import ch.sonensei.cockpit.mail.model.MailAccountRepository
+import ch.sonensei.cockpit.mail.model.MailSecurity
 import org.eclipse.angus.mail.imap.IMAPStore
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.DisposableBean
@@ -23,6 +25,31 @@ data class MailAccountConnectionChanged(
 )
 
 /**
+ * The settings an IMAP connection of an account was opened with. An idle connection is only reused by a caller whose
+ * account has the same settings, so a connection opened with an account loaded before an update is never kept.
+ */
+internal data class ImapConnectionSettings(
+	val host: String,
+	val port: Int,
+	val security: MailSecurity,
+	val username: String,
+	val password: EncryptedSecret?,
+	val oauthConnectionId: UUID?,
+) {
+	companion object {
+		fun of(account: MailAccount) =
+			ImapConnectionSettings(
+				account.imapHost,
+				account.imapPort,
+				account.imapSecurity,
+				account.username,
+				account.password,
+				account.oauthConnectionId,
+			)
+	}
+}
+
+/**
  * IMAP connections per account (SPEC.md §7.2): at most [MailImapProperties.Pool.maxConnectionsPerAccount] open at a
  * time, idle ones reused for [MailImapProperties.Pool.idleTimeout] and closed after it (checked on borrow and once a
  * minute by [evictExpired]). A caller that finds every connection busy waits up
@@ -34,7 +61,9 @@ data class MailAccountConnectionChanged(
  *
  * Changing or deleting an account ([MailAccountConnectionChanged], after commit) and disconnecting its OAuth
  * connection close its idle connections; connections in use are closed when they are returned (until then they count
- * neither against the old nor against the new limit of that account).
+ * neither against the old nor against the new limit of that account). An idle connection opened with other settings
+ * than those of the borrowing [MailAccount] (e.g. by a caller that loaded the account before an update) is closed
+ * instead of reused.
  */
 @Component
 class ImapConnectionPool(
@@ -52,14 +81,15 @@ class ImapConnectionPool(
 		block: (IMAPStore) -> T,
 	): T {
 		val pool = pools.computeIfAbsent(account.id) { AccountPool(properties.pool.maxConnectionsPerAccount) }
-		val store = pool.borrow(account)
+		val settings = ImapConnectionSettings.of(account)
+		val store = pool.borrow(account, settings)
 		var healthy = false
 		try {
 			val result = block(store)
 			healthy = true
 			return result
 		} finally {
-			pool.giveBack(store, healthy)
+			pool.giveBack(store, healthy, settings)
 		}
 	}
 
@@ -96,6 +126,7 @@ class ImapConnectionPool(
 	private class Idle(
 		val store: IMAPStore,
 		val since: Instant,
+		val settings: ImapConnectionSettings,
 	)
 
 	private inner class AccountPool(
@@ -106,7 +137,10 @@ class ImapConnectionPool(
 		private var inUse = 0
 		private var retired = false
 
-		fun borrow(account: MailAccount): IMAPStore {
+		fun borrow(
+			account: MailAccount,
+			settings: ImapConnectionSettings,
+		): IMAPStore {
 			val acquired =
 				try {
 					permits.tryAcquire(properties.pool.borrowTimeout.toMillis(), TimeUnit.MILLISECONDS)
@@ -116,7 +150,7 @@ class ImapConnectionPool(
 				}
 			if (!acquired) throw MailConnectionException(MailConnectionError.POOL_EXHAUSTED)
 			try {
-				reusable()?.let { return it }
+				reusable(settings)?.let { return it }
 				val store = sessions.connectImap(account)
 				synchronized(this) { inUse++ }
 				return store
@@ -126,8 +160,16 @@ class ImapConnectionPool(
 			}
 		}
 
-		/** The most recently used idle connection that is still fresh and alive; stale ones are closed. */
-		private fun reusable(): IMAPStore? {
+		/**
+		 * The most recently used idle connection that is still fresh and alive; stale ones and those opened with other
+		 * [settings] are closed.
+		 */
+		private fun reusable(settings: ImapConnectionSettings): IMAPStore? {
+			val outdated =
+				synchronized(this) {
+					idle.filter { it.settings != settings }.also { idle.removeAll { it.settings != settings } }
+				}
+			outdated.forEach { close(it.store) }
 			val cutoff = clock.instant().minus(properties.pool.idleTimeout)
 			while (true) {
 				val candidate =
@@ -146,6 +188,7 @@ class ImapConnectionPool(
 		fun giveBack(
 			store: IMAPStore,
 			healthy: Boolean,
+			settings: ImapConnectionSettings,
 		) {
 			try {
 				val alive = healthy && store.isConnected
@@ -153,7 +196,7 @@ class ImapConnectionPool(
 					synchronized(this) {
 						inUse--
 						val keep = alive && !retired
-						if (keep) idle.addLast(Idle(store, clock.instant()))
+						if (keep) idle.addLast(Idle(store, clock.instant(), settings))
 						keep
 					}
 				if (!keep) close(store)
