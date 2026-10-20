@@ -17,7 +17,8 @@ Common REST conventions (SPEC.md §4.2) and the committed OpenAPI contract that 
   - verified (2026-10-20 11:10+0200 by dell26/agent-2): same run -> ApiConventionsWebTests$ETagsAndIfMatch on test controller: GET ETag "1", PATCH/DELETE without If-Match 428, stale 412, current 200/204; ETagsTests (weak/list/*) -> pass
 - [x] Cursor pagination DTO (`items`, `nextCursor`) + `?cursor=&limit=` parsing with limit bounds (tests)
   - verified (2026-10-20 11:10+0200 by dell26/agent-2): same run -> CursorRequestTests (default 50, bounds 1..200 -> 400 'limit', malformed cursor -> 400, round trip, page/nextCursor) + ApiConventionsWebTests$Pagination (pages 7 items with limit=3, null nextCursor on last page) -> pass
-- [ ] `OpenApiContractTest` fetches `/v3/api-docs.yaml`; with `UPDATE_OPENAPI=1` it writes `api/openapi.yaml`, otherwise fails if the file differs; `api/openapi.yaml` committed; `api/README.md` explains regenerating it and that conflicts in it are resolved by regenerating, never by hand
+- [x] `OpenApiContractTest` fetches `/v3/api-docs.yaml`; with `UPDATE_OPENAPI=1` it writes `api/openapi.yaml`, otherwise fails if the file differs; `api/openapi.yaml` committed; `api/README.md` explains regenerating it and that conflicts in it are resolved by regenerating, never by hand
+  - verified (2026-10-20 11:10+0200 by dell26/agent-2): ./gradlew updateOpenApi (= UPDATE_OPENAPI=1 OpenApiContractTest) -> wrote api/openapi.yaml, regenerating leaves git clean; OpenApiContractTest without flag passes and failed when a line was added to api/openapi.yaml (fixer run); api/openapi.yaml + api/README.md (regenerate, conflicts resolved by regenerating) committed
 - [ ] `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.core.web.*'` passes (Postgres via Testcontainers where persistence is involved)
 
 ## Notes
