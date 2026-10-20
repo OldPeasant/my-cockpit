@@ -245,7 +245,9 @@ class TaskEdgeCaseTests(
 			create(
 				"""
 				{"title":"${"t".repeat(500)}","notesMd":"${"n".repeat(100_000)}","timeEstimateMin":10000,
-				 "recurrenceRule":"${"r".repeat(500)}","list":"WAITING","waitingForText":"${"w".repeat(500)}"}
+				 "recurrenceRule":"FREQ=DAILY;INTERVAL=${"0".repeat(
+					479,
+				)}1","recurrenceMode":"FIXED","list":"WAITING","waitingForText":"${"w".repeat(500)}"}
 				""".trimIndent(),
 			)
 		atLimits.get("title").asString().length shouldBe 500
@@ -255,7 +257,9 @@ class TaskEdgeCaseTests(
 		post(
 			"""
 			{"title":"${"t".repeat(501)}","notesMd":"${"n".repeat(100_001)}","timeEstimateMin":10001,
-			 "recurrenceRule":"${"r".repeat(501)}","list":"WAITING","waitingForText":"${"w".repeat(501)}"}
+			 "recurrenceRule":"FREQ=DAILY;INTERVAL=${"0".repeat(
+				480,
+			)}1","recurrenceMode":"FIXED","list":"WAITING","waitingForText":"${"w".repeat(501)}"}
 			""".trimIndent(),
 		).isProblem(400, "title", "notesMd", "timeEstimateMin", "recurrenceRule", "waitingForText")
 	}

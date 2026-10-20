@@ -13,6 +13,7 @@ import ch.sonensei.cockpit.core.web.CursorRequest
 import ch.sonensei.cockpit.core.web.FieldError
 import ch.sonensei.cockpit.core.web.InvalidRequestException
 import ch.sonensei.cockpit.core.web.NotFoundException
+import ch.sonensei.cockpit.gtd.infra.ChecklistItemRepository
 import ch.sonensei.cockpit.gtd.infra.ContextRepository
 import ch.sonensei.cockpit.gtd.infra.ProjectRepository
 import ch.sonensei.cockpit.gtd.infra.TaskRepository
@@ -25,6 +26,7 @@ import org.springframework.transaction.annotation.Transactional
 import java.time.Clock
 import java.time.Instant
 import java.time.LocalDate
+import java.time.temporal.ChronoUnit
 import java.util.UUID
 
 /** A created task, and whether it is new (`false`: an idempotent repeat of a create with the same id). */
@@ -47,6 +49,7 @@ class TaskService(
 	private val tasks: TaskRepository,
 	private val projects: ProjectRepository,
 	private val contexts: ContextRepository,
+	private val checklistItems: ChecklistItemRepository,
 	private val indexer: SearchIndexer,
 	private val changes: ChangeEventPublisher,
 	private val settings: SettingsService,
@@ -133,6 +136,8 @@ class TaskService(
 	/**
 	 * Marks the task done (keeps the first completion time when it is already done). When it is the next step of an
 	 * active project, that project is now stalled: [CompletedTask.needsNextStep] tells the client to ask for a new one.
+	 * A recurring task gets its next occurrence ([createNextOccurrence]) the first time it is completed only, so
+	 * uncompleting and completing it again creates no duplicate.
 	 */
 	fun complete(
 		id: UUID,
@@ -140,7 +145,12 @@ class TaskService(
 	): CompletedTask {
 		val task =
 			modify(id, checkVersion) { task ->
-				if (task.completedAt == null) task.completedAt = clock.storableInstant()
+				if (task.completedAt == null) {
+					val now = clock.storableInstant()
+					// Created before the task changes, so the position query's auto-flush does not update it twice.
+					if (task.nextOccurrenceId == null) task.nextOccurrenceId = createNextOccurrence(task, now)?.id
+					task.completedAt = now
+				}
 			}
 		val project = task.projectId?.let(projects::findActiveById)
 		val needsNextStep = project != null && project.status == ProjectStatus.ACTIVE && project.nextTaskId == task.id
@@ -257,6 +267,58 @@ class TaskService(
 		return saved
 	}
 
+	/**
+	 * The next occurrence of a recurring [task] completed at [completedAt], or `null` when it does not recur or its
+	 * series has ended. FIXED: the next day of the rule after the task's due date (or scheduled date, or the completion
+	 * day without either), even if that day has passed. AFTER_COMPLETION: the first day of the rule after the completion
+	 * day in the user's zone, the rule starting on that day.
+	 *
+	 * The new task is a copy on the same list (with an unchecked checklist), dated on that day: its due and scheduled
+	 * dates move by the same number of days (the due date is set when the task had neither). It is not in a tickler and
+	 * waits since today.
+	 */
+	private fun createNextOccurrence(
+		task: Task,
+		completedAt: Instant,
+	): Task? {
+		val rule = task.recurrenceRule ?: return null
+		val mode = task.recurrenceMode ?: return null
+		val nextRule = TaskRecurrence.remainingRule(rule) ?: return null
+		val completedOn = completedAt.atZone(settings.timeZone()).toLocalDate()
+		val anchor = task.dueDate ?: task.scheduledDate
+		val nextDate =
+			when (mode) {
+				RecurrenceMode.FIXED -> (anchor ?: completedOn).let { TaskRecurrence.nextDate(rule, it, it) }
+				RecurrenceMode.AFTER_COMPLETION -> TaskRecurrence.nextDate(rule, completedOn, completedOn)
+			} ?: return null
+		val shift = anchor?.let { ChronoUnit.DAYS.between(it, nextDate) }
+		val next =
+			Task(task.title, task.list).apply {
+				notesMd = task.notesMd
+				projectId = task.projectId?.takeIf { projects.findActiveById(it) != null }
+				energy = task.energy
+				creativity = task.creativity
+				timeEstimateMin = task.timeEstimateMin
+				contextIds.addAll(task.contextIds)
+				dueDate = if (shift == null) nextDate else task.dueDate?.plusDays(shift)
+				dueTime = task.dueTime
+				scheduledDate = shift?.let { task.scheduledDate?.plusDays(it) }
+				waitingForContactId = task.waitingForContactId
+				waitingForText = task.waitingForText
+				if (list == TaskList.WAITING) waitingSince = today()
+				recurrenceRule = nextRule
+				recurrenceMode = mode
+			}
+		next.position = nextPosition(next)
+		validate(next, checkProject = false)
+		val saved = tasks.saveAndFlush(next)
+		checklistItems.findByTaskIdOrderByPositionAscIdAsc(task.id).forEach {
+			checklistItems.save(ChecklistItem(saved.id, it.text, done = false, position = it.position))
+		}
+		changed(saved, ChangeOp.CREATED)
+		return saved
+	}
+
 	private fun load(id: UUID): Task = initialized(requireActive(id))
 
 	private fun initialized(task: Task): Task = task.also { Hibernate.initialize(it.contextIds) }
@@ -316,9 +378,14 @@ class TaskService(
 			if (task.waitingForText != null) errors += FieldError("waitingForText", "is only allowed for the WAITING list")
 			if (task.waitingSince != null) errors += FieldError("waitingSince", "is only allowed for the WAITING list")
 		}
-		if ((task.recurrenceRule?.length ?: 0) > MAX_TITLE_LENGTH) {
+		val rule = task.recurrenceRule
+		if ((rule?.length ?: 0) > MAX_TITLE_LENGTH) {
 			errors += FieldError("recurrenceRule", "must be at most $MAX_TITLE_LENGTH characters")
+		} else if (rule != null) {
+			TaskRecurrence.problem(rule)?.let { errors += FieldError("recurrenceRule", it) }
 		}
+		if (rule != null && task.recurrenceMode == null) errors += FieldError("recurrenceMode", "is required with recurrenceRule")
+		if (rule == null && task.recurrenceMode != null) errors += FieldError("recurrenceMode", "requires recurrenceRule")
 		task.projectId?.let { if (checkProject && projects.findActiveById(it) == null) errors += FieldError("projectId", "does not exist") }
 		if (task.contextIds.isNotEmpty() && contexts.findAllById(task.contextIds).size != task.contextIds.size) {
 			errors += FieldError("contextIds", "contains an unknown context")

@@ -89,6 +89,10 @@ class Task(
 	@Column(name = "recurrence_mode")
 	var recurrenceMode: RecurrenceMode? = null
 
+	/** The occurrence created when this recurring task was completed; completing it again creates no other one. */
+	@Column(name = "next_occurrence_id")
+	var nextOccurrenceId: UUID? = null
+
 	@Column(name = "completed_at")
 	var completedAt: Instant? = null
 
