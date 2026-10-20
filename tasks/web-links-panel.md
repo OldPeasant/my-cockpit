@@ -1,11 +1,11 @@
 ---
 title: Linked items panel (shared)
-status: in_progress
+status: done
 owner: dell26/agent-1
 deps: [p0-web-shell,p0-items-links,p0-search-core]
 touches: [web/src/app/shared/links]
 prio: 1
-lease_until: 2026-10-20T16:26:37Z
+lease_until: 
 ---
 ## Goal
 Reusable 'Linked items' panel for every detail view (SPEC.md §4.3).
@@ -24,3 +24,4 @@ Reusable 'Linked items' panel for every detail view (SPEC.md §4.3).
 - ASSUMPTION (2026-10-20 17:30+0200 by dell26/agent-1): SYNC links (inline note links) show 'In text' instead of a remove button, since DELETE rejects them with 409; unavailable items stay removable. messages.xlf not re-extracted: the panel is not used by any route yet, and extract only collects reachable components
 - ASSUMPTION (2026-10-20 18:04+0200 by dell26/agent-1): Review P3 CR-5 (removed link may reappear if a feature calls reload() during a pending DELETE) accepted without change: rare race, a reload or second click repairs it
 - ASSUMPTION (2026-10-20 18:04+0200 by dell26/agent-1): Review P3 CR-6 (search input loses focus after a non-409 linking error since it is disabled while linking) accepted without change: input stays visible with the error; left to a11y-audit
+- done by dell26/agent-1: `sh scripts/check.sh` passed in 47s on d67bb40b5; criteria verified 3/3
