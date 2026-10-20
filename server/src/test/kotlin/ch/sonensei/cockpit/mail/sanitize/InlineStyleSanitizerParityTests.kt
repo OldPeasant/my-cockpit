@@ -14,7 +14,7 @@ import kotlin.random.Random
  * - a browser that reads the sanitized output never finds a `position` declaration in it.
  */
 class InlineStyleSanitizerParityTests {
-	// The regexes used before commit 3b9d491. They serve only as reference oracles here.
+	// The regexes used before commit f9ae82f. They serve only as reference oracles here.
 	private val oldFunctionCall = Regex("""(-?[a-z_][a-z0-9_-]*)\s*\(""")
 	private val oldComment = Regex("""/\*.*?\*/""", RegexOption.DOT_MATCHES_ALL)
 

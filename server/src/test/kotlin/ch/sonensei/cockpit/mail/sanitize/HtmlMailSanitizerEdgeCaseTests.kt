@@ -216,6 +216,32 @@ class HtmlMailSanitizerEdgeCaseTests {
 	}
 
 	@Test
+	fun `a style rejected for a newline in a quote is removed only from its own element`() {
+		val doc =
+			body(
+				sanitizer
+					.sanitize(
+						"""<div style="color: red; font-family: 'a&#13;&#10;; position: fixed; x: '">overlay</div>""" +
+							"""<p style="color: blue">next</p>""",
+					).html,
+			)
+
+		doc.selectFirst("div")!!.hasAttr("style") shouldBe false
+		doc.selectFirst("div")!!.text() shouldBe "overlay"
+		doc.selectFirst("p")!!.attr("style") shouldBe "color: blue"
+	}
+
+	@Test
+	fun `a style attribute over the length cap is removed but the element and its text are kept`() {
+		val longStyle = "color: red; font-family: " + "a".repeat(InlineStyleSanitizer.MAX_STYLE_LENGTH)
+		val doc = body(sanitizer.sanitize("""<div style="$longStyle">Fictitious offer</div><p style="margin: 0">x</p>""").html)
+
+		doc.selectFirst("div")!!.hasAttr("style") shouldBe false
+		doc.selectFirst("div")!!.text() shouldBe "Fictitious offer"
+		doc.selectFirst("p")!!.attr("style") shouldBe "margin: 0"
+	}
+
+	@Test
 	fun `sanitizing is idempotent for the newsletter-like layout`() {
 		val once =
 			sanitizer
