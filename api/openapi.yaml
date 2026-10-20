@@ -14,6 +14,8 @@ tags:
   name: Auth
 - description: GTD tasks
   name: Tasks
+- description: Create and download backups
+  name: Backup
 - description: User settings
   name: Settings
 - description: First-run creation of the owner account
@@ -499,6 +501,105 @@ paths:
       summary: Rotate a device's tokens
       tags:
       - Auth
+  /api/v1/backup:
+    post:
+      description: "Builds the backup zip in the background. Progress arrives on `GET\
+        \ /api/v1/events` as change events of type `BACKUP` with the job's id; refetch\
+        \ the job on each. When its state is `COMPLETED`, download the zip. Starting\
+        \ a new backup discards earlier finished ones."
+      operationId: startBackup
+      responses:
+        "202":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BackupJobResponse"
+          description: Started; `Location` points to the job
+        "409":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: Another backup is running
+      summary: Start a backup
+      tags:
+      - Backup
+  /api/v1/backup/{id}:
+    get:
+      operationId: getBackup
+      parameters:
+      - description: Id of the backup job
+        in: path
+        name: id
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BackupJobResponse"
+          description: The backup job
+        "400":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: Invalid id
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: "No such backup (unknown, or discarded by a newer one)"
+      summary: State and progress of a backup
+      tags:
+      - Backup
+  /api/v1/backup/{id}/download:
+    get:
+      description: "The zip (format version 1): `README.md`, `manifest.json` (formatVersion,\
+        \ appVersion, createdAt, counts, sha256 per file), `data/` (canonical JSON,\
+        \ used for restore), `files/` (blobs), `readable/` (mirrors)."
+      operationId: downloadBackup
+      parameters:
+      - description: Id of the backup job
+        in: path
+        name: id
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        "200":
+          content:
+            application/zip:
+              schema:
+                type: string
+                format: binary
+          description: The backup zip
+        "400":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: Invalid id
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: No such backup
+        "409":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: The backup is still running or failed
+      summary: Download a completed backup
+      tags:
+      - Backup
   /api/v1/calendar/calendars:
     get:
       description: "Every calendar of every source, ordered by name."
@@ -3456,6 +3557,52 @@ components:
           - DELEGATED
       required:
       - email
+    BackupJobResponse:
+      type: object
+      description: A backup job
+      properties:
+        createdAt:
+          type: string
+          format: date-time
+        fileName:
+          type: string
+          description: "File name of the zip, once completed"
+          example: cockpit-backup-2026-10-20T1530Z.zip
+        finishedAt:
+          type: string
+          format: date-time
+          description: When the backup completed or failed
+        id:
+          type: string
+          format: uuid
+        size:
+          type: integer
+          format: int64
+          description: "Size of the zip in bytes, once completed"
+        state:
+          type: string
+          enum:
+          - RUNNING
+          - COMPLETED
+          - FAILED
+        step:
+          type: string
+          description: "What the backup is doing, e.g. `gtd: data`"
+        stepsDone:
+          type: integer
+          format: int32
+          description: Steps finished
+        stepsTotal:
+          type: integer
+          format: int32
+          description: Steps in total
+      required:
+      - createdAt
+      - id
+      - state
+      - step
+      - stepsDone
+      - stepsTotal
     CalendarListResponse:
       type: object
       description: "Every calendar, ordered by name"

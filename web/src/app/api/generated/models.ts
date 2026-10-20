@@ -4,6 +4,7 @@
 export type { AreaListResponse } from './models/area-list-response';
 export type { AreaResponse } from './models/area-response';
 export type { AttendeeDto } from './models/attendee-dto';
+export type { BackupJobResponse } from './models/backup-job-response';
 export type { CalendarListResponse } from './models/calendar-list-response';
 export type { CalendarPatchRequest } from './models/calendar-patch-request';
 export type { CalendarResponse } from './models/calendar-response';
