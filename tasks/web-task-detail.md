@@ -6,6 +6,7 @@ deps: [web-gtd-data,web-links-panel,gtd-recurrence]
 touches: [web/src/app/features/gtd/task-detail]
 prio: 1
 lease_until: 2026-10-20T22:16:56Z
+extended: dell26/agent-3
 ---
 ## Goal
 Edit all task fields (SPEC.md §5.2).
@@ -22,3 +23,4 @@ Edit all task fields (SPEC.md §5.2).
 - ASSUMPTION (2026-10-20 23:04+0200 by dell26/agent-3): Waiting for is edited as free text (waitingForText) plus 'since' date; picking a contact (waitingForContactId) is left for web-contacts
 - ASSUMPTION (2026-10-20 23:04+0200 by dell26/agent-3): Save sends /move first when list or tickler change (move sets list, scheduled date and tickler together), then PATCH of the other fields with the new ETag; checklist changes save immediately per item with their own If-Match, and a 412 there reloads the checklist
 - ASSUMPTION (2026-10-20 23:04+0200 by dell26/agent-3): Custom RRULE is validated client-side by a small parser mirroring the server's TaskRecurrence rules (DAILY..YEARLY, no time parts, COUNT>=1); the rrule library was not used because it accepts invalid values
+- extended by dell26/agent-3: Implementation and all review fixes (R1 CR-1..4, TW-1..4, R2 CR-1) are committed; R2 CR-2 (link-out drops unsaved edits) was left unfixed on purpose. cd web && npm run check passes (51 files, 924 tests). Left: re-run test-writer and code-reviewer on the final code (6b42d0e1 + 3101390c), tasks.py verify for AC1-4, write reviews/web-task-detail/quality.json, run .taskcheck, then done.
