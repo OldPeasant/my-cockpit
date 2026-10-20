@@ -17,7 +17,8 @@ Generic trash for soft-deleted items (SPEC.md §4.2).
   - verified (2026-10-20 15:30+0200 by R1963MACOS/agent-2): cd server && ./gradlew test --tests 'ch.sonensei.cockpit.core.trash.*' -> TrashServiceTests/TrashUnitTests with MutableClock test clock: item deleted exactly 30 days ago kept, purged 1 us/1 ns later, links removed, failing item retried next run; job registered as cron '0 30 3 * * *' (ScheduledTaskHolder) -> pass
 - [x] Tests with a fake contributor; `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.core.trash.*'` passes (Postgres via Testcontainers where persistence is involved)
   - verified (2026-10-20 15:30+0200 by R1963MACOS/agent-2): cd server && ./gradlew test --tests 'ch.sonensei.cockpit.core.trash.*' --tests '*OpenApiContractTest' --rerun-tasks against Testcontainers Postgres -> 51 tests, 0 failures (fake contributors, link rows + transaction isolation tests on Postgres)
-- [ ] API documented: `api/openapi.yaml` regenerated (`UPDATE_OPENAPI=1 ./gradlew test --tests '*OpenApiContractTest'`) and `OpenApiContractTest` passes without the flag
+- [x] API documented: `api/openapi.yaml` regenerated (`UPDATE_OPENAPI=1 ./gradlew test --tests '*OpenApiContractTest'`) and `OpenApiContractTest` passes without the flag
+  - verified (2026-10-20 15:30+0200 by R1963MACOS/agent-2): cd server && UPDATE_OPENAPI=1 ./gradlew test --tests '*OpenApiContractTest' regenerated api/openapi.yaml (+ web npm run api:gen; npm run api:check up to date); then ./gradlew test --tests '*OpenApiContractTest' without flag -> pass
 
 ## Notes
 - ASSUMPTION (2026-10-20 15:13+0200 by R1963MACOS/agent-2): GET /api/v1/trash merges all contributors in memory (sorted deletedAt desc, then ItemType order, then id desc) with a keyset cursor; fine for a single user's 30-day trash, contributors return all their deleted items
