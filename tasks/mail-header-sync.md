@@ -15,7 +15,8 @@ Keep the header cache in sync (SPEC.md §7.2).
   - verified (2026-10-20 22:05+0200 by dell26/agent-1): cd server && ./gradlew test --tests 'ch.sonensei.cockpit.mail.sync.*' (MailHeaderSyncServiceTests 23/23: window initial sync, loadOlder by INTERNALDATE, UIDNEXT/flags incremental, CONDSTORE/QRESYNC branches, UIDVALIDITY resync) + ./gradlew integrationTest --tests 'ch.sonensei.cockpit.mail.sync.*' at cde8b0b2 (GreenMail 14/14 incl. older-on-demand and UIDVALIDITY resync; Dovecot 2.3.21 Testcontainers CONDSTORE/QRESYNC 2/2) -> all pass
 - [x] Threading by References/In-Reply-To with subject fallback
   - verified (2026-10-20 22:05+0200 by dell26/agent-1): cd server && ./gradlew check at cde8b0b2: MailThreadingTests 35/35 (References/In-Reply-To, subject fallback, all 5040 arrival orders of 7 messages), MailHeaderStoreTests 22/22 (Postgres thread merge) -> pass
-- [ ] `external` GreenMail tests: new/deleted/flag-changed messages reconciled; unit tests for threading
+- [x] `external` GreenMail tests: new/deleted/flag-changed messages reconciled; unit tests for threading
+  - verified (2026-10-20 22:05+0200 by dell26/agent-1): cd server && ./gradlew integrationTest --rerun --tests 'ch.sonensei.cockpit.mail.sync.*' at cde8b0b2: HeaderSyncGreenMailTests 14/14 (incremental sync reconciles new/deleted/flag-changed, deleted linked message stays detached, emptied folder) + MailThreadingTests 35/35 unit -> pass
 
 ## Notes
 - ASSUMPTION (2026-10-20 19:02+0200 by dell26/agent-1): Subject fallback: every message without References/In-Reply-To is threaded by normalized subject (Re/Fwd/AW/SV... prefixes and [list] tags stripped), so unrelated mails with the same subject (e.g. a weekly newsletter) share a conversation, like Gmail. Thread key = root Message-ID or 'subject:<normalized>'
