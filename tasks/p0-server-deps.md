@@ -5,7 +5,7 @@ owner: R1963MACOS/agent-2
 deps: []
 touches: [server/build.gradle.kts,server/src/main/resources/application.properties,server/src/main/resources/application-dev.properties,server/src/main/resources/application-e2e.properties,server/src/test/kotlin/ch/sonensei/cockpit/support]
 prio: 1
-lease_until: 2026-10-20T08:59:44Z
+lease_until: 2026-10-20T09:00:08Z
 releases: 0
 extended: 
 ---
