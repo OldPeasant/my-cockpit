@@ -308,7 +308,7 @@ def pushed(*a):
 RACE_ERRORS = ("non-fast-forward", "fetch first", "cannot lock ref", "failed to lock", "failed to update ref",
                "incorrect old value", "stale info", "(failed)")
 REFUSED_ERRORS = ("hook declined", "denied", "permission", "protected branch", "authentication", "unauthorized",
-                  "forbidden", "error: 403", "not allowed", "refusing", "denying")
+                  "forbidden", "error: 403", "not allowed", "refusing", "denying", "push declined", "rule violation")
 RACE_HINT = "lost the push race"  # in the message of a command whose pushes lost every race; agents.py retries it
 
 

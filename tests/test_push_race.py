@@ -165,7 +165,12 @@ class Classify(unittest.TestCase):
                     "remote: GitLab: You are not allowed to push code to protected branches on this project. | "
                     " ! [remote rejected] main -> main (pre-receive hook declined)",
                     "remote: Write access to repository not granted. | fatal: unable to access "
-                    "'https://example.test/o/r.git/': The requested URL returned error: 403"):
+                    "'https://example.test/o/r.git/': The requested URL returned error: 403",
+                    # a GitHub repository ruleset (e.g. required pull requests or status checks on main)
+                    "remote: error: GH013: Repository rule violations found for refs/heads/main. | "
+                    "To https://example.test/o/r.git | "
+                    " ! [remote rejected] main -> main (push declined due to repository rule violations) | "
+                    "error: failed to push some refs to 'https://example.test/o/r.git'"):
             self.assertTrue(tasks.refused(err), err)
             self.assertFalse(tasks.lost_race(err), err)
 
