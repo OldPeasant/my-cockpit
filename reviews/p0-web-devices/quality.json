@@ -1,0 +1,27 @@
+{
+  "schema": 1,
+  "task": "p0-web-devices",
+  "reviewed_revision": "4ad721f1309fb30017d3928652ef4bb6458f6e19",
+  "helpers": {
+    "test-writer":   {"status": "completed", "report": "reviews/p0-web-devices/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/p0-web-devices/review.md"},
+    "fixer":         {"status": "completed", "report": "reviews/p0-web-devices/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "first review: overlapping revokes shared one pending id and error; now a per-device pending set and a named error"},
+    {"id": "CR-2", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "first review: 409 of POST /api/v1/auth/recovery-codes now documented, openapi.yaml regenerated"},
+    {"id": "CR-3", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "first review: revoke dialog now focuses Cancel initially"},
+    {"id": "CR-4", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "first review: focus moves to the next/previous row or heading after revoke, and to codes after regenerate"},
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P3", "disposition": "accepted",
+     "note": "review rerun on 4ad721f: initial bundle 19 bytes over the 500 kB warning budget (warning, not error); left as is and recorded with tasks.py assume for a human to decide on the budget"}
+  ],
+  "validation": [
+    {"command": "cd server && ./gradlew test --tests 'ch.sonensei.cockpit.core.auth.*' --rerun-tasks", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
