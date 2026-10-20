@@ -1,12 +1,13 @@
 ---
 title: Task detail editor
-status: in_progress
-owner: dell26/agent-3
+status: todo
+owner: 
 deps: [web-gtd-data,web-links-panel,gtd-recurrence]
 touches: [web/src/app/features/gtd/task-detail]
 prio: 1
-lease_until: 2026-10-20T22:47:09Z
-extended: dell26/agent-3
+lease_until: 
+extended: 
+releases: 1
 ---
 ## Goal
 Edit all task fields (SPEC.md §5.2).
@@ -29,3 +30,4 @@ Edit all task fields (SPEC.md §5.2).
 - ASSUMPTION (2026-10-20 23:04+0200 by dell26/agent-3): Custom RRULE is validated client-side by a small parser mirroring the server's TaskRecurrence rules (DAILY..YEARLY, no time parts, COUNT>=1); the rrule library was not used because it accepts invalid values
 - extended by dell26/agent-3: Implementation and all review fixes (R1 CR-1..4, TW-1..4, R2 CR-1) are committed; R2 CR-2 (link-out drops unsaved edits) was left unfixed on purpose. cd web && npm run check passes (51 files, 924 tests). Left: re-run test-writer and code-reviewer on the final code (6b42d0e1 + 3101390c), tasks.py verify for AC1-4, write reviews/web-task-detail/quality.json, run .taskcheck, then done.
 - ASSUMPTION (2026-10-20 23:58+0200 by dell26/agent-3): Only Close asks before discarding unsaved changes; following a link or changing the route id drops unsaved edits without a confirmation (review R2 CR-2, P3). No acceptance criterion asks for it; a canDeactivate guard can be added app-wide later.
+- release by dell26/agent-3: Complete: implementation, tests, 3 review rounds + fixes, all 4 criteria verified, reviews/web-task-detail/{tests,review,fixes}.md + quality.json committed (reviewed_revision 0357d860 has no code diff vs HEAD 320c5dd3, so evidence is fresh). sh scripts/check.sh passes locally (2026-10-21). Left: only run 'python tasks.py done web-task-detail' (merges main, reruns check); if the merge changes code lines, update reviewed_revision / rerun helpers per docs/QUALITY.md.
