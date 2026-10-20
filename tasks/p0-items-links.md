@@ -1,11 +1,13 @@
 ---
 title: Universal item references and links
-status: in_progress
-owner: dell26/agent-3
+status: todo
+owner: 
 deps: [p0-auth-login]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/core/items,server/src/test/kotlin/ch/sonensei/cockpit/core/items,server/src/main/resources/db/migration/core-items]
 prio: 1
-lease_until: 2026-10-20T12:50:40Z
+lease_until: 
+releases: 1
+extended: 
 ---
 ## Goal
 The cross-module link system (SPEC.md §4.3).
@@ -26,3 +28,4 @@ The cross-module link system (SPEC.md §4.3).
 - ASSUMPTION (2026-10-20 13:35+0200 by dell26/agent-3): DELETE /api/v1/links/{id} needs no If-Match (links are immutable); GET /api/v1/links returns {items:[...]} unpaginated (few links per item), with direction OUTGOING/INCOMING relative to the queried item.
 - ASSUMPTION (2026-10-20 14:10+0200 by dell26/agent-3): Replaces the 'pair linked at most once' assumption (fix TW-1, CR-3): MANUAL and SYNC links are independent. A pair has at most one MANUAL link (either direction, POST of a second -> 409) and at most one SYNC link per direction; GET /links shows each linked item once (manual link preferred, else oldest), so two notes stay linked while either still has the inline link.
 - ASSUMPTION (2026-10-20 14:10+0200 by dell26/agent-3): CR-2: LinkResponse carries origin (MANUAL|SYNC); DELETE /api/v1/links/{id} of a SYNC (inline) link is rejected with 409 Problem Details, since the next sync of its source would recreate it; inline links are removed by editing the source.
+- release by dell26/agent-3: Implementation complete (AC1-5 code + tests; CR-1/2/3 and TW-1/2 fixed). Check passes at eb593a6. Left: (1) rerun test-writer on final code: tests.md predates the last fixes and LinkWebTests got extra tests in eb593a6; (2) rerun code-reviewer on the final revision (review.md covers 48e57fa, pre-rebase; it has 1 open P3 about a stale detail in an ASSUMPTION note); (3) tasks.py verify for all 5 criteria (run core.items.* tests with Testcontainers + OpenApiContractTest without the flag); (4) write quality.json, commit; (5) done. origin/main is 3 commits ahead: merge it first and recheck migration versions in db/migration/core.
