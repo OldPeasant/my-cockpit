@@ -5,7 +5,7 @@ owner: dell26/agent-1
 deps: [mail-imap]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/mail/sync,server/src/test/kotlin/ch/sonensei/cockpit/mail/sync]
 prio: 1
-lease_until: 2026-10-20T17:47:21Z
+lease_until: 2026-10-20T19:03:13Z
 ---
 ## Goal
 Keep the header cache in sync (SPEC.md §7.2).
