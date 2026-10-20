@@ -19,7 +19,8 @@ CRUD for local calendars and events (SPEC.md §6.4).
   - verified (2026-10-20 20:43+0200 by R1963MACOS/agent-2): same run -> CalendarSeriesEdgeCaseWebTests + series request tests (POST/PATCH/DELETE with scope THIS|FOLLOWING|ALL&occurrence=, splitting, overrides, CR-1/4/5, TW-2) pass; 145/145, 0 failures
 - [x] ChangeEvents, search, trash for events
   - verified (2026-10-20 20:43+0200 by R1963MACOS/agent-2): same run -> change-event (ApplicationEvents), search re-index and trash/restore/purge tests in CalendarEventWebTests and CalendarSeriesEdgeCaseWebTests pass; 145/145
-- [ ] `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.calendar.api.*'` passes (Postgres via Testcontainers where persistence is involved)
+- [x] `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.calendar.api.*'` passes (Postgres via Testcontainers where persistence is involved)
+  - verified (2026-10-20 20:43+0200 by R1963MACOS/agent-2): server/gradlew -p server test --rerun --tests 'ch.sonensei.cockpit.calendar.api.*' --tests '*OpenApiContractTest' with Testcontainers Postgres at 6abd35b -> BUILD SUCCESSFUL, 145 tests, 0 failures/errors/skipped; full server test (jacocoTestReport) 1789/1789
 - [ ] API documented: `api/openapi.yaml` regenerated (`UPDATE_OPENAPI=1 ./gradlew test --tests '*OpenApiContractTest'`) and `OpenApiContractTest` passes without the flag
 
 ## Notes
