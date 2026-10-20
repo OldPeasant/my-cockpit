@@ -129,7 +129,17 @@ export class ReminderNotificationsService {
       : $localize`:@@notification.dismiss:Dismiss`;
     const ref = this.snackBar.open(message, action, { duration: REMINDER_TOAST_DURATION_MS });
     if (link) ref.onAction().subscribe(() => void this.router.navigateByUrl(link));
-    ref.afterDismissed().subscribe(() => this.showNextToast());
+    ref.afterDismissed().subscribe(() => this.showNextToastAfterOthers());
+  }
+
+  /**
+   * Shows the next reminder toast once no other snackbar is on screen: an app message that replaced
+   * a reminder toast keeps its own duration instead of being pushed away by the next reminder.
+   */
+  private showNextToastAfterOthers(): void {
+    const other = this.snackBar._openedSnackBarRef;
+    if (other) other.afterDismissed().subscribe(() => this.showNextToastAfterOthers());
+    else this.showNextToast();
   }
 
   private readStored(): boolean {

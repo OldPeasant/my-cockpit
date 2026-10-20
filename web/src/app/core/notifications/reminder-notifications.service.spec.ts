@@ -4,6 +4,7 @@ import { provideRouter, Router } from '@angular/router';
 import { Subject } from 'rxjs';
 import { ReminderResponse } from '../../api/generated';
 import { ChangeEventsService } from '../events';
+import { NotificationService } from '../http/notification.service';
 import { BROWSER_NOTIFICATIONS, NotificationPermissionState } from './browser-notifications';
 import {
   REMINDER_EVENT_NAME,
@@ -436,6 +437,122 @@ describe('ReminderNotificationsService', () => {
     shownToast?.dismiss();
 
     expect(snackBar.open).toHaveBeenCalledTimes(1);
+  });
+
+  it('shows a burst of reminders as one browser notification each, without toasts', () => {
+    localStorage.setItem(REMINDER_NOTIFICATIONS_STORAGE_KEY, 'on');
+    create('granted');
+
+    fired.next(reminder());
+    fired.next({ ...reminder({ title: 'Water the plants' }), id: 'r2' });
+    fired.next({ ...reminder({ title: 'Pay the rent' }), id: 'r3' });
+
+    expect(browser.shown.map((shown) => shown.title)).toEqual([
+      'Call the plumber',
+      'Water the plants',
+      'Pay the rent',
+    ]);
+    expect(snackBar.open).not.toHaveBeenCalled();
+  });
+
+  it('notifies at once while a reminder toast is still queued, once notifications work', async () => {
+    const service = create('denied');
+    fired.next(reminder());
+    fired.next(reminder({ title: 'Water the plants' }));
+    browser.current = 'granted';
+    await service.enable();
+
+    fired.next(reminder({ title: 'Pay the rent' }));
+
+    expect(browser.shown.map((shown) => shown.title)).toEqual(['Pay the rent']);
+    expect(snackBar.open).toHaveBeenCalledTimes(1);
+    shownToast?.dismiss();
+    expect(snackBar.open).toHaveBeenLastCalledWith(
+      'Reminder: Water the plants',
+      'Open',
+      expect.anything(),
+    );
+  });
+
+  it('opens the item of the toast on screen, not of the reminder queued behind it', () => {
+    create('denied');
+    const navigate = vi.spyOn(TestBed.inject(Router), 'navigateByUrl').mockResolvedValue(true);
+
+    fired.next(reminder());
+    fired.next(reminder({ title: 'Water the plants', deepLink: '/tasks/plants' }));
+    action.next();
+
+    expect(navigate).toHaveBeenCalledExactlyOnceWith('/tasks/0190a5c8-0000-7000-8000-000000000001');
+  });
+
+  it('moves on to the queued reminder when an app message replaces the reminder toast', () => {
+    create('denied');
+
+    fired.next(reminder());
+    fired.next(reminder({ title: 'Water the plants' }));
+    // Another part of the app (e.g. NotificationService) opens a snackbar of its own.
+    TestBed.inject(MatSnackBar).open('Task saved.', 'Dismiss', { duration: 4000 });
+
+    expect(snackBar.open.mock.calls.map((call) => call[0])).toContain('Reminder: Water the plants');
+  });
+
+  describe('with the real MatSnackBar', () => {
+    const shown = () =>
+      [...document.querySelectorAll('mat-snack-bar-container:not([mat-exit])')].map((container) =>
+        container.textContent?.replace(/\s+/g, ' ').trim(),
+      );
+
+    function createWithRealSnackBar(): void {
+      browser = new FakeBrowserNotifications();
+      browser.current = 'denied';
+      fired = new Subject();
+      TestBed.configureTestingModule({
+        providers: [
+          provideRouter([]),
+          { provide: BROWSER_NOTIFICATIONS, useValue: browser },
+          { provide: ChangeEventsService, useValue: { messages$: () => fired.asObservable() } },
+        ],
+      });
+      TestBed.inject(ReminderNotificationsService);
+    }
+
+    beforeEach(() => vi.useFakeTimers());
+    afterEach(async () => {
+      TestBed.inject(MatSnackBar).dismiss();
+      await vi.runAllTimersAsync();
+      vi.useRealTimers();
+    });
+
+    it('shows a burst of reminders one after the other, each for its full duration', async () => {
+      createWithRealSnackBar();
+
+      fired.next(reminder());
+      fired.next(reminder({ title: 'Water the plants' }));
+      await vi.advanceTimersByTimeAsync(1_000);
+      expect(shown()).toEqual(['Reminder: Call the plumber Open']);
+
+      await vi.advanceTimersByTimeAsync(13_000);
+      expect(shown()).toEqual(['Reminder: Call the plumber Open']);
+
+      await vi.advanceTimersByTimeAsync(2_000);
+      expect(shown()).toEqual(['Reminder: Water the plants Open']);
+    });
+
+    it('keeps an app message on screen that replaced a reminder toast, then shows the next reminder', async () => {
+      createWithRealSnackBar();
+      fired.next(reminder());
+      fired.next(reminder({ title: 'Water the plants' }));
+      await vi.advanceTimersByTimeAsync(1_000);
+
+      TestBed.inject(NotificationService).error('The server cannot be reached.');
+      await vi.advanceTimersByTimeAsync(1_000);
+
+      // The error stays for its own 8 s; the queued reminder must not push it away.
+      expect(shown()).toEqual(['The server cannot be reached. Dismiss']);
+
+      await vi.advanceTimersByTimeAsync(8_000);
+      expect(shown()).toEqual(['Reminder: Water the plants Open']);
+    });
   });
 
   describe('with a failing localStorage', () => {
