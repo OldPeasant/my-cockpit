@@ -1,11 +1,11 @@
 ---
 title: API conventions: errors, ETags, pagination, OpenAPI contract file
-status: in_progress
+status: done
 owner: dell26/agent-2
 deps: [p0-server-deps]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/core/web,server/src/test/kotlin/ch/sonensei/cockpit/core/web,api]
 prio: 1
-lease_until: 2026-10-20T09:27:29Z
+lease_until: 
 ---
 ## Goal
 Common REST conventions (SPEC.md §4.2) and the committed OpenAPI contract that both clients use.
@@ -27,3 +27,4 @@ Common REST conventions (SPEC.md §4.2) and the committed OpenAPI contract that 
 - ASSUMPTION (2026-10-20 10:52+0200 by dell26/agent-2): Stale If-Match -> 412, missing -> 428, JPA optimistic-lock failure at commit -> 409; If-Match uses strong comparison (W/ tags never match), '*' matches any version.
 - ASSUMPTION (2026-10-20 10:52+0200 by dell26/agent-2): Added a small 'updateOpenApi' Gradle task (equivalent to UPDATE_OPENAPI=1 ... OpenApiContractTest) and springdoc props writer-with-order-by-keys + remove-broken-reference-definitions=false in application.properties so the shared ProblemDetail/FieldError schemas are in api/openapi.yaml; both files are outside the task's touches but minimal.
 - ASSUMPTION (2026-10-20 11:10+0200 by dell26/agent-2): CR-6 deferred: missing multipart part gives Spring's default 400 without errors[]; whoever adds the first upload endpoint (files-api) should override handleMissingServletRequestPart in ProblemDetailsAdvice.
+- done by dell26/agent-2: `sh scripts/check.sh` passed in 67s on 878aea722; criteria verified 5/5
