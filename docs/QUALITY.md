@@ -1,6 +1,7 @@
 # Review evidence and the completion gate
 
 Every task needs committed review evidence before `python tasks.py done <id>` accepts it.
+(The gate is opt-in in TFP: this file switches it on while it is on main.)
 `done` enforces this for the task being completed, on its work merged with the latest main.
 Neither `--force` nor `--skip-check` bypasses it. Tests: `python3 tests/test_quality_gate.py`.
 

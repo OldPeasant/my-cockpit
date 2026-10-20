@@ -306,7 +306,7 @@ Save the report as:
 
 (for an explicitly supplied non-task scope: `reviews/<scope-name>/fixes.md`).
 
-This path is fixed by the artifact contract in `docs/QUALITY.md`: `tasks.py done` refuses the task without it. Write the report even when there is nothing to report. Its `Task:` line must start with the task id, and it must contain no unfilled `<...>` placeholders, `TODO` or `TBD`. Do not commit it: the parent worker verifies and commits it. Never put credentials, personal data or conversation transcripts in it.
+This path is fixed by the artifact contract in `docs/QUALITY.md`: when the project has that file, `tasks.py done` refuses the task without it. Write the report even when there is nothing to report. Its `Task:` line must start with the task id, and it must contain no unfilled `<...>` placeholders, `TODO` or `TBD`. Do not commit it: the parent worker verifies and commits it. Never put credentials, personal data or conversation transcripts in it.
 
 Use this format:
 

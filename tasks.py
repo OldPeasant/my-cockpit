@@ -644,11 +644,13 @@ def open_criteria(tid):
 
 
 # ---------- quality gate ----------
-# Every task must have committed review evidence before `done` accepts it (docs/QUALITY.md):
+# Opt-in: a project switches it on by committing docs/QUALITY.md (template: templates/quality/QUALITY.md).
+# Then every task must have committed review evidence before `done` accepts it (docs/QUALITY.md):
 # reviews/<id>/tests.md (test-writer), review.md (code-reviewer), fixes.md (fixer, when fixes were
 # required) and quality.json (the parent's record). Only a task classified `quality: exempt` with a
 # `quality_reason:` when it was claimed skips it. --force and --skip-check never do.
 QUALITY_SCHEMA = 1
+QUALITY_DOC = "docs/QUALITY.md"
 REPORT = {"test-writer": "tests.md", "code-reviewer": "review.md", "fixer": "fixes.md"}
 REPORT_SECTION = {"tests.md": "## Coverage", "review.md": "## Review conclusion", "fixes.md": "## Final status"}
 PLACEHOLDER = re.compile(r"<(?:YYYY-MM-DD|task-id[^>]*|resolved Git scope|sources used|hash[^>]*|count|"
@@ -784,10 +786,16 @@ def quality_errors(tid, ref="HEAD"):
     return errs
 
 
+def quality_enabled():
+    """The gate is on when docs/QUALITY.md is committed, on HEAD or on main: deleting it in a task's
+    own commits does not switch it off."""
+    return any(committed(QUALITY_DOC, r) is not None for r in ("HEAD", upstream()) if r)
+
+
 def quality_gate(tid):
     """REFUSED message if the task's committed review evidence is missing, incomplete or stale, else None."""
     t = load().get(tid)
-    if not t:
+    if not t or not quality_enabled():
         return None
     exempt, err = quality_exemption(t)
     if err:

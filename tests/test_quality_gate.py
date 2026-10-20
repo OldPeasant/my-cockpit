@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Tests for the review-evidence gate of `done` (docs/QUALITY.md): a task is done only with committed,
 complete and current reports of the test-writer and code-reviewer (and the fixer when fixes were
-required) plus a valid reviews/<id>/quality.json. Runs tasks.py against a local bare remote in a temp
+required) plus a valid reviews/<id>/quality.json. The gate is opt-in: only a repo with a committed
+docs/QUALITY.md has it. Runs tasks.py against a local bare remote in a temp
 dir: no real remote is written. Run: python3 tests/test_quality_gate.py"""
 import json, os, shutil, subprocess, sys, tempfile, unittest
 from pathlib import Path
@@ -9,6 +10,8 @@ from pathlib import Path
 SRC = Path(__file__).resolve().parent.parent
 sys.dont_write_bytecode = True
 
+# the contract that switches the gate on: the template in TFP itself, docs/QUALITY.md in a working repo
+CONTRACT = next(p for p in (SRC / "templates" / "quality" / "QUALITY.md", SRC / "docs" / "QUALITY.md") if p.exists())
 FILLER = "Checked every acceptance criterion against the diff and the spec; commands and results below. " * 3
 
 
@@ -24,7 +27,9 @@ def report(tid, section, extra=""):
 
 
 class Gate(unittest.TestCase):
-    """A bare remote and a clone 'w' with tasks `a` and `b` (no criteria) and a passing check."""
+    """A bare remote and a clone 'w' with tasks `a` and `b` (no criteria), a passing check and, with
+    GATE, the gate switched on (docs/QUALITY.md committed)."""
+    GATE = True
 
     def setUp(self):
         self.tmp = Path(tempfile.mkdtemp())
@@ -40,6 +45,9 @@ class Gate(unittest.TestCase):
         self.tp("new", "b", "Task B", "--touches", "src/b")
         self.tp("new", "c", "Write the ADR", "--quality-exempt", "documentation only, nothing to test")
         (self.w / ".taskcheck").write_text("true\n")
+        if self.GATE:
+            (self.w / "docs").mkdir()
+            shutil.copy(CONTRACT, self.w / "docs" / "QUALITY.md")
         self.commit_all("init")
         sh(self.w, "git", "push", "-q", "-u", "origin", "main")
 
@@ -195,6 +203,13 @@ class Refusals(Gate):
         self.commit_all("a: exempt myself")
         self.assertIn("was not classified so (with a quality_reason) when it was claimed", self.refused())
 
+    def test_deleting_the_contract_in_the_task_does_not_switch_it_off(self):
+        self.tp("claim", "a")
+        self.code()
+        sh(self.w, "git", "rm", "-q", "docs/QUALITY.md")
+        self.commit_all("a: no more gate")
+        self.assertIn("reviews/a/quality.json is missing", self.refused())
+
 
 class Accepted(Gate):
     def test_complete_evidence_is_published_with_the_code(self):
@@ -253,6 +268,17 @@ class Accepted(Gate):
         out = self.tp("check", check=False)
         self.assertIn("b: quality: exempt needs a quality_reason", out.stdout + out.stderr)
         self.assertIn("needs a reason", self.tp("new", "d", "D", "--quality-exempt", " ", check=False).stderr)
+
+
+class OptIn(Gate):
+    GATE = False
+
+    def test_without_the_contract_done_needs_no_evidence(self):
+        self.tp("claim", "a")
+        self.code()
+        out = self.tp("done", "a").stdout
+        self.assertIn("DONE a", out)
+        self.assertIsNotNone(self.remote("src/a/x.txt"))
 
 
 if __name__ == "__main__":
