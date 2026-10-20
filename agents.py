@@ -28,6 +28,12 @@ nothing releases the task too: being over budget alone never needs a human. Rele
 task nobody can finish still ends up on hold after a few (tasks.py MAX_RELEASES). The runner then
 prefers other ready tasks for a while (--avoid, default 300 s) instead of reclaiming the one it gave up.
 
+Push failures: when the remote keeps refusing a task's pushes (e.g. a token without `workflow` scope,
+so GitHub rejects .github/workflows/*), tasks.py prints PUSH FAILED. If the task can't be given back
+(release/hold fail) or `done` fails to push the same way in 3 sessions in a row, the runner starts no more
+sessions on it: state `blocked` with the error in the status, and it retries the release every
+--blocked-retry s (default 1800) until the push works again or a human takes the task away.
+
 Live status: the runner reads the agent's output as it streams, turns each step into a one-line
 "doing" (e.g. `$ make check`, `editing backend/auth.py`), and force-pushes it every ~10-60 s as a
 one-commit branch status/<host>/agent-N. `python tasks.py watch` shows these on any machine; main's
@@ -97,6 +103,7 @@ a task should take, so do NOT continue implementing in this session. Instead:
 If you choose nothing, the task is released for another agent with a generic note."""
 REVIEW_EXTEND = ('   - Nearly done (one more session will finish it): '
                  '`python tasks.py extend {id} --note "<what is left>"`\n')
+PUSH_FAIL_SESSIONS = 3  # sessions in a row whose `done` fails with the same push error: then blocked
 JOB_NEW = "Run `python tasks.py claim` (no id = best ready task). If it reports LOST RACE, run it again."
 
 
@@ -299,7 +306,7 @@ def cmd_start(a):
         log = open(base / "logs" / f"{name}.log", "a", encoding="utf-8")
         argv = [sys.executable, str(Path(__file__).resolve()), "run", name, str(clone), "--owner", owner,
                 "--cmd", cmd, "--timeout", str(a.timeout), "--lease", str(a.lease), "--limit-wait", str(a.limit_wait),
-                "--task-budget", str(a.task_budget), "--avoid", str(a.avoid)]
+                "--task-budget", str(a.task_budget), "--avoid", str(a.avoid), "--blocked-retry", str(a.blocked_retry)]
         io = dict(stdout=log, stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL)
         try:  # Windows: leave the terminal's job object too, if allowed, so closing the terminal is safe
             proc = subprocess.Popen(argv, **io, **detached(breakaway=True))
@@ -520,21 +527,54 @@ def cmd_run(a):
         idle(until - now, state="limited" if limited else "paused",
              doing=f"{what}, retrying at {hhmm}: {one_line(reason, 80)}")
 
-    def force_release(tid, note):
+    def push_failure(since):
+        """The push failure tasks.py recorded (task, cmd, error) since `since` (epoch), else None. Consumed."""
+        f = clone / sh("git", "rev-parse", "--git-path", tasks.PUSH_FAILURE, cwd=clone).stdout.strip()
+        try:
+            pf = json.loads(f.read_text(encoding="utf-8"))
+            f.unlink()
+        except (OSError, ValueError):
+            return None
+        return pf if isinstance(pf, dict) and pf.get("at", 0) >= int(since) else None
+
+    def block(tid, err):
+        """Pushes for this task keep failing (e.g. a token GitHub won't let push .github/workflows/*): no more
+        sessions on it. The main loop retries the release every --blocked-retry s until a push works again
+        or a human takes the task away (release --force, drop)."""
+        if tid not in blocked:
+            log(f"BLOCKED on {tid}: pushes fail ({one_line(err, 200)}); no more sessions on it until a human fixes "
+                f"it or the push works again (retrying every {a.blocked_retry // 60} min)")
+        blocked[tid] = [err, time.time() + a.blocked_retry]
+        publish(force=True, state="blocked", task=tid, error=err, doing_at=int(time.time()),
+                doing=f"pushes for {tid} fail, a human must fix it: {one_line(err, 100)}")
+
+    def force_release(tid, note, handoff=False):
         """A review that decided nothing: commit what is there and give the task to another agent. Over
-        budget is not a reason for a human; a counted release still holds it after MAX_RELEASES."""
+        budget is not a reason for a human; a counted release still holds it after MAX_RELEASES.
+        Returns True if the task is no longer ours; else (the release could not push) the task is blocked."""
         if tasks.merge_state():
             sh("git", tasks.merge_state(), "--abort", cwd=clone)
         if sh("git", "status", "--porcelain", cwd=clone).stdout.strip():
             sh("git", "add", "-A", cwd=clone)
             sh("git", "commit", "-qm", f"wip: {tid} (before release)", cwd=clone)
-        p = sh(sys.executable, "tasks.py", "release", tid, "--note", note, cwd=clone)
-        log(f"released {tid} for another agent: " + ((p.stdout + p.stderr).strip().splitlines() or ["?"])[-1])
+        t0 = time.time()
+        p = sh(sys.executable, "tasks.py", "release", tid, "--note", note, *(["--handoff"] if handoff else []), cwd=clone)
+        last = ((p.stdout + p.stderr).strip().splitlines() or ["?"])[-1]
+        pf = push_failure(t0)
+        if p.returncode == 0 and tid not in {t["id"] for t in owned()}:
+            log(f"released {tid} for another agent: {last}")
+            return True
+        err = pf["error"] if pf else last
+        log(f"release FAILED for {tid} (exit {p.returncode}): {one_line(err, 300)}")
+        block(tid, err)
+        return False
 
     child = [None]
     fails = 0  # failed sessions in a row
     spent = {}  # task id -> [sessions, seconds] since this runner claimed it (budget: --task-budget sessions)
     avoid = {}  # task id -> until (epoch): gave it up over budget, so let another agent continue it first
+    blocked = {}  # task id -> [push error, next retry (epoch)]: still ours, but the remote refuses our pushes
+    push_fails = {}  # task id -> [error, sessions in a row whose `done` failed to push with it]
 
     def shutdown(*_):  # `agents.py stop` (flag file, or SIGTERM on POSIX): end the session too
         if child[0] and child[0].poll() is None:
@@ -570,6 +610,24 @@ def cmd_run(a):
                 finished()
         held.update(t["id"] for t in mine)
         beat()
+        for tid in [tid for tid in blocked if tid not in {t["id"] for t in mine}]:
+            log(f"{tid} is no longer ours (a human released or dropped it?): not blocked any more")
+            del blocked[tid]
+        tid = next((t["id"] for t in mine if t["id"] in blocked), None)
+        if tid:  # no session on it: wait (renewing the lease), retry the release now and then
+            err, retry = blocked[tid]
+            if time.time() < retry:
+                hhmm = time.strftime("%H:%M", time.localtime(retry))
+                idle(min(60, retry - time.time()), task=tid, state="blocked", error=err,
+                     doing=f"pushes for {tid} fail, a human must fix it; retry at {hhmm}: {one_line(err, 80)}")
+                continue
+            log(f"retrying to release {tid} (blocked: pushes failed)")
+            if force_release(tid, f"handed back by {a.owner}: pushes had failed ({one_line(err, 120)}); "
+                                  f"continue from wip/{tid}", handoff=True):
+                del blocked[tid]
+                push_fails.pop(tid, None)
+                held.discard(tid)
+            continue
         if not mine and tasks.frozen():
             log(f"board frozen, waiting: {tasks.frozen()}")
             idle(60, state="waiting", doing=f"board frozen (plan change): {one_line(tasks.frozen(), 80)}")
@@ -611,7 +669,7 @@ def cmd_run(a):
                                  f"resume {mine[0]['id']}" if mine else "claim next"))
         t0 = time.time()
         out = clone.parent / "logs" / f"{a.name}.session.txt"
-        publish(force=True, state="working", task=mine[0]["id"] if mine else None,
+        publish(force=True, state="working", task=mine[0]["id"] if mine else None, error=None,
                 doing="reviewing: over budget" if review else "resuming" if mine else "claiming a task",
                 doing_at=int(t0))
         final, buf, errored = [None], [""], [False]
@@ -673,15 +731,28 @@ def cmd_run(a):
                 s[0], s[1] = s[0] + 1, s[1] + time.time() - t0
             if review and review[0] in now_mine:
                 tid, was_extended = review
-                if was_extended or now_mine[tid]["extended"] != a.owner:  # no extend, split, release or hold chosen
-                    force_release(tid, f"over budget after {spent[tid][0]} sessions (~{int(spent[tid][1] // 60)} "
-                                       f"min) and a review that decided nothing; still resumable: continue "
-                                       f"from wip/{tid} (see git log)")
+                if (was_extended or now_mine[tid]["extended"] != a.owner) and force_release(  # nothing decided
+                        tid, f"over budget after {spent[tid][0]} sessions (~{int(spent[tid][1] // 60)} min) and a "
+                             f"review that decided nothing; still resumable: continue from wip/{tid} (see git log)"):
                     now_mine.pop(tid)
-            if review and review[0] not in now_mine:  # released (by the review or by us), split or held
+            if review and review[0] not in now_mine and review[0] not in blocked:  # released (by the review or by us), split or held
                 avoid[review[0]] = time.time() + a.avoid
                 spent.pop(review[0], None)
                 held.discard(review[0])  # else the next heartbeat reports it LOST and kills the next session
+        pf = push_failure(t0)  # a push tasks.py could not do in this session
+        if pf and pf.get("task") in {t["id"] for t in owned()}:
+            tid, err = pf["task"], pf.get("error", "?")
+            if pf.get("cmd") != "done":  # release/hold/...: the task can't even be given back
+                block(tid, err)
+            else:
+                key = re.sub(r"\b[0-9a-f]{7,40}\b", "<sha>", err)  # the same error, whatever commit
+                n = push_fails[tid][1] + 1 if push_fails.get(tid, [None])[0] == key else 1
+                push_fails[tid] = [key, n]
+                log(f"done could not push {tid} ({n}/{PUSH_FAIL_SESSIONS} sessions in a row): {one_line(err, 200)}")
+                if n >= PUSH_FAIL_SESSIONS:
+                    block(tid, err)
+        elif not why:
+            push_fails.clear()  # a session without a push failure: the streak is over
         limit = limit_info(out.read_text(encoding="utf-8", errors="replace")) if failed else None
         if limit or fails >= 3:  # out of tokens (or broken for a while): hand the work to other machines
             reason = limit[0] if limit else f"{fails} failed sessions in a row: {one_line(tail, 100)}"
@@ -708,6 +779,8 @@ def main():
                    "review it: extend (once), split, hand off or hold")
     s.add_argument("--avoid", type=int, default=300, help="seconds an agent leaves a task it gave up over "
                    "budget to other agents before it may claim it again")
+    s.add_argument("--blocked-retry", type=int, default=1800, help="seconds between retries of a task whose "
+                   "pushes the remote refuses (blocked: no sessions on it meanwhile)")
     s.set_defaults(f=cmd_start)
     sp.add_parser("status").set_defaults(f=cmd_status)
     s = sp.add_parser("stop"); s.set_defaults(f=cmd_stop)
@@ -718,7 +791,7 @@ def main():
     s.add_argument("--owner", required=True); s.add_argument("--lease", type=int, default=1200)
     s.add_argument("--cmd", required=True); s.add_argument("--timeout", type=int, default=1800)
     s.add_argument("--limit-wait", type=int, default=900); s.add_argument("--task-budget", type=int, default=2)
-    s.add_argument("--avoid", type=int, default=300)
+    s.add_argument("--avoid", type=int, default=300); s.add_argument("--blocked-retry", type=int, default=1800)
     s.set_defaults(f=cmd_run)
     a = p.parse_args(); a.f(a)
 
