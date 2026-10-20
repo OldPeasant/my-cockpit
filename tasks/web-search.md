@@ -1,11 +1,11 @@
 ---
 title: Command palette search and commands
-status: in_progress
+status: done
 owner: dell26/agent-4
 deps: [p0-web-shell,p0-search-core,p0-e2e-harness]
 touches: [web/src/app/features/search]
 prio: 1
-lease_until: 2026-10-20T17:32:55Z
+lease_until: 
 ---
 ## Goal
 Ctrl+K palette with global search and commands (SPEC.md §4.4).
@@ -25,3 +25,4 @@ Ctrl+K palette with global search and commands (SPEC.md §4.4).
 - ASSUMPTION (2026-10-20 18:55+0200 by dell26/agent-4): Commands: only 'New task' (opens CAPTURE_DIALOG) is added; 'Go to <section>' already comes from the shell. Result groups use the singular item type labels (Task, Note) from shared/links itemTypeLabel
 - ASSUMPTION (2026-10-20 18:55+0200 by dell26/agent-4): Initial bundle budget warning (500 kB) already existed on main (507.7 kB); this task adds ~0.9 kB and lazy-loads the search provider. Deep links like /tasks/{id} show Not found until web-task-detail adds the route
 - ASSUMPTION (2026-10-20 18:57+0200 by dell26/agent-4): Review CR-1: no loading/failed state in the palette while the search runs or after it fails (shows the empty text); the PaletteProvider contract in shell/ has no such state, extending it is a shell change outside this task. Errors are silent so the commands stay usable
+- done by dell26/agent-4: `sh scripts/check.sh` passed in 52s on 31e0bbed7; criteria verified 4/4
