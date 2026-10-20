@@ -16,3 +16,4 @@ Sources, calendars, events (SPEC.md §6.1).
 - [ ] `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.calendar.model.*'` passes (Postgres via Testcontainers where persistence is involved)
 
 ## Notes
+- ASSUMPTION (2026-10-20 16:01+0200 by dell26/agent-7): Credentials 'ref' is stored as an EncryptedSecret column calendar_source.credentials (encrypted with the master key) instead of a separate credentials table
