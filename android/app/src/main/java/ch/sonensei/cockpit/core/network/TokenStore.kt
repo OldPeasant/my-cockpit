@@ -32,7 +32,7 @@ interface TokenStore {
     ): Boolean
 }
 
-/** Keeps the tokens in memory only; the login task replaces it with Keystore-backed storage. */
+/** Keeps the tokens in memory only, for tests; the app uses the Keystore-backed `auth.PersistentTokenStore`. */
 @Singleton
 class InMemoryTokenStore
     @Inject

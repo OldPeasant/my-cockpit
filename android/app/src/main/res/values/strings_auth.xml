@@ -1,0 +1,30 @@
+<resources>
+    <!-- Login (auth feature) -->
+    <string name="login_title">Sign in to your cockpit</string>
+    <string name="login_server_section">Server</string>
+    <string name="login_server_url">Server address</string>
+    <string name="login_server_url_hint">For example https://cockpit.example.org</string>
+    <string name="login_account_section">Account</string>
+    <string name="login_username">Username</string>
+    <string name="login_password">Password</string>
+    <string name="login_totp">Code from your authenticator app</string>
+    <string name="login_recovery_code">Recovery code</string>
+    <string name="login_use_recovery_code">Use a recovery code instead</string>
+    <string name="login_use_totp">Use the authenticator app instead</string>
+    <string name="login_submit">Sign in</string>
+    <string name="login_signing_in">Signing in…</string>
+    <plurals name="login_retry_in">
+        <item quantity="one">Try again in %d second</item>
+        <item quantity="other">Try again in %d seconds</item>
+    </plurals>
+    <string name="login_error_server_url_malformed">Enter the server address as an http(s) URL, without user name, query or fragment.</string>
+    <string name="login_error_server_url_https_required">The server needs an https address. Plain http only works for this device.</string>
+    <string name="login_error_invalid_request">The server could not read the sign-in request. Fill in every field and try again.</string>
+    <string name="login_error_wrong_credentials">Username, password or code is wrong. Check them and enter a new code.</string>
+    <string name="login_error_too_many_attempts">Too many failed attempts. Sign-in is paused for a moment.</string>
+    <string name="login_error_network">The server cannot be reached. Check the address and your connection.</string>
+    <string name="login_error_server">The server had a problem signing you in. Try again later.</string>
+
+    <!-- Logout -->
+    <string name="logout">Log out</string>
+</resources>

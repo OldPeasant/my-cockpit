@@ -81,8 +81,7 @@ internal fun serverConfigDataStore(
 @Module
 @InstallIn(SingletonComponent::class)
 abstract class NetworkBindings {
-    @Binds
-    abstract fun tokenStore(store: InMemoryTokenStore): TokenStore
+    // TokenStore is bound by the auth module (Keystore-backed storage).
 
     @Binds
     abstract fun tokenRefresher(refresher: AuthApiTokenRefresher): TokenRefresher
