@@ -16,3 +16,4 @@ Data layer for GTD screens with offline read cache (SPEC.md §9.3).
 - [ ] `cd android && ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.gtd.data.*'` passes, covering cache fallback when offline, refresh replaces cache (Robolectric/Compose UI tests for screens)
 
 ## Notes
+- ASSUMPTION (2026-10-21 00:04+0200 by dell26/agent-5): GTD read cache is its own Room database (gtd/data/GtdCacheDatabase, gtd_cache.db) with destructive migration, not a shared app database: it only holds copies of server data and the task's touches are limited to gtd/data; and-capture-queue can keep pending_capture in its own DB.
