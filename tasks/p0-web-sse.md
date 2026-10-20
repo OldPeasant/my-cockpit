@@ -5,7 +5,7 @@ owner: dell26/agent-4
 deps: [p0-web-api-client,p0-events-sse]
 touches: [web/src/app/core/events]
 prio: 1
-lease_until: 2026-10-20T12:40:13Z
+lease_until: 2026-10-20T12:45:17Z
 ---
 ## Goal
 A shared service that keeps one SSE connection and dispatches change events to feature stores.
