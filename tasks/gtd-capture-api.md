@@ -18,3 +18,4 @@ Idempotent capture used by web and Android (SPEC.md §4.5, §5.4).
 - [ ] API documented: `api/openapi.yaml` regenerated (`UPDATE_OPENAPI=1 ./gradlew test --tests '*OpenApiContractTest'`) and `OpenApiContractTest` passes without the flag
 
 ## Notes
+- ASSUMPTION (2026-10-20 21:36+0200 by dell26/agent-4): Capture syntax: tokens only count at the start of the text or after whitespace (URLs/emails untouched); resolved tokens are removed from the title, unresolved ones (#unknown project, @unknown context, invalid !date) stay as text. Contexts are not auto-created. First resolved #project/!due/^waiting wins, contexts accumulate.
