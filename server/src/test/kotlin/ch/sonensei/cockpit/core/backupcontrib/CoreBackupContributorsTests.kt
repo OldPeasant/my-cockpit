@@ -179,6 +179,34 @@ class CoreBackupContributorsTests(
 		importCore(zip)
 
 		output.all shouldContain "no unused recovery code left"
+		withClue("only the lockout warning is logged, and it names neither the owner nor a secret") {
+			output.all shouldNotContain "the owner must sign in with a recovery code"
+			output.all shouldNotContain USERNAME
+		}
+	}
+
+	@Test
+	fun `importing an active owner warns with the number of unused recovery codes`(output: CapturedOutput) {
+		val enrollment = activeOwner()
+		jdbc.update("update recovery_code set used_at = now() where id = (select id from recovery_code order by id limit 1)")
+		val zip = exportZip()
+		emptyCore()
+
+		importCore(zip)
+
+		output.all shouldContain "sign in with a recovery code (${enrollment.recoveryCodes.size - 1} unused) and re-enroll TOTP"
+	}
+
+	@Test
+	fun `importing an owner who never confirmed TOTP logs no re-enrollment warning`(output: CapturedOutput) {
+		setup.start(USERNAME, PASSWORD)
+		val zip = exportZip()
+		emptyCore()
+
+		importCore(zip)
+
+		users.findFirstBy().shouldNotBeNull().isActive shouldBe false
+		output.all shouldNotContain "Restored owner account without its TOTP secret"
 	}
 
 	@Test
