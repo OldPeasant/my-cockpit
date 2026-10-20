@@ -1,11 +1,13 @@
 ---
 title: Calendar data model
-status: in_progress
-owner: dell26/agent-7
+status: todo
+owner: 
 deps: [p0-items-links,p0-search-core,p0-trash-core]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/calendar/model,server/src/test/kotlin/ch/sonensei/cockpit/calendar/model,server/src/main/resources/db/migration/calendar]
 prio: 1
-lease_until: 2026-10-20T15:15:55Z
+lease_until: 
+releases: 1
+extended: 
 ---
 ## Goal
 Sources, calendars, events (SPEC.md §6.1).
@@ -24,3 +26,4 @@ Sources, calendars, events (SPEC.md §6.1).
 - ASSUMPTION (2026-10-20 16:01+0200 by dell26/agent-7): sync_state values LOCAL|SYNCED|PENDING|ERROR; source sync cursor/last-sync/error columns are left to cal-sync-engine (its own migration)
 - ASSUMPTION (2026-10-20 16:01+0200 by dell26/agent-7): Search hooks: CalendarEventIndexer.index(event) called by calendar services (title; body = description + location); cancelled overrides and overrides of a deleted series are neither indexed nor resolved; EVENT deep link /calendar/events/{id}
 - ASSUMPTION (2026-10-20 16:20+0200 by dell26/agent-7): At most one default calendar overall (partial unique index calendar_single_default), not one per source: SPEC.md 6.1 'default for new events' implies a single target for new events
+- release by dell26/agent-7: Implementation, tests, test-writer/code-reviewer/fixer reports, final re-review and quality.json are all committed; all 3 criteria verified; sh scripts/check.sh passes on HEAD 81d0b35. Only left: python tasks.py done cal-model. Caveat: quality.json reviewed_revision is 41e96b0 (pre-rebase hash, on origin/wip/cal-model); its rebased equivalent is 2c2db86 with identical cal-model code. If done rejects it as stale, set reviewed_revision to the rebased hash of the 'final review report' commit, commit, and rerun done.
