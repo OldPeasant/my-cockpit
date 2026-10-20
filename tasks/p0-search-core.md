@@ -1,11 +1,11 @@
 ---
 title: Global search infrastructure
-status: in_progress
+status: done
 owner: dell26/agent-5
 deps: [p0-items-links]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/core/search,server/src/test/kotlin/ch/sonensei/cockpit/core/search,server/src/main/resources/db/migration/core-search]
 prio: 1
-lease_until: 2026-10-20T14:05:23Z
+lease_until: 
 ---
 ## Goal
 One search across all modules (SPEC.md §4.4).
@@ -28,3 +28,4 @@ One search across all modules (SPEC.md §4.4).
 - ASSUMPTION (2026-10-20 15:14+0200 by dell26/agent-5): Ranking: ts_rank (title weight A, body weight B) x recency boost 1 + 1/(1 + ageDays/30); recency = time of the last SearchIndexer.upsert. limit default 20, max 50, counts items across groups; groups ordered by best hit
 - ASSUMPTION (2026-10-20 15:14+0200 by dell26/agent-5): Hits are resolved via ItemResolver: resolver returns null (e.g. item in Trash) -> left out; no resolver -> returned with the indexed title only; resolver throws -> logged, returned with indexed title. Modules should still call SearchIndexer.delete on soft delete and upsert on restore; ItemDeletedEvent (purge) also deletes the document
 - ASSUMPTION (2026-10-20 15:14+0200 by dell26/agent-5): SearchIndexer strips NUL and truncates title to 1000 / body to 100000 chars (tsvector size limit, long mails); no snippets/highlights in the response (not in the criteria)
+- done by dell26/agent-5: `sh scripts/check.sh` passed in 48s on c54eb6c38; criteria verified 5/5
