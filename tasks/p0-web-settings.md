@@ -1,10 +1,11 @@
 ---
 title: Settings page: structure and general section
-status: todo
-owner:
+status: in_progress
+owner: dell26/agent-3
 deps: [p0-web-shell,p0-settings]
 touches: [web/src/app/features/settings]
 prio: 2
+lease_until: 2026-10-20T12:51:48Z
 ---
 ## Goal
 Settings page with one sub-route per section, created up front so section tasks only touch their own folder.
