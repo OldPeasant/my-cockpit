@@ -236,4 +236,39 @@ describe('SettingsService', () => {
     expect(service.settings()?.theme).toBe('dark');
     expect(theme.mode()).toBe('dark');
   });
+
+  it('keeps the shown change and the ETag when a load answers while the save is in flight', async () => {
+    await load();
+    const saved = service.update({ theme: 'dark' });
+    await tick();
+    const patch = http.expectOne({ method: 'PATCH', url: PATH });
+
+    const loaded = service.load();
+    http
+      .expectOne({ method: 'GET', url: PATH })
+      .flush(fakeSettings({ theme: 'light' }), { headers: { ETag: '"1"' } });
+    expect((await loaded).theme).toBe('dark');
+    expect(theme.mode()).toBe('dark');
+
+    patch.flush(fakeSettings({ theme: 'dark' }), { headers: { ETag: '"2"' } });
+    await saved;
+    const next = service.update({ timeZone: 'UTC' });
+    await tick();
+    const second = http.expectOne({ method: 'PATCH', url: PATH });
+    expect(second.request.headers.get('If-Match')).toBe('"2"');
+    second.flush(fakeSettings({ theme: 'dark', timeZone: 'UTC' }), { headers: { ETag: '"3"' } });
+    await next;
+  });
+
+  it('still takes a load that starts after the last change', async () => {
+    await load();
+    const loaded = service.load();
+    http
+      .expectOne({ method: 'GET', url: PATH })
+      .flush(fakeSettings({ theme: 'dark' }), { headers: { ETag: '"5"' } });
+
+    expect((await loaded).theme).toBe('dark');
+    expect(service.settings()?.theme).toBe('dark');
+    expect(theme.mode()).toBe('dark');
+  });
 });

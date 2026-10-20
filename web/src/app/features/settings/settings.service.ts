@@ -20,13 +20,22 @@ export class SettingsService {
   private readonly current = signal<Settings | null>(null);
   private etag: string | undefined;
   private saving: Promise<unknown> = Promise.resolve();
+  /** Counts every change of {@link current}, so a load can tell whether it answers too late. */
+  private version = 0;
+  /** PATCHes sent and not answered yet. */
+  private inFlight = 0;
 
   /** `null` until loaded. */
   readonly settings = this.current.asReadonly();
 
   /** Loads the settings from the server and applies its theme, which wins over the local one. */
   async load(context?: HttpContext): Promise<Settings> {
+    const started = this.version;
     const response = await this.api.invoke$Response(getSettings, undefined, context);
+    const current = this.current();
+    // An answer sent before a change shown since (or while a save may still change the server)
+    // is older than what is shown: it would bring back old values, the old theme and ETag.
+    if (current && (this.version !== started || this.inFlight > 0)) return current;
     this.accept(response.body, response.headers.get('ETag'));
     this.theme.setMode(response.body.theme);
     return response.body;
@@ -46,18 +55,21 @@ export class SettingsService {
 
   private async save(patch: SettingsPatch): Promise<Settings> {
     const previous = this.current() ?? (await this.load());
-    this.current.set({ ...previous, ...withoutResets(patch) });
+    this.show({ ...previous, ...withoutResets(patch) });
     if (patch.theme) this.theme.setMode(patch.theme);
+    this.inFlight++;
     try {
       const response = await this.api.invoke$Response(updateSettings, {
         'If-Match': this.etag,
         body: patch,
       });
+      this.inFlight--;
       this.accept(response.body, response.headers.get('ETag'));
       this.theme.setMode(response.body.theme);
       return response.body;
     } catch (error) {
-      this.current.set(previous);
+      this.inFlight--;
+      this.show(previous);
       this.theme.setMode(previous.theme);
       if (error instanceof ApiError && error.status === PRECONDITION_FAILED) {
         await this.load().catch(() => undefined);
@@ -67,8 +79,13 @@ export class SettingsService {
   }
 
   private accept(settings: Settings, etag: string | null): void {
-    this.current.set(settings);
+    this.show(settings);
     this.etag = etag ?? undefined;
+  }
+
+  private show(settings: Settings): void {
+    this.current.set(settings);
+    this.version++;
   }
 }
 

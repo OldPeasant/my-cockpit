@@ -253,9 +253,16 @@ describe('GeneralSettings', () => {
         { status: 412, statusText: 'Precondition Failed' },
       );
     await tick();
-    http
-      .expectOne({ method: 'GET', url: PATH })
-      .flush(fakeSettings({ theme: 'system' }), { headers: { ETag: '"7"' } });
+    // Another device changed the theme and the other rows meanwhile.
+    http.expectOne({ method: 'GET', url: PATH }).flush(
+      fakeSettings({
+        theme: 'system',
+        timeZone: 'UTC',
+        weekStart: 'SUNDAY',
+        energyLabels: { LOW: 'Tired', MEDIUM: 'Medium', HIGH: 'High' },
+      }),
+      { headers: { ETag: '"7"' } },
+    );
     await tick();
     await fixture.whenStable();
 
@@ -264,6 +271,74 @@ describe('GeneralSettings', () => {
       'mat-button-toggle-checked',
     );
     expect(root.textContent).toContain('Not saved, previous value restored');
+    expect(zoneField().value).toBe('UTC');
+    expect(root.querySelector('mat-select')?.textContent).toContain('Sunday');
+    expect(input('Label for low energy').value).toBe('Tired');
+  });
+
+  it('keeps a label typed in while another label of the group saves', async () => {
+    await setup();
+
+    editLabel('Label for low energy', 'Tired');
+    await tick();
+    const req = http.expectOne({ method: 'PATCH', url: PATH });
+    const medium = input('Label for medium energy');
+    medium.value = 'Okay-ish';
+    medium.dispatchEvent(new Event('input'));
+    req.flush(fakeSettings({ energyLabels: { LOW: 'Tired', MEDIUM: 'Medium', HIGH: 'High' } }), {
+      headers: { ETag: '"2"' },
+    });
+    await tick();
+    await fixture.whenStable();
+
+    expect(input('Label for low energy').value).toBe('Tired');
+    expect(medium.value).toBe('Okay-ish');
+  });
+
+  it('keeps a typed label when another label of the group fails to save', async () => {
+    await setup();
+
+    editLabel('Label for low energy', 'Tired');
+    await tick();
+    const req = http.expectOne({ method: 'PATCH', url: PATH });
+    const medium = input('Label for medium energy');
+    medium.value = 'Okay-ish';
+    medium.dispatchEvent(new Event('input'));
+    req.flush({ status: 400, title: 'Bad Request' }, { status: 400, statusText: 'Bad Request' });
+    await tick();
+    await fixture.whenStable();
+
+    expect(input('Label for low energy').value).toBe('Low');
+    expect(medium.value).toBe('Okay-ish');
+  });
+
+  it('keeps the second theme picked while the first one still saves', async () => {
+    await setup();
+    const theme = TestBed.inject(ThemeService);
+
+    toggle('Dark').click();
+    toggle('System').click();
+    await tick();
+    http
+      .expectOne({ method: 'PATCH', url: PATH })
+      .flush(fakeSettings({ theme: 'dark' }), { headers: { ETag: '"2"' } });
+    await tick();
+    await fixture.whenStable();
+
+    expect(toggle('System').closest('mat-button-toggle')?.classList).toContain(
+      'mat-button-toggle-checked',
+    );
+    const second = http.expectOne({ method: 'PATCH', url: PATH });
+    expect(second.request.body).toEqual({ theme: 'system' });
+    expect(second.request.headers.get('If-Match')).toBe('"2"');
+    second.flush(fakeSettings({ theme: 'system' }), { headers: { ETag: '"3"' } });
+    await tick();
+    await fixture.whenStable();
+
+    expect(theme.mode()).toBe('system');
+    expect(toggle('System').closest('mat-button-toggle')?.classList).toContain(
+      'mat-button-toggle-checked',
+    );
   });
 
   it('offers IANA time zones including UTC', () => {

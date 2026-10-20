@@ -32,10 +32,11 @@ scheduled list) by adding its route there.
 
 Not routed, but provided to the shell (see `app.routes.ts`):
 
-| Folder     | File                                        | Provides                                                                                        |
-| ---------- | ------------------------------------------- | ----------------------------------------------------------------------------------------------- |
-| `capture/` | `capture.providers.ts` → `provideCapture()` | `CAPTURE_DIALOG` (`shell/shell-tokens.ts`), opened by '+', `Q`, `Ctrl+Shift+Space`              |
-| `search/`  | `search.providers.ts` → `provideSearch()`   | extra `PALETTE_PROVIDERS` (multi) for the `Ctrl+K` palette; the shell adds the "Go to" commands |
+| Folder      | File                                              | Provides                                                                                        |
+| ----------- | ------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| `capture/`  | `capture.providers.ts` → `provideCapture()`       | `CAPTURE_DIALOG` (`shell/shell-tokens.ts`), opened by '+', `Q`, `Ctrl+Shift+Space`              |
+| `search/`   | `search.providers.ts` → `provideSearch()`         | extra `PALETTE_PROVIDERS` (multi) for the `Ctrl+K` palette; the shell adds the "Go to" commands |
+| `settings/` | `settings.providers.ts` → `provideSettingsSync()` | loads `GET /settings` on every login and applies the server theme (`ThemeService.setMode`)      |
 
 The theme lives in `shell/theme.service.ts` (`ThemeService.mode()` / `setMode()`); the settings
 feature syncs it with the server setting.

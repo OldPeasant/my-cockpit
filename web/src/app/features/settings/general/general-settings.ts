@@ -3,6 +3,7 @@ import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@a
 import { toSignal } from '@angular/core/rxjs-interop';
 import {
   AbstractControl,
+  FormGroup,
   NonNullableFormBuilder,
   ReactiveFormsModule,
   ValidationErrors,
@@ -130,6 +131,11 @@ export default class GeneralSettings {
   protected readonly loadError = signal<string | null>(null);
   protected readonly state = signal<Partial<Record<GeneralField, SaveState>>>({});
 
+  /** Per input (`timeZone`, `energyLabels.LOW`, ...): the value it got from the server or sent. */
+  private readonly baseline = new Map<string, unknown>();
+  /** Saves per row that have not answered yet. */
+  private readonly pending = new Map<GeneralField, number>();
+
   private readonly zoneQuery = toSignal(this.form.controls.timeZone.valueChanges, {
     initialValue: '',
   });
@@ -165,16 +171,18 @@ export default class GeneralSettings {
     if (sameValue(value, saved[field])) return;
 
     this.setState(field, 'saving');
+    for (const [path, input] of this.inputs(field)) this.baseline.set(path, input.getRawValue());
+    this.pending.set(field, (this.pending.get(field) ?? 0) + 1);
     try {
-      const settings = await this.service.update({ [field]: value } as SettingsPatch);
+      await this.service.update({ [field]: value } as SettingsPatch);
       this.setState(field, 'saved');
-      this.showField(field, settings);
     } catch {
-      // The service rolled back; the interceptor already showed the error.
+      // The service rolled back (and reloaded after a 412); the interceptor showed the error.
       this.setState(field, 'failed');
-      const current = this.service.settings();
-      if (current) this.showField(field, current);
     }
+    this.pending.set(field, (this.pending.get(field) ?? 1) - 1);
+    const current = this.service.settings();
+    if (current) this.refresh(current);
   }
 
   /** Leaving the time zone field with a partial name puts the saved zone back. */
@@ -197,13 +205,49 @@ export default class GeneralSettings {
   }
 
   private show(settings: Settings): void {
-    for (const field of Object.keys(this.form.controls) as GeneralField[]) {
-      this.showField(field, settings);
+    for (const field of this.fields()) this.showField(field, settings);
+  }
+
+  /**
+   * Shows `settings` in every input the user has not changed since it was filled or sent, except
+   * in rows a later save is about to answer for: typing in one label while another of the same
+   * group saves, or a second theme click, is kept.
+   */
+  private refresh(settings: Settings): void {
+    for (const field of this.fields()) {
+      if (this.pending.get(field)) continue;
+      for (const [path, input, value] of this.inputs(field, settings)) {
+        if (input.getRawValue() === this.baseline.get(path)) this.fill(path, input, value);
+      }
     }
   }
 
   private showField(field: GeneralField, settings: Settings): void {
-    this.form.controls[field].reset(settings[field] as never);
+    for (const [path, input, value] of this.inputs(field, settings)) this.fill(path, input, value);
+  }
+
+  private fill(path: string, input: AbstractControl, value: unknown): void {
+    input.reset(value);
+    this.baseline.set(path, value);
+  }
+
+  private fields(): GeneralField[] {
+    return Object.keys(this.form.controls) as GeneralField[];
+  }
+
+  /** The inputs of a row (each label of a group on its own), with their value in `settings`. */
+  private inputs(
+    field: GeneralField,
+    settings?: Settings,
+  ): [path: string, input: AbstractControl, value: unknown][] {
+    const control: AbstractControl = this.form.controls[field];
+    const value = settings?.[field];
+    if (!(control instanceof FormGroup)) return [[field, control, value]];
+    return Object.entries(control.controls).map(([key, input]) => [
+      `${field}.${key}`,
+      input,
+      (value as Record<string, unknown> | undefined)?.[key],
+    ]);
   }
 }
 
