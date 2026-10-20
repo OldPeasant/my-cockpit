@@ -1,10 +1,10 @@
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { EnvironmentProviders, Provider, signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
-import { provideRouter } from '@angular/router';
+import { provideRouter, Router } from '@angular/router';
 import { ChangeEvent } from '../../api/generated';
 import { AuthService } from '../auth';
-import { NotificationService, provideHttp } from '../http';
+import { NotificationService, provideHttp, SILENT_ERRORS, SKIP_LOGIN_REDIRECT } from '../http';
 import {
   CHANGE_EVENT_NAME,
   ChangeEventsService,
@@ -430,6 +430,45 @@ describe('ChangeEventsService', () => {
     await vi.advanceTimersByTimeAsync(1000);
 
     expect(checkSession).toHaveBeenCalledTimes(1);
+    expect(sources).toHaveLength(2);
+  });
+
+  it('sends the session probe silently and never redirects to login on its 401', async () => {
+    create();
+    const navigate = vi.spyOn(TestBed.inject(Router), 'navigate');
+
+    latest().fail();
+    await vi.advanceTimersByTimeAsync(0);
+    const probe = backend.expectOne(ME_PATH);
+    expect(probe.request.context.get(SILENT_ERRORS)).toBe(true);
+    expect(probe.request.context.get(SKIP_LOGIN_REDIRECT)).toBe(true);
+    probe.flush({ status: 401, title: 'Unauthorized' }, { status: 401, statusText: 'Unauthorized' });
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(navigate).not.toHaveBeenCalled();
+    expect(notifications.error).not.toHaveBeenCalled();
+  });
+
+  it('keeps reconnecting when the re-check after a 401 probe finds the session still valid', async () => {
+    create();
+    checkSession.mockResolvedValue(true);
+
+    await failWithProbe(401);
+    TestBed.tick();
+    await vi.advanceTimersByTimeAsync(1000);
+
+    expect(checkSession).toHaveBeenCalledExactlyOnceWith(true);
+    expect(sources).toHaveLength(2);
+  });
+
+  it('probes the session once per failed attempt', async () => {
+    create();
+
+    await failWithProbe(503);
+    await vi.advanceTimersByTimeAsync(1000);
+    await failWithProbe(503);
+
+    backend.verify();
     expect(sources).toHaveLength(2);
   });
 });
