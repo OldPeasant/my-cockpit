@@ -1,11 +1,11 @@
 ---
 title: Calendar views
-status: todo
-owner: 
+status: in_progress
+owner: R1963MACOS/agent-1
 deps: [p0-web-shell,cal-local-api,p0-web-sse,p0-e2e-harness]
 touches: [web/src/app/features/calendar/views]
 prio: 1
-lease_until: 
+lease_until: 2026-10-20T23:48:47Z
 releases: 1
 extended: 
 ---
