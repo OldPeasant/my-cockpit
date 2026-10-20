@@ -1,11 +1,11 @@
 ---
 title: Android GTD repositories and read cache
-status: in_progress
+status: done
 owner: dell26/agent-5
 deps: [and-login,gtd-projects-api]
 touches: [android/app/src/main/java/ch/sonensei/cockpit/gtd/data,android/app/src/test/java/ch/sonensei/cockpit/gtd/data]
 prio: 1
-lease_until: 2026-10-20T23:07:45Z
+lease_until: 
 ---
 ## Goal
 Data layer for GTD screens with offline read cache (SPEC.md §9.3).
@@ -26,3 +26,4 @@ Data layer for GTD screens with offline read cache (SPEC.md §9.3).
 - ASSUMPTION (2026-10-21 00:04+0200 by dell26/agent-5): Foreground SSE refresh: repository observe() flows share one /api/v1/events connection while collected (screens collect only while visible), closed 5s after the last collector; reconnect with backoff and reload after each (re)connect since events are not replayed. Hand-written SSE parser on OkHttp, no okhttp-sse dependency.
 - ASSUMPTION (2026-10-21 00:05+0200 by dell26/agent-5): Criterion 3's 'Robolectric/Compose UI tests for screens' belongs to the screen tasks (and-inbox, and-next-today, and-projects-lists); this task has no screens in its touches, so its tests are Robolectric data-layer tests.
 - ASSUMPTION (2026-10-21 00:46+0200 by dell26/agent-5): Foreground SSE refresh reloads only after a REconnect, not on the stream's first connection (the load at observe start covers it; avoids a double load per screen visit). Accepted gap: a change made between that initial load and the first SSE subscription is picked up only on the next matching change, reconnect or the 15-min periodic sync.
+- done by dell26/agent-5: `sh scripts/check.sh` passed in 103s on 97ab751e3; criteria verified 3/3
