@@ -8,6 +8,7 @@ import ch.sonensei.cockpit.backup.domain.RestoreService
 import ch.sonensei.cockpit.core.auth.WithCockpitUser
 import ch.sonensei.cockpit.core.auth.infra.UserAccountRepository
 import ch.sonensei.cockpit.core.backupcontrib.UserBackupFixture
+import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.assertions.withClue
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldContain
@@ -34,6 +35,7 @@ import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc
 import org.springframework.context.annotation.Import
 import org.springframework.http.MediaType
 import org.springframework.jdbc.core.JdbcTemplate
+import org.springframework.security.test.context.support.WithAnonymousUser
 import org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf
 import org.springframework.test.context.DynamicPropertyRegistry
 import org.springframework.test.context.DynamicPropertySource
@@ -73,6 +75,7 @@ class RestoreWebTests(
 	@Autowired private val failing: FailingImportBackupContributor,
 	@Autowired private val jobs: BackupJobService,
 	@Autowired private val clock: Clock,
+	@Autowired private val restores: RestoreService,
 ) {
 	private val mapper get() = backups.canonicalJson
 
@@ -513,6 +516,105 @@ class RestoreWebTests(
 
 		// Like a failing import (RestoreService.replace) and a failing backup job: the class name only at WARN and above.
 		output.all shouldNotContain "Secret title"
+	}
+
+	@Test
+	@WithAnonymousUser
+	fun `anonymous upload and confirm are 401, keep the pending upload and change nothing`() {
+		val zip = export()
+		changeData()
+		val before = titles()
+		val id = restores.upload(zip.inputStream()).id!!
+
+		upload(zip).andExpect { status { isUnauthorized() } }
+		confirm(id.toString()).andExpect { status { isUnauthorized() } }
+
+		titles() shouldBe before
+		Files.exists(dataDir.resolve(RestoreService.PRE_RESTORE_DIR)) shouldBe false
+		withClue("the anonymous requests neither replaced nor discarded the pending upload") {
+			restores.confirm(id).counts["test_fixtures"] shouldBe 3
+		}
+	}
+
+	@Test
+	fun `upload and confirm without CSRF token are 403 and change nothing`() {
+		val zip = export()
+		changeData()
+		val before = titles()
+		val id = report(zip)["id"].asString()
+
+		mockMvc
+			.post(BASE) {
+				contentType = ZIP
+				content = zip
+			}.andExpect { status { isForbidden() } }
+		mockMvc.post("$BASE/$id/confirm").andExpect { status { isForbidden() } }
+
+		titles() shouldBe before
+		Files.exists(dataDir.resolve(RestoreService.PRE_RESTORE_DIR)) shouldBe false
+		withClue("the rejected requests did not discard the pending upload") {
+			confirm(id).andExpect { status { isOk() } }
+		}
+	}
+
+	@Test
+	fun `confirm also empties tables that are not in the backup, such as sessions`() {
+		val userId = jdbc.queryForObject("select id from app_user", UUID::class.java)
+		jdbc.update(
+			"insert into auth_session (id, created_at, updated_at, version, user_id, token_hash, remember_device, last_seen_at, expires_at) " +
+				"values (?, now(), now(), 0, ?, 'fictitious-token-hash', false, now(), now() + interval '1 hour')",
+			UUID.randomUUID(),
+			userId,
+		)
+		val id = report(export())["id"].asString()
+
+		confirm(id).andExpect { status { isOk() } }
+
+		jdbc.queryForObject("select count(*) from auth_session", Long::class.java) shouldBe 0L
+		jdbc.queryForList("select username from app_user", String::class.java) shouldContainExactly listOf("jdoe")
+	}
+
+	@Test
+	fun `a failing import uses up the upload`() {
+		val id = report(export())["id"].asString()
+		failing.fail = true
+		confirm(id).andExpect { status { isUnprocessableContent() } }
+
+		failing.fail = false
+		confirm(id).andExpect { status { isNotFound() } }
+	}
+
+	@Test
+	fun `an upload whose stream breaks off fails, keeps nothing pending and changes nothing`() {
+		val zip = export()
+		changeData()
+		val before = titles()
+		val previous = restores.upload(zip.inputStream()).id!!
+		val broken =
+			object : java.io.InputStream() {
+				private var left = 100
+
+				override fun read(): Int = if (left-- > 0) 0x50 else throw java.io.IOException("Connection reset (fictitious)")
+			}
+
+		shouldThrow<java.io.IOException> { restores.upload(broken) }
+
+		titles() shouldBe before
+		withClue("the broken upload discarded the previous one and left none of its own") {
+			confirm(previous.toString()).andExpect { status { isNotFound() } }
+		}
+		restores.upload(zip.inputStream()).valid shouldBe true
+	}
+
+	@Test
+	fun `an empty upload is rejected as not a zip, without id`() {
+		val report = report(ByteArray(0))
+
+		report["valid"].asBoolean() shouldBe false
+		report["id"].isNull shouldBe true
+		report["formatVersion"].isNull shouldBe true
+		report["counts"].size() shouldBe 0
+		report["problems"].values().map { it.asString() } shouldContainExactly listOf("Not a zip file")
 	}
 
 	@Test

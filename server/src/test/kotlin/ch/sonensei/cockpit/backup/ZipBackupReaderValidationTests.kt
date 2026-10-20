@@ -271,6 +271,31 @@ class ZipBackupReaderValidationTests {
 		problems(corrupt) shouldContainExactly listOf("data/big.jsonl cannot be read")
 	}
 
+	@Test
+	fun `a manifest whose compressed bytes are corrupt is not valid, for open and inspect`() {
+		val path = dir.resolve("manifest-first.zip")
+		ZipOutputStream(path.outputStream()).use { out ->
+			out.putNextEntry(ZipEntry(BackupFormat.MANIFEST))
+			out.write(mapper.writeValueAsBytes(manifest()))
+			out.closeEntry()
+			validFiles.forEach { (name, bytes) ->
+				out.putNextEntry(ZipEntry(name))
+				out.write(bytes)
+				out.closeEntry()
+			}
+		}
+		val bytes = Files.readAllBytes(path)
+		// The manifest is the first entry: a 30-byte local header, the name, the extra field, then the deflated data.
+		val nameLength = (bytes[26].toInt() and 0xff) or ((bytes[27].toInt() and 0xff) shl 8)
+		val extraLength = (bytes[28].toInt() and 0xff) or ((bytes[29].toInt() and 0xff) shl 8)
+		val data = 30 + nameLength + extraLength
+		for (i in data until data + 8) bytes[i] = 0xff.toByte()
+		val corrupt = dir.resolve("corrupt-manifest.zip").also { Files.write(it, bytes) }
+
+		problems(corrupt) shouldContainExactly listOf("manifest.json is not valid")
+		ZipBackupReader.inspect(corrupt, mapper) shouldBe BackupInspection(null, listOf("manifest.json is not valid"))
+	}
+
 	/** The valid manifest as a JSON object, to break one field of it. */
 	private fun manifestTree() = mapper.valueToTree<ObjectNode>(manifest())
 
