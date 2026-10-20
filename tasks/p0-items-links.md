@@ -5,7 +5,7 @@ owner: dell26/agent-3
 deps: [p0-auth-login]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/core/items,server/src/test/kotlin/ch/sonensei/cockpit/core/items,server/src/main/resources/db/migration/core-items]
 prio: 1
-lease_until: 2026-10-20T12:45:40Z
+lease_until: 2026-10-20T12:50:40Z
 ---
 ## Goal
 The cross-module link system (SPEC.md §4.3).
