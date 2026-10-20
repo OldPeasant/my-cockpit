@@ -1,11 +1,13 @@
 ---
 title: Mail read API
-status: in_progress
-owner: dell26/agent-1
+status: todo
+owner: 
 deps: [mail-header-sync,mail-sanitizer]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/mail/api,server/src/test/kotlin/ch/sonensei/cockpit/mail/api]
 prio: 1
-lease_until: 2026-10-20T22:03:41Z
+lease_until: 
+releases: 0
+extended: 
 ---
 ## Goal
 List and read messages (SPEC.md §7.4).
@@ -23,3 +25,4 @@ List and read messages (SPEC.md §7.4).
 - ASSUMPTION (2026-10-20 22:37+0200 by dell26/agent-1): Attachment metadata is cached in a new table mail_body_attachments (FK to mail_body, evicted with it; migration in db/migration/mail, outside the task's touches) so reopening a cached message needs no IMAP round trip.
 - ASSUMPTION (2026-10-20 22:37+0200 by dell26/agent-1): Image proxy GET /api/v1/mail/image-proxy?url= is unsigned (any authenticated user may proxy any public URL); only public unicast addresses, ports 80/443, raster image types (no SVG), 5 MB / 10 s total / 3 redirects by default. Implemented with a small socket-based HTTP/1.1 client pinned to the checked IP, because the JDK HttpClient cannot be pinned (DNS rebinding).
 - ASSUMPTION (2026-10-20 22:37+0200 by dell26/agent-1): Attachment downloads are always Content-Disposition: attachment with application/octet-stream, except ?inline=true for raster image types; all mail content responses carry nosniff and CSP 'default-src none; sandbox'.
+- release by dell26/agent-1: handed back by dell26/agent-1: pushes had failed (To https://github.com/OldPeasant/my-cockpit.git | ! [remote rejected] HEAD -> wip/mail-read-api (missing necessary obje…); continue from wip/mail-read-api
