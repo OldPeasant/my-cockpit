@@ -1,0 +1,155 @@
+package ch.sonensei.cockpit.core.persistence
+
+import ch.sonensei.cockpit.support.PostgresTestBase
+import io.kotest.assertions.throwables.shouldThrow
+import io.kotest.matchers.collections.shouldContainExactly
+import io.kotest.matchers.nulls.shouldBeNull
+import io.kotest.matchers.nulls.shouldNotBeNull
+import io.kotest.matchers.shouldBe
+import org.junit.jupiter.api.BeforeEach
+import org.junit.jupiter.api.Test
+import org.springframework.beans.factory.annotation.Autowired
+import org.springframework.boot.test.context.SpringBootTest
+import org.springframework.context.annotation.Import
+import org.springframework.dao.OptimisticLockingFailureException
+import org.springframework.jdbc.core.JdbcTemplate
+import org.springframework.transaction.support.TransactionTemplate
+import java.time.Clock
+import java.time.Duration
+import java.time.Instant
+
+@SpringBootTest
+@Import(MutableClockTestConfiguration::class)
+class PersistenceConventionsTests(
+	@Autowired private val repository: PersistenceFixtureRepository,
+	@Autowired private val clock: MutableClock,
+	@Autowired private val appClock: Clock,
+	@Autowired private val tx: TransactionTemplate,
+	@Autowired private val jdbc: JdbcTemplate,
+) : PostgresTestBase() {
+	@BeforeEach
+	fun reset() {
+		repository.deleteAllInBatch()
+		clock.set(MutableClockTestConfiguration.START)
+	}
+
+	@Test
+	fun `the injectable clock is the one tests substitute`() {
+		appClock shouldBe clock
+	}
+
+	@Test
+	fun `create assigns a UUIDv7 id, timestamps from the clock and version 0`() {
+		val saved = repository.save(PersistenceFixture("Buy milk"))
+
+		UuidV7.isUuidV7(saved.id) shouldBe true
+		saved.createdAt shouldBe MutableClockTestConfiguration.START
+		saved.updatedAt shouldBe MutableClockTestConfiguration.START
+		saved.version shouldBe 0
+		saved.isNew shouldBe false
+
+		val loaded = repository.findById(saved.id).orElseThrow()
+		loaded.title shouldBe "Buy milk"
+		loaded.createdAt shouldBe MutableClockTestConfiguration.START
+	}
+
+	@Test
+	fun `the first core migration ran and enabled pg_trgm`() {
+		jdbc.queryForObject(
+			"select count(*) from flyway_schema_history where success and version = '202610200000' " +
+				"and script = 'core/V202610200000__core_enable_pg_trgm.sql'",
+			Int::class.java,
+		) shouldBe 1
+		jdbc.queryForObject("select count(*) from pg_extension where extname = 'pg_trgm'", Int::class.java) shouldBe 1
+	}
+
+	@Test
+	fun `timestamps are stored as timestamptz`() {
+		jdbc.queryForList(
+			"select data_type from information_schema.columns where table_name = 'test_persistence_fixture' " +
+				"and column_name in ('created_at', 'updated_at', 'deleted_at')",
+			String::class.java,
+		) shouldContainExactly List(3) { "timestamp with time zone" }
+	}
+
+	@Test
+	fun `update moves updatedAt to the clock's time, keeps createdAt and bumps the version`() {
+		val created = repository.save(PersistenceFixture("Draft"))
+		clock.advance(Duration.ofHours(3))
+
+		val updated =
+			tx.execute {
+				repository.findById(created.id).orElseThrow().apply { title = "Final" }
+			}!!
+
+		updated.createdAt shouldBe MutableClockTestConfiguration.START
+		updated.updatedAt shouldBe MutableClockTestConfiguration.START.plus(Duration.ofHours(3))
+		updated.version shouldBe 1
+	}
+
+	@Test
+	fun `a client-supplied UUIDv7 id is kept, and creating it again is detectable`() {
+		val clientId = UuidV7.generate()
+
+		repository.save(PersistenceFixture("Offline capture", clientId)).id shouldBe clientId
+
+		repository.existsById(clientId) shouldBe true
+		repository.findById(clientId).orElseThrow().title shouldBe "Offline capture"
+	}
+
+	@Test
+	fun `ids that are not UUIDv7 are rejected`() {
+		shouldThrow<IllegalArgumentException> {
+			PersistenceFixture("Bad id", java.util.UUID.randomUUID())
+		}
+	}
+
+	@Test
+	fun `saving a stale version raises an optimistic locking conflict`() {
+		val created = repository.save(PersistenceFixture("Original"))
+		val stale = repository.findById(created.id).orElseThrow()
+		val fresh = repository.findById(created.id).orElseThrow()
+
+		fresh.title = "Edited elsewhere"
+		repository.save(fresh).version shouldBe 1
+
+		stale.title = "Edited on an old copy"
+		shouldThrow<OptimisticLockingFailureException> { repository.save(stale) }
+		repository.findById(created.id).orElseThrow().title shouldBe "Edited elsewhere"
+	}
+
+	@Test
+	fun `soft-deleted rows are excluded by the repository helper`() {
+		val kept = repository.save(PersistenceFixture("Kept"))
+		val deleted = repository.save(PersistenceFixture("Deleted"))
+		clock.advance(Duration.ofMinutes(5))
+
+		tx.executeWithoutResult { repository.findById(deleted.id).orElseThrow().softDelete(clock) }
+
+		repository.findActiveById(kept.id).shouldNotBeNull()
+		repository.findActiveById(deleted.id).shouldBeNull()
+		repository.findAllActive().map { it.id } shouldContainExactly listOf(kept.id)
+		repository.findAllDeleted().map { it.id } shouldContainExactly listOf(deleted.id)
+		repository.findById(deleted.id).orElseThrow().deletedAt shouldBe
+			MutableClockTestConfiguration.START.plus(Duration.ofMinutes(5))
+	}
+
+	@Test
+	fun `soft delete keeps the first deletion time and restore brings the row back`() {
+		val entity = repository.save(PersistenceFixture("Note"))
+		val firstDeletion: Instant = clock.instant()
+
+		tx.executeWithoutResult { repository.findById(entity.id).orElseThrow().softDelete(clock) }
+		clock.advance(Duration.ofDays(1))
+		tx.executeWithoutResult {
+			val loaded = repository.findById(entity.id).orElseThrow()
+			loaded.softDelete(clock)
+			loaded.deletedAt shouldBe firstDeletion
+			loaded.isDeleted shouldBe true
+		}
+
+		tx.executeWithoutResult { repository.findById(entity.id).orElseThrow().restore() }
+
+		repository.findActiveById(entity.id).shouldNotBeNull().isDeleted shouldBe false
+	}
+}

@@ -183,3 +183,23 @@ All outputs are Git-ignored (`build/`, `coverage/`). To get task-scoped coverage
 - **Android:** MVVM with unidirectional data flow, one package per feature.
 - All user-facing strings are externalized (i18n-ready, English first).
 - Every schema change is a new Flyway migration. Applied migrations are never edited.
+
+## Persistence conventions
+
+Building blocks in `ch.sonensei.cockpit.core.persistence` (SPEC.md §4.2):
+- **Entities** extend `BaseEntity` (or `SoftDeletableEntity` for user content that goes to the Trash).
+  Tables declare `id uuid primary key, created_at timestamptz not null, updated_at timestamptz not null,
+  version bigint not null` (+ `deleted_at timestamptz` for soft delete).
+- **Ids** are UUIDv7 (`UuidV7.generate()`), created in the entity constructor. A client id (offline
+  capture, idempotent create) is passed to the constructor and must be a UUIDv7.
+- **Time:** inject the `Clock` bean (UTC) and never call `Instant.now()`. `createdAt`/`updatedAt` come from it
+  through JPA auditing. Tests import a `@Primary` `MutableClock` to fix or advance time.
+- **Optimistic locking:** `@Version`. Saving a stale copy throws `OptimisticLockingFailureException`.
+- **Soft delete:** `entity.softDelete(clock)` / `restore()`. Repositories extend `SoftDeletableRepository`.
+  Normal reads use `findActiveById`/`findAllActive`, and derived queries add `DeletedAtIsNull`.
+- **Migrations:** `server/src/main/resources/db/migration/<module>/V<yyyyMMddHHmm>__<module>_<desc>.sql`
+  (e.g. `gtd/V202610211430__gtd_tasks.sql`), using the UTC time you create the file. Flyway scans the
+  subfolders and runs `out-of-order`, so parallel tasks never clash on version numbers. Never edit or
+  rename an applied migration: change the schema in a new one. The first migration,
+  `core/V202610200000__core_enable_pg_trgm.sql`, only enables `pg_trgm`. Module tables come in module
+  migrations. Test-only tables go to `server/src/test/resources/db/migration/<module>/`.
