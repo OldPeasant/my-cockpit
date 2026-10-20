@@ -1,0 +1,3 @@
+# Real secrets, created by gen-env.sh. Only .env.example is committed.
+.env
+.env.tmp

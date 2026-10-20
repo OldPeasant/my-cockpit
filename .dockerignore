@@ -1,0 +1,14 @@
+# Only web/ and server/ sources go into the build context (see Dockerfile).
+*
+!web/
+!server/
+web/node_modules/
+web/dist/
+web/.angular/
+web/coverage/
+web/test-results/
+web/playwright-report/
+server/build/
+server/.gradle/
+server/.kotlin/
+**/.env

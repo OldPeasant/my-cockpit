@@ -1,0 +1,34 @@
+# Caddy in front of the Cockpit server (SPEC.md §4.1, §11).
+# TLS: a public COCKPIT_DOMAIN gets a Let's Encrypt certificate automatically; `localhost` (or an IP)
+# gets one from Caddy's internal CA, for local testing.
+
+{$COCKPIT_DOMAIN} {
+	encode zstd gzip
+
+	# Applied after the proxied response (`defer`), so these win over headers from the server.
+	header {
+		defer
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=(), usb=()"
+		Cross-Origin-Opener-Policy "same-origin"
+		# script-src: the hash allows the one inline script of the Angular build (it switches the
+		# non-critical stylesheet from media="print" to "all"). If a new Angular version changes that
+		# script, the browser console reports the new hash: update it here.
+		# style-src 'unsafe-inline': Angular component styles and the inlined critical CSS.
+		# frame-ancestors 'none' replaces X-Frame-Options.
+		Content-Security-Policy "default-src 'self'; script-src 'self' 'sha256-LMY6wYoFV9I4wWzxaq1N/dTpl4iurQktw706UCHK3vM='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; worker-src 'self' blob:; frame-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
+		-Server
+		-X-Powered-By
+	}
+
+	# Actuator is internal (SPEC.md §11); only the health check is reachable from outside.
+	@actuator {
+		path /actuator /actuator/*
+		not path /actuator/health /actuator/health/*
+	}
+	respond @actuator 404
+
+	reverse_proxy server:8080
+}

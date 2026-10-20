@@ -1,0 +1,66 @@
+# Cockpit stack (SPEC.md §11): Caddy (TLS) -> server (Spring Boot + SPA) -> PostgreSQL.
+# Configuration comes from deploy/.env (create it with `sh deploy/gen-env.sh <domain>`), see deploy/README.md.
+# Only Caddy publishes ports; server and postgres are reachable on the internal network only.
+name: cockpit
+
+services:
+  caddy:
+    image: docker.io/library/caddy:2
+    restart: unless-stopped
+    depends_on:
+      - server
+    ports:
+      - "${COCKPIT_HTTP_PORT:-80}:80"
+      - "${COCKPIT_HTTPS_PORT:-443}:443"
+      - "${COCKPIT_HTTPS_PORT:-443}:443/udp"
+    environment:
+      COCKPIT_DOMAIN: ${COCKPIT_DOMAIN:?set COCKPIT_DOMAIN in deploy/.env}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+
+  server:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    image: ${COCKPIT_IMAGE:-localhost/cockpit-server:latest}
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      COCKPIT_DOMAIN: ${COCKPIT_DOMAIN}
+      COCKPIT_DATA_DIR: /data
+      COCKPIT_MASTER_KEY: ${COCKPIT_MASTER_KEY:?set COCKPIT_MASTER_KEY in deploy/.env}
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/cockpit
+      SPRING_DATASOURCE_USERNAME: cockpit
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in deploy/.env}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      MS_CLIENT_ID: ${MS_CLIENT_ID:-}
+      MS_CLIENT_SECRET: ${MS_CLIENT_SECRET:-}
+      MS_TENANT: ${MS_TENANT:-common}
+    volumes:
+      - cockpit-data:/data
+
+  postgres:
+    image: docker.io/library/postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: cockpit
+      POSTGRES_USER: cockpit
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in deploy/.env}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cockpit -d cockpit"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+volumes:
+  caddy-data:
+  caddy-config:
+  cockpit-data:
+  postgres-data:
