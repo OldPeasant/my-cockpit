@@ -1,11 +1,11 @@
 ---
 title: First-run setup: owner account, password hashing, TOTP enrollment
-status: in_progress
+status: done
 owner: dell26/agent-4
 deps: [p0-db-conventions,p0-api-conventions,p0-crypto]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/core/auth,server/src/test/kotlin/ch/sonensei/cockpit/core/auth,server/src/main/resources/db/migration/core-auth]
 prio: 1
-lease_until: 2026-10-20T10:24:09Z
+lease_until: 
 ---
 ## Goal
 Single-user setup flow (SPEC.md §4.1): available only while no user exists.
@@ -27,3 +27,4 @@ Single-user setup flow (SPEC.md §4.1): available only while no user exists.
 - ASSUMPTION (2026-10-20 11:43+0200 by dell26/agent-4): Added core/auth/infra/SecurityConfiguration (health + setup public, rest authenticated with plain 401, CSRF on) and the Argon2id PasswordEncoder bean (Spring v5.8 defaults); p0-auth-login extends it with sessions and the XSRF cookie.
 - ASSUMPTION (2026-10-20 11:43+0200 by dell26/agent-4): Recovery codes: xxxxx-xxxxx from a 31-char alphabet without look-alikes, normalized (lowercase, letters/digits only) and Argon2id-hashed. Username 1-64 chars of letters, digits, . _ @ -; password 12-256 chars.
 - ASSUMPTION (2026-10-20 11:58+0200 by dell26/agent-4): Supersedes the earlier replace rule: POST /setup while an account is pending replaces it only with the same username+password, or once the pending account is older than 1 hour (abandoned setup); otherwise 409 'Setup is already in progress' (fix of review finding CR-1).
+- done by dell26/agent-4: `sh scripts/check.sh` passed in 15s on 5398e8352; criteria verified 4/4
