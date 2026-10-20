@@ -61,4 +61,13 @@ class RecoveryCode(
 	@Column(name = "used_at")
 	var usedAt: Instant? = null
 		protected set
+
+	val isUsed: Boolean
+		get() = usedAt != null
+
+	/** Consumes the code: a recovery code works only once. */
+	fun markUsed(at: Instant) {
+		check(!isUsed) { "Recovery code is already used" }
+		usedAt = at
+	}
 }
