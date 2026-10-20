@@ -12,7 +12,7 @@ object TaskRecurrence {
 	private val DAY_FREQUENCIES = setOf(Frequency.DAILY, Frequency.WEEKLY, Frequency.MONTHLY, Frequency.YEARLY)
 	private val COUNT = Regex("(?i)(^|;)COUNT=(\\d+)")
 
-	// Any day works to check that ical4j can expand the rule (e.g. an UNTIL with a time cannot be compared with days).
+	// Any day works to check that ical4j can expand the rule (e.g. a time-of-day part like BYHOUR=9 cannot be applied to days).
 	private val PROBE_DAY = LocalDate.of(2000, 1, 1)
 
 	/** Why [rule] is not a valid task recurrence rule, or `null` when it is. */
