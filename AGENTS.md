@@ -231,3 +231,15 @@ Other commands: `list`, `status`, `check` (validates deps/cycles), `graph` (writ
   - A deviation from SPEC.md or a decision it leaves open: record it with `tasks.py assume` and, if it is
     architectural, an ADR in `docs/adr/NNNN-title.md`.
   - When you add a tool, runtime or library, update the stack table and "Install" in ARCHITECTURE.md.
+- **Shared and generated files** (the board relies on these rules to keep parallel tasks apart):
+  - `api/openapi.yaml` and `web/src/app/api/generated/` are generated. On a conflict, never merge by hand:
+    take either side, then regenerate them (see `api/README.md`, `npm run api:gen`).
+  - New Flyway migrations go to `server/src/main/resources/db/migration/<module>/V<yyyyMMddHHmm>__<module>_<desc>.sql`,
+    so parallel tasks never collide on version numbers.
+  - Each feature lives in its own folder (`web/src/app/features/<feature>`, `android/.../cockpit/<feature>`,
+    `server/.../cockpit/<module>`). The shells create placeholders for every feature, so stay inside your task's
+    `touches`.
+  - Build files (`server/build.gradle.kts`, `web/package.json`, `android/gradle/libs.versions.toml`) got every known
+    library in the `*-deps` tasks. If you still need one, add exactly that line; on a conflict keep both sides.
+  - `docs/ARCHITECTURE.md` and `docs/adr/` are shared docs: keep edits small, and on a conflict keep both sides.
+- **Human tasks** (`h-*`) are on hold for the owner. Never claim them, and don't depend on them.

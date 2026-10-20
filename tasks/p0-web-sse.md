@@ -1,0 +1,17 @@
+---
+title: Web SSE client
+status: todo
+owner:
+deps: [p0-web-api-client,p0-events-sse]
+touches: [web/src/app/core/events]
+prio: 1
+---
+## Goal
+A shared service that keeps one SSE connection and dispatches change events to feature stores.
+
+## Acceptance criteria
+- [ ] `ChangeEventsService` connects after login to `/api/v1/events`, reconnects with backoff, exposes `events$(type)` per item type
+- [ ] On reconnect it emits a `resync` signal so stores can refetch (missed events)
+- [ ] Vitest component/service tests cover dispatch by type, reconnect with backoff using fake timers, resync on reconnect; `cd web && npm run check` passes
+
+## Notes

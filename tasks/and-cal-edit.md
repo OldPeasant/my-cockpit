@@ -1,0 +1,16 @@
+---
+title: Android event create/edit
+status: todo
+owner:
+deps: [and-cal-agenda]
+touches: [android/app/src/main/java/ch/sonensei/cockpit/calendar/edit,android/app/src/test/java/ch/sonensei/cockpit/calendar/edit]
+prio: 2
+---
+## Goal
+Create and edit events on the phone.
+
+## Acceptance criteria
+- [ ] Event form incl. recurrence presets and THIS/FOLLOWING/ALL prompt
+- [ ] `cd android && ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.calendar.edit.*'` passes, covering form validation and scope prompt (Robolectric/Compose UI tests for screens)
+
+## Notes

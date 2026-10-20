@@ -1,0 +1,18 @@
+---
+title: Web setup and login pages
+status: todo
+owner:
+deps: [p0-web-shell,p0-auth-login]
+touches: [web/src/app/features/auth,web/src/app/core/auth,web/src/app/app.routes.ts]
+prio: 1
+---
+## Goal
+Setup wizard and login UI (SPEC.md §4.1).
+
+## Acceptance criteria
+- [ ] Setup page (only reachable while setup is needed): username/password form, QR code of the otpauth URI, recovery codes with copy/download, TOTP confirmation
+- [ ] Login page: password + TOTP, 'use a recovery code' switch, remember device; shows the backoff wait time on 429
+- [ ] Auth guard on all shell routes; logout in the top bar menu; `/login` redirects to the return URL after success
+- [ ] Vitest component/service tests cover setup and login forms, guard redirects; `cd web && npm run check` passes
+
+## Notes
