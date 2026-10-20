@@ -21,7 +21,8 @@ Restore from a backup zip (SPEC.md §10.1).
   - verified (2026-10-21 01:52+0200 by dell26/agent-4): RestoreWebTests + ZipBackupReaderValidationTests + RestoreCliTests: corrupt zip / wrong format version / sha256 mismatch / empty upload -> valid:false with problem, no id, data unchanged; server/gradlew -p server test --tests 'ch.sonensei.cockpit.backup.*' -> pass
 - [x] `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.backup.*'` passes (Postgres via Testcontainers where persistence is involved)
   - verified (2026-10-21 01:52+0200 by dell26/agent-4): server/gradlew -p server test --tests 'ch.sonensei.cockpit.backup.*' --tests '*OpenApiContractTest' --tests '*UserRestoreWarningsTests' (Postgres via Testcontainers) -> 132 tests, 0 failures
-- [ ] API documented: `api/openapi.yaml` regenerated (`UPDATE_OPENAPI=1 ./gradlew test --tests '*OpenApiContractTest'`) and `OpenApiContractTest` passes without the flag
+- [x] API documented: `api/openapi.yaml` regenerated (`UPDATE_OPENAPI=1 ./gradlew test --tests '*OpenApiContractTest'`) and `OpenApiContractTest` passes without the flag
+  - verified (2026-10-21 01:52+0200 by dell26/agent-4): server/gradlew -p server updateOpenApi (sets UPDATE_OPENAPI=1 for OpenApiContractTest) -> api/openapi.yaml unchanged (git status clean); OpenApiContractTest without flag -> pass
 
 ## Notes
 - ASSUMPTION (2026-10-21 00:09+0200 by dell26/agent-6): Upload is a raw application/zip (or octet-stream) request body, not multipart, so large backups are not cut by Spring's 1 MB multipart limit; it always answers 200 with a report (valid:false + problems for corrupt zip / wrong format version / sha256 mismatch, no id). One pending upload at a time, in a temp dir, in memory only; a new upload or a confirm discards it.
