@@ -18,3 +18,4 @@ Restore from a backup zip (SPEC.md §10.1).
 - [ ] API documented: `api/openapi.yaml` regenerated (`UPDATE_OPENAPI=1 ./gradlew test --tests '*OpenApiContractTest'`) and `OpenApiContractTest` passes without the flag
 
 ## Notes
+- ASSUMPTION (2026-10-21 00:09+0200 by dell26/agent-6): Upload is a raw application/zip (or octet-stream) request body, not multipart, so large backups are not cut by Spring's 1 MB multipart limit; it always answers 200 with a report (valid:false + problems for corrupt zip / wrong format version / sha256 mismatch, no id). One pending upload at a time, in a temp dir, in memory only; a new upload or a confirm discards it.
