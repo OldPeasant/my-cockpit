@@ -15,7 +15,8 @@ Day/week/month/agenda (SPEC.md §6.3).
   - verified (2026-10-21 01:09+0200 by dell26/agent-4): calendar-view.ts/calendar-store.ts reviewed (review.md final, no findings); calendar-view.spec.ts covers default week, day/month/list views, settings week start + time zone, colored visibility toggles; e2e views.spec.ts checks all 4 views -> pass
 - [x] Loads occurrences for the visible range (out-of-order safe), live updates via SSE
   - verified (2026-10-21 01:09+0200 by dell26/agent-4): cd web && npx ng test --watch=false --include='src/app/features/calendar/**/*.spec.ts' -> 68 passed (incl. out-of-order range answers dropped, SSE EVENT/CALENDAR change reloads)
-- [ ] Vitest component/service tests cover range loading and toggles; `cd web && npm run check` passes
+- [x] Vitest component/service tests cover range loading and toggles; `cd web && npm run check` passes
+  - verified (2026-10-21 01:09+0200 by dell26/agent-4): cd web && npm run check -> lint clean, 55 files / 968 tests passed, build ok; calendar coverage 249/249 stmts, 92/93 branches
 - [ ] Playwright `e2e/calendar-views/views.spec.ts` passes against the e2e stack (`npm run e2e -- e2e/calendar-views/views.spec.ts`, see p0-e2e-harness): weekly event shows correctly across the DST week
 
 ## Notes
