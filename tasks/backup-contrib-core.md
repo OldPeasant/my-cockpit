@@ -15,3 +15,4 @@ Back up the user, settings, links, reminders (SPEC.md §10.2).
 - [ ] Round-trip test (`./gradlew test --tests '*BackupRoundTripTest'`) passes with this module's `BackupFixture` seeding a user, settings, links and reminders
 
 ## Notes
+- ASSUMPTION (2026-10-20 22:39+0200 by dell26/agent-5): The TOTP secret is not in user.json: the secrets mechanism (data/secrets.enc.json) doesn't exist yet (task backup-secrets, which this task doesn't depend on). On import the user gets a fresh random TOTP secret, so they sign in with a recovery code; backup-secrets should add the secret to secrets.enc.json and the forced re-enrollment flag.
