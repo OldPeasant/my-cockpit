@@ -1,10 +1,11 @@
 ---
 title: Files API: upload, download, operations
-status: todo
-owner:
+status: in_progress
+owner: dell26/agent-3
 deps: [files-storage,runner-push-failure-loop]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/files,server/src/test/kotlin/ch/sonensei/cockpit/files,server/src/main/resources/db/migration/files]
 prio: 1
+lease_until: 2026-10-20T19:03:26Z
 ---
 ## Goal
 File operations (SPEC.md §8.2).
