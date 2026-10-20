@@ -5,7 +5,7 @@ owner: dell26/agent-5
 deps: [and-login,gtd-projects-api]
 touches: [android/app/src/main/java/ch/sonensei/cockpit/gtd/data,android/app/src/test/java/ch/sonensei/cockpit/gtd/data]
 prio: 1
-lease_until: 2026-10-20T22:47:31Z
+lease_until: 2026-10-20T22:52:36Z
 ---
 ## Goal
 Data layer for GTD screens with offline read cache (SPEC.md §9.3).
