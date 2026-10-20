@@ -17,7 +17,8 @@ Browser tests against the real stack, used by all later web tasks and the phase 
   - verified (2026-10-20 14:44+0200 by dell26/agent-2): smoke.spec.ts 'the loggedIn fixture opens the shell without signing in' passed in the run above on a fresh stack; npm run e2e -- --workers=3 --repeat-each=3 -> 6 passed (setup once via shared lock, per-worker login; test-writer, tests.md)
 - [x] Profile `e2e` only: `POST /api/test/clock {now}` sets the server clock, `POST /api/test/reset` empties the DB; both absent in other profiles (test)
   - verified (2026-10-20 14:44+0200 by dell26/agent-2): cd server && ./gradlew test --tests '*testsupport*' -> 22 tests, 0 failures (TestSupportWebTests$E2eProfile 5: clock + reset; $DefaultProfile 2 and $DevProfile 1: /api/test/** absent; TestSupportLoginWebTests 9; ShiftableClockTests 5)
-- [ ] One spec `support/smoke.spec.ts` (login, see shell) passes; the run time is recorded in ARCHITECTURE.md (e2e is not part of `.taskcheck`)
+- [x] One spec `support/smoke.spec.ts` (login, see shell) passes; the run time is recorded in ARCHITECTURE.md (e2e is not part of `.taskcheck`)
+  - verified (2026-10-20 14:44+0200 by dell26/agent-2): smoke.spec.ts 2 passed in 2.3 s (stack healthy after 16 s, cached image); run time row in docs/ARCHITECTURE.md:130 (~20 s); sh scripts/check.sh -> all checks passed, does not run e2e (only e2e:typecheck)
 
 ## Notes
 - ASSUMPTION (2026-10-20 14:06+0200 by dell26/agent-2): e2e test clock is real time + offset (keeps ticking after POST /api/test/clock), not a frozen MutableClock, so sessions/throttle behave normally; reset also resets the clock offset and the in-memory login throttle
