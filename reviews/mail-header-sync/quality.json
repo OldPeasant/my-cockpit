@@ -1,0 +1,36 @@
+{
+  "schema": 1,
+  "task": "mail-header-sync",
+  "reviewed_revision": "cde8b0b2f6b4ee3b4e895aed5f4b7c4aa995bbf9",
+  "helpers": {
+    "test-writer": {"status": "completed", "report": "reviews/mail-header-sync/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/mail-header-sync/review.md"},
+    "fixer": {"status": "completed", "report": "reviews/mail-header-sync/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "reply before a parent that refers to the root no longer splits the conversation"},
+    {"id": "CR-2", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "loadOlder picks by INTERNALDATE, not UID"},
+    {"id": "CR-3", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "Dovecot CONDSTORE/QRESYNC tests and DB thread-merge tests added"},
+    {"id": "CR-4", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "linked rows outside the window are found again by Message-ID after a resync"},
+    {"id": "CR-5", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "loadOlder skips \\Noselect folders and publishes the change event of its implicit full sync"},
+    {"id": "CR-6", "source": "code-reviewer", "severity": "P3", "disposition": "deferred",
+     "note": "isLinked cost; needs LinkService.hasLinks in core/items, outside touches; follow-up task mail-sync-perf"},
+    {"id": "CR-7", "source": "code-reviewer", "severity": "P3", "disposition": "deferred",
+     "note": "loadOlder reads INTERNALDATE of all uncached messages per page; correct but slow on big archives; follow-up task mail-sync-perf"},
+    {"id": "CR-8", "source": "code-reviewer", "severity": "P3", "disposition": "deferred",
+     "note": "class comment places the Message-ID lookup under the wrong bullet; doc-only; follow-up task mail-sync-perf"},
+    {"id": "TW-1", "source": "test-writer", "severity": "High", "disposition": "fixed",
+     "note": "subject-fallback threading was arrival-order dependent; root without references now always takes its subject key"}
+  ],
+  "validation": [
+    {"command": "cd server && ./gradlew ktlintFormat check test --rerun --continue", "result": "pass"},
+    {"command": "cd server && ./gradlew integrationTest --rerun --tests 'ch.sonensei.cockpit.mail.sync.*'", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
