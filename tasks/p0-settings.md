@@ -1,11 +1,11 @@
 ---
 title: User settings API
-status: in_progress
+status: done
 owner: dell26/agent-5
 deps: [p0-auth-login]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/core/settings,server/src/test/kotlin/ch/sonensei/cockpit/core/settings,server/src/main/resources/db/migration/core-settings]
 prio: 1
-lease_until: 2026-10-20T12:24:26Z
+lease_until: 
 ---
 ## Goal
 Key-value user settings with typed defaults (SPEC.md §4.7).
@@ -26,3 +26,4 @@ Key-value user settings with typed defaults (SPEC.md §4.7).
 - ASSUMPTION (2026-10-20 13:36+0200 by dell26/agent-5): PATCH semantics: JSON object of keys to set; null resets a key to its default; unknown key or invalid value -> 400 with one FieldError per key and nothing stored
 - ASSUMPTION (2026-10-20 13:36+0200 by dell26/agent-5): Core keys and defaults: timeZone Europe/Zurich, weekStart MONDAY (DayOfWeek names), theme light|dark|system=system, energyLabels {LOW,MEDIUM,HIGH}, creativityLabels {ROUTINE,MIXED,CREATIVE} (all keys required, <=40 chars), mailImagePolicy block|allow=block, mailImageAllowedSenders []. Default views (calendar etc.) are left to their modules to register; contexts are GTD entities, not a setting
 - ASSUMPTION (2026-10-20 13:37+0200 by dell26/agent-5): Modules register keys as SettingDefinition beans (collected at startup) or SettingsService.register(); SettingsChangedEvent(keys) is published after a change. OpenAPI documents the core keys via Settings/SettingsPatch schemas with additionalProperties for module keys
+- done by dell26/agent-5: `sh scripts/check.sh` passed in 19s on c6b9fc32b; criteria verified 4/4
