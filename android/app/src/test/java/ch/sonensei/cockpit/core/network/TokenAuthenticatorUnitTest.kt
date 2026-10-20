@@ -218,6 +218,49 @@ class TokenAuthenticatorUnitTest {
         }
 
     @Test
+    fun `a rejected refresh after a user logout meanwhile gives up and does not log out a second time`() =
+        runBlocking {
+            tokenStore.save(AuthTokens("old-access", "old-refresh"))
+            val logouts = CopyOnWriteArrayList<LogoutReason>()
+            val collector =
+                async(Dispatchers.Unconfined, start = CoroutineStart.UNDISPATCHED) { session.loggedOut.collect { logouts += it } }
+            val racing = racingAuthenticator(RefreshResult.Rejected) { session.logout(LogoutReason.USER) }
+
+            assertNull(racing.authenticate(null, unauthorized(bearer("old-access"))))
+
+            assertNull(tokenStore.current())
+            assertEquals(listOf(LogoutReason.USER), logouts)
+            collector.cancel()
+        }
+
+    @Test
+    fun `a failed refresh during a login meanwhile leaves the new login alone`() {
+        tokenStore.save(AuthTokens("old-access", "old-refresh"))
+        val racing = racingAuthenticator(RefreshResult.Failed) { tokenStore.save(AuthTokens("login-access", "login-refresh")) }
+
+        assertNull(racing.authenticate(null, unauthorized(bearer("old-access"))))
+        assertEquals(AuthTokens("login-access", "login-refresh"), tokenStore.current())
+    }
+
+    @Test
+    fun `logoutIfCurrent only logs out the expected tokens`() =
+        runBlocking {
+            val logouts = CopyOnWriteArrayList<LogoutReason>()
+            val collector =
+                async(Dispatchers.Unconfined, start = CoroutineStart.UNDISPATCHED) { session.loggedOut.collect { logouts += it } }
+            tokenStore.save(AuthTokens("current-access", "current-refresh"))
+
+            assertFalse(session.logoutIfCurrent(AuthTokens("stale-access", "stale-refresh"), LogoutReason.REFRESH_REJECTED))
+            assertTrue(session.isLoggedIn)
+            assertEquals(emptyList<LogoutReason>(), logouts)
+
+            assertTrue(session.logoutIfCurrent(AuthTokens("current-access", "current-refresh"), LogoutReason.REFRESH_REJECTED))
+            assertFalse(session.isLoggedIn)
+            assertEquals(listOf(LogoutReason.REFRESH_REJECTED), logouts)
+            collector.cancel()
+        }
+
+    @Test
     fun `replace only swaps the tokens it expects`() {
         val first = AuthTokens("a1", "r1")
         val second = AuthTokens("a2", "r2")

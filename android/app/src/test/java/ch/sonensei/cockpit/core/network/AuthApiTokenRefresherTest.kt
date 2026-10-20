@@ -100,6 +100,30 @@ class AuthApiTokenRefresherTest {
         assertEquals(RefreshResult.Failed, refresherFor { server.url("/") }.refresh("old-refresh"))
     }
 
+    @Test
+    fun `a success body with an invalid device id is a failed refresh, not a crash`() {
+        server.enqueue(json(200, tokenBody(access = "fresh-access", refresh = "fresh-refresh").replace(DEVICE_ID, "not-a-uuid")))
+
+        assertEquals(RefreshResult.Failed, refresherFor { server.url("/") }.refresh("old-refresh"))
+    }
+
+    @Test
+    fun `a success body with an invalid expiry date is a failed refresh, not a crash`() {
+        // The generated OffsetDateTime adapter throws DateTimeParseException, which is neither IO nor serialization.
+        server.enqueue(
+            json(200, tokenBody(access = "fresh-access", refresh = "fresh-refresh").replace("2026-10-20T12:15:00Z", "tomorrow")),
+        )
+
+        assertEquals(RefreshResult.Failed, refresherFor { server.url("/") }.refresh("old-refresh"))
+    }
+
+    @Test
+    fun `a success body with an unknown token type is a failed refresh, not a crash`() {
+        server.enqueue(json(200, tokenBody(access = "fresh-access", refresh = "fresh-refresh").replace("\"Bearer\"", "\"MAC\"")))
+
+        assertEquals(RefreshResult.Failed, refresherFor { server.url("/") }.refresh("old-refresh"))
+    }
+
     private fun refresherFor(url: () -> HttpUrl?): AuthApiTokenRefresher {
         val client = CockpitHttp.okHttpClient(ServerUrlInterceptor(url), null, null)
         return AuthApiTokenRefresher(CockpitHttp.retrofit(client).create(AuthApi::class.java))
@@ -120,7 +144,11 @@ class AuthApiTokenRefresherTest {
         refresh: String,
     ) = """
         {"accessToken":"$access","accessTokenExpiresAt":"2026-10-20T12:15:00Z",
-         "deviceId":"0192f1a0-0000-7000-8000-000000000001","refreshToken":"$refresh",
+         "deviceId":"$DEVICE_ID","refreshToken":"$refresh",
          "refreshTokenExpiresAt":"2027-01-18T12:00:00Z","tokenType":"Bearer"}
         """.trimIndent()
+
+    private companion object {
+        const val DEVICE_ID = "0192f1a0-0000-7000-8000-000000000001"
+    }
 }

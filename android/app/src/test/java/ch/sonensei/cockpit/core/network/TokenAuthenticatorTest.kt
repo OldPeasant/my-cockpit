@@ -229,6 +229,31 @@ class TokenAuthenticatorTest {
             assertEquals(AuthTokens("old-access", "old-refresh"), tokenStore.current())
         }
 
+    @Test
+    fun `a refresh answer with an invalid date fails like a server error instead of crashing the call`() =
+        runBlocking {
+            tokenStore.save(AuthTokens("old-access", "old-refresh"))
+            refreshResponse = {
+                MockResponse
+                    .Builder()
+                    .code(200)
+                    .addHeader("Content-Type", "application/json")
+                    .body(
+                        """
+                        {"accessToken":"new-access","accessTokenExpiresAt":"soon",
+                         "deviceId":"0192f1a0-0000-7000-8000-000000000001","refreshToken":"new-refresh",
+                         "refreshTokenExpiresAt":"later","tokenType":"Bearer"}
+                        """.trimIndent(),
+                    ).build()
+            }
+
+            val response = withTimeout(10_000) { api.getCurrentUser() }
+
+            assertEquals(401, response.code())
+            assertEquals(1, refreshCalls.get())
+            assertEquals(AuthTokens("old-access", "old-refresh"), tokenStore.current())
+        }
+
     private fun retrofitApi(client: OkHttpClient): AuthApi = CockpitHttp.retrofit(client).create(AuthApi::class.java)
 
     private fun meResponse() =

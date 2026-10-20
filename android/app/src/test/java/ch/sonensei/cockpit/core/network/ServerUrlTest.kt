@@ -290,6 +290,83 @@ class ServerUrlTest {
         }
 
     @Test
+    fun `a stored URL that no longer parses counts as another server and logs out`() =
+        runBlocking {
+            val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+            val dataStore = PreferenceDataStoreFactory.create(scope = scope) { File(tmp.root, "garbled.preferences_pb") }
+            dataStore.edit { it[stringPreferencesKey("server_url")] = "not a url" }
+            val repository = ServerUrlRepository(dataStore, session)
+            val logouts = CopyOnWriteArrayList<LogoutReason>()
+            val collector =
+                async(Dispatchers.Unconfined, start = CoroutineStart.UNDISPATCHED) { session.loggedOut.collect { logouts += it } }
+            tokenStore.save(AuthTokens("access", "refresh"))
+
+            repository.setServerUrl("https://cockpit.example.org")
+
+            assertNull(tokenStore.current())
+            assertEquals(listOf(LogoutReason.SERVER_CHANGED), logouts)
+            assertEquals("https://cockpit.example.org/".toHttpUrl(), repository.serverUrl.first())
+            collector.cancel()
+            scope.cancel()
+        }
+
+    @Test
+    fun `a server change while logged out stores the URL without a logout event`() =
+        runBlocking {
+            val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+            val repository =
+                ServerUrlRepository(PreferenceDataStoreFactory.create(scope = scope) { File(tmp.root, "d.preferences_pb") }, session)
+            val logouts = CopyOnWriteArrayList<LogoutReason>()
+            val collector =
+                async(Dispatchers.Unconfined, start = CoroutineStart.UNDISPATCHED) { session.loggedOut.collect { logouts += it } }
+            repository.setServerUrl("https://cockpit.example.org")
+
+            repository.setServerUrl("https://other.example.org")
+
+            assertEquals("https://other.example.org/".toHttpUrl(), repository.serverUrl.first())
+            assertEquals(emptyList<LogoutReason>(), logouts)
+            collector.cancel()
+            scope.cancel()
+        }
+
+    @Test
+    fun `a request to the new server after a server change carries no token`() =
+        runBlocking {
+            MockWebServer().use { server ->
+                server.enqueue(MockResponse.Builder().code(401).build())
+                server.start()
+                val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+                val repository =
+                    ServerUrlRepository(PreferenceDataStoreFactory.create(scope = scope) { File(tmp.root, "e.preferences_pb") }, session)
+                repository.setServerUrl("https://cockpit.example.org")
+                tokenStore.save(AuthTokens("old-access", "old-refresh"))
+                val refreshed = CopyOnWriteArrayList<String>()
+                val client =
+                    CockpitHttp.okHttpClient(
+                        ServerUrlInterceptor(repository),
+                        AccessTokenInterceptor(tokenStore),
+                        TokenAuthenticator(
+                            tokenStore,
+                            {
+                                refreshed += it
+                                RefreshResult.Failed
+                            },
+                            session,
+                        ),
+                    )
+
+                repository.setServerUrl(server.url("/").toString())
+                val api = CockpitHttp.retrofit(client).create(AuthApi::class.java)
+                val code = api.getCurrentUser().code()
+
+                assertEquals(401, code)
+                assertNull(server.takeRequest().headers["Authorization"])
+                assertEquals(emptyList<String>(), refreshed)
+                scope.cancel()
+            }
+        }
+
+    @Test
     fun `an unreadable settings file counts as not configured`() =
         runBlocking {
             val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
