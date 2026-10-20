@@ -21,3 +21,4 @@ Web authentication (SPEC.md §4.1). All `/api/**` endpoints are authenticated by
 
 ## Notes
 - ASSUMPTION (2026-10-20 12:24+0200 by dell26/agent-4): Sessions are rows in a new auth_session table (SHA-256 of a random 256-bit cookie token), not servlet HttpSession/Spring Session: they survive restarts for the 30-day sliding lifetime and need no new library; cookie name COCKPIT_SESSION, Path=/
+- ASSUMPTION (2026-10-20 12:24+0200 by dell26/agent-4): Without 'remember device' the cookie is a browser-session cookie AND the server ends the session after 12 h without use (SPEC only says 'browser session'); remembered sessions slide 30 days, expiry written at most once per minute
