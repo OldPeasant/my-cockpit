@@ -1,11 +1,11 @@
 ---
 title: GTD data model
-status: in_progress
+status: done
 owner: dell26/agent-3
 deps: [p0-db-conventions,p0-items-links]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/gtd,server/src/test/kotlin/ch/sonensei/cockpit/gtd,server/src/main/resources/db/migration/gtd]
 prio: 1
-lease_until: 2026-10-20T13:51:14Z
+lease_until: 
 ---
 ## Goal
 Entities, migrations and repositories for tasks, projects, areas, contexts, checklist items (SPEC.md §5.2).
@@ -24,3 +24,4 @@ Entities, migrations and repositories for tasks, projects, areas, contexts, chec
 - ASSUMPTION (2026-10-20 15:16+0200 by dell26/agent-3): waiting_for_contact_id has no FK: contacts live in another module (and are not built yet), like link item ids
 - ASSUMPTION (2026-10-20 15:16+0200 by dell26/agent-3): Projects are soft-deletable (deleted_at) like tasks; areas, contexts and checklist items are hard-deleted (FKs set null / cascade). Context names are unique case-insensitively
 - ASSUMPTION (2026-10-20 15:16+0200 by dell26/agent-3): Task references project/contexts by id (UUID columns + task_context element collection), not JPA associations; position is an integer
+- done by dell26/agent-3: `sh scripts/check.sh` passed in 36s on 9a56171db; criteria verified 4/4
