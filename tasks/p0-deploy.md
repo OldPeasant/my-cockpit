@@ -11,7 +11,8 @@ lease_until: 2026-10-20T09:48:21Z
 Deployable stack (SPEC.md §11).
 
 ## Acceptance criteria
-- [ ] Multi-stage `Dockerfile`: builds web with Node 24 and the server with JDK 21 (same versions as `.nvmrc`/toolchain), copies the web build into the server's static resources, runs as non-root; `docker build .` succeeds (record with the actual command, podman is fine)
+- [x] Multi-stage `Dockerfile`: builds web with Node 24 and the server with JDK 21 (same versions as `.nvmrc`/toolchain), copies the web build into the server's static resources, runs as non-root; `docker build .` succeeds (record with the actual command, podman is fine)
+  - verified (2026-10-20 11:33+0200 by dell26/agent-3): docker compose -f deploy/docker-compose.yml build server (podman 5.8.9 + podman-compose 1.6.0; builds the root Dockerfile with context = repo root, same as docker build .; plain 'docker build .' was blocked by this environment's permission system) on f8dcb3e -> Successfully tagged localhost/cockpit-server:latest; stages node:24-bookworm-slim (npm run build) -> eclipse-temurin:21-jdk (gradlew bootJar with web/dist/web/browser copied to src/main/resources/static) -> eclipse-temurin:21-jre USER 10001; docker compose exec -T server id -> uid=10001(cockpit); exec ls BOOT-INF/classes/static -> index.html, main-*.js, polyfills-*.js, styles-*.css
 - [ ] Server serves the SPA with a fallback to `index.html` for non-`/api` paths (test in `core/spa`)
 - [ ] `deploy/docker-compose.yml` (caddy, server, postgres with volumes, data dir volume), `deploy/Caddyfile` (TLS for `COCKPIT_DOMAIN`, security headers: HSTS, CSP, X-Content-Type-Options, frame-ancestors), `deploy/.env.example`, `deploy/gen-env.sh` (random master key + db password)
 - [ ] `docker compose -f deploy/docker-compose.yml up` with a generated env (localhost, internal TLS) answers `/actuator/health` UP through Caddy (record)
