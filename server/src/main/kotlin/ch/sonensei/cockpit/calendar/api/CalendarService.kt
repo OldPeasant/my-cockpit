@@ -5,6 +5,7 @@ import ch.sonensei.cockpit.calendar.model.CalendarRepository
 import ch.sonensei.cockpit.calendar.model.CalendarSource
 import ch.sonensei.cockpit.calendar.model.CalendarSourceRepository
 import ch.sonensei.cockpit.calendar.model.CalendarSourceType
+import ch.sonensei.cockpit.calendar.sync.CalendarProviderRegistry
 import ch.sonensei.cockpit.core.events.domain.ChangeEventPublisher
 import ch.sonensei.cockpit.core.events.domain.ChangeOp
 import ch.sonensei.cockpit.core.web.ConflictException
@@ -40,6 +41,7 @@ class CalendarService(
 	private val sources: CalendarSourceRepository,
 	private val calendars: CalendarRepository,
 	private val changes: ChangeEventPublisher,
+	private val providers: CalendarProviderRegistry,
 ) {
 	@Transactional(readOnly = true)
 	fun list(): List<CalendarView> {
@@ -95,11 +97,11 @@ class CalendarService(
 	fun defaultCalendar(): Calendar? = calendars.findByIsDefaultTrue()
 
 	/**
-	 * A calendar whose events the cockpit can change: a LOCAL, not read-only one. External calendars are changed through
-	 * their provider (calendar sync), which this API does not do yet.
+	 * A calendar whose events the cockpit can change: a not read-only one that is LOCAL or synced with its provider
+	 * (changes are written through, see [ch.sonensei.cockpit.calendar.sync.CalendarWriteThrough]).
 	 *
 	 * @throws InvalidRequestException (400, on [field]) when the calendar does not exist
-	 * @throws ConflictException (409) when it is read-only or not local
+	 * @throws ConflictException (409) when it is read-only, or external without sync support
 	 */
 	@Transactional(readOnly = true)
 	fun requireWritable(
@@ -108,7 +110,8 @@ class CalendarService(
 	): Calendar {
 		val calendar = calendars.findById(id).orElse(null) ?: throw InvalidRequestException(field, "does not exist")
 		if (calendar.readOnly) throw ConflictException("The calendar is read-only")
-		if (sources.findById(calendar.sourceId).orElseThrow().type != CalendarSourceType.LOCAL) {
+		val type = sources.findById(calendar.sourceId).orElseThrow().type
+		if (type != CalendarSourceType.LOCAL && !providers.supports(type)) {
 			throw ConflictException("Events of external calendars cannot be changed here yet")
 		}
 		return calendar

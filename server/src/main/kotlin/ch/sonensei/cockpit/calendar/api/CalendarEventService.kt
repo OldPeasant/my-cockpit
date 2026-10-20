@@ -9,6 +9,7 @@ import ch.sonensei.cockpit.calendar.model.OccurrenceId
 import ch.sonensei.cockpit.calendar.recurrence.Occurrence
 import ch.sonensei.cockpit.calendar.recurrence.OccurrenceExpander
 import ch.sonensei.cockpit.calendar.recurrence.OccurrenceRange
+import ch.sonensei.cockpit.calendar.sync.CalendarWriteThrough
 import ch.sonensei.cockpit.core.events.domain.ChangeEventPublisher
 import ch.sonensei.cockpit.core.events.domain.ChangeOp
 import ch.sonensei.cockpit.core.items.domain.ItemDeletedEvent
@@ -44,7 +45,8 @@ data class CreatedEvent(
 )
 
 /**
- * Events of local calendars (SPEC.md §6.1, §6.4): the occurrences in a range, create, change and delete, for a series
+ * Events of local and synced calendars (SPEC.md §6.1, §6.4; changes of synced ones are written through to their provider,
+ * see [CalendarWriteThrough]): the occurrences in a range, create, change and delete, for a series
  * also of one occurrence (`THIS`), of an occurrence and every later one (`FOLLOWING`) or of the whole series (`ALL`).
  *
  * - `THIS` changes the override of the occurrence (created from the series master on first change); deleting it adds an
@@ -71,6 +73,7 @@ class CalendarEventService(
 	private val appEvents: ApplicationEventPublisher,
 	private val settings: SettingsService,
 	private val clock: Clock,
+	private val writeThrough: CalendarWriteThrough,
 ) {
 	/**
 	 * The occurrences of the events of [calendarIds] (default: the visible calendars) overlapping [from, to), seen from
@@ -152,7 +155,14 @@ class CalendarEventService(
 		val target = resolve(id, scope, occurrence)
 		checkVersion(target.addressed.version)
 		calendars.requireWritable(target.addressed.calendarId, field = "id")
-		fields.calendarId?.let { if (it.value != target.addressed.calendarId) calendars.requireWritable(it.value) }
+		fields.calendarId?.let {
+			if (it.value != target.addressed.calendarId) {
+				calendars.requireWritable(it.value)
+				if (writeThrough.isSynced(it.value) || writeThrough.isSynced(target.addressed.calendarId)) {
+					throw ConflictException("Events cannot be moved to or from a synced calendar")
+				}
+			}
+		}
 		val master = target.master ?: return initialized(updateSingle(target.addressed, fields))
 		val occurrenceId = target.occurrence
 		val result =
@@ -440,6 +450,7 @@ class CalendarEventService(
 
 	/** Removes an override for good (it is no occurrence any more): with its links and search entry. */
 	private fun deleteOverride(override: CalendarEvent) {
+		writeThrough.record(override, ChangeOp.DELETED)
 		events.delete(override)
 		val ref = ItemRef(ItemType.EVENT, override.id)
 		appEvents.publishEvent(ItemDeletedEvent(ref))
@@ -587,7 +598,23 @@ class CalendarEventService(
 
 	// --- common
 
+	/**
+	 * Moves [event] (with its overrides) to the Trash. An event of a synced calendar is deleted at the provider and
+	 * here for good instead: the provider keeps its own trash, and a restored copy would not be the provider's event.
+	 */
 	private fun trash(event: CalendarEvent) {
+		if (writeThrough.isSynced(event.calendarId)) {
+			val overrides = events.findByParentEventIdOrderByIdAsc(event.id)
+			(overrides + event).forEach {
+				writeThrough.record(it, ChangeOp.DELETED)
+				appEvents.publishEvent(ItemDeletedEvent(ItemRef(ItemType.EVENT, it.id)))
+				changes.publish(ItemType.EVENT, it.id, ChangeOp.DELETED)
+			}
+			events.deleteAll(overrides)
+			events.delete(event)
+			events.flush()
+			return
+		}
 		event.softDelete(clock)
 		val saved = events.saveAndFlush(event)
 		indexer.index(saved)
@@ -600,6 +627,7 @@ class CalendarEventService(
 	) {
 		indexer.index(event)
 		changes.publish(ItemType.EVENT, event.id, op)
+		writeThrough.record(event, op)
 	}
 
 	/** An event that is not in the Trash; an override shares its series master's Trash state. */
