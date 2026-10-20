@@ -1,11 +1,11 @@
 ---
 title: Universal item references and links
-status: in_progress
+status: done
 owner: dell26/agent-5
 deps: [p0-auth-login]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/core/items,server/src/test/kotlin/ch/sonensei/cockpit/core/items,server/src/main/resources/db/migration/core-items]
 prio: 1
-lease_until: 2026-10-20T13:25:02Z
+lease_until: 
 releases: 1
 extended: 
 ---
@@ -36,3 +36,4 @@ The cross-module link system (SPEC.md §4.3).
 - release by dell26/agent-3: Implementation complete (AC1-5 code + tests; CR-1/2/3 and TW-1/2 fixed). Check passes at eb593a6. Left: (1) rerun test-writer on final code: tests.md predates the last fixes and LinkWebTests got extra tests in eb593a6; (2) rerun code-reviewer on the final revision (review.md covers 48e57fa, pre-rebase; it has 1 open P3 about a stale detail in an ASSUMPTION note); (3) tasks.py verify for all 5 criteria (run core.items.* tests with Testcontainers + OpenApiContractTest without the flag); (4) write quality.json, commit; (5) done. origin/main is 3 commits ahead: merge it first and recheck migration versions in db/migration/core.
 - ASSUMPTION (2026-10-20 15:01+0200 by dell26/agent-5): Replaces the migration file name in the 13:35 note (CR-1): the migration is db/migration/core/V202610201400__core_items_link.sql (renumbered from 201130 to avoid colliding with core_settings on main).
 - ASSUMPTION (2026-10-20 15:01+0200 by dell26/agent-5): CR-2 (P3) accepted: CreateLinkRequest's 200-char label limit counts surrounding whitespace while LinkService trims before its own check, so a padded 200-char label gets 400; harmless edge case, left as is.
+- done by dell26/agent-5: `sh scripts/check.sh` passed in 45s on 4a0e943cb; criteria verified 5/5
