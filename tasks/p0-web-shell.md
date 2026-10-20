@@ -1,11 +1,11 @@
 ---
 title: Application shell: navigation, top bar, palette skeleton, placeholders
-status: in_progress
+status: done
 owner: dell26/agent-2
 deps: [p0-web-api-client]
 touches: [web/src/app/shell,web/src/app/app.routes.ts,web/src/app/app.ts,web/src/app/app.html,web/src/app/app.scss,web/src/app/app.spec.ts,web/src/app/features]
 prio: 1
-lease_until: 2026-10-20T10:17:58Z
+lease_until: 
 ---
 ## Goal
 The layout every feature plugs into (SPEC.md §9.1). Creates a lazy route + placeholder page for every feature so feature tasks only touch their own folder.
@@ -29,3 +29,4 @@ The layout every feature plugs into (SPEC.md §9.1). Creates a lazy route + plac
 - ASSUMPTION (2026-10-20 11:40+0200 by dell26/agent-2): Feature tasks plug into the shell without touching app files: CAPTURE_DIALOG comes from features/capture/capture.providers.ts provideCapture(), extra PALETTE_PROVIDERS (multi) from features/search/search.providers.ts provideSearch(); the shell adds 'Go to <section>' palette commands. PaletteProvider.items(query) returns an Observable; the palette switchMaps per query so stale results are dropped.
 - ASSUMPTION (2026-10-20 11:40+0200 by dell26/agent-2): Shell, not-found page and capture placeholder dialog are lazy-loaded so the initial bundle stays under the 500 kB budget warning (452 kB vs 548 kB eager). No icon font (would need an external or self-hosted font): the shell uses a few inline SVG icons.
 - ASSUMPTION (2026-10-20 11:50+0200 by dell26/agent-2): Correction: while any dialog is open, every shell shortcut except Ctrl+K is ignored (Q, ?, and Ctrl+Shift+Space), so capture never opens on top of another dialog or itself.
+- done by dell26/agent-2: `sh scripts/check.sh` passed in 15s on dcdee4c30; criteria verified 5/5
