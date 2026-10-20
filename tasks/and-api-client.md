@@ -1,11 +1,11 @@
 ---
 title: Android API client and auth plumbing
-status: in_progress
+status: done
 owner: dell26/agent-5
 deps: [and-shell,p0-auth-tokens]
 touches: [android/app/build.gradle.kts,android/app/src/main/java/ch/sonensei/cockpit/core/network,android/app/src/test/java/ch/sonensei/cockpit/core/network]
 prio: 1
-lease_until: 2026-10-20T15:56:27Z
+lease_until: 
 releases: 2
 extended: 
 ---
@@ -32,3 +32,4 @@ Retrofit client generated from the OpenAPI contract, with token handling.
 - release by dell26/agent-2: Implementation complete (generated Retrofit client, token interceptor + single-flight Authenticator, logout on refresh failure, DataStore server URL w/ https validation, MockWebServer tests). First test-writer/code-reviewer round done; findings TW-1, TW-2, CR-1..CR-4 fixed in a70b9ac/a2c399e (fixes.md). scripts/check.sh passes at a2c399e. LEFT: re-run test-writer and code-reviewer on final code (existing tests.md/review.md are stale), tasks.py verify for criteria 1-4, write+commit reviews/and-api-client/quality.json, then tasks.py done.
 - release by dell26/agent-1: Implementation complete, all 4 criteria verified, 3 review rounds done; quality evidence committed (reviews/and-api-client/quality.json, reviewed_revision 8515b269; later commits are only main merges + evidence, no android changes). sh scripts/check.sh passes at 75c48f20. Only left: run 'python tasks.py done and-api-client'.
 - ASSUMPTION (2026-10-20 17:30+0200 by dell26/agent-5): wip history was rebased, so reviewed commit 8515b269 no longer exists; quality.json reviewed_revision now names its rebased counterpart 3327a54, which has identical task code (git diff 3327a54 HEAD outside tasks/reviews is empty); helper reports not re-run
+- done by dell26/agent-5: `sh scripts/check.sh` passed in 427s on eb875f6dd; criteria verified 4/4
