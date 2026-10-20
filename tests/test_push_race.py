@@ -159,6 +159,29 @@ class Classify(unittest.TestCase):
             self.assertFalse(tasks.lost_race(err), err)
             self.assertFalse(tasks.refused(err), err)
 
+    def test_more_real_world_refusals(self):
+        for err in ("git@example.test: Permission denied (publickey). | fatal: Could not read from remote "
+                    "repository.",
+                    "remote: GitLab: You are not allowed to push code to protected branches on this project. | "
+                    " ! [remote rejected] main -> main (pre-receive hook declined)",
+                    "remote: Write access to repository not granted. | fatal: unable to access "
+                    "'https://example.test/o/r.git/': The requested URL returned error: 403"):
+            self.assertTrue(tasks.refused(err), err)
+            self.assertFalse(tasks.lost_race(err), err)
+
+    def test_without_an_argument_the_last_push_error_is_classified(self):  # how update()/save_work() call them
+        old = tasks.push_error[0]
+        self.addCleanup(tasks.push_error.__setitem__, 0, old)
+        tasks.push_error[0] = " ! [rejected]        main -> main (fetch first)"
+        self.assertTrue(tasks.lost_race())
+        self.assertFalse(tasks.refused())
+        tasks.push_error[0] = " ! [remote rejected] main -> main (pre-receive hook declined)"
+        self.assertFalse(tasks.lost_race())
+        self.assertTrue(tasks.refused())
+        tasks.push_error[0] = "fatal: the remote end hung up unexpectedly"
+        self.assertFalse(tasks.lost_race())
+        self.assertFalse(tasks.refused())
+
 
 class Races(Board):
     """tasks.py alone against a remote whose branch is locked by another push in progress."""

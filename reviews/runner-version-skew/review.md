@@ -4,25 +4,35 @@ Date: 2026-10-20
 
 Task: runner-version-skew - Runner: same tasks.py as agents.py; lost push races are not refusals
 
-Scope: `git diff 4ffe348d..407ab308` (agents.py, tasks.py, tests/test_push_race.py)
+Scope: `git diff 82ea1576..f39b2990` (task commits fe58efd9, 89aacea4, ecc0cc4f, a06ae304, f39b2990), production files agents.py and tasks.py reviewed in full context; tests/test_push_race.py read for coverage
 
 Requirements:
-- tasks/runner-version-skew.md (acceptance criteria and recorded assumptions)
-- AGENTS.md task protocol (meaning of LOST / REFUSED / PUSH FAILED for agents)
+- tasks/runner-version-skew.md (acceptance criteria 1-3 and the three recorded assumptions, the third superseding the second)
+- AGENTS.md task protocol (meaning of REFUSED / LOST / PUSH FAILED for agents)
 - docs/QUALITY.md artifact contract
-- Existing runner behavior in agents.py (push_failure record, block(), give_up())
+- Earlier review (revision 407ab308) and reviews/runner-version-skew/fixes.md
 
 Git range:
 - Branch: main
-- HEAD: 407ab308abdb5445d297b00b996f38cf7cc64a09
-- Base/start: 4ffe348dce176cba462448e5f9cc46768ffde0e9
-- Commits reviewed: 2 (40815b1c, 407ab308); no uncommitted changes
+- HEAD: f39b2990f1ec38756347cef05c42300e445f87bd
+- Base/start: 82ea1576484141d4b2629e048930ffe0864f2bc9
+- Commits reviewed: 5. Reviewed revision: f39b2990f1ec38756347cef05c42300e445f87bd. One uncommitted change exists in tests/test_push_race.py (a concurrent test-writer). It is not reviewed.
 
-Summary: 0 P0, 0 P1, 2 P2, 2 P3
+Summary: 0 P0, 0 P1, 0 P2, 1 P3
 
-Note: running the test suites was not permitted in the reviewer's sandbox, so test results come from
-reading the code, not from a run. The acceptance-criterion evidence (`tasks.py verify`) has not been
-recorded yet. The parent worker must record it.
+## Status of earlier findings (review of 407ab308)
+
+- CR-1 (forced wip push denied as non-fast-forward was classified as a race) is resolved. `denying` is in `REFUSED_ERRORS` (tasks.py:311), and a refusal word wins over race words (`lost_race`, tasks.py:321-324). The real-remote test `Races.test_forced_wip_push_denied_as_non_fast_forward_is_refused` covers it.
+- CR-2 (unknown or transient errors failed at once) is resolved. update() (tasks.py:513) and save_work() (tasks.py:969) stop early only on `refused()`. Unknown errors are retried within the 5 attempts and end as PUSH FAILED, as before this task. The third assumption records this.
+- CR-3 (give_up blocked after sustained lost races) is resolved. give_up returns None without block() when the output carries `RACE_HINT` and there is no push-failure record (agents.py:599-604). A task blocked earlier is retried after 60 s.
+- CR-4 (runner BUSY retry untested) is resolved. ForceReleaseLosesRaces, ForceReleaseKeepsLosingRaces, BlockedRetryLosesRaces and AgentReleaseLosesRaces cover it.
+
+## Verification performed by the reviewer
+
+- `python3 -m unittest tests.test_push_race.Classify tests.test_push_race.Races tests.test_push_race.ImportTasks` -> 22 tests OK (26 s)
+- `python3 -m unittest tests.test_push_race.BehindClone` -> 1 test OK. The runner whose clone's tasks.py lacks `PUSH_FAILURE` runs 2 sessions with no Traceback or AttributeError.
+- The reviewer did not run the slower runner classes, `tests/test_push_failure.py`, the other tooling tests, or `sh scripts/check.sh`.
+- `python tasks.py verify runner-version-skew` shows criteria 1-3 still unticked. The parent worker must record evidence before `done`.
 
 ## P0 Critical
 
@@ -34,41 +44,23 @@ None.
 
 ## P2 Medium
 
-- [ ] **CR-1 | A forced wip push that the server denies as non-fast-forward is classified as a lost race**
-    - File: `tasks.py:309` (REFUSED_ERRORS), used by `tasks.py:958-966` (save_work)
-    - Category: Correctness
-    - Problem: If a remote has `receive.denyNonFastForwards=true` (the default of `git init --bare --shared`), git's receive-pack rejects a force push with `remote: error: denying non-fast-forward refs/heads/wip/<id> (you should pull first)` and ` ! [remote rejected] HEAD -> wip/<id> (non-fast-forward)`. The text contains the race word `non-fast-forward` and no refusal word (`denying` does not match `denied`). So `lost_race()` returns True. save_work retries 5 times and exits `BUSY ... try again`, where it used to exit `PUSH FAILED` with the "only a human" hint. A forced push cannot lose a non-fast-forward race, so this is always a real refusal. The agent is told to retry something that can never work. The runner retries it 3x2 times and then blocks the task anyway, with a BUSY message instead of the real cause. A plain push that loses a real race between ref advertisement and update fails with `cannot lock ref ... expected`, not `denying non-fast-forward`. Treating `denying` as a refusal therefore does not misclassify real races.
-    - Why it matters: Criterion 2 requires real refusals to print PUSH FAILED and write the record. A server-side policy refusal is now reported as a transient race.
-    - Suggested fix: Add `denying` to REFUSED_ERRORS (it covers `denying non-fast-forward` and `denying ref deletion`). Add the receive-pack message to `Classify.test_refusals`.
-
-- [ ] **CR-2 | Transient push errors that are neither race nor refusal now fail immediately and block the task**
-    - File: `tasks.py:506-509` (update), `tasks.py:960` (save_work)
-    - Category: Correctness
-    - Problem: Before this change, update() retried any failed push up to 5 times (with a sync in between) and only then called push_failed. Now any error without a race word calls push_failed on the first attempt. That includes transient server or transport failures such as `RPC failed; HTTP 500`, `the remote end hung up unexpectedly`, or `! [remote rejected] main -> main (Internal Server Error)`. push_failed writes the push-failure record. At session end the runner calls `block(tid, ...)` for every non-`done` command (agents.py, `pf.get("cmd") != "done"` branch). So one transient 5xx during e.g. `tasks.py verify` or `assume` now stops sessions on the task for `--blocked-retry` (30 min), shows "a human must fix it", and tells the agent "Only a human can fix it: stop working". The recorded assumption says unknown errors "stay refusals as before", but before they got 5 attempts. Criterion 2 also says only real refusals (auth, permission, protected branch, hook) should print PUSH FAILED.
-    - Why it matters: Before, these blips were absorbed by the retries. Now they block the task and stop the agent: a resilience regression introduced by this task.
-    - Suggested fix: Treat only errors with a refusal word as immediate refusals. Retry race-word and unknown errors within the 5 attempts. After 5 attempts, report unknown errors as before (PUSH FAILED) and race-only errors as BUSY. Alternatively, keep the immediate refusal only when a REFUSED_ERRORS word matches. Correct the assumption text either way.
+None.
 
 ## P3 Low
 
-- [ ] **CR-3 | Sustained lost races still end in block() with "a human must fix it"**
-    - File: `agents.py:572-601` (give_up)
+- [ ] **CR-1 | GitHub ruleset rejections are classified as unknown and retried 5 times before PUSH FAILED**
+    - File: `tasks.py:310-311` (REFUSED_ERRORS)
     - Category: Correctness
-    - Problem: When release/hold keeps returning BUSY, give_up runs it 3 times. It then saves wip, resets to `@{u}` and runs it 3 more times. If all still lose, it takes the line starting with `BUSY` as `err` and calls `block(tid, err)`. That logs `BLOCKED on <id>: pushes fail ... until a human fixes it` and stops sessions for `--blocked-retry`. This takes about 30 lost races, so it is unlikely. But the outcome contradicts criterion 2 ("don't block the task") and the BUSY text itself ("is not blocked; try again").
-    - Why it matters: The block message misleads (it calls for a human), and it costs 30 minutes on a task nobody refused.
-    - Suggested fix: On a final BUSY in give_up, don't block. Log it and leave the task to the next main-loop round (or use a short retry with a non-"human" status text).
-
-- [ ] **CR-4 | The runner's BUSY retry in give_up is untested**
-    - File: `tests/test_push_race.py`
-    - Category: Tests
-    - Problem: The tests cover tasks.py's BUSY exits (board and wip push) and the behind-clone runner. Nothing checks that agents.py `give_up` retries a release that returned BUSY and then succeeds, rather than blocking. That path is new in agents.py:575-581.
-    - Why it matters: The retry loop and its `RACE_HINT` coupling to tasks.py's message text could regress silently.
-    - Suggested fix: Add a runner test where the remote's `refs/heads/main.lock` exists while the fake agent's session ends and the runner force-releases, and is removed shortly after. Assert that the task gets released and no `BLOCKED on` line appears.
+    - Problem: GitHub rejects pushes that violate a repository ruleset with `remote: error: GH013: Repository rule violations found for refs/heads/main` and `! [remote rejected] main -> main (push declined due to repository rule violations)`. None of the refusal words match: `declined` is only listed as `hook declined`. None of the race words match either. So the error is "unknown": update() runs 5 sync-and-push attempts, and save_work runs 5 attempts with 1 s pauses, before PUSH FAILED. The end result is correct (PUSH FAILED plus the record), but it takes 5 attempts where the task's intent is to fail at once on a policy refusal.
+    - Why it matters: The impact is small (some extra seconds and network round trips). It is the one common hosted-remote policy rejection that the refusal list misses.
+    - Suggested fix: Add `push declined` (or `declined`) and/or `rule violations` to `REFUSED_ERRORS`, with a case in `Classify.test_more_real_world_refusals`.
 
 ## Review conclusion
 
-Material issues found; fix before completing the task.
+No material issues found.
 
-Criterion 1 is met: import_tasks() loads tasks.py from agents.py's folder with TASKS_ROOT pointing at
-the clone, and the BehindClone test exercises it. The race/refusal split in criterion 2 works for the
-listed cases, but CR-1 and CR-2 are classification gaps against that criterion. Fix both (they are
-small), or record a deliberate decision on them, before `done`.
+Criterion 1 is met. `import_tasks()` (agents.py:400-407) imports the tasks.py next to agents.py, and `TASKS_ROOT` points at the clone, set at agents.py:432 before the import. The clone's copy is used only as a fallback. The choice is recorded as an assumption. Subprocess calls (`heartbeat`, `release`/`hold` in give_up) still run the clone's tasks.py, as the assumption states. agents.py only depends on in-process attributes from the matching module, and a missing `RACE_HINT` in an old clone's output just skips the retry.
+
+Criterion 2 is met as refined by the third assumption. Refusal words fail at once with PUSH FAILED and the record. 5 lost races exit `BUSY: ... lost the push race 5 times ... try again` without writing the record, so the runner does not block the task. Errors that are still unknown after 5 attempts keep the pre-task PUSH FAILED behavior. This goes beyond the criterion's literal "only real refusals" wording, but the assumption records it deliberately.
+
+Criterion 3 is covered by tests/test_push_race.py. The parent worker still has to record the full-suite and `sh scripts/check.sh` evidence.
