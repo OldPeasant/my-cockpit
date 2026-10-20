@@ -16,7 +16,8 @@ Connect accounts (SPEC.md §7.1).
   - verified (2026-10-20 18:34+0200 by dell26/agent-2): ./gradlew test --tests 'ch.sonensei.cockpit.mail.imap.*' (MailAccountWebTests 18, MailAccountServiceTests 15, MailSessionsTests 25, MailSecretRedactionTests 4 incl. write-only password, TLS/STARTTLS/XOAUTH2 session props) + ./gradlew integrationTest --tests '*Imap*' (GreenMail TLS, STARTTLS, XOAUTH2 login, test-connection, 127.0.0.1 host mismatch -> TLS_FAILED) -> all pass, 0 failures
 - [x] Connection pool per account with limits; folder list with SPECIAL-USE role detection and manual override
   - verified (2026-10-20 18:34+0200 by dell26/agent-2): ./gradlew test --tests 'ch.sonensei.cockpit.mail.imap.*' -> ImapConnectionPoolTests 24 (limit, borrow timeout, idle eviction, settings fingerprint), MailFolderSyncTests 25 (SPECIAL-USE roles, manual override, parallel syncs) pass; integrationTest '*Imap*' GreenMail folder sync + pool limit 15/15 pass
-- [ ] `external` tests against GreenMail (`./gradlew integrationTest --tests '*Imap*'`); unit tests for role detection
+- [x] `external` tests against GreenMail (`./gradlew integrationTest --tests '*Imap*'`); unit tests for role detection
+  - verified (2026-10-20 18:34+0200 by dell26/agent-2): cd server && ./gradlew integrationTest --tests '*Imap*' --rerun -> ImapGreenMailTests 15 tests, 0 failures/skips; ./gradlew test --tests '*FolderRoleDetectorTests' -> 15 pass
 - [ ] API documented: `api/openapi.yaml` regenerated (`UPDATE_OPENAPI=1 ./gradlew test --tests '*OpenApiContractTest'`) and `OpenApiContractTest` passes without the flag
 
 ## Notes
