@@ -5,7 +5,7 @@ owner: dell26/agent-3
 deps: [p0-db-conventions,p0-items-links]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/gtd,server/src/test/kotlin/ch/sonensei/cockpit/gtd,server/src/main/resources/db/migration/gtd]
 prio: 1
-lease_until: 2026-10-20T13:46:12Z
+lease_until: 2026-10-20T13:51:14Z
 ---
 ## Goal
 Entities, migrations and repositories for tasks, projects, areas, contexts, checklist items (SPEC.md §5.2).
