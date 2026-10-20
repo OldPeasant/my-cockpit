@@ -6,6 +6,7 @@ deps: [web-gtd-data]
 touches: [web/src/app/features/gtd/next,web/src/app/features/gtd/today]
 prio: 1
 lease_until: 2026-10-20T22:05:00Z
+extended: dell26/agent-4
 ---
 ## Goal
 Filterable next actions and the Today view (SPEC.md §5.3).
@@ -23,3 +24,4 @@ Filterable next actions and the Today view (SPEC.md §5.3).
 - ASSUMPTION (2026-10-20 22:44+0200 by dell26/agent-4): Today view lives at /today with a nav entry under Tasks; overdue/due-today sections include open tasks of every list; extension slots are a multi-provider TODAY_SECTIONS (provideTodaySection) rendered after the task sections.
 - ASSUMPTION (2026-10-20 22:44+0200 by dell26/agent-4): Next filter 'max estimate' excludes tasks without an estimate (server rule of maxMinutes); 'Time available' options are the estimate quick picks (<= 5 min ... <= 2 h).
 - ASSUMPTION (2026-10-20 23:13+0200 by dell26/agent-4): Edited files outside touches (small, required for the views): web/src/app/features/gtd/gtd.routes.ts (route /today), web/src/app/shell/nav-sections.ts (Today nav entry), web/src/app/app.spec.ts (BUILT list), server gtd/infra/GtdSettings.kt (nextActionPresets setting).
+- extended by dell26/agent-4: Implementation complete (Next view with URL filters + presets in setting nextActionPresets, Today view with extension slots, e2e spec), check passes at e7d5f769. Code review done (reviews/web-next-today/review.md, written against pre-rebase hashes; code unchanged since). Test-writer added tests (committed in e7d5f769) but did not write tests.md. Left: re-run test-writer to write tests.md with coverage; fixer for CR-1 (save/remove presets when settings unloaded wipes presets) and CR-3 (failed delete silently undone); CR-2 is covered by follow-up gtd-scheduled-marker, CR-4 by the recorded assumption; re-review after fixes; run e2e next.spec.ts; verify 1-4; quality.json; done.
