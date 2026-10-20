@@ -1,0 +1,29 @@
+{
+  "schema": 1,
+  "task": "web-next-today",
+  "reviewed_revision": "67f338d7eee75de74a52f5bcf1dd7f79525855ea",
+  "helpers": {
+    "test-writer": {"status": "completed", "report": "reviews/web-next-today/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/web-next-today/review.md"},
+    "fixer": {"status": "completed", "report": "reviews/web-next-today/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "save/remove load the settings first; a failed load sends no PATCH"},
+    {"id": "CR-2", "source": "code-reviewer", "severity": "P2", "disposition": "deferred",
+     "note": "scheduled-today section needs a server marker; follow-up task gtd-scheduled-marker, limitation named in criterion #2 evidence"},
+    {"id": "CR-3", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "failed preset delete shows an error message"},
+    {"id": "CR-4", "source": "code-reviewer", "severity": "P3", "disposition": "accepted",
+     "note": "small required edits outside touches, recorded with tasks.py assume"},
+    {"id": "CR-5", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "e2e next.spec.ts re-run on 724ac0da (final code) and criterion #4 re-recorded"}
+  ],
+  "validation": [
+    {"command": "npm --prefix web run check", "result": "pass"},
+    {"command": "cd server && ./gradlew test --tests '*GtdSettings*' --tests '*SettingsService*'", "result": "pass"},
+    {"command": "npm --prefix web run e2e -- e2e/gtd-next/next.spec.ts", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
