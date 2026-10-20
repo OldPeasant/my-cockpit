@@ -7,6 +7,7 @@ import ch.sonensei.cockpit.core.crypto.SecretCipher
 import ch.sonensei.cockpit.support.PostgresTestBase
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.shouldNotBe
 import io.kotest.matchers.string.shouldMatch
 import io.kotest.matchers.string.shouldNotContain
 import io.kotest.matchers.string.shouldStartWith
@@ -126,14 +127,43 @@ class SetupWebTests(
 	}
 
 	@Test
-	fun `starting again before confirmation replaces the pending account`() {
+	fun `starting again with the same username and password replaces the pending account`() {
 		val first = startSetup()["totpSecret"] as String
-		val second = startSetup(username = "john.doe")["totpSecret"] as String
+		val firstId = jdbc.queryForObject("select id from app_user", String::class.java)
+		val second = startSetup()["totpSecret"] as String
 
-		jdbc.queryForObject("select username from app_user", String::class.java) shouldBe "john.doe"
+		jdbc.queryForObject("select count(*) from app_user", Int::class.java) shouldBe 1
+		jdbc.queryForObject("select id from app_user", String::class.java) shouldNotBe firstId
 		jdbc.queryForObject("select count(*) from recovery_code", Int::class.java) shouldBe 10
 		confirm(totp.generate(Base32.decode(first), clock.instant())).isProblem(400)
 		confirm(totp.generate(Base32.decode(second), clock.instant())).andExpect { status { isNoContent() } }
+	}
+
+	@Test
+	fun `starting again with another username or a wrong password is a conflict and keeps the pending account`() {
+		val secret = startSetup()["totpSecret"] as String
+		val before = jdbc.queryForMap("select id, username, password_hash, totp_secret from app_user")
+		val codesBefore = jdbc.queryForList("select code_hash from recovery_code order by id", String::class.java)
+
+		val otherUser =
+			post(SETUP, setupBody(username = "mallory.example"))
+				.isProblem(409)
+				.andReturn()
+				.response.contentAsString
+		val wrongPassword =
+			post(SETUP, setupBody(password = "another-fictitious-pass"))
+				.isProblem(409)
+				.andReturn()
+				.response.contentAsString
+		post(SETUP, setupBody(username = "mallory.example", password = "another-fictitious-pass")).isProblem(409)
+
+		// Same answer for both failed checks: it does not tell which one failed.
+		val detail = { body: String -> jsonMapper.readValue(body, Map::class.java)["detail"] }
+		detail(otherUser) shouldBe detail(wrongPassword)
+		jdbc.queryForMap("select id, username, password_hash, totp_secret from app_user") shouldBe before
+		jdbc.queryForList("select code_hash from recovery_code order by id", String::class.java) shouldBe codesBefore
+		confirm(totp.generate(Base32.decode(secret), clock.instant())).andExpect { status { isNoContent() } }
+		jdbc.queryForObject("select username from app_user", String::class.java) shouldBe USERNAME
 	}
 
 	@Test

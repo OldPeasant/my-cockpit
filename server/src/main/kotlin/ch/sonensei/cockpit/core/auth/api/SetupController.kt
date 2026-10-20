@@ -42,7 +42,8 @@ class SetupController(
 		summary = "Create the owner account and start the TOTP enrollment",
 		description =
 			"Returns the TOTP secret and recovery codes exactly once. Calling it again before the TOTP is confirmed " +
-				"replaces the pending account.",
+				"replaces the pending account only with the same username and password, or once the pending account " +
+				"is older than 1 hour; otherwise it answers 409.",
 	)
 	@ApiResponse(responseCode = "201", description = "Account created, TOTP confirmation pending")
 	@ApiResponse(
@@ -52,7 +53,7 @@ class SetupController(
 	)
 	@ApiResponse(
 		responseCode = "409",
-		description = "Setup is already complete",
+		description = "Setup is already complete, or another setup is in progress",
 		content = [Content(mediaType = PROBLEM_JSON, schema = Schema(ref = "#/components/schemas/ProblemDetail"))],
 	)
 	fun start(

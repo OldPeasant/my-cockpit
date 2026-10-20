@@ -6,8 +6,10 @@ import ch.sonensei.cockpit.core.auth.domain.SetupService
 import ch.sonensei.cockpit.core.auth.domain.Totp
 import ch.sonensei.cockpit.core.persistence.MutableClock
 import ch.sonensei.cockpit.core.persistence.MutableClockTestConfiguration
+import ch.sonensei.cockpit.core.persistence.UuidV7
 import ch.sonensei.cockpit.core.web.ConflictException
 import ch.sonensei.cockpit.support.PostgresTestBase
+import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.assertions.withClue
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
@@ -24,6 +26,7 @@ import org.springframework.boot.test.system.CapturedOutput
 import org.springframework.boot.test.system.OutputCaptureExtension
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc
 import org.springframework.context.annotation.Import
+import org.springframework.dao.DataIntegrityViolationException
 import org.springframework.dao.OptimisticLockingFailureException
 import org.springframework.http.MediaType
 import org.springframework.jdbc.core.JdbcTemplate
@@ -63,6 +66,7 @@ class SetupEdgeCaseTests(
 	@Test
 	fun `password of exactly 12 and 256 characters is accepted, 257 is rejected`() {
 		post(SETUP, setupBody(password = "p".repeat(12))).andExpect { status { isCreated() } }
+		jdbc.update("delete from app_user")
 		post(SETUP, setupBody(password = "p".repeat(256))).andExpect { status { isCreated() } }
 		post(SETUP, setupBody(password = "p".repeat(257))).isProblem(400).andExpect {
 			jsonPath("$.errors[0].field") { value("password") }
@@ -75,6 +79,7 @@ class SetupEdgeCaseTests(
 	@Test
 	fun `username of 64 characters with letters, digits and dot, underscore, at and dash is accepted`() {
 		post(SETUP, setupBody(username = "j".repeat(64))).andExpect { status { isCreated() } }
+		jdbc.update("delete from app_user")
 		post(SETUP, setupBody(username = "Zoë_O.Example-1@example.test")).andExpect { status { isCreated() } }
 
 		jdbc.queryForObject("select username from app_user", String::class.java) shouldBe "Zoë_O.Example-1@example.test"
@@ -229,6 +234,46 @@ class SetupEdgeCaseTests(
 		jdbc.queryForObject("select count(*) from recovery_code", Int::class.java) shouldBe 10
 	}
 
+	@Test
+	fun `a pending account older than one hour can be replaced by anyone, a younger one cannot`() {
+		startSetup()
+		clock.advance(SetupService.ABANDONED_AFTER)
+
+		post(SETUP, setupBody(username = "john.doe", password = "another-fictitious-pass")).isProblem(409)
+		jdbc.queryForObject("select username from app_user", String::class.java) shouldBe USERNAME
+
+		clock.advance(Duration.ofSeconds(1))
+		val secret = Base32.decode(startSetup(username = "john.doe", password = "another-fictitious-pass")["totpSecret"] as String)
+
+		jdbc.queryForObject("select count(*) from app_user", Int::class.java) shouldBe 1
+		jdbc.queryForObject("select username from app_user", String::class.java) shouldBe "john.doe"
+		passwordEncoder.matches("another-fictitious-pass", jdbc.queryForObject("select password_hash from app_user", String::class.java)) shouldBe
+			true
+		jdbc.queryForObject("select count(*) from recovery_code", Int::class.java) shouldBe 10
+		confirm(totp.generate(secret, clock.instant())).andExpect { status { isNoContent() } }
+	}
+
+	@Test
+	fun `the database rejects a second app_user row`() {
+		setup.start(USERNAME, PASSWORD)
+		val now = Timestamp.from(NOW)
+
+		val error =
+			shouldThrow<DataIntegrityViolationException> {
+				jdbc.update(
+					"insert into app_user (id, created_at, updated_at, version, username, password_hash, totp_secret) " +
+						"values (?, ?, ?, 0, 'mallory.example', 'not-a-hash', 'not-a-secret')",
+					UuidV7.generate(),
+					now,
+					now,
+				)
+			}
+
+		error.message shouldContain "app_user_single_row"
+		jdbc.queryForObject("select count(*) from app_user", Int::class.java) shouldBe 1
+		jdbc.queryForObject("select username from app_user", String::class.java) shouldBe USERNAME
+	}
+
 	private fun <T> concurrently(
 		threads: Int,
 		action: (Int) -> T,
@@ -249,8 +294,11 @@ class SetupEdgeCaseTests(
 		}
 	}
 
-	private fun startSetup(username: String = USERNAME): Map<*, *> =
-		post(SETUP, setupBody(username = username))
+	private fun startSetup(
+		username: String = USERNAME,
+		password: String = PASSWORD,
+	): Map<*, *> =
+		post(SETUP, setupBody(username = username, password = password))
 			.andExpect { status { isCreated() } }
 			.andReturn()
 			.response.contentAsString

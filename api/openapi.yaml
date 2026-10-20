@@ -10,8 +10,10 @@ tags:
 paths:
   /api/v1/setup:
     post:
-      description: Returns the TOTP secret and recovery codes exactly once. Calling
-        it again before the TOTP is confirmed replaces the pending account.
+      description: "Returns the TOTP secret and recovery codes exactly once. Calling\
+        \ it again before the TOTP is confirmed replaces the pending account only\
+        \ with the same username and password, or once the pending account is older\
+        \ than 1 hour; otherwise it answers 409."
       operationId: startSetup
       requestBody:
         content:
@@ -37,7 +39,7 @@ paths:
             application/problem+json:
               schema:
                 $ref: "#/components/schemas/ProblemDetail"
-          description: Setup is already complete
+          description: "Setup is already complete, or another setup is in progress"
       summary: Create the owner account and start the TOTP enrollment
       tags:
       - Setup
