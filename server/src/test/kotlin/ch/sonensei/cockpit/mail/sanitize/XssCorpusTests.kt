@@ -34,14 +34,80 @@ class XssCorpusTests {
 	companion object {
 		private val allowedTags =
 			setOf(
-				"a", "abbr", "address", "article", "aside", "b", "bdi", "bdo", "big", "blockquote", "br",
-				"caption", "center", "cite", "code", "col", "colgroup", "dd", "del", "details", "dfn", "div",
-				"dl", "dt", "em", "figcaption", "figure", "font", "footer", "h1", "h2", "h3", "h4", "h5", "h6",
-				"header", "hr", "i", "img", "ins", "kbd", "li", "main", "mark", "ol", "p", "pre", "q", "s",
-				"samp", "section", "small", "span", "strike", "strong", "sub", "summary", "sup", "table",
-				"tbody", "td", "tfoot", "th", "thead", "time", "tr", "tt", "u", "ul", "var", "wbr",
+				"a",
+				"abbr",
+				"address",
+				"article",
+				"aside",
+				"b",
+				"bdi",
+				"bdo",
+				"big",
+				"blockquote",
+				"br",
+				"caption",
+				"center",
+				"cite",
+				"code",
+				"col",
+				"colgroup",
+				"dd",
+				"del",
+				"details",
+				"dfn",
+				"div",
+				"dl",
+				"dt",
+				"em",
+				"figcaption",
+				"figure",
+				"font",
+				"footer",
+				"h1",
+				"h2",
+				"h3",
+				"h4",
+				"h5",
+				"h6",
+				"header",
+				"hr",
+				"i",
+				"img",
+				"ins",
+				"kbd",
+				"li",
+				"main",
+				"mark",
+				"ol",
+				"p",
+				"pre",
+				"q",
+				"s",
+				"samp",
+				"section",
+				"small",
+				"span",
+				"strike",
+				"strong",
+				"sub",
+				"summary",
+				"sup",
+				"table",
+				"tbody",
+				"td",
+				"tfoot",
+				"th",
+				"thead",
+				"time",
+				"tr",
+				"tt",
+				"u",
+				"ul",
+				"var",
+				"wbr",
 			)
-		private val dangerousInStyle = Regex("url|expression|position|behavior|binding|image-set|image\\(|var\\(|@import|\\\\", RegexOption.IGNORE_CASE)
+		private val dangerousInStyle =
+			Regex("url|expression|position|behavior|binding|image-set|image\\(|var\\(|@import|\\\\", RegexOption.IGNORE_CASE)
 		private val controlAndSpace = Regex("[\\s\\u0000-\\u001f]")
 
 		/** Returns a description of every unsafe construct in sanitized [html]. */
@@ -61,7 +127,9 @@ class XssCorpusTests {
 						found += "script URL in $name"
 					}
 					if (name == "style" && dangerousInStyle.containsMatchIn(attr.value)) found += "style '${attr.value}'"
-					if (name == "href" && !(value.startsWith("http:") || value.startsWith("https:") || value.startsWith("mailto:") || value.startsWith("tel:"))) {
+					if (name == "href" &&
+						!(value.startsWith("http:") || value.startsWith("https:") || value.startsWith("mailto:") || value.startsWith("tel:"))
+					) {
 						found += "href '$value'"
 					}
 					if (name == "src") {
