@@ -1,5 +1,6 @@
 package ch.sonensei.cockpit.mail.sync
 
+import io.kotest.assertions.withClue
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.shouldBe
@@ -175,6 +176,44 @@ class MailThreadingTests {
 
 		setOf(mail.keyOf("<a@example.test>"), mail.keyOf("<b@example.test>"), mail.keyOf("<d@example.test>")).size shouldBe 1
 	}
+
+	/**
+	 * Every arrival order of a root a, its reply b, a deep reply c (References a b), a reply t that only names its parent
+	 * b, a message d with the root's subject, and an unrelated root u with a reply v whose subject looks like the budget
+	 * thread: always the same two conversations, with the same keys.
+	 */
+	@Test
+	fun `threading by references and subject gives the same conversations in every arrival order`() {
+		val messages =
+			mapOf<String, (Mailbox) -> Unit>(
+				"a" to { it.receive("<a@example.test>", "Budget") },
+				"b" to { it.receive("<b@example.test>", "Re: Budget", inReplyTo = "<a@example.test>", references = "<a@example.test>") },
+				"c" to {
+					it.receive("<c@example.test>", "Re: Budget", inReplyTo = "<b@example.test>", references = "<a@example.test> <b@example.test>")
+				},
+				"t" to { it.receive("<t@example.test>", "Re: Budget", inReplyTo = "<b@example.test>") },
+				"d" to { it.receive("<d@example.test>", "Budget") },
+				"u" to { it.receive("<u@example.test>", "Unrelated") },
+				"v" to { it.receive("<v@example.test>", "Re: Budget", inReplyTo = "<u@example.test>") },
+			)
+		val expected =
+			listOf("a", "b", "c", "t", "d").associate { "<$it@example.test>" to "subject:budget" } +
+				listOf("u", "v").associate { "<$it@example.test>" to "subject:unrelated" }
+
+		for (order in permutations(messages.keys.toList())) {
+			val mail = Mailbox()
+			order.forEach { messages.getValue(it)(mail) }
+
+			withClue("arrival order $order") { expected.mapValues { (id, _) -> mail.keyOf(id) } shouldBe expected }
+		}
+	}
+
+	private fun permutations(items: List<String>): List<List<String>> =
+		if (items.size <= 1) {
+			listOf(items)
+		} else {
+			items.flatMap { first -> permutations(items - first).map { listOf(first) + it } }
+		}
 
 	@Test
 	fun `a reply to a subject-threaded message joins that conversation`() {

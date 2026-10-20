@@ -173,3 +173,74 @@ Notes:
 
 Some findings remain blocked. All validated in-scope findings (CR-1..CR-5) are fixed and validation passed. CR-6 is
 deferred as outside the task's touches.
+
+# Fix Report — round 2 (TW-1)
+
+Date: 2026-10-20
+
+Task: mail-header-sync - Header sync and threading
+
+Scope: current task, finding TW-1 of `reviews/mail-header-sync/tests.md` (test-writer round 2). The production fix
+was committed as WIP in 9b1a5ea9; this session validated it for all arrival orders, added an exhaustive
+arrival-order regression test, corrected the `MailThreading` KDoc, and ran the validation below.
+
+## Fixed findings
+
+### TW-1 — Subject-fallback threading depends on arrival order when a root arrives after its reply
+
+Files changed:
+- `server/src/main/kotlin/ch/sonensei/cockpit/mail/sync/MailThreading.kt` (9b1a5ea9: key selection; this session: KDoc)
+- `server/src/test/kotlin/ch/sonensei/cockpit/mail/sync/MailThreadingTests.kt` (9b1a5ea9: expected keys; this session: new test)
+- `server/src/test/kotlin/ch/sonensei/cockpit/mail/sync/MailHeaderStoreTests.kt` (9b1a5ea9: expected keys)
+- `server/src/test/kotlin/ch/sonensei/cockpit/mail/sync/HeaderSyncGreenMailTests.kt` (9b1a5ea9: expected keys)
+
+Problem:
+A root without References/In-Reply-To that arrived after a reply found the reply's provisional key (its own
+Message-ID) and kept it instead of its subject key, so other reference-less messages with the same subject stayed in
+a separate conversation (orders b,a,d / b,d,a / d,b,a).
+
+Fix:
+In `MailThreading.assign` the key is now the conversation of the first cached parent, else `default`
+(root Message-ID for a reply; for a message without parents: subject key, else own Message-ID, else `id:<row>`).
+The step `provisional.firstOrNull { it in provisionalExisting }` was removed, so a message without parents always
+takes the same key as when it arrives first; replies keyed provisionally by its Message-ID are merged into that key
+(`merged = known keys + existing provisional keys - key`). The removed `parents.firstOrNull()` step was redundant
+(`default` starts with it), so messages with parents are keyed exactly as before; the CR-1 orders still hold
+(c(irt b) -> `<b>`; b(refs a) -> `<a>`, merges `<b>`; a -> `subject:...`, merges `<a>`). This supersedes the CR-1
+note above that the root keeps the key `<a>`: the merged conversation now carries the root's subject key, and the
+tests of 9b1a5ea9 were updated to expect `subject:...` (a root without a usable subject still ends at its own
+Message-ID, test `a root without subject arriving after its replies joins them`). Thread keys are internal (only
+used for grouping in `mail_message.thread_key`), so the key change has no API impact.
+Regression test added: `threading by references and subject gives the same conversations in every arrival order`
+runs all 5040 arrival orders of a root a, reply b, deep reply c (References a b), truncated reply t (In-Reply-To b
+only), same-subject message d, and an unrelated root u with a reply v whose subject is "Re: Budget". Every order
+yields exactly {a,b,c,t,d} -> `subject:budget` and {u,v} -> `subject:unrelated`.
+
+Validation:
+- `cd server && ./gradlew ktlintFormat check --continue` — Pass (BUILD SUCCESSFUL; 1970 tests, 0 failures; sync
+  suites ImapHelpersTests 33/33, MailHeaderStoreTests 22/22, MailHeaderSyncServiceTests 23/23, MailThreadingTests
+  35/35 incl. the 6 TW-1 orders and the new exhaustive test)
+- `cd server && ./gradlew integrationTest --tests 'ch.sonensei.cockpit.mail.sync.*'` — Pass (HeaderSyncGreenMailTests
+  14/14, HeaderSyncDovecotTests 2/2)
+
+## Validation summary
+
+Focused tests:
+- `cd server && ./gradlew integrationTest --tests 'ch.sonensei.cockpit.mail.sync.*'` — Pass (GreenMail 14/14, Dovecot 2/2)
+
+Full test suite:
+- `cd server && ./gradlew ktlintFormat check --continue` — Pass (1970 tests, 0 failures)
+
+Lint/type-check/build:
+- ktlint is part of `./gradlew check` — Pass
+
+`.taskcheck`:
+- `sh scripts/check.sh` — Pass ("== all checks passed": tfp gate tests, server, web, android)
+
+Remaining unresolved findings:
+1 (CR-6, deferred as out of scope, see above)
+
+## Final status
+
+All validated in-scope findings (CR-1..CR-5, TW-1) are fixed and validation passed. CR-6 remains deferred as outside
+the task's touches.

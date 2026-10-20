@@ -22,11 +22,12 @@ data class ThreadAssignment(
  * Conversations (SPEC.md §7.2): messages are grouped by `References` / `In-Reply-To`, with the normalized subject as
  * fallback for messages that have neither.
  *
- * A thread key is the Message-ID of the conversation's root (the first entry of `References`, else `In-Reply-To`),
- * or `subject:<normalized subject>` for a message without either header. Whatever the arrival order, a message joins
- * the conversation of every cached message it refers to and of every cached message that refers to it; when it
- * connects conversations that were apart until now (e.g. a reply that arrived before its parent), they merge into
- * one ([ThreadAssignment.merged]).
+ * A thread key is the key of the conversation's root: `subject:<normalized subject>` for a root without either header
+ * (its own Message-ID when it has no usable subject). While the root is not cached, replies are keyed by its Message-ID
+ * (the first entry of `References`, else `In-Reply-To`) and merge into the root's key when it arrives. Whatever the
+ * arrival order, a message joins the conversation of every cached message it refers to and of every cached message
+ * that refers to it; when it connects conversations that were apart until now (e.g. a reply that arrived before its
+ * parent), they merge into one ([ThreadAssignment.merged]).
  */
 object MailThreading {
 	/** Thread key prefix of conversations grouped by subject. */
