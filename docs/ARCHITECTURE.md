@@ -103,6 +103,7 @@ Defined in `SPEC.md` §11. Introduced by the tasks that need them, and listed he
 |---|---|---|
 | `ANDROID_HOME` | android build, check | Android SDK location |
 | `DOCKER_HOST`, `TESTCONTAINERS_RYUK_DISABLED` | server tests, integration tests | Podman instead of Docker |
+| `E2E_COMPOSE`, `E2E_PORT`, `E2E_KEEP`, `E2E_BASE_URL` | `npm run e2e` | compose command, port, keep the stack, or use a running one (`web/e2e/README.md`) |
 | `SPRING_DATASOURCE_URL`, `_USERNAME`, `_PASSWORD` | server | Postgres connection (`application.properties`) |
 | `COCKPIT_MASTER_KEY` | server | AES-256-GCM key for stored credentials (base64, 32 bytes, `core.crypto`). Required: startup fails without it. Tests use a fictitious key from `server/src/test/resources/config/application.properties` |
 | `COCKPIT_DATA_DIR`, `COCKPIT_DOMAIN`, `GOOGLE_CLIENT_ID/SECRET`, `MS_CLIENT_ID/SECRET/TENANT` | server | see SPEC.md §11 (not yet used) |
@@ -126,6 +127,7 @@ pagination helpers live in `server/.../core/web` (summary in `api/README.md`).
 | `sh scripts/check.sh` (= `.taskcheck`) | TFP gate tests, server ktlint + tests, web eslint + Vitest + build, android ktlint + unit tests + Android Lint | ~25 s warm, ~3 min on a cold clone (downloads) |
 | `cd server && ./gradlew check` | server lint + `test` (unit tests + Spring tests against the shared Postgres Testcontainer; needs Docker/Podman) | ~12 s warm |
 | `cd server && ./gradlew integrationTest` | server tests tagged `external` (`@ExternalTest`: GreenMail, Radicale, WireMock, ...). Not part of `check`/`.taskcheck` | |
+| `cd web && npm run e2e [-- <spec>]` | Playwright (chromium) against `deploy/docker-compose.e2e.yml` (server image in profile `e2e`, fresh Postgres): builds/starts the stack, waits for health, runs the specs in `web/e2e/`, tears down (`web/e2e/README.md`). Not part of `.taskcheck` | ~20 s for `support/smoke.spec.ts` with cached image layers (stack healthy after ~16 s, 2 tests ~2 s); a changed source rebuilds the image first |
 | `cd web && npm run check` | web generated-client freshness check (`api:check`; `npm run api:gen` regenerates) + lint + tests + production build | |
 | `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` | android | |
 | `python3 tests/test_quality_gate.py` (and the other `tests/test_*.py`, `bash tests/test_publish.sh`) | TFP tooling | |
@@ -140,7 +142,8 @@ Server test infrastructure (`server/src/test/kotlin/ch/sonensei/cockpit/support/
   `DOCKER_HOST` and `TESTCONTAINERS_RYUK_DISABLED=true` (see "Install").
 
 Server profiles: none = production-like (JSON logs in Logstash format, datasource from
-`SPRING_DATASOURCE_*`), `dev` = plain-text logs and local defaults, `e2e` = the end-to-end stack.
+`SPRING_DATASOURCE_*`), `dev` = plain-text logs and local defaults, `e2e` = the end-to-end stack (adds
+the unauthenticated test hooks `POST /api/test/clock` and `/api/test/reset` from `core.testsupport`; never in production).
 
 Rules:
 - `.taskcheck` must stay below 2 minutes. Slow suites (Testcontainers integration tests, Playwright

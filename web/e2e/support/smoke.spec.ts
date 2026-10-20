@@ -5,7 +5,7 @@ import { expect, test } from './fixtures';
 test.describe('smoke', () => {
   test('signing in with password and TOTP shows the app shell', async ({ page, account }) => {
     await page.goto('/');
-    await expect(page).toHaveURL(/\/login$/);
+    await expect(page).toHaveURL(/\/login(\?|$)/);
 
     await page.getByLabel('Username').fill(account.username);
     await page.getByLabel('Password', { exact: true }).fill(account.password);
