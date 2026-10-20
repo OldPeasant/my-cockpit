@@ -209,4 +209,191 @@ describe('ChangeEventsService', () => {
     TestBed.resetTestingModule();
     expect(latest().closed).toBe(true);
   });
+
+  it('completes the event and resync streams when the app is destroyed', () => {
+    const service = create();
+    const eventsDone = vi.fn();
+    const resyncDone = vi.fn();
+    service.events$('TASK').subscribe({ complete: eventsDone });
+    service.resync$.subscribe({ complete: resyncDone });
+
+    TestBed.resetTestingModule();
+
+    expect(eventsDone).toHaveBeenCalledTimes(1);
+    expect(resyncDone).toHaveBeenCalledTimes(1);
+  });
+
+  it('ignores events without a string type', () => {
+    const service = create();
+    const received: ChangeEvent[] = [];
+    service.events$('TASK').subscribe((event) => received.push(event));
+    service.events$('1').subscribe((event) => received.push(event));
+    latest().open();
+
+    latest().emit(CHANGE_EVENT_NAME, '{}');
+    latest().emit(CHANGE_EVENT_NAME, '{"type":1,"id":"x","op":"UPDATED","at":"2026-10-20T10:00:00Z"}');
+    latest().emit(CHANGE_EVENT_NAME, '"TASK"');
+    latest().emit(CHANGE_EVENT_NAME, '');
+
+    expect(received).toEqual([]);
+  });
+
+  it('ignores SSE messages with another event name', () => {
+    const service = create();
+    const received: ChangeEvent[] = [];
+    service.events$('TASK').subscribe((event) => received.push(event));
+    latest().open();
+
+    latest().emit('message', JSON.stringify(change('TASK')));
+    latest().emit('heartbeat', JSON.stringify(change('TASK')));
+
+    expect(received).toEqual([]);
+  });
+
+  it('keeps dispatching to existing subscribers after a reconnect', () => {
+    const service = create();
+    const received: ChangeEvent[] = [];
+    service.events$('TASK').subscribe((event) => received.push(event));
+    latest().open();
+    latest().fail();
+    vi.advanceTimersByTime(1000);
+    latest().open();
+
+    latest().emit(CHANGE_EVENT_NAME, JSON.stringify(change('TASK')));
+
+    expect(sources).toHaveLength(2);
+    expect(received).toEqual([change('TASK')]);
+  });
+
+  it('emits resync once per reconnect', () => {
+    const service = create();
+    const resync = vi.fn();
+    service.resync$.subscribe(resync);
+    latest().open();
+
+    for (let i = 1; i <= 3; i++) {
+      latest().fail(); // e.g. the server ends the stream after 15 min
+      vi.advanceTimersByTime(1000);
+      latest().open();
+      expect(resync).toHaveBeenCalledTimes(i);
+    }
+  });
+
+  it('does not resync when the first connect of a login only succeeds after retries', () => {
+    const service = create();
+    const resync = vi.fn();
+    service.resync$.subscribe(resync);
+
+    latest().fail(); // e.g. 401 or server down before the stream ever opened
+    vi.advanceTimersByTime(1000);
+    latest().open();
+    expect(service.connected()).toBe(true);
+    expect(resync).not.toHaveBeenCalled();
+
+    latest().fail();
+    vi.advanceTimersByTime(1000);
+    latest().open();
+    expect(resync).toHaveBeenCalledTimes(1);
+  });
+
+  it('connects at once on a new login during a pending reconnect, with a fresh backoff', () => {
+    create();
+    latest().fail();
+    vi.advanceTimersByTime(1000);
+    latest().fail(); // next retry would be in 2 s
+
+    loggedIn.set(false);
+    TestBed.tick();
+    loggedIn.set(true);
+    TestBed.tick();
+    expect(sources).toHaveLength(3);
+
+    // The old pending retry does not open a second stream.
+    vi.advanceTimersByTime(60_000);
+    expect(sources).toHaveLength(3);
+
+    latest().fail();
+    vi.advanceTimersByTime(999);
+    expect(sources).toHaveLength(3);
+    vi.advanceTimersByTime(1);
+    expect(sources).toHaveLength(4);
+  });
+
+  it('ignores errors of a stream it already closed', () => {
+    create();
+    const first = latest();
+    const staleOnError = first.onerror;
+    first.open();
+    loggedIn.set(false);
+    TestBed.tick();
+    loggedIn.set(true);
+    TestBed.tick();
+    expect(sources).toHaveLength(2);
+
+    staleOnError?.(new Event('error'));
+    vi.advanceTimersByTime(60_000);
+
+    expect(sources).toHaveLength(2);
+    expect(latest().closed).toBe(false);
+  });
+});
+
+describe('ChangeEventsService defaults', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.useRealTimers();
+  });
+
+  it('backs off from 1 s up to 30 s by default', () => {
+    expect(TestBed.inject(RECONNECT_BACKOFF)).toEqual({ initialMs: 1000, maxMs: 30_000 });
+  });
+
+  it('opens a credentialed EventSource to the events endpoint by default', () => {
+    const opened: { url: string; init?: EventSourceInit }[] = [];
+    vi.stubGlobal(
+      'EventSource',
+      class {
+        constructor(url: string, init?: EventSourceInit) {
+          opened.push({ url, init });
+        }
+      },
+    );
+    TestBed.configureTestingModule({
+      providers: [{ provide: AuthService, useValue: { loggedIn: signal(true).asReadonly() } }],
+    });
+
+    TestBed.inject(EVENT_SOURCE_FACTORY)(EVENTS_PATH);
+
+    expect(opened).toEqual([{ url: EVENTS_PATH, init: { withCredentials: true } }]);
+  });
+
+  it('caps the default backoff at 30 s', () => {
+    vi.useFakeTimers();
+    const sources: FakeEventSource[] = [];
+    TestBed.configureTestingModule({
+      providers: [
+        { provide: AuthService, useValue: { loggedIn: signal(true).asReadonly() } },
+        {
+          provide: EVENT_SOURCE_FACTORY,
+          useValue: (url: string) => {
+            const source = new FakeEventSource(url);
+            sources.push(source);
+            return source as unknown as EventSource;
+          },
+        },
+      ],
+    });
+    TestBed.inject(ChangeEventsService);
+    TestBed.tick();
+
+    // 1, 2, 4, 8, 16 s, then 30 s (not 32 s).
+    for (const delay of [1000, 2000, 4000, 8000, 16_000, 30_000, 30_000]) {
+      sources[sources.length - 1].fail();
+      const before = sources.length;
+      vi.advanceTimersByTime(delay - 1);
+      expect(sources).toHaveLength(before);
+      vi.advanceTimersByTime(1);
+      expect(sources).toHaveLength(before + 1);
+    }
+  });
 });
