@@ -18,3 +18,4 @@ One OAuth connection per provider account, reused by calendar, mail, contacts (S
 - [ ] API documented: `api/openapi.yaml` regenerated (`UPDATE_OPENAPI=1 ./gradlew test --tests '*OpenApiContractTest'`) and `OpenApiContractTest` passes without the flag
 
 ## Notes
+- ASSUMPTION (2026-10-20 14:42+0200 by dell26/agent-4): Migration is in db/migration/core/ (V202610201300__core_oauth.sql), not the core-oauth folder named in touches: MigrationConventionTests require the folder name to equal the [a-z0-9]+ module prefix of the file name.
