@@ -5,7 +5,7 @@ owner: dell26/agent-3
 deps: [gtd-tasks-api]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/gtd,server/src/test/kotlin/ch/sonensei/cockpit/gtd,server/src/main/resources/db/migration/gtd]
 prio: 1
-lease_until: 2026-10-20T17:44:47Z
+lease_until: 2026-10-20T17:48:23Z
 releases: 1
 extended: 
 ---
