@@ -19,3 +19,4 @@ Retrofit client generated from the OpenAPI contract, with token handling.
 ## Notes
 - ASSUMPTION (2026-10-20 15:06+0200 by dell26/agent-2): Tokens are kept by an InMemoryTokenStore behind the TokenStore interface; Keystore/encrypted persistence is and-login's job (its title: secure token storage), which rebinds TokenStore.
 - ASSUMPTION (2026-10-20 15:06+0200 by dell26/agent-2): Settings/SettingsPatch (additionalProperties: true) are generated as kotlinx JsonObject via schemaMappings: openapi-generator 7.26.0 kotlin emits uncompilable code for open objects, and other modules add their own settings keys.
+- ASSUMPTION (2026-10-20 15:06+0200 by dell26/agent-2): Cleartext http allowed for localhost, 127.0.0.1, ::1 and 10.0.2.2 (emulator host) only, in ServerUrlValidator and a network_security_config.xml; added INTERNET permission to AndroidManifest.xml (outside touches, needed for any API call).
