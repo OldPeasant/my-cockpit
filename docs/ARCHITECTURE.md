@@ -146,6 +146,9 @@ Rules:
 - Lint warnings are errors (`ng lint --max-warnings=0`, ktlint, Android Lint `warningsAsErrors`).
   Android Lint's version-freshness checks are disabled on purpose. Upgrades are explicit tasks.
 - Use fictitious test data only.
+- Web unit tests run with Vitest `isolate: true` (`web/angular.json` `test` target), so each spec file
+  gets a fresh module graph. `app.i18n.spec.ts` needs this (Angular caches i18n template constants on
+  first render); don't remove it for speed.
 
 ## Coverage
 
