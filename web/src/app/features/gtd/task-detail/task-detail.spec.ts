@@ -950,4 +950,33 @@ describe('TaskDetail', () => {
     await save();
     expect(callsOf(updateTask)[1].params).toMatchObject({ id: 't2', 'If-Match': '"7"' });
   });
+
+  it('shows no conflict for the new task when a save of the previous task gets a 412 late', async () => {
+    let rejectSave!: () => void;
+    answer = (fn, params) => {
+      if (fn === getTask && params['id'] === 't2') {
+        return Promise.resolve(task({ id: 't2', title: 'Water the plants', version: 7 }));
+      }
+      if (fn === updateTask) {
+        return new Promise<never>(
+          (_, reject) => (rejectSave = () => reject(new ApiError(412, 'Precondition Failed'))),
+        );
+      }
+      return undefined;
+    };
+    await render();
+    await type('#td-title', 'Call the plumber today');
+    await save();
+    host.id.set('t2');
+    await refresh();
+    const getsBefore = callsOf(getTask).length;
+
+    // The save of t1 meets a newer version after the editor switched to t2.
+    rejectSave();
+    await refresh();
+    expect(text()).not.toContain(CONFLICT_MESSAGE);
+    expect(callsOf(getTask)).toHaveLength(getsBefore);
+    expect(field<HTMLTextAreaElement>('#td-title').value).toBe('Water the plants');
+    expect(saveButton().disabled).toBe(true);
+  });
 });

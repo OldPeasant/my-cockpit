@@ -532,12 +532,15 @@ describe('TaskChecklist', () => {
         host.id.set('t2');
         await refresh();
         expect(texts()).toEqual(['Other task step']);
+        await typeNew('Fill the watering can');
 
         // The add for t1 answers after the editor switched to t2.
         pending.resolve(item('n1', 3, { text: 'Buy fittings' }));
         await refresh();
         expect(added).toEqual([{ taskId: 't1', text: 'Buy fittings' }]);
         expect(texts()).toEqual(['Other task step']);
+        // What the user typed for t2 stays.
+        expect(newInput().value).toBe('Fill the watering can');
       } finally {
         service.addChecklistItem = original;
       }
@@ -561,6 +564,7 @@ describe('TaskChecklist', () => {
         pending.reject(new ApiError(500, 'Internal Server Error'));
         await refresh();
         expect(texts()).toEqual(['Other task step']);
+        expect(alert()).toBeUndefined();
       } finally {
         service.deleteChecklistItem = original;
       }

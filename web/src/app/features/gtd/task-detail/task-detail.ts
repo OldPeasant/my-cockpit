@@ -258,10 +258,14 @@ export class TaskDetail {
       if (move) current = await this.service.move(current, move);
       const patch = patchFor(current, draft);
       if (Object.keys(patch).length) current = await this.service.update(current, patch);
+      // The editor switched to another task meanwhile: the save stays done, the form is not ours.
+      if (task.id !== this.taskId()) return;
       this.task.set(current);
       this.draft.set(draftOf(current));
       this.flashSaved();
     } catch (error) {
+      // Neither the result nor a conflict reload of the previous task belongs to the new one.
+      if (task.id !== this.taskId()) return;
       // A move that went through stays: the next save starts from it.
       this.task.set(current);
       await this.failed(error);

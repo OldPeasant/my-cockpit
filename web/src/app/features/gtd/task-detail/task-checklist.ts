@@ -60,8 +60,11 @@ export class TaskChecklist {
     event.preventDefault();
     const text = this.newItem().trim();
     if (!text || this.busy()) return;
+    const taskId = this.taskId();
     await this.change(async () => {
-      const item = await this.service.addChecklistItem(this.taskId(), text);
+      const item = await this.service.addChecklistItem(taskId, text);
+      // The step belongs to the previous task when the editor switched meanwhile.
+      if (taskId !== this.taskId()) return;
       this.items.update((items) => [...items, item]);
       this.newItem.set('');
     });
@@ -117,11 +120,14 @@ export class TaskChecklist {
 
   /** Runs a change; on an error it is undone (`rollback`) and the error shown. */
   private async change(run: () => Promise<unknown>, rollback?: () => unknown): Promise<void> {
+    const taskId = this.taskId();
     this.busy.set(true);
     this.error.set(null);
     try {
       await run();
     } catch (error) {
+      // A failure of the previous task's change must not touch the new task's list.
+      if (taskId !== this.taskId()) return;
       if (error instanceof ApiError && error.status === 412) {
         await this.load(this.taskId());
         this.error.set(CHECKLIST_CONFLICT);
