@@ -4,32 +4,34 @@ Date: 2026-10-20
 
 Task: web-inbox - Inbox processing mode
 
-Scope: task commits 12e0ad0, baf445c, 6a9b4a7 on top of base 13f8ab6 (`git diff 13f8ab6e..HEAD -- web`), committed changes only
+Scope: re-review after fixes. Task commits from base 0792ca45 to HEAD b3317b11 (`git diff 0792ca45..b3317b11`), committed code only. Uncommitted test changes from a parallel test-writer are ignored.
 
 Requirements:
 - tasks/web-inbox.md acceptance criteria and recorded assumptions
-- SPEC.md §4.2 (ETag/If-Match), §5.3 (inbox processing mode), §5.4 (API)
-- docs/ARCHITECTURE.md (web conventions, i18n, lint, coverage)
+- SPEC.md §4.2 (ETag/If-Match) and §5.3 (inbox processing mode)
+- docs/ARCHITECTURE.md (web conventions, i18n, lint)
 - AGENTS.md project notes
-- Existing code: `gtd/data` stores (`ListStore`, `TaskStore`, `ProjectStore`), `gtd/ui` pickers, `shell/hotkeys.ts`, server `TaskController`/`TaskDtos` for tickler semantics
+- Previous review (reviews/web-inbox/review.md, findings CR-1 to CR-5) and fix report (reviews/web-inbox/fixes.md)
 
 Git range:
 - Branch: main
-- HEAD: 6a9b4a727d18ba6aa17e9f136ecf279d72b36f46
-- Base/start: 13f8ab6e4401847f53e99c3631be0e87809a3578
-- Commits reviewed: 3
+- HEAD: b3317b1144ffffefff7d2490aa99d24b58c364c0
+- Base/start: 0792ca45574b8ac3252236886e108c9c959a8165
+- Commits reviewed: 5 (e0d1233, a1e8c8f, 24d2864, 063283b, b3317b1)
 
-Summary: 0 P0, 0 P1, 2 P2, 3 P3
+Summary: 0 P0, 0 P1, 0 P2, 1 P3
 
-Notes on verification: the production code, unit spec and e2e spec were read in full. Lint, Vitest and Playwright were not run by this review (the reviewer's sandbox denied running them; the parent runs the e2e). No acceptance-criterion evidence was recorded yet (`tasks.py verify web-inbox` shows all four unticked), which is expected at this point and is not reported as a finding. The parent must record evidence for every criterion, including the real Playwright run for #4.
+Notes on verification: this review's sandbox did not allow shell commands, so no `git`, lint, Vitest, Playwright or `tasks.py verify` was run. The range and commit list come from the parent's scope and the recent log. This review read the current committed state of these files in full: `inbox-page.ts`, `inbox-page.html`, `inbox-actions.ts`, `inbox-page.spec.ts`, `e2e/gtd-inbox/inbox.spec.ts`, `gtd/data/task-store.ts`, `gtd/data/list-store.ts` and `gtd/data/task-store.spec.ts`. The criteria are not yet ticked in tasks/web-inbox.md. The parent must record evidence for every criterion with `tasks.py verify`, including the real Playwright run for criterion #4 against the e2e stack. That is expected at this stage and is not reported as a finding.
 
-What was checked and found correct:
-- All required actions exist with shortcuts; To reference and To calendar are disabled, and their keys do nothing (`actionForKey` skips disabled entries).
-- "x items left" uses an ICU plural, and all user-facing strings use `i18n`/`$localize` with ids.
-- Each action calls the intended endpoint. The inline-attribute PATCH runs first, and the following move/complete uses the version that the PATCH returned (If-Match chain is correct).
-- The `matchesTask` tickler fix matches the server. `TaskController` documents that lists exclude tasks whose `ticklerDate` is after today, for every list.
-- Keyboard handling defers to overlays, typing targets, modifiers, `defaultPrevented` and repeats, so it does not conflict with the shell's `Q`/`?`/`Ctrl+K`.
-- Rollback on error works through the store's optimistic overlay, and the `busy` set always clears in `finally`.
+## Status of the earlier findings
+
+- CR-1 (inline draft overwrote concurrent changes, bypassing If-Match): **resolved**. The draft is now `changes: linkedSignal<Partial<Clarification>>`, which holds only the fields the user touched (`inbox-page.ts:80-88`). `run()` builds the PATCH from `{ ...clarificationOf(task), ...changes }` against the current server copy (`inbox-page.ts:231`), so fields the user did not touch are never sent. Both linked signals now key on `currentId` (`inbox-page.ts:68`), so a refetch of the same item no longer resets the draft or the open prompt. If the user clears a field, the key stays in `changes` as `undefined` and is correctly sent as `null`. Tests: "sends only the attributes changed inline, keeping a concurrent change" and "keeps an open prompt when the item is refetched" (`inbox-page.spec.ts:306-335`).
+- CR-2 (no unit test for the `matchesTask` tickler rule): **resolved**. `task-store.spec.ts:514-529` covers a future date (several lists and no list), today, a past date and no tickler date.
+- CR-3 (Enter did not confirm on the project `<select>`): **resolved**. `(keydown.enter)="confirmPrompt($event)"` is on the select (`inbox-page.html:142`). `confirmPrompt` calls `preventDefault`, so the document handler ignores the key, and it checks `promptValid()`. The test sends a real keydown to the focused select (`inbox-page.spec.ts:242-254`).
+- CR-4 (load error had no retry): **resolved**. The error is now in a `role="alert"` block with a "Try again" button (`@@inbox.retry`) that calls `tasks.refresh()` (`inbox-page.html:27-33`, `inbox-page.ts:145-147`). `ListStore.refresh` reruns the stored query and clears the error on success. Test: `inbox-page.spec.ts:512-525`.
+- CR-5 (orphan or duplicate project after a failed move): **resolved**. The created project id is remembered per item, preselected when the prompt opens again, and forgotten once the move succeeds (`inbox-page.ts:93`, `:168`, `:274-279`). Test: `inbox-page.spec.ts:473-501`.
+
+Also re-checked on the final code: every action calls the intended endpoint, and the move or complete uses the version the PATCH returned. To reference and To calendar are disabled and their keys do nothing. "x items left" uses an ICU plural. All strings are localized with ids. The keyboard handler ignores events from overlays, typing targets, modifiers, `defaultPrevented` and key repeats. `busy` is always cleared in `finally`. The e2e spec processes 3 items (inline attributes, then N, M, X) to Inbox zero and checks the server state through the API.
 
 ## P0 Critical
 
@@ -41,43 +43,17 @@ None.
 
 ## P2 Medium
 
-- [ ] **CR-1 | Inline-attribute draft can silently overwrite a concurrent change, bypassing If-Match**
-    - File: `web/src/app/features/gtd/inbox/inbox-page.ts:75` (draft), `web/src/app/features/gtd/inbox/inbox-page.ts:194-208` (patch built against the current version), `web/src/app/features/gtd/inbox/inbox-actions.ts:143`
-    - Category: Correctness
-    - Problem: `clarification` is a `linkedSignal` keyed only on `current()?.id`. It holds a full snapshot of energy, creativity, estimate and contexts, taken when the item first comes up. If the item changes on the server while it is shown (another device or tab; the store refetches on SSE events), the id does not change, so the draft keeps the old values. `run()` then calls `clarificationPatch(task, clarification)` with the *new* `task`. Every field where the stale draft differs from the new server value goes into the PATCH, with `null` for a field the draft did not have, and it uses the new version as `If-Match`. The server accepts this, and the remote change is reverted even though the user never touched that field.
-    - Why it matters: this is the lost update that SPEC.md §4.2 optimistic locking exists to prevent. Here the 412 never fires because the If-Match comes from the refreshed copy, not from the copy the user edited.
-    - Suggested fix: keep only the fields the user changed (e.g. `Partial<Clarification>` of touched fields, merged over `clarificationOf(current())` for display), and send only those. Alternatively, build the patch and `If-Match` from the task snapshot the draft was based on, so a concurrent change produces a 412. Add a unit test: change the item via a refetch while processing, then run an action and assert that untouched fields are not sent.
-
-- [ ] **CR-2 | The `matchesTask` tickler change has no unit test**
-    - File: `web/src/app/features/gtd/data/task-store.ts:152-153`
-    - Category: Tests
-    - Problem: the task changed shared filtering logic, used by every `TaskStore` view: tasks with a future `ticklerDate` no longer match any list. `task-store.spec.ts` has no case for `ticklerDate`, so it does not cover the future, today and past boundaries. The inbox spec covers it only indirectly, through the mocked move response in "T puts the item in a tickler".
-    - Why it matters: this is regression-prone shared behavior outside the task's `touches`. A later change to `matchesTask` (or a `>=` slip) would make ticklered items reappear in lists, or due ticklers vanish, without any failing test.
-    - Suggested fix: add `matchesTask` cases in `task-store.spec.ts`: `ticklerDate` tomorrow does not match, `ticklerDate === today` matches, a past date matches, and none matches.
+None.
 
 ## P3 Low
 
-- [ ] **CR-3 | "Enter" does not confirm the To-project prompt when an existing project is selected**
-    - File: `web/src/app/features/gtd/inbox/inbox-page.html:132-150` (`<select #promptField>`) and `:183-186` (Move button with `<kbd>Enter</kbd>`)
+- [ ] **CR-6 | A remembered "created project" that is no longer open is preselected anyway**
+    - File: `web/src/app/features/gtd/inbox/inbox-page.ts:167-169`
     - Category: Correctness
-    - Problem: for the project prompt, the autofocused field is a `<select>`. HTML implicit form submission applies to text-like `<input>` fields, not to `<select>`, so pressing Enter there does not submit the form, although the Move button advertises `Enter`. The keyboard user has to Tab to the button. The unit test calls `form.requestSubmit()` directly and so does not catch this.
-    - Why it matters: the processing mode is meant to be keyboard driven (SPEC.md §5.3), and the visible hint is wrong for the most common To-project path.
-    - Suggested fix: handle `(keydown.enter)` on the select by calling `confirmPrompt`, or adjust the hint. Cover it with a keydown-based test rather than `requestSubmit()`.
-
-- [ ] **CR-4 | Inbox load error has no retry**
-    - File: `web/src/app/features/gtd/inbox/inbox-page.html:27-28`
-    - Category: Correctness
-    - Problem: when the initial `listTasks` fails, the page shows "The inbox could not be loaded." with no way to retry except a full reload (or a later SSE resync). Other feature pages (`trash-page.html:18`, `settings/general/general-settings.html:9`) offer a retry button that calls `load()`.
-    - Why it matters: an unrecoverable error state, inconsistent with the existing project pattern.
-    - Suggested fix: add a retry button that calls `tasks.refresh()` (i18n id e.g. `@@inbox.retry`).
-
-- [ ] **CR-5 | A failed move after "new project" leaves an orphan project, and a retry creates a duplicate**
-    - File: `web/src/app/features/gtd/inbox/inbox-page.ts:249-255`
-    - Category: Correctness
-    - Problem: in the To-project / New project path, `projects.create` succeeds before `tasks.move`. If the move fails (e.g. a 412 because the item changed), the item returns to the inbox, but the new project stays. Retrying the same action with the same title creates a second project with that title.
-    - Why it matters: only on the error path, but it leaves user-visible duplicates that the user has to clean up by hand.
-    - Suggested fix: after a successful create, preselect the created project for the retry (e.g. set `promptProject` to its id when the move fails), or record this as an accepted limitation with `tasks.py assume`.
+    - Problem: `choose()` preselects `createdProjects.get(task.id)` without checking that the id is still in `openProjects()`. Suppose the project created during a failed attempt is deleted or completed before the retry (e.g. from another device). Then `promptProject` holds an id that matches no `<option>`, so the browser shows the first option. `promptValid()` is still true, because the value is not `NEW_PROJECT`. Confirming sends a move with a project id that is gone, which fails on the server, and the UI gives no hint why.
+    - Why it matters: this is a rare error-path-after-error-path case, but what the select shows and what gets sent differ.
+    - Suggested fix: use the remembered id only if `openProjects()` contains it. Otherwise drop it from the map and fall back to the first open project or `NEW_PROJECT`.
 
 ## Review conclusion
 
-Material issues found; fix before completing the task. CR-1 (lost update that bypasses If-Match) and CR-2 (test for the shared `matchesTask` change) should be fixed or explicitly dispositioned. The P3 items are optional improvements. No P0/P1 issues: the acceptance criteria appear to be implemented as specified, pending the evidence that the parent records for criteria #3 (`npm run check`) and #4 (the real Playwright run).
+No material issues found. All earlier findings (CR-1 to CR-5) are resolved in the code. The only new finding, CR-6, is an optional low-priority fix. The parent still has to record evidence for every criterion, including criterion #3 (`cd web && npm run check`) and criterion #4 (the Playwright run against the e2e stack). This review did not run either one.
