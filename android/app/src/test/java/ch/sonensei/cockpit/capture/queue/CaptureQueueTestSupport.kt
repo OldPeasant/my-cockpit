@@ -63,7 +63,7 @@ class TickingClock(
 class RecordingScheduler : CaptureSyncScheduler {
     @Volatile var scheduled = 0
 
-    override fun schedule() {
+    override suspend fun schedule() {
         scheduled++
     }
 }

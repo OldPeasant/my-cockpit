@@ -13,6 +13,12 @@ import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.mockk.coEvery
 import io.mockk.mockk
+import io.mockk.spyk
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import mockwebserver3.MockWebServer
 import org.junit.After
@@ -40,6 +46,7 @@ class FakeDocumentProvider : ContentProvider() {
         var hasRow = true
         var queryFails = false
         var noCursor = false
+        var openDenied = false
     }
 
     override fun onCreate() = true
@@ -62,6 +69,7 @@ class FakeDocumentProvider : ContentProvider() {
         uri: Uri,
         mode: String,
     ): ParcelFileDescriptor {
+        if (openDenied) throw SecurityException("permission revoked")
         if (!file.isFile) throw FileNotFoundException(uri.toString())
         return ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_ONLY)
     }
@@ -101,6 +109,7 @@ class AttachmentStoreTest {
         FakeDocumentProvider.hasRow = true
         FakeDocumentProvider.queryFails = false
         FakeDocumentProvider.noCursor = false
+        FakeDocumentProvider.openDenied = false
         server.start()
         q = QueueHarness(server)
         server.close()
@@ -221,5 +230,54 @@ class AttachmentStoreTest {
         runBlocking {
             q.store.delete("never-queued")
             assertFalse(File(q.root, "never-queued").exists())
+        }
+
+    @Test
+    fun `a revoked share grant is reported as an IOException and leaves no copies`() =
+        runBlocking {
+            FakeDocumentProvider.openDenied = true
+            try {
+                q.queue.capture(
+                    "Revoked",
+                    null,
+                    listOf(CaptureAttachment(q.source("a.txt", "a")), CaptureAttachment(FakeDocumentProvider.uri)),
+                )
+                fail("expected an IOException")
+            } catch (e: IOException) {
+                assertTrue(e.cause is SecurityException)
+            }
+
+            assertTrue(q.dao.sendable().isEmpty())
+            assertFalse(q.root.exists() && q.root.listFiles()!!.any { it.listFiles()!!.isNotEmpty() })
+            assertEquals(0, q.scheduler.scheduled)
+        }
+
+    @Test
+    fun `cancelling a capture while it copies leaves no copies`() =
+        runBlocking {
+            val firstCopied = CompletableDeferred<Unit>()
+            val store = spyk(q.store)
+            coEvery { store.copy(any(), 1, any()) } coAnswers {
+                firstCopied.complete(Unit)
+                awaitCancellation()
+            }
+            val queue = CaptureQueue(q.dao, store, q.scheduler, q.clock)
+            val attachments = listOf(CaptureAttachment(q.source("a.txt", "a")), CaptureAttachment(FakeDocumentProvider.uri))
+
+            val job = launch(Dispatchers.IO) { queue.capture("Cancelled", null, attachments) }
+            firstCopied.await()
+            assertTrue(
+                "the first copy exists before the cancellation",
+                q.root
+                    .listFiles()!!
+                    .single()
+                    .listFiles()!!
+                    .isNotEmpty(),
+            )
+            job.cancelAndJoin()
+
+            assertTrue(q.dao.sendable().isEmpty())
+            assertTrue(q.root.listFiles()!!.isEmpty())
+            assertEquals(0, q.scheduler.scheduled)
         }
 }

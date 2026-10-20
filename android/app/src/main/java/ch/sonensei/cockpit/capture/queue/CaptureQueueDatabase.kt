@@ -73,7 +73,10 @@ abstract class CaptureQueueDao {
         insertAttachments(attachments)
     }
 
-    /** Captures the job still has to send, oldest first, so the Inbox gets them in capture order. */
+    /**
+     * Captures the job still has to send, oldest first, so the Inbox gets them in capture order. Captures of the same
+     * millisecond are ordered by their ids, which [UuidV7] makes increase with every capture.
+     */
     @Transaction
     open suspend fun sendable(): List<PendingCapture> = sendableCaptures().map { PendingCapture(it, attachments(it.id)) }
 

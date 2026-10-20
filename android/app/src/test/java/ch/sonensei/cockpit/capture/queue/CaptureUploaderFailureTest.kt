@@ -230,4 +230,42 @@ class CaptureUploaderFailureTest {
             assertEquals(SendResult.DONE, q.uploader.sendAll())
             assertEquals(CaptureQueueStatus(1, "Rejected by the server (HTTP 400)"), q.queue.status.first())
         }
+
+    @Test
+    fun `an unreadable upload answer marks that capture and the next one is still sent`() =
+        runBlocking {
+            q.queue.capture("Odd answer", null, listOf(CaptureAttachment(q.source("a.txt", "x"))))
+            val next = q.queue.capture("Next")
+            server.enqueue(answer(201, "this is not json"))
+            server.enqueue(answer(201, captureTaskJson(next.toString())))
+
+            assertEquals(SendResult.RETRY, q.uploader.sendAll())
+
+            assertEquals(listOf(FILES, CAPTURE), takeAll().map { it.url.encodedPath })
+            val left = q.dao.sendable().single()
+            assertEquals("Odd answer", left.capture.text)
+            assertEquals(CaptureQueueStatus(1, CaptureUploader.UNEXPECTED_ERROR), q.queue.status.first())
+
+            // Retried on the next run, not stuck.
+            server.enqueue(answer(201, fileJson(1, "a.txt")))
+            server.enqueue(answer(201, captureTaskJson(left.capture.id)))
+            assertEquals(SendResult.DONE, q.uploader.sendAll())
+            assertEquals(CaptureQueueStatus(0, null), q.queue.status.first())
+        }
+
+    @Test
+    fun `a corrupt stored file id fails only that capture, which is retried`() =
+        runBlocking {
+            val broken = q.queue.capture("Broken id", null, listOf(CaptureAttachment(q.source("a.txt", "x"))))
+            q.dao.markUploaded(broken.toString(), 0, "not-a-uuid")
+            val next = q.queue.capture("Next")
+            server.enqueue(answer(201, captureTaskJson(next.toString())))
+
+            assertEquals(SendResult.RETRY, q.uploader.sendAll())
+
+            assertEquals(listOf(CAPTURE), takeAll().map { it.url.encodedPath })
+            val left = q.dao.sendable().single()
+            assertEquals(broken.toString(), left.capture.id)
+            assertEquals(CaptureUploader.UNEXPECTED_ERROR, left.capture.lastError)
+        }
 }

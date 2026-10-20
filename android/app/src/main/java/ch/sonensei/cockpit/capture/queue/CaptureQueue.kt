@@ -6,6 +6,7 @@ import android.net.Uri
 import android.provider.OpenableColumns
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
@@ -13,6 +14,8 @@ import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.IOException
 import java.time.Clock
+import java.time.Instant
+import java.time.ZoneId
 import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -40,6 +43,8 @@ class CaptureQueue internal constructor(
     private val files: AttachmentStore,
     private val scheduler: CaptureSyncScheduler,
     private val clock: Clock,
+    /** The device's time zone, read at each capture so `!today` follows the user when they travel. */
+    private val zone: () -> ZoneId = ZoneId::systemDefault,
 ) {
     @Inject
     constructor(
@@ -55,20 +60,33 @@ class CaptureQueue internal constructor(
             .distinctUntilChanged()
 
     /**
-     * Queues a capture and returns its id. Throws [IOException] if an attachment cannot be read or copied; nothing is
-     * queued then.
+     * Queues a capture and returns its id. `!today` and `!tomorrow` in the title line are pinned to the date in the
+     * device's time zone now, so a capture sent later keeps its due date (see [RelativeDueDates]).
+     *
+     * Throws [IllegalArgumentException] for input the server always rejects (blank [text], more than
+     * [MAX_ATTACHMENTS] attachments) and [IOException] if an attachment cannot be read or copied (also when access to it
+     * was denied). Nothing is queued then and no copies are left behind, also when the caller is cancelled.
      */
     suspend fun capture(
         text: String,
         notes: String? = null,
         attachments: List<CaptureAttachment> = emptyList(),
     ): UUID {
+        require(text.isNotBlank()) { "A capture needs a text" }
+        require(attachments.size <= MAX_ATTACHMENTS) { "At most $MAX_ATTACHMENTS attachments" }
         val now = clock.millis()
         val id = UuidV7.generate(now)
-        val copies =
-            try {
+        val today = Instant.ofEpochMilli(now).atZone(zone()).toLocalDate()
+        var queued = false
+        try {
+            val copies =
                 attachments.mapIndexed { position, attachment ->
-                    val copy = files.copy(id.toString(), position, attachment.uri)
+                    val copy =
+                        try {
+                            files.copy(id.toString(), position, attachment.uri)
+                        } catch (e: SecurityException) {
+                            throw IOException("No access to attachment ${position + 1}", e)
+                        }
                     PendingAttachmentEntity(
                         captureId = id.toString(),
                         position = position,
@@ -77,28 +95,32 @@ class CaptureQueue internal constructor(
                         mime = copy.mime,
                     )
                 }
-            } catch (e: IOException) {
-                files.delete(id.toString())
-                throw e
+            // Once the copies exist the local write and the scheduling finish even if the caller is cancelled: a
+            // cancellation after the commit would otherwise delete the copies of a queued capture.
+            withContext(NonCancellable) {
+                dao.insert(
+                    PendingCaptureEntity(
+                        id = id.toString(),
+                        text = RelativeDueDates.pin(text, today),
+                        notes = notes?.takeIf { it.isNotBlank() },
+                        createdAtEpochMs = now,
+                        lastError = null,
+                        lastAttemptAtEpochMs = null,
+                    ),
+                    copies,
+                )
+                queued = true
+                scheduler.schedule()
             }
-        try {
-            dao.insert(
-                PendingCaptureEntity(
-                    id = id.toString(),
-                    text = text,
-                    notes = notes?.takeIf { it.isNotBlank() },
-                    createdAtEpochMs = now,
-                    lastError = null,
-                    lastAttemptAtEpochMs = null,
-                ),
-                copies,
-            )
-        } catch (e: Exception) {
-            files.delete(id.toString())
-            throw e
+        } finally {
+            if (!queued) withContext(NonCancellable) { files.delete(id.toString()) }
         }
-        scheduler.schedule()
         return id
+    }
+
+    companion object {
+        /** The server accepts at most this many files per capture (`CaptureRequest.fileIds`). */
+        const val MAX_ATTACHMENTS = 50
     }
 }
 

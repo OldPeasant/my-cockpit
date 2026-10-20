@@ -7,20 +7,24 @@ import androidx.work.CoroutineWorker
 import androidx.work.ExistingWorkPolicy
 import androidx.work.NetworkType
 import androidx.work.OneTimeWorkRequestBuilder
+import androidx.work.WorkInfo
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
+import androidx.work.await
 import dagger.hilt.EntryPoint
 import dagger.hilt.InstallIn
 import dagger.hilt.android.EntryPointAccessors
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.flow.first
 import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 import javax.inject.Singleton
 
 /** Starts sending the queue once the network is up. */
-fun interface CaptureSyncScheduler {
-    fun schedule()
+interface CaptureSyncScheduler {
+    suspend fun schedule()
 }
 
 @Singleton
@@ -29,20 +33,29 @@ class WorkManagerCaptureSyncScheduler
     constructor(
         @param:ApplicationContext private val context: Context,
     ) : CaptureSyncScheduler {
-        override fun schedule() {
+        override suspend fun schedule() {
+            val workManager = WorkManager.getInstance(context)
             val request =
                 OneTimeWorkRequestBuilder<CaptureSyncWorker>()
                     .setConstraints(Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build())
                     .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, BACKOFF_SECONDS, TimeUnit.SECONDS)
                     .build()
-            // APPEND_OR_REPLACE: a run already sending may have read the queue before this capture, so another run follows
-            // it; a run waiting for its retry sends everything queued anyway.
-            WorkManager.getInstance(context).enqueueUniqueWork(WORK_NAME, ExistingWorkPolicy.APPEND_OR_REPLACE, request)
+            val states = workManager.getWorkInfosForUniqueWorkFlow(WORK_NAME).first().map { it.state }
+            workManager.enqueueUniqueWork(WORK_NAME, policyFor(states), request).await()
         }
 
         companion object {
             const val WORK_NAME = "capture-queue"
             const val BACKOFF_SECONDS = 30L
+
+            /**
+             * APPEND_OR_REPLACE while a run is sending: it may have read the queue before the new capture, so another
+             * run follows it. Otherwise REPLACE: a job that only waits (for the network or out a retry backoff, which
+             * grows to hours) would hold the new capture back, and starting afresh is safe because the capture is
+             * idempotent and uploaded file ids are stored.
+             */
+            internal fun policyFor(states: List<WorkInfo.State>): ExistingWorkPolicy =
+                if (WorkInfo.State.RUNNING in states) ExistingWorkPolicy.APPEND_OR_REPLACE else ExistingWorkPolicy.REPLACE
         }
     }
 
@@ -60,9 +73,17 @@ class CaptureSyncWorker internal constructor(
     })
 
     override suspend fun doWork(): Result =
-        when (uploader().sendAll()) {
-            SendResult.DONE -> Result.success()
-            SendResult.RETRY -> Result.retry()
+        try {
+            when (uploader().sendAll()) {
+                SendResult.DONE -> Result.success()
+                SendResult.RETRY -> Result.retry()
+            }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: Exception) {
+            // A failure would end the job and every run appended to it, leaving the queue unsent until the next
+            // capture (e.g. the database failing to open): try again with backoff instead.
+            Result.retry()
         }
 }
 

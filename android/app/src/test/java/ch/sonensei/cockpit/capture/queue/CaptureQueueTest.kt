@@ -17,6 +17,10 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import java.io.File
 import java.io.IOException
+import java.time.Clock
+import java.time.Instant
+import java.time.ZoneId
+import java.time.ZoneOffset
 
 @RunWith(AndroidJUnit4::class)
 class CaptureQueueTest {
@@ -97,5 +101,56 @@ class CaptureQueueTest {
                 assertEquals(CaptureQueueStatus(1, CaptureUploader.OFFLINE), awaitItem())
                 cancelAndIgnoreRemainingEvents()
             }
+        }
+
+    @Test
+    fun `blank text or too many attachments are refused before anything is copied`() =
+        runBlocking {
+            listOf("", "  \n\t ").forEach { text ->
+                try {
+                    q.queue.capture(text, null, listOf(CaptureAttachment(q.source("a.txt", "a"))))
+                    fail("expected IllegalArgumentException for '$text'")
+                } catch (_: IllegalArgumentException) {
+                }
+            }
+            val source = q.source("a.txt", "a")
+            try {
+                q.queue.capture("Too many", null, List(CaptureQueue.MAX_ATTACHMENTS + 1) { CaptureAttachment(source) })
+                fail("expected IllegalArgumentException")
+            } catch (_: IllegalArgumentException) {
+            }
+
+            assertTrue(q.dao.sendable().isEmpty())
+            assertFalse(q.root.exists() && q.root.listFiles()!!.isNotEmpty())
+            assertEquals(0, q.scheduler.scheduled)
+
+            q.queue.capture("Just enough", null, List(CaptureQueue.MAX_ATTACHMENTS) { CaptureAttachment(source) })
+            assertEquals(
+                CaptureQueue.MAX_ATTACHMENTS,
+                q.dao
+                    .sendable()
+                    .single()
+                    .attachments.size,
+            )
+        }
+
+    @Test
+    fun `relative due dates are pinned to the capture day in the device time zone`() =
+        runBlocking {
+            // 22:30 UTC is already the next day in Zurich.
+            val clock = Clock.fixed(Instant.parse("2026-10-20T22:30:00Z"), ZoneOffset.UTC)
+            val queue = CaptureQueue(q.dao, q.store, q.scheduler, clock) { ZoneId.of("Europe/Zurich") }
+
+            queue.capture("Pay rent !today", "check !today in the notes")
+            queue.capture("Call bank !Tomorrow.\nsecond line !today")
+
+            val texts = q.dao.sendable().map { it.capture.text to it.capture.notes }
+            assertEquals(
+                listOf(
+                    "Pay rent !2026-10-21" to "check !today in the notes",
+                    "Call bank !2026-10-22.\nsecond line !today" to null,
+                ),
+                texts,
+            )
         }
 }

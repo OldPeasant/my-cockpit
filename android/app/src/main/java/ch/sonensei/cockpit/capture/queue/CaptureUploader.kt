@@ -4,6 +4,7 @@ import ch.sonensei.cockpit.core.network.AuthSession
 import ch.sonensei.cockpit.core.network.generated.apis.CaptureApi
 import ch.sonensei.cockpit.core.network.generated.apis.FilesApi
 import ch.sonensei.cockpit.core.network.generated.models.CaptureRequest
+import kotlinx.coroutines.CancellationException
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.MultipartBody
 import okhttp3.RequestBody.Companion.asRequestBody
@@ -18,7 +19,7 @@ enum class SendResult {
     /** Nothing left that a retry could send (the queue is empty or only holds rejected captures). */
     DONE,
 
-    /** The server could not be reached, failed or the device is logged out: try again later. */
+    /** The server could not be reached, failed or the device is logged out, or a capture failed unexpectedly: try again later. */
     RETRY,
 }
 
@@ -46,9 +47,10 @@ class CaptureUploader internal constructor(
     ) : this(session, dao, files, captureApi, filesApi, Clock.systemUTC())
 
     suspend fun sendAll(): SendResult {
+        var result = SendResult.DONE
         for (pending in dao.sendable()) {
             val id = pending.capture.id
-            val outcome = if (session.isLoggedIn) send(pending) else Outcome.Retry(NOT_LOGGED_IN)
+            val outcome = if (session.isLoggedIn) sendSafely(pending) else Outcome.Retry(NOT_LOGGED_IN)
             when (outcome) {
                 Outcome.Sent -> {
                     dao.delete(id)
@@ -60,10 +62,25 @@ class CaptureUploader internal constructor(
                     dao.markFailed(id, outcome.error, clock.millis(), rejected = false)
                     return SendResult.RETRY
                 }
+                is Outcome.Failed -> {
+                    // Something about this capture failed unexpectedly: retry it later, but still send the others.
+                    dao.markFailed(id, outcome.error, clock.millis(), rejected = false)
+                    result = SendResult.RETRY
+                }
             }
         }
-        return SendResult.DONE
+        return result
     }
+
+    /** [send], with an unexpected exception (e.g. an unreadable answer or stored id) as [Outcome.Failed]. */
+    private suspend fun sendSafely(pending: PendingCapture): Outcome =
+        try {
+            send(pending)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: Exception) {
+            Outcome.Failed(UNEXPECTED_ERROR)
+        }
 
     private suspend fun send(pending: PendingCapture): Outcome {
         val fileIds = mutableListOf<UUID>()
@@ -122,12 +139,18 @@ class CaptureUploader internal constructor(
         data class Retry(
             val error: String,
         ) : Outcome
+
+        /** This capture failed for an unexpected reason: retry it later, the next ones may still be sent. */
+        data class Failed(
+            val error: String,
+        ) : Outcome
     }
 
     companion object {
         const val OFFLINE = "Server unreachable"
         const val NOT_LOGGED_IN = "Not logged in"
         const val ATTACHMENT_MISSING = "Attachment missing"
+        const val UNEXPECTED_ERROR = "Unexpected error"
         private const val HTTP_UNAUTHORIZED = 401
         private const val HTTP_TIMEOUT = 408
         private const val HTTP_CONFLICT = 409
