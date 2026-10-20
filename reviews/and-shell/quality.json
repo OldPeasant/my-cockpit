@@ -1,0 +1,19 @@
+{
+  "schema": 1,
+  "task": "and-shell",
+  "reviewed_revision": "1a190a6cc3d726bd02a4ce825b83910def86dcc1",
+  "helpers": {
+    "test-writer": {"status": "completed", "report": "reviews/and-shell/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/and-shell/review.md"},
+    "fixer": {"status": "completed", "report": "reviews/and-shell/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "switching to More discarded the left tab's saved state; saveState now always true, restoreState skipped only for More; regression tests in CockpitShellNavigationTest"}
+  ],
+  "validation": [
+    {"command": "cd android && ./gradlew ktlintCheck lintDebug testDebugUnitTest --tests 'ch.sonensei.cockpit.ui.*' --rerun-tasks", "result": "pass"},
+    {"command": "cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug (test-writer, 46 tests)", "result": "pass"}
+  ]
+}
