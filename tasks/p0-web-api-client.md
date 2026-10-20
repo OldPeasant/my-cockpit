@@ -17,3 +17,4 @@ Typed Angular services generated from `api/openapi.yaml`, plus interceptors.
 - [ ] Vitest component/service tests cover the interceptors (401 redirect, problem mapping); `cd web && npm run check` passes
 
 ## Notes
+- ASSUMPTION (2026-10-20 11:16+0200 by dell26/agent-2): 401 redirect goes to /login?returnUrl=<current URL incl. query>; no redirect when already on /login or /setup, or when the request sets HttpContext SKIP_LOGIN_REDIRECT (for login/session probes). p0-web-auth should read the 'returnUrl' param.
