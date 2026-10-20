@@ -21,3 +21,4 @@ Image thumbnails and text previews (SPEC.md §8.2).
 - ASSUMPTION (2026-10-21 01:14+0200 by dell26/agent-6): Unsupported types for /thumbnail and /preview answer 415 Problem Details; undecodable images 422. SVG is excluded from inline preview/thumbnails (script/XSS risk)
 - ASSUMPTION (2026-10-21 01:14+0200 by dell26/agent-6): Text preview covers text/*, JSON, XML, YAML; served as text/markdown for Markdown and text/plain otherwise (so HTML is never rendered), with X-Preview-Truncated header; invalid UTF-8 bytes become U+FFFD
 - ASSUMPTION (2026-10-21 01:14+0200 by dell26/agent-6): Added TwelveMonkeys imageio-webp 3.12.0 since JDK ImageIO cannot decode WebP; thumbnails cached at data-dir/thumbnails/<size>/<storage key>.<ext> and deleted when the blob is purged
+- ASSUMPTION (2026-10-21 01:47+0200 by dell26/agent-6): Regenerated web/src/app/api/generated/ (outside touches) because openapi.yaml changed and the web check requires the client in sync
