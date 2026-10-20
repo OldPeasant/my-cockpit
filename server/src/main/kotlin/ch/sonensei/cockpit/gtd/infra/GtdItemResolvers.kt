@@ -4,7 +4,6 @@ import ch.sonensei.cockpit.core.items.domain.ItemResolver
 import ch.sonensei.cockpit.core.items.domain.ItemType
 import ch.sonensei.cockpit.core.items.domain.ResolvedItem
 import ch.sonensei.cockpit.gtd.domain.ProjectStatus
-import ch.sonensei.cockpit.gtd.domain.TaskList
 import org.springframework.stereotype.Component
 import org.springframework.transaction.annotation.Transactional
 import java.util.UUID
@@ -21,19 +20,10 @@ class TaskItemResolver(
 		tasks.findActiveById(id)?.let {
 			ResolvedItem(
 				title = it.title,
-				subtitle = if (it.isCompleted) "Done" else it.list.label(),
+				subtitle = if (it.isCompleted) "Done" else it.list.label,
 				icon = if (it.isCompleted) "task_alt" else "radio_button_unchecked",
 				deepLink = "/tasks/${it.id}",
 			)
-		}
-
-	private fun TaskList.label(): String =
-		when (this) {
-			TaskList.INBOX -> "Inbox"
-			TaskList.NEXT -> "Next"
-			TaskList.WAITING -> "Waiting For"
-			TaskList.SOMEDAY -> "Someday/Maybe"
-			TaskList.SCHEDULED -> "Scheduled"
 		}
 }
 

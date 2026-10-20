@@ -9,6 +9,18 @@ enum class TaskList {
 
 	/** Appears in Next on [Task.scheduledDate]. */
 	SCHEDULED,
+	;
+
+	/** The list's name as shown to the user. */
+	val label: String
+		get() =
+			when (this) {
+				INBOX -> "Inbox"
+				NEXT -> "Next"
+				WAITING -> "Waiting For"
+				SOMEDAY -> "Someday/Maybe"
+				SCHEDULED -> "Scheduled"
+			}
 }
 
 enum class Energy {

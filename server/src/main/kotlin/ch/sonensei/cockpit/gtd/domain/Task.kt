@@ -9,6 +9,7 @@ import jakarta.persistence.EnumType
 import jakarta.persistence.Enumerated
 import jakarta.persistence.JoinColumn
 import jakarta.persistence.Table
+import org.hibernate.annotations.BatchSize
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalTime
@@ -50,7 +51,9 @@ class Task(
 	@Column(name = "time_estimate_min")
 	var timeEstimateMin: Int? = null
 
+	// Batched so a page of tasks loads its contexts in one query, not one per task.
 	@ElementCollection
+	@BatchSize(size = 100)
 	@CollectionTable(name = "task_context", joinColumns = [JoinColumn(name = "task_id")])
 	@Column(name = "context_id", nullable = false)
 	var contextIds: MutableSet<UUID> = mutableSetOf()
