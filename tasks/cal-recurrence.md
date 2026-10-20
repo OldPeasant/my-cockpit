@@ -1,11 +1,11 @@
 ---
 title: Recurrence expansion
-status: in_progress
+status: done
 owner: dell26/agent-3
 deps: [cal-model]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/calendar/recurrence,server/src/test/kotlin/ch/sonensei/cockpit/calendar/recurrence]
 prio: 1
-lease_until: 2026-10-20T16:37:34Z
+lease_until: 
 extended: dell26/agent-3
 ---
 ## Goal
@@ -27,3 +27,4 @@ Expand events into occurrences in a range (SPEC.md §6.1).
 - ASSUMPTION (2026-10-20 17:29+0200 by dell26/agent-3): A DATE-only UNTIL on a timed series (invalid per RFC 5545 but emitted by providers) includes that whole day in the event's zone
 - ASSUMPTION (2026-10-20 17:42+0200 by dell26/agent-3): An override whose master is soft-deleted (or absent from the input) is shown standalone by OccurrenceExpander; cascading series deletion to overrides is left to the event-editing/sync tasks.
 - extended by dell26/agent-3: Implementation, tests, test report and third review (0 findings) are committed; server code is identical to the reviewed revision e6757fa8 (rebased); scripts/check.sh passes. Left: tasks.py verify for criteria 1-3 (rerun recurrence tests), write reviews/cal-recurrence/quality.json (reviewed_revision = current HEAD-equivalent code), commit, tasks.py done.
+- done by dell26/agent-3: `sh scripts/check.sh` passed in 290s on e9d974511; criteria verified 3/3
