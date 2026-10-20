@@ -1,12 +1,13 @@
 ---
 title: Files: model and blob storage
-status: in_progress
-owner: dell26/agent-5
+status: todo
+owner: 
 deps: [p0-trash-core,p0-search-core,p0-events-sse]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/files,server/src/test/kotlin/ch/sonensei/cockpit/files,server/src/main/resources/db/migration/files]
 prio: 1
-lease_until: 2026-10-20T15:46:21Z
-extended: dell26/agent-5
+lease_until: 
+extended: 
+releases: 1
 ---
 ## Goal
 Folders, file metadata and on-disk blobs (SPEC.md §8.2).
@@ -27,3 +28,4 @@ Folders, file metadata and on-disk blobs (SPEC.md §8.2).
 - ASSUMPTION (2026-10-20 15:59+0200 by dell26/agent-5): Special folders: a user folder already at the place (e.g. root 'Attachments') is adopted as the special folder; special folders are rejected with 409 Conflict on rename/delete. Moving is not implemented here (files-api must refuse moving special folders).
 - ASSUMPTION (2026-10-20 15:59+0200 by dell26/agent-5): Blob storage key uses a random UUIDv4 (not the file id) so ab/cd spread evenly; cockpit.data-dir defaults to COCKPIT_DATA_DIR or 'data' (relative). Deep links: /files/{id} and /files/folders/{id}.
 - extended by dell26/agent-5: Implementation, tests, review and fixes done and committed (179b34a); scripts/check.sh passes. Left: re-run code-reviewer on final code (review.md predates fixes), confirm tests.md matches final revision, run files Testcontainers tests, tasks.py verify for 4 criteria, write+commit quality.json, done.
+- release by dell26/agent-5: Implementation complete: all 4 criteria verified; test-writer, code-reviewer and fixer reports plus quality.json are committed (reviewed_revision 8e66e73 is the rebased reviewed code, identical task code to HEAD). sh scripts/check.sh passed on e0c16cc. Left: merge origin/wip/files-storage and run 'python tasks.py done files-storage'. If the merge with main changes task code, re-run test-writer/code-reviewer and update quality.json.
