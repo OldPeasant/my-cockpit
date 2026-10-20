@@ -640,6 +640,23 @@ class DoneStreakBrokenBySession(SeqRunner):
         self.assert_blocked_without_new_sessions(6)
 
 
+class DoneStreakErrorNamesCommit(SeqRunner):
+    """The remote's error names the refused commit (as GitHub's rule violations do), so its text differs in every
+    session (each one commits new work): still the same error, so 3 sessions in a row block the task."""
+    mode = "done"
+
+    def before_start(self):
+        hook(self.tmp, WORKFLOW_HOOK.replace("refusing to allow", "commit $new: refusing to allow"))
+
+    def test_same_error_with_a_different_commit_hash_counts_as_the_same(self):
+        self.wait_for("BLOCKED log", lambda: "BLOCKED on a" in self.log.read_text(), timeout=180)
+        self.assertEqual(self.done_counts(), [1, 2, 3], self.log.read_text())
+        lines = [l for l in self.log.read_text().splitlines() if "done could not push a " in l]
+        shas = {m.group(1) for l in lines for m in [re.search(r"commit ([0-9a-f]{40}):", l)] if m}
+        self.assertEqual(len(shas), 3, lines)  # the raw errors really differ
+        self.assert_blocked_without_new_sessions(3)
+
+
 class TakenAwayWhileBlocked(SeqRunner):
     mode = "release,work"
     how = ("hold", "a", "a human looks at the token", "--force")
