@@ -3,7 +3,9 @@ package ch.sonensei.cockpit.calendar.sync
 import ch.sonensei.cockpit.calendar.api.CalendarApi
 import ch.sonensei.cockpit.calendar.api.CalendarApi.Companion.id
 import ch.sonensei.cockpit.calendar.api.CalendarApi.Companion.isProblem
+import ch.sonensei.cockpit.calendar.api.CalendarEventService
 import ch.sonensei.cockpit.calendar.api.Timing
+import ch.sonensei.cockpit.calendar.model.Attendee
 import ch.sonensei.cockpit.calendar.model.Calendar
 import ch.sonensei.cockpit.calendar.model.CalendarEvent
 import ch.sonensei.cockpit.calendar.model.CalendarEventRepository
@@ -21,6 +23,7 @@ import ch.sonensei.cockpit.support.PostgresTestBase
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.collections.shouldContainExactlyInAnyOrder
+import io.kotest.matchers.comparables.shouldBeLessThan
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
@@ -39,6 +42,11 @@ import tools.jackson.databind.json.JsonMapper
 import java.time.Instant
 import java.time.LocalDate
 import java.util.UUID
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
+import kotlin.concurrent.thread
+import kotlin.time.Duration.Companion.seconds
+import kotlin.time.measureTime
 
 /**
  * Series overrides and EXDATEs through the sync engine against [FakeCalendarAdapter]: incremental changes and complete
@@ -209,6 +217,151 @@ class CalendarSyncOverrideTests(
 		after.title shouldBe "Standup"
 		after.externalEtag shouldBe before.externalEtag
 		after.version shouldBe before.version
+	}
+
+	// --- paging order (CR-1)
+
+	@Test
+	fun `an override on an earlier page than its series is stored with it`() {
+		sync.sync(source.id)
+		val override = remote("s", "Weekly (late)", start = SECOND).copy(key = RemoteEventKey("s", at(SECOND)), etag = "e2")
+		val series = remote("s", "Weekly", rrule = "FREQ=WEEKLY;COUNT=5").copy(etag = "e1")
+		fake.fetchHook = { _, cursor ->
+			when (cursor) {
+				"page-2" -> RemoteEventChanges(events = listOf(series), cursor = "page-3")
+				else -> RemoteEventChanges(events = listOf(override), cursor = "page-2", hasMore = true)
+			}
+		}
+
+		sync.sync(source.id)
+
+		overridesOf(local("s")!!).map { it.title } shouldContainExactly listOf("Weekly (late)")
+		lastError().shouldBeNull()
+	}
+
+	@Test
+	fun `an incremental override without its series is reported and makes the next sync a full one`() {
+		sync.sync(source.id)
+		putSeries()
+		putOverride(SECOND, "Weekly (late)")
+		val override = fake.event("work", RemoteEventKey("s", at(SECOND)))!!
+		// The provider's changes hold the override but (wrongly or on a later cursor) not its series.
+		fake.fetchHook = { _, cursor -> if (cursor == null) null else RemoteEventChanges(events = listOf(override), cursor = "99") }
+
+		sync.sync(source.id)
+
+		lastError() shouldBe "Work: 1 events could not be stored"
+		local("s").shouldBeNull()
+
+		fake.fetchHook = null
+		fake.fetchCursors.clear()
+		sync.sync(source.id)
+
+		fake.fetchCursors.first() shouldBe ("work" to null)
+		overridesOf(local("s")!!).map { it.title } shouldContainExactly listOf("Weekly (late)")
+		lastError().shouldBeNull()
+	}
+
+	@Test
+	fun `a deletion on an earlier page than a re-creation of the same event keeps the event`() {
+		fake.put("work", remote("a", "Standup"))
+		sync.sync(source.id)
+		val again = remote("a", "Standup (again)").copy(etag = "e9")
+		fake.fetchHook = { _, cursor ->
+			when (cursor) {
+				"page-2" -> RemoteEventChanges(events = listOf(again), cursor = "page-3")
+				else -> RemoteEventChanges(deleted = listOf(RemoteEventKey("a")), cursor = "page-2", hasMore = true)
+			}
+		}
+
+		sync.sync(source.id)
+
+		local("a")!!.title shouldBe "Standup (again)"
+	}
+
+	// --- untrusted remote content (CR-2)
+
+	@Test
+	fun `remote events are kept within the API's limits - non-web conference URLs, invalid attendees and reminders are dropped`() {
+		fake.put(
+			"work",
+			remote("a", "x".repeat(600)).copy(
+				description = "d".repeat(CalendarEventService.MAX_DESCRIPTION_LENGTH + 1),
+				location = "l".repeat(CalendarEventService.MAX_TEXT_LENGTH + 1),
+				conferenceUrl = "javascript:alert(1)",
+				attendees = listOf(Attendee("ann@example.org", "n".repeat(300)), Attendee("not-an-address")),
+				reminderMinutes = listOf(10, -5, CalendarEventService.MAX_REMINDER_MINUTES + 1),
+			),
+		)
+		fake.put("work", remote("b", "Call").copy(conferenceUrl = "https://meet.example.org/abc"))
+
+		sync.sync(source.id)
+
+		lastError().shouldBeNull()
+		val a = local("a")!!
+		a.title.length shouldBe CalendarEventService.MAX_TITLE_LENGTH
+		a.description!!.length shouldBe CalendarEventService.MAX_DESCRIPTION_LENGTH
+		a.location!!.length shouldBe CalendarEventService.MAX_TEXT_LENGTH
+		a.conferenceUrl.shouldBeNull()
+		a.attendees shouldContainExactly listOf(Attendee("ann@example.org", "n".repeat(CalendarEventService.MAX_NAME_LENGTH)))
+		a.reminderMinutes shouldContainExactly listOf(10)
+		local("b")!!.conferenceUrl shouldBe "https://meet.example.org/abc"
+		// The pulled event stays editable: the API's validation of the whole event passes.
+		api.patchEventOk(a.id.toString(), """{"location":"Room 4"}""")
+	}
+
+	@Test
+	fun `a remote series with an invalid RRULE is skipped and reported, a prefixed one is stored without prefix`() {
+		fake.put("work", remote("bad", "Broken", rrule = "FREQ=SOMETIMES"))
+		fake.put("work", remote("ok", "Weekly", rrule = "RRULE:FREQ=WEEKLY;COUNT=2"))
+
+		sync.sync(source.id)
+
+		local("bad").shouldBeNull()
+		local("ok")!!.rrule shouldBe "FREQ=WEEKLY;COUNT=2"
+		lastError() shouldBe "Work: 1 events could not be stored"
+	}
+
+	// --- write-through: search and conflicts (CR-3, CR-5)
+
+	@Test
+	fun `after a write-through, search shows the provider's normalized answer`() {
+		fake.put("work", remote("a", "Standup"))
+		sync.sync(source.id)
+		val id = local("a")!!.id
+		fake.normalizeWrites = { it.copy(title = it.title.uppercase()) }
+
+		api.patchEventOk(id.toString(), """{"title":"Retro"}""")
+
+		local("a")!!.title shouldBe "RETRO"
+		jdbc
+			.query("select title from search_document where item_type = 'EVENT' and item_id = ?", { rs, _ -> rs.getString(1) }, id)
+			.single() shouldBe "RETRO"
+	}
+
+	@Test
+	fun `a refetch does not wait for a sync of the same source that is in progress`() {
+		sync.sync(source.id)
+		val entered = CountDownLatch(1)
+		val release = CountDownLatch(1)
+		fake.fetchHook = { _, _ ->
+			entered.countDown()
+			release.await(10, TimeUnit.SECONDS)
+			null
+		}
+		val running = thread { sync.sync(source.id) }
+		try {
+			entered.await(10, TimeUnit.SECONDS) shouldBe true
+			val fetches = fake.fetchCursors.size
+
+			val took = measureTime { sync.refetch(calendarId()) }
+
+			took shouldBeLessThan 5.seconds
+			fake.fetchCursors.size shouldBe fetches
+		} finally {
+			release.countDown()
+			running.join(10_000)
+		}
 	}
 
 	// --- write-through of known overrides

@@ -142,12 +142,15 @@ class CalendarSyncService(
 			} ?: return
 		val (source, externalId, adapter) = found
 		if (externalId == null || adapter == null) return
-		lockOf(source.id).withLock {
-			try {
-				syncCalendar(adapter, source, calendarId, externalId)
-			} catch (e: RuntimeException) {
-				log.warn("Refetching calendar {} failed: {}", calendarId, describe(e))
-			}
+		val lock = lockOf(source.id)
+		// A run in progress fetches the new version as well; the caller (a user's request) should not wait for it.
+		if (!lock.tryLock()) return
+		try {
+			syncCalendar(adapter, source, calendarId, externalId)
+		} catch (e: RuntimeException) {
+			log.warn("Refetching calendar {} failed: {}", calendarId, describe(e))
+		} finally {
+			lock.unlock()
 		}
 	}
 
@@ -256,7 +259,8 @@ class CalendarSyncService(
 		calendarId: UUID,
 		externalId: String,
 	): Int {
-		var cursor = readTx.execute { cursors.findById(calendarId).orElse(null)?.cursor }
+		val startCursor = readTx.execute { cursors.findById(calendarId).orElse(null)?.cursor }
+		var cursor = startCursor
 		val pages = mutableListOf<RemoteEventChanges>()
 		do {
 			if (pages.size == MAX_PAGES) throw CalendarProviderException("The provider sent more than $MAX_PAGES pages of changes")
@@ -266,44 +270,88 @@ class CalendarSyncService(
 		} while (page.hasMore)
 		return tx.execute {
 			if (!calendars.existsById(calendarId)) return@execute 0
-			val skipped = mergeEvents(calendarId, pages)
-			if (cursor == null) {
+			val merge = mergeEvents(calendarId, pages)
+			// An override whose series is missing is not sent again after this cursor: fetch everything next time.
+			val next = if (merge.orphanedOverride && startCursor != null) null else cursor
+			if (next == null) {
 				cursors.deleteById(calendarId)
 			} else {
-				val row = cursors.findById(calendarId).orElse(null) ?: CalendarSyncCursor(calendarId, cursor!!)
-				row.cursor = cursor!!
+				val row = cursors.findById(calendarId).orElse(null) ?: CalendarSyncCursor(calendarId, next)
+				row.cursor = next
 				cursors.save(row)
 			}
-			skipped
+			merge.skipped
 		}!!
 	}
 
+	/** How many remote events could not be stored, and whether one of them was an override without its series. */
+	private data class MergeResult(
+		val skipped: Int,
+		val orphanedOverride: Boolean,
+	)
+
+	/**
+	 * Merges the changes of all [pages] (pages and the events in them come in the provider's order): the series and
+	 * single events of every page first, then the overrides (which need their series), then the deletions. A key that
+	 * occurs more than once counts as it occurs last.
+	 */
 	private fun mergeEvents(
 		calendarId: UUID,
 		pages: List<RemoteEventChanges>,
-	): Int {
-		var skipped = 0
-		val seenSeries = mutableSetOf<String>()
-		val seenOverrides = mutableSetOf<RemoteEventKey>()
+	): MergeResult {
+		// Per key its last change: the event, or null when it was deleted.
+		val last = LinkedHashMap<RemoteEventKey, RemoteEvent?>()
 		for (page in pages) {
-			// Series before their overrides: an override needs its master.
-			val (masters, overrides) = page.events.partition { it.key.recurrenceId == null }
-			for (remote in masters + overrides) {
-				if (remote.key.recurrenceId == null) seenSeries += remote.key.externalId else seenOverrides += remote.key
-				val stored =
-					try {
-						if (remote.key.recurrenceId == null) upsertSeries(calendarId, remote) else upsertOverride(calendarId, remote)
-					} catch (e: IllegalArgumentException) {
-						log.warn("Skipped an invalid remote event of calendar {}: {}", calendarId, e.message)
-						false
-					}
-				if (!stored) skipped++
+			page.events.forEach {
+				last.remove(it.key)
+				last[it.key] = it
 			}
-			page.deleted.forEach { remove(calendarId, it) }
+			page.deleted.forEach {
+				last.remove(it)
+				last[it] = null
+			}
 		}
-		if (pages.any { it.complete }) removeMissing(calendarId, seenSeries, seenOverrides)
-		return skipped
+		val (masters, overrides) = last.values.filterNotNull().partition { it.key.recurrenceId == null }
+		var skipped = 0
+		val invalidSeries = mutableSetOf<String>()
+		for (remote in masters) {
+			if (!store(calendarId, remote) { upsertSeries(calendarId, it) }) {
+				skipped++
+				invalidSeries += remote.key.externalId
+			}
+		}
+		var orphanedOverride = false
+		for (remote in overrides) {
+			if (!store(calendarId, remote) { upsertOverride(calendarId, it) }) {
+				skipped++
+				// A series that was invalid comes again only when it changes; a missing one may come with a full fetch.
+				if (remote.key.externalId !in invalidSeries &&
+					events.findByCalendarIdAndExternalIdAndParentEventIdIsNull(calendarId, remote.key.externalId) == null
+				) {
+					orphanedOverride = true
+				}
+			}
+		}
+		last.filterValues { it == null }.keys.forEach { remove(calendarId, it) }
+		if (pages.any { it.complete }) {
+			removeMissing(calendarId, masters.map { it.key.externalId }.toSet(), overrides.map { it.key }.toSet())
+		}
+		return MergeResult(skipped, orphanedOverride)
 	}
+
+	/** Stores [remote], normalized, with [upsert]; false when it could not be stored. */
+	private fun store(
+		calendarId: UUID,
+		remote: RemoteEvent,
+		upsert: (RemoteEvent) -> Boolean,
+	): Boolean =
+		try {
+			// Normalized before anything of the local copy changes: an invalid remote change leaves it as it was.
+			upsert(remote.normalized())
+		} catch (e: IllegalArgumentException) {
+			log.warn("Skipped an invalid remote event of calendar {}: {}", calendarId, e.message)
+			false
+		}
 
 	private fun upsertSeries(
 		calendarId: UUID,

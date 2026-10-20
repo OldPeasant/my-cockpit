@@ -48,6 +48,9 @@ class FakeCalendarAdapter : CalendarProviderAdapter {
 	var fetchHook: ((calendar: String, cursor: String?) -> RemoteEventChanges?)? = null
 	var rejectCursor = false
 
+	/** How the provider normalizes what it is sent (it answers with the result), e.g. trimming the title. */
+	var normalizeWrites: (RemoteEvent) -> RemoteEvent = { it }
+
 	/** Page size of fetches (to exercise `hasMore`). */
 	var pageSize = Int.MAX_VALUE
 
@@ -65,6 +68,7 @@ class FakeCalendarAdapter : CalendarProviderAdapter {
 		rejectCursor = false
 		pageSize = Int.MAX_VALUE
 		seriesShareEtag = false
+		normalizeWrites = { it }
 	}
 
 	fun addCalendar(
@@ -165,7 +169,7 @@ class FakeCalendarAdapter : CalendarProviderAdapter {
 		writes += "create ${label(event.key)}"
 		failWrites?.let { throw it }
 		failWriteOps["create"]?.let { throw it }
-		return put(calendarExternalId, event)
+		return put(calendarExternalId, normalizeWrites(event))
 	}
 
 	override fun updateEvent(
@@ -179,7 +183,7 @@ class FakeCalendarAdapter : CalendarProviderAdapter {
 		failWriteOps["update"]?.let { throw it }
 		val current = store.getValue(calendarExternalId)[event.key]
 		if (current != null && ifMatch != null && current.etag != ifMatch) throw RemoteEventChangedException()
-		return put(calendarExternalId, event)
+		return put(calendarExternalId, normalizeWrites(event))
 	}
 
 	override fun deleteEvent(

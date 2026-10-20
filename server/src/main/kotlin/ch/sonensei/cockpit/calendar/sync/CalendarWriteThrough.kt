@@ -1,6 +1,7 @@
 package ch.sonensei.cockpit.calendar.sync
 
 import ch.sonensei.cockpit.calendar.model.CalendarEvent
+import ch.sonensei.cockpit.calendar.model.CalendarEventIndexer
 import ch.sonensei.cockpit.calendar.model.CalendarEventRepository
 import ch.sonensei.cockpit.calendar.model.CalendarRepository
 import ch.sonensei.cockpit.calendar.model.CalendarSource
@@ -37,6 +38,7 @@ class CalendarWriteThrough(
 	private val events: CalendarEventRepository,
 	private val registry: CalendarProviderRegistry,
 	private val sync: CalendarSyncService,
+	private val indexer: CalendarEventIndexer,
 ) {
 	private val log = LoggerFactory.getLogger(javaClass)
 
@@ -147,6 +149,8 @@ class CalendarWriteThrough(
 						}
 					}
 				event.copyFrom(stored)
+				// Search shows the provider's answer, not what the user typed (the etag a series shares is not indexed).
+				indexer.index(event)
 				if (adapter.seriesShareEtag && stored.etag != null && (master != null || event.isRecurring)) {
 					shareEtag(master ?: event, stored.etag)
 				}

@@ -505,12 +505,6 @@ class CalendarEventService(
 		return expander.expandSeries(probe, emptyList(), range).mapNotNull { it.occurrenceId }.filter { it < occurrence }
 	}
 
-	private fun ruleParts(rule: String): Map<String, String> =
-		rule
-			.split(';')
-			.filter { it.isNotBlank() }
-			.associate { part -> part.substringBefore('=').uppercase() to part.substringAfter('=', "") }
-
 	private fun Map<String, String>.toRule(): String = entries.joinToString(";") { (key, value) -> "$key=$value" }
 
 	// --- targets
@@ -678,15 +672,11 @@ class CalendarEventService(
 			}
 		}
 		event.rrule?.let { rule ->
-			val valid =
-				rule.length <= MAX_TEXT_LENGTH &&
-					runCatching { Recur<LocalDate>(rule) }.isSuccess &&
-					ruleParts(rule).containsKey("FREQ")
-			if (!valid) errors += FieldError("rrule", "is not a valid iCalendar RRULE")
+			if (!isValidRule(rule)) errors += FieldError("rrule", "is not a valid iCalendar RRULE")
 		}
 		if (event.attendees.size > MAX_ATTENDEES) errors += FieldError("attendees", "must have at most $MAX_ATTENDEES entries")
 		event.attendees.forEachIndexed { i, attendee ->
-			if (attendee.email.isBlank() || attendee.email.length > MAX_EMAIL_LENGTH || '@' !in attendee.email) {
+			if (!isEmail(attendee.email)) {
 				errors += FieldError("attendees[$i].email", "must be an e-mail address")
 			}
 			if ((attendee.name?.length ?: 0) >
@@ -701,10 +691,6 @@ class CalendarEventService(
 		}
 		if (errors.isNotEmpty()) throw InvalidRequestException(errors)
 	}
-
-	private fun isWebUrl(value: String): Boolean =
-		value.length <= MAX_TEXT_LENGTH &&
-			runCatching { URI(value) }.getOrNull()?.let { (it.scheme == "https" || it.scheme == "http") && !it.host.isNullOrEmpty() } == true
 
 	companion object {
 		const val MAX_TITLE_LENGTH = 500
@@ -721,5 +707,25 @@ class CalendarEventService(
 
 		private val UNTIL_TIME: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyyMMdd'T'HHmmss'Z'")
 		private val UNTIL_DATE: DateTimeFormatter = DateTimeFormatter.BASIC_ISO_DATE
+
+		/** Whether [value] is an http(s) URL with a host of at most [MAX_TEXT_LENGTH] characters (a `conferenceUrl`). */
+		fun isWebUrl(value: String): Boolean =
+			value.length <= MAX_TEXT_LENGTH &&
+				runCatching { URI(value) }.getOrNull()?.let { (it.scheme == "https" || it.scheme == "http") && !it.host.isNullOrEmpty() } == true
+
+		/** Whether [rule] (without `RRULE:` prefix) is a valid iCalendar RRULE of at most [MAX_TEXT_LENGTH] characters. */
+		fun isValidRule(rule: String): Boolean =
+			rule.length <= MAX_TEXT_LENGTH &&
+				runCatching { Recur<LocalDate>(rule) }.isSuccess &&
+				ruleParts(rule).containsKey("FREQ")
+
+		/** Whether [value] passes as an attendee's e-mail address. */
+		fun isEmail(value: String): Boolean = value.isNotBlank() && value.length <= MAX_EMAIL_LENGTH && '@' in value
+
+		private fun ruleParts(rule: String): Map<String, String> =
+			rule
+				.split(';')
+				.filter { it.isNotBlank() }
+				.associate { part -> part.substringBefore('=').uppercase() to part.substringAfter('=', "") }
 	}
 }
