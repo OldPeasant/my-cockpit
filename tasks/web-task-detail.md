@@ -12,7 +12,8 @@ extended: dell26/agent-3
 Edit all task fields (SPEC.md §5.2).
 
 ## Acceptance criteria
-- [ ] Side panel/dialog with title, notes (Markdown), list, project, contexts, energy, creativity, estimate, due date/time, scheduled, tickler, waiting for, checklist (add/toggle/reorder), recurrence editor (presets + custom RRULE)
+- [x] Side panel/dialog with title, notes (Markdown), list, project, contexts, energy, creativity, estimate, due date/time, scheduled, tickler, waiting for, checklist (add/toggle/reorder), recurrence editor (presets + custom RRULE)
+  - verified (2026-10-21 00:26+0200 by dell26/agent-3): cd web && npx ng test --watch=false --include='src/app/features/gtd/task-detail/**/*.spec.ts' at 0357d860 -> 173 passed; tests 'shows every field of the task', field edit/save tests, TaskChecklist add/toggle/remove/reorder, recurrence presets + custom RRULE tests pass (reviews/web-task-detail/tests.md)
 - [ ] Saves with If-Match; a 412 shows 'changed elsewhere' and reloads
 - [ ] Linked items panel included
 - [ ] Vitest component/service tests cover form validation, 412 handling, recurrence presets; `cd web && npm run check` passes
