@@ -4,22 +4,27 @@ Date: 2026-10-20
 
 Task: runner-push-failure-loop - Runner: stop the loop when release/hold cannot push
 
-Scope: `git diff b08d78b..HEAD` (tasks.py, agents.py, tests/test_push_failure.py, tests/test_overbudget.py); production code reviewed at HEAD. Reviewed revision: c40fc6a77ee64093512809b30271c72f14abcb85
+Scope: `git diff 5148ba7..HEAD` for agents.py, tasks.py, tests/test_push_failure.py (and tests/test_overbudget.py hooks). Production code read at HEAD. Reviewed revision: 8237fd534343d76dd9b63b3d0a97857871f3fe03
 
 Requirements:
 - tasks/runner-push-failure-loop.md (goal, 4 acceptance criteria, notes/assumptions)
-- AGENTS.md (task protocol, quality gate)
-- Existing conventions in tasks.py / agents.py (hand_off(), give_back(), MAX_RELEASES)
+- AGENTS.md (task protocol, quality gate, project notes)
+- Existing conventions in tasks.py / agents.py (give_back(), save_work(), MAX_RELEASES, hand_off())
 
 Git range:
 - Branch: main
-- HEAD: c40fc6a77ee64093512809b30271c72f14abcb85
-- Base/start: b08d78b78e37fa6866a6591bab802b10c2ba615b
-- Commits reviewed: 4 (5c8607b, d273702, 0670cce, c40fc6a)
+- HEAD: 8237fd534343d76dd9b63b3d0a97857871f3fe03
+- Base/start: 5148ba763db8db8ef82261a0d664dd0d186cbdf6
+- Commits reviewed: 7 task commits (c81fead, 2996ab1, 2fd764a, 8aca456, 6dcdc71, c896015, 8237fd5), plus board-only claim/heartbeat/merge commits in the range
 
-Uncommitted changes at review time: `tests/test_push_failure.py` (the test-writer adding tests at the same time); not reviewed.
+Uncommitted changes at review time: none.
 
-Validation run by the reviewer: HEAD versions of `tests/test_push_failure.py`, `tests/test_overbudget.py`, `tasks.py`, `agents.py`, `board.py` copied to `.tmp/headtests/` and run with `python3 .tmp/headtests/tests/test_push_failure.py` -> `Ran 19 tests in 219.792s, OK`.
+Validation: the reviewer ran no tests. The parent reported `python -m unittest tests.test_push_failure -> 26 OK` and `sh scripts/check.sh -> all checks passed`.
+
+Status of the previous review's findings (on c40fc6a):
+- Old CR-1 (any release failure blocked, e.g. a conflict): fixed. `give_up()` aborts the merge, saves HEAD to `wip/<id>`, resets to `@{u}` and runs the command again. It blocks only if the wip push fails or the second run fails, and the error comes from the `PUSH FAILED`/`CONFLICT`/... line. Tests: ReviewReleaseConflict*, UsageLimitHandOffConflict*.
+- Old CR-2 (a blocked `done` streak got released and bounced back): fixed. Its retry is now `tasks.py hold`, and `cmd="done"` survives a re-block. Tests: DoneRefusedOnlyOnMain, DoneBlockedHoldRefused.
+- Old CR-3 (an old `error` stayed in the status): fixed. `status["error"] = None` is set when the task is taken away or given back, and every session start sends `error=None`.
 
 Summary: 0 P0, 0 P1, 2 P2, 1 P3
 
@@ -33,35 +38,35 @@ None.
 
 ## P2 Medium
 
-- [ ] **CR-1 | force_release() blocks on any release failure, so a merge conflict now needs a human and shows a help-text line as the error**
-    - File: `agents.py:568-578` (also `agents.py:548-557`, `tasks.py:347-352`)
+- [ ] **CR-1 | A hold the agent asked for, whose push failed, is retried as a release, so the hold reason is lost**
+    - File: `agents.py:785-786` (`block(tid, err)` with no `cmd` for any non-`done` failure), `agents.py:661-664`
     - Category: Correctness
-    - Problem: `force_release()` treats any non-zero `tasks.py release` as a push failure. When the release fails for another reason, most likely `CONFLICT while catching up with main` from `sync()` in `save_work()`, there is no push-failure file, so `err = last`. `last` is the last output line, which for a conflict is the last line of `CONFLICT_HELP` (`d. the tasks disagree on design: ...`). `block()` then logs and publishes "pushes for <id> fail, a human must fix it: d. the tasks disagree ...". The rebase is left in progress. Each retry 30 min later aborts it, runs the release again and hits the same conflict, so the task stays blocked until a human steps in. `hand_off()` already recovers from this case: it pushes HEAD to `wip/<id>` itself, resets to `@{u}` and releases again. `force_release()` doesn't.
-    - Why it matters: Conflicts are common with parallel agents. A conflict the runner could solve itself (as `hand_off()` does) now blocks the task, and the status shows a misleading error. The criterion asks for the blocked state on a push failure, not on every release failure.
-    - Suggested fix: Share the `hand_off()` fallback with `force_release()`. When the release fails without a recorded push failure, abort the merge, push HEAD to `wip/<id>` (block only if that push fails), reset to `@{u}` and release again. Also take `err` from the `CONFLICT:`/`git ... failed` line, not from the last output line. A runner test where the release conflicts would cover it.
+    - Problem: An agent runs `tasks.py hold a "<what a human must decide>"` and the push is refused. tasks.py then records `cmd="hold"` and prints "the runner waits for the fix". The runner calls `block(tid, err)` without `cmd`, so the stored command is `None`. Once pushes work again, the blocked retry runs `force_release(..., handoff=True)`, which is an uncounted `release --handoff`. The task goes back to `todo` with no `hold`, and the agent's reason is not kept anywhere: the push-failure file has no reason. Another agent can then claim a task that its previous owner said only a human can unblock. HoldRefusedInSession only checks the immediate block, not the retry.
+    - Why it matters: Criterion 1 says a failed hold leaves the task on hold, or the agent is told plainly that only a human can fix it. Here the runner quietly turns the agent's hold into a hand-off. That defeats the hold and can start the bouncing that hold exists to prevent.
+    - Suggested fix: When `pf["cmd"] == "hold"`, block with a hold retry, as for `done`. The simplest way is for tasks.py to record the hold reason in the push-failure JSON, and for the blocked loop to retry `tasks.py hold <id> <reason>`. Extend HoldRefusedInSession: remove the hook and assert that the task ends on hold, not released.
 
-- [ ] **CR-2 | A blocked `done` push streak is released as an uncounted hand-off, so the task can keep bouncing**
-    - File: `agents.py:632-638` (the retry calls `force_release(..., handoff=True)`), `agents.py:753-761`
+- [ ] **CR-2 | The hold retry of a done-blocked task can throw away uncommitted changes**
+    - File: `agents.py:654-658` (hold retry, no commit of a dirty tree first) together with `agents.py:568-577` (`give_up()` fallback `reset --hard @{u}`)
     - Category: Correctness
-    - Problem: After 3 `done` sessions in a row fail to push, the task is blocked. 30 min later the runner retries `release --handoff`. `--handoff` means `count=False` in `give_back()` (`tasks.py:966-967`), so `releases` never goes up and the `MAX_RELEASES` auto-hold never fires. If the remote takes `wip/<id>` and board pushes but refuses the `done` push (for example a protected `main`, or a hook that only guards `refs/heads/main`), the release works and the task goes back to `todo` with no hold. The same runner can claim it again right away, because a blocked release never adds it to `avoid` and so never puts it in `TASK_AVOID`. That starts another 3 full-check `done` sessions, then 30 min blocked, and so on without end. The criterion says "no more sessions on that task". The workflow-scope case from the goal doesn't loop, but only because there the `wip/<id>` push fails too.
-    - Why it matters: This is the loop the task should stop, just slower (3 sessions with the full check every ~30 min, on any agent).
-    - Suggested fix: When the block came from the `done` streak, give the task back as a counted release, or better, `tasks.py hold <id> "<push error>"` so a human sees it. At least add it to `avoid`. A test with a hook that refuses only `refs/heads/main` would show the task is not resumed again.
+    - Problem: `hand_off()` and `force_release()` commit a dirty tree before they call `give_up()`. The `cmd == "done"` retry branch calls `give_up(tid, ["hold", ...])` straight away. Take a clone with unpushed commits and uncommitted changes, for example ones the agent made after its failing `done` in the same session. `save_work()` stops with `REFUSED: commit your changes first` and records no push failure. The `give_up()` fallback then pushes only the commits to `wip/<id>` and runs `git reset -q --hard @{u}`. That deletes the uncommitted changes without saving them anywhere: not to `wip/`, and not to a `lost/` branch the way `park()` does.
+    - Why it matters: Agent work is lost silently. This hits exactly the done-only-refused case (DoneRefusedOnlyOnMain), where the wip push works.
+    - Suggested fix: Before the hold retry, commit a dirty tree as `force_release()` does (`git add -A; git commit -qm "wip: <id> (before hold)"`). A cleaner fix puts that step inside `give_up()`, so every caller is covered. A test could leave an uncommitted file before the retry and assert that it ends up on `wip/<id>`.
 
 ## P3 Low
 
-- [ ] **CR-3 | The status keeps the old `error` after a task is no longer blocked**
-    - File: `agents.py:621-623`, `agents.py:639-653` (only the session start at `agents.py:680` sets `error=None`)
+- [ ] **CR-3 | The comment for `blocked` describes a 2-element value, but the entries have 3**
+    - File: `agents.py:605`
     - Category: Quality
-    - Problem: `block()` and the blocked `idle()` put `error` into the shared `status` dict. When a human takes the task away (lines 621-623) and the runner then goes to `waiting`, `finished` or `stopped` without starting a session, `logs/<agent>.status.json` and `status/<owner>` still show the old push error.
-    - Why it matters: `tasks.py watch` and the status file show an old error for an agent that is no longer blocked.
-    - Suggested fix: Clear `error` when an entry leaves `blocked` (for example `status["error"] = None` there), or in every `publish` with a non-blocked state.
+    - Problem: The comment says `task id -> [push error, next retry (epoch)]`. `block()` stores `[err, retry, cmd]`, and the main loop unpacks three values (`err, retry, cmd = blocked[tid]`). `cmd` decides between a hold retry and a release retry, and the comment doesn't mention it.
+    - Why it matters: Someone changing the retry logic could miss that `cmd` decides between hold and release.
+    - Suggested fix: Update the comment to `[push error, next retry (epoch), cmd that blocked it ("done" -> retry is a hold)]`.
 
 ## Review conclusion
 
 Material issues found; fix before completing the task.
 
 Notes on the criteria:
-- Criterion 1 is met. `pushed()`/`push_failed()` print `PUSH FAILED: <git error>` and a plain "only a human can fix it" hint, then exit 1 with no traceback, for the `wip/<id>` push in `save_work()` and for the board push in `update()`. Covered by the TasksPy tests.
-- Criterion 2 is met for push failures. `force_release()` checks the exit code and `owned()`, logs "release FAILED", blocks, and retries every `--blocked-retry` (default 1800 s) with no sessions in between. CR-1 is the non-push case.
-- Criterion 3 is met for the runner itself (the streak key ignores commit hashes, and the streak resets after a different error or a clean session). CR-2 is what happens after the block.
-- Criterion 4: the HEAD tests use a pre-receive hook and passed for the reviewer. The new suites are not part of `scripts/check.sh`, which matches how `tests/test_overbudget.py` is handled. The reviewer did not run `sh scripts/check.sh`.
+- Criterion 1: met for release, hold and done. `pushed()`/`push_failed()` print `PUSH FAILED: <git error>` and a plain "only a human can fix it" hint, then exit 1 with no traceback, for the `wip/<id>` push and the board push (TasksPy tests). CR-1 is about what the runner does afterwards with a failed hold.
+- Criterion 2: met. After `force_release()` or a review session, the runner checks the exit code and `owned()`. It logs "release FAILED", goes to `blocked` with the error in `logs/<agent>.status.json`, and retries only every `--blocked-retry` s (default 1800) with no sessions in between. The review path skips `avoid` for blocked tasks.
+- Criterion 3: met. The streak key ignores commit hashes and resets after a different error or a session without a push failure. After 3 sessions the task is blocked and its retry is a hold, so it can't bounce back.
+- Criterion 4: the tests use pre-receive hooks in a bare remote, which matches the criterion. The parent reported 26 OK and a passing `scripts/check.sh`; the reviewer did not re-run them. As with `tests/test_overbudget.py`, these suites are not part of `scripts/check.sh`.
