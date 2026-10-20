@@ -1,11 +1,13 @@
 ---
 title: Projects, areas, contexts API and next-step rules
-status: in_progress
-owner: dell26/agent-5
+status: todo
+owner: 
 deps: [gtd-tasks-api]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/gtd,server/src/test/kotlin/ch/sonensei/cockpit/gtd,server/src/main/resources/db/migration/gtd]
 prio: 1
-lease_until: 2026-10-20T17:37:14Z
+lease_until: 
+releases: 1
+extended: 
 ---
 ## Goal
 Projects with next step, areas and contexts (SPEC.md §5.1–5.2).
@@ -26,3 +28,4 @@ Projects with next step, areas and contexts (SPEC.md §5.1–5.2).
 - ASSUMPTION (2026-10-20 18:25+0200 by dell26/agent-5): Areas and contexts: unpaginated {items} lists (small user-defined sets); full reorder via PUT /areas/order and /contexts/order {ids} (every id once); positions also settable via PATCH. Change events use type strings AREA/CONTEXT (not ItemTypes).
 - ASSUMPTION (2026-10-20 18:25+0200 by dell26/agent-5): Deleting an area or context is a hard delete (no Trash; not user content per SPEC 4.2): projects lose areaId / tasks lose the context in code so versions bump and UPDATED events fire. Context names trimmed, unique case-insensitively (409); color must be #rgb or #rrggbb.
 - ASSUMPTION (2026-10-20 18:25+0200 by dell26/agent-5): Project list ordered by title then id; no client-chosen id / idempotent create for projects (only tasks need offline capture).
+- release by dell26/agent-5: Implementation complete and committed, rebased on latest main (projects/areas/contexts CRUD, PUT order, next-step, stalled, needsNextStep, search/events/trash, tests); openapi.yaml + web client regenerated after rebase = no diff. First test-writer/code-reviewer/fixer round done (reviews/gtd-projects-api/{tests,review,fixes}.md) but code changed after that review (fixes + main merges), so LEFT: (1) re-run test-writer and code-reviewer on final code; (2) tasks.py verify #1-#5 (gtd.* tests + OpenApiContractTest without flag); (3) write+commit reviews/gtd-projects-api/quality.json; (4) done. Last full check: 1637 tests, 1 failure = flaky core ClockConfigurationTests (micro vs nano Instant precision, unrelated); check took 4m40s. On conflicts in api/openapi.yaml or web/src/app/api/generated take either side and regenerate.
