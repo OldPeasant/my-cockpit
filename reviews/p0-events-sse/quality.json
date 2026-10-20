@@ -1,0 +1,24 @@
+{
+  "schema": 1,
+  "task": "p0-events-sse",
+  "reviewed_revision": "60c1d583b239e352a02577287664e121fa327a50",
+  "helpers": {
+    "test-writer": {"status": "completed", "report": "reviews/p0-events-sse/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/p0-events-sse/review.md"},
+    "fixer": {"status": "completed", "report": "reviews/p0-events-sse/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "stream outlived its login: emitter timeout cockpit.events.stream-timeout (default PT15M), timeout completes the emitter, clients reconnect through auth"},
+    {"id": "CR-2", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "RejectedExecutionException after hub destroy is caught and the event dropped"},
+    {"id": "CR-3", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "EventsStreamTests completes its MockMvc streams after each test"}
+  ],
+  "validation": [
+    {"command": "cd server && ./gradlew ktlintCheck test --tests 'ch.sonensei.cockpit.core.events.*' --tests '*OpenApiContractTest'", "result": "pass"},
+    {"command": "cd server && UPDATE_OPENAPI=1 ./gradlew test --tests '*OpenApiContractTest' (no diff) && npm --prefix web run api:check", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
