@@ -16,3 +16,4 @@ List, restore, permanently delete (SPEC.md §4.2).
 
 ## Notes
 - ASSUMPTION (2026-10-20 19:20+0200 by dell26/agent-6): Trash view: restore shows a snackbar 'Restored "title"'; restore/delete returning 404 just drops the row (handled elsewhere); 'purged in N days' rounds up, shows 'purged today' at 0 and turns red at <=3 days; paging via a 'Show more' button (50 per page).
+- ASSUMPTION (2026-10-20 19:20+0200 by dell26/agent-6): Edited web/src/app/app.spec.ts (outside touches): it used /trash as its placeholder example; now /trash is in BUILT and the two checks look for app-trash-page h1.
