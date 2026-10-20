@@ -48,7 +48,7 @@ class RemoteFolderNotFoundException(
 /**
  * [RemoteMailbox] over IMAP (Angus Mail) with connections from the [ImapConnectionPool]. Folders are opened with
  * `EXAMINE` (read-only, so the sync never marks anything as seen), with `(CONDSTORE)` or `(QRESYNC (...))` when the
- * server supports it. Headers are read with one `UID FETCH` per batch (ENVELOPE, BODYSTRUCTURE, `References`), the
+ * server supports it. Headers are read with one `UID FETCH` per batch (ENVELOPE, BODYSTRUCTURE, `References`, `In-Reply-To`), the
  * snippet with a partial fetch of the first text part.
  */
 @Component
@@ -125,7 +125,7 @@ private class ImapRemoteFolder(
 
 	override fun headers(uids: List<Long>): List<RemoteMessage> {
 		if (uids.isEmpty()) return emptyList()
-		val items = "UID FLAGS INTERNALDATE RFC822.SIZE ENVELOPE BODYSTRUCTURE BODY.PEEK[HEADER.FIELDS (REFERENCES)]"
+		val items = "UID FLAGS INTERNALDATE RFC822.SIZE ENVELOPE BODYSTRUCTURE BODY.PEEK[HEADER.FIELDS (References In-Reply-To)]"
 		val fetched = fetch(uids, if (condstore) "$items MODSEQ" else items)
 		val structures = fetched.associate { (uid, response) -> uid to response.getItem(BODYSTRUCTURE::class.java) }
 		val snippets = snippets(structures)
@@ -168,13 +168,14 @@ private class ImapRemoteFolder(
 		snippet: String?,
 	): RemoteMessage {
 		val envelope = response.getItem(ENVELOPE::class.java)
-		val referenceHeaders =
-			response.getItem(BODY::class.java)?.byteArrayInputStream?.let { InternetHeaders(it).getHeader("References", " ") }
+		// In-Reply-To is in the ENVELOPE too, but not every server fills it in (GreenMail does not).
+		val threadHeaders = response.getItem(BODY::class.java)?.byteArrayInputStream?.let(::InternetHeaders)
 		return RemoteMessage(
 			uid = uid,
 			messageId = envelope?.messageId?.trim()?.takeIf { it.isNotEmpty() },
-			inReplyTo = envelope?.inReplyTo?.let(::unfold)?.takeIf { it.isNotEmpty() },
-			references = referenceHeaders?.let(::unfold)?.takeIf { it.isNotEmpty() },
+			inReplyTo =
+				(threadHeaders?.getHeader("In-Reply-To", " ") ?: envelope?.inReplyTo)?.let(::unfold)?.takeIf { it.isNotEmpty() },
+			references = threadHeaders?.getHeader("References", " ")?.let(::unfold)?.takeIf { it.isNotEmpty() },
 			subject = envelope?.subject?.let(::decodeText),
 			from = addresses(envelope?.from),
 			to = addresses(envelope?.to),
