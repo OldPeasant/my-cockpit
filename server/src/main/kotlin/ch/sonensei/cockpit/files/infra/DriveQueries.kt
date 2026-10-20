@@ -61,7 +61,7 @@ class DriveQueries(
 			    count(*) filter (where deleted_at is not null)
 			from file
 			""".trimIndent(),
-		) { rs, _ -> Totals(rs.getLong(1), rs.getLong(2), rs.getLong(3), rs.getLong(4), rs.getLong(5)) }!!
+		) { rs, _ -> Totals(rs.getLong(1), rs.getLong(2), rs.getLong(3), rs.getLong(4), rs.getLong(5)) }
 
 	companion object {
 		const val FOLDER = 0
