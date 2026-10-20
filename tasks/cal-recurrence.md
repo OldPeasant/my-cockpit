@@ -5,7 +5,7 @@ owner: dell26/agent-3
 deps: [cal-model]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/calendar/recurrence,server/src/test/kotlin/ch/sonensei/cockpit/calendar/recurrence]
 prio: 1
-lease_until: 2026-10-20T16:07:18Z
+lease_until: 2026-10-20T16:12:20Z
 ---
 ## Goal
 Expand events into occurrences in a range (SPEC.md §6.1).
