@@ -1,0 +1,28 @@
+{
+  "schema": 1,
+  "task": "backup-core",
+  "reviewed_revision": "bc4ad499bb4bf7224e6ec162811d399ffe27d133",
+  "helpers": {
+    "test-writer": {"status": "completed", "report": "reviews/backup-core/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/backup-core/review.md"},
+    "fixer": {"status": "completed", "report": "reviews/backup-core/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "BackupJobService.run catches Throwable and guards deleteIfExists so a job always ends FAILED (earlier review round, fixes.md)"},
+    {"id": "CR-2", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "KDoc reference to a non-existent symbol in ZipBackupWriter (earlier review round, fixes.md)"},
+    {"id": "CR-3", "source": "code-reviewer", "severity": "P3", "disposition": "deferred",
+     "note": "null/malformed .jsonl lines not mapped to a validation error; only with a hand-edited zip; follow-up task backup-restore (restore validation report)"},
+    {"id": "CR-4", "source": "code-reviewer", "severity": "P3", "disposition": "deferred",
+     "note": "null entries in manifest files[] give a raw NPE; only with a hand-edited zip; follow-up task backup-restore"},
+    {"id": "CR-5", "source": "code-reviewer", "severity": "P3", "disposition": "accepted",
+     "note": "shutdown during a running backup leaves the partial zip and cockpit-backups* temp dir behind; owner-only temp dir, negligible impact; recorded via tasks.py assume"}
+  ],
+  "validation": [
+    {"command": "cd server && ./gradlew test --rerun --tests 'ch.sonensei.cockpit.backup.*' --tests '*OpenApiContractTest'", "result": "pass"},
+    {"command": "cd server && UPDATE_OPENAPI=1 ./gradlew test --tests '*OpenApiContractTest' && cd web && npm run api:gen (no diff)", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
