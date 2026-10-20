@@ -15,7 +15,8 @@ Setup wizard and login UI (SPEC.md §4.1).
   - verified (2026-10-20 13:54+0200 by dell26/agent-2): Vitest setup.spec.ts + qr-code.spec.ts + auth.guards.spec.ts (setupGuard) in cd web && npm run check on 1d7dd9c -> pass: account form (12-char/match/username rules), QR SVG of otpauthUri, secret, 10 codes with copy (CDK Clipboard) and .txt download, TOTP confirm -> /login; /setup redirects to /login once setup is done. Not tried in a real browser against the server (no E2E named)
 - [x] Login page: password + TOTP, 'use a recovery code' switch, remember device; shows the backoff wait time on 429
   - verified (2026-10-20 13:54+0200 by dell26/agent-2): Vitest login.spec.ts in cd web && npm run check on 1d7dd9c -> pass: password+TOTP, recovery-code switch, remember device sent, 429 shows 'Too many failed attempts. Try again in N s.' from Retry-After (fallback 60 s) counting down with submit disabled
-- [ ] Auth guard on all shell routes; logout in the top bar menu; `/login` redirects to the return URL after success
+- [x] Auth guard on all shell routes; logout in the top bar menu; `/login` redirects to the return URL after success
+  - verified (2026-10-20 13:54+0200 by dell26/agent-2): Vitest auth.guards.spec.ts, app.spec.ts (real app.routes: all 20 shell URLs -> /login?returnUrl=..., login from /trash returns to /trash, open-redirect rejected) and shell.spec.ts (account menu Sign out -> AuthService.logout + /login) in cd web && npm run check on 1d7dd9c -> pass
 - [ ] Vitest component/service tests cover setup and login forms, guard redirects; `cd web && npm run check` passes
 
 ## Notes
