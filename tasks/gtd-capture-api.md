@@ -15,7 +15,8 @@ Idempotent capture used by web and Android (SPEC.md §4.5, §5.4).
 ## Acceptance criteria
 - [x] `POST /api/v1/capture {id?, text, notes?, fileIds?, parse?}` creates an INBOX task; a repeated client `id` returns 200 with the existing task (no duplicate, test)
   - verified (2026-10-20 23:25+0200 by dell26/agent-6): cd server && ./gradlew test --tests 'ch.sonensei.cockpit.gtd.*' (Testcontainers Postgres) at 1e2aa34f -> CaptureWebTests 17/17, CaptureEdgeCaseWebTests 25/25 pass: new capture 201 INBOX task, repeated id 200 same task no duplicate, concurrent same-id race 200 one row
-- [ ] Parser (pure function, unit-tested): `#project` (existing by name, case-insensitive, else kept as text), `@context`, `!today|!tomorrow|!YYYY-MM-DD` due, `^waiting`; `POST /api/v1/capture/preview` returns the parse result
+- [x] Parser (pure function, unit-tested): `#project` (existing by name, case-insensitive, else kept as text), `@context`, `!today|!tomorrow|!YYYY-MM-DD` due, `^waiting`; `POST /api/v1/capture/preview` returns the parse result
+  - verified (2026-10-20 23:25+0200 by dell26/agent-6): same run -> CaptureParserTests 20/20 + CaptureParserEdgeCaseTests 28/28 (pure parser: #project case-insensitive/unknown kept, @context, !today/!tomorrow/!YYYY-MM-DD, ^waiting) and /capture/preview web tests pass
 - [ ] `fileIds` are linked to the task via the link system
 - [ ] `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.gtd.*'` passes (Postgres via Testcontainers where persistence is involved)
 - [ ] API documented: `api/openapi.yaml` regenerated (`UPDATE_OPENAPI=1 ./gradlew test --tests '*OpenApiContractTest'`) and `OpenApiContractTest` passes without the flag
