@@ -12,7 +12,8 @@ extended: dell26/agent-4
 Filterable next actions and the Today view (SPEC.md §5.3).
 
 ## Acceptance criteria
-- [ ] Next view filters: context, energy, creativity, max estimate, area/project, due; filters in the URL; saved presets stored in settings
+- [x] Next view filters: context, energy, creativity, max estimate, area/project, due; filters in the URL; saved presets stored in settings
+  - verified (2026-10-21 00:07+0200 by dell26/agent-4): Vitest next-view.spec.ts/next-filter.spec.ts/filter-presets.spec.ts (context, energy, creativity, max estimate, area/project, due; URL query sync incl. back/forward; presets stored in setting nextActionPresets) via npm --prefix web run check at 724ac0da -> pass; server GtdSettingsWebTests 4/4 (Testcontainers) -> pass; e2e next.spec.ts -> pass
 - [ ] Today view: overdue, due today, scheduled today (calendar events and habits are added by later tasks via extension slots)
 - [ ] Vitest component/service tests cover filter combinations and presets; `cd web && npm run check` passes
 - [x] Playwright `e2e/gtd-next/next.spec.ts` passes against the e2e stack (`npm run e2e -- e2e/gtd-next/next.spec.ts`, see p0-e2e-harness): @phone + ≤15 min filter shows only the matching task
