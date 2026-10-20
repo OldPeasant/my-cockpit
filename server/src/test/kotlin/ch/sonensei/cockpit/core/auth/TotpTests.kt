@@ -79,6 +79,19 @@ class TotpTests {
 	}
 
 	@Test
+	fun `verify rejects six-character codes with signs or punctuation`() {
+		val totp = Totp()
+		val seed = Totp.newSecret()
+		val now = Instant.parse("2026-10-20T10:00:15Z")
+		val code = totp.generate(seed, now)
+
+		totp.verify(seed, "-${code.drop(1)}", now) shouldBe false
+		totp.verify(seed, "+${code.drop(1)}", now) shouldBe false
+		totp.verify(seed, "${code.take(5)}/", now) shouldBe false
+		totp.verify(seed, "${code.take(5)}:", now) shouldBe false
+	}
+
+	@Test
 	fun `new secrets are 160 bits and random`() {
 		Totp.newSecret().size shouldBe 20
 		(Totp.newSecret().contentEquals(Totp.newSecret())) shouldBe false
