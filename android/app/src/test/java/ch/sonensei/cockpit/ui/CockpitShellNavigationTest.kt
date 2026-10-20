@@ -154,6 +154,45 @@ class CockpitShellNavigationTest {
         assertEquals(labels.size, labels.toSet().size)
     }
 
+    private fun currentEntryId(): String? = composeRule.runOnUiThread { navController.currentBackStackEntry?.id }
+
+    /**
+     * Regression test for CR-1: a restored tab gets back its own back-stack entry (same id, so the same
+     * `rememberSaveable` scope) and its saved state, also after a visit to More.
+     */
+    @Test
+    fun tabKeepsItsSavedStateAcrossAVisitToMore() {
+        listOf("Inbox", "Calendar", "Mail").forEach { label ->
+            tab(label).performClick()
+            composeRule.waitForIdle()
+            val entryId = currentEntryId()
+            composeRule.runOnUiThread { navController.currentBackStackEntry!!.savedStateHandle["probe"] = label }
+
+            tab("More").performClick()
+            composeRule.waitForIdle()
+            assertShown(CockpitDestination.More)
+            tab(label).performClick()
+            composeRule.waitForIdle()
+
+            assertEquals(entryId, currentEntryId())
+            assertEquals(label, composeRule.runOnUiThread { navController.currentBackStackEntry!!.savedStateHandle.get<String>("probe") })
+        }
+    }
+
+    @Test
+    fun moreIsNotRestoredAfterBeingLeft() {
+        tab("More").performClick()
+        composeRule.waitForIdle()
+        val moreEntryId = currentEntryId()
+
+        tab("Inbox").performClick()
+        tab("More").performClick()
+        composeRule.waitForIdle()
+
+        assertShown(CockpitDestination.More)
+        assertTrue(moreEntryId != currentEntryId())
+    }
+
     @Test
     fun leavingMoreFromASubScreenAndComingBackShowsTheMoreList() {
         openMoreItem("Habits")

@@ -98,12 +98,15 @@ fun CockpitShell(navController: NavHostController = rememberNavController()) {
 }
 
 /**
- * Switches bottom-bar tabs the Material way: one entry per tab on the back stack, each tab keeps its state, and
- * reselecting More from one of its screens returns to the More list.
+ * Switches bottom-bar tabs the Material way: one entry per tab on the back stack, and each tab keeps its state.
+ *
+ * `saveState` applies to the tab being left (the entries popped here), so it is always on, also when the target
+ * is More. Only More itself is never restored, so selecting More (from one of its screens or from another tab)
+ * always opens the More list; the state saved for More is simply replaced the next time More is left.
  */
 private fun NavHostController.navigateToTopLevel(destination: CockpitDestination) {
     navigate(destination.route) {
-        popUpTo(graph.findStartDestination().id) { saveState = destination != CockpitDestination.More }
+        popUpTo(graph.findStartDestination().id) { saveState = true }
         launchSingleTop = true
         restoreState = destination != CockpitDestination.More
     }
