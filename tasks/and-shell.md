@@ -11,7 +11,8 @@ lease_until: 2026-10-20T09:46:58Z
 App skeleton every feature plugs into, with one placeholder screen per feature package so feature tasks only touch their package.
 
 ## Acceptance criteria
-- [ ] `CockpitApp` (`@HiltAndroidApp`), Material 3 theme (dynamic color + dark), navigation (bottom bar: Today, Inbox, Calendar, Mail, More; More lists Next, Projects, Waiting, Someday, Notes, Files, Contacts, Bookmarks, Journal, Habits, Review, Settings)
+- [x] `CockpitApp` (`@HiltAndroidApp`), Material 3 theme (dynamic color + dark), navigation (bottom bar: Today, Inbox, Calendar, Mail, More; More lists Next, Projects, Waiting, Someday, Notes, Files, Contacts, Bookmarks, Journal, Habits, Review, Settings)
+  - verified (2026-10-20 11:27+0200 by dell26/agent-1): cd android && ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.ui.*' --rerun-tasks -> 43 passed: MainActivityLaunchTest (real MainActivity in Hilt CockpitApp from manifest), CockpitThemeTest (Robolectric sdk 30 fallback light/dark, sdk 31/34 dynamic), CockpitDestinationTest (bottom bar Today/Inbox/Calendar/Mail/More, More list Next..Settings in order), CockpitShellTest/NavigationTest (every More item opens its screen)
 - [ ] One package per feature (`gtd/inbox`, `calendar`, `mail`, `notes`, …) with a placeholder `<Feature>Screen`; listed in `android/README.md`
 - [ ] All strings in `res/values/strings.xml`
 - [ ] `cd android && ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.ui.*'` passes, covering navigation between bottom-bar destinations (Robolectric/Compose UI tests for screens)
