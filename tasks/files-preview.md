@@ -19,3 +19,4 @@ Image thumbnails and text previews (SPEC.md §8.2).
 ## Notes
 - ASSUMPTION (2026-10-21 01:14+0200 by dell26/agent-6): Thumbnail endpoint is GET /files/{id}/thumbnail?size=256|1024 (default 256); JPEG output for JPEG sources, PNG for PNG/WebP/GIF (keeps alpha); never upscaled; images above 100 MP rejected with 422
 - ASSUMPTION (2026-10-21 01:14+0200 by dell26/agent-6): Unsupported types for /thumbnail and /preview answer 415 Problem Details; undecodable images 422. SVG is excluded from inline preview/thumbnails (script/XSS risk)
+- ASSUMPTION (2026-10-21 01:14+0200 by dell26/agent-6): Text preview covers text/*, JSON, XML, YAML; served as text/markdown for Markdown and text/plain otherwise (so HTML is never rendered), with X-Preview-Truncated header; invalid UTF-8 bytes become U+FFFD
