@@ -239,6 +239,114 @@ class CalendarSeriesEdgeCaseWebTests(
 	}
 
 	@Test
+	fun `PATCH FOLLOWING with a start through an all-day override splits the timed series and keeps it timed`() {
+		val series = weekly()
+		deleteThis(series.id(), "2026-03-23T08:00:00Z")
+		val allDay = api.patchEventOk(series.id(), """{"allDay":true}""", "?scope=THIS&occurrence=2026-03-09T08:00:00Z")
+
+		val next = api.patchEventOk(allDay.id(), """{"start":"2026-03-10T08:00:00Z"}""", "?scope=FOLLOWING")
+
+		next.get("allDay").asBoolean() shouldBe false
+		next.text("start") shouldBe "2026-03-10T08:00:00Z"
+		next.text("end") shouldBe "2026-03-10T09:00:00Z"
+		exdates(next) shouldContainExactly listOf("2026-03-24T08:00:00Z")
+		val occurrences = spring()
+		occurrences.forEach { it.get("allDay").asBoolean() shouldBe false }
+		occurrences.starts() shouldContainExactly
+			listOf(
+				"2026-03-02T08:00:00Z",
+				"2026-03-10T08:00:00Z",
+				"2026-03-17T08:00:00Z",
+				"2026-03-31T07:00:00Z",
+				"2026-04-07T07:00:00Z",
+				"2026-04-14T07:00:00Z",
+			)
+	}
+
+	@Test
+	fun `PATCH ALL with allDay sent through an all-day override still turns the timed series all-day`() {
+		val series = weekly()
+		deleteThis(series.id(), "2026-03-16T08:00:00Z")
+		val allDay = api.patchEventOk(series.id(), """{"allDay":true}""", "?scope=THIS&occurrence=2026-03-09T08:00:00Z")
+
+		// The occurrence of 9 March moves to the 10th: the series becomes all-day and moves one day.
+		api.patchEventOk(allDay.id(), """{"allDay":true,"startDate":"2026-03-10"}""", "?scope=ALL")
+
+		val changed = api.event(series.id())
+		changed.get("allDay").asBoolean() shouldBe true
+		changed.text("startDate") shouldBe "2026-03-03"
+		changed.text("endDate") shouldBe "2026-03-04"
+		// A change of kind drops the exceptions of the old kind (documented), the addressed override included.
+		exdates(changed).shouldBeEmpty()
+		assertGone(allDay.id())
+		spring().map { it.text("startDate") } shouldContainExactly
+			listOf("2026-03-03", "2026-03-10", "2026-03-17", "2026-03-24", "2026-03-31", "2026-04-07", "2026-04-14")
+		rowCount() shouldBe 1
+	}
+
+	@Test
+	fun `PATCH FOLLOWING with allDay sent through an all-day override continues the series all-day`() {
+		val series = weekly()
+		val allDay = api.patchEventOk(series.id(), """{"allDay":true}""", "?scope=THIS&occurrence=2026-03-16T08:00:00Z")
+
+		val next = api.patchEventOk(allDay.id(), """{"allDay":true,"startDate":"2026-03-17"}""", "?scope=FOLLOWING")
+
+		next.get("allDay").asBoolean() shouldBe true
+		next.text("startDate") shouldBe "2026-03-17"
+		val old = api.event(series.id())
+		old.get("allDay").asBoolean() shouldBe false
+		val occurrences = spring()
+		occurrences.filter { !it.get("allDay").asBoolean() }.starts() shouldContainExactly
+			listOf("2026-03-02T08:00:00Z", "2026-03-09T08:00:00Z")
+		occurrences.filter { it.get("allDay").asBoolean() }.map { it.text("startDate") } shouldContainExactly
+			listOf("2026-03-17", "2026-03-24", "2026-03-31", "2026-04-07", "2026-04-14")
+	}
+
+	@Test
+	fun `PATCH ALL with allDay false and a start through an all-day override moves the series like without allDay`() {
+		val series = weekly()
+		val allDay = api.patchEventOk(series.id(), """{"allDay":true}""", "?scope=THIS&occurrence=2026-03-09T08:00:00Z")
+
+		// allDay=false is the series' own kind: the occurrence of 9 March now starts on the 10th at 09:00 Zurich time,
+		// so the series moves by one day and keeps its 09:00 start, as in the request without allDay.
+		api.patchEventOk(
+			allDay.id(),
+			"""{"allDay":false,"start":"2026-03-10T08:00:00Z","timeZone":"Europe/Zurich"}""",
+			"?scope=ALL",
+		)
+
+		val moved = api.event(series.id())
+		moved.get("allDay").asBoolean() shouldBe false
+		moved.text("start") shouldBe "2026-03-03T08:00:00Z"
+		spring().starts().take(3) shouldContainExactly listOf("2026-03-03T08:00:00Z", "2026-03-10T08:00:00Z", "2026-03-17T08:00:00Z")
+	}
+
+	@Test
+	fun `PATCH ALL through a timed override of an all-day series keeps the series all-day`() {
+		val gym = api.createEvent("""{"title":"Gym","allDay":true,"startDate":"2026-03-02","rrule":"FREQ=DAILY;COUNT=5"}""")
+		val timed =
+			api.patchEventOk(
+				gym.id(),
+				"""{"allDay":false,"start":"2026-03-04T17:00:00Z","timeZone":"Europe/Zurich"}""",
+				"?scope=THIS&occurrence=2026-03-04",
+			)
+
+		// Without "allDay" the series stays all-day: a timed start does not fit it.
+		api.patchEvent(timed.id(), """{"start":"2026-03-05T17:00:00Z"}""", "?scope=ALL").isProblem(400, "start")
+		api.event(gym.id()).text("startDate") shouldBe "2026-03-02"
+
+		// Dates move the series by days; the addressed occurrence takes the requested day.
+		api.patchEventOk(timed.id(), """{"startDate":"2026-03-05"}""", "?scope=ALL")
+
+		val moved = api.event(gym.id())
+		moved.get("allDay").asBoolean() shouldBe true
+		moved.text("startDate") shouldBe "2026-03-03"
+		val occurrences = spring()
+		occurrences.forEach { it.get("allDay").asBoolean() shouldBe true }
+		occurrences.map { it.text("startDate") } shouldContainExactly listOf("2026-03-03", "2026-03-04", "2026-03-05", "2026-03-06", "2026-03-07")
+	}
+
+	@Test
 	fun `PATCH ALL of an all-day series moves it by days with its exceptions`() {
 		val gym = api.createEvent("""{"title":"Gym","allDay":true,"startDate":"2026-03-02","rrule":"FREQ=DAILY;COUNT=5"}""")
 		deleteThis(gym.id(), "2026-03-03")
@@ -595,6 +703,24 @@ class CalendarSeriesEdgeCaseWebTests(
 		occurrences.none { it.text("occurrence") == "2026-03-09T08:00:00Z" } shouldBe true
 		occurrences.forEach { it.text("status") shouldBe "CONFIRMED" }
 		searchTitle(removed.id()) shouldBe null
+	}
+
+	@Test
+	fun `un-cancelling the following occurrences does not bring back a deleted occurrence`() {
+		val series = weekly()
+		val removed = api.patchEventOk(series.id(), """{"title":"Removed"}""", "?scope=THIS&occurrence=2026-03-30T07:00:00Z")
+		api.deleteEvent(removed.id()).andExpect { status { isNoContent() } }
+		api.patchEventOk(series.id(), """{"status":"CANCELLED"}""")
+
+		val next = api.patchEventOk(series.id(), """{"status":"CONFIRMED"}""", "?scope=FOLLOWING&occurrence=2026-03-23T08:00:00Z")
+
+		next.text("status") shouldBe "CONFIRMED"
+		val following = spring().filter { it.text("eventId") != series.id() }
+		following.map { it.text("occurrence") } shouldContainExactly
+			listOf("2026-03-23T08:00:00Z", "2026-04-06T07:00:00Z", "2026-04-13T07:00:00Z")
+		following.forEach { it.text("status") shouldBe "CONFIRMED" }
+		spring().none { it.text("title") == "Removed" } shouldBe true
+		searchedIds() shouldContainExactlyInAnyOrder listOf(series.id(), next.id())
 	}
 
 	@Test

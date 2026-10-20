@@ -323,6 +323,33 @@ class EventCommandsTest {
 		}
 
 		@Test
+		fun `propagate gives a new status to an override that still had the old one`() {
+			val master = event("Weekly").apply { status = EventStatus.CONFIRMED }
+			val before = EventContent.of(master)
+			val override = event("Weekly").apply { status = EventStatus.CONFIRMED }
+			master.status = EventStatus.TENTATIVE
+
+			EventContent.of(master).propagate(before, override)
+
+			override.status shouldBe EventStatus.TENTATIVE
+		}
+
+		@Test
+		fun `propagate keeps a cancelled override cancelled when the series is un-cancelled`() {
+			val master = event("Weekly").apply { status = EventStatus.CANCELLED }
+			val before = EventContent.of(master)
+			val removed = event("Weekly").apply { status = EventStatus.CANCELLED }
+			master.status = EventStatus.CONFIRMED
+			master.title = "Team sync"
+
+			EventContent.of(master).propagate(before, removed)
+
+			removed.status shouldBe EventStatus.CANCELLED
+			// The other fields still follow the series.
+			removed.title shouldBe "Team sync"
+		}
+
+		@Test
 		fun `applyTo copies every content field`() {
 			val source = event("Weekly").apply { transparency = EventTransparency.TRANSPARENT }
 			val target = CalendarEvent(source.calendarId, "Other")
