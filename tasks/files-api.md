@@ -1,12 +1,13 @@
 ---
 title: Files API: upload, download, operations
-status: in_progress
-owner: dell26/agent-3
+status: todo
+owner: 
 deps: [files-storage,runner-push-failure-loop]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/files,server/src/test/kotlin/ch/sonensei/cockpit/files,server/src/main/resources/db/migration/files]
 prio: 1
-lease_until: 2026-10-20T21:11:16Z
-extended: dell26/agent-3
+lease_until: 
+extended: 
+releases: 1
 ---
 ## Goal
 File operations (SPEC.md §8.2).
@@ -25,3 +26,4 @@ File operations (SPEC.md §8.2).
 - ASSUMPTION (2026-10-20 20:57+0200 by dell26/agent-3): Downloads are always Content-Disposition attachment with an ASCII fallback filename (non-ASCII/quote/backslash -> _) plus filename*=UTF-8''...; inline serving for previews is left to files-preview. Range handled by Spring's Resource region support (206/416). Folder zip: top dir = folder name, empty dirs included, duplicate file names numbered 'a (2).txt'; trashed content excluded
 - ASSUMPTION (2026-10-20 20:57+0200 by dell26/agent-3): Folder moves are serialized with a pg_advisory_xact_lock to prevent cycles from concurrent moves; special folders cannot be moved (409); moving into a special folder is allowed. Also added handleMissingServletRequestPart to core ProblemDetailsAdvice (outside touches, deferred CR-6 of p0-api-conventions) so a missing multipart part is a 400 with errors[]
 - extended by dell26/agent-3: Implementation + tests committed (upload/resumable/download/zip/folder ops/usage, OpenAPI regenerated). Left: (1) .taskcheck FAILS: server :test 'Java heap space' after 4m34s, most likely the 60 MB chunked-upload / large multipart tests holding byte arrays in MockMvc; stream/generate data or tag the 60MB test as slow, keep check < 2 min. (2) fix CR-1 in reviews/files-api/review.md: set spring.mvc.async.request-timeout for streamed zip. (3) review.md is stale; tests.md missing: rerun test-writer + code-reviewer on final code, fixer if needed. (4) tasks.py verify #1-#5, quality.json, done.
+- release by dell26/agent-3: Done: full implementation + tests (multipart, resumable chunks, Range/Content-Disposition download, streamed zip, folder ops, cursor listing, usage); OpenAPI + web client regenerated on top of main (commit 86a6c2c5, squashed); earlier review findings fixed (reviews/files-api/fixes.md); test JVM heap 1g. sh scripts/check.sh (4m17s) fails ONLY on TW-1 (reviews/files-api/tests.md): the Range header param of GET /api/v1/files/{id}/content has no schema in api/openapi.yaml, which breaks Android :app:openApiGenerate; FilesApiEdgeCaseWebTests 'every parameter ... has a schema' pins it. Left: (1) fix TW-1 in FileController (string schema for the Range @Parameter, or hide it), regenerate api/openapi.yaml (UPDATE_OPENAPI=1 ./gradlew test --tests '*OpenApiContractTest') + cd web && npm run api:gen; (2) rerun test-writer + code-reviewer on final code (fixer if needed); (3) tasks.py verify 1-5, quality.json, done. Note: full check takes >4 min, above the 2 min target.
