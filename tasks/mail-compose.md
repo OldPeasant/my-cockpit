@@ -19,7 +19,8 @@ Compose, reply, forward (SPEC.md §7.3).
   - verified (2026-10-21 14:15+0200 by dell26/agent-4): same run -> ReplyComposerTests (Subject/Body quoting/Threading References/Recipients, 30 pass), DraftComposeGreenMailTests reply/reply-all/forward with forwarded attachments, CorrespondentServiceTests 11 + DraftControllerTests$Correspondents 3 pass
 - [x] `external` GreenMail tests: sent message received with attachment, appended to Sent, draft replaced on update
   - verified (2026-10-21 14:15+0200 by dell26/agent-4): cd server && ./gradlew integrationTest --rerun --tests 'ch.sonensei.cockpit.mail.compose.*' (GreenMail, @ExternalTest) -> DraftSendGreenMailTests 15/15 + DraftComposeGreenMailTests 15/15 pass: sent message received with attachment, appended to Sent, draft replaced on update
-- [ ] API documented: `api/openapi.yaml` regenerated (`UPDATE_OPENAPI=1 ./gradlew test --tests '*OpenApiContractTest'`) and `OpenApiContractTest` passes without the flag
+- [x] API documented: `api/openapi.yaml` regenerated (`UPDATE_OPENAPI=1 ./gradlew test --tests '*OpenApiContractTest'`) and `OpenApiContractTest` passes without the flag
+  - verified (2026-10-21 14:15+0200 by dell26/agent-4): cd server && ./gradlew test --rerun --tests '*OpenApiContractTest' (no UPDATE_OPENAPI) -> 1/1 pass; api/openapi.yaml and web/src/app/api/generated regenerated in task commits
 
 ## Notes
 - ASSUMPTION (2026-10-21 10:47+0200 by dell26/agent-2): Drafts live only on the IMAP Drafts folder (no local draft table): each save APPENDs a new version and expunges the old one; all versions share one Message-ID so the header sync re-attaches the cached row and the draft id stays stable. ETag of a draft = IMAP UID of its current version.
