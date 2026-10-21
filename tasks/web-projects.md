@@ -14,7 +14,8 @@ Project list and detail (SPEC.md §5.3).
 - [ ] List grouped by area with stalled projects highlighted; create/edit project (status, area, dates)
 - [ ] Detail: ordered tasks with drag reorder, next-step marker, description (Markdown preview), add task; completing the next step opens 'choose next step'
 - [ ] Vitest component/service tests cover grouping, stalled badge, next-step prompt; `cd web && npm run check` passes
-- [ ] Playwright `e2e/gtd-projects/projects.spec.ts` passes against the e2e stack (`npm run e2e -- e2e/gtd-projects/projects.spec.ts`, see p0-e2e-harness): complete next step → prompt; skip → stalled
+- [x] Playwright `e2e/gtd-projects/projects.spec.ts` passes against the e2e stack (`npm run e2e -- e2e/gtd-projects/projects.spec.ts`, see p0-e2e-harness): complete next step → prompt; skip → stalled
+  - verified (2026-10-21 03:30+0200 by dell26/agent-6): cd web && npm run e2e -- e2e/gtd-projects/projects.spec.ts (podman-compose e2e stack, deploy/docker-compose.e2e.yml, server image rebuilt at 942dc560) -> 6 passed incl. 'completing the next step prompts; skipping leaves the project stalled'
 
 ## Notes
 - ASSUMPTION (2026-10-21 02:50+0200 by dell26/agent-6): Markdown preview uses a small in-house renderer (projects/markdown.ts: headings, lists, quotes, code, emphasis, http/mailto links, all text escaped) since no Markdown library is in web/package.json; replace with the notes editor's renderer once web-notes-editor brings one
