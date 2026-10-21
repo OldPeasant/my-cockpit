@@ -294,7 +294,7 @@ describe('CalendarView', () => {
     await settle();
     await fixture.whenStable();
     expect(root.textContent).toContain('The calendars could not be loaded.');
-    root.querySelector<HTMLButtonElement>('.calendar-panel button')!.click();
+    root.querySelector<HTMLButtonElement>('.calendar-panel .calendar-note button')!.click();
     expect(callsOf(listCalendars)).toHaveLength(2);
   });
 

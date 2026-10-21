@@ -1,6 +1,16 @@
 <section class="calendar-page" aria-labelledby="calendar-title">
   <aside class="calendar-panel" aria-labelledby="calendar-list-title">
     <h1 id="calendar-title" i18n="@@calendar.title">Calendar</h1>
+    <button
+      mat-flat-button
+      type="button"
+      class="calendar-new"
+      [disabled]="!settings() || !calendars.loaded()"
+      (click)="newEvent()"
+      i18n="@@calendar.newEvent"
+    >
+      New event
+    </button>
     <h2 id="calendar-list-title" i18n="@@calendar.calendars">Calendars</h2>
     @if (calendars.error() && !calendars.loaded()) {
       <div class="calendar-note" role="alert">

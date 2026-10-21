@@ -33,6 +33,11 @@ app-calendar-view {
   }
 }
 
+.calendar-new {
+  width: 100%;
+  margin-bottom: var(--app-space-4);
+}
+
 .calendar-list {
   display: grid;
   gap: 2px;

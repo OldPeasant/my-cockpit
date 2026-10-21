@@ -10,14 +10,24 @@ import {
 } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
 import { ActivatedRoute, Router } from '@angular/router';
-import { CalendarOptions, DatesSetInfo, FullCalendarModule } from '@fullcalendar/angular';
+import {
+  CalendarOptions,
+  DatesSetInfo,
+  DateSelectInfo,
+  EventChangeInfo,
+  EventClickInfo,
+  FullCalendarModule,
+} from '@fullcalendar/angular';
 import dayGridPlugin from '@fullcalendar/angular/daygrid';
+import interactionPlugin from '@fullcalendar/angular/interaction';
 import listPlugin from '@fullcalendar/angular/list';
 import classicTheme from '@fullcalendar/angular/themes/classic';
 import timeGridPlugin from '@fullcalendar/angular/timegrid';
-import { CalendarResponse } from '../../../api/generated';
+import { CalendarResponse, OccurrenceResponse } from '../../../api/generated';
 import { NotificationService } from '../../../core/http';
 import { SettingsService } from '../../settings/settings.service';
+import { EditorContext, EventEditor, MovedTimes, timesOf } from '../edit/event-editor';
+import { addHours } from '../edit/event-times';
 import { calendarColor, CalendarStore } from './calendar-store';
 import {
   dateIn,
@@ -34,6 +44,9 @@ import { OccurrenceRange, OccurrenceStore } from './occurrence-store';
  * The calendar (SPEC.md §6.3): day, week (default), month and agenda views of the event
  * occurrences, in the time zone and with the week start of the settings. The side panel shows or
  * hides each calendar. View and date are in the URL (`?view=week&date=2026-03-23`).
+ *
+ * Editing: selecting a time range creates an event, clicking one opens it, dragging moves it and
+ * dragging its end resizes it (repeating events ask which occurrences the change is for).
  */
 @Component({
   selector: 'app-calendar-view',
@@ -52,6 +65,7 @@ export default class CalendarView {
   private readonly notifications = inject(NotificationService);
   protected readonly calendars = inject(CalendarStore);
   protected readonly occurrences = inject(OccurrenceStore);
+  private readonly editor = inject(EventEditor);
 
   /** View and date of the URL when the page opened (the calendar keeps them up to date after). */
   private readonly initial = (() => {
@@ -76,7 +90,7 @@ export default class CalendarView {
     const settings = this.settings();
     if (!settings) return undefined;
     return {
-      plugins: [classicTheme, dayGridPlugin, timeGridPlugin, listPlugin],
+      plugins: [classicTheme, dayGridPlugin, timeGridPlugin, listPlugin, interactionPlugin],
       initialView: VIEW_TYPES[this.initial.view],
       initialDate: this.initial.date,
       timeZone: settings.timeZone,
@@ -99,6 +113,13 @@ export default class CalendarView {
       dayMaxEventRows: true,
       blockEventClass: 'app-block-event',
       datesSet: (info) => this.onDatesSet(info, settings.timeZone),
+      editable: true,
+      selectable: true,
+      selectMirror: true,
+      eventClick: (info) => void this.onEventClick(info),
+      select: (info) => this.onSelect(info),
+      eventDrop: (info) => void this.onEventChange(info),
+      eventResize: (info) => void this.onEventChange(info),
     };
   });
 
@@ -145,6 +166,52 @@ export default class CalendarView {
     else void this.occurrences.refresh();
   }
 
+  /** Opens the dialog for a new event in the next full hour. */
+  protected newEvent(): void {
+    const start = new Date();
+    start.setMinutes(60, 0, 0);
+    void this.create({ allDay: false, start: start.toISOString(), end: addHours(start, 1) });
+  }
+
+  private onSelect(info: DateSelectInfo): void {
+    info.view.calendar.unselect();
+    void this.create(timesOf(info));
+  }
+
+  private async create(draft: MovedTimes): Promise<void> {
+    const context = this.editorContext();
+    if (context && (await this.editor.create(draft, context))) void this.occurrences.refresh();
+  }
+
+  private async onEventClick(info: EventClickInfo): Promise<void> {
+    info.jsEvent.preventDefault();
+    const occurrence = occurrenceOf(info.event.extendedProps);
+    const context = this.editorContext();
+    if (!occurrence || !context) return;
+    if (await this.editor.open(occurrence, context)) void this.occurrences.refresh();
+  }
+
+  /** Saves a moved or resized occurrence; puts it back when nothing was saved. */
+  private async onEventChange(info: EventChangeInfo): Promise<void> {
+    const occurrence = occurrenceOf(info.event.extendedProps);
+    if (!occurrence) {
+      info.revert();
+      return;
+    }
+    const saved = await this.editor.move(occurrence, timesOf(info.event), () => {
+      void this.occurrences.refresh();
+    });
+    if (!saved) info.revert();
+    // A series change moves other occurrences too: show what the server has now.
+    void this.occurrences.refresh();
+  }
+
+  private editorContext(): EditorContext | undefined {
+    const settings = this.settings();
+    if (!settings) return undefined;
+    return { calendars: this.calendars.calendars(), timeZone: settings.timeZone };
+  }
+
   private onDatesSet(info: DatesSetInfo, timeZone: string): void {
     this.range.set({ from: info.start.toISOString(), to: info.end.toISOString() });
     void this.router.navigate([], {
@@ -157,4 +224,9 @@ export default class CalendarView {
       replaceUrl: true,
     });
   }
+}
+
+/** The occurrence a FullCalendar event shows (see `toEventInput`). */
+function occurrenceOf(props: Record<string, unknown>): OccurrenceResponse | undefined {
+  return props['occurrence'] as OccurrenceResponse | undefined;
 }

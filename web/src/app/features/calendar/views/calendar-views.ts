@@ -83,6 +83,8 @@ export function toEventInput(
     end: occurrence.allDay ? occurrence.endDate : occurrence.end,
     color,
     className,
+    // Read-only calendars (subscriptions) can't be dragged; their events open read-only.
+    editable: !calendar?.readOnly && occurrence.status !== 'CANCELLED',
     extendedProps: { occurrence, calendarName: calendar?.name },
   };
 }

@@ -1,0 +1,294 @@
+<h2 mat-dialog-title>
+  @if (data.mode === 'create') {
+    <ng-container i18n="@@calendar.edit.newTitle">New event</ng-container>
+  } @else if (readOnly()) {
+    <ng-container i18n="@@calendar.edit.viewTitle">Event</ng-container>
+  } @else {
+    <ng-container i18n="@@calendar.edit.editTitle">Edit event</ng-container>
+  }
+</h2>
+
+<form class="event-form" [formGroup]="form" (ngSubmit)="save()">
+  <mat-dialog-content>
+    @if (loading()) {
+      <p class="note" role="status" i18n="@@calendar.edit.loading">Loading the event…</p>
+    } @else if (loadFailed()) {
+      <div class="banner" role="alert">
+        <p i18n="@@calendar.edit.loadFailed">The event could not be loaded.</p>
+        <button mat-stroked-button type="button" (click)="load()" i18n="@@calendar.retry">
+          Try again
+        </button>
+      </div>
+    } @else {
+      @if (conflict()) {
+        <div class="banner conflict" role="alert">
+          <p i18n="@@calendar.edit.conflict">
+            This event was changed elsewhere since you opened it. Reload it to see the current
+            version, then make your change again.
+          </p>
+          <button mat-flat-button type="button" (click)="load()" i18n="@@calendar.edit.reload">
+            Reload
+          </button>
+        </div>
+      }
+      @if (readOnly()) {
+        <p class="note" i18n="@@calendar.edit.readOnly">
+          This calendar is read-only: its events can't be changed here.
+        </p>
+      }
+
+      <mat-form-field class="title-field" subscriptSizing="dynamic">
+        <mat-label i18n="@@calendar.edit.title">Title</mat-label>
+        <input matInput cdkFocusInitial autocomplete="off" formControlName="title" />
+        @if (form.controls.title.touched && form.controls.title.hasError('required')) {
+          <mat-error i18n="@@calendar.edit.titleRequired">Enter a title.</mat-error>
+        }
+      </mat-form-field>
+
+      <fieldset class="when">
+        <legend class="visually-hidden" i18n="@@calendar.edit.when">When</legend>
+        <mat-checkbox formControlName="allDay" i18n="@@calendar.edit.allDay">All day</mat-checkbox>
+        <div class="when-grid" [class.all-day]="allDay()">
+          <mat-form-field subscriptSizing="dynamic">
+            <mat-label i18n="@@calendar.edit.startDate">Starts</mat-label>
+            <input matInput type="date" formControlName="startDate" />
+          </mat-form-field>
+          @if (!allDay()) {
+            <mat-form-field subscriptSizing="dynamic">
+              <mat-label i18n="@@calendar.edit.startTime">Start time</mat-label>
+              <input matInput type="time" formControlName="startTime" />
+            </mat-form-field>
+          }
+          <mat-form-field subscriptSizing="dynamic">
+            <mat-label i18n="@@calendar.edit.endDate">Ends</mat-label>
+            <input matInput type="date" formControlName="endDate" />
+          </mat-form-field>
+          @if (!allDay()) {
+            <mat-form-field subscriptSizing="dynamic">
+              <mat-label i18n="@@calendar.edit.endTime">End time</mat-label>
+              <input matInput type="time" formControlName="endTime" />
+            </mat-form-field>
+          }
+        </div>
+        @if (invalidTimes()) {
+          <p class="error" role="alert" i18n="@@calendar.edit.endBeforeStart">
+            The event must end after it starts.
+          </p>
+        }
+        @if (!allDay()) {
+          <mat-form-field class="wide" subscriptSizing="dynamic">
+            <mat-label i18n="@@calendar.edit.timeZone">Time zone</mat-label>
+            <input
+              matInput
+              autocomplete="off"
+              formControlName="timeZone"
+              list="calendar-time-zones"
+            />
+            <datalist id="calendar-time-zones">
+              @for (zone of zones; track zone) {
+                <option [value]="zone"></option>
+              }
+            </datalist>
+            @if (form.controls.timeZone.hasError('timeZone')) {
+              <mat-error i18n="@@calendar.edit.timeZoneInvalid"
+                >Choose a time zone from the list, e.g. Europe/Zurich.</mat-error
+              >
+            }
+          </mat-form-field>
+        }
+        <mat-form-field class="wide" subscriptSizing="dynamic">
+          <mat-label i18n="@@calendar.edit.repeat">Repeats</mat-label>
+          <mat-select formControlName="repeat">
+            <mat-option value="none" i18n="@@calendar.repeat.none">Does not repeat</mat-option>
+            @for (freq of repeatPresets; track freq) {
+              <mat-option [value]="freq">
+                @switch (freq) {
+                  @case ('DAILY') {
+                    <ng-container i18n="@@calendar.repeat.daily">Every day</ng-container>
+                  }
+                  @case ('WEEKLY') {
+                    <ng-container i18n="@@calendar.repeat.weekly">Every week</ng-container>
+                  }
+                  @case ('MONTHLY') {
+                    <ng-container i18n="@@calendar.repeat.monthly">Every month</ng-container>
+                  }
+                  @case ('YEARLY') {
+                    <ng-container i18n="@@calendar.repeat.yearly">Every year</ng-container>
+                  }
+                }
+              </mat-option>
+            }
+            @if (customRule()) {
+              <mat-option value="custom" i18n="@@calendar.repeat.custom"
+                >Custom ({{ customRule() }})</mat-option
+              >
+            }
+          </mat-select>
+        </mat-form-field>
+      </fieldset>
+
+      <mat-form-field class="wide" subscriptSizing="dynamic">
+        <mat-label i18n="@@calendar.edit.calendar">Calendar</mat-label>
+        <mat-select formControlName="calendarId">
+          @for (option of targetCalendars(); track option.id) {
+            <mat-option [value]="option.id">{{ option.name }}</mat-option>
+          }
+        </mat-select>
+        @if (form.controls.calendarId.touched && form.controls.calendarId.hasError('required')) {
+          <mat-error i18n="@@calendar.edit.calendarRequired">Choose a calendar.</mat-error>
+        }
+      </mat-form-field>
+
+      <mat-form-field class="wide" subscriptSizing="dynamic">
+        <mat-label i18n="@@calendar.edit.location">Location</mat-label>
+        <input matInput autocomplete="off" formControlName="location" />
+      </mat-form-field>
+
+      <mat-form-field class="wide" subscriptSizing="dynamic">
+        <mat-label i18n="@@calendar.edit.description">Description</mat-label>
+        <textarea matInput rows="3" formControlName="description"></textarea>
+      </mat-form-field>
+
+      <section class="group" aria-labelledby="calendar-reminders-title">
+        <h3 id="calendar-reminders-title" i18n="@@calendar.edit.reminders">Reminders</h3>
+        @if (reminders().length) {
+          <mat-chip-set [attr.aria-labelledby]="'calendar-reminders-title'">
+            @for (minutes of reminders(); track minutes) {
+              <mat-chip [removable]="!readOnly()" (removed)="removeReminder(minutes)">
+                {{ reminderLabel(minutes) }}
+                @if (!readOnly()) {
+                  <button
+                    matChipRemove
+                    type="button"
+                    [attr.aria-label]="removeReminderLabel(minutes)"
+                  >
+                    <mat-icon>cancel</mat-icon>
+                  </button>
+                }
+              </mat-chip>
+            }
+          </mat-chip-set>
+        } @else {
+          <p class="note" i18n="@@calendar.edit.noReminders">No reminders.</p>
+        }
+        @if (!readOnly()) {
+          <mat-form-field class="add-reminder" subscriptSizing="dynamic">
+            <mat-label i18n="@@calendar.edit.addReminder">Add a reminder</mat-label>
+            <mat-select
+              [value]="null"
+              (selectionChange)="addReminder($event.value); $event.source.value = null"
+            >
+              @for (minutes of reminderPresets; track minutes) {
+                <mat-option [value]="minutes" [disabled]="reminders().includes(minutes)">
+                  {{ reminderLabel(minutes) }}
+                </mat-option>
+              }
+            </mat-select>
+          </mat-form-field>
+        }
+      </section>
+
+      @if (attendees().length || attendeesEditable()) {
+        <section class="group" aria-labelledby="calendar-attendees-title">
+          <h3 id="calendar-attendees-title" i18n="@@calendar.edit.attendees">Guests</h3>
+          @if (attendees().length) {
+            <ul class="attendees">
+              @for (attendee of attendees(); track attendee.email) {
+                <li>
+                  <span class="attendee-name">{{ attendee.name || attendee.email }}</span>
+                  @if (attendee.name) {
+                    <span class="attendee-email">{{ attendee.email }}</span>
+                  }
+                  <span class="attendee-status">{{ attendeeStatus(attendee) }}</span>
+                  @if (attendeesEditable()) {
+                    <button
+                      mat-icon-button
+                      type="button"
+                      [attr.aria-label]="removeAttendeeLabel(attendee)"
+                      (click)="removeAttendee(attendee)"
+                    >
+                      <mat-icon>close</mat-icon>
+                    </button>
+                  }
+                </li>
+              }
+            </ul>
+          } @else {
+            <p class="note" i18n="@@calendar.edit.noAttendees">No guests.</p>
+          }
+          @if (attendeesEditable()) {
+            <div class="add-attendee">
+              <mat-form-field subscriptSizing="dynamic">
+                <mat-label i18n="@@calendar.edit.attendeeEmail">Guest email</mat-label>
+                <input
+                  matInput
+                  type="email"
+                  autocomplete="off"
+                  [formControl]="newAttendee"
+                  (keydown.enter)="$event.preventDefault(); addAttendee()"
+                />
+                @if (newAttendee.hasError('email')) {
+                  <mat-error i18n="@@calendar.edit.attendeeInvalid"
+                    >Enter an email address.</mat-error
+                  >
+                }
+              </mat-form-field>
+              <button
+                mat-stroked-button
+                type="button"
+                (click)="addAttendee()"
+                i18n="@@calendar.edit.addAttendee"
+              >
+                Add guest
+              </button>
+            </div>
+          } @else {
+            <p class="note" i18n="@@calendar.edit.attendeesReadOnly">
+              Guests are managed by the event's calendar provider.
+            </p>
+          }
+        </section>
+      }
+
+      @if (error(); as message) {
+        <p class="error" role="alert">{{ message }}</p>
+      }
+    }
+  </mat-dialog-content>
+
+  <mat-dialog-actions>
+    @if (data.mode === 'edit' && !readOnly() && !loading() && !loadFailed()) {
+      <button
+        mat-button
+        type="button"
+        class="delete"
+        [disabled]="saving()"
+        (click)="delete()"
+        i18n="@@calendar.edit.delete"
+      >
+        Delete
+      </button>
+    }
+    <span class="spacer"></span>
+    <button mat-button type="button" mat-dialog-close [disabled]="saving()">
+      @if (readOnly()) {
+        <ng-container i18n="@@calendar.edit.close">Close</ng-container>
+      } @else {
+        <ng-container i18n="@@calendar.cancel">Cancel</ng-container>
+      }
+    </button>
+    @if (!readOnly()) {
+      <button
+        mat-flat-button
+        type="submit"
+        [disabled]="saving() || loading() || loadFailed() || conflict()"
+      >
+        @if (data.mode === 'create') {
+          <ng-container i18n="@@calendar.edit.create">Create event</ng-container>
+        } @else {
+          <ng-container i18n="@@calendar.edit.save">Save changes</ng-container>
+        }
+      </button>
+    }
+  </mat-dialog-actions>
+</form>
