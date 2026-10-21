@@ -916,6 +916,95 @@ describe('NoteEditorPage', () => {
     expect(editor().value()).toBe(`Trip\n${TENT.markdown}\n`);
   });
 
+  it('opens only the last note when the route changes twice while leaving waits for an upload', async () => {
+    const THIRD_ID = '0192f0c4-0000-7000-8000-000000000003';
+    await open(note({ bodyMd: 'Trip' }));
+    const upload = pasteImage();
+    // A chip to note B: leaving the first note waits for the upload.
+    void harness.navigateByUrl(`/notes/${OTHER_ID}`);
+    await settle();
+    http
+      .expectOne((r) => r.url === URL && r.method === 'PATCH')
+      .flush(note({ bodyMd: 'Trip\n\n', version: 2 }));
+    await settle();
+    // On to note C before the upload ends.
+    void harness.navigateByUrl(`/notes/${THIRD_ID}`);
+    await settle();
+    http.expectNone((r) => r.url.startsWith('/api/v1/notes/0192f0c4') && r.method === 'GET');
+    upload.flush(TENT);
+    await settle();
+    // The image is still saved into the first note, once.
+    const saves = http.match((r) => r.method === 'PATCH');
+    expect(saves.map((s) => [s.request.url, s.request.body.bodyMd])).toEqual([
+      [URL, `Trip\n${TENT.markdown}\n`],
+    ]);
+    expect(saves[0].request.headers.get('If-Match')).toBe('"2"');
+    saves[0].flush(note({ bodyMd: saves[0].request.body.bodyMd, version: 3 }));
+    await settle();
+
+    // Only note C is loaded; note B is never requested.
+    http.expectNone((r) => r.url === `/api/v1/notes/${OTHER_ID}`);
+    http
+      .expectOne((r) => r.url === `/api/v1/notes/${THIRD_ID}` && r.method === 'GET')
+      .flush(note({ id: THIRD_ID, title: 'Garden', bodyMd: 'Tomatoes', version: 4 }));
+    await settle();
+    flushLinks();
+    await settle();
+    expect(TestBed.inject(Router).url).toBe(`/notes/${THIRD_ID}`);
+    root = harness.routeNativeElement as HTMLElement;
+    expect((root.querySelector('.title') as HTMLInputElement).value).toBe('Garden');
+    expect(editor().value()).toBe('Tomatoes');
+
+    // Edits now go to note C with its version.
+    vi.useFakeTimers();
+    type('Tomatoes and basil');
+    await vi.advanceTimersByTimeAsync(AUTOSAVE_DEBOUNCE_MS);
+    const save = http.expectOne((r) => r.method === 'PATCH');
+    expect(save.request.url).toBe(`/api/v1/notes/${THIRD_ID}`);
+    expect(save.request.headers.get('If-Match')).toBe('"4"');
+  });
+
+  it('ends on the other note when the route goes there, back and there again while leaving waits', async () => {
+    await open(note({ bodyMd: 'Trip' }));
+    const upload = pasteImage();
+    void harness.navigateByUrl(`/notes/${OTHER_ID}`);
+    await settle();
+    http
+      .expectOne((r) => r.url === URL && r.method === 'PATCH')
+      .flush(note({ bodyMd: 'Trip\n\n', version: 2 }));
+    await settle();
+    void harness.navigateByUrl(`/notes/${ID}`);
+    await settle();
+    void harness.navigateByUrl(`/notes/${OTHER_ID}`);
+    await settle();
+    http.expectNone((r) => r.url === `/api/v1/notes/${OTHER_ID}`);
+    upload.flush(TENT);
+    await settle();
+    for (const save of http.match((r) => r.url === URL && r.method === 'PATCH')) {
+      expect(save.request.body.bodyMd).toBe(`Trip\n${TENT.markdown}\n`);
+      save.flush(note({ bodyMd: save.request.body.bodyMd, version: 3 }));
+    }
+    await settle();
+    for (const get of http.match((r) => r.url === `/api/v1/notes/${OTHER_ID}`)) {
+      get.flush(note({ id: OTHER_ID, title: 'Recipes', bodyMd: 'Soup', version: 9 }));
+    }
+    await settle();
+    http.expectNone((r) => r.url === URL && r.method === 'GET');
+    flushLinks();
+    await settle();
+
+    expect(TestBed.inject(Router).url).toBe(`/notes/${OTHER_ID}`);
+    root = harness.routeNativeElement as HTMLElement;
+    expect((root.querySelector('.title') as HTMLInputElement).value).toBe('Recipes');
+    expect(editor().value()).toBe('Soup');
+    vi.useFakeTimers();
+    type('Soup and bread');
+    await vi.advanceTimersByTimeAsync(AUTOSAVE_DEBOUNCE_MS);
+    const save = http.expectOne((r) => r.method === 'PATCH');
+    expect(save.request.url).toBe(`/api/v1/notes/${OTHER_ID}`);
+    expect(save.request.headers.get('If-Match')).toBe('"9"');
+  });
+
   /** In conflict on the first note, clicks `action` and opens the other note before it ends. */
   async function conflictThenOpenOther(action: string): Promise<TestRequest> {
     await open();
