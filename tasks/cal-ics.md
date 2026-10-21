@@ -14,7 +14,8 @@ Read-only ICS subscriptions (SPEC.md §6.1).
 ## Acceptance criteria
 - [x] Fetch with ETag/Last-Modified, parse, upsert/delete; calendars read-only; SSRF protection (no private/loopback addresses unless allowed in config)
   - verified (2026-10-21 18:03+0200 by dell26/agent-3): cd server && ./gradlew test --tests 'ch.sonensei.cockpit.calendar.infra.ics.*' at 98542708 -> 124 tests pass: IcsFeedClientTests (If-None-Match/If-Modified-Since, 304, SSRF private/loopback/link-local/mapped refused incl. redirects, allow-private-networks/allowed-private-hosts), IcsFeedAdapterTests (read-only writes refused), IcsFeedSyncTests (upsert/delete on Postgres)
-- [ ] `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.calendar.infra.ics.*'` passes (Postgres via Testcontainers where persistence is involved) with WireMock feeds
+- [x] `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.calendar.infra.ics.*'` passes (Postgres via Testcontainers where persistence is involved) with WireMock feeds
+  - verified (2026-10-21 18:03+0200 by dell26/agent-3): cd server && ./gradlew test --rerun --tests 'ch.sonensei.cockpit.calendar.infra.ics.*' jacocoTestReport ktlintCheck -> BUILD SUCCESSFUL, 124 tests 0 failures; IcsFeedSyncTests on PostgresTestBase (Testcontainers) with WireMock feeds
 
 ## Notes
 - ASSUMPTION (2026-10-21 16:02+0200 by dell26/agent-3): ICS source config is {"url": "<http(s)|webcal URL>"}; webcal(s):// is fetched as https://. One read-only calendar per source (external id 'feed') named like the source; poll interval 15 min (cockpit.calendar.ics.poll-interval), SPEC gives none.
