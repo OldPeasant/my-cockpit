@@ -11,6 +11,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import ch.sonensei.cockpit.R
+import ch.sonensei.cockpit.reminders.ReminderPermissionPrompt
 import ch.sonensei.cockpit.ui.CockpitShell
 
 /** The logout action of the running app; null where there is no session (previews, shell-only tests). */
@@ -21,7 +22,9 @@ val LocalLogout = staticCompositionLocalOf<(() -> Unit)?> { null }
 fun CockpitRoot(viewModel: SessionViewModel = hiltViewModel()) {
     val loggedIn by viewModel.loggedIn.collectAsStateWithLifecycle()
     if (loggedIn) {
-        CompositionLocalProvider(LocalLogout provides viewModel::logout) { CockpitShell() }
+        CompositionLocalProvider(LocalLogout provides viewModel::logout) {
+            CockpitShell(prompts = { ReminderPermissionPrompt() })
+        }
     } else {
         LoginRoute()
     }

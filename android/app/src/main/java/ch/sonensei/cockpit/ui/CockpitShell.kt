@@ -1,5 +1,6 @@
 package ch.sonensei.cockpit.ui
 
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
@@ -12,6 +13,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
@@ -37,6 +39,7 @@ import ch.sonensei.cockpit.habits.HabitsScreen
 import ch.sonensei.cockpit.journal.JournalScreen
 import ch.sonensei.cockpit.mail.list.MailScreen
 import ch.sonensei.cockpit.notes.NotesScreen
+import ch.sonensei.cockpit.reminders.ReminderOpenRequests
 import ch.sonensei.cockpit.review.ReviewScreen
 import ch.sonensei.cockpit.settings.SettingsScreen
 import ch.sonensei.cockpit.ui.navigation.CockpitDestination
@@ -45,13 +48,25 @@ import ch.sonensei.cockpit.ui.navigation.NavSection
 /** Test tag of the content area of a destination, so tests can tell which screen is shown. */
 fun screenTag(destination: CockpitDestination): String = "screen:${destination.route}"
 
-/** App frame: top bar with the current title, bottom bar with the main destinations, and the navigation host. */
+/**
+ * App frame: top bar with the current title, bottom bar with the main destinations, and the navigation host, with
+ * [prompts] (e.g. the reminder permission prompt) above the content. Opens the item of a tapped reminder notification.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun CockpitShell(navController: NavHostController = rememberNavController()) {
+fun CockpitShell(
+    navController: NavHostController = rememberNavController(),
+    prompts: @Composable () -> Unit = {},
+) {
     val backStackEntry by navController.currentBackStackEntryAsState()
     val current = CockpitDestination.fromRoute(backStackEntry?.destination?.route)
     val selected = CockpitDestination.bottomBarItemFor(current)
+
+    LaunchedEffect(navController) {
+        ReminderOpenRequests.requests.collect { request ->
+            if (request != null && ReminderOpenRequests.take(request)) navController.open(request.destination)
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -79,21 +94,33 @@ fun CockpitShell(navController: NavHostController = rememberNavController()) {
             }
         },
     ) { innerPadding ->
-        NavHost(
-            navController = navController,
-            startDestination = CockpitDestination.start.route,
-            modifier = Modifier.padding(innerPadding),
-        ) {
-            CockpitDestination.entries.forEach { destination ->
-                composable(destination.route) {
-                    DestinationContent(
-                        destination = destination,
-                        onOpen = { navController.navigate(it.route) },
-                        modifier = Modifier.testTag(screenTag(destination)),
-                    )
+        Column(Modifier.padding(innerPadding)) {
+            prompts()
+            NavHost(
+                navController = navController,
+                startDestination = CockpitDestination.start.route,
+                modifier = Modifier.weight(1f),
+            ) {
+                CockpitDestination.entries.forEach { destination ->
+                    composable(destination.route) {
+                        DestinationContent(
+                            destination = destination,
+                            onOpen = { navController.navigate(it.route) },
+                            modifier = Modifier.testTag(screenTag(destination)),
+                        )
+                    }
                 }
             }
         }
+    }
+}
+
+/** Opens [destination] from outside the shell (a notification): as a tab, or a More screen on top of the current one. */
+private fun NavHostController.open(destination: CockpitDestination) {
+    if (destination.section == NavSection.BottomBar) {
+        navigateToTopLevel(destination)
+    } else {
+        navigate(destination.route) { launchSingleTop = true }
     }
 }
 

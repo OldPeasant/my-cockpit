@@ -1,0 +1,13 @@
+<resources>
+    <!-- Reminder notifications (reminders) -->
+    <string name="reminder_channel_name">Reminders</string>
+    <string name="reminder_channel_description">Reminders you set on tasks, events and other items</string>
+    <string name="reminder_notification_text">Reminder</string>
+    <string name="reminder_untitled">Reminder</string>
+    <string name="reminder_prompt_title">Upcoming reminders</string>
+    <string name="reminder_prompt_notifications">Allow notifications so your reminders can alert you on this device.</string>
+    <string name="reminder_prompt_exact">Allow exact alarms so reminders arrive on time, not some minutes late.</string>
+    <string name="reminder_prompt_allow_notifications">Allow notifications</string>
+    <string name="reminder_prompt_allow_exact">Allow exact alarms</string>
+    <string name="reminder_prompt_dismiss">Not now</string>
+</resources>
