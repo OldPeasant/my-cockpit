@@ -23,3 +23,4 @@ Contacts (SPEC.md §8.3).
 - ASSUMPTION (2026-10-21 03:54+0200 by dell26/agent-2): vCard export: GET /contacts/export (optional ids) as vCard 3.0 with UID urn:uuid:<id>; photos are not embedded (FilesService exposes no blob read to other modules).
 - ASSUMPTION (2026-10-21 03:54+0200 by dell26/agent-2): GET /contacts has an optional q filter (substring of display name or email) for recipient autocomplete; photoFileId is validated via the FILE item resolver.
 - ASSUMPTION (2026-10-21 04:19+0200 by dell26/agent-2): vCard export rewrites '"' in labels as "'" and CR/LF as spaces, because ez-vcard rejects them in TYPE values (instead of a 500)
+- ASSUMPTION (2026-10-21 04:19+0200 by dell26/agent-2): q email matching uses a SQL function contacts_email_matches(jsonb,text) (migration V202610211010) so only address values match, not jsonb keys/labels
