@@ -633,6 +633,83 @@ describe('NoteEditorPage', () => {
     http.expectNone((r) => r.url === `/api/v1/notes/${OTHER_ID}`);
   });
 
+  /** Edits the note, opens the other one and types again while that save on leaving runs. */
+  async function typeDuringSaveOnLeaving(): Promise<TestRequest> {
+    await open();
+    vi.useFakeTimers();
+    type('one');
+    void harness.navigateByUrl(`/notes/${OTHER_ID}`);
+    await vi.advanceTimersByTimeAsync(0);
+    const first = http.expectOne((r) => r.url === URL && r.method === 'PATCH');
+    type('one two');
+    first.flush(note({ bodyMd: 'one', version: 2 }));
+    await vi.advanceTimersByTimeAsync(0);
+    const second = http.expectOne((r) => r.url === URL && r.method === 'PATCH');
+    expect(second.request.body.bodyMd).toBe('one two');
+    expect(second.request.headers.get('If-Match')).toBe('"2"');
+    return second;
+  }
+
+  it('stays on the note when saving the edits typed during the save on leaving fails', async () => {
+    const second = await typeDuringSaveOnLeaving();
+    second.flush(null, { status: 503, statusText: 'Service Unavailable' });
+    await vi.advanceTimersByTimeAsync(0);
+    await vi.advanceTimersByTimeAsync(0);
+    harness.detectChanges();
+
+    http.expectNone((r) => r.url === `/api/v1/notes/${OTHER_ID}`);
+    expect(TestBed.inject(Router).url).toBe(`/notes/${ID}`);
+    root = harness.routeNativeElement as HTMLElement;
+    expect(editor().value()).toBe('one two');
+    expect(state()).toBe('Not saved');
+    expect(root.querySelector('.banner[role=alert] .retry')).not.toBeNull();
+    // Saving stops at the failure: nothing is sent again on its own.
+    await vi.advanceTimersByTimeAsync(AUTOSAVE_DEBOUNCE_MS * 3);
+    http.expectNone((r) => r.method === 'PATCH');
+  });
+
+  it('opens the other note when saving the edits typed during the save on leaving hits a conflict', async () => {
+    const second = await typeDuringSaveOnLeaving();
+    second.flush(...CONFLICT);
+    await vi.advanceTimersByTimeAsync(0);
+    // A conflict ends the saves on leaving; the edits are dropped (recorded assumption).
+    http.expectNone((r) => r.method === 'PATCH');
+    http
+      .expectOne((r) => r.url === `/api/v1/notes/${OTHER_ID}` && r.method === 'GET')
+      .flush(note({ id: OTHER_ID, title: 'Recipes', bodyMd: 'Soup', version: 9 }));
+    await vi.advanceTimersByTimeAsync(0);
+    flushLinks();
+    harness.detectChanges();
+    root = harness.routeNativeElement as HTMLElement;
+    expect(editor().value()).toBe('Soup');
+    expect(state()).toBe('Saved');
+    expect(root.querySelector('.banner.conflict')).toBeNull();
+    await vi.advanceTimersByTimeAsync(AUTOSAVE_DEBOUNCE_MS * 2);
+    http.expectNone((r) => r.method === 'PATCH');
+  });
+
+  it('keeps saving on leaving as long as edits arrive during each save, then opens the other note', async () => {
+    const second = await typeDuringSaveOnLeaving();
+    type('one two three');
+    second.flush(note({ bodyMd: 'one two', version: 3 }));
+    await vi.advanceTimersByTimeAsync(0);
+    http.expectNone((r) => r.url === `/api/v1/notes/${OTHER_ID}`);
+    const third = http.expectOne((r) => r.url === URL && r.method === 'PATCH');
+    expect(third.request.body.bodyMd).toBe('one two three');
+    expect(third.request.headers.get('If-Match')).toBe('"3"');
+    third.flush(note({ bodyMd: 'one two three', version: 4 }));
+    await vi.advanceTimersByTimeAsync(0);
+    http
+      .expectOne((r) => r.url === `/api/v1/notes/${OTHER_ID}` && r.method === 'GET')
+      .flush(note({ id: OTHER_ID, title: 'Recipes', bodyMd: 'Soup', version: 9 }));
+    await vi.advanceTimersByTimeAsync(0);
+    flushLinks();
+    harness.detectChanges();
+    expect(editor().value()).toBe('Soup');
+    await vi.advanceTimersByTimeAsync(AUTOSAVE_DEBOUNCE_MS * 2);
+    http.expectNone((r) => r.method === 'PATCH');
+  });
+
   it('ignores a note that arrives after another one was opened', async () => {
     TestBed.configureTestingModule({
       providers: [
@@ -799,6 +876,38 @@ describe('NoteEditorPage', () => {
     await settle();
     flushLinks();
     expect(editor().value()).toBe('Soup');
+  });
+
+  it('saves edits typed during the save of an uploaded image on leaving before opening another note', async () => {
+    await open(note({ bodyMd: 'Trip' }));
+    const upload = pasteImage();
+    void harness.navigateByUrl(`/notes/${OTHER_ID}`);
+    await settle();
+    http
+      .expectOne((r) => r.url === URL && r.method === 'PATCH')
+      .flush(note({ bodyMd: 'Trip\n\n', version: 2 }));
+    await settle();
+    upload.flush(TENT);
+    await settle();
+    const withImage = http.expectOne((r) => r.url === URL && r.method === 'PATCH');
+    expect(withImage.request.body.bodyMd).toBe(`Trip\n${TENT.markdown}\n`);
+    // Typed while the note with the image is being saved.
+    type(`Trip\n${TENT.markdown}\nTent pegs`);
+    withImage.flush(note({ bodyMd: `Trip\n${TENT.markdown}\n`, version: 3 }));
+    await settle();
+    http.expectNone((r) => r.url === `/api/v1/notes/${OTHER_ID}`);
+    const last = http.expectOne((r) => r.url === URL && r.method === 'PATCH');
+    expect(last.request.body.bodyMd).toBe(`Trip\n${TENT.markdown}\nTent pegs`);
+    expect(last.request.headers.get('If-Match')).toBe('"3"');
+    last.flush(note({ bodyMd: last.request.body.bodyMd, version: 4 }));
+    await settle();
+    http
+      .expectOne((r) => r.url === `/api/v1/notes/${OTHER_ID}` && r.method === 'GET')
+      .flush(note({ id: OTHER_ID, title: 'Recipes', bodyMd: 'Soup', version: 9 }));
+    await settle();
+    flushLinks();
+    expect(editor().value()).toBe('Soup');
+    http.expectNone((r) => r.method === 'PATCH');
   });
 
   it('when leaving during an upload that then fails, saves the note without its placeholder', async () => {
