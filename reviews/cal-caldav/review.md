@@ -4,45 +4,60 @@ Date: 2026-10-21
 
 Task: cal-caldav - CalDAV adapter
 
-Scope: committed task changes `git diff a8fe02662740b1b60542fb4cd96988739c8533ef..4842886832cfa0e816c86bf1dcb3101c573beb66` (commits c0a6861b, 112d04a5, 002726b4, 9716d7ae, 48428868). This is the final code after the fixes in `reviews/cal-caldav/fixes.md`. Reviewed revision: 4842886832cfa0e816c86bf1dcb3101c573beb66. I ignored uncommitted test files from the concurrently running test-writer. This review replaces the earlier one (CR-1..CR-3 on revision 794a2c54).
+Scope: committed task changes `git diff 1e2a388132d5fa9ac70f8976468b62c351f9eca4..95486262c9cf08048932d7a1df2e2a7ffd926c6b` (commits bf8731c7, 1d2506e5, b99b0209, 1595b669, ccc57dee, 48dbc990, 95486262). Reviewed revision: 95486262c9cf08048932d7a1df2e2a7ffd926c6b. This review replaces my earlier review of the same production code (revision 48428868 before the rebase). Since then, only test code and review files changed.
 
 Requirements:
-- tasks/cal-caldav.md acceptance criteria and Notes (assumptions #1-#5 of cal-caldav, `python tasks.py assumptions`)
+- tasks/cal-caldav.md acceptance criteria and Notes (assumptions #1-#5)
 - SPEC.md §6.2 (sync-collection else ctag/etag, If-Match writes, 412 leads to a refetch and a conflict)
 - CalendarProviderAdapter / CalendarProviderRegistry contract (`calendar/sync/`)
-- docs/ARCHITECTURE.md (external tests, coverage, conventions), AGENTS.md project notes (lint, no secrets or event content in logs or messages)
-- reviews/cal-caldav/fixes.md (F1-F4, PRE-1, PRE-2)
+- docs/ARCHITECTURE.md (external tests, coverage, conventions), AGENTS.md project notes (lint, fictitious test data, no secrets or event content in logs or messages)
+- reviews/cal-caldav/fixes.md, reviews/cal-caldav/tests.md
+- Parent instructions: confirm that production code is unchanged, review the new tests, and judge the 303 handling in `CalDavClient.send`
 
 Git range:
 - Branch: main
-- HEAD: 4842886832cfa0e816c86bf1dcb3101c573beb66
-- Base/start: a8fe02662740b1b60542fb4cd96988739c8533ef
-- Commits reviewed: 5
+- HEAD: 95486262c9cf08048932d7a1df2e2a7ffd926c6b
+- Base/start: 1e2a388132d5fa9ac70f8976468b62c351f9eca4
+- Commits reviewed: 7
 
-Summary: 0 P0, 0 P1, 1 P2, 0 P3
+Summary: 0 P0, 0 P1, 0 P2, 1 P3
 
-## Status of the earlier findings
+## Production code unchanged since the previous review
 
-- **Earlier CR-1 (test gap, P2): resolved.** These unit suites are now committed: `CalDavCalendarAdapterTests` (WireMock, 32 tests), `CalDavEventMappingTests` (38) and `ICalendarTests` (15). They cover the paths the earlier finding listed as missing: a cross-origin redirect (no password sent), redirect loops and redirects without a target, DOCTYPE/XXE and non-multistatus XML, 401/5xx/network failures, 507 truncation, a server with no sync token and one with a sync token but no sync-collection, a refused sync token, `If-None-Match` 412 recovery, 412 and 404 on update, delete with If-Match and 412, occurrence removal, folding, unfolding and escaping, TZID fallbacks, and VTIMEZONE generation. The VTIMEZONE test checks every JDK zone against ical4j's expansion for 2027-2040. The latest result files (`server/build/test-results/test/`, 14:26Z) show 32/32 for `CalDavCalendarAdapterTests` with 0 failures.
-- **Earlier CR-2 (ArithmeticException from out-of-range durations, P3): resolved.** `duration()` uses exact arithmetic and returns null on `ArithmeticException` or `NumberFormatException` (`CalDavEventMapping.kt:325-341`). When an event has no DTEND and its DURATION cannot be read, `read` throws `IllegalArgumentException`, so the VEVENT is skipped (`:185-192`). `readOrNull` and the adapter's `answer()` also catch `ArithmeticException` (`CalDavEventMapping.kt:92`, `CalDavCalendarAdapter.kt:506`). TRIGGER conversion uses `Math.toIntExact`/`negateExact` and returns null on overflow (`:373-378`). The test at `CalDavEventMappingTests.kt:404` covers timed events, all-day events and alarms.
-- **Earlier CR-3 (403 documentation and discovery message, P3): resolved.** The `CalDavClient` class doc now matches `send` (`CalDavClient.kt:20-25`). `send` deliberately still returns 403, because the sync-collection REPORT uses 403 for an invalid token (RFC 6578) and the adapter falls back to a full listing on it. Discovery and the depth-0 PROPFIND helper now report "denied access (HTTP 403)" (`CalDavCalendarAdapter.kt:63-73`, `:130`). A bare host whose root answers 403 is still tried at `/.well-known/caldav`. The tests at `CalDavCalendarAdapterTests.kt:150` and `:167` cover this and assert that the message does not contain the password.
+- `git diff --stat ccc57dee..95486262` lists only `reviews/cal-caldav/{review,tests}.md`, `CalDavCalendarAdapterTests.kt`, `CalDavClientTests.kt` and `CalDavEventMappingTests.kt`.
+- `git diff 48428868 95486262` for `server/src/main/kotlin/ch/sonensei/cockpit/calendar`, `calendar/sync` tests, `core` tests and `docs/ARCHITECTURE.md` is empty. 48428868 is the revision of my previous review, before the rebase. The only production differences to it are unrelated main commits (`gtd/convert`) that the rebase brought in.
+- My earlier findings and verifications still apply to the unchanged code: F1-F4, PRE-1, PRE-2, the origin check on redirects, the XXE-hardened parser, and messages without the password or response body.
 
-## What I checked in the fixes and found correct (no finding)
+## Status of the earlier finding
 
-- **F1 (nominal DURATION days).** `IcsDuration(days, time)`: days are added with `plusDays` in the event's zone, then the exact time is added (`CalDavEventMapping.kt:219-227`). All-day events use `days + time.toDays()`. When DTEND is present, DURATION is ignored, as before.
-- **F2 (VTIMEZONE wall-clock days).**
-  - The shift between the rule date (`ruleDate`, which mirrors `ZoneOffsetTransitionRule.createTransition`) and the wall-clock `dateTimeBefore` is the same every year, because it depends only on fixed offsets and the 24:00 flag.
-  - `window`/`monthDay` map the shifted days into the correct neighbouring month: negative BYMONTHDAY in the previous month, positive in the next. They fall back to RDATE only when the source month has a variable length (February).
-  - Each observance's DTSTART is an actual transition in its month. Over 1970-2100 every day of a 7-day weekday window occurs, so the lookup `onsets.first { it.month == month }` finds a match.
-- **F4 control flow.** The captured `forbidden` flag reports 403 only when neither probe returns a multistatus. Other statuses still give "No CalDAV service found".
-- **PRE-1 fix (`calendar/sync/FakeCalendarAdapter.kt`).**
-  - A static `BeanDefinitionRegistryPostProcessor` removes the `calendarProviderRegistry` definition. That is the default bean name of the `@Component CalendarProviderRegistry`.
-  - Without it, the application registry would receive both the real `CalDavCalendarAdapter` and the CALDAV fake and refuse the duplicate. The `@Primary` fake-only registry then is the only registry.
-  - The change applies only to the three sync test classes that import `FakeCalendarAdapterConfiguration`. If the bean name changes, the tests fail loudly with the duplicate error rather than passing silently.
-  - This is outside the task's `touches`, but it is required by the new `@Component`. It is recorded as assumption #5.
-- **PRE-2 fix (`ClockConfigurationTests`).** `Clock.tick(systemUTC, 1µs)` rounds down to the microsecond. So `Instant.now().truncatedTo(MICROS) <= clock.instant() <= Instant.now()` always holds, and the assertion is not weakened.
-- **Security in the changed code.** The new 403 messages contain only the operation and the status: no password, no response body. The origin check for redirects, the Basic auth scope and the XXE-hardened parser are unchanged.
-- **Docs.** The `docs/ARCHITECTURE.md` note on the Radicale image matches `CalDavRadicaleSyncTests`.
+- **Earlier CR-1 (no Radicale evidence on the final code, P2): resolved.** `server/build/test-results/integrationTest/TEST-...CalDavRadicaleSyncTests.xml` has 10 tests, 0 failures, 0 errors, timestamp 2026-10-21T14:39:37Z. That run came after the fix commit, and the production code it ran is identical to HEAD. tests.md also records `./gradlew check jacocoTestReport` (3408 tests, 0 failures) and `sh scripts/check.sh` (exit 0) on the current production code. `python tasks.py verify cal-caldav` still shows both criteria unticked: the parent has to record this evidence before `done`.
+
+## New tests reviewed (no finding)
+
+The latest unit result files (14:53-14:54Z) show 0 failures: `CalDavCalendarAdapterTests` 44, `CalDavClientTests` 15, `CalDavEventMappingTests` 42, `ICalendarTests` 15.
+
+**CalDavClientTests**
+- The origin tests cover default ports, host case, a suffix-host trick, protocol-relative hrefs, `mailto:` and malformed hrefs. They test actual origin rules, not implementation details.
+- The off-origin `send` test checks that WireMock received no request at all. This is the meaningful assertion for the password not leaking.
+- The redirect-hop arithmetic is right. From `hop0`, six redirects exhaust `MAX_REDIRECTS + 1` iterations and the request fails. From `hop1`, five redirects are followed and the sixth answer is the 200.
+- The interrupt test is deterministic and does not depend on timing. The interrupt flag is set before `HttpClient.send`, whose `CompletableFuture.get` throws immediately. The flag is cleared in `finally`. The 5-second WireMock delay only holds a server thread and cannot make other tests fail.
+- The XML tests add an internal-entity DOCTYPE case to the adapter's external-entity case. `<html>...</html` is deliberately malformed, so it hits the invalid-XML path. The well-formed non-multistatus case is covered separately.
+
+**CalDavCalendarAdapterTests**
+- 403 during sync: the test checks the message and its redaction. It also checks that no listing PROPFIND or REPORT follows. This guards against reporting events as deleted after a refusal.
+- 503 on sync-collection: the test checks that no fallback listing happens.
+- The 100-round truncation guard asserts exactly 100 REPORTs.
+- Off-host and malformed member hrefs are dropped from both the multiget and the cursor.
+- Out-of-range and unreadable DURATION values in a server answer lead to `CalendarProviderException`, not a crash.
+- A resource that holds only overrides is a conflict, and nothing is PUT.
+- The calendar-query fallback for 410, non-iCalendar and other-UID answers asserts the conditional PUT on the server-named resource 3 times.
+- In the read-back test for removing an occurrence, the stubbed etag equals the old one. The assertion `verify(2, GET)` is still what distinguishes a real read-back from echoing the If-Match value, so the test is not hollow.
+- All passwords, hosts and event data are fictitious.
+
+**CalDavEventMappingTests**
+- The DST DURATION test asserts the RFC 5545 semantics in the expected values: nominal days in wall time, then exact hours, and a week counted as 7 nominal days. P1D and PT24H across 29 March 2026 give different ends.
+- The two new VTIMEZONE tests use fictitious `ZoneRules`: a 24:00 transition that rolls into November, and a UTC-defined transition that falls on the day before in the previous month. They check the exact RRULEs and also expand them with ical4j for 1971-2100 against `ZoneOffsetTransitionRule.createTransition`. That is an independent oracle, not a re-implementation of the production arithmetic.
+- The February "from the end" case confirms the RDATE fallback (no RRULE).
 
 ## P0 Critical
 
@@ -54,17 +69,23 @@ None.
 
 ## P2 Medium
 
-- [ ] **CR-1 | The Radicale integration suite was last run before the fix commit, so there is no evidence for criterion #2 on the final code yet**
-    - File: `server/src/test/kotlin/ch/sonensei/cockpit/calendar/infra/caldav/CalDavRadicaleSyncTests.kt:55`
-    - Category: Tests
-    - Problem: The only integration result is `server/build/test-results/integrationTest/TEST-...CalDavRadicaleSyncTests.xml`, timestamp 2026-10-21T13:23:25Z (9 tests, 0 failures). Commit 9716d7ae came later, at 16:04+02:00 (14:04Z). It changed code that this suite runs: discovery (`listCalendars` probe/403 handling), DURATION parsing, and VTIMEZONE generation, which is written on every cockpit-created timed event. `fixes.md` states that the integration tests were not re-run. `tasks.py verify cal-caldav` shows both criteria still unticked. I also found no result files for the full server `test` run at HEAD: `test-results/test` holds only the caldav unit suites. So the PRE-1/PRE-2 fixes have not been confirmed by a recorded run either.
-    - Why it matters: Criterion #2 names `./gradlew integrationTest --tests '*CalDav*'`. Evidence from an earlier revision does not show that the final code still creates, syncs and detects conflicts against a real Radicale server. In particular, the changed VTIMEZONE output is now parsed by the server.
-    - Suggested fix: Before `verify cal-caldav 2`, re-run `cd server && ./gradlew integrationTest --tests '*CalDav*'` on 48428868 (or later) and record the command and the result. Run `.taskcheck` (`sh scripts/check.sh`) to confirm that `CalendarSyncTests`, `CalendarSyncOverrideTests`, `CalendarSyncEdgeCaseTests` and `ClockConfigurationTests` pass with the PRE-1/PRE-2 fixes.
+None.
 
 ## P3 Low
 
-None.
+- [ ] **CR-1 | A 303 redirect repeats the original method, body and conditional headers instead of switching to GET**
+    - File: `server/src/main/kotlin/ch/sonensei/cockpit/calendar/infra/caldav/CalDavClient.kt:107-113` (with `REDIRECTS` at `:155`)
+    - Category: Correctness
+    - Problem: `send` handles 303 like 307/308: it re-sends `method`, `body` and the caller's headers (`If-Match`, `If-None-Match`, `Depth`) to the Location. RFC 9110 §15.4.4 defines 303 as "the request was handled, the result is at another URI, retrieve it with GET". Suppose a same-origin server answers a PUT or DELETE with 303. The client then repeats the write at a different URI, possibly creating a second resource or deleting another one. No test covers 303: the redirect test lists 301, 302, 307 and 308 only.
+    - Why it matters: The impact is small. Redirects stay on the source's origin, and CalDAV servers do not normally answer writes with 303. Still, repeating a write the server has already processed is the wrong default for a client whose writes are conditional and must not be duplicated.
+    - Suggested fix: Do one of the following, and add a 303 case to `CalDavClientTests`:
+        - follow 303 only as a GET without body or conditional headers;
+        - for methods other than GET, return the 303 to the caller, so the adapter reports "failed at the CalDAV server (HTTP 303)".
+
+## Notes (no finding)
+
+- `reviews/cal-caldav/tests.md` names the pre-rebase hashes (base `ec3d6bd9`, HEAD `eab0717f`). The test code it measured is patch-identical to the committed tests: its new test names and counts match HEAD and the latest result files. Under the patch-id freshness rule in `docs/QUALITY.md` this does not need a re-run. The parent must set `reviewed_revision` in `quality.json` to 95486262c9cf08048932d7a1df2e2a7ffd926c6b.
 
 ## Review conclusion
 
-No material issues found in the code. All three earlier findings are resolved, and the fixes (F1-F4, PRE-1, PRE-2) are correct as far as I can verify by reading the code and the committed tests. The only open item, CR-1 (P2), is about evidence, not code: before criterion #2 is ticked, the Radicale suite and `.taskcheck` must be re-run on the final revision.
+No material issues found. Production code is unchanged since my previous review, the earlier evidence finding is resolved, and the new tests are meaningful and deterministic. The only finding, CR-1 (P3), is optional hardening of the 303 handling and does not block completion. The parent still has to record the evidence for both acceptance criteria with `tasks.py verify` before `done`.

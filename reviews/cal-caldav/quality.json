@@ -1,0 +1,37 @@
+{
+  "schema": 1,
+  "task": "cal-caldav",
+  "reviewed_revision": "95486262c9cf08048932d7a1df2e2a7ffd926c6b",
+  "helpers": {
+    "test-writer":   {"status": "completed", "report": "reviews/cal-caldav/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/cal-caldav/review.md"},
+    "fixer":         {"status": "completed", "report": "reviews/cal-caldav/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "F1", "source": "test-writer", "severity": "Medium", "disposition": "fixed",
+     "note": "DURATION days are nominal (plusDays in the event zone), not 24h"},
+    {"id": "F2", "source": "test-writer", "severity": "Medium", "disposition": "fixed",
+     "note": "generated VTIMEZONE RRULEs now match the wall-clock transition day"},
+    {"id": "F3 (earlier CR-2)", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "out-of-range DURATION/TRIGGER no longer throws ArithmeticException and blocks sync"},
+    {"id": "F4 (earlier CR-3)", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "403 documented correctly; discovery reports 'denied access (HTTP 403)'"},
+    {"id": "earlier CR-1 (first review)", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "unit tests for security controls, parser and fallback paths added (116 caldav unit tests)"},
+    {"id": "earlier CR-1 (second review)", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "Radicale suite re-run on the final production code: 10/10 passed"},
+    {"id": "PRE-1", "source": "fixer", "severity": "High", "disposition": "fixed",
+     "note": "calendar sync test contexts drop the application CalendarProviderRegistry bean (commit ccc57dee)"},
+    {"id": "PRE-2", "source": "fixer", "severity": "Low", "disposition": "fixed",
+     "note": "ClockConfigurationTests compares against a microsecond-truncated lower bound (commit ccc57dee)"},
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P3", "disposition": "accepted",
+     "note": "303 redirect re-sends original method/body; same-origin only, CalDAV servers do not answer writes with 303; recorded as assumption"}
+  ],
+  "validation": [
+    {"command": "cd server && ./gradlew test --tests '*caldav*'", "result": "pass"},
+    {"command": "cd server && ./gradlew integrationTest --tests '*CalDav*' --rerun", "result": "pass"},
+    {"command": "cd server && ./gradlew check jacocoTestReport", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
