@@ -5,7 +5,7 @@ owner: dell26/agent-1
 deps: [and-cal-agenda]
 touches: [android/app/src/main/java/ch/sonensei/cockpit/calendar/edit,android/app/src/test/java/ch/sonensei/cockpit/calendar/edit]
 prio: 2
-lease_until: 2026-10-21T15:56:09Z
+lease_until: 2026-10-21T16:01:11Z
 ---
 ## Goal
 Create and edit events on the phone.
