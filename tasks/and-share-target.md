@@ -1,11 +1,11 @@
 ---
 title: Android share target
-status: todo
-owner: 
+status: in_progress
+owner: dell26/agent-2
 deps: [and-capture-queue]
 touches: [android/app/src/main/java/ch/sonensei/cockpit/capture/share,android/app/src/test/java/ch/sonensei/cockpit/capture/share,android/app/src/main/AndroidManifest.xml]
 prio: 1
-lease_until: 
+lease_until: 2026-10-21T02:59:10Z
 releases: 1
 extended: 
 ---
