@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "task": "web-settings-backup",
-  "reviewed_revision": "36f90acd4d6476669ef9745405096d63714677d6",
+  "reviewed_revision": "89f16584572457c98b717395877e20994a23db45",
   "helpers": {
     "test-writer": {"status": "completed", "report": "reviews/web-settings-backup/tests.md"},
     "code-reviewer": {"status": "completed", "report": "reviews/web-settings-backup/review.md"},
