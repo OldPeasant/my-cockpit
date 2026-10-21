@@ -1,10 +1,11 @@
 ---
 title: Mail reading view
-status: todo
-owner:
+status: in_progress
+owner: dell26/agent-2
 deps: [web-mail-list,web-links-panel,mail-gtd]
 touches: [web/src/app/features/mail/read]
 prio: 1
+lease_until: 2026-10-21T15:39:30Z
 ---
 ## Goal
 Read mail safely (SPEC.md §7.3).
