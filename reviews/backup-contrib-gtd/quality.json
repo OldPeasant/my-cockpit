@@ -1,0 +1,29 @@
+{
+  "schema": 1,
+  "task": "backup-contrib-gtd",
+  "reviewed_revision": "419f12fee9d91f7e07b6b3f4873317d8e634986d",
+  "helpers": {
+    "test-writer": {"status": "completed", "report": "reviews/backup-contrib-gtd/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/backup-contrib-gtd/review.md"},
+    "fixer": {"status": "completed", "report": "reviews/backup-contrib-gtd/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "TW-1", "source": "test-writer", "severity": "High", "disposition": "fixed",
+     "note": "title cut inside an emoji broke the ZIP entry name; now cut by code points (fixes.md)"},
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "readable mirror tests added by test-writer; confirmed resolved in re-review"},
+    {"id": "CR-2", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "Windows-invalid characters replaced, trailing dots/spaces trimmed (fixes.md)"},
+    {"id": "CR-3", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "waiting.md ordered by waitingSince, nulls last (fixes.md)"},
+    {"id": "R2-CR-1", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "re-review CR-1: java.lang.Integer class literal replaced by Number cast (commit 0fcb5d80); confirmed resolved in final review.md"}
+  ],
+  "validation": [
+    {"command": "cd server && ./gradlew test --rerun --tests '*GtdBackupContributorTests'", "result": "pass (21 tests)"},
+    {"command": "cd server && ./gradlew test --rerun --tests '*BackupRoundTripTest'", "result": "pass (1 test)"},
+    {"command": "cd server && ./gradlew test --tests '*GtdBackupContributorTests' --tests '*BackupRoundTripTest' jacocoTestReport ktlintCheck", "result": "pass, task-scoped coverage 100% lines, 98.1% branches"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
