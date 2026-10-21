@@ -17,7 +17,8 @@ Compose, reply, forward (SPEC.md §7.3).
   - verified (2026-10-21 14:15+0200 by dell26/agent-4): cd server && ./gradlew test --rerun --tests 'ch.sonensei.cockpit.mail.compose.*' integrationTest --tests 'ch.sonensei.cockpit.mail.compose.*' -> 141 unit + 30 GreenMail tests pass (DraftControllerTests/DraftWebTests drafts CRUD, MailSenderTests XOAUTH2, DraftMimeTests HTML+plain alternative, DraftSendGreenMailTests send with upload/Files attachments, Sent append only for IMAP_SMTP)
 - [x] Reply/reply-all/forward helpers (quoting, References headers, attachments on forward); recent correspondents endpoint for autocomplete
   - verified (2026-10-21 14:15+0200 by dell26/agent-4): same run -> ReplyComposerTests (Subject/Body quoting/Threading References/Recipients, 30 pass), DraftComposeGreenMailTests reply/reply-all/forward with forwarded attachments, CorrespondentServiceTests 11 + DraftControllerTests$Correspondents 3 pass
-- [ ] `external` GreenMail tests: sent message received with attachment, appended to Sent, draft replaced on update
+- [x] `external` GreenMail tests: sent message received with attachment, appended to Sent, draft replaced on update
+  - verified (2026-10-21 14:15+0200 by dell26/agent-4): cd server && ./gradlew integrationTest --rerun --tests 'ch.sonensei.cockpit.mail.compose.*' (GreenMail, @ExternalTest) -> DraftSendGreenMailTests 15/15 + DraftComposeGreenMailTests 15/15 pass: sent message received with attachment, appended to Sent, draft replaced on update
 - [ ] API documented: `api/openapi.yaml` regenerated (`UPDATE_OPENAPI=1 ./gradlew test --tests '*OpenApiContractTest'`) and `OpenApiContractTest` passes without the flag
 
 ## Notes
