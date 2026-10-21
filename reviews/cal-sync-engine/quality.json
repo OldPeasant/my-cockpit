@@ -1,0 +1,27 @@
+{
+  "schema": 1,
+  "task": "cal-sync-engine",
+  "reviewed_revision": "b70efd142914c80b0b3ac3760fca1409389b68fc",
+  "helpers": {
+    "test-writer": {"status": "completed", "report": "reviews/cal-sync-engine/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/cal-sync-engine/review.md"},
+    "fixer": {"status": "completed", "report": "reviews/cal-sync-engine/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "R1-CR-1", "source": "code-reviewer", "severity": "P2", "disposition": "fixed", "note": "overrides on an earlier page than their series; merge over all pages, cursor cleared on orphaned incremental override"},
+    {"id": "R1-CR-2", "source": "code-reviewer", "severity": "P2", "disposition": "fixed", "note": "remote events normalized to the API invariants before storing"},
+    {"id": "R1-CR-3", "source": "code-reviewer", "severity": "P2", "disposition": "fixed", "note": "search re-indexed after write-through"},
+    {"id": "R1-CR-4", "source": "code-reviewer", "severity": "P3", "disposition": "accepted", "note": "a sync fetched before a write-through may briefly revert the edit; converges on the next poll (task assumption)"},
+    {"id": "R1-CR-5", "source": "code-reviewer", "severity": "P3", "disposition": "fixed", "note": "refetch uses tryLock instead of waiting for a whole sync run"},
+    {"id": "TW-1", "source": "test-writer", "severity": "High", "disposition": "fixed", "note": "invalid provider answer to a write-through returned 500; now 502 Problem Details"},
+    {"id": "R2-CR-1", "source": "code-reviewer", "severity": "P2", "disposition": "accepted", "note": "lossy write-back of normalized fields accepted by task assumption; documented by test 'a local edit of a normalized event writes the normalized fields back to the provider'"},
+    {"id": "R2-CR-2", "source": "code-reviewer", "severity": "P3", "disposition": "accepted", "note": "a refetch skipped while a sync runs converges with the next poll (task assumption); comment corrected"}
+  ],
+  "validation": [
+    {"command": "cd server && ./gradlew test --tests 'ch.sonensei.cockpit.calendar.sync.*'", "result": "pass"},
+    {"command": "cd server && ./gradlew test --tests 'ch.sonensei.cockpit.calendar.*'", "result": "pass"},
+    {"command": "cd server && ./gradlew test --tests '*OpenApiContractTest'", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
