@@ -2,7 +2,7 @@
 title: APK build in CI and download from the server
 status: todo
 owner:
-deps: [and-login,p0-ci,p0-deploy]
+deps: [and-login,p0-ci,p0-deploy,ci-split-check]
 touches: [.github,server/src/main/kotlin/ch/sonensei/cockpit/core/download,server/src/test/kotlin/ch/sonensei/cockpit/core/download]
 prio: 2
 ---
