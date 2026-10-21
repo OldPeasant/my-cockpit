@@ -257,6 +257,8 @@ export type { UpdateTask$Params as UpdateTask$Params } from './fn/tasks/update-t
 export { updateTask as updateTask } from './fn/tasks/update-task';
 export type { CompleteTask$Params as CompleteTask$Params } from './fn/tasks/complete-task';
 export { completeTask as completeTask } from './fn/tasks/complete-task';
+export type { ConvertTaskToEvent$Params as ConvertTaskToEvent$Params } from './fn/tasks/convert-task-to-event';
+export { convertTaskToEvent as convertTaskToEvent } from './fn/tasks/convert-task-to-event';
 export type { ConvertTaskToNote$Params as ConvertTaskToNote$Params } from './fn/tasks/convert-task-to-note';
 export { convertTaskToNote as convertTaskToNote } from './fn/tasks/convert-task-to-note';
 export type { MoveTask$Params as MoveTask$Params } from './fn/tasks/move-task';

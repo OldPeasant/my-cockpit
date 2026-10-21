@@ -33,6 +33,7 @@ export type { ContactResponse } from './models/contact-response';
 export type { ContextListResponse } from './models/context-list-response';
 export type { ContextPatchRequest } from './models/context-patch-request';
 export type { ContextResponse } from './models/context-response';
+export type { ConvertToEventRequest } from './models/convert-to-event-request';
 export type { CreateAreaRequest } from './models/create-area-request';
 export type { CreateCalendarRequest } from './models/create-calendar-request';
 export type { CreateChecklistItemRequest } from './models/create-checklist-item-request';
