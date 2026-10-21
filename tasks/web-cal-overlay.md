@@ -1,11 +1,11 @@
 ---
 title: Calendar task overlay and cross-links
-status: in_progress
+status: done
 owner: dell26/agent-3
 deps: [web-cal-edit,web-gtd-data,web-links-panel,notes-api]
 touches: [web/src/app/features/calendar/overlay,web/src/app/features/calendar/views]
 prio: 2
-lease_until: 2026-10-21T18:42:40Z
+lease_until: 
 releases: 1
 extended: 
 ---
@@ -27,3 +27,4 @@ Tasks in the calendar and linking events (SPEC.md §6.3).
 - ASSUMPTION (2026-10-21 19:05+0200 by dell26/agent-1): Added route /calendar/events/:id (calendar.routes.ts, outside touches): the server's EVENT deep link had no web route. It redirects to /calendar?event=id, which jumps to the event's date and opens it (a series as a whole, without scope prompt). matchesTask (gtd/data) learned from/to so optimistic TaskStore updates follow the server rule
 - ASSUMPTION (2026-10-21 19:34+0200 by dell26/agent-1): 'Create task from event' titles the Inbox task '<event> (<yyyy-MM-dd>)' like the note (SPEC §6.3 'pre-filled title + date'), without a due date: the event date is context, not a deadline the user chose (review CR-1)
 - release by dell26/agent-1: Implementation, tests, e2e and all 3 criteria verified; quality helpers done: review round 3 (reviews/web-cal-overlay/review.md) = 0 findings, tests.md + fixes.md committed (round-1 CR-1..CR-4 fixed). LEFT: (1) write reviews/web-cal-overlay/quality.json per docs/QUALITY.md: reviewed_revision = current hash of the test-writer commit (was 915e9caa before rebase; production code unchanged since round 2), findings CR-1..CR-4 fixed, fixer ran in round 1; commit it. (2) run sh scripts/check.sh in full: server+web passed on 2026-10-21, android part not finished within my 590s shell limit (no failure seen). (3) python tasks.py done web-cal-overlay. No re-review needed unless code changes.
+- done by dell26/agent-3: `sh scripts/check.sh` passed in 282s on 28855a9b7; criteria verified 3/3
