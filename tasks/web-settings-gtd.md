@@ -11,7 +11,8 @@ lease_until: 2026-10-21T02:19:03Z
 Manage contexts and areas (SPEC.md §5.1).
 
 ## Acceptance criteria
-- [ ] Create/rename/reorder/delete contexts (with color) and areas; delete asks what to do with assigned tasks/projects
+- [x] Create/rename/reorder/delete contexts (with color) and areas; delete asks what to do with assigned tasks/projects
+  - verified (2026-10-21 03:59+0200 by dell26/agent-3): cd web && npx ng test --watch=false --include='src/app/features/settings/**/*.spec.ts' -> 8 files, 170 passed; GtdSettings component specs drive the real /settings/gtd DOM against HttpTestingController (OpenAPI paths, If-Match): create/rename/color set+clear/reorder (buttons + drag)/delete for contexts and areas, delete dialog counts assigned tasks/projects and offers clear or move-to-another
 - [ ] Vitest component/service tests cover reorder and delete flows; `cd web && npm run check` passes
 
 ## Notes
