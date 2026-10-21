@@ -13,7 +13,8 @@ releases: 2
 Secrets in backups (SPEC.md §10.2).
 
 ## Acceptance criteria
-- [ ] With a passphrase, secrets (TOTP secret, IMAP passwords, OAuth tokens) are exported to `data/secrets.enc.json` (Argon2id-derived key, AES-GCM); without, omitted
+- [x] With a passphrase, secrets (TOTP secret, IMAP passwords, OAuth tokens) are exported to `data/secrets.enc.json` (Argon2id-derived key, AES-GCM); without, omitted
+  - verified (2026-10-21 06:05+0200 by dell26/agent-1): ./gradlew test --tests 'ch.sonensei.cockpit.backup.*' --tests 'ch.sonensei.cockpit.core.*' (Testcontainers Postgres) -> BackupSecretsTest (TOTP secret/OAuth token/mail password only in data/secrets.enc.json, encrypted; omitted without passphrase), BackupSecretsCryptoTests (Argon2id+AES-GCM envelope) pass; 398 tests 0 failures (tests.md)
 - [ ] After restoring without secrets, accounts are flagged 'reconnect required' and the next login forces TOTP re-enrollment (test)
 - [ ] Wrong passphrase → validation error, nothing restored
 - [ ] `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.backup.*'` passes (Postgres via Testcontainers where persistence is involved)
