@@ -6,6 +6,7 @@ deps: [p0-web-shell,mail-actions-api,p0-web-sse,p0-e2e-harness]
 touches: [web/src/app/features/mail/list]
 prio: 1
 lease_until: 2026-10-21T05:49:14Z
+extended: dell26/agent-2
 ---
 ## Goal
 Unified inbox and folders (SPEC.md §7.3).
@@ -22,3 +23,4 @@ Unified inbox and folders (SPEC.md §7.3).
 - ASSUMPTION (2026-10-21 06:35+0200 by dell26/agent-2): Clicking a list row only moves the keyboard cursor; opening a message is left to web-mail-read (no read route exists yet). r/a/f/c shortcuts belong to the read/compose tasks
 - ASSUMPTION (2026-10-21 06:35+0200 by dell26/agent-2): Extra Gmail keys beyond the spec list: x select, Shift+I mark read, s star toggle, ! spam, Esc clear selection. In the conversations view an action applies to all messages of the conversation in the shown folder (via GET /messages/{id}/thread)
 - ASSUMPTION (2026-10-21 06:35+0200 by dell26/agent-2): Live update refetches the loaded part of the list (up to 200 items) on MAIL_FOLDER events for the shown folder (any folder for the unified inbox), MAIL_ACCOUNT events and SSE reconnects; refetches wait while an optimistic action runs. Routes: /mail (unified) and /mail/folders/:folderId
+- extended by dell26/agent-2: Implementation, Vitest specs, e2e spec + GreenMail stack are committed; 2nd code review: 0 P0-P2, 3 P3 (fix or disposition them). Left: run test-writer on final code (reviews/web-mail-list/tests.md is missing, incl. coverage), re-review if code changes, run npm run check and the e2e spec npm run e2e -- e2e/mail-list/list.spec.ts, record verify 1-4, write quality.json, done. Note: scripts/check.sh hit a 600s timeout in server tests this session (machine load?), needs a re-run.
