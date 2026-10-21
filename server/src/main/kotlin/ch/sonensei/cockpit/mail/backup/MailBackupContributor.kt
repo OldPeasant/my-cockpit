@@ -106,6 +106,9 @@ class MailBackupContributor(
 					"The backup has no mail passwords: the passwords of $imap must be entered again"
 				}
 		}
+		if (reader.has(MESSAGE_REFS)) {
+			warnings += "Links and reminders to emails older than the sync window come back only once those emails are loaded again"
+		}
 		return warnings
 	}
 
