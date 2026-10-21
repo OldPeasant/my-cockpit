@@ -5,7 +5,7 @@ owner: dell26/agent-5
 deps: [mail-read-api]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/mail/api,server/src/test/kotlin/ch/sonensei/cockpit/mail/api]
 prio: 1
-lease_until: 2026-10-21T03:18:00Z
+lease_until: 2026-10-21T03:22:34Z
 releases: 2
 extended: 
 ---
