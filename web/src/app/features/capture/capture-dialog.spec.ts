@@ -586,3 +586,43 @@ describe('CaptureDialog', () => {
     expect(close).toHaveBeenCalledWith();
   });
 });
+
+// The dialog injects MatDialogRef optionally: rendered outside a MatDialog it must still save.
+describe('CaptureDialog outside a MatDialog', () => {
+  let fixture: ComponentFixture<CaptureDialog>;
+  let http: HttpTestingController;
+  let notifications: { info: ReturnType<typeof vi.fn>; error: ReturnType<typeof vi.fn> };
+
+  beforeEach(() => {
+    notifications = { info: vi.fn(), error: vi.fn() };
+    TestBed.configureTestingModule({
+      providers: [
+        provideHttp(),
+        provideHttpClientTesting(),
+        { provide: NotificationService, useValue: notifications },
+      ],
+    });
+    http = TestBed.inject(HttpTestingController);
+    fixture = TestBed.createComponent(CaptureDialog);
+    fixture.detectChanges();
+  });
+
+  afterEach(() => http.verify());
+
+  it('saves on Enter and Cancel does not throw without a dialog ref', async () => {
+    const el = fixture.nativeElement as HTMLElement;
+    const text = el.querySelector<HTMLInputElement>('#capture-text')!;
+    text.value = 'Water the plants';
+    text.dispatchEvent(new Event('input'));
+    fixture.detectChanges();
+
+    const saved = fixture.componentInstance.submit();
+    http
+      .expectOne((r) => r.method === 'POST' && r.url === '/api/v1/capture')
+      .flush(task('Water the plants'));
+    await expect(saved).resolves.toBe(true);
+    expect(notifications.info).toHaveBeenCalledWith('Captured to Inbox: Water the plants');
+
+    expect(() => el.querySelector<HTMLButtonElement>('button.quiet')!.click()).not.toThrow();
+  });
+});

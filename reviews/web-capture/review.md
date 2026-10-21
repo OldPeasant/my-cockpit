@@ -4,23 +4,22 @@ Date: 2026-10-21
 
 Task: web-capture - Quick capture dialog
 
-Scope: committed changes of task web-capture, `git diff f7d1544d..HEAD` (the code commits named by the parent, ee979a48 and a6dc826b, are now 4134689b and 785dd09d after a rebase). The uncommitted change to `web/src/app/features/capture/capture-dialog.spec.ts` in the working tree is not reviewed. The Playwright suite was not run, because the parent is running it.
+Scope: the final committed code of task web-capture, `git diff 814f9162..b8e3f934`: commits 368b8e94 (dialog), ef8659ac (e2e spec), b009c1e7 (more tests, first review) and b8e3f934 (fix for the earlier CR-1, a stale preview). The reviewer could not run shell commands in this session, so the parent supplied the range and the files were read directly: everything under `web/src/app/features/capture/` (dialog ts/html/scss, `capture.service.ts`, `capture.providers.ts`, `uuidv7.ts`, `capture-dialog.spec.ts`) and `web/e2e/capture/capture.spec.ts`. A test-writer may be editing spec files in the working tree at the same time, so the spec content reviewed here may contain uncommitted additions. The production files are taken to match b8e3f934. Playwright was not run, because the parent runs it.
 
 Requirements:
 - tasks/web-capture.md acceptance criteria and its recorded assumptions
-- SPEC.md section 4.5 (quick capture)
-- docs/ARCHITECTURE.md (web conventions, i18n, theme tokens, testing)
-- AGENTS.md project notes
-- web/src/app/features/README.md (CAPTURE_DIALOG contract), shell/shell-tokens.ts, shell/shell.ts
-- Generated API models (`CaptureRequest.id` is the client UUIDv7 for an idempotent capture)
+- SPEC.md section 4.5 (quick capture), as referenced by the task
+- docs/ARCHITECTURE.md and AGENTS.md project notes (feature folders, i18n, theme tokens, generated API client, error handling)
+- web/src/app/features/README.md and web/src/app/shell/shell-tokens.ts (the `CAPTURE_DIALOG` contract)
+- reviews/web-capture/fixes.md (the fix for the earlier CR-1 and CR-2)
 
 Git range:
 - Branch: main
-- HEAD: 785dd09deb68b254003fef0c76b9ba59029c760f
-- Base/start: f7d1544daa95970efbc3d5b14f45243c1ad0ad67
-- Commits reviewed: 6 (2 code commits: 4134689b dialog, 785dd09d e2e spec; 4 `assume:` commits that only touch tasks/web-capture.md)
+- HEAD: b8e3f934
+- Base/start: 814f916218670ae23183382e41c9241a72dd706a
+- Commits reviewed: 4
 
-Summary: 0 P0, 0 P1, 0 P2, 2 P3
+Summary: 0 P0, 0 P1, 0 P2, 1 P3
 
 ## P0 Critical
 
@@ -36,26 +35,20 @@ None.
 
 ## P3 Low
 
-- [ ] **CR-1 | Preview shows the previous capture's result while a new text is typed**
-    - File: `web/src/app/features/capture/capture-dialog.ts:56` (pipeline) and `web/src/app/features/capture/capture-dialog.html:35` (rendering)
+- [ ] **CR-1 | Shift+Enter wipes text typed while the save is still running**
+    - File: `web/src/app/features/capture/capture-dialog.ts:149-152` (with the text input in `capture-dialog.html:18-32`, which stays editable while `saving()` is true)
     - Category: Correctness
-    - Problem: `preview` keeps the last server response until the next debounced request comes back, and the template shows it whenever `text().trim()` is non-empty. After Shift+Enter, `text` is set to `''`, but if the user starts typing the next capture within `PREVIEW_DEBOUNCE_MS`, the empty value never gets past `debounceTime`. The parsed title and tokens of the capture that was just saved stay on screen next to the new text until the new preview arrives (at least 250 ms plus the round trip). The same lag shows tokens the user has already deleted while editing, for example a removed `#project`.
-    - Why it matters: the criterion asks for a live syntax preview. For a moment the preview shows a reading that does not match the current text, which is most confusing in the "save and add another" flow.
-    - Suggested fix: tie the preview to the text it was computed for. One way is to emit `{ text, response }` and render only when `response.text === text().trim()`, showing the hint or a pending state otherwise. Another is to reset the preview to `null` as soon as the text changes, for example with `startWith(null)` inside the `switchMap`, or a separate signal cleared in the input handler.
-
-- [ ] **CR-2 | No test covers an out-of-order preview response**
-    - File: `web/src/app/features/capture/capture-dialog.spec.ts` (committed version, `describe('preview')`)
-    - Category: Tests
-    - Problem: the preview tests only show that debouncing collapses quick typing into one request. No test starts a preview request, changes the text so a second request starts, and then answers the first, older request last. The implementation is correct today, because `switchMap` drops the older inner observable. But nothing guards that ordering, and a change to `mergeMap` or a manual subscription would not be caught.
-    - Why it matters: the project review checklist treats stale async results overwriting newer ones as regression-prone, and the GTD stores in this codebase have explicit tests for it.
-    - Suggested fix: add a spec that types A, waits past the debounce, types B, waits past the debounce, flushes B and then A, and asserts that the preview shows B's title.
+    - Problem: `submit(true)` reads `text()` and `notes()` before the `await`. When the save resolves, it calls `this.text.set('')`, `this.notes.set('')` and `this.files.set([])` without checking for changes. The input is not disabled or read-only during the save. If the user presses Shift+Enter and starts typing the next capture before the server answers (the "save and add another" flow invites exactly this), those characters, and any notes or files added in the meantime, are discarded silently when the response arrives.
+    - Why it matters: the dialog loses user input in the rapid-capture flow that the Shift+Enter criterion exists for. The window lasts one save round trip, so it is small on a LAN and grows on slow or mobile connections.
+    - Suggested fix: on success, clear a field only if it still holds the value that was submitted. For example, compare `this.text().trim() === text` and `this.notes().trim() === notes` before resetting, and only remove the file names that existed at submit time. Another option is to make the fields read-only while `saving()` is true. Add a Vitest case: Shift+Enter, type into the field, flush the save, and assert that the new text survives.
 
 Checked and found in order:
-- Criterion 1: debounced, silent `capture/preview`; optional notes (empty notes left out); the paste/drop placeholder never sends files; Enter saves and closes; Shift+Enter saves, clears and refocuses; IME composition is respected; Ctrl/Cmd+Enter in notes is a recorded assumption.
-- Criterion 2: the RFC 9562 layout in `uuidv7.ts` is correct (48-bit ms, version 7, variant 10, `crypto.getRandomValues`). The draft id is kept across a failed save and replaced only after success. The `saving` guard blocks a double submit.
-- Criterion 3: Vitest covers preview, save, double submit, retry with the same id and the placeholder. `npm run check` was not run in this review.
-- Architecture: the dialog stays inside `features/capture`, lazy loaded via `CAPTURE_DIALOG`, and uses the generated client through `CaptureService`. Strings are i18n-tagged, styles use theme tokens with no hard-coded colors, and save errors are reported once by the global `problemInterceptor`.
-- Security: no unsafe HTML binding, file contents are never read or sent, and nothing sensitive is logged.
+- Criterion 1: the preview is debounced (250 ms), trimmed, deduplicated and silent (`SILENT_ERRORS`). `switchMap` drops older requests. The CR-1 fix from the earlier review is correct: `previewResult` carries the text it was computed for, and the `preview` computed shows a reading only when that text equals `text().trim()`. A stale, failed, or cleared preview therefore falls back to the syntax hint. Returning to an earlier text inside the debounce window correctly shows that text's reading again. Notes are optional, and empty or whitespace-only notes are left out. The paste/drop placeholder lists file names, never reads file contents, and never sends `fileIds`. Enter saves and closes with the task. Shift+Enter saves, clears the fields, refocuses and counts. IME composition is respected. Ctrl/Cmd+Enter in the notes field is a recorded assumption.
+- Criterion 2: `uuidv7.ts` follows RFC 9562 (48-bit big-endian milliseconds, version nibble 7, variant bits 10, `crypto.getRandomValues`). The draft id is kept after a failed save, replaced only after a success, and the `saving` guard blocks a double submit (by key, button or a direct `submit()` call).
+- Criterion 3: Vitest covers the preview (debounce, rendering, failure, out-of-order and failing older responses, a stale reading after an edit and after Shift+Enter), save (Enter, Shift+Enter, button, blank text, double submit, retry with the same id, interceptor-reported errors), the attachment placeholder, and the dialog without a `MatDialogRef`. `npm run check` was not re-run in this review. fixes.md records it as passing on the fixed code.
+- Criterion 4: `web/e2e/capture/capture.spec.ts` opens the dialog with `Q`, saves two captures with Shift+Enter and one with Enter, checks the live preview, and asserts that the inbox list and the API each hold exactly one item per capture. The criterion's evidence must come from the parent's Playwright run against the e2e stack.
+- Architecture and integration: the code stays inside `features/capture`. `CAPTURE_DIALOG` is provided by `provideCapture()` and the dialog is lazily imported. Calls go through the generated client in `CaptureService`. Strings are i18n-tagged, and styles use only theme tokens. Save errors are reported once by the global interceptor.
+- Security: no unsafe HTML binding, no file contents read or sent, and nothing sensitive logged.
 
 ## Review conclusion
 
