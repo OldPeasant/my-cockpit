@@ -7,7 +7,7 @@ touches: [server/src/main/kotlin/ch/sonensei/cockpit/notes/backup,server/src/tes
 prio: 1
 lease_until: 2026-10-21T05:10:38Z
 releases: 0
-extended: 
+extended: dell26/agent-6
 ---
 ## Goal
 Notes in backups (SPEC.md §10.2).
@@ -22,3 +22,4 @@ Notes in backups (SPEC.md §10.2).
 - ASSUMPTION (2026-10-21 05:41+0200 by R1963MACOS/agent-1): To get the files/ paths of images without duplicating the clash rules, FilesBackupContributor got a public paths(fileIds) method (small change outside this task's touches, in files/backup).
 - release by R1963MACOS/agent-1: handed off by R1963MACOS/agent-1: You've hit your session limit · resets 6:20am (Europe/Zurich)
 - ASSUMPTION (2026-10-21 05:52+0200 by dell26/agent-6): The notes mirror reads the core link table directly (read-only, inside the backup's snapshot transaction) to list a note's links in its front matter, instead of a new bulk-read API in core: same pattern as the files paths() exception, keeps the change inside this task's touches.
+- extended by dell26/agent-6: Implementation, tests and code review (0 findings, CR-1/CR-2 resolved, fixes.md) are committed, HEAD d75b8db2. Left: test-writer on final code to write reviews/backup-contrib-notes/tests.md with coverage; tasks.py verify for both criteria (incl. ./gradlew test --tests '*BackupRoundTripTest'); quality.json; .taskcheck (server part passed, the full check took >10 min here); done.
