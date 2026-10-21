@@ -1,0 +1,28 @@
+{
+  "schema": 1,
+  "task": "and-capture-entrypoints",
+  "reviewed_revision": "f321300e2d8b25c85b102aa7b00bb5bcdfe23ed8",
+  "helpers": {
+    "test-writer": {"status": "completed", "report": "reviews/and-capture-entrypoints/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/and-capture-entrypoints/review.md"},
+    "fixer": {"status": "completed", "report": "reviews/and-capture-entrypoints/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "R1-CR-1", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "first round: widget updater queue collection unguarded; retryWhen with capped backoff (fixes.md CR-1)"},
+    {"id": "R1-CR-2", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "first round: CaptureActivity exported; now exported=false (fixes.md CR-2)"},
+    {"id": "R1-CR-3", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "first round: tile subtitle untested, KDoc overstated (fixes.md CR-3)"},
+    {"id": "R1-CR-4", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "first round: Glance testing library missing from ARCHITECTURE.md stack table (fixes.md CR-4)"},
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P3", "disposition": "accepted",
+     "note": "tile's one-shot queue.status.first() has no exception guard; it only fails when the local Room database is broken, in which case the whole app fails anyway. Not worth another fix/review round"}
+  ],
+  "validation": [
+    {"command": "cd android && ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.capture.entry.*'", "result": "pass"},
+    {"command": "cd android && ./gradlew ktlintCheck testDebugUnitTest --tests 'ch.sonensei.cockpit.capture.*' createDebugUnitTestCoverageReport", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
