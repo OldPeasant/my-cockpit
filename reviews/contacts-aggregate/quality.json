@@ -1,0 +1,29 @@
+{
+  "schema": 1,
+  "task": "contacts-aggregate",
+  "reviewed_revision": "25c7b0fee8131e77147fed585c274cc53238d9e5",
+  "helpers": {
+    "test-writer": {"status": "completed", "report": "reviews/contacts-aggregate/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/contacts-aggregate/review.md"},
+    "fixer": {"status": "completed", "report": "reviews/contacts-aggregate/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "prefix ranking now pages over all matching contacts (up to 1000), regression test added"},
+    {"id": "CR-2", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "tests added for Trash 404 and the 20-occurrence limit; other exclusions already covered"},
+    {"id": "CR-3", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "correspondents are linked to the contact owning their exact address"},
+    {"id": "PARENT-4", "source": "parent", "severity": "P3", "disposition": "fixed",
+     "note": "blank-query test sends q via param() instead of a pre-encoded URI"},
+    {"id": "CR-4", "source": "code-reviewer", "severity": "P3", "disposition": "accepted",
+     "note": "per-correspondent contact lookup (at most limit queries) is cheap for a single-user address book; a batch lookup would need contacts/domain, outside this task's touches; revisit in perf-tuning"},
+    {"id": "CR-5", "source": "code-reviewer", "severity": "P3", "disposition": "accepted",
+     "note": "early stop / scan cap of matchingContacts only affects how many pages are read, not the result; ordering across pages is tested; recorded as a coverage gap in tests.md"}
+  ],
+  "validation": [
+    {"command": "cd server && ./gradlew ktlintCheck test --tests 'ch.sonensei.cockpit.contacts.aggregate.*' --tests '*OpenApiContractTest' jacocoTestReport", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
