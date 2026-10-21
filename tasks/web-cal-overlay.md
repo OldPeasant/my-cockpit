@@ -5,7 +5,7 @@ owner: dell26/agent-1
 deps: [web-cal-edit,web-gtd-data,web-links-panel,notes-api]
 touches: [web/src/app/features/calendar/overlay,web/src/app/features/calendar/views]
 prio: 2
-lease_until: 2026-10-21T17:26:57Z
+lease_until: 2026-10-21T17:31:58Z
 ---
 ## Goal
 Tasks in the calendar and linking events (SPEC.md §6.3).
