@@ -57,9 +57,11 @@ class ReviewDataService(
 	/** Open Waiting For tasks, waiting longest first (those without a date last), then in list order. */
 	fun waitingFor(): List<Task> = allTasks(TaskList.WAITING).sortedWith(compareBy(nullsLast()) { it.waitingSince })
 
-	/** Active projects, stalled ones first, each group by title. */
-	fun projects(): List<ProjectView> =
-		allProjects(ProjectStatus.ACTIVE).sortedWith(compareBy({ !it.stalled }, { it.project.title }, { it.project.id }))
+	/**
+	 * Active projects, stalled ones first. Within each group they keep the order of the Projects view (by title in the
+	 * database collation, then id): the sort is stable and only moves the stalled ones to the front.
+	 */
+	fun projects(): List<ProjectView> = allProjects(ProjectStatus.ACTIVE).sortedBy { !it.stalled }
 
 	/** Someday/Maybe tasks in list order and SOMEDAY projects by title. */
 	fun someday(): SomedayItems = SomedayItems(allTasks(TaskList.SOMEDAY), allProjects(ProjectStatus.SOMEDAY))

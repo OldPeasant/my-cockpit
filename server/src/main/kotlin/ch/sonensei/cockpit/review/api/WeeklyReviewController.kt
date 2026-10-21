@@ -170,7 +170,11 @@ class WeeklyReviewController(
 		summary = "Step 6: stale next actions",
 		description = "Open Next actions not changed for more than `olderThanDays` days, least recently changed first.",
 	)
-	@ApiResponse(responseCode = "200", description = "The tasks")
+	@ApiResponse(
+		responseCode = "200",
+		description = "The tasks",
+		content = [Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = Schema(implementation = ReviewTaskListResponse::class))],
+	)
 	@ReviewBadRequestResponse
 	fun staleNextActions(
 		@Parameter(description = "Days without a change (1 to 3650)")

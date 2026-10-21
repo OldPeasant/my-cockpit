@@ -7025,9 +7025,6 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ReviewTaskListResponse"
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/ReviewTaskListResponse"
           description: The tasks
         "400":
           content:

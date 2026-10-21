@@ -470,6 +470,25 @@ class WeeklyReviewEdgeCaseTests(
 		stalled shouldContainExactly listOf(true, true, false)
 	}
 
+	@Test
+	fun `within the stalled and the other projects the order is the one of the Projects view`() {
+		// Stalled: no next step. Mixed case and an umlaut, where code-point order differs from most collations.
+		listOf("Zeta", "alpha", "Émile", "beta").forEach { project(it) }
+		listOf("omega", "Delta", "Ärger").forEach { title ->
+			val id = project(title)
+			val next = task("$title step", TaskList.NEXT, fields = TaskChanges(projectId = Change(id)))
+			projects.setNextStep(id, next) {}
+		}
+
+		val view = read(mockMvc.get("/api/v1/projects?status=ACTIVE").andExpect { status { isOk() } }).get("items").toList()
+		val stalledInView = view.filter { it.get("stalled").asBoolean() }.map { it.get("title").asString() }
+		val othersInView = view.filterNot { it.get("stalled").asBoolean() }.map { it.get("title").asString() }
+		stalledInView shouldHaveSize 4
+		othersInView shouldHaveSize 3
+
+		titles(step("projects")) shouldContainExactly stalledInView + othersInView
+	}
+
 	// --- calendar steps
 
 	@Test
