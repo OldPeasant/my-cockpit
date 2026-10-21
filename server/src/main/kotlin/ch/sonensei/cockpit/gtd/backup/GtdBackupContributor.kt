@@ -276,7 +276,7 @@ class GtdBackupContributor(
 				position = rs.getInt("position"),
 				energy = rs.getString("energy"),
 				creativity = rs.getString("creativity"),
-				timeEstimateMin = rs.getObject("time_estimate_min", Integer::class.java)?.toInt(),
+				timeEstimateMin = (rs.getObject("time_estimate_min") as Number?)?.toInt(),
 				contextIds = (rs.getArray("context_ids").array as Array<*>).map { it as UUID },
 				dueDate = rs.getObject("due_date", LocalDate::class.java),
 				dueTime = rs.getObject("due_time", LocalTime::class.java),
