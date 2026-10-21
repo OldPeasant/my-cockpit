@@ -5,7 +5,7 @@ owner: dell26/agent-1
 deps: [and-login,cal-local-api]
 touches: [android/app/src/main/java/ch/sonensei/cockpit/calendar/agenda,android/app/src/test/java/ch/sonensei/cockpit/calendar/agenda]
 prio: 2
-lease_until: 2026-10-21T13:59:21Z
+lease_until: 2026-10-21T14:05:32Z
 ---
 ## Goal
 Calendar on the phone (SPEC.md §9.2 item 4).
