@@ -60,6 +60,8 @@ interface RemindersEntryPoint {
     fun reminderNotifier(): ReminderNotifier
 
     fun reminderSync(): ReminderSync
+
+    fun reminderStore(): ReminderStore
 }
 
 internal fun remindersGraph(context: Context): RemindersEntryPoint =
