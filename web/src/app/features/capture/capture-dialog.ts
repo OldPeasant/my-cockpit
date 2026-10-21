@@ -2,6 +2,7 @@ import { DatePipe } from '@angular/common';
 import {
   ChangeDetectionStrategy,
   Component,
+  computed,
   ElementRef,
   inject,
   Injector,
@@ -18,6 +19,11 @@ import { uuidv7 } from './uuidv7';
 
 /** How long typing must pause before the syntax preview is requested. */
 export const PREVIEW_DEBOUNCE_MS = 250;
+
+interface PreviewResult {
+  readonly text: string;
+  readonly response: CapturePreviewResponse;
+}
 
 /**
  * The quick capture dialog (SPEC.md §4.5): one text field with a live preview of the capture syntax,
@@ -52,20 +58,32 @@ export class CaptureDialog {
   /** The id of the current draft; replaced only after a successful save. */
   private draftId = uuidv7();
 
-  /** The server's reading of the text, `null` while empty or when the preview failed. */
-  protected readonly preview = toSignal(
+  /** The last server reading together with the trimmed text it was computed for. */
+  private readonly previewResult = toSignal(
     toObservable(this.text).pipe(
       map((text) => text.trim()),
       debounceTime(PREVIEW_DEBOUNCE_MS),
       distinctUntilChanged(),
       switchMap((text) =>
         text
-          ? from(this.captures.preview(text)).pipe(catchError(() => of(null)))
+          ? from(this.captures.preview(text)).pipe(
+              map((response): PreviewResult => ({ text, response })),
+              catchError(() => of(null)),
+            )
           : of(null),
       ),
     ),
-    { initialValue: null as CapturePreviewResponse | null },
+    { initialValue: null as PreviewResult | null },
   );
+
+  /**
+   * The server's reading of the current text; `null` while empty, while the preview of the current
+   * text is pending or when it failed, so a reading of an older text is never shown.
+   */
+  protected readonly preview = computed(() => {
+    const result = this.previewResult();
+    return result && result.text === this.text().trim() ? result.response : null;
+  });
 
   protected onTextKeydown(event: KeyboardEvent): void {
     if (event.key !== 'Enter' || event.isComposing) return;

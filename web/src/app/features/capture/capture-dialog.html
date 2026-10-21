@@ -32,7 +32,7 @@
   />
 
   <div id="capture-preview" class="preview" aria-live="polite">
-    @if (text().trim() && preview(); as p) {
+    @if (preview(); as p) {
       <p class="preview-title">
         @if (p.title) {
           {{ p.title }}

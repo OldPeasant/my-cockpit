@@ -204,6 +204,61 @@ describe('CaptureDialog', () => {
       expect(el().querySelector('.hint')).not.toBeNull();
     });
 
+    it('hides the reading of an edited text until the preview of the new text arrives', async () => {
+      type('Buy milk #Groceries');
+      vi.advanceTimersByTime(PREVIEW_DEBOUNCE_MS);
+      http.expectOne('/api/v1/capture/preview').flush({
+        title: 'Buy milk',
+        list: 'INBOX',
+        project: { id: 'p1', title: 'Groceries' },
+        contexts: [],
+      });
+      await settle();
+      expect(el().querySelector('.token.project')?.textContent?.trim()).toBe('#Groceries');
+
+      type('Buy milk');
+      expect(el().querySelector('.preview-title')).toBeNull();
+      expect(el().querySelector('.token.project')).toBeNull();
+      expect(el().querySelector('.hint')).not.toBeNull();
+
+      vi.advanceTimersByTime(PREVIEW_DEBOUNCE_MS);
+      http
+        .expectOne('/api/v1/capture/preview')
+        .flush({ title: 'Buy milk', list: 'INBOX', contexts: [] });
+      await settle();
+      expect(el().querySelector('.preview-title')?.textContent?.trim()).toBe('Buy milk');
+      expect(el().querySelector('.token.project')).toBeNull();
+    });
+
+    it('does not show the saved capture reading next to the next text after Shift+Enter', async () => {
+      type('First #Holiday');
+      vi.advanceTimersByTime(PREVIEW_DEBOUNCE_MS);
+      http.expectOne('/api/v1/capture/preview').flush({
+        title: 'First',
+        list: 'INBOX',
+        project: { id: 'p1', title: 'Holiday' },
+        contexts: [],
+      });
+      await settle();
+      expect(el().querySelector('.preview-title')?.textContent?.trim()).toBe('First');
+
+      press('Enter', { shiftKey: true });
+      expectCapture().flush(task('First'));
+      await settle();
+      // The next capture starts within the debounce, so the empty text never reaches the server.
+      type('Second');
+      expect(el().querySelector('.preview-title')).toBeNull();
+      expect(el().querySelector('.token.project')).toBeNull();
+      expect(el().querySelector('.hint')).not.toBeNull();
+
+      vi.advanceTimersByTime(PREVIEW_DEBOUNCE_MS);
+      const next = http.expectOne('/api/v1/capture/preview');
+      expect(next.request.body).toEqual({ text: 'Second' });
+      next.flush({ title: 'Second', list: 'INBOX', contexts: [] });
+      await settle();
+      expect(el().querySelector('.preview-title')?.textContent?.trim()).toBe('Second');
+    });
+
     it('does not ask again when only surrounding spaces change', () => {
       type('Buy milk');
       vi.advanceTimersByTime(PREVIEW_DEBOUNCE_MS);
