@@ -17,7 +17,8 @@ Connect calendar sources (SPEC.md §6.1, §11).
   - verified (2026-10-21 21:24+0200 by dell26/agent-2): code review of final code (reviews/web-cal-sources/review.md) + cd web && npx ng test --watch=false --include 'src/app/features/settings/**/*.spec.ts' -> 13 files, 292 passed (local/CalDAV/ICS/Google/Microsoft OAuth redirect forms, color/visibility/default with If-Match); server ./gradlew test --tests 'ch.sonensei.cockpit.calendar.*' -> 850 passed incl. CalendarSourceCreateTests (20). Live Google/Microsoft consent and real CalDAV servers not exercised (no registered OAuth apps/servers)
 - [x] Integrations page: per source last sync, error, 'sync now'
   - verified (2026-10-21 21:24+0200 by dell26/agent-2): integrations-settings.spec.ts in the settings spec run -> pass (last sync, last attempt, error, Sync now, OAuth return, reconnect); 13 files/292 tests passed
-- [ ] Vitest component/service tests cover source forms and status rendering; `cd web && npm run check` passes
+- [x] Vitest component/service tests cover source forms and status rendering; `cd web && npm run check` passes
+  - verified (2026-10-21 21:24+0200 by dell26/agent-2): cd web && npm run coverage -> 126 files, 2563 tests passed; task files 99.85% statements/93.75% branches; cd web && npm run check -> pass (lint, tests, ng build)
 
 ## Notes
 - ASSUMPTION (2026-10-21 19:28+0200 by dell26/agent-2): Server had no API to add external calendar sources (SPEC 6.4 lists POST /calendar/sources); added POST /api/v1/calendar/sources (server calendar/sync, outside touches) for CALDAV {url,username,password}, ICS_FEED {url}, GOOGLE/MICROSOFT {oauthConnectionId}; same OAuth connection twice returns the existing source (200). No DELETE/PATCH of sources (not in criteria).
