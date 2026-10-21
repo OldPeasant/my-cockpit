@@ -1,10 +1,11 @@
 ---
 title: Android reminders
-status: todo
-owner:
+status: in_progress
+owner: dell26/agent-3
 deps: [and-gtd-data,reminders-core,and-capture-entrypoints]
 touches: [android/app/src/main/java/ch/sonensei/cockpit/reminders,android/app/src/test/java/ch/sonensei/cockpit/reminders,android/app/src/main/AndroidManifest.xml]
 prio: 2
+lease_until: 2026-10-21T07:56:02Z
 ---
 ## Goal
 Local notifications for reminders (SPEC.md §9.2).
