@@ -1,11 +1,11 @@
 ---
 title: Android inbox processing
-status: todo
-owner: 
+status: in_progress
+owner: dell26/agent-3
 deps: [and-gtd-data]
 touches: [android/app/src/main/java/ch/sonensei/cockpit/gtd/inbox,android/app/src/test/java/ch/sonensei/cockpit/gtd/inbox]
 prio: 1
-lease_until: 
+lease_until: 2026-10-21T09:32:53Z
 extended: 
 releases: 1
 ---
