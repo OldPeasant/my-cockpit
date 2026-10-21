@@ -56,6 +56,8 @@ tags:
   name: Mail accounts
 - description: Global search across all item types
   name: Search
+- description: "Habits with checks, streaks and completion stats"
+  name: Habits
 paths:
   /api/v1/areas:
     get:
@@ -2968,6 +2970,313 @@ paths:
       summary: Download a folder as a zip
       tags:
       - Files
+  /api/v1/habits:
+    get:
+      description: "Active (or archived) habits by name, with today's state."
+      operationId: listHabits
+      parameters:
+      - description: "`true`: only archived habits; default: only active ones"
+        in: query
+        name: archived
+        required: false
+        schema:
+          type: boolean
+          default: false
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HabitListResponse"
+          description: The habits
+      summary: List habits
+      tags:
+      - Habits
+    post:
+      description: "With a `reminderTime`, a reminder (`/reminders`, item type HABIT)\
+        \ follows the habit's next open due day. Unknown fields are rejected."
+      operationId: createHabit
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/HabitRequest"
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HabitResponse"
+          description: Created
+          headers:
+            ETag:
+              description: "Version of the habit, for If-Match"
+              schema:
+                type: string
+              style: simple
+        "400":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: Invalid or unknown fields
+      summary: Create a habit
+      tags:
+      - Habits
+  /api/v1/habits/{id}:
+    delete:
+      description: "Deletes it for good, with its checks, links and reminders (habits\
+        \ do not go to the Trash; archive to keep one)."
+      operationId: deleteHabit
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - description: ETag of the habit
+        in: header
+        name: If-Match
+        required: false
+        schema:
+          type: string
+      responses:
+        "204":
+          description: Deleted
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: No such habit
+        "409":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: Changed concurrently
+        "412":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: If-Match does not match the current ETag
+        "428":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: If-Match is missing
+      summary: Delete a habit
+      tags:
+      - Habits
+    get:
+      operationId: getHabit
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HabitResponse"
+          description: The habit with its (new) ETag
+          headers:
+            ETag:
+              description: "Version of the habit, for If-Match"
+              schema:
+                type: string
+              style: simple
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: No such habit
+      summary: One habit
+      tags:
+      - Habits
+    patch:
+      description: "Only the fields sent change; `null` clears a field or resets it\
+        \ to its default. Archiving removes the pending reminder, unarchiving brings\
+        \ it back. Unknown fields are rejected."
+      operationId: updateHabit
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - description: ETag of the habit
+        in: header
+        name: If-Match
+        required: false
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/HabitRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HabitResponse"
+          description: The habit with its (new) ETag
+          headers:
+            ETag:
+              description: "Version of the habit, for If-Match"
+              schema:
+                type: string
+              style: simple
+        "400":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: Invalid or unknown fields
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: No such habit
+        "409":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: Changed concurrently
+        "412":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: If-Match does not match the current ETag
+        "428":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: If-Match is missing
+      summary: Change a habit
+      tags:
+      - Habits
+  /api/v1/habits/{id}/checks:
+    get:
+      description: "Checks from `from` to `to` (both included, at most 3660 days),\
+        \ by date."
+      operationId: listHabitChecks
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - description: "First date (default: 29 days before today)"
+        in: query
+        name: from
+        required: false
+        schema:
+          type: string
+          format: date
+      - description: "Last date (default: today)"
+        in: query
+        name: to
+        required: false
+        schema:
+          type: string
+          format: date
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HabitCheckListResponse"
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/HabitCheckListResponse"
+          description: The checks
+        "400":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: Invalid or unknown fields
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: No such habit
+      summary: Checks of a habit
+      tags:
+      - Habits
+  /api/v1/habits/{id}/checks/{date}:
+    put:
+      description: "Sets the count of the (local) date, 0 removes the check; dates\
+        \ after today are rejected. One-tap check: send `targetCount`. Returns the\
+        \ habit with its new stats."
+      operationId: setHabitCheck
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - in: path
+        name: date
+        required: true
+        schema:
+          type: string
+          format: date
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/HabitCheckRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HabitResponse"
+          description: The habit with its (new) ETag
+          headers:
+            ETag:
+              description: "Version of the habit, for If-Match"
+              schema:
+                type: string
+              style: simple
+        "400":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: Invalid or unknown fields
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: No such habit
+      summary: Set how often a habit was done on a date
+      tags:
+      - Habits
   /api/v1/links:
     get:
       description: "Each linked item appears once: when several links connect the\
@@ -8251,6 +8560,222 @@ components:
       - name
       - updatedAt
       - version
+    HabitCheckListResponse:
+      type: object
+      description: "Checks of a habit, by date; days without a check are not listed"
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/HabitCheckResponse"
+      required:
+      - items
+    HabitCheckRequest:
+      type: object
+      description: Sets the count of a day; 0 removes the check
+      properties:
+        count:
+          type: integer
+          format: int32
+          maximum: 1000
+          minimum: 0
+      required:
+      - count
+    HabitCheckResponse:
+      type: object
+      description: How often a habit was done on a date
+      properties:
+        count:
+          type: integer
+          format: int32
+          description: At least 1
+        date:
+          type: string
+          format: date
+      required:
+      - count
+      - date
+    HabitListResponse:
+      type: object
+      description: "Habits, by name"
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/HabitResponse"
+      required:
+      - items
+    HabitRequest:
+      type: object
+      description: "A habit's editable fields. `name` is required on create; `schedule`\
+        \ defaults to DAILY, `targetCount` to 1. TIMES_PER_WEEK needs `timesPerWeek`,\
+        \ WEEKDAYS needs `weekdays`; fields that do not fit the schedule are cleared."
+      properties:
+        archived:
+          type: boolean
+        name:
+          type: string
+          maxLength: 200
+        reminderTime:
+          type: string
+          format: time
+          description: "Local time of the reminder on due days (`HH:mm` or `HH:mm:ss`,\
+            \ seconds are dropped); `null`: no reminder"
+          example: 07:30
+        schedule:
+          type: string
+          enum:
+          - DAILY
+          - TIMES_PER_WEEK
+          - WEEKDAYS
+        targetCount:
+          type: integer
+          format: int32
+          maximum: 1000
+          minimum: 1
+        timesPerWeek:
+          type: integer
+          format: int32
+          maximum: 7
+          minimum: 1
+        weekdays:
+          type: array
+          items:
+            type: string
+            enum:
+            - MONDAY
+            - TUESDAY
+            - WEDNESDAY
+            - THURSDAY
+            - FRIDAY
+            - SATURDAY
+            - SUNDAY
+    HabitResponse:
+      type: object
+      description: A habit with its state today. `version` is also sent as the ETag.
+      properties:
+        archived:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        reminderTime:
+          type: string
+          format: time
+          description: "Local time (owner's time zone) of the daily reminder on due\
+            \ days, `HH:mm:ss`"
+          example: 07:30:00
+        schedule:
+          type: string
+          enum:
+          - DAILY
+          - TIMES_PER_WEEK
+          - WEEKDAYS
+        stats:
+          $ref: "#/components/schemas/HabitStatsResponse"
+        targetCount:
+          type: integer
+          format: int32
+          description: Count that makes a day done
+        timesPerWeek:
+          type: integer
+          format: int32
+          description: "Days per week, 1-7; only for TIMES_PER_WEEK"
+        updatedAt:
+          type: string
+          format: date-time
+        version:
+          type: integer
+          format: int64
+        weekdays:
+          type: array
+          description: "The due weekdays, in week order; only for WEEKDAYS (else empty)"
+          items:
+            type: string
+            enum:
+            - MONDAY
+            - TUESDAY
+            - WEDNESDAY
+            - THURSDAY
+            - FRIDAY
+            - SATURDAY
+            - SUNDAY
+      required:
+      - archived
+      - createdAt
+      - id
+      - name
+      - schedule
+      - stats
+      - targetCount
+      - updatedAt
+      - version
+      - weekdays
+    HabitStatsResponse:
+      type: object
+      description: "A habit's state on the owner's today. Streaks count due days done\
+        \ in a row (TIMES_PER_WEEK: weeks with at least `timesPerWeek` done days,\
+        \ from the owner's week start); today (this week) does not break a streak\
+        \ while it is still open. The 30-day completion covers the last 30 days up\
+        \ to today (today once done), not before the habit existed."
+      properties:
+        completionRateLast30Days:
+          type: number
+          format: double
+          description: "doneLast30Days / dueLast30Days, at most 1; `null` without\
+            \ due days"
+          maximum: 1
+          minimum: 0
+        currentStreak:
+          type: integer
+          format: int32
+        doneLast30Days:
+          type: integer
+          format: int32
+          description: Done days in the last 30 days
+        doneToday:
+          type: boolean
+          description: todayCount reached targetCount
+        dueLast30Days:
+          type: integer
+          format: int32
+          description: "Due days in the last 30 days (TIMES_PER_WEEK: timesPerWeek\
+            \ per 7 days, rounded)"
+        dueToday:
+          type: boolean
+          description: "Whether the habit is due today (TIMES_PER_WEEK: while this\
+            \ week's quota was not reached before today)"
+        longestStreak:
+          type: integer
+          format: int32
+        streakUnit:
+          type: string
+          description: "WEEKS for TIMES_PER_WEEK, else DAYS"
+          enum:
+          - DAYS
+          - WEEKS
+        today:
+          type: string
+          format: date
+          description: The owner's today
+        todayCount:
+          type: integer
+          format: int32
+      required:
+      - currentStreak
+      - doneLast30Days
+      - doneToday
+      - dueLast30Days
+      - dueToday
+      - longestStreak
+      - streakUnit
+      - today
+      - todayCount
     ItemRefDto:
       type: object
       description: Reference to an item of any type
