@@ -150,6 +150,21 @@ class NotesBackupContributorTests(
 	}
 
 	@Test
+	fun `front matter lists links from other item types to the note, but not links between other items`() {
+		note(id(1), "Target", "body")
+		note(id(2), "Trashed", "gone", deletedAt = T2)
+		link(id(20), "EVENT", id(31), "NOTE", id(1), T0)
+		link(id(21), "TASK", id(30), "EVENT", id(31), T0)
+		link(id(22), "NOTE", id(2), "NOTE", id(1), T1)
+		link(id(23), "TASK", id(30), "NOTE", id(2), T1)
+
+		val notes = export().readableNotes()
+
+		notes.keys shouldBe setOf("2026-03-01-target.md")
+		notes.getValue("2026-03-01-target.md") shouldContain "links: [\"event:${id(31)}\", \"note:${id(2)}\"]\n"
+	}
+
+	@Test
 	fun `image references point to the file in the backup, other references stay`() {
 		val notes = folder(id(40), "Notes")
 		file(id(41), "map of the old town (1).png", notes)
@@ -276,7 +291,7 @@ class NotesBackupContributorTests(
 		file(id(41), "a.png", docs)
 		file(id(42), "A.png", docs)
 
-		val paths = transactions.execute { files.paths(setOf(id(41), id(42), id(99))) }!!
+		val paths = transactions.execute { files.paths(setOf(id(41), id(42), id(99))) }
 
 		paths.keys shouldBe setOf(id(41), id(42))
 		paths.getValue(id(41)) shouldBe "Docs/a.png"
