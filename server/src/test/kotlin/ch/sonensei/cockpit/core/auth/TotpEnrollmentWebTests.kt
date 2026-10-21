@@ -8,12 +8,16 @@ import ch.sonensei.cockpit.core.auth.domain.LoginResult
 import ch.sonensei.cockpit.core.auth.domain.LoginThrottle
 import ch.sonensei.cockpit.core.auth.domain.SetupService
 import ch.sonensei.cockpit.core.auth.domain.Totp
+import ch.sonensei.cockpit.core.auth.domain.TotpEnrollmentResult
+import ch.sonensei.cockpit.core.auth.domain.TotpEnrollmentService
 import ch.sonensei.cockpit.core.auth.infra.SessionCookies
 import ch.sonensei.cockpit.core.auth.infra.UserAccountRepository
 import ch.sonensei.cockpit.core.crypto.SecretCipher
 import ch.sonensei.cockpit.core.persistence.MutableClock
 import ch.sonensei.cockpit.core.persistence.MutableClockTestConfiguration
+import ch.sonensei.cockpit.core.web.ConflictException
 import ch.sonensei.cockpit.support.PostgresTestBase
+import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.assertions.withClue
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
@@ -57,6 +61,7 @@ class TotpEnrollmentWebTests(
 	@Autowired private val users: UserAccountRepository,
 	@Autowired private val cipher: SecretCipher,
 	@Autowired private val deviceTokens: DeviceTokenService,
+	@Autowired private val enrollment: TotpEnrollmentService,
 ) : PostgresTestBase() {
 	private val totp = Totp()
 	private lateinit var originalSecret: String
@@ -467,6 +472,57 @@ class TotpEnrollmentWebTests(
 
 		mockMvc.get("/api/v1/settings") { cookie(first) }.andExpect { status { isUnauthorized() } }
 		mockMvc.get("/api/v1/settings") { cookie(second) }.andExpect { status { isOk() } }
+	}
+
+	@Test
+	fun `a wrong or throttled confirm ends no session, only the successful one does`() {
+		restoredWithoutTotpSecret()
+		val confirming = enrollmentSession()
+		val other = session(login(recoveryCode = recoveryCodes[1])).also { throttle.recordSuccess() }
+		val secret = startedSecret(confirming)
+		val wrong = if (code(secret) == "000000") "111111" else "000000"
+
+		fun sessionCount() = jdbc.queryForObject("select count(*) from auth_session", Int::class.java)
+
+		repeat(LoginThrottle.FREE_ATTEMPTS) { confirm(confirming, wrong).andExpect { status { isBadRequest() } } }
+		withClue("invalid codes end no session") { sessionCount() shouldBe 2 }
+		confirm(confirming, code(secret)).andExpect { status { isTooManyRequests() } }
+		withClue("a throttled confirm, even with the right code, ends no session") {
+			sessionCount() shouldBe 2
+			mockMvc.get("/api/v1/auth/me") { cookie(other) }.andExpect { status { isOk() } }
+		}
+
+		clock.advance(LoginThrottle.BASE_DELAY.plusSeconds(1))
+		confirm(confirming, code(secret)).andExpect { status { isNoContent() } }
+		sessionCount() shouldBe 1
+		mockMvc.get("/api/v1/auth/me") { cookie(other) }.andExpect { status { isUnauthorized() } }
+	}
+
+	@Test
+	fun `a confirm without a session token, as from a caller without a session cookie, ends every session of the account`() {
+		restoredWithoutTotpSecret()
+		val first = enrollmentSession()
+		session(login(recoveryCode = recoveryCodes[1], rememberDevice = true)).also { throttle.recordSuccess() }
+		val secret = enrollment.start().totpSecret
+
+		enrollment.confirm(code(secret), null) shouldBe TotpEnrollmentResult.Confirmed
+
+		jdbc.queryForObject("select count(*) from auth_session", Int::class.java) shouldBe 0
+		mockMvc.get("/api/v1/auth/me") { cookie(first) }.andExpect { status { isUnauthorized() } }
+		reenrollRequired() shouldBe false
+	}
+
+	@Test
+	fun `an account whose setup was never completed cannot start or confirm a re-enrollment, even with the flag set`() {
+		jdbc.update("update app_user set totp_confirmed_at = null, totp_reenroll_required = true")
+
+		shouldThrow<ConflictException> { enrollment.start() }
+		shouldThrow<ConflictException> { enrollment.confirm(code(originalSecret), null) }
+		users
+			.findFirstBy()
+			.shouldNotBeNull()
+			.totpSecret
+			.reveal() shouldBe originalSecret
 	}
 
 	@Test

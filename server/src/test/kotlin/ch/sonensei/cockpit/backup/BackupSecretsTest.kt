@@ -426,6 +426,17 @@ class BackupSecretsTest(
 		}
 	}
 
+	@Test
+	fun `a backup passphrase counts line breaks as characters, so a multi-line passphrase of 12 or more is accepted`() {
+		withClue("11 characters including a line break") {
+			startBackup("""{"passphrase":"abcde\nfghij"}""").andExpect { status { isBadRequest() } }
+		}
+		val id = startBackup("""{"passphrase":"line one\nline two"}""").andExpect { status { isAccepted() } }.let { json(it)["id"].asString() }
+
+		val envelope = mapper.readValue(Zips.read(download(id)).getValue(BackupSecrets.PATH), SecretsEnvelope::class.java)
+		mapper.readTree(BackupSecrets.decrypt(envelope, "line one\nline two"))["user"]["totpSecret"].asString() shouldBe enrollment.totpSecret
+	}
+
 	private fun startBackup(body: String?): ResultActionsDsl =
 		mockMvc.post(BACKUP) {
 			with(cockpitUser())
