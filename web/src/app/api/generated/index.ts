@@ -116,6 +116,7 @@ export type { RegenerateRecoveryCodesRequest } from './models/regenerate-recover
 export type { ReminderItemResponse } from './models/reminder-item-response';
 export type { ReminderListResponse } from './models/reminder-list-response';
 export type { ReminderResponse } from './models/reminder-response';
+export type { RespondToInvitationRequest } from './models/respond-to-invitation-request';
 export type { RestoreReportResponse } from './models/restore-report-response';
 export type { RestoreResultResponse } from './models/restore-result-response';
 export type { SearchGroupResponse } from './models/search-group-response';
@@ -231,6 +232,8 @@ export type { DeleteEvent$Params as DeleteEvent$Params } from './fn/calendars/de
 export { deleteEvent as deleteEvent } from './fn/calendars/delete-event';
 export type { UpdateEvent$Params as UpdateEvent$Params } from './fn/calendars/update-event';
 export { updateEvent as updateEvent } from './fn/calendars/update-event';
+export type { RespondToInvitation$Params as RespondToInvitation$Params } from './fn/calendars/respond-to-invitation';
+export { respondToInvitation as respondToInvitation } from './fn/calendars/respond-to-invitation';
 export type { ListCalendarSources$Params as ListCalendarSources$Params } from './fn/calendars/list-calendar-sources';
 export { listCalendarSources as listCalendarSources } from './fn/calendars/list-calendar-sources';
 export type { CreateCalendarSource$Params as CreateCalendarSource$Params } from './fn/calendars/create-calendar-source';

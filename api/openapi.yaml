@@ -1182,6 +1182,88 @@ paths:
       summary: Change an event or occurrences of a series
       tags:
       - Calendars
+  /api/v1/calendar/events/{id}/respond:
+    post:
+      description: "Accepts, declines or tentatively accepts the invitation to an\
+        \ event of a Google or Microsoft calendar at the provider, which tells the\
+        \ organizer. A series is answered for all its occurrences, an override for\
+        \ its occurrence. Returns the event as the provider has it now: the user's\
+        \ attendee has the new status."
+      operationId: respondToInvitation
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - description: ETag of the event
+        in: header
+        name: If-Match
+        required: false
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RespondToInvitationRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EventResponse"
+          description: Answered; the event with its new ETag
+          headers:
+            ETag:
+              description: "Version of the event, for If-Match"
+              schema:
+                type: string
+              style: simple
+        "400":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: Missing or invalid response
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: "No such event, or it is in the Trash"
+        "409":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: "The event is not in a Google or Microsoft calendar, its calendar\
+            \ is read-only or not synced yet, the user is not invited to it or organizes\
+            \ it, or it was changed at the provider (the cockpit fetched the new version:\
+            \ reload and retry)"
+        "412":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: If-Match does not match the current ETag
+        "428":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: If-Match is missing
+        "502":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: The calendar provider failed; nothing was changed
+      summary: Answer an invitation
+      tags:
+      - Calendars
   /api/v1/calendar/sources:
     get:
       description: "Every source (the local one and connected accounts and feeds)\
@@ -8986,6 +9068,18 @@ components:
       - id
       - item
       - remindAt
+    RespondToInvitationRequest:
+      type: object
+      description: The answer to an invitation
+      properties:
+        response:
+          type: string
+          enum:
+          - ACCEPTED
+          - DECLINED
+          - TENTATIVE
+      required:
+      - response
     RestoreReportResponse:
       type: object
       description: Validation report of an uploaded backup
