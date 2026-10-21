@@ -4795,6 +4795,66 @@ paths:
       summary: Mark a task done
       tags:
       - Tasks
+  /api/v1/tasks/{id}/convert-to-note:
+    post:
+      description: "Creates a note with the task's title and its notes as body, links\
+        \ every existing item linked to the task to the note (manual links, same direction\
+        \ and label) and moves the task to the Trash, in one transaction. `If-Match`\
+        \ is optional."
+      operationId: convertTaskToNote
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - description: ETag of the task (optional)
+        in: header
+        name: If-Match
+        required: false
+        schema:
+          type: string
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NoteResponse"
+          description: The new note; `Location` points to it
+          headers:
+            ETag:
+              description: "Version of the note, for If-Match"
+              schema:
+                type: string
+              style: simple
+        "400":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: The task's content is not a valid note
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: "No such task, or it is in the Trash"
+        "409":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: Changed concurrently
+        "412":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: If-Match was sent and does not match the task's current ETag
+      summary: Move a task to reference (convert it into a note)
+      tags:
+      - Tasks
   /api/v1/tasks/{id}/move:
     post:
       description: See `MoveTaskRequest` for the rules of each list. `If-Match` is
