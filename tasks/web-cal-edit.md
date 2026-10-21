@@ -15,7 +15,8 @@ Create and edit events (SPEC.md §6.3).
 - [ ] Drag to create/move/resize; event dialog (title, time/all-day, tz, recurrence, location, description, reminders, attendees read-only for external)
 - [ ] Recurring edits ask THIS / FOLLOWING / ALL; 'changed remotely' conflicts shown with reload
 - [ ] Vitest component/service tests cover scope prompt and conflict handling; `cd web && npm run check` passes
-- [ ] Playwright `e2e/calendar-edit/edit.spec.ts` passes against the e2e stack (`npm run e2e -- e2e/calendar-edit/edit.spec.ts`, see p0-e2e-harness): move one occurrence of a weekly event
+- [x] Playwright `e2e/calendar-edit/edit.spec.ts` passes against the e2e stack (`npm run e2e -- e2e/calendar-edit/edit.spec.ts`, see p0-e2e-harness): move one occurrence of a weekly event
+  - verified (2026-10-21 14:45+0200 by dell26/agent-3): npm --prefix web run e2e -- e2e/calendar-edit/edit.spec.ts (deploy/docker-compose.e2e.yml stack via podman-compose, chromium) at 26d4b7d2 -> 'moves one occurrence of a weekly event' passed (22 passed incl. phase demo project)
 
 ## Notes
 - ASSUMPTION (2026-10-21 13:47+0200 by dell26/agent-3): Conflicts: both 412 (stale ETag) and 409 (changed concurrently / changed at the provider, SPEC.md §6.2) are shown as 'changed elsewhere' with a Reload action (dialog banner; snackbar after a drag); the dialog's Reload discards the unsaved edits
