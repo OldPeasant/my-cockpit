@@ -1,13 +1,13 @@
 ---
 title: Notes API
-status: in_progress
-owner: dell26/agent-2
+status: todo
+owner: 
 deps: [files-api,p0-search-core,p0-trash-core,p0-events-sse,runner-version-skew]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/notes,server/src/test/kotlin/ch/sonensei/cockpit/notes,server/src/main/resources/db/migration/notes]
 prio: 1
-lease_until: 2026-10-21T02:02:15Z
+lease_until: 
 extended: 
-releases: 1
+releases: 2
 ---
 ## Goal
 Markdown notes with images, tags, pins and history (SPEC.md §8.1).
@@ -40,3 +40,4 @@ Markdown notes with images, tags, pins and history (SPEC.md §8.1).
 - extended by dell26/agent-3: Implementation done (a8ac0f16): CRUD+ETag, tag/pinned/archived filters, inline link sync, image upload, 20 revisions + restore, resolver/search/trash/events, OpenAPI regenerated; 69 notes tests pass, check.sh passes. Left: re-run test-writer (reviews/notes-api/tests.md missing, with coverage) and code-reviewer on final code after fixes in 33fcd69f, fixer if needed, run OpenApiContractTest, verify criteria 1-6, write quality.json, done.
 - release by dell26/agent-3: Implementation complete and all 6 criteria verified; test-writer, code-reviewer and fixer reports plus quality.json committed (reviewed_revision 3d5c5215 = pre-rebase hash of c7fda62e, same patch). Left: only 'python tasks.py done notes-api' (update reviewed_revision to current hash if done complains). Last check.sh run: 2410 tests, 1 failure in core ClockConfigurationTests (flaky: Instant micro vs nano precision, not notes code) - rerun; if it keeps failing, fix/report it separately. check.sh took ~8 min here.
 - ASSUMPTION (2026-10-21 03:26+0200 by dell26/agent-2): A PATCH that changes nothing still re-indexes search and emits an UPDATED change event (review CR-2, P3); accepted as harmless (version unchanged), can be optimized later
+- release by dell26/agent-2: Implementation complete; all 6 criteria verified on final code; tests.md/review.md/fixes.md + quality.json committed (095601dc, reviewed_revision f922ce77 = same code as HEAD). sh scripts/check.sh passed at 095601dc (~10+ min here, over the 2 min warning but under 15). Left: only 'python tasks.py done notes-api' (if it complains about freshness after merging main, set reviewed_revision to the new hash; no helper re-run needed unless code changed).
