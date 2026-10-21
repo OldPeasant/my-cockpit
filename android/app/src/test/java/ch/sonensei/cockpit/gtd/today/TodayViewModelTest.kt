@@ -220,6 +220,18 @@ class TodayViewModelTest {
         }
 
     @Test
+    fun `a completed task reopened elsewhere comes back to its section once the lists reload it`() =
+        test { vm ->
+            vm.complete(due)
+            todayFlow.value = todayFlow.value.copy(data = listOf(overdue, due))
+            assertNull(vm.sections()[TodaySectionKind.DUE])
+
+            val reopened = due.copy(version = 5)
+            todayFlow.value = todayFlow.value.copy(data = listOf(overdue, reopened))
+            assertEquals(listOf(reopened), vm.sections()[TodaySectionKind.DUE])
+        }
+
+    @Test
     fun `due today wins over scheduled earlier, and a future due date with a past schedule is scheduled`() {
         assertEquals(TodaySectionKind.DUE, sectionOf(due.copy(scheduledDate = today.minusDays(4)), today))
         assertEquals(

@@ -70,7 +70,7 @@ class TodayViewModel internal constructor(
             completer.state,
         ) { due, next, contextList, done ->
             val today = LocalDate.now(clock)
-            val open = (due.data + next.data).filter { it.id !in done.hidden }.distinctBy { it.id }
+            val open = (due.data + next.data).filterNot(done::hides).distinctBy { it.id }
             val kinds = open.groupBy { sectionOf(it, today) }
             TodayUiState(
                 sections = TodaySectionKind.entries.mapNotNull { kind -> kinds[kind]?.let { TodaySection(kind, it) } },

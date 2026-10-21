@@ -11,7 +11,9 @@ import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.util.UUID
 
@@ -157,6 +159,35 @@ class TaskCompleterTest {
 
             assertEquals(setOf(water.id), completer.state.value.hidden)
             assertEquals(CompletionSnackbar.Failed(CompletionMessage.CONFLICT), completer.state.value.snackbar)
+        }
+
+    @Test
+    fun `a completed task is hidden only up to the version the completion gave it`() =
+        test { completer ->
+            coEvery { repository.complete(call) } returns completed(call)
+            completer.complete(call)
+
+            val state = completer.state.value
+            assertTrue(state.hides(call))
+            assertTrue(state.hides(call.copy(version = 2)))
+            assertFalse(state.hides(call.copy(version = 3)))
+            assertFalse(state.hides(water))
+        }
+
+    @Test
+    fun `a task is hidden while its undo is pending, whatever its version`() =
+        test { completer ->
+            coEvery { repository.complete(call) } returns completed(call)
+            val answer = CompletableDeferred<CompletionResult>()
+            coEvery { repository.undo(any()) } coAnswers { answer.await() }
+
+            completer.complete(call)
+            completer.undo(completer.state.value.snackbar as CompletionSnackbar.Undo)
+            assertTrue(completer.state.value.hides(call.copy(version = 3)))
+
+            answer.complete(CompletionResult.NotDone(CompletionMessage.CONFLICT))
+            assertFalse(completer.state.value.hides(call.copy(version = 3)))
+            assertTrue(completer.state.value.hides(call))
         }
 
     @Test

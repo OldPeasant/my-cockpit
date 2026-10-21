@@ -97,10 +97,22 @@ sealed interface CompletionSnackbar {
 }
 
 data class CompletionState(
-    /** Tasks completed here (or being completed): the lists hide them at once, before the server answers. */
-    val hidden: Set<UUID> = emptySet(),
+    /** Tasks being completed or reopened here: the lists hide them at once, before the server answers. */
+    val pending: Set<UUID> = emptySet(),
+    /**
+     * Tasks completed here, with the version the completion gave them. A cached copy of an older version is the task
+     * before the completion (a list not reloaded yet), so it stays hidden; a newer one was changed (e.g. reopened)
+     * since, so it shows again.
+     */
+    val completed: Map<UUID, Long> = emptyMap(),
     val snackbar: CompletionSnackbar? = null,
-)
+) {
+    /** The tasks the lists may hide, depending on the cached version (see [hides]). */
+    val hidden: Set<UUID> get() = pending + completed.keys
+
+    /** Whether the lists hide this cached copy of [task]. */
+    fun hides(task: GtdTask): Boolean = task.id in pending || completed[task.id]?.let { task.version <= it } == true
+}
 
 /**
  * Completion with undo for a task list's view model: the task disappears at once, then the snackbar offers to undo
@@ -114,26 +126,38 @@ class TaskCompleter(
     val state: StateFlow<CompletionState> = mutable.asStateFlow()
 
     fun complete(task: GtdTask) {
-        if (task.id in mutable.value.hidden) return
-        mutable.update { it.copy(hidden = it.hidden + task.id, snackbar = null) }
+        if (mutable.value.hides(task)) return
+        mutable.update { it.copy(pending = it.pending + task.id, snackbar = null) }
         scope.launch {
             when (val result = repository.complete(task)) {
                 is CompletionResult.Completed ->
-                    mutable.update { it.copy(snackbar = CompletionSnackbar.Undo(result.completion)) }
+                    mutable.update {
+                        it.copy(
+                            pending = it.pending - task.id,
+                            completed = it.completed + (task.id to result.completion.version),
+                            snackbar = CompletionSnackbar.Undo(result.completion),
+                        )
+                    }
                 is CompletionResult.NotDone ->
-                    mutable.update { it.copy(hidden = it.hidden - task.id, snackbar = CompletionSnackbar.Failed(result.message)) }
+                    mutable.update { it.copy(pending = it.pending - task.id, snackbar = CompletionSnackbar.Failed(result.message)) }
                 CompletionResult.Reopened -> Unit
             }
         }
     }
 
-    /** Reopens the task of the undo [offer]. */
+    /**
+     * Reopens the task of the undo [offer]. If the server refuses, the task shows again once the reloaded list holds a
+     * newer version of it (reopened or changed elsewhere); while it is still completed, it stays hidden.
+     */
     fun undo(offer: CompletionSnackbar.Undo) {
         dismiss(offer)
+        val id = offer.completion.taskId
+        mutable.update { it.copy(pending = it.pending + id) }
         scope.launch {
             when (val result = repository.undo(offer.completion)) {
-                CompletionResult.Reopened -> mutable.update { it.copy(hidden = it.hidden - offer.completion.taskId) }
-                is CompletionResult.NotDone -> mutable.update { it.copy(snackbar = CompletionSnackbar.Failed(result.message)) }
+                CompletionResult.Reopened -> mutable.update { it.copy(pending = it.pending - id, completed = it.completed - id) }
+                is CompletionResult.NotDone ->
+                    mutable.update { it.copy(pending = it.pending - id, snackbar = CompletionSnackbar.Failed(result.message)) }
                 is CompletionResult.Completed -> Unit
             }
         }

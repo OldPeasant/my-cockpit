@@ -199,6 +199,38 @@ class NextViewModelTest {
         }
 
     @Test
+    fun `a completed task reopened elsewhere shows again once the list reloads it`() =
+        test { vm ->
+            vm.complete(call)
+            vm.dismiss(vm.uiState.value.snackbar!!)
+            // A list not reloaded yet still holds the task as it was before the completion.
+            nextFlow.value = nextFlow.value.copy(data = listOf(call, sketch, water))
+            assertFalse(call in vm.shown)
+
+            val reopened = call.copy(version = 3)
+            nextFlow.value = nextFlow.value.copy(data = listOf(reopened, sketch, water))
+            assertEquals(listOf(reopened, sketch, water), vm.shown)
+            assertEquals(3, vm.uiState.value.total)
+
+            vm.complete(reopened)
+            coVerify { completion.complete(reopened) }
+            assertEquals(listOf(sketch, water), vm.shown)
+        }
+
+    @Test
+    fun `after a refused undo the reloaded list shows the task as the server has it`() =
+        test { vm ->
+            coEvery { completion.undo(any()) } returns CompletionResult.NotDone(CompletionMessage.CONFLICT)
+            vm.complete(call)
+            vm.undo(vm.uiState.value.snackbar as CompletionSnackbar.Undo)
+            assertFalse(call in vm.shown)
+
+            val reopened = call.copy(version = 4)
+            nextFlow.value = nextFlow.value.copy(data = listOf(reopened, sketch, water))
+            assertTrue(reopened in vm.shown)
+        }
+
+    @Test
     fun `dismissing an older snackbar keeps the newer one`() =
         test { vm ->
             vm.complete(call)

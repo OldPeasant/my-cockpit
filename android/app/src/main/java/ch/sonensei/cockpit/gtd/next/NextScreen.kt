@@ -117,6 +117,7 @@ fun NextContent(
     val snackbarHost = remember { SnackbarHostState() }
     CompletionSnackbarEffect(state.snackbar, snackbarHost, callbacks.undo, callbacks.dismiss)
     var filtersOpen by rememberSaveable { mutableStateOf(false) }
+    val contexts = remember(state.contexts) { state.contexts.associateBy { it.id } }
     Box(modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize()) {
             if (state.offline) OfflineBanner(state.refreshedAt)
@@ -124,7 +125,8 @@ fun NextContent(
                 Text(
                     when {
                         state.loading -> stringResource(R.string.tasks_loading)
-                        state.filter.activeCount > 0 -> stringResource(R.string.next_count_filtered, state.tasks.size, state.total)
+                        state.filter.activeCount > 0 ->
+                            pluralStringResource(R.plurals.next_count_filtered, state.total, state.tasks.size, state.total)
                         else -> pluralStringResource(R.plurals.next_count, state.total, state.total)
                     },
                     style = MaterialTheme.typography.titleMedium,
@@ -147,7 +149,7 @@ fun NextContent(
                 state.tasks.isNotEmpty() ->
                     LazyColumn(Modifier.fillMaxSize().testTag(NextTags.LIST)) {
                         items(state.tasks, key = { it.id }) { task ->
-                            TaskRow(task, state.contexts.associateBy { it.id }, state.today, state.offline, callbacks.complete)
+                            TaskRow(task, contexts, state.today, state.offline, callbacks.complete)
                         }
                     }
                 !state.loading -> Empty(state, callbacks)

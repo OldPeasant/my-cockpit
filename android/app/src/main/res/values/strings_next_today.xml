@@ -24,7 +24,10 @@
         <item quantity="one">%1$d next action</item>
         <item quantity="other">%1$d next actions</item>
     </plurals>
-    <string name="next_count_filtered">%1$d of %2$d next actions</string>
+    <plurals name="next_count_filtered">
+        <item quantity="one">%1$d of %2$d next action</item>
+        <item quantity="other">%1$d of %2$d next actions</item>
+    </plurals>
     <string name="next_filters">Filter</string>
     <string name="next_filters_active">Filter (%1$d)</string>
     <string name="next_filter_context">Context</string>

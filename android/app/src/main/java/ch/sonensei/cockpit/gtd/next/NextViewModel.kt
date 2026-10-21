@@ -83,7 +83,7 @@ class NextViewModel internal constructor(
 
     val uiState: StateFlow<NextUiState> =
         combine(tasks.observe(TaskView.NEXT), contexts.observe(), filter, completer.state) { next, contextList, f, done ->
-            val open = next.data.filter { it.id !in done.hidden }
+            val open = next.data.filterNot(done::hides)
             // A context deleted elsewhere can no longer be chosen or cleared, so its filter is dropped.
             val shown = if (f.contextId != null && contextList.data.none { it.id == f.contextId }) f.copy(contextId = null) else f
             NextUiState(
@@ -104,18 +104,7 @@ class NextViewModel internal constructor(
     fun toggleEnergy(energy: Energy) = filter.update { it.copy(energy = if (it.energy == energy) null else energy) }
 
     fun toggleCreativity(creativity: Creativity) =
-        filter.update {
-            it.copy(
-                creativity =
-                    if (it.creativity ==
-                        creativity
-                    ) {
-                        null
-                    } else {
-                        creativity
-                    },
-            )
-        }
+        filter.update { it.copy(creativity = if (it.creativity == creativity) null else creativity) }
 
     fun toggleMaxMinutes(minutes: Int) = filter.update { it.copy(maxMinutes = if (it.maxMinutes == minutes) null else minutes) }
 
