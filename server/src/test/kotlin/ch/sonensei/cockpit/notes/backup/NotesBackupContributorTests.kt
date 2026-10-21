@@ -224,6 +224,8 @@ class NotesBackupContributorTests(
 	@Test
 	fun `front matter is valid YAML that gives back titles and tags with quotes, backslashes and control characters`() {
 		val title = "Plan: \"A\" \\ B # not a comment\tend\u0085next\u2028line\u0090"
+		// Printable neighbours of the escaped ranges stay raw: space, ~, NBSP, U+2027, U+202A, U+FFFD, an emoji.
+		val printable = "keep ~\u00a0\u2027\u202a\ufffd\ud83d\ude00"
 		val tags =
 			listOf(
 				"back\\slash",
@@ -237,6 +239,7 @@ class NotesBackupContributorTests(
 				"ls\u2028ps\u2029",
 				"c1\u0080\u0090\u009f",
 				"nonchar\ufffe\uffff",
+				printable,
 			)
 		note(id(1), title, "body", tags = tags)
 
@@ -245,6 +248,10 @@ class NotesBackupContributorTests(
 
 		listOf("\\u0085", "\\u2028", "\\u2029", "\\u0080", "\\u0090", "\\u009f", "\\ufffe", "\\uffff").forEach {
 			text shouldContain it
+		}
+		text shouldContain "\"$printable\""
+		listOf("\\u0020", "\\u007e", "\\u00a0", "\\u2027", "\\u202a", "\\ufffd", "\\ud83d", "\\ude00").forEach {
+			text shouldNotContain it
 		}
 		front["id"] shouldBe id(1).toString()
 		front["title"] shouldBe title
