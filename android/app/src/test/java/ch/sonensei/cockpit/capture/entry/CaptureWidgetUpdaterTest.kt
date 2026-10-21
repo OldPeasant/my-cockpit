@@ -2,6 +2,7 @@ package ch.sonensei.cockpit.capture.entry
 
 import ch.sonensei.cockpit.capture.queue.CaptureQueueStatus
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.flow
@@ -26,6 +27,23 @@ class CaptureWidgetUpdaterTest {
             status.value = CaptureQueueStatus(1, "offline")
             status.value = CaptureQueueStatus(0, null)
             assertEquals(4, refreshes)
+        }
+
+    @Test
+    fun `an unchanged queue status does not redraw the widgets again`() =
+        runTest(UnconfinedTestDispatcher()) {
+            // Room re-emits on every write to the table, also when count and failure stay the same.
+            val emissions = MutableSharedFlow<CaptureQueueStatus>()
+            var refreshes = 0
+            CaptureWidgetUpdater(emissions, { refreshes++ }, backgroundScope).start()
+
+            emissions.emit(CaptureQueueStatus(1, null))
+            emissions.emit(CaptureQueueStatus(1, null))
+            assertEquals(1, refreshes)
+
+            emissions.emit(CaptureQueueStatus(1, "offline"))
+            emissions.emit(CaptureQueueStatus(1, "offline"))
+            assertEquals(2, refreshes)
         }
 
     @Test

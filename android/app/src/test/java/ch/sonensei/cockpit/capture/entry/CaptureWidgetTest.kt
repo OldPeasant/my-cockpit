@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.Intent
 import androidx.glance.appwidget.testing.unit.hasStartActivityClickAction
 import androidx.glance.appwidget.testing.unit.runGlanceAppWidgetUnitTest
+import androidx.glance.testing.unit.hasContentDescriptionEqualTo
 import androidx.glance.testing.unit.hasTestTag
 import androidx.glance.testing.unit.hasText
 import androidx.test.core.app.ApplicationProvider
@@ -56,6 +57,24 @@ class CaptureWidgetTest {
             provideComposable { CaptureWidgetContent(CaptureQueueStatus(pendingCount = 2, lastError = null)) }
 
             onNode(hasTestTag(CaptureWidgetTags.PILL)).assert(hasStartActivityClickAction(Intent(context, CaptureActivity::class.java)))
+        }
+
+    @Test
+    fun `screen readers hear the action and the pending count on the pill`() =
+        runGlanceAppWidgetUnitTest {
+            setContext(context)
+            provideComposable { CaptureWidgetContent(CaptureQueueStatus(pendingCount = 4, lastError = "offline")) }
+
+            onNode(hasTestTag(CaptureWidgetTags.PILL)).assert(hasContentDescriptionEqualTo("Capture to Inbox, 4 not synced"))
+        }
+
+    @Test
+    fun `screen readers hear only the action while nothing waits`() =
+        runGlanceAppWidgetUnitTest {
+            setContext(context)
+            provideComposable { CaptureWidgetContent(CaptureQueueStatus(pendingCount = 0, lastError = null)) }
+
+            onNode(hasTestTag(CaptureWidgetTags.PILL)).assert(hasContentDescriptionEqualTo("Capture to Inbox"))
         }
 
     @Test
