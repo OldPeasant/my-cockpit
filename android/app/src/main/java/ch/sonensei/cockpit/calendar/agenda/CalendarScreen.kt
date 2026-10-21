@@ -55,6 +55,7 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -69,14 +70,17 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import ch.sonensei.cockpit.R
 import ch.sonensei.cockpit.ui.PlaceholderScreen
 import dagger.hilt.internal.GeneratedComponentManagerHolder
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filter
+import java.time.Clock
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalTime
@@ -177,7 +181,7 @@ fun CalendarContent(
     var showCalendars by rememberSaveable { mutableStateOf(false) }
     Column(modifier.fillMaxSize()) {
         Toolbar(state, callbacks, showCalendars) { showCalendars = it }
-        if (showCalendars) CalendarFilter(state.calendars, callbacks.setVisible)
+        if (showCalendars) CalendarFilter(state.calendars, state.pendingVisibility.keys, callbacks.setVisible)
         state.message?.let { Message(it, state.loading, callbacks.retry) }
         if (state.loading) LinearProgressIndicator(Modifier.fillMaxWidth()) else Spacer(Modifier.height(4.dp))
         when (state.view) {
@@ -240,6 +244,8 @@ private val CalendarView.label: Int
 @Composable
 private fun CalendarFilter(
     calendars: List<CalendarInfo>,
+    /** Calendars whose visibility change is still being written: their chip waits for the answer. */
+    pending: Set<UUID>,
     setVisible: (UUID, Boolean) -> Unit,
 ) {
     if (calendars.isEmpty()) {
@@ -259,6 +265,7 @@ private fun CalendarFilter(
             FilterChip(
                 selected = calendar.visible,
                 onClick = { setVisible(calendar.id, !calendar.visible) },
+                enabled = calendar.id !in pending,
                 label = { Text(calendar.name, maxLines = 1, overflow = TextOverflow.Ellipsis) },
                 leadingIcon = { ColorDot(calendarColor(calendar)) },
                 modifier = Modifier.testTag(CalendarTags.calendar(calendar.id)),
@@ -542,6 +549,10 @@ private val GUTTER = 48.dp
 
 /** The hour the grid is scrolled to when it opens, so a working day is in view. */
 private const val FIRST_VISIBLE_HOUR = 7
+private const val MINUTE_MILLIS = 60_000L
+
+/** The clock the "now" line of the day and week grid follows (tests provide their own). */
+internal val LocalNowClock = staticCompositionLocalOf<Clock> { Clock.systemDefaultZone() }
 
 /** Day columns over a 24-hour grid, all-day events in a strip above it; one column for the day view, seven for the week. */
 @Composable
@@ -708,11 +719,19 @@ private fun DayColumn(
 
 @Composable
 private fun NowLine(zone: ZoneId) {
-    val now = LocalTime.now(zone)
+    val clock = LocalNowClock.current
+    var now by remember(clock, zone) { mutableStateOf(LocalTime.now(clock.withZone(zone))) }
+    // The line moves with the time while the grid is shown: checked again at the start of every minute.
+    LaunchedEffect(clock, zone) {
+        while (true) {
+            delay(MINUTE_MILLIS - clock.millis() % MINUTE_MILLIS)
+            now = LocalTime.now(clock.withZone(zone))
+        }
+    }
     val color = MaterialTheme.colorScheme.error
     Box(
         Modifier
-            .offset(y = HOUR_HEIGHT * (now.hour * 60 + now.minute) / 60f)
+            .offset { IntOffset(0, (HOUR_HEIGHT * (now.hour * 60 + now.minute) / 60f).roundToPx()) }
             .fillMaxWidth()
             .height(2.dp)
             .background(color)

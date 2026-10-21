@@ -1,8 +1,12 @@
 package ch.sonensei.cockpit.calendar.agenda
 
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.test.assertIsEnabled
+import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertIsNotSelected
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.assertTextContains
+import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
@@ -16,6 +20,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
+import java.time.Clock
 import java.time.DayOfWeek
 import java.time.Instant
 import java.time.LocalDate
@@ -51,8 +56,11 @@ class CalendarScreensTest {
     private val holiday = Occurrence(id(2), work.id, "Holiday", null, true, null, null, today.plusDays(2), today.plusDays(3))
     private val calls = mutableListOf<String>()
 
-    private fun show(state: CalendarUiState) =
-        composeRule.setContent {
+    private fun show(
+        state: CalendarUiState,
+        clock: Clock = Clock.systemUTC(),
+    ) = composeRule.setContent {
+        CompositionLocalProvider(LocalNowClock provides clock) {
             CockpitTheme {
                 CalendarContent(
                     state,
@@ -69,11 +77,13 @@ class CalendarScreensTest {
                 )
             }
         }
+    }
 
     private fun state(
         view: CalendarView = CalendarView.AGENDA,
         occurrences: List<Occurrence> = listOf(standup, holiday),
         message: CalendarMessage? = null,
+        pendingVisibility: Map<UUID, Boolean> = emptyMap(),
     ) = CalendarUiState(
         view = view,
         today = today,
@@ -86,7 +96,19 @@ class CalendarScreensTest {
         occurrences = occurrences,
         loaded = true,
         message = message,
+        pendingVisibility = pendingVisibility,
     )
+
+    /** A clock the test can move. */
+    private class MovableClock(
+        var now: Instant,
+    ) : Clock() {
+        override fun getZone(): ZoneId = ZoneId.of("UTC")
+
+        override fun withZone(zone: ZoneId): Clock = this
+
+        override fun instant(): Instant = now
+    }
 
     @Test
     fun `the agenda shows the days with events, their times, and opens a day or an event`() {
@@ -171,5 +193,30 @@ class CalendarScreensTest {
         composeRule.onNodeWithText("The events could not be loaded.").assertExists()
         composeRule.onNodeWithTag(CalendarTags.RETRY).performClick()
         assertTrue("retry" in calls)
+    }
+
+    @Test
+    fun `the chip of a calendar whose visibility is being written waits for the answer`() {
+        show(state(pendingVisibility = mapOf(home.id to true)))
+
+        composeRule.onNodeWithTag(CalendarTags.CALENDARS).performClick()
+        composeRule.onNodeWithTag(CalendarTags.calendar(home.id)).assertIsNotEnabled().performClick()
+        composeRule.onNodeWithTag(CalendarTags.calendar(work.id)).assertIsEnabled().performClick()
+        assertEquals(listOf("visible ${work.id} false"), calls.filter { it != "more" })
+    }
+
+    @Test
+    fun `the now line follows the time while the day is shown`() {
+        val clock = MovableClock(Instant.parse("2026-10-21T10:00:30Z"))
+        show(state(view = CalendarView.DAY, occurrences = emptyList()), clock)
+        val before = composeRule.onNodeWithTag(CalendarTags.NOW).getUnclippedBoundsInRoot().top
+
+        clock.now = Instant.parse("2026-10-21T10:30:30Z")
+        composeRule.mainClock.advanceTimeBy(60_000)
+        composeRule.waitForIdle()
+
+        val after = composeRule.onNodeWithTag(CalendarTags.NOW).getUnclippedBoundsInRoot().top
+        // Half an hour is half of an hour's height (48dp) further down.
+        assertEquals(24f, (after - before).value, 0.5f)
     }
 }

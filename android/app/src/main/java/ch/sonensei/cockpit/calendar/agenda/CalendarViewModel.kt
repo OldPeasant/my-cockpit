@@ -44,6 +44,8 @@ data class CalendarUiState(
     /** The range was loaded at least once. */
     val loaded: Boolean = false,
     val message: CalendarMessage? = null,
+    /** Calendars whose visibility change is still being written, and the visibility the user chose. */
+    val pendingVisibility: Map<UUID, Boolean> = emptyMap(),
 ) {
     /** The agenda: the days of the range that have occurrences. */
     val agendaDays: List<AgendaDay> get() = groupByDay(occurrences, from, to, zone)
@@ -86,6 +88,9 @@ class CalendarViewModel internal constructor(
     val uiState: StateFlow<CalendarUiState> = state.asStateFlow()
 
     private var loadJob: Job? = null
+
+    /** For each calendar with a pending visibility change: the newest state known from the server. */
+    private val serverCalendars = mutableMapOf<UUID, CalendarInfo>()
 
     /** Loads the calendars and the current view's range again (the agenda: everything scrolled to so far). */
     fun refresh() {
@@ -154,25 +159,47 @@ class CalendarViewModel internal constructor(
             }
     }
 
-    /** Shows or hides a calendar's events (stored on the server, so every device and the web agree), then reloads. */
+    /**
+     * Shows or hides a calendar's events (stored on the server, so every device and the web agree), then reloads.
+     * While a change of a calendar is being written, further changes of that calendar are ignored: they would be sent
+     * with the version the running one is about to replace, and refused.
+     */
     fun setVisible(
         calendarId: UUID,
         visible: Boolean,
     ) {
-        val calendar = state.value.calendar(calendarId) ?: return
+        val current = state.value
+        if (calendarId in current.pendingVisibility) return
+        val calendar = current.calendar(calendarId) ?: return
         if (calendar.visible == visible) return
-        state.update { s -> s.copy(calendars = s.calendars.map { if (it.id == calendarId) it.copy(visible = visible) else it }) }
+        // What the server has for this calendar; a calendar list loaded while the change runs replaces it.
+        serverCalendars[calendarId] = calendar
+        state.update { s ->
+            s.copy(
+                calendars = s.calendars.map { if (it.id == calendarId) it.copy(visible = visible) else it },
+                pendingVisibility = s.pendingVisibility + (calendarId to visible),
+            )
+        }
         viewModelScope.launch {
-            when (val result = repository.setVisible(calendar, visible)) {
+            val result = repository.setVisible(calendar, visible)
+            val before = serverCalendars.remove(calendarId) ?: calendar
+            when (result) {
                 is CalendarResult.Ok -> {
-                    state.update { s -> s.copy(calendars = s.calendars.map { if (it.id == calendarId) result.value else it }) }
+                    state.update { s ->
+                        s.copy(
+                            calendars = s.calendars.map { if (it.id == calendarId) result.value else it },
+                            pendingVisibility = s.pendingVisibility - calendarId,
+                        )
+                    }
                     load(state.value.from, state.value.to)
                 }
                 else -> {
-                    // Refused (or offline): the toggle goes back, and the calendars are reloaded in case it was stale.
+                    // Refused (or offline): the toggle goes back to what the server has (the newest calendar list loaded
+                    // meanwhile, or the calendar as it was before the tap), and the calendars are reloaded in case it was stale.
                     state.update { s ->
                         s.copy(
-                            calendars = s.calendars.map { if (it.id == calendarId) calendar else it },
+                            calendars = s.calendars.map { if (it.id == calendarId) before else it },
+                            pendingVisibility = s.pendingVisibility - calendarId,
                             message = if (result == CalendarResult.Offline) CalendarMessage.OFFLINE else CalendarMessage.VISIBILITY_FAILED,
                         )
                     }
@@ -184,8 +211,32 @@ class CalendarViewModel internal constructor(
 
     private fun refreshCalendars() {
         viewModelScope.launch {
-            (repository.calendars() as? CalendarResult.Ok)?.let { ok -> state.update { it.copy(calendars = ok.value) } }
+            (repository.calendars() as? CalendarResult.Ok)?.let { ok -> state.update { it.withCalendars(ok.value) } }
         }
+    }
+
+    /**
+     * Applies a calendar list loaded from the server. It may have been asked for before a visibility change was
+     * written: a calendar with a pending change keeps the visibility the user chose, and one already holding a newer
+     * version (the answer of a change) is kept.
+     */
+    private fun CalendarUiState.withCalendars(loaded: List<CalendarInfo>): CalendarUiState {
+        val known = calendars.associateBy { it.id }
+        loaded.filter { it.id in pendingVisibility }.forEach { fetched ->
+            serverCalendars.computeIfPresent(fetched.id) { _, seen -> if (fetched.version >= seen.version) fetched else seen }
+        }
+        return copy(
+            calendars =
+                loaded.map { fetched ->
+                    val local = known[fetched.id]
+                    val pending = pendingVisibility[fetched.id]
+                    when {
+                        local != null && local.version > fetched.version -> local
+                        pending != null -> fetched.copy(visible = pending)
+                        else -> fetched
+                    }
+                },
+        )
     }
 
     private fun show(
@@ -238,12 +289,12 @@ class CalendarViewModel internal constructor(
                 val calendars = async { repository.calendars() }
                 val result = repository.occurrences(from, to, zone)
                 val calendarList = calendars.await()
-                state.update {
-                    it.copy(
-                        calendars = (calendarList as? CalendarResult.Ok)?.value ?: it.calendars,
-                        occurrences = (result as? CalendarResult.Ok)?.value ?: it.occurrences,
+                state.update { current ->
+                    val withCalendars = (calendarList as? CalendarResult.Ok)?.let { current.withCalendars(it.value) } ?: current
+                    withCalendars.copy(
+                        occurrences = (result as? CalendarResult.Ok)?.value ?: current.occurrences,
                         loading = false,
-                        loaded = it.loaded || result is CalendarResult.Ok,
+                        loaded = current.loaded || result is CalendarResult.Ok,
                         message =
                             when (result) {
                                 is CalendarResult.Ok -> null

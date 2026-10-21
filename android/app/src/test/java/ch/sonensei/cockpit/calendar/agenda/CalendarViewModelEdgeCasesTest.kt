@@ -509,29 +509,137 @@ class CalendarViewModelEdgeCasesTest {
         }
 
     @Test
-    fun `two quick toggles of the same calendar end with what the server has`() =
+    fun `a second toggle of a calendar while its change is written is ignored`() =
         runTest(dispatcher) {
             val hidden = work.copy(visible = false, version = 4)
             val firstWrite = CompletableDeferred<CalendarResult<CalendarInfo>>()
-            val secondWrite = CompletableDeferred<CalendarResult<CalendarInfo>>()
             coEvery { repo.setVisible(work, false) } coAnswers { firstWrite.await() }
-            // The second toggle is sent with the version the first one has not bumped yet: the server refuses it.
-            coEvery { repo.setVisible(hidden.copy(version = 3), true) } coAnswers { secondWrite.await() }
             val vm = viewModel()
             vm.refresh()
             advanceUntilIdle()
 
             vm.setVisible(work.id, false)
             runCurrent()
-            vm.setVisible(work.id, true)
+            assertEquals(mapOf(work.id to false), vm.uiState.value.pendingVisibility)
+            vm.setVisible(work.id, true) // would be sent with version 3, which the first change replaces
             runCurrent()
+            assertFalse(
+                vm.uiState.value
+                    .calendar(work.id)!!
+                    .visible,
+            )
+
             coEvery { repo.calendars() } returns CalendarResult.Ok(listOf(hidden, home))
             firstWrite.complete(CalendarResult.Ok(hidden))
             advanceUntilIdle()
-            secondWrite.complete(CalendarResult.Failed(412))
+
+            assertEquals(listOf(hidden, home), vm.uiState.value.calendars)
+            assertEquals(emptyMap<UUID, Boolean>(), vm.uiState.value.pendingVisibility)
+            assertNull(vm.uiState.value.message)
+            coVerify(exactly = 1) { repo.setVisible(any(), any()) }
+
+            // Once the answer is there, the calendar can be toggled again, with the new version.
+            coEvery { repo.setVisible(hidden, true) } returns CalendarResult.Ok(work.copy(version = 5))
+            vm.setVisible(work.id, true)
+            advanceUntilIdle()
+            coVerify(exactly = 1) { repo.setVisible(hidden, true) }
+        }
+
+    @Test
+    fun `a calendar list loaded while a change is written keeps the chosen visibility`() =
+        runTest(dispatcher) {
+            val write = CompletableDeferred<CalendarResult<CalendarInfo>>()
+            coEvery { repo.setVisible(work, false) } coAnswers { write.await() }
+            val vm = viewModel()
+            vm.refresh()
+            advanceUntilIdle()
+
+            vm.setVisible(work.id, false)
+            runCurrent()
+            // The list was read by the server before the change: Work is still visible there.
+            val renamedHome = home.copy(name = "Family", version = 8)
+            coEvery { repo.calendars() } returns CalendarResult.Ok(listOf(work, renamedHome))
+            vm.refresh()
+            advanceUntilIdle()
+
+            assertEquals(listOf(work.copy(visible = false), renamedHome), vm.uiState.value.calendars)
+
+            val hidden = work.copy(visible = false, version = 4)
+            write.complete(CalendarResult.Ok(hidden))
+            advanceUntilIdle()
+            assertEquals(listOf(hidden, renamedHome), vm.uiState.value.calendars)
+        }
+
+    @Test
+    fun `a calendar list read before a change answered does not undo it`() =
+        runTest(dispatcher) {
+            val hidden = work.copy(visible = false, version = 4)
+            coEvery { repo.setVisible(work, false) } returns CalendarResult.Ok(hidden)
+            coEvery { repo.setVisible(home, false) } returns CalendarResult.Failed(412)
+            val stale = CompletableDeferred<CalendarResult<List<CalendarInfo>>>()
+            val vm = viewModel()
+            vm.refresh()
+            advanceUntilIdle()
+
+            // Hiding Home is refused, and the calendars it reloads are read before Work is hidden.
+            coEvery { repo.calendars() } coAnswers { stale.await() }
+            vm.setVisible(home.id, false)
+            advanceUntilIdle()
+            coEvery { repo.calendars() } returns CalendarResult.Ok(listOf(hidden, home))
+            vm.setVisible(work.id, false)
+            advanceUntilIdle()
+            stale.complete(CalendarResult.Ok(listOf(work, home)))
             advanceUntilIdle()
 
             assertEquals(listOf(hidden, home), vm.uiState.value.calendars)
-            assertEquals(CalendarMessage.VISIBILITY_FAILED, vm.uiState.value.message)
+        }
+
+    @Test
+    fun `a failed change after a newer calendar list arrived goes back to that list`() =
+        runTest(dispatcher) {
+            val write = CompletableDeferred<CalendarResult<CalendarInfo>>()
+            coEvery { repo.setVisible(work, false) } coAnswers { write.await() }
+            val vm = viewModel()
+            vm.refresh()
+            advanceUntilIdle()
+
+            vm.setVisible(work.id, false)
+            runCurrent()
+            // Meanwhile another device renamed Work.
+            val renamed = work.copy(name = "Office", version = 4)
+            coEvery { repo.calendars() } returns CalendarResult.Ok(listOf(renamed, home))
+            vm.refresh()
+            advanceUntilIdle()
+            assertEquals(renamed.copy(visible = false), vm.uiState.value.calendar(work.id))
+
+            write.complete(CalendarResult.Offline)
+            advanceUntilIdle()
+
+            assertEquals(listOf(renamed, home), vm.uiState.value.calendars)
+            assertEquals(CalendarMessage.OFFLINE, vm.uiState.value.message)
+            assertEquals(emptyMap<UUID, Boolean>(), vm.uiState.value.pendingVisibility)
+        }
+
+    @Test
+    fun `a slow agenda load superseded by a view switch does not overwrite the new range`() =
+        runTest(dispatcher) {
+            val slow = CompletableDeferred<CalendarResult<List<Occurrence>>>()
+            coEvery { repo.occurrences(today, today.plusDays(30), zone) } coAnswers { slow.await() }
+            coEvery { repo.occurrences(today, today.plusDays(1), zone) } returns CalendarResult.Ok(listOf(event(4, today)))
+            val vm = viewModel()
+            vm.refresh()
+            runCurrent()
+            assertTrue(vm.uiState.value.loading)
+
+            vm.select(CalendarView.DAY)
+            advanceUntilIdle()
+            slow.complete(CalendarResult.Ok(listOf(event(1, today), event(2, today.plusDays(5)))))
+            advanceUntilIdle()
+
+            val state = vm.uiState.value
+            assertEquals(CalendarView.DAY, state.view)
+            assertEquals(today to today.plusDays(1), state.from to state.to)
+            assertEquals(listOf("Event 4"), state.occurrences.map { it.title })
+            assertFalse(state.loading)
         }
 }
