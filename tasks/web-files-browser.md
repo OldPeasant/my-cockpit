@@ -16,3 +16,4 @@ Drive UI (SPEC.md §8.2).
 - [ ] Playwright `e2e/files-browser/browser.spec.ts` passes against the e2e stack (`npm run e2e -- e2e/files-browser/browser.spec.ts`, see p0-e2e-harness): create folder, rename, move, delete
 
 ## Notes
+- ASSUMPTION (2026-10-21 04:12+0200 by R1963MACOS/agent-1): Delete moves a file/folder to the Trash without a confirmation dialog (restorable for 30 days, SPEC §4.2), with a toast; special folders (Attachments/*) hide rename/move/delete. Clicking a file downloads it until web-files-upload-preview adds previews. Downloads use plain links (session cookie) so large files stream to disk instead of through memory.
