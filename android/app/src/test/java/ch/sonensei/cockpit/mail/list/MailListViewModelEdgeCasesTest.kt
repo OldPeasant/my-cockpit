@@ -314,6 +314,102 @@ class MailListViewModelEdgeCasesTest {
         }
 
     @Test
+    fun `a refused swipe does not duplicate a mail that a reload already brought back`() =
+        runTest(dispatcher) {
+            val answer = CompletableDeferred<MailResult<Boolean>>()
+            coEvery { repo.act(id(2), MailListAction.DELETE) } coAnswers { answer.await() }
+            val vm = MailListViewModel(repo)
+            vm.refresh()
+            advanceUntilIdle()
+
+            vm.act(id(2), MailListAction.DELETE)
+            advanceUntilIdle()
+            // The refresh answers before the server refuses: mail 2 is back in the list already.
+            vm.refresh()
+            advanceUntilIdle()
+            answer.complete(MailResult.Failed(409))
+            advanceUntilIdle()
+
+            assertEquals(listOf(1, 2, 3).map(::id), ids(vm))
+            assertEquals(MailListMessage.DELETE_FAILED, vm.uiState.value.message)
+        }
+
+    @Test
+    fun `no next page is asked for while the mailbox reloads, even with a cursor`() =
+        runTest(dispatcher) {
+            val vm = MailListViewModel(repo)
+            vm.refresh()
+            advanceUntilIdle()
+            assertEquals("c1", vm.uiState.value.nextCursor)
+
+            val reload = CompletableDeferred<MailResult<MailPage>>()
+            coEvery { repo.messages(Mailbox.Unified, null) } coAnswers { reload.await() }
+            vm.refresh()
+            vm.loadMore()
+            advanceUntilIdle()
+            assertFalse(vm.uiState.value.loadingMore)
+            coVerify(exactly = 0) { repo.messages(Mailbox.Unified, "c1") }
+
+            reload.complete(MailResult.Ok(MailPage(listOf(mail(1), mail(2), mail(3)), "c1")))
+            advanceUntilIdle()
+            assertFalse(vm.uiState.value.loading)
+        }
+
+    @Test
+    fun `a refresh that finds the mailbox empty clears the list`() =
+        runTest(dispatcher) {
+            val vm = MailListViewModel(repo)
+            vm.refresh()
+            advanceUntilIdle()
+
+            // All mail was moved away on another device.
+            coEvery { repo.messages(Mailbox.Unified, null) } returns MailResult.Ok(MailPage(emptyList(), null))
+            vm.refresh()
+            advanceUntilIdle()
+
+            assertEquals(emptyList<UUID>(), ids(vm))
+            assertNull(vm.uiState.value.nextCursor)
+            assertTrue(vm.uiState.value.loaded)
+        }
+
+    @Test
+    fun `picking the shown mailbox again after its load failed loads it`() =
+        runTest(dispatcher) {
+            coEvery { repo.messages(Mailbox.Unified, null) } returns MailResult.Offline
+            val vm = MailListViewModel(repo)
+            vm.refresh()
+            advanceUntilIdle()
+            assertFalse(vm.uiState.value.loaded)
+
+            coEvery { repo.messages(Mailbox.Unified, null) } returns MailResult.Ok(MailPage(listOf(mail(1)), null))
+            vm.select(Mailbox.Unified)
+            advanceUntilIdle()
+
+            assertTrue(vm.uiState.value.loaded)
+            assertEquals(listOf(id(1)), ids(vm))
+            coVerify(exactly = 2) { repo.messages(Mailbox.Unified, null) }
+        }
+
+    @Test
+    fun `a refresh drops a loaded mail that moved up into the new first page, keeping one copy`() =
+        runTest(dispatcher) {
+            coEvery { repo.messages(Mailbox.Unified, "c1") } returns MailResult.Ok(MailPage(listOf(mail(4), mail(5)), "c2"))
+            val vm = MailListViewModel(repo)
+            vm.refresh()
+            advanceUntilIdle()
+            vm.loadMore()
+            advanceUntilIdle()
+
+            // Mail 5 was flagged/updated and now sorts on the first page, which ends at mail 3.
+            coEvery { repo.messages(Mailbox.Unified, null) } returns MailResult.Ok(MailPage(listOf(mail(5), mail(1), mail(3)), "c1b"))
+            vm.refresh()
+            advanceUntilIdle()
+
+            assertEquals(listOf(5, 1, 3, 4).map(::id), ids(vm))
+            assertEquals("c2", vm.uiState.value.nextCursor)
+        }
+
+    @Test
     fun `a refresh that reaches the end replaces the list`() =
         runTest(dispatcher) {
             coEvery { repo.messages(Mailbox.Unified, "c1") } returns MailResult.Ok(MailPage(listOf(mail(4)), null))

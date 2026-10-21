@@ -62,6 +62,16 @@ class MailWebViewTest {
         assertEquals(emptyList<Uri>(), opened)
     }
 
+    @Test
+    fun `a tapped link with an upper-case scheme still leaves the view, one without a scheme is dropped`() {
+        val client = view.webViewClient
+        assertTrue(client.shouldOverrideUrlLoading(view, request("HTTPS://Example.org/Path")))
+        assertTrue(client.shouldOverrideUrlLoading(view, request("MailTo:anna@example.org")))
+        assertTrue(client.shouldOverrideUrlLoading(view, request("relative/path")))
+
+        assertEquals(listOf("HTTPS://Example.org/Path", "MailTo:anna@example.org"), opened.map { it.toString() })
+    }
+
     private fun request(
         url: String,
         gesture: Boolean = true,

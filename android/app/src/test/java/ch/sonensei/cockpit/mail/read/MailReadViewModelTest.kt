@@ -310,6 +310,52 @@ class MailReadViewModelTest {
         }
 
     @Test
+    fun `retry after the view closed loads nothing`() =
+        runTest(dispatcher) {
+            val vm = opened(MailResult.Offline)
+            advanceUntilIdle()
+            vm.close()
+
+            vm.retry()
+            advanceUntilIdle()
+
+            coVerify(exactly = 1) { reader.message(id(1)) }
+            assertEquals(MailReadUiState(), vm.uiState.value)
+        }
+
+    @Test
+    fun `a GTD answer for a closed mail is not shown on the next one`() =
+        runTest(dispatcher) {
+            val created = CompletableDeferred<MailResult<String>>()
+            coEvery { reader.gtd(id(1), MailGtdAction.TASK) } coAnswers { created.await() }
+            coEvery { reader.message(id(2)) } returns MailResult.Ok(message(n = 2))
+            val vm = opened()
+            advanceUntilIdle()
+
+            vm.gtd(MailGtdAction.TASK)
+            advanceUntilIdle()
+            vm.close()
+            vm.open(id(2))
+            advanceUntilIdle()
+            created.complete(MailResult.Ok("Quarterly report"))
+            advanceUntilIdle()
+
+            assertEquals(
+                id(2),
+                vm.uiState.value.message
+                    ?.id,
+            )
+            assertNull(vm.uiState.value.notice)
+            assertFalse(vm.uiState.value.busy)
+
+            // The next mail's own actions are not blocked by the dropped one.
+            coEvery { reader.gtd(id(2), MailGtdAction.WAITING) } returns MailResult.Ok("Waiting: report")
+            vm.gtd(MailGtdAction.WAITING)
+            advanceUntilIdle()
+            assertEquals(MailReadNotice.Created(MailGtdAction.WAITING, "Waiting: report"), vm.uiState.value.notice)
+        }
+
+    @Test
     fun `answers for a mail already closed are dropped`() =
         runTest(dispatcher) {
             val load = CompletableDeferred<MailResult<MailMessage>>()

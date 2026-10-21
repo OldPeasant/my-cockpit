@@ -150,11 +150,40 @@ class MailListScreenStatesTest {
     }
 
     @Test
+    fun `a mail without a subject says so`() {
+        show(
+            MailListUiState(
+                accounts = listOf(MailAccountFolders(work, emptyList())),
+                messages = listOf(mail(1).copy(subject = " ")),
+                loaded = true,
+            ),
+        )
+        composeRule.onNodeWithTag(MailListTags.row(id(1))).assertTextContains("(no subject)")
+    }
+
+    @Test
     fun `special folders are named by role, subfolders by name`() {
         show(MailListUiState(accounts = listOf(MailAccountFolders(work, listOf(trash, sub))), loaded = true))
         composeRule.onNodeWithTag(MailListTags.MAILBOX).performClick()
         composeRule.onNodeWithTag(MailListTags.folder(trash.id)).assertTextContains("Trash")
         composeRule.onNodeWithTag(MailListTags.folder(sub.id)).assertTextContains("2026")
+    }
+
+    @Test
+    fun `drafts, sent, spam and archive folders are named by role whatever the server calls them`() {
+        val folders =
+            listOf(
+                MailFolder(id(94), work.id, "Entwürfe", "Entwürfe", FolderRole.DRAFTS, 0),
+                MailFolder(id(95), work.id, "Gesendet", "Gesendet", FolderRole.SENT, 0),
+                MailFolder(id(96), work.id, "Junk E-Mail", "Junk E-Mail", FolderRole.SPAM, 0),
+                MailFolder(id(97), work.id, "Archives", "Archives", FolderRole.ARCHIVE, 0),
+            )
+        show(MailListUiState(accounts = listOf(MailAccountFolders(work, folders)), loaded = true))
+        composeRule.onNodeWithTag(MailListTags.MAILBOX).performClick()
+
+        listOf("Drafts", "Sent", "Spam", "Archive").zip(folders).forEach { (label, folder) ->
+            composeRule.onNodeWithTag(MailListTags.folder(folder.id)).assertTextContains(label)
+        }
     }
 
     @Test
