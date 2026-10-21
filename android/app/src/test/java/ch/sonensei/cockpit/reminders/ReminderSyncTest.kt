@@ -108,6 +108,22 @@ class ReminderSyncTest {
         }
 
     @Test
+    fun `a reminder whose item the server reports unavailable loses its alarm on the next sync`() =
+        runBlocking {
+            answer(upcomingJson(reminderJson(1, NOW.plusSeconds(600)), reminderJson(2, NOW.plusSeconds(1200))))
+            sync.sync()
+            // The item was trashed: the server lists only its type and id.
+            val trashed =
+                """{"id":"${reminderId(1)}","channel":"NOTIFICATION","createdAt":"2026-10-21T07:00:00Z",""" +
+                    """"remindAt":"${NOW.plusSeconds(600)}","item":{"available":false,"id":"${itemId(1)}","type":"TASK"}}"""
+            answer(upcomingJson(trashed, reminderJson(2, NOW.plusSeconds(1200))))
+
+            assertEquals(ReminderSyncResult.SYNCED, sync.sync())
+
+            assertEquals(listOf(reminderId(2).toString()), alarmReminderIds(context))
+        }
+
+    @Test
     fun `a server error keeps the alarms`() =
         runBlocking {
             answer(upcomingJson(reminderJson(1, NOW.plusSeconds(600))))

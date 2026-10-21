@@ -92,6 +92,26 @@ class ReminderSchedulerTest {
     }
 
     @Test
+    fun `a later sync cancels the alarm of a reminder whose item was trashed meanwhile`() {
+        scheduler.apply(listOf(reminder(1, minutes = 30), reminder(2, minutes = 60)))
+
+        scheduler.apply(listOf(reminder(1, minutes = 30, available = false), reminder(2, minutes = 60)))
+
+        assertEquals(listOf(reminderId(2).toString()), alarmReminderIds(context))
+        assertNull(store.find(reminderId(1).toString()))
+    }
+
+    @Test
+    fun `a later sync cancels the alarm of a reminder the server lists as fired before it was due here`() {
+        scheduler.apply(listOf(reminder(1, minutes = 30), reminder(2, minutes = 60)))
+
+        scheduler.apply(listOf(reminder(1, minutes = 30, firedAt = NOW), reminder(2, minutes = 60)))
+
+        assertEquals(listOf(reminderId(2).toString()), alarmReminderIds(context))
+        assertNull("not notified when the stale alarm still goes off", scheduler.fire(reminderId(1).toString()))
+    }
+
+    @Test
     fun `an empty sync cancels every alarm`() {
         scheduler.apply(listOf(reminder(1, minutes = 30)))
 

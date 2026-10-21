@@ -264,6 +264,40 @@ class ReminderUiTest {
     }
 
     @Test
+    fun `the prompt goes away once a sync leaves no upcoming reminders`() {
+        graph.reminderScheduler().apply(listOf(reminder(1, minutes = 30)))
+        showPrompt(viewModel())
+        composeRule.onNodeWithTag(ReminderPromptTags.CARD).assertIsDisplayed()
+
+        // Store level, so the real-clock scheduler of the app graph cannot keep the reminder as due.
+        graph.reminderStore().replaceScheduled(emptyList())
+        composeRule.waitForIdle()
+
+        composeRule.onNodeWithTag(ReminderPromptTags.CARD).assertDoesNotExist()
+    }
+
+    @Test
+    fun `two tapped notifications for the same screen stack it once, and back returns to where the user was`() {
+        lateinit var navController: NavHostController
+        composeRule.setContent {
+            navController = rememberNavController()
+            CockpitTheme { CockpitShell(navController) }
+        }
+        composeRule.onNodeWithTag(screenTag(CockpitDestination.Today)).assertIsDisplayed()
+
+        ReminderOpenRequests.offer(openItemIntent(context, reminder(1, minutes = 0).toScheduled()!!))
+        composeRule.waitForIdle()
+        ReminderOpenRequests.offer(openItemIntent(context, reminder(2, minutes = 0).toScheduled()!!))
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag(screenTag(CockpitDestination.Next)).assertIsDisplayed()
+
+        composeRule.runOnIdle { navController.popBackStack() }
+        composeRule.waitForIdle()
+
+        composeRule.onNodeWithTag(screenTag(CockpitDestination.Today)).assertIsDisplayed()
+    }
+
+    @Test
     fun `a request made before the shell shows is opened when it appears`() {
         val event = reminder(1, minutes = 0, type = ReminderItemResponse.Type.EVENT).toScheduled()!!
         ReminderOpenRequests.offer(openItemIntent(context, event))
