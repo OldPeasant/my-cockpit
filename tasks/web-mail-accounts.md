@@ -11,7 +11,8 @@ lease_until: 2026-10-21T22:24:52Z
 Manage mail accounts (SPEC.md §7.1).
 
 ## Acceptance criteria
-- [ ] Add IMAP/SMTP (with test connection), Google, Microsoft; identities, signature (Markdown), folder role mapping, notification toggle
+- [x] Add IMAP/SMTP (with test connection), Google, Microsoft; identities, signature (Markdown), folder role mapping, notification toggle
+  - verified (2026-10-22 00:05+0200 by dell26/agent-3): Vitest component specs (cd web && npx ng test --watch=false --include 'src/app/features/settings/mail/*.spec.ts' --include settings.routes.spec.ts -> 6 files, 120 passed) exercise IMAP/SMTP add with test connection + folder detection, Google/Microsoft add via OAuth connection (purpose=MAIL), primary identity edit, Markdown signature, folder role mapping, notification toggle against HttpTestingController; real IMAP/Google/Microsoft servers not reachable here (h-mail-real)
 - [ ] Vitest component/service tests cover account forms and test-connection states; `cd web && npm run check` passes
 
 ## Notes
