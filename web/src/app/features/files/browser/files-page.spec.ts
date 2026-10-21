@@ -975,6 +975,17 @@ describe('FilesPage', () => {
       );
     });
 
+    it('uploads nothing when the picker is closed without a choice', async () => {
+      await open(DOCS);
+      const picker = byLabel('Files to upload') as HTMLInputElement;
+      Object.defineProperty(picker, 'files', { configurable: true, value: fileList() });
+      picker.dispatchEvent(new Event('change'));
+      fixture.detectChanges();
+      expect(TestBed.inject(UploadService).jobs()).toEqual([]);
+      expect(root.querySelector('app-upload-panel h2')).toBeNull();
+      expect(http.match((r) => r.url === '/api/v1/files')).toEqual([]);
+    });
+
     it('uploads files dropped on the folder and outlines it while files are dragged over', async () => {
       await open();
       expect(main().classList).not.toContain('dragging');

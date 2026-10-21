@@ -229,6 +229,51 @@ describe('PdfViewer', () => {
     expect(canvas().getAttribute('data-rendered')).toBe('2');
   });
 
+  it('draws only the latest page when pages change while an earlier render is still finishing', async () => {
+    await create();
+    pdf.autoRender = false;
+    pdf.open();
+    await render();
+    const first = pdf.renders[0];
+    // pdf.js does not stop page 1 at once: it keeps the canvas until its render settles.
+    first.cancel.mockImplementation(() => undefined);
+    button('Next page').click();
+    await render();
+    button('Next page').click();
+    await render();
+    // Pages 2 and 3 are loaded, both waiting for page 1 to let go of the canvas.
+    expect(pdf.renders.map((r) => r.page)).toEqual([1]);
+
+    // Page 1 finishes successfully, but late: it is not reported as drawn, page 2 is skipped.
+    first.done.resolve();
+    await render();
+    expect(pdf.renders.map((r) => r.page)).toEqual([1, 3]);
+    expect(canvas().hasAttribute('data-rendered')).toBe(false);
+    pdf.renders[1].done.resolve();
+    await render();
+    expect(count()).toBe('Page 3 of 3');
+    expect(canvas().getAttribute('data-rendered')).toBe('3');
+    expect(el().querySelector('[role="alert"]')).toBeNull();
+  });
+
+  it('does not open the old source when pdf.js finishes loading after the source changed', async () => {
+    pdf = new FakePdf(2);
+    const lib = deferred<PdfJs>();
+    setPdfJsLoader(() => lib.promise);
+    fixture = TestBed.createComponent(Host);
+    await render();
+    const next = '/api/v1/files/0192f0c4-0000-7000-8000-000000000105/preview';
+    fixture.componentInstance.src.set(next);
+    await render();
+
+    lib.resolve(pdf.lib);
+    await render();
+    expect(pdf.tasks.map((t) => t.url)).toEqual([next]);
+    pdf.open();
+    await render();
+    expect(count()).toBe('Page 1 of 2');
+  });
+
   it('shows an error when the document cannot be loaded', async () => {
     await create();
     pdf.tasks[0].doc.reject(new Error('Invalid PDF structure'));

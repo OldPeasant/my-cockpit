@@ -574,6 +574,49 @@ describe('UploadService', () => {
       http.expectNone('/api/v1/uploads');
     });
 
+    it('cancel during the resume lookup stops it and DELETEs the upload', async () => {
+      const [job] = service.upload([bigFile()], FOLDER);
+      (await next('POST', '/api/v1/uploads')).flush(session());
+      (await next('PUT', chunkUrl(0))).flush(problem(400, 'Bad Request'), {
+        status: 400,
+        statusText: 'Bad Request',
+      });
+      await until(job, 'failed');
+      service.retry(job);
+      const lookup = await next('GET', `/api/v1/uploads/${UPLOAD_ID}`);
+
+      service.cancel(job);
+      expect(lookup.cancelled).toBe(true);
+      (await next('DELETE', `/api/v1/uploads/${UPLOAD_ID}`)).flush(null, {
+        status: 204,
+        statusText: 'No Content',
+      });
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      http.expectNone(chunkUrl(0));
+      http.expectNone('/api/v1/uploads');
+      expect(job.state()).toBe('cancelled');
+      expect(job.error()).toBeNull();
+    });
+
+    it('a file that can no longer be read fails with a generic message and keeps the upload', async () => {
+      const file = bigFile();
+      // E.g. the file was deleted or changed on disk after it was picked.
+      vi.spyOn(file, 'slice').mockImplementation(
+        () =>
+          ({
+            arrayBuffer: () =>
+              Promise.reject(new DOMException('The file could not be read.', 'NotReadableError')),
+          }) as unknown as Blob,
+      );
+      const [job] = service.upload([file], FOLDER);
+      (await next('POST', '/api/v1/uploads')).flush(session());
+      await until(job, 'failed');
+      expect(job.error()).toBe('The upload failed.');
+      expect(job.uploadId).toBe(UPLOAD_ID);
+      http.expectNone(chunkUrl(0));
+      http.expectNone((r) => r.method === 'DELETE');
+    });
+
     it('a failed complete (checksum mismatch) fails the upload', async () => {
       const [job] = service.upload([bigFile()], FOLDER);
       (await next('POST', '/api/v1/uploads')).flush(session());
