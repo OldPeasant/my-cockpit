@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="calendar_view_agenda">Agenda</string>
+    <string name="calendar_view_day">Day</string>
+    <string name="calendar_view_week">Week</string>
+    <string name="calendar_today">Today</string>
+    <string name="calendar_previous_day">Previous day</string>
+    <string name="calendar_next_day">Next day</string>
+    <string name="calendar_previous_week">Previous week</string>
+    <string name="calendar_next_week">Next week</string>
+    <string name="calendar_calendars">Calendars</string>
+    <string name="calendar_no_calendars">No calendars yet. Add one on the web.</string>
+    <string name="calendar_all_day">All day</string>
+    <string name="calendar_continues">continues</string>
+    <string name="calendar_agenda_empty">Nothing planned until %1$s.</string>
+    <string name="calendar_day_empty">Nothing planned.</string>
+    <string name="calendar_load_more">Show later days</string>
+    <string name="calendar_loaded_until">Showing until %1$s</string>
+    <string name="calendar_offline">Can\'t reach the server. Showing the last loaded events.</string>
+    <string name="calendar_failed">The events could not be loaded.</string>
+    <string name="calendar_visibility_failed">The calendar could not be changed. Try again.</string>
+    <string name="calendar_retry">Retry</string>
+    <string name="calendar_week_range">%1$s – %2$s</string>
+</resources>
