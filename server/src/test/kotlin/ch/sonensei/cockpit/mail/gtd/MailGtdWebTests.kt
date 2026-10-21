@@ -290,6 +290,24 @@ class MailGtdWebTests(
 	}
 
 	@Test
+	fun `to-note separates headings, quotes, header cells and rules of an HTML part and drops trailing blanks`() {
+		val mail = message(inbox)
+		bodies.put(
+			mail.id,
+			null,
+			"<h1>Agenda</h1><blockquote>Quoted line</blockquote><table><tr><th>Name</th><th>Role</th></tr></table>" +
+				"<hr><p>spaces   <br>next</p>",
+		)
+		attachments.save(mail.id, emptyList())
+
+		val result = created(mail.id, "to-note")
+
+		val body = getJson("/api/v1/notes/${result["id"].asString()}")["bodyMd"].asString()
+		body shouldEndWith "Agenda\n\nQuoted line\n\nName Role\n\nspaces\nnext"
+		body shouldNotContain "\n\n\n"
+	}
+
+	@Test
 	fun `inline link tokens in a mail's text do not link the note to other items`() {
 		val other = UUID.randomUUID()
 		val mail = message(inbox)
@@ -335,6 +353,46 @@ class MailGtdWebTests(
 		val end = linkedEnds("TASK", taskId).single()
 		end["available"].asBoolean() shouldBe true
 		end["deepLink"].asString() shouldBe "/mail/messages/${mail.id}"
+	}
+
+	@Test
+	fun `waiting-for and note links survive a move that gives the message a new row`() {
+		val original = message(inbox, messageId = "<moved-waiting-note@example.test>")
+		bodies.put(original.id, "Text", null)
+		attachments.save(original.id, emptyList())
+		val waitingId = created(original.id, "to-waiting")["id"].asString()
+		val noteId = created(original.id, "to-note")["id"].asString()
+
+		messages.save(original.apply { detach() })
+		val copy = message(archive, messageId = "<moved-waiting-note@example.test>")
+
+		for ((type, id) in listOf("TASK" to waitingId, "NOTE" to noteId)) {
+			val end = linkedEnds(type, id).single()
+			end["available"].asBoolean() shouldBe true
+			end["id"].asString() shouldBe original.id.toString()
+			end["deepLink"].asString() shouldBe "/mail/messages/${copy.id}"
+		}
+	}
+
+	@Test
+	fun `links keep resolving to the current copy across repeated moves`() {
+		val original = message(inbox, messageId = "<moved-twice@example.test>")
+		val fromOriginal = created(original.id, "to-task")["id"].asString()
+		messages.save(original.apply { detach() })
+		val firstCopy = message(archive, messageId = "<moved-twice@example.test>")
+		// Created after the first move: the link points at the first copy.
+		val fromFirstCopy = created(original.id, "to-task")["id"].asString()
+		linkedEnds("TASK", fromFirstCopy).single()["id"].asString() shouldBe firstCopy.id.toString()
+
+		val projects = folders.save(MailFolder(account.id, "Projects", "Projects"))
+		messages.save(firstCopy.apply { detach() })
+		val secondCopy = message(projects, messageId = "<moved-twice@example.test>")
+
+		for (taskId in listOf(fromOriginal, fromFirstCopy)) {
+			val end = linkedEnds("TASK", taskId).single()
+			end["available"].asBoolean() shouldBe true
+			end["deepLink"].asString() shouldBe "/mail/messages/${secondCopy.id}"
+		}
 	}
 
 	@Test
