@@ -377,4 +377,180 @@ describe('CalendarsSettings', () => {
     expect(button('Connect Microsoft account')).toBeUndefined();
     expect(root.textContent).toContain('Microsoft is not set up on this server');
   });
+
+  it('groups calendars of unknown sources under Other and keeps an external source without calendars', async () => {
+    await setup(
+      [fakeCalendar({ id: 'c8', sourceId: 'gone', sourceType: 'CALDAV', name: 'Archive' })],
+      [fakeSource(), fakeSyncedSource({ id: 's5', name: 'Empty account' })],
+    );
+
+    // The local source has no calendars and is left out; the account shows a hint instead.
+    expect(groups()).toEqual([
+      { source: 'Empty account', calendars: [] },
+      { source: 'Other', calendars: ['Archive'] },
+    ]);
+    expect(root.textContent).toContain('They appear after the first sync.');
+  });
+
+  it('says so when there are no calendars at all', async () => {
+    await setup([], [fakeSource()]);
+
+    expect(groups()).toEqual([]);
+    expect(root.textContent).toContain('No calendars yet. Add one below.');
+  });
+
+  it('still loads when the OAuth providers cannot be read, and then offers no Google connect', async () => {
+    navigate = vi.fn();
+    TestBed.configureTestingModule({
+      providers: [
+        provideHttp(),
+        provideHttpClientTesting(),
+        provideRouter([]),
+        { provide: NotificationService, useValue: { error: vi.fn() } },
+        { provide: BROWSER_NAVIGATE, useValue: navigate },
+      ],
+    });
+    http = TestBed.inject(HttpTestingController);
+    fixture = TestBed.createComponent(CalendarsSettings);
+    root = fixture.nativeElement as HTMLElement;
+    await settle();
+    http.expectOne(CALENDARS).flush({ items: [fakeCalendar()] });
+    http.expectOne(SOURCES).flush({ items: [fakeSource()] });
+    const { body, ...options } = problem(503, 'Service Unavailable');
+    http.expectOne(PROVIDERS_URL).flush(body, options);
+    await settle();
+
+    expect(root.querySelector('[role="alert"]')).toBeNull();
+    expect(groups()).toEqual([{ source: 'In the cockpit', calendars: ['Personal'] }]);
+    await pickKind('Google');
+    expect(button('Connect Google account')).toBeUndefined();
+    expect(root.textContent).toContain('Google is not set up on this server');
+  });
+
+  it('does not save a color that did not change', async () => {
+    await setup();
+    const swatch = root.querySelector<HTMLInputElement>('input[aria-label="Color of Work"]')!;
+    swatch.value = '#AA0000';
+    swatch.dispatchEvent(new Event('change'));
+    await settle();
+
+    http.expectNone({ method: 'PATCH' });
+  });
+
+  it('disables a calendar while its change is saved and reports a failed save', async () => {
+    await setup();
+    const swatch = root.querySelector<HTMLInputElement>('input[aria-label="Color of Work"]')!;
+    swatch.value = '#00aa00';
+    swatch.dispatchEvent(new Event('change'));
+    await settle();
+    const req = http.expectOne({ method: 'PATCH', url: `${CALENDARS}/c2` });
+    expect(
+      root.querySelector<HTMLInputElement>('input[aria-label="Color of Work"]')!.disabled,
+    ).toBe(true);
+    expect(
+      root.querySelector<HTMLInputElement>('input[aria-label="Color of Personal"]')!.disabled,
+    ).toBe(false);
+
+    const { body, ...options } = problem(500, 'Server error');
+    req.flush({ ...body, detail: 'The database is not reachable.' }, options);
+    await settle();
+    flushReload([fakeCalendar(), work, holidays], [fakeSource()]);
+    await settle();
+
+    expect(root.querySelector('[role="alert"]')?.textContent).toContain('Work could not be changed');
+    expect(
+      root.querySelector<HTMLInputElement>('input[aria-label="Color of Work"]')!.disabled,
+    ).toBe(false);
+    expect(root.querySelector<HTMLInputElement>('input[aria-label="Color of Work"]')!.value).toBe(
+      '#aa0000',
+    );
+  });
+
+  it('trims the CalDAV fields, leaves a blank name to the server and survives a failing sync request', async () => {
+    await setup();
+    await pickKind('CalDAV');
+    await type('Server URL', '  https://cloud.example.test/dav  ');
+    await type('User name', ' jane ');
+    await type('App password', ' secret with spaces ');
+    await type('Name (optional)', '   ');
+    button('Connect CalDAV').click();
+    await settle();
+
+    const req = http.expectOne({ method: 'POST', url: SOURCES });
+    expect(req.request.body).toEqual({
+      type: 'CALDAV',
+      url: 'https://cloud.example.test/dav',
+      username: 'jane',
+      password: ' secret with spaces ',
+      name: undefined,
+    });
+    const added = fakeSyncedSource({
+      id: 's9',
+      name: 'cloud.example.test',
+      sync: { state: 'NEVER', nextSyncAt: '2026-10-21T09:00:00Z', pollIntervalSeconds: 600 },
+    });
+    req.flush(added, { status: 201, statusText: 'Created' });
+    await settle();
+    const { body, ...options } = problem(500, 'Server error');
+    http.expectOne({ method: 'POST', url: `${SOURCES}/s9/sync` }).flush(body, options);
+    await settle();
+    flushReload([], [fakeSource(), added]);
+    await settle();
+
+    // The source exists; the scheduler syncs it later, so this is not reported as a failure.
+    expect(root.querySelector('[role="alert"]')).toBeNull();
+    expect(root.querySelector('[role="status"]')?.textContent).toContain(
+      'cloud.example.test added.',
+    );
+  });
+
+  it('sends a source only once while it is being added', async () => {
+    await setup();
+    await pickKind('ICS feed');
+    await type('Feed URL', 'https://feeds.example.test/a.ics');
+    const form = root.querySelector('form')!;
+    form.dispatchEvent(new Event('submit', { cancelable: true }));
+    await settle();
+    expect(button('Subscribe').disabled).toBe(true);
+    form.dispatchEvent(new Event('submit', { cancelable: true }));
+    await settle();
+
+    const req = http.expectOne({ method: 'POST', url: SOURCES });
+    const added = fakeSyncedSource({ id: 's6', type: 'ICS_FEED', name: 'feeds.example.test' });
+    req.flush(added, { status: 201, statusText: 'Created' });
+    await settle();
+    http.expectOne({ method: 'POST', url: `${SOURCES}/s6/sync` }).flush(added);
+    await settle();
+    flushReload([], [fakeSource(), added]);
+    await settle();
+    expect(button('Subscribe').disabled).toBe(false);
+    // The form is empty again after a success.
+    expect(root.querySelector<HTMLInputElement>('input[type="url"]')!.value).toBe('');
+  });
+
+  it('keeps the form and shows the reason when a CalDAV account is refused', async () => {
+    await setup();
+    await pickKind('CalDAV');
+    await type('Server URL', 'https://cloud.example.test');
+    await type('User name', 'jane');
+    await type('App password', 'fictitious-pw');
+    button('Connect CalDAV').click();
+    await settle();
+    const { body, ...options } = problem(400, 'Bad Request', [
+      { field: 'url', message: 'must not contain credentials' },
+      { field: 'username', message: 'is required for CALDAV sources' },
+    ]);
+    http.expectOne({ method: 'POST', url: SOURCES }).flush(body, options);
+    await settle();
+
+    expect(root.querySelector('[role="alert"]')?.textContent).toContain(
+      'url: must not contain credentials; username: is required for CALDAV sources',
+    );
+    expect(root.querySelector<HTMLInputElement>('input[type="url"]')!.value).toBe(
+      'https://cloud.example.test',
+    );
+    // Switching the kind clears the old error.
+    await pickKind('ICS feed');
+    expect(root.querySelector('[role="alert"]')).toBeNull();
+  });
 });

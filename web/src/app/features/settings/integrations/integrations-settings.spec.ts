@@ -285,4 +285,143 @@ describe('IntegrationsSettings', () => {
     (accounts[1].querySelector('button') as HTMLButtonElement).click();
     expect(navigate).toHaveBeenCalledWith('/api/v1/oauth/microsoft/start?purpose=CALENDAR');
   });
+
+  it('syncs two sources at once and applies answers that arrive in reverse order', async () => {
+    await open();
+    await load();
+    const syncDav = root().querySelector<HTMLButtonElement>(
+      'button[aria-label="Sync dav.example.test now"]',
+    )!;
+    const syncHolidays = root().querySelector<HTMLButtonElement>(
+      'button[aria-label="Sync Holidays now"]',
+    )!;
+    syncDav.click();
+    syncHolidays.click();
+    await settle();
+    // A second click on a running sync sends nothing more.
+    syncDav.click();
+    await settle();
+    const dav = http.expectOne({ method: 'POST', url: `${SOURCES}/s1/sync` });
+    const ics = http.expectOne({ method: 'POST', url: `${SOURCES}/s3/sync` });
+
+    ics.flush({
+      ...fresh,
+      sync: { ...fresh.sync!, state: 'OK', lastSuccessAt: '2026-10-21T09:20:00Z' },
+    });
+    await settle();
+    expect(item('Holidays').dataset['state']).toBe('OK');
+    expect(syncHolidays.disabled).toBe(false);
+    expect(syncDav.disabled).toBe(true);
+
+    dav.flush(
+      fakeSyncedSource({
+        sync: {
+          state: 'ERROR',
+          lastAttemptAt: '2026-10-21T09:21:00Z',
+          lastSuccessAt: '2026-10-21T08:00:00Z',
+          lastError: 'the CalDAV server denied access (HTTP 401)',
+          nextSyncAt: '2026-10-21T09:31:00Z',
+          pollIntervalSeconds: 600,
+        },
+      }),
+    );
+    await settle();
+    expect(item('dav.example.test').dataset['state']).toBe('ERROR');
+    expect(item('Holidays').dataset['state']).toBe('OK');
+    expect(item('dav.example.test').querySelector('.source-error')?.textContent).toContain(
+      'the CalDAV server denied access (HTTP 401)',
+    );
+    expect(syncDav.disabled).toBe(false);
+  });
+
+  it('still lists the sources when the accounts cannot be read', async () => {
+    await open();
+    http.expectOne(SOURCES).flush({ items: [fakeSource(), fakeSyncedSource()] });
+    http
+      .expectOne(CONNECTIONS)
+      .flush(
+        { status: 503, title: 'Service Unavailable' },
+        {
+          status: 503,
+          statusText: 'Service Unavailable',
+          headers: { 'Content-Type': 'application/problem+json' },
+        },
+      );
+    await settle();
+
+    expect(root().querySelector('[role="alert"]')).toBeNull();
+    expect(root().querySelectorAll('.sources > li').length).toBe(1);
+    expect(root().querySelectorAll('.accounts > li').length).toBe(0);
+  });
+
+  it('reports a connected Microsoft calendar account whose first sync failed', async () => {
+    await open(
+      '/settings/integrations?oauth=connected&provider=microsoft&purpose=CALENDAR&connectionId=o2',
+    );
+    const add = http.expectOne({ method: 'POST', url: SOURCES });
+    expect(add.request.body).toEqual({ type: 'MICROSOFT', oauthConnectionId: 'o2' });
+    const added = fakeSyncedSource({ id: 's6', type: 'MICROSOFT', name: 'Jane Doe' });
+    // An account that already was a source comes back with 200.
+    add.flush(added, { status: 200, statusText: 'OK' });
+    await settle();
+    http.expectOne({ method: 'POST', url: `${SOURCES}/s6/sync` }).flush({
+      ...added,
+      sync: { ...added.sync!, state: 'ERROR', lastError: 'Graph answered HTTP 403' },
+    });
+    await settle();
+    await load([fakeSource(), added]);
+
+    const outcome = root().querySelector('.outcome');
+    expect(outcome?.getAttribute('role')).toBe('alert');
+    expect(outcome?.textContent).toContain(
+      'Jane Doe is connected, but its calendars could not be fetched: Graph answered HTTP 403',
+    );
+    expect(TestBed.inject(Router).url).toBe('/settings/integrations');
+  });
+
+  it('confirms a new calendar account even when its first sync request fails', async () => {
+    await open(
+      '/settings/integrations?oauth=connected&provider=google&purpose=CALENDAR&connectionId=o1',
+    );
+    const added = fakeSyncedSource({ id: 's5', type: 'GOOGLE', name: 'jane@gmail.example' });
+    http
+      .expectOne({ method: 'POST', url: SOURCES })
+      .flush(added, { status: 201, statusText: 'Created' });
+    await settle();
+    http
+      .expectOne({ method: 'POST', url: `${SOURCES}/s5/sync` })
+      .flush(
+        { status: 500, title: 'Server error' },
+        {
+          status: 500,
+          statusText: 'Server error',
+          headers: { 'Content-Type': 'application/problem+json' },
+        },
+      );
+    await settle();
+    await load([fakeSource(), added]);
+
+    expect(root().querySelector('.outcome')?.textContent).toContain(
+      'jane@gmail.example is connected.',
+    );
+  });
+
+  it('shows an unknown OAuth error code as it came', async () => {
+    await open('/settings/integrations?oauth=error&provider=google&error=temporarily_unavailable');
+    await load();
+
+    expect(root().querySelector('.outcome')?.textContent).toContain(
+      'The Google account could not be connected. temporarily_unavailable',
+    );
+    expect(TestBed.inject(Router).url).toBe('/settings/integrations');
+  });
+
+  it('ignores a connected redirect without a connection id but still clears the URL', async () => {
+    await open('/settings/integrations?oauth=connected&provider=google&purpose=CALENDAR');
+    await load();
+
+    http.expectNone({ method: 'POST', url: SOURCES });
+    expect(root().querySelector('.outcome')).toBeNull();
+    expect(TestBed.inject(Router).url).toBe('/settings/integrations');
+  });
 });

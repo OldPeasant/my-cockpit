@@ -130,6 +130,138 @@ class CalendarSourceCreateTests(
 		sources.findAll().none { it.type == CalendarSourceType.LOCAL } shouldBe true
 	}
 
+	@Test
+	fun `a given name is trimmed, a blank one falls back to the host, and a too long one is refused`() {
+		api
+			.read(
+				post("""{"type":"ICS_FEED","name":"  Team  ","url":"https://feeds.example.test/team.ics"}""")
+					.andExpect { status { isCreated() } },
+			).get("name")
+			.asString() shouldBe "Team"
+		api
+			.read(
+				post("""{"type":"ICS_FEED","name":"   ","url":"https://feeds.example.test/b.ics"}""")
+					.andExpect { status { isCreated() } },
+			).get("name")
+			.asString() shouldBe "feeds.example.test"
+
+		val tooLong = "n".repeat(CalendarSourceService.MAX_NAME_LENGTH + 1)
+		post("""{"type":"ICS_FEED","name":"$tooLong","url":"https://feeds.example.test/c.ics"}""").isProblem(400, "name")
+		val longest = "n".repeat(CalendarSourceService.MAX_NAME_LENGTH)
+		api
+			.read(
+				post("""{"type":"ICS_FEED","name":"$longest","url":"https://feeds.example.test/d.ics"}""")
+					.andExpect { status { isCreated() } },
+			).get("name")
+			.asString() shouldBe longest
+		sources.count() shouldBe 3
+	}
+
+	@Test
+	fun `a host longer than a name is cut to the maximum name length`() {
+		val host = List(5) { "h".repeat(50) }.joinToString(".") + ".example.test"
+		val name =
+			api
+				.read(post("""{"type":"ICS_FEED","url":"https://$host/x.ics"}""").andExpect { status { isCreated() } })
+				.get("name")
+				.asString()
+
+		name shouldBe host.take(CalendarSourceService.MAX_NAME_LENGTH)
+	}
+
+	@Test
+	fun `a CalDAV source refuses a blank user, an OAuth connection and a URL without host`() {
+		post("""{"type":"CALDAV","url":"https://dav.example.test","username":"   ","password":"x"}""").isProblem(400, "username")
+		post(
+			"""{"type":"CALDAV","url":"https://dav.example.test","username":"jane","password":"x","oauthConnectionId":"$google"}""",
+		).isProblem(400, "oauthConnectionId")
+		post("""{"type":"CALDAV","url":"https:///remote.php/dav","username":"jane","password":"x"}""").isProblem(400, "url")
+		post("""{"type":"CALDAV","url":"https://dav example.test","username":"jane","password":"x"}""").isProblem(400, "url")
+		post("""{"type":"CALDAV","url":"webcal://dav.example.test","username":"jane","password":"x"}""").isProblem(400, "url")
+		post("""{"type":"CALDAV","url":"   ","username":"jane","password":"x"}""").isProblem(400, "url")
+		post("""{"type":"CALDAV","url":"https://dav.example.test","username":"jane","password":""}""").isProblem(400, "password")
+		sources.count() shouldBe 0
+	}
+
+	@Test
+	fun `a CalDAV user name is trimmed but the password is kept as typed`() {
+		val created =
+			api.read(
+				post("""{"type":"CALDAV","url":"HTTPS://dav.example.test","username":" jane ","password":" pw with spaces "}""")
+					.andExpect { status { isCreated() } },
+			)
+
+		val source = sources.findById(UUID.fromString(created.id())).get()
+		jsonMapper.readTree(source.config).get("username").asString() shouldBe "jane"
+		source.credentials!!.reveal() shouldBe " pw with spaces "
+	}
+
+	@Test
+	fun `an ICS feed accepts webcals, refuses credentials in the URL and fields of other types`() {
+		post("""{"type":"ICS_FEED","url":"webcals://feeds.example.test/a.ics"}""").andExpect { status { isCreated() } }
+
+		post("""{"type":"ICS_FEED","url":"https://jane:secret@feeds.example.test/a.ics"}""").isProblem(400, "url")
+		post("""{"type":"ICS_FEED","url":"ftp://feeds.example.test/a.ics"}""").isProblem(400, "url")
+		post("""{"type":"ICS_FEED","url":"https://feeds.example.test/a.ics","username":"jane"}""").isProblem(400, "username")
+		post("""{"type":"ICS_FEED","url":"https://feeds.example.test/a.ics","oauthConnectionId":"$google"}""")
+			.isProblem(400, "oauthConnectionId")
+		sources.count() shouldBe 1
+	}
+
+	@Test
+	fun `a Microsoft account without email or display name is named Microsoft`() {
+		val anonymous = connections.save(OAuthConnection(OAuthProvider.MICROSOFT, "subject-x", null, null, "openid", null)).id
+
+		api
+			.read(post("""{"type":"MICROSOFT","oauthConnectionId":"$anonymous"}""").andExpect { status { isCreated() } })
+			.get("name")
+			.asString() shouldBe "Microsoft"
+	}
+
+	@Test
+	fun `an OAuth source refuses URL, user and password, also for an already linked connection`() {
+		post("""{"type":"GOOGLE","oauthConnectionId":"$google"}""").andExpect { status { isCreated() } }
+
+		post("""{"type":"GOOGLE","oauthConnectionId":"$google","url":"https://example.test"}""").isProblem(400, "url")
+		post("""{"type":"GOOGLE","oauthConnectionId":"$google","username":"jane"}""").isProblem(400, "username")
+		post("""{"type":"MICROSOFT","oauthConnectionId":"$microsoft","password":"x"}""").isProblem(400, "password")
+		sources.count() shouldBe 1
+	}
+
+	@Test
+	fun `a Google name wins over the email, and the same connection may not become a Microsoft source`() {
+		api
+			.read(
+				post("""{"type":"GOOGLE","name":"Family","oauthConnectionId":"$google"}""")
+					.andExpect { status { isCreated() } },
+			).get("name")
+			.asString() shouldBe "Family"
+
+		post("""{"type":"MICROSOFT","oauthConnectionId":"$google"}""").isProblem(400, "oauthConnectionId")
+		sources.count() shouldBe 1
+	}
+
+	@Test
+	fun `an unknown type and a malformed connection id are refused as bad requests`() {
+		post("""{"type":"EXCHANGE","url":"https://example.test"}""").andExpect { status { isBadRequest() } }
+		post("""{"type":"GOOGLE","oauthConnectionId":"not-a-uuid"}""").andExpect { status { isBadRequest() } }
+		sources.count() shouldBe 0
+	}
+
+	@Test
+	fun `a create request does not print its password or URL, which may carry a feed token`() {
+		val request =
+			CreateCalendarSourceRequest(
+				type = CalendarSourceType.CALDAV,
+				url = "https://dav.example.test/?token=fictitious-token",
+				username = "jane",
+				password = "fictitious-pw",
+			)
+
+		request.toString() shouldNotContain "fictitious-pw"
+		request.toString() shouldNotContain "fictitious-token"
+	}
+
 	companion object {
 		private const val SOURCES = "/api/v1/calendar/sources"
 	}
