@@ -319,6 +319,37 @@ describe('CaptureDialog', () => {
       expect(el().querySelector('.count')?.textContent?.trim()).toBe('2 items captured');
     });
 
+    it('Shift+Enter keeps text, notes and files added while the save is running', async () => {
+      type('First');
+      type('Old notes', notesField());
+      press('Enter', { shiftKey: true });
+      const first = expectCapture();
+      type('Second');
+      const paste = new Event('paste', { cancelable: true }) as ClipboardEvent;
+      Object.defineProperty(paste, 'clipboardData', {
+        value: { files: [new File(['x'], 'scan.jpg')] },
+      });
+      el().querySelector<HTMLElement>('.capture')!.dispatchEvent(paste);
+      first.flush(task('First'));
+      await settle();
+      expect(textField().value).toBe('Second');
+      expect(notesField().value).toBe('');
+      expect([...el().querySelectorAll('.file-name')].map((n) => n.textContent)).toEqual([
+        'scan.jpg',
+      ]);
+      expect(el().querySelector('.count')?.textContent?.trim()).toBe('1 item captured');
+
+      press('Enter', { shiftKey: true });
+      const second = expectCapture();
+      expect(second.request.body.text).toBe('Second');
+      expect(second.request.body.id).toMatch(UUIDV7);
+      expect(second.request.body.id).not.toBe(first.request.body.id);
+      second.flush(task('Second'));
+      await settle();
+      expect(textField().value).toBe('');
+      expect(el().querySelector('.file-list')).toBeNull();
+    });
+
     it('the save button saves and closes', async () => {
       type('Call plumber');
       saveButton().click();

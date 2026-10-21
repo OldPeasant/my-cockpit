@@ -4,40 +4,27 @@ Date: 2026-10-21
 
 Task: web-capture - Quick capture dialog
 
-Scope: current task, findings CR-1 and CR-2 of `reviews/web-capture/review.md` (base 814f9162, task commits 368b8e94, ef8659ac, b009c1e7)
+Scope: current task, finding CR-1 of `reviews/web-capture/review.md` (second review, of HEAD b8e3f934; base 814f9162). The fixes for the first review's CR-1 and CR-2 are in the git history of this file.
 
 ## Fixed findings
 
-### CR-1 — Preview shows the previous capture's result while a new text is typed
+### CR-1 — Shift+Enter wipes text typed while the save is still running
 
 Files changed:
 - `web/src/app/features/capture/capture-dialog.ts`
-- `web/src/app/features/capture/capture-dialog.html`
 - `web/src/app/features/capture/capture-dialog.spec.ts`
 
 Problem:
-The preview signal kept the last server reading until the next debounced response arrived, and the template showed it whenever the text was non-empty. After Shift+Enter, or after an edit such as removing a `#project`, the old reading stayed next to the new text for at least the debounce time plus the round trip.
+After a successful Shift+Enter save, `submit()` cleared text, notes and files without any check. The fields stay editable during the save, so anything typed, written or pasted while the request was running was discarded when the response arrived.
 
 Fix:
-The preview pipeline now emits `{ text, response }` (the trimmed text the reading was computed for). A `computed` `preview` returns the response only when that text equals the current `text().trim()`, so a reading of any other text is never shown. While the preview of the current text is pending, the syntax hint is shown, as it was before for empty text or a failed preview. The template condition is simplified to `@if (preview(); as p)` because the computed already covers empty text. Two regression tests were added: an edited text hides the old reading (including a removed project token) until the new preview arrives, and after Shift+Enter the saved capture's reading is not shown next to the next text typed within the debounce. Both tests fail against the previous behavior (checked by temporarily restoring the old condition) and pass with the fix.
+`submit()` now keeps the raw text, raw notes and the file list as they were at submit time. On a successful keep-open save, it clears the text only if `text()` still equals the submitted raw value, and the notes only if `notes()` still equals theirs. For files, it removes only the submitted entries: a small module-level `without()` helper removes one entry per submitted name, so files added during the save stay. The draft id is still replaced after every successful save, so the surviving text becomes a new capture with a new id. Enter (close) and failure paths are unchanged.
+
+A Vitest case was added: `Shift+Enter keeps text, notes and files added while the save is running`. It presses Shift+Enter on "First" with notes, then types "Second" and pastes a file before the save resolves. After flushing the save, it checks that "Second" and the pasted file survive, that the unchanged notes are cleared and that the count is 1. A second Shift+Enter then sends "Second" with a new UUIDv7 id, after which the fields are empty. Against the previous code the test fails (`expected '' to be 'Second'`; checked by temporarily restoring the HEAD version of `capture-dialog.ts`). With the fix it passes.
 
 Validation:
-- `cd web && npx ng test --watch=false --include='src/app/features/capture/*.spec.ts'` — Pass (4 files, 48 tests)
+- `cd web && npx ng test --watch=false --include='src/app/features/capture/*.spec.ts'` — Pass (4 files, 50 tests)
 - `cd web && npm run lint` — Pass
-
-### CR-2 — No test covers an out-of-order preview response
-
-Files changed:
-- None for this finding (see below)
-
-Problem:
-The review (of an earlier revision, 785dd09d) found no test where an older preview request answers after a newer one.
-
-Fix:
-The current code already contains this test, added in task commit b009c1e7 after the reviewed revision: `ignores an older preview that answers after a newer one` in `capture-dialog.spec.ts` types A, passes the debounce, types B, passes the debounce, flushes B and then A, and asserts the preview shows B's title. A companion test, `a failing older preview does not hide the newer one`, covers a failing older request. No duplicate test was added. With the CR-1 fix, an older reading would also be rejected by the text comparison, so the ordering is now guarded twice.
-
-Validation:
-- `cd web && npx ng test --watch=false --include='src/app/features/capture/*.spec.ts'` — Pass
 
 ## Not fixed
 
@@ -46,18 +33,18 @@ None.
 ## Validation summary
 
 Focused tests:
-- `cd web && npx ng test --watch=false --include='src/app/features/capture/*.spec.ts'` — Pass, 4 files, 48 tests
-- Regression check: with the old preview condition restored temporarily, the 2 new CR-1 tests fail (2 failed, 46 passed); the fix was then restored
+- `cd web && npx ng test --watch=false --include='src/app/features/capture/*.spec.ts'` — Pass, 4 files, 50 tests
+- Regression check: with the HEAD `capture-dialog.ts` restored temporarily, the new test fails (1 failed, 49 passed). The fix was then restored and the suite passes again.
 
 Full test suite:
-- `cd web && npm run check` (api:check, lint, e2e:typecheck, test:ci, ng build) — Pass, 60 files, 1119 tests; the build prints the existing initial bundle budget warning (614 kB of 500 kB), not caused by this fix
+- Not run by the fixer (the parent runs `npm run check` and `.taskcheck`)
 
 Lint/type-check/build:
-- `cd web && npm run lint` — Pass ("All files pass linting")
-- Type check and build are part of `npm run check` above — Pass
+- `cd web && npm run lint` — Pass ("All files pass linting.")
+- Type check: the Angular test build compiles the changed files without errors. Full `ng build` was not run.
 
 `.taskcheck`:
-- `sh scripts/check.sh` — Pass ("all checks passed")
+- Not run (left to the parent worker)
 
 Remaining unresolved findings:
 0

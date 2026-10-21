@@ -134,11 +134,14 @@ export class CaptureDialog {
    * Returns whether a capture was saved.
    */
   async submit(keepOpen = false): Promise<boolean> {
-    const text = this.text().trim();
+    const rawText = this.text();
+    const text = rawText.trim();
     if (this.saving() || !text) return false;
     this.saving.set(true);
+    const rawNotes = this.notes();
+    const files = this.files();
     try {
-      const notes = this.notes().trim();
+      const notes = rawNotes.trim();
       const task = await this.captures.save({
         id: this.draftId,
         text,
@@ -147,9 +150,10 @@ export class CaptureDialog {
       this.draftId = uuidv7();
       this.notifications.info($localize`:@@capture.saved:Captured to Inbox: ${task.title}:title:`);
       if (keepOpen) {
-        this.text.set('');
-        this.notes.set('');
-        this.files.set([]);
+        // Clear only what was saved: input added while the save ran is the next capture.
+        if (this.text() === rawText) this.text.set('');
+        if (this.notes() === rawNotes) this.notes.set('');
+        this.files.update((current) => without(current, files));
         this.savedCount.update((n) => n + 1);
         this.textField().nativeElement.focus();
       } else {
@@ -168,6 +172,16 @@ export class CaptureDialog {
     const names = Array.from(files, (file) => file.name);
     this.files.update((current) => [...current, ...names]);
   }
+}
+
+/** `names` without one entry per name in `removed`. */
+function without(names: readonly string[], removed: readonly string[]): readonly string[] {
+  const left = [...removed];
+  return names.filter((name) => {
+    const i = left.indexOf(name);
+    if (i >= 0) left.splice(i, 1);
+    return i < 0;
+  });
 }
 
 /** Opens the dialog with the caller's injector, so its content sees route-level providers. */
