@@ -231,6 +231,139 @@ class InboxViewModelTest {
         }
 
     @Test
+    fun `a processed item takes its inline changes with it, the next one shows its own`() =
+        test { vm ->
+            val tagged = second.copy(energy = Energy.HIGH)
+            coEvery { inbox.process(any(), any(), any()) } coAnswers {
+                inboxFlow.value = inboxFlow.value.copy(data = listOf(tagged))
+                ProcessResult.Processed
+            }
+            vm.setEnergy(Energy.LOW)
+
+            vm.choose(InboxActionKind.NEXT)
+
+            assertEquals(tagged, vm.uiState.value.current)
+            assertEquals(Clarification(energy = Energy.HIGH), vm.uiState.value.clarification)
+        }
+
+    @Test
+    fun `a failed action keeps the inline changes for the retry`() =
+        test { vm ->
+            coEvery { inbox.process(any(), any(), any()) } returns ProcessResult.Offline
+            vm.setEstimate(30)
+            vm.choose(InboxActionKind.NEXT)
+            assertEquals(first, vm.uiState.value.current)
+            assertEquals(30, vm.uiState.value.clarification.timeEstimateMin)
+
+            coEvery { inbox.process(any(), any(), any()) } returns ProcessResult.Processed
+            vm.choose(InboxActionKind.NEXT)
+
+            coVerify(exactly = 2) { inbox.process(first, Clarification(timeEstimateMin = 30), InboxAction.Next) }
+        }
+
+    @Test
+    fun `an older item failing after a newer one succeeded comes back first, the count stays`() =
+        test { vm ->
+            val firstAnswer = CompletableDeferred<ProcessResult>()
+            coEvery { inbox.process(first, any(), any()) } coAnswers { firstAnswer.await() }
+            coEvery { inbox.process(second, any(), any()) } coAnswers {
+                inboxFlow.value = inboxFlow.value.copy(data = listOf(first))
+                ProcessResult.Processed
+            }
+
+            vm.startProcessing()
+            vm.choose(InboxActionKind.NEXT)
+            vm.choose(InboxActionKind.DONE)
+            assertEquals(1, vm.uiState.value.processed)
+            assertNull(vm.uiState.value.current)
+
+            firstAnswer.complete(ProcessResult.Conflict)
+
+            assertEquals(first, vm.uiState.value.current)
+            assertEquals(1, vm.uiState.value.processed)
+            assertEquals(InboxMessage.CONFLICT, vm.uiState.value.message)
+        }
+
+    @Test
+    fun `an item cannot be processed twice while its action runs`() =
+        test { vm ->
+            val answer = CompletableDeferred<ProcessResult>()
+            coEvery { inbox.process(any(), any(), any()) } coAnswers { answer.await() }
+            inboxFlow.value = inboxFlow.value.copy(data = listOf(first))
+
+            vm.choose(InboxActionKind.NEXT)
+            vm.choose(InboxActionKind.NEXT)
+            vm.choose(InboxActionKind.TRASH)
+
+            coVerify(exactly = 1) { inbox.process(any(), any(), any()) }
+            answer.complete(ProcessResult.Processed)
+        }
+
+    @Test
+    fun `nothing runs on an empty inbox`() =
+        test { vm ->
+            inboxFlow.value = inboxFlow.value.copy(data = emptyList())
+            assertEquals(false, vm.uiState.value.actionsEnabled)
+
+            InboxActionKind.entries.forEach(vm::choose)
+            vm.confirmPrompt()
+            vm.setEnergy(Energy.LOW)
+
+            assertNull(vm.uiState.value.prompt)
+            assertEquals(Clarification(), vm.uiState.value.clarification)
+            coVerify(exactly = 0) { inbox.process(any(), any(), any()) }
+        }
+
+    @Test
+    fun `to project without active projects proposes a new one`() {
+        every { projects.observe() } returns MutableStateFlow(Cached(listOf(done), false, loadedAt))
+        test { vm ->
+            vm.choose(InboxActionKind.PROJECT)
+
+            val prompt = vm.uiState.value.prompt
+            assertEquals(InboxActionKind.PROJECT, prompt?.kind)
+            assertNull(prompt?.projectId)
+            assertEquals(false, prompt?.isValid(today))
+        }
+    }
+
+    @Test
+    fun `cancelling a prompt runs nothing and shows the actions again`() =
+        test { vm ->
+            vm.choose(InboxActionKind.WAITING)
+            vm.cancelPrompt()
+            vm.confirmPrompt()
+
+            assertNull(vm.uiState.value.prompt)
+            coVerify(exactly = 0) { inbox.process(any(), any(), any()) }
+        }
+
+    @Test
+    fun `choosing again after a failure clears the old message`() =
+        test { vm ->
+            coEvery { inbox.process(any(), any(), any()) } returns ProcessResult.Rejected(422)
+            vm.choose(InboxActionKind.NEXT)
+            assertEquals(InboxMessage.FAILED, vm.uiState.value.message)
+
+            vm.choose(InboxActionKind.SCHEDULE)
+
+            assertNull(vm.uiState.value.message)
+        }
+
+    @Test
+    fun `toggling a chosen attribute off clears it`() =
+        test { vm ->
+            vm.setEnergy(Energy.LOW)
+            vm.setEnergy(null)
+            vm.setCreativity(Creativity.CREATIVE)
+            vm.setCreativity(null)
+            vm.setEstimate(60)
+            vm.setEstimate(null)
+
+            assertEquals(Clarification.of(first), vm.uiState.value.clarification)
+        }
+
+    @Test
     fun `stopping closes the prompt and starting resets the progress`() =
         test { vm ->
             vm.startProcessing()

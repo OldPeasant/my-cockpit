@@ -262,4 +262,115 @@ class InboxRepositoryTest {
         val moves = calls().filter { it.url.encodedPath == "$path/move" }
         assertEquals(listOf("\"4\"", "\"4\""), moves.map { it.headers["If-Match"] })
     }
+
+    @Test
+    fun `an unchanged clarification is not patched`() {
+        dispatcher.enqueue("$path/move", taskAnswer())
+
+        assertEquals(ProcessResult.Processed, process(InboxAction.Next))
+
+        assertFalse(calls().any { it.method == "PATCH" })
+    }
+
+    @Test
+    fun `an item trashed or changed elsewhere reports a conflict`() {
+        listOf(404, 409).forEach { code ->
+            dispatcher.requests.clear()
+            dispatcher.enqueue("$path/complete", status(code))
+            dispatcher.enqueue("$TASKS|INBOX", json(taskPage()))
+
+            assertEquals("status $code", ProcessResult.Conflict, process(InboxAction.Done))
+            assertTrue(calls().any { it.url.queryParameter("list") == "INBOX" })
+        }
+    }
+
+    @Test
+    fun `offline does not reload the inbox, so the cached list stays`() {
+        dispatcher.enqueue("$path/move", status(503))
+
+        assertEquals(ProcessResult.Offline, process(InboxAction.Someday))
+
+        assertFalse(calls().any { it.url.queryParameter("list") == "INBOX" })
+    }
+
+    @Test
+    fun `a refused clarification stops before the action`() {
+        dispatcher.enqueue(path, status(412))
+
+        assertEquals(ProcessResult.Conflict, process(InboxAction.Next, Clarification(energy = Energy.HIGH)))
+
+        assertFalse(calls().any { it.url.encodedPath == "$path/move" })
+    }
+
+    @Test
+    fun `a malformed answer is reported as refused without a status`() {
+        dispatcher.enqueue("$path/move", json("""{"unexpected":true}"""))
+
+        assertEquals(ProcessResult.Rejected(null), process(InboxAction.Next))
+    }
+
+    @Test
+    fun `trash after a saved clarification deletes the saved version`() {
+        val saved =
+            taskJson(1, "Call the plumber", extra = ""","energy":"LOW"""").replace("\"version\":1", "\"version\":4")
+        dispatcher.enqueue(path, json(saved))
+        dispatcher.enqueue("$path/move", status(503))
+        dispatcher.enqueue(path, status(204))
+
+        assertEquals(ProcessResult.Offline, process(InboxAction.Next, Clarification(energy = Energy.LOW)))
+        assertEquals(ProcessResult.Processed, process(InboxAction.Trash, Clarification(energy = Energy.LOW)))
+
+        assertEquals("\"4\"", call("DELETE", path).headers["If-Match"])
+    }
+
+    @Test
+    fun `a newer cached version wins over a saved clarification`() {
+        val saved =
+            taskJson(1, "Call the plumber", extra = ""","energy":"LOW"""").replace("\"version\":1", "\"version\":4")
+        dispatcher.enqueue(path, json(saved))
+        dispatcher.enqueue("$path/move", status(503))
+        dispatcher.enqueue(path, taskAnswer(version = 8, list = "INBOX"))
+        dispatcher.enqueue("$path/move", taskAnswer(version = 9))
+
+        assertEquals(ProcessResult.Offline, process(InboxAction.Next, Clarification(energy = Energy.LOW)))
+        // Meanwhile the item was reloaded at version 7 (changed elsewhere, without energy).
+        val reloaded = task.copy(version = 7)
+        val result = runBlocking { inbox.process(reloaded, Clarification(energy = Energy.LOW), InboxAction.Next) }
+
+        assertEquals(ProcessResult.Processed, result)
+        val patches = calls().filter { it.method == "PATCH" }
+        assertEquals(listOf("\"3\"", "\"7\""), patches.map { it.headers["If-Match"] })
+        assertEquals("\"8\"", calls().last { it.url.encodedPath == "$path/move" }.headers["If-Match"])
+    }
+
+    @Test
+    fun `a project that already has a next step is left alone`() {
+        val project = UUID.fromString(uuid(50))
+        dispatcher.enqueue("$path/move", taskAnswer())
+        dispatcher.enqueue("$PROJECTS/$project", json(projectJson(50, "Kitchen")))
+
+        assertEquals(ProcessResult.Processed, process(InboxAction.ToProject(ProjectChoice.Existing(project))))
+
+        assertFalse(calls().any { it.url.encodedPath.endsWith("/next-step") })
+    }
+
+    @Test
+    fun `a refused next step still counts as processed`() {
+        val project = UUID.fromString(uuid(50))
+        dispatcher.enqueue("$path/move", taskAnswer())
+        dispatcher.enqueue("$PROJECTS/$project", json(projectJson(50, "Kitchen").replace("\"stalled\":false", "\"stalled\":true")))
+        dispatcher.enqueue("$PROJECTS/$project/next-step", status(412))
+
+        assertEquals(ProcessResult.Processed, process(InboxAction.ToProject(ProjectChoice.Existing(project))))
+        assertFalse(gtd.connectivity.offline.value)
+    }
+
+    @Test
+    fun `a project that cannot be created leaves the item where it is`() {
+        dispatcher.enqueue(PROJECTS, status(400))
+
+        assertEquals(ProcessResult.Rejected(400), process(InboxAction.ToProject(ProjectChoice.New("Kitchen"))))
+
+        assertFalse(calls().any { it.url.encodedPath == "$path/move" })
+    }
 }

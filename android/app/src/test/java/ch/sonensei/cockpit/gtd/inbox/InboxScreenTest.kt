@@ -9,6 +9,7 @@ import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onChildAt
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -17,10 +18,13 @@ import androidx.compose.ui.test.performTextReplacement
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import ch.sonensei.cockpit.gtd.data.Energy
 import ch.sonensei.cockpit.gtd.data.GtdContext
+import ch.sonensei.cockpit.gtd.data.GtdProject
 import ch.sonensei.cockpit.gtd.data.GtdTask
+import ch.sonensei.cockpit.gtd.data.ProjectStatus
 import ch.sonensei.cockpit.gtd.data.TaskList
 import ch.sonensei.cockpit.ui.theme.CockpitTheme
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -57,6 +61,7 @@ class InboxScreenTest {
                 startProcessing = { calls += "start" },
                 stopProcessing = { calls += "stop" },
                 setEnergy = { calls += "energy $it" },
+                setCreativity = { calls += "creativity $it" },
                 setEstimate = { calls += "estimate $it" },
                 toggleContext = { calls += "context $it" },
                 choose = { calls += "choose $it" },
@@ -170,6 +175,96 @@ class InboxScreenTest {
         composeRule.onNodeWithText("Dismiss").performClick()
 
         assertEquals(listOf("dismiss"), calls)
+    }
+
+    @Test
+    fun `before the first load it says it is loading, not that the inbox is empty`() {
+        show(loaded.copy(tasks = emptyList(), refreshedAt = null))
+
+        composeRule.onNodeWithText("Loading the Inbox…").assertExists()
+        composeRule.onNodeWithText("Inbox is empty. Everything you capture lands here.").assertDoesNotExist()
+        composeRule.onNodeWithTag(InboxTags.PROCESS).assertIsNotEnabled()
+    }
+
+    @Test
+    fun `offline before any load says the inbox could not be loaded`() {
+        show(loaded.copy(tasks = emptyList(), refreshedAt = null, offline = true))
+
+        composeRule.onNodeWithText("Offline: the Inbox could not be loaded yet.").assertExists()
+        composeRule.onNodeWithText("Loading the Inbox…").assertDoesNotExist()
+    }
+
+    @Test
+    fun `offline and failed messages are explained`() {
+        show(loaded.copy(message = InboxMessage.OFFLINE))
+        composeRule.onNodeWithText("The server could not be reached. The item is back in the Inbox.").assertExists()
+
+        state = state.copy(message = InboxMessage.FAILED)
+        composeRule.onNodeWithText("The server refused this action. The item is back in the Inbox.").assertExists()
+    }
+
+    @Test
+    fun `creativity and a chosen estimate toggle inline`() {
+        show(loaded.copy(processing = true, clarification = Clarification(timeEstimateMin = 15)))
+
+        composeRule.onNodeWithText("Creative").performScrollTo().performClick()
+        composeRule
+            .onNodeWithText("15 min")
+            .assertIsSelected()
+            .performScrollTo()
+            .performClick()
+
+        assertEquals(listOf("creativity CREATIVE", "estimate null"), calls)
+    }
+
+    @Test
+    fun `the project prompt offers the projects and a new one that needs a title`() {
+        val kitchen = GtdProject(id(51), "Kitchen", ProjectStatus.ACTIVE, stalled = false, version = 1)
+        show(
+            loaded.copy(
+                processing = true,
+                projects = listOf(kitchen),
+                prompt = InboxPrompt(InboxActionKind.PROJECT, today.plusDays(1), projectId = kitchen.id),
+            ),
+        )
+        composeRule.onNodeWithText("Kitchen").assertIsSelected()
+        composeRule.onNodeWithTag(InboxTags.PROMPT_TEXT).assertDoesNotExist()
+        composeRule.onNodeWithTag(InboxTags.PROMPT_CONFIRM).performScrollTo().assertIsEnabled()
+
+        composeRule.onNodeWithText("New project").performScrollTo().performClick()
+        assertNull(state.prompt?.projectId)
+        composeRule.onNodeWithTag(InboxTags.PROMPT_CONFIRM).performScrollTo().assertIsNotEnabled()
+
+        composeRule.onNodeWithTag(InboxTags.PROMPT_TEXT).performTextReplacement("Bathroom")
+        composeRule
+            .onNodeWithTag(InboxTags.PROMPT_CONFIRM)
+            .performScrollTo()
+            .assertIsEnabled()
+            .performClick()
+
+        assertEquals("Bathroom", state.prompt?.text)
+        assertEquals(listOf("confirm"), calls)
+    }
+
+    @Test
+    fun `the schedule prompt picks a quick date and can be cancelled`() {
+        show(loaded.copy(processing = true, prompt = InboxPrompt(InboxActionKind.SCHEDULE, today.plusDays(1))))
+
+        composeRule.onNodeWithText("Tomorrow").assertIsSelected()
+        composeRule.onNodeWithText("In a month").performScrollTo().performClick()
+        assertEquals(today.plusMonths(1), state.prompt?.date)
+        composeRule.onNodeWithText("Cancel").performScrollTo().performClick()
+
+        assertEquals(listOf("cancel"), calls)
+    }
+
+    @Test
+    fun `processing can be stopped from the top bar`() {
+        show(loaded.copy(processing = true))
+
+        composeRule.onNodeWithContentDescription("Stop processing").performClick()
+
+        assertEquals(listOf("stop"), calls)
     }
 
     @Test
