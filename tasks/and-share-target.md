@@ -5,7 +5,7 @@ owner: dell26/agent-4
 deps: [and-capture-queue]
 touches: [android/app/src/main/java/ch/sonensei/cockpit/capture/share,android/app/src/test/java/ch/sonensei/cockpit/capture/share,android/app/src/main/AndroidManifest.xml]
 prio: 1
-lease_until: 2026-10-21T02:12:20Z
+lease_until: 2026-10-21T02:17:22Z
 ---
 ## Goal
 Share text, URLs, images and files into the inbox (SPEC.md §4.5).
