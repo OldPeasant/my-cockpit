@@ -947,6 +947,53 @@ class CalDavEventMappingTests {
 		}
 	}
 
+	@Test
+	fun `a wall-clock transition on the day before reaches back into the previous month, counted from the start or the end`() {
+		// Fictitious zones at UTC-3: summer time starts at 01:00 UTC on a Sunday, that is Saturday 22:00 local time.
+		fun rules(
+			month: Month,
+			indicator: Int,
+		): Pair<ZoneOffsetTransitionRule, ZoneRules> {
+			val minus3 = ZoneOffset.ofHours(-3)
+			val rule =
+				ZoneOffsetTransitionRule.of(
+					month,
+					indicator,
+					DayOfWeek.SUNDAY,
+					LocalTime.of(1, 0),
+					false,
+					ZoneOffsetTransitionRule.TimeDefinition.UTC,
+					minus3,
+					minus3,
+					ZoneOffset.ofHours(-2),
+				)
+			return rule to ZoneRules.of(minus3, minus3, emptyList(), emptyList(), listOf(rule))
+		}
+
+		// The Sunday on or after 1 April (1 to 7 April): Saturday 31 March to 6 April.
+		val (onOrAfter, onOrAfterRules) = rules(Month.APRIL, 1)
+		val fromStart = CalDavEventMapping.vtimezone("Fictitious/OnOrAfter", onOrAfterRules).children("DAYLIGHT")
+		fromStart.map { it.text("RRULE") } shouldContainExactly
+			listOf("FREQ=YEARLY;BYMONTH=3;BYDAY=SA;BYMONTHDAY=-1", "FREQ=YEARLY;BYMONTH=4;BYDAY=SA;BYMONTHDAY=1,2,3,4,5,6")
+
+		// The Sunday on or before 6 April (the 25th day from the end; 31 March to 6 April): Saturday 30 March to 5 April.
+		val (onOrBefore, onOrBeforeRules) = rules(Month.APRIL, -25)
+		val fromEnd = CalDavEventMapping.vtimezone("Fictitious/OnOrBefore", onOrBeforeRules).children("DAYLIGHT")
+		fromEnd.map { it.text("RRULE") } shouldContainExactly
+			listOf("FREQ=YEARLY;BYMONTH=3;BYDAY=SA;BYMONTHDAY=-2,-1", "FREQ=YEARLY;BYMONTH=4;BYDAY=SA;BYMONTHDAY=-30,-29,-28,-27,-26")
+
+		// Counted from the end of February, the days before depend on leap years: listed as RDATEs.
+		val (february, februaryRules) = rules(Month.FEBRUARY, -28)
+		val leap = CalDavEventMapping.vtimezone("Fictitious/February", februaryRules).children("DAYLIGHT").single()
+		leap.property("RRULE").shouldBeNull()
+
+		for ((rule, observances) in listOf(onOrAfter to fromStart, onOrBefore to fromEnd, february to listOf(leap))) {
+			for (year in 1971..2100) {
+				observances.flatMap { onsets(it, year) }.sorted() shouldContainExactly listOf(rule.createTransition(year).dateTimeBefore)
+			}
+		}
+	}
+
 	// --- helpers
 
 	private fun timed(
