@@ -15,7 +15,8 @@ Edit notes (SPEC.md §8.1).
 ## Acceptance criteria
 - [x] CodeMirror 6 Markdown editor with preview toggle/split, autosave (debounced, If-Match, conflict notice)
   - verified (2026-10-21 09:00+0200 by dell26/agent-4): cd web && npx ng test --watch=false --include='src/app/features/notes/editor/**/*.spec.ts' at 79f15454 -> 5 files, 122 passed (CodeMirror editor, preview toggle/split, debounced autosave with If-Match, 409/412 conflict banner tests; see reviews/web-notes-editor/tests.md)
-- [ ] Paste/drop image → upload → inserts `![](cockpit-file:{id})`, rendered via the authenticated file URL; preview checklists toggle and save
+- [x] Paste/drop image → upload → inserts `![](cockpit-file:{id})`, rendered via the authenticated file URL; preview checklists toggle and save
+  - verified (2026-10-21 09:00+0200 by dell26/agent-4): same editor spec run -> 122 passed (paste/drop upload inserts ![](cockpit-file:id), authenticated preview URL, preview checklist toggle saves immediately); e2e editor.spec pastes a real image
 - [ ] `[[` autocomplete over all item types inserts `[[type:id]]`, rendered as chips; revisions dialog with restore; linked items panel
 - [ ] Vitest component/service tests cover autosave, checklist toggle, link autocomplete; `cd web && npm run check` passes
 - [ ] Playwright `e2e/notes/editor.spec.ts` passes against the e2e stack (`npm run e2e -- e2e/notes/editor.spec.ts`, see p0-e2e-harness): paste an image, toggle a checklist, reload → persisted
