@@ -5,7 +5,7 @@ owner: dell26/agent-4
 deps: [cal-sync-engine,oauth-connections]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/calendar/infra/google,server/src/test/kotlin/ch/sonensei/cockpit/calendar/infra/google]
 prio: 2
-lease_until: 2026-10-21T10:51:51Z
+lease_until: 2026-10-21T10:56:54Z
 releases: 0
 extended: 
 ---
