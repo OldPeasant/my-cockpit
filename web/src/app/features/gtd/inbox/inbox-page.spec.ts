@@ -353,6 +353,78 @@ describe('InboxPage', () => {
     expect(left()).toBe('1 item left');
   });
 
+  it('does not preselect the captured project when it is not active', async () => {
+    const onHold = { id: 'p4', title: 'Garden shed', status: 'ON_HOLD', stalled: false };
+    answer = (fn) =>
+      fn === listProjects ? Promise.resolve({ items: [KITCHEN, onHold] }) : undefined;
+    await render([task('t1', { projectId: 'p4' })]);
+    await press('p');
+    await press('p');
+
+    const select = element.querySelector<HTMLSelectElement>('.prompt select')!;
+    expect(select.value).toBe('p1');
+    expect([...select.options].map((option) => option.value)).not.toContain('p4');
+  });
+
+  it('does not set a next step when the move into a stalled project fails', async () => {
+    const stalled = { id: 'p3', title: 'Holiday', status: 'ACTIVE', stalled: true, version: 1 };
+    answer = (fn) => {
+      if (fn === listProjects) return Promise.resolve({ items: [stalled] });
+      if (fn === moveTask) return Promise.reject(new Error('412'));
+      return undefined;
+    };
+    await render([task('t1', { projectId: 'p3' })]);
+    await press('p');
+    await press('p');
+    element.querySelector<HTMLFormElement>('.prompt')!.requestSubmit();
+    await refresh();
+
+    expect(callsOf(moveTask)).toHaveLength(1);
+    expect(callsOf(setProjectNextStep)).toHaveLength(0);
+    expect(title()).toBe('Item t1');
+    expect(left()).toBe('1 item left');
+  });
+
+  it('sets only one next step when two items go into the same stalled project', async () => {
+    const stalled = { id: 'p3', title: 'Holiday', status: 'ACTIVE', stalled: true, version: 1 };
+    let resolveFirst!: () => void;
+    answer = (fn, params) => {
+      if (fn === listProjects) return Promise.resolve({ items: [stalled] });
+      if (fn === setProjectNextStep) {
+        const body = params['body'] as { taskId: string };
+        return Promise.resolve({ ...stalled, nextTaskId: body.taskId, stalled: false, version: 2 });
+      }
+      if (fn === moveTask && params['id'] === 't1') {
+        // The first move answers only after the second item was processed.
+        return new Promise((resolve) => {
+          resolveFirst = () =>
+            resolve({ ...task('t1'), list: 'NEXT', projectId: 'p3', version: 2 });
+        });
+      }
+      return undefined;
+    };
+    await render([task('t1'), task('t2')]);
+    await press('p');
+    await press('p');
+    element.querySelector<HTMLFormElement>('.prompt')!.requestSubmit();
+    await refresh();
+    expect(title()).toBe('Item t2');
+    await press('p');
+    element.querySelector<HTMLFormElement>('.prompt')!.requestSubmit();
+    await refresh();
+
+    resolveFirst();
+    await refresh();
+
+    expect(callsOf(moveTask)).toHaveLength(2);
+    expect(callsOf(setProjectNextStep)).toHaveLength(1);
+    expect(callsOf(setProjectNextStep)[0].params).toMatchObject({
+      id: 'p3',
+      body: { taskId: 't2' },
+    });
+    expect(element.textContent).toContain('Inbox zero.');
+  });
+
   it('Escape cancels a prompt, then leaves the processing mode', async () => {
     await render([task('t1')]);
     await press('p');
