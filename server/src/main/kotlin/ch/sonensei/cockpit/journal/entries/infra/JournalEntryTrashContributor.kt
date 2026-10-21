@@ -6,6 +6,7 @@ import ch.sonensei.cockpit.core.trash.domain.TrashContributor
 import ch.sonensei.cockpit.core.trash.domain.TrashedItem
 import ch.sonensei.cockpit.core.web.ConflictException
 import ch.sonensei.cockpit.journal.entries.domain.indexJournalEntry
+import org.springframework.dao.DataIntegrityViolationException
 import org.springframework.stereotype.Component
 import java.util.UUID
 
@@ -35,11 +36,15 @@ class JournalEntryTrashContributor(
 	/** @throws ConflictException (409) when the entry's date has another entry (not in the Trash) */
 	override fun restore(id: UUID): Boolean {
 		val entry = entries.findById(id).orElse(null)?.takeIf { it.isDeleted } ?: return false
-		if (entries.findActiveByDate(entry.date) != null) {
-			throw ConflictException("${entry.date} already has a journal entry; delete it first to restore this one")
-		}
+		val conflict = "${entry.date} already has a journal entry; delete it first to restore this one"
+		if (entries.findActiveByDate(entry.date) != null) throw ConflictException(conflict)
 		entry.restore()
-		entries.saveAndFlush(entry)
+		try {
+			entries.saveAndFlush(entry)
+		} catch (_: DataIntegrityViolationException) {
+			// The partial unique index on the date: a concurrent PUT created an entry for this date after the check.
+			throw ConflictException(conflict)
+		}
 		indexer.indexJournalEntry(entry)
 		return true
 	}
