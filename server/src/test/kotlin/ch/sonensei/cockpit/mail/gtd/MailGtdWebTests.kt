@@ -487,6 +487,45 @@ class MailGtdWebTests(
 	}
 
 	@Test
+	fun `to-note keeps escapes in the subject as the title and neutralizes them in To and every Cc name`() {
+		val other = UUID.randomUUID()
+		val mail =
+			message(
+				inbox,
+				subject = "Re: \\[[task:$other]] \\*urgent\\* \\_v2\\_",
+				to = listOf(MailAddress("ann@work.example", "Ann \\*Example\\*"), MailAddress("dan@work.example", "Dan \\<ops\\>")),
+				cc =
+					listOf(
+						MailAddress("erin@example.test", "Erin \\[[note:$other]]"),
+						MailAddress("frank@example.test", "Frank \\`code\\` \\«quote\\» C:\\Users\\x\\"),
+					),
+			)
+		bodies.put(mail.id, "Zinnia budget \\# draft", null)
+		attachments.save(mail.id, emptyList())
+
+		val result = created(mail.id, "to-note")
+
+		linkedEnds("NOTE", result["id"].asString()).single()["id"].asString() shouldBe mail.id.toString()
+		val note = getJson("/api/v1/notes/${result["id"].asString()}")
+		note["title"].asString() shouldBe "Re: \\[[task:$other]] \\*urgent\\* \\_v2\\_"
+		val body = note["bodyMd"].asString()
+		body shouldNotContain "Re: "
+		body shouldNotContain "[["
+		body shouldContain "**To:** Ann ∖*Example∖* <ann@work.example>, Dan ∖<ops∖> <dan@work.example>  \n"
+		// Only a backslash before ASCII punctuation is an escape; before a letter, non-ASCII or the line end it stays.
+		body shouldContain
+			"**Cc:** Erin ∖[ [note:$other]] <erin@example.test>, Frank ∖`code∖` \\«quote\\» C:\\Users\\x\\ <frank@example.test>  \n"
+		body shouldEndWith "Zinnia budget ∖# draft"
+		val hits =
+			mockMvc
+				.get("/api/v1/search?q=zinnia&types=NOTE")
+				.andExpect { status { isOk() } }
+				.andReturn()
+				.response.contentAsString
+		hits shouldContain result["id"].asString()
+	}
+
+	@Test
 	fun `links survive a move that gives the message a new row, re-resolved by Message-ID`() {
 		val original = message(inbox, messageId = "<moved@example.test>")
 		val taskId = created(original.id, "to-task")["id"].asString()

@@ -193,3 +193,62 @@ Remaining unresolved findings:
 ### Final status (round 3)
 
 All validated findings fixed and validation passed. CR-2 stays deferred as out of scope.
+
+## Round 4 (test-writer finding TW-1)
+
+Date: 2026-10-21
+
+Findings source: `reviews/mail-gtd/tests.md` ("Final round: bugs found"), TW-1. Base d12d5eb4a2e21d90cc8289fd5a1abfc2707357f1; task commits `git log d12d5eb4..HEAD`.
+
+### Fixed findings
+
+#### TW-1 — to-note returns 500 when the mail's text or a display name contains Markdown backslash escapes next to bold, autolinks and hard breaks
+
+Files changed:
+- `server/src/main/kotlin/ch/sonensei/cockpit/mail/gtd/MailGtdService.kt`
+- `server/src/test/kotlin/ch/sonensei/cockpit/mail/gtd/MailGtdWebTests.kt`
+
+Problem:
+Backslash escapes written by the sender (in display names or mail text, for example `Grace \[[x]]`) were copied into the note Markdown as they were. With bold header labels, `<address>` autolinks and hard line breaks next to them, flexmark's `TextCollectingVisitor` in `NoteMarkdown.plainText` threw `AssertionError: length:N != computeLength(): M` under `-ea`, so to-note returned 500. Without `-ea` it gave garbled search and title text instead.
+
+Fix (parent worker commit 93acb541, validated here; the fixer changed no code in this round):
+- `neutralizeInlineLinks` first writes `[[` as `[ [`, then writes every backslash followed by ASCII punctuation (`ESCAPE = \\(?=\p{Punct})`) as U+2216 `∖`. On the JVM without `UNICODE_CHARACTER_CLASS`, `\p{Punct}` is exactly the CommonMark set of escapable characters, so the note body has no Markdown backslash escapes left. A backslash before a letter, digit, space, non-ASCII character or line end is not an escape and stays unchanged.
+- Order is safe. The second step only swaps `\` for `∖` and never removes a character, so it cannot create a new `[[`; `[\[` becomes `[∖[`. The lookahead does not consume, so runs work (`\\[[` becomes `∖∖[ [`). The generated header has no backslash, and `truncate` runs afterwards and appends `…`, which is not punctuation, so it cannot form a new escape.
+- The two TW-1 tests keep their behavior assertions (201, a note linked only to the mail, no `[[`). Only their expected body strings changed from `\[` to `∖[`, which matches the new neutralization. They were not weakened.
+- Assumption #6 for mail-gtd records the lossy trade-off. The root fix in `NoteMarkdown.plainText` is the separate task `notes-markdown-escapes`, which per commit 89260240 also covers removing this workaround.
+
+Completeness check: TW-1 is about backslash escapes, and every CommonMark backslash escape is now removed from the body, so TW-1 is fully resolved. One residual risk is not part of TW-1 and was not verified: entity and numeric character references (`&amp;`, `&#91;`) are also decoded text that differs from the source and might make flexmark miscount in the same way. They cannot create inline links, because `INLINE_LINK` matches only a literal `[[` in the raw Markdown. I did not add a probe, because other helpers were running Gradle on the same clone at the time. Like the final review ("Other escape forms"), I leave it for the parent or `notes-markdown-escapes` to settle, for example with `NoteMarkdown.plainText("**F:** a &amp; b <c@d.e>  \n**T:** &#91;x <c@d.e>")` under `-ea`.
+
+Validation:
+- `cd server && ./gradlew -Pkotlin.daemon.jvmargs=-Xmx3g ktlintCheck test --rerun --tests 'ch.sonensei.cockpit.mail.gtd.*'` — Pass (BUILD SUCCESSFUL; MailGtdWebTests 46, MailGtdMailServerTests 5, 0 failures, 0 errors, 0 skipped; results written 2026-10-21 08:03). Both TW-1 tests ran and passed. The 46 includes one more test that another helper had not yet committed (`to-note keeps escapes in the subject as the title and neutralizes them in To and every Cc name`), and it passed too. Without it the count is the parent's 45 + 5 = 50. Two earlier tries of the same command stopped with `java.io.EOFException` in the Gradle `:test` task before any test result was written. That happened while another process was using the same `build/test-results` directory. It was not a test failure, and the next run passed.
+
+### Not fixed
+
+#### CR-1 (final review) — `MailConnectionException` handler copied from `MailMessageController`
+
+Status:
+Out of scope
+
+Reason:
+Still deferred to the follow-up task `mail-connection-errors`, as in earlier rounds.
+
+### Validation summary (round 4)
+
+Focused tests:
+- `cd server && ./gradlew -Pkotlin.daemon.jvmargs=-Xmx3g ktlintCheck test --rerun --tests 'ch.sonensei.cockpit.mail.gtd.*'` — Pass (51 tests with the uncommitted extra test, 0 failures)
+
+Full test suite:
+- Not run by the fixer in round 4; the parent worker runs `.taskcheck` before `done`.
+
+Lint/type-check/build:
+- `ktlintCheck` (main, test and script source sets) — Pass (part of the command above)
+
+`.taskcheck`:
+- Not run by the fixer in round 4 (other helpers were using the same clone's Gradle build); the parent worker runs it.
+
+Remaining unresolved findings:
+1 (CR-1 of the final review, out of scope)
+
+### Final status (round 4)
+
+All validated findings fixed and validation passed. TW-1 is fully resolved by 93acb541, and the fixer needed no code change. Entity references remain an unverified residual risk, outside TW-1.

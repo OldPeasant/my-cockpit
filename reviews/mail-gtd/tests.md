@@ -4,6 +4,126 @@ Date: 2026-10-21
 
 Task: mail-gtd - Mail to GTD integration
 
+Scope: final round (round 5), after the TW-1 fix. Base d12d5eb4a2e21d90cc8289fd5a1abfc2707357f1 (`git merge-base HEAD origin/main`, from the parent; main moved since round 4), measured HEAD 75ac48d5318b4defecb665c0e90a8591ab72b1cf on main, task commits `git log d12d5eb4..HEAD` (the `mail-gtd:` commits; b6e6d811 and 75ac48d5 only add `tasks/` files for other tasks). The production change since round 4 (92f3f305) is 93acb541: `neutralizeInlineLinks` writes a backslash that precedes ASCII punctuation as U+2216 `∖`, and the two TW-1 tests expect that. Production files changed by the task (`git diff --stat d12d5eb4..HEAD -- server/src/main web/src android/app/src/main`): `server/src/main/kotlin/ch/sonensei/cockpit/mail/gtd/MailGtdController.kt`, `server/src/main/kotlin/ch/sonensei/cockpit/mail/gtd/MailGtdService.kt` and 7 generated files under `web/src/app/api/generated/` (generated, excluded). The only uncommitted input is the test file listed below.
+
+Requirements:
+- `tasks/mail-gtd.md` acceptance criteria (AC1 to-note creates a linked note, AC3 mail.gtd suite passes, AC4 `OpenApiContractTest`) and the 07:39 assumption (mail escapes written as `∖`)
+- Round-4 finding TW-1 (below) and the parent's instructions: check that the fix holds, including backslash escapes in the subject and Cc
+- `docs/ARCHITECTURE.md` "Coverage"
+
+## Round 5: test files changed
+
+- `server/src/test/kotlin/ch/sonensei/cockpit/mail/gtd/MailGtdWebTests.kt`
+
+## Round 5: tests added or updated
+
+Count: 1 added. The fix commit 93acb541 updated the two TW-1 tests to expect `∖`, and both pass now.
+
+- `to-note keeps escapes in the subject as the title and neutralizes them in To and every Cc name`: the subject `Re: \[[task:id]] \*urgent\* \_v2\_`, two To names (`Ann \*Example\*`, `Dan \<ops\>`), two Cc names (`Erin \[[note:id]]` and `Frank \`code\` \«quote\» C:\Users\x\`), and the text `Zinnia budget \# draft`. It checks:
+  - 201 and a note linked only to the mail;
+  - the note title is the subject as written, and the subject is not copied into the body;
+  - the exact To and Cc lines, with escapes in every listed address neutralized (`∖*`, `∖<`, `∖[ [`, `∖``);
+  - a backslash before a letter, a non-ASCII character (`«`) or a space is kept as `\`;
+  - the body text `∖#`;
+  - the note can be found by `GET /api/v1/search?q=zinnia&types=NOTE`, so `NoteMarkdown.plainText` indexed it.
+
+## Round 5: requirement coverage
+
+| Requirement | Tests | Command | Result |
+|---|---|---|---|
+| TW-1 fix: to-note creates the note when the mail's text or display names contain backslash escapes next to brackets, bold, autolinks and hard breaks | `to-note of an HTML mail with backslashes, brackets and a link creates the note`, `to-note of a mail with backslash escapes, brackets and autolinks next to the bold header creates the note` | `cd server && ./gradlew -Pkotlin.daemon.jvmargs=-Xmx3g test --rerun --tests 'ch.sonensei.cockpit.mail.gtd.*' jacocoTestReport ktlintCheck` | Pass |
+| Escapes in the subject, in To and in every Cc name, the scope of the `∖` rewrite (ASCII punctuation only), indexing for search | new `to-note keeps escapes in the subject as the title and neutralizes them in To and every Cc name` | same | Pass |
+| Inline-link neutralization (`[ [`) in text, HTML and display names | `inline link tokens in a mail's text do not link the note to other items`, `inline link tokens in display names and the subject do not link the note to other items` | same | Pass |
+| AC1, AC2 (to-task, to-waiting, to-note, links survive moves) | the existing tests listed in the round-3 table below | same | Pass |
+| AC3: the mail.gtd suite passes (Testcontainers Postgres) | all 51 tests | same | Pass (MailGtdWebTests 46, MailGtdMailServerTests 5; 0 failures, errors or skipped) |
+| AC4: `OpenApiContractTest` passes | `OpenApiContractTest` | `cd server && ./gradlew -Pkotlin.daemon.jvmargs=-Xmx3g test --tests '*OpenApiContractTest'` | Pass (1 test, 0 failures/errors/skipped) |
+
+## Round 5: focused test execution
+
+Command:
+
+`cd server && ./gradlew -Pkotlin.daemon.jvmargs=-Xmx3g test --rerun --tests 'ch.sonensei.cockpit.mail.gtd.*' jacocoTestReport ktlintCheck` (2026-10-21T08:04:05+02:00 to 08:05:01+02:00)
+
+Result:
+
+Pass: BUILD SUCCESSFUL. `TEST-ch.sonensei.cockpit.mail.gtd.MailGtdWebTests.xml`: 46 tests and `TEST-ch.sonensei.cockpit.mail.gtd.MailGtdMailServerTests.xml`: 5 tests, 0 failures, errors or skipped. `ktlintCheck` was UP-TO-DATE, which means it had already passed on the same main and test sources earlier in this round.
+
+A first attempt at 08:00:54 failed with a Gradle error, not a test failure: `NoSuchFileException: build/test-results/test/binary/in-progress-results-generic.bin`. At the same time another process (not this test-writer) was running `./gradlew ... test --rerun --tests 'ch.sonensei.cockpit.mail.gtd.*'` twice in this clone, writing to the same `build/` directory. That attempt was discarded. The measured run above started only after no other Gradle client was running in `agent-1/server`.
+
+`OpenApiContractTest`: `cd server && ./gradlew -Pkotlin.daemon.jvmargs=-Xmx3g test --tests '*OpenApiContractTest'` (08:05:58 to 08:06:35 +02:00), BUILD SUCCESSFUL, 1 test, 0 failures/errors/skipped.
+
+## Round 5: full test execution
+
+Command:
+
+`sh scripts/check.sh`
+
+Result:
+
+Not run, at the parent's request (the parent runs it).
+
+## Round 5: .taskcheck
+
+Result:
+
+Not run (it is `sh scripts/check.sh`; the parent runs it).
+
+## Round 5: bugs found
+
+None new.
+
+TW-1 status: **Fixed** in 93acb541 and verified in this round. Both TW-1 tests and the new test pass under the test JVM's `-ea`. The root cause in `NoteMarkdown.plainText` (notes module) remains. It is tracked as task `notes-markdown-escapes`, outside this task's touches. mail-gtd now avoids writing any Markdown escape into the note.
+
+Observation, not a defect: the rewrite is a visible change. A sender's `\*` shows as `∖*` in the note, not as `*` or `\*`. This is the documented assumption (07:39); the parent may revisit it after `notes-markdown-escapes`. A backslash before a letter, a non-ASCII character, a space or the line end is kept, so Windows paths such as `C:\Users\x` stay unchanged except before punctuation (`C:\Users\[draft]` becomes `C:\Users∖[draft]`).
+
+## Round 5: coverage
+
+Status: verified
+
+Metric: whole-file coverage of task-changed production files.
+Changed-line coverage: measured. Method: added lines in `git diff -U0 <range> -- <file>`, intersected with JaCoCo XML `<line>` entries and counted as covered when `ci > 0` (script `.tmp/tw/cov.py`, Git-ignored). Task range `d12d5eb4..HEAD`: MailGtdController.kt 32/32, MailGtdService.kt 149/149. Since round 4 (`92f3f305..HEAD`, the TW-1 fix): MailGtdService.kt 2/2. Changed-branch coverage not derived.
+
+Evidence:
+- Task id, immutable base, measured HEAD, and task-owned commits/file-scope source: mail-gtd; base d12d5eb4a2e21d90cc8289fd5a1abfc2707357f1 (from the parent); HEAD 75ac48d5318b4defecb665c0e90a8591ab72b1cf; task commits from `git log d12d5eb4..HEAD`; file scope from `git diff --stat d12d5eb4..HEAD -- server/src/main web/src android/app/src/main`, matching the task's `touches`.
+- Source/test snapshot identifier (sha256, the same at 08:00:54 and after the run at 08:05): MailGtdController.kt 1580681f3ec5fe7d2ae260bd74f959bca76da5b2b41ad3c6234d545869669eb3, MailGtdService.kt 24e31238d8028b4145ee50b2ae534a805757606f9803b066fb4c0c6030cd75df, MailGtdMailServerTests.kt 641e4fe28def59c09e3600a94d86f42e4581827e0d9877336c23a2dbe6c13cbe, MailGtdWebTests.kt (uncommitted, with the new test) f1e1d7374a8726278d642dc83af04481a4d68a4e8da7321775a5133900d508e7.
+- Exact included files; renamed/deleted/excluded files and reasons: included `server/src/main/kotlin/ch/sonensei/cockpit/mail/gtd/MailGtdController.kt` and `server/src/main/kotlin/ch/sonensei/cockpit/mail/gtd/MailGtdService.kt`, both measured. Excluded: `web/src/app/api/generated/**` (7 files, generated OpenAPI client). Nothing was renamed or deleted, and no scoped file is missing from the report.
+- Provider/version, command, working directory, and test selection: JaCoCo through the Gradle `jacoco` plugin (default tool version); `./gradlew -Pkotlin.daemon.jvmargs=-Xmx3g test --rerun --tests 'ch.sonensei.cockpit.mail.gtd.*' jacocoTestReport ktlintCheck` in `server/`; selection `ch.sonensei.cockpit.mail.gtd.*` (MailGtdWebTests 46, MailGtdMailServerTests 5).
+- Run start/completion time and exit status: 2026-10-21T08:04:05+02:00 to 08:05:01+02:00, BUILD SUCCESSFUL (exit 0).
+- Generated report paths and report hashes/run identifier: `server/build/jacoco/test.exec` (mtime 08:04:54.94, sha256 677e286f620a1081117c1fa660932663aa12094c5d476011b7dc89309958b975); `server/build/reports/jacoco/test/jacocoTestReport.xml` (mtime 08:05:01.70, sha256 7632e831c8656c23e5af1a92b4bae93663c90e0f45c3108f1b3f6dccf0eda53d). The later `OpenApiContractTest` run rewrote `test.exec`, but not the XML report used here.
+- Evidence outputs are fresh and inputs stayed unchanged: yes. `--rerun` forced the test task to run, both artifacts have mtimes inside the run window, no other Gradle client was running in the clone during it, and the snapshot hashes matched after the run.
+- Final run after latest test additions and production fixes: yes (it covers the fix 93acb541 and the new test).
+
+Values below use covered/total (percentage) from JaCoCo counters (statements = INSTRUCTION).
+
+| Changed file | Statements | Branches | Functions | Lines |
+|---|---:|---:|---:|---:|
+| `server/src/main/kotlin/ch/sonensei/cockpit/mail/gtd/MailGtdController.kt` | 157/157 (100%) | 2/2 (100%) | 12/12 (100%) | 32/32 (100%) |
+| `server/src/main/kotlin/ch/sonensei/cockpit/mail/gtd/MailGtdService.kt` | 1374/1397 (98.4%) | 115/126 (91.3%) | 43/44 (97.7%) | 149/149 (100%) |
+| Aggregate (summed counters, both scoped files; excludes the 7 generated web client files) | 1531/1554 (98.5%) | 117/128 (91.4%) | 55/56 (98.2%) | 181/181 (100%) |
+
+| File and uncovered lines/branch locations | Required behavior or risk | Action/test added or reason left uncovered |
+|---|---|---|
+| `MailGtdService.kt:234-235` (1 branch each) | `htmlText` visiting a node that is neither a TextNode nor an Element | Justified gap (as in rounds 3 and 4): the sanitizer removes comments, scripts and styles |
+| `MailGtdService.kt:106, 122, 123, 126, 159` (1 branch each) | Kotlin null-safety fallbacks | Justified gap (as before): defensive code |
+| `MailGtdService.kt:281, 283` (2 branches each) | `display`/`full` with a null name | Partly covered by the blank-name tests; the remaining bytecode variants are not material |
+| `MailGtdService.kt:164` (`getDATE_FORMAT`) | Generated getter | Not material |
+| `MailGtdService.kt:191, 267` (`ESCAPE`, `neutralizeInlineLinks`) | TW-1 fix | Covered (both lines executed; the 2 TW-1 tests and the new test pass) |
+
+## Round 5: unable to test
+
+- Runtime behavior without `-ea` is not asserted by a committed test, because the test JVM always runs with assertions on. After the fix the note has no Markdown escapes, so the garbled-text path from round 4 is not reached for mail notes.
+- Full `scripts/check.sh` / `.taskcheck`: not run here; the parent runs it.
+
+## Round 5: summary
+
+Tests and task-scoped coverage are sufficient; no production defects found. TW-1 is fixed and verified. The mail.gtd suite (51 tests) and `OpenApiContractTest` pass.
+
+---
+
+The sections below are the round-4 report (revision 92f3f305 code at aaf3c30c, base 0cdd3a18). They are kept for history and are stale for the final revision. TW-1, reported there, is **fixed** (93acb541, verified in round 5).
+
+## Round 4 report
+
 Scope: final round (round 4). Base 0cdd3a188e0a35bd13a5754275338e819792e097 (given by the parent), measured HEAD aaf3c30c9384914fd307fa497d748ebe1e5eea2f on main, task commits `git log 0cdd3a18..HEAD` (all prefixed `mail-gtd:`). Production changes since the round-3 report (4121d8e0): ddf36a3c (to-note runs `neutralizeInlineLinks` on the whole note body, header display names included) and af618c04 (`[[` is written as `[ [` instead of `[\[`). Production files changed by the task (`git diff --stat 0cdd3a18..HEAD -- src/main` in `server/`): `MailGtdController.kt` and `MailGtdService.kt` in `server/src/main/kotlin/ch/sonensei/cockpit/mail/gtd/`. The only uncommitted input from this round is the test file listed below. `reviews/mail-gtd/review.md` also shows as modified in the working tree; this round did not touch it.
 
 Requirements:
