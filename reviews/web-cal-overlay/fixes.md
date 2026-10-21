@@ -16,10 +16,10 @@ Files changed:
 - `web/src/app/features/calendar/overlay/event-links.spec.ts`
 
 Problem:
-SPEC.md §6.3 asks for a pre-filled title and date. The note got `<title> (<yyyy-MM-dd>)` but the Inbox task only got the plain event title.
+SPEC.md §6.3 asks for a pre-filled title and date. The note got `title (yyyy-MM-dd)` but the Inbox task only got the plain event title.
 
 Fix:
-As the parent decided: `EventLinksService.createTask(occurrence, timeZone)` now titles the Inbox task like the note, `<event title> (<yyyy-MM-dd>)` from `occurrenceDate`, with the plain title when the occurrence has no date. It sets no `dueDate`. A shared `datedTitle` helper builds both titles. The panel passes its `timeZone` input. The success notification uses the created task's title, so it now reads `Added to Inbox: Planning (2026-03-23)`. The spec test asserts the dated title and the notification text. A new test covers an occurrence with no date (plain title). The e2e spec `web/e2e/calendar-overlay/overlay.spec.ts` does not create a task from an event, so it did not need a change.
+As the parent decided: `EventLinksService.createTask(occurrence, timeZone)` now titles the Inbox task like the note, `event title (yyyy-MM-dd)` from `occurrenceDate`, with the plain title when the occurrence has no date. It sets no `dueDate`. A shared `datedTitle` helper builds both titles. The panel passes its `timeZone` input. The success notification uses the created task's title, so it now reads `Added to Inbox: Planning (2026-03-23)`. The spec test asserts the dated title and the notification text. A new test covers an occurrence with no date (plain title). The e2e spec `web/e2e/calendar-overlay/overlay.spec.ts` does not create a task from an event, so it did not need a change.
 
 Validation:
 - `npx ng test --watch=false --include='src/app/features/calendar/**/*.spec.ts' --include='src/app/features/gtd/data/**/*.spec.ts'` — Pass (18 files, 347 tests)
