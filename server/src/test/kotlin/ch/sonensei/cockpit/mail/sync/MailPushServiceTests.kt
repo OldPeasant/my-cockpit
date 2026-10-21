@@ -261,6 +261,84 @@ class MailPushServiceTests {
 	}
 
 	@Test
+	fun `account events before start or after stop start no watcher`() {
+		idleCapable += ann.id
+		known += ann
+		val at = Instant.parse("2026-10-21T08:00:00Z")
+
+		service.onAccountChanged(MailAccountConnectionChanged(ann.id))
+		service.onChange(ChangeEvent(MailAccountService.ACCOUNT_EVENT, ann.id, ChangeOp.CREATED, at))
+		service.start()
+		idlingWatcher(ann)
+		service.stop()
+		service.onAccountChanged(MailAccountConnectionChanged(ann.id))
+		service.onChange(ChangeEvent(MailAccountService.ACCOUNT_EVENT, ann.id, ChangeOp.CREATED, at))
+
+		service.watcher(ann.id).shouldBeNull()
+		sessions.getValue(ann.id).size shouldBe 1
+		verify(exactly = 0) { accounts.existsById(any()) }
+	}
+
+	/** A failure the watcher's retry loop does not catch (an [Error]) ends its thread. */
+	private class FictitiousFatalError : Error("Fictitious fatal error")
+
+	@Test
+	fun `a watcher that died from an error is restarted by the next poll`() {
+		known += ann
+		val connects = AtomicInteger()
+		val crashing =
+			MailPushService(
+				accounts,
+				folders,
+				folderService,
+				sync,
+				{ _, _ ->
+					if (connects.incrementAndGet() == 1) throw FictitiousFatalError()
+					FakeIdleSession()
+				},
+				properties,
+			)
+		try {
+			crashing.start()
+			val dead = crashing.watcher(ann.id).shouldNotBeNull()
+			waitUntil { !dead.alive }
+			dead.unsupported shouldBe false
+
+			crashing.poll()
+
+			waitUntil { crashing.watcher(ann.id)?.idling == true }
+			crashing.watcher(ann.id) shouldNotBeSameInstanceAs dead
+			connects.get() shouldBe 2
+		} finally {
+			crashing.stop()
+		}
+	}
+
+	@Test
+	fun `an account without an Inbox gets no IDLE, its watcher retries, and the poll still syncs its other folders`() {
+		idleCapable += ann.id
+		known += ann
+		folderList[ann.id] = folderList.getValue(ann.id).filter { it.role != MailFolderRole.INBOX }
+		val archive = archiveOf(ann)
+
+		service.start()
+		waitUntil { (service.watcher(ann.id)?.failures ?: 0) >= 1 }
+
+		val watcher = service.watcher(ann.id).shouldNotBeNull()
+		watcher.idling shouldBe false
+		watcher.unsupported shouldBe false
+		watcher.alive shouldBe true
+		sessions[ann.id].shouldBeNull()
+		// The watcher looked for the Inbox in a fresh folder list.
+		verify(atLeast = 1) { folderService.sync(ann.id) }
+
+		service.poll()
+
+		verify(exactly = 1) { sync.syncFolder(archive.id) }
+		service.watcher(ann.id) shouldBeSameInstanceAs watcher
+	}
+
+	@Test
 	fun `reconcile stops the watchers of deleted accounts and keeps the others`() {
 		idleCapable += listOf(ann.id, bob.id)
 		known += listOf(ann, bob)

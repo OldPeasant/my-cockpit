@@ -2,24 +2,40 @@
 
 Date: 2026-10-21
 
-Task: mail-idle - IMAP IDLE push and polling
+Task: mail-idle - IMAP IDLE push and polling (review round 2, final code)
 
-Scope: `git diff 9ad7341cc..3ea43689d` (3 commits), limited to server/src/main/kotlin/ch/sonensei/cockpit/mail/sync/{InboxWatcher,ImapIdleConnector,MailPushProperties,MailPushService,NewMailAnnouncer,MailHeaderSyncService,MailHeaderStore}.kt, the tests in server/src/test/kotlin/ch/sonensei/cockpit/mail/sync/ and server/src/test/resources/config/application.properties. The current HEAD (342f59f4b, rebased) has identical content for these paths. Untracked test files in the working tree (FakeIdleSession.kt, InboxWatcherTests.kt, MailPushPropertiesTests.kt) are not committed and were not reviewed.
+Scope: `git diff 8dfa49e29096593b9a9e95c2c5f577eab718e2d7..c25536adfe381297928f10903b524722b34bac09` (7 commits). Reviewed: server/src/main/kotlin/ch/sonensei/cockpit/mail/sync/{InboxWatcher,ImapIdleConnector,MailPushProperties,MailPushService,NewMailAnnouncer,MailHeaderSyncService,MailHeaderStore}.kt, every test in server/src/test/kotlin/ch/sonensei/cockpit/mail/sync/ touched by the range, and server/src/test/resources/config/application.properties. The review reports in reviews/mail-idle/ were read for context only. No uncommitted changes in the working tree.
 
 Requirements:
-- tasks/mail-idle.md (acceptance criteria and recorded assumptions)
-- SPEC.md section 7.2 (sync model: IDLE on INBOX, reconnect with backoff, other folders polled every 5 min, new mail -> SSE event + optional per-account notification)
-- AGENTS.md project notes (logging rules, module boundaries, shared files)
+- tasks/mail-idle.md (3 acceptance criteria, 3 recorded assumptions)
+- SPEC.md section 7.2 (IDLE on the Inbox of each account, reconnect with backoff, other folders polled every 5 min, new mail -> SSE event + optional per-account notification)
+- AGENTS.md project notes (logging rules, module boundaries, touches)
 - docs/ARCHITECTURE.md
-- Parent instructions (focus areas, evidence already run)
+- Round-1 review (reviews/mail-idle/review.md, previous version) and reviews/mail-idle/fixes.md
+- Parent instructions (scope, focus areas, validation already run)
 
 Git range:
 - Branch: main
-- HEAD: 342f59f4b7aae9d4102fe992dda11574243edf0c (reviewed revision 3ea43689dc407d83a9894a06e0aca73c7cdbe34c, same content in scope)
-- Base/start: 9ad7341cc03d9d2a1b2b9ed47f4b952b5c386619
-- Commits reviewed: 3
+- HEAD: c25536adfe381297928f10903b524722b34bac09
+- Base/start: 8dfa49e29096593b9a9e95c2c5f577eab718e2d7
+- Commits reviewed: 7 (74e4b88c6, 02d36747f, 0e9f9dfff, df2ba5d67, a6d1fc4c4, 5da96d451, c25536adf)
 
-Summary: 0 P0, 1 P1, 3 P2, 0 P3
+Commands run by this reviewer (read-only):
+- `git log --oneline 8dfa49e29..HEAD` -> 7 commits, as listed above
+- `git diff --stat 8dfa49e29..HEAD` -> 20 files, 2227 insertions, 29 deletions
+- `git diff 8dfa49e29..HEAD -- MailHeaderSyncService.kt MailHeaderStore.kt application.properties` -> reviewed hunks
+- `git status --short` -> clean
+- `grep` over SPEC.md section 7.2, `core/events` and api/openapi.yaml (how SSE notifications are documented)
+- Tests were not re-run by this reviewer. The parent reported at c25536adf: `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.mail.sync.*' jacocoTestReport integrationTest --tests 'ch.sonensei.cockpit.mail.sync.*' ktlintCheck` -> all pass (InboxWatcherTests 13, MailPushServiceTests 17, NewMailAnnouncerTests 10, MailPushPropertiesTests 9, MailHeaderSyncServiceTests 27, MailHeaderStoreTests 22; MailIdleGreenMailTests 4, HeaderSyncGreenMailTests 14, HeaderSyncDovecotTests 2).
+
+Summary: 0 P0, 1 P1, 0 P2, 1 P3
+
+## Status of round-1 findings
+
+- CR-1 (P1, no tests for reconnect/backoff, poll, restart, announcer filters): resolved. InboxWatcherTests cover the retry with doubling backoff, the `failures` reset, reconnect after an IDLE failure, a failing catch-up sync, the no-IDLE path, stop during backoff, stop during connect, re-IDLE scheduling and cancellation, and swallowed NOOP failures. MailPushPropertiesTests cover `backoff`. MailPushServiceTests cover poll (all selectable folders, `\Noselect` skipped, Inbox included, failing account or vanished folder isolated, exceptions contained), watcher start, restart and stop on account events, and the poll schedule. NewMailAnnouncerTests cover the seen, non-Inbox, limit, order and per-account filters.
+- CR-2 (P2, silently dropped IDLE left the Inbox unsynced for about 30 min): resolved. `MailPushService.pollAccounts` (MailPushService.kt:103) syncs every selectable folder, the Inbox included. Concurrent Inbox syncs from the poll and the watcher are serialized by the per-folder lock in `MailHeaderSyncService.syncFolder` (MailHeaderSyncService.kt:95), so arrivals are neither stored nor announced twice. The KDocs no longer overstate dead-connection detection.
+- CR-3 (P2, stop/refresh could block for the 30-min socket timeout): resolved. `InboxWatcher.stop` closes the session on a virtual thread and joins with a bound (InboxWatcher.kt:51-56). The re-IDLE task only starts a virtual thread for the NOOP (InboxWatcher.kt:86-101). The `@Synchronized` sections of `MailPushService` do no IMAP I/O. Regression tests with a hanging session exist (InboxWatcherTests.kt:91-138).
+- CR-4 (P2, poll on Spring's shared scheduler): resolved. The poll runs on a dedicated `mail-poll` single-thread executor with `scheduleWithFixedDelay`, and `poll()` contains all exceptions so the schedule is not cancelled (MailPushService.kt:61-101). `@EnableScheduling` is still declared by the other modules' schedulers.
 
 ## P0 Critical
 
@@ -27,53 +43,36 @@ None.
 
 ## P1 High
 
-- [ ] **CR-1 | Reconnect/backoff and the 5-min polling of acceptance criterion 1 have no committed test**
-    - File: `server/src/main/kotlin/ch/sonensei/cockpit/mail/sync/MailPushService.kt:84`, `server/src/main/kotlin/ch/sonensei/cockpit/mail/sync/InboxWatcher.kt:59`, `server/src/main/kotlin/ch/sonensei/cockpit/mail/sync/NewMailAnnouncer.kt:53`
+- [ ] **CR-5 | The GreenMail test for criterion 3 also passes without IDLE push, because a 1-second re-IDLE triggers a sync every second**
+    - File: `server/src/test/kotlin/ch/sonensei/cockpit/mail/sync/MailIdleGreenMailTests.kt:53`, `server/src/main/kotlin/ch/sonensei/cockpit/mail/sync/InboxWatcher.kt:106-108`
     - Category: Tests
-    - Problem: The only new test is `MailIdleGreenMailTests`. It covers IDLE delivery, re-IDLE (1 s interval), notifyNewMail on/off and deletion. At the reviewed revision nothing exercises: the retry after a failed connection or sync and the exponential backoff (`InboxWatcher.run`, `MailPushProperties.backoff`); the "server has no IDLE" path (`unsupported`); `MailPushService.poll` (other folders synced, Inbox skipped only while `idling`, Inbox polled while the IDLE is down or unsupported, a failing account skipped); restarting a watcher on `MailAccountConnectionChanged`; or the filters in `NewMailAnnouncer` (seen messages excluded, no notification outside the Inbox, at most 10 summaries, newest first). The untracked `InboxWatcherTests`/`MailPushPropertiesTests` in the working tree may cover part of the first two points, but they are not committed. Nothing covers `poll` or the announcer filters.
-    - Why it matters: Criterion 1 names "reconnect/backoff" and "other folders polled every 5 min". With no test that runs these paths, there is no evidence to record for them, and a regression (for example, the Inbox never polled while IDLE is down) would not be caught.
-    - Suggested fix: Commit unit tests for `InboxWatcher` (fake `IdleSession`/connector: failure -> backoff -> reconnect, `failures` reset, unsupported ends the watcher, stop during await/backoff), for `MailPushProperties.backoff` (doubling, cap), for `MailPushService.poll` with mocks (Inbox skipped only while `idling`, other selectable folders synced, `\Noselect` skipped, an exception for one account does not stop the others) and for `NewMailAnnouncer` (seen/non-Inbox/limit/order). Then record them as evidence for criteria 1 and 2.
+    - Problem: The class sets `cockpit.mail.push.re-idle-interval=PT1S` for all its tests. Every re-IDLE NOOP ends `await()`, and the watcher then runs `sync()` (`current.await(); if (!isStopped) sync()`). So the Inbox is synced every second whether or not the server's IDLE notification ever ends the wait. `a delivered message appears within seconds without polling ...` allows 10 s (`ARRIVAL_LIMIT`). It would still pass if `folder.idle(true)` never returned on EXISTS, or if `ImapIdleSession.await` were replaced by a sleep. The 1-hour `poll-interval` turns off only the 5-min poll, not this effective 1-second poll.
+    - Why it matters: Criterion 3 asks for evidence that a delivered message appears "within seconds without polling", i.e. through IDLE push. The current test cannot tell push apart from a 1-second re-IDLE poll, so the recorded evidence for criterion 3 does not show what the criterion names. The real-server IDLE path (`ImapIdleSession.await` on Angus) has no other test.
+    - Suggested fix: Run the delivery test with a re-IDLE interval much longer than the arrival limit (for example PT10M), in its own test class or a nested `@SpringBootTest` with different properties. Keep the 1-second interval only for `mail keeps arriving across re-IDLEs`. Optionally assert that no refresh happened before the arrival. Then re-record the criterion 3 evidence from that run.
 
 ## P2 Medium
 
-- [ ] **CR-2 | A silently dropped IDLE connection leaves the Inbox unsynced for about 30 minutes or more, with no fallback poll**
-    - File: `server/src/main/kotlin/ch/sonensei/cockpit/mail/sync/MailPushService.kt:94`, `server/src/main/kotlin/ch/sonensei/cockpit/mail/sync/ImapIdleConnector.kt:54`
-    - Category: Correctness
-    - Problem: `poll()` skips the Inbox while `watcher.idling` is true. `idling` only becomes false when `await()` throws. The IDLE socket's read timeout is `reIdleInterval + readTimeout` (29 min + 60 s by default). When the connection dies without a FIN/RST (NAT or router timeout, network change, server failover), the watcher notices only when the re-IDLE NOOP gets no answer or the 30-min read timeout expires. Angus also ignores socket timeouts while in IDLE state, so detection can take even longer. Until then new mail is neither pushed nor polled. The KDoc ("a dead connection is still detected") overstates what the timeout gives.
-    - Why it matters: SPEC section 7.2 promises near-real-time mail with reconnect. In the common silent-drop case, the Inbox is checked less often than the 5-min poll that other folders get.
-    - Suggested fix: Also sync the Inbox in `poll()` while it IDLEs, as a cheap CONDSTORE/QRESYNC safety net. Alternatively, bound detection with a shorter liveness check (for example, refresh/NOOP every few minutes, or TCP keepalive on the IDLE socket), and fix the KDoc.
-
-- [ ] **CR-3 | Stopping or refreshing a watcher can block for up to the 30-minute IDLE socket timeout**
-    - File: `server/src/main/kotlin/ch/sonensei/cockpit/mail/sync/InboxWatcher.kt:53`, `server/src/main/kotlin/ch/sonensei/cockpit/mail/sync/MailPushService.kt:54`, `server/src/main/kotlin/ch/sonensei/cockpit/mail/sync/MailPushService.kt:131`
-    - Category: Correctness
-    - Problem: `InboxWatcher.stop()` calls `session?.close()` synchronously before the bounded `join(timeout)`. `IMAPStore.close()` ends the IDLE (DONE) and logs out, and it waits for server responses on a socket whose read timeout is about 30 min. On a half-open connection, `stop()` therefore blocks for that long, despite its 5 s `timeout` parameter. This runs:
-        - on the HTTP request thread that updated or deleted the account (`onAccountChanged` -> `restart`, after commit), while holding the `MailPushService` monitor, which also blocks `reconcile()` and so `poll()`;
-        - in `SmartLifecycle.stop()`, which delays application shutdown.
-
-      The same applies to `refresh()`: the NOOP waits for the IDLE to end and for a reply. All accounts share one `mail-re-idle` thread, so one dead connection delays the re-IDLE of every other account.
-    - Why it matters: A user's account update request, or a server shutdown, can hang for tens of minutes because of one unresponsive mail server. Other accounts' IDLEs then run past the 29-min re-IDLE interval that RFC 2177 asks for.
-    - Suggested fix: Close sessions off the caller's thread (fire-and-forget on a daemon thread or executor) so `stop()` is bounded by its timeout. Run `refresh()` so that one blocked account cannot starve the others, for example on the watcher's own thread or on a small pool or virtual threads. Keep the `@Synchronized` section free of network I/O.
-
-- [ ] **CR-4 | The mail poll runs on Spring's single shared scheduling thread and delays reminders and other jobs**
-    - File: `server/src/main/kotlin/ch/sonensei/cockpit/mail/sync/MailPushService.kt:84`
-    - Category: Integration
-    - Problem: `poll()` is a `@Scheduled` method. No `spring.task.scheduling.pool.size`, scheduler bean or virtual threads are configured (checked server/src/main/resources and all `@EnableScheduling`/`SchedulingConfigurer` uses), so it shares Spring Boot's default single-thread scheduler with `ReminderScheduler` (every 15 s), `CalendarSyncScheduler` (30 s), `ImapConnectionPool` eviction, the tickler and trash purge. One poll syncs the folder list and every selectable folder of every account in sequence over IMAP. That includes full 12-month header syncs of folders not yet cached, and it waits up to the connect/borrow/read timeouts for unreachable servers.
-    - Why it matters: During a long poll, due reminders (a user-visible, time-critical feature) and calendar syncs do not fire until the poll ends.
-    - Suggested fix: Run the poll on its own executor. For example, schedule it on the service's own `ScheduledExecutorService` (already present) or a dedicated scheduler instead of `@Scheduled`, or hand the work off from the `@Scheduled` method to a dedicated single-thread executor.
+None.
 
 ## P3 Low
 
-None.
+- [ ] **CR-6 | `MailPushService` cannot be started again after `stop()`**
+    - File: `server/src/main/kotlin/ch/sonensei/cockpit/mail/sync/MailPushService.kt:76`, `server/src/main/kotlin/ch/sonensei/cockpit/mail/sync/MailPushService.kt:82-83`
+    - Category: Correctness
+    - Problem: The `scheduler` and `poller` executors are created once in the constructor, and `stop()` calls `shutdownNow()` on both. A later `SmartLifecycle.start()` (for example `ConfigurableApplicationContext.stop()` followed by `start()`) then throws `RejectedExecutionException` from `poller.scheduleWithFixedDelay`. Watchers that `reconcile()` started just before would fail on `scheduler.scheduleAtFixedRate` and retry with backoff indefinitely.
+    - Why it matters: The lifecycle contract of `SmartLifecycle` allows stop/start cycles. Normal application startup and shutdown are not affected, so the impact is low.
+    - Suggested fix: Create the executors in `start()` (and null or replace them in `stop()`), or document and enforce single use, for example by making `start()` a no-op with a warning once the service was stopped.
 
 ## Review conclusion
 
 Material issues found; fix before completing the task.
 
-Notes on what was checked and found sound:
-- Logging: only account/folder ids and exception class names reach INFO/WARN. Details are logged at DEBUG only. No credentials or mail content are logged.
-- The `mail` SSE notification carries from, subject and date but never a body, consistent with `ClientNotification`.
-- Spring wiring is correct: `@ConditionalOnProperty` defaults on, the test config turns it off, `MailPushConfiguration` enables properties and scheduling, and `SseEventHub` uses `fallbackExecution = true`, so events from the non-transactional watcher thread reach clients.
-- Account create, update and delete events start, restart and stop watchers.
-- The watcher's start/stop ordering is race-free: the volatile `session` is assigned before the `isStopped` re-check.
-- The re-IDLE interval stays below the socket timeout.
-- Arrivals are announced only for incremental syncs.
+CR-5 must be fixed (or criterion 3 re-verified with a test that isolates IDLE push) before criterion 3 can count as verified. CR-6 is optional cleanup.
+
+Also checked and found sound:
+- Threading and lifecycle: `session` is published before the `isStopped` re-check, so a stop during connect closes the new connection without syncing. The re-IDLE task is scheduled only after that check and cancelled in `finally`. `running` is checked inside the `@Synchronized` `reconcile`/`restart`, so no watcher survives `MailPushService.stop()`. A watcher whose close hangs ends on its own once the socket fails, because `isStopped` is set first.
+- Reconnect/backoff: `failures` resets only after a successful catch-up sync. The backoff doubles and is capped (`MailPushProperties.backoff`). The property validation rejects non-positive intervals and an initial backoff above the maximum.
+- Re-IDLE: 29 min by default, below the socket read timeout (`reIdleInterval + readTimeout`). Each refresh is followed by a sync, so arrivals consumed by the NOOP are not lost.
+- Events: only incremental syncs report `arrived` ids (`createdIds` from `MailHeaderStore.upsert`; reattached rows count as updates). Each arrival gets an `EMAIL` CREATED change event. The `mail` notification is limited to unread Inbox arrivals of accounts with `notifyNewMail`, with at most 10 summaries and no body. The SSE hub forwards events from the non-transactional watcher and poll threads.
+- Security/logging: INFO/WARN logs carry only account/folder ids and exception class names. Exceptions and details go to DEBUG. No credentials, bodies or subjects are logged. Test data is fictitious. Credentials are fetched again on every reconnect (fresh OAuth tokens).
+- Scope: changes stay within the task's `touches`, plus the test property that the recorded assumption explains.

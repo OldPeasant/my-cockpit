@@ -1,8 +1,11 @@
 package ch.sonensei.cockpit.mail.sync
 
 import io.kotest.assertions.throwables.shouldThrow
+import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.Test
+import org.springframework.boot.context.annotation.UserConfigurations
+import org.springframework.boot.test.context.runner.ApplicationContextRunner
 import java.time.Duration
 
 class MailPushPropertiesTests {
@@ -59,12 +62,45 @@ class MailPushPropertiesTests {
 		shouldThrow<IllegalArgumentException> { properties().backoff(-1) }
 	}
 
-	@Test
-	fun `the defaults keep the re-IDLE below the 30 minutes servers may drop an IDLE after`() {
-		val p = properties()
+	private val context = ApplicationContextRunner().withConfiguration(UserConfigurations.of(MailPushConfiguration::class.java))
 
-		(p.reIdleInterval < Duration.ofMinutes(30)) shouldBe true
-		p.pollInterval shouldBe Duration.ofMinutes(5)
+	@Test
+	fun `without settings the IDLE is renewed every 29 minutes and every folder is polled every 5 minutes`() {
+		// The @DefaultValue annotations as Spring binds them, not the defaults of the test helper above.
+		context.run { ctx ->
+			val p = ctx.getBean(MailPushProperties::class.java)
+
+			p.enabled shouldBe true
+			p.reIdleInterval shouldBe Duration.ofMinutes(29)
+			(p.reIdleInterval < Duration.ofMinutes(30)) shouldBe true
+			p.pollInterval shouldBe Duration.ofMinutes(5)
+			p.initialBackoff shouldBe Duration.ofSeconds(5)
+			p.maxBackoff shouldBe Duration.ofMinutes(5)
+		}
+	}
+
+	@Test
+	fun `bound settings override the defaults`() {
+		context
+			.withPropertyValues(
+				"cockpit.mail.push.re-idle-interval=PT1S",
+				"cockpit.mail.push.poll-interval=10m",
+				"cockpit.mail.push.initial-backoff=200ms",
+				"cockpit.mail.push.max-backoff=1s",
+			).run { ctx ->
+				val p = ctx.getBean(MailPushProperties::class.java)
+
+				p.reIdleInterval shouldBe Duration.ofSeconds(1)
+				p.pollInterval shouldBe Duration.ofMinutes(10)
+				p.backoff(4) shouldBe Duration.ofSeconds(1)
+			}
+	}
+
+	@Test
+	fun `an invalid setting fails the startup`() {
+		context.withPropertyValues("cockpit.mail.push.initial-backoff=10m", "cockpit.mail.push.max-backoff=1m").run { ctx ->
+			ctx.startupFailure.shouldNotBeNull()
+		}
 	}
 
 	@Test
