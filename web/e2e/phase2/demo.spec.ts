@@ -231,6 +231,7 @@ test.describe('Phase 2 demo', () => {
     const info = test.info();
     test.setTimeout(180_000);
     before = await snapshot(page.request);
+    expectDemoData(before);
 
     await page.goto('/settings/backup');
     await page.getByRole('button', { name: 'Create backup' }).click();
@@ -273,6 +274,13 @@ test.describe('Phase 2 demo', () => {
     );
     expect(target).toMatch(/^files\//);
     expect(zip.read(target).equals(PNG), `${images[0]} resolves to the pasted image`).toBe(true);
+    // No image link anywhere in readable/ points outside the zip.
+    for (const name of names.filter((n) => /^readable\/.*\.md$/.test(n))) {
+      for (const [, link] of zip.text(name).matchAll(/!\[[^\]]*\]\(([^)\s]+)\)/g)) {
+        const resolved = posix.normalize(posix.join(posix.dirname(name), decodeURIComponent(link)));
+        expect(zip.has(resolved), `${name}: image ${link} resolves inside the zip`).toBe(true);
+      }
+    }
 
     // files/: the original tree with the original names and bytes.
     expect(zip.text('files/Documents/Tax/Invoice 2025.pdf')).toContain('Fictitious invoice 2025');
@@ -561,6 +569,67 @@ async function snapshot(request: APIRequestContext): Promise<Snapshot> {
     links,
     trash: await get(request, '/api/v1/trash?limit=200'),
   };
+}
+
+/**
+ * The snapshot holds the phase 1 and 2 data of steps 0–3, so its comparison with the restored server's is not
+ * trivially equal (e.g. two empty lists after an API change).
+ */
+function expectDemoData(snap: Snapshot): void {
+  const field = (items: unknown, key: string) =>
+    (items as Record<string, unknown>[]).map((item) => item[key]);
+  const itemsOf = (response: unknown) => (response as { items: unknown[] }).items;
+
+  expect(snap.settings).toMatchObject({
+    theme: 'dark',
+    weekStart: 'SUNDAY',
+    energyLabels: { LOW: 'Tired', MEDIUM: 'Okay', HIGH: 'Fresh' },
+  });
+  expect(field(itemsOf(snap.contexts), 'name')).toEqual(
+    expect.arrayContaining(['@phone', '@errands']),
+  );
+  expect(field(itemsOf(snap.areas), 'title')).toContain('Home');
+  expect(field(snap.projects, 'title')).toEqual(
+    expect.arrayContaining(['Holiday', 'Tax return 2025']),
+  );
+  expect(field(snap.tasks, 'title')).toEqual(
+    expect.arrayContaining([
+      'Call plumber',
+      'Buy milk',
+      'Book flights',
+      'File tax return',
+      'Anna — contract',
+      'Learn Italian',
+      'Water the plants',
+    ]),
+  );
+  expect(field(itemsOf(snap.logbook), 'title')).toContain('Pay the electricity bill');
+  expect(field(itemsOf(snap.trash), 'title')).toContain('Old idea');
+  const flights = (snap.tasks as { id: string; title?: string }[]).find(
+    (t) => t.title === 'Book flights',
+  )!;
+  expect(field(itemsOf(snap.checklists[flights.id]), 'text')).toEqual([
+    'Compare prices',
+    'Pay deposit',
+  ]);
+  expect(field(snap.notes, 'bodyMd')).toContainEqual(
+    expect.stringMatching(/!\[[^\]]*\]\(cockpit-file:[0-9a-f-]{36}\)/),
+  );
+  expect(snap.files.map((f) => f.path)).toEqual(
+    expect.arrayContaining([
+      'Documents/archive.bin',
+      'Documents/photo.png',
+      'Documents/Tax/Invoice 2025.pdf',
+    ]),
+  );
+  // Each file's content as downloaded matches its recorded sha256.
+  for (const file of snap.files) expect(file.content, file.path).toBe(file.sha256);
+  // The three links of steps 0 and 3, seen from both ends.
+  const kinds = Object.values(snap.links)
+    .flat()
+    .map((l) => [l.source.type, l.target.type].sort().join('-'));
+  expect(new Set(kinds)).toEqual(new Set(['TASK-TASK', 'NOTE-PROJECT', 'FILE-TASK']));
+  expect(kinds).toHaveLength(6);
 }
 
 // ---- Helpers -----------------------------------------------------------------------------------------------------
