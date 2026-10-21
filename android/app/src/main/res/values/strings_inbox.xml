@@ -1,0 +1,65 @@
+<resources>
+    <!-- Inbox list and processing mode (gtd/inbox) -->
+    <plurals name="inbox_count">
+        <item quantity="one">%1$d item to process</item>
+        <item quantity="other">%1$d items to process</item>
+    </plurals>
+    <plurals name="inbox_left">
+        <item quantity="one">%1$d item left</item>
+        <item quantity="other">%1$d items left</item>
+    </plurals>
+    <string name="inbox_process">Process inbox</string>
+    <string name="inbox_stop">Stop processing</string>
+    <string name="inbox_loading">Loading the Inbox…</string>
+    <string name="inbox_empty">Inbox is empty. Everything you capture lands here.</string>
+    <string name="inbox_all_done">Inbox processed. Nothing left to decide.</string>
+    <string name="inbox_back_to_list">Back to the list</string>
+    <string name="inbox_offline">Offline: showing the Inbox as loaded at %1$s. Processing works again once the server is reachable.</string>
+    <string name="inbox_offline_never">Offline: the Inbox could not be loaded yet.</string>
+    <string name="inbox_message_offline">The server could not be reached. The item is back in the Inbox.</string>
+    <string name="inbox_message_conflict">This item was changed elsewhere. It now shows its latest state; choose again.</string>
+    <string name="inbox_message_failed">The server refused this action. The item is back in the Inbox.</string>
+    <string name="inbox_dismiss">Dismiss</string>
+
+    <string name="inbox_energy">Energy</string>
+    <string name="inbox_energy_low">Low</string>
+    <string name="inbox_energy_medium">Medium</string>
+    <string name="inbox_energy_high">High</string>
+    <string name="inbox_creativity">Creativity</string>
+    <string name="inbox_creativity_routine">Routine</string>
+    <string name="inbox_creativity_mixed">Mixed</string>
+    <string name="inbox_creativity_creative">Creative</string>
+    <string name="inbox_estimate">Estimate</string>
+    <string name="inbox_estimate_minutes">%1$d min</string>
+    <string name="inbox_contexts">Contexts</string>
+
+    <string name="inbox_group_act">Act on it</string>
+    <string name="inbox_group_defer">Defer it</string>
+    <string name="inbox_group_drop">Drop it</string>
+    <string name="inbox_action_done">Do it (done)</string>
+    <string name="inbox_action_next">Next</string>
+    <string name="inbox_action_project">To project</string>
+    <string name="inbox_action_waiting">Waiting</string>
+    <string name="inbox_action_schedule">Schedule</string>
+    <string name="inbox_action_tickler">Tickler</string>
+    <string name="inbox_action_someday">Someday</string>
+    <string name="inbox_action_trash">Trash</string>
+
+    <string name="inbox_prompt_waiting">Waiting for whom or what?</string>
+    <string name="inbox_prompt_waiting_hint">Person or thing (optional)</string>
+    <string name="inbox_prompt_schedule">Schedule for</string>
+    <string name="inbox_prompt_tickler">Hide until</string>
+    <string name="inbox_prompt_tickler_future">Pick a day after today.</string>
+    <string name="inbox_prompt_project">Next action of</string>
+    <string name="inbox_prompt_new_project">New project</string>
+    <string name="inbox_prompt_new_project_hint">Project title</string>
+    <string name="inbox_date_tomorrow">Tomorrow</string>
+    <string name="inbox_date_week">In a week</string>
+    <string name="inbox_date_month">In a month</string>
+    <string name="inbox_date_pick">Other day…</string>
+    <string name="inbox_cancel">Cancel</string>
+    <string name="inbox_confirm_waiting">Move to Waiting</string>
+    <string name="inbox_confirm_schedule">Schedule</string>
+    <string name="inbox_confirm_tickler">Hide until then</string>
+    <string name="inbox_confirm_project">Move to project</string>
+</resources>
