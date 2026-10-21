@@ -63,6 +63,11 @@ export class Imap {
       mail.text,
       '',
     ].join('\r\n');
+    await this.appendRaw(folder, message);
+  }
+
+  /** Adds a complete RFC 5322 message (CRLF line ends) to a folder, unread. */
+  async appendRaw(folder: string, message: string) {
     const tag = this.nextTag();
     this.socket.write(`${tag} APPEND ${quote(folder)} {${Buffer.byteLength(message)}}\r\n`);
     const ready = await this.line();
