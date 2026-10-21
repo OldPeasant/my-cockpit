@@ -1,11 +1,11 @@
 ---
 title: Show the brand mark in the web top bar, web login/setup and Android login
-status: in_progress
+status: done
 owner: dell26/agent-2
 deps: [app-icons]
 touches: [web/src/app/shell/logo.ts,web/src/app/shell/logo.spec.ts,web/src/app/shell/shell.html,web/src/app/shell/shell.scss,web/src/app/features/auth/auth-layout.ts,web/src/app/features/auth/auth.scss,android/app/src/main/res/drawable/ic_logo.xml,android/app/src/main/java/ch/sonensei/cockpit/auth/LoginScreen.kt]
 prio: 3
-lease_until: 2026-10-21T23:20:13Z
+lease_until: 
 ---
 ## Goal
 The My Cockpit mark appears where the app introduces itself: next to "My Cockpit" in the web top bar,
@@ -31,3 +31,4 @@ on the web login and first-run setup pages, and on the Android login screen. Sou
 - ASSUMPTION (2026-10-22 00:34+0200 by dell26/agent-2): Web: the 'My Cockpit' brand link lives in the side navigation, not the top bar; the logo sits inside that link (both layouts, visible in the drawer < 900 px) and, in the compact layout only, an extra decorative 28 px logo after the menu button so the visible top bar also shows the mark
 - ASSUMPTION (2026-10-22 00:34+0200 by dell26/agent-2): Web logo: needles drawn as evenodd stadium cut-outs (same path data as the Android launcher drawables) instead of mark.svg's <mask>, so no SVG id can collide when two logos are on one page; ink via CSS light-dark(#14243A, #EEF2F7), which follows color-scheme set by both prefers-color-scheme and data-theme; render diff vs mark.svg: 20 of 65536 px (antialiasing)
 - ASSUMPTION (2026-10-22 00:34+0200 by dell26/agent-2): Android: light/dark via drawable/ic_logo.xml + drawable-night/ic_logo.xml (fixed brand inks), matching CockpitTheme, which follows the system night mode; the logo is left-aligned above the left-aligned title like the web auth layout
+- done by dell26/agent-2: `sh scripts/check.sh` passed in 70s on 6a6c30aec; criteria verified 5/5
