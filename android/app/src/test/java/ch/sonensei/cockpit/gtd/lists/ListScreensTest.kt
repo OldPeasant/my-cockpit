@@ -6,6 +6,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.junit4.v2.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -43,6 +44,7 @@ class ListScreensTest {
         LiveListCallbacks(
             retry = { calls += "retry" },
             complete = { calls += "complete ${it.title}" },
+            dismissAction = { calls += "dismiss ${it.title}" },
         )
 
     private fun showWaiting(initial: TaskListUiState) {
@@ -107,5 +109,35 @@ class ListScreensTest {
         showSomeday(loaded.copy(tasks = listOf(italian), busy = setOf(italian.id)))
         composeRule.onNodeWithTag(LiveListTags.action(italian.id)).assertIsNotEnabled()
         composeRule.onNodeWithTag(TaskListTags.complete(italian.id)).assertIsNotEnabled()
+    }
+
+    @Test
+    fun `a follow up that was added is confirmed in a snackbar, then dismissed`() {
+        showWaiting(loaded.copy(action = ActionSnackbar(ActionSnackbar.Kind.FOLLOW_UP, "Contract", ActionOutcome.DONE)))
+        val text = "Added a next action to follow up on Contract"
+        composeRule.waitUntil(TIMEOUT) { composeRule.onAllNodesWithText(text).fetchSemanticsNodes().isNotEmpty() }
+        composeRule.waitUntil(TIMEOUT) { "dismiss Contract" in calls }
+    }
+
+    @Test
+    fun `an activation while offline says it was not saved`() {
+        showSomeday(
+            loaded.copy(
+                tasks = listOf(italian),
+                action = ActionSnackbar(ActionSnackbar.Kind.ACTIVATED, "Learn Italian", ActionOutcome.OFFLINE),
+            ),
+        )
+        val text = "Not saved: the server is unreachable. Try again when you are online."
+        composeRule.waitUntil(TIMEOUT) { composeRule.onAllNodesWithText(text).fetchSemanticsNodes().isNotEmpty() }
+    }
+
+    @Test
+    fun `waiting without a date shows only who`() {
+        showWaiting(loaded.copy(tasks = listOf(GtdTask(id(5), "Parcel", TaskList.WAITING, 0, 1, waitingForText = "Post office"))))
+        composeRule.onNodeWithText("Post office", useUnmergedTree = true).assertIsDisplayed()
+    }
+
+    private companion object {
+        const val TIMEOUT = 10_000L
     }
 }

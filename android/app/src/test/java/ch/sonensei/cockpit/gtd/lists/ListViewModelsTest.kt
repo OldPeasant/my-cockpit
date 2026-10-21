@@ -11,17 +11,21 @@ import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.merge
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -67,7 +71,7 @@ class ListViewModelsTest {
 
     private fun <V : LiveTaskListViewModel> test(
         create: () -> V,
-        block: suspend (V) -> Unit,
+        block: suspend TestScope.(V) -> Unit,
     ) = runTest(UnconfinedTestDispatcher()) {
         val viewModel = create()
         backgroundScope.launch { viewModel.uiState.collect {} }
@@ -141,5 +145,62 @@ class ListViewModelsTest {
             assertEquals(false, state.loading)
             assertEquals(false, state.loaded)
             assertEquals(LoadError.FAILED, state.error)
+        }
+
+    /** Counts what the view model asks the repository to reload, from the reload flow it passed to `observe`. */
+    private fun TestScope.countReloads(): () -> Int {
+        var count = 0
+        backgroundScope.launch { merge(*reloads.toTypedArray()).collect { count++ } }
+        return { count }
+    }
+
+    @Test
+    fun `waiting reloads once a completion got its answer`() =
+        test(::waiting) { vm ->
+            val reloaded = countReloads()
+            vm.complete(old)
+            assertTrue(reloaded() >= 1)
+            assertEquals(listOf(recent, undated), vm.uiState.value.tasks)
+        }
+
+    @Test
+    fun `a follow up runs once at a time, its row is busy meanwhile, then the list reloads`() =
+        test(::waiting) { vm ->
+            val answer = CompletableDeferred<ActionOutcome>()
+            coEvery { repository.followUp(old, any()) } coAnswers { answer.await() }
+            val reloaded = countReloads()
+            vm.followUp(old, "Follow up with Anna: Contract")
+            vm.followUp(old, "Follow up with Anna: Contract")
+            assertEquals(setOf(old.id), vm.uiState.value.busy)
+            assertNull(vm.uiState.value.action)
+            assertEquals(0, reloaded())
+            answer.complete(ActionOutcome.OFFLINE)
+            coVerify(exactly = 1) { repository.followUp(old, any()) }
+            assertTrue(
+                vm.uiState.value.busy
+                    .isEmpty(),
+            )
+            assertEquals(ActionSnackbar(ActionSnackbar.Kind.FOLLOW_UP, "Contract", ActionOutcome.OFFLINE), vm.uiState.value.action)
+            assertEquals(1, reloaded())
+        }
+
+    @Test
+    fun `retry asks for a reload`() =
+        test(::someday) { vm ->
+            val reloaded = countReloads()
+            vm.retry()
+            assertEquals(1, reloaded())
+        }
+
+    @Test
+    fun `a failed reload keeps the shown list read-only`() =
+        test(::waiting) { vm ->
+            waitingFlow.value = Live(listOf(recent), LoadError.FAILED)
+            val state = vm.uiState.value
+            assertEquals(listOf(recent), state.tasks)
+            assertEquals(true, state.loaded)
+            assertEquals(true, state.readOnly)
+            vm.followUp(recent, "Follow up: Quote")
+            coVerify(exactly = 0) { repository.followUp(any(), any()) }
         }
 }

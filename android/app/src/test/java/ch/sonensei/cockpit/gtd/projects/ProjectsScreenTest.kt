@@ -7,6 +7,7 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.junit4.v2.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -16,6 +17,8 @@ import ch.sonensei.cockpit.gtd.data.GtdProject
 import ch.sonensei.cockpit.gtd.data.GtdTask
 import ch.sonensei.cockpit.gtd.data.ProjectStatus
 import ch.sonensei.cockpit.gtd.data.TaskList
+import ch.sonensei.cockpit.gtd.lists.ActionOutcome
+import ch.sonensei.cockpit.gtd.lists.ActionSnackbar
 import ch.sonensei.cockpit.gtd.lists.LiveListTags
 import ch.sonensei.cockpit.gtd.lists.LoadError
 import ch.sonensei.cockpit.gtd.next.TaskListTags
@@ -67,6 +70,7 @@ class ProjectsScreenTest {
                 addNextStep = { calls += "add $it" },
                 choose = { calls += "choose" },
                 skip = { calls += "skip" },
+                dismiss = { calls += "dismiss ${it.title}" },
             )
         composeRule.setContent { CockpitTheme { ProjectsContent(state, callbacks) } }
     }
@@ -157,5 +161,52 @@ class ProjectsScreenTest {
         show(list.copy(finished = 2))
         composeRule.onNodeWithText("Finished (2)").performClick()
         assertEquals(listOf("finished"), calls)
+    }
+
+    @Test
+    fun `the list shows loading, then the empty state`() {
+        show(ProjectsUiState(today = LocalDate.of(2026, 10, 20)))
+        composeRule.onNodeWithTag(ProjectsTags.LOADING).assertIsDisplayed()
+        state = list.copy(groups = emptyList())
+        composeRule.onNodeWithTag(ProjectsTags.EMPTY).assertIsDisplayed()
+        composeRule.onNodeWithText("No projects yet. Turn an inbox item into one with “To project”.").assertIsDisplayed()
+    }
+
+    @Test
+    fun `without stalled projects the header says every project has a next step`() {
+        show(list.copy(groups = groupByArea(listOf(holiday), listOf(home))))
+        composeRule.onNodeWithText("Every active project has a next step").assertIsDisplayed()
+        composeRule.onNodeWithTag(ProjectsTags.SHOW_FINISHED).assertDoesNotExist()
+    }
+
+    @Test
+    fun `a detail still loading its tasks shows loading, and its description`() {
+        show(
+            list.copy(
+                detail = ProjectDetailState(holiday.copy(descriptionMd = "Two weeks in Sicily"), home, loading = true),
+            ),
+        )
+        composeRule.onNodeWithTag(LiveListTags.LOADING).assertIsDisplayed()
+        composeRule.onNodeWithText("Two weeks in Sicily").assertIsDisplayed()
+    }
+
+    @Test
+    fun `a refused next step is reported in a snackbar, then dismissed`() {
+        val refused = ActionSnackbar(ActionSnackbar.Kind.NEXT_STEP, "Compare hotels", ActionOutcome.CONFLICT)
+        show(detail(garden, listOf(hotel)).copy(message = refused))
+        val text = "This task was changed elsewhere. The list now shows its current state."
+        composeRule.waitUntil(TIMEOUT) { composeRule.onAllNodesWithText(text).fetchSemanticsNodes().isNotEmpty() }
+        composeRule.waitUntil(TIMEOUT) { "dismiss Compare hotels" in calls }
+    }
+
+    @Test
+    fun `a next step that was set is confirmed in a snackbar`() {
+        val set = ActionSnackbar(ActionSnackbar.Kind.NEXT_STEP, "Compare hotels", ActionOutcome.DONE)
+        show(detail(garden, listOf(hotel)).copy(message = set))
+        composeRule.waitUntil(TIMEOUT) { composeRule.onAllNodesWithText("Next step: Compare hotels").fetchSemanticsNodes().isNotEmpty() }
+    }
+
+    private companion object {
+        const val TIMEOUT = 10_000L
     }
 }
