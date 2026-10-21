@@ -5,7 +5,7 @@ owner: dell26/agent-1
 deps: [web-gtd-convert-note,gtd-convert-event,web-cal-views]
 touches: [web/src/app/features/gtd/inbox,web/src/app/features/gtd/task-detail]
 prio: 2
-lease_until: 2026-10-21T18:47:38Z
+lease_until: 2026-10-21T18:52:42Z
 ---
 ## Goal
 Enable 'To calendar' in processing and task detail.
