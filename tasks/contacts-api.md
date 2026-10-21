@@ -19,7 +19,8 @@ Contacts (SPEC.md §8.3).
   - verified (2026-10-21 10:00+0200 by dell26/agent-1): same run -> ContactEdgeCaseTests vCard tests pass: multi-card import (2.1/3.0/4.0, skipped invalid cards, embedded photos, size limits) and ez-vcard 3.0 export round-trip
 - [x] `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.contacts.*'` passes (Postgres via Testcontainers where persistence is involved)
   - verified (2026-10-21 10:00+0200 by dell26/agent-1): cd server && ./gradlew test --rerun --tests 'ch.sonensei.cockpit.contacts.*' (Postgres via Testcontainers) -> BUILD SUCCESSFUL, 55 tests, 0 failures
-- [ ] API documented: `api/openapi.yaml` regenerated (`UPDATE_OPENAPI=1 ./gradlew test --tests '*OpenApiContractTest'`) and `OpenApiContractTest` passes without the flag
+- [x] API documented: `api/openapi.yaml` regenerated (`UPDATE_OPENAPI=1 ./gradlew test --tests '*OpenApiContractTest'`) and `OpenApiContractTest` passes without the flag
+  - verified (2026-10-21 10:00+0200 by dell26/agent-1): api/openapi.yaml regenerated in the task commit; ./gradlew test --rerun --tests '*OpenApiContractTest' without UPDATE_OPENAPI -> 1/1 pass, git status clean afterwards
 
 ## Notes
 - ASSUMPTION (2026-10-21 03:53+0200 by dell26/agent-2): Contact emails/phones/addresses are jsonb arrays of {address|number,label} / {label,street,city,region,postalCode,country}; labels are free text (vCard TYPEs joined with ', ', pref/internet dropped).
