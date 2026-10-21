@@ -714,6 +714,26 @@ describe('CaptureDialog', () => {
       expect(live()).toBe('Attached');
     });
 
+    it('shows Waiting, not a percentage, for an attachment queued behind running uploads', async () => {
+      pasteFiles('a.png', 'b.png', 'c.png');
+      await settle();
+      // The shared upload service runs PARALLEL_UPLOADS (2) at a time; the third one waits.
+      expect(status('a.png')).toBe('0 %');
+      expect(status('b.png')).toBe('0 %');
+      expect(status('c.png')).toBe('Waiting');
+      http.expectNone(
+        (r) => r.method === 'POST' && r.url === '/api/v1/files' && r.params.get('name') === 'c.png',
+      );
+
+      expectUpload('a.png').flush(stored('a.png', FILE_A));
+      await settle();
+      expect(status('c.png')).toBe('0 %');
+      expectUpload('b.png').flush(stored('b.png', FILE_B));
+      expectUpload('c.png').flush(stored('c.png', FILE_C));
+      await settle();
+      expect(status('c.png')).toBe('Attached');
+    });
+
     it('Remove cancels a running upload; a removed attachment is not linked', async () => {
       pasteFiles('scan.jpg', 'receipt.pdf');
       await settle();

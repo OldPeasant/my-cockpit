@@ -94,6 +94,9 @@
               <!-- Only state changes are announced, not the percentage of each progress tick. -->
               <span role="status">
                 @switch (job.state()) {
+                  @case ('queued') {
+                    <ng-container i18n="@@capture.fileQueued">Waiting</ng-container>
+                  }
                   @case ('done') {
                     <ng-container i18n="@@capture.fileAttached">Attached</ng-container>
                   }
@@ -105,7 +108,7 @@
                   }
                 }
               </span>
-              @if (!job.finished()) {
+              @if (job.state() === 'uploading') {
                 {{ job.percent() }} %
               }
             </span>
