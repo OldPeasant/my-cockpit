@@ -1,10 +1,11 @@
 ---
 title: Bookmarks API
-status: todo
-owner:
+status: in_progress
+owner: dell26/agent-3
 deps: [p0-items-links,p0-search-core,p0-trash-core]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/bookmarks,server/src/test/kotlin/ch/sonensei/cockpit/bookmarks,server/src/main/resources/db/migration/bookmarks]
 prio: 3
+lease_until: 2026-10-21T18:47:50Z
 ---
 ## Goal
 Bookmarks and read-later (SPEC.md §8.4).
