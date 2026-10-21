@@ -22,6 +22,11 @@ import ch.sonensei.cockpit.notes.domain.FieldChange
 import ch.sonensei.cockpit.notes.domain.NoteChanges
 import ch.sonensei.cockpit.notes.domain.NoteService
 import org.jsoup.Jsoup
+import org.jsoup.nodes.Element
+import org.jsoup.nodes.Node
+import org.jsoup.nodes.TextNode
+import org.jsoup.select.NodeTraversor
+import org.jsoup.select.NodeVisitor
 import org.springframework.stereotype.Service
 import org.springframework.transaction.support.TransactionTemplate
 import java.time.format.DateTimeFormatter
@@ -89,7 +94,7 @@ class MailGtdService(
 	 */
 	fun toNote(messageId: UUID): MailGtdItem {
 		val view = reads.read(messageId, RemoteImagePolicy.BLOCK)
-		val text = view.body.text ?: view.body.html?.let { Jsoup.parse(it).wholeText() }
+		val text = view.body.text ?: view.body.html?.let(::htmlText)
 		return inTransaction {
 			val message = current(view.message.id)
 			val fields =
@@ -137,7 +142,17 @@ class MailGtdService(
 					add("**Date:** ${DATE_FORMAT.format(it.atZone(settings.timeZone()))}")
 				}
 			}.joinToString("  \n")
-		val body = listOf(header, text?.replace("\u0000", "")?.trim().orEmpty()).filter { it.isNotEmpty() }.joinToString("\n\n")
+		val body =
+			listOf(
+				header,
+				text
+					?.replace("\u0000", "")
+					?.let(::neutralizeInlineLinks)
+					?.trim()
+					.orEmpty(),
+			).filter {
+				it.isNotEmpty()
+			}.joinToString("\n\n")
 		return truncate(body, NoteService.MAX_BODY_LENGTH)
 	}
 
@@ -147,6 +162,67 @@ class MailGtdService(
 		const val MESSAGE_NOT_FOUND = "Message not found"
 		const val NO_SUBJECT = "(no subject)"
 		val DATE_FORMAT: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")
+		val BLOCKS = setOf("p", "h1", "h2", "h3", "h4", "h5", "h6", "blockquote", "pre", "ul", "ol", "dl", "table", "hr")
+		val LINES = setOf("div", "li", "tr", "dt", "dd", "section", "article", "header", "footer", "address", "figure", "figcaption")
+		val CELLS = setOf("td", "th")
+		val TRAILING_BLANKS = Regex("[ \\t\\u00A0]+\\n")
+		val EXTRA_NEWLINES = Regex("\\n{3,}")
+		val BRACKET_PAIR = Regex("\\[(?=\\[)")
+
+		/**
+		 * The text of a mail's (sanitized) HTML part with its block structure kept: paragraphs, headings, lists and
+		 * tables with a blank line around them, other blocks and `<br>` on lines of their own, a space between table
+		 * cells, at most one blank line in a row.
+		 */
+		fun htmlText(html: String): String {
+			val out = StringBuilder()
+
+			fun lineBreaks(count: Int) {
+				if (out.isEmpty()) return
+				repeat(count - (out.length - out.trimEnd('\n').length)) { out.append('\n') }
+			}
+
+			fun boundary(element: Element) {
+				when (element.normalName()) {
+					in BLOCKS -> lineBreaks(2)
+					in LINES -> lineBreaks(1)
+				}
+			}
+			NodeTraversor.traverse(
+				object : NodeVisitor {
+					override fun head(
+						node: Node,
+						depth: Int,
+					) {
+						when {
+							node is TextNode -> out.append(node.wholeText)
+							node is Element && node.normalName() == "br" -> out.append('\n')
+							node is Element -> boundary(node)
+						}
+					}
+
+					override fun tail(
+						node: Node,
+						depth: Int,
+					) {
+						if (node !is Element) return
+						if (node.normalName() in CELLS) out.append(' ') else boundary(node)
+					}
+				},
+				Jsoup.parse(html).body(),
+			)
+			return out
+				.toString()
+				.replace("\r\n", "\n")
+				.replace(TRAILING_BLANKS, "\n")
+				.replace(EXTRA_NEWLINES, "\n\n")
+		}
+
+		/**
+		 * Mail text with every `[[` written as `[\[`: the same text once rendered as Markdown, but no inline `[[type:id]]`
+		 * link, so a received mail cannot add links to the user's items when it becomes a note.
+		 */
+		fun neutralizeInlineLinks(text: String): String = text.replace(BRACKET_PAIR) { "[\\" }
 
 		fun titleOf(
 			message: MailMessage,

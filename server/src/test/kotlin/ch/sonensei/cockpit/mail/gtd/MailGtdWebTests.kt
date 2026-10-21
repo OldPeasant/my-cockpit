@@ -272,6 +272,44 @@ class MailGtdWebTests(
 	}
 
 	@Test
+	fun `to-note keeps the block structure of an HTML part written without whitespace`() {
+		val mail = message(inbox)
+		bodies.put(
+			mail.id,
+			null,
+			"<p>Hello</p><p>World</p><div>first</div><div>second</div>line<br>break" +
+				"<ul><li>one</li><li>two</li></ul><table><tr><td>a</td><td>b</td></tr><tr><td>c</td></tr></table>",
+		)
+		attachments.save(mail.id, emptyList())
+
+		val result = created(mail.id, "to-note")
+
+		val body = getJson("/api/v1/notes/${result["id"].asString()}")["bodyMd"].asString()
+		body shouldEndWith "Hello\n\nWorld\n\nfirst\nsecond\nline\nbreak\n\none\ntwo\n\na b\nc"
+		body shouldNotContain "\n\n\n"
+	}
+
+	@Test
+	fun `inline link tokens in a mail's text do not link the note to other items`() {
+		val other = UUID.randomUUID()
+		val mail = message(inbox)
+		bodies.put(mail.id, "See [[task:$other]] and [[[note:$other]]]", null)
+		attachments.save(mail.id, emptyList())
+		val htmlMail = message(inbox)
+		bodies.put(htmlMail.id, null, "<p>See [[task:$other]]</p>")
+		attachments.save(htmlMail.id, emptyList())
+
+		for (id in listOf(mail.id, htmlMail.id)) {
+			val result = created(id, "to-note")
+
+			linkedEnds("NOTE", result["id"].asString()).single()["id"].asString() shouldBe id.toString()
+			val body = getJson("/api/v1/notes/${result["id"].asString()}")["bodyMd"].asString()
+			body shouldContain "See [\\[task:$other]]"
+			body shouldNotContain "[["
+		}
+	}
+
+	@Test
 	fun `links survive a move that gives the message a new row, re-resolved by Message-ID`() {
 		val original = message(inbox, messageId = "<moved@example.test>")
 		val taskId = created(original.id, "to-task")["id"].asString()
