@@ -5,7 +5,7 @@ owner: dell26/agent-2
 deps: [app-icons]
 touches: [web/src/app/shell/logo.ts,web/src/app/shell/logo.spec.ts,web/src/app/shell/shell.html,web/src/app/shell/shell.scss,web/src/app/features/auth/auth-layout.ts,web/src/app/features/auth/auth.scss,android/app/src/main/res/drawable/ic_logo.xml,android/app/src/main/java/ch/sonensei/cockpit/auth/LoginScreen.kt]
 prio: 3
-lease_until: 2026-10-21T23:15:09Z
+lease_until: 2026-10-21T23:20:13Z
 ---
 ## Goal
 The My Cockpit mark appears where the app introduces itself: next to "My Cockpit" in the web top bar,
