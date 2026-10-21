@@ -16,3 +16,4 @@ Connect calendar sources (SPEC.md §6.1, §11).
 - [ ] Vitest component/service tests cover source forms and status rendering; `cd web && npm run check` passes
 
 ## Notes
+- ASSUMPTION (2026-10-21 19:28+0200 by dell26/agent-2): Server had no API to add external calendar sources (SPEC 6.4 lists POST /calendar/sources); added POST /api/v1/calendar/sources (server calendar/sync, outside touches) for CALDAV {url,username,password}, ICS_FEED {url}, GOOGLE/MICROSOFT {oauthConnectionId}; same OAuth connection twice returns the existing source (200). No DELETE/PATCH of sources (not in criteria).
