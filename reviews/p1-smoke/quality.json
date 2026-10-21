@@ -1,0 +1,35 @@
+{
+  "schema": 1,
+  "task": "p1-smoke",
+  "reviewed_revision": "183818f7ffc545c9d567670c45b452f4cf0b28f2",
+  "helpers": {
+    "test-writer": {"status": "completed", "report": "reviews/p1-smoke/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/p1-smoke/review.md"},
+    "fixer": {"status": "completed", "report": "reviews/p1-smoke/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "earlier-CR-1", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "earlier review (before 87ded0b0): step 2 'new project' path not run end to end; fixed in demo.spec.ts, see fixes.md CR-1"},
+    {"id": "earlier-CR-2", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "earlier review: 'hidden from every list' checks could pass before the list loaded; fixed in demo.spec.ts, see fixes.md CR-2"},
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P3", "disposition": "accepted",
+     "note": "a failing chromium spec makes Playwright skip inbox-exclusive ('did not run'); documentation nicety, the full run recorded as evidence shows inbox-exclusive ran and passed"},
+    {"id": "CR-2", "source": "code-reviewer", "severity": "P3", "disposition": "accepted",
+     "note": "new CSRF test does not itself assert the token cookie is unchanged; the existing test in CsrfCookieWebTests.kt asserts exactly that"},
+    {"id": "CR-3", "source": "code-reviewer", "severity": "P3", "disposition": "accepted",
+     "note": "JSESSIONID Set-Cookie check cannot fail under MockMvc; getSession(false) is asserted by the existing test, harmless redundancy"},
+    {"id": "TW-1", "source": "test-writer", "severity": "Low", "disposition": "accepted",
+     "note": "'Holiday' pre-created because #Holiday only resolves existing projects; recorded as assumption, new-project path covered on another item"},
+    {"id": "TW-2", "source": "test-writer", "severity": "Low", "disposition": "accepted",
+     "note": "FIXED vs AFTER_COMPLETION told apart by the AFTER_COMPLETION task; no change needed"},
+    {"id": "TW-3", "source": "test-writer", "severity": "Low", "disposition": "accepted",
+     "note": "SecurityConfiguration.kt and playwright.config.ts are outside touches; needed to fix defects found by the demo, recorded in task notes/assumptions"}
+  ],
+  "validation": [
+    {"command": "npm --prefix web run e2e -- --project=phase-demos (docker compose e2e stack, chromium)", "result": "pass"},
+    {"command": "npm --prefix web run e2e (full suite incl. inbox-exclusive)", "result": "pass"},
+    {"command": "server/gradlew -p server test --tests '*CsrfCookieWebTests*'", "result": "pass"},
+    {"command": "sh scripts/check.sh (.taskcheck)", "result": "pass"}
+  ]
+}
