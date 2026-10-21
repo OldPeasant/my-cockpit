@@ -284,7 +284,8 @@ Rules:
 - Logbook (completed), Trash.
 - **New view** (combined, read-only aggregation): one list of everything new, i.e. the GTD
   Inbox items (§5.1) and the messages in the unified mail inbox (§7.3), merged newest first
-  (task creation date / mail date), each row marked with its source. Filter: All / GTD Inbox /
+  (task creation date / mail date), each row marked with its source. Read state doesn't matter: a
+  mail stays until it leaves the inbox (archived, moved, deleted), like a task until it is processed. Filter: All / GTD Inbox /
   Mail. Opening a row opens the item in its own view (task detail or mail read view); a mail
   row also offers "→ Inbox task" (§7.3). Mails never become tasks automatically, and the
   separate Inbox and Mail views stay unchanged.
