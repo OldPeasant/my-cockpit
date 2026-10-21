@@ -15,7 +15,8 @@ Bookmarks and read-later (SPEC.md §8.4).
 ## Acceptance criteria
 - [x] CRUD, tags, read_later/read_at; on save fetch title/description/favicon (OpenGraph) asynchronously with SSRF protection, timeouts and size limits
   - verified (2026-10-21 22:55+0200 by dell26/agent-3): cd server && ./gradlew test --tests 'ch.sonensei.cockpit.bookmarks.*' at e788d313 -> pass; BookmarkWebTests/BookmarkEdgeCaseTests (Postgres Testcontainers, WireMock pages) cover CRUD, tags, read_later/read, async OpenGraph title/description/favicon; PageFetcherTests/EdgeCase/SizeLimitTests cover SSRF (private addresses, ports, schemes, redirects), 15s deadline and 1MB limit
-- [ ] Resolver BOOKMARK, search, trash
+- [x] Resolver BOOKMARK, search, trash
+  - verified (2026-10-21 22:55+0200 by dell26/agent-3): BookmarkWebTests + BookmarkEdgeCaseTests (resolver BOOKMARK, search incl. readable URL, trash/restore) via ./gradlew test --tests 'ch.sonensei.cockpit.bookmarks.*' -> pass
 - [ ] `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.bookmarks.*'` passes (Postgres via Testcontainers where persistence is involved) with WireMock pages
 - [ ] API documented: `api/openapi.yaml` regenerated (`UPDATE_OPENAPI=1 ./gradlew test --tests '*OpenApiContractTest'`) and `OpenApiContractTest` passes without the flag
 
