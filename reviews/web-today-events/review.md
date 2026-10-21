@@ -4,45 +4,74 @@ Date: 2026-10-21
 
 Task: web-today-events - Today view: calendar events
 
-Scope: `git diff 3ed76da7..b3dc10fb` (task commit b3dc10fb "web-today-events: today's calendar events above the tasks"): new `web/src/app/features/gtd/today/today-events.{ts,html,scss,spec.ts}`, wiring in `today-view.{ts,html,scss}`, `today-view.spec.ts`, doc comment in `today-sections.ts`.
+Scope: re-review of the final revision, `git diff 3ed76da7..80efa0cb -- web` (commits 5c72edf0 implementation, 6c7efdba tests, 80efa0cb fixes for CR-1, CR-2 and the whole-day span). Files: `web/src/app/features/gtd/today/today-events.{ts,html,scss,spec.ts}`, `today-view.{ts,html,scss,spec.ts}`, `today-sections.ts`. Heartbeat/extend commits in the range touch only `tasks/` and are not part of the review.
 
 Requirements:
 - `tasks/web-today-events.md` acceptance criteria and recorded assumption
 - SPEC.md §5.3 (Today view: "today's calendar events")
-- docs/ARCHITECTURE.md (web conventions, i18n, Prettier/lint)
-- AGENTS.md project notes (conventions, feature folders, test data fictitious)
-- Reused contracts: `calendar/views/calendar-store.ts`, `calendar/views/occurrence-store.ts`, generated `OccurrenceResponse`, server `OccurrenceExpander` / `CalendarEventService.listOccurrences`
+- docs/ARCHITECTURE.md and AGENTS.md project notes (web conventions, i18n, lint, feature folders, fictitious test data)
+- Previous review `reviews/web-today-events/review.md` (CR-1..CR-3) and `reviews/web-today-events/fixes.md`
+- Reused contracts: `calendar/views/calendar-store.ts`, `calendar/views/occurrence-store.ts`, generated `OccurrenceResponse`, server `CalendarDtos.kt` (exclusive `endDate`) and `OccurrenceExpander.kt` (range selection)
 
 Git range:
 - Branch: main
-- HEAD: b3dc10fb
+- HEAD: 80efa0cbe0eb370828f02d723fc1204f9a0f055d
 - Base/start: 3ed76da7c9f369ff3f2667f10c88807cbf19691e
-- Commits reviewed: 1
+- Commits reviewed: 3 (task commits; the remaining commits in the range are heartbeat/extend task-state commits)
 
-Summary: 0 P0, 0 P1, 0 P2, 3 P3
+Summary: 0 P0, 0 P1, 0 P2, 1 P3
 
-Notes on verification: the review read the current files in full plus the reused stores, the
-generated model and the server range semantics. Shell access in this review session was limited to
-read-only grep/inspection, so `npm run check` was not re-run here; `python tasks.py verify
-web-today-events` shows both criteria still unrecorded, which the parent worker must record before
-`done`.
+## Verification of previous findings
 
-Criterion 1 (events listed time-ordered above tasks): met in code. `<app-today-events>` is rendered
-in `today-view.html:7` before the task sections; `compareEvents` orders all-day/day-spanning first,
-then by start, then by title; only visible calendars are requested and shown. Covered by
-`today-events.spec.ts` ("lists the events time-ordered, all-day first") and `today-view.spec.ts:375`
-(DOM position check against the Overdue section).
+- CR-1 (status shown only by styling): fixed. `today-events.html:52-56` adds visually hidden, i18n'd
+  "Cancelled"/"Tentative" text after the title. The local `.visually-hidden` rule
+  (`today-events.scss:79-86`) follows the project's per-component pattern. Covered by the test "tells
+  screen readers that an event is cancelled or tentative".
+- CR-2 (adjacent-day all-day events): fixed. `isOnDate` (`today-events.ts:41-45`) keeps an all-day
+  occurrence only when `startDate <= today < endDate`. It defaults a missing `endDate` to one day,
+  which matches the server's exclusive `endDate` (`CalendarDtos.kt:128`,
+  `OccurrenceExpander.kt:211`). `today` and `range` come from the same `now`
+  (`today-events.ts:87-89`), so they cannot disagree. Covered by `isOnDate` unit tests and the
+  component tests "leaves out all-day events of yesterday and tomorrow..." and "picks all-day events
+  by the browser's local date, also just after and before midnight".
+- CR-3 (untested branches): resolved by the test-writer's tests. They cover the From/Until/range
+  labels (`today-events.spec.ts:290`), the cancelled/tentative classes (`:346`), the calendar-list
+  failure and retry (`:525`), and the hidden-calendar filter (`:397`).
+- Whole-day span change: `eventSpan` now returns `allDay` when `start <= from && end >= to`
+  (`today-events.ts:57`). The boundary cases (exact midnight to midnight, starting at midnight but
+  ending earlier, crossing by one minute) are tested at `today-events.spec.ts:57-83`.
 
-Criterion 2 (Vitest tests cover the events section): component tests exist for the request
-(range + visible calendar ids), ordering, empty state and occurrence-failure retry; see CR-3 for
-uncovered branches.
+## Acceptance criteria
 
-Checked and found fine: out-of-order responses (OccurrenceStore/CalendarStore request sequence
-numbers), loading/error/empty states and retry, no visible calendars (store short-circuits to an
-empty list), SSE refresh via the component-scoped OccurrenceStore, i18n of all static strings,
-OnPush + signals, no secrets or logging, fictitious test data. Cross-feature import of the calendar
-stores has precedent in the codebase (`settings/gtd`, `files/preview`, `capture`) and avoids
-duplicating the range/request-ordering logic.
+1. Today lists today's events, time-ordered, above tasks: met in code. `<app-today-events>` is
+   rendered at `today-view.html:7`, before the task sections. `compareEvents` puts all-day and
+   day-spanning events first, then events running since yesterday, then sorts by start and then by
+   title. Covered by `today-events.spec.ts` (ordering tests) and `today-view.spec.ts` ("shows today's
+   calendar events above the task sections", DOM position against the first task section).
+2. Vitest tests cover the events section: met. They cover the request (range and visible ids),
+   ordering, labels, status, color and name, the hidden-calendar filter, loading, empty and error
+   states with retry for both stores, reloading on a visibility change, out-of-order answers, SSE
+   refresh and resync, and a failed refresh keeping stale data. `npm run check` passing was not
+   re-run in this review session, because shell access was limited to read-only inspection.
+   `fixes.md` reports `npm run check` passing (107 files, 2129 tests) and `.taskcheck` passing after
+   one re-run of a flaky timeout. The parent worker must record this evidence with `tasks.py verify`.
+   The task file shows both criteria still unchecked.
+
+## Also checked and found fine
+
+- Out-of-order answers: request sequence numbers in both stores. The effect reloads only when the
+  sorted visible id string changes.
+- Loading, error and empty states: `failed` covers both stores before the first success. `retry()`
+  reloads calendars or refreshes occurrences, whichever failed. A later refresh failure keeps the
+  data on screen.
+- No visible calendars: the store short-circuits to an empty list without a request.
+- Server range semantics: when the browser zone and the settings zone differ by less than 24 h, the
+  local-day range always overlaps the local date in the settings zone. So today's all-day events are
+  returned, and the client filter removes the neighbouring days.
+- Conventions: OnPush and signals, all static strings i18n'd (no committed translation files need
+  updating), changes stay inside the task's `touches`, no logging or secrets, fictitious test data.
+  The cross-feature reuse of the calendar stores has precedent and avoids duplicating the
+  request-ordering logic.
 
 ## P0 Critical
 
@@ -58,28 +87,15 @@ None.
 
 ## P3 Low
 
-- [ ] **CR-1 | Cancelled/tentative status is conveyed only visually**
-    - File: `web/src/app/features/gtd/today/today-events.html:25`
+- [ ] **CR-1 | Reworded doc comment line exceeds the file's 100-column wrapping**
+    - File: `web/src/app/features/gtd/today/today-sections.ts:11`
     - Category: Quality
-    - Problem: A cancelled occurrence is only marked by the `cancelled` class (strike-through and muted color, `today-events.scss:73-76`), a tentative one only by italics (`today-events.scss:69-71`). There is no text alternative, so screen readers announce a cancelled event exactly like a confirmed one.
-    - Why it matters: The Today list is a primary "what is happening today" surface; a user relying on assistive technology may go to a cancelled meeting. Information conveyed by styling alone fails WCAG 1.3.1/1.4.1, and the project runs axe in its E2E tooling.
-    - Suggested fix: Add a visually hidden, i18n'd status text (for example `<span class="visually-hidden" i18n="@@gtd.today.eventCancelled">Cancelled</span>` and a "Tentative" counterpart) inside the row for those statuses.
-
-- [ ] **CR-2 | Adjacent-day all-day events appear as "All day" when browser and calendar zone differ**
-    - File: `web/src/app/features/gtd/today/today-events.ts:29` (with `eventSpan` at line 36)
-    - Category: Correctness
-    - Problem: The range is the browser's local day, but the server selects all-day occurrences by the days the instant range touches in the calendar settings time zone (`server/.../calendar/recurrence/OccurrenceExpander.kt:19-39`, `CalendarEventService.kt:92`). If the two zones differ, the local-day range touches two days in the settings zone, so yesterday's or tomorrow's all-day events are returned, and `eventSpan` labels every `allDay` occurrence "All day" without checking `startDate`/`endDate` against the local date.
-    - Why it matters: The recorded assumption chooses the browser's day, but this side effect (events of another day listed under Today) is not stated in it. Impact is limited to users whose browser zone differs from their calendar setting.
-    - Suggested fix: Either filter all-day occurrences client-side to `startDate <= localDate() < endDate` (the `localDate()` helper Today already uses), or extend the assumption note so a human can decide knowingly.
-
-- [ ] **CR-3 | Several branches of the events section are untested**
-    - File: `web/src/app/features/gtd/today/today-events.spec.ts:91`
-    - Category: Tests
-    - Problem: The component tests do not exercise: the `from`/`until` time labels in the template (`today-events.html:34-43`, only `eventSpan` itself is unit-tested); the cancelled/tentative row classes; the calendar-list failure path (`failed` via `calendars.error()` at `today-events.ts:96` and `retry()` reloading calendars at line 110); and the client-side filter that drops occurrences of a calendar hidden after the request (`today-events.ts:80`).
-    - Why it matters: These are the regression-prone branches (error recovery and day-crossing display); a wrong branch in `retry()` would leave the section stuck on an error with no working retry.
-    - Suggested fix: Add tests for a failing `listCalendars` followed by a successful retry, for rendered "From"/"Until" labels and the `cancelled` class, and for an occurrence whose calendar is not visible.
+    - Problem: The edited JSDoc line is 125 characters long. The rest of the comment, and the other files in the feature, wrap at 100 columns. Prettier does not reflow comments, so `npm run check` does not catch it.
+    - Why it matters: Small readability inconsistency in a shared extension-point file that other features read when they add Today sections.
+    - Suggested fix: Re-wrap the comment at 100 columns, for example by moving "The component renders the whole section, heading included;" to the next line.
 
 ## Review conclusion
 
-No material issues found. The three P3 findings are optional improvements; the acceptance criteria
-are met in code, pending the parent worker's recorded `npm run check` evidence.
+No material issues found. CR-1..CR-3 from the previous review are resolved. The only remaining item
+is an optional P3 cleanup. The parent worker still has to record the acceptance-criteria evidence
+(`npm run check` result) before `done`.

@@ -8,8 +8,8 @@ import {
 
 /**
  * A section another feature adds to the Today view (SPEC.md §5.3: habits due; today's calendar
- * events are built in, above the tasks). The component renders the whole section, heading included; sections show in `order`
- * (lower first) after the task sections.
+ * events are built in, above the tasks). The component renders the whole section, heading
+ * included; sections show in `order` (lower first) after the task sections.
  */
 export interface TodaySection {
   readonly id: string;
