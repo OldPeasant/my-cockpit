@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "task": "web-capture",
-  "reviewed_revision": "1aca794c66ce922c6a76649def47d90a275843bf",
+  "reviewed_revision": "26339d9e7b2929af7dea75df73b1e64f85ee78e6",
   "helpers": {
     "test-writer":   {"status": "completed", "report": "reviews/web-capture/tests.md"},
     "code-reviewer": {"status": "completed", "report": "reviews/web-capture/review.md"},
