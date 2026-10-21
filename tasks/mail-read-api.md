@@ -17,7 +17,8 @@ List and read messages (SPEC.md §7.4).
   - verified (2026-10-21 02:41+0200 by dell26/agent-5): cd server && ./gradlew test --tests 'ch.sonensei.cockpit.mail.api.*' (MailMessageController/MailReadService/list query tests: unified+account+folder scopes, flat+threaded, cursor, GET /{id} sanitized html/text + attachment metadata) + integrationTest MailReadGreenMailTests -> 215 + 7 tests, 0 failures
 - [x] Attachment download streaming; remote image proxy with size/time limits and SSRF protection; body cache LRU with size bound
   - verified (2026-10-21 02:41+0200 by dell26/agent-5): cd server && ./gradlew test --tests 'ch.sonensei.cockpit.mail.api.*' (RemoteImageFetcher*/PublicAddressesTests: size/time limits, SSRF incl. IPv6 NAT64/SIIT/bench/doc ranges, DNS pinning, redirects; attachment streaming; body cache LRU) + integrationTest MailBodyCacheEvictionGreenMailTests -> all pass
-- [ ] `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.mail.api.*'` passes (Postgres via Testcontainers where persistence is involved) plus `external` GreenMail tests
+- [x] `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.mail.api.*'` passes (Postgres via Testcontainers where persistence is involved) plus `external` GreenMail tests
+  - verified (2026-10-21 02:41+0200 by dell26/agent-5): cd server && ./gradlew ktlintCheck test --tests 'ch.sonensei.cockpit.mail.api.*' (Postgres via Testcontainers) -> 215 tests, 0 failures; ./gradlew integrationTest --tests 'ch.sonensei.cockpit.mail.api.*' (external GreenMail) -> 8 tests, 0 failures
 - [ ] API documented: `api/openapi.yaml` regenerated (`UPDATE_OPENAPI=1 ./gradlew test --tests '*OpenApiContractTest'`) and `OpenApiContractTest` passes without the flag
 
 ## Notes
