@@ -13,7 +13,8 @@ Create and edit events on the phone.
 ## Acceptance criteria
 - [x] Event form incl. recurrence presets and THIS/FOLLOWING/ALL prompt
   - verified (2026-10-21 18:19+0200 by dell26/agent-1): Implemented in android/.../calendar/edit (EventForm: title, calendar, all-day, start/end, repeat presets none/daily/weekly/monthly/yearly + kept custom rule, location, description; scope prompt THIS/FOLLOWING/ALL, only FOLLOWING/ALL on rule change), wired via CalendarWithEditor FAB/tap; exercised by EventEditorScreenTest (Robolectric Compose, 17 tests incl. scope dialog) and EventEditorViewModelTest/EdgeCases -> all pass; code-reviewer final review: AC met, 0 findings
-- [ ] `cd android && ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.calendar.edit.*'` passes, covering form validation and scope prompt (Robolectric/Compose UI tests for screens)
+- [x] `cd android && ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.calendar.edit.*'` passes, covering form validation and scope prompt (Robolectric/Compose UI tests for screens)
+  - verified (2026-10-21 18:19+0200 by dell26/agent-1): cd android && ./gradlew ktlintCheck testDebugUnitTest --tests 'ch.sonensei.cockpit.calendar.*' lintDebug at bb5b6544 -> BUILD SUCCESSFUL, 183 calendar tests (calendar.edit: EventFormTest, EventEditorViewModelTest, EventEditorViewModelEdgeCasesTest, EventEditRepositoryTest, EventEditorScreenTest [Robolectric/Compose], CalendarWithEditorTest), 0 failures; createDebugUnitTestCoverageReport -> 1227 tests 0 failures
 
 ## Notes
 - ASSUMPTION (2026-10-21 17:39+0200 by dell26/agent-1): Entry points: a FAB on the Calendar screen creates an event (on the day the day view shows, else today; today from the next full hour, other days 09:00, 1h), tapping an occurrence edits it. Wiring needed a one-line change in calendar/agenda/CalendarScreen.kt (CalendarRoute -> CalendarWithEditor) and a new res/values/strings_calendar_edit.xml, both outside the task's touches
