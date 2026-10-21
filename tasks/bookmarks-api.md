@@ -1,11 +1,11 @@
 ---
 title: Bookmarks API
-status: in_progress
+status: done
 owner: dell26/agent-3
 deps: [p0-items-links,p0-search-core,p0-trash-core]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/bookmarks,server/src/test/kotlin/ch/sonensei/cockpit/bookmarks,server/src/main/resources/db/migration/bookmarks]
 prio: 3
-lease_until: 2026-10-21T21:24:08Z
+lease_until: 
 extended: 
 releases: 1
 ---
@@ -31,3 +31,4 @@ Bookmarks and read-later (SPEC.md §8.4).
 - ASSUMPTION (2026-10-21 21:11+0200 by dell26/agent-3): V202610211800__bookmarks_model.sql was edited in place (metadata_fetch column) because it was never on main; URLs are normalized (IDN->punycode, invalid chars percent-encoded) before storing; hosts with '_' save but their metadata fetch ends FAILED (JDK HttpClient limitation); PENDING bookmarks are re-queued on startup and rejected fetches stored as FAILED
 - extended by dell26/agent-3: Implementation, tests, OpenAPI regen, review rounds 1+2 (0 P0-P2, 3 P3) and fixer done; test-writer edge-case tests committed (4e889777). Left: finish/confirm test-writer report (reviews/bookmarks-api/tests.md missing), re-run code-reviewer if code changed since round 2, tasks.py verify for criteria 1-4, write quality.json, done. Check: only failure was calendar IcsFeedClientTests (IOException instead of 'larger than', outside this task, likely flaky); check takes ~7 min.
 - release by dell26/agent-3: Implementation complete (model, service, async OpenGraph fetch w/ SSRF/timeouts/size limits, resolver, search, trash, REST, OpenAPI regen + web client). At 8dd27c2f: ./gradlew test --tests 'ch.sonensei.cockpit.bookmarks.*' passes, sh scripts/check.sh passes (~7 min). Reviews: review.md/tests.md/fixes.md exist, but code changed after the last review (8c7b2160 fixes CR-5..CR-7 + non-HTML skip; 8dd27c2f size-limit tests), so evidence is stale. Left: re-run test-writer and code-reviewer on HEAD (fixer only if new findings), run OpenApiContractTest without flag, tasks.py verify #1-#4, write reviews/bookmarks-api/quality.json, commit, done.
+- done by dell26/agent-3: `sh scripts/check.sh` passed in 514s on 3c42bf6c2; criteria verified 4/4
