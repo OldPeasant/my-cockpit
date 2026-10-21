@@ -16,3 +16,4 @@ Calendar data in backups (SPEC.md §10.2).
 
 ## Notes
 - ASSUMPTION (2026-10-21 18:43+0200 by dell26/agent-3): External (non-LOCAL source) events are exported as id refs (id, calendarId, externalId, parent, recurrence id) and restored as placeholder rows titled '(restored, waiting for sync)' at 1970-01-01 (SYNCED, no etag), so the first full sync matches them by external id, fills them in and keeps their ids, hence links survive (SPEC 10.2); unsynced local changes (PENDING) of external events are lost
+- ASSUMPTION (2026-10-21 18:43+0200 by dell26/agent-3): Calendar source credentials go only to the backup secrets (calendar_source_credentials, id -> plaintext); config JSON is exported as is (it holds non-secret settings by contract). Sync status and sync cursors are not backed up: a restored source does a full sync
