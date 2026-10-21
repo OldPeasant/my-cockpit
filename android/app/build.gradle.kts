@@ -23,6 +23,8 @@ android {
         targetSdk = 36
         versionCode = 1
         versionName = "0.1.0"
+        // Instrumented tests run in HiltTestApplication (src/androidTest/.../HiltTestRunner.kt).
+        testInstrumentationRunner = "ch.sonensei.cockpit.HiltTestRunner"
     }
 
     buildTypes {
@@ -56,11 +58,22 @@ android {
     }
 }
 
+// The Phase 3 demo (package smoke) needs a running e2e stack, so unit test runs leave it out unless its address is given:
+// ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.smoke.*' -Pe2eBaseUrl=http://127.0.0.1:<port>/
+val e2eBaseUrl = providers.gradleProperty("e2eBaseUrl")
+
 tasks.withType<Test>().configureEach {
     extensions.configure<JacocoTaskExtension> {
         // Robolectric loads app classes without a code source location; without this JaCoCo records 0 coverage.
         isIncludeNoLocationClasses = true
         excludes = listOf("jdk.internal.*")
+    }
+    if (e2eBaseUrl.isPresent) {
+        systemProperty("cockpit.e2e.baseUrl", e2eBaseUrl.get())
+        // The stack's state is not a task input: never skip the run as up to date.
+        outputs.upToDateWhen { false }
+    } else {
+        filter.excludeTestsMatching("ch.sonensei.cockpit.smoke.*")
     }
 }
 
@@ -107,6 +120,9 @@ androidComponents {
                 .dir("src/main/kotlin")
                 .asFile.absolutePath,
         )
+        // Tests that run both on a device and on Robolectric (the Phase 3 demo).
+        val sharedTest = file("src/sharedTest/java").absolutePath
+        (variant.hostTests.values + variant.deviceTests.values).forEach { it.sources.kotlin?.addStaticSourceDirectory(sharedTest) }
     }
 }
 
@@ -181,4 +197,13 @@ dependencies {
     testImplementation(libs.androidx.glance.appwidget.testing)
     testImplementation(libs.hilt.android.testing)
     kspTest(libs.hilt.compiler)
+
+    androidTestImplementation(libs.junit)
+    androidTestImplementation(libs.androidx.test.core)
+    androidTestImplementation(libs.androidx.test.ext.junit)
+    androidTestImplementation(libs.androidx.test.runner)
+    androidTestImplementation(platform(libs.androidx.compose.bom))
+    androidTestImplementation(libs.androidx.compose.ui.test.junit4)
+    androidTestImplementation(libs.hilt.android.testing)
+    kspAndroidTest(libs.hilt.compiler)
 }
