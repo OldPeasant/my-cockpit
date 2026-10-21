@@ -122,7 +122,7 @@ class ProjectsScreenTest {
 
     @Test
     fun `the next-step prompt offers the open tasks, a new one, and skip`() {
-        show(detail(garden, listOf(hotel, visa), NextStepPrompt(done = "Book the flights")))
+        show(detail(garden, listOf(hotel, visa), NextStepPrompt(garden.id, done = "Book the flights")))
         composeRule.onNodeWithTag(ProjectsTags.PROMPT).assertIsDisplayed()
         composeRule.onNodeWithText("Completed Book the flights. What is the next step?").assertIsDisplayed()
         composeRule.onNodeWithTag(ProjectsTags.choice(visa.id)).performClick()
@@ -135,7 +135,7 @@ class ProjectsScreenTest {
 
     @Test
     fun `the prompt without open tasks asks for a new one`() {
-        show(detail(garden, emptyList(), NextStepPrompt()))
+        show(detail(garden, emptyList(), NextStepPrompt(garden.id)))
         composeRule.onNodeWithText("No open tasks left. Add the next step:").assertIsDisplayed()
     }
 
@@ -154,6 +154,45 @@ class ProjectsScreenTest {
         composeRule.onNodeWithTag(LiveListTags.ERROR).assertIsDisplayed()
         composeRule.onNodeWithTag(LiveListTags.RETRY).performClick()
         assertEquals(listOf("retry"), calls)
+    }
+
+    @Test
+    fun `a detail whose reload failed keeps its tasks read-only, says so and offers a retry`() {
+        show(list.copy(detail = ProjectDetailState(garden, home, listOf(hotel), loading = false, error = LoadError.FAILED, loaded = true)))
+        composeRule.onNodeWithTag(LiveListTags.STALE).assertIsDisplayed()
+        composeRule.onNodeWithText("This list could not be refreshed and may be outdated.").assertIsDisplayed()
+        composeRule.onNodeWithTag(TaskListTags.complete(hotel.id)).assertIsNotEnabled()
+        composeRule.onNodeWithTag(ProjectsTags.CHOOSE).assertIsNotEnabled()
+        composeRule.onNodeWithTag(LiveListTags.RETRY).performClick()
+        assertEquals(listOf("retry"), calls)
+    }
+
+    @Test
+    fun `a detail whose reload failed without open tasks still offers a retry`() {
+        show(list.copy(detail = ProjectDetailState(garden, home, emptyList(), loading = false, error = LoadError.OFFLINE, loaded = true)))
+        composeRule.onNodeWithTag(LiveListTags.EMPTY).assertIsDisplayed()
+        composeRule.onNodeWithText("Offline: this list may be outdated. Changes need a connection.").assertIsDisplayed()
+        composeRule.onNodeWithTag(LiveListTags.RETRY).performClick()
+        assertEquals(listOf("retry"), calls)
+    }
+
+    @Test
+    fun `without loaded areas the projects with an area are not listed under No area, with a retry`() {
+        show(list.copy(groups = groupByArea(listOf(holiday, garden, taxes), null), areasError = LoadError.FAILED))
+        composeRule.onNodeWithText("The areas could not be loaded, so projects are not grouped by area.").assertIsDisplayed()
+        composeRule.onNodeWithTag(ProjectsTags.AREA_UNLOADED).assertIsDisplayed()
+        composeRule.onNodeWithText("In an area (areas not loaded)").assertIsDisplayed()
+        composeRule.onNodeWithTag(ProjectsTags.area(home.id)).assertDoesNotExist()
+        composeRule.onNodeWithTag(ProjectsTags.area(null)).assertIsDisplayed()
+        composeRule.onNodeWithTag(LiveListTags.RETRY).performClick()
+        assertEquals(listOf("retry"), calls)
+    }
+
+    @Test
+    fun `while areas load the list shows loading`() {
+        show(list.copy(groups = emptyList(), areasLoading = true))
+        composeRule.onNodeWithTag(ProjectsTags.LOADING).assertIsDisplayed()
+        composeRule.onNodeWithTag(LiveListTags.STALE).assertDoesNotExist()
     }
 
     @Test

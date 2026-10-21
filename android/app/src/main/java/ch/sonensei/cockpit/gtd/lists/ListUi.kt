@@ -146,15 +146,17 @@ fun RowAction(
     ) { Text(label) }
 }
 
+/** Says that the shown data may be outdated because its last load failed with [error], with a retry; [message] overrides the text. */
 @Composable
-private fun StaleBanner(
+internal fun StaleBanner(
     error: LoadError,
     retry: () -> Unit,
+    message: String? = null,
 ) {
     Surface(color = MaterialTheme.colorScheme.secondaryContainer, modifier = Modifier.fillMaxWidth().testTag(LiveListTags.STALE)) {
         Column(Modifier.padding(start = 16.dp, end = 8.dp, top = 10.dp)) {
             Text(
-                stringResource(if (error == LoadError.OFFLINE) R.string.lists_stale_offline else R.string.lists_stale_failed),
+                message ?: stringResource(if (error == LoadError.OFFLINE) R.string.lists_stale_offline else R.string.lists_stale_failed),
                 style = MaterialTheme.typography.bodyMedium,
             )
             TextButton(onClick = retry, modifier = Modifier.align(Alignment.End).testTag(LiveListTags.RETRY)) {

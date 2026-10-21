@@ -59,7 +59,8 @@ class ProjectsViewModelTest {
     private val taskFlow = MutableStateFlow(Live(listOf(book, hotel)))
     private val taskReloads = mutableListOf<Flow<Unit>>()
     private val lists = mockk<TaskListsRepository> { every { observeProject(any(), capture(taskReloads)) } returns taskFlow }
-    private val work0 = mockk<ProjectWorkRepository> { every { observeAreas(any()) } returns MutableStateFlow(Live(listOf(home, work))) }
+    private val areaFlow = MutableStateFlow(Live(listOf(home, work)))
+    private val work0 = mockk<ProjectWorkRepository> { every { observeAreas(any()) } returns areaFlow }
     private val clock = Clock.fixed(Instant.parse("2026-10-20T10:00:00Z"), ZoneOffset.UTC)
 
     @Before
@@ -110,7 +111,7 @@ class ProjectsViewModelTest {
             vm.open(holiday)
             vm.complete(book)
             val detail = vm.uiState.value.detail!!
-            assertEquals(NextStepPrompt(done = "Book the flights"), detail.prompt)
+            assertEquals(NextStepPrompt(holiday.id, done = "Book the flights"), detail.prompt)
             assertEquals(listOf(hotel), detail.tasks)
         }
 
@@ -166,14 +167,14 @@ class ProjectsViewModelTest {
     @Test
     fun `adding a new next step creates it, a blank title does nothing, failure keeps the prompt`() =
         test { vm ->
-            coEvery { work0.addNextStep(garden, "Buy seeds") } returns ActionOutcome.OFFLINE
+            coEvery { work0.addNextStep(garden, "Buy seeds") } returns NextStepAdded(ActionOutcome.OFFLINE, null)
             vm.open(garden)
             vm.choose()
             vm.addNextStep("   ")
-            coVerify(exactly = 0) { work0.addNextStep(any(), any()) }
+            coVerify(exactly = 0) { work0.addNextStep(any(), any(), any()) }
             vm.addNextStep(" Buy seeds ")
             assertEquals(
-                NextStepPrompt(),
+                NextStepPrompt(garden.id),
                 vm.uiState.value.detail!!
                     .prompt,
             )
@@ -231,7 +232,7 @@ class ProjectsViewModelTest {
             vm.choose()
             vm.makeNextStep(hotel)
             assertEquals(
-                NextStepPrompt(),
+                NextStepPrompt(garden.id),
                 vm.uiState.value.detail!!
                     .prompt,
             )
@@ -243,7 +244,7 @@ class ProjectsViewModelTest {
     @Test
     fun `an added next step closes the prompt with the trimmed title`() =
         test { vm ->
-            coEvery { work0.addNextStep(garden, "Buy seeds") } returns ActionOutcome.DONE
+            coEvery { work0.addNextStep(garden, "Buy seeds") } returns NextStepAdded(ActionOutcome.DONE, id(5))
             vm.open(garden)
             vm.choose()
             vm.addNextStep("  Buy seeds\t")
@@ -261,7 +262,7 @@ class ProjectsViewModelTest {
             vm.makeNextStep(hotel)
             vm.addNextStep("Buy seeds")
             coVerify(exactly = 0) { work0.setNextStep(any(), any()) }
-            coVerify(exactly = 0) { work0.addNextStep(any(), any()) }
+            coVerify(exactly = 0) { work0.addNextStep(any(), any(), any()) }
         }
 
     @Test
@@ -374,5 +375,158 @@ class ProjectsViewModelTest {
             projectFlow.value = Cached(emptyList(), offline = true, refreshedAt = null)
             assertEquals(false, vm.uiState.value.loading)
             assertTrue(vm.uiState.value.readOnly)
+        }
+
+    @Test
+    fun `the list waits for the areas, and areas that cannot load keep projects out of No area, with an error`() {
+        areaFlow.value = Live()
+        test { vm ->
+            assertTrue(vm.uiState.value.loading)
+            assertTrue(
+                vm.uiState.value.groups
+                    .isEmpty(),
+            )
+            areaFlow.value = Live(error = LoadError.FAILED)
+            val failed = vm.uiState.value
+            assertEquals(false, failed.loading)
+            assertEquals(LoadError.FAILED, failed.areasError)
+            assertEquals(listOf(ProjectGroup(null, listOf(garden, report, holiday), stalled = 1, areaUnloaded = true)), failed.groups)
+            areaFlow.value = Live(listOf(home, work))
+            assertEquals(
+                listOf(work, home),
+                vm.uiState.value.groups
+                    .map { it.area },
+            )
+            assertNull(vm.uiState.value.areasError)
+        }
+    }
+
+    @Test
+    fun `areas loaded once stay in use when a later load fails`() =
+        test { vm ->
+            areaFlow.value = Live(listOf(home, work), LoadError.OFFLINE)
+            assertEquals(
+                listOf(work, home),
+                vm.uiState.value.groups
+                    .map { it.area },
+            )
+            // The area load starts over (e.g. the screen came back) and fails before any data.
+            areaFlow.value = Live(error = LoadError.OFFLINE)
+            assertEquals(
+                listOf(work, home),
+                vm.uiState.value.groups
+                    .map { it.area },
+            )
+            assertNull(vm.uiState.value.areasError)
+            vm.open(holiday)
+            assertEquals(
+                home,
+                vm.uiState.value.detail!!
+                    .area,
+            )
+        }
+
+    @Test
+    fun `retrying a new next step whose task was created but not set only sets it`() =
+        test { vm ->
+            coEvery { work0.addNextStep(garden, "Buy seeds", null) } returns NextStepAdded(ActionOutcome.CONFLICT, id(5))
+            coEvery { work0.addNextStep(garden, "Buy seeds", id(5)) } returns NextStepAdded(ActionOutcome.DONE, id(5))
+            vm.open(garden)
+            vm.choose()
+            vm.addNextStep("Buy seeds")
+            assertEquals(
+                NextStepPrompt(garden.id, created = CreatedStep("Buy seeds", id(5))),
+                vm.uiState.value.detail!!
+                    .prompt,
+            )
+            vm.addNextStep(" Buy seeds ")
+            coVerify(exactly = 1) { work0.addNextStep(garden, "Buy seeds", null) }
+            coVerify(exactly = 1) { work0.addNextStep(garden, "Buy seeds", id(5)) }
+            assertNull(
+                vm.uiState.value.detail!!
+                    .prompt,
+            )
+        }
+
+    @Test
+    fun `a different title after a partly failed add creates a new task`() =
+        test { vm ->
+            coEvery { work0.addNextStep(garden, "Buy seeds", null) } returns NextStepAdded(ActionOutcome.FAILED, id(5))
+            coEvery { work0.addNextStep(garden, "Buy bulbs", null) } returns NextStepAdded(ActionOutcome.DONE, id(6))
+            vm.open(garden)
+            vm.choose()
+            vm.addNextStep("Buy seeds")
+            vm.addNextStep("Buy bulbs")
+            coVerify(exactly = 1) { work0.addNextStep(garden, "Buy bulbs", null) }
+            coVerify(exactly = 0) { work0.addNextStep(any(), any(), id(5)) }
+        }
+
+    @Test
+    fun `a completion that returns after another project was opened does not prompt there`() =
+        test { vm ->
+            val answer = CompletableDeferred<ProjectCompletion>()
+            coEvery { work0.complete(book) } coAnswers { answer.await() }
+            vm.open(holiday)
+            vm.complete(book)
+            vm.open(garden)
+            answer.complete(ProjectCompletion.Completed(needsNextStep = true))
+            assertNull(
+                vm.uiState.value.detail!!
+                    .prompt,
+            )
+            vm.open(holiday)
+            assertNull(
+                vm.uiState.value.detail!!
+                    .prompt,
+            )
+        }
+
+    @Test
+    fun `the prompt belongs to the open project, and without one there is none`() =
+        test { vm ->
+            vm.open(holiday)
+            vm.choose()
+            assertEquals(
+                holiday.id,
+                vm.uiState.value.detail!!
+                    .prompt!!
+                    .projectId,
+            )
+            vm.close()
+            vm.choose()
+            assertNull(vm.uiState.value.detail)
+        }
+
+    @Test
+    fun `a completed task is hidden until a successful reload no longer holds it, then shows if reopened elsewhere`() =
+        test { vm ->
+            coEvery { work0.complete(hotel) } returns ProjectCompletion.Completed(needsNextStep = false)
+            vm.open(holiday)
+            vm.complete(hotel)
+            assertEquals(
+                listOf(book),
+                vm.uiState.value.detail!!
+                    .tasks,
+            )
+            // A failed reload still holds the old list: keep hiding it.
+            taskFlow.value = Live(listOf(book, hotel), LoadError.FAILED)
+            assertEquals(
+                listOf(book),
+                vm.uiState.value.detail!!
+                    .tasks,
+            )
+            taskFlow.value = Live(listOf(book))
+            assertEquals(
+                listOf(book),
+                vm.uiState.value.detail!!
+                    .tasks,
+            )
+            // Reopened in the web Logbook: the next reload holds it again, and it shows.
+            taskFlow.value = Live(listOf(book, hotel))
+            assertEquals(
+                listOf(book, hotel),
+                vm.uiState.value.detail!!
+                    .tasks,
+            )
         }
 }

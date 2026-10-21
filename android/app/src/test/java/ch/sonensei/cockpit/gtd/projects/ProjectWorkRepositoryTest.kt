@@ -181,8 +181,11 @@ class ProjectWorkRepositoryTest {
             dispatcher.enqueue("$PROJECTS/${uuid(10)}", json(projectJson(10, "Plan holiday")))
             dispatcher.enqueue("$PROJECTS/${uuid(10)}/next-step", json(projectJson(10, "Plan holiday")))
             enqueueCacheReloads()
-            assertEquals(ActionOutcome.DONE, repository.addNextStep(project, "Pack the bags"))
+            assertEquals(NextStepAdded(ActionOutcome.DONE, UUID.fromString(uuid(7))), repository.addNextStep(project, "Pack the bags"))
 
+            // Create, then re-read the project's version, then set the next step.
+            val order = listOf("POST $TASKS", "GET $PROJECTS/${uuid(10)}", "POST $PROJECTS/${uuid(10)}/next-step")
+            assertEquals(order, dispatcher.requests.map { "${it.method} ${it.url.encodedPath}" }.filter { it in order })
             val create = requests("POST", TASKS).single().body!!.utf8()
             assertTrue(create.contains("\"title\":\"Pack the bags\""))
             assertTrue(create.contains("\"list\":\"NEXT\""))
@@ -200,7 +203,7 @@ class ProjectWorkRepositoryTest {
         runBlocking {
             dispatcher.enqueue(TASKS, status(400))
             enqueueCacheReloads()
-            assertEquals(ActionOutcome.FAILED, repository.addNextStep(project, "Pack the bags"))
+            assertEquals(NextStepAdded(ActionOutcome.FAILED, null), repository.addNextStep(project, "Pack the bags"))
             assertTrue(requests("GET", "$PROJECTS/${uuid(10)}").isEmpty())
             assertTrue(requests("POST", "$PROJECTS/${uuid(10)}/next-step").isEmpty())
         }
@@ -211,8 +214,48 @@ class ProjectWorkRepositoryTest {
             dispatcher.enqueue(TASKS, json(taskJson(7, "Pack the bags", "NEXT")))
             dispatcher.enqueue("$PROJECTS/${uuid(10)}", status(404))
             enqueueCacheReloads()
-            assertEquals(ActionOutcome.CONFLICT, repository.addNextStep(project, "Pack the bags"))
+            assertEquals(NextStepAdded(ActionOutcome.CONFLICT, UUID.fromString(uuid(7))), repository.addNextStep(project, "Pack the bags"))
             assertTrue(requests("POST", "$PROJECTS/${uuid(10)}/next-step").isEmpty())
+        }
+
+    @Test
+    fun `a created next step that could not be set reports the task, and a retry with it only sets the next step`() =
+        runBlocking {
+            dispatcher.enqueue(TASKS, json(taskJson(7, "Pack the bags", "NEXT")))
+            dispatcher.enqueue("$PROJECTS/${uuid(10)}", json(projectJson(10, "Plan holiday")))
+            dispatcher.enqueue("$PROJECTS/${uuid(10)}/next-step", status(412))
+            enqueueCacheReloads()
+            val first = repository.addNextStep(project, "Pack the bags")
+            assertEquals(NextStepAdded(ActionOutcome.CONFLICT, UUID.fromString(uuid(7))), first)
+
+            dispatcher.requests.clear()
+            dispatcher.enqueue("$PROJECTS/${uuid(10)}", json(projectJson(10, "Plan holiday")))
+            dispatcher.enqueue("$PROJECTS/${uuid(10)}/next-step", json(projectJson(10, "Plan holiday")))
+            enqueueCacheReloads()
+            assertEquals(
+                NextStepAdded(ActionOutcome.DONE, UUID.fromString(uuid(7))),
+                repository.addNextStep(project, "Pack the bags", first.taskId),
+            )
+            assertTrue(requests("POST", TASKS).isEmpty())
+            val next = requests("POST", "$PROJECTS/${uuid(10)}/next-step").single()
+            assertEquals("\"2\"", next.headers["If-Match"])
+            assertTrue(next.body!!.utf8().contains("\"taskId\":\"${uuid(7)}\""))
+        }
+
+    @Test
+    fun `a next step refused with 409 is a conflict`() =
+        runBlocking {
+            dispatcher.enqueue("$PROJECTS/${uuid(10)}/next-step", status(409))
+            enqueueCacheReloads()
+            assertEquals(ActionOutcome.CONFLICT, repository.setNextStep(project, book.id))
+        }
+
+    @Test
+    fun `a completion of a task trashed elsewhere (404) is a conflict`() =
+        runBlocking {
+            dispatcher.enqueue("$TASKS/${uuid(1)}/complete", status(404))
+            enqueueCacheReloads()
+            assertEquals(ProjectCompletion.NotDone(ActionOutcome.CONFLICT), repository.complete(book))
         }
 
     @Test

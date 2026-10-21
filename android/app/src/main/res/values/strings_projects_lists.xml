@@ -37,6 +37,8 @@
     <string name="projects_show_finished">Finished (%1$d)</string>
     <string name="projects_empty">No projects yet. Turn an inbox item into one with “To project”.</string>
     <string name="projects_no_area">No area</string>
+    <string name="projects_area_unloaded">In an area (areas not loaded)</string>
+    <string name="projects_areas_failed">The areas could not be loaded, so projects are not grouped by area.</string>
     <string name="projects_open">Open project</string>
     <string name="projects_stalled">No next step</string>
     <string name="projects_status_on_hold">On hold</string>

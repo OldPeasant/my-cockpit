@@ -65,6 +65,7 @@ import ch.sonensei.cockpit.gtd.lists.Centered
 import ch.sonensei.cockpit.gtd.lists.LiveListTags
 import ch.sonensei.cockpit.gtd.lists.LiveTaskRow
 import ch.sonensei.cockpit.gtd.lists.LoadError
+import ch.sonensei.cockpit.gtd.lists.StaleBanner
 import ch.sonensei.cockpit.gtd.next.OfflineBanner
 import ch.sonensei.cockpit.ui.PlaceholderScreen
 import dagger.hilt.internal.GeneratedComponentManagerHolder
@@ -133,6 +134,7 @@ object ProjectsTags {
     const val PROMPT_NEW = "next-step-new"
     const val PROMPT_ADD = "next-step-add"
     const val PROMPT_SKIP = "next-step-skip"
+    const val AREA_UNLOADED = "projects-area-unloaded"
 
     fun project(id: UUID) = "project-$id"
 
@@ -197,11 +199,12 @@ private fun ProjectList(
         }
     }
     HorizontalDivider()
+    state.areasError?.let { StaleBanner(it, callbacks.retry, stringResource(R.string.projects_areas_failed)) }
     when {
         state.groups.isNotEmpty() ->
             LazyColumn(Modifier.fillMaxSize().testTag(ProjectsTags.LIST)) {
                 state.groups.forEach { group ->
-                    item(key = "area-${group.area?.id}") { AreaHeader(group) }
+                    item(key = "area-${group.area?.id ?: if (group.areaUnloaded) "unloaded" else "none"}") { AreaHeader(group) }
                     items(group.projects, key = { it.id }) { project -> ProjectRow(project, callbacks.open) }
                 }
             }
@@ -213,14 +216,14 @@ private fun ProjectList(
 @Composable
 private fun AreaHeader(group: ProjectGroup) {
     Text(
-        group.area?.title ?: stringResource(R.string.projects_no_area),
+        group.area?.title ?: stringResource(if (group.areaUnloaded) R.string.projects_area_unloaded else R.string.projects_no_area),
         style = MaterialTheme.typography.titleSmall,
         color = MaterialTheme.colorScheme.primary,
         modifier =
             Modifier
                 .fillMaxWidth()
                 .padding(start = 16.dp, end = 16.dp, top = 20.dp, bottom = 4.dp)
-                .testTag(ProjectsTags.area(group.area?.id))
+                .testTag(if (group.areaUnloaded) ProjectsTags.AREA_UNLOADED else ProjectsTags.area(group.area?.id))
                 .semantics { heading() },
     )
 }
@@ -339,6 +342,8 @@ private fun ProjectDetail(
         }
         NextStepLine(state, detail, callbacks)
         HorizontalDivider()
+        // The tasks shown are from an earlier load: say why changes are off, and offer to load them again.
+        if (detail.loaded && detail.error != null) StaleBanner(detail.error, callbacks.retry)
         when {
             detail.tasks.isNotEmpty() ->
                 LazyColumn(Modifier.fillMaxSize().testTag(LiveListTags.LIST)) {

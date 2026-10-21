@@ -42,6 +42,12 @@ sealed interface ProjectCompletion {
     ) : ProjectCompletion
 }
 
+/** How adding a new next step went; [taskId] is the task created for it, also when setting it as next step failed. */
+data class NextStepAdded(
+    val outcome: ActionOutcome,
+    val taskId: UUID?,
+)
+
 /** The areas and the changes made in a project's detail: completing its tasks and choosing its next step. */
 @Singleton
 class ProjectWorkRepository
@@ -80,18 +86,30 @@ class ProjectWorkRepository
         ): ActionOutcome =
             change(withTasks = false) { body(projectsApi.setProjectNextStep(project.id, NextStepRequest(taskId), etag(project.version))) }
 
-        /** Creates a next action titled [title] in [project] and makes it the next step. */
+        /**
+         * Creates a next action titled [title] in [project] and makes it the next step. With [created] (the task an earlier
+         * attempt created before setting it failed) only the next step is set, so a retry does not create the task twice.
+         */
         suspend fun addNextStep(
             project: GtdProject,
             title: String,
-        ): ActionOutcome =
-            change(withTasks = true) {
-                val task =
-                    body(tasksApi.createTask(CreateTaskRequest(title = title, list = CreateTaskRequest.List.NEXT, projectId = project.id)))
-                // Adding a task may change the project, so the next step is set on its current version.
-                val current = body(projectsApi.getProject(project.id))
-                body(projectsApi.setProjectNextStep(project.id, NextStepRequest(task.id), etag(current.version)))
-            }
+            created: UUID? = null,
+        ): NextStepAdded {
+            var taskId = created
+            val outcome =
+                change(withTasks = true) {
+                    val id =
+                        taskId ?: body(
+                            tasksApi.createTask(
+                                CreateTaskRequest(title = title, list = CreateTaskRequest.List.NEXT, projectId = project.id),
+                            ),
+                        ).id.also { taskId = it }
+                    // Adding a task may change the project, so the next step is set on its current version.
+                    val current = body(projectsApi.getProject(project.id))
+                    body(projectsApi.setProjectNextStep(project.id, NextStepRequest(id), etag(current.version)))
+                }
+            return NextStepAdded(outcome, taskId)
+        }
 
         private suspend fun change(
             withTasks: Boolean,

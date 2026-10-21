@@ -56,6 +56,23 @@ class ProjectGroupingTest {
     }
 
     @Test
+    fun `without loaded areas the projects with an area are not shown as having none`() {
+        val report = project(1, "Annual report", work, stalled = true)
+        val garden = project(2, "Garden", home)
+        val loose = project(3, "Loose project")
+        val groups = groupByArea(listOf(garden, loose, report), null)
+        assertEquals(
+            listOf(
+                ProjectGroup(null, listOf(report, garden), stalled = 1, areaUnloaded = true),
+                ProjectGroup(null, listOf(loose), stalled = 0),
+            ),
+            groups,
+        )
+        assertEquals(listOf(ProjectGroup(null, listOf(loose), stalled = 0)), groupByArea(listOf(loose), null))
+        assertEquals(emptyList<ProjectGroup>(), groupByArea(emptyList(), null))
+    }
+
+    @Test
     fun `areas are ordered by position, not by the order given`() {
         val report = project(1, "Annual report", work)
         val garden = project(2, "Garden", home)
