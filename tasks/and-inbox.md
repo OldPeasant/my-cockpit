@@ -1,10 +1,11 @@
 ---
 title: Android inbox processing
-status: todo
-owner:
+status: in_progress
+owner: dell26/agent-4
 deps: [and-gtd-data]
 touches: [android/app/src/main/java/ch/sonensei/cockpit/gtd/inbox,android/app/src/test/java/ch/sonensei/cockpit/gtd/inbox]
 prio: 1
+lease_until: 2026-10-21T07:51:43Z
 ---
 ## Goal
 Process the inbox on the phone (SPEC.md §5.3).
