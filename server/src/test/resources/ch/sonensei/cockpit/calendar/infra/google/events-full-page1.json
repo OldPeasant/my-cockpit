@@ -1,0 +1,67 @@
+{
+ "kind": "calendar#events",
+ "etag": "\"p33c8tl1ollvg80o\"",
+ "summary": "alex.example@example.test",
+ "updated": "2026-10-21T07:00:00.000Z",
+ "timeZone": "Europe/Zurich",
+ "accessRole": "owner",
+ "defaultReminders": [{"method": "popup", "minutes": 10}],
+ "nextPageToken": "EV-page-2",
+ "items": [
+  {
+   "kind": "calendar#event",
+   "etag": "\"3523456789012000\"",
+   "id": "evt001",
+   "status": "confirmed",
+   "htmlLink": "https://www.google.com/calendar/event?eid=ZXZ0MDAx",
+   "created": "2026-10-01T10:00:00.000Z",
+   "updated": "2026-10-20T10:00:00.000Z",
+   "summary": "Project kickoff",
+   "description": "Agenda in the shared folder",
+   "location": "Room Aare",
+   "creator": {"email": "alex.example@example.test", "self": true},
+   "organizer": {"email": "alex.example@example.test", "self": true},
+   "start": {"dateTime": "2026-10-22T10:00:00+02:00", "timeZone": "Europe/Zurich"},
+   "end": {"dateTime": "2026-10-22T11:00:00+02:00", "timeZone": "Europe/Zurich"},
+   "iCalUID": "evt001@google.com",
+   "sequence": 0,
+   "attendees": [
+    {"email": "alex.example@example.test", "organizer": true, "self": true, "responseStatus": "accepted"},
+    {"email": "sam.sample@example.test", "displayName": "Sam Sample", "responseStatus": "tentative"},
+    {"email": "kim.test@example.test", "responseStatus": "needsAction"}
+   ],
+   "hangoutLink": "https://meet.google.com/abc-defg-hij",
+   "conferenceData": {
+    "entryPoints": [
+     {"entryPointType": "video", "uri": "https://meet.google.com/abc-defg-hij", "label": "meet.google.com/abc-defg-hij"},
+     {"entryPointType": "phone", "uri": "tel:+41-44-000-0000", "label": "+41 44 000 0000", "pin": "123456"}
+    ],
+    "conferenceSolution": {"key": {"type": "hangoutsMeet"}, "name": "Google Meet"},
+    "conferenceId": "abc-defg-hij"
+   },
+   "reminders": {"useDefault": true},
+   "eventType": "default"
+  },
+  {
+   "kind": "calendar#event",
+   "etag": "\"3523456789013000\"",
+   "id": "series01",
+   "status": "confirmed",
+   "created": "2026-10-01T10:00:00.000Z",
+   "updated": "2026-10-19T09:00:00.000Z",
+   "summary": "Weekly sync",
+   "organizer": {"email": "alex.example@example.test", "self": true},
+   "start": {"dateTime": "2026-10-26T09:00:00+01:00", "timeZone": "Europe/Zurich"},
+   "end": {"dateTime": "2026-10-26T09:30:00+01:00", "timeZone": "Europe/Zurich"},
+   "recurrence": [
+    "EXDATE;TZID=Europe/Zurich:20261130T090000",
+    "RRULE:FREQ=WEEKLY;BYDAY=MO"
+   ],
+   "transparency": "transparent",
+   "iCalUID": "series01@google.com",
+   "sequence": 1,
+   "reminders": {"useDefault": false, "overrides": [{"method": "email", "minutes": 1440}, {"method": "popup", "minutes": 5}]},
+   "eventType": "default"
+  }
+ ]
+}

@@ -238,7 +238,7 @@ class GoogleCalendarAdapter(
 			404, 410 -> return null
 			412 -> throw RemoteEventChangedException()
 		}
-		expectOk(response, "Deleting an event")
+		if (!response.ok) throw CalendarProviderException("Deleting an event failed at Google (HTTP ${response.status})")
 		return null
 	}
 

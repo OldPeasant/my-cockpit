@@ -1,0 +1,19 @@
+{
+ "kind": "calendar#event",
+ "etag": "\"3523456789030000\"",
+ "id": "0192a5f0c3e47b6a8d1e2f3a4b5c6d7e",
+ "status": "confirmed",
+ "htmlLink": "https://www.google.com/calendar/event?eid=MDE5MmE1ZjA",
+ "created": "2026-10-21T08:00:00.000Z",
+ "updated": "2026-10-21T08:00:00.000Z",
+ "summary": "Planning",
+ "creator": {"email": "alex.example@example.test", "self": true},
+ "organizer": {"email": "alex.example@example.test", "self": true},
+ "start": {"dateTime": "2026-10-28T10:00:00+01:00", "timeZone": "Europe/Zurich"},
+ "end": {"dateTime": "2026-10-28T11:00:00+01:00", "timeZone": "Europe/Zurich"},
+ "recurrence": ["RRULE:FREQ=WEEKLY;BYDAY=WE", "EXDATE:20261104T090000Z"],
+ "iCalUID": "0192a5f0c3e47b6a8d1e2f3a4b5c6d7e@google.com",
+ "sequence": 0,
+ "reminders": {"useDefault": false, "overrides": [{"method": "popup", "minutes": 15}]},
+ "eventType": "default"
+}

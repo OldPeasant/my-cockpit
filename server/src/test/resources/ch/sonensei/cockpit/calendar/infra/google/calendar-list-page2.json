@@ -1,0 +1,35 @@
+{
+ "kind": "calendar#calendarList",
+ "etag": "\"p32g9nb5fnfvg80p\"",
+ "nextSyncToken": "CL-sync-1",
+ "items": [
+  {
+   "kind": "calendar#calendarListEntry",
+   "etag": "\"1729500000000002\"",
+   "id": "en.swiss#holiday@group.v.calendar.google.com",
+   "summary": "Holidays in Switzerland",
+   "timeZone": "Europe/Zurich",
+   "backgroundColor": "#cd74e6",
+   "accessRole": "reader",
+   "defaultReminders": []
+  },
+  {
+   "kind": "calendar#calendarListEntry",
+   "etag": "\"1729500000000003\"",
+   "id": "colleague@example.test",
+   "summary": "colleague@example.test",
+   "timeZone": "Europe/Berlin",
+   "backgroundColor": "#a47ae2",
+   "accessRole": "freeBusyReader",
+   "defaultReminders": []
+  },
+  {
+   "kind": "calendar#calendarListEntry",
+   "etag": "\"1729500000000004\"",
+   "id": "c_removed@group.calendar.google.com",
+   "summary": "Removed",
+   "accessRole": "owner",
+   "deleted": true
+  }
+ ]
+}

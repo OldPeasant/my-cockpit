@@ -1,0 +1,49 @@
+{
+ "kind": "calendar#events",
+ "etag": "\"p33c8tl1ollvg80r\"",
+ "summary": "alex.example@example.test",
+ "timeZone": "Europe/Zurich",
+ "accessRole": "owner",
+ "defaultReminders": [{"method": "popup", "minutes": 10}],
+ "items": [
+  {
+   "kind": "calendar#event",
+   "etag": "\"3523456789020000\"",
+   "id": "series01",
+   "status": "confirmed",
+   "summary": "Weekly sync (renamed)",
+   "start": {"dateTime": "2026-10-26T09:00:00+01:00", "timeZone": "Europe/Zurich"},
+   "end": {"dateTime": "2026-10-26T09:30:00+01:00", "timeZone": "Europe/Zurich"},
+   "recurrence": ["RRULE:FREQ=WEEKLY;BYDAY=MO"],
+   "iCalUID": "series01@google.com"
+  },
+  {
+   "kind": "calendar#event",
+   "etag": "\"3523456789014000\"",
+   "id": "series01_20261102T080000Z",
+   "status": "confirmed",
+   "summary": "Weekly sync (moved)",
+   "start": {"dateTime": "2026-11-02T10:00:00+01:00", "timeZone": "Europe/Zurich"},
+   "end": {"dateTime": "2026-11-02T10:30:00+01:00", "timeZone": "Europe/Zurich"},
+   "recurringEventId": "series01",
+   "originalStartTime": {"dateTime": "2026-11-02T09:00:00+01:00", "timeZone": "Europe/Zurich"},
+   "iCalUID": "series01@google.com"
+  },
+  {
+   "kind": "calendar#event",
+   "etag": "\"3523456789015000\"",
+   "id": "series01_20261109T080000Z",
+   "status": "cancelled",
+   "recurringEventId": "series01",
+   "originalStartTime": {"dateTime": "2026-11-09T09:00:00+01:00", "timeZone": "Europe/Zurich"}
+  },
+  {
+   "kind": "calendar#event",
+   "etag": "\"3523456789019000\"",
+   "id": "series01_20261116T080000Z",
+   "status": "cancelled",
+   "recurringEventId": "series01",
+   "originalStartTime": {"dateTime": "2026-11-16T09:00:00+01:00", "timeZone": "Europe/Zurich"}
+  }
+ ]
+}

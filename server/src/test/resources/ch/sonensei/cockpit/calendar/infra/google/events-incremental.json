@@ -1,0 +1,44 @@
+{
+ "kind": "calendar#events",
+ "etag": "\"p33c8tl1ollvg80q\"",
+ "summary": "alex.example@example.test",
+ "updated": "2026-10-21T08:00:00.000Z",
+ "timeZone": "Europe/Zurich",
+ "accessRole": "owner",
+ "defaultReminders": [{"method": "popup", "minutes": 10}],
+ "nextSyncToken": "EV-sync-2",
+ "items": [
+  {
+   "kind": "calendar#event",
+   "etag": "\"3523456789020000\"",
+   "id": "series01",
+   "status": "confirmed",
+   "summary": "Weekly sync (renamed)",
+   "start": {"dateTime": "2026-10-26T09:00:00+01:00", "timeZone": "Europe/Zurich"},
+   "end": {"dateTime": "2026-10-26T09:30:00+01:00", "timeZone": "Europe/Zurich"},
+   "recurrence": ["RRULE:FREQ=WEEKLY;BYDAY=MO"],
+   "iCalUID": "series01@google.com",
+   "sequence": 2,
+   "reminders": {"useDefault": true},
+   "eventType": "default"
+  },
+  {
+   "kind": "calendar#event",
+   "etag": "\"3523456789021000\"",
+   "id": "new001",
+   "status": "confirmed",
+   "summary": "Dentist",
+   "start": {"dateTime": "2026-10-23T14:00:00Z"},
+   "end": {"dateTime": "2026-10-23T14:45:00Z"},
+   "iCalUID": "new001@google.com",
+   "reminders": {"useDefault": true},
+   "eventType": "default"
+  },
+  {
+   "kind": "calendar#event",
+   "etag": "\"3523456789022000\"",
+   "id": "evt001",
+   "status": "cancelled"
+  }
+ ]
+}

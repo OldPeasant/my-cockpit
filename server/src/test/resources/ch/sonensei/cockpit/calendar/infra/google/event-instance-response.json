@@ -1,0 +1,15 @@
+{
+ "kind": "calendar#event",
+ "etag": "\"3523456789031000\"",
+ "id": "series01_20261116T080000Z",
+ "status": "confirmed",
+ "summary": "Weekly sync (one off)",
+ "start": {"dateTime": "2026-11-16T11:00:00+01:00", "timeZone": "Europe/Zurich"},
+ "end": {"dateTime": "2026-11-16T11:30:00+01:00", "timeZone": "Europe/Zurich"},
+ "recurringEventId": "series01",
+ "originalStartTime": {"dateTime": "2026-11-16T09:00:00+01:00", "timeZone": "Europe/Zurich"},
+ "iCalUID": "series01@google.com",
+ "sequence": 2,
+ "reminders": {"useDefault": false, "overrides": []},
+ "eventType": "default"
+}

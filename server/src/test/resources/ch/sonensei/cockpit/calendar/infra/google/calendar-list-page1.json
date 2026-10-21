@@ -1,0 +1,33 @@
+{
+ "kind": "calendar#calendarList",
+ "etag": "\"p32g9nb5fnfvg80o\"",
+ "nextPageToken": "CL-page-2",
+ "items": [
+  {
+   "kind": "calendar#calendarListEntry",
+   "etag": "\"1729500000000000\"",
+   "id": "alex.example@example.test",
+   "summary": "alex.example@example.test",
+   "timeZone": "Europe/Zurich",
+   "colorId": "14",
+   "backgroundColor": "#9fe1e7",
+   "foregroundColor": "#000000",
+   "selected": true,
+   "accessRole": "owner",
+   "defaultReminders": [{"method": "popup", "minutes": 10}],
+   "primary": true
+  },
+  {
+   "kind": "calendar#calendarListEntry",
+   "etag": "\"1729500000000001\"",
+   "id": "c_team0123456789@group.calendar.google.com",
+   "summary": "Team calendar",
+   "summaryOverride": "Team",
+   "timeZone": "Europe/Zurich",
+   "backgroundColor": "#16a765",
+   "foregroundColor": "#000000",
+   "accessRole": "writer",
+   "defaultReminders": []
+  }
+ ]
+}
