@@ -5,7 +5,7 @@ owner: dell26/agent-2
 deps: [p0-web-settings,cal-caldav,cal-ics,cal-google,cal-microsoft]
 touches: [web/src/app/features/settings/calendars,web/src/app/features/settings/integrations]
 prio: 2
-lease_until: 2026-10-21T19:38:04Z
+lease_until: 2026-10-21T19:43:09Z
 extended: 
 releases: 1
 ---
