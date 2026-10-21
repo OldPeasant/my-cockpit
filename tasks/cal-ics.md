@@ -15,3 +15,4 @@ Read-only ICS subscriptions (SPEC.md §6.1).
 - [ ] `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.calendar.infra.ics.*'` passes (Postgres via Testcontainers where persistence is involved) with WireMock feeds
 
 ## Notes
+- ASSUMPTION (2026-10-21 16:02+0200 by dell26/agent-3): ICS source config is {"url": "<http(s)|webcal URL>"}; webcal(s):// is fetched as https://. One read-only calendar per source (external id 'feed') named like the source; poll interval 15 min (cockpit.calendar.ics.poll-interval), SPEC gives none.
