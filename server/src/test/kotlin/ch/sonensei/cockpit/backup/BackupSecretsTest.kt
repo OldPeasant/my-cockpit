@@ -23,6 +23,7 @@ import ch.sonensei.cockpit.core.oauth.infra.OAuthConnectionRepository
 import ch.sonensei.cockpit.core.persistence.MutableClock
 import ch.sonensei.cockpit.core.persistence.MutableClockTestConfiguration
 import io.kotest.assertions.withClue
+import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.maps.shouldContainKey
 import io.kotest.matchers.maps.shouldNotContainKey
@@ -48,9 +49,11 @@ import org.springframework.test.web.servlet.get
 import org.springframework.test.web.servlet.post
 import org.springframework.transaction.support.TransactionTemplate
 import tools.jackson.databind.JsonNode
+import tools.jackson.databind.node.ObjectNode
 import java.io.ByteArrayOutputStream
 import java.nio.file.Files
 import java.nio.file.Path
+import java.time.Duration
 
 /**
  * A module with a mail password (stands in for the mail module's contributor, which uses the same mechanism): exports
@@ -278,6 +281,181 @@ class BackupSecretsTest(
 		}
 	}
 
+	@Test
+	fun `the restore report tells whether a backup has secrets and warns what is lost without the passphrase`() {
+		val withSecrets = report(export(PASSPHRASE))
+		withSecrets["hasSecrets"].asBoolean() shouldBe true
+		val warnings = strings(withSecrets["warnings"])
+		warnings shouldContain "Without the backup's passphrase, the 1 connected Google/Microsoft accounts must be connected again"
+		warnings.any { it.startsWith("The TOTP secret is restored only with the backup's passphrase") } shouldBe true
+
+		val withoutSecrets = report(export(null))
+		withoutSecrets["hasSecrets"].asBoolean() shouldBe false
+		strings(withoutSecrets["warnings"]) shouldContain
+			"The backup has no OAuth tokens: the 1 connected Google/Microsoft accounts must be connected again"
+	}
+
+	@Test
+	fun `a passphrase for a backup without secrets restores it like one without passphrase`() {
+		confirm(report(export(null))["id"].asString(), PASSPHRASE).andExpect { status { isOk() } }
+
+		users.findFirstBy().shouldNotBeNull().totpReenrollRequired shouldBe true
+		connections.findAll().single().status shouldBe OAuthConnectionStatus.RECONNECT_REQUIRED
+	}
+
+	@Test
+	fun `the pre-restore backup is made with the restore's passphrase, so it keeps the current secrets`() {
+		val zip = export(PASSPHRASE)
+
+		confirm(report(zip)["id"].asString(), PASSPHRASE).andExpect { status { isOk() } }
+
+		val preRestore = Files.list(dataDir.resolve("pre-restore")).use { it.toList() }.single()
+		val entries = Zips.read(Files.readAllBytes(preRestore))
+		val envelope = mapper.readValue(entries.getValue(BackupSecrets.PATH), SecretsEnvelope::class.java)
+		mapper.readTree(BackupSecrets.decrypt(envelope, PASSPHRASE))["user"]["totpSecret"].asString() shouldBe enrollment.totpSecret
+	}
+
+	@Test
+	fun `a restore without passphrase makes the pre-restore backup without secrets`() {
+		confirm(report(export(PASSPHRASE))["id"].asString(), passphrase = null).andExpect { status { isOk() } }
+
+		val preRestore = Files.list(dataDir.resolve("pre-restore")).use { it.toList() }.single()
+		Zips.read(Files.readAllBytes(preRestore)) shouldNotContainKey BackupSecrets.PATH
+	}
+
+	@Test
+	fun `an account still waiting for TOTP re-enrollment exports no TOTP secret and waits again after a restore with passphrase`() {
+		jdbc.update("update app_user set totp_reenroll_required = true")
+		val zip = export(PASSPHRASE)
+		val envelope = mapper.readValue(Zips.read(zip).getValue(BackupSecrets.PATH), SecretsEnvelope::class.java)
+		mapper.readTree(BackupSecrets.decrypt(envelope, PASSPHRASE)).has("user") shouldBe false
+
+		confirm(report(zip)["id"].asString(), PASSPHRASE).andExpect { status { isOk() } }
+
+		users.findFirstBy().shouldNotBeNull().totpReenrollRequired shouldBe true
+		withClue("the OAuth token is restored all the same") {
+			connections.findAll().single().status shouldBe OAuthConnectionStatus.CONNECTED
+		}
+	}
+
+	@Test
+	fun `a TOTP secret in the secrets that is not Base32 is a validation error and restores nothing`() {
+		val zip =
+			Zips.edit(export(PASSPHRASE), mapper, updateManifest = true) { entries ->
+				val envelope = mapper.readValue(entries.getValue(BackupSecrets.PATH), SecretsEnvelope::class.java)
+				val secrets = mapper.readTree(BackupSecrets.decrypt(envelope, PASSPHRASE)) as ObjectNode
+				(secrets["user"] as ObjectNode).put("totpSecret", "not base32 at all!")
+				entries[BackupSecrets.PATH] = mapper.writeValueAsBytes(BackupSecrets.encrypt(mapper.writeValueAsBytes(secrets), PASSPHRASE))
+			}
+		jdbc.update("update oauth_connection set email = 'changed.later@example.com'")
+
+		confirm(report(zip)["id"].asString(), PASSPHRASE).andExpect {
+			status { isUnprocessableContent() }
+			jsonPath("$.problems[0]") { value("The TOTP secret in the backup's secrets is not valid") }
+		}
+
+		jdbc.queryForList("select email from oauth_connection", String::class.java) shouldContainExactly listOf("changed.later@example.com")
+		users
+			.findFirstBy()
+			.shouldNotBeNull()
+			.totpSecret
+			.reveal() shouldBe enrollment.totpSecret
+	}
+
+	@Test
+	fun `a corrupt secrets file with a matching manifest is a validation error with the passphrase, and ignored without`() {
+		val zip =
+			Zips.edit(export(PASSPHRASE), mapper, updateManifest = true) { entries ->
+				entries[BackupSecrets.PATH] = "{\"formatVersion\":1}".toByteArray()
+			}
+
+		confirm(report(zip)["id"].asString(), PASSPHRASE).andExpect {
+			status { isUnprocessableContent() }
+			jsonPath("$.problems[0]") { value("data/secrets.enc.json is not valid") }
+		}
+		Files.exists(dataDir.resolve("pre-restore")) shouldBe false
+
+		confirm(report(zip)["id"].asString(), passphrase = null).andExpect { status { isOk() } }
+		users.findFirstBy().shouldNotBeNull().totpReenrollRequired shouldBe true
+	}
+
+	@Test
+	fun `a restore passphrase longer than 256 characters is a 400 and keeps the upload`() {
+		val id = report(export(PASSPHRASE))["id"].asString()
+
+		confirm(id, "x".repeat(257)).andExpect { status { isBadRequest() } }
+
+		confirm(id, PASSPHRASE).andExpect { status { isOk() } }
+	}
+
+	@Test
+	fun `a backup started with a passphrase through the API includes the encrypted secrets`() {
+		val id = startBackup("""{"passphrase":"$PASSPHRASE"}""").andExpect { status { isAccepted() } }.let { json(it)["id"].asString() }
+		val zip = download(id)
+
+		val envelope = mapper.readValue(Zips.read(zip).getValue(BackupSecrets.PATH), SecretsEnvelope::class.java)
+		mapper.readTree(BackupSecrets.decrypt(envelope, PASSPHRASE))["user"]["totpSecret"].asString() shouldBe enrollment.totpSecret
+	}
+
+	@Test
+	fun `a backup started without a body or with an empty body object has no secrets`() {
+		listOf(null, "{}", """{"passphrase":null}""").forEach { body ->
+			withClue("body $body") {
+				val id = startBackup(body).andExpect { status { isAccepted() } }.let { json(it)["id"].asString() }
+				Zips.read(download(id)) shouldNotContainKey BackupSecrets.PATH
+			}
+		}
+	}
+
+	@Test
+	fun `a backup passphrase shorter than 12 or longer than 256 characters is a 400 and starts nothing`() {
+		listOf("x".repeat(11), "x".repeat(257)).forEach { passphrase ->
+			withClue("${passphrase.length} characters") {
+				startBackup("""{"passphrase":"$passphrase"}""").andExpect {
+					status { isBadRequest() }
+					content { contentType(MediaType.APPLICATION_PROBLEM_JSON) }
+				}
+			}
+		}
+		withClue("12 and 256 characters are accepted") {
+			listOf("x".repeat(12), "y".repeat(256)).forEach { passphrase ->
+				val id = startBackup("""{"passphrase":"$passphrase"}""").andExpect { status { isAccepted() } }.let { json(it)["id"].asString() }
+				val envelope = mapper.readValue(Zips.read(download(id)).getValue(BackupSecrets.PATH), SecretsEnvelope::class.java)
+				BackupSecrets.decrypt(envelope, passphrase)
+			}
+		}
+	}
+
+	private fun startBackup(body: String?): ResultActionsDsl =
+		mockMvc.post(BACKUP) {
+			with(cockpitUser())
+			with(csrf())
+			if (body != null) {
+				contentType = MediaType.APPLICATION_JSON
+				content = body
+			}
+		}
+
+	private fun strings(array: JsonNode): List<String> = (0 until array.size()).map { array[it].asString() }
+
+	private fun json(result: ResultActionsDsl): JsonNode = mapper.readTree(result.andReturn().response.contentAsString)
+
+	/** Waits for the backup job [id] to complete and downloads its zip. */
+	private fun download(id: String): ByteArray {
+		val deadline = System.nanoTime() + Duration.ofSeconds(30).toNanos()
+		while (true) {
+			val state = json(mockMvc.get("$BACKUP/$id") { with(cockpitUser()) })["state"].asString()
+			if (state == "COMPLETED") break
+			check(state == "RUNNING" && System.nanoTime() < deadline) { "Backup $id ended as $state" }
+			Thread.sleep(20)
+		}
+		return mockMvc
+			.get("$BACKUP/$id/download") { with(cockpitUser()) }
+			.andExpect { status { isOk() } }
+			.andReturn()
+			.response.contentAsByteArray
+	}
+
 	private fun report(zip: ByteArray): JsonNode =
 		mapper.readTree(
 			mockMvc
@@ -334,6 +512,7 @@ class BackupSecretsTest(
 		private const val PASSPHRASE = "fictitious backup passphrase"
 		private const val REFRESH_TOKEN = "1//fictitious-refresh-token-0815"
 		private const val RESTORE = "/api/v1/restore"
+		private const val BACKUP = "/api/v1/backup"
 		private const val ENROLLMENT = "/api/v1/auth/totp-enrollment"
 		private const val DEVICES = "/api/v1/auth/devices"
 		private val dataDir: Path = Files.createTempDirectory("cockpit-secrets-data")

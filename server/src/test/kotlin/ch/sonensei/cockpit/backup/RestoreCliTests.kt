@@ -2,14 +2,19 @@ package ch.sonensei.cockpit.backup
 
 import ch.sonensei.cockpit.backup.api.RestoreCli
 import ch.sonensei.cockpit.backup.domain.BackupService
+import ch.sonensei.cockpit.core.auth.domain.Base32
+import ch.sonensei.cockpit.core.auth.domain.SetupEnrollment
 import ch.sonensei.cockpit.core.auth.domain.SetupService
+import ch.sonensei.cockpit.core.auth.domain.Totp
 import ch.sonensei.cockpit.core.auth.infra.UserAccountRepository
 import ch.sonensei.cockpit.core.backupcontrib.LinksBackupFixture
 import ch.sonensei.cockpit.core.backupcontrib.UserBackupFixture
 import ch.sonensei.cockpit.core.items.infra.LinkRepository
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.shouldNotBe
 import io.kotest.matchers.string.shouldContain
+import io.kotest.matchers.string.shouldNotContain
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
@@ -24,6 +29,7 @@ import java.io.ByteArrayOutputStream
 import java.io.PrintStream
 import java.nio.file.Files
 import java.nio.file.Path
+import java.time.Instant
 import kotlin.io.path.listDirectoryEntries
 import kotlin.io.path.name
 import kotlin.io.path.outputStream
@@ -54,22 +60,109 @@ class RestoreCliTests(
 		zip: Path,
 		dir: Path,
 		vararg extra: String,
+	): Pair<Int, String> = runCli(zip, dir, extra.toList(), passphrase = null, explicitPassphrase = false)
+
+	/** Like [cli], with [passphrase] as if it were in `COCKPIT_RESTORE_PASSPHRASE`. */
+	private fun cliWithPassphrase(
+		zip: Path,
+		passphrase: String?,
+	): Pair<Int, String> = runCli(zip, dataDir, emptyList(), passphrase, explicitPassphrase = true)
+
+	private fun runCli(
+		zip: Path,
+		dir: Path,
+		extra: List<String>,
+		passphrase: String?,
+		explicitPassphrase: Boolean,
 	): Pair<Int, String> {
 		val (url, username, password) = RestoreTestDatabases.create(DATABASE)
 		val out = ByteArrayOutputStream()
-		val code =
-			RestoreCli.run(
-				arrayOf(
-					"--restore=$zip",
-					"--spring.datasource.url=$url",
-					"--spring.datasource.username=$username",
-					"--spring.datasource.password=$password",
-					"--cockpit.data-dir=$dir",
-					*extra,
-				),
-				PrintStream(out, true, Charsets.UTF_8),
+		val args =
+			arrayOf(
+				"--restore=$zip",
+				"--spring.datasource.url=$url",
+				"--spring.datasource.username=$username",
+				"--spring.datasource.password=$password",
+				"--cockpit.data-dir=$dir",
+				*extra.toTypedArray(),
 			)
+		val print = PrintStream(out, true, Charsets.UTF_8)
+		val code = if (explicitPassphrase) RestoreCli.run(args, print, passphrase) else RestoreCli.run(args, print)
 		return code to out.toString(Charsets.UTF_8)
+	}
+
+	/** An owner who finished the setup (TOTP confirmed), and a backup of it made with [passphrase]. */
+	private fun ownerBackup(
+		work: Path,
+		passphrase: String?,
+	): Pair<SetupEnrollment, Path> {
+		val enrollment = setup.start("jane.doe", "fictitious-password-1234")
+		setup.confirmTotp(Totp().generate(Base32.decode(enrollment.totpSecret), Instant.now()))
+		val zip = work.resolve("backup.zip")
+		zip.outputStream().use { backups.export(it, passphrase) }
+		return enrollment to zip
+	}
+
+	@Test
+	fun `with the passphrase the CLI restores the secrets, so TOTP works as before`(
+		@TempDir work: Path,
+	) {
+		val (enrollment, zip) = ownerBackup(work, CLI_PASSPHRASE)
+		jdbc.update("update app_user set username = 'mmuster'")
+
+		val (code, output) = cliWithPassphrase(zip, CLI_PASSPHRASE)
+
+		code shouldBe 0
+		output shouldNotContain RestoreCli.PASSPHRASE_ENV
+		usernames() shouldBe listOf("jane.doe")
+		val user = users.findFirstBy()!!
+		user.totpReenrollRequired shouldBe false
+		user.totpSecret.reveal() shouldBe enrollment.totpSecret
+	}
+
+	@Test
+	fun `without the passphrase the CLI says how to restore the secrets and the owner must re-enroll TOTP`(
+		@TempDir work: Path,
+	) {
+		val (enrollment, zip) = ownerBackup(work, CLI_PASSPHRASE)
+
+		val (code, output) = cliWithPassphrase(zip, null)
+
+		code shouldBe 0
+		output shouldContain "the backup's secrets are not restored; set COCKPIT_RESTORE_PASSPHRASE to its passphrase"
+		val user = users.findFirstBy()!!
+		user.totpReenrollRequired shouldBe true
+		user.totpSecret.reveal() shouldNotBe enrollment.totpSecret
+	}
+
+	@Test
+	fun `a backup without secrets restores without the hint`(
+		@TempDir work: Path,
+	) {
+		val (_, zip) = ownerBackup(work, null)
+
+		val (code, output) = cliWithPassphrase(zip, null)
+
+		code shouldBe 0
+		output shouldNotContain RestoreCli.PASSPHRASE_ENV
+		users.findFirstBy()!!.totpReenrollRequired shouldBe true
+	}
+
+	@Test
+	fun `a wrong passphrase exits with 1, says so and changes nothing`(
+		@TempDir work: Path,
+	) {
+		val (_, zip) = ownerBackup(work, CLI_PASSPHRASE)
+		jdbc.update("update app_user set username = 'mmuster'")
+
+		val (code, output) = cliWithPassphrase(zip, "a wrong fictitious passphrase")
+
+		code shouldBe 1
+		output shouldContain "Problem: The passphrase is wrong"
+		output shouldContain "nothing was changed"
+		output shouldNotContain "fictitious passphrase"
+		usernames() shouldBe listOf("mmuster")
+		Files.exists(dataDir.resolve("pre-restore")) shouldBe false
 	}
 
 	private fun usernames() = jdbc.queryForList("select username from app_user", String::class.java)
@@ -297,6 +390,7 @@ class RestoreCliTests(
 
 	companion object {
 		private const val DATABASE = "backup_restore_cli"
+		private const val CLI_PASSPHRASE = "fictitious cli backup passphrase"
 		private val dataDir: Path = Files.createTempDirectory("cockpit-restore-cli-data")
 
 		@JvmStatic
