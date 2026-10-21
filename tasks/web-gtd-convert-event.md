@@ -11,7 +11,8 @@ lease_until: 2026-10-21T19:07:51Z
 Enable 'To calendar' in processing and task detail.
 
 ## Acceptance criteria
-- [ ] Dialog picks calendar and time, converts
+- [x] Dialog picks calendar and time, converts
+  - verified (2026-10-21 20:51+0200 by dell26/agent-1): cd web && npx ng test --include='src/app/features/gtd/**/*.spec.ts' -> pass (735 tests); to-calendar-dialog.spec.ts covers calendar select, timed/all-day times, convert request; task-detail/inbox specs cover dialog open -> convertToEvent -> navigation
 - [ ] Vitest component/service tests cover convert flow; `cd web && npm run check` passes
 
 ## Notes
