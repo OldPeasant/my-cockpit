@@ -5,7 +5,7 @@ owner: dell26/agent-4
 deps: [web-notes-list,web-links-panel]
 touches: [web/src/app/features/notes/editor]
 prio: 1
-lease_until: 2026-10-21T07:08:08Z
+lease_until: 2026-10-21T07:13:11Z
 extended: 
 releases: 0
 ---
