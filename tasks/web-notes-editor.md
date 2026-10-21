@@ -5,7 +5,7 @@ owner: R1963MACOS/agent-1
 deps: [web-notes-list,web-links-panel]
 touches: [web/src/app/features/notes/editor]
 prio: 1
-lease_until: 2026-10-21T05:41:42Z
+lease_until: 2026-10-21T05:46:46Z
 extended: R1963MACOS/agent-1
 ---
 ## Goal
