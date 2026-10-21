@@ -7,7 +7,7 @@ import { ApiError, NotificationService } from '../../../core/http';
 import { LinkedItems } from '../../../shared/links';
 import { IMAGE_ALLOWLIST_KEY } from './image-allowlist';
 import { MAIL_FRAME_SANDBOX } from './mail-frame';
-import MailReadPage from './mail-read-page';
+import MailReadPage, { TEXT_PREVIEW_LIMIT } from './mail-read-page';
 import { MailGtdAction, MailReadService } from './mail-read.service';
 
 const ID = '0192f0c4-0000-7000-8000-00000000a001';
@@ -54,10 +54,26 @@ function message(extra: Partial<MailMessageResponse> = {}): MailMessageResponse 
   };
 }
 
+/** What a `get` answers: a message, an error, or a promise the test settles. */
+type Answer = MailMessageResponse | Error | Promise<MailMessageResponse>;
+
+/** A promise the test resolves or rejects when it wants, to control the order of answers. */
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  let reject!: (error: unknown) => void;
+  const promise = new Promise<T>((res, rej) => {
+    resolve = res;
+    reject = rej;
+  });
+  return { promise, resolve, reject };
+}
+
 class FakeReadService {
-  answers: (MailMessageResponse | Error)[] = [];
+  answers: Answer[] = [];
   gets: { id: string; loadImages: boolean }[] = [];
   reads: string[] = [];
+  /** When set, marking read fails with it. */
+  readError?: Error;
   gtds: { id: string; action: MailGtdAction }[] = [];
   gtdResult: Promise<{ id: string; title: string }> = Promise.resolve({ id: 't', title: 'T' });
   saves: { id: string; partId: string; name: string }[] = [];
@@ -67,11 +83,12 @@ class FakeReadService {
   get(id: string, loadImages: boolean) {
     this.gets.push({ id, loadImages });
     const answer = this.answers.shift() ?? message();
+    if (answer instanceof Promise) return answer;
     return answer instanceof Error ? Promise.reject(answer) : Promise.resolve(answer);
   }
   markRead(id: string) {
     this.reads.push(id);
-    return Promise.resolve();
+    return this.readError ? Promise.reject(this.readError) : Promise.resolve();
   }
   gtd(id: string, action: MailGtdAction) {
     this.gtds.push({ id, action });
@@ -92,9 +109,13 @@ describe('MailReadPage', () => {
   let params: BehaviorSubject<ParamMap>;
   let notifications: { info: ReturnType<typeof vi.fn>; error: ReturnType<typeof vi.fn> };
 
-  async function create(...answers: (MailMessageResponse | Error)[]) {
+  /** Adjusts the fake service before the page starts. */
+  let setup: ((fake: FakeReadService) => void) | undefined;
+
+  async function create(...answers: Answer[]) {
     service = new FakeReadService();
     service.answers = answers;
+    setup?.(service);
     params = new BehaviorSubject(convertToParamMap({ id: ID }));
     notifications = { info: vi.fn(), error: vi.fn() };
     TestBed.configureTestingModule({
@@ -123,7 +144,10 @@ describe('MailReadPage', () => {
     ) as HTMLButtonElement | undefined;
   const iframe = () => el().querySelector<HTMLIFrameElement>('iframe');
 
-  beforeEach(() => localStorage.removeItem(IMAGE_ALLOWLIST_KEY));
+  beforeEach(() => {
+    setup = undefined;
+    localStorage.removeItem(IMAGE_ALLOWLIST_KEY);
+  });
   afterEach(() => localStorage.removeItem(IMAGE_ALLOWLIST_KEY));
 
   it('shows headers and renders the HTML body in a sandboxed frame without scripts', async () => {
@@ -337,5 +361,317 @@ describe('MailReadPage', () => {
     await flush();
     fixture.detectChanges();
     expect(el().querySelector('h1')?.textContent?.trim()).toBe('Quarterly report');
+  });
+
+  it('reports an unexpected load failure in general words', async () => {
+    await create(new Error('socket hang up'));
+    expect(el().textContent).toContain('The message could not be loaded: Something went wrong.');
+    expect(el().textContent).not.toContain('socket hang up');
+  });
+
+  it('keeps the message shown when marking it read fails', async () => {
+    setup = (fake) => (fake.readError = new ApiError(503, 'Unavailable', 'Mail server down'));
+    await create(message({ seen: false }));
+    await flush();
+    fixture.detectChanges();
+    expect(service.reads).toEqual([ID]);
+    expect(el().querySelector('h1')?.textContent?.trim()).toBe('Quarterly report');
+    expect(notifications.error).not.toHaveBeenCalled();
+  });
+
+  describe('headers and body edge cases', () => {
+    it('names a message without subject or body', async () => {
+      await create(
+        message({ subject: '', body: { html: '', text: '', remoteImagesBlocked: false } }),
+      );
+      expect(el().querySelector('h1')?.textContent?.trim()).toBe('(no subject)');
+      expect(iframe()).toBeNull();
+      expect(el().querySelector('.empty')?.textContent?.trim()).toBe('This message has no text.');
+    });
+
+    it('shows a sender by address when it has no name, and the Cc line', async () => {
+      await create(
+        message({
+          from: [{ name: '', address: 'noreply@example.test' }],
+          cc: [
+            { name: 'Anna Probe', address: 'anna@example.test' },
+            { name: '', address: 'team@example.test' },
+          ],
+        }),
+      );
+      expect(el().querySelector('.sender')?.textContent?.trim()).toBe('noreply@example.test');
+      expect(el().querySelector('.from .address')).toBeNull();
+      expect(el().querySelector('.initial')?.textContent?.trim()).toBe('N');
+      const terms = [...el().querySelectorAll('.recipients dt')].map((dt) => dt.textContent);
+      expect(terms).toEqual(['To', 'Cc']);
+      expect(el().querySelectorAll('.recipients dd')[1].textContent?.trim()).toBe(
+        'Anna Probe, team@example.test',
+      );
+    });
+
+    it('offers only "Load images" when the sender has no address', async () => {
+      await create(
+        message({
+          from: [{ name: 'Unknown', address: '' }],
+          body: { html: '<p>x</p>', remoteImageCount: 1, remoteImagesBlocked: true, text: '' },
+        }),
+      );
+      expect(button('Load images')).toBeDefined();
+      expect(button('Always load from this sender')).toBeUndefined();
+    });
+  });
+
+  describe('navigating to another message', () => {
+    const OTHER = '0192f0c4-0000-7000-8000-00000000a002';
+    const lunch = () => message({ id: OTHER, subject: 'Lunch plans', seen: true });
+
+    async function navigate(id: string) {
+      params.next(convertToParamMap({ id }));
+      fixture.detectChanges();
+      await flush();
+      fixture.detectChanges();
+    }
+
+    it('shows the loading state, not the previous message, while the next one loads', async () => {
+      const next = deferred<MailMessageResponse>();
+      await create(message(), next.promise);
+      expect(el().querySelector('h1')?.textContent?.trim()).toBe('Quarterly report');
+      await navigate(OTHER);
+      expect(el().querySelector('h1')).toBeNull();
+      expect(el().querySelector('[role=status]')?.textContent?.trim()).toBe('Loading message…');
+      next.resolve(lunch());
+      await flush();
+      fixture.detectChanges();
+      expect(el().querySelector('h1')?.textContent?.trim()).toBe('Lunch plans');
+      expect(service.gets.map((g) => g.id)).toEqual([ID, OTHER]);
+    });
+
+    it('ignores an older load that answers after the newer one', async () => {
+      const first = deferred<MailMessageResponse>();
+      await create(first.promise, lunch());
+      await navigate(OTHER);
+      expect(el().querySelector('h1')?.textContent?.trim()).toBe('Lunch plans');
+
+      first.resolve(message({ seen: false }));
+      await flush();
+      fixture.detectChanges();
+      expect(el().querySelector('h1')?.textContent?.trim()).toBe('Lunch plans');
+      // The stale, unread message is not marked read either.
+      expect(service.reads).toEqual([]);
+    });
+
+    it('ignores an older load that fails after the newer one', async () => {
+      const first = deferred<MailMessageResponse>();
+      await create(first.promise, lunch());
+      await navigate(OTHER);
+      first.reject(new ApiError(404, 'Not found'));
+      await flush();
+      fixture.detectChanges();
+      expect(el().querySelector('h1')?.textContent?.trim()).toBe('Lunch plans');
+      expect(el().querySelector('[role=alert]')).toBeNull();
+    });
+
+    it('does not apply proxied images of the previous message', async () => {
+      const blocked = message({
+        body: { html: '<p>blocked</p>', remoteImageCount: 1, remoteImagesBlocked: true, text: '' },
+      });
+      const proxy = deferred<MailMessageResponse>();
+      await create(blocked, proxy.promise, lunch());
+      button('Load images')!.click();
+      await flush();
+      await navigate(OTHER);
+      expect(el().querySelector('h1')?.textContent?.trim()).toBe('Lunch plans');
+
+      proxy.resolve(
+        message({
+          body: {
+            html: '<img src="/api/v1/mail/image-proxy?url=x">',
+            remoteImagesBlocked: false,
+            text: '',
+          },
+        }),
+      );
+      await flush();
+      fixture.detectChanges();
+      expect(el().querySelector('h1')?.textContent?.trim()).toBe('Lunch plans');
+      expect(iframe()!.srcdoc).not.toContain('image-proxy');
+    });
+
+    it('does not report a failed image load of the previous message', async () => {
+      const blocked = message({
+        body: { html: '<p>blocked</p>', remoteImageCount: 1, remoteImagesBlocked: true, text: '' },
+      });
+      const proxy = deferred<MailMessageResponse>();
+      await create(blocked, proxy.promise, lunch());
+      button('Load images')!.click();
+      await flush();
+      await navigate(OTHER);
+      proxy.reject(new ApiError(502, 'Bad gateway', 'The mail server failed'));
+      await flush();
+      expect(notifications.error).not.toHaveBeenCalled();
+    });
+
+    it('closes an open attachment preview', async () => {
+      await create(
+        message({
+          attachments: [
+            {
+              partId: '3',
+              filename: 'photo.png',
+              contentId: '',
+              contentType: 'image/png',
+              sizeBytes: 10,
+            },
+          ],
+        }),
+        lunch(),
+      );
+      el().querySelector<HTMLButtonElement>('.attachments li button')!.click();
+      fixture.detectChanges();
+      expect(el().querySelector('.preview')).not.toBeNull();
+      await navigate(OTHER);
+      expect(el().querySelector('.preview')).toBeNull();
+    });
+  });
+
+  describe('running actions', () => {
+    const gtdButtons = () =>
+      ['→ Inbox task', '→ Waiting For', 'Create note'].map((label) => button(label)!);
+
+    it('disables the GTD buttons while one runs, so it cannot run twice', async () => {
+      await create();
+      const pending = deferred<{ id: string; title: string }>();
+      service.gtdResult = pending.promise;
+      button('→ Inbox task')!.click();
+      fixture.detectChanges();
+      expect(gtdButtons().map((b) => b.disabled)).toEqual([true, true, true]);
+      button('→ Inbox task')!.click();
+      expect(service.gtds).toHaveLength(1);
+
+      pending.resolve({ id: 't', title: 'Follow up' });
+      await flush();
+      fixture.detectChanges();
+      expect(gtdButtons().map((b) => b.disabled)).toEqual([false, false, false]);
+      expect(notifications.info).toHaveBeenCalledWith('Added to Inbox: Follow up');
+    });
+
+    it('reports an unexpected GTD failure in general words and enables the buttons again', async () => {
+      await create();
+      const pending = deferred<{ id: string; title: string }>();
+      service.gtdResult = pending.promise;
+      button('→ Waiting For')!.click();
+      pending.reject(new TypeError('Failed to fetch'));
+      await flush();
+      fixture.detectChanges();
+      expect(notifications.error).toHaveBeenCalledWith('Something went wrong.');
+      expect(gtdButtons().every((b) => !b.disabled)).toBe(true);
+    });
+  });
+
+  describe('attachment edge cases', () => {
+    const parts = () =>
+      message({
+        attachments: [
+          {
+            partId: '2',
+            filename: 'report.pdf',
+            contentId: '',
+            contentType: 'application/pdf',
+            sizeBytes: 10,
+          },
+          {
+            partId: '3',
+            filename: 'photo.png',
+            contentId: '',
+            contentType: 'image/png',
+            sizeBytes: 10,
+          },
+          {
+            partId: '4',
+            filename: 'notes.txt',
+            contentId: '',
+            contentType: 'TEXT/PLAIN',
+            sizeBytes: 10,
+          },
+          {
+            partId: '',
+            filename: 'broken.bin',
+            contentId: '',
+            contentType: 'text/plain',
+            sizeBytes: 10,
+          },
+        ],
+      });
+    const item = (name: string) =>
+      [...el().querySelectorAll('.attachments li')].find(
+        (li) => li.querySelector('.file-name')?.textContent === name,
+      )!;
+    const action = (name: string, label: string) =>
+      [...item(name).querySelectorAll<HTMLButtonElement>('button')].find(
+        (b) => b.textContent?.trim() === label,
+      )!;
+
+    it('skips parts without a part id', async () => {
+      await create(parts());
+      expect(item('broken.bin')).toBeUndefined();
+    });
+
+    it('shows a loading text preview, then its failure', async () => {
+      await create(parts());
+      const blob = deferred<Blob>();
+      service.blob = blob.promise;
+      action('notes.txt', 'Preview').click();
+      fixture.detectChanges();
+      expect(el().querySelector('.preview [role=status]')?.textContent).toContain(
+        'Loading preview',
+      );
+      blob.reject(new ApiError(404, 'Not found', 'The attachment is gone'));
+      await flush();
+      fixture.detectChanges();
+      expect(el().querySelector('.preview [role=alert]')?.textContent).toBe(
+        'The attachment is gone',
+      );
+    });
+
+    it('cuts a long text preview at the limit', async () => {
+      await create(parts());
+      service.blob = Promise.resolve(new Blob(['a'.repeat(TEXT_PREVIEW_LIMIT + 50)]));
+      action('notes.txt', 'Preview').click();
+      await flush();
+      fixture.detectChanges();
+      expect(el().querySelector('.preview pre')?.textContent).toHaveLength(TEXT_PREVIEW_LIMIT);
+    });
+
+    it('keeps the newer preview when an older text preview answers late', async () => {
+      await create(parts());
+      const blob = deferred<Blob>();
+      service.blob = blob.promise;
+      action('notes.txt', 'Preview').click();
+      action('photo.png', 'Preview').click();
+      blob.resolve(new Blob(['late text']));
+      await flush();
+      fixture.detectChanges();
+      expect(el().querySelector('.preview img')).not.toBeNull();
+      expect(el().querySelector('.preview pre')).toBeNull();
+      expect(el().querySelector('.preview figcaption span')?.textContent).toBe('photo.png');
+    });
+
+    it('saves a part once while saving, then reports a failure and allows a retry', async () => {
+      await create(parts());
+      const pending = deferred<{ name: string }>();
+      service.saveResult = pending.promise;
+      action('report.pdf', 'Save to Files').click();
+      fixture.detectChanges();
+      expect(action('report.pdf', 'Save to Files').disabled).toBe(true);
+      expect(action('photo.png', 'Save to Files').disabled).toBe(false);
+      action('report.pdf', 'Save to Files').click();
+      expect(service.saves).toHaveLength(1);
+
+      pending.reject(new ApiError(413, 'Payload Too Large', 'The file is too large'));
+      await flush();
+      fixture.detectChanges();
+      expect(notifications.error).toHaveBeenCalledWith('The file is too large');
+      expect(action('report.pdf', 'Save to Files').disabled).toBe(false);
+    });
   });
 });

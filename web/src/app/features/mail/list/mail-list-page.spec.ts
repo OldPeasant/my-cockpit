@@ -1,6 +1,12 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { MatDialog } from '@angular/material/dialog';
-import { ActivatedRoute, convertToParamMap, ParamMap, provideRouter } from '@angular/router';
+import {
+  ActivatedRoute,
+  convertToParamMap,
+  ParamMap,
+  provideRouter,
+  Router,
+} from '@angular/router';
 import { BehaviorSubject, Observable, of, Subject } from 'rxjs';
 import { ChangeEvent, MailAccountResponse, MailFolderResponse } from '../../../api/generated';
 import { ChangeEventsService } from '../../../core/events';
@@ -418,6 +424,48 @@ describe('MailListPage', () => {
     fixture.detectChanges();
     expect(rows()[2].getAttribute('aria-current')).toBe('true');
     expect(rows()[2].classList).not.toContain('selected');
+  });
+
+  describe('opening a message', () => {
+    const navigations = () => {
+      const router = TestBed.inject(Router);
+      return vi.spyOn(router, 'navigate').mockResolvedValue(true);
+    };
+
+    it('opens the cursor message with o', async () => {
+      await create();
+      const navigate = navigations();
+      press('j');
+      const event = press('o');
+      expect(event.defaultPrevented).toBe(true);
+      expect(navigate).toHaveBeenCalledExactlyOnceWith(['/mail/messages', 'b']);
+      expect(mail.applies).toEqual([]);
+    });
+
+    it('opens a row on double-click', async () => {
+      await create();
+      const navigate = navigations();
+      rows()[2]
+        .querySelector('button.open')!
+        .dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
+      expect(navigate).toHaveBeenCalledExactlyOnceWith(['/mail/messages', 'c']);
+    });
+
+    it('opens nothing with o in an empty folder, nor while typing', async () => {
+      await create('inbox-1', { firstPage: { items: [], nextCursor: null } });
+      const navigate = navigations();
+      press('o');
+      const input = document.createElement('input');
+      document.body.appendChild(input);
+      press('o', {}, input);
+      input.remove();
+      expect(navigate).not.toHaveBeenCalled();
+    });
+
+    it('names o and double-click in the key hint', async () => {
+      await create();
+      expect(el().querySelector('.keys')?.textContent).toContain('o or double-click open');
+    });
   });
 
   it('selects all from the toolbar checkbox, indeterminate while only some are selected', async () => {

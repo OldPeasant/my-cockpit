@@ -39,6 +39,74 @@ describe('MailFrame', () => {
     fixture.detectChanges();
     expect(frame().title).toBe('Quarterly report');
   });
+
+  it('has an accessible name by default', () => {
+    expect(frame().title).toBe('Message');
+  });
+
+  describe('fitting to the content', () => {
+    let observers: { callback: () => void; observed: Element[]; disconnected: boolean }[];
+
+    beforeEach(() => {
+      observers = [];
+      vi.stubGlobal(
+        'ResizeObserver',
+        class {
+          readonly record: (typeof observers)[number];
+          constructor(callback: () => void) {
+            this.record = { callback, observed: [], disconnected: false };
+            observers.push(this.record);
+          }
+          observe(target: Element) {
+            this.record.observed.push(target);
+          }
+          disconnect() {
+            this.record.disconnected = true;
+          }
+        },
+      );
+    });
+    afterEach(() => vi.unstubAllGlobals());
+
+    /** Gives the frame's document a content height (jsdom does no layout). */
+    function contentHeight(px: number) {
+      Object.defineProperty(frame().contentDocument!.documentElement, 'scrollHeight', {
+        configurable: true,
+        get: () => px,
+      });
+    }
+
+    it('grows to its document height on load and follows later size changes', () => {
+      expect(frame().contentDocument?.body).toBeTruthy();
+      contentHeight(420);
+      frame().dispatchEvent(new Event('load'));
+      expect(frame().style.height).toBe('420px');
+      expect(observers).toHaveLength(1);
+      expect(observers[0].observed).toEqual([frame().contentDocument!.body]);
+
+      // A late image makes the content taller.
+      contentHeight(900);
+      observers[0].callback();
+      expect(frame().style.height).toBe('900px');
+    });
+
+    it('observes only the latest document after another load, and stops on destroy', () => {
+      frame().dispatchEvent(new Event('load'));
+      frame().dispatchEvent(new Event('load'));
+      expect(observers).toHaveLength(2);
+      expect(observers[0].disconnected).toBe(true);
+      expect(observers[1].disconnected).toBe(false);
+      fixture.destroy();
+      expect(observers[1].disconnected).toBe(true);
+    });
+
+    it('still sizes the frame once where ResizeObserver is missing', () => {
+      vi.stubGlobal('ResizeObserver', undefined);
+      contentHeight(300);
+      frame().dispatchEvent(new Event('load'));
+      expect(frame().style.height).toBe('300px');
+    });
+  });
 });
 
 describe('MAIL_FRAME_CSP', () => {

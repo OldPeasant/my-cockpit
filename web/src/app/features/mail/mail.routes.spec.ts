@@ -8,6 +8,7 @@ import { FakeEvents } from './list/mail-testing';
 import mailRoutes, { mailListMatcher } from './mail.routes';
 
 const FOLDER = '0192f0c4-0000-7000-8000-00000000f0a1';
+const MESSAGE = '0192f0c4-0000-7000-8000-00000000a001';
 
 function match(...paths: string[]) {
   const segments = paths.map((path) => new UrlSegment(path, {}));
@@ -62,5 +63,21 @@ describe('mail routes', () => {
       .match((req) => req.url === '/api/v1/mail/messages')
       .filter((req) => req.request.params.get('folderId') === FOLDER);
     expect(folderList).toHaveLength(1);
+  });
+
+  it('opens the read view at /mail/messages/:id and loads that message with images blocked', async () => {
+    const harness = await RouterTestingHarness.create();
+    await harness.navigateByUrl(`/mail/messages/${MESSAGE}`);
+    const http = TestBed.inject(HttpTestingController);
+    expect(harness.routeNativeElement?.tagName.toLowerCase()).toBe('app-mail-read-page');
+    expect(document.title).toBe('Message');
+    const gets = http.match((req) => req.url === `/api/v1/mail/messages/${MESSAGE}`);
+    expect(gets).toHaveLength(1);
+    expect(gets[0].request.method).toBe('GET');
+    expect(gets[0].request.params.get('remoteImages')).toBe('BLOCK');
+  });
+
+  it('does not take a message path for the list', () => {
+    expect(match('messages', MESSAGE)).toBeNull();
   });
 });
