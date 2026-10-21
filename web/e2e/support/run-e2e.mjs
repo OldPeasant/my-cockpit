@@ -3,9 +3,11 @@
 //
 // Environment:
 //   E2E_BASE_URL  run against an already running stack instead (no compose up/down)
+//   E2E_FRESH_BASE_URL  with E2E_BASE_URL: the stack's untouched second server (phase 2 restore), if any
 //   E2E_COMPOSE   compose command (default "docker compose"; e.g. "podman-compose")
 //   E2E_PORT      host port of the server (default: a free one)
 //   E2E_IMAP_PORT host port of GreenMail's IMAP (default: a free one)
+//   E2E_FRESH_PORT host port of the fresh-install server (default: a free one)
 //   E2E_KEEP=1    leave the stack running after the tests (tear it down with the printed command)
 import { spawn, spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
@@ -36,6 +38,7 @@ async function main() {
   }
   const port = process.env.E2E_PORT ?? String(await freePort());
   const imapPort = process.env.E2E_IMAP_PORT ?? String(await freePort());
+  const freshPort = process.env.E2E_FRESH_PORT ?? String(await freePort());
   // One project per clone, so parallel clones on the same machine get separate stacks.
   const project = `cockpit-e2e-${createHash('sha256').update(webDir).digest('hex').slice(0, 8)}`;
   const [composeCmd, ...composeBase] = (process.env.E2E_COMPOSE ?? 'docker compose').split(' ');
@@ -45,6 +48,7 @@ async function main() {
     ...process.env,
     E2E_PORT: port,
     E2E_IMAP_PORT: imapPort,
+    E2E_FRESH_PORT: freshPort,
     E2E_IMAGE: `localhost/${project}:latest`,
   };
   const compose = (args, options = {}) =>
@@ -68,19 +72,24 @@ async function main() {
     return up.status || 1;
   }
   const baseUrl = `http://127.0.0.1:${port}`;
+  const freshBaseUrl = `http://127.0.0.1:${freshPort}`;
   try {
     await waitForHealth(baseUrl, () => interrupted !== null);
+    await waitForHealth(freshBaseUrl, () => interrupted !== null);
   } catch (error) {
     console.error(`[e2e] ${error.message}`);
-    compose(['logs', '--tail', '200', 'server']);
+    compose(['logs', '--tail', '200', 'server', 'server-fresh']);
     down();
     return 1;
   }
   console.log(`[e2e] stack healthy after ${Math.round((Date.now() - started) / 1000)} s`);
   let status = 1;
   try {
-    status = await runPlaywright(baseUrl, { E2E_IMAP_PORT: imapPort });
-    if (status !== 0 && !interrupted) compose(['logs', '--tail', '100', 'server']);
+    status = await runPlaywright(baseUrl, {
+      E2E_IMAP_PORT: imapPort,
+      E2E_FRESH_BASE_URL: freshBaseUrl,
+    });
+    if (status !== 0 && !interrupted) compose(['logs', '--tail', '100', 'server', 'server-fresh']);
   } finally {
     down();
   }

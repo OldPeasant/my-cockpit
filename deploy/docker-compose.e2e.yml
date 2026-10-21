@@ -4,6 +4,18 @@
 # All secrets below are fictitious test values.
 name: cockpit-e2e
 
+# Environment of both servers; each overrides its datasource.
+x-server-environment: &server-environment
+  SPRING_PROFILES_ACTIVE: e2e
+  COCKPIT_DOMAIN: localhost
+  COCKPIT_DATA_DIR: /data
+  # base64 of "cockpit-e2e-master-key-not-real!" (fictitious)
+  COCKPIT_MASTER_KEY: Y29ja3BpdC1lMmUtbWFzdGVyLWtleS1ub3QtcmVhbCE=
+  # Plain HTTP: the session cookie cannot be Secure.
+  COCKPIT_AUTH_SECURE_COOKIE: "false"
+  SPRING_DATASOURCE_USERNAME: cockpit
+  SPRING_DATASOURCE_PASSWORD: e2e-not-secret
+
 services:
   server:
     build:
@@ -17,16 +29,24 @@ services:
     ports:
       - "127.0.0.1:${E2E_PORT:-18090}:8080"
     environment:
-      SPRING_PROFILES_ACTIVE: e2e
-      COCKPIT_DOMAIN: localhost
-      COCKPIT_DATA_DIR: /data
-      # base64 of "cockpit-e2e-master-key-not-real!" (fictitious)
-      COCKPIT_MASTER_KEY: Y29ja3BpdC1lMmUtbWFzdGVyLWtleS1ub3QtcmVhbCE=
-      # Plain HTTP: the session cookie cannot be Secure.
-      COCKPIT_AUTH_SECURE_COOKIE: "false"
+      <<: *server-environment
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/cockpit_e2e
-      SPRING_DATASOURCE_USERNAME: cockpit
-      SPRING_DATASOURCE_PASSWORD: e2e-not-secret
+
+  # A fresh install for step 5 of the phase 2 demo (web/e2e/phase2): restoring a backup into a new server with its own
+  # empty database and data directory. No other spec uses it (its address is E2E_FRESH_BASE_URL, set by run-e2e.mjs).
+  server-fresh:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    image: ${E2E_IMAGE:-localhost/cockpit-server:e2e}
+    depends_on:
+      postgres-fresh:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:${E2E_FRESH_PORT:-18091}:8080"
+    environment:
+      <<: *server-environment
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres-fresh:5432/cockpit_e2e
 
   # Test mail server (SMTP 3025, IMAP 3143, no TLS). Any login is accepted and creates its mailbox. The server reaches
   # it as `greenmail`; specs use its IMAP port on the host (E2E_IMAP_PORT, set by run-e2e.mjs) to deliver mail.
@@ -44,6 +64,20 @@ services:
       POSTGRES_USER: cockpit
       POSTGRES_PASSWORD: e2e-not-secret
     # In memory: every stack starts empty and nothing is left behind.
+    tmpfs:
+      - /var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cockpit -d cockpit_e2e"]
+      interval: 2s
+      timeout: 5s
+      retries: 30
+
+  postgres-fresh:
+    image: docker.io/library/postgres:16-alpine
+    environment:
+      POSTGRES_DB: cockpit_e2e
+      POSTGRES_USER: cockpit
+      POSTGRES_PASSWORD: e2e-not-secret
     tmpfs:
       - /var/lib/postgresql/data
     healthcheck:
