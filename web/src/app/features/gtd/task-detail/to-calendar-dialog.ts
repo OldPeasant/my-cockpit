@@ -12,7 +12,7 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
 import { firstValueFrom } from 'rxjs';
-import { ConvertToEventRequest } from '../../../api/generated';
+import { ConvertToEventRequest, EventResponse } from '../../../api/generated';
 import {
   addDays,
   addHours,
@@ -22,6 +22,7 @@ import {
 } from '../../calendar/edit/event-times';
 import { CalendarStore } from '../../calendar/views/calendar-store';
 import { SettingsService } from '../../settings/settings.service';
+import { localDate } from '../data';
 
 export interface ToCalendarData {
   /** The title of the task, which becomes the event's title. */
@@ -67,8 +68,14 @@ export function convertRequest(form: ToCalendarForm): ConvertToEventRequest {
 }
 
 /** The zone of the browser, used while the settings can't be loaded. */
-function browserTimeZone(): string {
+export function browserTimeZone(): string {
   return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+}
+
+/** The day (`yyyy-MM-dd`) `event` starts on, on its own clocks: the calendar opens there. */
+export function eventStartDay(event: EventResponse): string {
+  if (event.allDay || !event.start) return event.startDate ?? localDate();
+  return wallClockOf(event.start, event.timeZone ?? browserTimeZone()).date;
 }
 
 /**
@@ -121,7 +128,11 @@ export class ToCalendarDialog {
   private touchedTimes = false;
 
   constructor() {
-    this.form.controls.allDay.valueChanges.subscribe((value) => this.allDay.set(value));
+    this.form.controls.allDay.valueChanges.subscribe((value) => {
+      this.allDay.set(value);
+      // The default times may span midnight (23:00-00:00): all-day, they mean the start day.
+      if (!this.touchedTimes) this.resetTimes();
+    });
     this.form.valueChanges.subscribe(() => this.invalidTimes.set(false));
     this.resetTimes();
     this.pickCalendar();
@@ -172,14 +183,15 @@ export class ToCalendarDialog {
     this.pickCalendar();
   }
 
-  /** The next full hour for one hour, in {@link timeZone}. */
+  /** The next full hour for one hour, in {@link timeZone}; all-day, the day of that hour. */
   private resetTimes(): void {
     const zone = this.timeZone();
     const start = nextFullHour(new Date(), zone);
     const from = wallClockOf(start, zone);
     const to = wallClockOf(addHours(start, 1), zone);
+    const endDate = this.form.controls.allDay.value ? from.date : to.date;
     this.form.patchValue(
-      { startDate: from.date, startTime: from.time, endDate: to.date, endTime: to.time },
+      { startDate: from.date, startTime: from.time, endDate, endTime: to.time },
       { emitEvent: false },
     );
   }

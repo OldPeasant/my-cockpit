@@ -1916,6 +1916,50 @@ describe('TaskDetail', () => {
       expect(calendarButton().disabled).toBe(false);
     });
 
+    it('shows 400 errors of the calendar in the save bar and opens no calendar', async () => {
+      converting(() =>
+        Promise.reject(
+          new ApiError(400, 'Bad Request', undefined, undefined, undefined, [
+            { field: 'calendarId', message: 'The calendar does not exist.' },
+          ]),
+        ),
+      );
+      await render();
+
+      await toCalendar();
+      await close(REQUEST);
+
+      expect(element.querySelector('.bar [role=alert]')?.textContent).toContain(
+        'The calendar does not exist.',
+      );
+      expect(navigate).not.toHaveBeenCalled();
+      expect(calendarButton().disabled).toBe(false);
+      expect(calendarButton().textContent?.trim()).toBe('To calendar (event)');
+    });
+
+    it('shows 400 errors of the times in the save bar next to errors of the form', async () => {
+      converting(() =>
+        Promise.reject(
+          new ApiError(400, 'Bad Request', undefined, undefined, undefined, [
+            { field: 'end', message: 'The event must end after it starts.' },
+            { field: 'title', message: 'Too long for an event title.' },
+          ]),
+        ),
+      );
+      await render();
+
+      await toCalendar();
+      await close(REQUEST);
+
+      const bar = element.querySelector('.bar [role=alert]')?.textContent ?? '';
+      expect(bar).toContain('The event must end after it starts.');
+      // The title error stays at the title only.
+      expect(bar).not.toContain('Too long for an event title.');
+      expect(text()).toContain('Too long for an event title.');
+      expect(navigate).not.toHaveBeenCalled();
+      expect(calendarButton().disabled).toBe(false);
+    });
+
     it('shows another error in the save bar, keeps the form and allows another try', async () => {
       converting(() =>
         Promise.reject(new ApiError(500, 'Internal Server Error', 'The server failed.')),

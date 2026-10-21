@@ -14,11 +14,10 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { MatDialog } from '@angular/material/dialog';
 import { Params, Router } from '@angular/router';
 import { filter } from 'rxjs';
-import { EventResponse, ItemRefDto, TaskResponse } from '../../../api/generated';
+import { ItemRefDto, TaskResponse } from '../../../api/generated';
 import { ChangeEventsService } from '../../../core/events';
 import { ApiError } from '../../../core/http';
 import { LinkedItems } from '../../../shared/links';
-import { wallClockOf } from '../../calendar/edit/event-times';
 import { ContextStore, localDate, ProjectStore } from '../data';
 import {
   ContextChips,
@@ -48,7 +47,7 @@ import {
 } from './task-draft';
 import { TaskChecklist } from './task-checklist';
 import { TaskDetailService } from './task-detail.service';
-import { askForCalendar } from './to-calendar-dialog';
+import { askForCalendar, eventStartDay } from './to-calendar-dialog';
 
 /** The lists a task can be on, in GTD order. */
 export const LIST_OPTIONS: readonly { readonly value: TaskListName; readonly label: string }[] = [
@@ -280,7 +279,7 @@ export class TaskDetail {
     if (!request || task.id !== this.taskId() || this.saving() || this.converting()) return;
     await this.convert(task, 'event', async () => {
       const event = await this.service.convertToEvent(this.task() ?? task, request);
-      return { commands: ['/calendar'], queryParams: { date: eventDate(event) } };
+      return { commands: ['/calendar'], queryParams: { date: eventStartDay(event) } };
     });
   }
 
@@ -364,9 +363,15 @@ export class TaskDetail {
       return;
     }
     if (error instanceof ApiError && error.status === 400 && error.errors.length) {
+      const errors = error.errors.map((field) => ({ ...field, field: serverField(field.field) }));
       this.serverErrors.set(
-        Object.fromEntries(error.errors.map((field) => [serverField(field.field), field.message])),
+        Object.fromEntries(errors.map((field) => [field.field, field.message])),
       );
+      // Errors of fields the form does not show (e.g. the calendar or times of "To calendar").
+      const hidden = errors.filter((field) => !Object.hasOwn(SHOWN_FIELDS, field.field));
+      if (hidden.length) {
+        this.saveError.set(hidden.map((field) => field.message).join(' ') || error.userMessage);
+      }
       return;
     }
     this.saveError.set(messageOf(error));
@@ -412,19 +417,21 @@ export class TaskDetail {
 /** What a task can be converted into. */
 type ConversionTarget = 'note' | 'event';
 
-/** The day (`yyyy-MM-dd`) `event` starts on, on its own clocks. */
-function eventDate(event: EventResponse): string {
-  if (event.allDay || !event.start) return event.startDate ?? localDate();
-  return wallClockOf(event.start, event.timeZone ?? localZone()).date;
-}
-
-function localZone(): string {
-  return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
-}
-
 const REFERENCE_CONFIRM = $localize`:@@taskDetail.referenceConfirm:Move this task to reference? It becomes a note and the task goes to the Trash.`;
 const REFERENCE_DIRTY_CONFIRM = $localize`:@@taskDetail.referenceDirtyConfirm:Move this task to reference? Your unsaved changes are discarded; the note gets the saved version.`;
 const DISCARD_CONFIRM = $localize`:@@taskDetail.discardConfirm:Discard your unsaved changes?`;
+
+/** The fields the form shows server errors under; others go to the save bar. */
+const SHOWN_FIELDS: Readonly<Record<DraftField, true>> = {
+  title: true,
+  notesMd: true,
+  estimate: true,
+  dueTime: true,
+  scheduledDate: true,
+  ticklerDate: true,
+  waitingForText: true,
+  customRule: true,
+};
 
 /** Server field names that the form shows under another field. */
 function serverField(field: string): string {

@@ -313,6 +313,43 @@ describe('ToCalendarDialog', () => {
     });
   });
 
+  it('makes the default times spanning midnight a one-day event when ticking all day', async () => {
+    // 22:30 in Zurich: the default is 23:00 until 00:00 the next day.
+    vi.setSystemTime(new Date('2026-10-21T20:30:00Z'));
+    await open();
+    expect(input('endDate')!.value).toBe('2026-10-22');
+
+    await checkAllDay();
+    expect(input('startDate')!.value).toBe('2026-10-21');
+    expect(input('endDate')!.value).toBe('2026-10-21');
+
+    // Back to timed: the default end again.
+    await checkAllDay();
+    expect(input('startTime')!.value).toBe('23:00');
+    expect(input('endDate')!.value).toBe('2026-10-22');
+    expect(input('endTime')!.value).toBe('00:00');
+
+    await checkAllDay();
+    await submit();
+    expect(ref.close).toHaveBeenCalledWith({
+      calendarId: 'family',
+      allDay: true,
+      startDate: '2026-10-21',
+      endDate: '2026-10-22',
+    });
+  });
+
+  it('keeps dates the user typed when ticking all day', async () => {
+    vi.setSystemTime(new Date('2026-10-21T20:30:00Z'));
+    await open();
+    type('endDate', '2026-10-23');
+
+    await checkAllDay();
+
+    expect(input('startDate')!.value).toBe('2026-10-21');
+    expect(input('endDate')!.value).toBe('2026-10-23');
+  });
+
   it('refuses an end before the start, and the error goes away on an edit', async () => {
     await open();
     type('startTime', '10:00');

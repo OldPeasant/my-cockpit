@@ -19,9 +19,8 @@ import {
   TaskResponse,
 } from '../../../api/generated';
 import { isTypingTarget } from '../../../shell/hotkeys';
-import { wallClockOf } from '../../calendar/edit/event-times';
 import { addDays, ContextStore, localDate, ProjectStore, TaskStore } from '../data';
-import { askForCalendar } from '../task-detail/to-calendar-dialog';
+import { askForCalendar, eventStartDay } from '../task-detail/to-calendar-dialog';
 import { ContextChips, CreativityPicker, EnergyPicker, EstimatePicker, TaskRow } from '../ui';
 import {
   actionForKey,
@@ -355,15 +354,7 @@ interface MovedEvent {
 }
 
 function movedEvent(event: EventResponse): MovedEvent {
-  const date =
-    event.allDay || !event.start
-      ? (event.startDate ?? localDate())
-      : wallClockOf(event.start, event.timeZone ?? localZone()).date;
-  return { title: event.title, date };
-}
-
-function localZone(): string {
-  return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+  return { title: event.title, date: eventStartDay(event) };
 }
 
 function ignore(): void {
