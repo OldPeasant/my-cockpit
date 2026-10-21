@@ -17,7 +17,8 @@ Local notifications for reminders (SPEC.md §9.2).
   - verified (2026-10-21 11:54+0200 by dell26/agent-4): cd android && ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.reminders.*' (ReminderSchedulerTest/ReminderAlarmsNotifierTest/ReminderBootReceiverTest/ReminderSyncTest with ShadowAlarmManager: exact vs inexact fallback, reschedule on boot/package replace/permission grant/sync) at 817a624e -> 98 tests, 0 failures
 - [x] Notification opens the item; POST_NOTIFICATIONS permission requested in context
   - verified (2026-10-21 11:54+0200 by dell26/agent-4): same run: ReminderUiTest + ReminderActivityIntentTest (Robolectric/Compose) -> tapped notification opens item screen, no reopen from Recents; POST_NOTIFICATIONS requested from in-context prompt card, Settings fallback after denial -> pass
-- [ ] `cd android && ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.reminders.*'` passes, covering scheduling/cancelling on sync changes (ShadowAlarmManager) (Robolectric/Compose UI tests for screens)
+- [x] `cd android && ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.reminders.*'` passes, covering scheduling/cancelling on sync changes (ShadowAlarmManager) (Robolectric/Compose UI tests for screens)
+  - verified (2026-10-21 11:54+0200 by dell26/agent-4): cd android && ./gradlew ktlintCheck testDebugUnitTest --rerun --tests 'ch.sonensei.cockpit.reminders.*' -> 98 tests in 9 classes, 0 failures/skips; full android testDebugUnitTest -> 781 passed
 
 ## Notes
 - From reminders-core review (CR-2, P3): `GET /api/v1/reminders/upcoming` returns reminders whose item is
