@@ -1,11 +1,11 @@
 ---
 title: Mail reading view
-status: in_progress
+status: done
 owner: dell26/agent-2
 deps: [web-mail-list,web-links-panel,mail-gtd]
 touches: [web/src/app/features/mail/read]
 prio: 1
-lease_until: 2026-10-21T16:21:23Z
+lease_until: 
 ---
 ## Goal
 Read mail safely (SPEC.md §7.3).
@@ -27,3 +27,4 @@ Read mail safely (SPEC.md §7.3).
 - ASSUMPTION (2026-10-21 17:26+0200 by dell26/agent-2): Read view route /mail/messages/:id (the server's deep link); the list opens a message with 'o' or double-click since single click only moves the cursor (existing list behavior); this edits mail.routes.ts and list/ outside touches
 - ASSUMPTION (2026-10-21 17:26+0200 by dell26/agent-2): Iframe sandbox is 'allow-same-origin allow-popups allow-popups-to-escape-sandbox' without allow-scripts: same origin lets proxied and cid: image requests carry the session cookie; plus CSP meta script-src 'none'. Opening an unread message marks it READ
 - ASSUMPTION (2026-10-21 17:35+0200 by dell26/agent-2): Save to Files stores into the drive root for now, not /Attachments/Mail (SPEC §8.2): the folder is created server-side only; follow-up task mail-attachment-to-files adds a server endpoint
+- done by dell26/agent-2: `sh scripts/check.sh` passed in 71s on ea7a1068c; criteria verified 4/4
