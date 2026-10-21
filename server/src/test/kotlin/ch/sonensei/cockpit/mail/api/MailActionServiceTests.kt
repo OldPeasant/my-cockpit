@@ -27,6 +27,7 @@ import io.mockk.mockk
 import io.mockk.verify
 import jakarta.mail.Flags
 import jakarta.mail.Folder
+import jakarta.mail.FolderNotFoundException
 import jakarta.mail.Message
 import jakarta.mail.MessagingException
 import jakarta.mail.ReadOnlyFolderException
@@ -35,6 +36,9 @@ import org.eclipse.angus.mail.imap.AppendUID
 import org.eclipse.angus.mail.imap.IMAPFolder
 import org.eclipse.angus.mail.imap.IMAPStore
 import org.junit.jupiter.api.Test
+import org.springframework.dao.DataIntegrityViolationException
+import org.springframework.dao.OptimisticLockingFailureException
+import org.springframework.orm.ObjectOptimisticLockingFailureException
 import org.springframework.transaction.PlatformTransactionManager
 import org.springframework.transaction.support.TransactionTemplate
 import java.util.Optional
@@ -42,7 +46,8 @@ import java.util.UUID
 
 /**
  * [MailActionService] with a scripted IMAP connection, for what GreenMail cannot show: servers without MOVE or
- * UIDPLUS, missing or unusable COPYUID responses, read-only folders and commands the server answers with NO.
+ * UIDPLUS, missing or unusable COPYUID responses, read-only folders, commands the server answers with NO, and cache
+ * updates that conflict with a concurrent writer.
  */
 class MailActionServiceTests {
 	private val locator = mockk<MailMessageLocator>()
@@ -289,6 +294,124 @@ class MailActionServiceTests {
 		every { folders.findById(unknown) } returns Optional.empty()
 		shouldThrow<NotFoundException> { service.apply(listOf(id), MailAction.MOVE, unknown) }
 		verify(exactly = 0) { locator.current(any()) }
+	}
+
+	/** The first [failures] flushes of the cache update throw what [conflict] returns; later ones succeed. */
+	private fun flushConflicts(
+		failures: Int,
+		conflict: () -> RuntimeException,
+	) {
+		var calls = 0
+		every { messages.flush() } answers { if (++calls <= failures) throw conflict() }
+	}
+
+	private fun versionConflict(): OptimisticLockingFailureException =
+		ObjectOptimisticLockingFailureException(MailMessage::class.java, UUID.randomUUID())
+
+	@Test
+	fun `a version conflict in the cache update is retried on fresh rows and the ids stay ok`() {
+		val message = cached(inbox, 7)
+		val found = onServer(remoteInbox, 7)
+		flushConflicts(1, ::versionConflict)
+
+		val outcomes = service.apply(listOf(message.id), MailAction.FLAG, null)
+
+		outcomes shouldBe listOf(MailActionOutcome.ok(message.id))
+		verify(exactly = 1) { remoteInbox.setFlags(found, Flags(Flags.Flag.FLAGGED), true) }
+		verify(exactly = 2) { messages.findAllById(listOf(message.id)) }
+		message.flagged shouldBe true
+		verify(exactly = 1) { changes.publish(MailFolderService.FOLDER_EVENT, inbox.id, ChangeOp.UPDATED) }
+	}
+
+	@Test
+	fun `a conflict that persists leaves the cache to the next sync and still reports the ids ok`() {
+		val message = cached(inbox, 7)
+		val found = onServer(remoteInbox, 7)
+		every { remoteInbox.moveUIDMessages(found, remoteProjects) } returns arrayOf(AppendUID(UIDVALIDITY, 41))
+		flushConflicts(Int.MAX_VALUE, ::versionConflict)
+
+		val outcomes = service.apply(listOf(message.id), MailAction.MOVE, projects.id)
+
+		outcomes shouldBe listOf(MailActionOutcome.ok(message.id))
+		verify(exactly = 2) { messages.flush() }
+		// Both folders changed on the server, so clients are told to reload them although the cache update failed.
+		verify { changes.publish(MailFolderService.FOLDER_EVENT, inbox.id, ChangeOp.UPDATED) }
+		verify { changes.publish(MailFolderService.FOLDER_EVENT, projects.id, ChangeOp.UPDATED) }
+	}
+
+	@Test
+	fun `a row a sync cached at the new UID meanwhile makes the retry drop the moved row instead of duplicating it`() {
+		val message = cached(inbox, 7)
+		val found = onServer(remoteInbox, 7)
+		every { remoteInbox.moveUIDMessages(found, remoteProjects) } returns arrayOf(AppendUID(UIDVALIDITY, 41))
+		val synced = MailMessage(account.id, projects.id, 41)
+		// The first check finds the UID free; the unique index then reports the row the sync inserted meanwhile.
+		every { messages.findByFolderIdAndUid(projects.id, 41) } returnsMany listOf(null, synced)
+		flushConflicts(1) { DataIntegrityViolationException("duplicate key value violates unique constraint") }
+		// The rollback discards the first attempt: the retry reads the row as stored, still in INBOX.
+		val fresh = MailMessage(account.id, inbox.id, 7, message.id)
+		every { messages.findAllById(listOf(message.id)) } returnsMany listOf(listOf(message), listOf(fresh))
+
+		val outcomes = service.apply(listOf(message.id), MailAction.MOVE, projects.id)
+
+		outcomes shouldBe listOf(MailActionOutcome.ok(message.id))
+		verify { messages.delete(refEq(fresh)) }
+		fresh.folderId shouldBe inbox.id
+	}
+
+	@Test
+	fun `without MOVE a failing cleanup after a successful copy keeps the COPYUID and reports ok`() {
+		capabilities(move = false, uidplus = true)
+		val message = cached(inbox, 7)
+		val found = onServer(remoteInbox, 7)
+		every { remoteInbox.copyUIDMessages(found, remoteProjects) } returns arrayOf(AppendUID(UIDVALIDITY, 41))
+		every { remoteInbox.setFlags(found, Flags(Flags.Flag.DELETED), true) } throws
+			MessagingException("NO flags not allowed", CommandFailedException("NO flags not allowed"))
+
+		val outcomes = service.apply(listOf(message.id), MailAction.MOVE, projects.id)
+
+		outcomes shouldBe listOf(MailActionOutcome.ok(message.id))
+		verify(exactly = 1) { remoteInbox.copyUIDMessages(any(), any()) }
+		verify(exactly = 0) { remoteInbox.expunge(any()) }
+		verify(exactly = 0) { remoteInbox.expunge() }
+		message.folderId shouldBe projects.id
+		message.uid shouldBe 41
+	}
+
+	@Test
+	fun `a target folder missing on the server fails the ids with REJECTED and leaves the cache alone`() {
+		val message = cached(inbox, 7)
+		val found = onServer(remoteInbox, 7)
+		every { remoteInbox.moveUIDMessages(found, remoteProjects) } throws
+			FolderNotFoundException(remoteProjects, "Projects does not exist")
+
+		service.apply(listOf(message.id), MailAction.MOVE, projects.id).single().errorCode shouldBe "REJECTED"
+		message.folderId shouldBe inbox.id
+		message.uid shouldBe 7
+		verify(exactly = 0) { changes.publish(any<Enum<*>>(), any(), any()) }
+	}
+
+	@Test
+	fun `a permanent delete of a linked message detaches its row instead of deleting it`() {
+		val message = cached(trash, 3)
+		every { links.linksOf(ItemRef(ItemType.EMAIL, message.id)) } returns listOf(mockk<ResolvedLink>())
+		onServer(remoteTrash, 3)
+
+		service.apply(listOf(message.id), MailAction.DELETE, null) shouldBe listOf(MailActionOutcome.ok(message.id))
+
+		verify(exactly = 0) { messages.delete(any()) }
+		message.uid shouldBe null
+		message.folderId shouldBe trash.id
+	}
+
+	@Test
+	fun `a source folder with another UIDVALIDITY than cached fails the ids with NOT_FOUND`() {
+		val message = cached(inbox, 7)
+		every { remoteInbox.uidValidity } returns UIDVALIDITY + 1
+
+		service.apply(listOf(message.id), MailAction.READ, null).single().errorCode shouldBe "NOT_FOUND"
+		verify(exactly = 0) { remoteInbox.getMessagesByUID(any<LongArray>()) }
+		message.seen shouldBe false
 	}
 
 	private companion object {

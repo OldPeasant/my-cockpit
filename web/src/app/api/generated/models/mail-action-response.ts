@@ -3,5 +3,9 @@
 
 import { MailActionResultResponse } from '../models/mail-action-result-response';
 export interface MailActionResponse {
-  results?: Array<MailActionResultResponse>;
+
+  /**
+   * One result per distinct requested id, in request order
+   */
+  results: Array<MailActionResultResponse>;
 }

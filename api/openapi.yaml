@@ -6979,25 +6979,35 @@ components:
       properties:
         results:
           type: array
+          description: "One result per distinct requested id, in request order"
           items:
             $ref: "#/components/schemas/MailActionResultResponse"
+      required:
+      - results
     MailActionResultResponse:
       type: object
       properties:
         detail:
-          type: string
-          description: "A message for the failure, safe to show"
+          type:
+          - string
+          - "null"
+          description: "A message for the failure, safe to show; `null` on success"
         errorCode:
-          type: string
+          type:
+          - string
+          - "null"
           description: Why it failed; `null` on success
         id:
           type: string
           format: uuid
+          description: The requested id
         ok:
           type: boolean
       required:
       - detail
       - errorCode
+      - id
+      - ok
     MailAddressResponse:
       type: object
       properties:

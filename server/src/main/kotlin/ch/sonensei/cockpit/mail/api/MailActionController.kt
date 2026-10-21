@@ -82,14 +82,21 @@ class MailActionRequest(
 }
 
 data class MailActionResponse(
+	@field:Schema(requiredMode = RequiredMode.REQUIRED, description = "One result per distinct requested id, in request order")
 	val results: List<MailActionResultResponse>,
 )
 
 data class MailActionResultResponse(
+	@field:Schema(requiredMode = RequiredMode.REQUIRED, description = "The requested id")
 	val id: UUID,
+	@field:Schema(requiredMode = RequiredMode.REQUIRED)
 	val ok: Boolean,
-	@field:Schema(requiredMode = RequiredMode.REQUIRED, nullable = true, description = "Why it failed; `null` on success")
+	@field:Schema(requiredMode = RequiredMode.REQUIRED, types = ["string", "null"], description = "Why it failed; `null` on success")
 	val errorCode: String?,
-	@field:Schema(requiredMode = RequiredMode.REQUIRED, nullable = true, description = "A message for the failure, safe to show")
+	@field:Schema(
+		requiredMode = RequiredMode.REQUIRED,
+		types = ["string", "null"],
+		description = "A message for the failure, safe to show; `null` on success",
+	)
 	val detail: String?,
 )

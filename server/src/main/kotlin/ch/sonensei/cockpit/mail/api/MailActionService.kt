@@ -29,6 +29,8 @@ import org.eclipse.angus.mail.imap.AppendUID
 import org.eclipse.angus.mail.imap.IMAPFolder
 import org.eclipse.angus.mail.imap.IMAPStore
 import org.slf4j.LoggerFactory
+import org.springframework.dao.DataIntegrityViolationException
+import org.springframework.dao.OptimisticLockingFailureException
 import org.springframework.stereotype.Service
 import org.springframework.transaction.support.TransactionTemplate
 import java.util.UUID
@@ -90,8 +92,17 @@ data class MailActionOutcome(
  * Flags are stored with `UID STORE`. Moves use `UID MOVE` (RFC 6851), else `UID COPY` + `\Deleted` + expunge; the
  * cached row keeps its id and gets the new location from `COPYUID` (UIDPLUS), so links, the body cache and clients'
  * ids stay valid. Without `COPYUID` the row is detached (kept for links) or removed, and the next sync of the target
- * folder brings it back. A permanent delete expunges only the deleted messages with `UID EXPUNGE` when the server
- * supports UIDPLUS, else with a plain `EXPUNGE`. Folders whose content changed publish a `MAIL_FOLDER` change event.
+ * folder brings it back. When the `UID COPY` succeeded but marking or expunging the source copies failed, the move
+ * still counts as done (the copies exist in the target, and repeating the action would copy them again): the ids are
+ * reported as ok, the rows follow `COPYUID`, and the source copies stay on the server (flagged `\Deleted` when that
+ * part worked) until a client expunges that folder; the next sync of the source folder shows them again. A permanent
+ * delete expunges only the deleted messages with `UID EXPUNGE` when the server supports UIDPLUS, else with a plain
+ * `EXPUNGE`. Folders whose content changed publish a `MAIL_FOLDER` change event.
+ *
+ * The cache is updated after the server command, per source folder, without the lock of the header sync. When a
+ * concurrent writer (another action, a sync) changed the same rows, the update is retried once on freshly read rows;
+ * if that fails as well, the cache is left as it is and the next sync of the folders concerned repairs it. Either way
+ * the ids count as done, because the server already applied the action.
  */
 @Service
 class MailActionService(
@@ -253,6 +264,10 @@ class MailActionService(
 					}
 				}
 			return Remote.Done(missing, newUids)
+		} catch (e: FolderNotFoundException) {
+			// The target folder is gone on the server (`NO [TRYCREATE]`); Angus throws this without a server response.
+			log.debug("The target folder of a mail action does not exist on the server", e)
+			return Remote.Rejected
 		} catch (e: MessagingException) {
 			if (generateSequence<Throwable>(e) { it.cause }.any { it is CommandFailedException || it is BadCommandException }) {
 				log.debug("The mail server rejected an action", e)
@@ -264,7 +279,10 @@ class MailActionService(
 		}
 	}
 
-	/** Moves [selected] (UIDs [uids], same order) and returns their new UIDs where the server reported them. */
+	/**
+	 * Moves [selected] (UIDs [uids], same order) and returns their new UIDs where the server reported them. Without
+	 * MOVE, a failure after the copy succeeded is only logged: the move counts as done (see the class KDoc).
+	 */
 	private fun move(
 		store: IMAPStore,
 		folder: IMAPFolder,
@@ -278,8 +296,14 @@ class MailActionService(
 				folder.moveUIDMessages(selected, target)
 			} else {
 				folder.copyUIDMessages(selected, target).also {
-					folder.setFlags(selected, Flags(Flags.Flag.DELETED), true)
-					expunge(store, folder, selected)
+					try {
+						folder.setFlags(selected, Flags(Flags.Flag.DELETED), true)
+						expunge(store, folder, selected)
+					} catch (e: MessagingException) {
+						// The cause may hold server responses; keep it at DEBUG.
+						log.info("Copied messages for a move, but could not remove them from the source folder")
+						log.debug("Source cleanup failure", e)
+					}
 				}
 			}
 		if (copied == null) return emptyMap()
@@ -294,7 +318,11 @@ class MailActionService(
 		if (store.hasCapability("UIDPLUS")) folder.expunge(selected) else folder.expunge()
 	}
 
-	/** Applies what the server did to the cached rows [moved] (re-read in one transaction), then announces it. */
+	/**
+	 * Applies what the server did to the cached rows [moved] (re-read in one transaction), then announces it. A
+	 * conflict with a concurrent writer is retried once on fresh rows, then left to the next sync; it never fails the
+	 * request, because the server already changed.
+	 */
 	private fun updateCache(
 		source: MailFolder,
 		moved: List<MailMessage>,
@@ -302,22 +330,52 @@ class MailActionService(
 		newUids: Map<Long, AppendUID>,
 	) {
 		if (moved.isEmpty()) return
-		transactions.executeWithoutResult {
-			val rows = messages.findAllById(moved.map { it.id }).filter { it.folderId == source.id && it.uid != null }
-			for (row in rows) {
-				when (operation) {
-					is Operation.SetFlag ->
-						when (operation.flag) {
-							Flags.Flag.SEEN -> row.seen = operation.value
-							else -> row.flagged = operation.value
-						}
-					is Operation.Move -> relocate(row, operation.destination, newUids[row.uid])
-					Operation.Expunge -> remove(row)
-				}
+		val ids = moved.map { it.id }
+		for (attempt in 1..CACHE_ATTEMPTS) {
+			try {
+				transactions.executeWithoutResult { applyToRows(source, ids, operation, newUids) }
+				break
+			} catch (e: OptimisticLockingFailureException) {
+				cacheConflict(attempt, e)
+			} catch (e: DataIntegrityViolationException) {
+				cacheConflict(attempt, e)
 			}
-			messages.flush()
-			changes.publish(MailFolderService.FOLDER_EVENT, source.id, ChangeOp.UPDATED)
-			if (operation is Operation.Move) changes.publish(MailFolderService.FOLDER_EVENT, operation.destination.id, ChangeOp.UPDATED)
+		}
+		// Published outside the transaction, so the folders are announced also when the cache is left to the next sync.
+		changes.publish(MailFolderService.FOLDER_EVENT, source.id, ChangeOp.UPDATED)
+		if (operation is Operation.Move) changes.publish(MailFolderService.FOLDER_EVENT, operation.destination.id, ChangeOp.UPDATED)
+	}
+
+	private fun applyToRows(
+		source: MailFolder,
+		ids: List<UUID>,
+		operation: Operation,
+		newUids: Map<Long, AppendUID>,
+	) {
+		val rows = messages.findAllById(ids).filter { it.folderId == source.id && it.uid != null }
+		for (row in rows) {
+			when (operation) {
+				is Operation.SetFlag ->
+					when (operation.flag) {
+						Flags.Flag.SEEN -> row.seen = operation.value
+						else -> row.flagged = operation.value
+					}
+				is Operation.Move -> relocate(row, operation.destination, newUids[row.uid])
+				Operation.Expunge -> remove(row)
+			}
+		}
+		messages.flush()
+	}
+
+	private fun cacheConflict(
+		attempt: Int,
+		e: RuntimeException,
+	) {
+		if (attempt < CACHE_ATTEMPTS) {
+			log.debug("A mail action's cache update conflicted with a concurrent change; retrying", e)
+		} else {
+			log.info("Mail action applied on the server; its cache update is left to the next sync after a concurrent change")
+			log.debug("Mail action cache update conflict", e)
 		}
 	}
 
@@ -349,6 +407,11 @@ class MailActionService(
 		id: UUID,
 		error: MailActionError,
 	) = MailActionOutcome.failed(id, error.name, error.message)
+
+	private companion object {
+		/** The cache update and one retry on freshly read rows. */
+		const val CACHE_ATTEMPTS = 2
+	}
 
 	private sealed interface Operation {
 		data class SetFlag(

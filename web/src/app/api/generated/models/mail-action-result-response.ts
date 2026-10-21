@@ -4,14 +4,18 @@
 export interface MailActionResultResponse {
 
   /**
-   * A message for the failure, safe to show
+   * A message for the failure, safe to show; `null` on success
    */
-  detail: string;
+  detail: (string | null);
 
   /**
    * Why it failed; `null` on success
    */
-  errorCode: string;
-  id?: string;
-  ok?: boolean;
+  errorCode: (string | null);
+
+  /**
+   * The requested id
+   */
+  id: string;
+  ok: boolean;
 }
