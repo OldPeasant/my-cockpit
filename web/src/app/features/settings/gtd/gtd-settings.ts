@@ -9,7 +9,7 @@ import { firstValueFrom } from 'rxjs';
 import { AreaResponse, ContextResponse } from '../../../api/generated';
 import { ApiError } from '../../../core/http';
 import { DeleteDialog, DeleteDialogData, DeleteDialogResult } from './delete-dialog';
-import { GtdSettingsService } from './gtd-settings.service';
+import { GtdSettingsService, ReassignError } from './gtd-settings.service';
 
 /** The two lists of this section. */
 export type GtdListKind = 'context' | 'area';
@@ -84,7 +84,7 @@ export default class GtdSettings implements OnInit {
       if (kind === 'context') this.contexts.set(await this.service.contexts());
       else this.areas.set(await this.service.areas());
     } catch (error) {
-      this.setIn(this.loadError, kind, message(error));
+      this.setIn(this.loadError, kind, message(kind, error));
     }
   }
 
@@ -149,7 +149,10 @@ export default class GtdSettings implements OnInit {
     void this.reorder(kind, event.previousIndex, event.currentIndex);
   }
 
-  /** Moves the item at `from` to `to` at once and saves the new order; a failure restores the old one. */
+  /**
+   * Moves the item at `from` to `to` at once and saves the new order. A failure restores the old
+   * order, keeping a rename or color change saved meanwhile (with its new version).
+   */
   protected async reorder(kind: GtdListKind, from: number, to: number): Promise<void> {
     const list = this.list(kind);
     if (!list || from === to || to < 0 || to >= list.length || this.busy().has(kind)) return;
@@ -160,7 +163,8 @@ export default class GtdSettings implements OnInit {
     const saved = await this.run<readonly (ContextResponse | AreaResponse)[]>(kind, () =>
       kind === 'context' ? this.service.orderContexts(ids) : this.service.orderAreas(ids),
     );
-    this.setList(kind, saved ?? list);
+    if (saved) this.setList(kind, saved);
+    else this.restoreOrder(kind, list);
   }
 
   protected async removeContext(context: ContextResponse): Promise<void> {
@@ -271,9 +275,10 @@ export default class GtdSettings implements OnInit {
     try {
       return await action();
     } catch (error) {
-      this.setIn(this.error, kind, message(error));
-      // Changed or deleted elsewhere meanwhile: show the current state.
-      if (error instanceof ApiError && (error.status === 404 || error.status === 412)) {
+      this.setIn(this.error, kind, message(kind, error));
+      // The context or area was changed or deleted elsewhere meanwhile: show the current state.
+      // (A failed reassignment left the list as it was, so there is nothing to reload.)
+      if (isStale(error)) {
         void this.load(kind);
       }
       return undefined;
@@ -287,6 +292,16 @@ export default class GtdSettings implements OnInit {
   private setList(kind: GtdListKind, items: readonly (ContextResponse | AreaResponse)[]): void {
     if (kind === 'context') this.contexts.set(items as ContextResponse[]);
     else this.areas.set(items as AreaResponse[]);
+  }
+
+  /** Puts the current items back in the order of `old` (items not in it go last). */
+  private restoreOrder(kind: GtdListKind, old: readonly Item[]): void {
+    const rank = new Map(old.map((item, index) => [item.id, index]));
+    const at = (item: Item): number => rank.get(item.id) ?? old.length;
+    this.setList(
+      kind,
+      [...(this.list(kind) ?? [])].sort((a, b) => at(a) - at(b)),
+    );
   }
 
   private replace(kind: GtdListKind, saved: ContextResponse | AreaResponse): void {
@@ -309,8 +324,18 @@ function notBlank(control: { value: string }): { blank: true } | null {
   return control.value.trim() ? null : { blank: true };
 }
 
-function message(error: unknown): string {
-  if (error instanceof ApiError && (error.status === 404 || error.status === 412)) {
+function isStale(error: unknown): boolean {
+  return error instanceof ApiError && (error.status === 404 || error.status === 412);
+}
+
+function message(kind: GtdListKind, error: unknown): string {
+  if (error instanceof ReassignError) {
+    if (!isStale(error.cause)) return message(kind, error.cause);
+    return kind === 'context'
+      ? $localize`:@@gtdSettings.reassignStale.context:Some tasks were changed elsewhere in the meantime, so nothing was deleted. Please try again.`
+      : $localize`:@@gtdSettings.reassignStale.area:Some projects were changed elsewhere in the meantime, so nothing was deleted. Please try again.`;
+  }
+  if (isStale(error)) {
     return $localize`:@@gtdSettings.stale:It was changed elsewhere in the meantime; the list now shows the current state.`;
   }
   return error instanceof ApiError

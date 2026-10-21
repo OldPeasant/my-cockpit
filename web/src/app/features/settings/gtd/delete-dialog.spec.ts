@@ -119,4 +119,24 @@ describe('DeleteDialog', () => {
     // A bare `mat-dialog-close` closes with '' (no result object): the caller treats it as cancel.
     expect(ref.close.mock.calls[0][0]).toBeFalsy();
   });
+
+  it('says that tasks in the tickler or the Trash only lose the context when moving', async () => {
+    await open({ kind: 'context', name: '@home', count: 2, others: OTHERS });
+    expect(root.textContent).not.toContain('tickler');
+    await chooseMove();
+    const hint = root.querySelector<HTMLElement>('#delete-move-hint')!;
+    expect(hint.textContent?.trim()).toBe('Tasks in the tickler or the Trash just lose it.');
+    expect(root.querySelector('select.target')!.getAttribute('aria-describedby')).toBe(
+      'delete-move-hint',
+    );
+  });
+
+  it('says that projects in the Trash are left without an area when moving', async () => {
+    await open({ kind: 'area', name: 'Work', count: 1, others: [{ id: 'a-f', name: 'Family' }] });
+    expect(root.querySelector('#delete-move-hint')).toBeNull();
+    await chooseMove();
+    expect(root.querySelector('#delete-move-hint')!.textContent?.trim()).toBe(
+      'Projects in the Trash are left without an area.',
+    );
+  });
 });

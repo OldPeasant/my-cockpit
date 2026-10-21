@@ -754,6 +754,33 @@ describe('GtdSettings', () => {
       // The old order comes back, but the saved rename (and its new version) must stay.
       expect(names('contexts')).toEqual(['@home', '@mobile', '@errands']);
     });
+
+    it('keeps a color change and its new version when a reorder fails meanwhile', async () => {
+      await setup();
+      button('Move @errands up').click();
+      await settle();
+      const put = http.expectOne({ method: 'PUT', url: '/api/v1/contexts/order' });
+
+      change(nameInput('Color of @home'), '#00aa00');
+      await settle();
+      http
+        .expectOne({ method: 'PATCH', url: `/api/v1/contexts/${HOME.id}` })
+        .flush({ ...HOME, color: '#00aa00', version: 2 });
+      await settle();
+
+      put.flush(...problem(500, 'Server down'));
+      await settle();
+
+      expect(names('contexts')).toEqual(['@home', '@phone', '@errands']);
+      expect(nameInput('Color of @home').value).toBe('#00aa00');
+      // The next change of @home sends the new version.
+      change(nameInput('Name of @home'), '@house');
+      await settle();
+      const patch = http.expectOne({ method: 'PATCH', url: `/api/v1/contexts/${HOME.id}` });
+      expect(patch.request.headers.get('If-Match')).toBe('"2"');
+      patch.flush({ ...HOME, name: '@house', color: '#00aa00', version: 3 });
+      await settle();
+    });
   });
 
   describe('delete edge cases', () => {
@@ -807,7 +834,7 @@ describe('GtdSettings', () => {
       expect(document.querySelector('mat-radio-button[value="move"]')).toBeNull();
     });
 
-    it('keeps the context, does not delete it and reloads when reassigning a task fails', async () => {
+    it('keeps the context, does not delete it and blames the tasks when reassigning one fails', async () => {
       await setup();
       button('Delete @home').click();
       await settle();
@@ -832,13 +859,88 @@ describe('GtdSettings', () => {
       await settle();
 
       http.expectNone({ method: 'DELETE' });
+      // The context list did not change, so it is not reloaded and not blamed.
+      http.expectNone({ method: 'GET', url: '/api/v1/contexts' });
+      expect(names('contexts')).toEqual(['@home', '@phone', '@errands']);
+      expect(errorText()).toContain(
+        'Some tasks were changed elsewhere in the meantime, so nothing was deleted. Please try again.',
+      );
+      expect(errorText()).not.toContain('the list now shows the current state');
+      expect(button('Delete @home').disabled).toBe(false);
+    });
+
+    it('blames the projects when moving one fails because it was deleted elsewhere', async () => {
+      await setup();
+      button('Delete Work').click();
+      await settle();
+      const projects = [{ id: 'p1', title: 'Fictitious launch', areaId: WORK.id, version: 1 }];
+      http.expectOne((r) => r.url === '/api/v1/projects').flush({ items: projects });
+      await settle();
+      document.querySelector<HTMLInputElement>('mat-radio-button[value="move"] input')!.click();
+      await settle();
+      dialogButton('Delete').click();
+
+      (await closedThen((r) => r.url === '/api/v1/projects')).flush({ items: projects });
+      await settle();
+      http
+        .expectOne({ method: 'PATCH', url: '/api/v1/projects/p1' })
+        .flush(...problem(404, 'No such project'));
+      await settle();
+
+      http.expectNone({ method: 'DELETE' });
+      http.expectNone({ method: 'GET', url: '/api/v1/areas' });
+      expect(names('areas')).toEqual(['Work', 'Family']);
+      expect(errorText()).toContain(
+        'Some projects were changed elsewhere in the meantime, so nothing was deleted. Please try again.',
+      );
+    });
+
+    it('shows the error of the move step itself when it is not a conflict', async () => {
+      await setup();
+      button('Delete @home').click();
+      await settle();
+      const tasks = [task('t1', [HOME.id])];
+      await flushAssignedTasks(tasks);
+      document.querySelector<HTMLInputElement>('mat-radio-button[value="move"] input')!.click();
+      await settle();
+      dialogButton('Delete').click();
+
+      (
+        await closedThen((r) => r.url === '/api/v1/tasks' && r.params.get('completed') === 'false')
+      ).flush({ items: tasks });
+      await settle();
+      http
+        .expectOne((r) => r.url === '/api/v1/tasks' && r.params.get('completed') === 'true')
+        .flush({ items: [] });
+      await settle();
+      http
+        .expectOne({ method: 'PATCH', url: '/api/v1/tasks/t1' })
+        .flush(...problem(500, 'Server down'));
+      await settle();
+
+      http.expectNone({ method: 'DELETE' });
+      http.expectNone({ method: 'GET', url: '/api/v1/contexts' });
+      expect(errorText()).toContain('Server down');
+    });
+
+    it('reloads the list when the delete itself finds the context changed elsewhere', async () => {
+      await setup();
+      button('Delete @phone').click();
+      await settle();
+      await flushAssignedTasks([]);
+      dialogButton('Delete').click();
+
+      (await closedThen({ method: 'DELETE', url: `/api/v1/contexts/${PHONE.id}` })).flush(
+        ...problem(412, 'Version mismatch'),
+      );
+      await settle();
       http
         .expectOne({ method: 'GET', url: '/api/v1/contexts' })
-        .flush({ items: [HOME, PHONE, ERRANDS] });
+        .flush({ items: [HOME, { ...PHONE, version: 2 }, ERRANDS] });
       await settle();
+
       expect(names('contexts')).toEqual(['@home', '@phone', '@errands']);
-      expect(errorText()).toContain('changed elsewhere');
-      expect(button('Delete @home').disabled).toBe(false);
+      expect(errorText()).toContain('the list now shows the current state');
     });
 
     it('keeps the area and shows the error when the delete itself fails', async () => {

@@ -8,7 +8,7 @@ import {
   TaskResponse,
 } from '../../../api/generated';
 import { ApiError, NotificationService, provideHttp, SILENT_ERRORS } from '../../../core/http';
-import { GtdSettingsService } from './gtd-settings.service';
+import { GtdSettingsService, ReassignError } from './gtd-settings.service';
 
 const tick = (): Promise<void> => new Promise((resolve) => setTimeout(resolve));
 
@@ -190,8 +190,11 @@ describe('GtdSettingsService', () => {
       .flush({ status: 412, title: 'Precondition Failed' }, { status: 412, statusText: 'Failed' });
 
     const error = await done.catch((e: unknown) => e);
-    expect(error).toBeInstanceOf(ApiError);
-    expect((error as ApiError).status).toBe(412);
+    // Told apart from a failing DELETE: the error of the move step is the cause.
+    expect(error).toBeInstanceOf(ReassignError);
+    const cause = (error as ReassignError).cause;
+    expect(cause).toBeInstanceOf(ApiError);
+    expect((cause as ApiError).status).toBe(412);
     http.expectNone({ method: 'DELETE' });
     expect(notifications.error).not.toHaveBeenCalled();
   });
@@ -262,9 +265,34 @@ describe('GtdSettingsService', () => {
     );
 
     const error = await done.catch((e: unknown) => e);
-    expect((error as ApiError).status).toBe(500);
+    expect(error).toBeInstanceOf(ReassignError);
+    expect(((error as ReassignError).cause as ApiError).status).toBe(500);
     http.expectNone({ method: 'PATCH', url: '/api/v1/tasks/t-next' });
     http.expectNone({ method: 'DELETE' });
     expect(notifications.error).not.toHaveBeenCalled();
+  });
+
+  it('rejects with the plain API error when the delete itself fails after the move', async () => {
+    const done = service.deleteContext(HOME, PHONE.id);
+    http
+      .expectOne((r) => r.url === '/api/v1/tasks' && r.params.get('completed') === 'false')
+      .flush({ items: [task('t1', [HOME.id])] });
+    await tick();
+    http
+      .expectOne((r) => r.url === '/api/v1/tasks' && r.params.get('completed') === 'true')
+      .flush({ items: [] });
+    await tick();
+    http
+      .expectOne({ method: 'PATCH', url: '/api/v1/tasks/t1' })
+      .flush({ ...task('t1', [PHONE.id]), version: 2 });
+    await tick();
+    http
+      .expectOne({ method: 'DELETE', url: `/api/v1/contexts/${HOME.id}` })
+      .flush({ status: 412, title: 'Precondition Failed' }, { status: 412, statusText: 'Failed' });
+
+    const error = await done.catch((e: unknown) => e);
+    expect(error).not.toBeInstanceOf(ReassignError);
+    expect(error).toBeInstanceOf(ApiError);
+    expect((error as ApiError).status).toBe(412);
   });
 });
