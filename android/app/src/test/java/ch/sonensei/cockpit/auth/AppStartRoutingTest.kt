@@ -63,7 +63,8 @@ class AppStartRoutingTest {
     @Before
     fun setUp() {
         hilt.inject()
-        // The shell's start screen (Today) loads GTD data, which schedules the periodic GTD sync.
+        // The shell's start screen (Today) loads GTD data, which schedules the periodic GTD sync,
+        // and the shell starts the reminder sync.
         WorkManagerTestInitHelper.initializeTestWorkManager(ApplicationProvider.getApplicationContext())
     }
 

@@ -2,6 +2,7 @@ package ch.sonensei.cockpit.reminders
 
 import android.content.Context
 import android.content.SharedPreferences
+import androidx.core.content.edit
 import ch.sonensei.cockpit.core.network.generated.models.ReminderResponse
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -60,7 +61,7 @@ class ReminderStore
 
         @Synchronized
         fun replaceScheduled(reminders: List<ScheduledReminder>) {
-            prefs.edit().putString(KEY_SCHEDULED, json.encodeToString(reminders)).apply()
+            prefs.edit { putString(KEY_SCHEDULED, json.encodeToString(reminders)) }
             scheduledState.value = reminders
         }
 
@@ -69,13 +70,13 @@ class ReminderStore
 
         @Synchronized
         fun markNotified(id: String) {
-            prefs.edit().putStringSet(KEY_NOTIFIED, notifiedIds() + id).apply()
+            prefs.edit { putStringSet(KEY_NOTIFIED, notifiedIds() + id) }
         }
 
         /** Forgets notified ids that are not in [keep]: the server no longer lists them, so they cannot come back. */
         @Synchronized
         fun retainNotified(keep: Set<String>) {
-            prefs.edit().putStringSet(KEY_NOTIFIED, notifiedIds().intersect(keep)).apply()
+            prefs.edit { putStringSet(KEY_NOTIFIED, notifiedIds().intersect(keep)) }
         }
 
         @Synchronized
@@ -83,7 +84,7 @@ class ReminderStore
 
         @Synchronized
         fun dismissPrompt() {
-            prefs.edit().putBoolean(KEY_PROMPT_DISMISSED, true).apply()
+            prefs.edit { putBoolean(KEY_PROMPT_DISMISSED, true) }
         }
 
         @Synchronized
@@ -91,12 +92,12 @@ class ReminderStore
 
         @Synchronized
         fun markNotificationPermissionRequested() {
-            prefs.edit().putBoolean(KEY_PERMISSION_REQUESTED, true).apply()
+            prefs.edit { putBoolean(KEY_PERMISSION_REQUESTED, true) }
         }
 
         @Synchronized
         fun clear() {
-            prefs.edit().clear().apply()
+            prefs.edit { clear() }
             scheduledState.value = emptyList()
         }
 
