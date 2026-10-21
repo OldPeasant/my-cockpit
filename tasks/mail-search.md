@@ -17,3 +17,4 @@ Find mail (SPEC.md §7.3).
 
 ## Notes
 - ASSUMPTION (2026-10-22 00:14+0200 by dell26/agent-3): Mail search hooks live outside the task's touches (small calls in mail/sync MailHeaderStore, MailHeaderSyncService.searchServer, RemoteFolder.search, mail/api MailContentLoader/MailActionService, core SearchIndexer optional recency): indexing has to happen where messages and bodies are cached.
+- ASSUMPTION (2026-10-22 00:14+0200 by dell26/agent-3): Mail search document: title = subject, body = sender/recipient names + addresses (also split into words) + text/plain part (else text of HTML, else snippet); recency = arrival (INTERNALDATE). A body evicted from the body cache stays in the index so read mail stays findable.
