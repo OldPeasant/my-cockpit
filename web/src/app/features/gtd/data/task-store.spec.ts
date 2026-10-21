@@ -4,10 +4,12 @@ import {
   Api,
   ChangeEvent,
   completeTask,
+  convertTaskToNote,
   createTask,
   deleteTask,
   listTasks,
   moveTask,
+  NoteResponse,
   TaskResponse,
   uncompleteTask,
   updateTask,
@@ -35,6 +37,21 @@ function task(id: string, fields: Partial<TaskResponse> = {}): TaskResponse {
     updatedAt: '2026-10-01T08:00:00Z',
     version: 1,
     ...fields,
+  };
+}
+
+function note(id: string): NoteResponse {
+  return {
+    id,
+    title: 'Reading list',
+    displayTitle: 'Reading list',
+    bodyMd: 'Books for the winter',
+    tags: [],
+    pinned: false,
+    archived: false,
+    createdAt: '2026-10-02T08:00:00Z',
+    updatedAt: '2026-10-02T08:00:00Z',
+    version: 1,
   };
 }
 
@@ -436,6 +453,50 @@ describe('TaskStore', () => {
     expect(callsOf(deleteTask)[0].params).toEqual({ id: 'a', 'If-Match': '"1"' });
     callsOf(deleteTask)[0].resolve(undefined);
     await removed;
+    expect(store.items()).toEqual([]);
+  });
+
+  it('converts a task to a note: it leaves the list at once and the note is returned', async () => {
+    const a = task('a', { list: 'INBOX', version: 4 });
+    const done = store.load({ list: 'INBOX' });
+    callsOf(listTasks)[0].resolve(page([a, task('b', { list: 'INBOX', position: 2 })]));
+    await done;
+
+    const converted = store.convertToNote(a);
+    expect(store.items().map((t) => t.id)).toEqual(['b']);
+    expect(callsOf(convertTaskToNote)[0].params).toEqual({ id: 'a', 'If-Match': '"4"' });
+
+    const created = note('n1');
+    callsOf(convertTaskToNote)[0].resolve(created);
+    expect(await converted).toEqual(created);
+    // The task is gone on the server (trashed): it stays out of the list, and no note is added.
+    expect(store.items().map((t) => t.id)).toEqual(['b']);
+  });
+
+  it('brings a task back when converting it to a note fails, and rethrows the error', async () => {
+    const a = task('a');
+    await loaded([a, task('b', { position: 2 })]);
+
+    const converted = store.convertToNote(a);
+    expect(store.items().map((t) => t.id)).toEqual(['b']);
+    const error = new Error('412');
+    callsOf(convertTaskToNote)[0].reject(error);
+    await expect(converted).rejects.toBe(error);
+    expect(store.items().map((t) => t.id)).toEqual(['a', 'b']);
+  });
+
+  it('keeps a converted task out of a list answer requested before the conversion', async () => {
+    const a = task('a');
+    await loaded([a]);
+    const refetch = store.refresh();
+
+    const converted = store.convertToNote(a);
+    callsOf(convertTaskToNote)[0].resolve(note('n1'));
+    await converted;
+    // The older list answer still contains the task.
+    callsOf(listTasks).at(-1)!.resolve(page([a]));
+    await refetch;
+
     expect(store.items()).toEqual([]);
   });
 

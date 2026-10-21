@@ -1,18 +1,20 @@
 import { HttpContext } from '@angular/common/http';
 import { Component, signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
-import { provideRouter } from '@angular/router';
+import { provideRouter, Router } from '@angular/router';
 import { Subject } from 'rxjs';
 import {
   Api,
   ChangeEvent,
   ChecklistItemResponse,
+  convertTaskToNote,
   getTask,
   listChecklistItems,
   listContexts,
   listLinks,
   listProjects,
   moveTask,
+  NoteResponse,
   ProjectResponse,
   TaskResponse,
   updateTask,
@@ -1171,5 +1173,233 @@ describe('TaskDetail', () => {
     expect(field<HTMLSelectElement>('#td-list').value).toBe('NEXT');
     expect(field<HTMLElement>('.bar-status').textContent?.trim()).toBe('');
     expect(saveButton().disabled).toBe(true);
+  });
+
+  describe('to reference', () => {
+    const NOTE: NoteResponse = {
+      id: 'n1',
+      title: 'Call the plumber',
+      displayTitle: 'Call the plumber',
+      bodyMd: '',
+      tags: [],
+      pinned: false,
+      archived: false,
+      createdAt: '2026-10-20T10:00:00Z',
+      updatedAt: '2026-10-20T10:00:00Z',
+      version: 1,
+    };
+    const referenceButton = () => field<HTMLButtonElement>('button.reference');
+    let navigate: ReturnType<typeof vi.spyOn>;
+
+    async function toReference(): Promise<void> {
+      referenceButton().click();
+      await refresh();
+    }
+
+    beforeEach(() => {
+      navigate = vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
+    });
+
+    afterEach(() => vi.restoreAllMocks());
+
+    const converting = (result: () => Promise<unknown>) => {
+      answer = (fn) => (fn === convertTaskToNote ? result() : undefined);
+    };
+
+    it('does nothing when the user cancels the confirmation', async () => {
+      const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
+      await render();
+
+      await toReference();
+
+      expect(confirm).toHaveBeenCalledWith(
+        'Move this task to reference? It becomes a note and the task goes to the Trash.',
+      );
+      expect(callsOf(convertTaskToNote)).toHaveLength(0);
+      expect(navigate).not.toHaveBeenCalled();
+      expect(referenceButton().textContent?.trim()).toBe('To reference (note)');
+      expect(referenceButton().disabled).toBe(false);
+    });
+
+    it('converts the task silently with If-Match after confirming, then opens the note', async () => {
+      vi.spyOn(window, 'confirm').mockReturnValue(true);
+      converting(() => Promise.resolve(NOTE));
+      await render(task({ version: 4 }));
+
+      await toReference();
+
+      expect(callsOf(convertTaskToNote)).toHaveLength(1);
+      const call = callsOf(convertTaskToNote)[0];
+      expect(call.params).toEqual({ id: 't1', 'If-Match': '"4"' });
+      expect(call.context?.get(SILENT_ERRORS)).toBe(true);
+      expect(navigate).toHaveBeenCalledWith(['/notes', 'n1']);
+    });
+
+    it('warns that unsaved changes are discarded and converts the saved version', async () => {
+      const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true);
+      converting(() => Promise.resolve(NOTE));
+      await render();
+      await type('#td-title', 'Call the plumber tomorrow');
+
+      await toReference();
+
+      expect(confirm).toHaveBeenCalledWith(
+        'Move this task to reference? Your unsaved changes are discarded; the note gets the saved version.',
+      );
+      expect(callsOf(updateTask)).toHaveLength(0);
+      expect(callsOf(moveTask)).toHaveLength(0);
+      expect(callsOf(convertTaskToNote)[0].params).toEqual({ id: 't1', 'If-Match': '"1"' });
+      expect(navigate).toHaveBeenCalledWith(['/notes', 'n1']);
+    });
+
+    it('does not convert a dirty task when the user cancels, and keeps the changes', async () => {
+      vi.spyOn(window, 'confirm').mockReturnValue(false);
+      await render();
+      await type('#td-title', 'Half typed');
+
+      await toReference();
+
+      expect(callsOf(convertTaskToNote)).toHaveLength(0);
+      expect(field<HTMLTextAreaElement>('#td-title').value).toBe('Half typed');
+      expect(text()).toContain('Unsaved changes');
+    });
+
+    it('shows the running conversion and neither converts nor saves twice meanwhile', async () => {
+      vi.spyOn(window, 'confirm').mockReturnValue(true);
+      let release!: () => void;
+      converting(() => new Promise((resolve) => (release = () => resolve(NOTE))));
+      await render();
+      await type('#td-title', 'Typed before');
+
+      await toReference();
+      expect(referenceButton().textContent?.trim()).toBe('Moving to reference…');
+      expect(referenceButton().disabled).toBe(true);
+      referenceButton().click();
+      field('#td-title').dispatchEvent(
+        new KeyboardEvent('keydown', { key: 'Enter', ctrlKey: true, bubbles: true }),
+      );
+      await refresh();
+      expect(callsOf(convertTaskToNote)).toHaveLength(1);
+      expect(callsOf(updateTask)).toHaveLength(0);
+
+      release();
+      await refresh();
+      expect(navigate).toHaveBeenCalledTimes(1);
+    });
+
+    it('cannot convert while a save is running', async () => {
+      const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true);
+      let release!: () => void;
+      answer = (fn) => {
+        if (fn !== updateTask) return undefined;
+        return new Promise<void>((resolve) => (release = resolve)).then(() => {
+          server = { ...server, title: 'Saving now', version: 2 };
+          return server;
+        });
+      };
+      await render();
+      await type('#td-title', 'Saving now');
+      await save();
+
+      expect(referenceButton().disabled).toBe(true);
+      referenceButton().click();
+      await refresh();
+      expect(confirm).not.toHaveBeenCalled();
+      expect(callsOf(convertTaskToNote)).toHaveLength(0);
+
+      release();
+      await refresh();
+      expect(referenceButton().disabled).toBe(false);
+    });
+
+    it('on 412 says the task changed elsewhere and reloads it, without opening a note', async () => {
+      vi.spyOn(window, 'confirm').mockReturnValue(true);
+      converting(() => {
+        server = task({ title: 'Changed elsewhere', version: 5 });
+        return Promise.reject(new ApiError(412, 'Precondition Failed'));
+      });
+      await render();
+
+      await toReference();
+
+      expect(text()).toContain(CONFLICT_MESSAGE);
+      expect(callsOf(getTask)).toHaveLength(2);
+      expect(field<HTMLTextAreaElement>('#td-title').value).toBe('Changed elsewhere');
+      expect(navigate).not.toHaveBeenCalled();
+      expect(referenceButton().disabled).toBe(false);
+      expect(referenceButton().textContent?.trim()).toBe('To reference (note)');
+
+      // A retry goes out with the reloaded version.
+      converting(() => Promise.resolve(NOTE));
+      await toReference();
+      expect(callsOf(convertTaskToNote)[1].params).toEqual({ id: 't1', 'If-Match': '"5"' });
+      expect(text()).not.toContain(CONFLICT_MESSAGE);
+      expect(navigate).toHaveBeenCalledWith(['/notes', 'n1']);
+    });
+
+    it('shows another error in the save bar, keeps the form and allows another try', async () => {
+      vi.spyOn(window, 'confirm').mockReturnValue(true);
+      converting(() =>
+        Promise.reject(new ApiError(500, 'Internal Server Error', 'The server failed.')),
+      );
+      await render();
+      await type('#td-title', 'Keep me');
+
+      await toReference();
+
+      expect(element.querySelector('.bar [role=alert]')?.textContent).toContain(
+        'The server failed.',
+      );
+      expect(text()).not.toContain(CONFLICT_MESSAGE);
+      expect(callsOf(getTask)).toHaveLength(1);
+      expect(field<HTMLTextAreaElement>('#td-title').value).toBe('Keep me');
+      expect(navigate).not.toHaveBeenCalled();
+      expect(referenceButton().disabled).toBe(false);
+
+      converting(() => Promise.resolve(NOTE));
+      await toReference();
+      expect(callsOf(convertTaskToNote)).toHaveLength(2);
+      expect(element.querySelector('.bar [role=alert]')).toBeNull();
+      expect(navigate).toHaveBeenCalledWith(['/notes', 'n1']);
+    });
+
+    it('shows a fallback message for an unexpected conversion error', async () => {
+      vi.spyOn(window, 'confirm').mockReturnValue(true);
+      converting(() => Promise.reject(new TypeError('boom')));
+      await render();
+      await toReference();
+      expect(text()).toContain('Something went wrong. Try again.');
+      expect(navigate).not.toHaveBeenCalled();
+    });
+
+    it('shows no error for the new task when a conversion of the previous task fails late', async () => {
+      vi.spyOn(window, 'confirm').mockReturnValue(true);
+      let fail!: () => void;
+      answer = (fn, params) => {
+        if (fn === getTask && params['id'] === 't2') {
+          return Promise.resolve(task({ id: 't2', title: 'Water the plants', version: 7 }));
+        }
+        if (fn === convertTaskToNote) {
+          return new Promise<never>(
+            (_, reject) =>
+              (fail = () => reject(new ApiError(500, 'Internal Server Error', 'The server failed.'))),
+          );
+        }
+        return undefined;
+      };
+      await render();
+      await toReference();
+      host.id.set('t2');
+      await refresh();
+
+      fail();
+      await refresh();
+
+      expect(text()).not.toContain('The server failed.');
+      expect(text()).not.toContain(CONFLICT_MESSAGE);
+      expect(field<HTMLTextAreaElement>('#td-title').value).toBe('Water the plants');
+      expect(navigate).not.toHaveBeenCalled();
+      expect(referenceButton().disabled).toBe(false);
+    });
   });
 });

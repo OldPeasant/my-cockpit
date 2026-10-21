@@ -3,11 +3,13 @@ import { TestBed } from '@angular/core/testing';
 import {
   Api,
   ChecklistItemResponse,
+  convertTaskToNote,
   createChecklistItem,
   deleteChecklistItem,
   getTask,
   listChecklistItems,
   moveTask,
+  NoteResponse,
   TaskResponse,
   updateChecklistItem,
   updateTask,
@@ -95,6 +97,38 @@ describe('TaskDetailService', () => {
     expect(call.fn).toBe(moveTask);
     expect(call.params).toEqual({ id: 't1', 'If-Match': '"7"', body: { list: 'SOMEDAY' } });
     expect(call.context?.get(SILENT_ERRORS)).toBe(true);
+  });
+
+  it('converts a task to a note with If-Match of its version and returns the note', async () => {
+    const note: NoteResponse = {
+      id: 'n1',
+      title: 'Water the fictitious ferns',
+      displayTitle: 'Water the fictitious ferns',
+      bodyMd: '',
+      tags: [],
+      pinned: false,
+      archived: false,
+      createdAt: '2026-10-02T08:00:00Z',
+      updatedAt: '2026-10-02T08:00:00Z',
+      version: 1,
+    };
+    response = note;
+    expect(await service.convertToNote(TASK)).toBe(note);
+    const call = only();
+    expect(call.fn).toBe(convertTaskToNote);
+    expect(call.params).toEqual({ id: 't1', 'If-Match': '"7"' });
+    expect(call.context?.get(SILENT_ERRORS)).toBe(true);
+  });
+
+  it('passes a failed conversion on to the caller', async () => {
+    const failing = {
+      invoke: () => Promise.reject(new Error('412')),
+    };
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({
+      providers: [TaskDetailService, { provide: Api, useValue: failing }],
+    });
+    await expect(TestBed.inject(TaskDetailService).convertToNote(TASK)).rejects.toThrow('412');
   });
 
   it('lists the checklist items of a task', async () => {

@@ -41,11 +41,15 @@ describe('INBOX_ACTION_GROUPS', () => {
     );
   });
 
-  it('disables only To reference and To calendar', () => {
-    expect(all.filter((info) => info.disabled).map((info) => info.action)).toEqual([
-      'reference',
-      'calendar',
-    ]);
+  it('disables only To calendar', () => {
+    expect(all.filter((info) => info.disabled).map((info) => info.action)).toEqual(['calendar']);
+  });
+
+  it('offers To reference with the key R', () => {
+    const reference = all.find((info) => info.action === 'reference')!;
+    expect(reference.disabled).toBeFalsy();
+    expect(reference.key).toBe('R');
+    expect(reference.keys).toEqual(['r']);
   });
 
   it('uses each key for one action only, and shows the first key on the button', () => {
@@ -64,6 +68,7 @@ describe('actionForKey', () => {
     ['s', 'schedule'],
     ['t', 'tickler'],
     ['m', 'someday'],
+    ['r', 'reference'],
     ['x', 'trash'],
     ['Delete', 'trash'],
   ])('maps %s to %s', (key, action) => {
@@ -73,10 +78,10 @@ describe('actionForKey', () => {
   it('ignores the case of the key (Shift or Caps Lock)', () => {
     expect(actionForKey('N')).toBe('next');
     expect(actionForKey('DELETE')).toBe('trash');
+    expect(actionForKey('R')).toBe('reference');
   });
 
-  it('returns null for the disabled actions', () => {
-    expect(actionForKey('r')).toBeNull();
+  it('returns null for the disabled action', () => {
     expect(actionForKey('c')).toBeNull();
   });
 

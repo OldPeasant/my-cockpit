@@ -6,12 +6,14 @@ import {
   ChangeEvent,
   completeTask,
   ContextResponse,
+  convertTaskToNote,
   createProject,
   deleteTask,
   listContexts,
   listProjects,
   listTasks,
   moveTask,
+  NoteResponse,
   ProjectResponse,
   setProjectNextStep,
   TaskResponse,
@@ -40,7 +42,23 @@ function task(id: string, fields: Partial<TaskResponse> = {}): TaskResponse {
   };
 }
 
-const HOME = { id: 'c1', name: '@home', position: 1 } as ContextResponse;
+/** The note the fake server makes of an item (`POST /tasks/{id}/convert-to-note`). */
+function note(from: TaskResponse): NoteResponse {
+  return {
+    id: `n-${from.id}`,
+    title: from.title,
+    displayTitle: from.title,
+    bodyMd: from.notesMd ?? '',
+    tags: [],
+    pinned: false,
+    archived: false,
+    createdAt: '2026-10-20T10:00:00Z',
+    updatedAt: '2026-10-20T10:00:00Z',
+    version: 1,
+  };
+}
+
+const HOME ={ id: 'c1', name: '@home', position: 1 } as ContextResponse;
 const KITCHEN = {
   id: 'p1',
   title: 'Renovate kitchen',
@@ -85,6 +103,7 @@ describe('InboxPage', () => {
 
   const title = () => element.querySelector('.item-title')?.textContent?.trim();
   const left = () => element.querySelector('.left')?.textContent?.trim();
+  const progress = () => element.querySelector('[role=progressbar]')?.getAttribute('aria-valuenow');
   const button = (label: string) =>
     [...element.querySelectorAll<HTMLButtonElement>('button')].find((b) =>
       b.textContent?.includes(label),
@@ -112,6 +131,7 @@ describe('InboxPage', () => {
         }
         if (fn === completeTask) return { ...current, completedAt: '2026-10-20T10:00:00Z' };
         if (fn === deleteTask) return undefined;
+        if (fn === convertTaskToNote) return note(current);
         throw new Error('unexpected call');
       },
     };
@@ -508,16 +528,137 @@ describe('InboxPage', () => {
     expect(callsOf(moveTask)).toHaveLength(0);
   });
 
-  it('offers To reference and To calendar disabled, their keys do nothing', async () => {
+  it('offers To calendar disabled, its key does nothing', async () => {
     await render([task('t1')]);
     await press('p');
-    expect(button('To reference')!.disabled).toBe(true);
     expect(button('To calendar')!.disabled).toBe(true);
-    await press('r');
     await press('c');
     expect(calls.filter((call) => call.fn !== listTasks && call.fn !== listContexts)).toEqual(
       calls.filter((call) => call.fn === listProjects),
     );
+  });
+
+  describe('To reference', () => {
+    const moved = () => element.querySelector('.moved[role=status]');
+    const openNote = () => moved()?.querySelector<HTMLAnchorElement>('a');
+
+    it('R converts the item to a note, it leaves the queue and the note is offered', async () => {
+      await render([task('t1', { version: 3 }), task('t2')]);
+      await press('p');
+      expect(moved()).toBeNull();
+
+      await press('r');
+
+      expect(callsOf(convertTaskToNote)).toHaveLength(1);
+      expect(callsOf(convertTaskToNote)[0].params).toEqual({ id: 't1', 'If-Match': '"3"' });
+      expect(title()).toBe('Item t2');
+      expect(left()).toBe('1 item left');
+      expect(progress()).toBe('50');
+      expect(moved()?.textContent).toContain('Moved to reference as the note “Item t1”.');
+      expect(openNote()?.textContent?.trim()).toBe('Open note');
+      expect(openNote()?.getAttribute('href')).toBe('/notes/n-t1');
+    });
+
+    it('runs from the enabled To reference button, marked with its shortcut', async () => {
+      await render([task('t1')]);
+      await press('p');
+      const reference = button('To reference')!;
+      expect(reference.disabled).toBe(false);
+      expect(reference.getAttribute('aria-keyshortcuts')).toBe('R');
+
+      reference.click();
+      await refresh();
+
+      expect(callsOf(convertTaskToNote)[0].params).toMatchObject({ id: 't1' });
+      expect(element.textContent).toContain('Inbox zero.');
+      // The note stays offered at inbox zero.
+      expect(openNote()?.getAttribute('href')).toBe('/notes/n-t1');
+    });
+
+    it('opens the note with the Open note link', async () => {
+      await render([task('t1'), task('t2')]);
+      await press('p');
+      await press('r');
+      const navigate = vi.spyOn(TestBed.inject(Router), 'navigateByUrl').mockResolvedValue(true);
+
+      openNote()!.click();
+
+      expect(navigate).toHaveBeenCalled();
+      expect(String(navigate.mock.calls[0][0])).toBe('/notes/n-t1');
+    });
+
+    it('does not save the inline attributes before converting', async () => {
+      await render([task('t1')]);
+      await press('p');
+      button('High')!.click();
+      await refresh();
+
+      await press('r');
+
+      expect(callsOf(updateTask)).toHaveLength(0);
+      expect(callsOf(convertTaskToNote)[0].params).toEqual({ id: 't1', 'If-Match': '"1"' });
+    });
+
+    it('offers the latest note after converting several items', async () => {
+      await render([task('t1'), task('t2'), task('t3')]);
+      await press('p');
+      await press('r');
+      await press('r');
+
+      expect(callsOf(convertTaskToNote).map((call) => call.params['id'])).toEqual(['t1', 't2']);
+      expect(element.querySelectorAll('.moved').length).toBe(1);
+      expect(openNote()?.getAttribute('href')).toBe('/notes/n-t2');
+      expect(title()).toBe('Item t3');
+    });
+
+    it('forgets the offered note when processing starts again', async () => {
+      await render([task('t1'), task('t2')]);
+      await press('p');
+      await press('r');
+      expect(moved()).not.toBeNull();
+
+      await press('Escape');
+      await press('p');
+
+      expect(moved()).toBeNull();
+      expect(title()).toBe('Item t2');
+    });
+
+    it('brings a failed conversion back as the current item, without a note link', async () => {
+      await render([task('t1'), task('t2')]);
+      answer = (fn) => (fn === convertTaskToNote ? Promise.reject(new Error('412')) : undefined);
+      await press('p');
+
+      await press('r');
+
+      expect(callsOf(convertTaskToNote)).toHaveLength(1);
+      expect(title()).toBe('Item t1');
+      expect(left()).toBe('2 items left');
+      expect(progress()).toBe('0');
+      expect(moved()).toBeNull();
+    });
+
+    it('brings an item back when its conversion fails after the next item came up', async () => {
+      await render([task('t1'), task('t2')]);
+      let reject!: (error: unknown) => void;
+      answer = (fn) =>
+        fn === convertTaskToNote
+          ? new Promise((_, rejectConvert) => (reject = rejectConvert))
+          : undefined;
+      await press('p');
+
+      await press('r');
+      // t1 is still being converted: it is out of the queue meanwhile.
+      expect(title()).toBe('Item t2');
+      expect(left()).toBe('1 item left');
+
+      reject(new Error('500'));
+      await refresh();
+
+      expect(title()).toBe('Item t1');
+      expect(left()).toBe('2 items left');
+      expect(moved()).toBeNull();
+    });
   });
 
   it('opens a task from the list', async () => {
@@ -534,8 +675,6 @@ describe('InboxPage', () => {
     expect(callsOf(completeTask)[0].params).toMatchObject({ id: 't1', 'If-Match': '"1"' });
     expect(element.querySelectorAll('app-task-row').length).toBe(0);
   });
-
-  const progress = () => element.querySelector('[role=progressbar]')?.getAttribute('aria-valuenow');
 
   describe('when the server refuses', () => {
     it('brings a failed move back as the current item, not counted as processed', async () => {
@@ -800,7 +939,7 @@ describe('InboxPage', () => {
       await press('p');
       expect(button('Next')!.getAttribute('aria-keyshortcuts')).toBe('N');
       expect(button('Trash')!.getAttribute('aria-keyshortcuts')).toBe('X');
-      expect(button('To reference')!.hasAttribute('aria-keyshortcuts')).toBe(false);
+      expect(button('To calendar')!.hasAttribute('aria-keyshortcuts')).toBe(false);
     });
   });
 
