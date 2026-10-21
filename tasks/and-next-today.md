@@ -1,10 +1,11 @@
 ---
 title: Android Next and Today
-status: todo
-owner:
+status: in_progress
+owner: dell26/agent-1
 deps: [and-gtd-data]
 touches: [android/app/src/main/java/ch/sonensei/cockpit/gtd/next,android/app/src/test/java/ch/sonensei/cockpit/gtd/next,android/app/src/main/java/ch/sonensei/cockpit/gtd/today,android/app/src/test/java/ch/sonensei/cockpit/gtd/today]
 prio: 1
+lease_until: 2026-10-21T08:30:08Z
 ---
 ## Goal
 Next actions with filters and Today (SPEC.md §5.3).
