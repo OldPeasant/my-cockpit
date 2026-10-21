@@ -135,6 +135,85 @@ describe('CaptureDialog', () => {
       vi.advanceTimersByTime(PREVIEW_DEBOUNCE_MS);
       http.expectNone('/api/v1/capture/preview');
     });
+
+    it('shows a plain Waiting token when ^ names nobody', async () => {
+      type('Parcel ^');
+      vi.advanceTimersByTime(PREVIEW_DEBOUNCE_MS);
+      http
+        .expectOne('/api/v1/capture/preview')
+        .flush({ title: 'Parcel', list: 'WAITING', contexts: [] });
+      await settle();
+      const tokens = [...el().querySelectorAll('.token')].map((t) => t.textContent?.trim());
+      expect(tokens).toEqual(['Waiting']);
+    });
+
+    it('ignores an older preview that answers after a newer one', async () => {
+      type('Buy milk');
+      vi.advanceTimersByTime(PREVIEW_DEBOUNCE_MS);
+      const older = http.expectOne('/api/v1/capture/preview');
+      type('Buy oat milk');
+      vi.advanceTimersByTime(PREVIEW_DEBOUNCE_MS);
+      const newer = http.expectOne('/api/v1/capture/preview');
+      expect(newer.request.body).toEqual({ text: 'Buy oat milk' });
+
+      newer.flush({ title: 'Buy oat milk', list: 'INBOX', contexts: [] });
+      await settle();
+      older.flush({ title: 'Buy milk', list: 'INBOX', contexts: [] });
+      await settle();
+      expect(el().querySelector('.preview-title')?.textContent?.trim()).toBe('Buy oat milk');
+    });
+
+    it('a failing older preview does not hide the newer one', async () => {
+      type('Buy milk');
+      vi.advanceTimersByTime(PREVIEW_DEBOUNCE_MS);
+      const older = http.expectOne('/api/v1/capture/preview');
+      type('Buy oat milk');
+      vi.advanceTimersByTime(PREVIEW_DEBOUNCE_MS);
+      http
+        .expectOne('/api/v1/capture/preview')
+        .flush({ title: 'Buy oat milk', list: 'INBOX', contexts: [] });
+      await settle();
+      older.flush(null, { status: 500, statusText: 'Server Error' });
+      await settle();
+      expect(el().querySelector('.preview-title')?.textContent?.trim()).toBe('Buy oat milk');
+      expect(notifications.error).not.toHaveBeenCalled();
+    });
+
+    it('drops a pending preview when the text is cleared, and shows the hint', async () => {
+      type('Buy milk');
+      vi.advanceTimersByTime(PREVIEW_DEBOUNCE_MS);
+      const pending = http.expectOne('/api/v1/capture/preview');
+      type('');
+      vi.advanceTimersByTime(PREVIEW_DEBOUNCE_MS);
+      pending.flush({ title: 'Buy milk', list: 'INBOX', contexts: [] });
+      await settle();
+      expect(el().querySelector('.preview-title')).toBeNull();
+      expect(el().querySelector('.hint')).not.toBeNull();
+    });
+
+    it('hides a shown preview as soon as the text is cleared, before the debounce', async () => {
+      type('Buy milk');
+      vi.advanceTimersByTime(PREVIEW_DEBOUNCE_MS);
+      http
+        .expectOne('/api/v1/capture/preview')
+        .flush({ title: 'Buy milk', list: 'INBOX', contexts: [] });
+      await settle();
+      expect(el().querySelector('.preview-title')).not.toBeNull();
+      type('');
+      expect(el().querySelector('.preview-title')).toBeNull();
+      expect(el().querySelector('.hint')).not.toBeNull();
+    });
+
+    it('does not ask again when only surrounding spaces change', () => {
+      type('Buy milk');
+      vi.advanceTimersByTime(PREVIEW_DEBOUNCE_MS);
+      http
+        .expectOne('/api/v1/capture/preview')
+        .flush({ title: 'Buy milk', list: 'INBOX', contexts: [] });
+      type('Buy milk  ');
+      vi.advanceTimersByTime(PREVIEW_DEBOUNCE_MS);
+      http.expectNone('/api/v1/capture/preview');
+    });
   });
 
   describe('save', () => {
@@ -246,6 +325,101 @@ describe('CaptureDialog', () => {
       press('Enter', { isComposing: true });
       http.expectNone('/api/v1/capture');
     });
+
+    it('other keys in the text field neither save nor are prevented', () => {
+      type('Call plumber');
+      expect(press('a').defaultPrevented).toBe(false);
+      expect(press('Tab').defaultPrevented).toBe(false);
+      http.expectNone('/api/v1/capture');
+    });
+
+    it('Ctrl+Shift+Enter in the notes saves and keeps the dialog open', async () => {
+      type('Call plumber');
+      type('Before Friday', notesField());
+      const event = press('Enter', { ctrlKey: true, shiftKey: true }, notesField());
+      expect(event.defaultPrevented).toBe(true);
+      const req = expectCapture();
+      expect(req.request.body).toEqual({
+        id: expect.stringMatching(UUIDV7),
+        text: 'Call plumber',
+        notes: 'Before Friday',
+      });
+      req.flush(task('Call plumber'));
+      await settle();
+      expect(close).not.toHaveBeenCalled();
+      expect(textField().value).toBe('');
+      expect(notesField().value).toBe('');
+    });
+
+    it('Cmd+Enter in the notes saves on macOS', async () => {
+      type('Call plumber');
+      press('Enter', { metaKey: true }, notesField());
+      expectCapture().flush(task('Call plumber'));
+      await settle();
+      expect(close).toHaveBeenCalledTimes(1);
+    });
+
+    it('leaves out whitespace-only notes', async () => {
+      type('Call plumber');
+      type('   \n  ', notesField());
+      press('Enter');
+      expect(expectCapture().request.body).not.toHaveProperty('notes');
+      await settle();
+    });
+
+    it('a failed save is reported by the error interceptor and keeps the dialog open', async () => {
+      type('Call plumber');
+      press('Enter');
+      const failed = expectCapture();
+      expect(failed.request.context.get(SILENT_ERRORS)).toBe(false);
+      failed.flush(
+        { title: 'Bad Request', status: 400, detail: 'Text is too long' },
+        { status: 400, statusText: 'Bad Request' },
+      );
+      await settle();
+      expect(notifications.error).toHaveBeenCalledTimes(1);
+      expect(notifications.info).not.toHaveBeenCalled();
+      expect(close).not.toHaveBeenCalled();
+      expect(textField().value).toBe('Call plumber');
+    });
+
+    it('a failed Shift+Enter keeps the draft, notes and files for the retry', async () => {
+      type('Call plumber');
+      type('Leaking tap', notesField());
+      press('Enter', { shiftKey: true });
+      const failed = expectCapture();
+      failed.flush(null, { status: 503, statusText: 'Service Unavailable' });
+      await settle();
+      expect(textField().value).toBe('Call plumber');
+      expect(notesField().value).toBe('Leaking tap');
+      expect(el().querySelector('.count')).toBeNull();
+
+      press('Enter', { shiftKey: true });
+      const retry = expectCapture();
+      expect(retry.request.body).toEqual(failed.request.body);
+      retry.flush(task('Call plumber'));
+      await settle();
+      expect(el().querySelector('.count')?.textContent?.trim()).toBe('1 item captured');
+    });
+
+    it('submit() reports whether a capture was saved', async () => {
+      const dialog = fixture.componentInstance;
+      await expect(dialog.submit()).resolves.toBe(false);
+      http.expectNone('/api/v1/capture');
+
+      type('Call plumber');
+      const saved = dialog.submit();
+      const again = dialog.submit();
+      await expect(again).resolves.toBe(false);
+      expectCapture().flush(task('Call plumber'));
+      await expect(saved).resolves.toBe(true);
+
+      type('Plan holiday');
+      const failing = dialog.submit();
+      expectCapture().flush(null, { status: 500, statusText: 'Server Error' });
+      await expect(failing).resolves.toBe(false);
+      await settle();
+    });
   });
 
   describe('attachments placeholder', () => {
@@ -301,6 +475,54 @@ describe('CaptureDialog', () => {
       Object.defineProperty(paste, 'clipboardData', { value: { files: fileList() } });
       capture.dispatchEvent(paste);
       expect(paste.defaultPrevented).toBe(false);
+    });
+
+    it('ignores drags and drops without files', () => {
+      const capture = el().querySelector<HTMLElement>('.capture')!;
+      const over = new Event('dragover', { cancelable: true }) as DragEvent;
+      Object.defineProperty(over, 'dataTransfer', { value: { types: ['text/plain'] } });
+      capture.dispatchEvent(over);
+      fixture.detectChanges();
+      expect(over.defaultPrevented).toBe(false);
+      expect(capture.classList).not.toContain('dragging');
+
+      const drop = new Event('drop', { cancelable: true }) as DragEvent;
+      Object.defineProperty(drop, 'dataTransfer', { value: { files: fileList(), types: [] } });
+      capture.dispatchEvent(drop);
+      fixture.detectChanges();
+      expect(drop.defaultPrevented).toBe(false);
+      expect(el().querySelector('.file-list')).toBeNull();
+      expect(el().querySelector('.drop')).not.toBeNull();
+    });
+
+    it('a drop ends the dragging mark', () => {
+      const capture = el().querySelector<HTMLElement>('.capture')!;
+      const over = new Event('dragover', { cancelable: true }) as DragEvent;
+      Object.defineProperty(over, 'dataTransfer', { value: { types: ['Files'] } });
+      capture.dispatchEvent(over);
+      const drop = new Event('drop', { cancelable: true }) as DragEvent;
+      Object.defineProperty(drop, 'dataTransfer', {
+        value: { files: fileList('scan.jpg'), types: ['Files'] },
+      });
+      capture.dispatchEvent(drop);
+      fixture.detectChanges();
+      expect(capture.classList).not.toContain('dragging');
+      expect([...el().querySelectorAll('.file-name')].map((n) => n.textContent)).toEqual([
+        'scan.jpg',
+      ]);
+    });
+
+    it('Shift+Enter clears the listed files for the next capture', async () => {
+      const capture = el().querySelector<HTMLElement>('.capture')!;
+      const paste = new Event('paste', { cancelable: true }) as ClipboardEvent;
+      Object.defineProperty(paste, 'clipboardData', { value: { files: fileList('photo.png') } });
+      capture.dispatchEvent(paste);
+      type('Expenses');
+      expect(el().querySelector('.file-list')).not.toBeNull();
+      press('Enter', { shiftKey: true });
+      expectCapture().flush(task('Expenses'));
+      await settle();
+      expect(el().querySelector('.file-list')).toBeNull();
     });
   });
 

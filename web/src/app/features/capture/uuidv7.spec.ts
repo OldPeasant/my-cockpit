@@ -2,19 +2,34 @@ import { uuidv7 } from './uuidv7';
 
 describe('uuidv7', () => {
   it('has the version 7 and RFC 9562 variant bits', () => {
-    expect(uuidv7()).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+    expect(uuidv7()).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
+    );
   });
 
   it('starts with the Unix milliseconds, so later ids sort after earlier ones', () => {
     const at = Date.UTC(2026, 9, 21, 8, 0, 0);
     expect(uuidv7(at, (b) => b.fill(0))).toBe(
-      `${at.toString(16).padStart(12, '0').replace(/^(.{8})(.{4})$/, '$1-$2')}-7000-8000-000000000000`,
+      `${at
+        .toString(16)
+        .padStart(12, '0')
+        .replace(/^(.{8})(.{4})$/, '$1-$2')}-7000-8000-000000000000`,
     );
     expect(uuidv7(at + 1) > uuidv7(at)).toBe(true);
   });
 
   it('keeps the random bits outside version and variant', () => {
     expect(uuidv7(0, (b) => b.fill(0xff))).toBe('00000000-0000-7fff-bfff-ffffffffffff');
+  });
+
+  it('clamps a negative clock to the epoch and drops fractions of a millisecond', () => {
+    const zero = (b: Uint8Array) => b.fill(0);
+    expect(uuidv7(-5, zero)).toBe('00000000-0000-7000-8000-000000000000');
+    expect(uuidv7(1.9, zero)).toBe('00000000-0001-7000-8000-000000000000');
+  });
+
+  it('encodes the largest 48-bit timestamp', () => {
+    expect(uuidv7(2 ** 48 - 1, (b) => b.fill(0))).toBe('ffffffff-ffff-7000-8000-000000000000');
   });
 
   it('differs between calls in the same millisecond', () => {
