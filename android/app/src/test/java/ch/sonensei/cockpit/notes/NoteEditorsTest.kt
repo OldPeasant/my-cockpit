@@ -113,6 +113,30 @@ class NoteEditorsTest {
         }
 
     @Test
+    fun `an editor cleared while a photo creates its new note lets that create finish, so the note is created once`() =
+        test {
+            val created = loaded.copy(bodyMd = "Idea", version = 1)
+            val answer = CompletableDeferred<SaveResult>()
+            coEvery { repo.save(null, NoteDraft("", "Idea")) } coAnswers { answer.await() }
+            val (store, vm) = editorInStore()
+            vm.open(null)
+            vm.setBody("Idea")
+            vm.addPhoto(NotePhoto(byteArrayOf(1), "image/jpeg", "p.jpg"))
+            runCurrent()
+            coVerify(exactly = 1) { repo.save(null, NoteDraft("", "Idea")) }
+
+            // Left (e.g. by the shell's back arrow) while the create runs: the create is not cancelled.
+            store.clear()
+            runCurrent()
+            answer.complete(SaveResult.Saved(created))
+            advanceUntilIdle()
+            assertEquals(created, vm.uiState.value.note)
+            assertEquals(SaveStatus.SAVED, vm.uiState.value.status)
+            coVerify(exactly = 1) { repo.save(any(), any()) }
+            coVerify(exactly = 0) { repo.uploadImage(any(), any()) }
+        }
+
+    @Test
     fun `an editor cleared during a conflict or before its note loaded saves nothing`() =
         test {
             coEvery { repo.get(id) } returns NotesResult.Offline

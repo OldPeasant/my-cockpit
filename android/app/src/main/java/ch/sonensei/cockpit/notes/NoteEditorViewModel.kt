@@ -6,6 +6,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -294,7 +295,9 @@ class NoteEditorViewModel
             if (!state.value.editable || state.value.uploading) return
             state.update { it.copy(uploading = true, message = null) }
             viewModelScope.launch {
-                val note = state.value.note ?: create()
+                // The create is a save: it runs in [saves], so leaving the editor meanwhile does not cancel it (a
+                // cancelled create could still reach the server, and the next save would create the note again).
+                val note = state.value.note ?: saves.async { create() }.await()
                 if (note == null) {
                     state.update { it.copy(uploading = false, message = NoteEditorMessage.PHOTO_OFFLINE) }
                     return@launch
