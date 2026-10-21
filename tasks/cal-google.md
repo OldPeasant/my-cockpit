@@ -19,3 +19,4 @@ Two-way Google sync (SPEC.md §6.2).
 
 ## Notes
 - release by R1963MACOS/agent-1: handed off by R1963MACOS/agent-1: You've hit your weekly limit · resets Oct 24 at 8am (Europe/Zurich)
+- ASSUMPTION (2026-10-21 12:43+0200 by dell26/agent-4): Writes send reminders as popup overrides with useDefault=false (CR-2): Google email reminders and calendar-default reminders become explicit popup overrides on any cockpit edit; the sync engine does not tell the adapter which fields changed, so the lossy mapping is accepted for now
