@@ -21,6 +21,8 @@ tags:
   name: Files
 - description: Create and download backups
   name: Backup
+- description: "WebAuthn passkeys: registration, login and management"
+  name: Passkeys
 - description: Contacts and their vCard import/export
   name: Contacts
 - description: User settings
@@ -401,6 +403,244 @@ paths:
       summary: The logged-in user
       tags:
       - Auth
+  /api/v1/auth/passkeys:
+    get:
+      operationId: listPasskeys
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PasskeyResponse"
+          description: The passkeys
+        "401":
+          description: Not logged in
+      summary: "Registered passkeys, oldest first"
+      tags:
+      - Passkeys
+  /api/v1/auth/passkeys/authentication/options:
+    post:
+      description: Returns the options for `navigator.credentials.get()`. Public;
+        no CSRF token is needed.
+      operationId: startPasskeyAuthentication
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PasskeyAuthenticationOptionsResponse"
+          description: Authentication started; finish it within `publicKey.timeout`
+            milliseconds
+      summary: Start a login with a passkey
+      tags:
+      - Passkeys
+  /api/v1/auth/passkeys/login:
+    post:
+      description: Sets the session cookie like the password login and is throttled
+        together with it. Needs the CSRF header.
+      operationId: loginWithPasskey
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PasskeyLoginRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MeResponse"
+          description: "Logged in, session cookie set"
+        "400":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: Missing fields
+        "401":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: "Unknown or expired ceremony, unknown passkey, or a response\
+            \ that does not verify"
+        "429":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: Too many failed attempts; retry after the given number of seconds
+          headers:
+            Retry-After:
+              description: Seconds to wait
+              schema:
+                type: integer
+              style: simple
+      summary: Log in to the web app with a passkey
+      tags:
+      - Passkeys
+  /api/v1/auth/passkeys/registration:
+    post:
+      operationId: finishPasskeyRegistration
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PasskeyRegistrationRequest"
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PasskeyResponse"
+          description: Passkey added
+        "400":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: "Unknown or expired ceremony, or a response that does not verify"
+        "401":
+          description: Not logged in
+        "409":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: This passkey is already registered
+      summary: Finish adding a passkey with the authenticator's response
+      tags:
+      - Passkeys
+  /api/v1/auth/passkeys/registration/options:
+    post:
+      description: "Returns the options for `navigator.credentials.create()` (discoverable\
+        \ credential, user verification required). Wrong TOTP codes count against\
+        \ the login throttle."
+      operationId: startPasskeyRegistration
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PasskeyRegistrationOptionsRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PasskeyRegistrationOptionsResponse"
+          description: Registration started; finish it within `publicKey.timeout`
+            milliseconds
+        "400":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: Missing TOTP code
+        "401":
+          description: Not logged in
+        "403":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: Wrong TOTP code
+        "429":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: Too many failed attempts; retry after the given number of seconds
+          headers:
+            Retry-After:
+              description: Seconds to wait
+              schema:
+                type: integer
+              style: simple
+      summary: Start adding a passkey; needs a current TOTP code
+      tags:
+      - Passkeys
+  /api/v1/auth/passkeys/token:
+    post:
+      description: "Like `issueDeviceToken`, with a passkey instead of password and\
+        \ TOTP. No CSRF token is needed."
+      operationId: issueDeviceTokenWithPasskey
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PasskeyTokenRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TokenResponse"
+          description: Device registered
+        "400":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: Missing fields
+        "401":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: "Unknown or expired ceremony, unknown passkey, or a response\
+            \ that does not verify"
+        "403":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: "Valid passkey, but TOTP must be set up again in the web app\
+            \ first (account restored from a backup)"
+        "429":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: Too many failed attempts; retry after the given number of seconds
+          headers:
+            Retry-After:
+              description: Seconds to wait
+              schema:
+                type: integer
+              style: simple
+      summary: Log a device in with a passkey and get its access and refresh tokens
+      tags:
+      - Passkeys
+  /api/v1/auth/passkeys/{id}:
+    delete:
+      operationId: deletePasskey
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        "204":
+          description: Deleted
+        "401":
+          description: Not logged in
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: No such passkey
+      summary: Delete a passkey; it can no longer be used to log in
+      tags:
+      - Passkeys
   /api/v1/auth/recovery-codes:
     post:
       description: "Needs a current TOTP code and shares the login throttle. Returns\
@@ -7614,6 +7854,23 @@ components:
           - DELEGATED
       required:
       - email
+    AuthenticatorSelectionJson:
+      type: object
+      properties:
+        requireResidentKey:
+          type: boolean
+        residentKey:
+          type: string
+          enum:
+          - required
+        userVerification:
+          type: string
+          enum:
+          - required
+      required:
+      - requireResidentKey
+      - residentKey
+      - userVerification
     BackupJobResponse:
       type: object
       description: A backup job
@@ -9121,6 +9378,73 @@ components:
       required:
       - name
       - size
+    CreationOptionsJson:
+      type: object
+      properties:
+        attestation:
+          type: string
+          enum:
+          - none
+        authenticatorSelection:
+          $ref: "#/components/schemas/AuthenticatorSelectionJson"
+        challenge:
+          type: string
+        excludeCredentials:
+          type: array
+          items:
+            $ref: "#/components/schemas/CredentialDescriptorJson"
+        pubKeyCredParams:
+          type: array
+          items:
+            $ref: "#/components/schemas/CredentialParameterJson"
+        rp:
+          $ref: "#/components/schemas/RelyingPartyJson"
+        timeout:
+          type: integer
+          format: int64
+          description: Milliseconds
+        user:
+          $ref: "#/components/schemas/UserJson"
+      required:
+      - attestation
+      - authenticatorSelection
+      - challenge
+      - excludeCredentials
+      - pubKeyCredParams
+      - rp
+      - timeout
+      - user
+    CredentialDescriptorJson:
+      type: object
+      properties:
+        id:
+          type: string
+          description: "Credential id, base64url"
+        transports:
+          type: array
+          items:
+            type: string
+        type:
+          type: string
+          enum:
+          - public-key
+      required:
+      - id
+      - type
+    CredentialParameterJson:
+      type: object
+      properties:
+        alg:
+          type: integer
+          format: int64
+          description: COSE algorithm identifier
+        type:
+          type: string
+          enum:
+          - public-key
+      required:
+      - alg
+      - type
     DeviceResponse:
       type: object
       properties:
@@ -11024,6 +11348,126 @@ components:
             format: uuid
       required:
       - taskIds
+    PasskeyAuthenticationOptionsResponse:
+      type: object
+      properties:
+        ceremonyId:
+          type: string
+          description: Send back with the login
+        publicKey:
+          $ref: "#/components/schemas/RequestOptionsJson"
+          description: '`PublicKeyCredentialRequestOptionsJSON`'
+      required:
+      - ceremonyId
+      - publicKey
+    PasskeyLoginRequest:
+      type: object
+      properties:
+        ceremonyId:
+          type: string
+          description: From the authentication options
+          maxLength: 64
+          minLength: 0
+        credential:
+          type: object
+          additionalProperties: {}
+          description: The `PublicKeyCredential` assertion as JSON (`AuthenticationResponseJSON`)
+          minProperties: 1
+        rememberDevice:
+          type: boolean
+          description: Keep the session for a sliding 30 days instead of the browser
+            session
+      required:
+      - ceremonyId
+      - credential
+    PasskeyRegistrationOptionsRequest:
+      type: object
+      properties:
+        totp:
+          type: string
+          description: Current 6-digit code from the authenticator app
+          example: 123456
+          maxLength: 16
+          minLength: 0
+      required:
+      - totp
+    PasskeyRegistrationOptionsResponse:
+      type: object
+      properties:
+        ceremonyId:
+          type: string
+          description: Send back with the registration
+        publicKey:
+          $ref: "#/components/schemas/CreationOptionsJson"
+          description: '`PublicKeyCredentialCreationOptionsJSON`'
+      required:
+      - ceremonyId
+      - publicKey
+    PasskeyRegistrationRequest:
+      type: object
+      properties:
+        ceremonyId:
+          type: string
+          description: From the registration options
+          maxLength: 64
+          minLength: 0
+        credential:
+          type: object
+          additionalProperties: {}
+          description: The created `PublicKeyCredential` as JSON (`RegistrationResponseJSON`)
+          minProperties: 1
+        name:
+          type: string
+          description: Shown in the passkey list
+          example: Laptop
+          maxLength: 100
+          minLength: 0
+      required:
+      - ceremonyId
+      - credential
+      - name
+    PasskeyResponse:
+      type: object
+      properties:
+        createdAt:
+          type: string
+          format: date-time
+        id:
+          type: string
+          format: uuid
+        lastUsedAt:
+          type: string
+          format: date-time
+          description: Last login with this passkey; null if never used
+        name:
+          type: string
+      required:
+      - createdAt
+      - id
+      - name
+    PasskeyTokenRequest:
+      type: object
+      properties:
+        ceremonyId:
+          type: string
+          description: From the authentication options
+          maxLength: 64
+          minLength: 0
+        credential:
+          type: object
+          additionalProperties: {}
+          description: The `PublicKeyCredential` assertion as JSON (`AuthenticationResponseJSON`)
+          minProperties: 1
+        deviceName:
+          type: string
+          description: Shown in the device list
+          example: Pixel 9
+          maxLength: 100
+          minLength: 0
+      required:
+      - ceremonyId
+      - credential
+      - deviceName
     ProblemDetail:
       type: object
       description: "RFC 9457 Problem Details, the body of every error response."
@@ -11209,6 +11653,16 @@ components:
           minLength: 0
       required:
       - totp
+    RelyingPartyJson:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+      required:
+      - id
+      - name
     ReminderItemResponse:
       type: object
       description: "The reminded item. Without `available`, only type and id are set."
@@ -11283,6 +11737,31 @@ components:
       - id
       - item
       - remindAt
+    RequestOptionsJson:
+      type: object
+      properties:
+        allowCredentials:
+          type: array
+          items:
+            $ref: "#/components/schemas/CredentialDescriptorJson"
+        challenge:
+          type: string
+        rpId:
+          type: string
+        timeout:
+          type: integer
+          format: int64
+          description: Milliseconds
+        userVerification:
+          type: string
+          enum:
+          - required
+      required:
+      - allowCredentials
+      - challenge
+      - rpId
+      - timeout
+      - userVerification
     RespondToInvitationRequest:
       type: object
       description: The answer to an invitation
@@ -12175,6 +12654,20 @@ components:
       - name
       - receivedChunks
       - size
+    UserJson:
+      type: object
+      properties:
+        displayName:
+          type: string
+        id:
+          type: string
+          description: "User handle, base64url"
+        name:
+          type: string
+      required:
+      - displayName
+      - id
+      - name
     VCardImportResponse:
       type: object
       description: Result of a vCard import

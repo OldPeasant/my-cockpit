@@ -50,12 +50,7 @@ class LoginService(
 				is CredentialCheck.Rejected -> return check.result
 				is CredentialCheck.Verified -> check
 			}
-		sessions.deleteExpired(now)
-		val token = newToken(random)
-		val session =
-			sessions.saveAndFlush(
-				AuthSession(account, hash(token), credentials.rememberDevice, now, now.plus(AuthSession.idleLifetime(credentials.rememberDevice))),
-			)
+		val grant = startSession(account, credentials.rememberDevice, now)
 		// Only a login whose session was written counts as a success; one that throws before stays a failure.
 		throttle.recordSuccess()
 		log.info(
@@ -63,7 +58,26 @@ class LoginService(
 			credentials.rememberDevice,
 			account.totpReenrollRequired,
 		)
-		return LoginResult.Success(SessionGrant(token, session.rememberDevice, principalOf(account)))
+		return LoginResult.Success(grant)
+	}
+
+	/**
+	 * Writes a new session for [account], whose credentials the caller has verified (password+TOTP, or a passkey).
+	 * Joins the caller's transaction; the caller resets the throttle with [recordSuccess] afterwards.
+	 */
+	@Transactional
+	fun startSession(
+		account: UserAccount,
+		rememberDevice: Boolean,
+		now: Instant,
+	): SessionGrant {
+		sessions.deleteExpired(now)
+		val token = newToken(random)
+		val session =
+			sessions.saveAndFlush(
+				AuthSession(account, hash(token), rememberDevice, now, now.plus(AuthSession.idleLifetime(rememberDevice))),
+			)
+		return SessionGrant(token, session.rememberDevice, principalOf(account))
 	}
 
 	/**

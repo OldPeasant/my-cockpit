@@ -39,13 +39,27 @@ class DeviceTokenService(
 				is CredentialCheck.Rejected -> return DeviceTokenResult.Rejected(check.result)
 				is CredentialCheck.Verified -> check
 			}
+		val tokens = issueFor(account, deviceName, now)
+		login.recordSuccess()
+		return DeviceTokenResult.Issued(tokens)
+	}
+
+	/**
+	 * Registers a device for [account], whose credentials the caller has verified (password+TOTP, or a passkey), and
+	 * returns its first token pair. Joins the caller's transaction; the caller resets the login throttle afterwards.
+	 */
+	@Transactional
+	fun issueFor(
+		account: UserAccount,
+		deviceName: String,
+		now: Instant,
+	): DeviceTokens {
 		deleteExpired(now)
 		val access = newToken(random)
 		val refresh = newToken(random)
 		val device = devices.saveAndFlush(AuthDevice(account, deviceName, hash(access), hash(refresh), now))
-		login.recordSuccess()
 		log.info("Device {} logged in", device.id)
-		return DeviceTokenResult.Issued(grantOf(device, access, refresh))
+		return grantOf(device, access, refresh)
 	}
 
 	/** Rotates the token pair of the device holding [refreshToken]; null (→ 401) if the token is not current. */

@@ -107,8 +107,9 @@ Defined in `SPEC.md` §11. Introduced by the tasks that need them, and listed he
 | `SPRING_DATASOURCE_URL`, `_USERNAME`, `_PASSWORD` | server | Postgres connection (`application.properties`) |
 | `COCKPIT_MASTER_KEY` | server | AES-256-GCM key for stored credentials (base64, 32 bytes, `core.crypto`). Required: startup fails without it. Tests use a fictitious key from `server/src/test/resources/config/application.properties` |
 | `GOOGLE_CLIENT_ID/SECRET`, `MS_CLIENT_ID/SECRET/TENANT` | server | OAuth apps (`core.oauth`); unset = provider disabled. Setup: `docs/oauth-setup.md` |
-| `COCKPIT_DOMAIN` | server | public host; OAuth redirect URIs are `https://<domain>/api/v1/oauth/<provider>/callback` (`cockpit.oauth.public-url`, dev profile: `http://localhost:4200`) |
+| `COCKPIT_DOMAIN` | server | public host; OAuth redirect URIs are `https://<domain>/api/v1/oauth/<provider>/callback` (`cockpit.oauth.public-url`, dev profile: `http://localhost:4200`); default passkey RP ID and origin (row below) |
 | `COCKPIT_DATA_DIR` | server | data directory (`cockpit.data-dir`, default `data` relative to the working directory); file blobs in `blobs/ab/cd/<uuid>` (`files.infra.BlobStore`). Tests use `server/build/test-data` |
+| `COCKPIT_AUTH_PASSKEY_RP_ID`, `COCKPIT_AUTH_PASSKEY_ORIGINS`, `COCKPIT_AUTH_PASSKEY_RP_NAME` | server | Passkeys (`core.auth.passkey.api.PasskeyRelyingParties`): RP ID (domain), comma-separated accepted origins (web origin plus `android:apk-key-hash:<base64url SHA-256 of the signing cert>` for the app), display name. Unset: RP ID `COCKPIT_DOMAIN`, origins `https://<COCKPIT_DOMAIN>` plus, when the request's host equals it, the request's host:port in both schemes (works behind Caddy and on the e2e stack); without `COCKPIT_DOMAIN` the request's host and origin (dev). Browsers reject an IP address as RP ID, so e2e passkey tests must use `http://localhost:<port>`, not `127.0.0.1`. The Android origin needs `COCKPIT_AUTH_PASSKEY_ORIGINS` set explicitly (forwarding it in `deploy/` is a follow-up task) |
 
 Never commit secrets: `.env` files are Git-ignored, and `deploy/.env.example` holds placeholders only.
 

@@ -29,7 +29,7 @@ import org.springframework.web.filter.OncePerRequestFilter
  * HTTP security (SPEC.md §4.1).
  *
  * - Everything under `/api/`, `/actuator/` and the OpenAPI docs needs a login, except the health endpoint, the
- *   setup flow (it runs before an account exists) and login/logout. The SPA (static files and the `index.html`
+ *   setup flow (it runs before an account exists) and login/logout (password or passkey). The SPA (static files and the `index.html`
  *   fallback for client routes) is public for GET/HEAD; any other request outside the API needs a login too.
  * - Logins are sessions in the database ([SessionAuthenticationFilter], cookie [SessionCookies.NAME]); there is no
  *   servlet `HttpSession`. The Android app sends `Authorization: Bearer` access tokens of a device
@@ -37,8 +37,9 @@ import org.springframework.web.filter.OncePerRequestFilter
  * - CSRF: double-submit cookie in Angular's convention. The `XSRF-TOKEN` cookie is set on every response that has
  *   none yet and replaced with a fresh token on login and logout; state-changing requests must echo it in
  *   `X-XSRF-TOKEN`, login and logout included. Requests with an `Authorization: Bearer` header, valid or not (never
- *   authenticated by their cookie, and a browser can't add the header cross-site without a CORS preflight), and the
- *   token endpoints (called by the app, which has no cookies; their response is unreadable cross-origin) are exempt.
+ *   authenticated by their cookie, and a browser can't add the header cross-site without a CORS preflight), the
+ *   token endpoints (password or passkey) and the passkey authentication options (called by the app, which has no
+ *   cookies; their response is unreadable cross-origin) are exempt.
  * - A session that must enroll TOTP again (restored without the TOTP secret, [CockpitAuthentication.ROLE_TOTP_ENROLLMENT])
  *   may only call `me`, logout and the TOTP enrollment; every other protected request gets 403.
  * - Unauthenticated requests get a plain 401 (no login form or basic-auth challenge).
@@ -63,6 +64,8 @@ class SecurityConfiguration {
 					.permitAll()
 					.requestMatchers(HttpMethod.POST, LOGIN_PATH, LOGOUT_PATH, TOKEN_PATH, TOKEN_REFRESH_PATH)
 					.permitAll()
+					.requestMatchers(HttpMethod.POST, PASSKEY_AUTHENTICATION_OPTIONS_PATH, PASSKEY_LOGIN_PATH, PASSKEY_TOKEN_PATH)
+					.permitAll()
 					.requestMatchers(HttpMethod.GET, ME_PATH)
 					.authenticated()
 					.requestMatchers(HttpMethod.POST, TOTP_ENROLLMENT_PATH, "$TOTP_ENROLLMENT_PATH/**")
@@ -81,6 +84,7 @@ class SecurityConfiguration {
 					.spa()
 					.csrfTokenRepository(cookies.csrfTokenRepository())
 					.ignoringRequestMatchers("$SETUP_PATH/**", SETUP_PATH, TOKEN_PATH, TOKEN_REFRESH_PATH)
+					.ignoringRequestMatchers(PASSKEY_AUTHENTICATION_OPTIONS_PATH, PASSKEY_TOKEN_PATH)
 					.ignoringRequestMatchers(BearerAuthenticationFilter.withBearerHeader)
 			}
 			// Stateless (the context lives only in the request), but without `SessionCreationPolicy.STATELESS`: that
@@ -108,6 +112,10 @@ class SecurityConfiguration {
 		const val LOGOUT_PATH = "$AUTH_PATH/logout"
 		const val TOKEN_PATH = "$AUTH_PATH/token"
 		const val TOKEN_REFRESH_PATH = "$TOKEN_PATH/refresh"
+		const val PASSKEYS_PATH = "$AUTH_PATH/passkeys"
+		const val PASSKEY_AUTHENTICATION_OPTIONS_PATH = "$PASSKEYS_PATH/authentication/options"
+		const val PASSKEY_LOGIN_PATH = "$PASSKEYS_PATH/login"
+		const val PASSKEY_TOKEN_PATH = "$PASSKEYS_PATH/token"
 	}
 }
 
