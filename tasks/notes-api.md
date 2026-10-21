@@ -5,7 +5,7 @@ owner: dell26/agent-2
 deps: [files-api,p0-search-core,p0-trash-core,p0-events-sse,runner-version-skew]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/notes,server/src/test/kotlin/ch/sonensei/cockpit/notes,server/src/main/resources/db/migration/notes]
 prio: 1
-lease_until: 2026-10-21T01:52:13Z
+lease_until: 2026-10-21T01:57:15Z
 extended: 
 releases: 1
 ---
