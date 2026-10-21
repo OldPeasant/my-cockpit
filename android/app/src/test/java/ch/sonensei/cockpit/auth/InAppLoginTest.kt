@@ -12,6 +12,7 @@ import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextInput
 import androidx.test.core.app.ActivityScenario
 import androidx.test.core.app.ApplicationProvider
+import androidx.work.testing.WorkManagerTestInitHelper
 import ch.sonensei.cockpit.MainActivity
 import ch.sonensei.cockpit.core.network.AuthTokens
 import ch.sonensei.cockpit.ui.navigation.CockpitDestination
@@ -59,6 +60,8 @@ class InAppLoginTest {
     @Before
     fun setUp() {
         hilt.inject()
+        // The shell's start screen (Today) loads GTD data, which schedules the periodic GTD sync.
+        WorkManagerTestInitHelper.initializeTestWorkManager(ApplicationProvider.getApplicationContext())
         server.start()
     }
 

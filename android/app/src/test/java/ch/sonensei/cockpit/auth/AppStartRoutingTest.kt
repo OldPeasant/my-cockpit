@@ -15,6 +15,7 @@ import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performTextInput
 import androidx.test.core.app.ActivityScenario
 import androidx.test.core.app.ApplicationProvider
+import androidx.work.testing.WorkManagerTestInitHelper
 import ch.sonensei.cockpit.MainActivity
 import ch.sonensei.cockpit.core.network.AuthSession
 import ch.sonensei.cockpit.core.network.AuthTokens
@@ -62,6 +63,8 @@ class AppStartRoutingTest {
     @Before
     fun setUp() {
         hilt.inject()
+        // The shell's start screen (Today) loads GTD data, which schedules the periodic GTD sync.
+        WorkManagerTestInitHelper.initializeTestWorkManager(ApplicationProvider.getApplicationContext())
     }
 
     @After
