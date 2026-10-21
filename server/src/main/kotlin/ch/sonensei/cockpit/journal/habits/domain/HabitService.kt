@@ -65,7 +65,8 @@ data class HabitView(
  * a check changes, and after it fired. Other reminders of the habit (added through the reminders API) are left alone. A
  * change of the time zone setting applies from the next move on.
  *
- * Methods that change a habit take a `checkVersion` callback that sees the current version first (If-Match).
+ * Methods that change a habit take a `checkVersion` callback that sees the current version first (If-Match). They lock the
+ * habit's row, so changes of the same habit (and the moves of its reminder) run one after another.
  */
 @Service
 @Transactional
@@ -125,7 +126,7 @@ class HabitService(
 		fields: HabitChanges,
 		checkVersion: (Long) -> Unit,
 	): HabitView {
-		val habit = load(id)
+		val habit = lock(id)
 		checkVersion(habit.version)
 		apply(habit, fields)
 		validate(habit)
@@ -138,7 +139,7 @@ class HabitService(
 		id: UUID,
 		checkVersion: (Long) -> Unit,
 	) {
-		val habit = load(id)
+		val habit = lock(id)
 		checkVersion(habit.version)
 		habits.delete(habit)
 		habits.flush()
@@ -163,7 +164,7 @@ class HabitService(
 		if (count !in 0..MAX_COUNT) errors += FieldError("count", "must be between 0 and $MAX_COUNT")
 		if (errors.isNotEmpty()) throw InvalidRequestException(errors)
 		// Locked, so concurrent checks of the same habit and date never insert twice.
-		val habit = habits.lockById(id) ?: throw NotFoundException("Habit not found")
+		val habit = lock(id)
 		val check = checks.findByHabitIdAndDate(id, date)
 		when {
 			count == 0 -> check?.let(checks::delete)
@@ -211,7 +212,7 @@ class HabitService(
 		if (reminder.itemType != ItemType.HABIT) return
 		try {
 			isolated.executeWithoutResult {
-				habits.findById(reminder.itemId).orElse(null)?.let { sync(it, context()) }
+				habits.lockById(reminder.itemId)?.let { sync(it, context()) }
 			}
 		} catch (e: RuntimeException) {
 			log.warn("Scheduling the next reminder of habit {} failed", reminder.itemId, e)
@@ -276,6 +277,12 @@ class HabitService(
 	}
 
 	private fun load(id: UUID): Habit = habits.findById(id).orElseThrow { NotFoundException("Habit not found") }
+
+	/**
+	 * The habit, locked until the end of the transaction: every change that ends in [sync] takes this lock, so two moves
+	 * of the same habit's reminder never overlap (no duplicate managed reminder, no delete of one already deleted).
+	 */
+	private fun lock(id: UUID): Habit = habits.lockById(id) ?: throw NotFoundException("Habit not found")
 
 	private fun apply(
 		habit: Habit,

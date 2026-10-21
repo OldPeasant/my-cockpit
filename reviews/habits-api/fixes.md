@@ -91,3 +91,62 @@ Remaining unresolved findings:
 ## Final status
 
 Fixes completed, but validation still fails: all validated findings are fixed and the focused validation passes, but `.taskcheck` fails on 4 gtd convert tests. The HABIT resolver from the original implementation causes those failures; these fixes do not.
+
+# Round 2
+
+Date: 2026-10-21
+
+Task: habits-api - Habits API
+
+Scope: finding CR-1 (P3) of the second code review in `reviews/habits-api/review.md`. Base commit ca4eeffa, task commits 8d287f7d..19251878 (HEAD). Changes are limited to `server/.../journal/habits` (main and test) and are uncommitted working-tree changes on top of 19251878.
+
+## Fixed findings
+
+### CR-1 — Concurrent reminder syncs of the same habit are not serialized
+
+Files changed:
+- `server/src/main/kotlin/ch/sonensei/cockpit/journal/habits/domain/HabitService.kt`
+- `server/src/test/kotlin/ch/sonensei/cockpit/journal/habits/HabitReminderOwnershipTests.kt`
+
+Problem:
+Only `setCheck` locked the habit row. `update`, `delete` and `onReminderFired` read the habit without a lock and then ran `sync`. Two overlapping syncs of the same habit could both see the same managed reminder: the second `ReminderService.delete` threw a 404, or both created a reminder and one became an unmanaged duplicate.
+
+Fix:
+A new private helper `lock(id)` calls `habits.lockById(id)` (PESSIMISTIC_WRITE, the lock `setCheck` already used) and throws `NotFoundException` when the habit is missing. `update`, `delete` and `setCheck` use it. `onReminderFired` calls `habits.lockById` inside its REQUIRES_NEW `TransactionTemplate`, so the lock is held by that isolated transaction. Every path that ends in `sync` now takes the same row lock. `create` is unchanged because a new habit cannot be seen by other transactions. The If-Match check still runs on the locked entity's version, which is the latest committed version once the lock is acquired. The existing 412 tests in HabitWebTests and HabitEdgeCaseTests pass.
+
+The optional part was not applied: `sync` does not catch a `NotFoundException` from `ReminderService.delete`. That method is `@Transactional` and joins the caller's transaction. When a RuntimeException leaves it, Spring marks the shared transaction rollback-only, so catching it in `sync` would turn the 404 into an `UnexpectedRollbackException` at commit. A safe version needs a non-throwing delete in core, which is outside this scope. With the row lock, two habit syncs can no longer cause the double delete. The only remaining case is a user deleting the managed reminder through the reminders API in the short window between `pendingOfItem` and `delete` of the same sync. That gives a 404, and a retry succeeds.
+
+Tests added in HabitReminderOwnershipTests:
+- `a habit change waits for the row lock another change of the habit holds and sees its version`: another transaction holds `select ... for update` on the habit and bumps its version. `HabitService.update` must not finish while that lock is held. After the lock is released, its `checkVersion` sees the bumped version and the reminder moves to the new time.
+- `concurrent changes and checks of the same habit keep exactly one managed reminder`: 5 rounds of 4 threads mix `update` (each call moves the reminder) and `setCheck`. No call fails, and exactly one pending reminder exists, which is the managed one.
+- Both tests failed with `ObjectOptimisticLockingFailureException` when `update` was temporarily switched back to the unlocked `load(id)`. They pass with the fix. The temporary revert was undone, and the final diff contains only the fix.
+- The existing test `after its reminder fired the habit names the next pending one` covers `lockById` in `onReminderFired`. A pessimistic lock outside a transaction would fail with TransactionRequiredException, the listener would only log it, and the assertions on the next reminder would fail.
+
+Validation:
+- `cd server && ./gradlew test --tests '*HabitReminderOwnershipTests'` with `update` temporarily unlocked: 9 tests, 2 failed (expected; this shows the new tests catch the bug)
+- `cd server && ./gradlew ktlintFormat ktlintCheck test --tests 'ch.sonensei.cockpit.journal.habits.*' --tests '*Reminder*'`: Pass
+
+## Not fixed
+
+None. The optional "tolerate an already deleted managed reminder" part is explained above. It is not a separate finding.
+
+## Validation summary
+
+Focused tests:
+- `cd server && ./gradlew ktlintFormat ktlintCheck test --tests 'ch.sonensei.cockpit.journal.habits.*' --tests '*Reminder*'`: BUILD SUCCESSFUL. 15 suites, 133 tests, 0 failures, 0 errors. HabitReminderOwnershipTests now has 9 tests, 2 of them new.
+
+Full test suite:
+- Not run by the fixer. Left to the parent worker's `.taskcheck` run.
+
+Lint/type-check/build:
+- `./gradlew ktlintFormat ktlintCheck`: Pass. Main and test code compile.
+
+`.taskcheck`:
+- Not run by the fixer.
+
+Remaining unresolved findings:
+0
+
+## Final status
+
+All validated findings fixed and validation passed, for the focused suites. `.taskcheck` is left to the parent worker.

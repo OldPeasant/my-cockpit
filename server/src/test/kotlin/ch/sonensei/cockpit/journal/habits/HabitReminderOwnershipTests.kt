@@ -7,6 +7,9 @@ import ch.sonensei.cockpit.core.persistence.MutableClock
 import ch.sonensei.cockpit.core.persistence.MutableClockTestConfiguration
 import ch.sonensei.cockpit.core.reminders.domain.ReminderService
 import ch.sonensei.cockpit.core.settings.domain.SettingsService
+import ch.sonensei.cockpit.journal.habits.domain.Change
+import ch.sonensei.cockpit.journal.habits.domain.HabitChanges
+import ch.sonensei.cockpit.journal.habits.domain.HabitService
 import ch.sonensei.cockpit.support.PostgresTestBase
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldContainExactly
@@ -32,11 +35,19 @@ import org.springframework.test.web.servlet.get
 import org.springframework.test.web.servlet.patch
 import org.springframework.test.web.servlet.post
 import org.springframework.test.web.servlet.put
+import org.springframework.transaction.PlatformTransactionManager
+import org.springframework.transaction.support.TransactionTemplate
 import tools.jackson.databind.JsonNode
 import tools.jackson.databind.json.JsonMapper
 import java.sql.Timestamp
 import java.time.Instant
+import java.time.LocalDate
+import java.time.LocalTime
 import java.util.UUID
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.CyclicBarrier
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
 
 /**
  * The one reminder the habits module manages per habit (`habit.reminder_id`): it always names the pending reminder at the
@@ -54,6 +65,8 @@ class HabitReminderOwnershipTests(
 	@Autowired private val clock: MutableClock,
 	@Autowired private val settings: SettingsService,
 	@Autowired private val reminders: ReminderService,
+	@Autowired private val service: HabitService,
+	@Autowired private val transactionManager: PlatformTransactionManager,
 ) : PostgresTestBase() {
 	@BeforeEach
 	fun setUp() {
@@ -229,6 +242,79 @@ class HabitReminderOwnershipTests(
 
 		allReminders(habit.id()) shouldBe 0
 		reminders.pendingOfItem(ref).shouldBeEmpty()
+	}
+
+	@Test
+	fun `a habit change waits for the row lock another change of the habit holds and sees its version`() {
+		val habit = newHabit("""{"name":"Meditate","reminderTime":"20:00"}""")
+		val id = UUID.fromString(habit.id())
+		val version = habit.get("version").asLong()
+		var seen: Long? = null
+		val locked = CountDownLatch(1)
+		val release = CountDownLatch(1)
+		val pool = Executors.newFixedThreadPool(2)
+		try {
+			val holder =
+				pool.submit {
+					TransactionTemplate(transactionManager).executeWithoutResult {
+						jdbc.queryForObject("select id from habit where id = ? for update", UUID::class.java, id)
+						jdbc.update("update habit set version = version + 1 where id = ?", id)
+						locked.countDown()
+						release.await(30, TimeUnit.SECONDS)
+					}
+				}
+			locked.await(10, TimeUnit.SECONDS) shouldBe true
+			val update =
+				pool.submit<LocalTime?> {
+					service.update(id, HabitChanges(reminderTime = Change(LocalTime.of(21, 0)))) { seen = it }.habit.reminderTime
+				}
+			// The update must not get past the lock (and move the reminder) while the other transaction holds it.
+			Thread.sleep(500)
+			update.isDone shouldBe false
+			release.countDown()
+			holder.get(30, TimeUnit.SECONDS)
+			update.get(30, TimeUnit.SECONDS) shouldBe LocalTime.of(21, 0)
+			// The If-Match check ran after the lock, on the version the other change committed.
+			seen shouldBe version + 1
+		} finally {
+			release.countDown()
+			pool.shutdown()
+		}
+		val now = pending(habit.id()).single()
+		now.second shouldBe Instant.parse("2026-03-04T20:00:00Z")
+		managedId(habit.id()) shouldBe now.first
+	}
+
+	@Test
+	fun `concurrent changes and checks of the same habit keep exactly one managed reminder`() {
+		val habit = newHabit("""{"name":"Water","reminderTime":"20:00"}""")
+		val id = UUID.fromString(habit.id())
+		val threads = 4
+		val pool = Executors.newFixedThreadPool(threads)
+		try {
+			repeat(5) { round ->
+				val barrier = CyclicBarrier(threads)
+				val results =
+					(0 until threads).map { n ->
+						pool.submit {
+							barrier.await(10, TimeUnit.SECONDS)
+							if (n % 2 == 0) {
+								// Every update moves the reminder to another time: each sync deletes and creates one.
+								val time = LocalTime.of(18 + (round + n) % 4, 0)
+								service.update(id, HabitChanges(reminderTime = Change(time))) {}
+							} else {
+								service.setCheck(id, LocalDate.parse("2026-03-0${2 + n % 3}"), round % 2)
+							}
+						}
+					}
+				// Neither a spurious 404 (a reminder deleted twice) nor an optimistic lock failure.
+				results.forEach { it.get(30, TimeUnit.SECONDS) }
+			}
+		} finally {
+			pool.shutdown()
+		}
+		val now = pending(habit.id()).single()
+		managedId(habit.id()) shouldBe now.first
 	}
 
 	private companion object {
