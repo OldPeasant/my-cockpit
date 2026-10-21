@@ -6,6 +6,7 @@ deps: [p0-items-links,p0-search-core,p0-trash-core]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/bookmarks,server/src/test/kotlin/ch/sonensei/cockpit/bookmarks,server/src/main/resources/db/migration/bookmarks]
 prio: 3
 lease_until: 2026-10-21T19:48:17Z
+extended: dell26/agent-3
 ---
 ## Goal
 Bookmarks and read-later (SPEC.md §8.4).
@@ -23,3 +24,4 @@ Bookmarks and read-later (SPEC.md §8.4).
 - ASSUMPTION (2026-10-21 20:39+0200 by dell26/agent-3): SSRF protection follows the ICS feed client: http(s) only, no credentials, ports 80/443, every resolved address public (mail.api.PublicAddresses), checked again on each redirect; the JDK HttpClient re-resolves the host, so DNS rebinding is narrowed, not closed. Only the first 1MB of HTML is read; whole fetch 15s. Duplicate URLs are allowed (no uniqueness).
 - ASSUMPTION (2026-10-21 20:39+0200 by dell26/agent-3): Added snapshot_file_id column now (read-only snapshotFileId in the API) so bookmarks-snapshot needs no migration of its own in this module's folder.
 - ASSUMPTION (2026-10-21 21:11+0200 by dell26/agent-3): V202610211800__bookmarks_model.sql was edited in place (metadata_fetch column) because it was never on main; URLs are normalized (IDN->punycode, invalid chars percent-encoded) before storing; hosts with '_' save but their metadata fetch ends FAILED (JDK HttpClient limitation); PENDING bookmarks are re-queued on startup and rejected fetches stored as FAILED
+- extended by dell26/agent-3: Implementation, tests, OpenAPI regen, review rounds 1+2 (0 P0-P2, 3 P3) and fixer done; test-writer edge-case tests committed (4e889777). Left: finish/confirm test-writer report (reviews/bookmarks-api/tests.md missing), re-run code-reviewer if code changed since round 2, tasks.py verify for criteria 1-4, write quality.json, done. Check: only failure was calendar IcsFeedClientTests (IOException instead of 'larger than', outside this task, likely flaky); check takes ~7 min.
