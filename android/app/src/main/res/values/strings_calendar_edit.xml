@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="calendar_edit_new">New event</string>
+    <string name="calendar_edit_edit">Edit event</string>
+    <string name="calendar_edit_close">Close</string>
+    <string name="calendar_edit_save">Save</string>
+    <string name="calendar_edit_title">Title</string>
+    <string name="calendar_edit_title_missing">Enter a title.</string>
+    <string name="calendar_edit_calendar">Calendar</string>
+    <string name="calendar_edit_calendar_missing">Choose a calendar. Add one on the web if there is none.</string>
+    <string name="calendar_edit_all_day">All day</string>
+    <string name="calendar_edit_starts">Starts</string>
+    <string name="calendar_edit_ends">Ends</string>
+    <string name="calendar_edit_end_before_start">The end must be after the start.</string>
+    <string name="calendar_edit_time_zone">Time zone: %1$s</string>
+    <string name="calendar_edit_repeat">Repeat</string>
+    <string name="calendar_edit_repeat_none">Does not repeat</string>
+    <string name="calendar_edit_repeat_daily">Every day</string>
+    <string name="calendar_edit_repeat_weekly">Every week</string>
+    <string name="calendar_edit_repeat_monthly">Every month</string>
+    <string name="calendar_edit_repeat_yearly">Every year</string>
+    <string name="calendar_edit_repeat_custom">Custom (%1$s)</string>
+    <string name="calendar_edit_location">Location</string>
+    <string name="calendar_edit_description">Description</string>
+    <string name="calendar_edit_read_only">This calendar is read-only. Its events can\'t be changed here.</string>
+    <string name="calendar_edit_load_offline">Can\'t reach the server. The event could not be loaded.</string>
+    <string name="calendar_edit_load_failed">The event could not be loaded.</string>
+    <string name="calendar_edit_offline">Can\'t reach the server. Nothing was saved, try again.</string>
+    <string name="calendar_edit_failed">The event could not be saved.</string>
+    <string name="calendar_edit_conflict">This event was changed elsewhere. Reload it to see the current version; your changes here are dropped.</string>
+    <string name="calendar_edit_reload">Reload</string>
+    <string name="calendar_edit_retry">Retry</string>
+    <string name="calendar_edit_scope_title">Change a repeating event</string>
+    <string name="calendar_edit_scope_question">Which events of the series should this apply to?</string>
+    <string name="calendar_edit_scope_this">Only this event</string>
+    <string name="calendar_edit_scope_following">This and following events</string>
+    <string name="calendar_edit_scope_all">All events in the series</string>
+    <string name="calendar_edit_cancel">Cancel</string>
+    <string name="calendar_edit_ok">OK</string>
+    <string name="calendar_edit_add">New event</string>
+</resources>

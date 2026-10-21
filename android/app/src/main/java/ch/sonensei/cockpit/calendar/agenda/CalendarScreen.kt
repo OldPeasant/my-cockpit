@@ -76,6 +76,7 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import ch.sonensei.cockpit.R
+import ch.sonensei.cockpit.calendar.edit.CalendarWithEditor
 import ch.sonensei.cockpit.ui.PlaceholderScreen
 import dagger.hilt.internal.GeneratedComponentManagerHolder
 import kotlinx.coroutines.delay
@@ -99,7 +100,7 @@ import java.util.UUID
 @Composable
 fun CalendarScreen(modifier: Modifier = Modifier) {
     if (LocalActivity.current is GeneratedComponentManagerHolder) {
-        CalendarRoute(modifier)
+        CalendarWithEditor(modifier)
     } else {
         PlaceholderScreen(R.string.nav_calendar, Icons.Outlined.CalendarMonth, modifier)
     }
@@ -145,7 +146,7 @@ data class CalendarCallbacks(
     val loadMore: () -> Unit = {},
     val setVisible: (UUID, Boolean) -> Unit = { _, _ -> },
     val retry: () -> Unit = {},
-    /** An occurrence was tapped (its detail and editing come with the event editor). */
+    /** An occurrence was tapped: the event editor opens it. */
     val open: (Occurrence) -> Unit = {},
 )
 
