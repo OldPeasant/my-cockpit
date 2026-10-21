@@ -1,11 +1,11 @@
 ---
 title: Mail to GTD integration
-status: in_progress
+status: done
 owner: dell26/agent-3
 deps: [mail-actions-api,gtd-capture-api,notes-api]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/mail/gtd,server/src/test/kotlin/ch/sonensei/cockpit/mail/gtd]
 prio: 1
-lease_until: 2026-10-21T07:13:03Z
+lease_until: 
 extended: 
 releases: 2
 ---
@@ -32,3 +32,4 @@ Turn mail into tasks, waiting-fors, notes (SPEC.md §7.3).
 - ASSUMPTION (2026-10-21 07:19+0200 by dell26/agent-1): Inline-link neutralization in to-note writes '[[' as '[ [' (visible space) instead of the Markdown escape '[\[': flexmark's TextCollectingVisitor miscounts escapes combined with bold, autolinks and hard breaks (AssertionError under -ea) when NoteMarkdown derives plain text of the header. The underlying flexmark/NoteMarkdown fragility with escapes affects any note and is outside this task's touches.
 - ASSUMPTION (2026-10-21 07:39+0200 by dell26/agent-1): to-note writes a backslash from the mail that precedes ASCII punctuation (a Markdown escape) as the look-alike U+2216: any Markdown escape in the note (also an escaped backslash) trips flexmark's TextCollectingVisitor in NoteMarkdown.plainText (500 under -ea, garbled search text otherwise). Root fix is task notes-markdown-escapes; after it, mail-gtd could keep the mail's escapes verbatim.
 - release by dell26/agent-1: Done: all 4 criteria verified (tasks.py verify 1-4); final delta review at daa39450 committed (reviews/mail-gtd/review.md, 716613ad): 0 P0-P2, only CR-1 (P3) open, deferred to mail-connection-errors via assume; CR-2 resolved via notes-markdown-escapes deps; tests.md round 5 and fixes.md round 4 committed (c023ce1f). Production code unchanged since 75ac48d5. Left: 1) write+commit reviews/mail-gtd/quality.json (docs/QUALITY.md): reviewed_revision = full hash of final reviewed code (daa39450c03185cb3bc14d3afc36a1a0ccce311a by patch-id; use current HEAD hash of that commit after rebase), helpers test-writer/code-reviewer/fixer with report paths, findings CR-1 deferred, CR-2 resolved, TW-1 fixed; 2) run scripts/check.sh to completion (it takes over 10 min on this loaded machine; my run hit a 590s shell timeout in the android section, with no failures in the tfp, server or web sections); 3) tasks.py done mail-gtd. No re-run of helpers is needed unless code changes.
+- done by dell26/agent-3: `sh scripts/check.sh` passed in 691s on 60a7dd617; criteria verified 4/4
