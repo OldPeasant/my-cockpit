@@ -4,10 +4,12 @@ import android.Manifest
 import android.app.AlarmManager
 import android.app.Application
 import android.app.Notification
+import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.ContextWrapper
+import androidx.core.app.NotificationCompat
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import ch.sonensei.cockpit.R
@@ -164,6 +166,38 @@ class ReminderAlarmsNotifierTest {
     }
 
     @Test
+    fun `dismissing all removes every reminder notification but keeps the notifications of other features`() {
+        val notifier = ReminderNotifier(context)
+        notifier.show(scheduled(1))
+        notifier.show(scheduled(2))
+        notifications.createNotificationChannel(NotificationChannel(OTHER_CHANNEL, "Other", NotificationManager.IMPORTANCE_LOW))
+        // Another feature's notifications: one even uses the same notification id, one has no tag.
+        notifications.notify("other-tag", ReminderNotifier.NOTIFICATION_ID, otherNotification("Upload finished"))
+        notifications.notify(OTHER_ID, otherNotification("Sync failed"))
+
+        notifier.dismissAll()
+
+        assertEquals(
+            listOf("Sync failed", "Upload finished"),
+            shadowOf(notifications).allNotifications.map { shadowOf(it).contentTitle.toString() }.sorted(),
+        )
+    }
+
+    @Test
+    fun `dismissing all with no notification shown does nothing`() {
+        ReminderNotifier(context).dismissAll()
+
+        assertTrue(shadowOf(notifications).allNotifications.isEmpty())
+    }
+
+    private fun otherNotification(title: String): Notification =
+        NotificationCompat
+            .Builder(context, OTHER_CHANNEL)
+            .setSmallIcon(R.drawable.ic_notification_reminder)
+            .setContentTitle(title)
+            .build()
+
+    @Test
     fun `notifications cannot be shown without the permission or when the user turned them off`() {
         val notifier = ReminderNotifier(context)
         assertTrue(notifier.canNotify())
@@ -183,5 +217,10 @@ class ReminderAlarmsNotifierTest {
         val channel = notifications.getNotificationChannel(ReminderNotifier.CHANNEL_ID)
         assertEquals(NotificationManager.IMPORTANCE_HIGH, channel.importance)
         assertEquals(context.getString(R.string.reminder_channel_name), channel.name.toString())
+    }
+
+    private companion object {
+        const val OTHER_CHANNEL = "fictitious-other-feature"
+        const val OTHER_ID = 42
     }
 }

@@ -320,6 +320,36 @@ class ReminderUiTest {
     }
 
     @Test
+    fun `the shell shown again without a logout keeps the prompt dismissed and the dialog already asked`() {
+        graph.reminderScheduler().apply(listOf(reminder(1, minutes = 30)))
+        val viewModel = viewModel()
+        var shown by mutableStateOf(true)
+        composeRule.setContent { CockpitTheme { if (shown) ReminderPermissionPrompt(viewModel = viewModel) } }
+        viewModel.onNotificationPermissionRequested()
+        composeRule.waitForIdle()
+        assertTrue(viewModel.state.value.notificationsViaSettings)
+
+        // The shell leaves the composition and comes back in the same session (no logout cleared the store).
+        shown = false
+        composeRule.waitForIdle()
+        shown = true
+        composeRule.waitForIdle()
+
+        assertEquals("the sync start is requested again (the scheduler keeps one periodic sync)", 2, syncStarts.size)
+        assertTrue("re-reading the store keeps what this session asked", viewModel.state.value.notificationsViaSettings)
+        composeRule.onNodeWithTag(ReminderPromptTags.CARD).assertIsDisplayed()
+
+        composeRule.onNodeWithTag(ReminderPromptTags.DISMISS).performClick()
+        shown = false
+        composeRule.waitForIdle()
+        shown = true
+        composeRule.waitForIdle()
+
+        composeRule.onNodeWithTag(ReminderPromptTags.CARD).assertDoesNotExist()
+        assertFalse(viewModel.state.value.visible)
+    }
+
+    @Test
     fun `a tapped notification opens the item's screen in the shell`() {
         lateinit var navController: NavHostController
         composeRule.setContent {
