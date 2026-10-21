@@ -1,0 +1,35 @@
+{
+  "schema": 1,
+  "task": "and-mail-list-read",
+  "reviewed_revision": "58f705653f136cb1837c0fbe9aa36ea2cbb26119",
+  "helpers": {
+    "test-writer": {"status": "completed", "report": "reviews/and-mail-list-read/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/and-mail-list-read/review.md"},
+    "fixer": {"status": "completed", "report": "reviews/and-mail-list-read/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "R1-CR-1", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "review 1: failed swipe reinserted into another mailbox / reload brought back archived mail (fix 7b14fdfd)"},
+    {"id": "R1-CR-2", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "review 1: read view models with full HTML body kept on the Mail back-stack entry (fix 7b14fdfd)"},
+    {"id": "R1-CR-3", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "review 1: read view model, repository mapping and read screen had no tests (fix 7b14fdfd)"},
+    {"id": "R1-CR-4", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "review 1: infinite scroll trigger fired only when 'near end' changed (fix 7b14fdfd)"},
+    {"id": "R1-CR-5", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "review 1: resume reloaded only the first page and dropped loaded pages (fix 7b14fdfd)"},
+    {"id": "R1-CR-6", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "review 1: links opened in other apps without a user gesture check (fix 7b14fdfd)"},
+    {"id": "R2-CR-1", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "review 2: infinite scroll retried a failed page in a tight loop (second fix round, fixes.md)"},
+    {"id": "R2-CR-2", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "review 2: mail closed before it loaded was still marked read (second fix round, fixes.md)"},
+    {"id": "R4-CR-1", "source": "code-reviewer", "severity": "P3", "disposition": "accepted",
+     "note": "review 4 (final): archive/delete that succeeds after the read view was closed leaves the mail in the list until the next refresh (resume/Retry); needs a back press during the request, self-heals, non-blocking"}
+  ],
+  "validation": [
+    {"command": "cd android && ./gradlew ktlintCheck testDebugUnitTest --tests 'ch.sonensei.cockpit.mail.list.*' --tests 'ch.sonensei.cockpit.mail.read.*'", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
