@@ -124,7 +124,7 @@ class TaskToNoteWebTests(
 		val taskRef = ItemRef(ItemType.TASK, task)
 		val outgoing = ItemRef(ItemType.NOTE, newNote("Tax folder"))
 		val incoming = ItemRef(ItemType.NOTE, newNote("Inline linker"))
-		val unknownType = ItemRef(ItemType.CONTACT, UUID.randomUUID())
+		val unknownType = ItemRef(ItemType.HABIT, UUID.randomUUID())
 		links.save(Link(taskRef, outgoing, "source", LinkOrigin.MANUAL))
 		links.save(Link(incoming, taskRef, null, LinkOrigin.SYNC))
 		links.save(Link(taskRef, unknownType, null, LinkOrigin.MANUAL))

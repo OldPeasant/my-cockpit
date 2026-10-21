@@ -48,7 +48,7 @@ class TaskToNoteRollbackTests(
 	@Test
 	fun `a failing link copy rolls back the note and the task deletion`() {
 		val task = tasks.create(null, TaskList.INBOX, TaskChanges(title = Change("File the receipt"))).task.id
-		linkRepository.save(Link(ItemRef(ItemType.TASK, task), ItemRef(ItemType.CONTACT, UUID.randomUUID()), null, LinkOrigin.MANUAL))
+		linkRepository.save(Link(ItemRef(ItemType.TASK, task), ItemRef(ItemType.HABIT, UUID.randomUUID()), null, LinkOrigin.MANUAL))
 		doThrow(IllegalStateException("link store down")).`when`(links).create(anyRef(), anyRef(), any())
 
 		shouldThrow<IllegalStateException> { converter.convert(task) {} }
