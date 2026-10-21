@@ -4,45 +4,45 @@ Date: 2026-10-22
 
 Task: mail-search - Mail search
 
-Scope: committed task changes `git diff c672967d65dd52c9c094eb811910ca88ceb7c022..6ad9a27cc3d00e1d011440707d689cd268aed93f` (review round 2: checks that the round 1 findings CR-1..CR-3 are resolved and looks for new issues)
+Scope: committed task changes `git diff 61e58a59fc78a624024950883a5af5c1cc09c69c..fc43c419647f6df418ba0c972eb28982eba36d59` (review round 3, on the final code). Production code is unchanged since the fix commit a0301d6ae (`git diff --stat a0301d6ae HEAD` touches only test files and `reviews/`). This round re-reads the whole task and pays particular attention to the test-only commits after round 2 (5317111ab, fc43c4196).
 
 Requirements:
-- tasks/mail-search.md acceptance criteria and the five recorded assumptions (`python tasks.py assumptions`, mail-search entries #1-#5)
-- SPEC.md §4.4 (global search, `search_document`), §7.3 (mail search: cached headers/bodies, optional IMAP SEARCH), §14 conventions
-- AGENTS.md project notes, docs/ARCHITECTURE.md conventions
-- Previous round: reviews/mail-search/review.md (round 1) and reviews/mail-search/fixes.md
-- Existing code conventions in server/.../mail, server/.../core/search, api/openapi.yaml
+- tasks/mail-search.md acceptance criteria 1-3 and the five assumptions in its Notes (hook placement outside `touches`, document content and recency, endpoint scope/limit/hasMore/server failures, reconciler, folder-deletion unindex)
+- SPEC.md §7.3 (mail search over cached headers and bodies, optional IMAP SEARCH) and §4.4 (`search_document`)
+- AGENTS.md project notes, docs/ARCHITECTURE.md conventions, docs/QUALITY.md review artifact contract
+- Previous rounds: reviews/mail-search/review.md (rounds 1 and 2), reviews/mail-search/fixes.md, reviews/mail-search/tests.md
 
 Git range:
 - Branch: main
-- HEAD: 6ad9a27cc3d00e1d011440707d689cd268aed93f
-- Base/start: c672967d65dd52c9c094eb811910ca88ceb7c022
-- Commits reviewed: 5 (bdd5a8ce, d10332fe, 567fdaeb, a8044f22, 6ad9a27c)
+- HEAD: fc43c419647f6df418ba0c972eb28982eba36d59
+- Base/start: 61e58a59fc78a624024950883a5af5c1cc09c69c (`git merge-base HEAD origin/main`)
+- Commits reviewed: 7 (41d157832, 461be158f, 0350729f9, d85506cb5, a0301d6ae, 5317111ab, fc43c4196)
+- Uncommitted changes: none at review start
 
 Summary: 0 P0, 0 P1, 0 P2, 0 P3
 
 Commands run (read-only):
-- `git log --oneline c672967d..6ad9a27c`, `git diff --stat` -> 31 files, +2011/-10
-- `git diff c672967d..6ad9a27c -- server/src/main` -> read in full; changed test files, test config and the `api/openapi.yaml` and generated web client diffs read
-- Read nearby code: `MailHeaderStore` (upsert, reconcile, detachFolder, pruneDetached), `MailFolderService.store`, `MailActionService.relocate/remove`, `ImapRemoteMailbox.withFolder`, `SearchIndexer`, the `search_document` migration, `MailBackupContributor`
-- `python tasks.py verify mail-search` -> 3 criteria, none recorded yet (the parent worker records evidence after the quality workflow)
-- Tests were not executed by this reviewer: running Gradle was denied by the sandbox permissions. The fix report claims `./gradlew test --tests 'ch.sonensei.cockpit.mail.*'`, `integrationTest --tests '*MailSearchGreenMailTests'`, `./gradlew check` and `sh scripts/check.sh` pass; the parent worker has to re-run them for the evidence.
+- `git log --oneline 61e58a59..HEAD`, `git diff --stat 61e58a59 HEAD` -> 26 files outside the generated web client, +2171/-10
+- `git diff --stat a0301d6ae HEAD` -> only `MailActionServiceTests.kt`, `MailSearchWebTests.kt`, `MailSearchWordsTests.kt` and `reviews/` changed after the fix commit
+- `git diff --stat 2dd9badb7 HEAD -- server api web` -> only `MailSearchWebTests.kt` (+27): the revision tests.md measured plus the then-uncommitted test that fc43c4196 committed, so tests.md describes the final test code
+- Read in full: `MailSearchService.kt`, `MailSearchIndex.kt`, `MailSearchController.kt`, `MailSearchReconciler.kt`; the hook diffs in `MailHeaderStore`, `MailHeaderSyncService.searchServer`, `RemoteFolder.search`, `ImapRemoteMailbox` (`UID SEARCH [CHARSET UTF-8] TEXT ...` via `Argument`), `MailContentLoader`, `MailActionService.remove`, `MailFolderService.store`, core `SearchIndexer` (optional recency); test `application.properties`
+- Read the new and changed tests: `MailSearchWebTests` (fake mailbox incl. `attempts` and `onOpen`, setup, and every test added after round 2), `MailSearchWordsTests`, the new `MailActionServiceTests` case
+- `python tasks.py verify mail-search` -> criterion 3 verified (OpenApiContractTest without the flag), criteria 1 and 2 not yet recorded (the parent records them)
+- Gradle was not run by this reviewer; the parent reports `test --tests 'ch.sonensei.cockpit.mail.search.*'` on HEAD -> 36 tests, 0 failures, the mail suite + OpenApiContractTest -> 1145 tests, 0 failures (before the last test commit), `integrationTest --tests '*MailSearchGreenMailTests'` -> 1 test, 0 failures, ktlintCheck passes
 
-Round 1 findings, verified against the current code:
-- CR-1 (deleted-folder messages returned and causing 500): resolved. `MailSearchIndex.LOCATED` (`m.folder_id is not null and m.uid is not null`, same as `MailMessage.isLocated`) is used in `MailSearchService.localIds` and both reconcile queries; `MailFolderService.store` calls `unindexFolder` before deleting a vanished folder (recorded as assumption #5). Regression tests: `MailSearchWebTests` "messages of a folder deleted from the cache are not found" (account and unscoped), "reconcile drops documents of messages whose folder was deleted ...", and `MailFolderSyncTests` asserts the document is removed by the folder sync.
-- CR-2 (reconciler miscounting and repeated delete): resolved. `removeStale()` runs once per run, `indexMissing` selects located rows only and returns the indexed count, so the loop cannot spin on unindexable rows; `MailSearchReconcilerTests` covers once-per-run removal, batching, the bound and failure handling.
-- CR-3 (UTF-8 IMAP SEARCH path unproven): resolved. `MailSearchGreenMailTests` now asserts `searchedFolders == 1` and empty `failures` for `müsli`, and `zürich` only matches an uncached message older than the sync window, found only via `server=true` with `loaded == 1`.
-
-Checked with no new finding:
-- Criterion 1: headers are indexed in `MailHeaderStore.upsert` (new and reattached rows), bodies in `MailContentLoader.load`; documents are removed on vanish/detach (`MailHeaderStore.remove`, `detachFolder`), on action removal (`MailActionService.remove`), on folder deletion, and by the reconciler for FK-cascaded account deletion (assumption #4). `server=true` runs `UID SEARCH [CHARSET UTF-8] TEXT <word>...` per selectable folder of the scope, caches found headers (most recent `limit`), merges them via `or m.id in (:serverIds)` under the same scope predicates, and reports failing accounts in `server.failures`.
-- Query safety: words restricted to `[\p{L}\p{N}]+` before quoting into the tsquery (bound parameter) and before `Argument.writeString`; stop-word-only English branch is harmless because the `simple` branch is OR-ed.
-- Index-recency change in core `SearchIndexer` is backward compatible (optional parameter, default unchanged).
-- Problem Details for blank/too long `q`, `limit` range, missing `q`, folder of another account (400) and unknown account/folder (404); no secrets or mail content logged at INFO (only ids and error codes).
-- Concurrency: `searchServer` holds the folder lock like `loadOlder`; no DB transaction spans IMAP I/O; `MailConnectionException`, `RemoteFolderNotFoundException` and `NotFoundException` are handled per folder.
-- OpenAPI: `/api/v1/mail/search` and its schemas are present in `api/openapi.yaml` and the generated web client; optional/required marking follows the project convention (only nullable fields are marked required explicitly).
-- Backup/restore: mail content is not backed up (`MailBackupContributor`); restored refs are detached and get indexed when the sync reattaches them, so no round-trip change is needed.
-
-Note on the working tree: uncommitted test changes exist (`MailActionServiceTests.kt`, `MailSearchWebTests.kt` modified, `MailSearchWordsTests.kt` new), apparently from a concurrent test-writer run. They are outside the committed scope and were not reviewed; among other things they add verification of `MailActionService.remove` unindexing, which the committed tests only exercise through a relaxed mock. If they are committed, they only touch tests, but the evidence should name the final revision.
+Checked with no finding:
+- Criterion 1: headers are indexed on cache (`MailHeaderStore.upsert`, new rows without body, reattached rows with their cached body), bodies when loaded (`MailContentLoader.load`, in the same transaction as the cache put); documents leave the index on vanish/detach, action removal, UIDVALIDITY detach, folder deletion (`unindexFolder` before `folders.delete`) and, for FK cascades, via the reconciler. `server=true` runs IMAP SEARCH per selectable folder of the scope under the folder lock, caches the newest `limit` uncached hits, and merges them under the same scope and `LOCATED` predicates; unreachable accounts are reported once in `server.failures` with the fixed error message.
+- Query safety: words are restricted to `[\p{L}\p{N}]+`, lowercased, deduplicated and capped at 20 before they are quoted into the bound tsquery parameter or written as IMAP strings; `MailSearchWordsTests` and the new web test with `'`, `&`, `!`, `:*`, `|`, `\` confirm operators never reach the query.
+- Validation and errors: blank / over-200-character `q` (after trimming), `limit` outside 1..200 -> 400 Problem Details; unknown account/folder -> 404; folder of another account -> 400. The new bounds test checks that 200 characters (also with surrounding spaces) and limits 1 and 200 are accepted.
+- Logging: only ids and error codes at INFO; exception causes (possible server responses) at DEBUG; no mail content logged.
+- New tests (round 3 focus):
+  - `server search skips a folder removed from the cache while the search runs`: relies on folders being searched in path order (`findByAccountIdOrderByPathAsc`, `Archive` before `INBOX`); the `onOpen` hook deletes INBOX while Archive is open, so the following `sync.searchServer(INBOX)` hits `NotFoundException`, which `MailSearchService.searchServer` catches. The assertions (only Archive searched, `searchedFolders == 1`, `loaded == 1`, no failures, the unlocated INBOX row not returned) prove the race path and the `LOCATED` filter. `onOpen` is reset in `setUp`, so it cannot leak into other tests.
+  - `an unreachable account is tried once, not once per folder`: `attempts` is recorded before the failure is thrown, so the count of 1 for an account with two folders really checks the `folder.accountId in failures` skip.
+  - `a message found again after a UIDVALIDITY change ...`: checks the reattached row keeps its id and is re-indexed with its cached body (the `searchIndex.index(message)` branch of `upsert`).
+  - `MailActionServiceTests` case: verifies `unindex` for a dropped and a detached row and no `unindex` for a row relocated via COPYUID, replacing the earlier relaxed-mock-only coverage.
+  - The strengthened failure test asserts `message == MailConnectionError.CONNECTION_FAILED.message`, so the exception cause cannot leak into the API.
+- Tests assert behavior through the HTTP API and the database (Testcontainers Postgres via `PostgresTestBase`), not implementation details; no existing test was weakened or skipped.
+- OpenAPI and generated web client match the controller (criterion 3 evidence recorded); `SearchIndexer` change is backward compatible.
 
 ## P0 Critical
 
