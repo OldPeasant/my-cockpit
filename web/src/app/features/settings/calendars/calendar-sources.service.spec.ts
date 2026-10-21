@@ -126,16 +126,14 @@ describe('CalendarSourcesService', () => {
     const sync = service.sync('s1');
     const syncFailure = expect(sync).rejects.toBeInstanceOf(ApiError);
     await tick();
-    http
-      .expectOne({ method: 'POST', url: `${SOURCES}/s1/sync` })
-      .flush(
-        { status: 500, title: 'Server error' },
-        {
-          status: 500,
-          statusText: 'Server error',
-          headers: { 'Content-Type': 'application/problem+json' },
-        },
-      );
+    http.expectOne({ method: 'POST', url: `${SOURCES}/s1/sync` }).flush(
+      { status: 500, title: 'Server error' },
+      {
+        status: 500,
+        statusText: 'Server error',
+        headers: { 'Content-Type': 'application/problem+json' },
+      },
+    );
     await syncFailure;
     expect(notify).not.toHaveBeenCalled();
   });
@@ -165,6 +163,25 @@ describe('CalendarSourcesService', () => {
     service.connect('microsoft');
     expect(service.takeReconnect('o3')).toBe(false);
     sessionStorage.clear();
+  });
+
+  it('still leaves for the consent screen when the browser blocks sessionStorage', () => {
+    const blocked = vi.spyOn(window, 'sessionStorage', 'get').mockImplementation(() => {
+      throw new DOMException('The operation is insecure.', 'SecurityError');
+    });
+    try {
+      expect(() => service.reconnect('microsoft', 'o2')).not.toThrow();
+      expect(() => service.connect('google')).not.toThrow();
+      // Nothing could be remembered, so the callback is treated as a calendar connect.
+      expect(service.takeReconnect('o2')).toBe(false);
+    } finally {
+      blocked.mockRestore();
+    }
+
+    expect(navigate.mock.calls).toEqual([
+      ['/api/v1/oauth/microsoft/start?purpose=CALENDAR'],
+      ['/api/v1/oauth/google/start?purpose=CALENDAR'],
+    ]);
   });
 
   it('puts the API root in front of the consent URL', () => {

@@ -154,16 +154,14 @@ describe('IntegrationsSettings', () => {
     await load();
     root().querySelector<HTMLButtonElement>('button[aria-label="Sync Holidays now"]')!.click();
     await settle();
-    http
-      .expectOne({ method: 'POST', url: `${SOURCES}/s3/sync` })
-      .flush(
-        { status: 409, title: 'Conflict', detail: 'Sources of this type cannot be synced yet' },
-        {
-          status: 409,
-          statusText: 'Conflict',
-          headers: { 'Content-Type': 'application/problem+json' },
-        },
-      );
+    http.expectOne({ method: 'POST', url: `${SOURCES}/s3/sync` }).flush(
+      { status: 409, title: 'Conflict', detail: 'Sources of this type cannot be synced yet' },
+      {
+        status: 409,
+        statusText: 'Conflict',
+        headers: { 'Content-Type': 'application/problem+json' },
+      },
+    );
     await settle();
 
     expect(root().querySelector('[role="alert"]')?.textContent).toContain(
@@ -239,16 +237,14 @@ describe('IntegrationsSettings', () => {
     await open(
       '/settings/integrations?oauth=connected&provider=microsoft&purpose=CALENDAR&connectionId=o2',
     );
-    http
-      .expectOne({ method: 'POST', url: SOURCES })
-      .flush(
-        { status: 400, title: 'Bad Request', detail: 'Request validation failed' },
-        {
-          status: 400,
-          statusText: 'Bad Request',
-          headers: { 'Content-Type': 'application/problem+json' },
-        },
-      );
+    http.expectOne({ method: 'POST', url: SOURCES }).flush(
+      { status: 400, title: 'Bad Request', detail: 'Request validation failed' },
+      {
+        status: 400,
+        statusText: 'Bad Request',
+        headers: { 'Content-Type': 'application/problem+json' },
+      },
+    );
     await settle();
     await load();
 
@@ -378,16 +374,14 @@ describe('IntegrationsSettings', () => {
   it('still lists the sources when the accounts cannot be read', async () => {
     await open();
     http.expectOne(SOURCES).flush({ items: [fakeSource(), fakeSyncedSource()] });
-    http
-      .expectOne(CONNECTIONS)
-      .flush(
-        { status: 503, title: 'Service Unavailable' },
-        {
-          status: 503,
-          statusText: 'Service Unavailable',
-          headers: { 'Content-Type': 'application/problem+json' },
-        },
-      );
+    http.expectOne(CONNECTIONS).flush(
+      { status: 503, title: 'Service Unavailable' },
+      {
+        status: 503,
+        statusText: 'Service Unavailable',
+        headers: { 'Content-Type': 'application/problem+json' },
+      },
+    );
     await settle();
 
     expect(root().querySelector('[role="alert"]')).toBeNull();
@@ -429,16 +423,14 @@ describe('IntegrationsSettings', () => {
       .expectOne({ method: 'POST', url: SOURCES })
       .flush(added, { status: 201, statusText: 'Created' });
     await settle();
-    http
-      .expectOne({ method: 'POST', url: `${SOURCES}/s5/sync` })
-      .flush(
-        { status: 500, title: 'Server error' },
-        {
-          status: 500,
-          statusText: 'Server error',
-          headers: { 'Content-Type': 'application/problem+json' },
-        },
-      );
+    http.expectOne({ method: 'POST', url: `${SOURCES}/s5/sync` }).flush(
+      { status: 500, title: 'Server error' },
+      {
+        status: 500,
+        statusText: 'Server error',
+        headers: { 'Content-Type': 'application/problem+json' },
+      },
+    );
     await settle();
     await load([fakeSource(), added]);
 
@@ -454,6 +446,59 @@ describe('IntegrationsSettings', () => {
     expect(root().querySelector('.outcome')?.textContent).toContain(
       'The Google account could not be connected. temporarily_unavailable',
     );
+    expect(TestBed.inject(Router).url).toBe('/settings/integrations');
+  });
+
+  it('shows a source that cannot be synced yet without a Sync now button', async () => {
+    await open();
+    await load([
+      fakeSource(),
+      fakeSource({ id: 's7', type: 'MICROSOFT', name: 'Outlook calendar', syncable: false }),
+    ]);
+
+    const row = item('Outlook calendar');
+    expect(row.dataset['state']).toBe('NONE');
+    expect(row.querySelector('.type')?.textContent?.trim()).toBe('Microsoft');
+    expect(row.textContent).toContain('This kind of source is not synced yet.');
+    expect(row.querySelector('.facts')).toBeNull();
+    expect(row.querySelector('button')).toBeNull();
+  });
+
+  it('shows a failed token refresh of a connected account without offering a reconnect', async () => {
+    await open();
+    await load(
+      [fakeSource()],
+      [
+        fakeConnection({ lastError: 'The provider refused the refresh token' }),
+        fakeConnection({
+          id: 'o3',
+          provider: 'MICROSOFT',
+          email: undefined,
+          displayName: undefined,
+        }),
+      ],
+    );
+
+    const accounts = [...root().querySelectorAll<HTMLElement>('.accounts > li')];
+    expect(accounts.length).toBe(2);
+    expect(accounts[0].querySelector('.account-error')?.textContent).toContain(
+      'Last refresh failed: The provider refused the refresh token',
+    );
+    expect(accounts[0].querySelector('button')).toBeNull();
+    // An account without email or display name is still listed, with its provider.
+    expect(accounts[1].querySelector('.name')?.textContent?.trim()).not.toBe('');
+    expect(accounts[1].querySelector('.type')?.textContent?.trim()).toBe('Microsoft');
+    expect(accounts[1].querySelector('.account-error')).toBeNull();
+  });
+
+  it('reports an OAuth error that came without a reason', async () => {
+    await open('/settings/integrations?oauth=error&provider=google');
+    await load();
+
+    const outcome = root().querySelector('.outcome');
+    expect(outcome?.getAttribute('role')).toBe('alert');
+    expect(outcome?.textContent?.trim()).toBe('The Google account could not be connected.');
+    http.expectNone({ method: 'POST', url: SOURCES });
     expect(TestBed.inject(Router).url).toBe('/settings/integrations');
   });
 

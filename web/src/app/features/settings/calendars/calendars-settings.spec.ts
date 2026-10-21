@@ -1,7 +1,11 @@
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
-import { CalendarResponse, CalendarSourceResponse } from '../../../api/generated';
+import {
+  CalendarResponse,
+  CalendarSourceResponse,
+  OAuthProviderResponse,
+} from '../../../api/generated';
 import { NotificationService, provideHttp } from '../../../core/http';
 import { BROWSER_NAVIGATE } from './calendar-sources.service';
 import CalendarsSettings from './calendars-settings';
@@ -51,6 +55,7 @@ describe('CalendarsSettings', () => {
       fakeSyncedSource(),
       fakeSyncedSource({ id: 's2', type: 'ICS_FEED', name: 'Swiss holidays' }),
     ],
+    providers: OAuthProviderResponse[] = PROVIDERS,
   ): Promise<void> {
     navigate = vi.fn();
     TestBed.configureTestingModule({
@@ -68,7 +73,7 @@ describe('CalendarsSettings', () => {
     await settle();
     http.expectOne(CALENDARS).flush({ items: calendars });
     http.expectOne(SOURCES).flush({ items: sources });
-    http.expectOne(PROVIDERS_URL).flush(PROVIDERS);
+    http.expectOne(PROVIDERS_URL).flush(providers);
     await settle();
   }
 
@@ -572,7 +577,9 @@ describe('CalendarsSettings', () => {
     flushReload([fakeCalendar(), work, holidays], [fakeSource()]);
     await settle();
 
-    expect(root.querySelector('[role="alert"]')?.textContent).toContain('Work could not be changed');
+    expect(root.querySelector('[role="alert"]')?.textContent).toContain(
+      'Work could not be changed',
+    );
     expect(
       root.querySelector<HTMLInputElement>('input[aria-label="Color of Work"]')!.disabled,
     ).toBe(false);
@@ -667,5 +674,107 @@ describe('CalendarsSettings', () => {
     // Switching the kind clears the old error.
     await pickKind('ICS feed');
     expect(root.querySelector('[role="alert"]')).toBeNull();
+  });
+
+  it('connects Microsoft through the OAuth redirect when the server has its app', async () => {
+    await setup(undefined, undefined, [
+      { provider: 'GOOGLE', slug: 'google', configured: false },
+      { provider: 'MICROSOFT', slug: 'microsoft', configured: true },
+    ]);
+    await pickKind('Microsoft');
+    expect(root.textContent).toContain(
+      'Microsoft asks you to allow access, then returns you to Settings → Integrations.',
+    );
+    button('Connect Microsoft account').click();
+
+    expect(navigate).toHaveBeenCalledWith('/api/v1/oauth/microsoft/start?purpose=CALENDAR');
+    http.expectNone({ method: 'POST', url: SOURCES });
+  });
+
+  it('shows a calendar without a color in the default color', async () => {
+    await setup([fakeCalendar({ color: undefined })], [fakeSource()]);
+
+    expect(
+      root.querySelector<HTMLInputElement>('input[aria-label="Color of Personal"]')!.value,
+    ).toBe('#3f7fbf');
+  });
+
+  it('shows the reason when a local calendar is refused and keeps its name', async () => {
+    await setup();
+    await type('Name', 'Family');
+    button('Add calendar').click();
+    await settle();
+    const { body, ...options } = problem(500, 'Server error');
+    http
+      .expectOne({ method: 'POST', url: CALENDARS })
+      .flush({ ...body, detail: 'The database is not reachable.' }, options);
+    await settle();
+
+    expect(root.querySelector('[role="alert"]')?.textContent).toContain(
+      'The database is not reachable.',
+    );
+    expect(root.querySelector('[role="status"]')).toBeNull();
+    expect(button('Add calendar').disabled).toBe(false);
+    const name = [...root.querySelectorAll('mat-form-field')]
+      .find((f) => f.querySelector('mat-label')?.textContent?.trim() === 'Name')!
+      .querySelector('input') as HTMLInputElement;
+    expect(name.value).toBe('Family');
+  });
+
+  it('reports a synced CalDAV account as added when the list cannot be read again', async () => {
+    await setup();
+    await pickKind('CalDAV');
+    await type('Server URL', 'https://cloud.example.test');
+    await type('User name', 'jane');
+    await type('App password', 'fictitious-pw');
+    button('Connect CalDAV').click();
+    await settle();
+    const added = fakeSyncedSource({ id: 's9', name: 'cloud.example.test' });
+    http
+      .expectOne({ method: 'POST', url: SOURCES })
+      .flush(added, { status: 201, statusText: 'Created' });
+    await settle();
+    http.expectOne({ method: 'POST', url: `${SOURCES}/s9/sync` }).flush(added);
+    await settle();
+    const { body, ...options } = problem(503, 'Service Unavailable');
+    http.expectOne(CALENDARS).flush(body, options);
+    http.expectOne(SOURCES).flush({ items: [fakeSource(), added] });
+    await settle();
+
+    expect(root.querySelector('[role="alert"]')).toBeNull();
+    expect(root.querySelector('[role="status"]')?.textContent).toContain(
+      'cloud.example.test added. The list could not be updated; reload the page to see it.',
+    );
+  });
+
+  it('still reports a failed change and unlocks the calendar when the reload fails too', async () => {
+    await setup();
+    const toggle = root.querySelector<HTMLButtonElement>(
+      'button[aria-label="Show Holidays in the calendar"], [aria-label="Show Holidays in the calendar"] button',
+    )!;
+    toggle.click();
+    await settle();
+    const failed = problem(500, 'Server error');
+    http
+      .expectOne({ method: 'PATCH', url: `${CALENDARS}/c3` })
+      .flush({ ...failed.body, detail: 'The database is not reachable.' }, failed);
+    await settle();
+    const down = problem(503, 'Service Unavailable');
+    http.expectOne(CALENDARS).flush(down.body, down);
+    http.expectOne(SOURCES).flush(down.body, down);
+    await settle();
+
+    expect(root.querySelector('[role="alert"]')?.textContent).toContain(
+      'Holidays could not be changed: The database is not reachable.',
+    );
+    // The page keeps the last known state and lets the user try again.
+    expect(
+      groups()
+        .map((g) => g.calendars)
+        .flat(),
+    ).toEqual(['Personal', 'Work', 'Holidays']);
+    expect(
+      root.querySelector<HTMLInputElement>('input[aria-label="Color of Holidays"]')!.disabled,
+    ).toBe(false);
   });
 });

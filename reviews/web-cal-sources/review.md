@@ -4,23 +4,39 @@ Date: 2026-10-21
 
 Task: web-cal-sources - Settings: calendars and integrations
 
-Scope: `git diff 7d07e18c..HEAD` (task commits c98bfaef server POST /api/v1/calendar/sources + regenerated OpenAPI/client; ed1dd89a + 52e9a519 web settings Calendars/Integrations, routes; c0323f47/3df94192 assumption notes). Committed changes only.
+Scope: `git diff 59631418..HEAD`, excluding `tasks/`, `reviews/` and `web/src/locale/messages.xlf`. Committed changes only. This is a re-review after the fixer addressed CR-1..CR-6 of the previous review. The fixer's commit 65d5a541 is now 91ed5d81 after a rebase.
 
 Requirements:
 - tasks/web-cal-sources.md acceptance criteria and recorded assumptions
-- SPEC.md §4.1 (secrets), §4.2 (Problem Details, ETag/If-Match), §6.1, §6.4, §11
+- SPEC.md §4.2 (Problem Details, ETag/If-Match), §6.1, §6.4, §11
 - docs/ARCHITECTURE.md conventions, AGENTS.md project notes
-- Parent instructions (credential handling, SSRF/URL validation, OAuth return handling, a11y, tests)
+- Parent instructions: verify the CR-1..CR-6 fixes and review the whole implementation again
 
 Git range:
 - Branch: main
-- HEAD: 52e9a51989e4609a10651836200dba4a725a5a0a
-- Base/start: 7d07e18cf944c834f8017fe8377eef7a55acce08
-- Commits reviewed: 5
+- HEAD: 91ed5d818fe032a9613ae5703588fcb2824fbfd7
+- Base/start: 59631418af373e0935ae9078ecc0e48a6431fa8b
+- Commits reviewed: 6 (64b11ac0, f28007a2, 507a39c7, 88633600, bbaf1a6d, 91ed5d81)
 
-Summary: 0 P0, 0 P1, 2 P2, 4 P3
+Summary: 0 P0, 0 P1, 0 P2, 1 P3
 
-Checked without findings: the request DTO masks url/password in `toString`; the response never returns config or credentials (the server test asserts this); the CalDAV password is stored as `EncryptedSecret`; URLs with user info are refused; the ICS feed fetch keeps its existing SSRF guard in `IcsFeedClient`; CalDAV requests stay on the URL's origin (existing `CalDavClient`); config keys match the adapters (`url`, `username`, `connectionId`); validation errors are Problem Details via `InvalidRequestException`; calendar PATCH sends `If-Match` and handles 409/412; the OAuth callback query contract (`oauth`, `provider`, `purpose`, `connectionId`, `error`) matches `OAuthController`, and the outcome text is rendered through interpolation, not as HTML. Acceptance evidence has not been recorded yet (`tasks.py verify` shows all three criteria open), so no criterion is claimed without evidence.
+## Verification of previous findings
+
+- **CR-1 (Reconnect adds a calendar source): fixed.** `CalendarSourcesService.reconnect()` saves the connection id in sessionStorage. `takeReconnect()` reads it once and clears it. `connect()` clears a stale id. `finishOAuth` skips the source POST when the callback's `connectionId` matches. This works because the server keeps the same connection id on reconnect: `OAuthConnectionService.complete` looks the connection up by provider and subject. Tests cover a matching reconnect, a reconnect for another account, and the service's one-time read. The sessionStorage fallback is recorded as an assumption.
+- **CR-2 (an older reload overwrites a newer change): fixed for reloads.** `load()` and `reload()` share a sequence. `apply()` drops an answer older than the one already applied and keeps any calendar the page shows at a higher `version`. Two tests cover this with interleaved responses: a stale reload after a PATCH, and an older reload arriving after a newer one. The PATCH merge path still has no version guard; see CR-1 below.
+- **CR-3 (hint text): fixed.** Both hints now say "returns you to Settings → Integrations", which matches `OAuthController.INTEGRATIONS_PAGE`.
+- **CR-4 (a successful add reported as failed): fixed.** `reloadAfterAdd()` turns a failed reload into the "added; reload the page" status, and a test covers it. A failed first sync is still reported as an error that names the added source.
+- **CR-5 (`NewCalendarSource.toString`): fixed.** `toString` now masks `url` and `password`, and a server test covers it.
+- **CR-6 (sync button a11y): fixed.** The aria-label switches to "Syncing <name>…" and `aria-busy` is set while the sync runs. The spec checks both.
+
+I re-checked these without finding problems:
+- **Server API:** the server endpoint validates each type (CalDAV url/username/password, ICS http(s)/webcal, OAuth connection of the same provider). It refuses URLs with user info and a LOCAL type. It returns 201, or 200 for an OAuth connection that is already linked. Responses never include config or credentials, and the password is stored as `EncryptedSecret`. Errors are Problem Details through `InvalidRequestException`.
+- **Calendar changes:** calendar PATCH sends `If-Match` at the version shown and handles 409 and 412.
+- **Integrations page:** it shows last sync, last attempt, next sync, the error, and "Sync now" for each external source. A failed sync request is shown separately.
+- **OAuth callback:** the query parameters match `OAuthController`. The URL is cleared in `finally`, and the outcome text is rendered by interpolation, not as HTML.
+- **Routes:** the routes replace the two placeholders, and the routes spec was updated.
+
+Acceptance evidence: `tasks.py verify web-cal-sources` shows all three criteria as not yet verified, so no criterion is claimed without evidence. The parent must still record them. Criterion 3 needs `cd web && npm run check`. I could not run the focused Vitest suite because test execution was denied in this review session, so the test claims above come from reading the specs.
 
 ## P0 Critical
 
@@ -32,50 +48,17 @@ None.
 
 ## P2 Medium
 
-- [ ] **CR-1 | "Reconnect" always restarts OAuth with purpose=CALENDAR and so adds a calendar source to mail-only accounts**
-    - File: `web/src/app/features/settings/integrations/integrations-settings.ts:109` (with `calendar-sources.service.ts` `connect()`, and `finishOAuth` at line 135)
-    - Category: Correctness
-    - Problem: The Accounts list shows every OAuth connection, including ones made for MAIL or CONTACTS. `reconnect()` calls `service.connect()`, which always sends `purpose=CALENDAR`. When the browser comes back, `finishOAuth` sees `purpose=CALENDAR` and POSTs `/calendar/sources` for that connection, then syncs it. The spec `lists accounts and reconnects an expired one` asserts `?purpose=CALENDAR` for a reconnect.
-    - Why it matters: Renewing access for a mail-only Google or Microsoft account quietly adds and syncs a calendar source the user never asked for. This contradicts the recorded assumption that MAIL/CONTACTS connections "only show 'account connected'".
-    - Suggested fix: Let `connect()` take a purpose and, for a reconnect, pass a purpose that does not create a source. Either reuse the connection's original purpose if the API exposes it, or skip source creation when a source already exists. Otherwise, only offer Reconnect for connections a calendar source uses. Add a test that a reconnect of a non-calendar connection does not POST a source.
-
-- [ ] **CR-2 | An older full reload can overwrite a newer calendar change**
-    - File: `web/src/app/features/settings/calendars/calendars-settings.ts:271-273` (`change`) and `:290-297` (`reload`)
-    - Category: Correctness
-    - Problem: `change()` merges a non-default PATCH result into `calendars` in place, but a default change, and every failed change, calls `reload()`, which sets the whole list. Only the calendar being changed is disabled. Example: the user clicks "Make default" on A and toggles B. A's reload GET can read B before B's PATCH commits but arrive after B's merge. It then puts B's old state and old `version` back in the list. B's toggle visibly reverts, and the next change to B gets a 412 ("changed elsewhere").
-    - Why it matters: The UI shows a state that differs from the server, and the next edit fails. Recovery needs another round trip. This is the "older request overwrites a newer one" defect class.
-    - Suggested fix: Give each reload a request id and drop stale results, or keep the newer `version` per calendar when applying a reload. Another option is to disable all calendar controls while a change that reloads is in flight. Add a test with interleaved responses.
+None.
 
 ## P3 Low
 
-- [ ] **CR-3 | The OAuth hint text says "sends you back here", but the callback lands on Integrations**
-    - File: `web/src/app/features/settings/calendars/calendars-settings.html:248` and `:272`
-    - Category: Quality
-    - Problem: The Google and Microsoft hints on the Calendars page say the provider "sends you back here". `OAuthController.INTEGRATIONS_PAGE` redirects to `/settings/integrations`.
-    - Why it matters: The user-facing text is misleading.
-    - Suggested fix: Say the provider returns you to Settings → Integrations, or fix the text after deciding on the landing page.
-
-- [ ] **CR-4 | An add that succeeded is reported as failed when the follow-up reload fails**
-    - File: `web/src/app/features/settings/calendars/calendars-settings.ts:164-166` (`addLocal`), `:180-181` with `:224` (`addCaldav`/`fetchCalendars`), `:239-247` (`add`)
+- [ ] **CR-1 | A late PATCH answer can still replace a newer state from a reload**
+    - File: `web/src/app/features/settings/calendars/calendars-settings.ts:284`
     - Category: Correctness
-    - Problem: `reload()` runs inside the `run` callback after the create has succeeded and the form has been reset. If the GET of calendars or sources fails, `add()` catches the error and shows the generic "Something went wrong." as `addError`. The source or calendar already exists.
-    - Why it matters: The user may add it again. The server only deduplicates OAuth sources, so a second CalDAV or ICS source is created.
-    - Suggested fix: Treat a reload failure after a successful create as a warning, for example "added; refresh to see it", not as an add error.
-
-- [ ] **CR-5 | `NewCalendarSource` is a data class whose generated `toString` includes the plaintext password**
-    - File: `server/src/main/kotlin/ch/sonensei/cockpit/calendar/sync/CalendarSourceService.kt:21-28`
-    - Category: Security
-    - Problem: `CreateCalendarSourceRequest` masks `url` and `password` in `toString`, but the domain object it is copied into does not. Nothing logs it today. Any future log, exception message or debugger dump of `NewCalendarSource` would expose the CalDAV password and the ICS URL token.
-    - Why it matters: Logging secrets breaks a project convention, and this is an easy way to do it by accident.
-    - Suggested fix: Override `toString` the same way as the request DTO.
-
-- [ ] **CR-6 | Screen readers do not hear "Syncing…" on the sync button**
-    - File: `web/src/app/features/settings/integrations/integrations-settings.html:41`
-    - Category: Quality
-    - Problem: `[attr.aria-label]="syncLabel(source)"` ("Sync <name> now") replaces the button's visible text, so assistive technology never hears the "Syncing…" state. No `aria-busy` or live status is set either.
-    - Why it matters: Screen-reader users get no feedback that a sync is running (a11y).
-    - Suggested fix: Make the aria-label depend on the state (for example "Syncing <name>…"), or set `aria-busy` and announce the result in a `role="status"` region.
+    - Problem: `change()` merges a non-default PATCH result with `c.id === saved.id ? saved : c` and does not compare versions. The reload path now keeps the higher version (`apply()`, line 327), but this path does not. Example: B is the default, and the user toggles B's visibility and makes A the default while both requests are in flight. B's PATCH commits first (version n+1, still default). A's PATCH then clears B's flag (`CalendarService.makeDefault` saves B again, version n+2), and A's reload shows B at n+2. If B's PATCH answer reaches the browser after that reload, B is replaced by its n+1 state. The page then shows two defaults, and B's next change gets a 412.
+    - Why it matters: This is a narrow case with a recoverable 412. It is the remaining part of the out-of-order defect that CR-2 of the previous review fixed for reloads.
+    - Suggested fix: Merge `saved` only when `saved.version >= c.version`, the same rule `apply()` uses. Add a test where the PATCH answer arrives after a reload that carries a higher version.
 
 ## Review conclusion
 
-Material issues found; fix before completing the task. CR-1 and CR-2 are the material ones. CR-3 to CR-6 are low-priority improvements.
+No material issues found. All six earlier findings (CR-1 to CR-6) are fixed correctly. The new CR-1 is a low-priority hardening that can be fixed or accepted when the parent records dispositions.
