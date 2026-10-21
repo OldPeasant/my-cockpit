@@ -734,6 +734,55 @@ describe('CaptureDialog', () => {
       expect(status('c.png')).toBe('Attached');
     });
 
+    it('announces Waiting in the live region and keeps Save disabled while an attachment is queued', async () => {
+      pasteFiles('a.png', 'b.png', 'c.png');
+      await settle();
+      const live = (name: string) =>
+        [...el().querySelectorAll('.file-list li')]
+          .find((li) => li.querySelector('.file-name')?.textContent === name)
+          ?.querySelector('.file-status [role="status"]')
+          ?.textContent?.trim();
+      expect(live('c.png')).toBe('Waiting');
+      expect(el().querySelectorAll('.file-list li')[2].getAttribute('data-state')).toBe('queued');
+      type('Receipts');
+      expect(saveButton().disabled).toBe(true);
+      await expect(fixture.componentInstance.submit()).resolves.toBe(false);
+      http.expectNone('/api/v1/capture');
+
+      expectUpload('a.png').flush(stored('a.png', FILE_A));
+      expectUpload('b.png').flush(stored('b.png', FILE_B));
+      await settle();
+      // The third one now runs: Save still waits for it.
+      expect(live('c.png')).toBe('');
+      expect(saveButton().disabled).toBe(true);
+      expectUpload('c.png').flush(stored('c.png', FILE_C));
+      await settle();
+      expect(saveButton().disabled).toBe(false);
+      press('Enter');
+      expect(expectCapture().request.body.fileIds).toEqual([FILE_A, FILE_B, FILE_C]);
+      await settle();
+    });
+
+    it('Remove of a queued attachment keeps it from ever being uploaded', async () => {
+      pasteFiles('a.png', 'b.png', 'c.png');
+      await settle();
+      expect(status('c.png')).toBe('Waiting');
+      type('Receipts');
+      expect(saveButton().disabled).toBe(true);
+
+      action('Remove', 'c.png')!.click();
+      fixture.detectChanges();
+      expect(names()).toEqual(['a.png', 'b.png']);
+      expectUpload('a.png').flush(stored('a.png', FILE_A));
+      expectUpload('b.png').flush(stored('b.png', FILE_B));
+      await settle();
+      http.expectNone((r) => r.url === '/api/v1/files' && r.params.get('name') === 'c.png');
+      expect(saveButton().disabled).toBe(false);
+      press('Enter');
+      expect(expectCapture().request.body.fileIds).toEqual([FILE_A, FILE_B]);
+      await settle();
+    });
+
     it('Remove cancels a running upload; a removed attachment is not linked', async () => {
       pasteFiles('scan.jpg', 'receipt.pdf');
       await settle();

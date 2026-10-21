@@ -4,43 +4,42 @@ Date: 2026-10-21
 
 Task: web-files-upload-preview - Files: upload and preview
 
-Scope: full task diff `git diff c725676c..HEAD -- web` on the final code (commits 099dd516, b059eb59, d9a455aa, a1f6c6b5, 323e47a2, 93a3687e, d0bd6037). Production files: files/upload/* (upload.service, sha256, file-drop, drop-hint, upload-panel, format-bytes), files/preview/* (preview-dialog, pdf-viewer, preview-kind, preview.service, file-thumb), files/browser/files-page.*, capture/capture-dialog.*, web/angular.json, e2e/files-upload/upload.spec.ts, e2e/files-browser/browser.spec.ts. Committed specs were checked for coverage of the fixes. Uncommitted spec files of the concurrently running test-writer were not reviewed. Playwright and Docker were not run, as the parent agent asked.
+Scope: final code of the whole task, `git diff 9d1c49cc..HEAD -- web`. Focus on what changed since the previous re-review (then d0bd6037 + 7ebfa162; those hashes no longer exist after the WIP merge bd8ded2b). That means the DropHint component and commit eba1547c, which shows a queued state for capture attachments (previous P3 CR-1). Production files read in full: files/upload/{upload.service, file-drop, drop-hint (.ts/.scss)}, files/preview/preview-dialog.ts, capture/capture-dialog.{ts,html}. I also read the files-page diff (html/scss/ts). Committed specs only. Playwright, Docker and scripts/check.sh were not run, as the parent asked.
 
 Requirements:
-- tasks/web-files-upload-preview.md (acceptance criteria 1-5, the three recorded assumptions)
-- SPEC.md section 8.2 (Files, web drive)
+- tasks/web-files-upload-preview.md (acceptance criteria 1-5 and the recorded assumptions)
+- SPEC.md section 8.2 (Files) and section 4.5 (quick capture)
 - AGENTS.md project notes, docs/ARCHITECTURE.md (stack, i18n, conventions)
-- Previous review (CR-1..CR-6 on revision 1ec0da45) and reviews/web-files-upload-preview/fixes.md
+- The previous review in this file (CR-1..CR-6 on the first revision, then CR-1 (P3) of the re-review) and reviews/web-files-upload-preview/fixes.md
 
 Git range:
 - Branch: main
-- HEAD: d0bd60373e35a61f30068519fc2b5eb3768a22e0
-- Base/start: c725676c23944cf2a30a4e345bd629c8f7d1ad0b
-- Commits reviewed: 7
+- HEAD: a7e14ab2443dbea4b471a663c99e8cfdcce8c5d8
+- Base/start: 9d1c49ccf7abf95a915adbf7f0ec2669d0926f59 (origin/main at claim)
+- Commits reviewed: 11 (658018df..a7e14ab2, including merge bd8ded2b)
 - Uncommitted changes: none at review start
 
 Summary: 0 P0, 0 P1, 0 P2, 1 P3
 
 ## Earlier findings: status
 
-- CR-1 (P1, capture spec asserted the old placeholder, no tests for criterion 4): resolved. `capture-dialog.spec.ts` no longer refers to `.files-note` or "can't be saved yet". `upload.service.spec.ts` covers chunk retry, retry exhaustion, resume (with received chunks skipped and the 404 restart), and cancel during a request, between chunks, during the retry pause, during create and during complete. `preview-kind.spec.ts` covers selection by mime type. pdf-viewer, preview-dialog, upload-panel, file-thumb and sha256 also have specs.
-- CR-2 (P2, responsive layout deleted): resolved. The diff of `files-page.scss` no longer touches the `@media (max-width: 720px)` block.
-- CR-3 (P2, concurrent PDF renders on one canvas): resolved. `pdf-viewer.ts:151-157` takes a sequence number before any await, gives up after `getPage` and again after awaiting the previous render's settled promise. Between the last check and `page.render` there is no await, so two renders can no longer overlap on the canvas. Only the latest request sets `rendered` or `error`, and `close()` bumps the sequence, so a render of a replaced document stops too. I walked through the A/B/C interleavings (a newer request arriving while an older one waits on `getPage` or on `this.rendering`): each time only the newest one draws. Specs: "draws only the latest page when pages change while one is still loading" and "a stale render that fails does not show an error". The fake pdf.js in the spec rejects a second concurrent render, as pdf.js does.
-- CR-4 (P2, capture saved without failed attachments): resolved. `failedFiles()` blocks `submit()` (`capture-dialog.ts:145`) for Enter, Shift+Enter and the button. Save is disabled and described by `#capture-files-failed`. Retry and Remove are offered for each file.
-- CR-5 (P3, cancel during create/complete): resolved. Create and complete are sent with `abortable = false` (`upload.service.ts:224`, `:266`). A cancel during create DELETEs the new upload once its id arrives (`:270-274`). A cancel during complete sends no DELETE (`completing`). A completion that then succeeds becomes `done` and emits `uploaded`, so the listing refreshes. A completion that then fails is discarded (`:228`). `run()` still ignores errors of a cancelled job (`:171`). Four specs cover these paths.
-- CR-6 (P3, live regions announced progress): resolved. In `upload-panel.html` and `capture-dialog.html`, the `role="status"` element holds only the state text, and the byte or percentage text sits outside it.
+- First review CR-1 (P1, capture spec/criterion 4 tests): still resolved.
+- First review CR-2 (P2, responsive layout deleted): still resolved. The `files-page.scss` diff does not touch the media query.
+- First review CR-3 (P2, concurrent PDF renders): still resolved.
+- First review CR-4 (P2, capture saved without failed attachments): still resolved. `capture-dialog.ts:145` blocks submit on `failedFiles()`.
+- First review CR-5 (P3, cancel during create/complete): still resolved. `upload.service.ts:224` and `:266` are non-abortable, and `:270-274` discards an upload that was created after a cancel.
+- First review CR-6 (P3, live regions): still resolved.
+- Re-review CR-1 (P3, queued capture attachments showed "0 %" without a waiting state): resolved by eba1547c. `capture-dialog.html:97-99` adds a `queued` case ("Waiting", `@@capture.fileQueued`) inside the `role="status"` region. The percentage now shows only while `state() === 'uploading'` (`:111`), so `failed` and `cancelled` no longer show a stale percentage either. The new spec "shows Waiting, not a percentage, for an attachment queued behind running uploads" checks that the third file waits behind `PARALLEL_UPLOADS`, that no request is sent for it, and that it moves to uploading and then to Attached. The other part of the suggestion (letting capture attachments skip the drive queue) was not done. That is acceptable: Save is still blocked while the attachment waits, but the user can now see why.
 
 ## New code checked without findings
 
-- DropHint (`files/upload/drop-hint.ts`): it is purely visual (`aria-hidden`, `pointer-events: none`), absolutely positioned inside `.main`, which is now `position: relative`. It is shown only while `FileDrop.dragging()` is true. The `.drop-hint` host class keeps the files-page spec selectors working.
-- `files-page.scss` `.open { all: unset; ... }`: the existing `&:focus-visible` outline comes after the reset in the same rule, so keyboard focus is still visible for both the link and the new preview button. The grid variant still overrides the layout.
-- FileDrop: it ignores drags without `Files` and handles dragleave into child elements. `preventDefault` is called only when files were dropped.
-- Upload service on retry and cancel: a failed chunked job keeps `uploadId` and resumes it. A cancel of a failed job DELETEs it. `dismiss()` of a done job is a no-op cancel. `clearFinished()` keeps failed and running jobs.
-- Files page: uploads go into the folder shown, the listing, tree and usage refresh once per burst of uploads (`debounceTime`), the picker input is reset so the same file can be picked again, and previewable files open the preview with the folder's files to page through (recorded assumption).
-- Preview dialog: text loading ignores responses for a file that is no longer shown. Markdown goes through `renderMarkdown` and Angular's `innerHTML` sanitizer. The image error state resets on file change. Arrow keys inside audio and video controls are left alone.
-- e2e spec: it uploads through the picker (60 MB chunked file, PDF, Markdown), compares the stored SHA-256 with the bytes sent, checks that the PDF canvas has `data-rendered="1"` and non-uniform pixels, and pages to the Markdown file. The files-browser e2e now downloads through the entry menu, which matches the new click-to-preview behavior.
+- DropHint (`files/upload/drop-hint.ts`, `.scss`): a standalone OnPush component with host `aria-hidden="true"` and `pointer-events: none`. Because of `pointer-events: none`, it cannot swallow dragleave or drop events of the `FileDrop` host. It is absolutely positioned (`inset: -6px`) in `.main`, which is now `position: relative` with a `min-height`, so an empty folder still offers a usable drop area. It is rendered only while `drop.dragging()` is true. Its colors use theme tokens (`--app-accent`, `--mat-sys-title-small`). The string is externalized (`@@files.upload.dropHint`).
+- FileDrop: ignores drags that carry no files and ignores dragleave into child elements. `preventDefault` on drop runs only when files were dropped. The files-page template wires it with `#drop="appFileDrop"` and `(appFileDrop)="upload($event)"`.
+- Files page: the shared `.crumbs ol, .entries` list reset and the `.open { all: unset }` reset keep the anchor's former look (inherited color, no underline). The `&:focus-visible` outline still follows in the same rule. The upload refresh is filtered to the shown folder and debounced. The picker input is reset after each pick.
+- Capture dialog: the template change only touches the status of each file. `uploading()` still counts queued jobs, so Save waits for them, as the recorded assumption says.
+- Focused vitest: `npm --prefix web run test:ci -- --include=src/app/features/capture --include=src/app/features/files` gives 17 files and 288 tests passed at a7e14ab2.
 
-Evidence note (not a finding): `python tasks.py verify web-files-upload-preview` shows criteria 1-5 as not yet recorded at review time. The parent worker still has to record evidence, including the Playwright run for criterion 5 against the e2e stack.
+Evidence note (not a finding): `python tasks.py verify web-files-upload-preview` shows criteria 1-4 still unrecorded at review time. Criterion 5 (Playwright) was recorded at d0bd6037. The only production change since then is the capture status template (eba1547c), which `e2e/files-upload/upload.spec.ts` does not exercise, so that evidence still applies to the upload and preview flows.
 
 ## P0 Critical
 
@@ -56,13 +55,13 @@ None.
 
 ## P3 Low
 
-- [ ] **CR-1 | Capture attachments queue behind drive uploads and show no waiting state**
-    - File: `web/src/app/features/capture/capture-dialog.html:96`
+- [ ] **CR-1 | Cancelling a single-request upload after the server stored it shows "Cancelled" while the file stays in the drive**
+    - File: `web/src/app/features/files/upload/upload.service.ts:185`
     - Category: Correctness
-    - Problem: Capture attachments go through the shared root `UploadService`, which runs at most `PARALLEL_UPLOADS` (2) jobs across the whole app (`upload.service.ts:30`, `:153`). If two large drive uploads are running (for example multi-GB files from the Files page), a file pasted into the quick capture stays `queued` until one of them finishes. `uploading()` (`capture-dialog.ts:58`) counts queued jobs, so Save stays disabled the whole time. The capture file list has no `queued` case in its status `@switch` (lines 96-107) and shows "0 %" (line 109), so the user cannot tell that the attachment is waiting for other uploads rather than uploading.
-    - Why it matters: Quick capture is meant to be fast (SPEC.md §4.5). Behind long drive uploads it can block Save for minutes with no visible reason.
-    - Suggested fix: Show the queued state in the capture list (for example "Waiting", as the upload panel does), and/or let capture attachments skip ahead of the drive queue (start them right away, or put them at the front of the queue).
+    - Problem: `sendWhole` sends the multipart `POST /files` as an abortable request (the default `abortable = true` in `send`, `:315`). `cancel()` marks the job `cancelled` and unsubscribes. Suppose the body is already fully sent and the server is storing the file or has stored it: the file exists in the drive, but the job shows "Cancelled". `discard()` does nothing because there is no `uploadId`, and `uploaded` is never emitted. For create and complete of the chunked path, the code already handles this ("a cancelled write may already have been committed", previous CR-5). The small-file path does not, though it is the common path (every file of 50 MB or less, and every capture attachment).
+    - Why it matters: The window is small (between the end of the body and the response), so the impact is low. When it happens, the user sees "Cancelled", but the file appears in the folder after the next refresh. In capture, a removed attachment then stays in the drive root. That part is already accepted by the recorded assumption for cancelled captures.
+    - Suggested fix: Treat the response of the multipart POST like `complete`. Once the upload progress has reached the full body size, stop aborting the request on cancel and let it finish. If it succeeds, mark the job `done`, or keep it `cancelled` and emit `uploaded`, so the listing refreshes. Alternatively, record the behavior as an assumption. Add a spec for "cancel after the body was sent".
 
 ## Review conclusion
 
-No material issues found. All six earlier findings (CR-1..CR-6) are resolved in the current code, and the one new finding is low priority. Acceptance criterion evidence (`tasks.py verify`, including the Playwright run for criterion 5) is still to be recorded by the parent worker.
+No material issues found. All earlier findings are resolved in the current code, including the re-review's P3 CR-1 (queued state for capture attachments, with a spec). The one new finding is low priority and can be fixed or recorded as an assumption at the parent worker's discretion. The parent worker still has to record evidence for criteria 1-4 (`tasks.py verify`).

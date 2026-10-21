@@ -256,4 +256,19 @@ describe('PreviewDialog', () => {
     await render();
     expect(el().querySelector('.sheet')?.textContent).toContain('Fine');
   });
+
+  it('shows the HTML and unsafe links of a Markdown file as inert text', async () => {
+    await open([MARKDOWN], MARKDOWN.id);
+    expectText(MARKDOWN).flush(
+      '# <img src=x onerror="alert(1)">\n\n<script>alert(2)</script> [bad](javascript:alert(3)) [ok](https://example.org)',
+    );
+    await render();
+    const markdown = el().querySelector('.sheet .markdown')!;
+    expect(markdown.querySelector('img, script')).toBeNull();
+    expect(markdown.querySelector('[onerror]')).toBeNull();
+    expect(markdown.textContent).toContain('<img src=x onerror="alert(1)">');
+    const hrefs = [...markdown.querySelectorAll('a')].map((a) => a.getAttribute('href'));
+    expect(hrefs.some((href) => href?.toLowerCase().startsWith('javascript:'))).toBe(false);
+    expect(hrefs).toContain('https://example.org');
+  });
 });
