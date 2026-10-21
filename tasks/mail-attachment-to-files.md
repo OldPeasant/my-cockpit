@@ -2,8 +2,8 @@
 title: Save mail attachment to Files (/Attachments/Mail)
 status: todo
 owner:
-deps: [web-mail-read]
-touches: [server/src/main/kotlin/ch/sonensei/cockpit/mail,api/openapi.yaml,web/src/app/features/mail/read]
+deps: [web-mail-read,mail-load-older]
+touches: [server/src/main/kotlin/ch/sonensei/cockpit/mail/api,api/openapi.yaml,web/src/app/features/mail/read]
 prio: 2
 ---
 ## Goal
