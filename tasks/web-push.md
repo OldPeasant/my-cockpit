@@ -2,7 +2,7 @@
 title: Web Push notifications
 status: todo
 owner:
-deps: [reminders-core,web-reminders]
+deps: [reminders-core,web-reminders,app-icons]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/core/push,server/src/test/kotlin/ch/sonensei/cockpit/core/push,web/src/app/core/notifications,web/public]
 prio: 3
 ---
