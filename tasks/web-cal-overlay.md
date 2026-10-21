@@ -1,10 +1,11 @@
 ---
 title: Calendar task overlay and cross-links
-status: todo
-owner:
+status: in_progress
+owner: dell26/agent-1
 deps: [web-cal-edit,web-gtd-data,web-links-panel,notes-api]
 touches: [web/src/app/features/calendar/overlay,web/src/app/features/calendar/views]
 prio: 2
+lease_until: 2026-10-21T17:10:20Z
 ---
 ## Goal
 Tasks in the calendar and linking events (SPEC.md §6.3).
