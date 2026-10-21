@@ -157,6 +157,10 @@ class DeviceTokenController(
 				problem(HttpStatus.TOO_MANY_REQUESTS, "Too many failed login attempts, retry later", seconds)
 			}
 
+			LoginResult.TotpEnrollmentRequired -> {
+				problem(HttpStatus.FORBIDDEN, "TOTP must be set up again in the web app first")
+			}
+
 			else -> {
 				problem(HttpStatus.UNAUTHORIZED, "Invalid credentials")
 			}

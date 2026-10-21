@@ -10,11 +10,16 @@ import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.http.HttpMethod
 import org.springframework.http.HttpStatus
+import org.springframework.security.authorization.AuthenticatedAuthorizationManager
+import org.springframework.security.authorization.AuthorityAuthorizationManager
+import org.springframework.security.authorization.AuthorizationManager
+import org.springframework.security.authorization.AuthorizationManagers
 import org.springframework.security.config.annotation.web.builders.HttpSecurity
 import org.springframework.security.config.http.SessionCreationPolicy
 import org.springframework.security.crypto.argon2.Argon2PasswordEncoder
 import org.springframework.security.crypto.password.PasswordEncoder
 import org.springframework.security.web.SecurityFilterChain
+import org.springframework.security.web.access.intercept.RequestAuthorizationContext
 import org.springframework.security.web.authentication.HttpStatusEntryPoint
 import org.springframework.security.web.csrf.CsrfFilter
 import org.springframework.security.web.csrf.CsrfToken
@@ -34,6 +39,8 @@ import org.springframework.web.filter.OncePerRequestFilter
  *   `X-XSRF-TOKEN`, login and logout included. Requests with an `Authorization: Bearer` header, valid or not (never
  *   authenticated by their cookie, and a browser can't add the header cross-site without a CORS preflight), and the
  *   token endpoints (called by the app, which has no cookies; their response is unreadable cross-origin) are exempt.
+ * - A session that must enroll TOTP again (restored without the TOTP secret, [CockpitAuthentication.ROLE_TOTP_ENROLLMENT])
+ *   may only call `me`, logout and the TOTP enrollment; every other protected request gets 403.
  * - Unauthenticated requests get a plain 401 (no login form or basic-auth challenge).
  */
 @Configuration(proxyBeanMethods = false)
@@ -56,14 +63,18 @@ class SecurityConfiguration {
 					.permitAll()
 					.requestMatchers(HttpMethod.POST, LOGIN_PATH, LOGOUT_PATH, TOKEN_PATH, TOKEN_REFRESH_PATH)
 					.permitAll()
-					.requestMatchers("/api/**", "/actuator/**", "/v3/api-docs/**", "/v3/api-docs*", "/swagger-ui/**", "/swagger-ui*")
+					.requestMatchers(HttpMethod.GET, ME_PATH)
 					.authenticated()
+					.requestMatchers(HttpMethod.POST, TOTP_ENROLLMENT_PATH, "$TOTP_ENROLLMENT_PATH/**")
+					.authenticated()
+					.requestMatchers("/api/**", "/actuator/**", "/v3/api-docs/**", "/v3/api-docs*", "/swagger-ui/**", "/swagger-ui*")
+					.access(fullAccess)
 					.requestMatchers(HttpMethod.GET, "/**")
 					.permitAll()
 					.requestMatchers(HttpMethod.HEAD, "/**")
 					.permitAll()
 					.anyRequest()
-					.authenticated()
+					.access(fullAccess)
 			}.csrf {
 				// The setup flow runs before any session or CSRF cookie exists; it is only open while no account is active.
 				it
@@ -86,12 +97,23 @@ class SecurityConfiguration {
 	companion object {
 		const val SETUP_PATH = "/api/v1/setup"
 		const val AUTH_PATH = "/api/v1/auth"
+		const val ME_PATH = "$AUTH_PATH/me"
+		const val TOTP_ENROLLMENT_PATH = "$AUTH_PATH/totp-enrollment"
 		const val LOGIN_PATH = "$AUTH_PATH/login"
 		const val LOGOUT_PATH = "$AUTH_PATH/logout"
 		const val TOKEN_PATH = "$AUTH_PATH/token"
 		const val TOKEN_REFRESH_PATH = "$TOKEN_PATH/refresh"
 	}
 }
+
+/** Logged in, and not a session that may only enroll TOTP again (anonymous requests still get the 401 entry point). */
+private val fullAccess: AuthorizationManager<RequestAuthorizationContext> =
+	AuthorizationManagers.allOf(
+		AuthenticatedAuthorizationManager.authenticated(),
+		AuthorizationManagers.not(
+			AuthorityAuthorizationManager.hasAuthority<RequestAuthorizationContext>(CockpitAuthentication.ROLE_TOTP_ENROLLMENT),
+		),
+	)
 
 /** Loads the deferred CSRF token, so the `XSRF-TOKEN` cookie is issued already on the SPA's first GET. */
 private class CsrfCookieFilter : OncePerRequestFilter() {

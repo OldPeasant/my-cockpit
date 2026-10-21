@@ -30,6 +30,11 @@ export interface RestoreReportResponse {
   formatVersion?: number;
 
   /**
+   * Whether the backup holds encrypted secrets: confirm with its passphrase to restore them
+   */
+  hasSecrets: boolean;
+
+  /**
    * Id to confirm the restore with; only for a valid backup
    */
   id?: string;

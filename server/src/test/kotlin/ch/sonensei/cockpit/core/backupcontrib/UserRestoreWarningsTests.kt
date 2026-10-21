@@ -78,10 +78,12 @@ class UserRestoreWarningsTests {
 	}
 
 	@Test
-	fun `a confirmed owner without unused recovery codes is warned of the lockout`() {
+	fun `a confirmed owner without unused recovery codes is told to sign in with the password alone`() {
 		listOf(user(at), user(at, code(at), code(at))).forEach { user ->
 			warnings(user) shouldContainExactly
-				listOf("The TOTP secret is not in the backup and no recovery code is left: the owner cannot sign in after the restore")
+				listOf(
+					"The TOTP secret is not in the backup: sign in with the password alone (no recovery code is left) and set up TOTP again",
+				)
 		}
 	}
 

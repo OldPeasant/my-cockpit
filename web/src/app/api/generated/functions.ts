@@ -55,6 +55,10 @@ export type { IssueDeviceToken$Params as IssueDeviceToken$Params } from './fn/au
 export { issueDeviceToken as issueDeviceToken } from './fn/auth/issue-device-token';
 export type { RefreshDeviceToken$Params as RefreshDeviceToken$Params } from './fn/auth/refresh-device-token';
 export { refreshDeviceToken as refreshDeviceToken } from './fn/auth/refresh-device-token';
+export type { StartTotpEnrollment$Params as StartTotpEnrollment$Params } from './fn/auth/start-totp-enrollment';
+export { startTotpEnrollment as startTotpEnrollment } from './fn/auth/start-totp-enrollment';
+export type { ConfirmTotpEnrollment$Params as ConfirmTotpEnrollment$Params } from './fn/auth/confirm-totp-enrollment';
+export { confirmTotpEnrollment as confirmTotpEnrollment } from './fn/auth/confirm-totp-enrollment';
 export type { StartBackup$Params as StartBackup$Params } from './fn/backup/start-backup';
 export { startBackup as startBackup } from './fn/backup/start-backup';
 export type { GetBackup$Params as GetBackup$Params } from './fn/backup/get-backup';

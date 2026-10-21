@@ -35,7 +35,7 @@ class DeviceTokenService(
 		deviceName: String,
 	): DeviceTokenResult {
 		val (account, now) =
-			when (val check = login.verify(credentials)) {
+			when (val check = login.verify(credentials, allowTotpEnrollment = false)) {
 				is CredentialCheck.Rejected -> return DeviceTokenResult.Rejected(check.result)
 				is CredentialCheck.Verified -> check
 			}

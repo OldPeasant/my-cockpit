@@ -318,7 +318,11 @@ paths:
         \ works only once. On success the session cookie is set: persistent for a\
         \ sliding 30 days with `rememberDevice`, a browser-session cookie otherwise.\
         \ After 5 consecutive failures further attempts are blocked for an exponentially\
-        \ growing time."
+        \ growing time. After a restore without the TOTP secret, TOTP codes don't\
+        \ work: log in with a recovery code (or with neither when no unused one is\
+        \ left); the answer has `totpEnrollmentRequired: true` and the session may\
+        \ only set up TOTP again (`/api/v1/auth/totp-enrollment`), everything else\
+        \ answers 403."
       operationId: login
       requestBody:
         content:
@@ -338,7 +342,7 @@ paths:
             application/problem+json:
               schema:
                 $ref: "#/components/schemas/ProblemDetail"
-          description: "Missing fields, or not exactly one of totp and recoveryCode"
+          description: "Missing fields, or both totp and recoveryCode"
         "401":
           content:
             application/problem+json:
@@ -513,13 +517,92 @@ paths:
       summary: Rotate a device's tokens
       tags:
       - Auth
+  /api/v1/auth/totp-enrollment:
+    post:
+      description: Only while the account must enroll TOTP again (`totpEnrollmentRequired`).
+        Returns a new TOTP secret; calling it again replaces the secret. Confirm it
+        with a code from the authenticator app.
+      operationId: startTotpEnrollment
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TotpEnrollmentResponse"
+          description: The new TOTP secret
+        "401":
+          description: Not logged in
+        "409":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: TOTP re-enrollment is not required
+      summary: Start setting up TOTP again after a restore
+      tags:
+      - Auth
+  /api/v1/auth/totp-enrollment/confirm:
+    post:
+      description: Checks a code for the secret of the last start; shares the login
+        throttle. Afterwards the session has full access and TOTP works for the login
+        again.
+      operationId: confirmTotpEnrollment
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ConfirmTotpEnrollmentRequest"
+        required: true
+      responses:
+        "204":
+          content:
+            application/problem+json:
+              schema:
+                type: object
+          description: TOTP set up; the account is a normal one again
+        "400":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: "Missing code, or not a valid code for the new secret"
+        "401":
+          description: Not logged in
+        "409":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: TOTP re-enrollment is not required
+        "429":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: Too many failed attempts; retry after the given number of seconds
+          headers:
+            Retry-After:
+              description: Seconds to wait
+              schema:
+                type: integer
+              style: simple
+      summary: Finish setting up TOTP again
+      tags:
+      - Auth
   /api/v1/backup:
     post:
       description: "Builds the backup zip in the background. Progress arrives on `GET\
         \ /api/v1/events` as change events of type `BACKUP` with the job's id; refetch\
         \ the job on each. When its state is `COMPLETED`, download the zip. Starting\
-        \ a new backup discards earlier finished ones."
+        \ a new backup discards earlier finished ones. With a `passphrase`, the secrets\
+        \ (TOTP secret, mail passwords, OAuth tokens) are included, encrypted, in\
+        \ `data/secrets.enc.json`; without, they are left out. The body is optional."
       operationId: startBackup
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StartBackupRequest"
       responses:
         "202":
           content:
@@ -527,6 +610,12 @@ paths:
               schema:
                 $ref: "#/components/schemas/BackupJobResponse"
           description: Started; `Location` points to the job
+        "400":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: Passphrase too short or too long
         "409":
           content:
             application/problem+json:
@@ -4058,7 +4147,11 @@ paths:
       description: "Saves the current data as a backup to `pre-restore/` in the data\
         \ directory, then replaces all data with the upload, in one transaction: on\
         \ failure nothing changes. Sessions are replaced too, so the client signs\
-        \ in again afterwards. The upload is used up, also when the restore fails."
+        \ in again afterwards. The upload is used up, also when the restore fails,\
+        \ but not by a wrong passphrase. With the backup's `passphrase` its secrets\
+        \ are restored (and the pre-restore backup is made with it too); without,\
+        \ accounts must be reconnected and TOTP is set up again on the next login.\
+        \ The body is optional."
       operationId: confirmRestore
       parameters:
       - description: "Id of the upload, from its validation report"
@@ -4068,6 +4161,11 @@ paths:
         schema:
           type: string
           format: uuid
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ConfirmRestoreRequest"
       responses:
         "200":
           content:
@@ -4099,8 +4197,8 @@ paths:
             application/problem+json:
               schema:
                 $ref: "#/components/schemas/ProblemDetail"
-          description: "The backup's data could not be imported; nothing changed.\
-            \ `problems` lists why, if known."
+          description: "The passphrase is wrong, or the backup's data could not be\
+            \ imported; nothing changed. `problems` lists why, if known."
         "500":
           content:
             application/problem+json:
@@ -5840,6 +5938,27 @@ components:
       - title
       - updatedAt
       - version
+    ConfirmRestoreRequest:
+      type: object
+      description: Options of a restore
+      properties:
+        passphrase:
+          type: string
+          format: password
+          description: "The backup's passphrase, to restore its secrets"
+          maxLength: 256
+          minLength: 0
+    ConfirmTotpEnrollmentRequest:
+      type: object
+      properties:
+        code:
+          type: string
+          description: Current 6-digit code from the authenticator app
+          example: 123456
+          maxLength: 16
+          minLength: 0
+      required:
+      - code
     ConfirmTotpRequest:
       type: object
       properties:
@@ -7341,6 +7460,11 @@ components:
     MeResponse:
       type: object
       properties:
+        totpEnrollmentRequired:
+          type: boolean
+          description: "TOTP must be set up again (after a restore without the TOTP\
+            \ secret) before anything else works; always sent, optional for older\
+            \ clients"
         username:
           type: string
       required:
@@ -8003,6 +8127,10 @@ components:
           type: integer
           format: int32
           description: "Format version from the manifest, if readable"
+        hasSecrets:
+          type: boolean
+          description: "Whether the backup holds encrypted secrets: confirm with its\
+            \ passphrase to restore them"
         id:
           type: string
           format: uuid
@@ -8023,6 +8151,7 @@ components:
             type: string
       required:
       - counts
+      - hasSecrets
       - problems
       - valid
       - warnings
@@ -8280,6 +8409,17 @@ components:
           type: boolean
       required:
       - setupRequired
+    StartBackupRequest:
+      type: object
+      description: Options of a new backup
+      properties:
+        passphrase:
+          type: string
+          format: password
+          description: "Encrypts the secrets into the backup; without it, they are\
+            \ left out"
+          maxLength: 256
+          minLength: 12
     SyncStatusResponse:
       type: object
       description: The sync status of a source
@@ -8594,6 +8734,19 @@ components:
       - refreshToken
       - refreshTokenExpiresAt
       - tokenType
+    TotpEnrollmentResponse:
+      type: object
+      properties:
+        otpauthUri:
+          type: string
+          description: "otpauth:// URI of the secret, for the QR code"
+        totpSecret:
+          type: string
+          description: "TOTP secret, base32 without padding (HMAC-SHA1, 6 digits,\
+            \ 30 s)"
+      required:
+      - otpauthUri
+      - totpSecret
     TrashItemResponse:
       type: object
       properties:

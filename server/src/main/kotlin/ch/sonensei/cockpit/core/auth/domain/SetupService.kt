@@ -92,19 +92,20 @@ class SetupService(
 
 	private fun setupInProgress() = ConflictException("Setup is already in progress")
 
-	private fun otpauthUri(
-		username: String,
-		secret: String,
-	): String {
-		val label = "${encode(ISSUER)}:${encode(username)}"
-		return "otpauth://totp/$label?secret=$secret&issuer=${encode(ISSUER)}" +
-			"&algorithm=SHA1&digits=${Totp.DIGITS}&period=${Totp.STEP.seconds}"
-	}
-
-	private fun encode(value: String) = URLEncoder.encode(value, Charsets.UTF_8).replace("+", "%20")
-
 	companion object {
 		const val ISSUER = "My Cockpit"
+
+		/** The `otpauth://` URI of a TOTP [secret] (base32) for the QR code of an authenticator app. */
+		fun otpauthUri(
+			username: String,
+			secret: String,
+		): String {
+			val label = "${encode(ISSUER)}:${encode(username)}"
+			return "otpauth://totp/$label?secret=$secret&issuer=${encode(ISSUER)}" +
+				"&algorithm=SHA1&digits=${Totp.DIGITS}&period=${Totp.STEP.seconds}"
+		}
+
+		private fun encode(value: String) = URLEncoder.encode(value, Charsets.UTF_8).replace("+", "%20")
 
 		/** After this time anyone may replace a pending (unconfirmed) account. */
 		val ABANDONED_AFTER: Duration = Duration.ofHours(1)

@@ -19,6 +19,11 @@ import java.util.UUID
 /**
  * Web login with password plus TOTP or a recovery code (SPEC.md §4.1), and the sessions it creates.
  *
+ * An account restored without its TOTP secret ([UserAccount.totpReenrollRequired]) cannot use TOTP: it logs in with a
+ * recovery code, or with the password alone when no unused recovery code is left (so the owner is not locked out), and
+ * its sessions may only enroll TOTP again ([CockpitPrincipal.totpEnrollmentRequired]). Device tokens are refused
+ * until then ([CredentialCheck.Rejected] with [LoginResult.TotpEnrollmentRequired]).
+ *
  * A failed login never says which part was wrong. The password is hashed even when the username does not match or no
  * account exists, and the second factor is checked whenever an account exists, so the response time does not tell
  * either. [LoginThrottle] blocks repeated failures.
@@ -53,7 +58,11 @@ class LoginService(
 			)
 		// Only a login whose session was written counts as a success; one that throws before stays a failure.
 		throttle.recordSuccess()
-		log.info("Login succeeded (remember device: {})", credentials.rememberDevice)
+		log.info(
+			"Login succeeded (remember device: {}, TOTP enrollment required: {})",
+			credentials.rememberDevice,
+			account.totpReenrollRequired,
+		)
 		return LoginResult.Success(SessionGrant(token, session.rememberDevice, principalOf(account)))
 	}
 
@@ -63,7 +72,10 @@ class LoginService(
 	 * an attempt whose grant fails to be written still counts as a failure.
 	 */
 	@Transactional
-	fun verify(credentials: LoginCredentials): CredentialCheck {
+	fun verify(
+		credentials: LoginCredentials,
+		allowTotpEnrollment: Boolean = true,
+	): CredentialCheck {
 		// Admission counts the attempt as a failure up front, so parallel requests cannot slip past the backoff.
 		throttle.tryBeginAttempt()?.let { return CredentialCheck.Rejected(LoginResult.Throttled(it)) }
 		val account = users.findFirstBy()?.takeIf { it.isActive }
@@ -77,6 +89,11 @@ class LoginService(
 			return CredentialCheck.Rejected(LoginResult.InvalidCredentials)
 		}
 
+		if (account.totpReenrollRequired && !allowTotpEnrollment) {
+			// Before marking a recovery code used: the code still works for the web login that enrolls TOTP.
+			log.info("Login refused: TOTP must be enrolled again first")
+			return CredentialCheck.Rejected(LoginResult.TotpEnrollmentRequired)
+		}
 		if (secondFactor is SecondFactor.Recovery) {
 			secondFactor.code.markUsed(now)
 			log.info("Recovery code used for login; {} unused codes left", account.recoveryCodes.count { !it.isUsed })
@@ -116,17 +133,27 @@ class LoginService(
 		now: Instant,
 	): SecondFactor? {
 		credentials.totp?.let { code ->
+			// While re-enrolling, the stored secret is a random one or not confirmed yet: TOTP does not log in.
+			if (account.totpReenrollRequired) return null
 			val secret = Base32.decode(account.totpSecret.reveal())
 			return if (totp.verify(secret, code, now)) SecondFactor.Totp else null
 		}
-		val code = credentials.recoveryCode?.let(RecoveryCodes::normalize) ?: return null
+		val unused = account.recoveryCodes.filter { !it.isUsed }
+		val recoveryCode = credentials.recoveryCode
+		if (recoveryCode == null) {
+			return if (account.totpReenrollRequired && unused.isEmpty()) SecondFactor.None else null
+		}
+		val code = RecoveryCodes.normalize(recoveryCode)
 		// Check every unused code (no early exit), so the time does not depend on which one matched.
-		val matches = account.recoveryCodes.filter { !it.isUsed }.filter { passwordEncoder.matches(code, it.codeHash) }
+		val matches = unused.filter { passwordEncoder.matches(code, it.codeHash) }
 		return matches.firstOrNull()?.let(SecondFactor::Recovery)
 	}
 
 	private sealed interface SecondFactor {
 		data object Totp : SecondFactor
+
+		/** The password alone: only for an account that re-enrolls TOTP and has no unused recovery code left. */
+		data object None : SecondFactor
 
 		class Recovery(
 			val code: RecoveryCode,
@@ -142,7 +169,7 @@ class LoginService(
 			return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes)
 		}
 
-		fun principalOf(account: UserAccount) = CockpitPrincipal(account.id, account.username)
+		fun principalOf(account: UserAccount) = CockpitPrincipal(account.id, account.username, account.totpReenrollRequired)
 
 		/** A session's expiry is written at most this often, not on every request. */
 		val TOUCH_INTERVAL: Duration = Duration.ofMinutes(1)
@@ -152,7 +179,10 @@ class LoginService(
 	}
 }
 
-/** What the login form sends: exactly one of [totp] and [recoveryCode] is expected. `toString` hides the secrets. */
+/**
+ * What the login form sends: one of [totp] and [recoveryCode], or neither for an account that re-enrolls TOTP and has
+ * no unused recovery code left. `toString` hides the secrets.
+ */
 class LoginCredentials(
 	val username: String,
 	val password: String,
@@ -163,10 +193,14 @@ class LoginCredentials(
 	override fun toString(): String = "LoginCredentials(username=$username, ******)"
 }
 
-/** The authenticated owner. Contains no secrets. */
+/**
+ * The authenticated owner. Contains no secrets. With [totpEnrollmentRequired] (a session of an account restored without
+ * its TOTP secret) it may only enroll TOTP again.
+ */
 data class CockpitPrincipal(
 	val userId: UUID,
 	val username: String,
+	val totpEnrollmentRequired: Boolean = false,
 )
 
 /** The outcome of [LoginService.verify]. */
@@ -187,6 +221,9 @@ sealed interface LoginResult {
 	) : LoginResult
 
 	data object InvalidCredentials : LoginResult
+
+	/** Correct credentials, but TOTP must be enrolled again (in the web app) before a device can log in. */
+	data object TotpEnrollmentRequired : LoginResult
 
 	class Throttled(
 		val retryAfter: Duration,

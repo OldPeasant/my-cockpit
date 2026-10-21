@@ -7,6 +7,7 @@ import { filter, map } from 'rxjs/operators';
 import { StrictHttpResponse } from '../../strict-http-response';
 import { RequestBuilder } from '../../request-builder';
 
+import { ConfirmRestoreRequest } from '../../models/confirm-restore-request';
 import { RestoreResultResponse } from '../../models/restore-result-response';
 
 export interface ConfirmRestore$Params {
@@ -15,12 +16,14 @@ export interface ConfirmRestore$Params {
  * Id of the upload, from its validation report
  */
   id: string;
+      body?: ConfirmRestoreRequest
 }
 
 export function confirmRestore(http: HttpClient, rootUrl: string, params: ConfirmRestore$Params, context?: HttpContext): Observable<StrictHttpResponse<RestoreResultResponse>> {
   const rb = new RequestBuilder(rootUrl, confirmRestore.PATH, 'post');
   if (params) {
     rb.path('id', params.id, {});
+    rb.body(params.body, 'application/json');
   }
 
   return http.request(

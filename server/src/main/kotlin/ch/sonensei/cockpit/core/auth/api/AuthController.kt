@@ -50,7 +50,10 @@ class AuthController(
 		description =
 			"Sends exactly one of `totp` and `recoveryCode`; a recovery code works only once. On success the session " +
 				"cookie is set: persistent for a sliding 30 days with `rememberDevice`, a browser-session cookie " +
-				"otherwise. After 5 consecutive failures further attempts are blocked for an exponentially growing time.",
+				"otherwise. After 5 consecutive failures further attempts are blocked for an exponentially growing time. " +
+				"After a restore without the TOTP secret, TOTP codes don't work: log in with a recovery code (or with " +
+				"neither when no unused one is left); the answer has `totpEnrollmentRequired: true` and the session may " +
+				"only set up TOTP again (`/api/v1/auth/totp-enrollment`), everything else answers 403.",
 	)
 	@ApiResponse(
 		responseCode = "200",
@@ -59,7 +62,7 @@ class AuthController(
 	)
 	@ApiResponse(
 		responseCode = "400",
-		description = "Missing fields, or not exactly one of totp and recoveryCode",
+		description = "Missing fields, or both totp and recoveryCode",
 		content = [Content(mediaType = PROBLEM_JSON, schema = Schema(ref = "#/components/schemas/ProblemDetail"))],
 	)
 	@ApiResponse(
@@ -80,18 +83,19 @@ class AuthController(
 	): ResponseEntity<Any> {
 		val totp = request.totp?.takeIf { it.isNotBlank() }
 		val recoveryCode = request.recoveryCode?.takeIf { it.isNotBlank() }
-		if ((totp == null) == (recoveryCode == null)) {
-			throw InvalidRequestException("totp", "exactly one of totp and recoveryCode is required")
+		// Neither is only valid for an account that re-enrolls TOTP without recovery codes; the service decides (401).
+		if (totp != null && recoveryCode != null) {
+			throw InvalidRequestException("totp", "only one of totp and recoveryCode is allowed")
 		}
 		val credentials = LoginCredentials(request.username, request.password, totp, recoveryCode, request.rememberDevice)
 		return when (val result = loginService.login(credentials)) {
 			is LoginResult.Success -> {
 				cookies.write(response, result.grant.token, result.grant.rememberDevice)
 				cookies.rotateCsrfToken(httpRequest, response)
-				ResponseEntity.ok(MeResponse(result.grant.principal.username))
+				ResponseEntity.ok(MeResponse.of(result.grant.principal))
 			}
 
-			LoginResult.InvalidCredentials -> {
+			LoginResult.InvalidCredentials, LoginResult.TotpEnrollmentRequired -> {
 				problem(HttpStatus.UNAUTHORIZED, "Invalid credentials")
 			}
 
@@ -121,7 +125,7 @@ class AuthController(
 	@ApiResponse(responseCode = "200", description = "Logged in")
 	@ApiResponse(responseCode = "401", description = "Not logged in", content = [Content()])
 	fun me(authentication: Authentication): MeResponse =
-		MeResponse((authentication.principal as? CockpitPrincipal)?.username ?: authentication.name)
+		(authentication.principal as? CockpitPrincipal)?.let(MeResponse::of) ?: MeResponse(authentication.name)
 
 	private fun problem(
 		status: HttpStatus,
@@ -158,6 +162,17 @@ class LoginRequest(
 data class MeResponse(
 	@field:Schema(requiredMode = RequiredMode.REQUIRED)
 	val username: String,
-)
+	@field:Schema(
+		description =
+			"TOTP must be set up again (after a restore without the TOTP secret) before anything else works; always sent, " +
+				"optional for older clients",
+		requiredMode = RequiredMode.NOT_REQUIRED,
+	)
+	val totpEnrollmentRequired: Boolean = false,
+) {
+	companion object {
+		fun of(principal: CockpitPrincipal) = MeResponse(principal.username, principal.totpEnrollmentRequired)
+	}
+}
 
 private const val PROBLEM_JSON = MediaType.APPLICATION_PROBLEM_JSON_VALUE

@@ -16,6 +16,9 @@ import java.time.Instant
  * The single owner account (SPEC.md §4.1). It is created by the setup flow and becomes active once the TOTP
  * enrollment is confirmed ([totpConfirmedAt] set). The TOTP secret is stored encrypted (core.crypto), the password
  * and recovery codes only as Argon2id hashes. `toString` never shows any of them.
+ *
+ * [totpReenrollRequired] marks an account restored from a backup without its TOTP secret: the next login enrolls TOTP
+ * again ([TotpEnrollmentService]) before anything else.
  */
 @Entity
 @Table(name = "app_user")
@@ -31,6 +34,10 @@ class UserAccount(
 	var totpConfirmedAt: Instant? = null
 		protected set
 
+	@Column(name = "totp_reenroll_required", nullable = false)
+	var totpReenrollRequired: Boolean = false
+		protected set
+
 	@OneToMany(mappedBy = "user", cascade = [CascadeType.ALL], orphanRemoval = true, fetch = FetchType.LAZY)
 	val recoveryCodes: MutableList<RecoveryCode> = mutableListOf()
 
@@ -41,6 +48,18 @@ class UserAccount(
 	fun confirmTotp(at: Instant) {
 		check(!isActive) { "TOTP is already confirmed" }
 		totpConfirmedAt = at
+	}
+
+	/** Replaces the TOTP secret of a re-enrollment that has not been confirmed yet. */
+	fun startTotpReenrollment(secret: EncryptedSecret) {
+		check(totpReenrollRequired) { "TOTP re-enrollment is not required" }
+		totpSecret = secret
+	}
+
+	/** Completes the re-enrollment: the TOTP secret of [startTotpReenrollment] works from now on. */
+	fun confirmTotpReenrollment() {
+		check(totpReenrollRequired) { "TOTP re-enrollment is not required" }
+		totpReenrollRequired = false
 	}
 
 	fun addRecoveryCode(codeHash: String) {

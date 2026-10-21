@@ -125,7 +125,7 @@ class CoreBackupContributorsTests(
 	}
 
 	@Test
-	fun `after import the owner has a new decryptable TOTP secret, the old one no longer works, and a recovery code does`(
+	fun `after import the owner has a new decryptable TOTP secret, must re-enroll, and a recovery code logs in`(
 		output: CapturedOutput,
 	) {
 		val enrollment = activeOwner()
@@ -136,7 +136,7 @@ class CoreBackupContributorsTests(
 		importCore(zip)
 
 		withClue("the import warns that TOTP must be re-enrolled, without secrets or the username") {
-			output.all shouldContain "Restored owner account without its TOTP secret: the owner must sign in with a recovery code"
+			output.all shouldContain "Restored owner account without its TOTP secret: the next login needs a recovery code"
 			output.all shouldNotContain enrollment.totpSecret
 			output.all shouldNotContain USERNAME
 		}
@@ -145,6 +145,7 @@ class CoreBackupContributorsTests(
 		restored.username shouldBe USERNAME
 		restored.passwordHash shouldBe original.passwordHash
 		restored.isActive shouldBe true
+		restored.totpReenrollRequired shouldBe true
 		val stored = jdbc.queryForObject("select totp_secret from app_user", String::class.java)!!
 		Base32.decode(cipher.decrypt(stored)).size shouldBe Totp.SECRET_BYTES
 		val newSecret = Base32.decode(restored.totpSecret.reveal())
@@ -157,15 +158,17 @@ class CoreBackupContributorsTests(
 			loginService.verify(LoginCredentials(USERNAME, PASSWORD, oldCode, null, false)).shouldBeInstanceOf<CredentialCheck.Rejected>()
 		}
 		loginService.recordSuccess()
+		withClue("the new random secret does not log in either: TOTP must be enrolled again") {
+			loginService
+				.verify(LoginCredentials(USERNAME, PASSWORD, totp.generate(newSecret, clock.instant()), null, false))
+				.shouldBeInstanceOf<CredentialCheck.Rejected>()
+		}
+		loginService.recordSuccess()
 		withClue("the password hash and recovery code hashes survive, so the owner signs in with a recovery code") {
 			loginService
 				.verify(LoginCredentials(USERNAME, PASSWORD, null, enrollment.recoveryCodes.first(), false))
 				.shouldBeInstanceOf<CredentialCheck.Verified>()
-		}
-		withClue("the new secret works for a TOTP login") {
-			loginService
-				.verify(LoginCredentials(USERNAME, PASSWORD, totp.generate(newSecret, clock.instant()), null, false))
-				.shouldBeInstanceOf<CredentialCheck.Verified>()
+				.account.totpReenrollRequired shouldBe true
 		}
 	}
 
@@ -180,7 +183,7 @@ class CoreBackupContributorsTests(
 
 		output.all shouldContain "no unused recovery code left"
 		withClue("only the lockout warning is logged, and it names neither the owner nor a secret") {
-			output.all shouldNotContain "the owner must sign in with a recovery code"
+			output.all shouldNotContain "the next login needs a recovery code"
 			output.all shouldNotContain USERNAME
 		}
 	}
@@ -194,7 +197,7 @@ class CoreBackupContributorsTests(
 
 		importCore(zip)
 
-		output.all shouldContain "sign in with a recovery code (${enrollment.recoveryCodes.size - 1} unused) and re-enroll TOTP"
+		output.all shouldContain "the next login needs a recovery code (${enrollment.recoveryCodes.size - 1} unused) and must set up TOTP again"
 	}
 
 	@Test

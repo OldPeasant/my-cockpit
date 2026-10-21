@@ -9,6 +9,9 @@ import ch.sonensei.cockpit.core.items.domain.ItemType
 import ch.sonensei.cockpit.core.items.domain.Link
 import ch.sonensei.cockpit.core.items.domain.LinkOrigin
 import ch.sonensei.cockpit.core.items.infra.LinkRepository
+import ch.sonensei.cockpit.core.oauth.domain.OAuthConnection
+import ch.sonensei.cockpit.core.oauth.domain.OAuthProvider
+import ch.sonensei.cockpit.core.oauth.infra.OAuthConnectionRepository
 import ch.sonensei.cockpit.core.persistence.UuidV7
 import ch.sonensei.cockpit.core.reminders.domain.Reminder
 import ch.sonensei.cockpit.core.reminders.domain.ReminderChannel
@@ -84,5 +87,29 @@ class RemindersBackupFixture(
 				Reminder(ItemRef(ItemType.EVENT, UuidV7.generate()), Instant.parse("2027-01-15T09:30:00Z"), ReminderChannel.NOTIFICATION),
 			),
 		)
+	}
+}
+
+/** A connected Google account and a Microsoft account that must be reconnected (fictitious tokens). */
+class OAuthBackupFixture(
+	private val connections: OAuthConnectionRepository,
+) : BackupFixture {
+	override val contributor = OAuthBackupContributor.ID
+
+	override fun seed() {
+		val google =
+			OAuthConnection(
+				OAuthProvider.GOOGLE,
+				"100000000000000000001",
+				"jane.doe@example.com",
+				"Jane Doe",
+				"openid email https://www.googleapis.com/auth/calendar",
+				EncryptedSecret("1//fictitious-refresh-token"),
+			)
+		google.markConnected(EncryptedSecret("1//fictitious-refresh-token"), Instant.parse("2026-03-01T08:00:00.5Z"))
+		val microsoft =
+			OAuthConnection(OAuthProvider.MICROSOFT, "00000000-0000-0000-0000-00000000beef", null, "Jäne Dœ", "offline_access Mail.Read", null)
+		microsoft.markReconnectRequired("invalid_grant")
+		connections.saveAllAndFlush(listOf(google, microsoft))
 	}
 }

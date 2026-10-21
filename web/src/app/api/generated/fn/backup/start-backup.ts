@@ -8,13 +8,16 @@ import { StrictHttpResponse } from '../../strict-http-response';
 import { RequestBuilder } from '../../request-builder';
 
 import { BackupJobResponse } from '../../models/backup-job-response';
+import { StartBackupRequest } from '../../models/start-backup-request';
 
 export interface StartBackup$Params {
+      body?: StartBackupRequest
 }
 
 export function startBackup(http: HttpClient, rootUrl: string, params?: StartBackup$Params, context?: HttpContext): Observable<StrictHttpResponse<BackupJobResponse>> {
   const rb = new RequestBuilder(rootUrl, startBackup.PATH, 'post');
   if (params) {
+    rb.body(params.body, 'application/json');
   }
 
   return http.request(

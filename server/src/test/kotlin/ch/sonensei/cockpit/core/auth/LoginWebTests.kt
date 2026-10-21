@@ -201,11 +201,12 @@ class LoginWebTests(
 	}
 
 	@Test
-	fun `login needs exactly one of TOTP and recovery code`() {
-		login(totp = null, recoveryCode = null).isProblem(400)
+	fun `login needs one of TOTP and recovery code, not both`() {
 		login(totp = currentCode(), recoveryCode = recoveryCodes[0]).isProblem(400)
-		login(totp = "", recoveryCode = null).isProblem(400)
 		login(password = "").isProblem(400)
+		// Neither is only valid while TOTP must be enrolled again without recovery codes left; otherwise wrong credentials.
+		login(totp = null, recoveryCode = null).isProblem(401)
+		login(totp = "", recoveryCode = null).isProblem(401)
 	}
 
 	@Test

@@ -44,10 +44,15 @@ class SessionAuthenticationFilter(
 	}
 }
 
-/** The authentication of a logged-in owner. */
+/**
+ * The authentication of a logged-in owner: [ROLE_OWNER], or only [ROLE_TOTP_ENROLLMENT] while TOTP must be enrolled
+ * again ([CockpitPrincipal.totpEnrollmentRequired]).
+ */
 class CockpitAuthentication(
 	private val principal: CockpitPrincipal,
-) : AbstractAuthenticationToken(AuthorityUtils.createAuthorityList(ROLE_OWNER)) {
+) : AbstractAuthenticationToken(
+		AuthorityUtils.createAuthorityList(if (principal.totpEnrollmentRequired) ROLE_TOTP_ENROLLMENT else ROLE_OWNER),
+	) {
 	init {
 		isAuthenticated = true
 	}
@@ -60,5 +65,6 @@ class CockpitAuthentication(
 
 	companion object {
 		const val ROLE_OWNER = "ROLE_OWNER"
+		const val ROLE_TOTP_ENROLLMENT = "ROLE_TOTP_ENROLLMENT"
 	}
 }
