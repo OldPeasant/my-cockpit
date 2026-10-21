@@ -229,6 +229,8 @@ export type { MailToTask$Params as MailToTask$Params } from './fn/mail-messages/
 export { mailToTask as mailToTask } from './fn/mail-messages/mail-to-task';
 export type { MailToWaiting$Params as MailToWaiting$Params } from './fn/mail-messages/mail-to-waiting';
 export { mailToWaiting as mailToWaiting } from './fn/mail-messages/mail-to-waiting';
+export type { SearchMail$Params as SearchMail$Params } from './fn/mail-search/search-mail';
+export { searchMail as searchMail } from './fn/mail-search/search-mail';
 export type { ListNotes$Params as ListNotes$Params } from './fn/notes/list-notes';
 export { listNotes as listNotes } from './fn/notes/list-notes';
 export type { CreateNote$Params as CreateNote$Params } from './fn/notes/create-note';
