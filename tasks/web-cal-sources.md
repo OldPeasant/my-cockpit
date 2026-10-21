@@ -5,7 +5,7 @@ owner: dell26/agent-2
 deps: [p0-web-settings,cal-caldav,cal-ics,cal-google,cal-microsoft]
 touches: [web/src/app/features/settings/calendars,web/src/app/features/settings/integrations]
 prio: 2
-lease_until: 2026-10-21T18:12:22Z
+lease_until: 2026-10-21T18:17:24Z
 ---
 ## Goal
 Connect calendar sources (SPEC.md §6.1, §11).
