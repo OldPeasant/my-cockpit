@@ -17,3 +17,4 @@ Resumable weekly review (SPEC.md §8.6).
 
 ## Notes
 - ASSUMPTION (2026-10-22 00:21+0200 by dell26/agent-1): Stale next action = open task on the NEXT list whose updatedAt is more than 30 days ago (olderThanDays param, default 30); SPEC §8.6 does not define 'stale'
+- ASSUMPTION (2026-10-22 00:21+0200 by dell26/agent-1): Past calendar = the 7 local days before today (today excluded), upcoming = today plus the next 13 days (14 days), visible calendars only, cancelled occurrences left out
