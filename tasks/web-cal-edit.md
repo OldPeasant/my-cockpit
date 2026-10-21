@@ -14,7 +14,8 @@ Create and edit events (SPEC.md §6.3).
 ## Acceptance criteria
 - [x] Drag to create/move/resize; event dialog (title, time/all-day, tz, recurrence, location, description, reminders, attendees read-only for external)
   - verified (2026-10-21 15:16+0200 by dell26/agent-3): cd web && npx ng test --watch=false --include 'src/app/features/calendar/**/*.spec.ts' -> 11 files, 213 tests passed (calendar-view: drag/select on writable calendars, resize saved, drop reverted on cancel/conflict/error; event-dialog/event-form: title, time/all-day, tz, recurrence presets+custom rule, location, description, reminders, attendees read-only for synced calendars); Playwright e2e/calendar-edit/edit.spec.ts drags an occurrence in the real UI (criterion 4)
-- [ ] Recurring edits ask THIS / FOLLOWING / ALL; 'changed remotely' conflicts shown with reload
+- [x] Recurring edits ask THIS / FOLLOWING / ALL; 'changed remotely' conflicts shown with reload
+  - verified (2026-10-21 15:16+0200 by dell26/agent-3): same Vitest run -> pass: scope-dialog offers THIS/FOLLOWING/ALL (only FOLLOWING/ALL for rule/calendar change), event-dialog 'asks which occurrences a change is for and saves with that scope', 'shows a 409/412 conflict with Reload, which loads the current version', calendar-view drag conflict snackbar with Reload; e2e edit.spec.ts picks THIS in the scope prompt against the e2e stack
 - [ ] Vitest component/service tests cover scope prompt and conflict handling; `cd web && npm run check` passes
 - [x] Playwright `e2e/calendar-edit/edit.spec.ts` passes against the e2e stack (`npm run e2e -- e2e/calendar-edit/edit.spec.ts`, see p0-e2e-harness): move one occurrence of a weekly event
   - verified (2026-10-21 14:45+0200 by dell26/agent-3): npm --prefix web run e2e -- e2e/calendar-edit/edit.spec.ts (deploy/docker-compose.e2e.yml stack via podman-compose, chromium) at 26d4b7d2 -> 'moves one occurrence of a weekly event' passed (22 passed incl. phase demo project)
