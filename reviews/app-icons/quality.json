@@ -1,0 +1,18 @@
+{
+  "schema": 1,
+  "task": "app-icons",
+  "reviewed_revision": "e5876e07200fc0fd53983bed1ddc4f26b38be729",
+  "helpers": {
+    "test-writer": {"status": "completed", "report": "reviews/app-icons/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/app-icons/review.md"},
+    "fixer": {"status": "not_required", "reason": "test-writer found no production bugs and code-reviewer reported 0 findings"}
+  },
+  "fixes_required": false,
+  "findings": [],
+  "validation": [
+    {"command": "cd web && npm run check", "result": "pass"},
+    {"command": "cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug assembleDebug", "result": "pass"},
+    {"command": "node docs/brand/generate-icons.mjs && git status --short web/public (no diff)", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
