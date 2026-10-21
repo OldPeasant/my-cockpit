@@ -1,10 +1,11 @@
 ---
 title: Google Calendar adapter
-status: todo
-owner:
+status: in_progress
+owner: R1963MACOS/agent-1
 deps: [cal-sync-engine,oauth-connections]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/calendar/infra/google,server/src/test/kotlin/ch/sonensei/cockpit/calendar/infra/google]
 prio: 2
+lease_until: 2026-10-21T09:41:15Z
 ---
 ## Goal
 Two-way Google sync (SPEC.md §6.2).
