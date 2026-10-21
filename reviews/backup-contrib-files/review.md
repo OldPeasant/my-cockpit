@@ -4,47 +4,35 @@ Date: 2026-10-21
 
 Task: backup-contrib-files - Backup contributor: files
 
-Scope: The task's committed changes from base f4c6df3c77701087cc415b6853d5bd05c7b5d8f9 to 5c2126f5: commits 97c51a16 (implementation), f39f92a5 (tests) and 5c2126f5 (fixes for the previous review's CR-2 to CR-5). Since then the clone has been rebased onto main, which moved the base to 6c4f9434. The commits are now 1c29b9ff, a15e5cb2, b856e075 and 9985ecdf. `git range-diff f4c6df3c..5c2126f5 6c4f9434..HEAD` shows every commit as patch-identical (`=`), so the reviewed code is the same. Files: `server/src/main/kotlin/ch/sonensei/cockpit/files/backup/FilesBackupContributor.kt`, `server/src/test/kotlin/ch/sonensei/cockpit/files/backup/FilesBackupContributorTests.kt` and `server/src/test/kotlin/ch/sonensei/cockpit/files/backup/FilesBackupFixture.kt`. A concurrent test-writer has left an uncommitted change to `FilesBackupContributorTests.kt`. That change was not reviewed.
+Scope: The whole task diff `git diff 6ff53658..f8d8b2a2 -- server`, with focus on the last commit f8d8b2a2. That commit's only code change adds two tests to `server/src/test/kotlin/ch/sonensei/cockpit/files/backup/FilesBackupContributorTests.kt`. The review covers all task files: `server/src/main/kotlin/ch/sonensei/cockpit/files/backup/FilesBackupContributor.kt`, `server/src/test/kotlin/ch/sonensei/cockpit/files/backup/FilesBackupContributorTests.kt` and `server/src/test/kotlin/ch/sonensei/cockpit/files/backup/FilesBackupFixture.kt`. The working tree was clean (committed code only).
 
 Requirements:
-- tasks/backup-contrib-files.md (acceptance criteria and the three recorded assumptions)
+- tasks/backup-contrib-files.md (both acceptance criteria and the three recorded assumptions)
 - SPEC.md §10.2 (backup format, restore), §14
 - AGENTS.md project notes, docs/QUALITY.md
-- The previous review (CR-1 to CR-5) and reviews/backup-contrib-files/fixes.md
-- Context read: `BackupContributor` contract, `InvalidBackupException` (BackupFormat.kt), `RestoreService.replace`/`validate`, `RestoreController` exception handler, `BackupService.export` (snapshot transaction), `BackupRoundTripTest` fixture discovery
+- The earlier reviews of this task (CR-1 to CR-5, all resolved) and reviews/backup-contrib-files/fixes.md
+- Context read: the `file`/`folder` schema in `V202610201345__files_model.sql` (`file.folder_id references folder (id)`, not deferred)
 
 Git range:
 - Branch: main
-- HEAD: 9985ecdfbe1cf1ae696a9a341e5383aa9cba2b14 (patch-identical to 5c2126f5)
-- Base/start: f4c6df3c77701087cc415b6853d5bd05c7b5d8f9 (after the rebase: 6c4f94340b7a77a8152cc09736300ba3bd01ba59)
-- Commits reviewed: 3 code commits (plus the review-only commit a97c914a/a15e5cb2)
+- HEAD: f8d8b2a27271d3cfeb1925f0874b72e023f96fab
+- Base/start: 6ff536586d0fc6d46e143d86b4fa9e5d46e4f727
+- Commits reviewed: 5 (fef77c88 implementation, fa85290c review, 49bf0765 tests, 77a638cb fixes, f8d8b2a2 extra tests and reports)
 
 Summary: 0 P0, 0 P1, 0 P2, 0 P3
 
-Status of the previous findings:
-- CR-1 (no layout or failure-path tests): resolved. `FilesBackupContributorTests` checks the exact `files/` entry names and the `path` of each `files.jsonl` record for these cases:
-  - duplicates, where the smaller id wins regardless of insert order;
-  - case-only clashes;
-  - an existing ` (2)` name, which is skipped;
-  - a folder that beats an older file;
-  - an active item that beats an older trashed one;
-  - root-level clashes;
-  - same-named folders under different parents;
-  - path uniqueness regardless of case, and that each path matches its blob.
+Review of commit f8d8b2a2:
+- `import fails when folders form a cycle without a root`: Folders are exported in id order, so `folders[0]` is `Documents` (id 1). The test sets its `parentId` to its own child `tax` (id 2). No folder has a null parent, so `ordered` is empty and its size differs from the folder count. The import then throws `InvalidBackupException` with the message "... form a cycle" (`FilesBackupContributor.kt:62-64`) before it inserts any rows. The `count("folder") shouldBe 0` assertion is meaningful. This test adds a cycle with no root to the existing orphan test. The earlier review had reasoned that this case was caught but had no test for it.
+- `a file row that cannot be inserted fails the import and leaves no blob behind`: The test empties `folders.json`, but the blob `tax/2025.pdf` stays in the zip. The import therefore reads the blob, writes it (`:69`), passes the size and SHA-256 check, and then fails in `insert` on the non-deferred foreign key `file.folder_id -> folder.id`. That failure exercises the `catch` that deletes the new blob (`:75-78`) on a database error, not just on a mismatch. If someone removed that `catch`, a blob would stay behind and `storedBlobs().shouldBeEmpty()` would fail, so the test protects the behavior. `shouldThrow<Exception>` is broad, but the thrown type (a Spring `DataIntegrityViolationException`) is not part of the contract. The no-blob assertion is what makes the test meaningful.
+- Both tests use only fictitious data and the existing helpers (`edit`, `wipe`, `import` in one transaction), so they follow the surrounding conventions.
 
-  It also checks the fields of `folders.json` and `files.jsonl`, including that the storage key is absent. Restore tests cover ids, times, versions and the Trash state, new blob keys, search re-indexing of active items only, SHA-256 and size mismatches (no file rows and no blobs left behind), a missing blob, and an orphan folder. A 60 MB file test checks that bytes allocated per thread stay below a quarter of the file size, for both export and import.
-- CR-2: resolved. A bad backup now throws `InvalidBackupException` with one problem each (`FilesBackupContributor.kt:62-64`, `:68`, `:71-73`). The problems name only the data file and the file id, never user content. `RestoreService.replace` rethrows `InvalidBackupException` after unstashing (`RestoreService.kt:171`), and `RestoreController` maps it to 422 with the problems. The `catch` that deletes the newly written blob also runs for the new mismatch exception (`:75-78`). The tests now expect `InvalidBackupException`.
-- CR-3: resolved. The `file` query sets `fetchSize = 1000` through a `PreparedStatementCreator` (`:167-172`). The default `JdbcTemplate` fetch size of -1 does not override it. Export runs inside `BackupService`'s `snapshot` transaction, so PgJDBC uses a cursor, and the KDoc now says so. Loading the folder query in full is intentional, because every folder path is kept anyway.
-- CR-4: resolved. The class KDoc only claims uniqueness regardless of case. Recorded assumption #3 corrects assumption #1.
-- CR-5: resolved. The file `2025` now sits in `archive`, next to the folder `2025`. That makes it a real folder-wins clash in a nested folder (`FilesBackupFixture.kt:29-30`, `:40`).
+Whole-task check: I re-read the contributor and found no change since the previous review, which found no issues. The two criteria are still covered:
+- Criterion 1: `data/folders.json`, `data/files.jsonl`, and `files/` in the original tree with ` (2)` names on a clash, each path stored in the record. The files query streams with a fetch size of 1000, and blobs are streamed one at a time. Tests check the 60 MB file's allocated memory on both export and import.
+- Criterion 2: `FilesBackupFixture` seeds nested folders, name clashes and a 60 MB file (`LARGE_SIZE = 60L * 1024 * 1024`). `BackupRoundTripTest` discovers it.
 
-New issues: I re-read the full contributor and found no new defects. Points I checked:
-- Folder ordering on import still detects both orphans and cycles. Folders in a cycle are never reached from the roots, so the size check catches them.
-- The two export passes use the same ordering and the same snapshot, so they agree on paths.
-- `FolderPaths.namesIn` claims the child folder names before the files, so a folder wins over a file.
-- The fixture is discovered by `BackupRoundTripTest` through classpath scanning, and its `contributor` id matches `FilesBackupContributor.ID`.
-
-Test execution: I tried to run `cd server && ./gradlew test --tests '*FilesBackup*' --tests '*BackupRoundTripTest'`, but Gradle failed with `java.io.EOFException` in `:test`. This is most likely because the test-writer was running Gradle at the same time. The working tree also contained that helper's uncommitted test change, so this run could not have tested exactly the committed code. The most recent result files in `server/build/test-results/test` are from before this review: `FilesBackupContributorTests` 22 tests with 0 failures and 0 errors, and `BackupRoundTripTest` 1 test with 0 failures. They match what fixes.md reports, but this review did not produce them itself. `python tasks.py verify backup-contrib-files` shows no evidence recorded yet for either criterion. The parent worker must run both test commands on the final committed code and record the results before `done`.
+Test execution (this review, on clean committed HEAD f8d8b2a2): `cd server && ./gradlew test --tests '*FilesBackup*' --tests '*BackupRoundTripTest'` -> BUILD SUCCESSFUL. The JUnit results:
+- `FilesBackupContributorTests`: 24 tests, 0 failures, 0 errors, 0 skipped. That is the 22 tests from before plus the 2 new ones.
+- `BackupRoundTripTest`: 1 test, 0 failures, 0 errors.
 
 ## P0 Critical
 
@@ -64,4 +52,4 @@ None.
 
 ## Review conclusion
 
-No material issues found. All five previous findings are resolved in the committed code. Criteria 1 and 2 still need evidence recorded with `tasks.py verify`, from a clean run of the focused tests and `*BackupRoundTripTest` on the final code. This review could not complete such a run because Gradle failed during a concurrent build.
+No material issues found. The parent worker still has to record the evidence for criteria 1 and 2 with `tasks.py verify`.
