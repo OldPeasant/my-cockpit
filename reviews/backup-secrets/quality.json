@@ -1,0 +1,42 @@
+{
+  "schema": 1,
+  "task": "backup-secrets",
+  "reviewed_revision": "f92bf26bf5a4fe9d6029f7cfa5c065cbeb825cf9",
+  "helpers": {
+    "test-writer":   {"status": "completed", "report": "reviews/backup-secrets/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/backup-secrets/review.md"},
+    "fixer":         {"status": "completed", "report": "reviews/backup-secrets/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "CR-1 (review 1)", "source": "code-reviewer", "severity": "P2", "disposition": "out_of_scope",
+     "note": "web client for the forced TOTP re-enrollment moved to task web-totp-reenroll; server endpoints done and tested here"},
+    {"id": "CR-2 (review 1)", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "password-only login after a restore recorded with tasks.py assume and covered by tests"},
+    {"id": "CR-3 (review 1)", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "tampering, bounds and enrollment error-path tests added (BackupSecretsCryptoTests, BackupSecretsZipTests, TotpEnrollmentWebTests)"},
+    {"id": "CR-4 (review 1)", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "empty passphrase accepted and treated as none"},
+    {"id": "CR-5 (review 1)", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "restore validation reads the zip in a single pass"},
+    {"id": "CR-6 (review 1)", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "restore instructions name COCKPIT_RESTORE_PASSPHRASE"},
+    {"id": "CR-7 (review 1)", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "enrollment confirm checks the throttle only when enrollment is required"},
+    {"id": "CR-1 (re-review 1)", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "confirming re-enrollment ends the other restricted sessions"},
+    {"id": "CR-2 (re-review 1)", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "OpenAPI schema allows an empty passphrase; api/openapi.yaml regenerated"},
+    {"id": "CR-1 (re-review 2)", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "account row locked (SELECT FOR UPDATE) in login and re-enrollment, concurrency tests added"},
+    {"id": "CR-2 (re-review 3)", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "start/confirm serialization tests added by test-writer in TotpEnrollmentWebTests"},
+    {"id": "CR-1 (re-review 3, final)", "source": "code-reviewer", "severity": "P3", "disposition": "accepted",
+     "note": "LoginService.verify relies on its callers' transaction for the row lock; both current callers are transactional and covered by the concurrency tests; optional hardening, not worth another review round"}
+  ],
+  "validation": [
+    {"command": "cd server && ./gradlew test --tests 'ch.sonensei.cockpit.backup.*' --tests 'ch.sonensei.cockpit.core.auth.*' --tests 'ch.sonensei.cockpit.core.backupcontrib.*' jacocoTestReport --rerun (Testcontainers Postgres)", "result": "pass"},
+    {"command": "cd server && ./gradlew test --tests 'ch.sonensei.cockpit.backup.*' --rerun (Testcontainers Postgres, parent re-run)", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
