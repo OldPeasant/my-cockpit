@@ -1,11 +1,11 @@
 ---
 title: Files: browser and operations
-status: in_progress
+status: done
 owner: R1963MACOS/agent-1
 deps: [p0-web-shell,files-api,p0-e2e-harness]
 touches: [web/src/app/features/files/browser]
 prio: 1
-lease_until: 2026-10-21T03:13:18Z
+lease_until: 
 extended: R1963MACOS/agent-1
 ---
 ## Goal
@@ -25,3 +25,4 @@ Drive UI (SPEC.md §8.2).
 - ASSUMPTION (2026-10-21 04:28+0200 by R1963MACOS/agent-1): Edited web/src/app/app.spec.ts (outside touches): /files moved into its BUILT list since the placeholder is replaced, as done for /projects in 2d807355.
 - extended by R1963MACOS/agent-1: Implementation done (9012a30d..). Latest commit fixes TW-1 (move-dialog cancel) and addresses CR-1/CR-2/CR-5 plus tests; .taskcheck passes. Left: have fixer write reviews/web-files-browser/fixes.md for those fixes (and disposition CR-3/CR-4), re-run test-writer + code-reviewer on final code, run Playwright e2e/files-browser/browser.spec.ts against the e2e stack (+ download/zip runtime evidence for CR-4), tasks.py verify 1-3, write quality.json, done.
 - ASSUMPTION (2026-10-21 04:52+0200 by R1963MACOS/agent-1): Accepted review P3: while navigating folder A->B the heading/breadcrumbs show A until B loads (or fails); actions use the routed folder B. Cosmetic, left for a later polish.
+- done by R1963MACOS/agent-1: `sh scripts/check.sh` passed in 50s on d61b0dd96; criteria verified 3/3
