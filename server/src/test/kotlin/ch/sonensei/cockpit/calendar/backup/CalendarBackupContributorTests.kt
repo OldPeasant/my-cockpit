@@ -149,6 +149,29 @@ class CalendarBackupContributorTests(
 		exported.entryNames.filter { it.startsWith("readable/calendar/") }.shouldBeEmpty()
 	}
 
+	@Test
+	fun `a backup without calendar data restores no calendar rows and has no restore warnings`() {
+		val empty = export()
+
+		import(empty.path)
+
+		warnings(empty).shouldBeEmpty()
+		listOf("calendar_source", "calendar", "calendar_event", "calendar_event_exdate").forEach { table ->
+			withClue(table) { jdbc.queryForObject("select count(*) from $table", Int::class.java) shouldBe 0 }
+		}
+	}
+
+	@Test
+	fun `an install with only external sources has calendar data but no ICS mirror`() {
+		seedExternal()
+
+		val exported = export()
+
+		exported.entryNames shouldContain "data/calendar_sources.json"
+		exported.entryNames shouldContain "data/events.jsonl"
+		exported.readableCalendars().keys.shouldBeEmpty()
+	}
+
 	// --- data/events.jsonl ------------------------------------------------------------------------------------------
 
 	@Test
@@ -327,6 +350,27 @@ class CalendarBackupContributorTests(
 				"calendar.ics" to listOf("Event of ..."),
 				"Tab_here.ics" to listOf("Event of Tab\there"),
 				"Empty.ics" to listOf("Event of Empty"),
+			)
+	}
+
+	@Test
+	fun `calendars with the same name are numbered by id, so every export names the files the same way`() {
+		source(LOCAL, "LOCAL", "Local")
+		// Inserted in the opposite order of their ids: the file names must not depend on the database's row order.
+		calendar(id(41), LOCAL, "Family")
+		calendar(id(40), LOCAL, "Family")
+		event(id(61), id(41), "Event of the second Family")
+		event(id(60), id(40), "Event of the first Family")
+
+		val titles =
+			export().readableCalendars().mapValues { (_, text) ->
+				parse(text).getComponents<VEvent>(Component.VEVENT).map { it.text(Property.SUMMARY) }
+			}
+
+		titles shouldBe
+			mapOf(
+				"Family.ics" to listOf("Event of the first Family"),
+				"Family (2).ics" to listOf("Event of the second Family"),
 			)
 	}
 
