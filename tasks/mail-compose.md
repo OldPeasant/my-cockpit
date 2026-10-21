@@ -1,13 +1,13 @@
 ---
 title: Drafts and sending
-status: in_progress
-owner: dell26/agent-3
+status: todo
+owner: 
 deps: [mail-actions-api,files-api]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/mail/compose,server/src/test/kotlin/ch/sonensei/cockpit/mail/compose]
 prio: 1
-lease_until: 2026-10-21T11:46:26Z
+lease_until: 
 extended: 
-releases: 1
+releases: 2
 ---
 ## Goal
 Compose, reply, forward (SPEC.md §7.3).
@@ -28,3 +28,4 @@ Compose, reply, forward (SPEC.md §7.3).
 - ASSUMPTION (2026-10-21 11:53+0200 by dell26/agent-2): Draft GET body and reply/forward quotes keep remote image src unchanged (sanitized otherwise, via identity PROXY policy), so content does not degrade on GET->PUT or for recipients; the web compose editor must avoid auto-loading remote images itself. Supersedes the 'remote images blocked / GET returns sanitized HTML' part of the earlier note.
 - ASSUMPTION (2026-10-21 11:53+0200 by dell26/agent-2): Review CR-5 (correspondent query sorts without a matching index) deferred to perf-tuning: needs a migration outside this task's touches.
 - release by dell26/agent-2: All 4 criteria implemented and committed (drafts API on IMAP Drafts, SMTP send w/ XOAUTH2, HTML+plain, attachments upload/Files, Sent append for IMAP_SMTP, reply/reply-all/forward, correspondents, GreenMail tests, openapi.yaml + web client regenerated). Fixer applied review CR-1..CR-4, CR-6 (fixes.md); CR-5 deferred (assumption). 'gradlew test --tests ch.sonensei.cockpit.mail.compose.*' passes on 1926b9fd. LEFT: (1) test-writer on final code -> write reviews/mail-compose/tests.md with coverage (missing; also run the external GreenMail tests); (2) re-run code-reviewer on final code (review.md is from before fixes); (3) tasks.py verify 1-4 incl. OpenApiContractTest without flag; (4) .taskcheck (~6 min), quality.json, done.
+- release by dell26/agent-3: Implementation complete (drafts API, SMTP send, reply/forward, correspondents, GreenMail tests, openapi regenerated); 3 review rounds done, latest review.md has 0 findings, fixes.md rounds 1-2 committed. LEFT: (1) test-writer has not yet written reviews/mail-compose/tests.md - rerun test-writer on final code (it last added DraftMimeTests.kt cases, committed in 49a50bf0) incl. task-scoped coverage; (2) since DraftMimeTests changed after review, re-run code-reviewer if done's freshness check requires it; (3) run the external GreenMail tests and OpenApiContractTest, record tasks.py verify for criteria 1-4; (4) write quality.json, commit, tasks.py done. sh scripts/check.sh passed for server+web locally.
