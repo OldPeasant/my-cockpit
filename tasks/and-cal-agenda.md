@@ -15,3 +15,4 @@ Calendar on the phone (SPEC.md §9.2 item 4).
 - [ ] `cd android && ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.calendar.agenda.*'` passes, covering range loading and grouping by day (Robolectric/Compose UI tests for screens)
 
 ## Notes
+- ASSUMPTION (2026-10-21 15:35+0200 by dell26/agent-1): Agenda offline Room cache (SPEC 9.3) is not in this task's acceptance criteria; deferred to new task and-cal-cache. Offline, the agenda shows the offline banner with what is already loaded in memory.
