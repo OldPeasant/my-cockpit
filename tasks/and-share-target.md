@@ -17,3 +17,4 @@ Share text, URLs, images and files into the inbox (SPEC.md §4.5).
 
 ## Notes
 - ASSUMPTION (2026-10-21 03:19+0200 by dell26/agent-4): Shared URIs are copied into the capture queue when the user taps Save; the sheet closes only after the copy is stored. Cancelling (or leaving) drops the share, nothing is staged before Save.
+- ASSUMPTION (2026-10-21 03:19+0200 by dell26/agent-4): Only content: URIs are accepted from shares; file: URIs are dropped so another app cannot make the cockpit read (and upload) its own private files.
