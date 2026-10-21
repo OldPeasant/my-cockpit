@@ -669,6 +669,63 @@ describe('NotesPage', () => {
       expect(root.querySelector<HTMLTextAreaElement>('.draft-body')?.value).toBe('');
     });
 
+    it('cannot cancel or escape while a note is saved, so a failed save keeps the draft', async () => {
+      await create();
+      button('.composer-open').click();
+      await settle();
+      typeInto('.draft-body', 'Call the plumber');
+      button('.composer .save').click();
+      fixture.detectChanges();
+
+      const cancel = button('.composer .cancel');
+      expect(cancel.disabled).toBe(true);
+      cancel.click();
+      keydown('.draft-body', { key: 'Escape' });
+      expect(root.querySelector<HTMLTextAreaElement>('.draft-body')?.value).toBe(
+        'Call the plumber',
+      );
+
+      http
+        .expectOne((r) => r.method === 'POST')
+        .flush({ title: 'Oops', status: 500 }, { status: 500, statusText: 'Server Error' });
+      await settle();
+      expect(root.querySelector('.composer .error')?.textContent).toContain('could not be saved');
+      expect(root.querySelector<HTMLTextAreaElement>('.draft-body')?.value).toBe(
+        'Call the plumber',
+      );
+      expect(button('.composer .cancel').disabled).toBe(false);
+    });
+
+    it('shows a note created while the list reloads by loading it again', async () => {
+      await create();
+      button('.composer-open').click();
+      await settle();
+      typeInto('.draft-body', 'Sunscreen');
+      button('.tags .tag').click();
+      fixture.detectChanges();
+      // The list of the new tag filter is still loading when the note is saved.
+      const [stale] = http.match((r) => r.url === LIST && r.method === 'GET');
+      button('.composer .save').click();
+      const created = note('0192f0c4-0000-7000-8000-00000000000a', {
+        displayTitle: 'Sunscreen',
+        bodyMd: 'Sunscreen',
+        tags: ['Holiday'],
+        updatedAt: '2026-10-21T08:00:00Z',
+      });
+      http
+        .expectOne((r) => r.method === 'POST')
+        .flush(created, { status: 201, statusText: 'Created' });
+      await settle();
+      http.expectOne((r) => r.url === TAGS).flush({ items: [] });
+
+      // The load started before the note existed does not count; the new one does.
+      stale.flush({ items: [PACKING] });
+      await settle();
+      await flushList([created, PACKING], (p) => p.get('tag') === 'Holiday');
+      expect(titles()).toEqual(['Sunscreen', 'Packing list']);
+      expect(notifications.info).toHaveBeenCalledWith('Note saved');
+    });
+
     it('keeps typed tags when the composer opens while a tag filter is active', async () => {
       await create();
       button('.composer-open').click();
@@ -716,15 +773,17 @@ describe('NotesPage', () => {
       typeInto('.draft-tags', 'HOLIDAY');
       typeInto('.draft-body', 'Travel insurance');
       button('.composer .save').click();
-      http.expectOne((r) => r.method === 'POST').flush(
-        note('0192f0c4-0000-7000-8000-000000000008', {
-          displayTitle: 'Travel insurance',
-          bodyMd: 'Travel insurance',
-          tags: ['HOLIDAY'],
-          updatedAt: '2026-10-21T08:00:00Z',
-        }),
-        { status: 201, statusText: 'Created' },
-      );
+      http
+        .expectOne((r) => r.method === 'POST')
+        .flush(
+          note('0192f0c4-0000-7000-8000-000000000008', {
+            displayTitle: 'Travel insurance',
+            bodyMd: 'Travel insurance',
+            tags: ['HOLIDAY'],
+            updatedAt: '2026-10-21T08:00:00Z',
+          }),
+          { status: 201, statusText: 'Created' },
+        );
       await settle();
       http.expectOne((r) => r.url === TAGS).flush({ items: [] });
       await settle();

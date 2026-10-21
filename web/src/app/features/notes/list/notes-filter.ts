@@ -34,31 +34,34 @@ export function filterNotes(notes: readonly NoteResponse[], query: string): Note
 
 /**
  * The text of a note's card as plain text: Markdown marks and images removed, links reduced to their
- * text. Without a title, the first line is the card's title already, so it is left out here.
+ * text. Without a (non-blank) title, the server derives the card's title from the first line that
+ * has text once Markdown, images and `[[type:id]]` links are removed, so that line is left out here.
  */
 export function excerpt(note: Pick<NoteResponse, 'title' | 'bodyMd'>): string {
-  let lines = note.bodyMd.split(/\r?\n/);
-  if (!note.title) {
-    const first = lines.findIndex((line) => line.trim());
+  let lines = note.bodyMd.split(/\r?\n/).map(plainLine);
+  if (!note.title?.trim()) {
+    const first = lines.findIndex((line) => /[^\s•☐☑]/.test(line));
     lines = first < 0 ? [] : lines.slice(first + 1);
   }
   const text = lines
-    .map((line) =>
-      line
-        .replace(/!\[[^\]]*\]\([^)]*\)/g, '')
-        .replace(/\[\[[a-z_]+:[^\]]+\]\]/gi, '')
-        .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
-        .replace(/^\s*(#{1,6}\s+|>\s?)/, '')
-        .replace(/^(\s*)[-*+]\s+\[[xX]\]\s+/, '$1☑ ')
-        .replace(/^(\s*)[-*+]\s+\[ \]\s+/, '$1☐ ')
-        .replace(/^(\s*)[-*+]\s+/, '$1• ')
-        .replace(/[*_`~]+/g, '')
-        .trimEnd(),
-    )
     .join('\n')
     .replace(/\n{3,}/g, '\n\n')
     .trim();
   return text.length > EXCERPT_LENGTH ? `${text.slice(0, EXCERPT_LENGTH).trimEnd()}…` : text;
+}
+
+/** One Markdown line as plain text; list items and checkboxes keep a marker (`•`, `☐`, `☑`). */
+function plainLine(line: string): string {
+  return line
+    .replace(/!\[[^\]]*\]\([^)]*\)/g, '')
+    .replace(/\[\[[a-z_]+:[^\]]+\]\]/gi, '')
+    .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
+    .replace(/^\s*(#{1,6}\s+|>\s?)/, '')
+    .replace(/^(\s*)[-*+]\s+\[[xX]\]\s+/, '$1☑ ')
+    .replace(/^(\s*)[-*+]\s+\[ \]\s+/, '$1☐ ')
+    .replace(/^(\s*)[-*+]\s+/, '$1• ')
+    .replace(/[*_`~]+/g, '')
+    .trimEnd();
 }
 
 /** Tags typed as text, separated by commas or spaces, a leading `#` removed, each once. */

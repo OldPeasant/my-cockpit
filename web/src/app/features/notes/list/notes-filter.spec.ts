@@ -171,4 +171,27 @@ describe('excerpt edge cases', () => {
     const exact = 'y'.repeat(EXCERPT_LENGTH);
     expect(excerpt({ title: 'T', bodyMd: exact })).toBe(exact);
   });
+
+  it('leaves out the line the title is derived from when the text starts with an image or link', () => {
+    const image = '![](cockpit-file:0192f0c4-0000-7000-8000-000000000009)';
+    expect(excerpt({ title: undefined, bodyMd: `${image}\nBeach at noon\nSunny` })).toBe('Sunny');
+    const link = '[[task:0192f0c4-0000-7000-8000-000000000001]]';
+    expect(excerpt({ title: undefined, bodyMd: `${link}\n\n## Follow-up\nCall back` })).toBe(
+      'Call back',
+    );
+    expect(excerpt({ title: undefined, bodyMd: '- \n- [ ] Passport\n- [ ] Tickets' })).toBe(
+      '☐ Tickets',
+    );
+  });
+
+  it('treats a blank title as no title', () => {
+    expect(excerpt({ title: '   ', bodyMd: 'Groceries\nMilk' })).toBe('Milk');
+    expect(excerpt({ title: '', bodyMd: 'Groceries\nMilk' })).toBe('Milk');
+  });
+
+  it('keeps every line, an image-only first line included, when the note has a title', () => {
+    expect(excerpt({ title: 'Beach', bodyMd: '![](cockpit-file:x)\nBeach at noon' })).toBe(
+      'Beach at noon',
+    );
+  });
 });

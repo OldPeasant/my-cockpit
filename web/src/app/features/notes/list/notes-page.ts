@@ -1,4 +1,4 @@
-import { DatePipe, NgTemplateOutlet } from '@angular/common';
+import { NgTemplateOutlet } from '@angular/common';
 import {
   ChangeDetectionStrategy,
   Component,
@@ -10,10 +10,10 @@ import {
   viewChild,
 } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
-import { RouterLink } from '@angular/router';
 import { NoteResponse, NoteTagResponse } from '../../../api/generated';
 import { ApiError, NotificationService } from '../../../core/http';
-import { excerpt, filterNotes, parseTags } from './notes-filter';
+import { NoteCard } from './note-card';
+import { filterNotes, parseTags } from './notes-filter';
 import { NotesService } from './notes.service';
 
 /** How the notes are laid out. */
@@ -30,7 +30,7 @@ export const NOTES_VIEW_KEY = 'cockpit.notes.view';
 @Component({
   selector: 'app-notes-page',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [DatePipe, MatButtonModule, NgTemplateOutlet, RouterLink],
+  imports: [MatButtonModule, NgTemplateOutlet, NoteCard],
   templateUrl: './notes-page.html',
   styleUrl: './notes-page.scss',
 })
@@ -119,12 +119,19 @@ export default class NotesPage implements OnInit {
 
   protected openComposer(): void {
     this.composing.set(true);
+    this.createError.set(null);
     // A note filtered by tag starts with that tag, so it shows up in the current view.
     if (!this.draftTags() && this.tag()) this.draftTags.set(this.tag() ?? '');
     setTimeout(() => this.composerBody()?.nativeElement.focus());
   }
 
+  /** Discards the draft; not while it is being saved, so a failed save keeps it and shows why. */
   protected closeComposer(): void {
+    if (this.saving()) return;
+    this.resetComposer();
+  }
+
+  private resetComposer(): void {
     this.composing.set(false);
     this.draftTitle.set('');
     this.draftBody.set('');
@@ -146,9 +153,13 @@ export default class NotesPage implements OnInit {
         bodyMd: this.draftBody(),
         tags: parseTags(this.draftTags()),
       });
-      if (this.matchesFilter(note))
+      if (this.notes() === null) {
+        // A load is running and may have been answered before the note existed: load again.
+        void this.load();
+      } else if (this.matchesFilter(note)) {
         this.notes.update((notes) => (notes ? [note, ...notes] : notes));
-      this.closeComposer();
+      }
+      this.resetComposer();
       this.notifications.info($localize`:@@notes.created:Note saved`);
       void this.loadTags();
     } catch (error) {
@@ -181,24 +192,6 @@ export default class NotesPage implements OnInit {
 
   protected isBusy(note: NoteResponse): boolean {
     return this.busy().has(note.id);
-  }
-
-  protected excerpt(note: NoteResponse): string {
-    return excerpt(note);
-  }
-
-  protected pinLabel(note: NoteResponse): string {
-    const title = note.displayTitle;
-    return note.pinned
-      ? $localize`:@@notes.unpinAria:Unpin ${title}:title:`
-      : $localize`:@@notes.pinAria:Pin ${title}:title:`;
-  }
-
-  protected archiveLabel(note: NoteResponse): string {
-    const title = note.displayTitle;
-    return note.archived
-      ? $localize`:@@notes.unarchiveAria:Unarchive ${title}:title:`
-      : $localize`:@@notes.archiveAria:Archive ${title}:title:`;
   }
 
   private async loadTags(): Promise<void> {

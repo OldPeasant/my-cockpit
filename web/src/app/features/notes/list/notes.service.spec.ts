@@ -117,9 +117,7 @@ describe('NotesService', () => {
       .expectOne((r) => r.url === '/api/v1/notes' && !r.params.has('cursor'))
       .flush({ items: [note('01', { pinned: true }), note('02')], nextCursor: 'c2' });
     await tick();
-    http
-      .expectOne((r) => r.params.get('cursor') === 'c2')
-      .flush({ items: [], nextCursor: 'c3' });
+    http.expectOne((r) => r.params.get('cursor') === 'c2').flush({ items: [], nextCursor: 'c3' });
     await tick();
     http
       .expectOne((r) => r.params.get('cursor') === 'c3')
@@ -130,7 +128,9 @@ describe('NotesService', () => {
 
   it('fails as a whole when a later page fails, instead of returning part of the notes', async () => {
     const result = service.list({ archived: false });
-    http.expectOne((r) => r.url === '/api/v1/notes').flush({ items: [note('01')], nextCursor: 'c2' });
+    http
+      .expectOne((r) => r.url === '/api/v1/notes')
+      .flush({ items: [note('01')], nextCursor: 'c2' });
     await tick();
     http
       .expectOne((r) => r.params.get('cursor') === 'c2')
