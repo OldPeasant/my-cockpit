@@ -1,11 +1,11 @@
 ---
 title: Notes: Markdown editor with images
-status: todo
-owner: 
+status: in_progress
+owner: dell26/agent-4
 deps: [web-notes-list,web-links-panel]
 touches: [web/src/app/features/notes/editor]
 prio: 1
-lease_until: 
+lease_until: 2026-10-21T06:47:11Z
 extended: 
 releases: 0
 ---
