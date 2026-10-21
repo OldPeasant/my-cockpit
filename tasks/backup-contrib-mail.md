@@ -6,6 +6,7 @@ deps: [backup-contrib-core,mail-model,backup-secrets]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/mail/backup,server/src/test/kotlin/ch/sonensei/cockpit/mail/backup]
 prio: 2
 lease_until: 2026-10-21T22:29:47Z
+extended: dell26/agent-2
 ---
 ## Goal
 Mail config in backups (SPEC.md §10.2).
@@ -21,3 +22,4 @@ Mail config in backups (SPEC.md §10.2).
 - ASSUMPTION (2026-10-21 23:22+0200 by dell26/agent-2): 'Linked mails' = mail_message rows referenced by a link (either end) or a reminder (item_type EMAIL); refs keep only id, timestamps, version, account, folder, Message-ID header (no subject/addresses/body) and are restored detached (uid null) so the header sync reattaches them by Message-ID. Linked messages older than the sync window are not retaken after restore (retakeLinked only runs on a UIDVALIDITY resync). The export reads core's link/reminder tables via SQL
 - ASSUMPTION (2026-10-21 23:22+0200 by dell26/agent-2): IMAP passwords go to backup secret 'mail_passwords' (account id -> password); an IMAP account restored without it has a null password (login fails with AUTHENTICATION_FAILED until the owner enters it again); no readable mirror for mail
 - ASSUMPTION (2026-10-21 23:37+0200 by dell26/agent-2): Review CR-1: linked mails older than the sync window are not reattached after a restore (first sync never runs retakeLinked). Kept the restore detached (no sentinel UIDVALIDITY, which would make pruneDetached delete reminder-only refs since isLinked ignores reminders) and added a restore warning; the sync-side fix is follow-up task mail-restore-retake-linked
+- extended by dell26/agent-2: Implementation, tests (reviews/backup-contrib-mail/tests.md) and final code review (review.md, 0 P0-P2, 1 optional P3 log plural) are committed; both criteria verified; sh scripts/check.sh passes. Left: write reviews/backup-contrib-mail/quality.json (reviewed_revision = HEAD code, P3 CR-1 disposition, fixer not required unless P3 is fixed), commit it, run tasks.py done.
