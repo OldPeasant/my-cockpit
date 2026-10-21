@@ -39,6 +39,15 @@ class BookmarkUrlsTests {
 	}
 
 	@Test
+	fun `percent escapes are kept in either case, a percent without two hex digits is encoded`() {
+		BookmarkUrls.normalize("https://example.org/caf%c3%A9?q=%7e%7E#%aF") shouldBe "https://example.org/caf%c3%A9?q=%7e%7E#%aF"
+		BookmarkUrls.normalize("https://example.org/%zz") shouldBe "https://example.org/%25zz"
+		BookmarkUrls.normalize("https://example.org/%4g") shouldBe "https://example.org/%254g"
+		BookmarkUrls.normalize("https://example.org/a%4") shouldBe "https://example.org/a%254"
+		BookmarkUrls.normalize("https://example.org/?q=%") shouldBe "https://example.org/?q=%25"
+	}
+
+	@Test
 	fun `URLs that are not absolute http(s) URLs with a valid host are refused`() {
 		for (url in listOf(
 			"",

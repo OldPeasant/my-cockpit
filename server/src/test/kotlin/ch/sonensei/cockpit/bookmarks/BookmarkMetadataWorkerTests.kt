@@ -138,6 +138,21 @@ class BookmarkMetadataWorkerTests {
 	}
 
 	@Test
+	fun `an unexpected error while fetching or parsing is stored as failed and the worker goes on`() {
+		val fetcher = mockk<PageFetcher>()
+		every { fetcher.fetch(any()) } throws IllegalStateException("parser bug")
+		val worker = worker(fetcher = fetcher)
+		val request = request("https://broken.example/")
+		every { service.applyMetadata(request.id, any(), any(), any()) } returns true
+
+		worker.onRequested(request)
+		// The marker is only stored if the single worker thread survived the error.
+		drain(worker)
+
+		verify(exactly = 1) { service.applyMetadata(request.id, FETCH, false, null) }
+	}
+
+	@Test
 	fun `a concurrent change is retried, three attempts at most`() {
 		val worker = worker()
 		val request = request(page("/missing"))

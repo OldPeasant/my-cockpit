@@ -6,6 +6,7 @@ import ch.sonensei.cockpit.bookmarks.domain.BookmarkService
 import ch.sonensei.cockpit.bookmarks.domain.FieldChange
 import ch.sonensei.cockpit.bookmarks.domain.MetadataStatus
 import ch.sonensei.cockpit.bookmarks.domain.PageMetadata
+import ch.sonensei.cockpit.bookmarks.infra.BookmarkItemResolver
 import ch.sonensei.cockpit.bookmarks.infra.BookmarkTrashContributor
 import ch.sonensei.cockpit.core.auth.WithCockpitUser
 import ch.sonensei.cockpit.core.events.domain.ChangeEvent
@@ -535,6 +536,20 @@ class BookmarkEdgeCaseTests(
 	}
 
 	// --- trash and schema
+
+	@Test
+	fun `the resolver shows a read bookmark of the read-later list as a plain bookmark and hides a trashed one`() {
+		val resolver = context.getBean(BookmarkItemResolver::class.java)
+		val bookmark = failedBookmark(title = "Fictitious article")
+		val read = service.update(bookmark.id, BookmarkChanges(readLater = FieldChange(true), read = FieldChange(true))) {}
+
+		resolver.resolve(read.id)?.subtitle shouldBe "Bookmark"
+		resolver.resolve(read.id)?.title shouldBe "Fictitious article"
+
+		service.delete(read.id) {}
+
+		resolver.resolve(read.id) shouldBe null
+	}
 
 	@Test
 	fun `the Trash only restores or purges bookmarks that are in it`() {
