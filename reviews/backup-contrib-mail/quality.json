@@ -1,0 +1,24 @@
+{
+  "schema": 1,
+  "task": "backup-contrib-mail",
+  "reviewed_revision": "7e07ad0b9d810f2b0292c919f01a9200b0b8b018",
+  "helpers": {
+    "test-writer": {"status": "completed", "report": "reviews/backup-contrib-mail/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/backup-contrib-mail/review.md"},
+    "fixer": {"status": "not_required", "reason": "the final review has only an optional P3 (accepted); the first review's CR-2 was resolved by the test-writer adding MailBackupContributorTests (test code only), and its CR-1 by a restore warning plus the follow-up task mail-restore-retake-linked; the final review confirms both"}
+  },
+  "fixes_required": false,
+  "findings": [
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P3", "disposition": "accepted",
+     "note": "final review: import log line 'Restored 1 IMAP mail accounts' ignores the singular; operator log wording only, no functional impact, left as is"},
+    {"id": "R1-CR-1", "source": "code-reviewer", "severity": "P2", "disposition": "deferred",
+     "note": "first review: linked mails older than the sync window are not reattached after a restore; restore warning added in this task (assumption #4), sync-side fix in follow-up task mail-restore-retake-linked; final review accepts this as resolved for the task scope"},
+    {"id": "R1-CR-2", "source": "code-reviewer", "severity": "P2", "disposition": "accepted",
+     "note": "first review: criterion 1 had no contributor tests; resolved by the test-writer's MailBackupContributorTests (20 tests, 100% line/branch coverage of MailBackupContributor.kt), confirmed by the final review; no production change was needed"}
+  ],
+  "validation": [
+    {"command": "cd server && ./gradlew ktlintCheck test --tests '*MailBackupContributorTests' --tests '*BackupRoundTripTest'", "result": "pass"},
+    {"command": "cd server && ./gradlew test jacocoTestReport", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
