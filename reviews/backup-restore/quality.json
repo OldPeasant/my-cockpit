@@ -1,0 +1,23 @@
+{
+  "schema": 1,
+  "task": "backup-restore",
+  "reviewed_revision": "0c0d9cebd1c191eae83a10590407d76138247717",
+  "helpers": {
+    "test-writer": {"status": "completed", "report": "reviews/backup-restore/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/backup-restore/review.md"},
+    "fixer": {"status": "completed", "report": "reviews/backup-restore/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "R1-CR-1", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "first review: a contributor's RuntimeException in restoreWarnings became a 500 and crashed the CLI; now a content-free problem in the report (fixes.md)"},
+    {"id": "R1-CR-2", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "first review: pre-restore export failures bypassed content-free logging; now PreRestoreBackupFailedException -> 500 Problem Details with fixed detail (fixes.md)"},
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P3", "disposition": "accepted",
+     "note": "same as first review's R1-CR-3: upload hashes the backup twice under the RestoreService lock; only a latency cost on a rare admin operation, no correctness or safety impact, left as is"}
+  ],
+  "validation": [
+    {"command": "server/gradlew -p server test --tests 'ch.sonensei.cockpit.backup.*' --tests '*OpenApiContractTest' --tests '*UserRestoreWarningsTests'", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
