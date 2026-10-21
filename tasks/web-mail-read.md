@@ -14,7 +14,8 @@ Read mail safely (SPEC.md §7.3).
 - [ ] Sanitized HTML in a sandboxed iframe (no scripts, CSP), 'load images' toggle (per sender allowlist), attachments (download, preview, save to Files)
 - [ ] Buttons: → Inbox task, → Waiting For, Create note; linked items panel
 - [ ] Vitest component/service tests cover iframe sandbox attributes, image toggle; `cd web && npm run check` passes
-- [ ] Playwright `e2e/mail-read/read.spec.ts` passes against the e2e stack (`npm run e2e -- e2e/mail-read/read.spec.ts`, see p0-e2e-harness): script in mail does not run; images load only after toggle
+- [x] Playwright `e2e/mail-read/read.spec.ts` passes against the e2e stack (`npm run e2e -- e2e/mail-read/read.spec.ts`, see p0-e2e-harness): script in mail does not run; images load only after toggle
+  - verified (2026-10-21 17:57+0200 by dell26/agent-2): cd web && npm run e2e -- e2e/mail-read/read.spec.ts (podman-compose e2e stack, deploy/docker-compose.e2e.yml, GreenMail) at 08edb6f2 -> 22 passed incl. [chromium] mail-read/read.spec.ts 'script in mail does not run; images load only after the toggle'
 
 ## Notes
 - ASSUMPTION (2026-10-21 17:26+0200 by dell26/agent-2): Per-sender 'always load images' allowlist is kept client-side in localStorage (cockpit.mail.loadImagesFrom): the API has no allowlist endpoint; a server-side list can replace it later
