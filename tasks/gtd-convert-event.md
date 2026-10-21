@@ -1,11 +1,11 @@
 ---
 title: Convert task to calendar event
-status: in_progress
+status: done
 owner: dell26/agent-1
 deps: [gtd-convert-note,cal-local-api]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/gtd/convert,server/src/test/kotlin/ch/sonensei/cockpit/gtd/convert]
 prio: 2
-lease_until: 2026-10-21T15:05:50Z
+lease_until: 
 ---
 ## Goal
 'To calendar' in inbox processing (SPEC.md §5.3).
@@ -21,3 +21,4 @@ lease_until: 2026-10-21T15:05:50Z
 ## Notes
 - ASSUMPTION (2026-10-21 16:10+0200 by dell26/agent-1): convert-to-event takes the same time fields as createEvent (allDay, start, end, timeZone, startDate, endDate); calendarId is optional and defaults to the default calendar, like createEvent. Event title = task title, description = task notes (none when blank).
 - ASSUMPTION (2026-10-21 16:10+0200 by dell26/agent-1): Regenerated web/src/app/api/generated (outside touches) because npm run check's api:check requires it to match api/openapi.yaml.
+- done by dell26/agent-1: `sh scripts/check.sh` passed in 47s on a7b2d8148; criteria verified 3/3
