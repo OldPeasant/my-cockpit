@@ -15,3 +15,4 @@ Mail on the phone (SPEC.md §9.2 item 5).
 - [ ] `cd android && ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.mail.list.*'` passes, covering swipe actions (Robolectric/Compose UI tests for screens); `mail.read` WebView settings
 
 ## Notes
+- ASSUMPTION (2026-10-21 18:16+0200 by dell26/agent-2): Android mail uses hand-written Retrofit DTOs (mail/list/MailApi.kt) instead of the generated mail models: api/openapi.yaml marks nullable mail fields (nextCursor on the last page, subject, dates, body.html/text) as non-null, so the generated client would fail to parse real answers. Fixing the server's schema annotations is outside this task.
