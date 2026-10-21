@@ -1,4 +1,4 @@
-# End-to-end test stack: the server image with profile `e2e` and a fresh, throwaway Postgres.
+# End-to-end test stack: the server image with profile `e2e`, a fresh, throwaway Postgres and a GreenMail mail server.
 # Started and torn down by `cd web && npm run e2e` (web/e2e/support/run-e2e.mjs); not for deployment.
 # No Caddy and no TLS: Playwright talks plain HTTP to the server, published on 127.0.0.1 only.
 # All secrets below are fictitious test values.
@@ -27,6 +27,15 @@ services:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/cockpit_e2e
       SPRING_DATASOURCE_USERNAME: cockpit
       SPRING_DATASOURCE_PASSWORD: e2e-not-secret
+
+  # Test mail server (SMTP 3025, IMAP 3143, no TLS). Any login is accepted and creates its mailbox. The server reaches
+  # it as `greenmail`; specs use its IMAP port on the host (E2E_IMAP_PORT, set by run-e2e.mjs) to deliver mail.
+  greenmail:
+    image: docker.io/greenmail/standalone:2.1.5
+    environment:
+      GREENMAIL_OPTS: -Dgreenmail.setup.test.smtp -Dgreenmail.setup.test.imap -Dgreenmail.hostname=0.0.0.0 -Dgreenmail.auth.disabled
+    ports:
+      - "127.0.0.1:${E2E_IMAP_PORT:-18143}:3143"
 
   postgres:
     image: docker.io/library/postgres:16-alpine

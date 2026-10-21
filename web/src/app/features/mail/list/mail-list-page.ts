@@ -225,7 +225,9 @@ export default class MailListPage {
 
 /** The names (else addresses) of the senders, comma-separated. */
 export function senderName(from: MailAddressResponse[] | undefined): string {
-  const names = (from ?? []).map((address) => address.name || address.address || '').filter(Boolean);
+  const names = (from ?? [])
+    .map((address) => address.name || address.address || '')
+    .filter(Boolean);
   return names.length ? names.join(', ') : $localize`:@@mail.unknownSender:(unknown sender)`;
 }
 

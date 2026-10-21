@@ -5,6 +5,7 @@
 //   E2E_BASE_URL  run against an already running stack instead (no compose up/down)
 //   E2E_COMPOSE   compose command (default "docker compose"; e.g. "podman-compose")
 //   E2E_PORT      host port of the server (default: a free one)
+//   E2E_IMAP_PORT host port of GreenMail's IMAP (default: a free one)
 //   E2E_KEEP=1    leave the stack running after the tests (tear it down with the printed command)
 import { spawn, spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
@@ -34,12 +35,18 @@ async function main() {
     return runPlaywright(process.env.E2E_BASE_URL);
   }
   const port = process.env.E2E_PORT ?? String(await freePort());
+  const imapPort = process.env.E2E_IMAP_PORT ?? String(await freePort());
   // One project per clone, so parallel clones on the same machine get separate stacks.
   const project = `cockpit-e2e-${createHash('sha256').update(webDir).digest('hex').slice(0, 8)}`;
   const [composeCmd, ...composeBase] = (process.env.E2E_COMPOSE ?? 'docker compose').split(' ');
   const composeArgs = [...composeBase, '-p', project, '-f', composeFile];
   // Own image tag per project: with a shared tag, another clone's build could replace it between build and run.
-  const env = { ...process.env, E2E_PORT: port, E2E_IMAGE: `localhost/${project}:latest` };
+  const env = {
+    ...process.env,
+    E2E_PORT: port,
+    E2E_IMAP_PORT: imapPort,
+    E2E_IMAGE: `localhost/${project}:latest`,
+  };
   const compose = (args, options = {}) =>
     spawnSync(composeCmd, [...composeArgs, ...args], { stdio: 'inherit', env, ...options });
   const down = () => {
@@ -72,7 +79,7 @@ async function main() {
   console.log(`[e2e] stack healthy after ${Math.round((Date.now() - started) / 1000)} s`);
   let status = 1;
   try {
-    status = await runPlaywright(baseUrl);
+    status = await runPlaywright(baseUrl, { E2E_IMAP_PORT: imapPort });
     if (status !== 0 && !interrupted) compose(['logs', '--tail', '100', 'server']);
   } finally {
     down();
@@ -106,13 +113,13 @@ async function waitForHealth(baseUrl, isInterrupted) {
   throw new Error(`server not healthy at ${baseUrl} after ${HEALTH_TIMEOUT_MS / 1000} s`);
 }
 
-function runPlaywright(baseUrl) {
+function runPlaywright(baseUrl, extraEnv = {}) {
   return new Promise((resolveRun) => {
     if (interrupted) return resolveRun(1);
     const child = spawn('npx', ['playwright', 'test', ...playwrightArgs], {
       cwd: webDir,
       stdio: 'inherit',
-      env: { ...process.env, E2E_BASE_URL: baseUrl },
+      env: { ...process.env, ...extraEnv, E2E_BASE_URL: baseUrl },
     });
     playwrightChild = child;
     child.on('exit', (code) => {

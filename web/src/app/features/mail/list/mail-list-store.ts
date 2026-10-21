@@ -166,7 +166,8 @@ export class MailListStore {
       const ids = new Set(page.items.map((item) => item.id));
       const oldItems = this.items() ?? [];
       const cursor = this.cursorId();
-      if (cursor && !ids.has(cursor)) this.cursorId.set(nextAfterRemoval(oldItems, page.items, cursor));
+      if (cursor && !ids.has(cursor))
+        this.cursorId.set(nextAfterRemoval(oldItems, page.items, cursor));
       this.selectedIds.update((selected) => new Set([...selected].filter((id) => ids.has(id))));
       this.items.set(page.items);
       this.nextCursor.set(page.nextCursor);
@@ -316,7 +317,11 @@ export function withAction(item: MailSummary, action: MailAction): MailSummary {
  * Where the cursor goes when its item leaves the list: to the next remaining item after it (the
  * next older mail, as in Gmail), else the one before it, else nowhere.
  */
-function nextAfterRemoval(before: MailSummary[], after: MailSummary[], removed: string): string | null {
+function nextAfterRemoval(
+  before: MailSummary[],
+  after: MailSummary[],
+  removed: string,
+): string | null {
   const remaining = new Set(after.map((item) => item.id));
   const index = before.findIndex((item) => item.id === removed);
   for (let i = index + 1; i < before.length; i++) {
