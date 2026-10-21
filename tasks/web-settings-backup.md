@@ -1,11 +1,11 @@
 ---
 title: Settings: backup and restore
-status: in_progress
+status: done
 owner: dell26/agent-3
 deps: [p0-web-settings,backup-secrets]
 touches: [web/src/app/features/settings/backup]
 prio: 1
-lease_until: 2026-10-21T07:53:59Z
+lease_until: 
 ---
 ## Goal
 Backup UI (SPEC.md §10.1).
@@ -22,3 +22,4 @@ Backup UI (SPEC.md §10.1).
 - ASSUMPTION (2026-10-21 09:00+0200 by dell26/agent-3): The last started backup id is kept in the root BackupService (tab memory only) so progress/download reappear when returning to the section; the server has no list endpoint
 - ASSUMPTION (2026-10-21 09:01+0200 by dell26/agent-3): Edited settings.routes.ts (+spec) outside touches to swap the backup placeholder for the real section, as the other settings section tasks did
 - ASSUMPTION (2026-10-21 09:24+0200 by dell26/agent-3): Criterion 1 not verified in a real browser against the stack (e2e stack start denied); assumed the server endpoints behave as documented in api/openapi.yaml (BACKUP change events carry the job id, confirm ends all sessions). No committed Playwright spec: a restore replaces the sessions of the shared e2e account and would break parallel specs without a playwright.config project change
+- done by dell26/agent-3: `sh scripts/check.sh` passed in 75s on fbd23a924; criteria verified 1/2, skipped #1
