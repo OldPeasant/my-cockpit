@@ -416,6 +416,34 @@ class InboxRepositoryTest {
     }
 
     @Test
+    fun `trashing an item changed elsewhere reports a conflict`() {
+        dispatcher.enqueue(path, status(412))
+
+        assertEquals(ProcessResult.Conflict, process(InboxAction.Trash))
+
+        assertEquals("\"3\"", call("DELETE", path).headers["If-Match"])
+        assertTrue(calls().any { it.url.queryParameter("list") == "INBOX" })
+    }
+
+    @Test
+    fun `trashing while the server is down reports offline`() {
+        dispatcher.enqueue(path, status(503))
+
+        assertEquals(ProcessResult.Offline, process(InboxAction.Trash))
+        assertTrue(gtd.connectivity.offline.value)
+    }
+
+    @Test
+    fun `a malformed project answer after the move still counts as processed`() {
+        // The move worked, so the item has left the Inbox; only the stalled check got an unreadable answer.
+        val project = UUID.fromString(uuid(50))
+        dispatcher.enqueue("$path/move", taskAnswer())
+        dispatcher.enqueue("$PROJECTS/$project", json("""{"unexpected":true}"""))
+
+        assertEquals(ProcessResult.Processed, process(InboxAction.ToProject(ProjectChoice.Existing(project))))
+    }
+
+    @Test
     fun `a project that cannot be created leaves the item where it is`() {
         dispatcher.enqueue(PROJECTS, status(400))
 

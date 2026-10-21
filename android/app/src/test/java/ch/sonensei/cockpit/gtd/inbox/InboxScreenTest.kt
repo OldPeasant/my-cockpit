@@ -8,6 +8,7 @@ import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.junit4.v2.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onChildAt
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
@@ -30,6 +31,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import java.time.Instant
 import java.time.LocalDate
+import java.util.TimeZone
 import java.util.UUID
 
 /** The screen alone, driven by a state the test controls. */
@@ -268,6 +270,56 @@ class InboxScreenTest {
         composeRule.onNodeWithText("Cancel").performScrollTo().performClick()
 
         assertEquals(listOf("cancel"), calls)
+    }
+
+    @Test
+    fun `an existing project can be picked after typing a new one`() {
+        val kitchen = GtdProject(id(51), "Kitchen", ProjectStatus.ACTIVE, stalled = false, version = 1)
+        show(
+            loaded.copy(
+                processing = true,
+                projects = listOf(kitchen),
+                prompt = InboxPrompt(InboxActionKind.PROJECT, today.plusDays(1), text = "Bathroom"),
+            ),
+        )
+
+        composeRule.onNodeWithText("Kitchen").performScrollTo().performClick()
+
+        assertEquals(kitchen.id, state.prompt?.projectId)
+        composeRule.onNodeWithTag(InboxTags.PROMPT_TEXT).assertDoesNotExist()
+    }
+
+    @Test
+    fun `the other-day picker keeps the prompt's date when confirmed, in a zone east of UTC`() {
+        val zone = TimeZone.getDefault()
+        TimeZone.setDefault(TimeZone.getTimeZone("Pacific/Auckland"))
+        try {
+            val date = LocalDate.of(2026, 11, 3)
+            show(loaded.copy(processing = true, prompt = InboxPrompt(InboxActionKind.SCHEDULE, date)))
+
+            composeRule.onNodeWithText("Other day…").performScrollTo().performClick()
+            composeRule.onNodeWithText("OK").assertExists().performClick()
+
+            composeRule.onNodeWithText("OK").assertDoesNotExist()
+            assertEquals(date, state.prompt?.date)
+            assertEquals(emptyList<String>(), calls)
+        } finally {
+            TimeZone.setDefault(zone)
+        }
+    }
+
+    @Test
+    fun `the other-day picker can be dismissed without changing the date`() {
+        val date = LocalDate.of(2026, 11, 3)
+        show(loaded.copy(processing = true, prompt = InboxPrompt(InboxActionKind.TICKLER, date)))
+
+        composeRule.onNodeWithText("Other day…").performScrollTo().performClick()
+        composeRule.onAllNodesWithText("Cancel")[1].performClick()
+
+        composeRule.onNodeWithText("OK").assertDoesNotExist()
+        assertEquals(date, state.prompt?.date)
+        // The prompt itself stays open: its own Cancel was not used.
+        assertEquals(emptyList<String>(), calls)
     }
 
     @Test

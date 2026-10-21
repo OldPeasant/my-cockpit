@@ -54,6 +54,13 @@ class InboxActionsTest {
     }
 
     @Test
+    fun `clearing the creativity alone sends only creativity null`() {
+        val patch = Clarification(energy = Energy.LOW).patchFrom(Clarification(Energy.LOW, Creativity.MIXED))
+
+        assertEquals(Json.parseToJsonElement("""{"creativity":null}"""), patch)
+    }
+
+    @Test
     fun `the clarification of a task is its own attributes`() {
         val task =
             GtdTask(

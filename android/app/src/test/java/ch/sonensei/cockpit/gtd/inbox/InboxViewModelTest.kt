@@ -346,6 +346,25 @@ class InboxViewModelTest {
         }
 
     @Test
+    fun `the double-tap guard ends exactly 500 ms after the last action`() =
+        test { vm ->
+            val answer = CompletableDeferred<ProcessResult>()
+            coEvery { inbox.process(first, any(), any()) } coAnswers { answer.await() }
+            uptimeStep = 0L
+            uptime = 10_000L
+
+            vm.choose(first.id, InboxActionKind.DONE)
+            uptime = 10_499L
+            vm.choose(second.id, InboxActionKind.TRASH)
+            coVerify(exactly = 0) { inbox.process(second, any(), any()) }
+
+            uptime = 10_500L
+            vm.choose(second.id, InboxActionKind.TRASH)
+            coVerify(exactly = 1) { inbox.process(second, any(), InboxAction.Trash) }
+            answer.complete(ProcessResult.Processed)
+        }
+
+    @Test
     fun `a stale prompt confirmation is dropped`() =
         test { vm ->
             vm.choose(first.id, InboxActionKind.SCHEDULE)
