@@ -191,6 +191,36 @@ class TaskCompleterTest {
         }
 
     @Test
+    fun `a successful undo stops hiding every cached copy of the task`() =
+        test { completer ->
+            coEvery { repository.complete(call) } returns completed(call)
+            coEvery { repository.undo(any()) } returns CompletionResult.Reopened
+
+            completer.complete(call)
+            completer.undo(completer.state.value.snackbar as CompletionSnackbar.Undo)
+
+            assertFalse(completer.state.value.hides(call))
+            assertFalse(completer.state.value.hides(call.copy(version = 2)))
+            assertEquals(emptyMap<UUID, Long>(), completer.state.value.completed)
+        }
+
+    @Test
+    fun `a task reopened elsewhere whose second completion is refused shows again`() =
+        test { completer ->
+            val reopened = call.copy(version = 3)
+            coEvery { repository.complete(call) } returns completed(call)
+            coEvery { repository.complete(reopened) } returns CompletionResult.NotDone(CompletionMessage.CONFLICT)
+
+            completer.complete(call)
+            completer.complete(reopened)
+
+            coVerify(exactly = 1) { repository.complete(reopened) }
+            assertFalse(completer.state.value.hides(reopened))
+            assertTrue(completer.state.value.hides(call))
+            assertEquals(CompletionSnackbar.Failed(CompletionMessage.CONFLICT), completer.state.value.snackbar)
+        }
+
+    @Test
     fun `dismissing a snackbar that is no longer shown changes nothing`() =
         test { completer ->
             coEvery { repository.complete(any()) } answers { completed(firstArg()) }

@@ -232,6 +232,23 @@ class TodayViewModelTest {
         }
 
     @Test
+    fun `a reopened task shows once even while the other view still holds it as it was before the completion`() =
+        test { vm ->
+            vm.complete(overdue)
+            assertNull(vm.sections()[TodaySectionKind.OVERDUE])
+
+            // Only the Today view reloaded so far: the Next view still caches the pre-completion copy.
+            val reopened = overdue.copy(version = 5)
+            todayFlow.value = todayFlow.value.copy(data = listOf(reopened, due))
+            assertEquals(listOf(reopened), vm.sections()[TodaySectionKind.OVERDUE])
+
+            // The other way round: only the Next view reloaded, the stale Today copy must not win.
+            todayFlow.value = todayFlow.value.copy(data = listOf(overdue, due))
+            nextFlow.value = nextFlow.value.copy(data = listOf(reopened, scheduled))
+            assertEquals(listOf(reopened), vm.sections()[TodaySectionKind.OVERDUE])
+        }
+
+    @Test
     fun `due today wins over scheduled earlier, and a future due date with a past schedule is scheduled`() {
         assertEquals(TodaySectionKind.DUE, sectionOf(due.copy(scheduledDate = today.minusDays(4)), today))
         assertEquals(

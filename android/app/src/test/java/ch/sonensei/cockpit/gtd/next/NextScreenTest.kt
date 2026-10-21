@@ -126,6 +126,21 @@ class NextScreenTest {
     }
 
     @Test
+    fun `the filtered count of a single next action is singular`() {
+        show(loaded.copy(tasks = listOf(water), total = 1, filter = NextFilter(energy = Energy.LOW)))
+        composeRule.onNodeWithText("1 of 1 next action").assertIsDisplayed()
+        composeRule.onNodeWithText("1 of 1 next actions").assertDoesNotExist()
+    }
+
+    @Test
+    fun `the filtered count follows the total, not the number of matches`() {
+        show(loaded.copy(tasks = emptyList(), total = 1, filter = NextFilter(energy = Energy.HIGH)))
+        composeRule.onNodeWithText("0 of 1 next action").assertIsDisplayed()
+        state = loaded.copy(tasks = listOf(call), total = 3, filter = NextFilter(maxMinutes = 5))
+        composeRule.onNodeWithText("1 of 3 next actions").assertIsDisplayed()
+    }
+
+    @Test
     fun `the checkbox completes the task`() {
         show(loaded)
         composeRule.onNodeWithTag(TaskListTags.complete(call.id)).assertIsEnabled().performClick()
