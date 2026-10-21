@@ -5,7 +5,7 @@ owner: dell26/agent-1
 deps: [and-share-target,and-capture-entrypoints,and-inbox,and-next-today,and-projects-lists,and-reminders,and-notes,p2-smoke]
 touches: [android/app/src/androidTest,android/app/build.gradle.kts]
 prio: 1
-lease_until: 2026-10-21T12:36:50Z
+lease_until: 2026-10-21T12:41:53Z
 ---
 ## Goal
 Automate SPEC.md §13.2 Phase 3 where an emulator allows.
