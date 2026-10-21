@@ -106,6 +106,7 @@ export type { MailServerSearchResponse } from './models/mail-server-search-respo
 export type { MailThreadResponse } from './models/mail-thread-response';
 export type { MeResponse } from './models/me-response';
 export type { MoveTaskRequest } from './models/move-task-request';
+export type { MoveWeeklyReviewRequest } from './models/move-weekly-review-request';
 export type { NextStepRequest } from './models/next-step-request';
 export type { NoteImageResponse } from './models/note-image-response';
 export type { NotePageResponse } from './models/note-page-response';
@@ -135,6 +136,10 @@ export type { ReminderResponse } from './models/reminder-response';
 export type { RespondToInvitationRequest } from './models/respond-to-invitation-request';
 export type { RestoreReportResponse } from './models/restore-report-response';
 export type { RestoreResultResponse } from './models/restore-result-response';
+export type { ReviewEventsResponse } from './models/review-events-response';
+export type { ReviewProjectListResponse } from './models/review-project-list-response';
+export type { ReviewSomedayResponse } from './models/review-someday-response';
+export type { ReviewTaskListResponse } from './models/review-task-list-response';
 export type { SearchGroupResponse } from './models/search-group-response';
 export type { SearchItemResponse } from './models/search-item-response';
 export type { SearchResponse } from './models/search-response';
@@ -161,3 +166,5 @@ export type { UpdateMailAccountRequest } from './models/update-mail-account-requ
 export type { UpdateMailFolderRequest } from './models/update-mail-folder-request';
 export type { UploadResponse } from './models/upload-response';
 export type { VCardImportResponse } from './models/v-card-import-response';
+export type { WeeklyReviewResponse } from './models/weekly-review-response';
+export type { WeeklyReviewStatusResponse } from './models/weekly-review-status-response';

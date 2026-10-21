@@ -43,6 +43,8 @@ tags:
     \ Mail server failures are 502 (503 when the account's connections are busy) with\
     \ an `errorCode`."
   name: Mail messages
+- description: The resumable weekly review and the data of its steps
+  name: Weekly review
 - description: "Reminders for items of any type. When a reminder is due, the server\
     \ fires it once and sends the SSE event `reminder` on `GET /api/v1/events` with\
     \ a `ReminderResponse` as data. Every change also sends a `change` event of type\
@@ -6887,6 +6889,344 @@ paths:
       summary: Complete an upload
       tags:
       - Files
+  /api/v1/weekly-reviews:
+    post:
+      description: "Starts a review at its first step (201), or returns the open review\
+        \ unchanged (200): at most one is open."
+      operationId: startWeeklyReview
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WeeklyReviewResponse"
+          description: The review with its (new) ETag
+          headers:
+            ETag:
+              description: "Version of the review, for If-Match"
+              schema:
+                type: string
+              style: simple
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WeeklyReviewResponse"
+          description: Started
+          headers:
+            ETag:
+              description: "Version of the review, for If-Match"
+              schema:
+                type: string
+              style: simple
+      summary: Start or resume a weekly review
+      tags:
+      - Weekly review
+  /api/v1/weekly-reviews/current:
+    get:
+      operationId: getCurrentWeeklyReview
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WeeklyReviewResponse"
+          description: The review with its (new) ETag
+          headers:
+            ETag:
+              description: "Version of the review, for If-Match"
+              schema:
+                type: string
+              style: simple
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: No such review
+      summary: The open review
+      tags:
+      - Weekly review
+  /api/v1/weekly-reviews/status:
+    get:
+      description: "The open review (to resume it), and when the last review was completed\
+        \ (\"Last weekly review: N days ago\")."
+      operationId: getWeeklyReviewStatus
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WeeklyReviewStatusResponse"
+          description: The status
+      summary: Open review and last completion
+      tags:
+      - Weekly review
+  /api/v1/weekly-reviews/steps/past-events:
+    get:
+      description: "Occurrences of the 7 days before today (visible calendars), by\
+        \ start."
+      operationId: getReviewPastEvents
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReviewEventsResponse"
+          description: The occurrences
+      summary: "Step 2: the past calendar"
+      tags:
+      - Weekly review
+  /api/v1/weekly-reviews/steps/projects:
+    get:
+      description: "Active projects, stalled ones first, each group by title."
+      operationId: getReviewProjects
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReviewProjectListResponse"
+          description: The projects
+      summary: "Step 5: projects"
+      tags:
+      - Weekly review
+  /api/v1/weekly-reviews/steps/someday:
+    get:
+      description: Tasks on the Someday list and projects with status SOMEDAY.
+      operationId: getReviewSomeday
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReviewSomedayResponse"
+          description: The tasks and projects
+      summary: "Step 7: Someday/Maybe"
+      tags:
+      - Weekly review
+  /api/v1/weekly-reviews/steps/stale-next-actions:
+    get:
+      description: "Open Next actions not changed for more than `olderThanDays` days,\
+        \ least recently changed first."
+      operationId: getReviewStaleNextActions
+      parameters:
+      - description: Days without a change (1 to 3650)
+        in: query
+        name: olderThanDays
+        required: false
+        schema:
+          type: integer
+          format: int32
+          default: 30
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReviewTaskListResponse"
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ReviewTaskListResponse"
+          description: The tasks
+        "400":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: Invalid request
+      summary: "Step 6: stale next actions"
+      tags:
+      - Weekly review
+  /api/v1/weekly-reviews/steps/upcoming-events:
+    get:
+      description: "Occurrences of today and the 13 days after it (visible calendars),\
+        \ by start."
+      operationId: getReviewUpcomingEvents
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReviewEventsResponse"
+          description: The occurrences
+      summary: "Step 3: the upcoming calendar"
+      tags:
+      - Weekly review
+  /api/v1/weekly-reviews/steps/waiting-for:
+    get:
+      description: "Open Waiting For tasks, waiting longest first (tasks without `waitingSince`\
+        \ last)."
+      operationId: getReviewWaitingFor
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReviewTaskListResponse"
+          description: The tasks
+      summary: "Step 4: Waiting For"
+      tags:
+      - Weekly review
+  /api/v1/weekly-reviews/{id}:
+    get:
+      operationId: getWeeklyReview
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WeeklyReviewResponse"
+          description: The review with its (new) ETag
+          headers:
+            ETag:
+              description: "Version of the review, for If-Match"
+              schema:
+                type: string
+              style: simple
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: No such review
+      summary: One review
+      tags:
+      - Weekly review
+    patch:
+      description: "Any step, also an earlier one; a completed review cannot change\
+        \ (409)."
+      operationId: moveWeeklyReview
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - description: ETag of the review
+        in: header
+        name: If-Match
+        required: false
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MoveWeeklyReviewRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WeeklyReviewResponse"
+          description: The review with its (new) ETag
+          headers:
+            ETag:
+              description: "Version of the review, for If-Match"
+              schema:
+                type: string
+              style: simple
+        "400":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: Invalid request
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: No such review
+        "409":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: "Already completed, or changed concurrently"
+        "412":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: If-Match does not match the current ETag
+        "428":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: If-Match is missing
+      summary: Save the step of the open review
+      tags:
+      - Weekly review
+  /api/v1/weekly-reviews/{id}/complete:
+    post:
+      description: Afterwards a new review can be started; completing a completed
+        review is a 409.
+      operationId: completeWeeklyReview
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - description: ETag of the review
+        in: header
+        name: If-Match
+        required: false
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WeeklyReviewResponse"
+          description: The review with its (new) ETag
+          headers:
+            ETag:
+              description: "Version of the review, for If-Match"
+              schema:
+                type: string
+              style: simple
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: No such review
+        "409":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: "Already completed, or changed concurrently"
+        "412":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: If-Match does not match the current ETag
+        "428":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: If-Match is missing
+      summary: Complete the open review
+      tags:
+      - Weekly review
 components:
   schemas:
     AreaListResponse:
@@ -9828,6 +10168,24 @@ components:
           type: string
       required:
       - list
+    MoveWeeklyReviewRequest:
+      type: object
+      description: The weekly review's new step
+      properties:
+        step:
+          type: string
+          description: "Any step, also an earlier one"
+          enum:
+          - GET_CLEAR
+          - PAST_CALENDAR
+          - UPCOMING_CALENDAR
+          - WAITING_FOR
+          - PROJECTS
+          - NEXT_ACTIONS
+          - SOMEDAY
+          - REFLECTION
+      required:
+      - step
     NextStepRequest:
       type: object
       description: The project's new next step
@@ -10509,6 +10867,63 @@ components:
       required:
       - counts
       - preRestoreBackup
+    ReviewEventsResponse:
+      type: object
+      description: "The occurrences of a calendar step in [from, to), by start; cancelled\
+        \ ones are left out"
+      properties:
+        from:
+          type: string
+          format: date-time
+          description: Start of the first day (inclusive)
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/OccurrenceResponse"
+        to:
+          type: string
+          format: date-time
+          description: Start of the day after the last one (exclusive)
+      required:
+      - from
+      - items
+      - to
+    ReviewProjectListResponse:
+      type: object
+      description: "Projects of a review step, in the order the step shows them"
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/ProjectResponse"
+      required:
+      - items
+    ReviewSomedayResponse:
+      type: object
+      description: "Someday/Maybe: tasks on the Someday list (list order) and SOMEDAY\
+        \ projects (by title)"
+      properties:
+        projects:
+          type: array
+          items:
+            $ref: "#/components/schemas/ProjectResponse"
+        tasks:
+          type: array
+          items:
+            $ref: "#/components/schemas/TaskResponse"
+      required:
+      - projects
+      - tasks
+    ReviewTaskListResponse:
+      type: object
+      description: "Tasks of a review step, in the order the step shows them"
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/TaskResponse"
+      required:
+      - items
     SearchGroupResponse:
       type: object
       properties:
@@ -11283,3 +11698,68 @@ components:
       required:
       - imported
       - skipped
+    WeeklyReviewResponse:
+      type: object
+      description: A weekly review with its progress. `version` is also sent as the
+        ETag.
+      properties:
+        completedAt:
+          type: string
+          format: date-time
+          description: When the review was completed; `null` while it is open
+        createdAt:
+          type: string
+          format: date-time
+        id:
+          type: string
+          format: uuid
+        startedAt:
+          type: string
+          format: date-time
+        step:
+          type: string
+          description: The step the user is on
+          enum:
+          - GET_CLEAR
+          - PAST_CALENDAR
+          - UPCOMING_CALENDAR
+          - WAITING_FOR
+          - PROJECTS
+          - NEXT_ACTIONS
+          - SOMEDAY
+          - REFLECTION
+        stepNumber:
+          type: integer
+          format: int32
+          description: "Number of [step], 1 to 8"
+        updatedAt:
+          type: string
+          format: date-time
+        version:
+          type: integer
+          format: int64
+      required:
+      - createdAt
+      - id
+      - startedAt
+      - step
+      - stepNumber
+      - updatedAt
+      - version
+    WeeklyReviewStatusResponse:
+      type: object
+      description: "The open weekly review, if any, and when the last one was completed"
+      properties:
+        current:
+          $ref: "#/components/schemas/WeeklyReviewResponse"
+          description: The open review; `null` when none is open
+        daysSinceLastReview:
+          type: integer
+          format: int64
+          description: "Days from that completion to today, in the user's time zone;\
+            \ `null` before the first review"
+        lastCompletedAt:
+          type: string
+          format: date-time
+          description: When the last review was completed; `null` before the first
+            one
