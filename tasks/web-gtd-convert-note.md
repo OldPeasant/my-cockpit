@@ -1,11 +1,11 @@
 ---
 title: Inbox/task detail: to reference
-status: todo
-owner: 
+status: in_progress
+owner: dell26/agent-1
 deps: [web-inbox,web-task-detail,gtd-convert-note]
 touches: [web/src/app/features/gtd/inbox,web/src/app/features/gtd/task-detail]
 prio: 2
-lease_until: 
+lease_until: 2026-10-21T06:50:11Z
 extended: 
 releases: 1
 ---
