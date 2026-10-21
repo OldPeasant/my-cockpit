@@ -13,7 +13,8 @@ extended:
 Calendar on the phone (SPEC.md §9.2 item 4).
 
 ## Acceptance criteria
-- [ ] Agenda list (infinite scroll by range) and day/week views; calendar visibility
+- [x] Agenda list (infinite scroll by range) and day/week views; calendar visibility
+  - verified (2026-10-21 17:21+0200 by dell26/agent-1): cd android && ./gradlew ktlintCheck testDebugUnitTest --tests 'ch.sonensei.cockpit.calendar.agenda.*' lintDebug on 1cb4dd73 -> pass; agenda infinite scroll (CalendarAgendaInfiniteScrollTest 5), day/week views (CalendarScreensTest, CalendarViewModelTest), calendar visibility PATCH+If-Match (CalendarRepositoryTest, CalendarViewModelEdgeCasesTest) all green
 - [ ] `cd android && ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.calendar.agenda.*'` passes, covering range loading and grouping by day (Robolectric/Compose UI tests for screens)
 
 ## Notes
