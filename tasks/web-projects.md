@@ -17,3 +17,4 @@ Project list and detail (SPEC.md §5.3).
 - [ ] Playwright `e2e/gtd-projects/projects.spec.ts` passes against the e2e stack (`npm run e2e -- e2e/gtd-projects/projects.spec.ts`, see p0-e2e-harness): complete next step → prompt; skip → stalled
 
 ## Notes
+- ASSUMPTION (2026-10-21 02:50+0200 by dell26/agent-6): Markdown preview uses a small in-house renderer (projects/markdown.ts: headings, lists, quotes, code, emphasis, http/mailto links, all text escaped) since no Markdown library is in web/package.json; replace with the notes editor's renderer once web-notes-editor brings one
