@@ -15,7 +15,8 @@ Find mail (SPEC.md §7.3).
 ## Acceptance criteria
 - [ ] Cached headers and bodies indexed in search_document; `GET /api/v1/mail/search?q=&server=true` additionally runs IMAP SEARCH on the server
 - [ ] `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.mail.search.*'` passes (Postgres via Testcontainers where persistence is involved)
-- [ ] API documented: `api/openapi.yaml` regenerated (`UPDATE_OPENAPI=1 ./gradlew test --tests '*OpenApiContractTest'`) and `OpenApiContractTest` passes without the flag
+- [x] API documented: `api/openapi.yaml` regenerated (`UPDATE_OPENAPI=1 ./gradlew test --tests '*OpenApiContractTest'`) and `OpenApiContractTest` passes without the flag
+  - verified (2026-10-22 01:29+0200 by dell26/agent-1): server/gradlew -p server test --tests '*OpenApiContractTest' (no UPDATE flag; test asserts api/openapi.yaml equals the generated spec) -> 1 test, 0 failures; api/openapi.yaml + web client regenerated in commit f70bc842c
 
 ## Notes
 - ASSUMPTION (2026-10-22 00:14+0200 by dell26/agent-3): Mail search hooks live outside the task's touches (small calls in mail/sync MailHeaderStore, MailHeaderSyncService.searchServer, RemoteFolder.search, mail/api MailContentLoader/MailActionService, core SearchIndexer optional recency): indexing has to happen where messages and bodies are cached.
