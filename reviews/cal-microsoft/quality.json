@@ -1,0 +1,36 @@
+{
+  "schema": 1,
+  "task": "cal-microsoft",
+  "reviewed_revision": "8a2e9808ae11c6d54394dc435a5f12c63ff0d0c8",
+  "helpers": {
+    "test-writer": {"status": "completed", "report": "reviews/cal-microsoft/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/cal-microsoft/review.md"},
+    "fixer": {"status": "completed", "report": "reviews/cal-microsoft/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "R1-CR-1", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "first review: FOLLOWING split dropped earlier exceptions; restoreExceptions re-patches them"},
+    {"id": "R1-CR-2", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "first review: events addressed via /me/events; now /me/calendars/{id}/events/{id}"},
+    {"id": "R1-CR-3", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "first review: exception moved >35 days not found; findInstance falls back to the whole window"},
+    {"id": "R1-CR-4", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "first review: attendee types reset to required; keepAttendeeTypes"},
+    {"id": "R1-CR-5", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "first review: unbounded calendar paging; MAX_PAGES guard"},
+    {"id": "R1-CR-6", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "first review: formatter-mangled conditionals"},
+    {"id": "R2-CR-1", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "second review: false 409 on ALL pattern change with overrides; RestoredEtags + empty diff succeeds"},
+    {"id": "R2-CR-2", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "second review: 404 from /instances gave 502; instancesOrNull"},
+    {"id": "R3-CR-1", "source": "code-reviewer", "severity": "P3", "disposition": "accepted",
+     "note": "third review: one KDoc line not rewrapped (168 chars); cosmetic, ktlint passes, a change would make the evidence stale"}
+  ],
+  "validation": [
+    {"command": "cd server && ./gradlew test --tests 'ch.sonensei.cockpit.calendar.infra.microsoft.*' -Pkotlin.daemon.jvmargs=-Xmx3g", "result": "pass"},
+    {"command": "cd server && ./gradlew ktlintMainSourceSetCheck", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
