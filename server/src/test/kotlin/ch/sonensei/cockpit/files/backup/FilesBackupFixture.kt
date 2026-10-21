@@ -26,7 +26,8 @@ class FilesBackupFixture(
 	override fun seed() {
 		val documents = folder("Documents")
 		val tax = folder("tax", documents)
-		val deep = folder("2025", folder("archive", tax))
+		val archive = folder("archive", tax)
+		val deep = folder("2025", archive)
 		folder("Empty folder", documents)
 		val attachments = folder("Attachments") { special = SpecialFolder.ATTACHMENTS }
 		folder("Notes", attachments) { special = SpecialFolder.NOTES }
@@ -36,7 +37,7 @@ class FilesBackupFixture(
 		file("2025.pdf", tax, "application/pdf", "%PDF-1.7 tax 2025")
 		file("2025.pdf", tax, "application/pdf", "%PDF-1.7 tax 2025, corrected")
 		file("2025.PDF", tax, "application/pdf", "%PDF-1.7 tax 2025, scanned")
-		file("2025", tax, "text/plain", "a file named like a folder")
+		file("2025", archive, "text/plain", "a file named like its sibling folder")
 		file("tax", documents, "text/plain", "a file named like its sibling folder")
 		file("Grüezi «Welt» 👋.md", deep, "text/markdown", "# Grüezi\n")
 		file("empty.txt", null, "text/plain", "")

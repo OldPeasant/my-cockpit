@@ -4,6 +4,7 @@ import ch.sonensei.cockpit.backup.RestoreTestDatabases
 import ch.sonensei.cockpit.backup.Zips
 import ch.sonensei.cockpit.backup.domain.BackupFormat
 import ch.sonensei.cockpit.backup.domain.BackupService
+import ch.sonensei.cockpit.backup.domain.InvalidBackupException
 import ch.sonensei.cockpit.backup.infra.ZipBackupReader
 import ch.sonensei.cockpit.files.infra.BlobStore
 import io.kotest.assertions.throwables.shouldThrow
@@ -344,7 +345,7 @@ class FilesBackupContributorTests(
 		wipe()
 		val tampered = edit(zip) { it["files/a.txt"] = "tampered".toByteArray() }
 
-		val error = shouldThrow<IllegalStateException> { import(tampered) }
+		val error = shouldThrow<InvalidBackupException> { import(tampered) }
 
 		error.message shouldContain id(10).toString()
 		error.message shouldContain "SHA-256"
@@ -359,7 +360,7 @@ class FilesBackupContributorTests(
 		wipe()
 		val tampered = edit(zip) { it["files/a.txt"] = "original plus more".toByteArray() }
 
-		shouldThrow<IllegalStateException> { import(tampered) }.message shouldContain "size"
+		shouldThrow<InvalidBackupException> { import(tampered) }.message shouldContain "size"
 
 		count("file") shouldBe 0
 		storedBlobs().shouldBeEmpty()
@@ -372,7 +373,7 @@ class FilesBackupContributorTests(
 		wipe()
 		val tampered = edit(zip) { it.remove("files/a.txt") }
 
-		val error = shouldThrow<IllegalStateException> { import(tampered) }
+		val error = shouldThrow<InvalidBackupException> { import(tampered) }
 
 		error.message shouldContain "missing"
 		error.message shouldContain id(10).toString()
@@ -407,7 +408,7 @@ class FilesBackupContributorTests(
 				entries["data/folders.json"] = backups.canonicalJson.writeValueAsBytes(orphanOnly)
 			}
 
-		shouldThrow<IllegalStateException> { import(tampered) }.message shouldContain "parent is missing"
+		shouldThrow<InvalidBackupException> { import(tampered) }.message shouldContain "parent is missing"
 		count("folder") shouldBe 0
 	}
 

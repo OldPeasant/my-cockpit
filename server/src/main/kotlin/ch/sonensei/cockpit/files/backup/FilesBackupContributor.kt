@@ -3,6 +3,7 @@ package ch.sonensei.cockpit.files.backup
 import ch.sonensei.cockpit.backup.domain.BackupContributor
 import ch.sonensei.cockpit.backup.domain.BackupDataReader
 import ch.sonensei.cockpit.backup.domain.BackupDataWriter
+import ch.sonensei.cockpit.backup.domain.InvalidBackupException
 import ch.sonensei.cockpit.backup.domain.json
 import ch.sonensei.cockpit.backup.domain.jsonLines
 import ch.sonensei.cockpit.core.items.domain.ItemType
@@ -10,6 +11,7 @@ import ch.sonensei.cockpit.core.search.domain.SearchIndexer
 import ch.sonensei.cockpit.files.domain.FileNames
 import ch.sonensei.cockpit.files.infra.BlobStore
 import org.springframework.jdbc.core.JdbcTemplate
+import org.springframework.jdbc.core.PreparedStatementCreator
 import org.springframework.stereotype.Component
 import java.sql.ResultSet
 import java.sql.Timestamp
@@ -21,11 +23,10 @@ import java.util.UUID
  * those in the Trash included, and each file's contents as `files/<path>`, in the original folder tree with the
  * original names.
  *
- * Paths are unique regardless of case (so the tree extracts on every file system) and among folders and files of a
- * folder together. On a clash the folder wins over the file, the item not in the Trash over the one in it, and the
- * older one (smaller id) over the newer; the others get ` (2)`, ` (3)`, ... before their extension. Each record keeps
- * its `path`, which is how restore finds the blob. Blobs are streamed one at a time, so memory use does not depend
- * on file sizes.
+ * Paths are unique regardless of case and among folders and files of a folder together. On a clash the folder wins
+ * over the file, the item not in the Trash over the one in it, and the older one (smaller id) over the newer; the
+ * others get ` (2)`, ` (3)`, ... before their extension. Each record keeps its `path`, which is how restore finds the
+ * blob. Blobs are streamed one at a time, so memory use does not depend on file sizes.
  *
  * Restore keeps ids, times and versions, stores every blob under a new storage key (checking its size and SHA-256
  * against the record) and indexes the items not in the Trash for search again. Thumbnails are a cache and rebuilt
@@ -58,13 +59,18 @@ class FilesBackupContributor(
 			generateSequence(byParent[null].orEmpty()) { level -> level.flatMap { byParent[it.id].orEmpty() }.ifEmpty { null } }
 				.flatten()
 				.toList()
-		check(ordered.size == folders.size) { "folders.json has folders whose parent is missing" }
+		if (ordered.size != folders.size) {
+			throw InvalidBackupException(listOf("data/$FOLDERS.json has folders whose parent is missing or that form a cycle"))
+		}
 		ordered.forEach(::insert)
 		reader.jsonLines<FileBackup>(FILES) { file ->
-			val content = checkNotNull(reader.file(file.path)) { "Blob of file ${file.id} is missing" }
+			val content =
+				reader.file(file.path) ?: throw InvalidBackupException(listOf("data/$FILES.jsonl: the blob of file ${file.id} is missing"))
 			val stored = content.use { blobs.write(it) }
 			try {
-				check(stored.size == file.size && stored.sha256 == file.sha256) { "Blob of file ${file.id} does not match its size or SHA-256" }
+				if (stored.size != file.size || stored.sha256 != file.sha256) {
+					throw InvalidBackupException(listOf("data/$FILES.jsonl: the blob of file ${file.id} does not match its size or SHA-256"))
+				}
 				insert(file, stored.key)
 			} catch (e: Exception) {
 				blobs.delete(stored.key)
@@ -148,7 +154,8 @@ class FilesBackupContributor(
 
 	/**
 	 * Every file with its path, streamed from the database folder by folder, so only the names of one folder are kept
-	 * in memory.
+	 * in memory. The fetch size makes PgJDBC read the rows through a cursor (the export runs in a transaction) instead
+	 * of loading them all at once.
 	 */
 	private fun <R> files(
 		folders: FolderPaths,
@@ -158,7 +165,11 @@ class FilesBackupContributor(
 		var names: UniqueNames? = null
 		return jdbc
 			.queryForStream(
-				"select * from file order by folder_id nulls first, deleted_at is not null, id",
+				PreparedStatementCreator { connection ->
+					connection
+						.prepareStatement("select * from file order by folder_id nulls first, deleted_at is not null, id")
+						.apply { fetchSize = FETCH_SIZE }
+				},
 			) { rs, _ ->
 				val record =
 					FileBackup(
@@ -214,6 +225,7 @@ class FilesBackupContributor(
 		const val ID = "files"
 		const val FOLDERS = "folders"
 		const val FILES = "files"
+		private const val FETCH_SIZE = 1000
 
 		/** Who keeps the original name on a clash: not in the Trash first, then the oldest. */
 		private val PREFERRED = compareBy<FolderBackup>({ it.deletedAt != null }, { it.id })
