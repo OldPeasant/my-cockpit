@@ -11,7 +11,8 @@ lease_until: 2026-10-21T15:25:57Z
 CalDAV sources (SPEC.md §6.2).
 
 ## Acceptance criteria
-- [ ] Discovery (principal, calendar-home-set), sync-collection REPORT with fallback to ctag/etag; PUT/DELETE with If-Match
+- [x] Discovery (principal, calendar-home-set), sync-collection REPORT with fallback to ctag/etag; PUT/DELETE with If-Match
+  - verified (2026-10-21 17:06+0200 by dell26/agent-2): cd server && ./gradlew test --tests '*caldav*' -> CalDavCalendarAdapterTests 44, CalDavEventMappingTests 42, CalDavClientTests 15, ICalendarTests 15, 0 failures (WireMock: principal/calendar-home-set discovery, sync-collection incl. 507/refused token, ctag/etag fallback, PUT/DELETE with If-Match/If-None-Match and 412); also exercised against Radicale in integrationTest (discovery, sync-collection, etag fallback, If-Match writes) -> 10/10 passed
 - [ ] `external`-tagged tests against a Radicale Testcontainer: create in cockpit → on server; change on server → in cockpit after sync; conflict (`./gradlew integrationTest --tests '*CalDav*'`)
 
 ## Notes
