@@ -199,6 +199,31 @@ describe('GtdSettingsService', () => {
     expect(notifications.error).not.toHaveBeenCalled();
   });
 
+  it('rejects with a ReassignError when the projects to move cannot be listed', async () => {
+    const done = service.deleteArea(WORK, 'a-home');
+    http
+      .expectOne((r) => r.url === '/api/v1/projects')
+      .flush({ status: 503, title: 'Unavailable' }, { status: 503, statusText: 'Unavailable' });
+
+    const error = await done.catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(ReassignError);
+    expect(((error as ReassignError).cause as ApiError).status).toBe(503);
+    http.expectNone({ method: 'PATCH' });
+    http.expectNone({ method: 'DELETE' });
+    expect(notifications.error).not.toHaveBeenCalled();
+  });
+
+  it('rejects with the plain API error when deleting an area without a move fails', async () => {
+    const done = service.deleteArea(WORK, null);
+    http
+      .expectOne({ method: 'DELETE', url: `/api/v1/areas/${WORK.id}` })
+      .flush({ status: 404, title: 'Not Found' }, { status: 404, statusText: 'Not Found' });
+
+    const error = await done.catch((e: unknown) => e);
+    expect(error).not.toBeInstanceOf(ReassignError);
+    expect((error as ApiError).status).toBe(404);
+  });
+
   it('rejects a duplicate context name with the 409 problem, without a toast', async () => {
     const created = service.createContext('@home');
     const post = http.expectOne({ method: 'POST', url: '/api/v1/contexts' });

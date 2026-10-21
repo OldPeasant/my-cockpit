@@ -11,7 +11,7 @@ import { provideRouter } from '@angular/router';
 import { AreaResponse, ContextResponse, TaskResponse } from '../../../api/generated';
 import { NotificationService, provideHttp } from '../../../core/http';
 import GtdSettings from './gtd-settings';
-import { GtdSettingsService } from './gtd-settings.service';
+import { GtdSettingsService, ReassignError } from './gtd-settings.service';
 
 const tick = (): Promise<void> => new Promise((resolve) => setTimeout(resolve));
 
@@ -781,6 +781,65 @@ describe('GtdSettings', () => {
       patch.flush({ ...HOME, name: '@house', color: '#00aa00', version: 3 });
       await settle();
     });
+
+    it('keeps an area title and its new version when an area reorder fails meanwhile', async () => {
+      await setup();
+      button('Move Family up').click();
+      await settle();
+      expect(names('areas')).toEqual(['Family', 'Work']);
+      const put = http.expectOne({ method: 'PUT', url: '/api/v1/areas/order' });
+
+      change(nameInput('Name of Work'), 'Job');
+      await settle();
+      http
+        .expectOne({ method: 'PATCH', url: `/api/v1/areas/${WORK.id}` })
+        .flush({ ...WORK, title: 'Job', version: 2 });
+      await settle();
+
+      put.flush(...problem(500, 'Server down'));
+      await settle();
+
+      expect(names('areas')).toEqual(['Job', 'Family']);
+      expect(errorText()).toContain('Server down');
+      change(nameInput('Name of Job'), 'Career');
+      await settle();
+      const patch = http.expectOne({ method: 'PATCH', url: `/api/v1/areas/${WORK.id}` });
+      expect(patch.request.headers.get('If-Match')).toBe('"2"');
+      patch.flush({ ...WORK, title: 'Career', version: 3 });
+      await settle();
+    });
+
+    it('keeps a list reloaded during a failing reorder, in the old order with new items last', async () => {
+      await setup();
+      button('Move @home down').click();
+      await settle();
+      const put = http.expectOne({ method: 'PUT', url: '/api/v1/contexts/order' });
+
+      // A rename finds @phone changed elsewhere, so the list reloads while the order is saving.
+      change(nameInput('Name of @phone'), '@mobile');
+      await settle();
+      http
+        .expectOne({ method: 'PATCH', url: `/api/v1/contexts/${PHONE.id}` })
+        .flush(...problem(412, 'Version mismatch'));
+      await settle();
+      const added: ContextResponse = { id: 'c-office', name: '@office', position: 0, version: 1 };
+      http
+        .expectOne({ method: 'GET', url: '/api/v1/contexts' })
+        .flush({ items: [added, HOME, { ...PHONE, name: '@cell', version: 2 }] });
+      await settle();
+
+      put.flush(...problem(500, 'Server down'));
+      await settle();
+
+      // @errands was deleted elsewhere and stays gone; @office (not in the old order) goes last.
+      expect(names('contexts')).toEqual(['@home', '@cell', '@office']);
+      change(nameInput('Name of @cell'), '@mobile');
+      await settle();
+      const patch = http.expectOne({ method: 'PATCH', url: `/api/v1/contexts/${PHONE.id}` });
+      expect(patch.request.headers.get('If-Match')).toBe('"2"');
+      patch.flush({ ...PHONE, name: '@mobile', version: 3 });
+      await settle();
+    });
   });
 
   describe('delete edge cases', () => {
@@ -986,6 +1045,31 @@ describe('GtdSettings', () => {
       dialogButton('Cancel').click();
       await settle();
       expect(button('Delete @home').disabled).toBe(false);
+    });
+
+    it('shows the generic message when moving fails with an error that is not an API error', async () => {
+      await setup();
+      const service = TestBed.inject(GtdSettingsService);
+      vi.spyOn(service, 'deleteArea').mockRejectedValue(
+        new ReassignError(new TypeError('fictitious failure')),
+      );
+      button('Delete Work').click();
+      await settle();
+      const projects = [{ id: 'p1', title: 'Fictitious launch', areaId: WORK.id, version: 1 }];
+      http.expectOne((r) => r.url === '/api/v1/projects').flush({ items: projects });
+      await settle();
+      document.querySelector<HTMLInputElement>('mat-radio-button[value="move"] input')!.click();
+      await settle();
+      dialogButton('Delete').click();
+      await vi.waitFor(() => expect(service.deleteArea).toHaveBeenCalledWith(WORK, FAMILY.id));
+      await settle();
+
+      expect(names('areas')).toEqual(['Work', 'Family']);
+      expect(errorText()).toContain('Something went wrong.');
+      expect(errorText()).not.toContain('fictitious failure');
+      expect(errorText()).not.toContain('changed elsewhere');
+      http.expectNone({ method: 'GET', url: '/api/v1/areas' });
+      expect(button('Delete Work').disabled).toBe(false);
     });
   });
 });
