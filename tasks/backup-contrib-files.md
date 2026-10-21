@@ -15,7 +15,8 @@ Files in backups (SPEC.md §10.2).
 ## Acceptance criteria
 - [x] data/files.jsonl, folders.json; files/ holds blobs in the original tree with original names (clashes → ' (2)', mapping in files.jsonl); streamed, constant memory for large files
   - verified (2026-10-21 04:58+0200 by dell26/agent-1): cd server && ./gradlew test --tests '*FilesBackup*' -> FilesBackupContributorTests 24/24 pass (data/folders.json + data/files.jsonl fields, files/ original tree + names, ' (2)'/' (3)' clashes incl. case/folder-vs-file/trash with path in files.jsonl, 60 MB blob export+import with thread allocation < 15 MB)
-- [ ] Round-trip test (`./gradlew test --tests '*BackupRoundTripTest'`) passes with this module's `BackupFixture` seeding nested folders, name clashes and a 60 MB file
+- [x] Round-trip test (`./gradlew test --tests '*BackupRoundTripTest'`) passes with this module's `BackupFixture` seeding nested folders, name clashes and a 60 MB file
+  - verified (2026-10-21 04:58+0200 by dell26/agent-1): cd server && ./gradlew test --tests '*BackupRoundTripTest' (Testcontainers Postgres) -> 1/1 pass, FilesBackupFixture seeds nested folders, name clashes and a 60 MB file
 
 ## Notes
 - ASSUMPTION (2026-10-21 03:46+0200 by dell26/agent-6): Backups include files and folders in the Trash (in their original tree; on a clash the item not in the Trash keeps the name). Paths are unique case-insensitively and across files and folders of one folder, so the tree extracts on every file system; a folder wins over a file.
