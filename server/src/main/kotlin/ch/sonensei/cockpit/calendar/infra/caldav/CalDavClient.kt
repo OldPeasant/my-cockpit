@@ -19,9 +19,9 @@ import javax.xml.parsers.ParserConfigurationException
 
 /**
  * WebDAV/CalDAV requests to one server with HTTP Basic authentication. Requests only go to the origin (scheme, host,
- * port) of the source's URL, redirects included, so the password never reaches another host. Network failures and
- * 401/403/5xx answers that the adapter does not handle become [CalendarProviderException]s whose messages hold no
- * password, no response body and no event content.
+ * port) of the source's URL, redirects included, so the password never reaches another host. Network failures, 401
+ * and 5xx answers become [CalendarProviderException]s whose messages hold no password, no response body and no event
+ * content; other answers (403 included, which a sync-collection REPORT uses for an invalid token) go to the caller.
  */
 internal class CalDavClient(
 	val base: URI,

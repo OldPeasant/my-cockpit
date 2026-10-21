@@ -146,6 +146,39 @@ class CalDavCalendarAdapterTests {
 			"Listing the calendars failed at the CalDAV server (HTTP 403)"
 	}
 
+	@Test
+	fun `403 during discovery says access was denied, without the password or the body`() {
+		dav("PROPFIND", "/dav/").answer(403, "<html>$PASSWORD forbidden details</html>")
+		val failure = shouldThrow<CalendarProviderException> { adapter.listCalendars(source) }
+		failure.message shouldBe "Finding the calendars: the CalDAV server denied access (HTTP 403), the user lacks permission"
+		failure.message shouldNotContain PASSWORD
+
+		// At the principal too.
+		dav("PROPFIND", "/dav/").answer(
+			207,
+			multistatus(found("/dav/", "<D:current-user-principal><D:href>/dav/principals/alice/</D:href></D:current-user-principal>")),
+		)
+		dav("PROPFIND", "/dav/principals/alice/").answer(403)
+		shouldThrow<CalendarProviderException> { adapter.listCalendars(source) }.message shouldBe
+			"Finding the calendars: the CalDAV server denied access (HTTP 403), the user lacks permission"
+	}
+
+	@Test
+	fun `a bare host that refuses its root is still looked up at the well-known URL, a 403 there too is denied access`() {
+		val bare = source("""{"url": "${wireMock.baseUrl()}", "username": "$USER"}""")
+		dav("PROPFIND", "/").answer(403)
+		dav("PROPFIND", "/.well-known/caldav").answer(404)
+		shouldThrow<CalendarProviderException> { adapter.listCalendars(bare) }.message shouldBe
+			"Finding the calendars: the CalDAV server denied access (HTTP 403), the user lacks permission"
+
+		dav("PROPFIND", "/.well-known/caldav").answer(
+			207,
+			multistatus(found("/.well-known/caldav", "<C:calendar-home-set><D:href>$HOME</D:href></C:calendar-home-set>" + COLLECTION)),
+		)
+		dav("PROPFIND", HOME).answer(207, multistatus(found(CAL, CALENDAR + "<D:displayname>Work</D:displayname>")))
+		adapter.listCalendars(bare) shouldContainExactly listOf(RemoteCalendar(CAL, "Work"))
+	}
+
 	// --- client: authentication, redirects, failures
 
 	@Test

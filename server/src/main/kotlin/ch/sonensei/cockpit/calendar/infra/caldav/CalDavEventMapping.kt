@@ -14,11 +14,15 @@ import java.time.Duration
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalDateTime
+import java.time.Month
+import java.time.YearMonth
 import java.time.ZoneId
 import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 import java.time.temporal.ChronoUnit
+import java.time.temporal.TemporalAdjusters
 import java.time.zone.ZoneOffsetTransitionRule
+import java.time.zone.ZoneRules
 
 /**
  * iCalendar resources of a CalDAV calendar to [RemoteEvent]s and back (RFC 4791: one resource per UID, holding the
@@ -85,9 +89,16 @@ internal object CalDavEventMapping {
 			null
 		} catch (e: DateTimeException) {
 			null
+		} catch (e: ArithmeticException) {
+			null
 		}
 
-	/** One VEVENT as a remote event. @throws IllegalArgumentException or [DateTimeException] when it cannot be read */
+	/**
+	 * One VEVENT as a remote event.
+	 *
+	 * @throws IllegalArgumentException, [DateTimeException] or [ArithmeticException] (times out of range) when it cannot
+	 *   be read
+	 */
 	fun read(
 		vevent: IcsComponent,
 		zones: Map<String, IcsComponent>,
@@ -171,14 +182,21 @@ internal object CalDavEventMapping {
 		val dtstart = vevent.property("DTSTART") ?: throw IllegalArgumentException("A VEVENT without DTSTART")
 		val start = times(dtstart, dtstart.value.trim(), zones)
 		val end = vevent.property("DTEND")?.let { times(it, it.value.trim(), zones) }
-		val duration = vevent.property("DURATION")?.let { duration(it.value.trim()) }
+		val duration =
+			if (end == null) {
+				vevent.property("DURATION")?.let {
+					duration(it.value.trim()) ?: throw IllegalArgumentException("A VEVENT with an unreadable DURATION")
+				}
+			} else {
+				null
+			}
 		return when (start) {
 			is Time.Day -> {
 				val endDate =
 					when {
 						end is Time.Day -> end.date
 						end is Time.Moment -> end.at.atZone(end.zone).toLocalDate()
-						duration != null -> start.date.plusDays(duration.toDays())
+						duration != null -> start.date.plusDays(Math.addExact(duration.days, duration.time.toDays()))
 						else -> start.date.plusDays(1)
 					}
 				// A zero-length all-day event is one day long.
@@ -197,18 +215,16 @@ internal object CalDavEventMapping {
 		}
 	}
 
-	/** Start plus an iCalendar duration: days are calendar days in the event's zone (RFC 5545 §3.3.6). */
+	/** Start plus an iCalendar duration: days are calendar days in the event's zone, the time is exact (RFC 5545 §3.3.6). */
 	private fun plus(
 		start: Time.Moment,
-		duration: Duration,
-	): Instant {
-		val days = duration.toDays()
-		return start.at
+		duration: IcsDuration,
+	): Instant =
+		start.at
 			.atZone(start.zone)
-			.plusDays(days)
-			.plus(duration.minusDays(days))
+			.plusDays(duration.days)
+			.plus(duration.time)
 			.toInstant()
-	}
 
 	/** The value [value] of date property [property] (its VALUE and TZID parameters apply). */
 	fun times(
@@ -291,17 +307,41 @@ internal object CalDavEventMapping {
 			?.let(ZoneId::of)
 	}
 
-	fun duration(value: String): Duration? {
+	/**
+	 * An iCalendar duration (RFC 5545 §3.3.6): [days] (weeks included) are nominal, calendar days in the event's zone;
+	 * [time] (hours, minutes, seconds) is exact. Both have the duration's sign.
+	 */
+	data class IcsDuration(
+		val days: Long,
+		val time: Duration,
+	) {
+		val isPositive: Boolean get() = days > 0 || time > Duration.ZERO
+
+		/** In minutes, a day as 24 hours. @throws ArithmeticException when that does not fit a Long */
+		fun toMinutes(): Long = Math.addExact(Math.multiplyExact(days, MINUTES_PER_DAY), time.toMinutes())
+	}
+
+	/** The iCalendar duration [value]; null when it is malformed or out of range. */
+	fun duration(value: String): IcsDuration? {
 		val match = DURATION.matchEntire(value) ?: return null
 		val (sign, weeks, days, hours, minutes, seconds) = match.destructured
-		val duration =
-			Duration
-				.ofDays((weeks.toLongOrNull() ?: 0) * DAYS_PER_WEEK + (days.toLongOrNull() ?: 0))
-				.plusHours(hours.toLongOrNull() ?: 0)
-				.plusMinutes(minutes.toLongOrNull() ?: 0)
-				.plusSeconds(seconds.toLongOrNull() ?: 0)
-		return if (sign == "-") duration.negated() else duration
+		return try {
+			val nominal = Math.addExact(Math.multiplyExact(number(weeks), DAYS_PER_WEEK.toLong()), number(days))
+			val exact =
+				Duration
+					.ofHours(number(hours))
+					.plusMinutes(number(minutes))
+					.plusSeconds(number(seconds))
+			if (sign == "-") IcsDuration(-nominal, exact.negated()) else IcsDuration(nominal, exact)
+		} catch (e: ArithmeticException) {
+			null
+		} catch (e: NumberFormatException) {
+			null
+		}
 	}
+
+	/** The digits [digits] of a duration part (0 when absent). @throws NumberFormatException when they exceed a Long */
+	private fun number(digits: String): Long = if (digits.isEmpty()) 0 else digits.toLong()
 
 	// --- attendees, alarms
 
@@ -330,8 +370,12 @@ internal object CalDavEventMapping {
 		if (trigger.param("VALUE").equals("DATE-TIME", ignoreCase = true)) return null
 		if (trigger.param("RELATED").equals("END", ignoreCase = true)) return null
 		val duration = duration(trigger.value.trim()) ?: return null
-		if (duration > Duration.ZERO) return null
-		return duration.negated().toMinutes().toInt()
+		if (duration.isPositive) return null
+		return try {
+			Math.toIntExact(Math.negateExact(duration.toMinutes()))
+		} catch (e: ArithmeticException) {
+			null
+		}
 	}
 
 	// --- writing
@@ -553,9 +597,14 @@ internal object CalDavEventMapping {
 	}
 
 	/** A VTIMEZONE for [zone] from its current Java rules (yearly transitions as RRULEs, else its present offset). */
-	fun vtimezone(zone: ZoneId): IcsComponent {
-		val rules = zone.rules
-		val vtimezone = IcsComponent("VTIMEZONE").apply { set("TZID", zone.id) }
+	fun vtimezone(zone: ZoneId): IcsComponent = vtimezone(zone.id, zone.rules)
+
+	/** A VTIMEZONE with id [tzid] for [rules]. */
+	fun vtimezone(
+		tzid: String,
+		rules: ZoneRules,
+	): IcsComponent {
+		val vtimezone = IcsComponent("VTIMEZONE").apply { set("TZID", tzid) }
 		val transitions = rules.transitionRules
 		if (transitions.isEmpty()) {
 			val offset = rules.getOffset(Instant.now())
@@ -563,11 +612,103 @@ internal object CalDavEventMapping {
 			return vtimezone
 		}
 		transitions.forEach { rule ->
-			val transition = rule.createTransition(REFERENCE_YEAR)
 			val kind = if (rule.offsetAfter == rule.standardOffset) "STANDARD" else "DAYLIGHT"
-			vtimezone.components += observance(kind, transition.dateTimeBefore, rule.offsetBefore, rule.offsetAfter, rrule(rule))
+			vtimezone.components += observances(kind, rule)
 		}
 		return vtimezone
+	}
+
+	/**
+	 * The observances of the yearly transition [rule], at its wall-clock time before the transition. That can fall on
+	 * another day than the rule's own date (a time in UTC or standard time, or 24:00), so the rule's days are shifted by
+	 * that difference. Where the shifted days reach into a neighbouring month, each month gets its own observance; where
+	 * that depends on leap years, the transitions up to [LAST_LISTED_YEAR] are listed as RDATEs.
+	 */
+	private fun observances(
+		kind: String,
+		rule: ZoneOffsetTransitionRule,
+	): List<IcsComponent> {
+		val years = REFERENCE_YEAR..LAST_LISTED_YEAR
+		val onsets = years.map { rule.createTransition(it).dateTimeBefore }
+		val shift = ChronoUnit.DAYS.between(ruleDate(rule, REFERENCE_YEAR), onsets.first().toLocalDate()).toInt()
+		val days =
+			window(rule, shift)
+				?: return listOf(
+					observance(kind, onsets.first(), rule.offsetBefore, rule.offsetAfter, null).apply {
+						set("RDATE", onsets.drop(1).joinToString(",") { it.format(LOCAL) })
+					},
+				)
+		val weekday = rule.dayOfWeek?.plus(shift.toLong())
+		return days.groupBy({ it.first }, { it.second }).map { (monthShift, monthDays) ->
+			val month = rule.month.plus(monthShift.toLong())
+			val byDay = weekday?.let { ";BYDAY=${it.name.take(2)}" }.orEmpty()
+			observance(
+				kind,
+				onsets.first { it.month == month },
+				rule.offsetBefore,
+				rule.offsetAfter,
+				"FREQ=YEARLY;BYMONTH=${month.value}$byDay;BYMONTHDAY=${monthDays.joinToString(",")}",
+			)
+		}
+	}
+
+	/** The date of [rule] in [year] before its time of day applies, as [ZoneOffsetTransitionRule.createTransition] finds it. */
+	private fun ruleDate(
+		rule: ZoneOffsetTransitionRule,
+		year: Int,
+	): LocalDate {
+		val indicator = rule.dayOfMonthIndicator
+		val month = YearMonth.of(year, rule.month)
+		val date = if (indicator < 0) month.atEndOfMonth().plusDays(indicator + 1L) else month.atDay(1).plusDays(indicator - 1L)
+		val weekday = rule.dayOfWeek ?: return date
+		return date.with(if (indicator < 0) TemporalAdjusters.previousOrSame(weekday) else TemporalAdjusters.nextOrSame(weekday))
+	}
+
+	/**
+	 * The days the wall-clock transition of [rule] can fall on, shifted by [shift] days, as (month shift, BYMONTHDAY): the
+	 * rule's day, or the week from (or up to) it for a weekday rule. Null when a day's month depends on leap years.
+	 */
+	private fun window(
+		rule: ZoneOffsetTransitionRule,
+		shift: Int,
+	): List<Pair<Int, Int>>? {
+		val indicator = rule.dayOfMonthIndicator
+		val first = indicator + shift
+		val days =
+			when {
+				rule.dayOfWeek == null -> first..first
+				indicator > 0 -> first..(first + DAYS_PER_WEEK - 1)
+				else -> (first - DAYS_PER_WEEK + 1)..first
+			}
+		return days.map { monthDay(rule.month, it, fromStart = indicator > 0) ?: return null }
+	}
+
+	/**
+	 * Day [day] of [month] (counted from its start, or from its end when negative) as (month shift, BYMONTHDAY) in the
+	 * month it falls in. Null when that depends on leap years.
+	 */
+	private fun monthDay(
+		month: Month,
+		day: Int,
+		fromStart: Boolean,
+	): Pair<Int, Int>? {
+		val length = month.minLength()
+		val fixedLength = length == month.maxLength()
+		return if (fromStart) {
+			when {
+				day in 1..length -> 0 to day
+				day < 1 -> -1 to day - 1
+				fixedLength -> 1 to day - length
+				else -> null
+			}
+		} else {
+			when {
+				day in -length..-1 -> 0 to day
+				day >= 0 -> 1 to day + 1
+				fixedLength -> -1 to day + length
+				else -> null
+			}
+		}
 	}
 
 	private fun observance(
@@ -593,21 +734,13 @@ internal object CalDavEventMapping {
 		return sign + hhmm + (if (ss != 0) "%02d".format(ss) else "")
 	}
 
-	/** The yearly RRULE of a Java transition rule ("Sunday on or after the 25th" → BYDAY=SU;BYMONTHDAY=25..31). */
-	private fun rrule(rule: ZoneOffsetTransitionRule): String {
-		val base = "FREQ=YEARLY;BYMONTH=${rule.month.value}"
-		val day = rule.dayOfMonthIndicator
-		val weekday = rule.dayOfWeek ?: return "$base;BYMONTHDAY=$day"
-		val days = if (day > 0) (day..minOf(day + DAYS_PER_WEEK - 1, MAX_MONTH_DAY)) else ((day - DAYS_PER_WEEK + 1)..day)
-		return "$base;BYDAY=${weekday.name.take(2)};BYMONTHDAY=${days.joinToString(",")}"
-	}
-
 	private const val DATE_LENGTH = 8
 	private const val LOCAL_LENGTH = 15
 	private const val DAYS_PER_WEEK = 7
-	private const val MAX_MONTH_DAY = 31
+	private const val MINUTES_PER_DAY = 1440L
 	private const val SECONDS_PER_HOUR = 3600
 	private const val SECONDS_PER_MINUTE = 60
 	private const val REFERENCE_YEAR = 1970
+	private const val LAST_LISTED_YEAR = 2100
 	private val EPOCH: LocalDateTime = LocalDateTime.of(REFERENCE_YEAR, 1, 1, 0, 0)
 }

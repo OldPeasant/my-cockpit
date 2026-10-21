@@ -1,6 +1,7 @@
 package ch.sonensei.cockpit.calendar.infra.caldav
 
 import ch.sonensei.cockpit.calendar.api.Timing
+import ch.sonensei.cockpit.calendar.infra.caldav.CalDavEventMapping.IcsDuration
 import ch.sonensei.cockpit.calendar.model.Attendee
 import ch.sonensei.cockpit.calendar.model.AttendeeStatus
 import ch.sonensei.cockpit.calendar.model.EventStatus
@@ -14,15 +15,21 @@ import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
+import io.kotest.matchers.string.shouldEndWith
 import net.fortuna.ical4j.model.Recur
 import org.junit.jupiter.api.Test
+import java.time.DayOfWeek
 import java.time.Duration
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalDateTime
+import java.time.LocalTime
+import java.time.Month
 import java.time.ZoneId
 import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
+import java.time.zone.ZoneOffsetTransitionRule
+import java.time.zone.ZoneRules
 
 /**
  * [CalDavEventMapping]: iCalendar resources of a CalDAV calendar to remote events (times and zones, recurrence, alarms,
@@ -383,11 +390,39 @@ class CalDavEventMappingTests {
 
 	@Test
 	fun `iCalendar durations`() {
-		CalDavEventMapping.duration("P1W") shouldBe Duration.ofDays(7)
-		CalDavEventMapping.duration("-PT15M") shouldBe Duration.ofMinutes(-15)
-		CalDavEventMapping.duration("+P1DT2H3M4S") shouldBe Duration.parse("P1DT2H3M4S")
+		CalDavEventMapping.duration("P1W") shouldBe IcsDuration(7, Duration.ZERO)
+		CalDavEventMapping.duration("-PT15M") shouldBe IcsDuration(0, Duration.ofMinutes(-15))
+		CalDavEventMapping.duration("+P1DT2H3M4S") shouldBe IcsDuration(1, Duration.parse("PT2H3M4S"))
+		// Days stay nominal: 24 hours are not a day.
+		CalDavEventMapping.duration("PT24H") shouldBe IcsDuration(0, Duration.ofHours(24))
+		CalDavEventMapping.duration("-P1DT1H") shouldBe IcsDuration(-1, Duration.ofHours(-1))
 		CalDavEventMapping.duration("15M").shouldBeNull()
 		CalDavEventMapping.duration("PT1.5H").shouldBeNull()
+	}
+
+	@Test
+	fun `durations out of range are unreadable - such a DURATION skips its VEVENT, such a TRIGGER is no reminder`() {
+		CalDavEventMapping.duration("P99999999999999999999D").shouldBeNull()
+		CalDavEventMapping.duration("P9999999999999999999W").shouldBeNull()
+		CalDavEventMapping.duration("PT9999999999999999H").shouldBeNull()
+		CalDavEventMapping.duration("PT1H9223372036854775807S").shouldBeNull()
+
+		listOf("DURATION:P200000000000000D", "DURATION:P99999999999999999999D", "DURATION:-PT9999999999999999H").forEach { duration ->
+			val data = calendar("BEGIN:VEVENT\nUID:huge\nDTSTART;TZID=Europe/Zurich:20261103T090000\n$duration\nEND:VEVENT")
+			CalDavEventMapping.parse(data, null).apply {
+				events.shouldBeEmpty()
+				skipped shouldBe 1
+			}
+		}
+		val allDay = calendar("BEGIN:VEVENT\nUID:huge\nDTSTART;VALUE=DATE:20261103\nDURATION:P200000000000000D\nEND:VEVENT")
+		CalDavEventMapping.parse(allDay, null).skipped shouldBe 1
+
+		val event =
+			read(
+				"DTSTART:20261103T080000Z",
+				components = listOf(valarm("TRIGGER:-P200000000000000D"), valarm("TRIGGER:-P99999999999999999999D"), valarm("TRIGGER:-PT10M")),
+			)
+		event.reminderMinutes shouldContainExactly listOf(10)
 	}
 
 	// --- write
@@ -763,28 +798,78 @@ class CalDavEventMappingTests {
 	@Test
 	fun `the RRULEs of every generated VTIMEZONE give the transitions of the Java zone rules`() {
 		// Checked with ical4j's recurrence expansion, an implementation independent of the one under test.
-		// Per zone and observance the first year whose transition the RRULE misses.
+		// Per zone and transition rule the first year whose transition its observances miss. A rule may have several
+		// observances (one per month its wall-clock day can fall in) or list its transitions as RDATEs.
 		val mismatches = sortedMapOf<String, String>()
 		for (id in ZoneId.getAvailableZoneIds().sorted()) {
 			val zone = ZoneId.of(id)
 			if (zone.rules.transitionRules.isEmpty()) continue
 			val vtimezone = CalDavEventMapping.vtimezone(zone)
-			for (observance in vtimezone.children("STANDARD") + vtimezone.children("DAYLIGHT")) {
-				val seed = LocalDateTime.parse(observance.text("DTSTART")!!, LOCAL)
-				val rule =
+			val observances = vtimezone.children("STANDARD") + vtimezone.children("DAYLIGHT")
+			val byRule =
+				observances.groupBy { observance ->
+					val seed = LocalDateTime.parse(observance.text("DTSTART")!!, LOCAL)
+					// Every observance starts at a transition of exactly one rule.
 					zone.rules.transitionRules.single {
-						it.createTransition(1970).dateTimeBefore == seed && offsetText(it.offsetAfter) == observance.text("TZOFFSETTO")
+						it.createTransition(seed.year).dateTimeBefore == seed &&
+							offsetText(it.offsetBefore) == observance.text("TZOFFSETFROM") &&
+							offsetText(it.offsetAfter) == observance.text("TZOFFSETTO")
 					}
-				val recur = Recur<LocalDateTime>(observance.text("RRULE")!!)
+				}
+			for (rule in zone.rules.transitionRules) {
+				val own = byRule[rule].orEmpty()
 				for (year in 2027..2040) {
 					val expected = rule.createTransition(year).dateTimeBefore
-					val dates = recur.getDates(seed, LocalDateTime.of(year, 1, 1, 0, 0), LocalDateTime.of(year + 1, 1, 1, 0, 0))
-					if (dates != listOf(expected)) mismatches.putIfAbsent("$id ${observance.name}", "$year: expected $expected, RRULE gives $dates")
+					val dates = own.flatMap { onsets(it, year) }.sorted()
+					if (dates != listOf(expected)) mismatches.putIfAbsent("$id $rule", "$year: expected $expected, observances give $dates")
 				}
 			}
 		}
 
 		mismatches.entries.joinToString("\n") { (key, example) -> "$key ($example)" } shouldBe ""
+	}
+
+	@Test
+	fun `a wall-clock transition that crosses into the next month gets an observance per month`() {
+		// Egypt: last Thursday of October at 24:00, a Friday from 26 October to 1 November.
+		val standard = CalDavEventMapping.vtimezone(ZoneId.of("Africa/Cairo")).children("STANDARD")
+
+		standard.map { it.text("RRULE") } shouldContainExactly
+			listOf("FREQ=YEARLY;BYMONTH=10;BYDAY=FR;BYMONTHDAY=26,27,28,29,30,31", "FREQ=YEARLY;BYMONTH=11;BYDAY=FR;BYMONTHDAY=1")
+		standard.forEach { it.text("TZOFFSETTO") shouldBe "+0200" }
+	}
+
+	@Test
+	fun `a wall-clock transition on the day before the rule's date shifts its weekday and days`() {
+		// Nuuk: summer time starts on the last Sunday of March at 01:00 UTC, that is Saturday 23:00 local time.
+		val daylight = CalDavEventMapping.vtimezone(ZoneId.of("America/Nuuk")).children("DAYLIGHT").single()
+
+		daylight.text("RRULE") shouldBe "FREQ=YEARLY;BYMONTH=3;BYDAY=SA;BYMONTHDAY=24,25,26,27,28,29,30"
+		daylight.text("DTSTART")!! shouldEndWith "T230000"
+	}
+
+	@Test
+	fun `transitions whose month depends on leap years are listed as RDATEs`() {
+		// A fictitious zone: summer time from the Sunday on or after 26 February, at 23:00 the day before in wall time.
+		val rule =
+			ZoneOffsetTransitionRule.of(
+				Month.FEBRUARY,
+				26,
+				DayOfWeek.SUNDAY,
+				LocalTime.of(1, 0),
+				false,
+				ZoneOffsetTransitionRule.TimeDefinition.UTC,
+				ZoneOffset.ofHours(-2),
+				ZoneOffset.ofHours(-2),
+				ZoneOffset.ofHours(-1),
+			)
+		val rules = ZoneRules.of(ZoneOffset.ofHours(-2), ZoneOffset.ofHours(-2), emptyList(), emptyList(), listOf(rule))
+
+		val daylight = CalDavEventMapping.vtimezone("Fictitious/Leap", rules).children("DAYLIGHT").single()
+
+		daylight.property("RRULE").shouldBeNull()
+		daylight.text("DTSTART") shouldBe rule.createTransition(1970).dateTimeBefore.format(LOCAL)
+		for (year in 1971..2100) onsets(daylight, year) shouldContainExactly listOf(rule.createTransition(year).dateTimeBefore)
 	}
 
 	// --- helpers
@@ -829,6 +914,19 @@ class CalDavEventMappingTests {
 		).joinToString("\r\n", postfix = "\r\n")
 
 	private fun unfolded(text: String) = text.replace("\r\n ", "")
+
+	/** The onsets of VTIMEZONE [observance] in [year]: its DTSTART, RRULE (expanded by ical4j) and RDATEs. */
+	private fun onsets(
+		observance: IcsComponent,
+		year: Int,
+	): List<LocalDateTime> {
+		val seed = LocalDateTime.parse(observance.text("DTSTART")!!, LOCAL)
+		val from = LocalDateTime.of(year, 1, 1, 0, 0)
+		val to = LocalDateTime.of(year + 1, 1, 1, 0, 0)
+		val recurring = observance.text("RRULE")?.let { Recur<LocalDateTime>(it).getDates(seed, from, to) }.orEmpty()
+		val listed = observance.all("RDATE").flatMap { it.value.split(',') }.map { LocalDateTime.parse(it.trim(), LOCAL) }
+		return (recurring + (listed + seed).filter { it.year == year }).distinct()
+	}
 
 	private fun offsetText(offset: ZoneOffset): String {
 		val seconds = offset.totalSeconds

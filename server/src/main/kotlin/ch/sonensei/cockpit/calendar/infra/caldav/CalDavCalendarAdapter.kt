@@ -60,10 +60,17 @@ class CalDavCalendarAdapter(
 		val start = client.base
 		val props = "<D:current-user-principal/><C:calendar-home-set/><D:resourcetype/>"
 		val bareHost = start.rawPath.isNullOrEmpty() || start.rawPath == "/"
+		// A server may refuse "/" but answer at the well-known URL, so a 403 there only counts when nothing else answers.
+		var forbidden = false
+		val probe = { uri: URI ->
+			val response = client.propfind(uri, 0, props, what)
+			if (response.status == FORBIDDEN) forbidden = true
+			if (response.status == MULTI_STATUS) MultiStatus.parse(response.body, what).responses.firstOrNull() else null
+		}
 		val first =
-			propfind(client, start, 0, props, what)
-				?: (if (bareHost) propfind(client, start.resolve(WELL_KNOWN), 0, props, what) else null)
-				?: throw CalendarProviderException("No CalDAV service found at the source's URL")
+			probe(start)
+				?: (if (bareHost) probe(start.resolve(WELL_KNOWN)) else null)
+				?: throw if (forbidden) denied(what) else CalendarProviderException("No CalDAV service found at the source's URL")
 		if (isCalendar(first)) return calendarsIn(client, client.resolve(first.href) ?: start, 0)
 		val home =
 			hrefIn(client, first, CalDavClient.CALDAV, "calendar-home-set")
@@ -107,7 +114,11 @@ class CalDavCalendarAdapter(
 			}
 	}
 
-	/** PROPFIND with depth 0; the first response, or null when the resource does not answer with a multistatus. */
+	/**
+	 * PROPFIND with depth 0; the first response, or null when the resource does not answer with a multistatus.
+	 *
+	 * @throws CalendarProviderException when the server denies access (403)
+	 */
 	private fun propfind(
 		client: CalDavClient,
 		uri: URI,
@@ -116,6 +127,7 @@ class CalDavCalendarAdapter(
 		what: String,
 	): DavResponse? {
 		val response = client.propfind(uri, depth, props, what)
+		if (response.status == FORBIDDEN) throw denied(what)
 		if (response.status != MULTI_STATUS) return null
 		return MultiStatus.parse(response.body, what).responses.firstOrNull()
 	}
@@ -491,7 +503,7 @@ class CalDavCalendarAdapter(
 		return try {
 			CalDavEventMapping.read(vevent, zones, etag)
 		} catch (e: RuntimeException) {
-			if (e !is IllegalArgumentException && e !is DateTimeException) throw e
+			if (e !is IllegalArgumentException && e !is DateTimeException && e !is ArithmeticException) throw e
 			throw CalendarProviderException("The CalDAV server answered with an event that could not be read", e)
 		}
 	}
@@ -643,6 +655,9 @@ class CalDavCalendarAdapter(
 		response: CalDavClient.Response,
 	) = CalendarProviderException("$what failed at the CalDAV server (HTTP ${response.status})")
 
+	private fun denied(what: String) =
+		CalendarProviderException("$what: the CalDAV server denied access (HTTP 403), the user lacks permission")
+
 	companion object {
 		/** Keys of a CalDAV source's config. */
 		const val URL = "url"
@@ -657,6 +672,7 @@ class CalDavCalendarAdapter(
 		private const val DELETE = "Deleting an event"
 		private const val FIND = "Reading an event"
 		private const val MULTI_STATUS = 207
+		private const val FORBIDDEN = 403
 		private const val NOT_FOUND = 404
 		private const val GONE = 410
 		private const val PRECONDITION_FAILED = 412
