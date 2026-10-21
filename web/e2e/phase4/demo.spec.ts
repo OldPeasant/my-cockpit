@@ -90,10 +90,22 @@ test.describe('Phase 4 demo', () => {
     const after = (await eventsOn(page, '2026-04-06', SERIES).boundingBox())!;
     expect(Math.abs(before.y - after.y)).toBeLessThan(2);
 
-    // Day view of the first Monday in summer time.
+    // Day view of the last Monday in winter time and of the first one in summer time: both at 09:00.
+    await page.goto('/calendar?view=day&date=2026-03-23');
+    await expect(eventsOn(page, '2026-03-23', SERIES)).toContainText('9:00 – 10:00');
     await page.goto('/calendar?view=day&date=2026-04-06');
     await expect(eventsOn(page, '2026-04-06', SERIES)).toContainText('9:00 – 10:00');
+    // The moved occurrence is gone from Monday 30 and on Tuesday 31. The day of 30 March shows no event at all, so
+    // wait for its occurrences to arrive: an absence checked before they load would pass on an empty grid.
+    await page.goto('/calendar?view=day&date=2026-03-31');
+    await expect(eventsOn(page, '2026-03-31', SERIES)).toContainText('2:00 – 3:00');
+    const loaded = page.waitForResponse(
+      (r) =>
+        new URL(r.url()).pathname === '/api/v1/calendar/events' && r.request().method() === 'GET',
+    );
     await page.goto('/calendar?view=day&date=2026-03-30');
+    expect((await loaded).ok(), 'occurrences of 30 March').toBe(true);
+    await expect(page.locator('.app-calendar [data-date="2026-03-30"]').first()).toBeVisible();
     await expect(page.locator('.app-calendar .app-event', { hasText: SERIES })).toHaveCount(0);
 
     // Month view: the Mondays of March, Monday 30 moved to Tuesday 31.
