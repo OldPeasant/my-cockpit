@@ -4,21 +4,21 @@ Date: 2026-10-21
 
 Task: gtd-convert-note - Convert task to reference note
 
-Scope: implementation commit a9786319 on top of base 86d5edde (`git diff 86d5edde..a9786319`); production code reviewed at a9786319, committed changes only
+Scope: final re-review of the task's commits on top of origin/main 817fff8a up to HEAD b65f2b89: cfd3feef (POST /tasks/{id}/convert-to-note), 131e5c9f (review report), 94409aa9 (edge-case tests and test report), b65f2b89 (regenerated web API client). Committed changes only. Files reviewed in full: `server/src/main/kotlin/ch/sonensei/cockpit/gtd/convert/api/TaskToNoteController.kt`, `server/src/main/kotlin/ch/sonensei/cockpit/gtd/convert/domain/TaskToNoteService.kt`, `server/src/test/kotlin/ch/sonensei/cockpit/gtd/convert/{TaskToNoteWebTests,TaskToNoteEdgeCaseTests,TaskToNoteRollbackTests}.kt`, `web/src/app/api/generated/fn/tasks/convert-task-to-note.ts`, `web/src/app/api/generated/functions.ts`. Context read: `core/items/domain/LinkService.kt` and `gtd/domain/TaskService.kt`.
 
 Requirements:
-- tasks/gtd-convert-note.md acceptance criteria and recorded assumptions (soft delete to Trash; links copied as MANUAL with same direction/label, links to missing/trashed items skipped; only title + notes carried over; If-Match optional)
-- SPEC.md §4.2 (ETag/If-Match, Problem Details), §4.3 (items and links), §5.1 (Reference converts into a Note), §5.4 (API sketch)
-- docs/ARCHITECTURE.md conventions (modules talk through services/events, package layout)
-- AGENTS.md project notes; existing conventions in gtd/api/TaskController.kt, notes/domain/NoteService.kt, core/items/domain/LinkService.kt
+- tasks/gtd-convert-note.md acceptance criteria and the three recorded assumptions (soft delete to the Trash; links copied as MANUAL links with the same direction and label, links to missing or trashed items skipped; only title and notes carried over, 201 + Location, optional If-Match)
+- SPEC.md §4.2 (ETag/If-Match, Problem Details), §4.3 (links), §5.1 (Reference converts into a Note)
+- AGENTS.md project notes (API changes: server first, regenerate `api/openapi.yaml`, then clients; generated files are never hand-edited)
+- The previous review (CR-1, P3), `reviews/gtd-convert-note/tests.md` (TW-1) and `reviews/gtd-convert-note/fixes.md`
 
 Git range:
 - Branch: main
-- HEAD: a9786319
-- Base/start: 86d5edde2c3121699da919b3da5fe2af207425ee
-- Commits reviewed: 1
+- HEAD: b65f2b894ddcc464c186ce32905e49537547d246
+- Base/start: 817fff8a1c6f1769b8cb775fc0c7db3aa499404b (origin/main, merge base)
+- Commits reviewed: 4
 
-Summary: 0 P0, 0 P1, 0 P2, 1 P3
+Summary: 0 P0, 0 P1, 0 P2, 0 P3
 
 ## P0 Critical
 
@@ -34,19 +34,16 @@ None.
 
 ## P3 Low
 
-- [ ] **CR-1 | No regression test for a task that is linked to the same item in more than one way, or whose notes carry inline links**
-    - File: `server/src/test/kotlin/ch/sonensei/cockpit/gtd/convert/TaskToNoteWebTests.kt:120`
-    - Category: Tests
-    - Problem: `TaskToNoteService.convert` (`server/src/main/kotlin/ch/sonensei/cockpit/gtd/convert/domain/TaskToNoteService.kt:45-56`) relies on two things the tests don't cover. First, `LinkService.linksOf` returns one link per linked item. Second, `NoteService.create` adds only SYNC links for inline `[[type:id]]` links in the body, so they never collide with the copied MANUAL links. The link test only uses three distinct items, each with a single link, and a body without inline links.
-    - Why it matters: Suppose a later change to `linksOf` makes it return every link instead of one per item. A task with both a manual link and an inline backlink to the same item would then call `LinkService.create` twice for one pair. The second call throws `ConflictException`, which rolls back the whole conversion and returns 409, so the user can never convert that task. Nothing would catch that regression.
-    - Suggested fix: Add a test where the task has a manual link to item X and X also has a SYNC link back to the task. Add a second case where the task's notes contain `[[note:X]]` and the task also has a manual link to X. Assert that the conversion succeeds with 201 and that the note ends up with exactly the expected links.
+None.
 
 ## Notes (not findings)
 
-- Correctness: the conversion runs in one transaction because the service class is `@Transactional`. The trash step, note creation and link copies all join that transaction, and the rollback test shows that a failure after the note was created undoes both the note and the trash step. The check that a linked item still exists is done before `LinkService.create`, so the 400 that `create` would throw for a missing item cannot mark the transaction rollback-only. `TaskService.get` returns 404 for unknown and trashed tasks. If-Match is checked inside `TaskService.delete` before any change, matching the optional-If-Match workflow actions (`complete`/`move`). Two concurrent conversions of the same task end in a 404, or in an optimistic-lock 409 for the second one, never in two notes. Task and note limits match (title 500, body/notes 100 000), so the documented 400 is a safeguard only.
-- Integration: the new `openapi.yaml` path, operationId, responses and `Location`/`ETag` headers match the controller. The diff only adds a path, which fits a regenerated spec. This review did not run `OpenApiContractTest` (it is criterion 3 and needs evidence from the parent worker).
-- Architecture: `gtd.convert` uses only the services of other modules (`NoteService`, `LinkService`, `ItemResolverRegistry`) and no repositories. It stays within the task's `touches`.
-- Evidence: `python tasks.py verify gtd-convert-note` currently shows all three criteria unverified. The parent worker still has to record them.
+- **Review limitation.** Shell access (git, grep, gradle, npm, tasks.py) was denied in this session. I took HEAD and the base from `.git/refs/heads/main` and `.git/refs/remotes/origin/main`, and the commit list from the repository status the parent supplied. I read the files directly instead of diffing them. I did not run any test, did not search `api/openapi.yaml` for the new path, and could not list the recorded criterion evidence with `tasks.py verify gtd-convert-note`. The parent worker must make sure all three criteria have recorded evidence. Criterion 3 needs both the `UPDATE_OPENAPI=1` regeneration and a run without the flag; the test report says it did not run the regeneration itself.
+- **Previous CR-1 is resolved.** `TaskToNoteEdgeCaseTests.kt:233-285` covers three cases: a manual link plus a SYNC backlink to the same item, an inline `[[note:X]]` plus a manual link to X, and all three together through the real `NoteService` and `LinkService`. Each test asserts 201 and the exact set of links on the note. A change that made `LinkService.linksOf` return more than one link per item would make the third test fail with 409.
+- **TW-1 is resolved.** `web/src/app/api/generated/fn/tasks/convert-task-to-note.ts` has the generator header. It posts to `/api/v1/tasks/{id}/convert-to-note` with an optional `If-Match` header and returns `NoteResponse`, which matches the controller. `functions.ts:236-237` exports it in operation order. `fixes.md` records that `npm run api:gen` changed only these three files and that `npm run check` (including `api:check`) passed.
+- **Correctness (unchanged since the previous review, re-checked).** Because `TaskToNoteService` is `@Transactional`, the trash step, note creation and link copies all run in one transaction. `TaskToNoteRollbackTests` shows that a failing link copy undoes both the note and the soft delete. The service reads the links before `TaskService.delete`. It checks with `ItemResolverRegistry` that each linked item still exists before calling `LinkService.create`, so a 400 from `requireKnown` cannot mark the transaction rollback-only. `checkVersion` runs inside `TaskService.delete` before any change, and the 412 tests confirm that no events, search-index changes or links are written. The note's inline links become SYNC links, which never collide with the copied MANUAL links.
+- **Architecture.** `gtd.convert` calls only the other modules' services (`TaskService`, `NoteService`, `LinkService`, `ItemResolverRegistry`) and no repositories. The production code stays within the task's `touches`. The change to `web/src/app/api/generated/` is the client regeneration that AGENTS.md requires.
+- **Security.** The endpoint goes through the standard security chain. Tests cover an anonymous request (401) and a missing CSRF token (403), and confirm that nothing changes in either case. Nothing is logged. Test data is fictitious.
 
 ## Review conclusion
 
