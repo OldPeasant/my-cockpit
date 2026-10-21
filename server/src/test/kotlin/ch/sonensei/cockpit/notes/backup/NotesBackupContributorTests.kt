@@ -4,10 +4,15 @@ import ch.sonensei.cockpit.backup.RestoreTestDatabases
 import ch.sonensei.cockpit.backup.Zips
 import ch.sonensei.cockpit.backup.domain.BackupService
 import ch.sonensei.cockpit.backup.infra.ZipBackupReader
+import ch.sonensei.cockpit.files.backup.FilesBackupContributor
 import ch.sonensei.cockpit.files.infra.BlobStore
+import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldContainExactly
+import io.kotest.matchers.collections.shouldContainExactlyInAnyOrder
+import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
+import io.kotest.matchers.string.shouldEndWith
 import io.kotest.matchers.string.shouldNotContain
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
@@ -18,7 +23,9 @@ import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.test.context.DynamicPropertyRegistry
 import org.springframework.test.context.DynamicPropertySource
 import org.springframework.transaction.support.TransactionTemplate
+import org.yaml.snakeyaml.Yaml
 import tools.jackson.databind.JsonNode
+import java.net.URLDecoder
 import java.nio.file.Files
 import java.nio.file.Path
 import java.sql.Timestamp
@@ -38,6 +45,7 @@ import kotlin.io.path.readBytes
 class NotesBackupContributorTests(
 	@Autowired private val backups: BackupService,
 	@Autowired private val contributor: NotesBackupContributor,
+	@Autowired private val files: FilesBackupContributor,
 	@Autowired private val blobs: BlobStore,
 	@Autowired private val jdbc: JdbcTemplate,
 	@Autowired private val transactions: TransactionTemplate,
@@ -161,6 +169,122 @@ class NotesBackupContributorTests(
 		NotesBackupContributor.slug("a".repeat(59) + " bcd") shouldBe "a".repeat(59)
 	}
 
+	@Test
+	fun `slugs keep exactly 60 characters, cut longer ones and trim separators at both ends`() {
+		NotesBackupContributor.slug("b".repeat(60)) shouldBe "b".repeat(60)
+		NotesBackupContributor.slug("c".repeat(61)) shouldBe "c".repeat(60)
+		NotesBackupContributor.slug("  --Hello, World!--  ") shouldBe "hello-world"
+		NotesBackupContributor.slug("Ärger über Öl 2026") shouldBe "arger-uber-ol-2026"
+		NotesBackupContributor.slug("") shouldBe "note"
+		NotesBackupContributor.slug("   ") shouldBe "note"
+	}
+
+	@Test
+	fun `the file date is the creation day in UTC, so the same title on another day keeps its name`() {
+		note(id(1), "Daily", "late", createdAt = Instant.parse("2026-03-01T23:59:59.999999Z"))
+		note(id(2), "Daily", "early", createdAt = Instant.parse("2026-03-02T00:00:00Z"))
+
+		val notes = export().readableNotes()
+
+		notes.keys shouldBe setOf("2026-03-01-daily.md", "2026-03-02-daily.md")
+		notes.getValue("2026-03-01-daily.md") shouldContain "late"
+		notes.getValue("2026-03-02-daily.md") shouldContain "early"
+	}
+
+	@Test
+	fun `a numbered name never overwrites a note whose own title gives that name`() {
+		note(id(1), "Same", "first")
+		note(id(2), "Same", "second", createdAt = T0.plusSeconds(60))
+		note(id(3), "Same 2", "third", createdAt = T0.plusSeconds(120))
+
+		val notes = export().readableNotes()
+
+		notes.keys shouldHaveSize 3
+		notes.values.map { it.substringAfterLast("---\n\n") } shouldContainExactlyInAnyOrder
+			listOf("first\n", "second\n", "third\n")
+		notes.getValue("2026-03-01-same.md") shouldContain "first"
+		notes.getValue("2026-03-01-same-2.md") shouldContain "second"
+	}
+
+	@Test
+	fun `front matter is valid YAML that gives back titles and tags with quotes, backslashes and control characters`() {
+		val title = "Plan: \"A\" \\ B # not a comment\tend"
+		val tags = listOf("back\\slash", "say \"x\"", "- [x] list", "@at", "bell\u0007", "line\nbreak", "del\u007f")
+		note(id(1), title, "body", tags = tags)
+
+		val text = export().readableNotes().values.single()
+		val front = Yaml().load<Map<String, Any?>>(text.removePrefix("---\n").substringBefore("\n---\n"))
+
+		front["id"] shouldBe id(1).toString()
+		front["title"] shouldBe title
+		(front["tags"] as List<*>).map { it as String } shouldContainExactlyInAnyOrder tags
+		front["links"] shouldBe emptyList<String>()
+		front["pinned"] shouldBe false
+		front["archived"] shouldBe false
+	}
+
+	@Test
+	fun `the body keeps a single final newline and an empty body leaves only the front matter`() {
+		note(id(1), "Ends", "line\n")
+		note(id(2), "Empty", "")
+
+		val notes = export().readableNotes()
+
+		notes.getValue("2026-03-01-ends.md") shouldEndWith "---\n\nline\n"
+		notes.getValue("2026-03-01-empty.md") shouldEndWith "archived: false\n---\n\n"
+	}
+
+	@Test
+	fun `image links resolve to the exported file entries, also for nested folders, clashing names and upper-case ids`() {
+		val trips = folder(id(40), "Trips")
+		val year = folder(id(43), "2026 [summer]", parent = trips)
+		file(id(41), "map.png", year)
+		file(id(42), "map.png", year)
+		note(
+			id(1),
+			"Trip",
+			"![A](cockpit-file:${id(41)}) ![B](cockpit-file:${id(42).toString().uppercase()}) ![A again](cockpit-file:${id(41)})",
+		)
+
+		val exported = export()
+		val text = exported.readableNotes().getValue("2026-03-01-trip.md")
+		val targets =
+			Regex("""\]\(\.\./\.\./files/([^)]+)\)""").findAll(text).map { URLDecoder.decode(it.groupValues[1], Charsets.UTF_8) }.toList()
+
+		targets shouldHaveSize 3
+		targets.toSet() shouldHaveSize 2
+		targets.forEach { exported.entryNames shouldContain "files/$it" }
+		text shouldNotContain "cockpit-file:"
+	}
+
+	@Test
+	fun `an untitled note uses its derived title and empty tag and link lists in the front matter`() {
+		note(id(1), null, "Lonely thought")
+
+		val text = export().readableNotes().getValue("2026-03-01-lonely-thought.md")
+
+		text shouldContain "title: \"Lonely thought\"\n"
+		text shouldContain "links: []\n"
+		text shouldContain "tags: []\n"
+	}
+
+	// --- FilesBackupContributor.paths -------------------------------------------------------------------------------
+
+	@Test
+	fun `files paths returns the export path of existing files only, and nothing for no ids`() {
+		val docs = folder(id(40), "Docs")
+		file(id(41), "a.png", docs)
+		file(id(42), "A.png", docs)
+
+		val paths = transactions.execute { files.paths(setOf(id(41), id(42), id(99))) }!!
+
+		paths.keys shouldBe setOf(id(41), id(42))
+		paths.getValue(id(41)) shouldBe "Docs/a.png"
+		paths.getValue(id(42)) shouldBe "Docs/A (2).png"
+		export().entryNames.filter { it.startsWith("files/") }.toSet() shouldBe paths.values.map { "files/$it" }.toSet()
+		transactions.execute { files.paths(emptySet()) } shouldBe emptyMap()
+	}
+
 	// --- import -----------------------------------------------------------------------------------------------------
 
 	@Test
@@ -201,6 +325,8 @@ class NotesBackupContributorTests(
 		private val json: tools.jackson.databind.json.JsonMapper,
 	) {
 		private val entries: Map<String, ByteArray> = Zips.read(path.readBytes())
+
+		val entryNames: Set<String> get() = entries.keys
 
 		fun lines(name: String): List<JsonNode> =
 			String(entries.getValue(name), Charsets.UTF_8).lines().filter { it.isNotBlank() }.map { json.readTree(it) }
@@ -300,13 +426,15 @@ class NotesBackupContributorTests(
 	private fun folder(
 		id: UUID,
 		name: String,
+		parent: UUID? = null,
 	): UUID {
 		jdbc.update(
-			"insert into folder (id, created_at, updated_at, version, name) values (?, ?, ?, ?, ?)",
+			"insert into folder (id, created_at, updated_at, version, parent_id, name) values (?, ?, ?, ?, ?, ?)",
 			id,
 			Timestamp.from(T0),
 			Timestamp.from(T0),
 			0,
+			parent,
 			name,
 		)
 		return id
