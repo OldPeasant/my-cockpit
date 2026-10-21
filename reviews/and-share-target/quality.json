@@ -1,0 +1,25 @@
+{
+  "schema": 1,
+  "task": "and-share-target",
+  "reviewed_revision": "a6d797f81568627d87431e2625799b0a94f62edd",
+  "helpers": {
+    "test-writer": {"status": "completed", "report": "reviews/and-share-target/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/and-share-target/review.md"},
+    "fixer": {"status": "completed", "report": "reviews/and-share-target/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "CR-1 (first review)", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "system Back during save discarded the capture; BackHandler consumes Back while saving"},
+    {"id": "CR-2 (first review)", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "shared notes over 100,000 chars are refused in the share sheet"},
+    {"id": "CR-3 (first review)", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "limits passed into string placeholders instead of literals"},
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P3", "disposition": "accepted",
+     "note": "notes check ignores a >500-char title the server moves into notes; needs a 500+ char title plus notes within a few hundred chars of 100,000, very rare; a central limit check belongs in the capture queue (outside this task's touches)"}
+  ],
+  "validation": [
+    {"command": "cd android && ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.capture.share.*' --offline", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
