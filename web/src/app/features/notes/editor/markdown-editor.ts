@@ -3,6 +3,7 @@ import {
   Completion,
   CompletionContext,
   CompletionResult,
+  CompletionSource,
 } from '@codemirror/autocomplete';
 import { defaultKeymap, history, historyKeymap } from '@codemirror/commands';
 import { markdown } from '@codemirror/lang-markdown';
@@ -62,6 +63,40 @@ const inlineLinkMarks = ViewPlugin.fromClass(
 );
 
 let nextUpload = 0;
+
+/**
+ * Completes `[[query` with the items `search` finds for the query: the chosen one replaces it (and
+ * a `]]` typed after it) with `[[type:id]]`.
+ */
+export function linkCompletions(
+  search: (query: string) => Promise<LinkOption[]>,
+): CompletionSource {
+  return async (context: CompletionContext): Promise<CompletionResult | null> => {
+    const before = context.state.doc.sliceString(Math.max(0, context.pos - 100), context.pos);
+    const match = LINK_TRIGGER.exec(before);
+    const query = match?.[1].trim();
+    if (!match || !query) return null;
+    const options = await search(query);
+    if (context.aborted) return null;
+    return {
+      from: context.pos - match[0].length,
+      // Results belong to the query: typing on asks again.
+      filter: false,
+      options: options.map((option): Completion => ({
+        label: option.title,
+        detail: option.detail,
+        apply: (view, completion, from, to) => {
+          const end = view.state.doc.sliceString(to, to + 2) === ']]' ? to + 2 : to;
+          const insert = inlineLinkMarkdown(option);
+          view.dispatch({
+            changes: { from, to: end, insert },
+            selection: { anchor: from + insert.length },
+          });
+        },
+      })),
+    };
+  };
+}
 
 /**
  * A CodeMirror 6 Markdown editor (SPEC.md §8.1). `value` in, `valueChange` out (on every edit).
@@ -134,13 +169,19 @@ export class MarkdownEditor {
         EditorView.contentAttributes.of({ 'aria-label': this.label(), 'aria-multiline': 'true' }),
         inlineLinkMarks,
         autocompletion({
-          override: [(context) => this.completeLink(context)],
+          override: [
+            (context) => {
+              const search = this.searchLinks();
+              return search ? linkCompletions(search)(context) : null;
+            },
+          ],
           activateOnTyping: true,
           icons: false,
         }),
         EditorView.updateListener.of((update) => {
-          if (update.docChanged && !this.applying)
+          if (update.docChanged && !this.applying) {
             this.valueChange.emit(update.state.doc.toString());
+          }
         }),
         EditorView.domEventHandlers({
           paste: (event, view) => this.insertImages(view, event.clipboardData, null, event),
@@ -151,37 +192,6 @@ export class MarkdownEditor {
         }),
       ],
     });
-  }
-
-  private async completeLink(context: CompletionContext): Promise<CompletionResult | null> {
-    const search = this.searchLinks();
-    const before = context.state.doc.sliceString(Math.max(0, context.pos - 100), context.pos);
-    const match = LINK_TRIGGER.exec(before);
-    if (!search || !match) return null;
-    const query = match[1].trim();
-    if (!query) return null;
-    const from = context.pos - match[0].length;
-    const options = await search(query);
-    if (context.aborted) return null;
-    return {
-      from,
-      // Results belong to the query: typing on asks again.
-      filter: false,
-      options: options.map((option): Completion => ({
-        label: option.title,
-        detail: option.detail,
-        apply: (view, completion, start, end) => {
-          // A closing `]]` the user typed already belongs to the link.
-          const after = view.state.doc.sliceString(end, end + 2);
-          const to = after === ']]' ? end + 2 : end;
-          const insert = inlineLinkMarkdown(option);
-          view.dispatch({
-            changes: { from: start, to, insert },
-            selection: { anchor: start + insert.length },
-          });
-        },
-      })),
-    };
   }
 
   /** Uploads the images among `data`'s files; false (not handled) when there are none. */
