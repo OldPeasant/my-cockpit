@@ -19,7 +19,8 @@ Offline-first capture (SPEC.md §9.3).
   - verified (2026-10-21 02:50+0200 by dell26/agent-4): same run -> CaptureUploaderTest/CaptureUploaderFailureTest/CaptureSyncTest (MockWebServer, WorkManager test driver): attachments uploaded in order before POST /capture with the client id, network constraint + exponential backoff, retry/backoff on 5xx/IO, 200 for repeated id and 409 treated as sent, no re-upload of stored file ids
 - [x] Pending count + last error exposed as a Flow
   - verified (2026-10-21 02:50+0200 by dell26/agent-4): same run -> CaptureQueueTest status Flow tests: pending count and lastError emitted via CaptureQueue.status (Flow<CaptureQueueStatus>)
-- [ ] `cd android && ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.capture.queue.*'` passes, covering offline write, upload ordering, idempotent retry (MockWebServer), attachment cleanup (Robolectric/Compose UI tests for screens)
+- [x] `cd android && ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.capture.queue.*'` passes, covering offline write, upload ordering, idempotent retry (MockWebServer), attachment cleanup (Robolectric/Compose UI tests for screens)
+  - verified (2026-10-21 02:50+0200 by dell26/agent-4): cd android && ./gradlew ktlintCheck testDebugUnitTest --tests 'ch.sonensei.cockpit.capture.queue.*' --rerun-tasks -> BUILD SUCCESSFUL, 63 tests 0 failures (Robolectric + MockWebServer): offline write, upload ordering, idempotent retry, attachment cleanup incl. cancellation (CaptureQueueConsistencyTest). No screens in this task, so no Compose UI tests
 
 ## Notes
 - ASSUMPTION (2026-10-21 01:15+0200 by dell26/agent-1): Pending captures are NOT cleared on logout (not a SessionCache): they exist nowhere else yet; the job just waits (retry with backoff) until someone is logged in again. Single-user app, so they go to the next login.
