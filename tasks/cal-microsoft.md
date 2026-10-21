@@ -17,3 +17,4 @@ Two-way Microsoft sync (SPEC.md §6.2).
 
 ## Notes
 - ASSUMPTION (2026-10-21 12:24+0200 by dell26/agent-2): Microsoft sync covers a window of 365 days back to 730 days ahead (calendarView/delta needs one); the window moves with a full relisting every 7 days. Events outside it are not synced.
+- ASSUMPTION (2026-10-21 12:24+0200 by dell26/agent-2): calendarView/delta reports removals by id only (a removed occurrence cannot be told from a removed event), so a delta with any removal triggers a full relisting of the calendar in the same run (complete=true).
