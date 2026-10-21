@@ -12,7 +12,8 @@ Backup UI (SPEC.md §10.1).
 
 ## Acceptance criteria
 - [ ] Create backup with optional passphrase, progress (SSE), download; restore: upload, show validation report, confirm with typed confirmation, progress, then forced re-login
-- [ ] Vitest component/service tests cover report rendering and confirmation gate; `cd web && npm run check` passes
+- [x] Vitest component/service tests cover report rendering and confirmation gate; `cd web && npm run check` passes
+  - verified (2026-10-21 09:23+0200 by dell26/agent-3): cd web && npm run check at 36f90acd -> api:check, lint (all files pass), e2e:typecheck, test:ci 93 files/1809 tests passed incl. backup-settings.spec.ts (report rendering: facts/sorted counts/warnings/problems/secrets; confirmation gate: disabled until exact RESTORE, submit blocked) and backup.service.spec.ts, ng build ok; sh scripts/check.sh -> all checks passed
 
 ## Notes
 - ASSUMPTION (2026-10-21 09:00+0200 by dell26/agent-3): Typed confirmation word is the localized string RESTORE (trimmed, case-sensitive); restore progress is an indeterminate bar because POST /restore/{id}/confirm is synchronous (no SSE progress for restore)
