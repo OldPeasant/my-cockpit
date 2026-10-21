@@ -1,5 +1,7 @@
 package ch.sonensei.cockpit.gtd.projects
 
+import androidx.activity.OnBackPressedDispatcher
+import androidx.activity.compose.LocalOnBackPressedDispatcherOwner
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -243,6 +245,59 @@ class ProjectsScreenTest {
         val set = ActionSnackbar(ActionSnackbar.Kind.NEXT_STEP, "Compare hotels", ActionOutcome.DONE)
         show(detail(garden, listOf(hotel)).copy(message = set))
         composeRule.waitUntil(TIMEOUT) { composeRule.onAllNodesWithText("Next step: Compare hotels").fetchSemanticsNodes().isNotEmpty() }
+    }
+
+    @Test
+    fun `the system back gesture in a detail returns to the list`() {
+        state = detail(holiday, listOf(book))
+        var dispatcher: OnBackPressedDispatcher? = null
+        composeRule.setContent {
+            dispatcher = LocalOnBackPressedDispatcherOwner.current!!.onBackPressedDispatcher
+            CockpitTheme { ProjectsContent(state, ProjectsCallbacks(close = { calls += "close" })) }
+        }
+        composeRule.runOnIdle { dispatcher!!.onBackPressed() }
+        assertEquals(listOf("close"), calls)
+    }
+
+    @Test
+    fun `while a new next step is being added the prompt cannot add it again`() {
+        show(detail(garden, listOf(hotel), NextStepPrompt(garden.id)).copy(busy = setOf(garden.id)))
+        composeRule.onNodeWithTag(ProjectsTags.PROMPT_NEW).performTextInput("Buy seeds")
+        composeRule.onNodeWithTag(ProjectsTags.PROMPT_ADD).assertIsNotEnabled()
+        composeRule.onNodeWithTag(ProjectsTags.choice(hotel.id)).assertIsEnabled()
+    }
+
+    @Test
+    fun `a prompt over a detail whose reload failed changes nothing, but can be skipped`() {
+        val stale = ProjectDetailState(garden, home, listOf(hotel), loading = false, error = LoadError.FAILED, loaded = true)
+        show(list.copy(detail = stale.copy(prompt = NextStepPrompt(garden.id))))
+        composeRule.onNodeWithTag(ProjectsTags.choice(hotel.id)).assertIsNotEnabled()
+        composeRule.onNodeWithTag(ProjectsTags.PROMPT_NEW).performTextInput("Buy seeds")
+        composeRule.onNodeWithTag(ProjectsTags.PROMPT_ADD).assertIsNotEnabled()
+        composeRule.onNodeWithTag(ProjectsTags.PROMPT_SKIP).performClick()
+        assertEquals(listOf("skip"), calls)
+    }
+
+    @Test
+    fun `shown finished projects carry their status`() {
+        val moved = GtdProject(id(13), "Move flat", ProjectStatus.COMPLETED, stalled = false, version = 2)
+        val band = GtdProject(id(14), "Start a band", ProjectStatus.DROPPED, stalled = false, version = 2)
+        val novel = GtdProject(id(15), "Write a novel", ProjectStatus.SOMEDAY, stalled = false, version = 2)
+        show(list.copy(groups = groupByArea(listOf(moved, band, novel), listOf(home)), showFinished = true, finished = 2))
+        composeRule.onNodeWithText("Completed", useUnmergedTree = true).assertIsDisplayed()
+        composeRule.onNodeWithText("Dropped", useUnmergedTree = true).assertIsDisplayed()
+        composeRule.onNodeWithText("Someday", useUnmergedTree = true).assertIsDisplayed()
+    }
+
+    @Test
+    fun `project tasks on other lists say which list they are on`() {
+        val inbox = GtdTask(id(4), "Sort the receipts", TaskList.INBOX, 3, 1, projectId = holiday.id)
+        val later = GtdTask(id(5), "Learn some Italian", TaskList.SOMEDAY, 4, 1, projectId = holiday.id)
+        val dated = GtdTask(id(6), "Check in online", TaskList.SCHEDULED, 5, 1, projectId = holiday.id)
+        show(detail(holiday, listOf(book, inbox, later, dated)))
+        composeRule.onNodeWithText("Inbox", useUnmergedTree = true).assertIsDisplayed()
+        composeRule.onNodeWithText("Someday", useUnmergedTree = true).assertIsDisplayed()
+        composeRule.onNodeWithText("Scheduled", useUnmergedTree = true).assertIsDisplayed()
     }
 
     private companion object {

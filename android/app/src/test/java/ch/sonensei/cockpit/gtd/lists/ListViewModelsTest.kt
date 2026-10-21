@@ -6,6 +6,7 @@ import ch.sonensei.cockpit.gtd.data.GtdTask
 import ch.sonensei.cockpit.gtd.data.TaskList
 import ch.sonensei.cockpit.gtd.next.Completion
 import ch.sonensei.cockpit.gtd.next.CompletionResult
+import ch.sonensei.cockpit.gtd.next.CompletionSnackbar
 import ch.sonensei.cockpit.gtd.next.TaskCompletionRepository
 import io.mockk.coEvery
 import io.mockk.coVerify
@@ -120,6 +121,44 @@ class ListViewModelsTest {
     fun `completing hides the task at once`() =
         test(::someday) { vm ->
             vm.complete(italian)
+            assertTrue(
+                vm.uiState.value.tasks
+                    .isEmpty(),
+            )
+        }
+
+    @Test
+    fun `a completion offers undo, and undoing it shows the task again`() =
+        test(::someday) { vm ->
+            coEvery { completion.undo(any()) } returns CompletionResult.Reopened
+            vm.complete(italian)
+            val offer = vm.uiState.value.completion as CompletionSnackbar.Undo
+            assertEquals(italian.id, offer.completion.taskId)
+            vm.undo(offer)
+            coVerify { completion.undo(offer.completion) }
+            assertEquals(listOf(italian), vm.uiState.value.tasks)
+            assertNull(vm.uiState.value.completion)
+        }
+
+    @Test
+    fun `a dismissed completion snackbar goes away, the task stays hidden`() =
+        test(::waiting) { vm ->
+            vm.complete(old)
+            val shown = vm.uiState.value.completion!!
+            vm.dismissCompletion(shown)
+            assertNull(vm.uiState.value.completion)
+            assertEquals(listOf(recent, undated), vm.uiState.value.tasks)
+        }
+
+    @Test
+    fun `an activated task leaves someday once the reload no longer holds it`() =
+        test(::someday) { vm ->
+            coEvery { repository.activate(italian) } coAnswers {
+                somedayFlow.value = Live(emptyList())
+                ActionOutcome.DONE
+            }
+            vm.activate(italian)
+            assertEquals(ActionSnackbar(ActionSnackbar.Kind.ACTIVATED, "Learn Italian", ActionOutcome.DONE), vm.uiState.value.action)
             assertTrue(
                 vm.uiState.value.tasks
                     .isEmpty(),

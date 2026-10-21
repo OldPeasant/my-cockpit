@@ -137,6 +137,15 @@ class TaskListsRepositoryTest {
             assertEquals(true, body.contains("\"list\":\"NEXT\""))
         }
 
+    @Test
+    fun `a follow up while the server is unreachable is offline and reloads nothing`() =
+        runBlocking {
+            val task = GtdTask(UUID.fromString(uuid(1)), "Contract", TaskList.WAITING, 0, 1)
+            dispatcher.enqueue(TASKS, status(503))
+            assertEquals(ActionOutcome.OFFLINE, repository.followUp(task, "Follow up: Contract"))
+            assertEquals(listOf("POST"), dispatcher.requests.map { it.method })
+        }
+
     private companion object {
         const val TIMEOUT = 10_000L
     }

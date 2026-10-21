@@ -137,6 +137,54 @@ class ListScreensTest {
         composeRule.onNodeWithText("Post office", useUnmergedTree = true).assertIsDisplayed()
     }
 
+    @Test
+    fun `waiting with a blank who follows up without a name, and a date in the future counts as today`() {
+        val ticket = GtdTask(id(6), "Ticket", TaskList.WAITING, 0, 1, waitingForText = "   ", waitingSince = today.plusDays(2))
+        showWaiting(loaded.copy(tasks = listOf(ticket)))
+        composeRule.onNodeWithText("since today", useUnmergedTree = true).assertIsDisplayed()
+        composeRule.onNodeWithTag(LiveListTags.action(ticket.id)).performClick()
+        assertEquals(listOf("follow Ticket as Follow up: Ticket"), calls)
+    }
+
+    @Test
+    fun `waiting without who and date still lists the task and can follow up`() {
+        val parcel = GtdTask(id(7), "Parcel", TaskList.WAITING, 0, 1)
+        showWaiting(loaded.copy(tasks = listOf(parcel)))
+        composeRule.onNodeWithText("Parcel", useUnmergedTree = true).assertIsDisplayed()
+        composeRule.onNodeWithTag(LiveListTags.action(parcel.id)).performClick()
+        assertEquals(listOf("follow Parcel as Follow up: Parcel"), calls)
+    }
+
+    @Test
+    fun `someday on a failed reload is read-only with a banner and a retry`() {
+        showSomeday(loaded.copy(tasks = listOf(italian), error = LoadError.FAILED))
+        composeRule.onNodeWithTag(LiveListTags.STALE).assertIsDisplayed()
+        composeRule.onNodeWithTag(LiveListTags.action(italian.id)).assertIsNotEnabled()
+        composeRule.onNodeWithTag(TaskListTags.complete(italian.id)).assertIsNotEnabled()
+        composeRule.onNodeWithTag(LiveListTags.RETRY).performClick()
+        assertEquals(listOf("retry"), calls)
+    }
+
+    @Test
+    fun `an activation that worked is confirmed in a snackbar`() {
+        showSomeday(
+            loaded.copy(
+                tasks = listOf(italian),
+                action = ActionSnackbar(ActionSnackbar.Kind.ACTIVATED, "Learn Italian", ActionOutcome.DONE),
+            ),
+        )
+        val text = "Moved Learn Italian to Next"
+        composeRule.waitUntil(TIMEOUT) { composeRule.onAllNodesWithText(text).fetchSemanticsNodes().isNotEmpty() }
+        composeRule.waitUntil(TIMEOUT) { "dismiss Learn Italian" in calls }
+    }
+
+    @Test
+    fun `a follow up the server refused says so`() {
+        showWaiting(loaded.copy(action = ActionSnackbar(ActionSnackbar.Kind.FOLLOW_UP, "Contract", ActionOutcome.FAILED)))
+        val text = "The server refused the change. The list shows the task as it is."
+        composeRule.waitUntil(TIMEOUT) { composeRule.onAllNodesWithText(text).fetchSemanticsNodes().isNotEmpty() }
+    }
+
     private companion object {
         const val TIMEOUT = 10_000L
     }
