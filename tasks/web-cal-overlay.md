@@ -5,7 +5,7 @@ owner: dell26/agent-3
 deps: [web-cal-edit,web-gtd-data,web-links-panel,notes-api]
 touches: [web/src/app/features/calendar/overlay,web/src/app/features/calendar/views]
 prio: 2
-lease_until: 2026-10-21T18:30:04Z
+lease_until: 2026-10-21T18:32:32Z
 releases: 1
 extended: 
 ---
