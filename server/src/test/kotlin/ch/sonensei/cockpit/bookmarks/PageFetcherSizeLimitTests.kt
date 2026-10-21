@@ -199,6 +199,48 @@ class PageFetcherSizeLimitTests {
 		(Duration.ofNanos(System.nanoTime() - started) < Duration.ofSeconds(3)) shouldBe true
 	}
 
+	@Test
+	fun `a large error page is not downloaded, it fails as an HTTP error at once`() {
+		server.stubFor(
+			get(urlEqualTo("/broken")).willReturn(
+				aResponse()
+					.withStatus(500)
+					.withHeader("Content-Type", "text/html")
+					.withBody(noise(100_000))
+					// The body takes longer than the fetch timeout (5 s) to arrive.
+					.withChunkedDribbleDelay(50, 8_000),
+			),
+		)
+
+		val started = System.nanoTime()
+		val error = shouldThrow<PageFetchException> { fetcher.fetch(local("/broken")) }.error
+
+		error shouldBe PageFetchError.HTTP_ERROR
+		(Duration.ofNanos(System.nanoTime() - started) < Duration.ofSeconds(3)) shouldBe true
+	}
+
+	@Test
+	fun `a redirect with a large slow body is followed without downloading that body`() {
+		server.stubFor(
+			get(urlEqualTo("/moved")).willReturn(
+				aResponse()
+					.withStatus(302)
+					.withHeader("Location", "/target")
+					.withHeader("Content-Type", "text/html")
+					.withBody(noise(100_000))
+					.withChunkedDribbleDelay(50, 8_000),
+			),
+		)
+		stub("/target", "<title>Target</title>".toByteArray())
+
+		val started = System.nanoTime()
+		val page = fetcher.fetch(local("/moved"))
+
+		String(page.bytes) shouldBe "<title>Target</title>"
+		page.uri.path shouldBe "/target"
+		(Duration.ofNanos(System.nanoTime() - started) < Duration.ofSeconds(3)) shouldBe true
+	}
+
 	private companion object {
 		const val MAX = 4_096L
 		const val SEED = 20261021
