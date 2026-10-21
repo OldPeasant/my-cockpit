@@ -15,7 +15,8 @@ Connect calendar sources (SPEC.md §6.1, §11).
 ## Acceptance criteria
 - [x] Add local calendar, CalDAV (URL, user, app password), ICS URL, connect Google/Microsoft (OAuth redirect flow); colors, visibility, default calendar
   - verified (2026-10-21 21:24+0200 by dell26/agent-2): code review of final code (reviews/web-cal-sources/review.md) + cd web && npx ng test --watch=false --include 'src/app/features/settings/**/*.spec.ts' -> 13 files, 292 passed (local/CalDAV/ICS/Google/Microsoft OAuth redirect forms, color/visibility/default with If-Match); server ./gradlew test --tests 'ch.sonensei.cockpit.calendar.*' -> 850 passed incl. CalendarSourceCreateTests (20). Live Google/Microsoft consent and real CalDAV servers not exercised (no registered OAuth apps/servers)
-- [ ] Integrations page: per source last sync, error, 'sync now'
+- [x] Integrations page: per source last sync, error, 'sync now'
+  - verified (2026-10-21 21:24+0200 by dell26/agent-2): integrations-settings.spec.ts in the settings spec run -> pass (last sync, last attempt, error, Sync now, OAuth return, reconnect); 13 files/292 tests passed
 - [ ] Vitest component/service tests cover source forms and status rendering; `cd web && npm run check` passes
 
 ## Notes
