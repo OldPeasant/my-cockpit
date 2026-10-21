@@ -44,6 +44,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
@@ -184,7 +186,9 @@ fun NoteEditorContent(
         state.conflict?.let { ConflictBanner(it, callbacks) }
         state.message?.let { MessageBanner(it, callbacks) }
         if (state.uploading || state.loading) {
-            LinearProgressIndicator(Modifier.fillMaxWidth().testTag(if (state.uploading) NoteEditorTags.UPLOADING else NoteEditorTags.LOADING))
+            LinearProgressIndicator(
+                Modifier.fillMaxWidth().testTag(if (state.uploading) NoteEditorTags.UPLOADING else NoteEditorTags.LOADING),
+            )
         }
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
             val content = Modifier.widthIn(max = 680.dp).fillMaxWidth()
@@ -277,12 +281,19 @@ private fun EditorBar(
         }
         if (state.editable) {
             if (state.uploading) {
-                CircularProgressIndicator(Modifier.padding(12.dp).size(24.dp))
+                val uploading = stringResource(R.string.notes_uploading)
+                CircularProgressIndicator(Modifier.padding(12.dp).size(24.dp).semantics { contentDescription = uploading })
             } else {
-                IconButton(onClick = { callbacks.addPhoto(PhotoSource.CAMERA, insertAt) }, modifier = Modifier.testTag(NoteEditorTags.CAMERA)) {
+                IconButton(
+                    onClick = { callbacks.addPhoto(PhotoSource.CAMERA, insertAt) },
+                    modifier = Modifier.testTag(NoteEditorTags.CAMERA),
+                ) {
                     Icon(Icons.Outlined.AddAPhoto, contentDescription = stringResource(R.string.notes_take_photo))
                 }
-                IconButton(onClick = { callbacks.addPhoto(PhotoSource.GALLERY, insertAt) }, modifier = Modifier.testTag(NoteEditorTags.GALLERY)) {
+                IconButton(
+                    onClick = { callbacks.addPhoto(PhotoSource.GALLERY, insertAt) },
+                    modifier = Modifier.testTag(NoteEditorTags.GALLERY),
+                ) {
                     Icon(Icons.Outlined.PhotoLibrary, contentDescription = stringResource(R.string.notes_pick_photo))
                 }
             }
@@ -333,7 +344,11 @@ private fun MessageBanner(
     val load = message == NoteEditorMessage.LOAD_OFFLINE || message == NoteEditorMessage.LOAD_FAILED
     Surface(color = MaterialTheme.colorScheme.errorContainer, modifier = Modifier.fillMaxWidth().testTag(NoteEditorTags.MESSAGE)) {
         Row(Modifier.padding(start = 16.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text(stringResource(text), style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f).padding(vertical = 10.dp))
+            Text(
+                stringResource(text),
+                style = MaterialTheme.typography.bodyMedium,
+                modifier = Modifier.weight(1f).padding(vertical = 10.dp),
+            )
             if (load) {
                 TextButton(onClick = callbacks.retryLoad, modifier = Modifier.testTag(NoteEditorTags.RETRY_LOAD)) {
                     Text(stringResource(R.string.notes_retry))

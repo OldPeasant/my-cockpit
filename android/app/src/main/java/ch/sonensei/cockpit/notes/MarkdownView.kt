@@ -151,7 +151,10 @@ private fun MdImage(
             .testTag(MarkdownTags.IMAGE)
             .semantics { contentDescription = description }
     if (imageLoader == null) {
-        Box(modifier.heightIn(min = 120.dp).background(MaterialTheme.colorScheme.surfaceContainerHigh), contentAlignment = Alignment.Center) {
+        Box(
+            modifier.heightIn(min = 120.dp).background(MaterialTheme.colorScheme.surfaceContainerHigh),
+            contentAlignment = Alignment.Center,
+        ) {
             Icon(Icons.Outlined.Image, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     } else {

@@ -95,7 +95,13 @@ class NoteEditorViewModel
             val result = notes.get(id)
             state.update {
                 when (result) {
-                    is NotesResult.Ok -> it.copy(note = result.value, title = result.value.title.orEmpty(), body = result.value.bodyMd, loading = false)
+                    is NotesResult.Ok ->
+                        it.copy(
+                            note = result.value,
+                            title = result.value.title.orEmpty(),
+                            body = result.value.bodyMd,
+                            loading = false,
+                        )
                     NotesResult.Offline -> it.copy(loading = false, message = NoteEditorMessage.LOAD_OFFLINE)
                     is NotesResult.Failed -> it.copy(loading = false, message = NoteEditorMessage.LOAD_FAILED)
                 }
@@ -150,7 +156,12 @@ class NoteEditorViewModel
                             val saved = it.copy(note = result.note)
                             saved.copy(status = if (saved.isSaved()) SaveStatus.SAVED else SaveStatus.UNSAVED)
                         }
-                        is SaveResult.Conflict -> it.copy(conflict = NoteConflict(result.current), status = SaveStatus.UNSAVED, editing = false)
+                        is SaveResult.Conflict ->
+                            it.copy(
+                                conflict = NoteConflict(result.current),
+                                status = SaveStatus.UNSAVED,
+                                editing = false,
+                            )
                         SaveResult.Offline -> it.copy(status = SaveStatus.OFFLINE)
                         is SaveResult.Failed -> it.copy(status = SaveStatus.FAILED)
                     }
@@ -173,7 +184,13 @@ class NoteEditorViewModel
                 if (current == null) {
                     it.copy(conflict = null, closed = true)
                 } else {
-                    it.copy(note = current, title = current.title.orEmpty(), body = current.bodyMd, conflict = null, status = SaveStatus.SAVED)
+                    it.copy(
+                        note = current,
+                        title = current.title.orEmpty(),
+                        body = current.bodyMd,
+                        conflict = null,
+                        status = SaveStatus.SAVED,
+                    )
                 }
             }
         }
@@ -217,7 +234,11 @@ class NoteEditorViewModel
             saving.withLock {
                 state.value.note?.let { return it }
                 val result = notes.save(null, state.value.draft) as? SaveResult.Saved ?: return null
-                state.update { it.copy(note = result.note).let { s -> s.copy(status = if (s.isSaved()) SaveStatus.SAVED else SaveStatus.UNSAVED) } }
+                state.update {
+                    it.copy(note = result.note).let { s ->
+                        s.copy(status = if (s.isSaved()) SaveStatus.SAVED else SaveStatus.UNSAVED)
+                    }
+                }
                 result.note
             }
 
