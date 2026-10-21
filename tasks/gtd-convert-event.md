@@ -5,7 +5,7 @@ owner: dell26/agent-1
 deps: [gtd-convert-note,cal-local-api]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/gtd/convert,server/src/test/kotlin/ch/sonensei/cockpit/gtd/convert]
 prio: 2
-lease_until: 2026-10-21T14:50:40Z
+lease_until: 2026-10-21T14:55:47Z
 ---
 ## Goal
 'To calendar' in inbox processing (SPEC.md §5.3).
