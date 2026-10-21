@@ -1,0 +1,32 @@
+{
+  "schema": 1,
+  "task": "web-gtd-convert-note",
+  "reviewed_revision": "bbe4920f9629590964dee0ffaae5c4161a2eb8a2",
+  "helpers": {
+    "test-writer": {"status": "completed", "report": "reviews/web-gtd-convert-note/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/web-gtd-convert-note/review.md"},
+    "fixer": {"status": "completed", "report": "reviews/web-gtd-convert-note/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P1", "disposition": "fixed",
+     "note": "stale 'disabled' specs updated and To reference tests added by test-writer (review-1.md, tests-1.md)"},
+    {"id": "CR-2", "source": "code-reviewer", "severity": "P2", "disposition": "out_of_scope",
+     "note": "/notes/:id route belongs to task web-notes-editor (in progress); recorded as assumption"},
+    {"id": "CR-3", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "status line cleared by later actions (fixes-1.md)"},
+    {"id": "CR-4", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "no background reload while converting (fixes-1.md)"},
+    {"id": "CR-5", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "per-task converting state, no navigation after task switch (fixes.md)"},
+    {"id": "CR-6", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "runSeq ordering of the note link (fixes.md)"},
+    {"id": "CR-7", "source": "code-reviewer", "severity": "P3", "disposition": "accepted",
+     "note": "one spec line not Prettier-wrapped; npm run check does not enforce Prettier, recorded as assumption"}
+  ],
+  "validation": [
+    {"command": "cd web && npm run test:ci -- --include=src/app/features/gtd/inbox/inbox-page.spec.ts --include=src/app/features/gtd/task-detail/task-detail.spec.ts --include=src/app/features/gtd/data/task-store.spec.ts", "result": "pass"},
+    {"command": "cd web && npm run check", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
