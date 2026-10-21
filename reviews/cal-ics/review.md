@@ -4,54 +4,35 @@ Date: 2026-10-21
 
 Task: cal-ics - ICS feed adapter
 
-Scope: `git diff ebe36ae2..1857e058 -- server` (production code in `server/src/main/kotlin/ch/sonensei/cockpit/calendar/infra/ics`, tests in `server/src/test/kotlin/ch/sonensei/cockpit/calendar/infra/ics`). This is a re-review after the round-2 fixes. It checks the earlier P3 findings CR-1 and CR-2 (review of 290bd400) and looks again at the whole task for new problems. Only committed changes are reviewed. Uncommitted test files from a test-writer running in parallel are not part of it.
+Scope: `git diff 60a868d9..98542708 -- server/src/main/kotlin/ch/sonensei/cockpit/calendar/infra/ics server/src/test/kotlin/ch/sonensei/cockpit/calendar/infra/ics` (round 4). This re-review covers the final code. Since the round-3 review (d2d1f23e), only test code changed: d04161cf (SSRF and parser edge-case tests) and 98542708 (a sync store-failure test, plus the test report). Production code is the same as in round 3, and I checked the whole task against the acceptance criteria again. Committed changes only; the working tree was clean.
 
 Requirements:
-- tasks/cal-ics.md: acceptance criteria and the recorded assumptions (Notes). Recorded assumptions are not reported as findings.
+- tasks/cal-ics.md: the acceptance criteria and the recorded assumptions (Notes). Recorded assumptions are not reported as findings.
 - SPEC.md §4.2, §6.1, §6.2
 - docs/ARCHITECTURE.md and the AGENTS.md project notes
-- The sync engine contract: `calendar/sync/CalendarProviderAdapter.kt` (`RemoteEventChanges.complete`) and `calendar/sync/CalendarSyncService.kt`
-- The earlier review (reviews/cal-ics/review.md at 290bd400) and the fix report reviews/cal-ics/fixes.md (1857e058)
+- The sync engine contract: `calendar/sync/CalendarProviderAdapter.kt` and `calendar/sync/CalendarSyncService.kt`
+- reviews/cal-ics/tests.md (the test-writer's report, including its note about the timeout KDoc)
 
 Git range:
 - Branch: main
-- HEAD: 1857e0582485d510e9b3f537b177514021e0f946
-- Base/start: ebe36ae2d85364068ad6e8a3a844c91396ee30e1
-- Commits reviewed: 10 (f18a1ab2, c654fd2f, 6c713d95, bf479aae, 5dbc71b2, 22bc4d64, 290bd400, 176a8e3f, 32e389b7, 1857e058). Since the last review, the commits that change code are 176a8e3f (tests only) and 32e389b7 (one production file and one test file).
+- HEAD: 98542708ca522bb186c32bb079cb05987ee0bf0d (the reviewed revision)
+- Base/start: 60a868d9055d668f2fa06a752ff6bd7913a7981b (`git merge-base HEAD origin/main`)
+- Commits reviewed: 13 (d49e635f through 98542708). New since round 3: d04161cf and 98542708, which change only tests.
 
-Summary: 0 P0, 0 P1, 0 P2, 0 P3
+Summary: 0 P0, 0 P1, 0 P2, 1 P3
 
-## Status of earlier findings
+## Test-only changes since round 3
 
-- **CR-1 (P3, a test comment quoted the old per-request timeout contract): resolved.** The trickle test comment (`IcsFeedClientTests.kt:296-297`) now quotes the current KDoc of `IcsFeedProperties.timeout` word for word (`IcsFeedProperties.kt:19-20`): "Time for a whole fetch: from sending the first request, through any redirects, to the end of the last body."
-- **CR-2 (P3, `timeout` and `connect-timeout` were not validated): resolved.** `IcsFeedProperties.init` now has `require(timeout.isPositive)` and `require(connectTimeout.isPositive)`, and each message names its property (`IcsFeedProperties.kt:36-37`). `Duration.isPositive` exists on the JDK 21 toolchain (`server/build.gradle.kts:16`). Zero and negative values are now refused when the bean is bound, before `HttpClient.Builder.connectTimeout` (`IcsFeedClient.kt:64`) or the deadline in `fetch` (`IcsFeedClient.kt:74`) can see them. The properties test (`IcsFeedClientTests.kt:609-631`) checks zero and negative values of both, with their exact messages, and checks that a 1 ms timeout is accepted.
-
-## New code since the last review
-
-- The test-writer commit 176a8e3f adds these tests. I checked each against the production code:
-  - The summer-time `P1D` case: 2027-03-28 is the Europe/Zurich spring change, and `plusNominal` gives 09:00 local, 23 h later.
-  - An exception of an unreadable series. `DTSTART:soon` raises a `DateTimeParseException` in `Zones.time`, which the mapping reports as skipped. Its exception is then dropped by the series filter (`IcsEventMapping.kt:64-65`), so only one skip is counted.
-  - The whole-fetch deadline across three 500 ms hops.
-  - Discarded bodies of error and redirect answers (`BodySubscribers.replacing`, `IcsFeedClient.kt:200`).
-  - A gzip body exactly at the size limit after decompression, and one byte over. `read` refuses only when `size > max`, and the `Content-Encoding` check ignores case.
-
-  The assertions check behaviour, not implementation details.
-- 32e389b7 changes only what CR-1 and CR-2 asked for. It does not change behaviour for valid configurations.
+- **`IPv6 link-local and IPv4-mapped metadata addresses are refused`** (`IcsFeedClientTests.kt:518-525`): the test refuses `fe80::1` and `::ffff:169.254.169.254` through the injected resolver and checks that no request was sent. Correct.
+- **`numeric encodings of the loopback address are refused by the default resolver`** (`IcsFeedClientTests.kt:527-537`): `127.1` and `2130706433` are refused, either because `java.net.URI` gives them no host or because the address check refuses them. `0x7f000001` gives the URI no host. The test asserts only that each one is refused and that WireMock got no request. It does not say which check refused it, but that is enough for the SSRF property.
+- **Parser test for a parameter ending at the colon, and for a line that ends inside its parameters** (`IcsParserTests.kt:235-243`): it checks behaviour (the parameter map, the value, which properties survive). It passes.
+- **Store failure in the sync** (`IcsFeedSyncTests.kt:261-277`): a DTEND before its DTSTART can be parsed, but the store refuses it. The test checks three things: `lastError` contains the engine's message "could not be stored" (`CalendarSyncService.kt:180`), the earlier local copy is unchanged, and the other event is updated. This runs against Postgres via Testcontainers (`PostgresTestBase`) with a WireMock feed. A real regression test.
 
 ## Whole-task check
 
-I re-read all five production files in full: `IcsFeedClient.kt`, `IcsFeedAdapter.kt`, `IcsParser.kt`, `IcsEventMapping.kt` and `IcsFeedProperties.kt`. I found no new problems.
-
-- **Acceptance criterion 1 is implemented:**
-  - Conditional fetch with `If-None-Match` / `If-Modified-Since`, with the validators kept as the JSON cursor.
-  - 304 is treated as no change.
-  - Parse and upsert. Only a complete `VCALENDAR` listing is `complete = true`, so only then does the engine delete events.
-  - The calendar is read-only, and the write methods refuse.
-  - SSRF check of the URL host and of every redirect. All resolved addresses must be public, unless `allow-private-networks` or `allowed-private-hosts` allows them.
-- **Acceptance criterion 2:** `IcsFeedSyncTests` uses `PostgresTestBase` (Testcontainers) with a WireMock feed. The SSRF protection stays on in that test, and only `localhost` is allowed. The client, adapter, parser and mapping tests also use WireMock or in-memory feeds.
-- **No sensitive data in errors or logs:** no exception message or log line contains the feed URL, its token or the body. The warning about skipped events logs only the count and the source id.
-
-I did not re-run the test suite for this review. A Gradle run would also compile the test-writer's uncommitted files, which are not in scope. The fix report gives `./gradlew test --tests 'ch.sonensei.cockpit.calendar.infra.ics.*' ktlintCheck` as 120 tests with 0 failures. The parent worker still has to record the criterion evidence with `tasks.py verify`; both criteria are unrecorded so far.
+- **AC1:** the round-3 review read all five production files in full, and they have not changed since. Conditional fetch sends `If-None-Match`/`If-Modified-Since`, and the validators are kept as the JSON cursor (`IcsFeedAdapter.kt:61-71, 102-110`). A 304 means no change. The adapter parses the feed and returns `complete = true` only for a whole `VCALENDAR` with no unreadable events, so only then does the engine delete events. The calendar is read-only and the write methods refuse (`IcsFeedAdapter.kt:51, 76-96`). The SSRF check covers the URL host and every redirect: every resolved address must be public unless config allows it (`IcsFeedClient.kt:76-78, 133-146`). URLs with credentials are refused.
+- **AC2:** I ran `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.calendar.infra.ics.*' ktlintCheck` at 98542708: BUILD SUCCESSFUL, 124 tests, 0 failures, 0 errors, 0 skipped (IcsFeedAdapterTests 13, IcsFeedClientTests 44, IcsEventMappingTests 38, IcsFeedSyncTests 12, IcsParserTests 17), and ktlintCheck passed. Persistence is tested on Postgres via Testcontainers (`IcsFeedSyncTests`), with the feeds served by WireMock.
+- **Security and data exposure:** no exception message or log line contains the feed URL or the body.
 
 ## P0 Critical
 
@@ -67,8 +48,13 @@ None.
 
 ## P3 Low
 
-None.
+- [ ] **CR-1 | The KDoc of `timeout` says host-name resolution is not counted, but it is**
+    - File: `server/src/main/kotlin/ch/sonensei/cockpit/calendar/infra/ics/IcsFeedProperties.kt:19-20`
+    - Category: Quality
+    - Problem: The KDoc says "(Resolving the host name for the SSRF check is not part of it.)". But `IcsFeedClient.fetch` sets the deadline at `IcsFeedClient.kt:74`, before the first `checkAddresses(target)` call at line 77. That call resolves the host, and it runs again for every redirect hop. `send` (lines 154-155) then uses only the time left, and fails at once with "did not answer in time" when nothing is left. So resolution time does count against the timeout; the timeout just cannot interrupt a resolution that is still running. I confirmed the test-writer's note: it is correct. The sentence came in with commit 28b598aa (round-2 fix for the earlier CR-1), and I missed it in round 3.
+    - Why it matters: An operator who tunes `cockpit.calendar.ics.timeout` from this KDoc expects resolution to come on top of the timeout. With a slow resolver, a fetch can fail with a timeout earlier than the KDoc suggests. The behaviour itself is reasonable; only the KDoc is wrong. This is not a defect against the acceptance criteria.
+    - Suggested fix: Change the KDoc, not the behaviour, e.g. "Resolving host names for the SSRF check counts against it, but a resolution that is still running is not interrupted." No test change is needed. The trickle test comment in `IcsFeedClientTests.kt` quotes only the first sentence, so it stays accurate.
 
 ## Review conclusion
 
-No material issues found. The earlier findings CR-1 and CR-2 are resolved, and the whole-task re-read found no new problems.
+No material issues found. The one P3 finding (CR-1) is a misleading KDoc sentence and does not block the task. Fixing it is optional, but cheap. If the fix changes only the KDoc comment, the review evidence still has to be refreshed under the docs/QUALITY.md freshness rules, because the comment line is a changed code line.
