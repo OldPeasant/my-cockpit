@@ -14,7 +14,8 @@ Triage actions (SPEC.md §7.3).
 
 ## Acceptance criteria
 - [ ] `POST /api/v1/mail/messages/actions {ids, action, targetFolderId?}`: READ, UNREAD, FLAG, UNFLAG, MOVE, ARCHIVE, DELETE (to Trash; permanent in Trash), SPAM; applied on IMAP and cache consistently; partial failures reported per id
-- [ ] `external` GreenMail tests reflect every action
+- [x] `external` GreenMail tests reflect every action
+  - verified (2026-10-21 04:05+0200 by dell26/agent-1): cd server && ./gradlew integrationTest --tests '*MailActionGreenMailTests' (GreenMail 2.1.5, @ExternalTest) -> 16 tests, 0 failures: READ, UNREAD, FLAG, UNFLAG, MOVE, ARCHIVE, DELETE (to Trash + permanent in Trash), SPAM each checked on IMAP server and cache
 - [ ] API documented: `api/openapi.yaml` regenerated (`UPDATE_OPENAPI=1 ./gradlew test --tests '*OpenApiContractTest'`) and `OpenApiContractTest` passes without the flag
 
 ## Notes
