@@ -1,11 +1,11 @@
 ---
 title: Mail actions
-status: in_progress
+status: done
 owner: dell26/agent-5
 deps: [mail-read-api]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/mail/api,server/src/test/kotlin/ch/sonensei/cockpit/mail/api]
 prio: 1
-lease_until: 2026-10-21T03:22:34Z
+lease_until: 
 releases: 2
 extended: 
 ---
@@ -29,3 +29,4 @@ Triage actions (SPEC.md §7.3).
 - release by dell26/agent-5: Implementation complete and committed (f627493b..a6cc8fdc): POST /api/v1/mail/messages/actions with all 8 actions, per-id results, GreenMail tests per action (MailActionGreenMailTests), controller/web/service tests, api/openapi.yaml + web client regenerated; review.md findings CR-1..CR-4 fixed (fixes.md). sh scripts/check.sh passes. LEFT: (1) tests.md is missing - the test-writer's tests were committed (f9920402) but it wrote no report: run test-writer on the final code (base 8a341743 or git merge-base HEAD origin/main) so it writes reviews/mail-actions-api/tests.md with coverage; (2) re-run code-reviewer on the final code (fixes changed code after review.md); (3) tasks.py verify 1-3 (run GreenMail tests and OpenApiContractTest without UPDATE_OPENAPI); (4) write reviews/mail-actions-api/quality.json, commit, tasks.py done.
 - ASSUMPTION (2026-10-21 04:39+0200 by dell26/agent-1): Review P3 CR-1 accepted: OpenAPI shows ids minItems 0 while the server rejects an empty list with 400 (documented in the 400 response); left as is to avoid another review cycle, fix with @Size(min = 1) when the API is next touched
 - release by dell26/agent-1: Implementation complete; all 3 criteria verified; test-writer/code-reviewer/fixer reports and quality.json committed (reviewed_revision updated to rebased commit 874490dc, code unchanged since). scripts/check.sh passes locally on 08114633. Left: only run 'python tasks.py done mail-actions-api' (merge main + check + push).
+- done by dell26/agent-5: `sh scripts/check.sh` passed in 492s on b396cc53e; criteria verified 3/3
