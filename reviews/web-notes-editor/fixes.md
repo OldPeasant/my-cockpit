@@ -246,3 +246,62 @@ Remaining unresolved findings:
 ### Final status (fourth cycle)
 
 All validated findings fixed and validation passed. CR-2 was left as an accepted assumption, as instructed.
+
+## CR-1 fix (fifth fix cycle)
+
+Date: 2026-10-21
+
+Scope: P3 CR-1 of the latest `reviews/web-notes-editor/review.md` (reviewed HEAD 7298fcb2), in `web/src/app/features/notes/editor`. Fix commit: 93d28455.
+
+### Fixed findings (fifth cycle)
+
+### CR-1 — `flushAll()` never ends when the saved note cannot match the draft
+
+Files changed:
+- `web/src/app/features/notes/editor/note-editor-page.ts`
+- `web/src/app/features/notes/editor/note-editor-page.spec.ts`
+
+Problem:
+Confirmed in the code. The client trims the title with JS `trim()`. The server uses Kotlin `trim()` (`NoteService.kt` `apply`), which also removes U+001C-U+001F. For a title such as `"\u001FPacking"`, the saved note therefore never equals the draft:
+- `flushAll()` repeats `flush()` forever, so `open(B)` never continues.
+- On the destroyed path, `persist()` → `flush()` → `persist()` repeats too.
+- Without leaving, the autosave fires again every second.
+
+Fix:
+- `flushAll()` remembers the draft before each round. It ends when, after the round, the current draft still equals that draft (nothing was typed meanwhile), in addition to the existing end conditions (nothing to send, `conflict`, `error`). A server that stores any field differently can no longer keep it running.
+- `persist()` on the destroyed path only calls `flush()` again when the draft changed since it was sent. Otherwise it sets `pending` and stops.
+- `persist()` shows the title the server kept: when the returned title differs from the sent one and the title was not retyped during the save, it sets the title signal to the server's value. After that the note is clean (`Saved`, no `beforeunload` warning, no repeated autosave). The body is not normalised by the server, so it is not adopted. Overwriting the body signal would also drop upload placeholders and reset the editor.
+- New helper `sameDraft()`.
+
+Tests added in `note-editor-page.spec.ts`. The PATCH response returns `title: 'Packing'` for a sent `'\u001FPacking'`:
+- `opens another note when the server stores the title differently from the one sent`: at most one more PATCH, then the GET for the other note, which is shown. No PATCH after 2 × debounce.
+- `shows the title the server kept and does not save it again`: the input shows `Packing`, the state is `Saved`, and there is no PATCH after 3 × debounce.
+- `sends the draft at most once more when the page is left and the server stores it differently`: the destroy path. At most one more PATCH, then none after 3 × debounce.
+
+All three fail on the code before the fix (checked by putting the HEAD version of `note-editor-page.ts` back temporarily). With only the title adoption turned off, the two leave tests still pass, so the progress check works without it. Only the title-display test then fails, as expected.
+
+Validation:
+- `cd web && npx ng test --watch=false --include='src/app/features/notes/editor/**/*.spec.ts'` — Pass (5 files, 110 tests)
+- `cd web && npm run lint` — Pass
+
+### Validation summary (fifth cycle)
+
+Focused tests:
+- `cd web && npx ng test --watch=false --include='src/app/features/notes/editor/**/*.spec.ts'` — Pass (110 tests)
+- `cd web && npx prettier --check` on both changed files — Pass
+
+Full test suite:
+- `cd web && npm run check` — Pass (96 files, 1823 tests, build ok)
+
+Lint/type-check/build:
+- `cd web && npm run lint` — Pass; type-check and build are part of `npm run check` — Pass
+
+`.taskcheck`:
+- `sh scripts/check.sh` — Pass (exit 0, "all checks passed")
+
+Remaining unresolved findings:
+0
+
+### Final status (fifth cycle)
+
+All validated findings fixed and validation passed.
