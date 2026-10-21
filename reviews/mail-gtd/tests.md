@@ -4,12 +4,13 @@ Date: 2026-10-21
 
 Task: mail-gtd - Mail to GTD integration
 
-Scope: task commits after the immutable base 4e2c9b7834f3d24c1f6cee61d97ace9b50071c6b up to HEAD f44fb0d9ec50d95cf00e64703f8b15ec115bdf20 on branch main. The task commits are d6802d66, 4a0c4dc2, 3a2ae031, 3ae6bf4f, 3abab30c, 0c3927e5 and f44fb0d9; the commits in between are other agents' heartbeat, claim and release commits. The parent rebased while this run was in progress (old HEAD 3b9dc8dd). `git diff 3b9dc8dd f44fb0d9 -- server/src/{main,test}/kotlin/ch/sonensei/cockpit/mail/gtd` is empty, so the code under test is identical on both revisions. The production code is `server/src/main/kotlin/ch/sonensei/cockpit/mail/gtd/` (the only production files in `git diff 4e2c9b78..HEAD -- server/src/main`). The generated `api/openapi.yaml` and web client are out of scope for unit coverage. The only uncommitted input is the test change listed below.
+Scope: task commits `git log ce9e2a2dea0ba45410863b86ed8559157e82345f..1efb5405d25691ee7bdf5e3949804cb46d4f5ad1` on branch main (base = merge-base with origin/main, supplied by the parent; HEAD 1efb5405d25691ee7bdf5e3949804cb46d4f5ad1). Task commits: 5e8ed3ef, 913a1ceb, 8eeb2de7, 2e324611, 119398c5, c6916075, 010e3b87, b9f0a9d6, 21955657, 1efb5405. The latest production change is 21955657 (re-review CR-1/CR-2: whitespace collapsing outside `<pre>` and extra block tags in `MailGtdService.htmlText`); 1efb5405 only touches `reviews/`. This round focuses on the changed `htmlText` behavior. Production files changed by the task (`git diff --name-only ce9e2a2d..HEAD -- server/src/main web/src android/app/src/main`): `server/src/main/kotlin/ch/sonensei/cockpit/mail/gtd/MailGtdController.kt`, `server/src/main/kotlin/ch/sonensei/cockpit/mail/gtd/MailGtdService.kt` and generated web client files under `web/src/app/api/generated/` (generated, excluded). The only uncommitted input is the test change listed below.
 
 Requirements:
 - `tasks/mail-gtd.md` acceptance criteria and recorded assumptions
 - SPEC.md §7.3 (via the task), `docs/ARCHITECTURE.md` "Coverage"
-- `reviews/mail-gtd/fixes.md` (CR-1 and CR-2 fixes, used to target regression tests)
+- `reviews/mail-gtd/review.md` (re-review CR-1, CR-2) and `reviews/mail-gtd/fixes.md`, used to target the regression test
+- Parent instructions (focus on htmlText edge cases: nested pre, nbsp, inline elements across whitespace, cells, br inside indented markup)
 
 ## Test files changed
 
@@ -17,97 +18,98 @@ Requirements:
 
 ## Tests added or updated
 
-Count: 3 (added)
+Count: 1 (added)
 
-- `waiting-for and note links survive a move that gives the message a new row`: the move-survival criterion was tested only for to-task links. This test covers the to-waiting and to-note links: after the original row is detached and a copy appears in Archive, each link is still available and its deep link points to the copy.
-- `links keep resolving to the current copy across repeated moves`: covers a link made before the first move and a link made after it (that one points at the first copy). After a second move into a role-less folder, both links resolve to the second copy through Message-ID.
-- `to-note separates headings, quotes, header cells and rules of an HTML part and drops trailing blanks`: a CR-1 regression test for the block elements that the fix lists but the earlier test did not use (`h1`, `blockquote`, `th`, `hr`), and for trailing spaces before a `br` line break.
+- `to-note of indented HTML keeps nbsp, spaces inline elements once, keeps nested pre text and skips empty cells`: pretty-printed, indented HTML through the real to-note endpoint. It checks the exact text output for:
+  - `&nbsp;` kept as U+00A0 inside text, and an `&nbsp;`-only paragraph (common in Outlook mail) dropped instead of adding a blank line;
+  - a `<br>` followed by an indented source line, with no leading blank on the next line;
+  - inline elements (`span`, `a`, `b` with a leading space) across source whitespace, with exactly one space between words;
+  - `<pre><code>` nested inside an indented `<blockquote>`, with its indentation and newlines kept as written;
+  - a table `caption`, cells with leading and trailing spaces, and an empty cell, giving `Q1 10` with no double or trailing space;
+  - `details`/`summary`, `main` and `aside` (the CR-2 tags not used by the earlier test) as boundaries.
 
-The existing 42 tests already covered every other criterion in detail. Examples: to-task, to-waiting and to-note links seen from both ends; the recipient of a sent mail (Sent folder, account address in any letter case, identity, To then Cc then Bcc); a received mail waiting for its sender; a stale id linking the current copy; 404/400/403 responses that create nothing; and 502/503 responses from the mail server.
+The fix commit 21955657 already added `to-note collapses the source indentation of a pretty-printed HTML part but keeps pre text` (CR-1) and `center` in the block-structure test (CR-2). Earlier rounds covered every acceptance criterion; see the table below.
 
 ## Requirement coverage
 
 | Requirement | Tests | Command | Result |
 |---|---|---|---|
-| AC1: to-task creates a linked Inbox task | `to-task creates an Inbox task linked both ways to the mail`, `a repeated request creates another linked item`, `the response names the link that the links API returns`, title/limit tests | `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.mail.gtd.*'` | Pass |
+| AC1: to-task creates a linked Inbox task | `to-task creates an Inbox task linked both ways to the mail`, `a repeated request creates another linked item`, `the response names the link that the links API returns`, title/limit tests | `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.mail.gtd.*' jacocoTestReport ktlintCheck` | Pass |
 | AC1: to-waiting creates a linked Waiting For task; a sent mail waits for its recipient | `to-waiting from a sent mail waits for its recipients since the mail's date`, `a mail from one of the account's identities counts as sent outside the Sent folder`, `sent detection by the account address ignores case, outside the Sent folder`, `to-waiting from a sent mail without To waits for Cc, and without To and Cc for Bcc`, `to-waiting from a sent mail with To ignores Cc and Bcc`, `to-waiting from a received mail waits for its sender` (assumption), waitingSince tests | same | Pass |
-| AC1: to-note creates a linked note | `to-note creates a note with the mail's headers and text, linked to the mail`, HTML/plain tests, the new HTML structure test, `inline link tokens in a mail's text do not link the note to other items`, `MailGtdMailServerTests` (502/503/404, NUL removal) | same | Pass |
-| AC2: links survive moves (Message-ID re-resolution) | `links survive a move that gives the message a new row, re-resolved by Message-ID`, `links survive a move that keeps the row`, new `waiting-for and note links survive a move that gives the message a new row`, new `links keep resolving to the current copy across repeated moves`, `a moved message requested by its old id links its current copy`, `to-note by the old id of a moved message reads and links its current copy` | same | Pass |
-| AC3: the mail.gtd test suite passes (Postgres through Testcontainers) | all 45 tests (`PostgresTestBase`) | same | Pass (MailGtdWebTests 40, MailGtdMailServerTests 5; 0 failures, 0 skipped) |
-| AC4: OpenAPI regenerated and `OpenApiContractTest` passes | not in this test-writer scope | none | Not run: the parent verifies it with `./gradlew test --tests '*OpenApiContractTest'` |
+| AC1: to-note creates a linked note (HTML converted to readable text, review CR-1/CR-2) | `to-note creates a note with the mail's headers and text, linked to the mail`, `to-note keeps the block structure of an HTML part written without whitespace`, `to-note collapses the source indentation of a pretty-printed HTML part but keeps pre text`, `to-note separates headings, quotes, header cells and rules of an HTML part and drops trailing blanks`, new `to-note of indented HTML keeps nbsp, spaces inline elements once, keeps nested pre text and skips empty cells`, `inline link tokens in a mail's text do not link the note to other items`, `MailGtdMailServerTests` (502/503/404, NUL removal) | same | Pass |
+| AC2: links survive moves (Message-ID re-resolution) | `links survive a move that gives the message a new row, re-resolved by Message-ID`, `links survive a move that keeps the row`, `waiting-for and note links survive a move that gives the message a new row`, `links keep resolving to the current copy across repeated moves`, `a moved message requested by its old id links its current copy`, `to-note by the old id of a moved message reads and links its current copy` | same | Pass |
+| AC3: the mail.gtd test suite passes (Postgres through Testcontainers) | all 47 tests (`PostgresTestBase`) | same | Pass (MailGtdWebTests 42, MailGtdMailServerTests 5; 0 failures, 0 errors, 0 skipped) |
+| AC4: OpenAPI regenerated and `OpenApiContractTest` passes | not in this test-writer scope (no API change since the regeneration) | `sh scripts/check.sh` runs the server `./gradlew check`, which includes `OpenApiContractTest` | Pass as part of the full check; the parent should still record its own explicit `./gradlew test --tests '*OpenApiContractTest'` run |
 
 ## Focused test execution
 
 Command:
 
-`cd server && ./gradlew test --tests 'ch.sonensei.cockpit.mail.gtd.*' jacocoTestReport ktlintCheck`
+`cd server && ./gradlew test --tests 'ch.sonensei.cockpit.mail.gtd.*' jacocoTestReport ktlintCheck` (started 2026-10-21T06:30:27+02:00, finished 06:31:27+02:00)
 
 Result:
 
-Pass (BUILD SUCCESSFUL; 45 tests, 0 failures, 0 errors, 0 skipped; ktlintCheck passes). `ktlintFormat` was run once before this and changed nothing outside the edited test file.
+Pass: BUILD SUCCESSFUL. `build/test-results/test/TEST-ch.sonensei.cockpit.mail.gtd.MailGtdWebTests.xml`: 42 tests, 0 failures/errors/skipped (includes the new test). `TEST-ch.sonensei.cockpit.mail.gtd.MailGtdMailServerTests.xml`: 5 tests, 0 failures/errors/skipped. ktlintCheck passed on main and test source sets.
 
 ## Full test execution
 
 Command:
 
-`cd server && ./gradlew check`
+`sh scripts/check.sh` (server `./gradlew check`, web `npm run check`, android `ktlintCheck testDebugUnitTest lintDebug`), 2026-10-21T06:32:06+02:00 to 06:41:32+02:00
 
 Result:
 
-Not run. The parent said not to run the full server check because it is slow on this machine. `reviews/mail-gtd/fixes.md` records an earlier full run.
+Pass: `== all checks passed`. The web build printed the existing initial-bundle budget warning (650.97 kB against 500 kB), not related to this task. The run took about 9.5 minutes on this machine, above the 2-minute guideline but under the 15-minute `done` timeout.
 
 ## .taskcheck
 
 Result:
 
-Not run (same reason; the parent runs it before `done`).
+Pass (`.taskcheck` is `sh scripts/check.sh`, see above).
 
 ## Bugs found
 
-None.
+None. The new edge-case test passed on the first run against commit 21955657.
+
+Observation, not a defect and no failing test: `noteBody` trims the converted text, so if an HTML-only mail starts with a `<pre>` block, the leading indentation of its first line is lost. The other `pre` lines keep theirs. No requirement covers this. It is left for the parent to decide.
 
 ## Coverage
 
-Status: verified (fresh focused run, exit 0)
+Status: verified
 
 Metric: whole-file coverage of task-changed production files.
-Changed-line coverage: not measured as a separate metric. Both files are new in this task (398 added lines, nothing removed), so whole-file coverage equals changed-line coverage here.
+Changed-line coverage: measured. Method: the added lines in `git diff -U0 ce9e2a2d HEAD` for each file, intersected with JaCoCo XML `<line>` entries (executable lines) and counted as covered when `ci > 0`. MailGtdController.kt: 32/32 changed executable lines covered. MailGtdService.kt: 149/149 covered. For the last fix commit alone (`git diff -U0 b9f0a9d6 HEAD`), MailGtdService.kt has 34/34 changed executable lines covered. Changed-branch coverage was not derived from this.
 
 Evidence:
-- Task id, immutable base, measured HEAD, and task-owned commits/file-scope source: mail-gtd; base 4e2c9b7834f3d24c1f6cee61d97ace9b50071c6b (from the parent); measured HEAD f44fb0d9ec50d95cf00e64703f8b15ec115bdf20; scope from `git diff --stat 4e2c9b78..HEAD -- server/src/main` and the task `touches`.
-- Source/test snapshot identifier (including uncommitted inputs): SHA-256 MailGtdController.kt 1580681f…cbe, MailGtdService.kt f7c44185…450d, MailGtdWebTests.kt (uncommitted, with the new tests) 833ec8a3…203, MailGtdMailServerTests.kt 641e4fe2…cbe. All four hashes were the same before and after the run.
-- Exact included files; renamed/deleted/excluded files and reasons: included `server/src/main/kotlin/ch/sonensei/cockpit/mail/gtd/MailGtdController.kt` and `MailGtdService.kt`. No renames or deletions. Excluded: `api/openapi.yaml` and `web/src/app/api/generated/` (generated).
-- Provider/version, command, working directory, and test selection: JaCoCo through the Gradle `jacoco` plugin (project default tool version, no override in `server/build.gradle.kts`); `./gradlew test --tests 'ch.sonensei.cockpit.mail.gtd.*' jacocoTestReport ktlintCheck`; working directory `server/`; selection `ch.sonensei.cockpit.mail.gtd.*` (45 tests).
-- Run start/completion time and exit status: tests started 2026-10-21T04:07:38Z; report written 2026-10-21T06:08:12+02:00; BUILD SUCCESSFUL (exit 0).
-- Generated report paths and report hashes/run identifier: `server/build/reports/jacoco/test/jacocoTestReport.xml`, SHA-256 731d5f81b543d31b3cb3340269406ebd9f227c241f8ac2c5dbc133b1c514999c.
-- Evidence outputs are fresh and inputs stayed unchanged: yes. The test task re-executed because the test sources changed, the report timestamp is from this run, and the snapshot hashes did not change.
-- Final run after latest test additions and production fixes: yes. The CR-1 and CR-2 fixes are in 3abab30c, the new tests were included, and the production code is unchanged since then.
+- Task id, immutable base, measured HEAD, and task-owned commits/file-scope source: mail-gtd; base ce9e2a2dea0ba45410863b86ed8559157e82345f (merge-base given by the parent); HEAD 1efb5405d25691ee7bdf5e3949804cb46d4f5ad1; task commits from `git log ce9e2a2d..HEAD`, all mail-gtd commits; file scope from `git diff --name-only ce9e2a2d..HEAD -- server/src/main web/src android/app/src/main`, matching the task `touches`.
+- Source/test snapshot identifier (including uncommitted inputs): sha256 before and after the run were the same. MailGtdController.kt 1580681f3ec5fe7d2ae260bd74f959bca76da5b2b41ad3c6234d545869669eb3, MailGtdService.kt 627cd267ce5e85fbb09167f3adbedf9fc09197e894103dd3f51acb0d1a2529f6, MailGtdMailServerTests.kt 641e4fe28def59c09e3600a94d86f42e4581827e0d9877336c23a2dbe6c13cbe, MailGtdWebTests.kt (uncommitted, with the new test) 3e3158006a23e0952f6a4ec80544060f24f214966ec0b7d86346a301e35b667f.
+- Exact included files; renamed/deleted/excluded files and reasons: included `server/src/main/kotlin/ch/sonensei/cockpit/mail/gtd/MailGtdController.kt` and `server/src/main/kotlin/ch/sonensei/cockpit/mail/gtd/MailGtdService.kt`. Excluded: `web/src/app/api/generated/**` (7 files, generated OpenAPI client, not hand-written behavior). Nothing was renamed or deleted, and no scoped file is missing from the report.
+- Provider/version, command, working directory, and test selection: JaCoCo through the Gradle `jacoco` plugin (version as set in `server/build.gradle.kts`, default tool version); `./gradlew test --tests 'ch.sonensei.cockpit.mail.gtd.*' jacocoTestReport ktlintCheck` in `server/`; selection: `ch.sonensei.cockpit.mail.gtd.*` only (MailGtdWebTests, MailGtdMailServerTests).
+- Run start/completion time and exit status: 2026-10-21T06:30:27+02:00 to 06:31:27+02:00, BUILD SUCCESSFUL (exit 0).
+- Generated report paths and report hashes/run identifier: `server/build/reports/jacoco/test/jacocoTestReport.xml`, mtime 2026-10-21 06:31:26.86 +0200, sha256 f3193893a5e20ac35d121314474c37a9c5ca3ccd84b97656d2d58136e079ca4b (unchanged after the later `scripts/check.sh` run, which does not run jacocoTestReport).
+- Evidence outputs are fresh and inputs stayed unchanged: yes. Gradle reran `compileTestKotlin` and `test` for the changed test file, the report mtime falls inside the run window, and the snapshot hashes matched after the run.
+- Final run after latest test additions and production fixes: yes (covers the latest production commit 21955657 and the new test).
 
-Values below use covered/total (percentage); JaCoCo has no separate statement counter, so instructions are shown in its place.
+Values below use covered/total (percentage) from JaCoCo counters (statements = INSTRUCTION).
 
-| Changed file | Instructions | Branches | Methods | Lines |
+| Changed file | Statements | Branches | Functions | Lines |
 |---|---:|---:|---:|---:|
 | `server/src/main/kotlin/ch/sonensei/cockpit/mail/gtd/MailGtdController.kt` | 157/157 (100%) | 2/2 (100%) | 12/12 (100%) | 32/32 (100%) |
-| `server/src/main/kotlin/ch/sonensei/cockpit/mail/gtd/MailGtdService.kt` | 1256/1279 (98.2%) | 103/114 (90.4%) | 37/38 (97.4%) | 119/119 (100%) |
-| Aggregate (summed counters, both files; no missing or unmeasured files) | 1413/1436 (98.4%) | 105/116 (90.5%) | 49/50 (98.0%) | 151/151 (100%) |
-
-The numbers are the same as in a run made before the new tests. The new tests add behavior assertions on paths that other tests already execute: links of the other item types, repeated moves, and more HTML elements.
+| `server/src/main/kotlin/ch/sonensei/cockpit/mail/gtd/MailGtdService.kt` | 1368/1391 (98.3%) | 117/128 (91.4%) | 41/42 (97.6%) | 149/149 (100%) |
+| Aggregate (summed counters; excludes the generated web client) | 1525/1548 (98.5%) | 119/130 (91.5%) | 53/54 (98.1%) | 181/181 (100%) |
 
 | File and uncovered lines/branch locations | Required behavior or risk | Action/test added or reason left uncovered |
 |---|---|---|
-| `MailGtdService.kt:106` (`note.title ?: ""`) | Null title fallback | Unreachable: `titleOf` always returns a non-empty title. Defensive; no test. |
-| `MailGtdService.kt:122-123` (`folderId` null / folder row missing) | Sent detection for a message without a folder | Unreachable: `locator.current` returns only located messages, and a located message always has a folder (`requireLocation`). No test. |
-| `MailGtdService.kt:126` (account row missing) | Account lookup returns null | Unreachable: the message's account FK exists inside the transaction. Defensive; no test. |
-| `MailGtdService.kt:159` (`checkNotNull` failure) | `TransactionTemplate.execute` returning null | Unreachable: the blocks return non-null values. No test. |
-| `MailGtdService.kt:164` (2 instructions) and the 1 missed method | Kotlin companion object synthetic code | Bytecode artifact; nothing to test. |
-| `MailGtdService.kt:199-200` (1 branch each) | `when` type checks for nodes that are neither text nor elements (comments, data nodes) | The sanitized HTML from the cache gives no such nodes in the tests. Low risk: they are ignored either way. No test. |
-| `MailGtdService.kt:239,241` (2 branches each) | Kotlin null-safe chain branches in `display`/`full` | Null and blank names are tested (`a blank display name falls back…`, addresses without names in headers). The remaining branches are compiler-generated. No test. |
+| `MailGtdService.kt:233-234` (1 branch each) | `htmlText` visiting a node that is neither a TextNode nor an Element (a comment or DataNode) | Justified gap: the HTML comes from `HtmlMailSanitizer`, which removes comments, scripts and styles, so these nodes do not reach the converter. The `when` simply ignores them |
+| `MailGtdService.kt:106, 122, 123, 126, 159` (1 branch each) | Kotlin null-safety fallbacks: note without title, message without folder, folder or account not found, `transactions.execute` returning null | Justified gap: defensive. The entities are non-null under the schema and the transaction always returns the created item |
+| `MailGtdService.kt:277, 279` (2 branches each) | `display`/`full` with a null address name | Partly covered (blank name tested: `a blank display name falls back to the address in waitingForText`, `to-waiting ... carol@example.test`). The remaining missed bytecode branches come from `takeIf`/elvis variants and need no extra test |
+| `MailGtdService.kt:164` (`getDATE_FORMAT`) | Kotlin-generated getter of a private companion constant | Non-material: the constant is used directly, and the `**Date:**` header line is tested |
 
 ## Unable to test
 
-- AC4 (OpenAPI regeneration and contract test) is outside this helper's scope; the parent verifies it.
-- A NUL character in the subject (`titleOf` strips `\u0000`) cannot be set up through the cache: PostgreSQL `text` rejects NUL, so a stored subject cannot contain one. No follow-up needed.
+- Not tested: a `<pre>` as the first block of an HTML-only mail (see the observation under "Bugs found"). No requirement defines it, so no test asserts it.
+- AC4 (OpenAPI regeneration) is the parent's to verify explicitly. It passed only as part of the full `scripts/check.sh` server check.
 
 ## Summary
 
-Tests and task-scoped coverage are sufficient; no production defects found. 3 tests were added (move survival for waiting-for and note links, resolution across repeated moves, CR-1 HTML block elements), and the focused suite (45 tests) and ktlintCheck pass.
+Tests added and all validation passed. Task-scoped coverage is sufficient and no production defects were found.

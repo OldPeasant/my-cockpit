@@ -351,6 +351,47 @@ class MailGtdWebTests(
 	}
 
 	@Test
+	fun `to-note of indented HTML keeps nbsp, spaces inline elements once, keeps nested pre text and skips empty cells`() {
+		val mail = message(inbox)
+		bodies.put(
+			mail.id,
+			null,
+			"""
+			<div>
+			    <p>
+			        Dear&nbsp;&nbsp;Ann,<br>
+			        <span>please</span>
+			        <a href="https://example.test/r">review</a><b> the</b>
+			        draft.
+			    </p>
+			    <p>&nbsp;</p>
+			    <blockquote>
+			        <pre><code>  if (ready) {
+			    send()
+			  }</code></pre>
+			    </blockquote>
+			    <table>
+			      <caption>Totals</caption>
+			      <tr><td>  Q1 </td><td></td><td> 10 </td></tr>
+			    </table>
+			    <details><summary>More</summary>Hidden text</details>
+			    <main>Main</main><aside>Side</aside>
+			</div>
+			""".trimIndent(),
+		)
+		attachments.save(mail.id, emptyList())
+
+		val result = created(mail.id, "to-note")
+
+		val body = getJson("/api/v1/notes/${result["id"].asString()}")["bodyMd"].asString()
+		body shouldEndWith
+			"Dear  Ann,\nplease review the draft.\n\n  if (ready) {\n    send()\n  }\n\n" +
+			"Totals\nQ1 10\n\nMore\nHidden text\n\nMain\nSide"
+		body shouldNotContain "\n\n\n"
+		body shouldNotContain "  draft"
+	}
+
+	@Test
 	fun `inline link tokens in a mail's text do not link the note to other items`() {
 		val other = UUID.randomUUID()
 		val mail = message(inbox)
