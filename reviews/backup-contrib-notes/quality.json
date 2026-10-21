@@ -1,0 +1,23 @@
+{
+  "schema": 1,
+  "task": "backup-contrib-notes",
+  "reviewed_revision": "edbf149fdffac2d4eedd385b4977e4d0700a5f29",
+  "helpers": {
+    "test-writer": {"status": "completed", "report": "reviews/backup-contrib-notes/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/backup-contrib-notes/review.md"},
+    "fixer": {"status": "completed", "report": "reviews/backup-contrib-notes/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P3", "disposition": "accepted",
+     "note": "notes backup reads the core link table directly inside the snapshot transaction; hard-coded NOTE replaced by ItemType.NOTE (fixed part), direct read kept and recorded as a task assumption"},
+    {"id": "CR-2", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "note and note_revision queries now stream with fetchSize 1000"}
+  ],
+  "validation": [
+    {"command": "cd server && ./gradlew test --tests '*NotesBackupContributorTests' --tests '*BackupRoundTripTest'", "result": "pass"},
+    {"command": "cd server && ./gradlew ktlintCheck", "result": "pass"},
+    {"command": "cd server && ./gradlew check", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
