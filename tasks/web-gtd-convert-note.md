@@ -5,7 +5,7 @@ owner: dell26/agent-3
 deps: [web-inbox,web-task-detail,gtd-convert-note]
 touches: [web/src/app/features/gtd/inbox,web/src/app/features/gtd/task-detail]
 prio: 2
-lease_until: 2026-10-21T05:31:00Z
+lease_until: 2026-10-21T05:36:04Z
 ---
 ## Goal
 Enable 'To reference (note)' in processing and task detail.
