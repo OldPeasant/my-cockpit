@@ -101,6 +101,13 @@ describe('renderMarkdown', () => {
     );
   });
 
+  it('keeps the link attributes intact when emphasis follows the link', () => {
+    expect(renderMarkdown('[a](https://example.org) then _b_ and [*c*](https://example.org/~~x~~)')).toBe(
+      '<p><a href="https://example.org" target="_blank" rel="noopener noreferrer">a</a> then <em>b</em> and ' +
+        '<a href="https://example.org/~~x~~" target="_blank" rel="noopener noreferrer"><em>c</em></a></p>',
+    );
+  });
+
   it('leaves snake_case words and lone asterisks alone', () => {
     expect(renderMarkdown('use snake_case_name and 2 * 3')).toBe(
       '<p>use snake_case_name and 2 * 3</p>',

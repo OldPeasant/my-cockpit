@@ -85,10 +85,14 @@
         </ul>
       </section>
     } @empty {
-      <p class="empty" i18n="@@gtd.projects.empty">
-        No projects yet. Anything that takes more than one step is a project: create one to plan its
-        steps.
-      </p>
+      @if (hiddenCount()) {
+        <p class="empty" i18n="@@gtd.projects.noneOpen">No open projects.</p>
+      } @else {
+        <p class="empty" i18n="@@gtd.projects.empty">
+          No projects yet. Anything that takes more than one step is a project: create one to plan
+          its steps.
+        </p>
+      }
     }
     @if (hiddenCount()) {
       <label class="toggle">

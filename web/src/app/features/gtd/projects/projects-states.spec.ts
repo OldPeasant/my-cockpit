@@ -260,6 +260,14 @@ describe('Projects views: states and edge cases', () => {
       expect(text('.project .badge')).toEqual(['Someday']);
     });
 
+    it('says "No open projects" instead of the onboarding text when all are finished', async () => {
+      projects = [project('p1', { status: 'COMPLETED' }), project('p2', { status: 'DROPPED' })];
+      await render(ProjectsPage);
+
+      expect(text('.empty')).toEqual(['No open projects.']);
+      expect(text('.toggle')).toEqual(['Show completed and dropped (2)']);
+    });
+
     it('closes the new-project form on cancel without creating anything', async () => {
       await render(ProjectsPage);
       await click(button('New project'));
@@ -463,6 +471,69 @@ describe('Projects views: states and edge cases', () => {
       expect(element.querySelector('.task.next')).toBeNull();
       expect(announcement()).toBe('');
       expect(button('Make “Fill form” the next step')?.disabled).toBe(false);
+    });
+
+    it('opening the prompt moves the focus to its first choice', async () => {
+      projects = [project('p1', { title: 'Tax return', stalled: true })];
+      await render(ProjectDetailPage);
+
+      await click(button('Choose next step'));
+
+      expect(document.activeElement).toBe(button('Make “Collect receipts” the next step'));
+    });
+
+    it('opening the prompt without open tasks focuses the new-step input', async () => {
+      projects = [project('p1', { title: 'Tax return', stalled: true })];
+      tasks = [];
+      await render(ProjectDetailPage);
+
+      await click(button('Choose next step'));
+
+      expect(document.activeElement).toBe(element.querySelector('#prompt-new'));
+    });
+
+    it('a failed "add as next step" after the task was created does not create it again', async () => {
+      projects = [project('p1', { title: 'Tax return', stalled: true })];
+      overrides.set(setProjectNextStep, () => Promise.reject(new Error('412')));
+      await render(ProjectDetailPage);
+      await click(button('Choose next step'));
+
+      await type('#prompt-new', 'Book advisor');
+      await submit('[role=dialog] form');
+
+      expect(callsOf(createTask)).toHaveLength(1);
+      expect(callsOf(setProjectNextStep)).toHaveLength(1);
+      // The task exists: the input is cleared and the prompt offers it as a choice.
+      expect(element.querySelector<HTMLInputElement>('#prompt-new')!.value).toBe('');
+      expect(button('Add as next step')?.disabled).toBe(true);
+      expect(element.querySelector('[role=dialog]')).not.toBeNull();
+      expect(button('Make “Book advisor” the next step')).toBeDefined();
+      expect(announcement()).toBe('');
+
+      await submit('[role=dialog] form');
+      expect(callsOf(createTask)).toHaveLength(1);
+
+      overrides.delete(setProjectNextStep);
+      await click(button('Make “Book advisor” the next step'));
+      expect(callsOf(createTask)).toHaveLength(1);
+      expect(callsOf(setProjectNextStep).at(-1)?.params['body']).toEqual({ taskId: 't9' });
+      expect(element.querySelector('[role=dialog]')).toBeNull();
+    });
+
+    it('a failed next step after adding a task to a stalled project clears the input', async () => {
+      projects = [project('p1', { title: 'Tax return', stalled: true })];
+      overrides.set(setProjectNextStep, () => Promise.reject(new Error('412')));
+      await render(ProjectDetailPage);
+
+      await type('#add-task', 'Sign');
+      await submit('form.add');
+
+      expect(callsOf(createTask)).toHaveLength(1);
+      expect(callsOf(setProjectNextStep)).toHaveLength(1);
+      expect(element.querySelector<HTMLInputElement>('#add-task')!.value).toBe('');
+      expect(button('Add task')?.disabled).toBe(true);
+      await submit('form.add');
+      expect(callsOf(createTask)).toHaveLength(1);
     });
 
     it('the prompt without open tasks offers only a new task; Escape skips it', async () => {

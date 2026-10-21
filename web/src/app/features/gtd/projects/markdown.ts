@@ -83,16 +83,26 @@ function inline(text: string): string {
     .join('');
 }
 
+/** Stands in for a link's opening tag while emphasis is applied (a private-use character). */
+const ANCHOR = '\uE000';
+
+/**
+ * Links, then emphasis. A link's opening tag is replaced by a placeholder until the end, so its
+ * target (and attributes such as `_blank`) stay literal; its label still gets emphasis.
+ */
 function emphasis(text: string): string {
+  const anchors: string[] = [];
   return text
-    .replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, (match, label: string, href: string) =>
-      /^(https?:|mailto:)/i.test(href)
-        ? `<a href="${href}" target="_blank" rel="noopener noreferrer">${label}</a>`
-        : label,
-    )
+    .replaceAll(ANCHOR, '')
+    .replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, (match, label: string, href: string) => {
+      if (!/^(https?:|mailto:)/i.test(href)) return label;
+      anchors.push(`<a href="${href}" target="_blank" rel="noopener noreferrer">`);
+      return `${ANCHOR}${anchors.length - 1}${ANCHOR}${label}</a>`;
+    })
     .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
     .replace(/__(.+?)__/g, '<strong>$1</strong>')
     .replace(/(^|[^*])\*([^*\s][^*]*?)\*(?!\*)/g, '$1<em>$2</em>')
     .replace(/(^|[^\w])_([^_\s][^_]*?)_(?!\w)/g, '$1<em>$2</em>')
-    .replace(/~~(.+?)~~/g, '<del>$1</del>');
+    .replace(/~~(.+?)~~/g, '<del>$1</del>')
+    .replace(new RegExp(`${ANCHOR}(\\d+)${ANCHOR}`, 'g'), (match, index: string) => anchors[+index]);
 }

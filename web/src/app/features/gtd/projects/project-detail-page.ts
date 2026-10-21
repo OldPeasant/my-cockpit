@@ -6,12 +6,21 @@ import {
   moveItemInArray,
 } from '@angular/cdk/drag-drop';
 import { DatePipe } from '@angular/common';
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import {
+  afterNextRender,
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  ElementRef,
+  inject,
+  Injector,
+  signal,
+} from '@angular/core';
 import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { map } from 'rxjs';
 import { ProjectResponse, TaskResponse } from '../../../api/generated';
-import { ContextStore, localDate, ProjectStore, TaskStore } from '../data';
+import { ContextStore, localDate, ProjectStore } from '../data';
 import { TaskRow } from '../ui';
 import { AreaStore } from './area-store';
 import { renderMarkdown } from './markdown';
@@ -29,7 +38,7 @@ import { ProjectTaskStore } from './project-task-store';
   selector: 'app-project-detail-page',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [CdkDrag, CdkDragHandle, CdkDropList, DatePipe, ProjectForm, RouterLink, TaskRow],
-  providers: [ProjectTaskStore, { provide: TaskStore, useExisting: ProjectTaskStore }],
+  providers: [ProjectTaskStore],
   templateUrl: './project-detail-page.html',
   styleUrls: [
     '../task-detail/controls.scss',
@@ -43,6 +52,8 @@ export class ProjectDetailPage {
   protected readonly contexts = inject(ContextStore);
   protected readonly areas = inject(AreaStore);
   private readonly router = inject(Router);
+  private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
+  private readonly injector = inject(Injector);
 
   protected readonly today = localDate();
   protected readonly maxTitle = MAX_PROJECT_TITLE;
@@ -113,7 +124,7 @@ export class ProjectDetailPage {
       const done = await this.tasks.complete(task);
       if (done.needsNextStep) {
         this.nextTask.set('');
-        this.prompt.set({ done: task.title });
+        this.openPrompt({ done: task.title });
         await this.projects.refresh();
       }
     });
@@ -130,17 +141,33 @@ export class ProjectDetailPage {
     }
   }
 
-  /** The prompt's "add as next step": creates a task and makes it the next step. */
+  /** Opens the "Choose next step" prompt and moves the focus into it. */
+  protected openPrompt(prompt: { readonly done?: string }): void {
+    this.prompt.set(prompt);
+    afterNextRender(
+      () =>
+        this.host.nativeElement
+          .querySelector<HTMLElement>('.prompt .choice:not(:disabled), #prompt-new')
+          ?.focus(),
+      { injector: this.injector },
+    );
+  }
+
+  /**
+   * The prompt's "add as next step": creates a task and makes it the next step. When only the
+   * second step fails, the input is cleared anyway: the task exists and is offered as a choice, so
+   * submitting again does not create it twice.
+   */
   protected async addNext(): Promise<void> {
     const title = this.nextTask().trim();
     const project = this.project();
     if (!title || !project) return;
     const ok = await this.run('prompt', async () => {
       const task = await this.tasks.create({ title, list: 'NEXT', projectId: project.id });
+      this.nextTask.set('');
       await this.projects.setNextStep(this.projects.find(project.id) ?? project, task.id);
     });
     if (ok) {
-      this.nextTask.set('');
       this.prompt.set(null);
       this.announcement.set(this.nextStepAnnouncement(title));
     }
@@ -152,18 +179,19 @@ export class ProjectDetailPage {
 
   /**
    * Adds a task at the end of the project. An active project without a next step gets it as its
-   * next step: it is the only open step, or the user had not chosen one.
+   * next step: it is the only open step, or the user had not chosen one. Once the task is created
+   * the input is cleared, even when making it the next step fails, so a retry adds no duplicate.
    */
   protected async addTask(): Promise<void> {
     const title = this.newTask().trim();
     const project = this.project();
     if (!title || !project) return;
-    const ok = await this.run('add', async () => {
+    await this.run('add', async () => {
       const task = await this.tasks.create({ title, list: 'NEXT', projectId: project.id });
+      this.newTask.set('');
       const current = this.projects.find(project.id) ?? project;
       if (current.stalled) await this.projects.setNextStep(current, task.id);
     });
-    if (ok) this.newTask.set('');
   }
 
   protected drop(event: CdkDragDrop<readonly TaskResponse[]>): void {
@@ -176,11 +204,10 @@ export class ProjectDetailPage {
     if (to < 0 || to >= this.openTasks().length) return;
     event.preventDefault();
     this.move(index, to);
-    // Keep the focus on the moved task's handle.
-    const handles = (event.target as HTMLElement)
-      .closest('.tasks')
-      ?.querySelectorAll<HTMLElement>('.handle');
-    setTimeout(() => handles?.[to]?.focus());
+    // Keep the focus on the moved task's handle: rows are tracked by task id, so it stays the same
+    // element, but moving the rows in the DOM can take the focus away from it.
+    const handle = event.currentTarget as HTMLElement;
+    afterNextRender(() => handle.focus(), { injector: this.injector });
   }
 
   private move(from: number, to: number): void {
