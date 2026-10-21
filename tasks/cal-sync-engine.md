@@ -13,7 +13,8 @@ releases: 1
 Provider-independent two-way sync framework (SPEC.md §6.2).
 
 ## Acceptance criteria
-- [ ] `CalendarProviderAdapter` interface (list calendars, incremental fetch with a sync cursor, create/update/delete with etag) + registry by source type
+- [x] `CalendarProviderAdapter` interface (list calendars, incremental fetch with a sync cursor, create/update/delete with etag) + registry by source type
+  - verified (2026-10-21 02:25+0200 by dell26/agent-6): Read CalendarProviderAdapter.kt (listCalendars, fetchEvents(cursor)->RemoteEventChanges, create/update/deleteEvent with etag) + CalendarProviderRegistry (find/supports by CalendarSourceType); exercised via FakeCalendarAdapter in cd server && ./gradlew test --tests 'ch.sonensei.cockpit.calendar.sync.*' -> 91 passed
 - [ ] Scheduler polls each source at its interval, stores cursor/last sync/error; write-through: local edits of external events go to the adapter first; 412 → refetch and return 'changed remotely' (409 to the client)
 - [ ] `GET /api/v1/calendar/sources` incl. sync status; `POST …/{id}/sync`
 - [ ] Tests with a fake adapter: incremental merge, deletions, conflict path
