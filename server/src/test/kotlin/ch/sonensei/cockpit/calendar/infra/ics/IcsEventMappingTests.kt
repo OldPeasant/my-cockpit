@@ -313,6 +313,15 @@ class IcsEventMappingTests {
 	}
 
 	@Test
+	fun `a day in DURATION keeps the local time across the change to summer time too`() {
+		// Europe/Zurich starts summer time on 2027-03-28: P1D from 09:00 ends at 09:00 local the next day (23 h).
+		val event = one("UID:dst-spring@example.test\nDTSTART;TZID=Europe/Zurich:20270327T090000\nDURATION:P1D")
+
+		timed(event).end shouldBe zurichTime("2027-03-28T09:00")
+		Duration.between(timed(event).start, timed(event).end) shouldBe Duration.ofHours(23)
+	}
+
+	@Test
 	fun `an hour-based DURATION across a daylight saving change is exact time`() {
 		val event = one("UID:dst-h@example.test\nDTSTART;TZID=Europe/Zurich:20261024T090000\nDURATION:PT24H")
 
@@ -479,6 +488,23 @@ class IcsEventMappingTests {
 				RemoteEventKey("series@example.test", OccurrenceId.of(Instant.parse("2026-11-03T09:00:00Z"))),
 				RemoteEventKey("series@example.test"),
 			)
+	}
+
+	@Test
+	fun `an exception of a series that cannot be read is left out, and only the series is reported as skipped`() {
+		val skipped = mutableListOf<RuntimeException>()
+		val events =
+			map(
+				feed(
+					"UID:broken@example.test\nDTSTART:soon\nRRULE:FREQ=DAILY",
+					"UID:broken@example.test\nRECURRENCE-ID:20261103T090000Z\nDTSTART:20261103T100000Z",
+					"UID:fine@example.test\nDTSTART:20261105T090000Z",
+				),
+				skipped,
+			)
+
+		events.map { it.key } shouldContainExactly listOf(RemoteEventKey("fine@example.test"))
+		skipped shouldHaveSize 1
 	}
 
 	// --- Attendees and reminders ---

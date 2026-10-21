@@ -309,6 +309,47 @@ class IcsFeedClientTests {
 	private infix fun Duration.shouldBeLessThanDuration(limit: Duration) = (this < limit) shouldBe true
 
 	@Test
+	fun `the timeout covers the whole fetch, so redirects that are each fast enough but together too slow are given up`() {
+		// Each answer takes 500 ms, well within the 1.2 s timeout; the three of them together do not.
+		wireMock.stubFor(get(urlPathEqualTo("/r1")).willReturn(aResponse().withStatus(302).withHeader("Location", "/r2").withFixedDelay(500)))
+		wireMock.stubFor(get(urlPathEqualTo("/r2")).willReturn(aResponse().withStatus(302).withHeader("Location", FEED).withFixedDelay(500)))
+		wireMock.stubFor(get(urlPathEqualTo(FEED)).willReturn(aResponse().withStatus(200).withBody(CALENDAR).withFixedDelay(500)))
+
+		val started = System.nanoTime()
+		refused { client(properties(timeout = Duration.ofMillis(1_200))).fetch("$base/r1", null) }
+			.message!! shouldContain "did not answer in time"
+		Duration.ofNanos(System.nanoTime() - started) shouldBeLessThanDuration Duration.ofSeconds(3)
+	}
+
+	@Test
+	fun `the bodies of error and redirect answers are discarded, so a large one is not refused as too large`() {
+		val large = ByteArray(64 * 1024) { 'x'.code.toByte() }
+		val small = properties(maxSize = DataSize.ofKilobytes(4))
+		serve(path = "/down", status = 503, body = large)
+		wireMock.stubFor(
+			get(urlPathEqualTo("/moved")).willReturn(aResponse().withStatus(301).withHeader("Location", FEED).withBody(large)),
+		)
+		serve()
+
+		refused { client(small).fetch("$base/down", null) }.message!! shouldContain "failed (HTTP 503)"
+		fetched(client(small).fetch("$base/moved", null)).text shouldBe CALENDAR
+	}
+
+	@Test
+	fun `a gzip feed of exactly the maximum size after decompression is read, one byte more is refused`() {
+		val text = "BEGIN:VCALENDAR\r\n" + "X-FILLER:fictitious filler line for the size limit\r\n".repeat(200) + "END:VCALENDAR\r\n"
+		val bytes = text.toByteArray()
+		val compressed = gzip(bytes)
+		// Content-Encoding is case-insensitive.
+		serve(headers = mapOf("Content-Type" to "text/calendar", "Content-Encoding" to "GZIP"), body = compressed)
+
+		compressed.size shouldBeLessThan bytes.size / 4
+		fetched(client(properties(maxSize = DataSize.ofBytes(bytes.size.toLong()))).fetch("$base$FEED", null)).text shouldBe text
+		refused { client(properties(maxSize = DataSize.ofBytes(bytes.size - 1L))).fetch("$base$FEED", null) }
+			.message!! shouldContain "larger than"
+	}
+
+	@Test
 	fun `a body larger than the maximum is refused when it is sent in chunks`() {
 		wireMock.stubFor(
 			get(urlPathEqualTo(FEED)).willReturn(
