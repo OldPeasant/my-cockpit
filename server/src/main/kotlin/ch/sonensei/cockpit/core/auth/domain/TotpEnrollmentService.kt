@@ -39,8 +39,9 @@ class TotpEnrollmentService(
 	/** @throws ConflictException (409) when TOTP re-enrollment is not required */
 	@Transactional
 	fun confirm(code: String): TotpEnrollmentResult {
-		throttle.tryBeginAttempt()?.let { return TotpEnrollmentResult.Throttled(it) }
+		// Before the throttle: a 409 is no code attempt and must not count as a failed one.
 		val account = pendingAccount()
+		throttle.tryBeginAttempt()?.let { return TotpEnrollmentResult.Throttled(it) }
 		if (!totp.verify(Base32.decode(account.totpSecret.reveal()), code, clock.instant())) {
 			log.info("TOTP re-enrollment rejected: invalid code")
 			return TotpEnrollmentResult.InvalidCode

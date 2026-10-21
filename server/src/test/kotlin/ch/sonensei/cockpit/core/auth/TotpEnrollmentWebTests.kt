@@ -245,6 +245,18 @@ class TotpEnrollmentWebTests(
 	}
 
 	@Test
+	fun `a confirm answered with 409 is no failed attempt and does not throttle the login`() {
+		val session = session(login(totp = code(originalSecret)))
+
+		repeat(LoginThrottle.FREE_ATTEMPTS + 1) { confirm(session, "000000").andExpect { status { isConflict() } } }
+
+		val wrong = if (code(originalSecret) == "000000") "111111" else "000000"
+		withClue("a wrong login is answered as wrong, not as throttled") {
+			login(totp = wrong).andExpect { status { isUnauthorized() } }
+		}
+	}
+
+	@Test
 	fun `the enrollment endpoints need a session and the CSRF token`() {
 		mockMvc.post(ENROLLMENT) { with(csrf()) }.andExpect { status { isUnauthorized() } }
 		mockMvc

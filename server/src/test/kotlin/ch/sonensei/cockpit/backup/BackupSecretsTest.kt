@@ -398,8 +398,8 @@ class BackupSecretsTest(
 	}
 
 	@Test
-	fun `a backup started without a body or with an empty body object has no secrets`() {
-		listOf(null, "{}", """{"passphrase":null}""").forEach { body ->
+	fun `a backup started without a body, with an empty body object or an empty passphrase has no secrets`() {
+		listOf(null, "{}", """{"passphrase":null}""", """{"passphrase":""}""").forEach { body ->
 			withClue("body $body") {
 				val id = startBackup(body).andExpect { status { isAccepted() } }.let { json(it)["id"].asString() }
 				Zips.read(download(id)) shouldNotContainKey BackupSecrets.PATH

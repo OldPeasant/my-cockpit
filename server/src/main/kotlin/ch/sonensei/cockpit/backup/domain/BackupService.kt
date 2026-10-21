@@ -107,13 +107,6 @@ class BackupService(
 		}
 
 	/**
-	 * Whether the backup at [source] holds encrypted secrets.
-	 *
-	 * @throws InvalidBackupException when the zip, its manifest or its format version is invalid
-	 */
-	fun hasSecrets(source: Path): Boolean = ZipBackupReader.open(source, canonicalJson).use { it.hasSecrets }
-
-	/**
 	 * Checks that [passphrase] decrypts the secrets of the backup at [source] (true when it has none).
 	 *
 	 * @throws InvalidBackupException when the zip, its manifest, its format version or its secrets file is invalid
@@ -171,7 +164,8 @@ class BackupService(
 			appendLine()
 			appendLine("- In the app: Settings → Restore, upload this zip, check the report, confirm. All current data is")
 			appendLine("  replaced (and saved to `pre-restore/` in the data directory first).")
-			appendLine("- On a fresh install: `java -jar cockpit-server.jar --restore=/path/to/this.zip`.")
+			appendLine("- On a fresh install: `java -jar cockpit-server.jar --restore=/path/to/this.zip`. To restore the")
+			appendLine("  secrets too, set the environment variable `COCKPIT_RESTORE_PASSPHRASE` to the backup's passphrase.")
 			appendLine()
 			appendLine("## Record counts")
 			appendLine()

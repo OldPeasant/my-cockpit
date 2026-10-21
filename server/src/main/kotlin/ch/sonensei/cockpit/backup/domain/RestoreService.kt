@@ -132,8 +132,9 @@ class RestoreService(
 			if (manifest.appVersion != backups.appVersion) {
 				warnings += "Created by My Cockpit ${manifest.appVersion}; this is version ${backups.appVersion}"
 			}
+			// The inspection found the zip's entries and the manifest to match, so the manifest tells.
+			hasSecrets = manifest.files.any { it.path == BackupSecrets.PATH }
 			try {
-				hasSecrets = backups.hasSecrets(path)
 				warnings += backups.restoreWarnings(path)
 			} catch (e: InvalidBackupException) {
 				problems += e.problems

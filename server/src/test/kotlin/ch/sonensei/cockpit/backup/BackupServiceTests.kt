@@ -1,5 +1,6 @@
 package ch.sonensei.cockpit.backup
 
+import ch.sonensei.cockpit.backup.api.RestoreCli
 import ch.sonensei.cockpit.backup.domain.BackupContributor
 import ch.sonensei.cockpit.backup.domain.BackupContributorRegistry
 import ch.sonensei.cockpit.backup.domain.BackupDataReader
@@ -11,6 +12,7 @@ import ch.sonensei.cockpit.backup.domain.BackupService
 import ch.sonensei.cockpit.backup.domain.InvalidBackupException
 import ch.sonensei.cockpit.backup.domain.jsonLines
 import io.kotest.assertions.throwables.shouldThrow
+import io.kotest.assertions.withClue
 import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.collections.shouldNotContain
 import io.kotest.matchers.shouldBe
@@ -176,7 +178,8 @@ class BackupServiceTests {
 		val readme = entries(zip).getValue(BackupFormat.README)
 		readme shouldContain "format version 1"
 		readme shouldContain "Created 2026-10-20T15:30:12Z"
-		listOf("`manifest.json`", "`data/`", "`files/`", "`readable/`", "## Restore", "--restore=").forEach { readme shouldContain it }
+		listOf("`manifest.json`", "`data/`", "`files/`", "`readable/`", "## Restore", RestoreCli.OPTION).forEach { readme shouldContain it }
+		withClue("how to give the passphrase to the restore CLI") { readme shouldContain "`${RestoreCli.PASSPHRASE_ENV}`" }
 		readme shouldContain "## Record counts\n\n- core_items: 2\n"
 		readme shouldNotContain "No data."
 	}

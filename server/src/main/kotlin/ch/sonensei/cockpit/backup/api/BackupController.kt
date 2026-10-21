@@ -44,7 +44,7 @@ class BackupController(
 				"type `BACKUP` with the job's id; refetch the job on each. When its state is `COMPLETED`, download the " +
 				"zip. Starting a new backup discards earlier finished ones. With a `passphrase`, the secrets (TOTP " +
 				"secret, mail passwords, OAuth tokens) are included, encrypted, in `data/secrets.enc.json`; without, " +
-				"they are left out. The body is optional.",
+				"they are left out. An empty `passphrase` counts as none. The body is optional.",
 	)
 	@ApiResponse(responseCode = "202", description = "Started; `Location` points to the job")
 	@ApiResponse(
@@ -60,7 +60,7 @@ class BackupController(
 	fun start(
 		@Valid @RequestBody(required = false) request: StartBackupRequest?,
 	): ResponseEntity<BackupJobResponse> {
-		val job = jobs.start(request?.passphrase?.takeIf { it.isNotEmpty() })
+		val job = jobs.start(request?.passphrase)
 		val location =
 			ServletUriComponentsBuilder
 				.fromCurrentRequestUri()
@@ -135,15 +135,18 @@ class BackupController(
 
 @Schema(description = "Options of a new backup")
 class StartBackupRequest(
+	passphrase: String? = null,
+) {
+	/** Empty counts as none (like [ConfirmRestoreRequest]), so it is normalized before the length is validated. */
 	@field:Size(min = PASSPHRASE_MIN, max = PASSPHRASE_MAX)
 	@field:Schema(
-		description = "Encrypts the secrets into the backup; without it, they are left out",
+		description = "Encrypts the secrets into the backup; without it (or empty), they are left out",
 		format = "password",
 		minLength = PASSPHRASE_MIN,
 		maxLength = PASSPHRASE_MAX,
 	)
-	val passphrase: String? = null,
-) {
+	val passphrase: String? = passphrase?.takeIf { it.isNotEmpty() }
+
 	override fun toString(): String = "StartBackupRequest(******)"
 }
 

@@ -8,7 +8,7 @@
 export interface StartBackupRequest {
 
   /**
-   * Encrypts the secrets into the backup; without it, they are left out
+   * Encrypts the secrets into the backup; without it (or empty), they are left out
    */
   passphrase?: string;
 }
