@@ -1,11 +1,11 @@
 ---
 title: Microsoft Graph calendar adapter
-status: todo
-owner: 
+status: in_progress
+owner: dell26/agent-2
 deps: [cal-sync-engine,oauth-connections]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/calendar/infra/microsoft,server/src/test/kotlin/ch/sonensei/cockpit/calendar/infra/microsoft]
 prio: 2
-lease_until: 
+lease_until: 2026-10-21T12:35:34Z
 extended: 
 releases: 1
 ---
