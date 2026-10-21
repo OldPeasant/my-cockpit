@@ -15,7 +15,10 @@ import ch.sonensei.cockpit.calendar.sync.RemoteEventChangedException
 import ch.sonensei.cockpit.calendar.sync.RemoteEventKey
 import ch.sonensei.cockpit.core.oauth.domain.OAuthAccessToken
 import ch.sonensei.cockpit.core.oauth.domain.OAuthConnectionInfo
+import ch.sonensei.cockpit.core.oauth.domain.OAuthConnectionNotFoundException
 import ch.sonensei.cockpit.core.oauth.domain.OAuthException
+import ch.sonensei.cockpit.core.oauth.domain.OAuthGrantRejectedException
+import ch.sonensei.cockpit.core.oauth.domain.OAuthProviderUnavailableException
 import ch.sonensei.cockpit.core.oauth.domain.OAuthReconnectRequiredException
 import ch.sonensei.cockpit.core.oauth.domain.OAuthResource
 import ch.sonensei.cockpit.core.oauth.domain.OAuthTokenProvider
@@ -239,6 +242,94 @@ class GoogleCalendarAdapterTests {
 	}
 
 	@Test
+	fun `sync and page tokens with reserved characters reach Google unchanged`() {
+		stub(get(urlPathEqualTo(EVENTS)).withQueryParam("syncToken", equalTo("CPDA+lv/Wx70=")), """{"items": [], "nextPageToken": "p+1/2=="}""")
+		stub(get(urlPathEqualTo(EVENTS)).withQueryParam("pageToken", equalTo("p+1/2==")), """{"items": [], "nextSyncToken": "next+&="}""")
+
+		val first = adapter.fetchEvents(source, "primary", "sync:CPDA+lv/Wx70=")
+		first.cursor shouldBe "page:p+1/2=="
+		adapter.fetchEvents(source, "primary", first.cursor).cursor shouldBe "sync:next+&="
+	}
+
+	@Test
+	fun `a changed all-day series gets the dates of its own cancelled occurrences only`() {
+		stub(
+			get(urlPathEqualTo(EVENTS)).withQueryParam("syncToken", equalTo("S1")),
+			"""
+			{"timeZone": "Europe/Zurich", "nextSyncToken": "S2", "items": [
+			  {"id": "daily09", "etag": "\"d-2\"", "status": "confirmed", "summary": "Holiday camp", "iCalUID": "daily09@google.com",
+			   "start": {"date": "2026-11-02"}, "end": {"date": "2026-11-03"}, "recurrence": ["RRULE:FREQ=DAILY;COUNT=5"]}]}
+			""",
+		)
+		stub(
+			get(urlPathEqualTo(EVENTS)).withQueryParam("iCalUID", equalTo("daily09@google.com")),
+			"""
+			{"items": [
+			  {"id": "daily09_20261104", "status": "cancelled", "recurringEventId": "daily09", "originalStartTime": {"date": "2026-11-04"}},
+			  {"id": "daily09_20261105", "status": "confirmed", "recurringEventId": "daily09", "originalStartTime": {"date": "2026-11-05"},
+			   "start": {"date": "2026-11-05"}, "end": {"date": "2026-11-06"}},
+			  {"id": "other_20261103", "status": "cancelled", "recurringEventId": "other", "originalStartTime": {"date": "2026-11-03"}},
+			  {"id": "daily09_x", "status": "cancelled", "recurringEventId": "daily09", "originalStartTime": {"dateTime": "2026-11-06T08:00:00Z"}},
+			  {"id": "daily09_y", "status": "cancelled", "recurringEventId": "daily09"}]}
+			""",
+		)
+
+		val series = adapter.fetchEvents(source, "primary", "sync:S1").events.single()
+
+		series.exdates shouldBe setOf(OccurrenceId.of(LocalDate.parse("2026-11-04")))
+		wireMock.verify(
+			getRequestedFor(urlPathEqualTo(EVENTS))
+				.withQueryParam("iCalUID", equalTo("daily09@google.com"))
+				.withQueryParam("showDeleted", equalTo("true"))
+				.withQueryParam("singleEvents", equalTo("false")),
+		)
+	}
+
+	@Test
+	fun `a changed series without cancelled occurrences is kept as sent, and a last page without sync token leaves no cursor`() {
+		stub(
+			get(urlPathEqualTo(EVENTS)).withQueryParam("syncToken", equalTo("S1")),
+			"""
+			{"timeZone": "UTC", "items": [
+			  {"id": "series07", "status": "confirmed", "summary": "Review", "iCalUID": "series07@google.com",
+			   "start": {"dateTime": "2026-11-02T08:00:00Z"}, "end": {"dateTime": "2026-11-02T09:00:00Z"},
+			   "recurrence": ["RRULE:FREQ=WEEKLY", "EXDATE:20261109T080000Z"]},
+			  {"id": "series08", "status": "confirmed", "summary": "No uid",
+			   "start": {"dateTime": "2026-11-02T08:00:00Z"}, "end": {"dateTime": "2026-11-02T09:00:00Z"}, "recurrence": ["RRULE:FREQ=DAILY"]}]}
+			""",
+		)
+		stub(get(urlPathEqualTo(EVENTS)).withQueryParam("iCalUID", equalTo("series07@google.com")), """{"items": []}""")
+
+		val changes = adapter.fetchEvents(source, "primary", "sync:S1")
+
+		changes.events.map { it.key.externalId to it.exdates } shouldContainExactly
+			listOf("series07" to setOf(OccurrenceId.of(Instant.parse("2026-11-09T08:00:00Z"))), "series08" to emptySet())
+		changes.cursor.shouldBeNull()
+		changes.hasMore shouldBe false
+		// Only the series with an iCalUID can be looked up.
+		wireMock.verify(1, getRequestedFor(urlPathEqualTo(EVENTS)).withQueryParam("iCalUID", matching(".*")))
+	}
+
+	@Test
+	fun `a failing lookup of a series' cancelled occurrences fails the fetch`() {
+		stub(get(urlPathEqualTo(EVENTS)).withQueryParam("syncToken", equalTo("EV-sync-1")), recording("events-incremental.json"))
+		stub(get(urlPathEqualTo(EVENTS)).withQueryParam("iCalUID", equalTo("series01@google.com")), "", 404)
+
+		shouldThrow<CalendarProviderException> { adapter.fetchEvents(source, "primary", "sync:EV-sync-1") }.message shouldContain
+			"exceptions of a series"
+	}
+
+	@Test
+	fun `a rate limit while fetching events is a provider error to retry later`() {
+		stub(get(urlPathEqualTo(EVENTS)), recording("error-403-rate-limit.json"), 403)
+
+		shouldThrow<CalendarProviderException> { adapter.fetchEvents(source, "primary", "sync:EV-sync-1") }.message shouldContain
+			"rate limit"
+		// Not mistaken for an expired token: no complete listing is attempted.
+		wireMock.verify(1, getRequestedFor(urlPathEqualTo(EVENTS)))
+	}
+
+	@Test
 	fun `calendar ids are encoded in the path`() {
 		stub(
 			get(urlPathEqualTo("$API/calendars/en.swiss%23holiday%40group.v.calendar.google.com/events")),
@@ -328,6 +419,90 @@ class GoogleCalendarAdapterTests {
 		stub(get(urlPathEqualTo("$EVENTS/0192a5f0c3e47b6a8d1e2f3a4b5c6d7e")), recording("event-insert-response.json"))
 
 		adapter.createEvent(source, "primary", planning()).etag shouldBe "\"3523456789030000\""
+	}
+
+	@Test
+	fun `409 for an insert without a cockpit-derived id is an error, not a lookup`() {
+		stub(post(urlPathEqualTo(EVENTS)), """{"error": {"code": 409, "message": "Conflict"}}""", 409)
+
+		shouldThrow<CalendarProviderException> {
+			adapter.createEvent(source, "primary", planning().copy(key = RemoteEventKey("not a uuid")))
+		}.message shouldContain "HTTP 409"
+		wireMock.verify(0, getRequestedFor(anyUrl()))
+	}
+
+	@Test
+	fun `a repeated insert whose stored copy cannot be fetched is a provider error`() {
+		stub(post(urlPathEqualTo(EVENTS)), """{"error": {"code": 409}}""", 409)
+		stub(get(urlPathEqualTo("$EVENTS/0192a5f0c3e47b6a8d1e2f3a4b5c6d7e")), """{"error": {"code": 404}}""", 404)
+
+		shouldThrow<CalendarProviderException> { adapter.createEvent(source, "primary", planning()) }.message shouldContain
+			"Fetching a created event"
+	}
+
+	@Test
+	fun `an exception of an occurrence Google deleted (410) is a provider error`() {
+		stub(patch(urlPathEqualTo("$EVENTS/series01_20261116T080000Z")), """{"error": {"code": 410}}""", 410)
+		val event = planning().copy(key = RemoteEventKey("series01", OccurrenceId.of(Instant.parse("2026-11-16T08:00:00Z"))))
+
+		shouldThrow<CalendarProviderException> { adapter.createEvent(source, "primary", event) }.message shouldContain "HTTP 410"
+	}
+
+	@Test
+	fun `updating an exception patches its instance with If-Match, 410 there is a remote change`() {
+		stub(patch(urlPathEqualTo("$EVENTS/series01_20261102T080000Z")), recording("event-instance-response.json"))
+		stub(patch(urlPathEqualTo("$EVENTS/series01_20261109T080000Z")), """{"error": {"code": 410}}""", 410)
+		val moved = planning().copy(key = RemoteEventKey("series01", OccurrenceId.of(Instant.parse("2026-11-02T08:00:00Z"))))
+		val gone = planning().copy(key = RemoteEventKey("series01", OccurrenceId.of(Instant.parse("2026-11-09T08:00:00Z"))))
+
+		adapter.updateEvent(source, "primary", moved, "\"3523456789014000\"")
+		shouldThrow<RemoteEventChangedException> { adapter.updateEvent(source, "primary", gone, "\"1\"") }
+
+		wireMock.verify(
+			patchRequestedFor(urlPathEqualTo("$EVENTS/series01_20261102T080000Z"))
+				.withHeader("If-Match", equalTo("\"3523456789014000\""))
+				.withRequestBody(matchingJsonPath("$.recurrence", absent())),
+		)
+	}
+
+	@Test
+	fun `cancelling an edited occurrence keeps it cancelled in Google's answer`() {
+		// Deleting "this occurrence" when it already has an override sets the override CANCELLED (CalendarEventService),
+		// which the write-through sends as an update; Google answers with the cancelled instance.
+		stub(
+			patch(urlPathEqualTo("$EVENTS/series01_20261102T080000Z")),
+			"""
+			{"kind": "calendar#event", "etag": "\"3523456789040000\"", "id": "series01_20261102T080000Z", "status": "cancelled",
+			 "summary": "Weekly sync (moved)", "recurringEventId": "series01",
+			 "originalStartTime": {"dateTime": "2026-11-02T09:00:00+01:00", "timeZone": "Europe/Zurich"},
+			 "start": {"dateTime": "2026-11-02T10:00:00+01:00", "timeZone": "Europe/Zurich"},
+			 "end": {"dateTime": "2026-11-02T10:30:00+01:00", "timeZone": "Europe/Zurich"}}
+			""",
+		)
+		val cancelled =
+			planning().copy(
+				key = RemoteEventKey("series01", OccurrenceId.of(Instant.parse("2026-11-02T08:00:00Z"))),
+				status = EventStatus.CANCELLED,
+			)
+
+		val stored = adapter.updateEvent(source, "primary", cancelled, "\"3523456789014000\"")
+
+		wireMock.verify(
+			patchRequestedFor(urlPathEqualTo("$EVENTS/series01_20261102T080000Z"))
+				.withRequestBody(matchingJsonPath("$.status", equalTo("cancelled"))),
+		)
+		stored.status shouldBe EventStatus.CANCELLED
+	}
+
+	@Test
+	fun `a delete Google rejects is a provider error`() {
+		stub(delete(urlPathEqualTo("$EVENTS/evt400")), """{"error": {"code": 400, "message": "Bad Request"}}""", 400)
+		stub(delete(urlPathEqualTo("$EVENTS/evt500")), "", 500)
+
+		shouldThrow<CalendarProviderException> { adapter.deleteEvent(source, "primary", RemoteEventKey("evt400"), null) }.message shouldContain
+			"HTTP 400"
+		shouldThrow<CalendarProviderException> { adapter.deleteEvent(source, "primary", RemoteEventKey("evt500"), null) }.message shouldContain
+			"HTTP 500"
 	}
 
 	@Test
@@ -470,6 +645,19 @@ class GoogleCalendarAdapterTests {
 
 		tokens.failure = OAuthReconnectRequiredException()
 		shouldThrow<CalendarProviderException> { adapter.listCalendars(source) }.message shouldContain "connected again"
+		wireMock.verify(0, anyRequestedFor(anyUrl()))
+	}
+
+	@Test
+	fun `every kind of token failure is a provider error naming what to do, never the token`() {
+		tokens.failure = OAuthConnectionNotFoundException()
+		shouldThrow<CalendarProviderException> { adapter.listCalendars(source) }.message shouldContain "was removed"
+		tokens.failure = OAuthProviderUnavailableException("timeout")
+		shouldThrow<CalendarProviderException> { adapter.listCalendars(source) }.message shouldContain "retrying later"
+		tokens.failure = OAuthGrantRejectedException("invalid_grant")
+		val rejected = shouldThrow<CalendarProviderException> { adapter.listCalendars(source) }
+		rejected.message shouldContain "invalid_grant"
+		rejected.message!! shouldNotContain TOKEN
 		wireMock.verify(0, anyRequestedFor(anyUrl()))
 	}
 
