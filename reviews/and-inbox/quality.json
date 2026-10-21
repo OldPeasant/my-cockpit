@@ -1,0 +1,29 @@
+{
+  "schema": 1,
+  "task": "and-inbox",
+  "reviewed_revision": "366e3afcc53fa003d36924abe96d35bce5fe483d",
+  "helpers": {
+    "test-writer": {"status": "completed", "report": "reviews/and-inbox/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/and-inbox/review.md"},
+    "fixer": {"status": "completed", "report": "reviews/and-inbox/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "offline state with no retry: retry() + Retry button in the offline banner (eeae2d6c)"},
+    {"id": "CR-2", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "double tap acting on the next item: stale-id check plus 500 ms tap guard (eeae2d6c); fixes.md's statement that no time guard was added is outdated, the code has it (confirmed in review.md)"},
+    {"id": "CR-3", "source": "code-reviewer", "severity": "P3", "disposition": "accepted",
+     "note": "Hilt fallback via LocalActivity/GeneratedComponentManagerHolder is needed because the shell navigation tests host screens in a plain ComponentActivity; changing those tests is outside this task's touches"},
+    {"id": "CR-4", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "created project reused only when the trimmed title matches (eeae2d6c)"},
+    {"id": "CR-5", "source": "code-reviewer", "severity": "P3", "disposition": "accepted",
+     "note": "a processed item may reappear when the reload after the action fails; the next successful reload corrects it, low impact"},
+    {"id": "TW-1", "source": "test-writer", "severity": "Medium", "disposition": "fixed",
+     "note": "unreadable date in the project/next-step answer after the move now still counts as processed (DateTimeException catch)"}
+  ],
+  "validation": [
+    {"command": "cd android && ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.gtd.inbox.*'", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
