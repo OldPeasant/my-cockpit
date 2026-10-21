@@ -379,6 +379,34 @@ class InboxViewModelTest {
         }
 
     @Test
+    fun `a prompt opened on an item that left the inbox meanwhile is neither shown nor run on the next item`() =
+        test { vm ->
+            vm.choose(first.id, InboxActionKind.SCHEDULE)
+            // A reload (e.g. the item was processed on the web) removes the item the prompt was opened on.
+            inboxFlow.value = inboxFlow.value.copy(data = listOf(second))
+
+            assertEquals(second, vm.uiState.value.current)
+            assertNull(vm.uiState.value.prompt)
+            vm.confirmPrompt(second.id)
+            vm.confirmPrompt(first.id)
+
+            coVerify(exactly = 0) { inbox.process(any(), any(), any()) }
+        }
+
+    @Test
+    fun `inline changes made on an item that left the inbox meanwhile do not apply to the next item`() =
+        test { vm ->
+            vm.setEnergy(Energy.HIGH)
+            vm.setEstimate(120)
+            inboxFlow.value = inboxFlow.value.copy(data = listOf(second))
+
+            assertEquals(Clarification.of(second), vm.uiState.value.clarification)
+            vm.choose(second.id, InboxActionKind.NEXT)
+
+            coVerify(exactly = 1) { inbox.process(second, Clarification.of(second), InboxAction.Next) }
+        }
+
+    @Test
     fun `retry reloads the inbox and a reload that works clears the offline state`() =
         test { vm ->
             inboxFlow.value = inboxFlow.value.copy(offline = true)

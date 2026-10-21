@@ -4,6 +4,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import ch.sonensei.cockpit.core.network.generated.apis.ProjectsApi
 import ch.sonensei.cockpit.core.network.generated.apis.TasksApi
 import ch.sonensei.cockpit.core.network.generated.infrastructure.Serializer
+import ch.sonensei.cockpit.gtd.data.Creativity
 import ch.sonensei.cockpit.gtd.data.Energy
 import ch.sonensei.cockpit.gtd.data.GtdHarness
 import ch.sonensei.cockpit.gtd.data.GtdTask
@@ -17,6 +18,8 @@ import ch.sonensei.cockpit.gtd.data.status
 import ch.sonensei.cockpit.gtd.data.taskJson
 import ch.sonensei.cockpit.gtd.data.taskPage
 import ch.sonensei.cockpit.gtd.data.uuid
+import io.mockk.coEvery
+import io.mockk.mockk
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
@@ -33,6 +36,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import retrofit2.Retrofit
 import retrofit2.converter.kotlinx.serialization.asConverterFactory
+import java.io.IOException
 import java.time.LocalDate
 import java.util.UUID
 
@@ -42,6 +46,7 @@ class InboxRepositoryTest {
     private val dispatcher = RoutingDispatcher()
     private val server = MockWebServer().apply { this.dispatcher = this@InboxRepositoryTest.dispatcher }
     private lateinit var gtd: GtdHarness
+    private lateinit var retrofit: Retrofit
     private lateinit var inbox: InboxRepository
 
     private val id = UUID.fromString(uuid(1))
@@ -52,7 +57,7 @@ class InboxRepositoryTest {
     fun setUp() {
         server.start()
         gtd = GtdHarness(server, dispatcher)
-        val retrofit =
+        retrofit =
             Retrofit
                 .Builder()
                 .baseUrl(server.url("/"))
@@ -441,6 +446,85 @@ class InboxRepositoryTest {
         dispatcher.enqueue("$PROJECTS/$project", json("""{"unexpected":true}"""))
 
         assertEquals(ProcessResult.Processed, process(InboxAction.ToProject(ProjectChoice.Existing(project))))
+    }
+
+    @Test
+    fun `a project answer with an unreadable date after the move still counts as processed`() {
+        // Same rule as the malformed answer above: the item has moved, only the stalled check could not be read.
+        val project = UUID.fromString(uuid(50))
+        dispatcher.enqueue("$path/move", taskAnswer())
+        val badDate = projectJson(50, "Kitchen").replace("\"updatedAt\":\"2026-10-01T08:00:00Z\"", "\"updatedAt\":\"yesterday\"")
+        dispatcher.enqueue("$PROJECTS/$project", json(badDate))
+
+        assertEquals(ProcessResult.Processed, process(InboxAction.ToProject(ProjectChoice.Existing(project))))
+    }
+
+    @Test
+    fun `a project answer with a malformed id after the move still counts as processed`() {
+        val project = UUID.fromString(uuid(50))
+        dispatcher.enqueue("$path/move", taskAnswer())
+        dispatcher.enqueue("$PROJECTS/$project", json(projectJson(50, "Kitchen").replace("\"id\":\"${uuid(50)}\"", "\"id\":\"not-an-id\"")))
+
+        assertEquals(ProcessResult.Processed, process(InboxAction.ToProject(ProjectChoice.Existing(project))))
+    }
+
+    @Test
+    fun `a connection lost during the stalled check after the move still counts as processed`() {
+        val project = UUID.fromString(uuid(50))
+        val projects = mockk<ProjectsApi> { coEvery { getProject(project) } throws IOException("connection reset") }
+        val repository =
+            InboxRepository(
+                retrofit.create(TasksApi::class.java),
+                retrofit.create(InboxTaskPatchApi::class.java),
+                projects,
+                gtd.tasks,
+                gtd.connectivity,
+            )
+        dispatcher.enqueue("$path/move", taskAnswer())
+
+        val result =
+            runBlocking { repository.process(task, Clarification.of(task), InboxAction.ToProject(ProjectChoice.Existing(project))) }
+
+        assertEquals(ProcessResult.Processed, result)
+        assertFalse(gtd.connectivity.offline.value)
+        assertTrue(calls().any { it.url.queryParameter("list") == "INBOX" })
+    }
+
+    @Test
+    fun `waiting without anyone named sends no waiting-for text`() {
+        dispatcher.enqueue("$path/move", taskAnswer())
+
+        assertEquals(ProcessResult.Processed, process(InboxAction.Waiting(null)))
+
+        val move = call("POST", "$path/move").json()
+        assertEquals("\"WAITING\"", move["list"].toString())
+        assertEquals("null", move["waitingForText"].toString())
+    }
+
+    @Test
+    fun `a retry with a further change patches only that change against the saved version`() {
+        val saved =
+            taskJson(1, "Call the plumber", extra = ""","energy":"LOW","creativity":"MIXED"""")
+                .replace("\"version\":1", "\"version\":4")
+        dispatcher.enqueue(path, json(saved))
+        dispatcher.enqueue("$path/move", status(503))
+        dispatcher.enqueue(path, taskAnswer(version = 5, list = "INBOX"))
+        dispatcher.enqueue("$path/move", taskAnswer(version = 6))
+
+        assertEquals(
+            ProcessResult.Offline,
+            process(InboxAction.Next, Clarification(energy = Energy.LOW, creativity = Creativity.MIXED)),
+        )
+        // The cached task is still version 3 without attributes; the user now also raises the energy.
+        assertEquals(
+            ProcessResult.Processed,
+            process(InboxAction.Next, Clarification(energy = Energy.HIGH, creativity = Creativity.MIXED)),
+        )
+
+        val patches = calls().filter { it.method == "PATCH" }
+        assertEquals(listOf("\"3\"", "\"4\""), patches.map { it.headers["If-Match"] })
+        assertEquals(Json.parseToJsonElement("""{"energy":"HIGH"}"""), patches.last().json())
+        assertEquals("\"5\"", calls().last { it.url.encodedPath == "$path/move" }.headers["If-Match"])
     }
 
     @Test

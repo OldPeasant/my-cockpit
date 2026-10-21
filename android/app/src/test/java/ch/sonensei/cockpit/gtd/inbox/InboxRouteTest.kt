@@ -3,6 +3,7 @@ package ch.sonensei.cockpit.gtd.inbox
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -55,6 +56,14 @@ class InboxRouteTest {
                 uptime
             }
         composeRule.setContent { CockpitTheme { InboxRoute(viewModel = viewModel) } }
+    }
+
+    @Test
+    fun `outside a Hilt activity the inbox tab shows the placeholder instead of failing`() {
+        composeRule.setContent { CockpitTheme { InboxScreen() } }
+
+        composeRule.onNodeWithText("This part of your cockpit is not built yet.").assertExists()
+        composeRule.onNodeWithTag(InboxTags.PROCESS).assertDoesNotExist()
     }
 
     @Test
