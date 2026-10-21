@@ -85,8 +85,10 @@ class ContactAggregateService(
 
 	/**
 	 * Suggestions for [query]: matching contacts first (one entry per email address, or one without address), names
-	 * starting with the query before the others, then recent correspondents that are not addresses of a suggested
-	 * contact, most recently seen first. At most [limit] entries; a blank query has none.
+	 * starting with the query before the others (each group by name), then recent correspondents that are not
+	 * addresses of a suggested contact, most recently seen first. A correspondent whose address belongs to a contact
+	 * carries that contact and its display name. At most [limit] entries; a blank query has none. Looks at no more
+	 * than the first [CONTACT_SCAN] matching contacts by name.
 	 */
 	fun autocomplete(
 		query: String,
@@ -95,26 +97,67 @@ class ContactAggregateService(
 		val text = query.trim()
 		if (text.isEmpty()) return emptyList()
 		val needle = text.lowercase()
-		val matching =
-			contacts
-				.list(text, CursorRequest(null, CONTACT_SCAN))
-				.items
-				.sortedBy { if (it.displayName.lowercase().startsWith(needle)) 0 else 1 }
-		val fromContacts =
-			matching.flatMap { contact ->
-				if (contact.emails.isEmpty()) {
-					listOf(AutocompleteEntry(contact.displayName, null, contact))
-				} else {
-					contact.emails.map { AutocompleteEntry(contact.displayName, it.address, contact) }
-				}
-			}
+		val (prefixed, others) =
+			matchingContacts(text, needle, limit).partition { it.displayName.lowercase().startsWith(needle) }
+		val fromContacts = (prefixed + others).flatMap(::entries)
+		if (fromContacts.size >= limit) return fromContacts.take(limit)
 		val known = fromContacts.mapNotNull { it.email?.lowercase() }.toSet()
 		val fromMail =
 			correspondence
 				.correspondents(text, CORRESPONDENT_SCAN)
 				.filter { it.address.lowercase() !in known }
-				.map { AutocompleteEntry(it.name, it.address, null) }
-		return (fromContacts + fromMail).take(limit)
+				.take(limit - fromContacts.size)
+				.map { correspondent ->
+					val owner = contactWithAddress(correspondent.address)
+					AutocompleteEntry(owner?.displayName ?: correspondent.name, correspondent.address, owner)
+				}
+		return fromContacts + fromMail
+	}
+
+	/**
+	 * Contacts matching [text] in name order, page by page, up to [CONTACT_SCAN] of them. Stops early once the
+	 * contacts whose name starts with [needle] give [limit] entries: everything later ranks behind them.
+	 */
+	private fun matchingContacts(
+		text: String,
+		needle: String,
+		limit: Int,
+	): List<Contact> {
+		val result = mutableListOf<Contact>()
+		var prefixEntries = 0
+		var page = CursorRequest(null, CursorRequest.MAX_LIMIT)
+		while (true) {
+			val contactPage = contacts.list(text, page)
+			for (contact in contactPage.items) {
+				result += contact
+				if (contact.displayName.lowercase().startsWith(needle)) prefixEntries += maxOf(1, contact.emails.size)
+			}
+			val next = contactPage.nextCursor
+			if (next == null || prefixEntries >= limit || result.size >= CONTACT_SCAN) return result.take(CONTACT_SCAN)
+			page = CursorRequest.of(next, CursorRequest.MAX_LIMIT)
+		}
+	}
+
+	/** One entry per email address of [contact], or one without address. */
+	private fun entries(contact: Contact): List<AutocompleteEntry> =
+		if (contact.emails.isEmpty()) {
+			listOf(AutocompleteEntry(contact.displayName, null, contact))
+		} else {
+			contact.emails.map { AutocompleteEntry(contact.displayName, it.address, contact) }
+		}
+
+	/** The first contact (by name) with exactly [address] (case-insensitive) among its email addresses. */
+	private fun contactWithAddress(address: String): Contact? {
+		val wanted = address.lowercase()
+		var page = CursorRequest(null, CursorRequest.MAX_LIMIT)
+		while (true) {
+			// list() matches substrings, e.g. "x@example.test" also finds "max@example.test": check exactly.
+			val contactPage = contacts.list(address, page)
+			val found = contactPage.items.firstOrNull { contact -> contact.emails.any { it.address.lowercase() == wanted } }
+			if (found != null) return found
+			val next = contactPage.nextCursor ?: return null
+			page = CursorRequest.of(next, CursorRequest.MAX_LIMIT)
+		}
 	}
 
 	/** Open Waiting For tasks whose contact is [contact], in list order. */
@@ -133,7 +176,7 @@ class ContactAggregateService(
 		const val MAIL_LIMIT = 20
 		const val EVENT_LIMIT = 20
 		val EVENT_HORIZON: Duration = Duration.ofDays(90)
-		const val CONTACT_SCAN = 50
+		const val CONTACT_SCAN = 1000
 		const val CORRESPONDENT_SCAN = 500
 		const val DEFAULT_AUTOCOMPLETE_LIMIT = 10
 		const val MAX_AUTOCOMPLETE_LIMIT = 50

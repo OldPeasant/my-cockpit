@@ -133,7 +133,7 @@ data class ContactWaitingForDto(
 data class ContactSuggestionDto(
 	@get:Schema(description = "Display name of the contact, or the name last seen with the address") val name: String?,
 	@get:Schema(description = "`null` only for a contact without email address") val email: String?,
-	@get:Schema(description = "`null` for a correspondent that is not a contact") val contactId: UUID?,
+	@get:Schema(description = "`null` for a correspondent whose address belongs to no contact") val contactId: UUID?,
 ) {
 	companion object {
 		fun of(entry: AutocompleteEntry) = ContactSuggestionDto(entry.name, entry.email, entry.contact?.id)

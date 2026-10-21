@@ -43,8 +43,9 @@ class ContactAggregateController(
 		summary = "Suggest contacts and recent correspondents",
 		description =
 			"Contacts whose display name or an email address contains `q` (one entry per address; names starting with " +
-				"`q` first), then addresses from recent mails whose address or name contains `q` and that are not an " +
-				"address of a suggested contact or of the owner, most recently seen first. A blank `q` has no suggestions.",
+				"`q` first, each group by name), then addresses from recent mails whose address or name contains `q` and " +
+				"that are not an address of a suggested contact or of the owner, most recently seen first. Such an address " +
+				"that belongs to a contact carries its `contactId` and display name. A blank `q` has no suggestions.",
 	)
 	@ApiResponse(responseCode = "200", description = "The suggestions")
 	@ContactBadRequestResponse

@@ -1823,10 +1823,11 @@ paths:
   /api/v1/contacts/autocomplete:
     get:
       description: "Contacts whose display name or an email address contains `q` (one\
-        \ entry per address; names starting with `q` first), then addresses from recent\
-        \ mails whose address or name contains `q` and that are not an address of\
-        \ a suggested contact or of the owner, most recently seen first. A blank `q`\
-        \ has no suggestions."
+        \ entry per address; names starting with `q` first, each group by name), then\
+        \ addresses from recent mails whose address or name contains `q` and that\
+        \ are not an address of a suggested contact or of the owner, most recently\
+        \ seen first. Such an address that belongs to a contact carries its `contactId`\
+        \ and display name. A blank `q` has no suggestions."
       operationId: autocompleteContacts
       parameters:
       - description: The text typed so far
@@ -7804,7 +7805,7 @@ components:
         contactId:
           type: string
           format: uuid
-          description: '`null` for a correspondent that is not a contact'
+          description: '`null` for a correspondent whose address belongs to no contact'
         email:
           type: string
           description: '`null` only for a contact without email address'

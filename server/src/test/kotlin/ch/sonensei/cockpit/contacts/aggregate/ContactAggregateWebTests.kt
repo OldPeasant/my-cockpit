@@ -245,7 +245,13 @@ class ContactAggregateWebTests(
 		contact("""{"displayName":"Ann Doe","emails":[{"address":"ann.doe@example.test"},{"address":"ann@home.test"}]}""")
 
 		get("$CONTACTS/autocomplete?q=ann&limit=1").texts("email") shouldContainExactly listOf("ann.doe@example.test")
-		get("$CONTACTS/autocomplete?q=%20").size() shouldBe 0
+		mockMvc
+			.get("$CONTACTS/autocomplete") { param("q", " ") }
+			.andExpect { status { isOk() } }
+			.andReturn()
+			.response.contentAsString
+			.let(jsonMapper::readTree)
+			.size() shouldBe 0
 		mockMvc.get("$CONTACTS/autocomplete?q=ann&limit=0").andExpect { status { isBadRequest() } }
 		mockMvc.get("$CONTACTS/autocomplete?q=ann&limit=51").andExpect { status { isBadRequest() } }
 	}

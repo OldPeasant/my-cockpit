@@ -8,7 +8,7 @@
 export interface ContactSuggestionDto {
 
   /**
-   * `null` for a correspondent that is not a contact
+   * `null` for a correspondent whose address belongs to no contact
    */
   contactId?: string;
 
