@@ -5,7 +5,7 @@ owner: dell26/agent-3
 deps: [web-cal-views]
 touches: [web/src/app/features/calendar/edit,web/src/app/features/calendar/views]
 prio: 1
-lease_until: 2026-10-21T11:56:31Z
+lease_until: 2026-10-21T12:01:31Z
 ---
 ## Goal
 Create and edit events (SPEC.md §6.3).
