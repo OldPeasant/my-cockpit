@@ -316,6 +316,26 @@ describe('TodayEvents', () => {
     expect(root.querySelector('#today-events .count')?.textContent?.trim()).toBe('2');
   });
 
+  it("picks all-day events by the browser's local date, also just after and before midnight", async () => {
+    occurrences = [
+      fakeOccurrence('Yesterday', { allDay: true, startDate: '2026-10-19', endDate: '2026-10-20' }),
+      fakeOccurrence('Holiday', { allDay: true, startDate: '2026-10-20', endDate: '2026-10-21' }),
+      fakeOccurrence('Vacation', { allDay: true, startDate: '2026-10-18', endDate: '2026-10-25' }),
+      fakeOccurrence('Birthday', { allDay: true, startDate: '2026-10-20' }),
+      fakeOccurrence('Tomorrow', { allDay: true, startDate: '2026-10-21', endDate: '2026-10-22' }),
+    ];
+
+    for (const [hours, minutes] of [
+      [0, 30],
+      [23, 30],
+    ]) {
+      vi.setSystemTime(new Date(2026, 9, 20, hours, minutes));
+      await render();
+      expect(titles()).toEqual(['Birthday', 'Holiday', 'Vacation']);
+      fixture.destroy();
+    }
+  });
+
   it('labels a timed event covering the whole day as all day', async () => {
     occurrences = [fakeOccurrence('Offsite', { start: at(0), end: at(0, 0, 21) })];
     await render();
