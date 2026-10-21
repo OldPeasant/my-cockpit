@@ -12,6 +12,7 @@ import io.kotest.matchers.shouldNotBe
 import io.kotest.matchers.string.shouldContain
 import io.kotest.matchers.string.shouldNotBeBlank
 import io.kotest.matchers.string.shouldNotContain
+import jakarta.servlet.http.Cookie
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
@@ -203,6 +204,53 @@ class CsrfCookieWebTests(
 	}
 
 	@Test
+	fun `a write sent with the token read before another write answered still passes, as for concurrent SPA requests`() {
+		val (session, token) = loggedIn()
+		// Request A answers first; the browser keeps whatever XSRF-TOKEN cookie A's response sets.
+		val first = postContext("@csrf-first", session, token, header = token.value).andReturn()
+		first.response.status shouldBe 201
+		val jar = first.response.getCookie(XSRF_COOKIE) ?: token
+		// Request B was prepared before A answered: its header still carries the token read then.
+		postContext("@csrf-second", session, jar, header = token.value).andExpect { status { isCreated() } }
+		postContext("@csrf-third", session, jar, header = token.value).andExpect { status { isCreated() } }
+	}
+
+	@Test
+	fun `an authenticated write without the header, with a forged one or with the token from before login is rejected`() {
+		val before =
+			mockMvc
+				.get("/api/v1/setup/status")
+				.andReturn()
+				.response
+				.getCookie(XSRF_COOKIE)
+				.shouldNotBeNull()
+		val (session, token) = loggedIn(before)
+
+		postContext("@rejected-none", session, token, header = null).andExpect { status { isForbidden() } }
+		postContext("@rejected-forged", session, token, header = "forged-${token.value}").andExpect { status { isForbidden() } }
+		postContext("@rejected-stale", session, token, header = before.value).andExpect { status { isForbidden() } }
+		// None of them was stored.
+		mockMvc
+			.get("/api/v1/contexts") { cookie(session, token) }
+			.andExpect { status { isOk() } }
+			.andReturn()
+			.response.contentAsString shouldNotContain "@rejected-"
+	}
+
+	@Test
+	fun `rejected requests do not open a servlet session either`() {
+		val unauthenticated = mockMvc.get("/api/v1/auth/me").andExpect { status { isUnauthorized() } }.andReturn()
+		val forbidden =
+			mockMvc
+				.post("/api/v1/auth/login") {
+					contentType = MediaType.APPLICATION_JSON
+					content = loginBody()
+				}.andExpect { status { isForbidden() } }
+				.andReturn()
+		listOf(unauthenticated, forbidden).forEach { it.request.getSession(false).shouldBeNull() }
+	}
+
+	@Test
 	fun `a failed login keeps the XSRF-TOKEN cookie`() {
 		val xsrf =
 			mockMvc
@@ -272,6 +320,41 @@ class CsrfCookieWebTests(
 			.last { it.startsWith("$XSRF_COOKIE=") }
 			.substringAfter("=")
 			.substringBefore(";")
+
+	/** Logs in as the SPA does; returns the session cookie and the XSRF-TOKEN cookie issued by the login. */
+	private fun loggedIn(
+		xsrf: Cookie =
+			mockMvc
+				.get("/api/v1/setup/status")
+				.andReturn()
+				.response
+				.getCookie(XSRF_COOKIE)
+				.shouldNotBeNull(),
+	): Pair<Cookie, Cookie> {
+		val response =
+			mockMvc
+				.post("/api/v1/auth/login") {
+					contentType = MediaType.APPLICATION_JSON
+					content = loginBody()
+					cookie(xsrf)
+					header(XSRF_HEADER, xsrf.value)
+				}.andExpect { status { isOk() } }
+				.andReturn()
+				.response
+		return response.getCookie(SessionCookies.NAME).shouldNotBeNull() to response.getCookie(XSRF_COOKIE).shouldNotBeNull()
+	}
+
+	private fun postContext(
+		name: String,
+		session: Cookie,
+		xsrf: Cookie,
+		header: String?,
+	) = mockMvc.post("/api/v1/contexts") {
+		contentType = MediaType.APPLICATION_JSON
+		content = jsonMapper.writeValueAsString(mapOf("name" to name))
+		cookie(session, xsrf)
+		if (header != null) header(XSRF_HEADER, header)
+	}
 
 	private fun loginBody(): String =
 		jsonMapper.writeValueAsString(
