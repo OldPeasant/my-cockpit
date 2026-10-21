@@ -13,7 +13,8 @@ Near-real-time new mail (SPEC.md §7.2).
 ## Acceptance criteria
 - [x] IDLE on each account's INBOX with reconnect/backoff and 29-min re-IDLE; other folders polled every 5 min
   - verified (2026-10-21 22:38+0200 by dell26/agent-1): cd server && ./gradlew test --tests 'ch.sonensei.cockpit.mail.sync.*' at 71457b4c8 -> InboxWatcherTests 13 (reconnect + doubling backoff capped, failure reset, re-IDLE refresh, no-IDLE path), MailPushServiceTests 20 (watcher per account incl. restart on account change, 5-min poll of all selectable folders incl. Inbox), MailPushPropertiesTests 11 (defaults 29 min re-IDLE / 5 min poll via Spring binding) all pass; integrationTest MailIdleGreenMailTests 4 (re-IDLE every 1 s keeps delivering) pass
-- [ ] New mail → ChangeEvent + optional notification event (per-account setting)
+- [x] New mail → ChangeEvent + optional notification event (per-account setting)
+  - verified (2026-10-21 22:38+0200 by dell26/agent-1): cd server && ./gradlew test --tests 'ch.sonensei.cockpit.mail.sync.*' -> NewMailAnnouncerTests 10 (EMAIL CREATED ChangeEvent per arrival, 'mail' notification only when account notifyNewMail is on, unseen Inbox only, max 10) pass; integrationTest MailIdleGreenMailTests (notifyNewMail on/off over GreenMail) pass
 - [ ] `external` GreenMail test: delivered message appears within seconds without polling
 
 ## Notes
