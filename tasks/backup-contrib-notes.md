@@ -13,7 +13,8 @@ extended: dell26/agent-6
 Notes in backups (SPEC.md §10.2).
 
 ## Acceptance criteria
-- [ ] data/notes.jsonl, note_revisions.jsonl; readable/notes/<yyyy-mm-dd>-<slug>.md with front matter (id, tags, links) and image links rewritten to `../../files/...`
+- [x] data/notes.jsonl, note_revisions.jsonl; readable/notes/<yyyy-mm-dd>-<slug>.md with front matter (id, tags, links) and image links rewritten to `../../files/...`
+  - verified (2026-10-21 07:15+0200 by dell26/agent-6): cd server && ./gradlew test --tests '*NotesBackupContributorTests' -> 18 tests, 0 failures (data/notes.jsonl + note_revisions.jsonl, readable/notes/<date>-<slug>.md, front matter id/tags/links, cockpit-file: -> ../../files/... resolved against zip entries)
 - [ ] Round-trip test (`./gradlew test --tests '*BackupRoundTripTest'`) passes with this module's `BackupFixture` seeding notes with images, tags and revisions
 
 ## Notes
