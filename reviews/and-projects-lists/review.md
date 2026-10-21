@@ -4,36 +4,45 @@ Date: 2026-10-21
 
 Task: and-projects-lists - Android projects, waiting, someday
 
-Scope: `git diff 3148bba7..bd8f525a -- android`. This is a re-review of the final production code at revision bd8f525a, after the fixes for CR-1 to CR-6 of the previous review. HEAD 83140003 only adds `reviews/and-projects-lists/fixes.md`, so the working tree matches bd8f525a for `android/`.
+Scope: `git diff 404b41ed508b16bbef7bf02b77ed151cf6caef0b..4db5f564790d781a7e24efef6fe9624f3af0a544 -- android` (base = `git merge-base HEAD origin/main`). This is the final re-review. It checks the full task diff, the fixes for the P3 findings CR-1 and CR-2 of the previous re-review (commit 4db46544, fixes.md round 2), and the tests added in 4db5f564. The task commits were rebased onto the new main before this review (the hashes in tests.md, db31b7fa..0b64a78a, are the pre-rebase ones). Only `android/` and `reviews/and-projects-lists/` changed.
 
 Requirements:
 - tasks/and-projects-lists.md (2 acceptance criteria, 4 recorded assumptions)
-- SPEC.md sections 4.2 (ETag/If-Match, 409/412), 5.1, 5.2 (stalled rule, "Choose next step" prompt), 5.3 (project list grouped by area with stalled ones highlighted, project detail with next-step marker, Waiting For sorted by waitingSince with follow up), 9.2, 9.3 (read cache and offline banner)
-- AGENTS.md project notes; the previous review and reviews/and-projects-lists/fixes.md
-- Existing conventions in gtd/data (GtdRefresh `refreshing`, `GtdRefreshTriggers.on`) and gtd/next
+- SPEC.md sections 4.2 (ETag/If-Match, 404/409/412), 5.2 (stalled rule, "Choose next step" prompt), 5.3 (projects grouped by area, stalled highlighted, detail with next step, Waiting For, Someday), 9.3 (read cache, offline banner)
+- AGENTS.md project notes (lint, conventions, feature folders, fictitious test data)
+- reviews/and-projects-lists/review.md (previous), fixes.md (rounds 1 and 2), tests.md
+- Existing conventions in gtd/data (`GtdConnectivity.refreshing`, `GtdRefreshTriggers.on`) and gtd/next (route and in-app tests)
 
 Git range:
 - Branch: main
-- HEAD: 83140003 (production code identical to bd8f525a)
-- Base/start: 3148bba731393bc3d96d27804616e8c16db4d3b0
-- Commits reviewed: 4 (93c75594, c5384f51, 8b0ba2e7, bd8f525a); 83140003 touches only reviews/
+- HEAD: 4db5f564790d781a7e24efef6fe9624f3af0a544
+- Base/start: 404b41ed508b16bbef7bf02b77ed151cf6caef0b
+- Commits reviewed: 8 (1f76e12f, 52310894, 72463324, af8dcbcd, 13d00c1b, d6e6cb91, 4db46544, 4db5f564)
 - Uncommitted changes: none at the start of the review
 
-Summary: 0 P0, 0 P1, 0 P2, 2 P3
+Commands run by the reviewer:
+- `cd android && ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.gtd.projects.*' --tests 'ch.sonensei.cockpit.gtd.lists.*'` - Pass. Fresh JUnit XML results (written 2026-10-21 12:42 +0200): ProjectsScreenTest 28, ProjectsViewModelTest 27, ProjectWorkRepositoryTest 16, ProjectGroupingTest 9, ProjectsRouteTest 4, ProjectsScreensInAppTest 3, ListScreensTest 14, ListViewModelsTest 13, LiveLoadTest 6, TaskListsRepositoryTest 6, ListRoutesTest 3. Total 129, 0 failures, 0 errors, 0 skipped.
+- `cd android && ./gradlew ktlintCheck lintDebug` - Pass.
 
-## Status of the earlier findings
+Summary: 0 P0, 0 P1, 0 P2, 0 P3
 
-- CR-1 (projects shown under "No area" without loaded areas): resolved. `ProjectsViewModel.kt:138-160` keeps the areas it loaded last (`knownAreas`). While no areas are known, the list shows loading instead of grouping (`areasLoading`). If areas never loaded, `groupByArea(projects, null)` (`ProjectsViewModel.kt:342-348`) puts projects that have an area into their own group, headed "In an area (areas not loaded)", and `ProjectsScreen.kt:202` shows a StaleBanner with retry. Covered by VM, grouping and screen tests. One side effect is noted as CR-1 below.
-- CR-2 (detail read-only after a failed reload, no banner and no retry): resolved. `ProjectsScreen.kt:346` shows `StaleBanner` with retry whenever `detail.loaded && detail.error != null`, also when no open tasks are left. Covered by two screen tests.
-- CR-3 (the prompt's "Add" was not atomic): resolved. `ProjectWorkRepository.addNextStep` (`ProjectWorkRepository.kt:93-112`) returns the created task id even when setting the next step fails, and skips the create when `created` is passed. The VM stores it in `NextStepPrompt.created` and reuses it only for the same trimmed title of the same project (`ProjectsViewModel.kt:250-264`). Covered by repository and VM tests.
-- CR-4 (`ProjectWorkRepository` untested): resolved. `ProjectWorkRepositoryTest` covers the If-Match values, the `needsNextStep` mapping, the create/re-read/set call order, offline skipping the cache reload, the 404/409/412 to CONFLICT mapping, 400 to FAILED, area ordering and an area load failure.
-- CR-5 (prompt not tied to its project): resolved. `NextStepPrompt.projectId` is set. `complete()` captures the open project and prompts only if it is still selected (`ProjectsViewModel.kt:212-224`). The detail shows only its own prompt (`:183`). `makeNextStep` and `addNextStep` close only their own project's prompt. `choose()` does nothing without an open project.
-- CR-6 (`completed` never pruned): resolved. `forgetCompleted` (`ProjectsViewModel.kt:144`, `:282-285`) prunes on every successful load that no longer holds the id, and a failed reload prunes nothing. A load that is still in flight and still holds the task keeps it hidden, so pruning does not cause a completed task to flash back. Covered by a VM test.
+## Status of the earlier P3 findings
+
+- CR-1 (cached projects hidden behind "Loading" while the areas load): resolved. `ProjectsViewModel.kt:170` always uses `groupByArea(visible, v.areas)`. With no known areas this is the "In an area (areas not loaded)" grouping, so cached projects appear at once. `areasError` stays null while the areas load (`ProjectsViewModel.kt:155`, `Live.loading` means no data and no error), so no stale banner appears. `loading` (`ProjectsViewModel.kt:101`) is now true only when there is nothing to show. When the areas arrive, the projects are regrouped by area. Covered by the VM tests `cached projects show at once without their areas while the areas still load, without an error` and `without cached projects the list shows loading while the areas still load`, and by the screen tests `while areas load the cached projects show ...` and `while areas load without projects the list shows loading`. The earlier failure and recovery assertions are kept in `areas that cannot load keep projects out of No area, with an error`.
+- CR-2 (two stacked offline banners in the detail): resolved. `ProjectsScreen.kt:347` shows the detail's `StaleBanner` only when `detail.error == LoadError.FAILED || !state.offline`. Offline, the list's `OfflineBanner` is the only banner, and the detail stays read-only (`readOnly` includes `offline`). A FAILED reload still shows its banner and retry. Covered by the two new `offline, a detail whose reload failed ...` screen tests.
+
+## New tests (4db5f564)
+
+- `ProjectsRouteTest` drives the real `ProjectsViewModel` through `ProjectsRoute` with mocked repositories. It covers open, show finished, back, make next step (with the project passed for its version), completing the next step leading to the prompt and a choice, and choose leading to skip, then add with a trimmed title. Swapped positional callbacks in `ProjectsCallbacks.of` would now fail a test.
+- `ListRoutesTest` covers the Waiting order (given newest first, shown oldest first, checked by row bounds), follow up with the expected title, complete with undo, and Someday activate through the real view models.
+- `ProjectsScreensInAppTest` checks, like the existing `NextScreenInAppTest`, that the Hilt activity shows the real Projects, Waiting and Someday screens instead of the placeholder. It accepts the loading, empty, list or error state, which is right for a test without a server.
+- The two added `ProjectsScreenTest` cases (due date next to the stalled badge, offline detail error with retry) assert visible behaviour.
+- Test data is fictitious (placeholder tokens, made-up titles and names).
 
 ## Acceptance criteria
 
-- Criterion 1 (Projects with stalled ones highlighted, detail with tasks and next step, Waiting For, Someday): implemented. Projects are grouped by area in position order, stalled projects come first with an accent bar and a "No next step" badge, and finished projects sit behind a chip. The detail shows open tasks in project order, a next-step marker, "make next step" and "Choose next step", and the prompt opens when the server's `needsNextStep` is true. Waiting is sorted by `waitingSince`, oldest first, undated last, and has "Follow up". Someday has "Activate". Mutations send strong `"version"` If-Match values and map 404/409/412 to a conflict message, as SPEC 4.2 requires.
-- Criterion 2 (the `gtd.projects.*` and `gtd.lists` unit tests pass, covering the stalled badge and the next-step prompt with Robolectric/Compose UI tests): the tests exist (`ProjectsScreenTest` covers the stalled badge and the prompt, `ProjectsViewModelTest` covers the prompt logic). The reviewer did not run them, because the test-writer runs Gradle in parallel in the same clone. fixes.md reports 98 tests passing. The task file still shows both criteria unticked. The parent must record evidence with `tasks.py verify` before `done`. That is not a finding at this stage.
+- Criterion 1 (Projects with stalled ones highlighted, detail with tasks and next step, Waiting For, Someday): implemented, as the earlier reviews found. Nothing in the final changes regresses it. Projects are grouped by area in position order. Stalled projects come first, with an accent bar and a "No next step" badge, and finished projects sit behind a chip. The detail shows open tasks in project order, a next-step marker, "make next step", "Choose next step", and the prompt after completing the next step (`needsNextStep`). Waiting is sorted oldest `waitingSince` first, with "Follow up". Someday has "Activate". Mutations send strong If-Match values and map 404/409/412 to a conflict.
+- Criterion 2 (`gtd.projects.*` and `gtd.lists` tests pass, covering the stalled badge and the next-step prompt with Robolectric/Compose UI tests): the reviewer ran the named command (see above): 129 tests, 0 failures. The stalled badge is covered by `ProjectsScreenTest` and `ProjectsRouteTest`, and the prompt by `ProjectsScreenTest`, `ProjectsViewModelTest` and `ProjectsRouteTest`. The task file still shows both criteria without recorded evidence. The parent must record it with `tasks.py verify` before `done`. That is a process step, not a finding.
 
 ## P0 Critical
 
@@ -49,20 +58,10 @@ None.
 
 ## P3 Low
 
-- [ ] **CR-1 | Cached projects are hidden behind "Loading" until the live areas request ends, which can take the full HTTP timeout when the server is unreachable**
-    - File: `android/app/src/main/java/ch/sonensei/cockpit/gtd/projects/ProjectsViewModel.kt:101`, `android/app/src/main/java/ch/sonensei/cockpit/gtd/projects/ProjectsViewModel.kt:154`, `android/app/src/main/java/ch/sonensei/cockpit/gtd/projects/ProjectsViewModel.kt:169`
-    - Category: Correctness
-    - Problem: When no areas are known yet (first subscription of a new view model), `areasLoading` is true and `groups` is empty, even though Room already holds the projects. `liveLoad` does not check connectivity first. It runs the request, and only an `IOException` (`GtdRefresh.kt:73-81`) ends it. OkHttp's default 10 s connect and read timeouts apply (no override was found outside the change stream). So when the device has a network but the server cannot be reached (server down, captive portal, bad Wi-Fi), the Projects tab shows "Loading" for up to the timeout, then the "areas not loaded" grouping. Before the CR-1 fix, the cached projects appeared at once.
-    - Why it matters: Projects are cached so that they can be shown when the server is unreachable (SPEC 9.3 behaviour, which this screen follows with its offline banner). In exactly that case the cache is now held back for many seconds on every cold open.
-    - Suggested fix: Show the "areas not loaded" grouping (`groupByArea(visible, null)`) while areas are still loading and none are known, without the error banner, instead of an empty loading list. Or apply the areas wait only while the projects themselves are not offline, or only for a short grace period. Add a VM test with cached projects and a pending areas load.
+None.
 
-- [ ] **CR-2 | An offline project detail shows two stacked banners that say the same thing**
-    - File: `android/app/src/main/java/ch/sonensei/cockpit/gtd/projects/ProjectsScreen.kt:162`, `android/app/src/main/java/ch/sonensei/cockpit/gtd/projects/ProjectsScreen.kt:346`
-    - Category: Quality
-    - Problem: When the server is unreachable, the project list's `offline` flag is set, so `OfflineBanner` is shown. The detail's task reload also fails with `LoadError.OFFLINE`, so `StaleBanner` is shown with the "offline" stale text. The user sees two offline banners one above the other.
-    - Why it matters: The UI is redundant, and the screen is cluttered with what is effectively one message. The retry button that matters sits in the second banner.
-    - Suggested fix: Show the detail's `StaleBanner` only when `detail.error == LoadError.FAILED || !state.offline`. Or have a single banner with retry when both apply.
+Observation, not a finding: on the first open of a new Projects view model with the server reachable, projects that have an area appear briefly under "In an area (areas not loaded)" and are regrouped once the areas response arrives. This is the trade-off the previous review suggested for CR-1, so that cached projects show without waiting for the network. It is transient and does not need a change.
 
 ## Review conclusion
 
-No material issues found. All six earlier findings (CR-1 to CR-6 of the previous review) are resolved in bd8f525a. The two remaining low-priority findings are optional to fix before completing the task.
+No material issues found. The two P3 findings of the previous re-review are resolved and tested. The new route and in-app tests close the gap in the wiring between the screens and their view models. The focused test command named by criterion 2, ktlintCheck and lintDebug pass on HEAD 4db5f564.
