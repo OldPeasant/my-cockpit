@@ -308,6 +308,76 @@ class MailHeaderSyncServiceTests {
 		upserted() shouldContainExactly listOf(11)
 	}
 
+	/** Store answers that create a row (id derived from the UID) for every fetched message. */
+	private fun storeCreatesRows() {
+		every { store.upsert(any(), any(), any()) } answers {
+			val batch = thirdArg<List<RemoteMessage>>()
+			StoreCounts(created = batch.size, createdIds = batch.map { rowId(it.uid) })
+		}
+	}
+
+	private fun rowId(uid: Long) = UUID(0x0190_0000_0000_7000L, uid)
+
+	@Test
+	fun `an incremental sync reports the rows created for new arrivals and hands them to the announcer`() {
+		cachedState(uidNext = 10)
+		every { store.locatedUids(folder.id) } returns listOf(3)
+		remote.flags = listOf(RemoteFlagState(3, RemoteFlags()))
+		remote.uids = listOf(3, 10, 11)
+		storeCreatesRows()
+
+		val result = service.syncFolder(folder.id)
+
+		result.arrived shouldContainExactly listOf(rowId(10), rowId(11))
+		result.created shouldBe 2
+		verify(exactly = 1) { announcer.announce(account, folder, listOf(rowId(10), rowId(11))) }
+	}
+
+	@Test
+	fun `an incremental sync whose new UIDs only reattached known rows announces nothing`() {
+		cachedState(uidNext = 10)
+		every { store.locatedUids(folder.id) } returns emptyList()
+		remote.uids = listOf(10)
+		// A moved-in message whose row already existed: updated, not created.
+		every { store.upsert(any(), any(), any()) } returns StoreCounts(updated = 1)
+
+		val result = service.syncFolder(folder.id)
+
+		result.arrived.shouldBeEmpty()
+		result.updated shouldBe 1
+		verify(exactly = 0) { announcer.announce(any(), any(), any()) }
+	}
+
+	@Test
+	fun `an incremental sync without new UIDs announces nothing`() {
+		cachedState(uidNext = 12)
+		every { store.locatedUids(folder.id) } returns listOf(3)
+		remote.flags = listOf(RemoteFlagState(3, RemoteFlags(seen = true)))
+
+		service.syncFolder(folder.id).arrived.shouldBeEmpty()
+
+		verify(exactly = 0) { announcer.announce(any(), any(), any()) }
+	}
+
+	@Test
+	fun `a first or full sync never announces its rows as new mail`() {
+		remote.uids = listOf(1, 2, 3)
+		storeCreatesRows()
+
+		val first = service.syncFolder(folder.id)
+
+		first.full shouldBe true
+		first.created shouldBe 3
+		first.arrived.shouldBeEmpty()
+
+		// A changed UIDVALIDITY resyncs in full, too.
+		cachedState()
+		remote.status = remote.status.copy(uidValidity = 8)
+		service.syncFolder(folder.id).arrived.shouldBeEmpty()
+
+		verify(exactly = 0) { announcer.announce(any(), any(), any()) }
+	}
+
 	@Test
 	fun `a folder that cannot hold messages is not opened`() {
 		folder.selectable = false
