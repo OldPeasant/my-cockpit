@@ -16,6 +16,7 @@ import java.nio.ByteBuffer
 import java.time.Duration
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.CompletionStage
+import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.ExecutionException
 import java.util.concurrent.Executors
 import java.util.concurrent.Flow
@@ -167,6 +168,7 @@ class PageFetcher(
 		deadline: Long,
 	): HttpResponse<ByteArray> {
 		val remaining = remaining(deadline)
+		val bodies = ConcurrentLinkedQueue<TruncatedBody>()
 		val future =
 			try {
 				val request =
@@ -178,7 +180,7 @@ class PageFetcher(
 						.header("User-Agent", USER_AGENT)
 						.GET()
 						.build()
-				http.sendAsync(request, ::body)
+				http.sendAsync(request) { info -> body(info, bodies) }
 			} catch (e: IllegalArgumentException) {
 				throw PageFetchException(PageFetchError.INVALID_URL, e)
 			}
@@ -197,6 +199,10 @@ class PageFetcher(
 				is java.net.http.HttpTimeoutException -> PageFetchException(PageFetchError.TIMEOUT, cause)
 				else -> PageFetchException(PageFetchError.UNREACHABLE, cause)
 			}
+		} finally {
+			// Only now that the response is complete (or abandoned): cancelling inside the body subscriber can fail the
+			// whole exchange (seen with HTTP/2) before the client hands out the truncated body.
+			bodies.forEach(TruncatedBody::cancel)
 		}
 	}
 
@@ -207,11 +213,14 @@ class PageFetcher(
 	}
 
 	/** The first [BookmarkFetchProperties.maxSize] bytes of an HTML answer (2xx); other bodies are discarded. */
-	private fun body(info: HttpResponse.ResponseInfo): HttpResponse.BodySubscriber<ByteArray> {
+	private fun body(
+		info: HttpResponse.ResponseInfo,
+		bodies: MutableCollection<TruncatedBody>,
+	): HttpResponse.BodySubscriber<ByteArray> {
 		if (info.statusCode() !in SUCCESS || !html(info.headers().firstValue("Content-Type").orElse(""))) {
 			return HttpResponse.BodySubscribers.replacing(ByteArray(0))
 		}
-		return TruncatedBody(properties.maxSize.toBytes())
+		return TruncatedBody(properties.maxSize.toBytes()).also(bodies::add)
 	}
 
 	private fun page(
@@ -282,19 +291,23 @@ class PageFetcher(
 	}
 }
 
-/** Collects a response body up to [max] bytes, then cancels the download and completes with what it has. */
+/**
+ * Collects a response body up to [max] bytes, then stops requesting data and completes with what it has. The caller
+ * [cancel]s the rest of the download once it has the response: cancelling in here, before the client has handed out
+ * the completed body, can make it fail the whole exchange (seen with HTTP/2).
+ */
 private class TruncatedBody(
 	private val max: Long,
 ) : HttpResponse.BodySubscriber<ByteArray> {
 	private val result = CompletableFuture<ByteArray>()
 	private val out = ByteArrayOutputStream()
-	private lateinit var subscription: Flow.Subscription
+	private val subscription = CompletableFuture<Flow.Subscription>()
 
 	override fun getBody(): CompletionStage<ByteArray> = result
 
 	override fun onSubscribe(subscription: Flow.Subscription) {
-		this.subscription = subscription
-		subscription.request(Long.MAX_VALUE)
+		this.subscription.complete(subscription)
+		subscription.request(1)
 	}
 
 	override fun onNext(item: List<ByteBuffer>) {
@@ -306,9 +319,9 @@ private class TruncatedBody(
 			out.write(bytes)
 		}
 		if (out.size() >= max) {
-			// Complete first: cancelling makes the client fail the exchange too, and the first completion wins.
 			result.complete(out.toByteArray())
-			subscription.cancel()
+		} else {
+			subscription.join().request(1)
 		}
 	}
 
@@ -318,5 +331,10 @@ private class TruncatedBody(
 
 	override fun onComplete() {
 		result.complete(out.toByteArray())
+	}
+
+	/** Stops downloading the rest of the body, if it is still running. */
+	fun cancel() {
+		subscription.getNow(null)?.cancel()
 	}
 }
