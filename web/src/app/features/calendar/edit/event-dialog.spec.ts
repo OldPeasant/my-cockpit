@@ -359,6 +359,61 @@ describe('EventDialog', () => {
       );
     });
 
+    it('offers a retry when the Reload after a conflict fails, then saves the current version', async () => {
+      await edit(occurrence());
+      events.update.mockRejectedValueOnce(new ApiError(412, 'Precondition Failed'));
+      type('title', 'Dentist (moved)');
+      await save();
+      expect(alerts().join(' ')).toContain('This event was changed elsewhere');
+
+      events.get.mockRejectedValueOnce(new ApiError(0, 'Offline'));
+      button('Reload')!.click();
+      await stable();
+      expect(alerts().join(' ')).toContain('The event could not be loaded.');
+      expect(button('Reload')).toBeUndefined();
+      expect(button('Delete')).toBeUndefined();
+      expect(el().querySelector<HTMLButtonElement>('button[type="submit"]')!.disabled).toBe(true);
+      expect(el().textContent).not.toContain('Loading the event…');
+
+      stored.set('e1', fakeEvent('e1', { title: 'Dentist', calendarId: 'family', version: 3 }));
+      button('Try again')!.click();
+      await stable();
+      expect(alerts().join(' ')).not.toContain('changed elsewhere');
+      expect(alerts().join(' ')).not.toContain('could not be loaded');
+      type('title', 'Dentist at 12');
+      await save();
+      expect(events.update).toHaveBeenLastCalledWith(
+        expect.objectContaining({ eventId: 'e1', version: 3 }),
+        undefined,
+        { title: 'Dentist at 12' },
+      );
+      expect(ref.close).toHaveBeenCalledWith('saved');
+    });
+
+    it('shows other save failures without a Reload and lets the change be saved again', async () => {
+      await edit(occurrence());
+      events.update.mockRejectedValueOnce(
+        new ApiError(503, 'Service Unavailable', 'The calendar is busy, try again later.'),
+      );
+      type('title', 'Dentist (moved)');
+      await save();
+      expect(ref.close).not.toHaveBeenCalled();
+      expect(ref.disableClose).toBe(false);
+      expect(alerts()).toContain('The calendar is busy, try again later.');
+      expect(alerts().join(' ')).not.toContain('changed elsewhere');
+      expect(button('Reload')).toBeUndefined();
+      expect(input('title').value).toBe('Dentist (moved)');
+
+      await save();
+      expect(events.update).toHaveBeenCalledTimes(2);
+      expect(events.update).toHaveBeenLastCalledWith(
+        expect.objectContaining({ version: 2 }),
+        undefined,
+        { title: 'Dentist (moved)' },
+      );
+      expect(ref.close).toHaveBeenCalledWith('saved');
+    });
+
     it('offers a retry when the event cannot be loaded', async () => {
       stored.clear();
       await edit(occurrence());
@@ -568,6 +623,30 @@ describe('EventDialog', () => {
       await save();
       expect(scopes.ask).toHaveBeenCalledWith('change', ['FOLLOWING', 'ALL']);
       expect(events.update).toHaveBeenCalledWith(expect.anything(), 'ALL', { rrule: 'FREQ=DAILY' });
+    });
+
+    it('moves a series only to local calendars and not for this occurrence alone', async () => {
+      const google = fakeCalendar('google', { name: 'Google', sourceType: 'GOOGLE' });
+      scopes.ask.mockResolvedValueOnce('FOLLOWING');
+      await edit(generated(), [...CALENDARS, google]);
+      const loader = TestbedHarnessEnvironment.loader(fixture);
+      const calendar = (await loader.getAllHarnesses(MatSelectHarness))[1];
+      expect(await calendar.isDisabled()).toBe(false);
+      await calendar.open();
+      // No read-only calendar, and a local event can't be handed to a provider.
+      expect(await Promise.all((await calendar.getOptions()).map((o) => o.getText()))).toEqual([
+        'Work',
+        'Family',
+      ]);
+      await calendar.clickOptions({ text: 'Work' });
+      await stable();
+      await save();
+      expect(scopes.ask).toHaveBeenCalledExactlyOnceWith('change', ['FOLLOWING', 'ALL']);
+      expect(events.update).toHaveBeenCalledExactlyOnceWith(
+        expect.objectContaining({ eventId: 'm1', occurrence: OCCURRENCE, version: 4 }),
+        'FOLLOWING',
+        { calendarId: 'work' },
+      );
     });
 
     it('keeps a custom repeat rule it cannot edit', async () => {

@@ -4,31 +4,34 @@ Date: 2026-10-21
 
 Task: web-cal-edit - Calendar event editing
 
-Scope: the task's committed changes from base to HEAD. The parent named base 2215690d and commits bb14ce67/de88a74c. The branch has since been rebased onto d25a4e1b, and the commits are now 0c25d690 (implementation) and 26643b8f (e2e). `git diff --stat de88a74c 26643b8f -- web` is empty, so the code is the same. Reviewed: production code in `web/src/app/features/calendar/edit/` and `web/src/app/features/calendar/views/`, plus `web/e2e/calendar-edit/edit.spec.ts`. Uncommitted `*.spec.ts` files from the parallel test-writer were left out.
+Scope: the task's committed changes, second review round. The parent named base 411c8953 and HEAD ba6fb0a3. The branch has since been rebased: the merge-base with origin/main is now 3d1422e1 and HEAD is ba7bd23e. `git diff --stat ba6fb0a3 HEAD -- web` is empty, so the code is the same as the revision the parent named. The task commits are ae22298b (implementation), 8f8ca9f4 (e2e), fcbf3ca1 (Vitest specs, Cancel closes with undefined) and ba7bd23e (fixes for the first review). Reviewed: production code and specs in `web/src/app/features/calendar/edit/` and `web/src/app/features/calendar/views/`, and `web/e2e/calendar-edit/edit.spec.ts`. Uncommitted files from the parallel test-writer were left out. The other files in `git diff 411c8953..HEAD` (cal-google, task files of other agents) come from main and are not part of this task.
 
 Requirements:
-- tasks/web-cal-edit.md (acceptance criteria 1-4, and the three recorded assumptions)
+- tasks/web-cal-edit.md (acceptance criteria 1-4 and the three recorded assumptions)
 - SPEC.md §6.2 (conflict policy, recurring scopes), §6.3 (UI), §6.4 (API)
-- docs/ARCHITECTURE.md (web stack, i18n, conventions), AGENTS.md project notes
-- api/openapi.yaml contract as implemented in server/.../calendar/api/CalendarEventController.kt and CalendarEventService.kt (`resolve`, `update`, `delete`, `splitSeries`)
+- AGENTS.md project notes, docs/QUALITY.md artifact contract
+- The server contract in `server/src/main/kotlin/ch/sonensei/cockpit/calendar/api/CalendarEventController.kt` (list overlaps [from, to); an override stands for its occurrence, for every scope)
+- The previous review `reviews/web-cal-edit/review.md` (round 1) and `reviews/web-cal-edit/fixes.md`
 
 Git range:
 - Branch: main (local clone; task commits not yet on origin/main)
-- HEAD: 26643b8f03d306fe076a6f54a6a4b487cb16d9e1
-- Base/start: d25a4e1b2c2c11c5696b50c15a9ff6cee78f10a5 (merge-base with origin/main; originally 2215690d2dfb060e4775929706126add895a07c8)
-- Commits reviewed: 2
+- HEAD: ba7bd23e6f3c9765729dbbd875d7a94c67079f7e (same web code as ba6fb0a3)
+- Base/start: 3d1422e1454636a18ab4a2eb9cca1927878ebb03 (current merge-base; originally 411c8953)
+- Commits reviewed: 4
 
-Summary: 0 P0, 2 P1, 1 P2, 3 P3
+Summary: 0 P0, 0 P1, 1 P2, 0 P3
 
-What was checked and found correct:
-- Event id, scope, occurrence and ETag for each kind of target. A single event goes to its own id with no scope. A generated occurrence goes to the master with `scope` and `occurrence`, and uses the master's version. An override with THIS goes to its own id with its own version. This matches `resolve()` on the server.
-- The THIS option is hidden when the repeat rule or calendar changes (`scopesFor`). The server rejects those changes for THIS (`updateOccurrence`) and accepts them for FOLLOWING (`splitSeries`).
-- `patchRequest` sends only changed fields. All time fields are sent together when any of them changes, and `timeZone` is sent when the event switches from all-day to timed.
-- Drag revert: `info.revert()` runs when the scope prompt is cancelled and when the save fails.
-- Read-only calendars: their events can't be dragged (`toEventInput`, `editable`), and the dialog disables the form and hides Delete and Save. Attendees are editable only in LOCAL calendars.
-- The dialog cannot be closed while a write is running.
-- Strings use i18n with `@@` ids. The scope and event dialogs are labelled.
-- DST conversion in `instantOf` was checked with node for Europe/Zurich, America/New_York, Australia/Lord_Howe and Asia/Kolkata. Ambiguous times (clocks set back) are right. Skipped times have one problem in zones west of UTC (CR-5).
+Status of the round-1 findings (checked in the current code):
+- CR-1 (stale times after load/Reload): resolved. `event-dialog.ts:168-209`. A single event or an override now takes its times, zone and version from the fetched `EventResponse`. A generated occurrence is read again with `EventEditService.reread`, which also picks up an occurrence that has since become an override. Covered by the dialog specs "shows the current times of the event, not those of the view, also after Reload", "reads a generated occurrence again…" and "edits the override a generated occurrence became…". There is one leftover dead end, see CR-1 below.
+- CR-2 (no Vitest tests): resolved. Committed specs for the scope prompt (`scope-dialog.spec.ts`; series cases in `event-dialog.spec.ts`, including FOLLOWING/ALL only for a rule change), 409/412 to the reload banner (dialog save and delete) and to the snackbar Reload (`event-editor.spec.ts`), revert on cancel or failure, and the service's target and version choice.
+- CR-3 (override FOLLOWING/ALL with a just-fetched master version): resolved. `event-edit.service.ts:117-130` addresses an override by its own id with `occurrence.version` for every scope, with no extra GET. This matches the controller contract ("Addressing an override stands for its occurrence").
+- CR-4 (guests sent to a synced calendar): resolved. `createRequest(form, withAttendees)` (`event-form.ts:133-147`) gets `attendeesEditable()` from `event-dialog.ts:284`.
+- CR-5 (skipped DST time west of UTC): resolved. Checked `event-times.ts:34-39` by hand for New York 2026-03-08 02:30 (gives 07:30Z = 03:30 EDT) and Zurich 2026-03-29 02:30 (gives 01:30Z = 03:30 CEST). The ambiguous-time step still prefers the earlier instant.
+- CR-6 ("New event" rounded in the browser zone): resolved. `nextFullHour` (`event-times.ts:47-53`) is used by `calendar-view.ts:170-175` with the settings zone.
+
+Also checked and found correct: drag create/move/resize and revert (`calendar-view.ts:177-208`); read-only calendars can't be dragged (`calendar-views.ts` `editable`); the dialog fields match criterion 1; `scopesFor` hides THIS for a rule or calendar change; save is blocked while a conflict is shown; the dialog can't be closed while a write runs; strings use i18n ids. The e2e spec covers criterion 4 (moving one occurrence of a weekly event, with the browser in a different zone from the settings).
+
+Evidence note (not a finding): `python tasks.py verify web-cal-edit` shows no evidence recorded yet for criteria 1-4. The fix commit changed `load()`, and the e2e test opens the moved override in the dialog. So the Playwright run for criterion 4 must be done on this final code, against the e2e stack.
 
 ## P0 Critical
 
@@ -36,51 +39,20 @@ None.
 
 ## P1 High
 
-- [ ] **CR-1 | The dialog's "Reload" (and its first load) shows the times from the view's snapshot, not the event's current times**
-    - File: `web/src/app/features/calendar/edit/event-form.ts:75`, `web/src/app/features/calendar/edit/event-dialog.ts:176-179`
-    - Category: Correctness
-    - Problem: `load()` fetches the event again with `GET /events/{id}`, but `editForm` takes the start, end and all-day values from `occurrence`. That is the `OccurrenceResponse` the calendar view loaded earlier. The reload only copies the new `version` into it (`{ ...occurrence, version: event.version }`). So when the event was moved elsewhere (the usual cause of a 412/409), the form still shows the old times, even though the banner says "Reload it to see the current version". The first open has the same problem whenever the view's list is out of date.
-    - Why it matters: Criterion 2 ("'changed remotely' conflicts shown with reload") is only partly met. After the reload the If-Match version is current but the times are not. `patchRequest` sends `start` and `end` together when either changes. So if the user then changes only the end time, the old start is sent with the new version, and the remote change is overwritten without a conflict. That is a lost update, which is what the conflict flow is meant to prevent.
-    - Suggested fix: For a single event or an override, take the times from the fetched `EventResponse` (`start`/`end`/`allDay`/`startDate`/`endDate`). For a generated occurrence, re-read that occurrence (for example `GET /events?from=&to=&calendarIds=` around `occurrence.occurrence`) or close the dialog and refresh the view. Add a test where the reloaded event has different times.
-
-- [ ] **CR-2 | No committed Vitest tests for the scope prompt or conflict handling**
-    - File: `web/src/app/features/calendar/edit/` (no `*.spec.ts` in `git ls-files`); `web/src/app/features/calendar/views/calendar-view.spec.ts:297` (the only spec change, a selector fix)
-    - Category: Tests
-    - Problem: Criterion 3 requires "Vitest component/service tests cover scope prompt and conflict handling". The reviewed commits add no tests for `EventEditService` (target and version selection), `EventEditor.move` (scope cancel, conflict snackbar, revert), `EventDialog` (conflict banner, reload, read-only, attendees), `patchRequest`/`scopesFor` or `instantOf`/`wallClockOf`.
-    - Why it matters: The criterion can't be verified from the committed code, and the target and version logic is easy to break later. The parallel test-writer may add these tests. This finding is resolved once they are committed and cover at least: the scope prompt (all three scopes, plus FOLLOWING/ALL only for rule or calendar changes), 409/412 to the reload banner and snackbar, and revert on cancel or failure.
-    - Suggested fix: Commit spec files under `web/src/app/features/calendar/edit/` that cover the cases above, then run `cd web && npm run check`.
+None.
 
 ## P2 Medium
 
-- [ ] **CR-3 | Dragging an override with FOLLOWING/ALL uses an If-Match version fetched just before the write**
-    - File: `web/src/app/features/calendar/edit/event-edit.service.ts:115-118` (called without `masterVersion` from `event-editor.ts:68`)
+- [ ] **CR-1 | A generated occurrence whose series changed its times can no longer be opened or reloaded, and nothing refreshes the view**
+    - File: `web/src/app/features/calendar/edit/event-dialog.ts:175-179`, `web/src/app/features/calendar/edit/event-edit.service.ts:70-80,136-145`, `web/src/app/features/calendar/edit/event-editor.ts:47-49`
     - Category: Correctness
-    - Problem: When an override is dragged and the user picks FOLLOWING or ALL, `target()` sends the change to the series master. Since `move()` passes no master version, it uses `(await this.get(seriesId)).version`, fetched right before the PATCH. That version is always current, so If-Match no longer checks anything: changes to the master made after the view loaded are overwritten without a 412. The server already supports addressing an override directly with FOLLOWING/ALL. `resolve()` returns `Target(override, master, own, override, scope)` and checks the override's own version, which the client already has in `occurrence.version`.
-    - Why it matters: Lost-update protection (SPEC.md §4.2 optimistic locking) is skipped on this path, and every such drag costs an extra GET.
-    - Suggested fix: For an override, send every scope to `occurrence.eventId` with `occurrence.version`, and drop the extra GET. Or, if the master must be the target, use a version the user actually saw.
+    - Problem: `reread` matches the occurrence on `seriesId` plus its original start (`occurrence.occurrence`), and only within ±1 day of that start. Suppose the series was changed elsewhere with ALL (for example moved from 09:00 to 10:00), or with FOLLOWING (the occurrence now belongs to a new series with a new id). The original-start key of every generated occurrence then changes, so `reread` returns `undefined`. The same happens when an override was moved more than a day away. `load()` then shows "The event could not be loaded" with a "Try again" button, and every retry fails the same way. When the user cancels, the dialog closes with `undefined`, `EventEditor.open` returns `false`, and the view is not refreshed. The stale occurrence stays on screen, and opening it again fails again. This is the normal outcome of the conflict flow in criterion 2: a remote change to a series makes the save fail with 412, and Reload then always fails. The user only gets out by navigating away.
+    - Why it matters: The 'changed remotely, reload' path (criterion 2, SPEC.md §6.2) reaches a screen it can't recover from for one of its main causes, a series changed elsewhere. The retry the screen offers can never succeed.
+    - Suggested fix: Treat "the series no longer has this occurrence" as a case of its own. For example, close the dialog with a result that makes the view refresh (or have `EventEditor.open` refresh after any close that followed a failed load), and tell the user the event changed and the calendar was refreshed. Or show a message without "Try again" and refresh the view when the dialog closes. Add a dialog/editor spec for a reread that returns `undefined` after a 412, and check that the view's occurrences are refreshed.
 
 ## P3 Low
 
-- [ ] **CR-4 | Attendees added while a local calendar was selected are still sent after switching a new event to a synced calendar**
-    - File: `web/src/app/features/calendar/edit/event-form.ts:142`, `web/src/app/features/calendar/edit/event-dialog.ts:130-132`
-    - Category: Correctness
-    - Problem: In create mode, `attendeesEditable()` becomes false once a non-LOCAL calendar is chosen. The attendees list is then shown read-only with "Guests are managed by the event's calendar provider", but `createRequest` still sends `form.attendees`.
-    - Why it matters: The user can't remove the guests any more, and they are sent to an external calendar, which is the case the read-only rule is meant to prevent.
-    - Suggested fix: Leave out `attendees` (or clear them) in `createRequest` when the target calendar is not LOCAL, the same way `patchRequest` uses `withAttendees`.
-
-- [ ] **CR-5 | `instantOf` resolves a skipped DST time to before the change in zones west of UTC**
-    - File: `web/src/app/features/calendar/edit/event-times.ts:30-35`
-    - Category: Correctness
-    - Problem: The doc comment says a skipped time "resolves to the same distance after the change". This holds for Europe/Zurich (`2026-03-29 02:30` gives 03:30 CEST). For America/New_York, `instantOf('2026-03-08','02:30','America/New_York')` returns `2026-03-08T06:30:00Z`, which is 01:30 EST, an hour before the change. The correction step (`if (second !== first) instant = wall - second`) takes the other offset, and for negative offsets that moves the instant back across the change.
-    - Why it matters: In a western-hemisphere zone, an event typed into the skipped hour is saved one hour earlier than the user intended, and in the opposite direction from European zones.
-    - Suggested fix: When the two offset passes disagree and neither gives back the typed wall-clock time, use `wall - min(first, second)`, i.e. the offset from before the change applied to the later instant. Add tests for New_York and Zurich.
-
-- [ ] **CR-6 | "New event" rounds to the next full hour in the browser's zone, not in the settings zone**
-    - File: `web/src/app/features/calendar/views/calendar-view.ts:171-173`
-    - Category: Correctness
-    - Problem: `start.setMinutes(60, 0, 0)` rounds in the browser's local zone. The calendar and the dialog show times in the settings zone (the e2e test also runs with the browser in another zone). If the two zones differ by a non-whole hour (for example Asia/Kolkata settings in a UTC browser), the default start is :30 instead of a full hour.
-    - Why it matters: A small default-value glitch that is inconsistent with the rest of the view, which works in the settings zone.
-    - Suggested fix: Work out the next full hour from `wallClockOf(now, settings.timeZone)` and convert it back with `instantOf`.
+None.
 
 ## Review conclusion
 

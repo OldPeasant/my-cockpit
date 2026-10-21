@@ -93,6 +93,28 @@ describe('EventEditor', () => {
       });
     }
 
+    it('shows a conflict of a series move with the chosen scope and saves nothing else', async () => {
+      scopes.ask.mockResolvedValue('ALL');
+      events.update.mockRejectedValue(new ApiError(412, 'Precondition Failed'));
+      const occurrence = fakeOccurrence('Swim', {
+        eventId: 'm1',
+        seriesId: 'm1',
+        occurrence: OCCURRENCE,
+      });
+      const reload = vi.fn();
+      await expect(editor.move(occurrence, MOVED, reload)).resolves.toBe(false);
+      expect(scopes.ask).toHaveBeenCalledExactlyOnceWith('change');
+      expect(events.update).toHaveBeenCalledExactlyOnceWith(occurrence, 'ALL', {
+        start: MOVED.start,
+        end: MOVED.end,
+      });
+      expect(snackBar.open).toHaveBeenCalledOnce();
+      expect(snackBar.open.mock.calls[0][0]).toContain('"Swim" was changed elsewhere');
+      expect(notifications.error).not.toHaveBeenCalled();
+      snackActions.next();
+      expect(reload).toHaveBeenCalledOnce();
+    });
+
     it('reports other API errors with their message', async () => {
       events.update.mockRejectedValue(
         new ApiError(400, 'Bad Request', 'The end is before the start.'),

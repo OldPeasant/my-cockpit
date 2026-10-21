@@ -240,6 +240,17 @@ describe('event form', () => {
       });
     });
 
+    it('sends a new description as typed and a new location trimmed', () => {
+      const initial = timedForm({ location: 'Room 4', description: 'Agenda' });
+      expect(
+        patchRequest(
+          initial,
+          { ...initial, location: ' Room 5 ', description: 'Agenda\n- budget\n' },
+          false,
+        ),
+      ).toEqual({ location: 'Room 5', description: 'Agenda\n- budget\n' });
+    });
+
     it('clears an emptied location or description with null', () => {
       const initial = timedForm({ location: 'Room 4', description: 'Agenda' });
       expect(
