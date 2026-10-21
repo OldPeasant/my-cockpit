@@ -2,39 +2,41 @@
 
 Date: 2026-10-21
 
-Task: web-notes-list - Notes: list and organization
+Task: web-notes-list - Notes: list and organization (second pass, final code after fixes CR-2/3/4 and the `NoteCard` extraction)
 
-Scope: base 37a3c6cc5f3abd1b7bf6a1488e2fec43fce3c1e8 .. HEAD 07ddc501b115482e7d1ef4995e20d8b910001ea1 (task commits 7fc1d346, 07ddc501; given by the parent worker and confirmed with `git log`/`git diff --name-only 37a3c6cc..HEAD`), branch `main`, plus uncommitted test-only changes from this run.
+Scope: base 61709e7c22e55f81443a4f5a6b6bac646098d079 .. HEAD 0214f8659dbb5b4c37e737bbe1d7b915ce147315 on `main` (task commits e5d6a4fe, 248c986a, bdd9f206, 0214f865, all prefixed `web-notes-list:`; supplied by the parent worker and confirmed with `git log --oneline 61709e7c..HEAD` / `git diff --stat 61709e7c..HEAD`), plus the uncommitted new test file from this run.
 
 Requirements:
-- `tasks/web-notes-list.md` acceptance criteria and recorded assumptions (client-side search over all pages, inline composer, grid default stored in `cockpit.notes.view`, composer hidden in archived view)
-- `SPEC.md` §8.1 (through the task goal), `docs/ARCHITECTURE.md` "Coverage", `AGENTS.md`
-- Existing conventions in `web/src/app/features/notes/list/*.spec.ts` and `core/notifications` (Storage spies)
+- `tasks/web-notes-list.md` acceptance criteria: (1) masonry grid/list toggle, pinned first, tag filter, archived toggle, search within notes, create note; (2) Vitest tests cover filtering and pin ordering; `cd web && npm run check` passes
+- Task assumptions recorded by the parent (client-side search, inline composer, view stored in `cockpit.notes.view`, composer hidden in the archived view)
+- `SPEC.md` §8.1, `docs/ARCHITECTURE.md` "Coverage", `AGENTS.md`, `reviews/web-notes-list/fixes.md`
+- Existing conventions: `web/src/app/features/notes/list/*.spec.ts`, `web/src/app/features/gtd/ui/task-row.spec.ts` (`componentRef.setInput` for presentational components)
 
 ## Test files changed
 
-- `web/src/app/features/notes/list/notes-page.spec.ts`
-- `web/src/app/features/notes/list/notes.service.spec.ts`
-- `web/src/app/features/notes/list/notes-filter.spec.ts`
+- `web/src/app/features/notes/list/note-card.spec.ts` (new, uncommitted)
+
+The other notes specs (`notes-page.spec.ts`, `notes-filter.spec.ts`, `notes.service.spec.ts`) were committed earlier (first pass, fixer) and are unchanged in this pass.
 
 ## Tests added or updated
 
-Count: 37 added (26 component, 4 service, 7 pure filter); 0 existing tests changed. Notes specs: 29 -> 66 tests.
+Count: 8 added (all in `note-card.spec.ts`); 0 existing tests changed. Notes specs: 71 -> 79 tests in 4 files.
+
+The new spec tests the extracted `NoteCard` component on its own: title/excerpt/tags/date/editor link, absence of text and tag list, pin/unpin and archive/unarchive labels and `aria-pressed`, label update on input change, `pin`/`archive` outputs, busy disabling (no emits), and the `compact` host class for the list view.
 
 ## Requirement coverage
 
 | Requirement | Tests | Command | Result |
 |---|---|---|---|
-| Masonry grid/list toggle (default grid, remembered) | existing `switches between grid and list and remembers the choice`; new `starts in list view when the list view was chosen before`, `falls back to the grid for an unknown stored view`, `works with the grid and still switches views when storage is unavailable` | `npx ng test --watch=false --include='src/app/features/notes/**/*.spec.ts'` | Pass |
-| Pinned first | existing `shows the pinned notes first...`, `moves a note to the top when it is pinned...`, `sortNotes` tests; new `keeps a pinned note above a more recently changed unpinned one`, `handles an empty list and a single note`, `searches across pinned and other notes and keeps pinned first`, `shows a server error without reloading and lets the change be tried again` | same | Pass |
-| Tag filter | existing `filters by tag on the server...`; new `shows the newest tag filter when an older response arrives last`, `ignores the failure of an outdated load`, `says when no note has the chosen tag`, `still loads the notes when the tags cannot be loaded`, `keeps the search when the tag filter changes` | same | Pass |
-| Archived toggle | existing `shows the archived notes and moves a note back`, `archives a note out of the list`; new `does not reload when the active view is chosen again`, `does not put a note into the archived view when its pin finishes after switching`, `clears the error of an action when switching to the archived notes` | same | Pass |
-| Search within notes | existing search tests; new `matchesQuery edge cases` (lone `#`, whitespace, no match across field boundary), `filterNotes` empty query/empty list | same | Pass |
-| Create note | existing composer tests; new `saves with Ctrl+Enter and Cmd+Enter, but not an empty draft`, `sends a note only once when saved twice quickly`, `discards the draft with Escape...`, `focuses the text when the composer opens`, `cancels the composer and clears its error`, `keeps typed tags...`, `does not add a new note to a tag-filtered list it does not belong to`, `matches the tag filter regardless of case for a new note`, `parseTags` duplicate spelling | same | Pass |
-| Pin/archive error paths (404/409/412/500/non-API) and busy state | new `drops a note that was deleted elsewhere when pinning it (404)`, `reloads after a conflict (409) as well`, `shows a server error without reloading...`, `shows a generic message for an unexpected (non-API) failure`, `disables the actions of a note while its change runs and sends it only once` | same | Pass |
-| Service: paging, errors, If-Match, silent errors | existing service tests; new `follows the cursor across three pages...`, `fails as a whole when a later page fails...`, `rejects a change of a note deleted elsewhere with a 404 ApiError`, `passes a failed create on with its problem detail` | same | Pass |
-| Loading / load failure / retry | existing `offers to try again...`; new `shows a loading state until the notes arrive` | same | Pass |
-| `cd web && npm run check` passes | whole web suite, lint, api check, e2e typecheck, build | `cd web && npm run check` | Pass (lint clean, 82 files / 1500 tests, build OK) |
+| Masonry grid/list toggle | page: `switches between grid and list and remembers the choice`, `starts in list view when the list view was chosen before`, `falls back to the grid for an unknown stored view`, `works with the grid and still switches views when storage is unavailable`; card: `is enabled and not compact by default, compact for the list view` | `cd web && npx ng test --watch=false --include='src/app/features/notes/**/*.spec.ts'` | Pass |
+| Pinned first | page: `shows the pinned notes first under their own heading...`, `moves a note to the top when it is pinned and back...`, `keeps a pinned note above a more recently changed unpinned one`; filter: `sortNotes` tests; card: `labels the buttons to pin and archive an unpinned, active note`, `labels the buttons to unpin and unarchive a pinned, archived note`, `emits pin and archive when their buttons are pressed` | same | Pass |
+| Tag filter | page: `filters by tag on the server...`, `shows the newest tag filter when an older response arrives last`, `ignores the failure of an outdated load`, `says when no note has the chosen tag`, `still loads the notes when the tags cannot be loaded`; card: `shows the title, plain-text excerpt, tags and last change, linking to the editor` | same | Pass |
+| Archived toggle | page: `shows the archived notes and moves a note back`, `archives a note out of the list`, `does not reload when the active view is chosen again`, `does not put a note into the archived view when its pin finishes after switching`; card: unarchive label test | same | Pass |
+| Search within notes | page search tests, `searches across pinned and other notes and keeps pinned first`; filter: `matchesQuery`/`filterNotes`/`excerpt` tests incl. CR-4 `leaves out the line the title is derived from when the text starts with an image or link`, `treats a blank title as no title` | same | Pass |
+| Create note | page composer tests incl. CR-3 `cannot cancel or escape while a note is saved, so a failed save keeps the draft`, CR-2 `shows a note created while the list reloads by loading it again`, `sends a note only once when saved twice quickly` | same | Pass |
+| Pin/archive busy state and errors | page: `disables the actions of a note while its change runs and sends it only once`, 404/409/412/500 tests; card: `disables both buttons and emits nothing while busy` | same | Pass |
+| Vitest tests cover filtering and pin ordering | all of the above (`notes-filter.spec.ts`, `notes-page.spec.ts`) | same | Pass (4 files, 79 tests) |
+| `cd web && npm run check` passes | api check, lint, e2e typecheck, full web suite, build | `cd web && npm run check` | Pass (exit 0) |
 
 ## Focused test execution
 
@@ -44,7 +46,7 @@ Command:
 
 Result:
 
-Pass - 3 files, 66 tests (one new test first failed because of a wrong expectation in the test: two pinned notes are ordered by `updatedAt`; the test was corrected, production behaviour matched the spec).
+Pass - 4 files, 79 tests (all new tests passed on first run).
 
 ## Full test execution
 
@@ -54,61 +56,58 @@ Command:
 
 Result:
 
-Pass (exit 0): `api:check`, `ng lint --max-warnings=0` (all files pass), `e2e:typecheck`, 82 test files / 1500 tests passed, `ng build` succeeded.
+Pass (exit 0): "All files pass linting", 83 test files / 1513 tests passed, `ng build` succeeded. The only build warning is the pre-existing initial bundle budget (650.24 kB vs 500 kB); there is no longer a `notes-page.scss` style budget warning after the card extraction.
 
 ## .taskcheck
 
 Result:
 
-Pass - `sh scripts/check.sh` exit 0 (tfp gate tests, server `gradlew check`, web check; Android SKIPPED by the machine's `COCKPIT_NO_ANDROID=1`).
+Pass - `sh scripts/check.sh` exit 0 ("all checks passed": tfp gate tests, server `gradlew check`, web check with 83 files / 1513 tests; Android SKIPPED by the machine's `COCKPIT_NO_ANDROID=1`).
 
 ## Bugs found
 
-None that violate the acceptance criteria.
-
-Observation for the parent (not a confirmed defect, no failing test added because the expected behaviour is not specified): if a note is created while the list is reloading (e.g. a tag filter was just changed, so `notes` is `null`), `create()` cannot insert it (`notes-page.ts:150`, `notes ? [note, ...notes] : notes`) and the reload that started before the POST may not contain it; the note is saved and "Note saved" is shown, but it may be missing from the list until the next reload. Low impact; the parent may decide whether to record an assumption or reload after create.
+None.
 
 ## Coverage
 
 Status: verified
 
 Metric: whole-file coverage of task-changed production files.
-Changed-line coverage: not separately measured; all scoped files except `notes.routes.ts` were added by the task, so every executable line in them is a changed line (lines 273/273 in scope); `notes.routes.ts` changed lines are within its 2/2 covered lines.
+Changed-line coverage: not separately measured; every scoped file except `notes.routes.ts` was added by the task, so all executable lines in them are changed lines (lines 291/291); the changed lines of `notes.routes.ts` lie within its 2/2 covered lines.
 
 Evidence:
-- Task id, immutable base, measured HEAD, and task-owned commits/file-scope source: `web-notes-list`; base 37a3c6cc5f3abd1b7bf6a1488e2fec43fce3c1e8; HEAD 07ddc501b115482e7d1ef4995e20d8b910001ea1; commits 7fc1d346, 07ddc501 supplied by the parent and confirmed by `git diff --name-only 37a3c6cc..HEAD`.
-- Source/test snapshot identifier (including uncommitted inputs): SHA-256 of the per-file SHA-256 list of `web/src/app/features/notes/list/*.ts`, `*.html` and `notes/notes.routes.ts` (production + the 3 modified specs) = `7a5db104d2e65af6393ddfdf4d0f1325f87ed1cc2569c0310a972d1463dbfa2c`, identical before and after the run. Uncommitted: only the 3 spec files listed above.
-- Exact included files: `web/src/app/features/notes/list/notes-filter.ts`, `notes.service.ts`, `notes-page.ts`, `notes-page.html`, `web/src/app/features/notes/notes.routes.ts`. Excluded: `notes-page.scss` (styles, not executable), `*.spec.ts` and `app.spec.ts` (tests). No renamed or deleted files.
-- Provider/version, command, working directory, and test selection: Vitest 5.0.5 + `@vitest/coverage-v8` (node v24.21.0), `npm run coverage`, `web/`, full web suite.
-- Run start/completion time and exit status: 2026-10-21T03:15:57Z - 03:16:14Z, exit 0 (82 files, 1500 tests passed).
-- Generated report paths and report hashes/run identifier: `web/coverage/web/coverage-final.json` (sha256 a3b2359b84bdf41d7a3f38f975324d1353a607c39dbf19cf4e3f0b8a1f1204f6), `web/coverage/web/coverage-summary.json` (sha256 fc94d7910df852226998085d91e73cfcbd4f326882829810971c056ed48d662f), `lcov.info`, `lcov-report/`.
-- Evidence outputs are fresh and inputs stayed unchanged: yes, files rewritten by this run (mtime 05:16 local), snapshot hash unchanged.
-- Final run after latest test additions and production fixes: yes (no production changes in this run).
+- Task id, immutable base, measured HEAD, and task-owned commits/file-scope source: `web-notes-list`; base 61709e7c22e55f81443a4f5a6b6bac646098d079; HEAD 0214f8659dbb5b4c37e737bbe1d7b915ce147315; commits e5d6a4fe, 248c986a, bdd9f206, 0214f865 supplied by the parent and confirmed with `git diff --stat 61709e7c..HEAD`.
+- Source/test snapshot identifier (including uncommitted inputs): SHA-256 of the per-file SHA-256 list of `web/src/app/features/notes/list/*.ts`, `*.html`, `*.scss` and `web/src/app/features/notes/notes.routes.ts` (production + specs, incl. the uncommitted `note-card.spec.ts`, sha256 433565b26280473fcf4aa7837e3e28de5eed22e2477fd685b09abbb7be3f8e41) = `db3d9c5dc9186f7afc573d722999818b694239d246a989966bb393fe33b56399`, identical before and after the coverage run.
+- Exact included files: `web/src/app/features/notes/list/note-card.ts`, `notes-filter.ts`, `notes.service.ts`, `notes-page.ts`, `notes-page.html`, `web/src/app/features/notes/notes.routes.ts`. Excluded: `note-card.scss`, `notes-page.scss` (styles, not executable); `*.spec.ts`, `web/src/app/app.spec.ts` (tests); `reviews/` (docs). No renamed or deleted files; no scoped file missing from the report.
+- Provider/version, command, working directory, and test selection: Vitest 5.0.5 + `@vitest/coverage-v8` ^5.0.5 (node v24.21.0), `npm run coverage` (json-summary/json/lcov/text-summary reporters), `web/`, full web suite.
+- Run start/completion time and exit status: 2026-10-21T03:27:36Z - 03:27:53Z, exit 0 (83 files, 1513 tests passed).
+- Generated report paths and report hashes/run identifier: `web/coverage/web/coverage-final.json` (sha256 204ab29dc6207d8f5c5252ec28631dd5dc3423cb446c8554874fb6de3f6c2154), `web/coverage/web/coverage-summary.json` (sha256 55719d92caf0608eee9f8279178557b6013cde2992d1f32401462d5f033c4a43), `lcov.info`, `lcov-report/`.
+- Evidence outputs are fresh and inputs stayed unchanged: yes; `web/coverage/web` was removed before the run and regenerated by it (mtime 05:27 local), snapshot hash unchanged.
+- Final run after latest test additions and production fixes: yes (measures HEAD 0214f865 including fixes CR-2/3/4 and the `NoteCard` extraction, plus the new card spec).
 
 Values below use covered/total (percentage); zero-denominator or unsupported metrics are N/A.
 
 | Changed file | Statements | Branches | Functions | Lines |
 |---|---:|---:|---:|---:|
+| `web/src/app/features/notes/list/note-card.ts` | 62/62 (100%) | 20/20 (100%) | 6/6 (100%) | 41/41 (100%) |
 | `web/src/app/features/notes/list/notes-filter.ts` | 25/25 (100%) | 17/17 (100%) | 10/10 (100%) | 20/20 (100%) |
 | `web/src/app/features/notes/list/notes.service.ts` | 18/18 (100%) | 9/9 (100%) | 7/7 (100%) | 15/15 (100%) |
-| `web/src/app/features/notes/list/notes-page.ts` | 129/130 (99.2%) | 65/72 (90.3%) | 42/42 (100%) | 105/105 (100%) |
-| `web/src/app/features/notes/list/notes-page.html` | 209/209 (100%) | 27/28 (96.4%) | 18/18 (100%) | 131/131 (100%) |
+| `web/src/app/features/notes/list/notes-page.ts` | 130/131 (99.2%) | 65/72 (90.3%) | 40/40 (100%) | 105/105 (100%) |
+| `web/src/app/features/notes/list/notes-page.html` | 178/178 (100%) | 21/22 (95.5%) | 18/18 (100%) | 110/110 (100%) |
 | `web/src/app/features/notes/notes.routes.ts` | 2/2 (100%) | N/A (0/0) | 1/1 (100%) | 2/2 (100%) |
-| **Aggregate (5 files, summed counters; scss excluded, none missing)** | 383/384 (99.7%) | 118/126 (93.7%) | 78/78 (100%) | 273/273 (100%) |
-
-Before the new tests (focused run, same files): `notes-page.ts` branches 76.4%, `notes-page.html` functions 61.1%.
+| **Aggregate (6 files, summed counters; 2 scss files excluded, none missing)** | 415/416 (99.8%) | 132/140 (94.3%) | 82/82 (100%) | 293/293 (100%) |
 
 | File and uncovered lines/branch locations | Required behavior or risk | Action/test added or reason left uncovered |
 |---|---|---|
-| `notes-page.ts:226` (statement + if-true) | second pin/archive of a busy note | Unreachable from the UI: the buttons are disabled while busy; covered by `disables the actions of a note while its change runs and sends it only once` |
-| `notes-page.ts:123#1` | composer opened with draft tags already set | Unreachable: closing the composer always clears the draft; filter change with an open composer tested (`keeps typed tags...`) |
-| `notes-page.ts:150#1` | note created while the list is reloading | See observation in "Bugs found"; expected behaviour unspecified |
-| `notes-page.ts:64#1, 172#1, 221#1, 233#1` | `?? []`/`?? null` fallbacks when `notes` is null during a reload | Defensive null handling; the archive-view switch race is tested (`does not put a note into the archived view...`); no further test added |
-| `notes-page.html:160#1` | template `@if` fallthrough branch | Compiler-generated branch; both visible states (with and without pinned group) are tested |
+| `notes-page.ts:219` (statement + if-true) | second pin/archive of a note already busy | Unreachable from the UI: the card disables both buttons while busy; covered by page test `disables the actions of a note while its change runs and sends it only once` and card test `disables both buttons and emits nothing while busy` |
+| `notes-page.ts:124#1` | composer opened with draft tags already set | Unreachable: closing/saving always resets the draft (`resetComposer`) |
+| `notes-page.ts:160#1` | `notes ? ... : notes` inside `update` | Unreachable: guarded by `this.notes() === null` just above (CR-2 fix); the null case is tested by `shows a note created while the list reloads by loading it again` |
+| `notes-page.ts:64#1, 183#1, 214#1, 226#1` | `?? []` / `?? null` fallbacks when `notes` is null during a reload | Defensive null handling; the archive-view switch race is tested (`does not put a note into the archived view when its pin finishes after switching`); no further test added |
+| `notes-page.html:167#1` | compiler-generated conditional for the others-group `aria-labelledby` label | Both labels are rendered in tests (with and without a pinned group); remaining branch is a generated-code mapping artifact |
 
 ## Unable to test
 
-- Masonry visual layout (CSS columns in `notes-page.scss`): jsdom has no layout; only the `list` class toggle is verified. Needs e2e/visual check if required.
+- Masonry visual layout (CSS columns in `notes-page.scss` / `note-card.scss`): jsdom has no layout; only the `list` class on the cards and the `compact` host class are verified. Needs an e2e/visual check if a human wants it confirmed; not required by the criteria' "Vitest tests" wording.
 
 ## Summary
 
