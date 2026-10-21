@@ -1,0 +1,33 @@
+{
+  "schema": 1,
+  "task": "mail-idle",
+  "reviewed_revision": "b402a418d21e1e959719fe7517c3a0356056919a",
+  "helpers": {
+    "test-writer": {"status": "completed", "report": "reviews/mail-idle/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/mail-idle/review.md"},
+    "fixer": {"status": "completed", "report": "reviews/mail-idle/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P1", "disposition": "fixed",
+     "note": "unit tests for watcher backoff/reconnect, poll, announcer filters, properties"},
+    {"id": "CR-2", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "5-min poll also syncs the Inbox as a safety net for silently dropped IDLE connections"},
+    {"id": "CR-3", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "close and re-IDLE NOOP run on own virtual threads; stop() bounded; regression tests with a hanging session"},
+    {"id": "CR-4", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "poll runs on its own mail-poll executor instead of the shared Spring scheduler"},
+    {"id": "CR-5", "source": "code-reviewer", "severity": "P1", "disposition": "fixed",
+     "note": "MailIdlePushGreenMailTests: re-IDLE and poll at PT1H, message must arrive via IDLE push"},
+    {"id": "TW-1", "source": "test-writer", "severity": "Medium", "disposition": "fixed",
+     "note": "same gap as CR-5, fixed by the same test"},
+    {"id": "CR-6", "source": "code-reviewer", "severity": "P3", "disposition": "accepted",
+     "note": "restart of MailPushService after stop() would hit shut-down executors; the app never restarts this SmartLifecycle bean (reviewer agreed)"},
+    {"id": "CR-7", "source": "code-reviewer", "severity": "P3", "disposition": "accepted",
+     "note": "pure-IDLE test could in theory pass through a fast reconnect sync; optional hardening of a test, production behaviour unaffected"}
+  ],
+  "validation": [
+    {"command": "cd server && ./gradlew test --tests 'ch.sonensei.cockpit.mail.sync.*' jacocoTestReport integrationTest --tests 'ch.sonensei.cockpit.mail.sync.*' ktlintCheck", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
