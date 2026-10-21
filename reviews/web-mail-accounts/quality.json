@@ -1,0 +1,26 @@
+{
+  "schema": 1,
+  "task": "web-mail-accounts",
+  "reviewed_revision": "1ad13c66015d0c33e4676ffe0a9d28e10959d8d4",
+  "helpers": {
+    "test-writer": {"status": "completed", "report": "reviews/web-mail-accounts/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/web-mail-accounts/review.md"},
+    "fixer": {"status": "completed", "report": "reviews/web-mail-accounts/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "R1-CR-1", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "first review round: failed reload after a role move reported as a failed change; all selects now disabled during change + reload"},
+    {"id": "R1-CR-2", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "first review round: stale connection test result dropped when the account is edited"},
+    {"id": "R1-CR-3", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "first review round: singular '1 folder found.'"},
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P3", "disposition": "accepted",
+     "note": "Detect folders stays clickable during a role save: narrow race, no data loss, a resulting 412 shows 'changed elsewhere' and reloads; not worth another review cycle"}
+  ],
+  "validation": [
+    {"command": "cd web && npx ng test --watch=false --include 'src/app/features/settings/mail/*.spec.ts' --include 'src/app/features/settings/settings.routes.spec.ts'", "result": "pass"},
+    {"command": "cd web && npm run check", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
