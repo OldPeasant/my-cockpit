@@ -1,5 +1,6 @@
 package ch.sonensei.cockpit.capture.share
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
@@ -40,6 +41,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.liveRegion
@@ -49,6 +51,7 @@ import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import ch.sonensei.cockpit.R
+import ch.sonensei.cockpit.capture.queue.CaptureQueue
 
 object ShareTags {
     const val SHEET = "share:sheet"
@@ -69,6 +72,8 @@ fun CaptureSheet(
     onSave: () -> Unit,
     onCancel: () -> Unit,
 ) {
+    // A save cannot be interrupted: leaving would cancel the copy of the shared files and drop the capture.
+    BackHandler(enabled = state.saving) {}
     Box(
         Modifier
             .fillMaxSize()
@@ -152,7 +157,7 @@ fun CaptureSheet(
                 }
                 state.error?.let { error ->
                     Text(
-                        stringResource(error.message()),
+                        error.message(),
                         color = MaterialTheme.colorScheme.error,
                         style = MaterialTheme.typography.bodySmall,
                         modifier =
@@ -195,11 +200,20 @@ private fun quietFieldColors() =
         disabledIndicatorColor = Color.Transparent,
     )
 
-private fun ShareError.message(): Int =
+@Composable
+private fun ShareError.message(): String =
     when (this) {
-        ShareError.EMPTY_TEXT -> R.string.share_error_empty
-        ShareError.TOO_MANY_FILES -> R.string.share_error_too_many_files
-        ShareError.TEXT_TOO_LONG -> R.string.share_error_too_long
-        ShareError.UNREADABLE_FILE -> R.string.share_error_unreadable
-        ShareError.FAILED -> R.string.share_error_failed
+        ShareError.EMPTY_TEXT -> stringResource(R.string.share_error_empty)
+        ShareError.TOO_MANY_FILES -> stringResource(R.string.share_error_too_many_files, CaptureQueue.MAX_ATTACHMENTS)
+        ShareError.TEXT_TOO_LONG -> plural(R.plurals.share_error_too_long, CaptureQueue.MAX_TEXT_LENGTH)
+        ShareError.NOTES_TOO_LONG -> plural(R.plurals.share_error_notes_too_long, ShareViewModel.MAX_NOTES_LENGTH)
+        ShareError.UNREADABLE_FILE -> stringResource(R.string.share_error_unreadable)
+        ShareError.FAILED -> stringResource(R.string.share_error_failed)
     }
+
+/** A count message whose count is also its only format argument. */
+@Composable
+private fun plural(
+    id: Int,
+    count: Int,
+): String = pluralStringResource(id, count, count)

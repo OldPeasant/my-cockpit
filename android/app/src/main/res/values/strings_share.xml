@@ -9,8 +9,15 @@
     <string name="share_saved">Saved to Inbox</string>
     <string name="share_nothing">Nothing to save: the app shared no text or files.</string>
     <string name="share_error_empty">Type a title to save this to the Inbox.</string>
-    <string name="share_error_too_many_files">Too many files. Share at most 50 at once.</string>
-    <string name="share_error_too_long">The text is too long. Shorten it to at most 100,000 characters.</string>
+    <string name="share_error_too_many_files">Too many files. Share at most %1$d at once.</string>
+    <plurals name="share_error_too_long">
+        <item quantity="one">The text is too long. Shorten it to at most %1$,d character.</item>
+        <item quantity="other">The text is too long. Shorten it to at most %1$,d characters.</item>
+    </plurals>
+    <plurals name="share_error_notes_too_long">
+        <item quantity="one">The notes are too long. Shorten them to at most %1$,d character.</item>
+        <item quantity="other">The notes are too long. Shorten them to at most %1$,d characters.</item>
+    </plurals>
     <string name="share_error_unreadable">A shared file could not be read. Share it again from the other app.</string>
     <string name="share_error_failed">The capture could not be stored. Try again.</string>
 </resources>

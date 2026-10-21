@@ -21,7 +21,7 @@ import kotlinx.coroutines.withContext
 import java.io.IOException
 import javax.inject.Inject
 
-enum class ShareError { EMPTY_TEXT, TOO_MANY_FILES, TEXT_TOO_LONG, UNREADABLE_FILE, FAILED }
+enum class ShareError { EMPTY_TEXT, TOO_MANY_FILES, TEXT_TOO_LONG, NOTES_TOO_LONG, UNREADABLE_FILE, FAILED }
 
 data class SharedFile(
     val uri: Uri,
@@ -84,6 +84,10 @@ class ShareViewModel
                 state.update { it.copy(error = ShareError.TOO_MANY_FILES) }
                 return
             }
+            if (form.notes.length > MAX_NOTES_LENGTH) {
+                state.update { it.copy(error = ShareError.NOTES_TOO_LONG) }
+                return
+            }
             state.update { it.copy(saving = true, error = null) }
             viewModelScope.launch {
                 val error =
@@ -119,8 +123,14 @@ class ShareViewModel
                 }
             }.getOrNull()?.takeIf { it.isNotBlank() }
 
-        private companion object {
+        companion object {
+            /**
+             * The server accepts at most this many characters of notes (`TaskService.MAX_NOTES_LENGTH`) and rejects the
+             * capture for good otherwise, so a longer share is refused before it is queued.
+             */
+            const val MAX_NOTES_LENGTH = 100_000
+
             /** At most this many file names make up the default title of a share without text. */
-            const val TITLE_FILES = 3
+            private const val TITLE_FILES = 3
         }
     }

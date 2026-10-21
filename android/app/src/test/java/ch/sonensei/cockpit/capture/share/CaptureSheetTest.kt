@@ -1,6 +1,10 @@
 package ch.sonensei.cockpit.capture.share
 
+import android.app.Activity
 import android.net.Uri
+import androidx.activity.OnBackPressedDispatcher
+import androidx.activity.compose.LocalActivity
+import androidx.activity.compose.LocalOnBackPressedDispatcherOwner
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -20,7 +24,10 @@ import androidx.compose.ui.test.performImeAction
 import androidx.compose.ui.test.performTextReplacement
 import androidx.compose.ui.test.performTouchInput
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import ch.sonensei.cockpit.capture.queue.CaptureQueue
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -33,10 +40,14 @@ class CaptureSheetTest {
 
     private var saves = 0
     private var cancels = 0
+    private lateinit var activity: Activity
+    private lateinit var back: OnBackPressedDispatcher
 
     private fun show(initial: ShareUiState): (ShareUiState) -> Unit {
         var state by mutableStateOf(initial)
         composeRule.setContent {
+            activity = LocalActivity.current!!
+            back = LocalOnBackPressedDispatcherOwner.current!!.onBackPressedDispatcher
             CaptureSheet(
                 state = state,
                 onTextChange = { state = state.copy(text = it) },
@@ -47,6 +58,9 @@ class CaptureSheetTest {
         }
         return { state = it }
     }
+
+    /** System Back, as the activity receives it. */
+    private fun pressBack() = composeRule.runOnUiThread { back.onBackPressed() }
 
     /** The top-left corner: the scrim above the bottom-aligned sheet. */
     private fun tapOutside() = composeRule.onRoot().performTouchInput { click(Offset(10f, 10f)) }
@@ -112,6 +126,31 @@ class CaptureSheetTest {
     }
 
     @Test
+    fun `system back while saving is consumed and does not close the sheet`() {
+        show(ShareUiState(text = "Saving", saving = true))
+
+        pressBack()
+        composeRule.waitForIdle()
+
+        assertFalse(activity.isFinishing)
+        assertEquals(0, cancels)
+    }
+
+    @Test
+    fun `system back closes the sheet again once saving failed`() {
+        val update = show(ShareUiState(text = "Retry", saving = true))
+        pressBack()
+        composeRule.waitForIdle()
+        assertFalse(activity.isFinishing)
+
+        update(ShareUiState(text = "Retry", error = ShareError.FAILED))
+        composeRule.waitForIdle()
+        pressBack()
+
+        assertTrue(activity.isFinishing)
+    }
+
+    @Test
     fun `a tap outside cancels again once saving failed`() {
         val update = show(ShareUiState(text = "Retry", saving = true))
         tapOutside()
@@ -146,9 +185,14 @@ class CaptureSheetTest {
                 ShareError.EMPTY_TEXT to "Type a title to save this to the Inbox.",
                 ShareError.TOO_MANY_FILES to "Too many files. Share at most 50 at once.",
                 ShareError.TEXT_TOO_LONG to "The text is too long. Shorten it to at most 100,000 characters.",
+                ShareError.NOTES_TOO_LONG to "The notes are too long. Shorten them to at most 100,000 characters.",
                 ShareError.UNREADABLE_FILE to "A shared file could not be read. Share it again from the other app.",
                 ShareError.FAILED to "The capture could not be stored. Try again.",
             )
+        // The messages name the limits the code enforces.
+        assertEquals(50, CaptureQueue.MAX_ATTACHMENTS)
+        assertEquals(100_000, CaptureQueue.MAX_TEXT_LENGTH)
+        assertEquals(100_000, ShareViewModel.MAX_NOTES_LENGTH)
         assertEquals(ShareError.entries.toSet(), messages.keys)
         val update = show(ShareUiState(text = "x"))
         composeRule.onAllNodesWithTag(ShareTags.ERROR).assertCountEquals(0)

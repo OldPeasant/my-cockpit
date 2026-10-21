@@ -331,6 +331,34 @@ class ShareViewModelTest {
     }
 
     @Test
+    fun `notes at the server's limit are queued`() {
+        val notes = "n".repeat(ShareViewModel.MAX_NOTES_LENGTH)
+        val viewModel = loaded(SharedContent("Long article", notes, emptyList()))
+
+        viewModel.save()
+
+        assertTrue(viewModel.uiState.value.saved)
+        coVerify(exactly = 1) { queue.capture("Long article", notes, emptyList()) }
+    }
+
+    @Test
+    fun `notes over the server's limit are refused before queueing until shortened`() {
+        val viewModel = loaded(SharedContent("Long article", "n".repeat(ShareViewModel.MAX_NOTES_LENGTH + 1), emptyList()))
+
+        viewModel.save()
+
+        val state = viewModel.uiState.value
+        assertEquals(ShareError.NOTES_TOO_LONG, state.error)
+        assertFalse(state.saved)
+        assertFalse(state.saving)
+        coVerify(exactly = 0) { queue.capture(any(), any(), any()) }
+        viewModel.onNotesChange("n".repeat(ShareViewModel.MAX_NOTES_LENGTH))
+        assertNull(viewModel.uiState.value.error)
+        viewModel.save()
+        assertTrue(viewModel.uiState.value.saved)
+    }
+
+    @Test
     fun `a text the queue rejects is reported as too long`() {
         coEvery { queue.capture(any(), any(), any()) } throws IllegalArgumentException("At most 100000 characters")
         val viewModel = loaded(SharedContent("x".repeat(CaptureQueue.MAX_TEXT_LENGTH + 1), null, emptyList()))
