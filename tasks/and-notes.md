@@ -5,7 +5,7 @@ owner: dell26/agent-3
 deps: [and-login,notes-api]
 touches: [android/app/src/main/java/ch/sonensei/cockpit/notes,android/app/src/test/java/ch/sonensei/cockpit/notes]
 prio: 2
-lease_until: 2026-10-21T10:48:22Z
+lease_until: 2026-10-21T10:53:24Z
 extended: dell26/agent-3
 ---
 ## Goal
