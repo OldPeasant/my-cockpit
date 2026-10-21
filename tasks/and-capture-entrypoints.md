@@ -15,7 +15,8 @@ More ways to capture (SPEC.md §4.5).
 ## Acceptance criteria
 - [~] Glance widget (text field → queue, pending count), quick-settings tile and static app shortcut opening the capture sheet
   - skipped (2026-10-21 07:06+0200 by dell26/agent-1): no emulator/device here to check the real launcher widget, QS tile and long-press shortcut; the Robolectric tests cover each one (CaptureEntryPointsTest, CaptureEntrySurfacesTest, CaptureWidgetTest: widget renders the pending count and opens CaptureActivity, the tile opens the capture sheet, shortcuts.xml targets CaptureActivity), 35/35 pass at f321300e
-- [ ] `cd android && ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.capture.entry.*'` passes, covering widget state with pending count (Robolectric/Compose UI tests for screens)
+- [x] `cd android && ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.capture.entry.*'` passes, covering widget state with pending count (Robolectric/Compose UI tests for screens)
+  - verified (2026-10-21 07:06+0200 by dell26/agent-1): cd android && ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.capture.entry.*' at f321300e -> BUILD SUCCESSFUL, 35 tests (EntryPoints 6, Surfaces 10, WidgetUpdater 8, Widget 7, QueueStates 4), 0 failures; widget pending-count states covered in CaptureWidgetTest/CaptureEntryQueueStatesTest; capture/entry JaCoCo line coverage 97.0%
 
 ## Notes
 - ASSUMPTION (2026-10-21 05:03+0200 by dell26/agent-2): Widget has no real text field (RemoteViews/Glance cannot host editable text): its pill looks like the capture title field and opens the capture sheet (CaptureActivity), which queues offline-first; badge shows 'N to sync' / 'N not synced', nothing when all synced.
