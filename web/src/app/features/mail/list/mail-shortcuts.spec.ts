@@ -19,6 +19,7 @@ describe('mailShortcutFor', () => {
     ['v', 'move'],
     ['!', 'spam'],
     ['Escape', 'clear'],
+    ['o', 'open'],
   ])('maps %s to %s', (pressed, shortcut) => {
     expect(mailShortcutFor(key(pressed))).toBe(shortcut);
   });
@@ -36,6 +37,7 @@ describe('mailShortcutFor', () => {
       'v',
       '!',
       'Escape',
+      'o',
     ]);
   });
 

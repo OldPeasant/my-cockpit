@@ -1,0 +1,222 @@
+<div class="read">
+  <nav class="bar">
+    <a
+      class="back"
+      routerLink="/mail"
+      i18n-aria-label="@@mailRead.backAria"
+      aria-label="Back to Mail"
+    >
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z" />
+      </svg>
+      <span i18n="@@mailRead.back">Mail</span>
+    </a>
+    @if (state() === 'ready') {
+      <div class="actions" role="group" i18n-aria-label="@@mailRead.gtdAria" aria-label="Process">
+        <button
+          mat-stroked-button
+          type="button"
+          [disabled]="!!busy()"
+          (click)="gtd('task')"
+          i18n="@@mailRead.toTask"
+        >
+          → Inbox task
+        </button>
+        <button
+          mat-stroked-button
+          type="button"
+          [disabled]="!!busy()"
+          (click)="gtd('waiting')"
+          i18n="@@mailRead.toWaiting"
+        >
+          → Waiting For
+        </button>
+        <button
+          mat-stroked-button
+          type="button"
+          [disabled]="!!busy()"
+          (click)="gtd('note')"
+          i18n="@@mailRead.toNote"
+        >
+          Create note
+        </button>
+      </div>
+    }
+  </nav>
+
+  @switch (state()) {
+    @case ('loading') {
+      <p class="status" role="status" i18n="@@mailRead.loading">Loading message…</p>
+    }
+    @case ('notFound') {
+      <div class="status" role="alert">
+        <p i18n="@@mailRead.notFound">This message is no longer on the mail server.</p>
+        <a mat-stroked-button routerLink="/mail" i18n="@@mailRead.toMail">Go to Mail</a>
+      </div>
+    }
+    @case ('failed') {
+      <div class="status" role="alert">
+        <p i18n="@@mailRead.loadFailed">The message could not be loaded: {{ loadError() }}</p>
+        <button mat-stroked-button type="button" (click)="retry()" i18n="@@mailRead.retry">
+          Try again
+        </button>
+      </div>
+    }
+    @case ('ready') {
+      @if (message(); as m) {
+        <article class="letter" aria-labelledby="mail-read-subject">
+          <header class="head">
+            <h1 id="mail-read-subject">{{ subject() }}</h1>
+            <div class="people">
+              @if (sender(); as from) {
+                <span class="initial" aria-hidden="true">{{
+                  (name(from) || '?').charAt(0).toUpperCase()
+                }}</span>
+                <p class="from">
+                  <span class="sender">{{ name(from) }}</span>
+                  @if (from.name && from.address) {
+                    <span class="address">{{ from.address }}</span>
+                  }
+                </p>
+              }
+              <time class="date" [attr.datetime]="m.receivedAt">{{
+                m.receivedAt | date: 'medium'
+              }}</time>
+            </div>
+            <dl class="recipients">
+              @if (m.to?.length) {
+                <dt i18n="@@mailRead.to">To</dt>
+                <dd>{{ list(m.to) }}</dd>
+              }
+              @if (m.cc?.length) {
+                <dt i18n="@@mailRead.cc">Cc</dt>
+                <dd>{{ list(m.cc) }}</dd>
+              }
+            </dl>
+          </header>
+
+          @if (imagesBlocked()) {
+            <div
+              class="images"
+              role="region"
+              i18n-aria-label="@@mailRead.imagesAria"
+              aria-label="Remote images"
+            >
+              <p i18n="@@mailRead.imagesBlocked">
+                Remote images are hidden, so the sender can't see when you open this message.
+              </p>
+              <button
+                mat-button
+                type="button"
+                [disabled]="loadingImages()"
+                (click)="showImages()"
+                i18n="@@mailRead.loadImages"
+              >
+                Load images
+              </button>
+              @if (sender()?.address) {
+                <button
+                  mat-button
+                  type="button"
+                  [disabled]="loadingImages()"
+                  (click)="alwaysShowImages()"
+                  i18n="@@mailRead.alwaysLoadImages"
+                >
+                  Always load from this sender
+                </button>
+              }
+            </div>
+          } @else if (loadImages() && senderAllowed()) {
+            <div class="images quiet">
+              <p i18n="@@mailRead.imagesAllowed">Images from this sender load automatically.</p>
+              <button
+                mat-button
+                type="button"
+                (click)="forgetSender()"
+                i18n="@@mailRead.forgetSender"
+              >
+                Stop
+              </button>
+            </div>
+          }
+
+          <div class="sheet">
+            @if (m.body?.html; as html) {
+              <app-mail-frame [html]="html" [label]="subject()" />
+            } @else if (m.body?.text; as text) {
+              <pre class="text">{{ text }}</pre>
+            } @else {
+              <p class="empty" i18n="@@mailRead.noBody">This message has no text.</p>
+            }
+          </div>
+
+          @if (attachments().length) {
+            <section class="attachments" aria-labelledby="mail-read-attachments">
+              <h2 id="mail-read-attachments" i18n="@@mailRead.attachments">Attachments</h2>
+              <ul>
+                @for (part of attachments(); track part.partId) {
+                  <li>
+                    <span class="file">
+                      <span class="file-name">{{ part.filename }}</span>
+                      <span class="file-size">{{ size(part) }}</span>
+                    </span>
+                    <span class="file-actions">
+                      @if (canPreview(part)) {
+                        <button
+                          mat-button
+                          type="button"
+                          (click)="showPreview(part)"
+                          i18n="@@mailRead.preview"
+                        >
+                          Preview
+                        </button>
+                      }
+                      <a mat-button [href]="downloadUrl(part)" download i18n="@@mailRead.download">
+                        Download
+                      </a>
+                      <button
+                        mat-button
+                        type="button"
+                        [disabled]="saving().has(part.partId!)"
+                        (click)="saveToFiles(part)"
+                        i18n="@@mailRead.saveToFiles"
+                      >
+                        Save to Files
+                      </button>
+                    </span>
+                  </li>
+                }
+              </ul>
+              @if (preview(); as p) {
+                <figure class="preview" aria-live="polite">
+                  <figcaption>
+                    <span>{{ p.name }}</span>
+                    <button
+                      mat-button
+                      type="button"
+                      (click)="closePreview()"
+                      i18n="@@mailRead.closePreview"
+                    >
+                      Close preview
+                    </button>
+                  </figcaption>
+                  @if (p.kind === 'image') {
+                    <img [src]="p.url" [alt]="p.name" />
+                  } @else if (p.error) {
+                    <p class="error" role="alert">{{ p.error }}</p>
+                  } @else if (p.text === null) {
+                    <p role="status" i18n="@@mailRead.previewLoading">Loading preview…</p>
+                  } @else {
+                    <pre class="text">{{ p.text }}</pre>
+                  }
+                </figure>
+              }
+            </section>
+          }
+        </article>
+
+        <app-linked-items #links class="links" [item]="ref()" />
+      }
+    }
+  }
+</div>

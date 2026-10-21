@@ -18,4 +18,9 @@ export default [
     title: $localize`:@@nav.mail:Mail`,
     loadComponent: () => import('./list/mail-list-page'),
   },
+  {
+    path: 'messages/:id',
+    title: $localize`:@@mailRead.title:Message`,
+    loadComponent: () => import('./read/mail-read-page'),
+  },
 ] satisfies Routes;

@@ -13,7 +13,7 @@ import {
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { MatButtonModule } from '@angular/material/button';
 import { MatDialog } from '@angular/material/dialog';
-import { ActivatedRoute, RouterLink } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
 import { MailAddressResponse } from '../../../api/generated';
 import { folderLabel, MailFolderTree } from './mail-folder-tree';
@@ -45,6 +45,7 @@ export default class MailListPage {
   protected readonly store = inject(MailListStore);
   protected readonly folders = inject(MailFoldersStore);
   private readonly dialog = inject(MatDialog);
+  private readonly router = inject(Router);
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
 
   protected readonly threaded = signal(storedThreaded());
@@ -202,7 +203,17 @@ export default class MailListPage {
         return this.focusCursor();
       case 'clear':
         return this.store.clearSelection();
+      case 'open': {
+        const id = this.store.cursorId();
+        if (id) this.open(id);
+        return;
+      }
     }
+  }
+
+  /** Opens a message in the read view. */
+  protected open(id: string): void {
+    void this.router.navigate(['/mail/messages', id]);
   }
 
   /**

@@ -1,0 +1,270 @@
+.read {
+  display: grid;
+  gap: var(--app-space-4);
+  max-width: 60rem;
+  padding: var(--app-space-5) var(--app-space-4);
+}
+
+.bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--app-space-3);
+}
+
+.back {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--app-space-1);
+  padding: var(--app-space-1) var(--app-space-2);
+  border-radius: var(--app-radius);
+  color: var(--app-fg-muted);
+  font: var(--mat-sys-label-large);
+  text-decoration: none;
+
+  svg {
+    width: 20px;
+    height: 20px;
+    fill: currentColor;
+  }
+
+  &:hover,
+  &:focus-visible {
+    background: var(--mat-sys-surface-container);
+    color: inherit;
+  }
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--app-space-2);
+}
+
+.status {
+  margin: 0;
+  color: var(--app-fg-muted);
+
+  p {
+    margin: 0 0 var(--app-space-3);
+  }
+}
+
+.letter {
+  display: grid;
+  gap: var(--app-space-3);
+  min-width: 0;
+}
+
+.head {
+  display: grid;
+  gap: var(--app-space-3);
+}
+
+h1 {
+  margin: 0;
+  overflow-wrap: anywhere;
+  font: var(--mat-sys-headline-medium);
+}
+
+.people {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--app-space-3);
+}
+
+/* The sender's initial: the one mark of the view, in the container color of the app. */
+.initial {
+  display: grid;
+  place-items: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 50%;
+  background: var(--mat-sys-tertiary-container);
+  color: var(--mat-sys-on-tertiary-container);
+  font: var(--mat-sys-title-medium);
+}
+
+.from {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 var(--app-space-2);
+  margin: 0;
+  min-width: 0;
+}
+
+.sender {
+  font: var(--mat-sys-title-medium);
+}
+
+.address,
+.date {
+  color: var(--app-fg-muted);
+  font: var(--mat-sys-body-medium);
+  overflow-wrap: anywhere;
+}
+
+.recipients {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: var(--app-space-1) var(--app-space-3);
+  margin: 0;
+  color: var(--app-fg-muted);
+  font: var(--mat-sys-body-medium);
+
+  dt {
+    font-weight: 500;
+  }
+
+  dd {
+    margin: 0;
+    overflow-wrap: anywhere;
+  }
+}
+
+.images {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--app-space-2);
+  padding: var(--app-space-2) var(--app-space-3);
+  border-radius: var(--app-radius);
+  background: var(--mat-sys-secondary-container);
+  color: var(--mat-sys-on-secondary-container);
+
+  p {
+    flex: 1 1 18rem;
+    margin: 0;
+    font: var(--mat-sys-body-medium);
+  }
+
+  &.quiet {
+    background: none;
+    color: var(--app-fg-muted);
+    padding-block: 0;
+  }
+}
+
+/* Mail HTML is written for a white page: the body keeps one in dark mode too. */
+.sheet {
+  overflow: hidden;
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius);
+  background: #fff;
+  color: #1c1b1f;
+
+  .text {
+    padding: var(--app-space-4) var(--app-space-5);
+  }
+
+  .empty {
+    margin: 0;
+    padding: var(--app-space-4) var(--app-space-5);
+    color: #49454f;
+  }
+}
+
+.text {
+  margin: 0;
+  font: var(--mat-sys-body-large);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.attachments {
+  h2 {
+    margin: 0 0 var(--app-space-2);
+    font: var(--mat-sys-title-medium);
+  }
+
+  ul {
+    display: grid;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  li {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--app-space-2);
+    padding: var(--app-space-1) 0;
+
+    & + li {
+      border-top: 1px solid var(--app-border);
+    }
+  }
+}
+
+.file {
+  display: flex;
+  align-items: baseline;
+  gap: var(--app-space-2);
+  min-width: 0;
+}
+
+.file-name {
+  overflow-wrap: anywhere;
+}
+
+.file-size {
+  flex: none;
+  color: var(--app-fg-muted);
+  font: var(--mat-sys-body-small);
+}
+
+.file-actions {
+  display: flex;
+  flex-wrap: wrap;
+}
+
+.preview {
+  margin: var(--app-space-3) 0 0;
+  padding: var(--app-space-3);
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius);
+
+  figcaption {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--app-space-2);
+    margin-bottom: var(--app-space-2);
+    overflow-wrap: anywhere;
+  }
+
+  img {
+    display: block;
+    max-width: 100%;
+    max-height: 70vh;
+    margin-inline: auto;
+  }
+
+  .text {
+    max-height: 60vh;
+    overflow: auto;
+  }
+}
+
+.error {
+  color: var(--mat-sys-error);
+}
+
+@media (max-width: 600px) {
+  .read {
+    padding: var(--app-space-3) var(--app-space-2);
+  }
+
+  .people {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .date {
+    grid-column: 1 / -1;
+  }
+}

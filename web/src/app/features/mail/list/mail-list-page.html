@@ -150,7 +150,12 @@
                 (change)="store.toggleSelected(item.id)"
                 [attr.aria-label]="selectLabel(item)"
               />
-              <button type="button" class="open" (click)="store.setCursor(item.id)">
+              <button
+                type="button"
+                class="open"
+                (click)="store.setCursor(item.id)"
+                (dblclick)="open(item.id)"
+              >
                 <span class="from">
                   {{ sender(item) }}
                   @if (threaded() && (item.threadSize ?? 1) > 1) {
@@ -230,8 +235,8 @@
     }
 
     <p class="keys" i18n="@@mail.keysHint">
-      Keys: j/k next/previous, x select, e archive, # delete, Shift+I read, u unread, s star, v
-      move, ! spam
+      Keys: j/k next/previous, o or double-click open, x select, e archive, # delete, Shift+I read,
+      u unread, s star, v move, ! spam
     </p>
   </section>
 </div>

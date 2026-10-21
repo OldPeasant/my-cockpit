@@ -12,7 +12,8 @@ export type MailShortcut =
   | 'flag'
   | 'move'
   | 'spam'
-  | 'clear';
+  | 'clear'
+  | 'open';
 
 /** Gmail-like keys (SPEC.md §7.3), shown in the list's shortcut help. */
 export const MAIL_SHORTCUTS: readonly { key: string; shortcut: MailShortcut }[] = [
@@ -27,6 +28,7 @@ export const MAIL_SHORTCUTS: readonly { key: string; shortcut: MailShortcut }[] 
   { key: 'v', shortcut: 'move' },
   { key: '!', shortcut: 'spam' },
   { key: 'Escape', shortcut: 'clear' },
+  { key: 'o', shortcut: 'open' },
 ];
 
 const BY_KEY = new Map(MAIL_SHORTCUTS.map(({ key, shortcut }) => [key, shortcut]));
