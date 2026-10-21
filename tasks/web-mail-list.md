@@ -5,7 +5,7 @@ owner: dell26/agent-2
 deps: [p0-web-shell,mail-actions-api,p0-web-sse,p0-e2e-harness]
 touches: [web/src/app/features/mail/list]
 prio: 1
-lease_until: 2026-10-21T05:03:44Z
+lease_until: 2026-10-21T05:08:49Z
 ---
 ## Goal
 Unified inbox and folders (SPEC.md §7.3).
