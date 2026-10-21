@@ -2,7 +2,7 @@
 title: Web forced TOTP re-enrollment after restore
 status: todo
 owner:
-deps: [backup-secrets,p0-web-auth]
+deps: [backup-secrets,p0-web-auth,app-logo]
 touches: [web/src/app/features/auth,web/src/app/core/auth]
 prio: 1
 ---

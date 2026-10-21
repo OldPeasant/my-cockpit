@@ -2,7 +2,7 @@
 title: Android passkeys
 status: todo
 owner:
-deps: [passkeys-server,and-login]
+deps: [passkeys-server,and-login,app-logo]
 touches: [android/app/src/main/java/ch/sonensei/cockpit/auth,android/app/src/test/java/ch/sonensei/cockpit/auth]
 prio: 3
 ---
