@@ -15,7 +15,8 @@ Local notifications for reminders (SPEC.md §9.2).
 ## Acceptance criteria
 - [x] Synced upcoming reminders are scheduled with AlarmManager (exact alarm permission flow, fallback to inexact); rescheduled after boot and sync
   - verified (2026-10-21 11:54+0200 by dell26/agent-4): cd android && ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.reminders.*' (ReminderSchedulerTest/ReminderAlarmsNotifierTest/ReminderBootReceiverTest/ReminderSyncTest with ShadowAlarmManager: exact vs inexact fallback, reschedule on boot/package replace/permission grant/sync) at 817a624e -> 98 tests, 0 failures
-- [ ] Notification opens the item; POST_NOTIFICATIONS permission requested in context
+- [x] Notification opens the item; POST_NOTIFICATIONS permission requested in context
+  - verified (2026-10-21 11:54+0200 by dell26/agent-4): same run: ReminderUiTest + ReminderActivityIntentTest (Robolectric/Compose) -> tapped notification opens item screen, no reopen from Recents; POST_NOTIFICATIONS requested from in-context prompt card, Settings fallback after denial -> pass
 - [ ] `cd android && ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.reminders.*'` passes, covering scheduling/cancelling on sync changes (ShadowAlarmManager) (Robolectric/Compose UI tests for screens)
 
 ## Notes
