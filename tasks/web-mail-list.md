@@ -13,7 +13,8 @@ Unified inbox and folders (SPEC.md §7.3).
 
 ## Acceptance criteria
 - [ ] Unified inbox + per-account folder tree, threaded/flat toggle, infinite scroll, multi-select, actions and Gmail-like shortcuts (j/k, e, #, u, v)
-- [ ] Live updates via SSE
+- [x] Live updates via SSE
+  - verified (2026-10-21 07:40+0200 by dell26/agent-2): npm --prefix web run e2e -- e2e/mail-list/list.spec.ts -> live-update step passes (message appended via IMAP + sync hook shows up without reload via SSE MAIL_FOLDER event); Vitest 'live updates' specs in mail-list-store.spec.ts / mail-folders-store.spec.ts pass in npm run check
 - [ ] Vitest component/service tests cover selection, shortcuts, optimistic actions with rollback; `cd web && npm run check` passes
 - [x] Playwright `e2e/mail-list/list.spec.ts` passes against the e2e stack (`npm run e2e -- e2e/mail-list/list.spec.ts`, see p0-e2e-harness): mark read, archive, move against GreenMail
   - verified (2026-10-21 07:39+0200 by dell26/agent-2): npm --prefix web run e2e -- e2e/mail-list/list.spec.ts (run-e2e.mjs: podman compose e2e stack server+postgres+GreenMail, chromium) at 11d5d088 -> 6 passed incl. 'Mail list > mark read, archive and move against GreenMail; live updates' (checked over IMAP)
