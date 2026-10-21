@@ -9,6 +9,7 @@ import ch.sonensei.cockpit.gtd.data.GtdProject
 import ch.sonensei.cockpit.gtd.data.GtdTask
 import ch.sonensei.cockpit.gtd.data.ProjectRepository
 import ch.sonensei.cockpit.gtd.data.ProjectStatus
+import ch.sonensei.cockpit.gtd.data.RefreshResult
 import ch.sonensei.cockpit.gtd.data.TaskList
 import ch.sonensei.cockpit.gtd.data.TaskRepository
 import ch.sonensei.cockpit.gtd.data.TaskView
@@ -58,6 +59,10 @@ class InboxViewModelTest {
     private val clock = Clock.fixed(Instant.parse("2026-10-20T10:00:00Z"), ZoneOffset.UTC)
     private val today = LocalDate.of(2026, 10, 20)
 
+    /** Each read moves a second on, so the double-tap guard only applies where a test stops it. */
+    private var uptime = 0L
+    private var uptimeStep = 1_000L
+
     @Before
     fun setUp() {
         Dispatchers.setMain(UnconfinedTestDispatcher())
@@ -69,7 +74,11 @@ class InboxViewModelTest {
 
     private fun test(block: suspend (InboxViewModel) -> Unit) =
         runTest(UnconfinedTestDispatcher()) {
-            val viewModel = InboxViewModel(inbox, tasks, projects, contexts, clock)
+            val viewModel =
+                InboxViewModel(inbox, tasks, projects, contexts, clock) {
+                    uptime += uptimeStep
+                    uptime
+                }
             backgroundScope.launch { viewModel.uiState.collect {} }
             block(viewModel)
         }
@@ -96,7 +105,7 @@ class InboxViewModelTest {
         ).forEach { (kind, action) ->
             test { vm ->
                 vm.startProcessing()
-                vm.choose(kind)
+                vm.choose(first.id, kind)
                 coVerify { inbox.process(first, Clarification.of(first), action) }
                 assertEquals(1, vm.uiState.value.processed)
             }
@@ -108,37 +117,37 @@ class InboxViewModelTest {
         test { vm ->
             vm.startProcessing()
 
-            vm.choose(InboxActionKind.WAITING)
+            vm.choose(first.id, InboxActionKind.WAITING)
             vm.updatePrompt { it.copy(text = "Alex") }
-            vm.confirmPrompt()
+            vm.confirmPrompt(first.id)
             coVerify { inbox.process(first, any(), InboxAction.Waiting("Alex")) }
 
-            vm.choose(InboxActionKind.SCHEDULE)
+            vm.choose(first.id, InboxActionKind.SCHEDULE)
             assertEquals(
                 today.plusDays(1),
                 vm.uiState.value.prompt
                     ?.date,
             )
-            vm.confirmPrompt()
+            vm.confirmPrompt(first.id)
             coVerify { inbox.process(first, any(), InboxAction.Schedule(today.plusDays(1))) }
 
-            vm.choose(InboxActionKind.TICKLER)
+            vm.choose(first.id, InboxActionKind.TICKLER)
             vm.updatePrompt { it.copy(date = today.plusWeeks(1)) }
-            vm.confirmPrompt()
+            vm.confirmPrompt(first.id)
             coVerify { inbox.process(first, any(), InboxAction.Tickler(today.plusWeeks(1))) }
 
-            vm.choose(InboxActionKind.PROJECT)
+            vm.choose(first.id, InboxActionKind.PROJECT)
             assertEquals(
                 garden.id,
                 vm.uiState.value.prompt
                     ?.projectId,
             )
-            vm.confirmPrompt()
+            vm.confirmPrompt(first.id)
             coVerify { inbox.process(first, any(), InboxAction.ToProject(ProjectChoice.Existing(garden.id))) }
 
-            vm.choose(InboxActionKind.PROJECT)
+            vm.choose(first.id, InboxActionKind.PROJECT)
             vm.updatePrompt { it.copy(projectId = null, text = "Bathroom") }
-            vm.confirmPrompt()
+            vm.confirmPrompt(first.id)
             coVerify { inbox.process(first, any(), InboxAction.ToProject(ProjectChoice.New("Bathroom"))) }
         }
 
@@ -146,7 +155,7 @@ class InboxViewModelTest {
     fun `to project offers the project named in the capture first`() =
         test { vm ->
             inboxFlow.value = inboxFlow.value.copy(data = listOf(second))
-            vm.choose(InboxActionKind.PROJECT)
+            vm.choose(second.id, InboxActionKind.PROJECT)
             assertEquals(
                 kitchen.id,
                 vm.uiState.value.prompt
@@ -157,12 +166,12 @@ class InboxViewModelTest {
     @Test
     fun `an invalid prompt does not run`() =
         test { vm ->
-            vm.choose(InboxActionKind.TICKLER)
+            vm.choose(first.id, InboxActionKind.TICKLER)
             vm.updatePrompt { it.copy(date = today) }
-            vm.confirmPrompt()
-            vm.choose(InboxActionKind.PROJECT)
+            vm.confirmPrompt(first.id)
+            vm.choose(first.id, InboxActionKind.PROJECT)
             vm.updatePrompt { it.copy(projectId = null, text = " ") }
-            vm.confirmPrompt()
+            vm.confirmPrompt(first.id)
             coVerify(exactly = 0) { inbox.process(any(), any(), any()) }
         }
 
@@ -176,7 +185,7 @@ class InboxViewModelTest {
             assertEquals(Clarification(Energy.LOW, Creativity.ROUTINE, 15, listOf(home.id)), vm.uiState.value.clarification)
             vm.toggleContext(home.id)
 
-            vm.choose(InboxActionKind.NEXT)
+            vm.choose(first.id, InboxActionKind.NEXT)
 
             coVerify { inbox.process(first, Clarification(Energy.LOW, Creativity.ROUTINE, 15, emptyList()), InboxAction.Next) }
         }
@@ -187,7 +196,7 @@ class InboxViewModelTest {
             val answer = CompletableDeferred<ProcessResult>()
             coEvery { inbox.process(any(), any(), any()) } coAnswers { answer.await() }
 
-            vm.choose(InboxActionKind.NEXT)
+            vm.choose(first.id, InboxActionKind.NEXT)
             assertEquals(second, vm.uiState.value.current)
 
             answer.complete(ProcessResult.Offline)
@@ -202,10 +211,10 @@ class InboxViewModelTest {
     fun `conflicts and refusals are reported`() =
         test { vm ->
             coEvery { inbox.process(any(), any(), any()) } returns ProcessResult.Conflict
-            vm.choose(InboxActionKind.NEXT)
+            vm.choose(first.id, InboxActionKind.NEXT)
             assertEquals(InboxMessage.CONFLICT, vm.uiState.value.message)
             coEvery { inbox.process(any(), any(), any()) } returns ProcessResult.Rejected(400)
-            vm.choose(InboxActionKind.NEXT)
+            vm.choose(first.id, InboxActionKind.NEXT)
             assertEquals(InboxMessage.FAILED, vm.uiState.value.message)
         }
 
@@ -215,7 +224,7 @@ class InboxViewModelTest {
             inboxFlow.value = inboxFlow.value.copy(offline = true)
             assertEquals(false, vm.uiState.value.actionsEnabled)
 
-            InboxActionKind.entries.forEach(vm::choose)
+            InboxActionKind.entries.forEach { vm.choose(first.id, it) }
 
             assertNull(vm.uiState.value.prompt)
             coVerify(exactly = 0) { inbox.process(any(), any(), any()) }
@@ -224,9 +233,9 @@ class InboxViewModelTest {
     @Test
     fun `offline blocks an open prompt from running`() =
         test { vm ->
-            vm.choose(InboxActionKind.SCHEDULE)
+            vm.choose(first.id, InboxActionKind.SCHEDULE)
             inboxFlow.value = inboxFlow.value.copy(offline = true)
-            vm.confirmPrompt()
+            vm.confirmPrompt(first.id)
             coVerify(exactly = 0) { inbox.process(any(), any(), any()) }
         }
 
@@ -240,7 +249,7 @@ class InboxViewModelTest {
             }
             vm.setEnergy(Energy.LOW)
 
-            vm.choose(InboxActionKind.NEXT)
+            vm.choose(first.id, InboxActionKind.NEXT)
 
             assertEquals(tagged, vm.uiState.value.current)
             assertEquals(Clarification(energy = Energy.HIGH), vm.uiState.value.clarification)
@@ -251,12 +260,12 @@ class InboxViewModelTest {
         test { vm ->
             coEvery { inbox.process(any(), any(), any()) } returns ProcessResult.Offline
             vm.setEstimate(30)
-            vm.choose(InboxActionKind.NEXT)
+            vm.choose(first.id, InboxActionKind.NEXT)
             assertEquals(first, vm.uiState.value.current)
             assertEquals(30, vm.uiState.value.clarification.timeEstimateMin)
 
             coEvery { inbox.process(any(), any(), any()) } returns ProcessResult.Processed
-            vm.choose(InboxActionKind.NEXT)
+            vm.choose(first.id, InboxActionKind.NEXT)
 
             coVerify(exactly = 2) { inbox.process(first, Clarification(timeEstimateMin = 30), InboxAction.Next) }
         }
@@ -272,8 +281,8 @@ class InboxViewModelTest {
             }
 
             vm.startProcessing()
-            vm.choose(InboxActionKind.NEXT)
-            vm.choose(InboxActionKind.DONE)
+            vm.choose(first.id, InboxActionKind.NEXT)
+            vm.choose(second.id, InboxActionKind.DONE)
             assertEquals(1, vm.uiState.value.processed)
             assertNull(vm.uiState.value.current)
 
@@ -291,12 +300,98 @@ class InboxViewModelTest {
             coEvery { inbox.process(any(), any(), any()) } coAnswers { answer.await() }
             inboxFlow.value = inboxFlow.value.copy(data = listOf(first))
 
-            vm.choose(InboxActionKind.NEXT)
-            vm.choose(InboxActionKind.NEXT)
-            vm.choose(InboxActionKind.TRASH)
+            vm.choose(first.id, InboxActionKind.NEXT)
+            vm.choose(first.id, InboxActionKind.NEXT)
+            vm.choose(first.id, InboxActionKind.TRASH)
 
             coVerify(exactly = 1) { inbox.process(any(), any(), any()) }
             answer.complete(ProcessResult.Processed)
+        }
+
+    @Test
+    fun `a second tap for an item that already left the queue does not act on the next item`() =
+        test { vm ->
+            val answer = CompletableDeferred<ProcessResult>()
+            coEvery { inbox.process(any(), any(), any()) } coAnswers { answer.await() }
+            vm.startProcessing()
+
+            vm.choose(first.id, InboxActionKind.TRASH)
+            assertEquals(second, vm.uiState.value.current)
+            vm.choose(first.id, InboxActionKind.TRASH)
+
+            coVerify(exactly = 1) { inbox.process(any(), any(), any()) }
+            coVerify(exactly = 0) { inbox.process(second, any(), any()) }
+            assertEquals(second, vm.uiState.value.current)
+            answer.complete(ProcessResult.Processed)
+        }
+
+    @Test
+    fun `a quick second tap does not act on the next item that just appeared`() =
+        test { vm ->
+            val answer = CompletableDeferred<ProcessResult>()
+            coEvery { inbox.process(first, any(), any()) } coAnswers { answer.await() }
+            vm.startProcessing()
+            uptimeStep = 100L
+
+            vm.choose(first.id, InboxActionKind.TRASH)
+            vm.choose(second.id, InboxActionKind.TRASH)
+            vm.choose(second.id, InboxActionKind.SCHEDULE)
+
+            coVerify(exactly = 1) { inbox.process(any(), any(), any()) }
+            assertEquals(null, vm.uiState.value.prompt)
+            uptime += 1_000L
+            vm.choose(second.id, InboxActionKind.TRASH)
+            coVerify(exactly = 1) { inbox.process(second, any(), InboxAction.Trash) }
+            answer.complete(ProcessResult.Processed)
+        }
+
+    @Test
+    fun `a stale prompt confirmation is dropped`() =
+        test { vm ->
+            vm.choose(first.id, InboxActionKind.SCHEDULE)
+            vm.confirmPrompt(second.id)
+
+            coVerify(exactly = 0) { inbox.process(any(), any(), any()) }
+            assertEquals(
+                InboxActionKind.SCHEDULE,
+                vm.uiState.value.prompt
+                    ?.kind,
+            )
+        }
+
+    @Test
+    fun `retry reloads the inbox and a reload that works clears the offline state`() =
+        test { vm ->
+            inboxFlow.value = inboxFlow.value.copy(offline = true)
+            val answer = CompletableDeferred<RefreshResult>()
+            coEvery { tasks.refresh(TaskView.INBOX) } coAnswers {
+                answer.await().also { if (it == RefreshResult.Refreshed) inboxFlow.value = inboxFlow.value.copy(offline = false) }
+            }
+            assertEquals(false, vm.uiState.value.actionsEnabled)
+
+            vm.retry()
+            assertTrue(vm.uiState.value.retrying)
+            vm.retry()
+            answer.complete(RefreshResult.Refreshed)
+
+            coVerify(exactly = 1) { tasks.refresh(TaskView.INBOX) }
+            assertEquals(false, vm.uiState.value.offline)
+            assertEquals(false, vm.uiState.value.retrying)
+            assertTrue(vm.uiState.value.actionsEnabled)
+        }
+
+    @Test
+    fun `a retry that fails keeps the offline state and can be repeated`() =
+        test { vm ->
+            inboxFlow.value = inboxFlow.value.copy(offline = true)
+            coEvery { tasks.refresh(TaskView.INBOX) } returns RefreshResult.Offline
+
+            vm.retry()
+            vm.retry()
+
+            coVerify(exactly = 2) { tasks.refresh(TaskView.INBOX) }
+            assertTrue(vm.uiState.value.offline)
+            assertEquals(false, vm.uiState.value.retrying)
         }
 
     @Test
@@ -305,8 +400,8 @@ class InboxViewModelTest {
             inboxFlow.value = inboxFlow.value.copy(data = emptyList())
             assertEquals(false, vm.uiState.value.actionsEnabled)
 
-            InboxActionKind.entries.forEach(vm::choose)
-            vm.confirmPrompt()
+            InboxActionKind.entries.forEach { vm.choose(first.id, it) }
+            vm.confirmPrompt(first.id)
             vm.setEnergy(Energy.LOW)
 
             assertNull(vm.uiState.value.prompt)
@@ -318,7 +413,7 @@ class InboxViewModelTest {
     fun `to project without active projects proposes a new one`() {
         every { projects.observe() } returns MutableStateFlow(Cached(listOf(done), false, loadedAt))
         test { vm ->
-            vm.choose(InboxActionKind.PROJECT)
+            vm.choose(first.id, InboxActionKind.PROJECT)
 
             val prompt = vm.uiState.value.prompt
             assertEquals(InboxActionKind.PROJECT, prompt?.kind)
@@ -330,9 +425,9 @@ class InboxViewModelTest {
     @Test
     fun `cancelling a prompt runs nothing and shows the actions again`() =
         test { vm ->
-            vm.choose(InboxActionKind.WAITING)
+            vm.choose(first.id, InboxActionKind.WAITING)
             vm.cancelPrompt()
-            vm.confirmPrompt()
+            vm.confirmPrompt(first.id)
 
             assertNull(vm.uiState.value.prompt)
             coVerify(exactly = 0) { inbox.process(any(), any(), any()) }
@@ -342,10 +437,10 @@ class InboxViewModelTest {
     fun `choosing again after a failure clears the old message`() =
         test { vm ->
             coEvery { inbox.process(any(), any(), any()) } returns ProcessResult.Rejected(422)
-            vm.choose(InboxActionKind.NEXT)
+            vm.choose(first.id, InboxActionKind.NEXT)
             assertEquals(InboxMessage.FAILED, vm.uiState.value.message)
 
-            vm.choose(InboxActionKind.SCHEDULE)
+            vm.choose(first.id, InboxActionKind.SCHEDULE)
 
             assertNull(vm.uiState.value.message)
         }
@@ -367,8 +462,8 @@ class InboxViewModelTest {
     fun `stopping closes the prompt and starting resets the progress`() =
         test { vm ->
             vm.startProcessing()
-            vm.choose(InboxActionKind.DONE)
-            vm.choose(InboxActionKind.WAITING)
+            vm.choose(first.id, InboxActionKind.DONE)
+            vm.choose(first.id, InboxActionKind.WAITING)
             vm.stopProcessing()
             assertEquals(false, vm.uiState.value.processing)
             assertNull(vm.uiState.value.prompt)

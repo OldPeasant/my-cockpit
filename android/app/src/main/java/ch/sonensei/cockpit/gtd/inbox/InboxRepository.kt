@@ -70,8 +70,16 @@ class InboxRepository
          */
         private val clarified = ConcurrentHashMap<UUID, TaskResponse>()
 
-        /** Projects created by "New project" for an item whose move then failed: a retry uses them instead of a second. */
-        private val createdProjects = ConcurrentHashMap<UUID, UUID>()
+        /**
+         * Projects created by "New project" for an item whose move then failed, with their title: a retry with the same
+         * title uses them instead of creating a second one. Dropped once the item is processed or moved elsewhere.
+         */
+        private val createdProjects = ConcurrentHashMap<UUID, CreatedProject>()
+
+        private data class CreatedProject(
+            val title: String,
+            val id: UUID,
+        )
 
         /**
          * Saves [clarification] (if it changed) and runs [action] on [task]. Trashing saves nothing: the attributes of
@@ -86,7 +94,10 @@ class InboxRepository
                 connectivity.refreshing {
                     apply(task.id, clarify(task, if (action == InboxAction.Trash) null else clarification), action)
                 }
-            if (result == RefreshResult.Refreshed) clarified.remove(task.id)
+            if (result == RefreshResult.Refreshed) {
+                clarified.remove(task.id)
+                createdProjects.remove(task.id)
+            }
             // A conflict means the cached item is outdated: reloading shows its current state.
             if (result != RefreshResult.Offline) tasks.refresh(TaskView.INBOX)
             return when (result) {
@@ -129,15 +140,16 @@ class InboxRepository
                 is InboxAction.ToProject -> {
                     val projectId =
                         when (val choice = action.project) {
-                            is ProjectChoice.Existing -> choice.id
-                            is ProjectChoice.New ->
-                                createdProjects[id]
-                                    ?: body(projectsApi.createProject(CreateProjectRequest(choice.title.trim())))
+                            is ProjectChoice.Existing -> choice.id.also { createdProjects.remove(id) }
+                            is ProjectChoice.New -> {
+                                val title = choice.title.trim()
+                                createdProjects[id]?.takeIf { it.title == title }?.id
+                                    ?: body(projectsApi.createProject(CreateProjectRequest(title)))
                                         .id
-                                        .also { createdProjects[id] = it }
+                                        .also { createdProjects[id] = CreatedProject(title, it) }
+                            }
                         }
                     move(MoveTaskRequest(MoveTaskRequest.List.NEXT, projectId = projectId))
-                    createdProjects.remove(id)
                     makeNextStepIfStalled(projectId, id)
                 }
                 InboxAction.Trash -> succeeded(tasksApi.deleteTask(id, ifMatch))

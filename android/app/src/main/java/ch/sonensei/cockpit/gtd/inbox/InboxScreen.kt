@@ -94,11 +94,14 @@ data class InboxCallbacks(
     val setCreativity: (Creativity?) -> Unit = {},
     val setEstimate: (Int?) -> Unit = {},
     val toggleContext: (UUID) -> Unit = {},
-    val choose: (InboxActionKind) -> Unit = {},
+    /** The item the buttons were shown for, and the chosen action. */
+    val choose: (UUID, InboxActionKind) -> Unit = { _, _ -> },
     val updatePrompt: ((InboxPrompt) -> InboxPrompt) -> Unit = {},
     val cancelPrompt: () -> Unit = {},
-    val confirmPrompt: () -> Unit = {},
+    /** The item the prompt was shown for. */
+    val confirmPrompt: (UUID) -> Unit = {},
     val dismissMessage: () -> Unit = {},
+    val retry: () -> Unit = {},
 ) {
     companion object {
         fun of(vm: InboxViewModel) =
@@ -114,12 +117,14 @@ data class InboxCallbacks(
                 vm::cancelPrompt,
                 vm::confirmPrompt,
                 vm::dismissMessage,
+                vm::retry,
             )
     }
 }
 
 internal object InboxTags {
     const val OFFLINE = "inbox-offline"
+    const val RETRY = "inbox-retry"
     const val LIST = "inbox-list"
     const val PROCESS = "inbox-process"
     const val CURRENT = "inbox-current"
@@ -138,7 +143,7 @@ fun InboxContent(
     modifier: Modifier = Modifier,
 ) {
     Column(modifier.fillMaxSize()) {
-        if (state.offline) OfflineBanner(state.refreshedAt)
+        if (state.offline) OfflineBanner(state.refreshedAt, state.retrying, callbacks.retry)
         state.message?.let { MessageBanner(it, callbacks.dismissMessage) }
         if (state.processing) {
             ProcessingMode(state, callbacks)
@@ -149,9 +154,13 @@ fun InboxContent(
 }
 
 @Composable
-private fun OfflineBanner(refreshedAt: Instant?) {
+private fun OfflineBanner(
+    refreshedAt: Instant?,
+    retrying: Boolean,
+    onRetry: () -> Unit,
+) {
     Surface(color = MaterialTheme.colorScheme.secondaryContainer, modifier = Modifier.fillMaxWidth().testTag(InboxTags.OFFLINE)) {
-        Row(Modifier.padding(horizontal = 16.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(Modifier.padding(start = 16.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
             Icon(Icons.Outlined.CloudOff, contentDescription = null)
             Spacer(Modifier.padding(start = 12.dp))
             val text =
@@ -159,7 +168,10 @@ private fun OfflineBanner(refreshedAt: Instant?) {
                     val time = DateTimeFormatter.ofLocalizedDateTime(FormatStyle.SHORT).format(it.atZone(ZoneId.systemDefault()))
                     stringResource(R.string.inbox_offline, time)
                 } ?: stringResource(R.string.inbox_offline_never)
-            Text(text, style = MaterialTheme.typography.bodyMedium)
+            Text(text, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f).padding(vertical = 10.dp))
+            TextButton(onClick = onRetry, enabled = !retrying, modifier = Modifier.testTag(InboxTags.RETRY)) {
+                Text(stringResource(R.string.inbox_retry))
+            }
         }
     }
 }
@@ -271,9 +283,9 @@ private fun ProcessingMode(
             HorizontalDivider()
             val prompt = state.prompt
             if (prompt == null) {
-                Actions(state.actionsEnabled, callbacks.choose)
+                Actions(state.actionsEnabled) { kind -> callbacks.choose(task.id, kind) }
             } else {
-                PromptPanel(prompt, state, callbacks)
+                PromptPanel(prompt, state, callbacks.updatePrompt, callbacks.cancelPrompt) { callbacks.confirmPrompt(task.id) }
             }
         }
     }
@@ -414,9 +426,10 @@ private fun Actions(
 private fun PromptPanel(
     prompt: InboxPrompt,
     state: InboxUiState,
-    callbacks: InboxCallbacks,
+    update: ((InboxPrompt) -> InboxPrompt) -> Unit,
+    onCancel: () -> Unit,
+    onConfirm: () -> Unit,
 ) {
-    val update = callbacks.updatePrompt
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         when (prompt.kind) {
             InboxActionKind.WAITING -> {
@@ -456,11 +469,11 @@ private fun PromptPanel(
         }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Button(
-                onClick = callbacks.confirmPrompt,
+                onClick = onConfirm,
                 enabled = state.actionsEnabled && prompt.isValid(state.today),
                 modifier = Modifier.testTag(InboxTags.PROMPT_CONFIRM),
             ) { Text(stringResource(prompt.kind.confirmLabel())) }
-            TextButton(onClick = callbacks.cancelPrompt) { Text(stringResource(R.string.inbox_cancel)) }
+            TextButton(onClick = onCancel) { Text(stringResource(R.string.inbox_cancel)) }
         }
     }
 }

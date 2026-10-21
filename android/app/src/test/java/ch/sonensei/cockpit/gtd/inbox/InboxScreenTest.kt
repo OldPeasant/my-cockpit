@@ -64,9 +64,10 @@ class InboxScreenTest {
                 setCreativity = { calls += "creativity $it" },
                 setEstimate = { calls += "estimate $it" },
                 toggleContext = { calls += "context $it" },
-                choose = { calls += "choose $it" },
+                choose = { id, kind -> calls += "choose $id $kind" },
                 updatePrompt = { change -> state = state.copy(prompt = state.prompt?.let(change)) },
-                confirmPrompt = { calls += "confirm" },
+                confirmPrompt = { calls += "confirm $it" },
+                retry = { calls += "retry" },
                 cancelPrompt = { calls += "cancel" },
                 dismissMessage = { calls += "dismiss" },
             )
@@ -107,7 +108,7 @@ class InboxScreenTest {
             action(kind).assertIsEnabled().performClick()
         }
 
-        assertEquals(InboxActionKind.entries.map { "choose $it" }, calls)
+        assertEquals(InboxActionKind.entries.map { "choose ${first.id} $it" }, calls)
     }
 
     @Test
@@ -139,6 +140,17 @@ class InboxScreenTest {
     }
 
     @Test
+    fun `the offline banner offers a retry, disabled while one runs`() {
+        show(loaded.copy(offline = true))
+
+        composeRule.onNodeWithTag(InboxTags.RETRY).assertIsEnabled().performClick()
+        assertEquals(listOf("retry"), calls)
+
+        state = state.copy(retrying = true)
+        composeRule.onNodeWithTag(InboxTags.RETRY).assertIsNotEnabled()
+    }
+
+    @Test
     fun `offline also disables a prompt's confirmation`() {
         show(loaded.copy(processing = true, offline = true, prompt = InboxPrompt(InboxActionKind.SCHEDULE, today.plusDays(1))))
 
@@ -153,7 +165,7 @@ class InboxScreenTest {
         composeRule.onNodeWithTag(InboxTags.PROMPT_CONFIRM).performScrollTo().performClick()
 
         assertEquals("Alex", state.prompt?.text)
-        assertEquals(listOf("confirm"), calls)
+        assertEquals(listOf("confirm ${first.id}"), calls)
     }
 
     @Test
@@ -243,7 +255,7 @@ class InboxScreenTest {
             .performClick()
 
         assertEquals("Bathroom", state.prompt?.text)
-        assertEquals(listOf("confirm"), calls)
+        assertEquals(listOf("confirm ${first.id}"), calls)
     }
 
     @Test

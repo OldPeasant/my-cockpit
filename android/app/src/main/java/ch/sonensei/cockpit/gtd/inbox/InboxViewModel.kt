@@ -74,6 +74,8 @@ data class InboxUiState(
     val clarification: Clarification = Clarification(),
     val prompt: InboxPrompt? = null,
     val message: InboxMessage? = null,
+    /** A reload asked for by the user (the offline banner's retry) is running. */
+    val retrying: Boolean = false,
     val today: LocalDate = LocalDate.MIN,
 ) {
     /** The item being processed. */
@@ -86,10 +88,12 @@ data class InboxUiState(
 @HiltViewModel
 class InboxViewModel internal constructor(
     private val inbox: InboxRepository,
-    tasks: TaskRepository,
+    private val tasks: TaskRepository,
     projects: ProjectRepository,
     contexts: ContextRepository,
     private val clock: Clock,
+    /** Monotonic milliseconds, for the double-tap guard. */
+    private val uptimeMs: () -> Long,
 ) : ViewModel() {
     @Inject
     constructor(
@@ -97,7 +101,10 @@ class InboxViewModel internal constructor(
         tasks: TaskRepository,
         projects: ProjectRepository,
         contexts: ContextRepository,
-    ) : this(inbox, tasks, projects, contexts, Clock.systemDefaultZone())
+    ) : this(inbox, tasks, projects, contexts, Clock.systemDefaultZone(), { System.nanoTime() / 1_000_000 })
+
+    /** When the last action started: taps right after it belong to the item that just left (see [choose]). */
+    private var lastRunAt: Long? = null
 
     private data class Local(
         val processing: Boolean = false,
@@ -109,6 +116,7 @@ class InboxViewModel internal constructor(
         /** The open prompt, for the item it was opened on. */
         val prompt: Pair<UUID, InboxPrompt>? = null,
         val message: InboxMessage? = null,
+        val retrying: Boolean = false,
     )
 
     private val local = MutableStateFlow(Local())
@@ -128,6 +136,7 @@ class InboxViewModel internal constructor(
                 clarification = current?.let { clarificationOf(it, l) } ?: Clarification(),
                 prompt = l.prompt?.takeIf { it.first == current?.id }?.second,
                 message = l.message,
+                retrying = l.retrying,
                 today = today(),
             )
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), InboxUiState(today = today()))
@@ -144,11 +153,35 @@ class InboxViewModel internal constructor(
 
     fun toggleContext(id: UUID) = edit { it.copy(contextIds = if (id in it.contextIds) it.contextIds - id else it.contextIds + id) }
 
-    /** Runs [kind] on the current item, or opens its prompt first. */
-    fun choose(kind: InboxActionKind) {
+    /**
+     * Reloads the Inbox from the server. A reload that works clears the offline state, so the actions are enabled
+     * again without waiting for the next automatic sync.
+     */
+    fun retry() {
+        if (local.value.retrying) return
+        local.update { it.copy(retrying = true) }
+        viewModelScope.launch {
+            try {
+                tasks.refresh(TaskView.INBOX)
+            } finally {
+                local.update { it.copy(retrying = false) }
+            }
+        }
+    }
+
+    /**
+     * Runs [kind] on the current item, or opens its prompt first. [itemId] is the item the button was shown for: a
+     * tap that arrives after that item left the queue (a double tap) is dropped instead of acting on the next item.
+     * Taps within [TAP_GUARD_MS] of the last action are dropped too: by then the buttons may already show the next
+     * item, which the user has not seen yet.
+     */
+    fun choose(
+        itemId: UUID,
+        kind: InboxActionKind,
+    ) {
         val state = uiState.value
-        val task = state.current ?: return
-        if (state.offline) return
+        val task = state.current?.takeIf { it.id == itemId } ?: return
+        if (state.offline || justRan()) return
         val action =
             when (kind) {
                 InboxActionKind.DONE -> InboxAction.Done
@@ -172,11 +205,12 @@ class InboxViewModel internal constructor(
 
     fun cancelPrompt() = local.update { it.copy(prompt = null) }
 
-    fun confirmPrompt() {
+    /** Runs the open prompt's action on [itemId], if that still is the current item (see [choose]). */
+    fun confirmPrompt(itemId: UUID) {
         val state = uiState.value
-        val task = state.current ?: return
+        val task = state.current?.takeIf { it.id == itemId } ?: return
         val prompt = state.prompt ?: return
-        if (state.offline || !prompt.isValid(state.today)) return
+        if (state.offline || justRan() || !prompt.isValid(state.today)) return
         run(task, prompt.action())
     }
 
@@ -187,6 +221,7 @@ class InboxViewModel internal constructor(
         task: GtdTask,
         action: InboxAction,
     ) {
+        lastRunAt = uptimeMs()
         val clarification = clarificationOf(task, local.value)
         local.update { it.copy(busy = it.busy + task.id, prompt = null, message = null) }
         viewModelScope.launch {
@@ -219,9 +254,12 @@ class InboxViewModel internal constructor(
         l: Local,
     ): Clarification = l.edit?.takeIf { it.first == task.id }?.second ?: Clarification.of(task)
 
+    private fun justRan(): Boolean = lastRunAt?.let { uptimeMs() - it < TAP_GUARD_MS } ?: false
+
     private fun today(): LocalDate = LocalDate.now(clock)
 
     private companion object {
         const val STOP_TIMEOUT_MS = 5_000L
+        const val TAP_GUARD_MS = 500L
     }
 }

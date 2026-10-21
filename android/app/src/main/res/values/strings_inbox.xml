@@ -14,8 +14,9 @@
     <string name="inbox_empty">Inbox is empty. Everything you capture lands here.</string>
     <string name="inbox_all_done">Inbox processed. Nothing left to decide.</string>
     <string name="inbox_back_to_list">Back to the list</string>
-    <string name="inbox_offline">Offline: showing the Inbox as loaded at %1$s. Processing works again once the server is reachable.</string>
+    <string name="inbox_offline">Offline: showing the Inbox as loaded at %1$s. Processing is paused until the server can be reached.</string>
     <string name="inbox_offline_never">Offline: the Inbox could not be loaded yet.</string>
+    <string name="inbox_retry">Retry</string>
     <string name="inbox_message_offline">The server could not be reached. The item is back in the Inbox.</string>
     <string name="inbox_message_conflict">This item was changed elsewhere. It now shows its latest state; choose again.</string>
     <string name="inbox_message_failed">The server refused this action. The item is back in the Inbox.</string>

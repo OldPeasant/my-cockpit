@@ -214,6 +214,56 @@ class InboxRepositoryTest {
     }
 
     @Test
+    fun `a retry with another new project title creates that project instead of reusing the first`() {
+        dispatcher.enqueue(PROJECTS, json(projectJson(50, "Kitchen")))
+        dispatcher.enqueue("$path/move", status(503))
+        dispatcher.enqueue(PROJECTS, json(projectJson(51, "Bathroom")))
+        dispatcher.enqueue("$path/move", taskAnswer())
+
+        assertEquals(ProcessResult.Offline, process(InboxAction.ToProject(ProjectChoice.New("Kitchen"))))
+        assertEquals(ProcessResult.Processed, process(InboxAction.ToProject(ProjectChoice.New("Bathroom"))))
+
+        val creates = calls().filter { it.method == "POST" && it.url.encodedPath == PROJECTS }
+        assertEquals(listOf("\"Kitchen\"", "\"Bathroom\""), creates.map { it.json()["title"].toString() })
+        val moves = calls().filter { it.url.encodedPath == "$path/move" }
+        assertEquals("\"${uuid(51)}\"", moves.last().json()["projectId"].toString())
+    }
+
+    @Test
+    fun `choosing an existing project forgets the project created for the item`() {
+        val existing = UUID.fromString(uuid(60))
+        dispatcher.enqueue(PROJECTS, json(projectJson(50, "Kitchen")))
+        dispatcher.enqueue("$path/move", status(503))
+        dispatcher.enqueue("$path/move", status(503))
+        dispatcher.enqueue(PROJECTS, json(projectJson(52, "Kitchen")))
+        dispatcher.enqueue("$path/move", taskAnswer())
+
+        assertEquals(ProcessResult.Offline, process(InboxAction.ToProject(ProjectChoice.New("Kitchen"))))
+        assertEquals(ProcessResult.Offline, process(InboxAction.ToProject(ProjectChoice.Existing(existing))))
+        assertEquals(ProcessResult.Processed, process(InboxAction.ToProject(ProjectChoice.New("Kitchen"))))
+
+        assertEquals(2, calls().count { it.method == "POST" && it.url.encodedPath == PROJECTS })
+        val moves = calls().filter { it.url.encodedPath == "$path/move" }
+        assertEquals("\"$existing\"", moves[1].json()["projectId"].toString())
+        assertEquals("\"${uuid(52)}\"", moves.last().json()["projectId"].toString())
+    }
+
+    @Test
+    fun `processing the item another way forgets the project created for it`() {
+        dispatcher.enqueue(PROJECTS, json(projectJson(50, "Kitchen")))
+        dispatcher.enqueue("$path/move", status(503))
+        dispatcher.enqueue("$path/move", taskAnswer())
+        dispatcher.enqueue(PROJECTS, json(projectJson(52, "Kitchen")))
+        dispatcher.enqueue("$path/move", taskAnswer())
+
+        assertEquals(ProcessResult.Offline, process(InboxAction.ToProject(ProjectChoice.New("Kitchen"))))
+        assertEquals(ProcessResult.Processed, process(InboxAction.Next))
+        assertEquals(ProcessResult.Processed, process(InboxAction.ToProject(ProjectChoice.New("Kitchen"))))
+
+        assertEquals(2, calls().count { it.method == "POST" && it.url.encodedPath == PROJECTS })
+    }
+
+    @Test
     fun `a failed next step still counts as processed`() {
         val project = UUID.fromString(uuid(50))
         dispatcher.enqueue("$path/move", taskAnswer())
