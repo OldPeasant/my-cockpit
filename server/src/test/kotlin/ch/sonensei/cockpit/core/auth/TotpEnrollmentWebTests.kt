@@ -87,13 +87,20 @@ class TotpEnrollmentWebTests(
 		totp: String? = null,
 		recoveryCode: String? = null,
 		password: String = PASSWORD,
+		rememberDevice: Boolean = false,
 	): ResultActionsDsl =
 		mockMvc.post("/api/v1/auth/login") {
 			with(csrf())
 			contentType = MediaType.APPLICATION_JSON
 			content =
 				jsonMapper.writeValueAsString(
-					mapOf("username" to USERNAME, "password" to password, "totp" to totp, "recoveryCode" to recoveryCode),
+					mapOf(
+						"username" to USERNAME,
+						"password" to password,
+						"totp" to totp,
+						"recoveryCode" to recoveryCode,
+						"rememberDevice" to rememberDevice,
+					),
 				)
 		}
 
@@ -410,6 +417,56 @@ class TotpEnrollmentWebTests(
 			}
 		}
 		jdbc.queryForObject("select count(*) from auth_device", Int::class.java) shouldBe 0
+	}
+
+	@Test
+	fun `a confirm ends the other sessions of the account, also remembered and password-only ones, and keeps its own`() {
+		restoredWithoutTotpSecret()
+		val confirming = enrollmentSession()
+		val remembered = session(login(recoveryCode = recoveryCodes[1], rememberDevice = true)).also { throttle.recordSuccess() }
+		jdbc.update("update recovery_code set used_at = now() where used_at is null")
+		val passwordOnly = session(login()).also { throttle.recordSuccess() }
+		listOf(remembered, passwordOnly).forEach { other ->
+			mockMvc.get("/api/v1/settings") { cookie(other) }.andExpect { status { isForbidden() } }
+		}
+
+		confirm(confirming, code(startedSecret(confirming))).andExpect { status { isNoContent() } }
+
+		listOf("remembered" to remembered, "password-only" to passwordOnly).forEach { (name, other) ->
+			withClue("the $name session is ended, not upgraded to full access") {
+				mockMvc.get("/api/v1/settings") { cookie(other) }.andExpect { status { isUnauthorized() } }
+				mockMvc
+					.post("$ENROLLMENT/confirm") {
+						cookie(other)
+						with(csrf())
+						contentType = MediaType.APPLICATION_JSON
+						content = jsonMapper.writeValueAsString(mapOf("code" to "123456"))
+					}.andExpect { status { isUnauthorized() } }
+			}
+		}
+		withClue("the confirming session keeps full access") {
+			mockMvc.get("/api/v1/settings") { cookie(confirming) }.andExpect { status { isOk() } }
+		}
+		jdbc.queryForObject("select count(*) from auth_session", Int::class.java) shouldBe 1
+	}
+
+	@Test
+	fun `a start from another session replaces the secret, the first session's code fails and the other's confirm ends it`() {
+		restoredWithoutTotpSecret()
+		val first = enrollmentSession()
+		val second = session(login(recoveryCode = recoveryCodes[1])).also { throttle.recordSuccess() }
+		val firstSecret = startedSecret(first)
+		val secondSecret = startedSecret(second)
+
+		withClue("the first session cannot confirm the secret it received once another session replaced it") {
+			confirm(first, code(firstSecret)).andExpect { status { isBadRequest() } }
+			reenrollRequired() shouldBe true
+		}
+		throttle.recordSuccess()
+		confirm(second, code(secondSecret)).andExpect { status { isNoContent() } }
+
+		mockMvc.get("/api/v1/settings") { cookie(first) }.andExpect { status { isUnauthorized() } }
+		mockMvc.get("/api/v1/settings") { cookie(second) }.andExpect { status { isOk() } }
 	}
 
 	@Test

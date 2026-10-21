@@ -4,122 +4,70 @@ Date: 2026-10-21
 
 Task: backup-secrets - Backup secrets with passphrase
 
-Scope: current task. The parent approved review findings CR-4, CR-5, CR-6 and CR-7 from `reviews/backup-secrets/review.md` for fixing. CR-1, CR-2 and CR-3 were assigned elsewhere by the parent.
+Scope: current task; the two open findings CR-1 (P2) and CR-2 (P3) of the re-review `reviews/backup-secrets/review.md`, both approved by the parent worker. Base commit b0762bf56ff8dfdabb3d7fb9894112eb68cb0675.
 
 ## Fixed findings
 
-### CR-4 - An empty backup passphrase is rejected, although the code treats it as none
+### CR-1 — Restricted re-enrollment sessions get full access when any session completes the enrollment
+
+Files changed:
+- `server/src/main/kotlin/ch/sonensei/cockpit/core/auth/infra/AuthSessionRepository.kt`
+- `server/src/main/kotlin/ch/sonensei/cockpit/core/auth/domain/TotpEnrollmentService.kt`
+- `server/src/main/kotlin/ch/sonensei/cockpit/core/auth/api/TotpEnrollmentController.kt`
+- `server/src/test/kotlin/ch/sonensei/cockpit/core/auth/TotpEnrollmentWebTests.kt`
+- `api/openapi.yaml` (regenerated, descriptions only)
+
+Problem:
+The restriction of a re-enrollment session comes from the account row on each request. `confirm()` cleared `totp_reenroll_required` and kept all other sessions, so every session opened during the re-enrollment window got full access at that moment. That included password-only sessions and persistent "remember device" sessions. Any restricted session could also replace the pending secret with `start`.
+
+Fix:
+- New bulk delete `AuthSessionRepository.deleteOtherSessions(userId, keepTokenHash)`.
+- `TotpEnrollmentService.confirm(code, sessionToken)` now ends all other sessions of the account after a successful confirm, in the same transaction. The caller's session (found by the SHA-256 of its cookie token) is kept. Without a token, all sessions of the account end. The log line gives only the number of ended sessions.
+- `TotpEnrollmentController.confirm` reads the caller's session cookie with `SessionCookies.read` and passes it in. Device tokens cannot reach this endpoint (403 for `ROLE_TOTP_ENROLLMENT`/bearer, unchanged).
+- Secret replacement: I kept the simplest safe behavior and documented it in the service KDoc and the OpenAPI descriptions. `start` (from any session) replaces the pending secret, and `confirm` accepts only a code of the latest pending secret. So a session whose secret was replaced gets 400 and must start again. It never confirms a secret it did not receive, and the owner's authenticator cannot be bound to someone else's secret. Whichever session confirms becomes the only session of the account, so a replacing session never leaves a second full-access session next to the owner's. Binding the pending secret to the session that started it would need a schema change, and it would not add protection beyond the recorded password-only assumption. So it was not done.
+- Tests: `a confirm ends the other sessions of the account, also remembered and password-only ones, and keeps its own` sets up a recovery-code session that confirms, a remembered (`rememberDevice: true`) recovery-code session and a password-only session. Before the confirm, the other two get 403 on `/api/v1/settings`. After it, they get 401 on `/api/v1/settings` and on the confirm endpoint, the confirming session gets 200, and one `auth_session` row is left. `a start from another session replaces the secret, the first session's code fails and the other's confirm ends it` checks that the first session's code for its own (replaced) secret gives 400 and the flag stays set, that the second session's confirm gives 204, and that the first session then gets 401 while the second gets 200. The test helper `login` gained an optional `rememberDevice` parameter.
+
+Validation:
+- `cd server && ./gradlew test --tests '*TotpEnrollmentWebTests' --tests '*BackupSecretsTest'` — Pass (TotpEnrollmentWebTests 17 tests, 0 failures; BackupSecretsTest 16 tests, 0 failures)
+
+### CR-2 — The OpenAPI schema still requires `minLength: 12` for a backup passphrase that may now be empty
 
 Files changed:
 - `server/src/main/kotlin/ch/sonensei/cockpit/backup/api/BackupController.kt`
-- `api/openapi.yaml` (regenerated, descriptions only)
-- `web/src/app/api/generated/models/start-backup-request.ts` (regenerated, doc comment only)
-- `server/src/test/kotlin/ch/sonensei/cockpit/backup/BackupSecretsTest.kt`
+- `api/openapi.yaml` (regenerated)
 
 Problem:
-`@Size(min = 12)` rejected `{"passphrase":""}` with 400 before the controller's `takeIf { it.isNotEmpty() }` could run. The restore endpoint accepts `""` as "no passphrase", so the two endpoints behaved differently.
+The server accepts `{"passphrase":""}` (normalized to none), but the published schema had `minLength: 12`, so the empty string the server supports was invalid under the contract.
 
 Fix:
-`StartBackupRequest` now normalizes an empty passphrase to `null` in its constructor. Bean Validation checks the normalized field, so `""` starts a backup without secrets. A non-empty passphrase still needs 12 to 256 characters. The dead `takeIf` in the controller is gone. Only empty counts as absent, as on the restore endpoint. A whitespace-only passphrase of 12 or more characters stays a real passphrase, so it is not silently dropped. The schema shape (`minLength 12`, `maxLength 256`) did not change. Only the descriptions now say that empty counts as none. `api/openapi.yaml` was regenerated with `UPDATE_OPENAPI=1` and the web client with `npm run api:gen`, as `api/README.md` describes.
+Only removing `minLength` from `@Schema` was not enough: springdoc also derives `minLength: 12` from the `@Size` Bean Validation annotation (verified by regenerating). So `@Size(min = 12, max = 256)` became `@Pattern(regexp = BACKUP_PASSPHRASE_PATTERN)`, with the new constant `BACKUP_PASSPHRASE_PATTERN = "^$|^[\\s\\S]{12,256}$"`, used for both validation and `@Schema(pattern = ...)`. `maxLength: 256` stays. `[\s\S]` instead of `.` keeps line breaks allowed, as `@Size` did. Server behavior is unchanged: `""` is still normalized to `null` before validation, and 11 or 257 characters still give 400 (existing test `a backup passphrase shorter than 12 or longer than 256 characters is a 400 and starts nothing` passes). The published schema now has `pattern: "^$|^[\\s\\S]{12,256}$"`, `maxLength: 256` and no `minLength`. `api/openapi.yaml` was regenerated with `UPDATE_OPENAPI=1 ./gradlew test --tests '*OpenApiContractTest'`. `cd web && npm run api:gen` was run, and the generated web client did not change (it holds no descriptions or patterns for this field).
 
 Validation:
-- Test `a backup started without a body, with an empty body object or an empty passphrase has no secrets` now includes `{"passphrase":""}` -> 202, and the zip has no `data/secrets.enc.json` - Pass
-- The existing test `a backup passphrase shorter than 12 or longer than 256 characters is a 400` still passes - Pass
-- `OpenApiContractTest` (within `./gradlew check`) - Pass
-
-### CR-5 - Restore validation reads and hashes the whole zip three times
-
-Files changed:
-- `server/src/main/kotlin/ch/sonensei/cockpit/backup/domain/RestoreService.kt`
-- `server/src/main/kotlin/ch/sonensei/cockpit/backup/domain/BackupService.kt`
-
-Problem:
-`RestoreService.validate` called `BackupService.hasSecrets(path)`. That opened and fully re-validated (re-hashed) the zip only to check whether one entry exists.
-
-Fix:
-`hasSecrets` now comes from the inspection's manifest: `manifest.files.any { it.path == BackupSecrets.PATH }`. This runs only when the inspection has no problems. In that case the inspection has already checked that every zip entry is listed in the manifest and that every listed file exists with a matching sha256, so the manifest agrees with the zip. `BackupService.hasSecrets` was removed because nothing else uses it.
-
-Validation:
-- The existing `BackupSecretsTest` tests for `hasSecrets` true and false in the restore report pass in `./gradlew check` - Pass
-
-### CR-6 - Restore instructions don't say how to give the passphrase on the CLI
-
-Files changed:
-- `server/src/main/kotlin/ch/sonensei/cockpit/backup/domain/BackupService.kt`
-- `server/src/test/kotlin/ch/sonensei/cockpit/backup/BackupServiceTests.kt`
-
-Problem:
-The README written into each backup described `--restore=` but not `COCKPIT_RESTORE_PASSPHRASE`.
-
-Fix:
-The README's restore section now says: "To restore the secrets too, set the environment variable `COCKPIT_RESTORE_PASSPHRASE` to the backup's passphrase." The README test checks for `RestoreCli.PASSPHRASE_ENV` and `RestoreCli.OPTION`, so the README and the CLI constants cannot drift apart. The text has to be a literal in `backup.domain` because the domain layer must not depend on `backup.api`.
-
-Docs: the restore CLI is documented only in `SPEC.md` §10.1. `docs/ARCHITECTURE.md` and `docs/` have no ops or restore section. `SPEC.md` is the product source of truth and was outside the files the parent named, so it was not edited. A one-line addition there is left to the parent or a human.
-
-Validation:
-- `the README explains the structure, the format version, how to restore, and lists the counts` - Pass
-
-### CR-7 - Enrollment `confirm` counts as a failed login attempt even when enrollment is not required
-
-Files changed:
-- `server/src/main/kotlin/ch/sonensei/cockpit/core/auth/domain/TotpEnrollmentService.kt`
-- `server/src/test/kotlin/ch/sonensei/cockpit/core/auth/TotpEnrollmentWebTests.kt`
-
-Problem:
-`throttle.tryBeginAttempt()` (which counts a failure up front) ran before `pendingAccount()`. A 409 therefore stayed counted as a failed login attempt.
-
-Fix:
-`pendingAccount()` now runs first, so the 409 is thrown before the throttle counts anything. Code checks while re-enrolling still go through the shared throttle as before.
-
-Validation:
-- New test `a confirm answered with 409 is no failed attempt and does not throttle the login`: `FREE_ATTEMPTS + 1` confirms answered with 409, then a wrong login gets 401, not 429 - Pass
-- Regression check: with the old order put back temporarily, this test failed (`./gradlew test --tests '*TotpEnrollmentWebTests'` -> 13 tests, 1 failed). With the fix -> BUILD SUCCESSFUL
-- The existing tests (`wrong codes share the login throttle ...`, `an account that does not need re-enrollment cannot replace its TOTP secret this way`) - Pass
+- `cd server && UPDATE_OPENAPI=1 ./gradlew test --tests '*OpenApiContractTest'` — Pass (file regenerated)
+- `cd web && npm run api:gen` — Pass, no change under `web/src/app/api/generated/`
+- `cd server && ./gradlew test --tests '*BackupSecretsTest'` — Pass
 
 ## Not fixed
 
-### CR-1 - Forced TOTP re-enrollment has no web client
-
-Status:
-Out of scope
-
-Reason:
-Task `web-totp-reenroll` covers it (parent decision).
-
-### CR-2 - Password-only login after a restore is unrecorded
-
-Status:
-Out of scope
-
-Reason:
-The parent recorded it as an assumption in the task file. Its tests belong to the test-writer.
-
-### CR-3 - Tampering, bounds and enrollment error paths are untested
-
-Status:
-Out of scope
-
-Reason:
-The parent assigned these tests to the test-writer.
+None.
 
 ## Validation summary
 
 Focused tests:
-- `./gradlew test --tests '*TotpEnrollmentWebTests'` - Pass. With the CR-7 change reverted: 1 failed, as expected.
-- `UPDATE_OPENAPI=1 ./gradlew test --tests '*OpenApiContractTest'` - regenerated `api/openapi.yaml` (description changes only)
+- `cd server && ./gradlew ktlintFormat` — Pass, no remaining changes
+- `cd server && ./gradlew test --tests '*TotpEnrollmentWebTests' --tests '*BackupSecretsTest'` — Pass (17 + 16 tests, 0 failures)
 
 Full test suite:
-- `cd server && ./gradlew check` (ktlint + all tests) - BUILD SUCCESSFUL: 2707 tests, 0 failures, 0 errors, 0 skipped
-- `cd web && npm run check` - build complete. The bundle budget warning was already there and is unrelated.
+- `cd server && ./gradlew check --console=plain` — BUILD SUCCESSFUL (ktlint, unit and Testcontainers tests including `ch.sonensei.cockpit.backup.*` and `OpenApiContractTest` against the regenerated file)
 
 Lint/type-check/build:
-- `cd server && ./gradlew ktlintFormat`, then the ktlint checks inside `./gradlew check` - Pass
+- Server lint is part of `./gradlew check` — Pass. `cd web && npm run check` — Not run: the generated web client did not change and no web file was modified.
 
 `.taskcheck`:
-- Not run by the fixer (`scripts/check.sh`). Its server and web parts were run as listed above. The parent runs it before `done`.
+- Not run by the fixer (`scripts/check.sh`); the server part of it passed via `./gradlew check`. The parent worker runs it before `done`.
 
 Remaining unresolved findings:
-0 of the four assigned (CR-4..CR-7). CR-1..CR-3 were handled outside this fixer run.
+0
 
 ## Final status
 

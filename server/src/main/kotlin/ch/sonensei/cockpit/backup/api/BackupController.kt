@@ -11,7 +11,7 @@ import io.swagger.v3.oas.annotations.media.Schema.RequiredMode
 import io.swagger.v3.oas.annotations.responses.ApiResponse
 import io.swagger.v3.oas.annotations.tags.Tag
 import jakarta.validation.Valid
-import jakarta.validation.constraints.Size
+import jakarta.validation.constraints.Pattern
 import org.springframework.core.io.FileSystemResource
 import org.springframework.core.io.Resource
 import org.springframework.http.ContentDisposition
@@ -137,12 +137,16 @@ class BackupController(
 class StartBackupRequest(
 	passphrase: String? = null,
 ) {
-	/** Empty counts as none (like [ConfirmRestoreRequest]), so it is normalized before the length is validated. */
-	@field:Size(min = PASSPHRASE_MIN, max = PASSPHRASE_MAX)
+	/**
+	 * Empty counts as none (like [ConfirmRestoreRequest]), so it is normalized before the length is validated. The
+	 * length is checked with [BACKUP_PASSPHRASE_PATTERN], not `@Size`: `@Size` would publish `minLength: 12`, which
+	 * forbids the `""` the server accepts.
+	 */
+	@field:Pattern(regexp = BACKUP_PASSPHRASE_PATTERN)
 	@field:Schema(
 		description = "Encrypts the secrets into the backup; without it (or empty), they are left out",
 		format = "password",
-		minLength = PASSPHRASE_MIN,
+		pattern = BACKUP_PASSPHRASE_PATTERN,
 		maxLength = PASSPHRASE_MAX,
 	)
 	val passphrase: String? = passphrase?.takeIf { it.isNotEmpty() }
@@ -153,6 +157,9 @@ class StartBackupRequest(
 /** Length limits of a backup passphrase: it protects the secrets offline, so not shorter than the login password. */
 const val PASSPHRASE_MIN = 12
 const val PASSPHRASE_MAX = 256
+
+/** Empty (counts as none) or [PASSPHRASE_MIN]..[PASSPHRASE_MAX] characters of any kind, line breaks included. */
+const val BACKUP_PASSPHRASE_PATTERN = "^$|^[\\s\\S]{$PASSPHRASE_MIN,$PASSPHRASE_MAX}$"
 
 @Schema(description = "A backup job")
 data class BackupJobResponse(

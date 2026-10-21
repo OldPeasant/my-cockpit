@@ -3,6 +3,7 @@ package ch.sonensei.cockpit.core.auth.api
 import ch.sonensei.cockpit.core.auth.domain.TotpEnrollmentResult
 import ch.sonensei.cockpit.core.auth.domain.TotpEnrollmentService
 import ch.sonensei.cockpit.core.auth.infra.SecurityConfiguration
+import ch.sonensei.cockpit.core.auth.infra.SessionCookies
 import ch.sonensei.cockpit.core.web.InvalidRequestException
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.headers.Header
@@ -11,6 +12,7 @@ import io.swagger.v3.oas.annotations.media.Schema
 import io.swagger.v3.oas.annotations.media.Schema.RequiredMode
 import io.swagger.v3.oas.annotations.responses.ApiResponse
 import io.swagger.v3.oas.annotations.tags.Tag
+import jakarta.servlet.http.HttpServletRequest
 import jakarta.validation.Valid
 import jakarta.validation.constraints.NotBlank
 import jakarta.validation.constraints.Size
@@ -34,6 +36,7 @@ import org.springframework.web.bind.annotation.RestController
 @Tag(name = "Auth", description = "Web login sessions and device tokens")
 class TotpEnrollmentController(
 	private val enrollment: TotpEnrollmentService,
+	private val cookies: SessionCookies,
 ) {
 	@PostMapping(produces = [MediaType.APPLICATION_JSON_VALUE, PROBLEM_JSON])
 	@Operation(
@@ -41,7 +44,7 @@ class TotpEnrollmentController(
 		summary = "Start setting up TOTP again after a restore",
 		description =
 			"Only while the account must enroll TOTP again (`totpEnrollmentRequired`). Returns a new TOTP secret; " +
-				"calling it again replaces the secret. Confirm it with a code from the authenticator app.",
+				"calling it again (from any session) replaces the secret. Confirm it with a code from the authenticator app.",
 	)
 	@ApiResponse(
 		responseCode = "200",
@@ -67,10 +70,11 @@ class TotpEnrollmentController(
 		operationId = "confirmTotpEnrollment",
 		summary = "Finish setting up TOTP again",
 		description =
-			"Checks a code for the secret of the last start; shares the login throttle. Afterwards the session has full " +
-				"access and TOTP works for the login again.",
+			"Checks a code for the secret of the last start (from any session); shares the login throttle. Afterwards " +
+				"this session has full access, all other sessions of the account are ended, and TOTP works for the " +
+				"login again.",
 	)
-	@ApiResponse(responseCode = "204", description = "TOTP set up; the account is a normal one again")
+	@ApiResponse(responseCode = "204", description = "TOTP set up; the account is a normal one again, its other sessions are ended")
 	@ApiResponse(
 		responseCode = "400",
 		description = "Missing code, or not a valid code for the new secret",
@@ -90,8 +94,9 @@ class TotpEnrollmentController(
 	)
 	fun confirm(
 		@Valid @RequestBody request: ConfirmTotpEnrollmentRequest,
+		httpRequest: HttpServletRequest,
 	): ResponseEntity<Any> =
-		when (val result = enrollment.confirm(request.code.trim())) {
+		when (val result = enrollment.confirm(request.code.trim(), cookies.read(httpRequest))) {
 			TotpEnrollmentResult.Confirmed -> {
 				ResponseEntity.noContent().build()
 			}

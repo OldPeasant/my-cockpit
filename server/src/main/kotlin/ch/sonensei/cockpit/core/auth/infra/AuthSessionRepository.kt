@@ -32,6 +32,14 @@ interface AuthSessionRepository : JpaRepository<AuthSession, UUID> {
 		@Param("tokenHash") tokenHash: String,
 	): Int
 
+	/** Ends every session of the account [userId] except the one with [keepTokenHash]. */
+	@Modifying(flushAutomatically = true, clearAutomatically = true)
+	@Query("delete from AuthSession s where s.user.id = :userId and s.tokenHash <> :keepTokenHash")
+	fun deleteOtherSessions(
+		@Param("userId") userId: UUID,
+		@Param("keepTokenHash") keepTokenHash: String,
+	): Int
+
 	@Modifying(flushAutomatically = true, clearAutomatically = true)
 	@Query("delete from AuthSession s where s.expiresAt <= :now")
 	fun deleteExpired(

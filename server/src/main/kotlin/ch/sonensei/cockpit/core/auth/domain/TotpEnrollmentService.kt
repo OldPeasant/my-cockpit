@@ -1,5 +1,6 @@
 package ch.sonensei.cockpit.core.auth.domain
 
+import ch.sonensei.cockpit.core.auth.infra.AuthSessionRepository
 import ch.sonensei.cockpit.core.auth.infra.UserAccountRepository
 import ch.sonensei.cockpit.core.crypto.EncryptedSecret
 import ch.sonensei.cockpit.core.web.ConflictException
@@ -15,10 +16,17 @@ import java.time.Duration
  * checks a code for it and makes the account a normal one again. Only possible while
  * [UserAccount.totpReenrollRequired] is set, so a session cannot replace a working TOTP secret this way. The code check
  * shares the [LoginThrottle] with the login.
+ *
+ * Several sessions may be in the re-enrollment at once (some may hold only the password, see [LoginService]). Every
+ * [start] replaces the pending secret, and [confirm] accepts only a code of the latest one, so a session whose secret
+ * was replaced by another session's [start] gets an invalid code and must start again; it never confirms a secret it
+ * did not receive. A successful [confirm] ends all other sessions of the account: only the session that proved the new
+ * second factor gets full access, the others never do and must log in again with the new TOTP.
  */
 @Service
 class TotpEnrollmentService(
 	private val users: UserAccountRepository,
+	private val sessions: AuthSessionRepository,
 	private val throttle: LoginThrottle,
 	private val clock: Clock,
 ) {
@@ -36,9 +44,17 @@ class TotpEnrollmentService(
 		return TotpEnrollment(secret, SetupService.otpauthUri(account.username, secret))
 	}
 
-	/** @throws ConflictException (409) when TOTP re-enrollment is not required */
+	/**
+	 * Confirms the pending secret with [code]. The session with [sessionToken] (the caller's) keeps its access, all
+	 * other sessions of the account end; without a [sessionToken], all of them end.
+	 *
+	 * @throws ConflictException (409) when TOTP re-enrollment is not required
+	 */
 	@Transactional
-	fun confirm(code: String): TotpEnrollmentResult {
+	fun confirm(
+		code: String,
+		sessionToken: String?,
+	): TotpEnrollmentResult {
 		// Before the throttle: a 409 is no code attempt and must not count as a failed one.
 		val account = pendingAccount()
 		throttle.tryBeginAttempt()?.let { return TotpEnrollmentResult.Throttled(it) }
@@ -48,8 +64,10 @@ class TotpEnrollmentService(
 		}
 		account.confirmTotpReenrollment()
 		users.saveAndFlush(account)
+		// No real session has an empty hash, so without a token every session of the account ends.
+		val ended = sessions.deleteOtherSessions(account.id, sessionToken?.let { LoginService.hash(it) } ?: "")
 		throttle.recordSuccess()
-		log.info("TOTP re-enrollment complete")
+		log.info("TOTP re-enrollment complete, {} other session(s) ended", ended)
 		return TotpEnrollmentResult.Confirmed
 	}
 
