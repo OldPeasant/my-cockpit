@@ -86,7 +86,10 @@ describe('IntegrationsSettings', () => {
     )!;
   }
 
-  afterEach(() => http.verify());
+  afterEach(() => {
+    http.verify();
+    sessionStorage.clear();
+  });
 
   it('shows per external source its type, last sync, error and next sync', async () => {
     await open();
@@ -125,6 +128,8 @@ describe('IntegrationsSettings', () => {
     await settle();
     expect(button.disabled).toBe(true);
     expect(button.textContent?.trim()).toBe('Syncing…');
+    expect(button.getAttribute('aria-label')).toBe('Syncing jane@gmail.example…');
+    expect(button.getAttribute('aria-busy')).toBe('true');
     http.expectOne({ method: 'POST', url: `${SOURCES}/s2/sync` }).flush({
       ...failing,
       sync: {
@@ -140,6 +145,8 @@ describe('IntegrationsSettings', () => {
     expect(item('jane@gmail.example').dataset['state']).toBe('OK');
     expect(item('jane@gmail.example').querySelector('.source-error')).toBeNull();
     expect(button.disabled).toBe(false);
+    expect(button.getAttribute('aria-label')).toBe('Sync jane@gmail.example now');
+    expect(button.getAttribute('aria-busy')).toBe('false');
   });
 
   it('shows a sync request that failed', async () => {
@@ -284,6 +291,40 @@ describe('IntegrationsSettings', () => {
     expect(accounts[1].textContent).toContain('Access expired');
     (accounts[1].querySelector('button') as HTMLButtonElement).click();
     expect(navigate).toHaveBeenCalledWith('/api/v1/oauth/microsoft/start?purpose=CALENDAR');
+    expect(sessionStorage.getItem('cockpit.oauth.reconnect')).toBe('o2');
+  });
+
+  it('does not turn a reconnected account into a calendar source (it may be for mail only)', async () => {
+    sessionStorage.setItem('cockpit.oauth.reconnect', 'o2');
+    await open(
+      '/settings/integrations?oauth=connected&provider=microsoft&purpose=CALENDAR&connectionId=o2',
+    );
+    await load([fakeSource()], [fakeConnection({ id: 'o2', provider: 'MICROSOFT' })]);
+
+    http.expectNone({ method: 'POST', url: SOURCES });
+    expect(root().querySelector('.outcome')?.textContent).toContain(
+      'Microsoft account reconnected.',
+    );
+    expect(sessionStorage.getItem('cockpit.oauth.reconnect')).toBeNull();
+    expect(TestBed.inject(Router).url).toBe('/settings/integrations');
+  });
+
+  it('still adds a calendar source when the pending reconnect was for another account', async () => {
+    sessionStorage.setItem('cockpit.oauth.reconnect', 'o9');
+    await open(
+      '/settings/integrations?oauth=connected&provider=google&purpose=CALENDAR&connectionId=o1',
+    );
+
+    const add = http.expectOne({ method: 'POST', url: SOURCES });
+    expect(add.request.body).toEqual({ type: 'GOOGLE', oauthConnectionId: 'o1' });
+    const added = fakeSyncedSource({ id: 's5', type: 'GOOGLE', name: 'jane@gmail.example' });
+    add.flush(added, { status: 201, statusText: 'Created' });
+    await settle();
+    http.expectOne({ method: 'POST', url: `${SOURCES}/s5/sync` }).flush(added);
+    await settle();
+    await load([fakeSource(), added], [fakeConnection()]);
+
+    expect(sessionStorage.getItem('cockpit.oauth.reconnect')).toBeNull();
   });
 
   it('syncs two sources at once and applies answers that arrive in reverse order', async () => {

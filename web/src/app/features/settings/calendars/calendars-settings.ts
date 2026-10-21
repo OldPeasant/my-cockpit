@@ -71,6 +71,10 @@ export default class CalendarsSettings implements OnInit {
   protected readonly addError = signal<string | null>(null);
   protected readonly addStatus = signal<string | null>(null);
 
+  /** The last full reload started, and the newest one applied: an older answer is dropped. */
+  private reloadsStarted = 0;
+  private reloadApplied = 0;
+
   protected readonly local = this.fb.group({
     name: ['', [Validators.required, Validators.maxLength(200)]],
     color: [NEW_CALENDAR_COLOR],
@@ -116,17 +120,17 @@ export default class CalendarsSettings implements OnInit {
   protected async load(): Promise<void> {
     this.loadError.set(null);
     this.calendars.set(null);
+    const id = ++this.reloadsStarted;
     try {
       const [calendars, sources, providers] = await Promise.all([
         this.service.calendars(),
         this.service.sources(),
         this.service.providers().catch(() => []),
       ]);
-      this.sources.set(sources);
       this.providers.set(providers);
-      this.calendars.set(calendars);
+      this.apply(id, calendars, sources);
     } catch (error) {
-      this.loadError.set(message(error));
+      if (id >= this.reloadApplied) this.loadError.set(message(error));
     }
   }
 
@@ -163,8 +167,9 @@ export default class CalendarsSettings implements OnInit {
     await this.add(async () => {
       const created = await this.service.createLocal({ name: name.trim(), color });
       this.local.reset({ name: '', color: NEW_CALENDAR_COLOR });
-      await this.reload();
-      return $localize`:@@calendars.add.localDone:${created.name}:name: added.`;
+      return (await this.reloadAfterAdd())
+        ? $localize`:@@calendars.add.localDone:${created.name}:name: added.`
+        : notShown(created.name);
     });
   }
 
@@ -221,14 +226,29 @@ export default class CalendarsSettings implements OnInit {
     } catch {
       // The scheduler syncs it later; the Integrations page shows how that went.
     }
-    await this.reload();
+    const shown = await this.reloadAfterAdd();
     const error = synced.sync?.lastError;
     if (error) {
       throw new SourceSyncError(
         $localize`:@@calendars.add.syncFailed:${source.name}:name: was added, but its calendars could not be fetched: ${error}:error:. Check the settings, then use Sync now under Integrations.`,
       );
     }
-    return $localize`:@@calendars.add.sourceDone:${source.name}:name: added.`;
+    return shown
+      ? $localize`:@@calendars.add.sourceDone:${source.name}:name: added.`
+      : notShown(source.name);
+  }
+
+  /**
+   * Shows what an add created. The add itself succeeded, so a failed reload is not an add error
+   * (the user would add it again); returns whether the list is current.
+   */
+  private async reloadAfterAdd(): Promise<boolean> {
+    try {
+      await this.reload();
+      return true;
+    } catch {
+      return false;
+    }
   }
 
   private ready(form: { invalid: boolean; markAllAsTouched(): void }): boolean {
@@ -280,13 +300,39 @@ export default class CalendarsSettings implements OnInit {
   }
 
   private async reload(): Promise<void> {
+    const id = ++this.reloadsStarted;
     const [calendars, sources] = await Promise.all([
       this.service.calendars(),
       this.service.sources(),
     ]);
-    this.sources.set(sources);
-    this.calendars.set(calendars);
+    this.apply(id, calendars, sources);
   }
+
+  /**
+   * Applies the answer of reload `id`, unless a newer reload was applied already. A calendar
+   * saved while the reload was on its way has a newer version here than in the answer: it stays.
+   */
+  private apply(
+    id: number,
+    calendars: CalendarResponse[],
+    sources: CalendarSourceResponse[],
+  ): void {
+    if (id < this.reloadApplied) return;
+    this.reloadApplied = id;
+    const shown = new Map((this.calendars() ?? []).map((c) => [c.id, c]));
+    this.sources.set(sources);
+    this.calendars.set(
+      calendars.map((c) => {
+        const mine = shown.get(c.id);
+        return mine && mine.version > c.version ? mine : c;
+      }),
+    );
+  }
+}
+
+/** The add worked, but the list could not be read again. */
+function notShown(name: string): string {
+  return $localize`:@@calendars.add.notShown:${name}:name: added. The list could not be updated; reload the page to see it.`;
 }
 
 /** A source was added but its first sync failed. */

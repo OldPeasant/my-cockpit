@@ -224,6 +224,121 @@ describe('CalendarsSettings', () => {
     expect(root.querySelector('button[aria-label="Use Personal for new events"]')).toBeNull();
   });
 
+  it('keeps a change saved while a reload was on its way, even when the reload answers later', async () => {
+    await setup();
+    root
+      .querySelector<HTMLButtonElement>('button[aria-label="Use Personal for new events"]')!
+      .click();
+    await settle();
+    http
+      .expectOne({ method: 'PATCH', url: `${CALENDARS}/c1` })
+      .flush({ ...fakeCalendar(), isDefault: true, version: 1 });
+    await settle();
+    // The reload of the default change is on its way; Holidays changes meanwhile.
+    const swatch = root.querySelector<HTMLInputElement>('input[aria-label="Color of Holidays"]')!;
+    swatch.value = '#00aa00';
+    swatch.dispatchEvent(new Event('change'));
+    await settle();
+    http
+      .expectOne({ method: 'PATCH', url: `${CALENDARS}/c3` })
+      .flush({ ...holidays, color: '#00aa00', version: 1 });
+    await settle();
+    // The reload read Holidays before its change.
+    flushReload(
+      [
+        fakeCalendar({ isDefault: true, version: 1 }),
+        { ...work, isDefault: false, version: 4 },
+        holidays,
+      ],
+      [fakeSource()],
+    );
+    await settle();
+
+    expect(
+      root.querySelector<HTMLInputElement>('input[aria-label="Color of Holidays"]')!.value,
+    ).toBe('#00aa00');
+    expect(root.querySelector('button[aria-label="Use Work for new events"]')).not.toBeNull();
+
+    // The next change of Holidays is sent at the version the server gave it.
+    const again = root.querySelector<HTMLInputElement>('input[aria-label="Color of Holidays"]')!;
+    again.value = '#0000aa';
+    again.dispatchEvent(new Event('change'));
+    await settle();
+    const req = http.expectOne({ method: 'PATCH', url: `${CALENDARS}/c3` });
+    expect(req.request.headers.get('If-Match')).toBe('"1"');
+    req.flush({ ...holidays, color: '#0000aa', version: 2 });
+    await settle();
+  });
+
+  it('drops a reload that answers after a newer one', async () => {
+    await setup();
+    root
+      .querySelector<HTMLButtonElement>('button[aria-label="Use Personal for new events"]')!
+      .click();
+    await settle();
+    http
+      .expectOne({ method: 'PATCH', url: `${CALENDARS}/c1` })
+      .flush({ ...fakeCalendar(), isDefault: true, version: 1 });
+    await settle();
+    // A failed change of Work reloads too, while the first reload is still on its way.
+    const swatch = root.querySelector<HTMLInputElement>('input[aria-label="Color of Work"]')!;
+    swatch.value = '#00aa00';
+    swatch.dispatchEvent(new Event('change'));
+    await settle();
+    const { body, ...options } = problem(412, 'Precondition Failed');
+    http.expectOne({ method: 'PATCH', url: `${CALENDARS}/c2` }).flush(body, options);
+    await settle();
+
+    const calendarReads = http.match(CALENDARS);
+    const sourceReads = http.match(SOURCES);
+    expect(calendarReads.length).toBe(2);
+    expect(sourceReads.length).toBe(2);
+    // The newer reload answers first ...
+    calendarReads[1].flush({
+      items: [
+        fakeCalendar({ isDefault: true, version: 1 }),
+        { ...work, isDefault: false, color: '#123456', version: 5 },
+        holidays,
+      ],
+    });
+    sourceReads[1].flush({ items: [fakeSource()] });
+    await settle();
+    // ... and the older one, read before the default moved, comes last.
+    calendarReads[0].flush({ items: [fakeCalendar(), work, holidays] });
+    sourceReads[0].flush({
+      items: [fakeSource(), fakeSyncedSource({ id: 's9', name: 'Removed feed' })],
+    });
+    await settle();
+
+    expect(groups().map((g) => g.source)).not.toContain('Removed feed');
+
+    expect(root.querySelector<HTMLInputElement>('input[aria-label="Color of Work"]')!.value).toBe(
+      '#123456',
+    );
+    expect(root.querySelector('button[aria-label="Use Work for new events"]')).not.toBeNull();
+    expect(root.querySelector('button[aria-label="Use Personal for new events"]')).toBeNull();
+  });
+
+  it('reports an add that worked as added when the list cannot be read again', async () => {
+    await setup();
+    await type('Name', 'Family');
+    button('Add calendar').click();
+    await settle();
+    http
+      .expectOne({ method: 'POST', url: CALENDARS })
+      .flush(fakeCalendar({ id: 'c4', name: 'Family' }), { status: 201, statusText: 'Created' });
+    await settle();
+    const { body, ...options } = problem(503, 'Service Unavailable');
+    http.expectOne(CALENDARS).flush(body, options);
+    http.expectOne(SOURCES).flush({ items: [fakeSource()] });
+    await settle();
+
+    expect(root.querySelector('[role="status"]')?.textContent).toContain(
+      'Family added. The list could not be updated; reload the page to see it.',
+    );
+    expect(root.querySelector('[role="alert"]')).toBeNull();
+  });
+
   it('explains a concurrent change and shows the current state', async () => {
     await setup();
     const swatch = root.querySelector<HTMLInputElement>('input[aria-label="Color of Work"]')!;

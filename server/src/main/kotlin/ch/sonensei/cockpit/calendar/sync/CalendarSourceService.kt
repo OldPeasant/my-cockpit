@@ -25,7 +25,12 @@ data class NewCalendarSource(
 	val username: String? = null,
 	val password: String? = null,
 	val oauthConnectionId: UUID? = null,
-)
+) {
+	/** Masks the password and the URL (an ICS feed URL often carries a token), as the request DTO does. */
+	override fun toString(): String =
+		"NewCalendarSource(type=$type, name=$name, url=******, username=$username, password=******, " +
+			"oauthConnectionId=$oauthConnectionId)"
+}
 
 /** The created (or, for an already linked OAuth connection, the existing) source. */
 data class CreatedCalendarSource(

@@ -44,6 +44,7 @@ export type OAuthSlug = 'google' | 'microsoft';
 export class CalendarSourcesService {
   private readonly api = inject(Api);
   private readonly navigate = inject(BROWSER_NAVIGATE);
+  private readonly document = inject(DOCUMENT);
 
   /** Every calendar of every source, ordered by name. */
   async calendars(): Promise<CalendarResponse[]> {
@@ -94,11 +95,45 @@ export class CalendarSourcesService {
    * `/settings/integrations` with the outcome, where the account becomes a calendar source.
    */
   connect(provider: OAuthSlug): void {
+    this.storage()?.removeItem(RECONNECT_KEY);
+    this.start(provider);
+  }
+
+  /**
+   * Renews the access of an existing connection. A connection has every scope and does not say
+   * what it was made for, so the tab remembers that this is a reconnect: the callback must then not
+   * turn the account into a calendar source (it may be used for mail or contacts only).
+   */
+  reconnect(provider: OAuthSlug, connectionId: string): void {
+    this.storage()?.setItem(RECONNECT_KEY, connectionId);
+    this.start(provider);
+  }
+
+  /** Whether the callback for `connectionId` ends a reconnect; forgets the pending reconnect. */
+  takeReconnect(connectionId: string): boolean {
+    const storage = this.storage();
+    const pending = storage?.getItem(RECONNECT_KEY);
+    storage?.removeItem(RECONNECT_KEY);
+    return pending === connectionId;
+  }
+
+  private start(provider: OAuthSlug): void {
     const query = new URLSearchParams({ purpose: 'CALENDAR' });
     const path = startOAuthConnection.PATH.replace('{provider}', provider);
     this.navigate(`${this.api.rootUrl}${path}?${query}`);
   }
+
+  private storage(): Storage | undefined {
+    try {
+      return this.document.defaultView?.sessionStorage ?? undefined;
+    } catch {
+      return undefined; // Storage disabled: a reconnect then behaves like a calendar connect.
+    }
+  }
 }
+
+/** The connection id of the reconnect in flight in this tab (sessionStorage key). */
+const RECONNECT_KEY = 'cockpit.oauth.reconnect';
 
 function silent(): HttpContext {
   return new HttpContext().set(SILENT_ERRORS, true);

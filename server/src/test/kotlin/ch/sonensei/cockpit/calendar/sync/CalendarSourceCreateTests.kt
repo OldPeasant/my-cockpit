@@ -262,6 +262,20 @@ class CalendarSourceCreateTests(
 		request.toString() shouldNotContain "fictitious-token"
 	}
 
+	@Test
+	fun `the domain request does not print its password or URL either`() {
+		val source =
+			NewCalendarSource(
+				type = CalendarSourceType.ICS_FEED,
+				url = "https://feeds.example.test/?token=fictitious-token",
+				username = "jane",
+				password = "fictitious-pw",
+			)
+
+		source.toString() shouldNotContain "fictitious-pw"
+		source.toString() shouldNotContain "fictitious-token"
+	}
+
 	companion object {
 		private const val SOURCES = "/api/v1/calendar/sources"
 	}

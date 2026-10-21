@@ -107,11 +107,13 @@ export default class IntegrationsSettings implements OnInit {
   }
 
   protected reconnect(connection: OAuthConnectionResponse): void {
-    this.service.connect(connection.provider.toLowerCase() as OAuthSlug);
+    this.service.reconnect(connection.provider.toLowerCase() as OAuthSlug, connection.id);
   }
 
   protected syncLabel(source: CalendarSourceResponse): string {
-    return $localize`:@@integrations.syncAria:Sync ${source.name}:name: now`;
+    return this.syncing().has(source.id)
+      ? $localize`:@@integrations.syncingAria:Syncing ${source.name}:name:…`
+      : $localize`:@@integrations.syncAria:Sync ${source.name}:name: now`;
   }
 
   /** Reads the OAuth outcome from the URL once, acts on it and removes it from the URL. */
@@ -132,6 +134,13 @@ export default class IntegrationsSettings implements OnInit {
       }
       const connectionId = params.get('connectionId');
       if (result !== 'connected' || !connectionId) return;
+      if (this.service.takeReconnect(connectionId)) {
+        this.outcome.set({
+          ok: true,
+          text: $localize`:@@integrations.oauth.reconnected:${name}:provider: account reconnected.`,
+        });
+        return;
+      }
       if (params.get('purpose') !== 'CALENDAR') {
         this.outcome.set({
           ok: true,

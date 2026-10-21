@@ -38,6 +38,7 @@
                       type="button"
                       class="sync"
                       [disabled]="syncing().has(source.id)"
+                      [attr.aria-busy]="syncing().has(source.id)"
                       [attr.aria-label]="syncLabel(source)"
                       (click)="syncNow(source)"
                     >

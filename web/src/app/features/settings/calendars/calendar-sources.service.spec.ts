@@ -151,6 +151,22 @@ describe('CalendarSourcesService', () => {
     expect(http.match(() => true)).toEqual([]);
   });
 
+  it('remembers a reconnect for its own connection only, once, and forgets it on a new connect', () => {
+    service.reconnect('google', 'o1');
+    expect(navigate).toHaveBeenCalledWith('/api/v1/oauth/google/start?purpose=CALENDAR');
+    expect(service.takeReconnect('o2')).toBe(false);
+    expect(service.takeReconnect('o1')).toBe(false);
+
+    service.reconnect('google', 'o1');
+    expect(service.takeReconnect('o1')).toBe(true);
+    expect(service.takeReconnect('o1')).toBe(false);
+
+    service.reconnect('microsoft', 'o3');
+    service.connect('microsoft');
+    expect(service.takeReconnect('o3')).toBe(false);
+    sessionStorage.clear();
+  });
+
   it('puts the API root in front of the consent URL', () => {
     TestBed.inject(Api).rootUrl = 'https://cockpit.example.test';
 
