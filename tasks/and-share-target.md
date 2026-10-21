@@ -1,11 +1,11 @@
 ---
 title: Android share target
-status: in_progress
+status: done
 owner: dell26/agent-2
 deps: [and-capture-queue]
 touches: [android/app/src/main/java/ch/sonensei/cockpit/capture/share,android/app/src/test/java/ch/sonensei/cockpit/capture/share,android/app/src/main/AndroidManifest.xml]
 prio: 1
-lease_until: 2026-10-21T03:12:48Z
+lease_until: 
 releases: 1
 extended: 
 ---
@@ -28,3 +28,4 @@ Share text, URLs, images and files into the inbox (SPEC.md §4.5).
 - ASSUMPTION (2026-10-21 03:45+0200 by dell26/agent-4): Shared notes over 100,000 chars (server MAX_NOTES_LENGTH) are refused in the share sheet with an error instead of truncated; the notes check lives in the share ViewModel, not in CaptureQueue (outside touches).
 - release by dell26/agent-4: Implementation, tests, fixes done; all 3 criteria verified; test-writer (tests.md), code-reviewer (review.md, reviewed d9467d8c, 0 P0-P2, 1 P3) and fixer (fixes.md) reports committed; sh scripts/check.sh passes on ab11f7ec. Left: decide CR-1 (P3: notes-limit check ignores a >500-char title moved into notes by the server) - fix it (then rerun test-writer+code-reviewer) or record it as deferred; write+commit reviews/and-share-target/quality.json per docs/QUALITY.md (reviewed_revision = final code hash); run tasks.py done.
 - ASSUMPTION (2026-10-21 04:51+0200 by dell26/agent-2): Review P3 CR-1 (notes limit ignores a >500-char title the server moves into notes) accepted, not fixed: very rare, a central limit check belongs in capture/queue outside this task's touches
+- done by dell26/agent-2: `sh scripts/check.sh` passed in 82s on fc8422a8b; criteria verified 3/3
