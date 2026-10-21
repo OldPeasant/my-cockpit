@@ -17,7 +17,8 @@ Everything about a person (SPEC.md §8.3).
   - verified (2026-10-21 23:53+0200 by dell26/agent-1): same run -> GET /contacts/autocomplete?q= merges contacts (prefix matches first, >200 contacts paged) and recent correspondents (deduped, own account/identity addresses excluded, linked to owning contact), limit default 10 / 1-50 else 400, blank q -> [] : pass
 - [x] `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.contacts.aggregate.*'` passes (Postgres via Testcontainers where persistence is involved)
   - verified (2026-10-21 23:53+0200 by dell26/agent-1): cd server && ./gradlew test --tests 'ch.sonensei.cockpit.contacts.aggregate.*' on 314a570ad -> 24 tests, 0 failures (Web 5, EdgeCase 15, CorrespondenceQueryTest 4), Postgres via Testcontainers
-- [ ] API documented: `api/openapi.yaml` regenerated (`UPDATE_OPENAPI=1 ./gradlew test --tests '*OpenApiContractTest'`) and `OpenApiContractTest` passes without the flag
+- [x] API documented: `api/openapi.yaml` regenerated (`UPDATE_OPENAPI=1 ./gradlew test --tests '*OpenApiContractTest'`) and `OpenApiContractTest` passes without the flag
+  - verified (2026-10-21 23:53+0200 by dell26/agent-1): UPDATE_OPENAPI=1 ./gradlew test --tests '*OpenApiContractTest' regenerated api/openapi.yaml (+ npm run api:gen for web client), then ./gradlew test --tests '*OpenApiContractTest' without flag on fe802ca84 -> 1/1 pass
 
 ## Notes
 - ASSUMPTION (2026-10-21 23:34+0200 by dell26/agent-1): Mail lookup by address reads mail_message directly via a read-only SQL query in contacts.aggregate (CorrespondenceQuery): the mail module has no address search service and the task's touches exclude mail/. Messages are then loaded through MailReadService.get.
