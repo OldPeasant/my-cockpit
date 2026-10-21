@@ -16,3 +16,4 @@ View/edit notes and add photos (SPEC.md §9.2 item 6).
 
 ## Notes
 - ASSUMPTION (2026-10-21 11:30+0200 by dell26/agent-3): Android notes has no offline cache (SPEC §9.3 only names Inbox/Next/Today/agenda): the list and a note load from the server, failures show a retry banner; unsaved text stays in the editor until saved
+- ASSUMPTION (2026-10-21 11:30+0200 by dell26/agent-3): Save conflict (409/412/404 on PATCH): autosave stops and the user chooses 'Keep my version' (re-saved over the server's current version, or as a new note if deleted) or 'Use the other version'; no merge
