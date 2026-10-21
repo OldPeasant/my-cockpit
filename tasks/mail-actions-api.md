@@ -1,11 +1,11 @@
 ---
 title: Mail actions
-status: todo
-owner: 
+status: in_progress
+owner: dell26/agent-1
 deps: [mail-read-api]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/mail/api,server/src/test/kotlin/ch/sonensei/cockpit/mail/api]
 prio: 1
-lease_until: 
+lease_until: 2026-10-21T02:22:23Z
 releases: 1
 extended: 
 ---
