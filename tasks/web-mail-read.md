@@ -15,7 +15,8 @@ Read mail safely (SPEC.md §7.3).
   - verified (2026-10-21 18:04+0200 by dell26/agent-2): e2e: npm run e2e -- e2e/mail-read/read.spec.ts (podman e2e stack, GreenMail) -> pass: script in mail does not run, remote images only after 'Load images'; Vitest at 33cbef07: mail-frame.spec (sandbox without allow-scripts/allow-forms, CSP in srcdoc), mail-read-page.spec (load images, 'Always load from this sender' allowlist, attachment download link, image/text preview, Save to Files) -> 13 files, 276 tests passed
 - [x] Buttons: → Inbox task, → Waiting For, Create note; linked items panel
   - verified (2026-10-21 18:04+0200 by dell26/agent-2): npx ng test --include='src/app/features/mail/**/*.spec.ts' at 33cbef07 -> 276 passed, incl. 'GTD actions': → Inbox task, → Waiting For, Create note create the item and reload the linked items panel (app-linked-items with item EMAIL/<id>)
-- [ ] Vitest component/service tests cover iframe sandbox attributes, image toggle; `cd web && npm run check` passes
+- [x] Vitest component/service tests cover iframe sandbox attributes, image toggle; `cd web && npm run check` passes
+  - verified (2026-10-21 18:04+0200 by dell26/agent-2): Vitest mail-frame.spec + mail-read-page.spec (sandbox attributes, image toggle) pass; sh scripts/check.sh (includes cd web && npm run check: api:check, lint, tests 2358 passed, build) at 33cbef07 -> all checks passed
 - [x] Playwright `e2e/mail-read/read.spec.ts` passes against the e2e stack (`npm run e2e -- e2e/mail-read/read.spec.ts`, see p0-e2e-harness): script in mail does not run; images load only after toggle
   - verified (2026-10-21 17:57+0200 by dell26/agent-2): cd web && npm run e2e -- e2e/mail-read/read.spec.ts (podman-compose e2e stack, deploy/docker-compose.e2e.yml, GreenMail) at 08edb6f2 -> 22 passed incl. [chromium] mail-read/read.spec.ts 'script in mail does not run; images load only after the toggle'
 
