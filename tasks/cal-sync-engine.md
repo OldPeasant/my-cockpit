@@ -17,7 +17,8 @@ Provider-independent two-way sync framework (SPEC.md §6.2).
   - verified (2026-10-21 02:25+0200 by dell26/agent-6): Read CalendarProviderAdapter.kt (listCalendars, fetchEvents(cursor)->RemoteEventChanges, create/update/deleteEvent with etag) + CalendarProviderRegistry (find/supports by CalendarSourceType); exercised via FakeCalendarAdapter in cd server && ./gradlew test --tests 'ch.sonensei.cockpit.calendar.sync.*' -> 91 passed
 - [x] Scheduler polls each source at its interval, stores cursor/last sync/error; write-through: local edits of external events go to the adapter first; 412 → refetch and return 'changed remotely' (409 to the client)
   - verified (2026-10-21 02:25+0200 by dell26/agent-6): cd server && ./gradlew test --tests 'ch.sonensei.cockpit.calendar.sync.*' (Testcontainers Postgres) -> 91 passed, incl. 'syncDue syncs sources whose poll interval passed since the last attempt', 'the first sync ... stores the cursor and records success', 'creating, changing and deleting an event of a synced calendar goes to the provider first', 'a remote change since the last sync makes a local edit fail with 409 and fetches the new version'
-- [ ] `GET /api/v1/calendar/sources` incl. sync status; `POST …/{id}/sync`
+- [x] `GET /api/v1/calendar/sources` incl. sync status; `POST …/{id}/sync`
+  - verified (2026-10-21 02:25+0200 by dell26/agent-6): cd server && ./gradlew test --tests 'ch.sonensei.cockpit.calendar.sync.*' -> 'GET sources lists every source with its sync status, POST sync syncs one now' passed (MockMvc, Spring Boot + Testcontainers Postgres), 91/91
 - [ ] Tests with a fake adapter: incremental merge, deletions, conflict path
 - [ ] `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.calendar.sync.*'` passes (Postgres via Testcontainers where persistence is involved)
 - [ ] API documented: `api/openapi.yaml` regenerated (`UPDATE_OPENAPI=1 ./gradlew test --tests '*OpenApiContractTest'`) and `OpenApiContractTest` passes without the flag
