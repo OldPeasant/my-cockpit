@@ -1,32 +1,99 @@
 {
   "schema": 1,
   "task": "notes-api",
-  "reviewed_revision": "f922ce776fc70e97ad79212cd8575cccd4d55e3c",
+  "reviewed_revision": "c3d079f81e4b3d10f3b0868b73d32f824c64bd19",
   "helpers": {
-    "test-writer":   {"status": "completed", "report": "reviews/notes-api/tests.md"},
-    "code-reviewer": {"status": "completed", "report": "reviews/notes-api/review.md"},
-    "fixer":         {"status": "completed", "report": "reviews/notes-api/fixes.md"}
+    "test-writer": {
+      "status": "completed",
+      "report": "reviews/notes-api/tests.md"
+    },
+    "code-reviewer": {
+      "status": "completed",
+      "report": "reviews/notes-api/review.md"
+    },
+    "fixer": {
+      "status": "completed",
+      "report": "reviews/notes-api/fixes.md"
+    }
   },
   "fixes_required": true,
   "findings": [
-    {"id": "R1-CR-1", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
-     "note": "first review: concurrent content updates with the same ETag gave 500 instead of 409; note update now flushed before the revision insert (fixes.md)"},
-    {"id": "R1-CR-2", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
-     "note": "first review: archived list parameter now has the enum true/false/all in the contract and generated client"},
-    {"id": "R1-CR-3", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
-     "note": "first review: single SearchIndexer.indexNote helper used by NoteService and NoteTrashContributor"},
-    {"id": "FX-1", "source": "fixer", "severity": "P2", "disposition": "fixed",
-     "note": "Android lint WrongCommentType in generated notes models from API descriptions; descriptions reworded"},
-    {"id": "FX-2", "source": "fixer", "severity": "P3", "disposition": "out_of_scope",
-     "note": "timing-dependent ClockConfigurationTests in core, unrelated to notes; tracked by task fix-flaky-clock-test"},
-    {"id": "CR-1", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
-     "note": "stale verify evidence and quality.json: criteria 1-6 re-verified on the final code after merging main (72 notes tests + OpenApiContractTest), quality.json rewritten for the final revision; no code change"},
-    {"id": "CR-2", "source": "code-reviewer", "severity": "P3", "disposition": "accepted",
-     "note": "a PATCH that changes nothing still re-indexes and emits an UPDATED event; harmless (version unchanged), recorded as an assumption on the task"}
+    {
+      "id": "R1-CR-1",
+      "source": "code-reviewer",
+      "severity": "P2",
+      "disposition": "fixed",
+      "note": "first review: concurrent content updates with the same ETag gave 500 instead of 409; note update now flushed before the revision insert (fixes.md)"
+    },
+    {
+      "id": "R1-CR-2",
+      "source": "code-reviewer",
+      "severity": "P3",
+      "disposition": "fixed",
+      "note": "first review: archived list parameter now has the enum true/false/all in the contract and generated client"
+    },
+    {
+      "id": "R1-CR-3",
+      "source": "code-reviewer",
+      "severity": "P3",
+      "disposition": "fixed",
+      "note": "first review: single SearchIndexer.indexNote helper used by NoteService and NoteTrashContributor"
+    },
+    {
+      "id": "FX-1",
+      "source": "fixer",
+      "severity": "P2",
+      "disposition": "fixed",
+      "note": "Android lint WrongCommentType in generated notes models from API descriptions; descriptions reworded"
+    },
+    {
+      "id": "FX-2",
+      "source": "fixer",
+      "severity": "P3",
+      "disposition": "out_of_scope",
+      "note": "timing-dependent ClockConfigurationTests in core, unrelated to notes; tracked by task fix-flaky-clock-test"
+    },
+    {
+      "id": "CR-1",
+      "source": "code-reviewer",
+      "severity": "P2",
+      "disposition": "fixed",
+      "note": "stale verify evidence and quality.json: criteria 1-6 re-verified on the final code after merging main (72 notes tests + OpenApiContractTest), quality.json rewritten for the final revision; no code change"
+    },
+    {
+      "id": "CR-2",
+      "source": "code-reviewer",
+      "severity": "P3",
+      "disposition": "accepted",
+      "note": "a PATCH that changes nothing still re-indexes and emits an UPDATED event; harmless (version unchanged), recorded as an assumption on the task"
+    },
+    {
+      "id": "R3-CR-2",
+      "source": "code-reviewer",
+      "severity": "P2",
+      "disposition": "fixed",
+      "note": "third review: NUL characters in tags and in the tag filter gave 500; now 400 Problem Details before any query (fixes.md round 3), with tests"
+    },
+    {
+      "id": "R4",
+      "source": "code-reviewer",
+      "severity": "none",
+      "disposition": "accepted",
+      "note": "final review at c3d079f8 (incl. test-writer's NUL side-effect test): 0 findings"
+    }
   ],
   "validation": [
-    {"command": "cd server && ./gradlew test --tests 'ch.sonensei.cockpit.notes.*' --tests '*OpenApiContractTest'", "result": "pass"},
-    {"command": "cd server && UPDATE_OPENAPI=1 ./gradlew test --tests '*OpenApiContractTest' && cd ../web && npm run api:gen (no diff)", "result": "pass"},
-    {"command": "sh scripts/check.sh", "result": "pass"}
+    {
+      "command": "cd server && ./gradlew test --tests 'ch.sonensei.cockpit.notes.*' --tests '*OpenApiContractTest' at c3d079f8 (77 notes tests + 1 contract test)",
+      "result": "pass"
+    },
+    {
+      "command": "cd server && UPDATE_OPENAPI=1 ./gradlew test --tests '*OpenApiContractTest' && cd ../web && npm run api:gen (no diff)",
+      "result": "pass"
+    },
+    {
+      "command": "sh scripts/check.sh at c3d079f8",
+      "result": "pass"
+    }
   ]
 }
