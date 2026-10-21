@@ -19,3 +19,4 @@ Edit notes (SPEC.md §8.1).
 
 ## Notes
 - ASSUMPTION (2026-10-21 06:31+0200 by R1963MACOS/agent-1): Preview uses an own escaped Markdown renderer (features/notes/editor/note-markdown.ts, no new library) trusted via bypassSecurityTrustHtml because Angular's sanitizer strips checkbox inputs; images only from cockpit-file: (shown via /api/v1/files/{id}/preview with the session cookie) and https:
+- ASSUMPTION (2026-10-21 06:31+0200 by R1963MACOS/agent-1): Autosave: 1 s debounce; a 409/412 stops autosaving and shows a banner with 'Discard my edits' (reload) or 'Save my version' (re-GET version, overwrite). Checklist toggles in the preview save immediately. Pending edits are flushed when leaving the page.
