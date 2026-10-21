@@ -31,6 +31,7 @@ import jakarta.mail.FolderNotFoundException
 import jakarta.mail.Message
 import jakarta.mail.MessagingException
 import jakarta.mail.ReadOnlyFolderException
+import org.eclipse.angus.mail.iap.BadCommandException
 import org.eclipse.angus.mail.iap.CommandFailedException
 import org.eclipse.angus.mail.imap.AppendUID
 import org.eclipse.angus.mail.imap.IMAPFolder
@@ -455,6 +456,110 @@ class MailActionServiceTests {
 		service.apply(listOf(message.id), MailAction.READ, null).single().errorCode shouldBe "NOT_FOUND"
 		verify(exactly = 0) { remoteInbox.getMessagesByUID(any<LongArray>()) }
 		message.seen shouldBe false
+	}
+
+	@Test
+	fun `messages gone from the server fail with NOT_FOUND while the others of the folder are acted on`() {
+		val gone = cached(inbox, 7)
+		val present = cached(inbox, 8)
+		val onlyPresent = mockk<Message>()
+		every { remoteInbox.getMessagesByUID(longArrayOf(7, 8)) } returns arrayOf(null, onlyPresent)
+
+		val outcomes = service.apply(listOf(gone.id, present.id), MailAction.READ, null)
+
+		outcomes.map { it.id } shouldBe listOf(gone.id, present.id)
+		outcomes.map { it.errorCode } shouldBe listOf("NOT_FOUND", null)
+		verify { remoteInbox.setFlags(arrayOf<Message>(onlyPresent), Flags(Flags.Flag.SEEN), true) }
+		gone.seen shouldBe false
+		present.seen shouldBe true
+		verify(exactly = 0) { messages.delete(any()) }
+	}
+
+	@Test
+	fun `when no requested message is on the server any more nothing is sent and the cache is left to the next sync`() {
+		val gone = cached(inbox, 7)
+		every { remoteInbox.getMessagesByUID(longArrayOf(7)) } returns arrayOf(null)
+
+		service.apply(listOf(gone.id), MailAction.DELETE, null).single().errorCode shouldBe "NOT_FOUND"
+
+		verify(exactly = 0) { remoteInbox.moveUIDMessages(any(), any()) }
+		verify(exactly = 0) { remoteInbox.setFlags(any<Array<Message>>(), any<Flags>(), any()) }
+		gone.folderId shouldBe inbox.id
+		gone.uid shouldBe 7
+		verify(exactly = 0) { changes.publish(any<Enum<*>>(), any(), any()) }
+	}
+
+	@Test
+	fun `a source folder deleted on the server fails the ids with NOT_FOUND`() {
+		val message = cached(inbox, 7)
+		every { remoteInbox.open(Folder.READ_WRITE) } throws FolderNotFoundException(remoteInbox, "INBOX does not exist")
+
+		service.apply(listOf(message.id), MailAction.FLAG, null).single().errorCode shouldBe "NOT_FOUND"
+		message.flagged shouldBe false
+		verify(exactly = 0) { changes.publish(any<Enum<*>>(), any(), any()) }
+	}
+
+	@Test
+	fun `a message whose account row is gone is NOT_FOUND without contacting the server`() {
+		val orphanFolder = MailFolder(UUID.randomUUID(), "INBOX", "INBOX")
+		every { folders.findById(orphanFolder.id) } returns Optional.of(orphanFolder)
+		every { accounts.findById(orphanFolder.accountId) } returns Optional.empty()
+		val message = MailMessage(orphanFolder.accountId, orphanFolder.id, 5).also { cache[it.id] = it }
+
+		service.apply(listOf(message.id), MailAction.READ, null).single().errorCode shouldBe "NOT_FOUND"
+		verify(exactly = 0) { pool.withStore<Any?>(any(), any()) }
+	}
+
+	@Test
+	fun `a command answered with BAD fails the ids with REJECTED`() {
+		val message = cached(inbox, 7)
+		val found = onServer(remoteInbox, 7)
+		every { remoteInbox.moveUIDMessages(found, remoteProjects) } throws
+			MessagingException("BAD unknown command", BadCommandException("BAD unknown command"))
+
+		service.apply(listOf(message.id), MailAction.MOVE, projects.id).single().errorCode shouldBe "REJECTED"
+		message.folderId shouldBe inbox.id
+		message.uid shouldBe 7
+	}
+
+	@Test
+	fun `a row a sync relocated between lookup and cache update is not overwritten`() {
+		val message = cached(inbox, 7)
+		val found = onServer(remoteInbox, 7)
+		every { remoteInbox.moveUIDMessages(found, remoteProjects) } returns arrayOf(AppendUID(UIDVALIDITY, 41))
+		// What a concurrent sync stored meanwhile: the same row, already in Projects at another UID.
+		val synced = MailMessage(account.id, projects.id, 99, message.id)
+		every { messages.findAllById(listOf(message.id)) } returns listOf(synced)
+
+		service.apply(listOf(message.id), MailAction.MOVE, projects.id) shouldBe listOf(MailActionOutcome.ok(message.id))
+
+		synced.folderId shouldBe projects.id
+		synced.uid shouldBe 99
+		verify(exactly = 0) { messages.delete(any()) }
+		verify { changes.publish(MailFolderService.FOLDER_EVENT, projects.id, ChangeOp.UPDATED) }
+	}
+
+	@Test
+	fun `a COPYUID is trusted when the target folder has no cached UIDVALIDITY yet`() {
+		projects.uidValidity = null
+		val message = cached(inbox, 7)
+		val found = onServer(remoteInbox, 7)
+		every { remoteInbox.moveUIDMessages(found, remoteProjects) } returns arrayOf(AppendUID(UIDVALIDITY + 5, 41))
+
+		service.apply(listOf(message.id), MailAction.MOVE, projects.id)
+
+		message.folderId shouldBe projects.id
+		message.uid shouldBe 41
+	}
+
+	@Test
+	fun `a failing close of the source folder does not fail an action the server applied`() {
+		val message = cached(inbox, 7)
+		onServer(remoteInbox, 7)
+		every { remoteInbox.close(false) } throws MessagingException("connection reset")
+
+		service.apply(listOf(message.id), MailAction.FLAG, null) shouldBe listOf(MailActionOutcome.ok(message.id))
+		message.flagged shouldBe true
 	}
 
 	private companion object {
