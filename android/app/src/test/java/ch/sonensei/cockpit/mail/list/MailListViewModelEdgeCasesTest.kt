@@ -104,7 +104,7 @@ class MailListViewModelEdgeCasesTest {
         }
 
     @Test
-    fun `a failed next page keeps the loaded mails and the cursor, so scrolling retries it`() =
+    fun `a failed next page keeps the loaded mails and the cursor, so the page can be asked for again`() =
         runTest(dispatcher) {
             coEvery { repo.messages(Mailbox.Unified, "c1") } returns MailResult.Offline andThen MailResult.Failed(500)
             val vm = MailListViewModel(repo)

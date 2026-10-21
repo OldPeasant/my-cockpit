@@ -4,34 +4,36 @@ Date: 2026-10-21
 
 Task: and-mail-list-read - Android mail list and reading
 
-Scope: all committed changes of the task under `android/` (`git diff c09b5f6e..7b14fdfd -- android`), commits e4fab28b, bd14278e, f01eb4b9, 7b14fdfd. This is a re-review. It checks the fixes for the earlier review's CR-1 to CR-6 (`reviews/and-mail-list-read/fixes.md`) and looks for new issues. Uncommitted changes were ignored.
+Scope: all committed changes of the task under `android/` (`git diff 5943b18008986fe3fe6cbf86258a682c0fc0def2..71c09b02 -- android`), commits ff176d0c, db548006, 64c9b655, 2c3deccc, 9a7bf6c5, ba8aa418, 556605ca, 71c09b02. This is the third review. It checks the fixes in 71c09b02 for the second review's CR-1 (P2) and CR-2 (P3), described in `reviews/and-mail-list-read/fixes.md` ("second round"), and looks again for new issues across the whole task diff. Uncommitted changes were ignored.
 
 Requirements:
 - tasks/and-mail-list-read.md: acceptance criteria and the recorded assumptions (hand-written DTOs; WebView blocks all network loads; swipe right = archive, swipe left = delete; opening a mail marks it read)
 - SPEC.md §3 "HTML email is untrusted", §9.2 item 5
 - docs/ARCHITECTURE.md, AGENTS.md project notes
-- reviews/and-mail-list-read/fixes.md (fix claims)
+- the previous review (`git show 0a392ff4:reviews/and-mail-list-read/review.md`) and reviews/and-mail-list-read/fixes.md
 
 Git range:
 - Branch: main
-- HEAD: 93418b24 (adds only `reviews/and-mail-list-read/fixes.md` on top of 7b14fdfd; `git diff --stat 7b14fdfd..HEAD` shows no code change)
-- Base/start: c09b5f6e04edd8778a4aa1f4ab40d109fd6dc82f
-- Reviewed revision: 7b14fdfd53298f3e176710b3cac19f689dfac576
-- Commits reviewed: 4
+- HEAD: 71c09b02c5e1ed7334d90ff98bd7fa0fc855145e
+- Base/start: 5943b18008986fe3fe6cbf86258a682c0fc0def2 (merge-base with main)
+- Reviewed revision: 71c09b02c5e1ed7334d90ff98bd7fa0fc855145e
+- Commits reviewed: 8
 
-Summary: 0 P0, 0 P1, 1 P2, 1 P3
+Summary: 0 P0, 0 P1, 0 P2, 0 P3
 
-Fixes from the earlier review, checked against the code at 7b14fdfd:
-- CR-1 fixed. `MailListViewModel.act()` (`:109`, `:113-129`) records the mailbox it acted in. A refused mail goes back only into that same mailbox, and only if the mail is not already in the list. A successful call removes the id again, so a reload that overtook the call cannot bring the mail back. Both cases have tests in `MailListViewModelEdgeCasesTest`.
-- CR-2 fixed. `MailReadRoute` uses a single unkeyed `hiltViewModel()`. `open()` and `close()` call `reset()`, which clears the state and increments `session`. `updateFor()` drops answers from an earlier session. Every close path goes through `close`: toolbar back, the `BackHandler` (moved into `MailReadRoute`), and the close after a removal. A configuration change re-runs `open(id)` with the same id, which returns early, so the mail is not reloaded. Tests are in `MailReadViewModelTest` and `MailRouteInAppTest`.
-- CR-3 fixed. The tests in f01eb4b9 cover the cases the finding listed.
-- CR-4 fixed, but the fix introduces a new problem (see CR-1 below).
-- CR-5 fixed. `mergeFirstPage()` keeps the pages loaded after the first page only when all of these hold: same mailbox, already loaded, the first page has a next cursor, and the page's last mail is already in the list. In every other case it replaces the list, so the list never has a gap.
-- CR-6 fixed. `MailWebViewClient` calls `onLink` only when `hasGesture() && isForMainFrame`. It still returns true for every navigation. Covered by `MailWebViewTest`.
+The task was rebased since the previous review (reviewed revision 7b14fdfd, re-reviewed as 0a392ff4). `git diff 0a392ff4 71c09b02 -- android` shows that, inside the task's mail packages, only the changes of 71c09b02 are new. The other files in that diff (launcher icons, `AndroidManifest.xml`, `LauncherIconTest`) come from main and are not part of this task.
 
-Unchanged and still correct: the WebView lock-down (no JavaScript, no file or content access, `blockNetworkLoads`, no DOM storage, no multiple windows), the CSP `default-src 'none'`, and the DTO and endpoint alignment checked in the earlier review. No mail content is logged.
+Fixes from the previous review, checked against the code at 71c09b02:
+- CR-1 (P2, failed page retried in a tight loop) is fixed. In `MailScreen.kt:204-205`, `canLoadMore` is now false while `state.message` is `OFFLINE` or `FAILED`. Both failure branches of `loadMore()` and `load()` set one of these values (`MailListViewModel.kt:93-94`, `:173-174`), so after a failure the snapshot stays false and `distinctUntilChanged` sends nothing more. Every successful load sets `message = null` (`:91`, `:170`), so paging resumes after a successful Retry (`refresh()`). `ARCHIVE_FAILED`/`DELETE_FAILED` do not block paging. A swipe failure that replaces an `OFFLINE` message can allow one more page request, but only once per user action, so this is not a loop. New tests in `MailListScreenStatesTest` cover each case: a failed page is not requested again (OFFLINE, then FAILED, then 1 s of frames), a failed refresh near the end does not request a page, a failed archive does not stop paging, and paging resumes after a successful retry. The earlier test that expected a retry after a failure was changed to model a page that loaded successfully. That change is correct, because the old expectation described the bug.
+- CR-2 (P3, mail closed before it loaded still marked read) is fixed. In `MailReadViewModel.kt:137`, `markRead` now runs only when `opened == session`, the same check `updateFor` uses. The check runs in the same coroutine, right after the state update, so the server marks a mail read only when the view also sets `state.message`. That means the list's `onSeen` (`MailReadRoute`, `MailReadScreen.kt:72`) and the server state stay consistent. The new test "a mail closed or replaced before it loaded is not marked read" covers closing the mail and opening another mail before the load ends.
 
-Validation: I was not allowed to run Gradle in this session (permission denied). The existing JUnit results in `android/app/build/test-results/testDebugUnitTest` (written 2026-10-21T16:38Z, the time of 7b14fdfd) show 0 failures. Examples: MailListViewModelEdgeCasesTest 15/15, MailListScreenStatesTest 10/10, MailRouteInAppTest 4/4, MailReadViewModelTest 14/14, MailWebViewTest 4/4. The parent worker must re-run `cd android && ./gradlew ktlintCheck testDebugUnitTest --tests 'ch.sonensei.cockpit.mail.*' lintDebug` to record the evidence.
+I also re-checked the rest of the task diff and found no new issues:
+- WebView lock-down (`MailBodyView.kt`): no JavaScript, no file or content access, `blockNetworkLoads`/`blockNetworkImage`, no DOM storage, no multiple windows, CSP `default-src 'none'`. Links go to other apps only after a user gesture in the main frame, and nothing ever loads inside the view.
+- DTOs and endpoints (`MailApi.kt`) are unchanged since the earlier reviews.
+- Error mapping (`mailCall`) does not put response bodies into exception messages, and no mail content is logged.
+- The list's swipe and refresh races (CR-1/CR-5 of the first review) and the read view's session handling are unchanged.
+
+Validation: I was not allowed to run Gradle in this session (permission denied). The existing JUnit results in `android/app/build/test-results/testDebugUnitTest` were written at 2026-10-21T16:57Z, just before 71c09b02 was committed (16:58Z), and match the counts in fixes.md: 12 mail test classes, 116 tests, 0 failures, 0 skipped (MailListScreenStatesTest 15, MailListViewModelEdgeCasesTest 20, MailReadViewModelTest 17, MailWebViewTest 5, ...). The parent worker must re-run `cd android && ./gradlew ktlintCheck testDebugUnitTest --tests 'ch.sonensei.cockpit.mail.*' lintDebug` on the final revision to record the evidence.
 
 ## P0 Critical
 
@@ -43,22 +45,12 @@ None.
 
 ## P2 Medium
 
-- [ ] **CR-1 | Infinite scroll now retries a failed page in a tight loop with no backoff**
-    - File: `android/app/src/main/java/ch/sonensei/cockpit/mail/list/MailScreen.kt:203`
-    - Category: Correctness
-    - Problem: After the CR-4 fix, the trigger emits `nearEnd && nextCursor != null && !loading && !loadingMore`, filtered by `distinctUntilChanged`. Each `loadMore()` sets `loadingMore = true`, so the trigger emits false. When the call fails (`MailListViewModel.kt:93-94`, Offline or Failed), `loadingMore` goes back to false and `nextCursor` is kept. The trigger emits true again, and `loadMore()` fires again right away. This repeats for as long as the list stays near its end. Nothing stops it: no failure flag, no delay, no check on `message`. The same loop starts after a failed `refresh()` while the list is near its end and a cursor exists. Offline, OkHttp fails within milliseconds, so the app sends requests about once per frame. On a server 5xx, every attempt reaches the server. The test `near the end the next page is asked for again once a load ends` (`MailListScreenStatesTest`) asserts this retry after a failure ("That page failed and kept its cursor: the next attempt follows when it ends").
-    - Why it matters: A phone that is offline or behind a failing server, with the mail list scrolled to its end, keeps sending requests until the user scrolls away. This drains the battery, uses data, and loads the server. It is a retry loop on the failure path, which unit tests on the success path do not show.
-    - Suggested fix: Do not retry automatically after a failed page. Options: add a `loadMoreFailed` flag (or check `message == null` for OFFLINE/FAILED) to `canLoadMore`, and clear it on a successful load, a refresh or `select`. The existing Retry button already calls `refresh()`, and the CR-5 merge keeps the loaded pages, so the user can retry by hand. Alternatively, add a backoff. Change the screen test so that a failed page is not asked for again until the failure is cleared, and keep the "load ends, then retry" case for a load that did not fail.
+None.
 
 ## P3 Low
 
-- [ ] **CR-2 | A mail closed before it loaded is still marked read on the server, but stays unread in the list**
-    - File: `android/app/src/main/java/ch/sonensei/cockpit/mail/read/MailReadViewModel.kt:133-136`
-    - Category: Correctness
-    - Problem: In `load()`, the `Ok` branch drops the state update through `updateFor(opened)` when the session changed, but it still calls `mail.markRead(...)` without checking the session. If the user opens a mail and goes back before it loads, the server marks it read, but `state.message` is never set. `MailReadRoute`'s `onSeen` therefore never runs, and the list keeps the unread dot until the next refresh. The mail was also never shown to the user.
-    - Why it matters: The list and the server disagree, and a mail the user never saw counts as read. This is a small inconsistency, not data loss.
-    - Suggested fix: Call `markRead` only when `opened == session`, the same check `updateFor` makes. That keeps "opening marks it read" meaning "shown". Add a view-model test: close the mail before it loads, and expect no `markRead`.
+None.
 
 ## Review conclusion
 
-Material issues found; fix before completing the task.
+No material issues found.
