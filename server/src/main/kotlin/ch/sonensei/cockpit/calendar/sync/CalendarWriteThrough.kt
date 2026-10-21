@@ -148,7 +148,11 @@ class CalendarWriteThrough(
 							adapter.updateEvent(source, calendarExternalId, event.toRemote(uid), event.externalEtag)
 						}
 					}
-				event.copyFrom(stored)
+				try {
+					event.copyFrom(stored)
+				} catch (e: IllegalArgumentException) {
+					throw CalendarProviderException("The provider answered with an invalid event: ${e.message}", e)
+				}
 				// Search shows the provider's answer, not what the user typed (the etag a series shares is not indexed).
 				indexer.index(event)
 				if (adapter.seriesShareEtag && stored.etag != null && (master != null || event.isRecurring)) {

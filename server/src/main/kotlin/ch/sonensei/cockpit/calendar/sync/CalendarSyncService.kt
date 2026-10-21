@@ -143,7 +143,8 @@ class CalendarSyncService(
 		val (source, externalId, adapter) = found
 		if (externalId == null || adapter == null) return
 		val lock = lockOf(source.id)
-		// A run in progress fetches the new version as well; the caller (a user's request) should not wait for it.
+		// The caller (a user's request) should not wait for a run in progress. That run may have fetched this calendar
+		// already, then the new version arrives with the next poll (task assumption).
 		if (!lock.tryLock()) return
 		try {
 			syncCalendar(adapter, source, calendarId, externalId)

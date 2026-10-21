@@ -348,6 +348,29 @@ class CalendarSyncOverrideTests(
 	}
 
 	@Test
+	fun `a local edit of a normalized event writes the normalized fields back to the provider (accepted by assumption)`() {
+		fake.put(
+			"work",
+			remote("a", "Standup").copy(
+				conferenceUrl = "tel:+41000000000",
+				attendees = listOf(Attendee("ann@example.org"), Attendee("not-an-address")),
+				reminderMinutes = listOf(10, -5),
+			),
+		)
+		sync.sync(source.id)
+		val id = local("a")!!.id
+
+		api.patchEventOk(id.toString(), """{"location":"Room 4"}""")
+
+		// Task assumption (CR-1): the cockpit keeps no raw remote copy, so write-through sends the normalized event.
+		val written = fake.events("work").values.single()
+		written.location shouldBe "Room 4"
+		written.conferenceUrl.shouldBeNull()
+		written.attendees shouldContainExactly listOf(Attendee("ann@example.org"))
+		written.reminderMinutes shouldContainExactly listOf(10)
+	}
+
+	@Test
 	fun `a remote series with an invalid RRULE is skipped and reported, a prefixed one is stored without prefix`() {
 		fake.put("work", remote("bad", "Broken", rrule = "FREQ=SOMETIMES"))
 		fake.put("work", remote("ok", "Weekly", rrule = "RRULE:FREQ=WEEKLY;COUNT=2"))
