@@ -1,11 +1,13 @@
 ---
 title: CalDAV adapter
-status: in_progress
-owner: dell26/agent-2
+status: todo
+owner: 
 deps: [cal-sync-engine]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/calendar/infra/caldav,server/src/test/kotlin/ch/sonensei/cockpit/calendar/infra/caldav]
 prio: 2
-lease_until: 2026-10-21T15:36:03Z
+lease_until: 
+releases: 1
+extended: 
 ---
 ## Goal
 CalDAV sources (SPEC.md §6.2).
@@ -23,3 +25,4 @@ CalDAV sources (SPEC.md §6.2).
 - ASSUMPTION (2026-10-21 15:25+0200 by dell26/agent-2): Limitation: an override removed on the server without an EXDATE (occurrence back to normal) is not noticed by the engine until a full listing; resources with overrides but no master are skipped.
 - ASSUMPTION (2026-10-21 16:10+0200 by dell26/agent-2): Calendar sync tests (FakeCalendarAdapterConfiguration) now remove the application's CalendarProviderRegistry bean definition, because the real CalDavCalendarAdapter @Component and the CALDAV fake collided; also fixed the flaky ClockConfigurationTests (microsecond clock vs nanosecond Instant.now()). Both outside the task's touches but required for .taskcheck.
 - ASSUMPTION (2026-10-21 17:06+0200 by dell26/agent-2): CalDavClient follows a 303 redirect (same origin only) with the original method/body instead of switching to GET; accepted as P3 since CalDAV servers don't answer writes with 303 (review CR-1)
+- release by dell26/agent-2: Implementation complete and committed (CalDAV adapter: discovery, sync-collection + ctag/etag fallback, If-Match PUT/DELETE; Radicale integration tests 10/10). Both criteria verified; reviews/cal-caldav/{tests,review,fixes}.md + quality.json committed (reviewed_revision 95486262, code unchanged since). LEFT: only 'python tasks.py done cal-caldav'. Last .taskcheck run: tfp/server/web passed; android lintDebug crashed with 'Unexpected failure during lint analysis' in TestLibrariesSmokeTest.kt/HiltTestRunner.kt (lint tool bug, android/ not touched by this task) - re-run the check; if the lint crash persists, clear android/build lint caches or hold for a human.
