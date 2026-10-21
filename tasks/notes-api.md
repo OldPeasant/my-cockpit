@@ -1,11 +1,11 @@
 ---
 title: Notes API
-status: in_progress
+status: done
 owner: dell26/agent-5
 deps: [files-api,p0-search-core,p0-trash-core,p0-events-sse,runner-version-skew]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/notes,server/src/test/kotlin/ch/sonensei/cockpit/notes,server/src/main/resources/db/migration/notes]
 prio: 1
-lease_until: 2026-10-21T03:17:29Z
+lease_until: 
 extended: dell26/agent-5
 releases: 2
 ---
@@ -48,3 +48,4 @@ Markdown notes with images, tags, pins and history (SPEC.md §8.1).
 - ASSUMPTION (2026-10-21 03:26+0200 by dell26/agent-2): A PATCH that changes nothing still re-indexes search and emits an UPDATED change event (review CR-2, P3); accepted as harmless (version unchanged), can be optimized later
 - release by dell26/agent-2: Implementation complete; all 6 criteria verified on final code; tests.md/review.md/fixes.md + quality.json committed (095601dc, reviewed_revision f922ce77 = same code as HEAD). sh scripts/check.sh passed at 095601dc (~10+ min here, over the 2 min warning but under 15). Left: only 'python tasks.py done notes-api' (if it complains about freshness after merging main, set reviewed_revision to the new hash; no helper re-run needed unless code changed).
 - extended by dell26/agent-5: Implementation, tests and final helper reports done (HEAD 7be192e2; reports cover d4e1dfeb = rebased 4ffdf362, plus the test-only commit 7be192e2). scripts/check.sh passes. Left: re-run notes tests + OpenApiContractTest on HEAD, re-record verify 1-6 with the current revision, rewrite quality.json reviewed_revision to final HEAD (helper reports are fresh; if done rejects the test-only change, re-run test-writer/code-reviewer), then tasks.py done.
+- done by dell26/agent-5: `sh scripts/check.sh` passed in 55s on 63e2fdaf4; criteria verified 6/6
