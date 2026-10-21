@@ -96,6 +96,8 @@ export default class NoteEditorPage {
 
   /** Counts the loads: a note that arrives after another one was opened is ignored. */
   private loadSeq = 0;
+  /** The note the route asks for last: while leaving waits, a newer route wins. */
+  private requested = '';
 
   constructor() {
     inject(ActivatedRoute)
@@ -122,8 +124,12 @@ export default class NoteEditorPage {
 
   /** Shows the note `id`, after saving the edits of the one shown before (a chip to another note). */
   private async open(id: string): Promise<void> {
+    this.requested = id;
+    // Also back to the note shown while leaving it waits: the switch is cancelled, it stays.
     if (id === this.id()) return;
     if (this.note()) await this.leave();
+    // The route changed again while leaving waited.
+    if (id !== this.requested) return;
     this.id.set(id);
     this.note.set(null);
     this.linkInfo.set(new Map());

@@ -85,3 +85,45 @@ Remaining unresolved findings:
 ## Final status
 
 All validated findings fixed and validation passed.
+
+## TW-2 fix (second fix cycle)
+
+Date: 2026-10-21
+
+Scope: finding TW-2 from `reviews/web-notes-editor/tests.md` (re-test on `0001772c`); changes limited to `web/src/app/features/notes/editor` as instructed by the parent worker.
+
+### TW-2 — Opening a note ignored a route change back to the previous note while leaving it was still running
+
+Files changed:
+- `web/src/app/features/notes/editor/note-editor-page.ts`
+
+Problem:
+`open(id)` set `this.id` only after `await this.leave()`. When the route went from note A to B (leaving A waits for an upload) and back to A before that ended, `open(A)` returned early because `id()` was still A, and the earlier `open(B)` then loaded B while the address showed `/notes/A`.
+
+Fix:
+The page records the id the route asks for last (`requested`) at the start of `open()`, before awaiting `leave()`. After `leave()`, an `open()` continues only if its id is still the requested one, so the latest route wins. Going back to the note still shown cancels the pending switch: the note is not reloaded, and the edits and the finished upload stay in the editor and are saved by `leave()`. The committed TW-2 test is unchanged and passes. No test was changed.
+
+Validation:
+- `cd web && npx ng test --watch=false --include='src/app/features/notes/editor/**/*.spec.ts'` — Pass (5 files, 93 tests, including TW-2)
+- `cd web && npm run check` (api:check, lint, e2e:typecheck, test:ci, build) — Pass (build shows only the existing initial bundle budget warning)
+
+### Validation summary (TW-2 cycle)
+
+Focused tests:
+- `cd web && npx ng test --watch=false --include='src/app/features/notes/editor/**/*.spec.ts'` — Pass (93 tests)
+
+Full test suite:
+- `cd web && npm run check` — Pass
+
+Lint/type-check/build:
+- Included in `cd web && npm run check` — Pass
+
+`.taskcheck`:
+- Not run (the parent worker runs `sh scripts/check.sh`; the server and Android parts are unchanged)
+
+Remaining unresolved findings:
+0
+
+### Final status (TW-2 cycle)
+
+All validated findings fixed and validation passed.
