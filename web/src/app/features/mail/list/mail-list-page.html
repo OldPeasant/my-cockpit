@@ -1,0 +1,237 @@
+<div class="mail">
+  <aside class="side">
+    <app-mail-folder-tree [current]="folderId()" />
+  </aside>
+
+  <section class="main" aria-labelledby="mail-title">
+    <header class="head">
+      <div class="heading">
+        <h1 id="mail-title">{{ title() }}</h1>
+        @if (accountName(); as name) {
+          <p class="account">{{ name }}</p>
+        }
+      </div>
+      <div class="views" role="group" i18n-aria-label="@@mail.view" aria-label="View">
+        <button
+          type="button"
+          [attr.aria-pressed]="!threaded()"
+          (click)="setThreaded(false)"
+          i18n="@@mail.view.flat"
+        >
+          Messages
+        </button>
+        <button
+          type="button"
+          [attr.aria-pressed]="threaded()"
+          (click)="setThreaded(true)"
+          i18n="@@mail.view.threaded"
+        >
+          Conversations
+        </button>
+      </div>
+    </header>
+
+    <div class="toolbar" role="toolbar" i18n-aria-label="@@mail.actions" aria-label="Mail actions">
+      <input
+        type="checkbox"
+        class="select-all"
+        [checked]="store.allSelected()"
+        [indeterminate]="someSelected()"
+        [disabled]="!store.items()?.length"
+        (change)="store.toggleAll()"
+        i18n-aria-label="@@mail.selectAll"
+        aria-label="Select all"
+      />
+      @if (store.selection().length; as count) {
+        <span class="count" role="status" i18n="@@mail.selected">{{ count }} selected</span>
+      }
+      <button
+        mat-stroked-button
+        type="button"
+        [disabled]="!hasTargets()"
+        (click)="act('ARCHIVE')"
+        title="e"
+        i18n="@@mail.action.archive"
+      >
+        Archive
+      </button>
+      <button
+        mat-stroked-button
+        type="button"
+        [disabled]="!hasTargets()"
+        (click)="act('DELETE')"
+        title="#"
+        i18n="@@mail.action.delete"
+      >
+        Delete
+      </button>
+      <button
+        mat-stroked-button
+        type="button"
+        [disabled]="!hasTargets()"
+        (click)="act('READ')"
+        title="Shift+I"
+        i18n="@@mail.action.read"
+      >
+        Mark read
+      </button>
+      <button
+        mat-stroked-button
+        type="button"
+        [disabled]="!hasTargets()"
+        (click)="act('UNREAD')"
+        title="u"
+        i18n="@@mail.action.unread"
+      >
+        Mark unread
+      </button>
+      <button
+        mat-stroked-button
+        type="button"
+        [disabled]="!hasTargets()"
+        (click)="toggleFlag()"
+        title="s"
+      >
+        @if (allFlagged()) {
+          <ng-container i18n="@@mail.action.unflag">Unstar</ng-container>
+        } @else {
+          <ng-container i18n="@@mail.action.flag">Star</ng-container>
+        }
+      </button>
+      <button
+        mat-stroked-button
+        type="button"
+        [disabled]="!moveAccountId()"
+        (click)="move()"
+        title="v"
+        i18n="@@mail.action.move"
+      >
+        Move
+      </button>
+      <button
+        mat-stroked-button
+        type="button"
+        [disabled]="!hasTargets()"
+        (click)="act('SPAM')"
+        title="!"
+        i18n="@@mail.action.spam"
+      >
+        Spam
+      </button>
+    </div>
+
+    @if (noAccounts()) {
+      <div class="empty">
+        <p i18n="@@mail.noAccounts">No mail account is set up yet.</p>
+        <a mat-flat-button routerLink="/settings" i18n="@@mail.addAccount">Add an account</a>
+      </div>
+    } @else if (store.loadError(); as error) {
+      <div class="load-error" role="alert">
+        <p i18n="@@mail.loadFailed">The messages could not be loaded: {{ error }}</p>
+        <button mat-stroked-button type="button" (click)="store.reload()" i18n="@@mail.retry">
+          Try again
+        </button>
+      </div>
+    } @else if (store.items(); as items) {
+      @if (items.length) {
+        <ul class="items" aria-labelledby="mail-title">
+          @for (item of items; track item.id) {
+            <li
+              class="item"
+              [attr.data-id]="item.id"
+              [class.unread]="unread(item)"
+              [class.cursor]="item.id === store.cursorId()"
+              [class.selected]="store.selectedIds().has(item.id)"
+              [attr.aria-current]="item.id === store.cursorId() ? 'true' : null"
+            >
+              <input
+                type="checkbox"
+                [checked]="store.selectedIds().has(item.id)"
+                (change)="store.toggleSelected(item.id)"
+                [attr.aria-label]="selectLabel(item)"
+              />
+              <button type="button" class="open" (click)="store.setCursor(item.id)">
+                <span class="from">
+                  {{ sender(item) }}
+                  @if (threaded() && (item.threadSize ?? 1) > 1) {
+                    <span class="thread-size">{{ item.threadSize }}</span>
+                  }
+                </span>
+                <span class="text">
+                  <span class="subject">{{ subject(item) }}</span>
+                  @if (item.snippet) {
+                    <span class="snippet">{{ item.snippet }}</span>
+                  }
+                </span>
+                <span class="meta">
+                  @if (showAccount()) {
+                    <span class="account-chip">{{ accountOf(item) }}</span>
+                  }
+                  @if (item.hasAttachments) {
+                    <svg
+                      class="icon attachment"
+                      viewBox="0 0 24 24"
+                      role="img"
+                      i18n-aria-label="@@mail.hasAttachments"
+                      aria-label="Has attachments"
+                    >
+                      <path
+                        d="M16.5 6v11.5a4 4 0 0 1-8 0V5a2.5 2.5 0 0 1 5 0v10.5a1 1 0 0 1-2 0V6H10v9.5a2.5 2.5 0 0 0 5 0V5a4 4 0 0 0-8 0v12.5a5.5 5.5 0 0 0 11 0V6h-1.5z"
+                      />
+                    </svg>
+                  }
+                  @if (item.flagged) {
+                    <svg
+                      class="icon star"
+                      viewBox="0 0 24 24"
+                      role="img"
+                      i18n-aria-label="@@mail.starred"
+                      aria-label="Starred"
+                    >
+                      <path
+                        d="M12 17.27 18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"
+                      />
+                    </svg>
+                  }
+                  @if (unread(item)) {
+                    <span class="visually-hidden" i18n="@@mail.unread">Unread</span>
+                  }
+                  <time [attr.datetime]="item.receivedAt">{{
+                    item.receivedAt | date: dateFormat(item)
+                  }}</time>
+                </span>
+              </button>
+            </li>
+          }
+        </ul>
+        @if (store.nextCursor()) {
+          <div class="more" #sentinel>
+            @if (store.moreError(); as error) {
+              <p class="error" role="alert" i18n="@@mail.moreFailed">
+                Older messages could not be loaded: {{ error }}
+              </p>
+            }
+            <button
+              mat-stroked-button
+              type="button"
+              [disabled]="store.loadingMore()"
+              (click)="store.loadMore()"
+              i18n="@@mail.loadMore"
+            >
+              Load older messages
+            </button>
+          </div>
+        }
+      } @else {
+        <p class="empty" i18n="@@mail.empty">No messages here.</p>
+      }
+    } @else {
+      <p class="note" role="status" i18n="@@mail.loading">Loading messages…</p>
+    }
+
+    <p class="keys" i18n="@@mail.keysHint">
+      Keys: j/k next/previous, x select, e archive, # delete, Shift+I read, u unread, s star, v move,
+      ! spam
+    </p>
+  </section>
+</div>
