@@ -5,7 +5,7 @@ owner: dell26/agent-2
 deps: [backup-contrib-core,mail-model,backup-secrets]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/mail/backup,server/src/test/kotlin/ch/sonensei/cockpit/mail/backup]
 prio: 2
-lease_until: 2026-10-21T22:29:47Z
+lease_until: 2026-10-21T22:34:50Z
 extended: dell26/agent-2
 ---
 ## Goal
