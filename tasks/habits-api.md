@@ -5,7 +5,7 @@ owner: dell26/agent-2
 deps: [p0-items-links,reminders-core]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/journal/habits,server/src/test/kotlin/ch/sonensei/cockpit/journal/habits,server/src/main/resources/db/migration/journal/habits]
 prio: 3
-lease_until: 2026-10-21T21:24:18Z
+lease_until: 2026-10-21T21:29:09Z
 extended: 
 releases: 1
 ---
