@@ -322,6 +322,25 @@ class CalDavRadicaleSyncTests(
 	}
 
 	@Test
+	fun `a delete of an event changed on the server meanwhile is refused with 409 and the event stays on the server`() {
+		put("dentist.ics", single("dentist", "Dentist", "20261103T090000", "20261103T100000"))
+		syncOk()
+		val id = local("dentist")!!.id.toString()
+		val etag = etag(api.event(id))
+		put("dentist.ics", single("dentist", "Dentist (server)", "20261103T110000", "20261103T120000"))
+
+		api.deleteEvent(id, ifMatch = etag).isProblem(409)
+
+		get("dentist.ics").statusCode() shouldBe 200
+		local("dentist")!!.title shouldBe "Dentist (server)"
+
+		// The retry on the new version deletes it on the server.
+		api.deleteEvent(id).andExpect { status { isNoContent() } }
+		get("dentist.ics").statusCode() shouldBe 404
+		local("dentist").shouldBeNull()
+	}
+
+	@Test
 	fun `an all-day event round-trips with date values`() {
 		syncOk()
 		val created =
