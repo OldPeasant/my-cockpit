@@ -37,9 +37,6 @@ internal object GoogleEventMapping {
 	private val LOCAL_BASIC: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyyMMdd'T'HHmmss")
 	private val RFC3339: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ssXXX")
 
-	/** Whether [node] is an instance of a series (an exception, or a cancelled occurrence). */
-	fun isInstance(node: JsonNode): Boolean = node.text("recurringEventId") != null
-
 	fun isCancelled(node: JsonNode): Boolean = node.text("status") == "cancelled"
 
 	/** The key of [node]: its `id`, or for an instance the series' `id` and the occurrence. */
@@ -49,9 +46,11 @@ internal object GoogleEventMapping {
 	}
 
 	/**
-	 * [node] as a [RemoteEvent]; a cancelled one (Google's answer to cancelling an occurrence) keeps the status
-	 * CANCELLED, while a listing treats cancelled items as deletions before mapping them. [calendarZone] (the calendar's `timeZone`) is the zone of times
-	 * without one; [defaultReminders] the calendar's reminders for events with `useDefault`.
+	 * [node] as a [RemoteEvent]. A cancelled one (Google's answer to cancelling an occurrence) keeps the status
+	 * CANCELLED; a listing treats cancelled items as deletions before it maps them.
+	 *
+	 * [calendarZone] (the calendar's `timeZone`) is the zone of times without one; [defaultReminders] the
+	 * calendar's reminders for events with `useDefault`.
 	 */
 	fun toRemote(
 		node: JsonNode,

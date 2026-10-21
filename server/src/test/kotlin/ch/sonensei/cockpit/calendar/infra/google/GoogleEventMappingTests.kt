@@ -125,7 +125,6 @@ class GoogleEventMappingTests {
 			)
 
 		GoogleEventMapping.isCancelled(node) shouldBe true
-		GoogleEventMapping.isInstance(node) shouldBe true
 		GoogleEventMapping.key(node) shouldBe RemoteEventKey("daily09", OccurrenceId.of(LocalDate.parse("2026-11-04")))
 	}
 
