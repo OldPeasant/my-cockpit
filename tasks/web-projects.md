@@ -11,7 +11,8 @@ lease_until: 2026-10-21T01:48:44Z
 Project list and detail (SPEC.md §5.3).
 
 ## Acceptance criteria
-- [ ] List grouped by area with stalled projects highlighted; create/edit project (status, area, dates)
+- [x] List grouped by area with stalled projects highlighted; create/edit project (status, area, dates)
+  - verified (2026-10-21 03:30+0200 by dell26/agent-6): npm run test:ci: projects-pages/projects-states/project-groups/project-form specs (grouping by area, stalled badge, create/edit with status/area/dates) pass, 1226 tests total; e2e projects.spec.ts shows stalled project after skip -> passed
 - [ ] Detail: ordered tasks with drag reorder, next-step marker, description (Markdown preview), add task; completing the next step opens 'choose next step'
 - [ ] Vitest component/service tests cover grouping, stalled badge, next-step prompt; `cd web && npm run check` passes
 - [x] Playwright `e2e/gtd-projects/projects.spec.ts` passes against the e2e stack (`npm run e2e -- e2e/gtd-projects/projects.spec.ts`, see p0-e2e-harness): complete next step → prompt; skip → stalled
