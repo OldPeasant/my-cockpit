@@ -10,7 +10,7 @@ How agents work is in `AGENTS.md`, and the review evidence contract is in `docs/
 | Server | `server/` | Kotlin 2.3.21 (+ `plugin.spring`, `plugin.jpa` with all-open for JPA entities), Spring Boot 4.1.1 (Web MVC, Actuator, Validation, Security, Data JPA/Hibernate, Flyway 12 + `flyway-database-postgresql`), PostgreSQL 16 (JDBC driver from the Boot BOM), JDK 21 (Gradle toolchain), Gradle 9.8.1 wrapper, ktlint (Gradle plugin 14.2.0), JaCoCo |
 | Server libraries | `server/` | springdoc-openapi 3.0.0, logstash-logback-encoder 8.1 (JSON logs use Boot structured logging, `logstash` format), Angus Mail (Boot BOM), ical4j 4.1.1, ez-vcard 0.12.1, flexmark 0.64.8 (core + GFM strikethrough/tasklist, tables, autolink), jsoup 1.21.2, Thumbnailator 0.4.20, TwelveMonkeys `imageio-webp` 3.12.0 (WebP decoding for thumbnails), java-uuid-generator 5.1.0 (UUIDv7), BouncyCastle `bcprov-jdk18on` 1.81 (Argon2 with spring-security-crypto), java-otp 0.4.0 (TOTP), webauthn4j-core 0.29.5 |
 | Server tests | `server/` | JUnit 5, Kotest assertions 6.0.4, MockK 1.14.6, springmockk 5.0.1, Testcontainers 2.0 (`testcontainers-postgresql`, `-junit-jupiter`, `spring-boot-testcontainers`), WireMock 3.13.1 (standalone), GreenMail 2.1.5 (`greenmail-junit5`) |
-| Android | `android/` | AGP 9.4.1 (built-in Kotlin), Kotlin 2.3.21 + Compose compiler plugin, Compose BOM 2026.09.00, Material 3, compileSdk 37 / targetSdk 36 / minSdk 29, JDK 21, Gradle 9.8.1 wrapper, ktlint, Android Lint, JUnit 4, JaCoCo; libraries (versions in `android/gradle/libs.versions.toml`): KSP 2.3.4, Hilt 2.59 (+ androidx.hilt 1.3.0 for Navigation/WorkManager), Navigation Compose 2.9.6, Retrofit 3.0.0 + kotlinx.serialization converter (API client generated at build time from `api/openapi.yaml` by the openapi-generator Gradle plugin 7.26.0, `kotlin`/`jvm-retrofit2`, into `app/build/generated/openapi`), OkHttp 5.3.0, kotlinx.serialization 1.9.0, Room 2.8.4 (schemas in `android/app/schemas/`), WorkManager 2.11.0, DataStore 1.1.7, Tink 1.18.0 (local encryption), Credential Manager 1.5.0, Glance 1.1.1, Coil 3.3.0; tests: Robolectric 4.16 + Compose UI test (v2 rules, in `testDebugUnitTest`), Glance appwidget testing 1.1.1, MockK 1.14.6, kotlinx-coroutines-test 1.10.2, Turbine 1.2.1, OkHttp MockWebServer |
+| Android | `android/` | AGP 9.4.1 (built-in Kotlin), Kotlin 2.3.21 + Compose compiler plugin, Compose BOM 2026.09.00, Material 3, compileSdk 37 / targetSdk 36 / minSdk 29, JDK 21, Gradle 9.8.1 wrapper, ktlint, Android Lint, JUnit 4, JaCoCo; libraries (versions in `android/gradle/libs.versions.toml`): KSP 2.3.4, Hilt 2.59 (+ androidx.hilt 1.3.0 for Navigation/WorkManager), Navigation Compose 2.9.6, Retrofit 3.0.0 + kotlinx.serialization converter (API client generated at build time from `api/openapi.yaml` by the openapi-generator Gradle plugin 7.26.0, `kotlin`/`jvm-retrofit2`, into `app/build/generated/openapi`), OkHttp 5.3.0, kotlinx.serialization 1.9.0, Room 2.8.4 (schemas in `android/app/schemas/`), WorkManager 2.11.0, DataStore 1.1.7, Tink 1.18.0 (local encryption), Credential Manager 1.5.0, Glance 1.1.1, Coil 3.3.0; tests: Robolectric 4.16 + Compose UI test (v2 rules, in `testDebugUnitTest`), AndroidX Test runner 1.7.0 (instrumented tests, `HiltTestRunner`), Glance appwidget testing 1.1.1, MockK 1.14.6, kotlinx-coroutines-test 1.10.2, Turbine 1.2.1, OkHttp MockWebServer |
 | Web | `web/` | Angular 22.2 (standalone, signals, zoneless), TypeScript 6.0, Vitest 5 via `@angular/build:unit-test` + jsdom, angular-eslint, `@vitest/coverage-v8`; Angular Material + CDK 22.2 (Material 3 theme in `web/src/theme/`: `--mat-sys-*`/`--app-*` tokens on `:root`, light/dark via `prefers-color-scheme` or `<html data-theme="light|dark">`), `@angular/localize` (source locale `en`, `npm run i18n:extract` → `src/locale/messages.xlf`), CodeMirror 6 (+ `@codemirror/lang-markdown`, `@codemirror/autocomplete`), FullCalendar 7 (`@fullcalendar/angular`, `fullcalendar` with daygrid/timegrid/interaction/list subpaths, `@fullcalendar/rrule` + `rrule`), TipTap 3 (core, starter-kit, link, image), pdfjs-dist 6, qrcode 1.5 (TOTP enrollment QR, rendered as SVG); dev: ng-openapi-gen, Playwright + `@axe-core/playwright`, otplib |
 | Deploy | `Dockerfile`, `deploy/` | Multi-stage image (`node:24-bookworm-slim` → `eclipse-temurin:21-jdk` → `eclipse-temurin:21-jre`, non-root uid 10001), Docker Compose / podman-compose with `caddy:2` and `postgres:16-alpine`, restic (optional host backup) |
 | Tooling | root | TFP (`tasks.py`, `agents.py`), Python 3.10+ |
@@ -132,6 +132,8 @@ pagination helpers live in `server/.../core/web` (summary in `api/README.md`).
 | `cd web && npm run e2e [-- <spec>]` | Playwright (chromium) against `deploy/docker-compose.e2e.yml` (server image in profile `e2e`, fresh Postgres, GreenMail 2.1.5): builds/starts the stack, waits for health, runs the specs in `web/e2e/`, tears down (`web/e2e/README.md`). Not part of `.taskcheck` | ~20 s for `support/smoke.spec.ts` with cached image layers (stack healthy after ~16 s, 2 tests ~2 s); a changed source rebuilds the image first |
 | `cd web && npm run check` | web generated-client freshness check (`api:check`; `npm run api:gen` regenerates) + lint + tests + production build | |
 | `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` | android | |
+| `cd android && ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.smoke.*' -Pe2eBaseUrl=http://127.0.0.1:<port>/` | Phase 3 demo (SPEC.md §13.2) on Robolectric against a running e2e stack; see "Android demo script". Excluded from `testDebugUnitTest` without `-Pe2eBaseUrl` | ~20–40 s with the stack up |
+| `cd android && ./gradlew connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.e2eBaseUrl=http://10.0.2.2:<port>/` | the same demo as an instrumented test on a running emulator | |
 | `python3 tests/test_quality_gate.py` (and the other `tests/test_*.py`, `bash tests/test_publish.sh`) | TFP tooling | |
 
 CI (`.github/workflows/ci.yml`, GitHub Actions, on pushes to `main` and on PRs; commits that only touch
@@ -151,6 +153,43 @@ Server test infrastructure (`server/src/test/kotlin/ch/sonensei/cockpit/support/
 Server profiles: none = production-like (JSON logs in Logstash format, datasource from
 `SPRING_DATASOURCE_*`), `dev` = plain-text logs and local defaults, `e2e` = the end-to-end stack (adds
 the unauthenticated test hooks `POST /api/test/clock` and `/api/test/reset` from `core.testsupport`; never in production).
+
+### Android demo script
+
+The Phase 3 demo (SPEC.md §13.2, steps 1–5) is one test, `Phase3Demo` in `android/app/src/sharedTest/` (a source dir of
+both `test` and `androidTest`). It resets the stack it is pointed at, so only ever point it at the e2e stack (other
+servers have no `/api/test/reset`, and the test fails there). It logs in on the login screen with password + TOTP, shares
+a URL and a photo and captures through the widget's sheet offline, checks the Inbox through the API once online, processes
+the Inbox on the phone, compares Next/Today/Projects with the API, and waits for a reminder notification. Two runners:
+
+- `Phase3DemoEmulatorTest` (`androidTest`, runner `HiltTestRunner`): real airplane mode (`cmd connectivity airplane-mode`),
+  the MediaStore gallery, the real WorkManager and clock (the reminder is set 20 s ahead). The stack is reached at
+  `10.0.2.2` (the emulator's host); the default is `http://10.0.2.2:18090/`, the e2e stack's default port.
+- `Phase3DemoRobolectricTest` (`test`): for machines without an emulator. Offline is WorkManager's network constraint
+  left unmet (test WorkManager), the gallery a test content provider, and the alarm is fired by hand once it is checked to
+  be set exactly for the reminder time.
+
+```sh
+# 1. The e2e stack on a fixed port (tear down: the same command with `down -v`; `podman-compose` works the same way)
+E2E_PORT=18090 E2E_FRESH_PORT=18091 E2E_IMAP_PORT=18092 \
+  docker compose -p cockpit-e2e-android -f deploy/docker-compose.e2e.yml up -d --build
+curl -s http://127.0.0.1:18090/actuator/health   # wait for "UP"
+
+# 2a. Robolectric
+cd android && ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.smoke.*' -Pe2eBaseUrl=http://127.0.0.1:18090/
+
+# 2b. Emulator: needs KVM (Linux) or the Hypervisor Framework (macOS), about 1.5 GB more SDK
+$SDK/cmdline-tools/latest/bin/sdkmanager --install "emulator" "system-images;android-36;google_apis;x86_64"   # arm64-v8a on Apple silicon
+$SDK/cmdline-tools/latest/bin/avdmanager create avd -n cockpit-api36 -k "system-images;android-36;google_apis;x86_64" -d pixel_7
+$SDK/emulator/emulator -avd cockpit-api36 -no-snapshot -no-audio &   # add -no-window on a headless machine
+$SDK/platform-tools/adb wait-for-device
+cd android && ./gradlew connectedDebugAndroidTest \
+  -Pandroid.testInstrumentationRunnerArguments.class=ch.sonensei.cockpit.smoke.Phase3DemoEmulatorTest \
+  -Pandroid.testInstrumentationRunnerArguments.e2eBaseUrl=http://10.0.2.2:18090/
+```
+
+The emulator run turns airplane mode on and off and grants the app notifications and exact alarms through the shell
+(`pm grant`, `appops`, run as the shell user through `UiAutomation`). Step 6 (the owner's real phone) stays manual.
 
 Rules:
 - `.taskcheck` must stay below 2 minutes. Slow suites (Testcontainers integration tests, Playwright
