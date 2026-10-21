@@ -6,6 +6,7 @@ deps: [and-gtd-data]
 touches: [android/app/src/main/java/ch/sonensei/cockpit/gtd/inbox,android/app/src/test/java/ch/sonensei/cockpit/gtd/inbox]
 prio: 1
 lease_until: 2026-10-21T08:50:34Z
+extended: dell26/agent-4
 ---
 ## Goal
 Process the inbox on the phone (SPEC.md §5.3).
@@ -20,3 +21,4 @@ Process the inbox on the phone (SPEC.md §5.3).
 - ASSUMPTION (2026-10-21 09:51+0200 by dell26/agent-4): Inbox strings live in a new res/values/strings_inbox.xml (outside the task's touches, like strings_share.xml for capture); no other file outside gtd/inbox changed.
 - ASSUMPTION (2026-10-21 09:51+0200 by dell26/agent-4): Dates on the phone: quick chips (tomorrow / in a week / in a month) plus a Material3 DatePickerDialog; 'To project' sets the item as next step when the project is stalled after the move (as the web does); a failed next-step call still counts as processed.
 - ASSUMPTION (2026-10-21 09:56+0200 by dell26/agent-4): InboxScreen falls back to the placeholder when not hosted in a Hilt activity (LocalActivity is not GeneratedComponentManagerHolder): the shell's navigation tests use a plain ComponentActivity, where hiltViewModel() throws. Other real screens can reuse this pattern.
+- extended by dell26/agent-4: Implementation, first review and fixes (CR-1/2/4) are committed. Left: inbox tests run 90 with 1 failing: InboxRepositoryTest 'a malformed project answer after the move still counts as processed' (Rejected(status=null) instead of Processed). Decide whether the repository or the test is wrong and fix it. Then run test-writer and code-reviewer again on the final code (the reports are stale after the fixes), write quality.json, verify criteria 1 and 2, .taskcheck, done.
