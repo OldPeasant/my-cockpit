@@ -3,6 +3,7 @@ package ch.sonensei.cockpit.calendar.sync
 import ch.sonensei.cockpit.calendar.api.CalendarApi
 import ch.sonensei.cockpit.calendar.api.CalendarApi.Companion.id
 import ch.sonensei.cockpit.calendar.api.CalendarApi.Companion.isProblem
+import ch.sonensei.cockpit.calendar.model.CalendarSource
 import ch.sonensei.cockpit.calendar.model.CalendarSourceRepository
 import ch.sonensei.cockpit.calendar.model.CalendarSourceType
 import ch.sonensei.cockpit.core.auth.WithCockpitUser
@@ -109,6 +110,21 @@ class CalendarSourceCreateTests(
 		val again = api.read(post("""{"type":"GOOGLE","oauthConnectionId":"$google"}""").andExpect { status { isOk() } })
 		again.id() shouldBe created.id()
 		sources.count() shouldBe 1
+	}
+
+	@Test
+	fun `a second Google account becomes its own source, not the one of the first account`() {
+		post("""{"type":"ICS_FEED","url":"https://feeds.example.test/a.ics"}""").andExpect { status { isCreated() } }
+		sources.saveAndFlush(CalendarSource(CalendarSourceType.GOOGLE, "Imported without connection").apply { config = "{}" })
+		val first = api.read(post("""{"type":"GOOGLE","oauthConnectionId":"$google"}""").andExpect { status { isCreated() } })
+		val other = connections.save(OAuthConnection(OAuthProvider.GOOGLE, "subject-g2", "max@gmail.example", "Max", "openid", null)).id
+
+		val second = api.read(post("""{"type":"GOOGLE","oauthConnectionId":"$other"}""").andExpect { status { isCreated() } })
+
+		(second.id() == first.id()) shouldBe false
+		second.get("name").asString() shouldBe "max@gmail.example"
+		api.read(post("""{"type":"GOOGLE","oauthConnectionId":"$other"}""").andExpect { status { isOk() } }).id() shouldBe second.id()
+		sources.count() shouldBe 4
 	}
 
 	@Test

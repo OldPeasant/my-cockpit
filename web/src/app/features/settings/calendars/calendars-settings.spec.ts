@@ -434,6 +434,45 @@ describe('CalendarsSettings', () => {
     expect(groups()[0].calendars).toEqual(['Personal', 'Family']);
   });
 
+  it('adds a local calendar in the chosen color, then offers the start color again', async () => {
+    await setup();
+    await type('Name', 'Sports');
+    const color = root.querySelector<HTMLInputElement>('form.add input[type="color"]')!;
+    color.value = '#00aa55';
+    color.dispatchEvent(new Event('input'));
+    await settle();
+    button('Add calendar').click();
+    await settle();
+
+    const req = http.expectOne({ method: 'POST', url: CALENDARS });
+    expect(req.request.body).toEqual({ name: 'Sports', color: '#00aa55' });
+    const sports = fakeCalendar({ id: 'c5', name: 'Sports', color: '#00aa55' });
+    req.flush(sports, { status: 201, statusText: 'Created' });
+    await settle();
+    flushReload([fakeCalendar(), sports], [fakeSource()]);
+    await settle();
+
+    expect(
+      root.querySelector<HTMLInputElement>('input[aria-label="Color of Sports"]')!.value,
+    ).toBe('#00aa55');
+    expect(root.querySelector<HTMLInputElement>('form.add input[type="color"]')!.value).toBe(
+      '#3f7fbf',
+    );
+  });
+
+  it('refuses a webcal URL for CalDAV, which takes http or https only', async () => {
+    await setup();
+    await pickKind('CalDAV');
+    await type('Server URL', 'webcal://cloud.example.test/dav');
+    await type('User name', 'jane');
+    await type('App password', 'fictitious-pw');
+    button('Connect CalDAV').click();
+    await settle();
+
+    expect(root.textContent).toContain('Enter an http or https URL.');
+    http.expectNone({ method: 'POST', url: SOURCES });
+  });
+
   it('connects a CalDAV account, then fetches its calendars', async () => {
     await setup();
     await pickKind('CalDAV');

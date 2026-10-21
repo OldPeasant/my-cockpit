@@ -117,6 +117,37 @@ describe('IntegrationsSettings', () => {
     expect(item('Holidays').querySelector('.last-success')?.textContent?.trim()).toBe('Never');
   });
 
+  it('shows a source whose syncs never succeeded with Never, its last attempt and the error', async () => {
+    await open();
+    await load([
+      fakeSource(),
+      fakeSyncedSource({
+        id: 's4',
+        name: 'cloud.example.test',
+        sync: {
+          state: 'ERROR',
+          lastAttemptAt: '2026-10-21T09:00:00Z',
+          lastError: 'the CalDAV server denied access (HTTP 401)',
+          nextSyncAt: '2026-10-21T09:10:00Z',
+          pollIntervalSeconds: 600,
+        },
+      }),
+    ]);
+
+    const row = item('cloud.example.test');
+    expect(row.dataset['state']).toBe('ERROR');
+    expect(row.querySelector('.last-success')?.textContent?.trim()).toBe('Never');
+    expect(row.querySelector('.last-attempt')?.textContent).toContain('2026');
+    expect(row.querySelector('.next')?.textContent?.trim()).not.toBe('');
+    expect(row.querySelector('.source-error')?.textContent).toContain(
+      'Last sync failed: the CalDAV server denied access (HTTP 401)',
+    );
+    expect(
+      row.querySelector<HTMLButtonElement>('button[aria-label="Sync cloud.example.test now"]')
+        ?.disabled,
+    ).toBe(false);
+  });
+
   it('syncs a source now and shows its new status', async () => {
     await open();
     await load();

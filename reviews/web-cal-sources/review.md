@@ -4,39 +4,43 @@ Date: 2026-10-21
 
 Task: web-cal-sources - Settings: calendars and integrations
 
-Scope: `git diff 59631418..HEAD`, excluding `tasks/`, `reviews/` and `web/src/locale/messages.xlf`. Committed changes only. This is a re-review after the fixer addressed CR-1..CR-6 of the previous review. The fixer's commit 65d5a541 is now 91ed5d81 after a rebase.
+Scope: `git diff ea2ffcbb..HEAD`, excluding `tasks/`, `reviews/` and `web/src/locale/messages.xlf`. Committed changes only. This is the final re-review after fix round 2, which addressed P3 CR-1 of the previous review in 5a80ff52.
 
 Requirements:
 - tasks/web-cal-sources.md acceptance criteria and recorded assumptions
 - SPEC.md §4.2 (Problem Details, ETag/If-Match), §6.1, §6.4, §11
 - docs/ARCHITECTURE.md conventions, AGENTS.md project notes
-- Parent instructions: verify the CR-1..CR-6 fixes and review the whole implementation again
+- Parent instructions: verify the round-2 fix and review the whole implementation
 
 Git range:
 - Branch: main
-- HEAD: 91ed5d818fe032a9613ae5703588fcb2824fbfd7
-- Base/start: 59631418af373e0935ae9078ecc0e48a6431fa8b
-- Commits reviewed: 6 (64b11ac0, f28007a2, 507a39c7, 88633600, bbaf1a6d, 91ed5d81)
+- HEAD: 5a80ff522cc8568e313156149cc7fedb42e491db
+- Base/start: ea2ffcbb1662918e762126c2e3f8044816c462ae
+- Commits reviewed: 8 (108d5b68, 10eb551a, a15cc9d7, b6eb88f4, 6137543a, 67406e44, 3e7144b2, 5a80ff52)
 
 Summary: 0 P0, 0 P1, 0 P2, 1 P3
 
-## Verification of previous findings
+## Verification of the previous finding
 
-- **CR-1 (Reconnect adds a calendar source): fixed.** `CalendarSourcesService.reconnect()` saves the connection id in sessionStorage. `takeReconnect()` reads it once and clears it. `connect()` clears a stale id. `finishOAuth` skips the source POST when the callback's `connectionId` matches. This works because the server keeps the same connection id on reconnect: `OAuthConnectionService.complete` looks the connection up by provider and subject. Tests cover a matching reconnect, a reconnect for another account, and the service's one-time read. The sessionStorage fallback is recorded as an assumption.
-- **CR-2 (an older reload overwrites a newer change): fixed for reloads.** `load()` and `reload()` share a sequence. `apply()` drops an answer older than the one already applied and keeps any calendar the page shows at a higher `version`. Two tests cover this with interleaved responses: a stale reload after a PATCH, and an older reload arriving after a newer one. The PATCH merge path still has no version guard; see CR-1 below.
-- **CR-3 (hint text): fixed.** Both hints now say "returns you to Settings → Integrations", which matches `OAuthController.INTEGRATIONS_PAGE`.
-- **CR-4 (a successful add reported as failed): fixed.** `reloadAfterAdd()` turns a failed reload into the "added; reload the page" status, and a test covers it. A failed first sync is still reported as an error that names the added source.
-- **CR-5 (`NewCalendarSource.toString`): fixed.** `toString` now masks `url` and `password`, and a server test covers it.
-- **CR-6 (sync button a11y): fixed.** The aria-label switches to "Syncing <name>…" and `aria-busy` is set while the sync runs. The spec checks both.
+- **CR-1 (round 2), a late PATCH answer replaces a newer reload state: fixed.** `change()` in `calendars-settings.ts:286-289` now merges `saved` only when `saved.version >= c.version`. `apply()` uses the same rule for reloads. The new spec test `keeps a newer state from a reload when a change answers after it` models the scenario from the review: the hide answer (v4) arrives after a reload (v5). The test asserts a single default and `If-Match: "5"` on the next change.
 
-I re-checked these without finding problems:
-- **Server API:** the server endpoint validates each type (CalDAV url/username/password, ICS http(s)/webcal, OAuth connection of the same provider). It refuses URLs with user info and a LOCAL type. It returns 201, or 200 for an OAuth connection that is already linked. Responses never include config or credentials, and the password is stored as `EncryptedSecret`. Errors are Problem Details through `InvalidRequestException`.
-- **Calendar changes:** calendar PATCH sends `If-Match` at the version shown and handles 409 and 412.
-- **Integrations page:** it shows last sync, last attempt, next sync, the error, and "Sync now" for each external source. A failed sync request is shown separately.
-- **OAuth callback:** the query parameters match `OAuthController`. The URL is cleared in `finally`, and the outcome text is rendered by interpolation, not as HTML.
-- **Routes:** the routes replace the two placeholders, and the routes spec was updated.
+## Whole-implementation re-check
 
-Acceptance evidence: `tasks.py verify web-cal-sources` shows all three criteria as not yet verified, so no criterion is claimed without evidence. The parent must still record them. Criterion 3 needs `cd web && npm run check`. I could not run the focused Vitest suite because test execution was denied in this review session, so the test claims above come from reading the specs.
+- **Criterion 1:** I found the following in place:
+  - forms for a local calendar (name and color), CalDAV (URL, user name, app password, optional name), ICS (http(s) or webcal URL) and Google/Microsoft (a redirect to `/api/v1/oauth/{provider}/start?purpose=CALENDAR`, or a hint when the provider is not configured);
+  - per-calendar color, visibility and "Make default" through PATCH with `If-Match`, with 409 and 412 mapped to a "changed elsewhere" message followed by a reload.
+- **Criterion 2:** for each external source, the Integrations page shows last sync, last attempt, next sync, the last error, and "Sync now" with a busy state and its aria-label. A failed sync request is shown separately from a failed sync. The OAuth callback creates the GOOGLE/MICROSOFT source, and a reconnect does not, as the recorded assumptions describe.
+- **Server endpoint `POST /api/v1/calendar/sources`:**
+  - It validates each type and rejects URLs that contain user info.
+  - It stores the CalDAV password as `EncryptedSecret`.
+  - Responses contain no config or credentials.
+  - The `toString` of both the request and the domain object masks the URL and password.
+  - Errors are Problem Details. It returns 201, or 200 for an OAuth connection that is already linked.
+  - The generated client and `api/openapi.yaml` are updated.
+- **Security:** the OAuth outcome and the error text are interpolated, not bound as HTML. There is no unsafe URL construction: the provider slug is limited to `google` or `microsoft`.
+- **Routes:** the two placeholders are replaced, and the routes spec is updated.
+- **Tests:** `cd web && npx ng test --watch=false --include 'src/app/features/settings/**/*.spec.ts'` -> 13 files, 289 tests passed. This run may include uncommitted test-writer files in the working tree.
+- **Acceptance evidence:** `tasks.py verify web-cal-sources` lists all three criteria as not yet verified. No criterion is claimed without evidence. The parent still has to record them, including `cd web && npm run check` for criterion 3.
 
 ## P0 Critical
 
@@ -52,13 +56,13 @@ None.
 
 ## P3 Low
 
-- [ ] **CR-1 | A late PATCH answer can still replace a newer state from a reload**
-    - File: `web/src/app/features/settings/calendars/calendars-settings.ts:284`
+- [ ] **CR-1 | A default change that succeeded is reported as failed when the reload after it fails**
+    - File: `web/src/app/features/settings/calendars/calendars-settings.ts:283`
     - Category: Correctness
-    - Problem: `change()` merges a non-default PATCH result with `c.id === saved.id ? saved : c` and does not compare versions. The reload path now keeps the higher version (`apply()`, line 327), but this path does not. Example: B is the default, and the user toggles B's visibility and makes A the default while both requests are in flight. B's PATCH commits first (version n+1, still default). A's PATCH then clears B's flag (`CalendarService.makeDefault` saves B again, version n+2), and A's reload shows B at n+2. If B's PATCH answer reaches the browser after that reload, B is replaced by its n+1 state. The page then shows two defaults, and B's next change gets a 412.
-    - Why it matters: This is a narrow case with a recoverable 412. It is the remaining part of the out-of-order defect that CR-2 of the previous review fixed for reloads.
-    - Suggested fix: Merge `saved` only when `saved.version >= c.version`, the same rule `apply()` uses. Add a test where the PATCH answer arrives after a reload that carries a higher version.
+    - Problem: When the PATCH with `isDefault: true` succeeds, `change()` calls `await this.reload()` inside the same `try`. If that GET fails (a network blip, a 5xx), the `catch` shows "<name> could not be changed: Something went wrong." even though the server already made the calendar the default. The `saved` result is also not merged into the list, so the page keeps the old default flags and the old `version`. The next change of that calendar then gets a 412. This is the same pattern that CR-4 of the first review fixed for adds (`reloadAfterAdd`).
+    - Why it matters: The user is told that a committed change failed. The case is narrow, and the user can recover through the 412 path or by reloading the page, so the priority is low.
+    - Suggested fix: Merge `saved` first, as in the non-default path, then reload. If the reload fails, show a status such as "saved; reload the page", not a save error. Add a test where the PATCH succeeds and the follow-up GET fails.
 
 ## Review conclusion
 
-No material issues found. All six earlier findings (CR-1 to CR-6) are fixed correctly. The new CR-1 is a low-priority hardening that can be fixed or accepted when the parent records dispositions.
+No material issues found. The round-2 fix is correct and tested. The remaining CR-1 is a low-priority hardening that the parent can fix or accept when recording dispositions.
