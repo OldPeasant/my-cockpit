@@ -4,60 +4,49 @@ Date: 2026-10-21
 
 Task: p3-smoke - Phase 3 demo script (emulator)
 
-Scope: `git diff 0a2260658bf4f25f36e310b05d28b6fec3d087da...HEAD` (task commits 0924a3bc, 11e4da0f, a387f825, cdd61bab, 2bdf5cbd plus the merge commits dfc7cd8b and 004bbe4c that bring them in), committed changes only. This replaces the earlier review of revision 3e67705f.
+Scope: `git diff 0a2260658bf4f25f36e310b05d28b6fec3d087da...HEAD` on the final revision 9434a6f1, committed changes only.
+This replaces the review of revision 004bbe4c. Between 004bbe4c and HEAD, the only change outside `reviews/` and
+`tasks/` is commit 9434a6f1 (`git diff 004bbe4c HEAD -- . ':!reviews' ':!tasks'` shows 1 file, `docs/ARCHITECTURE.md`,
++3/-1).
 
 Requirements:
 - tasks/p3-smoke.md (acceptance criteria and recorded assumptions)
 - SPEC.md §13.2 Phase 3, steps 1-5
 - docs/ARCHITECTURE.md (Test table, "Android demo script", rules on slow suites)
-- AGENTS.md project notes (lint, `.taskcheck` < 2 min, no secrets in logs, fictitious test data)
-- Parent agent instructions (check the CR-1 fix and the stronger step 3, review the final code in full)
+- AGENTS.md project notes
+- Parent agent instructions (confirm the fix of the previous P3 CR-1, check that nothing else changed, re-confirm the verdict)
+- Previous review of 004bbe4c and reviews/p3-smoke/fixes.md
 
 Git range:
 - Branch: main
-- HEAD: 004bbe4c3bb6e6e5380048acead50290284e0e0d
+- HEAD: 9434a6f18693624b35eb941dfd8a9b98d99cc1ea
 - Base/start: 0a2260658bf4f25f36e310b05d28b6fec3d087da
-- Commits reviewed: 7 (5 task commits, 2 merges of `origin/wip/p3-smoke`)
+- Commits reviewed: 9 (6 task commits, 2 merges of `origin/wip/p3-smoke`, 1 review/report commit c54bcfb4)
+- Uncommitted changes: none
 
-Summary: 0 P0, 0 P1, 0 P2, 1 P3
-
-Files read in full: `android/app/src/sharedTest/.../smoke/Phase3Demo.kt`, `.../smoke/E2eStack.kt`,
-`android/app/src/androidTest/.../smoke/Phase3DemoEmulatorTest.kt`, `.../HiltTestRunner.kt`,
-`android/app/src/test/.../smoke/Phase3DemoRobolectricTest.kt`, plus the diffs of `android/app/build.gradle.kts`,
-`android/gradle/libs.versions.toml` and `docs/ARCHITECTURE.md`. Context: `capture/queue/CaptureQueueDatabase.kt` (DAO
-ordering, `insert`, `remoteFileId`) and the app manifest and `CockpitApp.kt`. Neither customizes WorkManager
-initialization, so the default initializer also works under `HiltTestApplication`.
+Summary: 0 P0, 0 P1, 0 P2, 0 P3
 
 What I checked:
-- **CR-1 from the previous review is fixed.** `SmokeDevice.stackReachableOffline` (Phase3Demo.kt:87) is `false` for
-  `EmulatorDevice` and `true` for `RobolectricDevice`. Step 2 now calls the stack only when that flag is true
-  (Phase3Demo.kt:230-232). I found no other stack call between `setOnline(false)` and `setOnline(true)`: the shares,
-  the widget sheet, `pendingCount()` (local Room) and `captureDao.sendable()` (local) run on the device only. The
-  emulator run no longer checks "nothing reached the server offline". That is acceptable: on a real device WorkManager
-  sends the queue as soon as the network returns, so there is no window to check it. Step 3 still checks that exactly
-  the 3 queued client ids were created (`queued.map { it.capture.id } == inbox ids`) and that there are 4 tasks in
-  total.
-- **Step 3 (cdd61bab) is correct.** `sendable()` orders by `createdAtEpochMs, id`, so `queued` is in capture order, and
-  the id comparison is valid. Re-inserting the captures with `remoteFileId = photoFile` simulates a lost answer after
-  the upload. The test then checks that the server deduplicates on client id (same Inbox ids, 4 tasks in total) and
-  that the photo is linked once. The `captureWorkFinished()` wait could pass early (no work info yet, or the old
-  finished work), but the queue-empty wait after it covers that. The shared URL in `notesMd` and the photo bytes
-  through `/links` and `/files/{id}/content` match SPEC.md §13.2 step 3.
-- **Steps 1, 2, 4 and 5 still match the spec and the recorded assumptions:** TOTP login through the UI, then an API
-  stand-in login with a recovery code. Step 4 compares Next, Today and Projects with the API lists, including that
-  "Holiday ideas" is the new project's step. In step 5 the reminder is created through the API, the alarm time is
-  checked exactly on Robolectric and the real clock is used on the emulator.
-- **`.taskcheck` is not affected.** Without `-Pe2eBaseUrl`, `ch.sonensei.cockpit.smoke.*` is excluded from every
-  `Test` task, and `RobolectricDevice.setUp` also calls `assumeTrue` on the base URL.
-- **Security:** `/api/test/reset` is only called on the URL given explicitly, and it fails on stacks without the e2e
-  profile. Credentials are fictitious, and no tokens or secrets are logged.
-- **Re-run during this review:** `cd android && ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.smoke.*'
-  -Pe2eBaseUrl=http://127.0.0.1:18390/` on HEAD 004bbe4c gave 1 test, 0 skipped, 0 failures, 29.9 s
-  (`TEST-ch.sonensei.cockpit.smoke.Phase3DemoRobolectricTest.xml`). The emulator variant was not run because this
-  machine has no emulator.
-- **Evidence status:** `tasks.py verify p3-smoke` still shows both criteria unticked. Before `done`, the parent must
-  record the Robolectric run for criterion 1 together with `--skip` and the reason for the emulator part, and record
-  criterion 2.
+- **The previous CR-1 (P3) is fixed.** The `Phase3DemoEmulatorTest` bullet in `docs/ARCHITECTURE.md:165-169` now says
+  the emulator runner has only been compiled (`compileDebugAndroidTestKotlin`) and never run on an emulator (task
+  p3-smoke), that the Robolectric runner is the one verified against the e2e stack, and that problems should be reported
+  as a task. This matches the recorded assumption in `tasks/p3-smoke.md` and the fix described in
+  `reviews/p3-smoke/fixes.md`. No other text changed.
+- **Nothing else changed.** `git diff 004bbe4c HEAD -- . ':!reviews' ':!tasks'` contains only that hunk. The Kotlin
+  sources (`Phase3Demo.kt`, `E2eStack.kt`, `Phase3DemoEmulatorTest.kt`, `HiltTestRunner.kt`,
+  `Phase3DemoRobolectricTest.kt`), `android/app/build.gradle.kts` and `android/gradle/libs.versions.toml` are identical to
+  revision 004bbe4c. That revision was reviewed in full with no findings above P3, so those conclusions still hold
+  (CR-1 of the earlier round fixed by `stackReachableOffline`, step 3 client-id/dedup checks, steps 1/2/4/5 matching the
+  spec and the assumptions, the smoke package left out of `.taskcheck` without `-Pe2eBaseUrl`, no secrets logged,
+  `/api/test/reset` only called on an explicit URL).
+- **Criterion 1:** Recorded with the Robolectric run against the e2e stack (1 passed, 0 skipped), with the emulator part
+  explained as not possible here and the compile-only status of the emulator runner. The code is the same as when I
+  re-ran the Robolectric demo on 004bbe4c (1 test, 0 failures, 29.9 s). It was not re-run for this docs-only change.
+- **Criterion 2:** `docs/ARCHITECTURE.md` "Android demo script" documents the e2e stack startup, the system image
+  install (`sdkmanager ... system-images;android-36;google_apis;x86_64`, arm64 note), AVD creation (`avdmanager create
+  avd -n cockpit-api36`), emulator start, and both run commands. The Test table lists both commands. The content meets
+  the criterion. `tasks/p3-smoke.md` still shows criterion 2 unticked, so the parent must record it with
+  `tasks.py verify` before `done`. This is an open process step, not a code finding.
 
 ## P0 Critical
 
@@ -73,18 +62,7 @@ None.
 
 ## P3 Low
 
-- [ ] **CR-1 | The ARCHITECTURE.md demo section presents the emulator runner as working, but it has never run**
-    - File: `docs/ARCHITECTURE.md:165`
-    - Category: Quality
-    - Problem: The "Android demo script" section describes `Phase3DemoEmulatorTest` and its run commands without any
-      caveat. The task's recorded assumption says this variant compiles (`compileDebugAndroidTestKotlin`) but has
-      never run on an emulator. The previous review suggested noting this in the docs if the variant stayed
-      unexecuted; that was not done.
-    - Why it matters: The emulator path depends on behavior no test has exercised (real airplane mode through
-      `cmd connectivity`, `appops` for exact alarms, MediaStore inserts, cleartext to 10.0.2.2 from the instrumentation
-      process). The first person to run it may hit a problem and assume their own setup is at fault.
-    - Suggested fix: Add one sentence to the emulator bullet, for example "not yet run on an emulator (see task
-      p3-smoke); report problems as a task".
+None.
 
 ## Review conclusion
 

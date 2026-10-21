@@ -4,8 +4,13 @@ Date: 2026-10-21
 
 Task: p3-smoke - Phase 3 demo script (emulator), SPEC.md §13.2 Phase 3 steps 1-5
 
-Scope: `git diff 0a2260658bf4f25f36e310b05d28b6fec3d087da...HEAD`, HEAD `004bbe4c3bb6e6e5380048acead50290284e0e0d`
-(task commits 0924a3bc, 11e4da0f, a387f825, cdd61bab, 2bdf5cbd, plus the merges dfc7cd8b and 004bbe4c from
+Scope: `git diff 0a2260658bf4f25f36e310b05d28b6fec3d087da...HEAD`. Final reviewed revision `9434a6f18693624b35eb941dfd8a9b98d99cc1ea`.
+When this re-run happened, the clone's HEAD was `7c412d08e483fc44673f2bf97a7f597beda2ba85` (a rebase onto newer main).
+`git diff --stat 9434a6f1 7c412d08` shows only `tasks/and-cal-agenda.md`, `tasks/cal-caldav.md` and `tasks/p3-smoke.md`, so the
+code and test tree is identical to 9434a6f1. The only non-`reviews`/`tasks` change since the previous report (004bbe4c)
+is in `docs/ARCHITECTURE.md`: 3 lines added, 1 removed. It says the emulator runner has only been compiled, not run
+(see `reviews/p3-smoke/fixes.md`). That change is not test-relevant.
+The first run of this report was on HEAD `004bbe4c3bb6e6e5380048acead50290284e0e0d` (task commits 0924a3bc, 11e4da0f, a387f825, cdd61bab, 2bdf5cbd, plus the merges dfc7cd8b and 004bbe4c from
 `origin/wip/p3-smoke`). Changed files: `android/app/build.gradle.kts`, `android/gradle/libs.versions.toml`,
 `android/app/src/androidTest/.../HiltTestRunner.kt`, `.../smoke/Phase3DemoEmulatorTest.kt`,
 `android/app/src/sharedTest/.../smoke/{Phase3Demo,E2eStack}.kt`, `android/app/src/test/.../smoke/Phase3DemoRobolectricTest.kt`,
@@ -50,7 +55,7 @@ Observations (no action needed, for the parent):
 
 | Requirement | Tests | Command | Result |
 |---|---|---|---|
-| Crit 1: steps 1-5 against the e2e stack, Robolectric fallback | `Phase3DemoRobolectricTest.phase3Demo` | `cd android && ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.smoke.*' -Pe2eBaseUrl=http://127.0.0.1:18390/ --console=plain` (stack health UP before the run) | Pass: 1 test, 0 skipped, 0 failures, 35.1 s (suite timestamp 2026-10-21T13:32:35Z) |
+| Crit 1: steps 1-5 against the e2e stack, Robolectric fallback | `Phase3DemoRobolectricTest.phase3Demo` | `cd android && ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.smoke.*' -Pe2eBaseUrl=http://127.0.0.1:18390/ --console=plain` (stack health UP before the run) | Pass on the final revision (tree of 9434a6f1, HEAD 7c412d08): 1 test, 0 skipped, 0 failures, 39.7 s (suite timestamp 2026-10-21T13:37:30Z). The earlier run on 004bbe4c also passed (35.1 s) |
 | Crit 1: instrumented run on an emulator | `Phase3DemoEmulatorTest.phase3Demo` | `./gradlew compileDebugAndroidTestKotlin ktlintCheck` (compile only) | Not run: no emulator/system image here (recorded assumption). It only compiled (BUILD SUCCESSFUL). Compiling is not execution |
 | Smoke excluded from unit runs without `-Pe2eBaseUrl` (keeps `.taskcheck` fast) | whole unit suite | `cd android && ./gradlew testDebugUnitTest --console=plain` | Pass: 100 result files, 1044 tests, 0 failed/skipped. No `ch.sonensei.cockpit.smoke.*` result file (the only "Smoke" file is the unrelated `ch.sonensei.cockpit.TestLibrariesSmokeTest`) |
 | Crit 2: ARCHITECTURE.md documents how to run (system image, AVD) | n/a (docs) | Read `docs/ARCHITECTURE.md` "Android demo script" | Not testable as code. The section has the stack command, Robolectric command, sdkmanager system image, avdmanager AVD, emulator start and connectedDebugAndroidTest. The Robolectric commands match what I ran |
@@ -63,7 +68,9 @@ Command:
 
 Result:
 
-Pass (1 test, 35.1 s, BUILD SUCCESSFUL in 37 s, 2026-10-21 15:32:33-15:33:10 +02:00)
+Pass on the final revision (tree of 9434a6f1, HEAD 7c412d08): 1 test, 0 skipped/failures, 39.7 s, BUILD SUCCESSFUL in 42 s,
+finished 2026-10-21T15:38:10+02:00. I used the e2e stack that was already running and did not start or stop it.
+Earlier run on 004bbe4c: Pass (1 test, 35.1 s, BUILD SUCCESSFUL in 37 s, 2026-10-21 15:32:33-15:33:10 +02:00).
 
 ## Full test execution
 
@@ -74,7 +81,7 @@ and `./gradlew compileDebugAndroidTestKotlin ktlintCheck`
 
 Result:
 
-Pass. The first attempt of `testDebugUnitTest` failed with a Gradle infrastructure error
+Pass (run on 004bbe4c; I did not re-run it for 9434a6f1 because only one `docs/ARCHITECTURE.md` sentence changed since). The first attempt of `testDebugUnitTest` failed with a Gradle infrastructure error
 (`NoSuchFileException .../test-results/testDebugUnitTest/binary/in-progress-results-generic.bin`, no test failure). The
 immediate retry passed: 1044 tests, 0 failures. `ktlintCheck lintDebug` and `compileDebugAndroidTestKotlin ktlintCheck`
 both reported BUILD SUCCESSFUL.
@@ -83,7 +90,7 @@ both reported BUILD SUCCESSFUL.
 
 Result:
 
-Fail, in a part this task does not touch. `sh scripts/check.sh` (15:33:21-15:34:11):
+Not run for the final revision: the parent runs it. Earlier run on 004bbe4c: Fail, in a part this task does not touch. `sh scripts/check.sh` (15:33:21-15:34:11):
 - the TFP gate tests passed;
 - `server: ./gradlew check` passed;
 - `web: npm run check` failed: 57 of 2275 tests in 8 spec files (linked-items, inbox-page, projects-states, task-detail,
@@ -110,13 +117,13 @@ Metric: whole-file coverage of task-changed production files: N/A (no production
 Changed-line coverage: not measured (no production lines changed).
 
 Evidence:
-- Task id, immutable base, measured HEAD, and task-owned commits/file-scope source: p3-smoke. Base `0a2260658bf4f25f36e310b05d28b6fec3d087da` (claim commit, from the parent). HEAD `004bbe4c3bb6e6e5380048acead50290284e0e0d`. Task commits 0924a3bc, 11e4da0f, a387f825, cdd61bab, 2bdf5cbd come from the parent and match `git log base..HEAD`.
-- Source/test snapshot identifier (including uncommitted inputs): HEAD 004bbe4c. The only uncommitted change is `reviews/p3-smoke/review.md` (not a test input).
+- Task id, immutable base, measured HEAD, and task-owned commits/file-scope source: p3-smoke. Base `0a2260658bf4f25f36e310b05d28b6fec3d087da` (claim commit, from the parent). Final revision `9434a6f18693624b35eb941dfd8a9b98d99cc1ea` (HEAD at the time of the re-run: `7c412d08e483fc44673f2bf97a7f597beda2ba85`, which differs from it only in `tasks/`). First run: HEAD `004bbe4c3bb6e6e5380048acead50290284e0e0d`, task commits 0924a3bc, 11e4da0f, a387f825, cdd61bab, 2bdf5cbd from the parent, matching `git log base..HEAD`. 9434a6f1 adds only one `docs/ARCHITECTURE.md` sentence.
+- Source/test snapshot identifier (including uncommitted inputs): the tree of 9434a6f1 (checked out as HEAD 7c412d08). The only uncommitted change during the re-run was `tasks/p3-smoke.md`, which is not a test input.
 - Exact included files; renamed/deleted/excluded files and reasons: no production files included. Excluded: the 5 Kotlin test sources (test code), `build.gradle.kts` / `libs.versions.toml` (build configuration), `docs/ARCHITECTURE.md`, `reviews/p3-smoke/review.md` (documentation). No renames or deletions.
 - Provider/version, command, working directory, and test selection: not run (empty production scope).
 - Run start/completion time and exit status: N/A.
 - Generated report paths and report hashes/run identifier: N/A.
-- Evidence outputs are fresh and inputs stayed unchanged: the test runs above are from this session on HEAD 004bbe4c. Inputs did not change between runs.
+- Evidence outputs are fresh and inputs stayed unchanged: the focused demo run comes from the final revision. The full Android unit suite and lint ran on 004bbe4c, whose code and test files equal the final revision. Inputs did not change during the runs.
 - Final run after latest test additions and production fixes: yes (no tests added, no production fixes).
 
 | Changed file | Statements | Branches | Functions | Lines |
@@ -140,3 +147,5 @@ No additional tests were necessary for the reviewed scope. The demo covers SPEC.
 Robolectric against the e2e stack. The gating keeps it out of plain `testDebugUnitTest` runs. The emulator variant compiles
 but was not run. `.taskcheck` failed in the web unit tests (not part of this task, probably caused by load) and must be
 re-run by the parent.
+
+On the final revision 9434a6f1, the demo passed again against the e2e stack. Only documentation changed since 004bbe4c.

@@ -1,0 +1,22 @@
+{
+  "schema": 1,
+  "task": "p3-smoke",
+  "reviewed_revision": "a2644160efed7792451bfc52b7d1fea2addde8da",
+  "helpers": {
+    "test-writer":   {"status": "completed", "report": "reviews/p3-smoke/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/p3-smoke/review.md"},
+    "fixer":         {"status": "completed", "report": "reviews/p3-smoke/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "review round 1: step 2 queried the stack while the emulator is in airplane mode; fixed by SmokeDevice.stackReachableOffline (91ebba51)"},
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "review round 2: ARCHITECTURE.md presented the never-run emulator runner as working; caveat added (a2644160)"}
+  ],
+  "validation": [
+    {"command": "cd android && ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.smoke.*' -Pe2eBaseUrl=http://127.0.0.1:18390/ (against docker compose -f deploy/docker-compose.e2e.yml up)", "result": "pass"},
+    {"command": "cd android && ./gradlew compileDebugAndroidTestKotlin ktlintCheck", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
