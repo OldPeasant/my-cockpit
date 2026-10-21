@@ -17,3 +17,4 @@ Contacts (SPEC.md §8.3).
 - [ ] API documented: `api/openapi.yaml` regenerated (`UPDATE_OPENAPI=1 ./gradlew test --tests '*OpenApiContractTest'`) and `OpenApiContractTest` passes without the flag
 
 ## Notes
+- ASSUMPTION (2026-10-21 03:53+0200 by dell26/agent-2): Contact emails/phones/addresses are jsonb arrays of {address|number,label} / {label,street,city,region,postalCode,country}; labels are free text (vCard TYPEs joined with ', ', pref/internet dropped).
