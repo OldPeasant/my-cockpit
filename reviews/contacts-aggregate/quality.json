@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "task": "contacts-aggregate",
-  "reviewed_revision": "25c7b0fee8131e77147fed585c274cc53238d9e5",
+  "reviewed_revision": "f489a6ec02e80f634d80dbd168d2738844ef77ad",
   "helpers": {
     "test-writer": {"status": "completed", "report": "reviews/contacts-aggregate/tests.md"},
     "code-reviewer": {"status": "completed", "report": "reviews/contacts-aggregate/review.md"},
