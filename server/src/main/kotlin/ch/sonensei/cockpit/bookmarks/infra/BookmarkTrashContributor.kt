@@ -1,22 +1,28 @@
 package ch.sonensei.cockpit.bookmarks.infra
 
+import ch.sonensei.cockpit.bookmarks.domain.BookmarkMetadataRequested
+import ch.sonensei.cockpit.bookmarks.domain.MetadataStatus
 import ch.sonensei.cockpit.bookmarks.domain.indexBookmark
 import ch.sonensei.cockpit.core.items.domain.ItemType
 import ch.sonensei.cockpit.core.search.domain.SearchIndexer
 import ch.sonensei.cockpit.core.trash.domain.TrashContributor
 import ch.sonensei.cockpit.core.trash.domain.TrashedItem
 import org.hibernate.Hibernate
+import org.springframework.context.ApplicationEventPublisher
 import org.springframework.stereotype.Component
 import java.util.UUID
 
 /**
  * Deleted bookmarks in the Trash. A restored bookmark is searchable again (its links stayed while it was in the
- * Trash); a purge deletes the bookmark with its tags. Its snapshot file stays in Files.
+ * Trash); a purge deletes the bookmark with its tags. Its snapshot file stays in Files. A bookmark deleted while its
+ * page metadata was still being fetched has that result ignored, so its restore requests a new fetch (filling empty
+ * fields only).
  */
 @Component
 class BookmarkTrashContributor(
 	private val bookmarks: BookmarkRepository,
 	private val indexer: SearchIndexer,
+	private val events: ApplicationEventPublisher,
 ) : TrashContributor {
 	override val type = ItemType.BOOKMARK
 
@@ -35,8 +41,11 @@ class BookmarkTrashContributor(
 		val bookmark = bookmarks.findById(id).orElse(null)?.takeIf { it.isDeleted } ?: return false
 		bookmark.restore()
 		Hibernate.initialize(bookmark.tags)
+		val refetch = bookmark.metadataStatus == MetadataStatus.PENDING
+		if (refetch) bookmark.requestMetadata()
 		bookmarks.saveAndFlush(bookmark)
 		indexer.indexBookmark(bookmark)
+		if (refetch) events.publishEvent(BookmarkMetadataRequested(bookmark.id, bookmark.url, bookmark.metadataFetch, overwrite = false))
 		return true
 	}
 

@@ -40,7 +40,11 @@ class BookmarkMigrationTests {
 				others.filter { version(it) == version(path) }.shouldBeEmpty()
 			}
 		}
-		bookmarks.groupBy(::version).filterValues { it.size > 1 }.keys.shouldBeEmpty()
+		bookmarks
+			.groupBy(::version)
+			.filterValues { it.size > 1 }
+			.keys
+			.shouldBeEmpty()
 	}
 
 	/** Flyway version of `<module>/V<version>__<desc>.sql`; Flyway reads `_` in a version as `.`. */

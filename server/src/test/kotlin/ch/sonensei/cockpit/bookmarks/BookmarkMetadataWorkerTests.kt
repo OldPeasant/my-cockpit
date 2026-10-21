@@ -72,11 +72,14 @@ class BookmarkMetadataWorkerTests {
 		queueSize,
 	)
 
-	private fun worker(properties: BookmarkFetchProperties = properties()) = BookmarkMetadataWorker(service, properties).also { workers += it }
+	private fun worker(
+		properties: BookmarkFetchProperties = properties(),
+		fetcher: PageFetcher = PageFetcher(properties),
+	) = BookmarkMetadataWorker(service, properties, fetcher).also { workers += it }
 
 	private fun page(path: String) = "http://127.0.0.1:${server.port()}$path"
 
-	private fun request(url: String) = BookmarkMetadataRequested(UUID.randomUUID(), url, overwrite = false)
+	private fun request(url: String) = BookmarkMetadataRequested(UUID.randomUUID(), url, FETCH, overwrite = false)
 
 	/**
 	 * Queues a marker request after the others on a one-thread worker and waits for it: everything queued before it has
@@ -100,13 +103,13 @@ class BookmarkMetadataWorkerTests {
 				aResponse().withHeader("Content-Type", "text/html").withBody("""<title>Alpine huts</title><meta name="description" content="Map">"""),
 			),
 		)
-		val request = BookmarkMetadataRequested(UUID.randomUUID(), page("/a"), overwrite = true)
+		val request = BookmarkMetadataRequested(UUID.randomUUID(), page("/a"), FETCH, overwrite = true)
 		every { service.applyMetadata(any(), any(), any(), any()) } returns true
 
 		worker().onRequested(request)
 
 		verify(timeout = 5_000, exactly = 1) {
-			service.applyMetadata(request.id, page("/a"), true, PageMetadata("Alpine huts", "Map", page("/favicon.ico")))
+			service.applyMetadata(request.id, FETCH, true, PageMetadata("Alpine huts", "Map", page("/favicon.ico")))
 		}
 	}
 
@@ -117,7 +120,7 @@ class BookmarkMetadataWorkerTests {
 
 		worker().onRequested(request)
 
-		verify(timeout = 5_000, exactly = 1) { service.applyMetadata(request.id, page("/missing"), false, null) }
+		verify(timeout = 5_000, exactly = 1) { service.applyMetadata(request.id, FETCH, false, null) }
 	}
 
 	@Test
@@ -128,7 +131,7 @@ class BookmarkMetadataWorkerTests {
 
 		worker.onRequested(request)
 
-		verify(timeout = 5_000, exactly = 1) { service.applyMetadata(request.id, "http://127.0.0.1/", false, null) }
+		verify(timeout = 5_000, exactly = 1) { service.applyMetadata(request.id, FETCH, false, null) }
 		server.allServeEvents.size shouldBe 0
 	}
 
@@ -169,15 +172,17 @@ class BookmarkMetadataWorkerTests {
 	}
 
 	@Test
-	fun `requests beyond the queue size are dropped without failing the caller`() {
+	fun `requests beyond the queue size are stored as failed without failing the caller`() {
 		val release = CountDownLatch(1)
-		val worker = worker(properties(allowPrivateNetworks = false, threads = 1, queueSize = 1))
-		// The first fetch blocks in name resolution until released, so the single thread stays busy.
-		worker.fetcher =
-			PageFetcher(properties(allowPrivateNetworks = false)) { _ ->
-				release.await(10, TimeUnit.SECONDS)
-				listOf(InetAddress.getByName("10.0.0.1"))
-			}
+		val worker =
+			worker(
+				properties(allowPrivateNetworks = false, threads = 1, queueSize = 1),
+				// The first fetch blocks in name resolution until released, so the single thread stays busy.
+				PageFetcher(properties(allowPrivateNetworks = false)) { _ ->
+					release.await(10, TimeUnit.SECONDS)
+					listOf(InetAddress.getByName("10.0.0.1"))
+				},
+			)
 		val running = request("http://busy.example/")
 		val queued = request("http://queued.example/")
 		val dropped = request("http://dropped.example/")
@@ -195,17 +200,57 @@ class BookmarkMetadataWorkerTests {
 		queuedDone.await(10, TimeUnit.SECONDS) shouldBe true
 
 		verify(exactly = 1) { service.applyMetadata(running.id, any(), any(), null) }
-		verify(exactly = 0) { service.applyMetadata(dropped.id, any(), any(), any()) }
+		// Not fetched, but stored as FAILED at once (on the caller's thread), so it does not stay PENDING.
+		verify(exactly = 1) { service.applyMetadata(dropped.id, FETCH, false, null) }
 	}
 
 	@Test
-	fun `after shutdown requests are dropped without failing the caller`() {
+	fun `after shutdown requests are stored as failed without failing the caller`() {
 		val worker = worker()
 		worker.destroy()
+		val request = request(page("/a"))
+		every { service.applyMetadata(any(), any(), any(), any()) } returns true
 
-		// Rejected synchronously by the stopped executor: nothing was queued that could still run.
+		// Rejected synchronously by the stopped executor: nothing is fetched, the status is FAILED at once.
+		worker.onRequested(request)
+
+		verify(exactly = 1) { service.applyMetadata(request.id, FETCH, false, null) }
+		server.allServeEvents.size shouldBe 0
+	}
+
+	@Test
+	fun `a rejected request that cannot be stored does not fail the caller`() {
+		val worker = worker()
+		worker.destroy()
+		every { service.applyMetadata(any(), any(), any(), any()) } throws IllegalStateException("database down")
+
 		worker.onRequested(request(page("/a")))
 
+		verify(exactly = 1) { service.applyMetadata(any(), any(), any(), any()) }
+	}
+
+	@Test
+	fun `on startup the fetches of bookmarks still pending are queued again`() {
+		server.stubFor(get(urlEqualTo("/p")).willReturn(aResponse().withHeader("Content-Type", "text/html").withBody("<title>Pending</title>")))
+		val pending = BookmarkMetadataRequested(UUID.randomUUID(), page("/p"), 7, overwrite = false)
+		every { service.pendingMetadataRequests() } returns listOf(pending)
+		every { service.applyMetadata(any(), any(), any(), any()) } returns true
+
+		worker().requeuePending()
+
+		verify(timeout = 5_000, exactly = 1) { service.applyMetadata(pending.id, 7, false, PageMetadata("Pending", null, page("/favicon.ico"))) }
+	}
+
+	@Test
+	fun `on startup a failure to load the pending fetches does not stop the application`() {
+		every { service.pendingMetadataRequests() } throws IllegalStateException("database down")
+
+		worker().requeuePending()
+
 		verify(exactly = 0) { service.applyMetadata(any(), any(), any(), any()) }
+	}
+
+	private companion object {
+		const val FETCH = 1L
 	}
 }

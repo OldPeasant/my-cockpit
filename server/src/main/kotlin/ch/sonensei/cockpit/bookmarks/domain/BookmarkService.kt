@@ -18,9 +18,8 @@ import org.springframework.context.ApplicationEventPublisher
 import org.springframework.data.domain.Sort
 import org.springframework.data.jpa.domain.Specification
 import org.springframework.stereotype.Service
+import org.springframework.transaction.annotation.Propagation
 import org.springframework.transaction.annotation.Transactional
-import java.net.URI
-import java.net.URISyntaxException
 import java.time.Clock
 import java.time.Instant
 import java.util.UUID
@@ -105,6 +104,7 @@ class BookmarkService(
 		val bookmark = Bookmark(normalizeUrl(url.value))
 		apply(bookmark, fields)
 		validate(bookmark)
+		bookmark.requestMetadata()
 		val saved = bookmarks.saveAndFlush(bookmark)
 		requestMetadata(saved, overwrite = false)
 		changed(saved, ChangeOp.CREATED)
@@ -129,7 +129,7 @@ class BookmarkService(
 		if (newUrl != null) {
 			bookmark.url = newUrl
 			bookmark.favicon = null
-			bookmark.metadataStatus = MetadataStatus.PENDING
+			bookmark.requestMetadata()
 		}
 		validate(bookmark)
 		val saved = bookmarks.saveAndFlush(bookmark)
@@ -145,7 +145,7 @@ class BookmarkService(
 	): Bookmark {
 		val bookmark = load(id)
 		checkVersion(bookmark.version)
-		bookmark.metadataStatus = MetadataStatus.PENDING
+		bookmark.requestMetadata()
 		val saved = bookmarks.saveAndFlush(bookmark)
 		requestMetadata(saved, overwrite = true)
 		changed(saved)
@@ -153,24 +153,25 @@ class BookmarkService(
 	}
 
 	/**
-	 * Stores the result of a metadata fetch of [url] for bookmark [id]: [metadata] fills the empty title, description
-	 * and favicon (with [overwrite]: replaces them where something was fetched), `null` (the fetch failed) only sets the
-	 * status. Ignored (`false`) when the bookmark is gone, in the Trash, or its URL changed since (a newer fetch is
-	 * pending).
+	 * Stores the result of metadata fetch number [fetch] ([Bookmark.metadataFetch]) of bookmark [id]: [metadata] fills
+	 * the empty title, description and favicon (with [overwrite]: replaces them where something was fetched), `null`
+	 * (the fetch failed) only sets the status. Ignored (`false`) when the bookmark is gone, in the Trash, or a newer
+	 * fetch was requested since (e.g. after a URL change or a refresh).
+	 *
+	 * Runs in a transaction of its own: it is also called after the commit of the saving transaction (when a fetch
+	 * cannot be queued), where joining that finished transaction would never write the change.
 	 */
+	@Transactional(propagation = Propagation.REQUIRES_NEW)
 	fun applyMetadata(
 		id: UUID,
-		url: String,
+		fetch: Long,
 		overwrite: Boolean,
 		metadata: PageMetadata?,
 	): Boolean {
-		val bookmark = bookmarks.findActiveById(id)?.takeIf { it.url == url } ?: return false
+		val bookmark = bookmarks.findActiveById(id)?.takeIf { it.metadataFetch == fetch } ?: return false
 		Hibernate.initialize(bookmark.tags)
-		if (metadata == null) {
-			bookmark.metadataStatus = MetadataStatus.FAILED
-		} else {
-			bookmark.metadataStatus = MetadataStatus.FETCHED
-
+		bookmark.metadataFetched(fetch, fetched = metadata != null)
+		if (metadata != null) {
 			fun pick(
 				current: String?,
 				fetched: String?,
@@ -182,6 +183,14 @@ class BookmarkService(
 		changed(bookmarks.saveAndFlush(bookmark))
 		return true
 	}
+
+	/**
+	 * The fetch requests of the bookmarks (not in the Trash) whose metadata is still `PENDING`, e.g. because the
+	 * application stopped before their fetch finished. They fill empty fields only.
+	 */
+	@Transactional(readOnly = true)
+	fun pendingMetadataRequests(): List<BookmarkMetadataRequested> =
+		bookmarks.findPendingMetadata().map { BookmarkMetadataRequested(it.id, it.url, it.metadataFetch, overwrite = false) }
 
 	/** Moves the bookmark to the Trash. */
 	fun delete(
@@ -209,7 +218,7 @@ class BookmarkService(
 		bookmark: Bookmark,
 		overwrite: Boolean,
 	) {
-		events.publishEvent(BookmarkMetadataRequested(bookmark.id, bookmark.url, overwrite))
+		events.publishEvent(BookmarkMetadataRequested(bookmark.id, bookmark.url, bookmark.metadataFetch, overwrite))
 	}
 
 	/** Re-indexes a bookmark ([indexBookmark]) and announces it as changed. */
@@ -247,25 +256,17 @@ class BookmarkService(
 	}
 
 	/**
-	 * The URL trimmed.
+	 * The URL trimmed, with an IDN host in ASCII form and characters a URI does not allow percent-encoded
+	 * ([BookmarkUrls.normalize]).
 	 *
 	 * @throws InvalidRequestException (400) unless it is an absolute http(s) URL with a host, of at most [MAX_URL_LENGTH]
-	 * characters
+	 * characters (also once encoded)
 	 */
 	private fun normalizeUrl(url: String): String {
-		val trimmed = url.trim()
-		if (trimmed.length > MAX_URL_LENGTH) throw InvalidRequestException("url", "must be at most $MAX_URL_LENGTH characters")
-		val uri =
-			try {
-				URI(trimmed)
-			} catch (_: URISyntaxException) {
-				throw InvalidRequestException("url", "must be a valid http or https URL")
-			}
-		val scheme = uri.scheme?.lowercase()
-		if ((scheme != "http" && scheme != "https") || uri.host.isNullOrEmpty()) {
-			throw InvalidRequestException("url", "must be a valid http or https URL")
-		}
-		return trimmed
+		if (url.trim().length > MAX_URL_LENGTH) throw InvalidRequestException("url", "must be at most $MAX_URL_LENGTH characters")
+		val normalized = BookmarkUrls.normalize(url) ?: throw InvalidRequestException("url", "must be a valid http or https URL")
+		if (normalized.length > MAX_URL_LENGTH) throw InvalidRequestException("url", "must be at most $MAX_URL_LENGTH characters")
+		return normalized
 	}
 
 	/**
@@ -359,11 +360,21 @@ class BookmarkService(
 	}
 }
 
-/** Fetched text: whitespace collapsed, without NUL characters, at most [maxLength] characters; `null` when empty. */
+/**
+ * Fetched text: whitespace collapsed, without NUL characters, at most [maxLength] characters (UTF-16 units; a
+ * character made of two is never cut in half); `null` when empty.
+ */
 private fun String.clean(maxLength: Int): String? =
 	replace("\u0000", "")
 		.replace(Regex("\\s+"), " ")
 		.trim()
-		.take(maxLength)
+		.takeCodePointSafe(maxLength)
 		.trim()
 		.ifEmpty { null }
+
+/** At most the first [maxLength] UTF-16 units, without a high surrogate left over at the end. */
+private fun String.takeCodePointSafe(maxLength: Int): String {
+	if (length <= maxLength) return this
+	val end = if (maxLength > 0 && this[maxLength - 1].isHighSurrogate()) maxLength - 1 else maxLength
+	return substring(0, end)
+}

@@ -23,7 +23,7 @@ class BookmarkFetchProperties(
 	@DefaultValue("false") val allowPrivateNetworks: Boolean,
 	/** How many pages are fetched at the same time; more requests wait in a queue. */
 	@DefaultValue("2") val threads: Int,
-	/** Requests beyond this many waiting are dropped (the bookmark's metadata stays `PENDING` until refreshed). */
+	/** Requests beyond this many waiting are not fetched; their bookmark's metadata is stored as `FAILED`. */
 	@DefaultValue("500") val queueSize: Int,
 ) {
 	init {

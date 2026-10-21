@@ -288,6 +288,16 @@ class BookmarkWebTests(
 	}
 
 	@Test
+	fun `URLs as browsers copy them (IDN host, underscores, unencoded characters) are stored in a safe form`() {
+		// JSON escapes keep the request body ASCII: an IDN host, a non-ASCII path and a query with '|' and a space.
+		val idn = newBookmark("""{"url":"https://b\u00fccher.invalid/Stra\u00dfe?q=a|b c"}""")
+		idn.text("url") shouldBe "https://xn--bcher-kva.invalid/Stra%C3%9Fe?q=a%7Cb%20c"
+		idn.text("displayTitle") shouldBe "b\u00fccher.invalid"
+		newBookmark("""{"url":"https://a_b.unreachable.invalid/list[1]"}""").text("url") shouldBe "https://a_b.unreachable.invalid/list%5B1%5D"
+		newBookmark("""{"url":"https://unreachable.invalid/50%25?x={y}"}""").text("url") shouldBe "https://unreachable.invalid/50%25?x=%7By%7D"
+	}
+
+	@Test
 	fun `PATCH changes only the sent fields, needs a current If-Match and rejects unknown fields and nulls`() {
 		val bookmark = newBookmark("""{"url":"https://unreachable.invalid/a","title":"A","description":"About A","tags":["x"]}""")
 

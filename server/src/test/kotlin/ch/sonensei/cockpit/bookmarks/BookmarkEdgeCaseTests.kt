@@ -211,7 +211,13 @@ class BookmarkEdgeCaseTests(
 	fun `stored metadata bumps the version, re-indexes and fills only empty fields`() {
 		val bookmark = failedBookmark(title = "Own title")
 
-		service.applyMetadata(bookmark.id, bookmark.url, false, PageMetadata("Page title", "Page text", "https://cdn.example/f.ico")) shouldBe true
+		service.applyMetadata(
+			bookmark.id,
+			bookmark.metadataFetch,
+			false,
+			PageMetadata("Page title", "Page text", "https://cdn.example/f.ico"),
+		) shouldBe
+			true
 
 		val stored = service.get(bookmark.id)
 		stored.metadataStatus shouldBe MetadataStatus.FETCHED
@@ -225,9 +231,9 @@ class BookmarkEdgeCaseTests(
 	@Test
 	fun `with overwrite, values the page does not have keep the current ones`() {
 		val bookmark = failedBookmark(title = "Kept title", description = "Kept text")
-		service.applyMetadata(bookmark.id, bookmark.url, false, PageMetadata(favicon = "https://cdn.example/old.ico"))
+		service.applyMetadata(bookmark.id, bookmark.metadataFetch, false, PageMetadata(favicon = "https://cdn.example/old.ico"))
 
-		service.applyMetadata(bookmark.id, bookmark.url, true, PageMetadata(title = "New title")) shouldBe true
+		service.applyMetadata(bookmark.id, bookmark.metadataFetch, true, PageMetadata(title = "New title")) shouldBe true
 
 		val stored = service.get(bookmark.id)
 		stored.title shouldBe "New title"
@@ -242,11 +248,17 @@ class BookmarkEdgeCaseTests(
 		val longTitle = "t".repeat(499) + " and more words"
 		val longDescription = "d".repeat(2_500)
 
-		service.applyMetadata(bookmark.id, bookmark.url, false, PageMetadata(longTitle, longDescription)) shouldBe true
+		service.applyMetadata(bookmark.id, bookmark.metadataFetch, false, PageMetadata(longTitle, longDescription)) shouldBe true
 		service.get(bookmark.id).title shouldBe "t".repeat(499)
 		service.get(bookmark.id).description shouldBe "d".repeat(BookmarkService.MAX_DESCRIPTION_LENGTH)
 
-		service.applyMetadata(bookmark.id, bookmark.url, true, PageMetadata("Tom\u0000atoes\n\t on   the balcony", "\u0000 Bal\u0000cony ")) shouldBe true
+		service.applyMetadata(
+			bookmark.id,
+			bookmark.metadataFetch,
+			true,
+			PageMetadata("Tom\u0000atoes\n\t on   the balcony", "\u0000 Bal\u0000cony "),
+		) shouldBe
+			true
 		val cleaned = service.get(bookmark.id)
 		cleaned.title shouldBe "Tomatoes on the balcony"
 		cleaned.description shouldBe "Balcony"
@@ -256,7 +268,7 @@ class BookmarkEdgeCaseTests(
 	fun `fetched text that is only whitespace or NUL characters counts as missing`() {
 		val bookmark = failedBookmark(title = "Mine", description = "My text")
 
-		service.applyMetadata(bookmark.id, bookmark.url, true, PageMetadata(" \u0000 \n", "\u0000")) shouldBe true
+		service.applyMetadata(bookmark.id, bookmark.metadataFetch, true, PageMetadata(" \u0000 \n", "\u0000")) shouldBe true
 
 		val stored = service.get(bookmark.id)
 		stored.title shouldBe "Mine"
@@ -270,7 +282,7 @@ class BookmarkEdgeCaseTests(
 		// 499 characters plus an emoji (two UTF-16 chars) cross the 500 limit in the middle of the emoji.
 		val title = "a".repeat(499) + "🍅 tomato"
 
-		service.applyMetadata(bookmark.id, bookmark.url, false, PageMetadata(title = title)) shouldBe true
+		service.applyMetadata(bookmark.id, bookmark.metadataFetch, false, PageMetadata(title = title)) shouldBe true
 
 		val stored = service.get(bookmark.id).title!!
 		withClue("stored ${stored.length} chars ending in U+%04X".format(stored.last().code)) {
@@ -283,21 +295,26 @@ class BookmarkEdgeCaseTests(
 		val bookmark = failedBookmark()
 		val tooLong = "https://cdn.example/" + "f".repeat(BookmarkService.MAX_URL_LENGTH)
 
-		service.applyMetadata(bookmark.id, bookmark.url, false, PageMetadata(favicon = tooLong)) shouldBe true
+		service.applyMetadata(bookmark.id, bookmark.metadataFetch, false, PageMetadata(favicon = tooLong)) shouldBe true
 		service.get(bookmark.id).favicon shouldBe null
-		service.applyMetadata(bookmark.id, bookmark.url, false, PageMetadata(favicon = "https://cdn.example/a\u0000.ico")) shouldBe true
+		service.applyMetadata(bookmark.id, bookmark.metadataFetch, false, PageMetadata(favicon = "https://cdn.example/a\u0000.ico")) shouldBe true
 		service.get(bookmark.id).favicon shouldBe null
 		val exact = "https://cdn.example/" + "f".repeat(BookmarkService.MAX_URL_LENGTH - "https://cdn.example/".length)
-		service.applyMetadata(bookmark.id, bookmark.url, false, PageMetadata(favicon = exact)) shouldBe true
+		service.applyMetadata(bookmark.id, bookmark.metadataFetch, false, PageMetadata(favicon = exact)) shouldBe true
 		service.get(bookmark.id).favicon shouldBe exact
 	}
 
 	@Test
 	fun `a failed fetch only sets the status and keeps the fields`() {
 		val bookmark = failedBookmark(title = "Mine")
-		service.applyMetadata(bookmark.id, bookmark.url, false, PageMetadata(description = "Fetched", favicon = "https://cdn.example/f.ico"))
+		service.applyMetadata(
+			bookmark.id,
+			bookmark.metadataFetch,
+			false,
+			PageMetadata(description = "Fetched", favicon = "https://cdn.example/f.ico"),
+		)
 
-		service.applyMetadata(bookmark.id, bookmark.url, true, null) shouldBe true
+		service.applyMetadata(bookmark.id, bookmark.metadataFetch, true, null) shouldBe true
 
 		val stored = service.get(bookmark.id)
 		stored.metadataStatus shouldBe MetadataStatus.FAILED
@@ -311,14 +328,79 @@ class BookmarkEdgeCaseTests(
 		val bookmark = failedBookmark()
 		val metadata = PageMetadata(title = "Stale")
 
-		service.applyMetadata(UUID.randomUUID(), bookmark.url, false, metadata) shouldBe false
-		service.applyMetadata(bookmark.id, page("/other"), false, metadata) shouldBe false
+		service.applyMetadata(UUID.randomUUID(), bookmark.metadataFetch, false, metadata) shouldBe false
+		service.applyMetadata(bookmark.id, bookmark.metadataFetch + 1, false, metadata) shouldBe false
 		service.get(bookmark.id).title shouldBe null
 		service.get(bookmark.id).version shouldBe bookmark.version
 
 		service.delete(bookmark.id) {}
-		service.applyMetadata(bookmark.id, bookmark.url, false, metadata) shouldBe false
+		service.applyMetadata(bookmark.id, bookmark.metadataFetch, false, metadata) shouldBe false
 		jdbc.queryForObject("select title from bookmark where id = ?", String::class.java, bookmark.id) shouldBe null
+	}
+
+	@Test
+	fun `the result of an older fetch is ignored once a newer one was requested`() {
+		val bookmark = failedBookmark()
+
+		val refreshed = service.refreshMetadata(bookmark.id) {}
+
+		refreshed.metadataFetch shouldBe bookmark.metadataFetch + 1
+		service.applyMetadata(bookmark.id, bookmark.metadataFetch, false, PageMetadata(title = "Stale")) shouldBe false
+		val stored = service.get(bookmark.id)
+		stored.title shouldBe null
+		(stored.metadataStatus == MetadataStatus.FETCHED) shouldBe false
+		// The refresh's own fetch (404) still decides the status.
+		settled(bookmark.id).metadataStatus shouldBe MetadataStatus.FAILED
+	}
+
+	@Test
+	fun `restoring a bookmark deleted while its page was fetched fetches the page again`() {
+		server.stubFor(
+			stubGet(urlEqualTo("/slow")).willReturn(
+				aResponse().withHeader("Content-Type", "text/html").withBody("<title>Slow page</title>").withFixedDelay(500),
+			),
+		)
+		val created = service.create(BookmarkChanges(url = FieldChange(page("/slow"))))
+		service.delete(created.id) {}
+
+		mockMvc.post("/api/v1/trash/BOOKMARK/${created.id}/restore") { with(csrf()) }.andExpect { status { is2xxSuccessful() } }
+
+		val restored = settled(created.id)
+		restored.metadataStatus shouldBe MetadataStatus.FETCHED
+		restored.title shouldBe "Slow page"
+		restored.metadataFetch shouldBe created.metadataFetch + 1
+		server.verify(2, getRequestedFor(urlEqualTo("/slow")))
+	}
+
+	@Test
+	fun `restoring a bookmark whose fetch had finished does not fetch again`() {
+		val bookmark = failedBookmark()
+		service.delete(bookmark.id) {}
+
+		mockMvc.post("/api/v1/trash/BOOKMARK/${bookmark.id}/restore") { with(csrf()) }.andExpect { status { is2xxSuccessful() } }
+
+		Thread.sleep(300)
+		val restored = service.get(bookmark.id)
+		restored.metadataStatus shouldBe MetadataStatus.FAILED
+		restored.metadataFetch shouldBe bookmark.metadataFetch
+		server.verify(1, getRequestedFor(urlEqualTo("/none")))
+	}
+
+	@Test
+	fun `on startup bookmarks still pending are listed for a new fetch, others not`() {
+		val pending = UUID.randomUUID()
+		jdbc.update(
+			"insert into bookmark (id, created_at, updated_at, version, url, metadata_fetch) values (?, now(), now(), 0, 'https://unreachable.invalid/p', 3)",
+			pending,
+		)
+		val trashed = UUID.randomUUID()
+		jdbc.update(
+			"insert into bookmark (id, created_at, updated_at, version, url, deleted_at) values (?, now(), now(), 0, 'https://unreachable.invalid/t', now())",
+			trashed,
+		)
+		failedBookmark()
+
+		service.pendingMetadataRequests().map { it.id to it.fetch } shouldBe listOf(pending to 3L)
 	}
 
 	// --- limits and validation
@@ -326,7 +408,11 @@ class BookmarkEdgeCaseTests(
 	@Test
 	fun `at most 50 distinct tags of at most 50 characters are accepted`() {
 		val fifty = (1..50).map { "tag$it" }
-		val accepted = create("""{"url":"${page("/t")}","tags":${jsonMapper.writeValueAsString(fifty + "TAG1")}}""").andExpect { status { isCreated() } }.json()
+		val accepted =
+			create("""{"url":"${page("/t")}","tags":${jsonMapper.writeValueAsString(fifty + "TAG1")}}""")
+				.andExpect {
+					status { isCreated() }
+				}.json()
 		accepted.get("tags").values() shouldHaveSize 50
 
 		create("""{"url":"${page("/t")}","tags":${jsonMapper.writeValueAsString(fifty + "tag51")}}""").andExpect { status { isBadRequest() } }
@@ -342,7 +428,9 @@ class BookmarkEdgeCaseTests(
 		val created = create("""{"url":"${page("/t")}","title":"Before","tags":["one"]}""").andExpect { status { isCreated() } }.json()
 		val current = fetch(created.id())
 
-		patch(current, """{"title":"After","tags":${jsonMapper.writeValueAsString((1..51).map { "t$it" })}}""").andExpect { status { isBadRequest() } }
+		patch(current, """{"title":"After","tags":${jsonMapper.writeValueAsString((1..51).map { "t$it" })}}""").andExpect {
+			status { isBadRequest() }
+		}
 
 		val unchanged = fetch(created.id())
 		unchanged.text("title") shouldBe "Before"
@@ -356,7 +444,9 @@ class BookmarkEdgeCaseTests(
 		val longestUrl = base + "u".repeat(BookmarkService.MAX_URL_LENGTH - base.length)
 		create("""{"url":"$longestUrl"}""").andExpect { status { isCreated() } }
 		create("""{"url":"${longestUrl}u"}""").andExpect { status { isBadRequest() } }
-		create("""{"url":"${page("/l")}","title":"${"t".repeat(500)}","description":"${"d".repeat(2_000)}"}""").andExpect { status { isCreated() } }
+		create(
+			"""{"url":"${page("/l")}","title":"${"t".repeat(500)}","description":"${"d".repeat(2_000)}"}""",
+		).andExpect { status { isCreated() } }
 		create("""{"url":"${page("/l")}","description":"${"d".repeat(2_001)}"}""").andExpect { status { isBadRequest() } }
 		create("""{"url":"${page("/l")}","title":"bad\u0000title"}""").andExpect { status { isBadRequest() } }
 		create("""{"url":"${page("/l")}","description":"bad\u0000text"}""").andExpect { status { isBadRequest() } }
@@ -367,7 +457,11 @@ class BookmarkEdgeCaseTests(
 
 	@Test
 	fun `a blank title or description is stored as empty`() {
-		val created = create("""{"url":"https://unreachable.invalid/b","title":"   ","description":" "}""").andExpect { status { isCreated() } }.json()
+		val created =
+			create("""{"url":"https://unreachable.invalid/b","title":"   ","description":" "}""")
+				.andExpect {
+					status { isCreated() }
+				}.json()
 
 		created.text("title") shouldBe null
 		created.text("description") shouldBe null

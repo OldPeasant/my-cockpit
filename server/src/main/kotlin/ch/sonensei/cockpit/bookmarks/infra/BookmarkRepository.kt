@@ -20,6 +20,10 @@ interface BookmarkRepository :
 		nativeQuery = true,
 	)
 	fun countTags(): List<BookmarkTagCount>
+
+	/** The bookmarks not in the Trash whose metadata fetch has not finished (`PENDING`), oldest first. */
+	@Query("select b from Bookmark b where b.deletedAt is null and b.metadataStatus = 'PENDING' order by b.createdAt, b.id")
+	fun findPendingMetadata(): List<Bookmark>
 }
 
 /** A tag and its number of bookmarks. */

@@ -10,6 +10,7 @@ import jakarta.persistence.Enumerated
 import jakarta.persistence.JoinColumn
 import jakarta.persistence.Table
 import org.hibernate.annotations.BatchSize
+import java.net.IDN
 import java.net.URI
 import java.time.Instant
 import java.util.UUID
@@ -50,6 +51,30 @@ class Bookmark(
 	@Enumerated(EnumType.STRING)
 	@Column(name = "metadata_status", nullable = false)
 	var metadataStatus: MetadataStatus = MetadataStatus.PENDING
+		protected set
+
+	/**
+	 * Counts the metadata fetches requested for this bookmark; a fetch result is stored only while it belongs to the
+	 * latest request ([requestMetadata]), so an older fetch that finishes later cannot overwrite a newer one.
+	 */
+	@Column(name = "metadata_fetch", nullable = false)
+	var metadataFetch: Long = 0
+		protected set
+
+	/** Starts a new metadata fetch: the status becomes `PENDING`; returns the number of the fetch ([metadataFetch]). */
+	fun requestMetadata(): Long {
+		metadataStatus = MetadataStatus.PENDING
+		return ++metadataFetch
+	}
+
+	/** Stores the outcome of fetch number [fetch]: `FETCHED` or `FAILED`. */
+	fun metadataFetched(
+		fetch: Long,
+		fetched: Boolean,
+	) {
+		check(fetch == metadataFetch) { "Not the latest metadata fetch" }
+		metadataStatus = if (fetched) MetadataStatus.FETCHED else MetadataStatus.FAILED
+	}
 
 	// Batched so a page of bookmarks loads its tags in one query, not one per bookmark.
 	@ElementCollection
@@ -58,10 +83,10 @@ class Bookmark(
 	@Column(name = "tag", nullable = false)
 	var tags: MutableSet<String> = mutableSetOf()
 
-	/** The title, or else the host of the URL (the URL itself when it has none). */
+	/** The title, or else the host of the URL (Unicode form of an IDN host; the URL itself when it has none). */
 	val displayTitle: String
 		get() =
 			title?.takeIf { it.isNotBlank() }
-				?: runCatching { URI(url).host?.removePrefix("www.") }.getOrNull()?.takeIf { it.isNotEmpty() }
+				?: runCatching { URI(url).host?.let(IDN::toUnicode)?.removePrefix("www.") }.getOrNull()?.takeIf { it.isNotEmpty() }
 				?: url
 }

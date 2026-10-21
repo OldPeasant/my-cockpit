@@ -47,11 +47,13 @@ data class PageMetadata(
 )
 
 /**
- * Published (in the saving transaction) when the page metadata of bookmark [id] should be fetched from [url]. With
- * [overwrite], fetched values replace the title, description and favicon; otherwise they only fill empty ones.
+ * Published (in the saving transaction) when the page metadata of bookmark [id] should be fetched from [url]; [fetch]
+ * is the number of the request ([Bookmark.metadataFetch]). With [overwrite], fetched values replace the title,
+ * description and favicon; otherwise they only fill empty ones.
  */
 data class BookmarkMetadataRequested(
 	val id: UUID,
 	val url: String,
+	val fetch: Long,
 	val overwrite: Boolean,
 )
