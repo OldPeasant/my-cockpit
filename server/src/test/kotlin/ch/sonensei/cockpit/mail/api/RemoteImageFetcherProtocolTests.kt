@@ -23,6 +23,7 @@ import java.security.KeyStore
 import java.time.Duration
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.CopyOnWriteArrayList
+import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import javax.net.ssl.SSLContext
 import javax.net.ssl.TrustManagerFactory
@@ -320,6 +321,32 @@ class RemoteImageFetcherProtocolTests {
 		val elapsed = millis { failure { fetcher.fetch("http://slow-dns.example.test/a.png") } shouldBe RemoteImageError.TIMEOUT }
 
 		(elapsed < 1300) shouldBe true
+	}
+
+	@Test
+	fun `a request thread interrupted during the name lookup stops at once and stays interrupted`() {
+		val release = CountDownLatch(1)
+		val fetcher =
+			fetcher(timeout = Duration.ofSeconds(5)).apply {
+				resolver =
+					HostResolver {
+						release.await(5, TimeUnit.SECONDS)
+						listOf(InetAddress.getLoopbackAddress())
+					}
+			}
+
+		// On its own thread, so the interrupt flag of the JUnit thread stays untouched.
+		val outcome =
+			CompletableFuture.supplyAsync {
+				Thread.currentThread().interrupt()
+				val error = runCatching { fetcher.fetch("http://stuck-dns.example.test/a.png") }.exceptionOrNull()
+				error to Thread.currentThread().isInterrupted
+			}
+		val (error, interrupted) = outcome.get(2, TimeUnit.SECONDS)
+		release.countDown()
+
+		(error as RemoteImageException).error shouldBe RemoteImageError.TIMEOUT
+		interrupted shouldBe true
 	}
 
 	@Test

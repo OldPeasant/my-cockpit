@@ -178,6 +178,31 @@ class RemoteImageFetcherTests {
 		failure { strict.fetch("https://mixed.example.test/a.png") } shouldBe RemoteImageError.BLOCKED_ADDRESS
 	}
 
+	/**
+	 * The IPv6 ranges added for CR-1 (local-use NAT64, SIIT, benchmarking, documentation) are blocked by the fetcher
+	 * itself, both as URL literals and as DNS answers, so the proxy never connects to them.
+	 */
+	@Test
+	fun `IPv6 translation, benchmarking and documentation addresses are blocked as literals and DNS answers`() {
+		val strict = fetcher(allowPrivate = false)
+		val answers =
+			mapOf(
+				// Both embed the public 8.8.8.8: they are blocked for their prefix, not for the IPv4 address inside.
+				"nat64-local.example.test" to "64:ff9b:1::808:808",
+				"siit.example.test" to "::ffff:0:808:808",
+				"bench.example.test" to "2001:2::1",
+				"docs.example.test" to "3fff::1",
+			)
+		// Literals are parsed without a DNS lookup; the named hosts get the answers above.
+		strict.resolver =
+			HostResolver { host -> listOf(InetAddress.getByName(answers[host] ?: host.removeSurrounding("[", "]"))) }
+
+		for ((host, address) in answers) {
+			failure { strict.fetch("https://$host/a.png") } shouldBe RemoteImageError.BLOCKED_ADDRESS
+			failure { strict.fetch("http://[$address]/a.png") } shouldBe RemoteImageError.BLOCKED_ADDRESS
+		}
+	}
+
 	@Test
 	fun `the connection goes to the checked address and redirects are checked again`() {
 		image("/a.png")
