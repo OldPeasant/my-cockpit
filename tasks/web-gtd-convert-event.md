@@ -16,3 +16,4 @@ Enable 'To calendar' in processing and task detail.
 
 ## Notes
 - ASSUMPTION (2026-10-21 20:25+0200 by dell26/agent-1): To calendar dialog (gtd/task-detail/to-calendar-dialog.ts) asks only calendar (writable, default first) and times (timed in the settings' zone, or all-day); no zone/repeat/reminders - the task becomes a plain event, the calendar dialog edits the rest. Defaults: next full hour, 1 hour.
+- ASSUMPTION (2026-10-21 20:25+0200 by dell26/agent-1): After converting, task detail opens /calendar?date=<event start day>; the inbox shows 'Moved to the calendar as the event ...' with an 'Open calendar' link like 'To reference' does. Inline inbox attribute changes are not saved (an event has no GTD attributes).
