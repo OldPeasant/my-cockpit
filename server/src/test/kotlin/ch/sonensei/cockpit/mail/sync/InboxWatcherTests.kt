@@ -89,6 +89,88 @@ class InboxWatcherTests {
 	}
 
 	@Test
+	fun `stop returns within its timeout when closing a half-open connection hangs`() {
+		val hang = CountDownLatch(1)
+		val closeStarted = CountDownLatch(1)
+		val session = HangingIdleSession(hang, closeStarted = closeStarted)
+		val watcher = watcher(connect = { session })
+		watcher.start()
+		waitUntil { watcher.idling }
+
+		try {
+			val start = System.nanoTime()
+			watcher.stop(Duration.ofMillis(100))
+			val took = Duration.ofNanos(System.nanoTime() - start)
+
+			closeStarted.await(5, TimeUnit.SECONDS) shouldBe true
+			// Bounded by the timeout (with tolerance), not by the hanging close.
+			(took < Duration.ofSeconds(2)) shouldBe true
+		} finally {
+			hang.countDown()
+		}
+		waitUntil { !watcher.alive }
+	}
+
+	@Test
+	fun `a re-IDLE NOOP that hangs does not block the scheduler shared by all accounts`() {
+		val scheduler = mockk<ScheduledExecutorService>()
+		val task = slot<Runnable>()
+		every { scheduler.scheduleAtFixedRate(capture(task), any(), any(), any()) } returns mockk<ScheduledFuture<*>>(relaxed = true)
+		val hang = CountDownLatch(1)
+		val refreshStarted = CountDownLatch(1)
+		val session = HangingIdleSession(hang, refreshStarted = refreshStarted)
+		val watcher = watcher(connect = { session }, scheduler = scheduler)
+		watcher.start()
+		waitUntil { watcher.idling }
+
+		try {
+			val start = System.nanoTime()
+			task.captured.run()
+			val took = Duration.ofNanos(System.nanoTime() - start)
+
+			refreshStarted.await(5, TimeUnit.SECONDS) shouldBe true
+			(took < Duration.ofSeconds(1)) shouldBe true
+		} finally {
+			watcher.stop(Duration.ofMillis(10))
+			hang.countDown()
+		}
+		waitUntil { !watcher.alive }
+	}
+
+	/**
+	 * A half-open connection: [await], [refresh] and [close] block until [hang] is released, like reads on a socket
+	 * whose peer vanished. They give up after [HANG_LIMIT_SECONDS] (the socket timeout), so a regression fails the
+	 * test instead of hanging it.
+	 */
+	private class HangingIdleSession(
+		private val hang: CountDownLatch,
+		private val closeStarted: CountDownLatch = CountDownLatch(1),
+		private val refreshStarted: CountDownLatch = CountDownLatch(1),
+	) : IdleSession {
+		@Volatile private var closed = false
+
+		override fun await() {
+			hang.await(HANG_LIMIT_SECONDS, TimeUnit.SECONDS)
+			if (closed) throw IllegalStateException("The fake IDLE connection is closed")
+		}
+
+		override fun refresh() {
+			refreshStarted.countDown()
+			hang.await(HANG_LIMIT_SECONDS, TimeUnit.SECONDS)
+		}
+
+		override fun close() {
+			closeStarted.countDown()
+			hang.await(HANG_LIMIT_SECONDS, TimeUnit.SECONDS)
+			closed = true
+		}
+
+		companion object {
+			const val HANG_LIMIT_SECONDS = 3L
+		}
+	}
+
+	@Test
 	fun `a failed connection is retried with a doubling backoff and the failures reset after a good connection`() {
 		val session = FakeIdleSession()
 		val attempts = CopyOnWriteArrayList<Long>()

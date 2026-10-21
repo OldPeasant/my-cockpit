@@ -32,8 +32,8 @@ class MailPushConfiguration
  * [MailPushProperties.pollInterval] a [poll] of the folder list and of every folder. The poll includes the Inbox, so
  * new mail still arrives within the poll interval when the IDLE connection died silently (a dropped connection is
  * only noticed by the next re-IDLE) or the server has no IDLE; with a working IDLE it finds nothing new. The poll
- * runs on its own thread, so slow mail servers never delay other scheduled jobs. What the syncs find is announced by [MailHeaderSyncService] (change events,
- * new-mail notification).
+ * runs on its own thread, so slow mail servers never delay other scheduled jobs. What the syncs find is announced by
+ * [MailHeaderSyncService] (change events, new-mail notification).
  *
  * Watchers start with the application and follow the accounts: created, changed connection settings (restart) and
  * deleted. Runs unless `cockpit.mail.push.enabled=false` (the test configuration turns it off).
