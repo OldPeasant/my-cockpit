@@ -15,7 +15,8 @@ Process the inbox on the phone (SPEC.md §5.3).
 ## Acceptance criteria
 - [x] Inbox list + one-at-a-time processing with the same actions as web (except calendar/reference until later), setting energy/creativity/contexts/estimate
   - verified (2026-10-21 11:18+0200 by dell26/agent-3): cd android && ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.gtd.inbox.*' (Robolectric Compose UI: InboxScreenTest/InboxRouteTest/InboxGraphTest render the list, one-at-a-time queue, actions Do it/Next/To project/Waiting/Schedule/Tickler/Someday/Trash, energy/creativity/contexts/estimate inputs; no device/emulator run) -> 101 tests, 0 failures
-- [ ] `cd android && ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.gtd.inbox.*'` passes, covering each action calls the repository; offline state disables actions (Robolectric/Compose UI tests for screens)
+- [x] `cd android && ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.gtd.inbox.*'` passes, covering each action calls the repository; offline state disables actions (Robolectric/Compose UI tests for screens)
+  - verified (2026-10-21 11:18+0200 by dell26/agent-3): cd android && ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.gtd.inbox.*' -> 101 tests, 0 failures (InboxViewModelTest/InboxRepositoryTest cover every action's repository call, InboxScreenTest covers offline disabling actions); sh scripts/check.sh -> all checks passed
 
 ## Notes
 - ASSUMPTION (2026-10-21 09:51+0200 by dell26/agent-4): Android inbox omits 'To reference' and 'To calendar' (task says: except calendar/reference until later); actions shown: Do it, Next, To project, Waiting, Schedule, Tickler, Someday, Trash.
