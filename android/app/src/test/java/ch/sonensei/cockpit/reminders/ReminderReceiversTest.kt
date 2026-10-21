@@ -16,6 +16,8 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.shadows.ShadowAlarmManager
+import java.time.Duration
+import java.time.Instant
 
 /** The receivers in the real app graph: an alarm shows the notification, a reboot sets the alarms again. */
 @RunWith(AndroidJUnit4::class)
@@ -77,7 +79,9 @@ class ReminderReceiversTest {
 
     @Test
     fun `an alarm of a reminder a sync removed shows nothing`() {
-        graph.reminderScheduler().apply(listOf(reminder(1, minutes = 30)))
+        // The app graph runs on the real clock: the reminder must not be due yet, or the scheduler keeps it as fired by the server.
+        val notDueYet = Duration.between(NOW, Instant.now()).toMinutes() + 30
+        graph.reminderScheduler().apply(listOf(reminder(1, minutes = notDueYet)))
         graph.reminderScheduler().apply(emptyList())
 
         fireAlarm(1)

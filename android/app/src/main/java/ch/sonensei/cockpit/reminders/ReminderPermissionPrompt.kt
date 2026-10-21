@@ -71,16 +71,17 @@ class ReminderPromptViewModel
     ) : ViewModel() {
         private val permissions = MutableStateFlow(readPermissions())
         private val dismissed = MutableStateFlow(store.isPromptDismissed())
+        private val notificationsRequested = MutableStateFlow(store.wasNotificationPermissionRequested())
 
         val state: StateFlow<ReminderPromptState> =
-            combine(store.scheduled, permissions, dismissed) { scheduled, granted, dismissed ->
+            combine(store.scheduled, permissions, dismissed, notificationsRequested) { scheduled, granted, dismissed, requested ->
                 if (scheduled.isEmpty() || dismissed) {
                     ReminderPromptState()
                 } else {
                     ReminderPromptState(
                         askNotifications = !granted.notifications,
                         askExactAlarms = !granted.exactAlarms,
-                        notificationsViaSettings = store.wasNotificationPermissionRequested(),
+                        notificationsViaSettings = requested,
                     )
                 }
             }.stateIn(viewModelScope, SharingStarted.Eagerly, ReminderPromptState())
@@ -99,6 +100,7 @@ class ReminderPromptViewModel
 
         fun onNotificationPermissionRequested() {
             store.markNotificationPermissionRequested()
+            notificationsRequested.value = true
         }
 
         fun dismiss() {
