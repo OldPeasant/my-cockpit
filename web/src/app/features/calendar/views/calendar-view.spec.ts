@@ -969,6 +969,47 @@ describe('CalendarView', () => {
       expect(callsOf(getEvent)).toHaveLength(1);
     });
 
+    it('shows an all-day linked event at its start date and refetches after a change', async () => {
+      editor.open.mockResolvedValueOnce(true);
+      await render({ event: 'trip' });
+      await answerCalendars(fakeCalendar('work'));
+      await settle();
+      const gotoDate = vi.spyOn(fullCalendar()!.getApi(), 'gotoDate');
+      const loads = callsOf(listEventOccurrences).length;
+      callsOf(getEvent)[0].resolve(
+        fakeEvent('trip', {
+          title: 'Ski trip',
+          allDay: true,
+          start: undefined,
+          end: undefined,
+          startDate: '2026-04-10',
+          endDate: '2026-04-12',
+        }),
+      );
+      await settle();
+      expect(gotoDate).toHaveBeenCalledWith('2026-04-10');
+      expect(editor.open.mock.calls[0][0]).toMatchObject({ eventId: 'trip', allDay: true });
+      // The editor saved a change: the shown range is loaded again.
+      expect(callsOf(listEventOccurrences)).toHaveLength(loads + 1);
+    });
+
+    it('dates a timed linked event in the settings zone', async () => {
+      await render({ event: 'late' });
+      await answerCalendars(fakeCalendar('work'));
+      await settle();
+      const gotoDate = vi.spyOn(fullCalendar()!.getApi(), 'gotoDate');
+      // 23:30 UTC on the 23rd is already the 24th in Zurich.
+      callsOf(getEvent)[0].resolve(
+        fakeEvent('late', {
+          title: 'Late call',
+          start: '2026-03-23T23:30:00Z',
+          end: '2026-03-24T00:00:00Z',
+        }),
+      );
+      await settle();
+      expect(gotoDate).toHaveBeenCalledWith('2026-03-24');
+    });
+
     it('says so when the linked event cannot be loaded', async () => {
       await render({ event: 'gone' });
       await answerCalendars(fakeCalendar('work'));

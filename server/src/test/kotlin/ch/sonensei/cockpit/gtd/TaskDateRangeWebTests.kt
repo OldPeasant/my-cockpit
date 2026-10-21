@@ -14,10 +14,12 @@ import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc
 import org.springframework.context.annotation.Import
+import org.springframework.http.HttpHeaders
 import org.springframework.http.MediaType
 import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf
 import org.springframework.test.web.servlet.MockMvc
+import org.springframework.test.web.servlet.delete
 import org.springframework.test.web.servlet.get
 import org.springframework.test.web.servlet.post
 import tools.jackson.databind.json.JsonMapper
@@ -129,6 +131,45 @@ class TaskDateRangeWebTests(
 		rejected("?from=2026-01-01&to=2027-01-02")
 		rejected("?from=yesterday&to=2026-03-02")
 		ids("?from=2026-01-01&to=2026-12-31").shouldBeEmpty()
+	}
+
+	@Test
+	fun `a range of exactly 365 days after from is accepted and includes both ends`() {
+		val first = create("""{"title":"New year call","list":"NEXT","dueDate":"2026-01-01"}""")
+		val last = create("""{"title":"Next new year call","list":"NEXT","dueDate":"2027-01-01"}""")
+		create("""{"title":"Just after","list":"NEXT","dueDate":"2027-01-02"}""")
+
+		ids("?from=2026-01-01&to=2027-01-01") shouldContainExactlyInAnyOrder listOf(first, last)
+	}
+
+	@Test
+	fun `tasks in the Trash are not listed in a range`() {
+		val kept = create("""{"title":"Pay rent","list":"NEXT","dueDate":"2026-03-02"}""")
+		val trashed = create("""{"title":"Old errand","list":"NEXT","dueDate":"2026-03-03"}""")
+		val etag =
+			mockMvc
+				.get("$BASE/$trashed")
+				.andExpect { status { isOk() } }
+				.andReturn()
+				.response
+				.getHeader(HttpHeaders.ETAG)
+		mockMvc
+			.delete("$BASE/$trashed") {
+				with(csrf())
+				header(HttpHeaders.IF_MATCH, etag!!)
+			}.andExpect { status { isNoContent() } }
+
+		ids("?from=2026-03-02&to=2026-03-08") shouldContainExactlyInAnyOrder listOf(kept)
+	}
+
+	@Test
+	fun `a task due in the range is listed even when its tickler date is later`() {
+		val task = create("""{"title":"Renew passport","list":"NEXT","dueDate":"2026-03-04"}""")
+		move(task, """{"list":"SOMEDAY","ticklerDate":"2026-04-01"}""")
+
+		ids("?from=2026-03-02&to=2026-03-08") shouldContainExactlyInAnyOrder listOf(task)
+		// Without a range it stays hidden in the tickler.
+		ids("?list=SOMEDAY").shouldBeEmpty()
 	}
 
 	companion object {

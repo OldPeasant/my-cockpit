@@ -589,6 +589,53 @@ describe('matchesTask', () => {
     expect(matchesTask(task('b', { list: 'INBOX' }), { list: 'INBOX' }, today)).toBe(true);
   });
 
+  describe('with a from/to range (calendar overlay, server rule)', () => {
+    const range = { from: '2026-10-19', to: '2026-10-25' };
+
+    it('matches a due or tickler date in the range, both ends inclusive', () => {
+      expect(matchesTask(task('a', { dueDate: '2026-10-19' }), range, today)).toBe(true);
+      expect(matchesTask(task('a', { dueDate: '2026-10-25' }), range, today)).toBe(true);
+      expect(matchesTask(task('a', { ticklerDate: '2026-10-19' }), range, today)).toBe(true);
+      expect(matchesTask(task('a', { ticklerDate: '2026-10-25' }), range, today)).toBe(true);
+    });
+
+    it('rejects tasks without dates or with both dates just outside the range', () => {
+      expect(matchesTask(task('a'), range, today)).toBe(false);
+      expect(matchesTask(task('a', { dueDate: '2026-10-18' }), range, today)).toBe(false);
+      expect(matchesTask(task('a', { dueDate: '2026-10-26' }), range, today)).toBe(false);
+      expect(
+        matchesTask(task('a', { dueDate: '2026-10-18', ticklerDate: '2026-10-26' }), range, today),
+      ).toBe(false);
+    });
+
+    it('includes a task still in a tickler (tickler date after today)', () => {
+      // today is 2026-10-20: without a range this task is hidden.
+      const tickler = task('a', { list: 'SOMEDAY', ticklerDate: '2026-10-23' });
+      expect(matchesTask(tickler, {}, today)).toBe(false);
+      expect(matchesTask(tickler, range, today)).toBe(true);
+      // Due in the range but its tickler date later: the due date makes it match.
+      const dueBeforeTickler = task('b', { dueDate: '2026-10-21', ticklerDate: '2026-11-30' });
+      expect(matchesTask(dueBeforeTickler, range, today)).toBe(true);
+    });
+
+    it('still excludes completed tasks and applies the other filters', () => {
+      const done = task('a', { dueDate: '2026-10-21', completedAt: '2026-10-20T10:00:00Z' });
+      expect(matchesTask(done, range, today)).toBe(false);
+      const inbox = task('b', { list: 'INBOX', dueDate: '2026-10-21' });
+      expect(matchesTask(inbox, { ...range, list: 'NEXT' }, today)).toBe(false);
+      expect(matchesTask(inbox, { ...range, list: 'INBOX' }, today)).toBe(true);
+    });
+
+    it('ignores a half range and keeps hiding future ticklers (the server rejects it)', () => {
+      const tickler = task('a', { ticklerDate: '2026-10-23' });
+      expect(matchesTask(tickler, { from: range.from }, today)).toBe(false);
+      expect(matchesTask(tickler, { to: range.to }, today)).toBe(false);
+      expect(matchesTask(task('b', { dueDate: '2027-01-01' }), { from: range.from }, today)).toBe(
+        true,
+      );
+    });
+  });
+
   it('applies due windows relative to today', () => {
     const due = (dueDate: string) => task('a', { dueDate });
     expect(matchesTask(due('2026-10-19'), { due: 'overdue' }, today)).toBe(true);

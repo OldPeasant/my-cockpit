@@ -84,6 +84,16 @@ describe('event links helpers', () => {
     expect(occurrenceDate(allDay, 'Europe/Zurich')).toBe('2026-04-02');
   });
 
+  it('has no date for an occurrence missing its start', () => {
+    expect(occurrenceDate(fakeOccurrence('Timed', { start: undefined }), 'UTC')).toBe('');
+    expect(
+      occurrenceDate(
+        fakeOccurrence('Trip', { allDay: true, start: undefined, startDate: undefined }),
+        'UTC',
+      ),
+    ).toBe('');
+  });
+
   it('opens a linked event as itself, a series as a whole', () => {
     const occurrence = occurrenceOfEvent(
       fakeEvent('m1', { title: 'Swim', rrule: 'FREQ=WEEKLY', version: 4 }),
@@ -242,6 +252,68 @@ describe('EventLinks', () => {
     button('Create note for event')!.click();
     await stable();
     expect(alerts()).toContain('The note could not be created.');
+  });
+
+  it('says so when the task was added to the Inbox but could not be linked, and reloads the panel', async () => {
+    links.create.mockRejectedValueOnce(new ApiError(500, 'Internal Server Error'));
+    await render();
+    button('Create task from event')!.click();
+    await stable();
+    expect(alerts()).toContain(
+      'The task was added to the Inbox, but it could not be linked to the event.',
+    );
+    expect(notifications.info).not.toHaveBeenCalled();
+    // The panel shows what the server has, also after a failed link.
+    expect(links.list).toHaveBeenCalledTimes(2);
+    expect(button('Create task from event')!.disabled).toBe(false);
+  });
+
+  it('says so when a non-API error stops the task', async () => {
+    invoke.mockRejectedValueOnce(new Error('offline'));
+    await render();
+    button('Create task from event')!.click();
+    await stable();
+    expect(alerts()).toContain('The task could not be created.');
+  });
+
+  it('clears the previous error when a new create starts', async () => {
+    invoke.mockRejectedValueOnce(new Error('offline'));
+    await render();
+    button('Create note for event')!.click();
+    await stable();
+    expect(alerts()).toContain('The note could not be created.');
+
+    button('Create note for event')!.click();
+    await stable();
+    expect(alerts()).toEqual([]);
+    expect(notifications.info).toHaveBeenCalledWith('Note created: Planning (2026-03-23)');
+  });
+
+  it('creates one item for a double click before the buttons are disabled', async () => {
+    let finish!: (task: TaskResponse) => void;
+    invoke.mockImplementationOnce(() => new Promise((resolve) => (finish = resolve)));
+    await render();
+    // Both clicks land before change detection disables the buttons.
+    button('Create task from event')!.click();
+    button('Create task from event')!.click();
+    button('Create note for event')!.click();
+    expect(invoke).toHaveBeenCalledTimes(1);
+
+    finish(fakeTask('t1', 'Planning'));
+    await stable();
+    expect(links.create).toHaveBeenCalledTimes(1);
+    expect(notifications.info).toHaveBeenCalledTimes(1);
+  });
+
+  it('titles a note without a date when the occurrence has none', async () => {
+    await render(fakeOccurrence('Planning', { eventId: 'e1', start: undefined }));
+    button('Create note for event')!.click();
+    await stable();
+    expect(invoke).toHaveBeenCalledWith(
+      createNote,
+      { body: { title: 'Planning' } },
+      expect.anything(),
+    );
   });
 
   it('closes its dialog when a link is followed', async () => {
