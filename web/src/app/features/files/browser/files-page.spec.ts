@@ -30,6 +30,8 @@ class FakeDrive {
   /** Answers the next request whose `METHOD url` contains the key with this problem. */
   failures = new Map<string, Problem>();
   requests: HttpRequest<unknown>[] = [];
+  /** Entries per listing page (cursor: the offset); unset: everything on one page. */
+  pageSize?: number;
   private seq = 100;
 
   folder(id: string, name: string, parentId?: string, special?: FolderSummary['special']): void {
@@ -58,8 +60,11 @@ class FakeDrive {
     });
   }
 
-  answer(http: HttpTestingController): number {
-    const pending = http.match(() => true);
+  answer(
+    http: HttpTestingController,
+    only: (req: HttpRequest<unknown>) => boolean = () => true,
+  ): number {
+    const pending = http.match(only);
     for (const req of pending) {
       this.requests.push(req.request);
       const key = `${req.request.method} ${req.request.urlWithParams}`;
@@ -102,7 +107,14 @@ class FakeDrive {
         .filter((f) => f.folderId === parent)
         .sort((a, b) => a.name.localeCompare(b.name))
         .map((file) => ({ type: 'FILE', file }));
-      return { items: [...folders, ...files] };
+      const items = [...folders, ...files];
+      if (!this.pageSize) return { items };
+      const start = Number(req.params.get('cursor') ?? 0);
+      const end = start + this.pageSize;
+      return {
+        items: items.slice(start, end),
+        nextCursor: end < items.length ? String(end) : undefined,
+      };
     }
     if (url === '/api/v1/folders' && req.method === 'POST') {
       const id = `0192f0c4-0000-7000-8000-000000000${++this.seq}`;
@@ -489,6 +501,202 @@ describe('FilesPage', () => {
     await settle();
     expect(root.querySelector('.load-error')).toBeNull();
     expect(names()).toEqual(['Trip 2026', 'Report.pdf']);
+  });
+
+  it('loads more entries page by page and hides "Show more" after the last page', async () => {
+    drive.file('0192f0c4-0000-7000-8000-0000000000f2', 'Notes.txt', 10);
+    drive.pageSize = 2;
+    await open();
+    expect(names()).toEqual(['Attachments', 'Documents']);
+
+    button('Show more').click();
+    await settle();
+    expect(names()).toEqual(['Attachments', 'Documents', 'Photos', 'Notes.txt']);
+    expect(button('Show more')).toBeUndefined();
+    // The page and the folder tree (whose first page held only folders) both asked for page 2.
+    const more = drive.requests.filter((r) => r.params.get('cursor') === '2');
+    expect(more.length).toBeGreaterThan(0);
+    expect(more.every((r) => !r.params.has('folderId'))).toBe(true);
+  });
+
+  it('keeps the loaded entries and shows the error when "Show more" fails, then retries', async () => {
+    drive.file('0192f0c4-0000-7000-8000-0000000000f2', 'Notes.txt', 10);
+    drive.pageSize = 2;
+    await open();
+    drive.failures.set('cursor=2', { status: 503, title: 'Unavailable', detail: 'Try later' });
+
+    button('Show more').click();
+    await settle();
+    expect(names()).toEqual(['Attachments', 'Documents']);
+    expect(root.querySelector('.more-entries .error')?.textContent?.trim()).toBe('Try later');
+    expect(button('Show more').disabled).toBe(false);
+
+    button('Show more').click();
+    await settle();
+    expect(root.querySelector('.more-entries')).toBeNull();
+    expect(names()).toEqual(['Attachments', 'Documents', 'Photos', 'Notes.txt']);
+  });
+
+  it('reloads without an error when the deleted entry was already gone (404)', async () => {
+    await open();
+    drive.folders.delete(PHOTOS);
+    drive.failures.set('DELETE', { status: 404, title: 'Not Found', detail: 'Folder not found' });
+
+    await menu('Photos', 'Delete');
+
+    expect(root.querySelector('.error[role="alert"]')).toBeNull();
+    expect(names()).toEqual(['Attachments', 'Documents']);
+    expect(notifications.info).not.toHaveBeenCalled();
+  });
+
+  it('disables the actions of an entry while its delete runs', async () => {
+    await open();
+    byLabel('Actions for Photos').click();
+    await settle();
+    const item = [...document.querySelectorAll<HTMLElement>('.mat-mdc-menu-item')].find(
+      (el) => el.textContent?.trim() === 'Delete',
+    ) as HTMLElement;
+    item.click();
+    await tick();
+    fixture.detectChanges();
+
+    const entry = byLabel('Actions for Photos').closest('.entry') as HTMLElement;
+    expect(entry.classList).toContain('busy');
+    expect((byLabel('Actions for Photos') as HTMLButtonElement).disabled).toBe(true);
+    await settle();
+    expect(drive.requests.filter((r) => r.method === 'DELETE')).toHaveLength(1);
+    expect(names()).toEqual(['Attachments', 'Documents']);
+  });
+
+  it('shows the newest folder when an older folder load answers last', async () => {
+    await open();
+    params.next(convertToParamMap({ folderId: DOCS }));
+    await tick();
+    params.next(convertToParamMap({ folderId: PHOTOS }));
+    await tick();
+
+    // The newer load (Photos) answers first, the older one (Documents) afterwards.
+    drive.answer(http, (req) => req.urlWithParams.includes(PHOTOS));
+    await settle();
+
+    expect(crumbs()).toEqual(['My drive', 'Photos']);
+    expect(root.querySelector('.empty')).not.toBeNull();
+    expect(names()).toEqual([]);
+  });
+
+  it('ignores a failure of an older folder load after a newer one succeeded', async () => {
+    await open();
+    drive.failures.set(`folderId=${DOCS}`, { status: 500, title: 'Server error' });
+    params.next(convertToParamMap({ folderId: DOCS }));
+    await tick();
+    params.next(convertToParamMap({ folderId: PHOTOS }));
+    await tick();
+
+    drive.answer(http, (req) => req.urlWithParams.includes(PHOTOS));
+    await settle();
+
+    expect(root.querySelector('.load-error')).toBeNull();
+    expect(crumbs()).toEqual(['My drive', 'Photos']);
+  });
+
+  it('does not change anything when the move dialog is cancelled', async () => {
+    await open();
+
+    await menu('Documents', 'Move');
+    const el = await dialog('app-files-move-dialog');
+    button('Cancel', el).click();
+    await closed('app-files-move-dialog');
+
+    expect(drive.requests.some((r) => r.method === 'PATCH')).toBe(false);
+    expect(notifications.info).not.toHaveBeenCalled();
+  });
+
+  it('shows in the move dialog when its folders cannot be loaded', async () => {
+    await open();
+    drive.failures.set('GET /api/v1/drive?', {
+      status: 503,
+      title: 'Unavailable',
+      detail: 'Drive offline',
+    });
+
+    await menu('Documents', 'Move');
+    const el = await dialog('app-files-move-dialog');
+
+    expect(el.querySelector('[role="alert"]')?.textContent).toContain('Drive offline');
+    expect(el.querySelector('.folders')).toBeNull();
+  });
+
+  it('falls back to the list view when the storage is unavailable', async () => {
+    const get = vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
+      throw new Error('denied');
+    });
+    const set = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new Error('denied');
+    });
+    try {
+      await open();
+      expect(root.querySelector('.entries')?.classList).not.toContain('grid');
+
+      button('Grid').click();
+      await settle();
+      expect(root.querySelector('.entries')?.classList).toContain('grid');
+    } finally {
+      get.mockRestore();
+      set.mockRestore();
+    }
+  });
+
+  it('opens in the grid view when it was chosen before', async () => {
+    localStorage.setItem(VIEW_MODE_KEY, 'grid');
+    await open();
+    expect(root.querySelector('.entries')?.classList).toContain('grid');
+    expect(button('List').getAttribute('aria-pressed')).toBe('false');
+
+    button('List').click();
+    await settle();
+    expect(root.querySelector('.entries')?.classList).not.toContain('grid');
+    expect(localStorage.getItem(VIEW_MODE_KEY)).toBe('list');
+  });
+
+  it('drops a "Show more" page that answers after navigating to another folder', async () => {
+    drive.file('0192f0c4-0000-7000-8000-0000000000f2', 'Notes.txt', 10);
+    drive.pageSize = 2;
+    await open();
+
+    button('Show more').click();
+    await tick();
+    params.next(convertToParamMap({ folderId: DOCS }));
+    await tick();
+    // The new folder answers first, the old root page 2 afterwards.
+    drive.answer(http, (req) => req.urlWithParams.includes(DOCS));
+    await settle();
+
+    expect(crumbs()).toEqual(['My drive', 'Documents']);
+    expect(names()).toEqual(['Trip 2026', 'Report.pdf']);
+    expect(root.querySelector('.more-entries')).toBeNull();
+  });
+
+  it('shows the newest picker folder when an older picker load answers last', async () => {
+    await open(DOCS);
+
+    await menu('Report.pdf', 'Move');
+    const el = await dialog('app-files-move-dialog');
+    expect(el.querySelector('[aria-current="location"]')?.textContent?.trim()).toBe('Documents');
+
+    // Open Trip 2026, and go back to the root before Trip answers.
+    button('Trip 2026', el).click();
+    await tick();
+    button('My drive', el).click();
+    await tick();
+    drive.answer(http, (req) => !req.urlWithParams.includes(TRIP));
+    await settle();
+
+    expect(el.querySelector('[aria-current="location"]')?.textContent?.trim()).toBe('My drive');
+    expect([...el.querySelectorAll('.folder span')].map((n) => n.textContent?.trim())).toEqual([
+      'Attachments',
+      'Documents',
+      'Photos',
+    ]);
   });
 
   it('hides the usage when it cannot be loaded', async () => {
