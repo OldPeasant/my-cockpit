@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="mail_unified">All inboxes</string>
+    <string name="mail_choose_mailbox">Choose mailbox</string>
+    <string name="mail_folder_inbox">Inbox</string>
+    <string name="mail_folder_drafts">Drafts</string>
+    <string name="mail_folder_sent">Sent</string>
+    <string name="mail_folder_archive">Archive</string>
+    <string name="mail_folder_spam">Spam</string>
+    <string name="mail_folder_trash">Trash</string>
+    <string name="mail_empty">No mail here.</string>
+    <string name="mail_no_accounts">No mail account yet. Add one in the web app under Settings → Mail.</string>
+    <string name="mail_no_subject">(no subject)</string>
+    <string name="mail_unread">Unread</string>
+    <string name="mail_flagged">Flagged</string>
+    <string name="mail_has_attachments">Has attachments</string>
+    <string name="mail_archive">Archive</string>
+    <string name="mail_delete">Delete</string>
+    <string name="mail_offline">Can\'t reach the server. The list may be outdated.</string>
+    <string name="mail_failed">The mail could not be loaded.</string>
+    <string name="mail_archive_failed">The mail could not be archived.</string>
+    <string name="mail_delete_failed">The mail could not be deleted.</string>
+    <string name="mail_retry">Retry</string>
+    <string name="mail_read_back">Back to the list</string>
+    <string name="mail_read_to_task">To Inbox task</string>
+    <string name="mail_read_to_waiting">To Waiting For</string>
+    <string name="mail_read_from">From %1$s</string>
+    <string name="mail_read_to">To %1$s</string>
+    <string name="mail_read_cc">Cc %1$s</string>
+    <plurals name="mail_read_images_blocked">
+        <item quantity="one">%1$d remote image was blocked.</item>
+        <item quantity="other">%1$d remote images were blocked.</item>
+    </plurals>
+    <string name="mail_read_attachments">Attachments: %1$s</string>
+    <string name="mail_read_offline">Can\'t reach the server.</string>
+    <string name="mail_read_failed">The mail could not be loaded.</string>
+    <string name="mail_read_gone">This mail is no longer on the mail server.</string>
+    <string name="mail_read_task_created">Added to the Inbox: %1$s</string>
+    <string name="mail_read_waiting_created">Added to Waiting For: %1$s</string>
+    <string name="mail_read_task_failed">The task could not be created.</string>
+    <string name="mail_read_waiting_failed">The Waiting For item could not be created.</string>
+</resources>
