@@ -26,7 +26,9 @@
               >Use at least {{ passphraseMin }} characters, or none.</mat-error
             >
           } @else if (passphrase.touched && passphrase.hasError('maxlength')) {
-            <mat-error i18n="@@backup.create.passphraseLong">This passphrase is too long.</mat-error>
+            <mat-error i18n="@@backup.create.passphraseLong"
+              >This passphrase is too long.</mat-error
+            >
           }
         </mat-form-field>
         <button
@@ -101,7 +103,10 @@
     <div class="control">
       @if (restoring()) {
         <div class="restoring">
-          <mat-progress-bar mode="indeterminate" aria-labelledby="restore-status"></mat-progress-bar>
+          <mat-progress-bar
+            mode="indeterminate"
+            aria-labelledby="restore-status"
+          ></mat-progress-bar>
           <p id="restore-status" class="status" role="status" i18n="@@backup.restore.running">
             Restoring… Keep this page open.
           </p>
@@ -110,7 +115,9 @@
         <div class="report" [class.invalid]="!r.valid" role="region" aria-labelledby="report-title">
           <h4 id="report-title" class="report-title">
             @if (r.valid) {
-              <ng-container i18n="@@backup.report.valid">{{ fileName() }} can be restored</ng-container>
+              <ng-container i18n="@@backup.report.valid"
+                >{{ fileName() }} can be restored</ng-container
+              >
             } @else {
               <ng-container i18n="@@backup.report.invalid"
                 >{{ fileName() }} cannot be restored</ng-container
@@ -143,7 +150,9 @@
 
           @if (counts().length) {
             <table class="counts">
-              <caption i18n="@@backup.report.counts">Records in the backup</caption>
+              <caption i18n="@@backup.report.counts">
+                Records in the backup
+              </caption>
               <tbody>
                 @for (entry of counts(); track entry[0]) {
                   <tr>
@@ -230,7 +239,12 @@
             </form>
           } @else {
             <div class="actions">
-              <button mat-button type="button" (click)="cancelRestore()" i18n="@@backup.restore.close">
+              <button
+                mat-button
+                type="button"
+                (click)="cancelRestore()"
+                i18n="@@backup.restore.close"
+              >
                 Close
               </button>
             </div>
@@ -260,7 +274,10 @@
           </button>
           @if (uploading()) {
             <div class="uploading">
-              <mat-progress-bar mode="indeterminate" aria-labelledby="upload-status"></mat-progress-bar>
+              <mat-progress-bar
+                mode="indeterminate"
+                aria-labelledby="upload-status"
+              ></mat-progress-bar>
               <p id="upload-status" class="status" role="status" i18n="@@backup.restore.uploading">
                 Uploading and checking {{ fileName() }}…
               </p>
