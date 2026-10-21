@@ -195,4 +195,76 @@ describe('GtdSettingsService', () => {
     http.expectNone({ method: 'DELETE' });
     expect(notifications.error).not.toHaveBeenCalled();
   });
+
+  it('rejects a duplicate context name with the 409 problem, without a toast', async () => {
+    const created = service.createContext('@home');
+    const post = http.expectOne({ method: 'POST', url: '/api/v1/contexts' });
+    expect(post.request.context.get(SILENT_ERRORS)).toBe(true);
+    post.flush(
+      { status: 409, title: 'Conflict', detail: 'A context named @home already exists' },
+      { status: 409, statusText: 'Conflict' },
+    );
+
+    const error = await created.catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(ApiError);
+    expect((error as ApiError).status).toBe(409);
+    expect((error as ApiError).userMessage).toBe('A context named @home already exists');
+    expect(notifications.error).not.toHaveBeenCalled();
+  });
+
+  it('creates an area', async () => {
+    const created = service.createArea('Health');
+    const post = http.expectOne({ method: 'POST', url: '/api/v1/areas' });
+    expect(post.request.body).toEqual({ title: 'Health' });
+    post.flush({ id: 'a-health', title: 'Health', position: 1, version: 0 });
+    expect((await created).id).toBe('a-health');
+  });
+
+  it('deletes an area without listing its projects when they just lose it', async () => {
+    const done = service.deleteArea(WORK, null);
+    http.expectNone((r) => r.url === '/api/v1/projects');
+    const del = http.expectOne({ method: 'DELETE', url: `/api/v1/areas/${WORK.id}` });
+    expect(del.request.headers.get('If-Match')).toBe('"2"');
+    del.flush(null, { status: 204, statusText: 'No Content' });
+    await expect(done).resolves.toBeUndefined();
+  });
+
+  it('collects the projects of an area over all pages', async () => {
+    const projects = service.projectsInArea(WORK.id);
+    const first = http.expectOne((r) => r.url === '/api/v1/projects' && !r.params.has('cursor'));
+    expect(first.request.params.get('limit')).toBe('200');
+    first.flush({ items: [project('p1')], nextCursor: 'n2' });
+    await tick();
+    http
+      .expectOne((r) => r.url === '/api/v1/projects' && r.params.get('cursor') === 'n2')
+      .flush({ items: [project('p2')], nextCursor: null });
+
+    expect((await projects).map((p) => p.id)).toEqual(['p1', 'p2']);
+  });
+
+  it('includes done tasks when replacing a context, and stops when one update fails', async () => {
+    const done = service.deleteContext(HOME, PHONE.id);
+    http
+      .expectOne((r) => r.url === '/api/v1/tasks' && r.params.get('completed') === 'false')
+      .flush({ items: [] });
+    await tick();
+    http
+      .expectOne((r) => r.url === '/api/v1/tasks' && r.params.get('completed') === 'true')
+      .flush({ items: [task('t-done', [HOME.id], 7), task('t-next', [HOME.id])] });
+    await tick();
+
+    const patch = http.expectOne({ method: 'PATCH', url: '/api/v1/tasks/t-done' });
+    expect(patch.request.headers.get('If-Match')).toBe('"7"');
+    expect(patch.request.body).toEqual({ contextIds: [PHONE.id] });
+    patch.flush(
+      { status: 500, title: 'Internal Server Error' },
+      { status: 500, statusText: 'Error' },
+    );
+
+    const error = await done.catch((e: unknown) => e);
+    expect((error as ApiError).status).toBe(500);
+    http.expectNone({ method: 'PATCH', url: '/api/v1/tasks/t-next' });
+    http.expectNone({ method: 'DELETE' });
+    expect(notifications.error).not.toHaveBeenCalled();
+  });
 });

@@ -11,6 +11,7 @@ import { provideRouter } from '@angular/router';
 import { AreaResponse, ContextResponse, TaskResponse } from '../../../api/generated';
 import { NotificationService, provideHttp } from '../../../core/http';
 import GtdSettings from './gtd-settings';
+import { GtdSettingsService } from './gtd-settings.service';
 
 const tick = (): Promise<void> => new Promise((resolve) => setTimeout(resolve));
 
@@ -35,10 +36,8 @@ describe('GtdSettings', () => {
   let root: HTMLElement;
   let http: HttpTestingController;
 
-  async function setup(
-    contexts: ContextResponse[] = [HOME, PHONE, ERRANDS],
-    areas: AreaResponse[] = [WORK, FAMILY],
-  ): Promise<void> {
+  /** Creates the component; its two list requests are left open. */
+  async function create(): Promise<void> {
     TestBed.configureTestingModule({
       providers: [
         provideHttp(),
@@ -51,6 +50,13 @@ describe('GtdSettings', () => {
     fixture = TestBed.createComponent(GtdSettings);
     root = fixture.nativeElement as HTMLElement;
     await settle();
+  }
+
+  async function setup(
+    contexts: ContextResponse[] = [HOME, PHONE, ERRANDS],
+    areas: AreaResponse[] = [WORK, FAMILY],
+  ): Promise<void> {
+    await create();
     http.expectOne({ method: 'GET', url: '/api/v1/contexts' }).flush({ items: contexts });
     http.expectOne({ method: 'GET', url: '/api/v1/areas' }).flush({ items: areas });
     await settle();
@@ -350,5 +356,534 @@ describe('GtdSettings', () => {
     patch.flush({ ...WORK, title: 'Job', version: 2 });
     await settle();
     expect(names('areas')).toEqual(['Job', 'Family']);
+  });
+
+  function nameInput(label: string): HTMLInputElement {
+    const found = root.querySelector<HTMLInputElement>(`input[aria-label="${label}"]`);
+    if (!found) throw new Error(`No input ${label}`);
+    return found;
+  }
+
+  function change(input: HTMLInputElement, value: string): void {
+    input.value = value;
+    input.dispatchEvent(new Event('change'));
+  }
+
+  function problem(
+    status: number,
+    detail: string,
+  ): [object, { status: number; statusText: string }] {
+    return [
+      { status, title: `HTTP ${status}`, detail },
+      { status, statusText: `HTTP ${status}` },
+    ];
+  }
+
+  function errorText(): string {
+    return [...root.querySelectorAll('.error')].map((e) => e.textContent ?? '').join(' | ');
+  }
+
+  /** Answers the two task lists the delete of a context asks for (open: `open`, done: none). */
+  async function flushAssignedTasks(open: TaskResponse[]): Promise<void> {
+    http
+      .expectOne((r) => r.url === '/api/v1/tasks' && r.params.get('completed') === 'false')
+      .flush({ items: open });
+    await settle();
+    http
+      .expectOne((r) => r.url === '/api/v1/tasks' && r.params.get('completed') === 'true')
+      .flush({ items: [] });
+    await settle();
+  }
+
+  describe('load', () => {
+    it('shows an empty note for each list without items', async () => {
+      await setup([], []);
+      expect(root.textContent).toContain('No contexts yet. Add your first one below.');
+      expect(root.textContent).toContain('No areas yet. Add your first one below.');
+      expect(root.querySelector('ul.items')).toBeNull();
+    });
+
+    it('shows a loading note until the lists arrive', async () => {
+      await create();
+      expect(root.textContent).toContain('Loading contexts…');
+      expect(root.textContent).toContain('Loading areas…');
+      http.expectOne('/api/v1/contexts').flush({ items: [] });
+      http.expectOne('/api/v1/areas').flush({ items: [] });
+      await settle();
+      expect(root.textContent).not.toContain('Loading');
+    });
+
+    it('shows the load error of one list and loads it again on retry', async () => {
+      await create();
+      http
+        .expectOne({ method: 'GET', url: '/api/v1/contexts' })
+        .flush(...problem(500, 'Database unavailable'));
+      http.expectOne({ method: 'GET', url: '/api/v1/areas' }).flush({ items: [WORK, FAMILY] });
+      await settle();
+
+      const alert = root.querySelector('.load-error');
+      expect(alert?.textContent).toContain('Contexts could not be loaded: Database unavailable');
+      // The other list is not affected.
+      expect(names('areas')).toEqual(['Work', 'Family']);
+      expect(root.querySelector('form.add input[formcontrolname="name"]')).toBeNull();
+
+      alert!.querySelector<HTMLButtonElement>('button')!.click();
+      await settle();
+      http.expectOne({ method: 'GET', url: '/api/v1/contexts' }).flush({ items: [HOME, PHONE] });
+      await settle();
+
+      expect(root.querySelector('.load-error')).toBeNull();
+      expect(names('contexts')).toEqual(['@home', '@phone']);
+    });
+
+    it('shows the area load error with its own retry', async () => {
+      await create();
+      http.expectOne('/api/v1/contexts').flush({ items: [HOME] });
+      http.expectOne('/api/v1/areas').flush(null, { status: 0, statusText: 'Unknown Error' });
+      await settle();
+
+      const alert = root.querySelector('.load-error');
+      expect(alert?.textContent).toContain('Areas could not be loaded');
+      alert!.querySelector<HTMLButtonElement>('button')!.click();
+      await settle();
+      http.expectOne('/api/v1/areas').flush({ items: [WORK] });
+      await settle();
+      expect(names('areas')).toEqual(['Work']);
+    });
+  });
+
+  describe('create', () => {
+    it('does not send a blank context name and shows the field error', async () => {
+      await setup();
+      const name = root.querySelector<HTMLInputElement>('form.add input[formcontrolname="name"]')!;
+      name.value = '   ';
+      name.dispatchEvent(new Event('input'));
+      root.querySelector<HTMLButtonElement>('form.add button[type="submit"]')!.click();
+      await settle();
+
+      http.expectNone({ method: 'POST' });
+      expect(root.textContent).toContain('Enter a name.');
+    });
+
+    it('creates a context without a color', async () => {
+      await setup();
+      const name = root.querySelector<HTMLInputElement>('form.add input[formcontrolname="name"]')!;
+      name.value = '@calls';
+      name.dispatchEvent(new Event('input'));
+      root.querySelector<HTMLButtonElement>('form.add button[type="submit"]')!.click();
+      await settle();
+
+      const post = http.expectOne({ method: 'POST', url: '/api/v1/contexts' });
+      expect(post.request.body.name).toBe('@calls');
+      expect(post.request.body.color).toBeUndefined();
+      post.flush({ id: 'c-calls', name: '@calls', position: 3, version: 0 });
+      await settle();
+      expect(names('contexts')).toEqual(['@home', '@phone', '@errands', '@calls']);
+    });
+
+    it('keeps the input and shows the error when the name already exists', async () => {
+      await setup();
+      const name = root.querySelector<HTMLInputElement>('form.add input[formcontrolname="name"]')!;
+      name.value = '@home';
+      name.dispatchEvent(new Event('input'));
+      const submit = root.querySelector<HTMLButtonElement>('form.add button[type="submit"]')!;
+      submit.click();
+      await settle();
+      expect(submit.disabled).toBe(true);
+
+      http
+        .expectOne({ method: 'POST', url: '/api/v1/contexts' })
+        .flush(...problem(409, 'A context named @home already exists'));
+      await settle();
+
+      expect(errorText()).toContain('A context named @home already exists');
+      expect(name.value).toBe('@home');
+      expect(names('contexts')).toEqual(['@home', '@phone', '@errands']);
+      expect(submit.disabled).toBe(false);
+      // 409 is not a stale-state error: no reload.
+      http.expectNone({ method: 'GET', url: '/api/v1/contexts' });
+    });
+
+    it('creates an area with a trimmed title and rejects a blank one', async () => {
+      await setup();
+      const forms = root.querySelectorAll<HTMLFormElement>('form.add');
+      const areaForm = forms[1];
+      const title = areaForm.querySelector<HTMLInputElement>('input[formcontrolname="title"]')!;
+      areaForm.querySelector<HTMLButtonElement>('button[type="submit"]')!.click();
+      await settle();
+      http.expectNone({ method: 'POST' });
+
+      title.value = ' Health  ';
+      title.dispatchEvent(new Event('input'));
+      areaForm.querySelector<HTMLButtonElement>('button[type="submit"]')!.click();
+      await settle();
+
+      const post = http.expectOne({ method: 'POST', url: '/api/v1/areas' });
+      expect(post.request.body).toEqual({ title: 'Health' });
+      post.flush({ id: 'a-health', title: 'Health', position: 2, version: 0 });
+      await settle();
+      expect(names('areas')).toEqual(['Work', 'Family', 'Health']);
+      expect(title.value).toBe('');
+    });
+
+    it('keeps the area title and shows the error when creating fails', async () => {
+      await setup();
+      const areaForm = root.querySelectorAll<HTMLFormElement>('form.add')[1];
+      const title = areaForm.querySelector<HTMLInputElement>('input[formcontrolname="title"]')!;
+      title.value = 'Work';
+      title.dispatchEvent(new Event('input'));
+      areaForm.querySelector<HTMLButtonElement>('button[type="submit"]')!.click();
+      await settle();
+
+      http
+        .expectOne({ method: 'POST', url: '/api/v1/areas' })
+        .flush(...problem(409, 'An area titled Work already exists'));
+      await settle();
+
+      expect(errorText()).toContain('An area titled Work already exists');
+      expect(title.value).toBe('Work');
+      expect(names('areas')).toEqual(['Work', 'Family']);
+    });
+
+    it('shows a generic message for an error that is not an API error', async () => {
+      await setup();
+      vi.spyOn(TestBed.inject(GtdSettingsService), 'createArea').mockRejectedValue(
+        new TypeError('fictitious failure'),
+      );
+      const areaForm = root.querySelectorAll<HTMLFormElement>('form.add')[1];
+      const title = areaForm.querySelector<HTMLInputElement>('input[formcontrolname="title"]')!;
+      title.value = 'Health';
+      title.dispatchEvent(new Event('input'));
+      areaForm.querySelector<HTMLButtonElement>('button[type="submit"]')!.click();
+      await settle();
+
+      expect(errorText()).toContain('Something went wrong.');
+      expect(errorText()).not.toContain('fictitious failure');
+    });
+  });
+
+  describe('rename', () => {
+    it('finishes editing a name with Enter', async () => {
+      await setup();
+      for (const label of ['Name of @home', 'Name of Work']) {
+        const input = nameInput(label);
+        input.focus();
+        expect(document.activeElement).toBe(input);
+        input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }));
+        expect(document.activeElement).not.toBe(input);
+      }
+    });
+
+    it('puts the old area title back and shows the error when saving fails', async () => {
+      await setup();
+      const input = nameInput('Name of Family');
+      change(input, 'Friends');
+      await settle();
+      http
+        .expectOne({ method: 'PATCH', url: `/api/v1/areas/${FAMILY.id}` })
+        .flush(...problem(400, 'Title too long'));
+      await settle();
+
+      expect(input.value).toBe('Family');
+      expect(errorText()).toContain('Title too long');
+    });
+
+    it('saves a new context name', async () => {
+      await setup();
+      change(nameInput('Name of @phone'), ' @mobile ');
+      await settle();
+
+      const patch = http.expectOne({ method: 'PATCH', url: `/api/v1/contexts/${PHONE.id}` });
+      expect(patch.request.headers.get('If-Match')).toBe('"1"');
+      expect(patch.request.body).toEqual({ name: '@mobile' });
+      patch.flush({ ...PHONE, name: '@mobile', version: 2 });
+      await settle();
+      expect(names('contexts')).toEqual(['@home', '@mobile', '@errands']);
+    });
+
+    it('puts the old name back for a blank or unchanged name without saving', async () => {
+      await setup();
+      const input = nameInput('Name of @home');
+      change(input, '   ');
+      await settle();
+      expect(input.value).toBe('@home');
+
+      change(input, ' @home ');
+      await settle();
+      expect(input.value).toBe('@home');
+
+      const area = nameInput('Name of Work');
+      change(area, '');
+      await settle();
+      expect(area.value).toBe('Work');
+      http.expectNone({ method: 'PATCH' });
+    });
+
+    it('puts the old name back on Escape', async () => {
+      await setup();
+      for (const [label, old] of [
+        ['Name of Family', 'Family'],
+        ['Name of @phone', '@phone'],
+      ]) {
+        const input = nameInput(label);
+        input.value = 'Edited';
+        input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+        await settle();
+        expect(input.value).toBe(old);
+      }
+      http.expectNone({ method: 'PATCH' });
+    });
+
+    it('puts the old name back and shows the error when saving fails', async () => {
+      await setup();
+      const input = nameInput('Name of @errands');
+      change(input, '@shopping');
+      await settle();
+      http
+        .expectOne({ method: 'PATCH', url: `/api/v1/contexts/${ERRANDS.id}` })
+        .flush(...problem(400, 'Name too long'));
+      await settle();
+
+      expect(input.value).toBe('@errands');
+      expect(errorText()).toContain('Name too long');
+    });
+
+    it('reloads the list when the context was deleted elsewhere', async () => {
+      await setup();
+      change(nameInput('Name of @phone'), '@cell');
+      await settle();
+      http
+        .expectOne({ method: 'PATCH', url: `/api/v1/contexts/${PHONE.id}` })
+        .flush(...problem(404, 'Not found'));
+      await settle();
+      http.expectOne({ method: 'GET', url: '/api/v1/contexts' }).flush({ items: [HOME, ERRANDS] });
+      await settle();
+
+      expect(names('contexts')).toEqual(['@home', '@errands']);
+      expect(errorText()).toContain('changed elsewhere');
+    });
+  });
+
+  describe('color', () => {
+    it('sets a color picked for a context', async () => {
+      await setup();
+      expect(root.querySelector('button[aria-label="Remove the color of @phone"]')).toBeNull();
+      change(nameInput('Color of @phone'), '#ff8800');
+      await settle();
+
+      const patch = http.expectOne({ method: 'PATCH', url: `/api/v1/contexts/${PHONE.id}` });
+      expect(patch.request.body).toEqual({ color: '#ff8800' });
+      patch.flush({ ...PHONE, color: '#ff8800', version: 2 });
+      await settle();
+      expect(root.querySelector('button[aria-label="Remove the color of @phone"]')).not.toBeNull();
+    });
+
+    it('clears the color with null', async () => {
+      await setup();
+      button('Remove the color of @home').click();
+      await settle();
+
+      const patch = http.expectOne({ method: 'PATCH', url: `/api/v1/contexts/${HOME.id}` });
+      expect(patch.request.body).toEqual({ color: null });
+      patch.flush({ ...HOME, color: undefined, version: 2 });
+      await settle();
+      expect(root.querySelector('button[aria-label="Remove the color of @home"]')).toBeNull();
+      expect(nameInput('Color of @home').value).toBe('#8a8f98');
+    });
+
+    it('does not save the color a context already has', async () => {
+      await setup();
+      change(nameInput('Color of @home'), '#3366ff');
+      await settle();
+      http.expectNone({ method: 'PATCH' });
+    });
+
+    it('shows a short #rgb color in the picker as #rrggbb', async () => {
+      await setup([{ ...PHONE, color: '#a1c' }], []);
+      expect(nameInput('Color of @phone').value).toBe('#aa11cc');
+    });
+  });
+
+  describe('reorder edge cases', () => {
+    it('restores the old context order when saving fails', async () => {
+      await setup();
+      button('Move @errands up').click();
+      await settle();
+      expect(names('contexts')).toEqual(['@home', '@errands', '@phone']);
+
+      http
+        .expectOne({ method: 'PUT', url: '/api/v1/contexts/order' })
+        .flush(...problem(500, 'Server down'));
+      await settle();
+
+      expect(names('contexts')).toEqual(['@home', '@phone', '@errands']);
+      expect(errorText()).toContain('Server down');
+      expect(button('Move @errands up').disabled).toBe(false);
+    });
+
+    it('ignores a second drop while the first order is being saved', async () => {
+      await setup();
+      const lists = fixture.debugElement.queryAll(By.directive(CdkDropList));
+      lists[0].triggerEventHandler('cdkDropListDropped', { previousIndex: 0, currentIndex: 2 });
+      await settle();
+      lists[0].triggerEventHandler('cdkDropListDropped', { previousIndex: 0, currentIndex: 1 });
+      await settle();
+
+      const put = http.expectOne({ method: 'PUT', url: '/api/v1/contexts/order' });
+      expect(names('contexts')).toEqual(['@phone', '@errands', '@home']);
+      put.flush({ items: [PHONE, ERRANDS, HOME] });
+      await settle();
+    });
+
+    it('keeps a rename saved while a failing reorder was pending', async () => {
+      await setup();
+      button('Move @home down').click();
+      await settle();
+      const put = http.expectOne({ method: 'PUT', url: '/api/v1/contexts/order' });
+
+      change(nameInput('Name of @phone'), '@mobile');
+      await settle();
+      http
+        .expectOne({ method: 'PATCH', url: `/api/v1/contexts/${PHONE.id}` })
+        .flush({ ...PHONE, name: '@mobile', version: 2 });
+      await settle();
+
+      put.flush(...problem(500, 'Server down'));
+      await settle();
+
+      // The old order comes back, but the saved rename (and its new version) must stay.
+      expect(names('contexts')).toEqual(['@home', '@mobile', '@errands']);
+    });
+  });
+
+  describe('delete edge cases', () => {
+    it('moves the projects to another area when chosen, then deletes', async () => {
+      await setup();
+      button('Delete Work').click();
+      await settle();
+      const projects = [
+        { id: 'p1', title: 'Fictitious launch', areaId: WORK.id, version: 3 },
+        { id: 'p2', title: 'Sample audit', areaId: WORK.id, version: 1 },
+      ];
+      http.expectOne((r) => r.url === '/api/v1/projects').flush({ items: projects });
+      await settle();
+
+      expect(dialogText()).toContain('2 projects are in this area');
+      document.querySelector<HTMLInputElement>('mat-radio-button[value="move"] input')!.click();
+      await settle();
+      const select = document.querySelector<HTMLSelectElement>('select.target')!;
+      expect([...select.options].map((o) => o.textContent)).toEqual(['Family']);
+      dialogButton('Delete').click();
+
+      (await closedThen((r) => r.url === '/api/v1/projects')).flush({ items: projects });
+      await settle();
+      const p1 = http.expectOne({ method: 'PATCH', url: '/api/v1/projects/p1' });
+      expect(p1.request.headers.get('If-Match')).toBe('"3"');
+      expect(p1.request.body).toEqual({ areaId: FAMILY.id });
+      p1.flush({ ...projects[0], areaId: FAMILY.id, version: 4 });
+      await settle();
+      const p2 = http.expectOne({ method: 'PATCH', url: '/api/v1/projects/p2' });
+      expect(p2.request.body).toEqual({ areaId: FAMILY.id });
+      p2.flush({ ...projects[1], areaId: FAMILY.id, version: 2 });
+      await settle();
+      http
+        .expectOne({ method: 'DELETE', url: `/api/v1/areas/${WORK.id}` })
+        .flush(null, { status: 204, statusText: 'No Content' });
+      await settle();
+
+      expect(names('areas')).toEqual(['Family']);
+    });
+
+    it('offers no move when no other area exists', async () => {
+      await setup([HOME], [WORK]);
+      button('Delete Work').click();
+      await settle();
+      http
+        .expectOne((r) => r.url === '/api/v1/projects')
+        .flush({ items: [{ id: 'p1', title: 'Fictitious launch', areaId: WORK.id, version: 1 }] });
+      await settle();
+
+      expect(document.querySelector('mat-radio-button[value="clear"]')).not.toBeNull();
+      expect(document.querySelector('mat-radio-button[value="move"]')).toBeNull();
+    });
+
+    it('keeps the context, does not delete it and reloads when reassigning a task fails', async () => {
+      await setup();
+      button('Delete @home').click();
+      await settle();
+      const tasks = [task('t1', [HOME.id])];
+      await flushAssignedTasks(tasks);
+      document.querySelector<HTMLInputElement>('mat-radio-button[value="move"] input')!.click();
+      await settle();
+      dialogButton('Delete').click();
+
+      (
+        await closedThen((r) => r.url === '/api/v1/tasks' && r.params.get('completed') === 'false')
+      ).flush({ items: tasks });
+      await settle();
+      http
+        .expectOne((r) => r.url === '/api/v1/tasks' && r.params.get('completed') === 'true')
+        .flush({ items: [] });
+      await settle();
+      const patch = http.expectOne({ method: 'PATCH', url: '/api/v1/tasks/t1' });
+      // The first other context is preselected.
+      expect(patch.request.body).toEqual({ contextIds: [PHONE.id] });
+      patch.flush(...problem(412, 'Version mismatch'));
+      await settle();
+
+      http.expectNone({ method: 'DELETE' });
+      http
+        .expectOne({ method: 'GET', url: '/api/v1/contexts' })
+        .flush({ items: [HOME, PHONE, ERRANDS] });
+      await settle();
+      expect(names('contexts')).toEqual(['@home', '@phone', '@errands']);
+      expect(errorText()).toContain('changed elsewhere');
+      expect(button('Delete @home').disabled).toBe(false);
+    });
+
+    it('keeps the area and shows the error when the delete itself fails', async () => {
+      await setup();
+      button('Delete Family').click();
+      await settle();
+      http.expectOne((r) => r.url === '/api/v1/projects').flush({ items: [] });
+      await settle();
+      dialogButton('Delete').click();
+
+      (await closedThen({ method: 'DELETE', url: `/api/v1/areas/${FAMILY.id}` })).flush(
+        ...problem(500, 'Server down'),
+      );
+      await settle();
+
+      expect(names('areas')).toEqual(['Work', 'Family']);
+      expect(errorText()).toContain('Server down');
+      http.expectNone({ method: 'GET', url: '/api/v1/areas' });
+    });
+
+    it('shows the error and opens no dialog when the assigned tasks cannot be listed', async () => {
+      await setup();
+      button('Delete @phone').click();
+      await settle();
+      http
+        .expectOne((r) => r.url === '/api/v1/tasks' && r.params.get('completed') === 'false')
+        .flush(...problem(503, 'Try later'));
+      await settle();
+
+      expect(document.querySelector('mat-dialog-container')).toBeNull();
+      expect(errorText()).toContain('Try later');
+      expect(button('Delete @phone').disabled).toBe(false);
+    });
+
+    it('waits with the delete buttons of a list while one of its deletes is running', async () => {
+      await setup();
+      button('Delete @phone').click();
+      await settle();
+      expect(button('Delete @home').disabled).toBe(true);
+      // The other list stays usable.
+      expect(button('Delete Work').disabled).toBe(false);
+      await flushAssignedTasks([]);
+      dialogButton('Cancel').click();
+      await settle();
+      expect(button('Delete @home').disabled).toBe(false);
+    });
   });
 });
