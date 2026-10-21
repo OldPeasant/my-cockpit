@@ -66,6 +66,15 @@ class BookmarkUrlsTests {
 	}
 
 	@Test
+	fun `the readable form decodes lowercase escapes and keeps incomplete ones and a port as they are`() {
+		BookmarkUrls.readable("https://example.org/caf%c3%a9") shouldBe "https://example.org/café"
+		// A trailing escape without two hex digits is no escape: kept, the rest is still decoded.
+		BookmarkUrls.readable("https://example.org/a%20b%4") shouldBe "https://example.org/a b%4"
+		BookmarkUrls.readable("https://example.org/%") shouldBe null
+		BookmarkUrls.readable("https://xn--bcher-kva.de:8080") shouldBe "https://bücher.de:8080"
+	}
+
+	@Test
 	fun `a URL that already reads as it is has no separate readable form`() {
 		BookmarkUrls.readable("https://example.org/a/b?x=1#top") shouldBe null
 		BookmarkUrls.readable("not a url") shouldBe null
