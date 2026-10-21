@@ -350,6 +350,31 @@ describe('CaptureDialog', () => {
       expect(el().querySelector('.file-list')).toBeNull();
     });
 
+    it('Shift+Enter keeps notes edited while the save is running and clears the saved text', async () => {
+      type('Call plumber');
+      type('Leaking tap', notesField());
+      press('Enter', { shiftKey: true });
+      const first = expectCapture();
+      expect(first.request.body.notes).toBe('Leaking tap');
+      type('Leaking tap, kitchen', notesField());
+      first.flush(task('Call plumber'));
+      await settle();
+      expect(textField().value).toBe('');
+      expect(notesField().value).toBe('Leaking tap, kitchen');
+
+      type('Buy washer');
+      press('Enter', { shiftKey: true });
+      const second = expectCapture();
+      expect(second.request.body).toEqual({
+        id: expect.stringMatching(UUIDV7),
+        text: 'Buy washer',
+        notes: 'Leaking tap, kitchen',
+      });
+      second.flush(task('Buy washer'));
+      await settle();
+      expect(notesField().value).toBe('');
+    });
+
     it('the save button saves and closes', async () => {
       type('Call plumber');
       saveButton().click();
@@ -609,6 +634,30 @@ describe('CaptureDialog', () => {
       expectCapture().flush(task('Expenses'));
       await settle();
       expect(el().querySelector('.file-list')).toBeNull();
+    });
+
+    it('Shift+Enter removes only the submitted files, one entry per name', async () => {
+      const capture = el().querySelector<HTMLElement>('.capture')!;
+      const pasteFiles = (...names: string[]) => {
+        const paste = new Event('paste', { cancelable: true }) as ClipboardEvent;
+        Object.defineProperty(paste, 'clipboardData', { value: { files: fileList(...names) } });
+        capture.dispatchEvent(paste);
+        fixture.detectChanges();
+      };
+      const names = () => [...el().querySelectorAll('.file-name')].map((n) => n.textContent);
+
+      pasteFiles('scan.jpg', 'receipt.pdf');
+      type('Expenses');
+      press('Enter', { shiftKey: true });
+      const req = expectCapture();
+      // While the save runs: one submitted file is removed, a same-named and a new file are added.
+      el().querySelectorAll<HTMLButtonElement>('.file-list button')[1].click();
+      pasteFiles('scan.jpg', 'invoice.pdf');
+      expect(names()).toEqual(['scan.jpg', 'scan.jpg', 'invoice.pdf']);
+
+      req.flush(task('Expenses'));
+      await settle();
+      expect(names()).toEqual(['scan.jpg', 'invoice.pdf']);
     });
   });
 
