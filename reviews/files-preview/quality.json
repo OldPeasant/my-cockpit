@@ -1,0 +1,30 @@
+{
+  "schema": 1,
+  "task": "files-preview",
+  "reviewed_revision": "47b97a60895d9ab8402988033c0e947eb4041d17",
+  "helpers": {
+    "test-writer": {"status": "completed", "report": "reviews/files-preview/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/files-preview/review.md"},
+    "fixer": {"status": "completed", "report": "reviews/files-preview/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "R1-CR-1", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "first review round (fixes.md CR-1): unparseable stored audio/video mime caused 500; now 415, re-review confirms"},
+    {"id": "R1-CR-2", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "first review round (fixes.md CR-2): 100 MP guard untested; tests added, re-review confirms"},
+    {"id": "R1-CR-3", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "first review round (fixes.md CR-3): thumbnail rendered during purge stayed orphaned; fixed, re-review confirms"},
+    {"id": "TW-1", "source": "test-writer", "severity": "High", "disposition": "fixed",
+     "note": "generated web API client out of date with api/openapi.yaml; regenerated with npm run api:gen (commit e561c402), re-review confirms"},
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P3", "disposition": "accepted",
+     "note": "purge racing a thumbnail/preview request answers 500 instead of 404; narrow single-user race, no data loss, cache stays clean; left as is"},
+    {"id": "CR-2", "source": "code-reviewer", "severity": "P3", "disposition": "accepted",
+     "note": "thumbnail size param documented as string enum instead of integer; requests work on the wire, default is in the description; left as is"}
+  ],
+  "validation": [
+    {"command": "server/gradlew -p server test --tests 'ch.sonensei.cockpit.files.*'", "result": "pass"},
+    {"command": "server/gradlew -p server test --tests '*OpenApiContractTest'", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
