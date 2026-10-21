@@ -16,3 +16,4 @@ Backup UI (SPEC.md §10.1).
 
 ## Notes
 - ASSUMPTION (2026-10-21 09:00+0200 by dell26/agent-3): Typed confirmation word is the localized string RESTORE (trimmed, case-sensitive); restore progress is an indeterminate bar because POST /restore/{id}/confirm is synchronous (no SSE progress for restore)
+- ASSUMPTION (2026-10-21 09:00+0200 by dell26/agent-3): 422 on confirm shows a generic 'nothing changed, check passphrase' message: ApiError drops the ProblemDetail 'problems' extension and core/http is outside this task's touches
