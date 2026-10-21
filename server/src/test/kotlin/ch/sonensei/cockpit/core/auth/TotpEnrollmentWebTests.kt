@@ -5,6 +5,7 @@ import ch.sonensei.cockpit.core.auth.domain.DeviceTokenResult
 import ch.sonensei.cockpit.core.auth.domain.DeviceTokenService
 import ch.sonensei.cockpit.core.auth.domain.LoginCredentials
 import ch.sonensei.cockpit.core.auth.domain.LoginResult
+import ch.sonensei.cockpit.core.auth.domain.LoginService
 import ch.sonensei.cockpit.core.auth.domain.LoginThrottle
 import ch.sonensei.cockpit.core.auth.domain.SetupService
 import ch.sonensei.cockpit.core.auth.domain.Totp
@@ -39,9 +40,14 @@ import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.ResultActionsDsl
 import org.springframework.test.web.servlet.get
 import org.springframework.test.web.servlet.post
+import org.springframework.transaction.support.TransactionTemplate
 import tools.jackson.databind.JsonNode
 import tools.jackson.databind.json.JsonMapper
 import java.time.Duration
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.TimeoutException
 
 /**
  * The forced TOTP re-enrollment after a restore without the TOTP secret (SPEC.md §10.2), against a real account and
@@ -62,6 +68,8 @@ class TotpEnrollmentWebTests(
 	@Autowired private val cipher: SecretCipher,
 	@Autowired private val deviceTokens: DeviceTokenService,
 	@Autowired private val enrollment: TotpEnrollmentService,
+	@Autowired private val loginService: LoginService,
+	@Autowired private val transactions: TransactionTemplate,
 ) : PostgresTestBase() {
 	private val totp = Totp()
 	private lateinit var originalSecret: String
@@ -496,6 +504,44 @@ class TotpEnrollmentWebTests(
 		confirm(confirming, code(secret)).andExpect { status { isNoContent() } }
 		sessionCount() shouldBe 1
 		mockMvc.get("/api/v1/auth/me") { cookie(other) }.andExpect { status { isUnauthorized() } }
+	}
+
+	@Test
+	fun `a login whose transaction runs while the confirm runs is ended by the confirm and never gets full access`() {
+		restoredWithoutTotpSecret()
+		val confirming = enrollmentSession()
+		val secret = startedSecret(confirming)
+		val loggedIn = CountDownLatch(1)
+		val release = CountDownLatch(1)
+		val executor = Executors.newFixedThreadPool(2)
+		try {
+			// The login has read the flag and written its session, but not committed yet.
+			val login =
+				executor.submit<LoginResult> {
+					transactions.execute {
+						loginService.login(LoginCredentials(USERNAME, PASSWORD, null, recoveryCodes[1], false)).also {
+							loggedIn.countDown()
+							release.await(10, TimeUnit.SECONDS)
+						}
+					}
+				}
+			loggedIn.await(10, TimeUnit.SECONDS) shouldBe true
+			val confirmed = executor.submit<TotpEnrollmentResult> { enrollment.confirm(code(secret), confirming.value) }
+			withClue("the confirm waits for the login's transaction") {
+				shouldThrow<TimeoutException> { confirmed.get(500, TimeUnit.MILLISECONDS) }
+			}
+			release.countDown()
+			val grant = login.get(10, TimeUnit.SECONDS).shouldBeInstanceOf<LoginResult.Success>().grant
+			grant.principal.totpEnrollmentRequired shouldBe true
+			confirmed.get(10, TimeUnit.SECONDS) shouldBe TotpEnrollmentResult.Confirmed
+
+			mockMvc.get("/api/v1/auth/me") { cookie(Cookie(SessionCookies.NAME, grant.token)) }.andExpect { status { isUnauthorized() } }
+			mockMvc.get("/api/v1/settings") { cookie(confirming) }.andExpect { status { isOk() } }
+			jdbc.queryForObject("select count(*) from auth_session", Int::class.java) shouldBe 1
+		} finally {
+			release.countDown()
+			executor.shutdownNow()
+		}
 	}
 
 	@Test

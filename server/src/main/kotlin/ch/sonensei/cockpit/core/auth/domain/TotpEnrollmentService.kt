@@ -21,7 +21,9 @@ import java.time.Duration
  * [start] replaces the pending secret, and [confirm] accepts only a code of the latest one, so a session whose secret
  * was replaced by another session's [start] gets an invalid code and must start again; it never confirms a secret it
  * did not receive. A successful [confirm] ends all other sessions of the account: only the session that proved the new
- * second factor gets full access, the others never do and must log in again with the new TOTP.
+ * second factor gets full access, the others never do and must log in again with the new TOTP. [start], [confirm] and
+ * the login lock the account row ([UserAccountRepository.findFirstForUpdate]), so a login running in parallel cannot
+ * write a session the confirm misses, and a [start] cannot overwrite a confirm that committed meanwhile.
  */
 @Service
 class TotpEnrollmentService(
@@ -72,7 +74,7 @@ class TotpEnrollmentService(
 	}
 
 	private fun pendingAccount(): UserAccount =
-		users.findFirstBy()?.takeIf { it.isActive && it.totpReenrollRequired }
+		users.findFirstForUpdate()?.takeIf { it.isActive && it.totpReenrollRequired }
 			?: throw ConflictException("TOTP re-enrollment is not required")
 }
 

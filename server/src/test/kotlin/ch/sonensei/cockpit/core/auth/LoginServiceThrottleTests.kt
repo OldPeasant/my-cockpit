@@ -42,7 +42,7 @@ class LoginServiceThrottleTests {
 	private val service = LoginService(users, sessions, PasswordHash, throttle, clock)
 
 	init {
-		every { users.findFirstBy() } returns account
+		every { users.findFirstForUpdate() } returns account
 		every { sessions.deleteExpired(any()) } returns 0
 		every { sessions.saveAndFlush(any()) } answers { firstArg() }
 	}
@@ -54,7 +54,7 @@ class LoginServiceThrottleTests {
 		val blocked = service.login(correct())
 
 		blocked.shouldBeInstanceOf<LoginResult.Throttled>().retryAfter shouldBe LoginThrottle.BASE_DELAY
-		verify(exactly = LoginThrottle.FREE_ATTEMPTS) { users.findFirstBy() }
+		verify(exactly = LoginThrottle.FREE_ATTEMPTS) { users.findFirstForUpdate() }
 		verify(exactly = 0) { sessions.saveAndFlush(any()) }
 	}
 
@@ -72,7 +72,7 @@ class LoginServiceThrottleTests {
 
 	@Test
 	fun `an attempt that throws during the credential check counts as a failure`() {
-		every { users.findFirstBy() } throws DataAccessResourceFailureException("fictitious outage")
+		every { users.findFirstForUpdate() } throws DataAccessResourceFailureException("fictitious outage")
 
 		repeat(LoginThrottle.FREE_ATTEMPTS) { shouldThrow<DataAccessResourceFailureException> { service.login(correct()) } }
 

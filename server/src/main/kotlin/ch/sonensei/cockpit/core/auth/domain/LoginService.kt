@@ -78,7 +78,9 @@ class LoginService(
 	): CredentialCheck {
 		// Admission counts the attempt as a failure up front, so parallel requests cannot slip past the backoff.
 		throttle.tryBeginAttempt()?.let { return CredentialCheck.Rejected(LoginResult.Throttled(it)) }
-		val account = users.findFirstBy()?.takeIf { it.isActive }
+		// Locked until the caller's grant is written: a concurrent TOTP re-enrollment confirm waits for this session and
+		// ends it, or runs first, and then this login sees the cleared flag (TotpEnrollmentService).
+		val account = users.findFirstForUpdate()?.takeIf { it.isActive }
 		val now = clock.instant().truncatedTo(ChronoUnit.MICROS)
 
 		val passwordMatches = passwordEncoder.matches(credentials.password, account?.passwordHash ?: dummyPasswordHash)
