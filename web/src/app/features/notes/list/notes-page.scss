@@ -1,0 +1,335 @@
+.notes {
+  max-width: 72rem;
+  padding: var(--app-space-5) var(--app-space-4);
+}
+
+.head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--app-space-3);
+  margin-bottom: var(--app-space-3);
+}
+
+h1 {
+  margin: 0;
+  font: var(--mat-sys-headline-medium);
+}
+
+.tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--app-space-2);
+}
+
+.search,
+.draft-title,
+.draft-body,
+.draft-tags {
+  box-sizing: border-box;
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius);
+  background: var(--app-bg);
+  color: var(--app-fg);
+  font: var(--mat-sys-body-large);
+
+  &:focus-visible {
+    outline: 2px solid var(--app-accent);
+    outline-offset: -1px;
+  }
+}
+
+.search {
+  width: 16rem;
+  padding: var(--app-space-1) var(--app-space-3);
+}
+
+.toggle {
+  display: inline-flex;
+  overflow: hidden;
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius);
+
+  button {
+    padding: var(--app-space-1) var(--app-space-3);
+    border: 0;
+    background: none;
+    color: var(--app-fg-muted);
+    font: var(--mat-sys-label-large);
+    cursor: pointer;
+
+    &[aria-pressed='true'] {
+      background: var(--mat-sys-secondary-container);
+      color: var(--mat-sys-on-secondary-container);
+    }
+
+    &:focus-visible {
+      outline: 2px solid var(--app-accent);
+      outline-offset: -2px;
+    }
+  }
+}
+
+.tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--app-space-2);
+  margin-bottom: var(--app-space-4);
+}
+
+.tag {
+  padding: 2px var(--app-space-2);
+  border: 1px solid var(--app-border);
+  border-radius: 999px;
+  background: none;
+  color: var(--app-fg);
+  font: var(--mat-sys-label-large);
+  cursor: pointer;
+
+  .count {
+    color: var(--app-fg-muted);
+    font-variant-numeric: tabular-nums;
+  }
+
+  &[aria-pressed='true'] {
+    border-color: var(--app-accent);
+    background: var(--mat-sys-secondary-container);
+    color: var(--mat-sys-on-secondary-container);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--app-accent);
+    outline-offset: 2px;
+  }
+}
+
+// The composer sits where the next note will appear: one quiet line that opens into a slip.
+.composer {
+  max-width: 36rem;
+  margin: 0 auto var(--app-space-5);
+
+  form {
+    display: flex;
+    flex-direction: column;
+    gap: var(--app-space-2);
+    padding: var(--app-space-3);
+    border: 1px solid var(--app-border);
+    border-radius: var(--app-radius);
+    background: var(--app-surface-raised);
+  }
+}
+
+.composer-open {
+  width: 100%;
+  padding: var(--app-space-3);
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius);
+  background: var(--app-surface-raised);
+  color: var(--app-fg-muted);
+  font: var(--mat-sys-body-large);
+  text-align: left;
+  cursor: text;
+
+  &:focus-visible {
+    outline: 2px solid var(--app-accent);
+    outline-offset: 2px;
+  }
+}
+
+.draft-title {
+  padding: var(--app-space-2);
+  font: var(--mat-sys-title-medium);
+}
+
+.draft-body {
+  padding: var(--app-space-2);
+  resize: vertical;
+}
+
+.draft-tags {
+  padding: var(--app-space-1) var(--app-space-2);
+  font: var(--mat-sys-body-medium);
+}
+
+.composer-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--app-space-2);
+}
+
+.group {
+  margin: var(--app-space-4) 0 var(--app-space-2);
+  color: var(--app-fg-muted);
+  font: var(--mat-sys-title-small);
+}
+
+.hint,
+.empty {
+  margin: var(--app-space-4) 0 0;
+  color: var(--app-fg-muted);
+}
+
+.error {
+  margin: 0 0 var(--app-space-3);
+  color: var(--app-danger);
+}
+
+.load-error {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--app-space-3);
+  color: var(--app-danger);
+
+  p {
+    margin: 0;
+  }
+}
+
+// Masonry: cards flow down columns, each as tall as its text.
+.cards {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  columns: 15rem auto;
+  column-gap: var(--app-space-3);
+
+  &.list {
+    max-width: 48rem;
+    columns: auto;
+  }
+}
+
+.card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  margin-bottom: var(--app-space-3);
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius);
+  background: var(--app-surface-raised);
+  break-inside: avoid;
+
+  &.pinned {
+    border-color: color-mix(in srgb, var(--app-accent) 45%, var(--app-border));
+  }
+
+  &.busy {
+    opacity: 0.6;
+  }
+}
+
+.open {
+  display: flex;
+  flex-direction: column;
+  gap: var(--app-space-1);
+  padding: var(--app-space-3) var(--app-space-3) var(--app-space-2);
+  color: inherit;
+  text-decoration: none;
+
+  &:focus-visible {
+    outline: 2px solid var(--app-accent);
+    outline-offset: -2px;
+    border-radius: var(--app-radius);
+  }
+}
+
+.title {
+  overflow-wrap: anywhere;
+  font: var(--mat-sys-title-medium);
+}
+
+.text {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 10;
+  overflow-wrap: anywhere;
+  white-space: pre-line;
+  color: var(--app-fg-muted);
+  font: var(--mat-sys-body-medium);
+
+  .list & {
+    -webkit-line-clamp: 3;
+  }
+}
+
+.foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--app-space-1) var(--app-space-2);
+  padding: 0 var(--app-space-2) var(--app-space-2) var(--app-space-3);
+}
+
+.note-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--app-space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  color: var(--app-fg-muted);
+  font: var(--mat-sys-label-medium);
+}
+
+.updated {
+  color: var(--app-fg-muted);
+  font: var(--mat-sys-label-small);
+}
+
+.actions {
+  display: flex;
+  gap: 2px;
+  margin-left: auto;
+
+  button {
+    display: grid;
+    place-items: center;
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    border: 0;
+    border-radius: 50%;
+    background: none;
+    color: var(--app-fg-muted);
+    cursor: pointer;
+
+    svg {
+      width: 18px;
+      height: 18px;
+      fill: currentColor;
+    }
+
+    &:hover:not(:disabled) {
+      background: var(--mat-sys-surface-container-high);
+      color: var(--app-fg);
+    }
+
+    &:focus-visible {
+      outline: 2px solid var(--app-accent);
+      outline-offset: -2px;
+    }
+
+    &:disabled {
+      cursor: default;
+    }
+  }
+}
+
+// The pin is the one mark in colour: it says at a glance which notes stay on top.
+.pin[aria-pressed='true'] {
+  color: var(--app-accent);
+}
+
+@media (max-width: 720px) {
+  .notes {
+    padding: var(--app-space-4) var(--app-space-3);
+  }
+
+  .search {
+    width: 100%;
+  }
+}

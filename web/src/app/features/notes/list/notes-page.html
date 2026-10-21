@@ -1,0 +1,246 @@
+<section class="notes" aria-labelledby="notes-title">
+  <header class="head">
+    <h1 id="notes-title" i18n="@@nav.notes">Notes</h1>
+    <div class="tools">
+      <input
+        class="search"
+        type="search"
+        [value]="query()"
+        (input)="onSearch($event)"
+        i18n-placeholder="@@notes.search"
+        placeholder="Search notes"
+        i18n-aria-label="@@notes.search"
+        aria-label="Search notes"
+      />
+      <div class="toggle" role="group" i18n-aria-label="@@notes.show" aria-label="Show">
+        <button
+          type="button"
+          class="show-active"
+          [attr.aria-pressed]="!archived()"
+          (click)="setArchived(false)"
+          i18n="@@notes.show.active"
+        >
+          Notes
+        </button>
+        <button
+          type="button"
+          class="show-archived"
+          [attr.aria-pressed]="archived()"
+          (click)="setArchived(true)"
+          i18n="@@notes.show.archived"
+        >
+          Archived
+        </button>
+      </div>
+      <div class="toggle" role="group" i18n-aria-label="@@notes.view" aria-label="View">
+        <button
+          type="button"
+          class="view-grid"
+          [attr.aria-pressed]="view() === 'grid'"
+          (click)="setView('grid')"
+          i18n="@@notes.view.grid"
+        >
+          Grid
+        </button>
+        <button
+          type="button"
+          class="view-list"
+          [attr.aria-pressed]="view() === 'list'"
+          (click)="setView('list')"
+          i18n="@@notes.view.list"
+        >
+          List
+        </button>
+      </div>
+    </div>
+  </header>
+
+  @if (tags().length) {
+    <div class="tags" role="group" i18n-aria-label="@@notes.tags" aria-label="Filter by tag">
+      @for (t of tags(); track t.tag) {
+        <button
+          type="button"
+          class="tag"
+          [attr.aria-pressed]="tag() === t.tag"
+          (click)="setTag(t.tag)"
+        >
+          #{{ t.tag }} <span class="count">{{ t.count }}</span>
+        </button>
+      }
+    </div>
+  }
+
+  @if (!archived()) {
+    <div class="composer" [class.open]="composing()">
+      @if (composing()) {
+        <form (submit)="$event.preventDefault(); create()">
+          <input
+            class="draft-title"
+            type="text"
+            [value]="draftTitle()"
+            (input)="input(draftTitle, $event)"
+            i18n-placeholder="@@notes.new.title"
+            placeholder="Title"
+            i18n-aria-label="@@notes.new.title"
+            aria-label="Title"
+          />
+          <textarea
+            #composerBody
+            class="draft-body"
+            rows="4"
+            [value]="draftBody()"
+            (input)="input(draftBody, $event)"
+            (keydown.control.enter)="create()"
+            (keydown.meta.enter)="create()"
+            (keydown.escape)="closeComposer()"
+            i18n-placeholder="@@notes.new.body"
+            placeholder="Write in Markdown…"
+            i18n-aria-label="@@notes.new.bodyAria"
+            aria-label="Text"
+          ></textarea>
+          <input
+            class="draft-tags"
+            type="text"
+            [value]="draftTags()"
+            (input)="input(draftTags, $event)"
+            i18n-placeholder="@@notes.new.tags"
+            placeholder="Tags, separated by commas"
+            i18n-aria-label="@@notes.new.tagsAria"
+            aria-label="Tags"
+          />
+          @if (createError(); as error) {
+            <p class="error" role="alert" i18n="@@notes.createFailed">
+              The note could not be saved: {{ error }}
+            </p>
+          }
+          <div class="composer-actions">
+            <button mat-button type="button" (click)="closeComposer()" i18n="@@notes.new.cancel">
+              Cancel
+            </button>
+            <button
+              mat-flat-button
+              type="submit"
+              class="save"
+              [disabled]="!canSave()"
+              i18n="@@notes.new.save"
+            >
+              Save note
+            </button>
+          </div>
+        </form>
+      } @else {
+        <button type="button" class="composer-open" (click)="openComposer()" i18n="@@notes.new">
+          Write a note…
+        </button>
+      }
+    </div>
+  }
+
+  @if (actionError(); as error) {
+    <p class="error" role="alert" i18n="@@notes.actionFailed">
+      “{{ error.title }}” could not be changed: {{ error.message }}
+    </p>
+  }
+
+  @if (loadError(); as error) {
+    <div class="load-error" role="alert">
+      <p i18n="@@notes.loadFailed">The notes could not be loaded: {{ error }}</p>
+      <button mat-stroked-button type="button" (click)="load()" i18n="@@notes.retry">
+        Try again
+      </button>
+    </div>
+  } @else if (notes(); as all) {
+    @if (shown().length) {
+      @if (pinned().length) {
+        <h2 class="group" id="notes-pinned" i18n="@@notes.pinned">Pinned</h2>
+        <ng-container
+          *ngTemplateOutlet="cards; context: { $implicit: pinned(), label: 'notes-pinned' }"
+        />
+      }
+      @if (others().length) {
+        @if (pinned().length) {
+          <h2 class="group" id="notes-others" i18n="@@notes.others">Other notes</h2>
+        }
+        <ng-container
+          *ngTemplateOutlet="
+            cards;
+            context: {
+              $implicit: others(),
+              label: pinned().length ? 'notes-others' : 'notes-title',
+            }
+          "
+        />
+      }
+    } @else if (all.length) {
+      <p class="empty" role="status" i18n="@@notes.noMatch">No notes match “{{ query() }}”.</p>
+    } @else if (archived()) {
+      <p class="empty" i18n="@@notes.emptyArchived">
+        No archived notes. Archive a note to keep it without having it in the way.
+      </p>
+    } @else if (tag()) {
+      <p class="empty" i18n="@@notes.emptyTag">No notes tagged #{{ tag() }}.</p>
+    } @else {
+      <p class="empty" i18n="@@notes.empty">No notes yet. Write your first one above.</p>
+    }
+  } @else {
+    <p class="hint" role="status" i18n="@@notes.loading">Loading notes…</p>
+  }
+</section>
+
+<ng-template #cards let-list let-label="label">
+  <ul class="cards" [class.list]="view() === 'list'" [attr.aria-labelledby]="label">
+    @for (note of list; track note.id) {
+      <li class="card" [class.pinned]="note.pinned" [class.busy]="isBusy(note)">
+        <a class="open" [routerLink]="['/notes', note.id]">
+          <span class="title">{{ note.displayTitle }}</span>
+          @if (excerpt(note); as text) {
+            <span class="text">{{ text }}</span>
+          }
+        </a>
+        <div class="foot">
+          @if (note.tags.length) {
+            <ul class="note-tags" i18n-aria-label="@@notes.noteTags" aria-label="Tags">
+              @for (t of note.tags; track t) {
+                <li>#{{ t }}</li>
+              }
+            </ul>
+          }
+          <time class="updated" [attr.datetime]="note.updatedAt">{{
+            note.updatedAt | date: 'mediumDate'
+          }}</time>
+          <div class="actions">
+            <button
+              type="button"
+              class="pin"
+              [attr.aria-pressed]="note.pinned"
+              [attr.aria-label]="pinLabel(note)"
+              [title]="pinLabel(note)"
+              [disabled]="isBusy(note)"
+              (click)="togglePin(note)"
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                <path d="M16 3H8v2l1 1v5l-3 3v2h5v5l1 1 1-1v-5h5v-2l-3-3V6l1-1z" />
+              </svg>
+            </button>
+            <button
+              type="button"
+              class="archive"
+              [attr.aria-label]="archiveLabel(note)"
+              [title]="archiveLabel(note)"
+              [disabled]="isBusy(note)"
+              (click)="toggleArchived(note)"
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                @if (note.archived) {
+                  <path d="M4 4h16v4H4zM5 9h14v11H5zm7 2-4 4h3v3h2v-3h3z" />
+                } @else {
+                  <path d="M4 4h16v4H4zM5 9h14v11H5zm4 2v2h6v-2z" />
+                }
+              </svg>
+            </button>
+          </div>
+        </div>
+      </li>
+    }
+  </ul>
+</ng-template>

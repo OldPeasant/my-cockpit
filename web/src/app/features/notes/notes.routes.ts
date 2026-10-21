@@ -1,7 +1,9 @@
 import { Routes } from '@angular/router';
-import { ComingSoon } from '../../shell/coming-soon';
 
-// Placeholder until the notes feature task replaces it.
 export default [
-  { path: '', title: $localize`:@@nav.notes:Notes`, component: ComingSoon },
+  {
+    path: '',
+    title: $localize`:@@nav.notes:Notes`,
+    loadComponent: () => import('./list/notes-page'),
+  },
 ] satisfies Routes;
