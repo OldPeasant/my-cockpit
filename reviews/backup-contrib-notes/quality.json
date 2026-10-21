@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "task": "backup-contrib-notes",
-  "reviewed_revision": "edbf149fdffac2d4eedd385b4977e4d0700a5f29",
+  "reviewed_revision": "d8340bd7c094192868efe35479a956b23027d935",
   "helpers": {
     "test-writer": {"status": "completed", "report": "reviews/backup-contrib-notes/tests.md"},
     "code-reviewer": {"status": "completed", "report": "reviews/backup-contrib-notes/review.md"},
