@@ -18,3 +18,4 @@ Create and edit events (SPEC.md §6.3).
 
 ## Notes
 - ASSUMPTION (2026-10-21 13:47+0200 by dell26/agent-3): Conflicts: both 412 (stale ETag) and 409 (changed concurrently / changed at the provider, SPEC.md §6.2) are shown as 'changed elsewhere' with a Reload action (dialog banner; snackbar after a drag); the dialog's Reload discards the unsaved edits
+- ASSUMPTION (2026-10-21 13:47+0200 by dell26/agent-3): Event dialog repeat choices are presets (none/daily/weekly/monthly/yearly = FREQ=X); an existing rule the presets can't express is kept as 'Custom (rule)'. Changing the repeat rule or calendar of a series offers only FOLLOWING/ALL (the API rejects them for THIS)
