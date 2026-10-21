@@ -1,11 +1,13 @@
 ---
 title: Thumbnails and previews
-status: in_progress
-owner: dell26/agent-6
+status: todo
+owner: 
 deps: [files-api]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/files,server/src/test/kotlin/ch/sonensei/cockpit/files,server/src/main/resources/db/migration/files]
 prio: 2
-lease_until: 2026-10-21T00:17:41Z
+lease_until: 
+releases: 1
+extended: 
 ---
 ## Goal
 Image thumbnails and text previews (SPEC.md §8.2).
@@ -26,3 +28,4 @@ Image thumbnails and text previews (SPEC.md §8.2).
 - ASSUMPTION (2026-10-21 01:14+0200 by dell26/agent-6): Text preview covers text/*, JSON, XML, YAML; served as text/markdown for Markdown and text/plain otherwise (so HTML is never rendered), with X-Preview-Truncated header; invalid UTF-8 bytes become U+FFFD
 - ASSUMPTION (2026-10-21 01:14+0200 by dell26/agent-6): Added TwelveMonkeys imageio-webp 3.12.0 since JDK ImageIO cannot decode WebP; thumbnails cached at data-dir/thumbnails/<size>/<storage key>.<ext> and deleted when the blob is purged
 - ASSUMPTION (2026-10-21 01:47+0200 by dell26/agent-6): Regenerated web/src/app/api/generated/ (outside touches) because openapi.yaml changed and the web check requires the client in sync
+- release by dell26/agent-6: All 4 criteria implemented and verified; test-writer, code-reviewer (final re-review: 0 P0-P2, 2 P3) and fixer reports committed in reviews/files-preview/; sh scripts/check.sh passes at 9bd2b2e5. Left: write reviews/files-preview/quality.json per docs/QUALITY.md (reviewed_revision = current HEAD hash, helper results/paths, fixes_required, dispositions of CR-1..CR-3 (fixed) and the 2 P3 findings in review.md (decide accept/defer), final validation), commit it, then run tasks.py done.
