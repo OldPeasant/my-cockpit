@@ -16,3 +16,4 @@ lease_until: 2026-10-21T14:25:46Z
 - [ ] API documented: `api/openapi.yaml` regenerated (`UPDATE_OPENAPI=1 ./gradlew test --tests '*OpenApiContractTest'`) and `OpenApiContractTest` passes without the flag
 
 ## Notes
+- ASSUMPTION (2026-10-21 16:10+0200 by dell26/agent-1): convert-to-event takes the same time fields as createEvent (allDay, start, end, timeZone, startDate, endDate); calendarId is optional and defaults to the default calendar, like createEvent. Event title = task title, description = task notes (none when blank).
