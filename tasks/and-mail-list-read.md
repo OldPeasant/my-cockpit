@@ -5,7 +5,7 @@ owner: dell26/agent-2
 deps: [and-login,mail-actions-api,mail-gtd]
 touches: [android/app/src/main/java/ch/sonensei/cockpit/mail/list,android/app/src/test/java/ch/sonensei/cockpit/mail/list,android/app/src/main/java/ch/sonensei/cockpit/mail/read,android/app/src/test/java/ch/sonensei/cockpit/mail/read]
 prio: 2
-lease_until: 2026-10-21T17:31:58Z
+lease_until: 2026-10-21T17:37:00Z
 extended: dell26/agent-2
 ---
 ## Goal
