@@ -18,3 +18,4 @@ Everything about a person (SPEC.md §8.3).
 
 ## Notes
 - ASSUMPTION (2026-10-21 23:34+0200 by dell26/agent-1): Mail lookup by address reads mail_message directly via a read-only SQL query in contacts.aggregate (CorrespondenceQuery): the mail module has no address search service and the task's touches exclude mail/. Messages are then loaded through MailReadService.get.
+- ASSUMPTION (2026-10-21 23:34+0200 by dell26/agent-1): related: newest 20 mails (From/To/Cc, not Trash/Spam/Drafts, duplicate copies per Message-ID once), next 20 non-cancelled occurrences within 90 days of visible calendars with the contact as attendee, all open Waiting For tasks with waitingForContactId (tickler-hidden ones excluded, like the list).
