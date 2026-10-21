@@ -43,10 +43,12 @@ test.describe('Phase 4 demo', () => {
   test('1. a local calendar with a weekly event and one moved occurrence, correct across DST', async () => {
     // The local calendar, added in the settings.
     await page.goto('/settings/calendars');
-    await page.getByRole('button', { name: 'Local', exact: true }).click();
+    await page.getByRole('radio', { name: 'Local', exact: true }).check();
     await page.getByRole('textbox', { name: 'Name', exact: true }).fill(CALENDAR);
     await page.getByRole('button', { name: 'Add calendar' }).click();
-    await expect(page.getByRole('group', { name: 'Local' }).getByText(CALENDAR)).toBeVisible();
+    await expect(
+      page.getByRole('group', { name: 'In the cockpit' }).getByText(CALENDAR),
+    ).toBeVisible();
 
     // Mondays 09:00–10:00 from 16 March 2026.
     await page.goto('/calendar?view=week&date=2026-03-16');
