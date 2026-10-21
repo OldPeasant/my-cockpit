@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "task": "mail-actions-api",
-  "reviewed_revision": "daca89e3bd2e10f02f8c901aa3033693a059c167",
+  "reviewed_revision": "874490dc06848103960e1cfab7b78d1e9df094c3",
   "helpers": {
     "test-writer": {"status": "completed", "report": "reviews/mail-actions-api/tests.md"},
     "code-reviewer": {"status": "completed", "report": "reviews/mail-actions-api/review.md"},
