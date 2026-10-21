@@ -17,7 +17,8 @@ Two-way Microsoft sync (SPEC.md §6.2).
   - verified (2026-10-21 14:45+0200 by dell26/agent-2): MicrosoftCalendarAdapterTests (67) + MicrosoftCalendarSyncTests (5, engine+WireMock+Testcontainers Postgres) cover listCalendars, calendarView/delta incremental + full relisting, create/update/delete with If-Match, occurrence edits/cancels, FOLLOWING split with exception restore; ./gradlew test --tests 'ch.sonensei.cockpit.calendar.infra.microsoft.*' -> 173 passed
 - [x] Tests against WireMock recordings of Graph
   - verified (2026-10-21 14:45+0200 by dell26/agent-2): WireMock stubs from Graph recordings in server/src/test/resources/.../calendar/infra/microsoft (calendars, delta pages, series master/instances) used by MicrosoftCalendarAdapterTests/SyncTests -> all pass (Exchange pattern-change behaviour modelled as stubs; no tenant reachable)
-- [ ] `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.calendar.infra.microsoft.*'` passes (Postgres via Testcontainers where persistence is involved)
+- [x] `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.calendar.infra.microsoft.*'` passes (Postgres via Testcontainers where persistence is involved)
+  - verified (2026-10-21 14:45+0200 by dell26/agent-2): cd server && ./gradlew test --rerun --tests 'ch.sonensei.cockpit.calendar.infra.microsoft.*' -Pkotlin.daemon.jvmargs=-Xmx3g -> 173 tests, 0 failures, 0 errors, 0 skipped (Sync tests on Testcontainers Postgres)
 
 ## Notes
 - ASSUMPTION (2026-10-21 12:24+0200 by dell26/agent-2): Microsoft sync covers a window of 365 days back to 730 days ahead (calendarView/delta needs one); the window moves with a full relisting every 7 days. Events outside it are not synced.
