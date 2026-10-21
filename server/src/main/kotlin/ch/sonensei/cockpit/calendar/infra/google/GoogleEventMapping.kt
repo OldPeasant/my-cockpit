@@ -49,7 +49,8 @@ internal object GoogleEventMapping {
 	}
 
 	/**
-	 * [node] as a [RemoteEvent] (not cancelled). [calendarZone] (the calendar's `timeZone`) is the zone of times
+	 * [node] as a [RemoteEvent]; a cancelled one (Google's answer to cancelling an occurrence) keeps the status
+	 * CANCELLED, while a listing treats cancelled items as deletions before mapping them. [calendarZone] (the calendar's `timeZone`) is the zone of times
 	 * without one; [defaultReminders] the calendar's reminders for events with `useDefault`.
 	 */
 	fun toRemote(
@@ -71,7 +72,13 @@ internal object GoogleEventMapping {
 			exdates = recurrence.filter { it.startsWith("EXDATE", ignoreCase = true) }.flatMap { exdates(it, timing) }.toSet(),
 			attendees = node.path("attendees").mapNotNull(::attendee),
 			reminderMinutes = reminders(node.path("reminders"), defaultReminders),
-			status = if (node.text("status") == "tentative") EventStatus.TENTATIVE else EventStatus.CONFIRMED,
+			status =
+				when (node.text("status")) {
+					"tentative" -> EventStatus.TENTATIVE
+					// Only in answers to writes: a listing's cancelled items are deletions (isCancelled).
+					"cancelled" -> EventStatus.CANCELLED
+					else -> EventStatus.CONFIRMED
+				},
 			transparency = if (node.text("transparency") == "transparent") EventTransparency.TRANSPARENT else EventTransparency.OPAQUE,
 			conferenceUrl = node.text("hangoutLink") ?: videoEntryPoint(node.path("conferenceData")),
 		)

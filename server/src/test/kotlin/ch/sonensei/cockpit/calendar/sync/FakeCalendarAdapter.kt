@@ -5,15 +5,23 @@ import ch.sonensei.cockpit.calendar.model.CalendarSource
 import ch.sonensei.cockpit.calendar.model.CalendarSourceType
 import org.springframework.boot.test.context.TestConfiguration
 import org.springframework.context.annotation.Bean
+import org.springframework.context.annotation.Primary
 import java.time.Duration
 import java.time.Instant
 import java.time.ZoneId
 
-/** Registers a [FakeCalendarAdapter] for CALDAV sources. */
+/**
+ * Registers a [FakeCalendarAdapter] for CALDAV sources, and a registry with only that adapter: every other non-LOCAL
+ * type stays without adapter in these tests, whichever real adapters exist.
+ */
 @TestConfiguration(proxyBeanMethods = false)
 class FakeCalendarAdapterConfiguration {
 	@Bean
 	fun fakeCalendarAdapter() = FakeCalendarAdapter()
+
+	@Bean
+	@Primary
+	fun fakeOnlyCalendarProviderRegistry(fake: FakeCalendarAdapter) = CalendarProviderRegistry(listOf(fake))
 }
 
 /**

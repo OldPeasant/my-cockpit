@@ -16,8 +16,10 @@ import ch.sonensei.cockpit.calendar.sync.RemoteEventKey
 import ch.sonensei.cockpit.core.oauth.domain.OAuthAccessToken
 import ch.sonensei.cockpit.core.oauth.domain.OAuthConnectionInfo
 import ch.sonensei.cockpit.core.oauth.domain.OAuthConnectionNotFoundException
+import ch.sonensei.cockpit.core.oauth.domain.OAuthConnectionStatus
 import ch.sonensei.cockpit.core.oauth.domain.OAuthException
 import ch.sonensei.cockpit.core.oauth.domain.OAuthGrantRejectedException
+import ch.sonensei.cockpit.core.oauth.domain.OAuthProvider
 import ch.sonensei.cockpit.core.oauth.domain.OAuthProviderUnavailableException
 import ch.sonensei.cockpit.core.oauth.domain.OAuthReconnectRequiredException
 import ch.sonensei.cockpit.core.oauth.domain.OAuthResource
@@ -649,6 +651,20 @@ class GoogleCalendarAdapterTests {
 	}
 
 	@Test
+	fun `a source linked to a connection of another provider fails without sending its token to Google`() {
+		tokens.provider = OAuthProvider.MICROSOFT
+
+		shouldThrow<CalendarProviderException> { adapter.listCalendars(source) }.message shouldContain "not linked to a Google connection"
+		shouldThrow<CalendarProviderException> { adapter.fetchEvents(source, "primary", null) }.message shouldContain "not linked"
+		shouldThrow<CalendarProviderException> { adapter.createEvent(source, "primary", planning()) }.message shouldContain "not linked"
+		shouldThrow<CalendarProviderException> { adapter.updateEvent(source, "primary", planning(), null) }.message shouldContain "not linked"
+		shouldThrow<CalendarProviderException> {
+			adapter.deleteEvent(source, "primary", planning().key, null)
+		}.message shouldContain "not linked"
+		wireMock.verify(0, anyRequestedFor(anyUrl()))
+	}
+
+	@Test
 	fun `every kind of token failure is a provider error naming what to do, never the token`() {
 		tokens.failure = OAuthConnectionNotFoundException()
 		shouldThrow<CalendarProviderException> { adapter.listCalendars(source) }.message shouldContain "was removed"
@@ -677,9 +693,10 @@ class GoogleCalendarAdapterTests {
 		stub(get(urlPathEqualTo(EVENTS)).withQueryParam("pageToken", equalTo("EV-page-2")), recording("events-full-page2.json"))
 	}
 
-	/** Bearer tokens of [CONNECTION] only, or [failure]. */
+	/** Bearer tokens of [CONNECTION] only, or [failure]; [CONNECTION] belongs to [provider]. */
 	class FixedTokens : OAuthTokenProvider {
 		var failure: OAuthException? = null
+		var provider = OAuthProvider.GOOGLE
 
 		override fun accessToken(
 			connectionId: UUID,
@@ -690,7 +707,23 @@ class GoogleCalendarAdapterTests {
 			return OAuthAccessToken(TOKEN, Instant.parse("2030-01-01T00:00:00Z"))
 		}
 
-		override fun connection(connectionId: UUID): OAuthConnectionInfo? = null
+		override fun connection(connectionId: UUID): OAuthConnectionInfo? =
+			if (connectionId != CONNECTION) {
+				null
+			} else {
+				OAuthConnectionInfo(
+					id = CONNECTION,
+					provider = provider,
+					email = "alex.example@example.test",
+					displayName = null,
+					scopes = emptyList(),
+					status = OAuthConnectionStatus.CONNECTED,
+					lastError = null,
+					lastRefreshedAt = null,
+					createdAt = Instant.parse("2026-01-01T00:00:00Z"),
+					version = 0,
+				)
+			}
 	}
 
 	companion object {

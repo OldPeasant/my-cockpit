@@ -11,6 +11,7 @@ import ch.sonensei.cockpit.calendar.sync.RemoteEvent
 import ch.sonensei.cockpit.calendar.sync.RemoteEventChangedException
 import ch.sonensei.cockpit.calendar.sync.RemoteEventChanges
 import ch.sonensei.cockpit.calendar.sync.RemoteEventKey
+import ch.sonensei.cockpit.core.oauth.domain.OAuthProvider
 import ch.sonensei.cockpit.core.oauth.domain.OAuthTokenProvider
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Value
@@ -40,7 +41,7 @@ import java.util.UUID
  */
 @Component
 class GoogleCalendarAdapter(
-	tokens: OAuthTokenProvider,
+	private val tokens: OAuthTokenProvider,
 	private val json: JsonMapper,
 	@Value("\${cockpit.calendar.google.api-url:${GoogleCalendarClient.DEFAULT_API_URL}}") apiUrl: String,
 ) : CalendarProviderAdapter {
@@ -283,7 +284,10 @@ class GoogleCalendarAdapter(
 		return response.body
 	}
 
-	/** The OAuth connection of [source], from its config. */
+	/**
+	 * The OAuth connection of [source], from its config. A connection of another provider is refused, so its token
+	 * never goes to Google; a missing one fails when its token is requested ("was removed").
+	 */
 	private fun connectionId(source: CalendarSource): UUID {
 		val id =
 			try {
@@ -291,8 +295,12 @@ class GoogleCalendarAdapter(
 			} catch (e: JacksonException) {
 				null
 			}
-		return id?.let { runCatching { UUID.fromString(it) }.getOrNull() }
-			?: throw CalendarProviderException("The source is not linked to a Google connection")
+		val connection =
+			id?.let { runCatching { UUID.fromString(it) }.getOrNull() }
+				?: throw CalendarProviderException(NOT_LINKED)
+		val provider = tokens.connection(connection)?.provider
+		if (provider != null && provider != OAuthProvider.GOOGLE) throw CalendarProviderException(NOT_LINKED)
+		return connection
 	}
 
 	companion object {
@@ -300,6 +308,7 @@ class GoogleCalendarAdapter(
 		const val CONNECTION_ID = "connectionId"
 
 		private const val EVENTS = "/calendars/{calendar}/events"
+		private const val NOT_LINKED = "The source is not linked to a Google connection"
 		private const val SYNC = "sync:"
 		private const val PAGE = "page:"
 		private const val FULL = "full:"
