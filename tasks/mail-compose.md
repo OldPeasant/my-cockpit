@@ -1,11 +1,11 @@
 ---
 title: Drafts and sending
-status: todo
-owner: 
+status: in_progress
+owner: dell26/agent-4
 deps: [mail-actions-api,files-api]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/mail/compose,server/src/test/kotlin/ch/sonensei/cockpit/mail/compose]
 prio: 1
-lease_until: 
+lease_until: 2026-10-21T12:06:59Z
 extended: 
 releases: 2
 ---
