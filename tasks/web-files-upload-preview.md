@@ -5,7 +5,7 @@ owner: dell26/agent-4
 deps: [web-files-browser,files-preview]
 touches: [web/src/app/features/files/upload,web/src/app/features/files/preview]
 prio: 1
-lease_until: 2026-10-21T04:13:44Z
+lease_until: 2026-10-21T04:18:21Z
 ---
 ## Goal
 Uploads with progress and previews (SPEC.md §8.2).
