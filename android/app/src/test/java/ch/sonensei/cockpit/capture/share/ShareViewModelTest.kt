@@ -177,6 +177,32 @@ class ShareViewModelTest {
         coVerify(exactly = 0) { queue.capture(any(), any(), any()) }
     }
 
+    @Test
+    fun `a title typed while the file names load is kept when they arrive`() {
+        Robolectric.setupContentProvider(GatedProvider::class.java, GatedProvider.AUTHORITY)
+        GatedProvider.gate = CountDownLatch(1)
+        val viewModel = viewModel()
+
+        viewModel.load(SharedContent("", null, listOf(Uri.parse("content://${GatedProvider.AUTHORITY}/scan.pdf"))))
+        assertTrue(viewModel.uiState.value.loadingFiles)
+        viewModel.onTextChange("Tax return 2026")
+        viewModel.onNotesChange("for the accountant")
+        GatedProvider.gate.countDown()
+        val after = viewModel.awaitFiles()
+
+        assertEquals("Tax return 2026", after.text)
+        assertEquals("for the accountant", after.notes)
+        assertEquals(listOf("scan.pdf"), after.files.map { it.name })
+        viewModel.save()
+        coVerify(exactly = 1) {
+            queue.capture(
+                "Tax return 2026",
+                "for the accountant",
+                listOf(CaptureAttachment(Uri.parse("content://${GatedProvider.AUTHORITY}/scan.pdf"), "scan.pdf")),
+            )
+        }
+    }
+
     /** A sender's provider that denies `denied`, returns no cursor for `nothing` and a blank name for anything else. */
     class QuirkyProvider : ContentProvider() {
         override fun onCreate(): Boolean = true

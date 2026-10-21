@@ -4,23 +4,35 @@ Date: 2026-10-21
 
 Task: and-share-target - Android share target
 
-Scope: task commit a1dbe34d on top of base 979ddb9e (`git diff 979ddb9e..a1dbe34d`), committed changes only
+Scope: the full task diff, base to HEAD (`git diff 10ad344f..10d50e0a`), committed changes only. The task branch was rebased while this review ran. The hashes the parent supplied (base 103cf937; commits 7413be39, 124491bf, 211dcba3) were replaced by the current hashes below. The commits have the same three subjects, and the last one is the fix commit. Reviewed revision: 10d50e0a5c5462fdf66ab0eb6f77afa49878db04.
 
 Requirements:
 - tasks/and-share-target.md (acceptance criteria and recorded assumptions)
-- SPEC.md §4.5 (quick capture, Android share target), §9.3 (offline capture), §14
-- docs/ARCHITECTURE.md, AGENTS.md project conventions (lint, no secrets logged, feature folders, touches)
-- Existing capture queue contract: android/.../capture/queue/CaptureQueue.kt, CaptureUploader.kt; server gtd/api/CaptureDtos.kt and gtd/domain/CaptureService.kt (limits)
+- SPEC.md §4.5 (quick capture, Android share target), §9.3 (offline capture)
+- docs/ARCHITECTURE.md, AGENTS.md project conventions (lint, feature folders, touches, no secrets in logs)
+- Existing contracts: android/.../capture/queue/CaptureQueue.kt; server gtd/domain/CaptureService.kt, CaptureParser.kt, TaskService.kt (limits)
+- Previous review (findings CR-1..CR-3) and reviews/and-share-target/fixes.md
 
 Git range:
 - Branch: main
-- HEAD: a1dbe34db2638bcea2b09ea3918a8e5c2b9e5d99
-- Base/start: 979ddb9e4ab5169cf353cf2b54bb5f601a5b2134
-- Commits reviewed: 1
+- HEAD: 10d50e0a5c5462fdf66ab0eb6f77afa49878db04
+- Base/start: 10ad344f60c546f6dd94cf094cbe242ca9d56271 (`git merge-base HEAD origin/main`)
+- Commits reviewed: 3 (9b75e099, 6a098d5a, 10d50e0a)
+- Uncommitted changes: none
 
-Summary: 0 P0, 0 P1, 2 P2, 1 P3
+Summary: 0 P0, 0 P1, 0 P2, 1 P3
 
-Checked and found in order: intent filters for SEND and SEND_MULTIPLE with `text/plain`, `image/*`, `*/*`. The sheet edits the text and notes and saves through `CaptureQueue.capture`. The sheet closes (`saved`) only after the queue has copied the attachments and committed the row, so the copies happen while the read grant is still valid. `file:` URIs are dropped. The ViewModel survives configuration changes, and `load` runs only once, so edits are kept. Cancellation is rethrown. Nothing is logged. Strings are in resources. The focused suite passes: `./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.capture.share.*' --offline -q` exited 0 with no failures. The run included the test-writer's untracked ShareManifestTest.kt. The tests cover text, URL with subject, multiple images (copied, readable after the source is deleted), clip-data URIs, unreadable files, cancel and an empty share.
+Previous findings, checked against the current code:
+- Old CR-1 (system Back during save): fixed. `CaptureSheet.kt:76` registers `BackHandler(enabled = state.saving) {}`. `CaptureSheetTest` sends Back through the real `OnBackPressedDispatcher`. One test checks that the activity does not finish while saving. The other checks that Back finishes it again after a failed save.
+- Old CR-2 (notes limit): fixed for the notes field. `ShareViewModel.kt:87` refuses notes over `MAX_NOTES_LENGTH = 100_000` before anything is queued, using `ShareError.NOTES_TOO_LONG`, and editing the notes clears the error. Tests cover a note exactly at the limit and one character over it, followed by a retry. A remaining edge case is listed as CR-1 below.
+- Old CR-3 (literal limits in strings): fixed. `strings_share.xml` uses `%1$d` and `%1$,d` plurals, and `ShareError.message()` passes the constants. The message test pins the constant values.
+
+Acceptance criteria:
+1. Met in code. The manifest has SEND and SEND_MULTIPLE filters for `text/plain`, `image/*` and `*/*` (`AndroidManifest.xml:33-46`), and `ShareManifestTest` covers them. The compact sheet edits the title and notes and saves through `CaptureQueue.capture`. `ShareActivityTest` checks the queue against the real Room database.
+2. Met in code. The activity finishes only after `saved` is set. `saved` is set only after `CaptureQueue.capture` has copied the files and committed the row. Cancellation cannot interrupt a save, because Back and the scrim are blocked and the queue uses `NonCancellable` after the copy. Only `content:` URIs are accepted. The multiple-images test deletes the source files after the sheet closes and reads the copies back.
+3. Covered. The tests exercise text, a URL with a subject, multiple images, clip data, `file:` URIs, an empty share, errors, a configuration change and the sheet UI. I could not run Gradle myself: the sandbox denied the command. The latest JUnit results in `android/app/build/test-results/testDebugUnitTest` are from 03:43 on 2026-10-21. They show 0 failures and 0 errors: CaptureSheetTest 11, ShareViewModelTest 22, ShareActivityTest 11, ShareIntentParserTest 14, ShareManifestTest 4. These counts match the fixed suites described in fixes.md. `python tasks.py verify and-share-target` still shows all three criteria unrecorded. The parent has to record evidence before `done`.
+
+Also checked, no problems found: cancellation is rethrown in `save()`, and a double tap queues only once. Loading and error states always end in a recoverable sheet. Edits survive recreation, because `load` runs only once. Nothing is logged. Strings are in resources. Changes stay inside the task's touches, plus `strings_share.xml`, which a recorded assumption covers.
 
 ## P0 Critical
 
@@ -32,29 +44,17 @@ None.
 
 ## P2 Medium
 
-- [ ] **CR-1 | System Back during save finishes the activity and silently discards the in-flight capture**
-    - File: `android/app/src/main/java/ch/sonensei/cockpit/capture/share/ShareActivity.kt:45` (with `CaptureSheet.kt:77` and `:170`)
-    - Category: Correctness
-    - Problem: While `state.saving` is true, the sheet disables Cancel and ignores taps on the scrim, so it treats a save as uninterruptible. But nothing intercepts system Back (there is no `BackHandler` or `OnBackPressedCallback`), and the default `ComponentActivity` back behavior finishes the activity. The ViewModel is cleared, `viewModelScope` is cancelled, and `CaptureQueue.capture` aborts while copying. Its `finally` block deletes the partial copies, nothing is queued, and no toast or error appears. The read grant also ends when the activity finishes, so the share cannot be resumed. Saving many or large files (for example 50 photos) takes long enough for this to happen in practice. The user pressed Save and gets no capture, and no feedback either way.
-    - Why it matters: The share can be lost after the user pressed Save, and the behavior contradicts the sheet's own "saving cannot be cancelled" UI. SPEC §9.3 promises that a capture is always written locally.
-    - Suggested fix: While `saving`, consume Back, for example with `BackHandler(enabled = state.saving) {}` in the sheet, so it behaves like the disabled Cancel. Alternatively, run the save in a scope that outlives the activity, but then the URI grant lifetime has to be handled. Add a Robolectric test that presses Back during a save.
-
-- [ ] **CR-2 | Shared text is not checked against the server's 100,000-character notes limit, so long shares are "Saved" and then permanently rejected**
-    - File: `android/app/src/main/java/ch/sonensei/cockpit/capture/share/SharedContent.kt:33`, `ShareViewModel.kt:78-98`
-    - Category: Correctness / Integration
-    - Problem: Everything after the first line of EXTRA_TEXT (or the whole text when a subject is given) goes into `notes` with no length limit. The sheet validates only the title, through the queue's `MAX_TEXT_LENGTH` check on `text`, and `CaptureQueue.capture` does not check notes either. The server rejects notes over `TaskService.MAX_NOTES_LENGTH = 100_000` (`CaptureService.kt:62`, which returns 400). `CaptureUploader.failure` treats a 400 as `Rejected`, so the capture is never sent again. The share target is the place where unbounded text enters (sharing a long article or document text). The sheet shows "Saved to Inbox", and the item never reaches the Inbox.
-    - Why it matters: Data loss that the user does not see, and the client and server disagree on a limit the server documents.
-    - Suggested fix: Validate `notes.length <= 100_000` before queueing and show an error (reuse or add a `ShareError`), or truncate with a visible hint. Ideally also add the notes check to `CaptureQueue.capture` (owned by the capture-queue code) so every capture path enforces it. Add a test.
+None.
 
 ## P3 Low
 
-- [ ] **CR-3 | Limits are duplicated as literals in the error strings**
-    - File: `android/app/src/main/res/values/strings_share.xml:12-13`
-    - Category: Quality
-    - Problem: "at most 50" and "at most 100,000 characters" are hard-coded copies of `CaptureQueue.MAX_ATTACHMENTS` and `MAX_TEXT_LENGTH`. If a constant changes, the message silently goes out of date.
-    - Why it matters: Small maintainability risk. The messages could become wrong without anyone noticing.
-    - Suggested fix: Use `%1$d` (or `%1$s` for the formatted number) placeholders and pass the constants via `stringResource(id, arg)`.
+- [ ] **CR-1 | The notes check ignores the part of a long title that the server moves into the notes**
+    - File: `android/app/src/main/java/ch/sonensei/cockpit/capture/share/ShareViewModel.kt:87`
+    - Category: Correctness / Integration
+    - Problem: The share check compares only `form.notes.length` with 100,000. The server checks the combined notes instead (`CaptureService.kt:61-63`): `parsed.extraNotes` plus `"\n\n"` plus the request notes. When the title is longer than `TaskService.MAX_TITLE_LENGTH` (500), `CaptureParser.cutTitle` puts the full title line into `extraNotes`. A share with a title over 500 characters and notes close to the limit therefore passes the client check. The server then rejects it with a 400, which the uploader treats as permanent. For example, a 600-character title with 99,500 characters of notes gives 100,102 characters. The KDoc on `MAX_NOTES_LENGTH` says the server checks only the notes, which is not quite accurate.
+    - Why it matters: This is the same silent loss that the old CR-2 fixed: the sheet says "Saved to Inbox" and the item never arrives. It only happens when a title over 500 characters meets notes within a few hundred characters of the limit, so it is rare.
+    - Suggested fix: Count the moved title line as well. If `text.trim().length > 500`, check `text.length + 2 + notes.length` instead of `notes.length`. Adjust the KDoc and add a boundary test. A simpler alternative is to document the approximation. Ideally the queue owner centralizes this check later.
 
 ## Review conclusion
 
-Material issues found; fix before completing the task.
+No material issues found. The three earlier findings are fixed and covered by tests. The only remaining finding is a low-priority edge case (CR-1). Before `done`, the parent worker must record the acceptance-criteria evidence with `tasks.py verify` and confirm that the focused suite passes on HEAD 10d50e0a.

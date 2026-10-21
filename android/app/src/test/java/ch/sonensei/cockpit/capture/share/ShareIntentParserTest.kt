@@ -51,6 +51,29 @@ class ShareIntentParserTest {
     }
 
     @Test
+    fun `with a subject, multi-line text goes to the notes in full`() {
+        assertEquals(
+            SharedContent("Recipe", "Pancakes\nhttps://example.org/pancakes", emptyList()),
+            ShareIntentParser.parse(
+                send("text/plain") {
+                    putExtra(Intent.EXTRA_SUBJECT, "Recipe")
+                    putExtra(Intent.EXTRA_TEXT, "Pancakes\nhttps://example.org/pancakes")
+                },
+            ),
+        )
+    }
+
+    @Test
+    fun `multiple images given only as clip data are attached`() {
+        val intent =
+            Intent(Intent.ACTION_SEND_MULTIPLE).setType("image/*").apply {
+                clipData = ClipData.newRawUri("", image(1)).apply { addItem(ClipData.Item(image(2))) }
+            }
+
+        assertEquals(SharedContent("", null, listOf(image(1), image(2))), ShareIntentParser.parse(intent))
+    }
+
+    @Test
     fun `a bare URL becomes the title`() {
         assertEquals(
             SharedContent("https://example.org/a?b=c", null, emptyList()),
