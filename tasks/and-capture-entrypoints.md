@@ -5,7 +5,7 @@ owner: dell26/agent-2
 deps: [and-share-target]
 touches: [android/app/src/main/java/ch/sonensei/cockpit/capture/entry,android/app/src/test/java/ch/sonensei/cockpit/capture/entry,android/app/src/main/AndroidManifest.xml,android/app/src/main/res/xml]
 prio: 2
-lease_until: 2026-10-21T03:17:51Z
+lease_until: 2026-10-21T03:22:54Z
 ---
 ## Goal
 More ways to capture (SPEC.md §4.5).
