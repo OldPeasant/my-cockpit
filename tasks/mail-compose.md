@@ -6,6 +6,7 @@ deps: [mail-actions-api,files-api]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/mail/compose,server/src/test/kotlin/ch/sonensei/cockpit/mail/compose]
 prio: 1
 lease_until: 2026-10-21T09:53:19Z
+extended: dell26/agent-2
 ---
 ## Goal
 Compose, reply, forward (SPEC.md §7.3).
@@ -22,3 +23,4 @@ Compose, reply, forward (SPEC.md §7.3).
 - ASSUMPTION (2026-10-21 10:47+0200 by dell26/agent-2): Sent copy is appended only for IMAP_SMTP accounts; GOOGLE and MICROSOFT servers store sent mail themselves. The sent message keeps the draft's Message-ID. Signatures are not inserted server-side (the client composes them into the body); the original is not flagged \Answered/$Forwarded.
 - ASSUMPTION (2026-10-21 10:47+0200 by dell26/agent-2): Max draft/outgoing size 25 MB (cockpit.mail.compose.max-message-size). Quoted HTML is the sanitized original with remote images blocked; replies drop cid: inline images, forwards keep them as parts. GET draft returns sanitized HTML. Recent correspondents = recipients of Sent mail + senders of other mail (not Drafts/Trash/Spam) among the 5000 newest cached messages, own addresses excluded.
 - ASSUMPTION (2026-10-21 10:47+0200 by dell26/agent-2): Added FilesService.open(id) (one method, outside touches) so mail reads file contents through the files service instead of its BlobStore.
+- extended by dell26/agent-2: Implementation of all 4 criteria committed (drafts/send/reply/forward/correspondents, GreenMail tests, OpenAPI+web client regenerated). Left: (1) fixer for review.md CR-1 (DraftController.addresses() accepts display names/groups in 'address'; DraftControllerTests$Create test fails 400 vs 201) and the 3 P2/2 P3 findings; (2) test-writer must finish and write reviews/mail-compose/tests.md with coverage (DraftSendGreenMailTests.kt committed, unverified); (3) re-run test-writer+code-reviewer on final code, verify criteria, quality.json, done. Note: ClockConfigurationTests failed once on nanosecond precision (unrelated flake); check.sh took 6 min.
