@@ -593,6 +593,27 @@ class GtdBackupContributorTests(
 			)
 	}
 
+	@Test
+	fun `a time estimate of zero, a positive or large value or none is exported and restored as it was`() {
+		task(id(20), "Quick call", "NEXT", estimate = 0)
+		task(id(21), "Draft", "NEXT", estimate = 90)
+		task(id(22), "Long haul", "SOMEDAY", estimate = 100_000)
+		task(id(23), "Unknown effort", "INBOX")
+
+		val zip = export()
+
+		val tasks = zip.tasks()
+		tasks.take(3).map { it["timeEstimateMin"].asInt() } shouldContainExactly listOf(0, 90, 100_000)
+		tasks[3].isNullOrAbsent("timeEstimateMin") shouldBe true
+
+		wipe()
+		import(zip.path)
+
+		jdbc
+			.queryForList("select time_estimate_min from task order by id")
+			.map { (it["time_estimate_min"] as Number?)?.toInt() } shouldContainExactly listOf(0, 90, 100_000, null)
+	}
+
 	// --- helpers ----------------------------------------------------------------------------------------------------
 
 	private class Exported(
