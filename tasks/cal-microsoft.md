@@ -1,12 +1,13 @@
 ---
 title: Microsoft Graph calendar adapter
-status: in_progress
-owner: dell26/agent-2
+status: todo
+owner: 
 deps: [cal-sync-engine,oauth-connections]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/calendar/infra/microsoft,server/src/test/kotlin/ch/sonensei/cockpit/calendar/infra/microsoft]
 prio: 2
-lease_until: 2026-10-21T12:11:42Z
-extended: dell26/agent-2
+lease_until: 
+extended: 
+releases: 1
 ---
 ## Goal
 Two-way Microsoft sync (SPEC.md §6.2).
@@ -23,3 +24,4 @@ Two-way Microsoft sync (SPEC.md §6.2).
 - ASSUMPTION (2026-10-21 12:24+0200 by dell26/agent-2): Updates send only fields that differ from Graph's current copy (GET first): avoids resetting series exceptions on unchanged recurrence and re-inviting attendees. Graph has one reminder: only the first cockpit reminder is written. showAs free=TRANSPARENT, tentative=TENTATIVE; writes busy otherwise.
 - ASSUMPTION (2026-10-21 12:24+0200 by dell26/agent-2): Zones: Graph returns UTC (Prefer outlook.timezone); originalStartTimeZone maps via a CLDR Windows->IANA table; writes send the Windows name of golden zones, else the IANA id (Graph accepts both). RRULEs Graph cannot express (HOURLY, BYHOUR, several BYMONTHDAY...) are refused with 502 on write.
 - extended by dell26/agent-2: Adapter, WireMock recording tests and Postgres sync tests are done and committed. Fixes for review findings CR-1 (FOLLOWING split restores exceptions), CR-2 (events addressed via /me/calendars/{cal}/events) and CR-5 (page bound) are in b54e6a37. Focused microsoft.* tests and scripts/check.sh pass (check took >10 min under load). Left: decide CR-3/CR-4/CR-6 (fix or record assumption), run the fixer sub-agent so fixes.md exists, re-run test-writer and code-reviewer on the final code, verify AC 1-3, write quality.json, then done.
+- release by dell26/agent-2: Adapter, WireMock recording tests and Postgres sync tests done. First review CR-1..CR-6 fixed (fixes.md, second review.md confirm). Commit 321a89e2 has unreviewed WIP addressing second review CR-1 (P2: ALL pattern change on series with overrides gives false 409 due to stale override etag after master PATCH) and CR-2 (P3: series deleted remotely -> 502 instead of changed-remotely); focused tests 'ch.sonensei.cockpit.calendar.infra.microsoft.*' pass on it. Left: check 321a89e2 really resolves second-review CR-1/CR-2 (or run fixer so fixes.md covers them), re-run test-writer and code-reviewer on final code, verify AC 1-3, run scripts/check.sh (took >10 min under load), write reviews/cal-microsoft/quality.json, done.
