@@ -13,7 +13,8 @@ releases: 1
 Turn mail into tasks, waiting-fors, notes (SPEC.md §7.3).
 
 ## Acceptance criteria
-- [ ] `POST /api/v1/mail/messages/{id}/to-task|to-waiting|to-note` create linked items (waiting-for uses the recipient of a sent mail)
+- [x] `POST /api/v1/mail/messages/{id}/to-task|to-waiting|to-note` create linked items (waiting-for uses the recipient of a sent mail)
+  - verified (2026-10-21 08:11+0200 by dell26/agent-1): cd server && ./gradlew test --rerun --tests 'ch.sonensei.cockpit.mail.gtd.*' (Testcontainers Postgres, GreenMail) at daa39450 -> MailGtdWebTests 46/46 pass: to-task/to-waiting/to-note return 201 + Location and create item + MANUAL link; waiting-for uses recipients of a sent mail, sender of a received one; 404 gone, 400 malformed id
 - [ ] Links survive moves (Message-ID re-resolution, test)
 - [ ] `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.mail.gtd.*'` passes (Postgres via Testcontainers where persistence is involved)
 - [ ] API documented: `api/openapi.yaml` regenerated (`UPDATE_OPENAPI=1 ./gradlew test --tests '*OpenApiContractTest'`) and `OpenApiContractTest` passes without the flag
