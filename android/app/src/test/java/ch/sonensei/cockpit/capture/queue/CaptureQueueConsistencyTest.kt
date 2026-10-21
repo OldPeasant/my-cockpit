@@ -1,8 +1,11 @@
 package ch.sonensei.cockpit.capture.queue
 
+import android.database.sqlite.SQLiteFullException
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import ch.sonensei.cockpit.core.network.generated.apis.CaptureApi
 import ch.sonensei.cockpit.core.network.generated.apis.FilesApi
+import io.mockk.coEvery
+import io.mockk.spyk
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
@@ -112,6 +115,34 @@ class CaptureQueueConsistencyTest {
             assertFalse(
                 "nothing references the copies any more, so they must be gone",
                 File(q.root, id.toString()).exists(),
+            )
+        }
+
+    @Test
+    fun `a sent capture whose row cannot be removed keeps its copies and is cleaned up by the next run`() =
+        runBlocking {
+            val id = q.queue.capture("Sent, delete failed", null, listOf(CaptureAttachment(q.source("a.txt", "x"))))
+            server.enqueue(answer(201, fileJson(1, "a.txt")))
+            server.enqueue(answer(201, captureTaskJson(id.toString())))
+            val dao = spyk(q.dao)
+            coEvery { dao.delete(any()) } throws SQLiteFullException("disk full")
+            val uploader = CaptureUploader(q.session, dao, q.store, captureApi(), filesApi(), q.clock)
+
+            val outcome = runCatching { uploader.sendAll() }
+
+            assertTrue("the failure reaches the worker, which retries", outcome.exceptionOrNull() is SQLiteFullException)
+            val pending = q.dao.sendable().single()
+            assertEquals("the row still references its copy, so it is kept", "x", File(pending.attachments.single().localPath).readText())
+
+            // The next run: the file id is stored, the repeated capture call is idempotent (200 for the same id).
+            server.enqueue(answer(200, captureTaskJson(id.toString())))
+            assertEquals(SendResult.DONE, q.uploader.sendAll())
+            assertTrue(q.dao.sendable().isEmpty())
+            assertFalse(File(q.root, id.toString()).exists())
+            assertEquals(
+                "the attachment is uploaded once, the capture call repeated",
+                listOf(FILES, CAPTURE, CAPTURE),
+                List(server.requestCount) { server.takeRequest().url.encodedPath },
             )
         }
 
