@@ -403,6 +403,36 @@ describe('MailListStore', () => {
       await flush();
       expect(ids()).toEqual(['new', 'a', 'b', 'c']);
     });
+
+    it('appends a next page when the overlapping refetch failed and left the list as it was', async () => {
+      await loaded([summary('a'), summary('b')], undefined, 'c-b');
+      await emit({});
+      const more = store.loadMore();
+      mail.lists[1].reject(new Error('offline'));
+      await flush();
+      mail.lists[2].resolve({ items: [summary('c')], nextCursor: null });
+      await more;
+      expect(ids()).toEqual(['a', 'b', 'c']);
+      expect(store.nextCursor()).toBeNull();
+    });
+
+    it('appends a next page when the overlapping refetch was dropped for a running action', async () => {
+      await loaded([summary('a'), summary('b')], undefined, 'c-b');
+      await emit({});
+      const more = store.loadMore();
+      const flag = store.apply('FLAG'); // a, still running
+      await flush();
+      // Stale (started before the action): dropped, not applied, so the list was not replaced.
+      mail.lists[1].resolve({ items: [summary('new'), summary('a')], nextCursor: 'c-a' });
+      await flush();
+      expect(ids()).toEqual(['a', 'b']);
+      mail.lists[2].resolve({ items: [summary('c')], nextCursor: null });
+      await more;
+      expect(ids()).toEqual(['a', 'b', 'c']);
+      mail.succeed();
+      await flag;
+      expect(store.items()![0].flagged).toBe(true);
+    });
   });
 
   describe('loading edge cases', () => {
@@ -807,6 +837,34 @@ describe('MailListStore', () => {
       expect(peak).toBe(THREAD_LOOKUP_CONCURRENCY);
       expect(thread).toHaveBeenCalledTimes(count);
       expect(mail.applies[0].ids).toEqual(items.flatMap((item) => [`${item.id}-0`, item.id]));
+    });
+
+    it('sends conversation ids in list order when their lookups finish in reverse order', async () => {
+      const items = [
+        summary('t0', { threadSize: 2 }),
+        summary('single', { threadSize: 1 }),
+        summary('t1', { threadSize: 2 }),
+        summary('t2', { threadSize: 2 }),
+      ];
+      await loaded(items, threaded);
+      const pending = new Map<string, () => void>();
+      vi.spyOn(mail, 'thread').mockImplementation(
+        (id) =>
+          new Promise<MailSummary[]>((resolve) =>
+            pending.set(id, () => resolve([summary(`${id}-0`), summary(id)])),
+          ),
+      );
+      store.toggleAll();
+      const done = store.apply('ARCHIVE');
+      await flush();
+      expect([...pending.keys()]).toEqual(['t0', 't1', 't2']);
+      for (const id of ['t2', 't1', 't0']) {
+        pending.get(id)!();
+        await flush();
+      }
+      expect(mail.applies[0].ids).toEqual(['t0-0', 't0', 'single', 't1-0', 't1', 't2-0', 't2']);
+      mail.succeed();
+      expect(await done).toBe(true);
     });
 
     it('stops looking up conversations after a failed lookup and rolls back every item', async () => {

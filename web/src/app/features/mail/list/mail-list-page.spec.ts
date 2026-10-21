@@ -199,6 +199,19 @@ describe('MailListPage', () => {
     expect(mail.applies[0]).toMatchObject({ action, ids: ['a'] });
   });
 
+  it('deletes with # typed with AltGr (Ctrl+Alt), but ignores letters typed with it', async () => {
+    await create();
+    const letter = press('e', { ctrlKey: true, altKey: true });
+    await flush();
+    expect(letter.defaultPrevented).toBe(false);
+    expect(mail.applies).toEqual([]);
+    const symbol = press('#', { ctrlKey: true, altKey: true });
+    await flush();
+    expect(symbol.defaultPrevented).toBe(true);
+    expect(mail.applies[0]).toMatchObject({ action: 'DELETE', ids: ['a'] });
+    expect(rows().map((row) => row.dataset['id'])).toEqual(['b', 'c']);
+  });
+
   it('ignores keys while typing, with modifiers and while a dialog is open', async () => {
     await create();
     const input = document.createElement('input');
