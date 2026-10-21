@@ -216,7 +216,8 @@ class HeaderSyncDovecotTests(
 
 		val result = sync.syncFolder(before.id)
 
-		result shouldBe FolderSyncResult(before.id, full = false, created = 1, updated = 1, removed = 1)
+		result shouldBe FolderSyncResult(before.id, full = false, created = 1, updated = 1, removed = 1, arrived = result.arrived)
+		result.arrived.size shouldBe 1
 		assertReconciled(before, before)
 	}
 
@@ -239,7 +240,8 @@ class HeaderSyncDovecotTests(
 
 		val result = sync.syncFolder(before.id)
 
-		result shouldBe FolderSyncResult(before.id, full = false, created = 1, updated = 1, removed = 1)
+		result shouldBe FolderSyncResult(before.id, full = false, created = 1, updated = 1, removed = 1, arrived = result.arrived)
+		result.arrived.size shouldBe 1
 		assertReconciled(before, before)
 	}
 

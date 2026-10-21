@@ -361,7 +361,8 @@ class HeaderSyncGreenMailTests(
 
 		val result = sync.syncFolder(inbox.id)
 
-		result shouldBe FolderSyncResult(inbox.id, full = false, created = 1, updated = 1, removed = 1)
+		result shouldBe FolderSyncResult(inbox.id, full = false, created = 1, updated = 1, removed = 1, arrived = result.arrived)
+		result.arrived.size shouldBe 1
 		cached(inbox).map { it.messageIdHeader } shouldBe listOf("<a@example.test>", "<c@example.test>", "<d@example.test>")
 		cached(inbox, "<a@example.test>").let {
 			it.seen shouldBe true
