@@ -1,0 +1,25 @@
+{
+  "schema": 1,
+  "task": "and-projects-lists",
+  "reviewed_revision": "4db5f564790d781a7e24efef6fe9624f3af0a544",
+  "helpers": {
+    "test-writer": {"status": "completed", "report": "reviews/and-projects-lists/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/and-projects-lists/review.md"},
+    "fixer": {"status": "completed", "report": "reviews/and-projects-lists/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "CR-1 (review 1)", "source": "code-reviewer", "severity": "P2", "disposition": "fixed", "note": "projects shown under No area without loaded areas"},
+    {"id": "CR-2 (review 1)", "source": "code-reviewer", "severity": "P2", "disposition": "fixed", "note": "detail read-only after failed reload, no banner/retry"},
+    {"id": "CR-3 (review 1)", "source": "code-reviewer", "severity": "P2", "disposition": "fixed", "note": "next-step prompt Add not atomic"},
+    {"id": "CR-4 (review 1)", "source": "code-reviewer", "severity": "P2", "disposition": "fixed", "note": "ProjectWorkRepository untested"},
+    {"id": "CR-5 (review 1)", "source": "code-reviewer", "severity": "P3", "disposition": "fixed", "note": "prompt not tied to its project"},
+    {"id": "CR-6 (review 1)", "source": "code-reviewer", "severity": "P3", "disposition": "fixed", "note": "completed set never pruned"},
+    {"id": "CR-1 (review 2)", "source": "code-reviewer", "severity": "P3", "disposition": "fixed", "note": "cached projects hidden behind Loading while areas load"},
+    {"id": "CR-2 (review 2)", "source": "code-reviewer", "severity": "P3", "disposition": "fixed", "note": "two stacked offline banners in project detail"}
+  ],
+  "validation": [
+    {"command": "cd android && ./gradlew ktlintCheck testDebugUnitTest --tests 'ch.sonensei.cockpit.gtd.projects.*' --tests 'ch.sonensei.cockpit.gtd.lists.*'", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
