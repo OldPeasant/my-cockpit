@@ -5,6 +5,7 @@ import ch.sonensei.cockpit.journal.habits.domain.HabitCheck
 import jakarta.persistence.LockModeType
 import org.springframework.data.jpa.repository.JpaRepository
 import org.springframework.data.jpa.repository.Lock
+import org.springframework.data.jpa.repository.Modifying
 import org.springframework.data.jpa.repository.Query
 import org.springframework.data.repository.query.Param
 import java.time.LocalDate
@@ -23,6 +24,14 @@ interface HabitRepository : JpaRepository<Habit, UUID> {
 	fun lockById(
 		@Param("id") id: UUID,
 	): Habit?
+
+	/** Sets the habit's managed reminder, without a version check or bump; returns the number of updated rows. */
+	@Modifying(flushAutomatically = true)
+	@Query("update Habit h set h.reminderId = :reminderId where h.id = :id")
+	fun setReminderId(
+		@Param("id") id: UUID,
+		@Param("reminderId") reminderId: UUID?,
+	): Int
 }
 
 interface HabitCheckRepository : JpaRepository<HabitCheck, UUID> {

@@ -63,6 +63,15 @@ class Habit(
 	@Column(name = "archived", nullable = false)
 	var archived: Boolean = false
 
+	/**
+	 * The core reminder [HabitService] manages for [reminderTime] (it may have fired or be gone since). Read-only here:
+	 * it is set with [ch.sonensei.cockpit.journal.habits.infra.HabitRepository.setReminderId], so moving a reminder
+	 * neither bumps the version (ETag) nor overwrites a concurrent change of the habit.
+	 */
+	@Column(name = "reminder_id", insertable = false, updatable = false)
+	var reminderId: UUID? = null
+		protected set
+
 	val rule: HabitRule get() = HabitRule(schedule, timesPerWeek, weekdays.toSet(), targetCount)
 }
 

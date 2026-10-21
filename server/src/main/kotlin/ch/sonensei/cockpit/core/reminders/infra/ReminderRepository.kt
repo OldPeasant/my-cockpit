@@ -21,6 +21,12 @@ interface ReminderRepository : JpaRepository<Reminder, UUID> {
 		itemId: UUID,
 	): List<Reminder>
 
+	/** Reminders of an item that have not fired yet, earliest first. */
+	fun findByItemTypeAndItemIdAndFiredAtIsNullOrderByRemindAtAscIdAsc(
+		itemType: ItemType,
+		itemId: UUID,
+	): List<Reminder>
+
 	/** Reminders not fired yet that are due at or before [until] (also overdue ones), earliest first. */
 	@Query("select r from Reminder r where r.firedAt is null and r.remindAt <= :until order by r.remindAt, r.id")
 	fun findPending(

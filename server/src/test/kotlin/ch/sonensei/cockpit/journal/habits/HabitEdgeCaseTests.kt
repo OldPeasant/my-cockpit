@@ -1,11 +1,13 @@
 package ch.sonensei.cockpit.journal.habits
 
 import ch.sonensei.cockpit.core.auth.WithCockpitUser
+import ch.sonensei.cockpit.core.items.domain.ItemRef
 import ch.sonensei.cockpit.core.items.domain.ItemType
 import ch.sonensei.cockpit.core.persistence.MutableClock
 import ch.sonensei.cockpit.core.persistence.MutableClockTestConfiguration
 import ch.sonensei.cockpit.core.reminders.domain.Reminder
 import ch.sonensei.cockpit.core.reminders.domain.ReminderFiredEvent
+import ch.sonensei.cockpit.core.reminders.domain.ReminderService
 import ch.sonensei.cockpit.core.reminders.domain.ResolvedReminder
 import ch.sonensei.cockpit.core.settings.domain.SettingsService
 import ch.sonensei.cockpit.journal.habits.domain.HabitService
@@ -55,6 +57,7 @@ class HabitEdgeCaseTests(
 	@Autowired private val clock: MutableClock,
 	@Autowired private val settings: SettingsService,
 	@Autowired private val service: HabitService,
+	@Autowired private val reminders: ReminderService,
 ) : PostgresTestBase() {
 	@BeforeEach
 	fun setUp() {
@@ -221,6 +224,55 @@ class HabitEdgeCaseTests(
 		)
 		service.onReminderFired(fired(ItemType.HABIT))
 		pendingReminders(habit.id()) shouldContainExactly listOf(Instant.parse("2026-03-05T19:00:00Z"))
+	}
+
+	@Test
+	fun `a failing habit reminder move neither rolls back nor stops the firing batch`() {
+		val broken = newHabit("""{"name":"Broken","reminderTime":"20:00"}""")
+		val fine = newHabit("""{"name":"Fine","reminderTime":"20:00"}""")
+		// A row the habit entity cannot load (unknown weekday): every sync of this habit throws.
+		jdbc.update("update habit set weekdays = '[\"FUNDAY\"]' where id = ?::uuid", broken.id())
+		clock.set(Instant.parse("2026-03-04T19:30:00Z"))
+
+		reminders.fireDue() shouldBe 2
+
+		jdbc.queryForObject(
+			"select count(*) from reminder where item_type = 'HABIT' and fired_at is not null",
+			Int::class.java,
+		) shouldBe 2
+		pendingReminders(fine.id()) shouldContainExactly listOf(Instant.parse("2026-03-05T19:00:00Z"))
+		pendingReminders(broken.id()).shouldBeEmpty()
+	}
+
+	@Test
+	fun `reminders the user added to a habit are left alone`() {
+		val habit = newHabit("""{"name":"Meditate","reminderTime":"20:00"}""")
+		val ref = ItemRef(ItemType.HABIT, UUID.fromString(habit.id()))
+		val own = Instant.parse("2026-03-10T08:00:00Z")
+		reminders.create(ref, own)
+		pendingReminders(habit.id()) shouldContainExactly listOf(Instant.parse("2026-03-04T19:00:00Z"), own)
+
+		// A check moves only the habit's reminder.
+		check(habit.id(), "2026-03-04", 1)
+		pendingReminders(habit.id()) shouldContainExactly listOf(Instant.parse("2026-03-05T19:00:00Z"), own)
+		// Firing moves only the habit's reminder.
+		clock.set(Instant.parse("2026-03-05T19:30:00Z"))
+		reminders.fireDue() shouldBe 1
+		pendingReminders(habit.id()) shouldContainExactly listOf(Instant.parse("2026-03-06T19:00:00Z"), own)
+		// Clearing the reminder time removes only the habit's reminder.
+		val current = mockMvc.get("$HABITS/${habit.id()}").json()
+		patch(habit.id(), """{"reminderTime":null}""", current.etag()).andExpect { status { isOk() } }
+		pendingReminders(habit.id()) shouldContainExactly listOf(own)
+		check(habit.id(), "2026-03-05", 1)
+		pendingReminders(habit.id()) shouldContainExactly listOf(own)
+	}
+
+	@Test
+	fun `moving the habit's reminder does not change its version`() {
+		val habit = newHabit("""{"name":"Meditate","reminderTime":"20:00"}""")
+		check(habit.id(), "2026-03-04", 1)
+		pendingReminders(habit.id()) shouldContainExactly listOf(Instant.parse("2026-03-05T19:00:00Z"))
+		patch(habit.id(), """{"name":"Meditate daily"}""", habit.etag()).andExpect { status { isOk() } }
 	}
 
 	@Test

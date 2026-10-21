@@ -17,9 +17,14 @@ import ch.sonensei.cockpit.journal.habits.infra.HabitCheckRepository
 import ch.sonensei.cockpit.journal.habits.infra.HabitRepository
 import org.slf4j.LoggerFactory
 import org.springframework.context.ApplicationEventPublisher
-import org.springframework.context.event.EventListener
 import org.springframework.stereotype.Service
+import org.springframework.transaction.PlatformTransactionManager
+import org.springframework.transaction.TransactionDefinition
+import org.springframework.transaction.annotation.Propagation
 import org.springframework.transaction.annotation.Transactional
+import org.springframework.transaction.event.TransactionPhase
+import org.springframework.transaction.event.TransactionalEventListener
+import org.springframework.transaction.support.TransactionTemplate
 import java.time.Clock
 import java.time.DayOfWeek
 import java.time.LocalDate
@@ -55,8 +60,9 @@ data class HabitView(
  * week start (settings). Every change of a habit or its checks publishes a `HABIT`
  * [ch.sonensei.cockpit.core.events.domain.ChangeEvent]; the habit's name is in the search index.
  *
- * Reminders: a habit with a [Habit.reminderTime] that is not archived has exactly one pending reminder, at that time on
- * its next due day that is not done yet. It moves on whenever the habit or a check changes, and after it fired. A
+ * Reminders: a habit with a [Habit.reminderTime] that is not archived has exactly one pending reminder managed by this
+ * module ([Habit.reminderId]), at that time on its next due day that is not done yet. It moves on whenever the habit or
+ * a check changes, and after it fired. Other reminders of the habit (added through the reminders API) are left alone. A
  * change of the time zone setting applies from the next move on.
  *
  * Methods that change a habit take a `checkVersion` callback that sees the current version first (If-Match).
@@ -72,8 +78,14 @@ class HabitService(
 	private val events: ApplicationEventPublisher,
 	private val settings: SettingsService,
 	private val clock: Clock,
+	transactionManager: PlatformTransactionManager,
 ) {
 	private val log = LoggerFactory.getLogger(javaClass)
+
+	private val isolated =
+		TransactionTemplate(transactionManager).apply {
+			propagationBehavior = TransactionDefinition.PROPAGATION_REQUIRES_NEW
+		}
 
 	/** The habits that are archived ([archived]) or not, by name. */
 	@Transactional(readOnly = true)
@@ -187,13 +199,23 @@ class HabitService(
 	/** The owner's today. */
 	fun today(): LocalDate = LocalDate.now(clock.withZone(settings.timeZone()))
 
-	/** A fired habit reminder schedules the next one, in the firing transaction. */
-	@EventListener
+	/**
+	 * A fired habit reminder schedules the next one, after the firing transaction committed and in a transaction of its
+	 * own: a failure here must neither roll back nor stop the firing batch of every module's reminders, so it is only
+	 * logged (the next check or habit change moves the reminder again).
+	 */
+	@TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT, fallbackExecution = true)
+	@Transactional(propagation = Propagation.NOT_SUPPORTED)
 	fun onReminderFired(event: ReminderFiredEvent) {
 		val reminder = event.reminder.reminder
 		if (reminder.itemType != ItemType.HABIT) return
-		val habit = habits.findById(reminder.itemId).orElse(null) ?: return
-		sync(habit, context())
+		try {
+			isolated.executeWithoutResult {
+				habits.findById(reminder.itemId).orElse(null)?.let { sync(it, context()) }
+			}
+		} catch (e: RuntimeException) {
+			log.warn("Scheduling the next reminder of habit {} failed", reminder.itemId, e)
+		}
 	}
 
 	private fun changed(
@@ -205,7 +227,10 @@ class HabitService(
 		return sync(habit, context())
 	}
 
-	/** The habit's view, after moving its pending reminder to where it belongs now. */
+	/**
+	 * The habit's view, after moving its managed reminder ([Habit.reminderId]) to where it belongs now. Only that
+	 * reminder is touched; once it fired or is gone, a new one is created.
+	 */
 	private fun sync(
 		habit: Habit,
 		context: Context,
@@ -221,10 +246,11 @@ class HabitService(
 					.firstOrNull { it > now }
 					?.truncatedTo(ChronoUnit.MICROS)
 			}
-		val pending = reminders.ofItem(ref).map { it.reminder }.filter { it.firedAt == null }
-		if (pending.map { it.remindAt } != listOfNotNull(wanted)) {
-			pending.forEach { reminders.delete(it.id) }
-			if (wanted != null) reminders.create(ref, wanted)
+		val managed = habit.reminderId?.let { id -> reminders.pendingOfItem(ref).firstOrNull { it.id == id } }
+		if (managed?.remindAt != wanted) {
+			managed?.let { reminders.delete(it.id) }
+			val created = wanted?.let { reminders.create(ref, it).reminder.id }
+			habits.setReminderId(habit.id, created)
 			log.debug("Habit {} reminder moved to {}", habit.id, wanted)
 		}
 		return HabitView(habit, calendar.stats())

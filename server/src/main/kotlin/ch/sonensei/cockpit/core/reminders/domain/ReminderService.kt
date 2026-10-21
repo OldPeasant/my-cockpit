@@ -91,6 +91,14 @@ class ReminderService(
 		resolveAll(reminders.findByItemTypeAndItemIdOrderByRemindAtAscIdAsc(item.type, item.id))
 
 	/**
+	 * The reminders of [item] that have not fired yet, earliest first, without display data: for modules that manage
+	 * their items' reminders themselves.
+	 */
+	@Transactional(readOnly = true)
+	fun pendingOfItem(item: ItemRef): List<Reminder> =
+		reminders.findByItemTypeAndItemIdAndFiredAtIsNullOrderByRemindAtAscIdAsc(item.type, item.id)
+
+	/**
 	 * Reminders not fired yet, due at or before [until] (overdue ones included), earliest first, at most
 	 * [MAX_UPCOMING]: what the Android app schedules as local alarms.
 	 */
