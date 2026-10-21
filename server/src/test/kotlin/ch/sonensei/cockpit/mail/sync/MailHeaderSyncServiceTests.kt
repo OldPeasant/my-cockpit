@@ -545,6 +545,106 @@ class MailHeaderSyncServiceTests {
 	}
 
 	@Test
+	fun `searchServer caches the most recently arrived matches up to the limit and reports more`() {
+		cachedState(uidNext = 12)
+		remote.searchMatches = listOf(2, 5, 9, 11)
+		// UID order is not arrival order; 11 has no date and ranks last.
+		remote.received = mapOf(2L to now.minus(Duration.ofDays(1)), 5L to now.minus(Duration.ofDays(10)), 9L to now.minus(Duration.ofDays(5)))
+		every { store.locatedUids(folder.id) } returns listOf(9)
+		every { store.locatedIds(folder.id, listOf(2L, 9L)) } returns listOf(rowId(2), rowId(9))
+
+		val result = service.searchServer(folder.id, listOf("budget", "draft"), limit = 2)
+
+		result shouldBe ServerSearchResult(listOf(rowId(2), rowId(9)), loaded = 1, hasMore = true)
+		remote.calls shouldContainExactly listOf("search [budget, draft]", "receivedDates [2, 5, 9, 11]", "headers [2]")
+		upserted() shouldContainExactly listOf(2)
+		verify(exactly = 1) { changes.publish("MAIL_FOLDER", folder.id, ChangeOp.UPDATED) }
+		verify(exactly = 0) { store.detachFolder(any()) }
+	}
+
+	@Test
+	fun `searchServer reads no dates when the matches fit and announces nothing when all were cached`() {
+		cachedState(uidNext = 12)
+		remote.searchMatches = listOf(3, 4)
+		every { store.locatedUids(folder.id) } returns listOf(3, 4)
+		every { store.locatedIds(folder.id, listOf(3L, 4L)) } returns listOf(rowId(3), rowId(4))
+
+		val result = service.searchServer(folder.id, listOf("invoice"), limit = 2)
+
+		result shouldBe ServerSearchResult(listOf(rowId(3), rowId(4)), loaded = 0, hasMore = false)
+		remote.calls shouldContainExactly listOf("search [invoice]")
+		verify(exactly = 0) { store.upsert(any(), any(), any()) }
+		verify(exactly = 0) { changes.publish(any<String>(), any(), any()) }
+	}
+
+	@Test
+	fun `searchServer without matches loads nothing`() {
+		cachedState(uidNext = 12)
+		every { store.locatedUids(folder.id) } returns listOf(3)
+		every { store.locatedIds(folder.id, emptyList()) } returns emptyList()
+
+		service.searchServer(folder.id, listOf("nothing"), limit = 5) shouldBe ServerSearchResult(emptyList(), 0, false)
+
+		remote.calls shouldContainExactly listOf("search [nothing]")
+	}
+
+	@Test
+	fun `searchServer resyncs a folder whose UIDVALIDITY changed before searching, and announces the change`() {
+		cachedState()
+		remote.status = remote.status.copy(uidValidity = 8)
+		remote.uids = listOf(1)
+		remote.searchMatches = listOf(1)
+		every { store.locatedUids(folder.id) } returns listOf(1)
+		every { store.locatedIds(folder.id, listOf(1L)) } returns listOf(rowId(1))
+
+		val result = service.searchServer(folder.id, listOf("contract"), limit = 10)
+
+		result shouldBe ServerSearchResult(listOf(rowId(1)), loaded = 0, hasMore = false)
+		verify { store.detachFolder(folder.id) }
+		remote.calls.first().startsWith("uidsSince") shouldBe true
+		// The search runs after the resync, so the UIDs it finds match the cache.
+		remote.calls.last() shouldBe "search [contract]"
+		verify(exactly = 1) { changes.publish("MAIL_FOLDER", folder.id, ChangeOp.UPDATED) }
+	}
+
+	@Test
+	fun `searchServer of a never synced folder syncs it first`() {
+		remote.uids = emptyList()
+		remote.searchMatches = emptyList()
+		every { store.locatedUids(folder.id) } returns emptyList()
+		every { store.locatedIds(folder.id, emptyList()) } returns emptyList()
+
+		service.searchServer(folder.id, listOf("contract"), limit = 10) shouldBe ServerSearchResult(emptyList(), 0, false)
+
+		remote.calls shouldContainExactly listOf("uidsSince 2026-04-20T10:00:00Z", "search [contract]")
+		verify { store.finish(folder.id, remote.status, now) }
+	}
+
+	@Test
+	fun `searchServer of a folder that cannot hold messages or without words opens nothing`() {
+		cachedState()
+
+		service.searchServer(folder.id, emptyList(), limit = 10) shouldBe ServerSearchResult(emptyList(), 0, false)
+		folder.selectable = false
+		service.searchServer(folder.id, listOf("contract"), limit = 10) shouldBe ServerSearchResult(emptyList(), 0, false)
+
+		opened shouldBe 0
+		verify(exactly = 0) { changes.publish(any<String>(), any(), any()) }
+	}
+
+	@Test
+	fun `searchServer rejects a limit that is not positive and an unknown folder without contacting the server`() {
+		cachedState()
+		val unknown = UUID.fromString("01900000-0000-7000-8000-00000000abce")
+		every { folders.findById(unknown) } returns Optional.empty()
+
+		shouldThrow<IllegalArgumentException> { service.searchServer(folder.id, listOf("contract"), limit = 0) }
+		shouldThrow<NotFoundException> { service.searchServer(unknown, listOf("contract"), limit = 10) }
+
+		opened shouldBe 0
+	}
+
+	@Test
 	fun `syncAccount skips folders that are gone from the server and folders that hold no messages`() {
 		val gone = MailFolder(account.id, "Gone", "Gone")
 		val group = MailFolder(account.id, "Group", "Group").apply { selectable = false }

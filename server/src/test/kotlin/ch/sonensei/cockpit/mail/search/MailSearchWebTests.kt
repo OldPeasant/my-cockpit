@@ -20,6 +20,7 @@ import ch.sonensei.cockpit.mail.sync.QresyncChanges
 import ch.sonensei.cockpit.mail.sync.RemoteFlagState
 import ch.sonensei.cockpit.mail.sync.RemoteFlags
 import ch.sonensei.cockpit.mail.sync.RemoteFolder
+import ch.sonensei.cockpit.mail.sync.RemoteFolderNotFoundException
 import ch.sonensei.cockpit.mail.sync.RemoteFolderStatus
 import ch.sonensei.cockpit.mail.sync.RemoteMailbox
 import ch.sonensei.cockpit.mail.sync.RemoteMessage
@@ -85,6 +86,9 @@ class MailSearchWebTests(
 		val failing = mutableSetOf<UUID>()
 		val searched = mutableListOf<Pair<String, List<String>>>()
 
+		/** "accountId/path" of folders deleted on the server. */
+		val gone = mutableSetOf<String>()
+
 		override fun <T> withFolder(
 			account: MailAccount,
 			path: String,
@@ -92,6 +96,7 @@ class MailSearchWebTests(
 			block: (RemoteFolder) -> T,
 		): T {
 			if (account.id in failing) throw MailConnectionException(MailConnectionError.CONNECTION_FAILED, RuntimeException("refused"))
+			if ("${account.id}/$path" in gone) throw RemoteFolderNotFoundException(path)
 			val folder = folders.getValue("${account.id}/$path")
 			return block(folder)
 		}
@@ -139,6 +144,7 @@ class MailSearchWebTests(
 		mailbox.folders.clear()
 		mailbox.failing.clear()
 		mailbox.searched.clear()
+		mailbox.gone.clear()
 		work = accounts.save(account("Work", "jane.doe@work.example"))
 		home = accounts.save(account("Home", "jane@home.example"))
 		workInbox = folder(work, "INBOX")
@@ -361,6 +367,66 @@ class MailSearchWebTests(
 		val failure = result["server"]["failures"].single()
 		failure["accountId"].asString() shouldBe work.id.toString()
 		failure["errorCode"].asString() shouldBe "CONNECTION_FAILED"
+	}
+
+	@Test
+	fun `server search keeps the most recent matches per folder and skips folders gone from the server or without messages`() {
+		mailbox.folders["${work.id}/INBOX"] =
+			mailbox.FakeFolder(
+				"INBOX",
+				UID_VALIDITY,
+				mutableMapOf(1L to remote(1, "Receipt one"), 2L to remote(2, "Receipt two"), 3L to remote(3, "Receipt three")),
+			)
+		mailbox.gone += "${work.id}/Archive"
+		// Not registered in the fake: opening it would fail the request.
+		folders.save(MailFolder(work.id, "Projects", "Projects").apply { selectable = false })
+
+		val result = search("q=receipt&accountId=${work.id}&server=true&limit=2")
+
+		result["items"].strings("subject") shouldContainExactly listOf("Receipt three", "Receipt two")
+		result["hasMore"].asBoolean() shouldBe false
+		result["server"]["searchedFolders"].asInt() shouldBe 1
+		result["server"]["loaded"].asInt() shouldBe 2
+		result["server"]["truncated"].asBoolean() shouldBe true
+		result["server"]["failures"].shouldBeEmpty()
+		mailbox.searched.map { it.first } shouldContainExactly listOf("INBOX")
+		messages.findByFolderIdAndUidIn(workInbox.id, listOf(1L, 2L, 3L)).map { it.uid }.toSet() shouldBe setOf(2L, 3L)
+	}
+
+	@Test
+	fun `server search scoped to a folder that cannot hold messages searches nothing on the server`() {
+		val group = folders.save(MailFolder(work.id, "Group", "Group").apply { selectable = false })
+
+		val result = search("q=anything&folderId=${group.id}&server=true")
+
+		result["items"].shouldBeEmpty()
+		result["server"]["searchedFolders"].asInt() shouldBe 0
+		mailbox.searched.shouldBeEmpty()
+	}
+
+	@Test
+	fun `messages of a folder deleted from the cache are not found`() {
+		cache(workArchive, remote(1, "Obsolete minutes"))
+		cache(workInbox, remote(1, "Obsolete agenda"))
+
+		// What the folder list sync does when a folder is gone: the rows stay (folder_id set null, uid left behind).
+		jdbc.update("delete from mail_folder where id = ?", workArchive.id)
+
+		subjects("q=obsolete") shouldContainExactly listOf("Obsolete agenda")
+		subjects("q=obsolete&accountId=${work.id}") shouldContainExactly listOf("Obsolete agenda")
+	}
+
+	@Test
+	fun `reconcile drops documents of messages whose folder was deleted and does not count them as added`() {
+		val (_, unindexed) = cache(workArchive, remote(1, "Stale indexed"), remote(2, "Stale unindexed"))
+		jdbc.update("delete from search_document where item_type = 'EMAIL' and item_id = ?", unindexed.id)
+		jdbc.update("delete from mail_folder where id = ?", workArchive.id)
+
+		index.reconcile(100) shouldBe (1 to 0)
+
+		jdbc.queryForList("select item_id from search_document where item_type = 'EMAIL'", UUID::class.java).shouldBeEmpty()
+		// Nothing left to repair: a later run finds no work.
+		index.reconcile(100) shouldBe (0 to 0)
 	}
 
 	@Test
