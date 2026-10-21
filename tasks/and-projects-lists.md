@@ -15,3 +15,4 @@ Remaining GTD screens.
 - [ ] `cd android && ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.gtd.projects.*'` passes, covering stalled badge, next-step prompt (Robolectric/Compose UI tests for screens); and `gtd.lists`
 
 ## Notes
+- ASSUMPTION (2026-10-21 11:36+0200 by dell26/agent-1): Android Waiting For, Someday and project tasks are loaded live (not cached in Room): SPEC §9.3 caches only Inbox/Next/Today; offline they show an error with retry, or the last loaded list read-only with a banner
