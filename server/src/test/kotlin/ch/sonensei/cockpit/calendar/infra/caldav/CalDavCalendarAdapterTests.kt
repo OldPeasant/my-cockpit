@@ -644,6 +644,200 @@ class CalDavCalendarAdapterTests {
 		}
 	}
 
+	// --- added by the test-writer: gaps after the fixes (F3 out-of-range values on the write path, F4 403 while syncing)
+
+	@Test
+	fun `the adapter is the CalDAV one, polls every 10 minutes and shares one etag per series`() {
+		adapter.sourceType shouldBe CalendarSourceType.CALDAV
+		adapter.pollInterval shouldBe java.time.Duration.ofMinutes(10)
+		adapter.seriesShareEtag shouldBe true
+	}
+
+	@Test
+	fun `403 on the sync token or ctag of a calendar says access was denied, on a first and on a later sync`() {
+		dav("PROPFIND", CAL).answer(403, "<html>$PASSWORD forbidden details</html>")
+		val denied = "Fetching the events: the CalDAV server denied access (HTTP 403), the user lacks permission"
+
+		val first = shouldThrowExactly<CalendarProviderException> { adapter.fetchEvents(source, CAL, null) }
+		first.message shouldBe denied
+		first.message shouldNotContain PASSWORD
+
+		val etagCursor = """{"mode":"etag","ctag":"ctag-1","resources":{"${CAL}a.ics":{"etag":"\"a1\"","uid":"a"}}}"""
+		shouldThrowExactly<CalendarProviderException> { adapter.fetchEvents(source, CAL, etagCursor) }.message shouldBe denied
+		// Nothing is listed after the refusal, so no event is reported as deleted.
+		wireMock.verify(0, davRequest("PROPFIND", CAL).withHeader("Depth", equalTo("1")))
+		wireMock.verify(0, davRequest("REPORT", CAL))
+	}
+
+	@Test
+	fun `a server error on sync-collection is a provider failure, not a complete listing`() {
+		dav("REPORT", CAL).withRequestBody(containing("sync-collection")).answer(503)
+
+		shouldThrowExactly<CalendarProviderException> {
+			adapter.fetchEvents(source, CAL, """{"mode":"sync","token":"tok-1","resources":{}}""")
+		}.message shouldBe "Fetching the events failed at the CalDAV server (HTTP 503)"
+		wireMock.verify(0, davRequest("PROPFIND", CAL))
+	}
+
+	@Test
+	fun `a server that truncates every sync-collection answer fails after 100 rounds instead of looping`() {
+		dav("REPORT", CAL)
+			.withRequestBody(containing("sync-collection"))
+			.answer(207, multistatus(status(CAL, "507 Insufficient Storage"), syncToken = "tok-again"))
+
+		shouldThrowExactly<CalendarProviderException> {
+			adapter.fetchEvents(source, CAL, """{"mode":"sync","token":"tok-1","resources":{}}""")
+		}.message shouldBe "Fetching the events: the CalDAV server sent more than 100 partial answers"
+		wireMock.verify(100, davRequest("REPORT", CAL).withRequestBody(containing("sync-collection")))
+	}
+
+	@Test
+	fun `members whose href is malformed or on another host are neither read nor kept in the cursor`() {
+		dav("PROPFIND", CAL)
+			.withHeader("Depth", equalTo("0"))
+			.answer(207, multistatus(found(CAL, "<CS:getctag>ctag-1</CS:getctag>", missing = "<D:sync-token/>")))
+		dav("PROPFIND", CAL)
+			.withHeader("Depth", equalTo("1"))
+			.answer(
+				207,
+				multistatus(
+					member("a", "\"a1\""),
+					found("https://elsewhere.example.test${CAL}foreign.ics", etag("\"f1\"") + "<D:resourcetype/>"),
+					found("http://[broken", etag("\"x1\"") + "<D:resourcetype/>"),
+				),
+			)
+		// The server also slips a resource of another host into the multiget answer.
+		multiget(
+			resource("a", "\"a1\"", "Dentist"),
+			found("https://elsewhere.example.test${CAL}foreign.ics", etag("\"f1\"") + data(ics("foreign", "Injected"))),
+		)
+
+		val changes = adapter.fetchEvents(source, CAL, null)
+
+		changes.events.map { it.title } shouldContainExactly listOf("Dentist")
+		json
+			.readTree(changes.cursor)
+			.get("resources")
+			.properties()
+			.map { it.key } shouldContainExactly listOf("${CAL}a.ics")
+		wireMock.verify(davRequest("REPORT", CAL).withRequestBody(containing("calendar-multiget")).withRequestBody(notContaining("foreign")))
+	}
+
+	@Test
+	fun `a stored event the server answers with out-of-range or unreadable values is a provider failure (502), not a crash`() {
+		dav("PUT", "${CAL}new-1.ics").answer(201)
+		listOf(
+			// All-day: the days overflow a Long when the 24 hours are added (ArithmeticException before the fix).
+			"DTSTART;VALUE=DATE:20261103\r\nDURATION:P9223372036854775807DT24H",
+			// Timed: far beyond the supported date range.
+			"DTSTART;TZID=Europe/Zurich:20261103T090000\r\nDURATION:P200000000000000D",
+			// Malformed.
+			"DTSTART;TZID=Europe/Zurich:20261103T090000\r\nDURATION:soon",
+		).forEach { timing ->
+			dav("GET", "${CAL}new-1.ics").answer(200, ics("new-1", "Planning", raw = timing), "ETag" to "\"n1\"")
+
+			shouldThrowExactly<CalendarProviderException> { adapter.createEvent(source, CAL, planning("new-1")) }.message shouldBe
+				"The CalDAV server answered with an event that could not be read"
+		}
+	}
+
+	@Test
+	fun `a stored event the server loses or answers without is a provider failure`() {
+		dav("PUT", "${CAL}new-1.ics").answer(201)
+		dav("GET", "${CAL}new-1.ics").answer(404)
+		shouldThrowExactly<CalendarProviderException> { adapter.createEvent(source, CAL, planning("new-1")) }.message shouldBe
+			"The CalDAV server lost a stored event"
+
+		dav("GET", "${CAL}new-1.ics").answer(200, ics("someone-else", "Other"), "ETag" to "\"n1\"")
+		shouldThrowExactly<CalendarProviderException> { adapter.createEvent(source, CAL, planning("new-1")) }.message shouldBe
+			"The CalDAV server answered without the event"
+	}
+
+	@Test
+	fun `a create whose name is taken by another UID, or that the server refuses, is a provider failure`() {
+		dav("PUT", "${CAL}new-1.ics").answer(412)
+		dav("GET", "${CAL}new-1.ics").answer(200, ics("someone-else", "Other"), "ETag" to "\"x1\"")
+		dav("REPORT", CAL).withRequestBody(containing("calendar-query")).answer(207, multistatus())
+		shouldThrowExactly<CalendarProviderException> { adapter.createEvent(source, CAL, planning("new-1")) }.message shouldBe
+			"Creating an event failed: the resource name is taken"
+
+		dav("PUT", "${CAL}new-1.ics").answer(403)
+		shouldThrowExactly<CalendarProviderException> { adapter.createEvent(source, CAL, planning("new-1")) }.message shouldBe
+			"Creating an event failed at the CalDAV server (HTTP 403)"
+	}
+
+	@Test
+	fun `writing to a series whose resource holds only overrides is a conflict, nothing is PUT`() {
+		val overridesOnly =
+			listOf(
+				"BEGIN:VCALENDAR",
+				"VERSION:2.0",
+				"PRODID:-//Example//Fictitious Server//EN",
+				"BEGIN:VEVENT",
+				"UID:standup",
+				"DTSTAMP:20261001T000000Z",
+				"RECURRENCE-ID;TZID=Europe/Zurich:20261109T090000",
+				"SUMMARY:Standup (moved)",
+				"DTSTART;TZID=Europe/Zurich:20261109T100000",
+				"DTEND;TZID=Europe/Zurich:20261109T101500",
+				"END:VEVENT",
+				"END:VCALENDAR",
+			).joinToString("\r\n", postfix = "\r\n")
+		dav("GET", "${CAL}standup.ics").answer(200, overridesOnly, "ETag" to "\"s1\"")
+		val override = planning("standup").copy(key = RemoteEventKey("standup", OccurrenceId.of(Instant.parse("2026-11-16T08:00:00Z"))))
+
+		shouldThrowExactly<RemoteEventChangedException> { adapter.createEvent(source, CAL, override) }
+		shouldThrowExactly<RemoteEventChangedException> { adapter.updateEvent(source, CAL, planning("standup"), "\"s1\"") }
+		wireMock.verify(0, putRequestedFor(anyUrl()))
+	}
+
+	@Test
+	fun `a refused DELETE is a provider failure, not a success`() {
+		dav("GET", "${CAL}dentist.ics").answer(200, ics("dentist", "Dentist"), "ETag" to "\"d1\"")
+		dav("DELETE", "${CAL}dentist.ics").answer(403)
+
+		shouldThrowExactly<CalendarProviderException> { adapter.deleteEvent(source, CAL, RemoteEventKey("dentist"), "\"d1\"") }.message shouldBe
+			"Deleting an event failed at the CalDAV server (HTTP 403)"
+	}
+
+	@Test
+	fun `removing an occurrence reads the new etag back when the PUT answer has none`() {
+		dav("GET", "${CAL}standup.ics").answer(200, SERIES, "ETag" to "\"s1\"")
+		dav("PUT", "${CAL}standup.ics").answer(204)
+
+		// The GET stub answers the read-back too (with the old data, the etag is what counts here).
+		val etag = adapter.deleteEvent(source, CAL, RemoteEventKey("standup", OccurrenceId.of(Instant.parse("2026-11-16T08:00:00Z"))), "\"s1\"")
+
+		etag shouldBe "\"s1\""
+		wireMock.verify(2, davRequest("GET", "${CAL}standup.ics"))
+	}
+
+	@Test
+	fun `a resource that is gone (410), no iCalendar or another UID's is looked up by calendar-query, a refused query fails`() {
+		dav("REPORT", CAL).withRequestBody(containing("calendar-query")).answer(
+			207,
+			multistatus(
+				found("${CAL}broken.ics", etag("\"b1\"") + data("not iCalendar")),
+				found("${CAL}server-named-0001.ics", etag("\"s1\"") + data(ics("dentist", "Dentist"))),
+			),
+		)
+		dav("PUT", "${CAL}server-named-0001.ics").answer(204, headers = arrayOf("ETag" to "\"s2\""))
+		listOf(
+			{ dav("GET", "${CAL}dentist.ics").answer(410) },
+			{ dav("GET", "${CAL}dentist.ics").answer(200, "<html>not a calendar</html>") },
+			{ dav("GET", "${CAL}dentist.ics").answer(200, ics("someone-else", "Other"), "ETag" to "\"o1\"") },
+		).forEach { stubGet ->
+			stubGet()
+			adapter.updateEvent(source, CAL, planning("dentist"), ifMatch = null).etag shouldBe "\"s2\""
+		}
+		wireMock.verify(3, putRequestedFor(urlPathEqualTo("${CAL}server-named-0001.ics")).withHeader("If-Match", equalTo("\"s1\"")))
+		wireMock.verify(0, putRequestedFor(urlPathEqualTo("${CAL}dentist.ics")))
+
+		dav("REPORT", CAL).withRequestBody(containing("calendar-query")).answer(403)
+		shouldThrowExactly<CalendarProviderException> { adapter.updateEvent(source, CAL, planning("dentist"), "\"d1\"") }.message shouldBe
+			"Reading an event failed at the CalDAV server (HTTP 403)"
+	}
+
 	// --- helpers
 
 	private fun source(config: String) =
@@ -761,10 +955,12 @@ class CalDavCalendarAdapterTests {
 		private fun components(vararg names: String) =
 			"<C:supported-calendar-component-set>" + names.joinToString("") { "<C:comp name=\"$it\"/>" } + "</C:supported-calendar-component-set>"
 
+		/** A resource with one VEVENT; [raw] (CRLF-separated lines) replaces its DTSTART and DTEND. */
 		private fun ics(
 			uid: String,
 			title: String,
 			vararg extra: String,
+			raw: String? = null,
 		) = (
 			listOf(
 				"BEGIN:VCALENDAR",
@@ -774,9 +970,8 @@ class CalDavCalendarAdapterTests {
 				"UID:$uid",
 				"DTSTAMP:20261001T000000Z",
 				"SUMMARY:$title",
-				"DTSTART;TZID=Europe/Zurich:20261103T090000",
-				"DTEND;TZID=Europe/Zurich:20261103T100000",
-			) + extra + listOf("END:VEVENT", "END:VCALENDAR")
+			) + (raw?.let(::listOf) ?: listOf("DTSTART;TZID=Europe/Zurich:20261103T090000", "DTEND;TZID=Europe/Zurich:20261103T100000")) +
+				extra + listOf("END:VEVENT", "END:VCALENDAR")
 		).joinToString("\r\n", postfix = "\r\n")
 
 		private val SERIES =

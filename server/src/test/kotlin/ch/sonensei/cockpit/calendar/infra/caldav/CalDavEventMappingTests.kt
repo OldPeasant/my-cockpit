@@ -68,6 +68,50 @@ class CalDavEventMappingTests {
 	}
 
 	@Test
+	fun `DURATION across the start of summer time - days first in wall time, then the exact hours, weeks are 7 days`() {
+		// Summer time in Zurich starts on 29 March 2026 (02:00 -> 03:00): that day has 23 hours.
+		read("DTSTART;TZID=Europe/Zurich:20260328T090000", "DURATION:P1D").timing shouldBe
+			timed("2026-03-28T08:00:00Z", "2026-03-29T07:00:00Z", ZURICH)
+		read("DTSTART;TZID=Europe/Zurich:20260328T090000", "DURATION:PT24H").timing shouldBe
+			timed("2026-03-28T08:00:00Z", "2026-03-29T08:00:00Z", ZURICH)
+		read("DTSTART;TZID=Europe/Zurich:20260328T090000", "DURATION:P1DT1H").timing shouldBe
+			timed("2026-03-28T08:00:00Z", "2026-03-29T08:00:00Z", ZURICH)
+		read("DTSTART;TZID=Europe/Zurich:20260325T090000", "DURATION:P1W").timing shouldBe
+			timed("2026-03-25T08:00:00Z", "2026-04-01T07:00:00Z", ZURICH)
+		// In UTC a day is 24 hours.
+		read("DTSTART:20260328T090000Z", "DURATION:P1D").timing shouldBe timed("2026-03-28T09:00:00Z", "2026-03-29T09:00:00Z", ZoneOffset.UTC)
+	}
+
+	@Test
+	fun `an all-day DURATION whose days overflow when its hours are added skips the VEVENT instead of failing the resource`() {
+		val data =
+			calendar(
+				"""
+				BEGIN:VEVENT
+				UID:overflow
+				DTSTART;VALUE=DATE:20261103
+				DURATION:P9223372036854775807DT24H
+				END:VEVENT
+				BEGIN:VEVENT
+				UID:overflow
+				RECURRENCE-ID;VALUE=DATE:20261110
+				DTSTART;VALUE=DATE:20261111
+				END:VEVENT
+				""".trimIndent(),
+			)
+
+		CalDavEventMapping.parse(data, null).apply {
+			uid shouldBe "overflow"
+			events.shouldBeEmpty()
+			// The master and, without a readable master, its override.
+			skipped shouldBe 2
+		}
+		// An all-day DURATION with hours counts whole days of them.
+		read("DTSTART;VALUE=DATE:20261103", "DURATION:P1DT48H").timing shouldBe
+			Timing.AllDay(LocalDate.of(2026, 11, 3), LocalDate.of(2026, 11, 6))
+	}
+
+	@Test
 	fun `UTC times are UTC, floating times are read as UTC`() {
 		read("DTSTART:20261103T080000Z", "DTEND:20261103T090000Z").timing shouldBe
 			timed("2026-11-03T08:00:00Z", "2026-11-03T09:00:00Z", ZoneOffset.UTC)
@@ -870,6 +914,37 @@ class CalDavEventMappingTests {
 		daylight.property("RRULE").shouldBeNull()
 		daylight.text("DTSTART") shouldBe rule.createTransition(1970).dateTimeBefore.format(LOCAL)
 		for (year in 1971..2100) onsets(daylight, year) shouldContainExactly listOf(rule.createTransition(year).dateTimeBefore)
+	}
+
+	@Test
+	fun `a last-weekday transition at 24 00 that moves into the next month gets an observance there`() {
+		// A fictitious zone: summer time ends on the last Sunday of October at 24:00 wall time, that is Monday 00:00,
+		// which falls on 1 November in some years (e.g. 2027, 2032).
+		val rule =
+			ZoneOffsetTransitionRule.of(
+				Month.OCTOBER,
+				-1,
+				DayOfWeek.SUNDAY,
+				LocalTime.MIDNIGHT,
+				true,
+				ZoneOffsetTransitionRule.TimeDefinition.WALL,
+				ZoneOffset.ofHours(1),
+				ZoneOffset.ofHours(2),
+				ZoneOffset.ofHours(1),
+			)
+		val rules = ZoneRules.of(ZoneOffset.ofHours(1), ZoneOffset.ofHours(2), emptyList(), emptyList(), listOf(rule))
+
+		val standard = CalDavEventMapping.vtimezone("Fictitious/Midnight", rules).children("STANDARD")
+
+		standard.map { it.text("RRULE") } shouldContainExactly
+			listOf("FREQ=YEARLY;BYMONTH=10;BYDAY=MO;BYMONTHDAY=-6,-5,-4,-3,-2,-1", "FREQ=YEARLY;BYMONTH=11;BYDAY=MO;BYMONTHDAY=1")
+		standard.forEach {
+			it.text("TZOFFSETFROM") shouldBe "+0200"
+			it.text("TZOFFSETTO") shouldBe "+0100"
+		}
+		for (year in 1971..2100) {
+			standard.flatMap { onsets(it, year) }.sorted() shouldContainExactly listOf(rule.createTransition(year).dateTimeBefore)
+		}
 	}
 
 	// --- helpers
