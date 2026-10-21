@@ -17,7 +17,8 @@ Turn mail into tasks, waiting-fors, notes (SPEC.md §7.3).
   - verified (2026-10-21 08:11+0200 by dell26/agent-1): cd server && ./gradlew test --rerun --tests 'ch.sonensei.cockpit.mail.gtd.*' (Testcontainers Postgres, GreenMail) at daa39450 -> MailGtdWebTests 46/46 pass: to-task/to-waiting/to-note return 201 + Location and create item + MANUAL link; waiting-for uses recipients of a sent mail, sender of a received one; 404 gone, 400 malformed id
 - [x] Links survive moves (Message-ID re-resolution, test)
   - verified (2026-10-21 08:12+0200 by dell26/agent-1): same run -> move tests pass (move creating a new row, move keeping the row, repeated moves, waiting/note links, request with old id): links re-resolved by Message-ID (MailGtdWebTests, MailGtdMailServerTests 5/5)
-- [ ] `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.mail.gtd.*'` passes (Postgres via Testcontainers where persistence is involved)
+- [x] `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.mail.gtd.*'` passes (Postgres via Testcontainers where persistence is involved)
+  - verified (2026-10-21 08:12+0200 by dell26/agent-1): cd server && ./gradlew -Pkotlin.daemon.jvmargs=-Xmx3g test --rerun --tests 'ch.sonensei.cockpit.mail.gtd.*' -> BUILD SUCCESSFUL, 51 tests (46+5), 0 failures/errors/skipped, Postgres via Testcontainers
 - [ ] API documented: `api/openapi.yaml` regenerated (`UPDATE_OPENAPI=1 ./gradlew test --tests '*OpenApiContractTest'`) and `OpenApiContractTest` passes without the flag
 
 ## Notes
