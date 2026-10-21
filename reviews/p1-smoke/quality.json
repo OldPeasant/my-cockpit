@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "task": "p1-smoke",
-  "reviewed_revision": "183818f7ffc545c9d567670c45b452f4cf0b28f2",
+  "reviewed_revision": "7174218937ed2e3717791baf4dfc9108a16e8a81",
   "helpers": {
     "test-writer": {"status": "completed", "report": "reviews/p1-smoke/tests.md"},
     "code-reviewer": {"status": "completed", "report": "reviews/p1-smoke/review.md"},
