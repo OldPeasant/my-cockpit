@@ -10,6 +10,7 @@ import { map } from 'rxjs';
 import { AuthService } from '../core/auth';
 import { LOGIN_PATH } from '../core/http';
 import { CommandPalette } from './command-palette';
+import { LogoComponent } from './logo';
 import { ShellAction, shellActionFor } from './hotkeys';
 import { NAV_GROUPS } from './nav-sections';
 import { CAPTURE_DIALOG, THEME_PREFERENCE } from './shell-tokens';
@@ -24,6 +25,7 @@ export const COMPACT_QUERY = '(max-width: 899.98px)';
   selector: 'app-shell',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
+    LogoComponent,
     MatButtonModule,
     MatMenuModule,
     MatSidenavModule,

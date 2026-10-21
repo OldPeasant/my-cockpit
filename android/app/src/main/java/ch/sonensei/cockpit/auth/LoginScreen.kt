@@ -1,6 +1,7 @@
 package ch.sonensei.cockpit.auth
 
 import androidx.annotation.StringRes
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -8,6 +9,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardActions
@@ -24,6 +26,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
@@ -92,10 +95,16 @@ fun LoginScreen(
                 modifier = Modifier.widthIn(max = 480.dp).fillMaxWidth().padding(24.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp),
             ) {
+                // Decorative: the title next to it names the app. drawable-night has the dark-theme ink.
+                Image(
+                    painter = painterResource(R.drawable.ic_logo),
+                    contentDescription = null,
+                    modifier = Modifier.padding(top = 24.dp).size(72.dp),
+                )
                 Text(
                     text = stringResource(R.string.login_title),
                     style = MaterialTheme.typography.headlineMedium,
-                    modifier = Modifier.padding(top = 24.dp, bottom = 8.dp),
+                    modifier = Modifier.padding(bottom = 8.dp),
                 )
 
                 Surface(

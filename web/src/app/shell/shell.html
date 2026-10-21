@@ -6,7 +6,9 @@
     [opened]="!compact()"
     [fixedInViewport]="compact()"
   >
-    <a class="brand" routerLink="/" (click)="onNavigate()" i18n="@@app.title">My Cockpit</a>
+    <a class="brand" routerLink="/" (click)="onNavigate()"
+      ><app-logo [size]="28" /><span i18n="@@app.title">My Cockpit</span></a
+    >
     <nav i18n-aria-label="@@nav.label" aria-label="Main">
       @for (group of groups; track group.id) {
         <ul class="group" [attr.aria-label]="group.label">
@@ -43,6 +45,7 @@
             <path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z" />
           </svg>
         </button>
+        <app-logo class="topbar-logo" [size]="28" />
       }
       <button type="button" class="search" (click)="openPalette()">
         <svg viewBox="0 0 24 24" aria-hidden="true">

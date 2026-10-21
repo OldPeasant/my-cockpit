@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The brand mark for the dark theme: ink on dark #EEF2F7, otherwise identical to drawable/ic_logo.xml. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="64dp"
+    android:height="64dp"
+    android:viewportWidth="64"
+    android:viewportHeight="64">
+    <group
+        android:translateX="0.5"
+        android:translateY="0.5">
+        <path
+            android:fillColor="#FFEEF2F7"
+            android:fillType="evenOdd"
+            android:pathData="M4,12a8,8 0,1 1,16,0a8,8 0,1 1,-16,0ZM12.972,11.028L9.772,7.828A1.375,1.375 0,0 0,7.828,9.772L11.028,12.972A1.375,1.375 0,0 0,12.972,11.028ZM34,10a8,8 0,1 1,16,0a8,8 0,1 1,-16,0ZM42.687,11.191L46.587,8.941A1.375,1.375 0,0 0,45.213,6.559L41.313,8.809A1.375,1.375 0,0 0,42.687,11.191ZM2,42a8,8 0,1 1,16,0a8,8 0,1 1,-16,0ZM11.375,42L11.375,37.5A1.375,1.375 0,0 0,8.625,37.5L8.625,42A1.375,1.375 0,0 0,11.375,42Z" />
+        <path
+            android:fillColor="#FFE8962E"
+            android:pathData="M23,42a19,19 0,1 1,38,0a19,19 0,1 1,-38,0Z" />
+        <path
+            android:fillColor="#FFEEF2F7"
+            android:pathData="M25.55,51.5L58.45,32.5A19,19 0,0 1,25.55 51.5Z" />
+    </group>
+</vector>

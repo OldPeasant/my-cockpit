@@ -15,7 +15,9 @@
 }
 
 .brand {
-  display: block;
+  display: flex;
+  align-items: center;
+  gap: var(--app-space-2);
   padding: var(--app-space-3) var(--app-space-4) var(--app-space-2);
   color: var(--app-fg);
   font: var(--mat-sys-title-large);

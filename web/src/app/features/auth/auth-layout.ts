@@ -1,12 +1,15 @@
 import { ChangeDetectionStrategy, Component } from '@angular/core';
+import { LogoComponent } from '../../shell/logo';
 
-/** Frame of the pages outside the shell (login, setup): the app name above a narrow column. */
+/** Frame of the pages outside the shell (login, setup): the brand mark and app name above a narrow column. */
 @Component({
   selector: 'app-auth-layout',
   changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [LogoComponent],
   template: `
     <main class="page">
       <div class="column">
+        <app-logo class="logo" [size]="64" />
         <p class="brand" i18n="@@app.title">My Cockpit</p>
         <ng-content />
       </div>
@@ -26,6 +29,10 @@ import { ChangeDetectionStrategy, Component } from '@angular/core';
     .column {
       width: 100%;
       max-width: 400px;
+    }
+    .logo {
+      display: block;
+      margin: 0 0 var(--app-space-3);
     }
     .brand {
       margin: 0 0 var(--app-space-4);
