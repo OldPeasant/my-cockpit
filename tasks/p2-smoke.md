@@ -1,11 +1,11 @@
 ---
 title: Phase 2 demo script incl. restore on a fresh install
-status: in_progress
+status: done
 owner: dell26/agent-2
 deps: [web-files-upload-preview,web-notes-editor,web-settings-backup,web-gtd-convert-note,backup-contrib-gtd,backup-contrib-notes,backup-contrib-files,p1-smoke]
 touches: [web/e2e/phase2,deploy/docker-compose.e2e.yml]
 prio: 1
-lease_until: 2026-10-21T08:47:39Z
+lease_until: 
 ---
 ## Goal
 Automate SPEC.md §13.2 Phase 2, including wipe + restore into a fresh stack.
@@ -23,3 +23,4 @@ Automate SPEC.md §13.2 Phase 2, including wipe + restore into a fresh stack.
 - ASSUMPTION (2026-10-21 09:48+0200 by dell26/agent-2): Restore on the fresh install goes through the web UI (Settings > Backup & restore) after a throwaway setup account, since the restore API needs a session; the CLI --restore path is not exercised here.
 - ASSUMPTION (2026-10-21 09:48+0200 by dell26/agent-2): TOTP re-enrollment after restore without passphrase is verified via the API (recovery-code login -> totpEnrollmentRequired, 403 elsewhere, enroll, then web login with the new secret): the web enrollment screen is task web-totp-reenroll, not done yet.
 - ASSUMPTION (2026-10-21 09:48+0200 by dell26/agent-2): Phase 1 data for the round trip is seeded through the API in phase2 step 0 (phase1's script resets the stack at its end, so its data is gone by phase 2).
+- done by dell26/agent-2: `sh scripts/check.sh` passed in 174s on ecb929929; criteria verified 3/3
