@@ -10,6 +10,9 @@ tags:
   name: OAuth
 - description: Calendars and their events
   name: Calendars
+- description: "Bookmarks and the read-later queue, with title, description and favicon\
+    \ from the page"
+  name: Bookmarks
 - description: Web login sessions and device tokens
   name: Auth
 - description: GTD tasks
@@ -705,6 +708,313 @@ paths:
       summary: Download a completed backup
       tags:
       - Backup
+  /api/v1/bookmarks:
+    get:
+      description: "Bookmarks matching every given filter, not in the Trash, newest\
+        \ first. The read-later queue is `readLater=true&read=false`."
+      operationId: listBookmarks
+      parameters:
+      - description: Only bookmarks with this tag (regardless of case)
+        in: query
+        name: tag
+        required: false
+        schema:
+          type: string
+      - description: "true: only bookmarks in the read-later list, false: only those\
+          \ that are not"
+        in: query
+        name: readLater
+        required: false
+        schema:
+          type: boolean
+      - description: "true: only read bookmarks, false: only unread ones"
+        in: query
+        name: read
+        required: false
+        schema:
+          type: boolean
+      - description: Cursor from the previous page
+        in: query
+        name: cursor
+        required: false
+        schema:
+          type: string
+      - description: "Page size, 1-200 (default 50)"
+        in: query
+        name: limit
+        required: false
+        schema:
+          type: integer
+          format: int32
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BookmarkPageResponse"
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/BookmarkPageResponse"
+          description: One page of bookmarks
+        "400":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: Invalid or unknown fields
+      summary: List bookmarks
+      tags:
+      - Bookmarks
+    post:
+      description: "Saves the URL and fetches the page in the background (`metadataStatus`\
+        \ PENDING): its title, description and favicon fill the fields left empty."
+      operationId: createBookmark
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateBookmarkRequest"
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BookmarkResponse"
+          description: Created
+          headers:
+            ETag:
+              description: "Version of the bookmark, for If-Match"
+              schema:
+                type: string
+              style: simple
+        "400":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: Invalid or unknown fields
+      summary: Create a bookmark
+      tags:
+      - Bookmarks
+  /api/v1/bookmarks/tags:
+    get:
+      operationId: listBookmarkTags
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BookmarkTagListResponse"
+          description: The tags
+      summary: "Every bookmark tag in use, with its number of bookmarks"
+      tags:
+      - Bookmarks
+  /api/v1/bookmarks/{id}:
+    delete:
+      operationId: deleteBookmark
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - description: ETag of the bookmark
+        in: header
+        name: If-Match
+        required: false
+        schema:
+          type: string
+      responses:
+        "204":
+          description: In the Trash
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: Not found or in the Trash
+        "409":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: Changed concurrently
+        "412":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: If-Match does not match the current ETag
+        "428":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: If-Match is missing
+      summary: Move a bookmark to the Trash
+      tags:
+      - Bookmarks
+    get:
+      operationId: getBookmark
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BookmarkResponse"
+          description: The bookmark with its (new) ETag
+          headers:
+            ETag:
+              description: "Version of the bookmark, for If-Match"
+              schema:
+                type: string
+              style: simple
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: Not found or in the Trash
+      summary: One bookmark
+      tags:
+      - Bookmarks
+    patch:
+      description: Only the fields sent change; `null` clears the title or description.
+        `read` marks it as read or unread. A new URL clears the favicon and fetches
+        the page metadata again (filling empty fields).
+      operationId: updateBookmark
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - description: ETag of the bookmark
+        in: header
+        name: If-Match
+        required: false
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BookmarkPatchRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BookmarkResponse"
+          description: The bookmark with its (new) ETag
+          headers:
+            ETag:
+              description: "Version of the bookmark, for If-Match"
+              schema:
+                type: string
+              style: simple
+        "400":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: Invalid or unknown fields
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: Not found or in the Trash
+        "409":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: Changed concurrently
+        "412":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: If-Match does not match the current ETag
+        "428":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: If-Match is missing
+      summary: Change a bookmark
+      tags:
+      - Bookmarks
+  /api/v1/bookmarks/{id}/refresh-metadata:
+    post:
+      description: "Fetches the page in the background (`metadataStatus` PENDING);\
+        \ the fetched title, description and favicon replace the current ones."
+      operationId: refreshBookmarkMetadata
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - description: ETag of the bookmark
+        in: header
+        name: If-Match
+        required: false
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BookmarkResponse"
+          description: The bookmark with its (new) ETag
+          headers:
+            ETag:
+              description: "Version of the bookmark, for If-Match"
+              schema:
+                type: string
+              style: simple
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: Not found or in the Trash
+        "409":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: Changed concurrently
+        "412":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: If-Match does not match the current ETag
+        "428":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: If-Match is missing
+      summary: Fetch the page metadata again
+      tags:
+      - Bookmarks
   /api/v1/calendar/calendars:
     get:
       description: "Every calendar of every source, ordered by name."
@@ -6212,6 +6522,139 @@ components:
       - step
       - stepsDone
       - stepsTotal
+    BookmarkPageResponse:
+      type: object
+      description: One page of bookmarks
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/BookmarkResponse"
+        nextCursor:
+          type: string
+          description: Cursor of the next page; `null` on the last page
+      required:
+      - items
+    BookmarkPatchRequest:
+      type: object
+      description: "Changes to a bookmark: only the fields sent change; `null` clears\
+        \ `title` and `description` (the others cannot be null). A new `url` clears\
+        \ the favicon and fetches the page metadata again."
+      properties:
+        description:
+          type:
+          - string
+          - "null"
+          maxLength: 2000
+        read:
+          type: boolean
+          description: "true: mark as read now (keeps an earlier read time), false:\
+            \ mark as unread"
+        readLater:
+          type: boolean
+        tags:
+          type: array
+          description: The complete new list of tags
+          items:
+            type: string
+        title:
+          type:
+          - string
+          - "null"
+          maxLength: 500
+        url:
+          type: string
+          maxLength: 2048
+    BookmarkResponse:
+      type: object
+      description: A bookmark. `version` is also sent as the ETag.
+      properties:
+        createdAt:
+          type: string
+          format: date-time
+        description:
+          type: string
+          description: As set or fetched from the page
+        displayTitle:
+          type: string
+          description: "The title, or else the host of the URL"
+        favicon:
+          type: string
+          description: "Absolute http(s) URL of the site's icon, fetched from the\
+            \ page"
+        id:
+          type: string
+          format: uuid
+        metadataStatus:
+          type: string
+          description: "Whether title, description and favicon were fetched from the\
+            \ page after the URL was saved. The fetch runs in the background; when\
+            \ it finishes the bookmark changes (new ETag) and a change event is sent."
+          enum:
+          - PENDING
+          - FETCHED
+          - FAILED
+        readAt:
+          type: string
+          format: date-time
+          description: When it was marked as read; `null` while unread
+        readLater:
+          type: boolean
+          description: In the read-later list
+        snapshotFileId:
+          type: string
+          format: uuid
+          description: File with a readable copy of the page
+        tags:
+          type: array
+          description: Ordered regardless of case
+          items:
+            type: string
+        title:
+          type: string
+          description: As set or fetched from the page; `null` when there is none
+        updatedAt:
+          type: string
+          format: date-time
+        url:
+          type: string
+          description: Absolute http(s) URL
+        version:
+          type: integer
+          format: int64
+      required:
+      - createdAt
+      - displayTitle
+      - id
+      - metadataStatus
+      - readLater
+      - tags
+      - updatedAt
+      - url
+      - version
+    BookmarkTagListResponse:
+      type: object
+      description: "Every bookmark tag in use, ordered regardless of case"
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/BookmarkTagResponse"
+      required:
+      - items
+    BookmarkTagResponse:
+      type: object
+      description: A tag and the number of bookmarks (not in the Trash) that have
+        it
+      properties:
+        count:
+          type: integer
+          format: int64
+        tag:
+          type: string
+      required:
+      - count
+      - tag
     CalendarListResponse:
       type: object
       description: "Every calendar, ordered by name"
@@ -6931,6 +7374,32 @@ components:
           maxLength: 200
       required:
       - title
+    CreateBookmarkRequest:
+      type: object
+      description: A new bookmark. Only `url` is required; an empty title or description
+        is filled from the page.
+      properties:
+        description:
+          type: string
+          maxLength: 2000
+        readLater:
+          type: boolean
+          description: Put into the read-later list (default false)
+        tags:
+          type: array
+          description: "Trimmed, a leading `#` removed, each once regardless of case\
+            \ (at most 50, 50 characters each)"
+          items:
+            type: string
+        title:
+          type: string
+          maxLength: 500
+        url:
+          type: string
+          description: Absolute http(s) URL
+          maxLength: 2048
+      required:
+      - url
     CreateCalendarRequest:
       type: object
       description: A new local calendar (stored in the cockpit)
