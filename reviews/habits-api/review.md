@@ -4,29 +4,36 @@ Date: 2026-10-21
 
 Task: habits-api - Habits API
 
-Scope: task commits 0f5875db and bff07d20 (`git diff ff1970a6..bff07d20`), committed changes only
+Scope: full task diff `git diff a075af7e..HEAD` (committed changes only, `reviews/` and `tasks/` excluded), with a focus on the fixes for the previous review's CR-1..CR-3 (b784ec85 in the parent's numbering, local commit 4f140629) and the gtd convert test change (f10f4a34, local 45984d18)
 
 Requirements:
-- tasks/habits-api.md (acceptance criteria and the six ASSUMPTION notes)
+- tasks/habits-api.md (four acceptance criteria and the eight ASSUMPTION notes)
 - SPEC.md §8.5 (habits), §4.2 (API conventions), §4.6 (reminders)
-- docs/ARCHITECTURE.md, AGENTS.md project notes (module boundaries, Problem Details, ETag/If-Match, Flyway layout)
-- docs/QUALITY.md (report contract)
-- Parent instructions: focus on streak/stats logic and transaction/reminder interactions
+- docs/ARCHITECTURE.md and AGENTS.md project notes (module boundaries, Problem Details, ETag/If-Match, Flyway layout, logging)
+- reviews/habits-api/review.md (previous review) and reviews/habits-api/fixes.md
+- Parent instructions: verify the AFTER_COMMIT + REQUIRES_NEW resync, the habit.reminder_id ownership with a bulk update that does not touch the version, and ReminderService.pendingOfItem
 
 Git range:
 - Branch: main
-- HEAD: bff07d20ee111709c9a50185f9b7c442a1617fae
-- Base/start: ff1970a6c3d47ae575d708aebabe0070b24dc6ec (merge-base with origin/main)
-- Commits reviewed: 2 (0f5875db, bff07d20)
+- HEAD: 45984d1823eca296f6856ad6bc360bb4f92772b6
+- Base/start: a075af7e985e4a3aeb5589308d6854cf56dd0902 (ancestor of HEAD; the parent named it as the task base)
+- Commits reviewed: 10 in `a075af7e..HEAD`, 5 of them code commits (e786e5f1, 2cfb793d, 71e108ea, 4f140629, 45984d18); the rest only touch `tasks/` (assumptions). The parent's hashes (f14ea014 ... f10f4a34) belong to the same commits before a rebase; the subjects match.
 - Uncommitted changes: none at review start
 
 Commands run:
-- `git log --oneline ff1970a6..HEAD`, `git diff --stat ff1970a6..HEAD` -> 2 commits, 28 files, additions only
-- `git diff ff1970a6..HEAD -- api/openapi.yaml web/src/app/api/generated/` -> only new `/api/v1/habits*` paths, schemas and client functions; nothing removed
-- Read in full: Habit.kt, HabitService.kt, HabitStats.kt, HabitController.kt, HabitDtos.kt, HabitItemResolver.kt, HabitRepositories.kt, the migration, HabitCalendarTests.kt and the setup/reminder parts of HabitWebTests.kt; core context: ReminderService.kt, Reminder.kt, ReminderItems.kt, ReminderScheduler.kt, ReminderController.kt (`onFired` listener), ItemResolver.kt, LinkService/SearchIndexer `onItemDeleted`
-- `./gradlew test --tests 'ch.sonensei.cockpit.journal.habits.*' --tests '*OpenApiContractTest' ktlintCheck` -> could not run: execution was denied in the reviewer's sandbox. Test and lint results are therefore not independently confirmed by this review; the parent must rely on its own and the test-writer's runs.
+- `git log --oneline a075af7e..HEAD`, `git diff --stat a075af7e..HEAD -- . ':!reviews' ':!tasks'` -> 37 files, server code, two migrations, tests, regenerated `api/openapi.yaml` and web client
+- `git diff a075af7e..HEAD -- server/src/main/kotlin/ch/sonensei/cockpit/core` -> only additions: `ReminderRepository.findByItemTypeAndItemIdAndFiredAtIsNullOrderByRemindAtAscIdAsc` and `ReminderService.pendingOfItem`
+- `git diff a075af7e..HEAD -- server/src/test/kotlin/ch/sonensei/cockpit/gtd` -> the four gtd convert tests create a real habit through `HabitService` instead of a random HABIT id, and clean `habit`/`habit_check`; the assertions are unchanged except the test name
+- Read in full: Habit.kt, HabitService.kt, HabitStats.kt, HabitController.kt, HabitDtos.kt, HabitItemResolver.kt, HabitRepositories.kt, both migrations, HabitEdgeCaseTests.kt (reminder and fix tests); core context: ReminderService.kt, ReminderItems.kt, ItemResolver.kt
+- `./gradlew test --tests 'ch.sonensei.cockpit.journal.habits.*'` -> could not run: execution was denied in the reviewer's sandbox, and no earlier test result files exist in `server/build/test-results`. This review does not confirm test or lint results itself; criteria 3 and 4 need the parent's and the test-writer's own runs.
 
-Summary: 0 P0, 0 P1, 1 P2, 2 P3
+Summary: 0 P0, 0 P1, 0 P2, 1 P3
+
+## Verification of the previous findings
+
+- CR-1 (firing batch coupling): fixed. `HabitService.onReminderFired` (HabitService.kt:207-219) is a `@TransactionalEventListener(phase = AFTER_COMMIT, fallbackExecution = true)` with `@Transactional(propagation = NOT_SUPPORTED)`, which Spring accepts on such a listener. The resync runs in a `TransactionTemplate` with `PROPAGATION_REQUIRES_NEW`. The try/catch sits outside the template, so a rollback-only inner transaction is caught too. The WARN log names only the habit id. The listener only runs after `fireDue` committed, so a habit failure can no longer roll back or re-fire other modules' reminders. The test `a failing habit reminder move neither rolls back nor stops the firing batch` (HabitEdgeCaseTests.kt:230) covers this with a habit row that cannot be loaded.
+- CR-2 (user reminders deleted): fixed. `habit.reminder_id` (new migration V202610212300, a new file, flat `journal/` folder like the first migration, recorded as an assumption) records the managed reminder. `sync` (HabitService.kt:249-255) deletes or replaces only that reminder. The entity maps the column `insertable = false, updatable = false` with a protected setter. `HabitRepository.setReminderId` is a JPQL bulk update without `versioned`, so the habit's version (ETag) does not change and a concurrent PATCH is not overwritten. Tests: `reminders the user added to a habit are left alone` and `moving the habit's reminder does not change its version`.
+- CR-3 (full reminder history loaded): fixed. `ReminderService.pendingOfItem` returns only pending reminders and resolves no display data. It is called only when the habit has a recorded reminder. The habits module still reaches core only through `ReminderService`.
 
 ## P0 Critical
 
@@ -38,31 +45,19 @@ None.
 
 ## P2 Medium
 
-- [ ] **CR-1 | The fired-reminder listener runs inside the core firing batch, so a failure in it rolls back (and re-fires) every reminder in the batch**
-    - File: `server/src/main/kotlin/ch/sonensei/cockpit/journal/habits/domain/HabitService.kt:190`
-    - Category: Correctness
-    - Problem: `onReminderFired` is a plain `@EventListener` on a class-level `@Transactional` service, so it joins the transaction of `ReminderService.fireDue()` (which publishes `ReminderFiredEvent` inside its loop, `ReminderService.kt:120`). Any `RuntimeException` in `sync()` (DB error, `reminders.create` -> `HabitItemResolver.exists` joined in the same transaction, `checkNotNull(habit.createdAt)`, settings parsing) propagates out of `publishEvent`, aborts `fireDue` and rolls back the whole batch of up to 100 reminders of all modules. Because the scheduler only logs and retries (`ReminderScheduler.run`), a persistent failure blocks all due reminders. Also, `ReminderController.onFired` is a synchronous `@EventListener` that pushes the SSE notification immediately; if it runs before the habit listener throws, the notification has been sent but `firedAt` is rolled back, so the same reminder is sent again on every 15-second run.
-    - Why it matters: core explicitly isolates module code from the firing transaction for exactly this reason (`ReminderItems` KDoc: "a single broken item would roll back a whole firing batch"); this listener reintroduces the coupling, and a habit bug would stop or duplicate unrelated GTD/calendar reminders.
-    - Suggested fix: Do not let habit rescheduling share the firing transaction's fate. E.g. use `@TransactionalEventListener(phase = AFTER_COMMIT)` with `@Transactional(propagation = REQUIRES_NEW)` for the resync (the fired reminder is already committed then), or at least run it in a `REQUIRES_NEW` transaction and catch/log exceptions. Add a test where the habit sync fails and another module's reminder in the same batch is still marked fired.
+None.
 
 ## P3 Low
 
-- [ ] **CR-2 | `sync()` deletes every pending reminder of a habit, including ones the user created through `/api/v1/reminders`**
-    - File: `server/src/main/kotlin/ch/sonensei/cockpit/journal/habits/domain/HabitService.kt:224`
+- [ ] **CR-1 | Concurrent reminder syncs of the same habit are not serialized: spurious 404 or a duplicate pending reminder**
+    - File: `server/src/main/kotlin/ch/sonensei/cockpit/journal/habits/domain/HabitService.kt:249`
     - Category: Correctness
-    - Problem: `sync` takes all pending reminders of the `HABIT` item and, unless they equal exactly `[wanted]`, deletes all of them. The generic reminders API accepts reminders for any item type (`ReminderService.create`), so a reminder a user added to a habit by hand is silently deleted on the next check, habit edit or habit reminder firing, also for habits without `reminderTime`.
-    - Why it matters: silent loss of a user-created reminder; the "exactly one pending reminder" assumption is not visible to API clients of `/reminders`.
-    - Suggested fix: either only manage the reminder the module owns (e.g. delete/replace only the pending reminder at the previously computed habit time, or skip syncing when `reminderTime` is null), or document on the habits and reminders API that habit reminders are module-managed, and record that as an assumption.
-
-- [ ] **CR-3 | Every sync loads the habit's full fired-reminder history**
-    - File: `server/src/main/kotlin/ch/sonensei/cockpit/journal/habits/domain/HabitService.kt:224`
-    - Category: Quality
-    - Problem: `reminders.ofItem(ref)` returns all reminders of the habit, fired or not, and resolves them (in a separate `REQUIRES_NEW` transaction via `ReminderItems`), then filters `firedAt == null` in memory. A habit with a reminder time leaves one fired row per day forever, so each check change and each firing reads a list that grows by ~365 rows per year per habit.
-    - Why it matters: unbounded growth on a hot path (one-tap check); avoidable work.
-    - Suggested fix: use (or add in core) a query for pending reminders of an item only, without resolving display data.
+    - Problem: Only `setCheck` locks the habit row (`lockById`). `update` (`load`, line 128) and `onReminderFired` (`habits.findById`, line 214) read the habit without a lock and then run `sync`, which reads `habit.reminderId` and the pending reminders and then deletes and creates reminders. Two overlapping syncs of the same habit (a PATCH from one device while a check comes from another, or a check while the fired-reminder resync runs) can both see the same managed reminder. The second `reminders.delete(id)` then finds 0 rows and throws `NotFoundException("Reminder not found")` (ReminderService.kt:84), and the PATCH or check fails with a 404 that has nothing to do with the habit. If neither sees a pending managed reminder (it just fired), both create one, and `setReminderId` keeps only the last id. The other reminder is no longer managed, so it fires as a duplicate notification, also after the habit was archived or its reminder time was cleared.
+    - Why it matters: the timing is rare and the state heals after the orphan fires, but the "exactly one managed reminder" invariant can break, and an unrelated 404 is confusing for clients. The intent is clearly to serialize changes per habit, because `setCheck` already locks for that.
+    - Suggested fix: load the habit with `habits.lockById(id)` in `update` and in `onReminderFired` (and `delete` for consistency), so every path that ends in `sync` holds the same row lock. Optionally make `sync` tolerate an already deleted managed reminder instead of propagating the 404.
 
 ## Review conclusion
 
-Material issues found; fix before completing the task.
+No material issues found.
 
-The acceptance criteria are addressed in code: CRUD for the three schedules with target count and reminder time synced to core reminders, If-Match on PATCH/DELETE with Problem Details, checks per date, day and week streaks (week start from settings, tests across week and month boundaries and a DST switch), 30-day completion, the HABIT resolver, search indexing, hard delete via `ItemDeletedEvent`, and an additive regeneration of `api/openapi.yaml` and the web client. The migration path deviation from `touches` is recorded as an assumption and follows the migration convention. Backup coverage belongs to the separate `backup-contrib-journal` task. CR-1 should be fixed before `done`; CR-2 and CR-3 may be fixed or recorded with a disposition. This reviewer could not execute the test suite or lint (sandbox denied), so criterion 3 and 4 evidence must come from the parent's own runs.
+All four acceptance criteria are addressed in the code. Habit CRUD covers DAILY, TIMES_PER_WEEK and WEEKDAYS with target count, and the reminder time is synced to one core reminder. PATCH and DELETE check If-Match, and errors are Problem Details. Checks are stored per date. Streaks are day or week streaks (week start from settings), and 30-day completion is computed. The HABIT resolver exists, habit names are indexed for search, and a hard delete publishes `ItemDeletedEvent`. Tests cover week, year and DST boundaries. `api/openapi.yaml` and the web client were regenerated, and the change only adds to them. CR-1..CR-3 of the previous review are fixed as described above. The remaining CR-1 is low priority and can be fixed or recorded with a disposition. This reviewer could not run the test suite (sandbox denied), so the evidence for criteria 3 and 4 must come from the parent's own runs.
