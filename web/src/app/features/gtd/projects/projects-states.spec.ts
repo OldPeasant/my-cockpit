@@ -279,6 +279,19 @@ describe('Projects views: states and edge cases', () => {
       expect(element.querySelector('app-project-form')).toBeNull();
       expect(button('New project')).toBeDefined();
     });
+
+    it('cancelling an inline edit closes the form and keeps the project unchanged', async () => {
+      projects = [project('p1', { title: 'Tax return' })];
+      await render(ProjectsPage);
+
+      await click(button('Edit “Tax return”'));
+      await type('app-project-form input[type=text]', 'Something else');
+      await click(button('Cancel'));
+
+      expect(element.querySelector('app-project-form')).toBeNull();
+      expect(callsOf(updateProject)).toHaveLength(0);
+      expect(text('.project .name')).toEqual(['Tax return']);
+    });
   });
 
   describe('detail', () => {
@@ -661,6 +674,101 @@ describe('Projects views: states and edge cases', () => {
       expect(element.querySelector('app-project-form')).toBeNull();
       expect(element.querySelector('h1')?.textContent).toBe('Tax return 2026');
       expect(announcement()).toBe('Saved “Tax return 2026”.');
+    });
+
+    it('cancelling the edit form on the detail keeps the project unchanged', async () => {
+      await render(ProjectDetailPage);
+
+      await click(button('Edit'));
+      await type('app-project-form input[type=text]', 'Something else');
+      await click(element.querySelector<HTMLElement>('app-project-form button.quiet')!);
+
+      expect(element.querySelector('app-project-form')).toBeNull();
+      expect(button('Edit')).toBeDefined();
+      expect(callsOf(updateProject)).toHaveLength(0);
+      expect(element.querySelector('h1')?.textContent).toBe('Tax return');
+      expect(announcement()).toBe('');
+    });
+
+    it('shows the project while its tasks are still loading', async () => {
+      const answer = deferred();
+      overrides.set(listTasks, () => answer.promise);
+      await render(ProjectDetailPage);
+
+      expect(element.querySelector('h1')?.textContent).toBe('Tax return');
+      expect(text('.block .empty')).toContain('Loading…');
+      expect(element.querySelector('.tasks')).toBeNull();
+
+      answer.resolve({ items: tasks });
+      await refresh();
+      expect(text('.block .empty')).not.toContain('Loading…');
+      expect(titles()).toEqual(['Collect receipts', 'Fill form', 'Send']);
+    });
+
+    it('submitting "Add task" again while the first is saving creates one task', async () => {
+      const answer = deferred();
+      overrides.set(createTask, () => answer.promise);
+      await render(ProjectDetailPage);
+
+      await type('#add-task', 'Sign');
+      await submit('form.add');
+      expect(button('Add task')?.disabled).toBe(true);
+      // Enter in the input submits the form even while the button is disabled.
+      await submit('form.add');
+
+      expect(callsOf(createTask)).toHaveLength(1);
+      answer.resolve(task('t9', { title: 'Sign', position: 9 }));
+      await refresh();
+      expect(callsOf(createTask)).toHaveLength(1);
+      expect(element.querySelector<HTMLInputElement>('#add-task')!.value).toBe('');
+      expect(titles()).toEqual(['Collect receipts', 'Fill form', 'Send', 'Sign']);
+    });
+
+    it('submitting "Add as next step" again while the first is saving creates one task', async () => {
+      projects = [project('p1', { title: 'Tax return', stalled: true })];
+      const answer = deferred();
+      overrides.set(createTask, () => answer.promise);
+      await render(ProjectDetailPage);
+      await click(button('Choose next step'));
+
+      await type('#prompt-new', 'Book advisor');
+      await submit('[role=dialog] form');
+      await submit('[role=dialog] form');
+
+      expect(callsOf(createTask)).toHaveLength(1);
+      answer.resolve(task('t9', { title: 'Book advisor', position: 9 }));
+      await refresh();
+      expect(callsOf(createTask)).toHaveLength(1);
+      expect(callsOf(setProjectNextStep)).toHaveLength(1);
+      expect(callsOf(setProjectNextStep)[0].params['body']).toEqual({ taskId: 't9' });
+      expect(element.querySelector('[role=dialog]')).toBeNull();
+      expect(announcement()).toBe('“Book advisor” is the next step.');
+    });
+
+    it('completing the next step twice in a row sends one completion and opens one prompt', async () => {
+      const answer = deferred();
+      overrides.set(completeTask, () => answer.promise);
+      await render(ProjectDetailPage);
+
+      const check = element.querySelector<HTMLElement>('.task.next input[type=checkbox]')!;
+      check.click();
+      check.click();
+      await refresh();
+
+      expect(callsOf(completeTask)).toHaveLength(1);
+      answer.resolve({
+        ...tasks[0],
+        completedAt: '2026-10-20T10:00:00Z',
+        version: 2,
+        needsNextStep: true,
+      });
+      await refresh();
+
+      expect(callsOf(completeTask)).toHaveLength(1);
+      expect(element.querySelectorAll('[role=dialog]')).toHaveLength(1);
+      expect(element.querySelector('#prompt-text')?.textContent).toContain(
+        '“Collect receipts” is done.',
+      );
     });
 
     it('loads the tasks of another project when the route changes, closing the prompt', async () => {

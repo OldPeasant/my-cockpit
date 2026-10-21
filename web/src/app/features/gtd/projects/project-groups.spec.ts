@@ -61,4 +61,8 @@ describe('project status helpers', () => {
     expect(finished(project('p', { status: 'COMPLETED' }))).toBe(true);
     expect(finished(project('p', { status: 'SOMEDAY' }))).toBe(false);
   });
+
+  it('shows an unknown status from a newer server as its raw value', () => {
+    expect(statusLabel('ARCHIVED' as ProjectResponse['status'])).toBe('ARCHIVED');
+  });
 });
