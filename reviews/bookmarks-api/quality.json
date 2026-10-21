@@ -1,0 +1,26 @@
+{
+  "schema": 1,
+  "task": "bookmarks-api",
+  "reviewed_revision": "e788d313cdbf671eaa3c2c3afedfc66e3b7c462f",
+  "helpers": {
+    "test-writer": {"status": "completed", "report": "reviews/bookmarks-api/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/bookmarks-api/review.md"},
+    "fixer": {"status": "completed", "report": "reviews/bookmarks-api/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P2", "disposition": "fixed", "note": "valid IDN/underscore/unencoded URLs rejected; URLs now normalized"},
+    {"id": "CR-2", "source": "code-reviewer", "severity": "P2", "disposition": "fixed", "note": "metadataStatus could stay PENDING; re-queued on startup, rejected fetches stored FAILED"},
+    {"id": "CR-3", "source": "code-reviewer", "severity": "P3", "disposition": "fixed", "note": "older fetch overwrote newer status; fetch generation check"},
+    {"id": "CR-4", "source": "code-reviewer", "severity": "P3", "disposition": "fixed", "note": "unused mutable test seam removed"},
+    {"id": "TW-1", "source": "test-writer", "severity": "Medium", "disposition": "fixed", "note": "title cut split a surrogate pair"},
+    {"id": "CR-5", "source": "code-reviewer", "severity": "P3", "disposition": "fixed", "note": "startup re-queue double fetch; first result wins"},
+    {"id": "CR-6", "source": "code-reviewer", "severity": "P3", "disposition": "fixed", "note": "shutdown rejection now leaves bookmark PENDING"},
+    {"id": "CR-7", "source": "code-reviewer", "severity": "P3", "disposition": "fixed", "note": "readable URL form indexed for search"},
+    {"id": "TW-2", "source": "test-writer", "severity": "Medium", "disposition": "fixed", "note": "large page over HTTP/2 intermittently UNREACHABLE; body cancelled after response completes"}
+  ],
+  "validation": [
+    {"command": "cd server && ./gradlew test --tests 'ch.sonensei.cockpit.bookmarks.*' --tests '*OpenApiContractTest'", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
