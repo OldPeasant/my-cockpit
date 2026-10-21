@@ -1,0 +1,27 @@
+{
+  "schema": 1,
+  "task": "habits-api",
+  "reviewed_revision": "6fe3637150b0954a0f1df102f438633218f03cb4",
+  "helpers": {
+    "test-writer": {"status": "completed", "report": "reviews/habits-api/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/habits-api/review.md"},
+    "fixer": {"status": "completed", "report": "reviews/habits-api/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "R1-CR-1", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "review round 1: fired-reminder listener ran inside the core firing batch; now AFTER_COMMIT + REQUIRES_NEW (fixes.md round 1)"},
+    {"id": "R1-CR-2", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "review round 1: sync deleted user-created reminders; habit.reminder_id tracks the managed one (fixes.md round 1)"},
+    {"id": "R1-CR-3", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "review round 1: sync loaded full reminder history; ReminderService.pendingOfItem (fixes.md round 1)"},
+    {"id": "R2-CR-1", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "review round 2: concurrent syncs not serialized; habit row lock on every sync path (fixes.md round 2)"},
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P3", "disposition": "accepted",
+     "note": "review round 3: no lower bound on check dates, so a very old check makes stats iterate from that date. Single-user, no crash, needs a deliberately wrong date; left as is, can be bounded later in the habits UI/API work"}
+  ],
+  "validation": [
+    {"command": "cd server && ./gradlew test --tests 'ch.sonensei.cockpit.journal.habits.*' --tests '*OpenApiContractTest'", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
