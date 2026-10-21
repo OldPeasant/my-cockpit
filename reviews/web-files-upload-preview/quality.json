@@ -1,0 +1,34 @@
+{
+  "schema": 1,
+  "task": "web-files-upload-preview",
+  "reviewed_revision": "6cb69fbc0c216c5d99845b8c2da9c2190f609a9a",
+  "helpers": {
+    "test-writer": {"status": "completed", "report": "reviews/web-files-upload-preview/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/web-files-upload-preview/review.md"},
+    "fixer": {"status": "completed", "report": "reviews/web-files-upload-preview/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P1", "disposition": "fixed",
+     "note": "capture dialog spec asserted the old placeholder; criterion-3 tests added"},
+    {"id": "CR-2", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "responsive layout of the Files page restored"},
+    {"id": "CR-3", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "concurrent PDF renders on one canvas cancelled/serialized"},
+    {"id": "CR-4", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "capture save blocked while an attachment upload failed"},
+    {"id": "CR-5", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "cancel during upload create/complete cleans up server state"},
+    {"id": "CR-6", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "per-file live regions no longer announce every progress tick"},
+    {"id": "CR-1 (re-review)", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "queued capture attachments show Waiting instead of 0 %"},
+    {"id": "CR-1 (re-review 2)", "source": "code-reviewer", "severity": "P3", "disposition": "accepted",
+     "note": "rare race: a small upload cancelled after the server stored it shows Cancelled while the file stays in the drive; recorded as task assumption 2026-10-21 07:49, final review agrees"}
+  ],
+  "validation": [
+    {"command": "npm --prefix web run test:ci -- --include=src/app/features/files --include=src/app/features/capture", "result": "pass"},
+    {"command": "npm --prefix web run e2e -- e2e/files-upload/upload.spec.ts (docker-compose.e2e stack)", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
