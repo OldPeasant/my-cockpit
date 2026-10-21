@@ -8,7 +8,7 @@ import { EditorView } from '@codemirror/view';
 import { Component } from '@angular/core';
 import { MatDialog } from '@angular/material/dialog';
 import { By } from '@angular/platform-browser';
-import { provideRouter } from '@angular/router';
+import { provideRouter, Router } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
 import { LinkResponse, NoteResponse } from '../../../api/generated';
 import { ApiError, NotificationService, provideHttp } from '../../../core/http';
@@ -780,6 +780,140 @@ describe('NoteEditorPage', () => {
     const retry = http.expectOne((r) => r.url === URL && r.method === 'PATCH');
     expect(retry.request.body.bodyMd).toBe('mine');
     expect(retry.request.headers.get('If-Match')).toBe('"1"');
+  });
+
+  it('retries a failed save before opening another note', async () => {
+    await open();
+    vi.useFakeTimers();
+    type('mine');
+    await vi.advanceTimersByTimeAsync(AUTOSAVE_DEBOUNCE_MS);
+    http
+      .expectOne((r) => r.method === 'PATCH')
+      .flush(null, { status: 503, statusText: 'Service Unavailable' });
+    await vi.advanceTimersByTimeAsync(0);
+
+    void harness.navigateByUrl(`/notes/${OTHER_ID}`);
+    await vi.advanceTimersByTimeAsync(0);
+    http.expectNone((r) => r.url === `/api/v1/notes/${OTHER_ID}`);
+    const retry = http.expectOne((r) => r.url === URL && r.method === 'PATCH');
+    expect(retry.request.body.bodyMd).toBe('mine');
+    retry.flush(note({ bodyMd: 'mine', version: 2 }));
+    await vi.advanceTimersByTimeAsync(0);
+    http
+      .expectOne((r) => r.url === `/api/v1/notes/${OTHER_ID}` && r.method === 'GET')
+      .flush(note({ id: OTHER_ID, title: 'Recipes', bodyMd: 'Soup', version: 9 }));
+    await vi.advanceTimersByTimeAsync(0);
+    flushLinks();
+    harness.detectChanges();
+    expect(editor().value()).toBe('Soup');
+    expect(state()).toBe('Saved');
+    expect(root.querySelector('.banner[role=alert]')).toBeNull();
+  });
+
+  it('when leaving during several uploads, saves every image in place of its placeholder', async () => {
+    await open(note({ bodyMd: 'Trip' }));
+    const tent = pasteImage();
+    const map = pasteImage();
+    void harness.navigateByUrl('/elsewhere');
+    await settle();
+    const saved: string[] = [];
+    const answerSaves = () => {
+      for (const save of http.match((r) => r.url === URL && r.method === 'PATCH')) {
+        saved.push(save.request.body.bodyMd);
+        save.flush(note({ bodyMd: save.request.body.bodyMd, version: saved.length + 1 }));
+      }
+    };
+    answerSaves();
+    await settle();
+    // The second upload ends first.
+    map.flush({ ...TENT, fileId: OTHER_ID, markdown: `![map.png](cockpit-file:${OTHER_ID})` });
+    await settle();
+    answerSaves();
+    tent.flush(TENT);
+    await settle();
+    answerSaves();
+    await settle();
+    answerSaves();
+
+    expect(saved.every((body) => !body.includes('(uploading:'))).toBe(true);
+    expect(saved.at(-1)).toBe(`Trip\n${TENT.markdown}\n![map.png](cockpit-file:${OTHER_ID})\n`);
+  });
+
+  it('when the save on leaving fails, saves again with the image once the upload ends', async () => {
+    await open(note({ bodyMd: 'Trip' }));
+    const upload = pasteImage();
+    void harness.navigateByUrl('/elsewhere');
+    await settle();
+    http
+      .expectOne((r) => r.url === URL && r.method === 'PATCH')
+      .flush(null, { status: 503, statusText: 'Service Unavailable' });
+    await settle();
+    upload.flush(TENT);
+    await settle();
+    const save = http.expectOne((r) => r.url === URL && r.method === 'PATCH');
+    expect(save.request.body.bodyMd).toBe(`Trip\n${TENT.markdown}\n`);
+    expect(save.request.headers.get('If-Match')).toBe('"1"');
+  });
+
+  it('asks before closing the browser tab while an image is still uploading', async () => {
+    await open(note({ bodyMd: 'Trip' }));
+    vi.useFakeTimers();
+    const unload = () => {
+      const event = new Event('beforeunload', { cancelable: true });
+      window.dispatchEvent(event);
+      return event.defaultPrevented;
+    };
+    const upload = pasteImage();
+    // The text around the placeholder is saved; the image is not there yet.
+    await vi.advanceTimersByTimeAsync(AUTOSAVE_DEBOUNCE_MS);
+    http.expectOne((r) => r.method === 'PATCH').flush(note({ bodyMd: 'Trip\n\n', version: 2 }));
+    await vi.advanceTimersByTimeAsync(0);
+    expect(unload()).toBe(true);
+    upload.flush(TENT);
+    await vi.advanceTimersByTimeAsync(AUTOSAVE_DEBOUNCE_MS);
+    http
+      .expectOne((r) => r.method === 'PATCH')
+      .flush(note({ bodyMd: `Trip\n${TENT.markdown}\n`, version: 3 }));
+    await vi.advanceTimersByTimeAsync(0);
+    expect(unload()).toBe(false);
+  });
+
+  it('stays on the first note when the route returns to it while leaving waits for an upload', async () => {
+    await open(note({ bodyMd: 'Trip' }));
+    const upload = pasteImage();
+    // A chip to the other note: leaving the first one waits for the upload.
+    void harness.navigateByUrl(`/notes/${OTHER_ID}`);
+    await settle();
+    http
+      .expectOne((r) => r.url === URL && r.method === 'PATCH')
+      .flush(note({ bodyMd: 'Trip\n\n', version: 2 }));
+    await settle();
+    // Back to the first note before the upload ends.
+    void harness.navigateByUrl(`/notes/${ID}`);
+    await settle();
+    upload.flush(TENT);
+    await settle();
+    for (const save of http.match((r) => r.url === URL && r.method === 'PATCH')) {
+      save.flush(note({ bodyMd: save.request.body.bodyMd, version: 3 }));
+    }
+    await settle();
+    // If the editor goes on to the other note anyway, it gets an answer.
+    for (const get of http.match((r) => r.url === `/api/v1/notes/${OTHER_ID}`)) {
+      get.flush(note({ id: OTHER_ID, title: 'Recipes', bodyMd: 'Soup', version: 9 }));
+    }
+    await settle();
+    for (const get of http.match((r) => r.url === URL && r.method === 'GET')) {
+      get.flush(note({ bodyMd: `Trip\n${TENT.markdown}\n`, version: 3 }));
+    }
+    await settle();
+    flushLinks();
+    await settle();
+
+    // The address shows the first note, so the page must show it too.
+    expect(TestBed.inject(Router).url).toBe(`/notes/${ID}`);
+    root = harness.routeNativeElement as HTMLElement;
+    expect((root.querySelector('.title') as HTMLInputElement).value).toBe('Packing list');
+    expect(editor().value()).toBe(`Trip\n${TENT.markdown}\n`);
   });
 
   /** In conflict on the first note, clicks `action` and opens the other note before it ends. */
