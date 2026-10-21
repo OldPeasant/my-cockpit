@@ -49,6 +49,11 @@
           </span>
           <span class="body">
             <span class="title">{{ event.occurrence.title }}</span>
+            @if (event.occurrence.status === 'CANCELLED') {
+              <span class="visually-hidden" i18n="@@gtd.today.eventCancelled">Cancelled</span>
+            } @else if (event.occurrence.status === 'TENTATIVE') {
+              <span class="visually-hidden" i18n="@@gtd.today.eventTentative">Tentative</span>
+            }
             @if (event.occurrence.location || event.calendarName) {
               <span class="meta">
                 @if (event.occurrence.location) {

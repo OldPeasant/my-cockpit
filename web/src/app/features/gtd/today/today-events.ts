@@ -12,6 +12,7 @@ import { RouterLink } from '@angular/router';
 import { OccurrenceResponse } from '../../../api/generated';
 import { CalendarStore, calendarColor } from '../../calendar/views/calendar-store';
 import { OccurrenceRange, OccurrenceStore } from '../../calendar/views/occurrence-store';
+import { addDays, localDate } from '../data';
 
 /** How an occurrence relates to today: its times only show for the part inside today. */
 export type EventSpan = 'allDay' | 'timed' | 'from' | 'until';
@@ -32,14 +33,30 @@ export function todayRange(now = new Date()): OccurrenceRange {
   return { from: from.toISOString(), to: to.toISOString() };
 }
 
-/** How `occurrence` covers `range`: all day, inside it, or crossing its start or end. */
+/**
+ * Whether an all-day occurrence falls on the ISO date `date` (`endDate` is exclusive). The server
+ * picks all-day occurrences by the calendar settings' time zone, so when the browser's zone differs
+ * it can also return the neighbouring days' ones. Timed occurrences always pass.
+ */
+export function isOnDate(occurrence: OccurrenceResponse, date: string): boolean {
+  if (!occurrence.allDay || !occurrence.startDate) return true;
+  const end = occurrence.endDate ?? addDays(occurrence.startDate, 1);
+  return occurrence.startDate <= date && date < end;
+}
+
+/**
+ * How `occurrence` covers `range`: all day (also a timed event covering the whole range), inside
+ * it, or crossing its start or end.
+ */
 export function eventSpan(occurrence: OccurrenceResponse, range: OccurrenceRange): EventSpan {
   if (occurrence.allDay || !occurrence.start || !occurrence.end) return 'allDay';
-  const startsBefore = Date.parse(occurrence.start) < Date.parse(range.from);
-  const endsAfter = Date.parse(occurrence.end) > Date.parse(range.to);
-  if (startsBefore && endsAfter) return 'allDay';
-  if (startsBefore) return 'until';
-  if (endsAfter) return 'from';
+  const start = Date.parse(occurrence.start);
+  const end = Date.parse(occurrence.end);
+  const from = Date.parse(range.from);
+  const to = Date.parse(range.to);
+  if (start <= from && end >= to) return 'allDay';
+  if (start < from) return 'until';
+  if (end > to) return 'from';
   return 'timed';
 }
 
@@ -67,7 +84,9 @@ export function compareEvents(a: TodayEvent, b: TodayEvent): number {
 export class TodayEvents {
   private readonly calendars = inject(CalendarStore);
   private readonly occurrences = inject(OccurrenceStore);
-  private readonly range = todayRange();
+  private readonly now = new Date();
+  private readonly range = todayRange(this.now);
+  private readonly today = localDate(this.now);
 
   /** The visible calendar ids as one comparable value, so the effect only reruns on a change. */
   private readonly calendarIds = computed(() => [...this.calendars.visibleIds()].sort().join(','));
@@ -77,7 +96,9 @@ export class TodayEvents {
     const byId = this.calendars.byId();
     return this.occurrences
       .items()
-      .filter((occurrence) => visible.has(occurrence.calendarId))
+      .filter(
+        (occurrence) => visible.has(occurrence.calendarId) && isOnDate(occurrence, this.today),
+      )
       .map((occurrence) => {
         const calendar = byId.get(occurrence.calendarId);
         return {

@@ -10,7 +10,14 @@ import {
 } from '../../../api/generated';
 import { ChangeEventsService } from '../../../core/events';
 import { fakeCalendar, fakeOccurrence } from '../../calendar/views/testing';
-import { compareEvents, eventSpan, TodayEvent, TodayEvents, todayRange } from './today-events';
+import {
+  compareEvents,
+  eventSpan,
+  isOnDate,
+  TodayEvent,
+  TodayEvents,
+  todayRange,
+} from './today-events';
 
 type Invoke = (fn: unknown, params?: Record<string, unknown>) => Promise<unknown>;
 
@@ -47,8 +54,21 @@ describe('eventSpan', () => {
     );
   });
 
-  it('treats an event exactly from midnight to midnight as inside today', () => {
+  it('treats a timed event covering the whole day exactly as all day', () => {
     expect(eventSpan(fakeOccurrence('a', { start: at(0), end: at(0, 0, 21) }), range)).toBe(
+      'allDay',
+    );
+    expect(eventSpan(fakeOccurrence('b', { start: at(0), end: at(12, 0, 21) }), range)).toBe(
+      'allDay',
+    );
+    expect(eventSpan(fakeOccurrence('c', { start: at(12, 0, 19), end: at(0, 0, 21) }), range)).toBe(
+      'allDay',
+    );
+  });
+
+  it('counts an event starting at midnight but ending before the next one as inside today', () => {
+    expect(eventSpan(fakeOccurrence('a', { start: at(0), end: at(23, 59) }), range)).toBe('timed');
+    expect(eventSpan(fakeOccurrence('b', { start: at(0, 1), end: at(0, 0, 21) }), range)).toBe(
       'timed',
     );
   });
@@ -65,6 +85,28 @@ describe('eventSpan', () => {
   it('treats a timed occurrence without start or end as all day', () => {
     expect(eventSpan(fakeOccurrence('a', { start: undefined }), range)).toBe('allDay');
     expect(eventSpan(fakeOccurrence('b', { end: undefined }), range)).toBe('allDay');
+  });
+});
+
+describe('isOnDate', () => {
+  const allDay = (startDate: string, endDate?: string) =>
+    fakeOccurrence('a', { allDay: true, start: undefined, end: undefined, startDate, endDate });
+
+  it('keeps all-day occurrences whose dates include the day, the end date being exclusive', () => {
+    expect(isOnDate(allDay('2026-10-20', '2026-10-21'), '2026-10-20')).toBe(true);
+    expect(isOnDate(allDay('2026-10-18', '2026-10-23'), '2026-10-20')).toBe(true);
+    expect(isOnDate(allDay('2026-10-19', '2026-10-20'), '2026-10-20')).toBe(false);
+    expect(isOnDate(allDay('2026-10-21', '2026-10-22'), '2026-10-20')).toBe(false);
+  });
+
+  it('treats an all-day occurrence without end date as one day long', () => {
+    expect(isOnDate(allDay('2026-10-20'), '2026-10-20')).toBe(true);
+    expect(isOnDate(allDay('2026-10-19'), '2026-10-20')).toBe(false);
+  });
+
+  it('keeps timed occurrences and all-day ones without dates', () => {
+    expect(isOnDate(fakeOccurrence('a', { startDate: '2026-10-19' }), '2026-10-20')).toBe(true);
+    expect(isOnDate(fakeOccurrence('b', { allDay: true }), '2026-10-20')).toBe(true);
   });
 });
 
@@ -261,6 +303,26 @@ describe('TodayEvents', () => {
     expect(timeOf('Conference')).toBe('All day');
   });
 
+  it('leaves out all-day events of yesterday and tomorrow the server returns for another zone', async () => {
+    occurrences = [
+      fakeOccurrence('Yesterday', { allDay: true, startDate: '2026-10-19', endDate: '2026-10-20' }),
+      fakeOccurrence('Holiday', { allDay: true, startDate: '2026-10-20', endDate: '2026-10-21' }),
+      fakeOccurrence('Tomorrow', { allDay: true, startDate: '2026-10-21', endDate: '2026-10-22' }),
+      fakeOccurrence('Standup', { start: at(9), end: at(9, 15) }),
+    ];
+    await render();
+
+    expect(titles()).toEqual(['Holiday', 'Standup']);
+    expect(root.querySelector('#today-events .count')?.textContent?.trim()).toBe('2');
+  });
+
+  it('labels a timed event covering the whole day as all day', async () => {
+    occurrences = [fakeOccurrence('Offsite', { start: at(0), end: at(0, 0, 21) })];
+    await render();
+
+    expect(timeOf('Offsite')).toBe('All day');
+  });
+
   it('marks cancelled and tentative events', async () => {
     occurrences = [
       fakeOccurrence('Cancelled', { start: at(9), end: at(10), status: 'CANCELLED' }),
@@ -275,6 +337,21 @@ describe('TodayEvents', () => {
     expect(rowOf('Maybe')!.classList).not.toContain('cancelled');
     expect(rowOf('Sure')!.classList).not.toContain('cancelled');
     expect(rowOf('Sure')!.classList).not.toContain('tentative');
+  });
+
+  it('tells screen readers that an event is cancelled or tentative', async () => {
+    occurrences = [
+      fakeOccurrence('Cancelled', { start: at(9), end: at(10), status: 'CANCELLED' }),
+      fakeOccurrence('Maybe', { start: at(11), end: at(12), status: 'TENTATIVE' }),
+      fakeOccurrence('Sure', { start: at(13), end: at(14), status: 'CONFIRMED' }),
+    ];
+    await render();
+
+    const status = (title: string) =>
+      [...rowOf(title)!.querySelectorAll('.visually-hidden')].map((el) => el.textContent!.trim());
+    expect(status('Cancelled')).toEqual(['Cancelled']);
+    expect(status('Maybe')).toEqual(['Tentative']);
+    expect(status('Sure')).toEqual([]);
   });
 
   it("shows each event in its calendar's color and name", async () => {
