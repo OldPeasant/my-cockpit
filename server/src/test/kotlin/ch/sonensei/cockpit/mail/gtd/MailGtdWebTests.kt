@@ -278,14 +278,57 @@ class MailGtdWebTests(
 			mail.id,
 			null,
 			"<p>Hello</p><p>World</p><div>first</div><div>second</div>line<br>break" +
-				"<ul><li>one</li><li>two</li></ul><table><tr><td>a</td><td>b</td></tr><tr><td>c</td></tr></table>",
+				"<ul><li>one</li><li>two</li></ul><table><tr><td>a</td><td>b</td></tr><tr><td>c</td></tr></table>" +
+				"<center>Offer</center><center>Details</center>",
 		)
 		attachments.save(mail.id, emptyList())
 
 		val result = created(mail.id, "to-note")
 
 		val body = getJson("/api/v1/notes/${result["id"].asString()}")["bodyMd"].asString()
-		body shouldEndWith "Hello\n\nWorld\n\nfirst\nsecond\nline\nbreak\n\none\ntwo\n\na b\nc"
+		body shouldEndWith "Hello\n\nWorld\n\nfirst\nsecond\nline\nbreak\n\none\ntwo\n\na b\nc\n\nOffer\nDetails"
+		body shouldNotContain "\n\n\n"
+	}
+
+	@Test
+	fun `to-note collapses the source indentation of a pretty-printed HTML part but keeps pre text`() {
+		val mail = message(inbox)
+		bodies.put(
+			mail.id,
+			null,
+			"""
+			<table>
+			  <tr>
+			    <td>
+			      Hello   there,
+			      welcome
+			    </td>
+			    <td>
+			      aboard
+			    </td>
+			  </tr>
+			</table>
+			<div>
+			    <p>
+			        First paragraph
+			        continues here.
+			    </p>
+			    <p>
+			        Second <b>bold</b>
+			        <i>words</i>.
+			    </p>
+			</div>
+			<pre>    indented code</pre>
+			""".trimIndent(),
+		)
+		attachments.save(mail.id, emptyList())
+
+		val result = created(mail.id, "to-note")
+
+		val body = getJson("/api/v1/notes/${result["id"].asString()}")["bodyMd"].asString()
+		body shouldEndWith
+			"Hello there, welcome aboard\n\nFirst paragraph continues here.\n\nSecond bold words.\n\n    indented code"
+		body.lines().dropLast(1).filter { it.startsWith(" ") } shouldBe emptyList()
 		body shouldNotContain "\n\n\n"
 	}
 

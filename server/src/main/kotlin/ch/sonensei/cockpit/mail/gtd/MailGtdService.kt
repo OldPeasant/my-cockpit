@@ -162,17 +162,40 @@ class MailGtdService(
 		const val MESSAGE_NOT_FOUND = "Message not found"
 		const val NO_SUBJECT = "(no subject)"
 		val DATE_FORMAT: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")
-		val BLOCKS = setOf("p", "h1", "h2", "h3", "h4", "h5", "h6", "blockquote", "pre", "ul", "ol", "dl", "table", "hr")
-		val LINES = setOf("div", "li", "tr", "dt", "dd", "section", "article", "header", "footer", "address", "figure", "figcaption")
+		val BLOCKS =
+			setOf("p", "h1", "h2", "h3", "h4", "h5", "h6", "blockquote", "pre", "ul", "ol", "dl", "table", "hr", "details")
+		val LINES =
+			setOf(
+				"div",
+				"li",
+				"tr",
+				"dt",
+				"dd",
+				"section",
+				"article",
+				"header",
+				"footer",
+				"address",
+				"figure",
+				"figcaption",
+				"center",
+				"main",
+				"aside",
+				"summary",
+				"caption",
+			)
 		val CELLS = setOf("td", "th")
 		val TRAILING_BLANKS = Regex("[ \\t\\u00A0]+\\n")
 		val EXTRA_NEWLINES = Regex("\\n{3,}")
 		val BRACKET_PAIR = Regex("\\[(?=\\[)")
+		val HTML_WHITESPACE = Regex("[ \\t\\n\\r\\f]+")
 
 		/**
 		 * The text of a mail's (sanitized) HTML part with its block structure kept: paragraphs, headings, lists and
 		 * tables with a blank line around them, other blocks and `<br>` on lines of their own, a space between table
-		 * cells, at most one blank line in a row.
+		 * cells, at most one blank line in a row. Outside `<pre>` whitespace runs in the source collapse to one space and
+		 * no line starts with a blank, as when a browser renders the HTML, so source indentation does not become a
+		 * Markdown code block.
 		 */
 		fun htmlText(html: String): String {
 			val out = StringBuilder()
@@ -180,6 +203,17 @@ class MailGtdService(
 			fun lineBreaks(count: Int) {
 				if (out.isEmpty()) return
 				repeat(count - (out.length - out.trimEnd('\n').length)) { out.append('\n') }
+			}
+
+			fun atLineStart() = out.isEmpty() || out.last() == '\n' || out.last() == ' '
+
+			fun text(node: TextNode) {
+				if (generateSequence(node.parent()) { it.parent() }.any { it.nodeName() == "pre" }) {
+					out.append(node.wholeText)
+					return
+				}
+				val collapsed = node.wholeText.replace(HTML_WHITESPACE, " ")
+				out.append(if (atLineStart()) collapsed.trimStart(' ') else collapsed)
 			}
 
 			fun boundary(element: Element) {
@@ -195,7 +229,7 @@ class MailGtdService(
 						depth: Int,
 					) {
 						when {
-							node is TextNode -> out.append(node.wholeText)
+							node is TextNode -> text(node)
 							node is Element && node.normalName() == "br" -> out.append('\n')
 							node is Element -> boundary(node)
 						}
@@ -206,7 +240,11 @@ class MailGtdService(
 						depth: Int,
 					) {
 						if (node !is Element) return
-						if (node.normalName() in CELLS) out.append(' ') else boundary(node)
+						if (node.normalName() !in CELLS) {
+							boundary(node)
+						} else if (!atLineStart()) {
+							out.append(' ')
+						}
 					}
 				},
 				Jsoup.parse(html).body(),
