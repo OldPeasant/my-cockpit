@@ -17,3 +17,4 @@ Bookmarks and read-later (SPEC.md §8.4).
 - [ ] API documented: `api/openapi.yaml` regenerated (`UPDATE_OPENAPI=1 ./gradlew test --tests '*OpenApiContractTest'`) and `OpenApiContractTest` passes without the flag
 
 ## Notes
+- ASSUMPTION (2026-10-21 20:39+0200 by dell26/agent-3): favicon is stored as the absolute http(s) URL of the site's icon (link rel=icon, else apple-touch-icon, else /favicon.ico); the server does not download the icon itself. Clients may load it through an image proxy if CSP requires.
