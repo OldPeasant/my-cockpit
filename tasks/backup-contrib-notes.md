@@ -15,6 +15,7 @@ Notes in backups (SPEC.md §10.2).
 ## Acceptance criteria
 - [x] data/notes.jsonl, note_revisions.jsonl; readable/notes/<yyyy-mm-dd>-<slug>.md with front matter (id, tags, links) and image links rewritten to `../../files/...`
   - verified (2026-10-21 07:15+0200 by dell26/agent-6): cd server && ./gradlew test --tests '*NotesBackupContributorTests' -> 18 tests, 0 failures (data/notes.jsonl + note_revisions.jsonl, readable/notes/<date>-<slug>.md, front matter id/tags/links, cockpit-file: -> ../../files/... resolved against zip entries)
+  - verified (2026-10-21 08:58+0200 by dell26/agent-2): cd server && ./gradlew test --tests '*NotesBackupContributorTests' --tests '*BackupRoundTripTest' jacocoTestReport ktlintCheck at 323bf50a -> BUILD SUCCESSFUL, NotesBackupContributorTests 18/18 pass (jsonl files, readable/notes mirror, front matter id/tags/links, image links ../../files/...), coverage 167/167 changed lines
 - [x] Round-trip test (`./gradlew test --tests '*BackupRoundTripTest'`) passes with this module's `BackupFixture` seeding notes with images, tags and revisions
   - verified (2026-10-21 07:15+0200 by dell26/agent-6): cd server && ./gradlew test --tests '*BackupRoundTripTest' (Testcontainers Postgres, NotesBackupFixture with image, tags, revisions) -> 1 test, 0 failures
 
