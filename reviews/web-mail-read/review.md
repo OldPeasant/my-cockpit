@@ -4,40 +4,46 @@ Date: 2026-10-21
 
 Task: web-mail-read - Mail reading view
 
-Scope: task commits aed7be71 (mail read view) and b93afaef (Playwright spec, Imap.appendRaw) on top of base f9f451a3, as supplied by the parent worker (`git diff f9f451a3..HEAD`). Committed changes only.
+Scope: second review round on the final code after fixes. Whole task diff `git diff 32667af6..08edb6f2` (base = `git merge-base HEAD origin/main`), with focus on fix commits 8b328019 and 08edb6f2 checked against the round-1 findings (CR-1..CR-6) and `reviews/web-mail-read/fixes.md`. Committed changes only. CR-4 is deferred to task `mail-attachment-to-files` (tasks/mail-attachment-to-files.md), as the parent supplied.
 
 Requirements:
-- tasks/web-mail-read.md (acceptance criteria 1-4 and the five recorded assumptions)
-- SPEC.md §4.1 (HTML mail untrusted, sandboxed iframe with CSP, load-images toggle, per-sender allowlist), §4.3 (linked items panel), §4.7, §7.3 (read view, GTD buttons), §7.4, §8.2 (special folders)
-- docs/ARCHITECTURE.md (web stack, testing rules), AGENTS.md project notes
-- Context: tasks/mail-sanitizer.md, tasks/mail-read-api.md and server/.../mail/sanitize/HtmlMailSanitizer.kt (server-side sanitizer the frame relies on)
+- tasks/web-mail-read.md (acceptance criteria 1-4 and the six recorded assumptions)
+- SPEC.md §4.1, §4.3, §7.3, §7.4, §8.2 (as cited in round 1)
+- docs/ARCHITECTURE.md, AGENTS.md project notes, docs/QUALITY.md artifact contract
+- Round-1 report (previous version of this file), reviews/web-mail-read/fixes.md, reviews/web-mail-read/tests.md
 
 Git range:
 - Branch: main
-- HEAD: b93afaef
-- Base/start: f9f451a32803f53d62dd3a1cc0267e1aab527116
-- Commits reviewed: 2 (aed7be71, b93afaef)
+- HEAD: 08edb6f287e4dee70e8bccb7ccbbb1aff62c344e
+- Base/start: 32667af6
+- Commits reviewed: 7 in range (task commits 8e16c085, 73b39b38, 5c45934c, 8b328019, 08edb6f2; plus 9fa52b8d and 33906dac, which only add/edit tasks/mail-attachment-to-files.md)
+- Uncommitted changes: none (working tree clean at session start)
 
-Note on method: the Bash tool was denied in this review session, so `git diff`/`git log` could not be run. The scope was taken from the parent's commit list and the files it named, and every file was read in full at the current working tree (git status at session start: clean, HEAD b93afaef). Files reviewed: web/src/app/features/mail/read/{mail-frame.ts, mail-frame.spec.ts, mail-read-page.ts, mail-read-page.html, mail-read-page.spec.ts, image-allowlist.ts, image-allowlist.spec.ts, mail-read.service.ts, mail-read.service.spec.ts}, web/src/app/features/mail/mail.routes.ts, web/src/app/features/mail/list/{mail-list-page.ts, mail-list-page.html, mail-shortcuts.ts, mail-shortcuts.spec.ts}, web/e2e/mail-read/read.spec.ts, web/e2e/support/imap.ts. I did not run the e2e stack (as instructed) and did not run `tasks.py verify`.
+Summary: 0 P0, 0 P1, 0 P2, 0 P3
 
-Summary: 0 P0, 0 P1, 0 P2, 6 P3
+## Method
 
-## Security assessment (no findings)
+- Read the full task diff, and read in full at HEAD: `web/src/app/features/mail/read/{mail-read-page.ts, mail-read-page.html (relevant parts), mail-frame.ts, mail-read.service.ts, image-allowlist.ts, format-bytes.ts}`, the diffs of the specs touched by the fix commits, `mail.routes.ts`, the list changes (`mail-list-page.{ts,html,spec.ts}`, `mail-shortcuts.{ts,spec.ts}`), `web/e2e/mail-read/read.spec.ts` and `web/e2e/support/imap.ts`.
+- Ran `cd web && npx ng test --watch=false --include='src/app/features/mail/**/*.spec.ts'`: 13 files, 275 tests passed.
+- Did not run `npm run check`, `.taskcheck` or the Playwright e2e stack. Those belong to the parent's evidence.
 
-I checked the iframe hardening and found no exploitable gap:
-- `sandbox="allow-same-origin allow-popups allow-popups-to-escape-sandbox"` is static in the template (mail-frame.ts:53), so it can't be bound or changed at runtime. It has no `allow-scripts`, `allow-forms` or `allow-top-navigation`. Without `allow-scripts`, adding `allow-same-origin` gives mail content no script capability. The parent can still read `contentDocument` to size the frame.
-- The CSP meta (mail-frame.ts:17-19) is the first thing after `<meta charset>`, so mail content can't come before it. It sets `default-src 'none'`, `script-src 'none'`, `img-src 'self' data:`, `style-src 'unsafe-inline'` (so no remote stylesheets or `@import`), `form-action 'none'` and `base-uri 'none'`. Because of `script-src 'none'`, `javascript:` navigations are blocked too.
-- The server sanitizer (HtmlMailSanitizer.kt:86-108) drops every `img` that isn't http(s), `cid:` or a raster `data:` URL. A mail therefore can't plant a relative `/api/v1/mail/image-proxy?url=...` image and slip past "blocked" through `img-src 'self'`. Links get `rel="noopener noreferrer"`, so `allow-popups-to-escape-sandbox` doesn't open a reverse-tabnabbing path.
-- Plain-text bodies, text previews and file names are rendered by interpolation, never as HTML. Image previews cover raster types only (no SVG). Downloads use same-origin `<a download>` links, and the server forces `attachment`/octet-stream on those (mail-read-api assumption).
-- `srcdoc` is set as a DOM property (mail-frame.ts:84), not through Angular's sanitizer. This is safe only because the input is server-sanitized HTML and the frame is sandboxed. The code comment documents this.
-- No secrets, personal data or debug logging appear in the changed code. Test data is fictitious (`example.test`, `cockpit.test`).
+## Verification of round-1 findings
 
-## Acceptance criteria assessment
+- **CR-1 (frame can't shrink): fixed.** `mail-frame.ts:97` now measures `contentDocument.body.scrollHeight`. The frame document gives the body `margin:0` and `padding:16px 20px` (mail-frame.ts:34). Because of the padding, child margins can't collapse through the body, so the body's scrollHeight is the full content height. In standards mode the body is an ordinary element, so the value can get smaller again. The ResizeObserver still watches the body. The new spec test (mail-frame.spec.ts, "shrinks again when the content gets shorter") pins the root at 900 while the body drops to 300 and checks that the frame shrinks.
+- **CR-2 (stale text preview with a repeated part id): fixed.** `showPreview` keeps the `pending` object and applies the result only while `this.preview() === pending` (mail-read-page.ts:182-195). A newer preview of any kind, `closePreview`, or a navigation (`open()` clears the preview, line 251) replaces that identity, so a late success or failure is dropped. Two tests cover message A's part "4" answering late while message B's part "4" is being previewed, one for success and one for failure.
+- **CR-3 (failed proxied load for an allowlisted sender fails the view): fixed.** The second `get` has its own try/catch (mail-read-page.ts:259-268). On failure the blocked copy is shown, `loadImages` stays false, and the error goes through `notifications.error`. The stale/destroyed guard applies before the notification. Because `imagesBlocked()` is true, the "Load images" banner (mail-read-page.html, `@if (imagesBlocked())`) offers a retry, which the test exercises. The 08edb6f2 test covers a late failure after navigation: no notification, and the new message stays shown.
+- **CR-4 (Save to Files target vs SPEC §8.2): deferred**, as the parent supplied, to `mail-attachment-to-files`. The task file records the matching assumption ("drive root for now, not /Attachments/Mail"). No code change was expected. Not re-reported.
+- **CR-5 (route change / stale responses untested): fixed.** The "navigating to another message" block now emits a second id with deferred promises. It covers the initial load, `showImages` after navigation, the preview, the CR-3 path and the per-message saving state. These tests ran green above.
+- **CR-6 (import from files feature internals): fixed.** The mail read view now has its own `format-bytes.ts` with its own spec, so no import crosses into `features/files`. This duplicates 16 lines on purpose, because a `shared/` move would leave the task's touches. I accept that trade-off and don't report it.
+- **tests.md observation 2 (`saving` keyed by part id only): fixed.** Keys are `messageId/partId` (`savingKey`, line 288), and the template uses `isSaving(part)` for the shown message. The double-save guard per attachment is kept, and a test covers concurrent saves of the same part id on two messages.
 
-1. **Sanitized HTML in sandbox+CSP, load-images toggle with per-sender allowlist, attachments (download, preview, save to Files):** implemented (mail-frame.ts, mail-read-page.ts/html, image-allowlist.ts, mail-read.service.ts). The allowlist lives in localStorage; stored values that are malformed, the wrong type or unavailable are handled (image-allowlist.ts:26-53) and tested. Save to Files works as recorded in the assumption, with one open point (CR-4).
-2. **Buttons → Inbox task, → Waiting For, Create note; linked items panel:** implemented (mail-read-page.html:15-43, 218). Double submits are blocked through `busy`, and the panel reloads after an action.
-3. **Vitest tests for sandbox attributes and image toggle; `npm run check` passes:** sandbox tokens, CSP and srcdoc are covered (mail-frame.spec.ts, mail-read-page.spec.ts:129-140). The toggle is covered for load once, always for this sender, stop, a failed reload and no remote images (mail-read-page.spec.ts:158-219). The parent reports that `npm run check` passes. I could not re-run it here.
-4. **Playwright `e2e/mail-read/read.spec.ts`: script does not run, images only after toggle:** the spec asserts the sandbox attribute, no script or `onerror` flag, no title change, no dialog, no proxied request and no remote `img` before the toggle, and a loaded proxied image after it (read.spec.ts:64-87). The parent reports it passed against the e2e stack. Not re-run here, as instructed. The proxy is stubbed with `page.route` because the stack is offline (read.spec.ts:46-51). So the e2e run proves the client-side gating, not the server's proxy fetch, which mail-read-api tests separately.
+## Further checks on the final code (no findings)
+
+- **Out-of-order async:** `open()` and `showImages()` share one `seq`. `showImages` can't overlap a running `open()` because `open()` clears `message` first and `showImages` returns early without a message. Every `open()` path either reaches a terminal state or is superseded by a newer load. `loadingImages` is reset by `open()`, so a superseded `showImages` can't leave the banner disabled.
+- **Security:** the round-1 assessment still holds for HEAD. The sandbox stays static without `allow-scripts`, the CSP meta is first in `<head>`, `srcdoc` is set as a property from server-sanitized HTML, and previews and file names are interpolated, never rendered as HTML. The fix commits don't touch any of this. No secrets or personal data appear in the diff, and test data uses `example.test`/`cockpit.test`.
+- **Stored state:** the allowlist read tolerates malformed JSON, non-arrays and non-string entries, and the write tolerates unavailable or full storage (image-allowlist.ts). Unchanged since round 1.
+- **Integration:** the route `messages/:id` doesn't collide with the list matcher (`''` and `folders/:folderId` only). The list opens messages with `o` (guarded while typing, tested) and with double-click, and the e2e spec uses the double-click.
+- **Scope:** the edits to `mail.routes.ts` and `list/` lie outside the task's `touches`. The task assumption records them and they are minimal.
 
 ## P0 Critical
 
@@ -53,48 +59,8 @@ None.
 
 ## P3 Low
 
-- [ ] **CR-1 | Mail frame can grow but never shrink**
-    - File: `web/src/app/features/mail/read/mail-frame.ts:95`
-    - Category: Correctness
-    - Problem: `resize()` sets the frame height from `contentDocument.documentElement.scrollHeight`. In standards mode (the document starts with `<!doctype html>`), the root element's scrollHeight is never less than the frame's viewport height. Once the frame is tall, a later measurement can't come back smaller. Examples: the window widens and the text reflows into fewer lines, or the ResizeObserver fires after a layout change.
-    - Why it matters: blank white space stays under the mail after a resize, and the page scrolls further than the content.
-    - Suggested fix: measure the content, not the viewport. The body has `margin:0`, so `body.scrollHeight` or `Math.ceil(body.getBoundingClientRect().height)` works. Alternatively, reset `style.height` to the minimum before measuring.
-
-- [ ] **CR-2 | A text preview from a previous message can show under the current message**
-    - File: `web/src/app/features/mail/read/mail-read-page.ts:186-191`
-    - Category: Correctness
-    - Problem: a finished text preview applies its result when `this.preview()?.partId === partId`. The check compares only the part id. Part ids such as `"2"` repeat across messages. Angular reuses the component when only `:id` changes, for example through an email→email link in the linked items panel or browser history. If the user starts a preview, moves to another message and previews a part with the same id before the first request returns, the old message's text appears under the new attachment's name.
-    - Why it matters: the user sees content from the wrong attachment. The window is narrow but real.
-    - Suggested fix: also store and compare the message id in `Preview`, or capture `this.seq` like `showImages` does and ignore stale results.
-
-- [ ] **CR-3 | For an allowlisted sender, a failed proxied load fails the whole view**
-    - File: `web/src/app/features/mail/read/mail-read-page.ts:247-251, 258-265`
-    - Category: Correctness
-    - Problem: for an allowlisted sender, `open()` loads the message once with images blocked, then loads it again with `PROXY`. If the second request fails, the catch sets state `failed` and throws away the blocked copy that already loaded fine.
-    - Why it matters: a temporary error on the second call makes a readable message unreadable. `showImages()` handles the same failure better: it shows a notification and keeps the blocked body.
-    - Suggested fix: on a failed second request, show the blocked message, leave `loadImages` false (the "Load images" banner then offers a retry) and report the error through `notifications.error`.
-
-- [ ] **CR-4 | "Save to Files" target folder not reconciled with SPEC.md §8.2**
-    - File: `web/src/app/features/mail/read/mail-read.service.ts:55-58`
-    - Category: Integration
-    - Problem: attachments are uploaded to the Files root (`uploadFile` without `folderId`). SPEC.md §8.2 lists auto-managed special folders `/Attachments/{Tasks,Notes,Mail,Journal}`, which suggests saved mail attachments belong in `/Attachments/Mail`. The recorded assumption covers "Files root" and the 50 MB limit but doesn't mention §8.2.
-    - Why it matters: if the special folder is meant for this, saved attachments end up in the wrong place and need a later migration or UI change.
-    - Suggested fix: use `/Attachments/Mail` if the Files API exposes it. Otherwise, extend the assumption to say the root was chosen against §8.2 and why, so a human can confirm.
-
-- [ ] **CR-5 | Changing the route parameter and stale load responses are untested**
-    - File: `web/src/app/features/mail/read/mail-read-page.spec.ts:95-117`
-    - Category: Tests
-    - Problem: the spec creates `params` as a `BehaviorSubject` but never emits a second id. Nothing tests the `seq` guard: a slower load of message A finishing after the user moved to message B, or a `showImages` result arriving after navigation (mail-read-page.ts:115-125, 237-249).
-    - Why it matters: out-of-order results are exactly the regression unit tests miss, and the guard has no protection against future edits.
-    - Suggested fix: add a test that emits a second id while the first `get` is still pending (use a deferred promise in `FakeReadService`). It should assert that the page shows message B and ignores A's late answer, success or error.
-
-- [ ] **CR-6 | Read view imports an internal helper of the files feature**
-    - File: `web/src/app/features/mail/read/mail-read-page.ts:25`
-    - Category: Architecture
-    - Problem: `formatBytes` is imported from `../../files/upload/format-bytes`, an internal file of another feature folder. The project notes say each feature lives in its own folder, and shared code otherwise sits in `shared/` (as `shared/links` does).
-    - Why it matters: a refactor inside `features/files/upload` can break the mail feature without warning.
-    - Suggested fix: move `formatBytes` to `shared/` in a follow-up (it touches the files feature, outside this task's touches), or record the coupling.
+None.
 
 ## Review conclusion
 
-No material issues found. The iframe sandbox and CSP setup is sound, and all four acceptance criteria are addressed in code and tests. The six P3 findings are optional improvements. The parent worker must still record evidence for criteria 3 and 4 with `tasks.py verify`, because the task file shows no criterion verified yet.
+No material issues found. All round-1 findings except the deferred CR-4 are resolved in the code and covered by tests, and the fix commits introduce no regressions that I could find. `python tasks.py verify web-mail-read` still lists all four criteria as unverified. Before `done`, the parent worker must record evidence: `npm run check` for criterion 3 and the actual Playwright run `npm run e2e -- e2e/mail-read/read.spec.ts` against the e2e stack for criterion 4. Without that evidence, a claim would be a P1 Tests issue.

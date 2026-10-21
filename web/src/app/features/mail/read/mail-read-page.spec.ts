@@ -532,6 +532,32 @@ describe('MailReadPage', () => {
       expect(notifications.error).not.toHaveBeenCalled();
     });
 
+    it('ignores a proxied load for an allowed sender that answers after navigating', async () => {
+      localStorage.setItem(IMAGE_ALLOWLIST_KEY, JSON.stringify(['max.muster@example.test']));
+      const blocked = message({
+        body: { html: '<p>blocked</p>', remoteImageCount: 1, remoteImagesBlocked: true, text: '' },
+      });
+      const proxy = deferred<MailMessageResponse>();
+      await create(blocked, proxy.promise, lunch());
+      await navigate(OTHER);
+      expect(el().querySelector('h1')?.textContent?.trim()).toBe('Lunch plans');
+
+      proxy.resolve(
+        message({
+          body: {
+            html: '<img src="/api/v1/mail/image-proxy?u=x">',
+            remoteImageCount: 1,
+            remoteImagesBlocked: false,
+            text: '',
+          },
+        }),
+      );
+      await flush();
+      fixture.detectChanges();
+      expect(el().querySelector('h1')?.textContent?.trim()).toBe('Lunch plans');
+      expect(iframe()!.srcdoc).not.toContain('image-proxy');
+    });
+
     it('ignores a failed proxied load for an allowed sender that answers after navigating', async () => {
       localStorage.setItem(IMAGE_ALLOWLIST_KEY, JSON.stringify(['max.muster@example.test']));
       const blocked = message({
@@ -657,6 +683,38 @@ describe('MailReadPage', () => {
       fixture.detectChanges();
       expect(partButton('Save to Files').disabled).toBe(false);
     });
+
+    it('still blocks a second save when coming back to a message whose save runs', async () => {
+      await create(withNotes(ID, 'old.txt'), withNotes(OTHER, 'new.txt'), withNotes(ID, 'old.txt'));
+      const oldSave = deferred<{ name: string }>();
+      service.saveResult = oldSave.promise;
+      partButton('Save to Files').click();
+      await navigate(OTHER);
+      await navigate(ID);
+      expect(partButton('Save to Files').disabled).toBe(true);
+      partButton('Save to Files').click();
+      expect(service.saves).toEqual([{ id: ID, partId: '4', name: 'old.txt' }]);
+
+      oldSave.resolve({ name: 'old.txt' });
+      await flush();
+      fixture.detectChanges();
+      expect(partButton('Save to Files').disabled).toBe(false);
+    });
+
+    it('ignores a failed proxied load for an allowed sender after the page is gone', async () => {
+      localStorage.setItem(IMAGE_ALLOWLIST_KEY, JSON.stringify(['max.muster@example.test']));
+      const blocked = message({
+        body: { html: '<p>blocked</p>', remoteImageCount: 1, remoteImagesBlocked: true, text: '' },
+      });
+      const proxy = deferred<MailMessageResponse>();
+      await create(blocked, proxy.promise);
+      expect(service.gets.map((g) => g.loadImages)).toEqual([false, true]);
+      fixture.destroy();
+
+      proxy.reject(new ApiError(502, 'Bad gateway', 'The mail server failed'));
+      await flush();
+      expect(notifications.error).not.toHaveBeenCalled();
+    });
   });
 
   describe('running actions', () => {
@@ -779,6 +837,48 @@ describe('MailReadPage', () => {
       expect(el().querySelector('.preview img')).not.toBeNull();
       expect(el().querySelector('.preview pre')).toBeNull();
       expect(el().querySelector('.preview figcaption span')?.textContent).toBe('photo.png');
+    });
+
+    it('does not reopen a text preview that was closed while it loaded', async () => {
+      await create(parts());
+      const blob = deferred<Blob>();
+      service.blob = blob.promise;
+      action('notes.txt', 'Preview').click();
+      fixture.detectChanges();
+      button('Close preview')!.click();
+      fixture.detectChanges();
+      expect(el().querySelector('.preview')).toBeNull();
+
+      blob.resolve(new Blob(['late text']));
+      await flush();
+      fixture.detectChanges();
+      expect(el().querySelector('.preview')).toBeNull();
+    });
+
+    it('takes only the latest answer when the same text part is previewed again', async () => {
+      await create(parts());
+      const first = deferred<Blob>();
+      service.blob = first.promise;
+      action('notes.txt', 'Preview').click();
+      fixture.detectChanges();
+      button('Close preview')!.click();
+      const second = deferred<Blob>();
+      service.blob = second.promise;
+      action('notes.txt', 'Preview').click();
+      fixture.detectChanges();
+
+      first.reject(new ApiError(404, 'Not found', 'The attachment is gone'));
+      await flush();
+      fixture.detectChanges();
+      expect(el().querySelector('.preview [role=alert]')).toBeNull();
+      expect(el().querySelector('.preview [role=status]')?.textContent).toContain(
+        'Loading preview',
+      );
+
+      second.resolve(new Blob(['second text']));
+      await flush();
+      fixture.detectChanges();
+      expect(el().querySelector('.preview pre')?.textContent).toBe('second text');
     });
 
     it('saves a part once while saving, then reports a failure and allows a retry', async () => {
