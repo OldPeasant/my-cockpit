@@ -1,11 +1,11 @@
 ---
 title: Thumbnails and previews
-status: todo
-owner: 
+status: in_progress
+owner: dell26/agent-4
 deps: [files-api]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/files,server/src/test/kotlin/ch/sonensei/cockpit/files,server/src/main/resources/db/migration/files]
 prio: 2
-lease_until: 
+lease_until: 2026-10-21T00:25:47Z
 releases: 1
 extended: 
 ---
