@@ -9,8 +9,8 @@ import {
   signal,
   viewChild,
 } from '@angular/core';
-import { Router } from '@angular/router';
-import { MoveTaskRequest, TaskResponse } from '../../../api/generated';
+import { Router, RouterLink } from '@angular/router';
+import { MoveTaskRequest, NoteResponse, TaskResponse } from '../../../api/generated';
 import { isTypingTarget } from '../../../shell/hotkeys';
 import { addDays, ContextStore, localDate, ProjectStore, TaskStore } from '../data';
 import { ContextChips, CreativityPicker, EnergyPicker, EstimatePicker, TaskRow } from '../ui';
@@ -36,7 +36,7 @@ const NEW_PROJECT = '';
 @Component({
   selector: 'app-inbox-page',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [TaskRow, EnergyPicker, CreativityPicker, EstimatePicker, ContextChips],
+  imports: [RouterLink, TaskRow, EnergyPicker, CreativityPicker, EstimatePicker, ContextChips],
   providers: [TaskStore],
   templateUrl: './inbox-page.html',
   styleUrl: './inbox-page.scss',
@@ -57,6 +57,8 @@ export class InboxPage {
   private readonly busy = signal<ReadonlySet<string>>(new Set());
   /** Items processed since the processing mode started, for the progress bar. */
   protected readonly processed = signal(0);
+  /** The note the last "To reference" created, offered to open. */
+  protected readonly lastNote = signal<NoteResponse | null>(null);
 
   /** The items still to process, in Inbox order. */
   protected readonly queue = computed(() =>
@@ -130,6 +132,7 @@ export class InboxPage {
 
   protected startProcessing(): void {
     this.processed.set(0);
+    this.lastNote.set(null);
     this.processing.set(true);
   }
 
@@ -232,6 +235,9 @@ export class InboxPage {
     try {
       if (action === 'trash') {
         await this.tasks.remove(task);
+      } else if (action === 'reference') {
+        // A note has no GTD attributes: the inline changes are not saved.
+        this.lastNote.set(await this.tasks.convertToNote(task));
       } else {
         const patch = clarificationPatch(task, { ...clarificationOf(task), ...changes });
         const base = Object.keys(patch).length ? await this.tasks.update(task, patch) : task;

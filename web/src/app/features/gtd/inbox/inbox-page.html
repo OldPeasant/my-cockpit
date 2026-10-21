@@ -65,6 +65,15 @@
       </button>
     </header>
 
+    @if (lastNote(); as note) {
+      <p class="moved" role="status">
+        <span i18n="@@inbox.referenced"
+          >Moved to reference as the note “{{ note.displayTitle }}”.</span
+        >
+        <a [routerLink]="['/notes', note.id]" i18n="@@inbox.openNote">Open note</a>
+      </p>
+    }
+
     @if (current(); as task) {
       <article class="item" [attr.aria-label]="task.title">
         <h2 class="item-title">{{ task.title }}</h2>

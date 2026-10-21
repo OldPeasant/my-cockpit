@@ -44,6 +44,18 @@
           @if (task()?.completedAt) {
             <span class="done" i18n="@@taskDetail.completed">Done</span>
           }
+          <button
+            type="button"
+            class="quiet reference"
+            [disabled]="saving() || converting()"
+            (click)="toReference()"
+          >
+            @if (converting()) {
+              <ng-container i18n="@@taskDetail.referencing">Moving to reference…</ng-container>
+            } @else {
+              <ng-container i18n="@@taskDetail.reference">To reference (note)</ng-container>
+            }
+          </button>
         </header>
 
         @if (conflict()) {

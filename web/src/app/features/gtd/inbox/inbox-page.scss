@@ -200,6 +200,25 @@ button {
   gap: var(--app-space-2);
 }
 
+.moved {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--app-space-1) var(--app-space-3);
+  margin: 0 0 var(--app-space-4);
+  padding: var(--app-space-2) var(--app-space-3);
+  border-inline-start: 3px solid var(--app-accent);
+  border-radius: var(--app-radius);
+  background: var(--app-surface-raised);
+  color: var(--app-fg-muted);
+  font: var(--mat-sys-body-medium);
+
+  a {
+    color: var(--app-accent);
+    font-weight: 500;
+  }
+}
+
 .zero {
   padding: var(--app-space-5) 0;
 }

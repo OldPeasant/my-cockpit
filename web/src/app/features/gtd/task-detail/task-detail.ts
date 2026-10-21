@@ -11,6 +11,7 @@ import {
   untracked,
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { Router } from '@angular/router';
 import { filter } from 'rxjs';
 import { ItemRefDto, TaskResponse } from '../../../api/generated';
 import { ChangeEventsService } from '../../../core/events';
@@ -90,6 +91,7 @@ export class TaskDetail {
   private readonly service = inject(TaskDetailService);
   protected readonly contexts = inject(ContextStore);
   private readonly projects = inject(ProjectStore);
+  private readonly router = inject(Router);
 
   readonly taskId = input.required<string>();
   /** The user closed the editor (after confirming to drop unsaved changes). */
@@ -106,6 +108,8 @@ export class TaskDetail {
   protected readonly task = signal<TaskResponse | null>(null);
   protected readonly draft = signal<TaskDraft | null>(null);
   protected readonly saving = signal(false);
+  /** "To reference" is running. */
+  protected readonly converting = signal(false);
   /** The task met a newer version on the server and was reloaded. */
   protected readonly conflict = signal(false);
   /** The last save error other than a conflict or field errors. */
@@ -234,6 +238,29 @@ export class TaskDetail {
     this.closed.emit();
   }
 
+  /**
+   * Moves the task to reference: the server turns it into a note (title, notes, links) and trashes
+   * the task; then the note opens. Unsaved changes are not part of the note, so they are confirmed.
+   */
+  async toReference(): Promise<void> {
+    const task = this.task();
+    if (!task || this.saving() || this.converting()) return;
+    if (!confirm(this.dirty() ? REFERENCE_DIRTY_CONFIRM : REFERENCE_CONFIRM)) return;
+    this.converting.set(true);
+    this.saveError.set(null);
+    this.conflict.set(false);
+    // A background reload would replace the form while it turns into a note.
+    this.loadSeq++;
+    try {
+      const note = await this.service.convertToNote(task);
+      void this.router.navigate(['/notes', note.id]);
+    } catch (error) {
+      if (task.id === this.taskId()) await this.failed(error);
+    } finally {
+      this.converting.set(false);
+    }
+  }
+
   protected onKeydown(event: KeyboardEvent): void {
     const save = (event.ctrlKey || event.metaKey) && (event.key === 'Enter' || event.key === 's');
     if (!save) return;
@@ -245,7 +272,9 @@ export class TaskDetail {
   async save(): Promise<void> {
     const task = this.task();
     const draft = this.draft();
-    if (!task || !draft || this.saving() || !this.valid() || !this.dirty()) return;
+    if (!task || !draft || this.saving() || this.converting() || !this.valid() || !this.dirty()) {
+      return;
+    }
     this.saving.set(true);
     this.saveError.set(null);
     this.serverErrors.set({});
@@ -331,6 +360,8 @@ export class TaskDetail {
   }
 }
 
+const REFERENCE_CONFIRM = $localize`:@@taskDetail.referenceConfirm:Move this task to reference? It becomes a note and the task goes to the Trash.`;
+const REFERENCE_DIRTY_CONFIRM = $localize`:@@taskDetail.referenceDirtyConfirm:Move this task to reference? Your unsaved changes are discarded; the note gets the saved version.`;
 const DISCARD_CONFIRM = $localize`:@@taskDetail.discardConfirm:Discard your unsaved changes?`;
 
 /** Server field names that the form shows under another field. */

@@ -2,6 +2,7 @@ import { Injectable } from '@angular/core';
 import {
   completeTask,
   CompletedTaskResponse,
+  convertTaskToNote,
   createTask,
   CreateTaskRequest,
   deleteTask,
@@ -9,6 +10,7 @@ import {
   ListTasks$Params,
   moveTask,
   MoveTaskRequest,
+  NoteResponse,
   TaskPatchRequest,
   TaskResponse,
   uncompleteTask,
@@ -75,8 +77,7 @@ export class TaskStore extends ListStore<TaskResponse, TaskQuery> {
           waitingForContactId: body.list === 'WAITING' ? body.waitingForContactId : undefined,
         };
       },
-      () =>
-        this.api.invoke(moveTask, { id: task.id, 'If-Match': this.ifMatch(task), body }),
+      () => this.api.invoke(moveTask, { id: task.id, 'If-Match': this.ifMatch(task), body }),
     );
   }
 
@@ -107,8 +108,7 @@ export class TaskStore extends ListStore<TaskResponse, TaskQuery> {
     return this.mutate(
       task.id,
       (current) => ({ ...(current ?? task), completedAt: undefined }),
-      () =>
-        this.api.invoke(uncompleteTask, { id: task.id, 'If-Match': this.ifMatch(task) }),
+      () => this.api.invoke(uncompleteTask, { id: task.id, 'If-Match': this.ifMatch(task) }),
     );
   }
 
@@ -117,9 +117,24 @@ export class TaskStore extends ListStore<TaskResponse, TaskQuery> {
     await this.mutate(
       task.id,
       () => undefined,
-      () =>
-        this.api.invoke(deleteTask, { id: task.id, 'If-Match': this.ifMatch(task) }),
+      () => this.api.invoke(deleteTask, { id: task.id, 'If-Match': this.ifMatch(task) }),
     );
+  }
+
+  /** Moves `task` to reference: the server turns it into a note and trashes the task. */
+  async convertToNote(task: TaskResponse): Promise<NoteResponse> {
+    let note: NoteResponse | undefined;
+    await this.mutate(
+      task.id,
+      () => undefined,
+      async () => {
+        note = await this.api.invoke(convertTaskToNote, {
+          id: task.id,
+          'If-Match': this.ifMatch(task),
+        });
+      },
+    );
+    return note!;
   }
 
   protected async fetch(query: TaskQuery): Promise<TaskResponse[]> {

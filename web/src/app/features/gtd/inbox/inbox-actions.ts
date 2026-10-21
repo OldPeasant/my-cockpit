@@ -24,7 +24,7 @@ export interface InboxActionInfo {
   readonly key: string;
   /** `KeyboardEvent.key` values (lower case) that run the action. */
   readonly keys: readonly string[];
-  /** Not available yet (converting to notes and events comes with later tasks). */
+  /** Not available yet (converting to events comes with a later task). */
   readonly disabled?: boolean;
 }
 
@@ -90,7 +90,6 @@ export const INBOX_ACTION_GROUPS: readonly InboxActionGroup[] = [
         label: $localize`:@@inbox.action.reference:To reference`,
         key: 'R',
         keys: ['r'],
-        disabled: true,
       },
       {
         action: 'calendar',

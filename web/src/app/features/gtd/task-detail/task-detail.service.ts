@@ -3,12 +3,14 @@ import { inject, Injectable } from '@angular/core';
 import {
   Api,
   ChecklistItemResponse,
+  convertTaskToNote,
   createChecklistItem,
   deleteChecklistItem,
   getTask,
   listChecklistItems,
   moveTask,
   MoveTaskRequest,
+  NoteResponse,
   TaskPatchRequest,
   TaskResponse,
   updateChecklistItem,
@@ -42,6 +44,15 @@ export class TaskDetailService {
     return this.api.invoke(
       moveTask,
       { id: task.id, 'If-Match': etag(task.version), body },
+      silent(),
+    );
+  }
+
+  /** Moves the task to reference: it becomes a note, the task goes to the Trash. */
+  convertToNote(task: TaskResponse): Promise<NoteResponse> {
+    return this.api.invoke(
+      convertTaskToNote,
+      { id: task.id, 'If-Match': etag(task.version) },
       silent(),
     );
   }
