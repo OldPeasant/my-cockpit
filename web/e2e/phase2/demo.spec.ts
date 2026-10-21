@@ -214,6 +214,7 @@ test.describe('Phase 2 demo', () => {
     );
 
     await page.goto('/');
+    await expect(page.getByRole('navigation', { name: 'Main' })).toBeVisible();
     await page.keyboard.press('Control+k');
     const query = page.getByRole('combobox', { name: 'Search or type a command' });
     await expect(query).toBeFocused();
