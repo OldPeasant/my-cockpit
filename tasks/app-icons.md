@@ -23,3 +23,4 @@ the placeholder icons. Source of truth: `docs/brand/` (`README.md` has colours a
 - The dark app icon (`app-icon.svg`) is the default launcher/touch icon; `app-icon-light.svg` is an alternative, not required here.
 - Out of scope: a logo in the web top bar or the Android login screen (separate task if wanted).
 - ASSUMPTION (2026-10-21 18:17+0200 by dell26/agent-3): Adaptive icon XMLs live in res/mipmap-anydpi/ instead of mipmap-anydpi-v26/: minSdk is 29, so lint reports the -v26 qualifier as an ObsoleteSdkInt error; same effect on every supported device.
+- ASSUMPTION (2026-10-21 18:22+0200 by dell26/agent-3): Apple touch icon is rendered as a full square (app-icon.svg without rx): iOS applies its own corner mask and fills transparent pixels black.
