@@ -2,8 +2,8 @@
 title: Robust plain text of note Markdown with backslash escapes
 status: todo
 owner:
-deps: []
-touches: [server/src/main/kotlin/ch/sonensei/cockpit/notes/domain/NoteMarkdown.kt,server/src/test/kotlin/ch/sonensei/cockpit/notes]
+deps: [mail-gtd]
+touches: [server/src/main/kotlin/ch/sonensei/cockpit/notes/domain/NoteMarkdown.kt,server/src/test/kotlin/ch/sonensei/cockpit/notes,server/src/main/kotlin/ch/sonensei/cockpit/mail/gtd/MailGtdService.kt,server/src/test/kotlin/ch/sonensei/cockpit/mail/gtd]
 prio: 2
 ---
 ## Goal
@@ -16,5 +16,7 @@ display name. Found in mail-gtd, which works around it by writing mail escapes a
 ## Acceptance criteria
 - [ ] plainText/titleOf of Markdown with escapes mixed with bold, autolinks and hard breaks neither throws (tests run with -ea) nor drops/garbles text (unit tests with the repro cases)
 - [ ] `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.notes.*'` passes
+- [ ] mail-gtd's workaround is removed: `MailGtdService.neutralizeInlineLinks` keeps the mail's backslash escapes verbatim (no U+2216), its escape tests in `MailGtdWebTests` expect the original text, and `./gradlew test --tests 'ch.sonensei.cockpit.mail.gtd.*'` passes
 
 ## Notes
+- Also check whether entity/numeric references (`&amp;`, `&#91;`, `&nbsp;`) next to bold/autolinks/hard breaks trip the same assertion (mail-gtd final review note).
