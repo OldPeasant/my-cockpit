@@ -1,11 +1,11 @@
 ---
 title: Android widget, quick-settings tile, app shortcut
-status: in_progress
+status: done
 owner: dell26/agent-1
 deps: [and-share-target]
 touches: [android/app/src/main/java/ch/sonensei/cockpit/capture/entry,android/app/src/test/java/ch/sonensei/cockpit/capture/entry,android/app/src/main/AndroidManifest.xml,android/app/src/main/res/xml]
 prio: 2
-lease_until: 2026-10-21T05:32:34Z
+lease_until: 
 extended: 
 releases: 1
 ---
@@ -27,3 +27,4 @@ More ways to capture (SPEC.md §4.5).
 - extended by dell26/agent-2: Implementation done and committed (widget, QS tile, shortcut, CaptureActivity, review fixes in 5f85bca7, extra tests 7895be88); focused tests + ktlint pass. Left: run test-writer (reviews/.../tests.md with coverage), re-run code-reviewer on final code (review.md is pre-fix), write quality.json, tasks.py verify 1+2 (criterion 1 device check: --skip, no emulator), run .taskcheck, done.
 - release by dell26/agent-2: Implementation done and committed (CaptureActivity, Glance widget with pending-count badge, QS tile, static shortcut, review fixes 2f077e00, extra tests 1067acfb/82d2f250). Focused tests 'ch.sonensei.cockpit.capture.entry.*' pass at 82d2f250. reviews/: review.md (final-code review 6276ec8e) + fixes.md exist; tests.md MISSING. Left: run test-writer (tests.md with coverage), re-run code-reviewer if 82d2f250 test commit makes review stale, write quality.json, tasks.py verify 1 (--skip device check: no emulator; covered by Robolectric) and 2, run .taskcheck, done.
 - ASSUMPTION (2026-10-21 07:06+0200 by dell26/agent-1): Criterion 1 on-device behavior (Glance widget on a real launcher, QS tile in System UI, static shortcut with non-exported CaptureActivity) was only checked with Robolectric, not on a device or emulator (none available).
+- done by dell26/agent-1: `sh scripts/check.sh` passed in 91s on 92cb343f8; criteria verified 1/2, skipped #1
