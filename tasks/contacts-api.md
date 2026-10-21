@@ -18,3 +18,4 @@ Contacts (SPEC.md §8.3).
 
 ## Notes
 - ASSUMPTION (2026-10-21 03:53+0200 by dell26/agent-2): Contact emails/phones/addresses are jsonb arrays of {address|number,label} / {label,street,city,region,postalCode,country}; labels are free text (vCard TYPEs joined with ', ', pref/internet dropped).
+- ASSUMPTION (2026-10-21 03:53+0200 by dell26/agent-2): displayName is derived when missing/cleared (given+family name, else organization, else first email); a contact without any of these is a 400. The API creates only LOCAL contacts; source/externalId are read-only.
