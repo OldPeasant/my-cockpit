@@ -1,15 +1,18 @@
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
+import { EditorView } from '@codemirror/view';
+import { Component } from '@angular/core';
 import { MatDialog } from '@angular/material/dialog';
 import { By } from '@angular/platform-browser';
 import { provideRouter } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
 import { LinkResponse, NoteResponse } from '../../../api/generated';
-import { NotificationService, provideHttp } from '../../../core/http';
+import { ApiError, NotificationService, provideHttp } from '../../../core/http';
 import { MarkdownEditor } from './markdown-editor';
 import NoteEditorPage, { AUTOSAVE_DEBOUNCE_MS, NOTE_EDITOR_MODE_KEY } from './note-editor-page';
 
 const ID = '0192f0c4-0000-7000-8000-000000000001';
+const OTHER_ID = '0192f0c4-0000-7000-8000-000000000002';
 const TASK_ID = '0192f0c4-0000-7000-8000-0000000000a1';
 const URL = `/api/v1/notes/${ID}`;
 
@@ -42,6 +45,20 @@ function taskLink(title: string): LinkResponse {
 
 const tick = (): Promise<void> => new Promise((resolve) => setTimeout(resolve));
 
+/** Another page, to leave the editor. */
+@Component({ template: 'Elsewhere' })
+class Elsewhere {}
+
+const ROUTES = [
+  { path: 'notes/:id', component: NoteEditorPage },
+  { path: 'elsewhere', component: Elsewhere },
+];
+
+const CONFLICT = [
+  { type: 'about:blank', title: 'Conflict', status: 409 },
+  { status: 409, statusText: 'Conflict' },
+] as const;
+
 describe('NoteEditorPage', () => {
   let harness: RouterTestingHarness;
   let root: HTMLElement;
@@ -52,7 +69,7 @@ describe('NoteEditorPage', () => {
       providers: [
         provideHttp(),
         provideHttpClientTesting(),
-        provideRouter([{ path: 'notes/:id', component: NoteEditorPage }]),
+        provideRouter(ROUTES),
         { provide: NotificationService, useValue: { error: vi.fn(), info: vi.fn() } },
       ],
     });
@@ -273,6 +290,39 @@ describe('NoteEditorPage', () => {
     expect(chip?.getAttribute('data-route')).toBe(`/tasks/${TASK_ID}`);
   });
 
+  it('shows the note’s linked items in the Linked items panel', async () => {
+    await open(note({ bodyMd: `Call [[task:${TASK_ID}]]` }), [taskLink('Book flights')]);
+    const panel = root.querySelector('aside.side app-linked-items');
+    expect(panel).not.toBeNull();
+    expect(panel?.textContent).toContain('Book flights');
+  });
+
+  it('shows chips with the type only when the links cannot be loaded', async () => {
+    TestBed.configureTestingModule({
+      providers: [
+        provideHttp(),
+        provideHttpClientTesting(),
+        provideRouter(ROUTES),
+        { provide: NotificationService, useValue: { error: vi.fn(), info: vi.fn() } },
+      ],
+    });
+    http = TestBed.inject(HttpTestingController);
+    harness = await RouterTestingHarness.create();
+    void harness.navigateByUrl(`/notes/${ID}`);
+    await tick();
+    http.expectOne((r) => r.url === URL).flush(note({ bodyMd: `Call [[task:${TASK_ID}]]` }));
+    await settle();
+    for (const req of http.match((r) => r.url === '/api/v1/links')) {
+      req.flush(null, { status: 503, statusText: 'Service Unavailable' });
+    }
+    await settle();
+    root = harness.routeNativeElement as HTMLElement;
+    const chip = root.querySelector('app-note-markdown-view .chip');
+    expect(chip?.tagName).toBe('SPAN');
+    expect(chip?.textContent).toBe('Task');
+    expect(state()).toBe('Saved');
+  });
+
   it('offers link targets of all types but the note itself, and remembers their titles', async () => {
     await open();
     const found = editor().searchLinks()!('book');
@@ -425,5 +475,389 @@ describe('NoteEditorPage', () => {
     http.expectOne((r) => r.url === URL).flush(note());
     await settle();
     expect((root.querySelector('.title') as HTMLInputElement).value).toBe('Packing list');
+  });
+
+  /** Fails the pending save with a conflict and waits for the page to show it. */
+  async function conflictOnSave(): Promise<void> {
+    http.expectOne((r) => r.method === 'PATCH').flush(...CONFLICT);
+    await vi.advanceTimersByTimeAsync(0);
+    harness.detectChanges();
+  }
+
+  it('treats a 409 like a 412: conflict banner, no further autosave', async () => {
+    await open();
+    vi.useFakeTimers();
+    type('mine');
+    await vi.advanceTimersByTimeAsync(AUTOSAVE_DEBOUNCE_MS);
+    await conflictOnSave();
+    expect(state()).toBe('Not saved: changed elsewhere');
+    expect(root.querySelector('.banner.conflict')).not.toBeNull();
+    expect(root.querySelector('.retry')).toBeNull();
+    type('mine again');
+    await vi.advanceTimersByTimeAsync(AUTOSAVE_DEBOUNCE_MS * 2);
+    http.expectNone((r) => r.method === 'PATCH');
+  });
+
+  it('does not save a checklist toggle while in conflict', async () => {
+    await open();
+    vi.useFakeTimers();
+    type('- [ ] Passport\n- [ ] Charger\n- [ ] Sun');
+    await vi.advanceTimersByTimeAsync(AUTOSAVE_DEBOUNCE_MS);
+    await conflictOnSave();
+    root.querySelectorAll<HTMLInputElement>('app-note-markdown-view input')[0].click();
+    await vi.advanceTimersByTimeAsync(AUTOSAVE_DEBOUNCE_MS);
+    http.expectNone((r) => r.method === 'PATCH');
+    harness.detectChanges();
+    expect(editor().value()).toBe('- [x] Passport\n- [ ] Charger\n- [ ] Sun');
+    expect(state()).toBe('Not saved: changed elsewhere');
+  });
+
+  it('keeps the conflict when reloading the newer version fails', async () => {
+    await open();
+    vi.useFakeTimers();
+    type('mine');
+    await vi.advanceTimersByTimeAsync(AUTOSAVE_DEBOUNCE_MS);
+    await conflictOnSave();
+
+    button('Discard my edits').click();
+    await vi.advanceTimersByTimeAsync(0);
+    http
+      .expectOne((r) => r.url === URL && r.method === 'GET')
+      .flush(null, { status: 503, statusText: 'Service Unavailable' });
+    await vi.advanceTimersByTimeAsync(0);
+    harness.detectChanges();
+    expect(editor().value()).toBe('mine');
+    expect(state()).toBe('Not saved: changed elsewhere');
+    expect(root.querySelectorAll('.banner[role=alert]')).toHaveLength(2);
+
+    button('Save my version').click();
+    await vi.advanceTimersByTimeAsync(0);
+    http
+      .expectOne((r) => r.url === URL && r.method === 'GET')
+      .flush(null, { status: 503, statusText: 'Service Unavailable' });
+    await vi.advanceTimersByTimeAsync(0);
+    harness.detectChanges();
+    http.expectNone((r) => r.method === 'PATCH');
+    expect(state()).toBe('Not saved: changed elsewhere');
+  });
+
+  it('saves pending edits before opening another note', async () => {
+    await open();
+    vi.useFakeTimers();
+    type('edited before leaving');
+    void harness.navigateByUrl(`/notes/${OTHER_ID}`);
+    await vi.advanceTimersByTimeAsync(0);
+    // The edits of the first note are saved before the other note is loaded.
+    http.expectNone((r) => r.url === `/api/v1/notes/${OTHER_ID}`);
+    const save = http.expectOne((r) => r.url === URL && r.method === 'PATCH');
+    expect(save.request.body.bodyMd).toBe('edited before leaving');
+    expect(save.request.headers.get('If-Match')).toBe('"1"');
+    save.flush(note({ bodyMd: 'edited before leaving', version: 2 }));
+    await vi.advanceTimersByTimeAsync(0);
+    http
+      .expectOne((r) => r.url === `/api/v1/notes/${OTHER_ID}` && r.method === 'GET')
+      .flush(note({ id: OTHER_ID, title: 'Recipes', bodyMd: 'Soup', version: 9 }));
+    await vi.advanceTimersByTimeAsync(0);
+    flushLinks();
+    harness.detectChanges();
+    expect(editor().value()).toBe('Soup');
+    expect((root.querySelector('.title') as HTMLInputElement).value).toBe('Recipes');
+    expect(state()).toBe('Saved');
+
+    // Nothing more is saved for the first note, and edits now go to the other one.
+    await vi.advanceTimersByTimeAsync(AUTOSAVE_DEBOUNCE_MS * 2);
+    http.expectNone((r) => r.url === URL && r.method === 'PATCH');
+    type('Soup and bread');
+    await vi.advanceTimersByTimeAsync(AUTOSAVE_DEBOUNCE_MS);
+    const next = http.expectOne((r) => r.method === 'PATCH');
+    expect(next.request.url).toBe(`/api/v1/notes/${OTHER_ID}`);
+    expect(next.request.headers.get('If-Match')).toBe('"9"');
+  });
+
+  it('ignores a note that arrives after another one was opened', async () => {
+    TestBed.configureTestingModule({
+      providers: [
+        provideHttp(),
+        provideHttpClientTesting(),
+        provideRouter(ROUTES),
+        { provide: NotificationService, useValue: { error: vi.fn(), info: vi.fn() } },
+      ],
+    });
+    http = TestBed.inject(HttpTestingController);
+    harness = await RouterTestingHarness.create();
+    void harness.navigateByUrl(`/notes/${ID}`);
+    await tick();
+    const slow = http.expectOne((r) => r.url === URL);
+    void harness.navigateByUrl(`/notes/${OTHER_ID}`);
+    await tick();
+    http
+      .expectOne((r) => r.url === `/api/v1/notes/${OTHER_ID}`)
+      .flush(note({ id: OTHER_ID, title: 'Recipes', bodyMd: 'Soup' }));
+    await settle();
+    slow.flush(note({ bodyMd: 'stale' }));
+    await settle();
+    flushLinks();
+    root = harness.routeNativeElement as HTMLElement;
+    expect(editor().value()).toBe('Soup');
+    expect((root.querySelector('.title') as HTMLInputElement).value).toBe('Recipes');
+  });
+
+  it('saves pending edits when leaving the page', async () => {
+    await open();
+    vi.useFakeTimers();
+    type('edited before leaving');
+    void harness.navigateByUrl('/elsewhere');
+    await vi.advanceTimersByTimeAsync(0);
+    expect(harness.routeNativeElement?.textContent).toBe('Elsewhere');
+    const save = http.expectOne((r) => r.url === URL && r.method === 'PATCH');
+    expect(save.request.body.bodyMd).toBe('edited before leaving');
+    save.flush(note({ bodyMd: 'edited before leaving', version: 2 }));
+    await vi.advanceTimersByTimeAsync(AUTOSAVE_DEBOUNCE_MS * 2);
+    http.expectNone((r) => r.method === 'PATCH');
+  });
+
+  it('when leaving during a save, saves the edits made meanwhile after it', async () => {
+    await open();
+    vi.useFakeTimers();
+    type('one');
+    await vi.advanceTimersByTimeAsync(AUTOSAVE_DEBOUNCE_MS);
+    const first = http.expectOne((r) => r.method === 'PATCH');
+    type('one two');
+    void harness.navigateByUrl('/elsewhere');
+    await vi.advanceTimersByTimeAsync(0);
+    http.expectNone((r) => r.method === 'PATCH');
+    first.flush(note({ bodyMd: 'one', version: 2 }));
+    await vi.advanceTimersByTimeAsync(0);
+    const second = http.expectOne((r) => r.method === 'PATCH');
+    expect(second.request.body.bodyMd).toBe('one two');
+    expect(second.request.headers.get('If-Match')).toBe('"2"');
+    second.flush(note({ bodyMd: 'one two', version: 3 }));
+    await vi.advanceTimersByTimeAsync(AUTOSAVE_DEBOUNCE_MS * 2);
+    http.expectNone((r) => r.method === 'PATCH');
+  });
+
+  it('does not leave an upload placeholder in the saved note when leaving during an upload', async () => {
+    await open(note({ bodyMd: 'Trip' }));
+    const dom = root.querySelector('.cm-editor') as HTMLElement;
+    const view = EditorView.findFromDOM(dom)!;
+    view.dispatch({ selection: { anchor: 4 } });
+    const paste = new Event('paste', { bubbles: true, cancelable: true }) as ClipboardEvent;
+    const image = new File(['x'], 'tent.png', { type: 'image/png' });
+    Object.defineProperty(paste, 'clipboardData', { value: { files: [image], getData: () => '' } });
+    view.contentDOM.dispatchEvent(paste);
+    const upload = http.expectOne((r) => r.url === `${URL}/images`);
+
+    // Leave while the image is still uploading.
+    void harness.navigateByUrl('/elsewhere');
+    await settle();
+    const saved: string[] = [];
+    const answerSaves = () => {
+      for (const save of http.match((r) => r.url === URL && r.method === 'PATCH')) {
+        saved.push(save.request.body.bodyMd);
+        save.flush(note({ bodyMd: save.request.body.bodyMd, version: saved.length + 1 }));
+      }
+    };
+    answerSaves();
+    await settle();
+    upload.flush({
+      fileId: TASK_ID,
+      markdown: `![tent.png](cockpit-file:${TASK_ID})`,
+      reference: `cockpit-file:${TASK_ID}`,
+      mime: 'image/png',
+      name: 'tent.png',
+      size: 1,
+    });
+    await settle();
+    answerSaves();
+    await settle();
+    answerSaves();
+
+    // What the server keeps last must not be the "Uploading…" placeholder.
+    expect(saved.at(-1) ?? 'Trip').not.toContain('(uploading:');
+  });
+
+  it('saves nothing when leaving without edits', async () => {
+    await open();
+    vi.useFakeTimers();
+    void harness.navigateByUrl('/elsewhere');
+    await vi.advanceTimersByTimeAsync(AUTOSAVE_DEBOUNCE_MS * 2);
+    http.expectNone((r) => r.method === 'PATCH');
+  });
+
+  it('asks before closing the browser tab only while edits are unsaved', async () => {
+    await open();
+    vi.useFakeTimers();
+    const unload = () => {
+      const event = new Event('beforeunload', { cancelable: true });
+      window.dispatchEvent(event);
+      return event.defaultPrevented;
+    };
+    expect(unload()).toBe(false);
+    type('mine');
+    expect(unload()).toBe(true);
+    await vi.advanceTimersByTimeAsync(AUTOSAVE_DEBOUNCE_MS);
+    const save = http.expectOne((r) => r.method === 'PATCH');
+    expect(unload()).toBe(true);
+    save.flush(note({ bodyMd: 'mine', version: 2 }));
+    await vi.advanceTimersByTimeAsync(0);
+    expect(unload()).toBe(false);
+  });
+
+  it('shows a failed image upload', async () => {
+    await open();
+    editor().uploadFailed.emit(new ApiError(413, 'Payload Too Large', 'The image is too large.'));
+    harness.detectChanges();
+    const banner = root.querySelector('.banner[role=alert]');
+    expect(banner?.textContent).toContain(
+      'The image could not be uploaded: The image is too large.',
+    );
+    // An upload error is no save error: there is nothing to retry.
+    expect(banner?.querySelector('.retry')).toBeNull();
+    expect(state()).toBe('Saved');
+  });
+
+  it('shows a generic message for an unexpected upload failure', async () => {
+    await open();
+    editor().uploadFailed.emit(new Error('boom'));
+    harness.detectChanges();
+    expect(root.querySelector('.banner[role=alert]')?.textContent).toContain(
+      'The image could not be uploaded: Something went wrong.',
+    );
+  });
+
+  async function openRevisionsAndPick(number: number): Promise<void> {
+    button('Earlier versions').click();
+    await settle();
+    http
+      .expectOne((r) => r.url === `${URL}/revisions`)
+      .flush({
+        items: [
+          {
+            number,
+            bodyMd: 'old',
+            savedAt: '2026-09-01T08:00:00Z',
+            replacedAt: '2026-09-02T08:00:00Z',
+          },
+        ],
+      });
+    await settle();
+    document.querySelector<HTMLButtonElement>('mat-dialog-container button.restore')!.click();
+  }
+
+  it('saves pending edits before restoring a revision, then restores on the saved version', async () => {
+    await open();
+    type('unsaved edit');
+    await openRevisionsAndPick(1);
+    const save = await vi.waitFor(() => http.expectOne((r) => r.method === 'PATCH'));
+    expect(save.request.body.bodyMd).toBe('unsaved edit');
+    save.flush(note({ bodyMd: 'unsaved edit', version: 2 }));
+    const restore = await vi.waitFor(() =>
+      http.expectOne((r) => r.url === `${URL}/revisions/1/restore`),
+    );
+    expect(restore.request.headers.get('If-Match')).toBe('"2"');
+    restore.flush(note({ bodyMd: 'old', version: 3 }));
+    await settle();
+    flushLinks();
+    expect(editor().value()).toBe('old');
+  });
+
+  it('does not restore while the note is in conflict', async () => {
+    await open();
+    type('unsaved edit');
+    await openRevisionsAndPick(1);
+    const save = await vi.waitFor(() => http.expectOne((r) => r.method === 'PATCH'));
+    save.flush(...CONFLICT);
+    await settle();
+    await settle();
+    http.expectNone((r) => r.url.endsWith('/restore'));
+    expect(state()).toBe('Not saved: changed elsewhere');
+    expect(editor().value()).toBe('unsaved edit');
+  });
+
+  it('shows a failed restore and keeps the note', async () => {
+    await open();
+    await openRevisionsAndPick(1);
+    const restore = await vi.waitFor(() =>
+      http.expectOne((r) => r.url === `${URL}/revisions/1/restore`),
+    );
+    restore.flush(null, { status: 503, statusText: 'Service Unavailable' });
+    await settle();
+    expect(root.querySelector('.banner[role=alert]')?.textContent).toContain(
+      'The version could not be restored',
+    );
+    expect(editor().value()).toBe('- [ ] Passport\n- [ ] Charger');
+  });
+
+  it('restores nothing when the dialog is closed without a choice', async () => {
+    await open();
+    button('Earlier versions').click();
+    await settle();
+    http.expectOne((r) => r.url === `${URL}/revisions`).flush({ items: [] });
+    await settle();
+    const dialog = document.querySelector('mat-dialog-container') as HTMLElement;
+    expect(dialog.textContent).toContain('No earlier versions yet');
+    expect(dialog.querySelector<HTMLButtonElement>('button.restore')!.disabled).toBe(true);
+    TestBed.inject(MatDialog).closeAll();
+    await settle();
+    await settle();
+    http.expectNone((r) => r.url.endsWith('/restore'));
+  });
+
+  it('shows when the earlier versions cannot be loaded', async () => {
+    await open();
+    button('Earlier versions').click();
+    await settle();
+    http
+      .expectOne((r) => r.url === `${URL}/revisions`)
+      .flush(null, { status: 503, statusText: 'Service Unavailable' });
+    await settle();
+    const dialog = document.querySelector('mat-dialog-container') as HTMLElement;
+    expect(dialog.querySelector('[role=alert]')?.textContent).toContain(
+      'The earlier versions could not be loaded',
+    );
+  });
+
+  it('lists revisions by title or first line and shows the chosen one read-only', async () => {
+    await open();
+    button('Earlier versions').click();
+    await settle();
+    http
+      .expectOne((r) => r.url === `${URL}/revisions`)
+      .flush({
+        items: [
+          {
+            number: 1,
+            bodyMd: '',
+            savedAt: '2026-09-01T08:00:00Z',
+            replacedAt: '2026-09-02T08:00:00Z',
+          },
+          {
+            number: 2,
+            title: 'Trip',
+            bodyMd: '- [x] Passport',
+            savedAt: '2026-09-02T08:00:00Z',
+            replacedAt: '2026-09-03T08:00:00Z',
+          },
+          {
+            number: 3,
+            bodyMd: 'First line\nsecond',
+            savedAt: '2026-09-03T08:00:00Z',
+            replacedAt: '2026-09-04T08:00:00Z',
+          },
+        ],
+      });
+    await settle();
+    const dialog = document.querySelector('mat-dialog-container') as HTMLElement;
+    const summaries = [...dialog.querySelectorAll('button.revision .what')].map((e) =>
+      e.textContent?.trim(),
+    );
+    expect(summaries).toEqual(['First line', 'Trip', 'Empty note']);
+    dialog.querySelectorAll<HTMLButtonElement>('button.revision')[1].click();
+    await settle();
+    expect(dialog.querySelector('.preview-title')?.textContent).toBe('Trip');
+    const box = dialog.querySelector<HTMLInputElement>('app-note-markdown-view input')!;
+    expect(box.disabled).toBe(true);
+    expect(box.checked).toBe(true);
+    http.expectNone((r) => r.method === 'PATCH');
   });
 });
