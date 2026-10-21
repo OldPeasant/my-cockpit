@@ -18,3 +18,4 @@ Bookmarks and read-later (SPEC.md §8.4).
 
 ## Notes
 - ASSUMPTION (2026-10-21 20:39+0200 by dell26/agent-3): favicon is stored as the absolute http(s) URL of the site's icon (link rel=icon, else apple-touch-icon, else /favicon.ico); the server does not download the icon itself. Clients may load it through an image proxy if CSP requires.
+- ASSUMPTION (2026-10-21 20:39+0200 by dell26/agent-3): Automatic metadata fetch (after create or a URL change) only fills empty title/description/favicon; a user-given title is kept. New endpoint POST /bookmarks/{id}/refresh-metadata (If-Match) refetches and replaces them. A URL change clears the favicon.
