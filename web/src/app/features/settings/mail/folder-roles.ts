@@ -45,7 +45,8 @@ export class FolderRoles implements OnInit {
   protected readonly folders = signal<MailFolderResponse[] | null>(null);
   protected readonly loadError = signal<string | null>(null);
   protected readonly detecting = signal(false);
-  protected readonly saving = signal<ReadonlySet<string>>(new Set());
+  /** A role change, and the reload after it, is in flight. */
+  protected readonly saving = signal(false);
   protected readonly saveError = signal<{ name: string; message: string } | null>(null);
 
   protected readonly roles = ROLES;
@@ -106,25 +107,35 @@ export class FolderRoles implements OnInit {
   }
 
   protected async setRole(folder: MailFolderResponse, choice: RoleChoice): Promise<void> {
-    this.saving.update((ids) => new Set(ids).add(folder.id));
+    // One change at a time: moving a role changes another folder's version on the server.
+    if (this.saving()) return;
+    this.saving.set(true);
     this.saveError.set(null);
     try {
-      const saved = await this.service.setRole(folder, choice);
+      let saved: MailFolderResponse;
+      try {
+        saved = await this.service.setRole(folder, choice);
+      } catch (error) {
+        this.saveError.set({ name: folder.path, message: errorMessage(error) });
+        await this.load();
+        return;
+      }
+      this.folders.update((all) => all?.map((f) => (f.id === saved.id ? saved : f)) ?? null);
       if (saved.role && saved.role !== folder.role) {
         // The folder that had this role lost it on the server: read them all again.
-        this.folders.set(await this.service.folders(this.account().id));
-      } else {
-        this.folders.update((all) => all?.map((f) => (f.id === saved.id ? saved : f)) ?? null);
+        await this.refresh();
       }
-    } catch (error) {
-      this.saveError.set({ name: folder.path, message: errorMessage(error) });
-      await this.load();
     } finally {
-      this.saving.update((ids) => {
-        const rest = new Set(ids);
-        rest.delete(folder.id);
-        return rest;
-      });
+      this.saving.set(false);
+    }
+  }
+
+  /** Reads the folders again without hiding the list; a failure offers a retry. */
+  private async refresh(): Promise<void> {
+    try {
+      this.folders.set(await this.service.folders(this.account().id));
+    } catch (error) {
+      this.loadError.set(errorMessage(error));
     }
   }
 }

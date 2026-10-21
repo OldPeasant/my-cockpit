@@ -33,7 +33,7 @@
             <mat-form-field subscriptSizing="dynamic" class="role">
               <mat-select
                 [value]="choice(folder)"
-                [disabled]="saving().has(folder.id)"
+                [disabled]="saving()"
                 [aria-label]="roleLabel(folder)"
                 (selectionChange)="setRole(folder, $event.value)"
               >

@@ -222,6 +222,66 @@ describe('FolderRoles', () => {
     expect(row('Old').querySelector('mat-select')?.getAttribute('aria-disabled')).toBe('false');
   });
 
+  it('disables every folder while a moved role is saved and the folders are read again', async () => {
+    await load([fakeFolder(), fakeFolder({ id: 'f2', path: 'Old', role: undefined })]);
+
+    await choose('Old', 'Inbox');
+    http
+      .expectOne({ method: 'PATCH', url: `${FOLDERS}/f2` })
+      .flush(
+        fakeFolder({ id: 'f2', path: 'Old', role: 'INBOX', roleOverridden: true, version: 1 }),
+      );
+    await settle();
+
+    // The reload runs: INBOX lost its role on the server, so its version changed too.
+    const reload = http.expectOne({ method: 'GET', url: FOLDERS });
+    expect(row('INBOX').querySelector('mat-select')?.getAttribute('aria-disabled')).toBe('true');
+    expect(row('Old').querySelector('mat-select')?.getAttribute('aria-disabled')).toBe('true');
+    reload.flush({
+      items: [
+        fakeFolder({ role: undefined, version: 1 }),
+        fakeFolder({ id: 'f2', path: 'Old', role: 'INBOX', roleOverridden: true, version: 1 }),
+      ],
+    });
+    await settle();
+
+    expect(row('INBOX').querySelector('mat-select')?.getAttribute('aria-disabled')).toBe('false');
+    expect(row('Old').querySelector('mat-select')?.getAttribute('aria-disabled')).toBe('false');
+  });
+
+  it('reports a failed reload after a saved role as a load error, not a failed change', async () => {
+    await load([fakeFolder(), fakeFolder({ id: 'f2', path: 'Old', role: undefined })]);
+
+    await choose('Old', 'Inbox');
+    http
+      .expectOne({ method: 'PATCH', url: `${FOLDERS}/f2` })
+      .flush(
+        fakeFolder({ id: 'f2', path: 'Old', role: 'INBOX', roleOverridden: true, version: 1 }),
+      );
+    await settle();
+    const { body, options } = problem(500, 'Server error');
+    http.expectOne({ method: 'GET', url: FOLDERS }).flush(body, options);
+    await settle();
+
+    expect(text()).not.toContain('could not be changed');
+    expect(root.querySelector('[role="alert"]')?.textContent).toContain(
+      'Folders could not be loaded: Server error',
+    );
+    button('Try again').click();
+    await settle();
+    http.expectOne({ method: 'GET', url: FOLDERS }).flush({
+      items: [
+        fakeFolder({ role: undefined, version: 1 }),
+        fakeFolder({ id: 'f2', path: 'Old', role: 'INBOX', roleOverridden: true, version: 1 }),
+      ],
+    });
+    await settle();
+    await settle();
+
+    expect(root.querySelector('[role="alert"]')).toBeNull();
+    expect(row('Old').querySelector('mat-select')?.textContent).toContain('Inbox');
+  });
+
   it('shows a failed detection with a retry', async () => {
     await load([fakeFolder()]);
 

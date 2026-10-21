@@ -445,6 +445,30 @@ describe('MailSettings', () => {
     expect(root.querySelector('li.account .name')?.textContent).toBe('Jane D.');
   });
 
+  it('drops the old connection test result when the account is edited', async () => {
+    await setup();
+
+    button('Test connection').click();
+    await settle();
+    http.expectOne(`${ACCOUNTS}/a1/test`).flush(TEST_SMTP_FAILED);
+    await settle();
+    expect(root.querySelector('.protocols')).not.toBeNull();
+
+    button('Edit').click();
+    await settle();
+    const editor = root.querySelector<HTMLElement>('app-mail-account-editor')!;
+    type('[formControlName="password"]', 'n3w-app-pass', editor);
+    button('Save changes', editor).click();
+    await settle();
+    http.expectOne({ method: 'PATCH', url: `${ACCOUNTS}/a1` }).flush(fakeAccount({ version: 1 }));
+    await settle();
+
+    expect(root.querySelector('app-mail-account-editor')).toBeNull();
+    expect(root.querySelector('.protocols')).toBeNull();
+    expect(text()).not.toContain('The server did not accept the user name or password.');
+    expect(button('Test connection').disabled).toBe(false);
+  });
+
   it('edits a Google account without login or servers', async () => {
     await setup([fakeAccount({ type: 'GOOGLE', oauthConnectionId: 'o1', hasPassword: false })]);
 
@@ -800,7 +824,8 @@ describe('MailSettings', () => {
       await settle();
 
       expect(text()).toContain('added, but the connection does not work yet');
-      expect(text()).toContain('1 folders found.');
+      expect(text()).toContain('1 folder found.');
+      expect(text()).not.toContain('1 folders found.');
       expect(text()).toContain('The server did not accept the user name or password.');
     });
 

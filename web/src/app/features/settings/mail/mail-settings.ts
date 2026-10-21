@@ -202,6 +202,14 @@ export default class MailSettings implements OnInit {
   protected saved(account: MailAccountResponse): void {
     this.replace(account);
     this.open.set(null);
+    // The result was for the settings before the edit; a running test keeps its own answer.
+    if (!this.test(account)?.running) {
+      this.tests.update((all) => {
+        const rest = new Map(all);
+        rest.delete(account.id);
+        return rest;
+      });
+    }
   }
 
   protected selectType(type: AccountType): void {
@@ -305,7 +313,10 @@ export default class MailSettings implements OnInit {
     let folders: string;
     try {
       const found = await this.service.syncFolders(account.id);
-      folders = $localize`:@@mailSettings.foldersFound:${found.length}:count: folders found.`;
+      folders =
+        found.length === 1
+          ? $localize`:@@mailSettings.folderFound:1 folder found.`
+          : $localize`:@@mailSettings.foldersFound:${found.length}:count: folders found.`;
     } catch (error) {
       folders = $localize`:@@mailSettings.foldersFailed:Folders could not be read: ${errorMessage(error)}:message:`;
     }
