@@ -23,6 +23,12 @@ down and exit non-zero (130/143). Options (environment):
 | `E2E_KEEP=1`    | keep the stack running afterwards (prints the `down` command)                 |
 | `E2E_BASE_URL`  | run against an already running e2e stack, no compose up/down                  |
 | `E2E_IMAP_PORT` | host port of GreenMail's IMAP, default a free one (18143 with `E2E_BASE_URL`) |
+| `E2E_FRESH_PORT` | host port of the fresh-install server `server-fresh`, default a free one        |
+| `E2E_FRESH_BASE_URL` | with `E2E_BASE_URL`: that stack's `server-fresh`; without it, phase 2 step 5 is skipped |
+
+The stack has a second server, `server-fresh`, with its own empty Postgres and data directory: a fresh install that
+only the phase 2 demo (`e2e/phase2/`) uses, to restore its backup into (SPEC.md §13.2 step 5). `run-e2e.mjs` waits for
+both and passes its address as `E2E_FRESH_BASE_URL`.
 
 Reports: `test-results/` (traces and screenshots of failures), `playwright-report/` (`npx playwright show-report`).
 
