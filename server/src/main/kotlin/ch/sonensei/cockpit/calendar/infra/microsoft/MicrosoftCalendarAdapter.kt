@@ -3,6 +3,7 @@ package ch.sonensei.cockpit.calendar.infra.microsoft
 import ch.sonensei.cockpit.calendar.api.Timing
 import ch.sonensei.cockpit.calendar.api.setTiming
 import ch.sonensei.cockpit.calendar.infra.microsoft.GraphEventMapping.text
+import ch.sonensei.cockpit.calendar.model.AttendeeStatus
 import ch.sonensei.cockpit.calendar.model.CalendarEvent
 import ch.sonensei.cockpit.calendar.model.CalendarSource
 import ch.sonensei.cockpit.calendar.model.CalendarSourceType
@@ -12,6 +13,7 @@ import ch.sonensei.cockpit.calendar.recurrence.OccurrenceExpander
 import ch.sonensei.cockpit.calendar.recurrence.OccurrenceRange
 import ch.sonensei.cockpit.calendar.sync.CalendarProviderAdapter
 import ch.sonensei.cockpit.calendar.sync.CalendarProviderException
+import ch.sonensei.cockpit.calendar.sync.InvitationNotRespondableException
 import ch.sonensei.cockpit.calendar.sync.RemoteCalendar
 import ch.sonensei.cockpit.calendar.sync.RemoteEvent
 import ch.sonensei.cockpit.calendar.sync.RemoteEventChangedException
@@ -56,12 +58,18 @@ import kotlin.math.abs
  * back afterwards. Events are addressed through their calendar (`/me/calendars/{calendar}/events/{id}`), which also
  * reaches calendars of other mailboxes shared with the user.
  *
+ * Invitations: the user's answer is Graph's `accept`/`decline`/`tentativelyAccept` action on the event (or the
+ * occurrence's instance), which sends the answer to the organizer; the event is read again afterwards. Graph has no
+ * `If-Match` on these actions, so the etag is compared before. The attendee whose address is the OAuth connection's
+ * gets the new status in the returned event, since Graph does not always list the user's own answer among the
+ * attendees.
+ *
  * Cursors are JSON: the delta link and the window's anchor date between runs; within a run the next page's link, whether
  * the run is a full listing, and the series already read.
  */
 @Component
 class MicrosoftCalendarAdapter(
-	tokens: OAuthTokenProvider,
+	private val tokens: OAuthTokenProvider,
 	private val json: JsonMapper,
 	private val expander: OccurrenceExpander,
 	private val clock: Clock,
@@ -378,6 +386,61 @@ class MicrosoftCalendarAdapter(
 			} ?: key.externalId
 		delete(connection, calendarExternalId, id, ifMatch)
 		return null
+	}
+
+	override val respondsToInvitations: Boolean get() = true
+
+	override fun respondToInvitation(
+		source: CalendarSource,
+		calendarExternalId: String,
+		key: RemoteEventKey,
+		response: AttendeeStatus,
+		ifMatch: String?,
+	): RemoteEvent {
+		val action =
+			when (response) {
+				AttendeeStatus.ACCEPTED -> "accept"
+				AttendeeStatus.DECLINED -> "decline"
+				AttendeeStatus.TENTATIVE -> "tentativelyAccept"
+				else -> throw IllegalArgumentException("An invitation is answered with ACCEPTED, DECLINED or TENTATIVE")
+			}
+		val connection = connectionId(source)
+		val occurrence = key.recurrenceId
+		val current =
+			if (occurrence != null) {
+				findInstance(connection, calendarExternalId, key.externalId, occurrence)
+					?: throw RemoteEventChangedException("The occurrence was deleted at Microsoft")
+			} else {
+				val found = client.call(connection, HttpMethod.GET, EVENT, eventPath(calendarExternalId, key.externalId))
+				if (found.status == 404) throw RemoteEventChangedException("The event was deleted at Microsoft")
+				expectOk(found, "Fetching an event")
+			}
+		val id = requireId(current)
+		if (ifMatch != null && current.text(ETAG) != restored.current(calendarExternalId, id, current.text(ETAG), ifMatch)) {
+			throw RemoteEventChangedException()
+		}
+		if (current.path("isOrganizer").asBoolean(false)) throw InvitationNotRespondableException("You organize this event")
+		val answered =
+			client.call(
+				connection,
+				HttpMethod.POST,
+				"$EVENT/$action",
+				eventPath(calendarExternalId, id),
+				body = json.createObjectNode().put("sendResponse", true),
+			)
+		if (answered.status == 404) throw RemoteEventChangedException("The event was deleted at Microsoft")
+		if (!answered.ok) throw CalendarProviderException("Answering an invitation failed at Microsoft (HTTP ${answered.status})")
+		restored.forget(calendarExternalId, id)
+		val stored =
+			if (occurrence == null && current.text("type") == GraphEventMapping.SERIES_MASTER) {
+				currentSeries(connection, calendarExternalId, id)
+			} else {
+				val after = client.call(connection, HttpMethod.GET, EVENT, eventPath(calendarExternalId, id))
+				// A declined event may be gone from the user's calendar right away: the next sync removes it.
+				answer(if (after.status == 404) current else expectOk(after, "Fetching an event"), key)
+			}
+		val self = tokens.connection(connection)?.email ?: return stored
+		return stored.copy(attendees = stored.attendees.map { if (it.email.equals(self, ignoreCase = true)) it.copy(status = response) else it })
 	}
 
 	/**

@@ -2,6 +2,7 @@ package ch.sonensei.cockpit.calendar.sync
 
 import ch.sonensei.cockpit.calendar.api.Timing
 import ch.sonensei.cockpit.calendar.model.Attendee
+import ch.sonensei.cockpit.calendar.model.AttendeeStatus
 import ch.sonensei.cockpit.calendar.model.CalendarSource
 import ch.sonensei.cockpit.calendar.model.CalendarSourceType
 import ch.sonensei.cockpit.calendar.model.EventStatus
@@ -84,6 +85,25 @@ interface CalendarProviderAdapter {
 		key: RemoteEventKey,
 		ifMatch: String?,
 	): String?
+
+	/** Whether the user can answer invitations to events of this provider ([respondToInvitation]). */
+	val respondsToInvitations: Boolean get() = false
+
+	/**
+	 * Answers the invitation to event [key] (a series: every occurrence; with a recurrence id: that occurrence) as the
+	 * user's attendee with [response] (ACCEPTED, DECLINED or TENTATIVE), only if its version still is [ifMatch], and
+	 * returns the event as the provider has it now, the user's attendee with the new status.
+	 *
+	 * @throws InvitationNotRespondableException when the user is not invited to the event (or organizes it)
+	 * @throws RemoteEventChangedException when the provider has another version or no longer has the event
+	 */
+	fun respondToInvitation(
+		source: CalendarSource,
+		calendarExternalId: String,
+		key: RemoteEventKey,
+		response: AttendeeStatus,
+		ifMatch: String?,
+	): RemoteEvent = throw CalendarProviderException("This calendar provider does not support answering invitations")
 }
 
 /** A calendar at the provider. [readOnly] calendars (shared, subscribed) cannot be changed from the cockpit. */
@@ -145,3 +165,8 @@ class RemoteEventChangedException(
 	message: String = "The event was changed at the provider",
 	cause: Throwable? = null,
 ) : CalendarProviderException(message, cause)
+
+/** The user cannot answer the invitation to an event: they are not one of its attendees, or they organize it. */
+class InvitationNotRespondableException(
+	message: String,
+) : CalendarProviderException(message)

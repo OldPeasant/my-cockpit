@@ -2,10 +2,12 @@ package ch.sonensei.cockpit.calendar.infra.google
 
 import ch.sonensei.cockpit.calendar.api.Timing
 import ch.sonensei.cockpit.calendar.infra.google.GoogleEventMapping.text
+import ch.sonensei.cockpit.calendar.model.AttendeeStatus
 import ch.sonensei.cockpit.calendar.model.CalendarSource
 import ch.sonensei.cockpit.calendar.model.CalendarSourceType
 import ch.sonensei.cockpit.calendar.sync.CalendarProviderAdapter
 import ch.sonensei.cockpit.calendar.sync.CalendarProviderException
+import ch.sonensei.cockpit.calendar.sync.InvitationNotRespondableException
 import ch.sonensei.cockpit.calendar.sync.RemoteCalendar
 import ch.sonensei.cockpit.calendar.sync.RemoteEvent
 import ch.sonensei.cockpit.calendar.sync.RemoteEventChangedException
@@ -20,6 +22,7 @@ import org.springframework.stereotype.Component
 import tools.jackson.core.JacksonException
 import tools.jackson.databind.JsonNode
 import tools.jackson.databind.json.JsonMapper
+import tools.jackson.databind.node.ObjectNode
 import java.time.DateTimeException
 import java.time.Duration
 import java.util.UUID
@@ -36,6 +39,8 @@ import java.util.UUID
  *   [RemoteEventChangedException]. An exception of a series is a patch of the instance `<seriesId>_<start>`, its
  *   removal a delete of that instance. "This and following" arrives from the engine as the old series ending (UNTIL)
  *   plus a new series with its exceptions, which maps onto these calls. Attendees are not notified (`sendUpdates=none`).
+ * - Invitations: the user's answer is a patch of the event's attendees (with `If-Match`) that changes the
+ *   `responseStatus` of the attendee Google marks as `self`; the organizer is notified (`sendUpdates=all`).
  *
  * Cursors: `sync:<token>` between runs; within a run `page:<token>` (incremental) or `full:<token>` (full listing).
  */
@@ -245,6 +250,47 @@ class GoogleCalendarAdapter(
 		}
 		if (!response.ok) throw CalendarProviderException("Deleting an event failed at Google (HTTP ${response.status})")
 		return null
+	}
+
+	override val respondsToInvitations: Boolean get() = true
+
+	override fun respondToInvitation(
+		source: CalendarSource,
+		calendarExternalId: String,
+		key: RemoteEventKey,
+		response: AttendeeStatus,
+		ifMatch: String?,
+	): RemoteEvent {
+		val connection = connectionId(source)
+		val variables = mapOf("calendar" to calendarExternalId, "event" to eventId(key))
+		val found = client.call(connection, HttpMethod.GET, "$EVENTS/{event}", variables)
+		if (found.status == 404 || found.status == 410) throw RemoteEventChangedException("The event was deleted at Google")
+		val current = expectOk(found, "Fetching an event")
+		if (current.text("status") == "cancelled") throw RemoteEventChangedException("The event was deleted at Google")
+		if (ifMatch != null && current.text("etag") != ifMatch) throw RemoteEventChangedException()
+		if (current.path("organizer").path("self").asBoolean(false)) {
+			throw InvitationNotRespondableException("You organize this event")
+		}
+		val attendees = json.createArrayNode()
+		var self = false
+		current.path("attendees").forEach { attendee ->
+			val copy = (attendee as? ObjectNode)?.deepCopy() ?: return@forEach
+			if (attendee.path("self").asBoolean(false)) {
+				if (attendee.path("organizer").asBoolean(false)) throw InvitationNotRespondableException("You organize this event")
+				copy.put("responseStatus", GoogleEventMapping.responseStatus(response))
+				self = true
+			}
+			attendees.add(copy)
+		}
+		if (!self) throw InvitationNotRespondableException("You are not invited to this event")
+		val body = json.createObjectNode().apply { set("attendees", attendees) }
+		val patched =
+			client.call(connection, HttpMethod.PATCH, "$EVENTS/{event}", variables, mapOf("sendUpdates" to "all"), body, ifMatch)
+		when (patched.status) {
+			404, 410 -> throw RemoteEventChangedException("The event was deleted at Google")
+			412 -> throw RemoteEventChangedException()
+		}
+		return answer(expectOk(patched, "Answering an invitation"))
 	}
 
 	private fun patch(

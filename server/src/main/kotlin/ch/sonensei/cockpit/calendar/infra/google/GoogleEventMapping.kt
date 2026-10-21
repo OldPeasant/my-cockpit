@@ -297,7 +297,7 @@ internal object GoogleEventMapping {
 		}
 	}
 
-	private fun responseStatus(status: AttendeeStatus): String =
+	fun responseStatus(status: AttendeeStatus): String =
 		when (status) {
 			AttendeeStatus.ACCEPTED -> "accepted"
 			AttendeeStatus.DECLINED -> "declined"
