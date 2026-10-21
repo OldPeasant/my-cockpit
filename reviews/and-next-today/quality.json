@@ -1,0 +1,35 @@
+{
+  "schema": 1,
+  "task": "and-next-today",
+  "reviewed_revision": "dcb758c4c346ef3db0f735c311d4877b04f68567",
+  "helpers": {
+    "test-writer":   {"status": "completed", "report": "reviews/and-next-today/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/and-next-today/review.md"},
+    "fixer":         {"status": "completed", "report": "reviews/and-next-today/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P1", "disposition": "fixed",
+     "note": "snackbar uses LocalResources.current; lint LocalContextResourcesRead clean"},
+    {"id": "CR-2", "source": "code-reviewer", "severity": "P1", "disposition": "fixed",
+     "note": "next_count_filtered is a plurals resource; singular/plural tests added"},
+    {"id": "CR-3", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "completed tasks hidden only up to the completion version; reopened tasks show again"},
+    {"id": "CR-4", "source": "code-reviewer", "severity": "P2", "disposition": "deferred",
+     "note": "failed first load stays on Loading; fix lives in gtd/data, follow-up task and-gtd-load-error"},
+    {"id": "CR-5", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "context map built once with remember"},
+    {"id": "CR-6", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "toggleCreativity simplified like sibling toggles"},
+    {"id": "CR-7", "source": "code-reviewer", "severity": "P3", "disposition": "accepted",
+     "note": "CompletionState.hidden is only used by tests; optional cleanup, behaviour correct, not worth another review cycle"},
+    {"id": "TW-1", "source": "test-writer", "severity": "P1", "disposition": "fixed",
+     "note": "same as CR-1"},
+    {"id": "TW-2", "source": "test-writer", "severity": "P1", "disposition": "fixed",
+     "note": "same as CR-2"}
+  ],
+  "validation": [
+    {"command": "cd android && ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.gtd.next.*' --tests 'ch.sonensei.cockpit.gtd.today.*' --rerun-tasks", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
