@@ -16,3 +16,4 @@ Find mail (SPEC.md §7.3).
 - [ ] API documented: `api/openapi.yaml` regenerated (`UPDATE_OPENAPI=1 ./gradlew test --tests '*OpenApiContractTest'`) and `OpenApiContractTest` passes without the flag
 
 ## Notes
+- ASSUMPTION (2026-10-22 00:14+0200 by dell26/agent-3): Mail search hooks live outside the task's touches (small calls in mail/sync MailHeaderStore, MailHeaderSyncService.searchServer, RemoteFolder.search, mail/api MailContentLoader/MailActionService, core SearchIndexer optional recency): indexing has to happen where messages and bodies are cached.
