@@ -5,7 +5,7 @@ owner: dell26/agent-2
 deps: [p0-items-links,p0-search-core,p0-trash-core,files-api]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/journal/entries,server/src/test/kotlin/ch/sonensei/cockpit/journal/entries,server/src/main/resources/db/migration/journal/entries]
 prio: 3
-lease_until: 2026-10-22T00:00:37Z
+lease_until: 2026-10-22T00:05:42Z
 ---
 ## Goal
 Daily journal (SPEC.md §8.5).
