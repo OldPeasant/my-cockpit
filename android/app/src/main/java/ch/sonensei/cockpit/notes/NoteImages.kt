@@ -37,11 +37,15 @@ class NoteImages
                 .build()
     }
 
-/** The address an image is loaded from: drive files through the authenticated content endpoint. */
-fun ImageSource.url(): String =
+/**
+ * The address an image is loaded from with [NoteImages.loader]: drive files through the authenticated content endpoint.
+ * Other images are not loaded (`null`): that client sends every request to the Cockpit server with the access token,
+ * and remote images are not fetched without asking (as in mail).
+ */
+fun ImageSource.url(): String? =
     when (this) {
         is ImageSource.CockpitFile -> "${PLACEHOLDER_BASE_URL}api/v1/files/$fileId/content"
-        is ImageSource.Web -> url
+        is ImageSource.Web -> null
     }
 
 /** Photos taken with the camera for a note: a file in the cache that only this app's FileProvider shares. */

@@ -36,6 +36,11 @@ data class NoteEditorUiState(
     val body: String = "",
     /** Loading an existing note; nothing can be edited yet. */
     val loading: Boolean = false,
+    /**
+     * An existing note was asked for and is not loaded (yet, or its load failed): nothing can be edited, so no edit
+     * or photo can end up in a separate new note.
+     */
+    val unloaded: Boolean = false,
     /** Plain-text editor instead of the rendered Markdown. */
     val editing: Boolean = false,
     val status: SaveStatus = SaveStatus.SAVED,
@@ -48,7 +53,7 @@ data class NoteEditorUiState(
     val draft: NoteDraft get() = NoteDraft(title, body)
 
     /** Editing is possible: the note is loaded and no conflict waits for a decision. */
-    val editable: Boolean get() = !loading && conflict == null && !closed
+    val editable: Boolean get() = !loading && !unloaded && conflict == null && !closed
 }
 
 /**
@@ -71,22 +76,54 @@ class NoteEditorViewModel
         private val saving = Mutex()
         private var autosave: Job? = null
         private var opened = false
+        private var opening: Any? = null
 
-        /** Loads note [id], or starts a new note (`null`, opened in the editor). Only the first call counts. */
-        fun open(id: UUID?) {
-            if (opened) return
+        /**
+         * Image Markdown uploaded while a conflict came up, with where it goes: inserted once the user decided. Only one
+         * photo uploads at a time, and none starts during a conflict, so there is at most one.
+         */
+        private var pendingImage: Pair<String, Int?>? = null
+
+        /**
+         * Loads note [id], or starts a new note (`null`, opened in the editor). [opening] identifies one opening of the
+         * editor: calls with the same one (e.g. after a configuration change) do nothing. The view model outlives the
+         * editor, so when the same note is opened again, it is loaded again unless something is still to be saved or
+         * decided here (that text then stays, and goes on to the server).
+         */
+        fun open(
+            id: UUID?,
+            opening: Any? = null,
+        ) {
+            if (opened) {
+                if (opening == null || opening == this.opening) return
+                this.opening = opening
+                if (id != null && !pending()) {
+                    pendingImage = null
+                    state.value = NoteEditorUiState(loading = true, unloaded = true)
+                    viewModelScope.launch { load(id) }
+                }
+                return
+            }
             opened = true
+            this.opening = opening
             if (id == null) {
                 state.update { it.copy(editing = true) }
                 return
             }
-            state.update { it.copy(loading = true) }
+            state.update { it.copy(loading = true, unloaded = true) }
             viewModelScope.launch { load(id) }
+        }
+
+        /** Something here is not on the server yet, or waits for the user: the shown note must not be replaced. */
+        private fun pending(): Boolean {
+            val s = state.value
+            if (s.closed) return false
+            return s.loading || s.uploading || s.conflict != null || s.status != SaveStatus.SAVED || saving.isLocked
         }
 
         /** Loads the note again after a failed load. */
         fun retryLoad(id: UUID) {
-            if (state.value.loading || state.value.note != null) return
+            if (state.value.loading || !state.value.unloaded) return
             state.update { it.copy(loading = true, message = null) }
             viewModelScope.launch { load(id) }
         }
@@ -101,6 +138,7 @@ class NoteEditorViewModel
                             title = result.value.title.orEmpty(),
                             body = result.value.bodyMd,
                             loading = false,
+                            unloaded = false,
                         )
                     NotesResult.Offline -> it.copy(loading = false, message = NoteEditorMessage.LOAD_OFFLINE)
                     is NotesResult.Failed -> it.copy(loading = false, message = NoteEditorMessage.LOAD_FAILED)
@@ -124,8 +162,15 @@ class NoteEditorViewModel
             saveSoon(AUTOSAVE_DELAY_MS)
         }
 
-        /** Saves now, e.g. when the editor is left or after a failed save. */
-        fun saveNow() = saveSoon(0)
+        /**
+         * Saves now, e.g. when the editor is left or after a failed save. The returned job ends once the text is saved
+         * (or the save failed), so the list can reload after it.
+         */
+        fun saveNow(): Job {
+            autosave?.cancel()
+            autosave = null
+            return viewModelScope.launch { save() }
+        }
 
         /**
          * Saves after [delayMs], unless another change comes first. Only the wait is cancelled: a save that started
@@ -145,7 +190,7 @@ class NoteEditorViewModel
         private suspend fun save(): Boolean =
             saving.withLock {
                 val before = state.value
-                if (before.conflict != null || before.closed || before.loading) return false
+                if (before.conflict != null || before.closed || before.loading || before.unloaded) return false
                 // A new note is only created once it has content.
                 if (before.isSaved()) return true
                 state.update { it.copy(status = SaveStatus.SAVING) }
@@ -173,6 +218,7 @@ class NoteEditorViewModel
         fun keepMine() {
             val conflict = state.value.conflict ?: return
             state.update { it.copy(note = conflict.current, conflict = null, status = SaveStatus.UNSAVED) }
+            insertPendingImage(atCursor = true)
             saveSoon(0)
         }
 
@@ -193,6 +239,22 @@ class NoteEditorViewModel
                     )
                 }
             }
+            if (current == null) {
+                pendingImage = null
+            } else if (insertPendingImage(atCursor = false)) {
+                saveSoon(0)
+            }
+        }
+
+        /**
+         * Inserts the image uploaded while the conflict came up: at its cursor when the text is still the one it was added
+         * to, else at the end. Returns whether there was one.
+         */
+        private fun insertPendingImage(atCursor: Boolean): Boolean {
+            val (image, at) = pendingImage ?: return false
+            pendingImage = null
+            state.update { it.copy(body = insertImage(it.body, image, if (atCursor) at else null), status = SaveStatus.UNSAVED) }
+            return true
         }
 
         /**
@@ -218,9 +280,13 @@ class NoteEditorViewModel
                 when (val result = notes.uploadImage(note.id, photo)) {
                     is NotesResult.Ok -> {
                         state.update { it.copy(uploading = false) }
-                        if (state.value.editable) {
-                            state.update { it.copy(body = insertImage(it.body, result.value, at), status = SaveStatus.UNSAVED) }
-                            saveSoon(0)
+                        when {
+                            state.value.editable -> {
+                                state.update { it.copy(body = insertImage(it.body, result.value, at), status = SaveStatus.UNSAVED) }
+                                saveSoon(0)
+                            }
+                            // A conflict came up meanwhile: the image is added once the user decided.
+                            state.value.conflict != null -> pendingImage = result.value to at
                         }
                     }
                     NotesResult.Offline -> state.update { it.copy(uploading = false, message = NoteEditorMessage.PHOTO_OFFLINE) }

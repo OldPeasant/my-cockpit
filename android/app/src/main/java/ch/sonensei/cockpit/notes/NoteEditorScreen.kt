@@ -2,6 +2,7 @@ package ch.sonensei.cockpit.notes
 
 import android.content.ActivityNotFoundException
 import android.net.Uri
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
@@ -53,6 +54,7 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import ch.sonensei.cockpit.R
 import coil3.ImageLoader
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import java.util.UUID
 
@@ -93,20 +95,24 @@ internal object NoteEditorTags {
 }
 
 /**
- * Note [id] (`null`: a new note). [key] identifies this opening of the editor, so each new note gets its own view
- * model. Leaving saves what is not saved yet.
+ * Note [id] (`null`: a new note). [key] picks the view model (each new note gets its own); [opening] identifies this
+ * opening of the editor, so a note opened again is loaded again. Leaving (the back arrow or the system back) saves what
+ * is not saved yet: [onClose] gets that save, `null` when the editor closes because the note is gone.
  */
 @Composable
 fun NoteEditorRoute(
     id: UUID?,
     key: String,
-    onClose: () -> Unit,
+    onClose: (saving: Job?) -> Unit,
     modifier: Modifier = Modifier,
+    opening: String = key,
     viewModel: NoteEditorViewModel = hiltViewModel(key = "note:$key"),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
-    LaunchedEffect(viewModel) { viewModel.open(id) }
-    LaunchedEffect(state.closed) { if (state.closed) onClose() }
+    LaunchedEffect(viewModel, opening) { viewModel.open(id, opening) }
+    LaunchedEffect(state.closed) { if (state.closed) onClose(null) }
+    val close = { onClose(viewModel.saveNow()) }
+    BackHandler(onBack = close)
 
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -132,10 +138,7 @@ fun NoteEditorRoute(
         imageLoader = viewModel.imageLoader,
         callbacks =
             NoteEditorCallbacks(
-                close = {
-                    viewModel.saveNow()
-                    onClose()
-                },
+                close = close,
                 setEditing = viewModel::setEditing,
                 setTitle = viewModel::setTitle,
                 setBody = viewModel::setBody,
@@ -157,7 +160,7 @@ fun NoteEditorRoute(
                             gallery.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
                     }
                 },
-                saveNow = viewModel::saveNow,
+                saveNow = { viewModel.saveNow() },
                 keepMine = viewModel::keepMine,
                 useTheirs = viewModel::useTheirs,
                 dismissMessage = viewModel::dismissMessage,

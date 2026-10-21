@@ -45,6 +45,7 @@ import coil3.compose.AsyncImage
 
 internal object MarkdownTags {
     const val IMAGE = "markdown-image"
+    const val WEB_IMAGE = "markdown-web-image"
 }
 
 /** A note's Markdown, rendered: drive images are loaded with [imageLoader] (`null`, e.g. in tests: a placeholder). */
@@ -150,16 +151,28 @@ private fun MdImage(
             .clip(shape)
             .testTag(MarkdownTags.IMAGE)
             .semantics { contentDescription = description }
-    if (imageLoader == null) {
+    val url = image.source.url()
+    if (imageLoader == null || url == null) {
         Box(
             modifier.heightIn(min = 120.dp).background(MaterialTheme.colorScheme.surfaceContainerHigh),
             contentAlignment = Alignment.Center,
         ) {
-            Icon(Icons.Outlined.Image, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+            Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Icon(Icons.Outlined.Image, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                // A remote image is not loaded: its address shows instead.
+                (image.source as? ImageSource.Web)?.let {
+                    Text(
+                        stringResource(R.string.notes_web_image, it.url),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(horizontal = 12.dp).testTag(MarkdownTags.WEB_IMAGE),
+                    )
+                }
+            }
         }
     } else {
         AsyncImage(
-            model = image.source.url(),
+            model = url,
             contentDescription = description,
             imageLoader = imageLoader,
             contentScale = ContentScale.FillWidth,

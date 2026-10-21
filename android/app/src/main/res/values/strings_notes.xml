@@ -36,4 +36,5 @@
     <string name="notes_photo_failed">The photo was not added: the server refused it.</string>
     <string name="notes_dismiss">Dismiss</string>
     <string name="notes_image">Image</string>
+    <string name="notes_web_image">Remote image not loaded: %1$s</string>
 </resources>

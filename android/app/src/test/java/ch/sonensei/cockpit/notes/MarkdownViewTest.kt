@@ -4,16 +4,20 @@ import android.content.Context
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import ch.sonensei.cockpit.ui.theme.CockpitTheme
 import okhttp3.OkHttpClient
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import java.util.UUID
+import java.util.concurrent.CopyOnWriteArrayList
 
 /** The rendered Markdown of a note: every block kind shows its text, images show as images. */
 @RunWith(AndroidJUnit4::class)
@@ -61,7 +65,15 @@ class MarkdownViewTest {
 
     @Test
     fun `images load through the notes image loader, described by their alt text`() {
-        val loader = NoteImages(ApplicationProvider.getApplicationContext<Context>(), OkHttpClient()).loader
+        val requested = CopyOnWriteArrayList<String>()
+        val client =
+            OkHttpClient
+                .Builder()
+                .addInterceptor { chain ->
+                    requested += chain.request().url.toString()
+                    chain.proceed(chain.request())
+                }.build()
+        val loader = NoteImages(ApplicationProvider.getApplicationContext<Context>(), client).loader
         composeRule.setContent {
             CockpitTheme {
                 MarkdownView("![Receipt](cockpit-file:$fileId)\n\n![](https://example.org/a.png)", imageLoader = loader)
@@ -72,11 +84,16 @@ class MarkdownViewTest {
         composeRule.onNodeWithContentDescription("Receipt").assertExists()
         // An image without alt text still has a description.
         composeRule.onNodeWithContentDescription("Image").assertExists()
+        // The web image is not loaded through the authenticated client: its address shows instead.
+        composeRule.onNodeWithTag(MarkdownTags.WEB_IMAGE).assertExists()
+        composeRule.onNodeWithText("Remote image not loaded: https://example.org/a.png").assertExists()
+        composeRule.waitForIdle()
+        assertTrue(requested.toString(), requested.none { "a.png" in it })
     }
 
     @Test
-    fun `a web image keeps its address, a drive image goes through the authenticated endpoint`() {
-        assertEquals("https://example.org/a.png", ImageSource.Web("https://example.org/a.png").url())
+    fun `a web image is not loaded, a drive image goes through the authenticated endpoint`() {
+        assertNull(ImageSource.Web("https://example.org/a.png").url())
         assertEquals("https://server.invalid/api/v1/files/$fileId/content", ImageSource.CockpitFile(fileId).url())
     }
 }

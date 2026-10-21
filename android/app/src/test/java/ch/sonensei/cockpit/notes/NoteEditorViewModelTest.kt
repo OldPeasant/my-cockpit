@@ -511,4 +511,163 @@ class NoteEditorViewModelTest {
             assertEquals(loaded, vm.uiState.value.note)
             assertNull(vm.uiState.value.message)
         }
+
+    @Test
+    fun `after a failed load nothing can be edited, saved or uploaded until the retry loads the note`() =
+        test { vm ->
+            val photo = NotePhoto(byteArrayOf(1), "image/jpeg", "p.jpg")
+            coEvery { repo.get(id) } returns NotesResult.Offline andThen NotesResult.Ok(loaded)
+            vm.open(id)
+            runCurrent()
+            assertEquals(false, vm.uiState.value.editable)
+
+            vm.setEditing(true)
+            vm.setTitle("Stray")
+            vm.setBody("Stray")
+            vm.addPhoto(photo)
+            vm.saveNow()
+            advanceUntilIdle()
+            coVerify(exactly = 0) { repo.save(any(), any()) }
+            coVerify(exactly = 0) { repo.uploadImage(any(), any()) }
+            assertEquals(false, vm.uiState.value.editing)
+            assertEquals("", vm.uiState.value.body)
+            assertNull(vm.uiState.value.note)
+            assertEquals(NoteEditorMessage.LOAD_OFFLINE, vm.uiState.value.message)
+
+            vm.retryLoad(id)
+            advanceUntilIdle()
+            assertEquals(loaded, vm.uiState.value.note)
+            assertTrue(vm.uiState.value.editable)
+            coVerify(exactly = 2) { repo.get(id) }
+        }
+
+    @Test
+    fun `a note opened again is loaded again, but not on the same opening`() =
+        test { vm ->
+            val changed = loaded.copy(bodyMd = "Changed on the web", version = 8)
+            coEvery { repo.get(id) } returns NotesResult.Ok(loaded) andThen NotesResult.Ok(changed)
+            vm.open(id, "first")
+            runCurrent()
+            vm.setEditing(true)
+            // The same opening again (a configuration change): nothing happens.
+            vm.open(id, "first")
+            runCurrent()
+            coVerify(exactly = 1) { repo.get(id) }
+            assertTrue(vm.uiState.value.editing)
+
+            vm.open(id, "second")
+            runCurrent()
+            coVerify(exactly = 2) { repo.get(id) }
+            assertEquals(changed, vm.uiState.value.note)
+            assertEquals("Changed on the web", vm.uiState.value.body)
+            assertEquals(false, vm.uiState.value.editing)
+        }
+
+    @Test
+    fun `a note opened again while its text is not saved keeps that text`() =
+        test { vm ->
+            coEvery { repo.save(loaded, any()) } returns SaveResult.Offline
+            vm.open(id, "first")
+            runCurrent()
+            vm.setBody("Mine")
+            advanceUntilIdle()
+            assertEquals(SaveStatus.OFFLINE, vm.uiState.value.status)
+
+            vm.open(id, "second")
+            advanceUntilIdle()
+            coVerify(exactly = 1) { repo.get(id) }
+            assertEquals("Mine", vm.uiState.value.body)
+        }
+
+    @Test
+    fun `a note deleted elsewhere and discarded is loaded again when opened again`() =
+        test { vm ->
+            coEvery { repo.save(loaded, any()) } returns SaveResult.Conflict(null)
+            vm.open(id, "first")
+            runCurrent()
+            vm.setBody("Mine")
+            advanceUntilIdle()
+            vm.useTheirs()
+            assertTrue(vm.uiState.value.closed)
+
+            coEvery { repo.get(id) } returns NotesResult.Failed(404)
+            vm.open(id, "second")
+            runCurrent()
+            assertEquals(false, vm.uiState.value.closed)
+            assertNull(vm.uiState.value.note)
+            assertEquals(NoteEditorMessage.LOAD_FAILED, vm.uiState.value.message)
+            assertEquals(false, vm.uiState.value.editable)
+        }
+
+    @Test
+    fun `save now returns a job that ends once the text is saved`() =
+        test { vm ->
+            val answer = CompletableDeferred<SaveResult>()
+            coEvery { repo.save(loaded, NoteDraft("", "Now")) } coAnswers { answer.await() }
+            vm.open(id)
+            runCurrent()
+            vm.setBody("Now")
+            val job = vm.saveNow()
+            runCurrent()
+            assertEquals(false, job.isCompleted)
+            answer.complete(saved("Now", 4))
+            runCurrent()
+            assertTrue(job.isCompleted)
+            assertEquals(SaveStatus.SAVED, vm.uiState.value.status)
+            advanceUntilIdle()
+            coVerify(exactly = 1) { repo.save(any(), any()) }
+        }
+
+    @Test
+    fun `a photo uploaded while a conflict came up is inserted once the user keeps their text`() =
+        test { vm ->
+            val photo = NotePhoto(byteArrayOf(1), "image/jpeg", "p.jpg")
+            val theirs = loaded.copy(bodyMd = "Theirs", version = 7)
+            val upload = CompletableDeferred<NotesResult<String>>()
+            coEvery { repo.uploadImage(id, photo) } coAnswers { upload.await() }
+            coEvery { repo.save(loaded, any()) } returns SaveResult.Conflict(theirs)
+            coEvery { repo.save(theirs, NoteDraft("", "![](p)\nMine")) } returns saved("![](p)\nMine", 8)
+            vm.open(id)
+            runCurrent()
+            vm.addPhoto(photo, at = 0)
+            vm.setBody("Mine")
+            advanceTimeBy(1_100)
+            runCurrent()
+            assertEquals(NoteConflict(theirs), vm.uiState.value.conflict)
+
+            upload.complete(NotesResult.Ok("![](p)"))
+            runCurrent()
+            assertEquals(false, vm.uiState.value.uploading)
+            assertEquals("Mine", vm.uiState.value.body)
+
+            vm.keepMine()
+            advanceUntilIdle()
+            assertEquals("![](p)\nMine", vm.uiState.value.body)
+            coVerify(exactly = 1) { repo.save(theirs, NoteDraft("", "![](p)\nMine")) }
+            assertEquals(SaveStatus.SAVED, vm.uiState.value.status)
+        }
+
+    @Test
+    fun `a photo uploaded while a conflict came up is added to the other version when the user takes it`() =
+        test { vm ->
+            val photo = NotePhoto(byteArrayOf(1), "image/jpeg", "p.jpg")
+            val theirs = loaded.copy(bodyMd = "Theirs", version = 7)
+            val upload = CompletableDeferred<NotesResult<String>>()
+            coEvery { repo.uploadImage(id, photo) } coAnswers { upload.await() }
+            coEvery { repo.save(loaded, any()) } returns SaveResult.Conflict(theirs)
+            coEvery { repo.save(theirs, NoteDraft("", "Theirs\n![](p)\n")) } returns saved("Theirs\n![](p)\n", 8)
+            vm.open(id)
+            runCurrent()
+            vm.addPhoto(photo, at = 0)
+            vm.setBody("Mine")
+            advanceTimeBy(1_100)
+            runCurrent()
+            upload.complete(NotesResult.Ok("![](p)"))
+            runCurrent()
+
+            vm.useTheirs()
+            advanceUntilIdle()
+            assertEquals("Theirs\n![](p)\n", vm.uiState.value.body)
+            coVerify(exactly = 1) { repo.save(theirs, NoteDraft("", "Theirs\n![](p)\n")) }
+        }
 }

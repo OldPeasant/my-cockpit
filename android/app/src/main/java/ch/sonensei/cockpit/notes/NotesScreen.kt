@@ -1,6 +1,5 @@
 package ch.sonensei.cockpit.notes
 
-import androidx.activity.compose.BackHandler
 import androidx.activity.compose.LocalActivity
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -50,6 +49,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import ch.sonensei.cockpit.R
 import ch.sonensei.cockpit.ui.PlaceholderScreen
 import dagger.hilt.internal.GeneratedComponentManagerHolder
+import kotlinx.coroutines.Job
 import java.util.UUID
 
 /**
@@ -68,19 +68,26 @@ fun NotesScreen(modifier: Modifier = Modifier) {
 /** The list, or one note opened from it (kept across configuration changes). */
 @Composable
 fun NotesRoute(modifier: Modifier = Modifier) {
-    // "new:<random>" for a new note (each one gets its own editor), else the id of the open note.
+    // "new:<random>" for a new note (each one gets its own editor), else "<id>#<random>": the open note, and this
+    // opening of it (a note opened again is loaded again).
     var open by rememberSaveable { mutableStateOf<String?>(null) }
+    // The save started when the editor was left: the list reloads once it is done.
+    var saving by remember { mutableStateOf<Job?>(null) }
     val current = open
     if (current == null) {
         val viewModel: NotesListViewModel = hiltViewModel()
         val state by viewModel.uiState.collectAsStateWithLifecycle()
         // Reloaded each time the list is shown, so a note edited a moment ago shows its new text and place.
-        LaunchedEffect(Unit) { viewModel.refresh() }
+        LaunchedEffect(Unit) {
+            saving?.join()
+            saving = null
+            viewModel.refresh()
+        }
         NotesListContent(
             state = state,
             callbacks =
                 NotesListCallbacks(
-                    open = { open = it.toString() },
+                    open = { open = "$it$OPENING${UUID.randomUUID()}" },
                     create = { open = NEW_NOTE + UUID.randomUUID() },
                     selectTag = viewModel::selectTag,
                     retry = viewModel::refresh,
@@ -88,14 +95,22 @@ fun NotesRoute(modifier: Modifier = Modifier) {
             modifier = modifier,
         )
     } else {
-        val id = current.takeUnless { it.startsWith(NEW_NOTE) }?.let(UUID::fromString)
-        val close = { open = null }
-        BackHandler(onBack = close)
-        NoteEditorRoute(id = id, key = current, onClose = close, modifier = modifier)
+        val id = current.takeUnless { it.startsWith(NEW_NOTE) }?.substringBefore(OPENING)?.let(UUID::fromString)
+        NoteEditorRoute(
+            id = id,
+            key = id?.toString() ?: current,
+            opening = current,
+            onClose = {
+                saving = it
+                open = null
+            },
+            modifier = modifier,
+        )
     }
 }
 
 private const val NEW_NOTE = "new:"
+private const val OPENING = "#"
 
 /** What the list can ask for, so it can be tested without a view model. */
 data class NotesListCallbacks(

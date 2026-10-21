@@ -5,9 +5,14 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.provider.MediaStore
+import androidx.activity.ComponentActivity
 import androidx.activity.compose.LocalActivity
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
@@ -20,6 +25,7 @@ import ch.sonensei.cockpit.ui.theme.CockpitTheme
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.mockk
+import kotlinx.coroutines.Job
 import okhttp3.OkHttpClient
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
@@ -46,6 +52,7 @@ class NoteEditorRouteTest {
     private val images = NoteImages(ApplicationProvider.getApplicationContext<Context>(), OkHttpClient())
     private lateinit var activity: Activity
     private var closed = 0
+    private val saves = mutableListOf<Job?>()
 
     @Before
     fun setUp() {
@@ -57,7 +64,17 @@ class NoteEditorRouteTest {
         val vm = NoteEditorViewModel(repo, images)
         composeRule.setContent {
             activity = LocalActivity.current!!
-            CockpitTheme { NoteEditorRoute(id = noteId, key = "test", onClose = { closed++ }, viewModel = vm) }
+            CockpitTheme {
+                NoteEditorRoute(
+                    id = noteId,
+                    key = "test",
+                    onClose = {
+                        saves += it
+                        closed++
+                    },
+                    viewModel = vm,
+                )
+            }
         }
         composeRule.waitForIdle()
         return vm
@@ -166,6 +183,38 @@ class NoteEditorRouteTest {
         composeRule.waitForIdle()
 
         coVerify(exactly = 0) { repo.uploadImage(any(), any()) }
+    }
+
+    @Test
+    fun `the system back also saves at once, and hands the save to the list`() {
+        coEvery { repo.save(loaded, NoteDraft("", "Eggs")) } returns SaveResult.Saved(loaded.copy(bodyMd = "Eggs", version = 4))
+        show()
+        composeRule.onNodeWithTag(NoteEditorTags.TOGGLE).performClick()
+        composeRule.onNodeWithTag(NoteEditorTags.BODY).performTextReplacement("Eggs")
+
+        composeRule.runOnUiThread { (activity as ComponentActivity).onBackPressedDispatcher.onBackPressed() }
+        composeRule.waitForIdle()
+
+        assertEquals(1, closed)
+        val save = saves.single()!!
+        composeRule.waitUntil(WAIT_MS) { save.isCompleted }
+        coVerify(exactly = 1) { repo.save(loaded, NoteDraft("", "Eggs")) }
+    }
+
+    @Test
+    fun `a note opened again is loaded again`() {
+        coEvery { repo.get(id) } returns NotesResult.Ok(loaded) andThen NotesResult.Ok(loaded.copy(bodyMd = "Changed", version = 5))
+        val vm = NoteEditorViewModel(repo, images)
+        var opening by mutableStateOf("first")
+        composeRule.setContent {
+            CockpitTheme { NoteEditorRoute(id = id, key = "test", opening = opening, onClose = {}, viewModel = vm) }
+        }
+        composeRule.waitForIdle()
+        composeRule.onNodeWithText("Shopping").assertExists()
+
+        opening = "second"
+        composeRule.waitUntil(WAIT_MS) { composeRule.onAllNodesWithText("Changed").fetchSemanticsNodes().isNotEmpty() }
+        coVerify(exactly = 2) { repo.get(id) }
     }
 
     private companion object {
