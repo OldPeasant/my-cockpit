@@ -4,56 +4,42 @@ Date: 2026-10-21
 
 Task: and-mail-list-read - Android mail list and reading
 
-Scope: `git diff c09b5f6e04edd8778a4aa1f4ab40d109fd6dc82f..93418b24492065a3303e8b4ae803f52b31425864 -- android/app/src/{main,test}/java/ch/sonensei/cockpit/mail/{list,read}` on branch `main`. Task commits e4fab28b, bd14278e, f01eb4b9, 7b14fdfd (code) plus a087e815 and 93418b24 (reports only). The base and the commit list came from the parent worker and match `git log c09b5f6e..HEAD`. Uncommitted inputs are the 4 test files listed below. Production code under `src/main` is unchanged against HEAD.
+Scope: task commits `dc3200563744d28fa732c050b24ca4637748fa5c..58f705653f136cb1837c0fbe9aa36ea2cbb26119`
+(9 commits: e0fca56f, 9e314026, b4461438, 7c007355, 0e9bf534, ae0c8518, 636fae7a, 8d16eb56, 58f70565),
+branch `main`, measured HEAD `58f705653f136cb1837c0fbe9aa36ea2cbb26119`. Production scope:
+`android/app/src/main/java/ch/sonensei/cockpit/mail/{list,read}` (+ `res/values/strings_mail.xml`, resources only).
+This is the final pass; it supersedes the earlier report written for revision 93418b24.
 
 Requirements:
-- tasks/and-mail-list-read.md: acceptance criteria and the recorded assumptions (swipe right = archive, left = delete, no archive swipe in Archive, refused swipe re-inserted, opening marks read, WebView blocks network loads)
-- SPEC.md §3 "HTML email is untrusted", §9.2 item 5
-- docs/ARCHITECTURE.md "Coverage", AGENTS.md project notes
-- reviews/and-mail-list-read/fixes.md: the fixed behaviour for CR-1, CR-2, CR-5 and CR-6, checked as the parent asked
+- `tasks/and-mail-list-read.md` acceptance criteria and recorded assumptions
+- `SPEC.md` §9.2 item 5 (via the task goal)
+- `docs/ARCHITECTURE.md` "Coverage"
+- `AGENTS.md` project notes
 
 ## Test files changed
 
-- `android/app/src/test/java/ch/sonensei/cockpit/mail/list/MailListViewModelEdgeCasesTest.kt`
-- `android/app/src/test/java/ch/sonensei/cockpit/mail/list/MailListScreenStatesTest.kt`
-- `android/app/src/test/java/ch/sonensei/cockpit/mail/read/MailReadViewModelTest.kt`
-- `android/app/src/test/java/ch/sonensei/cockpit/mail/read/MailWebViewTest.kt`
+- None in this pass. The existing task tests (13 classes under
+  `android/app/src/test/java/ch/sonensei/cockpit/mail/{list,read}`) already cover the acceptance criteria and the
+  fixes of 8d16eb56; the coverage review found no meaningful untested behavior.
 
 ## Tests added or updated
 
-Count: 10 added. No existing test was changed.
-
-- MailListViewModelEdgeCasesTest (5):
-  - `a refused swipe does not duplicate a mail that a reload already brought back`: the CR-1 "already in the list" branch. Before this, only the success case of that race was tested.
-  - `no next page is asked for while the mailbox reloads, even with a cursor`: the existing test `no next page is asked for while the mailbox loads or another page loads` calls `loadMore()` during a refresh only after the cursor is already `null`, so it never reached the `loading` guard. The new test does.
-  - `a refresh that finds the mailbox empty clears the list`: the CR-5 `mergeFirstPage` case of an empty first page.
-  - `picking the shown mailbox again after its load failed loads it`: `select()` with the same mailbox while `loaded == false`.
-  - `a refresh drops a loaded mail that moved up into the new first page, keeping one copy`: CR-5 merge without duplicates, keeping the cursor of the later pages.
-- MailListScreenStatesTest (2):
-  - `a mail without a subject says so`
-  - `drafts, sent, spam and archive folders are named by role whatever the server calls them`
-- MailReadViewModelTest (2), CR-2 session handling:
-  - `retry after the view closed loads nothing`
-  - `a GTD answer for a closed mail is not shown on the next one`: also checks that the next mail's actions are not left busy.
-- MailWebViewTest (1), CR-6:
-  - `a tapped link with an upper-case scheme still leaves the view, one without a scheme is dropped`
-
-The existing tests already cover the CR-1 re-insert rule (another mailbox shown meanwhile; success after an overtaking reload), the CR-5 merge, replace and end cases, the CR-2 session counter (late load or archive after close, reopen reloads, another mail replaces the shown one, plus the in-app route test), and the CR-6 gesture and main-frame checks. I checked each of them against the production code.
+Count: 0 (118 existing task tests reviewed and run)
 
 ## Requirement coverage
 
+Focused command (F): `cd android && ./gradlew ktlintCheck testDebugUnitTest --tests 'ch.sonensei.cockpit.mail.*'`
+
 | Requirement | Tests | Command | Result |
 |---|---|---|---|
-| Unified inbox, paging | MailListViewModelTest `the unified inbox loads first, further pages are appended`; MailListViewModelEdgeCasesTest (load, failure, paging guard, CR-5 merge tests incl. 3 new); MailListScreenStatesTest paging tests; MailRepositoryTest unified/folder paging | (A) | Pass |
-| Folders (picker, role names, selection) | MailListScreenTest `the mailbox picker offers ...`, `a selected folder is named by its role`; MailListScreenStatesTest `special folders are named by role ...`, new `drafts, sent, spam and archive ...`; MailListViewModelTest `selecting a folder ...`; new `picking the shown mailbox again ...`; MailModelsTest folderOrder/depth | (A) | Pass |
-| Swipe actions archive/delete (Compose UI) | MailListScreenTest `swiping a row to the right archives it, to the left deletes it`, `in the Archive folder a row cannot be archived again, only deleted`, `the swipe actions are also accessibility actions` | (A) | Pass |
-| Swipe outcome: optimistic removal, refused re-insert (CR-1) | MailListViewModelTest swipe tests; MailListViewModelEdgeCasesTest refused/race tests incl. new `a refused swipe does not duplicate ...` | (A) | Pass |
-| Read view with sanitized HTML in a WebView, JS disabled, no file access (`mail.read` WebView settings) | MailWebViewTest `the settings lock the untrusted html down`, link tests incl. CR-6 and new upper-case scheme test, CSP document test; MailBodyViewTest | (A) | Pass |
-| Read view load, mark read, errors, retry, close/reopen (CR-2) | MailReadViewModelTest (16 incl. 2 new); MailReadScreenTest; MailRouteInAppTest (Hilt + Robolectric in MainActivity) | (A) | Pass |
-| To-task / waiting | MailReadViewModelTest `a created task or waiting item ...`, `a failed GTD action ...`, new `a GTD answer for a closed mail ...`; MailReadScreenTest toolbar and notice tests; MailReadRepositoryTest | (A) | Pass |
-| AC2: `./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.mail.list.*'` passes | all mail.list classes (7 classes, 67 tests) | (A), which includes the mail.list classes | Pass |
-
-(A) = `cd android && ./gradlew ktlintCheck testDebugUnitTest --tests 'ch.sonensei.cockpit.mail.*'`
+| AC1 Unified inbox | `MailListViewModelTest` "the unified inbox loads first, further pages are appended"; `MailListScreenStatesTest` "the unified inbox of several accounts names each row's account"; `MailRepositoryTest` "the unified inbox asks for all accounts ..." | F | Pass |
+| AC1 Folders | `MailListScreenTest` "the mailbox picker offers the unified inbox and each account's folders", "a selected folder is named by its role"; `MailListViewModelTest` "selecting a folder loads it from its newest mail"; `MailModelsTest` folder ordering/role/depth tests; `MailRepositoryTest` "accounts are sorted by name and list only selectable folders ..." | F | Pass |
+| AC1 Swipe actions (archive/delete) | `MailListScreenTest` "swiping a row to the right archives it, to the left deletes it", "in the Archive folder a row cannot be archived again, only deleted", "the swipe actions are also accessibility actions", "a failed swipe action is reported with a retry"; `MailListViewModelTest` "a swiped mail leaves the list at once ...", "a refused or offline swipe puts the mail back ..."; `MailListViewModelEdgeCasesTest` concurrent-swipe cases | F | Pass |
+| AC1 Read view with sanitized HTML in a WebView, JS disabled, no file access | `MailWebViewTest` "the settings lock the untrusted html down" (javaScriptEnabled=false, allowFileAccess=false, allowContentAccess=false, blockNetworkLoads), "the page around the mail allows only inline styles and data images", link-handling tests; `MailBodyViewTest`; `MailReadScreenTest` "the headers are shown above the html body", "a text-only mail is shown as text, without the web view"; `MailReadRepositoryTest` "a message is read with its headers, sanitized body ..." | F | Pass |
+| AC1 To-task / waiting | `MailReadScreenTest` "a created task is announced ...", "a created waiting item is announced ...", "a failed task is reported", "a failed waiting item is reported"; `MailReadViewModelTest` "a created task or waiting item is reported with its title", "a failed GTD action is reported ..."; `MailReadRepositoryTest` "to-task and to-waiting post to their endpoints ..." | F | Pass |
+| AC1 Opening marks read (assumption), only while the mail is open (fix 8d16eb56) | `MailReadViewModelTest` "opening an unread mail shows it and marks its current copy read", "a mail closed or replaced before it loaded is not marked read"; `MailRouteInAppTest` "a mail opened from the list is shown, marked read ..." | F | Pass |
+| Failed page is not auto-retried (fix 8d16eb56) | `MailListPagingRetryTest` (2 tests); `MailListScreenStatesTest` "a failed page is not asked for again until a retry succeeds", "a failed refresh near the end does not ask for the next page" | F | Pass |
+| AC2 `./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.mail.list.*'` passes, Compose/Robolectric screen tests covering swipe actions; `mail.read` WebView settings | All `mail.list` classes (72 tests) inside F; WebView settings in `mail.read.MailWebViewTest` | F (superset of the named command, includes `mail.list.*`) | Pass |
 
 ## Focused test execution
 
@@ -63,87 +49,102 @@ Command:
 
 Result:
 
-Pass. BUILD SUCCESSFUL. 12 classes, 112 tests, 0 failures, 0 skipped. Per class: MailListViewModelEdgeCasesTest 20, MailListScreenStatesTest 12, MailListScreenTest 8, MailListViewModelTest 6, MailModelsTest 9, MailRepositoryTest 8, MailRouteInAppTest 4, MailReadViewModelTest 16, MailReadScreenTest 17, MailReadRepositoryTest 5, MailWebViewTest 5, MailBodyViewTest 2. ktlintCheck passed after `./gradlew ktlintFormat`.
+Pass - BUILD SUCCESSFUL; 118 tests in 13 classes, 0 failures, 0 errors, 0 skipped (JUnit XML timestamps
+2026-10-21T17:11Z). ktlintCheck clean.
 
 ## Full test execution
 
 Command:
 
-`cd android && ./gradlew createDebugUnitTestCoverageReport` (this runs the full Android `testDebugUnitTest`)
+`cd android && ./gradlew testDebugUnitTest --rerun createDebugUnitTestCoverageReport` (full Android unit suite with coverage)
 
 Result:
 
-Pass. All Android unit tests: 1339 tests, 0 failures, 0 errors, 0 skipped.
+Pass - 133 suites, 1349 tests, 0 failures (run twice, both BUILD SUCCESSFUL). Note: an earlier, non-forced
+`./gradlew createDebugUnitTestCoverageReport` invocation ended "BUILD FAILED in 2m"; the output was truncated before the
+cause was captured and its results were overwritten by the next run. An immediate rerun and two forced reruns
+(`--rerun` of `testDebugUnitTest`) all passed, and the mail suite passed in every run. The cause is unknown; it may be a
+transient or flaky failure anywhere in the Android suite, and nothing ties it to this task. No coverage numbers from
+that failed run are used.
 
 ## .taskcheck
 
 Result:
 
-Pass. `sh scripts/check.sh` (server, web and android lint plus unit tests) printed "== all checks passed".
+Pass - `sh scripts/check.sh` -> "== all checks passed" (server, web, android). Web build prints a pre-existing bundle
+budget warning, not related to this task.
 
 ## Bugs found
 
-None. Every new test passed against the current production code.
+None.
 
 ## Coverage
 
 Status: verified
 
 Metric: whole-file coverage of task-changed production files.
-Changed-line coverage: 902/943 executable lines (95.7%). Method: added lines from `git diff -U0 c09b5f6e..93418b24` for the two packages, intersected with the JaCoCo per-line entries of the same report (a line counts as covered when `ci > 0`). All executable lines of these files are task-added. The files are new, and MailScreen.kt was a placeholder before, so the changed-line and whole-file line numbers match. Branch counters on changed lines: 448/491. That count only sums JaCoCo branch counters on those lines; it is not a separate changed-branch analysis.
+Changed-line coverage: not measured separately. All measured files are new in this task (added in the task range), so
+whole-file coverage equals coverage of task-added code, except `MailScreen.kt`, which replaced a placeholder (1 line
+removed).
 
 Evidence:
-- Task id, immutable base, measured HEAD, and task-owned commits/file-scope source: and-mail-list-read. Base c09b5f6e04edd8778a4aa1f4ab40d109fd6dc82f. HEAD 93418b24492065a3303e8b4ae803f52b31425864. Commits e4fab28b, bd14278e, f01eb4b9 and 7b14fdfd, as given by the parent and matching `git log c09b5f6e..HEAD`. The file scope comes from `git diff --name-only c09b5f6e..HEAD -- android/app/src/main`, restricted to the task's `touches`.
-- Source/test snapshot identifier (including uncommitted inputs): HEAD 93418b24 plus the 4 uncommitted test files above. sha256 over the sha256sum lines of `android/app/src/{test,main}/java/ch/sonensei/cockpit/mail/*/*.kt` = `9c46fe9c2946fe9fd75c12391088c26d03409248b7dcce0ca8bd7338632428f5`. The hash was the same before and after the run. `git diff HEAD -- android/app/src/main` is empty.
-- Exact included files: `android/app/src/main/java/ch/sonensei/cockpit/mail/list/{MailApi,MailListViewModel,MailModels,MailRepository,MailScreen}.kt` and `android/app/src/main/java/ch/sonensei/cockpit/mail/read/{MailBodyView,MailReadRepository,MailReadScreen,MailReadViewModel}.kt`. All 9 have report data. Excluded: `android/app/src/main/res/values/strings_mail.xml` (resources, no executable code). No files were renamed or deleted.
-- Provider/version, command, working directory, and test selection: JaCoCo via AGP `enableUnitTestCoverage`. Command `./gradlew createDebugUnitTestCoverageReport` in `android/`. Test selection: the full debug unit test suite.
-- Run start/completion time and exit status: 2026-10-21T18:44:31+02:00 to 18:46:45+02:00. BUILD SUCCESSFUL. `testDebugUnitTest` re-executed (not UP-TO-DATE) because the test inputs had changed.
-- Generated report paths and report hashes/run identifier: `android/app/build/reports/coverage/test/debug/report.xml`, mtime 2026-10-21 18:46:44 +0200, sha256 `4518025d0bd2d2454e0f69af5f682f26fa151831feb2949ed5268ac668f69140`.
-- Evidence outputs are fresh and inputs stayed unchanged: yes. The report was rewritten by this run, and the snapshot hash was the same before and after it.
-- Final run after latest test additions and production fixes: yes. It covers fix commit 7b14fdfd and all 10 new tests.
+- Task id, immutable base, measured HEAD, and task-owned commits/file-scope source: `and-mail-list-read`; base
+  `dc3200563744d28fa732c050b24ca4637748fa5c` (supplied by the parent as merge-base with origin/main); HEAD
+  `58f705653f136cb1837c0fbe9aa36ea2cbb26119`; commits from `git log dc320056..HEAD` (9, all task commits), cross-checked
+  against the task `touches`.
+- Source/test snapshot identifier (including uncommitted inputs): HEAD 58f70565, clean worktree for `android/`. The
+  only uncommitted file is `reviews/and-mail-list-read/review.md`, written by the concurrent code-reviewer. It is not a
+  test input.
+- Exact included files: `mail/list/{MailApi,MailListViewModel,MailModels,MailRepository,MailScreen}.kt`,
+  `mail/read/{MailBodyView,MailReadRepository,MailReadScreen,MailReadViewModel}.kt`. Excluded:
+  `res/values/strings_mail.xml` (string resources, not executable). There are no renamed or deleted files.
+- Provider/version, command, working directory, and test selection: JaCoCo via AGP `enableUnitTestCoverage`;
+  `./gradlew testDebugUnitTest --rerun createDebugUnitTestCoverageReport` in `android/`; full debug unit test suite.
+- Run start/completion time and exit status: final run completed 2026-10-21T17:21Z (report mtime
+  17:21:06Z), BUILD SUCCESSFUL (exit 0).
+- Generated report paths and report hashes/run identifier: `android/app/build/reports/coverage/test/debug/report.xml`,
+  sha256 `90257f2da700ed1c371ca927d80f7bb836c8c908e90d9f84068766e983523d02`.
+- Evidence outputs are fresh and inputs stayed unchanged: yes. `--rerun` forced test execution, the report was rewritten
+  by this run, and HEAD/worktree were unchanged before and after.
+- Final run after latest test additions and production fixes: yes (covers 8d16eb56 and 58f70565; no tests were added in this pass).
 
-Values below use covered/total (percentage); zero-denominator or unsupported metrics are N/A. "Statements" is JaCoCo INSTRUCTION.
+Values below are JaCoCo per-sourcefile counters as covered/total (percentage). The "Statements" column uses JaCoCo
+INSTRUCTION counters (bytecode instructions), and "Functions" uses METHOD counters.
 
-| Changed file | Statements | Branches | Functions | Lines |
+| Changed file | Statements (instructions) | Branches | Functions | Lines |
 |---|---:|---:|---:|---:|
 | `mail/list/MailApi.kt` | 538/886 (60.7%) | N/A (0/0) | 64/91 (70.3%) | 70/98 (71.4%) |
 | `mail/list/MailListViewModel.kt` | 1058/1059 (99.9%) | 75/78 (96.2%) | 28/28 (100.0%) | 111/111 (100.0%) |
 | `mail/list/MailModels.kt` | 599/604 (99.2%) | 59/60 (98.3%) | 44/45 (97.8%) | 68/68 (100.0%) |
 | `mail/list/MailRepository.kt` | 379/382 (99.2%) | 26/26 (100.0%) | 15/15 (100.0%) | 54/56 (96.4%) |
-| `mail/list/MailScreen.kt` | 3146/3245 (96.9%) | 108/135 (80.0%) | 59/70 (84.3%) | 279/284 (98.2%) |
+| `mail/list/MailScreen.kt` | 3283/3392 (96.8%) | 144/189 (76.2%) | 59/70 (84.3%) | 280/285 (98.2%) |
 | `mail/read/MailBodyView.kt` | 257/260 (98.8%) | 13/14 (92.9%) | 11/12 (91.7%) | 42/43 (97.7%) |
 | `mail/read/MailReadRepository.kt` | 449/455 (98.7%) | 38/38 (100.0%) | 23/25 (92.0%) | 46/46 (100.0%) |
-| `mail/read/MailReadScreen.kt` | 2065/2173 (95.0%) | 95/106 (89.6%) | 32/39 (82.1%) | 160/165 (97.0%) |
-| `mail/read/MailReadViewModel.kt` | 638/638 (100.0%) | 34/34 (100.0%) | 37/37 (100.0%) | 72/72 (100.0%) |
-| **Aggregate (summed counters, 9 of 9 files; strings_mail.xml excluded, none unmeasured)** | 9129/9702 (94.1%) | 448/491 (91.2%) | 313/362 (86.5%) | 902/943 (95.7%) |
+| `mail/read/MailReadScreen.kt` | 2151/2259 (95.2%) | 115/136 (84.6%) | 32/39 (82.1%) | 160/165 (97.0%) |
+| `mail/read/MailReadViewModel.kt` | 644/644 (100.0%) | 36/36 (100.0%) | 37/37 (100.0%) | 72/72 (100.0%) |
+| **Aggregate (summed counters, 9 files)** | 9358/9941 (94.1%) | 506/577 (87.7%) | 313/362 (86.5%) | 903/944 (95.7%) |
 
-Baseline before the new tests (same command, 18:41:53 to 18:42:15, tests UP-TO-DATE from the parent's run at 7b14fdfd): aggregate 9073/9702 instructions, 438/491 branches, 899/943 lines. MailListViewModel branches went from 71/78 to 75/78, MailReadViewModel from 33/34 to 34/34, MailBodyView from 12/14 to 13/14. MailScreen lines went from 276/284 to 279/284.
+All 9 executable files in scope are measured. The only exclusion is `strings_mail.xml` (resources), and no files are
+missing from the report.
 
 | File and uncovered lines/branch locations | Required behavior or risk | Action/test added or reason left uncovered |
 |---|---|---|
-| `MailListViewModel.kt:120` (refused swipe, mail already back in the list) | CR-1: no duplicate row | Added `a refused swipe does not duplicate ...` (now covered) |
-| `MailListViewModel.kt:79` (`loading` guard with a cursor) | No page request while the mailbox reloads | Added `no next page is asked for while the mailbox reloads, even with a cursor` (now covered) |
-| `MailListViewModel.kt:70, 190` | Re-select after failure; empty first page | Added 2 tests (now covered) |
-| `MailListViewModel.kt:191` (1 of the short-circuit branches) | One `mergeFirstPage` guard combination | Left uncovered: the merge, replace, end, empty and other-mailbox outcomes are all tested; the remaining branch is one more combination of the same guard |
-| `MailListViewModel.kt:33` (`folder` getter finds no matching folder) | Folder mailbox whose account list did not load (canArchive then defaults to true) | Left uncovered: there is no requirement for this state; low risk, because the server returns a harmless result for archive in Archive |
-| `MailReadViewModel.kt:128` (`retry` with no mail open) | CR-2: no load after close | Added `retry after the view closed loads nothing` (now covered) |
-| `MailBodyView.kt:53` (scheme null / upper case) | CR-6 link handling | Added the upper-case/no-scheme test (now covered) |
-| `MailBodyView.kt:93` (tag equal, no reload on recomposition), `:108` (no app for the link) | Scroll/zoom kept; no crash without a handler | Left uncovered: Robolectric does not render the WebView meaningfully, and the ActivityNotFound path needs an activity resolver setup. Low risk, defensive |
-| `MailBodyView.kt:58`, `MailModels.kt:33`, `MailReadRepository.kt:18,20`, `MailScreen.kt:292-295` | Generated data-class/companion members | Not material |
-| `MailApi.kt:63-176` | Hilt `@Provides` and kotlinx-serialization generated members of the DTOs (defaults, write$Self, copy) | Not material. DTO parsing is covered by MailRepositoryTest/MailReadRepositoryTest against MockWebServer |
-| `MailRepository.kt:87-88` (`CancellationException` rethrow) | A cancelled load must not show as offline | Left uncovered: a defensive rethrow. `CancellationException` is not caught by the other clauses anyway (it is an `IllegalStateException`, not an IOException or IllegalArgumentException) |
-| `MailScreen.kt:84-97, 134-138, 170-176`; `MailReadScreen.kt:56-61, 93-98, 122-128` | Default parameter values (`hiltViewModel()`, default callbacks, default clock/zone/body) | Not material. The real defaults run in MailRouteInAppTest; JaCoCo counts the synthetic `$default` branches separately |
-| `MailScreen.kt:244-253, 274, 285` (`Settled` branches, accessibility list without archive) | Swipe settle without dismiss; no archive action in Archive | Partly covered by the Archive swipe test. `Settled` is not reachable from `onDismiss` in practice. Not material |
-| `MailScreen.kt:402` (dropdown dismissed without choosing) | Menu closes | Not material |
-| `MailReadScreen.kt:183-199` | Exhaustive `when` fallbacks the compiler generated | Not material. Every notice text is asserted in MailReadScreenTest |
+| `mail/list/MailApi.kt:63,66-176` | Hilt `MailApiModule.mailApi` provider and kotlinx-serialization generated members of the DTOs (copy/equals/hashCode/serializer write paths) | Non-material. DTO parsing is exercised through `MailRepositoryTest`/`MailReadRepositoryTest` with a MockWebServer. The uncovered parts are compiler-generated glue and the DI provider, which is replaced in tests. |
+| `mail/list/MailScreen.kt:84-138` (partial) | `MailScreen` Hilt/placeholder switch, `MailRoute` default `hiltViewModel()` argument, `MailListCallbacks` default lambdas | Non-material. The route behavior is covered by `MailRouteInAppTest` with an explicit view model. The missed branches are Kotlin default-argument synthetics and unused default lambdas. |
+| `mail/list/MailScreen.kt:211,215,246-297` (partial branches) | Load-more trigger, swipe dismiss `when` / `SwipeBackground` `Settled` path | Covered in behavior by `MailListScreenTest` swipe tests and the paging tests in `MailListScreenStatesTest`/`MailListPagingRetryTest`. The remaining branches are exhaustive-`when` synthetics and the `Settled` no-op. |
+| `mail/read/MailReadScreen.kt:56-98,183-199` (partial) | `MailReadRoute` default args/`hiltViewModel()`, `MailReadCallbacks` defaults, `Notice` `when` exhaustiveness | Non-material. Every notice variant (task/waiting created, task/waiting failed, archive/delete failed) has a `MailReadScreenTest` test. The missed branches are compiler-generated. |
+| `mail/read/MailBodyView.kt:58,93,108` | Companion init, the `view.tag != document` re-load guard, `ActivityNotFoundException` fallback | Low risk. The fallback is a silent no-op when no app handles a link, and the guard only prevents reloading on recomposition. No test added. |
+| `mail/list/MailRepository.kt:87-88`, `mail/read/MailReadRepository.kt:18,20` | `CancellationException` rethrow; data-class generated members | Non-material (coroutine cancellation plumbing and generated code). |
+| `mail/list/MailListViewModel.kt:33,191`, `mail/list/MailModels.kt:33,92` | One short-circuit branch each in folder lookup / refresh merge | Non-material. The refresh merge paths are tested extensively in `MailListViewModelEdgeCasesTest`. |
 
 ## Unable to test
 
-- On-device WebView behaviour (CSP enforcement, `blockNetworkLoads` actually blocking a remote image, JavaScript actually not running). Robolectric's WebView is a shadow, so the tests check the settings and the generated document, not real rendering. A follow-up would be an instrumented or Playwright-like device test; no criterion asks for it.
-- A real swipe gesture on a device. The Compose swipe is tested with Robolectric `performTouchInput { swipeLeft()/swipeRight() }`, which the criterion names ("Robolectric/Compose UI tests for screens").
+- On-device WebView rendering of sanitized HTML: the tests run on Robolectric's shadow WebView, so they verify the
+  settings, CSP wrapper and link interception, but not real Chromium rendering or enforcement. This is acceptable for
+  AC2, which asks for unit tests of the WebView settings. An instrumented/on-device check would be a follow-up outside
+  this task's criteria.
+- Real server integration: the API is exercised with MockWebServer only. That is the intended level for this task.
 
 ## Summary
 
-Tests added and all validation passed. I found no production defects. Task-scoped coverage is 95.7% of lines and 91.2% of branches. The remaining gaps are default parameters, generated code, or defensive paths, as justified above.
-
-Note for the parent worker: while I worked, `reviews/and-mail-list-read/review.md` appeared as modified in the working tree (a re-review). I did not write it, and I left it untouched.
+Tests and task-scoped coverage are sufficient; no production defects found.
