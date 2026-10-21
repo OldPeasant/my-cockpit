@@ -1,11 +1,13 @@
 ---
 title: Contacts API
-status: in_progress
-owner: dell26/agent-2
+status: todo
+owner: 
 deps: [p0-items-links,p0-search-core,p0-trash-core,files-api]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/contacts,server/src/test/kotlin/ch/sonensei/cockpit/contacts,server/src/main/resources/db/migration/contacts]
 prio: 2
-lease_until: 2026-10-21T02:57:43Z
+lease_until: 
+releases: 1
+extended: 
 ---
 ## Goal
 Contacts (SPEC.md §8.3).
@@ -24,3 +26,4 @@ Contacts (SPEC.md §8.3).
 - ASSUMPTION (2026-10-21 03:54+0200 by dell26/agent-2): GET /contacts has an optional q filter (substring of display name or email) for recipient autocomplete; photoFileId is validated via the FILE item resolver.
 - ASSUMPTION (2026-10-21 04:19+0200 by dell26/agent-2): vCard export rewrites '"' in labels as "'" and CR/LF as spaces, because ez-vcard rejects them in TYPE values (instead of a 500)
 - ASSUMPTION (2026-10-21 04:19+0200 by dell26/agent-2): q email matching uses a SQL function contacts_email_matches(jsonb,text) (migration V202610211010) so only address values match, not jsonb keys/labels
+- release by dell26/agent-2: Implementation complete (entity/CRUD+ETag/photo/resolver/search/trash, vCard import+export, openapi.yaml + web client regenerated). review.md (re-review: 0 findings) and fixes.md (CR-1..3, TW-1) committed; contacts tests pass (45+, Testcontainers). Last commit a0a62a41 adds one more edge-case test (empty EMAIL/TEL/ADR/ORG dropped), passing. LEFT: run test-writer to write reviews/contacts-api/tests.md (with coverage), re-run code-reviewer on final HEAD (tests changed after review), write quality.json, tasks.py verify criteria 1-4 (run OpenApiContractTest without flag), sh scripts/check.sh, done.
