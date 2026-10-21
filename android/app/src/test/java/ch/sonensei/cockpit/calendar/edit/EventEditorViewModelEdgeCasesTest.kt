@@ -468,4 +468,75 @@ class EventEditorViewModelEdgeCasesTest {
         // The loaded form compared with itself sends nothing, even though the seconds were dropped.
         assertEquals(emptySet<String>(), patchBody(form, form).keys)
     }
+
+    private fun allDaySingle(
+        startDate: String,
+        endDate: String?,
+    ) = EventDetails(
+        id = id(6),
+        calendarId = work.id,
+        title = "Conference",
+        location = null,
+        description = "Fictitious agenda",
+        allDay = true,
+        start = null,
+        end = null,
+        startDate = LocalDate.parse(startDate),
+        endDate = endDate?.let(LocalDate::parse),
+        timeZone = null,
+        rrule = null,
+        seriesId = null,
+        version = 2,
+    )
+
+    private fun allDayOccurrence(event: EventDetails) =
+        Occurrence(event.id, work.id, event.title, null, true, null, null, event.startDate, event.endDate, version = event.version)
+
+    @Test
+    fun `a single all-day event shows its stored days with the last day inclusive, and is sent back exclusive`() {
+        // Stored as 24 October up to (excluding) 27 October: the form shows 24 to 26.
+        val event = allDaySingle("2026-10-24", "2026-10-27")
+        // The occurrence the view held is not generated, so the event's own dates count, even if the view's differ.
+        val shown = allDayOccurrence(event).copy(startDate = LocalDate.parse("2026-10-01"), endDate = LocalDate.parse("2026-10-02"))
+        val form = editForm(shown, event, null, zone)
+        assertTrue(form.allDay)
+        assertEquals(LocalDate.parse("2026-10-24") to LocalDate.parse("2026-10-26"), form.startDate to form.endDate)
+        assertEquals(Repeat.NONE, form.repeat)
+        assertEquals("Fictitious agenda", form.description)
+        assertEquals(emptySet<String>(), patchBody(form, form).keys)
+
+        // One more day: the end goes back as the exclusive day after the new last day.
+        val longer = patchBody(form, form.copy(endDate = LocalDate.parse("2026-10-27")))
+        assertEquals(
+            JsonObject(mapOf("startDate" to JsonPrimitive("2026-10-24"), "endDate" to JsonPrimitive("2026-10-28"))),
+            longer,
+        )
+    }
+
+    @Test
+    fun `a one-day all-day event ends on its first day, also when its end is missing or not after the start`() {
+        val day = LocalDate.parse("2026-10-24")
+        for (end in listOf("2026-10-25", null, "2026-10-24")) {
+            val event = allDaySingle("2026-10-24", end)
+            val form = editForm(allDayOccurrence(event), event, null, zone)
+            assertEquals("end $end", day to day, form.startDate to form.endDate)
+            assertTrue("end $end", form.errors.isEmpty())
+        }
+    }
+
+    @Test
+    fun `an override without a zone of its own uses the zone of its series`() {
+        val newYork = ZoneId.of("America/New_York")
+        val form =
+            editForm(
+                override,
+                overrideDetails.copy(timeZone = null),
+                master.copy(timeZone = "America/New_York"),
+                ZoneId.of("UTC"),
+            )
+        assertEquals(newYork, form.zone)
+        // 08:00Z on 30 October is 04:00 in New York (still summer time there).
+        assertEquals(LocalTime.of(4, 0) to LocalTime.of(4, 15), form.startTime to form.endTime)
+        assertEquals(Repeat.WEEKLY, form.repeat)
+    }
 }
