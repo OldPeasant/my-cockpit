@@ -5,7 +5,7 @@ owner: dell26/agent-2
 deps: [cal-sync-engine]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/calendar/infra/caldav,server/src/test/kotlin/ch/sonensei/cockpit/calendar/infra/caldav]
 prio: 2
-lease_until: 2026-10-21T14:30:44Z
+lease_until: 2026-10-21T14:35:48Z
 ---
 ## Goal
 CalDAV sources (SPEC.md §6.2).
