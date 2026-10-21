@@ -5,7 +5,7 @@ owner: R1963MACOS/agent-1
 deps: [p0-web-shell,cal-local-api,p0-web-sse,p0-e2e-harness]
 touches: [web/src/app/features/calendar/views]
 prio: 1
-lease_until: 2026-10-21T00:12:27Z
+lease_until: 2026-10-21T00:34:03Z
 releases: 1
 extended: 
 ---
