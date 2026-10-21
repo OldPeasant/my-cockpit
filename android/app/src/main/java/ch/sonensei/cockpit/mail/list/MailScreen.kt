@@ -153,6 +153,8 @@ internal object MailListTags {
 
     fun folder(id: UUID) = "mail-folder:$id"
 
+    fun account(id: UUID) = "mail-account:$id"
+
     fun swipe(
         id: UUID,
         action: MailListAction,
@@ -410,7 +412,7 @@ private fun MailboxPicker(
                     account.name,
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp).testTag(MailListTags.account(account.id)),
                 )
                 folders.forEach { folder ->
                     DropdownMenuItem(
