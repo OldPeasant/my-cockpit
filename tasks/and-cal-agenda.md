@@ -15,7 +15,8 @@ Calendar on the phone (SPEC.md §9.2 item 4).
 ## Acceptance criteria
 - [x] Agenda list (infinite scroll by range) and day/week views; calendar visibility
   - verified (2026-10-21 17:21+0200 by dell26/agent-1): cd android && ./gradlew ktlintCheck testDebugUnitTest --tests 'ch.sonensei.cockpit.calendar.agenda.*' lintDebug on 1cb4dd73 -> pass; agenda infinite scroll (CalendarAgendaInfiniteScrollTest 5), day/week views (CalendarScreensTest, CalendarViewModelTest), calendar visibility PATCH+If-Match (CalendarRepositoryTest, CalendarViewModelEdgeCasesTest) all green
-- [ ] `cd android && ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.calendar.agenda.*'` passes, covering range loading and grouping by day (Robolectric/Compose UI tests for screens)
+- [x] `cd android && ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.calendar.agenda.*'` passes, covering range loading and grouping by day (Robolectric/Compose UI tests for screens)
+  - verified (2026-10-21 17:21+0200 by dell26/agent-1): cd android && ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.calendar.agenda.*' on 1cb4dd73 -> BUILD SUCCESSFUL, 13 classes, 98 tests, 0 failures/errors/skipped; range loading (CalendarViewModel*/CalendarRepository*), grouping by day (AgendaGrouping* 21), Robolectric/Compose screen tests (CalendarScreens*, CalendarScreenInAppTest, Position/Start/Resume tests)
 
 ## Notes
 - ASSUMPTION (2026-10-21 15:35+0200 by dell26/agent-1): Agenda offline Room cache (SPEC 9.3) is not in this task's acceptance criteria; deferred to new task and-cal-cache. Offline, the agenda shows the offline banner with what is already loaded in memory.
