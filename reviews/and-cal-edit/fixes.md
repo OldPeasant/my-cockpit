@@ -4,7 +4,7 @@ Date: 2026-10-21
 
 Task: and-cal-edit - Android event create/edit
 
-Scope: current task. Findings CR-1, CR-2 and CR-3 from `reviews/and-cal-edit/review.md` (reviewed HEAD c127c7c9, base 6db1d0fd), as assigned by the parent worker.
+Scope: current task. Findings CR-1, CR-2 and CR-3 from `reviews/and-cal-edit/review.md` (reviewed HEAD c127c7c9, base 6db1d0fd), as assigned by the parent worker. Second run: finding CR-5 from the re-review of `reviews/and-cal-edit/review.md` (reviewed HEAD 4ef0c96d).
 
 ## Fixed findings
 
@@ -70,6 +70,26 @@ Validation:
 - New tests: VM (custom choice still offered after picking DAILY; choosing CUSTOM again restores the rule and sends nothing; a preset rule offers no custom choice), screen (CUSTOM can be re-selected after DAILY and shows the original rule).
 - Gradle not run here (see CR-1). Result: Not run here.
 
+### CR-5 — A refused create (409) shows "changed elsewhere" with a Reload button that does nothing
+
+Files changed:
+- `android/app/src/main/java/ch/sonensei/cockpit/calendar/edit/EventEditorViewModel.kt`
+- `android/app/src/test/java/ch/sonensei/cockpit/calendar/edit/EventEditorViewModelEdgeCasesTest.kt`
+
+Problem:
+`send()` mapped 409/412 to CONFLICT and 404 to GONE for creates too. For a new event, Reload does nothing (`load()` returns at once when there is no occurrence), and CONFLICT/GONE make `canSave` false, so `update()` ignored edits. The user could not pick another calendar or retry. Closing the editor lost the form.
+
+Fix:
+`send()` records whether the request is a create (`occurrence == null`) before it starts. When a create fails, the result is always `EditorMessage.FAILED` ("The event could not be saved."), whatever the status. The form stays editable and Save stays enabled. Edits are unchanged: 409/412 still give CONFLICT and 404 still gives GONE.
+
+Is a fresh id needed? Yes, for a 409 only. `CalendarEventService.create` calls `existingCreate(id)` before it checks that the calendar is writable. So a 409 means either the id belongs to an event in the Trash (a retry with the same id is refused every time) or no event with that id exists and the calendar is read-only. In both cases no live event has the old id, so a new UUIDv7 can't create a duplicate. The VM therefore generates a new `newId` only after a create answered with 409. OFFLINE and every other failure keep the id, so an idempotent retry still works. 412 can't happen on a create (POST sends no If-Match). It is mapped to FAILED with the same id. The `newId` KDoc says this.
+
+Validation:
+- New VM tests in `EventEditorViewModelEdgeCasesTest`: "a refused create (409) is a failure, the form stays editable and the retry uses a new id" (FAILED, `canSave`, another calendar can be picked and is sent, the second body has a different `id`); "other refused creates (412, 404, 422) are failures and the retry keeps the id" (FAILED and `canSave` each time, one id across all 4 requests). The existing tests "a 409 is a conflict too", "a conflict blocks saving until the event is reloaded" (412) and "a save answered with 404 says the event is gone" still pass unchanged, so edits keep their behaviour. The existing OFFLINE retry test ("closing while a save is running is ignored ... a retry keeps the id") still passes.
+- No screen test was added: the screen only renders the state, and "a failed save says so and offers no reload, saving stays possible" in `EventEditorScreenTest` already covers FAILED.
+- `cd android && ./gradlew ktlintCheck testDebugUnitTest --tests 'ch.sonensei.cockpit.calendar.edit.*'` — Pass (85 tests, 0 failures: EdgeCases 20, ViewModel 17, Screen 17, Form 17, Repository 11, CalendarWithEditor 3).
+- `cd android && ./gradlew ktlintCheck` — Pass (BUILD SUCCESSFUL).
+
 ## Not fixed
 
 ### CR-4 — `editForm` paths for all-day occurrences and overrides have no tests
@@ -83,20 +103,21 @@ The parent worker did not assign it to this fixer run. The test-writer's uncommi
 ## Validation summary
 
 Focused tests:
-- Not run: Bash/Gradle is denied in this sub-agent session. The parent should run `cd android && ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.calendar.*'`.
+- First run (CR-1..3): not run, because Bash/Gradle was denied in that sub-agent session. The parent worker ran them afterwards.
+- Second run (CR-5): `cd android && ./gradlew ktlintCheck testDebugUnitTest --tests 'ch.sonensei.cockpit.calendar.edit.*'` — Pass (85 tests, 0 failures, 0 skipped).
 
 Full test suite:
-- Not run (see above). The parent should run `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug`.
+- Not run in this fixer session. The parent should run `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug`.
 
 Lint/type-check/build:
-- Not run (see above). Edits were written for ktlint_official: trailing commas, lines under 140, no 4+ operator call chains in the new tests.
+- `cd android && ./gradlew ktlintCheck` — Pass. `lintDebug` was not run.
 
 `.taskcheck`:
-- Not run
+- Not run (left to the parent worker).
 
 Remaining unresolved findings:
-1 (CR-4, not assigned to this run)
+1 (CR-4, not assigned to the first run. The re-review says tests now cover it.)
 
 ## Final status
 
-Fixes completed, but validation has not been run in this session (Gradle unavailable to the fixer). The parent worker must run it.
+All findings assigned to this fixer (CR-1, CR-2, CR-3, CR-5) are fixed. The focused CR-5 validation (ktlint and the calendar edit unit tests) passed. The parent worker still runs the full Android suite, `lintDebug` and `.taskcheck`.

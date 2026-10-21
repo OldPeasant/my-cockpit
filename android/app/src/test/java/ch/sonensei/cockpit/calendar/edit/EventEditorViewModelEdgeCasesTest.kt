@@ -21,6 +21,7 @@ import kotlinx.serialization.json.JsonPrimitive
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -305,6 +306,60 @@ class EventEditorViewModelEdgeCasesTest {
             advanceUntilIdle()
             vm.close()
             assertEquals(EventEditorUiState(), vm.uiState.value)
+        }
+
+    @Test
+    fun `a refused create (409) is a failure, the form stays editable and the retry uses a new id`() =
+        runTest(dispatcher) {
+            val bodies = mutableListOf<JsonObject>()
+            val answers = listOf(CalendarResult.Failed(409), CalendarResult.Ok(singleDetails))
+            coEvery { repo.create(capture(bodies)) } returnsMany answers
+            val vm = viewModel()
+            vm.create(today, listOf(work, hidden))
+            vm.update { it.copy(title = "Lunch") }
+            vm.save()
+            advanceUntilIdle()
+            assertEquals(EditorMessage.FAILED, vm.uiState.value.message)
+            assertTrue(vm.uiState.value.open)
+            assertTrue(vm.uiState.value.canSave)
+
+            // Another calendar can be picked and the event saved again.
+            vm.update { it.copy(calendarId = hidden.id) }
+            assertEquals(
+                hidden.id,
+                vm.uiState.value.form
+                    ?.calendarId,
+            )
+            vm.save()
+            advanceUntilIdle()
+            assertFalse(vm.uiState.value.open)
+            assertEquals(2, bodies.size)
+            assertEquals(JsonPrimitive(hidden.id.toString()), bodies[1]["calendarId"])
+            // The refused id may be in the Trash, where a retry with it would be refused again.
+            assertNotEquals(bodies[0]["id"], bodies[1]["id"])
+        }
+
+    @Test
+    fun `other refused creates (412, 404, 422) are failures and the retry keeps the id`() =
+        runTest(dispatcher) {
+            val bodies = mutableListOf<JsonObject>()
+            val refusals = listOf(412, 404, 422).map { CalendarResult.Failed(it) }
+            val answers = refusals + CalendarResult.Ok(singleDetails)
+            coEvery { repo.create(capture(bodies)) } returnsMany answers
+            val vm = viewModel()
+            vm.create(today, calendars)
+            vm.update { it.copy(title = "Lunch") }
+            repeat(3) {
+                vm.save()
+                advanceUntilIdle()
+                assertEquals(EditorMessage.FAILED, vm.uiState.value.message)
+                assertTrue(vm.uiState.value.canSave)
+            }
+            vm.save()
+            advanceUntilIdle()
+            assertFalse(vm.uiState.value.open)
+            assertEquals(4, bodies.size)
+            assertEquals(1, bodies.map { it["id"] }.distinct().size)
         }
 
     @Test

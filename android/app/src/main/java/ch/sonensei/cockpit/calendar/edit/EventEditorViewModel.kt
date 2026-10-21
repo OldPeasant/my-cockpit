@@ -112,7 +112,10 @@ class EventEditorViewModel internal constructor(
     /** The version of the event holding the occurrence, sent as `If-Match`. */
     private var version: Long = 0
 
-    /** The id of the new event, kept across retries so a create that reached the server is not repeated. */
+    /**
+     * The id of the new event, kept across retries so a create that reached the server is not repeated. Only a create
+     * refused with 409 gets a new one: the id is unused or belongs to an event in the Trash, which a retry can't revive.
+     */
     private var newId: UUID? = null
 
     private var job: Job? = null
@@ -211,24 +214,31 @@ class EventEditorViewModel internal constructor(
     ) = send { repository.update(edited, version, scope, patch) }
 
     private fun send(request: suspend () -> CalendarResult<EventDetails>) {
+        val creating = occurrence == null
         state.update { it.copy(saving = true, message = null) }
         job =
             viewModelScope.launch {
                 when (val result = request()) {
                     is CalendarResult.Ok -> reset()
                     CalendarResult.Offline -> state.update { it.copy(saving = false, message = EditorMessage.OFFLINE) }
-                    is CalendarResult.Failed ->
+                    is CalendarResult.Failed -> {
+                        // A refused create (409: the calendar is read-only, or the id belongs to an event in the
+                        // Trash) means no live event has this id, so a retry with another id can't create a duplicate.
+                        if (creating && result.status == CREATE_REFUSED) newId = UuidV7.generate(clock.millis())
                         state.update {
                             it.copy(
                                 saving = false,
                                 message =
-                                    when (result.status) {
-                                        in CONFLICTS -> EditorMessage.CONFLICT
-                                        NOT_FOUND -> EditorMessage.GONE
+                                    when {
+                                        // Nothing to reload for a new event: the form stays editable for a retry.
+                                        creating -> EditorMessage.FAILED
+                                        result.status in CONFLICTS -> EditorMessage.CONFLICT
+                                        result.status == NOT_FOUND -> EditorMessage.GONE
                                         else -> EditorMessage.FAILED
                                     },
                             )
                         }
+                    }
                 }
             }
     }
@@ -288,6 +298,9 @@ class EventEditorViewModel internal constructor(
 
         /** The event or the occurrence no longer exists (or the event is in the Trash). */
         const val NOT_FOUND = 404
+
+        /** A create refused: the calendar is read-only, or the id belongs to an event in the Trash. */
+        const val CREATE_REFUSED = 409
     }
 }
 
