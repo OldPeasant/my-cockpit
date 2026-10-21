@@ -5,7 +5,7 @@ owner: dell26/agent-3
 deps: [mail-read-api,p0-search-core]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/mail/search,server/src/test/kotlin/ch/sonensei/cockpit/mail/search]
 prio: 2
-lease_until: 2026-10-21T22:50:01Z
+lease_until: 2026-10-21T22:55:04Z
 ---
 ## Goal
 Find mail (SPEC.md §7.3).
