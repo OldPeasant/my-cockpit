@@ -157,19 +157,28 @@ internal class UniqueNames {
 			.first { taken.add(it.lowercase()) }
 }
 
-private val FILE_NAME_FORBIDDEN = Regex("[/\\\\\u0000-\u001f\u007f]")
+/** Path separators, control characters and the characters Windows does not allow in file names. */
+private val FILE_NAME_FORBIDDEN = Regex("[/\\\\:*?\"<>|\u0000-\u001f\u007f]")
 private const val MAX_FILE_NAME = 100
 
-/** [title] as a file name (without extension): one line, no path separators, not empty, not starting with a dot. */
+/**
+ * [title] as a file name (without extension) that unzips on Linux, macOS and Windows: one line, no path separators or
+ * characters Windows forbids, not empty, not starting with a dot, not ending with a dot or space, and at most
+ * [MAX_FILE_NAME] code points (an emoji is never cut in half).
+ */
 internal fun fileName(title: String): String =
 	title
 		.replace(FILE_NAME_FORBIDDEN, " ")
 		.replace(Regex("\\s+"), " ")
 		.trim()
 		.trimStart('.')
-		.take(MAX_FILE_NAME)
+		.takeCodePoints(MAX_FILE_NAME)
+		.trimEnd { it == '.' || it.isWhitespace() }
 		.trim()
 		.ifEmpty { "Untitled" }
+
+/** The first [n] code points, so a surrogate pair is never split. */
+private fun String.takeCodePoints(n: Int): String = if (codePointCount(0, length) <= n) this else substring(0, offsetByCodePoints(0, n))
 
 internal fun String.oneLine(): String = replace(Regex("\\s*(\r\n|\r|\n)\\s*"), " ").trim()
 

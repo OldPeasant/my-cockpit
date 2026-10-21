@@ -22,10 +22,10 @@ import java.util.UUID
  * `data/tasks.jsonl` (with each task's context ids) and `data/checklist_items.jsonl`, the Trash included.
  *
  * Mirrors, without the Trash: `readable/tasks/{inbox,next,waiting,someday}.md` with the open tasks of each list (Next
- * with the scheduled ones in a section of their own), `readable/tasks/logbook.md` with the done tasks (newest first),
+ * with the scheduled ones in a section of their own, Waiting For by waiting-since), `readable/tasks/logbook.md` with the done tasks (newest first),
  * and `readable/projects/<area>/<project>.md` per project with its description and tasks as checkboxes. Projects
- * without an area go to `projects/No area/`; titles become file names with `/`, `\` and control characters replaced
- * and clashes (regardless of case) numbered ` (2)`, ` (3)`, ...
+ * without an area go to `projects/No area/`; titles become file names with `/`, `\`, control characters and the
+ * characters Windows forbids (`:*?"<>|`) replaced, trailing dots and spaces trimmed, cut to 100 code points, and clashes (regardless of case) numbered ` (2)`, ` (3)`, ...
  *
  * Restore keeps ids, times and versions. References inside the module (a project's next step, a task's next
  * occurrence) are set once all rows exist; tasks and projects not in the Trash are indexed for search again.
@@ -60,7 +60,7 @@ class GtdBackupContributor(
 		val open = tasks.filter { it.completedAt == null }.groupBy { it.list }
 		LIST_FILES.forEach { (list, file) ->
 			val text = StringBuilder("# ${list.label}\n\n")
-			markdown.appendTasks(text, open[list].orEmpty().sortedWith(LIST_ORDER))
+			markdown.appendTasks(text, open[list].orEmpty().sortedWith(if (list == TaskList.WAITING) WAITING_ORDER else LIST_ORDER))
 			if (list == TaskList.NEXT) {
 				text.append("\n## ${TaskList.SCHEDULED.label}\n\n")
 				markdown.appendTasks(
@@ -341,5 +341,8 @@ class GtdBackupContributor(
 			)
 
 		private val LIST_ORDER = compareBy<TaskBackup>({ it.position }, { it.id })
+
+		/** The Waiting For list is sorted by waiting-since (SPEC.md §5.3); tasks without a date come last. */
+		private val WAITING_ORDER = compareBy<TaskBackup, LocalDate?>(nullsLast()) { it.waitingSince } then LIST_ORDER
 	}
 }

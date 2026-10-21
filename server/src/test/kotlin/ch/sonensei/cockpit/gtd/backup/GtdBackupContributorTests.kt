@@ -266,6 +266,28 @@ class GtdBackupContributorTests(
 	}
 
 	@Test
+	fun `waiting md is ordered by waiting-since, tasks without a date last, then by position`() {
+		task(id(20), "No date", "WAITING", position = 0)
+		task(id(21), "Later", "WAITING", position = 1, waitingSince = LocalDate.parse("2026-10-12"))
+		task(id(22), "Earlier", "WAITING", position = 2, waitingSince = LocalDate.parse("2026-10-01"))
+		task(id(23), "Same day, lower position", "WAITING", position = 0, waitingSince = LocalDate.parse("2026-10-12"))
+
+		export().readable("tasks/waiting.md") shouldBe
+			"""
+			|# Waiting For
+			|
+			|- [ ] Earlier
+			|  Since: 2026-10-01
+			|- [ ] Same day, lower position
+			|  Since: 2026-10-12
+			|- [ ] Later
+			|  Since: 2026-10-12
+			|- [ ] No date
+			|
+			""".trimMargin()
+	}
+
+	@Test
 	fun `a task's details, notes and checklist are written below its checkbox`() {
 		val phone = context(id(2), "@phone")
 		val errands = context(id(3), "errands")
@@ -445,6 +467,25 @@ class GtdBackupContributorTests(
 		project(id(10), "x".repeat(150))
 
 		export().projectPaths() shouldBe listOf("projects/No area/${"x".repeat(100)}.md")
+	}
+
+	@Test
+	fun `file names have no characters Windows forbids and no trailing dots or spaces`() {
+		val area = area(id(1), "Q1: plans?")
+		project(id(10), "\"Big\" <launch> | a*b", area = area)
+		project(id(11), "Done.", area = area)
+		project(id(12), "Etc. . .", area = area)
+		project(id(13), "???", area = area)
+		project(id(14), "y".repeat(99) + " tail", area = area)
+
+		export().projectPaths() shouldContainExactlyInAnyOrder
+			listOf(
+				"projects/Q1 plans/Big launch a b.md",
+				"projects/Q1 plans/Done.md",
+				"projects/Q1 plans/Etc.md",
+				"projects/Q1 plans/Untitled.md",
+				"projects/Q1 plans/${"y".repeat(99)}.md",
+			)
 	}
 
 	@Test
