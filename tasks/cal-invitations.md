@@ -16,3 +16,4 @@ Accept/decline invitations for Google/Microsoft events (SPEC.md §6.2).
 - [ ] API documented: `api/openapi.yaml` regenerated (`UPDATE_OPENAPI=1 ./gradlew test --tests '*OpenApiContractTest'`) and `OpenApiContractTest` passes without the flag
 
 ## Notes
+- ASSUMPTION (2026-10-21 20:57+0200 by dell26/agent-1): The respond hook lives on CalendarProviderAdapter (respondToInvitation, default unsupported) and is implemented in GoogleCalendarAdapter/MicrosoftCalendarAdapter, outside the task's touches, because the criterion says 'via the adapter'
