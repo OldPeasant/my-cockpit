@@ -1,0 +1,16 @@
+<resources>
+    <!-- Share target capture sheet (capture/share) -->
+    <string name="share_label">Save to Inbox</string>
+    <string name="share_heading">Inbox</string>
+    <string name="share_text_hint">What is it?</string>
+    <string name="share_notes_hint">Notes</string>
+    <string name="share_cancel">Cancel</string>
+    <string name="share_save">Save to Inbox</string>
+    <string name="share_saved">Saved to Inbox</string>
+    <string name="share_nothing">Nothing to save: the app shared no text or files.</string>
+    <string name="share_error_empty">Type a title to save this to the Inbox.</string>
+    <string name="share_error_too_many_files">Too many files. Share at most 50 at once.</string>
+    <string name="share_error_too_long">The text is too long. Shorten it to at most 100,000 characters.</string>
+    <string name="share_error_unreadable">A shared file could not be read. Share it again from the other app.</string>
+    <string name="share_error_failed">The capture could not be stored. Try again.</string>
+</resources>
