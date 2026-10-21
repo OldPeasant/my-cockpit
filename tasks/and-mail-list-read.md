@@ -13,7 +13,8 @@ releases: 1
 Mail on the phone (SPEC.md §9.2 item 5).
 
 ## Acceptance criteria
-- [ ] Unified inbox, folders, swipe actions (archive/delete), read view with sanitized HTML in a WebView (JS disabled, no file access), to-task/waiting
+- [x] Unified inbox, folders, swipe actions (archive/delete), read view with sanitized HTML in a WebView (JS disabled, no file access), to-task/waiting
+  - verified (2026-10-21 20:02+0200 by dell26/agent-1): cd android && ./gradlew ktlintCheck testDebugUnitTest --tests 'ch.sonensei.cockpit.mail.list.*' --tests 'ch.sonensei.cockpit.mail.read.*' (Robolectric) -> BUILD SUCCESSFUL, 13 classes/118 tests 0 failures: MailListScreenTest (unified inbox, folder picker, swipe archive/delete), MailRouteInAppTest, MailReadScreenTest (to-task/waiting), MailWebViewTest/MailBodyViewTest (sanitized HTML, JS off, no file access); on-device rendering not run (no device)
 - [ ] `cd android && ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.mail.list.*'` passes, covering swipe actions (Robolectric/Compose UI tests for screens); `mail.read` WebView settings
 
 ## Notes
