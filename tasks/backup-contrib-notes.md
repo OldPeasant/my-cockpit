@@ -16,3 +16,4 @@ Notes in backups (SPEC.md §10.2).
 
 ## Notes
 - ASSUMPTION (2026-10-21 05:41+0200 by R1963MACOS/agent-1): readable/notes/ mirrors only notes not in the Trash (data/ has all, Trash included); file date = creation day in UTC, slug = title or derived title in lower-case ASCII (accents dropped, max 60 chars, 'note' when empty), clashes get -2, -3 (older note keeps the name).
+- ASSUMPTION (2026-10-21 05:41+0200 by R1963MACOS/agent-1): Front matter: id, title, tags, links (type:id, both directions, each once, oldest first), created, updated, pinned, archived as YAML. Image refs cockpit-file:{id} become ../../files/<path> with each segment percent-encoded; refs to files not in the backup stay unchanged.
