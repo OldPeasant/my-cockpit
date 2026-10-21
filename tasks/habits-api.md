@@ -6,6 +6,7 @@ deps: [p0-items-links,reminders-core]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/journal/habits,server/src/test/kotlin/ch/sonensei/cockpit/journal/habits,server/src/main/resources/db/migration/journal/habits]
 prio: 3
 lease_until: 2026-10-21T20:43:41Z
+extended: dell26/agent-2
 ---
 ## Goal
 Habits with streaks (SPEC.md §8.5).
@@ -25,3 +26,4 @@ Habits with streaks (SPEC.md §8.5).
 - ASSUMPTION (2026-10-21 21:38+0200 by dell26/agent-2): Checks API: PUT /habits/{id}/checks/{date} {count} sets an absolute count (0 removes, max 1000, no If-Match, future dates 400) and returns the habit with new stats; GET /habits/{id}/checks?from&to (default last 30 days, max 3660 days). Habit list is not paginated (active by default, ?archived=true for archived), ordered by name
 - ASSUMPTION (2026-10-21 22:07+0200 by dell26/agent-2): Habit stores the id of the one reminder the module manages (habit.reminder_id, migration V202610212300); sync only moves/deletes that reminder so user-created reminders on a habit survive; resync runs AFTER_COMMIT in its own transaction so a habit failure cannot roll back a core firing batch
 - ASSUMPTION (2026-10-21 22:07+0200 by dell26/agent-2): gtd convert tests used HABIT as a type without resolver; they now link to a real habit (4 gtd test files outside touches) because HABIT has a resolver now
+- extended by dell26/agent-2: Implementation, fixes for review 1 (CR-1..3) and review 2 are committed; .taskcheck passes. Left: test-writer report reviews/habits-api/tests.md (the tests are committed in 4ce6aafd, the report with coverage is missing); decide on review 2 P3 CR-1 (lock the habit row via lockById in update/onReminderFired/delete) and, if fixed, re-run test-writer + code-reviewer; tasks.py verify for 4 criteria (habits test suite, OpenApiContractTest); quality.json; done.
