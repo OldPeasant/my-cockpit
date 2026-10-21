@@ -15,7 +15,8 @@ Automate SPEC.md §13.2 Phase 1 end to end.
 ## Acceptance criteria
 - [x] `web/e2e/phase1/*.spec.ts` covers demo steps 1–9 (incl. tickler with the e2e clock and recurrence) and passes, together with phase 0 specs
   - verified (2026-10-21 06:08+0200 by dell26/agent-5): npm --prefix web run e2e -- --project=phase-demos (support/run-e2e.mjs: server image + Postgres from deploy/docker-compose.e2e.yml, chromium) at 16ba8f54 -> 15 passed: phase0 steps 1-5, phase1 set-up + steps 1-9 (incl. tickler via setClock +2d, weekly recurrence on schedule/after completion)
-- [ ] Defects found are fixed here or recorded as new tasks
+- [x] Defects found are fixed here or recorded as new tasks
+  - verified (2026-10-21 06:09+0200 by dell26/agent-5): Defects found while automating were fixed here, each with tests: inbox 'To project' sets next step/preselects captured project (74b59cb7, inbox-page.spec.ts); server CSRF token no longer rotated per authenticated request -> concurrent SPA writes no longer 403 (9faf689b, CsrfCookieWebTests.kt); gtd-inbox e2e isolated in 'inbox-exclusive' project (81528371). npm --prefix web run e2e (full suite, docker compose e2e stack, chromium) at 16ba8f54 -> 29 passed incl. phase-demos and inbox-exclusive
 
 ## Notes
 - ASSUMPTION (2026-10-21 04:39+0200 by dell26/agent-4): SPEC.md §13.2 phase 1 step 2 says 'Plan holiday' goes to a new project 'Holiday', but step 1 captures it with '#Holiday', which the parser only resolves for existing projects. The demo creates 'Holiday' in a set-up step and moves 'Plan holiday' to it; the 'New project' path of inbox processing is exercised end to end on a separate item instead.
