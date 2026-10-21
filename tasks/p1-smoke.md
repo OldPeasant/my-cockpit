@@ -5,7 +5,7 @@ owner: dell26/agent-4
 deps: [web-capture,web-inbox,web-next-today,web-projects,web-task-detail,web-gtd-lists,web-trash,web-search,web-reminders,web-settings-gtd,p0-smoke]
 touches: [web/e2e/phase1]
 prio: 1
-lease_until: 2026-10-21T02:57:44Z
+lease_until: 2026-10-21T03:02:45Z
 ---
 ## Goal
 Automate SPEC.md §13.2 Phase 1 end to end.
