@@ -852,6 +852,100 @@ describe('NoteEditorPage', () => {
     http.expectNone((r) => r.method === 'GET' && r.url.startsWith('/api/v1/notes/'));
   });
 
+  /** Edits the first note, lets the autosave and the retry before opening the other note fail. */
+  async function stayAfterFailedSwitch(): Promise<void> {
+    await open();
+    vi.useFakeTimers();
+    type('mine');
+    await vi.advanceTimersByTimeAsync(AUTOSAVE_DEBOUNCE_MS);
+    http
+      .expectOne((r) => r.method === 'PATCH')
+      .flush(null, { status: 503, statusText: 'Service Unavailable' });
+    await vi.advanceTimersByTimeAsync(0);
+    void harness.navigateByUrl(`/notes/${OTHER_ID}`);
+    await vi.advanceTimersByTimeAsync(0);
+    http
+      .expectOne((r) => r.url === URL && r.method === 'PATCH')
+      .flush(null, { status: 503, statusText: 'Service Unavailable' });
+    await vi.advanceTimersByTimeAsync(0);
+    await vi.advanceTimersByTimeAsync(0);
+    harness.detectChanges();
+    root = harness.routeNativeElement as HTMLElement;
+  }
+
+  it('opens the other note on the next try once the edits of the first one can be saved', async () => {
+    await stayAfterFailedSwitch();
+    expect(TestBed.inject(Router).url).toBe(`/notes/${ID}`);
+
+    // The chip is clicked again; this time the save works.
+    void harness.navigateByUrl(`/notes/${OTHER_ID}`);
+    await vi.advanceTimersByTimeAsync(0);
+    http.expectNone((r) => r.url === `/api/v1/notes/${OTHER_ID}`);
+    const save = http.expectOne((r) => r.url === URL && r.method === 'PATCH');
+    expect(save.request.body.bodyMd).toBe('mine');
+    expect(save.request.headers.get('If-Match')).toBe('"1"');
+    save.flush(note({ bodyMd: 'mine', version: 2 }));
+    await vi.advanceTimersByTimeAsync(0);
+    http
+      .expectOne((r) => r.url === `/api/v1/notes/${OTHER_ID}` && r.method === 'GET')
+      .flush(note({ id: OTHER_ID, title: 'Recipes', bodyMd: 'Soup', version: 9 }));
+    await vi.advanceTimersByTimeAsync(0);
+    flushLinks();
+    harness.detectChanges();
+    expect(TestBed.inject(Router).url).toBe(`/notes/${OTHER_ID}`);
+    root = harness.routeNativeElement as HTMLElement;
+    expect(editor().value()).toBe('Soup');
+    expect(state()).toBe('Saved');
+    expect(root.querySelector('.banner[role=alert]')).toBeNull();
+  });
+
+  it('stays on the note again when the save fails on a second try to open another note', async () => {
+    await stayAfterFailedSwitch();
+    void harness.navigateByUrl(`/notes/${OTHER_ID}`);
+    await vi.advanceTimersByTimeAsync(0);
+    http
+      .expectOne((r) => r.url === URL && r.method === 'PATCH')
+      .flush(null, { status: 500, statusText: 'Internal Server Error' });
+    await vi.advanceTimersByTimeAsync(0);
+    await vi.advanceTimersByTimeAsync(0);
+    harness.detectChanges();
+    http.expectNone((r) => r.url === `/api/v1/notes/${OTHER_ID}`);
+    expect(TestBed.inject(Router).url).toBe(`/notes/${ID}`);
+    root = harness.routeNativeElement as HTMLElement;
+    expect(editor().value()).toBe('mine');
+    expect(state()).toBe('Not saved');
+    // No autosave runs on its own while the page waits for the retry.
+    await vi.advanceTimersByTimeAsync(AUTOSAVE_DEBOUNCE_MS * 3);
+    http.expectNone((r) => r.method === 'PATCH');
+  });
+
+  it('stays on the note with its edits and the image when every save before opening another note fails', async () => {
+    await open(note({ bodyMd: 'Trip' }));
+    const upload = pasteImage();
+    void harness.navigateByUrl(`/notes/${OTHER_ID}`);
+    await settle();
+    http
+      .expectOne((r) => r.url === URL && r.method === 'PATCH')
+      .flush(null, { status: 503, statusText: 'Service Unavailable' });
+    await settle();
+    // Leaving waits for the image, then saves again: that fails too.
+    http.expectNone((r) => r.url === `/api/v1/notes/${OTHER_ID}`);
+    upload.flush(TENT);
+    await settle();
+    const second = http.expectOne((r) => r.url === URL && r.method === 'PATCH');
+    expect(second.request.body.bodyMd).toBe(`Trip\n${TENT.markdown}\n`);
+    second.flush(null, { status: 503, statusText: 'Service Unavailable' });
+    await settle();
+    await settle();
+
+    http.expectNone((r) => r.url === `/api/v1/notes/${OTHER_ID}`);
+    expect(TestBed.inject(Router).url).toBe(`/notes/${ID}`);
+    root = harness.routeNativeElement as HTMLElement;
+    expect(editor().value()).toBe(`Trip\n${TENT.markdown}\n`);
+    expect(state()).toBe('Not saved');
+    expect(root.querySelector('.banner[role=alert] .retry')).not.toBeNull();
+  });
+
   it('when leaving during several uploads, saves every image in place of its placeholder', async () => {
     await open(note({ bodyMd: 'Trip' }));
     const tent = pasteImage();
@@ -1072,6 +1166,37 @@ describe('NoteEditorPage', () => {
     await settle();
     http.expectNone((r) => r.url === `/api/v1/notes/${OTHER_ID}`);
     http.expectNone((r) => r.url === '/api/v1/links');
+  });
+
+  it('requests the other note only once when the route goes there, back and there again while leaving waits', async () => {
+    await open(note({ bodyMd: 'Trip' }));
+    const upload = pasteImage();
+    void harness.navigateByUrl(`/notes/${OTHER_ID}`);
+    await settle();
+    http
+      .expectOne((r) => r.url === URL && r.method === 'PATCH')
+      .flush(note({ bodyMd: 'Trip\n\n', version: 2 }));
+    await settle();
+    void harness.navigateByUrl(`/notes/${ID}`);
+    await settle();
+    void harness.navigateByUrl(`/notes/${OTHER_ID}`);
+    await settle();
+    upload.flush(TENT);
+    await settle();
+    for (const save of http.match((r) => r.url === URL && r.method === 'PATCH')) {
+      save.flush(note({ bodyMd: save.request.body.bodyMd, version: 3 }));
+    }
+    await settle();
+    await settle();
+    // Only the latest route change goes on: one GET of the other note, not one per pending switch.
+    const gets = http.match((r) => r.url === `/api/v1/notes/${OTHER_ID}` && r.method === 'GET');
+    expect(gets).toHaveLength(1);
+    gets[0].flush(note({ id: OTHER_ID, title: 'Recipes', bodyMd: 'Soup', version: 9 }));
+    await settle();
+    flushLinks();
+    await settle();
+    root = harness.routeNativeElement as HTMLElement;
+    expect(editor().value()).toBe('Soup');
   });
 
   /** In conflict on the first note, clicks `action` and opens the other note before it ends. */
