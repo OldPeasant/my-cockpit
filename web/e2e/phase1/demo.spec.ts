@@ -33,10 +33,6 @@ test.describe('Phase 1 demo', () => {
     const context = await browser.newContext();
     await loginViaApi(context.request, account);
     page = await context.newPage();
-    page.on('response', async (r) => {
-      if (r.status() >= 400)
-        console.log(`DEBUG ${r.request().method()} ${r.url()} ${r.status()} ${await r.text()}`);
-    });
   });
 
   test.afterAll(async ({ request }) => {
