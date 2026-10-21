@@ -48,8 +48,9 @@ import kotlin.math.abs
  *
  * Push: creates (with `transactionId`, so a retried create is not doubled) and updates that send only the fields that
  * differ from Graph's copy (a series keeps its exceptions, attendees are not invited again), with `If-Match` on the
- * event's etag; 412 is [RemoteEventChangedException]. An occurrence of a series is changed or deleted through its
- * instance; EXDATEs and cancelled overrides delete instances. "This and following" arrives from the engine as the old
+ * event's etag; 412 is [RemoteEventChangedException]. An update with nothing to send succeeds whatever the etag (Graph
+ * already has what the cockpit wants) and returns Graph's version. An occurrence of a series is changed or deleted
+ * through its instance (a series gone at Microsoft has none); EXDATEs and cancelled overrides delete instances. "This and following" arrives from the engine as the old
  * series ending (UNTIL, an `endDate`) plus a new series with its exceptions, which maps onto these calls. Exchange
  * drops a series' exceptions when its pattern changes, so those in the window that the new pattern still has are put
  * back afterwards. Events are addressed through their calendar (`/me/calendars/{calendar}/events/{id}`), which also
@@ -68,6 +69,7 @@ class MicrosoftCalendarAdapter(
 ) : CalendarProviderAdapter {
 	private val log = LoggerFactory.getLogger(javaClass)
 	private val client = GraphClient(apiUrl, tokens, json)
+	private val restored = RestoredEtags()
 
 	override val sourceType = CalendarSourceType.MICROSOFT
 	override val pollInterval: Duration = Duration.ofMinutes(5)
@@ -237,19 +239,29 @@ class MicrosoftCalendarAdapter(
 		seriesId: String,
 		from: Instant,
 		to: Instant,
-	): List<JsonNode> {
+	): List<JsonNode> =
+		instancesOrNull(connection, calendar, seriesId, from, to)
+			?: throw CalendarProviderException("Fetching the occurrences of a series failed at Microsoft (HTTP 404)")
+
+	/** Like [instances], but null when Graph no longer has series [seriesId] (404). */
+	private fun instancesOrNull(
+		connection: UUID,
+		calendar: String,
+		seriesId: String,
+		from: Instant,
+		to: Instant,
+	): List<JsonNode>? {
 		val result = mutableListOf<JsonNode>()
-		var page =
-			expectOk(
-				client.call(
-					connection,
-					HttpMethod.GET,
-					"$EVENT/instances",
-					eventPath(calendar, seriesId),
-					mapOf("startDateTime" to from.toString(), "endDateTime" to to.toString()),
-				),
-				"Fetching the occurrences of a series",
+		val first =
+			client.call(
+				connection,
+				HttpMethod.GET,
+				"$EVENT/instances",
+				eventPath(calendar, seriesId),
+				mapOf("startDateTime" to from.toString(), "endDateTime" to to.toString()),
 			)
+		if (first.status == 404) return null
+		var page = expectOk(first, "Fetching the occurrences of a series")
 		var pages = 1
 		while (true) {
 			page.path("value").forEach { result.add(it) }
@@ -344,13 +356,8 @@ class MicrosoftCalendarAdapter(
 			} else {
 				emptyList()
 			}
-		val stored =
-			if (changes.isEmpty) {
-				if (ifMatch != null && current.text(ETAG) != ifMatch) throw RemoteEventChangedException()
-				current
-			} else {
-				patch(connection, calendarExternalId, id, changes, ifMatch, "Changing an event")
-			}
+		// Nothing to send: Graph already has what the cockpit wants, so no change at Microsoft is lost, whatever the etag.
+		val stored = if (changes.isEmpty) current else patch(connection, calendarExternalId, id, changes, ifMatch, "Changing an event")
 		if (event.rrule == null) return answer(stored, RemoteEventKey(id))
 		restoreExceptions(connection, calendarExternalId, id, exceptions, window)
 		deleteOccurrences(connection, calendarExternalId, id, event.exdates)
@@ -373,7 +380,11 @@ class MicrosoftCalendarAdapter(
 		return null
 	}
 
-	/** Changes the instance [instance] like [event] (an override); a cancelled override deletes it. */
+	/**
+	 * Changes the instance [instance] like [event] (an override); a cancelled override deletes it. When Graph already has
+	 * what [event] says, nothing is sent and Graph's version is returned whatever [ifMatch] is: no change at Microsoft
+	 * can be lost. An instance this adapter put back after a pattern change counts as the version it was put back from.
+	 */
 	private fun writeInstance(
 		connection: UUID,
 		calendar: String,
@@ -382,8 +393,10 @@ class MicrosoftCalendarAdapter(
 		ifMatch: String?,
 	): RemoteEvent {
 		val id = requireId(instance)
+		val expected = ifMatch?.let { restored.current(calendar, id, instance.text(ETAG), it) }
 		if (event.status == EventStatus.CANCELLED) {
-			delete(connection, calendar, id, ifMatch)
+			delete(connection, calendar, id, expected)
+			restored.forget(calendar, id)
 			return event.copy(etag = null)
 		}
 		val changes =
@@ -393,16 +406,16 @@ class MicrosoftCalendarAdapter(
 				currentBody(instance, event.key, false) ?: json.createObjectNode(),
 			)
 		GraphEventMapping.keepAttendeeTypes(changes, instance)
-		if (changes.isEmpty) {
-			if (ifMatch != null && instance.text(ETAG) != ifMatch) throw RemoteEventChangedException()
-			return answer(instance, event.key)
-		}
-		return answer(patch(connection, calendar, id, changes, ifMatch, "Changing an occurrence"), event.key)
+		if (changes.isEmpty) return answer(instance, event.key)
+		val stored = patch(connection, calendar, id, changes, expected, "Changing an occurrence")
+		restored.forget(calendar, id)
+		return answer(stored, event.key)
 	}
 
 	/**
 	 * The instance of series [seriesId] that originally starts at [occurrence], looked up in the weeks around it and,
-	 * when it is not there (an exception moved further away), in the whole sync window; null when there is none.
+	 * when it is not there (an exception moved further away), in the whole sync window; null when there is none, also
+	 * when the series itself is gone at Microsoft.
 	 */
 	private fun findInstance(
 		connection: UUID,
@@ -411,10 +424,10 @@ class MicrosoftCalendarAdapter(
 		occurrence: OccurrenceId,
 	): JsonNode? {
 		val at = instantOf(occurrence)
-		val near = instances(connection, calendar, seriesId, at.minus(INSTANCE_SEARCH), at.plus(INSTANCE_SEARCH))
+		val near = instancesOrNull(connection, calendar, seriesId, at.minus(INSTANCE_SEARCH), at.plus(INSTANCE_SEARCH)) ?: return null
 		instanceAt(near, at)?.let { return it }
 		val window = window(LocalDate.now(clock.withZone(ZoneOffset.UTC)))
-		return instanceAt(instances(connection, calendar, seriesId, window.from, window.to), at)
+		return instanceAt(instancesOrNull(connection, calendar, seriesId, window.from, window.to) ?: return null, at)
 	}
 
 	/** The instance of [instances] that originally starts closest to [at], within half a day. */
@@ -433,6 +446,11 @@ class MicrosoftCalendarAdapter(
 	 * back into plain occurrences: each such occurrence is patched with the fields the exception had. Exceptions whose
 	 * occurrence the new pattern no longer has stay gone. Best effort: a failure leaves that occurrence as the pattern has
 	 * it (the series itself is already changed).
+	 *
+	 * Each occurrence that has the exception's fields again (put back, or kept by Graph) gets a new etag although nothing
+	 * the cockpit knows of changed: [restored] remembers that it stands for the exception's old etag, so that the engine's
+	 * next write of that override (an `ALL` change writes every override after the series) is not taken as a change at
+	 * Microsoft.
 	 */
 	private fun restoreExceptions(
 		connection: UUID,
@@ -445,17 +463,24 @@ class MicrosoftCalendarAdapter(
 		val after = instances(connection, calendar, seriesId, window.from, window.to)
 		for (exception in exceptions) {
 			val instance = instanceAt(after, GraphEventMapping.originalStart(exception)) ?: continue
-			if (instance.text("type") == GraphEventMapping.EXCEPTION) continue
 			val key = RemoteEventKey(seriesId)
 			val wanted = currentBody(exception, key, false) ?: continue
 			val changes = GraphEventMapping.changes(json, wanted, currentBody(instance, key, false) ?: json.createObjectNode())
 			GraphEventMapping.keepAttendeeTypes(changes, exception)
-			if (changes.isEmpty) continue
-			try {
-				patch(connection, calendar, requireId(instance), changes, null, "Restoring a changed occurrence")
-			} catch (e: CalendarProviderException) {
-				log.warn("Could not restore a changed occurrence of a Microsoft series: {}", e.message)
-			}
+			val now =
+				when {
+					changes.isEmpty -> instance
+					// Kept by Graph, but changed: not the exception any more.
+					instance.text("type") == GraphEventMapping.EXCEPTION -> continue
+					else ->
+						try {
+							patch(connection, calendar, requireId(instance), changes, null, "Restoring a changed occurrence")
+						} catch (e: CalendarProviderException) {
+							log.warn("Could not restore a changed occurrence of a Microsoft series: {}", e.message)
+							continue
+						}
+				}
+			restored.remember(calendar, now.text("id") ?: continue, now.text(ETAG), exception.text(ETAG))
 		}
 	}
 
@@ -616,6 +641,44 @@ class MicrosoftCalendarAdapter(
 			?: throw CalendarProviderException("The source is not linked to a Microsoft connection")
 	}
 
+	/**
+	 * The etags of occurrences that [restoreExceptions] gave back the fields of an exception, each with the etag that
+	 * exception had: the same content in a new version. Bounded (the oldest go first) and kept in memory only; a forgotten
+	 * entry just makes a write of such an override "changed remotely" again.
+	 */
+	private class RestoredEtags {
+		private val entries =
+			object : LinkedHashMap<String, Pair<String, String>>() {
+				override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, Pair<String, String>>) = size > MAX_RESTORED
+			}
+
+		/** Notes that instance [id] of [calendar] at version [etag] has the content it had at version [before]. */
+		fun remember(
+			calendar: String,
+			id: String,
+			etag: String?,
+			before: String?,
+		) {
+			if (etag == null || before == null || etag == before) return
+			synchronized(entries) { entries["$calendar/$id"] = etag to before }
+		}
+
+		/** The etag to send for a write of instance [id] at version [etag] that expects version [ifMatch]. */
+		fun current(
+			calendar: String,
+			id: String,
+			etag: String?,
+			ifMatch: String,
+		): String = if (etag != null && synchronized(entries) { entries["$calendar/$id"] } == (etag to ifMatch)) etag else ifMatch
+
+		fun forget(
+			calendar: String,
+			id: String,
+		) {
+			synchronized(entries) { entries.remove("$calendar/$id") }
+		}
+	}
+
 	companion object {
 		/** Key of the OAuth connection's id in a Microsoft source's config. */
 		const val CONNECTION_ID = "connectionId"
@@ -634,6 +697,7 @@ class MicrosoftCalendarAdapter(
 		private const val NEXT = "next"
 		private const val RESTART = "restart"
 		private const val MAX_PAGES = 100
+		private const val MAX_RESTORED = 1000
 		private const val HALF_DAY_MINUTES = 12 * 60L
 		private val EDGE: Duration = Duration.ofDays(2)
 		private val INSTANCE_SEARCH: Duration = Duration.ofDays(35)

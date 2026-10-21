@@ -279,6 +279,87 @@ class MicrosoftCalendarSyncTests(
 	}
 
 	@Test
+	fun `changing the pattern of a whole series with an exception succeeds, the exception keeps Graph's new etag`() {
+		stubFullListing()
+		syncOk()
+		val series = local("AAMkSeries1").shouldNotBeNull()
+		overridesOf(series).single().externalEtag shouldBe "W/\"DwAAABYAAAA4\""
+		val changedMaster =
+			master().apply {
+				put("subject", "Weekly sync")
+				put("@odata.etag", "W/\"series-changed\"")
+				(get("recurrence").get("range") as ObjectNode).put("endDate", "2026-12-14")
+			}
+		val recorded =
+			(
+				jsonMapper.readTree(recording("series1-instances-page1.json")).get("value").toList() +
+					jsonMapper.readTree(recording("series1-instances-page2.json")).get("value").toList()
+			).map { it as ObjectNode }
+				.filter { it.at("/start/dateTime").asString() < "2026-12-15" }
+		val exception = recorded.single { it.get("type").asString() == "exception" }
+		val restoredException = exception.deepCopy().put("@odata.etag", "W/\"restored\"")
+		// The pattern change gives every occurrence the new subject and turns the exception back into a plain occurrence.
+		val reset =
+			recorded.map {
+				it.deepCopy().apply {
+					put("subject", "Weekly sync")
+					if (it === exception) {
+						put("type", "occurrence")
+						put("@odata.etag", "W/\"reset\"")
+						set("start", jsonMapper.readTree("""{"dateTime": "2026-10-19T07:00:00.0000000", "timeZone": "UTC"}"""))
+						set("end", jsonMapper.readTree("""{"dateTime": "2026-10-19T07:30:00.0000000", "timeZone": "UTC"}"""))
+					}
+				}
+			}
+		val restored = reset.map { if (it.get("id") == exception.get("id")) restoredException else it }
+		for (state in listOf("changed", "restored")) {
+			wireMock.stubFor(
+				get(urlPathEqualTo("$EVENTS/AAMkSeries1"))
+					.inScenario("split")
+					.whenScenarioStateIs(state)
+					.willReturn(json(jsonMapper.writeValueAsString(changedMaster))),
+			)
+			val instances = if (state == "changed") reset else restored
+			wireMock.stubFor(
+				get(urlPathEqualTo("$EVENTS/AAMkSeries1/instances"))
+					.inScenario("split")
+					.whenScenarioStateIs(state)
+					.willReturn(json(jsonMapper.writeValueAsString(mapOf("value" to instances)))),
+			)
+		}
+		wireMock.stubFor(
+			patch(urlPathEqualTo("$EVENTS/AAMkSeries1"))
+				.inScenario("split")
+				.whenScenarioStateIs(Scenario.STARTED)
+				.willSetStateTo("changed")
+				.willReturn(json(jsonMapper.writeValueAsString(changedMaster))),
+		)
+		wireMock.stubFor(
+			patch(urlPathEqualTo("$EVENTS/AAMkSeries1-20261019"))
+				.inScenario("split")
+				.whenScenarioStateIs("changed")
+				.willSetStateTo("restored")
+				.willReturn(json(jsonMapper.writeValueAsString(restoredException))),
+		)
+
+		api.patchEventOk(
+			series.id.toString(),
+			"""{"title":"Weekly sync","rrule":"FREQ=WEEKLY;BYDAY=MO;UNTIL=20261214T225959Z"}""",
+			"?scope=ALL",
+		)
+
+		// The exception, put back by the adapter, already is what the cockpit has: it is not written again.
+		writes() shouldContainExactly listOf("PATCH $EVENTS/AAMkSeries1", "PATCH $EVENTS/AAMkSeries1-20261019")
+		val master = local("AAMkSeries1")!!
+		master.title shouldBe "Weekly sync"
+		master.rrule shouldBe "FREQ=WEEKLY;BYDAY=MO;UNTIL=20261214T225959Z"
+		master.externalEtag shouldBe "W/\"series-changed\""
+		val override = overridesOf(master).single()
+		override.title shouldBe "Team sync (moved)"
+		override.externalEtag shouldBe "W/\"restored\""
+	}
+
+	@Test
 	fun `412 from Graph fails the edit with 409 and shows Microsoft's version`() {
 		stubFullListing()
 		syncOk()
