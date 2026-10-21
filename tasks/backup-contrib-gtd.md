@@ -12,7 +12,8 @@ extended: dell26/agent-5
 GTD data in backups, with readable Markdown (SPEC.md §10.2).
 
 ## Acceptance criteria
-- [ ] data/tasks.jsonl, projects.json, areas.json, contexts.json, checklist_items.jsonl
+- [x] data/tasks.jsonl, projects.json, areas.json, contexts.json, checklist_items.jsonl
+  - verified (2026-10-21 08:28+0200 by dell26/agent-5): cd server && ./gradlew test --rerun --tests '*GtdBackupContributorTests' -> 21/21 pass; 'tasks jsonl holds every task ...' and 'projects, areas, contexts and checklist items are exported ...' check data/tasks.jsonl, projects.json, areas.json, contexts.json, checklist_items.jsonl contents; 'import restores every row ...' checks re-import
 - [ ] readable/tasks/{inbox,next,waiting,someday,logbook}.md and readable/projects/<area>/<project>.md with checkboxes
 - [ ] Round-trip test (`./gradlew test --tests '*BackupRoundTripTest'`) passes with this module's `BackupFixture` seeding tasks in every list, recurring tasks, projects with next steps, areas, contexts
 
