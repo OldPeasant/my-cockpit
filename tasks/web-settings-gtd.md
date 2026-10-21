@@ -5,7 +5,7 @@ owner: dell26/agent-3
 deps: [p0-web-settings,gtd-projects-api]
 touches: [web/src/app/features/settings/gtd]
 prio: 2
-lease_until: 2026-10-21T02:14:00Z
+lease_until: 2026-10-21T02:19:03Z
 ---
 ## Goal
 Manage contexts and areas (SPEC.md §5.1).
