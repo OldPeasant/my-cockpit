@@ -4,39 +4,62 @@ Date: 2026-10-21
 
 Task: backup-secrets - Backup secrets with passphrase
 
-Scope: third re-review of the final code of the task, `git diff b18d8200c9154fdb777423c4f469fe5b02c6f20a..6fba2352708fa28e10040cebd46050dbc72dd6b1` (whole task diff). The focus is the fix commit 6fba2352 for CR-1 of the previous re-review (a login running concurrently with the TOTP re-enrollment confirm; a start/confirm lost update). Production code was read from the commit (`git show 6fba2352:<path>`), not from the working tree, because a test-writer may be changing test files in parallel. `git range-diff bff56756..611c5048 b18d8200..c1b8e0a7 -- server/src/main api web/src` shows that the rebased task commits up to c1b8e0a7 are identical to those of the previous review (611c5048). The only production change since then is 6fba2352.
+Scope: final re-review on HEAD 2b4c5c3f20f433286bf7a80b4294522b43c7284d. The previous review covered the production code at 6fba2352, which was rebased as 56669f1fbc7f4facbf5e29c0d7ac82ff87dc1ea3. This review checks:
+- that the task's production code has not changed since 56669f1f (`git diff --stat 56669f1f HEAD -- server/src/main api web/src`);
+- the test changes in `git diff 56669f1f..HEAD -- server/src/test` that belong to this task: `TotpEnrollmentWebTests` (4 new tests and a `heldTransaction` helper, from b98b10e9), `BackupSecretHidingTests` and `TotpEnrollmentSecretHidingTests` (new, from 2b4c5c3f).
+
+Merge bdc787f6 brought in code from task backup-contrib-files: `files/backup/FilesBackupContributor.kt`, `FilesBackupContributorTests.kt` and `FilesBackupFixture.kt`. That code is outside this scope and was not reviewed.
 
 Requirements:
-- tasks/backup-secrets.md (acceptance criteria 1-4, notes, recorded assumptions: password-only login, re-enrollment session handling, row lock instead of a per-session restriction column)
+- tasks/backup-secrets.md (acceptance criteria 1-4, notes, recorded assumptions)
 - SPEC.md §10.1, §10.2
-- docs/ARCHITECTURE.md, AGENTS.md project notes (module boundaries, Flyway layout, logging rules, API contract rules)
-- Previous re-review (reviews/backup-secrets/review.md at 3cdfcdf0, CR-1)
-- Parent instructions (verify the lock fix, including deadlock risk, the device-token path and transaction boundaries; state the status of earlier findings; look for new issues across the whole diff)
+- docs/ARCHITECTURE.md, AGENTS.md project notes (fictitious test data, no secrets in logs)
+- the previous review (reviews/backup-secrets/review.md at 56669f1f, P3 CR-1 and CR-2)
+- the test report reviews/backup-secrets/tests.md
+- parent instructions: confirm the production code is unchanged; review the added tests for correctness, flakiness, fictitious test data and secrets handling; restate the status of earlier findings
 
 Git range:
 - Branch: main
-- HEAD: 6fba2352708fa28e10040cebd46050dbc72dd6b1 (reviewed revision)
-- Base/start: b18d8200c9154fdb777423c4f469fe5b02c6f20a
-- Commits reviewed: 11 (ee896e35, 159bbcc6, 4ef3beb3, 237284b6, e5667519, d55c5f85, f0726c31, c1b8e0a7, 3cdfcdf0, 741b7735, 6fba2352)
+- HEAD: 2b4c5c3f20f433286bf7a80b4294522b43c7284d (reviewed revision)
+- Base/start: 56669f1fbc7f4facbf5e29c0d7ac82ff87dc1ea3 (the previously reviewed production revision)
+- Commits reviewed: 2 task commits with code changes (b98b10e9, 2b4c5c3f). The other commits in the range are main-merge, heartbeat, claim and release commits, or commits from task backup-contrib-files.
+- Uncommitted changes: none (the working tree was clean at the start of the review)
 
-Summary: 0 P0, 0 P1, 0 P2, 2 P3
+Summary: 0 P0, 0 P1, 0 P2, 1 P3
+
+## Production code unchanged
+
+`git diff --stat 56669f1f HEAD -- server/src/main api web/src` lists one file: `server/src/main/kotlin/ch/sonensei/cockpit/files/backup/FilesBackupContributor.kt`. It was last changed in 0f136e52 (task backup-contrib-files) and came in through the main merge. The task's production code under `backup/`, `core/auth/`, `core/backupcontrib/`, the migrations, `api/openapi.yaml` and the generated web client have no changes. The production analysis of the previous review therefore still applies unchanged.
+
+## Review of the added tests
+
+`TotpEnrollmentWebTests`, the concurrency tests and the `heldTransaction` helper:
+- **Correctness.** `heldTransaction` runs its block in a `TransactionTemplate` on a worker thread. It returns only after the block has run, so the account row lock (`findFirstForUpdate`, taken by `pendingAccount` and `LoginService.verify`) is already held when the competing operation is submitted. Each test's final assertions match the production code:
+    - A late `start` reads the committed confirm and gets `ConflictException` (`TotpEnrollmentService.kt:76-78`). The flag and the confirmed secret stay as they are.
+    - A late `confirm` reads the secret written by the concurrent `start` and returns `InvalidCode` (`:63-65`). After `throttle.recordSuccess()`, a code of the new secret confirms.
+    - A late device `issue` with a recovery code sees the cleared flag and is issued (`LoginService.kt:94-103`). `totpEnrollmentRequired` is false, and exactly one device exists. The confirm ran first, so its `deleteOtherSessions` cannot remove that device.
+    - The non-re-enrolling test checks that the row lock does not break the normal device and web logins, and that a used recovery code is rejected the second time.
+- **Throttle.** `tryBeginAttempt` counts an attempt before the lock is taken. At most two attempts are open at the same time, below `FREE_ATTEMPTS = 5`, and `@BeforeEach` resets the throttle. No test can become throttled because of this.
+- **TOTP reuse.** The tests move the clock forward one step before they use the same secret again. Production has no replay protection (no last-used-step state was found), so the step advance is only defensive.
+- **Flakiness.** The "waits" checks expect a `TimeoutException` after 500 ms. They cannot fail on a slow machine: a slow competing thread still times out. At worst they pass without proving the wait, but the final assertions (409, `InvalidCode`, a device with full access) prove the serialization on their own. All other waits are bounded at 10 s. The `finally` blocks release the latch before `shutdownNow()`, so a failing test cannot leave a transaction holding the lock. The next test's `delete from app_user` would wait for such a lock anyway, not corrupt data.
+- **Earlier P3 CR-2 closed.** The tests "a start that runs while a confirm is not committed yet ..." and "a confirm that runs while another session's start is not committed yet ..." hold one operation's transaction open and race the other against it in both directions, which is what CR-2 asked for.
+
+`BackupSecretHidingTests` and `TotpEnrollmentSecretHidingTests`:
+- They check that `StartBackupRequest`, `ConfirmRestoreRequest`, `UserSecrets` (`UserBackupContributor.kt:160-165`), `TotpEnrollment` (`TotpEnrollmentService.kt:82-87`), `TotpEnrollmentResponse` and `ConfirmTotpEnrollmentRequest` hide their secret in `toString`. They follow the pattern of the existing `*SecretHidingTests` and assert behavior, not implementation details.
+
+Test data and secrets:
+- All values are fictitious: the user `jane.doe`, the password `fictitious-password-1234`, a passphrase with "fictitious" in it, the widely published Base32 example secret, and a made-up 6-digit code. No real credentials appear.
+- The tests do not log secrets.
+
+Evidence: `reviews/backup-secrets/tests.md` reports `./gradlew test --tests 'ch.sonensei.cockpit.backup.*' --tests 'ch.sonensei.cockpit.core.auth.*' --tests 'ch.sonensei.cockpit.core.backupcontrib.*' jacocoTestReport --rerun` with Testcontainers: 398 tests, 0 failures. This review did not run the tests again.
 
 ## Status of earlier findings
 
-- First review CR-1 (no web client for the forced re-enrollment): moved to task `web-totp-reenroll` (unchanged).
-- First review CR-2 (password-only login): the assumption is recorded in the task, and tests cover it (unchanged).
-- First review CR-3..CR-7: still resolved. The production code for them did not change.
-- First re-review CR-1 (other sessions upgraded on confirm) and CR-2 (OpenAPI `minLength` vs empty passphrase): still fixed. The code is identical to 611c5048 (range-diff above).
-- **Previous re-review CR-1 (P2, concurrent login vs confirm, start/confirm lost update): fixed.** Details:
-    - Lock: `UserAccountRepository.findFirstForUpdate()` (`UserAccountRepository.kt:18-21`) is a `@Lock(PESSIMISTIC_WRITE)` JPQL query on the single `app_user` row. The unique index `app_user_single_row` keeps the un-limited `@Query` single-valued. `LoginService.verify` (`LoginService.kt:83`) and `TotpEnrollmentService.pendingAccount` (`TotpEnrollmentService.kt:76-78`, used by `start` and `confirm`) both take it. Both use the same lock mode, so they serialize on the row whatever SQL Hibernate generates for it on PostgreSQL.
-    - Transaction boundaries: `verify` is `@Transactional` (REQUIRED). Its two callers, `LoginService.login` (`:47`) and `DeviceTokenService.issue` (`DeviceTokenService.kt:33`), are `@Transactional` themselves, so the lock is held until the session or device row is written and committed. `login` calls `verify` on `this`, so the call bypasses the proxy, but it already runs inside `login`'s transaction. `spring.jpa.open-in-view=false` (`application.properties:10`), so each transaction starts with a fresh persistence context, and the locked query returns the current row, not an entity cached earlier in the request.
-    - Ordering: a login that locks first writes its session under the lock. The confirm then waits, sees the session after the commit, and `deleteOtherSessions` removes it. A confirm that locks first commits `totp_reenroll_required = false`. A password-only login after that gets no second factor (`checkSecondFactor` returns null) and is rejected; a recovery-code login is a real second factor. A `start` after a committed confirm sees the cleared flag and gets 409, so the lost update is gone.
-    - Device-token path: `issue` holds the same lock through `verify`. While the flag is set it is rejected before a recovery code is used. After a concurrent confirm it needs the new TOTP or a recovery code. Existing device tokens (`authenticate`, `refresh`) do not read the flag and were already out of scope of the restriction.
-    - Deadlock risk: none found. Every lock-taking path takes the `app_user` row lock first and only then touches `auth_session` / `auth_device` (`deleteExpired`, insert, `deleteOtherSessions`). The paths that lock `auth_session` rows without the account lock (`authenticate`: `touch`, `deleteByTokenHash`; `logout`) never wait for `app_user`. They read it only through a plain join fetch. A restore (`TRUNCATE ... CASCADE`) racing a login could already conflict on table locks before this change, because the login read `app_user` and then wrote `auth_session`. PostgreSQL detects such a deadlock and aborts one side. The fix adds no new lock-order inversion.
-    - Load: the lock is held for the Argon2 password check plus the recovery-code checks. This serializes logins of the single owner. The concurrency is bounded by `LoginThrottle.tryBeginAttempt`, which runs before the lock is taken, so waiting requests cannot use up the connection pool. This is acceptable under the recorded assumption.
-    - Test: `TotpEnrollmentWebTests` "a login whose transaction runs while the confirm runs is ended by the confirm and never gets full access" keeps a login's transaction open after its session is written. It then checks that the confirm blocks (a 500 ms `TimeoutException`), that the login's grant is restricted, that its cookie gets 401 after the confirm, and that one session remains. The `finally` releases the latch before `shutdownNow`, so a failing run does not leave a blocked transaction behind.
-
-Re-checked across the whole diff, no new finding: the crypto envelope (Argon2id with bounded parameters, AES-256-GCM with a fresh nonce and the header as AAD, `WrongPassphraseException` as 422 before the pre-restore backup and the wipe); no `secrets.enc.json` without a passphrase; OAuth `RECONNECT_REQUIRED`; the re-enrollment flag on the restored owner; `fullAccess` authorization; the passphrase `@Pattern` and the OpenAPI schema; the Flyway migration name and location; no secrets in logs or `toString`. The test-writer tests in 741b7735 assert behavior and do not weaken existing tests. The 6fba2352 changes in `LoginServiceThrottleTests` only rename the mocked repository method.
+- First review CR-1 (no web client for the forced re-enrollment): still moved to task `web-totp-reenroll`.
+- First review CR-2 (password-only login): still an accepted assumption, and tests cover it.
+- First review CR-3..CR-7, first re-review CR-1 and CR-2, second re-review CR-1 (P2, concurrent login vs confirm): still fixed. The production code has not changed.
+- Previous review CR-1 (P3, `verify` does not enforce its caller's transaction): **open**, carried over below as CR-1.
+- Previous review CR-2 (P3, no test for the start/confirm serialization): **resolved** by the two new concurrency tests in `TotpEnrollmentWebTests` (see above).
 
 ## P0 Critical
 
@@ -52,22 +75,15 @@ None.
 
 ## P3 Low
 
-- [ ] **CR-1 | `verify` relies on its caller's transaction for the lock, but does not enforce one**
+- [ ] **CR-1 | `verify` relies on its caller's transaction for the lock, but does not enforce one** (carried over from the previous review, still open)
     - File: `server/src/main/kotlin/ch/sonensei/cockpit/core/auth/domain/LoginService.kt:69-83`
     - Category: Quality
-    - Problem: The KDoc says `verify` "joins the caller's transaction", and the fix depends on it: the row lock must last until the caller has written the session or device. But `verify` is annotated `@Transactional` (REQUIRED). A future caller without its own transaction would run `verify` in a transaction of its own and release the lock before the grant is written. That would silently reopen the race that CR-1 of the previous re-review described. Both current callers are correct.
-    - Why it matters: Nothing enforces the invariant, so it is easy to break without noticing. No test would catch it, because the concurrency test goes through `login`.
-    - Suggested fix: Annotate `verify` with `@Transactional(propagation = Propagation.MANDATORY)`, so a caller without a transaction fails immediately. Alternatively, state in the KDoc that the caller must hold a transaction until its grant is written.
-
-- [ ] **CR-2 | The start/confirm serialization has no test**
-    - File: `server/src/test/kotlin/ch/sonensei/cockpit/core/auth/TotpEnrollmentWebTests.kt:509-545` (production: `TotpEnrollmentService.kt:41-48`, `:76-78`)
-    - Category: Tests
-    - Problem: The new concurrency test covers only a login racing the confirm. The second half of the previous CR-1 was a `start` that read the account before a concurrent `confirm` committed and then wrote `totp_reenroll_required = true` back. The fix covers it through the same lock, and the class KDoc promises it, but no test holds a `confirm` transaction open while a `start` runs.
-    - Why it matters: If someone drops the lock from `pendingAccount` (for example, back to `findFirstBy`), the login test still passes as long as `verify` keeps its lock. The start/confirm lost update would then come back unnoticed.
-    - Suggested fix: Add a test in the style of the existing one. Hold a `confirm` (or `start`) inside an open `TransactionTemplate`, run the other operation in a second thread, and assert that it waits. After the release, the late `start` should get a `ConflictException`, the flag should stay `false`, and the confirmed secret should stay unchanged.
+    - Problem: The row lock must last until the caller has written the session or device. `verify` is `@Transactional` with the default propagation (REQUIRED). A future caller without its own transaction would release the lock before it writes its grant, and the login/confirm race would come back. Both current callers (`login`, `DeviceTokenService.issue`) are correct.
+    - Why it matters: Nothing enforces this invariant, so it can break without anyone noticing.
+    - Suggested fix: Use `@Transactional(propagation = Propagation.MANDATORY)` on `verify`, or state the requirement in its KDoc.
 
 ## Review conclusion
 
 No material issues found.
 
-Acceptance criteria 1-3 are implemented in the production code at 6fba2352, and the tests cover them. The previous CR-1 is fixed by the row lock, with correct transaction boundaries on the web-login and device-token paths, and this review found no deadlock risk from the change. The two P3 findings are optional hardening. Criterion 4 (the `./gradlew test --tests 'ch.sonensei.cockpit.backup.*'` run with Testcontainers) and the new concurrency test have to be run by the parent worker. This review did not run them.
+The task's production code is the same as the reviewed revision 56669f1f. The tests added since then are correct, use fictitious data and do not leak secrets. Their concurrency assertions cannot fail just because a run is slow. They close the earlier P3 CR-2. The only open finding is the optional P3 CR-1.
