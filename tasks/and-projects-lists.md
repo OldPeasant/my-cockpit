@@ -5,7 +5,7 @@ owner: dell26/agent-1
 deps: [and-gtd-data]
 touches: [android/app/src/main/java/ch/sonensei/cockpit/gtd/projects,android/app/src/test/java/ch/sonensei/cockpit/gtd/projects,android/app/src/main/java/ch/sonensei/cockpit/gtd/lists,android/app/src/test/java/ch/sonensei/cockpit/gtd/lists]
 prio: 2
-lease_until: 2026-10-21T10:18:04Z
+lease_until: 2026-10-21T10:23:06Z
 ---
 ## Goal
 Remaining GTD screens.
