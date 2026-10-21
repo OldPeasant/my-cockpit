@@ -16,3 +16,4 @@ lease_until: 2026-10-21T03:32:36Z
 - [ ] API documented: `api/openapi.yaml` regenerated (`UPDATE_OPENAPI=1 ./gradlew test --tests '*OpenApiContractTest'`) and `OpenApiContractTest` passes without the flag
 
 ## Notes
+- ASSUMPTION (2026-10-21 05:14+0200 by dell26/agent-5): Convert soft-deletes the task (Trash) rather than hard-deleting it, so it can be restored; the task keeps its own links in the Trash.
