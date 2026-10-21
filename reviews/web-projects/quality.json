@@ -1,0 +1,32 @@
+{
+  "schema": 1,
+  "task": "web-projects",
+  "reviewed_revision": "417409b39bb697627d8a4ce0b660c78eab5cfe09",
+  "helpers": {
+    "test-writer": {"status": "completed", "report": "reviews/web-projects/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/web-projects/review.md"},
+    "fixer": {"status": "completed", "report": "reviews/web-projects/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "retrying a failed add-as-next-step/add-task created a duplicate task; input now clears once the task exists and the prompt offers it"},
+    {"id": "CR-2", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "failure/rollback paths now tested (refused reorder, refused make-next, failed task load + retry, setNextStep failing after create)"},
+    {"id": "CR-3", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "focus moves into the Choose next step prompt when it opens"},
+    {"id": "CR-4", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "unused TaskStore alias provider removed"},
+    {"id": "CR-5", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "list shows 'No open projects.' when all projects are completed or dropped"},
+    {"id": "TW-1", "source": "test-writer", "severity": "Medium", "disposition": "fixed",
+     "note": "Markdown emphasis was applied inside link targets; link hrefs now stay literal"},
+    {"id": "TW-2", "source": "test-writer", "severity": "Medium", "disposition": "fixed",
+     "note": "keyboard reorder moved focus to another task's handle; focus now follows the moved task"}
+  ],
+  "validation": [
+    {"command": "sh scripts/check.sh (includes cd web && npm run check)", "result": "pass"},
+    {"command": "cd web && npm run e2e -- e2e/gtd-projects/projects.spec.ts", "result": "pass"},
+    {"command": "cd web && npm run coverage (task files 99.62% statements, 95.80% branches)", "result": "pass"}
+  ]
+}

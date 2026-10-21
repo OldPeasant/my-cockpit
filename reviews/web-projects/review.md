@@ -4,19 +4,19 @@ Date: 2026-10-21
 
 Task: web-projects - Projects views
 
-Scope: re-review of the final code after fixes. All task commits `c2621889..942dc560` (8 commits). Production code reviewed in full at HEAD 942dc560: `web/src/app/features/gtd/projects/*` (`project-detail-page.ts/.html`, `projects-page.ts/.html`, `project-task-store.ts`, `markdown.ts`, `area-store.ts`, `project-form.*`, `project-groups.ts`, `projects.routes.ts`) and `web/e2e/gtd-projects/projects.spec.ts`. The fix commit d99e65f2 was checked line by line against the earlier findings CR-1 to CR-5 in the previous review and `reviews/web-projects/fixes.md`. Test files were read as far as needed to check how the fixes are covered. Test files committed after 942dc560 by a parallel test-writer are not part of this review.
+Scope: final revision review at HEAD `417409b39bb697627d8a4ce0b660c78eab5cfe09`. Task commits `131583651a38061f536a590dae38436b1eab4257..417409b3` (10 commits, base = `git merge-base HEAD origin/main`). Production code was reviewed in full in the earlier review (then at 942dc560, before the rebase). This pass checked that production code has not changed since then: `git diff 942dc560 HEAD` over `web/src` and `web/e2e` without `*.spec.ts` is empty, and `git diff ab495c67 HEAD` ("fix report" to HEAD) touches only `projects-states.spec.ts`, `project-groups.spec.ts`, `reviews/web-projects/tests.md` and this report. It also reviewed the 7 tests added in 417409b3 against the production code they exercise (`project-detail-page.ts/.html`, `project-form.html`, `project-groups.ts`, `ui/task-row.html`).
 
 Requirements:
 - tasks/web-projects.md acceptance criteria and recorded assumptions
-- SPEC.md §5.2 (stalled rule, "Choose next step"), §5.3 (project list and detail), §9.1 (keyboard-first)
-- docs/ARCHITECTURE.md, AGENTS.md project notes
-- Previous review (CR-1 to CR-5) and reviews/web-projects/fixes.md
+- SPEC.md §5.2, §5.3, §9.1
+- docs/ARCHITECTURE.md, AGENTS.md project notes, docs/QUALITY.md
+- Earlier review of this task (CR-1 to CR-5, all fixed) and reviews/web-projects/fixes.md
 
 Git range:
 - Branch: main
-- HEAD: 942dc560634d5e380ad3d276ca818c98e067df3f
-- Base/start: c262188986aed7f56420943936d30d47069c8524
-- Commits reviewed: 8
+- HEAD: 417409b39bb697627d8a4ce0b660c78eab5cfe09
+- Base/start: 131583651a38061f536a590dae38436b1eab4257
+- Commits reviewed: 10 (no uncommitted changes)
 
 Summary: 0 P0, 0 P1, 0 P2, 0 P3
 
@@ -36,21 +36,21 @@ None.
 
 None.
 
-## Earlier findings, checked again
+## New tests checked (commit 417409b3)
 
-- CR-1 (duplicate task on retry): fixed. `addNext()` (`project-detail-page.ts:161`) and `addTask()` (`:185`) clear their input right after `tasks.create` resolves. `TaskStore.create` calls `accept(task)`, so the new task shows in `openTasks()` and in the prompt's choices. A failing `setNextStep` leaves the prompt open, and the empty input disables the submit button. `projects-states.spec.ts` covers both paths with a rejecting `setProjectNextStep`: `createTask` runs once, and choosing the created task afterwards sets it as the next step.
-- CR-2 (failure-path tests): fixed. `projects-states.spec.ts` covers a refused reorder that restores the order, a refused `makeNext` that keeps the prompt usable, and a failed task load with retry. `project-task-store.spec.ts` covers the store rollback.
-- CR-3 (prompt focus): fixed. `openPrompt()` (`:145`) focuses the first enabled `.choice`, or `#prompt-new`, in `afterNextRender`. Both entry points use it: completing the next step and the "Choose next step" button. The button sits in the `@else` branch and goes away when the prompt opens, so moving the focus is needed there as well. Both focus targets are tested.
-- CR-4 (unused `TaskStore` alias): removed. `providers` now holds only `ProjectTaskStore`.
-- CR-5 (empty text when everything is finished): fixed. `projects-page.html:87-96` shows "No open projects." when `hiddenCount() > 0`, and this is tested.
-- Markdown link fix (`markdown.ts:93-108`): the opening `<a>` tags are swapped for private-use placeholders while emphasis runs. Any placeholder characters already in the input are stripped first. Emphasis therefore cannot change an href or `target="_blank"`. Escaping still happens before link parsing, and only `http(s):` and `mailto:` targets are allowed, so the XSS safety from the first review is unchanged. The `ANCHOR\d+ANCHOR` placeholder ends with a delimiter, so labels that start with digits still resolve correctly.
-- Keyboard reorder focus (`key()`, `:202`): the code now refocuses `event.currentTarget` in `afterNextRender`. Rows are tracked by `task.id`, so the handle element is the same one after re-rendering. This is correct.
+- `statusLabel` unknown status: `project-groups.ts:15` falls back to the raw value (`?? status`). The test asserts this fallback.
+- List inline-edit cancel and detail edit-form cancel: the Cancel button in `project-form.html:68` emits `cancelled`. The tests check that the form closes, that `updateProject` is never called and that the shown title is unchanged. The detail test selects `app-project-form button.quiet`, which is only the form's Cancel button because the submit button is `.primary`.
+- Tasks loading state: the test holds `listTasks` open with a deferred promise. It checks that the project header renders, that "Loading…" (`project-detail-page.html:184`) shows and that `.tasks` is absent, then resolves the request and checks the ordered titles.
+- Double submit of "Add task" and "Add as next step": the second submit is dispatched straight on the form while `createTask` is still pending. The input still holds its text at that point, so only the `run()` busy guard (`project-detail-page.ts:271`) can stop a second create. The tests would fail without that guard. "Add as next step" also asserts that exactly one `setProjectNextStep` is sent, with the created task id.
+- Completing the next step twice: `task-row.html:8` emits `toggleDone` on every click (it has no disabled binding), so both clicks reach `complete()` and the busy guard is what is tested. The test asserts one `completeTask` call and one prompt.
+
+The assertions check user-visible behavior and the requests sent, not internals. The deferred promises are resolved inside each test, so no request is left pending.
 
 ## Notes (not findings)
 
-- `python tasks.py verify web-projects` still shows all 4 criteria as unrecorded at the time of this review. The parent worker must record evidence before `done`.
-- `fixes.md` states that the fixer did not re-run the e2e spec. The fix commit changed `project-detail-page.ts/.html`, which criterion 4 exercises. Criterion 4 needs a fresh `npm run e2e -- e2e/gtd-projects/projects.spec.ts` run against the e2e stack at the final revision before it can be marked verified. I did not run the unit, e2e or `npm run check` suites for this review: I had only read-only access.
-- Mouse drag (`drop()`) still runs in no test. It forwards to the same `move()` as the tested arrow-key path, so the risk is low.
+- `reviews/web-projects/tests.md` still names the pre-rebase hashes (base c2621889, HEAD 942dc560, fix d99e65f2). Production code is identical to the current tree (checked above), so its coverage numbers still apply to HEAD. The parent should note the rebase mapping in `quality.json`.
+- `python tasks.py verify web-projects` shows criteria 1, 2 and 4 recorded and criterion 3 (`npm run check`) still unrecorded. The parent must record it before `done`.
+- I did not run the test suites for this review: I had read-only access.
 
 ## Review conclusion
 
