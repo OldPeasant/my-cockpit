@@ -73,13 +73,14 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import ch.sonensei.cockpit.R
 import ch.sonensei.cockpit.ui.PlaceholderScreen
 import dagger.hilt.internal.GeneratedComponentManagerHolder
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.filterNotNull
 import java.time.Clock
 import java.time.Instant
 import java.time.LocalDate
@@ -108,11 +109,15 @@ fun CalendarScreen(modifier: Modifier = Modifier) {
 fun CalendarRoute(
     modifier: Modifier = Modifier,
     onOpen: (Occurrence) -> Unit = {},
+    viewModel: CalendarViewModel = hiltViewModel(),
 ) {
-    val viewModel: CalendarViewModel = hiltViewModel()
     val state by viewModel.uiState.collectAsStateWithLifecycle()
-    // Reloaded each time the screen is shown, so events changed on the web or another device appear.
-    LaunchedEffect(Unit) { viewModel.refresh() }
+    // Reloaded each time the screen is shown or the app comes back to it (also on a later day, so "today" moves on),
+    // so events changed on the web or another device appear. The first resume is the first load.
+    LifecycleResumeEffect(viewModel) {
+        viewModel.refresh()
+        onPauseOrDispose {}
+    }
     CalendarContent(
         state = state,
         callbacks =
@@ -343,17 +348,29 @@ private fun Agenda(
     val items = remember(days) { days.flatMap { day -> listOf(AgendaItem.Header(day.date)) + day.entries.map { AgendaItem.Entry(it) } } }
     val listState = rememberLazyListState()
     val loadMore by rememberUpdatedState(callbacks.loadMore)
-    // Infinite scroll: near the end of a list that can scroll, the next range loads by itself. A list that does not
-    // fill the screen (few events) loads more only on request, so an empty calendar does not load day after day.
+    val busy by rememberUpdatedState(state.loading || state.loadingMore || !state.loaded)
+    val rangeStart by rememberUpdatedState(state.from)
+    // Infinite scroll: near the end of a list that can scroll, the next range loads by itself, once for each length of
+    // the list. So it loads again when the days loaded last are reached, even if they added only a few entries, but a
+    // range without events (same length) does not load range after range by itself: the footer still offers more. A
+    // list that does not fill the screen (few events) loads more only on request, so an empty calendar does not load
+    // day after day. While a load runs nothing is asked for, so a request is not lost to a view model that ignores it.
     LaunchedEffect(listState) {
         snapshotFlow {
             val info = listState.layoutInfo
             val last = info.visibleItemsInfo.lastOrNull()?.index ?: -1
             val scrollable = listState.canScrollForward || listState.canScrollBackward
-            scrollable && info.totalItemsCount > 0 && last >= info.totalItemsCount - LOAD_AHEAD_ITEMS
-        }.distinctUntilChanged()
-            .filter { it }
+            val nearEnd = scrollable && info.totalItemsCount > 0 && last >= info.totalItemsCount - LOAD_AHEAD_ITEMS
+            if (nearEnd && !busy) rangeStart to info.totalItemsCount else null
+        }.filterNotNull()
+            .distinctUntilChanged()
             .collect { loadMore() }
+    }
+    // Before the first days arrive only the footer is shown, and the list would keep it in place when the days are
+    // inserted above it, opening the agenda scrolled past today. So the agenda starts at its first day.
+    val hasItems = items.isNotEmpty()
+    LaunchedEffect(state.from, hasItems) {
+        if (hasItems) listState.scrollToItem(0)
     }
     val locale = currentLocale()
     LazyColumn(Modifier.fillMaxSize().testTag(CalendarTags.AGENDA), state = listState, contentPadding = PaddingValues(bottom = 24.dp)) {

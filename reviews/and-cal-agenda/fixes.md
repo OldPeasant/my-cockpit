@@ -88,6 +88,69 @@ Lint/type-check/build:
 Remaining unresolved findings:
 1 (CR-2, out of scope, deferred to and-cal-cache)
 
+Round 1 status: All validated findings fixed and validation passed.
+
+## Round 2 (HEAD 0181c227, base 13770a5c)
+
+Scope: TW-1 of `reviews/and-cal-agenda/tests.md` and CR-1 of the re-review `reviews/and-cal-agenda/review.md`, as supplied by the parent worker. Changes limited to `android/app/src/{main,test}/java/ch/sonensei/cockpit/calendar/agenda`.
+
+### Fixed findings
+
+#### TW-1 — The agenda does not load later days again after a range with few events
+
+Files changed:
+- `android/app/src/main/java/ch/sonensei/cockpit/calendar/agenda/CalendarScreen.kt`
+- `android/app/src/test/java/ch/sonensei/cockpit/calendar/agenda/CalendarAgendaInfiniteScrollTest.kt`
+
+Problem:
+The infinite-scroll trigger in `Agenda` fired only when the "near the end" flag flipped from false to true. A range that added fewer than about 5 items left the flag true, so the next end was never loaded. A trigger ignored by `CalendarViewModel.loadMore` (a load running) was lost the same way.
+
+Fix:
+- The `snapshotFlow` now emits a key, `state.from` paired with `layoutInfo.totalItemsCount`, while the list can scroll, its end is near, and nothing is loading (`loading`, `loadingMore`, or not `loaded` yet; read through `rememberUpdatedState`). Otherwise it emits `null`. The flow is `filterNotNull().distinctUntilChanged()`, so a request goes out once per length of the list.
+- Effects: a range that adds items, even a few, fires again while the end is still near. A trigger is no longer sent while a load runs, so it can't be lost; the request goes out when the load ends. A range without events leaves the length unchanged, so the agenda stops loading by itself, and the footer's "more" button still works. A list that does not fill the screen still never loads by itself (the `scrollable` condition is unchanged).
+- The test class keeps both existing tests unchanged in what they assert. Its host state moved to a class property so tests can change it. New tests: `a range without events does not make the agenda load range after range by itself` (exactly 1 load after two scrolls to the end), `later days that arrive after a while near the end load the next days again` (asynchronous answer like the view model: 2 loads), and `the end reached while the agenda reloads asks for later days once the reload is done` (0 loads while `loading`, 1 once it ends).
+
+Validation:
+- `cd android && ./gradlew ktlintCheck testDebugUnitTest --tests 'ch.sonensei.cockpit.calendar.agenda.*' lintDebug` (run by the parent worker) — Pass for all `CalendarAgendaInfiniteScrollTest` tests; ktlintCheck and lintDebug pass
+
+#### CR-1 — "Today" and the agenda go stale when the app resumes on a later day
+
+Files changed:
+- `android/app/src/main/java/ch/sonensei/cockpit/calendar/agenda/CalendarScreen.kt`
+- `android/app/src/test/java/ch/sonensei/cockpit/calendar/agenda/CalendarRouteResumeTest.kt` (new)
+
+Problem:
+`CalendarRoute` called `refresh()` only from `LaunchedEffect(Unit)`. An agenda left open in the background and resumed on a later day kept the old "today" and range.
+
+Fix:
+- `LaunchedEffect(Unit) { viewModel.refresh() }` was replaced by `LifecycleResumeEffect(viewModel) { viewModel.refresh(); onPauseOrDispose {} }`, the pattern used in `reminders/ReminderPermissionPrompt.kt`. The effect also runs on the first resume, so the first showing still loads exactly once (no double load). The existing `refresh()` already moves an agenda to the new today when the day changed.
+- `CalendarRoute` takes `viewModel: CalendarViewModel = hiltViewModel()` as its last parameter, like `ReminderPermissionPrompt`, so a test can pass a view model. The only caller (`CalendarScreen`) is unchanged.
+- New Robolectric/Compose test `CalendarRouteResumeTest`: it provides a `LifecycleOwner` with a `LifecycleRegistry` through `LocalLifecycleOwner` and uses a movable clock and a mocked `CalendarRepository`. It asserts exactly one load of [today, today+30) and none starting at tomorrow on the first showing, then moves the lifecycle to CREATED, moves the clock to the next morning, and resumes. (A first version asserted exactly one occurrences call of any range, and failed: with the end of the short agenda in view, the infinite scroll legitimately loaded [2026-11-20, 2026-12-20) as well. The assertion was narrowed to the refresh's range; production behavior was not changed for it.) It then asserts the load of [tomorrow, tomorrow+30), `today`/`from` == tomorrow, the "Today" header on the new day, and that the old day is gone.
+
+Validation:
+- `cd android && ./gradlew ktlintCheck testDebugUnitTest --tests 'ch.sonensei.cockpit.calendar.agenda.*' lintDebug` (run by the parent worker, first version of the test) — Fail: `CalendarRouteResumeTest` found 2 occurrences calls instead of 1 (the extra one was the legitimate infinite-scroll load); the assertion was narrowed as described above. Re-run with the narrowed assertion pending
+
+### Not fixed
+
+None in this round.
+
+### Validation summary
+
+Focused tests:
+- The fixer could not run Gradle (Bash denied); the parent worker ran `cd android && ./gradlew ktlintCheck testDebugUnitTest --tests 'ch.sonensei.cockpit.calendar.agenda.*' lintDebug` — 94 tests, 93 passed, 1 failed (`CalendarRouteResumeTest`, the over-broad assertion described under CR-1, since narrowed in the test only). Re-run with the narrowed assertion pending.
+
+Full test suite:
+- Not run (`sh scripts/check.sh` is left to the parent worker)
+
+Lint/type-check/build:
+- ktlintCheck — Pass; lintDebug — Pass (parent worker's run above)
+
+`.taskcheck`:
+- Not run
+
+Remaining unresolved findings:
+1 (CR-2 of round 1, out of scope, deferred to and-cal-cache)
+
 ## Final status
 
-All validated findings fixed and validation passed.
+All validated findings of both rounds are fixed in code. Round 2: 93 of 94 agenda tests, ktlintCheck and lintDebug passed in the parent worker's run. The one failure was an over-broad assertion in the new `CalendarRouteResumeTest`, now narrowed; the parent worker's re-run is pending.
