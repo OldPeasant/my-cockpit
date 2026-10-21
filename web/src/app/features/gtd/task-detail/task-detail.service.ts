@@ -3,9 +3,12 @@ import { inject, Injectable } from '@angular/core';
 import {
   Api,
   ChecklistItemResponse,
+  convertTaskToEvent,
   convertTaskToNote,
+  ConvertToEventRequest,
   createChecklistItem,
   deleteChecklistItem,
+  EventResponse,
   getTask,
   listChecklistItems,
   moveTask,
@@ -53,6 +56,15 @@ export class TaskDetailService {
     return this.api.invoke(
       convertTaskToNote,
       { id: task.id, 'If-Match': etag(task.version) },
+      silent(),
+    );
+  }
+
+  /** Moves the task to the calendar: it becomes an event, the task goes to the Trash. */
+  convertToEvent(task: TaskResponse, body: ConvertToEventRequest): Promise<EventResponse> {
+    return this.api.invoke(
+      convertTaskToEvent,
+      { id: task.id, 'If-Match': etag(task.version), body },
       silent(),
     );
   }

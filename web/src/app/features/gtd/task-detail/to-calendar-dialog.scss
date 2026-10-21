@@ -1,0 +1,64 @@
+:host {
+  display: block;
+}
+
+.to-calendar mat-dialog-content {
+  display: grid;
+  gap: var(--app-space-3);
+  width: min(30rem, 100%);
+}
+
+.subject {
+  display: grid;
+  gap: var(--app-space-1);
+  margin: 0;
+  color: var(--mat-sys-on-surface-variant);
+}
+
+.warning,
+.error {
+  color: var(--mat-sys-error);
+}
+
+.wide {
+  width: 100%;
+}
+
+.when {
+  display: grid;
+  gap: var(--app-space-2);
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.when-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+  gap: var(--app-space-2);
+
+  &.all-day {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.note,
+.error,
+.banner p {
+  margin: 0;
+}
+
+.note {
+  font: var(--mat-sys-body-small);
+  color: var(--mat-sys-on-surface-variant);
+}
+
+.banner {
+  display: grid;
+  gap: var(--app-space-2);
+  padding: var(--app-space-2) var(--app-space-3);
+  border-radius: var(--mat-sys-corner-small, 0.5rem);
+  background: var(--mat-sys-error-container);
+  color: var(--mat-sys-on-error-container);
+  justify-items: start;
+}

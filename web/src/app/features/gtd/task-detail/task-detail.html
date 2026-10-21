@@ -48,9 +48,21 @@
             type="button"
             class="quiet reference"
             [disabled]="saving() || converting()"
+            (click)="toCalendar()"
+          >
+            @if (converting() === 'event') {
+              <ng-container i18n="@@taskDetail.calendaring">Moving to the calendar…</ng-container>
+            } @else {
+              <ng-container i18n="@@taskDetail.calendar">To calendar (event)</ng-container>
+            }
+          </button>
+          <button
+            type="button"
+            class="quiet"
+            [disabled]="saving() || converting()"
             (click)="toReference()"
           >
-            @if (converting()) {
+            @if (converting() === 'note') {
               <ng-container i18n="@@taskDetail.referencing">Moving to reference…</ng-container>
             } @else {
               <ng-container i18n="@@taskDetail.reference">To reference (note)</ng-container>

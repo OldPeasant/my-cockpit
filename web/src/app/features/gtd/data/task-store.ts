@@ -2,10 +2,13 @@ import { Injectable } from '@angular/core';
 import {
   completeTask,
   CompletedTaskResponse,
+  convertTaskToEvent,
   convertTaskToNote,
+  ConvertToEventRequest,
   createTask,
   CreateTaskRequest,
   deleteTask,
+  EventResponse,
   listTasks,
   ListTasks$Params,
   moveTask,
@@ -135,6 +138,23 @@ export class TaskStore extends ListStore<TaskResponse, TaskQuery> {
       },
     );
     return note!;
+  }
+
+  /** Moves `task` to the calendar: the server turns it into an event and trashes the task. */
+  async convertToEvent(task: TaskResponse, body: ConvertToEventRequest): Promise<EventResponse> {
+    let event: EventResponse | undefined;
+    await this.mutate(
+      task.id,
+      () => undefined,
+      async () => {
+        event = await this.api.invoke(convertTaskToEvent, {
+          id: task.id,
+          'If-Match': this.ifMatch(task),
+          body,
+        });
+      },
+    );
+    return event!;
   }
 
   protected async fetch(query: TaskQuery): Promise<TaskResponse[]> {

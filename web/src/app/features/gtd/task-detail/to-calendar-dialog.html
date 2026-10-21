@@ -1,0 +1,87 @@
+<h2 mat-dialog-title i18n="@@toCalendar.title">Move to the calendar</h2>
+
+<form class="to-calendar" [formGroup]="form" (ngSubmit)="submit()">
+  <mat-dialog-content>
+    <p class="subject">
+      <span i18n="@@toCalendar.subject">“{{ data.title }}” becomes an event; the task goes to the Trash.</span>
+      @if (data.unsaved) {
+        <span class="warning" i18n="@@toCalendar.unsaved"
+          >Your unsaved changes are discarded: the event gets the saved version.</span
+        >
+      }
+    </p>
+
+    @if (targets().length > 0) {
+      <mat-form-field class="wide" subscriptSizing="dynamic">
+        <mat-label i18n="@@toCalendar.calendar">Calendar</mat-label>
+        <mat-select formControlName="calendarId">
+          @for (calendar of targets(); track calendar.id) {
+            <mat-option [value]="calendar.id">{{ calendar.name }}</mat-option>
+          }
+        </mat-select>
+      </mat-form-field>
+    } @else if (calendars.error()) {
+      <div class="banner" role="alert">
+        <p i18n="@@toCalendar.loadFailed">The calendars could not be loaded.</p>
+        <button mat-stroked-button type="button" (click)="retryCalendars()" i18n="@@toCalendar.retry">
+          Try again
+        </button>
+      </div>
+    } @else if (calendars.loaded()) {
+      <p class="banner" role="alert" i18n="@@toCalendar.noCalendar">
+        There is no calendar to add events to.
+      </p>
+    } @else {
+      <p class="note" role="status" i18n="@@toCalendar.loading">Loading the calendars…</p>
+    }
+
+    <fieldset class="when">
+      <legend class="visually-hidden" i18n="@@toCalendar.when">When</legend>
+      <mat-checkbox formControlName="allDay" i18n="@@toCalendar.allDay">All day</mat-checkbox>
+      <div class="when-grid" [class.all-day]="allDay()">
+        <mat-form-field subscriptSizing="dynamic">
+          <mat-label i18n="@@toCalendar.startDate">Starts</mat-label>
+          <input matInput type="date" formControlName="startDate" (input)="timesChanged()" />
+        </mat-form-field>
+        @if (!allDay()) {
+          <mat-form-field subscriptSizing="dynamic">
+            <mat-label i18n="@@toCalendar.startTime">Start time</mat-label>
+            <input matInput type="time" formControlName="startTime" (input)="timesChanged()" />
+          </mat-form-field>
+        }
+        <mat-form-field subscriptSizing="dynamic">
+          <mat-label i18n="@@toCalendar.endDate">Ends</mat-label>
+          <input matInput type="date" formControlName="endDate" (input)="timesChanged()" />
+        </mat-form-field>
+        @if (!allDay()) {
+          <mat-form-field subscriptSizing="dynamic">
+            <mat-label i18n="@@toCalendar.endTime">End time</mat-label>
+            <input matInput type="time" formControlName="endTime" (input)="timesChanged()" />
+          </mat-form-field>
+        }
+      </div>
+      @if (invalidTimes()) {
+        <p class="error" role="alert" i18n="@@toCalendar.endBeforeStart">
+          The event must end after it starts.
+        </p>
+      }
+      @if (!allDay()) {
+        <p class="note" i18n="@@toCalendar.zone">Times in {{ timeZone() }}</p>
+      }
+    </fieldset>
+  </mat-dialog-content>
+
+  <mat-dialog-actions align="end">
+    <button mat-button type="button" [mat-dialog-close]="undefined" i18n="@@toCalendar.cancel">
+      Cancel
+    </button>
+    <button
+      mat-flat-button
+      type="submit"
+      [disabled]="targets().length === 0"
+      i18n="@@toCalendar.confirm"
+    >
+      Move to calendar
+    </button>
+  </mat-dialog-actions>
+</form>

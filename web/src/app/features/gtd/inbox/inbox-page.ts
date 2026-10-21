@@ -9,10 +9,19 @@ import {
   signal,
   viewChild,
 } from '@angular/core';
+import { MatDialog } from '@angular/material/dialog';
 import { Router, RouterLink } from '@angular/router';
-import { MoveTaskRequest, NoteResponse, TaskResponse } from '../../../api/generated';
+import {
+  ConvertToEventRequest,
+  EventResponse,
+  MoveTaskRequest,
+  NoteResponse,
+  TaskResponse,
+} from '../../../api/generated';
 import { isTypingTarget } from '../../../shell/hotkeys';
+import { wallClockOf } from '../../calendar/edit/event-times';
 import { addDays, ContextStore, localDate, ProjectStore, TaskStore } from '../data';
+import { askForCalendar } from '../task-detail/to-calendar-dialog';
 import { ContextChips, CreativityPicker, EnergyPicker, EstimatePicker, TaskRow } from '../ui';
 import {
   actionForKey,
@@ -47,6 +56,7 @@ export class InboxPage {
   protected readonly contexts = inject(ContextStore);
   protected readonly projects = inject(ProjectStore);
   private readonly router = inject(Router);
+  private readonly dialog = inject(MatDialog);
 
   protected readonly groups = INBOX_ACTION_GROUPS;
   protected readonly newProject = NEW_PROJECT;
@@ -59,6 +69,10 @@ export class InboxPage {
   protected readonly processed = signal(0);
   /** The note the last "To reference" created, offered to open. */
   protected readonly lastNote = signal<NoteResponse | null>(null);
+  /** The event the last "To calendar" created, offered to open in the calendar on its day. */
+  protected readonly lastEvent = signal<MovedEvent | null>(null);
+  /** The item whose "To calendar" dialog is open: the dialog owns the keys meanwhile. */
+  private readonly asking = signal<string | null>(null);
 
   /** The items still to process, in Inbox order. */
   protected readonly queue = computed(() =>
@@ -93,7 +107,7 @@ export class InboxPage {
    * offers that project instead of creating a second one.
    */
   private readonly createdProjects = new Map<string, string>();
-  /** Counts actions: only the latest may set or clear {@link lastNote}. */
+  /** Counts actions: only the latest may set or clear {@link lastNote} and {@link lastEvent}. */
   private runSeq = 0;
   /** The action waiting for its value (a date, a person, a project), if any. */
   protected readonly prompt = linkedSignal<string | undefined, PromptAction | null>({
@@ -135,6 +149,7 @@ export class InboxPage {
   protected startProcessing(): void {
     this.processed.set(0);
     this.lastNote.set(null);
+    this.lastEvent.set(null);
     this.processing.set(true);
   }
 
@@ -163,6 +178,10 @@ export class InboxPage {
   protected choose(action: InboxAction): void {
     const task = this.current();
     if (!task) return;
+    if (action === 'calendar') {
+      void this.toCalendar(task);
+      return;
+    }
     if (!isPromptAction(action)) {
       void this.run(action);
       return;
@@ -190,6 +209,21 @@ export class InboxPage {
     this.prompt.set(null);
   }
 
+  /** Asks for the calendar and times, then converts `task` (if it is still the current item). */
+  private async toCalendar(task: TaskResponse): Promise<void> {
+    if (this.asking()) return;
+    this.asking.set(task.id);
+    let request: ConvertToEventRequest | undefined;
+    try {
+      request = await askForCalendar(this.dialog, { title: task.title });
+    } finally {
+      this.asking.set(null);
+    }
+    // Processing stopped, or the item left the Inbox (elsewhere) while the dialog was open.
+    if (!request || !this.processing() || this.current()?.id !== task.id) return;
+    void this.run('calendar', request);
+  }
+
   protected onKeydown(event: KeyboardEvent): void {
     if (event.defaultPrevented || event.isComposing || event.repeat) return;
     if (event.ctrlKey || event.metaKey || event.altKey) return;
@@ -211,7 +245,7 @@ export class InboxPage {
       }
       return;
     }
-    if (this.prompt()) return;
+    if (this.prompt() || this.asking()) return;
     const action = actionForKey(event.key);
     if (action && this.current()) {
       event.preventDefault();
@@ -223,7 +257,7 @@ export class InboxPage {
    * Saves the inline attributes (if changed), then runs the action. The item leaves the queue at
    * once; if the server refuses, it comes back (the error is shown by the HTTP layer).
    */
-  private async run(action: InboxAction): Promise<void> {
+  private async run(action: InboxAction, toEvent?: ConvertToEventRequest): Promise<void> {
     const task = this.current();
     if (!task) return;
     const changes = this.changes();
@@ -237,18 +271,25 @@ export class InboxPage {
     this.busy.update((ids) => new Set(ids).add(task.id));
     try {
       let note: NoteResponse | null = null;
+      let event: MovedEvent | null = null;
       if (action === 'trash') {
         await this.tasks.remove(task);
       } else if (action === 'reference') {
         // A note has no GTD attributes: the inline changes are not saved.
         note = await this.tasks.convertToNote(task);
+      } else if (action === 'calendar' && toEvent) {
+        // An event has no GTD attributes either: the inline changes are not saved.
+        event = movedEvent(await this.tasks.convertToEvent(task, toEvent));
       } else {
         const patch = clarificationPatch(task, { ...clarificationOf(task), ...changes });
         const base = Object.keys(patch).length ? await this.tasks.update(task, patch) : task;
         await this.apply(action, base, value);
       }
-      // The "Moved to reference" status describes only the latest action, whatever answers last.
-      if (seq === this.runSeq) this.lastNote.set(note);
+      // The "Moved to ..." status describes only the latest action, whatever answers last.
+      if (seq === this.runSeq) {
+        this.lastNote.set(note);
+        this.lastEvent.set(event);
+      }
       this.processed.update((count) => count + 1);
     } catch {
       // Rolled back by the store; the HTTP layer shows the error.
@@ -304,6 +345,25 @@ export class InboxPage {
         return;
     }
   }
+}
+
+/** An event created from an inbox item, as the status line shows it. */
+interface MovedEvent {
+  readonly title: string;
+  /** The day (`yyyy-MM-dd`) it starts on, on its own clocks: the calendar opens there. */
+  readonly date: string;
+}
+
+function movedEvent(event: EventResponse): MovedEvent {
+  const date =
+    event.allDay || !event.start
+      ? (event.startDate ?? localDate())
+      : wallClockOf(event.start, event.timeZone ?? localZone()).date;
+  return { title: event.title, date };
+}
+
+function localZone(): string {
+  return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
 }
 
 function ignore(): void {

@@ -11,12 +11,14 @@ import {
   untracked,
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { Router } from '@angular/router';
+import { MatDialog } from '@angular/material/dialog';
+import { Params, Router } from '@angular/router';
 import { filter } from 'rxjs';
-import { ItemRefDto, TaskResponse } from '../../../api/generated';
+import { EventResponse, ItemRefDto, TaskResponse } from '../../../api/generated';
 import { ChangeEventsService } from '../../../core/events';
 import { ApiError } from '../../../core/http';
 import { LinkedItems } from '../../../shared/links';
+import { wallClockOf } from '../../calendar/edit/event-times';
 import { ContextStore, localDate, ProjectStore } from '../data';
 import {
   ContextChips,
@@ -46,6 +48,7 @@ import {
 } from './task-draft';
 import { TaskChecklist } from './task-checklist';
 import { TaskDetailService } from './task-detail.service';
+import { askForCalendar } from './to-calendar-dialog';
 
 /** The lists a task can be on, in GTD order. */
 export const LIST_OPTIONS: readonly { readonly value: TaskListName; readonly label: string }[] = [
@@ -92,6 +95,7 @@ export class TaskDetail {
   protected readonly contexts = inject(ContextStore);
   private readonly projects = inject(ProjectStore);
   private readonly router = inject(Router);
+  private readonly dialog = inject(MatDialog);
 
   readonly taskId = input.required<string>();
   /** The user closed the editor (after confirming to drop unsaved changes). */
@@ -108,10 +112,16 @@ export class TaskDetail {
   protected readonly task = signal<TaskResponse | null>(null);
   protected readonly draft = signal<TaskDraft | null>(null);
   protected readonly saving = signal(false);
-  /** The task whose "To reference" is running, if any. */
-  private readonly convertingId = signal<string | null>(null);
-  /** "To reference" is running for the task shown: another task the editor switched to is free. */
-  protected readonly converting = computed(() => this.convertingId() === this.taskId());
+  /** The task whose "To reference" or "To calendar" is running, if any, and what it becomes. */
+  private readonly conversion = signal<{ id: string; to: ConversionTarget } | null>(null);
+  /**
+   * What the task shown is turning into (`null`: nothing runs for it; another task the editor
+   * switched to is free).
+   */
+  protected readonly converting = computed<ConversionTarget | null>(() => {
+    const conversion = this.conversion();
+    return conversion?.id === this.taskId() ? conversion.to : null;
+  });
   /** The task met a newer version on the server and was reloaded. */
   protected readonly conflict = signal(false);
   /** The last save error other than a conflict or field errors. */
@@ -162,7 +172,7 @@ export class TaskDetail {
       .subscribe((event) => {
         if (event.op === 'DELETED') this.state.set('deleted');
         // Someone else changed it: show the new version unless the user is editing or the task
-        // is turning into a note.
+        // is turning into a note or an event.
         else if (!this.dirty() && !this.saving() && !this.converting()) {
           void this.load(this.taskId(), 'background');
         }
@@ -251,19 +261,49 @@ export class TaskDetail {
     const task = this.task();
     if (!task || this.saving() || this.converting()) return;
     if (!confirm(this.dirty() ? REFERENCE_DIRTY_CONFIRM : REFERENCE_CONFIRM)) return;
-    this.convertingId.set(task.id);
+    await this.convert(task, 'note', async () => {
+      const note = await this.service.convertToNote(task);
+      return { commands: ['/notes', note.id] };
+    });
+  }
+
+  /**
+   * Moves the task to the calendar: a dialog asks for the calendar and the times, the server turns
+   * the task into that event (title, notes, links) and trashes the task; then the calendar opens on
+   * the event's day. The dialog says that unsaved changes are not part of the event.
+   */
+  async toCalendar(): Promise<void> {
+    const task = this.task();
+    if (!task || this.saving() || this.converting()) return;
+    const request = await askForCalendar(this.dialog, { title: task.title, unsaved: this.dirty() });
+    // Cancelled, or the editor moved on (another task, a save) while the dialog was open.
+    if (!request || task.id !== this.taskId() || this.saving() || this.converting()) return;
+    await this.convert(task, 'event', async () => {
+      const event = await this.service.convertToEvent(this.task() ?? task, request);
+      return { commands: ['/calendar'], queryParams: { date: eventDate(event) } };
+    });
+  }
+
+  /** Runs a conversion of `task`, then opens what it became (unless the editor switched tasks). */
+  private async convert(
+    task: TaskResponse,
+    to: ConversionTarget,
+    run: () => Promise<{ commands: unknown[]; queryParams?: Params }>,
+  ): Promise<void> {
+    this.conversion.set({ id: task.id, to });
     this.saveError.set(null);
     this.conflict.set(false);
-    // A background reload would replace the form while it turns into a note.
+    // A background reload would replace the form while the task turns into something else.
     this.loadSeq++;
     try {
-      const note = await this.service.convertToNote(task);
+      const target = await run();
       // The editor switched to another task meanwhile: the conversion stays done, the screen is not ours.
-      if (task.id === this.taskId()) void this.router.navigate(['/notes', note.id]);
+      if (task.id !== this.taskId()) return;
+      void this.router.navigate(target.commands, { queryParams: target.queryParams });
     } catch (error) {
       if (task.id === this.taskId()) await this.failed(error);
     } finally {
-      if (this.convertingId() === task.id) this.convertingId.set(null);
+      if (this.conversion()?.id === task.id) this.conversion.set(null);
     }
   }
 
@@ -364,6 +404,19 @@ export class TaskDetail {
     clearTimeout(this.savedTimer);
     this.savedTimer = setTimeout(() => this.saved.set(false), 2500);
   }
+}
+
+/** What a task can be converted into. */
+type ConversionTarget = 'note' | 'event';
+
+/** The day (`yyyy-MM-dd`) `event` starts on, on its own clocks. */
+function eventDate(event: EventResponse): string {
+  if (event.allDay || !event.start) return event.startDate ?? localDate();
+  return wallClockOf(event.start, event.timeZone ?? localZone()).date;
+}
+
+function localZone(): string {
+  return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
 }
 
 const REFERENCE_CONFIRM = $localize`:@@taskDetail.referenceConfirm:Move this task to reference? It becomes a note and the task goes to the Trash.`;

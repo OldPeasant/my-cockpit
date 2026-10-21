@@ -72,6 +72,18 @@
         >
         <a [routerLink]="['/notes', note.id]" i18n="@@inbox.openNote">Open note</a>
       </p>
+    } @else if (lastEvent(); as event) {
+      <p class="moved" role="status">
+        <span i18n="@@inbox.calendared"
+          >Moved to the calendar as the event “{{ event.title }}”.</span
+        >
+        <a
+          [routerLink]="['/calendar']"
+          [queryParams]="{ date: event.date }"
+          i18n="@@inbox.openCalendar"
+          >Open calendar</a
+        >
+      </p>
     }
 
     @if (current(); as task) {
@@ -198,8 +210,7 @@
                     type="button"
                     class="action"
                     [class.trash]="info.action === 'trash'"
-                    [disabled]="info.disabled"
-                    [attr.aria-keyshortcuts]="info.disabled ? null : info.key"
+                    [attr.aria-keyshortcuts]="info.key"
                     (click)="choose(info.action)"
                   >
                     <span>{{ info.label }}</span>

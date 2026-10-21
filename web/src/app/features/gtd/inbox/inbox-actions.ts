@@ -24,8 +24,6 @@ export interface InboxActionInfo {
   readonly key: string;
   /** `KeyboardEvent.key` values (lower case) that run the action. */
   readonly keys: readonly string[];
-  /** Not available yet (converting to events comes with a later task). */
-  readonly disabled?: boolean;
 }
 
 /** A group of actions, in the order of the GTD decision: act on it, defer it, or send it elsewhere. */
@@ -96,7 +94,6 @@ export const INBOX_ACTION_GROUPS: readonly InboxActionGroup[] = [
         label: $localize`:@@inbox.action.calendar:To calendar`,
         key: 'C',
         keys: ['c'],
-        disabled: true,
       },
       {
         action: 'trash',
@@ -114,11 +111,10 @@ export function isPromptAction(action: InboxAction): action is PromptAction {
   return ['waiting', 'schedule', 'tickler', 'project'].includes(action);
 }
 
-/** The enabled action of a key press (without modifiers), or `null`. */
+/** The action of a key press (without modifiers), or `null`. */
 export function actionForKey(key: string): InboxAction | null {
   const lower = key.toLowerCase();
-  const info = ALL_ACTIONS.find((candidate) => candidate.keys.includes(lower));
-  return info && !info.disabled ? info.action : null;
+  return ALL_ACTIONS.find((candidate) => candidate.keys.includes(lower))?.action ?? null;
 }
 
 /** The attributes set inline while processing an item, before its action. */
