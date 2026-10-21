@@ -5,7 +5,7 @@ owner: dell26/agent-5
 deps: [notes-api,gtd-capture-api]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/gtd/convert,server/src/test/kotlin/ch/sonensei/cockpit/gtd/convert]
 prio: 2
-lease_until: 2026-10-21T04:17:54Z
+lease_until: 2026-10-21T04:22:57Z
 ---
 ## Goal
 'Move to reference' converts a task into a note (SPEC.md §5.1).
