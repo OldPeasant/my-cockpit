@@ -1,11 +1,13 @@
 ---
 title: Phase 3 demo script (emulator)
-status: in_progress
-owner: dell26/agent-1
+status: todo
+owner: 
 deps: [and-share-target,and-capture-entrypoints,and-inbox,and-next-today,and-projects-lists,and-reminders,and-notes,p2-smoke]
 touches: [android/app/src/androidTest,android/app/build.gradle.kts]
 prio: 1
-lease_until: 2026-10-21T12:57:45Z
+lease_until: 
+releases: 1
+extended: 
 ---
 ## Goal
 Automate SPEC.md §13.2 Phase 3 where an emulator allows.
@@ -19,3 +21,4 @@ Automate SPEC.md §13.2 Phase 3 where an emulator allows.
 - ASSUMPTION (2026-10-21 13:54+0200 by dell26/agent-1): Robolectric 'airplane mode' = WorkManager network constraint left unmet (test WorkManager); the emulator variant uses real airplane mode (cmd connectivity airplane-mode). Share from the browser/gallery = the ACTION_SEND intents those apps send; the widget = the CaptureActivity intent its pill starts; the pending count is read from CaptureQueue.status (what the widget shows), not from the rendered widget.
 - ASSUMPTION (2026-10-21 13:54+0200 by dell26/agent-1): 'Web shows them' / 'views match the web' is checked through the API the web uses (GET /api/v1/tasks list/due, /projects, /links), with a second device token logged in by recovery code so the app's TOTP login stays the first use of its code. A task due today is seeded via the API so Today is not empty.
 - ASSUMPTION (2026-10-21 13:54+0200 by dell26/agent-1): Step 5 'emulator clock': the reminder is created via the API (the app has no reminder editor) 20 s ahead and the emulator waits on the real clock; Robolectric checks the exact alarm is set for the reminder time and fires it. Shared test code lives in android/app/src/sharedTest (test+androidTest source dir) and the Robolectric runner in src/test/.../smoke (outside touches; new package). libs.versions.toml got androidx.test:runner 1.7.0 (one line + version).
+- release by dell26/agent-1: Done: Phase3Demo flows (steps 1-5) in android/app/src/sharedTest, Robolectric runner (src/test/.../smoke, runs only with -Pe2eBaseUrl) + emulator runner (androidTest, compiles, never run: no emulator here), ARCHITECTURE.md 'Android demo script' section; last commit a13f3da3 strengthens step 3 (client ids, shared URL, project link, real re-send w/o duplicates) - NOT yet run against the e2e stack. Android ktlintCheck+testDebugUnitTest pass; full scripts/check.sh hung >10 min in server tests (gradle contention, unrelated to this android-only change). Left: (1) fix review CR-1 (reviews/p3-smoke/review.md: step 2 calls stack.tasks() while emulator is in airplane mode -> move that check after setOnline(true) before sync, or gate by a SmokeDevice capability); (2) run Robolectric demo against podman e2e stack (see ARCHITECTURE.md) and verify crit 1 with --skip for the emulator part + crit 2; (3) test-writer, re-run code-reviewer on final code, fixer/fixes.md, quality.json; (4) .taskcheck, done.
