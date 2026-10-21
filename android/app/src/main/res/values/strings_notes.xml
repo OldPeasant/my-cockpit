@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="notes_new">New note</string>
+    <string name="notes_all">All</string>
+    <string name="notes_pinned">Pinned</string>
+    <string name="notes_empty">No notes yet. Tap New note to write one.</string>
+    <string name="notes_empty_tag">No notes tagged %1$s.</string>
+    <string name="notes_offline">Can\'t reach the server. Showing the last loaded notes.</string>
+    <string name="notes_failed">The notes could not be loaded.</string>
+    <string name="notes_retry">Retry</string>
+    <string name="notes_back">Back to notes</string>
+    <string name="notes_edit">Edit</string>
+    <string name="notes_view">Done</string>
+    <string name="notes_title_hint">Title (optional)</string>
+    <string name="notes_body_hint">Write in Markdown</string>
+    <string name="notes_empty_body">This note is empty. Tap Edit to write.</string>
+    <string name="notes_status_saved">Saved</string>
+    <string name="notes_status_unsaved">Unsaved changes</string>
+    <string name="notes_status_saving">Saving…</string>
+    <string name="notes_status_offline">Not saved: no connection</string>
+    <string name="notes_status_failed">Not saved: the server refused the change</string>
+    <string name="notes_save_retry">Save again</string>
+    <string name="notes_take_photo">Take photo</string>
+    <string name="notes_pick_photo">Add photo from gallery</string>
+    <string name="notes_uploading">Uploading photo…</string>
+    <string name="notes_conflict">This note was changed on another device while you edited it.</string>
+    <string name="notes_conflict_deleted">This note was deleted on another device while you edited it.</string>
+    <string name="notes_keep_mine">Keep my version</string>
+    <string name="notes_use_theirs">Use the other version</string>
+    <string name="notes_keep_mine_deleted">Save as new note</string>
+    <string name="notes_use_theirs_deleted">Discard my changes</string>
+    <string name="notes_load_offline">Can\'t reach the server to open this note.</string>
+    <string name="notes_load_failed">This note could not be opened.</string>
+    <string name="notes_photo_unreadable">The photo could not be read, or it is larger than 25 MB.</string>
+    <string name="notes_photo_offline">The photo was not added: no connection.</string>
+    <string name="notes_photo_failed">The photo was not added: the server refused it.</string>
+    <string name="notes_dismiss">Dismiss</string>
+    <string name="notes_image">Image</string>
+</resources>
