@@ -21,7 +21,8 @@ Edit notes (SPEC.md §8.1).
   - verified (2026-10-21 09:00+0200 by dell26/agent-4): same editor spec run -> 122 passed ([[ autocomplete over all item types inserts [[type:id]], chips, revisions dialog restore, linked items panel tests)
 - [x] Vitest component/service tests cover autosave, checklist toggle, link autocomplete; `cd web && npm run check` passes
   - verified (2026-10-21 09:00+0200 by dell26/agent-4): editor specs 122 passed; cd web && npm run check at 79f15454 (test-writer) -> exit 0, 96 files/1835 tests passed, lint+build ok
-- [ ] Playwright `e2e/notes/editor.spec.ts` passes against the e2e stack (`npm run e2e -- e2e/notes/editor.spec.ts`, see p0-e2e-harness): paste an image, toggle a checklist, reload → persisted
+- [x] Playwright `e2e/notes/editor.spec.ts` passes against the e2e stack (`npm run e2e -- e2e/notes/editor.spec.ts`, see p0-e2e-harness): paste an image, toggle a checklist, reload → persisted
+  - verified (2026-10-21 09:00+0200 by dell26/agent-4): cd web && npm run e2e -- e2e/notes/editor.spec.ts against docker compose e2e stack (podman-compose), chromium, code of 79f15454 -> 16 passed (editor spec + 15 phase-demos): paste image, toggle checklist, reload -> persisted
 
 ## Notes
 - ASSUMPTION (2026-10-21 06:31+0200 by R1963MACOS/agent-1): Preview uses an own escaped Markdown renderer (features/notes/editor/note-markdown.ts, no new library) trusted via bypassSecurityTrustHtml because Angular's sanitizer strips checkbox inputs; images only from cockpit-file: (shown via /api/v1/files/{id}/preview with the session cookie) and https:
