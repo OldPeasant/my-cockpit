@@ -11,7 +11,8 @@ lease_until: 2026-10-21T07:43:53Z
 Backup UI (SPEC.md §10.1).
 
 ## Acceptance criteria
-- [ ] Create backup with optional passphrase, progress (SSE), download; restore: upload, show validation report, confirm with typed confirmation, progress, then forced re-login
+- [~] Create backup with optional passphrase, progress (SSE), download; restore: upload, show validation report, confirm with typed confirmation, progress, then forced re-login
+  - skipped (2026-10-21 09:24+0200 by dell26/agent-3): Real-browser run against the server not possible: starting the e2e docker stack (npm run e2e) needs an approval this unattended session does not have. Covered instead by Vitest component tests with HttpTestingController + fake SSE: start with/without passphrase, progress refetch on BACKUP events and resync, download, upload->report, typed confirmation, indeterminate restore progress, checkSession(true)+navigate /login
 - [x] Vitest component/service tests cover report rendering and confirmation gate; `cd web && npm run check` passes
   - verified (2026-10-21 09:23+0200 by dell26/agent-3): cd web && npm run check at 36f90acd -> api:check, lint (all files pass), e2e:typecheck, test:ci 93 files/1809 tests passed incl. backup-settings.spec.ts (report rendering: facts/sorted counts/warnings/problems/secrets; confirmation gate: disabled until exact RESTORE, submit blocked) and backup.service.spec.ts, ng build ok; sh scripts/check.sh -> all checks passed
 
