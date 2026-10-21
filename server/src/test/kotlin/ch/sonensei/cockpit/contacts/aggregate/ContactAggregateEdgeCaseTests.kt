@@ -270,6 +270,36 @@ class ContactAggregateEdgeCaseTests(
 	}
 
 	@Test
+	fun `related lists each occurrence of recurring timed and all-day series with the contact, by start`() {
+		val id = contact("""{"displayName":"Ann Doe","emails":[{"address":"ann.doe@example.test"}]}""")
+		val weekly =
+			calendar.createEvent(
+				"""{"title":"1:1 with Ann","start":"2026-03-02T08:00:00Z","end":"2026-03-02T08:30:00Z",""" +
+					""""timeZone":"Europe/Zurich","rrule":"FREQ=WEEKLY;COUNT=3","attendees":[{"email":"ann.doe@example.test"}]}""",
+			)
+		val offsite =
+			calendar.createEvent(
+				"""{"title":"Offsite","allDay":true,"startDate":"2026-03-04","rrule":"FREQ=DAILY;COUNT=2",""" +
+					""""attendees":[{"email":"Ann.Doe@Example.test"}]}""",
+			)
+		val weeklyId = weekly.get("id").asString()
+		val offsiteId = offsite.get("id").asString()
+
+		val events = get("$CONTACTS/$id/related").get("events")
+
+		events.texts("title") shouldContainExactly listOf("1:1 with Ann", "Offsite", "Offsite", "1:1 with Ann", "1:1 with Ann")
+		events.texts("seriesId") shouldContainExactly listOf(weeklyId, offsiteId, offsiteId, weeklyId, weeklyId)
+		events.texts("occurrence") shouldContainExactly
+			listOf("2026-03-02T08:00:00Z", "2026-03-04", "2026-03-05", "2026-03-09T08:00:00Z", "2026-03-16T08:00:00Z")
+		events.texts("start") shouldContainExactly
+			listOf("2026-03-02T08:00:00Z", null, null, "2026-03-09T08:00:00Z", "2026-03-16T08:00:00Z")
+		events.texts("startDate") shouldContainExactly listOf(null, "2026-03-04", "2026-03-05", null, null)
+		events.texts("endDate") shouldContainExactly listOf(null, "2026-03-05", "2026-03-06", null, null)
+		(0 until events.size()).map { events[it].get("allDay").asBoolean() } shouldContainExactly
+			listOf(false, true, true, false, false)
+	}
+
+	@Test
 	fun `related of a contact in the Trash is 404`() {
 		val id = contact("""{"displayName":"Ann Doe","emails":[{"address":"ann.doe@example.test"}]}""")
 		mockMvc
