@@ -1,0 +1,41 @@
+{
+  "schema": 1,
+  "task": "and-capture-queue",
+  "reviewed_revision": "d0fdada7785121ab51698ec628dede7b3af6314c",
+  "helpers": {
+    "test-writer": {"status": "completed", "report": "reviews/and-capture-queue/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/and-capture-queue/review.md"},
+    "fixer": {"status": "completed", "report": "reviews/and-capture-queue/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "R1-CR-1", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "round 1: new captures queued behind retry backoff; schedule() now REPLACEs unless a run is RUNNING (fixes.md CR-1). Login re-schedule part not done, recorded as assumption"},
+    {"id": "R1-CR-2", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "round 1: !today/!tomorrow pinned to the capture day in the device zone (RelativeDueDates, fixes.md CR-2)"},
+    {"id": "R1-CR-3", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "round 1: copies orphaned on non-IOException copy failures; cleanup in finally under NonCancellable (fixes.md CR-3)"},
+    {"id": "R1-CR-4", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "round 1: unexpected exceptions fail the job chain; mapped to 'Unexpected error' + retry (fixes.md CR-4)"},
+    {"id": "R1-CR-5", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "round 1: blank text / >50 attachments refused before copying (fixes.md CR-5)"},
+    {"id": "R1-TW-1", "source": "test-writer", "severity": "Low", "disposition": "fixed",
+     "note": "round 1 observation: same-millisecond captures could be sent out of order; UuidV7 now monotonic (fixes.md TW-1)"},
+    {"id": "R2-TW-1", "source": "test-writer", "severity": "Medium", "disposition": "fixed",
+     "note": "round 2: attachment copies not deleted when a send run is cancelled after the row delete; cleanup in CaptureUploader.sendAll finally under NonCancellable (commit c7313d74), confirmed resolved and tested in final review.md and tests.md"},
+    {"id": "R2-CR-1", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "round 2: schedule() failure after commit made capture() throw; now ignored after commit, cancellation rethrown (c7313d74); confirmed in final review.md"},
+    {"id": "R2-CR-2", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "round 2: check-then-enqueue race documented in policyFor KDoc (c7313d74); confirmed in final review.md"},
+    {"id": "R2-CR-3", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "round 2: text over 100000 chars after pinning refused before copying (c7313d74); boundary tests in CaptureQueueContractTest"},
+    {"id": "R3-CR-1", "source": "code-reviewer", "severity": "P3", "disposition": "accepted",
+     "note": "final review: combined notes limit not pre-checked; unlikely with typed input, recorded as tasks.py assumption (2026-10-21 02:47)"},
+    {"id": "R3-CR-2", "source": "code-reviewer", "severity": "P3", "disposition": "accepted",
+     "note": "final review: copies orphaned by a process kill in small windows are not swept; recorded as tasks.py assumption (2026-10-21 02:47)"}
+  ],
+  "validation": [
+    {"command": "cd android && ./gradlew ktlintCheck testDebugUnitTest --tests 'ch.sonensei.cockpit.capture.queue.*'", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
