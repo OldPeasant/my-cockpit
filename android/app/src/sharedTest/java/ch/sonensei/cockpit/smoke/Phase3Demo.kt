@@ -83,6 +83,9 @@ interface SmokeDevice {
     val reminderLeadMs: Long
     val alarmSlackMs: Long
 
+    /** Whether this test can still reach the stack while the app is offline (not on an emulator in airplane mode). */
+    val stackReachableOffline: Boolean
+
     fun setUp()
 
     fun tearDown()
@@ -224,7 +227,9 @@ abstract class Phase3Demo {
         awaitClosed(widget)
 
         assertEquals("pending count (widget and sheet show it)", 3, pendingCount())
-        assertTrue("nothing reached the server offline", stack.tasks(list = "INBOX").isEmpty())
+        if (device.stackReachableOffline) {
+            assertTrue("nothing reached the server offline", stack.tasks(list = "INBOX").isEmpty())
+        }
         queued = runBlocking { captureDao.sendable() }
     }
 

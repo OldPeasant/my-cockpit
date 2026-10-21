@@ -50,6 +50,7 @@ private class RobolectricDevice : SmokeDevice {
     override val baseUrl: String = System.getProperty(BASE_URL_PROPERTY).orEmpty()
     override val reminderLeadMs = 60_000L
     override val alarmSlackMs = 5_000L
+    override val stackReachableOffline = true
     private var online = true
 
     override fun setUp() {

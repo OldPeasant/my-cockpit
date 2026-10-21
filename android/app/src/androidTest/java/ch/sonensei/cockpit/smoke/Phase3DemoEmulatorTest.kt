@@ -35,6 +35,7 @@ private class EmulatorDevice : SmokeDevice {
         InstrumentationRegistry.getArguments().getString(BASE_URL_ARGUMENT) ?: DEFAULT_BASE_URL
     override val reminderLeadMs = 20_000L
     override val alarmSlackMs = 30_000L
+    override val stackReachableOffline = false
 
     override fun setUp() {
         shell("pm grant ${context.packageName} android.permission.POST_NOTIFICATIONS")
