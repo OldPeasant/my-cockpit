@@ -18,3 +18,4 @@ Unified inbox and folders (SPEC.md §7.3).
 
 ## Notes
 - ASSUMPTION (2026-10-21 06:35+0200 by dell26/agent-2): No scheduled mail sync exists yet (mail-idle is todo), so the e2e stack gets an e2e-profile-only hook POST /api/test/mail/sync (mail.testsupport.MailTestSupportController, @Hidden, not in the API contract) that syncs folders + headers of every account
+- ASSUMPTION (2026-10-21 06:35+0200 by dell26/agent-2): GreenMail 2.1.5 added to deploy/docker-compose.e2e.yml (auth disabled, no TLS); its IMAP is published on a free host port E2E_IMAP_PORT chosen by run-e2e.mjs; specs deliver mail via IMAP APPEND (web/e2e/support/imap.ts) instead of SMTP
