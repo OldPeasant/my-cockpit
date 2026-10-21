@@ -1,0 +1,24 @@
+{
+  "schema": 1,
+  "task": "gtd-convert-event",
+  "reviewed_revision": "edcdb0f1791c96df67b97bd0cd5bcf7b3bb4f69d",
+  "helpers": {
+    "test-writer": {"status": "completed", "report": "reviews/gtd-convert-event/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/gtd-convert-event/review.md"},
+    "fixer": {"status": "not_required", "reason": "no P0-P2 findings; CR-1 resolved by the committed edge-case tests, CR-2 is an optional P3 refactor deliberately left"}
+  },
+  "fixes_required": false,
+  "findings": [
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P3", "disposition": "invalid",
+     "note": "TaskToEventEdgeCaseTests (commit edcdb0f1) asserts the task is unchanged for read-only calendar 409 and missing default calendar 400; reviewer confirmed resolved"},
+    {"id": "CR-2", "source": "code-reviewer", "severity": "P3", "disposition": "accepted",
+     "note": "link-copy loop duplicated from TaskToNoteService; small, refactoring it would touch the finished gtd-convert-note code"},
+    {"id": "TW-1", "source": "test-writer", "severity": "Low", "disposition": "accepted",
+     "note": "ConvertToEventRequest data-class getters uncovered (6 methods); only deserialized, no behavior to test"}
+  ],
+  "validation": [
+    {"command": "cd server && ./gradlew test --tests 'ch.sonensei.cockpit.gtd.convert.*' jacocoTestReport", "result": "pass"},
+    {"command": "cd server && ./gradlew test --tests '*OpenApiContractTest'", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
