@@ -65,6 +65,73 @@ Lint/type-check/build:
 Remaining unresolved findings:
 1 (CR-3, out of scope)
 
-## Final status
+## Round 1 status
 
 All validated findings fixed and validation passed.
+
+## Round 2 (re-review findings)
+
+Scope: re-review findings re-review CR-1 and re-review CR-2 from `reviews/mail-gtd/review.md` (re-review). Changes limited to `server/src/main/kotlin/ch/sonensei/cockpit/mail/gtd/MailGtdService.kt` and `server/src/test/kotlin/ch/sonensei/cockpit/mail/gtd/MailGtdWebTests.kt`. Code fix commit: 21955657.
+
+### Fixed findings
+
+#### re-review CR-1 — Source indentation from HTML mail is kept verbatim and turns into Markdown code blocks
+
+Files changed:
+- `server/src/main/kotlin/ch/sonensei/cockpit/mail/gtd/MailGtdService.kt`
+- `server/src/test/kotlin/ch/sonensei/cockpit/mail/gtd/MailGtdWebTests.kt`
+
+Problem:
+`htmlText` appended `TextNode.wholeText` everywhere. Source indentation of pretty-printed HTML (for example `<td>` content on its own indented line) was kept, so lines started with 4 or more spaces after a blank line and rendered as indented code blocks. Confirmed in the code before the change.
+
+Fix:
+Text nodes with a `pre` ancestor still use `wholeText`. Elsewhere, runs of HTML whitespace (space, tab, CR, LF, FF; not U+00A0) collapse to one space, as a browser renders them. The text is left-trimmed when the output is at a line start or already ends with a space. The space after a table cell is only added when the output does not already end with a space or newline. As a result, no line outside `<pre>` starts with a blank. New test `to-note collapses the source indentation of a pretty-printed HTML part but keeps pre text` uses an indented, multi-line `<table>`/`<td>` and `<div>`/`<p>` part with inline `<b>`/`<i>` and a `<pre>`. It checks the exact text (`Hello there, welcome aboard`, `First paragraph continues here.`, `Second bold words.`), that no line except the `<pre>` line starts with a space, that the `<pre>` indentation is kept, and that there are no triple newlines.
+
+Validation:
+- `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.mail.gtd.*' ktlintCheck` — Pass
+
+#### re-review CR-2 — Some block elements the sanitizer allows are not treated as block boundaries
+
+Files changed:
+- `server/src/main/kotlin/ch/sonensei/cockpit/mail/gtd/MailGtdService.kt`
+- `server/src/test/kotlin/ch/sonensei/cockpit/mail/gtd/MailGtdWebTests.kt`
+
+Problem:
+`center`, `main`, `aside`, `details`, `summary` and `caption` were not in `BLOCKS`/`LINES`. Words ran together in HTML without whitespace, for example `<center>Offer</center><center>Details</center>` became `OfferDetails`.
+
+Fix:
+`details` goes into `BLOCKS` (a blank line around it). `center`, `main`, `aside`, `summary` and `caption` go into `LINES` (a line of their own). The existing test `to-note keeps the block structure of an HTML part written without whitespace` now ends with `<center>Offer</center><center>Details</center>` and expects `...\n\nOffer\nDetails`.
+
+Validation:
+- `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.mail.gtd.*' ktlintCheck` — Pass
+
+### Not fixed
+
+#### CR-3 (re-review CR-3) — duplicated `MailConnectionException` handler
+
+Status:
+Out of scope
+
+Reason:
+Still deferred by the parent worker, as in round 1.
+
+### Validation summary (round 2)
+
+Focused tests:
+- `cd server && ./gradlew ktlintFormat` then `./gradlew test --tests 'ch.sonensei.cockpit.mail.gtd.*' ktlintCheck` — Pass (MailGtdWebTests 41, MailGtdMailServerTests 5, 0 failures, 0 skipped)
+
+Full test suite:
+- `cd server && ./gradlew check` — Pass (BUILD SUCCESSFUL)
+
+Lint/type-check/build:
+- `cd server && ./gradlew ktlintCheck` — Pass. The server build has no detekt task; `ktlintCheck` is its lint.
+
+`.taskcheck`:
+- `sh scripts/check.sh` — Pass ("all checks passed", exit 0)
+
+Remaining unresolved findings:
+1 (CR-3, out of scope)
+
+## Final status
+
+Round 1 (CR-1, CR-2) and round 2 (re-review CR-1, re-review CR-2): all validated findings fixed and validation passed. CR-3 stays deferred as out of scope.
