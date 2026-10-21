@@ -4,46 +4,44 @@ Date: 2026-10-21
 
 Task: and-notes - Android notes
 
-Scope: `git diff c167a9fa9ecc107793e5865b7e4953e747e0b10c..c7c89efdc053944e5f454d04fb981d1150ef7daf -- android` (committed changes only). Reviewed revision: c7c89efdc053944e5f454d04fb981d1150ef7daf. This is the third review. It checks the fixes for the second review (CR-1..CR-5, `reviews/and-notes/fixes.md`) and looks for problems those fixes introduced.
-
-Limits of this review: Bash was not available to the reviewer, so it ran no git commands, tests or `tasks.py verify`. The files were read from the working tree. At the start of the session the tree was clean, with HEAD at c7c89efd on main. The production files under `android/app/src/main/java/ch/sonensei/cockpit/notes` were reviewed in full. A test-writer may be committing tests at the same time, so test files were read only to check the claims in the fix report.
+Scope: the full task, `git diff c167a9fa9ecc107793e5865b7e4953e747e0b10c..273c3d9b034cf96a3380e396bed18d0d0ae3d3cf -- android` (committed changes only). Reviewed revision: 273c3d9b034cf96a3380e396bed18d0d0ae3d3cf. This is the fourth review. The third review covered c7c89efdc053944e5f454d04fb981d1150ef7daf in full. Since then the only code change is commit 273c3d9b, which adds 4 tests to `android/app/src/test/java/ch/sonensei/cockpit/notes/NoteEditorsTest.kt`. `git diff --stat c7c89efd 273c3d9b -- android/app/src/main` is empty, so no production code changed. This review checks that test delta and carries the third review's results forward.
 
 Requirements:
-- tasks/and-notes.md acceptance criteria and recorded assumptions
+- tasks/and-notes.md acceptance criteria and recorded assumptions (`python tasks.py assumptions`, and-notes #1-#12)
 - SPEC.md §9.2 item 6 (Android notes)
 - docs/ARCHITECTURE.md and AGENTS.md project conventions
-- Second review (CR-1..CR-5) and reviews/and-notes/fixes.md
-- Parent instructions: check that each earlier finding is resolved and look for issues the fixes introduced (NoteEditors per-editor ViewModelStores, app-scoped NoteSaveScope, onCleared saving, settle(), unsentNewNote, addPhoto create in the save scope)
+- Third review of c7c89efd (CR-1, CR-2 below)
+- Parent instructions: review the test delta of 273c3d9b and update this report for that revision
 
 Git range:
 - Branch: main
-- HEAD: c7c89efdc053944e5f454d04fb981d1150ef7daf
+- HEAD: 273c3d9b034cf96a3380e396bed18d0d0ae3d3cf
 - Base/start: c167a9fa9ecc107793e5865b7e4953e747e0b10c
-- Commits reviewed: the and-notes commits from the base to c7c89efd, including 2abd7142, fac1120a, fed32c21, 3cdd0816 and c7c89efd (the reviewer could not list the full range without git)
+- Commits reviewed: 72 in the task range (`git log --oneline c167a9fa..273c3d9b`). This round looked closely at 1 of them (273c3d9b). The rest were covered by the earlier reviews.
+- Uncommitted changes: none (working tree clean at the start of this review)
 
 Summary: 0 P0, 0 P1, 0 P2, 2 P3
 
+## Review of the test delta (c7c89efd..273c3d9b)
+
+I checked the four new tests in `NoteEditorsTest.kt` against `NoteEditors.kt` and `NoteEditorViewModel.kt` (`settle()`, `editor()`, `unsentNewNote()`, `pending()`, `onCleared()`, `save()`):
+
+- "an editor cleared while a conflict waits saves nothing over the other version": `save()` returns early when `conflict != null`, so the `onCleared` save makes no repository call. The test checks that `repo.save` was called exactly once in total, and so pins this down.
+- "the list showing keeps an editor whose conflict waits ...": `pending()` counts a conflict, so `settle()` keeps the editor. `editor(id)` then returns the same instance. `open(id, "b")` skips the reload while something is pending, and the test checks this with `repo.get` called exactly once. The conflict and the local text are both kept. The assertions match the code.
+- "a photo still uploading when the list shows keeps its editor ...": the upload is held on a `CompletableDeferred`. `settle()` keeps the editor because `uploading` is pending. The image is saved once the upload finishes, and the next `settle()` drops the editor (`assertNotSame`). This covers both the keep path and the drop path.
+- "a new note that was created but not saved since ...": the create succeeds and the follow-up save fails. `unsentNewNote()` returns null because the note now has an id, and `editor(id)` moves the kept `new:x` editor to that id. The test checks both behaviors from assumption #10 and CR-2 of the second review.
+
+The tests check behavior through the public API. They mock only the repository boundary, so the mocks do not hide the behavior under test. Each test fixes its order of steps with `runCurrent`/`advanceUntilIdle`, so none of them depends on timing. No existing test was weakened or removed: the diff only adds lines.
+
+I ran the class myself: `cd android && ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.notes.NoteEditorsTest' --offline` -> 13 tests, 0 failures, 0 errors, 0 skipped (from `app/build/test-results/testDebugUnitTest/TEST-ch.sonensei.cockpit.notes.NoteEditorsTest.xml`). I did not run the full `.taskcheck` or `tasks.py verify`. That is the parent's job.
+
+I found no new problems in the delta.
+
 ## Status of the earlier findings
 
-- CR-1 (the shell's top-bar back arrow lost the last text and cancelled a running save): resolved.
-  - `NoteSaveScope` (`NoteEditors.kt:18-21`) is an app-wide `@Singleton` scope. `saveNow`, the autosave and `onCleared` all start `save()` there (`NoteEditorViewModel.kt:180-209`). Only the autosave delay still runs in `viewModelScope`.
-  - When the Notes back stack entry is popped, `NoteEditors.onCleared` clears every editor store (`NoteEditors.kt:89-92`), and each editor saves what it still holds.
-  - The new note created by `addPhoto` now runs as `saves.async { create() }.await()` (`NoteEditorViewModel.kt:300`), so the create cannot be cancelled halfway and then repeated.
-  - Tests cover it: `NotesRouteInAppTest` "the shell's back arrow ..." and the `NoteEditorsTest` clearing tests.
-- CR-2 (unsaved text in a new note could not be reached again): resolved.
-  - `NoteEditors.editor(id)` moves a kept new-note editor to the key of the note it was saved as.
-  - `unsentNewNote()` sends "New note" back to a new note that was not created yet.
-  - `settle()` tries the saves again whenever the list is shown.
-  - Route tests and view-model tests cover both paths.
-- CR-3 (no test that the list waits for the save): resolved. `NotesRouteInAppTest` "leaving the editor lets the list reload only once the save is done ..." holds the save on a `CompletableDeferred` and checks the order `list, saved, list`.
-- CR-4 (the KDoc of `insertPendingImage` did not match the code): resolved (`NoteEditorViewModel.kt:271-275`).
-- CR-5 (editor view models piled up): resolved. Each editor has its own `ViewModelStore`. `settle()` clears the store of every editor that is `settled`. `NoteEditorsTest` "an editor closed with everything saved is dropped ..." covers it.
-
-Checked for problems the fixes could have introduced, and found none:
-- `settle()` dropping an editor that is on screen: `settle()` runs in the list branch's `LaunchedEffect` (`NotesScreen.kt:83-88`). Opening an editor removes that branch from composition, which cancels `settle()` while it waits in `join()`. The drop loop has no suspension point, so it cannot run alongside an editor that is open.
-- An editor dropped while it uploads or loads: `pending()` counts `uploading` and `loading` as pending, so such an editor is kept until a later `settle()`.
-- A note created twice: `create()` and `save()` share the `saving` mutex, and `create()` returns early if the note already exists.
-- Configuration changes: `NoteEditors` is a Hilt view model of the Notes entry, `noteEditor` remembers `editors.editor(key)`, and `open()` does nothing for the same opening token.
+- Second review CR-1..CR-5: resolved, as the third review found. No production code changed since then.
+- Third review CR-1 (behavior is not recorded as assumptions): resolved. The parent recorded all three items as and-notes assumptions #10 (one uncreated new note at a time while offline), #11 (kept editors are retried each time the list shows, and the list reloads after the retries) and #12 (leaving the whole Notes screen saves once in the app scope, and text is dropped without a message if that save fails). The finding is kept below, ticked, for traceability.
+- Third review CR-2 (`settle()` runs the retries one after another and shows no loading state): open. The parent accepts it without a change. It stays P3 and does not block. Assumption #11 records that the list reloads only after the retries.
 
 ## P0 Critical
 
@@ -59,23 +57,23 @@ None.
 
 ## P3 Low
 
-- [ ] **CR-1 | Behavior the fixes added is not recorded as assumptions**
+- [x] **CR-1 | Behavior the fixes added is not recorded as assumptions** (resolved: and-notes assumptions #10, #11, #12)
     - File: `android/app/src/main/java/ch/sonensei/cockpit/notes/NotesScreen.kt:95`, `android/app/src/main/java/ch/sonensei/cockpit/notes/NoteEditors.kt:81-92`, `android/app/src/main/java/ch/sonensei/cockpit/notes/NoteEditorViewModel.kt:205-209`
     - Category: Quality (requirements traceability)
-    - Problem: The second round of fixes made product decisions that SPEC.md does not define, and none of them is in the task's assumptions:
-      - (a) While a new note has not been created yet, "New note" opens that note again instead of an empty one. Offline, the user can therefore write only one new note at a time.
-      - (b) Every kept editor's save is tried again each time the list is shown.
-      - (c) When the whole Notes screen is left (shell back arrow, or the entry is popped), each editor saves once. If that save fails (offline), the text is dropped without a message. This limits the recorded assumption "unsaved text stays in the editor until saved".
-    - Why it matters: AGENTS.md asks for `tasks.py assume` for every decision a human might want to revisit. Item (c) narrows a recorded assumption without saying so.
-    - Suggested fix: The parent should record these three behaviors with `python tasks.py assume and-notes "..."`. No code change is needed unless a human rejects them.
+    - Problem: The second round of fixes made product decisions that SPEC.md does not define:
+      - (a) While a new note has not been created yet, "New note" opens that note again.
+      - (b) Every kept editor's save is tried again each time the list shows.
+      - (c) Leaving the whole Notes screen saves once, and the text is dropped without a message if that save fails.
+    - Why it matters: AGENTS.md asks for `tasks.py assume` for every decision a human might want to revisit.
+    - Suggested fix: Record them as assumptions. Done.
 
-- [ ] **CR-2 | The list reload waits for every kept editor's save retry, one after another, with no loading indicator**
+- [ ] **CR-2 | The list reload waits for every kept editor's save retry, one after another, with no loading indicator** (accepted by the parent without a change)
     - File: `android/app/src/main/java/ch/sonensei/cockpit/notes/NotesScreen.kt:83-88`, `android/app/src/main/java/ch/sonensei/cockpit/notes/NoteEditors.kt:81-82`
     - Category: Correctness (resilience)
-    - Problem: `settle()` runs `saveNow().join()` for each kept editor in turn, and `viewModel.refresh()` runs only after all of them finish. On a slow or unreachable network, each kept editor's retry can take up to the HTTP client timeout. All that time the list shows its previous content with `loading = false`, so no progress bar shows that a reload is still coming.
+    - Problem: `settle()` runs `saveNow().join()` for each kept editor in turn, and `refresh()` runs only after all of them finish. On a slow or unreachable network, each retry can take up to the HTTP timeout. All that time the list shows stale content with `loading = false`.
     - Why it matters: When the network is bad, which is exactly when editors get kept, the list looks loaded but stays stale for one timeout per kept editor.
-    - Suggested fix: Start all retries first and then wait for all of them (`map { saveNow() }.joinAll()`). Or only wait for editors that have unsaved text, and show the list's loading state while `settle()` runs. A test with two kept editors whose saves are deferred would pin the behavior down.
+    - Suggested fix: Start all retries first and then wait for all of them (`map { saveNow() }.joinAll()`), or show the list's loading state while `settle()` runs.
 
 ## Review conclusion
 
-No material issues found. All five findings of the second review are resolved, and the fixes add no P0, P1 or P2 problems. The two P3 items are optional. The reviewer did not run the test suite or `tasks.py verify`, so the parent must still record the evidence for both acceptance criteria before `done`.
+No material issues found. The four new tests are correct, they check behavior through the public API, and they pass. Production code has not changed since the third review. CR-1 is resolved through assumptions #10-#12. CR-2 is an accepted P3 and does not block. The parent still has to record the acceptance-criteria evidence and run `.taskcheck` before `done`.

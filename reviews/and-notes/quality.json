@@ -1,0 +1,31 @@
+{
+  "schema": 1,
+  "task": "and-notes",
+  "reviewed_revision": "273c3d9b034cf96a3380e396bed18d0d0ae3d3cf",
+  "helpers": {
+    "test-writer":   {"status": "completed", "report": "reviews/and-notes/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/and-notes/review.md"},
+    "fixer":         {"status": "completed", "report": "reviews/and-notes/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "R1-CR-1", "source": "code-reviewer", "severity": "P1", "disposition": "fixed", "note": "round 1: failed load let the user create a separate note"},
+    {"id": "R1-CR-2", "source": "code-reviewer", "severity": "P2", "disposition": "fixed", "note": "round 1: reopening a note showed stale text"},
+    {"id": "R1-CR-3", "source": "code-reviewer", "severity": "P2", "disposition": "fixed", "note": "round 1: web images went through the authenticated client"},
+    {"id": "R1-CR-4", "source": "code-reviewer", "severity": "P2", "disposition": "fixed", "note": "round 1: list reloaded before the save"},
+    {"id": "R1-CR-5", "source": "code-reviewer", "severity": "P2", "disposition": "fixed", "note": "round 1: photo uploaded during a conflict was dropped"},
+    {"id": "R1-CR-6", "source": "code-reviewer", "severity": "P3", "disposition": "fixed", "note": "round 1: missing race tests"},
+    {"id": "R2-CR-1", "source": "code-reviewer", "severity": "P2", "disposition": "fixed", "note": "round 2: shell top-bar back skipped the save; saves now run in app-scoped NoteSaveScope, onCleared saves"},
+    {"id": "R2-CR-2", "source": "code-reviewer", "severity": "P2", "disposition": "fixed", "note": "round 2: unsaved new-note text unreachable; NoteEditors finds it by note id or New note"},
+    {"id": "R2-CR-3", "source": "code-reviewer", "severity": "P3", "disposition": "fixed", "note": "round 2: test that the list waits for the save (NotesRouteInAppTest)"},
+    {"id": "R2-CR-4", "source": "code-reviewer", "severity": "P3", "disposition": "fixed", "note": "round 2: insertPendingImage KDoc reworded"},
+    {"id": "R2-CR-5", "source": "code-reviewer", "severity": "P3", "disposition": "fixed", "note": "round 2: editor view models piled up; per-editor stores dropped by settle()"},
+    {"id": "R3-CR-1", "source": "code-reviewer", "severity": "P3", "disposition": "fixed", "note": "round 3: three behaviours recorded as assumptions (tasks.py assume)"},
+    {"id": "R3-CR-2", "source": "code-reviewer", "severity": "P3", "disposition": "accepted", "note": "round 3: list reload waits for kept editors' retries one by one; rare (only editors with unsaved text), not worth a change in this task"}
+  ],
+  "validation": [
+    {"command": "cd android && ./gradlew ktlintCheck testDebugUnitTest --tests 'ch.sonensei.cockpit.notes.*' lintDebug", "result": "pass"},
+    {"command": "cd android && ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.notes.*' (134 tests, 0 failures)", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
