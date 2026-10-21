@@ -64,12 +64,18 @@ class NoteService(
 	private val uploadLimits: UploadLimits,
 	private val clock: Clock,
 ) {
-	/** One page of notes matching [filter]: pinned first, then the most recently changed, then by id. */
+	/**
+	 * One page of notes matching [filter]: pinned first, then the most recently changed, then by id.
+	 *
+	 * @throws InvalidRequestException (400) for a tag filter with NUL characters
+	 */
 	@Transactional(readOnly = true)
 	fun list(
 		filter: NoteFilter,
 		request: CursorRequest,
 	): CursorPage<Note> {
+		// PostgreSQL rejects NUL in text values, so the filter would otherwise fail with a 500.
+		if (filter.tag?.contains('\u0000') == true) throw InvalidRequestException("tag", "must not contain NUL characters")
 		val after = request.position?.let(::parsePosition)
 		val sort = Sort.by(Sort.Order.desc("pinned"), Sort.Order.desc("updatedAt"), Sort.Order.desc("id"))
 		val fetched =
@@ -277,13 +283,14 @@ class NoteService(
 	/**
 	 * The tags trimmed and without a leading `#`, each once regardless of case (the first spelling wins).
 	 *
-	 * @throws InvalidRequestException (400) for an empty or too long tag, or too many tags
+	 * @throws InvalidRequestException (400) for an empty or too long tag, a tag with NUL characters, or too many tags
 	 */
 	private fun normalizeTags(tags: List<String>): List<String> {
 		val errors = mutableListOf<FieldError>()
 		val normalized = tags.map { it.trim().removePrefix("#").trim() }
 		if (normalized.any { it.isEmpty() }) errors += FieldError("tags", "must not contain empty tags")
 		if (normalized.any { it.length > MAX_TAG_LENGTH }) errors += FieldError("tags", "must be at most $MAX_TAG_LENGTH characters each")
+		if (normalized.any { it.contains('\u0000') }) errors += FieldError("tags", "must not contain NUL characters")
 		val distinct = normalized.distinctBy { it.lowercase() }
 		if (distinct.size > MAX_TAGS) errors += FieldError("tags", "must be at most $MAX_TAGS tags")
 		if (errors.isNotEmpty()) throw InvalidRequestException(errors)

@@ -84,3 +84,70 @@ Remaining unresolved findings:
 ## Final status
 
 Fixes completed, but validation still fails.
+
+---
+
+# Fix Report (round 3)
+
+Date: 2026-10-21
+
+Task: notes-api - Notes API
+
+Scope: current task. This round covers finding CR-2 from the current `reviews/notes-api/review.md` (the review of 19eeb0b9). The fixes are on top of task commits d9341538, 07e336b2 and 19eeb0b9 (base 00b53719). The earlier sections above are from previous rounds and still apply to their own findings.
+
+## Fixed findings
+
+### CR-2 - NUL characters in tags give 500 instead of 400
+
+Files changed:
+- `server/src/main/kotlin/ch/sonensei/cockpit/notes/domain/NoteService.kt`
+- `server/src/test/kotlin/ch/sonensei/cockpit/notes/NoteEdgeCaseWebTests.kt`
+
+Problem:
+`validate` rejected NUL in `title` and `bodyMd`, but `normalizeTags` did not check tags. A tag containing `'\u0000'` reached PostgreSQL (in the `findTagSpelling` native query or the `note_tag` insert). PostgreSQL rejects 0x00 in `text`, so the request failed with a generic 500. The `GET /api/v1/notes?tag=...` filter had the same problem through the tag predicate.
+
+Fix:
+- `normalizeTags` now adds `FieldError("tags", "must not contain NUL characters")`, collected together with the other tag errors, the same way title and body NUL is rejected. It runs before any query, so create and PATCH return 400 and change nothing.
+- `NoteService.list` throws `InvalidRequestException("tag", "must not contain NUL characters")` when the tag filter contains NUL, before the query is built. The existing `ProblemDetailsAdvice` maps it to a 400 Problem Details response with an `errors` entry for `tag`. The check is in the service, next to the other tag handling, so the controller is unchanged. KDoc of both functions now names the new 400 case.
+- New web tests in `NoteEdgeCaseWebTests`:
+  - "tags with NUL characters are rejected with 400 on create and PATCH": checks that a POST returns 400 `application/problem+json` with field `tags` and that no note is created, then that a PATCH returns 400 with field `tags` and the tags stay unchanged.
+  - "a tag filter with NUL characters is rejected with 400": checks that `GET /api/v1/notes?tag=ho%00me` (the NUL is passed as a URI variable, so it is sent as `%00`) returns 400 `application/problem+json` with field `tag`, and that a normal tag filter still works.
+
+The API contract did not change: `OpenApiContractTest` passes without regeneration, so `api/openapi.yaml` and the generated clients were not touched.
+
+Validation:
+- `cd server && ./gradlew ktlintFormat` - no changes needed after the edit
+- `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.notes.*' --tests '*OpenApiContractTest'` - BUILD SUCCESSFUL. NoteEdgeCaseWebTests 30 (both new tests included), NoteWebTests 20, NoteInfraTests 9, NoteRevisionInfraTests 5, NoteMarkdownTests 8, NoteMigrationTests 3, NoteImageMaxSizeWebTests 1, OpenApiContractTest 1, with 0 failures and 0 errors.
+- `cd server && ./gradlew ktlintCheck` - Pass
+
+## Not fixed
+
+### CR-1 - Recorded evidence and `quality.json` name revisions that no longer exist
+
+Status:
+Out of scope
+
+Reason:
+This finding is about TFP evidence (`quality.json` `reviewed_revision` and `tasks.py verify` entries). The parent worker owns those, and this fixer was asked to fix only CR-2. No code change is needed for it. Because this round changes code, the parent must re-run the helpers on the final code and then update `reviewed_revision` and the verify entries.
+
+## Validation summary
+
+Focused tests:
+- `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.notes.*' --tests '*OpenApiContractTest'` - Pass (77 tests, 0 failures)
+- `cd server && ./gradlew ktlintCheck` - Pass
+
+Full test suite:
+- `sh scripts/check.sh` - the tfp gate tests passed (20). The server step ran 2723 tests with 1 failure: `ClockConfigurationTests` "the application clock is the system clock in UTC" (core, not notes). The message was `2026-10-21T02:23:28.045783Z should be >= 2026-10-21T02:23:28.045783187Z`. This is the same timing-dependent failure recorded in the earlier round (it compares a microsecond-truncated clock with a nanosecond `Instant.now()`). It is not related to this change. The server step took 11m 52s on this machine.
+
+Lint/type-check/build:
+- `cd server && ./gradlew ktlintCheck` - Pass. The web and Android parts were not affected (no contract change).
+
+`.taskcheck`:
+- Fail, only because of the unrelated `ClockConfigurationTests` failure above.
+
+Remaining unresolved findings:
+0 in the supplied scope (CR-2 fixed). CR-1 is left to the parent worker.
+
+## Final status
+
+Fixes completed, but validation still fails (only the unrelated, pre-existing `ClockConfigurationTests` timing failure in `.taskcheck`).

@@ -159,6 +159,22 @@ class NoteEdgeCaseWebTests(
 	}
 
 	@Test
+	fun `a tag filter with NUL characters is rejected with 400`() {
+		newNote("""{"title":"Tagged","tags":["home"]}""")
+
+		val problem =
+			mockMvc
+				.get("$NOTES?tag={tag}", "ho\u0000me")
+				.andExpect {
+					status { isBadRequest() }
+					content { contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON) }
+				}.json()
+
+		problem.get("errors").values().map { it.get("field").asString() } shouldContainExactly listOf("tag")
+		list("?tag=home").titles() shouldContainExactly listOf("Tagged")
+	}
+
+	@Test
 	fun `the tag filter ignores a leading hash, surrounding blanks and a blank tag`() {
 		newNote("""{"title":"Tagged","tags":["Garden"]}""")
 		clock.advance(Duration.ofMinutes(1))
@@ -269,6 +285,28 @@ class NoteEdgeCaseWebTests(
 		patch(note.id(), """{"title":"a\u0000b"}""", changed.etag()).andExpect { status { isBadRequest() } }
 		patch(note.id(), """{"bodyMd":"a\u0000b"}""", changed.etag()).andExpect { status { isBadRequest() } }
 		fetch(note.id()).get("version") shouldBe changed.get("version")
+	}
+
+	@Test
+	fun `tags with NUL characters are rejected with 400 on create and PATCH`() {
+		val created =
+			mockMvc
+				.post(NOTES) {
+					with(csrf())
+					contentType = MediaType.APPLICATION_JSON
+					content = """{"title":"Plan","tags":["a\u0000b"]}"""
+				}.andExpect {
+					status { isBadRequest() }
+					content { contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON) }
+				}.json()
+		created.get("errors").values().map { it.get("field").asString() } shouldContainExactly listOf("tags")
+		list().titles().shouldBeEmpty()
+
+		val note = newNote("""{"title":"Plan","tags":["Home"]}""")
+		val patched = patch(note.id(), """{"tags":["Home","a\u0000b"]}""", note.etag()).andExpect { status { isBadRequest() } }.json()
+
+		patched.get("errors").values().map { it.get("field").asString() } shouldContainExactly listOf("tags")
+		fetch(note.id()).tagList() shouldContainExactly listOf("Home")
 	}
 
 	@Test
