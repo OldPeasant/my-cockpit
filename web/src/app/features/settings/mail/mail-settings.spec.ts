@@ -469,6 +469,87 @@ describe('MailSettings', () => {
     expect(button('Test connection').disabled).toBe(false);
   });
 
+  it('keeps a test that still runs when the account is saved, and shows its answer', async () => {
+    await setup();
+
+    button('Test connection').click();
+    await settle();
+    const running = http.expectOne(`${ACCOUNTS}/a1/test`);
+
+    button('Edit').click();
+    await settle();
+    const editor = root.querySelector<HTMLElement>('app-mail-account-editor')!;
+    type('[formControlName="displayName"]', 'Jane D.', editor);
+    button('Save changes', editor).click();
+    await settle();
+    http
+      .expectOne({ method: 'PATCH', url: `${ACCOUNTS}/a1` })
+      .flush(fakeAccount({ displayName: 'Jane D.', version: 1 }));
+    await settle();
+
+    // The save does not end the running test: it still runs and still guards the button.
+    expect(text()).toContain('Logging in to the mail servers…');
+    expect(button('Test connection').disabled).toBe(true);
+    running.flush(TEST_OK);
+    await settle();
+
+    expect(root.querySelectorAll('.protocols .ok').length).toBe(2);
+    expect(button('Test connection').disabled).toBe(false);
+  });
+
+  it('keeps the test result when the edit is cancelled or refused', async () => {
+    await setup();
+
+    button('Test connection').click();
+    await settle();
+    http.expectOne(`${ACCOUNTS}/a1/test`).flush(TEST_SMTP_FAILED);
+    await settle();
+
+    button('Edit').click();
+    await settle();
+    button('Cancel', root.querySelector<HTMLElement>('app-mail-account-editor')!).click();
+    await settle();
+    expect(text()).toContain('The server did not accept the user name or password.');
+
+    button('Edit').click();
+    await settle();
+    const editor = root.querySelector<HTMLElement>('app-mail-account-editor')!;
+    type('[formControlName="password"]', 'n3w-app-pass', editor);
+    button('Save changes', editor).click();
+    await settle();
+    const { body, ...options } = problem(412, 'Precondition Failed');
+    http.expectOne({ method: 'PATCH', url: `${ACCOUNTS}/a1` }).flush(body, options);
+    await settle();
+
+    // Nothing was saved, so the result still describes the stored settings.
+    expect(root.querySelector('app-mail-account-editor')).not.toBeNull();
+    expect(text()).toContain('The server did not accept the user name or password.');
+  });
+
+  it('drops only the test result of the edited account', async () => {
+    await setup([fakeAccount(), fakeAccount({ id: 'a2', emailAddress: 'jane@work.example' })]);
+    const items = (): NodeListOf<HTMLElement> => root.querySelectorAll<HTMLElement>('li.account');
+
+    button('Test connection', items()[0]).click();
+    button('Test connection', items()[1]).click();
+    await settle();
+    http.expectOne(`${ACCOUNTS}/a1/test`).flush(TEST_SMTP_FAILED);
+    http.expectOne(`${ACCOUNTS}/a2/test`).flush(TEST_SMTP_FAILED);
+    await settle();
+
+    button('Edit', items()[0]).click();
+    await settle();
+    const editor = root.querySelector<HTMLElement>('app-mail-account-editor')!;
+    type('[formControlName="password"]', 'n3w-app-pass', editor);
+    button('Save changes', editor).click();
+    await settle();
+    http.expectOne({ method: 'PATCH', url: `${ACCOUNTS}/a1` }).flush(fakeAccount({ version: 1 }));
+    await settle();
+
+    expect(items()[0].querySelector('.protocols')).toBeNull();
+    expect(items()[1].querySelector('.protocols')).not.toBeNull();
+  });
+
   it('edits a Google account without login or servers', async () => {
     await setup([fakeAccount({ type: 'GOOGLE', oauthConnectionId: 'o1', hasPassword: false })]);
 

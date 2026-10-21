@@ -202,6 +202,54 @@ describe('FolderRoles', () => {
     expect(row('INBOX').querySelector('mat-select')?.getAttribute('aria-disabled')).toBe('false');
   });
 
+  it('disables the other folders too while a role is saved, one change at a time', async () => {
+    await load([
+      fakeFolder({ id: 'f2', path: 'Old', role: 'ARCHIVE', roleOverridden: true }),
+      fakeFolder({ id: 'f3', path: 'Other', role: undefined }),
+    ]);
+
+    await choose('Old', 'No role');
+
+    expect(row('Other').querySelector('mat-select')?.getAttribute('aria-disabled')).toBe('true');
+    http
+      .expectOne({ method: 'PATCH', url: `${FOLDERS}/f2` })
+      .flush(fakeFolder({ id: 'f2', path: 'Old', role: undefined, roleOverridden: true }));
+    await settle();
+    await settle();
+
+    // No role moved, so nothing is read again; every folder can be changed again.
+    http.expectNone({ method: 'GET', url: FOLDERS });
+    expect(row('Old').querySelector('mat-select')?.getAttribute('aria-disabled')).toBe('false');
+    expect(row('Other').querySelector('mat-select')?.getAttribute('aria-disabled')).toBe('false');
+  });
+
+  it('allows changes again once the server state is read after a failed change', async () => {
+    await load([
+      fakeFolder({ id: 'f2', path: 'Old', role: undefined }),
+      fakeFolder({ id: 'f3', path: 'Other', role: undefined }),
+    ]);
+
+    await choose('Old', 'Trash');
+    const { body, options } = problem(500, 'Server error');
+    http.expectOne({ method: 'PATCH', url: `${FOLDERS}/f2` }).flush(body, options);
+    await settle();
+
+    const reload = http.expectOne({ method: 'GET', url: FOLDERS });
+    reload.flush({
+      items: [
+        fakeFolder({ id: 'f2', path: 'Old', role: undefined }),
+        fakeFolder({ id: 'f3', path: 'Other', role: undefined }),
+      ],
+    });
+    await settle();
+    await settle();
+
+    expect(root.querySelector('[role="alert"]')?.textContent).toContain(
+      'The role of Old could not be changed: Server error',
+    );
+    expect(row('Other').querySelector('mat-select')?.getAttribute('aria-disabled')).toBe('false');
+  });
+
   it('shows a failed role change and the folders as they are on the server', async () => {
     await load([fakeFolder({ id: 'f2', path: 'Old', role: undefined })]);
 
