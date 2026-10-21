@@ -10,11 +10,13 @@ import ch.sonensei.cockpit.core.backupcontrib.instantOrNull
 import ch.sonensei.cockpit.core.backupcontrib.toTimestamp
 import ch.sonensei.cockpit.core.backupcontrib.toTimestampOrNull
 import ch.sonensei.cockpit.core.backupcontrib.uuid
+import ch.sonensei.cockpit.core.items.domain.ItemType
 import ch.sonensei.cockpit.core.search.domain.SearchIndexer
 import ch.sonensei.cockpit.files.backup.FilesBackupContributor
 import ch.sonensei.cockpit.notes.domain.Note
 import ch.sonensei.cockpit.notes.domain.indexNote
 import org.springframework.jdbc.core.JdbcTemplate
+import org.springframework.jdbc.core.PreparedStatementCreator
 import org.springframework.jdbc.core.RowCallbackHandler
 import org.springframework.stereotype.Component
 import java.net.URLEncoder
@@ -50,7 +52,7 @@ class NotesBackupContributor(
 	override fun export(writer: BackupDataWriter) {
 		notes("select $NOTE_COLUMNS from note n order by n.id") { writer.jsonLines(NOTES, it) }
 		jdbc
-			.queryForStream("select * from note_revision order by note_id, number") { rs, _ ->
+			.queryForStream(streamed("select * from note_revision order by note_id, number")) { rs, _ ->
 				NoteRevisionBackup(
 					id = rs.uuid("id"),
 					createdAt = rs.instant("created_at"),
@@ -127,7 +129,7 @@ class NotesBackupContributor(
 		block: (Sequence<NoteBackup>) -> R,
 	): R =
 		jdbc
-			.queryForStream(sql) { rs, _ ->
+			.queryForStream(streamed(sql)) { rs, _ ->
 				NoteBackup(
 					id = rs.uuid("id"),
 					createdAt = rs.instant("created_at"),
@@ -142,18 +144,24 @@ class NotesBackupContributor(
 				)
 			}.use { block(it.iterator().asSequence()) }
 
+	/** [sql] fetched [FETCH_SIZE] rows at a time, so a stream over it does not load the whole result first. */
+	private fun streamed(sql: String) =
+		PreparedStatementCreator { connection -> connection.prepareStatement(sql).apply { fetchSize = FETCH_SIZE } }
+
 	/** The items linked to each note (`type:id`), each once, oldest link first. */
 	private fun links(): Map<UUID, List<String>> {
 		val linked = mutableMapOf<UUID, LinkedHashSet<String>>()
 		jdbc.query(
 			"select source_type, source_id, target_type, target_id from link " +
-				"where source_type = 'NOTE' or target_type = 'NOTE' order by created_at, id",
+				"where source_type = ? or target_type = ? order by created_at, id",
 			RowCallbackHandler { rs ->
 				val source = rs.getString("source_type") to rs.uuid("source_id")
 				val target = rs.getString("target_type") to rs.uuid("target_id")
 				if (source.first == NOTE) linked.getOrPut(source.second) { LinkedHashSet() } += ref(target)
 				if (target.first == NOTE) linked.getOrPut(target.second) { LinkedHashSet() } += ref(source)
 			},
+			NOTE,
+			NOTE,
 		)
 		return linked.mapValues { it.value.toList() }
 	}
@@ -189,7 +197,8 @@ class NotesBackupContributor(
 		const val ID = "notes"
 		const val NOTES = "notes"
 		const val REVISIONS = "note_revisions"
-		private const val NOTE = "NOTE"
+		private val NOTE = ItemType.NOTE.name
+		private const val FETCH_SIZE = 1000
 		private const val MAX_SLUG_LENGTH = 60
 		private const val NOTE_COLUMNS = "n.*, array(select t.tag from note_tag t where t.note_id = n.id order by t.tag) as tags"
 
