@@ -1,10 +1,12 @@
 package ch.sonensei.cockpit.reminders
 
 import android.Manifest
+import android.app.Activity
 import android.app.Application
 import android.app.NotificationManager
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.provider.Settings
 import androidx.activity.ComponentActivity
 import androidx.compose.ui.test.assertIsDisplayed
@@ -24,6 +26,7 @@ import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Rule
@@ -158,6 +161,49 @@ class ReminderUiTest {
         val started = shadowOf(composeRule.activity).nextStartedActivity
         assertEquals(Settings.ACTION_APP_NOTIFICATION_SETTINGS, started.action)
         assertEquals(context.packageName, started.getStringExtra(Settings.EXTRA_APP_PACKAGE))
+    }
+
+    @Test
+    fun `after the user denied the permission dialog in this session, allow notifications opens the app's notification settings`() {
+        graph.reminderScheduler().apply(listOf(reminder(1, minutes = 30)))
+        val viewModel = viewModel()
+        showPrompt(viewModel)
+        composeRule.onNodeWithTag(ReminderPromptTags.ALLOW_NOTIFICATIONS).performClick()
+        composeRule.waitForIdle()
+        val activity = shadowOf(composeRule.activity)
+        val firstRequest = activity.lastRequestedPermission
+        assertTrue(Manifest.permission.POST_NOTIFICATIONS in firstRequest.requestedPermissions)
+        // The user denies the dialog; the launcher callback re-reads the (still denied) permission.
+        val dialog = activity.nextStartedActivity
+        activity.receiveResult(
+            dialog,
+            Activity.RESULT_OK,
+            Intent()
+                .putExtra("android.content.pm.extra.REQUEST_PERMISSIONS_NAMES", arrayOf(Manifest.permission.POST_NOTIFICATIONS))
+                .putExtra("android.content.pm.extra.REQUEST_PERMISSIONS_RESULTS", intArrayOf(PackageManager.PERMISSION_DENIED)),
+        )
+        composeRule.waitForIdle()
+
+        composeRule.onNodeWithTag(ReminderPromptTags.ALLOW_NOTIFICATIONS).performClick()
+        composeRule.waitForIdle()
+
+        val started = activity.nextStartedActivity
+        assertEquals("the second tap opens Settings", Settings.ACTION_APP_NOTIFICATION_SETTINGS, started?.action)
+        assertSame("no second dialog that Android may not show", firstRequest, activity.lastRequestedPermission)
+    }
+
+    @Test
+    fun `the shell shows the prompt above the current screen`() {
+        graph.reminderScheduler().apply(listOf(reminder(1, minutes = 30)))
+        val viewModel = viewModel()
+        composeRule.setContent { CockpitTheme { CockpitShell(prompts = { ReminderPermissionPrompt(viewModel = viewModel) }) } }
+        composeRule.waitForIdle()
+
+        composeRule.onNodeWithTag(ReminderPromptTags.CARD).assertIsDisplayed()
+        composeRule.onNodeWithTag(screenTag(CockpitDestination.Today)).assertIsDisplayed()
+        val card = composeRule.onNodeWithTag(ReminderPromptTags.CARD).fetchSemanticsNode().boundsInRoot
+        val screen = composeRule.onNodeWithTag(screenTag(CockpitDestination.Today)).fetchSemanticsNode().boundsInRoot
+        assertTrue("prompt above the content", card.bottom <= screen.top)
     }
 
     @Test

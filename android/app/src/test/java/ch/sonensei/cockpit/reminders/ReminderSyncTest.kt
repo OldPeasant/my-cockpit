@@ -182,6 +182,17 @@ class ReminderSyncTest {
         }
 
     @Test
+    fun `the worker WorkManager creates takes its sync from the app graph`() =
+        runBlocking {
+            // WorkManager's default factory uses the (Context, WorkerParameters) constructor. No one is logged in in the
+            // test app, so the sync from the app graph ends without a request.
+            val worker = TestListenableWorkerBuilder<ReminderSyncWorker>(context).build()
+
+            assertEquals(ListenableWorker.Result.success(), worker.doWork())
+            assertEquals(0, server.requestCount)
+        }
+
+    @Test
     fun `without a session nothing is requested`() =
         runBlocking {
             loggedIn = false
