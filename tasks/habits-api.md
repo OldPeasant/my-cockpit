@@ -13,7 +13,8 @@ releases: 1
 Habits with streaks (SPEC.md §8.5).
 
 ## Acceptance criteria
-- [ ] Habit CRUD (daily / N per week / weekdays, target count, reminder time → reminders), checks per date, streak and 30-day completion stats
+- [x] Habit CRUD (daily / N per week / weekdays, target count, reminder time → reminders), checks per date, streak and 30-day completion stats
+  - verified (2026-10-21 23:05+0200 by dell26/agent-2): cd server && ./gradlew test --tests 'ch.sonensei.cockpit.journal.habits.*' (Postgres Testcontainers) -> 79 tests 0 failures: HabitWebTests 18 (CRUD daily/N-per-week/weekdays, target count, checks per date, stats), HabitEdgeCaseTests 20 + HabitReminderOwnershipTests 9 (reminderTime -> core reminders), HabitCalendar(EdgeCase)Tests 32 (streaks, 30-day completion)
 - [ ] Resolver HABIT
 - [ ] `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.journal.habits.*'` passes (Postgres via Testcontainers where persistence is involved) incl. streaks across week boundaries
 - [ ] API documented: `api/openapi.yaml` regenerated (`UPDATE_OPENAPI=1 ./gradlew test --tests '*OpenApiContractTest'`) and `OpenApiContractTest` passes without the flag
