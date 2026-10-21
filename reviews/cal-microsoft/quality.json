@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "task": "cal-microsoft",
-  "reviewed_revision": "8a2e9808ae11c6d54394dc435a5f12c63ff0d0c8",
+  "reviewed_revision": "0ecc53c1e5e0220f00c979c813ad654f37310f75",
   "helpers": {
     "test-writer": {"status": "completed", "report": "reviews/cal-microsoft/tests.md"},
     "code-reviewer": {"status": "completed", "report": "reviews/cal-microsoft/review.md"},
