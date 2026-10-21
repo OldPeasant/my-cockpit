@@ -1,0 +1,132 @@
+.bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--app-space-3);
+}
+
+.create {
+  margin: var(--app-space-3) 0;
+}
+
+.area {
+  margin-top: var(--app-space-4);
+}
+
+.area-head {
+  margin: 0;
+  padding: var(--app-space-2) var(--app-space-3);
+  border-bottom: 1px solid var(--app-border);
+  font: var(--mat-sys-title-small);
+}
+
+.projects {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+// A project: its title opens it; the line ends with its state. A stalled project carries a red
+// edge, the one cue the list exists to give.
+.project {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--app-space-2) var(--app-space-3);
+  padding: var(--app-space-2) var(--app-space-3);
+  border-bottom: 1px solid var(--app-border);
+  border-inline-start: 3px solid transparent;
+
+  &:hover {
+    background: var(--mat-sys-surface-container-low);
+  }
+
+  &.stalled {
+    border-inline-start-color: var(--app-danger);
+  }
+
+  &.finished .name {
+    color: var(--app-fg-muted);
+  }
+
+  app-project-form {
+    flex: 1 1 100%;
+  }
+}
+
+.name {
+  flex: 1 1 12rem;
+  min-width: 0;
+  color: var(--app-fg);
+  font: var(--mat-sys-body-large);
+  text-decoration: none;
+  overflow-wrap: anywhere;
+
+  &:hover {
+    text-decoration: underline;
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--app-accent);
+    outline-offset: 2px;
+  }
+}
+
+.meta {
+  display: flex;
+  align-items: center;
+  gap: var(--app-space-2);
+  color: var(--app-fg-muted);
+  font: var(--mat-sys-body-small);
+}
+
+.badge {
+  padding: 1px var(--app-space-2);
+  border: 1px solid var(--app-border);
+  border-radius: 999px;
+  font: var(--mat-sys-label-small);
+}
+
+.stalled-badge {
+  border-color: var(--app-danger);
+  color: var(--app-danger);
+}
+
+.due.overdue {
+  color: var(--app-danger);
+}
+
+.edit {
+  min-height: 28px;
+  padding: 0 var(--app-space-2);
+  border: 1px solid transparent;
+  border-radius: var(--app-radius);
+  background: transparent;
+  color: var(--app-fg-muted);
+  font: var(--mat-sys-label-medium);
+  cursor: pointer;
+
+  &:hover {
+    border-color: var(--app-border);
+    color: var(--app-fg);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--app-accent);
+    outline-offset: 2px;
+  }
+}
+
+.toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--app-space-2);
+  margin-top: var(--app-space-4);
+  color: var(--app-fg-muted);
+  font: var(--mat-sys-body-medium);
+  cursor: pointer;
+
+  input {
+    accent-color: var(--app-accent);
+  }
+}

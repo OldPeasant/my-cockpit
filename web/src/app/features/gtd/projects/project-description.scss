@@ -1,0 +1,78 @@
+// Description: Markdown source and preview side by side.
+
+.editor {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--app-space-3);
+}
+
+.pane {
+  display: grid;
+  align-content: start;
+  gap: var(--app-space-1);
+
+  label,
+  .pane-label {
+    color: var(--app-fg-muted);
+    font: var(--mat-sys-label-medium);
+  }
+
+  .notes {
+    width: 100%;
+    padding: var(--app-space-2);
+    resize: vertical;
+  }
+}
+
+.preview {
+  min-height: 100%;
+  padding: 0 var(--app-space-2);
+  border: 1px dashed var(--app-border);
+  border-radius: var(--app-radius);
+}
+
+.markdown {
+  font: var(--mat-sys-body-large);
+  overflow-wrap: anywhere;
+
+  :is(h3, h4, h5, h6) {
+    margin: var(--app-space-3) 0 var(--app-space-1);
+    font: var(--mat-sys-title-small);
+  }
+
+  code {
+    padding: 0 3px;
+    border-radius: 3px;
+    background: var(--mat-sys-surface-container-high);
+    font-size: 0.9em;
+  }
+
+  pre {
+    overflow-x: auto;
+    padding: var(--app-space-2);
+    border-radius: var(--app-radius);
+    background: var(--mat-sys-surface-container-high);
+
+    code {
+      padding: 0;
+      background: transparent;
+    }
+  }
+
+  blockquote {
+    margin: var(--app-space-2) 0;
+    padding-inline-start: var(--app-space-3);
+    border-inline-start: 3px solid var(--app-border);
+    color: var(--app-fg-muted);
+  }
+
+  a {
+    color: var(--app-accent);
+  }
+}
+
+@media (max-width: 600px) {
+  .editor {
+    grid-template-columns: 1fr;
+  }
+}

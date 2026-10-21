@@ -1,0 +1,284 @@
+@if (project(); as project) {
+  <article class="page" aria-labelledby="project-title">
+    <a class="back" routerLink="/projects" i18n="@@gtd.project.back">All projects</a>
+
+    <header class="head">
+      <h1 id="project-title">{{ project.title }}</h1>
+      <div class="facts">
+        @if (project.stalled) {
+          <span class="badge stalled-badge" i18n="@@gtd.projects.stalled">Stalled</span>
+        }
+        <span class="badge">{{ statusLabel(project.status) }}</span>
+        @if (area(); as area) {
+          <span class="fact">{{ area.title }}</span>
+        }
+        @if (project.dueDate) {
+          <span class="fact" [class.overdue]="project.dueDate < today" i18n="@@gtd.projects.due"
+            >Due {{ project.dueDate | date: 'MMM d' }}</span
+          >
+        }
+        @if (project.reviewDate) {
+          <span class="fact" i18n="@@gtd.project.review"
+            >Review {{ project.reviewDate | date: 'MMM d' }}</span
+          >
+        }
+        @if (!editing()) {
+          <button type="button" class="quiet" (click)="editing.set(true)" i18n="@@gtd.project.edit">
+            Edit
+          </button>
+        }
+      </div>
+    </header>
+    <p class="visually-hidden" role="status">{{ announcement() }}</p>
+
+    @if (editing()) {
+      <app-project-form
+        class="edit-form"
+        [project]="project"
+        [areas]="areas.items()"
+        (saved)="edited($event)"
+        (cancelled)="editing.set(false)"
+      />
+    }
+
+    @if (prompt(); as prompt) {
+      <section
+        class="prompt"
+        role="dialog"
+        aria-labelledby="prompt-title"
+        aria-describedby="prompt-text"
+      >
+        <h2 id="prompt-title" i18n="@@gtd.project.prompt.title">Choose next step</h2>
+        <p id="prompt-text">
+          @if (prompt.done) {
+            <ng-container i18n="@@gtd.project.prompt.done"
+              >“{{ prompt.done }}” is done. What moves this project forward now?</ng-container
+            >
+          } @else {
+            <ng-container i18n="@@gtd.project.prompt.none"
+              >Pick the task that moves this project forward now.</ng-container
+            >
+          }
+        </p>
+        @if (openTasks().length) {
+          <ul class="choices">
+            @for (task of openTasks(); track task.id) {
+              <li>
+                <button
+                  type="button"
+                  class="choice"
+                  [disabled]="busy().has(task.id)"
+                  [attr.aria-label]="makeNextLabel(task.title)"
+                  (click)="makeNext(task)"
+                >
+                  {{ task.title }}
+                </button>
+              </li>
+            }
+          </ul>
+        }
+        <form class="inline" (submit)="$event.preventDefault(); addNext()">
+          <label class="visually-hidden" for="prompt-new" i18n="@@gtd.project.prompt.newLabel"
+            >New next step</label
+          >
+          <input
+            id="prompt-new"
+            type="text"
+            [value]="nextTask()"
+            [attr.maxlength]="maxTitle"
+            (input)="nextTask.set(value($event))"
+            (keydown.escape)="skip()"
+            i18n-placeholder="@@gtd.project.prompt.newPlaceholder"
+            placeholder="Or add a new task…"
+          />
+          <button
+            type="submit"
+            class="primary"
+            [disabled]="!nextTask().trim() || busy().has('prompt')"
+            i18n="@@gtd.project.prompt.add"
+          >
+            Add as next step
+          </button>
+        </form>
+        <button type="button" class="quiet skip" (click)="skip()" i18n="@@gtd.project.prompt.skip">
+          Skip for now
+        </button>
+      </section>
+    } @else if (project.stalled) {
+      <div class="stalled-note">
+        <p i18n="@@gtd.project.stalledNote">This project has no next step.</p>
+        <button
+          type="button"
+          class="quiet"
+          (click)="prompt.set({})"
+          i18n="@@gtd.project.chooseNext"
+        >
+          Choose next step
+        </button>
+      </div>
+    }
+
+    <section class="block" aria-labelledby="tasks-title">
+      <h2 id="tasks-title" i18n="@@gtd.project.tasks">Tasks</h2>
+      @if (tasks.loaded()) {
+        <ol
+          class="tasks"
+          cdkDropList
+          [cdkDropListData]="openTasks()"
+          (cdkDropListDropped)="drop($event)"
+        >
+          @for (task of openTasks(); track task.id; let i = $index) {
+            <li class="task" cdkDrag [cdkDragData]="task" [class.next]="isNext(task)">
+              <button
+                type="button"
+                class="handle"
+                cdkDragHandle
+                [attr.aria-label]="moveLabel(task.title)"
+                (keydown)="key($event, i)"
+              >
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path
+                    d="M9 5a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0zm0 7a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0zm-1.5 8.5a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3zM18 5a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0zm-1.5 8.5a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3zM18 19a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0z"
+                  />
+                </svg>
+              </button>
+              <app-task-row
+                [task]="task"
+                [contexts]="contexts.byId()"
+                [showProject]="false"
+                [today]="today"
+                (toggleDone)="complete($event)"
+                (open)="open($event)"
+              />
+              <span class="marker">
+                @if (isNext(task)) {
+                  <span class="next-label" i18n="@@gtd.project.nextStep">Next step</span>
+                } @else {
+                  <button
+                    type="button"
+                    class="make-next"
+                    [disabled]="busy().has(task.id)"
+                    [attr.aria-label]="makeNextLabel(task.title)"
+                    (click)="makeNext(task)"
+                    i18n="@@gtd.project.makeNext"
+                  >
+                    Make next
+                  </button>
+                }
+              </span>
+            </li>
+          } @empty {
+            <li class="empty" i18n="@@gtd.project.noTasks">
+              No open tasks. Add the first step below.
+            </li>
+          }
+        </ol>
+      } @else if (tasks.error()) {
+        <div role="alert">
+          <p class="empty" i18n="@@gtd.project.tasksError">The tasks could not be loaded.</p>
+          <button type="button" class="quiet" (click)="tasks.refresh()" i18n="@@gtd.lists.retry">
+            Try again
+          </button>
+        </div>
+      } @else {
+        <p class="empty" i18n="@@gtd.lists.loading">Loading…</p>
+      }
+      <form class="inline add" (submit)="$event.preventDefault(); addTask()">
+        <label class="visually-hidden" for="add-task" i18n="@@gtd.project.addLabel">New task</label>
+        <input
+          id="add-task"
+          type="text"
+          [value]="newTask()"
+          [attr.maxlength]="maxTitle"
+          (input)="newTask.set(value($event))"
+          i18n-placeholder="@@gtd.project.addPlaceholder"
+          placeholder="Add a task…"
+        />
+        <button
+          type="submit"
+          class="quiet"
+          [disabled]="!newTask().trim() || busy().has('add')"
+          i18n="@@gtd.project.add"
+        >
+          Add task
+        </button>
+      </form>
+    </section>
+
+    <section class="block" aria-labelledby="description-title">
+      <div class="block-head">
+        <h2 id="description-title" i18n="@@gtd.project.description">Description</h2>
+        @if (description() === null) {
+          <button type="button" class="quiet" (click)="startDescription()">
+            @if (project.descriptionMd) {
+              <ng-container i18n="@@gtd.project.editDescription">Edit description</ng-container>
+            } @else {
+              <ng-container i18n="@@gtd.project.addDescription">Add description</ng-container>
+            }
+          </button>
+        }
+      </div>
+      @let text = description();
+      @if (text !== null) {
+        <div class="editor">
+          <div class="pane">
+            <label for="description-md" i18n="@@gtd.project.markdown">Markdown</label>
+            <textarea
+              id="description-md"
+              class="notes"
+              rows="10"
+              [value]="text"
+              (input)="description.set(value($event))"
+              (keydown.escape)="description.set(null)"
+            ></textarea>
+          </div>
+          <div class="pane">
+            <span class="pane-label" i18n="@@gtd.project.preview">Preview</span>
+            <div class="markdown preview" [innerHTML]="previewHtml()"></div>
+          </div>
+        </div>
+        <div class="buttons">
+          <button
+            type="button"
+            class="primary"
+            [disabled]="savingDescription()"
+            (click)="saveDescription()"
+            i18n="@@gtd.project.saveDescription"
+          >
+            Save description
+          </button>
+          <button
+            type="button"
+            class="quiet"
+            (click)="description.set(null)"
+            i18n="@@gtd.project.form.cancel"
+          >
+            Cancel
+          </button>
+        </div>
+      } @else if (project.descriptionMd) {
+        <div class="markdown" [innerHTML]="descriptionHtml()"></div>
+      } @else {
+        <p class="empty" i18n="@@gtd.project.noDescription">
+          Note the outcome, constraints and anything that helps you plan.
+        </p>
+      }
+    </section>
+  </article>
+} @else if (projects.loaded()) {
+  <div class="page" role="alert">
+    <p class="empty" i18n="@@gtd.project.notFound">
+      This project does not exist or is in the Trash.
+    </p>
+    <a class="back" routerLink="/projects" i18n="@@gtd.project.back">All projects</a>
+  </div>
+} @else if (projects.error()) {
+  <div class="page" role="alert">
+    <p class="empty" i18n="@@gtd.projects.loadError">The projects could not be loaded.</p>
+    <button type="button" class="quiet" (click)="projects.refresh()" i18n="@@gtd.lists.retry">
+      Try again
+    </button>
+  </div>
+} @else {
+  <p class="page empty" i18n="@@gtd.lists.loading">Loading…</p>
+}

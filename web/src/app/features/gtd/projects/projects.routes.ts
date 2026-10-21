@@ -1,7 +1,8 @@
 import { Routes } from '@angular/router';
-import { ComingSoon } from '../../../shell/coming-soon';
+import { ProjectDetailPage } from './project-detail-page';
+import { ProjectsPage } from './projects-page';
 
-// Placeholder until the projects feature task replaces it.
 export default [
-  { path: '', title: $localize`:@@nav.projects:Projects`, component: ComingSoon },
+  { path: '', title: $localize`:@@nav.projects:Projects`, component: ProjectsPage },
+  { path: ':id', title: $localize`:@@nav.project:Project`, component: ProjectDetailPage },
 ] satisfies Routes;

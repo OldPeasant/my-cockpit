@@ -1,0 +1,115 @@
+<section class="list" aria-labelledby="projects-title">
+  <header class="head bar">
+    <h1 id="projects-title" i18n="@@gtd.projects.title">Projects</h1>
+    @if (!creating()) {
+      <button type="button" class="action" (click)="creating.set(true)" i18n="@@gtd.projects.new">
+        New project
+      </button>
+    }
+  </header>
+
+  @if (projects.loaded()) {
+    <p class="status" role="status">
+      @if (stalledCount()) {
+        <ng-container i18n="@@gtd.projects.stalledCount">{stalledCount(), plural,
+          =1 {1 project needs a next step.}
+          other {{{ stalledCount() }} projects need a next step.}
+        }</ng-container>
+      }
+    </p>
+  }
+
+  @if (creating()) {
+    <app-project-form
+      class="create"
+      [areas]="areas.items()"
+      (saved)="created($event)"
+      (cancelled)="creating.set(false)"
+    />
+  }
+
+  @if (projects.loaded()) {
+    @for (group of groups(); track group.area?.id ?? '') {
+      <section class="area" [attr.aria-labelledby]="'area-' + (group.area?.id ?? 'none')">
+        <h2 class="area-head" [id]="'area-' + (group.area?.id ?? 'none')">
+          @if (group.area; as area) {
+            {{ area.title }}
+          } @else {
+            <ng-container i18n="@@gtd.projects.noArea">No area</ng-container>
+          }
+        </h2>
+        <ul class="projects">
+          @for (project of group.projects; track project.id) {
+            <li
+              class="project"
+              [class.stalled]="project.stalled"
+              [class.finished]="project.status === 'COMPLETED' || project.status === 'DROPPED'"
+            >
+              @if (editing() === project.id) {
+                <app-project-form
+                  [project]="project"
+                  [areas]="areas.items()"
+                  (saved)="editing.set(null)"
+                  (cancelled)="editing.set(null)"
+                />
+              } @else {
+                <a class="name" [routerLink]="['/projects', project.id]">{{ project.title }}</a>
+                <span class="meta">
+                  @if (project.stalled) {
+                    <span class="badge stalled-badge" i18n="@@gtd.projects.stalled">Stalled</span>
+                  }
+                  @if (project.status !== 'ACTIVE') {
+                    <span class="badge">{{ statusLabel(project.status) }}</span>
+                  }
+                  @if (project.dueDate) {
+                    <span
+                      class="due"
+                      [class.overdue]="project.dueDate < today"
+                      i18n="@@gtd.projects.due"
+                      >Due {{ project.dueDate | date: 'MMM d' }}</span
+                    >
+                  }
+                  <button
+                    type="button"
+                    class="edit"
+                    [attr.aria-label]="editLabel(project.title)"
+                    (click)="editing.set(project.id)"
+                    i18n="@@gtd.projects.edit"
+                  >
+                    Edit
+                  </button>
+                </span>
+              }
+            </li>
+          }
+        </ul>
+      </section>
+    } @empty {
+      <p class="empty" i18n="@@gtd.projects.empty">
+        No projects yet. Anything that takes more than one step is a project: create one to plan its
+        steps.
+      </p>
+    }
+    @if (hiddenCount()) {
+      <label class="toggle">
+        <input
+          type="checkbox"
+          [checked]="showFinished()"
+          (change)="showFinished.set(!showFinished())"
+        />
+        <ng-container i18n="@@gtd.projects.showFinished"
+          >Show completed and dropped ({{ hiddenCount() }})</ng-container
+        >
+      </label>
+    }
+  } @else if (projects.error()) {
+    <div role="alert">
+      <p class="empty" i18n="@@gtd.projects.loadError">The projects could not be loaded.</p>
+      <button type="button" class="action" (click)="retry()" i18n="@@gtd.lists.retry">
+        Try again
+      </button>
+    </div>
+  } @else {
+    <p class="empty" i18n="@@gtd.lists.loading">Loading…</p>
+  }
+</section>

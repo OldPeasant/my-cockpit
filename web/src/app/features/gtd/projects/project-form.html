@@ -1,0 +1,72 @@
+@let d = draft();
+<form class="form" (submit)="$event.preventDefault(); save()" novalidate>
+  <div class="field title">
+    <label [for]="uid + '-title'" i18n="@@gtd.project.form.title">Project</label>
+    <input
+      [id]="uid + '-title'"
+      type="text"
+      [value]="d.title"
+      [attr.maxlength]="maxTitle"
+      [attr.aria-invalid]="titleMissing()"
+      [attr.aria-describedby]="titleMissing() ? uid + '-title-error' : null"
+      (input)="edit({ title: value($event) })"
+      (keydown.escape)="cancelled.emit()"
+      i18n-placeholder="@@gtd.project.form.titlePlaceholder"
+      placeholder="What does done look like?"
+    />
+    @if (titleMissing()) {
+      <p [id]="uid + '-title-error'" class="field-error" i18n="@@gtd.project.form.titleRequired">
+        Give the project a title.
+      </p>
+    }
+  </div>
+  <div class="field">
+    <label [for]="uid + '-status'" i18n="@@gtd.project.form.status">Status</label>
+    <select [id]="uid + '-status'" (change)="edit({ status: $any(value($event)) })">
+      @for (option of statuses; track option.value) {
+        <option [value]="option.value" [selected]="option.value === d.status">
+          {{ option.label }}
+        </option>
+      }
+    </select>
+  </div>
+  <div class="field">
+    <label [for]="uid + '-area'" i18n="@@gtd.project.form.area">Area</label>
+    <select [id]="uid + '-area'" (change)="edit({ areaId: value($event) })">
+      <option value="" [selected]="!d.areaId" i18n="@@gtd.project.form.noArea">No area</option>
+      @for (area of areas(); track area.id) {
+        <option [value]="area.id" [selected]="area.id === d.areaId">{{ area.title }}</option>
+      }
+    </select>
+  </div>
+  <div class="field">
+    <label [for]="uid + '-due'" i18n="@@gtd.project.form.due">Due</label>
+    <input
+      [id]="uid + '-due'"
+      type="date"
+      [value]="d.dueDate"
+      (input)="edit({ dueDate: value($event) })"
+    />
+  </div>
+  <div class="field">
+    <label [for]="uid + '-review'" i18n="@@gtd.project.form.review">Review on</label>
+    <input
+      [id]="uid + '-review'"
+      type="date"
+      [value]="d.reviewDate"
+      (input)="edit({ reviewDate: value($event) })"
+    />
+  </div>
+  <div class="buttons">
+    <button type="submit" class="primary" [disabled]="saving()">
+      @if (project()) {
+        <ng-container i18n="@@gtd.project.form.save">Save project</ng-container>
+      } @else {
+        <ng-container i18n="@@gtd.project.form.create">Create project</ng-container>
+      }
+    </button>
+    <button type="button" class="quiet" (click)="cancelled.emit()" i18n="@@gtd.project.form.cancel">
+      Cancel
+    </button>
+  </div>
+</form>

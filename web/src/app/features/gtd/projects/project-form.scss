@@ -1,0 +1,55 @@
+:host {
+  display: block;
+}
+
+.form {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--app-space-3);
+  padding: var(--app-space-3);
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius);
+  background: var(--app-surface-raised);
+}
+
+.field {
+  display: grid;
+  align-content: start;
+  gap: var(--app-space-1);
+
+  label {
+    color: var(--app-fg-muted);
+    font: var(--mat-sys-label-medium);
+  }
+
+  input,
+  select {
+    width: 100%;
+  }
+}
+
+.title {
+  grid-column: 1 / -1;
+
+  input {
+    font: var(--mat-sys-title-medium);
+  }
+}
+
+.field-error {
+  margin: 0;
+  color: var(--app-danger);
+  font: var(--mat-sys-body-small);
+}
+
+.buttons {
+  display: flex;
+  grid-column: 1 / -1;
+  gap: var(--app-space-2);
+}
+
+@media (max-width: 600px) {
+  .form {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
