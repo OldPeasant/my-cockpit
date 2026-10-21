@@ -1,0 +1,29 @@
+{
+  "schema": 1,
+  "task": "web-mail-list",
+  "reviewed_revision": "10bbbae0bdbe383b95b1d45bab3c80f3de25dbd8",
+  "helpers": {
+    "test-writer": {"status": "completed", "report": "reviews/web-mail-list/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/web-mail-list/review.md"},
+    "fixer": {"status": "completed", "report": "reviews/web-mail-list/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "R1-CR-1", "source": "code-reviewer", "severity": "P1", "disposition": "fixed", "note": "review round 1: move used stale targets after a refetch (fixes.md Round 1)"},
+    {"id": "R1-CR-2", "source": "code-reviewer", "severity": "P1", "disposition": "fixed", "note": "review round 1: rollback undid concurrent changes (fixes.md Round 1)"},
+    {"id": "R1-CR-3", "source": "code-reviewer", "severity": "P2", "disposition": "fixed", "note": "review round 1: missing tests for folder tree, folders store, move dialog, overlapping actions"},
+    {"id": "R1-CR-4", "source": "code-reviewer", "severity": "P2", "disposition": "fixed", "note": "review round 1: refetch overlapping load more shrank the list"},
+    {"id": "R1-CR-5", "source": "code-reviewer", "severity": "P2", "disposition": "fixed", "note": "review round 1: action id limit of 1000, ids now sent in chunks"},
+    {"id": "R1-CR-6", "source": "code-reviewer", "severity": "P3", "disposition": "fixed", "note": "review round 1: auto-repeat of action shortcuts"},
+    {"id": "R1-CR-7", "source": "code-reviewer", "severity": "P2", "disposition": "fixed", "note": "review round 1: keyboard cursor not perceivable to assistive technology"},
+    {"id": "R2-CR-1", "source": "code-reviewer", "severity": "P3", "disposition": "fixed", "note": "review round 2: refresh resolving before an overlapping load more left a gap (fixes.md Round 2)"},
+    {"id": "R2-CR-2", "source": "code-reviewer", "severity": "P3", "disposition": "fixed", "note": "review round 2: unbounded parallel thread lookups, now 6 at a time (fixes.md Round 2)"},
+    {"id": "R2-CR-3", "source": "code-reviewer", "severity": "P3", "disposition": "fixed", "note": "review round 2: # not typeable with AltGr/Option (fixes.md Round 2)"},
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P3", "disposition": "accepted", "note": "final review: MAIL_SHORTCUTS comment mentions a shortcut help that is not shown; key hints are hard-coded text. Cosmetic, left as is to keep the reviewed code unchanged"}
+  ],
+  "validation": [
+    {"command": "cd web && npm run check", "result": "pass"},
+    {"command": "npm --prefix web run e2e -- e2e/mail-list/list.spec.ts", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
