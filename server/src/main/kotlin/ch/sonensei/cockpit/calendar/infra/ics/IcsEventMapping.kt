@@ -18,6 +18,7 @@ import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.ZoneId
 import java.time.ZoneOffset
+import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
 import java.time.temporal.Temporal
 
@@ -28,8 +29,10 @@ import java.time.temporal.Temporal
  *   (`/mozilla.org/.../Europe/Zurich`), as a Windows name, and as the `X-LIC-LOCATION` of the feed's `VTIMEZONE`;
  *   anything else and floating times are read in the feed's `X-WR-TIMEZONE`, else UTC. The feed's VTIMEZONE rules
  *   themselves are not used (java.time has current rules).
- * - A missing `DTEND` comes from `DURATION`, else the event lasts one day (all-day) or no time (timed).
+ * - A missing `DTEND` comes from `DURATION` (its days and weeks are calendar days in the event's zone), else the event
+ *   lasts one day (all-day) or no time (timed).
  * - An event with `RECURRENCE-ID` is the exception of that occurrence of its series; `RDATE` is not supported.
+ *   Exceptions without a recurring (`RRULE`), not cancelled series in the feed are left out.
  * - Cancelled series and single events are left out (the feed no longer has them); cancelled exceptions stay, they
  *   remove their occurrence.
  * - Reminders are the `VALARM`s triggered before the start; the conference URL is `CONFERENCE` (RFC 7986) or
@@ -57,7 +60,9 @@ internal object IcsEventMapping {
 				}
 			}
 		}
-		return result
+		// An exception whose series is not here (cancelled, without RRULE, or unreadable) has nothing to change.
+		val series = result.filter { it.key.recurrenceId == null && it.rrule != null }.map { it.key.externalId }.toSet()
+		return result.filter { it.key.recurrenceId == null || it.key.externalId in series }
 	}
 
 	/**
@@ -159,7 +164,8 @@ internal object IcsEventMapping {
 		zones: Zones,
 	): Timing {
 		val end = vevent.first("DTEND")?.let { zones.time(it) }
-		val duration = vevent.first("DURATION")?.value?.let(::duration)
+		val durationValue = vevent.first("DURATION")?.value
+		val duration = durationValue?.let(::duration)
 		return when (start) {
 			is LocalDate -> {
 				val endDate =
@@ -178,13 +184,29 @@ internal object IcsEventMapping {
 					when {
 						end is Instant -> end
 						end is LocalDate -> end.atStartOfDay(zone).toInstant()
-						duration != null -> start.atZone(zone).plus(duration).toInstant()
+						duration != null -> plusNominal(start.atZone(zone), durationValue, duration).toInstant()
 						else -> start
 					}
 				Timing.Timed(start, endAt, zone)
 			}
 			else -> throw IllegalArgumentException("Unsupported start")
 		}
+	}
+
+	/**
+	 * [start] plus the DURATION [value] (read as [duration]): its days and weeks are calendar days in the start's zone,
+	 * so they keep the local time across a daylight saving change; hours, minutes and seconds are exact time
+	 * (RFC 5545 §3.3.6).
+	 */
+	private fun plusNominal(
+		start: ZonedDateTime,
+		value: String,
+		duration: Duration,
+	): ZonedDateTime {
+		val match = DAYS.find(value.trim().uppercase()) ?: return start.plus(duration)
+		val count = match.groupValues[2].toLong() * (if (match.groupValues[3] == "W") DAYS_PER_WEEK else 1)
+		val days = if (match.groupValues[1] == "-") -count else count
+		return start.plusDays(days).plus(duration.minusDays(days))
 	}
 
 	private fun exdates(
@@ -305,6 +327,7 @@ internal object IcsEventMapping {
 	private const val DATE_LENGTH = 8
 	private const val DAYS_PER_WEEK = 7
 	private val WEEKS = Regex("""([+-]?)P(\d+)W""")
+	private val DAYS = Regex("""^([+-]?)P(\d+)([DW])""")
 	private val DATE = Regex("""\d{8}""")
 	private val BASIC_DATE: DateTimeFormatter = DateTimeFormatter.BASIC_ISO_DATE
 	private val BASIC_DATE_TIME: DateTimeFormatter = DateTimeFormatter.ofPattern("uuuuMMdd'T'HHmmss")

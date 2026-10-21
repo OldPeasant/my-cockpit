@@ -164,12 +164,48 @@ class IcsFeedAdapterTests {
 	}
 
 	@Test
-	fun `unreadable events are left out and the readable ones are returned`() {
+	fun `unreadable events are left out, the readable ones are returned, and the download is not complete`() {
 		serve(CALENDAR.replace("END:VCALENDAR", "BEGIN:VEVENT\r\nUID:broken@example.test\r\nDTSTART:soon\r\nEND:VEVENT\r\nEND:VCALENDAR"))
 
 		val changes = adapter.fetchEvents(source("""{"url": "$url"}"""), IcsFeedAdapter.FEED_CALENDAR, null)
 
 		changes.events.map { it.key.externalId } shouldContainExactly listOf("retro@example.test")
+		// Not complete: the engine must not delete the local copy of the unreadable event.
+		changes.complete shouldBe false
+		changes.deleted.shouldBeEmpty()
+	}
+
+	@Test
+	fun `a body that is not a complete iCalendar file is refused`() {
+		val bodies =
+			listOf(
+				"",
+				"<!DOCTYPE html><html><body>Please log in</body></html>",
+				"BEGIN:VEVENT\r\nUID:loose@example.test\r\nDTSTART:20261105T090000Z\r\nEND:VEVENT\r\n",
+				// Cut off: the parser would close the calendar itself.
+				CALENDAR.substringBefore("END:VEVENT"),
+				CALENDAR.substringBefore("END:VCALENDAR"),
+				// A second calendar that was cut off.
+				CALENDAR + "BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\n",
+			)
+		for (body in bodies) {
+			wireMock.resetAll()
+			serve(body)
+
+			shouldThrow<CalendarProviderException> {
+				adapter.fetchEvents(source("""{"url": "$url"}"""), IcsFeedAdapter.FEED_CALENDAR, null)
+			}.message!! shouldContain "not a complete iCalendar file"
+		}
+	}
+
+	@Test
+	fun `a complete calendar without events is a complete, empty listing`() {
+		serve("BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//Fictitious Org//Test//EN\r\nEND:VCALENDAR\r\n")
+
+		val changes = adapter.fetchEvents(source("""{"url": "$url"}"""), IcsFeedAdapter.FEED_CALENDAR, null)
+
+		changes.complete shouldBe true
+		changes.events.shouldBeEmpty()
 	}
 
 	@Test

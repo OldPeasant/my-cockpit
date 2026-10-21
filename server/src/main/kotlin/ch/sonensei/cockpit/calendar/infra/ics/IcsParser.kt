@@ -16,6 +16,9 @@ internal class IcsComponent(
 	val properties = mutableListOf<IcsProperty>()
 	val components = mutableListOf<IcsComponent>()
 
+	/** Whether the component was closed by its own `END` (not only at the end of the text or by an outer `END`). */
+	var ended = false
+
 	fun first(name: String): IcsProperty? = properties.firstOrNull { it.name == name }
 
 	fun all(name: String): List<IcsProperty> = properties.filter { it.name == name }
@@ -49,7 +52,13 @@ internal object IcsParser {
 					val name = property.value.trim().uppercase()
 					// Closes up to the matching BEGIN; an END that matches nothing is noise.
 					if (stack.any { it.name == name }) {
-						while (stack.removeLast().name != name) Unit
+						while (true) {
+							val closed = stack.removeLast()
+							if (closed.name == name) {
+								closed.ended = true
+								break
+							}
+						}
 					}
 				}
 				else -> stack.lastOrNull()?.properties?.add(property)

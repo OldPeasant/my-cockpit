@@ -304,6 +304,15 @@ class IcsEventMappingTests {
 	}
 
 	@Test
+	fun `weeks are calendar days too, the time part of a day-and-time DURATION is exact time`() {
+		val week = one("UID:w@example.test\nDTSTART;TZID=Europe/Zurich:20261020T090000\nDURATION:P1W")
+		timed(week).end shouldBe zurichTime("2026-10-27T09:00")
+
+		val mixed = one("UID:m@example.test\nDTSTART;TZID=Europe/Zurich:20261024T090000\nDURATION:P1DT1H30M")
+		timed(mixed).end shouldBe zurichTime("2026-10-25T10:30")
+	}
+
+	@Test
 	fun `an hour-based DURATION across a daylight saving change is exact time`() {
 		val event = one("UID:dst-h@example.test\nDTSTART;TZID=Europe/Zurich:20261024T090000\nDURATION:PT24H")
 
@@ -404,9 +413,11 @@ class IcsEventMappingTests {
 
 	@Test
 	fun `an exception has its recurrence id and neither RRULE nor EXDATEs`() {
-		val event =
-			one(
-				"""
+		val events =
+			map(
+				feed(
+					"UID:standup@example.test\nDTSTART;TZID=Europe/Zurich:20261102T090000\nRRULE:FREQ=WEEKLY",
+					"""
 				UID:standup@example.test
 				RECURRENCE-ID;TZID=Europe/Zurich:20261109T090000
 				DTSTART;TZID=Europe/Zurich:20261109T100000
@@ -415,7 +426,9 @@ class IcsEventMappingTests {
 				EXDATE;TZID=Europe/Zurich:20261116T090000
 				SUMMARY:Stand-up (later)
 				""",
+				),
 			)
+		val event = events.single { it.key.recurrenceId != null }
 
 		event.key shouldBe RemoteEventKey("standup@example.test", OccurrenceId.of(zurichTime("2026-11-09T09:00")))
 		event.rrule.shouldBeNull()
@@ -439,6 +452,33 @@ class IcsEventMappingTests {
 		val cancelled = events.single { it.key.recurrenceId != null }
 		cancelled.status shouldBe EventStatus.CANCELLED
 		cancelled.key.recurrenceId shouldBe OccurrenceId.of(Instant.parse("2026-11-03T09:00:00Z"))
+	}
+
+	@Test
+	fun `exceptions without a recurring series in the feed are left out`() {
+		val events =
+			map(
+				feed(
+					// The series is cancelled.
+					"UID:gone@example.test\nDTSTART:20261102T090000Z\nRRULE:FREQ=DAILY\nSTATUS:CANCELLED",
+					"UID:gone@example.test\nRECURRENCE-ID:20261103T090000Z\nDTSTART:20261103T100000Z",
+					// The "series" has no RRULE (an RDATE series is not supported).
+					"UID:rdate@example.test\nDTSTART:20261102T090000Z\nRDATE:20261104T090000Z",
+					"UID:rdate@example.test\nRECURRENCE-ID:20261104T090000Z\nDTSTART:20261104T100000Z",
+					// There is no series at all.
+					"UID:alone@example.test\nRECURRENCE-ID:20261103T090000Z\nDTSTART:20261103T100000Z",
+					// The series comes after its exception: kept.
+					"UID:series@example.test\nRECURRENCE-ID:20261103T090000Z\nDTSTART:20261103T100000Z",
+					"UID:series@example.test\nDTSTART:20261102T090000Z\nRRULE:FREQ=DAILY",
+				),
+			)
+
+		events.map { it.key } shouldContainExactly
+			listOf(
+				RemoteEventKey("rdate@example.test"),
+				RemoteEventKey("series@example.test", OccurrenceId.of(Instant.parse("2026-11-03T09:00:00Z"))),
+				RemoteEventKey("series@example.test"),
+			)
 	}
 
 	// --- Attendees and reminders ---

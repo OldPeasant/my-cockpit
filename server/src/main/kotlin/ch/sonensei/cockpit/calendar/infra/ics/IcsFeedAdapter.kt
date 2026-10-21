@@ -25,6 +25,11 @@ import java.time.Duration
  * events and deletes those the feed no longer has; unchanged events keep their content hash ([IcsEventMapping]) and are
  * not stored again. The cursor is the validators as JSON (none: every poll downloads the feed).
  *
+ * Only a complete iCalendar file (every `VCALENDAR` closed by its `END:VCALENDAR`) is such a listing: anything else (an
+ * HTML page, an empty or cut-off body) fails the sync and keeps the events. When some events of the feed cannot be
+ * read, the download is not complete either: the readable events are stored, but nothing is deleted, since an
+ * unreadable event would otherwise lose its local copy (and its links).
+ *
  * Writes are refused: the calendar is read-only, so the event API does not get that far.
  */
 @Component
@@ -56,10 +61,14 @@ class IcsFeedAdapter internal constructor(
 		return when (val response = client.fetch(url(source), validators)) {
 			FeedResponse.NotModified -> RemoteEventChanges(cursor = cursor)
 			is FeedResponse.Fetched -> {
+				val calendars = IcsParser.parse(response.text).filter { it.name == "VCALENDAR" }
+				if (calendars.isEmpty() || calendars.any { !it.ended }) {
+					throw CalendarProviderException("The feed is not a complete iCalendar file")
+				}
 				var skipped = 0
-				val events = IcsEventMapping.events(IcsParser.parse(response.text)) { skipped++ }
-				if (skipped > 0) log.warn("Skipped {} unreadable events of ICS source {}", skipped, source.id)
-				RemoteEventChanges(events = events, cursor = cursorOf(response.validators), complete = true)
+				val events = IcsEventMapping.events(calendars) { skipped++ }
+				if (skipped > 0) log.warn("Skipped {} unreadable events of ICS source {}, deleting none", skipped, source.id)
+				RemoteEventChanges(events = events, cursor = cursorOf(response.validators), complete = skipped == 0)
 			}
 		}
 	}

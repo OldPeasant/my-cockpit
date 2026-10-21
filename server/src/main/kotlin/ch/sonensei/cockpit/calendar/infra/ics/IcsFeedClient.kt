@@ -3,6 +3,7 @@ package ch.sonensei.cockpit.calendar.infra.ics
 import ch.sonensei.cockpit.calendar.sync.CalendarProviderException
 import ch.sonensei.cockpit.mail.api.HostResolver
 import ch.sonensei.cockpit.mail.api.PublicAddresses
+import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.io.IOException
 import java.io.InputStream
@@ -11,12 +12,21 @@ import java.net.URI
 import java.net.URISyntaxException
 import java.net.UnknownHostException
 import java.net.http.HttpClient
+import java.net.http.HttpHeaders
 import java.net.http.HttpRequest
 import java.net.http.HttpResponse
 import java.net.http.HttpTimeoutException
+import java.nio.ByteBuffer
 import java.nio.charset.Charset
 import java.nio.charset.IllegalCharsetNameException
 import java.nio.charset.UnsupportedCharsetException
+import java.time.Duration
+import java.util.concurrent.CompletableFuture
+import java.util.concurrent.CompletionStage
+import java.util.concurrent.ExecutionException
+import java.util.concurrent.Flow
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.TimeoutException
 import java.util.zip.GZIPInputStream
 
 /** A feed's validators from its last download, sent back to download it only when it changed. */
@@ -60,25 +70,25 @@ internal class IcsFeedClient(
 		url: String,
 		validators: FeedValidators?,
 	): FeedResponse {
+		// One deadline for the whole fetch (redirects and bodies included), so a slow server cannot hold the sync.
+		val deadline = System.nanoTime() + properties.timeout.toNanos()
 		var target = target(url)
 		repeat(properties.maxRedirects + 1) {
 			checkAddresses(target)
-			val response = send(target, validators)
-			response.body().use { body ->
-				val status = response.statusCode()
-				when {
-					status in REDIRECTS -> {
-						val location =
-							response.headers().firstValue("Location").orElse(null)
-								?: throw CalendarProviderException("The feed server sent a redirect without a target (HTTP $status)")
-						target = redirect(target, location)
-					}
-					status == HTTP_NOT_MODIFIED -> return FeedResponse.NotModified
-					status in 200..299 -> return FeedResponse.Fetched(text(response, body), validatorsOf(response))
-					status == 401 || status == 403 -> throw CalendarProviderException("The feed server refused access (HTTP $status)")
-					status == 404 || status == 410 -> throw CalendarProviderException("The feed was not found (HTTP $status)")
-					else -> throw CalendarProviderException("The feed server failed (HTTP $status)")
+			val response = send(target, validators, deadline)
+			val status = response.statusCode()
+			when {
+				status in REDIRECTS -> {
+					val location =
+						response.headers().firstValue("Location").orElse(null)
+							?: throw CalendarProviderException("The feed server sent a redirect without a target (HTTP $status)")
+					target = redirect(target, location)
 				}
+				status == HTTP_NOT_MODIFIED -> return FeedResponse.NotModified
+				status in SUCCESS -> return FeedResponse.Fetched(text(response), validatorsOf(response))
+				status == 401 || status == 403 -> throw CalendarProviderException("The feed server refused access (HTTP $status)")
+				status == 404 || status == 410 -> throw CalendarProviderException("The feed was not found (HTTP $status)")
+				else -> throw CalendarProviderException("The feed server failed (HTTP $status)")
 			}
 		}
 		throw CalendarProviderException("The feed server redirected more than ${properties.maxRedirects} times")
@@ -135,57 +145,83 @@ internal class IcsFeedClient(
 		}
 	}
 
+	/** Sends one request and waits for its whole body, at most until [deadline] (a [System.nanoTime]). */
 	private fun send(
 		target: URI,
 		validators: FeedValidators?,
-	): HttpResponse<InputStream> {
-		val request =
-			HttpRequest
-				.newBuilder(target)
-				.timeout(properties.timeout)
-				.header("Accept", "text/calendar, */*;q=0.5")
-				.header("Accept-Encoding", "gzip")
-				.header("User-Agent", USER_AGENT)
-				.apply {
-					validators?.etag?.let { header("If-None-Match", it) }
-					validators?.lastModified?.let { header("If-Modified-Since", it) }
-				}.GET()
-				.build()
+		deadline: Long,
+	): HttpResponse<ByteArray> {
+		val remaining = deadline - System.nanoTime()
+		if (remaining <= 0) throw timedOut(null)
+		val future =
+			try {
+				val request =
+					HttpRequest
+						.newBuilder(target)
+						.timeout(Duration.ofNanos(remaining))
+						.header("Accept", "text/calendar, */*;q=0.5")
+						.header("Accept-Encoding", "gzip")
+						.header("User-Agent", USER_AGENT)
+						.apply {
+							validators?.etag?.let { header("If-None-Match", it) }
+							validators?.lastModified?.let { header("If-Modified-Since", it) }
+						}.GET()
+						.build()
+				http.sendAsync(request, ::body)
+			} catch (e: IllegalArgumentException) {
+				throw CalendarProviderException("The feed URL is not valid", e)
+			}
 		return try {
-			http.send(request, HttpResponse.BodyHandlers.ofInputStream())
-		} catch (e: HttpTimeoutException) {
-			throw CalendarProviderException("The feed server did not answer in time", e)
-		} catch (e: IOException) {
-			throw CalendarProviderException("The feed server could not be reached (${e.javaClass.simpleName})", e)
+			future.get(remaining, TimeUnit.NANOSECONDS)
+		} catch (e: TimeoutException) {
+			future.cancel(true)
+			throw timedOut(e)
 		} catch (e: InterruptedException) {
+			future.cancel(true)
 			Thread.currentThread().interrupt()
 			throw CalendarProviderException("Fetching the feed was interrupted", e)
-		} catch (e: IllegalArgumentException) {
-			throw CalendarProviderException("The feed URL is not valid", e)
+		} catch (e: ExecutionException) {
+			throw when (val cause = e.cause ?: e) {
+				is CalendarProviderException -> cause
+				is HttpTimeoutException -> timedOut(cause)
+				is IOException -> CalendarProviderException("The feed server could not be reached (${cause.javaClass.simpleName})", cause)
+				else -> CalendarProviderException("The feed could not be read (${cause.javaClass.simpleName})", cause)
+			}
 		}
 	}
 
-	private fun text(
-		response: HttpResponse<InputStream>,
-		body: InputStream,
-	): String {
+	private fun timedOut(cause: Exception?) = CalendarProviderException("The feed server did not answer in time", cause)
+
+	/**
+	 * The body of a feed (2xx) as bytes, still encoded and at most [IcsFeedProperties.maxSize] (a gzip body too, so the
+	 * limit holds before and after decompression); the bodies of other answers are discarded.
+	 */
+	private fun body(info: HttpResponse.ResponseInfo): HttpResponse.BodySubscriber<ByteArray> {
+		if (info.statusCode() !in SUCCESS) return HttpResponse.BodySubscribers.replacing(ByteArray(0))
 		val max = properties.maxSize.toBytes()
-		val length = response.headers().firstValueAsLong("Content-Length").orElse(-1)
-		val gzip =
-			response
-				.headers()
-				.firstValue("Content-Encoding")
-				.orElse("")
-				.trim()
-				.equals("gzip", ignoreCase = true)
-		if (!gzip && length > max) throw CalendarProviderException("The feed is larger than ${properties.maxSize}")
+		val length = info.headers().firstValueAsLong("Content-Length").orElse(-1)
+		return LimitedBody(max, refuseAtOnce = !gzip(info.headers()) && length > max, tooLarge = ::tooLarge)
+	}
+
+	private fun tooLarge() = CalendarProviderException("The feed is larger than ${properties.maxSize}")
+
+	private fun gzip(headers: HttpHeaders) =
+		headers
+			.firstValue("Content-Encoding")
+			.orElse("")
+			.trim()
+			.equals("gzip", ignoreCase = true)
+
+	private fun text(response: HttpResponse<ByteArray>): String {
 		val bytes =
-			try {
-				read(if (gzip) GZIPInputStream(body) else body, max)
-			} catch (e: HttpTimeoutException) {
-				throw CalendarProviderException("The feed server did not answer in time", e)
-			} catch (e: IOException) {
-				throw CalendarProviderException("The feed could not be read (${e.javaClass.simpleName})", e)
+			if (gzip(response.headers())) {
+				try {
+					GZIPInputStream(ByteArrayInputStream(response.body())).use { read(it, properties.maxSize.toBytes()) }
+				} catch (e: IOException) {
+					throw CalendarProviderException("The feed could not be read (${e.javaClass.simpleName})", e)
+				}
+			} else {
+				response.body()
 			}
 		return String(bytes, charset(response))
 	}
@@ -200,7 +236,7 @@ internal class IcsFeedClient(
 			val read = input.read(buffer)
 			if (read < 0) break
 			out.write(buffer, 0, read)
-			if (out.size() > max) throw CalendarProviderException("The feed is larger than ${properties.maxSize}")
+			if (out.size() > max) throw tooLarge()
 		}
 		return out.toByteArray()
 	}
@@ -249,8 +285,54 @@ internal class IcsFeedClient(
 
 	private companion object {
 		const val HTTP_NOT_MODIFIED = 304
+		val SUCCESS = 200..299
 		val REDIRECTS = setOf(301, 302, 303, 307, 308)
 		const val BUFFER_SIZE = 16 * 1024
 		const val USER_AGENT = "Cockpit-Calendar/1"
+	}
+}
+
+/**
+ * Collects a response body up to [max] bytes. More, or [refuseAtOnce] (the announced length is too large already),
+ * cancels the download and fails with [tooLarge].
+ */
+private class LimitedBody(
+	private val max: Long,
+	private val refuseAtOnce: Boolean,
+	private val tooLarge: () -> Exception,
+) : HttpResponse.BodySubscriber<ByteArray> {
+	private val result = CompletableFuture<ByteArray>()
+	private val out = ByteArrayOutputStream()
+	private lateinit var subscription: Flow.Subscription
+
+	override fun getBody(): CompletionStage<ByteArray> = result
+
+	override fun onSubscribe(subscription: Flow.Subscription) {
+		this.subscription = subscription
+		if (refuseAtOnce) refuse() else subscription.request(Long.MAX_VALUE)
+	}
+
+	override fun onNext(item: List<ByteBuffer>) {
+		if (result.isDone) return
+		for (buffer in item) {
+			val bytes = ByteArray(buffer.remaining())
+			buffer.get(bytes)
+			out.write(bytes)
+		}
+		if (out.size() > max) refuse()
+	}
+
+	override fun onError(throwable: Throwable) {
+		result.completeExceptionally(throwable)
+	}
+
+	override fun onComplete() {
+		result.complete(out.toByteArray())
+	}
+
+	private fun refuse() {
+		// Fail first: cancelling makes the client fail the exchange too, and the first failure is the one reported.
+		result.completeExceptionally(tooLarge())
+		subscription.cancel()
 	}
 }

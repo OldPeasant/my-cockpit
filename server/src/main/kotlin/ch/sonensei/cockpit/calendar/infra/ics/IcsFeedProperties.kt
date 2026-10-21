@@ -15,7 +15,10 @@ class IcsFeedProperties(
 	/** Largest feed that is read (after decompression). */
 	@DefaultValue("10MB") val maxSize: DataSize,
 	@DefaultValue("10s") val connectTimeout: Duration,
-	/** Time for one request, from sending it to the end of the body. */
+	/**
+	 * Time for a whole fetch: from sending the first request, through any redirects, to the end of the last body.
+	 * (Resolving the host name for the SSRF check is not part of it.)
+	 */
 	@DefaultValue("60s") val timeout: Duration,
 	@DefaultValue("5") val maxRedirects: Int,
 	/**

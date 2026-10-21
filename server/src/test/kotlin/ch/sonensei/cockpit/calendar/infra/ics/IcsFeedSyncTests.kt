@@ -223,6 +223,51 @@ class IcsFeedSyncTests(
 	}
 
 	@Test
+	fun `a 200 answer that is not an iCalendar file keeps the events and records an error`() {
+		serve(feed(STANDUP, RETRO), etag = "\"v1\"")
+		syncOk()
+		wireMock.stubFor(
+			get(urlPathEqualTo(FEED)).willReturn(
+				aResponse().withStatus(200).withHeader("Content-Type", "text/html").withBody("<html><body>Feed disabled</body></html>"),
+			),
+		)
+
+		val error =
+			sync
+				.sync(source.id)
+				.status!!
+				.lastError
+				.shouldNotBeNull()
+
+		error shouldContain "not a complete iCalendar file"
+		error shouldNotContain "s3cret"
+		all().map { it.externalId } shouldContainExactlyInAnyOrder listOf("standup@example.test", "retro@example.test")
+	}
+
+	@Test
+	fun `an unreadable event keeps its local copy until the feed can be read again`() {
+		serve(feed(STANDUP, RETRO), etag = "\"v1\"")
+		syncOk()
+
+		serve(feed(STANDUP, RETRO.replace("DTSTART:20261105T140000Z", "DTSTART:soon")), etag = "\"v2\"")
+		syncOk()
+		local("retro@example.test").shouldNotBeNull()
+
+		serve(feed(STANDUP), etag = "\"v3\"")
+		syncOk()
+		all().map { it.externalId } shouldContainExactly listOf("standup@example.test")
+	}
+
+	@Test
+	fun `an exception of a cancelled series is left out, so the sync has no error`() {
+		serve(feed(STANDUP.replace("SUMMARY:Stand-up", "SUMMARY:Stand-up\r\nSTATUS:CANCELLED"), STANDUP_MOVED, RETRO), etag = "\"v1\"")
+
+		syncOk()
+
+		all().map { it.externalId } shouldContainExactly listOf("retro@example.test")
+	}
+
+	@Test
 	fun `feeds on loopback and private addresses are refused unless their host is allowed`() {
 		serve(feed(RETRO))
 		listOf("http://127.0.0.1:${wireMock.port()}$FEED", "http://[::1]:${wireMock.port()}$FEED", "http://10.0.0.7/cal.ics").forEach { url ->

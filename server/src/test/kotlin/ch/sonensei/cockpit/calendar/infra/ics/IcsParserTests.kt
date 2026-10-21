@@ -159,6 +159,9 @@ class IcsParserTests {
 		val event = calendar.children("VEVENT").single()
 		event.first("UID")?.value shouldBe "open@example.test"
 		event.first("SUMMARY")?.value shouldBe "Still in the event"
+		// Closed only by the end of the text: not ended.
+		calendar.ended shouldBe false
+		event.ended shouldBe false
 	}
 
 	@Test
@@ -185,6 +188,9 @@ class IcsParserTests {
 			.first("UID")
 			?.value shouldBe "unclosed@example.test"
 		roots[1].first("X-WR-CALNAME")?.value shouldBe "Second"
+		// Each calendar was ended by its own END; the event only by its calendar's.
+		roots.map { it.ended } shouldContainExactly listOf(true, true)
+		roots[0].children("VEVENT").single().ended shouldBe false
 	}
 
 	@Test
