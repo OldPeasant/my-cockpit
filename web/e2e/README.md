@@ -16,12 +16,13 @@ server log on failure and tears the stack down with its volumes. The server imag
 (`localhost/<project>:latest`, kept for the layer cache). SIGINT/SIGTERM stop the Playwright run, tear the stack
 down and exit non-zero (130/143). Options (environment):
 
-| Variable       | Effect                                                            |
-| -------------- | ----------------------------------------------------------------- |
-| `E2E_COMPOSE`  | compose command, default `docker compose` (e.g. `podman-compose`) |
-| `E2E_PORT`     | host port of the server instead of a free one                     |
-| `E2E_KEEP=1`   | keep the stack running afterwards (prints the `down` command)     |
-| `E2E_BASE_URL` | run against an already running e2e stack, no compose up/down      |
+| Variable        | Effect                                                                        |
+| --------------- | ----------------------------------------------------------------------------- |
+| `E2E_COMPOSE`   | compose command, default `docker compose` (e.g. `podman-compose`)             |
+| `E2E_PORT`      | host port of the server instead of a free one                                 |
+| `E2E_KEEP=1`    | keep the stack running afterwards (prints the `down` command)                 |
+| `E2E_BASE_URL`  | run against an already running e2e stack, no compose up/down                  |
+| `E2E_IMAP_PORT` | host port of GreenMail's IMAP, default a free one (18143 with `E2E_BASE_URL`) |
 
 Reports: `test-results/` (traces and screenshots of failures), `playwright-report/` (`npx playwright show-report`).
 
@@ -44,6 +45,12 @@ Helpers in `support/api.ts`: `totp(secret, at?)`, `setupAccount`, `loginViaApi`,
 compute TOTP codes for the server's time; a jump of more than 30 days expires the worker's `loggedIn` session. A spec that resets the stack removes the shared account: run it
 with `test.describe.configure({ mode: 'serial' })` and set up its own account (and, with several workers, don't
 mix it with specs that use `loggedIn`).
+
+Mail: the stack includes GreenMail (`greenmail`, SMTP 3025 / IMAP 3143, no TLS, any login accepted and its mailbox
+created). `support/imap.ts` has `GREENMAIL_SERVERS` (the account settings as the server sees GreenMail) and a minimal
+`Imap` client on the host port (`E2E_IMAP_PORT`) to create folders, deliver mail with APPEND and check the result with
+SEARCH. Nothing syncs mail on a schedule in the e2e stack: `POST /api/test/mail/sync` (e2e profile) reads the folder list
+and new headers of every account (`mail.testsupport`).
 
 Test data is fictitious. `npm run e2e:typecheck` type-checks the suites, `npm run lint` lints them (both run in
 `npm run check`).
