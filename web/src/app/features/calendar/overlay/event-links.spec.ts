@@ -1,5 +1,6 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { provideRouter } from '@angular/router';
+import { MatDialogRef } from '@angular/material/dialog';
+import { provideRouter, Router } from '@angular/router';
 import {
   Api,
   createNote,
@@ -113,11 +114,15 @@ describe('EventLinks', () => {
   const alerts = () =>
     [...root.querySelectorAll<HTMLElement>('[role="alert"]')].map((a) => a.textContent!.trim());
 
-  async function render(occurrence: OccurrenceResponse = MEETING): Promise<void> {
+  async function render(
+    occurrence: OccurrenceResponse = MEETING,
+    dialog?: { close: ReturnType<typeof vi.fn> },
+  ): Promise<void> {
     TestBed.configureTestingModule({
       imports: [EventLinks],
       providers: [
-        provideRouter([]),
+        provideRouter([{ path: '**', children: [] }]),
+        ...(dialog ? [{ provide: MatDialogRef, useValue: dialog }] : []),
         { provide: Api, useValue: { invoke } },
         { provide: LinksService, useValue: links },
         { provide: NotificationService, useValue: notifications },
@@ -237,5 +242,19 @@ describe('EventLinks', () => {
     button('Create note for event')!.click();
     await stable();
     expect(alerts()).toContain('The note could not be created.');
+  });
+
+  it('closes its dialog when a link is followed', async () => {
+    const dialog = { close: vi.fn() };
+    await render(MEETING, dialog);
+    expect(dialog.close).not.toHaveBeenCalled();
+    await TestBed.inject(Router).navigateByUrl('/notes/n1');
+    expect(dialog.close).toHaveBeenCalledExactlyOnceWith(undefined);
+  });
+
+  it('works outside a dialog', async () => {
+    await render();
+    await TestBed.inject(Router).navigateByUrl('/notes/n1');
+    expect(button('Create task from event')).toBeDefined();
   });
 });

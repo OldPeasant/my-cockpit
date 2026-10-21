@@ -42,10 +42,11 @@ test.describe('calendar task overlay and links', () => {
     await expect(marksOn(page, '2030-05-07', due)).toHaveCount(1);
 
     // Not in the month view.
-    await page.getByRole('button', { name: 'Month' }).click();
-    await expect(page).toHaveURL(/view=month/);
+    await page.goto('/calendar?view=month&date=2030-05-08');
+    await expect(page.locator('.app-calendar [data-date="2030-05-07"]').first()).toBeVisible();
+    await expect(page.getByText('Shown in the day and week views.')).toBeVisible();
     await expect(page.locator('.app-task-mark', { hasText: run })).toHaveCount(0);
-    await page.getByRole('button', { name: 'Week' }).click();
+    await page.goto('/calendar?view=week&date=2030-05-08');
     await expect(marksOn(page, '2030-05-07', due)).toHaveCount(1);
 
     // A task opens its detail.
@@ -83,12 +84,13 @@ test.describe('calendar task overlay and links', () => {
     const noteLink = eventLinks.getByRole('link', { name: new RegExp(escape(noteTitle)) });
     await expect(noteLink).toBeVisible();
 
-    // The note lists the event.
+    // The note lists the event (following the link closed the dialog).
     await noteLink.click();
     await expect(page).toHaveURL(/\/notes\//);
+    await expect(dialog).toBeHidden();
     const noteLinks = page.getByRole('region', { name: /Linked items/ });
-    const eventLink = noteLinks.getByRole('link', { name: new RegExp(escape(title)) });
-    await expect(eventLink).toBeVisible();
+    const eventLink = noteLinks.locator('a[href^="/calendar/events/"]', { hasText: title });
+    await expect(eventLink).toHaveCount(1);
 
     // The event's link opens it in the calendar, at its date.
     await eventLink.click();
