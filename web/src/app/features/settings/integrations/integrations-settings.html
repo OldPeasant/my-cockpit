@@ -1,0 +1,146 @@
+<section class="integrations" aria-labelledby="integrations-title">
+  <h2 id="integrations-title" i18n="@@settings.integrations">Integrations</h2>
+
+  @if (outcome(); as result) {
+    <p class="outcome" [class.failed]="!result.ok" [attr.role]="result.ok ? 'status' : 'alert'">
+      {{ result.text }}
+    </p>
+  }
+
+  <div class="row">
+    <div class="describe">
+      <h3 id="sources-label" i18n="@@integrations.sources">Calendar sync</h3>
+      <p i18n="@@integrations.sources.hint">
+        Connected calendars sync on their own every few minutes. Sync one now after changing it
+        elsewhere.
+      </p>
+    </div>
+    <div class="control">
+      @if (loadError(); as error) {
+        <div class="load-error" role="alert">
+          <p i18n="@@integrations.loadFailed">Sync status could not be loaded: {{ error }}</p>
+          <button mat-stroked-button type="button" (click)="load()" i18n="@@settings.retry">
+            Try again
+          </button>
+        </div>
+      } @else if (external(); as list) {
+        @if (list.length) {
+          <ul class="sources" aria-labelledby="sources-label">
+            @for (source of list; track source.id) {
+              <li [attr.data-state]="source.sync?.state ?? 'NONE'">
+                <div class="head">
+                  <span class="mark" aria-hidden="true"></span>
+                  <span class="name">{{ source.name }}</span>
+                  <span class="type">{{ typeLabels[source.type] }}</span>
+                  @if (source.syncable) {
+                    <button
+                      mat-stroked-button
+                      type="button"
+                      class="sync"
+                      [disabled]="syncing().has(source.id)"
+                      [attr.aria-label]="syncLabel(source)"
+                      (click)="syncNow(source)"
+                    >
+                      @if (syncing().has(source.id)) {
+                        <ng-container i18n="@@integrations.syncing">Syncing…</ng-container>
+                      } @else {
+                        <ng-container i18n="@@integrations.syncNow">Sync now</ng-container>
+                      }
+                    </button>
+                  }
+                </div>
+                @if (source.sync; as sync) {
+                  <dl class="facts">
+                    <div>
+                      <dt i18n="@@integrations.lastSync">Last sync</dt>
+                      <dd class="last-success">
+                        @if (sync.lastSuccessAt) {
+                          {{ sync.lastSuccessAt | date: 'medium' }}
+                        } @else {
+                          <ng-container i18n="@@integrations.never">Never</ng-container>
+                        }
+                      </dd>
+                    </div>
+                    @if (sync.lastAttemptAt && sync.lastAttemptAt !== sync.lastSuccessAt) {
+                      <div>
+                        <dt i18n="@@integrations.lastAttempt">Last attempt</dt>
+                        <dd class="last-attempt">{{ sync.lastAttemptAt | date: 'medium' }}</dd>
+                      </div>
+                    }
+                    <div>
+                      <dt i18n="@@integrations.nextSync">Next sync</dt>
+                      <dd class="next">{{ sync.nextSyncAt | date: 'shortTime' }}</dd>
+                    </div>
+                  </dl>
+                  @if (sync.lastError) {
+                    <p class="source-error" i18n="@@integrations.lastError">
+                      Last sync failed: {{ sync.lastError }}
+                    </p>
+                  }
+                } @else {
+                  <p class="note" i18n="@@integrations.notSynced">
+                    This kind of source is not synced yet.
+                  </p>
+                }
+              </li>
+            }
+          </ul>
+        } @else {
+          <p class="note">
+            <ng-container i18n="@@integrations.none">No connected calendars.</ng-container>
+            <a routerLink="/settings/calendars" i18n="@@integrations.addLink"
+              >Add one in Calendars</a
+            >
+          </p>
+        }
+        @if (syncError(); as error) {
+          <p class="error" role="alert" i18n="@@integrations.syncFailed">
+            {{ error.name }} could not be synced: {{ error.message }}
+          </p>
+        }
+      } @else {
+        <p class="note" role="status" i18n="@@integrations.loading">Loading sync status…</p>
+      }
+    </div>
+  </div>
+
+  @if (connections().length) {
+    <div class="row">
+      <div class="describe">
+        <h3 id="accounts-label" i18n="@@integrations.accounts">Accounts</h3>
+        <p i18n="@@integrations.accounts.hint">
+          Google and Microsoft accounts the cockpit may access.
+        </p>
+      </div>
+      <div class="control">
+        <ul class="accounts" aria-labelledby="accounts-label">
+          @for (connection of connections(); track connection.id) {
+            <li>
+              <span class="name">{{
+                connection.email ?? connection.displayName ?? connection.provider
+              }}</span>
+              <span class="type">{{ typeLabels[connection.provider] }}</span>
+              @if (connection.status === 'RECONNECT_REQUIRED') {
+                <span class="account-error" i18n="@@integrations.reconnectNeeded"
+                  >Access expired</span
+                >
+                <button
+                  mat-stroked-button
+                  type="button"
+                  (click)="reconnect(connection)"
+                  i18n="@@integrations.reconnect"
+                >
+                  Reconnect
+                </button>
+              } @else if (connection.lastError) {
+                <span class="account-error" i18n="@@integrations.accountError"
+                  >Last refresh failed: {{ connection.lastError }}</span
+                >
+              }
+            </li>
+          }
+        </ul>
+      </div>
+    </div>
+  }
+</section>

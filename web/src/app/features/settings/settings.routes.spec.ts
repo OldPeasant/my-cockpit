@@ -76,11 +76,27 @@ describe('settings routes', () => {
     );
   });
 
-  it.each([
-    ['calendars', 'Calendars'],
-    ['integrations', 'Integrations'],
-    ['mail', 'Mail'],
-  ])('has a placeholder for %s', async (path, title) => {
+  it('opens Calendars at /settings/calendars', async () => {
+    const harness = await RouterTestingHarness.create();
+    await harness.navigateByUrl('/settings/calendars');
+
+    expect(harness.routeNativeElement?.querySelector('app-calendars-settings')).not.toBeNull();
+    expect(harness.routeNativeElement?.querySelector('a.active')?.textContent?.trim()).toBe(
+      'Calendars',
+    );
+  });
+
+  it('opens Integrations at /settings/integrations', async () => {
+    const harness = await RouterTestingHarness.create();
+    await harness.navigateByUrl('/settings/integrations');
+
+    expect(harness.routeNativeElement?.querySelector('app-integrations-settings')).not.toBeNull();
+    expect(harness.routeNativeElement?.querySelector('a.active')?.textContent?.trim()).toBe(
+      'Integrations',
+    );
+  });
+
+  it.each([['mail', 'Mail']])('has a placeholder for %s', async (path, title) => {
     const harness = await RouterTestingHarness.create();
     await harness.navigateByUrl(`/settings/${path}`);
     const root = harness.routeNativeElement as HTMLElement;

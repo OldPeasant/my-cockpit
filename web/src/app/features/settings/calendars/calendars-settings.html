@@ -1,0 +1,300 @@
+<section class="calendars" aria-labelledby="calendars-title">
+  <h2 id="calendars-title" i18n="@@settings.calendars">Calendars</h2>
+
+  <div class="row">
+    <div class="describe">
+      <h3 id="list-label" i18n="@@calendars.list">Your calendars</h3>
+      <p i18n="@@calendars.list.hint">
+        Pick a color, choose which calendars the calendar views show, and where new events go.
+      </p>
+    </div>
+    <div class="control">
+      @if (loadError(); as error) {
+        <div class="load-error" role="alert">
+          <p i18n="@@calendars.loadFailed">Calendars could not be loaded: {{ error }}</p>
+          <button mat-stroked-button type="button" (click)="load()" i18n="@@settings.retry">
+            Try again
+          </button>
+        </div>
+      } @else if (calendars()) {
+        @for (group of groups(); track group.source?.id ?? 'other') {
+          <div class="group" role="group" [attr.aria-label]="group.name">
+            <p class="source">{{ group.name }}</p>
+            @if (group.calendars.length) {
+              <ul class="list">
+                @for (calendar of group.calendars; track calendar.id) {
+                  <li [class.hidden]="!calendar.visible">
+                    <label class="swatch" [style.--swatch]="calendar.color ?? null">
+                      <input
+                        type="color"
+                        [value]="calendar.color ?? '#3f7fbf'"
+                        [disabled]="saving().has(calendar.id)"
+                        [attr.aria-label]="colorLabel(calendar)"
+                        (change)="setColor(calendar, $any($event.target).value)"
+                      />
+                    </label>
+                    <span class="name">
+                      {{ calendar.name }}
+                      @if (calendar.readOnly) {
+                        <span class="tag" i18n="@@calendars.readOnly">read-only</span>
+                      }
+                    </span>
+                    @if (calendar.isDefault) {
+                      <span class="default" i18n="@@calendars.isDefault"
+                        >Default for new events</span
+                      >
+                    } @else if (!calendar.readOnly) {
+                      <button
+                        mat-button
+                        type="button"
+                        class="make-default"
+                        [disabled]="saving().has(calendar.id)"
+                        [attr.aria-label]="defaultLabel(calendar)"
+                        (click)="makeDefault(calendar)"
+                        i18n="@@calendars.makeDefault"
+                      >
+                        Make default
+                      </button>
+                    }
+                    <mat-slide-toggle
+                      [checked]="calendar.visible"
+                      [disabled]="saving().has(calendar.id)"
+                      [aria-label]="visibleLabel(calendar)"
+                      (change)="setVisible(calendar, $event.checked)"
+                      i18n="@@calendars.shown"
+                      >Shown</mat-slide-toggle
+                    >
+                  </li>
+                }
+              </ul>
+            } @else {
+              <p class="note" i18n="@@calendars.noneYet">
+                No calendars yet. They appear after the first sync.
+              </p>
+            }
+          </div>
+        } @empty {
+          <p class="note" i18n="@@calendars.none">No calendars yet. Add one below.</p>
+        }
+        @if (saveError(); as error) {
+          <p class="error" role="alert" i18n="@@calendars.saveFailed">
+            {{ error.name }} could not be changed: {{ error.message }}
+          </p>
+        }
+      } @else {
+        <p class="note" role="status" i18n="@@calendars.loading">Loading calendars…</p>
+      }
+    </div>
+  </div>
+
+  <div class="row">
+    <div class="describe">
+      <h3 id="add-label" i18n="@@calendars.add">Add a calendar</h3>
+      <p i18n="@@calendars.add.hint">
+        Keep one in the cockpit, or connect an account. Connected calendars stay in sync both ways;
+        ICS feeds are read-only.
+      </p>
+    </div>
+    <div class="control">
+      <mat-button-toggle-group
+        class="kinds"
+        aria-labelledby="add-label"
+        [value]="kind()"
+        (change)="selectKind($event.value)"
+      >
+        <mat-button-toggle value="LOCAL" i18n="@@calendars.kind.local">Local</mat-button-toggle>
+        <mat-button-toggle value="CALDAV" i18n="@@calendars.kind.caldav">CalDAV</mat-button-toggle>
+        <mat-button-toggle value="ICS_FEED" i18n="@@calendars.kind.ics">ICS feed</mat-button-toggle>
+        <mat-button-toggle value="GOOGLE" i18n="@@calendars.kind.google">Google</mat-button-toggle>
+        <mat-button-toggle value="MICROSOFT" i18n="@@calendars.kind.microsoft"
+          >Microsoft</mat-button-toggle
+        >
+      </mat-button-toggle-group>
+
+      @switch (kind()) {
+        @case ('LOCAL') {
+          <form
+            class="add"
+            [formGroup]="local"
+            (submit)="$event.preventDefault(); addLocal()"
+            novalidate
+          >
+            <mat-form-field subscriptSizing="dynamic">
+              <mat-label i18n="@@calendars.field.name">Name</mat-label>
+              <input matInput formControlName="name" maxlength="200" />
+              @if (local.controls.name.touched && local.controls.name.invalid) {
+                <mat-error i18n="@@calendars.field.nameRequired">Enter a name.</mat-error>
+              }
+            </mat-form-field>
+            <label class="color-field">
+              <input type="color" formControlName="color" />
+              <span i18n="@@calendars.field.color">Color</span>
+            </label>
+            <div class="actions">
+              <button
+                mat-flat-button
+                type="submit"
+                [disabled]="adding()"
+                i18n="@@calendars.add.local"
+              >
+                Add calendar
+              </button>
+            </div>
+          </form>
+        }
+        @case ('CALDAV') {
+          <form
+            class="add"
+            [formGroup]="caldav"
+            (submit)="$event.preventDefault(); addCaldav()"
+            novalidate
+          >
+            <mat-form-field subscriptSizing="dynamic" class="wide">
+              <mat-label i18n="@@calendars.field.caldavUrl">Server URL</mat-label>
+              <input
+                matInput
+                formControlName="url"
+                type="url"
+                inputmode="url"
+                placeholder="https://cloud.example.org/remote.php/dav"
+              />
+              @if (caldav.controls.url.touched && caldav.controls.url.invalid) {
+                <mat-error i18n="@@calendars.field.httpUrl">Enter an http or https URL.</mat-error>
+              }
+            </mat-form-field>
+            <mat-form-field subscriptSizing="dynamic">
+              <mat-label i18n="@@calendars.field.username">User name</mat-label>
+              <input matInput formControlName="username" autocomplete="off" />
+              @if (caldav.controls.username.touched && caldav.controls.username.invalid) {
+                <mat-error i18n="@@calendars.field.usernameRequired"
+                  >Enter the user name.</mat-error
+                >
+              }
+            </mat-form-field>
+            <mat-form-field subscriptSizing="dynamic">
+              <mat-label i18n="@@calendars.field.password">App password</mat-label>
+              <input
+                matInput
+                formControlName="password"
+                type="password"
+                autocomplete="new-password"
+              />
+              @if (caldav.controls.password.touched && caldav.controls.password.invalid) {
+                <mat-error i18n="@@calendars.field.passwordRequired">Enter the password.</mat-error>
+              }
+            </mat-form-field>
+            <mat-form-field subscriptSizing="dynamic">
+              <mat-label i18n="@@calendars.field.optionalName">Name (optional)</mat-label>
+              <input matInput formControlName="name" maxlength="200" />
+            </mat-form-field>
+            <p class="note wide" i18n="@@calendars.caldav.hint">
+              For iCloud, create an app-specific password in your Apple account. The password is
+              stored encrypted.
+            </p>
+            <div class="actions">
+              <button
+                mat-flat-button
+                type="submit"
+                [disabled]="adding()"
+                i18n="@@calendars.add.caldav"
+              >
+                Connect CalDAV
+              </button>
+            </div>
+          </form>
+        }
+        @case ('ICS_FEED') {
+          <form
+            class="add"
+            [formGroup]="ics"
+            (submit)="$event.preventDefault(); addIcs()"
+            novalidate
+          >
+            <mat-form-field subscriptSizing="dynamic" class="wide">
+              <mat-label i18n="@@calendars.field.icsUrl">Feed URL</mat-label>
+              <input
+                matInput
+                formControlName="url"
+                type="url"
+                inputmode="url"
+                placeholder="webcal://example.org/holidays.ics"
+              />
+              @if (ics.controls.url.touched && ics.controls.url.invalid) {
+                <mat-error i18n="@@calendars.field.feedUrl"
+                  >Enter an http, https or webcal URL.</mat-error
+                >
+              }
+            </mat-form-field>
+            <mat-form-field subscriptSizing="dynamic">
+              <mat-label i18n="@@calendars.field.optionalName">Name (optional)</mat-label>
+              <input matInput formControlName="name" maxlength="200" />
+            </mat-form-field>
+            <div class="actions">
+              <button
+                mat-flat-button
+                type="submit"
+                [disabled]="adding()"
+                i18n="@@calendars.add.ics"
+              >
+                Subscribe
+              </button>
+            </div>
+          </form>
+        }
+        @case ('GOOGLE') {
+          <div class="add oauth">
+            @if (providerConfigured('GOOGLE')) {
+              <p class="note wide" i18n="@@calendars.google.hint">
+                Google asks you to allow access, then sends you back here.
+              </p>
+              <div class="actions">
+                <button
+                  mat-flat-button
+                  type="button"
+                  (click)="connect('google')"
+                  i18n="@@calendars.connect.google"
+                >
+                  Connect Google account
+                </button>
+              </div>
+            } @else {
+              <p class="note wide" i18n="@@calendars.google.unconfigured">
+                Google is not set up on this server. Add the Google OAuth client id and secret to
+                the server configuration first.
+              </p>
+            }
+          </div>
+        }
+        @case ('MICROSOFT') {
+          <div class="add oauth">
+            @if (providerConfigured('MICROSOFT')) {
+              <p class="note wide" i18n="@@calendars.microsoft.hint">
+                Microsoft asks you to allow access, then sends you back here.
+              </p>
+              <div class="actions">
+                <button
+                  mat-flat-button
+                  type="button"
+                  (click)="connect('microsoft')"
+                  i18n="@@calendars.connect.microsoft"
+                >
+                  Connect Microsoft account
+                </button>
+              </div>
+            } @else {
+              <p class="note wide" i18n="@@calendars.microsoft.unconfigured">
+                Microsoft is not set up on this server. Add the Microsoft OAuth client id and secret
+                to the server configuration first.
+              </p>
+            }
+          </div>
+        }
+      }
+      @if (addError(); as error) {
+        <p class="error" role="alert">{{ error }}</p>
+      } @else if (addStatus(); as status) {
+        <p class="status" role="status">{{ status }}</p>
+      }
+    </div>
+  </div>
+</section>

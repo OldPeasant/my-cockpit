@@ -1,0 +1,167 @@
+h2 {
+  margin: 0 0 var(--app-space-2);
+  font: var(--mat-sys-title-large);
+}
+
+.note {
+  margin: 0;
+  color: var(--app-fg-muted);
+
+  a {
+    margin-left: var(--app-space-1);
+    color: var(--app-accent);
+  }
+}
+
+.error {
+  margin: var(--app-space-2) 0 0;
+  color: var(--app-danger);
+}
+
+.outcome {
+  margin: 0 0 var(--app-space-3);
+  padding: var(--app-space-2) var(--app-space-3);
+  border-left: 3px solid var(--app-accent);
+  background: var(--app-surface-raised);
+
+  &.failed {
+    border-left-color: var(--app-danger);
+  }
+}
+
+.load-error {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--app-space-3);
+  color: var(--app-danger);
+
+  p {
+    margin: 0;
+  }
+}
+
+// One setting per row: what it is on the left, the control on the right (as in General).
+.row {
+  display: grid;
+  grid-template-columns: minmax(0, 16rem) minmax(0, 1fr);
+  gap: var(--app-space-2) var(--app-space-5);
+  padding: var(--app-space-4) 0;
+  border-top: 1px solid var(--app-border);
+}
+
+.describe {
+  h3 {
+    margin: 0 0 var(--app-space-1);
+    font: var(--mat-sys-title-small);
+  }
+
+  p {
+    margin: 0;
+    color: var(--app-fg-muted);
+    font: var(--mat-sys-body-medium);
+  }
+}
+
+.control {
+  min-width: 0;
+}
+
+.sources,
+.accounts {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+
+  > li {
+    padding: var(--app-space-3) 0;
+
+    & + li {
+      border-top: 1px solid var(--app-border);
+    }
+  }
+}
+
+.head,
+.accounts > li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--app-space-2) var(--app-space-3);
+}
+
+// The state of a source at a glance: hollow until the first sync, filled when fine, red on error.
+.mark {
+  flex: none;
+  width: 0.625rem;
+  height: 0.625rem;
+  border: 2px solid var(--app-fg-muted);
+  border-radius: 50%;
+}
+
+[data-state='OK'] .mark {
+  border-color: var(--app-accent);
+  background: var(--app-accent);
+}
+
+[data-state='ERROR'] .mark {
+  border-color: var(--app-danger);
+  background: var(--app-danger);
+}
+
+.name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font: var(--mat-sys-body-large);
+}
+
+.type {
+  color: var(--app-fg-muted);
+  font: var(--mat-sys-body-small);
+}
+
+.sync {
+  margin-left: auto;
+}
+
+.facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--app-space-1) var(--app-space-5);
+  margin: var(--app-space-2) 0 0;
+  padding-left: calc(0.625rem + var(--app-space-3));
+  font: var(--mat-sys-body-medium);
+
+  dt {
+    color: var(--app-fg-muted);
+    font: var(--mat-sys-body-small);
+  }
+
+  dd {
+    margin: 0;
+  }
+}
+
+.source-error {
+  margin: var(--app-space-2) 0 0;
+  padding-left: calc(0.625rem + var(--app-space-3));
+  color: var(--app-danger);
+  overflow-wrap: anywhere;
+}
+
+.account-error {
+  color: var(--app-danger);
+  font: var(--mat-sys-body-small);
+}
+
+@media (max-width: 720px) {
+  .row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .sync {
+    margin-left: 0;
+  }
+}

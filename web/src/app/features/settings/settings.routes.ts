@@ -32,8 +32,16 @@ export default [
         title: SETTINGS_SECTIONS.security.label,
         loadComponent: () => import('./security/security-settings'),
       },
-      placeholder(SETTINGS_SECTIONS.calendars),
-      placeholder(SETTINGS_SECTIONS.integrations),
+      {
+        path: SETTINGS_SECTIONS.calendars.path,
+        title: SETTINGS_SECTIONS.calendars.label,
+        loadComponent: () => import('./calendars/calendars-settings'),
+      },
+      {
+        path: SETTINGS_SECTIONS.integrations.path,
+        title: SETTINGS_SECTIONS.integrations.label,
+        loadComponent: () => import('./integrations/integrations-settings'),
+      },
       placeholder(SETTINGS_SECTIONS.mail),
       {
         path: SETTINGS_SECTIONS.backup.path,
