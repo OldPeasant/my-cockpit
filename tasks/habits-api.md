@@ -19,7 +19,8 @@ Habits with streaks (SPEC.md §8.5).
   - verified (2026-10-21 23:05+0200 by dell26/agent-2): cd server && ./gradlew test --tests 'ch.sonensei.cockpit.journal.habits.*' -> HabitWebTests resolver tests (ItemType.HABIT resolves a habit, null after delete) pass, 0 failures
 - [x] `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.journal.habits.*'` passes (Postgres via Testcontainers where persistence is involved) incl. streaks across week boundaries
   - verified (2026-10-21 23:05+0200 by dell26/agent-2): cd server && ./gradlew test --tests 'ch.sonensei.cockpit.journal.habits.*' (Testcontainers Postgres) -> BUILD SUCCESSFUL, 79 tests 0 failures, incl. HabitCalendarEdgeCaseTests 'weekly streak runs across the year boundary and depends on the week start', 'a missed past week breaks the weekly streak...'
-- [ ] API documented: `api/openapi.yaml` regenerated (`UPDATE_OPENAPI=1 ./gradlew test --tests '*OpenApiContractTest'`) and `OpenApiContractTest` passes without the flag
+- [x] API documented: `api/openapi.yaml` regenerated (`UPDATE_OPENAPI=1 ./gradlew test --tests '*OpenApiContractTest'`) and `OpenApiContractTest` passes without the flag
+  - verified (2026-10-21 23:05+0200 by dell26/agent-2): api/openapi.yaml regenerated with UPDATE_OPENAPI=1 (committed with web client); cd server && ./gradlew test --tests '*OpenApiContractTest' without the flag -> 1 test 0 failures
 
 ## Notes
 - ASSUMPTION (2026-10-21 21:38+0200 by dell26/agent-2): Habit migration lives in db/migration/journal/V202610211930__journal_habits.sql (not journal/habits/ as in touches): MigrationConventionTests requires a flat <module>/ folder whose name matches the file prefix
