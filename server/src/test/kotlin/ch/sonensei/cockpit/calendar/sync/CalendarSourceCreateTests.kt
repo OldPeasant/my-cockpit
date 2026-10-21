@@ -1,16 +1,19 @@
 package ch.sonensei.cockpit.calendar.sync
 
 import ch.sonensei.cockpit.calendar.api.CalendarApi
+import ch.sonensei.cockpit.calendar.api.CalendarApi.Companion.changes
 import ch.sonensei.cockpit.calendar.api.CalendarApi.Companion.id
 import ch.sonensei.cockpit.calendar.api.CalendarApi.Companion.isProblem
 import ch.sonensei.cockpit.calendar.model.CalendarSource
 import ch.sonensei.cockpit.calendar.model.CalendarSourceRepository
 import ch.sonensei.cockpit.calendar.model.CalendarSourceType
 import ch.sonensei.cockpit.core.auth.WithCockpitUser
+import ch.sonensei.cockpit.core.events.domain.ChangeOp
 import ch.sonensei.cockpit.core.oauth.domain.OAuthConnection
 import ch.sonensei.cockpit.core.oauth.domain.OAuthProvider
 import ch.sonensei.cockpit.core.oauth.infra.OAuthConnectionRepository
 import ch.sonensei.cockpit.support.PostgresTestBase
+import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldNotContain
 import org.junit.jupiter.api.BeforeEach
@@ -19,6 +22,9 @@ import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc
 import org.springframework.jdbc.core.JdbcTemplate
+import org.springframework.security.test.context.support.WithAnonymousUser
+import org.springframework.test.context.event.ApplicationEvents
+import org.springframework.test.context.event.RecordApplicationEvents
 import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.get
 import tools.jackson.databind.json.JsonMapper
@@ -27,6 +33,7 @@ import java.util.UUID
 /** `POST /api/v1/calendar/sources`: adding CalDAV, ICS and Google/Microsoft sources. */
 @SpringBootTest
 @AutoConfigureMockMvc
+@RecordApplicationEvents
 @WithCockpitUser
 class CalendarSourceCreateTests(
 	@Autowired private val mockMvc: MockMvc,
@@ -290,6 +297,22 @@ class CalendarSourceCreateTests(
 
 		source.toString() shouldNotContain "fictitious-pw"
 		source.toString() shouldNotContain "fictitious-token"
+	}
+
+	@Test
+	fun `a new source is announced once, an already linked or refused one is not`(events: ApplicationEvents) {
+		val created = api.read(post("""{"type":"GOOGLE","oauthConnectionId":"$google"}""").andExpect { status { isCreated() } })
+		post("""{"type":"GOOGLE","oauthConnectionId":"$google"}""").andExpect { status { isOk() } }
+		post("""{"type":"CALDAV","url":"https://dav.example.test"}""").isProblem(400, "username", "password")
+
+		events.changes("CALENDAR_SOURCE") shouldContainExactly listOf(ChangeOp.CREATED to created.id())
+	}
+
+	@Test
+	@WithAnonymousUser
+	fun `adding a source needs a login`() {
+		post("""{"type":"ICS_FEED","url":"https://feeds.example.test/a.ics"}""").andExpect { status { isUnauthorized() } }
+		sources.count() shouldBe 0
 	}
 
 	companion object {
