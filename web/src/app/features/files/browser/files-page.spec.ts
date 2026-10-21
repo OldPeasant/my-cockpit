@@ -609,11 +609,52 @@ describe('FilesPage', () => {
 
     await menu('Documents', 'Move');
     const el = await dialog('app-files-move-dialog');
+    const before = drive.requests.length;
     button('Cancel', el).click();
     await closed('app-files-move-dialog');
 
     expect(drive.requests.some((r) => r.method === 'PATCH')).toBe(false);
     expect(notifications.info).not.toHaveBeenCalled();
+    // Nothing is reloaded: no listing, tree or usage request after the cancel.
+    expect(drive.requests).toHaveLength(before);
+  });
+
+  it('lists every subfolder in the move picker when they span several pages', async () => {
+    drive.pageSize = 2;
+    await open(DOCS);
+
+    await menu('Report.pdf', 'Move');
+    const el = await dialog('app-files-move-dialog');
+    button('My drive', el).click();
+    await settle();
+
+    expect([...el.querySelectorAll('.folder span')].map((n) => n.textContent?.trim())).toEqual([
+      'Attachments',
+      'Documents',
+      'Photos',
+    ]);
+    const rootPages = drive.requests.filter(
+      (r) => r.url === '/api/v1/drive' && !r.params.has('folderId'),
+    );
+    expect(rootPages.map((r) => r.params.get('cursor'))).toContain('2');
+  });
+
+  it('drops entries a "Show more" page repeats after the listing shifted', async () => {
+    drive.file('0192f0c4-0000-7000-8000-0000000000f2', 'Notes.txt', 10);
+    drive.pageSize = 2;
+    await open();
+    expect(names()).toEqual(['Attachments', 'Documents']);
+
+    // A folder created elsewhere sorts first: the next page now starts with Documents again.
+    drive.folder('0192f0c4-0000-7000-8000-000000000099', 'Archive');
+    button('Show more').click();
+    await settle();
+    expect(names()).toEqual(['Attachments', 'Documents', 'Photos']);
+
+    button('Show more').click();
+    await settle();
+    expect(names()).toEqual(['Attachments', 'Documents', 'Photos', 'Notes.txt']);
+    expect(button('Show more')).toBeUndefined();
   });
 
   it('keeps the move dialog open until a running move has answered', async () => {
