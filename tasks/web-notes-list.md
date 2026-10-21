@@ -11,7 +11,8 @@ lease_until: 2026-10-21T03:48:36Z
 Notes overview (SPEC.md §8.1).
 
 ## Acceptance criteria
-- [ ] Masonry grid/list toggle, pinned first, tag filter, archived toggle, search within notes, create note
+- [x] Masonry grid/list toggle, pinned first, tag filter, archived toggle, search within notes, create note
+  - verified (2026-10-21 05:30+0200 by R1963MACOS/agent-1): Implemented in web/src/app/features/notes/list (notes-page, note-card, notes.service, notes-filter): CSS-columns masonry grid + list toggle (localStorage), pinned section first, server tag filter chips, Notes/Archived toggle, client search over all loaded pages, inline composer -> POST /notes. npx ng test --watch=false --include='src/app/features/notes/**/*.spec.ts' -> 4 files, 79 tests passed (component tests exercise each feature via DOM + HttpTestingController). Masonry layout itself not checkable in jsdom.
 - [ ] Vitest component/service tests cover filtering and pin ordering; `cd web && npm run check` passes
 
 ## Notes
