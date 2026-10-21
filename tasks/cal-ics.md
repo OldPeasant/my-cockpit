@@ -12,7 +12,8 @@ extended: dell26/agent-3
 Read-only ICS subscriptions (SPEC.md §6.1).
 
 ## Acceptance criteria
-- [ ] Fetch with ETag/Last-Modified, parse, upsert/delete; calendars read-only; SSRF protection (no private/loopback addresses unless allowed in config)
+- [x] Fetch with ETag/Last-Modified, parse, upsert/delete; calendars read-only; SSRF protection (no private/loopback addresses unless allowed in config)
+  - verified (2026-10-21 18:03+0200 by dell26/agent-3): cd server && ./gradlew test --tests 'ch.sonensei.cockpit.calendar.infra.ics.*' at 98542708 -> 124 tests pass: IcsFeedClientTests (If-None-Match/If-Modified-Since, 304, SSRF private/loopback/link-local/mapped refused incl. redirects, allow-private-networks/allowed-private-hosts), IcsFeedAdapterTests (read-only writes refused), IcsFeedSyncTests (upsert/delete on Postgres)
 - [ ] `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.calendar.infra.ics.*'` passes (Postgres via Testcontainers where persistence is involved) with WireMock feeds
 
 ## Notes
