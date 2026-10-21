@@ -4,24 +4,33 @@ Date: 2026-10-21
 
 Task: web-mail-list - Mail list and triage
 
-Scope: `git diff d231ab38..05d214a5`, excluding `tasks/` (commits c8f946e8, 496cd01a, 05d214a5)
+Scope: `git diff 3e6a11a2..c5b934aa`, excluding `tasks/` and `reviews/` (all `web-mail-list:` commits; final code revision c5b934aa). This is the second review. It checks the fixes for CR-1..CR-7 of the first review (`reviews/web-mail-list/fixes.md`) and reviews the whole implementation again. Uncommitted test-writer changes in the working tree were not reviewed.
 
 Requirements:
 - tasks/web-mail-list.md (acceptance criteria 1-4 and the recorded assumptions)
-- SPEC.md §7.3, §7.4
-- docs/ARCHITECTURE.md (web conventions, i18n, test commands, e2e)
-- AGENTS.md project notes
-- Parent instructions: focus on the optimistic update / rollback / refresh logic in mail-list-store.ts, accessibility, i18n, conventions and that the e2e hook exists only in profile `e2e`
+- SPEC.md §7.3, §7.4, §9.1
+- docs/ARCHITECTURE.md (web conventions, test commands, e2e, environment variables)
+- AGENTS.md project notes (i18n, lint, e2e-only test hook, security, shared files)
+- Parent instructions: verify the CR-1..CR-7 fixes and review the whole implementation
 
 Git range:
 - Branch: main
-- HEAD: 05d214a5d763fd027f2e7fc1c39689f714054bca
-- Base/start: d231ab389613432fdb1dffbfaeda62ef5656249c
-- Commits reviewed: 3
+- HEAD: c5b934aa7a2affa5e1843be98e958229e0af6aeb
+- Base/start: 3e6a11a2f490f4a81e1666d0496a146a832875d2 (merge-base with origin/main)
+- Commits reviewed: 5 (4e6ad577, 6df83de2, 3bfa2d4f, e4a8f646, c5b934aa)
 
-Summary: 0 P0, 0 P1, 3 P2, 4 P3
+Summary: 0 P0, 0 P1, 0 P2, 3 P3
 
-Verified without findings: the e2e hook `POST /api/test/mail/sync` is `@Profile("e2e")` and `@Hidden`, is covered by the existing e2e-only permit-all filter chain of `core.testsupport` (outside `e2e` the path falls into the authenticated main chain and no bean exists, which a Spring test asserts), and logs only counts. GreenMail is published on 127.0.0.1 only. The store guards loads with a load sequence, defers refetches while actions run, and drops and redoes a refetch that started before an optimistic change (tested). Failure paths of load, load more and actions end in a visible, retryable state. i18n ids are unique to this feature and every user-facing string is externalized. The e2e spec covers mark read, archive and move against GreenMail plus a live update; `--no-deps` only skips the phase-demo project, which `web/e2e/README.md` documents. I did not re-run the suites myself.
+Earlier findings, checked against c5b934aa:
+- CR-1 (move uses stale targets): fixed. `move()` takes a snapshot of `store.targets()` before it opens the dialog and passes the ids to `apply(action, target, ids)`. `apply` uses only ids that are still loaded, in list order, and sends nothing when none are left. Two page specs cover a refetch while the picker is open.
+- CR-2 (rollback undoes concurrent changes): fixed. For a flag action, `rollback` restores only the fields that action changed (`CHANGED_FIELDS`), only on items that are still shown, and only where the field still holds the value the action set. For a removing action, it puts back only the failed items that are still missing, and keeps the current version of the items that are present. After every rollback a refetch is queued, and it runs once no action is running. Specs cover each overlap case that the first review described.
+- CR-3 (missing tests): fixed. There are specs for the folder tree, the folders store and the move dialog, plus store specs for overlapping actions and a failure while a refetch is queued.
+- CR-4 (a refetch overlapping a load more shrinks the list): fixed for the case where the load more finishes first (`mutationSeq++` in `loadMore`, with a spec). The opposite order is still open, see CR-1 below.
+- CR-5 (1000-id limit): fixed. Ids go out in chunks of `MAIL_MAX_ACTION_IDS`. A chunk that fails as a whole counts all of its ids as failed, and only the items behind failed ids are rolled back. A spec covers this.
+- CR-6 (j/k auto-repeat): fixed. `REPEATABLE` allows repeats only for `next`/`previous`. A spec covers this.
+- CR-7 (cursor not perceivable to assistive technology): fixed. After j/k/e/#/!, `focusCursor()` moves focus to the `.open` button of the cursor row. The optimistic change runs synchronously before `apply`'s first `await`, so the cursor already points at the next row when focus moves. A page spec covers this.
+
+Checked with no findings: the e2e hook `POST /api/test/mail/sync` is `@Profile("e2e")` and `@Hidden`, so it is not in the API contract. Only the e2e permit-all chain of `core.testsupport` (also `@Profile("e2e")`) makes it public, and a Spring test checks that the bean does not exist outside that profile. It logs only counts. GreenMail is published on 127.0.0.1 only and uses fictitious credentials. `E2E_IMAP_PORT` appears in ARCHITECTURE.md, web/e2e/README.md and run-e2e.mjs. Every user-facing string is externalized (`$localize` / `i18n`) under `mail.*` ids. No unsafe HTML binding is introduced; the CSS selectors use `CSS.escape`. Reading and writing the threaded/flat choice in `localStorage` is guarded with try/catch, and a malformed value falls back to flat. Load, load more and action failures all end in a visible state that can be retried. The e2e spec covers mark read (Shift+I), archive (selection and toolbar) and move (`v` and the picker) against GreenMail, checked over IMAP, plus a live update through the change event of the sync. Changes outside the task's `touches` (`mail.routes.ts`, `app.spec.ts`, the server hook, the compose file, docs) are needed to replace the placeholder route and to run the e2e criterion, and the task's assumptions record them. I did not run the suites myself. `tasks.py verify web-mail-list` shows no recorded evidence yet for criteria 1-4. The parent worker still has to record it, including an actual `npm run e2e -- e2e/mail-list/list.spec.ts` run for criterion 4.
 
 ## P0 Critical
 
@@ -33,57 +42,31 @@ None.
 
 ## P2 Medium
 
-- [ ] **CR-1 | Move acts on the targets as they are when the dialog closes, not on the ones it was opened for**
-    - File: `web/src/app/features/mail/list/mail-list-page.ts:142`
-    - Category: Correctness
-    - Problem: `move()` reads `moveAccountId()` and the source folder from `store.targets()` before opening the dialog, then calls `store.apply('MOVE', target)`. `apply` reads `this.targets()` again (`mail-list-store.ts:216`). While the dialog is open, keys are blocked but live refetches still run: `refresh()` prunes the selection and moves the cursor to the next item when the cursor item disappeared remotely (`mail-list-store.ts:169-171`). The move then goes to a different message than the one the user picked the folder for. With an empty selection after pruning, it can even move the cursor item instead of the selection, possibly of another folder or account than the one the targets list was built for.
-    - Why it matters: the user moves mail they did not choose (an out-of-date async result changes what a user action applies to).
-    - Suggested fix: snapshot the target items (or ids) before opening the dialog, and give `apply` an optional explicit target list. Skip ids that are no longer loaded. Add a unit test where a refresh changes the cursor while the dialog is open.
-
-- [ ] **CR-2 | Rollback of a failed action can undo a concurrent action's successful change on the same item**
-    - File: `web/src/app/features/mail/list/mail-list-store.ts:278`
-    - Category: Correctness
-    - Problem: `rollback` puts back the snapshot version of every failed item, whether or not it is still in the list. Example 1: `s` (FLAG) on item A, then `e` (ARCHIVE) on A while FLAG is still running. ARCHIVE removes A. If FLAG then fails, A comes back into the list (from FLAG's snapshot), although it is archived on the server. Example 2: FLAG and then READ on A. FLAG fails: A goes back to its snapshot (unread, unflagged), and the successful READ is lost from the view. The view only heals when a later refetch arrives through SSE. With SSE down, the wrong state stays until a reload.
-    - Why it matters: overlapping writes on the same item are a normal keyboard-triage pattern (several keys pressed in a row). The list then shows mail that is gone, or the wrong flags.
-    - Suggested fix: for non-removing actions, restore only the fields this action changed (re-apply the inverse of `withAction`) on the current item, and only if the item is still present. For removing actions, restore only items that are still absent. Alternatively, queue a refetch after every rollback. Add a store test for two overlapping actions on the same item where the first fails.
-
-- [ ] **CR-3 | Folder tree, folders store and move dialog have no tests; overlapping-action paths are untested**
-    - File: `web/src/app/features/mail/list/mail-folders-store.ts:196`
-    - Category: Tests
-    - Problem: `folderTree` (nesting by delimiter, role order, orphaned parents), `MailFoldersStore` (reload on `MAIL_ACCOUNT` events, unknown or created/deleted folder events, load error, stale-load guard) and `MailMoveDialog` (filter by label/path, Enter picks the first match, empty result) have no specs. The page spec only checks the move-target order for one flat account. The store spec has no test for two overlapping actions, or for a failed action while a refetch is queued (the rollback, then the deferred refresh).
-    - Why it matters: the folder tree is part of criterion 1, and the live reload of folders is part of criterion 2. The concurrency branches are where CR-2 lives and are prone to regressions.
-    - Suggested fix: add `mail-folders-store.spec.ts` (`folderTree` cases plus event-driven reloads), a small `mail-move-dialog.spec.ts`, and store tests for overlapping actions and failure with a queued refresh.
+None.
 
 ## P3 Low
 
-- [ ] **CR-4 | A refetch that overlaps a "load more" shrinks the list back**
-    - File: `web/src/app/features/mail/list/mail-list-store.ts:157`
+- [ ] **CR-1 | A refetch that finishes before an overlapping "load more" can leave a gap in the list**
+    - File: `web/src/app/features/mail/list/mail-list-store.ts:146`
     - Category: Correctness
-    - Problem: `refresh()` computes `limit` from the item count when it starts. If `loadMore()` appends a page while the refetch runs, the refetch result replaces the longer list with the shorter one (and resets `nextCursor`). The cursor may jump back if it was on an appended item. Unlike optimistic actions, `loadMore` is not part of the `mutationSeq` check.
-    - Why it matters: while scrolling during incoming mail, the loaded mail disappears and the scroll position or cursor jumps.
-    - Suggested fix: bump a sequence in `loadMore` as well (drop and redo the refetch, as for mutations), or have `refresh` keep the items beyond its returned window.
+    - Problem: the CR-4 fix only handles a load more that finishes before the refetch. Here is the opposite order. 50 items are loaded with `nextCursor` c50. A live event starts `refresh()` (limit 50), and the user scrolls, so `loadMore()` starts with cursor c50. Meanwhile a new message X arrived. The refetch resolves first: the items become `[X, 1..49]` and `nextCursor` becomes c49. `mutationSeq` has not changed yet, so the store accepts this result. Then the load more resolves and appends the page after c50 (`51..100`) without checking whether the list was replaced since it started. Item 50 is now missing from the list. It comes back only with the next refetch, which needs another change event.
+    - Why it matters: during incoming mail, a message silently disappears from the scrolled list. The window is small, but this is the same overlap that the earlier CR-4 was about.
+    - Suggested fix: in `loadMore`, record a list generation that `refresh()` (and `load()`) bump when they replace `items`. Drop the page, or redo the load from the new `nextCursor`, when the generation changed. Alternatively, have `refresh()` defer and redo while `loadingMore()` is true. Add a store spec where the refetch resolves before the load more.
 
-- [ ] **CR-5 | Bulk actions ignore the server's 1000-id limit**
-    - File: `web/src/app/features/mail/list/mail-list-store.ts:228`
+- [ ] **CR-2 | Conversation actions fetch every thread in parallel without a limit**
+    - File: `web/src/app/features/mail/list/mail-list-store.ts:312`
+    - Category: Quality
+    - Problem: in the conversations view, `messageIds` calls `mail.thread(item.id)` for every target whose `threadSize > 1`, all at once via `Promise.all`. With "select all" after some scrolling, one keypress (`e`, `#`, `v`) sends hundreds of concurrent `GET /messages/{id}/thread` requests before the action itself is sent. If any one of them fails, the whole action is rolled back.
+    - Why it matters: bulk triage in the threaded view is slow, puts load on the server, and fails completely on a single transient error.
+    - Suggested fix: limit the concurrency (for example, batches of 6-10), or retry failed thread lookups. Either way, keep the existing rollback when a lookup finally fails. A server-side "apply to conversation" option would remove the extra requests, but that belongs to a separate API task.
+
+- [ ] **CR-3 | `#` (delete) cannot be typed on layouts that need AltGr/Option for it**
+    - File: `web/src/app/features/mail/list/mail-shortcuts.ts:43`
     - Category: Correctness
-    - Problem: `MailActionRequest.ids` allows at most 1000 ids (generated model). "Select all" covers every loaded item (infinite scroll has no cap), and in the conversations view each item expands to all its messages in the folder. Past 1000 ids the whole request is rejected and everything is rolled back.
-    - Why it matters: a legitimate bulk triage fails completely, with a generic error.
-    - Suggested fix: send the ids in chunks of at most 1000 and merge the results, or cap the selection and say so in the UI.
-
-- [ ] **CR-6 | Holding j/k does not move the cursor repeatedly**
-    - File: `web/src/app/features/mail/list/mail-shortcuts.ts:265`
-    - Category: Quality
-    - Problem: `mailShortcutFor` returns null for `event.repeat`. This is correct for the actions (no repeated archive), but it also blocks auto-repeat of `j`/`k`, which Gmail-like navigation supports.
-    - Why it matters: moving through a long list with the keyboard needs one press per row.
-    - Suggested fix: allow `repeat` for `next`/`previous` only.
-
-- [ ] **CR-7 | Keyboard cursor moves are not perceivable to assistive technology**
-    - File: `web/src/app/features/mail/list/mail-list-page.ts:113`
-    - Category: Quality
-    - Problem: `j`/`k` only change `aria-current` on the `<li>` and scroll the row into view. Focus stays where it was, and nothing is announced, so screen-reader users cannot tell which message the next `e`/`#`/`v` will act on. The toolbar also acts on the cursor item when nothing is selected.
-    - Why it matters: keyboard triage is the main interaction of this view. For non-sighted users, the target of a destructive action is invisible.
-    - Suggested fix: when the cursor moves by keyboard, move focus to the row's `.open` button (roving focus). Alternatively, announce the current message in a polite live region.
+    - Problem: `mailShortcutFor` rejects every event with `ctrlKey` or `altKey`. On Windows, AltGr reports `ctrlKey` and `altKey` together. On macOS, Option reports `altKey`. On layouts where `#` is AltGr+3 or Option+3 (for example Swiss German), the event has `key === '#'` but is ignored, so the delete shortcut that SPEC.md §7.3 requires does not work there.
+    - Why it matters: one of the five required shortcuts does not work on common European layouts. The user has to fall back to the toolbar.
+    - Suggested fix: match printable symbol keys by `event.key` and allow `event.getModifierState('AltGraph')` (Windows) and `altKey` without `ctrlKey`/`metaKey` (macOS) for symbol keys such as `#` and `!`. Keep rejecting real Ctrl/Meta chords. Add a spec for an AltGr `#`.
 
 ## Review conclusion
 
-Material issues found; fix before completing the task.
+No material issues found. All seven earlier findings (CR-1..CR-7 of the first review) are fixed correctly and have tests. The three remaining findings are low priority and can be fixed or recorded as accepted at the parent worker's discretion. Criteria 1-4 still need recorded evidence (`tasks.py verify`), including an actual e2e run, before the task can be completed.

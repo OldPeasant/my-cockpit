@@ -2,13 +2,13 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { MatDialog } from '@angular/material/dialog';
 import { ActivatedRoute, convertToParamMap, ParamMap, provideRouter } from '@angular/router';
 import { BehaviorSubject, Observable, of, Subject } from 'rxjs';
-import { MailAccountResponse, MailFolderResponse } from '../../../api/generated';
+import { ChangeEvent, MailAccountResponse, MailFolderResponse } from '../../../api/generated';
 import { ChangeEventsService } from '../../../core/events';
 import { NotificationService } from '../../../core/http';
 import MailListPage, { senderName, THREADED_KEY } from './mail-list-page';
 import { FakeEvents, FakeMail, summary } from './mail-testing';
 import { ApiError } from '../../../core/http';
-import { MailListStore } from './mail-list-store';
+import { MAIL_FOLDER_EVENT, MailListStore, REFRESH_DEBOUNCE_MS } from './mail-list-store';
 import { MailPage, MailService, MailSummary } from './mail.service';
 
 const flush = async () => {
@@ -37,6 +37,8 @@ function folder(id: string, accountId: string, path: string, role?: MailFolderRe
 describe('MailListPage', () => {
   let fixture: ComponentFixture<MailListPage>;
   let mail: FakeMail;
+  let events: FakeEvents;
+  let errors: string[];
   let params: BehaviorSubject<ParamMap>;
   let dialogResult: string | undefined;
   let dialogOpened: unknown[];
@@ -68,6 +70,8 @@ describe('MailListPage', () => {
     dialogOpened = [];
     dialogResult = undefined;
     dialogClosed = undefined;
+    events = new FakeEvents();
+    errors = [];
     options.setup?.(mail);
     TestBed.configureTestingModule({
       imports: [MailListPage],
@@ -75,10 +79,10 @@ describe('MailListPage', () => {
         provideRouter([]),
         { provide: ActivatedRoute, useValue: { paramMap: params } },
         { provide: MailService, useValue: mail },
-        { provide: ChangeEventsService, useValue: new FakeEvents() },
+        { provide: ChangeEventsService, useValue: events },
         {
           provide: NotificationService,
-          useValue: { error: () => undefined, info: () => undefined },
+          useValue: { error: (message: string) => errors.push(message), info: () => undefined },
         },
         {
           provide: MatDialog,
@@ -512,6 +516,115 @@ describe('MailListPage', () => {
     expect(times[0]).toMatch(/^\d{1,2}:\d{2}/);
     expect(times[2]).toBe('Mar 15, 2020');
     if (now.getMonth() !== 0 || now.getDate() !== 1) expect(times[1]).toBe('Jan 1');
+  });
+
+  describe('live updates (SSE)', () => {
+    // Fake timers only after the page has loaded: the debounce of change events is then
+    // controlled by the test instead of waiting for real time.
+    const advance = async (ms = REFRESH_DEBOUNCE_MS) => {
+      await vi.advanceTimersByTimeAsync(ms);
+      fixture.detectChanges();
+    };
+    const folderEvent = (id: string): ChangeEvent => ({
+      at: '2026-10-21T08:00:00Z',
+      op: 'UPDATED',
+      id,
+      type: MAIL_FOLDER_EVENT,
+    });
+    const subjects = () => rows().map((row) => row.querySelector('.subject')?.textContent);
+
+    afterEach(() => vi.useRealTimers());
+
+    it('shows new mail of the shown folder without a reload, and ignores other folders', async () => {
+      await create();
+      vi.useFakeTimers();
+      events.changes.next(folderEvent('proj-1'));
+      await advance();
+      expect(mail.lists).toHaveLength(1);
+
+      events.changes.next(folderEvent('inbox-1'));
+      await advance();
+      expect(mail.lists).toHaveLength(2);
+      expect(mail.lists[1]).toMatchObject({
+        scope: { folderId: 'inbox-1', threaded: false },
+        cursor: undefined,
+      });
+      mail.lists[1].resolve({
+        items: [
+          summary('new', { subject: 'Late arrival' }),
+          summary('a', { subject: 'Report' }),
+          summary('b', { subject: 'Lunch', seen: true }),
+          summary('c', { subject: 'Invoice' }),
+        ],
+        nextCursor: null,
+      });
+      await advance(0);
+      expect(subjects()).toEqual(['Late arrival', 'Report', 'Lunch', 'Invoice']);
+      // The keyboard cursor stays on the message it was on.
+      expect(rows()[1].getAttribute('aria-current')).toBe('true');
+    });
+
+    it('refetches after an SSE reconnect and drops a message removed elsewhere', async () => {
+      await create();
+      vi.useFakeTimers();
+      events.resync$.next();
+      await advance();
+      expect(mail.lists).toHaveLength(2);
+      mail.lists[1].resolve({
+        items: [summary('b', { subject: 'Lunch' }), summary('c', { subject: 'Invoice' })],
+        nextCursor: null,
+      });
+      await advance(0);
+      expect(subjects()).toEqual(['Lunch', 'Invoice']);
+      expect(rows()[0].getAttribute('aria-current')).toBe('true');
+    });
+  });
+
+  describe('optimistic actions in the view', () => {
+    it('shows a message read at once, and unread again with the error when marking read fails', async () => {
+      await create();
+      expect(rows()[0].classList).toContain('unread');
+      press('I', { shiftKey: true });
+      expect(rows()[0].classList).not.toContain('unread');
+      await flush();
+      mail.succeed(0, ['a'], 'Mailbox is read-only');
+      await flush();
+      fixture.detectChanges();
+      expect(rows()[0].classList).toContain('unread');
+      expect(errors).toHaveLength(1);
+      expect(errors[0]).toContain('Mailbox is read-only');
+    });
+
+    it('brings an archived message back at its old place when archiving fails, then refetches', async () => {
+      await create();
+      press('j');
+      press('e');
+      expect(rows().map((row) => row.dataset['id'])).toEqual(['a', 'c']);
+      await flush();
+      mail.applies[0].reject(new ApiError(503, 'Service Unavailable', 'Mail server unreachable'));
+      await flush();
+      fixture.detectChanges();
+      expect(rows().map((row) => row.dataset['id'])).toEqual(['a', 'b', 'c']);
+      expect(errors).toHaveLength(1);
+      expect(errors[0]).toContain('Mail server unreachable');
+      // The server's state settles what overlapping actions did.
+      expect(mail.lists).toHaveLength(2);
+      expect(mail.lists[1].cursor).toBeUndefined();
+    });
+
+    it('archives the only message with e and shows the empty folder', async () => {
+      await create('inbox-1', {
+        firstPage: { items: [summary('only', { subject: '' })], nextCursor: null },
+      });
+      expect(rows()[0].querySelector('.subject')?.textContent).toBe('(no subject)');
+      const event = press('e');
+      expect(event.defaultPrevented).toBe(true);
+      expect(rows()).toEqual([]);
+      expect(el().querySelector('p.empty')?.textContent?.trim()).toBe('No messages here.');
+      expect(listStore().cursorId()).toBeNull();
+      await flush();
+      expect(mail.applies[0]).toMatchObject({ action: 'ARCHIVE', ids: ['only'] });
+    });
   });
 
   describe('infinite scroll', () => {
