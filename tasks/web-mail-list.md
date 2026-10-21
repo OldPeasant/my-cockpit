@@ -12,7 +12,8 @@ extended: dell26/agent-2
 Unified inbox and folders (SPEC.md §7.3).
 
 ## Acceptance criteria
-- [ ] Unified inbox + per-account folder tree, threaded/flat toggle, infinite scroll, multi-select, actions and Gmail-like shortcuts (j/k, e, #, u, v)
+- [x] Unified inbox + per-account folder tree, threaded/flat toggle, infinite scroll, multi-select, actions and Gmail-like shortcuts (j/k, e, #, u, v)
+  - verified (2026-10-21 07:55+0200 by dell26/agent-2): npm --prefix web run e2e -- e2e/mail-list/list.spec.ts -> pass (unified inbox, folder tree, selection, Shift+I/e/v/toolbar against GreenMail); Vitest mail-list page/store/shortcuts/folder-tree specs (threaded toggle, infinite scroll + load more, multi-select, j/k/e/#/u/v incl. AltGr #) -> 186 passed
 - [x] Live updates via SSE
   - verified (2026-10-21 07:40+0200 by dell26/agent-2): npm --prefix web run e2e -- e2e/mail-list/list.spec.ts -> live-update step passes (message appended via IMAP + sync hook shows up without reload via SSE MAIL_FOLDER event); Vitest 'live updates' specs in mail-list-store.spec.ts / mail-folders-store.spec.ts pass in npm run check
 - [ ] Vitest component/service tests cover selection, shortcuts, optimistic actions with rollback; `cd web && npm run check` passes
