@@ -16,3 +16,4 @@ Read-only ICS subscriptions (SPEC.md §6.1).
 
 ## Notes
 - ASSUMPTION (2026-10-21 16:02+0200 by dell26/agent-3): ICS source config is {"url": "<http(s)|webcal URL>"}; webcal(s):// is fetched as https://. One read-only calendar per source (external id 'feed') named like the source; poll interval 15 min (cockpit.calendar.ics.poll-interval), SPEC gives none.
+- ASSUMPTION (2026-10-21 16:02+0200 by dell26/agent-3): SSRF: reuses mail.api.PublicAddresses (public unicast only) for the URL host and every redirect; config escape hatches cockpit.calendar.ics.allow-private-networks (all hosts) and allowed-private-hosts (named hosts). JDK HttpClient cannot be pinned to the checked address, so DNS rebinding is only narrowed by the JVM name cache, not closed. URLs with userinfo are refused; any port allowed. PublicAddresses should move to core when a third user appears.
