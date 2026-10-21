@@ -17,3 +17,4 @@ Read mail safely (SPEC.md §7.3).
 - [ ] Playwright `e2e/mail-read/read.spec.ts` passes against the e2e stack (`npm run e2e -- e2e/mail-read/read.spec.ts`, see p0-e2e-harness): script in mail does not run; images load only after toggle
 
 ## Notes
+- ASSUMPTION (2026-10-21 17:26+0200 by dell26/agent-2): Per-sender 'always load images' allowlist is kept client-side in localStorage (cockpit.mail.loadImagesFrom): the API has no allowlist endpoint; a server-side list can replace it later
