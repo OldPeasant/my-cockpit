@@ -16,3 +16,4 @@ CalDAV sources (SPEC.md §6.2).
 
 ## Notes
 - ASSUMPTION (2026-10-21 15:24+0200 by dell26/agent-2): CalDAV source config is {"url": ..., "username": ...}, password in CalendarSource.credentials; Basic auth only, sent only to the URL's origin (redirects to other hosts refused). No SSRF block on private addresses: self-hosted CalDAV on the LAN is a normal use case.
+- ASSUMPTION (2026-10-21 15:24+0200 by dell26/agent-2): Own minimal iCalendar content-line model (caldav/ICalendar.kt) instead of ical4j for CalDAV resources: writes change VEVENTs in place so unknown properties survive; VTIMEZONEs are generated from java.time rules (avoids ical4j's tz-update network fetches).
