@@ -5,7 +5,7 @@ owner: dell26/agent-3
 deps: [p0-web-settings,mail-imap]
 touches: [web/src/app/features/settings/mail]
 prio: 1
-lease_until: 2026-10-21T21:31:02Z
+lease_until: 2026-10-21T21:34:15Z
 ---
 ## Goal
 Manage mail accounts (SPEC.md §7.1).
