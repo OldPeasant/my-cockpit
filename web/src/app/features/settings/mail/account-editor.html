@@ -1,0 +1,64 @@
+<form class="mail-form" [formGroup]="form" (submit)="$event.preventDefault(); save()" novalidate>
+  <mat-form-field subscriptSizing="dynamic">
+    <mat-label i18n="@@mailSettings.field.displayName">Your name</mat-label>
+    <input matInput formControlName="displayName" maxlength="200" />
+    <mat-hint i18n="@@mailSettings.field.displayNameHint"
+      >Recipients see it next to the address.</mat-hint
+    >
+  </mat-form-field>
+  <mat-form-field subscriptSizing="dynamic">
+    <mat-label i18n="@@mailSettings.field.email">Email address</mat-label>
+    <input matInput formControlName="emailAddress" type="email" autocomplete="off" />
+    @if (form.controls.emailAddress.touched && form.controls.emailAddress.invalid) {
+      <mat-error i18n="@@mailSettings.field.emailRequired">Enter an email address.</mat-error>
+    }
+  </mat-form-field>
+
+  @if (imapSmtp()) {
+    <mat-form-field subscriptSizing="dynamic">
+      <mat-label i18n="@@mailSettings.field.username">User name</mat-label>
+      <input matInput formControlName="username" autocomplete="off" />
+      @if (form.controls.username.touched && form.controls.username.invalid) {
+        <mat-error i18n="@@mailSettings.field.usernameRequired">Enter the user name.</mat-error>
+      }
+    </mat-form-field>
+    <mat-form-field subscriptSizing="dynamic">
+      <mat-label i18n="@@mailSettings.field.newPassword">New password</mat-label>
+      <input matInput formControlName="password" type="password" autocomplete="new-password" />
+      <mat-hint i18n="@@mailSettings.field.newPasswordHint"
+        >Leave empty to keep the current one.</mat-hint
+      >
+    </mat-form-field>
+    <app-server-fields class="wide" protocol="imap" [form]="form.controls.imap" />
+    <app-server-fields class="wide" protocol="smtp" [form]="form.controls.smtp" />
+  }
+
+  <mat-form-field subscriptSizing="dynamic" class="wide">
+    <mat-label i18n="@@mailSettings.field.signature">Signature</mat-label>
+    <textarea matInput formControlName="signatureMd" rows="4"></textarea>
+    <mat-hint i18n="@@mailSettings.field.signatureHint"
+      >Markdown: **bold**, _italic_, [link](https://example.org). Empty for none.</mat-hint
+    >
+  </mat-form-field>
+  <mat-form-field subscriptSizing="dynamic">
+    <mat-label i18n="@@mailSettings.field.window">Months of mail kept offline</mat-label>
+    <input matInput formControlName="syncWindowMonths" type="number" min="1" [max]="maxMonths" />
+    @if (form.controls.syncWindowMonths.touched && form.controls.syncWindowMonths.invalid) {
+      <mat-error i18n="@@mailSettings.field.windowRange">1 to {{ maxMonths }} months.</mat-error>
+    }
+  </mat-form-field>
+
+  <div class="actions">
+    <button mat-flat-button type="submit" [disabled]="saving()" i18n="@@mailSettings.save">
+      Save changes
+    </button>
+    <button mat-button type="button" (click)="cancelled.emit()" i18n="@@mailSettings.cancel">
+      Cancel
+    </button>
+  </div>
+  @if (error(); as message) {
+    <p class="error wide" role="alert" i18n="@@mailSettings.saveFailed">
+      The account could not be saved: {{ message }}
+    </p>
+  }
+</form>

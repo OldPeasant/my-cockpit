@@ -1,0 +1,188 @@
+h2 {
+  margin: 0 0 var(--app-space-2);
+  font: var(--mat-sys-title-large);
+}
+
+.status {
+  margin: var(--app-space-2) 0 0;
+}
+
+.add-result {
+  margin-top: var(--app-space-3);
+}
+
+.load-error {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--app-space-3);
+  color: var(--app-danger);
+
+  p {
+    margin: 0;
+  }
+}
+
+// One setting per row: what it is on the left, the control on the right (as in General).
+.row {
+  display: grid;
+  grid-template-columns: minmax(0, 16rem) minmax(0, 1fr);
+  gap: var(--app-space-2) var(--app-space-5);
+  padding: var(--app-space-4) 0;
+  border-top: 1px solid var(--app-border);
+}
+
+.describe {
+  h3 {
+    margin: 0 0 var(--app-space-1);
+    font: var(--mat-sys-title-small);
+  }
+
+  p {
+    margin: 0;
+    color: var(--app-fg-muted);
+    font: var(--mat-sys-body-medium);
+  }
+}
+
+.control {
+  min-width: 0;
+}
+
+.accounts {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.account {
+  display: grid;
+  gap: var(--app-space-2);
+  padding: var(--app-space-3) 0;
+
+  & + .account {
+    border-top: 1px solid var(--app-border);
+  }
+
+  &:first-child {
+    padding-top: 0;
+  }
+}
+
+.summary {
+  display: flex;
+  align-items: center;
+  gap: var(--app-space-3);
+}
+
+.who {
+  display: grid;
+  flex: 1;
+  min-width: 0;
+}
+
+.name,
+.address {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.name {
+  font: var(--mat-sys-body-large);
+}
+
+.address {
+  color: var(--app-fg-muted);
+  font: var(--mat-sys-body-medium);
+}
+
+.tag {
+  margin-left: var(--app-space-2);
+  font: var(--mat-sys-body-small);
+}
+
+.danger {
+  color: var(--app-danger);
+}
+
+.danger-fill {
+  --mat-button-filled-container-color: var(--app-danger);
+}
+
+// The test result reads like a two-line receipt: one line per server, the outcome after it.
+.protocols {
+  display: grid;
+  gap: var(--app-space-1);
+  margin: 0;
+
+  div {
+    display: flex;
+    gap: var(--app-space-2);
+    align-items: baseline;
+  }
+
+  dt {
+    flex: none;
+    width: 9rem;
+    color: var(--app-fg-muted);
+    font: var(--mat-sys-label-large);
+  }
+
+  dt::before {
+    display: inline-block;
+    width: 0.5rem;
+    height: 0.5rem;
+    margin-right: var(--app-space-2);
+    border-radius: 50%;
+    background: currentColor;
+    content: '';
+  }
+
+  dd {
+    margin: 0;
+    min-width: 0;
+  }
+
+  .ok dt::before {
+    background: var(--app-accent);
+  }
+
+  .failed dt::before {
+    background: var(--app-danger);
+  }
+
+  .failed dd {
+    color: var(--app-danger);
+  }
+}
+
+.test {
+  display: grid;
+  gap: var(--app-space-1);
+}
+
+.panel {
+  padding: var(--app-space-3);
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius);
+
+  p {
+    margin: 0 0 var(--app-space-3);
+  }
+}
+
+.kinds {
+  flex-wrap: wrap;
+  margin-bottom: var(--app-space-3);
+}
+
+@media (max-width: 720px) {
+  .row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .summary {
+    flex-wrap: wrap;
+  }
+}

@@ -452,9 +452,9 @@ describe('CalendarsSettings', () => {
     flushReload([fakeCalendar(), sports], [fakeSource()]);
     await settle();
 
-    expect(
-      root.querySelector<HTMLInputElement>('input[aria-label="Color of Sports"]')!.value,
-    ).toBe('#00aa55');
+    expect(root.querySelector<HTMLInputElement>('input[aria-label="Color of Sports"]')!.value).toBe(
+      '#00aa55',
+    );
     expect(root.querySelector<HTMLInputElement>('form.add input[type="color"]')!.value).toBe(
       '#3f7fbf',
     );

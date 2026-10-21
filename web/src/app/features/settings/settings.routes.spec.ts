@@ -96,13 +96,12 @@ describe('settings routes', () => {
     );
   });
 
-  it.each([['mail', 'Mail']])('has a placeholder for %s', async (path, title) => {
+  it('opens Mail at /settings/mail', async () => {
     const harness = await RouterTestingHarness.create();
-    await harness.navigateByUrl(`/settings/${path}`);
-    const root = harness.routeNativeElement as HTMLElement;
+    await harness.navigateByUrl('/settings/mail');
 
-    expect(root.querySelector('app-coming-soon h1')?.textContent?.trim()).toBe(title);
-    expect(root.querySelector('a.active')?.getAttribute('aria-current')).toBe('page');
+    expect(harness.routeNativeElement?.querySelector('app-mail-settings')).not.toBeNull();
+    expect(harness.routeNativeElement?.querySelector('a.active')?.textContent?.trim()).toBe('Mail');
   });
 });
 

@@ -1,0 +1,383 @@
+<section class="mail" aria-labelledby="mail-title">
+  <h2 id="mail-title" i18n="@@settings.mail">Mail</h2>
+
+  <div class="row">
+    <div class="describe">
+      <h3 i18n="@@mailSettings.list">Your accounts</h3>
+      <p i18n="@@mailSettings.list.hint">
+        Test the connection, change the name, signature or login, map the folders, and choose which
+        accounts notify you about new mail.
+      </p>
+    </div>
+    <div class="control">
+      @if (loadError(); as error) {
+        <div class="load-error" role="alert">
+          <p i18n="@@mailSettings.loadFailed">Mail accounts could not be loaded: {{ error }}</p>
+          <button mat-stroked-button type="button" (click)="load()" i18n="@@settings.retry">
+            Try again
+          </button>
+        </div>
+      } @else if (accounts(); as list) {
+        <ul class="accounts">
+          @for (account of list; track account.id) {
+            <li class="account" [attr.aria-label]="account.emailAddress">
+              <div class="summary">
+                <div class="who">
+                  <span class="name">{{ account.displayName }}</span>
+                  <span class="address">
+                    {{ account.emailAddress }}
+                    <span class="tag">{{ typeLabels[account.type] }}</span>
+                  </span>
+                </div>
+                <mat-slide-toggle
+                  [checked]="account.notifyNewMail"
+                  [disabled]="busy().has(account.id)"
+                  [aria-label]="notifyLabel(account)"
+                  (change)="setNotify(account, $event)"
+                  i18n="@@mailSettings.notify"
+                  >Notify</mat-slide-toggle
+                >
+              </div>
+              <div class="actions">
+                <button
+                  mat-stroked-button
+                  type="button"
+                  [disabled]="test(account)?.running"
+                  (click)="runTest(account)"
+                  i18n="@@mailSettings.test"
+                >
+                  Test connection
+                </button>
+                <button
+                  mat-button
+                  type="button"
+                  [attr.aria-expanded]="isOpen(account, 'edit')"
+                  (click)="toggle(account, 'edit')"
+                  i18n="@@mailSettings.edit"
+                >
+                  Edit
+                </button>
+                <button
+                  mat-button
+                  type="button"
+                  [attr.aria-expanded]="isOpen(account, 'folders')"
+                  (click)="toggle(account, 'folders')"
+                  i18n="@@mailSettings.folders"
+                >
+                  Folders
+                </button>
+                <button
+                  mat-button
+                  type="button"
+                  class="danger"
+                  [attr.aria-expanded]="isOpen(account, 'remove')"
+                  (click)="toggle(account, 'remove')"
+                  i18n="@@mailSettings.remove"
+                >
+                  Remove
+                </button>
+              </div>
+
+              @if (test(account); as state) {
+                <div class="test" role="status">
+                  @if (state.running) {
+                    <p class="note" i18n="@@mailSettings.test.running">
+                      Logging in to the mail servers…
+                    </p>
+                  } @else if (state.error) {
+                    <p class="error" i18n="@@mailSettings.test.error">
+                      The test could not run: {{ state.error }}
+                    </p>
+                  } @else if (state.result; as result) {
+                    <dl class="protocols">
+                      <div [class.ok]="result.imap.ok" [class.failed]="!result.imap.ok">
+                        <dt i18n="@@mailSettings.test.imap">Incoming (IMAP)</dt>
+                        <dd>{{ protocolText(result.imap) }}</dd>
+                      </div>
+                      <div [class.ok]="result.smtp.ok" [class.failed]="!result.smtp.ok">
+                        <dt i18n="@@mailSettings.test.smtp">Outgoing (SMTP)</dt>
+                        <dd>{{ protocolText(result.smtp) }}</dd>
+                      </div>
+                    </dl>
+                    @if (state.folders) {
+                      <p class="note">{{ state.folders }}</p>
+                    }
+                  }
+                </div>
+              }
+
+              @if (rowError()?.id === account.id) {
+                <p class="error" role="alert" i18n="@@mailSettings.changeFailed">
+                  {{ account.emailAddress }} could not be changed: {{ rowError()?.message }}
+                </p>
+              }
+
+              @if (isOpen(account, 'edit')) {
+                <div class="panel">
+                  <app-mail-account-editor
+                    [account]="account"
+                    (saved)="saved($event)"
+                    (cancelled)="toggle(account, 'edit')"
+                  />
+                </div>
+              } @else if (isOpen(account, 'folders')) {
+                <div class="panel">
+                  <app-mail-folder-roles [account]="account" />
+                </div>
+              } @else if (isOpen(account, 'remove')) {
+                <div
+                  class="panel confirm"
+                  role="group"
+                  i18n-aria-label="@@mailSettings.removeConfirmAria"
+                  aria-label="Remove account"
+                >
+                  <p i18n="@@mailSettings.removeConfirm">
+                    Remove {{ account.emailAddress }} from the cockpit? Its mail stays on the
+                    server; the copy kept here is deleted.
+                  </p>
+                  <div class="actions">
+                    <button
+                      mat-flat-button
+                      type="button"
+                      class="danger-fill"
+                      [disabled]="busy().has(account.id)"
+                      (click)="remove(account)"
+                      i18n="@@mailSettings.removeYes"
+                    >
+                      Remove account
+                    </button>
+                    <button
+                      mat-button
+                      type="button"
+                      (click)="toggle(account, 'remove')"
+                      i18n="@@mailSettings.cancel"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              }
+            </li>
+          } @empty {
+            <li class="empty">
+              <p class="note" i18n="@@mailSettings.none">No mail accounts yet. Add one below.</p>
+            </li>
+          }
+        </ul>
+        @if (listStatus(); as status) {
+          <p class="status" role="status">{{ status }}</p>
+        }
+      } @else {
+        <p class="note" role="status" i18n="@@mailSettings.loading">Loading mail accounts…</p>
+      }
+    </div>
+  </div>
+
+  <div class="row">
+    <div class="describe">
+      <h3 id="add-account-label" i18n="@@mailSettings.add">Add an account</h3>
+      <p i18n="@@mailSettings.add.hint">
+        Any mailbox with IMAP and SMTP, or a Google or Microsoft account. The cockpit tests the
+        connection and finds the folders right after adding it.
+      </p>
+    </div>
+    <div class="control">
+      <mat-button-toggle-group
+        class="kinds"
+        aria-labelledby="add-account-label"
+        [value]="type()"
+        (change)="selectType($event.value)"
+      >
+        <mat-button-toggle value="IMAP_SMTP" i18n="@@mailSettings.type.imap"
+          >IMAP/SMTP</mat-button-toggle
+        >
+        <mat-button-toggle value="GOOGLE" i18n="@@mailSettings.type.google"
+          >Google</mat-button-toggle
+        >
+        <mat-button-toggle value="MICROSOFT" i18n="@@mailSettings.type.microsoft"
+          >Microsoft</mat-button-toggle
+        >
+      </mat-button-toggle-group>
+
+      @if (type() === 'IMAP_SMTP') {
+        <form
+          class="mail-form"
+          [formGroup]="imap"
+          (submit)="$event.preventDefault(); addImap()"
+          novalidate
+        >
+          <mat-form-field subscriptSizing="dynamic">
+            <mat-label i18n="@@mailSettings.field.email">Email address</mat-label>
+            <input matInput formControlName="emailAddress" type="email" autocomplete="off" />
+            @if (imap.controls.emailAddress.touched && imap.controls.emailAddress.invalid) {
+              <mat-error i18n="@@mailSettings.field.emailRequired"
+                >Enter an email address.</mat-error
+              >
+            }
+          </mat-form-field>
+          <mat-form-field subscriptSizing="dynamic">
+            <mat-label i18n="@@mailSettings.field.optionalDisplayName"
+              >Your name (optional)</mat-label
+            >
+            <input matInput formControlName="displayName" maxlength="200" />
+          </mat-form-field>
+          <mat-form-field subscriptSizing="dynamic">
+            <mat-label i18n="@@mailSettings.field.username">User name</mat-label>
+            <input matInput formControlName="username" autocomplete="off" />
+            @if (imap.controls.username.touched && imap.controls.username.invalid) {
+              <mat-error i18n="@@mailSettings.field.usernameRequired"
+                >Enter the user name.</mat-error
+              >
+            }
+          </mat-form-field>
+          <mat-form-field subscriptSizing="dynamic">
+            <mat-label i18n="@@mailSettings.field.password">Password or app password</mat-label>
+            <input
+              matInput
+              formControlName="password"
+              type="password"
+              autocomplete="new-password"
+            />
+            @if (imap.controls.password.touched && imap.controls.password.invalid) {
+              <mat-error i18n="@@mailSettings.field.passwordRequired"
+                >Enter the password.</mat-error
+              >
+            }
+          </mat-form-field>
+          <app-server-fields class="wide" protocol="imap" [form]="imap.controls.imap" />
+          <app-server-fields class="wide" protocol="smtp" [form]="imap.controls.smtp" />
+          <mat-form-field subscriptSizing="dynamic" class="wide">
+            <mat-label i18n="@@mailSettings.field.signatureOptional"
+              >Signature (optional)</mat-label
+            >
+            <textarea matInput formControlName="signatureMd" rows="3"></textarea>
+            <mat-hint i18n="@@mailSettings.field.signatureMarkdown"
+              >Markdown: **bold**, _italic_, [link](https://example.org).</mat-hint
+            >
+          </mat-form-field>
+          <mat-slide-toggle
+            class="wide"
+            formControlName="notifyNewMail"
+            i18n="@@mailSettings.field.notify"
+            >Notify me about new mail</mat-slide-toggle
+          >
+          <p class="note wide" i18n="@@mailSettings.imap.hint">
+            Your provider's help pages list the servers. The password is stored encrypted.
+          </p>
+          <div class="actions">
+            <button
+              mat-flat-button
+              type="submit"
+              [disabled]="adding()"
+              i18n="@@mailSettings.add.imap"
+            >
+              Add and test
+            </button>
+          </div>
+        </form>
+      } @else if (!providerConfigured(type())) {
+        <p class="note" i18n="@@mailSettings.oauth.unconfigured">
+          {{ typeLabels[type()] }} is not set up on this server. Add its OAuth client id and secret
+          to the server configuration first (see docs/oauth-setup.md).
+        </p>
+      } @else {
+        <form
+          class="mail-form"
+          [formGroup]="oauth"
+          (submit)="$event.preventDefault(); addOAuth()"
+          novalidate
+        >
+          @if (typeConnections().length) {
+            <mat-form-field subscriptSizing="dynamic" class="wide">
+              <mat-label i18n="@@mailSettings.field.connection">Connected account</mat-label>
+              <mat-select formControlName="connectionId">
+                @for (connection of typeConnections(); track connection.id) {
+                  <mat-option [value]="connection.id">{{ connectionLabel(connection) }}</mat-option>
+                }
+              </mat-select>
+              @if (oauth.controls.connectionId.touched && oauth.controls.connectionId.invalid) {
+                <mat-error i18n="@@mailSettings.field.connectionRequired"
+                  >Choose the account to log in with.</mat-error
+                >
+              }
+            </mat-form-field>
+            <mat-form-field subscriptSizing="dynamic">
+              <mat-label i18n="@@mailSettings.field.optionalEmail"
+                >Email address (optional)</mat-label
+              >
+              <input matInput formControlName="emailAddress" type="email" autocomplete="off" />
+              <mat-hint i18n="@@mailSettings.field.optionalEmailHint"
+                >Defaults to the connected account's address.</mat-hint
+              >
+              @if (oauth.controls.emailAddress.touched && oauth.controls.emailAddress.invalid) {
+                <mat-error i18n="@@mailSettings.field.emailRequired"
+                  >Enter an email address.</mat-error
+                >
+              }
+            </mat-form-field>
+            <mat-form-field subscriptSizing="dynamic">
+              <mat-label i18n="@@mailSettings.field.optionalDisplayName"
+                >Your name (optional)</mat-label
+              >
+              <input matInput formControlName="displayName" maxlength="200" />
+            </mat-form-field>
+            <mat-form-field subscriptSizing="dynamic" class="wide">
+              <mat-label i18n="@@mailSettings.field.signatureOptional"
+                >Signature (optional)</mat-label
+              >
+              <textarea matInput formControlName="signatureMd" rows="3"></textarea>
+              <mat-hint i18n="@@mailSettings.field.signatureMarkdown"
+                >Markdown: **bold**, _italic_, [link](https://example.org).</mat-hint
+              >
+            </mat-form-field>
+            <mat-slide-toggle
+              class="wide"
+              formControlName="notifyNewMail"
+              i18n="@@mailSettings.field.notify"
+              >Notify me about new mail</mat-slide-toggle
+            >
+            <div class="actions">
+              <button
+                mat-flat-button
+                type="submit"
+                [disabled]="adding()"
+                i18n="@@mailSettings.add.oauth"
+              >
+                Add and test
+              </button>
+              <button
+                mat-button
+                type="button"
+                (click)="connect()"
+                i18n="@@mailSettings.connectAnother"
+              >
+                Connect another {{ typeLabels[type()] }} account
+              </button>
+            </div>
+          } @else {
+            <p class="note wide" i18n="@@mailSettings.oauth.hint">
+              {{ typeLabels[type()] }} asks you to allow access, then returns you to Settings →
+              Integrations. Come back here to add the mailbox.
+            </p>
+            <div class="actions">
+              <button
+                mat-flat-button
+                type="button"
+                (click)="connect()"
+                i18n="@@mailSettings.connect"
+              >
+                Connect {{ typeLabels[type()] }} account
+              </button>
+            </div>
+          }
+        </form>
+      }
+
+      @if (addError(); as error) {
+        <p class="error add-result" role="alert">{{ error }}</p>
+      } @else if (addStatus(); as status) {
+        <p class="status add-result" role="status">{{ status }}</p>
+      }
+    </div>
+  </div>
+</section>

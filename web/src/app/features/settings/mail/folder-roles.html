@@ -1,0 +1,68 @@
+<div class="roles">
+  <div class="head">
+    <p class="note" i18n="@@mailSettings.folders.hint">
+      The cockpit archives, deletes and saves drafts into these folders. Roles are detected from the
+      server; change one if it guessed wrong.
+    </p>
+    <button
+      mat-stroked-button
+      type="button"
+      [disabled]="detecting()"
+      (click)="detect()"
+      i18n="@@mailSettings.folders.detect"
+    >
+      Detect folders
+    </button>
+  </div>
+
+  @if (loadError(); as error) {
+    <div class="load-error" role="alert">
+      <p i18n="@@mailSettings.folders.loadFailed">Folders could not be loaded: {{ error }}</p>
+      <button mat-button type="button" (click)="load()" i18n="@@settings.retry">Try again</button>
+    </div>
+  } @else if (detecting()) {
+    <p class="note" role="status" i18n="@@mailSettings.folders.detecting">
+      Reading the folders from the server…
+    </p>
+  } @else if (selectable(); as folders) {
+    @if (folders.length) {
+      <ul class="folders">
+        @for (folder of folders; track folder.id) {
+          <li>
+            <span class="path" [title]="folder.path">{{ folder.path }}</span>
+            <mat-form-field subscriptSizing="dynamic" class="role">
+              <mat-select
+                [value]="choice(folder)"
+                [disabled]="saving().has(folder.id)"
+                [aria-label]="roleLabel(folder)"
+                (selectionChange)="setRole(folder, $event.value)"
+              >
+                <mat-option value="AUTOMATIC">{{ automaticLabel(folder) }}</mat-option>
+                @for (role of roles; track role) {
+                  <mat-option [value]="role">{{ roleLabels[role] }}</mat-option>
+                }
+                <mat-option value="NONE" i18n="@@mailSettings.role.none">No role</mat-option>
+              </mat-select>
+            </mat-form-field>
+          </li>
+        }
+      </ul>
+      @if (missing().length) {
+        <p class="note" i18n="@@mailSettings.folders.missing">
+          No folder for: {{ missing().join(', ') }}.
+        </p>
+      }
+    } @else {
+      <p class="note" i18n="@@mailSettings.folders.none">
+        No folders yet. Use Detect folders to read them from the server.
+      </p>
+    }
+    @if (saveError(); as error) {
+      <p class="error" role="alert" i18n="@@mailSettings.folders.saveFailed">
+        The role of {{ error.name }} could not be changed: {{ error.message }}
+      </p>
+    }
+  } @else {
+    <p class="note" role="status" i18n="@@mailSettings.folders.loading">Loading folders…</p>
+  }
+</div>
