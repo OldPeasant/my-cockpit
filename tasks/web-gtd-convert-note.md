@@ -17,3 +17,4 @@ Enable 'To reference (note)' in processing and task detail.
 ## Notes
 - ASSUMPTION (2026-10-21 07:01+0200 by dell26/agent-3): Inbox processing does not navigate away after 'To reference': it shows a status line with an 'Open note' link (/notes/:id) so processing can continue; the task detail navigates straight to /notes/:id after a confirm. The /notes/:id route comes with web-notes-editor.
 - ASSUMPTION (2026-10-21 07:01+0200 by dell26/agent-3): Added TaskStore.convertToNote in gtd/data (outside touches) so the inbox item leaves the list optimistically like trash; inline clarification changes are not saved before converting (a note has no GTD attributes).
+- ASSUMPTION (2026-10-21 07:43+0200 by dell26/agent-3): Completed before web-notes-editor (in progress) adds the /notes/:id route: until then 'Open note' and the task-detail navigation land on Not Found. Convert + navigation target are verified via unit tests (router/link), not end to end.
