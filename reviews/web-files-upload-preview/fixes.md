@@ -162,6 +162,48 @@ Lint/type-check/build:
 Remaining unresolved findings:
 0
 
+## Round 2 - re-review finding CR-1 (P3)
+
+Date: 2026-10-21
+
+Scope: the single finding CR-1 in the re-review section "P3 Low" of `reviews/web-files-upload-preview/review.md`. Task base 9d1c49cc. Fix commit eba1547c.
+
+### Fixed findings
+
+#### CR-1 (re-review) - Queued capture attachments showed "0 %" with no waiting state (P3)
+
+Files changed:
+- `web/src/app/features/capture/capture-dialog.html`
+- `web/src/app/features/capture/capture-dialog.spec.ts`
+
+Problem:
+The shared `UploadService` runs `PARALLEL_UPLOADS` (2) uploads at a time. A capture attachment queued behind them had state `queued`, but the status `@switch` had no case for it and the percentage was shown for every unfinished job. The row read "0 %" as if the upload had started.
+
+Fix:
+Added a `queued` case to the status `@switch` with the label "Waiting" (`i18n="@@capture.fileQueued"`), matching the upload panel's `@@files.upload.queued`. The percentage is now shown only while the job is `uploading`. The label sits in the existing `role="status"` region, so the change from Waiting to uploading to Attached is announced as a state change. Queue priority was not changed. The new test "shows Waiting, not a percentage, for an attachment queued behind running uploads" pastes three files and checks that the first two show "0 %", the third shows "Waiting" with no request sent, and that the third switches to "0 %" when a slot frees and then to "Attached".
+
+`web/src/locale/messages.xlf` was not changed. It does not hold any of the existing `capture.file*` ids (for example `capture.fileAttached`), so it is not kept up to date with these strings. Regenerating it here would add unrelated ids.
+
+Validation:
+- `cd web && npm run check` - Pass (API client up to date, lint clean, e2e typecheck passed, 91 test files and 1673 tests passed, build completed. The only warning is the existing initial bundle budget warning, out of scope as above.)
+
+### Validation summary (round 2)
+
+Focused tests:
+- `cd web && npm run check` (includes capture-dialog.spec.ts) - Pass
+
+Full test suite:
+- `cd web && npm run check` - Pass, 1673 tests
+
+Lint/type-check/build:
+- Included in `npm run check` - Pass
+
+`.taskcheck`:
+- `sh scripts/check.sh` on commit eba1547c - Pass ("== all checks passed", exit 0; it took more than 10 minutes)
+
+Remaining unresolved findings:
+0
+
 ## Final status
 
 All validated findings fixed and validation passed.
