@@ -4,28 +4,35 @@ Date: 2026-10-21
 
 Task: mail-gtd - Mail to GTD integration
 
-Scope: final re-review of the whole task. `git diff 5bfa17c657d5d6cc819cc4120eb145fe9a3880e4..71150acbbbc763a814ca75dc38c5ff5b4b1c3f4d`: production code in `server/src/main/kotlin/ch/sonensei/cockpit/mail/gtd/`, tests in `server/src/test/kotlin/ch/sonensei/cockpit/mail/gtd/`, `api/openapi.yaml` and the generated web client under `web/src/app/api/generated/`. Committed changes only. The working tree was clean when the review started.
+Scope: final review round of the whole task, committed changes only. `git diff 0cdd3a188e0a35bd13a5754275338e819792e097..bf7e4c0e9f93122f89cb093e565207e0cadd6cd0` covers production code in `server/src/main/kotlin/ch/sonensei/cockpit/mail/gtd/`, tests in `server/src/test/kotlin/ch/sonensei/cockpit/mail/gtd/`, `api/openapi.yaml` and the generated web client under `web/src/app/api/generated/`. Since the previous review (7b8461a1), production code changed only in ddf36a3c and af618c04, both in `MailGtdService.kt`. I read that delta line by line and re-read the current `MailGtdService.kt` and `MailGtdController.kt` in full.
 
 Requirements:
-- tasks/mail-gtd.md acceptance criteria and recorded assumptions (sent/received waiting-for, note body format, no request body / not idempotent, CR-3 deferral)
-- SPEC.md §7.3 (GTD integration), §4.2 (API conventions)
-- AGENTS.md project notes (module boundaries, Problem Details, logging rules, generated files)
-- Previous review (re-review CR-1..CR-3), reviews/mail-gtd/fixes.md "Round 2", reviews/mail-gtd/tests.md
-- Existing code: NoteMarkdown, NoteService, LinkService, MailAddress parsing (ImapRemoteMailbox, MailAddress)
+- tasks/mail-gtd.md: acceptance criteria and recorded assumptions, including the 07:19 assumption that `[[` is written as `[ [`
+- SPEC.md §7.3 and §4.2 (through the earlier rounds)
+- AGENTS.md project notes
+- The previous final review (CR-1, CR-2) and reviews/mail-gtd/fixes.md "Round 3"
+- Existing code: `NoteMarkdown` (`INLINE_LINK`, `plainText`), `NoteService`
 
 Git range:
 - Branch: main
-- HEAD: 71150acbbbc763a814ca75dc38c5ff5b4b1c3f4d
-- Base/start: 5bfa17c657d5d6cc819cc4120eb145fe9a3880e4 (`git merge-base HEAD origin/main`)
-- Commits reviewed: 11 (b0ea7069, 4b19a330, d072b79c, f8db6d6f, 23db507e, 0931ece6, d8668bee, e139a5e3, cc5247ec, 61f4b71f, 71150acb). The commits that change production code are b0ea7069, 23db507e and cc5247ec. The OpenAPI and client were regenerated in 4b19a330, and the controller has not changed since then.
+- HEAD: bf7e4c0e9f93122f89cb093e565207e0cadd6cd0
+- Base/start: 0cdd3a188e0a35bd13a5754275338e819792e097
+- Commits reviewed: 16. Fifteen are `mail-gtd:` commits (da0117cf through aaf3c30c). The sixteenth, bf7e4c0e, adds only `tasks/mail-connection-errors.md`. The last commit that changes production code is af618c04.
+- Uncommitted changes: `server/src/test/kotlin/ch/sonensei/cockpit/mail/gtd/MailGtdWebTests.kt` is modified in the working tree. The change adds the test `to-note of a mail with backslash escapes, brackets and autolinks next to the bold header creates the note`. It is not committed, so it is outside this review's scope (see Notes).
 
-Summary: 0 P0, 0 P1, 0 P2, 2 P3
+Summary: 0 P0, 0 P1, 0 P2, 1 P3
+
+## History of earlier findings
+
+- Round 1: CR-1 (HTML-only mail lost its block structure) and CR-2 (inline `[[type:id]]` tokens in mail text created links) were fixed. CR-3 (duplicated `MailConnectionException` handler) was deferred.
+- Re-review: CR-1 (source indentation turned into Markdown code blocks) and CR-2 (some block tags were not boundaries) were fixed. CR-3 stayed deferred.
+- Previous final review: CR-1 (P3, display names in the note header were not neutralized) and CR-2 (P3, the deferred duplicated handler).
 
 ## Verification of previous findings
 
-- Re-review CR-1 (source indentation becomes Markdown code blocks): fixed. `htmlText` (`MailGtdService.kt:200-257`) keeps `wholeText` only for text nodes that have a `pre` ancestor (`:211-213`). Everywhere else, runs of HTML whitespace collapse to one space (`:215`), and the text is left-trimmed at a line start or after a space (`:208`, `:216`). Table cells only add a separating space when there is none yet (`:245-246`). I traced the indented-table, `<br>`-then-indented-line, whitespace-only-node and `&nbsp;` cases. No line outside `<pre>` starts with a blank. NBSP is not collapsed, which is fine: CommonMark does not count it as indentation. Two tests check this with exact output: `to-note collapses the source indentation of a pretty-printed HTML part but keeps pre text` and `to-note of indented HTML keeps nbsp, ...`.
-- Re-review CR-2 (missing block tags): fixed. `details` was added to `BLOCKS`. `center`, `main`, `aside`, `summary` and `caption` were added to `LINES` (`:165-186`). The tests cover `center`, `caption`, `details`/`summary`, `main` and `aside`.
-- Re-review CR-3 (duplicated `MailConnectionException` handler): still present. It was deferred by a recorded assumption and is carried over below as CR-2.
+- Previous CR-1 (display names in the header): **fixed**. `noteBody` now runs `neutralizeInlineLinks` on the whole assembled body, header and text, before `truncate` (`MailGtdService.kt:145-156`). The generated header parts (`**From:**`, `<address>`, the date) contain no `[[`. `truncate` only removes characters from the end and appends `…`, so it cannot create a new `[[`. The lookahead regex `\[(?=\[)` with the replacement `"[ "` (`:190`, `:264`) turns every run of brackets into a run with spaces between them, for example `[[[` becomes `[ [ [`. `NoteMarkdown.INLINE_LINK` needs a literal `[[` (`NoteMarkdown.kt:19`), so it cannot match the result. `inlineLinks` reads only `bodyMd`, so the subject in the title cannot create links. The new committed test `inline link tokens in display names and the subject do not link the note to other items` (`MailGtdWebTests.kt:414-437`) checks that From, To and Cc names, including a triple bracket, are neutralized and that the only link is to the mail. The existing body-text test now expects `See [ [task:...]]`.
+- The switch from `[\[` to `[ [` is recorded as an assumption. It changes how a mail containing `[[` looks: one visible space is added. It removes the Markdown escape that triggered the flexmark `TextCollectingVisitor` length assertion. This is an acceptable trade-off and it is documented in the KDoc (`:259-263`).
+- Previous CR-2 (duplicated `MailConnectionException` handler): still present. It is deferred by a recorded assumption, and the follow-up task `tasks/mail-connection-errors.md` (deps `mail-gtd`) now exists. It is carried over below as CR-1.
 
 ## P0 Critical
 
@@ -41,30 +48,22 @@ None.
 
 ## P3 Low
 
-- [ ] **CR-1 | Sender and recipient display names in the note header are not neutralized for inline `[[type:id]]` links**
-    - File: `server/src/main/kotlin/ch/sonensei/cockpit/mail/gtd/MailGtdService.kt:138-140`
-    - Category: Security
-    - Problem: `neutralizeInlineLinks` runs only on the mail text (`:148-152`). The header lines put each address through `full(address)`, which includes `MailAddress.name` unchanged. That name is the sender-controlled `personal` part of the From/To/Cc header (`ImapRemoteMailbox.kt:316`, `MailAddress.kt:27`). A display name such as `"[[task:<uuid>]]" <x@example.test>` (a valid quoted string) produces `**From:** [[task:<uuid>]] <x@example.test>`. That matches `NoteMarkdown.INLINE_LINK` (`NoteMarkdown.kt:19`), so `NoteService` creates a SYNC link from the new note (`NoteService.kt:106`). `LinkService.sync` does not check that the target exists (`LinkService.kt:120-135`), so a dangling link is stored too. The round-1 fix report says the header "holds only addresses and the date", but it holds display names as well. The test `inline link tokens in a mail's text do not link the note to other items` covers only body text.
-    - Why it matters: The fix for the earlier CR-2 aims to stop a received mail from adding links to the user's items when it becomes a note. Through the header, an external sender can still add them. The impact is small: a real target needs a UUIDv7 the sender would have to know, and otherwise the link dangles. This is why it is P3.
-    - Suggested fix: Run the assembled header through `neutralizeInlineLinks` too, or the whole `body` before truncation. The generated parts contain no `[[`, so this is safe. Extend the inline-link test with a From display name that contains a `[[task:<uuid>]]` token.
-
-- [ ] **CR-2 | `MailConnectionException` handler copied from `MailMessageController` (carried over, deferred)**
+- [ ] **CR-1 | `MailConnectionException` handler copied from `MailMessageController` (carried over, deferred, follow-up task exists)**
     - File: `server/src/main/kotlin/ch/sonensei/cockpit/mail/gtd/MailGtdController.kt:87-96`
     - Category: Quality
-    - Problem: The handler is the same as the one in `MailMessageController`, and `MailAccountController` has a third copy. The parent deferred this with a recorded assumption, because the fix lies outside this task's `touches`.
+    - Problem: This handler is the same as the one in `MailMessageController`, and `MailAccountController` has a third copy.
     - Why it matters: The mapping of mail server failures to Problem Details (502/503, `errorCode`) can drift between the mail endpoints.
-    - Suggested fix: Add a follow-up task for a shared `@RestControllerAdvice` (or helper) for the mail controllers. No change is needed in this task while it stays deferred.
+    - Suggested fix: Leave it to `mail-connection-errors`, which is already planned. No change is needed in this task.
 
 ## Notes (no finding)
 
-- AC1: `to-task`, `to-waiting` and `to-note` return 201 with `Location` and `MailGtdItemResponse`. Each creates its item through `TaskService`/`NoteService` and a MANUAL link through `LinkService`, in one transaction. For a sent mail (Sent role, account address or identity, case-insensitive), waiting-for uses the recipients (To, else Cc, else Bcc). For a received mail it uses the sender, as the recorded assumption says. A gone message gives 404 and a malformed id gives 400; neither creates anything. A missing CSRF token is rejected. All of this is covered by `MailGtdWebTests`.
-- AC2: links point at the message row id. The EMAIL resolver re-resolves them by Message-ID. Tests cover a move that creates a new row, a move that keeps the row, repeated moves, and requests that use an old id (for task, waiting-for and note).
-- `toNote` reads the body outside the DB transaction, then links the current copy inside it. Mail server failures map to 502/503 and create no note (`MailGtdMailServerTests`). Log statements contain no mail content or credentials.
-- `api/openapi.yaml` and the generated client (`mail-to-task/-waiting/-note`, `MailGtdItemResponse`) match the controller. `type` is documented as the full `ItemType` enum, with the description "TASK or NOTE". That is consistent and fine.
-- Note rendering on the web: I found no `bypassSecurityTrust*` use outside tests. HTML entities decoded into the Markdown body do not add a new XSS path beyond plain-text mail and user-written notes.
-- `reviews/mail-gtd/fixes.md` and `tests.md` cite commit hashes from before the last rebase (e.g. 21955657, 1efb5405). The parent should use the current hashes in `quality.json`.
-- This review did not run tests or Gradle tasks. The evidence for AC3/AC4 (Testcontainers suite, `OpenApiContractTest`) is the parent worker's responsibility.
+- AC1: `to-task`, `to-waiting` and `to-note` have not changed since the previous review, apart from neutralization. Each returns 201 with `Location` and `MailGtdItemResponse`, and creates its item and a MANUAL link in one transaction. Waiting-for uses the recipients for a sent mail and the sender for a received mail, as the assumption records. A gone message gives 404 and a malformed id gives 400.
+- AC2: Links point at the row of the current copy and are re-resolved by Message-ID. Committed tests cover a move that creates a new row, a move that keeps the row, repeated moves, waiting-for and note links, and requests that use an old id (`MailGtdWebTests.kt:477-555`).
+- AC4: The controller and DTO have not changed since the OpenAPI and the client were regenerated in 6b3f157c. No later commit touches `api/openapi.yaml` or `web/src/app/api/generated/`.
+- Residual flexmark risk: `NoteMarkdown.plainText` (outside this task's touches) can hit the flexmark `TextCollectingVisitor` length assertion on other Markdown escapes. Display names or mail text with a backslash are examples. The assertion fires only with `-ea`, which is how the tests run. The recorded assumption already acknowledges this. The uncommitted test in the working tree appears to exercise exactly this case. If it passes, it is useful evidence and should be committed. If it fails, `to-note` can throw a 500 under `-ea` for such mail, and the parent should treat that as a new finding before `done`. This review did not run it and makes no claim about its outcome.
+- `reviews/mail-gtd/tests.md` was last updated in 4121d8e0, before the code changes in ddf36a3c and af618c04. `docs/QUALITY.md` "Freshness" therefore requires a test-writer run on the final code.
+- This review did not run Gradle or tests. The parent worker must record the evidence for AC3 and AC4 (the Testcontainers suite and `OpenApiContractTest`) with `tasks.py verify`.
 
 ## Review conclusion
 
-No material issues found. Both round-2 fixes are correct and tested. CR-1 is a small, optional hardening of the earlier inline-link fix. CR-2 stays deferred by a recorded decision.
+No material issues found. The fix for the previous CR-1 is correct, complete and tested. The only remaining finding (CR-1, P3) is deferred to the existing follow-up task `mail-connection-errors`.

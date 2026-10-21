@@ -437,6 +437,56 @@ class MailGtdWebTests(
 	}
 
 	@Test
+	fun `to-note of an HTML mail with backslashes, brackets and a link creates the note`() {
+		val other = UUID.randomUUID()
+		val mail = message(inbox, from = listOf(MailAddress("grace@example.test", "Grace \\[[x]]")))
+		bodies.put(
+			mail.id,
+			null,
+			"<p>A \\[\\[b]] <a href=\"https://example.test/e\">https://example.test/e</a><br>[\\[task:$other]]\\</p>",
+		)
+		attachments.save(mail.id, emptyList())
+
+		val result = created(mail.id, "to-note")
+
+		linkedEnds("NOTE", result["id"].asString()).single()["id"].asString() shouldBe mail.id.toString()
+		val body = getJson("/api/v1/notes/${result["id"].asString()}")["bodyMd"].asString()
+		body shouldContain "**From:** Grace \\[ [x]] <grace@example.test>"
+		body shouldEndWith "A \\[\\[b]] https://example.test/e\n[\\[task:$other]]\\"
+		body shouldNotContain "[["
+	}
+
+	@Test
+	fun `to-note of a mail with backslash escapes, brackets and autolinks next to the bold header creates the note`() {
+		val other = UUID.randomUUID()
+		val text =
+			"Escaped \\[\\[task:$other]] and [\\[note:$other]] and \\\\[[task:$other]] stay text.\n" +
+				"**Bold \\*star\\*** next to <https://example.test/a\\_b> and <frank@example.test>  \n" +
+				"hard break, then https://example.test/c?x=[1] and C:\\Users\\[draft]\\ end\\\n" +
+				"[label](https://example.test/d) \\` tick \\` [[ [[ ]] \\\\"
+		val mail =
+			message(
+				inbox,
+				subject = "Re: \\[[task:$other]] <draft>",
+				from = listOf(MailAddress("grace@example.test", "Doe\\, Grace [\\[task:$other]] **x**")),
+				to = listOf(MailAddress("ann@work.example", "Ann \\*Example\\*")),
+				cc = listOf(MailAddress("erin@example.test", "\\[[note:$other]]\\")),
+			)
+		bodies.put(mail.id, text, null)
+		attachments.save(mail.id, emptyList())
+
+		val result = created(mail.id, "to-note")
+
+		linkedEnds("NOTE", result["id"].asString()).single()["id"].asString() shouldBe mail.id.toString()
+		val body = getJson("/api/v1/notes/${result["id"].asString()}")["bodyMd"].asString()
+		body shouldNotContain "[["
+		body shouldContain "**From:** Doe\\, Grace [\\[task:$other]] **x** <grace@example.test>"
+		body shouldContain "**Cc:** \\[ [note:$other]]\\ <erin@example.test>"
+		body shouldContain "Escaped \\[\\[task:$other]] and [\\[note:$other]] and \\\\[ [task:$other]] stay text."
+		body shouldContain "[ [ [ [ ]] \\\\"
+	}
+
+	@Test
 	fun `links survive a move that gives the message a new row, re-resolved by Message-ID`() {
 		val original = message(inbox, messageId = "<moved@example.test>")
 		val taskId = created(original.id, "to-task")["id"].asString()
