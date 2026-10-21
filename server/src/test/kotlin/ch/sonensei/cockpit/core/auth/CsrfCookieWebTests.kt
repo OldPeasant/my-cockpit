@@ -166,6 +166,43 @@ class CsrfCookieWebTests(
 	}
 
 	@Test
+	fun `requests that carry the XSRF-TOKEN cookie keep it, so concurrent requests of the SPA agree on the token`() {
+		val xsrf =
+			mockMvc
+				.get("/api/v1/setup/status")
+				.andReturn()
+				.response
+				.getCookie(XSRF_COOKIE)
+				.shouldNotBeNull()
+		val loggedIn =
+			mockMvc
+				.post("/api/v1/auth/login") {
+					contentType = MediaType.APPLICATION_JSON
+					content = loginBody()
+					cookie(xsrf)
+					header(XSRF_HEADER, xsrf.value)
+				}.andExpect { status { isOk() } }
+				.andReturn()
+		val session = loggedIn.response.getCookie(SessionCookies.NAME).shouldNotBeNull()
+		val token = loggedIn.response.getCookie(XSRF_COOKIE).shouldNotBeNull()
+
+		val read = mockMvc.get("/api/v1/auth/me") { cookie(session, token) }.andExpect { status { isOk() } }.andReturn()
+		read.response.getCookie(XSRF_COOKIE).shouldBeNull()
+		val write =
+			mockMvc
+				.post("/api/v1/contexts") {
+					contentType = MediaType.APPLICATION_JSON
+					content = jsonMapper.writeValueAsString(mapOf("name" to "@csrf-test"))
+					cookie(session, token)
+					header(XSRF_HEADER, token.value)
+				}.andExpect { status { isCreated() } }
+				.andReturn()
+		write.response.getCookie(XSRF_COOKIE).shouldBeNull()
+		// Still stateless: no servlet session holds the login.
+		listOf(loggedIn, read, write).forEach { it.request.getSession(false).shouldBeNull() }
+	}
+
+	@Test
 	fun `a failed login keeps the XSRF-TOKEN cookie`() {
 		val xsrf =
 			mockMvc

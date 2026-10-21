@@ -15,12 +15,12 @@ import org.springframework.security.authorization.AuthorityAuthorizationManager
 import org.springframework.security.authorization.AuthorizationManager
 import org.springframework.security.authorization.AuthorizationManagers
 import org.springframework.security.config.annotation.web.builders.HttpSecurity
-import org.springframework.security.config.http.SessionCreationPolicy
 import org.springframework.security.crypto.argon2.Argon2PasswordEncoder
 import org.springframework.security.crypto.password.PasswordEncoder
 import org.springframework.security.web.SecurityFilterChain
 import org.springframework.security.web.access.intercept.RequestAuthorizationContext
 import org.springframework.security.web.authentication.HttpStatusEntryPoint
+import org.springframework.security.web.context.RequestAttributeSecurityContextRepository
 import org.springframework.security.web.csrf.CsrfFilter
 import org.springframework.security.web.csrf.CsrfToken
 import org.springframework.web.filter.OncePerRequestFilter
@@ -82,7 +82,12 @@ class SecurityConfiguration {
 					.csrfTokenRepository(cookies.csrfTokenRepository())
 					.ignoringRequestMatchers("$SETUP_PATH/**", SETUP_PATH, TOKEN_PATH, TOKEN_REFRESH_PATH)
 					.ignoringRequestMatchers(BearerAuthenticationFilter.withBearerHeader)
-			}.sessionManagement { it.sessionCreationPolicy(SessionCreationPolicy.STATELESS) }
+			}
+			// Stateless (the context lives only in the request), but without `SessionCreationPolicy.STATELESS`: that
+			// adds a SessionManagementFilter, which takes every authenticated request for a fresh login and rotates the
+			// CSRF token, so concurrent SPA requests send a token the cookie no longer has (403). Login and logout
+			// rotate it themselves (AuthController).
+			.securityContext { it.securityContextRepository(RequestAttributeSecurityContextRepository()) }
 			.requestCache { it.disable() }
 			.addFilterBefore(BearerAuthenticationFilter(devices), CsrfFilter::class.java)
 			.addFilterBefore(SessionAuthenticationFilter(login, cookies), CsrfFilter::class.java)
