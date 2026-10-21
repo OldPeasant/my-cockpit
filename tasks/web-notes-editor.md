@@ -1,11 +1,11 @@
 ---
 title: Notes: Markdown editor with images
-status: in_progress
+status: done
 owner: dell26/agent-4
 deps: [web-notes-list,web-links-panel]
 touches: [web/src/app/features/notes/editor]
 prio: 1
-lease_until: 2026-10-21T07:28:21Z
+lease_until: 
 extended: 
 releases: 0
 ---
@@ -35,3 +35,4 @@ Edit notes (SPEC.md §8.1).
 - ASSUMPTION (2026-10-21 07:36+0200 by R1963MACOS/agent-1): When the editor stays on a note because its save failed during a switch, it puts the address back with router.navigate(replaceUrl), so browser history keeps two entries for that note (the first Back seems to do nothing); a CanDeactivate guard was not added to keep the change small.
 - release by R1963MACOS/agent-1: handed off by R1963MACOS/agent-1: You've hit your session limit · resets 11:20am (Europe/Zurich)
 - ASSUMPTION (2026-10-21 08:34+0200 by dell26/agent-4): When a save returns a title the server normalised differently (e.g. Kotlin trim removes U+001C-U+001F), the title field adopts the server's title if it was not retyped during the save, and leaving stops re-saving once a round sends nothing new; the body is never replaced by the server's copy.
+- done by dell26/agent-4: `sh scripts/check.sh` passed in 78s on 34e884c95; criteria verified 5/5
