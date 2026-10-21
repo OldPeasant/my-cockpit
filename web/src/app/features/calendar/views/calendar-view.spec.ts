@@ -949,6 +949,101 @@ describe('CalendarView', () => {
       await settle();
       expect(callsOf(listTasks)).toHaveLength(loads + 1);
     });
+
+    it('hides the load error of the tasks once the overlay is turned off', async () => {
+      localStorage.setItem(TASK_OVERLAY_KEY, 'true');
+      await showWeek();
+      callsOf(listTasks).at(-1)!.reject(new Error('offline'));
+      await settle();
+      await fixture.whenStable();
+      expect(root.textContent).toContain('The tasks could not be loaded.');
+
+      check(toggle(), false);
+      await fixture.whenStable();
+      expect(root.textContent).not.toContain('The tasks could not be loaded.');
+    });
+
+    it('shows the tasks of the newest week when an older answer arrives last', async () => {
+      localStorage.setItem(TASK_OVERLAY_KEY, 'true');
+      await showWeek();
+      const first = callsOf(listTasks).at(-1)!;
+      options()!.datesSet!(nextWeek());
+      await settle();
+      const second = callsOf(listTasks).at(-1)!;
+      expect(second).not.toBe(first);
+
+      const april = fakeTask('april', { title: 'Book dentist', dueDate: '2026-04-01' });
+      second.resolve({ items: [april] });
+      await settle();
+      // The answer for the previous week arrives last: it is dropped, even with a task that would
+      // fall into the shown week.
+      const stale = fakeTask('stale', { title: 'Old answer', dueDate: '2026-04-02' });
+      first.resolve({ items: [rent, stale] });
+      await settle();
+      await fixture.whenStable();
+      expect(taskEntries().map((entry) => entry.id)).toEqual(['task-due-april']);
+      expect(root.textContent).not.toContain('The tasks could not be loaded.');
+    });
+
+    it('drops an older failed answer arriving after the newest one', async () => {
+      localStorage.setItem(TASK_OVERLAY_KEY, 'true');
+      await showWeek();
+      const first = callsOf(listTasks).at(-1)!;
+      options()!.datesSet!(nextWeek());
+      await settle();
+      const april = fakeTask('april', { title: 'Book dentist', dueDate: '2026-04-01' });
+      callsOf(listTasks)
+        .at(-1)!
+        .resolve({ items: [april] });
+      await settle();
+      first.reject(new Error('timeout'));
+      await settle();
+      await fixture.whenStable();
+      expect(taskEntries().map((entry) => entry.id)).toEqual(['task-due-april']);
+      expect(root.textContent).not.toContain('The tasks could not be loaded.');
+    });
+
+    it('loads the tasks of the one shown day in the day view', async () => {
+      localStorage.setItem(TASK_OVERLAY_KEY, 'true');
+      await render({ view: 'day', date: '2026-03-25' });
+      await answerCalendars(work);
+      options()!.datesSet!({
+        start: new Date('2026-03-24T23:00:00Z'),
+        end: new Date('2026-03-25T23:00:00Z'),
+        view: { type: 'timeGridDay', currentStart: new Date('2026-03-24T23:00:00Z') },
+      } as unknown as DatesSetInfo);
+      await settle();
+      expect(callsOf(listTasks).at(-1)!.params).toMatchObject({
+        from: '2026-03-25',
+        to: '2026-03-25',
+      });
+      await answerTasks(call);
+      expect(taskEntries().map((entry) => entry.id)).toEqual(['task-due-call']);
+    });
+
+    it('shows the tasks again when switching back from the month to the week view', async () => {
+      localStorage.setItem(TASK_OVERLAY_KEY, 'true');
+      await showWeek();
+      await answerTasks(rent);
+      expect(taskEntries()).toHaveLength(1);
+
+      options()!.datesSet!({
+        start: new Date('2026-02-22T23:00:00Z'),
+        end: new Date('2026-04-05T22:00:00Z'),
+        view: { type: 'dayGridMonth', currentStart: new Date('2026-02-28T23:00:00Z') },
+      } as unknown as DatesSetInfo);
+      await settle();
+      await fixture.whenStable();
+      expect(taskEntries()).toEqual([]);
+      const loads = callsOf(listTasks).length;
+
+      options()!.datesSet!(week());
+      await settle();
+      await fixture.whenStable();
+      // The same week as before: no new request, the loaded tasks show again.
+      expect(callsOf(listTasks)).toHaveLength(loads);
+      expect(taskEntries().map((entry) => entry.id)).toEqual(['task-due-rent']);
+    });
   });
 
   describe('linked event', () => {

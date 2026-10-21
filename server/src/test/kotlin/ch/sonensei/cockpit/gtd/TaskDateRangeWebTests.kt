@@ -134,6 +134,28 @@ class TaskDateRangeWebTests(
 	}
 
 	@Test
+	fun `a rejected range names the field and the rule in Problem Details`() {
+		problem("?from=2026-03-02", "to", "is required with from")
+		problem("?to=2026-03-02", "from", "is required with to")
+		problem("?from=2026-03-08&to=2026-03-02", "to", "must not be before from")
+		// 366 days after from is a 367-day range: one day too long.
+		problem("?from=2026-01-01&to=2027-01-02", "to", "the range must span at most 366 days")
+	}
+
+	private fun problem(
+		query: String,
+		field: String,
+		message: String,
+	) {
+		mockMvc.get("$BASE$query").andExpect {
+			status { isBadRequest() }
+			content { contentType(MediaType.APPLICATION_PROBLEM_JSON) }
+			jsonPath("$.errors[0].field") { value(field) }
+			jsonPath("$.errors[0].message") { value(message) }
+		}
+	}
+
+	@Test
 	fun `a range of exactly 365 days after from is accepted and includes both ends`() {
 		val first = create("""{"title":"New year call","list":"NEXT","dueDate":"2026-01-01"}""")
 		val last = create("""{"title":"Next new year call","list":"NEXT","dueDate":"2027-01-01"}""")

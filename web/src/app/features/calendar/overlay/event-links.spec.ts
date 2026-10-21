@@ -1,3 +1,4 @@
+import { HttpContext } from '@angular/common/http';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { MatDialogRef } from '@angular/material/dialog';
 import { provideRouter, Router } from '@angular/router';
@@ -11,7 +12,7 @@ import {
   OccurrenceResponse,
   TaskResponse,
 } from '../../../api/generated';
-import { ApiError, NotificationService } from '../../../core/http';
+import { ApiError, NotificationService, SILENT_ERRORS } from '../../../core/http';
 import { LinksService } from '../../../shared/links';
 import { fakeEvent, fakeOccurrence } from '../views/testing';
 import { EventLinks } from './event-links';
@@ -325,6 +326,79 @@ describe('EventLinks', () => {
       { body: { title: 'Planning', list: 'INBOX' } },
       expect.anything(),
     );
+  });
+
+  it('dates the task and note titles in the zone of its timeZone input, not in UTC', async () => {
+    // 23:30 UTC on the 23rd is already the 24th in Zurich (the panel's zone).
+    await render(fakeOccurrence('Late call', { eventId: 'e1', start: '2026-03-23T23:30:00Z' }));
+    button('Create task from event')!.click();
+    await stable();
+    button('Create note for event')!.click();
+    await stable();
+    expect(invoke).toHaveBeenCalledWith(
+      createTask,
+      { body: { title: 'Late call (2026-03-24)', list: 'INBOX' } },
+      expect.anything(),
+    );
+    expect(invoke).toHaveBeenCalledWith(
+      createNote,
+      { body: { title: 'Late call (2026-03-24)' } },
+      expect.anything(),
+    );
+  });
+
+  it('dates an all-day event by its start date', async () => {
+    await render(
+      fakeOccurrence('Ski trip', {
+        eventId: 'e1',
+        allDay: true,
+        start: undefined,
+        end: undefined,
+        startDate: '2026-04-10',
+        endDate: '2026-04-12',
+      }),
+    );
+    button('Create task from event')!.click();
+    await stable();
+    expect(invoke).toHaveBeenCalledWith(
+      createTask,
+      { body: { title: 'Ski trip (2026-04-10)', list: 'INBOX' } },
+      expect.anything(),
+    );
+  });
+
+  it('links a generated occurrence of a series to the event that holds it', async () => {
+    await render(fakeOccurrence('Standup', { eventId: 'master', seriesId: 'master' }));
+    button('Create note for event')!.click();
+    await stable();
+    expect(links.list).toHaveBeenCalledWith({ type: 'EVENT', id: 'master' });
+    expect(links.create).toHaveBeenCalledWith(
+      { type: 'NOTE', id: 'n1' },
+      { type: 'EVENT', id: 'master' },
+    );
+  });
+
+  it('sends the create requests silently, since the panel shows their errors itself', async () => {
+    await render();
+    button('Create task from event')!.click();
+    await stable();
+    button('Create note for event')!.click();
+    await stable();
+    const contexts = invoke.mock.calls
+      .filter(([fn]) => fn === createTask || fn === createNote)
+      .map(([, , context]) => context as HttpContext);
+    expect(contexts).toHaveLength(2);
+    for (const context of contexts) expect(context.get(SILENT_ERRORS)).toBe(true);
+  });
+
+  it('shows the server message of a refused create', async () => {
+    const refused = new ApiError(400, 'Bad Request');
+    invoke.mockRejectedValueOnce(refused);
+    await render();
+    button('Create note for event')!.click();
+    await stable();
+    expect(alerts()).toContain(refused.userMessage);
+    expect(links.create).not.toHaveBeenCalled();
   });
 
   it('closes its dialog when a link is followed', async () => {
