@@ -861,7 +861,229 @@ class MicrosoftCalendarAdapterTests {
 		wireMock.verify(0, anyRequestedFor(urlPathEqualTo("$API/me/events/AAMkSingle1")))
 	}
 
+	// --- review fixes: further cases (test-writer)
+
+	@Test
+	fun `a split keeps only the exceptions before it - the one the shortened pattern no longer has is not put back`() {
+		val december = "AAMkSeries1-20261207"
+		// Before the split: 19 October is moved (recorded), 7 December is renamed.
+		val before =
+			seriesInstances().map {
+				if (it.get("id").asString() == december) {
+					json.readTree(instanceJson(december, "exception", "2026-12-07T08:00:00", originalStart = "2026-12-07T08:00:00Z"))
+				} else {
+					it
+				}
+			}
+		// After the series ends on 15 November, Graph has the occurrences up to 9 November, all plain again.
+		val after =
+			before
+				.filter { Instant.parse(it.at("/start/dateTime").asString().take(19) + "Z") < Instant.parse("2026-11-15T00:00:00Z") }
+				.map {
+					if (it.get("id").asString() == "AAMkSeries1-20261019") {
+						json.readTree(instanceJson("AAMkSeries1-20261019", "occurrence", "2026-10-19T07:00:00"))
+					} else {
+						it
+					}
+				}
+		stubPatternChange(before, after)
+		stub(patch(urlPathEqualTo("$EVENTS/AAMkSeries1-20261019")), occurrenceJson("2026-10-19", "Team sync (moved)"))
+
+		val stored =
+			adapter.updateEvent(source, CALENDAR, teamSync().copy(rrule = "FREQ=WEEKLY;BYDAY=MO;UNTIL=20261116T075959Z"), "W/\"DwAAABYAAAA3\"")
+
+		stored.key shouldBe RemoteEventKey("AAMkSeries1")
+		wireMock.verify(2, patchRequestedFor(anyUrl()))
+		wireMock.verify(patchRequestedFor(urlPathEqualTo("$EVENTS/AAMkSeries1")).withHeader("If-Match", equalTo("W/\"DwAAABYAAAA3\"")))
+		wireMock.verify(patchRequestedFor(urlPathEqualTo("$EVENTS/AAMkSeries1-20261019")).withHeader("If-Match", absent()))
+		wireMock.verify(0, patchRequestedFor(urlPathEqualTo("$EVENTS/$december")))
+	}
+
+	@Test
+	fun `an exception that cannot be put back after a pattern change does not fail the change of the series`() {
+		val before = seriesInstances()
+		val after =
+			before.map {
+				if (it.get("id").asString() == "AAMkSeries1-20261019") {
+					json.readTree(instanceJson("AAMkSeries1-20261019", "occurrence", "2026-10-19T07:00:00"))
+				} else {
+					it
+				}
+			}
+		stubPatternChange(before, after)
+		stub(patch(urlPathEqualTo("$EVENTS/AAMkSeries1-20261019")), """{"error": {"code": "ErrorInternalServerError"}}""", 500)
+
+		val stored =
+			adapter.updateEvent(source, CALENDAR, teamSync().copy(rrule = "FREQ=WEEKLY;BYDAY=MO;UNTIL=20261116T075959Z"), "W/\"DwAAABYAAAA3\"")
+
+		stored.key shouldBe RemoteEventKey("AAMkSeries1")
+		wireMock.verify(patchRequestedFor(urlPathEqualTo("$EVENTS/AAMkSeries1-20261019")))
+	}
+
+	@Test
+	fun `a moved exception found only in the whole window is changed with If-Match`() {
+		val moved = instanceJson("AAMkSeries1-moved", "exception", "2027-02-01T08:00:00", originalStart = "2026-11-16T08:00:00Z")
+		stub(
+			get(urlPathEqualTo("$EVENTS/AAMkSeries1/instances")).withQueryParam("startDateTime", equalTo("2026-10-12T08:00:00Z")),
+			"""{"value": []}""",
+		)
+		stub(
+			get(urlPathEqualTo("$EVENTS/AAMkSeries1/instances")).withQueryParam("startDateTime", equalTo("2025-10-21T00:00:00Z")),
+			"""{"value": [$moved]}""",
+		)
+		stub(patch(urlPathEqualTo("$EVENTS/AAMkSeries1-moved")), moved.replace("\"Team sync\"", "\"Team sync (far)\""))
+		val far =
+			occurrence("2026-11-16T08:00:00Z", "Team sync (far)").copy(
+				timing =
+					Timing.Timed(Instant.parse("2027-02-01T08:00:00Z"), Instant.parse("2027-02-01T08:30:00Z"), ZoneId.of("Europe/Berlin")),
+			)
+
+		val stored = adapter.updateEvent(source, CALENDAR, far, "W/\"AAMkSeries1-moved\"")
+
+		stored.key shouldBe RemoteEventKey("AAMkSeries1", at("2026-11-16T08:00:00Z"))
+		stored.title shouldBe "Team sync (far)"
+		wireMock.verify(
+			patchRequestedFor(urlPathEqualTo("$EVENTS/AAMkSeries1-moved")).withHeader("If-Match", equalTo("W/\"AAMkSeries1-moved\"")),
+		)
+		sentBody("PATCH").get("subject").asString() shouldBe "Team sync (far)"
+	}
+
+	@Test
+	fun `an occurrence in neither the weeks around it nor the window is gone - delete succeeds, change fails`() {
+		stub(get(urlPathEqualTo("$EVENTS/AAMkSeries1/instances")), """{"value": []}""")
+		val key = RemoteEventKey("AAMkSeries1", at("2026-11-16T08:00:00Z"))
+
+		adapter.deleteEvent(source, CALENDAR, key, "W/\"I6\"").shouldBeNull()
+		wireMock.verify(
+			getRequestedFor(urlPathEqualTo("$EVENTS/AAMkSeries1/instances")).withQueryParam("startDateTime", equalTo("2026-10-12T08:00:00Z")),
+		)
+		wireMock.verify(
+			getRequestedFor(urlPathEqualTo("$EVENTS/AAMkSeries1/instances")).withQueryParam("startDateTime", equalTo("2025-10-21T00:00:00Z")),
+		)
+		wireMock.verify(0, deleteRequestedFor(anyUrl()))
+
+		shouldThrow<RemoteEventChangedException> { adapter.updateEvent(source, CALENDAR, occurrence("2026-11-16T08:00:00Z", "Mine"), "W/\"I6\"") }
+		wireMock.verify(0, patchRequestedFor(anyUrl()))
+	}
+
+	@Test
+	fun `an occurrence found in the weeks around it is not looked up in the whole window`() {
+		stubSeriesInstancesAround()
+		stub(delete(urlPathEqualTo("$EVENTS/AAMkSeries1-20261116")), "", 204)
+
+		adapter.deleteEvent(source, CALENDAR, RemoteEventKey("AAMkSeries1", at("2026-11-16T08:00:00Z")), "W/\"I6\"")
+
+		wireMock.verify(1, getRequestedFor(urlPathEqualTo("$EVENTS/AAMkSeries1/instances")))
+		wireMock.verify(
+			getRequestedFor(urlPathEqualTo("$EVENTS/AAMkSeries1/instances")).withQueryParam("startDateTime", equalTo("2026-10-12T08:00:00Z")),
+		)
+		wireMock.verify(deleteRequestedFor(urlPathEqualTo("$EVENTS/AAMkSeries1-20261116")))
+	}
+
+	@Test
+	fun `a changed occurrence keeps the attendee types Graph has, matched by email ignoring case`() {
+		val instance =
+			json.readTree(
+				instanceJson("AAMkSeries1-20261116", "occurrence", "2026-11-16T08:00:00"),
+			) as tools.jackson.databind.node.ObjectNode
+		instance.set(
+			"attendees",
+			json.readTree("""[{"type": "optional", "emailAddress": {"address": "Sam.Sample@Example.TEST", "name": "Sam Sample"}}]"""),
+		)
+		stub(get(urlPathEqualTo("$EVENTS/AAMkSeries1/instances")), json.writeValueAsString(mapOf("value" to listOf(instance))))
+		stub(patch(urlPathEqualTo("$EVENTS/AAMkSeries1-20261116")), json.writeValueAsString(instance))
+		val sam = Attendee("sam.sample@example.test", "Sam Sample", AttendeeStatus.NEEDS_ACTION)
+		val kim = Attendee("kim.demo@example.test", null, AttendeeStatus.NEEDS_ACTION)
+
+		adapter.updateEvent(source, CALENDAR, occurrence("2026-11-16T08:00:00Z", "Team sync").copy(attendees = listOf(sam, kim)), "W/\"I6\"")
+
+		val types = sentBody("PATCH").get("attendees").associate { it.at("/emailAddress/address").asString() to it.get("type").asString() }
+		types shouldBe mapOf("sam.sample@example.test" to "optional", "kim.demo@example.test" to "required")
+	}
+
+	@Test
+	fun `a series of a shared calendar is read, and its occurrences deleted, through that calendar`() {
+		val other = "AAMkCalShared"
+		val events = "$API/me/calendars/$other/events"
+		stub(
+			get(urlPathEqualTo("$API/me/calendars/$other/calendarView/delta")),
+			"""{"value": [{"id": "AAMkSeries1-20261026", "type": "occurrence", "seriesMasterId": "AAMkSeries1"}],
+			 "@odata.deltaLink": "https://graph.microsoft.com/v1.0/me/calendars/$other/calendarView/delta?${'$'}deltatoken=D-SHARED"}""",
+		)
+		stub(get(urlPathEqualTo("$events/AAMkSeries1")), recording("series1-master.json"))
+		stub(get(urlPathEqualTo("$events/AAMkSeries1/instances")), json.writeValueAsString(mapOf("value" to seriesInstances())))
+		stub(delete(urlPathEqualTo("$events/AAMkSeries1-20261116")), "", 204)
+
+		val fetched = adapter.fetchEvents(source, other, null)
+		adapter.deleteEvent(source, other, RemoteEventKey("AAMkSeries1", at("2026-11-16T08:00:00Z")), "W/\"I6\"")
+
+		fetched.events.map { it.key } shouldContainExactly
+			listOf(RemoteEventKey("AAMkSeries1"), RemoteEventKey("AAMkSeries1", at("2026-10-19T07:00:00Z")))
+		fetched.events.first().rrule shouldBe "FREQ=WEEKLY;BYDAY=MO;UNTIL=20261228T225959Z"
+		wireMock.verify(deleteRequestedFor(urlPathEqualTo("$events/AAMkSeries1-20261116")).withHeader("If-Match", equalTo("W/\"I6\"")))
+		wireMock.verify(0, anyRequestedFor(urlPathEqualTo("$EVENTS/AAMkSeries1")))
+		wireMock.verify(0, anyRequestedFor(urlPathEqualTo("$EVENTS/AAMkSeries1/instances")))
+		wireMock.verify(0, anyRequestedFor(urlPathEqualTo("$API/me/events/AAMkSeries1")))
+	}
+
+	@Test
+	fun `a series whose rule is removed is patched with no recurrence, without reading or restoring its exceptions`() {
+		stub(get(urlPathEqualTo("$EVENTS/AAMkSeries1")), recording("series1-master.json"))
+		stub(patch(urlPathEqualTo("$EVENTS/AAMkSeries1")), recording("series1-master.json").replace("\"seriesMaster\"", "\"singleInstance\""))
+
+		val stored = adapter.updateEvent(source, CALENDAR, teamSync().copy(rrule = null), "W/\"DwAAABYAAAA3\"")
+
+		val body = sentBody("PATCH")
+		body.propertyNames().toList() shouldContainExactly listOf("recurrence")
+		body.get("recurrence").isNull shouldBe true
+		stored.key shouldBe RemoteEventKey("AAMkSeries1")
+		stored.rrule.shouldBeNull()
+		wireMock.verify(0, getRequestedFor(urlPathEqualTo("$EVENTS/AAMkSeries1/instances")))
+		wireMock.verify(1, patchRequestedFor(anyUrl()))
+	}
+
+	@Test
+	fun `a delta item without id is skipped`() {
+		stubDeltaPage(
+			"""{"type": "singleInstance", "subject": "No id",
+			 "start": {"dateTime": "2026-10-23T09:00:00", "timeZone": "UTC"}, "end": {"dateTime": "2026-10-23T09:30:00", "timeZone": "UTC"}}""",
+			"""{"id": "AAMkFine", "type": "singleInstance", "subject": "Fine",
+			 "start": {"dateTime": "2026-10-23T10:30:00", "timeZone": "UTC"}, "end": {"dateTime": "2026-10-23T11:00:00", "timeZone": "UTC"}}""",
+		)
+
+		adapter.fetchEvents(source, CALENDAR, null).events.map { it.key } shouldContainExactly listOf(RemoteEventKey("AAMkFine"))
+	}
+
 	// --- helpers
+
+	/**
+	 * Series AAMkSeries1 whose `/instances` answer [before] until its master is patched (pattern change), and [after]
+	 * from then on.
+	 */
+	private fun stubPatternChange(
+		before: List<JsonNode>,
+		after: List<JsonNode>,
+	) {
+		stub(get(urlPathEqualTo("$EVENTS/AAMkSeries1")), recording("series1-master.json"))
+		wireMock.stubFor(
+			get(urlPathEqualTo("$EVENTS/AAMkSeries1/instances"))
+				.inScenario("pattern")
+				.whenScenarioStateIs(Scenario.STARTED)
+				.willReturn(jsonResponse(json.writeValueAsString(mapOf("value" to before)))),
+		)
+		wireMock.stubFor(
+			patch(urlPathEqualTo("$EVENTS/AAMkSeries1"))
+				.inScenario("pattern")
+				.willSetStateTo("changed")
+				.willReturn(jsonResponse(recording("series1-master.json"))),
+		)
+		wireMock.stubFor(
+			get(urlPathEqualTo("$EVENTS/AAMkSeries1/instances"))
+				.inScenario("pattern")
+				.whenScenarioStateIs("changed")
+				.willReturn(jsonResponse(json.writeValueAsString(mapOf("value" to after)))),
+		)
+	}
 
 	/** All instances of series AAMkSeries1 as recorded, in one list. */
 	private fun seriesInstances(): List<JsonNode> =

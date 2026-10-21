@@ -437,4 +437,59 @@ class GraphEventMappingTests {
 			.propertyNames()
 			.toList() shouldContainExactly listOf("attendees")
 	}
+
+	// --- attendee types
+
+	/** The `type` of each attendee in [changes], by address as sent. */
+	private fun typesOf(changes: JsonNode): Map<String, String> =
+		changes.get("attendees").associate { it.at("/emailAddress/address").asString() to it.get("type").asString() }
+
+	@Test
+	fun `attendee types are matched by email ignoring case`() {
+		val sam = Attendee("sam.sample@example.test", "Sam Sample", AttendeeStatus.ACCEPTED)
+		val room = Attendee("ROOM.1@example.test", "Room 1", AttendeeStatus.ACCEPTED)
+		val changes = GraphEventMapping.toBody(json, planning().copy(attendees = listOf(sam, room)), false)
+		val graph =
+			event(
+				"""
+				"attendees": [
+				  {"type": "optional", "emailAddress": {"address": "Sam.Sample@Example.TEST"}},
+				  {"type": "resource", "emailAddress": {"address": "room.1@EXAMPLE.test"}}]
+				""".trimIndent(),
+			)
+
+		GraphEventMapping.keepAttendeeTypes(changes, graph)
+
+		typesOf(changes) shouldBe mapOf("sam.sample@example.test" to "optional", "ROOM.1@example.test" to "resource")
+	}
+
+	@Test
+	fun `attendees Graph has without type or address leave the sent attendees required`() {
+		val sam = Attendee("sam.sample@example.test", null, AttendeeStatus.NEEDS_ACTION)
+		val kim = Attendee("kim.demo@example.test", null, AttendeeStatus.NEEDS_ACTION)
+		val changes = GraphEventMapping.toBody(json, planning().copy(attendees = listOf(sam, kim)), false)
+		val graph =
+			event(
+				"""
+				"attendees": [
+				  {"emailAddress": {"address": "sam.sample@example.test"}},
+				  {"type": "optional", "emailAddress": {"name": "Kim Demo"}},
+				  {"type": "optional"}]
+				""".trimIndent(),
+			)
+
+		GraphEventMapping.keepAttendeeTypes(changes, graph)
+
+		typesOf(changes) shouldBe mapOf("sam.sample@example.test" to "required", "kim.demo@example.test" to "required")
+	}
+
+	@Test
+	fun `a diff without attendees is left as it is`() {
+		val changes = json.createObjectNode().put("subject", "Planning (moved)")
+		val graph = event(""""attendees": [{"type": "optional", "emailAddress": {"address": "sam.sample@example.test"}}]""")
+
+		GraphEventMapping.keepAttendeeTypes(changes, graph)
+
+		changes.propertyNames().toList() shouldContainExactly listOf("subject")
+	}
 }
