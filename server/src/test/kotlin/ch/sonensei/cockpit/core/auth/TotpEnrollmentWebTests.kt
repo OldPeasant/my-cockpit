@@ -1,6 +1,10 @@
 package ch.sonensei.cockpit.core.auth
 
 import ch.sonensei.cockpit.core.auth.domain.Base32
+import ch.sonensei.cockpit.core.auth.domain.DeviceTokenResult
+import ch.sonensei.cockpit.core.auth.domain.DeviceTokenService
+import ch.sonensei.cockpit.core.auth.domain.LoginCredentials
+import ch.sonensei.cockpit.core.auth.domain.LoginResult
 import ch.sonensei.cockpit.core.auth.domain.LoginThrottle
 import ch.sonensei.cockpit.core.auth.domain.SetupService
 import ch.sonensei.cockpit.core.auth.domain.Totp
@@ -15,6 +19,7 @@ import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import io.kotest.matchers.string.shouldStartWith
+import io.kotest.matchers.types.shouldBeInstanceOf
 import jakarta.servlet.http.Cookie
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
@@ -51,6 +56,7 @@ class TotpEnrollmentWebTests(
 	@Autowired private val throttle: LoginThrottle,
 	@Autowired private val users: UserAccountRepository,
 	@Autowired private val cipher: SecretCipher,
+	@Autowired private val deviceTokens: DeviceTokenService,
 ) : PostgresTestBase() {
 	private val totp = Totp()
 	private lateinit var originalSecret: String
@@ -334,6 +340,47 @@ class TotpEnrollmentWebTests(
 		withClue("after the re-enrollment the password alone no longer logs in") {
 			login().andExpect { status { isUnauthorized() } }
 		}
+	}
+
+	@Test
+	fun `the password-only session of a re-enrolling account is restricted to the enrollment`() {
+		restoredWithoutTotpSecret()
+		jdbc.update("update recovery_code set used_at = now()")
+		val session = session(login())
+
+		mockMvc.get("/api/v1/auth/me") { cookie(session) }.andExpect {
+			status { isOk() }
+			jsonPath("$.totpEnrollmentRequired") { value(true) }
+		}
+		mockMvc.get("/api/v1/auth/devices") { cookie(session) }.andExpect { status { isForbidden() } }
+		withClue("POST /api/v1/backup") {
+			mockMvc
+				.post("/api/v1/backup") {
+					cookie(session)
+					with(csrf())
+				}.andExpect { status { isForbidden() } }
+		}
+		reenrollRequired() shouldBe true
+	}
+
+	@Test
+	fun `a device token request without any second factor creates no device, also when no unused recovery code is left`() {
+		restoredWithoutTotpSecret()
+		jdbc.update("update recovery_code set used_at = now()")
+
+		withClue("the token endpoint still needs exactly one factor") { token().andExpect { status { isBadRequest() } } }
+		withClue("TOTP does not work while re-enrolling") { token(totp = code(originalSecret)).andExpect { status { isUnauthorized() } } }
+		throttle.recordSuccess()
+		withClue("the service refuses the password alone for a device, before any device is stored") {
+			val result = deviceTokens.issue(LoginCredentials(USERNAME, PASSWORD, null, null, rememberDevice = false), "Pixel 9")
+			result.shouldBeInstanceOf<DeviceTokenResult.Rejected>().result shouldBe LoginResult.TotpEnrollmentRequired
+		}
+		throttle.recordSuccess()
+		withClue("with wrong password the service answers invalid credentials, not that the account re-enrolls") {
+			val result = deviceTokens.issue(LoginCredentials(USERNAME, "fictitious-wrong-password", null, null, false), "Pixel 9")
+			result.shouldBeInstanceOf<DeviceTokenResult.Rejected>().result shouldBe LoginResult.InvalidCredentials
+		}
+		jdbc.queryForObject("select count(*) from auth_device", Int::class.java) shouldBe 0
 	}
 
 	@Test
