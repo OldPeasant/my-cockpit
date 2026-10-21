@@ -21,9 +21,9 @@
      "note": "re-review CR-1: java.lang.Integer class literal replaced by Number cast (commit 0fcb5d80); confirmed resolved in final review.md"}
   ],
   "validation": [
-    {"command": "cd server && ./gradlew test --rerun --tests '*GtdBackupContributorTests'", "result": "pass (21 tests)"},
-    {"command": "cd server && ./gradlew test --rerun --tests '*BackupRoundTripTest'", "result": "pass (1 test)"},
-    {"command": "cd server && ./gradlew test --tests '*GtdBackupContributorTests' --tests '*BackupRoundTripTest' jacocoTestReport ktlintCheck", "result": "pass, task-scoped coverage 100% lines, 98.1% branches"},
+    {"command": "cd server && ./gradlew test --rerun --tests '*GtdBackupContributorTests'", "result": "pass"},
+    {"command": "cd server && ./gradlew test --rerun --tests '*BackupRoundTripTest'", "result": "pass"},
+    {"command": "cd server && ./gradlew test --tests '*GtdBackupContributorTests' --tests '*BackupRoundTripTest' jacocoTestReport ktlintCheck", "result": "pass"},
     {"command": "sh scripts/check.sh", "result": "pass"}
   ]
 }
