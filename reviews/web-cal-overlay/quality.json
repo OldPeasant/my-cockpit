@@ -1,0 +1,26 @@
+{
+  "schema": 1,
+  "task": "web-cal-overlay",
+  "reviewed_revision": "81cc46cca07b9ad411cc34331721f65c481d607b",
+  "helpers": {
+    "test-writer": {"status": "completed", "report": "reviews/web-cal-overlay/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/web-cal-overlay/review.md"},
+    "fixer": {"status": "completed", "report": "reviews/web-cal-overlay/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "task from event titled '<event> (<yyyy-MM-dd>)' in the settings zone; no due date (recorded assumption)"},
+    {"id": "CR-2", "source": "code-reviewer", "severity": "P3", "disposition": "invalid",
+     "note": "from/to branch of matchesTask already covered in task-store.spec.ts (test-writer, round 1)"},
+    {"id": "CR-3", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "range error message says 'at most 366 days'"},
+    {"id": "CR-4", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "no task refetch while the overlay is off"}
+  ],
+  "validation": [
+    {"command": "cd web && npm run check", "result": "pass"},
+    {"command": "cd web && npm run e2e -- e2e/calendar-overlay/overlay.spec.ts", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
