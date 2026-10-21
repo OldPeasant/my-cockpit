@@ -362,6 +362,50 @@ class InvitationApiTests(
 	}
 
 	@Test
+	fun `declining a series that the refetch then removes returns the answer as saved, and the series is gone`() {
+		syncSeries()
+		val (master, override) = series()
+		stub(get(urlPathEqualTo("$EVENTS/series01")), seriesMaster("\"s-1\"", "needsAction"))
+		stub(patch(urlPathEqualTo("$EVENTS/series01")), seriesMaster("\"s-2\"", "declined"))
+		// Google drops the declined series from the user's calendar: the refetch lists it as cancelled.
+		stub(
+			get(urlPathEqualTo(EVENTS)).withQueryParam("syncToken", equalTo("S2")),
+			"""{"nextSyncToken": "S3", "items": [{"etag": "\"s-3\"", "id": "series01", "status": "cancelled"}]}""",
+		)
+
+		respond(master.id, """{"response":"DECLINED"}""", "*").andExpect {
+			status { isOk() }
+			jsonPath("$.id") { value(master.id.toString()) }
+			jsonPath("$.attendees[1].status") { value("DECLINED") }
+		}
+
+		wireMock.verify(getRequestedFor(urlPathEqualTo(EVENTS)).withQueryParam("syncToken", equalTo("S2")))
+		events.findById(master.id).isPresent shouldBe false
+		events.findById(override.id).isPresent shouldBe false
+	}
+
+	@Test
+	fun `an answer Google returns as an unstorable event is a bad gateway and nothing changes`(published: ApplicationEvents) {
+		val id = invitationEvent().id
+		// A rule without FREQ is not a valid RRULE: the local copy cannot take Google's version.
+		stub(
+			patch(urlPathEqualTo("$EVENTS/inv001")),
+			invitation("\"inv-2\"", "accepted").replace("\"iCalUID\"", "\"recurrence\": [\"RRULE:INTERVAL=2\"], \"iCalUID\""),
+		)
+		published.clear()
+
+		respond(id, """{"response":"ACCEPTED"}""", "*").isProblem(502).andExpect {
+			jsonPath("$.detail") { value(containsString("invalid event")) }
+		}
+
+		val stored = invitationEvent()
+		stored.attendees[1].status shouldBe AttendeeStatus.NEEDS_ACTION
+		stored.externalEtag shouldBe "\"inv-1\""
+		stored.rrule.shouldBeNull()
+		published.changes() shouldBe emptyList()
+	}
+
+	@Test
 	fun `an override of a series in the Trash is not found`() {
 		syncSeries()
 		val (master, override) = series()

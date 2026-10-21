@@ -289,6 +289,36 @@ class MicrosoftInvitationAdapterTests {
 	}
 
 	@Test
+	fun `sync gives the user's answer from responseStatus to the user's attendee only, and an answer in the attendee list wins`() {
+		val delta = "$API/me/calendars/$CALENDAR/calendarView/delta"
+		// Kim, a third attendee, has not answered either: the user's answer must not leak to her.
+		val kim = """"attendees": [{"type": "optional", "status": {"response": "none"},
+			"emailAddress": {"name": "Kim Example", "address": "kim.example@example.test"}}, """
+		val withKim = { event: String -> event.replace(""""attendees": [""", kim) }
+		stub(
+			get(urlPathEqualTo(delta)),
+			"""{"value": [${withKim(answeredOnlyInResponseStatus(invitation("inv-2", "none")))}],
+			 "@odata.deltaLink": "https://graph.example.test$delta?${'$'}deltatoken=D1"}""",
+		)
+
+		val synced = adapter.fetchEvents(source, CALENDAR, null).events.single()
+		synced.attendees.single { it.email == "Alex.Example@example.test" }.status shouldBe AttendeeStatus.ACCEPTED
+		synced.attendees.single { it.email == "kim.example@example.test" }.status shouldBe AttendeeStatus.NEEDS_ACTION
+
+		// The attendee list already shows an answer of the user (declined): it is kept, responseStatus does not override it.
+		val listed =
+			withKim(invitation("inv-3", "declined"))
+				.replace(""""responseStatus": {"response": "declined"}""", """"responseStatus": {"response": "accepted"}""")
+		stub(
+			get(urlPathEqualTo(delta)),
+			"""{"value": [$listed], "@odata.deltaLink": "https://graph.example.test$delta?${'$'}deltatoken=D2"}""",
+		)
+		val again = adapter.fetchEvents(source, CALENDAR, null).events.single()
+		again.attendees.single { it.email == "Alex.Example@example.test" }.status shouldBe AttendeeStatus.DECLINED
+		again.attendees.single { it.email == "kim.example@example.test" }.status shouldBe AttendeeStatus.NEEDS_ACTION
+	}
+
+	@Test
 	fun `only ACCEPTED, DECLINED and TENTATIVE are answers, nothing is sent otherwise`() {
 		shouldThrow<IllegalArgumentException> {
 			adapter.respondToInvitation(source, CALENDAR, RemoteEventKey("AAMkInv1"), AttendeeStatus.NEEDS_ACTION, null)
