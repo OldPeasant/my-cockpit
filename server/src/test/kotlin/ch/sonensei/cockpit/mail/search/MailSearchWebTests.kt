@@ -9,6 +9,7 @@ import ch.sonensei.cockpit.mail.model.MailAccount
 import ch.sonensei.cockpit.mail.model.MailAccountRepository
 import ch.sonensei.cockpit.mail.model.MailAccountType
 import ch.sonensei.cockpit.mail.model.MailAddress
+import ch.sonensei.cockpit.mail.model.MailBodyCache
 import ch.sonensei.cockpit.mail.model.MailFolder
 import ch.sonensei.cockpit.mail.model.MailFolderRepository
 import ch.sonensei.cockpit.mail.model.MailMessage
@@ -66,6 +67,7 @@ class MailSearchWebTests(
 	@Autowired private val index: MailSearchIndex,
 	@Autowired private val globalSearch: SearchService,
 	@Autowired private val mailbox: FakeMailbox,
+	@Autowired private val bodyCache: MailBodyCache,
 ) : PostgresTestBase() {
 	private lateinit var work: MailAccount
 	private lateinit var home: MailAccount
@@ -86,6 +88,9 @@ class MailSearchWebTests(
 		val failing = mutableSetOf<UUID>()
 		val searched = mutableListOf<Pair<String, List<String>>>()
 
+		/** Accounts in the order the search opened one of their folders. */
+		val attempts = mutableListOf<UUID>()
+
 		/** "accountId/path" of folders deleted on the server. */
 		val gone = mutableSetOf<String>()
 
@@ -95,6 +100,7 @@ class MailSearchWebTests(
 			known: KnownFolderState?,
 			block: (RemoteFolder) -> T,
 		): T {
+			attempts += account.id
 			if (account.id in failing) throw MailConnectionException(MailConnectionError.CONNECTION_FAILED, RuntimeException("refused"))
 			if ("${account.id}/$path" in gone) throw RemoteFolderNotFoundException(path)
 			val folder = folders.getValue("${account.id}/$path")
@@ -144,6 +150,7 @@ class MailSearchWebTests(
 		mailbox.folders.clear()
 		mailbox.failing.clear()
 		mailbox.searched.clear()
+		mailbox.attempts.clear()
 		mailbox.gone.clear()
 		work = accounts.save(account("Work", "jane.doe@work.example"))
 		home = accounts.save(account("Home", "jane@home.example"))
@@ -438,6 +445,52 @@ class MailSearchWebTests(
 		result["items"].shouldBeEmpty()
 		result["server"]["searchedFolders"].asInt() shouldBe 0
 		mailbox.searched.shouldBeEmpty()
+	}
+
+	@Test
+	fun `a message found again after a UIDVALIDITY change is searchable again, with its cached body`() {
+		val (message) = cache(workInbox, remote(4, "Expedition log"))
+		bodyCache.put(message.id, "Platypus sightings near the river.", null)
+		index.index(message, "Platypus sightings near the river.", null)
+		store.detachFolder(workInbox.id)
+		subjects("q=platypus").shouldBeEmpty()
+
+		// The resync finds the same Message-ID at a new UID: the detached row is taken over again.
+		store.upsert(work.id, workInbox.id, listOf(remote(4, "Expedition log").copy(uid = 9)))
+
+		messages.findByFolderIdAndUidIn(workInbox.id, listOf(9L)).single().id shouldBe message.id
+		subjects("q=platypus") shouldContainExactly listOf("Expedition log")
+	}
+
+	@Test
+	fun `query text with full-text operators, quotes and backslashes is treated as plain words`() {
+		cache(workInbox, remote(1, "Budget draft"), remote(2, "Lunch on Friday"))
+
+		subjects("q=budget%27%20%26%20!%3A*%20(draft)%20%5C") shouldContainExactly listOf("Budget draft")
+		subjects("q=%27%3A*%20%7C%20lunch") shouldContainExactly listOf("Lunch on Friday")
+		subjects("q=BUDGET") shouldContainExactly listOf("Budget draft")
+	}
+
+	@Test
+	fun `limit and query length are accepted at their bounds, the query trimmed first`() {
+		cache(workInbox, remote(1, "Report one"), remote(2, "Report two"))
+
+		search("q=report&limit=1")["items"].strings("subject") shouldContainExactly listOf("Report two")
+		search("q=report&limit=200")["items"].strings("subject") shouldContainExactly listOf("Report two", "Report one")
+		search("q=${"a".repeat(200)}")["items"].shouldBeEmpty()
+		search("q=%20%20${"a".repeat(200)}%20%20")["items"].shouldBeEmpty()
+	}
+
+	@Test
+	fun `an unreachable account is tried once, not once per folder`() {
+		mailbox.failing += work.id
+		mailbox.folders["${home.id}/INBOX"] = mailbox.FakeFolder("INBOX", UID_VALIDITY)
+
+		val result = search("q=holiday&server=true")
+
+		result["server"]["failures"].size() shouldBe 1
+		mailbox.attempts.count { it == work.id } shouldBe 1
+		mailbox.searched.map { it.first } shouldContainExactly listOf("INBOX")
 	}
 
 	@Test

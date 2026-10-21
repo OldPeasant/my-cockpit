@@ -4,30 +4,45 @@ Date: 2026-10-22
 
 Task: mail-search - Mail search
 
-Scope: task commits 4f55e16c, 3d57eadf, 91de57ca (`git diff ca8c3523..91de57ca`), committed changes only
+Scope: committed task changes `git diff c672967d65dd52c9c094eb811910ca88ceb7c022..6ad9a27cc3d00e1d011440707d689cd268aed93f` (review round 2: checks that the round 1 findings CR-1..CR-3 are resolved and looks for new issues)
 
 Requirements:
-- tasks/mail-search.md acceptance criteria and recorded assumptions
-- SPEC.md §4.2, §4.4, §7.3, §7.4 (as referenced by the parent worker)
+- tasks/mail-search.md acceptance criteria and the five recorded assumptions (`python tasks.py assumptions`, mail-search entries #1-#5)
+- SPEC.md §4.4 (global search, `search_document`), §7.3 (mail search: cached headers/bodies, optional IMAP SEARCH), §14 conventions
 - AGENTS.md project notes, docs/ARCHITECTURE.md conventions
-- Existing code conventions in server/.../mail and server/.../core/search
+- Previous round: reviews/mail-search/review.md (round 1) and reviews/mail-search/fixes.md
+- Existing code conventions in server/.../mail, server/.../core/search, api/openapi.yaml
 
 Git range:
 - Branch: main
-- HEAD: 91de57ca8e3437746478eb3e35cfd0af2bcf5337
-- Base/start: ca8c3523db2b215dbf5a7038b65e6c874ddf9377
-- Commits reviewed: 3
+- HEAD: 6ad9a27cc3d00e1d011440707d689cd268aed93f
+- Base/start: c672967d65dd52c9c094eb811910ca88ceb7c022
+- Commits reviewed: 5 (bdd5a8ce, d10332fe, 567fdaeb, a8044f22, 6ad9a27c)
 
-Summary: 0 P0, 1 P1, 0 P2, 2 P3
+Summary: 0 P0, 0 P1, 0 P2, 0 P3
 
 Commands run (read-only):
-- `git diff --stat ca8c3523..91de57ca` -> 25 files, +1451/-8
-- `git diff ca8c3523..91de57ca -- server/src/main` -> read in full
-- `git grep` over the mail module for detach/delete paths, the mail migrations for the `folder_id` FK, core web Problem Details handlers, core search queries
-- `python tasks.py verify mail-search` -> 3 criteria, none verified yet (expected before review; the parent worker records evidence)
-- Tests were not executed by this reviewer (the shell was limited to read-only git/grep inspection).
+- `git log --oneline c672967d..6ad9a27c`, `git diff --stat` -> 31 files, +2011/-10
+- `git diff c672967d..6ad9a27c -- server/src/main` -> read in full; changed test files, test config and the `api/openapi.yaml` and generated web client diffs read
+- Read nearby code: `MailHeaderStore` (upsert, reconcile, detachFolder, pruneDetached), `MailFolderService.store`, `MailActionService.relocate/remove`, `ImapRemoteMailbox.withFolder`, `SearchIndexer`, the `search_document` migration, `MailBackupContributor`
+- `python tasks.py verify mail-search` -> 3 criteria, none recorded yet (the parent worker records evidence after the quality workflow)
+- Tests were not executed by this reviewer: running Gradle was denied by the sandbox permissions. The fix report claims `./gradlew test --tests 'ch.sonensei.cockpit.mail.*'`, `integrationTest --tests '*MailSearchGreenMailTests'`, `./gradlew check` and `sh scripts/check.sh` pass; the parent worker has to re-run them for the evidence.
 
-Checked with no finding: tsquery construction (words are restricted to `[\p{L}\p{N}]+` before being quoted, so no quote, backslash or operator reaches `to_tsquery`; values are bound parameters); IMAP SEARCH arguments (same word filter, sent via `Argument.writeString`, `CHARSET UTF-8` only for non-ASCII, no raw string concatenation); the folder lock is held for the whole `searchServer` like `loadOlder`, and no DB transaction is held across IMAP I/O; Problem Details for blank/too long `q`, `limit` out of range, missing `q`, bad scope (400/404); logging (only ids and error codes at INFO, server causes at DEBUG); index hooks run inside the existing `MailHeaderStore`/`MailContentLoader` transactions.
+Round 1 findings, verified against the current code:
+- CR-1 (deleted-folder messages returned and causing 500): resolved. `MailSearchIndex.LOCATED` (`m.folder_id is not null and m.uid is not null`, same as `MailMessage.isLocated`) is used in `MailSearchService.localIds` and both reconcile queries; `MailFolderService.store` calls `unindexFolder` before deleting a vanished folder (recorded as assumption #5). Regression tests: `MailSearchWebTests` "messages of a folder deleted from the cache are not found" (account and unscoped), "reconcile drops documents of messages whose folder was deleted ...", and `MailFolderSyncTests` asserts the document is removed by the folder sync.
+- CR-2 (reconciler miscounting and repeated delete): resolved. `removeStale()` runs once per run, `indexMissing` selects located rows only and returns the indexed count, so the loop cannot spin on unindexable rows; `MailSearchReconcilerTests` covers once-per-run removal, batching, the bound and failure handling.
+- CR-3 (UTF-8 IMAP SEARCH path unproven): resolved. `MailSearchGreenMailTests` now asserts `searchedFolders == 1` and empty `failures` for `müsli`, and `zürich` only matches an uncached message older than the sync window, found only via `server=true` with `loaded == 1`.
+
+Checked with no new finding:
+- Criterion 1: headers are indexed in `MailHeaderStore.upsert` (new and reattached rows), bodies in `MailContentLoader.load`; documents are removed on vanish/detach (`MailHeaderStore.remove`, `detachFolder`), on action removal (`MailActionService.remove`), on folder deletion, and by the reconciler for FK-cascaded account deletion (assumption #4). `server=true` runs `UID SEARCH [CHARSET UTF-8] TEXT <word>...` per selectable folder of the scope, caches found headers (most recent `limit`), merges them via `or m.id in (:serverIds)` under the same scope predicates, and reports failing accounts in `server.failures`.
+- Query safety: words restricted to `[\p{L}\p{N}]+` before quoting into the tsquery (bound parameter) and before `Argument.writeString`; stop-word-only English branch is harmless because the `simple` branch is OR-ed.
+- Index-recency change in core `SearchIndexer` is backward compatible (optional parameter, default unchanged).
+- Problem Details for blank/too long `q`, `limit` range, missing `q`, folder of another account (400) and unknown account/folder (404); no secrets or mail content logged at INFO (only ids and error codes).
+- Concurrency: `searchServer` holds the folder lock like `loadOlder`; no DB transaction spans IMAP I/O; `MailConnectionException`, `RemoteFolderNotFoundException` and `NotFoundException` are handled per folder.
+- OpenAPI: `/api/v1/mail/search` and its schemas are present in `api/openapi.yaml` and the generated web client; optional/required marking follows the project convention (only nullable fields are marked required explicitly).
+- Backup/restore: mail content is not backed up (`MailBackupContributor`); restored refs are detached and get indexed when the sync reattaches them, so no round-trip change is needed.
+
+Note on the working tree: uncommitted test changes exist (`MailActionServiceTests.kt`, `MailSearchWebTests.kt` modified, `MailSearchWordsTests.kt` new), apparently from a concurrent test-writer run. They are outside the committed scope and were not reviewed; among other things they add verification of `MailActionService.remove` unindexing, which the committed tests only exercise through a relaxed mock. If they are committed, they only touch tests, but the evidence should name the final revision.
 
 ## P0 Critical
 
@@ -35,12 +50,7 @@ None.
 
 ## P1 High
 
-- [ ] **CR-1 | Messages whose folder was deleted are returned by search and make the response fail with 500**
-    - File: `server/src/main/kotlin/ch/sonensei/cockpit/mail/search/MailSearchService.kt:161` (also `server/src/main/kotlin/ch/sonensei/cockpit/mail/search/MailSearchIndex.kt:62` and `:71`)
-    - Category: Correctness
-    - Problem: `mail_message.folder_id` is `on delete set null` (`V202610201402__mail_model.sql:92`). A folder removed by the folder list sync (`MailFolderService.kt:119`, e.g. renamed or deleted on the server) leaves its rows with `folder_id = null` but `uid` still set. `MailMessage.isLocated` requires both (`MailMessage.kt:125`), but `localIds` only filters `m.uid is not null`, and nothing unindexes these rows (no hook on folder deletion; the reconciler delete at `MailSearchIndex.kt:62` also only checks `m.uid is not null`, so their documents stay). An account-scoped or unscoped search matching such a message returns it, and `MailSearchController` maps it with `toSummary`, which does `folderId = checkNotNull(folderId)` (`MailMessageController.kt:381`): `IllegalStateException`, so the whole search answers 500. The folder scope is unaffected (`m.folder_id = :folderId`). The `MailSearchIndex` class doc states "Only located messages (in a folder) are searchable", so the implementation contradicts its own contract.
-    - Why it matters: after a common server-side action (renaming or deleting a folder), every global or account mail search that hits one of the old messages fails permanently, which breaks criterion 1 in normal use. The global search (`/api/v1/search`) also keeps returning these EMAIL documents, which the user cannot open.
-    - Suggested fix: use the located predicate `m.folder_id is not null and m.uid is not null` in `localIds` and in both reconcile queries, so the reconciler removes the stale documents. Also consider unindexing a folder's messages when the folder is deleted. Add a test that deletes a folder with cached, indexed messages and then searches with the account scope and with no scope.
+None.
 
 ## P2 Medium
 
@@ -48,20 +58,8 @@ None.
 
 ## P3 Low
 
-- [ ] **CR-2 | Reconciler counts unindexable rows as added and selects them again in every batch**
-    - File: `server/src/main/kotlin/ch/sonensei/cockpit/mail/search/MailSearchIndex.kt:66-80`, `server/src/main/kotlin/ch/sonensei/cockpit/mail/search/MailSearchReconciler.kt:39-45`
-    - Category: Quality
-    - Problem: the "missing" query selects `m.uid is not null` rows that have no document. `index(it)` then unindexes the rows that are not located (folder deleted, see CR-1), but `missing.size` is still returned as "added". Such rows never get a document, so with 500 or more of them (e.g. mail cached before this feature in folders deleted since) every run loops through all 200 batches over the same rows and logs a false "N added" at INFO every hour. The unbounded `delete ... not exists` also runs again on every batch, although only the first one can remove anything.
-    - Why it matters: wasted DB work every hour and misleading operational logs.
-    - Suggested fix: the CR-1 predicate removes the cause. Also return the number of documents actually indexed and run the delete once per run.
-
-- [ ] **CR-3 | GreenMail test does not prove the UTF-8 IMAP SEARCH path**
-    - File: `server/src/test/kotlin/ch/sonensei/cockpit/mail/search/MailSearchGreenMailTests.kt:155-157`
-    - Category: Tests
-    - Problem: the `müsli` server search runs after the message is already cached (its snippet contains the word), and the test only asserts `items` and `loaded = 0`. If the server rejected `CHARSET UTF-8` or the literal, the account would be listed in `server.failures`, and the local hit would still satisfy the assertions.
-    - Why it matters: the only non-ASCII IMAP path (`ImapRemoteMailbox.search` with `CHARSET UTF-8` and literals) is effectively untested.
-    - Suggested fix: assert that `server.failures` is empty and `searchedFolders == 1` for that call, or search for a non-ASCII word that only appears in an uncached message, so the result depends on the server match.
+None.
 
 ## Review conclusion
 
-Material issues found; fix before completing the task.
+No material issues found.

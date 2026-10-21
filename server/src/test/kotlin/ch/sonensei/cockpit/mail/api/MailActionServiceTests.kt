@@ -59,6 +59,7 @@ class MailActionServiceTests {
 	private val pool = mockk<ImapConnectionPool>()
 	private val links = mockk<LinkService>()
 	private val changes = mockk<ChangeEventPublisher>(relaxed = true)
+	private val searchIndex = mockk<MailSearchIndex>(relaxed = true)
 	private val service =
 		MailActionService(
 			locator,
@@ -69,7 +70,7 @@ class MailActionServiceTests {
 			links,
 			TransactionTemplate(mockk<PlatformTransactionManager>(relaxed = true)),
 			changes,
-			mockk<MailSearchIndex>(relaxed = true),
+			searchIndex,
 		)
 
 	private val account =
@@ -186,6 +187,31 @@ class MailActionServiceTests {
 		verify { messages.delete(plain) }
 		linked.uid shouldBe null
 		linked.folderId shouldBe inbox.id
+	}
+
+	@Test
+	fun `rows an action drops or detaches leave the search index, a row that follows its COPYUID keeps its document`() {
+		capabilities(move = false, uidplus = false)
+		val plain = cached(inbox, 7)
+		val linked = cached(inbox, 8)
+		every { links.linksOf(ItemRef(ItemType.EMAIL, linked.id)) } returns listOf(mockk<ResolvedLink>())
+		val found = onServer(remoteInbox, 7, 8)
+		every { remoteInbox.copyUIDMessages(found, remoteProjects) } returns null
+
+		service.apply(listOf(plain.id, linked.id), MailAction.MOVE, projects.id)
+
+		verify { searchIndex.unindex(plain.id) }
+		verify { searchIndex.unindex(linked.id) }
+
+		capabilities(move = true, uidplus = true)
+		val moved = cached(inbox, 9)
+		val movedFound = onServer(remoteInbox, 9)
+		every { remoteInbox.moveUIDMessages(movedFound, remoteProjects) } returns arrayOf(AppendUID(UIDVALIDITY, 43))
+
+		service.apply(listOf(moved.id), MailAction.MOVE, projects.id)
+
+		moved.folderId shouldBe projects.id
+		verify(exactly = 0) { searchIndex.unindex(moved.id) }
 	}
 
 	@Test
