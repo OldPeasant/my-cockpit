@@ -1,11 +1,13 @@
 ---
 title: Respond to invitations
-status: in_progress
-owner: dell26/agent-1
+status: todo
+owner: 
 deps: [cal-google,cal-microsoft]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/calendar/invitations,server/src/test/kotlin/ch/sonensei/cockpit/calendar/invitations]
 prio: 3
-lease_until: 2026-10-21T20:13:32Z
+lease_until: 
+releases: 1
+extended: 
 ---
 ## Goal
 Accept/decline invitations for Google/Microsoft events (SPEC.md §6.2).
@@ -24,3 +26,4 @@ Accept/decline invitations for Google/Microsoft events (SPEC.md §6.2).
 - ASSUMPTION (2026-10-21 20:57+0200 by dell26/agent-1): The organizer is notified of the answer: Google patch with sendUpdates=all, Graph actions with sendResponse=true. Organizers and non-attendees get 409
 - ASSUMPTION (2026-10-21 20:57+0200 by dell26/agent-1): Microsoft: the user's own attendee is matched by the OAuth connection's email and gets the new status in the returned event; regular sync still maps the attendee list as Graph sends it (event-level responseStatus not merged into sync)
 - ASSUMPTION (2026-10-21 21:31+0200 by dell26/agent-1): Supersedes the Microsoft-sync assumption: Graph sync now applies the event-level responseStatus to the attendee matching the connection's email when the attendee list shows no answer (none/notResponded); a real answer in the attendee list still wins. A Graph 400/403 from the accept/decline action stays 502; non-attendees are detected before the action and get 409
+- release by dell26/agent-1: Implementation complete and committed. All 3 criteria verified; test-writer, code-reviewer (round 3: 0 findings) and fixer reports plus quality.json committed (reviewed_revision 32b52ae73 = final code; later commits touch only reviews/). sh scripts/check.sh passes at 00070f0b7. Left: run 'python tasks.py done cal-invitations' (if main moved, merge it; evidence stays fresh unless code lines change).
