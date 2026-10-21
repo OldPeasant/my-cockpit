@@ -4,41 +4,47 @@ Date: 2026-10-21
 
 Task: web-settings-gtd (Settings: contexts and areas)
 
-Scope: `git diff 3aa4bbbd3a9abc422a576d0cf520bbcdebc6fb81..HEAD`. The task commit was 79e2c255. While testing it was rebased to 4516346ff7cb110920a81281631482b58a207d96. `git diff 79e2c255..4516346f` touches only `tasks/*.md`, so the production code is identical. Branch `main`. The only uncommitted files are the test files listed below and this report (`reviews/web-settings-gtd/review.md` belongs to the code-reviewer).
+Scope: second test-writer run, on the final code after the fixes (TW-1, CR-1..3). The diff is `git diff 05c06f7510a27ce4f64d0b6a5fc0a45729bf823d..4dcbc19af9c40138ca6dcae409eee1c578a69cd2`. 05c06f75 is the merge-base with origin/main. The original task base was 3aa4bbbd3a9abc422a576d0cf520bbcdebc6fb81. Task commits: 8ff8cda2 (implementation), a08903ed (tests and reports), 407b1b96 (fixes), ca789d37 (follow-up task file only) and 4dcbc19a (tests from an earlier, interrupted second test-writer run). Branch `main`. The only uncommitted changes are the extended `gtd-settings.spec.ts` and this report. This report replaces the earlier one, which was stale: it still listed TW-1 as failing.
 
 Requirements:
-- `tasks/web-settings-gtd.md` acceptance criteria 1 and 2
-- SPEC.md §5.1 (contexts: name, optional color, position; areas: title, position), §4.2 (If-Match, Problem Details)
+- `tasks/web-settings-gtd.md` acceptance criteria 1 and 2, plus the recorded assumptions (delete options, sequential client-side reassignment, CR-1 hint)
+- SPEC.md §5.1 (contexts: name, optional color, position; areas: title, position) and §4.2 (If-Match, Problem Details)
+- `reviews/web-settings-gtd/fixes.md` (TW-1, CR-1, CR-2, CR-3)
 - docs/ARCHITECTURE.md "Coverage", docs/QUALITY.md, AGENTS.md
-- Parent instructions (edge cases to cover)
 
 ## Test files changed
 
-- `web/src/app/features/settings/gtd/gtd-settings.spec.ts` (extended; the `setup` helper was split into `create` + `setup` so that load errors can be tested; no existing assertion was changed)
-- `web/src/app/features/settings/gtd/gtd-settings.service.spec.ts` (extended)
-- `web/src/app/features/settings/gtd/delete-dialog.spec.ts` (new)
+- `web/src/app/features/settings/gtd/gtd-settings.spec.ts` (3 tests added in this run; no existing test changed)
+
+Committed earlier in this task (reviewed here, not changed): `gtd-settings.service.spec.ts`, `delete-dialog.spec.ts`, and the rest of `gtd-settings.spec.ts`.
 
 ## Tests added or updated
 
-Count: 43 added (30 component, 5 service, 8 delete-dialog unit). Settings suite went from 112 to 155 tests.
+Count: 3 added in this run. The settings suite went from 167 to 170 tests.
+
+- `color > keeps the old color and version and shows the error when saving a color fails`: a failed color PATCH (400) shows the error, the swatch keeps its old color, nothing reloads, and the next change still sends `If-Match: "1"` and clears the error. This branch had no coverage before (`setColor`, `if (saved)` false).
+- `color > reloads the list when the color change finds the context changed elsewhere`: a 412 on a color change reloads the contexts and shows the "changed elsewhere" message.
+- `delete edge cases > starts one delete only for a double click before the buttons are disabled`: two clicks before change detection runs start a single assigned-task lookup and open a single dialog. This covers the double-submit guard in `remove()`, which had no coverage before.
 
 ## Requirement coverage
 
-All rows were run with `cd web && npx ng test --watch=false --include='src/app/features/settings/**/*.spec.ts'`. That is the focused command (F). The same tests also ran in the full suite via `npm run coverage` and in `sh scripts/check.sh`.
+F = `cd web && npx ng test --watch=false --include='src/app/features/settings/**/*.spec.ts'` (8 files, 170 tests, Pass). The same tests also ran in `npm run check`, `npm run coverage` and `sh scripts/check.sh`, all Pass.
 
 | Requirement | Tests | Command | Result |
 |---|---|---|---|
-| Create context (with/without color, trimmed name), area | `creates a context with a color and renames an area`, `creates a context without a color`, `creates an area with a trimmed title and rejects a blank one`, service `creates and renames with If-Match`, `creates an area` | F | Pass |
-| Create: blank rejected, 409 duplicate shown, input kept, no reload | `does not send a blank context name and shows the field error`, `keeps the input and shows the error when the name already exists`, `keeps the area title and shows the error when creating fails`, service `rejects a duplicate context name with the 409 problem, without a toast`, `shows a generic message for an error that is not an API error` | F | Pass |
-| Rename contexts/areas: save, blank/unchanged/Escape restore, Enter finishes, failure restores, 404 reloads | `saves a new context name`, `puts the old name back for a blank or unchanged name without saving`, `puts the old name back on Escape`, `finishes editing a name with Enter`, `puts the old name back and shows the error when saving fails`, `puts the old area title back and shows the error when saving fails`, `reloads the list when the context was deleted elsewhere` | F | Pass |
-| Context color: set, clear (`null`), unchanged not saved, `#rgb` shown as `#rrggbb` | `sets a color picked for a context`, `clears the color with null`, `does not save the color a context already has`, `shows a short #rgb color in the picker as #rrggbb` | F | Pass |
-| Reorder (buttons, drag/drop, failure restores, busy guard) | existing `reorder` block (5) + `restores the old context order when saving fails`, `ignores a second drop while the first order is being saved`, service `reorders contexts and areas with every id in the new order` | F | Pass |
-| Reorder failure must not drop a rename that was saved meanwhile | `keeps a rename saved while a failing reorder was pending` | F | **Fail** (TW-1) |
-| Delete asks what happens to assigned tasks/projects (clear / move, counts, no move without other targets, cancel) | existing `delete` block (5) + `moves the projects to another area when chosen, then deletes`, `offers no move when no other area exists`, `delete-dialog.spec.ts` (8 tests) | F | Pass |
-| Delete failures: reassignment fails, then no delete, reload, controls usable; DELETE fails; lookup fails, then no dialog; list busy while deleting | `keeps the context, does not delete it and reloads when reassigning a task fails`, `keeps the area and shows the error when the delete itself fails`, `shows the error and opens no dialog when the assigned tasks cannot be listed`, `waits with the delete buttons of a list while one of its deletes is running`, service `stops before deleting when moving an item fails, and does not toast`, `includes done tasks when replacing a context, and stops when one update fails`, `deletes an area without listing its projects when they just lose it`, `collects the projects of an area over all pages` | F | Pass |
-| Load: loading, empty, per-list error + retry | `shows a loading note until the lists arrive`, `shows an empty note for each list without items`, `shows the load error of one list and loads it again on retry`, `shows the area load error with its own retry` | F | Pass |
-| Route `/settings/gtd` | `settings.routes.spec.ts` `opens Tasks & projects at /settings/gtd` (existing) | F | Pass |
-| AC2: `cd web && npm run check` passes | whole web suite | `npm run lint` + `npm run coverage` (full suite) + `sh scripts/check.sh` | **Fail**: only because of TW-1 (1 failed, 1252 passed). Lint passes. |
+| AC1 Create a context (with or without a color, trimmed name) and an area | `creates a context with a color and renames an area`, `creates a context without a color`, `creates an area with a trimmed title and rejects a blank one`, service `creates and renames with If-Match`, `creates an area` | F | Pass |
+| AC1 Create errors: blank name rejected, 409 duplicate shown, input kept | `does not send a blank context name and shows the field error`, `keeps the input and shows the error when the name already exists`, `keeps the area title and shows the error when creating fails`, `shows a generic message for an error that is not an API error`, service `rejects a duplicate context name with the 409 problem, without a toast` | F | Pass |
+| AC1 Rename contexts and areas: save; blank, unchanged or Escape restores; Enter finishes; failure restores; 404 reloads | `saves a new context name`, `puts the old name back for a blank or unchanged name without saving`, `puts the old name back on Escape`, `finishes editing a name with Enter`, `puts the old name back and shows the error when saving fails`, `puts the old area title back and shows the error when saving fails`, `reloads the list when the context was deleted elsewhere` | F | Pass |
+| AC1 Context color: set, clear (`null`), unchanged not saved, `#rgb` shown as `#rrggbb`, failure keeps the old color and version, 412 reloads | `sets a color picked for a context`, `clears the color with null`, `does not save the color a context already has`, `shows a short #rgb color in the picker as #rrggbb`, **new** `keeps the old color and version and shows the error when saving a color fails`, **new** `reloads the list when the color change finds the context changed elsewhere` | F | Pass |
+| AC1/AC2 Reorder with the buttons and drag/drop; a failure restores the order; a second drop is ignored while saving | `reorder` block (5 tests), `restores the old context order when saving fails`, `ignores a second drop while the first order is being saved`, service `reorders contexts and areas with every id in the new order` | F | Pass |
+| TW-1/CR-2 A failed reorder keeps a rename, color or title saved meanwhile (new version), and a list reloaded meanwhile (old order, new items last) | `keeps a rename saved while a failing reorder was pending`, `keeps a color change and its new version when a reorder fails meanwhile`, `keeps an area title and its new version when an area reorder fails meanwhile`, `keeps a list reloaded during a failing reorder, in the old order with new items last` | F | Pass (TW-1 fixed) |
+| AC1/AC2 Delete asks what happens to assigned tasks or projects: counts, clear or move, no move without another target, cancel | `delete` block (5 tests), `moves the projects to another area when chosen, then deletes`, `offers no move when no other area exists`, `delete-dialog.spec.ts` (10 tests), service `gives the tasks the replacement context before deleting, without duplicates`, `moves the projects to the target area before deleting`, `deletes a context without touching its tasks when they just lose it`, `deletes an area without listing its projects when they just lose it`, `collects open and done tasks of a context over all pages`, `collects the projects of an area over all pages` | F | Pass |
+| CR-3 A failed reassignment blames the tasks or projects, deletes nothing and reloads nothing; a failed DELETE itself reloads; non-API errors show the generic message | `keeps the context, does not delete it and blames the tasks when reassigning one fails`, `blames the projects when moving one fails because it was deleted elsewhere`, `shows the error of the move step itself when it is not a conflict`, `reloads the list when the delete itself finds the context changed elsewhere`, `keeps the area and shows the error when the delete itself fails`, `shows the generic message when moving fails with an error that is not an API error`, service `stops before deleting when moving an item fails, and does not toast`, `rejects with a ReassignError when the projects to move cannot be listed`, `rejects with the plain API error when deleting an area without a move fails`, `includes done tasks when replacing a context, and stops when one update fails`, `rejects with the plain API error when the delete itself fails after the move` | F | Pass |
+| CR-1 mitigation: the dialog says that tickler/Trash tasks and trashed projects only lose the context or area when moving | `says that tasks in the tickler or the Trash only lose the context when moving`, `says that projects in the Trash are left without an area when moving` | F | Pass |
+| Delete concurrency: list busy while deleting, other list usable, lookup failure opens no dialog, double click starts one delete | `waits with the delete buttons of a list while one of its deletes is running`, `shows the error and opens no dialog when the assigned tasks cannot be listed`, **new** `starts one delete only for a double click before the buttons are disabled` | F | Pass |
+| Load: loading note, empty note, error and retry for each list | `shows a loading note until the lists arrive`, `shows an empty note for each list without items`, `shows the load error of one list and loads it again on retry`, `shows the area load error with its own retry` | F | Pass |
+| Route `/settings/gtd` | `settings.routes.spec.ts` `opens Tasks & projects at /settings/gtd` | F | Pass |
+| AC2 `cd web && npm run check` passes | whole web suite | `cd web && npm run check` | Pass (exit 0: api:check, lint "All files pass linting.", e2e:typecheck, 74 files / 1360 tests, build) |
 
 ## Focused test execution
 
@@ -48,105 +54,72 @@ Command:
 
 Result:
 
-Fail: 8 files, 155 tests, 154 passed, 1 failed (`keeps a rename saved while a failing reorder was pending`, TW-1). Baseline before adding tests: 112/112 passed.
+Pass: 8 files, 170 tests passed (167 before this run).
 
 ## Full test execution
 
 Command:
 
-`cd web && npm run coverage` (full Vitest suite with coverage), `cd web && npm run lint`
+`cd web && npm run check` (2026-10-21T03:51:34+02:00 to 03:52:24, exit 0), then `cd web && npm run coverage` (full suite, exit 0)
 
 Result:
 
-Fail: 67 files, 1253 tests, 1252 passed, 1 failed (TW-1). Exit 1. Lint: "All files pass linting." Prettier and ESLint are clean on the changed spec files.
+Pass. 74 test files and 1360 tests passed. Lint is clean and the build completed. The build prints the existing warning "bundle initial exceeded maximum budget" (647.31 kB against 500 kB). It is only a warning and does not fail the check. It is not specific to this task.
 
 ## .taskcheck
 
 Result:
 
-Fail: `sh scripts/check.sh` exit 1. The TFP gate tests passed (20 OK), server ktlint + tests passed, and web api:check + lint passed. Web unit tests failed only on TW-1. Android was not reached because the script stops at the first failure.
+Pass. `sh scripts/check.sh` ran from 2026-10-21T03:53:34+02:00 to 03:55:20 with exit 0. All parts ran: TFP gate tests, server ktlint and tests, web eslint, tests and build (74 files / 1360 tests), and android ktlint, unit tests and lint. It ended with "== all checks passed".
 
 ## Bugs found
 
-### A failing reorder discards a rename (or color change) saved while it was pending
+None in this run. TW-1 from the first run is fixed: its test `keeps a rename saved while a failing reorder was pending` passes unchanged, together with three related tests.
 
-Finding ID:
-
-`TW-1`
-
-Test:
-
-`GtdSettings > reorder edge cases > keeps a rename saved while a failing reorder was pending` (`web/src/app/features/settings/gtd/gtd-settings.spec.ts`)
-
-Production source:
-
-`web/src/app/features/settings/gtd/gtd-settings.ts:153-164` (`reorder`: `this.setList(kind, saved ?? list)`)
-
-Requirement:
-
-AC1 rename/reorder. The `reorder` doc says "a failure restores the old one", meaning the old order. SPEC §4.2 optimistic locking needs the client to keep the current version.
-
-Expected behavior:
-
-When the order save fails, only the order goes back. A rename (or color change) that was saved in the meantime stays visible, with its new version.
-
-Actual behavior:
-
-`reorder` remembers the list from before the move and puts it back on failure. The row inputs and color pickers stay enabled while the reorder runs. If a rename succeeds during that time, the failure brings back the old object: the list shows `@phone` instead of `@mobile`, and it keeps version 1 while the server already has version 2. The next edit of that item then gets a 412 ("changed elsewhere") and the list reloads.
-
-Severity:
-
-Low (needs a slow or failing reorder overlapping a rename. No data is lost on the server, but the UI shows stale data and the next edit fails.)
-
-Fix required:
-
-`Yes — production code must be fixed by the parent worker / fixer.`
-
-Note (not a defect): the bare `mat-dialog-close` on Cancel closes with `''`, not `undefined`. `remove()` treats it correctly because it checks `if (!result)`, so the dialog test checks for a falsy result.
+Observation (not a defect, for information): the server's reorder bumps the version of every context or area whose position changes (`ContextService.order`). A rename typed while a reorder is pending therefore sends the old `If-Match` and gets a 412 if the server handles the reorder first. The component then shows "changed elsewhere" and reloads, which is consistent with SPEC §4.2. No data is lost.
 
 ## Coverage
 
-Status: partial-failed. The project command `npm run coverage` exits 1 because of TW-1, and Vitest writes no coverage report on failure (`coverage/web` was absent afterwards). The numbers below come from a diagnostic run with the same provider and reporters, limited to the settings specs, with the single failing TW-1 test filtered out. It ran 154 tests (1 skipped by the filter), exit 0. The numbers are not a passing validation result.
+Status: verified. The run is fresh, exited 0, ran the full suite, and measured all scoped files.
 
 Metric: whole-file coverage of task-changed production files.
-Changed-line coverage: not measured with a separate tool. Four of the five scoped files are new in this task, so every line in them is task-added and whole-file coverage equals changed-line coverage there. The only modified file is `settings.routes.ts`, which is 6/6 lines, so its changed lines are covered.
+Changed-line coverage: not measured with a separate tool. Four of the five measured files are new in this task (`git diff` shows them as added), so whole-file coverage equals changed-line coverage for them. The only modified file with behavior, `settings.routes.ts`, is fully covered (6/6 lines).
 
 Evidence:
-- Task id, immutable base, measured HEAD, and task-owned commits/file-scope source: `web-settings-gtd`; base 3aa4bbbd3a9abc422a576d0cf520bbcdebc6fb81; measured HEAD 4516346ff7cb110920a81281631482b58a207d96 (rebased 79e2c255, no code change). Scope comes from the parent prompt and `git diff --name-only 3aa4bbbd..HEAD -- web/src`, minus specs.
-- Source/test snapshot identifier (including uncommitted inputs): sha256 `delete-dialog.ts` c8ed7c35…, `gtd-settings.ts` dfe8c32c…, `gtd-settings.html` 571f50c0…, `gtd-settings.service.ts` 9a96db6a…, `settings.routes.ts` afc79a47…. Specs: `gtd-settings.spec.ts`, `gtd-settings.service.spec.ts`, `delete-dialog.spec.ts`, `settings.routes.spec.ts` (hashes recorded in `.tmp/snap-before.txt`, verified unchanged after the run).
-- Exact included files; renamed/deleted/excluded files and reasons: included `web/src/app/features/settings/gtd/{delete-dialog.ts, gtd-settings.ts, gtd-settings.html, gtd-settings.service.ts}` and `web/src/app/features/settings/settings.routes.ts`. `gtd-settings.scss` is styles only (0/0). `security-settings.html` is excluded because its change is formatting only (attribute line breaks), with no behavior. Spec files are excluded. No renames or deletions.
-- Provider/version, command, working directory, and test selection: Vitest 5.0.5 + `@vitest/coverage-v8` (node 24.21.0), working directory `web/`, command `npx ng test --watch=false --include='src/app/features/settings/**/*.spec.ts' --filter='^(?!.*keeps a rename saved while a failing reorder was pending)' --coverage --coverage-include='src/app/features/settings/**' --coverage-reporters=json-summary --coverage-reporters=json`. No configuration was changed.
-- Run start/completion time and exit status: 2026-10-21T03:33:51+02:00 to 03:34:05+02:00, exit 0. The full `npm run coverage` ran 03:33:05 to 03:33:41, exit 1, and produced no report.
-- Generated report paths and report hashes/run identifier: `web/coverage/web/coverage-summary.json` (sha256 900ed632a2a5c1c3b1e8729369042ede28bf9ed3c185833881fa7dbd63df3791), `web/coverage/web/coverage-final.json` (sha256 f9500cefc647c5803255db2cd21cb83c2315d0419202772169b0d8eae47e3c5d), both written 03:34:05.
-- Evidence outputs are fresh and inputs stayed unchanged: yes. `coverage/web` did not exist before the run (the failed full run left none). The snapshot hashes matched after the run.
-- Final run after latest test additions and production fixes: yes for the latest tests. No production fix exists yet. After TW-1 is fixed, coverage must be re-measured with the unfiltered `npm run coverage`.
+- Task id, immutable base, measured HEAD, and task-owned commits/file-scope source: `web-settings-gtd`. Base 05c06f7510a27ce4f64d0b6a5fc0a45729bf823d (merge-base; original base 3aa4bbbd3a9abc422a576d0cf520bbcdebc6fb81). Measured HEAD 4dcbc19af9c40138ca6dcae409eee1c578a69cd2. Task-owned commits 8ff8cda2, a08903ed, 407b1b96, 4dcbc19a, as given by the parent. File scope: `git diff --name-only 05c06f75..HEAD -- web/src`, minus spec files.
+- Source/test snapshot identifier (including uncommitted inputs): sha256 `delete-dialog.ts` d2c83049e4b66af4…, `gtd-settings.ts` 5fa54c72a8eac1b0…, `gtd-settings.html` 571f50c0cf0e487c…, `gtd-settings.service.ts` dc3085959436f235…, `settings.routes.ts` afc79a472d4cf1d3…, `gtd-settings.scss` 4cbc028c672c6339…. Specs: `gtd-settings.spec.ts` 503a87a0145a1101… (uncommitted, includes the 3 new tests), `gtd-settings.service.spec.ts` a6945ef4ceba497d…, `delete-dialog.spec.ts` 3410ab19ef99c8a5…. Production files are identical to HEAD; the only uncommitted input is `gtd-settings.spec.ts`.
+- Exact included files; renamed/deleted/excluded files and reasons: included `web/src/app/features/settings/gtd/delete-dialog.ts`, `gtd-settings.ts`, `gtd-settings.html`, `gtd-settings.service.ts` and `web/src/app/features/settings/settings.routes.ts`. Excluded: `gtd-settings.scss` (styles only, no executable code) and `security-settings.html` (formatting-only attribute line breaks with no behavior change). Spec files are excluded. No files were renamed or deleted.
+- Provider/version, command, working directory, and test selection: Vitest 5.0.5 with `@vitest/coverage-v8` (node 24.21.0). Command `npm run coverage` in `web/`, which runs the full suite with the reporters text-summary, json-summary, json and lcov. No configuration was changed.
+- Run start/completion time and exit status: 2026-10-21T03:52:32+02:00 to 03:53:08+02:00, exit 0. The summary on stdout reported the full suite (7156/7816 statements repository-wide; not used for this task).
+- Generated report paths and report hashes/run identifier: `web/coverage/web/coverage-summary.json` (sha256 bf474fc4daeff1fa5248fe7a33e2d78b5da06717ff810d232967d1aa7bd22df5) and `web/coverage/web/coverage-final.json` (sha256 e6f5b41402fd6fd2e1a0394d24ebf7f29a6ace4369cc6eaec9758c37116cf107), both written at 03:53:08.
+- Evidence outputs are fresh and inputs stayed unchanged: yes. Vitest rewrote `coverage/web/` during this run, and the file timestamps match the end of the run. Source and spec hashes were taken before `npm run check` and compared after the coverage run: they matched.
+- Final run after latest test additions and production fixes: yes. The run includes all 3 new tests and the fix commit 407b1b96, and no production code changed afterwards.
 
-Values below use covered/total (percentage), from provider-native counters in `coverage-summary.json`. Zero-denominator or unsupported metrics are N/A.
+Values below use covered/total (percentage), from provider-native counters in `coverage-summary.json`. Zero-denominator metrics are N/A.
 
 | Changed file | Statements | Branches | Functions | Lines |
 |---|---:|---:|---:|---:|
-| `web/src/app/features/settings/gtd/gtd-settings.ts` | 144/145 (99.31%) | 86/94 (91.49%) | 53/53 (100%) | 119/119 (100%) |
+| `web/src/app/features/settings/gtd/gtd-settings.ts` | 158/158 (100%) | 94/101 (93.07%) | 58/58 (100%) | 128/128 (100%) |
 | `web/src/app/features/settings/gtd/gtd-settings.html` | 220/220 (100%) | 30/30 (100%) | 21/21 (100%) | 143/143 (100%) |
-| `web/src/app/features/settings/gtd/gtd-settings.service.ts` | 40/40 (100%) | 15/15 (100%) | 15/15 (100%) | 37/37 (100%) |
-| `web/src/app/features/settings/gtd/delete-dialog.ts` | 85/85 (100%) | 29/30 (96.67%) | 5/5 (100%) | 55/55 (100%) |
+| `web/src/app/features/settings/gtd/gtd-settings.service.ts` | 49/49 (100%) | 15/15 (100%) | 19/19 (100%) | 46/46 (100%) |
+| `web/src/app/features/settings/gtd/delete-dialog.ts` | 93/93 (100%) | 31/32 (96.88%) | 5/5 (100%) | 60/60 (100%) |
 | `web/src/app/features/settings/settings.routes.ts` | 6/6 (100%) | N/A (0/0) | 5/5 (100%) | 6/6 (100%) |
-| **Aggregate (summed counters, 5 files)** | 495/496 (99.80%) | 160/169 (94.67%) | 99/99 (100%) | 360/360 (100%) |
+| **Aggregate (summed counters, 5 files)** | 526/526 (100%) | 170/178 (95.51%) | 108/108 (100%) | 383/383 (100%) |
 
-Aggregate excludes `gtd-settings.scss` (0/0, styles) and `security-settings.html` (formatting-only change). No scoped file is missing from the report. Before the tests added in this run, `gtd-settings.ts` was at 142/145 statements and 83/94 branches, and the template at 214/220 statements (diagnostic run at 03:31, same command).
+The aggregate excludes `gtd-settings.scss` (styles) and `security-settings.html` (formatting only). No scoped file is missing from the report. Before this run's tests, `gtd-settings.ts` was at 157/158 statements and 92/101 branches (focused diagnostic run at 03:49, same provider). The new tests covered the `remove()` busy guard (line 233) and the failure branch of `setColor` (line 145).
 
 | File and uncovered lines/branch locations | Required behavior or risk | Action/test added or reason left uncovered |
 |---|---|---|
-| `gtd-settings.ts:229` (`if (this.busy().has(kind)) return;` in `remove`) | Second delete while a change of that list is running | Not reachable from the UI: the delete buttons are disabled while busy (covered by `waits with the delete buttons of a list while one of its deletes is running`). Defensive guard, so the gap is justified. |
-| `gtd-settings.ts:101, 114, 232, 250, 295` (`all ?? []` / `this.list(kind) ?? []` right side) | List still `null` when a create, delete or replace finishes | Defensive: the forms and rows only render after the list has loaded. Justified gap. |
-| `gtd-settings.ts:47` and one branch without a source location | Decorator / compiler-emitted branch | Not behavior. Justified gap. |
-| `delete-dialog.ts:144` (`if` at the class declaration) | Compiler-emitted branch at the decorated class | Not behavior. Justified gap. |
+| `gtd-settings.ts:101, 114` (`all ?? []` in `addContext` / `addArea`) | A create finishing while the list is still `null` | Defensive only. The add forms render only after their list has loaded, and a reload never sets the list back to `null`. Justified gap. |
+| `gtd-settings.ts:236, 254, 303, 310` (`this.list(kind) ?? []` in `remove`, `restoreOrder`, `replace`) | The list being `null` during a delete, a reorder restore or a replace | Defensive only, for the same reason: these actions start from rendered rows of a loaded list. Justified gap. |
+| `gtd-settings.ts:47`, `delete-dialog.ts:159` (`if` at the decorated class declaration) | Compiler-emitted decorator branch | Not behavior. Justified gap. |
 
 ## Unable to test
 
-- Real drag gestures with the CDK pointer (mouse/touch) were not tested. The tests fire `cdkDropListDropped` directly, as the existing tests already do, and the gesture belongs to the CDK library. No follow-up needed unless an E2E task asks for it.
-- Visual correctness of the color swatch and layout (SCSS) was not tested. jsdom does no layout. The picker value is checked instead.
-- AC2's "`npm run check` passes" cannot be met until TW-1 is fixed. `ng build` and `e2e:typecheck` from `npm run check` were not run separately, because the check stops at the failing unit tests.
+- Real drag gestures with the CDK pointer (mouse or touch) were not tested. The tests fire `cdkDropListDropped` directly, as the existing tests do, and the gesture itself belongs to the CDK library. No follow-up is needed unless an E2E task asks for it.
+- Visual layout and SCSS (swatch rendering, spacing) were not tested, because jsdom does no layout. The tests check the swatch CSS variable and the picker value instead.
+- Tasks in the tickler or Trash, and trashed projects, cannot be moved by the client (CR-1). This is a server limitation. The dialog hint is tested; the server-side fix is follow-up task `gtd-delete-reassign`.
 
 ## Summary
 
-Tests added; production defects were discovered and must be passed to the `fixer` before task completion. TW-1 (Low): a failing reorder discards a rename or color change saved while it was pending. Everything else passes. Coverage of the task files is partial-failed (diagnostic, TW-1 test filtered): 495/496 statements, 160/169 branches, 99/99 functions, 360/360 lines. The remaining gaps are defensive or compiler-generated.
+Tests and task-scoped coverage are sufficient; no production defects found. This run added 3 tests: a failed or stale color change, and the double-click guard on delete. TW-1 is fixed and its test passes. The focused settings suite passes (170/170), as do `npm run check` (1360 tests) and `.taskcheck`. Task-scoped coverage: 526/526 statements, 170/178 branches, 108/108 functions and 383/383 lines. The 8 uncovered branches are defensive null fallbacks or compiler-emitted.

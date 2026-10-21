@@ -702,6 +702,48 @@ describe('GtdSettings', () => {
       await setup([{ ...PHONE, color: '#a1c' }], []);
       expect(nameInput('Color of @phone').value).toBe('#aa11cc');
     });
+
+    it('keeps the old color and version and shows the error when saving a color fails', async () => {
+      await setup();
+      change(nameInput('Color of @home'), '#00aa00');
+      await settle();
+      http
+        .expectOne({ method: 'PATCH', url: `/api/v1/contexts/${HOME.id}` })
+        .flush(...problem(400, 'Invalid color'));
+      await settle();
+
+      expect(errorText()).toContain('Invalid color');
+      const swatch = nameInput('Color of @home').closest<HTMLElement>('label.swatch')!;
+      expect(swatch.style.getPropertyValue('--swatch')).toBe('#3366ff');
+      http.expectNone({ method: 'GET', url: '/api/v1/contexts' });
+
+      // The next change still sends the version the context had, and clears the error.
+      button('Remove the color of @home').click();
+      await settle();
+      const patch = http.expectOne({ method: 'PATCH', url: `/api/v1/contexts/${HOME.id}` });
+      expect(patch.request.headers.get('If-Match')).toBe('"1"');
+      patch.flush({ ...HOME, color: undefined, version: 2 });
+      await settle();
+      expect(errorText()).toBe('');
+    });
+
+    it('reloads the list when the color change finds the context changed elsewhere', async () => {
+      await setup();
+      change(nameInput('Color of @phone'), '#ff8800');
+      await settle();
+      http
+        .expectOne({ method: 'PATCH', url: `/api/v1/contexts/${PHONE.id}` })
+        .flush(...problem(412, 'Precondition failed'));
+      await settle();
+      http
+        .expectOne({ method: 'GET', url: '/api/v1/contexts' })
+        .flush({ items: [HOME, { ...PHONE, name: '@mobile', color: '#123456', version: 3 }] });
+      await settle();
+
+      expect(names('contexts')).toEqual(['@home', '@mobile']);
+      expect(nameInput('Color of @mobile').value).toBe('#123456');
+      expect(errorText()).toContain('changed elsewhere');
+    });
   });
 
   describe('reorder edge cases', () => {
@@ -1045,6 +1087,22 @@ describe('GtdSettings', () => {
       dialogButton('Cancel').click();
       await settle();
       expect(button('Delete @home').disabled).toBe(false);
+    });
+
+    it('starts one delete only for a double click before the buttons are disabled', async () => {
+      await setup();
+      const remove = button('Delete @phone');
+      // Both clicks land before change detection can disable the button.
+      remove.click();
+      remove.click();
+      await settle();
+
+      // One pair of task list requests and one dialog.
+      await flushAssignedTasks([]);
+      expect(document.querySelectorAll('mat-dialog-container')).toHaveLength(1);
+      dialogButton('Cancel').click();
+      await settle();
+      http.expectNone({ method: 'DELETE' });
     });
 
     it('shows the generic message when moving fails with an error that is not an API error', async () => {
