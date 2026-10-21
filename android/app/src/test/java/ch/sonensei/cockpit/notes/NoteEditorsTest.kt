@@ -256,4 +256,99 @@ class NoteEditorsTest {
             coVerify(exactly = 1) { repo.save(loaded, NoteDraft("", "Unsaved")) }
             coVerify(exactly = 1) { repo.save(null, NoteDraft("", "New")) }
         }
+
+    @Test
+    fun `an editor cleared while a conflict waits saves nothing over the other version`() =
+        test {
+            val theirs = loaded.copy(bodyMd = "Changed on the laptop", version = 4)
+            coEvery { repo.save(loaded, NoteDraft("", "Mine")) } returns SaveResult.Conflict(theirs)
+            val (store, vm) = editorInStore()
+            vm.open(id)
+            runCurrent()
+            vm.setBody("Mine")
+            vm.saveNow()
+            advanceUntilIdle()
+            assertEquals(NoteConflict(theirs), vm.uiState.value.conflict)
+
+            store.clear()
+            advanceUntilIdle()
+            coVerify(exactly = 1) { repo.save(any(), any()) }
+        }
+
+    @Test
+    fun `the list showing keeps an editor whose conflict waits, saves nothing, and reopening reaches the conflict`() =
+        test {
+            val theirs = loaded.copy(bodyMd = "Changed on the laptop", version = 4)
+            coEvery { repo.save(loaded, NoteDraft("", "Mine")) } returns SaveResult.Conflict(theirs)
+            val holder = editors()
+            val vm = holder.editors.editor(id.toString())
+            vm.open(id, "a")
+            runCurrent()
+            vm.setBody("Mine")
+            vm.saveNow()
+            advanceUntilIdle()
+
+            holder.editors.settle()
+            advanceUntilIdle()
+            coVerify(exactly = 1) { repo.save(any(), any()) }
+            assertFalse(vm.settled)
+            val reopened = holder.editors.editor(id.toString())
+            assertSame(vm, reopened)
+            reopened.open(id, "b")
+            advanceUntilIdle()
+            assertEquals(NoteConflict(theirs), reopened.uiState.value.conflict)
+            assertEquals("Mine", reopened.uiState.value.body)
+            coVerify(exactly = 1) { repo.get(id) }
+        }
+
+    @Test
+    fun `a photo still uploading when the list shows keeps its editor, and its image is saved once it arrives`() =
+        test {
+            val photo = NotePhoto(byteArrayOf(1), "image/jpeg", "p.jpg")
+            val upload = CompletableDeferred<NotesResult<String>>()
+            coEvery { repo.uploadImage(id, photo) } coAnswers { upload.await() }
+            coEvery { repo.save(loaded, NoteDraft("", "Shopping\n![](p)\n")) } returns
+                SaveResult.Saved(loaded.copy(bodyMd = "Shopping\n![](p)\n", version = 4))
+            val holder = editors()
+            val vm = holder.editors.editor(id.toString())
+            vm.open(id, "a")
+            runCurrent()
+            vm.addPhoto(photo)
+            runCurrent()
+            assertTrue(vm.uiState.value.uploading)
+
+            // The editor is left while the photo uploads: the list must not drop it (that would cancel the upload).
+            holder.editors.settle()
+            assertSame(vm, holder.editors.editor(id.toString()))
+            upload.complete(NotesResult.Ok("![](p)"))
+            advanceUntilIdle()
+            coVerify(exactly = 1) { repo.save(loaded, NoteDraft("", "Shopping\n![](p)\n")) }
+            assertEquals(SaveStatus.SAVED, vm.uiState.value.status)
+
+            // Everything is on the server now: the next time the list shows, the editor is dropped.
+            holder.editors.settle()
+            assertNotSame(vm, holder.editors.editor(id.toString()))
+        }
+
+    @Test
+    fun `a new note that was created but not saved since is reached from the list, not offered again by New note`() =
+        test {
+            val created = loaded.copy(bodyMd = "First", version = 1)
+            coEvery { repo.save(null, NoteDraft("", "First")) } returns SaveResult.Saved(created)
+            coEvery { repo.save(created, NoteDraft("", "First draft")) } returns SaveResult.Failed(500)
+            val holder = editors()
+            val vm = holder.editors.editor("new:x")
+            vm.open(null, "new:x")
+            vm.setBody("First")
+            vm.saveNow()
+            advanceUntilIdle()
+            vm.setBody("First draft")
+            vm.saveNow()
+            advanceUntilIdle()
+            assertEquals(SaveStatus.FAILED, vm.uiState.value.status)
+
+            holder.editors.settle()
+            assertNull(holder.editors.unsentNewNote())
+            assertSame(vm, holder.editors.editor(id.toString()))
+        }
 }
