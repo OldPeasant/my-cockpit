@@ -164,7 +164,9 @@ the Inbox on the phone, compares Next/Today/Projects with the API, and waits for
 
 - `Phase3DemoEmulatorTest` (`androidTest`, runner `HiltTestRunner`): real airplane mode (`cmd connectivity airplane-mode`),
   the MediaStore gallery, the real WorkManager and clock (the reminder is set 20 s ahead). The stack is reached at
-  `10.0.2.2` (the emulator's host); the default is `http://10.0.2.2:18090/`, the e2e stack's default port.
+  `10.0.2.2` (the emulator's host); the default is `http://10.0.2.2:18090/`, the e2e stack's default port. It has only
+  been compiled (`compileDebugAndroidTestKotlin`), never run on an emulator yet (task p3-smoke); the Robolectric runner
+  is the one verified against the e2e stack. Report problems as a task.
 - `Phase3DemoRobolectricTest` (`test`): for machines without an emulator. Offline is WorkManager's network constraint
   left unmet (test WorkManager), the gallery a test content provider, and the alarm is fired by hand once it is checked to
   be set exactly for the reminder time.
