@@ -124,3 +124,64 @@ Remaining unresolved findings:
 ## Final status
 
 All validated findings fixed and validation passed.
+
+---
+
+# Round 2
+
+Date: 2026-10-21
+
+Task: web-cal-edit - Calendar event editing
+
+Scope: current task; finding CR-1 (P2) of the round-2 review in `reviews/web-cal-edit/review.md`. Base ae67cd27, task commits c622626c, 8bc57227, bbcb7d26, e4f89d8e, 2a34cb24. All changes stay in `web/src/app/features/calendar/edit`.
+
+## Fixed findings
+
+### CR-1 (round 2) — A generated occurrence whose series changed elsewhere can't be reread; "Try again" never succeeds and the view isn't refreshed
+
+Files changed:
+- `web/src/app/features/calendar/edit/event-dialog.ts`
+- `web/src/app/features/calendar/edit/event-editor.ts`
+- `web/src/app/features/calendar/edit/event-dialog.spec.ts`
+- `web/src/app/features/calendar/edit/event-editor.spec.ts`
+
+Problem:
+When `EventEditService.reread` found no occurrence (series moved with ALL, split with FOLLOWING, override moved more than a day), `load()` threw and showed "The event could not be loaded" with "Try again", which could never succeed. Cancel closed with `undefined`, so `EventEditor.open` returned `false` and the view kept the stale occurrence.
+
+Fix:
+- `EventDialogResult` gets a new value `'changed'`. When `reread` returns `undefined`, `load()` closes the dialog with `'changed'` instead of showing the load-failed banner. This happens on first open and on Reload after a 409/412. Other load failures (network, 404 of a single event) still show "could not be loaded" with "Try again", where a retry can work.
+- `EventEditor.open` shows an info snackbar with the new i18n id `@@calendar.edit.goneElsewhere` ("\"Swim\" was changed elsewhere and is no longer at this time. The calendar shows its current events."). It returns `true` for `'changed'`, so `calendar-view.ts` refetches its occurrences (`if (await this.editor.open(...)) void this.occurrences.refresh()`, already covered by the view spec "opens a clicked event in the editor and refetches after a change").
+- Specs:
+  - dialog: "closes as changed when the series no longer has the occurrence". This replaces the old spec that expected the load-failed state, which was the reported bug. It also checks there is no "Try again".
+  - dialog: "closes as changed when Reload after a 412 finds the occurrence gone".
+  - editor: "asks for a refetch and says why when the occurrence changed elsewhere" (result `'changed'` gives `true` and the info message). The existing `open` spec now also checks that no info message appears for a cancel.
+  - editor with the real `MatDialog`: open a generated occurrence, save, get a 412, click Reload, `reread` returns `undefined`. The dialog closes, `open` resolves `true` (the view refetches), and the info message is shown once.
+
+Validation:
+- `cd web && npx ng test --watch=false --include='src/app/features/calendar/**/*.spec.ts'` — Pass (11 files, 212 tests)
+
+## Not fixed
+
+None.
+
+## Validation summary
+
+Focused tests:
+- `cd web && npx ng test --watch=false --include='src/app/features/calendar/**/*.spec.ts'` — Pass (11 files, 212 tests)
+- `npx prettier --check` on the four changed files — Pass
+
+Full test suite:
+- `cd web && npm run check` — Pass (api:check up to date, lint "All files pass linting", e2e typecheck, test:ci 114 files / 2274 tests, ng build; the initial-bundle budget warning was already there and is unrelated)
+
+Lint/type-check/build:
+- Included in `npm run check` above — Pass
+
+`.taskcheck`:
+- Not run by the fixer (only web code changed; `npm run check` is the web part of it). The parent runs it before `done`.
+
+Remaining unresolved findings:
+0
+
+## Final status
+
+All validated findings fixed and validation passed.

@@ -43,9 +43,18 @@ export class EventEditor {
     return (await this.openDialog({ mode: 'create', draft, ...context })) === 'saved';
   }
 
-  /** Opens the dialog of `occurrence`; `true` once it was changed or deleted. */
+  /**
+   * Opens the dialog of `occurrence`; `true` once it was changed or deleted, or when it turned
+   * out to have changed elsewhere (the caller then refetches its events).
+   */
   async open(occurrence: OccurrenceResponse, context: EditorContext): Promise<boolean> {
-    return (await this.openDialog({ mode: 'edit', occurrence, ...context })) !== undefined;
+    const result = await this.openDialog({ mode: 'edit', occurrence, ...context });
+    if (result === 'changed') {
+      this.notifications.info(
+        $localize`:@@calendar.edit.goneElsewhere:"${occurrence.title}:title:" was changed elsewhere and is no longer at this time. The calendar shows its current events.`,
+      );
+    }
+    return result !== undefined;
   }
 
   /**

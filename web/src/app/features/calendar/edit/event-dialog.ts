@@ -46,8 +46,11 @@ export type EventDialogData =
   | (DialogBase & { readonly mode: 'create'; readonly draft: EventDraft })
   | (DialogBase & { readonly mode: 'edit'; readonly occurrence: OccurrenceResponse });
 
-/** How the dialog closed: the event was saved or deleted (`undefined`: nothing changed). */
-export type EventDialogResult = 'saved' | 'deleted' | undefined;
+/**
+ * How the dialog closed: the event was saved or deleted, or it could not be read again because
+ * its series changed elsewhere (`'changed'`: the view must refetch). `undefined`: nothing changed.
+ */
+export type EventDialogResult = 'saved' | 'deleted' | 'changed' | undefined;
 
 /** The reminder choices, in minutes before the start. */
 export const REMINDER_PRESETS: readonly number[] = [0, 5, 10, 15, 30, 60, 120, 1440, 10080];
@@ -175,7 +178,12 @@ export class EventDialog {
       if (isGenerated(occurrence)) {
         // Its times come from the series: read the occurrence itself again (it may be an override now).
         const fresh = await this.events.reread(occurrence);
-        if (!fresh) throw new Error('The series no longer has this occurrence');
+        if (!fresh) {
+          // The series changed elsewhere (new times, split, override moved away): this
+          // occurrence no longer exists, so no retry can load it. The view has to refetch.
+          this.ref.close('changed');
+          return;
+        }
         occurrence = fresh;
       }
       const event = await this.events.get(occurrence.eventId);

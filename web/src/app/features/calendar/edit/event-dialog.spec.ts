@@ -749,12 +749,32 @@ describe('EventDialog', () => {
       );
     });
 
-    it('cannot be edited when the series no longer has the occurrence', async () => {
+    it('closes as changed when the series no longer has the occurrence', async () => {
       events.reread.mockResolvedValueOnce(undefined);
       await edit(generated());
-      expect(alerts().join(' ')).toContain('The event could not be loaded.');
+      // No "Try again": the occurrence is gone, the view has to refetch.
+      expect(ref.close).toHaveBeenCalledExactlyOnceWith('changed');
       expect(events.get).not.toHaveBeenCalled();
-      expect(el().querySelector<HTMLButtonElement>('button[type="submit"]')!.disabled).toBe(true);
+      expect(button('Try again')).toBeUndefined();
+    });
+
+    it('closes as changed when Reload after a 412 finds the occurrence gone', async () => {
+      scopes.ask.mockResolvedValueOnce('THIS');
+      events.update.mockRejectedValueOnce(new ApiError(412, 'Precondition Failed'));
+      await edit(generated());
+      type('title', 'Swim (pool B)');
+      await save();
+      expect(alerts().join(' ')).toContain('This event was changed elsewhere');
+      expect(ref.close).not.toHaveBeenCalled();
+
+      // The series was moved to 10:00 elsewhere: the 09:00 occurrence no longer exists.
+      events.reread.mockResolvedValueOnce(undefined);
+      button('Reload')!.click();
+      await stable();
+      expect(events.reread).toHaveBeenCalledTimes(2);
+      expect(ref.close).toHaveBeenCalledExactlyOnceWith('changed');
+      expect(alerts().join(' ')).not.toContain('could not be loaded');
+      expect(events.update).toHaveBeenCalledOnce();
     });
 
     it('loads an override with the rule of its master and saves it with its own version', async () => {

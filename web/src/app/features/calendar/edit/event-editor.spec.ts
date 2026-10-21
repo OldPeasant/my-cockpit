@@ -20,7 +20,7 @@ describe('EventEditor', () => {
   let dialog: { open: ReturnType<typeof vi.fn> };
   let snackActions: Subject<void>;
   let snackBar: { open: ReturnType<typeof vi.fn> };
-  let notifications: { error: ReturnType<typeof vi.fn> };
+  let notifications: { error: ReturnType<typeof vi.fn>; info: ReturnType<typeof vi.fn> };
   let events: { update: ReturnType<typeof vi.fn> };
   let scopes: { ask: ReturnType<typeof vi.fn> };
 
@@ -29,7 +29,7 @@ describe('EventEditor', () => {
     dialog = { open: vi.fn(() => ({ afterClosed: () => of(dialogResult) })) };
     snackActions = new Subject<void>();
     snackBar = { open: vi.fn(() => ({ onAction: () => snackActions.asObservable() })) };
-    notifications = { error: vi.fn() };
+    notifications = { error: vi.fn(), info: vi.fn() };
     events = { update: vi.fn(() => Promise.resolve({})) };
     scopes = { ask: vi.fn(() => Promise.resolve('THIS')) };
     TestBed.configureTestingModule({
@@ -170,6 +170,14 @@ describe('EventEditor', () => {
       await expect(editor.open(occurrence, context)).resolves.toBe(true);
       dialogResult = undefined;
       await expect(editor.open(occurrence, context)).resolves.toBe(false);
+      expect(notifications.info).not.toHaveBeenCalled();
+    });
+
+    it('asks for a refetch and says why when the occurrence changed elsewhere', async () => {
+      dialogResult = 'changed';
+      await expect(editor.open(fakeOccurrence('Swim'), context)).resolves.toBe(true);
+      expect(notifications.info).toHaveBeenCalledOnce();
+      expect(notifications.info.mock.calls[0][0]).toContain('"Swim" was changed elsewhere');
     });
   });
 });
@@ -204,6 +212,67 @@ describe('EventEditor with the real dialog', () => {
     TestBed.inject(ApplicationRef).tick();
     // `true` would make the calendar refetch its events although nothing changed.
     await expect(changed).resolves.toBe(false);
+  });
+});
+
+describe('EventEditor with the real dialog, occurrence gone after a 412', () => {
+  afterEach(() => {
+    TestBed.inject(MatDialog).closeAll();
+    document.querySelectorAll('.cdk-overlay-container').forEach((o) => o.remove());
+  });
+
+  it('closes the dialog on Reload and makes the view refetch', async () => {
+    const notifications = { error: vi.fn(), info: vi.fn() };
+    const generated = fakeOccurrence('Swim', {
+      eventId: 'm1',
+      seriesId: 'm1',
+      occurrence: OCCURRENCE,
+      start: OCCURRENCE,
+      end: '2026-03-30T08:00:00Z',
+    });
+    const reread = vi.fn((o: unknown) => Promise.resolve(o));
+    TestBed.configureTestingModule({
+      providers: [
+        { provide: NotificationService, useValue: notifications },
+        {
+          provide: EventEditService,
+          useValue: {
+            get: vi.fn(() =>
+              Promise.resolve(fakeEvent('m1', { title: 'Swim', rrule: 'FREQ=WEEKLY' })),
+            ),
+            reread,
+            update: vi.fn(() => Promise.reject(new ApiError(412, 'Precondition Failed'))),
+          },
+        },
+        { provide: ScopePrompt, useValue: { ask: vi.fn(() => Promise.resolve('ALL')) } },
+      ],
+    });
+    const app = TestBed.inject(ApplicationRef);
+    const settle = async () => {
+      app.tick();
+      await new Promise((resolve) => setTimeout(resolve));
+      app.tick();
+    };
+    const find = (text: string) =>
+      [...document.querySelectorAll<HTMLButtonElement>('button')].find(
+        (b) => b.textContent!.trim() === text,
+      );
+    const changed = TestBed.inject(EventEditor).open(generated, context);
+    await settle();
+    const title = document.querySelector<HTMLInputElement>('[formcontrolname="title"]')!;
+    title.value = 'Swim (pool B)';
+    title.dispatchEvent(new Event('input'));
+    document.querySelector<HTMLButtonElement>('button[type="submit"]')!.click();
+    await settle();
+    expect(find('Reload')).toBeDefined();
+
+    reread.mockResolvedValueOnce(undefined);
+    find('Reload')!.click();
+    await settle();
+    // `true`: the calendar view refetches its occurrences (calendar-view.ts).
+    await expect(changed).resolves.toBe(true);
+    expect(notifications.info).toHaveBeenCalledOnce();
+    expect(notifications.error).not.toHaveBeenCalled();
   });
 });
 
