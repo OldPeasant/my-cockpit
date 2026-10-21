@@ -5,7 +5,7 @@ owner: dell26/agent-2
 deps: [backup-contrib-core,mail-model,backup-secrets]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/mail/backup,server/src/test/kotlin/ch/sonensei/cockpit/mail/backup]
 prio: 2
-lease_until: 2026-10-21T22:04:35Z
+lease_until: 2026-10-21T22:09:37Z
 ---
 ## Goal
 Mail config in backups (SPEC.md §10.2).
