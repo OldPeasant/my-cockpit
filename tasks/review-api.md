@@ -1,11 +1,13 @@
 ---
 title: Weekly review API
-status: in_progress
-owner: dell26/agent-1
+status: todo
+owner: 
 deps: [gtd-projects-api,cal-local-api]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/review,server/src/test/kotlin/ch/sonensei/cockpit/review,server/src/main/resources/db/migration/review]
 prio: 2
-lease_until: 2026-10-21T23:45:38Z
+lease_until: 
+releases: 1
+extended: 
 ---
 ## Goal
 Resumable weekly review (SPEC.md §8.6).
@@ -25,3 +27,4 @@ Resumable weekly review (SPEC.md §8.6).
 - ASSUMPTION (2026-10-22 00:22+0200 by dell26/agent-1): Step data endpoints are stateless (live data, /api/v1/weekly-reviews/steps/*); a review only stores its current step; at most one open review (partial unique index), POST starts or resumes it; completing a completed review is 409. GET /weekly-reviews/status gives lastCompletedAt and daysSinceLastReview for the dashboard
 - ASSUMPTION (2026-10-22 00:22+0200 by dell26/agent-1): Weekly reviews are not in search/links, publish no change events and have no backup contributor yet (no review backup task existed); added task backup-contrib-review
 - ASSUMPTION (2026-10-22 00:22+0200 by dell26/agent-1): Step 1 (inbox/flagged mail) and step 8 (reflection/journal) have no dedicated data endpoint: clients use the existing inbox, mail and journal APIs
+- release by dell26/agent-1: All 3 criteria implemented and verified; test-writer, code-reviewer (re-review on final code) and fixer reports plus quality.json committed in 7ba5d66f6 (reviewed_revision e470880d5, task code unchanged since review). sh scripts/check.sh passed at 7ba5d66f6 but took ~10+ min. Left: only run 'python tasks.py done review-api' (if main moves, set reviewed_revision to the new hash; no helper re-run needed unless task code changes).
