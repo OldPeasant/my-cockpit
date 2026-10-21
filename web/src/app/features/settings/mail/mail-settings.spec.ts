@@ -545,4 +545,479 @@ describe('MailSettings', () => {
     expect(root.querySelectorAll('li.account').length).toBe(0);
     expect(text()).toContain('jane@mail.example.test removed.');
   });
+
+  it('keeps an account whose removal failed and says why', async () => {
+    await setup();
+
+    button('Remove').click();
+    await settle();
+    button('Remove account').click();
+    await settle();
+    expect(button('Remove account').disabled).toBe(true);
+    const { body, ...options } = problem(412, 'Precondition Failed');
+    http.expectOne({ method: 'DELETE', url: `${ACCOUNTS}/a1` }).flush(body, options);
+    await settle();
+
+    expect(root.querySelectorAll('li.account').length).toBe(1);
+    expect(root.querySelector('li.account [role="alert"]')?.textContent).toContain(
+      'jane@mail.example.test could not be changed: It was changed elsewhere.',
+    );
+    expect(button('Remove account').disabled).toBe(false);
+  });
+
+  it('still lists the accounts when providers and connections cannot be read', async () => {
+    navigate = vi.fn();
+    TestBed.configureTestingModule({
+      providers: [
+        provideHttp(),
+        provideHttpClientTesting(),
+        provideRouter([]),
+        { provide: NotificationService, useValue: { error: vi.fn() } },
+        { provide: BROWSER_NAVIGATE, useValue: navigate },
+      ],
+    });
+    http = TestBed.inject(HttpTestingController);
+    fixture = TestBed.createComponent(MailSettings);
+    root = fixture.nativeElement as HTMLElement;
+    fixture.detectChanges();
+    expect(text()).toContain('Loading mail accounts…');
+    await tick();
+    http.expectOne(ACCOUNTS).flush({ items: [fakeAccount()] });
+    const { body, ...options } = problem(500, 'Server error');
+    http.expectOne('/api/v1/oauth/providers').flush(body, options);
+    http.expectOne('/api/v1/oauth/connections').flush(body, options);
+    await settle();
+
+    expect(root.querySelectorAll('li.account').length).toBe(1);
+    expect(root.querySelector('[role="alert"]')).toBeNull();
+    await chooseType('Google');
+    expect(text()).toContain('Google is not set up on this server.');
+  });
+
+  describe('panels', () => {
+    it('opens one panel at a time and closes it again', async () => {
+      await setup();
+
+      button('Edit').click();
+      await settle();
+      expect(root.querySelector('app-mail-account-editor')).not.toBeNull();
+      expect(button('Edit').getAttribute('aria-expanded')).toBe('true');
+
+      button('Folders').click();
+      await settle();
+      http.expectOne(`${ACCOUNTS}/a1/folders`).flush({ items: [] });
+      await settle();
+      expect(root.querySelector('app-mail-account-editor')).toBeNull();
+      expect(root.querySelector('app-mail-folder-roles')).not.toBeNull();
+
+      button('Folders').click();
+      await settle();
+      expect(root.querySelector('app-mail-folder-roles')).toBeNull();
+      expect(button('Folders').getAttribute('aria-expanded')).toBe('false');
+    });
+
+    it('closes the editor with Cancel without saving', async () => {
+      await setup();
+
+      button('Edit').click();
+      await settle();
+      const editor = root.querySelector<HTMLElement>('app-mail-account-editor')!;
+      button('Cancel', editor).click();
+      await settle();
+
+      expect(root.querySelector('app-mail-account-editor')).toBeNull();
+      http.expectNone({ method: 'PATCH', url: `${ACCOUNTS}/a1` });
+    });
+
+    it('closes the removal question with Cancel', async () => {
+      await setup();
+
+      button('Remove').click();
+      await settle();
+      button('Cancel', root.querySelector('.confirm')!).click();
+      await settle();
+
+      expect(root.querySelector('.confirm')).toBeNull();
+      http.expectNone({ method: 'DELETE', url: `${ACCOUNTS}/a1` });
+    });
+  });
+
+  it('changes the notification twice with the version of the first answer', async () => {
+    await setup();
+    const toggle = (): HTMLButtonElement =>
+      root.querySelector<HTMLButtonElement>('li.account mat-slide-toggle button')!;
+
+    toggle().click();
+    await settle();
+    expect(toggle().disabled).toBe(true);
+    http
+      .expectOne({ method: 'PATCH', url: `${ACCOUNTS}/a1` })
+      .flush(fakeAccount({ notifyNewMail: false, version: 1 }));
+    await settle();
+
+    toggle().click();
+    await settle();
+    const second = http.expectOne({ method: 'PATCH', url: `${ACCOUNTS}/a1` });
+    expect(second.request.headers.get('If-Match')).toBe('"1"');
+    expect(second.request.body).toEqual({ notifyNewMail: true });
+    second.flush(fakeAccount({ notifyNewMail: true, version: 2 }));
+    await settle();
+    expect(toggle().getAttribute('aria-checked')).toBe('true');
+  });
+
+  describe('test connection, more states', () => {
+    it('tests each account on its own', async () => {
+      await setup([fakeAccount(), fakeAccount({ id: 'a2', emailAddress: 'jane@work.example' })]);
+      const items = root.querySelectorAll<HTMLElement>('li.account');
+
+      button('Test connection', items[0]).click();
+      await settle();
+
+      expect(button('Test connection', items[0]).disabled).toBe(true);
+      expect(button('Test connection', items[1]).disabled).toBe(false);
+      expect(items[1].querySelector('.test')).toBeNull();
+      http.expectOne(`${ACCOUNTS}/a1/test`).flush(TEST_OK);
+      await settle();
+    });
+
+    it('shows Failed for a protocol that failed without a message', async () => {
+      await setup();
+
+      button('Test connection').click();
+      await settle();
+      http.expectOne(`${ACCOUNTS}/a1/test`).flush({ imap: { ok: false }, smtp: { ok: true } });
+      await settle();
+
+      const lines = [...root.querySelectorAll('.protocols > div')];
+      expect(lines[0].className.trim()).toBe('failed');
+      expect(lines[0].textContent).toContain('Failed');
+    });
+
+    it('runs again after a result and replaces it', async () => {
+      await setup();
+
+      button('Test connection').click();
+      await settle();
+      http.expectOne(`${ACCOUNTS}/a1/test`).flush(TEST_SMTP_FAILED);
+      await settle();
+      button('Test connection').click();
+      await settle();
+      expect(root.querySelector('.protocols')).toBeNull();
+      http.expectOne(`${ACCOUNTS}/a1/test`).flush(TEST_OK);
+      await settle();
+
+      expect(root.querySelectorAll('.protocols .ok').length).toBe(2);
+    });
+  });
+
+  describe('add IMAP/SMTP, more cases', () => {
+    async function submitAndCreate(id = 'a7'): Promise<void> {
+      button('Add and test').click();
+      await settle();
+      http
+        .expectOne({ method: 'POST', url: ACCOUNTS })
+        .flush(fakeAccount({ id, emailAddress: 'john@mail.example.test' }), {
+          status: 201,
+          statusText: 'Created',
+        });
+      await settle();
+    }
+
+    it('sends a blank name and signature as unset and the address trimmed', async () => {
+      await setup([]);
+      fillImap();
+      type('[formControlName="emailAddress"]', '  john@mail.example.test  ', addForm());
+      type('[formControlName="displayName"]', '   ', addForm());
+      type('[formControlName="signatureMd"]', '  \n ', addForm());
+
+      button('Add and test').click();
+      await settle();
+
+      const body = http.expectOne({ method: 'POST', url: ACCOUNTS }).request.body;
+      expect(body.emailAddress).toBe('john@mail.example.test');
+      expect(body.displayName).toBeUndefined();
+      expect(body.signatureMd).toBeUndefined();
+    });
+
+    it('sends the notification choice', async () => {
+      await setup([]);
+      fillImap();
+
+      addForm().querySelector<HTMLButtonElement>('mat-slide-toggle button')!.click();
+      await settle();
+      button('Add and test').click();
+      await settle();
+
+      expect(http.expectOne({ method: 'POST', url: ACCOUNTS }).request.body.notifyNewMail).toBe(
+        false,
+      );
+    });
+
+    it('refuses a malformed address and a port out of range without a request', async () => {
+      await setup([]);
+      fillImap();
+      type('[formControlName="emailAddress"]', 'john.mail.example.test', addForm());
+      type('app-server-fields[protocol="imap"] [formControlName="port"]', '0', addForm());
+
+      button('Add and test').click();
+      await settle();
+
+      http.expectNone({ method: 'POST', url: ACCOUNTS });
+      expect(text()).toContain('Enter an email address.');
+      expect(text()).toContain('1 to 65535.');
+    });
+
+    it('adds only once while the account is being added', async () => {
+      await setup([]);
+      fillImap();
+
+      button('Add and test').click();
+      button('Add and test').click();
+      await settle();
+
+      expect(button('Add and test').disabled).toBe(true);
+      http.expectOne({ method: 'POST', url: ACCOUNTS }).flush(fakeAccount({ id: 'a7' }), {
+        status: 201,
+        statusText: 'Created',
+      });
+      await settle();
+      expect(button('Add and test').disabled).toBe(true);
+      http.expectOne(`${ACCOUNTS}/a7/test`).flush(TEST_SMTP_FAILED);
+      await settle();
+      http.expectOne(`${ACCOUNTS}/a7/folders/sync`).flush({ items: [] });
+      await settle();
+      expect(button('Add and test').disabled).toBe(false);
+    });
+
+    it('detects the folders when only SMTP fails, and says the account does not work yet', async () => {
+      await setup([]);
+      fillImap();
+
+      await submitAndCreate();
+      http.expectOne(`${ACCOUNTS}/a7/test`).flush(TEST_SMTP_FAILED);
+      await settle();
+      http.expectOne(`${ACCOUNTS}/a7/folders/sync`).flush({ items: [fakeFolder()] });
+      await settle();
+
+      expect(text()).toContain('added, but the connection does not work yet');
+      expect(text()).toContain('1 folders found.');
+      expect(text()).toContain('The server did not accept the user name or password.');
+    });
+
+    it('keeps the new account when the test could not run', async () => {
+      await setup([]);
+      fillImap();
+
+      await submitAndCreate();
+      const { body, ...options } = problem(503, 'Service Unavailable');
+      http.expectOne(`${ACCOUNTS}/a7/test`).flush(body, options);
+      await settle();
+
+      http.expectNone(`${ACCOUNTS}/a7/folders/sync`);
+      expect(root.querySelectorAll('li.account').length).toBe(1);
+      expect(text()).toContain('The test could not run: Service Unavailable');
+      expect(text()).toContain('added, but the connection does not work yet');
+    });
+
+    it('says when the folders of a new account could not be read', async () => {
+      await setup([]);
+      fillImap();
+
+      await submitAndCreate();
+      http.expectOne(`${ACCOUNTS}/a7/test`).flush(TEST_OK);
+      await settle();
+      const { body, ...options } = problem(502, 'Bad Gateway');
+      http.expectOne(`${ACCOUNTS}/a7/folders/sync`).flush(body, options);
+      await settle();
+
+      expect(text()).toContain('Folders could not be read: Bad Gateway');
+      expect(text()).toContain('john@mail.example.test added and connected.');
+    });
+
+    it('keeps what was typed when the account is refused', async () => {
+      await setup([]);
+      fillImap();
+
+      button('Add and test').click();
+      await settle();
+      const { body, ...options } = problem(409, 'Conflict');
+      http.expectOne({ method: 'POST', url: ACCOUNTS }).flush(body, options);
+      await settle();
+
+      expect(text()).toContain('The account could not be added: It was changed elsewhere.');
+      const form = addForm();
+      expect(form.querySelector<HTMLInputElement>('[formControlName="password"]')!.value).toBe(
+        's3cret-app-pass',
+      );
+      expect(form.querySelector<HTMLInputElement>('[formControlName="emailAddress"]')!.value).toBe(
+        'john@mail.example.test',
+      );
+      expect(root.querySelectorAll('li.account').length).toBe(0);
+    });
+  });
+
+  describe('add Google/Microsoft, more cases', () => {
+    const MICROSOFT_CONFIGURED: OAuthProviderResponse[] = [
+      { provider: 'GOOGLE', slug: 'google', configured: true },
+      { provider: 'MICROSOFT', slug: 'microsoft', configured: true },
+    ];
+
+    it('needs an address when the connection did not share one', async () => {
+      await setup([], [fakeConnection({ email: undefined, displayName: 'Jane at Google' })]);
+
+      await chooseType('Google');
+      expect(text()).toContain('Jane at Google');
+      button('Add and test').click();
+      await settle();
+
+      http.expectNone({ method: 'POST', url: ACCOUNTS });
+      expect(text()).toContain('Enter an email address.');
+
+      type('[formControlName="emailAddress"]', ' jane@gmail.example ', addForm());
+      button('Add and test').click();
+      await settle();
+
+      const create = http.expectOne({ method: 'POST', url: ACCOUNTS });
+      expect(create.request.body).toMatchObject({
+        type: 'GOOGLE',
+        oauthConnectionId: 'o1',
+        emailAddress: 'jane@gmail.example',
+      });
+      create.flush(fakeAccount({ id: 'a3', type: 'GOOGLE' }), {
+        status: 201,
+        statusText: 'Created',
+      });
+      await settle();
+      http.expectOne(`${ACCOUNTS}/a3/test`).flush(TEST_OK);
+      await settle();
+      http.expectOne(`${ACCOUNTS}/a3/folders/sync`).flush({ items: [] });
+      await settle();
+    });
+
+    it('prefers a typed address over the address of the connection', async () => {
+      await setup([], [fakeConnection()]);
+
+      await chooseType('Google');
+      type('[formControlName="emailAddress"]', 'jane.alias@gmail.example', addForm());
+      button('Add and test').click();
+      await settle();
+
+      expect(http.expectOne({ method: 'POST', url: ACCOUNTS }).request.body.emailAddress).toBe(
+        'jane.alias@gmail.example',
+      );
+    });
+
+    it('preselects a working connection and marks one that needs a reconnect', async () => {
+      await setup(
+        [],
+        [
+          fakeConnection({ id: 'o1', email: 'old@gmail.example', status: 'RECONNECT_REQUIRED' }),
+          fakeConnection({ id: 'o2', email: 'jane@gmail.example' }),
+        ],
+      );
+
+      await chooseType('Google');
+      button('Add and test').click();
+      await settle();
+
+      expect(http.expectOne({ method: 'POST', url: ACCOUNTS }).request.body.oauthConnectionId).toBe(
+        'o2',
+      );
+      root.querySelector<HTMLElement>('mat-select[formControlName="connectionId"]')!.click();
+      await settle();
+      const options = [...document.querySelectorAll('mat-option')].map((o) =>
+        o.textContent?.trim(),
+      );
+      expect(options).toEqual([
+        'old@gmail.example (reconnect it under Integrations)',
+        'jane@gmail.example',
+      ]);
+    });
+
+    it('asks for a connection when none of them works', async () => {
+      await setup([], [fakeConnection({ status: 'RECONNECT_REQUIRED' })]);
+
+      await chooseType('Google');
+      button('Add and test').click();
+      await settle();
+
+      http.expectNone({ method: 'POST', url: ACCOUNTS });
+      expect(text()).toContain('Choose the account to log in with.');
+    });
+
+    it('offers only the connections of the chosen provider and connects another one', async () => {
+      await setup(
+        [],
+        [
+          fakeConnection(),
+          fakeConnection({ id: 'o2', provider: 'MICROSOFT', email: 'jane@outlook.example' }),
+        ],
+        MICROSOFT_CONFIGURED,
+      );
+
+      await chooseType('Microsoft');
+      expect(text()).toContain('jane@outlook.example');
+      expect(text()).not.toContain('jane@gmail.example');
+      button('Connect another Microsoft account').click();
+
+      expect(navigate).toHaveBeenCalledWith('/api/v1/oauth/microsoft/start?purpose=MAIL');
+    });
+
+    it('adds a Microsoft account with its signature and notification', async () => {
+      await setup(
+        [],
+        [fakeConnection({ id: 'o2', provider: 'MICROSOFT', email: 'jane@outlook.example' })],
+        MICROSOFT_CONFIGURED,
+      );
+
+      await chooseType('Microsoft');
+      type('[formControlName="signatureMd"]', '**Jane**', addForm());
+      addForm().querySelector<HTMLButtonElement>('mat-slide-toggle button')!.click();
+      await settle();
+      button('Add and test').click();
+      await settle();
+
+      const create = http.expectOne({ method: 'POST', url: ACCOUNTS });
+      expect(create.request.body).toEqual({
+        type: 'MICROSOFT',
+        oauthConnectionId: 'o2',
+        emailAddress: 'jane@outlook.example',
+        displayName: undefined,
+        signatureMd: '**Jane**',
+        notifyNewMail: false,
+      });
+      create.flush(fakeAccount({ id: 'a4', type: 'MICROSOFT' }), {
+        status: 201,
+        statusText: 'Created',
+      });
+      await settle();
+      http.expectOne(`${ACCOUNTS}/a4/test`).flush(TEST_OK);
+      await settle();
+      http.expectOne(`${ACCOUNTS}/a4/folders/sync`).flush({ items: [] });
+      await settle();
+
+      // The form starts over with the working connection preselected.
+      expect(
+        addForm().querySelector<HTMLTextAreaElement>('[formControlName="signatureMd"]')!.value,
+      ).toBe('');
+      expect(text()).toContain('added and connected.');
+      expect(root.querySelector('li.account')?.textContent).toContain('Microsoft');
+    });
+
+    it('clears an add result when another kind is chosen', async () => {
+      await setup([], [fakeConnection()]);
+      fillImap();
+
+      button('Add and test').click();
+      await settle();
+      const { body, ...options } = problem(500, 'Server error');
+      http.expectOne({ method: 'POST', url: ACCOUNTS }).flush(body, options);
+      await settle();
+      expect(text()).toContain('The account could not be added');
+
+      await chooseType('Google');
+
+      expect(text()).not.toContain('The account could not be added');
+    });
+  });
 });
