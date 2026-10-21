@@ -16,3 +16,4 @@ More ways to capture (SPEC.md §4.5).
 
 ## Notes
 - ASSUMPTION (2026-10-21 05:03+0200 by dell26/agent-2): Widget has no real text field (RemoteViews/Glance cannot host editable text): its pill looks like the capture title field and opens the capture sheet (CaptureActivity), which queues offline-first; badge shows 'N to sync' / 'N not synced', nothing when all synced.
+- ASSUMPTION (2026-10-21 05:03+0200 by dell26/agent-2): Widget count stays fresh via CaptureWidgetUpdater started in CockpitApp.onCreate (outside touches, 3 lines): it follows CaptureQueue.status and calls updateAll; captures and uploads happen only in the app process so every change is seen.
