@@ -190,3 +190,59 @@ Remaining unresolved findings:
 ### Final status (third cycle)
 
 All validated findings fixed and validation passed.
+
+## CR-1 fix (fourth fix cycle)
+
+Date: 2026-10-21
+
+Scope: findings CR-1 (P3) and CR-2 (P3) from `reviews/web-notes-editor/review.md` (review of HEAD `966e827e`, base `993bc56e`); only CR-1 fixed, as instructed by the parent worker. Changes limited to `web/src/app/features/notes/editor`.
+
+### CR-1 — Text typed during the last save before an in-app note switch is dropped
+
+Files changed:
+- `web/src/app/features/notes/editor/note-editor-page.ts`
+- `web/src/app/features/notes/editor/note-editor-page.spec.ts`
+
+Problem:
+Confirmed in the code. When the user typed while the final `flush()` of `leave()` waited for the server, `persist()` saw the new edits and only called `schedule()` (state `pending`). `open()` then went on to the other note, `show()` cleared the timer and replaced the text, and the edits were never sent.
+
+Fix:
+`leave()` now calls a new `flushAll()` (both before and after waiting for uploads). It runs `flush()` again while `dirty()` holds and the state is neither `conflict` nor `error`. The loop is bounded: each extra round sends the current draft, and a round with nothing left to send ends it. `flush()` clears the debounce timer, and the last round only ends in `saved`, `error` or `conflict`, which never schedule an autosave. So no autosave timer survives to fire for the next note. Because the loop is in `leave()`, it covers both the note switch and page destroy. The existing behaviours are unchanged: the `error` state still stops the loop, so `open()` stays on the note with its draft and puts the address back, and a conflict still discards the edits. Tests added:
+- `saves edits typed during the save on leaving before opening another note`: a second PATCH (`If-Match "2"`, the new text) goes out before the other note's GET, and no PATCH follows after the debounce. This test fails on the code before the fix.
+- `saves edits typed during the save on leaving when the page is left meanwhile`: the destroy case. The edits are saved with `If-Match "2"`, and the other note is never requested. This test already passed before the fix, through the `destroyed` branch in `persist()`, so it is kept as a regression guard.
+
+Validation:
+- `cd web && npx ng test --watch=false --include='src/app/features/notes/editor/**/*.spec.ts'` — Pass (5 files, 103 tests)
+
+### Not fixed (fourth cycle)
+
+### CR-2 — Putting the address back after a failed leave leaves a duplicate history entry
+
+Status:
+Requires decision (accepted)
+
+Reason:
+Not fixed by instruction of the parent worker: the duplicate history entry is accepted as a cost of the chosen design and recorded by the parent as an assumption (`tasks.py assume`).
+
+### Validation summary (fourth cycle)
+
+Focused tests:
+- `cd web && npx ng test --watch=false --include='src/app/features/notes/editor/**/*.spec.ts'` — Pass (5 files, 103 tests)
+- `cd web && npx eslint src/app/features/notes/editor --max-warnings=0` — Pass
+- `cd web && npx prettier --check src/app/features/notes/editor/` — Pass
+
+Full test suite:
+- Included in `.taskcheck` below (lint and unit tests of all parts) — Pass
+
+Lint/type-check/build:
+- Included in `.taskcheck` — Pass
+
+`.taskcheck`:
+- `sh scripts/check.sh` — Pass (exit 0)
+
+Remaining unresolved findings:
+1 (CR-2, accepted as an assumption)
+
+### Final status (fourth cycle)
+
+All validated findings fixed and validation passed. CR-2 was left as an accepted assumption, as instructed.

@@ -150,10 +150,19 @@ export default class NoteEditorPage {
    * then waits for the images still uploading and saves them in place of their placeholders.
    */
   private async leave(): Promise<void> {
-    await this.flush();
+    await this.flushAll();
     if (!this.uploads.size) return;
     await this.finishUploads();
-    await this.flush();
+    await this.flushAll();
+  }
+
+  /**
+   * Saves until nothing is left, so edits typed while a save runs are not lost; stops on a conflict
+   * or a failed save. Each round sends the current draft, and a round with nothing to send ends it.
+   */
+  private async flushAll(): Promise<void> {
+    do await this.flush();
+    while (this.dirty() && this.saveState() !== 'conflict' && this.saveState() !== 'error');
   }
 
   /** Waits for the uploads and puts each result where its placeholder still stands. */

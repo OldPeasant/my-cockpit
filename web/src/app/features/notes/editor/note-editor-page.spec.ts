@@ -581,6 +581,58 @@ describe('NoteEditorPage', () => {
     expect(next.request.headers.get('If-Match')).toBe('"9"');
   });
 
+  it('saves edits typed during the save on leaving before opening another note', async () => {
+    await open();
+    vi.useFakeTimers();
+    type('one');
+    void harness.navigateByUrl(`/notes/${OTHER_ID}`);
+    await vi.advanceTimersByTimeAsync(0);
+    const first = http.expectOne((r) => r.url === URL && r.method === 'PATCH');
+    // Typed in the still visible editor while the save on leaving runs.
+    type('one two');
+    first.flush(note({ bodyMd: 'one', version: 2 }));
+    await vi.advanceTimersByTimeAsync(0);
+    http.expectNone((r) => r.url === `/api/v1/notes/${OTHER_ID}`);
+    const second = http.expectOne((r) => r.url === URL && r.method === 'PATCH');
+    expect(second.request.body.bodyMd).toBe('one two');
+    expect(second.request.headers.get('If-Match')).toBe('"2"');
+    second.flush(note({ bodyMd: 'one two', version: 3 }));
+    await vi.advanceTimersByTimeAsync(0);
+    http
+      .expectOne((r) => r.url === `/api/v1/notes/${OTHER_ID}` && r.method === 'GET')
+      .flush(note({ id: OTHER_ID, title: 'Recipes', bodyMd: 'Soup', version: 9 }));
+    await vi.advanceTimersByTimeAsync(0);
+    flushLinks();
+    harness.detectChanges();
+    expect(editor().value()).toBe('Soup');
+
+    // No autosave of the first note is left to fire.
+    await vi.advanceTimersByTimeAsync(AUTOSAVE_DEBOUNCE_MS * 2);
+    http.expectNone((r) => r.method === 'PATCH');
+  });
+
+  it('saves edits typed during the save on leaving when the page is left meanwhile', async () => {
+    await open();
+    vi.useFakeTimers();
+    type('one');
+    void harness.navigateByUrl(`/notes/${OTHER_ID}`);
+    await vi.advanceTimersByTimeAsync(0);
+    const first = http.expectOne((r) => r.url === URL && r.method === 'PATCH');
+    type('one two');
+    void harness.navigateByUrl('/elsewhere');
+    await vi.advanceTimersByTimeAsync(0);
+    expect(harness.routeNativeElement?.textContent).toBe('Elsewhere');
+    first.flush(note({ bodyMd: 'one', version: 2 }));
+    await vi.advanceTimersByTimeAsync(0);
+    const second = http.expectOne((r) => r.url === URL && r.method === 'PATCH');
+    expect(second.request.body.bodyMd).toBe('one two');
+    expect(second.request.headers.get('If-Match')).toBe('"2"');
+    second.flush(note({ bodyMd: 'one two', version: 3 }));
+    await vi.advanceTimersByTimeAsync(AUTOSAVE_DEBOUNCE_MS * 2);
+    http.expectNone((r) => r.method === 'PATCH');
+    http.expectNone((r) => r.url === `/api/v1/notes/${OTHER_ID}`);
+  });
+
   it('ignores a note that arrives after another one was opened', async () => {
     TestBed.configureTestingModule({
       providers: [
