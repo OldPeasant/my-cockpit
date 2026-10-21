@@ -1,11 +1,11 @@
 ---
 title: CalDAV adapter
-status: todo
-owner: 
+status: in_progress
+owner: dell26/agent-1
 deps: [cal-sync-engine]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/calendar/infra/caldav,server/src/test/kotlin/ch/sonensei/cockpit/calendar/infra/caldav]
 prio: 2
-lease_until: 
+lease_until: 2026-10-21T15:44:40Z
 releases: 1
 extended: 
 ---
