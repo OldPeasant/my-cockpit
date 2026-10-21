@@ -282,6 +282,12 @@ Rules:
 - Waiting For list sorted by `waitingSince`, with "follow up" action (creates task or
   drafts email to the contact).
 - Logbook (completed), Trash.
+- **New view** (combined, read-only aggregation): one list of everything new, i.e. the GTD
+  Inbox items (§5.1) and the messages in the unified mail inbox (§7.3), merged newest first
+  (task creation date / mail date), each row marked with its source. Filter: All / GTD Inbox /
+  Mail. Opening a row opens the item in its own view (task detail or mail read view); a mail
+  row also offers "→ Inbox task" (§7.3). Mails never become tasks automatically, and the
+  separate Inbox and Mail views stay unchanged.
 
 ### 5.4 API (sketch)
 
@@ -493,7 +499,7 @@ Last weekly review.
 
 ### 9.1 Web (Angular)
 
-- Layout: left navigation (Dashboard, Inbox, Next, Projects, Waiting, Someday, Calendar,
+- Layout: left navigation (Dashboard, New, Inbox, Next, Projects, Waiting, Someday, Calendar,
   Mail, Notes, Files, Contacts, Bookmarks, Journal, Habits, Review, Settings), top bar with
   search (`Ctrl+K`) and capture button. Responsive down to tablet; mobile use is the
   Android app's job but web must remain usable on phones.
@@ -510,7 +516,7 @@ Last weekly review.
 - Scope for v1 Android (prioritized):
   1. Login (password+TOTP, passkey), server URL setting.
   2. Quick capture: share target (text/URL/images/files), widget, QS tile, app shortcut.
-  3. Inbox + processing, Next Actions with filters, Today, Projects, Waiting, Someday.
+  3. New view (§5.3), Inbox + processing, Next Actions with filters, Today, Projects, Waiting, Someday.
   4. Calendar (agenda + day/week), event create/edit.
   5. Mail (unified inbox, read, actions, compose/reply).
   6. Notes (view/edit Markdown, add photo from camera/gallery).
