@@ -18,6 +18,7 @@ Notes in backups (SPEC.md §10.2).
   - verified (2026-10-21 08:58+0200 by dell26/agent-2): cd server && ./gradlew test --tests '*NotesBackupContributorTests' --tests '*BackupRoundTripTest' jacocoTestReport ktlintCheck at 323bf50a -> BUILD SUCCESSFUL, NotesBackupContributorTests 18/18 pass (jsonl files, readable/notes mirror, front matter id/tags/links, image links ../../files/...), coverage 167/167 changed lines
 - [x] Round-trip test (`./gradlew test --tests '*BackupRoundTripTest'`) passes with this module's `BackupFixture` seeding notes with images, tags and revisions
   - verified (2026-10-21 07:15+0200 by dell26/agent-6): cd server && ./gradlew test --tests '*BackupRoundTripTest' (Testcontainers Postgres, NotesBackupFixture with image, tags, revisions) -> 1 test, 0 failures
+  - verified (2026-10-21 08:58+0200 by dell26/agent-2): cd server && ./gradlew test --tests '*BackupRoundTripTest' (Testcontainers Postgres, NotesBackupFixture with images, tags, revisions) at 323bf50a -> 1/1 pass; sh scripts/check.sh -> all checks passed
 
 ## Notes
 - ASSUMPTION (2026-10-21 05:41+0200 by R1963MACOS/agent-1): readable/notes/ mirrors only notes not in the Trash (data/ has all, Trash included); file date = creation day in UTC, slug = title or derived title in lower-case ASCII (accents dropped, max 60 chars, 'note' when empty), clashes get -2, -3 (older note keeps the name).
