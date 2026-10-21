@@ -1,0 +1,317 @@
+{
+  "@odata.context": "https://graph.microsoft.com/v1.0/$metadata#Collection(event)",
+  "value": [
+    {
+      "@odata.type": "#microsoft.graph.event",
+      "@odata.etag": "W/\"I7\"",
+      "id": "AAMkSeries1-20261123",
+      "createdDateTime": "2026-09-30T12:00:00.0000000Z",
+      "lastModifiedDateTime": "2026-10-01T12:00:00.0000000Z",
+      "changeKey": "I7",
+      "originalStartTimeZone": "W. Europe Standard Time",
+      "originalEndTimeZone": "W. Europe Standard Time",
+      "iCalUId": "040000008200E00074C5B7101A82E008000000AAMkSeries1-20261123",
+      "reminderMinutesBeforeStart": 15,
+      "isReminderOn": true,
+      "subject": "Team sync",
+      "importance": "normal",
+      "sensitivity": "normal",
+      "isAllDay": false,
+      "isCancelled": false,
+      "isOrganizer": true,
+      "showAs": "tentative",
+      "type": "occurrence",
+      "onlineMeetingUrl": null,
+      "isOnlineMeeting": false,
+      "onlineMeeting": null,
+      "seriesMasterId": "AAMkSeries1",
+      "recurrence": null,
+      "body": {
+        "contentType": "text",
+        "content": ""
+      },
+      "start": {
+        "dateTime": "2026-11-23T08:00:00.0000000",
+        "timeZone": "UTC"
+      },
+      "end": {
+        "dateTime": "2026-11-23T08:30:00.0000000",
+        "timeZone": "UTC"
+      },
+      "location": {
+        "displayName": "",
+        "locationType": "default",
+        "uniqueIdType": "unknown",
+        "address": {},
+        "coordinates": {}
+      },
+      "attendees": [],
+      "organizer": {
+        "emailAddress": {
+          "name": "Alex Example",
+          "address": "alex.example@example.test"
+        }
+      }
+    },
+    {
+      "@odata.type": "#microsoft.graph.event",
+      "@odata.etag": "W/\"I8\"",
+      "id": "AAMkSeries1-20261130",
+      "createdDateTime": "2026-09-30T12:00:00.0000000Z",
+      "lastModifiedDateTime": "2026-10-01T12:00:00.0000000Z",
+      "changeKey": "I8",
+      "originalStartTimeZone": "W. Europe Standard Time",
+      "originalEndTimeZone": "W. Europe Standard Time",
+      "iCalUId": "040000008200E00074C5B7101A82E008000000AAMkSeries1-20261130",
+      "reminderMinutesBeforeStart": 15,
+      "isReminderOn": true,
+      "subject": "Team sync",
+      "importance": "normal",
+      "sensitivity": "normal",
+      "isAllDay": false,
+      "isCancelled": false,
+      "isOrganizer": true,
+      "showAs": "tentative",
+      "type": "occurrence",
+      "onlineMeetingUrl": null,
+      "isOnlineMeeting": false,
+      "onlineMeeting": null,
+      "seriesMasterId": "AAMkSeries1",
+      "recurrence": null,
+      "body": {
+        "contentType": "text",
+        "content": ""
+      },
+      "start": {
+        "dateTime": "2026-11-30T08:00:00.0000000",
+        "timeZone": "UTC"
+      },
+      "end": {
+        "dateTime": "2026-11-30T08:30:00.0000000",
+        "timeZone": "UTC"
+      },
+      "location": {
+        "displayName": "",
+        "locationType": "default",
+        "uniqueIdType": "unknown",
+        "address": {},
+        "coordinates": {}
+      },
+      "attendees": [],
+      "organizer": {
+        "emailAddress": {
+          "name": "Alex Example",
+          "address": "alex.example@example.test"
+        }
+      }
+    },
+    {
+      "@odata.type": "#microsoft.graph.event",
+      "@odata.etag": "W/\"I9\"",
+      "id": "AAMkSeries1-20261207",
+      "createdDateTime": "2026-09-30T12:00:00.0000000Z",
+      "lastModifiedDateTime": "2026-10-01T12:00:00.0000000Z",
+      "changeKey": "I9",
+      "originalStartTimeZone": "W. Europe Standard Time",
+      "originalEndTimeZone": "W. Europe Standard Time",
+      "iCalUId": "040000008200E00074C5B7101A82E008000000AAMkSeries1-20261207",
+      "reminderMinutesBeforeStart": 15,
+      "isReminderOn": true,
+      "subject": "Team sync",
+      "importance": "normal",
+      "sensitivity": "normal",
+      "isAllDay": false,
+      "isCancelled": false,
+      "isOrganizer": true,
+      "showAs": "tentative",
+      "type": "occurrence",
+      "onlineMeetingUrl": null,
+      "isOnlineMeeting": false,
+      "onlineMeeting": null,
+      "seriesMasterId": "AAMkSeries1",
+      "recurrence": null,
+      "body": {
+        "contentType": "text",
+        "content": ""
+      },
+      "start": {
+        "dateTime": "2026-12-07T08:00:00.0000000",
+        "timeZone": "UTC"
+      },
+      "end": {
+        "dateTime": "2026-12-07T08:30:00.0000000",
+        "timeZone": "UTC"
+      },
+      "location": {
+        "displayName": "",
+        "locationType": "default",
+        "uniqueIdType": "unknown",
+        "address": {},
+        "coordinates": {}
+      },
+      "attendees": [],
+      "organizer": {
+        "emailAddress": {
+          "name": "Alex Example",
+          "address": "alex.example@example.test"
+        }
+      }
+    },
+    {
+      "@odata.type": "#microsoft.graph.event",
+      "@odata.etag": "W/\"I10\"",
+      "id": "AAMkSeries1-20261214",
+      "createdDateTime": "2026-09-30T12:00:00.0000000Z",
+      "lastModifiedDateTime": "2026-10-01T12:00:00.0000000Z",
+      "changeKey": "I10",
+      "originalStartTimeZone": "W. Europe Standard Time",
+      "originalEndTimeZone": "W. Europe Standard Time",
+      "iCalUId": "040000008200E00074C5B7101A82E008000000AAMkSeries1-20261214",
+      "reminderMinutesBeforeStart": 15,
+      "isReminderOn": true,
+      "subject": "Team sync",
+      "importance": "normal",
+      "sensitivity": "normal",
+      "isAllDay": false,
+      "isCancelled": false,
+      "isOrganizer": true,
+      "showAs": "tentative",
+      "type": "occurrence",
+      "onlineMeetingUrl": null,
+      "isOnlineMeeting": false,
+      "onlineMeeting": null,
+      "seriesMasterId": "AAMkSeries1",
+      "recurrence": null,
+      "body": {
+        "contentType": "text",
+        "content": ""
+      },
+      "start": {
+        "dateTime": "2026-12-14T08:00:00.0000000",
+        "timeZone": "UTC"
+      },
+      "end": {
+        "dateTime": "2026-12-14T08:30:00.0000000",
+        "timeZone": "UTC"
+      },
+      "location": {
+        "displayName": "",
+        "locationType": "default",
+        "uniqueIdType": "unknown",
+        "address": {},
+        "coordinates": {}
+      },
+      "attendees": [],
+      "organizer": {
+        "emailAddress": {
+          "name": "Alex Example",
+          "address": "alex.example@example.test"
+        }
+      }
+    },
+    {
+      "@odata.type": "#microsoft.graph.event",
+      "@odata.etag": "W/\"I11\"",
+      "id": "AAMkSeries1-20261221",
+      "createdDateTime": "2026-09-30T12:00:00.0000000Z",
+      "lastModifiedDateTime": "2026-10-01T12:00:00.0000000Z",
+      "changeKey": "I11",
+      "originalStartTimeZone": "W. Europe Standard Time",
+      "originalEndTimeZone": "W. Europe Standard Time",
+      "iCalUId": "040000008200E00074C5B7101A82E008000000AAMkSeries1-20261221",
+      "reminderMinutesBeforeStart": 15,
+      "isReminderOn": true,
+      "subject": "Team sync",
+      "importance": "normal",
+      "sensitivity": "normal",
+      "isAllDay": false,
+      "isCancelled": false,
+      "isOrganizer": true,
+      "showAs": "tentative",
+      "type": "occurrence",
+      "onlineMeetingUrl": null,
+      "isOnlineMeeting": false,
+      "onlineMeeting": null,
+      "seriesMasterId": "AAMkSeries1",
+      "recurrence": null,
+      "body": {
+        "contentType": "text",
+        "content": ""
+      },
+      "start": {
+        "dateTime": "2026-12-21T08:00:00.0000000",
+        "timeZone": "UTC"
+      },
+      "end": {
+        "dateTime": "2026-12-21T08:30:00.0000000",
+        "timeZone": "UTC"
+      },
+      "location": {
+        "displayName": "",
+        "locationType": "default",
+        "uniqueIdType": "unknown",
+        "address": {},
+        "coordinates": {}
+      },
+      "attendees": [],
+      "organizer": {
+        "emailAddress": {
+          "name": "Alex Example",
+          "address": "alex.example@example.test"
+        }
+      }
+    },
+    {
+      "@odata.type": "#microsoft.graph.event",
+      "@odata.etag": "W/\"I12\"",
+      "id": "AAMkSeries1-20261228",
+      "createdDateTime": "2026-09-30T12:00:00.0000000Z",
+      "lastModifiedDateTime": "2026-10-01T12:00:00.0000000Z",
+      "changeKey": "I12",
+      "originalStartTimeZone": "W. Europe Standard Time",
+      "originalEndTimeZone": "W. Europe Standard Time",
+      "iCalUId": "040000008200E00074C5B7101A82E008000000AAMkSeries1-20261228",
+      "reminderMinutesBeforeStart": 15,
+      "isReminderOn": true,
+      "subject": "Team sync",
+      "importance": "normal",
+      "sensitivity": "normal",
+      "isAllDay": false,
+      "isCancelled": false,
+      "isOrganizer": true,
+      "showAs": "tentative",
+      "type": "occurrence",
+      "onlineMeetingUrl": null,
+      "isOnlineMeeting": false,
+      "onlineMeeting": null,
+      "seriesMasterId": "AAMkSeries1",
+      "recurrence": null,
+      "body": {
+        "contentType": "text",
+        "content": ""
+      },
+      "start": {
+        "dateTime": "2026-12-28T08:00:00.0000000",
+        "timeZone": "UTC"
+      },
+      "end": {
+        "dateTime": "2026-12-28T08:30:00.0000000",
+        "timeZone": "UTC"
+      },
+      "location": {
+        "displayName": "",
+        "locationType": "default",
+        "uniqueIdType": "unknown",
+        "address": {},
+        "coordinates": {}
+      },
+      "attendees": [],
+      "organizer": {
+        "emailAddress": {
+          "name": "Alex Example",
+          "address": "alex.example@example.test"
+        }
+      }
+    }
+  ]
+}

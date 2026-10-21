@@ -1,0 +1,20 @@
+{
+  "@odata.context": "https://graph.microsoft.com/v1.0/$metadata#users('alex.example%40example.test')/calendars",
+  "value": [
+    {
+      "id": "AAMkCalTeam",
+      "name": "Team",
+      "color": "lightGreen",
+      "hexColor": "#2E8B57",
+      "isDefaultCalendar": false,
+      "changeKey": "fJKVL07sbkmIfHqjbDnRgQAAAAAacw==",
+      "canShare": true,
+      "canViewPrivateItems": true,
+      "canEdit": true,
+      "owner": {
+        "name": "Alex Example",
+        "address": "alex.example@example.test"
+      }
+    }
+  ]
+}

@@ -1,0 +1,11 @@
+{
+  "error": {
+    "code": "ErrorIrresolvableConflict",
+    "message": "The send or update operation could not be performed because the change key passed in the request does not match the current change key for the item.",
+    "innerError": {
+      "date": "2026-10-21T08:00:00",
+      "request-id": "00000000-0000-4000-8000-000000000412",
+      "client-request-id": "00000000-0000-4000-8000-000000000412"
+    }
+  }
+}

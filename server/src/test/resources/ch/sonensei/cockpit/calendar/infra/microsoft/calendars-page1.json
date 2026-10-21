@@ -1,0 +1,36 @@
+{
+  "@odata.context": "https://graph.microsoft.com/v1.0/$metadata#users('alex.example%40example.test')/calendars",
+  "value": [
+    {
+      "id": "AAMkCalPrimary",
+      "name": "Calendar",
+      "color": "auto",
+      "hexColor": "",
+      "isDefaultCalendar": true,
+      "changeKey": "fJKVL07sbkmIfHqjbDnRgQAAAAAacQ==",
+      "canShare": true,
+      "canViewPrivateItems": true,
+      "canEdit": true,
+      "owner": {
+        "name": "Alex Example",
+        "address": "alex.example@example.test"
+      }
+    },
+    {
+      "id": "AAMkCalHolidays",
+      "name": "Swiss holidays",
+      "color": "lightOrange",
+      "hexColor": "#FF8C00",
+      "isDefaultCalendar": false,
+      "changeKey": "fJKVL07sbkmIfHqjbDnRgQAAAAAacg==",
+      "canShare": false,
+      "canViewPrivateItems": true,
+      "canEdit": false,
+      "owner": {
+        "name": "Alex Example",
+        "address": "alex.example@example.test"
+      }
+    }
+  ],
+  "@odata.nextLink": "https://graph.microsoft.com/v1.0/me/calendars?$skip=2"
+}

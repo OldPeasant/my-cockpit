@@ -1,0 +1,13 @@
+{
+  "@odata.context": "https://graph.microsoft.com/v1.0/$metadata#Collection(event)",
+  "@odata.deltaLink": "https://graph.microsoft.com/v1.0/me/calendars/AAMkCalPrimary/calendarView/delta?$deltatoken=DELTA-3",
+  "value": [
+    {
+      "@odata.type": "#microsoft.graph.event",
+      "id": "AAMkSingle2",
+      "@removed": {
+        "reason": "deleted"
+      }
+    }
+  ]
+}
