@@ -1,6 +1,5 @@
 package ch.sonensei.cockpit.mail.list
 
-import androidx.activity.compose.BackHandler
 import androidx.activity.compose.LocalActivity
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -120,7 +119,6 @@ fun MailRoute(
             modifier = modifier,
         )
     } else {
-        BackHandler { open = null }
         MailReadRoute(
             id = current,
             onClose = { open = null },
@@ -201,13 +199,17 @@ private fun Messages(
     clock: Clock,
 ) {
     val loadMore by rememberUpdatedState(callbacks.loadMore)
-    val hasMore by rememberUpdatedState(state.nextCursor != null)
+    // Asks again whenever a page can be loaded while near the end: after a load ends, fails, or finds more mail.
+    val canLoadMore by rememberUpdatedState(state.nextCursor != null && !state.loading && !state.loadingMore)
     LaunchedEffect(listState) {
         snapshotFlow {
             val info = listState.layoutInfo
-            info.totalItemsCount > 0 && (info.visibleItemsInfo.lastOrNull()?.index ?: 0) >= info.totalItemsCount - LOAD_MORE_AHEAD
+            val nearEnd =
+                info.totalItemsCount > 0 &&
+                    (info.visibleItemsInfo.lastOrNull()?.index ?: 0) >= info.totalItemsCount - LOAD_MORE_AHEAD
+            nearEnd && canLoadMore
         }.distinctUntilChanged()
-            .collect { nearEnd -> if (nearEnd && hasMore) loadMore() }
+            .collect { load -> if (load) loadMore() }
     }
     val today = LocalDate.now(clock)
     LazyColumn(Modifier.fillMaxSize().testTag(MailListTags.LIST), state = listState) {

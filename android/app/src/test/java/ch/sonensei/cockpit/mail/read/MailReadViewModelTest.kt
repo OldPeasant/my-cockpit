@@ -262,4 +262,85 @@ class MailReadViewModelTest {
             assertFalse(vm.uiState.value.removed)
             assertFalse(vm.uiState.value.busy)
         }
+
+    @Test
+    fun `a mail closed and opened again is loaded again with its current state`() =
+        runTest(dispatcher) {
+            coEvery { mail.act(id(1), MailListAction.ARCHIVE) } returns MailResult.Ok(false)
+            val vm = opened(MailResult.Ok(message(seen = true)))
+            advanceUntilIdle()
+            vm.act(MailListAction.ARCHIVE)
+            advanceUntilIdle()
+
+            vm.close()
+            assertEquals(MailReadUiState(), vm.uiState.value)
+
+            coEvery { reader.message(id(1)) } returns MailResult.Ok(message(seen = true).copy(subject = "Quarterly report v2"))
+            vm.open(id(1))
+            advanceUntilIdle()
+
+            coVerify(exactly = 2) { reader.message(id(1)) }
+            assertEquals(
+                "Quarterly report v2",
+                vm.uiState.value.message
+                    ?.subject,
+            )
+            assertNull(vm.uiState.value.notice)
+        }
+
+    @Test
+    fun `opening another mail drops the one shown before`() =
+        runTest(dispatcher) {
+            val vm = opened()
+            advanceUntilIdle()
+            val second = CompletableDeferred<MailResult<MailMessage>>()
+            coEvery { reader.message(id(2)) } coAnswers { second.await() }
+
+            vm.open(id(2))
+            assertNull(vm.uiState.value.message)
+            assertTrue(vm.uiState.value.loading)
+
+            second.complete(MailResult.Ok(message(n = 2)))
+            advanceUntilIdle()
+            assertEquals(
+                id(2),
+                vm.uiState.value.message
+                    ?.id,
+            )
+        }
+
+    @Test
+    fun `answers for a mail already closed are dropped`() =
+        runTest(dispatcher) {
+            val load = CompletableDeferred<MailResult<MailMessage>>()
+            coEvery { reader.message(id(1)) } coAnswers { load.await() }
+            val vm = MailReadViewModel(reader, mail).also { it.open(id(1)) }
+            advanceUntilIdle()
+            vm.close()
+            load.complete(MailResult.Ok(message()))
+            advanceUntilIdle()
+            assertEquals(MailReadUiState(), vm.uiState.value)
+
+            // An archive that ends after the view closed does not close the next mail opened.
+            val archived = CompletableDeferred<MailResult<Boolean>>()
+            coEvery { mail.act(id(1), MailListAction.ARCHIVE) } coAnswers { archived.await() }
+            coEvery { reader.message(id(1)) } returns MailResult.Ok(message())
+            coEvery { reader.message(id(2)) } returns MailResult.Ok(message(n = 2))
+            vm.open(id(1))
+            advanceUntilIdle()
+            vm.act(MailListAction.ARCHIVE)
+            advanceUntilIdle()
+            vm.close()
+            vm.open(id(2))
+            archived.complete(MailResult.Ok(true))
+            advanceUntilIdle()
+
+            assertEquals(
+                id(2),
+                vm.uiState.value.message
+                    ?.id,
+            )
+            assertFalse(vm.uiState.value.removed)
+            assertFalse(vm.uiState.value.busy)
+        }
 }

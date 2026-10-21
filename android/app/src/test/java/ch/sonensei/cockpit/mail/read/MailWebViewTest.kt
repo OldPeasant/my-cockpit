@@ -51,18 +51,32 @@ class MailWebViewTest {
         assertTrue(doc.contains("<body><p>Hello</p></body>"))
     }
 
-    private fun request(url: String) =
-        object : WebResourceRequest {
-            override fun getUrl(): Uri = Uri.parse(url)
+    @Test
+    fun `links the page follows by itself or in a frame are dropped`() {
+        val client = view.webViewClient
+        val url = "https://example.org/track"
+        assertTrue(client.shouldOverrideUrlLoading(view, request(url, gesture = false)))
+        assertTrue(client.shouldOverrideUrlLoading(view, request(url, mainFrame = false)))
+        assertTrue(client.shouldOverrideUrlLoading(view, request("mailto:anna@example.org", gesture = false, mainFrame = false)))
 
-            override fun isForMainFrame() = true
+        assertEquals(emptyList<Uri>(), opened)
+    }
 
-            override fun isRedirect() = false
+    private fun request(
+        url: String,
+        gesture: Boolean = true,
+        mainFrame: Boolean = true,
+    ) = object : WebResourceRequest {
+        override fun getUrl(): Uri = Uri.parse(url)
 
-            override fun hasGesture() = true
+        override fun isForMainFrame() = mainFrame
 
-            override fun getMethod() = "GET"
+        override fun isRedirect() = false
 
-            override fun getRequestHeaders(): Map<String, String> = emptyMap()
-        }
+        override fun hasGesture() = gesture
+
+        override fun getMethod() = "GET"
+
+        override fun getRequestHeaders(): Map<String, String> = emptyMap()
+    }
 }

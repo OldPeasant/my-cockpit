@@ -2,6 +2,7 @@ package ch.sonensei.cockpit.mail.list
 
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.isSelectable
@@ -141,6 +142,26 @@ class MailRouteInAppTest {
         scenario!!.onActivity { it.onBackPressedDispatcher.onBackPressed() }
         waitFor(MailListTags.row(id(2)))
         composeRule.onNodeWithTag(MailReadTags.SUBJECT).assertDoesNotExist()
+    }
+
+    @Test
+    fun `a mail opened again after closing it is loaded again, another mail shows its own content`() {
+        openMail()
+        composeRule.onNodeWithTag(MailListTags.row(id(1))).performClick()
+        waitFor(MailReadTags.TEXT)
+        composeRule.onNodeWithTag(MailReadTags.BACK).performClick()
+        waitFor(MailListTags.row(id(2)))
+
+        composeRule.onNodeWithTag(MailListTags.row(id(2))).performClick()
+        waitFor(MailReadTags.TEXT)
+        composeRule.onNodeWithTag(MailReadTags.SUBJECT).assertTextEquals("Subject 2")
+        scenario!!.onActivity { it.onBackPressedDispatcher.onBackPressed() }
+        waitFor(MailListTags.row(id(1)))
+
+        composeRule.onNodeWithTag(MailListTags.row(id(1))).performClick()
+        waitFor(MailReadTags.TEXT)
+        composeRule.onNodeWithTag(MailReadTags.SUBJECT).assertTextEquals("Subject 1")
+        coVerify(exactly = 2) { reader.message(id(1)) }
     }
 
     @Test

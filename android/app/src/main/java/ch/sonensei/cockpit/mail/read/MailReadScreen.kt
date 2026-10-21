@@ -1,5 +1,6 @@
 package ch.sonensei.cockpit.mail.read
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
@@ -58,22 +59,28 @@ fun MailReadRoute(
     modifier: Modifier = Modifier,
     onSeen: (UUID) -> Unit = {},
     onRemoved: (UUID) -> Unit = {},
-    viewModel: MailReadViewModel = hiltViewModel(key = "mail-read:$id"),
+    viewModel: MailReadViewModel = hiltViewModel(),
 ) {
+    // One view model for all mails (cleared with the Mail screen); it drops the mail when the view closes.
     LaunchedEffect(viewModel, id) { viewModel.open(id) }
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val close = {
+        viewModel.close()
+        onClose()
+    }
+    BackHandler(onBack = close)
     LaunchedEffect(state.message?.id) { if (state.message != null) onSeen(id) }
     LaunchedEffect(state.removed) {
         if (state.removed) {
             onRemoved(id)
-            onClose()
+            close()
         }
     }
     MailReadContent(
         state = state,
         callbacks =
             MailReadCallbacks(
-                back = onClose,
+                back = close,
                 retry = viewModel::retry,
                 gtd = viewModel::gtd,
                 act = viewModel::act,

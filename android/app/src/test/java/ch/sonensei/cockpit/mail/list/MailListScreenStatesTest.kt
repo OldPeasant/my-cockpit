@@ -1,5 +1,6 @@
 package ch.sonensei.cockpit.mail.list
 
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
@@ -78,6 +79,39 @@ class MailListScreenStatesTest {
         show(MailListUiState(accounts = listOf(MailAccountFolders(work, emptyList())), messages = (1..3).map { mail(it) }, loaded = true))
         composeRule.waitForIdle()
         assertTrue(calls.isEmpty())
+    }
+
+    @Test
+    fun `near the end the next page is asked for again once a load ends`() {
+        val shown =
+            mutableStateOf(
+                MailListUiState(
+                    accounts = listOf(MailAccountFolders(work, emptyList())),
+                    messages = (1..3).map { mail(it) },
+                    nextCursor = "c1",
+                    loaded = true,
+                    loading = true,
+                ),
+            )
+        composeRule.setContent {
+            CockpitTheme {
+                MailListContent(shown.value, MailListCallbacks(loadMore = { calls += "more" }), clock = clock)
+            }
+        }
+        composeRule.waitForIdle()
+        assertTrue(calls.isEmpty())
+
+        // The refresh ends: still near the end, so the next page is asked for without scrolling.
+        shown.value = shown.value.copy(loading = false)
+        composeRule.waitForIdle()
+        assertEquals(listOf("more"), calls)
+
+        // That page failed and kept its cursor: the next attempt follows when it ends.
+        shown.value = shown.value.copy(loadingMore = true)
+        composeRule.waitForIdle()
+        shown.value = shown.value.copy(loadingMore = false)
+        composeRule.waitForIdle()
+        assertEquals(listOf("more", "more"), calls)
     }
 
     @Test

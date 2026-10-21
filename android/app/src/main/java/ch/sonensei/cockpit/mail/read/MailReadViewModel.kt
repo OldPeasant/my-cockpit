@@ -57,19 +57,42 @@ class MailReadViewModel
 
         private var id: UUID? = null
 
-        /** Loads [messageId] (once; again with [retry]). */
+        /** Counts the openings: answers for an earlier one are dropped. */
+        private var session = 0
+
+        /**
+         * Shows [messageId], loaded once while it stays open (again with [retry]); a mail shown before is dropped. One
+         * view model serves every mail of the list, so a closed mail does not stay in memory.
+         */
         fun open(messageId: UUID) {
             if (id == messageId) return
-            id = messageId
+            reset(messageId)
             load()
+        }
+
+        /** The read view closed: drops the mail, so opening it again loads its current state. */
+        fun close() = reset(null)
+
+        private fun reset(messageId: UUID?) {
+            id = messageId
+            session++
+            state.value = MailReadUiState()
+        }
+
+        /** Applies [change] unless the mail it belongs to was closed or another one opened meanwhile. */
+        private fun updateFor(
+            opened: Int,
+            change: (MailReadUiState) -> MailReadUiState,
+        ) {
+            if (opened == session) state.update(change)
         }
 
         fun retry() = load()
 
         fun gtd(action: MailGtdAction) =
-            run { messageId ->
+            run { messageId, opened ->
                 val result = reader.gtd(messageId, action)
-                state.update {
+                updateFor(opened) {
                     it.copy(
                         notice =
                             if (result is MailResult.Ok) {
@@ -85,34 +108,36 @@ class MailReadViewModel
             }
 
         fun act(action: MailListAction) =
-            run { messageId ->
+            run { messageId, opened ->
                 val done = (mail.act(messageId, action) as? MailResult.Ok)?.value == true
-                state.update { if (done) it.copy(removed = true) else it.copy(notice = MailReadNotice.ActionFailed(action)) }
+                updateFor(opened) { if (done) it.copy(removed = true) else it.copy(notice = MailReadNotice.ActionFailed(action)) }
             }
 
-        private fun run(block: suspend (UUID) -> Unit) {
+        private fun run(block: suspend (messageId: UUID, opened: Int) -> Unit) {
             val messageId = state.value.message?.id ?: return
             if (state.value.busy) return
+            val opened = session
             state.update { it.copy(busy = true, notice = null) }
             viewModelScope.launch {
-                block(messageId)
-                state.update { it.copy(busy = false) }
+                block(messageId, opened)
+                updateFor(opened) { it.copy(busy = false) }
             }
         }
 
         private fun load() {
             val messageId = id ?: return
+            val opened = session
             state.update { it.copy(loading = true, error = null) }
             viewModelScope.launch {
                 when (val result = reader.message(messageId)) {
                     is MailResult.Ok -> {
-                        state.update { it.copy(message = result.value, loading = false) }
+                        updateFor(opened) { it.copy(message = result.value, loading = false) }
                         // Read state is the mail server's: a failure shows on the next load.
                         if (!result.value.seen) mail.markRead(result.value.id)
                     }
-                    MailResult.Offline -> state.update { it.copy(loading = false, error = MailReadError.OFFLINE) }
+                    MailResult.Offline -> updateFor(opened) { it.copy(loading = false, error = MailReadError.OFFLINE) }
                     is MailResult.Failed ->
-                        state.update {
+                        updateFor(opened) {
                             it.copy(loading = false, error = if (result.status == NOT_FOUND) MailReadError.GONE else MailReadError.FAILED)
                         }
                 }

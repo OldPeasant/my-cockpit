@@ -38,7 +38,10 @@ fun WebSettings.lockDownForMail() {
     displayZoomControls = false
 }
 
-/** Links are never followed inside the view: web and mail links go to [onLink] (another app), the rest is dropped. */
+/**
+ * Links are never followed inside the view: web and mail links the user tapped in the page go to [onLink] (another
+ * app); the rest, including navigations the page starts by itself or in a frame, is dropped.
+ */
 class MailWebViewClient(
     private val onLink: (Uri) -> Unit,
 ) : WebViewClient() {
@@ -47,7 +50,7 @@ class MailWebViewClient(
         request: WebResourceRequest,
     ): Boolean {
         val url = request.url
-        if (url.scheme?.lowercase() in EXTERNAL_SCHEMES) onLink(url)
+        if (request.hasGesture() && request.isForMainFrame && url.scheme?.lowercase() in EXTERNAL_SCHEMES) onLink(url)
         return true
     }
 

@@ -253,4 +253,81 @@ class MailListViewModelEdgeCasesTest {
             assertEquals(MailListMessage.DELETE_FAILED, vm.uiState.value.message)
             assertEquals(listOf(id(9)), ids(vm))
         }
+
+    @Test
+    fun `an archived mail stays gone even when a reload that started before brought it back`() =
+        runTest(dispatcher) {
+            val answer = CompletableDeferred<MailResult<Boolean>>()
+            coEvery { repo.act(id(2), MailListAction.ARCHIVE) } coAnswers { answer.await() }
+            val vm = MailListViewModel(repo)
+            vm.refresh()
+            advanceUntilIdle()
+
+            vm.act(id(2), MailListAction.ARCHIVE)
+            advanceUntilIdle()
+            // A refresh answered by the server before it moved the mail.
+            vm.refresh()
+            advanceUntilIdle()
+            assertEquals(listOf(1, 2, 3).map(::id), ids(vm))
+
+            answer.complete(MailResult.Ok(true))
+            advanceUntilIdle()
+            assertEquals(listOf(1, 3).map(::id), ids(vm))
+        }
+
+    @Test
+    fun `a refresh keeps the pages loaded behind the first one and their cursor`() =
+        runTest(dispatcher) {
+            coEvery { repo.messages(Mailbox.Unified, "c1") } returns MailResult.Ok(MailPage(listOf(mail(4), mail(5)), "c2"))
+            val vm = MailListViewModel(repo)
+            vm.refresh()
+            advanceUntilIdle()
+            vm.loadMore()
+            advanceUntilIdle()
+
+            // New mail arrived, mail 2 left the server.
+            coEvery { repo.messages(Mailbox.Unified, null) } returns MailResult.Ok(MailPage(listOf(mail(6), mail(1), mail(3)), "c1b"))
+            vm.refresh()
+            advanceUntilIdle()
+
+            assertEquals(listOf(6, 1, 3, 4, 5).map(::id), ids(vm))
+            assertEquals("c2", vm.uiState.value.nextCursor)
+        }
+
+    @Test
+    fun `a refresh whose first page does not reach the loaded mails replaces them`() =
+        runTest(dispatcher) {
+            coEvery { repo.messages(Mailbox.Unified, "c1") } returns MailResult.Ok(MailPage(listOf(mail(4)), "c2"))
+            val vm = MailListViewModel(repo)
+            vm.refresh()
+            advanceUntilIdle()
+            vm.loadMore()
+            advanceUntilIdle()
+
+            // So much new mail that the first page ends before the loaded ones: no gap is left in the list.
+            coEvery { repo.messages(Mailbox.Unified, null) } returns MailResult.Ok(MailPage(listOf(mail(7), mail(8)), "c9"))
+            vm.refresh()
+            advanceUntilIdle()
+
+            assertEquals(listOf(7, 8).map(::id), ids(vm))
+            assertEquals("c9", vm.uiState.value.nextCursor)
+        }
+
+    @Test
+    fun `a refresh that reaches the end replaces the list`() =
+        runTest(dispatcher) {
+            coEvery { repo.messages(Mailbox.Unified, "c1") } returns MailResult.Ok(MailPage(listOf(mail(4)), null))
+            val vm = MailListViewModel(repo)
+            vm.refresh()
+            advanceUntilIdle()
+            vm.loadMore()
+            advanceUntilIdle()
+
+            coEvery { repo.messages(Mailbox.Unified, null) } returns MailResult.Ok(MailPage(listOf(mail(1), mail(3)), null))
+            vm.refresh()
+            advanceUntilIdle()
+
+            assertEquals(listOf(1, 3).map(::id), ids(vm))
+            assertNull(vm.uiState.value.nextCursor)
+        }
 }

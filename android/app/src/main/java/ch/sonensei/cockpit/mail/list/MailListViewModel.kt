@@ -106,13 +106,18 @@ class MailListViewModel
             if (index < 0) return
             if (action == MailListAction.ARCHIVE && !state.value.canArchive) return
             val mail = state.value.messages[index]
+            val mailbox = state.value.mailbox
             state.update { s -> s.copy(messages = s.messages.filterNot { it.id == id }) }
             viewModelScope.launch {
                 val done = (repository.act(id, action) as? MailResult.Ok)?.value == true
-                if (!done) {
+                if (done) {
+                    // A reload that overtook the call may have brought the mail back.
+                    state.update { s -> s.copy(messages = s.messages.filterNot { it.id == id }) }
+                } else {
                     state.update { s ->
                         val messages =
-                            if (s.messages.any { it.id == id }) {
+                            // Another mailbox shown meanwhile never gets the mail; a reload of this one may have it already.
+                            if (s.mailbox != mailbox || s.messages.any { it.id == id }) {
                                 s.messages
                             } else {
                                 s.messages.toMutableList().apply {
@@ -155,18 +160,39 @@ class MailListViewModel
                     state.update { current ->
                         val withAccounts = (accounts as? MailResult.Ok)?.let { current.copy(accounts = it.value) } ?: current
                         when (result) {
-                            is MailResult.Ok ->
+                            is MailResult.Ok -> {
+                                val (messages, cursor) = mergeFirstPage(current, mailbox, result.value)
                                 withAccounts.copy(
-                                    messages = result.value.items,
-                                    nextCursor = result.value.nextCursor,
+                                    messages = messages,
+                                    nextCursor = cursor,
                                     loading = false,
                                     loaded = true,
                                     message = null,
                                 )
+                            }
                             MailResult.Offline -> withAccounts.copy(loading = false, message = MailListMessage.OFFLINE)
                             is MailResult.Failed -> withAccounts.copy(loading = false, message = MailListMessage.FAILED)
                         }
                     }
                 }
+        }
+
+        /**
+         * The mails and cursor after [page], the newest mails of [mailbox]. Reloading the mailbox shown keeps the pages
+         * already loaded behind it (from the page's last mail on), so a refresh does not lose the scroll position.
+         */
+        private fun mergeFirstPage(
+            current: MailListUiState,
+            mailbox: Mailbox,
+            page: MailPage,
+        ): Pair<List<MailSummary>, String?> {
+            val last = page.items.lastOrNull()
+            val at = last?.let { l -> current.messages.indexOfFirst { it.id == l.id } } ?: -1
+            if (current.mailbox != mailbox || !current.loaded || page.nextCursor == null || at < 0) {
+                return page.items to page.nextCursor
+            }
+            val ids = page.items.mapTo(HashSet()) { it.id }
+            val older = current.messages.drop(at + 1).filterNot { it.id in ids }
+            return if (older.isEmpty()) page.items to page.nextCursor else (page.items + older) to current.nextCursor
         }
     }
