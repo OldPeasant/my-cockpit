@@ -5,7 +5,7 @@ owner: dell26/agent-1
 deps: [web-next-today,web-cal-views]
 touches: [web/src/app/features/gtd/today]
 prio: 2
-lease_until: 2026-10-21T11:36:25Z
+lease_until: 2026-10-21T11:41:28Z
 ---
 ## Goal
 Today shows today's events (SPEC.md §5.3).
