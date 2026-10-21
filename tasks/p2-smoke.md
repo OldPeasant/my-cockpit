@@ -17,3 +17,4 @@ Automate SPEC.md §13.2 Phase 2, including wipe + restore into a fresh stack.
 
 ## Notes
 - ASSUMPTION (2026-10-21 09:48+0200 by dell26/agent-2): Fresh install for step 5 = a second server + Postgres (server-fresh/postgres-fresh) in deploy/docker-compose.e2e.yml, started with the stack and used only by phase2; run-e2e.mjs (outside touches, small edit) waits for it and passes E2E_FRESH_BASE_URL. Step 5 is skipped when that variable is missing (E2E_BASE_URL runs without it).
+- ASSUMPTION (2026-10-21 09:48+0200 by dell26/agent-2): Restore on the fresh install goes through the web UI (Settings > Backup & restore) after a throwaway setup account, since the restore API needs a session; the CLI --restore path is not exercised here.
