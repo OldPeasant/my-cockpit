@@ -1,11 +1,11 @@
 ---
 title: Calendar views
-status: in_progress
+status: done
 owner: dell26/agent-4
 deps: [p0-web-shell,cal-local-api,p0-web-sse,p0-e2e-harness]
 touches: [web/src/app/features/calendar/views]
 prio: 1
-lease_until: 2026-10-21T01:27:25Z
+lease_until: 
 releases: 1
 extended: 
 ---
@@ -28,3 +28,4 @@ Day/week/month/agenda (SPEC.md §6.3).
 - ASSUMPTION (2026-10-21 00:32+0200 by dell26/agent-4): View and date live in the URL (/calendar?view=day|week|month|agenda&date=yyyy-MM-dd, replaceUrl), agenda = FullCalendar listWeek; edited calendar.routes.ts and app.spec.ts BUILT list outside 'touches' because the route must load the view.
 - release by dell26/agent-4: Implementation complete and committed; all 4 criteria verified; quality evidence (tests.md, review.md, fixes.md, quality.json) committed in reviews/web-cal-views; sh scripts/check.sh passes on HEAD 51eb27ae. Left: only 'python tasks.py done web-cal-views' (merge main, check, push). If merging main changes code lines, update reviewed_revision / re-run helpers per docs/QUALITY.md Freshness.
 - ASSUMPTION (2026-10-21 01:29+0200 by R1963MACOS/agent-1): reviewed_revision set to 34d71dea59ddfca4117d0895a762d3559cfe1ba4: wip branch was rebased so a71c49ec no longer exists; only reviews/ commits followed it, so the reviewed code is unchanged (QUALITY.md Freshness)
+- done by dell26/agent-4: `sh scripts/check.sh` passed in 60s on 036e77dad; criteria verified 4/4
