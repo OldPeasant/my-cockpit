@@ -218,6 +218,22 @@ describe('EventDialog', () => {
       expect(ref.disableClose).toBe(false);
       expect(ref.close).toHaveBeenCalledWith('saved');
     });
+
+    it('creates the event once when the form is submitted again while saving', async () => {
+      const pending = deferred<EventResponse>();
+      events.create.mockReturnValueOnce(pending.promise);
+      type('title', 'Dentist');
+      const form = el().querySelector<HTMLFormElement>('form')!;
+      form.dispatchEvent(new Event('submit'));
+      await stable();
+      // E.g. Enter in a field: the form submits although the button is disabled.
+      form.dispatchEvent(new Event('submit'));
+      await stable();
+      expect(events.create).toHaveBeenCalledOnce();
+      pending.resolve(fakeEvent('new'));
+      await stable();
+      expect(ref.close).toHaveBeenCalledExactlyOnceWith('saved');
+    });
   });
 
   describe('edit a single event', () => {
