@@ -17,7 +17,8 @@ extended:
   - verified (2026-10-21 06:21+0200 by dell26/agent-1): cd server && ./gradlew test --tests 'ch.sonensei.cockpit.gtd.convert.*' (Postgres Testcontainers) -> TaskToNoteWebTests 8/8 (201 + note with title/notes body, links copied, task trashed), TaskToNoteRollbackTests 1/1 (failure after note insert rolls back: no note, task not deleted), EdgeCase 17/17
 - [x] `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.gtd.convert.*'` passes (Postgres via Testcontainers where persistence is involved)
   - verified (2026-10-21 06:21+0200 by dell26/agent-1): cd server && ./gradlew test --tests 'ch.sonensei.cockpit.gtd.convert.*' -> 26 tests, 0 failures, 0 errors (Testcontainers Postgres via PostgresTestBase)
-- [ ] API documented: `api/openapi.yaml` regenerated (`UPDATE_OPENAPI=1 ./gradlew test --tests '*OpenApiContractTest'`) and `OpenApiContractTest` passes without the flag
+- [x] API documented: `api/openapi.yaml` regenerated (`UPDATE_OPENAPI=1 ./gradlew test --tests '*OpenApiContractTest'`) and `OpenApiContractTest` passes without the flag
+  - verified (2026-10-21 06:21+0200 by dell26/agent-1): UPDATE_OPENAPI=1 ./gradlew test --tests '*OpenApiContractTest' -> no diff to api/openapi.yaml (contains /api/v1/tasks/{id}/convert-to-note); then without flag -> OpenApiContractTest 1/1 passed
 
 ## Notes
 - ASSUMPTION (2026-10-21 05:14+0200 by dell26/agent-5): Convert soft-deletes the task (Trash) rather than hard-deleting it, so it can be restored; the task keeps its own links in the Trash.
