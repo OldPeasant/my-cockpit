@@ -11,7 +11,8 @@ lease_until: 2026-10-21T14:55:47Z
 'To calendar' in inbox processing (SPEC.md §5.3).
 
 ## Acceptance criteria
-- [ ] `POST /api/v1/tasks/{id}/convert-to-event {calendarId, start, end|allDay}` creates the event, keeps links, deletes the task
+- [x] `POST /api/v1/tasks/{id}/convert-to-event {calendarId, start, end|allDay}` creates the event, keeps links, deletes the task
+  - verified (2026-10-21 16:36+0200 by dell26/agent-1): ./gradlew test --tests 'ch.sonensei.cockpit.gtd.convert.*' (Testcontainers Postgres) -> TaskToEventWebTests 9/9 + TaskToEventEdgeCaseTests 22/22 + RollbackTests 1/1 pass: POST /api/v1/tasks/{id}/convert-to-event creates event (201, Location), copies links, trashes task; JaCoCo service 29/29 lines
 - [ ] `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.gtd.convert.*'` passes (Postgres via Testcontainers where persistence is involved)
 - [ ] API documented: `api/openapi.yaml` regenerated (`UPDATE_OPENAPI=1 ./gradlew test --tests '*OpenApiContractTest'`) and `OpenApiContractTest` passes without the flag
 
