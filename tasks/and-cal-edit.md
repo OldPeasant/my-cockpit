@@ -16,3 +16,4 @@ Create and edit events on the phone.
 
 ## Notes
 - ASSUMPTION (2026-10-21 17:39+0200 by dell26/agent-1): Entry points: a FAB on the Calendar screen creates an event (on the day the day view shows, else today; today from the next full hour, other days 09:00, 1h), tapping an occurrence edits it. Wiring needed a one-line change in calendar/agenda/CalendarScreen.kt (CalendarRoute -> CalendarWithEditor) and a new res/values/strings_calendar_edit.xml, both outside the task's touches
+- ASSUMPTION (2026-10-21 17:39+0200 by dell26/agent-1): Mirrors web-cal-edit: repeat presets none/daily/weekly/monthly/yearly (FREQ=X), an existing rule they can't express is kept as 'Custom (rule)'; a new repeat rule offers only FOLLOWING/ALL; 409 and 412 both show 'changed elsewhere' with Reload (which drops the unsaved edits); only changed fields are PATCHed
