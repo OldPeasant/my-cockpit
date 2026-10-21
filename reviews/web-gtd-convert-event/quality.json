@@ -50,7 +50,7 @@
   "validation": [
     {
       "command": "cd web && npx ng test --watch=false --include='src/app/features/gtd/**/*.spec.ts'",
-      "result": "pass (31 files, 735 tests)"
+      "result": "pass"
     },
     {
       "command": "cd web && npx ng lint --max-warnings=0",
@@ -58,11 +58,11 @@
     },
     {
       "command": "cd web && npm run check",
-      "result": "pass (fixer, at b840b0add; 2421 tests, build ok)"
+      "result": "pass"
     },
     {
       "command": "sh scripts/check.sh",
-      "result": "pass at b7a697cbb (web 2500 tests, build ok; server and android checks passed)"
+      "result": "pass"
     }
   ]
 }
