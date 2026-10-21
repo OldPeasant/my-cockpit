@@ -15,3 +15,4 @@ CalDAV sources (SPEC.md §6.2).
 - [ ] `external`-tagged tests against a Radicale Testcontainer: create in cockpit → on server; change on server → in cockpit after sync; conflict (`./gradlew integrationTest --tests '*CalDav*'`)
 
 ## Notes
+- ASSUMPTION (2026-10-21 15:24+0200 by dell26/agent-2): CalDAV source config is {"url": ..., "username": ...}, password in CalendarSource.credentials; Basic auth only, sent only to the URL's origin (redirects to other hosts refused). No SSRF block on private addresses: self-hosted CalDAV on the LAN is a normal use case.
