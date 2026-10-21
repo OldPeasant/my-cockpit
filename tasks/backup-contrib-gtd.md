@@ -16,3 +16,4 @@ GTD data in backups, with readable Markdown (SPEC.md §10.2).
 - [ ] Round-trip test (`./gradlew test --tests '*BackupRoundTripTest'`) passes with this module's `BackupFixture` seeding tasks in every list, recurring tasks, projects with next steps, areas, contexts
 
 ## Notes
+- ASSUMPTION (2026-10-21 07:23+0200 by dell26/agent-5): Readable GTD mirrors exclude the Trash; SCHEDULED tasks go into a 'Scheduled' section of tasks/next.md (SPEC lists no scheduled.md); tickler tasks stay in their list with 'Hidden until'; logbook = all done tasks newest first; projects without area go to readable/projects/No area/; area/project titles become file names with path separators and control chars replaced, case-insensitive clashes numbered ' (2)'.
