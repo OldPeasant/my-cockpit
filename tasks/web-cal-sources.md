@@ -1,11 +1,11 @@
 ---
 title: Settings: calendars and integrations
-status: in_progress
+status: done
 owner: dell26/agent-2
 deps: [p0-web-settings,cal-caldav,cal-ics,cal-google,cal-microsoft]
 touches: [web/src/app/features/settings/calendars,web/src/app/features/settings/integrations]
 prio: 2
-lease_until: 2026-10-21T19:43:09Z
+lease_until: 
 extended: 
 releases: 1
 ---
@@ -27,3 +27,4 @@ Connect calendar sources (SPEC.md §6.1, §11).
 - ASSUMPTION (2026-10-21 20:02+0200 by dell26/agent-2): Reconnect of an OAuth account does not create a calendar source: the server stores no connection purpose, so the web remembers the reconnected connection id in sessionStorage and skips source creation on its return (if sessionStorage is blocked, a source is created as before)
 - extended by dell26/agent-2: Implementation + fixes CR-1..CR-6 committed; re-review (review.md) has 1 P3 (late PATCH merge ignores version, calendars-settings.ts:284). npm run check passes. Left: decide/fix P3, run test-writer on final code (tests.md missing) and code-reviewer again if code changes, tasks.py verify 1-3, write quality.json, done.
 - release by dell26/agent-2: Implementation complete and committed (server POST /api/v1/calendar/sources + web settings/calendars and settings/integrations, review fixes CR-1..CR-6 and re-review P3 fixed in 29cf28bc, extra tests in e58583b0). npm --prefix web run check passes (125 files / 2496 tests). Left (quality gate only): 1) run test-writer on final code -> reviews/web-cal-sources/tests.md (missing; include task coverage); 2) re-run code-reviewer on final code (review.md predates 29cf28bc/e58583b0); fixer only if new findings; 3) tasks.py verify 1-3; 4) write+commit quality.json; 5) done. Note: full scripts/check.sh failed once on IcsFeedClientTests 'a feed of exactly the maximum size...' (IOException instead of 'larger than'), passes when rerun alone -> flaky cal-ics test, not this task; also check.sh took 5.5 min (>2 min warning).
+- done by dell26/agent-2: `sh scripts/check.sh` passed in 91s on a3d4d1ea3; criteria verified 3/3
