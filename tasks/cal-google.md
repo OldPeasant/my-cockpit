@@ -17,7 +17,8 @@ Two-way Google sync (SPEC.md §6.2).
   - verified (2026-10-21 13:22+0200 by dell26/agent-4): cd server && ./gradlew test --tests 'ch.sonensei.cockpit.calendar.infra.google.*' --rerun-tasks -> GoogleCalendarAdapterTests 35/35 (listCalendars paging, syncToken incremental fetch, 410 -> full listing, insert/patch/delete with If-Match, instance patches of exceptions), GoogleCalendarSyncTests 5/5 incl. 'this and following' split end to end against Postgres+WireMock
 - [x] Tests against WireMock recordings of the Google API (incl. 410 and 412)
   - verified (2026-10-21 13:22+0200 by dell26/agent-4): same run: tests replay WireMock recordings under src/test/resources (incl. error-410-full-sync-required.json, error-412-condition-not-met.json); 410 and 412 tests pass (412 -> 409 in GoogleCalendarSyncTests)
-- [ ] `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.calendar.infra.google.*'` passes (Postgres via Testcontainers where persistence is involved)
+- [x] `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.calendar.infra.google.*'` passes (Postgres via Testcontainers where persistence is involved)
+  - verified (2026-10-21 13:22+0200 by dell26/agent-4): cd server && ./gradlew test --tests 'ch.sonensei.cockpit.calendar.infra.google.*' --rerun-tasks at cc5e7a7d -> BUILD SUCCESSFUL, 59 tests, 0 failures, 0 skipped (5 sync tests on Postgres via Testcontainers)
 
 ## Notes
 - release by R1963MACOS/agent-1: handed off by R1963MACOS/agent-1: You've hit your weekly limit · resets Oct 24 at 8am (Europe/Zurich)
