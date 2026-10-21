@@ -15,7 +15,8 @@ Offline-first capture (SPEC.md §9.3).
 ## Acceptance criteria
 - [x] Room `pending_capture` (UUIDv7 id, text, notes, attachment copies in app storage, createdAt); capture always writes locally first
   - verified (2026-10-21 02:50+0200 by dell26/agent-4): cd android && ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.capture.queue.*' --rerun-tasks -> 63/63 passed; CaptureQueueTest/CaptureQueueContractTest/AttachmentStoreTest cover Room pending_capture row (UUIDv7 id, text, notes, createdAt) + copies under files/capture_queue/<id> written before any network call (offline write)
-- [ ] WorkManager job (network constraint) uploads attachments then calls `/capture` with the id; retries with backoff; duplicate id → treated as success
+- [x] WorkManager job (network constraint) uploads attachments then calls `/capture` with the id; retries with backoff; duplicate id → treated as success
+  - verified (2026-10-21 02:50+0200 by dell26/agent-4): same run -> CaptureUploaderTest/CaptureUploaderFailureTest/CaptureSyncTest (MockWebServer, WorkManager test driver): attachments uploaded in order before POST /capture with the client id, network constraint + exponential backoff, retry/backoff on 5xx/IO, 200 for repeated id and 409 treated as sent, no re-upload of stored file ids
 - [ ] Pending count + last error exposed as a Flow
 - [ ] `cd android && ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.capture.queue.*'` passes, covering offline write, upload ordering, idempotent retry (MockWebServer), attachment cleanup (Robolectric/Compose UI tests for screens)
 
