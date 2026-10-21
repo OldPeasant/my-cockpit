@@ -4,6 +4,78 @@ Date: 2026-10-21
 
 Task: cal-microsoft - Microsoft Graph calendar adapter
 
+Scope: round 3. Committed changes of task cal-microsoft, `git diff $(git merge-base HEAD origin/main)..HEAD` = `git diff bf0bb627..7fe28108`. This covers the adapter, Graph client, mapping, recurrence and Windows zones under `server/src/main/kotlin/ch/sonensei/cockpit/calendar/infra/microsoft`, their tests and WireMock recordings, and the review artifacts. The focus is the round-2 fixes for the second review (commit 66e6bcf6: `RestoredEtags`, an empty diff succeeds whatever the etag, `instancesOrNull` for a 404 from `/instances`) and the round-3 tests (7fe28108). There were no uncommitted changes when the review started.
+
+Requirements:
+- tasks/cal-microsoft.md acceptance criteria 1-3 and its recorded assumptions, including the one from 2026-10-21 14:24 (an empty diff succeeds whatever the If-Match; restored-exception etags are kept in memory only, bounded to 1000)
+- SPEC.md §6.2 (Graph delta, remote is the source of truth, 412 means "changed remotely", THIS/FOLLOWING/ALL)
+- docs/ARCHITECTURE.md conventions; AGENTS.md (lint, no secrets or event content in logs)
+- Engine contract: `calendar/sync/CalendarProviderAdapter.kt` and `CalendarWriteThrough.kt` (write order: removed overrides, then series, then overrides; `ifMatch = event.externalEtag`; `seriesShareEtag` is false for Microsoft)
+- The second review (below the separator), reviews/cal-microsoft/fixes.md (round 2), reviews/cal-microsoft/tests.md (round 3)
+
+Git range:
+- Branch: main
+- HEAD: 7fe28108c3caac04eca398f0e54ab0256732d4d1
+- Base/start: bf0bb62744a3a79cfafff0dbcd3dd33e042e3241 (`git merge-base HEAD origin/main`)
+- Commits reviewed: 11 (c9acc395, d27c8d95, 872768e6, ebce036c, 0f10f5d9, f9a81009, 972a78a3, d5a6f72e, 66e6bcf6, 7042c2a5, 7fe28108), all "cal-microsoft:"
+
+Commands run:
+- `git log --oneline bf0bb627..HEAD`, `git diff --stat bf0bb627..HEAD` -> 11 commits, 26 files, 6221 insertions, all in the task's `touches` paths and `reviews/cal-microsoft/`
+- `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.calendar.infra.microsoft.*' -Pkotlin.daemon.jvmargs=-Xmx3g` -> BUILD SUCCESSFUL. JUnit results from 2026-10-21T12:41Z: GraphEventMappingTests 44, GraphRecurrenceTests 37, MicrosoftCalendarAdapterTests 67, MicrosoftCalendarSyncTests 5 (Postgres via Testcontainers), WindowsZonesTests 20. Total 173 tests, 0 failures, 0 errors, 0 skipped.
+- `cd server && ./gradlew ktlintMainSourceSetCheck` -> pass
+
+Status of the second review's findings:
+- CR-1 (P2, false 409 on an ALL pattern change of a series with overrides): resolved.
+    - `writeInstance` (MicrosoftCalendarAdapter.kt:388-413) returns Graph's instance without a write when the diff is empty. A non-empty diff is sent with `If-Match` = `restored.current(...)` (line 396). That is Graph's current etag only when `restoreExceptions` recorded the pair (current etag, the exception's old etag) and the caller's etag is that old etag. In every other case it is the caller's etag.
+    - `restoreExceptions` (lines 455-485) records the pair for exceptions it re-patched and for exceptions Graph kept unchanged. It records nothing for a failed restore or for an exception Graph kept with other fields.
+    - I traced this against `CalendarWriteThrough.push`. For an ALL edit, the master is written first, then the overrides carried as UPDATED, each with its stale `externalEtag`. Each override then either takes the empty-diff path or the PATCH is sent with the restored etag. A remote edit after the restore changes the instance etag, the pair no longer matches, and the caller's etag is sent (412, then 409).
+    - The empty-diff rule is safe. The desired body carries every mapped field of the local copy, so a remote change to any mapped field makes the diff non-empty, and the PATCH then goes out with the caller's If-Match. The rule is recorded as an assumption.
+    - Covered by the engine + WireMock + Postgres sync test (`changing the pattern of a whole series with an exception succeeds ...`) and by eight adapter tests: stale etag, remote edit after the restore, failed restore, kept-unchanged, kept-changed, cancel, and the empty and non-empty series diffs.
+- CR-2 (P3, 404 from `/instances` gave 502): resolved. `findInstance` (lines 420-431) uses `instancesOrNull` for both lookups and returns null on a 404. A change of an occurrence then raises `RemoteEventChangedException`, a delete with a recurrence id returns null, and creating an override fails with a provider error. `instances()` still throws on a 404. It is only used after the master was just read or written, which is a narrow race that the next poll resolves. Tests cover a 404 on the first lookup and on the whole-window lookup.
+
+Summary: 0 P0, 0 P1, 0 P2, 1 P3
+
+## P0 Critical
+
+None.
+
+## P1 High
+
+None.
+
+## P2 Medium
+
+None.
+
+## P3 Low
+
+- [ ] **CR-1 | One class KDoc line was not rewrapped after the round-2 edit**
+    - File: `server/src/main/kotlin/ch/sonensei/cockpit/calendar/infra/microsoft/MicrosoftCalendarAdapter.kt:53`
+    - Category: Quality
+    - Problem: The round-2 change inserted text into the class KDoc without rewrapping it. Line 53 is now 168 characters long. The rest of the KDoc wraps at about 120 characters, and the project's ktlint style uses 140 for code. ktlint does not flag it, because the check passes.
+    - Why it matters: This is only a small readability inconsistency in the main description of the adapter's push behavior. It does not affect behavior.
+    - Suggested fix: Rewrap the paragraph (lines 49-57) like the surrounding KDoc. Only do this together with any other change, because it alters a changed line and would make the review evidence stale.
+
+Checked and not reported:
+- `RestoredEtags` is synchronized, bounded (an LRU-style eviction in insertion order), keyed by calendar and instance id, and holds only etags, with no event content. It is in memory only, as the recorded assumption says. An entry is not forgotten after an empty-diff write, which does no harm: the stored etag then equals the current one, so `current` returns the caller's etag unchanged.
+- `seriesShareEtag` is false for Microsoft, so the engine's `shareEtag` does not overwrite the per-instance etags the adapter returns.
+- A cancelled override after a pattern change is deleted with the restored etag (line 398), and the entry is dropped afterwards.
+- Logs and exception messages added in round 2 contain only fixed texts and HTTP status codes.
+- The round-3 tests assert the requests Graph receives (method, path and `If-Match`, and the absence of unexpected PATCH or DELETE requests), not internal state. No existing test was weakened, except for the two "unchanged ... whatever the etag" tests. Their expectation changed on purpose to the behavior that the second review's CR-1 asked for and the 14:24 assumption records.
+- Acceptance criteria: AC1 (calendars, calendarView/delta, writes, occurrence edits, FOLLOWING split) is implemented and covered by the WireMock and sync tests. AC2: the tests run against the recordings in `src/test/resources/.../microsoft`. AC3: the focused command passes (see above), and the persistence tests use Postgres via Testcontainers.
+
+## Review conclusion
+
+No material issues found. The second review's CR-1 (P2) and CR-2 (P3) are resolved and covered by tests, and the focused suite passes (173 tests, 0 failures). The only new finding is a P3 cosmetic KDoc wrap. It does not block completion. The full `.taskcheck` (`sh scripts/check.sh`) has not been run by this review and remains the parent's responsibility.
+
+---
+
+# Code Review
+
+Date: 2026-10-21
+
+Task: cal-microsoft - Microsoft Graph calendar adapter
+
 Scope: committed changes of task cal-microsoft, `git diff 8e5e5540..d6768df0 -- server/` (adapter, Graph client, mapping, recurrence, Windows zones, WireMock recordings, adapter/mapping/recurrence/zone/sync tests). Re-review of the final code after the fixes for the first review's findings. No uncommitted changes.
 
 Requirements:
