@@ -58,7 +58,7 @@ function note(from: TaskResponse): NoteResponse {
   };
 }
 
-const HOME ={ id: 'c1', name: '@home', position: 1 } as ContextResponse;
+const HOME = { id: 'c1', name: '@home', position: 1 } as ContextResponse;
 const KITCHEN = {
   id: 'p1',
   title: 'Renovate kitchen',
@@ -678,6 +678,47 @@ describe('InboxPage', () => {
       expect(title()).toBe('Item t1');
       expect(left()).toBe('2 items left');
       expect(moved()).toBeNull();
+    });
+
+    it('counts two overlapping conversions that answer in reverse order', async () => {
+      await render([task('t1'), task('t2'), task('t3')]);
+      const pending = new Map<string, () => void>();
+      answer = (fn, params) =>
+        fn === convertTaskToNote
+          ? new Promise((resolve) =>
+              pending.set(String(params['id']), () => resolve(note(task(String(params['id']))))),
+            )
+          : undefined;
+      await press('p');
+
+      await press('r');
+      await press('r');
+      expect(callsOf(convertTaskToNote).map((call) => call.params['id'])).toEqual(['t1', 't2']);
+      expect(title()).toBe('Item t3');
+      expect(progress()).toBe('0');
+
+      pending.get('t2')!();
+      await refresh();
+      pending.get('t1')!();
+      await refresh();
+
+      expect(title()).toBe('Item t3');
+      expect(left()).toBe('1 item left');
+      expect(progress()).toBe('67');
+      expect(element.querySelectorAll('.moved').length).toBe(1);
+    });
+
+    it('a failed conversion keeps the note offered by the previous one', async () => {
+      await render([task('t1'), task('t2'), task('t3')]);
+      await press('p');
+      await press('r');
+      expect(openNote()?.getAttribute('href')).toBe('/notes/n-t1');
+
+      answer = (fn) => (fn === convertTaskToNote ? Promise.reject(new Error('412')) : undefined);
+      await press('r');
+
+      expect(title()).toBe('Item t2');
+      expect(openNote()?.getAttribute('href')).toBe('/notes/n-t1');
     });
   });
 

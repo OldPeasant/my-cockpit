@@ -1294,7 +1294,8 @@ describe('TaskDetail', () => {
       // The task is already in the Trash on the server: a reload would answer 404.
       answer = (fn) => {
         if (fn === getTask) return Promise.reject(new ApiError(404, 'Not Found'));
-        if (fn === convertTaskToNote) return new Promise((resolve) => (release = () => resolve(NOTE)));
+        if (fn === convertTaskToNote)
+          return new Promise((resolve) => (release = () => resolve(NOTE)));
         return undefined;
       };
 
@@ -1309,6 +1310,75 @@ describe('TaskDetail', () => {
       release();
       await refresh();
       expect(navigate).toHaveBeenCalledWith(['/notes', 'n1']);
+    });
+
+    it('drops a background reload that was already running when the conversion started', async () => {
+      vi.spyOn(window, 'confirm').mockReturnValue(true);
+      let release!: () => void;
+      let notFound!: () => void;
+      await render();
+      answer = (fn) => {
+        if (fn === getTask) {
+          return new Promise<never>(
+            (_, reject) => (notFound = () => reject(new ApiError(404, 'Not Found'))),
+          );
+        }
+        if (fn === convertTaskToNote)
+          return new Promise((resolve) => (release = () => resolve(NOTE)));
+        return undefined;
+      };
+      // Someone else changed the task: a background reload starts before the conversion.
+      events.next({ type: 'TASK', id: 't1', op: 'UPDATED' } as ChangeEvent);
+      await refresh();
+      expect(callsOf(getTask)).toHaveLength(2);
+
+      await toReference();
+      // The reload answers late with 404 (the task is in the Trash by now).
+      notFound();
+      await refresh();
+
+      expect(text()).not.toContain('This task does not exist or is in the Trash.');
+      expect(field<HTMLTextAreaElement>('#td-title')).not.toBeNull();
+      expect(referenceButton().textContent?.trim()).toBe('Moving to reference…');
+
+      release();
+      await refresh();
+      expect(navigate).toHaveBeenCalledWith(['/notes', 'n1']);
+    });
+
+    it('still opens the note when the Trash event of the task arrives before the answer', async () => {
+      vi.spyOn(window, 'confirm').mockReturnValue(true);
+      let release!: () => void;
+      converting(() => new Promise((resolve) => (release = () => resolve(NOTE))));
+      await render();
+
+      await toReference();
+      events.next({ type: 'TASK', id: 't1', op: 'DELETED' } as ChangeEvent);
+      await refresh();
+      expect(navigate).not.toHaveBeenCalled();
+
+      release();
+      await refresh();
+      expect(navigate).toHaveBeenCalledTimes(1);
+      expect(navigate).toHaveBeenCalledWith(['/notes', 'n1']);
+    });
+
+    it('shows field errors of a 400 answer and opens no note', async () => {
+      vi.spyOn(window, 'confirm').mockReturnValue(true);
+      converting(() =>
+        Promise.reject(
+          new ApiError(400, 'Bad Request', undefined, undefined, undefined, [
+            { field: 'title', message: 'Too long for a note title.' },
+          ]),
+        ),
+      );
+      await render();
+
+      await toReference();
+
+      expect(text()).toContain('Too long for a note title.');
+      expect(navigate).not.toHaveBeenCalled();
+      expect(referenceButton().disabled).toBe(false);
     });
 
     it('cannot convert while a save is running', async () => {
@@ -1406,7 +1476,8 @@ describe('TaskDetail', () => {
         if (fn === convertTaskToNote) {
           return new Promise<never>(
             (_, reject) =>
-              (fail = () => reject(new ApiError(500, 'Internal Server Error', 'The server failed.'))),
+              (fail = () =>
+                reject(new ApiError(500, 'Internal Server Error', 'The server failed.'))),
           );
         }
         return undefined;
