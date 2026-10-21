@@ -412,6 +412,40 @@ class FilesBackupContributorTests(
 		count("folder") shouldBe 0
 	}
 
+	@Test
+	fun `import fails when folders form a cycle without a root`() {
+		val documents = folder(id(1), "Documents")
+		folder(id(2), "tax", documents)
+		val zip = export()
+		wipe()
+		val tampered =
+			edit(zip) { entries ->
+				val folders = backups.canonicalJson.readTree(entries.getValue("data/folders.json"))
+				// Documents becomes the child of its own child.
+				(folders[0] as tools.jackson.databind.node.ObjectNode).put("parentId", id(2).toString())
+				entries["data/folders.json"] = backups.canonicalJson.writeValueAsBytes(folders)
+			}
+
+		shouldThrow<InvalidBackupException> { import(tampered) }.message shouldContain "cycle"
+		count("folder") shouldBe 0
+	}
+
+	@Test
+	fun `a file row that cannot be inserted fails the import and leaves no blob behind`() {
+		val tax = folder(id(1), "tax")
+		file(id(10), "2025.pdf", tax, "%PDF")
+		val zip = export()
+		wipe()
+		// The file's folder is no longer in the backup, so its row violates the foreign key after the blob is written.
+		val tampered =
+			edit(zip) { entries -> entries["data/folders.json"] = backups.canonicalJson.writeValueAsBytes(emptyList<Any>()) }
+
+		shouldThrow<Exception> { import(tampered) }
+
+		count("file") shouldBe 0
+		storedBlobs().shouldBeEmpty()
+	}
+
 	// --- large files ------------------------------------------------------------------------------------------------
 
 	@Test
