@@ -1,13 +1,17 @@
 import { HttpContext } from '@angular/common/http';
 import { Component, signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
+import { MatDialog } from '@angular/material/dialog';
 import { provideRouter, Router } from '@angular/router';
 import { Subject } from 'rxjs';
 import {
   Api,
   ChangeEvent,
   ChecklistItemResponse,
+  convertTaskToEvent,
   convertTaskToNote,
+  ConvertToEventRequest,
+  EventResponse,
   getTask,
   listChecklistItems,
   listContexts,
@@ -22,6 +26,7 @@ import {
 import { ChangeEventsService } from '../../../core/events';
 import { ApiError, SILENT_ERRORS } from '../../../core/http';
 import { CONFLICT_MESSAGE, TaskDetail } from './task-detail';
+import { ToCalendarData, ToCalendarDialog } from './to-calendar-dialog';
 
 interface Call {
   fn: unknown;
@@ -1597,6 +1602,427 @@ describe('TaskDetail', () => {
       expect(callsOf(convertTaskToNote)).toHaveLength(1);
       expect(navigate).toHaveBeenCalledTimes(1);
       expect(navigate).toHaveBeenCalledWith(['/notes', 'n1']);
+    });
+  });
+
+  describe('to calendar', () => {
+    /** Thursday 2026-10-22, 09:00-10:00 in Zurich. */
+    const REQUEST: ConvertToEventRequest = {
+      calendarId: 'work',
+      allDay: false,
+      start: '2026-10-22T07:00:00.000Z',
+      end: '2026-10-22T08:00:00.000Z',
+      timeZone: 'Europe/Zurich',
+    };
+    const event = (fields: Partial<EventResponse> = {}) =>
+      ({
+        id: 'e1',
+        calendarId: 'work',
+        title: 'Call the plumber',
+        allDay: false,
+        start: '2026-10-22T07:00:00Z',
+        end: '2026-10-22T08:00:00Z',
+        timeZone: 'Europe/Zurich',
+        version: 1,
+        ...fields,
+      }) as EventResponse;
+    const calendarButton = () => field<HTMLButtonElement>('button.to-calendar');
+    const referenceButton = () => field<HTMLButtonElement>('button.reference');
+    let navigate: ReturnType<typeof vi.spyOn>;
+    /** The dialogs opened, each answered by the test through its subject. */
+    let dialogs: {
+      component: unknown;
+      data: ToCalendarData;
+      closed: Subject<ConvertToEventRequest | undefined>;
+    }[];
+
+    beforeEach(() => {
+      dialogs = [];
+      TestBed.overrideProvider(MatDialog, {
+        useValue: {
+          open: (component: unknown, config: { data: ToCalendarData }) => {
+            const closed = new Subject<ConvertToEventRequest | undefined>();
+            dialogs.push({ component, data: config.data, closed });
+            return { afterClosed: () => closed };
+          },
+        },
+      });
+      navigate = vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
+    });
+
+    afterEach(() => vi.restoreAllMocks());
+
+    const converting = (result: () => Promise<unknown>) => {
+      answer = (fn) => (fn === convertTaskToEvent ? result() : undefined);
+    };
+
+    async function toCalendar(): Promise<void> {
+      calendarButton().click();
+      await refresh();
+    }
+
+    async function close(result: ConvertToEventRequest | undefined, index = 0): Promise<void> {
+      dialogs[index].closed.next(result);
+      dialogs[index].closed.complete();
+      await refresh();
+    }
+
+    it('does nothing when the dialog is cancelled', async () => {
+      await render();
+
+      await toCalendar();
+      expect(dialogs).toHaveLength(1);
+      expect(dialogs[0].component).toBe(ToCalendarDialog);
+      await close(undefined);
+
+      expect(callsOf(convertTaskToEvent)).toHaveLength(0);
+      expect(navigate).not.toHaveBeenCalled();
+      expect(calendarButton().textContent?.trim()).toBe('To calendar (event)');
+      expect(calendarButton().disabled).toBe(false);
+      expect(field<HTMLTextAreaElement>('#td-title').value).toBe('Call the plumber');
+    });
+
+    it('converts the saved version silently with the chosen calendar and times, then opens the calendar on that day', async () => {
+      converting(() => Promise.resolve(event()));
+      await render(task({ version: 4 }));
+
+      await toCalendar();
+      expect(dialogs[0].data).toEqual({ title: 'Call the plumber', unsaved: false });
+      expect(callsOf(convertTaskToEvent)).toHaveLength(0);
+      await close(REQUEST);
+
+      expect(callsOf(convertTaskToEvent)).toHaveLength(1);
+      const call = callsOf(convertTaskToEvent)[0];
+      expect(call.params).toEqual({ id: 't1', 'If-Match': '"4"', body: REQUEST });
+      expect(call.context?.get(SILENT_ERRORS)).toBe(true);
+      expect(navigate).toHaveBeenCalledTimes(1);
+      expect(navigate).toHaveBeenCalledWith(['/calendar'], {
+        queryParams: { date: '2026-10-22' },
+      });
+    });
+
+    it('opens the calendar on the start day in the zone of the event', async () => {
+      // 00:30 on Friday in Zurich, still Thursday in UTC.
+      converting(() =>
+        Promise.resolve(event({ start: '2026-10-22T22:30:00Z', end: '2026-10-22T23:30:00Z' })),
+      );
+      await render();
+      await toCalendar();
+      await close(REQUEST);
+      expect(navigate).toHaveBeenCalledWith(['/calendar'], {
+        queryParams: { date: '2026-10-23' },
+      });
+    });
+
+    it('opens the calendar on the start day in the local zone when the event has no zone', async () => {
+      // 12:00 UTC: the same day on the clocks of every zone from UTC-11 to UTC+11.
+      converting(() =>
+        Promise.resolve(
+          event({
+            start: '2026-10-22T12:00:00Z',
+            end: '2026-10-22T13:00:00Z',
+            timeZone: undefined,
+          }),
+        ),
+      );
+      await render();
+      await toCalendar();
+      await close(REQUEST);
+      expect(navigate).toHaveBeenCalledWith(['/calendar'], {
+        queryParams: { date: '2026-10-22' },
+      });
+    });
+
+    it('opens the calendar on the start date of an all-day event', async () => {
+      converting(() =>
+        Promise.resolve(
+          event({
+            allDay: true,
+            start: undefined,
+            end: undefined,
+            startDate: '2026-11-03',
+            endDate: '2026-11-04',
+          }),
+        ),
+      );
+      await render();
+      await toCalendar();
+      await close({
+        calendarId: 'work',
+        allDay: true,
+        startDate: '2026-11-03',
+        endDate: '2026-11-04',
+      });
+      expect(navigate).toHaveBeenCalledWith(['/calendar'], {
+        queryParams: { date: '2026-11-03' },
+      });
+    });
+
+    it('tells the dialog about unsaved changes and converts the saved version without saving', async () => {
+      converting(() => Promise.resolve(event()));
+      await render();
+      await type('#td-title', 'Call the plumber tomorrow');
+
+      await toCalendar();
+      expect(dialogs[0].data).toEqual({ title: 'Call the plumber', unsaved: true });
+      await close(REQUEST);
+
+      expect(callsOf(updateTask)).toHaveLength(0);
+      expect(callsOf(moveTask)).toHaveLength(0);
+      expect(callsOf(convertTaskToEvent)[0].params).toMatchObject({
+        id: 't1',
+        'If-Match': '"1"',
+      });
+      expect(navigate).toHaveBeenCalledTimes(1);
+    });
+
+    it('keeps the unsaved changes when the dialog is cancelled', async () => {
+      await render();
+      await type('#td-title', 'Half typed');
+      await toCalendar();
+      await close(undefined);
+
+      expect(callsOf(convertTaskToEvent)).toHaveLength(0);
+      expect(field<HTMLTextAreaElement>('#td-title').value).toBe('Half typed');
+      expect(text()).toContain('Unsaved changes');
+    });
+
+    it('sends the version reloaded while the dialog was open', async () => {
+      converting(() => Promise.resolve(event()));
+      await render(task({ version: 2 }));
+      await toCalendar();
+      // Someone else changed the task meanwhile: the form shows the new version.
+      server = task({ title: 'Call the plumber at 9', version: 3 });
+      events.next({ type: 'TASK', id: 't1', op: 'UPDATED' } as ChangeEvent);
+      await refresh();
+      expect(field<HTMLTextAreaElement>('#td-title').value).toBe('Call the plumber at 9');
+
+      await close(REQUEST);
+
+      expect(callsOf(convertTaskToEvent)[0].params).toMatchObject({ 'If-Match': '"3"' });
+    });
+
+    it('shows the running conversion and neither converts nor saves twice meanwhile', async () => {
+      let release!: () => void;
+      converting(() => new Promise((resolve) => (release = () => resolve(event()))));
+      await render();
+      await type('#td-title', 'Typed before');
+      await toCalendar();
+      await close(REQUEST);
+
+      expect(calendarButton().textContent?.trim()).toBe('Moving to the calendar…');
+      expect(calendarButton().disabled).toBe(true);
+      expect(referenceButton().disabled).toBe(true);
+      expect(referenceButton().textContent?.trim()).toBe('To reference (note)');
+      calendarButton().click();
+      field('#td-title').dispatchEvent(
+        new KeyboardEvent('keydown', { key: 'Enter', ctrlKey: true, bubbles: true }),
+      );
+      await refresh();
+      expect(dialogs).toHaveLength(1);
+      expect(callsOf(convertTaskToEvent)).toHaveLength(1);
+      expect(callsOf(updateTask)).toHaveLength(0);
+
+      release();
+      await refresh();
+      expect(navigate).toHaveBeenCalledTimes(1);
+    });
+
+    it('cannot open the dialog while a save is running', async () => {
+      let release!: () => void;
+      answer = (fn) => {
+        if (fn !== updateTask) return undefined;
+        return new Promise<void>((resolve) => (release = resolve)).then(() => {
+          server = { ...server, title: 'Saving now', version: 2 };
+          return server;
+        });
+      };
+      await render();
+      await type('#td-title', 'Saving now');
+      await save();
+
+      expect(calendarButton().disabled).toBe(true);
+      calendarButton().click();
+      await refresh();
+      expect(dialogs).toHaveLength(0);
+
+      release();
+      await refresh();
+      expect(calendarButton().disabled).toBe(false);
+    });
+
+    it('does not convert when a save started while the dialog was open', async () => {
+      let release!: () => void;
+      answer = (fn) => {
+        if (fn !== updateTask) return undefined;
+        return new Promise<void>((resolve) => (release = resolve)).then(() => {
+          server = { ...server, title: 'Saving now', version: 2 };
+          return server;
+        });
+      };
+      await render();
+      await type('#td-title', 'Saving now');
+      await toCalendar();
+      await save();
+
+      await close(REQUEST);
+
+      expect(callsOf(convertTaskToEvent)).toHaveLength(0);
+      release();
+      await refresh();
+    });
+
+    it('on 412 says the task changed elsewhere and reloads it, without opening the calendar', async () => {
+      converting(() => {
+        server = task({ title: 'Changed elsewhere', version: 5 });
+        return Promise.reject(new ApiError(412, 'Precondition Failed'));
+      });
+      await render();
+
+      await toCalendar();
+      await close(REQUEST);
+
+      expect(text()).toContain(CONFLICT_MESSAGE);
+      expect(callsOf(getTask)).toHaveLength(2);
+      expect(field<HTMLTextAreaElement>('#td-title').value).toBe('Changed elsewhere');
+      expect(navigate).not.toHaveBeenCalled();
+      expect(calendarButton().disabled).toBe(false);
+      expect(calendarButton().textContent?.trim()).toBe('To calendar (event)');
+
+      // A retry goes out with the reloaded version.
+      converting(() => Promise.resolve(event()));
+      await toCalendar();
+      await close(REQUEST, 1);
+      expect(callsOf(convertTaskToEvent)[1].params).toMatchObject({ 'If-Match': '"5"' });
+      expect(text()).not.toContain(CONFLICT_MESSAGE);
+      expect(navigate).toHaveBeenCalledTimes(1);
+    });
+
+    it('shows field errors of a 400 answer and opens no calendar', async () => {
+      converting(() =>
+        Promise.reject(
+          new ApiError(400, 'Bad Request', undefined, undefined, undefined, [
+            { field: 'title', message: 'Too long for an event title.' },
+          ]),
+        ),
+      );
+      await render();
+
+      await toCalendar();
+      await close(REQUEST);
+
+      expect(text()).toContain('Too long for an event title.');
+      expect(navigate).not.toHaveBeenCalled();
+      expect(calendarButton().disabled).toBe(false);
+    });
+
+    it('shows another error in the save bar, keeps the form and allows another try', async () => {
+      converting(() =>
+        Promise.reject(new ApiError(500, 'Internal Server Error', 'The server failed.')),
+      );
+      await render();
+      await type('#td-title', 'Keep me');
+
+      await toCalendar();
+      await close(REQUEST);
+
+      expect(element.querySelector('.bar [role=alert]')?.textContent).toContain(
+        'The server failed.',
+      );
+      expect(callsOf(getTask)).toHaveLength(1);
+      expect(field<HTMLTextAreaElement>('#td-title').value).toBe('Keep me');
+      expect(navigate).not.toHaveBeenCalled();
+      expect(calendarButton().disabled).toBe(false);
+
+      converting(() => Promise.resolve(event()));
+      await toCalendar();
+      await close(REQUEST, 1);
+      expect(callsOf(convertTaskToEvent)).toHaveLength(2);
+      expect(element.querySelector('.bar [role=alert]')).toBeNull();
+      expect(navigate).toHaveBeenCalledTimes(1);
+    });
+
+    it('shows a fallback message for an unexpected conversion error', async () => {
+      converting(() => Promise.reject(new TypeError('boom')));
+      await render();
+      await toCalendar();
+      await close(REQUEST);
+      expect(text()).toContain('Something went wrong. Try again.');
+      expect(navigate).not.toHaveBeenCalled();
+    });
+
+    it('does not convert when the editor switched to another task while the dialog was open', async () => {
+      answer = (fn, params) =>
+        fn === getTask && params['id'] === 't2'
+          ? Promise.resolve(task({ id: 't2', title: 'Water the plants', version: 7 }))
+          : undefined;
+      await render();
+      await toCalendar();
+      host.id.set('t2');
+      await refresh();
+
+      await close(REQUEST);
+
+      expect(callsOf(convertTaskToEvent)).toHaveLength(0);
+      expect(navigate).not.toHaveBeenCalled();
+      expect(field<HTMLTextAreaElement>('#td-title').value).toBe('Water the plants');
+    });
+
+    it('does not open the calendar nor block the new task when a conversion of the previous task succeeds late', async () => {
+      let succeed!: () => void;
+      answer = (fn, params) => {
+        if (fn === getTask && params['id'] === 't2') {
+          return Promise.resolve(task({ id: 't2', title: 'Water the plants', version: 7 }));
+        }
+        if (fn === convertTaskToEvent) {
+          return new Promise<EventResponse>((resolve) => (succeed = () => resolve(event())));
+        }
+        return undefined;
+      };
+      await render();
+      await toCalendar();
+      await close(REQUEST);
+      expect(calendarButton().textContent?.trim()).toBe('Moving to the calendar…');
+      host.id.set('t2');
+      await refresh();
+
+      expect(calendarButton().textContent?.trim()).toBe('To calendar (event)');
+      expect(calendarButton().disabled).toBe(false);
+
+      succeed();
+      await refresh();
+
+      expect(navigate).not.toHaveBeenCalled();
+      expect(field<HTMLTextAreaElement>('#td-title').value).toBe('Water the plants');
+      expect(calendarButton().disabled).toBe(false);
+    });
+
+    it('shows no error for the new task when a conversion of the previous task fails late', async () => {
+      let fail!: () => void;
+      answer = (fn, params) => {
+        if (fn === getTask && params['id'] === 't2') {
+          return Promise.resolve(task({ id: 't2', title: 'Water the plants', version: 7 }));
+        }
+        if (fn === convertTaskToEvent) {
+          return new Promise<never>(
+            (_, reject) => (fail = () => reject(new ApiError(412, 'Precondition Failed'))),
+          );
+        }
+        return undefined;
+      };
+      await render();
+      await toCalendar();
+      await close(REQUEST);
+      host.id.set('t2');
+      await refresh();
+
+      fail();
+      await refresh();
+
+      expect(text()).not.toContain(CONFLICT_MESSAGE);
+      expect(callsOf(getTask).filter((c) => c.params['id'] === 't1')).toHaveLength(1);
+      expect(field<HTMLTextAreaElement>('#td-title').value).toBe('Water the plants');
+      expect(navigate).not.toHaveBeenCalled();
     });
   });
 });

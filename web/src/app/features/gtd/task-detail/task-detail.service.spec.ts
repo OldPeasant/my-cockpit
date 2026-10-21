@@ -3,9 +3,12 @@ import { TestBed } from '@angular/core/testing';
 import {
   Api,
   ChecklistItemResponse,
+  convertTaskToEvent,
   convertTaskToNote,
+  ConvertToEventRequest,
   createChecklistItem,
   deleteChecklistItem,
+  EventResponse,
   getTask,
   listChecklistItems,
   moveTask,
@@ -129,6 +132,50 @@ describe('TaskDetailService', () => {
       providers: [TaskDetailService, { provide: Api, useValue: failing }],
     });
     await expect(TestBed.inject(TaskDetailService).convertToNote(TASK)).rejects.toThrow('412');
+  });
+
+  it('converts a task to an event with If-Match of its version and the request as body', async () => {
+    const body: ConvertToEventRequest = {
+      calendarId: 'work',
+      allDay: false,
+      start: '2026-10-22T07:00:00.000Z',
+      end: '2026-10-22T08:00:00.000Z',
+      timeZone: 'Europe/Zurich',
+    };
+    const event = {
+      id: 'e1',
+      calendarId: 'work',
+      title: 'Water the fictitious ferns',
+      allDay: false,
+      start: '2026-10-22T07:00:00Z',
+      end: '2026-10-22T08:00:00Z',
+      timeZone: 'Europe/Zurich',
+      version: 1,
+    } as EventResponse;
+    response = event;
+    expect(await service.convertToEvent(TASK, body)).toBe(event);
+    const call = only();
+    expect(call.fn).toBe(convertTaskToEvent);
+    expect(call.params).toEqual({ id: 't1', 'If-Match': '"7"', body });
+    expect(call.context?.get(SILENT_ERRORS)).toBe(true);
+  });
+
+  it('passes a failed conversion to an event on to the caller', async () => {
+    const failing = {
+      invoke: () => Promise.reject(new Error('412')),
+    };
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({
+      providers: [TaskDetailService, { provide: Api, useValue: failing }],
+    });
+    await expect(
+      TestBed.inject(TaskDetailService).convertToEvent(TASK, {
+        calendarId: 'work',
+        allDay: true,
+        startDate: '2026-10-22',
+        endDate: '2026-10-23',
+      }),
+    ).rejects.toThrow('412');
   });
 
   it('lists the checklist items of a task', async () => {

@@ -4,9 +4,12 @@ import {
   Api,
   ChangeEvent,
   completeTask,
+  convertTaskToEvent,
   convertTaskToNote,
+  ConvertToEventRequest,
   createTask,
   deleteTask,
+  EventResponse,
   listTasks,
   moveTask,
   NoteResponse,
@@ -494,10 +497,81 @@ describe('TaskStore', () => {
     callsOf(convertTaskToNote)[0].resolve(note('n1'));
     await converted;
     // The older list answer still contains the task.
-    callsOf(listTasks).at(-1)!.resolve(page([a]));
+    callsOf(listTasks)
+      .at(-1)!
+      .resolve(page([a]));
     await refetch;
 
     expect(store.items()).toEqual([]);
+  });
+
+  describe('convertToEvent', () => {
+    const BODY: ConvertToEventRequest = {
+      calendarId: 'work',
+      allDay: false,
+      start: '2026-10-22T07:00:00.000Z',
+      end: '2026-10-22T08:00:00.000Z',
+      timeZone: 'Europe/Zurich',
+    };
+    const EVENT = {
+      id: 'e1',
+      calendarId: 'work',
+      title: 'Task a',
+      allDay: false,
+      start: '2026-10-22T07:00:00Z',
+      end: '2026-10-22T08:00:00Z',
+      timeZone: 'Europe/Zurich',
+      version: 1,
+    } as EventResponse;
+
+    it('converts a task to an event: it leaves the list at once and the event is returned', async () => {
+      const a = task('a', { list: 'INBOX', version: 4 });
+      const done = store.load({ list: 'INBOX' });
+      callsOf(listTasks)[0].resolve(page([a, task('b', { list: 'INBOX', position: 2 })]));
+      await done;
+
+      const converted = store.convertToEvent(a, BODY);
+      expect(store.items().map((t) => t.id)).toEqual(['b']);
+      expect(callsOf(convertTaskToEvent)).toHaveLength(1);
+      expect(callsOf(convertTaskToEvent)[0].params).toEqual({
+        id: 'a',
+        'If-Match': '"4"',
+        body: BODY,
+      });
+
+      callsOf(convertTaskToEvent)[0].resolve(EVENT);
+      expect(await converted).toEqual(EVENT);
+      // The task is trashed on the server: it stays out of the list.
+      expect(store.items().map((t) => t.id)).toEqual(['b']);
+    });
+
+    it('brings the task back when the conversion fails, and rethrows the error', async () => {
+      const a = task('a');
+      await loaded([a, task('b', { position: 2 })]);
+
+      const converted = store.convertToEvent(a, BODY);
+      expect(store.items().map((t) => t.id)).toEqual(['b']);
+      const error = new Error('412');
+      callsOf(convertTaskToEvent)[0].reject(error);
+      await expect(converted).rejects.toBe(error);
+      expect(store.items().map((t) => t.id)).toEqual(['a', 'b']);
+    });
+
+    it('keeps a converted task out of a list answer requested before the conversion', async () => {
+      const a = task('a');
+      await loaded([a]);
+      const refetch = store.refresh();
+
+      const converted = store.convertToEvent(a, BODY);
+      callsOf(convertTaskToEvent)[0].resolve(EVENT);
+      await converted;
+      callsOf(listTasks)
+        .at(-1)!
+        .resolve(page([a]));
+      await refetch;
+
+      expect(store.items()).toEqual([]);
+    });
   });
 
   it('reopens a done task in the Logbook: it leaves the list, and comes back on an error', async () => {
