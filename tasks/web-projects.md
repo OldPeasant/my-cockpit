@@ -1,10 +1,11 @@
 ---
 title: Projects views
-status: todo
-owner:
+status: in_progress
+owner: dell26/agent-6
 deps: [web-gtd-data]
 touches: [web/src/app/features/gtd/projects]
 prio: 1
+lease_until: 2026-10-21T01:02:21Z
 ---
 ## Goal
 Project list and detail (SPEC.md §5.3).
