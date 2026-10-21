@@ -5,7 +5,7 @@ owner: dell26/agent-2
 deps: [backup-contrib-core,notes-api]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/notes/backup,server/src/test/kotlin/ch/sonensei/cockpit/notes/backup]
 prio: 1
-lease_until: 2026-10-21T07:54:01Z
+lease_until: 2026-10-21T07:59:07Z
 releases: 1
 extended: 
 ---
