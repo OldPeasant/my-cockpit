@@ -15,3 +15,4 @@ Create and edit events on the phone.
 - [ ] `cd android && ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.calendar.edit.*'` passes, covering form validation and scope prompt (Robolectric/Compose UI tests for screens)
 
 ## Notes
+- ASSUMPTION (2026-10-21 17:39+0200 by dell26/agent-1): Entry points: a FAB on the Calendar screen creates an event (on the day the day view shows, else today; today from the next full hour, other days 09:00, 1h), tapping an occurrence edits it. Wiring needed a one-line change in calendar/agenda/CalendarScreen.kt (CalendarRoute -> CalendarWithEditor) and a new res/values/strings_calendar_edit.xml, both outside the task's touches
