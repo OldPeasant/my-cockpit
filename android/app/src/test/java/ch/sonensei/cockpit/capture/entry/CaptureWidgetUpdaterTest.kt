@@ -1,7 +1,10 @@
 package ch.sonensei.cockpit.capture.entry
 
 import ch.sonensei.cockpit.capture.queue.CaptureQueueStatus
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.emitAll
@@ -96,6 +99,19 @@ class CaptureWidgetUpdaterTest {
 
             status.value = CaptureQueueStatus(5, null)
             assertEquals(2, refreshes)
+        }
+
+    @Test
+    fun `cancelling the scope stops the updates instead of being swallowed as a failed refresh`() =
+        runTest(UnconfinedTestDispatcher()) {
+            val scope = CoroutineScope(coroutineContext + Job())
+            var refreshes = 0
+            CaptureWidgetUpdater(status, { refreshes++ }, scope).start()
+            assertEquals(1, refreshes)
+
+            scope.cancel()
+            status.value = CaptureQueueStatus(7, null)
+            assertEquals(1, refreshes)
         }
 
     @Test
