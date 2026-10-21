@@ -24,8 +24,8 @@ import ch.sonensei.cockpit.core.persistence.MutableClockTestConfiguration
 import ch.sonensei.cockpit.support.PostgresTestBase
 import com.github.tomakehurst.wiremock.WireMockServer
 import com.github.tomakehurst.wiremock.client.MappingBuilder
-import com.github.tomakehurst.wiremock.client.WireMock.absent
 import com.github.tomakehurst.wiremock.client.WireMock.aResponse
+import com.github.tomakehurst.wiremock.client.WireMock.absent
 import com.github.tomakehurst.wiremock.client.WireMock.delete
 import com.github.tomakehurst.wiremock.client.WireMock.equalTo
 import com.github.tomakehurst.wiremock.client.WireMock.get
@@ -116,7 +116,14 @@ class GoogleCalendarSyncTests(
 
 	private fun overridesOf(event: CalendarEvent) = events.findByParentEventIdOrderByIdAsc(event.id)
 
-	private fun exdatesOf(id: UUID): Set<OccurrenceId> = tx.execute { events.findById(id).get().exdates.toSet() }!!
+	private fun exdatesOf(id: UUID): Set<OccurrenceId> =
+		tx.execute {
+			events
+				.findById(id)
+				.get()
+				.exdates
+				.toSet()
+		}
 
 	private fun cursor(): String? =
 		jdbc.queryForList("select cursor from calendar_sync_cursor where calendar_id = ?", String::class.java, calendarId()).singleOrNull()
@@ -124,7 +131,11 @@ class GoogleCalendarSyncTests(
 	private fun at(instant: String) = OccurrenceId.of(Instant.parse(instant))
 
 	private fun syncOk() {
-		sync.sync(source.id).status!!.lastError.shouldBeNull()
+		sync
+			.sync(source.id)
+			.status!!
+			.lastError
+			.shouldBeNull()
 	}
 
 	// --- pull
@@ -232,14 +243,21 @@ class GoogleCalendarSyncTests(
 		requests.single { it.method.value() == "DELETE" }.getHeader("If-Match") shouldBe "\"exception-0\""
 		val ended = requests.single { it.url.contains("/weekly01?") }
 		ended.getHeader("If-Match") shouldBe "\"weekly-1\""
-		jsonMapper.readTree(ended.bodyAsString).get("recurrence").values().map { it.asString() } shouldContainExactly
+		jsonMapper
+			.readTree(ended.bodyAsString)
+			.get("recurrence")
+			.values()
+			.map { it.asString() } shouldContainExactly
 			listOf("RRULE:FREQ=WEEKLY;BYDAY=MO;UNTIL=20261109T075959Z")
 		val inserted = jsonMapper.readTree(requests.single { it.method.value() == "POST" }.bodyAsString)
 		inserted.get("id").asString() shouldBe nextGoogleId
 		inserted.get("summary").asString() shouldBe "Weekly sync (new)"
 		inserted.get("start").get("dateTime").asString() shouldBe "2026-11-09T09:00:00+01:00"
 		inserted.get("recurrence").values().map { it.asString() } shouldContainExactly listOf("RRULE:FREQ=WEEKLY;BYDAY=MO")
-		val exception = jsonMapper.readTree(requests.single { it.url.contains("_20261116T080000Z?") && it.method.value() == "PATCH" }.bodyAsString)
+		val exception =
+			jsonMapper.readTree(
+				requests.single { it.url.contains("_20261116T080000Z?") && it.method.value() == "PATCH" }.bodyAsString,
+			)
 		exception.get("summary").asString() shouldBe "Weekly sync (new)"
 		exception.get("start").get("dateTime").asString() shouldBe "2026-11-16T10:00:00+01:00"
 

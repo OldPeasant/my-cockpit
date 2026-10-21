@@ -122,10 +122,14 @@ class GoogleCalendarAdapter(
 			}
 		}
 		val withCancellations =
-			if (full) events else events.map { event ->
+			if (full) {
+				events
+			} else {
+				events.map { event ->
 					val uid = uids[event.key.externalId]
 					if (event.rrule != null && uid != null) withCancelledInstances(connection, calendarExternalId, event, uid) else event
 				}
+			}
 		val nextPage = page.text("nextPageToken")
 		val nextCursor =
 			when {

@@ -141,8 +141,7 @@ internal object GoogleEventMapping {
 	fun instanceId(
 		seriesId: String,
 		occurrence: OccurrenceId,
-	): String =
-		seriesId + "_" + (occurrence.at?.let(UTC_BASIC::format) ?: DateTimeFormatter.BASIC_ISO_DATE.format(occurrence.date))
+	): String = seriesId + "_" + (occurrence.at?.let(UTC_BASIC::format) ?: DateTimeFormatter.BASIC_ISO_DATE.format(occurrence.date))
 
 	// --- reading
 
@@ -250,10 +249,19 @@ internal object GoogleEventMapping {
 		when (timing) {
 			// Patch merges objects: the other kind's fields are cleared explicitly.
 			is Timing.AllDay ->
-				json.createObjectNode().put("date", timing.startDate.toString()).putNull("dateTime").putNull("timeZone") to
-					json.createObjectNode().put("date", timing.endDate.toString()).putNull("dateTime").putNull("timeZone")
+				json
+					.createObjectNode()
+					.put("date", timing.startDate.toString())
+					.putNull("dateTime")
+					.putNull("timeZone") to
+					json
+						.createObjectNode()
+						.put("date", timing.endDate.toString())
+						.putNull("dateTime")
+						.putNull("timeZone")
 			is Timing.Timed -> {
 				val zoneName = zoneName(timing.zone)
+
 				fun at(instant: Instant) =
 					json
 						.createObjectNode()

@@ -21,8 +21,8 @@ import ch.sonensei.cockpit.core.oauth.domain.OAuthResource
 import ch.sonensei.cockpit.core.oauth.domain.OAuthTokenProvider
 import com.github.tomakehurst.wiremock.WireMockServer
 import com.github.tomakehurst.wiremock.client.MappingBuilder
-import com.github.tomakehurst.wiremock.client.WireMock.absent
 import com.github.tomakehurst.wiremock.client.WireMock.aResponse
+import com.github.tomakehurst.wiremock.client.WireMock.absent
 import com.github.tomakehurst.wiremock.client.WireMock.anyRequestedFor
 import com.github.tomakehurst.wiremock.client.WireMock.anyUrl
 import com.github.tomakehurst.wiremock.client.WireMock.delete
@@ -76,7 +76,10 @@ class GoogleCalendarAdapterTests {
 	@Test
 	fun `listCalendars reads every page, prefers the user's name and skips deleted and free-busy calendars`() {
 		stub(get(urlPathEqualTo("$API/users/me/calendarList")).withQueryParam("pageToken", absent()), recording("calendar-list-page1.json"))
-		stub(get(urlPathEqualTo("$API/users/me/calendarList")).withQueryParam("pageToken", equalTo("CL-page-2")), recording("calendar-list-page2.json"))
+		stub(
+			get(urlPathEqualTo("$API/users/me/calendarList")).withQueryParam("pageToken", equalTo("CL-page-2")),
+			recording("calendar-list-page2.json"),
+		)
 
 		adapter.listCalendars(source) shouldContainExactly
 			listOf(
@@ -201,7 +204,9 @@ class GoogleCalendarAdapterTests {
 		val second = adapter.fetchEvents(source, "primary", first.cursor)
 		second.cursor shouldBe "sync:EV-sync-2"
 		second.complete shouldBe false
-		wireMock.verify(getRequestedFor(urlPathEqualTo(EVENTS)).withQueryParam("pageToken", equalTo("INC-2")).withQueryParam("syncToken", absent()))
+		wireMock.verify(
+			getRequestedFor(urlPathEqualTo(EVENTS)).withQueryParam("pageToken", equalTo("INC-2")).withQueryParam("syncToken", absent()),
+		)
 	}
 
 	@Test
@@ -235,7 +240,10 @@ class GoogleCalendarAdapterTests {
 
 	@Test
 	fun `calendar ids are encoded in the path`() {
-		stub(get(urlPathEqualTo("$API/calendars/en.swiss%23holiday%40group.v.calendar.google.com/events")), """{"items": [], "nextSyncToken": "H1"}""")
+		stub(
+			get(urlPathEqualTo("$API/calendars/en.swiss%23holiday%40group.v.calendar.google.com/events")),
+			"""{"items": [], "nextSyncToken": "H1"}""",
+		)
 
 		adapter.fetchEvents(source, "en.swiss#holiday@group.v.calendar.google.com", null).cursor shouldBe "sync:H1"
 	}
