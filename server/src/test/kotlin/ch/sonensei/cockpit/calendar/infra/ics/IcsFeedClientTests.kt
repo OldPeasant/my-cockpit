@@ -293,7 +293,8 @@ class IcsFeedClientTests {
 
 	@Test
 	fun `the timeout covers the body, so a feed that trickles in slowly is given up`() {
-		// IcsFeedProperties.timeout: "Time for one request, from sending it to the end of the body."
+		// IcsFeedProperties.timeout: "Time for a whole fetch: from sending the first request, through any redirects, to the end of the
+		// last body."
 		wireMock.stubFor(
 			get(urlPathEqualTo(FEED)).willReturn(
 				aResponse().withStatus(200).withBody(CALENDAR.toByteArray()).withChunkedDribbleDelay(10, 4_000),
@@ -605,7 +606,7 @@ class IcsFeedClientTests {
 	// --- Properties ---
 
 	@Test
-	fun `properties refuse an empty or too large size, negative redirects and a non-positive poll interval`() {
+	fun `properties refuse an empty or too large size, negative redirects and a non-positive poll interval or timeout`() {
 		shouldThrow<IllegalArgumentException> { properties(maxSize = DataSize.ofBytes(0)) }
 		shouldThrow<IllegalArgumentException> { properties(maxSize = DataSize.ofBytes(Int.MAX_VALUE + 1L)) }
 		shouldThrow<IllegalArgumentException> { properties(maxRedirects = -1) }
@@ -615,7 +616,18 @@ class IcsFeedClientTests {
 		shouldThrow<IllegalArgumentException> {
 			IcsFeedProperties(Duration.ofMinutes(-1), DataSize.ofMegabytes(1), Duration.ofSeconds(1), Duration.ofSeconds(1), 0, false, emptyList())
 		}
+		shouldThrow<IllegalArgumentException> { properties(timeout = Duration.ZERO) }
+			.message shouldBe "cockpit.calendar.ics.timeout must be positive"
+		shouldThrow<IllegalArgumentException> { properties(timeout = Duration.ofSeconds(-1)) }
+			.message shouldBe "cockpit.calendar.ics.timeout must be positive"
+		shouldThrow<IllegalArgumentException> {
+			IcsFeedProperties(Duration.ofMinutes(15), DataSize.ofMegabytes(1), Duration.ZERO, Duration.ofSeconds(1), 0, false, emptyList())
+		}.message shouldBe "cockpit.calendar.ics.connect-timeout must be positive"
+		shouldThrow<IllegalArgumentException> {
+			IcsFeedProperties(Duration.ofMinutes(15), DataSize.ofMegabytes(1), Duration.ofSeconds(-1), Duration.ofSeconds(1), 0, false, emptyList())
+		}.message shouldBe "cockpit.calendar.ics.connect-timeout must be positive"
 		properties(maxSize = DataSize.ofBytes(1), maxRedirects = 0).maxRedirects shouldBe 0
+		properties(timeout = Duration.ofMillis(1)).timeout shouldBe Duration.ofMillis(1)
 	}
 
 	companion object {

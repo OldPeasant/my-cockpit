@@ -33,6 +33,8 @@ class IcsFeedProperties(
 		require(maxSize.toBytes() in 1..Int.MAX_VALUE) { "cockpit.calendar.ics.max-size must be between 1 byte and 2 GB" }
 		require(maxRedirects >= 0) { "cockpit.calendar.ics.max-redirects must not be negative" }
 		require(!pollInterval.isNegative && !pollInterval.isZero) { "cockpit.calendar.ics.poll-interval must be positive" }
+		require(timeout.isPositive) { "cockpit.calendar.ics.timeout must be positive" }
+		require(connectTimeout.isPositive) { "cockpit.calendar.ics.connect-timeout must be positive" }
 	}
 }
 
