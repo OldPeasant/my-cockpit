@@ -368,12 +368,16 @@ private fun Agenda(
     }
     // Before the first days arrive only the footer is shown, and the list would keep it in place when the days are
     // inserted above it, opening the agenda scrolled past today. So the agenda starts at its first day, once for each
-    // first day: an agenda shown again with its days (rotation, back to the tab) keeps the position it had.
+    // first day: an agenda shown again with its days (rotation, back to the tab) keeps the position it had. Without
+    // days nothing is positioned, so days that arrive later (also after a restart that restored this value but not the
+    // days) open the agenda at its first day again.
     val hasItems = items.isNotEmpty()
     var positionedFrom by rememberSaveable { mutableStateOf<String?>(null) }
     LaunchedEffect(state.from, hasItems) {
         val from = state.from.toString()
-        if (hasItems && positionedFrom != from) {
+        if (!hasItems) {
+            positionedFrom = null
+        } else if (positionedFrom != from) {
             listState.scrollToItem(0)
             positionedFrom = from
         }

@@ -1,5 +1,8 @@
 package ch.sonensei.cockpit.calendar.agenda
 
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.StateRestorationTester
 import androidx.compose.ui.test.junit4.v2.createComposeRule
@@ -17,8 +20,8 @@ import java.time.ZoneId
 import java.util.UUID
 
 /**
- * An agenda shown again with its days keeps its scroll position. That it opens at its first day when its days arrive
- * is covered by [CalendarAgendaStartTest].
+ * An agenda shown again with its days keeps its scroll position, and one restored without its days opens at its first
+ * day when they arrive. That a first showing opens at its first day is covered by [CalendarAgendaStartTest].
  */
 @RunWith(AndroidJUnit4::class)
 @Config(qualifiers = "en-rUS")
@@ -66,5 +69,28 @@ class CalendarAgendaPositionTest {
 
         composeRule.onNodeWithTag(CalendarTags.day(later)).assertIsDisplayed()
         composeRule.onNodeWithTag(CalendarTags.day(today)).assertDoesNotExist()
+    }
+
+    @Test
+    fun `after a restart that kept the saved state but not the days, the days open the agenda at today`() {
+        // What the restarted app shows: a plain field, so the composition before the restart does not see it change.
+        var afterRestart: CalendarUiState? = null
+        var daysArrived by mutableStateOf(false)
+        val restoration = StateRestorationTester(composeRule)
+        restoration.setContent {
+            val shown = afterRestart?.takeUnless { daysArrived } ?: loadedAgenda
+            CockpitTheme { CalendarContent(shown, CalendarCallbacks()) }
+        }
+        composeRule.onNodeWithTag(CalendarTags.AGENDA).performScrollToKey("day:${today.plusDays(15)}")
+        composeRule.onNodeWithTag(CalendarTags.day(today)).assertDoesNotExist()
+
+        // The process died: the saved state comes back, but the new view model starts without days (same first day).
+        afterRestart = loadedAgenda.copy(occurrences = emptyList(), loaded = false, loading = true)
+        restoration.emulateSavedInstanceStateRestore()
+        composeRule.runOnIdle { daysArrived = true }
+        composeRule.waitForIdle()
+
+        composeRule.onNodeWithTag(CalendarTags.day(today)).assertIsDisplayed()
+        composeRule.onNodeWithTag(CalendarTags.MORE).assertDoesNotExist()
     }
 }

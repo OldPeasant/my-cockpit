@@ -2,32 +2,32 @@
 
 Date: 2026-10-21
 
-Task: and-cal-agenda - Android calendar agenda and day/week (re-review of the final code after fixer round 2 and the parent's scroll fix)
+Task: and-cal-agenda - Android calendar agenda and day/week views, calendar visibility (re-review of the final code after fixer round 3)
 
-Scope: full task scope `git diff 13770a5c..91805bb3 -- android/`, with focus on the changes since the previous review, `git diff 53493021..91805bb3 -- android/`: `android/app/src/main/java/ch/sonensei/cockpit/calendar/agenda/CalendarScreen.kt` (resume refresh, infinite scroll trigger, initial scroll to the first day) and the new tests `CalendarAgendaInfiniteScrollTest.kt` and `CalendarRouteResumeTest.kt`. Committed changes only; working tree clean.
+Scope: full task scope `git diff 13770a5c..90ea2896 -- android/`, with focus on the changes since the previous review (of 91805bb3), `git diff 91805bb3..90ea2896 -- android/`. In production code only `android/app/src/main/java/ch/sonensei/cockpit/calendar/agenda/CalendarScreen.kt` changed (the `rememberSaveable` `positionedFrom` guard in `Agenda`, lines 369-380). Two new tests: `CalendarAgendaPositionTest.kt` and `CalendarAgendaStartTest.kt`. The rest of the task code is unchanged since 91805bb3 and was reviewed in the earlier rounds. Only committed changes were reviewed; the working tree was clean.
 
 Requirements:
-- tasks/and-cal-agenda.md acceptance criteria (agenda list with infinite scroll by range, day/week views, calendar visibility; `testDebugUnitTest --tests 'ch.sonensei.cockpit.calendar.agenda.*'` passes, covering range loading and grouping by day, Robolectric/Compose UI tests for screens) and its recorded assumption (offline cache deferred to and-cal-cache)
+- tasks/and-cal-agenda.md acceptance criteria (agenda list with infinite scroll by range, day/week views, calendar visibility; `testDebugUnitTest --tests 'ch.sonensei.cockpit.calendar.agenda.*'` passes, covering range loading and grouping by day, plus Robolectric/Compose UI tests for the screens) and its recorded assumption (offline cache deferred to and-cal-cache)
 - SPEC.md §6, §9.2 item 4, §9.3; docs/ARCHITECTURE.md (Android MVVM); AGENTS.md project notes
 - Shell navigation contract: `ui/CockpitShell.kt:127-139` ("each tab keeps its state", `saveState`/`restoreState`)
-- Earlier reports: previous reviews/and-cal-agenda/review.md, reviews/and-cal-agenda/fixes.md (rounds 1 and 2), reviews/and-cal-agenda/tests.md (TW-1)
+- Earlier reports: the previous review.md (of 91805bb3), reviews/and-cal-agenda/fixes.md (rounds 1-3), reviews/and-cal-agenda/tests.md
 
 Git range:
 - Branch: main
-- HEAD: 91805bb3 (reviewed revision)
+- HEAD: 90ea2896406ebe8d7b9dd6294eefe6aab0140082 (reviewed revision)
 - Base/start: 13770a5c0be6b453abb8cf6187b233354e8c0242
-- Commits reviewed: task commits up to 53493021 (reviewed before) plus 0181c227 and 91805bb3
+- Commits reviewed: all task commits up to 90ea2896. The commits new since the previous review are 90ea2896 (and 91805bb3/0181c227, reviewed before).
 
-Summary: 0 P0, 0 P1, 1 P2, 1 P3
+Summary: 0 P0, 0 P1, 1 P2, 0 P3
 
 ## Status of the earlier findings
 
-- Round 1 CR-1 (overlapping visibility toggles), CR-3 (failure/supersession tests), CR-4 (static now line): resolved in round 1; code unchanged since, still correct.
-- Round 1 CR-2 (offline agenda cache, SPEC §9.3): deferred to and-cal-cache by the recorded assumption; not counted.
-- Round 2 CR-1 ("Today" stale on resume on a later day): resolved. `CalendarRoute` now calls `refresh()` from `LifecycleResumeEffect(viewModel)` (`CalendarScreen.kt:117`); the first resume is the only initial load (the view model's init does not load), and `refresh()` moves an agenda to the new today (`CalendarViewModel.kt:101`). Covered by `CalendarRouteResumeTest` (lifecycle CREATED -> clock to next morning -> RESUMED; asserts the new range is loaded and "Today" is on the new day).
-- Test-writer TW-1 (infinite scroll not re-triggered after a short range, lost triggers while busy): resolved. The trigger now emits `(state.from, totalItemsCount)` only while near the end and not busy (`CalendarScreen.kt:358-368`), so it fires once per list length, again after a range that added any items, not while a load runs (then once it ends), and not range after range for empty ranges. `busy` and `rangeStart` are read through `rememberUpdatedState`, so the snapshot flow observes them. Covered by the five tests of `CalendarAgendaInfiniteScrollTest`.
+- Round 1 CR-1, CR-3, CR-4; round 2 CR-1; test-writer TW-1: resolved in earlier rounds. The code behind them has not changed since.
+- Round 1 CR-2 (offline agenda cache, SPEC §9.3): deferred to and-cal-cache by the recorded assumption. Not counted.
+- Round 3 CR-1 (P2, the agenda jumps back to today after a rotation or a tab switch): resolved for the paths the finding named. `positionedFrom` is saved with `rememberSaveable`. When `Agenda` is composed again with its days already there and the same `from` (rotation with the view model kept, or a tab restored with `saveState`/`restoreState`), the effect does not scroll. `CalendarAgendaPositionTest` covers this with `StateRestorationTester`: it scrolls to day +15, restores, and asserts that day +15 is displayed and today is not. Without the guard this test would fail, because the effect would scroll to item 0. A resume on a later day still repositions: `refresh()` clears the occurrences and changes `from`, so the key differs. Switching Agenda -> Day -> Agenda drops `Agenda`'s saveable state, so it starts at today again, which is intended.
+- Round 3 CR-2 (P3, no test for "the agenda opens at its first day"): resolved. `CalendarAgendaStartTest` covers the change from footer-only to loaded, and a reload from a later day while scrolled to the footer.
 
-Verified on the final code: one shared `loadJob` cancelled by each new load, so a resume refresh supersedes a running `loadMore` and `loadingMore` is reset; a resume refresh of an unchanged day keeps `from`, so neither the occurrences nor the scroll position (within the same composition) are reset; the resume refresh goes through `withCalendars`, so pending visibility writes are preserved. The parent reported `cd android && ./gradlew ktlintCheck testDebugUnitTest --tests 'ch.sonensei.cockpit.calendar.agenda.*' lintDebug createDebugUnitTestCoverageReport` -> BUILD SUCCESSFUL, 94 tests, 0 failures on 91805bb3 (not re-run by the reviewer).
+The parent ran this on 90ea2896: `cd android && ./gradlew ktlintCheck testDebugUnitTest --tests 'ch.sonensei.cockpit.calendar.agenda.*' lintDebug createDebugUnitTestCoverageReport` -> BUILD SUCCESSFUL, 97 tests, 0 failures, ktlint and lint clean. The reviewer did not re-run it.
 
 ## P0 Critical
 
@@ -39,24 +39,19 @@ None.
 
 ## P2 Medium
 
-- [ ] **CR-1 | The agenda jumps back to today after a rotation or a tab switch**
-    - File: `android/app/src/main/java/ch/sonensei/cockpit/calendar/agenda/CalendarScreen.kt:371-374`
+- [ ] **CR-1 | After process death the agenda opens at its footer again and keeps loading range after range**
+    - File: `android/app/src/main/java/ch/sonensei/cockpit/calendar/agenda/CalendarScreen.kt:373-380`
     - Category: Correctness
-    - Problem: `LaunchedEffect(state.from, hasItems) { if (hasItems) listState.scrollToItem(0) }` also runs on the first composition of `Agenda` when the days are already there. `rememberLazyListState()` is saveable, and the view model survives both a configuration change (the activity declares no `configChanges`, so rotation recreates it) and a bottom-bar tab switch (`CockpitShell.kt:134-139` pops with `saveState = true` and navigates back with `restoreState = true`, documented as "each tab keeps its state"). In both cases the restored list state is non-empty at the first composition, so the effect immediately scrolls to item 0 and discards the position the user had scrolled to (e.g. weeks ahead). Before 91805bb3 that position was restored.
-    - Why it matters: rotating the phone or checking another tab while browsing later weeks throws the user back to today, and the shell's "each tab keeps its state" contract is broken for the calendar. Normal use, not an edge case.
-    - Suggested fix: scroll to the top only on the transition the fix targets (no days -> days for a new `from`), not when the composable starts with days already present. For example keep the `from` already positioned in a `rememberSaveable` value and scroll only when `hasItems` and `state.from` differs from it; or scroll only if the first visible item is still the footer. Add a test with `StateRestorationTester` (or recreating the content with the same view model state) asserting the scroll position survives.
+    - Problem: `positionedFrom` is saved in the saved-instance state, so it survives process death (the NavHost keeps each entry's saveable state in the activity bundle). The view model does not: it starts again with `from = NO_DATE` and no occurrences (`CalendarViewModel.kt:77-87`, no `SavedStateHandle`). On the same day, the first resume's `refresh()` sets `from` back to today, which equals the restored `positionedFrom`. Before the data arrives, the list holds only the footer, so the restored `LazyListState` lands on the footer. When the days arrive they are inserted above the footer, and `hasItems && positionedFrom != from` is false, so no `scrollToItem(0)` runs. This is the exact situation the comment at lines 369-371 describes, and the guard now skips the fix for it. The agenda opens past today, at the footer. The footer is then near the end of a scrollable list, so the infinite-scroll trigger (lines 358-368) fires. Each loaded range again inserts its items above the footer, which stays in view, so the next range loads too. This repeats as long as ranges add events (for example a daily recurring event).
+    - Why it matters: Android often kills a backgrounded app and restores it with its saved state. When the user comes back the same day, the original "opens scrolled past today" bug returns, and requests keep chaining against the server. No current test covers this: `CalendarAgendaPositionTest` restores with the days already present, which is the rotation case.
+    - Suggested fix: forget the positioned day whenever the list has no days, e.g. `if (!hasItems) positionedFrom = null` in the effect (or before it). Rotation and tab restores compose with their days present, so they keep their position. A restore after process death, or any start from an empty list, positions at the first day again. Add a `StateRestorationTester` case where the state at restore has no occurrences (`loaded = false`) after the user scrolled down, then the days arrive, and assert that today is displayed and the footer is not.
 
 ## P3 Low
 
-- [ ] **CR-2 | No test for the "agenda opens at its first day" fix**
-    - File: `android/app/src/main/java/ch/sonensei/cockpit/calendar/agenda/CalendarScreen.kt:369-374`
-    - Category: Tests
-    - Problem: the parent's fix for the agenda opening scrolled past today (days inserted above the footer key) has no regression test; no test in `calendar/agenda` asserts the initial scroll position (`firstVisibleItemIndex`, or that the today header is displayed after the first load). The existing infinite-scroll tests start with the days already present, so they do not exercise the empty -> loaded transition.
-    - Why it matters: the bug was found only by hand, and the fix is coupled with CR-1; changing it for CR-1 could reintroduce the original bug unnoticed.
-    - Suggested fix: a Compose test that starts with `loaded = false` and no occurrences, then sets a state with 20+ days, and asserts the today header is displayed (`assertIsDisplayed`) and the footer is not; together with the restoration test of CR-1.
+None.
 
 ## Review conclusion
 
 Material issues found; fix before completing the task.
 
-The earlier findings (round 2 CR-1, TW-1) are resolved and tested, and the acceptance criteria are implemented. CR-1 (P2) is a regression introduced by the last parent fix: the agenda loses its scroll position on rotation and tab switches. It should be fixed (with CR-2's test) before `done`; if the parent decides to accept it, record that disposition in quality.json.
+The round-3 fixes work as intended for rotation, tab switches and the first open, and they are tested. The acceptance criteria are implemented and the unit suite passes, as reported by the parent. CR-1 (P2) is a gap in the new guard: the restore after process death goes back to the original bug, and the trigger then keeps loading. The fix is one line plus a test. If the parent decides to accept it instead, record that disposition in quality.json.

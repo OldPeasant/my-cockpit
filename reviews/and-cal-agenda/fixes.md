@@ -231,6 +231,51 @@ Lint/type-check/build:
 Remaining unresolved findings:
 1 (CR-2 of round 1, out of scope, deferred to and-cal-cache)
 
+Round 3 status: CR-1 fixed, CR-2 covered; validation passed (parent worker's run above).
+
+## Round 4 (re-review of 90ea2896)
+
+Scope: CR-1 of the code-reviewer's re-review of 90ea2896 (`reviews/and-cal-agenda/review.md`), as supplied by the parent worker. Changes limited to `android/app/src/{main,test}/java/ch/sonensei/cockpit/calendar/agenda`.
+
+### Fixed findings
+
+#### CR-1 (P2) — After process death the agenda opens at its footer and loads range after range
+
+Files changed:
+- `android/app/src/main/java/ch/sonensei/cockpit/calendar/agenda/CalendarScreen.kt`
+- `android/app/src/test/java/ch/sonensei/cockpit/calendar/agenda/CalendarAgendaPositionTest.kt`
+
+Problem:
+After process death, `rememberSaveable` restored `positionedFrom`, but the new view model started without days, and `refresh()` set `from` to today, the same as the restored value. When the days arrived (inserted above the footer), `scrollToItem(0)` was skipped. The agenda then opened at its footer, and the infinite scroll loaded one range after another.
+
+Fix:
+The `LaunchedEffect(state.from, hasItems)` in `Agenda` now sets `positionedFrom = null` while the agenda has no days, and scrolls to item 0 only when days are present and `positionedFrom` differs from `state.from`. An agenda restored with its days (rotation, back to the tab) still keeps its restored position. One restored without days scrolls to its first day once they arrive.
+
+Validation:
+- New test `CalendarAgendaPositionTest."after a restart that kept the saved state but not the days, the days open the agenda at today"`. Using `StateRestorationTester`, it scrolls the agenda 15 days ahead and restores it with a fresh state that has no occurrences and the same `from` (`loading`, not `loaded`). The days then arrive, and the test asserts that today's header is shown and the footer's "more" button is not. The existing `an agenda shown again with its days keeps where it was scrolled to` is unchanged.
+- `cd android && ./gradlew ktlintCheck testDebugUnitTest --tests 'ch.sonensei.cockpit.calendar.agenda.*' lintDebug createDebugUnitTestCoverageReport` (parent worker) — Pass (BUILD SUCCESSFUL, 98 tests, 0 failures; `CalendarAgendaPositionTest` 2/2; ktlintCheck and lintDebug clean)
+
+### Not fixed
+
+None in this round.
+
+### Validation summary
+
+Focused tests:
+- The fixer could not run Gradle; run by the parent worker: `cd android && ./gradlew ktlintCheck testDebugUnitTest --tests 'ch.sonensei.cockpit.calendar.agenda.*' lintDebug createDebugUnitTestCoverageReport` — BUILD SUCCESSFUL, 98 tests, 0 failures. The run includes `CalendarAgendaPositionTest` (2/2), `CalendarAgendaStartTest`, `CalendarRouteResumeTest` and `CalendarAgendaInfiniteScrollTest`, all passing.
+
+Full test suite:
+- Not run by the fixer (`sh scripts/check.sh` is left to the parent worker)
+
+Lint/type-check/build:
+- ktlintCheck — Pass; lintDebug — Pass (parent worker's run above)
+
+`.taskcheck`:
+- Not run
+
+Remaining unresolved findings:
+1 (CR-2 of round 1, out of scope, deferred to and-cal-cache)
+
 ## Final status
 
-All validated findings fixed and validation passed. Round 3: CR-1 was fixed by the fixer, and CR-2 is covered by the test-writer's `CalendarAgendaStartTest`. The parent worker's run of `cd android && ./gradlew ktlintCheck testDebugUnitTest --tests 'ch.sonensei.cockpit.calendar.agenda.*' lintDebug createDebugUnitTestCoverageReport` gave BUILD SUCCESSFUL, 97 tests, 0 failures, with ktlintCheck and lintDebug clean. Round 2 fixed TW-1 and CR-1, and the parent worker fixed FX-1 in commit 91805bb3; that revision passed the same command with 94 tests and 0 failures. CR-2 of round 1 remains out of scope (deferred to and-cal-cache). `sh scripts/check.sh` (`.taskcheck`) is left to the parent worker.
+All validated findings fixed and validation passed. Round 4 fixed CR-1. The parent worker's run of `cd android && ./gradlew ktlintCheck testDebugUnitTest --tests 'ch.sonensei.cockpit.calendar.agenda.*' lintDebug createDebugUnitTestCoverageReport` gave BUILD SUCCESSFUL, 98 tests, 0 failures, with ktlintCheck and lintDebug clean. Earlier rounds: round 3 (CR-1 fixed by the fixer, CR-2 covered by the test-writer's `CalendarAgendaStartTest`) passed in the parent worker's run of `cd android && ./gradlew ktlintCheck testDebugUnitTest --tests 'ch.sonensei.cockpit.calendar.agenda.*' lintDebug createDebugUnitTestCoverageReport` gave BUILD SUCCESSFUL, 97 tests, 0 failures, with ktlintCheck and lintDebug clean. Round 2 fixed TW-1 and CR-1, and the parent worker fixed FX-1 in commit 91805bb3; that revision passed the same command with 94 tests and 0 failures. CR-2 of round 1 remains out of scope (deferred to and-cal-cache). `sh scripts/check.sh` (`.taskcheck`) is left to the parent worker.
