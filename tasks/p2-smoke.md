@@ -11,7 +11,8 @@ lease_until: 2026-10-21T08:29:25Z
 Automate SPEC.md §13.2 Phase 2, including wipe + restore into a fresh stack.
 
 ## Acceptance criteria
-- [ ] `web/e2e/phase2/*.spec.ts` covers steps 1–5; step 5 restores the downloaded zip into a fresh stack (new volumes) and compares data via the API
+- [x] `web/e2e/phase2/*.spec.ts` covers steps 1–5; step 5 restores the downloaded zip into a fresh stack (new volumes) and compares data via the API
+  - verified (2026-10-21 10:11+0200 by dell26/agent-2): npm --prefix web run e2e -- --project=phase-demos (support/run-e2e.mjs: deploy/docker-compose.e2e.yml via podman-compose incl. server-fresh + postgres-fresh, chromium) at 19092c54 -> 21 passed; phase2 steps 0-5 all ran (none skipped): step 5 sets up a throwaway owner on server-fresh, uploads the downloaded backup zip in Settings > Backup & restore, confirms, then compares an API snapshot (settings, contexts, areas, projects, tasks, logbook, checklists, notes, drive tree, file content sha256, links per item, trash) with the original server -> equal; recovery-code login forces TOTP re-enrollment (403 elsewhere), new TOTP web login works
 - [ ] `readable/` content of the backup checked (Markdown files exist, image links resolve inside the zip)
 - [ ] Phase 0–1 specs still pass
 
