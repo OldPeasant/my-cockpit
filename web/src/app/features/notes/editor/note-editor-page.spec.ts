@@ -1,4 +1,8 @@
-import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
+import {
+  HttpTestingController,
+  provideHttpClientTesting,
+  TestRequest,
+} from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
 import { EditorView } from '@codemirror/view';
 import { Component } from '@angular/core';
@@ -390,7 +394,10 @@ describe('NoteEditorPage', () => {
 
   it('uploads pasted images to the note', async () => {
     await open();
-    const markdown = editor().uploadImage()!(new File(['x'], 'tent.png', { type: 'image/png' }));
+    const markdown = editor().uploadImage()!(
+      new File(['x'], 'tent.png', { type: 'image/png' }),
+      '![Uploading tent.png…](uploading:0)',
+    );
     const upload = http.expectOne((r) => r.url === `${URL}/images` && r.method === 'POST');
     expect(upload.request.body).toBeInstanceOf(FormData);
     upload.flush({
@@ -674,6 +681,157 @@ describe('NoteEditorPage', () => {
 
     // What the server keeps last must not be the "Uploading…" placeholder.
     expect(saved.at(-1) ?? 'Trip').not.toContain('(uploading:');
+  });
+
+  /** Pastes an image at the end of the text; returns its pending upload request. */
+  function pasteImage(): TestRequest {
+    const view = EditorView.findFromDOM(root.querySelector('.cm-editor') as HTMLElement)!;
+    view.dispatch({ selection: { anchor: view.state.doc.length } });
+    const paste = new Event('paste', { bubbles: true, cancelable: true }) as ClipboardEvent;
+    const image = new File(['x'], 'tent.png', { type: 'image/png' });
+    Object.defineProperty(paste, 'clipboardData', { value: { files: [image], getData: () => '' } });
+    view.contentDOM.dispatchEvent(paste);
+    return http.expectOne((r) => r.url === `${URL}/images`);
+  }
+
+  const TENT = {
+    fileId: TASK_ID,
+    markdown: `![tent.png](cockpit-file:${TASK_ID})`,
+    reference: `cockpit-file:${TASK_ID}`,
+    mime: 'image/png',
+    name: 'tent.png',
+    size: 1,
+  };
+
+  it('does not autosave the placeholder of an image that is still uploading', async () => {
+    await open(note({ bodyMd: 'Trip' }));
+    vi.useFakeTimers();
+    const upload = pasteImage();
+    harness.detectChanges();
+    expect(editor().value()).toContain('(uploading:');
+    await vi.advanceTimersByTimeAsync(AUTOSAVE_DEBOUNCE_MS);
+    const first = http.expectOne((r) => r.method === 'PATCH');
+    expect(first.request.body.bodyMd).toBe('Trip\n\n');
+    first.flush(note({ bodyMd: 'Trip\n\n', version: 2 }));
+    await vi.advanceTimersByTimeAsync(0);
+    harness.detectChanges();
+    expect(state()).toBe('Saved');
+
+    upload.flush(TENT);
+    await vi.advanceTimersByTimeAsync(AUTOSAVE_DEBOUNCE_MS);
+    const second = http.expectOne((r) => r.method === 'PATCH');
+    expect(second.request.body.bodyMd).toBe(`Trip\n${TENT.markdown}\n`);
+  });
+
+  it('puts an image still uploading into the note before opening another note', async () => {
+    await open(note({ bodyMd: 'Trip' }));
+    const upload = pasteImage();
+    void harness.navigateByUrl(`/notes/${OTHER_ID}`);
+    await settle();
+    const first = http.expectOne((r) => r.url === URL && r.method === 'PATCH');
+    expect(first.request.body.bodyMd).toBe('Trip\n\n');
+    first.flush(note({ bodyMd: 'Trip\n\n', version: 2 }));
+    await settle();
+    // The other note waits for the upload.
+    http.expectNone((r) => r.url === `/api/v1/notes/${OTHER_ID}`);
+    upload.flush(TENT);
+    await settle();
+    const second = http.expectOne((r) => r.url === URL && r.method === 'PATCH');
+    expect(second.request.body.bodyMd).toBe(`Trip\n${TENT.markdown}\n`);
+    expect(second.request.headers.get('If-Match')).toBe('"2"');
+    second.flush(note({ bodyMd: second.request.body.bodyMd, version: 3 }));
+    await settle();
+    http
+      .expectOne((r) => r.url === `/api/v1/notes/${OTHER_ID}` && r.method === 'GET')
+      .flush(note({ id: OTHER_ID, title: 'Recipes', bodyMd: 'Soup', version: 9 }));
+    await settle();
+    flushLinks();
+    expect(editor().value()).toBe('Soup');
+  });
+
+  it('when leaving during an upload that then fails, saves the note without its placeholder', async () => {
+    await open(note({ bodyMd: 'Trip' }));
+    const upload = pasteImage();
+    void harness.navigateByUrl('/elsewhere');
+    await settle();
+    const save = http.expectOne((r) => r.url === URL && r.method === 'PATCH');
+    expect(save.request.body.bodyMd).toBe('Trip\n\n');
+    save.flush(note({ bodyMd: 'Trip\n\n', version: 2 }));
+    await settle();
+    upload.flush(null, { status: 413, statusText: 'Payload Too Large' });
+    await settle();
+    http.expectNone((r) => r.method === 'PATCH');
+  });
+
+  it('retries a failed save when leaving the page', async () => {
+    await open();
+    vi.useFakeTimers();
+    type('mine');
+    await vi.advanceTimersByTimeAsync(AUTOSAVE_DEBOUNCE_MS);
+    http
+      .expectOne((r) => r.method === 'PATCH')
+      .flush(null, { status: 503, statusText: 'Service Unavailable' });
+    await vi.advanceTimersByTimeAsync(0);
+    harness.detectChanges();
+    expect(state()).toBe('Not saved');
+
+    void harness.navigateByUrl('/elsewhere');
+    await vi.advanceTimersByTimeAsync(0);
+    const retry = http.expectOne((r) => r.url === URL && r.method === 'PATCH');
+    expect(retry.request.body.bodyMd).toBe('mine');
+    expect(retry.request.headers.get('If-Match')).toBe('"1"');
+  });
+
+  /** In conflict on the first note, clicks `action` and opens the other note before it ends. */
+  async function conflictThenOpenOther(action: string): Promise<TestRequest> {
+    await open();
+    vi.useFakeTimers();
+    type('mine');
+    await vi.advanceTimersByTimeAsync(AUTOSAVE_DEBOUNCE_MS);
+    await conflictOnSave();
+    button(action).click();
+    await vi.advanceTimersByTimeAsync(0);
+    const slow = http.expectOne((r) => r.url === URL && r.method === 'GET');
+    void harness.navigateByUrl(`/notes/${OTHER_ID}`);
+    await vi.advanceTimersByTimeAsync(0);
+    http
+      .expectOne((r) => r.url === `/api/v1/notes/${OTHER_ID}` && r.method === 'GET')
+      .flush(note({ id: OTHER_ID, title: 'Recipes', bodyMd: 'Soup', version: 9 }));
+    await vi.advanceTimersByTimeAsync(0);
+    flushLinks();
+    return slow;
+  }
+
+  it('“Save my version” has no effect when another note was opened meanwhile', async () => {
+    const slow = await conflictThenOpenOther('Save my version');
+    slow.flush(note({ bodyMd: 'theirs', version: 5 }));
+    await vi.advanceTimersByTimeAsync(AUTOSAVE_DEBOUNCE_MS * 2);
+    http.expectNone((r) => r.method === 'PATCH');
+    harness.detectChanges();
+    expect(editor().value()).toBe('Soup');
+    expect(state()).toBe('Saved');
+  });
+
+  it('“Discard my edits” has no effect when another note was opened meanwhile', async () => {
+    const slow = await conflictThenOpenOther('Discard my edits');
+    slow.flush(note({ bodyMd: 'theirs', version: 5 }));
+    await vi.advanceTimersByTimeAsync(0);
+    harness.detectChanges();
+    expect(editor().value()).toBe('Soup');
+    expect((root.querySelector('.title') as HTMLInputElement).value).toBe('Recipes');
+    type('Soup and bread');
+    await vi.advanceTimersByTimeAsync(AUTOSAVE_DEBOUNCE_MS);
+    const save = http.expectOne((r) => r.method === 'PATCH');
+    expect(save.request.url).toBe(`/api/v1/notes/${OTHER_ID}`);
+    expect(save.request.headers.get('If-Match')).toBe('"9"');
+  });
+
+  it('shows no error of a conflict action when another note was opened meanwhile', async () => {
+    const slow = await conflictThenOpenOther('Save my version');
+    slow.flush(null, { status: 503, statusText: 'Service Unavailable' });
+    await vi.advanceTimersByTimeAsync(0);
+    harness.detectChanges();
+    expect(root.querySelector('.banner[role=alert]')).toBeNull();
   });
 
   it('saves nothing when leaving without edits', async () => {

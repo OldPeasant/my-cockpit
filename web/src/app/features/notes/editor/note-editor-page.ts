@@ -14,7 +14,7 @@ import { ActivatedRoute, RouterLink } from '@angular/router';
 import { ItemRefDto, NoteResponse } from '../../../api/generated';
 import { ApiError } from '../../../core/http';
 import { itemTypeLabel, LinkedItems, LinksService } from '../../../shared/links';
-import { LinkOption, MarkdownEditor } from './markdown-editor';
+import { LinkOption, MarkdownEditor, withoutUploadPlaceholders } from './markdown-editor';
 import { NoteDraft, NoteEditorService } from './note-editor.service';
 import { InlineLinkInfo, inlineLinks, toggleChecklistItem } from './note-markdown';
 import { NoteMarkdownView } from './note-markdown-view';
@@ -73,18 +73,26 @@ export default class NoteEditorPage {
     return !!note && !!changes(note, this.draft());
   });
 
-  protected readonly uploadImage = async (file: File): Promise<string> =>
-    (await this.service.uploadImage(this.id(), file)).markdown;
+  /** Uploads an image to the note; tracked, so leaving the note still puts it in place. */
+  protected readonly uploadImage = (file: File, placeholder: string): Promise<string> => {
+    const upload = this.service.uploadImage(this.id(), file).then((image) => image.markdown);
+    const done = upload.catch(() => '');
+    this.uploads.set(placeholder, done);
+    void done.then(() => this.uploads.delete(placeholder));
+    return upload;
+  };
   protected readonly searchLinks = (query: string): Promise<LinkOption[]> =>
     this.findLinkTargets(query);
 
   private readonly draft = computed<NoteDraft>(() => ({
     title: this.title().trim() || null,
-    bodyMd: this.body(),
+    bodyMd: withoutUploadPlaceholders(this.body()),
   }));
   private timer?: ReturnType<typeof setTimeout>;
   private inFlight: Promise<void> | null = null;
   private destroyed = false;
+  /** Images still uploading, by their placeholder in the body: their Markdown ('' if failed). */
+  private readonly uploads = new Map<string, Promise<string>>();
 
   /** Counts the loads: a note that arrives after another one was opened is ignored. */
   private loadSeq = 0;
@@ -95,8 +103,7 @@ export default class NoteEditorPage {
       .subscribe((params) => void this.open(params.get('id') ?? ''));
     inject(DestroyRef).onDestroy(() => {
       this.destroyed = true;
-      // Leaving the page saves what is still waiting for the debounce.
-      if (this.timer !== undefined) void this.flush();
+      void this.leave();
     });
   }
 
@@ -116,11 +123,37 @@ export default class NoteEditorPage {
   /** Shows the note `id`, after saving the edits of the one shown before (a chip to another note). */
   private async open(id: string): Promise<void> {
     if (id === this.id()) return;
-    if (this.note()) await this.flush();
+    if (this.note()) await this.leave();
     this.id.set(id);
     this.note.set(null);
     this.linkInfo.set(new Map());
     await this.load();
+  }
+
+  /**
+   * Leaving the note (another note or page): saves what is not saved yet (also after a failed save),
+   * then waits for the images still uploading and saves them in place of their placeholders.
+   */
+  private async leave(): Promise<void> {
+    await this.flush();
+    if (!this.uploads.size) return;
+    await this.finishUploads();
+    await this.flush();
+  }
+
+  /** Waits for the uploads and puts each result where its placeholder still stands. */
+  private async finishUploads(): Promise<void> {
+    while (this.uploads.size) {
+      const results = await Promise.all(
+        [...this.uploads].map(async ([placeholder, done]) => [placeholder, await done] as const),
+      );
+      for (const [placeholder, markdown] of results) {
+        this.uploads.delete(placeholder);
+        if (this.body().includes(placeholder)) {
+          this.body.update((body) => body.replace(placeholder, () => markdown));
+        }
+      }
+    }
   }
 
   protected setMode(mode: NoteEditorMode): void {
@@ -185,24 +218,31 @@ export default class NoteEditorPage {
 
   /** Conflict: drop the local edits and show the note as it is now. */
   protected async useTheirs(): Promise<void> {
+    const seq = this.loadSeq;
     try {
       const note = await this.service.get(this.id());
+      // Another note was opened meanwhile.
+      if (seq !== this.loadSeq) return;
       this.show(note);
       void this.reloadLinks();
     } catch (error) {
-      this.saveError.set(message(error));
+      if (seq === this.loadSeq) this.saveError.set(message(error));
     }
   }
 
   /** Conflict: save the local edits over the newer version. */
   protected async keepMine(): Promise<void> {
+    const seq = this.loadSeq;
     try {
-      this.note.set(await this.service.get(this.id()));
+      const note = await this.service.get(this.id());
+      // Another note was opened meanwhile: its text must not overwrite this one.
+      if (seq !== this.loadSeq) return;
+      this.note.set(note);
       this.saveError.set(null);
       this.saveState.set('pending');
       await this.flush();
     } catch (error) {
-      this.saveError.set(message(error));
+      if (seq === this.loadSeq) this.saveError.set(message(error));
     }
   }
 
@@ -233,7 +273,7 @@ export default class NoteEditorPage {
   }
 
   protected onBeforeUnload(event: BeforeUnloadEvent): void {
-    if (this.dirty() || this.saveState() === 'saving') event.preventDefault();
+    if (this.dirty() || this.saveState() === 'saving' || this.uploads.size) event.preventDefault();
   }
 
   private schedule(): void {

@@ -64,6 +64,14 @@ const inlineLinkMarks = ViewPlugin.fromClass(
 
 let nextUpload = 0;
 
+/** Placeholders `![Uploading name…](uploading:N)` that stand for images still uploading. */
+const UPLOAD_PLACEHOLDERS = /!\[Uploading [^\n]*?…\]\(uploading:\d+\)/g;
+
+/** `text` without the placeholders of images still uploading: they are never saved. */
+export function withoutUploadPlaceholders(text: string): string {
+  return text.replace(UPLOAD_PLACEHOLDERS, '');
+}
+
 /**
  * Completes `[[query` with the items `search` finds for the query: the chosen one replaces it (and
  * a `]]` typed after it) with `[[type:id]]`.
@@ -101,8 +109,9 @@ export function linkCompletions(
 /**
  * A CodeMirror 6 Markdown editor (SPEC.md §8.1). `value` in, `valueChange` out (on every edit).
  * Pasted or dropped images go to `uploadImage`, which returns the Markdown to insert; meanwhile a
- * placeholder stands at the place. Typing `[[` offers the items `searchLinks` finds and inserts the
- * chosen one as `[[type:id]]`.
+ * placeholder stands at the place (also passed to `uploadImage`: an upload that ends after the
+ * editor is gone is left to its owner). Typing `[[` offers the items `searchLinks` finds and
+ * inserts the chosen one as `[[type:id]]`.
  */
 @Component({
   selector: 'app-markdown-editor',
@@ -118,7 +127,7 @@ export class MarkdownEditor {
   /** The accessible name of the text area. */
   readonly label = input.required<string>();
   readonly placeholder = input('');
-  readonly uploadImage = input<(file: File) => Promise<string>>();
+  readonly uploadImage = input<(file: File, placeholder: string) => Promise<string>>();
   readonly searchLinks = input<(query: string) => Promise<LinkOption[]>>();
 
   readonly valueChange = output<string>();
@@ -136,7 +145,11 @@ export class MarkdownEditor {
         state: this.createState(untracked(this.value)),
       });
     });
-    inject(DestroyRef).onDestroy(() => this.view?.destroy());
+    inject(DestroyRef).onDestroy(() => {
+      this.view?.destroy();
+      // Uploads that end later must not write into the destroyed view.
+      this.view = undefined;
+    });
     // A value from outside (load, restore, a toggled checkbox) replaces the text.
     effect(() => {
       const value = this.value();
@@ -215,9 +228,10 @@ export class MarkdownEditor {
         selection: pos === null ? { anchor: at + insert.length } : undefined,
       });
       at += insert.length;
-      upload(file).then(
+      upload(file, marker).then(
         (markdown) => this.replaceMarker(view, marker, markdown),
         (error: unknown) => {
+          if (this.view !== view) return;
           this.replaceMarker(view, marker, '');
           this.uploadFailed.emit(error);
         },

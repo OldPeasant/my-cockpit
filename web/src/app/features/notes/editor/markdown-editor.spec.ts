@@ -11,7 +11,12 @@ import { EditorState } from '@codemirror/state';
 import { EditorView } from '@codemirror/view';
 import { Component, signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { linkCompletions, LinkOption, MarkdownEditor } from './markdown-editor';
+import {
+  linkCompletions,
+  LinkOption,
+  MarkdownEditor,
+  withoutUploadPlaceholders,
+} from './markdown-editor';
 
 const TASK_ID = '0192f0c4-0000-7000-8000-0000000000a1';
 const BOOK: LinkOption = { type: 'TASK', id: TASK_ID, title: 'Book flights', detail: 'Task' };
@@ -63,6 +68,17 @@ describe('linkCompletions', () => {
   });
 });
 
+describe('withoutUploadPlaceholders', () => {
+  it('removes the placeholders of images still uploading and keeps everything else', () => {
+    expect(
+      withoutUploadPlaceholders(
+        'Trip\n![Uploading tent [1].png…](uploading:3)\n![tent](cockpit-file:1)\n' +
+          '![Uploading image…](uploading:12)\n![Uploading](https://example.org/a.png)',
+      ),
+    ).toBe('Trip\n\n![tent](cockpit-file:1)\n\n![Uploading](https://example.org/a.png)');
+  });
+});
+
 @Component({
   imports: [MarkdownEditor],
   template: `<app-markdown-editor
@@ -78,7 +94,7 @@ class Host {
   readonly value = signal('Intro');
   readonly changes: string[] = [];
   readonly failures: unknown[] = [];
-  upload?: (file: File) => Promise<string> = () => Promise.resolve('');
+  upload?: (file: File, placeholder: string) => Promise<string> = () => Promise.resolve('');
   search?: (query: string) => Promise<LinkOption[]>;
 }
 
@@ -251,6 +267,27 @@ describe('MarkdownEditor', () => {
     resolve('![tent](cockpit-file:1)');
     await tick();
     expect(view().state.doc.toString()).toBe('Gone');
+  });
+
+  it('passes the placeholder to the upload, and leaves uploads that end after it is gone alone', async () => {
+    const pending: { resolve: (markdown: string) => void; reject: (error: unknown) => void }[] = [];
+    const upload = vi.fn<NonNullable<Host['upload']>>(
+      () => new Promise<string>((resolve, reject) => pending.push({ resolve, reject })),
+    );
+    await create(upload);
+    view().dispatch({ selection: { anchor: 5 } });
+    paste(new File(['x'], 'tent.png', { type: 'image/png' }));
+    paste(new File(['x'], 'map.png', { type: 'image/png' }));
+    const doc = view().state.doc.toString();
+    expect(doc).toContain(upload.mock.calls[0][1]);
+    expect(doc).toContain(upload.mock.calls[1][1]);
+    const changes = host.changes.length;
+    fixture.destroy();
+    pending[0].resolve('![tent](cockpit-file:1)');
+    pending[1].reject(new Error('too large'));
+    await tick();
+    expect(host.changes).toHaveLength(changes);
+    expect(host.failures).toEqual([]);
   });
 
   it('leaves image pastes to the editor without an upload function', async () => {
