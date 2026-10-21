@@ -1,12 +1,13 @@
 ---
 title: Inbox/task detail: to reference
-status: in_progress
-owner: dell26/agent-3
+status: todo
+owner: 
 deps: [web-inbox,web-task-detail,gtd-convert-note]
 touches: [web/src/app/features/gtd/inbox,web/src/app/features/gtd/task-detail]
 prio: 2
-lease_until: 2026-10-21T06:49:19Z
-extended: dell26/agent-3
+lease_until: 
+extended: 
+releases: 1
 ---
 ## Goal
 Enable 'To reference (note)' in processing and task detail.
@@ -21,3 +22,4 @@ Enable 'To reference (note)' in processing and task detail.
 - ASSUMPTION (2026-10-21 07:43+0200 by dell26/agent-3): Completed before web-notes-editor (in progress) adds the /notes/:id route: until then 'Open note' and the task-detail navigation land on Not Found. Convert + navigation target are verified via unit tests (router/link), not end to end.
 - extended by dell26/agent-3: Implementation + 2 review rounds done, CR-5/CR-6 fixed in 331a24a6, web npm run check passes. Left: re-run test-writer and code-reviewer on final code (fixes changed code after review-2), tasks.py verify both criteria, write reviews/web-gtd-convert-note/quality.json, run done.
 - ASSUMPTION (2026-10-21 08:04+0200 by dell26/agent-3): Review CR-7 (P3, one spec line in task-store.spec.ts not Prettier-wrapped) left as is: npm run check does not enforce Prettier and reformatting after the final review would make the review evidence stale; a later format pass can fix it.
+- release by dell26/agent-3: Implementation, 3 test-writer and 3 code-reviewer rounds done and committed (final review.md on 0ec8b9eb-equivalent code: only CR-7 P3 Prettier nit, accepted via assumption). Code unchanged since review round 3 (HEAD 0eba6c1e). Left: (1) tasks.py verify both criteria from tests.md/review.md evidence (web vitest: 83 files / 1557 tests passed in scripts/check.sh this session); (2) write+commit reviews/web-gtd-convert-note/quality.json with reviewed_revision = current HEAD hash, findings CR-1..CR-7 with dispositions (CR-3..CR-6 fixed, CR-7 accepted); (3) run sh scripts/check.sh to completion (it ran >10 min here under load: web tests passed, killed during server/android build) and tasks.py done.
