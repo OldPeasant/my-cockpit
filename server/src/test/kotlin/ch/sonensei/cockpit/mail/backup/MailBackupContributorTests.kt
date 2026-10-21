@@ -371,19 +371,57 @@ class MailBackupContributorTests(
 	// --- restore warnings -------------------------------------------------------------------------------------------
 
 	@Test
-	fun `restore warnings say that mail is fetched again and that IMAP passwords must be entered again`() {
+	fun `restore warnings name the refetch, the IMAP passwords to enter again and the old linked mails that come back later`() {
 		seed()
 
 		warnings(export(PASSPHRASE)) shouldContainExactly
 			listOf(
 				"The emails of 2 mail accounts are fetched again with the next sync",
 				"Without the backup's passphrase, the passwords of 1 IMAP mail account must be entered again",
+				OLD_LINKED_MAILS_WARNING,
 			)
 		warnings(export()) shouldContainExactly
 			listOf(
 				"The emails of 2 mail accounts are fetched again with the next sync",
 				"The backup has no mail passwords: the passwords of 1 IMAP mail account must be entered again",
+				OLD_LINKED_MAILS_WARNING,
 			)
+	}
+
+	@Test
+	fun `a backup with accounts but no linked or reminded mails has no warning about old linked mails`() {
+		seed(links = false)
+
+		val withoutSecrets = warnings(export())
+		val withSecrets = warnings(export(PASSPHRASE))
+
+		withoutSecrets shouldContainExactly
+			listOf(
+				"The emails of 2 mail accounts are fetched again with the next sync",
+				"The backup has no mail passwords: the passwords of 1 IMAP mail account must be entered again",
+			)
+		withSecrets shouldContainExactly
+			listOf(
+				"The emails of 2 mail accounts are fetched again with the next sync",
+				"Without the backup's passphrase, the passwords of 1 IMAP mail account must be entered again",
+			)
+	}
+
+	@Test
+	fun `only a reminder on a mail is enough for the warning about old linked mails`() {
+		account(id(5), "GOOGLE", connection = id(80))
+		message(REMINDED, id(5), null, null, "<follow-up@work.example.test>", "Follow up")
+		jdbc.update(
+			"insert into reminder (id, created_at, updated_at, version, item_type, item_id, remind_at, channel) values (?, ?, ?, 0, 'EMAIL', ?, ?, 'NOTIFICATION')",
+			id(95),
+			ts(T0),
+			ts(T0),
+			REMINDED,
+			ts(T2),
+		)
+
+		warnings(export()) shouldContainExactly
+			listOf("The emails of 1 mail account are fetched again with the next sync", OLD_LINKED_MAILS_WARNING)
 	}
 
 	@Test
@@ -699,6 +737,8 @@ class MailBackupContributorTests(
 
 		private const val PASSWORD = "fictitious-imap-password"
 		private const val PASSPHRASE = "fictitious backup passphrase"
+		private const val OLD_LINKED_MAILS_WARNING =
+			"Links and reminders to emails older than the sync window come back only once those emails are loaded again"
 
 		private val T0 = Instant.parse("2026-03-01T08:15:30.123456Z")
 		private val T1 = Instant.parse("2026-03-02T09:00:00Z")
