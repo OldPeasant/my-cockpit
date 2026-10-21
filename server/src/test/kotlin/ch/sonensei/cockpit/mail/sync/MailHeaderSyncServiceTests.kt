@@ -46,6 +46,7 @@ class MailHeaderSyncServiceTests {
 	private val folders = mockk<MailFolderRepository>()
 	private val store = mockk<MailHeaderStore>(relaxed = true)
 	private val changes = mockk<ChangeEventPublisher>(relaxed = true)
+	private val announcer = mockk<NewMailAnnouncer>(relaxed = true)
 	private val remote = FakeRemoteFolder()
 	private var openedWith: KnownFolderState? = null
 	private var opened = 0
@@ -62,7 +63,7 @@ class MailHeaderSyncServiceTests {
 				return block(remote)
 			}
 		}
-	private val service = MailHeaderSyncService(accounts, folders, mailbox, store, changes, Clock.fixed(now, ZoneOffset.UTC))
+	private val service = MailHeaderSyncService(accounts, folders, mailbox, store, changes, announcer, Clock.fixed(now, ZoneOffset.UTC))
 
 	/** A server folder whose answers the test sets; it records which reads the sync made. */
 	private class FakeRemoteFolder : RemoteFolder {
@@ -481,7 +482,16 @@ class MailHeaderSyncServiceTests {
 					block: (RemoteFolder) -> T,
 				): T = if (path == "Gone") throw RemoteFolderNotFoundException(path) else block(remote)
 			}
-		val results = MailHeaderSyncService(accounts, folders, failing, store, changes, Clock.fixed(now, ZoneOffset.UTC)).syncAccount(account.id)
+		val results =
+			MailHeaderSyncService(
+				accounts,
+				folders,
+				failing,
+				store,
+				changes,
+				announcer,
+				Clock.fixed(now, ZoneOffset.UTC),
+			).syncAccount(account.id)
 
 		results.map { it.folderId } shouldContainExactly listOf(folder.id)
 	}

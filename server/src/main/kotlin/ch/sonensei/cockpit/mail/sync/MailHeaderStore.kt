@@ -11,13 +11,15 @@ import org.springframework.transaction.annotation.Transactional
 import java.time.Instant
 import java.util.UUID
 
-/** How many cached messages one step of a sync created, changed and removed. */
+/** How many cached messages one step of a sync created, changed and removed, and the ids of the created rows. */
 data class StoreCounts(
 	val created: Int = 0,
 	val updated: Int = 0,
 	val removed: Int = 0,
+	val createdIds: List<UUID> = emptyList(),
 ) {
-	operator fun plus(other: StoreCounts) = StoreCounts(created + other.created, updated + other.updated, removed + other.removed)
+	operator fun plus(other: StoreCounts) =
+		StoreCounts(created + other.created, updated + other.updated, removed + other.removed, createdIds + other.createdIds)
 }
 
 /**
@@ -46,7 +48,7 @@ class MailHeaderStore(
 		if (remote.isEmpty()) return StoreCounts()
 		val cached = messages.findByFolderIdAndUidIn(folderId, remote.map { it.uid }).associateBy { it.uid }
 		val index = RepositoryThreadIndex(accountId)
-		var created = 0
+		val created = mutableListOf<UUID>()
 		var updated = 0
 		for (r in remote) {
 			val existing = cached[r.uid]
@@ -62,10 +64,10 @@ class MailHeaderStore(
 			if (message.threadKey == null) assignThread(message, index)
 			// Saved before the next message's thread lookup (queries flush first), so replies in one batch find it.
 			messages.save(message)
-			if (reattached != null) updated++ else created++
+			if (reattached != null) updated++ else created += message.id
 		}
 		messages.flush()
-		return StoreCounts(created, updated)
+		return StoreCounts(created.size, updated, createdIds = created)
 	}
 
 	/** Applies flag changes to cached messages ([changes] of UIDs not cached are ignored) and removes [vanished] UIDs. */

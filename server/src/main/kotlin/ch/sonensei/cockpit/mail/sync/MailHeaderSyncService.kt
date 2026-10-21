@@ -26,6 +26,8 @@ data class FolderSyncResult(
 	val created: Int,
 	val updated: Int,
 	val removed: Int,
+	/** Rows created for messages that arrived since the previous sync (incremental syncs only). */
+	val arrived: List<UUID> = emptyList(),
 )
 
 /** What [MailHeaderSyncService.loadOlder] added. */
@@ -48,7 +50,7 @@ data class OlderMessagesResult(
  * - **Older mail on demand** ([loadOlder]): the most recently arrived messages missing from the cache.
  *
  * Syncs of the same folder run one after another. A folder whose content changed publishes a `MAIL_FOLDER` change
- * event.
+ * event; messages that arrived since the previous sync are announced by [NewMailAnnouncer].
  */
 @Service
 class MailHeaderSyncService(
@@ -57,6 +59,7 @@ class MailHeaderSyncService(
 	private val mailbox: RemoteMailbox,
 	private val store: MailHeaderStore,
 	private val changes: ChangeEventPublisher,
+	private val announcer: NewMailAnnouncer,
 	private val clock: Clock,
 ) {
 	private val log = LoggerFactory.getLogger(javaClass)
@@ -89,17 +92,20 @@ class MailHeaderSyncService(
 	 * @throws ch.sonensei.cockpit.mail.imap.MailConnectionException when the server cannot be reached
 	 */
 	fun syncFolder(folderId: UUID): FolderSyncResult =
-		lock(folderId)
-			.withLock {
-				val folder = folder(folderId)
-				val account = account(folder.accountId)
-				// `\Noselect` folders only group others and cannot be opened.
-				if (!folder.selectable) return@withLock FolderSyncResult(folder.id, full = false, 0, 0, 0)
-				val known = folder.uidValidity?.let { validity -> folder.highestModSeq?.let { KnownFolderState(validity, it) } }
+		lock(folderId).withLock {
+			val folder = folder(folderId)
+			val account = account(folder.accountId)
+			// `\Noselect` folders only group others and cannot be opened.
+			if (!folder.selectable) return@withLock FolderSyncResult(folder.id, full = false, 0, 0, 0)
+			val known = folder.uidValidity?.let { validity -> folder.highestModSeq?.let { KnownFolderState(validity, it) } }
+			val result =
 				mailbox.withFolder(account, folder.path, known) { remote ->
 					if (folder.uidValidity != remote.status.uidValidity) full(account, folder, remote) else incremental(account, folder, remote)
 				}
-			}.also(::announce)
+			announce(result)
+			if (result.arrived.isNotEmpty()) announcer.announce(account, folder, result.arrived)
+			result
+		}
 
 	/**
 	 * Loads up to [limit] of the messages missing from the cache into it, the most recently arrived (INTERNALDATE)
@@ -215,17 +221,20 @@ class MailHeaderSyncService(
 					states to (cached.toSet() - states.map { it.uid }.toSet())
 				}
 			}
-		var counts = store.reconcile(folder.id, flagChanges, vanished)
+		val counts = store.reconcile(folder.id, flagChanges, vanished)
 		val previousNext = folder.uidNext ?: 1
-		if (status.uidNext > previousNext) {
-			val known = cached.toSet()
-			counts +=
+		val arrivals =
+			if (status.uidNext > previousNext) {
+				val known = cached.toSet()
 				remote.uidsFrom(previousNext).filter { it !in known }.chunked(BATCH_SIZE).fold(StoreCounts()) { acc, uids ->
 					acc + store.upsert(account.id, folder.id, remote.headers(uids))
 				}
-		}
+			} else {
+				StoreCounts()
+			}
 		store.finish(folder.id, status, clock.instant())
-		return FolderSyncResult(folder.id, full = false, counts.created, counts.updated, counts.removed)
+		val total = counts + arrivals
+		return FolderSyncResult(folder.id, full = false, total.created, total.updated, total.removed, arrivals.createdIds)
 	}
 
 	private fun announce(result: FolderSyncResult) {

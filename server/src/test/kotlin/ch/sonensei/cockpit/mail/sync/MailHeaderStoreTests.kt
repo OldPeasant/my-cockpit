@@ -126,8 +126,9 @@ class MailHeaderStoreTests(
 				),
 			)
 
-		counts shouldBe StoreCounts(created = 2)
+		counts.copy(createdIds = emptyList()) shouldBe StoreCounts(created = 2)
 		val a = row(inbox, 2)
+		counts.createdIds shouldBe listOf(a.id, row(inbox, 3).id)
 		a.accountId shouldBe account.id
 		a.messageIdHeader shouldBe "<a@example.test>"
 		a.subject shouldBe "Budget"
