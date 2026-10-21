@@ -372,7 +372,7 @@ data class MailMessageResponse(
 
 private fun List<MailAddress>.toResponse() = map { MailAddressResponse(it.address, it.name) }
 
-private fun MailMessage.toSummary(
+internal fun MailMessage.toSummary(
 	threadSize: Int,
 	threadUnread: Int,
 ) = MailMessageSummaryResponse(

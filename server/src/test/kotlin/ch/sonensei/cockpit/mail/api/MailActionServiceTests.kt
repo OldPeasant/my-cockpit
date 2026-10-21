@@ -20,6 +20,7 @@ import ch.sonensei.cockpit.mail.model.MailMessage
 import ch.sonensei.cockpit.mail.model.MailMessageLocator
 import ch.sonensei.cockpit.mail.model.MailMessageRepository
 import ch.sonensei.cockpit.mail.model.MailSecurity
+import ch.sonensei.cockpit.mail.search.MailSearchIndex
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
 import io.mockk.every
@@ -68,6 +69,7 @@ class MailActionServiceTests {
 			links,
 			TransactionTemplate(mockk<PlatformTransactionManager>(relaxed = true)),
 			changes,
+			mockk<MailSearchIndex>(relaxed = true),
 		)
 
 	private val account =

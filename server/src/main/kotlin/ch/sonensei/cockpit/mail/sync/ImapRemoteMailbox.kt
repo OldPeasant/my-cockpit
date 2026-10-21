@@ -12,6 +12,7 @@ import jakarta.mail.event.MessageChangedEvent
 import jakarta.mail.internet.InternetAddress
 import jakarta.mail.internet.InternetHeaders
 import jakarta.mail.internet.MimeUtility
+import org.eclipse.angus.mail.iap.Argument
 import org.eclipse.angus.mail.iap.Response
 import org.eclipse.angus.mail.imap.IMAPFolder
 import org.eclipse.angus.mail.imap.IMAPMessage
@@ -147,6 +148,15 @@ private class ImapRemoteFolder(
 			}.distinct()
 			.sorted()
 
+	override fun search(words: List<String>): List<Long> {
+		if (words.isEmpty() || empty) return emptyList()
+		val args = Argument()
+		// US-ASCII is the default charset; UTF-8 words go as literals.
+		if (words.any { word -> word.any { it !in ' '..'~' } }) args.writeAtom("CHARSET").writeAtom("UTF-8")
+		words.forEach { args.writeAtom("TEXT").writeString(it, Charsets.UTF_8) }
+		return search("", args)
+	}
+
 	override fun headers(uids: List<Long>): List<RemoteMessage> {
 		if (uids.isEmpty()) return emptyList()
 		val items = "UID FLAGS INTERNALDATE RFC822.SIZE ENVELOPE BODYSTRUCTURE BODY.PEEK[HEADER.FIELDS (References In-Reply-To)]"
@@ -231,8 +241,11 @@ private class ImapRemoteFolder(
 			}.toMap()
 	}
 
-	private fun search(criteria: String): List<Long> =
-		command("UID SEARCH $criteria") { responses ->
+	private fun search(
+		criteria: String,
+		args: Argument? = null,
+	): List<Long> =
+		command("UID SEARCH $criteria".trimEnd(), args) { responses ->
 			responses
 				.filterIsInstance<IMAPResponse>()
 				.filter { it.keyEquals("SEARCH") }
@@ -264,11 +277,12 @@ private class ImapRemoteFolder(
 	/** Runs a raw command; unsolicited responses (EXISTS, EXPUNGE, ...) still reach the folder. */
 	private fun <T> command(
 		command: String,
+		args: Argument? = null,
 		parse: (Array<Response>) -> T,
 	): T {
 		val result = ArrayList<T>(1)
 		folder.doCommand { protocol: IMAPProtocol ->
-			val responses = protocol.command(command, null)
+			val responses = protocol.command(command, args)
 			result += parse(responses)
 			protocol.notifyResponseHandlers(responses.filter { it !is FetchResponse }.toTypedArray())
 			protocol.handleResult(responses.last())

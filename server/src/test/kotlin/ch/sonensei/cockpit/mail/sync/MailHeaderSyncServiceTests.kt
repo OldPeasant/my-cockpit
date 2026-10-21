@@ -96,6 +96,13 @@ class MailHeaderSyncServiceTests {
 			return messageIdMatches
 		}
 
+		var searchMatches: List<Long> = emptyList()
+
+		override fun search(words: List<String>): List<Long> {
+			calls += "search $words"
+			return searchMatches
+		}
+
 		override fun headers(uids: List<Long>): List<RemoteMessage> {
 			calls += "headers $uids"
 			return uids.map(::message)

@@ -37,6 +37,16 @@ data class OlderMessagesResult(
 	val hasMore: Boolean,
 )
 
+/** What [MailHeaderSyncService.searchServer] found. */
+data class ServerSearchResult(
+	/** The cached messages the server found, at most `limit` (the most recently arrived ones). */
+	val messageIds: List<UUID>,
+	/** Headers of found messages that were not cached yet and are now. */
+	val loaded: Int,
+	/** The server found more than `limit` messages. */
+	val hasMore: Boolean,
+)
+
 /**
  * Keeps the header cache of a folder in sync with the server (SPEC.md §7.2).
  *
@@ -48,6 +58,8 @@ data class OlderMessagesResult(
  *   HIGHESTMODSEQ, plus a UID search for expunges), else by fetching the flags of every cached UID.
  *   Linked rows the window pass did not find are then looked up by Message-ID before the rest is removed.
  * - **Older mail on demand** ([loadOlder]): the most recently arrived messages missing from the cache.
+ * - **Search on the server** ([searchServer]): IMAP SEARCH in the folder; found messages missing from the cache are
+ *   cached, so they can be listed and opened like any other.
  *
  * Syncs of the same folder run one after another. A folder whose content changed publishes a `MAIL_FOLDER` change
  * event; messages that arrived since the previous sync are announced by [NewMailAnnouncer].
@@ -146,6 +158,52 @@ class MailHeaderSyncService(
 							acc + store.upsert(account.id, folder.id, remote.headers(uids))
 						}
 					OlderMessagesResult(counts.created + counts.updated, missing.size > batch.size)
+				}
+			}
+		if (changed || result.loaded > 0) changes.publish(FOLDER_EVENT, folderId, ChangeOp.UPDATED)
+		return result
+	}
+
+	/**
+	 * Searches the folder on the server for messages containing every one of [words] (IMAP `SEARCH TEXT`) and caches
+	 * the headers of found messages that are not cached yet, of the [limit] most recently arrived ones. Like
+	 * [loadOlder], a folder that was never synced (or whose UIDVALIDITY changed) is synced first, so the found UIDs
+	 * match the cache.
+	 *
+	 * @throws NotFoundException when the folder is not cached (or the account is gone)
+	 * @throws RemoteFolderNotFoundException when the folder no longer exists on the server
+	 * @throws ch.sonensei.cockpit.mail.imap.MailConnectionException when the server cannot be reached
+	 */
+	fun searchServer(
+		folderId: UUID,
+		words: List<String>,
+		limit: Int,
+	): ServerSearchResult {
+		require(limit > 0) { "limit must be positive" }
+		var changed = false
+		val result =
+			lock(folderId).withLock {
+				val folder = folder(folderId)
+				val account = account(folder.accountId)
+				if (!folder.selectable || words.isEmpty()) return@withLock ServerSearchResult(emptyList(), 0, false)
+				mailbox.withFolder(account, folder.path, null) { remote ->
+					if (folder.uidValidity != remote.status.uidValidity) {
+						changed = full(account, folder, remote).changedAnything
+					}
+					val found = remote.search(words)
+					val newest =
+						if (found.size <= limit) {
+							found
+						} else {
+							val dates = remote.receivedDates(found)
+							found.sortedWith(compareByDescending<Long> { dates[it] ?: Instant.EPOCH }.thenByDescending { it }).take(limit)
+						}
+					val cached = store.locatedUids(folder.id).toHashSet()
+					val counts =
+						newest.filter { it !in cached }.sorted().chunked(BATCH_SIZE).fold(StoreCounts()) { acc, uids ->
+							acc + store.upsert(account.id, folder.id, remote.headers(uids))
+						}
+					ServerSearchResult(store.locatedIds(folder.id, newest), counts.created + counts.updated, found.size > newest.size)
 				}
 			}
 		if (changed || result.loaded > 0) changes.publish(FOLDER_EVENT, folderId, ChangeOp.UPDATED)

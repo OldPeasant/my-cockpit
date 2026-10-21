@@ -7,6 +7,7 @@ import ch.sonensei.cockpit.mail.model.MailAccountRepository
 import ch.sonensei.cockpit.mail.model.MailBodyCache
 import ch.sonensei.cockpit.mail.model.MailFolderRepository
 import ch.sonensei.cockpit.mail.model.MailMessage
+import ch.sonensei.cockpit.mail.search.MailSearchIndex
 import jakarta.mail.Folder
 import jakarta.mail.FolderNotFoundException
 import jakarta.mail.MessagingException
@@ -70,6 +71,7 @@ class MailContentLoader(
 	private val attachments: MailBodyAttachmentStore,
 	private val transactions: TransactionTemplate,
 	private val properties: MailReadProperties,
+	private val searchIndex: MailSearchIndex,
 ) {
 	/** The content of a located [message]; fetched from the server on a cache miss. */
 	fun load(message: MailMessage): MailContent {
@@ -78,6 +80,7 @@ class MailContentLoader(
 		transactions.executeWithoutResult {
 			cache.put(message.id, content.textPlain, content.textHtml)
 			attachments.save(message.id, content.attachments)
+			searchIndex.index(message, content.textPlain, content.textHtml)
 		}
 		return content
 	}

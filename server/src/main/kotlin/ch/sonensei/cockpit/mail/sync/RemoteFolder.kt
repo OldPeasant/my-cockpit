@@ -83,6 +83,12 @@ interface RemoteFolder {
 	 */
 	fun uidsWithMessageIds(messageIds: Collection<String>): List<Long>
 
+	/**
+	 * UIDs of the messages that contain every one of [words] in their headers or body (IMAP `SEARCH TEXT`, matched by
+	 * the server, usually as case-insensitive substrings).
+	 */
+	fun search(words: List<String>): List<Long>
+
 	/** Headers of the messages with these UIDs (UIDs no longer on the server are left out). */
 	fun headers(uids: List<Long>): List<RemoteMessage>
 

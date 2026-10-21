@@ -8,6 +8,7 @@ import org.springframework.context.event.EventListener
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import java.time.Clock
+import java.time.Instant
 import java.util.UUID
 
 /**
@@ -17,7 +18,8 @@ import java.util.UUID
  * the document as well.
  *
  * [title] is the item's short display text, [body] its long text (note content, mail body, description), may be
- * empty. Both are plain text; the module strips markup first. The document's recency is the time of the last [upsert].
+ * empty. Both are plain text; the module strips markup first. The document's recency is the time of the last [upsert],
+ * or [upsert]'s `recency` when the item has a date of its own that should rank it (e.g. when a mail arrived).
  */
 @Service
 @Transactional
@@ -30,8 +32,10 @@ class SearchIndexer(
 		id: UUID,
 		title: String,
 		body: String?,
+		recency: Instant? = null,
 	) {
-		documents.upsert(itemType, id, clean(title, MAX_TITLE_LENGTH), clean(body.orEmpty(), MAX_BODY_LENGTH), clock.storableInstant())
+		val updatedAt = recency ?: clock.storableInstant()
+		documents.upsert(itemType, id, clean(title, MAX_TITLE_LENGTH), clean(body.orEmpty(), MAX_BODY_LENGTH), updatedAt)
 	}
 
 	fun delete(

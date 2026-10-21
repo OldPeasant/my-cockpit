@@ -6,6 +6,7 @@ import ch.sonensei.cockpit.core.items.domain.LinkService
 import ch.sonensei.cockpit.core.web.NotFoundException
 import ch.sonensei.cockpit.mail.model.MailFolderRepository
 import ch.sonensei.cockpit.mail.model.MailMessage
+import ch.sonensei.cockpit.mail.search.MailSearchIndex
 import org.springframework.stereotype.Component
 import org.springframework.transaction.annotation.Transactional
 import java.time.Instant
@@ -34,9 +35,17 @@ class MailHeaderStore(
 	private val messages: MailSyncRepository,
 	private val folders: MailFolderRepository,
 	private val links: LinkService,
+	private val searchIndex: MailSearchIndex,
 ) {
 	@Transactional(readOnly = true)
 	fun locatedUids(folderId: UUID): List<Long> = messages.locatedUids(folderId)
+
+	/** The ids of the messages cached at these UIDs of the folder. */
+	@Transactional(readOnly = true)
+	fun locatedIds(
+		folderId: UUID,
+		uids: Collection<Long>,
+	): List<UUID> = uids.chunked(QUERY_CHUNK).flatMap { chunk -> messages.findByFolderIdAndUidIn(folderId, chunk).map { it.id } }
 
 	/** Stores new headers and refreshes the flags of messages already cached at these UIDs. */
 	@Transactional
@@ -64,7 +73,13 @@ class MailHeaderStore(
 			if (message.threadKey == null) assignThread(message, index)
 			// Saved before the next message's thread lookup (queries flush first), so replies in one batch find it.
 			messages.save(message)
-			if (reattached != null) updated++ else created += message.id
+			if (reattached != null) {
+				searchIndex.index(message)
+				updated++
+			} else {
+				searchIndex.index(message, null, null)
+				created += message.id
+			}
 		}
 		messages.flush()
 		return StoreCounts(created.size, updated, createdIds = created)
@@ -99,7 +114,10 @@ class MailHeaderStore(
 	/** Before a resync after a UIDVALIDITY change: every cached UID of the folder is invalid. */
 	@Transactional
 	fun detachFolder(folderId: UUID) {
-		messages.findByFolderIdAndUidIsNotNull(folderId).forEach(MailMessage::detach)
+		messages.findByFolderIdAndUidIsNotNull(folderId).forEach {
+			it.detach()
+			searchIndex.unindex(it.id)
+		}
 		messages.flush()
 	}
 
@@ -147,6 +165,7 @@ class MailHeaderStore(
 
 	private fun remove(message: MailMessage) {
 		if (isLinked(message)) message.detach() else messages.delete(message)
+		searchIndex.unindex(message.id)
 	}
 
 	private fun isLinked(message: MailMessage): Boolean = links.linksOf(ItemRef(ItemType.EMAIL, message.id)).isNotEmpty()

@@ -17,6 +17,7 @@ import ch.sonensei.cockpit.mail.model.MailFolderRole
 import ch.sonensei.cockpit.mail.model.MailMessage
 import ch.sonensei.cockpit.mail.model.MailMessageLocator
 import ch.sonensei.cockpit.mail.model.MailMessageRepository
+import ch.sonensei.cockpit.mail.search.MailSearchIndex
 import jakarta.mail.Flags
 import jakarta.mail.Folder
 import jakarta.mail.FolderNotFoundException
@@ -114,6 +115,7 @@ class MailActionService(
 	private val links: LinkService,
 	private val transactions: TransactionTemplate,
 	private val changes: ChangeEventPublisher,
+	private val searchIndex: MailSearchIndex,
 ) {
 	private val log = LoggerFactory.getLogger(javaClass)
 
@@ -401,6 +403,7 @@ class MailActionService(
 	/** A message gone from its location: kept detached while an item links to it, else deleted (with its body). */
 	private fun remove(row: MailMessage) {
 		if (links.linksOf(ItemRef(ItemType.EMAIL, row.id)).isNotEmpty()) row.detach() else messages.delete(row)
+		searchIndex.unindex(row.id)
 	}
 
 	private fun failure(
