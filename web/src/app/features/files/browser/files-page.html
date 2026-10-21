@@ -1,0 +1,198 @@
+<div class="files">
+  <aside class="side">
+    <app-folder-tree [current]="folderId()" [path]="path()" />
+
+    @if (usage(); as u) {
+      <section class="usage" aria-labelledby="files-usage-title">
+        <h2 id="files-usage-title" i18n="@@files.usage.title">Storage</h2>
+        <p class="usage-files" i18n="@@files.usage.files">
+          {{ formatBytes(u.usedBytes) }} in
+          {u.fileCount, plural, =1 {1 file} other {{{ u.fileCount }} files}}
+        </p>
+        <div
+          class="meter"
+          role="meter"
+          aria-valuemin="0"
+          aria-valuemax="100"
+          [attr.aria-valuenow]="usedPercent()"
+          i18n-aria-label="@@files.usage.disk"
+          aria-label="Disk space used"
+        >
+          <span class="fill" [style.width.%]="usedPercent()"></span>
+        </div>
+        <p class="usage-free" i18n="@@files.usage.free">
+          {{ formatBytes(u.usableSpaceBytes) }} free of {{ formatBytes(u.totalSpaceBytes) }}
+        </p>
+        @if (u.trashBytes) {
+          <p class="usage-trash" i18n="@@files.usage.trash">
+            {{ formatBytes(u.trashBytes) }} in the
+            <a routerLink="/trash">Trash</a>
+          </p>
+        }
+      </section>
+    }
+  </aside>
+
+  <section class="main" aria-labelledby="files-title">
+    <header class="head">
+      <nav class="crumbs" i18n-aria-label="@@files.breadcrumbs" aria-label="Breadcrumbs">
+        <ol>
+          @for (crumb of crumbs(); track crumb.id; let last = $last) {
+            <li>
+              @if (last) {
+                <h1 id="files-title" aria-current="page">{{ crumb.name }}</h1>
+              } @else {
+                <a [routerLink]="crumb.id ? ['/files', crumb.id] : '/files'">{{ crumb.name }}</a>
+                <span class="sep" aria-hidden="true">/</span>
+              }
+            </li>
+          }
+        </ol>
+      </nav>
+
+      <div class="toolbar">
+        <button mat-flat-button type="button" (click)="newFolder()" i18n="@@files.newFolder">
+          New folder
+        </button>
+        @if (folderId(); as id) {
+          <a
+            mat-stroked-button
+            [href]="downloadUrl({ kind: 'folder', id })"
+            download
+            i18n="@@files.downloadZip"
+            >Download as zip</a
+          >
+        }
+        <div class="views" role="group" i18n-aria-label="@@files.view" aria-label="View">
+          <button
+            type="button"
+            [attr.aria-pressed]="view() === 'list'"
+            (click)="setView('list')"
+            i18n="@@files.view.list"
+          >
+            List
+          </button>
+          <button
+            type="button"
+            [attr.aria-pressed]="view() === 'grid'"
+            (click)="setView('grid')"
+            i18n="@@files.view.grid"
+          >
+            Grid
+          </button>
+        </div>
+      </div>
+    </header>
+
+    @if (actionError(); as error) {
+      <p class="error" role="alert" i18n="@@files.actionFailed">
+        “{{ error.name }}” could not be changed: {{ error.message }}
+      </p>
+    }
+
+    @if (loadError(); as error) {
+      <div class="load-error" role="alert">
+        <p i18n="@@files.loadFailed">The folder could not be loaded: {{ error }}</p>
+        <button mat-stroked-button type="button" (click)="load()" i18n="@@files.retry">
+          Try again
+        </button>
+      </div>
+    } @else if (entries(); as list) {
+      @if (list.length) {
+        <ul class="entries" [class.grid]="view() === 'grid'" aria-labelledby="files-title">
+          @for (entry of list; track entry.id) {
+            <li class="entry" [attr.data-kind]="entry.kind" [class.busy]="isBusy(entry)">
+              @if (entry.kind === 'folder') {
+                <a
+                  class="open"
+                  [routerLink]="['/files', entry.id]"
+                  [attr.aria-label]="openLabel(entry)"
+                >
+                  <app-item-type-icon type="FOLDER" />
+                  <span class="name">{{ entry.name }}</span>
+                </a>
+                <span class="meta"></span>
+              } @else {
+                <a
+                  class="open"
+                  [href]="downloadUrl(entry)"
+                  download
+                  [attr.aria-label]="openLabel(entry)"
+                >
+                  <app-item-type-icon type="FILE" />
+                  <span class="name">{{ entry.name }}</span>
+                </a>
+                <span class="meta">
+                  <span class="size">{{ formatBytes(entry.file.size) }}</span>
+                  <span class="date">{{ entry.file.updatedAt | date: 'mediumDate' }}</span>
+                </span>
+              }
+              <button
+                mat-icon-button
+                type="button"
+                class="more"
+                [matMenuTriggerFor]="menu"
+                [disabled]="isBusy(entry)"
+                [attr.aria-label]="actionsLabel(entry)"
+              >
+                <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                  <path
+                    d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"
+                  />
+                </svg>
+              </button>
+              <mat-menu #menu="matMenu">
+                <a mat-menu-item [href]="downloadUrl(entry)" download>
+                  @if (entry.kind === 'folder') {
+                    <ng-container i18n="@@files.downloadZip">Download as zip</ng-container>
+                  } @else {
+                    <ng-container i18n="@@files.download">Download</ng-container>
+                  }
+                </a>
+                @if (!isSpecial(entry)) {
+                  <button mat-menu-item type="button" (click)="rename(entry)" i18n="@@files.rename">
+                    Rename
+                  </button>
+                  <button mat-menu-item type="button" (click)="move(entry)" i18n="@@files.move">
+                    Move
+                  </button>
+                  <button
+                    mat-menu-item
+                    type="button"
+                    class="delete"
+                    (click)="remove(entry)"
+                    i18n="@@files.delete"
+                  >
+                    Delete
+                  </button>
+                }
+              </mat-menu>
+            </li>
+          }
+        </ul>
+        @if (nextCursor()) {
+          <div class="more-entries">
+            <button
+              mat-stroked-button
+              type="button"
+              [disabled]="loadingMore()"
+              (click)="loadMore()"
+              i18n="@@files.loadMore"
+            >
+              Show more
+            </button>
+            @if (moreError(); as error) {
+              <p class="error" role="alert">{{ error }}</p>
+            }
+          </div>
+        }
+      } @else {
+        <p class="empty" i18n="@@files.empty">
+          This folder is empty. Create a folder to get started.
+        </p>
+      }
+    } @else {
+      <p class="note" role="status" i18n="@@files.loading">Loading the folder…</p>
+    }
+  </section>
+</div>
