@@ -14,7 +14,8 @@ Next actions with filters and Today (SPEC.md §5.3).
 ## Acceptance criteria
 - [x] Next with context/energy/creativity/estimate filters; Today with overdue/due/scheduled; complete with undo snackbar
   - verified (2026-10-21 11:19+0200 by dell26/agent-1): cd android && ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.gtd.next.*' --tests 'ch.sonensei.cockpit.gtd.today.*' (Robolectric Compose UI: NextScreenTest 24, NextScreenInAppTest 2, NextViewModelTest 20, NextFilterTest 6 for context/energy/creativity/estimate filters; TodayScreenTest 11, TodayViewModelTest 17 for overdue/due/scheduled sections; TaskCompleterTest 13, TaskCompletionRepositoryTest 9 + snackbar tests for complete/undo) -> 105 passed, 0 failed; no device/emulator here, so on-device behaviour is left to h-android-device
-- [ ] `cd android && ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.gtd.next.*'` passes, covering filters (Robolectric/Compose UI tests for screens); same for `gtd.today`
+- [x] `cd android && ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.gtd.next.*'` passes, covering filters (Robolectric/Compose UI tests for screens); same for `gtd.today`
+  - verified (2026-10-21 11:20+0200 by dell26/agent-1): cd android && ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.gtd.next.*' --tests 'ch.sonensei.cockpit.gtd.today.*' --rerun-tasks at dcb758c4 -> BUILD SUCCESSFUL, 105 tests (gtd.next 76, gtd.today 29), 0 failures, 0 skipped; also sh scripts/check.sh -> pass
 
 ## Notes
 - ASSUMPTION (2026-10-21 10:30+0200 by dell26/agent-1): Next filters are applied on the device to the cached Next list (so they work offline), with server semantics: one context, exact energy/creativity, max estimate only matches estimated tasks. Area/project/due filters and saved presets are left out on Android (criterion names context/energy/creativity/estimate only).
