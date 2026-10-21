@@ -21,7 +21,8 @@ Provider-independent two-way sync framework (SPEC.md §6.2).
   - verified (2026-10-21 02:25+0200 by dell26/agent-6): cd server && ./gradlew test --tests 'ch.sonensei.cockpit.calendar.sync.*' -> 'GET sources lists every source with its sync status, POST sync syncs one now' passed (MockMvc, Spring Boot + Testcontainers Postgres), 91/91
 - [x] Tests with a fake adapter: incremental merge, deletions, conflict path
   - verified (2026-10-21 02:25+0200 by dell26/agent-6): FakeCalendarAdapter tests in CalendarSync{,EdgeCase,Override}Tests: 'a later sync fetches only the changes since the cursor and merges changes, additions and deletions', deletion/override tests, 409 conflict tests -> all passed (91/91)
-- [ ] `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.calendar.sync.*'` passes (Postgres via Testcontainers where persistence is involved)
+- [x] `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.calendar.sync.*'` passes (Postgres via Testcontainers where persistence is involved)
+  - verified (2026-10-21 02:25+0200 by dell26/agent-6): cd server && ./gradlew test --tests 'ch.sonensei.cockpit.calendar.sync.*' with Postgres via Testcontainers at HEAD b70efd14 -> 91 tests, 0 failures
 - [ ] API documented: `api/openapi.yaml` regenerated (`UPDATE_OPENAPI=1 ./gradlew test --tests '*OpenApiContractTest'`) and `OpenApiContractTest` passes without the flag
 
 ## Notes
