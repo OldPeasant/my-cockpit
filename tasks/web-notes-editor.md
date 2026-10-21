@@ -1,12 +1,13 @@
 ---
 title: Notes: Markdown editor with images
-status: in_progress
-owner: R1963MACOS/agent-1
+status: todo
+owner: 
 deps: [web-notes-list,web-links-panel]
 touches: [web/src/app/features/notes/editor]
 prio: 1
-lease_until: 2026-10-21T06:01:50Z
-extended: R1963MACOS/agent-1
+lease_until: 
+extended: 
+releases: 0
 ---
 ## Goal
 Edit notes (SPEC.md §8.1).
@@ -27,3 +28,4 @@ Edit notes (SPEC.md §8.1).
 - extended by R1963MACOS/agent-1: Implementation, unit tests (95 editor tests, npm run check green) and e2e (editor.spec.ts passed on the e2e stack per tests.md) are done; rebased onto main 95ebfebb, .taskcheck passes. Left: fix final review CR-1 (P2: failed save on in-app note switch silently drops edits - keep draft/error or record assumption + notice, add test) and CR-2 (P3: return in open() when destroyed / use a sequence counter), via fixer; re-run test-writer + code-reviewer on final code; tasks.py verify 1-5 from tests.md evidence; write+commit reviews/web-notes-editor/quality.json; tasks.py done.
 - ASSUMPTION (2026-10-21 07:26+0200 by R1963MACOS/agent-1): When switching to another note in-app and the save on leaving fails (non-conflict error), the editor stays on the current note with its draft and error banner and puts the address back (replaceUrl), instead of loading the other note and losing the edits.
 - ASSUMPTION (2026-10-21 07:36+0200 by R1963MACOS/agent-1): When the editor stays on a note because its save failed during a switch, it puts the address back with router.navigate(replaceUrl), so browser history keeps two entries for that note (the first Back seems to do nothing); a CanDeactivate guard was not added to keep the change small.
+- release by R1963MACOS/agent-1: handed off by R1963MACOS/agent-1: You've hit your session limit · resets 11:20am (Europe/Zurich)
