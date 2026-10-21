@@ -16,3 +16,4 @@ Share text, URLs, images and files into the inbox (SPEC.md §4.5).
 - [ ] `cd android && ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.capture.share.*'` passes, covering intent parsing for text, URL, multiple images (Robolectric/Compose UI tests for screens)
 
 ## Notes
+- ASSUMPTION (2026-10-21 03:19+0200 by dell26/agent-4): Shared URIs are copied into the capture queue when the user taps Save; the sheet closes only after the copy is stored. Cancelling (or leaving) drops the share, nothing is staged before Save.
