@@ -6,6 +6,7 @@ deps: [web-capture,web-inbox,web-next-today,web-projects,web-task-detail,web-gtd
 touches: [web/e2e/phase1]
 prio: 1
 lease_until: 2026-10-21T03:38:03Z
+extended: dell26/agent-4
 ---
 ## Goal
 Automate SPEC.md §13.2 Phase 1 end to end.
@@ -16,3 +17,4 @@ Automate SPEC.md §13.2 Phase 1 end to end.
 
 ## Notes
 - ASSUMPTION (2026-10-21 04:39+0200 by dell26/agent-4): SPEC.md §13.2 phase 1 step 2 says 'Plan holiday' goes to a new project 'Holiday', but step 1 captures it with '#Holiday', which the parser only resolves for existing projects. The demo creates 'Holiday' in a set-up step and moves 'Plan holiday' to it; the 'New project' path of inbox processing is exercised end to end on a separate item instead.
+- extended by dell26/agent-4: Done: web/e2e/phase1/demo.spec.ts covers SPEC §13.2 steps 1-9 (tickler with e2e clock + recurrence, inbox 'New project' path); inbox 'To project' fix; server CSRF fix (no SessionManagementFilter rotating XSRF-TOKEN on every authenticated request, which gave concurrent SPA requests 403) committed with test; check.sh passes. Left: run phase0+phase1 Playwright against the stack with the CSRF fix, re-run test-writer + code-reviewer (server change makes earlier reviews stale; it is outside touches, note it), quality.json, verify #1/#2, done.
