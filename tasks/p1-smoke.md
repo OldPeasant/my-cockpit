@@ -13,7 +13,8 @@ releases: 1
 Automate SPEC.md §13.2 Phase 1 end to end.
 
 ## Acceptance criteria
-- [ ] `web/e2e/phase1/*.spec.ts` covers demo steps 1–9 (incl. tickler with the e2e clock and recurrence) and passes, together with phase 0 specs
+- [x] `web/e2e/phase1/*.spec.ts` covers demo steps 1–9 (incl. tickler with the e2e clock and recurrence) and passes, together with phase 0 specs
+  - verified (2026-10-21 06:08+0200 by dell26/agent-5): npm --prefix web run e2e -- --project=phase-demos (support/run-e2e.mjs: server image + Postgres from deploy/docker-compose.e2e.yml, chromium) at 16ba8f54 -> 15 passed: phase0 steps 1-5, phase1 set-up + steps 1-9 (incl. tickler via setClock +2d, weekly recurrence on schedule/after completion)
 - [ ] Defects found are fixed here or recorded as new tasks
 
 ## Notes
