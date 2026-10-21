@@ -1,0 +1,34 @@
+{
+  "schema": 1,
+  "task": "cal-google",
+  "reviewed_revision": "6af242e9685a676af53c1c939a233e66477b3750",
+  "helpers": {
+    "test-writer": {"status": "completed", "report": "reviews/cal-google/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/cal-google/review.md"},
+    "fixer": {"status": "completed", "report": "reviews/cal-google/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "R1-CR-1", "source": "code-reviewer", "severity": "P1", "disposition": "fixed",
+     "note": "round 1: Google's cancelled write answer was read back as CONFIRMED (with TW-1); fixed by the fixer"},
+    {"id": "R1-TW-1", "source": "test-writer", "severity": "High", "disposition": "fixed",
+     "note": "round 1: same defect as R1-CR-1, failing test added by the test-writer"},
+    {"id": "R1-CR-2", "source": "code-reviewer", "severity": "P3", "disposition": "accepted",
+     "note": "round 1: reminders are written as popup overrides; recorded as an assumption in tasks/cal-google.md"},
+    {"id": "R1-CR-3", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "round 1: token could be sent for a non-Google connection; adapter now refuses other providers"},
+    {"id": "R1-TW-2", "source": "test-writer", "severity": "High", "disposition": "fixed",
+     "note": "round 1: sync-engine tests assumed GOOGLE has no adapter; fake-only registry in those tests"},
+    {"id": "R2-CR-1", "source": "code-reviewer", "severity": "P3", "disposition": "accepted",
+     "note": "round 2: each write replaces Google's attendee list, dropping flags the cockpit does not model; recorded as an assumption in tasks/cal-google.md"},
+    {"id": "R2-CR-2", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "round 2: toRemote KDoc re-wrapped in 5029346c"},
+    {"id": "R2-TW-note", "source": "test-writer", "severity": "Low", "disposition": "fixed",
+     "note": "round 2: unused GoogleEventMapping.isInstance removed in 5029346c"}
+  ],
+  "validation": [
+    {"command": "cd server && ./gradlew test --tests 'ch.sonensei.cockpit.calendar.infra.google.*' --rerun-tasks", "result": "pass"},
+    {"command": "cd server && ./gradlew ktlintCheck test --tests 'ch.sonensei.cockpit.calendar.infra.google.*' --tests 'ch.sonensei.cockpit.calendar.sync.*' jacocoTestReport", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
