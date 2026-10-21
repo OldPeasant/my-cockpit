@@ -9,6 +9,7 @@ import ch.sonensei.cockpit.core.auth.domain.LoginService
 import ch.sonensei.cockpit.core.auth.domain.LoginThrottle
 import ch.sonensei.cockpit.core.auth.domain.SetupService
 import ch.sonensei.cockpit.core.auth.domain.Totp
+import ch.sonensei.cockpit.core.auth.domain.TotpEnrollment
 import ch.sonensei.cockpit.core.auth.domain.TotpEnrollmentResult
 import ch.sonensei.cockpit.core.auth.domain.TotpEnrollmentService
 import ch.sonensei.cockpit.core.auth.infra.SessionCookies
@@ -45,7 +46,10 @@ import tools.jackson.databind.JsonNode
 import tools.jackson.databind.json.JsonMapper
 import java.time.Duration
 import java.util.concurrent.CountDownLatch
+import java.util.concurrent.ExecutionException
+import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
+import java.util.concurrent.Future
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.TimeoutException
 
@@ -542,6 +546,143 @@ class TotpEnrollmentWebTests(
 			release.countDown()
 			executor.shutdownNow()
 		}
+	}
+
+	/**
+	 * Runs [block] in a transaction on [executor] and keeps that transaction (with the account row lock it took) open
+	 * until [release] counts down. Returns once [block] has run, so the caller knows the lock is held.
+	 */
+	private fun <T : Any> heldTransaction(
+		executor: ExecutorService,
+		release: CountDownLatch,
+		block: () -> T,
+	): Future<T> {
+		val ran = CountDownLatch(1)
+		val future =
+			executor.submit<T> {
+				transactions.execute {
+					block().also {
+						ran.countDown()
+						release.await(10, TimeUnit.SECONDS)
+					}
+				}
+			}
+		withClue("the held transaction ran its block") { ran.await(10, TimeUnit.SECONDS) shouldBe true }
+		return future
+	}
+
+	@Test
+	fun `a start that runs while a confirm is not committed yet waits, then sees the confirm and cannot undo it`() {
+		restoredWithoutTotpSecret()
+		val confirming = enrollmentSession()
+		val secret = startedSecret(confirming)
+		val release = CountDownLatch(1)
+		val executor = Executors.newFixedThreadPool(2)
+		try {
+			val confirmed = heldTransaction(executor, release) { enrollment.confirm(code(secret), confirming.value) }
+			val started = executor.submit<TotpEnrollment> { enrollment.start() }
+			withClue("the start waits for the confirm's transaction") {
+				shouldThrow<TimeoutException> { started.get(500, TimeUnit.MILLISECONDS) }
+			}
+			release.countDown()
+			confirmed.get(10, TimeUnit.SECONDS) shouldBe TotpEnrollmentResult.Confirmed
+
+			withClue("the start reads the committed confirm: re-enrollment is no longer required") {
+				shouldThrow<ExecutionException> { started.get(10, TimeUnit.SECONDS) }.cause.shouldBeInstanceOf<ConflictException>()
+			}
+			reenrollRequired() shouldBe false
+			users
+				.findFirstBy()
+				.shouldNotBeNull()
+				.totpSecret
+				.reveal() shouldBe secret
+			mockMvc.get("/api/v1/settings") { cookie(confirming) }.andExpect { status { isOk() } }
+			clock.advance(Duration.ofSeconds(Totp.STEP.seconds))
+			withClue("the confirmed secret logs in") { login(totp = code(secret)).andExpect { status { isOk() } } }
+		} finally {
+			release.countDown()
+			executor.shutdownNow()
+		}
+	}
+
+	@Test
+	fun `a confirm that runs while another session's start is not committed yet checks the code against the new secret`() {
+		restoredWithoutTotpSecret()
+		val first = enrollmentSession()
+		val firstSecret = startedSecret(first)
+		val release = CountDownLatch(1)
+		val executor = Executors.newFixedThreadPool(2)
+		try {
+			val replaced = heldTransaction(executor, release) { enrollment.start() }
+			val confirmed = executor.submit<TotpEnrollmentResult> { enrollment.confirm(code(firstSecret), first.value) }
+			withClue("the confirm waits for the start's transaction") {
+				shouldThrow<TimeoutException> { confirmed.get(500, TimeUnit.MILLISECONDS) }
+			}
+			release.countDown()
+			val newSecret = replaced.get(10, TimeUnit.SECONDS).totpSecret
+
+			withClue("the code of the replaced secret no longer confirms") {
+				confirmed.get(10, TimeUnit.SECONDS) shouldBe TotpEnrollmentResult.InvalidCode
+			}
+			reenrollRequired() shouldBe true
+			users
+				.findFirstBy()
+				.shouldNotBeNull()
+				.totpSecret
+				.reveal() shouldBe newSecret
+			throttle.recordSuccess()
+			enrollment.confirm(code(newSecret), first.value) shouldBe TotpEnrollmentResult.Confirmed
+		} finally {
+			release.countDown()
+			executor.shutdownNow()
+		}
+	}
+
+	@Test
+	fun `a device token request that runs while a confirm is not committed yet waits, then gets a device with full access`() {
+		restoredWithoutTotpSecret()
+		val confirming = enrollmentSession()
+		val secret = startedSecret(confirming)
+		val release = CountDownLatch(1)
+		val executor = Executors.newFixedThreadPool(2)
+		try {
+			val confirmed = heldTransaction(executor, release) { enrollment.confirm(code(secret), confirming.value) }
+			val issued =
+				executor.submit<DeviceTokenResult> {
+					deviceTokens.issue(LoginCredentials(USERNAME, PASSWORD, null, recoveryCodes[1], rememberDevice = false), "Pixel 9")
+				}
+			withClue("the device login waits for the confirm's transaction") {
+				shouldThrow<TimeoutException> { issued.get(500, TimeUnit.MILLISECONDS) }
+			}
+			release.countDown()
+			confirmed.get(10, TimeUnit.SECONDS) shouldBe TotpEnrollmentResult.Confirmed
+
+			withClue("the device login sees the completed re-enrollment instead of refusing with 'enrollment required'") {
+				val tokens = issued.get(10, TimeUnit.SECONDS).shouldBeInstanceOf<DeviceTokenResult.Issued>().tokens
+				deviceTokens.authenticate(tokens.accessToken).shouldNotBeNull().totpEnrollmentRequired shouldBe false
+			}
+			jdbc.queryForObject("select count(*) from auth_device", Int::class.java) shouldBe 1
+		} finally {
+			release.countDown()
+			executor.shutdownNow()
+		}
+	}
+
+	@Test
+	fun `with the account row lock, device tokens and web logins still work for an account that does not re-enroll`() {
+		val tokens =
+			token(totp = code(originalSecret)).andExpect { status { isOk() } }.let(::json)
+		tokens["accessToken"].asString().let { access ->
+			deviceTokens.authenticate(access).shouldNotBeNull().totpEnrollmentRequired shouldBe false
+		}
+		clock.advance(Duration.ofSeconds(Totp.STEP.seconds))
+		val session = session(login(totp = code(originalSecret)))
+		mockMvc.get("/api/v1/settings") { cookie(session) }.andExpect { status { isOk() } }
+		withClue("a device login with a recovery code still works and uses the code") {
+			token(recoveryCode = recoveryCodes[2]).andExpect { status { isOk() } }
+			token(recoveryCode = recoveryCodes[2]).andExpect { status { isUnauthorized() } }
+		}
+		jdbc.queryForObject("select count(*) from auth_device", Int::class.java) shouldBe 2
 	}
 
 	@Test
