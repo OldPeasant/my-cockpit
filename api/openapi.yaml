@@ -1197,6 +1197,44 @@ paths:
       summary: List calendar sources
       tags:
       - Calendars
+    post:
+      description: "Adds a CalDAV account (`url`, `username`, `password`), an ICS\
+        \ feed (`url`, http(s) or webcal) or a Google/Microsoft account (`oauthConnectionId`,\
+        \ a connection of that provider, see `/api/v1/oauth`). `name` defaults to\
+        \ the host or the account's email. The scheduler syncs the new source shortly;\
+        \ `POST /{id}/sync` syncs it at once. Adding an OAuth connection that already\
+        \ has a source of that type returns that source (200)."
+      operationId: createCalendarSource
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateCalendarSourceRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CalendarSourceResponse"
+          description: The OAuth connection already has a source of this type; that
+            source
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CalendarSourceResponse"
+          description: Created
+        "400":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: "Invalid fields, a LOCAL type, or an unknown connection or\
+            \ one of another provider"
+      summary: Add a calendar source
+      tags:
+      - Calendars
   /api/v1/calendar/sources/{id}/sync:
     post:
       description: "Fetches the source's calendars and their changes from the provider\
@@ -6831,6 +6869,40 @@ components:
           description: Default true
       required:
       - name
+    CreateCalendarSourceRequest:
+      type: object
+      description: A new external calendar source. Secrets are stored encrypted and
+        never returned.
+      properties:
+        name:
+          type: string
+          description: Shown name; defaults to the URL's host or the account's email
+        oauthConnectionId:
+          type: string
+          format: uuid
+          description: "GOOGLE/MICROSOFT: the OAuth connection"
+        password:
+          type: string
+          format: password
+          description: "CALDAV: the (app) password"
+        type:
+          type: string
+          description: "CALDAV, ICS_FEED, GOOGLE or MICROSOFT"
+          enum:
+          - LOCAL
+          - GOOGLE
+          - MICROSOFT
+          - CALDAV
+          - ICS_FEED
+        url:
+          type: string
+          description: "CALDAV: the server or calendar home URL; ICS_FEED: the feed\
+            \ URL"
+        username:
+          type: string
+          description: "CALDAV: the user name"
+      required:
+      - type
     CreateChecklistItemRequest:
       type: object
       description: "A new checklist item, added at the end"

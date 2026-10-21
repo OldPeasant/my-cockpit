@@ -42,6 +42,7 @@ export type { ContextResponse } from './models/context-response';
 export type { ConvertToEventRequest } from './models/convert-to-event-request';
 export type { CreateAreaRequest } from './models/create-area-request';
 export type { CreateCalendarRequest } from './models/create-calendar-request';
+export type { CreateCalendarSourceRequest } from './models/create-calendar-source-request';
 export type { CreateChecklistItemRequest } from './models/create-checklist-item-request';
 export type { CreateContextRequest } from './models/create-context-request';
 export type { CreateEventRequest } from './models/create-event-request';
@@ -232,6 +233,8 @@ export type { UpdateEvent$Params as UpdateEvent$Params } from './fn/calendars/up
 export { updateEvent as updateEvent } from './fn/calendars/update-event';
 export type { ListCalendarSources$Params as ListCalendarSources$Params } from './fn/calendars/list-calendar-sources';
 export { listCalendarSources as listCalendarSources } from './fn/calendars/list-calendar-sources';
+export type { CreateCalendarSource$Params as CreateCalendarSource$Params } from './fn/calendars/create-calendar-source';
+export { createCalendarSource as createCalendarSource } from './fn/calendars/create-calendar-source';
 export type { SyncCalendarSource$Params as SyncCalendarSource$Params } from './fn/calendars/sync-calendar-source';
 export { syncCalendarSource as syncCalendarSource } from './fn/calendars/sync-calendar-source';
 export type { Capture$Params as Capture$Params } from './fn/capture/capture';

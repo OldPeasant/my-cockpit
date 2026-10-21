@@ -89,6 +89,8 @@ export type { UpdateEvent$Params as UpdateEvent$Params } from './fn/calendars/up
 export { updateEvent as updateEvent } from './fn/calendars/update-event';
 export type { ListCalendarSources$Params as ListCalendarSources$Params } from './fn/calendars/list-calendar-sources';
 export { listCalendarSources as listCalendarSources } from './fn/calendars/list-calendar-sources';
+export type { CreateCalendarSource$Params as CreateCalendarSource$Params } from './fn/calendars/create-calendar-source';
+export { createCalendarSource as createCalendarSource } from './fn/calendars/create-calendar-source';
 export type { SyncCalendarSource$Params as SyncCalendarSource$Params } from './fn/calendars/sync-calendar-source';
 export { syncCalendarSource as syncCalendarSource } from './fn/calendars/sync-calendar-source';
 export type { Capture$Params as Capture$Params } from './fn/capture/capture';

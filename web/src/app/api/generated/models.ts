@@ -36,6 +36,7 @@ export type { ContextResponse } from './models/context-response';
 export type { ConvertToEventRequest } from './models/convert-to-event-request';
 export type { CreateAreaRequest } from './models/create-area-request';
 export type { CreateCalendarRequest } from './models/create-calendar-request';
+export type { CreateCalendarSourceRequest } from './models/create-calendar-source-request';
 export type { CreateChecklistItemRequest } from './models/create-checklist-item-request';
 export type { CreateContextRequest } from './models/create-context-request';
 export type { CreateEventRequest } from './models/create-event-request';

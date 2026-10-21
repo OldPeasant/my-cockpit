@@ -7,10 +7,15 @@ import io.swagger.v3.oas.annotations.media.Schema
 import io.swagger.v3.oas.annotations.media.Schema.RequiredMode
 import io.swagger.v3.oas.annotations.responses.ApiResponse
 import io.swagger.v3.oas.annotations.tags.Tag
+import jakarta.validation.Valid
+import jakarta.validation.constraints.NotNull
+import org.springframework.http.HttpStatus
 import org.springframework.http.MediaType
+import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.PostMapping
+import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RestController
 import java.time.Instant
@@ -24,6 +29,7 @@ private const val PROBLEM_JSON = MediaType.APPLICATION_PROBLEM_JSON_VALUE
 @Tag(name = "Calendars", description = "Calendars and their events")
 class CalendarSourceController(
 	private val sync: CalendarSyncService,
+	private val sourceService: CalendarSourceService,
 ) {
 	@GetMapping(produces = [MediaType.APPLICATION_JSON_VALUE])
 	@Operation(
@@ -33,6 +39,49 @@ class CalendarSourceController(
 	)
 	@ApiResponse(responseCode = "200", description = "The sources")
 	fun list(): CalendarSourceListResponse = CalendarSourceListResponse(sync.list().map(::response))
+
+	@PostMapping(consumes = [MediaType.APPLICATION_JSON_VALUE], produces = [MediaType.APPLICATION_JSON_VALUE, PROBLEM_JSON])
+	@Operation(
+		operationId = "createCalendarSource",
+		summary = "Add a calendar source",
+		description =
+			"Adds a CalDAV account (`url`, `username`, `password`), an ICS feed (`url`, http(s) or webcal) or a Google/Microsoft " +
+				"account (`oauthConnectionId`, a connection of that provider, see `/api/v1/oauth`). `name` defaults to the " +
+				"host or the account's email. The scheduler syncs the new source shortly; `POST /{id}/sync` syncs it at once. " +
+				"Adding an OAuth connection that already has a source of that type returns that source (200).",
+	)
+	@ApiResponse(
+		responseCode = "201",
+		description = "Created",
+		content = [Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = Schema(implementation = CalendarSourceResponse::class))],
+	)
+	@ApiResponse(
+		responseCode = "200",
+		description = "The OAuth connection already has a source of this type; that source",
+		content = [Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = Schema(implementation = CalendarSourceResponse::class))],
+	)
+	@ApiResponse(
+		responseCode = "400",
+		description = "Invalid fields, a LOCAL type, or an unknown connection or one of another provider",
+		content = [Content(mediaType = PROBLEM_JSON, schema = Schema(ref = "#/components/schemas/ProblemDetail"))],
+	)
+	fun create(
+		@Valid @RequestBody request: CreateCalendarSourceRequest,
+	): ResponseEntity<CalendarSourceResponse> {
+		val result =
+			sourceService.create(
+				NewCalendarSource(
+					type = request.type!!,
+					name = request.name,
+					url = request.url,
+					username = request.username,
+					password = request.password,
+					oauthConnectionId = request.oauthConnectionId,
+				),
+			)
+		val body = response(sync.get(result.source.id))
+		return ResponseEntity.status(if (result.created) HttpStatus.CREATED else HttpStatus.OK).body(body)
+	}
 
 	@PostMapping("/{id}/sync", produces = [MediaType.APPLICATION_JSON_VALUE, PROBLEM_JSON])
 	@Operation(
@@ -108,6 +157,20 @@ data class CalendarSourceResponse(
 	@get:Schema(requiredMode = RequiredMode.REQUIRED) val updatedAt: Instant,
 	@get:Schema(requiredMode = RequiredMode.REQUIRED) val version: Long,
 )
+
+@Schema(description = "A new external calendar source. Secrets are stored encrypted and never returned.")
+data class CreateCalendarSourceRequest(
+	@get:Schema(description = "CALDAV, ICS_FEED, GOOGLE or MICROSOFT", requiredMode = RequiredMode.REQUIRED)
+	@field:NotNull
+	val type: CalendarSourceType?,
+	@get:Schema(description = "Shown name; defaults to the URL's host or the account's email") val name: String? = null,
+	@get:Schema(description = "CALDAV: the server or calendar home URL; ICS_FEED: the feed URL") val url: String? = null,
+	@get:Schema(description = "CALDAV: the user name") val username: String? = null,
+	@get:Schema(description = "CALDAV: the (app) password", format = "password") val password: String? = null,
+	@get:Schema(description = "GOOGLE/MICROSOFT: the OAuth connection") val oauthConnectionId: UUID? = null,
+) {
+	override fun toString(): String = "CreateCalendarSourceRequest(type=$type, name=$name, url=******, username=$username, password=******)"
+}
 
 @Schema(description = "Every calendar source in creation order")
 data class CalendarSourceListResponse(
