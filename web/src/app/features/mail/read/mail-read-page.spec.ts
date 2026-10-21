@@ -532,6 +532,25 @@ describe('MailReadPage', () => {
       expect(notifications.error).not.toHaveBeenCalled();
     });
 
+    it('ignores a failed proxied load for an allowed sender that answers after navigating', async () => {
+      localStorage.setItem(IMAGE_ALLOWLIST_KEY, JSON.stringify(['max.muster@example.test']));
+      const blocked = message({
+        body: { html: '<p>blocked</p>', remoteImageCount: 1, remoteImagesBlocked: true, text: '' },
+      });
+      const proxy = deferred<MailMessageResponse>();
+      await create(blocked, proxy.promise, lunch());
+      expect(service.gets.map((g) => g.loadImages)).toEqual([false, true]);
+      await navigate(OTHER);
+      expect(el().querySelector('h1')?.textContent?.trim()).toBe('Lunch plans');
+
+      proxy.reject(new ApiError(502, 'Bad gateway', 'The mail server failed'));
+      await flush();
+      fixture.detectChanges();
+      expect(notifications.error).not.toHaveBeenCalled();
+      expect(el().querySelector('h1')?.textContent?.trim()).toBe('Lunch plans');
+      expect(iframe()!.srcdoc).not.toContain('<p>blocked</p>');
+    });
+
     it('closes an open attachment preview', async () => {
       await create(
         message({
