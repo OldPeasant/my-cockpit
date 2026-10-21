@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "task": "cal-caldav",
-  "reviewed_revision": "95486262c9cf08048932d7a1df2e2a7ffd926c6b",
+  "reviewed_revision": "dee2469e180daad934fa7699cadaeffb92820b3d",
   "helpers": {
     "test-writer":   {"status": "completed", "report": "reviews/cal-caldav/tests.md"},
     "code-reviewer": {"status": "completed", "report": "reviews/cal-caldav/review.md"},
