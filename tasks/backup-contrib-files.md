@@ -1,11 +1,11 @@
 ---
 title: Backup contributor: files
-status: todo
-owner: 
+status: in_progress
+owner: dell26/agent-1
 deps: [backup-contrib-core,files-preview]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/files/backup,server/src/test/kotlin/ch/sonensei/cockpit/files/backup]
 prio: 1
-lease_until: 
+lease_until: 2026-10-21T03:16:58Z
 releases: 1
 extended: 
 ---
