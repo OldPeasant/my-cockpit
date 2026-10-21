@@ -16,3 +16,4 @@ Triage actions (SPEC.md §7.3).
 - [ ] API documented: `api/openapi.yaml` regenerated (`UPDATE_OPENAPI=1 ./gradlew test --tests '*OpenApiContractTest'`) and `OpenApiContractTest` passes without the flag
 
 ## Notes
+- ASSUMPTION (2026-10-21 03:02+0200 by dell26/agent-5): Actions response is 200 with one result per distinct id in request order ({id, ok, errorCode, detail}), also when all fail; no 207 Multi-Status
