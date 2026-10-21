@@ -4,30 +4,40 @@ Date: 2026-10-21
 
 Task: notes-api - Notes API
 
-Scope: `git diff b41323dc..HEAD` on main (base = `git merge-base HEAD origin/main`, which equals the current origin/main, so HEAD already contains all of main). Final review of HEAD f6bafe16; it replaces the earlier review of revision 3d5c5215, whose findings (CR-1..CR-3) were fixed and are not repeated here. Committed changes only; the working tree was clean.
+Scope: `git diff 3dbd3504..HEAD` without `tasks/` and `reviews/`. The task code is the squashed commit 3fc95687; c090c42a only touches `reviews/`. This review covers the current code afresh, because the revisions named by earlier evidence (f922ce77, f6bafe16, 26322171) were lost in the squash. Only committed changes were reviewed. At review time the working tree had an uncommitted change to `server/src/test/kotlin/ch/sonensei/cockpit/notes/NoteEdgeCaseWebTests.kt`, which belongs to a concurrent helper run and was not reviewed.
 
 Requirements:
-- tasks/notes-api.md: acceptance criteria 1-6 and the recorded assumptions (revision interval, archived filter, tags, derived title, image upload)
-- SPEC.md §4.2 (UUIDv7, ETag/If-Match, cursor pagination, Problem Details, soft delete), §4.3 (ItemResolver, inline links persisted to `link`), §4.4 (search_document), §8.1 (Notes)
-- docs/ARCHITECTURE.md, docs/QUALITY.md, AGENTS.md "Project notes" (module boundaries, migration naming, generated files)
-- Parent instructions: check integration with current main (core search, trash, links, files, events), migration version uniqueness, consistency of generated files
+- tasks/notes-api.md: acceptance criteria 1-6 and the recorded assumptions (revision interval, archived filter, tags, derived title, image upload, no-op PATCH)
+- SPEC.md §8.1 (Notes), plus §4.2-§4.4 for ETag/If-Match, Problem Details, UUIDv7, soft delete/Trash, links and search
+- docs/ARCHITECTURE.md (module boundaries, migration naming), AGENTS.md "Project notes", docs/QUALITY.md
+- Parent instructions: review the current code afresh, and confirm that earlier findings are fixed
 
 Git range:
 - Branch: main
-- HEAD: f6bafe163d6de977592a81d0941846342b1e566a
-- Base/start: b41323dc1f171c64d62911f7371aa6d9ffa3f566 (also current origin/main)
-- Commits reviewed: 9 (5d27f2d6, 6ec5ba23, 45a13f37, f147ae5b, ecbd7cab, 4aa5cba3, 7e100737, merge 385e2b15, f6bafe16)
+- HEAD: c090c42aed1147cf2a58e829d9964dd9b04cb6f9
+- Base/start: 3dbd3504fa58040c26e7d656de1b09afb06f5106
+- Commits reviewed: 2 (3fc95687 code, c090c42a reviews only)
 
 Summary: 0 P0, 0 P1, 1 P2, 1 P3
 
 ## What I checked
 
-- Read every file in `server/.../notes/{api,domain,infra}` and the migration in full, plus the core and files APIs they call: `LinkService.sync` (replaces only the SYNC links the source owns), `SearchIndexer.upsert`/`delete`, `TrashService` (publishes the restore and purge ChangeEvents and `ItemDeletedEvent` itself, so the contributor correctly does not), `FilesService.storeFile`, `SpecialFolder.NOTES` (`/Attachments/Notes`), `UploadLimits`, and `PreviewService`. `PreviewService` only serves jpeg/png/webp/gif inline, so an `image/svg+xml` upload accepted by `addImage` is not an inline XSS vector.
-- Migration: `notes/V202610210907__notes_model.sql` is the only migration with that version. It is higher than every other migration, including `calendar/V202610210900__calendar_sync.sql`, which used to clash. It follows the `<module>/V<yyyyMMddHHmm>__<module>_<desc>.sql` convention. `NoteMigrationTests` guards both.
-- Acceptance criteria against the code: CRUD with ETag/If-Match (428/412/409), derived title, tag/pinned/archived filters (`archived=all`, 400 on invalid values), keyset cursor; inline link sync on create, body update and revision restore; image upload into `/Attachments/Notes` returning `cockpit-file:{id}`; a 20-revision cap with list and restore, where the replaced content is kept; NOTE resolver; flexmark-stripped search document written in one place (`SearchIndexer.indexNote`, also used by the Trash restore); trash delete/restore/purge; ChangeEvents on create/update/delete.
-- Generated contract: the `/api/v1/notes*` paths in `api/openapi.yaml` and `web/src/app/api/generated/fn/notes/*` match the controller (operation ids, `archived` enum `'true' | 'false' | 'all'`, DTO fields). I did not re-run the client generator, because that writes files.
-- Re-ran at HEAD f6bafe16: `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.notes.*' --tests '*OpenApiContractTest'` (no UPDATE_OPENAPI) -> BUILD SUCCESSFUL. Per-suite results: NoteWebTests 20, NoteEdgeCaseWebTests 26, NoteInfraTests 9, NoteRevisionInfraTests 5, NoteMarkdownTests 8, NoteMigrationTests 3, NoteImageMaxSizeWebTests 1, OpenApiContractTest 1; 73 tests, 0 failures, 0 errors.
-- Security: no secrets, no logging of note contents, all native queries are parameterized, and the upload mime type is checked server-side.
+- I read everything under `server/.../notes/{api,domain,infra}` in full, plus the migration `notes/V202610210907__notes_model.sql`. I also read the core code the module calls: `LinkService.sync`, which deletes and inserts only SYNC links and relies on the partial unique indexes `link_sync_pair` and `link_manual_pair`, so a manual link to the same target does not collide. I read `TrashService`, which publishes the restore and purge ChangeEvents and `ItemDeletedEvent` itself, `ProblemDetailsAdvice`, and `BaseEntity`.
+- Criteria against the code:
+  1. CRUD works with ETag/If-Match (428/412, and 409 through the optimistic locking advice). The title is derived from the first line. The list filters by tag (case-insensitive, leading `#` stripped), pinned, and archived (`true`/`false`/`all`, 400 otherwise). Paging uses a keyset cursor over pinned, updatedAt and id.
+  2. `[[type:id]]` links are synced on create, on a body change and on a revision restore, and self-links are dropped. `POST /notes/{id}/images` stores the file through `FilesService` into `SpecialFolder.NOTES`, accepts only `image/*` and returns `cockpit-file:{id}`.
+  3. The newest 20 revisions are kept (`deleteUpTo`), with `GET .../revisions` and `POST .../revisions/{n}/restore`. A restore keeps the content it replaces.
+  4. The NOTE resolver is in place. The search document comes from flexmark plain text in one place (`SearchIndexer.indexNote`). Delete, restore and purge go through the Trash, and ChangeEvents are published on create, update, delete and revision restore.
+  6. `api/openapi.yaml` has all 9 notes operations and the `archived` enum. The generated web client files in `web/src/app/api/generated/fn/notes/*` match.
+- Earlier findings, confirmed fixed in the current code:
+  - First review CR-1 (concurrent body change gave 500): `keepRevision` calls `notes.saveAndFlush(note)` before it inserts the revision (`NoteService.kt:247`).
+  - First review CR-2 (`archived` had no enum): the enum is on the `@Parameter` schema (`NoteController.kt:67`) and in the generated client.
+  - First review CR-3 (search document built twice): there is now a single `SearchIndexer.indexNote` (`NoteService.kt:38`), used by `NoteService` and `NoteTrashContributor`.
+  - Fixer FX-1 (Android `WrongCommentType` from API descriptions): the descriptions in `NoteDtos.kt:24,133` no longer contain `[[...]]` or `![](...)`.
+  - Second review CR-2 (a no-op PATCH re-indexes and publishes UPDATED): still present, but recorded as an accepted assumption on the task, so it is not repeated here.
+- Migration: the version is unique, and the path and name follow the `<module>/V<yyyyMMddHHmm>__<module>_<desc>.sql` convention. `NoteMigrationTests` guards both.
+- Security: native queries are parameterized, and nothing logs note contents. The upload mime type is checked on the server, and only active notes accept uploads. No secrets are in the diff.
+- Tests: I was not allowed to run Gradle in this session (the command was denied). The newest JUnit results in `server/build/test-results/test/` (written 03:57, after commit 3fc95687) show 0 failures and 0 errors for NoteWebTests 20, NoteEdgeCaseWebTests 28, NoteInfraTests 9, NoteRevisionInfraTests 5, NoteMarkdownTests 8, NoteMigrationTests 3, NoteImageMaxSizeWebTests 1 and OpenApiContractTest 1. The 28 edge-case tests include the uncommitted test change mentioned above.
 
 ## P0 Critical
 
@@ -39,22 +49,22 @@ None.
 
 ## P2 Medium
 
-- [ ] **CR-1 | Recorded acceptance evidence predates the migration rename and the merge of main**
-    - File: `tasks/notes-api.md:17`
+- [ ] **CR-1 | Recorded evidence and `quality.json` name revisions that no longer exist**
+    - File: `reviews/notes-api/quality.json:4`, `tasks/notes-api.md:17`
     - Category: Tests
-    - Problem: All six `verify` entries were recorded at 02:21 by dell26/agent-3 on the pre-merge revision. They cite 69/70 tests. Later, 7e100737 renamed the migration (02:46) and 385e2b15 merged origin/main and regenerated `api/openapi.yaml` and the web client (03:01). Before the rename, the merged code had a duplicate Flyway version (V202610210900 in both calendar and notes), which breaks every Spring context. So the recorded evidence does not describe the code that `done` will push. `reviews/notes-api/quality.json` also still names `reviewed_revision` 3d5c5215 and the old findings.
-    - Why it matters: AGENTS.md "Evidence" requires the evidence to match what is in the repository. A human reading the task would trust a test run that was made on code which, once merged, did not start.
-    - Suggested fix: Re-record criteria 5 and 6, and preferably 1-4 as well, with the HEAD run: `./gradlew test --tests 'ch.sonensei.cockpit.notes.*' --tests '*OpenApiContractTest'` -> 73 tests, 0 failures; OpenApiContractTest passes without UPDATE_OPENAPI. Note the `npm run check` result after the regeneration. Then rewrite `quality.json` for the final revision and this review's findings.
+    - Problem: `quality.json` has `reviewed_revision` f922ce776fc70e97ad79212cd8575cccd4d55e3c. `git cat-file -t` on that hash fails ("could not get object info"). The latest `verify` entries for criteria 1-6 name revision 26322171, which the squash into 3fc95687 also replaced. So neither the evidence nor the freshness check can be tied to the code that `done` would push.
+    - Why it matters: `done` compares the patch-id of `reviewed_revision` with HEAD (docs/QUALITY.md "Freshness"). It cannot do that for a missing object. AGENTS.md "Evidence" also requires the recorded evidence to match the repository.
+    - Suggested fix: Once the helpers have finished on the final code, set `reviewed_revision` to the final commit hash. Re-run `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.notes.*' --tests '*OpenApiContractTest'` on that commit and record the result with `tasks.py verify` for criteria 1-6.
 
 ## P3 Low
 
-- [ ] **CR-2 | A PATCH that changes nothing still re-indexes the note and publishes an UPDATED ChangeEvent**
-    - File: `server/src/main/kotlin/ch/sonensei/cockpit/notes/domain/NoteService.kt:124`
-    - Category: Quality
-    - Problem: `update` always calls `saved(...)`, which runs `changed(saved)` and so calls `indexer.indexNote` and `changes.publish(NOTE, id, UPDATED)`. It does this even when the fields sent equal the current values (e.g. an autosave of an unchanged body). In that case Hibernate does not flush, so `version` stays the same, but every connected client still gets an SSE change for the note.
-    - Why it matters: Autosave clients (web-notes-editor) would make other clients refetch a note that did not change. The search document is also rewritten without need. Nothing is corrupted.
-    - Suggested fix: Compare the content, tags, pinned and archived values before and after `apply`. If nothing changed, return the loaded note without indexing or publishing. Add a test that an identical PATCH publishes no event.
+- [ ] **CR-2 | NUL characters in tags give 500 instead of 400**
+    - File: `server/src/main/kotlin/ch/sonensei/cockpit/notes/domain/NoteService.kt:282` (also `:310`, the list tag filter)
+    - Category: Correctness
+    - Problem: `validate` rejects NUL in `title` and `bodyMd` with 400 (lines 297-298), but `normalizeTags` does not check tags. A create or PATCH with `"tags":["a\u0000b"]` sends the value to PostgreSQL in `findTagSpelling` (a native query) or in the `note_tag` insert. PostgreSQL rejects 0x00 in `text`, and `ProblemDetailsAdvice` maps the error to a generic 500. `GET /api/v1/notes?tag=%00` goes the same way through the tag filter predicate.
+    - Why it matters: Invalid client input becomes a server error and is logged as one, which goes against the Problem Details 400 contract the module already follows for title and body.
+    - Suggested fix: In `normalizeTags`, add `FieldError("tags", "must not contain NUL characters")` for tags that contain `'\u0000'`. In the controller or `specification`, reject (400) or ignore a `tag` filter that contains NUL. Add one web test for each case.
 
 ## Review conclusion
 
-No material issues found. The implementation meets acceptance criteria 1-6 at HEAD f6bafe16 and integrates with current main. The migration version is unique, and OpenApiContractTest passes without the flag. Before `done`, the parent worker should fix CR-1 (re-record evidence and rewrite quality.json for the final revision). CR-2 is optional.
+Material issues found; fix before completing the task. The implementation meets acceptance criteria 1-6, and every earlier finding is fixed or accepted. Before `done`, CR-1 needs fresh evidence and a `reviewed_revision` that exists. CR-2 is a small validation gap that can be fixed or accepted.

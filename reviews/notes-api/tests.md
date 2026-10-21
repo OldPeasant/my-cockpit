@@ -2,144 +2,137 @@
 
 Date: 2026-10-21
 
-Task: notes-api - Notes API (test-writer pass on HEAD 385e2b15, after the migration rename to V202610210907 and the merge of origin/main)
+Task: notes-api - Notes API (fresh test-writer pass on the squashed implementation commit 3fc95687; the earlier
+evidence referenced pre-squash commits that no longer exist)
 
-Scope: base b41323dc1f171c64d62911f7371aa6d9ffa3f566 (`git merge-base HEAD origin/main`, supplied by the parent) to
-HEAD 385e2b15f1dea54253b0d48d86765989f52c0088, branch main. Task commits (supplied by the parent): 5d27f2d6, 6ec5ba23,
-45a13f37, f147ae5b, ecbd7cab, 4aa5cba3, 7e100737, and merge 385e2b15 (only regenerated `api/openapi.yaml` and
-`web/src/app/api/generated/`). `git diff --stat b41323dc..HEAD` matches the task's `touches` (notes module, notes
-tests, notes migration) plus the generated contract/client and `reviews/notes-api/`. Uncommitted input: one new
-untracked test file, `server/src/test/kotlin/ch/sonensei/cockpit/notes/NoteMigrationTests.kt` (added in this pass).
+Scope: base 3dbd3504fa58040c26e7d656de1b09afb06f5106 (supplied by the parent) to HEAD
+c090c42aed1147cf2a58e829d9964dd9b04cb6f9, branch main. `git log 3dbd3504..HEAD` has exactly two commits:
+3fc95687e1ea116b5104f7b9295979b0668ebb86 (the squashed task implementation: notes module, notes tests, notes
+migration, regenerated `api/openapi.yaml` and `web/src/app/api/generated/`, earlier `reviews/notes-api/` files) and
+c090c42a (only `reviews/notes-api/quality.json`). Task ownership: parent-supplied commit list, cross-checked against the
+task's `touches` and `git diff --stat 3dbd3504..HEAD`. Uncommitted input: one modified test file,
+`server/src/test/kotlin/ch/sonensei/cockpit/notes/NoteEdgeCaseWebTests.kt` (added in this pass); no other changes.
 
 Requirements:
-- tasks/notes-api.md acceptance criteria 1-6 and the four recorded assumptions
-- SPEC.md §8.1 (via the task), docs/ARCHITECTURE.md "Coverage" and "Shared and generated files" (migration naming in
-  AGENTS.md), docs/QUALITY.md, AGENTS.md
-- Parent instruction: evaluate the drafted migration version guard `.tmp/NoteMigrationTests.kt`
+- tasks/notes-api.md acceptance criteria 1-6 and the recorded assumptions (revisions, list defaults, tags, derived
+  title, image upload, no-op PATCH)
+- SPEC.md §8.1 (via the task), docs/ARCHITECTURE.md "Coverage", docs/QUALITY.md, AGENTS.md
 
 ## Test files changed
 
-- `server/src/test/kotlin/ch/sonensei/cockpit/notes/NoteMigrationTests.kt` (new, untracked)
+- `server/src/test/kotlin/ch/sonensei/cockpit/notes/NoteEdgeCaseWebTests.kt` (modified, uncommitted)
 
 ## Tests added or updated
 
-Count: 3
+Count: 2
 
-The draft in `.tmp/NoteMigrationTests.kt` was useful: the notes migration was originally given the same Flyway version
-as `calendar/V202610210900__calendar_sync.sql`, which breaks every Spring context with "Found more than one migration
-with version ...". The draft was adapted:
-- `notes migrations use versions no other migration uses`: scans `classpath*:db/migration/**/*.sql` (main and test
-  resources), asserts there is at least one notes migration and at least one other one (so an empty scan cannot pass),
-  and that no notes version equals any other migration's version or another notes version. Versions are compared the
-  way Flyway reads them (`_` in a version is `.`, so `V1_1` equals `V1.1`), which the draft did not do.
-- `notes migrations follow the module folder and naming convention`: every notes migration is
-  `notes/V` + a 12-digit yyyyMMddHHmm timestamp + `__notes_` + a lower-case description + `.sql` (AGENTS.md "Shared
-  and generated files").
-- `version comparison treats underscore and dot separators like Flyway does`: pins the helper so the guard itself
-  cannot silently stop detecting clashes (e.g. the test fixture `core/V202610200000_1__...` differs from
-  `core/V202610200000__...`).
+The existing suites (NoteWebTests 20, NoteEdgeCaseWebTests 26, NoteInfraTests 9, NoteRevisionInfraTests 5,
+NoteMarkdownTests 8, NoteMigrationTests 3, NoteImageMaxSizeWebTests 1) already cover every acceptance criterion. Two
+real gaps were found and closed:
 
-With the pre-rename name `notes/V202610210900__notes_model.sql`, the first test would fail with the clue
-`notes/V202610210900__notes_model.sql shares version 202610210900 with another migration` (it computes version
-`202610210900` for both files). This was reasoned from the code, not run: reproducing it would need a production
-resource change.
-
-No other tests were added: the coverage gaps below are unreachable defensive branches or compiler-generated code, and
-every acceptance criterion is already covered by the existing suites (NoteWebTests 20, NoteEdgeCaseWebTests 26,
-NoteInfraTests 9, NoteRevisionInfraTests 5, NoteMarkdownTests 8, NoteImageMaxSizeWebTests 1).
+- `values exactly at their maximum are accepted, duplicates do not count towards the tag limit`: the existing tests
+  only checked values just above the limits (501-char title, 100 001-char body, 51-char tag, 51 tags). This pins the
+  "at the limit" side: title of 500, body of 100 000, 50 tags of 50 characters are stored; 52 tags of which 2 are case
+  or `#` duplicates are accepted as 50 (the limit applies after deduplication, per the tags assumption).
+- `an invalid PATCH changes nothing, not even the valid fields sent with it`: a PATCH with valid `pinned`, `archived`,
+  `tags` (a new tag) and `bodyMd` plus an invalid title (or a body with NUL) is rejected with 400 and leaves version,
+  pin, archive state, body, tags, revisions and the tag list untouched. `NoteService.apply` deliberately applies tags
+  first because the tag spelling query auto-flushes; this guards that ordering and the transactional rollback against
+  partial writes.
 
 ## Requirement coverage
 
 | Requirement | Tests | Command | Result |
 |---|---|---|---|
-| 1. CRUD `/api/v1/notes` with ETag, derived title, body_md, tags, pinned, archived; list filters by tag/pinned/archived | NoteWebTests: create with ETag/Location, empty create -> untitled, PATCH only sent fields + If-Match, PATCH rejects unknown fields/nulls/wrong types, invalid fields 400, tag dedup, unknown 404, list pinned first + tag/pinned/archived filters, cursor paging; NoteEdgeCaseWebTests: filter combinations, `archived=all`/invalid 400, tag normalization and spelling, cursor/page size validation, blank title, If-Match `*`/lists, 428/412 | F1 | Pass |
-| 2a. Inline links `[[type:id]]` synced to the link table on save | NoteWebTests `inline links in the body are synced...`, `linked notes are resolved in the links panel`; NoteEdgeCaseWebTests `restoring a revision that differs only in the title keeps the body and its links`; NoteMarkdownTests inline link tests | F1 | Pass |
-| 2b. `POST /notes/{id}/images` stores into `/Attachments/Notes`, returns `cockpit-file:{id}` | NoteWebTests image stored in Attachments/Notes, only images and only existing notes; NoteEdgeCaseWebTests mime/filename/octet-stream/missing part/Trash/folder reuse; NoteImageMaxSizeWebTests (413 / at maximum) | F1 | Pass |
-| 3. Last 20 revisions, `GET .../revisions`, `POST .../revisions/{n}/restore` | NoteWebTests `only the newest 20 revisions are kept`, `restoring a revision puts its content back and keeps the replaced one`; NoteEdgeCaseWebTests 5-minute boundary, restore within 5 min, restore equal to newest revision, title-only restore, unknown revision 404, Trash 404, stale If-Match; NoteRevisionInfraTests 20-cap restore, savedAt, concurrent restore/change -> optimistic locking error | F1 | Pass |
-| 4. Resolver NOTE, search indexing (Markdown stripped via flexmark), trash, ChangeEvents | NoteInfraTests resolver/Trash restore/purge; NoteWebTests search indexing with Markdown stripped, Trash/purge, change events; NoteEdgeCaseWebTests UPDATED events for revision/Trash restore; NoteRevisionInfraTests Trash restore re-index; NoteMarkdownTests plain text | F1 | Pass |
-| 5. `./gradlew test --tests 'ch.sonensei.cockpit.notes.*'` passes (Postgres via Testcontainers) | all 72 notes tests (incl. the 3 new NoteMigrationTests) | F1 | Pass |
-| 6. `api/openapi.yaml` regenerated and `OpenApiContractTest` passes without the flag | OpenApiContractTest (run without `UPDATE_OPENAPI`, on the post-merge contract) | F1 | Pass |
-| Notes migration version does not clash with other modules (regression of the calendar clash fixed in 7e100737) | NoteMigrationTests (3) | F1 | Pass |
+| 1. CRUD `/api/v1/notes` with ETag, derived title, body_md, tags, pinned, archived; list filters by tag/pinned/archived | NoteWebTests: create with ETag/Location, empty create -> untitled, PATCH only sent fields + If-Match, PATCH rejects unknown fields/nulls/wrong types, invalid fields 400, tag dedup, unknown 404, list order + tag/pinned/archived filters, cursor paging; NoteEdgeCaseWebTests: filter combinations, `archived=all`/invalid 400, tag normalization and spelling, cursor/page size validation, blank title, NUL, If-Match `*`/lists, 428/412, stale DELETE, plus the 2 new tests (maximum values, atomic invalid PATCH) | F1 | Pass |
+| 2a. Inline links `[[type:id]]` synced to the link table on save | NoteWebTests `inline links in the body are synced to the link table on save`, `linked notes are resolved in the links panel`; NoteEdgeCaseWebTests `restoring a revision that differs only in the title keeps the body and its links`; NoteMarkdownTests inline link tests (3) | F1 | Pass |
+| 2b. `POST /notes/{id}/images` stores into `/Attachments/Notes`, returns `cockpit-file:{id}` | NoteWebTests `an image is stored in Attachments-Notes and its reference returned`, `only images are accepted, and only for existing notes`; NoteEdgeCaseWebTests mime from filename, octet-stream, no filename/upper-case type, no name and type, missing part/Trash, folder reuse; NoteImageMaxSizeWebTests (413 above, stored at maximum) | F1 | Pass |
+| 3. Last 20 revisions, `GET .../revisions`, `POST .../revisions/{n}/restore` | NoteWebTests `only the newest 20 revisions are kept`, `restoring a revision puts its content back and keeps the replaced one`, `a content change keeps the previous version, at most one per five minutes`; NoteEdgeCaseWebTests 5-minute boundary, title-only change, no-op change, restore within 5 min, restore equal to newest revision, title-only restore, no-op restore, unknown revision 404, Trash 404, stale/missing If-Match; NoteRevisionInfraTests 20-cap restore, savedAt, concurrent restore/change -> optimistic locking error | F1 | Pass |
+| 4. Resolver NOTE, search indexing (Markdown stripped via flexmark), trash, ChangeEvents | NoteInfraTests resolver registration/resolve/missing+trashed, Trash list/restore/purge/refusals; NoteWebTests `notes are indexed for search with Markdown stripped`, Trash/purge, `every change publishes a change event`; NoteEdgeCaseWebTests UPDATED events for revision/Trash restore; NoteRevisionInfraTests Trash restore re-index; NoteMarkdownTests plain text | F1 | Pass |
+| 5. `./gradlew test --tests 'ch.sonensei.cockpit.notes.*'` passes (Postgres via Testcontainers) | all 74 notes tests in 7 classes | F1 | Pass |
+| 6. `api/openapi.yaml` regenerated and `OpenApiContractTest` passes without the flag | OpenApiContractTest (run without `UPDATE_OPENAPI`) | F1 | Pass |
 
-F1 = `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.notes.*' --tests '*OpenApiContractTest' jacocoTestReport ktlintCheck`
+F1 = `server/gradlew -p server test --tests 'ch.sonensei.cockpit.notes.*' --tests '*OpenApiContractTest' jacocoTestReport ktlintCheck`
+(repository root; equivalent to `cd server && ./gradlew ...`). Regeneration of the contract itself
+(`UPDATE_OPENAPI=1`) was not re-run in this pass; the contract test without the flag passing shows the committed
+`api/openapi.yaml` matches the current code.
 
 ## Focused test execution
 
 Command:
 
-`cd server && ./gradlew test --tests 'ch.sonensei.cockpit.notes.*' --tests '*OpenApiContractTest' jacocoTestReport ktlintCheck`
+`server/gradlew -p server test --tests 'ch.sonensei.cockpit.notes.*' --tests '*OpenApiContractTest' jacocoTestReport ktlintCheck`
 
 Result:
 
-Pass. BUILD SUCCESSFUL in 48s (started 2026-10-21T03:02:49+02:00). From `build/test-results/test`: NoteWebTests 20,
-NoteEdgeCaseWebTests 26, NoteInfraTests 9, NoteRevisionInfraTests 5, NoteMarkdownTests 8, NoteMigrationTests 3,
-NoteImageMaxSizeWebTests 1, OpenApiContractTest 1: 73 tests, 0 failures, 0 errors, 0 skipped. ktlintCheck passed for
-main and test source sets (including the new file).
+Pass. BUILD SUCCESSFUL in 36s (started about 2026-10-21T03:56:50+02:00, report written 03:57:28+02:00). From
+`server/build/test-results/test`: NoteWebTests 20, NoteEdgeCaseWebTests 28, NoteInfraTests 9, NoteRevisionInfraTests 5,
+NoteMarkdownTests 8, NoteMigrationTests 3, NoteImageMaxSizeWebTests 1, OpenApiContractTest 1: 75 tests, 0 failures,
+0 errors, 0 skipped. Persistence tests ran on Postgres via Testcontainers. ktlintCheck passed for main and test source
+sets (test sources recompiled and re-linted, including the modified file).
 
 ## Full test execution
 
 Command:
 
-`sh scripts/check.sh` (repository root; quality gate tests, server `./gradlew check`, web `npm run check`, android
-`ktlintCheck testDebugUnitTest lintDebug`)
+`sh scripts/check.sh` (repository root; this is `.taskcheck`)
 
 Result:
 
-Pass. Ran 2026-10-21T03:04:35+02:00 to 03:12:52+02:00 (about 8 minutes), output ends with `== all checks passed`.
-Server test results after the run: 2719 tests, 0 failures, 0 errors, 0 skipped. The web build prints the
-pre-existing initial bundle budget warning only. The `ClockConfigurationTests` flake seen in the previous pass did not
-occur.
+CHECK_RESULT_PLACEHOLDER
 
 ## .taskcheck
 
 Result:
 
-Pass (`sh scripts/check.sh`, see above). Note: it takes about 8 minutes here, above the 2 minute warning of `done`
-but within the 15 minute timeout.
+CHECK_RESULT_SHORT_PLACEHOLDER
 
 ## Bugs found
 
-None. No production defect was found in the notes task.
+None. No production defect was found; both new tests passed on the first run against 3fc95687.
 
 ## Coverage
 
-Status: verified (fresh JaCoCo run on HEAD 385e2b15 plus the untracked NoteMigrationTests.kt; focused notes +
-OpenApiContractTest selection).
+Status: verified (fresh JaCoCo run on HEAD c090c42a = implementation 3fc95687, plus the modified
+NoteEdgeCaseWebTests.kt; focused notes + OpenApiContractTest selection).
 
 Metric: whole-file coverage of task-changed production files.
-Changed-line coverage: not measured separately. All Kotlin files in scope are new in this task (`git diff b41323dc..HEAD`
-adds them entirely), so whole-file coverage equals changed-line coverage for them.
+Changed-line coverage: not measured separately. All Kotlin files in scope are added in full by 3fc95687
+(`git diff 3dbd3504..HEAD` has no pre-existing lines in them), so whole-file coverage equals changed-line coverage here.
 
 Evidence:
 - Task id, immutable base, measured HEAD, and task-owned commits/file-scope source: notes-api; base
-  b41323dc1f171c64d62911f7371aa6d9ffa3f566; HEAD 385e2b15f1dea54253b0d48d86765989f52c0088; commits supplied by the
-  parent (listed under Scope); files from `git diff --name-only b41323dc..HEAD -- server/src/main`.
-- Source/test snapshot identifier (including uncommitted inputs): HEAD 385e2b15; only uncommitted input is untracked
-  `server/src/test/kotlin/ch/sonensei/cockpit/notes/NoteMigrationTests.kt`, sha256
-  `efb06e1a532283263f730de219075127e7d9f593a71a7d5b0592dde293455c04`. `git status --short` and the hash were the same
-  before the coverage run and after the full check.
+  3dbd3504fa58040c26e7d656de1b09afb06f5106; HEAD c090c42aed1147cf2a58e829d9964dd9b04cb6f9; task commits 3fc95687
+  (code) and c090c42a (reviews only), supplied by the parent; files from
+  `git diff --name-only 3dbd3504..HEAD -- server/src/main`.
+- Source/test snapshot identifier (including uncommitted inputs): HEAD c090c42a; only uncommitted input is
+  `server/src/test/kotlin/ch/sonensei/cockpit/notes/NoteEdgeCaseWebTests.kt`, sha256
+  `e19a0acf29388bc9d1cdb7862f30e58ef2b7cf00dc578c6b036ea775fc8cc444` (same before and after the coverage run;
+  `git status --short` showed only this file).
 - Exact included files: `server/src/main/kotlin/ch/sonensei/cockpit/notes/api/{NoteController,NoteDtos,NotesWebSupport}.kt`,
-  `notes/domain/{Note,NoteCommands,NoteMarkdown,NoteService}.kt`, `notes/infra/{NoteItemResolver,NoteRepositories,NoteTrashContributor}.kt`.
-  Excluded: `server/src/main/resources/db/migration/notes/V202610210907__notes_model.sql` (renamed in 7e100737 from
-  `V202610210900__notes_model.sql`; SQL is not instrumentable by JaCoCo; it is applied in every Testcontainers notes
-  test and checked by NoteMigrationTests); `api/openapi.yaml` and `web/src/app/api/generated/**` (generated; checked by
-  OpenApiContractTest and `npm run check`). No deleted files. JaCoCo also lists `notes/api/Comparisons.kt`, a synthetic
-  source of inlined Kotlin stdlib code without counters; not a task file.
-- Provider/version, command, working directory, and test selection: JaCoCo via the Gradle `jacoco` plugin
-  (configured in `server/build.gradle.kts`), Gradle 9.8.1; `./gradlew test --tests 'ch.sonensei.cockpit.notes.*' --tests '*OpenApiContractTest' jacocoTestReport ktlintCheck`
-  in `server/`.
-- Run start/completion time and exit status: started 2026-10-21T03:02:49+02:00; `build/jacoco/test.exec` written
-  03:03:34, report written 03:03:37; BUILD SUCCESSFUL (exit 0).
-- Generated report paths and report hashes/run identifier: `server/build/reports/jacoco/test/jacocoTestReport.xml`,
-  sha256 `4cc3bd89300314ad89cbe49eb46340aef69aadbd8fa7fa0ba1a5faf023e43879`.
-- Evidence outputs are fresh and inputs stayed unchanged: yes. The test task executed (new test source compiled, not
-  up to date) and rewrote the exec file and report. The later full `check` run does not run `jacocoTestReport`; the XML
-  report hash was unchanged afterwards.
-- Final run after latest test additions and production fixes: yes. It ran on HEAD 385e2b15 (including the migration
-  rename 7e100737 and the merge) with the new NoteMigrationTests.
+  `notes/domain/{Note,NoteCommands,NoteMarkdown,NoteService}.kt`,
+  `notes/infra/{NoteItemResolver,NoteRepositories,NoteTrashContributor}.kt`. Excluded:
+  `server/src/main/resources/db/migration/notes/V202610210907__notes_model.sql` (SQL, not instrumentable by JaCoCo;
+  applied by every Testcontainers notes test and checked by NoteMigrationTests); `api/openapi.yaml` and
+  `web/src/app/api/generated/**` (generated; checked by OpenApiContractTest). No renamed or deleted files in the
+  range. JaCoCo also lists `notes/api/Comparisons.kt`, a synthetic source of inlined Kotlin stdlib code without
+  counters; not a task file.
+- Provider/version, command, working directory, and test selection: JaCoCo via the Gradle `jacoco` plugin configured
+  in `server/build.gradle.kts`, Gradle 9.8.1; F1 above, run from the repository root with `-p server`; selection
+  `ch.sonensei.cockpit.notes.*` and `*OpenApiContractTest`.
+- Run start/completion time and exit status: about 2026-10-21T03:56:50+02:00 to 03:57:28+02:00; test result
+  timestamps 01:56:59Z-01:57:24Z; BUILD SUCCESSFUL (exit 0).
+- Generated report paths and report hashes/run identifier: `server/build/reports/jacoco/test/jacocoTestReport.xml`
+  (written 2026-10-21 03:57:28+02:00), sha256 `fcb20f7e63c6090465cf8a155c8d37c0ce114b264095b2980b65716e230e75db`.
+- Evidence outputs are fresh and inputs stayed unchanged: yes. Production and test sources were recompiled
+  (`compileKotlin`, `compileTestKotlin` executed), the test task executed and `jacocoTestReport` rewrote the XML. The
+  test-file hash was unchanged after the run. Counters were read with a small script over the XML (`<sourcefile>`
+  counters INSTRUCTION, BRANCH, METHOD, LINE).
+- Final run after latest test additions and production fixes: yes. No production code changed in this pass; the run
+  includes both new tests.
 
 Values below use covered/total (percentage); zero-denominator or unsupported metrics are N/A.
-Statements = JaCoCo INSTRUCTION counter.
+Statements = JaCoCo INSTRUCTION counter, Functions = METHOD.
 
 | Changed file | Statements | Branches | Functions | Lines |
 |---|---:|---:|---:|---:|
@@ -156,30 +149,30 @@ Statements = JaCoCo INSTRUCTION counter.
 | **Aggregate (summed counters)** | 3132/3260 (96.1%) | 211/226 (93.4%) | 154/163 (94.5%) | 425/427 (99.5%) |
 
 The aggregate covers the 9 measured Kotlin files. `NoteRepositories.kt` holds only Spring Data interfaces and a
-projection, so JaCoCo has no bytecode counters for it (N/A; exercised through the service tests). The migration and
-generated files are excluded as listed above. No threshold is defined (ARCHITECTURE.md: coverage is not a gate). The
-numbers equal the previous pass on 3d5c5215: the rename and the merge did not change notes Kotlin code.
+projection, so JaCoCo has no bytecode counters for it (N/A; exercised through the service and web tests). The
+migration and generated files are excluded as listed above. No threshold is defined (ARCHITECTURE.md: coverage is not
+a gate). The two new tests strengthen assertions on already-executed code, so the counters did not move.
 
 | File and uncovered lines/branch locations | Required behavior or risk | Action/test added or reason left uncovered |
 |---|---|---|
-| `NoteService.kt:119,168,243` (partial) | `checkNotNull(updatedAt/createdAt)` null branches | Unreachable for persisted entities; no test. The other branches at 243 (restore whose replaced content equals the newest revision) are covered by `a restore does not keep the replaced content again when it equals the newest revision` |
-| `NoteService.kt:378` / `Note.kt:40,43,54` / `NoteCommands.kt:21-25` / `NoteDtos.kt:45-67,119` | Compiler-generated data class/companion/JPA members and `checkNotNull` null branches; `Note.kt:43` blank-title fallback (the service normalizes blank titles to null, tested by the blank title tests) | Not behavior or unreachable; no test |
+| `NoteService.kt:119,168,243` (1 branch each) | `checkNotNull(updatedAt/createdAt)` null branches | Unreachable for persisted entities; no test. The covered branches at 243 (restore whose replaced content equals the newest revision) are tested by `a restore does not keep the replaced content again when it equals the newest revision` |
+| `NoteService.kt:378`, `Note.kt:40,54`, `NoteCommands.kt:21-25`, `NoteDtos.kt:61-67` | Compiler-generated members (data class/companion, default-argument constructors of `NoteFilter` and `CreateNoteRequest`, JPA accessors) | Not behavior; no test |
+| `Note.kt:43` (2 branches) | `displayTitle` fallback for a blank stored title | Unreachable via the service: blank titles are normalized to null (tested by `a blank title is stored as no title, NUL characters are rejected`) |
+| `NoteDtos.kt:45,46,119` (1 branch each) | `checkNotNull(createdAt/updatedAt)` null branches | Unreachable for persisted entities |
 | `NoteMarkdown.kt:45` (2 of 4 branches) | `UUID.fromString` failure fallback in `inlineLinks` | Unreachable: the regex only matches canonical UUID text; malformed ids are covered by `inline links with an unknown type or a malformed id are ignored` |
-| `NoteMarkdown.kt:70` (1 branch) | `firstOrNull()` of a plain-text line | Both title outcomes are tested; the remaining branch is an empty sequence that `lineSequence()` never yields |
-| `NoteController.kt:210` (2 branches) | `file.contentType` null/blank/octet-stream fallback; `originalFilename` null | null, blank-name, octet-stream and explicit types are tested in NoteEdgeCaseWebTests image tests; the remaining short-circuit combinations behave the same |
-| `NotesWebSupport.kt:33` (1 branch) | Jackson error without a property path -> field `body` | Unreachable: the PATCH body is a map whose keys are whitelisted first, so a conversion error always has a property path |
+| `NoteMarkdown.kt:70` (1 branch) | `firstOrNull()` on an empty line sequence | `lineSequence()` never yields an empty sequence; both title outcomes are tested |
+| `NoteController.kt:210` (2 branches) | Remaining short-circuit combinations of content type null/blank/octet-stream | null, octet-stream and explicit types are tested; the remaining combinations take the same path |
+| `NotesWebSupport.kt:33` (1 branch) | Jackson error without a property path -> field `body` | Unreachable: PATCH keys are whitelisted first, so a conversion error always has a property path |
 | `NoteTrashContributor.kt:27` (1 branch) | `checkNotNull(deletedAt)` for Trash items | Unreachable: the query only returns deleted notes |
 
 ## Unable to test
 
-- The new guard's failure on a real version clash was not executed (it would need a duplicate production migration
-  file); it is shown by reasoning above and by the separator test. No follow-up needed.
 - Concurrency at the HTTP level (two simultaneous PATCHes giving 409) is tested at the service level
   (NoteInfraTests/NoteRevisionInfraTests assert `OptimisticLockingFailureException`); the mapping to 409 is the shared
   Problem Details advice covered by core tests. No follow-up needed.
+- `UPDATE_OPENAPI=1` regeneration was not re-run in this pass (it rewrites a committed file, outside a test-writer's
+  remit); the contract test without the flag passed on the current code. No follow-up needed.
 
 ## Summary
 
-Tests added and all validation passed. Three migration guard tests were added (untracked, to be committed by the
-parent); the 73 focused tests, ktlint and the full `.taskcheck` (`sh scripts/check.sh`) pass on HEAD 385e2b15.
-Task-scoped coverage is unchanged and sufficient; no production defects found.
+SUMMARY_PLACEHOLDER

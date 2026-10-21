@@ -271,6 +271,47 @@ class NoteEdgeCaseWebTests(
 		fetch(note.id()).get("version") shouldBe changed.get("version")
 	}
 
+	@Test
+	fun `values exactly at their maximum are accepted, duplicates do not count towards the tag limit`() {
+		val tags = (1..50).map { "t$it".padEnd(50, 'x') }
+		val note =
+			newNote(
+				"""{"title":"${"x".repeat(500)}","bodyMd":"${"b".repeat(100_000)}","tags":[${tags.joinToString { "\"$it\"" }}]}""",
+			)
+
+		note.get("title").asString().length shouldBe 500
+		note.get("bodyMd").asString().length shouldBe 100_000
+		note.tagList().size shouldBe 50
+		val withDuplicates = tags + tags.first().uppercase() + "#${tags.last()}"
+		change(note, """{"tags":[${withDuplicates.joinToString { "\"$it\"" }}]}""").tagList().size shouldBe 50
+	}
+
+	@Test
+	fun `an invalid PATCH changes nothing, not even the valid fields sent with it`() {
+		val note = newNote("""{"title":"Plan","bodyMd":"Body","tags":["Home"]}""")
+		clock.advance(Duration.ofMinutes(10))
+
+		patch(note.id(), """{"pinned":true,"archived":true,"tags":["Fresh"],"bodyMd":"New","title":"${"x".repeat(501)}"}""", note.etag())
+			.andExpect { status { isBadRequest() } }
+		patch(note.id(), """{"pinned":true,"tags":["Fresh"],"bodyMd":"a\u0000b"}""", note.etag())
+			.andExpect { status { isBadRequest() } }
+
+		val current = fetch(note.id())
+		current.get("version") shouldBe note.get("version")
+		current.get("pinned").asBoolean() shouldBe false
+		current.get("archived").asBoolean() shouldBe false
+		current.get("bodyMd").asString() shouldBe "Body"
+		current.tagList() shouldContainExactly listOf("Home")
+		revisions(note.id()).shouldBeEmpty()
+		mockMvc
+			.get("$NOTES/tags")
+			.andExpect { status { isOk() } }
+			.json()
+			.get("items")
+			.values()
+			.map { it.get("tag").asString() } shouldContainExactly listOf("Home")
+	}
+
 	// --- revisions
 
 	@Test
