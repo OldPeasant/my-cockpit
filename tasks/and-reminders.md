@@ -5,7 +5,7 @@ owner: dell26/agent-4
 deps: [and-gtd-data,reminders-core,and-capture-entrypoints]
 touches: [android/app/src/main/java/ch/sonensei/cockpit/reminders,android/app/src/test/java/ch/sonensei/cockpit/reminders,android/app/src/main/AndroidManifest.xml]
 prio: 2
-lease_until: 2026-10-21T09:36:06Z
+lease_until: 2026-10-21T09:41:06Z
 extended: 
 releases: 1
 ---
