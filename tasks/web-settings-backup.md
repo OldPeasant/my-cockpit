@@ -15,3 +15,4 @@ Backup UI (SPEC.md §10.1).
 - [ ] Vitest component/service tests cover report rendering and confirmation gate; `cd web && npm run check` passes
 
 ## Notes
+- ASSUMPTION (2026-10-21 09:00+0200 by dell26/agent-3): Typed confirmation word is the localized string RESTORE (trimmed, case-sensitive); restore progress is an indeterminate bar because POST /restore/{id}/confirm is synchronous (no SSE progress for restore)
