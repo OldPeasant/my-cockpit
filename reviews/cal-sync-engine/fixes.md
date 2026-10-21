@@ -114,6 +114,77 @@ Lint/type-check/build:
 Remaining unresolved findings:
 1 (CR-4, deferred by the parent)
 
+# Round 2
+
+Date: 2026-10-21
+
+Scope: Current task. Findings of the second review round: the test-writer's failing test (TW, High) and CR-1 (P2) and CR-2 (P3) of the re-review in `reviews/cal-sync-engine/review.md`. The parent worker applied candidate changes in commit `17528b0f70784a9027893f4c31f5c5d97837ebe7`. This round checked them against the findings and the task assumptions. They resolve the findings, so no further code changes were needed. Base `93da59385314233b39dd326aaaa5c9c55aa9a09a`.
+
+## Fixed findings
+
+### TW — A provider answer that cannot be stored fails the write-through with 500 instead of 502
+
+Files changed:
+- `server/src/main/kotlin/ch/sonensei/cockpit/calendar/sync/CalendarWriteThrough.kt` (commit 17528b0f)
+
+Problem:
+`event.copyFrom(stored)` normalizes the provider's answer and throws `IllegalArgumentException` when the answer cannot be stored, for example when it ends before it starts or has an invalid RRULE. Nothing in `write` caught it, so the request failed with 500.
+
+Fix:
+`copyFrom` is wrapped, and an `IllegalArgumentException` becomes a `CalendarProviderException`. The existing handler logs it at WARN (the message names only the failed check, not event content) and returns 502 Problem Details through `providerFailed`. `copyFrom` normalizes before it changes anything, and the exception is thrown from `beforeCommit`, so the transaction rolls back and the local copy stays unchanged. This matches the task assumption "A provider answer to a write-through that cannot be stored ... rollback + 502". The test-writer's test is unchanged.
+
+Validation:
+- `CalendarSyncOverrideTests` "a provider answering a write-through with an event it cannot be stored as fails the edit with 502, the local copy stays" — Pass
+
+### CR-1 — After normalization, a local edit writes the reduced event back to the provider
+
+Files changed:
+- `server/src/test/kotlin/ch/sonensei/cockpit/calendar/sync/CalendarSyncOverrideTests.kt` (commit 17528b0f)
+
+Problem:
+`normalized()` drops invalid attendees, out-of-range reminders and non-http(s) conference URLs, and truncates text. Write-through sends the whole local event, so an unrelated later edit removes that data at the provider.
+
+Fix:
+The parent accepted the behavior and recorded it as a task assumption. No production code changed. The new test "a local edit of a normalized event writes the normalized fields back to the provider (accepted by assumption)" documents the behavior, as the review asked. It pulls an event with a `tel:` conference URL, an invalid attendee and a negative reminder, PATCHes only the location, and asserts what the fake adapter received: the new location, no conference URL, only the valid attendee, and only the valid reminder. The test does not cover text truncation. That uses the same write path, so this round did not add a test for it.
+
+Validation:
+- `CalendarSyncOverrideTests` "a local edit of a normalized event writes the normalized fields back to the provider (accepted by assumption)" — Pass
+
+### CR-2 — The refetch comment claimed a run in progress always fetches the new version
+
+Files changed:
+- `server/src/main/kotlin/ch/sonensei/cockpit/calendar/sync/CalendarSyncService.kt` (commit 17528b0f)
+
+Problem:
+The comment at the `tryLock` in `refetch` said a run in progress fetches the new version as well. That is not true when the run has already fetched this calendar.
+
+Fix:
+The parent deferred the behavior by task assumption. Only the comment changed. It now says that the running sync may already have fetched this calendar, so the new version then arrives with the next poll. This matches the assumption. The behavior is unchanged.
+
+Validation:
+- `CalendarSyncOverrideTests` "a refetch does not wait for a sync of the same source that is in progress" — Pass
+
+## Not fixed
+
+None in this round. The product behavior behind CR-1 is accepted and the behavior behind CR-2 is deferred, both by recorded task assumptions. Only the test and the comment the parent asked for were in scope. CR-4 from round 1 remains deferred.
+
+## Validation summary
+
+Focused tests:
+- `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.calendar.*'` — Pass (337 tests, 0 failures, 0 skipped; all 25 tests of `CalendarSyncOverrideTests` ran)
+
+Full test suite:
+- Not run in this round. Round 1 ran it, and this round adds no code changes beyond 17528b0f, which touches only the calendar sync package.
+
+Lint/type-check/build:
+- `cd server && ./gradlew ktlintCheck` — Pass
+
+`.taskcheck`:
+- Not run (left to the parent worker)
+
+Remaining unresolved findings:
+0 open. Accepted or deferred by assumption: CR-1 (round 2, accepted), CR-2 (round 2, deferred) and CR-4 (round 1, deferred).
+
 ## Final status
 
-All validated findings fixed and validation passed. CR-4 was deferred by the parent. The only failure in the full suite is the known flaky `ClockConfigurationTests` precision test outside this task, which passed when re-run.
+All validated findings fixed and validation passed. Round 1: CR-1, CR-2, CR-3 and CR-5 were fixed, and CR-4 was deferred by the parent. Round 2: the TW finding is fixed (502 Problem Details). CR-1 is accepted by task assumption and documented by a test. CR-2 is deferred by task assumption, and its comment was corrected. Round 1's full suite showed only the known flaky `ClockConfigurationTests` precision failure, which is outside this task.
