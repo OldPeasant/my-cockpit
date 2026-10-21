@@ -1,0 +1,25 @@
+{
+  "schema": 1,
+  "task": "p4-smoke",
+  "reviewed_revision": "2eee3b86c2ef0c83cf0a1b71386494a87c2ec853",
+  "helpers": {
+    "test-writer": {"status": "completed", "report": "reviews/p4-smoke/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/p4-smoke/review.md"},
+    "fixer": {"status": "completed", "report": "reviews/p4-smoke/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P1", "disposition": "fixed",
+     "note": "missing evidence for earlier phase specs: phase-demos e2e run unfiltered (24 passed), phase 3 Android smoke against the e2e stack (1 passed), full server integrationTest (76 tests, 0 failures) recorded with tasks.py verify"},
+    {"id": "CR-2", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "day view now checked on both sides of the 2026-03-29 DST change (test-writer spec edit, reviewed as 1e0068034, rebased as 2eee3b86c with the same patch-id)"},
+    {"id": "CR-3", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "day-view absence check waits for the events response and the day column before asserting"}
+  ],
+  "validation": [
+    {"command": "cd web && npm run e2e -- --project=phase-demos (podman-compose e2e stack)", "result": "pass"},
+    {"command": "cd server && ./gradlew integrationTest --rerun-tasks", "result": "pass"},
+    {"command": "cd android && ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.smoke.*' -Pe2eBaseUrl=http://127.0.0.1:18390/", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
