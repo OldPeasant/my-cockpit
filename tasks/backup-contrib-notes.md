@@ -1,11 +1,11 @@
 ---
 title: Backup contributor: notes
-status: todo
-owner: 
+status: in_progress
+owner: dell26/agent-6
 deps: [backup-contrib-core,notes-api]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/notes/backup,server/src/test/kotlin/ch/sonensei/cockpit/notes/backup]
 prio: 1
-lease_until: 
+lease_until: 2026-10-21T04:08:16Z
 releases: 0
 extended: 
 ---
