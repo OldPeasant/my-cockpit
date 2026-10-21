@@ -13,7 +13,8 @@ extended: dell26/agent-4
 Two-way Google sync (SPEC.md §6.2).
 
 ## Acceptance criteria
-- [ ] Calendar list, incremental sync with `syncToken` (410 → full resync), writes via API, recurring instance edits and 'this and following' split
+- [x] Calendar list, incremental sync with `syncToken` (410 → full resync), writes via API, recurring instance edits and 'this and following' split
+  - verified (2026-10-21 13:22+0200 by dell26/agent-4): cd server && ./gradlew test --tests 'ch.sonensei.cockpit.calendar.infra.google.*' --rerun-tasks -> GoogleCalendarAdapterTests 35/35 (listCalendars paging, syncToken incremental fetch, 410 -> full listing, insert/patch/delete with If-Match, instance patches of exceptions), GoogleCalendarSyncTests 5/5 incl. 'this and following' split end to end against Postgres+WireMock
 - [ ] Tests against WireMock recordings of the Google API (incl. 410 and 412)
 - [ ] `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.calendar.infra.google.*'` passes (Postgres via Testcontainers where persistence is involved)
 
