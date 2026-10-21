@@ -16,3 +16,4 @@ Near-real-time new mail (SPEC.md §7.2).
 - [ ] `external` GreenMail test: delivered message appears within seconds without polling
 
 ## Notes
+- ASSUMPTION (2026-10-21 22:07+0200 by dell26/agent-1): The IDLE connection is opened outside the ImapConnectionPool (one extra connection per account), with a read timeout of re-idle-interval + read-timeout, because an IDLE holds its connection for good
