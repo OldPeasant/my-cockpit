@@ -14,7 +14,8 @@ Remaining GTD screens.
 ## Acceptance criteria
 - [x] Projects (stalled highlighted, detail with tasks and next step), Waiting For, Someday
   - verified (2026-10-21 12:44+0200 by dell26/agent-1): cd android && ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.gtd.projects.*' --tests 'ch.sonensei.cockpit.gtd.lists.*' (Robolectric) -> pass: ProjectsRouteTest/ListRoutesTest drive real VMs+screens (projects grouped by area, stalled badge first, detail tasks+next-step marker, make next step, Choose next step prompt; Waiting sorted by waitingSince + Follow up; Someday Activate), ProjectsScreensInAppTest shows the real tabs in the app shell; no device run (h-android-device)
-- [ ] `cd android && ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.gtd.projects.*'` passes, covering stalled badge, next-step prompt (Robolectric/Compose UI tests for screens); and `gtd.lists`
+- [x] `cd android && ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.gtd.projects.*'` passes, covering stalled badge, next-step prompt (Robolectric/Compose UI tests for screens); and `gtd.lists`
+  - verified (2026-10-21 12:44+0200 by dell26/agent-1): cd android && ./gradlew ktlintCheck testDebugUnitTest --tests 'ch.sonensei.cockpit.gtd.projects.*' --tests 'ch.sonensei.cockpit.gtd.lists.*' -> 129 tests, 0 failures (incl. ProjectsScreenTest stalled badge + next-step prompt Compose UI tests); JaCoCo task scope 99.5% lines
 
 ## Notes
 - ASSUMPTION (2026-10-21 11:36+0200 by dell26/agent-1): Android Waiting For, Someday and project tasks are loaded live (not cached in Room): SPEC §9.3 caches only Inbox/Next/Today; offline they show an error with retry, or the last loaded list read-only with a banner
