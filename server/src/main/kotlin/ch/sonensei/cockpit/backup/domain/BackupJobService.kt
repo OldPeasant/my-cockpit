@@ -58,12 +58,13 @@ class BackupJobService(
 		Executors.newSingleThreadExecutor { runnable -> Thread(runnable, "backup-events").apply { isDaemon = true } }
 
 	/**
-	 * Starts a backup and returns its job in state [BackupJobState.RUNNING].
+	 * Starts a backup and returns its job in state [BackupJobState.RUNNING]. With a [passphrase], the backup includes
+	 * the secrets, encrypted; the passphrase is kept only until the backup is written.
 	 *
 	 * @throws ConflictException (409) while another backup is running
 	 */
 	@Synchronized
-	fun start(): BackupJob {
+	fun start(passphrase: String? = null): BackupJob {
 		if (jobs.values.any { it.state == BackupJobState.RUNNING }) throw ConflictException("A backup is already running")
 		discardFinished()
 		val job =
@@ -77,7 +78,7 @@ class BackupJobService(
 			)
 		jobs[job.id] = job
 		publish(job.id, ChangeOp.CREATED)
-		executor.execute { run(job.id) }
+		executor.execute { run(job.id, passphrase) }
 		return job
 	}
 
@@ -108,12 +109,15 @@ class BackupJobService(
 		return job to zip
 	}
 
-	private fun run(id: UUID) {
+	private fun run(
+		id: UUID,
+		passphrase: String?,
+	) {
 		val target = workDir.resolve("$id.zip")
 		try {
 			val manifest =
 				Files.newOutputStream(target).use { out ->
-					backups.export(out) { progress ->
+					backups.export(out, passphrase) { progress ->
 						update(id) { it.copy(step = progress.step, stepsDone = progress.done, stepsTotal = progress.total) }
 					}
 				}

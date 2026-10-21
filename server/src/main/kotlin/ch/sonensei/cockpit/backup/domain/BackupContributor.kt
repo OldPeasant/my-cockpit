@@ -63,6 +63,19 @@ interface BackupDataWriter {
 		path: String,
 		content: InputStream,
 	)
+
+	/** Whether [secret]s end up in the backup: only when it is made with a passphrase (SPEC.md §10.2). */
+	val includesSecrets: Boolean get() = false
+
+	/**
+	 * A secret (TOTP secret, mail password, OAuth refresh token, ...) under [name] (unique per backup, like data
+	 * names), in plain text: with a passphrase, all secrets go encrypted to `data/secrets.enc.json`; without, they are
+	 * dropped. Never write a secret anywhere else.
+	 */
+	fun secret(
+		name: String,
+		value: Any,
+	) {}
 }
 
 /** Writes human-readable mirrors to `readable/<path>` (relative, `/`-separated, unique). */
@@ -104,7 +117,21 @@ interface BackupDataReader {
 
 	/** Paths (relative to `files/`) of every blob in the backup, sorted. */
 	fun files(): List<String>
+
+	/**
+	 * The secret written under [name] ([BackupDataWriter.secret]), or `null` when the backup has none or is restored
+	 * without its passphrase: the contributor then imports without it (e.g. "reconnect required").
+	 */
+	fun <T : Any> secret(
+		name: String,
+		type: TypeReference<T>,
+	): T? = null
+
+	/** Whether the backup holds encrypted secrets (`data/secrets.enc.json`), whether or not they can be read now. */
+	val hasSecrets: Boolean get() = false
 }
+
+inline fun <reified T : Any> BackupDataReader.secret(name: String): T? = secret(name, object : TypeReference<T>() {})
 
 inline fun <reified T : Any> BackupDataReader.json(name: String): T? = json(name, object : TypeReference<T>() {})
 

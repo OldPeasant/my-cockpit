@@ -3,7 +3,9 @@ package ch.sonensei.cockpit.backup.infra
 import ch.sonensei.cockpit.backup.domain.BackupDataReader
 import ch.sonensei.cockpit.backup.domain.BackupFormat
 import ch.sonensei.cockpit.backup.domain.BackupManifest
+import ch.sonensei.cockpit.backup.domain.BackupSecrets
 import ch.sonensei.cockpit.backup.domain.InvalidBackupException
+import ch.sonensei.cockpit.backup.domain.SecretsEnvelope
 import tools.jackson.core.JacksonException
 import tools.jackson.core.type.TypeReference
 import tools.jackson.databind.JsonNode
@@ -25,6 +27,9 @@ data class BackupInspection(
  * file it lists exists with the listed sha256 and size, and the zip holds no other files. Data that does not parse
  * (only possible in a hand-edited zip whose manifest was updated too) fails with [InvalidBackupException] naming the
  * file and line, never its content.
+ *
+ * Opened with a passphrase, the backup's secrets ([BackupSecrets.PATH]) are decrypted up front, so a wrong passphrase
+ * fails [open] before anything is imported.
  */
 class ZipBackupReader private constructor(
 	private val zip: ZipFile,
@@ -32,7 +37,49 @@ class ZipBackupReader private constructor(
 	val manifest: BackupManifest,
 ) : BackupDataReader,
 	AutoCloseable {
+	private var secrets: Map<String, JsonNode>? = null
+
 	override val formatVersion: Int get() = manifest.formatVersion
+
+	override val hasSecrets: Boolean get() = zip.getEntry(BackupSecrets.PATH) != null
+
+	/** Whether the secrets were decrypted: the backup has them and was opened with the right passphrase. */
+	val secretsRead: Boolean get() = secrets != null
+
+	override fun <T : Any> secret(
+		name: String,
+		type: TypeReference<T>,
+	): T? {
+		val node = secrets?.get(name) ?: return null
+		val value: T? =
+			try {
+				mapper.treeToValue(node, mapper.typeFactory.constructType(type))
+			} catch (e: JacksonException) {
+				null
+			}
+		// The name only: the value is a secret.
+		return value ?: throw InvalidBackupException(listOf("Secret '$name' in ${BackupSecrets.PATH} is not valid"))
+	}
+
+	private fun readSecrets(passphrase: String) {
+		val entry = zip.getEntry(BackupSecrets.PATH) ?: return
+		val invalid = InvalidBackupException(listOf("${BackupSecrets.PATH} is not valid"))
+		val envelope: SecretsEnvelope =
+			try {
+				zip.getInputStream(entry).use { mapper.readValue(it, SecretsEnvelope::class.java) }
+			} catch (e: JacksonException) {
+				null
+			} ?: throw invalid
+		val plaintext = BackupSecrets.decrypt(envelope, passphrase)
+		val tree =
+			try {
+				mapper.readTree(plaintext)
+			} catch (e: JacksonException) {
+				throw invalid
+			}
+		if (!tree.isObject) throw invalid
+		secrets = tree.properties().associate { (name, value) -> name to value }
+	}
 
 	override fun has(name: String): Boolean = dataEntry(name, "json") != null || dataEntry(name, "jsonl") != null
 
@@ -87,17 +134,23 @@ class ZipBackupReader private constructor(
 	override fun close() = zip.close()
 
 	companion object {
-		/** Opens and validates [path]. @throws InvalidBackupException listing every problem found */
+		/**
+		 * Opens and validates [path]; with a [passphrase], also decrypts the backup's secrets, if it has any.
+		 *
+		 * @throws InvalidBackupException listing every problem found
+		 * @throws ch.sonensei.cockpit.backup.domain.WrongPassphraseException when [passphrase] does not decrypt the secrets
+		 */
 		fun open(
 			path: Path,
 			mapper: JsonMapper,
+			passphrase: String? = null,
 		): ZipBackupReader {
 			val zip = openZip(path)
 			try {
 				val manifest = readManifest(zip, mapper)
 				val problems = validate(zip, manifest)
 				if (problems.isNotEmpty()) throw InvalidBackupException(problems)
-				return ZipBackupReader(zip, mapper, manifest)
+				return ZipBackupReader(zip, mapper, manifest).also { reader -> passphrase?.let(reader::readSecrets) }
 			} catch (e: Exception) {
 				zip.close()
 				throw e

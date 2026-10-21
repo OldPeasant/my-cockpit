@@ -16,10 +16,12 @@ import java.nio.file.Path
  * Disaster recovery on a fresh install (SPEC.md §10.1): `java -jar cockpit-server.jar --restore=/path/backup.zip`
  * starts the application without listening on a port, validates the backup, replaces all data with it like a confirmed
  * restore (the current data, if any, goes to `pre-restore/` first) and exits. The next normal start skips the setup
- * flow when the backup contains the owner account.
+ * flow when the backup contains the owner account. The backup's secrets are restored when its passphrase is in the
+ * environment variable [PASSPHRASE_ENV].
  */
 object RestoreCli {
 	const val OPTION = "--restore="
+	const val PASSPHRASE_ENV = "COCKPIT_RESTORE_PASSPHRASE"
 
 	fun isRequested(args: Array<String>): Boolean = args.any { it.startsWith(OPTION) }
 
@@ -30,6 +32,7 @@ object RestoreCli {
 	fun run(
 		args: Array<String>,
 		out: PrintStream = System.out,
+		passphrase: String? = System.getenv(PASSPHRASE_ENV)?.takeIf { it.isNotEmpty() },
 	): Int {
 		val path = Path.of(args.last { it.startsWith(OPTION) }.removePrefix(OPTION))
 		if (!Files.isRegularFile(path)) {
@@ -46,9 +49,12 @@ object RestoreCli {
 				out.println("Restore: the backup is not valid; nothing was changed")
 				return 1
 			}
+			if (report.hasSecrets && passphrase == null) {
+				out.println("Restore: the backup's secrets are not restored; set $PASSPHRASE_ENV to its passphrase to restore them")
+			}
 			val result =
 				try {
-					restores.replace(path)
+					restores.replace(path, passphrase)
 				} catch (e: InvalidBackupException) {
 					e.problems.forEach { out.println("Problem: $it") }
 					out.println("Restore: the backup could not be imported; nothing was changed")

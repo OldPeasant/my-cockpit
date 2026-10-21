@@ -67,6 +67,6 @@ data class BackupFileEntry(
 )
 
 /** The backup cannot be read: not a zip, no manifest, unsupported format version, or files that don't match it. */
-class InvalidBackupException(
+open class InvalidBackupException(
 	val problems: List<String>,
 ) : RuntimeException("Invalid backup: ${problems.joinToString("; ")}")

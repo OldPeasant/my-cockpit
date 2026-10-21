@@ -28,6 +28,8 @@ data class RestoreReport(
 	val appVersion: String?,
 	val createdAt: Instant?,
 	val counts: Map<String, Long>,
+	/** Whether the backup holds encrypted secrets (made with a passphrase): give the passphrase to restore them. */
+	val hasSecrets: Boolean,
 	/** Why the backup cannot be restored: corrupt zip, wrong format version, sha256 mismatches, ... */
 	val problems: List<String>,
 	/** What the owner should know before confirming; they don't prevent the restore. */
@@ -86,23 +88,32 @@ class RestoreService(
 	}
 
 	/**
-	 * Replaces all data with the upload [id]; the upload is used up, also when the import fails.
+	 * Replaces all data with the upload [id], with its secrets if [passphrase] is given (see [replace]); the upload is
+	 * used up, also when the import fails, but not by a wrong passphrase.
 	 *
 	 * @throws NotFoundException (404) for an unknown or discarded upload
 	 * @throws ch.sonensei.cockpit.core.web.ConflictException (409) while a backup is running
+	 * @throws WrongPassphraseException when [passphrase] does not decrypt the backup's secrets; nothing changed
 	 * @throws InvalidBackupException when the backup's data turns out to be invalid while importing
 	 * @throws RestoreFailedException when the import fails for another reason
 	 * @throws PreRestoreBackupFailedException when the current data cannot be backed up first
 	 */
 	@Synchronized
-	fun confirm(id: UUID): RestoreResult {
+	fun confirm(
+		id: UUID,
+		passphrase: String? = null,
+	): RestoreResult {
 		val (pendingId, path) = pending?.takeIf { it.first == id } ?: throw NotFoundException("Restore upload not found")
 		return jobs
 			.exclusive {
 				try {
-					replace(path)
-				} finally {
+					replace(path, passphrase).also { discardPending() }
+				} catch (e: WrongPassphraseException) {
+					// Kept for another try with the right passphrase.
+					throw e
+				} catch (e: Throwable) {
 					discardPending()
+					throw e
 				}
 			}.also { log.info("Restore {} completed", pendingId) }
 	}
@@ -116,11 +127,13 @@ class RestoreService(
 		val manifest = inspection.manifest
 		val problems = inspection.problems.toMutableList()
 		val warnings = mutableListOf<String>()
+		var hasSecrets = false
 		if (problems.isEmpty() && manifest != null) {
 			if (manifest.appVersion != backups.appVersion) {
 				warnings += "Created by My Cockpit ${manifest.appVersion}; this is version ${backups.appVersion}"
 			}
 			try {
+				hasSecrets = backups.hasSecrets(path)
 				warnings += backups.restoreWarnings(path)
 			} catch (e: InvalidBackupException) {
 				problems += e.problems
@@ -139,6 +152,7 @@ class RestoreService(
 			appVersion = manifest?.appVersion,
 			createdAt = manifest?.createdAt,
 			counts = manifest?.counts.orEmpty(),
+			hasSecrets = hasSecrets,
 			problems = problems,
 			warnings = warnings,
 		)
@@ -148,14 +162,23 @@ class RestoreService(
 	 * Replaces all data with the valid backup at [path] (see the class comment); also the CLI restore. The caller makes
 	 * sure no backup runs ([BackupJobService.exclusive]).
 	 *
+	 * The backup's secrets are restored only with the right [passphrase], which is checked before anything changes;
+	 * without it, the contributors import without secrets (accounts "reconnect required", TOTP re-enrollment). The
+	 * pre-restore backup of the current data is made with the same passphrase, so it keeps the current secrets.
+	 *
+	 * @throws WrongPassphraseException when [passphrase] does not decrypt the backup's secrets
 	 * @throws InvalidBackupException when the backup is invalid
 	 * @throws RestoreFailedException when the import fails for another reason
 	 * @throws PreRestoreBackupFailedException when the current data cannot be backed up first
 	 */
-	fun replace(path: Path): RestoreResult {
+	fun replace(
+		path: Path,
+		passphrase: String? = null,
+	): RestoreResult {
+		passphrase?.let { backups.checkPassphrase(path, it) }
 		val preRestore =
 			try {
-				preRestoreBackup()
+				preRestoreBackup(passphrase)
 			} catch (e: Exception) {
 				// The export runs every contributor, whose messages may quote user content: details only at DEBUG.
 				log.warn("Pre-restore backup failed: {}", e.javaClass.name)
@@ -165,7 +188,7 @@ class RestoreService(
 		val stash = stashDataDir()
 		val manifest =
 			try {
-				backups.replace(path, ::wipeDatabase)
+				backups.replace(path, passphrase, ::wipeDatabase)
 			} catch (e: Throwable) {
 				unstash(stash)
 				if (e is InvalidBackupException || e is VirtualMachineError) throw e
@@ -179,7 +202,7 @@ class RestoreService(
 	}
 
 	/** Exports the current data to `pre-restore/` and returns the zip's path. */
-	private fun preRestoreBackup(): Path {
+	private fun preRestoreBackup(passphrase: String?): Path {
 		val dir = Files.createDirectories(dataDir.resolve(PRE_RESTORE_DIR))
 		val name = BackupFormat.fileName(clock.instant()).removeSuffix(".zip")
 		val target =
@@ -187,7 +210,7 @@ class RestoreService(
 				.map { n -> dir.resolve(if (n == 1) "$name.zip" else "$name-$n.zip") }
 				.first { !Files.exists(it) }
 		try {
-			Files.newOutputStream(target).use { backups.export(it) }
+			Files.newOutputStream(target).use { backups.export(it, passphrase) }
 		} catch (e: Throwable) {
 			runCatching { Files.deleteIfExists(target) }
 			throw e

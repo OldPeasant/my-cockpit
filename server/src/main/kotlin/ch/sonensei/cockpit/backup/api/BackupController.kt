@@ -10,6 +10,8 @@ import io.swagger.v3.oas.annotations.media.Schema
 import io.swagger.v3.oas.annotations.media.Schema.RequiredMode
 import io.swagger.v3.oas.annotations.responses.ApiResponse
 import io.swagger.v3.oas.annotations.tags.Tag
+import jakarta.validation.Valid
+import jakarta.validation.constraints.Size
 import org.springframework.core.io.FileSystemResource
 import org.springframework.core.io.Resource
 import org.springframework.http.ContentDisposition
@@ -19,6 +21,7 @@ import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.PostMapping
+import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RestController
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder
@@ -39,16 +42,25 @@ class BackupController(
 		description =
 			"Builds the backup zip in the background. Progress arrives on `GET /api/v1/events` as change events of " +
 				"type `BACKUP` with the job's id; refetch the job on each. When its state is `COMPLETED`, download the " +
-				"zip. Starting a new backup discards earlier finished ones.",
+				"zip. Starting a new backup discards earlier finished ones. With a `passphrase`, the secrets (TOTP " +
+				"secret, mail passwords, OAuth tokens) are included, encrypted, in `data/secrets.enc.json`; without, " +
+				"they are left out. The body is optional.",
 	)
 	@ApiResponse(responseCode = "202", description = "Started; `Location` points to the job")
+	@ApiResponse(
+		responseCode = "400",
+		description = "Passphrase too short or too long",
+		content = [Content(mediaType = PROBLEM_JSON, schema = Schema(ref = "#/components/schemas/ProblemDetail"))],
+	)
 	@ApiResponse(
 		responseCode = "409",
 		description = "Another backup is running",
 		content = [Content(mediaType = PROBLEM_JSON, schema = Schema(ref = "#/components/schemas/ProblemDetail"))],
 	)
-	fun start(): ResponseEntity<BackupJobResponse> {
-		val job = jobs.start()
+	fun start(
+		@Valid @RequestBody(required = false) request: StartBackupRequest?,
+	): ResponseEntity<BackupJobResponse> {
+		val job = jobs.start(request?.passphrase?.takeIf { it.isNotEmpty() })
 		val location =
 			ServletUriComponentsBuilder
 				.fromCurrentRequestUri()
@@ -120,6 +132,24 @@ class BackupController(
 			).body(FileSystemResource(zip))
 	}
 }
+
+@Schema(description = "Options of a new backup")
+class StartBackupRequest(
+	@field:Size(min = PASSPHRASE_MIN, max = PASSPHRASE_MAX)
+	@field:Schema(
+		description = "Encrypts the secrets into the backup; without it, they are left out",
+		format = "password",
+		minLength = PASSPHRASE_MIN,
+		maxLength = PASSPHRASE_MAX,
+	)
+	val passphrase: String? = null,
+) {
+	override fun toString(): String = "StartBackupRequest(******)"
+}
+
+/** Length limits of a backup passphrase: it protects the secrets offline, so not shorter than the login password. */
+const val PASSPHRASE_MIN = 12
+const val PASSPHRASE_MAX = 256
 
 @Schema(description = "A backup job")
 data class BackupJobResponse(

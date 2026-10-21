@@ -48,18 +48,20 @@ class BackupService(
 	val exportSteps: Int get() = contributors.ordered.size * 2 + 1
 
 	/**
-	 * Writes a complete backup zip to [target] (which the caller closes) and returns its manifest. [progress] is called
-	 * before each step and once at the end with `done == total`.
+	 * Writes a complete backup zip to [target] (which the caller closes) and returns its manifest. With a [passphrase],
+	 * the secrets go encrypted to `data/secrets.enc.json`; without, they are left out. [progress] is called before each
+	 * step and once at the end with `done == total`.
 	 */
 	fun export(
 		target: OutputStream,
+		passphrase: String? = null,
 		progress: (BackupProgress) -> Unit = {},
 	): BackupManifest {
 		val createdAt = clock.instant().truncatedTo(ChronoUnit.SECONDS)
 		val total = exportSteps
 		var done = 0
 		val step = { name: String -> progress(BackupProgress(name, done++, total)) }
-		val writer = ZipBackupWriter(NonClosingOutputStream(target), canonicalJson, createdAt)
+		val writer = ZipBackupWriter(NonClosingOutputStream(target), canonicalJson, createdAt, passphrase)
 		return writer.use {
 			snapshot.executeWithoutResult { _ ->
 				contributors.ordered.forEach { contributor ->
@@ -78,11 +80,16 @@ class BackupService(
 
 	/**
 	 * Imports the backup at [source] into an empty install, in one transaction; the caller wipes existing data first.
+	 * The secrets are imported only with the right [passphrase].
 	 *
 	 * @throws InvalidBackupException when the zip, its manifest or its format version is invalid
+	 * @throws WrongPassphraseException when [passphrase] does not decrypt the backup's secrets
 	 */
-	fun import(source: Path): BackupManifest =
-		ZipBackupReader.open(source, canonicalJson).use { reader ->
+	fun import(
+		source: Path,
+		passphrase: String? = null,
+	): BackupManifest =
+		ZipBackupReader.open(source, canonicalJson, passphrase).use { reader ->
 			importTransaction.executeWithoutResult { _ ->
 				contributors.ordered.forEach { it.import(reader) }
 			}
@@ -100,16 +107,39 @@ class BackupService(
 		}
 
 	/**
+	 * Whether the backup at [source] holds encrypted secrets.
+	 *
+	 * @throws InvalidBackupException when the zip, its manifest or its format version is invalid
+	 */
+	fun hasSecrets(source: Path): Boolean = ZipBackupReader.open(source, canonicalJson).use { it.hasSecrets }
+
+	/**
+	 * Checks that [passphrase] decrypts the secrets of the backup at [source] (true when it has none).
+	 *
+	 * @throws InvalidBackupException when the zip, its manifest, its format version or its secrets file is invalid
+	 * @throws WrongPassphraseException when it does not
+	 */
+	fun checkPassphrase(
+		source: Path,
+		passphrase: String,
+	) {
+		ZipBackupReader.open(source, canonicalJson, passphrase).close()
+	}
+
+	/**
 	 * Imports the backup at [source] in one transaction that first runs [wipe] (which empties the database), so the
-	 * data is replaced completely or, on any failure, not at all.
+	 * data is replaced completely or, on any failure, not at all. The secrets are imported only with the right
+	 * [passphrase]; a wrong one fails before [wipe].
 	 *
 	 * @throws InvalidBackupException when the zip, its manifest, its format version or its data is invalid
+	 * @throws WrongPassphraseException when [passphrase] does not decrypt the backup's secrets
 	 */
 	fun replace(
 		source: Path,
+		passphrase: String? = null,
 		wipe: () -> Unit,
 	): BackupManifest =
-		ZipBackupReader.open(source, canonicalJson).use { reader ->
+		ZipBackupReader.open(source, canonicalJson, passphrase).use { reader ->
 			importTransaction.executeWithoutResult { _ ->
 				wipe()
 				contributors.ordered.forEach { it.import(reader) }
@@ -132,8 +162,10 @@ class BackupService(
 			appendLine("- `readable/`: the same data for reading without the app (Markdown, iCalendar, vCard, HTML, CSV).")
 			appendLine("  It is regenerated on every backup and never read on restore.")
 			appendLine()
-			appendLine("Secrets (mail passwords, OAuth tokens, the TOTP secret) are only included, encrypted, when the")
-			appendLine("backup was created with a passphrase.")
+			appendLine("Secrets (mail passwords, OAuth tokens, the TOTP secret) are only included when the backup was created")
+			appendLine("with a passphrase: then `data/secrets.enc.json` holds them, encrypted with AES-256-GCM under a key derived")
+			appendLine("from the passphrase with Argon2id. Without them, accounts must be reconnected after a restore and TOTP is")
+			appendLine("set up again on the first login.")
 			appendLine()
 			appendLine("## Restore")
 			appendLine()

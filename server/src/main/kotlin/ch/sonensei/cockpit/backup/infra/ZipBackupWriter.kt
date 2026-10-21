@@ -5,6 +5,7 @@ import ch.sonensei.cockpit.backup.domain.BackupFileEntry
 import ch.sonensei.cockpit.backup.domain.BackupFormat
 import ch.sonensei.cockpit.backup.domain.BackupManifest
 import ch.sonensei.cockpit.backup.domain.BackupReadableWriter
+import ch.sonensei.cockpit.backup.domain.BackupSecrets
 import tools.jackson.databind.json.JsonMapper
 import java.io.InputStream
 import java.io.OutputStream
@@ -19,17 +20,21 @@ import java.util.zip.ZipOutputStream
  * Streams a backup zip to [out], one entry at a time, hashing every entry on the way. Contributors write through
  * [data] and [readable]; [finish] adds `README.md` and `manifest.json` and closes the zip. Not thread-safe.
  *
- * [mapper] must be canonical (sorted properties and map keys, see [BackupFormat.canonical]).
+ * [mapper] must be canonical (sorted properties and map keys, see [BackupFormat.canonical]). With a [passphrase], the
+ * secrets ([BackupDataWriter.secret]) are kept in memory and [finish] writes them encrypted to
+ * [BackupSecrets.PATH] (also when there are none, so a restore can check the passphrase); without, they are dropped.
  */
 class ZipBackupWriter(
 	out: OutputStream,
 	private val mapper: JsonMapper,
 	private val createdAt: Instant,
+	private val passphrase: String? = null,
 ) : AutoCloseable {
 	private val zip = ZipOutputStream(out.buffered())
 	private val paths = mutableSetOf<String>()
 	private val entries = mutableListOf<BackupFileEntry>()
 	private val counts = sortedMapOf<String, Long>()
+	private val secrets = sortedMapOf<String, Any>()
 
 	/** Data names and record counts written so far. */
 	val recordCounts: Map<String, Long> get() = counts.toMap()
@@ -72,6 +77,17 @@ class ZipBackupWriter(
 				BackupFormat.requireSafePath(path)
 				entry(BackupFormat.FILES_DIR + path) { content.transferTo(it) }
 			}
+
+			override val includesSecrets: Boolean get() = passphrase != null
+
+			override fun secret(
+				name: String,
+				value: Any,
+			) {
+				require(DATA_NAME.matches(name)) { "Invalid backup secret name '$name'" }
+				require(name !in secrets) { "Backup secret '$name' is written twice" }
+				if (passphrase != null) secrets[name] = value
+			}
 		}
 
 	val readable: BackupReadableWriter =
@@ -105,12 +121,21 @@ class ZipBackupWriter(
 		appVersion: String,
 		readme: (BackupManifest) -> String,
 	): BackupManifest {
+		if (passphrase != null) writeSecrets(passphrase)
 		val text = readme(manifest(appVersion))
 		entry(BackupFormat.README) { it.write(text.toByteArray(Charsets.UTF_8)) }
 		val manifest = manifest(appVersion)
 		entry(BackupFormat.MANIFEST, hashed = false) { mapper.writerWithDefaultPrettyPrinter().writeValue(it, manifest) }
 		zip.close()
 		return manifest
+	}
+
+	private fun writeSecrets(passphrase: String) {
+		require(BackupSecrets.COUNT_NAME !in counts) { "Backup data '${BackupSecrets.COUNT_NAME}' clashes with the secrets' count" }
+		val envelope = BackupSecrets.encrypt(mapper.writeValueAsBytes(secrets), passphrase)
+		entry(BackupSecrets.PATH) { mapper.writerWithDefaultPrettyPrinter().writeValue(it, envelope) }
+		counts[BackupSecrets.COUNT_NAME] = secrets.size.toLong()
+		secrets.clear()
 	}
 
 	private fun manifest(appVersion: String) =
