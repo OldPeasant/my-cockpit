@@ -11,7 +11,8 @@ lease_until: 2026-10-21T16:36:36Z
 Create and edit events on the phone.
 
 ## Acceptance criteria
-- [ ] Event form incl. recurrence presets and THIS/FOLLOWING/ALL prompt
+- [x] Event form incl. recurrence presets and THIS/FOLLOWING/ALL prompt
+  - verified (2026-10-21 18:19+0200 by dell26/agent-1): Implemented in android/.../calendar/edit (EventForm: title, calendar, all-day, start/end, repeat presets none/daily/weekly/monthly/yearly + kept custom rule, location, description; scope prompt THIS/FOLLOWING/ALL, only FOLLOWING/ALL on rule change), wired via CalendarWithEditor FAB/tap; exercised by EventEditorScreenTest (Robolectric Compose, 17 tests incl. scope dialog) and EventEditorViewModelTest/EdgeCases -> all pass; code-reviewer final review: AC met, 0 findings
 - [ ] `cd android && ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.calendar.edit.*'` passes, covering form validation and scope prompt (Robolectric/Compose UI tests for screens)
 
 ## Notes
