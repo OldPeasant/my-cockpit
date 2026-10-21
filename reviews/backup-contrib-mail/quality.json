@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "task": "backup-contrib-mail",
-  "reviewed_revision": "7e07ad0b9d810f2b0292c919f01a9200b0b8b018",
+  "reviewed_revision": "445a6da76b5712cb5b5ced8a203ade3ed25043b9",
   "helpers": {
     "test-writer": {"status": "completed", "report": "reviews/backup-contrib-mail/tests.md"},
     "code-reviewer": {"status": "completed", "report": "reviews/backup-contrib-mail/review.md"},

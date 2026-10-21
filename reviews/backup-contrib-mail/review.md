@@ -4,7 +4,7 @@ Date: 2026-10-22
 
 Task: backup-contrib-mail - Backup contributor: mail accounts
 
-Scope: the whole task diff `git diff ccf3147398c6260f18f2a25efcd388e1b35f91a5..9199bd87` on `main`. Task commits: 87170b6f (implementation: `server/src/main/kotlin/ch/sonensei/cockpit/mail/backup/MailBackupContributor.kt`, `server/src/test/kotlin/ch/sonensei/cockpit/mail/backup/MailBackupFixture.kt`), e82aea62 and 9199bd87 (`MailBackupContributorTests.kt`, `reviews/backup-contrib-mail/tests.md`), a231741f (restore warning for linked mails older than the sync window, follow-up task `tasks/mail-restore-retake-linked.md`). This review replaces the earlier one and also checks how its findings CR-1 and CR-2 were resolved.
+Scope: the whole task diff `git diff 0e52c67f0f5de294a011991d8c926988805be59b..HEAD` on `main`, base `git merge-base HEAD origin/main` = 0e52c67f0f5de294a011991d8c926988805be59b. Task code commits: d5df4ee6 (implementation: `server/src/main/kotlin/ch/sonensei/cockpit/mail/backup/MailBackupContributor.kt`, `server/src/test/kotlin/ch/sonensei/cockpit/mail/backup/MailBackupFixture.kt`), abe98ca6 and 445a6da7 (`MailBackupContributorTests.kt`, `reviews/backup-contrib-mail/tests.md`), d18a847a (restore warning for linked mails older than the sync window, follow-up task `tasks/mail-restore-retake-linked.md`). Later commits 8a161a7c (earlier review report) and bd8d5108 (quality.json) touch only `reviews/`. This is a re-check after a rebase: the task files `mail/backup/*` (main and test) and `tasks/mail-restore-retake-linked.md` are byte-identical to the revision reviewed before (`git diff 9199bd87 HEAD` on those paths is empty, and the sha256 hashes match the ones in `tests.md`). The findings and checks below were re-confirmed against HEAD.
 
 Requirements:
 - tasks/backup-contrib-mail.md (acceptance criteria 1-2, recorded assumptions #1-#4)
@@ -14,9 +14,9 @@ Requirements:
 
 Git range:
 - Branch: main
-- HEAD: 9199bd87
-- Base/start: ccf3147398c6260f18f2a25efcd388e1b35f91a5
-- Commits reviewed: 4 (87170b6f, e82aea62, a231741f, 9199bd87). The working tree was clean.
+- HEAD: bd8d510821db35130e67c8a23ae83adbed23483f
+- Base/start: 0e52c67f0f5de294a011991d8c926988805be59b (merge-base with origin/main)
+- Commits reviewed: 6 (d5df4ee6, abe98ca6, d18a847a, 445a6da7 with code; 8a161a7c, bd8d5108 with review artifacts only). The working tree was clean.
 
 Summary: 0 P0, 0 P1, 0 P2, 1 P3
 
@@ -46,9 +46,9 @@ None.
 - Earlier CR-1 (linked mails older than the sync window are not reattached after a restore): accepted as resolved for this task's scope. The fix has three parts:
   - The restore warning at `MailBackupContributor.kt:109-111`, shown only when `mail_message_refs` exists.
   - Assumption #4, which humans can review.
-  - The follow-up task `tasks/mail-restore-retake-linked.md`. It depends on `backup-contrib-mail` and on `mail-sync-perf` (which exists and is still todo). Its criteria cover `retakeLinked` on the first sync, `isLinked` counting reminders, and removing the warning again.
+  - The follow-up task `tasks/mail-restore-retake-linked.md`. It depends on `backup-contrib-mail` and on `mail-sync-perf` (which exists and is not started yet). Its criteria cover `retakeLinked` on the first sync, `isLinked` counting reminders, and removing the warning again.
 
-  The reason for not using a sentinel UIDVALIDITY holds up in the code. `MailHeaderStore.isLinked` (line 152) checks only `links.linksOf(...)`, so on the resync path `pruneDetached` (lines 117-122) would delete refs that only a reminder points to, such as the fixture's reminded Google message. Rejecting the sentinel avoids that data loss.
+  The reason for not using a sentinel UIDVALIDITY holds up in the code. `MailHeaderStore.isLinked` (line 152) checks only `links.linksOf(...)`, so on the resync path `pruneDetached` (from line 117) would delete refs that only a reminder points to, such as the fixture's reminded Google message. Rejecting the sentinel avoids that data loss.
 - Earlier CR-2 (no contributor tests for criterion 1): resolved. `MailBackupContributorTests.kt` covers:
   - the password only in the encrypted secrets with a passphrase, and nowhere without one, including no ciphertext;
   - no password or sync-state fields in `mail_accounts.json`;
@@ -59,7 +59,7 @@ None.
   - every restore-warning variant;
   - reattachment by Message-ID through `MailHeaderStore.upsert`.
 
-  The sha256 hashes in `tests.md` for `MailBackupContributor.kt`, `MailBackupContributorTests.kt` and `MailBackupFixture.kt` match the files at HEAD. The commit hashes it cites (3ec522fd, 24a2beb3) are from before the rebase, but the content is identical.
+  The sha256 hashes in `tests.md` for `MailBackupContributor.kt`, `MailBackupContributorTests.kt` and `MailBackupFixture.kt` match the files at HEAD. The commit hashes it cites (24a2beb3 and earlier) are from before the rebases, but the content is identical.
 
 ## Checked without findings
 
@@ -73,8 +73,9 @@ None.
 - Restored folders have null sync state, so the first sync is a full window sync. `reattachable` prefers the same folder and then any folder of the account, and a test covers this.
 - Architecture: the contributor stays inside `mail/backup`. Reading the core `link`/`reminder` tables with SQL inside the export follows an existing precedent and is recorded in assumption #2. No build files, migrations, API or shared docs changed.
 - Security: the fixture and test data are fictitious. No secrets are in the diff. Logs contain only counts.
+- Evidence: `python tasks.py verify backup-contrib-mail` shows both criteria as verified.
 
-Note for the parent worker: `python tasks.py verify backup-contrib-mail` shows both criteria as not yet verified. Record the evidence (for criterion 2, the exact `./gradlew test --tests '*BackupRoundTripTest'` run) before `done`.
+Note for the parent worker: `reviews/backup-contrib-mail/quality.json` still names `reviewed_revision` 7e07ad0b, a pre-rebase hash that is not on the current main history. Set it to the current hash of the final reviewed code.
 
 ## Review conclusion
 
