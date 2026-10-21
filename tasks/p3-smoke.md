@@ -15,7 +15,8 @@ Automate SPEC.md §13.2 Phase 3 where an emulator allows.
 ## Acceptance criteria
 - [x] Instrumented tests (`./gradlew connectedDebugAndroidTest` on an emulator, or a Gradle managed device) cover steps 1–5 against the e2e stack (10.0.2.2); if no emulator/KVM is available: skip with the reason, and the same flows run as Robolectric tests
   - verified (2026-10-21 15:37+0200 by dell26/agent-3): No emulator here (SDK has no emulator/system image, SDK dir not writable; see assumptions) -> emulator run skipped; same flows on Robolectric: docker compose --env-file (E2E_PORT=18390...) -f deploy/docker-compose.e2e.yml up -d --build, then cd android && ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.smoke.*' -Pe2eBaseUrl=http://127.0.0.1:18390/ -> Phase3DemoRobolectricTest.phase3Demo 1 passed, 0 skipped (20.6 s; re-run by reviewer 29.9 s, test-writer 35.1 s); emulator variant: ./gradlew compileDebugAndroidTestKotlin ktlintCheck -> BUILD SUCCESSFUL (compiled, never run)
-- [ ] ARCHITECTURE.md documents how to run them (system image, AVD)
+- [x] ARCHITECTURE.md documents how to run them (system image, AVD)
+  - verified (2026-10-21 15:37+0200 by dell26/agent-3): Read docs/ARCHITECTURE.md 'Android demo script': e2e stack command, sdkmanager system-images;android-36;google_apis;x86_64, avdmanager create avd cockpit-api36 -d pixel_7, emulator start, connectedDebugAndroidTest command with e2eBaseUrl=10.0.2.2, Robolectric command; notes the emulator runner has not been run -> documented
 
 ## Notes
 - ASSUMPTION (2026-10-21 13:53+0200 by dell26/agent-1): No emulator here: KVM is readable but the SDK has no emulator/system image and writes outside the clone (SDK dir) are denied. The flows run as Robolectric tests against the real e2e stack (podman, 127.0.0.1); the instrumented variant (same shared code) compiles (compileDebugAndroidTestKotlin) but was never run.
