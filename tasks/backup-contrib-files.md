@@ -15,3 +15,4 @@ Files in backups (SPEC.md §10.2).
 - [ ] Round-trip test (`./gradlew test --tests '*BackupRoundTripTest'`) passes with this module's `BackupFixture` seeding nested folders, name clashes and a 60 MB file
 
 ## Notes
+- ASSUMPTION (2026-10-21 03:46+0200 by dell26/agent-6): Backups include files and folders in the Trash (in their original tree; on a clash the item not in the Trash keeps the name). Paths are unique case-insensitively and across files and folders of one folder, so the tree extracts on every file system; a folder wins over a file.
