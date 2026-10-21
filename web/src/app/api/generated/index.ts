@@ -63,6 +63,9 @@ export type { LinkResponse } from './models/link-response';
 export type { LoginRequest } from './models/login-request';
 export type { MailAccountListResponse } from './models/mail-account-list-response';
 export type { MailAccountResponse } from './models/mail-account-response';
+export type { MailActionRequest } from './models/mail-action-request';
+export type { MailActionResponse } from './models/mail-action-response';
+export type { MailActionResultResponse } from './models/mail-action-result-response';
 export type { MailAddressResponse } from './models/mail-address-response';
 export type { MailAttachmentResponse } from './models/mail-attachment-response';
 export type { MailBodyResponse } from './models/mail-body-response';
@@ -287,6 +290,8 @@ export type { ProxyMailImage$Params as ProxyMailImage$Params } from './fn/mail-m
 export { proxyMailImage as proxyMailImage } from './fn/mail-messages/proxy-mail-image';
 export type { ListMailMessages$Params as ListMailMessages$Params } from './fn/mail-messages/list-mail-messages';
 export { listMailMessages as listMailMessages } from './fn/mail-messages/list-mail-messages';
+export type { ApplyMailAction$Params as ApplyMailAction$Params } from './fn/mail-messages/apply-mail-action';
+export { applyMailAction as applyMailAction } from './fn/mail-messages/apply-mail-action';
 export type { GetMailMessage$Params as GetMailMessage$Params } from './fn/mail-messages/get-mail-message';
 export { getMailMessage as getMailMessage } from './fn/mail-messages/get-mail-message';
 export type { DownloadMailAttachment$Params as DownloadMailAttachment$Params } from './fn/mail-messages/download-mail-attachment';

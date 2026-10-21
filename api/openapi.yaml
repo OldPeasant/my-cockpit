@@ -2720,6 +2720,46 @@ paths:
       summary: "List messages, newest first"
       tags:
       - Mail messages
+  /api/v1/mail/messages/actions:
+    post:
+      description: "Applies `action` on the mail server and in the cache. `MOVE` needs\
+        \ `targetFolderId` (a folder of the messages' account); `ARCHIVE`, `DELETE`\
+        \ and `SPAM` move to the account's Archive, Trash or Spam folder; `DELETE`\
+        \ of a message in Trash deletes it permanently. A moved message keeps its\
+        \ id when the server reports its new UID. Each id succeeds or fails on its\
+        \ own: the response has one result per distinct id in request order, with\
+        \ an `errorCode` for a failure (`NOT_FOUND`, `NO_ROLE_FOLDER`, `OTHER_ACCOUNT`,\
+        \ `REJECTED` or a mail server error such as `CONNECTION_FAILED` or `POOL_EXHAUSTED`)."
+      operationId: applyMailAction
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MailActionRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MailActionResponse"
+          description: One result per id; also when some or all of them failed
+        "400":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: "No or too many ids, unknown action, `targetFolderId` missing\
+            \ for MOVE or given for another action"
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: No such target folder
+      summary: "Mark, flag, move, archive, delete or report messages as spam"
+      tags:
+      - Mail messages
   /api/v1/mail/messages/{id}:
     get:
       description: "Loads the body from the server on first access, then from the\
@@ -6905,6 +6945,59 @@ components:
       - updatedAt
       - username
       - version
+    MailActionRequest:
+      type: object
+      properties:
+        action:
+          type: string
+          enum:
+          - READ
+          - UNREAD
+          - FLAG
+          - UNFLAG
+          - MOVE
+          - ARCHIVE
+          - DELETE
+          - SPAM
+        ids:
+          type: array
+          description: "Message ids, at most 1000"
+          items:
+            type: string
+            format: uuid
+          maxItems: 1000
+          minItems: 0
+        targetFolderId:
+          type: string
+          format: uuid
+          description: "Required for MOVE, not allowed for other actions"
+      required:
+      - action
+      - ids
+    MailActionResponse:
+      type: object
+      properties:
+        results:
+          type: array
+          items:
+            $ref: "#/components/schemas/MailActionResultResponse"
+    MailActionResultResponse:
+      type: object
+      properties:
+        detail:
+          type: string
+          description: "A message for the failure, safe to show"
+        errorCode:
+          type: string
+          description: Why it failed; `null` on success
+        id:
+          type: string
+          format: uuid
+        ok:
+          type: boolean
+      required:
+      - detail
+      - errorCode
     MailAddressResponse:
       type: object
       properties:
