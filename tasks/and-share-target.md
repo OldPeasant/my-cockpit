@@ -11,7 +11,8 @@ lease_until: 2026-10-21T02:17:22Z
 Share text, URLs, images and files into the inbox (SPEC.md §4.5).
 
 ## Acceptance criteria
-- [ ] Intent filters for `text/plain`, `image/*`, `*/*` (single + multiple); a compact capture sheet (edit text, save) writes to the queue
+- [x] Intent filters for `text/plain`, `image/*`, `*/*` (single + multiple); a compact capture sheet (edit text, save) writes to the queue
+  - verified (2026-10-21 04:02+0200 by dell26/agent-4): ShareManifestTest (Robolectric PackageManager query: SEND/SEND_MULTIPLE x text/plain, image/*, */* resolve to ShareActivity) + CaptureSheetTest (Compose: edit text, save, cancel, back) + ShareActivityTest (real activity, Hilt, Room: save writes capture to queue), via ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.capture.share.*' --offline -> 65 tests, 0 failures
 - [ ] Shared content URIs are copied (not referenced) before the activity ends
 - [ ] `cd android && ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.capture.share.*'` passes, covering intent parsing for text, URL, multiple images (Robolectric/Compose UI tests for screens)
 
