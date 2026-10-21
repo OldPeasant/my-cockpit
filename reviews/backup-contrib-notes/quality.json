@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "task": "backup-contrib-notes",
-  "reviewed_revision": "d8340bd7c094192868efe35479a956b23027d935",
+  "reviewed_revision": "323bf50ae9a31271f809a44c7777730c9a04cb19",
   "helpers": {
     "test-writer": {"status": "completed", "report": "reviews/backup-contrib-notes/tests.md"},
     "code-reviewer": {"status": "completed", "report": "reviews/backup-contrib-notes/review.md"},
@@ -12,12 +12,14 @@
     {"id": "CR-1", "source": "code-reviewer", "severity": "P3", "disposition": "accepted",
      "note": "notes backup reads the core link table directly inside the snapshot transaction; hard-coded NOTE replaced by ItemType.NOTE (fixed part), direct read kept and recorded as a task assumption"},
     {"id": "CR-2", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
-     "note": "note and note_revision queries now stream with fetchSize 1000"}
+     "note": "note and note_revision queries now stream with fetchSize 1000"},
+    {"id": "CR-3", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "front matter quoted() escapes DEL/C1, U+2028/U+2029 and U+FFFE/U+FFFF as \\uXXXX so it stays valid YAML"},
+    {"id": "CR-4", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "invisible literal characters in the escape condition and test written as Kotlin escapes"}
   ],
   "validation": [
-    {"command": "cd server && ./gradlew test --tests '*NotesBackupContributorTests' --tests '*BackupRoundTripTest'", "result": "pass"},
-    {"command": "cd server && ./gradlew ktlintCheck", "result": "pass"},
-    {"command": "cd server && ./gradlew check", "result": "pass"},
+    {"command": "cd server && ./gradlew test --tests '*NotesBackupContributorTests' --tests '*BackupRoundTripTest' jacocoTestReport ktlintCheck", "result": "pass"},
     {"command": "sh scripts/check.sh", "result": "pass"}
   ]
 }
