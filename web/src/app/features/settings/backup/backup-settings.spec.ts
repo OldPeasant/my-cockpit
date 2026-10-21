@@ -689,6 +689,25 @@ describe('BackupSettings', () => {
       http.expectNone(CONFIRM);
     });
 
+    it('explains a restore passphrase that is too long when Replace all data is clicked', async () => {
+      await setup();
+      await uploadWith(report({ hasSecrets: true }));
+      // Typed without leaving the field: only the submit marks it touched.
+      const input = root.querySelector('[data-testid="restore-passphrase"]') as HTMLInputElement;
+      input.value = 'x'.repeat(257);
+      input.dispatchEvent(new Event('input'));
+      type('restore-confirm', 'RESTORE');
+      await settle();
+      expect(root.querySelector('mat-error')).toBeNull();
+      expect(button('Replace all data').disabled).toBe(false);
+
+      button('Replace all data').click();
+      await settle();
+
+      http.expectNone(CONFIRM);
+      expect(text('mat-error')).toBe('This passphrase is too long.');
+    });
+
     it('closes the gate again after cancel and a new upload', async () => {
       await setup();
       await uploadWith(report());

@@ -49,9 +49,15 @@ export class BackupService {
     this.save(blob, job.fileName ?? 'cockpit-backup.zip');
   }
 
-  /** Uploads a backup zip; the server validates it and changes no data. */
+  /**
+   * Uploads a backup zip; the server validates it and changes no data. The body is re-typed as
+   * `application/zip`: the request takes its Content-Type from the Blob, and browsers report `.zip`
+   * files differently (`application/x-zip-compressed` on Windows, or no type), which the server
+   * would refuse.
+   */
   upload(file: Blob): Promise<RestoreReportResponse> {
-    return this.api.invoke(uploadRestore, { body: file }, silent());
+    const body = file.slice(0, file.size, 'application/zip');
+    return this.api.invoke(uploadRestore, { body }, silent());
   }
 
   /** Replaces all data with the uploaded backup; all sessions end. */

@@ -191,7 +191,11 @@ export default class BackupSettings implements OnInit {
 
   protected async restore(): Promise<void> {
     const id = this.report()?.id;
-    if (!id || !this.confirmed() || this.restoring() || this.restorePassphrase.invalid) return;
+    if (!id || !this.confirmed() || this.restoring()) return;
+    if (this.restorePassphrase.invalid) {
+      this.restorePassphrase.markAsTouched();
+      return;
+    }
     this.restoring.set(true);
     this.restoreError.set(null);
     try {

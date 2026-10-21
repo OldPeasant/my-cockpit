@@ -131,12 +131,26 @@ describe('BackupService', () => {
     const file = new Blob(['zip'], { type: 'application/zip' });
     const report = service.upload(file);
     const req = http.expectOne({ method: 'POST', url: '/api/v1/restore' });
-    expect(req.request.body).toBe(file);
     expect(req.request.headers.get('Content-Type')).toBe('application/zip');
+    expect(await (req.request.body as Blob).text()).toBe('zip');
     req.flush({ valid: true, id: ID, counts: {}, problems: [], warnings: [], hasSecrets: false });
 
     expect((await report).valid).toBe(true);
   });
+
+  it.each(['application/x-zip-compressed', ''])(
+    'uploads a zip the browser typed as "%s" as application/zip',
+    async (type) => {
+      const file = new File(['zip'], 'cockpit-backup.zip', { type });
+      const report = service.upload(file);
+      const req = http.expectOne({ method: 'POST', url: '/api/v1/restore' });
+      expect(req.request.headers.get('Content-Type')).toBe('application/zip');
+      expect((req.request.body as Blob).type).toBe('application/zip');
+      expect(await (req.request.body as Blob).text()).toBe('zip');
+      req.flush({ valid: true, id: ID, counts: {}, problems: [], warnings: [], hasSecrets: false });
+      await report;
+    },
+  );
 
   it('confirms a restore with the passphrase only when given', async () => {
     const withSecret = service.confirm(ID, 'correct horse battery');

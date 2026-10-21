@@ -200,6 +200,11 @@
                   <mat-hint i18n="@@backup.restore.passphraseHint"
                     >Without it, accounts are reconnected and TOTP is set up again.</mat-hint
                   >
+                  @if (restorePassphrase.touched && restorePassphrase.hasError('maxlength')) {
+                    <mat-error i18n="@@backup.restore.passphraseLong"
+                      >This passphrase is too long.</mat-error
+                    >
+                  }
                 </mat-form-field>
               }
               <p class="gate" id="confirm-hint" i18n="@@backup.restore.gate">
