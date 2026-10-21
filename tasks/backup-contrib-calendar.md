@@ -12,7 +12,8 @@ extended: dell26/agent-3
 Calendar data in backups (SPEC.md §10.2).
 
 ## Acceptance criteria
-- [ ] data/calendar_sources.json (no secrets), calendars.json, events.jsonl (LOCAL fully, external as id refs); readable/calendar/<name>.ics importable (validated by parsing it back with ical4j)
+- [x] data/calendar_sources.json (no secrets), calendars.json, events.jsonl (LOCAL fully, external as id refs); readable/calendar/<name>.ics importable (validated by parsing it back with ical4j)
+  - verified (2026-10-21 19:55+0200 by dell26/agent-3): cd server && ./gradlew test --tests '*CalendarBackupContributorTests' -> 21/21 pass (data/calendar_sources.json/calendars.json/events.jsonl asserted; CalDAV password absent from all data/ files, only in secrets.enc.json; readable/calendar/*.ics parsed with ical4j CalendarBuilder strict + validate() no errors)
 - [ ] Round-trip test (`./gradlew test --tests '*BackupRoundTripTest'`) passes with this module's `BackupFixture` seeding local recurring events with overrides and an external source
 
 ## Notes
