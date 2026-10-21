@@ -708,6 +708,30 @@ describe('BackupSettings', () => {
       expect(text('mat-error')).toBe('This passphrase is too long.');
     });
 
+    it('restores after a too-long passphrase is shortened to 256 characters', async () => {
+      await setup();
+      await uploadWith(report({ hasSecrets: true }));
+      vi.spyOn(TestBed.inject(Router), 'navigateByUrl').mockResolvedValue(true);
+      type('restore-passphrase', 'x'.repeat(257));
+      type('restore-confirm', 'RESTORE');
+      await settle();
+      button('Replace all data').click();
+      await settle();
+      http.expectNone(CONFIRM);
+      expect(text('mat-error')).toBe('This passphrase is too long.');
+
+      type('restore-passphrase', 'y'.repeat(256));
+      await settle();
+      expect(root.querySelector('mat-error')).toBeNull();
+      button('Replace all data').click();
+      await settle();
+
+      const req = http.expectOne(CONFIRM);
+      expect(req.request.body).toEqual({ passphrase: 'y'.repeat(256) });
+      req.flush({ counts: {}, preRestoreBackup: 'pre-restore/x.zip' });
+      await settle();
+    });
+
     it('closes the gate again after cancel and a new upload', async () => {
       await setup();
       await uploadWith(report());
@@ -787,6 +811,24 @@ describe('BackupSettings', () => {
       const open = vi.spyOn(input, 'click').mockImplementation(() => undefined);
       button('Upload backup…').click();
       expect(open).toHaveBeenCalledTimes(1);
+    });
+
+    it('uploads a zip typed application/x-zip-compressed as application/zip', async () => {
+      await setup();
+      const input = root.querySelector('[data-testid="restore-file"]') as HTMLInputElement;
+      const file = new File(['PK-fictitious'], 'cockpit-backup-windows.zip', {
+        type: 'application/x-zip-compressed',
+      });
+      Object.defineProperty(input, 'files', { value: [file], configurable: true });
+      input.dispatchEvent(new Event('change'));
+      await settle();
+
+      const req = http.expectOne({ method: 'POST', url: RESTORE });
+      expect(req.request.headers.get('Content-Type')).toBe('application/zip');
+      expect(await (req.request.body as Blob).text()).toBe('PK-fictitious');
+      req.flush(report());
+      await settle();
+      expect(root.querySelector('.report')).not.toBeNull();
     });
 
     it('does nothing when no file was chosen', async () => {
