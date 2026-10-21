@@ -1,0 +1,29 @@
+{
+  "schema": 1,
+  "task": "notes-api",
+  "reviewed_revision": "3d5c52157114669e378e4f7d150c1700d34c086b",
+  "helpers": {
+    "test-writer":   {"status": "completed", "report": "reviews/notes-api/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/notes-api/review.md"},
+    "fixer":         {"status": "completed", "report": "reviews/notes-api/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "concurrent content updates with the same ETag gave 500 instead of 409; note update now flushed before the revision insert (verified in the final review)"},
+    {"id": "CR-2", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "archived list parameter now has the enum true/false/all in the contract and generated client"},
+    {"id": "CR-3", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "single SearchIndexer.indexNote helper used by NoteService and NoteTrashContributor"},
+    {"id": "FX-1", "source": "fixer", "severity": "P2", "disposition": "fixed",
+     "note": "Android lint WrongCommentType in generated notes models from API descriptions; descriptions reworded in c399c1b6, android ktlintCheck testDebugUnitTest lintDebug passes"},
+    {"id": "FX-2", "source": "fixer", "severity": "P3", "disposition": "out_of_scope",
+     "note": "timing-dependent ClockConfigurationTests in core, unrelated to notes; tracked by task fix-flaky-clock-test"}
+  ],
+  "validation": [
+    {"command": "cd server && ./gradlew test --tests 'ch.sonensei.cockpit.notes.*' --tests '*OpenApiContractTest' jacocoTestReport ktlintCheck", "result": "pass"},
+    {"command": "cd web && npm run check", "result": "pass"},
+    {"command": "cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}

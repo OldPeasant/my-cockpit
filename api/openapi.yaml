@@ -20,6 +20,8 @@ tags:
   name: Backup
 - description: User settings
   name: Settings
+- description: "Markdown notes with tags, pins, images and history"
+  name: Notes
 - description: Quick capture to the Inbox
   name: Capture
 - description: First-run creation of the owner account
@@ -2865,6 +2867,401 @@ paths:
       summary: The conversation of a message
       tags:
       - Mail messages
+  /api/v1/notes:
+    get:
+      description: "Notes matching every given filter, not in the Trash: pinned first,\
+        \ then the most recently changed."
+      operationId: listNotes
+      parameters:
+      - description: Only notes with this tag (regardless of case)
+        in: query
+        name: tag
+        required: false
+        schema:
+          type: string
+      - description: "true: only pinned notes, false: only notes that are not pinned"
+        in: query
+        name: pinned
+        required: false
+        schema:
+          type: boolean
+      - description: "false (default): only notes that are not archived, true: only\
+          \ archived notes, all: both"
+        in: query
+        name: archived
+        required: false
+        schema:
+          type: string
+          enum:
+          - "true"
+          - "false"
+          - all
+      - description: Cursor from the previous page
+        in: query
+        name: cursor
+        required: false
+        schema:
+          type: string
+      - description: "Page size, 1-200 (default 50)"
+        in: query
+        name: limit
+        required: false
+        schema:
+          type: integer
+          format: int32
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotePageResponse"
+          description: One page of notes
+        "400":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: Invalid or unknown fields
+      summary: List notes
+      tags:
+      - Notes
+    post:
+      operationId: createNote
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateNoteRequest"
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NoteResponse"
+          description: Created
+          headers:
+            ETag:
+              description: "Version of the note, for If-Match"
+              schema:
+                type: string
+              style: simple
+        "400":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: Invalid or unknown fields
+      summary: Create a note
+      tags:
+      - Notes
+  /api/v1/notes/tags:
+    get:
+      operationId: listNoteTags
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NoteTagListResponse"
+          description: The tags
+      summary: "Every tag in use, with its number of notes"
+      tags:
+      - Notes
+  /api/v1/notes/{id}:
+    delete:
+      operationId: deleteNote
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - description: ETag of the note
+        in: header
+        name: If-Match
+        required: false
+        schema:
+          type: string
+      responses:
+        "204":
+          description: In the Trash
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: Not found or in the Trash
+        "409":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: Changed concurrently
+        "412":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: If-Match does not match the current ETag
+        "428":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: If-Match is missing
+      summary: Move a note to the Trash
+      tags:
+      - Notes
+    get:
+      operationId: getNote
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NoteResponse"
+          description: The note with its (new) ETag
+          headers:
+            ETag:
+              description: "Version of the note, for If-Match"
+              schema:
+                type: string
+              style: simple
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: Not found or in the Trash
+      summary: One note
+      tags:
+      - Notes
+    patch:
+      description: Only the fields sent change; `null` clears the title. A change
+        of the title or body keeps the previous content as a revision (at most one
+        per 5 minutes).
+      operationId: updateNote
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - description: ETag of the note
+        in: header
+        name: If-Match
+        required: false
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/NotePatchRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NoteResponse"
+          description: The note with its (new) ETag
+          headers:
+            ETag:
+              description: "Version of the note, for If-Match"
+              schema:
+                type: string
+              style: simple
+        "400":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: Invalid or unknown fields
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: Not found or in the Trash
+        "409":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: Changed concurrently
+        "412":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: If-Match does not match the current ETag
+        "428":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: If-Match is missing
+      summary: Change a note
+      tags:
+      - Notes
+  /api/v1/notes/{id}/images:
+    post:
+      description: "One image in the part `file`, stored in `/Attachments/Notes`.\
+        \ The note does not change: insert the returned `markdown` into its body.\
+        \ The mime type is the part's content type (or guessed from the filename)."
+      operationId: uploadNoteImage
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+          format: uuid
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+              required:
+              - file
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NoteImageResponse"
+          description: Stored
+        "400":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: Invalid or unknown fields
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: Not found or in the Trash
+        "413":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: Larger than the configured maximum file size
+      summary: Store an image for a note
+      tags:
+      - Notes
+  /api/v1/notes/{id}/revisions:
+    get:
+      operationId: listNoteRevisions
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NoteRevisionListResponse"
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/NoteRevisionListResponse"
+          description: The revisions
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: Not found or in the Trash
+      summary: "Earlier versions of a note (the last 20), newest first"
+      tags:
+      - Notes
+  /api/v1/notes/{id}/revisions/{number}/restore:
+    post:
+      description: "Sets the title and body to those of the revision; tags, pin and\
+        \ archive state stay. The replaced content becomes a new revision, so the\
+        \ restore can be undone."
+      operationId: restoreNoteRevision
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - description: Number of the revision
+        in: path
+        name: number
+        required: true
+        schema:
+          type: integer
+          format: int32
+      - description: ETag of the note
+        in: header
+        name: If-Match
+        required: false
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NoteResponse"
+          description: The note with its (new) ETag
+          headers:
+            ETag:
+              description: "Version of the note, for If-Match"
+              schema:
+                type: string
+              style: simple
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: Not found or in the Trash
+        "409":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: Changed concurrently
+        "412":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: If-Match does not match the current ETag
+        "428":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: If-Match is missing
+      summary: Put an earlier version back
+      tags:
+      - Notes
   /api/v1/oauth/connections:
     get:
       operationId: listOAuthConnections
@@ -5686,6 +6083,28 @@ components:
       required:
       - emailAddress
       - type
+    CreateNoteRequest:
+      type: object
+      description: A new note. Every field is optional.
+      properties:
+        archived:
+          type: boolean
+        bodyMd:
+          type: string
+          description: Markdown (default empty)
+          maxLength: 100000
+        pinned:
+          type: boolean
+        tags:
+          type: array
+          description: "Trimmed, a leading `#` removed, each once regardless of case\
+            \ (at most 50, 50 characters each)"
+          items:
+            type: string
+        title:
+          type: string
+          description: "Empty or omitted: derived from the first line of the body"
+          maxLength: 500
     CreateProjectRequest:
       type: object
       description: A new project. Only `title` is required; the status defaults to
@@ -6869,6 +7288,173 @@ components:
           description: An open task of the project; `null` clears the next step
       required:
       - taskId
+    NoteImageResponse:
+      type: object
+      description: An image stored for a note in `/Attachments/Notes`
+      properties:
+        fileId:
+          type: string
+          format: uuid
+        markdown:
+          type: string
+          description: "A Markdown image of cockpit-file:{fileId}, to insert into\
+            \ the body"
+        mime:
+          type: string
+        name:
+          type: string
+        reference:
+          type: string
+          description: "`cockpit-file:{fileId}`"
+        size:
+          type: integer
+          format: int64
+      required:
+      - fileId
+      - markdown
+      - mime
+      - name
+      - reference
+      - size
+    NotePageResponse:
+      type: object
+      description: One page of notes
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/NoteResponse"
+        nextCursor:
+          type: string
+          description: Cursor of the next page; `null` on the last page
+      required:
+      - items
+    NotePatchRequest:
+      type: object
+      description: "Changes to a note: only the fields sent change; `null` clears\
+        \ `title` (the others cannot be null)"
+      properties:
+        archived:
+          type: boolean
+        bodyMd:
+          type: string
+          maxLength: 100000
+        pinned:
+          type: boolean
+        tags:
+          type: array
+          description: The complete new list of tags
+          items:
+            type: string
+        title:
+          type:
+          - string
+          - "null"
+          maxLength: 500
+    NoteResponse:
+      type: object
+      description: A Markdown note. `version` is also sent as the ETag.
+      properties:
+        archived:
+          type: boolean
+        bodyMd:
+          type: string
+          description: "Markdown. Inline links (type:id in double square brackets)\
+            \ are synced to the links; images point to cockpit-file:{fileId}"
+        createdAt:
+          type: string
+          format: date-time
+        displayTitle:
+          type: string
+          description: "The title, or else the first line of the body as plain text\
+            \ (`Untitled note` for an empty body)"
+        id:
+          type: string
+          format: uuid
+        pinned:
+          type: boolean
+        tags:
+          type: array
+          description: Ordered regardless of case
+          items:
+            type: string
+        title:
+          type: string
+          description: The title as set; `null` when the note has none
+        updatedAt:
+          type: string
+          format: date-time
+        version:
+          type: integer
+          format: int64
+      required:
+      - archived
+      - bodyMd
+      - createdAt
+      - displayTitle
+      - id
+      - pinned
+      - tags
+      - updatedAt
+      - version
+    NoteRevisionListResponse:
+      type: object
+      description: "The kept revisions of a note (at most 20), newest first; the current\
+        \ content is not one of them"
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/NoteRevisionResponse"
+      required:
+      - items
+    NoteRevisionResponse:
+      type: object
+      description: An earlier version of a note's title and body
+      properties:
+        bodyMd:
+          type: string
+        number:
+          type: integer
+          format: int32
+          description: Counts up per note; used to restore it
+        replacedAt:
+          type: string
+          format: date-time
+          description: When it was replaced by a newer version
+        savedAt:
+          type: string
+          format: date-time
+          description: When this content was last saved
+        title:
+          type: string
+      required:
+      - bodyMd
+      - number
+      - replacedAt
+      - savedAt
+    NoteTagListResponse:
+      type: object
+      description: "Every tag in use, ordered regardless of case"
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/NoteTagResponse"
+      required:
+      - items
+    NoteTagResponse:
+      type: object
+      description: A tag and the number of notes (not in the Trash) that have it
+      properties:
+        count:
+          type: integer
+          format: int64
+        tag:
+          type: string
+      required:
+      - count
+      - tag
     OAuthConnectionResponse:
       type: object
       properties:
