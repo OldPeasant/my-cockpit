@@ -5,7 +5,7 @@ owner: dell26/agent-3
 deps: [backup-contrib-core,cal-local-api]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/calendar/backup,server/src/test/kotlin/ch/sonensei/cockpit/calendar/backup]
 prio: 2
-lease_until: 2026-10-21T17:06:46Z
+lease_until: 2026-10-21T17:11:46Z
 ---
 ## Goal
 Calendar data in backups (SPEC.md §10.2).
