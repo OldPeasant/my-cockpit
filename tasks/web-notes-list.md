@@ -16,3 +16,4 @@ Notes overview (SPEC.md §8.1).
 
 ## Notes
 - ASSUMPTION (2026-10-21 05:12+0200 by R1963MACOS/agent-1): Search within notes filters the loaded notes on the client (title, text, tags; every word must match) because GET /notes has no text query; the service loads every page (limit 200) so search covers all notes of the current tag/archive filter
+- ASSUMPTION (2026-10-21 05:12+0200 by R1963MACOS/agent-1): Create note uses an inline composer (title, Markdown text, tags; prefilled with the active tag filter) instead of opening the editor, which does not exist yet; cards link to /notes/<id>, which web-notes-editor must route
