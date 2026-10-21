@@ -6,6 +6,7 @@ deps: [web-cal-views]
 touches: [web/src/app/features/calendar/edit,web/src/app/features/calendar/views]
 prio: 1
 lease_until: 2026-10-21T12:51:52Z
+extended: dell26/agent-3
 ---
 ## Goal
 Create and edit events (SPEC.md §6.3).
@@ -20,3 +21,4 @@ Create and edit events (SPEC.md §6.3).
 - ASSUMPTION (2026-10-21 13:47+0200 by dell26/agent-3): Conflicts: both 412 (stale ETag) and 409 (changed concurrently / changed at the provider, SPEC.md §6.2) are shown as 'changed elsewhere' with a Reload action (dialog banner; snackbar after a drag); the dialog's Reload discards the unsaved edits
 - ASSUMPTION (2026-10-21 13:47+0200 by dell26/agent-3): Event dialog repeat choices are presets (none/daily/weekly/monthly/yearly = FREQ=X); an existing rule the presets can't express is kept as 'Custom (rule)'. Changing the repeat rule or calendar of a series offers only FOLLOWING/ALL (the API rejects them for THIS)
 - ASSUMPTION (2026-10-21 13:47+0200 by dell26/agent-3): Attendees are editable (add email / remove) for LOCAL calendars, read-only with their status for synced calendars; a synced event's calendar can't be changed. Delete (with scope prompt) is included in the dialog although not in the criteria, since the API supports it
+- extended by dell26/agent-3: Implementation, e2e spec, Vitest specs and round-1 fixes are committed; npm run check passes. Left: (1) fix review round-2 CR-1 (P2, reviews/web-cal-edit/review.md): when EventEditService.reread returns undefined (series changed elsewhere / override moved >1 day), don't offer a futile 'Try again' - close the dialog, refresh the view, tell the user; add a spec. (2) re-run test-writer (tests.md is still missing; its extra specs are committed) and code-reviewer on final code. (3) run Playwright npm run e2e -- e2e/calendar-edit/edit.spec.ts on final code. (4) tasks.py verify 1-4, quality.json, .taskcheck, done.
