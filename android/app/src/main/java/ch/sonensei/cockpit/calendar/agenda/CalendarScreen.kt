@@ -367,10 +367,16 @@ private fun Agenda(
             .collect { loadMore() }
     }
     // Before the first days arrive only the footer is shown, and the list would keep it in place when the days are
-    // inserted above it, opening the agenda scrolled past today. So the agenda starts at its first day.
+    // inserted above it, opening the agenda scrolled past today. So the agenda starts at its first day, once for each
+    // first day: an agenda shown again with its days (rotation, back to the tab) keeps the position it had.
     val hasItems = items.isNotEmpty()
+    var positionedFrom by rememberSaveable { mutableStateOf<String?>(null) }
     LaunchedEffect(state.from, hasItems) {
-        if (hasItems) listState.scrollToItem(0)
+        val from = state.from.toString()
+        if (hasItems && positionedFrom != from) {
+            listState.scrollToItem(0)
+            positionedFrom = from
+        }
     }
     val locale = currentLocale()
     LazyColumn(Modifier.fillMaxSize().testTag(CalendarTags.AGENDA), state = listState, contentPadding = PaddingValues(bottom = 24.dp)) {
