@@ -101,6 +101,18 @@ class ReminderLogoutTest {
     }
 
     @Test
+    fun `logging out also removes a shown notification whose reminder a later sync dropped`() {
+        // The server fired reminder 1 too, so the next sync no longer lists it and the store forgets it.
+        scheduler.apply(listOf(reminder(2, minutes = 60)))
+        assertTrue(store.scheduled.value.none { it.id == reminderId(1).toString() })
+        assertEquals(1, shadowOf(notifications).allNotifications.size)
+
+        runBlocking { authRepository.logout() }
+
+        assertNothingOfTheUserStays()
+    }
+
+    @Test
     fun `a logout by the network layer also removes them`() {
         session.logout(LogoutReason.REFRESH_REJECTED)
 

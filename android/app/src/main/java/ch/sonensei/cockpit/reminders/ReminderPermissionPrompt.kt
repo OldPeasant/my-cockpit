@@ -24,6 +24,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -57,7 +58,8 @@ data class ReminderPromptState(
 
 /**
  * Asks for the permissions reminders need in context: only once the user has upcoming reminders, not at app start.
- * Opening the shell also starts the reminder sync.
+ * Each time the shell opens (also after a logout and a new login, which keep this ViewModel) it starts the reminder
+ * sync and re-reads what the store remembers, as a logout has cleared it.
  */
 @HiltViewModel
 class ReminderPromptViewModel
@@ -67,7 +69,7 @@ class ReminderPromptViewModel
         private val alarms: ReminderAlarms,
         private val notifier: ReminderNotifier,
         private val scheduler: ReminderScheduler,
-        syncScheduler: ReminderSyncScheduler,
+        private val syncScheduler: ReminderSyncScheduler,
     ) : ViewModel() {
         private val permissions = MutableStateFlow(readPermissions())
         private val dismissed = MutableStateFlow(store.isPromptDismissed())
@@ -86,7 +88,10 @@ class ReminderPromptViewModel
                 }
             }.stateIn(viewModelScope, SharingStarted.Eagerly, ReminderPromptState())
 
-        init {
+        /** The shell opened, at app start or after a login: drop what a logout has cleared and start the sync. */
+        fun onShellShown() {
+            dismissed.value = store.isPromptDismissed()
+            notificationsRequested.value = store.wasNotificationPermissionRequested()
             syncScheduler.start()
         }
 
@@ -131,6 +136,8 @@ fun ReminderPermissionPrompt(
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val context = LocalContext.current
+    // Runs again whenever the prompt re-enters the composition, i.e. when the shell comes back after a login.
+    LaunchedEffect(viewModel) { viewModel.onShellShown() }
     LifecycleResumeEffect(viewModel) {
         viewModel.refreshPermissions()
         onPauseOrDispose {}

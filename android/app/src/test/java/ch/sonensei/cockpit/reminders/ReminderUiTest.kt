@@ -9,6 +9,9 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.provider.Settings
 import androidx.activity.ComponentActivity
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithTag
@@ -287,6 +290,33 @@ class ReminderUiTest {
 
         composeRule.onNodeWithTag(ReminderPromptTags.CARD).assertDoesNotExist()
         assertFalse(viewModel().state.value.visible)
+    }
+
+    @Test
+    fun `a logout and a new login with the same ViewModel start the sync again and forget the prompt state`() {
+        graph.reminderScheduler().apply(listOf(reminder(1, minutes = 30)))
+        val viewModel = viewModel()
+        // Like CockpitRoot: the shell (and its prompt) is shown only while logged in; the activity-scoped ViewModel stays.
+        var loggedIn by mutableStateOf(true)
+        composeRule.setContent { CockpitTheme { if (loggedIn) ReminderPermissionPrompt(viewModel = viewModel) } }
+        viewModel.onNotificationPermissionRequested()
+        composeRule.onNodeWithTag(ReminderPromptTags.DISMISS).performClick()
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag(ReminderPromptTags.CARD).assertDoesNotExist()
+        assertEquals(1, syncStarts.size)
+
+        // Logout: the reminders session cache clears the store.
+        loggedIn = false
+        graph.reminderScheduler().clear()
+        composeRule.waitForIdle()
+        // Login: the new session's first sync lists a reminder.
+        graph.reminderScheduler().apply(listOf(reminder(2, minutes = 30)))
+        loggedIn = true
+        composeRule.waitForIdle()
+
+        assertEquals("the sync is started again for the new session", 2, syncStarts.size)
+        composeRule.onNodeWithTag(ReminderPromptTags.CARD).assertIsDisplayed()
+        assertFalse("the new session may ask with the dialog again", viewModel.state.value.notificationsViaSettings)
     }
 
     @Test

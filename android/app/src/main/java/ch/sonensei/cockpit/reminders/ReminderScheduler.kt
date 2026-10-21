@@ -85,6 +85,8 @@ class ReminderScheduler internal constructor(
             alarms.cancel(it.id)
             notifier.dismiss(it.id)
         }
+        // A shown reminder that a later sync dropped from the store is no longer listed there.
+        notifier.dismissAll()
         store.clear()
     }
 

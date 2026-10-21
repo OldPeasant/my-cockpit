@@ -57,6 +57,15 @@ class ReminderNotifier
 
         fun dismiss(id: String) = manager.cancel(id, NOTIFICATION_ID)
 
+        /** Removes every reminder notification still shown, also those of reminders a sync has dropped since. */
+        fun dismissAll() {
+            context
+                .getSystemService(NotificationManager::class.java)
+                .activeNotifications
+                .filter { it.id == NOTIFICATION_ID && it.notification.channelId == CHANNEL_ID }
+                .forEach { manager.cancel(it.tag, it.id) }
+        }
+
         private fun hasPermission(): Boolean =
             Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
                 ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) ==
