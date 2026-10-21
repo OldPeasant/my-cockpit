@@ -13,7 +13,8 @@ extended:
 Triage actions (SPEC.md §7.3).
 
 ## Acceptance criteria
-- [ ] `POST /api/v1/mail/messages/actions {ids, action, targetFolderId?}`: READ, UNREAD, FLAG, UNFLAG, MOVE, ARCHIVE, DELETE (to Trash; permanent in Trash), SPAM; applied on IMAP and cache consistently; partial failures reported per id
+- [x] `POST /api/v1/mail/messages/actions {ids, action, targetFolderId?}`: READ, UNREAD, FLAG, UNFLAG, MOVE, ARCHIVE, DELETE (to Trash; permanent in Trash), SPAM; applied on IMAP and cache consistently; partial failures reported per id
+  - verified (2026-10-21 04:39+0200 by dell26/agent-1): cd server && ./gradlew test --tests '*MailAction*' integrationTest --tests '*MailActionGreenMailTests' at daca89e3 -> 71 tests, 0 failures (Controller 11, Web 15, Service 29: all 8 actions on IMAP stub + cache, per-id partial failures NOT_FOUND/REJECTED/CONNECTION_FAILED/NO_ROLE_FOLDER in request order; GreenMail 16: every action on real IMAP server and cache)
 - [x] `external` GreenMail tests reflect every action
   - verified (2026-10-21 04:05+0200 by dell26/agent-1): cd server && ./gradlew integrationTest --tests '*MailActionGreenMailTests' (GreenMail 2.1.5, @ExternalTest) -> 16 tests, 0 failures: READ, UNREAD, FLAG, UNFLAG, MOVE, ARCHIVE, DELETE (to Trash + permanent in Trash), SPAM each checked on IMAP server and cache
 - [x] API documented: `api/openapi.yaml` regenerated (`UPDATE_OPENAPI=1 ./gradlew test --tests '*OpenApiContractTest'`) and `OpenApiContractTest` passes without the flag
