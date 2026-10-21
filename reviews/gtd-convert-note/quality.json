@@ -1,0 +1,23 @@
+{
+  "schema": 1,
+  "task": "gtd-convert-note",
+  "reviewed_revision": "561ff9c63c69e764712ecfd96bfe0623eeb5bbbb",
+  "helpers": {
+    "test-writer":   {"status": "completed", "report": "reviews/gtd-convert-note/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/gtd-convert-note/review.md"},
+    "fixer":         {"status": "completed", "report": "reviews/gtd-convert-note/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "regression tests for multiple/inline links to the same item added (TaskToNoteEdgeCaseTests)"},
+    {"id": "TW-1", "source": "test-writer", "severity": "High", "disposition": "fixed",
+     "note": "generated web API client regenerated after the openapi.yaml change (npm run api:gen)"}
+  ],
+  "validation": [
+    {"command": "cd server && ./gradlew test --tests 'ch.sonensei.cockpit.gtd.convert.*'", "result": "pass"},
+    {"command": "cd server && UPDATE_OPENAPI=1 ./gradlew test --tests '*OpenApiContractTest' (no diff), then without the flag", "result": "pass"},
+    {"command": "cd web && npm run check", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
