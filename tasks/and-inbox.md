@@ -5,7 +5,7 @@ owner: dell26/agent-4
 deps: [and-gtd-data]
 touches: [android/app/src/main/java/ch/sonensei/cockpit/gtd/inbox,android/app/src/test/java/ch/sonensei/cockpit/gtd/inbox]
 prio: 1
-lease_until: 2026-10-21T08:45:33Z
+lease_until: 2026-10-21T08:50:34Z
 ---
 ## Goal
 Process the inbox on the phone (SPEC.md §5.3).
