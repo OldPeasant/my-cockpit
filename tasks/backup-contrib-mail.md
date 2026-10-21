@@ -15,3 +15,4 @@ Mail config in backups (SPEC.md §10.2).
 - [ ] Round-trip test (`./gradlew test --tests '*BackupRoundTripTest'`) passes with this module's `BackupFixture` seeding an IMAP and an OAuth account and a link to a mail
 
 ## Notes
+- ASSUMPTION (2026-10-21 23:22+0200 by dell26/agent-2): mail_accounts.json nests each account's identities and folders (path, role, role override; no UIDVALIDITY/UIDNEXT/MODSEQ/last sync, so the first sync after restore is a full window sync): SPEC lists only mail_accounts.json, and identities/folder role overrides are owner config
