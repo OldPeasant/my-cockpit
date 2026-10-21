@@ -55,7 +55,7 @@ export interface ScopeDialogData {
       </div>
     </mat-dialog-content>
     <mat-dialog-actions align="end">
-      <button mat-button type="button" mat-dialog-close i18n="@@calendar.cancel">Cancel</button>
+      <button mat-button type="button" [mat-dialog-close]="undefined" i18n="@@calendar.cancel">Cancel</button>
     </mat-dialog-actions>
   `,
   styles: `

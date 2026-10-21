@@ -270,7 +270,7 @@
       </button>
     }
     <span class="spacer"></span>
-    <button mat-button type="button" mat-dialog-close [disabled]="saving()">
+    <button mat-button type="button" [mat-dialog-close]="undefined" [disabled]="saving()">
       @if (readOnly()) {
         <ng-container i18n="@@calendar.edit.close">Close</ng-container>
       } @else {

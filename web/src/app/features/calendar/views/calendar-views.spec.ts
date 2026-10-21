@@ -125,4 +125,15 @@ describe('calendar views', () => {
       'app-event app-event-tentative',
     );
   });
+
+  it('lets only events of writable calendars that are not cancelled be dragged', () => {
+    const writable = fakeCalendar('work');
+    const feed = fakeCalendar('feed', { readOnly: true });
+    expect(toEventInput(fakeOccurrence('A'), writable).editable).toBe(true);
+    expect(toEventInput(fakeOccurrence('A'), undefined).editable).toBe(true);
+    expect(toEventInput(fakeOccurrence('B'), feed).editable).toBe(false);
+    expect(toEventInput(fakeOccurrence('C', { status: 'CANCELLED' }), writable).editable).toBe(
+      false,
+    );
+  });
 });

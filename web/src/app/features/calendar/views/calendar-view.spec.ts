@@ -2,13 +2,21 @@ import { signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { By } from '@angular/platform-browser';
 import { ActivatedRoute, convertToParamMap, Router } from '@angular/router';
-import { DatesSetInfo, EventInput, FullCalendarComponent } from '@fullcalendar/angular';
+import {
+  CalendarOptions,
+  DateSelectInfo,
+  DatesSetInfo,
+  EventClickInfo,
+  EventInput,
+  FullCalendarComponent,
+} from '@fullcalendar/angular';
 import { filter, Subject } from 'rxjs';
 import {
   Api,
   ChangeEvent,
   listCalendars,
   listEventOccurrences,
+  OccurrenceResponse,
   Settings,
   updateCalendar,
 } from '../../../api/generated';
@@ -17,6 +25,7 @@ import { NotificationService } from '../../../core/http';
 import { SettingsService } from '../../settings/settings.service';
 import { fakeSettings } from '../../settings/testing';
 import calendarRoutes from '../calendar.routes';
+import { EventEditor } from '../edit/event-editor';
 import CalendarView from './calendar-view';
 import { fakeCalendar, fakeOccurrence } from './testing';
 
@@ -28,6 +37,10 @@ interface Call {
 }
 
 const settle = () => new Promise((resolve) => setTimeout(resolve));
+
+/** What FullCalendar passes to `eventDrop` and `eventResize`. */
+type DropInfo = Parameters<NonNullable<CalendarOptions['eventDrop']>>[0];
+type ResizeInfo = Parameters<NonNullable<CalendarOptions['eventResize']>>[0];
 
 /** What FullCalendar passes to `datesSet` for the week of 2026-03-23 in Zurich. */
 function week(): DatesSetInfo {
@@ -64,6 +77,11 @@ describe('CalendarView', () => {
   let settingsLoad: ReturnType<typeof vi.fn>;
   let navigate: ReturnType<typeof vi.fn>;
   let notifications: { error: ReturnType<typeof vi.fn> };
+  let editor: {
+    create: ReturnType<typeof vi.fn>;
+    open: ReturnType<typeof vi.fn>;
+    move: ReturnType<typeof vi.fn>;
+  };
   let fixture: ComponentFixture<CalendarView>;
   let root: HTMLElement;
 
@@ -88,6 +106,7 @@ describe('CalendarView', () => {
         },
         { provide: SettingsService, useValue: { settings, load: settingsLoad } },
         { provide: NotificationService, useValue: notifications },
+        { provide: EventEditor, useValue: editor },
         { provide: Router, useValue: { navigate } },
         {
           provide: ActivatedRoute,
@@ -123,6 +142,11 @@ describe('CalendarView', () => {
     settingsLoad = vi.fn(() => Promise.resolve(settings()));
     navigate = vi.fn(() => Promise.resolve(true));
     notifications = { error: vi.fn() };
+    editor = {
+      create: vi.fn(() => Promise.resolve(false)),
+      open: vi.fn(() => Promise.resolve(false)),
+      move: vi.fn(() => Promise.resolve(true)),
+    };
   });
 
   it('shows the week view by default in the time zone and week start of the settings', async () => {
@@ -554,5 +578,170 @@ describe('CalendarView', () => {
     await fixture.whenStable();
     expect(root.textContent).not.toContain('The calendars could not be loaded.');
     expect(root.querySelectorAll('input[type="checkbox"]')).toHaveLength(1);
+  });
+
+  describe('editing', () => {
+    const swim = fakeOccurrence('Swim', {
+      eventId: 'm1',
+      seriesId: 'm1',
+      occurrence: '2026-03-23T08:00:00Z',
+      calendarId: 'work',
+    });
+    const work = fakeCalendar('work', { name: 'Work' });
+
+    /** The week with `swim` shown; resolves with the number of occurrence loads so far. */
+    async function showWeek(): Promise<number> {
+      await render();
+      await answerCalendars(work, fakeCalendar('feed', { readOnly: true }));
+      options()!.datesSet!(week());
+      await fixture.whenStable();
+      callsOf(listEventOccurrences)
+        .at(-1)!
+        .resolve({ items: [swim] });
+      await settle();
+      await fixture.whenStable();
+      return callsOf(listEventOccurrences).length;
+    }
+
+    /** What FullCalendar passes to eventDrop/eventResize after `swim` was dragged an hour later. */
+    function dragged(extendedProps: { occurrence?: OccurrenceResponse } = { occurrence: swim }) {
+      return {
+        event: {
+          extendedProps,
+          allDay: false,
+          start: new Date('2026-03-23T09:00:00Z'),
+          end: new Date('2026-03-23T10:00:00Z'),
+          startStr: '2026-03-23T10:00:00+01:00',
+          endStr: '2026-03-23T11:00:00+01:00',
+        },
+        revert: vi.fn(),
+      };
+    }
+    const movedTimes = {
+      allDay: false,
+      start: '2026-03-23T09:00:00.000Z',
+      end: '2026-03-23T10:00:00.000Z',
+    };
+
+    it('makes events of writable calendars draggable and ranges selectable', async () => {
+      await showWeek();
+      expect(options()).toMatchObject({ editable: true, selectable: true });
+      expect(events()[0].editable).toBe(true);
+    });
+
+    it('saves a dropped event through the editor and shows what the server has now', async () => {
+      const loads = await showWeek();
+      const info = dragged();
+      options()!.eventDrop!(info as unknown as DropInfo);
+      await settle();
+      expect(editor.move).toHaveBeenCalledExactlyOnceWith(swim, movedTimes, expect.any(Function));
+      expect(info.revert).not.toHaveBeenCalled();
+      expect(callsOf(listEventOccurrences)).toHaveLength(loads + 1);
+    });
+
+    it('puts a dropped event back when nothing was saved (scope cancelled, conflict, error)', async () => {
+      await showWeek();
+      editor.move.mockResolvedValueOnce(false);
+      const info = dragged();
+      options()!.eventDrop!(info as unknown as DropInfo);
+      await settle();
+      expect(info.revert).toHaveBeenCalledOnce();
+    });
+
+    it('passes a reload to the editor that refetches the range', async () => {
+      const loads = await showWeek();
+      editor.move.mockResolvedValueOnce(false);
+      options()!.eventDrop!(dragged() as unknown as DropInfo);
+      await settle();
+      const reload = editor.move.mock.calls[0][2] as () => void;
+      const before = callsOf(listEventOccurrences).length;
+      expect(before).toBe(loads + 1);
+      reload();
+      expect(callsOf(listEventOccurrences)).toHaveLength(before + 1);
+    });
+
+    it('saves a resized event the same way', async () => {
+      await showWeek();
+      editor.move.mockResolvedValueOnce(false);
+      const info = dragged();
+      options()!.eventResize!(info as unknown as ResizeInfo);
+      await settle();
+      expect(editor.move).toHaveBeenCalledWith(swim, movedTimes, expect.any(Function));
+      expect(info.revert).toHaveBeenCalledOnce();
+    });
+
+    it('puts back a dragged event it cannot map to an occurrence', async () => {
+      await showWeek();
+      const info = dragged({});
+      options()!.eventDrop!(info as unknown as DropInfo);
+      await settle();
+      expect(editor.move).not.toHaveBeenCalled();
+      expect(info.revert).toHaveBeenCalledOnce();
+    });
+
+    it('opens a clicked event in the editor and refetches after a change', async () => {
+      const loads = await showWeek();
+      const jsEvent = { preventDefault: vi.fn() };
+      editor.open.mockResolvedValueOnce(false);
+      options()!.eventClick!({
+        event: { extendedProps: { occurrence: swim } },
+        jsEvent,
+      } as unknown as EventClickInfo);
+      await settle();
+      expect(jsEvent.preventDefault).toHaveBeenCalled();
+      expect(editor.open).toHaveBeenCalledWith(swim, {
+        calendars: [work, fakeCalendar('feed', { readOnly: true })],
+        timeZone: 'Europe/Zurich',
+      });
+      expect(callsOf(listEventOccurrences)).toHaveLength(loads);
+
+      editor.open.mockResolvedValueOnce(true);
+      options()!.eventClick!({
+        event: { extendedProps: { occurrence: swim } },
+        jsEvent,
+      } as unknown as EventClickInfo);
+      await settle();
+      expect(callsOf(listEventOccurrences)).toHaveLength(loads + 1);
+    });
+
+    it('creates an event for a selected range', async () => {
+      const loads = await showWeek();
+      const unselect = vi.fn();
+      editor.create.mockResolvedValueOnce(true);
+      options()!.select!({
+        allDay: true,
+        start: new Date('2026-03-24T00:00:00Z'),
+        end: new Date('2026-03-26T00:00:00Z'),
+        startStr: '2026-03-24',
+        endStr: '2026-03-26',
+        view: { calendar: { unselect } },
+      } as unknown as DateSelectInfo);
+      await settle();
+      expect(unselect).toHaveBeenCalled();
+      expect(editor.create).toHaveBeenCalledWith(
+        { allDay: true, startDate: '2026-03-24', endDate: '2026-03-26' },
+        expect.objectContaining({ timeZone: 'Europe/Zurich' }),
+      );
+      expect(callsOf(listEventOccurrences)).toHaveLength(loads + 1);
+    });
+
+    it('creates a one-hour event at the next full hour from the New event button', async () => {
+      await render();
+      const create = () =>
+        [...root.querySelectorAll<HTMLButtonElement>('button')].find(
+          (b) => b.textContent!.trim() === 'New event',
+        )!;
+      expect(create().disabled).toBe(true);
+      await answerCalendars(work);
+      expect(create().disabled).toBe(false);
+      create().click();
+      await settle();
+      const [draft] = editor.create.mock.calls[0] as [{ start: string; end: string }];
+      const start = new Date(draft.start);
+      expect(start.getMinutes()).toBe(0);
+      expect(start.getTime()).toBeGreaterThan(Date.now());
+      expect(start.getTime() - Date.now()).toBeLessThanOrEqual(3_600_000);
+      expect(new Date(draft.end).getTime() - start.getTime()).toBe(3_600_000);
+    });
   });
 });
