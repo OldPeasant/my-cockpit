@@ -19,3 +19,4 @@ Local notifications for reminders (SPEC.md §9.2).
 - From reminders-core review (CR-2, P3): `GET /api/v1/reminders/upcoming` returns reminders whose item is
   trashed/deleted and those whose item lookup failed alike as `item.available=false`; the server skips notifying only
   for gone items. Decide how Android treats `available=false` (skip, or extend the API to distinguish the cases).
+- ASSUMPTION (2026-10-21 09:53+0200 by dell26/agent-3): Reminders whose item is available=false (trashed/deleted or no resolver) get no local alarm on Android, same as the server skipping gone items; no API change. A reminder on a type without resolver therefore only notifies via the web/SSE.
