@@ -251,6 +251,30 @@ class CsrfCookieWebTests(
 	}
 
 	@Test
+	fun `the token issued at login survives authenticated requests and logout still replaces it`() {
+		val (session, token) = loggedIn()
+
+		val read = mockMvc.get("/api/v1/auth/me") { cookie(session, token) }.andExpect { status { isOk() } }.andReturn()
+		val write = postContext("@csrf-kept", session, token, header = token.value).andExpect { status { isCreated() } }.andReturn()
+		// The login lives only in the request: no JSESSIONID, and the XSRF cookie alone authenticates nothing.
+		listOf(read, write).forEach { result ->
+			result.response.getHeaders(HttpHeaders.SET_COOKIE).forEach { it shouldNotContain "JSESSIONID" }
+		}
+		mockMvc.get("/api/v1/auth/me") { cookie(token) }.andExpect { status { isUnauthorized() } }
+
+		val loggedOut =
+			mockMvc
+				.post("/api/v1/auth/logout") {
+					cookie(session, token)
+					header(XSRF_HEADER, token.value)
+				}.andExpect { status { isNoContent() } }
+				.andReturn()
+		lastXsrfValue(loggedOut) shouldNotBe token.value
+		// The logged-out session no longer writes, even with a matching double-submit pair.
+		postContext("@csrf-after-logout", session, token, header = token.value).andExpect { status { isUnauthorized() } }
+	}
+
+	@Test
 	fun `a failed login keeps the XSRF-TOKEN cookie`() {
 		val xsrf =
 			mockMvc
