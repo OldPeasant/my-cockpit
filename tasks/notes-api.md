@@ -36,6 +36,7 @@ Markdown notes with images, tags, pins and history (SPEC.md §8.1).
 - [x] API documented: `api/openapi.yaml` regenerated (`UPDATE_OPENAPI=1 ./gradlew test --tests '*OpenApiContractTest'`) and `OpenApiContractTest` passes without the flag
   - verified (2026-10-21 02:21+0200 by dell26/agent-3): UPDATE_OPENAPI=1 ./gradlew test --tests '*OpenApiContractTest' regenerated api/openapi.yaml (+ npm run api:gen); then ./gradlew test --tests '*OpenApiContractTest' without flag -> pass; cd web && npm run check -> pass
   - verified (2026-10-21 03:26+0200 by dell26/agent-2): UPDATE_OPENAPI=1 ./gradlew test --tests '*OpenApiContractTest' + npm run api:gen after merging main -> no diff to committed files; OpenApiContractTest without the flag -> pass
+  - verified (2026-10-21 04:44+0200 by dell26/agent-5): at c3d079f8: cd server && ./gradlew test --tests 'ch.sonensei.cockpit.notes.*' --tests '*OpenApiContractTest' (Postgres via Testcontainers) -> BUILD SUCCESSFUL, 77 notes tests + 1 contract test, 0 failures; OpenApiContractTest passes without UPDATE_OPENAPI (api/openapi.yaml current, 9 notes operations)
 
 ## Notes
 - ASSUMPTION (2026-10-21 01:10+0200 by dell26/agent-3): Note history: before a title/body change the previous content is kept as a revision, but at most one per 5 minutes (autosave sessions keep the pre-session state, not every keystroke); a revision restore always keeps the replaced content. Revisions are earlier versions only (current content not listed); numbered per note; newest 20 kept.
