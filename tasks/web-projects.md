@@ -1,11 +1,11 @@
 ---
 title: Projects views
-status: in_progress
+status: done
 owner: dell26/agent-6
 deps: [web-gtd-data]
 touches: [web/src/app/features/gtd/projects]
 prio: 1
-lease_until: 2026-10-21T01:58:49Z
+lease_until: 
 ---
 ## Goal
 Project list and detail (SPEC.md §5.3).
@@ -26,3 +26,4 @@ Project list and detail (SPEC.md §5.3).
 - ASSUMPTION (2026-10-21 02:50+0200 by dell26/agent-6): Adding a task to a stalled ACTIVE project makes it the next step automatically (GTD: a project's first/only step is its next action); otherwise new tasks go to the end of the project as NEXT-list tasks
 - ASSUMPTION (2026-10-21 02:50+0200 by dell26/agent-6): The 'Choose next step' prompt is an inline panel on the project detail (not a modal) and only triggers there; completing a next step from other views (Next, Today) does not prompt yet. A stalled project shows a 'Choose next step' button to reopen it
 - ASSUMPTION (2026-10-21 02:50+0200 by dell26/agent-6): Project list hides COMPLETED/DROPPED projects behind a 'Show completed and dropped' toggle; within an area, projects order by status (active first) then title
+- done by dell26/agent-6: `sh scripts/check.sh` passed in 152s on 89d222fbd; criteria verified 4/4
