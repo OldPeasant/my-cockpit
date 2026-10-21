@@ -273,6 +273,49 @@ class MailActionServiceTests {
 	}
 
 	@Test
+	fun `unread and unflag clear the flags on the server and in the cache`() {
+		val message = cached(inbox, 7)
+		message.seen = true
+		message.flagged = true
+		val found = onServer(remoteInbox, 7)
+
+		service.apply(listOf(message.id), MailAction.UNREAD, null) shouldBe listOf(MailActionOutcome.ok(message.id))
+		service.apply(listOf(message.id), MailAction.UNFLAG, null) shouldBe listOf(MailActionOutcome.ok(message.id))
+
+		verify { remoteInbox.setFlags(found, Flags(Flags.Flag.SEEN), false) }
+		verify { remoteInbox.setFlags(found, Flags(Flags.Flag.FLAGGED), false) }
+		message.seen shouldBe false
+		message.flagged shouldBe false
+	}
+
+	@Test
+	fun `a server error while opening the source folder is reported with its connection error and leaves the cache alone`() {
+		val message = cached(inbox, 7)
+		every { remoteInbox.open(Folder.READ_WRITE) } throws MessagingException("connection reset")
+
+		service.apply(listOf(message.id), MailAction.READ, null).single().errorCode shouldBe "CONNECTION_FAILED"
+		message.seen shouldBe false
+		verify(exactly = 0) { changes.publish(any<Enum<*>>(), any(), any()) }
+	}
+
+	@Test
+	fun `a server failure in one source folder fails only that folder's ids, in request order`() {
+		val inTrash = cached(trash, 3)
+		val inInbox = cached(inbox, 7)
+		onServer(remoteInbox, 7)
+		every { remoteTrash.open(Folder.READ_WRITE) } throws MessagingException("connection reset")
+
+		val outcomes = service.apply(listOf(inTrash.id, inInbox.id), MailAction.READ, null)
+
+		outcomes.map { it.id } shouldBe listOf(inTrash.id, inInbox.id)
+		outcomes.map { it.errorCode } shouldBe listOf("CONNECTION_FAILED", null)
+		inTrash.seen shouldBe false
+		inInbox.seen shouldBe true
+		verify { changes.publish(MailFolderService.FOLDER_EVENT, inbox.id, ChangeOp.UPDATED) }
+		verify(exactly = 0) { changes.publish(MailFolderService.FOLDER_EVENT, trash.id, any()) }
+	}
+
+	@Test
 	fun `a message whose cached folder row is gone is NOT_FOUND without contacting the server`() {
 		val orphan = MailMessage(account.id, UUID.randomUUID(), 5).also { cache[it.id] = it }
 		every { folders.findById(checkNotNull(orphan.folderId)) } returns Optional.empty()
