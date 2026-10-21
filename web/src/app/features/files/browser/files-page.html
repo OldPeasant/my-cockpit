@@ -33,7 +33,12 @@
     }
   </aside>
 
-  <section class="main" aria-labelledby="files-title" (appFileDrop)="upload($event)">
+  <section
+    class="main"
+    aria-labelledby="files-title"
+    #drop="appFileDrop"
+    (appFileDrop)="upload($event)"
+  >
     <header class="head">
       @if (crumbs().length) {
         <nav class="crumbs" i18n-aria-label="@@files.breadcrumbs" aria-label="Breadcrumbs">
@@ -225,7 +230,11 @@
     } @else {
       <p class="note" role="status" i18n="@@files.loading">Loading the folder…</p>
     }
-
+    @if (drop.dragging()) {
+      <p class="drop-hint" aria-hidden="true" i18n="@@files.upload.dropHint">
+        Drop to upload here
+      </p>
+    }
   </section>
 
   <app-upload-panel />
