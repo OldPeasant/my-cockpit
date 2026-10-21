@@ -18,7 +18,8 @@ import javax.inject.Inject
 
 /**
  * Quick-settings tile (SPEC.md §4.5): a tap collapses the shade and opens the capture sheet, also from the lock screen
- * after unlocking. The subtitle shows how many captures wait to sync while the shade is open.
+ * after unlocking. The subtitle shows how many captures wait to sync; the count is read once each time the shade opens
+ * (listening starts), not followed while it stays open.
  */
 @AndroidEntryPoint
 class CaptureTileService : TileService() {

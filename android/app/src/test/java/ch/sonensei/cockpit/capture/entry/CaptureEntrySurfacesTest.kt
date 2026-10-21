@@ -121,9 +121,9 @@ class CaptureEntrySurfacesTest {
         assertEquals(Intent.ACTION_VIEW, intent["action"])
         assertEquals(context.packageName, intent["targetPackage"])
         assertEquals(CaptureActivity::class.java.name, intent["targetClass"])
-        // The launcher starts exactly this component: it must exist and be startable from outside the app.
+        // The launcher starts exactly this component with this app's identity: it must exist, and need not be exported.
         val target = context.packageManager.getActivityInfo(ComponentName(intent["targetPackage"]!!, intent["targetClass"]!!), 0)
-        assertTrue(target.exported)
+        assertFalse(target.exported)
     }
 
     @Test

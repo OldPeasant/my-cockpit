@@ -49,11 +49,12 @@
                 <data android:mimeType="*/*" />
             </intent-filter>
         </activity>
-        <!-- Empty capture sheet (capture/entry) behind the widget, the quick-settings tile and the app shortcut. Exported
-             only for the launcher's shortcut; it takes no input from the intent. -->
+        <!-- Empty capture sheet (capture/entry) behind the widget, the quick-settings tile and the app shortcut. Not
+             exported: the launcher starts static shortcuts with this app's identity, the widget and the tile use the
+             app's own intents. It takes no input from the intent. -->
         <activity
             android:name=".capture.entry.CaptureActivity"
-            android:exported="true"
+            android:exported="false"
             android:excludeFromRecents="true"
             android:label="@string/capture_entry_label"
             android:taskAffinity=""

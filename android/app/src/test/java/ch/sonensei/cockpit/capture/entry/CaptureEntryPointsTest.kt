@@ -5,6 +5,7 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.service.quicksettings.Tile
 import android.service.quicksettings.TileService
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
@@ -36,6 +37,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -142,6 +144,27 @@ class CaptureEntryPointsTest {
     }
 
     @Test
+    @Config(sdk = [33])
+    fun `the tile shows the pending captures when the shade opens`() {
+        runBlocking { queue.capture("Call the plumber") }
+        val service = Robolectric.buildService(CaptureTileService::class.java).create().get()
+        val tile = service.qsTile
+        assertNotNull("Robolectric provides the tile", tile)
+
+        tile.state = Tile.STATE_UNAVAILABLE
+        service.onStartListening()
+        // The queue's Room flow emits on a background thread, then the tile is updated on the main looper.
+        val deadline = System.currentTimeMillis() + 5_000
+        while (tile.subtitle == null && System.currentTimeMillis() < deadline) {
+            Thread.sleep(10)
+            shadowOf(android.os.Looper.getMainLooper()).idle()
+        }
+
+        assertEquals(Tile.STATE_INACTIVE, tile.state)
+        assertEquals("1 to sync", tile.subtitle)
+    }
+
+    @Test
     fun `the manifest registers the widget, the tile and the shortcut`() {
         val pm = context.packageManager
         val receivers = pm.queryBroadcastReceivers(Intent(AppWidgetManager.ACTION_APPWIDGET_UPDATE).setPackage(context.packageName), 0)
@@ -154,6 +177,6 @@ class CaptureEntryPointsTest {
         val main = pm.getActivityInfo(ComponentName(context, MainActivity::class.java), PackageManager.GET_META_DATA)
         assertNotNull(main.metaData?.getInt("android.app.shortcuts")?.takeIf { it != 0 })
         val capture = pm.getActivityInfo(ComponentName(context, CaptureActivity::class.java), 0)
-        assertTrue("the launcher starts the shortcut's activity", capture.exported)
+        assertFalse("only the app's own entry points start the capture sheet", capture.exported)
     }
 }

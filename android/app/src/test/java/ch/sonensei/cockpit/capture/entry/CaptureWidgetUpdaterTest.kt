@@ -3,7 +3,10 @@ package ch.sonensei.cockpit.capture.entry
 import ch.sonensei.cockpit.capture.queue.CaptureQueueStatus
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.emitAll
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Test
@@ -49,4 +52,40 @@ class CaptureWidgetUpdaterTest {
             status.value = CaptureQueueStatus(3, null)
             assertEquals(2, calls)
         }
+
+    @Test
+    fun `a failing queue read is retried with backoff and the updates resume`() =
+        runTest(UnconfinedTestDispatcher()) {
+            var reads = 0
+            val failing =
+                flow {
+                    reads++
+                    if (reads <= 2) throw IllegalStateException("database not available")
+                    emitAll(status)
+                }
+            var refreshes = 0
+            CaptureWidgetUpdater(failing, { refreshes++ }, backgroundScope).start()
+            assertEquals(1, reads)
+            assertEquals(0, refreshes)
+
+            advanceTimeBy(WIDGET_RETRY_FIRST_DELAY_MILLIS + 1)
+            assertEquals(2, reads)
+            assertEquals(0, refreshes)
+
+            advanceTimeBy(2 * WIDGET_RETRY_FIRST_DELAY_MILLIS + 1)
+            assertEquals(3, reads)
+            assertEquals(1, refreshes)
+
+            status.value = CaptureQueueStatus(5, null)
+            assertEquals(2, refreshes)
+        }
+
+    @Test
+    fun `the retry delay doubles up to one minute`() {
+        assertEquals(1_000L, retryDelayMillis(0))
+        assertEquals(2_000L, retryDelayMillis(1))
+        assertEquals(32_000L, retryDelayMillis(5))
+        assertEquals(WIDGET_RETRY_MAX_DELAY_MILLIS, retryDelayMillis(6))
+        assertEquals(WIDGET_RETRY_MAX_DELAY_MILLIS, retryDelayMillis(Long.MAX_VALUE))
+    }
 }
