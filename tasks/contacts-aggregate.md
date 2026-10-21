@@ -1,11 +1,11 @@
 ---
 title: Contact detail aggregation and autocomplete
-status: in_progress
+status: done
 owner: dell26/agent-1
 deps: [contacts-api,mail-read-api,cal-local-api,gtd-tasks-api]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/contacts/aggregate,server/src/test/kotlin/ch/sonensei/cockpit/contacts/aggregate]
 prio: 2
-lease_until: 2026-10-21T22:29:44Z
+lease_until: 
 ---
 ## Goal
 Everything about a person (SPEC.md §8.3).
@@ -25,3 +25,4 @@ Everything about a person (SPEC.md §8.3).
 - ASSUMPTION (2026-10-21 23:34+0200 by dell26/agent-1): Mail lookup by address reads mail_message directly via a read-only SQL query in contacts.aggregate (CorrespondenceQuery): the mail module has no address search service and the task's touches exclude mail/. Messages are then loaded through MailReadService.get.
 - ASSUMPTION (2026-10-21 23:34+0200 by dell26/agent-1): related: newest 20 mails (From/To/Cc, not Trash/Spam/Drafts, duplicate copies per Message-ID once), next 20 non-cancelled occurrences within 90 days of visible calendars with the contact as attendee, all open Waiting For tasks with waitingForContactId (tickler-hidden ones excluded, like the list).
 - ASSUMPTION (2026-10-21 23:34+0200 by dell26/agent-1): autocomplete: contacts first (one entry per email, names starting with q first), then correspondents from the newest 500 matching messages (excluding own account/identity addresses), default 10 / max 50 results; a blank q returns [] instead of 400.
+- done by dell26/agent-1: `sh scripts/check.sh` passed in 68s on dbc7a2460; criteria verified 4/4
