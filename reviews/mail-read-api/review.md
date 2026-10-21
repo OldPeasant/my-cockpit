@@ -4,19 +4,23 @@ Date: 2026-10-21
 
 Task: mail-read-api - Mail read API
 
-Scope: `git diff f13bb21ecd893e1596050797c46652c3769ab095...HEAD`, fourth review round on the final code. Reviewed revision: `c9a1f81c1a4efa0c6834bd374b988b748422f9c3`. The only production change since the third round's reviewed revision `aad84511` is in `server/src/main/kotlin/ch/sonensei/cockpit/mail/api/RemoteImageFetcher.kt` (`PublicAddresses.isPublicV6` and its KDoc, commits 5ec7ae51 and c9a1f81c), plus `PublicAddressesTests.kt`. Everything else in that range that is not under `mail/api` came in with the origin/main merge (files-api, web-task-detail) and belongs to other tasks. I re-read in full: `MailMessageController.kt`, `MailReadService.kt`, `MailContentLoader.kt`, `MailMessageListQuery.kt` and `RemoteImageFetcher.kt`.
+Scope: `git diff 33db686da665f2a87732abd7e7375383b1673af7...575c63f257e714bdfcae81977c48b0613808fc40`. This is the fifth and final review round. Reviewed revision: `575c63f257e714bdfcae81977c48b0613808fc40`. The base is the merge-base with origin/main after the rebase. The previous round reviewed `c9a1f81c`, which became `eb1342c4` after the rebase. Since then, the only change to the task's code is commit 575c63f2, which changes test code only:
+- `RemoteImageFetcherTests`: IPv6 local-use NAT64, SIIT, benchmarking and documentation addresses are blocked both as URL literals and as DNS answers.
+- `RemoteImageFetcherProtocolTests`: a request thread that is interrupted during the name lookup.
+
+`git diff c9a1f81c 575c63f2` shows no change under `server/src/main/kotlin/ch/sonensei/cockpit/mail` or `server/src/main/resources/db/migration/mail`. The only difference in `api/openapi.yaml` is the `/api/v1/restore` endpoints and the `Restore*` schemas. Those came from origin/main through the rebase and belong to another task. Within the task's range, the `api/openapi.yaml` changes are the mail endpoints only.
 
 Requirements:
-- `tasks/mail-read-api.md` acceptance criteria 1-4 and its ASSUMPTION notes (image proxy limits and SSRF, attachment download headers, list scopes, no \Seen, older mail deferred to `mail-load-older`, infra placed in `mail.api`)
+- `tasks/mail-read-api.md`: acceptance criteria 1-4 and its ASSUMPTION notes. These cover the list scopes, threading, no \Seen, the image proxy limits and SSRF policy, the attachment download headers, older mail being deferred to `mail-load-older`, and the infrastructure classes being placed in `mail.api`.
 - SPEC.md §4.1, §4.2, §7.2-7.4
-- `docs/ARCHITECTURE.md` conventions, `AGENTS.md` project notes
-- the third round's `reviews/mail-read-api/review.md` (CR-1, CR-2), `reviews/mail-read-api/fixes.md`, `reviews/mail-read-api/tests.md` (TW-1)
+- `docs/ARCHITECTURE.md` conventions and the `AGENTS.md` project notes
+- Earlier reports in `reviews/mail-read-api/`: `review.md` (round four), `fixes.md` and `tests.md`
 
 Git range:
 - Branch: main (local task clone)
-- HEAD: c9a1f81c1a4efa0c6834bd374b988b748422f9c3
-- Base/start: f13bb21ecd893e1596050797c46652c3769ab095
-- Commits reviewed: the task's commits in the range; this round looked closely at 5ec7ae51 and c9a1f81c (the CR-1 fix) on top of the previously reviewed aad84511. There were no uncommitted changes before this report was written.
+- HEAD: 575c63f257e714bdfcae81977c48b0613808fc40
+- Base/start: 33db686da665f2a87732abd7e7375383b1673af7
+- Commits reviewed: 18 in the range. This round looked closely at 575c63f2 on top of the previously reviewed eb1342c4 (formerly c9a1f81c). The only uncommitted change is `reviews/mail-read-api/tests.md` (the test-writer's report), which is not code.
 
 Summary: 0 P0, 0 P1, 0 P2, 0 P3
 
@@ -34,21 +38,37 @@ None.
 
 ## P3 Low
 
-None. The third round's CR-2 (persistence, IMAP and HTTP client code in `mail.api`) is still in the code. It is recorded as a task assumption (2026-10-21 01:14, dell26/agent-5) and deferred by decision, so I do not raise it again.
+None. The earlier CR-2 is unchanged: persistence, IMAP and HTTP client code lives in `mail.api` instead of `mail.infra`. It is recorded as a task assumption (2026-10-21 01:14, dell26/agent-5) and deferred by decision, so it is not raised again.
 
 ## Verified without findings
 
-- Third round's CR-1 / TW-1 is fixed. I checked each new range in `PublicAddresses.isPublicV6` (`RemoteImageFetcher.kt:112-126`) against its prefix bits:
-  - `2001:2::/48`: bytes `20 01 00 02 00 00`. Correct.
-  - `3fff::/20`: `b[0] == 0x3f && b[1] == 0xff && (b[2] and 0xf0) == 0`. This is exactly the first 20 bits `0011 1111 1111 1111 0000`. The draft's `b[1] >= 0xf0` covered `3ff0::/12`, which is too broad, and that is corrected.
-  - `64:ff9b:1::/48`: bytes `00 64 ff 9b 00 01`. Correct.
-  - `::ffff:0:0:0/96` (SIIT): bytes 0-7 zero, then `ff ff 00 00`. Correct. It does not overlap the IPv4-mapped branch, which requires bytes 0-9 to be zero.
-  - Well-known NAT64 `64:ff9b::/96` still has its embedded IPv4 address checked, because the `embeddedV4` branch runs first and requires bytes 4-11 to be zero. The new `/48` check therefore does not shadow it.
-- The KDoc (lines 58-64) now matches the policy.
-- The tests cover both ends of each range. Blocked: `64:ff9b:1:ffff:...`, `2001:2:0:ffff::1`, `3fff:fff:ffff::1`. Still public, just outside the ranges: `3fff:1000::1`, `3ffe:ffff::1`, `3ff0::1`, `2001:2:1::1`, `2001:3::1`, `64:ff9b:2::1`. The SIIT test is kept. Together these would catch the draft's over-broad `3fff` check and any regression to the original gap.
-- The fix does not change the API surface, so `api/openapi.yaml` and the generated client did not need to be regenerated for it.
-- The rest of AC1/AC2 (list scopes and keyset cursor, threaded counts, thread endpoint, read-only EXAMINE + peek, attachment streaming and headers, image proxy pinning, deadline, size and type limits, body cache with attachment metadata) is unchanged since the third round and still matches its verified description.
-- Test execution: the sandbox denied my request to run Gradle, so I could not re-run the tests myself. The existing result files in `server/build/test-results/test/` (written 02:01, just before commit c9a1f81c at 02:04, which changed only the code above) show `PublicAddressesTests` 85 tests, 0 failures, and `OpenApiContractTest` 1 test, 0 failures. That matches `fixes.md` (213 mail.api tests passing). The parent worker should still record its own runs of AC3 (including the `external` GreenMail tests) and AC4 with `tasks.py verify`.
+- **The new fetcher-level IPv6 test is meaningful** (`RemoteImageFetcherTests.kt:181-204`).
+  - The four DNS answers are `64:ff9b:1::808:808`, `::ffff:0:808:808`, `2001:2::1` and `3fff::1`. They hit the prefix checks at `RemoteImageFetcher.kt:117-123`.
+  - Two of them embed the public address 8.8.8.8. They therefore show that the block comes from the prefix, not from the embedded IPv4 address.
+  - For `::ffff:0:808:808`, bytes 8-9 are `ff ff` and bytes 10-11 are `00 00`. `InetAddress.getByName` returns an `Inet6Address` for it, not an IPv4-mapped `Inet4Address`, so the test really exercises the SIIT branch.
+  - The literal case goes through `target()`. There `uri.host` keeps the brackets, and the test resolver strips them. The production resolver (`InetAddress.getAllByName`) accepts bracketed literals as well.
+  - Each case runs through `fetch` → `address()` → `allowAddress` and expects `BLOCKED_ADDRESS`. This is the integration-level check that the third round's TW-1 asked for.
+- **The interrupt test matches the production path** (`RemoteImageFetcherProtocolTests.kt:326-350`).
+  - The calling thread's interrupt flag is set before `fetch`, so `lookup.get` at `RemoteImageFetcher.kt:249` throws `InterruptedException` immediately.
+  - The handler (`:253-256`) cancels the lookup, restores the flag and maps the error to `TIMEOUT`. The test asserts both effects.
+  - It runs on its own pool thread, so the JUnit thread is not left interrupted. The lookup thread is blocked on the latch, and `release.countDown()` frees it, so no lookup thread is left blocked longer than the latch's own 5 s bound.
+- **The production code is unchanged since the round-four verification**, which covered:
+  - list scopes and the keyset cursor;
+  - threaded counts and the thread endpoint;
+  - read-only EXAMINE with BODY.PEEK;
+  - attachment streaming and the download headers;
+  - image proxy address pinning, deadline, size and type limits, and the SSRF policy, including the CR-1 IPv6 ranges;
+  - the LRU body cache with its size bound and the attachment metadata cache.
+
+  These findings still hold.
+- **The test counts match the test sources.** `integrationTest` runs the `external` tag (`server/build.gradle.kts:105-115`). `MailReadGreenMailTests` has 7 `@Test` methods and `MailBodyCacheEvictionGreenMailTests` has 1, which matches the parent's reported 8 passing `external` tests.
+- **Evidence status.** I did not re-run Gradle myself in this round; my checks were read-only. The parent reports these results on HEAD:
+  - `./gradlew ktlintCheck test --tests 'ch.sonensei.cockpit.mail.api.*'`: 215 tests, 0 failures.
+  - `./gradlew integrationTest --tests 'ch.sonensei.cockpit.mail.api.*'`: 8 passed.
+  - `OpenApiContractTest` passes without the flag.
+  - The test-writer reports that `sh scripts/check.sh` passes.
+
+  `python tasks.py verify mail-read-api` currently lists all four criteria as unverified. The parent worker still has to record AC1-AC4 with these commands and results before `done`.
 
 ## Review conclusion
 

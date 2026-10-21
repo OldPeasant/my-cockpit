@@ -1,0 +1,25 @@
+{
+  "schema": 1,
+  "task": "mail-read-api",
+  "reviewed_revision": "575c63f257e714bdfcae81977c48b0613808fc40",
+  "helpers": {
+    "test-writer":   {"status": "completed", "report": "reviews/mail-read-api/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/mail-read-api/review.md"},
+    "fixer":         {"status": "completed", "report": "reviews/mail-read-api/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P1", "disposition": "fixed",
+     "note": "SSRF policy now blocks 64:ff9b:1::/48, ::ffff:0:0:0/96, 2001:2::/48 and 3fff::/20"},
+    {"id": "TW-1", "source": "test-writer", "severity": "High", "disposition": "fixed",
+     "note": "same defect as CR-1; the failing PublicAddressesTests now pass"},
+    {"id": "CR-2", "source": "code-reviewer", "severity": "P3", "disposition": "accepted",
+     "note": "infra code in mail.api: task touches only allow mail/api; recorded as task assumption, move it when a later mail task touches these classes"}
+  ],
+  "validation": [
+    {"command": "cd server && ./gradlew ktlintCheck test --tests 'ch.sonensei.cockpit.mail.api.*'", "result": "pass"},
+    {"command": "cd server && ./gradlew integrationTest --tests 'ch.sonensei.cockpit.mail.api.*'", "result": "pass"},
+    {"command": "cd server && ./gradlew test --tests '*OpenApiContractTest'", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
