@@ -1,0 +1,34 @@
+{
+  "schema": 1,
+  "task": "cal-ics",
+  "reviewed_revision": "98542708ca522bb186c32bb079cb05987ee0bf0d",
+  "helpers": {
+    "test-writer":   {"status": "completed", "report": "reviews/cal-ics/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/cal-ics/review.md"},
+    "fixer":         {"status": "completed", "report": "reviews/cal-ics/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "R1-CR-1", "source": "code-reviewer", "severity": "P1", "disposition": "fixed",
+     "note": "review round 1: non-iCalendar or truncated 2xx body deleted all events; only a complete VCALENDAR is complete=true now (359d2f68)"},
+    {"id": "R1-CR-2", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "review round 1: timeout did not cover body reading; whole-fetch deadline (359d2f68)"},
+    {"id": "R1-CR-3", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "review round 1: missing tests for size limit, gzip, webcal, redirects, parser/mapping; added by test-writer (adc78a7a, 99011e95)"},
+    {"id": "R1-CR-4", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "review round 1: orphan overrides caused permanent sync error (359d2f68)"},
+    {"id": "R1-CR-5", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "review round 1: unreadable VEVENT now gives complete=false, nothing deleted, skip count logged (359d2f68; assumption recorded)"},
+    {"id": "R2-CR-1", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "review round 2: test comment quoted old timeout contract (085c3f88)"},
+    {"id": "R2-CR-2", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "review round 2: timeout/connect-timeout validated positive (085c3f88)"},
+    {"id": "R4-CR-1", "source": "code-reviewer", "severity": "P3", "disposition": "accepted",
+     "note": "KDoc of IcsFeedProperties.timeout says DNS resolution for the SSRF check is not part of the timeout; it is counted, only a running lookup is not interrupted. Comment-only inaccuracy, behaviour correct; same point noted in tests.md"}
+  ],
+  "validation": [
+    {"command": "cd server && ./gradlew test --rerun --tests 'ch.sonensei.cockpit.calendar.infra.ics.*' jacocoTestReport ktlintCheck", "result": "pass"},
+    {"command": "cd server && ./gradlew test --tests 'ch.sonensei.cockpit.calendar.infra.ics.*' ktlintCheck", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
