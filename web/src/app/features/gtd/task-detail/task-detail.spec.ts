@@ -1531,5 +1531,72 @@ describe('TaskDetail', () => {
       expect(callsOf(updateTask)).toHaveLength(1);
       expect(callsOf(updateTask)[0].params).toMatchObject({ id: 't2', 'If-Match': '"7"' });
     });
+
+    it('keeps the conversion of the new task running when the previous one answers first, then opens its note', async () => {
+      vi.spyOn(window, 'confirm').mockReturnValue(true);
+      const pending = new Map<string, () => void>();
+      const T2_NOTE: NoteResponse = { ...NOTE, id: 'n2', title: 'Water the plants' };
+      answer = (fn, params) => {
+        if (fn === getTask && params['id'] === 't2') {
+          return Promise.resolve(task({ id: 't2', title: 'Water the plants', version: 7 }));
+        }
+        if (fn === convertTaskToNote) {
+          const id = String(params['id']);
+          return new Promise<NoteResponse>((resolve) =>
+            pending.set(id, () => resolve(id === 't2' ? T2_NOTE : NOTE)),
+          );
+        }
+        return undefined;
+      };
+      await render();
+      await toReference();
+      host.id.set('t2');
+      await refresh();
+      await toReference();
+      expect(callsOf(convertTaskToNote).map((call) => call.params['id'])).toEqual(['t1', 't2']);
+      expect(callsOf(convertTaskToNote)[1].params).toMatchObject({ 'If-Match': '"7"' });
+
+      // The conversion of t1 answers while t2 is still being converted.
+      pending.get('t1')!();
+      await refresh();
+      expect(navigate).not.toHaveBeenCalled();
+      expect(referenceButton().textContent?.trim()).toBe('Moving to reference…');
+      expect(referenceButton().disabled).toBe(true);
+
+      pending.get('t2')!();
+      await refresh();
+      expect(navigate).toHaveBeenCalledTimes(1);
+      expect(navigate).toHaveBeenCalledWith(['/notes', 'n2']);
+    });
+
+    it('shows the running conversion again and opens the note when the editor comes back to the task', async () => {
+      vi.spyOn(window, 'confirm').mockReturnValue(true);
+      let succeed!: () => void;
+      answer = (fn, params) => {
+        if (fn === getTask && params['id'] === 't2') {
+          return Promise.resolve(task({ id: 't2', title: 'Water the plants', version: 7 }));
+        }
+        if (fn === convertTaskToNote) {
+          return new Promise<NoteResponse>((resolve) => (succeed = () => resolve(NOTE)));
+        }
+        return undefined;
+      };
+      await render();
+      await toReference();
+      host.id.set('t2');
+      await refresh();
+      expect(referenceButton().disabled).toBe(false);
+
+      host.id.set('t1');
+      await refresh();
+      expect(referenceButton().textContent?.trim()).toBe('Moving to reference…');
+      expect(referenceButton().disabled).toBe(true);
+
+      succeed();
+      await refresh();
+      expect(callsOf(convertTaskToNote)).toHaveLength(1);
+      expect(navigate).toHaveBeenCalledTimes(1);
+      expect(navigate).toHaveBeenCalledWith(['/notes', 'n1']);
+    });
   });
 });

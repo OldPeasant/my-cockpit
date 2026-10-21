@@ -734,6 +734,34 @@ describe('InboxPage', () => {
       expect(progress()).toBe('67');
     });
 
+    it('a slow earlier action answering after a later conversion keeps that note link', async () => {
+      await render([task('t1'), task('t2'), task('t3')]);
+      let finish!: () => void;
+      answer = (fn, params) =>
+        fn === moveTask
+          ? new Promise(
+              (resolve) =>
+                (finish = () =>
+                  resolve({ ...task(String(params['id'])), list: 'NEXT', version: 2 })),
+            )
+          : undefined;
+      await press('p');
+
+      await press('n');
+      answer = undefined;
+      await press('r');
+      expect(callsOf(convertTaskToNote).map((call) => call.params['id'])).toEqual(['t2']);
+      expect(openNote()?.getAttribute('href')).toBe('/notes/n-t2');
+
+      finish();
+      await refresh();
+
+      // The conversion of t2 was the latest action: the move of t1 answering later keeps its link.
+      expect(openNote()?.getAttribute('href')).toBe('/notes/n-t2');
+      expect(title()).toBe('Item t3');
+      expect(progress()).toBe('67');
+    });
+
     it('a failed conversion keeps the note offered by the previous one', async () => {
       await render([task('t1'), task('t2'), task('t3')]);
       await press('p');
