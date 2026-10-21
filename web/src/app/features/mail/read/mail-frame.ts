@@ -91,8 +91,10 @@ export class MailFrame {
     const frame = this.frame().nativeElement;
     const body = frame.contentDocument?.body;
     if (!body) return;
+    // Measure the body (no margin), not the root: in standards mode the root's scrollHeight is at
+    // least the frame's own height, so the frame could grow but never shrink again.
     const resize = () => {
-      const height = frame.contentDocument?.documentElement.scrollHeight ?? 0;
+      const height = frame.contentDocument?.body?.scrollHeight ?? 0;
       frame.style.height = `${height}px`;
     };
     resize();

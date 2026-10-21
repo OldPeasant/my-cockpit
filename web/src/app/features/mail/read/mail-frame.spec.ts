@@ -70,11 +70,31 @@ describe('MailFrame', () => {
 
     /** Gives the frame's document a content height (jsdom does no layout). */
     function contentHeight(px: number) {
+      Object.defineProperty(frame().contentDocument!.body, 'scrollHeight', {
+        configurable: true,
+        get: () => px,
+      });
+    }
+
+    /** The root element's scrollHeight, which in standards mode never drops below the frame. */
+    function rootHeight(px: number) {
       Object.defineProperty(frame().contentDocument!.documentElement, 'scrollHeight', {
         configurable: true,
         get: () => px,
       });
     }
+
+    it('shrinks again when the content gets shorter (measures the body, not the root)', () => {
+      contentHeight(900);
+      rootHeight(900);
+      frame().dispatchEvent(new Event('load'));
+      expect(frame().style.height).toBe('900px');
+
+      // The window widens and the text reflows into fewer lines; the root stays at the frame height.
+      contentHeight(300);
+      observers[0].callback();
+      expect(frame().style.height).toBe('300px');
+    });
 
     it('grows to its document height on load and follows later size changes', () => {
       expect(frame().contentDocument?.body).toBeTruthy();

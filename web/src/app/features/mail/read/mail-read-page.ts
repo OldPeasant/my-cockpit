@@ -22,7 +22,7 @@ import {
 } from '../../../api/generated';
 import { ApiError, NotificationService } from '../../../core/http';
 import { LinkedItems } from '../../../shared/links';
-import { formatBytes } from '../../files/upload/format-bytes';
+import { formatBytes } from './format-bytes';
 import { ImageAllowlist } from './image-allowlist';
 import { MailFrame } from './mail-frame';
 import { attachmentUrl, MailGtdAction, MailReadService } from './mail-read.service';
@@ -68,7 +68,7 @@ export default class MailReadPage {
   protected readonly loadingImages = signal(false);
   /** The GTD action that is running. */
   protected readonly busy = signal<MailGtdAction | null>(null);
-  /** Part ids being saved to Files. */
+  /** Attachments being saved to Files, by message id and part id (part ids repeat across messages). */
   protected readonly saving = signal<ReadonlySet<string>>(new Set());
   protected readonly preview = signal<Preview | null>(null);
 
@@ -177,17 +177,20 @@ export default class MailReadPage {
       this.preview.set({ partId, name, kind: 'image', url: attachmentUrl(id, partId, true) });
       return;
     }
-    this.preview.set({ partId, name, kind: 'text', text: null, error: null });
+    // Only this very preview may take the answer: part ids repeat across messages, and the user may
+    // have moved to another message or preview meanwhile.
+    const pending: Preview = { partId, name, kind: 'text', text: null, error: null };
+    this.preview.set(pending);
     try {
       const text = (await (await this.service.attachment(id, partId)).text()).slice(
         0,
         TEXT_PREVIEW_LIMIT,
       );
-      if (this.preview()?.partId === partId) {
+      if (this.preview() === pending) {
         this.preview.set({ partId, name, kind: 'text', text, error: null });
       }
     } catch (error) {
-      if (this.preview()?.partId === partId) {
+      if (this.preview() === pending) {
         this.preview.set({ partId, name, kind: 'text', text: null, error: messageOf(error) });
       }
     }
@@ -200,8 +203,10 @@ export default class MailReadPage {
   protected async saveToFiles(part: MailAttachmentResponse): Promise<void> {
     const id = this.message()?.id;
     const partId = part.partId;
-    if (!id || !partId || this.saving().has(partId)) return;
-    this.saving.update((ids) => new Set(ids).add(partId));
+    if (!id || !partId) return;
+    const key = savingKey(id, partId);
+    if (this.saving().has(key)) return;
+    this.saving.update((keys) => new Set(keys).add(key));
     try {
       const file = await this.service.saveToFiles(id, partId, part.filename);
       const name = file.name;
@@ -209,12 +214,18 @@ export default class MailReadPage {
     } catch (error) {
       this.notifications.error(messageOf(error));
     } finally {
-      this.saving.update((ids) => {
-        const rest = new Set(ids);
-        rest.delete(partId);
+      this.saving.update((keys) => {
+        const rest = new Set(keys);
+        rest.delete(key);
         return rest;
       });
     }
+  }
+
+  /** Whether this attachment of the shown message is being saved to Files. */
+  protected isSaving(part: MailAttachmentResponse): boolean {
+    const id = this.message()?.id;
+    return !!id && !!part.partId && this.saving().has(savingKey(id, part.partId));
   }
 
   protected size(part: MailAttachmentResponse): string {
@@ -245,9 +256,16 @@ export default class MailReadPage {
       if (seq !== this.seq) return;
       const sender = message.from?.[0]?.address;
       if (message.body?.remoteImagesBlocked && this.allowlist.has(sender) && message.id) {
-        message = await this.service.get(message.id, true);
-        if (seq !== this.seq) return;
-        this.loadImages.set(true);
+        try {
+          const proxied = await this.service.get(message.id, true);
+          if (seq !== this.seq) return;
+          message = proxied;
+          this.loadImages.set(true);
+        } catch (error) {
+          // The blocked copy is readable: show it (its banner offers "Load images" again).
+          if (seq !== this.seq || this.destroyed) return;
+          this.notifications.error(messageOf(error));
+        }
       }
       this.message.set(message);
       this.state.set('ready');
@@ -265,6 +283,10 @@ export default class MailReadPage {
       }
     }
   }
+}
+
+function savingKey(messageId: string, partId: string): string {
+  return `${messageId}/${partId}`;
 }
 
 function previewKind(part: MailAttachmentResponse): 'image' | 'text' | null {

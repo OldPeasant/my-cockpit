@@ -240,6 +240,27 @@ describe('MailReadPage', () => {
       expect(notifications.error).toHaveBeenCalledWith('The mail server failed');
       expect(el().querySelector('.images')).not.toBeNull();
     });
+
+    it('shows the blocked copy when the proxied load for an allowed sender fails', async () => {
+      localStorage.setItem(IMAGE_ALLOWLIST_KEY, JSON.stringify(['max.muster@example.test']));
+      await create(
+        blocked(),
+        new ApiError(502, 'Bad gateway', 'The mail server failed'),
+        proxied(),
+      );
+      expect(service.gets.map((g) => g.loadImages)).toEqual([false, true]);
+      expect(notifications.error).toHaveBeenCalledWith('The mail server failed');
+      expect(el().querySelector('[role=alert]')).toBeNull();
+      expect(el().querySelector('h1')?.textContent?.trim()).toBe('Quarterly report');
+      expect(iframe()!.srcdoc).toContain('<p>x</p>');
+      expect(el().querySelector('.images:not(.quiet)')).not.toBeNull();
+
+      // The banner offers the images again.
+      button('Load images')!.click();
+      await flush();
+      fixture.detectChanges();
+      expect(iframe()!.srcdoc).toContain('image-proxy');
+    });
   });
 
   describe('GTD actions', () => {
@@ -531,6 +552,91 @@ describe('MailReadPage', () => {
       expect(el().querySelector('.preview')).not.toBeNull();
       await navigate(OTHER);
       expect(el().querySelector('.preview')).toBeNull();
+    });
+
+    /** A message with one text attachment under part id "4" (part ids repeat across messages). */
+    const withNotes = (id: string, filename: string) =>
+      message({
+        id,
+        subject: filename,
+        attachments: [
+          { partId: '4', filename, contentId: '', contentType: 'text/plain', sizeBytes: 10 },
+        ],
+      });
+    const partButton = (label: string) =>
+      [...el().querySelectorAll<HTMLButtonElement>('.attachments li button')].find(
+        (b) => b.textContent?.trim() === label,
+      )!;
+
+    it('does not show a late text preview of the previous message under the same part id', async () => {
+      await create(withNotes(ID, 'old.txt'), withNotes(OTHER, 'new.txt'));
+      const oldBlob = deferred<Blob>();
+      service.blob = oldBlob.promise;
+      partButton('Preview').click();
+      await navigate(OTHER);
+
+      const newBlob = deferred<Blob>();
+      service.blob = newBlob.promise;
+      partButton('Preview').click();
+      oldBlob.resolve(new Blob(['old text']));
+      await flush();
+      fixture.detectChanges();
+      expect(el().querySelector('.preview figcaption span')?.textContent).toBe('new.txt');
+      expect(el().querySelector('.preview pre')).toBeNull();
+      expect(el().querySelector('.preview [role=status]')?.textContent).toContain(
+        'Loading preview',
+      );
+
+      newBlob.resolve(new Blob(['new text']));
+      await flush();
+      fixture.detectChanges();
+      expect(el().querySelector('.preview pre')?.textContent).toBe('new text');
+    });
+
+    it('does not show a late preview failure of the previous message either', async () => {
+      await create(withNotes(ID, 'old.txt'), withNotes(OTHER, 'new.txt'));
+      const oldBlob = deferred<Blob>();
+      service.blob = oldBlob.promise;
+      partButton('Preview').click();
+      await navigate(OTHER);
+
+      service.blob = deferred<Blob>().promise;
+      partButton('Preview').click();
+      oldBlob.reject(new ApiError(404, 'Not found', 'The attachment is gone'));
+      await flush();
+      fixture.detectChanges();
+      expect(el().querySelector('.preview [role=alert]')).toBeNull();
+    });
+
+    it('lets the next message save a part with the same id while an older save runs', async () => {
+      await create(withNotes(ID, 'old.txt'), withNotes(OTHER, 'new.txt'));
+      const oldSave = deferred<{ name: string }>();
+      service.saveResult = oldSave.promise;
+      partButton('Save to Files').click();
+      fixture.detectChanges();
+      expect(partButton('Save to Files').disabled).toBe(true);
+
+      await navigate(OTHER);
+      expect(partButton('Save to Files').disabled).toBe(false);
+      const newSave = deferred<{ name: string }>();
+      service.saveResult = newSave.promise;
+      partButton('Save to Files').click();
+      fixture.detectChanges();
+      expect(service.saves).toEqual([
+        { id: ID, partId: '4', name: 'old.txt' },
+        { id: OTHER, partId: '4', name: 'new.txt' },
+      ]);
+
+      // The older save ends first: the newer one is still running, so its button stays disabled.
+      oldSave.resolve({ name: 'old.txt' });
+      await flush();
+      fixture.detectChanges();
+      expect(partButton('Save to Files').disabled).toBe(true);
+
+      newSave.resolve({ name: 'new.txt' });
+      await flush();
+      fixture.detectChanges();
+      expect(partButton('Save to Files').disabled).toBe(false);
     });
   });
 

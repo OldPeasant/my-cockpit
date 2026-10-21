@@ -177,7 +177,7 @@
                       <button
                         mat-button
                         type="button"
-                        [disabled]="saving().has(part.partId!)"
+                        [disabled]="isSaving(part)"
                         (click)="saveToFiles(part)"
                         i18n="@@mailRead.saveToFiles"
                       >
