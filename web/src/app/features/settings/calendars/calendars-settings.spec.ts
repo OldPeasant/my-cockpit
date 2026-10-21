@@ -275,6 +275,52 @@ describe('CalendarsSettings', () => {
     await settle();
   });
 
+  it('keeps a newer state from a reload when a change answers after it', async () => {
+    await setup();
+    // Work (the default) is hidden, and Personal becomes the default, both in flight.
+    const toggle = root.querySelector<HTMLButtonElement>(
+      'button[aria-label="Show Work in the calendar"], [aria-label="Show Work in the calendar"] button',
+    )!;
+    toggle.click();
+    await settle();
+    const hide = http.expectOne({ method: 'PATCH', url: `${CALENDARS}/c2` });
+    expect(hide.request.body).toEqual({ visible: false });
+    root
+      .querySelector<HTMLButtonElement>('button[aria-label="Use Personal for new events"]')!
+      .click();
+    await settle();
+    http
+      .expectOne({ method: 'PATCH', url: `${CALENDARS}/c1` })
+      .flush({ ...fakeCalendar(), isDefault: true, version: 1 });
+    await settle();
+    // The reload shows Work after both changes: hidden, no longer the default.
+    flushReload(
+      [
+        fakeCalendar({ isDefault: true, version: 1 }),
+        { ...work, visible: false, isDefault: false, version: 5 },
+        holidays,
+      ],
+      [fakeSource(), fakeSyncedSource(), fakeSyncedSource({ id: 's2', name: 'Swiss holidays' })],
+    );
+    await settle();
+    // Only then does the answer of the hide arrive, with the older state (still the default).
+    hide.flush({ ...work, visible: false, isDefault: true, version: 4 });
+    await settle();
+
+    expect(root.querySelector('button[aria-label="Use Work for new events"]')).not.toBeNull();
+    expect(root.querySelector('button[aria-label="Use Personal for new events"]')).toBeNull();
+
+    // The next change of Work is sent at the version of the reload.
+    const swatch = root.querySelector<HTMLInputElement>('input[aria-label="Color of Work"]')!;
+    swatch.value = '#00aa00';
+    swatch.dispatchEvent(new Event('change'));
+    await settle();
+    const req = http.expectOne({ method: 'PATCH', url: `${CALENDARS}/c2` });
+    expect(req.request.headers.get('If-Match')).toBe('"5"');
+    req.flush({ ...work, visible: false, isDefault: false, color: '#00aa00', version: 6 });
+    await settle();
+  });
+
   it('drops a reload that answers after a newer one', async () => {
     await setup();
     root

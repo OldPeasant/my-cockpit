@@ -281,7 +281,12 @@ export default class CalendarsSettings implements OnInit {
       const saved = await this.service.update(this.current(calendar), body);
       // A new default takes the flag from the old one (a new version there too): read both again.
       if (body.isDefault) await this.reload();
-      else this.calendars.update((all) => all?.map((c) => (c.id === saved.id ? saved : c)) ?? null);
+      // A reload that answered first may show a newer version (as apply() does): keep that one.
+      else
+        this.calendars.update(
+          (all) =>
+            all?.map((c) => (c.id === saved.id && saved.version >= c.version ? saved : c)) ?? null,
+        );
     } catch (error) {
       this.saveError.set({ name: calendar.name, message: saveMessage(error) });
       // Show what the server has: the toggle or color goes back, a concurrent change shows up.

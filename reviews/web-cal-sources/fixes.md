@@ -144,3 +144,56 @@ Remaining unresolved findings:
 ## Final status
 
 All validated findings fixed and validation passed.
+
+# Fix Report - round 2
+
+Date: 2026-10-21
+
+Task: web-cal-sources - Settings: calendars and integrations
+
+Scope: the one finding of the re-review (`reviews/web-cal-sources/review.md`, P3 CR-1).
+
+## Fixed findings
+
+### CR-1 (round 2) - A late PATCH answer can still replace a newer state from a reload
+
+Files changed:
+- `web/src/app/features/settings/calendars/calendars-settings.ts`
+- `web/src/app/features/settings/calendars/calendars-settings.spec.ts`
+
+Problem:
+`change()` merged a non-default PATCH result into the list without comparing versions. If a reload that already showed a newer version of the same calendar answered first, the late PATCH answer replaced it. The page could then show two defaults, and the next change of that calendar got a 412.
+
+Fix:
+`change()` now merges `saved` only when `saved.version >= c.version`. This is the same rule `apply()` uses for reloads.
+
+Test: the new test `keeps a newer state from a reload when a change answers after it` hides Work, the default at version 3, and makes Personal the default while the hide is still in flight. The reload shows Work at version 5, no longer the default. The hide answer then arrives with version 4, still the default. The test checks that Work is still offered as "Use for new events", that Personal is the only default, and that the next change of Work sends `If-Match: "5"`. With the guard temporarily removed, this test failed (1 failed, 27 passed). With the guard in place, it passes.
+
+Validation:
+- `cd web && npx ng test --watch=false --include src/app/features/settings/calendars/calendars-settings.spec.ts` - Pass (28 tests)
+- `cd web && npm run check` - Pass
+
+## Not fixed
+
+None.
+
+## Validation summary
+
+Focused tests:
+- `cd web && npx ng test --watch=false --include src/app/features/settings/calendars/calendars-settings.spec.ts` - Pass (28 tests; the new test fails without the fix)
+
+Full test suite:
+- `cd web && npm run check` (api:check, lint, e2e typecheck, vitest, build) - Pass ("All files pass linting"; 123 files, 2424 tests passed; build complete; the initial-bundle budget warning was already there and is unchanged)
+
+Lint/type-check/build:
+- Covered by `npm run check`. The server is unchanged in this round.
+
+`.taskcheck`:
+- Not run by the fixer. The parent runs `sh scripts/check.sh` before `done`.
+
+Remaining unresolved findings:
+0
+
+## Final status
+
+All validated findings fixed and validation passed.
