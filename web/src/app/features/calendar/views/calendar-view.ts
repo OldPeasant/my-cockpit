@@ -27,13 +27,12 @@ import classicTheme from '@fullcalendar/angular/themes/classic';
 import timeGridPlugin from '@fullcalendar/angular/timegrid';
 import { CalendarResponse, OccurrenceResponse } from '../../../api/generated';
 import { NotificationService } from '../../../core/http';
-import { TaskStore } from '../../gtd/data';
 import { SettingsService } from '../../settings/settings.service';
 import { EventEditService } from '../edit/event-edit.service';
 import { EditorContext, EventEditor, MovedTimes, timesOf } from '../edit/event-editor';
 import { addHours, nextFullHour } from '../edit/event-times';
 import { occurrenceOfEvent } from '../overlay/event-links.service';
-import { DayRange, TaskOverlay, taskMarkOf } from '../overlay/task-overlay';
+import { DayRange, OverlayTaskStore, TaskOverlay, taskMarkOf } from '../overlay/task-overlay';
 import { calendarColor, CalendarStore } from './calendar-store';
 import {
   dateIn,
@@ -64,7 +63,7 @@ import { OccurrenceRange, OccurrenceStore } from './occurrence-store';
   // FullCalendar renders its own DOM: its theme and our overrides must reach it unscoped.
   encapsulation: ViewEncapsulation.None,
   imports: [FullCalendarModule, MatButtonModule],
-  providers: [OccurrenceStore, TaskOverlay, TaskStore],
+  providers: [OccurrenceStore, TaskOverlay, OverlayTaskStore],
   templateUrl: './calendar-view.html',
   styleUrls: ['./calendar-view.scss', '../overlay/task-overlay.scss'],
 })

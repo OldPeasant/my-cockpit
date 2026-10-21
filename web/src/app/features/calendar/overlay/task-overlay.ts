@@ -26,16 +26,31 @@ export interface TaskMark {
 const DUE_SLOT_HOURS = 0.5;
 
 /**
+ * The tasks of the overlay: a {@link TaskStore} that fetches (load, refresh, change events, SSE
+ * resync) only while the overlay is on, so a calendar with the overlay off requests no tasks.
+ * {@link TaskOverlay} switches it; turned on again, the overlay loads its range anew.
+ */
+@Injectable()
+export class OverlayTaskStore extends TaskStore {
+  /** Whether the overlay is on (set by {@link TaskOverlay}). */
+  active = false;
+
+  override refresh(): Promise<void> {
+    return this.active ? super.refresh() : Promise.resolve();
+  }
+}
+
+/**
  * The optional task overlay of the day and week views (SPEC.md §6.3): open tasks due on the shown
  * days (at their due time, else all day) and ticklers coming back on them. Off by default; the
- * toggle is remembered in the browser. The tasks stay current through the {@link TaskStore}
- * (change events, SSE resync).
+ * toggle is remembered in the browser. While on, the tasks stay current through the
+ * {@link OverlayTaskStore} (change events, SSE resync); while off, nothing is fetched.
  *
- * Provided by the calendar view (`providers: [TaskOverlay, TaskStore]`).
+ * Provided by the calendar view (`providers: [TaskOverlay, OverlayTaskStore]`).
  */
 @Injectable()
 export class TaskOverlay {
-  private readonly tasks = inject(TaskStore);
+  private readonly tasks = inject(OverlayTaskStore);
   private readonly storage = inject(DOCUMENT).defaultView?.localStorage;
 
   private readonly enabledState = signal(this.read());
@@ -45,6 +60,10 @@ export class TaskOverlay {
   readonly enabled = this.enabledState.asReadonly();
   /** The error of the last task request, `null` once one succeeded. */
   readonly error = this.tasks.error;
+
+  constructor() {
+    this.tasks.active = this.enabledState();
+  }
 
   /** The overlay entries of the loaded tasks (empty while off), in the zone `timeZone`. */
   entries(timeZone: string): EventInput[] {
@@ -57,6 +76,7 @@ export class TaskOverlay {
   /** Turns the overlay on or off; on loads the tasks of the shown days. */
   setEnabled(enabled: boolean): void {
     this.enabledState.set(enabled);
+    this.tasks.active = enabled;
     try {
       this.storage?.setItem(TASK_OVERLAY_KEY, String(enabled));
     } catch {

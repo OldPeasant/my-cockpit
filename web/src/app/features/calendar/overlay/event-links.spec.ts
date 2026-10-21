@@ -176,21 +176,21 @@ describe('EventLinks', () => {
     expect(button('Create note for event')).toBeDefined();
   });
 
-  it('creates an Inbox task from the event, links it and shows it', async () => {
+  it('creates an Inbox task from the event titled with its date, links it and shows it', async () => {
     await render();
-    linked = [linkTo('TASK', 't1', 'Planning')];
+    linked = [linkTo('TASK', 't1', 'Planning (2026-03-23)')];
     button('Create task from event')!.click();
     await stable();
     expect(invoke).toHaveBeenCalledWith(
       createTask,
-      { body: { title: 'Planning', list: 'INBOX' } },
+      { body: { title: 'Planning (2026-03-23)', list: 'INBOX' } },
       expect.anything(),
     );
     expect(links.create).toHaveBeenCalledWith(
       { type: 'TASK', id: 't1' },
       { type: 'EVENT', id: 'e1' },
     );
-    expect(notifications.info).toHaveBeenCalledWith('Added to Inbox: Planning');
+    expect(notifications.info).toHaveBeenCalledWith('Added to Inbox: Planning (2026-03-23)');
     // The panel reloaded and lists the new task.
     expect(links.list).toHaveBeenCalledTimes(2);
     expect(root.querySelector('a[href="/tasks/t1"]')).not.toBeNull();
@@ -312,6 +312,17 @@ describe('EventLinks', () => {
     expect(invoke).toHaveBeenCalledWith(
       createNote,
       { body: { title: 'Planning' } },
+      expect.anything(),
+    );
+  });
+
+  it('titles a task without a date when the occurrence has none', async () => {
+    await render(fakeOccurrence('Planning', { eventId: 'e1', start: undefined }));
+    button('Create task from event')!.click();
+    await stable();
+    expect(invoke).toHaveBeenCalledWith(
+      createTask,
+      { body: { title: 'Planning', list: 'INBOX' } },
       expect.anything(),
     );
   });

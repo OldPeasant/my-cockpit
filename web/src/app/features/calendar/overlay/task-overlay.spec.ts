@@ -1,9 +1,16 @@
 import { DOCUMENT, signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
-import { TaskResponse } from '../../../api/generated';
-import { TaskStore } from '../../gtd/data';
+import { filter, Subject } from 'rxjs';
+import { Api, ChangeEvent, listTasks, TaskResponse } from '../../../api/generated';
+import { ChangeEventsService } from '../../../core/events';
 import { dayRange } from '../views/calendar-view';
-import { TASK_OVERLAY_KEY, TaskOverlay, taskEvents, taskMarkOf } from './task-overlay';
+import {
+  OverlayTaskStore,
+  TASK_OVERLAY_KEY,
+  TaskOverlay,
+  taskEvents,
+  taskMarkOf,
+} from './task-overlay';
 
 const ZURICH = 'Europe/Zurich';
 
@@ -46,7 +53,11 @@ describe('taskEvents', () => {
   });
 
   it('shows a task due and coming back from a tickler in the range twice, with distinct ids', () => {
-    const both = task('a', { title: 'Renew passport', dueDate: '2026-03-27', ticklerDate: '2026-03-24' });
+    const both = task('a', {
+      title: 'Renew passport',
+      dueDate: '2026-03-27',
+      ticklerDate: '2026-03-24',
+    });
     const entries = taskEvents(both, WEEK, ZURICH);
     expect(entries).toEqual([
       expect.objectContaining({
@@ -151,7 +162,12 @@ describe('dayRange', () => {
 
 describe('TaskOverlay', () => {
   let items: ReturnType<typeof signal<TaskResponse[]>>;
-  let store: { items: typeof items; error: ReturnType<typeof signal<unknown>>; load: ReturnType<typeof vi.fn>; refresh: ReturnType<typeof vi.fn> };
+  let store: {
+    items: typeof items;
+    error: ReturnType<typeof signal<unknown>>;
+    load: ReturnType<typeof vi.fn>;
+    refresh: ReturnType<typeof vi.fn>;
+  };
 
   function create(storage?: Partial<Storage> | null): TaskOverlay {
     items = signal<TaskResponse[]>([]);
@@ -161,7 +177,7 @@ describe('TaskOverlay', () => {
       load: vi.fn(() => Promise.resolve()),
       refresh: vi.fn(() => Promise.resolve()),
     };
-    const providers: unknown[] = [TaskOverlay, { provide: TaskStore, useValue: store }];
+    const providers: unknown[] = [TaskOverlay, { provide: OverlayTaskStore, useValue: store }];
     if (storage !== undefined) {
       providers.push({
         provide: DOCUMENT,
@@ -295,5 +311,87 @@ describe('TaskOverlay', () => {
     overlay.setEnabled(true);
     expect(overlay.enabled()).toBe(true);
     expect(store.load).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('TaskOverlay with its OverlayTaskStore', () => {
+  let changes: Subject<ChangeEvent>;
+  let resyncs: Subject<void>;
+  let invoke: ReturnType<typeof vi.fn>;
+
+  /** Lets pending promise callbacks run. */
+  const settle = () => new Promise((resolve) => setTimeout(resolve));
+  const taskRequests = () => invoke.mock.calls.filter(([fn]) => fn === listTasks);
+
+  function create(): TaskOverlay {
+    changes = new Subject();
+    resyncs = new Subject();
+    invoke = vi.fn(() => Promise.resolve({ items: [task('a', { dueDate: '2026-03-24' })] }));
+    TestBed.configureTestingModule({
+      providers: [
+        TaskOverlay,
+        OverlayTaskStore,
+        { provide: Api, useValue: { invoke } },
+        {
+          provide: ChangeEventsService,
+          useValue: {
+            resync$: resyncs.asObservable(),
+            events$: (type: string) => changes.pipe(filter((event) => event.type === type)),
+          },
+        },
+      ],
+    });
+    return TestBed.inject(TaskOverlay);
+  }
+
+  beforeEach(() => localStorage.removeItem(TASK_OVERLAY_KEY));
+  afterEach(() => localStorage.removeItem(TASK_OVERLAY_KEY));
+
+  it('refetches on task changes and resyncs while on', async () => {
+    const overlay = create();
+    overlay.show(WEEK);
+    overlay.setEnabled(true);
+    await settle();
+    expect(taskRequests()).toHaveLength(1);
+    expect(taskRequests()[0][1]).toMatchObject(WEEK);
+    expect(overlay.entries(ZURICH)).toHaveLength(1);
+
+    changes.next({ type: 'TASK', op: 'UPDATED', id: 'a', at: '2026-03-24T10:00:00Z' });
+    resyncs.next();
+    await settle();
+    expect(taskRequests()).toHaveLength(3);
+  });
+
+  it('turned off fetches nothing on task changes, resyncs or refresh; turned on loads again', async () => {
+    const overlay = create();
+    overlay.show(WEEK);
+    overlay.setEnabled(true);
+    await settle();
+    overlay.setEnabled(false);
+    invoke.mockClear();
+
+    changes.next({ type: 'TASK', op: 'CREATED', id: 'b', at: '2026-03-24T10:00:00Z' });
+    changes.next({ type: 'TASK', op: 'UPDATED', id: 'a', at: '2026-03-24T10:00:01Z' });
+    resyncs.next();
+    await overlay.refresh();
+    await settle();
+    expect(taskRequests()).toHaveLength(0);
+    expect(overlay.entries(ZURICH)).toEqual([]);
+
+    overlay.setEnabled(true);
+    await settle();
+    expect(taskRequests()).toHaveLength(1);
+    expect(taskRequests()[0][1]).toMatchObject(WEEK);
+    expect(overlay.entries(ZURICH)).toHaveLength(1);
+  });
+
+  it('starts on when the browser remembered it, and follows changes', async () => {
+    localStorage.setItem(TASK_OVERLAY_KEY, 'true');
+    const overlay = create();
+    overlay.show(WEEK);
+    await settle();
+    changes.next({ type: 'TASK', op: 'UPDATED', id: 'a', at: '2026-03-24T10:00:00Z' });
+    await settle();
+    expect(taskRequests()).toHaveLength(2);
   });
 });

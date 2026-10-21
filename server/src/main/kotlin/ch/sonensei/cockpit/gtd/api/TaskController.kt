@@ -394,7 +394,7 @@ private fun dateRange(
 	if (to == null) throw InvalidRequestException("to", "is required with from")
 	if (to.isBefore(from)) throw InvalidRequestException("to", "must not be before from")
 	if (ChronoUnit.DAYS.between(from, to) >= MAX_RANGE_DAYS) {
-		throw InvalidRequestException("to", "must be at most $MAX_RANGE_DAYS days after from")
+		throw InvalidRequestException("to", "the range must span at most $MAX_RANGE_DAYS days")
 	}
 	return from..to
 }

@@ -98,7 +98,7 @@ export class EventLinks {
 
   protected createTask(): Promise<void> {
     return this.create('task', async () => {
-      const task = await this.service.createTask(this.occurrence());
+      const task = await this.service.createTask(this.occurrence(), this.timeZone());
       this.notifications.info(
         $localize`:@@calendar.links.taskCreated:Added to Inbox: ${task.title}:title:`,
       );

@@ -67,21 +67,17 @@ export class EventLinksService {
   private readonly api = inject(Api);
   private readonly links = inject(LinksService);
 
-  /** A new Inbox task titled like the event, linked to it. */
-  async createTask(occurrence: OccurrenceResponse): Promise<TaskResponse> {
-    const task = await this.api.invoke(
-      createTask,
-      { body: { title: occurrence.title, list: 'INBOX' } },
-      silent(),
-    );
+  /** A new Inbox task titled with the event and its date, linked to it. */
+  async createTask(occurrence: OccurrenceResponse, timeZone: string): Promise<TaskResponse> {
+    const title = datedTitle(occurrence, timeZone);
+    const task = await this.api.invoke(createTask, { body: { title, list: 'INBOX' } }, silent());
     await this.link({ type: 'TASK', id: task.id }, occurrence);
     return task;
   }
 
   /** A new note titled with the event and its date, linked to it. */
   async createNote(occurrence: OccurrenceResponse, timeZone: string): Promise<NoteResponse> {
-    const date = occurrenceDate(occurrence, timeZone);
-    const title = date ? `${occurrence.title} (${date})` : occurrence.title;
+    const title = datedTitle(occurrence, timeZone);
     const note = await this.api.invoke(createNote, { body: { title } }, silent());
     await this.link({ type: 'NOTE', id: note.id }, occurrence);
     return note;
@@ -94,6 +90,12 @@ export class EventLinksService {
       throw new LinkFailedError(item);
     }
   }
+}
+
+/** `<event title> (<yyyy-MM-dd>)`, or the plain title when the occurrence has no date. */
+function datedTitle(occurrence: OccurrenceResponse, timeZone: string): string {
+  const date = occurrenceDate(occurrence, timeZone);
+  return date ? `${occurrence.title} (${date})` : occurrence.title;
 }
 
 function silent(): HttpContext {
