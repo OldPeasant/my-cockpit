@@ -3,6 +3,7 @@ package ch.sonensei.cockpit.notes
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.junit4.v2.createComposeRule
@@ -104,6 +105,8 @@ class NotesScreensTest {
                         saveNow = { calls += "save" },
                         keepMine = { calls += "keep" },
                         useTheirs = { calls += "theirs" },
+                        dismissMessage = { calls += "dismiss" },
+                        retryLoad = { calls += "retry load" },
                     ),
                     imageLoader = null,
                 )
@@ -145,6 +148,92 @@ class NotesScreensTest {
         composeRule.onNodeWithTag(NoteEditorTags.KEEP_MINE).performClick()
         composeRule.onNodeWithTag(NoteEditorTags.USE_THEIRS).performClick()
         assertEquals(listOf("keep", "theirs"), calls)
+    }
+
+    @Test
+    fun `an empty list invites to write, but not before the first load`() {
+        var state by mutableStateOf(NotesListUiState(loading = true))
+        composeRule.setContent {
+            CockpitTheme { NotesListContent(state, NotesListCallbacks()) }
+        }
+        composeRule.onNodeWithTag(NotesTags.EMPTY).assertDoesNotExist()
+
+        state = NotesListUiState(loaded = true)
+        composeRule.onNodeWithTag(NotesTags.EMPTY).assertTextContains("No notes yet. Tap New note to write one.")
+    }
+
+    @Test
+    fun `a failed list says so and offers retry only when no load runs`() {
+        showList(NotesListUiState(loaded = false, loading = true, message = NotesListMessage.FAILED))
+        composeRule.onNodeWithTag(NotesTags.MESSAGE).assertExists()
+        composeRule.onNodeWithText("The notes could not be loaded.").assertExists()
+        composeRule.onNodeWithTag(NotesTags.RETRY).assertIsNotEnabled()
+    }
+
+    @Test
+    fun `a conflict with a deleted note offers to save as new or discard`() {
+        showEditor(NoteEditorUiState(note = plain, body = "Mine", conflict = NoteConflict(null), status = SaveStatus.UNSAVED))
+        composeRule.onNodeWithText("This note was deleted on another device while you edited it.").assertExists()
+        composeRule.onNodeWithTag(NoteEditorTags.KEEP_MINE).assertTextContains("Save as new note")
+        composeRule.onNodeWithTag(NoteEditorTags.USE_THEIRS).assertTextContains("Discard my changes")
+        composeRule.onNodeWithTag(NoteEditorTags.CAMERA).assertDoesNotExist()
+        composeRule.onNodeWithTag(NoteEditorTags.GALLERY).assertDoesNotExist()
+    }
+
+    @Test
+    fun `during a conflict a failed save offers no save again`() {
+        showEditor(NoteEditorUiState(note = plain, body = "Mine", conflict = NoteConflict(plain), status = SaveStatus.FAILED))
+        composeRule.onNodeWithTag(NoteEditorTags.STATUS).assertTextContains("Not saved: the server refused the change")
+        composeRule.onNodeWithTag(NoteEditorTags.SAVE_RETRY).assertDoesNotExist()
+    }
+
+    @Test
+    fun `a note that could not be opened offers retry and no editing`() {
+        showEditor(NoteEditorUiState(message = NoteEditorMessage.LOAD_OFFLINE))
+        composeRule.onNodeWithTag(NoteEditorTags.MESSAGE).assertExists()
+        composeRule.onNodeWithText("Can't reach the server to open this note.").assertExists()
+        composeRule.onNodeWithTag(NoteEditorTags.VIEW).assertDoesNotExist()
+        composeRule.onNodeWithTag(NoteEditorTags.RETRY_LOAD).performClick()
+        assertEquals(listOf("retry load"), calls)
+    }
+
+    @Test
+    fun `while loading nothing is shown or editable`() {
+        showEditor(NoteEditorUiState(loading = true))
+        composeRule.onNodeWithTag(NoteEditorTags.LOADING).assertExists()
+        composeRule.onNodeWithTag(NoteEditorTags.STATUS).assertDoesNotExist()
+        composeRule.onNodeWithTag(NoteEditorTags.TOGGLE).assertDoesNotExist()
+        composeRule.onNodeWithTag(NoteEditorTags.VIEW).assertDoesNotExist()
+    }
+
+    @Test
+    fun `a photo problem can be dismissed, an upload replaces the photo buttons`() {
+        showEditor(NoteEditorUiState(note = plain, body = "x", message = NoteEditorMessage.PHOTO_FAILED))
+        composeRule.onNodeWithTag(NoteEditorTags.MESSAGE).assertExists()
+        composeRule.onNodeWithText("The photo was not added: the server refused it.").assertExists()
+        composeRule.onNodeWithText("Dismiss").performClick()
+        assertEquals(listOf("dismiss"), calls)
+
+        editor = editor.copy(message = null, uploading = true)
+        composeRule.onNodeWithTag(NoteEditorTags.UPLOADING).assertExists()
+        composeRule.onNodeWithContentDescription("Uploading photo…").assertExists()
+        composeRule.onNodeWithTag(NoteEditorTags.CAMERA).assertDoesNotExist()
+        composeRule.onNodeWithTag(NoteEditorTags.GALLERY).assertDoesNotExist()
+    }
+
+    @Test
+    fun `an image inserted from elsewhere shows up in the open editor`() {
+        showEditor(NoteEditorUiState(note = plain, body = "abc", editing = true))
+        composeRule.onNodeWithTag(NoteEditorTags.BODY).assertTextContains("abc", substring = true)
+        editor = editor.copy(body = "abc\n![](cockpit-file:${id(9)})\n")
+        composeRule.onNodeWithTag(NoteEditorTags.BODY).assertTextContains("cockpit-file:${id(9)}", substring = true)
+    }
+
+    @Test
+    fun `an empty note says so in the view`() {
+        showEditor(NoteEditorUiState(note = plain.copy(bodyMd = ""), title = "Trip", body = ""))
+        composeRule.onNodeWithText("Trip").assertExists()
+        composeRule.onNodeWithText("This note is empty. Tap Edit to write.").assertExists()
     }
 
     @Test

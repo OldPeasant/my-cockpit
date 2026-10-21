@@ -243,6 +243,262 @@ class NoteEditorViewModelTest {
         }
 
     @Test
+    fun `keep mine on a note deleted elsewhere saves the text as a new note`() =
+        test { vm ->
+            val created = loaded.copy(id = UUID.fromString("00000000-0000-7000-8000-000000000099"), bodyMd = "Mine", version = 1)
+            coEvery { repo.save(loaded, any()) } returns SaveResult.Conflict(null)
+            coEvery { repo.save(null, NoteDraft("", "Mine")) } returns SaveResult.Saved(created)
+            vm.open(id)
+            runCurrent()
+            vm.setBody("Mine")
+            advanceUntilIdle()
+            assertEquals(NoteConflict(null), vm.uiState.value.conflict)
+
+            vm.keepMine()
+            advanceUntilIdle()
+
+            coVerify(exactly = 1) { repo.save(null, NoteDraft("", "Mine")) }
+            assertEquals(created, vm.uiState.value.note)
+            assertNull(vm.uiState.value.conflict)
+            assertEquals(false, vm.uiState.value.closed)
+            assertEquals(SaveStatus.SAVED, vm.uiState.value.status)
+        }
+
+    @Test
+    fun `a conflict answering a save keeps the text typed meanwhile, which keep mine then saves`() =
+        test { vm ->
+            val theirs = loaded.copy(bodyMd = "Theirs", version = 7)
+            val answer = CompletableDeferred<SaveResult>()
+            coEvery { repo.save(loaded, NoteDraft("", "A")) } coAnswers { answer.await() }
+            coEvery { repo.save(theirs, NoteDraft("", "AB")) } returns saved("AB", 8)
+            vm.open(id)
+            runCurrent()
+            vm.setEditing(true)
+            vm.setBody("A")
+            advanceTimeBy(1_100)
+            assertEquals(SaveStatus.SAVING, vm.uiState.value.status)
+            vm.setBody("AB")
+            answer.complete(SaveResult.Conflict(theirs))
+            advanceUntilIdle()
+
+            val state = vm.uiState.value
+            assertEquals(NoteConflict(theirs), state.conflict)
+            assertEquals("AB", state.body)
+            assertEquals(false, state.editing)
+            assertEquals(SaveStatus.UNSAVED, state.status)
+            // The autosave of "AB" did not go over the refused version.
+            coVerify(exactly = 1) { repo.save(any(), any()) }
+
+            vm.keepMine()
+            advanceUntilIdle()
+            coVerify(exactly = 1) { repo.save(theirs, NoteDraft("", "AB")) }
+            assertEquals(SaveStatus.SAVED, vm.uiState.value.status)
+        }
+
+    @Test
+    fun `use theirs and keep mine do nothing without a conflict`() =
+        test { vm ->
+            vm.open(id)
+            runCurrent()
+            vm.useTheirs()
+            vm.keepMine()
+            advanceUntilIdle()
+            assertEquals(loaded, vm.uiState.value.note)
+            assertEquals(false, vm.uiState.value.closed)
+            coVerify(exactly = 0) { repo.save(any(), any()) }
+        }
+
+    @Test
+    fun `leaving the editor saves at once, without waiting for the autosave`() =
+        test { vm ->
+            coEvery { repo.save(loaded, NoteDraft("", "Now")) } returns saved("Now", 4)
+            vm.open(id)
+            runCurrent()
+            vm.setEditing(true)
+            vm.setBody("Now")
+            vm.setEditing(false)
+            runCurrent()
+
+            coVerify(exactly = 1) { repo.save(loaded, NoteDraft("", "Now")) }
+            assertEquals(SaveStatus.SAVED, vm.uiState.value.status)
+            advanceUntilIdle()
+            coVerify(exactly = 1) { repo.save(any(), any()) }
+        }
+
+    @Test
+    fun `a refused save shows failed and can be saved again`() =
+        test { vm ->
+            coEvery { repo.save(loaded, any()) } returns SaveResult.Failed(400) andThen saved("Mine", 4)
+            vm.open(id)
+            runCurrent()
+            vm.setBody("Mine")
+            advanceUntilIdle()
+            assertEquals(SaveStatus.FAILED, vm.uiState.value.status)
+            assertEquals("Mine", vm.uiState.value.body)
+            assertNull(vm.uiState.value.conflict)
+
+            vm.saveNow()
+            advanceUntilIdle()
+            assertEquals(SaveStatus.SAVED, vm.uiState.value.status)
+        }
+
+    @Test
+    fun `typing back to the saved text needs no save`() =
+        test { vm ->
+            vm.open(id)
+            runCurrent()
+            vm.setBody("Shopping!")
+            assertEquals(SaveStatus.UNSAVED, vm.uiState.value.status)
+            vm.setBody("Shopping")
+            assertEquals(SaveStatus.SAVED, vm.uiState.value.status)
+            advanceUntilIdle()
+            coVerify(exactly = 0) { repo.save(any(), any()) }
+        }
+
+    @Test
+    fun `a title with spaces around it counts as saved once the trimmed title is stored`() =
+        test { vm ->
+            coEvery { repo.save(loaded, NoteDraft("Trip ", "Shopping")) } returns SaveResult.Saved(loaded.copy(title = "Trip", version = 4))
+            vm.open(id)
+            runCurrent()
+            vm.setTitle("Trip ")
+            advanceUntilIdle()
+            assertEquals(SaveStatus.SAVED, vm.uiState.value.status)
+            assertEquals("Trip ", vm.uiState.value.title)
+            coVerify(exactly = 1) { repo.save(any(), any()) }
+        }
+
+    @Test
+    fun `nothing can be edited while the note loads, and only the first open counts`() =
+        test { vm ->
+            val answer = CompletableDeferred<NotesResult<Note>>()
+            coEvery { repo.get(id) } coAnswers { answer.await() }
+            vm.open(id)
+            runCurrent()
+            assertTrue(vm.uiState.value.loading)
+            vm.setEditing(true)
+            vm.setBody("too early")
+            vm.open(null)
+            vm.retryLoad(id)
+            assertEquals(false, vm.uiState.value.editing)
+            assertEquals("", vm.uiState.value.body)
+
+            answer.complete(NotesResult.Ok(loaded))
+            advanceUntilIdle()
+            assertEquals("Shopping", vm.uiState.value.body)
+            coVerify(exactly = 1) { repo.get(id) }
+            coVerify(exactly = 0) { repo.save(any(), any()) }
+        }
+
+    @Test
+    fun `a loaded note is not loaded again by retry, a refused load says so`() =
+        test { vm ->
+            vm.open(id)
+            runCurrent()
+            vm.retryLoad(id)
+            runCurrent()
+            coVerify(exactly = 1) { repo.get(id) }
+
+            val other = NoteEditorViewModel(repo, images)
+            val missing = UUID.fromString("00000000-0000-7000-8000-000000000404")
+            coEvery { repo.get(missing) } returns NotesResult.Failed(404)
+            other.open(missing)
+            runCurrent()
+            assertEquals(NoteEditorMessage.LOAD_FAILED, other.uiState.value.message)
+            assertNull(other.uiState.value.note)
+            assertEquals(false, other.uiState.value.loading)
+        }
+
+    @Test
+    fun `a photo without a connection shows a message and leaves the text`() =
+        test { vm ->
+            val photo = NotePhoto(byteArrayOf(1), "image/jpeg", "p.jpg")
+            coEvery { repo.uploadImage(id, photo) } returns NotesResult.Offline
+            vm.open(id)
+            runCurrent()
+            vm.addPhoto(photo)
+            advanceUntilIdle()
+            assertEquals(NoteEditorMessage.PHOTO_OFFLINE, vm.uiState.value.message)
+            assertEquals(false, vm.uiState.value.uploading)
+            assertEquals("Shopping", vm.uiState.value.body)
+            vm.dismissMessage()
+            assertNull(vm.uiState.value.message)
+        }
+
+    @Test
+    fun `a new note that cannot be created gets no photo upload`() =
+        test { vm ->
+            val photo = NotePhoto(byteArrayOf(1), "image/jpeg", "p.jpg")
+            coEvery { repo.save(null, any()) } returns SaveResult.Offline
+            vm.open(null)
+            vm.addPhoto(photo)
+            advanceUntilIdle()
+            coVerify(exactly = 0) { repo.uploadImage(any(), any()) }
+            assertTrue(vm.uiState.value.message != null)
+            assertEquals(false, vm.uiState.value.uploading)
+            assertNull(vm.uiState.value.note)
+        }
+
+    @Test
+    fun `a second photo while one uploads is ignored`() =
+        test { vm ->
+            val first = NotePhoto(byteArrayOf(1), "image/jpeg", "a.jpg")
+            val second = NotePhoto(byteArrayOf(2), "image/jpeg", "b.jpg")
+            val answer = CompletableDeferred<NotesResult<String>>()
+            coEvery { repo.uploadImage(id, first) } coAnswers { answer.await() }
+            coEvery { repo.save(loaded, any()) } returns saved("Shopping\n![](a)\n", 4)
+            vm.open(id)
+            runCurrent()
+            vm.addPhoto(first)
+            runCurrent()
+            assertTrue(vm.uiState.value.uploading)
+            vm.addPhoto(second)
+            answer.complete(NotesResult.Ok("![](a)"))
+            advanceUntilIdle()
+
+            coVerify(exactly = 0) { repo.uploadImage(any(), second) }
+            assertEquals("Shopping\n![](a)\n", vm.uiState.value.body)
+        }
+
+    @Test
+    fun `no photo can be added while a conflict waits for a decision`() =
+        test { vm ->
+            val photo = NotePhoto(byteArrayOf(1), "image/jpeg", "p.jpg")
+            coEvery { repo.save(loaded, any()) } returns SaveResult.Conflict(loaded.copy(version = 9))
+            vm.open(id)
+            runCurrent()
+            vm.setBody("Mine")
+            advanceUntilIdle()
+            vm.addPhoto(photo)
+            advanceUntilIdle()
+            coVerify(exactly = 0) { repo.uploadImage(any(), any()) }
+            assertEquals(false, vm.uiState.value.uploading)
+        }
+
+    @Test
+    fun `typing and a photo on a new note create it only once`() =
+        test { vm ->
+            val photo = NotePhoto(byteArrayOf(1), "image/jpeg", "p.jpg")
+            val created = loaded.copy(bodyMd = "Hi", version = 1)
+            coEvery { repo.save(null, any()) } returns SaveResult.Saved(created)
+            coEvery { repo.uploadImage(id, photo) } returns NotesResult.Ok("![](x)")
+            coEvery { repo.save(created, NoteDraft("", "Hi\n![](x)\n")) } returns saved("Hi\n![](x)\n", 2)
+            vm.open(null)
+            vm.setBody("Hi")
+            vm.addPhoto(photo)
+            advanceUntilIdle()
+
+            coVerify(exactly = 1) { repo.save(null, any()) }
+            assertEquals("Hi\n![](x)\n", vm.uiState.value.body)
+            assertEquals(
+                2L,
+                vm.uiState.value.note!!
+                    .version,
+            )
+            assertEquals(SaveStatus.SAVED, vm.uiState.value.status)
+        }
+
+    @Test
     fun `a failed load can be retried`() =
         test { vm ->
             coEvery { repo.get(id) } returns NotesResult.Offline andThen NotesResult.Ok(loaded)

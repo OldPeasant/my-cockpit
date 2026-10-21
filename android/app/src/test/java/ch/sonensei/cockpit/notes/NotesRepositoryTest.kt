@@ -195,6 +195,110 @@ class NotesRepositoryTest {
         }
 
     @Test
+    fun `a note on two pages is listed once, and the order holds across pages`() =
+        runBlocking {
+            // Page 2 repeats note 1 (changed between the page requests) and brings an older pinned note.
+            server.enqueue(
+                json(
+                    """{"items":[${noteJson(1, updatedAt = "2026-10-19T09:00:00Z")},${noteJson(2, updatedAt = "2026-10-18T09:00:00Z")}],
+                    |"nextCursor":"c2"}
+                    """.trimMargin(),
+                ),
+            )
+            server.enqueue(
+                json(
+                    """{"items":[${noteJson(1, updatedAt = "2026-10-19T09:00:00Z")},
+                    |${noteJson(4, pinned = true, updatedAt = "2026-09-01T09:00:00Z")},
+                    |${noteJson(5, pinned = true, updatedAt = "2026-10-02T09:00:00Z")}],"nextCursor":null}
+                    """.trimMargin(),
+                ),
+            )
+
+            val result = notes.list(null) as NotesResult.Ok
+
+            assertEquals(listOf(id(5), id(4), id(1), id(2)), result.value.map { it.id })
+            assertEquals(null, server.takeRequest().url.queryParameter("tag"))
+        }
+
+    @Test
+    fun `an empty list is ok and asks for one page only`() =
+        runBlocking {
+            server.enqueue(json("""{"items":[],"nextCursor":null}"""))
+
+            assertEquals(NotesResult.Ok(emptyList<Note>()), notes.list("nothing"))
+            assertEquals(1, server.requestCount)
+        }
+
+    @Test
+    fun `a save refused with 409 is a conflict too`() =
+        runBlocking {
+            server.enqueue(status(409))
+            server.enqueue(json(noteJson(1, version = 5, body = "Theirs")))
+            val base = Note(id(1), null, "Mine", "Mine", false, emptyList(), java.time.Instant.EPOCH, 3)
+
+            val result = notes.save(base, NoteDraft("", "Mine changed")) as SaveResult.Conflict
+
+            assertEquals(5L, result.current!!.version)
+            assertEquals("PATCH", server.takeRequest().method)
+            val reload = server.takeRequest()
+            assertEquals("GET", reload.method)
+            assertEquals("/api/v1/notes/${id(1)}", reload.url.encodedPath)
+        }
+
+    @Test
+    fun `a conflict whose current version cannot be loaded is offline or failed, never saved`() =
+        runBlocking {
+            val base = Note(id(1), null, "Mine", "Mine", false, emptyList(), java.time.Instant.EPOCH, 3)
+            server.enqueue(status(412))
+            server.enqueue(status(503))
+            assertEquals(SaveResult.Offline, notes.save(base, NoteDraft("", "x")))
+            server.enqueue(status(412))
+            server.enqueue(status(403))
+            assertEquals(SaveResult.Failed(403), notes.save(base, NoteDraft("", "x")))
+        }
+
+    @Test
+    fun `a refused create is a failure, not a conflict`() =
+        runBlocking {
+            server.enqueue(status(404))
+            assertEquals(SaveResult.Failed(404), notes.save(null, NoteDraft("T", "x")))
+            server.enqueue(status(409))
+            assertEquals(SaveResult.Failed(409), notes.save(null, NoteDraft("T", "x")))
+            // No reload of a "current" note was attempted.
+            assertEquals(2, server.requestCount)
+        }
+
+    @Test
+    fun `a title is sent trimmed`() =
+        runBlocking {
+            server.enqueue(json(noteJson(7), code = 201))
+
+            notes.save(null, NoteDraft(title = "  Trip  ", bodyMd = ""))
+
+            val sent = Json.parseToJsonElement(server.takeRequest().body!!.utf8()).jsonObject
+            assertEquals("Trip", sent["title"]!!.jsonPrimitive.content)
+            assertEquals("", sent["bodyMd"]!!.jsonPrimitive.content)
+        }
+
+    @Test
+    fun `tags and a single note are loaded, a missing note is a failure`() =
+        runBlocking {
+            server.enqueue(json("""{"items":[{"tag":"home","count":3},{"tag":"work","count":1}]}"""))
+            assertEquals(NotesResult.Ok(listOf(NoteTag("home", 3), NoteTag("work", 1))), notes.tags())
+            server.enqueue(json(noteJson(3, body = "Three")))
+            assertEquals("Three", (notes.get(id(3)) as NotesResult.Ok).value.bodyMd)
+            server.enqueue(status(404))
+            assertEquals(NotesResult.Failed(404), notes.get(id(4)))
+        }
+
+    @Test
+    fun `an upload without a connection is offline`() =
+        runBlocking {
+            server.close()
+            assertEquals(NotesResult.Offline, notes.uploadImage(id(1), NotePhoto(byteArrayOf(1), "image/png", "p.png")))
+        }
+
+    @Test
     fun `an image too large is a failure`() =
         runBlocking {
             server.enqueue(status(413))

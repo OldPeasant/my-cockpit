@@ -87,6 +87,49 @@ class MarkdownTest {
     }
 
     @Test
+    fun `a hashtag at the start of a line is text, not a heading`() {
+        assertEquals(listOf(MdBlock.Paragraph("#home #work")), Markdown.parse("#home #work"))
+        assertEquals(listOf(MdBlock.Heading(2, "Plan")), Markdown.parse("## Plan ##"))
+    }
+
+    @Test
+    fun `nested items have a depth, an unclosed code block runs to the end`() {
+        assertEquals(
+            listOf(
+                MdBlock.ListItem("top", "-"),
+                MdBlock.ListItem("inner", "-", depth = 1),
+                MdBlock.ListItem("done", "2)", checked = true, depth = 2),
+                MdBlock.Code("a\n# not a heading"),
+            ),
+            Markdown.parse("- top\n  - inner\n    2) [X] done\n```\na\n# not a heading"),
+        )
+    }
+
+    @Test
+    fun `an image in a list item is a block of its own, windows line ends are read`() {
+        assertEquals(
+            listOf(
+                MdBlock.ListItem("photo:", "-"),
+                MdBlock.Image("", ImageSource.CockpitFile(fileId)),
+                MdBlock.Paragraph("end"),
+            ),
+            Markdown.parse("- photo: ![](cockpit-file:$fileId)\r\n\r\nend"),
+        )
+    }
+
+    @Test
+    fun `underscores and stars inside words are not emphasis`() {
+        assertEquals(listOf(MdSpan("snake_case_name and 2*3*4")), MdInline.parse("snake_case_name and 2*3*4"))
+        assertEquals(listOf(MdSpan("gone", strike = true)), MdInline.parse("~~gone~~"))
+    }
+
+    @Test
+    fun `empty Markdown has no blocks`() {
+        assertEquals(emptyList<MdBlock>(), Markdown.parse(""))
+        assertEquals("", plainExcerpt("\n\n"))
+    }
+
+    @Test
     fun `inserting an image puts it on a line of its own`() {
         assertEquals("ab\n![](x)\ncd", NoteEditorViewModel.insertImage("abcd", "![](x)", 2))
         assertEquals("![](x)\n", NoteEditorViewModel.insertImage("", "![](x)", null))
