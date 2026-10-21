@@ -65,6 +65,68 @@ describe('BackupService', () => {
     click.mockRestore();
   });
 
+  it('does not remember a backup that failed to start', async () => {
+    const started = service.start('');
+    http
+      .expectOne('/api/v1/backup')
+      .flush({ status: 409, title: 'Conflict' }, { status: 409, statusText: 'Conflict' });
+    await expect(started).rejects.toMatchObject({ status: 409 });
+    expect(service.lastJobId).toBeNull();
+  });
+
+  it('fetches the state of a backup silently', async () => {
+    const state = service.job(ID);
+    const req = http.expectOne({ method: 'GET', url: `/api/v1/backup/${ID}` });
+    expect(req.request.context.get(SILENT_ERRORS)).toBe(true);
+    req.flush(job({ stepsDone: 2 }));
+    expect((await state).stepsDone).toBe(2);
+  });
+
+  describe('download file handling', () => {
+    const originalCreate = URL.createObjectURL;
+    const originalRevoke = URL.revokeObjectURL;
+
+    afterEach(() => {
+      URL.createObjectURL = originalCreate;
+      URL.revokeObjectURL = originalRevoke;
+      vi.useRealTimers();
+      vi.restoreAllMocks();
+    });
+
+    it('falls back to a default file name and revokes the object URL later', async () => {
+      vi.useFakeTimers();
+      URL.createObjectURL = vi.fn(() => 'blob:zip');
+      const revoke = vi.fn();
+      URL.revokeObjectURL = revoke;
+      const click = vi
+        .spyOn(HTMLAnchorElement.prototype, 'click')
+        .mockImplementation(() => undefined);
+
+      const done = service.download(job({ state: 'COMPLETED' }));
+      const req = http.expectOne(`/api/v1/backup/${ID}/download`);
+      expect(req.request.context.get(SILENT_ERRORS)).toBe(true);
+      req.flush(new Blob(['zip']));
+      await done;
+
+      const link = click.mock.contexts[0] as HTMLAnchorElement;
+      expect(link.download).toBe('cockpit-backup.zip');
+      expect(link.href).toBe('blob:zip');
+      expect(revoke).not.toHaveBeenCalled();
+      vi.advanceTimersByTime(1000);
+      expect(revoke).toHaveBeenCalledWith('blob:zip');
+    });
+
+    it('saves nothing when the download fails', async () => {
+      URL.createObjectURL = vi.fn(() => 'blob:zip');
+      const done = service.download(job({ state: 'COMPLETED' }));
+      http
+        .expectOne(`/api/v1/backup/${ID}/download`)
+        .flush(null, { status: 404, statusText: 'Not Found' });
+      await expect(done).rejects.toMatchObject({ status: 404 });
+      expect(URL.createObjectURL).not.toHaveBeenCalled();
+    });
+  });
+
   it('uploads the zip as application/zip', async () => {
     const file = new Blob(['zip'], { type: 'application/zip' });
     const report = service.upload(file);
@@ -78,9 +140,10 @@ describe('BackupService', () => {
 
   it('confirms a restore with the passphrase only when given', async () => {
     const withSecret = service.confirm(ID, 'correct horse battery');
-    http
-      .expectOne({ method: 'POST', url: `/api/v1/restore/${ID}/confirm` })
-      .flush({ counts: {}, preRestoreBackup: 'pre-restore/x.zip' });
+    const first = http.expectOne({ method: 'POST', url: `/api/v1/restore/${ID}/confirm` });
+    expect(first.request.body).toEqual({ passphrase: 'correct horse battery' });
+    expect(first.request.context.get(SILENT_ERRORS)).toBe(true);
+    first.flush({ counts: {}, preRestoreBackup: 'pre-restore/x.zip' });
     await withSecret;
 
     const without = service.confirm(ID, '');

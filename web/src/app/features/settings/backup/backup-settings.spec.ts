@@ -170,16 +170,14 @@ describe('BackupSettings', () => {
 
       changes.next(changeEvent(ID));
       await settle();
-      http
-        .expectOne(JOB)
-        .flush(
-          job({
-            state: 'COMPLETED',
-            stepsDone: 4,
-            fileName: 'cockpit-backup.zip',
-            size: 2_097_152,
-          }),
-        );
+      http.expectOne(JOB).flush(
+        job({
+          state: 'COMPLETED',
+          stepsDone: 4,
+          fileName: 'cockpit-backup.zip',
+          size: 2_097_152,
+        }),
+      );
       await settle();
       expect(text('.job .file')).toBe('cockpit-backup.zip');
       expect(text('.job .meta')).toBe('2 MB');
@@ -242,6 +240,242 @@ describe('BackupSettings', () => {
       await settle();
       expect(root.querySelector('.job')).toBeNull();
       expect(TestBed.inject(BackupService).lastJobId).toBeNull();
+
+      // Later events for the forgotten job fetch nothing.
+      changes.next(changeEvent(ID));
+      resyncs.next();
+      await settle();
+      http.expectNone(JOB);
+    });
+
+    it('starts without a passphrase, clears the field and skips the catch-up of a finished job', async () => {
+      await setup();
+      type('backup-passphrase', 'correct horse battery');
+      type('backup-passphrase', '');
+      button('Create backup').click();
+      await settle();
+      const start = http.expectOne({ method: 'POST', url: START });
+      expect(start.request.body).toEqual({});
+      start.flush(job({ state: 'COMPLETED', stepsDone: 4, fileName: 'cockpit-backup.zip' }));
+      await settle();
+
+      http.expectNone(JOB);
+      expect(button('Download')).toBeTruthy();
+      expect(TestBed.inject(BackupService).lastJobId).toBe(ID);
+    });
+
+    it('resets the passphrase field after a backup started', async () => {
+      await setup();
+      type('backup-passphrase', 'correct horse battery');
+      button('Create backup').click();
+      await settle();
+      http.expectOne(START).flush(job({ state: 'COMPLETED', stepsDone: 4 }));
+      await settle();
+      const input = root.querySelector('[data-testid="backup-passphrase"]') as HTMLInputElement;
+      expect(input.value).toBe('');
+    });
+
+    it('accepts a passphrase of exactly 12 characters', async () => {
+      await setup();
+      type('backup-passphrase', 'abcdefghijkl');
+      button('Create backup').click();
+      await settle();
+      expect(http.expectOne(START).request.body).toEqual({ passphrase: 'abcdefghijkl' });
+    });
+
+    it('rejects a passphrase longer than 256 characters', async () => {
+      await setup();
+      type('backup-passphrase', 'x'.repeat(257));
+      button('Create backup').click();
+      await settle();
+
+      http.expectNone(START);
+      expect(text('mat-error')).toBe('This passphrase is too long.');
+    });
+
+    it('sends a single start request when submitted twice while starting', async () => {
+      await setup();
+      const form = root.querySelector('form.start') as HTMLFormElement;
+      form.dispatchEvent(new Event('submit'));
+      form.dispatchEvent(new Event('submit'));
+      await settle();
+      expect(button('Create backup').disabled).toBe(true);
+      http.expectOne(START).flush(job({ state: 'COMPLETED', stepsDone: 4 }));
+      await settle();
+    });
+
+    it('does not start another backup while one is running', async () => {
+      await setup(ID);
+      http.expectOne(JOB).flush(job());
+      await settle();
+      (root.querySelector('form.start') as HTMLFormElement).dispatchEvent(new Event('submit'));
+      await settle();
+      http.expectNone(START);
+    });
+
+    it('shows the progress bar value from the steps done', async () => {
+      await setup(ID);
+      http.expectOne(JOB).flush(job({ stepsDone: 1, stepsTotal: 4 }));
+      await settle();
+      const bar = root.querySelector('.job mat-progress-bar') as HTMLElement;
+      expect(bar.getAttribute('aria-valuenow')).toBe('25');
+    });
+
+    it('shows 0 % progress when the job has no steps yet', async () => {
+      await setup(ID);
+      http.expectOne(JOB).flush(job({ stepsDone: 0, stepsTotal: 0 }));
+      await settle();
+      const bar = root.querySelector('.job mat-progress-bar') as HTMLElement;
+      expect(bar.getAttribute('aria-valuenow')).toBe('0');
+    });
+
+    it('ignores an older job answer that arrives after a newer one', async () => {
+      await setup(ID);
+      http.expectOne(JOB).flush(job({ stepsDone: 1 }));
+      await settle();
+
+      changes.next(changeEvent(ID));
+      changes.next(changeEvent(ID));
+      await settle();
+      const [older, newer] = http.match(JOB);
+      newer.flush(job({ state: 'COMPLETED', stepsDone: 4, fileName: 'cockpit-backup.zip' }));
+      await settle();
+      older.flush(job({ stepsDone: 2 }));
+      await settle();
+
+      expect(root.querySelector('.job')?.getAttribute('data-state')).toBe('COMPLETED');
+      expect(button('Download')).toBeTruthy();
+    });
+
+    it('ignores an older job request that fails after a newer one answered', async () => {
+      await setup(ID);
+      http.expectOne(JOB).flush(job({ stepsDone: 1 }));
+      await settle();
+
+      changes.next(changeEvent(ID));
+      changes.next(changeEvent(ID));
+      await settle();
+      const [older, newer] = http.match(JOB);
+      newer.flush(job({ stepsDone: 3 }));
+      await settle();
+      older.flush({ status: 404, title: 'Not Found' }, { status: 404, statusText: 'Not Found' });
+      await settle();
+
+      expect(text('.job [role="status"]')).toContain('3 of 4 steps');
+      expect(TestBed.inject(BackupService).lastJobId).toBe(ID);
+      expect(root.querySelector('[role="alert"]')).toBeNull();
+    });
+
+    it('shows a failed progress fetch while the backup runs', async () => {
+      await setup(ID);
+      http.expectOne(JOB).flush(job());
+      await settle();
+      changes.next(changeEvent(ID));
+      await settle();
+      http
+        .expectOne(JOB)
+        .flush(
+          { status: 503, title: 'Service Unavailable' },
+          { status: 503, statusText: 'Unavailable' },
+        );
+      await settle();
+
+      expect(text('[role="alert"]')).toBe('Service Unavailable');
+      expect(notifications.error).not.toHaveBeenCalled();
+      // The job stays, so a later event can still update it.
+      expect(root.querySelector('.job')?.getAttribute('data-state')).toBe('RUNNING');
+    });
+
+    it('keeps a completed backup silently when a refetch fails', async () => {
+      await setup(ID);
+      http.expectOne(JOB).flush(job({ state: 'COMPLETED', stepsDone: 4 }));
+      await settle();
+      resyncs.next();
+      await settle();
+      http
+        .expectOne(JOB)
+        .flush({ status: 500, title: 'Server Error' }, { status: 500, statusText: 'Error' });
+      await settle();
+
+      expect(root.querySelector('[role="alert"]')).toBeNull();
+      expect(button('Download')).toBeTruthy();
+    });
+
+    it('fetches nothing on an SSE reconnect without a backup', async () => {
+      await setup();
+      resyncs.next();
+      changes.next(changeEvent(ID));
+      await settle();
+      http.expectNone(JOB);
+    });
+
+    it('forgets the backup when its download is gone', async () => {
+      await setup(ID);
+      http.expectOne(JOB).flush(job({ state: 'COMPLETED', fileName: 'cockpit-backup.zip' }));
+      await settle();
+
+      button('Download').click();
+      await settle();
+      http.expectOne(`${JOB}/download`).flush(null, { status: 404, statusText: 'Not Found' });
+      await settle();
+
+      expect(text('[role="alert"]')).toContain('This backup is no longer available');
+      expect(root.querySelector('.job')).toBeNull();
+      expect(TestBed.inject(BackupService).lastJobId).toBeNull();
+    });
+
+    it('shows the server message when a backup cannot start', async () => {
+      await setup();
+      button('Create backup').click();
+      await settle();
+      http
+        .expectOne(START)
+        .flush(
+          { status: 500, title: 'Server Error', detail: 'Backup folder not writable' },
+          { status: 500, statusText: 'Error' },
+        );
+      await settle();
+      expect(text('[role="alert"]')).toBe('Backup folder not writable');
+      expect(root.querySelector('.job')).toBeNull();
+      expect(button('Create backup').disabled).toBe(false);
+    });
+
+    it('downloads once when Download is clicked twice', async () => {
+      await setup(ID);
+      http.expectOne(JOB).flush(job({ state: 'COMPLETED', fileName: 'cockpit-backup.zip' }));
+      await settle();
+      let finish: () => void = () => undefined;
+      const download = vi
+        .spyOn(TestBed.inject(BackupService), 'download')
+        .mockReturnValue(new Promise<void>((resolve) => (finish = resolve)));
+
+      const downloadButton = button('Download');
+      downloadButton.click();
+      downloadButton.click();
+      await settle();
+      expect(download).toHaveBeenCalledTimes(1);
+      expect(button('Download').disabled).toBe(true);
+
+      finish();
+      await settle();
+      expect(button('Download').disabled).toBe(false);
+    });
+
+    it('keeps the backup and explains another download failure', async () => {
+      await setup(ID);
+      http.expectOne(JOB).flush(job({ state: 'COMPLETED', fileName: 'cockpit-backup.zip' }));
+      await settle();
+      const download = vi
+        .spyOn(TestBed.inject(BackupService), 'download')
+        .mockRejectedValue(new Error('network down'));
+
+      button('Download').click();
+      await settle();
+
+      expect(download).toHaveBeenCalledTimes(1);
+      expect(text('[role="alert"]')).toBe('Something went wrong.');
+      expect(button('Download').disabled).toBe(false);
+      expect(TestBed.inject(BackupService).lastJobId).toBe(ID);
     });
   });
 
@@ -414,6 +648,184 @@ describe('BackupSettings', () => {
 
       expect(root.querySelector('.report')).toBeNull();
       expect(text('[role="alert"]')).toContain('Upload the backup again');
+    });
+
+    it('sends no passphrase for a backup without secrets', async () => {
+      await setup();
+      await uploadWith(report());
+      vi.spyOn(TestBed.inject(Router), 'navigateByUrl').mockResolvedValue(true);
+      type('restore-confirm', 'RESTORE');
+      await settle();
+      button('Replace all data').click();
+      await settle();
+      const req = http.expectOne(CONFIRM);
+      expect(req.request.body).toEqual({});
+      req.flush({ counts: {}, preRestoreBackup: 'pre-restore/x.zip' });
+      await settle();
+    });
+
+    it('sends a single restore when submitted twice', async () => {
+      await setup();
+      await uploadWith(report());
+      vi.spyOn(TestBed.inject(Router), 'navigateByUrl').mockResolvedValue(true);
+      type('restore-confirm', 'RESTORE');
+      await settle();
+      const form = root.querySelector('form.confirm') as HTMLFormElement;
+      form.dispatchEvent(new Event('submit'));
+      form.dispatchEvent(new Event('submit'));
+      await settle();
+      http.expectOne(CONFIRM).flush({ counts: {}, preRestoreBackup: 'pre-restore/x.zip' });
+      await settle();
+    });
+
+    it('does not restore with a passphrase longer than 256 characters', async () => {
+      await setup();
+      await uploadWith(report({ hasSecrets: true }));
+      type('restore-passphrase', 'x'.repeat(257));
+      type('restore-confirm', 'RESTORE');
+      await settle();
+      (root.querySelector('form.confirm') as HTMLFormElement).dispatchEvent(new Event('submit'));
+      await settle();
+      http.expectNone(CONFIRM);
+    });
+
+    it('closes the gate again after cancel and a new upload', async () => {
+      await setup();
+      await uploadWith(report());
+      type('restore-confirm', 'RESTORE');
+      await settle();
+      expect(button('Replace all data').disabled).toBe(false);
+
+      button('Cancel').click();
+      await settle();
+      expect(root.querySelector('.report')).toBeNull();
+      expect(root.querySelector('[data-testid="restore-file"]')).not.toBeNull();
+
+      await uploadWith(report());
+      const confirm = root.querySelector('[data-testid="restore-confirm"]') as HTMLInputElement;
+      expect(confirm.value).toBe('');
+      expect(button('Replace all data').disabled).toBe(true);
+    });
+
+    it('explains a restore refused while a backup runs', async () => {
+      await setup();
+      await uploadWith(report());
+      type('restore-confirm', 'RESTORE');
+      await settle();
+      button('Replace all data').click();
+      await settle();
+      http
+        .expectOne(CONFIRM)
+        .flush({ status: 409, title: 'Conflict' }, { status: 409, statusText: 'Conflict' });
+      await settle();
+
+      expect(text('.report [role="alert"]')).toContain('A backup is running');
+      expect(root.querySelector('.restoring')).toBeNull();
+      expect(notifications.error).not.toHaveBeenCalled();
+    });
+
+    it('shows the server message of another restore failure', async () => {
+      await setup();
+      await uploadWith(report());
+      type('restore-confirm', 'RESTORE');
+      await settle();
+      button('Replace all data').click();
+      await settle();
+      http
+        .expectOne(CONFIRM)
+        .flush(
+          { status: 500, title: 'Server Error', detail: 'Disk full' },
+          { status: 500, statusText: 'Error' },
+        );
+      await settle();
+
+      expect(text('.report [role="alert"]')).toBe('Disk full');
+      expect(auth.checkSession).not.toHaveBeenCalled();
+    });
+
+    it('logs out and still shows the login page when the session check fails', async () => {
+      await setup();
+      await uploadWith(report());
+      auth.checkSession.mockRejectedValue(new Error('offline'));
+      auth.logout.mockRejectedValue(new Error('offline'));
+      const navigate = vi.spyOn(TestBed.inject(Router), 'navigateByUrl').mockResolvedValue(true);
+      type('restore-confirm', 'RESTORE');
+      await settle();
+      button('Replace all data').click();
+      await settle();
+      http.expectOne(CONFIRM).flush({ counts: {}, preRestoreBackup: 'pre-restore/x.zip' });
+      await settle();
+
+      expect(auth.logout).toHaveBeenCalled();
+      expect(navigate).toHaveBeenCalledWith('/login');
+    });
+  });
+
+  describe('restore upload', () => {
+    it('opens the file picker from the upload button', async () => {
+      await setup();
+      const input = root.querySelector('[data-testid="restore-file"]') as HTMLInputElement;
+      const open = vi.spyOn(input, 'click').mockImplementation(() => undefined);
+      button('Upload backup…').click();
+      expect(open).toHaveBeenCalledTimes(1);
+    });
+
+    it('does nothing when no file was chosen', async () => {
+      await setup();
+      const input = root.querySelector('[data-testid="restore-file"]') as HTMLInputElement;
+      Object.defineProperty(input, 'files', { value: [], configurable: true });
+      input.dispatchEvent(new Event('change'));
+      await settle();
+      http.expectNone(RESTORE);
+      expect(root.querySelector('.uploading')).toBeNull();
+    });
+
+    it('shows upload progress with the file name and disables the button', async () => {
+      await setup();
+      await pick();
+      expect(text('.uploading [role="status"]')).toContain(
+        'Uploading and checking cockpit-backup-2026-10-20T1530Z.zip',
+      );
+      expect(button('Upload backup…').disabled).toBe(true);
+      http.expectOne(RESTORE).flush(report());
+      await settle();
+      expect(root.querySelector('.uploading')).toBeNull();
+    });
+
+    it('clears an earlier upload error when the next upload succeeds', async () => {
+      await setup();
+      await pick();
+      http
+        .expectOne(RESTORE)
+        .flush({ status: 400, title: 'Not a zip' }, { status: 400, statusText: 'Bad Request' });
+      await settle();
+      expect(text('[role="alert"]')).toBe('Not a zip');
+
+      await uploadWith(report());
+      expect(root.querySelector('[role="alert"]')).toBeNull();
+      expect(root.querySelector('.report')).not.toBeNull();
+    });
+
+    it('renders an unknown creation date and missing versions', async () => {
+      await setup();
+      await uploadWith(
+        report({ createdAt: undefined, appVersion: undefined, formatVersion: undefined }),
+      );
+      const facts = [...root.querySelectorAll('.facts dt')].map((dt) => [
+        dt.textContent?.trim(),
+        dt.nextElementSibling?.textContent?.trim(),
+      ]);
+      expect(facts).toContainEqual(['Created', 'unknown']);
+      expect(facts).toContainEqual(['Format version', '–']);
+      expect(facts).toContainEqual(['App version', '–']);
+    });
+
+    it('offers no restore for a valid report without an upload id', async () => {
+      await setup();
+      await uploadWith(report({ id: undefined }));
+      expect(text('.report-title')).toContain('can be restored');
+      expect(button('Replace all data')).toBeUndefined();
+      expect(button('Close')).toBeTruthy();
     });
   });
 });
