@@ -4,41 +4,41 @@ Date: 2026-10-21
 
 Task: contacts-api - Contacts API
 
-Scope: Final re-review of all task commits, `git diff db540c60..029b887d` (8 commits). It covers the contacts module (`server/src/main/kotlin/ch/sonensei/cockpit/contacts`), the migrations in `db/migration/contacts` (V202610211000, V202610211010), `ContactWebTests.kt`, `ContactEdgeCaseTests.kt`, `api/openapi.yaml` and the regenerated `web/src/app/api/generated` client. The review focuses on the delta since the previous review. Committed changes only, and the working tree was clean.
+Scope: Full review of the current task commit, `git diff ae709721..c7b26f26` (one squashed commit). It covers the contacts module (`server/src/main/kotlin/ch/sonensei/cockpit/contacts`: `api/ContactController.kt`, `api/ContactDtos.kt`, `domain/Contact.kt`, `domain/ContactService.kt`, `domain/VCardService.kt`, `infra/ContactItems.kt`, `infra/ContactRepository.kt`), the migrations `db/migration/contacts/V202610211000__contacts_model.sql` and `V202610211010__contacts_email_search.sql`, `ContactWebTests.kt` and `ContactEdgeCaseTests.kt`, the regenerated `api/openapi.yaml` and `web/src/app/api/generated` (contacts files only), and the one-line changes in `gtd/convert/TaskToNoteWebTests.kt` and `TaskToNoteRollbackTests.kt` (CONTACT -> HABIT). The earlier review referred to commits (db540c60..029b887d) that no longer exist after the history rewrites, so this review was done from scratch on the current HEAD. Committed changes only; the working tree was clean before and after the test run.
 
 Requirements:
-- tasks/contacts-api.md acceptance criteria #1-#4 and the 7 recorded assumptions
-- SPEC.md §8.3, §4.2-4.4
-- docs/ARCHITECTURE.md and AGENTS.md project conventions (module boundaries, Flyway migration naming, logging, Problem Details, ETag)
-- Previous review (CR-1..CR-3, all resolved), fixes.md, tests.md
+- tasks/contacts-api.md acceptance criteria #1-#4 and the 8 recorded assumptions
+- SPEC.md §8.3 (contact fields, sources, vCard import/export), §4.2 (ETag/If-Match, Problem Details, Trash)
+- AGENTS.md project notes (module boundaries via services, Flyway naming per module, logging rules, generated files), docs/ARCHITECTURE.md conventions
+- reviews/contacts-api/fixes.md (earlier findings CR-1..CR-3 and TW-1)
 
 Git range:
 - Branch: main
-- HEAD: 029b887dba092934d36d64b55bf562cd0c61d8ea
-- Base/start: db540c60a32708bc15e18789a3a4b9b523ea333e (`git merge-base HEAD origin/main`)
-- Commits reviewed: 8 (2166d9ff, 12062df6, ad04d051, 41c5ec9c, 779083b6, bbe88b25, 09a6d995, 029b887d)
+- HEAD: c7b26f26677b8381efdd418c9b500c8697b0d6e4
+- Base/start: ae709721fd028ebe3f097492da4cf41b9ae03b03 (`git merge-base HEAD origin/main`)
+- Commits reviewed: 1 (c7b26f26)
 
-Summary: 0 P0, 0 P1, 0 P2, 0 P3
+Summary: 0 P0, 0 P1, 0 P2, 1 P3
 
-## Delta since the previous review
+## Commands and results
 
-- The previous review covered 176798a8, the fix commit before the rebase. `git patch-id` gives the same value (1293cbf7...) for 176798a8 and its rebased copy 41c5ec9c. `git diff 41c5ec9c..HEAD` touches only `ContactEdgeCaseTests.kt` (+129 lines), `reviews/contacts-api/tests.md` and `review.md`. Since then nothing changed in the contacts production code, the migrations, the contacts DTOs or the controller. The changes to `api/openapi.yaml` and `web/src/app/api/generated` between 176798a8 and HEAD come only from other tasks merged on main (notes, mail).
-- New tests in `ContactEdgeCaseTests.kt`. I checked each against the production code:
-  - `empty email, phone, address and organization properties are dropped ...` checks the import behavior from a0a62a41/ad04d051. Its assertions match the importer.
-  - `export with an empty ids parameter exports every contact` matches `ContactController` (`ids.isNullOrEmpty()` -> `contacts.all()`).
-  - `every contacts endpoint needs a login` uses `@WithAnonymousUser` at method level to override the class-level `@WithCockpitUser`. It expects 401 on all 7 endpoints and asserts that no row was written.
-  - `changing requests without a CSRF token are refused and change nothing` expects 403 for POST, PATCH and DELETE. It asserts the list is unchanged, the ETag is still `"0"` and `title` was not set. `title` is a real PATCH field (`ContactDtos.kt:118`), so the test exercises a real change.
-  - `a folder of the drive is not a photo` matches `ContactService.validate`, which resolves the id only as `ItemType.FILE` (`ContactService.kt:211`).
-  - `q stays applied on every page of the cursor` pages with limit 1. It asserts the exact name-ordered result, including an email-only match, and the loop has a bound.
-  - `a body that is not a JSON object and an import without the file part are 400` covers a JSON array, truncated JSON and a missing `file` part (`@RequestPart("file")`).
-- The tests assert observable HTTP behavior and DB state. They mock nothing and use fictitious test data (`example.org`, `+41 31 000 00 00`).
+- `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.contacts.*' --tests 'ch.sonensei.cockpit.gtd.convert.*' --tests '*OpenApiContractTest'`. The first two attempts failed with `java.io.EOFException` in Gradle's `SerializableTestResultStore` (reading `build/test-results/test/binary`). This was a Gradle infrastructure failure, not a test failure: another Gradle run of the same tests was writing to the same `server/build` directory at the same time (its reports have the timestamp 09:41:20). After that run had finished, the same command was reported `UP-TO-DATE`.
+- `cd server && ./gradlew test --rerun --tests 'ch.sonensei.cockpit.contacts.*' --tests 'ch.sonensei.cockpit.gtd.convert.*' --tests '*OpenApiContractTest'` (without `UPDATE_OPENAPI`, Testcontainers Postgres) -> BUILD SUCCESSFUL in 32s. JUnit XML results: ContactEdgeCaseTests 44/44, ContactWebTests 11/11, OpenApiContractTest 1/1, TaskToNoteEdgeCaseTests 17/17, TaskToNoteWebTests 8/8, TaskToNoteRollbackTests 1/1. 0 failures, 0 errors, 0 skipped. `git status` stayed clean, so the committed `api/openapi.yaml` matches the API.
+- `python tasks.py verify contacts-api` -> criteria #1-#4 are all still unverified. No evidence has been claimed yet, so this is not a finding.
 
 ## Acceptance criteria
 
-- #1 (entity, CRUD with ETag, photo via Files, resolver, search, Trash): implemented, unchanged since the previous review. Covered by the tests listed in tests.md.
-- #2 (vCard import/export with ez-vcard): implemented, unchanged. Covered by the tests.
-- #3: I ran `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.contacts.*' --tests '*OpenApiContractTest'` at HEAD 029b887d -> BUILD SUCCESSFUL. The run used Testcontainers Postgres. Results: ContactEdgeCaseTests 41/41, ContactWebTests 11/11, 0 failures/errors/skipped.
-- #4: in the same run, `OpenApiContractTest` passed (1/1) without `UPDATE_OPENAPI`. That means the committed `api/openapi.yaml` matches the API.
+- #1 Entity, CRUD with ETag, photo via Files, resolver CONTACT, search, Trash. All SPEC §8.3 fields are present (`Contact.kt`, migration V202610211000), including `source` with a check constraint and a unique `(source, external_id)` index. CRUD goes through `ContactService`. PATCH/DELETE check `If-Match` via `ETags.checkIfMatch` against the loaded version, and a concurrent commit gives an optimistic locking error (tested). The photo is checked through the FILE item resolver, and only when the request changes it (the CR-2 fix still holds). `ContactItemResolver` is registered for `ItemType.CONTACT`. Contacts are indexed on create, update and restore, and removed from the index on soft delete. `ContactTrashContributor` follows the same pattern as Task/Project. `TrashService` publishes the change and `ItemDeletedEvent` on purge. Met.
+- #2 vCard import/export with ez-vcard. Import of a multi-card file: each card gets its own `TransactionTemplate` transaction, and invalid cards are skipped and reported. A photo blob stored for a skipped card is removed by `FilesService.storeFile`'s rollback hook. The limits (20 MB, 10000 cards, 5 MB photo) are enforced. Export writes vCard 3.0 with `UID urn:uuid:<id>` and makes labels safe (the TW-1 fix still holds). Round-trip tests cover 2.1, 3.0 and 4.0 input. Met.
+- #3 Contacts tests pass on Testcontainers Postgres. Confirmed by the run above.
+- #4 `OpenApiContractTest` passes without the flag. The generated web client contains only the new contacts functions and models. Met.
+
+## Checks without findings
+
+- Architecture: contacts uses the files module only through `FilesService`/`SpecialFolder`, and the core items/search/trash/events only through their domain interfaces. Migrations are new files under `db/migration/contacts` with the module-prefixed timestamp naming. The q-filter function lives in a separate new migration, and no applied migration was edited.
+- Security and data: every endpoint needs a login, and changing requests need CSRF (both tested). Unknown body fields are rejected. The LIKE pattern is escaped (`\`, `%`, `_`) and passed as a bound literal. Photo file names are sanitized with the same rule as `FileNames`. The only log line contains counts, with no contact data or note contents. Test data is fictitious.
+- Correctness edges: the keyset cursor (`<id>|<name>`) parses the id first, so names containing `|` work (tested). The list and the keyset predicate both use the DB collation, so their order matches. `limit` is bounded by `CursorRequest`. Export with unknown ids returns 404 (documented). Clearing `displayName` derives it again, and a contact with nothing to derive from is a 400.
+- Backup/restore of contacts is not in this task's criteria. It is planned separately as `tasks/backup-contrib-contacts.md`, so it is not reported as missing.
 
 ## P0 Critical
 
@@ -54,12 +54,18 @@ None.
 
 ## P3 Low
 
-None.
+- [ ] **CR-1 | Convert tests now depend on HABIT having no resolver, which `habits-api` will add**
+    - File: `server/src/test/kotlin/ch/sonensei/cockpit/gtd/convert/TaskToNoteWebTests.kt:127`, `server/src/test/kotlin/ch/sonensei/cockpit/gtd/convert/TaskToNoteRollbackTests.kt:51`
+    - Category: Tests
+    - Problem: these tests need an item type that has no registered resolver. This task broke them by adding the CONTACT resolver, and the fix swaps in `ItemType.HABIT`. But `tasks/habits-api.md` (status todo) has the criterion "Resolver HABIT". When that task lands, the same tests fail again for the same reason.
+    - Why it matters: an unrelated feature task will again fail `.taskcheck` because of a hidden test assumption, and will have to repeat this same fix outside its `touches`.
+    - Suggested fix: make the test independent of which modules have resolvers. For example, pick the type at runtime from `ItemType.entries` minus the types `ItemResolverRegistry` knows, or use a test-only `ItemResolverRegistry` stub/mock for that case. At least add a comment that names the dependency. The fix can be done here or in `habits-api`. The parent decides the scope.
 
 ## Review conclusion
 
 No material issues found.
 
-Notes:
-- `python tasks.py verify contacts-api` still shows criteria #1-#4 unverified. Nothing has been claimed, so this is not a finding. Before `done`, the parent worker must record the evidence: the command runs above and in tests.md.
-- The `reviewed_revision` for quality.json is 029b887dba092934d36d64b55bf562cd0c61d8ea. A commit that touches only `reviews/` or `tasks/` keeps this review fresh.
+Notes for the parent worker:
+- CR-1 is a low-priority test-robustness note. It does not block this task.
+- `reviewed_revision` for quality.json is c7b26f26677b8381efdd418c9b500c8697b0d6e4. A commit that touches only `reviews/` or `tasks/` keeps this review fresh.
+- Avoid running Gradle in `server/` while another Gradle run in the same clone is active. The two runs corrupt `build/test-results/test/binary` and fail with `EOFException`.
