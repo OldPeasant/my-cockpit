@@ -1,0 +1,276 @@
+<section class="backup" aria-labelledby="backup-title">
+  <h2 id="backup-title" i18n="@@settings.backup">Backup &amp; restore</h2>
+
+  <div class="row">
+    <div class="describe">
+      <h3 i18n="@@backup.create">Create backup</h3>
+      <p i18n="@@backup.create.hint">
+        A zip with all your data and files, plus readable copies (Markdown, calendar and contact
+        files). With a passphrase, sign-in and account secrets are included, encrypted; without,
+        accounts must be reconnected after a restore.
+      </p>
+    </div>
+    <div class="control">
+      <form class="start" (submit)="$event.preventDefault(); startBackup()" novalidate>
+        <mat-form-field subscriptSizing="dynamic">
+          <mat-label i18n="@@backup.create.passphrase">Passphrase (optional)</mat-label>
+          <input
+            matInput
+            type="password"
+            [formControl]="passphrase"
+            autocomplete="new-password"
+            data-testid="backup-passphrase"
+          />
+          @if (passphrase.touched && passphrase.hasError('minlength')) {
+            <mat-error i18n="@@backup.create.passphraseShort"
+              >Use at least {{ passphraseMin }} characters, or none.</mat-error
+            >
+          } @else if (passphrase.touched && passphrase.hasError('maxlength')) {
+            <mat-error i18n="@@backup.create.passphraseLong">This passphrase is too long.</mat-error>
+          }
+        </mat-form-field>
+        <button
+          mat-flat-button
+          type="submit"
+          [disabled]="starting() || running()"
+          i18n="@@backup.create.start"
+        >
+          Create backup
+        </button>
+      </form>
+      @if (backupError(); as error) {
+        <p class="error" role="alert">{{ error }}</p>
+      }
+
+      @if (job(); as current) {
+        <div class="job" [attr.data-state]="current.state">
+          @switch (current.state) {
+            @case ('RUNNING') {
+              <mat-progress-bar
+                mode="determinate"
+                [value]="percent()"
+                aria-labelledby="job-status"
+              ></mat-progress-bar>
+              <p id="job-status" class="status" role="status" i18n="@@backup.job.running">
+                Creating backup… {{ current.stepsDone }} of {{ current.stepsTotal }} steps ({{
+                  current.step
+                }})
+              </p>
+            }
+            @case ('COMPLETED') {
+              <p class="status" role="status">
+                <span class="file">{{ current.fileName }}</span>
+                @if (current.size !== undefined) {
+                  <span class="meta" i18n="@@backup.job.size"
+                    >{{ current.size / 1048576 | number: '1.0-1' }} MB</span
+                  >
+                }
+              </p>
+              <button
+                mat-stroked-button
+                type="button"
+                [disabled]="downloading()"
+                (click)="download()"
+                i18n="@@backup.job.download"
+              >
+                Download
+              </button>
+            }
+            @case ('FAILED') {
+              <p class="error" role="alert" i18n="@@backup.job.failed">
+                The backup failed. Try again; if it fails again, the server log says why.
+              </p>
+            }
+          }
+        </div>
+      }
+      @if (downloadError(); as error) {
+        <p class="error" role="alert">{{ error }}</p>
+      }
+    </div>
+  </div>
+
+  <div class="row">
+    <div class="describe">
+      <h3 i18n="@@backup.restore">Restore</h3>
+      <p i18n="@@backup.restore.hint">
+        Replaces all data with a backup. Your current data is saved first, on the server, in
+        <code>pre-restore/</code>. Afterwards you sign in again.
+      </p>
+    </div>
+    <div class="control">
+      @if (restoring()) {
+        <div class="restoring">
+          <mat-progress-bar mode="indeterminate" aria-labelledby="restore-status"></mat-progress-bar>
+          <p id="restore-status" class="status" role="status" i18n="@@backup.restore.running">
+            Restoring… Keep this page open.
+          </p>
+        </div>
+      } @else if (report(); as r) {
+        <div class="report" [class.invalid]="!r.valid" role="region" aria-labelledby="report-title">
+          <h4 id="report-title" class="report-title">
+            @if (r.valid) {
+              <ng-container i18n="@@backup.report.valid">{{ fileName() }} can be restored</ng-container>
+            } @else {
+              <ng-container i18n="@@backup.report.invalid"
+                >{{ fileName() }} cannot be restored</ng-container
+              >
+            }
+          </h4>
+
+          <dl class="facts">
+            <dt i18n="@@backup.report.created">Created</dt>
+            <dd>
+              @if (r.createdAt) {
+                {{ r.createdAt | date: 'medium' }}
+              } @else {
+                <ng-container i18n="@@backup.report.unknown">unknown</ng-container>
+              }
+            </dd>
+            <dt i18n="@@backup.report.format">Format version</dt>
+            <dd>{{ r.formatVersion ?? '–' }}</dd>
+            <dt i18n="@@backup.report.app">App version</dt>
+            <dd>{{ r.appVersion ?? '–' }}</dd>
+            <dt i18n="@@backup.report.secrets">Secrets</dt>
+            <dd>
+              @if (r.hasSecrets) {
+                <ng-container i18n="@@backup.report.secretsYes">included, encrypted</ng-container>
+              } @else {
+                <ng-container i18n="@@backup.report.secretsNo">not included</ng-container>
+              }
+            </dd>
+          </dl>
+
+          @if (counts().length) {
+            <table class="counts">
+              <caption i18n="@@backup.report.counts">Records in the backup</caption>
+              <tbody>
+                @for (entry of counts(); track entry[0]) {
+                  <tr>
+                    <th scope="row">{{ entry[0] }}</th>
+                    <td>{{ entry[1] | number }}</td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          }
+
+          @if (r.problems.length) {
+            <div class="problems">
+              <h5 i18n="@@backup.report.problems">Problems</h5>
+              <ul>
+                @for (problem of r.problems; track $index) {
+                  <li>{{ problem }}</li>
+                }
+              </ul>
+            </div>
+          }
+          @if (r.warnings.length) {
+            <div class="warnings">
+              <h5 i18n="@@backup.report.warnings">Warnings</h5>
+              <ul>
+                @for (warning of r.warnings; track $index) {
+                  <li>{{ warning }}</li>
+                }
+              </ul>
+            </div>
+          }
+
+          @if (r.valid && r.id) {
+            <form class="confirm" (submit)="$event.preventDefault(); restore()" novalidate>
+              @if (r.hasSecrets) {
+                <mat-form-field subscriptSizing="dynamic">
+                  <mat-label i18n="@@backup.restore.passphrase">Backup passphrase</mat-label>
+                  <input
+                    matInput
+                    type="password"
+                    [formControl]="restorePassphrase"
+                    autocomplete="off"
+                    data-testid="restore-passphrase"
+                  />
+                  <mat-hint i18n="@@backup.restore.passphraseHint"
+                    >Without it, accounts are reconnected and TOTP is set up again.</mat-hint
+                  >
+                </mat-form-field>
+              }
+              <p class="gate" id="confirm-hint" i18n="@@backup.restore.gate">
+                All current data will be replaced. Type <strong>{{ confirmWord }}</strong> to
+                confirm.
+              </p>
+              <mat-form-field subscriptSizing="dynamic">
+                <mat-label i18n="@@backup.restore.confirmLabel">Confirmation</mat-label>
+                <input
+                  matInput
+                  [formControl]="confirmText"
+                  autocomplete="off"
+                  spellcheck="false"
+                  aria-describedby="confirm-hint"
+                  data-testid="restore-confirm"
+                />
+              </mat-form-field>
+              <div class="actions">
+                <button
+                  mat-flat-button
+                  class="danger"
+                  type="submit"
+                  [disabled]="!confirmed()"
+                  i18n="@@backup.restore.replace"
+                >
+                  Replace all data
+                </button>
+                <button
+                  mat-button
+                  type="button"
+                  (click)="cancelRestore()"
+                  i18n="@@backup.restore.cancel"
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
+          } @else {
+            <div class="actions">
+              <button mat-button type="button" (click)="cancelRestore()" i18n="@@backup.restore.close">
+                Close
+              </button>
+            </div>
+          }
+          @if (restoreError(); as error) {
+            <p class="error" role="alert">{{ error }}</p>
+          }
+        </div>
+      } @else {
+        <div class="pick">
+          <input
+            #fileInput
+            type="file"
+            accept=".zip,application/zip"
+            class="file-input"
+            data-testid="restore-file"
+            (change)="upload(fileInput)"
+          />
+          <button
+            mat-stroked-button
+            type="button"
+            [disabled]="uploading()"
+            (click)="fileInput.click()"
+            i18n="@@backup.restore.upload"
+          >
+            Upload backup…
+          </button>
+          @if (uploading()) {
+            <div class="uploading">
+              <mat-progress-bar mode="indeterminate" aria-labelledby="upload-status"></mat-progress-bar>
+              <p id="upload-status" class="status" role="status" i18n="@@backup.restore.uploading">
+                Uploading and checking {{ fileName() }}…
+              </p>
+            </div>
+          }
+        </div>
+      }
+      @if (uploadError(); as error) {
+        <p class="error" role="alert">{{ error }}</p>
+      }
+    </div>
+  </div>
+</section>

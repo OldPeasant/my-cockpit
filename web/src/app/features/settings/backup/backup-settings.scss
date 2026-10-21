@@ -1,0 +1,216 @@
+h2 {
+  margin: 0 0 var(--app-space-2);
+  font: var(--mat-sys-title-large);
+}
+
+h3 {
+  margin: 0 0 var(--app-space-1);
+  font: var(--mat-sys-title-small);
+}
+
+.error {
+  margin: var(--app-space-2) 0 0;
+  color: var(--app-danger);
+}
+
+// One setting per row: what it is on the left, the control on the right (as in General).
+.row {
+  display: grid;
+  grid-template-columns: minmax(0, 16rem) minmax(0, 1fr);
+  gap: var(--app-space-2) var(--app-space-5);
+  padding: var(--app-space-4) 0;
+  border-top: 1px solid var(--app-border);
+}
+
+.describe p {
+  margin: 0;
+  max-width: 40ch;
+  color: var(--app-fg-muted);
+  font: var(--mat-sys-body-medium);
+}
+
+.control {
+  min-width: 0;
+}
+
+.start,
+.pick {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--app-space-3);
+
+  mat-form-field {
+    width: min(100%, 18rem);
+  }
+}
+
+.file-input {
+  display: none;
+}
+
+.status {
+  margin: var(--app-space-2) 0 0;
+  font: var(--mat-sys-body-medium);
+}
+
+.job,
+.restoring,
+.uploading {
+  max-width: 32rem;
+  margin-top: var(--app-space-3);
+}
+
+.uploading {
+  flex-basis: 100%;
+  margin-top: 0;
+}
+
+.job[data-state='COMPLETED'] {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--app-space-3);
+
+  .status {
+    display: flex;
+    flex-direction: column;
+    margin: 0;
+  }
+}
+
+.file {
+  overflow-wrap: anywhere;
+}
+
+.meta {
+  color: var(--app-fg-muted);
+  font: var(--mat-sys-body-small);
+}
+
+// The validation report: the last stop before all data is replaced, so it is framed as a warning.
+.report {
+  max-width: 36rem;
+  padding: var(--app-space-4);
+  border: 1px solid var(--app-border);
+  border-left: 4px solid var(--app-danger);
+  border-radius: var(--app-radius);
+  background: var(--app-surface-raised);
+
+  &.invalid {
+    border-left-color: var(--app-fg-muted);
+  }
+}
+
+.report-title {
+  margin: 0 0 var(--app-space-3);
+  font: var(--mat-sys-title-small);
+  overflow-wrap: anywhere;
+}
+
+.facts {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: var(--app-space-1) var(--app-space-4);
+  margin: 0 0 var(--app-space-3);
+  font: var(--mat-sys-body-medium);
+
+  dt {
+    color: var(--app-fg-muted);
+  }
+
+  dd {
+    margin: 0;
+  }
+}
+
+.counts {
+  width: 100%;
+  margin: 0 0 var(--app-space-3);
+  border-collapse: collapse;
+  font: var(--mat-sys-body-medium);
+
+  caption {
+    padding-bottom: var(--app-space-1);
+    text-align: left;
+    color: var(--app-fg-muted);
+  }
+
+  th {
+    text-align: left;
+    font-weight: normal;
+  }
+
+  td {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+
+  tr + tr {
+    border-top: 1px solid var(--app-border);
+  }
+
+  th,
+  td {
+    padding: var(--app-space-1) 0;
+  }
+}
+
+.problems,
+.warnings {
+  margin: 0 0 var(--app-space-3);
+
+  h5 {
+    margin: 0 0 var(--app-space-1);
+    font: var(--mat-sys-title-small);
+  }
+
+  ul {
+    margin: 0;
+    padding-left: var(--app-space-5);
+  }
+}
+
+.problems {
+  color: var(--app-danger);
+}
+
+.confirm {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--app-space-3);
+  padding-top: var(--app-space-3);
+  border-top: 1px solid var(--app-border);
+
+  mat-form-field {
+    width: min(100%, 18rem);
+  }
+}
+
+.gate {
+  margin: 0;
+  font: var(--mat-sys-body-medium);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--app-space-2);
+}
+
+.danger:not(:disabled) {
+  --mat-button-filled-container-color: var(--app-danger);
+  --mat-button-filled-label-text-color: var(--app-bg);
+}
+
+code {
+  font-family: ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
+}
+
+@media (max-width: 720px) {
+  .row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

@@ -66,11 +66,20 @@ describe('settings routes', () => {
     );
   });
 
+  it('opens Backup & restore at /settings/backup', async () => {
+    const harness = await RouterTestingHarness.create();
+    await harness.navigateByUrl('/settings/backup');
+
+    expect(harness.routeNativeElement?.querySelector('app-backup-settings')).not.toBeNull();
+    expect(harness.routeNativeElement?.querySelector('a.active')?.textContent?.trim()).toBe(
+      'Backup & restore',
+    );
+  });
+
   it.each([
     ['calendars', 'Calendars'],
     ['integrations', 'Integrations'],
     ['mail', 'Mail'],
-    ['backup', 'Backup & restore'],
   ])('has a placeholder for %s', async (path, title) => {
     const harness = await RouterTestingHarness.create();
     await harness.navigateByUrl(`/settings/${path}`);

@@ -35,7 +35,11 @@ export default [
       placeholder(SETTINGS_SECTIONS.calendars),
       placeholder(SETTINGS_SECTIONS.integrations),
       placeholder(SETTINGS_SECTIONS.mail),
-      placeholder(SETTINGS_SECTIONS.backup),
+      {
+        path: SETTINGS_SECTIONS.backup.path,
+        title: SETTINGS_SECTIONS.backup.label,
+        loadComponent: () => import('./backup/backup-settings'),
+      },
     ],
   },
 ] satisfies Routes;
