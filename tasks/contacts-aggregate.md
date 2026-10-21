@@ -13,7 +13,8 @@ Everything about a person (SPEC.md §8.3).
 ## Acceptance criteria
 - [x] `GET /api/v1/contacts/{id}/related`: recent mails from/to, upcoming events with them, Waiting For items
   - verified (2026-10-21 23:53+0200 by dell26/agent-1): cd server && ./gradlew test --tests 'ch.sonensei.cockpit.contacts.aggregate.*' (Testcontainers Postgres) on 314a570ad -> ContactAggregateWebTests+EdgeCaseTests: GET /contacts/{id}/related returns mails from/to/cc newest first (Trash/Spam/Drafts/detached/duplicates excluded, cap 20), upcoming attendee occurrences incl. recurring/all-day (cancelled/past/>90d excluded, cap 20), Waiting For tasks by contact across pages; unknown/trashed contact 404 -> pass
-- [ ] `GET /api/v1/contacts/autocomplete?q=` merges contacts and recent correspondents
+- [x] `GET /api/v1/contacts/autocomplete?q=` merges contacts and recent correspondents
+  - verified (2026-10-21 23:53+0200 by dell26/agent-1): same run -> GET /contacts/autocomplete?q= merges contacts (prefix matches first, >200 contacts paged) and recent correspondents (deduped, own account/identity addresses excluded, linked to owning contact), limit default 10 / 1-50 else 400, blank q -> [] : pass
 - [ ] `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.contacts.aggregate.*'` passes (Postgres via Testcontainers where persistence is involved)
 - [ ] API documented: `api/openapi.yaml` regenerated (`UPDATE_OPENAPI=1 ./gradlew test --tests '*OpenApiContractTest'`) and `OpenApiContractTest` passes without the flag
 
