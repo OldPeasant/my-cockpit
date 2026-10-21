@@ -2998,6 +2998,141 @@ paths:
       summary: The conversation of a message
       tags:
       - Mail messages
+  /api/v1/mail/messages/{id}/to-note:
+    post:
+      description: "The note is titled with the subject; its body lists sender, recipients\
+        \ and date, then the mail's plain text (the HTML part as text when there is\
+        \ none), and it is linked to the message. Loads the body from the mail server\
+        \ when it is not cached."
+      operationId: mailToNote
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MailGtdItemResponse"
+          description: Created and linked; `Location` is the new item
+          headers:
+            Location:
+              schema:
+                type: string
+              style: simple
+        "400":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: Malformed id
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: "No such message, or it is no longer on the server"
+        "502":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: The mail server failed
+        "503":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: All connections of the account are busy (`errorCode` POOL_EXHAUSTED);
+            retry later
+      summary: Create a note from a message
+      tags:
+      - Mail messages
+  /api/v1/mail/messages/{id}/to-task:
+    post:
+      description: "The task is titled with the subject and linked to the message\
+        \ (a manual link, shown on both). A message that moved resolves to its current\
+        \ copy, which the link points at; the link keeps working after later moves."
+      operationId: mailToTask
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MailGtdItemResponse"
+          description: Created and linked; `Location` is the new item
+          headers:
+            Location:
+              schema:
+                type: string
+              style: simple
+        "400":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: Malformed id
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: "No such message, or it is no longer on the server"
+      summary: Create an Inbox task from a message
+      tags:
+      - Mail messages
+  /api/v1/mail/messages/{id}/to-waiting:
+    post:
+      description: "The task is titled with the subject, waits since the mail's date\
+        \ and is linked to the message. For a sent mail (in the Sent folder, or from\
+        \ the account's address or one of its identities) `waitingForText` names the\
+        \ recipients (To, else Cc, else Bcc); for a received mail its sender."
+      operationId: mailToWaiting
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MailGtdItemResponse"
+          description: Created and linked; `Location` is the new item
+          headers:
+            Location:
+              schema:
+                type: string
+              style: simple
+        "400":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: Malformed id
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: "No such message, or it is no longer on the server"
+      summary: Create a Waiting For task from a message
+      tags:
+      - Mail messages
   /api/v1/notes:
     get:
       description: "Notes matching every given filter, not in the Trash: pinned first,\
@@ -7302,6 +7437,44 @@ components:
       - roleOverridden
       - selectable
       - version
+    MailGtdItemResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Id of the new task or note
+        linkId:
+          type: string
+          format: uuid
+          description: The link between the item and the message
+        messageId:
+          type: string
+          format: uuid
+          description: The message linked (its current copy)
+        title:
+          type: string
+        type:
+          type: string
+          description: TASK or NOTE
+          enum:
+          - TASK
+          - PROJECT
+          - NOTE
+          - EVENT
+          - EMAIL
+          - FILE
+          - FOLDER
+          - CONTACT
+          - BOOKMARK
+          - JOURNAL_ENTRY
+          - HABIT
+      required:
+      - id
+      - linkId
+      - messageId
+      - title
+      - type
     MailMessageListResponse:
       type: object
       properties:

@@ -173,6 +173,12 @@ export type { DownloadMailAttachment$Params as DownloadMailAttachment$Params } f
 export { downloadMailAttachment as downloadMailAttachment } from './fn/mail-messages/download-mail-attachment';
 export type { GetMailThread$Params as GetMailThread$Params } from './fn/mail-messages/get-mail-thread';
 export { getMailThread as getMailThread } from './fn/mail-messages/get-mail-thread';
+export type { MailToNote$Params as MailToNote$Params } from './fn/mail-messages/mail-to-note';
+export { mailToNote as mailToNote } from './fn/mail-messages/mail-to-note';
+export type { MailToTask$Params as MailToTask$Params } from './fn/mail-messages/mail-to-task';
+export { mailToTask as mailToTask } from './fn/mail-messages/mail-to-task';
+export type { MailToWaiting$Params as MailToWaiting$Params } from './fn/mail-messages/mail-to-waiting';
+export { mailToWaiting as mailToWaiting } from './fn/mail-messages/mail-to-waiting';
 export type { ListNotes$Params as ListNotes$Params } from './fn/notes/list-notes';
 export { listNotes as listNotes } from './fn/notes/list-notes';
 export type { CreateNote$Params as CreateNote$Params } from './fn/notes/create-note';

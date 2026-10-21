@@ -67,6 +67,7 @@ export type { MailAttachmentResponse } from './models/mail-attachment-response';
 export type { MailBodyResponse } from './models/mail-body-response';
 export type { MailFolderListResponse } from './models/mail-folder-list-response';
 export type { MailFolderResponse } from './models/mail-folder-response';
+export type { MailGtdItemResponse } from './models/mail-gtd-item-response';
 export type { MailMessageListResponse } from './models/mail-message-list-response';
 export type { MailMessageResponse } from './models/mail-message-response';
 export type { MailMessageSummaryResponse } from './models/mail-message-summary-response';
