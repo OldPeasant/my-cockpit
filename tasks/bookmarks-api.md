@@ -19,7 +19,8 @@ Bookmarks and read-later (SPEC.md §8.4).
   - verified (2026-10-21 22:55+0200 by dell26/agent-3): BookmarkWebTests + BookmarkEdgeCaseTests (resolver BOOKMARK, search incl. readable URL, trash/restore) via ./gradlew test --tests 'ch.sonensei.cockpit.bookmarks.*' -> pass
 - [x] `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.bookmarks.*'` passes (Postgres via Testcontainers where persistence is involved) with WireMock pages
   - verified (2026-10-21 22:55+0200 by dell26/agent-3): cd server && ./gradlew test --tests 'ch.sonensei.cockpit.bookmarks.*' --tests '*OpenApiContractTest' at e788d313 (Postgres via Testcontainers PostgresTestBase, WireMock pages) -> 110 tests, 0 failures
-- [ ] API documented: `api/openapi.yaml` regenerated (`UPDATE_OPENAPI=1 ./gradlew test --tests '*OpenApiContractTest'`) and `OpenApiContractTest` passes without the flag
+- [x] API documented: `api/openapi.yaml` regenerated (`UPDATE_OPENAPI=1 ./gradlew test --tests '*OpenApiContractTest'`) and `OpenApiContractTest` passes without the flag
+  - verified (2026-10-21 22:55+0200 by dell26/agent-3): api/openapi.yaml regenerated in 1737c020 with UPDATE_OPENAPI=1; ./gradlew test --tests '*OpenApiContractTest' without the flag at e788d313 -> pass, api/ unchanged (git diff --quiet api)
 
 ## Notes
 - ASSUMPTION (2026-10-21 20:39+0200 by dell26/agent-3): favicon is stored as the absolute http(s) URL of the site's icon (link rel=icon, else apple-touch-icon, else /favicon.ico); the server does not download the icon itself. Clients may load it through an image proxy if CSP requires.
