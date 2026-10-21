@@ -157,6 +157,62 @@ class GoogleInvitationAdapterTests {
 		wireMock.verify(2, anyRequestedFor(anyUrl()))
 	}
 
+	@Test
+	fun `a cancelled event is gone at Google and is not answered`() {
+		stub(get(urlPathEqualTo("$EVENTS/inv001")), invitation("\"inv-1\"", "needsAction").replace("\"confirmed\"", "\"cancelled\""))
+
+		shouldThrow<RemoteEventChangedException> {
+			adapter.respondToInvitation(source, "primary", RemoteEventKey("inv001"), AttendeeStatus.ACCEPTED, null)
+		}.message shouldBe "The event was deleted at Google"
+		wireMock.verify(0, patchRequestedFor(anyUrl()))
+	}
+
+	@Test
+	fun `the user's own attendee marked as organizer cannot answer`() {
+		// The event's organizer object does not say self, but the user's attendee entry is the organizer's.
+		stub(
+			get(urlPathEqualTo("$EVENTS/inv001")),
+			invitation("\"inv-1\"", "needsAction").replace("\"self\": true, ", "\"self\": true, \"organizer\": true, "),
+		)
+
+		shouldThrow<InvitationNotRespondableException> {
+			adapter.respondToInvitation(source, "primary", RemoteEventKey("inv001"), AttendeeStatus.DECLINED, null)
+		}.message shouldBe "You organize this event"
+		wireMock.verify(0, patchRequestedFor(anyUrl()))
+	}
+
+	@Test
+	fun `an event deleted at Google before or while answering is a change at Google`() {
+		stub(get(urlPathEqualTo("$EVENTS/gone02")), "{}", 410)
+		shouldThrow<RemoteEventChangedException> {
+			adapter.respondToInvitation(source, "primary", RemoteEventKey("gone02"), AttendeeStatus.ACCEPTED, null)
+		}.message shouldBe "The event was deleted at Google"
+
+		stub(get(urlPathEqualTo("$EVENTS/inv001")), invitation("\"inv-1\"", "needsAction"))
+		for (status in listOf(404, 410)) {
+			stub(patch(urlPathEqualTo("$EVENTS/inv001")), "{}", status)
+			shouldThrow<RemoteEventChangedException> {
+				adapter.respondToInvitation(source, "primary", RemoteEventKey("inv001"), AttendeeStatus.ACCEPTED, "\"inv-1\"")
+			}.message shouldBe "The event was deleted at Google"
+		}
+	}
+
+	@Test
+	fun `a failing read and an unreadable answer are provider errors`() {
+		stub(get(urlPathEqualTo("$EVENTS/inv001")), "{}", 400)
+		shouldThrow<CalendarProviderException> {
+			adapter.respondToInvitation(source, "primary", RemoteEventKey("inv001"), AttendeeStatus.ACCEPTED, null)
+		}.message shouldBe "Fetching an event failed at Google (HTTP 400)"
+		wireMock.verify(0, patchRequestedFor(anyUrl()))
+
+		stub(get(urlPathEqualTo("$EVENTS/inv001")), invitation("\"inv-1\"", "needsAction"))
+		// 200, but without an id: not an event the cockpit can store.
+		stub(patch(urlPathEqualTo("$EVENTS/inv001")), """{"etag": "\"inv-2\""}""")
+		shouldThrow<CalendarProviderException> {
+			adapter.respondToInvitation(source, "primary", RemoteEventKey("inv001"), AttendeeStatus.ACCEPTED, null)
+		}.message shouldBe "Google answered with an event that could not be read"
+	}
+
 	private fun declinedOrTentative(status: String) =
 		equalToJson(
 			"""{"attendees": [{"email": "sam.example@example.test", "displayName": "Sam Example", "organizer": true,
