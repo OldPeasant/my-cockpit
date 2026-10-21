@@ -2,23 +2,32 @@
 
 Date: 2026-10-21
 
-Task: mail-actions-api - Mail actions
+Task: mail-actions-api - Mail actions (re-review of the final code after the fixes in ae534351)
 
-Scope: implementation commits of the task, `git diff d38346e1..b8283a43` (741bacce, b8283a43). The uncommitted test file `MailActionControllerTests.kt` (test-writer, in progress) is not part of this review.
+Scope: `git diff origin/main...HEAD` as supplied by the parent worker: task commits 02831e50, b47aa0f3, f00d6973, ae534351 on top of task base ff67f337. Production code: `server/src/main/kotlin/ch/sonensei/cockpit/mail/api/MailActionController.kt`, `MailActionService.kt`, `api/openapi.yaml` and the generated web client models. Bash was not available to this reviewer, so the commit range could not be listed with git here. The review is based on reading the current files in full: the two production files, the generated models `mail-action-request.ts`, `mail-action-response.ts` and `mail-action-result-response.ts`, `MailActionServiceTests.kt`, `MailActionGreenMailTests.kt`, plus the context `MailMessageLocator`, `ChangeEventPublisher`, `SseEventHub` and `application.properties`.
 
 Requirements:
-- `tasks/mail-actions-api.md` acceptance criteria and recorded assumptions (#1-#5)
-- SPEC.md §4.2, §4.3, §7.2, §7.3, §7.4
-- docs/ARCHITECTURE.md, AGENTS.md project notes
-- Existing mail module code: `MailHeaderSyncService`, `MailHeaderStore`, `MailMessageLocator`, `ImapConnectionPool`, `ProblemDetailsAdvice`
+- `tasks/mail-actions-api.md`: acceptance criteria 1-3 and the five recorded assumptions
+- SPEC.md §4.2 and §7.3, as cited in the task and in the earlier review
+- docs/ARCHITECTURE.md and the AGENTS.md project notes (logging rules, generated files, module boundaries)
+- The earlier review `reviews/mail-actions-api/review.md` (CR-1..CR-4) and `reviews/mail-actions-api/fixes.md`
 
 Git range:
 - Branch: main
-- HEAD: b8283a43bca22e4e3cdb939842776ad3c8919972
-- Base/start: d38346e130716e1f25ef76e0b936238d4fadc475
-- Commits reviewed: 2
+- HEAD: 8707665c (from the parent; could not be confirmed with git here)
+- Base/start: ff67f337
+- Commits reviewed: 4
 
-Summary: 0 P0, 0 P1, 2 P2, 2 P3
+Summary: 0 P0, 0 P1, 0 P2, 0 P3
+
+## Status of the earlier findings
+
+- **CR-1 (P2, cache-update failure aborts the bulk request): resolved.** `updateCache` (`MailActionService.kt:326-347`) runs `applyToRows` in its own `TransactionTemplate` transaction for each source folder. It catches `OptimisticLockingFailureException` and `DataIntegrityViolationException` and retries once on rows it reads again. If both attempts fail, it leaves the cache to the next sync, and the ids stay ok. `spring.jpa.open-in-view=false` (`application.properties:10`) and the non-transactional controller and service mean every attempt starts with a fresh persistence context, so the retry really reads the stored state. On a retry, `relocate` checks the destination `(folder_id, uid)` again (`:397`). The `MAIL_FOLDER` events are now published outside the transaction. `SseEventHub.onChange` uses `@TransactionalEventListener(fallbackExecution = true)` (`SseEventHub.kt:73`), so these events are still delivered. Three unit tests cover the paths: a version conflict that is retried, a version conflict that persists, and a duplicate destination row on retry.
+- **CR-2 (P2, fallback and edge paths untested): resolved.** `MailActionServiceTests` stubs `IMAPStore`/`IMAPFolder` and covers: no MOVE, no UIDPLUS, no COPYUID for a linked and an unlinked row, COPYUID with another UIDVALIDITY or a UID already cached, a partial COPYUID, a plain EXPUNGE in Trash, read-only folders, NO answers, connection errors, a linked permanent delete, a source UIDVALIDITY mismatch and a target folder missing on the server. `MailActionGreenMailTests` adds a linked permanent delete, REJECTED, UIDVALIDITY, a source folder that is gone, partial moves, multi-folder requests and detached-id resolution against a real server.
+- **CR-3 (P3, COPY fallback failing after the copy): resolved.** `move` (`:297-307`) logs a cleanup failure after a successful `UID COPY` (INFO without details, DEBUG with the cause) and keeps the `COPYUID` result. The class KDoc documents this. The test `without MOVE a failing cleanup after a successful copy keeps the COPYUID and reports ok` covers it.
+- **CR-4 (P3, OpenAPI nullability and required fields): resolved.** `MailActionController.kt:84-102` marks `results`, `id` and `ok` as `REQUIRED`, and `errorCode`/`detail` as required with `types = ["string", "null"]`. The generated TypeScript matches: `results: Array<...>`, `id: string`, `ok: boolean` and `errorCode`/`detail: (string | null)`.
+
+The fixes also added one more production change, which I checked as well: `remote()` (`:267-270`) now maps a `FolderNotFoundException` during the action (target folder deleted on the server, `NO [TRYCREATE]`) to `Remote.Rejected`. Before, it was reported as a connection failure, which also marked a healthy pooled connection as broken. `FolderNotFoundException` is caught before the general `MessagingException` handler, and a missing source folder is still handled earlier, at `open` (`:239-240`, `Remote.Gone`).
 
 ## P0 Critical
 
@@ -30,38 +39,22 @@ None.
 
 ## P2 Medium
 
-- [ ] **CR-1 | A cache-update failure aborts the whole bulk request after the IMAP changes are already applied**
-    - File: `server/src/main/kotlin/ch/sonensei/cockpit/mail/api/MailActionService.kt:182` (call), `:305-321` (`updateCache`), `:334-340` (`relocate`)
-    - Category: Correctness
-    - Problem: `applyInFolder` catches only `MailConnectionException`. The cache update after a successful server command runs in its own transaction on versioned `MailMessage` rows (`BaseEntity.@Version`), without the per-folder lock that `MailHeaderSyncService` uses for syncs (`lock(folderId)`, `MailHeaderSyncService.kt:237`). A concurrent writer of the same rows, for example a second action request (double submit, web and Android) or a folder sync (`MailHeaderStore.reconcile`/`upsert`), makes `messages.flush()` throw `OptimisticLockingFailureException`. `ProblemDetailsAdvice` turns that into a 409 for the whole request. If a sync inserts a row at the destination `(folder_id, uid)` between the `findByFolderIdAndUid` check (`:339`) and the flush, the unique index `mail_message_folder_uid` gives a `DataIntegrityViolationException`, which becomes a 500. Either way the server state has already changed for that folder group, and any groups that ran before it are applied and committed. The client still gets no per-id results. The endpoint contract ("200 ... also when some or all of them failed") does not mention a 409 or 500 in this situation.
-    - Why it matters: Acceptance criterion 1 requires partial failures to be reported per id and IMAP and cache to stay consistent. SPEC §7.2 plans IDLE on INBOX, and IDLE fires exactly when an action expunges from INBOX, so this race becomes a normal path once sync scheduling exists. Concurrent requests can already trigger it today.
-    - Suggested fix: Run each folder group's cache update so that a failure stays inside that group. One way is to catch `OptimisticLockingFailureException`/`DataIntegrityViolationException` per group, then retry the update once on fresh rows or fall back to `remove` (detach) so the next sync repairs the row. Report the ids as ok, because the server action succeeded. Another option is to serialize with the sync by sharing its per-folder lock for the source and destination folders. Add a test for at least the version-conflict path.
-
-- [ ] **CR-2 | The fallback and edge paths of moves and deletes are not tested**
-    - File: `server/src/test/kotlin/ch/sonensei/cockpit/mail/api/MailActionGreenMailTests.kt` (whole file, commit b8283a43); production paths in `MailActionService.kt:236`, `:257-260`, `:276-286`, `:294`, `:334-345`
-    - Category: Tests
-    - Problem: The GreenMail tests always run against GreenMail's own capability set. Only the `UID MOVE` path or the `UID COPY` + `\Deleted` + expunge path runs, whichever GreenMail advertises, and the other never does. The UIDPLUS-less plain `EXPUNGE` is never exercised either. Several paths have no test: the missing or unusable `COPYUID` branch of `relocate` (the row is removed, or detached when linked, then brought back by the next destination sync, as assumption #3 describes); a permanent delete of a linked message (it must stay detached, not be deleted); the destination row already cached at the new UID; a source UIDVALIDITY mismatch (`Remote.Gone`); and a server rejection (`REJECTED`). Assumption #3 makes the no-COPYUID behavior an explicit design decision, but nothing verifies it.
-    - Why it matters: These are the branches where cache consistency can go wrong, for example a duplicate or lost row, or a link left pointing at nothing. Acceptance criterion 1 requires IMAP and cache to be applied "consistently".
-    - Suggested fix: Add tests for these branches. A focused unit or integration test with a stubbed `IMAPStore`/`IMAPFolder` (capabilities without MOVE or UIDPLUS, `copyUIDMessages` returning `null`) can cover the fallback branches. Add an external test that links the message to an item, then deletes it twice and checks that the row is detached rather than deleted. If GreenMail's capabilities can be configured, cover both move paths there too.
+None.
 
 ## P3 Low
 
-- [ ] **CR-3 | A COPY fallback that fails after the copy reports a failure and leaves a duplicate on retry**
-    - File: `server/src/main/kotlin/ch/sonensei/cockpit/mail/api/MailActionService.kt:280-283`
-    - Category: Correctness
-    - Problem: Without MOVE, `copyUIDMessages` succeeds first, then `setFlags(\Deleted)` and `expunge` run. If either of them fails (`CommandFailedException` gives `REJECTED`, an I/O error gives `CONNECTION_FAILED`), every id of the group is reported as failed and the cache is left untouched. The message already exists in the destination, and the source copy may still carry `\Deleted`. If the user retries, a second copy is made in the destination.
-    - Why it matters: This is a rare path, but it leaves duplicate mail in Archive or Trash and reports a failure for a copy that partly succeeded.
-    - Suggested fix: When the copy succeeded but the cleanup failed, keep the `COPYUID` result. Either report the ids as ok and leave the source expunge to the next sync, or at least do not retry the copy blindly. Document the chosen behavior in the KDoc.
-
-- [ ] **CR-4 | The OpenAPI result schema does not match the actual response nullability and required fields**
-    - File: `server/src/main/kotlin/ch/sonensei/cockpit/mail/api/MailActionController.kt:473-484`; `api/openapi.yaml` (`MailActionResultResponse`, `MailActionResponse`); `web/src/app/api/generated/models/mail-action-result-response.ts`
-    - Category: Integration
-    - Problem: The generated contract marks `errorCode` and `detail` as required, non-null `string`, but the server sends `null` for both on success. `nullable = true` is lost in the OpenAPI 3.1 output. Meanwhile `id`, `ok` and `results` are optional (`id?`, `ok?`, `results?` in the generated TypeScript), although the server always sends them. Some existing DTOs have the same generator behavior, but this endpoint's clients (web triage, Android) will be written against this contract.
-    - Why it matters: Typed clients get the wrong guarantees. For example, `errorCode` is typed as never null, and `ok` has to be null-checked.
-    - Suggested fix: Mark `id`, `ok` and `results` with `requiredMode = REQUIRED`. Make `errorCode`/`detail` nullable in the generated 3.1 schema (`types = ["string", "null"]`) or make them not required, then regenerate `api/openapi.yaml` and the web client.
+None.
 
 ## Review conclusion
 
-Material issues found; fix before completing the task.
+No material issues found.
 
-The implementation covers all eight actions, per-id results in request order, role-folder resolution, same-account checks, COPYUID-based relocation that keeps row ids, UIDVALIDITY guards, and pooled-connection health (rejections and missing folders are returned instead of thrown, so the connection is not dropped). It follows the logging rules (no server responses above DEBUG, fixed safe failure messages). CR-1 (consistency and per-id reporting under concurrent cache writes) and CR-2 (untested fallback paths) should be resolved or explicitly dispositioned before `done`. No acceptance-criterion evidence was recorded at the time of review (`tasks.py verify mail-actions-api` shows all three criteria open).
+Acceptance criteria as implemented:
+1. All eight actions are implemented. `operation()` (`MailActionService.kt:199-224`) maps DELETE to a move to Trash, or to a permanent expunge when the message is already in Trash. The server command runs first, then the cache update for each source folder. Each requested id gets one result, in request order, as the outcome map in `apply` (`:128-144`) builds it. This matches assumption #1 (200, one result per distinct id) and assumption #2 (NO_ROLE_FOLDER, a no-op when the message is already in the target, SPAM only moves). Validation errors (`targetFolderId` missing or not allowed, non-selectable target, 1000 ids at most, null ids) are 400. An unknown target folder is 404.
+2. `MailActionGreenMailTests` exercises READ, UNREAD, FLAG, UNFLAG, MOVE, ARCHIVE, SPAM, DELETE to Trash and DELETE from Trash, checking both the server and the cache. The parent reports 16/16 passing. I did not run them, because Bash was not available to me.
+3. The generated contract and web client match the controller annotations. The parent reports that `OpenApiContractTest` passes without `UPDATE_OPENAPI`. The fixes regenerated `api/openapi.yaml` with `./gradlew updateOpenApi`, not with the env-prefixed command named in the criterion. Both commands regenerate the same file, and the contract test passing without the flag is the part of the criterion that matters.
+
+Notes for the parent worker, not findings:
+- Logging follows the project rules: server responses and exceptions are logged only at DEBUG, and the INFO lines carry fixed text and error codes only.
+- I verified the generated web client models, but not the `MailAction*` schemas inside `api/openapi.yaml` itself. That rests on the passing `OpenApiContractTest`.
+- `tasks.py verify` evidence for criteria 1-3, and `tests.md` from the test-writer, were still open according to the task notes. They must be recorded before `done`.
