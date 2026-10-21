@@ -1,6 +1,7 @@
 package ch.sonensei.cockpit.capture.entry
 
 import ch.sonensei.cockpit.capture.queue.CaptureQueueStatus
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
@@ -13,6 +14,7 @@ import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -112,6 +114,26 @@ class CaptureWidgetUpdaterTest {
             scope.cancel()
             status.value = CaptureQueueStatus(7, null)
             assertEquals(1, refreshes)
+        }
+
+    @Test
+    fun `cancelling the scope during a running refresh stops the updates`() =
+        runTest(UnconfinedTestDispatcher()) {
+            val scope = CoroutineScope(coroutineContext + Job())
+            val refreshing = CompletableDeferred<Unit>()
+            var refreshes = 0
+            CaptureWidgetUpdater(status, {
+                refreshes++
+                refreshing.await()
+            }, scope).start()
+            assertEquals(1, refreshes)
+
+            scope.cancel()
+            refreshing.complete(Unit)
+            status.value = CaptureQueueStatus(8, null)
+
+            assertEquals(1, refreshes)
+            assertTrue(scope.coroutineContext[Job]!!.children.none { it.isActive })
         }
 
     @Test
