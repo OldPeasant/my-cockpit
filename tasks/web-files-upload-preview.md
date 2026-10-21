@@ -19,7 +19,8 @@ Uploads with progress and previews (SPEC.md §8.2).
   - verified (2026-10-21 09:14+0200 by dell26/agent-4): npm --prefix web run test:ci -- --include=src/app/features/files --include=src/app/features/capture (HEAD 62d8e66a) -> 292 passed: preview-kind.spec (mime->image/pdf/text/markdown/audio/video), file-thumb.spec, preview-dialog.spec (lightbox, text, Markdown, media), pdf-viewer.spec (13, fake pdf.js); real pdfjs-dist page render in Playwright crit.5
 - [x] Capture dialog attachments enabled (upload then pass fileIds)
   - verified (2026-10-21 09:14+0200 by dell26/agent-4): npm --prefix web run test:ci -- --include=src/app/features/files --include=src/app/features/capture (HEAD 62d8e66a) -> 292 passed: capture-dialog.spec 'uploads dropped and pasted files to the drive root and saves their fileIds', retry/failed-blocks-save/Waiting tests
-- [ ] Vitest component/service tests cover chunk retry, preview selection by mime; `cd web && npm run check` passes
+- [x] Vitest component/service tests cover chunk retry, preview selection by mime; `cd web && npm run check` passes
+  - verified (2026-10-21 09:22+0200 by dell26/agent-4): npm --prefix web run check (HEAD 62d8e66a, load ~36) -> api:check+lint+e2e typecheck, 104 files/2036 tests passed, ng build ok (only initial bundle budget warning); chunk retry: upload.service.spec retry it.each 503/500/408/429/network + retry limits; mime selection: preview-kind.spec + preview-dialog.spec
 - [x] Playwright `e2e/files-upload/upload.spec.ts` passes against the e2e stack (`npm run e2e -- e2e/files-upload/upload.spec.ts`, see p0-e2e-harness): 60 MB upload completes; PDF preview renders a page
   - verified (2026-10-21 07:22+0200 by dell26/agent-4): npm --prefix web run e2e -- e2e/files-upload/upload.spec.ts (deploy/docker-compose.e2e.yml stack, chromium, HEAD d0bd6037) -> 6 passed incl. 'multi-file upload with a 60 MB file, PDF preview' (11.2s)
 
