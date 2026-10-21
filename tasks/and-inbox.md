@@ -5,7 +5,7 @@ owner: dell26/agent-4
 deps: [and-gtd-data]
 touches: [android/app/src/main/java/ch/sonensei/cockpit/gtd/inbox,android/app/src/test/java/ch/sonensei/cockpit/gtd/inbox]
 prio: 1
-lease_until: 2026-10-21T09:25:56Z
+lease_until: 2026-10-21T09:31:00Z
 extended: dell26/agent-4
 ---
 ## Goal
