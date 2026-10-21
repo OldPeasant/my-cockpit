@@ -158,11 +158,21 @@ export default class NoteEditorPage {
 
   /**
    * Saves until nothing is left, so edits typed while a save runs are not lost; stops on a conflict
-   * or a failed save. Each round sends the current draft, and a round with nothing to send ends it.
+   * or a failed save. Each round sends the current draft; a round with nothing to send, or after
+   * which the draft is still the one it sent (nothing typed meanwhile), ends it. So a server that
+   * stores a field differently from the draft cannot keep it running.
    */
   private async flushAll(): Promise<void> {
-    do await this.flush();
-    while (this.dirty() && this.saveState() !== 'conflict' && this.saveState() !== 'error');
+    let sent: NoteDraft;
+    do {
+      sent = this.draft();
+      await this.flush();
+    } while (
+      this.dirty() &&
+      !sameDraft(sent, this.draft()) &&
+      this.saveState() !== 'conflict' &&
+      this.saveState() !== 'error'
+    );
   }
 
   /** Waits for the uploads and puts each result where its placeholder still stands. */
@@ -316,11 +326,20 @@ export default class NoteEditorPage {
     try {
       const saved = await this.service.save(note, draft);
       this.note.set(saved);
+      // The server trims the title its own way (Kotlin trim() also drops U+001C-U+001F): unless it
+      // was retyped meanwhile, show the title it kept, so the saved note is not sent again and again.
+      const savedTitle = saved.title ?? null;
+      if (savedTitle !== draft.title && this.draft().title === draft.title) {
+        this.title.set(savedTitle ?? '');
+      }
       if (!sameLinks(note.bodyMd, saved.bodyMd)) void this.reloadLinks();
       // Edits made while saving wait for their own debounce (or are saved now when leaving).
       if (!changes(saved, this.draft())) this.saveState.set('saved');
-      else if (this.destroyed) void this.flush();
-      else if (this.timer === undefined) this.schedule();
+      else if (this.destroyed) {
+        // Left: only edits typed meanwhile are sent, never the same draft again.
+        if (!sameDraft(draft, this.draft())) void this.flush();
+        else this.saveState.set('pending');
+      } else if (this.timer === undefined) this.schedule();
       else this.saveState.set('pending');
     } catch (error) {
       if (error instanceof ApiError && (error.status === 409 || error.status === 412)) {
@@ -393,6 +412,10 @@ export default class NoteEditorPage {
 /** The draft when it differs from the saved note, else null. */
 function changes(note: NoteResponse, draft: NoteDraft): NoteDraft | null {
   return draft.bodyMd !== note.bodyMd || draft.title !== (note.title ?? null) ? draft : null;
+}
+
+function sameDraft(a: NoteDraft, b: NoteDraft): boolean {
+  return a.title === b.title && a.bodyMd === b.bodyMd;
 }
 
 function sameLinks(before: string, after: string): boolean {

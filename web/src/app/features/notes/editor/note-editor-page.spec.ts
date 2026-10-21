@@ -633,6 +633,73 @@ describe('NoteEditorPage', () => {
     http.expectNone((r) => r.url === `/api/v1/notes/${OTHER_ID}`);
   });
 
+  /** Types a title the server trims further (Kotlin trim() also drops U+001F). */
+  function typeTitleTheServerTrims(): void {
+    const title = root.querySelector('.title') as HTMLInputElement;
+    title.value = '\u001FPacking';
+    title.dispatchEvent(new Event('input'));
+  }
+
+  it('opens another note when the server stores the title differently from the one sent', async () => {
+    await open();
+    vi.useFakeTimers();
+    typeTitleTheServerTrims();
+    void harness.navigateByUrl(`/notes/${OTHER_ID}`);
+    await vi.advanceTimersByTimeAsync(0);
+    const first = http.expectOne((r) => r.url === URL && r.method === 'PATCH');
+    expect(first.request.body.title).toBe('\u001FPacking');
+    first.flush(note({ title: 'Packing', version: 2 }));
+    await vi.advanceTimersByTimeAsync(0);
+    // At most one more save of the first note, then the other one opens.
+    const more = http.match((r) => r.url === URL && r.method === 'PATCH');
+    expect(more.length).toBeLessThanOrEqual(1);
+    for (const req of more) req.flush(note({ title: 'Packing', version: 3 }));
+    await vi.advanceTimersByTimeAsync(0);
+    http
+      .expectOne((r) => r.url === `/api/v1/notes/${OTHER_ID}` && r.method === 'GET')
+      .flush(note({ id: OTHER_ID, title: 'Recipes', bodyMd: 'Soup', version: 9 }));
+    await vi.advanceTimersByTimeAsync(0);
+    flushLinks();
+    harness.detectChanges();
+    expect((root.querySelector('.title') as HTMLInputElement).value).toBe('Recipes');
+    await vi.advanceTimersByTimeAsync(AUTOSAVE_DEBOUNCE_MS * 2);
+    http.expectNone((r) => r.method === 'PATCH');
+  });
+
+  it('shows the title the server kept and does not save it again', async () => {
+    await open();
+    vi.useFakeTimers();
+    typeTitleTheServerTrims();
+    await vi.advanceTimersByTimeAsync(AUTOSAVE_DEBOUNCE_MS);
+    http
+      .expectOne((r) => r.url === URL && r.method === 'PATCH')
+      .flush(note({ title: 'Packing', version: 2 }));
+    await vi.advanceTimersByTimeAsync(0);
+    harness.detectChanges();
+    expect((root.querySelector('.title') as HTMLInputElement).value).toBe('Packing');
+    expect(state()).toBe('Saved');
+    await vi.advanceTimersByTimeAsync(AUTOSAVE_DEBOUNCE_MS * 3);
+    http.expectNone((r) => r.method === 'PATCH');
+  });
+
+  it('sends the draft at most once more when the page is left and the server stores it differently', async () => {
+    await open();
+    vi.useFakeTimers();
+    typeTitleTheServerTrims();
+    void harness.navigateByUrl('/elsewhere');
+    await vi.advanceTimersByTimeAsync(0);
+    expect(harness.routeNativeElement?.textContent).toBe('Elsewhere');
+    http
+      .expectOne((r) => r.url === URL && r.method === 'PATCH')
+      .flush(note({ title: 'Packing', version: 2 }));
+    await vi.advanceTimersByTimeAsync(0);
+    const more = http.match((r) => r.url === URL && r.method === 'PATCH');
+    expect(more.length).toBeLessThanOrEqual(1);
+    for (const req of more) req.flush(note({ title: 'Packing', version: 3 }));
+    await vi.advanceTimersByTimeAsync(AUTOSAVE_DEBOUNCE_MS * 3);
+    http.expectNone((r) => r.method === 'PATCH');
+  });
+
   /** Edits the note, opens the other one and types again while that save on leaving runs. */
   async function typeDuringSaveOnLeaving(): Promise<TestRequest> {
     await open();
