@@ -1,11 +1,11 @@
 ---
 title: Calendar sync engine
-status: in_progress
+status: done
 owner: dell26/agent-6
 deps: [cal-local-api]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/calendar/sync,server/src/test/kotlin/ch/sonensei/cockpit/calendar/sync]
 prio: 1
-lease_until: 2026-10-21T00:58:05Z
+lease_until: 
 extended: 
 releases: 1
 ---
@@ -38,3 +38,4 @@ Provider-independent two-way sync framework (SPEC.md §6.2).
 - ASSUMPTION (2026-10-21 02:02+0200 by dell26/agent-6): Review CR-1 accepted: normalization of remote events (drop invalid attendees/out-of-range reminders/non-http conference URLs, truncate text to API limits) is lossy and a later local edit writes the normalized event back to the provider; no raw remote copy is kept. Rare in practice; documented by a test in CalendarSyncOverrideTests. Revisit if providers' tel:/sip: dial-ins matter.
 - ASSUMPTION (2026-10-21 02:02+0200 by dell26/agent-6): Review CR-2 (P3) deferred: a 412 refetch that finds a sync of the same source running is skipped; if that run already fetched the calendar, the new remote version only appears with the next poll (converges, no data loss).
 - ASSUMPTION (2026-10-21 02:02+0200 by dell26/agent-6): A provider answer to a write-through that cannot be stored (normalization fails) is treated as a provider failure: rollback + 502.
+- done by dell26/agent-6: `sh scripts/check.sh` passed in 653s on 745453c9a; criteria verified 6/6
