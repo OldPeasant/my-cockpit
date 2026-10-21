@@ -20,6 +20,7 @@ import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
 import kotlinx.coroutines.CancellationException
+import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.JsonObject
 import retrofit2.Response
 import retrofit2.Retrofit
@@ -158,7 +159,8 @@ class InboxRepository
 
         /**
          * A project without a next step (e.g. a new one) gets the item as its next step. The item has moved even when
-         * this fails: the project then stays stalled, which the Projects screen shows.
+         * this fails (no connection, an error status or an unreadable answer): the project then stays stalled, which the
+         * Projects screen shows.
          */
         private suspend fun makeNextStepIfStalled(
             projectId: UUID,
@@ -171,6 +173,8 @@ class InboxRepository
                 throw e
             } catch (_: IOException) {
             } catch (_: HttpFailure) {
+            } catch (_: SerializationException) {
+            } catch (_: IllegalArgumentException) {
             }
         }
 
