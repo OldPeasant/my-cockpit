@@ -1,0 +1,16 @@
+{
+  "schema": 1,
+  "task": "backup-contrib-calendar",
+  "reviewed_revision": "8c22a1d301d91e3f1a1c27d8b7888cabc4789077",
+  "helpers": {
+    "test-writer": {"status": "completed", "report": "reviews/backup-contrib-calendar/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/backup-contrib-calendar/review.md"},
+    "fixer": {"status": "not_required", "reason": "The final review (HEAD 8c22a1d3) and the test report have no findings. The findings CR-1..CR-4 of the first review (earlier revision a4a6d508) were fixed by the task owner in ae8178e3 (tests) and 6bd32b4c (inert placeholders, credential warnings, no empty ICS) before the final review, which confirmed all four resolved."}
+  },
+  "fixes_required": false,
+  "findings": [],
+  "validation": [
+    {"command": "cd server && ./gradlew ktlintCheck test --tests '*BackupRoundTripTest' --tests '*CalendarBackupContributorTests' jacocoTestReport --rerun-tasks", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
