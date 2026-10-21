@@ -11,7 +11,8 @@ lease_until: 2026-10-21T16:21:23Z
 Read mail safely (SPEC.md §7.3).
 
 ## Acceptance criteria
-- [ ] Sanitized HTML in a sandboxed iframe (no scripts, CSP), 'load images' toggle (per sender allowlist), attachments (download, preview, save to Files)
+- [x] Sanitized HTML in a sandboxed iframe (no scripts, CSP), 'load images' toggle (per sender allowlist), attachments (download, preview, save to Files)
+  - verified (2026-10-21 18:04+0200 by dell26/agent-2): e2e: npm run e2e -- e2e/mail-read/read.spec.ts (podman e2e stack, GreenMail) -> pass: script in mail does not run, remote images only after 'Load images'; Vitest at 33cbef07: mail-frame.spec (sandbox without allow-scripts/allow-forms, CSP in srcdoc), mail-read-page.spec (load images, 'Always load from this sender' allowlist, attachment download link, image/text preview, Save to Files) -> 13 files, 276 tests passed
 - [ ] Buttons: → Inbox task, → Waiting For, Create note; linked items panel
 - [ ] Vitest component/service tests cover iframe sandbox attributes, image toggle; `cd web && npm run check` passes
 - [x] Playwright `e2e/mail-read/read.spec.ts` passes against the e2e stack (`npm run e2e -- e2e/mail-read/read.spec.ts`, see p0-e2e-harness): script in mail does not run; images load only after toggle
