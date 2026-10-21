@@ -23,3 +23,4 @@ on the web login and first-run setup pages, and on the Android login screen. Sou
 ## Notes
 - The owner chose the mark on 2026-10-21; do not redesign it.
 - Ordered before `web-totp-reenroll` and `and-passkeys`, which change the same auth screens.
+- ASSUMPTION (2026-10-22 00:34+0200 by dell26/agent-2): Web: the 'My Cockpit' brand link lives in the side navigation, not the top bar; the logo sits inside that link (both layouts, visible in the drawer < 900 px) and, in the compact layout only, an extra decorative 28 px logo after the menu button so the visible top bar also shows the mark
