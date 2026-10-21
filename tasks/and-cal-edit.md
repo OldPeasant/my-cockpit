@@ -1,11 +1,11 @@
 ---
 title: Android event create/edit
-status: in_progress
+status: done
 owner: dell26/agent-1
 deps: [and-cal-agenda]
 touches: [android/app/src/main/java/ch/sonensei/cockpit/calendar/edit,android/app/src/test/java/ch/sonensei/cockpit/calendar/edit]
 prio: 2
-lease_until: 2026-10-21T16:36:36Z
+lease_until: 
 ---
 ## Goal
 Create and edit events on the phone.
@@ -21,3 +21,4 @@ Create and edit events on the phone.
 - ASSUMPTION (2026-10-21 17:39+0200 by dell26/agent-1): Mirrors web-cal-edit: repeat presets none/daily/weekly/monthly/yearly (FREQ=X), an existing rule they can't express is kept as 'Custom (rule)'; a new repeat rule offers only FOLLOWING/ALL; 409 and 412 both show 'changed elsewhere' with Reload (which drops the unsaved edits); only changed fields are PATCHed
 - ASSUMPTION (2026-10-21 17:39+0200 by dell26/agent-1): Phone form scope: title, calendar, all-day, start/end date+time, repeat, location, description. Not on the phone (kept unchanged by the PATCH): reminders, attendees, time zone (new events use the device zone, existing ones keep theirs, shown read-only), delete. An existing event can't move to another calendar (synced events can't; CalendarInfo has no source type). New events default to the first visible writable calendar (CalendarInfo has no isDefault)
 - ASSUMPTION (2026-10-21 18:19+0200 by dell26/agent-1): Refused create (any 4xx incl. 409/412/404) shows 'could not be saved' and keeps the form editable instead of 'changed elsewhere'+Reload (that stays for edits only); only a 409 on create regenerates the client id (the old id is trashed or the calendar is read-only, so no live duplicate), every other failure keeps the id for idempotent retry
+- done by dell26/agent-1: `sh scripts/check.sh` passed in 59s on f6326b298; criteria verified 2/2
