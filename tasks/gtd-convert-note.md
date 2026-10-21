@@ -13,7 +13,8 @@ extended:
 'Move to reference' converts a task into a note (SPEC.md §5.1).
 
 ## Acceptance criteria
-- [ ] `POST /api/v1/tasks/{id}/convert-to-note` creates a note (title, notes as body, links carried over) and deletes the task in one transaction
+- [x] `POST /api/v1/tasks/{id}/convert-to-note` creates a note (title, notes as body, links carried over) and deletes the task in one transaction
+  - verified (2026-10-21 06:21+0200 by dell26/agent-1): cd server && ./gradlew test --tests 'ch.sonensei.cockpit.gtd.convert.*' (Postgres Testcontainers) -> TaskToNoteWebTests 8/8 (201 + note with title/notes body, links copied, task trashed), TaskToNoteRollbackTests 1/1 (failure after note insert rolls back: no note, task not deleted), EdgeCase 17/17
 - [ ] `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.gtd.convert.*'` passes (Postgres via Testcontainers where persistence is involved)
 - [ ] API documented: `api/openapi.yaml` regenerated (`UPDATE_OPENAPI=1 ./gradlew test --tests '*OpenApiContractTest'`) and `OpenApiContractTest` passes without the flag
 
