@@ -12,7 +12,8 @@ extended: dell26/agent-3
 View/edit notes and add photos (SPEC.md §9.2 item 6).
 
 ## Acceptance criteria
-- [ ] Notes list (pinned first, tag filter), Markdown view with rendered images, plain editor with autosave, add photo from camera/gallery (uploads image)
+- [x] Notes list (pinned first, tag filter), Markdown view with rendered images, plain editor with autosave, add photo from camera/gallery (uploads image)
+  - verified (2026-10-21 12:34+0200 by dell26/agent-3): cd android && ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.notes.*' -> 134 tests/12 classes, 0 failures: Robolectric+Compose screen tests (NotesScreensTest, NotesScreenInAppTest/NotesRouteInAppTest in Hilt activity) cover pinned-first list + tag filter, Markdown view with cockpit-file images via authenticated loader (MarkdownViewTest), plain editor autosave (NoteEditorViewModelTest/NoteEditorsTest), camera/gallery photo upload (NotePhotoFilesTest, addPhoto tests); no device/emulator here
 - [ ] `cd android && ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.notes.*'` passes, covering list ordering and save conflict handling (Robolectric/Compose UI tests for screens)
 
 ## Notes
