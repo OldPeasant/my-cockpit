@@ -2,30 +2,48 @@
 
 Date: 2026-10-21
 
-Task: web-cal-overlay - Calendar task overlay and cross-links
+Task: web-cal-overlay - Calendar task overlay and cross-links (round 2, final code)
 
-Scope: committed changes of the task, `git diff ba01de89..0b0eab4c -- . ':!tasks' ':!reviews'` (commits 46ecf1c0, 783a23bd, 0b0eab4c). Uncommitted changes: none.
+Scope: committed changes of the task, `git diff 7d07e18c..43826282 -- . ':!tasks' ':!reviews'` (task commits ca18fd70e, 61ba28182, d114d91c1, 376aaec60, 45f087fc3; 4f47ef065 and 43826282c touch only `reviews/`). Reviewed revision: 43826282c5ae7d03357b5c2a295fd570abb7a3d4 (HEAD at review start). Uncommitted changes: none.
 
 Requirements:
-- tasks/web-cal-overlay.md (acceptance criteria and the four ASSUMPTION notes)
-- SPEC.md §6.3 (UI: optional task overlay in day/week, event detail with linked items, "Create task from event" / "Create note for event" with pre-filled title + date)
+- tasks/web-cal-overlay.md (three acceptance criteria and the five ASSUMPTION notes)
+- SPEC.md §6.3 (optional task overlay in day/week, event detail with linked items, "Create task from event" / "Create note for event" with pre-filled title + date)
 - docs/ARCHITECTURE.md, docs/QUALITY.md, AGENTS.md project notes
+- reviews/web-cal-overlay/review.md (round 1) and reviews/web-cal-overlay/fixes.md
 
 Git range:
 - Branch: main
-- HEAD: 0b0eab4cb62147b210e95c35b17a4796a53163bf
-- Base/start: ba01de89aa4d16281f526dde55aec27a223d4a8e
-- Commits reviewed: 3
+- HEAD: 43826282c5ae7d03357b5c2a295fd570abb7a3d4
+- Base/start: 7d07e18cf944c834f8017fe8377eef7a55acce08
+- Commits reviewed: 7 (5 with code changes)
 
 Commands run (read-only):
-- `git log --oneline ba01de89..0b0eab4c` -> 3 commits
-- `git diff --stat ba01de89..0b0eab4c -- .. ':!../tasks' ':!../reviews'` -> 20 files, +1449/-20
-- `git diff ba01de89..0b0eab4c -- <server, api, gtd/data, calendar routes/edit, generated client, calendar views>` and full reads of `overlay/task-overlay.ts`, `overlay/event-links.ts`, `overlay/event-links.service.ts`, `e2e/calendar-overlay/overlay.spec.ts`, `gtd/data/list-store.ts`, `gtd/data/task-store.ts`, `shared/links/linked-items.ts`, `edit/event-dialog.ts` (load), `edit/event-editor.ts`, `CalendarEventController.kt` (scope defaults)
-- No tests were run by the reviewer; the parent's results (calendar Vitest 234 passed, server date-range/tickler/task web tests passed, Playwright overlay spec 2 passed against the docker compose e2e stack) were taken as reported.
+- `git log --oneline 7d07e18c..HEAD` -> 7 commits
+- `git diff --stat 7d07e18c..HEAD -- . ':!tasks' ':!reviews'` -> 22 files, +2079/-20
+- `git show 45f087fc3` (the round-1 fix commit), `git diff 7d07e18c..HEAD` for `calendar.routes.ts` and `calendar/edit/`
+- full reads of `overlay/task-overlay.ts`, `views/calendar-view.ts` (component), `gtd/data/list-store.ts`, `gtd/data/task-store.ts`; test outlines of `task-overlay.spec.ts` and `event-links.spec.ts`
+- `python tasks.py verify web-cal-overlay` -> all three criteria still unrecorded (the parent records them after the review)
+- The reviewer ran no tests. The parent reported: focused web tests 347 passed, `npm run check` passed, `TaskDateRangeWebTests` passed.
 
-Summary: 0 P0, 0 P1, 1 P2, 3 P3
+Summary: 0 P0, 0 P1, 0 P2, 0 P3
 
-Checked without findings: server `from`/`to` validation (both-or-neither, reversed, malformed, max range) and the JPA predicate (due OR tickler in range replaces the tickler-hiding rule only with a range), regenerated `openapi.yaml` and `list-tasks.ts` match the controller, paging in `TaskStore.fetch`, out-of-order list answers (ListStore request sequence), overlay error and retry path, localStorage read/write failures, overlay only in day/week, read-only overlay entries (`editable: false`) and click-through to `/tasks/{id}`, `/calendar/events/:id` redirect (id URL-encoded) and one-shot open of the linked event, scope defaults of a deep-linked override or series (server defaults: override -> THIS, master -> ALL, consistent with the assumption), double-submit guard of the create actions, link-failed vs create-failed messages, i18n of all new strings, `role="alert"` on errors and `aria-describedby` on the toggle.
+Round-1 findings:
+- CR-1 (task from event without date): resolved. `EventLinksService.createTask(occurrence, timeZone)` uses the shared `datedTitle` (`<title> (<yyyy-MM-dd>)`, plain title without a date), the panel passes `timeZone()`. It sets no due date, which a new ASSUMPTION note records. `event-links.spec.ts` covers the dated title, the notification text and the no-date case.
+- CR-2 (`matchesTask` range branch untested): resolved. `task-store.spec.ts` has the "with a from/to range" cases (inclusive bounds, outside, future tickler, completed, half range).
+- CR-3 (range message off by one): resolved. The message now reads "the range must span at most 366 days" and the rule is unchanged (`DAYS.between >= 366` rejected, so the longest allowed range is 366 inclusive days).
+- CR-4 (refetch while overlay off): resolved. `OverlayTaskStore.refresh()` does nothing while `active` is false. `ListStore` sends `load`, change events (non-DELETED) and `resync$` through `this.refresh()` (`list-store.ts:87-93`, `112`), so with dynamic dispatch that one override covers every fetch path. `TaskOverlay` sets `active` before it calls `load` in `setEnabled(true)`, and in its constructor from the stored toggle. The `active = false` field initializer runs after the `ListStore` constructor, and that constructor only subscribes, so no event fires before it. `calendar-view.ts:66` provides `OverlayTaskStore` per view instance, and nothing in `calendar/` still injects the plain `TaskStore`. The new suite "TaskOverlay with its OverlayTaskStore" uses the real store with fake `Api`/`ChangeEventsService`, and it fails when the gate is removed (fixes.md).
+
+Checked again without findings:
+- Toggling off while a request runs: the answer still lands, `entries()` returns `[]` while off, and `loading` ends through the request sequence.
+- Turning on after the range changed while off: `show()` updates the range without fetching, then `load` with a new query clears the old items first (`list-store.ts:106-110`).
+- The retry button only shows while enabled, so `refresh()` is not gated when it is used.
+- `/calendar/events/:id` redirect, the event-dialog links panel (edit mode only), and the dialog spec's `LinksService` stub.
+- Server range validation and the generated client: unchanged since round 1 apart from the message.
+
+Observation, not a finding: `TaskOverlay` keeps the on/off state in `enabledState` and mirrors it into `OverlayTaskStore.active` at both places that write it (constructor and `setEnabled`). The overlay is the only writer and the tests cover both paths. Today this is consistent, but a future writer would have to keep both in sync.
+
+Note for the parent: criterion 3 (Playwright overlay spec) was last run before the round-1 fixes. The fixes changed `task-overlay.ts`/`calendar-view.ts`, which the e2e spec exercises. Record its evidence from a run on this revision.
 
 ## P0 Critical
 
@@ -37,36 +55,12 @@ None.
 
 ## P2 Medium
 
-- [ ] **CR-1 | "Create task from event" does not pre-fill the event's date**
-    - File: `web/src/app/features/calendar/overlay/event-links.service.ts:74`
-    - Category: Correctness
-    - Problem: SPEC.md §6.3 says "Create task from event" and "Create note for event" are created "(pre-filled title + date)". The note gets the date in its title (line 84), but the task is created with only `{ title: occurrence.title, list: 'INBOX' }`, no date in any form (neither `dueDate` nor in the title). The task's assumption note describes the behaviour ("Inbox task titled like the event") but does not say that it drops the date the spec asks for, so a human reviewing assumptions would not see the deviation.
-    - Why it matters: a follow-up task created from several occurrences of a recurring meeting gets identical titles with no date, which is exactly what the spec's "+ date" prevents.
-    - Suggested fix: pre-fill the date as well, e.g. the same `<title> (<yyyy-MM-dd>)` title as the note via `occurrenceDate`, or a `dueDate` of the occurrence date; otherwise record explicitly with `tasks.py assume` that the task deliberately has no date and why. Update the "creates an Inbox task" test in `event-links.spec.ts` accordingly.
+None.
 
 ## P3 Low
 
-- [ ] **CR-2 | New `from`/`to` branch of `matchesTask` has no unit test**
-    - File: `web/src/app/features/gtd/data/task-store.ts:167`
-    - Category: Tests
-    - Problem: `matchesTask` got a date-range branch (due OR tickler within the range, future ticklers included), but `task-store.spec.ts` (`describe('matchesTask')`, line 534) was not extended; the calendar specs exercise the store with fakes and do not cover optimistic updates leaving or entering the range.
-    - Why it matters: this function must mirror the server rule (`TaskService.list`); a drift (e.g. a task moved into a tickler inside the range disappearing optimistically) would not be caught.
-    - Suggested fix: add `matchesTask` cases for a range: due inside/outside, tickler inside (also in the future), neither date, and the bounds inclusive.
-
-- [ ] **CR-3 | Range error message is off by one**
-    - File: `server/src/main/kotlin/ch/sonensei/cockpit/gtd/api/TaskController.kt:396`
-    - Category: Quality
-    - Problem: the check rejects `DAYS.between(from, to) >= 366`, so `to = from + 366 days` is rejected while the message says `to` "must be at most 366 days after from". The allowed maximum is 365 days after `from` (a 366-day inclusive range, which is what the OpenAPI description says).
-    - Why it matters: the Problem Details detail contradicts the actual rule for API clients.
-    - Suggested fix: word it as a range length ("the range must span at most 366 days") or say "at most 365 days after from".
-
-- [ ] **CR-4 | Turning the overlay off keeps refetching tasks on every task change**
-    - File: `web/src/app/features/calendar/overlay/task-overlay.ts:58`
-    - Category: Quality
-    - Problem: `setEnabled(false)` only hides the entries; the `TaskStore` keeps its last query, and `ListStore` refetches it on every TASK change event and on SSE resync (`list-store.ts:87-93`). After the overlay was on once, the calendar page keeps issuing `GET /api/v1/tasks?from=..&to=..` (all pages) for data it does not show, for as long as the page is open.
-    - Why it matters: needless requests while the user works with tasks in another tab or device.
-    - Suggested fix: skip the refetch while disabled (e.g. let `TaskOverlay` own the change-event refresh, or reset/recreate the store query on disable and load again on enable), and cover it with a spec.
+None.
 
 ## Review conclusion
 
-Material issues found; fix before completing the task. (CR-1 is a spec deviation that either needs the date pre-filled or an explicit assumption; CR-2 to CR-4 are minor.)
+No material issues found.
