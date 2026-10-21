@@ -5,7 +5,7 @@ owner: dell26/agent-1
 deps: [contacts-api,mail-read-api,cal-local-api,gtd-tasks-api]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/contacts/aggregate,server/src/test/kotlin/ch/sonensei/cockpit/contacts/aggregate]
 prio: 2
-lease_until: 2026-10-21T21:54:26Z
+lease_until: 2026-10-21T21:59:28Z
 ---
 ## Goal
 Everything about a person (SPEC.md §8.3).
