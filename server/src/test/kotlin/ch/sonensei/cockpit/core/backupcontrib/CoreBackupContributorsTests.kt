@@ -125,9 +125,7 @@ class CoreBackupContributorsTests(
 	}
 
 	@Test
-	fun `after import the owner has a new decryptable TOTP secret, must re-enroll, and a recovery code logs in`(
-		output: CapturedOutput,
-	) {
+	fun `after import the owner has a new decryptable TOTP secret, must re-enroll, and a recovery code logs in`(output: CapturedOutput) {
 		val enrollment = activeOwner()
 		val original = users.findFirstBy()!!
 		val zip = exportZip()

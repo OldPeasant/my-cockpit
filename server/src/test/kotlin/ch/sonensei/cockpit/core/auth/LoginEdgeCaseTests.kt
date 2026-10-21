@@ -205,7 +205,8 @@ class LoginEdgeCaseTests(
 		val token = sessionToken(result)
 
 		result.response.contentAsString shouldNotContain token
-		jsonMapper.readValue(result.response.contentAsString, Map::class.java) shouldBe mapOf("username" to USERNAME, "totpEnrollmentRequired" to false)
+		jsonMapper.readValue(result.response.contentAsString, Map::class.java) shouldBe
+			mapOf("username" to USERNAME, "totpEnrollmentRequired" to false)
 	}
 
 	@Test

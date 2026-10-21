@@ -172,7 +172,8 @@ data class RestoreResultResponse(
 	val preRestoreBackup: String,
 )
 
-private fun RestoreReport.toResponse() = RestoreReportResponse(id, valid, formatVersion, appVersion, createdAt, counts, hasSecrets, problems, warnings)
+private fun RestoreReport.toResponse() =
+	RestoreReportResponse(id, valid, formatVersion, appVersion, createdAt, counts, hasSecrets, problems, warnings)
 
 private fun RestoreResult.toResponse() = RestoreResultResponse(counts, preRestoreBackup)
 

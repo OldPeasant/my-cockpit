@@ -141,7 +141,11 @@ class BackupSecretsTest(
 		envelope.cipher shouldBe "AES-256-GCM"
 		val secrets = mapper.readTree(BackupSecrets.decrypt(envelope, PASSPHRASE))
 		secrets["user"]["totpSecret"].asString() shouldBe enrollment.totpSecret
-		secrets["oauth_refresh_tokens"].properties().single().value.asString() shouldBe REFRESH_TOKEN
+		secrets["oauth_refresh_tokens"]
+			.properties()
+			.single()
+			.value
+			.asString() shouldBe REFRESH_TOKEN
 		secrets[MailPasswordProbeContributor.SECRETS]["account-1"].asString() shouldBe MailPasswordProbeContributor.IMAP_PASSWORD
 		mapper.readTree(entries.getValue("manifest.json"))["counts"]["secrets"].asLong() shouldBe 3
 	}
