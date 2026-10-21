@@ -342,8 +342,11 @@ private fun ProjectDetail(
         }
         NextStepLine(state, detail, callbacks)
         HorizontalDivider()
-        // The tasks shown are from an earlier load: say why changes are off, and offer to load them again.
-        if (detail.loaded && detail.error != null) StaleBanner(detail.error, callbacks.retry)
+        // The tasks shown are from an earlier load: say why changes are off, and offer to load them again. Offline, the
+        // list's offline banner already says so: don't stack a second one.
+        if (detail.loaded && detail.error != null && (detail.error == LoadError.FAILED || !state.offline)) {
+            StaleBanner(detail.error, callbacks.retry)
+        }
         when {
             detail.tasks.isNotEmpty() ->
                 LazyColumn(Modifier.fillMaxSize().testTag(LiveListTags.LIST)) {

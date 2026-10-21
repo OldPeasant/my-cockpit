@@ -93,12 +93,12 @@ data class ProjectsUiState(
     val busy: Set<UUID> = emptySet(),
     val message: ActionSnackbar? = null,
     val today: LocalDate = LocalDate.MIN,
-    /** No areas have loaded yet: the projects are not grouped until they have (or failed). */
+    /** No areas are known yet and they are still loading: the projects are shown without their areas meanwhile. */
     val areasLoading: Boolean = false,
     /** Why the areas could not be loaded, while none are known: the projects are not grouped by area. */
     val areasError: LoadError? = null,
 ) {
-    val loading: Boolean get() = (refreshedAt == null && groups.isEmpty() && !offline) || areasLoading
+    val loading: Boolean get() = groups.isEmpty() && ((refreshedAt == null && !offline) || areasLoading)
 
     /** Changes need the server, and current data: not while offline or the detail's last load failed. */
     val readOnly: Boolean get() = offline || detail?.error != null
@@ -166,7 +166,8 @@ class ProjectsViewModel internal constructor(
             val visible = if (v.showFinished) v.projects else v.projects.filterNot(::finished)
             val project = v.selected?.let { id -> v.projects.firstOrNull { it.id == id } }
             ProjectsUiState(
-                groups = if (v.areasLoading) emptyList() else groupByArea(visible, v.areas),
+                // While no areas are known the cached projects show at once, without their areas (no banner while loading).
+                groups = groupByArea(visible, v.areas),
                 showFinished = v.showFinished,
                 finished = v.projects.count(::finished),
                 refreshedAt = v.refreshedAt,

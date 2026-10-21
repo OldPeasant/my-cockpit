@@ -170,6 +170,25 @@ class ProjectsScreenTest {
     }
 
     @Test
+    fun `offline, a detail whose reload failed offline shows only the offline banner`() {
+        val stale = ProjectDetailState(garden, home, listOf(hotel), loading = false, error = LoadError.OFFLINE, loaded = true)
+        show(list.copy(offline = true, detail = stale))
+        composeRule.onNodeWithTag(TaskListTags.OFFLINE).assertIsDisplayed()
+        composeRule.onNodeWithTag(LiveListTags.STALE).assertDoesNotExist()
+        composeRule.onNodeWithTag(TaskListTags.complete(hotel.id)).assertIsNotEnabled()
+    }
+
+    @Test
+    fun `offline, a detail whose reload failed for another reason still says so and offers a retry`() {
+        val stale = ProjectDetailState(garden, home, listOf(hotel), loading = false, error = LoadError.FAILED, loaded = true)
+        show(list.copy(offline = true, detail = stale))
+        composeRule.onNodeWithTag(TaskListTags.OFFLINE).assertIsDisplayed()
+        composeRule.onNodeWithTag(LiveListTags.STALE).assertIsDisplayed()
+        composeRule.onNodeWithTag(LiveListTags.RETRY).performClick()
+        assertEquals(listOf("retry"), calls)
+    }
+
+    @Test
     fun `a detail whose reload failed without open tasks still offers a retry`() {
         show(list.copy(detail = ProjectDetailState(garden, home, emptyList(), loading = false, error = LoadError.OFFLINE, loaded = true)))
         composeRule.onNodeWithTag(LiveListTags.EMPTY).assertIsDisplayed()
@@ -191,7 +210,16 @@ class ProjectsScreenTest {
     }
 
     @Test
-    fun `while areas load the list shows loading`() {
+    fun `while areas load the cached projects show without their areas and without an error`() {
+        show(list.copy(groups = groupByArea(listOf(holiday, garden, taxes), null), areasLoading = true))
+        composeRule.onNodeWithText("1 project has no next step").assertIsDisplayed()
+        composeRule.onNodeWithTag(ProjectsTags.AREA_UNLOADED).assertIsDisplayed()
+        composeRule.onNodeWithTag(ProjectsTags.LOADING).assertDoesNotExist()
+        composeRule.onNodeWithTag(LiveListTags.STALE).assertDoesNotExist()
+    }
+
+    @Test
+    fun `while areas load without projects the list shows loading`() {
         show(list.copy(groups = emptyList(), areasLoading = true))
         composeRule.onNodeWithTag(ProjectsTags.LOADING).assertIsDisplayed()
         composeRule.onNodeWithTag(LiveListTags.STALE).assertDoesNotExist()

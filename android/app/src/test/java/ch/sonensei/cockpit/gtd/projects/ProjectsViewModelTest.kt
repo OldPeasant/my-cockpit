@@ -378,14 +378,40 @@ class ProjectsViewModelTest {
         }
 
     @Test
-    fun `the list waits for the areas, and areas that cannot load keep projects out of No area, with an error`() {
+    fun `cached projects show at once without their areas while the areas still load, without an error`() {
         areaFlow.value = Live()
         test { vm ->
-            assertTrue(vm.uiState.value.loading)
-            assertTrue(
+            val pending = vm.uiState.value
+            assertTrue(pending.areasLoading)
+            assertEquals(false, pending.loading)
+            assertNull(pending.areasError)
+            assertEquals(listOf(ProjectGroup(null, listOf(garden, report, holiday), stalled = 1, areaUnloaded = true)), pending.groups)
+            areaFlow.value = Live(listOf(home, work))
+            assertEquals(
+                listOf(work, home),
                 vm.uiState.value.groups
-                    .isEmpty(),
+                    .map { it.area },
             )
+            assertEquals(false, vm.uiState.value.areasLoading)
+        }
+    }
+
+    @Test
+    fun `without cached projects the list shows loading while the areas still load`() {
+        areaFlow.value = Live()
+        projectFlow.value = Cached(emptyList(), offline = false, refreshedAt = loadedAt)
+        test { vm ->
+            assertTrue(vm.uiState.value.loading)
+            areaFlow.value = Live(listOf(home, work))
+            assertEquals(false, vm.uiState.value.loading)
+        }
+    }
+
+    @Test
+    fun `areas that cannot load keep projects out of No area, with an error`() {
+        areaFlow.value = Live()
+        test { vm ->
+            assertNull(vm.uiState.value.areasError)
             areaFlow.value = Live(error = LoadError.FAILED)
             val failed = vm.uiState.value
             assertEquals(false, failed.loading)

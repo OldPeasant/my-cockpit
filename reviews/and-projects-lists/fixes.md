@@ -157,6 +157,71 @@ Lint/type-check/build:
 Remaining unresolved findings:
 0
 
+## Round 2 - P3 findings of the re-review
+
+Date: 2026-10-21
+
+Scope: findings CR-1 and CR-2 (both P3) of the re-review in `reviews/and-projects-lists/review.md` (reviewed revision bd8f525a; task HEAD before this round 83b74e83). Only `android/app/src/{main,test}/java/ch/sonensei/cockpit/gtd/projects` changed.
+
+### Fixed findings (round 2)
+
+#### CR-1 - Cached projects hidden behind "Loading" until the live areas request ends
+
+Files changed:
+- `android/app/src/main/java/ch/sonensei/cockpit/gtd/projects/ProjectsViewModel.kt`
+- `android/app/src/test/java/ch/sonensei/cockpit/gtd/projects/ProjectsViewModelTest.kt`
+- `android/app/src/test/java/ch/sonensei/cockpit/gtd/projects/ProjectsScreenTest.kt`
+
+Problem:
+While no areas were known and the areas request was still running, `groups` was empty and `loading` was true. When the server could not be reached, the cached projects stayed hidden until the HTTP timeout.
+
+Fix:
+`groups` is always `groupByArea(visible, v.areas)`. With no known areas this is the "areas not loaded" grouping, so the cached projects show at once. `areasError` stays null while the areas load, so no stale banner is shown. `ProjectsUiState.loading` is now `groups.isEmpty() && ((refreshedAt == null && !offline) || areasLoading)`. So the list says "Loading" only when there is nothing to show, and the header shows the stalled count for the cached projects.
+
+Tests:
+- VM `cached projects show at once without their areas while the areas still load, without an error` (cached projects, pending areas load, then the areas arrive and the projects are grouped by area).
+- VM `without cached projects the list shows loading while the areas still load`.
+- The earlier VM test `the list waits for the areas, ...` asserted the old behaviour (empty groups while areas load), which this finding changes. It became `areas that cannot load keep projects out of No area, with an error`. Its failure and recovery assertions are kept.
+- Screen `while areas load the cached projects show without their areas and without an error`. The old screen test (empty groups with `areasLoading`) is kept as `while areas load without projects the list shows loading`.
+
+#### CR-2 - An offline project detail showed two stacked offline banners
+
+Files changed:
+- `android/app/src/main/java/ch/sonensei/cockpit/gtd/projects/ProjectsScreen.kt`
+- `android/app/src/test/java/ch/sonensei/cockpit/gtd/projects/ProjectsScreenTest.kt`
+
+Problem:
+When offline, the list's `OfflineBanner` and the detail's `StaleBanner` with the offline text were shown one above the other.
+
+Fix:
+The detail's `StaleBanner` is shown only when `detail.loaded && detail.error != null && (detail.error == LoadError.FAILED || !state.offline)`. A FAILED reload still shows its banner and retry when offline. The detail stays read-only.
+
+Tests:
+- Screen `offline, a detail whose reload failed offline shows only the offline banner`.
+- Screen `offline, a detail whose reload failed for another reason still says so and offers a retry`.
+- The existing tests for a stale detail when not offline are unchanged and pass.
+
+### Not fixed (round 2)
+
+None.
+
+### Validation summary (round 2)
+
+Focused tests:
+- `cd android && ./gradlew ktlintFormat ktlintCheck testDebugUnitTest --tests 'ch.sonensei.cockpit.gtd.projects.*' --tests 'ch.sonensei.cockpit.gtd.lists.*'` - Pass. 117 tests, 0 failures (from the JUnit XML results): ProjectsViewModelTest 27, ProjectsScreenTest 26, ProjectWorkRepositoryTest 16, ProjectGroupingTest 9, ListScreensTest 14, ListViewModelsTest 13, LiveLoadTest 6, TaskListsRepositoryTest 6.
+
+Full test suite:
+- `sh scripts/check.sh` (server, web and android lint plus unit tests, including android lintDebug) - Pass ("all checks passed").
+
+Lint/type-check/build:
+- ktlintCheck and android lint (in `scripts/check.sh`) - Pass.
+
+`.taskcheck`:
+- Pass (`sh scripts/check.sh`).
+
+Remaining unresolved findings:
+0
+
 ## Final status
 
-All validated findings fixed and validation passed.
+All validated findings fixed and validation passed (round 1: CR-1 to CR-6 of the first review; round 2: the P3 findings CR-1 and CR-2 of the re-review).
