@@ -1,12 +1,13 @@
 ---
 title: Habits API
-status: in_progress
-owner: dell26/agent-2
+status: todo
+owner: 
 deps: [p0-items-links,reminders-core]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/journal/habits,server/src/test/kotlin/ch/sonensei/cockpit/journal/habits,server/src/main/resources/db/migration/journal/habits]
 prio: 3
-lease_until: 2026-10-21T21:18:59Z
-extended: dell26/agent-2
+lease_until: 
+extended: 
+releases: 1
 ---
 ## Goal
 Habits with streaks (SPEC.md §8.5).
@@ -27,3 +28,4 @@ Habits with streaks (SPEC.md §8.5).
 - ASSUMPTION (2026-10-21 22:07+0200 by dell26/agent-2): Habit stores the id of the one reminder the module manages (habit.reminder_id, migration V202610212300); sync only moves/deletes that reminder so user-created reminders on a habit survive; resync runs AFTER_COMMIT in its own transaction so a habit failure cannot roll back a core firing batch
 - ASSUMPTION (2026-10-21 22:07+0200 by dell26/agent-2): gtd convert tests used HABIT as a type without resolver; they now link to a real habit (4 gtd test files outside touches) because HABIT has a resolver now
 - extended by dell26/agent-2: Implementation, fixes for review 1 (CR-1..3) and review 2 are committed; .taskcheck passes. Left: test-writer report reviews/habits-api/tests.md (the tests are committed in 4ce6aafd, the report with coverage is missing); decide on review 2 P3 CR-1 (lock the habit row via lockById in update/onReminderFired/delete) and, if fixed, re-run test-writer + code-reviewer; tasks.py verify for 4 criteria (habits test suite, OpenApiContractTest); quality.json; done.
+- release by dell26/agent-2: Implementation complete and committed (habit CRUD, checks, streaks/30-day stats, reminder sync with row lock, HABIT resolver, openapi + web client regenerated). Three code reviews + fixes done; final reports committed in 9109a7f6: reviews/habits-api/tests.md (79/79 habits tests + OpenApiContractTest pass, coverage recorded) and review.md round 3 (0 P0-P2, 1 P3 CR-1: checks have no lower date bound, so a very old check makes stats iterate from that date). sh scripts/check.sh passes on 9109a7f6. Reports name pre-rebase hashes (bbdb3a69 = current 27ca934c, same patch). LEFT: (1) decide P3 CR-1: either record a disposition (e.g. accepted/out of scope) or fix (e.g. reject checks older than N years) and then re-run test-writer + code-reviewer; (2) run cd server && ./gradlew test --tests 'ch.sonensei.cockpit.journal.habits.*' --tests '*OpenApiContractTest' yourself (no other Gradle run on the same build dir) and tasks.py verify criteria 1-4; (3) write reviews/habits-api/quality.json (reviewed_revision = final code hash, fixer round 1+2 in fixes.md), commit; (4) tasks.py done.
