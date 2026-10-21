@@ -19,7 +19,8 @@ Secrets in backups (SPEC.md §10.2).
   - verified (2026-10-21 06:05+0200 by dell26/agent-1): BackupSecretsTest 'after a restore without secrets accounts must reconnect and the next login forces TOTP re-enrollment', RestoreCliTests, TotpEnrollmentWebTests (25), CoreBackupContributorsTests with Testcontainers -> pass
 - [x] Wrong passphrase → validation error, nothing restored
   - verified (2026-10-21 06:05+0200 by dell26/agent-1): BackupSecretsTest 'a wrong passphrase is a validation error, restores nothing and keeps the upload' (422), RestoreCliTests wrong passphrase exits 1 and changes nothing -> pass
-- [ ] `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.backup.*'` passes (Postgres via Testcontainers where persistence is involved)
+- [x] `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.backup.*'` passes (Postgres via Testcontainers where persistence is involved)
+  - verified (2026-10-21 06:05+0200 by dell26/agent-1): cd server && ./gradlew test --tests 'ch.sonensei.cockpit.backup.*' --rerun (Postgres via Testcontainers/Podman) -> BUILD SUCCESSFUL, 176 tests, 0 failures, 0 errors, 0 skipped
 
 ## Notes
 - From backup-contrib-core: `UserBackupContributor` (core/backupcontrib) omits the TOTP secret and imports a fresh random one while keeping `totp_confirmed_at`, so a restored owner can only sign in with recovery codes. This task should add the TOTP secret to `secrets.enc.json` and provide the forced TOTP re-enrollment (touches core/backupcontrib and core/auth).
