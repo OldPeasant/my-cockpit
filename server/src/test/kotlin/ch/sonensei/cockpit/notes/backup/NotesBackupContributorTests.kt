@@ -223,13 +223,29 @@ class NotesBackupContributorTests(
 
 	@Test
 	fun `front matter is valid YAML that gives back titles and tags with quotes, backslashes and control characters`() {
-		val title = "Plan: \"A\" \\ B # not a comment\tend"
-		val tags = listOf("back\\slash", "say \"x\"", "- [x] list", "@at", "bell\u0007", "line\nbreak", "del\u007f")
+		val title = "Plan: \"A\" \\ B # not a comment\tend\u0085next line\u0090"
+		val tags =
+			listOf(
+				"back\\slash",
+				"say \"x\"",
+				"- [x] list",
+				"@at",
+				"bell\u0007",
+				"line\nbreak",
+				"del\u007f",
+				"nel\u0085",
+				"ls ps ",
+				"c1\u0080\u0090\u009f",
+				"nonchar￾￿",
+			)
 		note(id(1), title, "body", tags = tags)
 
 		val text = export().readableNotes().values.single()
 		val front = Yaml().load<Map<String, Any?>>(text.removePrefix("---\n").substringBefore("\n---\n"))
 
+		listOf("\\u0085", "\\u2028", "\\u2029", "\\u0080", "\\u0090", "\\u009f", "\\ufffe", "\\uffff").forEach {
+			text shouldContain it
+		}
 		front["id"] shouldBe id(1).toString()
 		front["title"] shouldBe title
 		(front["tags"] as List<*>).map { it as String } shouldContainExactlyInAnyOrder tags

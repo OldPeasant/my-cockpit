@@ -221,7 +221,10 @@ class NotesBackupContributor(
 
 		private fun ref(item: Pair<String, UUID>) = "${item.first.lowercase()}:${item.second}"
 
-		/** A YAML double-quoted scalar (the JSON escapes YAML understands). */
+		/**
+		 * A YAML double-quoted scalar (the JSON escapes YAML understands). Characters outside YAML's printable set
+		 * (C0, DEL, C1, U+FFFE, U+FFFF) and the YAML 1.1 line breaks U+0085, U+2028 and U+2029 become `\uXXXX`.
+		 */
 		private fun quoted(value: String): String =
 			buildString {
 				append('"')
@@ -231,7 +234,8 @@ class NotesBackupContributor(
 						c == '\\' -> append("\\\\")
 						c == '\n' -> append("\\n")
 						c == '\t' -> append("\\t")
-						c < ' ' || c == '\u007f' -> append("\\u%04x".format(c.code))
+						c < ' ' || c in '\u007f'..'\u009f' || c == ' ' || c == ' ' || c >= '￾' ->
+							append("\\u%04x".format(c.code))
 						else -> append(c)
 					}
 				}
