@@ -1,11 +1,11 @@
 ---
 title: Backup contributor: mail accounts
-status: in_progress
+status: done
 owner: dell26/agent-2
 deps: [backup-contrib-core,mail-model,backup-secrets]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/mail/backup,server/src/test/kotlin/ch/sonensei/cockpit/mail/backup]
 prio: 2
-lease_until: 2026-10-21T22:44:57Z
+lease_until: 
 extended: dell26/agent-2
 ---
 ## Goal
@@ -23,3 +23,4 @@ Mail config in backups (SPEC.md §10.2).
 - ASSUMPTION (2026-10-21 23:22+0200 by dell26/agent-2): IMAP passwords go to backup secret 'mail_passwords' (account id -> password); an IMAP account restored without it has a null password (login fails with AUTHENTICATION_FAILED until the owner enters it again); no readable mirror for mail
 - ASSUMPTION (2026-10-21 23:37+0200 by dell26/agent-2): Review CR-1: linked mails older than the sync window are not reattached after a restore (first sync never runs retakeLinked). Kept the restore detached (no sentinel UIDVALIDITY, which would make pruneDetached delete reminder-only refs since isLinked ignores reminders) and added a restore warning; the sync-side fix is follow-up task mail-restore-retake-linked
 - extended by dell26/agent-2: Implementation, tests (reviews/backup-contrib-mail/tests.md) and final code review (review.md, 0 P0-P2, 1 optional P3 log plural) are committed; both criteria verified; sh scripts/check.sh passes. Left: write reviews/backup-contrib-mail/quality.json (reviewed_revision = HEAD code, P3 CR-1 disposition, fixer not required unless P3 is fixed), commit it, run tasks.py done.
+- done by dell26/agent-2: `sh scripts/check.sh` passed in 58s on f96db30be; criteria verified 2/2
