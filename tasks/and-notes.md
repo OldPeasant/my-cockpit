@@ -1,11 +1,11 @@
 ---
 title: Android notes
-status: in_progress
+status: done
 owner: dell26/agent-3
 deps: [and-login,notes-api]
 touches: [android/app/src/main/java/ch/sonensei/cockpit/notes,android/app/src/test/java/ch/sonensei/cockpit/notes]
 prio: 2
-lease_until: 2026-10-21T10:53:24Z
+lease_until: 
 extended: dell26/agent-3
 ---
 ## Goal
@@ -32,3 +32,4 @@ View/edit notes and add photos (SPEC.md §9.2 item 6).
 - ASSUMPTION (2026-10-21 12:24+0200 by dell26/agent-3): Android notes: editors left with unsaved text are kept and their saves retried each time the notes list is shown; the list reloads after those retries
 - ASSUMPTION (2026-10-21 12:24+0200 by dell26/agent-3): Android notes: leaving the whole Notes screen saves every editor's text in an app-scoped scope; if that save fails (offline) the text is dropped without a message (no persistent local draft store in this task)
 - ASSUMPTION (2026-10-21 12:34+0200 by dell26/agent-3): Criterion 1 verified with Robolectric/Compose UI tests in a Hilt test activity, not on a real device or emulator (none available here); on-device check is part of h-android-device
+- done by dell26/agent-3: `sh scripts/check.sh` passed in 81s on 658bf1140; criteria verified 2/2
