@@ -5,7 +5,7 @@ owner: dell26/agent-1
 deps: [and-login,cal-local-api]
 touches: [android/app/src/main/java/ch/sonensei/cockpit/calendar/agenda,android/app/src/test/java/ch/sonensei/cockpit/calendar/agenda]
 prio: 2
-lease_until: 2026-10-21T15:10:51Z
+lease_until: 2026-10-21T15:15:51Z
 releases: 1
 extended: 
 ---
