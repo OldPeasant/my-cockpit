@@ -4,7 +4,7 @@ Date: 2026-10-21
 
 Task: backup-contrib-notes - Backup contributor: notes
 
-Scope: current task, P3 findings CR-1 (partial, as the parent decided) and CR-2 from `reviews/backup-contrib-notes/review.md`. Fix commit: 9dde4cd6e0fde0026a3456d37562173ab516a8b0.
+Scope: current task, P3 findings CR-1 (partial, as the parent decided), CR-2 and CR-3 from `reviews/backup-contrib-notes/review.md`. Fix commit for CR-1/CR-2: 9dde4cd6e0fde0026a3456d37562173ab516a8b0. CR-3 was fixed in a later pass (working tree change, committed by the parent worker).
 
 ## Fixed findings
 
@@ -36,6 +36,21 @@ Added a private helper `streamed(sql)` that returns a `PreparedStatementCreator`
 Validation:
 - `./gradlew test --tests '*NotesBackupContributorTests' --tests '*BackupRoundTripTest'` — Pass
 
+### CR-3 — Front matter is not valid YAML for titles or tags with C1 control or other non-printable characters
+
+Files changed:
+- `server/src/main/kotlin/ch/sonensei/cockpit/notes/backup/NotesBackupContributor.kt`
+- `server/src/test/kotlin/ch/sonensei/cockpit/notes/backup/NotesBackupContributorTests.kt`
+
+Problem:
+`quoted()` escaped only C0 controls and DEL. U+0080-U+009F, U+FFFE and U+FFFF are outside YAML's printable set, and U+0085, U+2028 and U+2029 are line breaks in YAML 1.1 (SnakeYAML folds them), so such titles or tags gave invalid front matter or a changed value.
+
+Fix:
+`quoted()` now also writes U+0080-U+009F (including U+0085 NEL), U+2028, U+2029, U+FFFE and U+FFFF as `\uXXXX` escapes; the KDoc names the escaped set. The existing YAML-validity test now puts U+0085, U+2028 and U+0090 in the title and U+0085, U+2028, U+2029, U+0080, U+0090, U+009F, U+FFFE and U+FFFF in tags, asserts that the raw front matter contains each as a `\uXXXX` escape, and that SnakeYAML parses title and tags back unchanged.
+
+Validation:
+- `cd server && ./gradlew ktlintFormat ktlintCheck test --tests '*NotesBackupContributorTests' --tests '*BackupRoundTripTest'` — Pass (BUILD SUCCESSFUL; NotesBackupContributorTests 18 tests, BackupRoundTripTest 1 test, 0 failures, 0 errors, 0 skipped)
+
 ## Not fixed
 
 ### CR-1 (remaining part) — move the link read behind a core service
@@ -52,8 +67,11 @@ Focused tests:
 - `cd server && ./gradlew ktlintFormat` — no remaining changes beyond the fix
 - `cd server && ./gradlew test --tests '*NotesBackupContributorTests' --tests '*BackupRoundTripTest'` — BUILD SUCCESSFUL; XML: NotesBackupContributorTests 17 tests, 0 failures, 0 errors, 0 skipped; BackupRoundTripTest 1 test, 0 failures, 0 errors, 0 skipped
 
+- CR-3 pass: `cd server && ./gradlew ktlintFormat ktlintCheck test --tests '*NotesBackupContributorTests' --tests '*BackupRoundTripTest'` — BUILD SUCCESSFUL; NotesBackupContributorTests 18 tests, BackupRoundTripTest 1 test, 0 failures, 0 errors, 0 skipped; ktlintFormat left no changes beyond the fix
+
 Full test suite:
-- `cd server && ./gradlew check` — BUILD SUCCESSFUL (8m 49s); 225 result files, 2898 tests, 0 failures, 0 errors, 0 skipped
+- CR-3 pass: not re-run (change is limited to `quoted()` and one test; the parent worker runs `.taskcheck`)
+- CR-1/CR-2 pass: `cd server && ./gradlew check` — BUILD SUCCESSFUL (8m 49s); 225 result files, 2898 tests, 0 failures, 0 errors, 0 skipped
 
 Lint/type-check/build:
 - `cd server && ./gradlew ktlintCheck` — Pass
