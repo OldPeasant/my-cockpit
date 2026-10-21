@@ -299,9 +299,17 @@ test.describe('Phase 2 demo', () => {
     let web: BrowserContext | undefined;
     try {
       const freshPage = await fresh.newPage();
-      // A fresh install: no data, the setup is required.
+      // A fresh install: no data, the setup is required. `server-fresh` is single-use: a re-run against the same
+      // stack (E2E_BASE_URL) finds the restored data of the last run, so skip instead of failing (web/e2e/README.md).
       const status = await fresh.request.get('/api/v1/setup/status');
-      expect(await status.json()).toEqual({ setupRequired: true });
+      expect(status.ok()).toBe(true);
+      const { setupRequired } = (await status.json()) as { setupRequired: boolean };
+      test.skip(
+        !setupRequired,
+        `${FRESH_BASE_URL} is no longer a fresh install (an earlier run already used it). Recreate it with ` +
+          '`<compose> -p <project> -f deploy/docker-compose.e2e.yml up -d --force-recreate -V server-fresh postgres-fresh`' +
+          ' (same E2E_IMAGE and E2E_FRESH_PORT as the stack), see web/e2e/README.md',
+      );
 
       // A throwaway owner, only to reach Settings → Backup & restore.
       const temp = await setupAccount(fresh.request, {
@@ -313,7 +321,7 @@ test.describe('Phase 2 demo', () => {
       await freshPage.getByTestId('restore-file').setInputFiles(backupPath);
       const report = freshPage.getByRole('region', { name: /can be restored/ });
       await expect(report).toBeVisible({ timeout: 60_000 });
-      await expect(report.getByText('not included')).toBeVisible();
+      await expect(report.getByText('not included', { exact: true })).toBeVisible();
       await freshPage.getByTestId('restore-confirm').fill(CONFIRM_WORD);
       await freshPage.getByRole('button', { name: 'Replace all data' }).click();
       await expect(freshPage).toHaveURL(/\/login/, { timeout: 120_000 });

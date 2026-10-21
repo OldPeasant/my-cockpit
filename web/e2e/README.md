@@ -30,6 +30,17 @@ The stack has a second server, `server-fresh`, with its own empty Postgres and d
 only the phase 2 demo (`e2e/phase2/`) uses, to restore its backup into (SPEC.md §13.2 step 5). `run-e2e.mjs` waits for
 both and passes its address as `E2E_FRESH_BASE_URL`.
 
+`server-fresh` is single-use: step 5 runs the setup on it and restores the backup, and nothing resets it (resetting
+through `/api/test/reset` would keep its data directory, so it would no longer be a fresh install). `npm run e2e`
+recreates it on every run. When you re-run against a kept stack (`E2E_BASE_URL` + `E2E_FRESH_BASE_URL`), step 5 is
+skipped with a message unless you recreate it first (from the repository root, with the same `E2E_IMAGE` and
+`E2E_FRESH_PORT` as the stack; `E2E_KEEP=1` prints the project name):
+
+```sh
+E2E_IMAGE=localhost/<project>:latest E2E_FRESH_PORT=<port> \
+  docker compose -p <project> -f deploy/docker-compose.e2e.yml up -d --force-recreate -V server-fresh postgres-fresh
+```
+
 Reports: `test-results/` (traces and screenshots of failures), `playwright-report/` (`npx playwright show-report`).
 
 ## Writing specs
