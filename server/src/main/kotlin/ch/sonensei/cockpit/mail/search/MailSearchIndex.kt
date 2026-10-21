@@ -49,26 +49,51 @@ class MailSearchIndex(
 	fun unindex(messageId: UUID) = indexer.delete(ItemType.EMAIL, messageId)
 
 	/**
-	 * Repairs what the hooks cannot see, in batches of [batchSize]: documents of messages that are gone or detached
-	 * (e.g. removed with their account through the foreign key) are removed, located messages without a document (e.g.
-	 * cached before mail search existed) are indexed. Returns the number of documents removed and added.
+	 * Removes the documents of the messages in folder [folderId]; called before the folder is deleted from the cache,
+	 * which keeps the rows but makes them unlocated (`folder_id` set to `null`).
 	 */
-	fun reconcile(batchSize: Int): Pair<Int, Int> {
-		val removed =
-			jdbc.update(
-				"""
-				delete from search_document d
-				where d.item_type = :type
-				  and not exists (select 1 from mail_message m where m.id = d.item_id and m.uid is not null)
-				""".trimIndent(),
-				mapOf("type" to ItemType.EMAIL.name),
-			)
+	fun unindexFolder(folderId: UUID) {
+		jdbc.update(
+			"""
+			delete from search_document d
+			using mail_message m
+			where d.item_type = :type and d.item_id = m.id and m.folder_id = :folderId
+			""".trimIndent(),
+			mapOf("type" to ItemType.EMAIL.name, "folderId" to folderId),
+		)
+	}
+
+	/**
+	 * Repairs what the hooks cannot see: [removeStale], then one batch of [indexMissing]. Returns the number of
+	 * documents removed and added.
+	 */
+	fun reconcile(batchSize: Int): Pair<Int, Int> = removeStale() to indexMissing(batchSize)
+
+	/**
+	 * Removes the documents of messages that are gone or not located (e.g. removed with their account through the
+	 * foreign key, or left without folder when it was deleted). Returns the number of documents removed.
+	 */
+	fun removeStale(): Int =
+		jdbc.update(
+			"""
+			delete from search_document d
+			where d.item_type = :type
+			  and not exists (select 1 from mail_message m where m.id = d.item_id and $LOCATED)
+			""".trimIndent(),
+			mapOf("type" to ItemType.EMAIL.name),
+		)
+
+	/**
+	 * Indexes up to [batchSize] located messages without a document (e.g. cached before mail search existed). Returns
+	 * the number of documents actually added.
+	 */
+	fun indexMissing(batchSize: Int): Int {
 		val missing =
 			jdbc
 				.queryForList(
 					"""
 					select m.id from mail_message m
-					where m.uid is not null
+					where $LOCATED
 					  and not exists (select 1 from search_document d where d.item_type = :type and d.item_id = m.id)
 					order by m.id
 					limit :limit
@@ -76,8 +101,10 @@ class MailSearchIndex(
 					mapOf("type" to ItemType.EMAIL.name, "limit" to batchSize),
 					UUID::class.java,
 				).filterNotNull()
-		messages.findAllById(missing).forEach { index(it) }
-		return removed to missing.size
+		return messages
+			.findAllById(missing)
+			.onEach { index(it) }
+			.count { it.isLocated }
 	}
 
 	private fun documentBody(
@@ -96,7 +123,10 @@ class MailSearchIndex(
 	// An address is one word to the full-text parser; its parts are added so `alice`, `example` or the whole address match.
 	private fun MailAddress.searchText(): String = listOfNotNull(name, address, address.replace(NON_WORD, " ")).joinToString(" ")
 
-	private companion object {
-		val NON_WORD = Regex("""[^\p{L}\p{N}]+""")
+	companion object {
+		/** SQL predicate on `mail_message m`: the row is located ([MailMessage.isLocated]), i.e. a message the user can open. */
+		const val LOCATED = "m.folder_id is not null and m.uid is not null"
+
+		private val NON_WORD = Regex("""[^\p{L}\p{N}]+""")
 	}
 }

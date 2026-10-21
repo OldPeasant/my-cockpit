@@ -21,7 +21,7 @@ class MailSearchReconcileConfiguration {
 
 /**
  * Every `cockpit.mail.search.reconcile.interval` (default 1 h, first run 1 min after the start) repairs the mail
- * documents of the search index ([MailSearchIndex.reconcile]): indexes mail cached before mail search existed and
+ * documents of the search index ([MailSearchIndex.removeStale] once, then [MailSearchIndex.indexMissing] in batches): indexes mail cached before mail search existed and
  * drops documents of messages removed without the hooks (e.g. with their account).
  */
 class MailSearchReconciler(
@@ -35,12 +35,11 @@ class MailSearchReconciler(
 	)
 	fun run() {
 		try {
-			var removed = 0
+			val removed = index.removeStale()
 			var added = 0
 			var batches = 0
 			do {
-				val (batchRemoved, batchAdded) = index.reconcile(BATCH_SIZE)
-				removed += batchRemoved
+				val batchAdded = index.indexMissing(BATCH_SIZE)
 				added += batchAdded
 				batches++
 			} while (batchAdded == BATCH_SIZE && batches < MAX_BATCHES_PER_RUN)

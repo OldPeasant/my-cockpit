@@ -158,7 +158,7 @@ class MailSearchService(
 				.addValue("type", ItemType.EMAIL.name)
 				.addValue("query", words.joinToString(" & ") { "'$it':*" })
 				.addValue("limit", limit)
-		val conditions = mutableListOf("m.uid is not null")
+		val conditions = mutableListOf(MailSearchIndex.LOCATED)
 		scope.accountId?.let {
 			params.addValue("accountId", it)
 			conditions += "m.account_id = :accountId"

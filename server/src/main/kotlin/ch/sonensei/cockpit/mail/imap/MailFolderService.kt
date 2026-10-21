@@ -9,6 +9,7 @@ import ch.sonensei.cockpit.mail.model.MailAccountRepository
 import ch.sonensei.cockpit.mail.model.MailFolder
 import ch.sonensei.cockpit.mail.model.MailFolderRepository
 import ch.sonensei.cockpit.mail.model.MailFolderRole
+import ch.sonensei.cockpit.mail.search.MailSearchIndex
 import jakarta.mail.MessagingException
 import jakarta.persistence.EntityManager
 import jakarta.persistence.LockModeType
@@ -31,6 +32,7 @@ class MailFolderService(
 	private val changes: ChangeEventPublisher,
 	private val transactions: TransactionTemplate,
 	private val entityManager: EntityManager,
+	private val searchIndex: MailSearchIndex,
 ) {
 	/** The cached folders of an account, by path. */
 	fun list(accountId: UUID): List<MailFolder> {
@@ -116,6 +118,8 @@ class MailFolderService(
 		val cached = folders.findByAccountIdOrderByPathAsc(accountId).associateBy { it.path }
 		val remoteByPath = remote.associateBy { it.path }
 		cached.values.filter { it.path !in remoteByPath }.forEach {
+			// Its messages stay cached but without folder: no longer searchable.
+			searchIndex.unindexFolder(it.id)
 			folders.delete(it)
 			changes.publish(FOLDER_EVENT, it.id, ChangeOp.DELETED)
 		}

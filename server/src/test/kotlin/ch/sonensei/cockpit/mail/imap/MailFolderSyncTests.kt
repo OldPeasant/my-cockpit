@@ -15,6 +15,7 @@ import ch.sonensei.cockpit.mail.model.MailFolder
 import ch.sonensei.cockpit.mail.model.MailFolderRepository
 import ch.sonensei.cockpit.mail.model.MailFolderRole
 import ch.sonensei.cockpit.mail.model.MailSecurity
+import ch.sonensei.cockpit.mail.search.MailSearchIndex
 import ch.sonensei.cockpit.support.PostgresTestBase
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.collections.shouldBeEmpty
@@ -56,6 +57,7 @@ class MailFolderSyncTests(
 	@Autowired private val changes: ChangeEventPublisher,
 	@Autowired private val transactions: TransactionTemplate,
 	@Autowired private val entityManager: EntityManager,
+	@Autowired private val searchIndex: MailSearchIndex,
 ) : PostgresTestBase() {
 	private val pool = mockk<ImapConnectionPool>()
 	private val store = mockk<IMAPStore>()
@@ -84,7 +86,7 @@ class MailFolderSyncTests(
 					username = "jane",
 				).apply { password = EncryptedSecret("fictitious-secret-1") },
 			)
-		service = MailFolderService(accounts, folders, pool, changes, transactions, entityManager)
+		service = MailFolderService(accounts, folders, pool, changes, transactions, entityManager, searchIndex)
 		every { pool.withStore(any(), any<(IMAPStore) -> Any?>()) } answers { secondArg<(IMAPStore) -> Any?>().invoke(store) }
 		every { store.defaultFolder } returns root
 		every { root.list("*") } answers { remote.map { (path, attributes) -> imapFolder(path, attributes) }.toTypedArray() }
@@ -335,7 +337,7 @@ class MailFolderSyncTests(
 	}
 
 	@Test
-	fun `a vanished folder is removed but its cached messages stay without a folder`() {
+	fun `a vanished folder is removed but its cached messages stay without a folder and leave the search index`() {
 		sync("INBOX" to emptyList(), "Projects" to emptyList())
 		val projects = folder("Projects")
 		val messageId = UuidV7.generate()
@@ -346,11 +348,17 @@ class MailFolderSyncTests(
 			account.id,
 			projects.id,
 		)
+		jdbc.update(
+			"insert into search_document (item_type, item_id, title, body, updated_at) values ('EMAIL', ?, 'Fictitious kickoff', '', now())",
+			messageId,
+		)
 
 		sync("INBOX" to emptyList())
 
 		folders.findById(projects.id).isPresent shouldBe false
 		jdbc.queryForObject("select count(*) from mail_message where id = ? and folder_id is null", Int::class.java, messageId) shouldBe 1
+		jdbc.queryForObject("select count(*) from search_document where item_type = 'EMAIL' and item_id = ?", Int::class.java, messageId) shouldBe
+			0
 	}
 
 	@Test

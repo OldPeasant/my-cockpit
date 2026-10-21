@@ -132,6 +132,8 @@ class MailSearchGreenMailTests(
 					// The word is past what the list snippet holds, so only the cached body finds it.
 					message("Kiwi report", "Numbers follow. ".repeat(300) + "The pineapple numbers are in.", now.minus(2, ChronoUnit.DAYS)),
 					message("Old receipt", "Zebra crossing fee, Müsli included.", now.minus(800, ChronoUnit.DAYS)),
+					// Only on the server until searched for: the non-ASCII hit depends on IMAP SEARCH CHARSET UTF-8.
+					message("Recipe card", "Bircher-Müesli wie in Zürich.", now.minus(900, ChronoUnit.DAYS)),
 				),
 			)
 		}
@@ -155,6 +157,14 @@ class MailSearchGreenMailTests(
 		val umlaut = search("q=m%C3%BCsli&folderId=${inbox.id}&server=true")
 		umlaut["items"].strings("subject") shouldContainExactly listOf("Old receipt")
 		umlaut["server"]["loaded"].asInt() shouldBe 0
+		umlaut["server"]["searchedFolders"].asInt() shouldBe 1
+		umlaut["server"]["failures"].size() shouldBe 0
+		search("q=z%C3%BCrich")["items"].strings("subject").shouldBeEmpty()
+		val uncached = search("q=z%C3%BCrich&folderId=${inbox.id}&server=true")
+		uncached["items"].strings("subject") shouldContainExactly listOf("Recipe card")
+		uncached["server"]["loaded"].asInt() shouldBe 1
+		uncached["server"]["searchedFolders"].asInt() shouldBe 1
+		uncached["server"]["failures"].size() shouldBe 0
 		search("q=nothing%20matches&server=true")["items"].strings("subject").shouldBeEmpty()
 	}
 
