@@ -5,7 +5,7 @@ owner: dell26/agent-5
 deps: [backup-contrib-core,gtd-convert-note]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/gtd/backup,server/src/test/kotlin/ch/sonensei/cockpit/gtd/backup]
 prio: 1
-lease_until: 2026-10-21T05:38:36Z
+lease_until: 2026-10-21T05:43:37Z
 ---
 ## Goal
 GTD data in backups, with readable Markdown (SPEC.md §10.2).
