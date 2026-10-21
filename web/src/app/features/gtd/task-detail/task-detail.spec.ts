@@ -470,6 +470,70 @@ describe('TaskDetail', () => {
       expect(text()).not.toContain('is too large');
     });
 
+    it('shows a 400 error of a field the form does not show in the save bar', async () => {
+      await render();
+      await type('#td-title', 'Keep me');
+      await type('#td-estimate', '30');
+      answer = (fn) =>
+        fn === updateTask
+          ? Promise.reject(
+              new ApiError(400, 'Bad Request', undefined, undefined, undefined, [
+                { field: 'contextIds', message: 'Unknown context.' },
+                { field: 'timeEstimateMin', message: 'is too large' },
+              ]),
+            )
+          : undefined;
+
+      await save();
+
+      const bar = element.querySelector('.bar [role=alert]')?.textContent ?? '';
+      expect(bar).toContain('Unknown context.');
+      // A field the form shows keeps its error at the field, not in the save bar.
+      expect(bar).not.toContain('is too large');
+      expect(field('#td-estimate').getAttribute('aria-invalid')).toBe('true');
+      expect(field<HTMLTextAreaElement>('#td-title').value).toBe('Keep me');
+      expect(saveButton().disabled).toBe(false);
+    });
+
+    it('falls back to the message of the answer when a hidden field error has no text', async () => {
+      await render();
+      await type('#td-title', 'Keep me');
+      answer = (fn) =>
+        fn === updateTask
+          ? Promise.reject(
+              new ApiError(400, 'Bad Request', 'The task is invalid.', undefined, undefined, [
+                { field: 'projectId', message: '' },
+              ]),
+            )
+          : undefined;
+
+      await save();
+
+      expect(element.querySelector('.bar [role=alert]')?.textContent).toContain(
+        'The task is invalid.',
+      );
+      expect(saveButton().disabled).toBe(false);
+    });
+
+    it('shows no save bar error when every 400 error is at a field of the form', async () => {
+      await render();
+      await type('#td-title', 'Keep me');
+      answer = (fn) =>
+        fn === updateTask
+          ? Promise.reject(
+              new ApiError(400, 'Bad Request', undefined, undefined, undefined, [
+                { field: 'title', message: 'Too long.' },
+                { field: 'recurrenceRule', message: 'Not a valid rule.' },
+              ]),
+            )
+          : undefined;
+
+      await save();
+
+      expect(text()).toContain('Too long.');
+      expect(element.querySelector('.bar [role=alert]')).toBeNull();
+    });
+
     it('on 412 of a move says the task changed elsewhere and reloads it', async () => {
       await render();
       await choose('#td-list', 'SOMEDAY');

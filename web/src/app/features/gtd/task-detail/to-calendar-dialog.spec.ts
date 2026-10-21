@@ -6,12 +6,14 @@ import { MatSelectHarness } from '@angular/material/select/testing';
 import { Subject } from 'rxjs';
 import { CalendarResponse, ConvertToEventRequest, Settings } from '../../../api/generated';
 import { CalendarStore } from '../../calendar/views/calendar-store';
-import { fakeCalendar } from '../../calendar/views/testing';
+import { fakeCalendar, fakeEvent } from '../../calendar/views/testing';
 import { SettingsService } from '../../settings/settings.service';
 import {
   askForCalendar,
+  browserTimeZone,
   convertRequest,
   endsAfterStart,
+  eventStartDay,
   ToCalendarData,
   ToCalendarDialog,
   ToCalendarForm,
@@ -339,6 +341,32 @@ describe('ToCalendarDialog', () => {
     });
   });
 
+  it('keeps the one-day range when the settings answer late while all day is ticked', async () => {
+    // 22:30 in Zurich, 16:30 in New York: the browser default may span midnight.
+    vi.setSystemTime(new Date('2026-10-21T20:30:00Z'));
+    const answer = deferred();
+    settings.settings.set(null);
+    settings.load.mockImplementation(() =>
+      answer.promise.then(() => settings.settings.set({ timeZone: 'Europe/Zurich' } as Settings)),
+    );
+    await open();
+    await checkAllDay();
+
+    answer.resolve();
+    await stable();
+
+    // The late answer resets the untouched times in Zurich: 23:00-00:00, all-day the 21st only.
+    expect(input('startDate')!.value).toBe('2026-10-21');
+    expect(input('endDate')!.value).toBe('2026-10-21');
+    await submit();
+    expect(ref.close).toHaveBeenCalledWith({
+      calendarId: 'family',
+      allDay: true,
+      startDate: '2026-10-21',
+      endDate: '2026-10-22',
+    });
+  });
+
   it('keeps dates the user typed when ticking all day', async () => {
     vi.setSystemTime(new Date('2026-10-21T20:30:00Z'));
     await open();
@@ -534,6 +562,55 @@ describe('convertRequest', () => {
         timeZone: 'Europe/Zurich',
       }),
     ).toEqual({ calendarId: 'work', allDay: true, startDate: '2026-02-28', endDate: '2026-03-01' });
+  });
+});
+
+describe('eventStartDay', () => {
+  afterEach(() => vi.useRealTimers());
+
+  it('gives the wall-clock day of the start in the zone of the event', () => {
+    // 23:30 UTC on the 21st is the 22nd in Zurich and still the 21st in New York.
+    const start = '2026-10-21T23:30:00Z';
+    expect(eventStartDay(fakeEvent('a', { start, timeZone: 'Europe/Zurich' }))).toBe('2026-10-22');
+    expect(eventStartDay(fakeEvent('b', { start, timeZone: 'America/New_York' }))).toBe(
+      '2026-10-21',
+    );
+  });
+
+  it('uses the zone of the browser when the event has none', () => {
+    const start = '2026-10-21T23:30:00Z';
+    const expected = eventStartDay(fakeEvent('a', { start, timeZone: browserTimeZone() }));
+    expect(eventStartDay(fakeEvent('b', { start, timeZone: undefined }))).toBe(expected);
+  });
+
+  it('gives the start date of an all-day event, ignoring any instant', () => {
+    const event = fakeEvent('a', {
+      allDay: true,
+      startDate: '2026-12-24',
+      endDate: '2026-12-25',
+      start: '2026-12-23T23:00:00Z',
+    });
+    expect(eventStartDay(event)).toBe('2026-12-24');
+  });
+
+  it('gives the start date of an event without a start instant', () => {
+    expect(eventStartDay(fakeEvent('a', { start: undefined, startDate: '2026-11-02' }))).toBe(
+      '2026-11-02',
+    );
+  });
+
+  it('falls back to today when an all-day event has no start date', () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date(2026, 9, 21, 12, 0));
+    expect(eventStartDay(fakeEvent('a', { allDay: true, startDate: undefined }))).toBe(
+      '2026-10-21',
+    );
+  });
+});
+
+describe('browserTimeZone', () => {
+  it('gives the resolved zone of the browser', () => {
+    expect(browserTimeZone()).toBe(Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC');
   });
 });
 
