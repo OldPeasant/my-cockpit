@@ -17,7 +17,8 @@ Capture from anywhere (SPEC.md §4.5), provided through the shell's `CAPTURE_DIA
   - verified (2026-10-21 02:21+0200 by dell26/agent-2): uuidv7.spec.ts (version/variant/ordering) + capture-dialog.spec.ts 'retry resends same id', new id after success -> pass (ng test --include capture: 52 passed)
 - [x] Vitest component/service tests cover preview, save, double-submit protection; `cd web && npm run check` passes
   - verified (2026-10-21 02:21+0200 by dell26/agent-2): cd web && npx ng test --watch=false --include='src/app/features/capture/*.spec.ts' -> 4 files 52 passed (preview, save, double submit); cd web && npm run check -> pass, 60 files 1123 tests; capture files 100% coverage (npm run coverage)
-- [ ] Playwright `e2e/capture/capture.spec.ts` passes against the e2e stack (`npm run e2e -- e2e/capture/capture.spec.ts`, see p0-e2e-harness): Q opens the dialog, three captures appear in the inbox
+- [x] Playwright `e2e/capture/capture.spec.ts` passes against the e2e stack (`npm run e2e -- e2e/capture/capture.spec.ts`, see p0-e2e-harness): Q opens the dialog, three captures appear in the inbox
+  - verified (2026-10-21 02:21+0200 by dell26/agent-2): cd web && npm run e2e -- e2e/capture/capture.spec.ts against deploy/docker-compose.e2e.yml (podman-compose, fresh Postgres, server image) on final code 5b4d21b1 -> 6 passed incl. 'Q opens the dialog, three captures appear in the inbox'
 
 ## Notes
 - ASSUMPTION (2026-10-21 01:50+0200 by dell26/agent-2): Capture text field is a single-line input (Enter=save, Shift+Enter=save+keep open); notes is a textarea where Enter adds a line and Ctrl/Cmd+Enter saves. Multi-line text capture is left to notes.
