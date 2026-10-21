@@ -96,7 +96,16 @@ internal object CalDavEventMapping {
 		val uid = vevent.text("UID")?.trim()?.ifEmpty { null } ?: throw IllegalArgumentException("A VEVENT without UID")
 		val recurrenceId = vevent.property("RECURRENCE-ID")?.let { occurrence(it, zones) }
 		val timing = timing(vevent, zones)
-		val rrule = if (recurrenceId == null) vevent.property("RRULE")?.value?.trim()?.ifEmpty { null } else null
+		val rrule =
+			if (recurrenceId == null) {
+				vevent
+					.property("RRULE")
+					?.value
+					?.trim()
+					?.ifEmpty { null }
+			} else {
+				null
+			}
 		val exdates =
 			if (rrule == null) {
 				emptySet()
@@ -117,7 +126,12 @@ internal object CalDavEventMapping {
 			rrule = rrule,
 			exdates = exdates,
 			attendees = vevent.all("ATTENDEE").mapNotNull(::attendee),
-			reminderMinutes = vevent.children("VALARM").mapNotNull(::reminderMinutes).distinct().sorted(),
+			reminderMinutes =
+				vevent
+					.children("VALARM")
+					.mapNotNull(::reminderMinutes)
+					.distinct()
+					.sorted(),
 			status =
 				when (vevent.text("STATUS")?.trim()?.uppercase()) {
 					"CANCELLED" -> EventStatus.CANCELLED
@@ -271,7 +285,10 @@ internal object CalDavEventMapping {
 		WindowsZones.zone(id)?.let { return it }
 		// Path forms such as /mozilla.org/20050126_1/Europe/Zurich: the longest known suffix.
 		val segments = id.split('/').filter { it.isNotEmpty() }
-		return segments.indices.map { segments.drop(it).joinToString("/") }.firstOrNull { it in available }?.let(ZoneId::of)
+		return segments.indices
+			.map { segments.drop(it).joinToString("/") }
+			.firstOrNull { it in available }
+			?.let(ZoneId::of)
 	}
 
 	fun duration(value: String): Duration? {
@@ -356,7 +373,12 @@ internal object CalDavEventMapping {
 			}
 		vevent.set("DTSTAMP", stamp(now))
 		vevent.set("LAST-MODIFIED", stamp(now))
-		val sequence = vevent.property("SEQUENCE")?.value?.trim()?.toIntOrNull()
+		val sequence =
+			vevent
+				.property("SEQUENCE")
+				?.value
+				?.trim()
+				?.toIntOrNull()
 		vevent.set("SEQUENCE", ((sequence ?: -1) + 1).toString())
 		vevent.setText("SUMMARY", event.title)
 		vevent.setText("DESCRIPTION", event.description)
@@ -400,7 +422,10 @@ internal object CalDavEventMapping {
 		val master = master(calendar, uid) ?: return
 		val listed =
 			master.all("EXDATE").any { property ->
-				property.value.split(',').any { runCatching { occurrence(IcsProperty("EXDATE", property.params, it.trim()), zones) }.getOrNull() == occurrence }
+				property.value.split(',').any {
+					runCatching { occurrence(IcsProperty("EXDATE", property.params, it.trim()), zones) }.getOrNull() ==
+						occurrence
+				}
 			}
 		if (!listed) {
 			val (value, params) = formatLike(master.property("DTSTART"), occurrence, zones)

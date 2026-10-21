@@ -146,7 +146,8 @@ Server test infrastructure (`server/src/test/kotlin/ch/sonensei/cockpit/support/
   per test JVM, wired in through `@ServiceConnection` (datasource + Flyway). Keep Spring test
   configurations uniform so the context cache can reuse contexts.
 - Tests against external systems are annotated `@ExternalTest` (JUnit tag `external`). `test` excludes
-  them, `integrationTest` runs only them.
+  them, `integrationTest` runs only them. CalDAV tests use `docker.io/tomsquest/docker-radicale:3.5.4.0`
+  (htpasswd user, config copied in by the test).
 - Docker/Podman is required for `./gradlew test`, and therefore for `.taskcheck`. With Podman set
   `DOCKER_HOST` and `TESTCONTAINERS_RYUK_DISABLED=true` (see "Install").
 

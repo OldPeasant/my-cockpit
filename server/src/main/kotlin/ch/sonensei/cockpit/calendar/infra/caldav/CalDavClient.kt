@@ -224,7 +224,12 @@ internal class MultiStatus(
 			}
 			val responses =
 				root.children(CalDavClient.DAV, "response").mapNotNull { response ->
-					val href = response.children(CalDavClient.DAV, "href").firstOrNull()?.textContent?.trim() ?: return@mapNotNull null
+					val href =
+						response
+							.children(CalDavClient.DAV, "href")
+							.firstOrNull()
+							?.textContent
+							?.trim() ?: return@mapNotNull null
 					val status = response.children(CalDavClient.DAV, "status").firstOrNull()?.let { statusCode(it.textContent) }
 					val props =
 						response
@@ -236,7 +241,13 @@ internal class MultiStatus(
 							.flatMap { it.elements() }
 					DavResponse(href, status, props)
 				}
-			val token = root.children(CalDavClient.DAV, "sync-token").firstOrNull()?.textContent?.trim()?.ifEmpty { null }
+			val token =
+				root
+					.children(CalDavClient.DAV, "sync-token")
+					.firstOrNull()
+					?.textContent
+					?.trim()
+					?.ifEmpty { null }
 			return MultiStatus(responses, token)
 		}
 

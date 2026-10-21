@@ -86,7 +86,11 @@ class CalDavCalendarAdapter(
 				"<D:resourcetype/><D:displayname/><A:calendar-color/><D:current-user-privilege-set/><C:supported-calendar-component-set/>",
 				"Listing the calendars",
 			)
-		if (response.status != MULTI_STATUS) throw CalendarProviderException("Listing the calendars failed at the CalDAV server (HTTP ${response.status})")
+		if (response.status !=
+			MULTI_STATUS
+		) {
+			throw CalendarProviderException("Listing the calendars failed at the CalDAV server (HTTP ${response.status})")
+		}
 		return MultiStatus
 			.parse(response.body, "Listing the calendars")
 			.responses
@@ -178,7 +182,11 @@ class CalDavCalendarAdapter(
 		val info = propfind(client, calendar, 0, "<D:sync-token/><CS:getctag/>", FETCH)
 		if (info?.text(CalDavClient.DAV, "sync-token") != null) {
 			val sync = syncCollection(client, calendar, null)
-			if (sync != null) return changes(client, calendar, emptyMap(), sync.changed, emptySet(), complete = true, Cursor(SYNC, sync.token, null, emptyMap()))
+			if (sync !=
+				null
+			) {
+				return changes(client, calendar, emptyMap(), sync.changed, emptySet(), complete = true, Cursor(SYNC, sync.token, null, emptyMap()))
+			}
 			log.info("A CalDAV calendar has a sync token but no sync-collection report; comparing etags")
 		}
 		val ctag = info?.text(CalDavClient.CALENDARSERVER, "getctag")
@@ -211,8 +219,12 @@ class CalDavCalendarAdapter(
 			.parse(response.body, FETCH)
 			.responses
 			.filter { it.prop(CalDavClient.DAV, "resourcetype")?.elements().isNullOrEmpty() }
-			.mapNotNull { member -> client.resolve(member.href)?.path?.takeIf { it.trimEnd('/') != own }?.let { it to member.text(CalDavClient.DAV, "getetag") } }
-			.toMap()
+			.mapNotNull { member ->
+				client.resolve(member.href)?.path?.takeIf { it.trimEnd('/') != own }?.let {
+					it to
+						member.text(CalDavClient.DAV, "getetag")
+				}
+			}.toMap()
 	}
 
 	private class SyncResult(
@@ -291,7 +303,11 @@ class CalDavCalendarAdapter(
 					log.warn("Skipped a CalDAV resource that is no iCalendar object: {}", e.message)
 					null
 				}
-			if (resource != null && resource.skipped > 0) log.warn("Skipped {} VEVENTs of a CalDAV resource that could not be read", resource.skipped)
+			if (resource != null &&
+				resource.skipped > 0
+			) {
+				log.warn("Skipped {} VEVENTs of a CalDAV resource that could not be read", resource.skipped)
+			}
 			resources[path] = Resource(etag, resource?.uid)
 			resource?.events?.let { events += it }
 		}
@@ -348,7 +364,11 @@ class CalDavCalendarAdapter(
 		val uid = event.key.externalId
 		if (event.key.recurrenceId != null) {
 			val found = find(client, calendar, uid) ?: throw RemoteEventChangedException("The series is no longer on the CalDAV server")
-			if (CalDavEventMapping.master(found.calendar, uid) == null) throw RemoteEventChangedException("The series is no longer on the CalDAV server")
+			if (CalDavEventMapping.master(found.calendar, uid) ==
+				null
+			) {
+				throw RemoteEventChangedException("The series is no longer on the CalDAV server")
+			}
 			return write(client, found.uri, found.calendar, event, ifMatch = found.etag)
 		}
 		val target = calendar.resolve(encodeSegment(uid) + ".ics")
@@ -374,7 +394,11 @@ class CalDavCalendarAdapter(
 		val calendar = calendarUri(client, calendarExternalId)
 		val uid = event.key.externalId
 		val found = find(client, calendar, uid) ?: throw RemoteEventChangedException("The event was deleted on the CalDAV server")
-		if (CalDavEventMapping.master(found.calendar, uid) == null) throw RemoteEventChangedException("The series was deleted on the CalDAV server")
+		if (CalDavEventMapping.master(found.calendar, uid) ==
+			null
+		) {
+			throw RemoteEventChangedException("The series was deleted on the CalDAV server")
+		}
 		return write(client, found.uri, found.calendar, event, ifMatch ?: found.etag)
 	}
 
@@ -531,7 +555,12 @@ class CalDavCalendarAdapter(
 			} catch (e: JacksonException) {
 				null
 			}
-		val url = config?.path(URL)?.takeIf { it.isString }?.asString()?.trim()
+		val url =
+			config
+				?.path(URL)
+				?.takeIf { it.isString }
+				?.asString()
+				?.trim()
 		val base =
 			url?.let {
 				try {
@@ -543,7 +572,12 @@ class CalDavCalendarAdapter(
 		if (base == null || base.host == null || base.scheme?.lowercase() !in setOf("http", "https") || base.rawUserInfo != null) {
 			throw CalendarProviderException("The source has no valid CalDAV URL")
 		}
-		val username = config.path(USERNAME).takeIf { it.isString }?.asString()?.ifEmpty { null }
+		val username =
+			config
+				.path(USERNAME)
+				.takeIf { it.isString }
+				?.asString()
+				?.ifEmpty { null }
 		return CalDavClient(base, username, source.credentials?.reveal(), http)
 	}
 
