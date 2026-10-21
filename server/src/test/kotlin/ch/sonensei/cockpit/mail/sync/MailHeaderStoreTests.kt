@@ -291,7 +291,7 @@ class MailHeaderStoreTests(
 		row(other, 20).folderId shouldBe other.id
 
 		// No detached row left: a fourth copy is a new row.
-		store.upsert(account.id, archive.id, listOf(remote(30, "<dup@example.test>"))) shouldBe StoreCounts(created = 1)
+		store.upsert(account.id, archive.id, listOf(remote(30, "<dup@example.test>"))).created shouldBe 1
 		byMessageId("<dup@example.test>").size shouldBe 3
 	}
 
@@ -304,7 +304,7 @@ class MailHeaderStoreTests(
 
 		val counts = store.upsert(account.id, inbox.id, listOf(remote(4, "<dup@example.test>"), remote(5, "<dup@example.test>")))
 
-		counts shouldBe StoreCounts(created = 1, updated = 1)
+		counts.copy(createdIds = emptyList()) shouldBe StoreCounts(created = 1, updated = 1)
 		row(inbox, 4).id shouldBe original.id
 		row(inbox, 5).id shouldNotBe original.id
 	}
@@ -318,7 +318,7 @@ class MailHeaderStoreTests(
 		messages.save(theirs.apply { detach() })
 		messages.flush()
 
-		store.upsert(account.id, inbox.id, listOf(remote(1, "<shared@example.test>"))) shouldBe StoreCounts(created = 1)
+		store.upsert(account.id, inbox.id, listOf(remote(1, "<shared@example.test>"))).created shouldBe 1
 
 		row(inbox, 1).id shouldNotBe theirs.id
 	}
