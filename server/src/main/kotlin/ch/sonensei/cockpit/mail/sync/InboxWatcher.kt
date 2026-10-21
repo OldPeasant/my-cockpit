@@ -31,7 +31,7 @@ class InboxWatcher(
 
 	@Volatile private var session: IdleSession? = null
 
-	/** IDLE is running (connected and caught up), so the Inbox needs no polling. */
+	/** IDLE is running (connected and caught up). */
 	@Volatile var idling: Boolean = false
 		private set
 
@@ -50,7 +50,8 @@ class InboxWatcher(
 	/** Ends the watcher: closes its connection and waits up to [timeout] for the thread to end. */
 	fun stop(timeout: Duration = Duration.ofSeconds(5)) {
 		stopped.countDown()
-		session?.close()
+		// Closing a half-open connection can block until its socket times out, so it never runs on the caller's thread.
+		session?.let { current -> Thread.ofVirtual().name("mail-idle-close-$accountId").start(current::close) }
 		if (thread.isAlive && thread != Thread.currentThread()) thread.join(timeout)
 	}
 
@@ -84,11 +85,14 @@ class InboxWatcher(
 			val refresher =
 				scheduler.scheduleAtFixedRate(
 					{
-						try {
-							current.refresh()
-						} catch (e: Exception) {
-							// The IDLE thread notices a dead connection itself.
-							log.debug("Ending the IDLE of mail account {} failed", accountId, e)
+						// A NOOP on a dead connection blocks until the socket times out: off the scheduler all accounts share.
+						Thread.ofVirtual().name("mail-re-idle-$accountId").start {
+							try {
+								current.refresh()
+							} catch (e: Exception) {
+								// The IDLE thread notices a dead connection itself.
+								log.debug("Ending the IDLE of mail account {} failed", accountId, e)
+							}
 						}
 					},
 					reIdle,

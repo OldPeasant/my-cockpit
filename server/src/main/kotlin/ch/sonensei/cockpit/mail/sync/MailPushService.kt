@@ -14,8 +14,6 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.SmartLifecycle
 import org.springframework.context.annotation.Configuration
-import org.springframework.scheduling.annotation.EnableScheduling
-import org.springframework.scheduling.annotation.Scheduled
 import org.springframework.stereotype.Service
 import org.springframework.transaction.event.TransactionPhase
 import org.springframework.transaction.event.TransactionalEventListener
@@ -23,16 +21,18 @@ import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.Executors
 import java.util.concurrent.ScheduledExecutorService
+import java.util.concurrent.TimeUnit
 
 @Configuration(proxyBeanMethods = false)
-@EnableScheduling
 @EnableConfigurationProperties(MailPushProperties::class)
 class MailPushConfiguration
 
 /**
  * Near-real-time new mail (SPEC.md §7.2): an [InboxWatcher] (IMAP IDLE) per account on its Inbox, and every
- * [MailPushProperties.pollInterval] a [poll] of the folder list and of every other folder (and of the Inbox when its
- * IDLE is down or the server has none). What the syncs find is announced by [MailHeaderSyncService] (change events,
+ * [MailPushProperties.pollInterval] a [poll] of the folder list and of every folder. The poll includes the Inbox, so
+ * new mail still arrives within the poll interval when the IDLE connection died silently (a dropped connection is
+ * only noticed by the next re-IDLE) or the server has no IDLE; with a working IDLE it finds nothing new. The poll
+ * runs on its own thread, so slow mail servers never delay other scheduled jobs. What the syncs find is announced by [MailHeaderSyncService] (change events,
  * new-mail notification).
  *
  * Watchers start with the application and follow the accounts: created, changed connection settings (restart) and
@@ -58,18 +58,29 @@ class MailPushService(
 				.name("mail-re-idle")
 				.factory(),
 		)
+	private val poller: ScheduledExecutorService =
+		Executors.newSingleThreadScheduledExecutor(
+			Thread
+				.ofPlatform()
+				.daemon()
+				.name("mail-poll")
+				.factory(),
+		)
 
 	@Volatile private var running = false
 
 	override fun start() {
 		running = true
 		reconcile()
+		val interval = properties.pollInterval.toMillis()
+		poller.scheduleWithFixedDelay(::poll, interval, interval, TimeUnit.MILLISECONDS)
 	}
 
 	override fun stop() {
 		running = false
 		synchronized(this) { watchers.keys.toList().forEach { watchers.remove(it)?.stop() } }
 		scheduler.shutdownNow()
+		poller.shutdownNow()
 	}
 
 	override fun isRunning() = running
@@ -77,21 +88,26 @@ class MailPushService(
 	/** The watcher of an account, if one runs. */
 	fun watcher(accountId: UUID): InboxWatcher? = watchers[accountId]
 
-	/**
-	 * Syncs the folder list and every folder of every account the Inbox IDLE does not cover. A failing account is
-	 * logged and skipped.
-	 */
-	@Scheduled(fixedDelayString = "\${cockpit.mail.push.poll-interval:PT5M}", initialDelayString = "\${cockpit.mail.push.poll-interval:PT5M}")
+	/** Syncs the folder list and every folder of every account. A failing account is logged and skipped. */
 	fun poll() {
 		if (!running) return
+		try {
+			pollAccounts()
+		} catch (e: Exception) {
+			// The database or a bug; an exception must not end the scheduled poll. Retried on the next one.
+			log.warn("Polling mail failed ({})", e.javaClass.name)
+			log.debug("Poll failure", e)
+		}
+	}
+
+	private fun pollAccounts() {
 		reconcile()
 		accounts.findAll().forEach { account ->
 			try {
 				folderService.sync(account.id)
-				val idling = watchers[account.id]?.idling == true
 				folders
 					.findByAccountIdOrderByPathAsc(account.id)
-					.filter { it.selectable && !(idling && it.role == MailFolderRole.INBOX) }
+					.filter { it.selectable }
 					.forEach { folder ->
 						try {
 							sync.syncFolder(folder.id)

@@ -51,7 +51,8 @@ fun interface IdleConnector {
  * [IdleConnector] over IMAP (Angus Mail). Each session has its own connection outside the [ImapConnectionPool]
  * (ch.sonensei.cockpit.mail.imap.ImapConnectionPool), because an IDLE holds its connection for good. Its read timeout
  * is [MailImapProperties.readTimeout] longer than [MailPushProperties.reIdleInterval], so a quiet IDLE is ended by
- * [IdleSession.refresh] before the socket times out, while a dead connection is still detected.
+ * [IdleSession.refresh] before the socket times out. A connection that died silently is only noticed by the next
+ * refresh (or the read timeout); until then the poll of [MailPushService] covers the Inbox.
  */
 @Component
 class ImapIdleConnector(

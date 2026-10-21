@@ -17,7 +17,7 @@ class MailPushProperties(
 	 * 30 minutes (RFC 2177), so it stays below that.
 	 */
 	@DefaultValue("29m") val reIdleInterval: Duration,
-	/** How often the folders not watched with IDLE are synced (also the Inbox while its IDLE connection is down). */
+	/** How often every folder is synced, the Inbox too (a safety net for an IDLE connection that died silently). */
 	@DefaultValue("5m") val pollInterval: Duration,
 	/** Wait before the first reconnect after an IDLE connection failed; doubled on every further failure. */
 	@DefaultValue("5s") val initialBackoff: Duration,
