@@ -94,12 +94,16 @@ class MailSearchWebTests(
 		/** "accountId/path" of folders deleted on the server. */
 		val gone = mutableSetOf<String>()
 
+		/** Runs when a folder is opened, before anything else: lets a test change the cache while a search runs. */
+		var onOpen: (String) -> Unit = {}
+
 		override fun <T> withFolder(
 			account: MailAccount,
 			path: String,
 			known: KnownFolderState?,
 			block: (RemoteFolder) -> T,
 		): T {
+			onOpen(path)
 			attempts += account.id
 			if (account.id in failing) throw MailConnectionException(MailConnectionError.CONNECTION_FAILED, RuntimeException("refused"))
 			if ("${account.id}/$path" in gone) throw RemoteFolderNotFoundException(path)
@@ -152,6 +156,7 @@ class MailSearchWebTests(
 		mailbox.searched.clear()
 		mailbox.attempts.clear()
 		mailbox.gone.clear()
+		mailbox.onOpen = {}
 		work = accounts.save(account("Work", "jane.doe@work.example"))
 		home = accounts.save(account("Home", "jane@home.example"))
 		workInbox = folder(work, "INBOX")
@@ -374,6 +379,25 @@ class MailSearchWebTests(
 		val failure = result["server"]["failures"].single()
 		failure["accountId"].asString() shouldBe work.id.toString()
 		failure["errorCode"].asString() shouldBe "CONNECTION_FAILED"
+		// The fixed message of the error code, never the cause (which may hold server responses).
+		failure["message"].asString() shouldBe MailConnectionError.CONNECTION_FAILED.message
+	}
+
+	@Test
+	fun `server search skips a folder removed from the cache while the search runs`() {
+		cache(workInbox, remote(1, "Minutes draft"))
+		mailbox.folders["${work.id}/Archive"] =
+			mailbox.FakeFolder("Archive", UID_VALIDITY, mutableMapOf(3L to remote(3, "Minutes final")))
+		// Folders are searched by path: while Archive is searched, a folder list sync removes INBOX.
+		mailbox.onOpen = { path -> if (path == "Archive") jdbc.update("delete from mail_folder where id = ?", workInbox.id) }
+
+		val result = search("q=minutes&accountId=${work.id}&server=true")
+
+		result["items"].strings("subject") shouldContainExactly listOf("Minutes final")
+		result["server"]["searchedFolders"].asInt() shouldBe 1
+		result["server"]["loaded"].asInt() shouldBe 1
+		result["server"]["failures"].shouldBeEmpty()
+		mailbox.searched.map { it.first } shouldContainExactly listOf("Archive")
 	}
 
 	@Test
@@ -445,6 +469,9 @@ class MailSearchWebTests(
 		result["items"].shouldBeEmpty()
 		result["server"]["searchedFolders"].asInt() shouldBe 0
 		mailbox.searched.shouldBeEmpty()
+		val local = search("q=%2B%2B%2B")
+		local["items"].shouldBeEmpty()
+		local["server"].isNull shouldBe true
 	}
 
 	@Test
