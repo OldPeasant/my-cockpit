@@ -1,11 +1,11 @@
 ---
 title: Respond to invitations
-status: todo
-owner: 
+status: in_progress
+owner: dell26/agent-3
 deps: [cal-google,cal-microsoft]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/calendar/invitations,server/src/test/kotlin/ch/sonensei/cockpit/calendar/invitations]
 prio: 3
-lease_until: 
+lease_until: 2026-10-21T20:30:53Z
 releases: 1
 extended: 
 ---
