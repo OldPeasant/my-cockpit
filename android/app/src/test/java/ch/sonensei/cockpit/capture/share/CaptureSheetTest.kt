@@ -11,7 +11,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsEnabled
+import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.assertIsNotFocused
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.click
 import androidx.compose.ui.test.junit4.v2.createComposeRule
@@ -43,18 +45,33 @@ class CaptureSheetTest {
     private lateinit var activity: Activity
     private lateinit var back: OnBackPressedDispatcher
 
-    private fun show(initial: ShareUiState): (ShareUiState) -> Unit {
+    private fun show(
+        initial: ShareUiState,
+        autoFocus: Boolean? = null,
+    ): (ShareUiState) -> Unit {
         var state by mutableStateOf(initial)
         composeRule.setContent {
             activity = LocalActivity.current!!
             back = LocalOnBackPressedDispatcherOwner.current!!.onBackPressedDispatcher
-            CaptureSheet(
-                state = state,
-                onTextChange = { state = state.copy(text = it) },
-                onNotesChange = { state = state.copy(notes = it) },
-                onSave = { saves++ },
-                onCancel = { cancels++ },
-            )
+            if (autoFocus == null) {
+                // The share target's call: the default.
+                CaptureSheet(
+                    state = state,
+                    onTextChange = { state = state.copy(text = it) },
+                    onNotesChange = { state = state.copy(notes = it) },
+                    onSave = { saves++ },
+                    onCancel = { cancels++ },
+                )
+            } else {
+                CaptureSheet(
+                    state = state,
+                    onTextChange = { state = state.copy(text = it) },
+                    onNotesChange = { state = state.copy(notes = it) },
+                    onSave = { saves++ },
+                    onCancel = { cancels++ },
+                    autoFocus = autoFocus,
+                )
+            }
         }
         return { state = it }
     }
@@ -101,6 +118,32 @@ class CaptureSheetTest {
         tapOutside()
         assertEquals(1, cancels)
         assertEquals(0, saves)
+    }
+
+    @Test
+    fun `a shared item opens for review without focusing the title by default`() {
+        show(ShareUiState(text = "Shared link"))
+        composeRule.waitForIdle()
+
+        composeRule.onNodeWithTag(ShareTags.TEXT).assertIsNotFocused()
+        composeRule.onNodeWithTag(ShareTags.NOTES).assertIsNotFocused()
+    }
+
+    @Test
+    fun `autoFocus off keeps the title unfocused`() {
+        show(ShareUiState(), autoFocus = false)
+        composeRule.waitForIdle()
+
+        composeRule.onNodeWithTag(ShareTags.TEXT).assertIsNotFocused()
+    }
+
+    @Test
+    fun `autoFocus on focuses the title so typing starts at once`() {
+        show(ShareUiState(), autoFocus = true)
+        composeRule.waitForIdle()
+
+        composeRule.onNodeWithTag(ShareTags.TEXT).assertIsFocused()
+        composeRule.onNodeWithTag(ShareTags.NOTES).assertIsNotFocused()
     }
 
     @Test
