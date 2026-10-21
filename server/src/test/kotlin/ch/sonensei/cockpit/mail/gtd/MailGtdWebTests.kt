@@ -406,7 +406,7 @@ class MailGtdWebTests(
 
 			linkedEnds("NOTE", result["id"].asString()).single()["id"].asString() shouldBe id.toString()
 			val body = getJson("/api/v1/notes/${result["id"].asString()}")["bodyMd"].asString()
-			body shouldContain "See [\\[task:$other]]"
+			body shouldContain "See [ [task:$other]]"
 			body shouldNotContain "[["
 		}
 	}
@@ -430,8 +430,9 @@ class MailGtdWebTests(
 		linkedEnds("NOTE", result["id"].asString()).single()["id"].asString() shouldBe mail.id.toString()
 		val note = getJson("/api/v1/notes/${result["id"].asString()}")
 		val body = note["bodyMd"].asString()
-		body shouldContain "**From:** [\\[task:$other]] <mallory@example.test>"
-		body shouldContain "**To:** [\\[note:$other]] <ann@work.example>"
+		body shouldContain "**From:** [ [task:$other]] <mallory@example.test>"
+		body shouldContain "**To:** [ [note:$other]] <ann@work.example>"
+		body shouldContain "**Cc:** [ [ [task:$other]]] <erin@example.test>"
 		body shouldNotContain "[["
 	}
 

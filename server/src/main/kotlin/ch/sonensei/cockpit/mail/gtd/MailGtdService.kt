@@ -257,10 +257,11 @@ class MailGtdService(
 		}
 
 		/**
-		 * Mail text with every `[[` written as `[\[`: the same text once rendered as Markdown, but no inline `[[type:id]]`
-		 * link, so a received mail cannot add links to the user's items when it becomes a note.
+		 * Mail text with every `[[` written as `[ [`, so a received mail cannot add inline `[[type:id]]` links to the
+		 * user's items when it becomes a note. A space, not a Markdown escape (`[\[`): flexmark's text collection
+		 * miscounts escapes next to bold text, autolinks and hard line breaks, which the note header has.
 		 */
-		fun neutralizeInlineLinks(text: String): String = text.replace(BRACKET_PAIR) { "[\\" }
+		fun neutralizeInlineLinks(text: String): String = text.replace(BRACKET_PAIR) { "[ " }
 
 		fun titleOf(
 			message: MailMessage,
