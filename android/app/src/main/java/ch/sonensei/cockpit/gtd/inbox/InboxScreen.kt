@@ -1,5 +1,6 @@
 package ch.sonensei.cockpit.gtd.inbox
 
+import androidx.activity.compose.LocalActivity
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
@@ -16,6 +17,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.CloudOff
+import androidx.compose.material.icons.outlined.Inbox
 import androidx.compose.material3.Button
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
@@ -52,6 +54,8 @@ import ch.sonensei.cockpit.R
 import ch.sonensei.cockpit.gtd.data.Creativity
 import ch.sonensei.cockpit.gtd.data.Energy
 import ch.sonensei.cockpit.gtd.data.GtdTask
+import ch.sonensei.cockpit.ui.PlaceholderScreen
+import dagger.hilt.internal.GeneratedComponentManagerHolder
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
@@ -60,8 +64,21 @@ import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
 import java.util.UUID
 
+/**
+ * The Inbox tab. Its view model comes from Hilt, so outside a Hilt activity (the shell's navigation tests, previews)
+ * it shows the placeholder instead of failing.
+ */
 @Composable
-fun InboxScreen(
+fun InboxScreen(modifier: Modifier = Modifier) {
+    if (LocalActivity.current is GeneratedComponentManagerHolder) {
+        InboxRoute(modifier)
+    } else {
+        PlaceholderScreen(R.string.nav_inbox, Icons.Outlined.Inbox, modifier)
+    }
+}
+
+@Composable
+fun InboxRoute(
     modifier: Modifier = Modifier,
     viewModel: InboxViewModel = hiltViewModel(),
 ) {

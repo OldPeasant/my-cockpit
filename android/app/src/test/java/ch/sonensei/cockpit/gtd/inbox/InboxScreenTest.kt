@@ -8,6 +8,7 @@ import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.junit4.v2.createComposeRule
+import androidx.compose.ui.test.onChildAt
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -94,7 +95,7 @@ class InboxScreenTest {
     fun `processing shows one item, how many are left, and every action`() {
         show(loaded.copy(processing = true))
 
-        composeRule.onNodeWithTag(InboxTags.CURRENT).assertTextContains("Call the plumber")
+        composeRule.onNodeWithTag(InboxTags.CURRENT, useUnmergedTree = true).onChildAt(0).assertTextContains("Call the plumber")
         composeRule.onNodeWithText("Buy tiles").assertDoesNotExist()
         composeRule.onNodeWithTag(InboxTags.LEFT).assertTextContains("2 items left")
         InboxActionKind.entries.forEach { kind ->
@@ -108,10 +109,14 @@ class InboxScreenTest {
     fun `attributes are set inline`() {
         show(loaded.copy(processing = true, clarification = Clarification(energy = Energy.LOW)))
 
-        composeRule.onNodeWithText("Low").assertIsSelected().performClick()
-        composeRule.onNodeWithText("High").performClick()
-        composeRule.onNodeWithText("15 min").performClick()
-        composeRule.onNodeWithText("home").performClick()
+        composeRule
+            .onNodeWithText("Low")
+            .assertIsSelected()
+            .performScrollTo()
+            .performClick()
+        composeRule.onNodeWithText("High").performScrollTo().performClick()
+        composeRule.onNodeWithText("15 min").performScrollTo().performClick()
+        composeRule.onNodeWithText("home").performScrollTo().performClick()
 
         assertEquals(listOf("energy null", "energy HIGH", "estimate 15", "context ${id(80)}"), calls)
     }

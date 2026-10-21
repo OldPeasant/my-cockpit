@@ -114,7 +114,11 @@ class InboxViewModelTest {
             coVerify { inbox.process(first, any(), InboxAction.Waiting("Alex")) }
 
             vm.choose(InboxActionKind.SCHEDULE)
-            assertEquals(today.plusDays(1), vm.uiState.value.prompt?.date)
+            assertEquals(
+                today.plusDays(1),
+                vm.uiState.value.prompt
+                    ?.date,
+            )
             vm.confirmPrompt()
             coVerify { inbox.process(first, any(), InboxAction.Schedule(today.plusDays(1))) }
 
@@ -124,7 +128,11 @@ class InboxViewModelTest {
             coVerify { inbox.process(first, any(), InboxAction.Tickler(today.plusWeeks(1))) }
 
             vm.choose(InboxActionKind.PROJECT)
-            assertEquals(garden.id, vm.uiState.value.prompt?.projectId)
+            assertEquals(
+                garden.id,
+                vm.uiState.value.prompt
+                    ?.projectId,
+            )
             vm.confirmPrompt()
             coVerify { inbox.process(first, any(), InboxAction.ToProject(ProjectChoice.Existing(garden.id))) }
 
@@ -139,7 +147,11 @@ class InboxViewModelTest {
         test { vm ->
             inboxFlow.value = inboxFlow.value.copy(data = listOf(second))
             vm.choose(InboxActionKind.PROJECT)
-            assertEquals(kitchen.id, vm.uiState.value.prompt?.projectId)
+            assertEquals(
+                kitchen.id,
+                vm.uiState.value.prompt
+                    ?.projectId,
+            )
         }
 
     @Test
