@@ -1,11 +1,11 @@
 ---
 title: Backup restore: validation, full replace, CLI
-status: in_progress
+status: done
 owner: dell26/agent-4
 deps: [backup-core]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/backup,server/src/test/kotlin/ch/sonensei/cockpit/backup]
 prio: 1
-lease_until: 2026-10-21T00:21:23Z
+lease_until: 
 releases: 1
 extended: 
 ---
@@ -31,3 +31,4 @@ Restore from a backup zip (SPEC.md §10.1).
 - ASSUMPTION (2026-10-21 00:09+0200 by dell26/agent-6): Restore warnings come from a new BackupContributor.restoreWarnings hook (UserBackupContributor: no owner account / setup unfinished / TOTP secret not in backup with unused recovery code count) plus an app-version mismatch warning. Small edit to core/backupcontrib/UserBackupContributor.kt and CockpitServerApplication.main outside the task's touches.
 - release by dell26/agent-6: Implementation complete and committed (upload/confirm endpoints, --restore CLI, rejection tests, openapi + web client regenerated); scripts/check.sh passes on b1b0dfdf. reviews/backup-restore/review.md (0 P0-P2, 1 deferred P3: double hashing on upload) and fixes.md exist. Last commit b1b0dfdf added extra tests to RestoreWebTests/ZipBackupReaderValidationTests after that review. LEFT: 1) run test-writer -> reviews/backup-restore/tests.md (missing, incl. task-scoped coverage); 2) re-run code-reviewer on final code if test changes count as code changes (docs/QUALITY.md freshness); 3) run ./gradlew test --tests 'ch.sonensei.cockpit.backup.*' --tests '*OpenApiContractTest' and record tasks.py verify for all 5 criteria; 4) write quality.json (CR-3/P3 disposition: deferred), commit, tasks.py done.
 - ASSUMPTION (2026-10-21 01:52+0200 by dell26/agent-4): Criterion 2 verified with the bootJar output cockpit-server-0.0.1-SNAPSHOT.jar (same jar, different file name than cockpit-server.jar from the image build)
+- done by dell26/agent-4: `sh scripts/check.sh` passed in 68s on a34038176; criteria verified 5/5
