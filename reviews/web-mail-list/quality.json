@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "task": "web-mail-list",
-  "reviewed_revision": "10bbbae0bdbe383b95b1d45bab3c80f3de25dbd8",
+  "reviewed_revision": "c840194404acec0f35b37b89801a72b94b484dc9",
   "helpers": {
     "test-writer": {"status": "completed", "report": "reviews/web-mail-list/tests.md"},
     "code-reviewer": {"status": "completed", "report": "reviews/web-mail-list/review.md"},
