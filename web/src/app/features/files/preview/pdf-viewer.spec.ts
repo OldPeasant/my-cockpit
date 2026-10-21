@@ -206,6 +206,21 @@ describe('PdfViewer', () => {
     expect(count()).toBe('Page 1 of 3');
   });
 
+  it('does not show an older document that loads successfully after the source changed', async () => {
+    await create();
+    const first = pdf.tasks[0];
+    fixture.componentInstance.src.set('/api/v1/files/0192f0c4-0000-7000-8000-000000000104/preview');
+    await render();
+    // The first document answers late, with 9 pages: the viewer keeps waiting for the new one.
+    first.doc.resolve({ numPages: 9, getPage: vi.fn() });
+    await render();
+    expect(count()).not.toContain('of 9');
+    expect(el().querySelector('[role="alert"]')).toBeNull();
+    pdf.open();
+    await render();
+    expect(count()).toBe('Page 1 of 3');
+  });
+
   it('destroys the loading task when the viewer goes away', async () => {
     await create();
     pdf.open();

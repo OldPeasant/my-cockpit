@@ -52,6 +52,9 @@ let REAL: Payload;
 let LIGHT: Payload;
 let payload: Payload;
 
+/** The time budget of the test with the real 50 MB file (hashing it is slow under coverage). */
+const REAL_FILE_TIMEOUT = 60_000;
+
 function bigFile(name = 'holiday.mp4', type = 'video/mp4'): File {
   const file = new File([payload.data], name, { type });
   if (!payload.real) Object.defineProperty(file, 'size', { value: BIG_SIZE });
@@ -122,6 +125,13 @@ describe('UploadService', () => {
   let service: UploadService;
   let http: HttpTestingController;
   let notifications: { error: ReturnType<typeof vi.fn>; info: ReturnType<typeof vi.fn> };
+  /**
+   * How long {@link next} and {@link until} wait. Hashing the real 50 MB file takes seconds when the
+   * code is instrumented for coverage, so that test raises it (see {@link REAL_FILE_TIMEOUT}).
+   */
+  let waitTimeout = 5000;
+
+  beforeEach(() => (waitTimeout = 5000));
 
   function setup(delays: readonly number[] = [0, 0, 0]): void {
     notifications = { error: vi.fn(), info: vi.fn() };
@@ -156,13 +166,13 @@ describe('UploadService', () => {
             r.url === url &&
             (name === undefined || r.params.get('name') === name),
         ),
-      { timeout: 5000, interval: 1 },
+      { timeout: waitTimeout, interval: 1 },
     );
   }
 
   /** Waits until the job reached `state`. */
   async function until(job: UploadJob, state: string): Promise<void> {
-    await vi.waitFor(() => expect(job.state()).toBe(state), { timeout: 5000, interval: 1 });
+    await vi.waitFor(() => expect(job.state()).toBe(state), { timeout: waitTimeout, interval: 1 });
   }
 
   const chunkUrl = (n: number, id = UPLOAD_ID) => `/api/v1/uploads/${id}/chunks/${n}`;
@@ -373,6 +383,7 @@ describe('UploadService', () => {
 
     it('creates a resumable upload, sends every chunk and completes with the real SHA-256', async () => {
       payload = REAL;
+      waitTimeout = REAL_FILE_TIMEOUT;
       const CHUNK = REAL.chunk;
       const uploaded: FileResponse[] = [];
       service.uploaded.subscribe((f) => uploaded.push(f));
@@ -407,7 +418,7 @@ describe('UploadService', () => {
       expect(job.result()).toEqual(result);
       expect(job.uploadId).toBeNull();
       expect(uploaded).toEqual([result]);
-    });
+    }, REAL_FILE_TIMEOUT);
 
     it('leaves out an unknown mime type when creating the upload', async () => {
       const [job] = service.upload([bigFile('backup.bin', '')], null);
@@ -592,6 +603,23 @@ describe('UploadService', () => {
       http.expectNone(chunkUrl(2));
       http.expectNone(`/api/v1/uploads/${UPLOAD_ID}/complete`);
       expect(job.state()).toBe('cancelled');
+    });
+
+    it('cancel between two chunks sends no further chunk and DELETEs the upload', async () => {
+      const [job] = service.upload([bigFile()], FOLDER);
+      (await next('POST', '/api/v1/uploads')).flush(session());
+      (await next('PUT', chunkUrl(0))).flush(null, { status: 204, statusText: 'No Content' });
+      // Chunk 0 is stored; the service is now reading chunk 1 from the file.
+      service.cancel(job);
+      expect(job.state()).toBe('cancelled');
+      http
+        .expectOne((r) => r.method === 'DELETE' && r.url === `/api/v1/uploads/${UPLOAD_ID}`)
+        .flush(null, { status: 204, statusText: 'No Content' });
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      http.expectNone(chunkUrl(1));
+      http.expectNone(`/api/v1/uploads/${UPLOAD_ID}/complete`);
+      expect(job.state()).toBe('cancelled');
+      expect(job.error()).toBeNull();
     });
 
     it('cancel of a failed chunked upload discards it; a failing DELETE is ignored', async () => {
