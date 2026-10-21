@@ -7,6 +7,7 @@ import org.junit.jupiter.api.Test
 import java.time.Duration
 import java.time.Instant
 import java.time.ZoneOffset
+import java.time.temporal.ChronoUnit
 
 class ClockConfigurationTests {
 	private val configuration = ClockConfiguration()
@@ -16,7 +17,8 @@ class ClockConfigurationTests {
 		val clock = configuration.clock()
 
 		clock.zone shouldBe ZoneOffset.UTC
-		val before = Instant.now()
+		// The clock ticks in microseconds (see below).
+		val before = Instant.now().truncatedTo(ChronoUnit.MICROS)
 		val now = clock.instant()
 		val after = Instant.now()
 		now shouldBeGreaterThanOrEqualTo before

@@ -3,6 +3,7 @@ package ch.sonensei.cockpit.calendar.sync
 import ch.sonensei.cockpit.calendar.api.Timing
 import ch.sonensei.cockpit.calendar.model.CalendarSource
 import ch.sonensei.cockpit.calendar.model.CalendarSourceType
+import org.springframework.beans.factory.support.BeanDefinitionRegistryPostProcessor
 import org.springframework.boot.test.context.TestConfiguration
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Primary
@@ -12,7 +13,8 @@ import java.time.ZoneId
 
 /**
  * Registers a [FakeCalendarAdapter] for CALDAV sources, and a registry with only that adapter: every other non-LOCAL
- * type stays without adapter in these tests, whichever real adapters exist.
+ * type stays without adapter in these tests, whichever real adapters exist. The application's registry is removed: it
+ * would get the fake and the real CALDAV adapter and refuse the duplicate.
  */
 @TestConfiguration(proxyBeanMethods = false)
 class FakeCalendarAdapterConfiguration {
@@ -22,6 +24,15 @@ class FakeCalendarAdapterConfiguration {
 	@Bean
 	@Primary
 	fun fakeOnlyCalendarProviderRegistry(fake: FakeCalendarAdapter) = CalendarProviderRegistry(listOf(fake))
+
+	companion object {
+		@Bean
+		@JvmStatic
+		fun withoutApplicationCalendarProviderRegistry() =
+			BeanDefinitionRegistryPostProcessor { registry ->
+				if (registry.containsBeanDefinition("calendarProviderRegistry")) registry.removeBeanDefinition("calendarProviderRegistry")
+			}
+	}
 }
 
 /**
