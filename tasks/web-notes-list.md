@@ -5,7 +5,7 @@ owner: R1963MACOS/agent-1
 deps: [p0-web-shell,notes-api,p0-e2e-harness]
 touches: [web/src/app/features/notes/list]
 prio: 1
-lease_until: 2026-10-21T03:48:36Z
+lease_until: 2026-10-21T03:53:41Z
 ---
 ## Goal
 Notes overview (SPEC.md §8.1).
