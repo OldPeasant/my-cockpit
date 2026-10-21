@@ -13,7 +13,8 @@ Tasks in the calendar and linking events (SPEC.md §6.3).
 ## Acceptance criteria
 - [x] Optional overlay of due tasks and ticklers in day/week views; event detail has linked items, 'Create task from event', 'Create note for event'
   - verified (2026-10-21 19:46+0200 by dell26/agent-1): Playwright overlay.spec.ts against the docker compose e2e stack: week view shows due task + tickler with overlay on; event dialog lists linked items, 'Create note for event' links both ways; Vitest task-overlay/event-links/calendar-view specs (toggle, day/week only, create task/note) -> 357 passed (rev 915e9caa)
-- [ ] Vitest component/service tests cover overlay toggle and create-linked actions; `cd web && npm run check` passes
+- [x] Vitest component/service tests cover overlay toggle and create-linked actions; `cd web && npm run check` passes
+  - verified (2026-10-21 19:46+0200 by dell26/agent-1): cd web && npx ng test --include calendar/** gtd/data/** -> 18 files, 357 passed (overlay toggle incl. no refetch while off, create task/note from event); cd web && npm run check -> exit 0, 2433 tests (test-writer, rev 915e9caa)
 - [x] Playwright `e2e/calendar-overlay/overlay.spec.ts` passes against the e2e stack (`npm run e2e -- e2e/calendar-overlay/overlay.spec.ts`, see p0-e2e-harness): create note for event → linked both ways
   - verified (2026-10-21 19:38+0200 by dell26/agent-1): cd web && npm run e2e -- e2e/calendar-overlay/overlay.spec.ts (podman compose e2e stack, chromium, rev 43826282c) -> 23 passed incl. 'shows due tasks and ticklers in the week view' and 'creates a note for an event, linked both ways'
 
