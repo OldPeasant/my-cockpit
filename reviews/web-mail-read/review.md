@@ -4,46 +4,47 @@ Date: 2026-10-21
 
 Task: web-mail-read - Mail reading view
 
-Scope: second review round on the final code after fixes. Whole task diff `git diff 32667af6..08edb6f2` (base = `git merge-base HEAD origin/main`), with focus on fix commits 8b328019 and 08edb6f2 checked against the round-1 findings (CR-1..CR-6) and `reviews/web-mail-read/fixes.md`. Committed changes only. CR-4 is deferred to task `mail-attachment-to-files` (tasks/mail-attachment-to-files.md), as the parent supplied.
+Scope: final review round on revision 33cbef07. The whole task diff is `git diff 32667af6..33cbef07`. Round 2 reviewed it up to 08edb6f2 (0 findings). The task commits were later rebased onto main, so 08edb6f2 is now 9d397dea. `git diff 08edb6f2 9d397dea -- web server` is empty, so the code is the same. The only code change since round 2 is commit 33cbef07: 5 new tests in `web/src/app/features/mail/read/mail-read-page.spec.ts` (plus the test-writer's report files). I reviewed that commit in full. I re-checked the rest of the task diff against the round-1 and round-2 results. Committed changes only. CR-4 is still deferred to task `mail-attachment-to-files`, as the parent agreed.
 
 Requirements:
-- tasks/web-mail-read.md (acceptance criteria 1-4 and the six recorded assumptions)
+- tasks/web-mail-read.md (acceptance criteria 1-4 and the recorded assumptions)
 - SPEC.md §4.1, §4.3, §7.3, §7.4, §8.2 (as cited in round 1)
 - docs/ARCHITECTURE.md, AGENTS.md project notes, docs/QUALITY.md artifact contract
-- Round-1 report (previous version of this file), reviews/web-mail-read/fixes.md, reviews/web-mail-read/tests.md
+- Earlier rounds of this report, reviews/web-mail-read/fixes.md, reviews/web-mail-read/tests.md
 
 Git range:
 - Branch: main
-- HEAD: 08edb6f287e4dee70e8bccb7ccbbb1aff62c344e
-- Base/start: 32667af6
-- Commits reviewed: 7 in range (task commits 8e16c085, 73b39b38, 5c45934c, 8b328019, 08edb6f2; plus 9fa52b8d and 33906dac, which only add/edit tasks/mail-attachment-to-files.md)
-- Uncommitted changes: none (working tree clean at session start)
+- HEAD: 33cbef0758d523c569d91e2d6b053f85e5a97f8e
+- Base/start: 32667af6 (as supplied; `git merge-base HEAD origin/main` is now ef7342ad because main moved on)
+- Commits reviewed: the task commits ed6679c5, 3fcf340f, 6cec6d15, 50fad8d8, 9d397dea and 33cbef07. 71f4bd85 and fdd52554 only touch tasks/mail-attachment-to-files.md. The other commits in the range are task-state commits (heartbeat/verify) by other agents and contain no code.
+- Uncommitted changes: none (working tree clean)
 
 Summary: 0 P0, 0 P1, 0 P2, 0 P3
 
 ## Method
 
-- Read the full task diff, and read in full at HEAD: `web/src/app/features/mail/read/{mail-read-page.ts, mail-read-page.html (relevant parts), mail-frame.ts, mail-read.service.ts, image-allowlist.ts, format-bytes.ts}`, the diffs of the specs touched by the fix commits, `mail.routes.ts`, the list changes (`mail-list-page.{ts,html,spec.ts}`, `mail-shortcuts.{ts,spec.ts}`), `web/e2e/mail-read/read.spec.ts` and `web/e2e/support/imap.ts`.
-- Ran `cd web && npx ng test --watch=false --include='src/app/features/mail/**/*.spec.ts'`: 13 files, 275 tests passed.
+- Read `git show 33cbef07 -- web`, and checked each new test against `mail-read-page.ts` at HEAD (`open`, `showImages`, `showPreview`, `closePreview`, `saveToFiles`, `isSaving`, the `DestroyRef` hook) and against the spec helpers (`deferred`, `create`, `navigate`, `withNotes`, the fake service's `blob`/`saveResult`).
+- Ran `cd web && npx ng test --watch=false --include='src/app/features/mail/**/*.spec.ts'`: 13 files, 276 tests passed. `mail-read-page.spec.ts` has 41 `it` blocks, 36 before this commit, so the 5 new tests are all included and all pass.
 - Did not run `npm run check`, `.taskcheck` or the Playwright e2e stack. Those belong to the parent's evidence.
 
-## Verification of round-1 findings
+## Review of commit 33cbef07 (no findings)
 
-- **CR-1 (frame can't shrink): fixed.** `mail-frame.ts:97` now measures `contentDocument.body.scrollHeight`. The frame document gives the body `margin:0` and `padding:16px 20px` (mail-frame.ts:34). Because of the padding, child margins can't collapse through the body, so the body's scrollHeight is the full content height. In standards mode the body is an ordinary element, so the value can get smaller again. The ResizeObserver still watches the body. The new spec test (mail-frame.spec.ts, "shrinks again when the content gets shorter") pins the root at 900 while the body drops to 300 and checks that the frame shrinks.
-- **CR-2 (stale text preview with a repeated part id): fixed.** `showPreview` keeps the `pending` object and applies the result only while `this.preview() === pending` (mail-read-page.ts:182-195). A newer preview of any kind, `closePreview`, or a navigation (`open()` clears the preview, line 251) replaces that identity, so a late success or failure is dropped. Two tests cover message A's part "4" answering late while message B's part "4" is being previewed, one for success and one for failure.
-- **CR-3 (failed proxied load for an allowlisted sender fails the view): fixed.** The second `get` has its own try/catch (mail-read-page.ts:259-268). On failure the blocked copy is shown, `loadImages` stays false, and the error goes through `notifications.error`. The stale/destroyed guard applies before the notification. Because `imagesBlocked()` is true, the "Load images" banner (mail-read-page.html, `@if (imagesBlocked())`) offers a retry, which the test exercises. The 08edb6f2 test covers a late failure after navigation: no notification, and the new message stays shown.
-- **CR-4 (Save to Files target vs SPEC §8.2): deferred**, as the parent supplied, to `mail-attachment-to-files`. The task file records the matching assumption ("drive root for now, not /Attachments/Mail"). No code change was expected. Not re-reported.
-- **CR-5 (route change / stale responses untested): fixed.** The "navigating to another message" block now emits a second id with deferred promises. It covers the initial load, `showImages` after navigation, the preview, the CR-3 path and the per-message saving state. These tests ran green above.
-- **CR-6 (import from files feature internals): fixed.** The mail read view now has its own `format-bytes.ts` with its own spec, so no import crosses into `features/files`. This duplicates 16 lines on purpose, because a `shared/` move would leave the task's touches. I accept that trade-off and don't report it.
-- **tests.md observation 2 (`saving` keyed by part id only): fixed.** Keys are `messageId/partId` (`savingKey`, line 288), and the template uses `isSaving(part)` for the shown message. The double-save guard per attachment is kept, and a test covers concurrent saves of the same part id on two messages.
+Each new test targets a real guard in the production code, and each would fail if that guard were removed:
 
-## Further checks on the final code (no findings)
+- **"ignores a proxied load for an allowed sender that answers after navigating"** tests the success branch of the second `get`. It hits the `seq !== this.seq` return after `service.get(message.id, true)` (mail-read-page.ts:261). Without that return, the late proxied copy would overwrite "Lunch plans". The test checks both the heading and that `srcdoc` does not contain `image-proxy`. It complements the existing test for the failure branch.
+- **"still blocks a second save when coming back to a message whose save runs"** shows that the `messageId/partId` saving key stays set across ID -> OTHER -> ID navigation, because `open()` does not clear `saving`. The button stays disabled, only one save reaches the service, and the button is enabled again once the save ends. The second `click()` lands on a disabled button, so the browser drops it before the component's `saving` guard runs. The test checks what the user sees (disabled button, one save), not that guard. That is acceptable, and the guard itself is covered by the existing "saves a part once while saving" test.
+- **"ignores a failed proxied load for an allowed sender after the page is gone"** tests the `this.destroyed` part of the catch guard (line 264). Destroying the fixture does not bump `seq`, so only `destroyed` stops the notification. That makes this a meaningful test for that branch. It first checks `gets` loadImages `[false, true]`, so it knows the proxied request is the pending one.
+- **"does not reopen a text preview that was closed while it loaded"** covers `closePreview` versus a late `attachment` answer, through the `this.preview() === pending` identity check.
+- **"takes only the latest answer when the same text part is previewed again"** covers the same part on the same message requested twice. A late failure of the first request does not show an error while the second request is still loading, and the second answer is shown. Comparing by part id would get this wrong, so the test guards the reason the identity check exists.
 
-- **Out-of-order async:** `open()` and `showImages()` share one `seq`. `showImages` can't overlap a running `open()` because `open()` clears `message` first and `showImages` returns early without a message. Every `open()` path either reaches a terminal state or is superseded by a newer load. `loadingImages` is reset by `open()`, so a superseded `showImages` can't leave the banner disabled.
-- **Security:** the round-1 assessment still holds for HEAD. The sandbox stays static without `allow-scripts`, the CSP meta is first in `<head>`, `srcdoc` is set as a property from server-sanitized HTML, and previews and file names are interpolated, never rendered as HTML. The fix commits don't touch any of this. No secrets or personal data appear in the diff, and test data uses `example.test`/`cockpit.test`.
-- **Stored state:** the allowlist read tolerates malformed JSON, non-arrays and non-string entries, and the write tolerates unavailable or full storage (image-allowlist.ts). Unchanged since round 1.
-- **Integration:** the route `messages/:id` doesn't collide with the list matcher (`''` and `folders/:folderId` only). The list opens messages with `o` (guarded while typing, tested) and with double-click, and the e2e spec uses the double-click.
-- **Scope:** the edits to `mail.routes.ts` and `list/` lie outside the task's `touches`. The task assumption records them and they are minimal.
+Test quality: the tests use the existing helpers and fictitious data (`example.test`), check DOM and service calls instead of private state, add no new mocks, and weaken or remove no existing tests. They fit the structure of the spec file ("navigating to another message", "attachments" blocks).
+
+## Rest of the task diff
+
+Unchanged since round 2. The earlier conclusions still hold for 33cbef07:
+
+- Round-1 findings CR-1, CR-2, CR-3, CR-5 and CR-6 and tests.md observation 2 are fixed and tested. CR-4 is deferred to `mail-attachment-to-files`, and the task file records it as an assumption.
+- Async ordering (`seq` shared by `open`/`showImages`, preview identity, per-message saving keys), the iframe security (static sandbox without `allow-scripts`, CSP meta first, `srcdoc` set as a property), allowlist storage robustness, route integration and the minimal out-of-touches edits to `mail.routes.ts` and `list/` were all checked in round 2. None of these files changed since.
 
 ## P0 Critical
 
@@ -63,4 +64,4 @@ None.
 
 ## Review conclusion
 
-No material issues found. All round-1 findings except the deferred CR-4 are resolved in the code and covered by tests, and the fix commits introduce no regressions that I could find. `python tasks.py verify web-mail-read` still lists all four criteria as unverified. Before `done`, the parent worker must record evidence: `npm run check` for criterion 3 and the actual Playwright run `npm run e2e -- e2e/mail-read/read.spec.ts` against the e2e stack for criterion 4. Without that evidence, a claim would be a P1 Tests issue.
+No material issues found. Commit 33cbef07 adds 5 correct, meaningful regression tests and changes no production code. The whole task diff 32667af6..33cbef07 has no open findings except CR-4, which is deferred by agreement. Before `done`, the parent worker must still record evidence for each criterion with `tasks.py verify`: `npm run check` for criterion 3, and the actual Playwright run `npm run e2e -- e2e/mail-read/read.spec.ts` against the e2e stack for criterion 4. Claiming a criterion without that evidence would be a P1 Tests issue.

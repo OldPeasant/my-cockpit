@@ -1,0 +1,34 @@
+{
+  "schema": 1,
+  "task": "web-mail-read",
+  "reviewed_revision": "33cbef0758d523c569d91e2d6b053f85e5a97f8e",
+  "helpers": {
+    "test-writer": {"status": "completed", "report": "reviews/web-mail-read/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/web-mail-read/review.md"},
+    "fixer": {"status": "completed", "report": "reviews/web-mail-read/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "frame measures body.scrollHeight so it can shrink again"},
+    {"id": "CR-2", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "text preview result applied only to the same pending preview"},
+    {"id": "CR-3", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "failed proxied reload for allowlisted sender keeps the blocked copy and notifies"},
+    {"id": "CR-4", "source": "code-reviewer", "severity": "P3", "disposition": "deferred",
+     "note": "Save to Files target folder (/Attachments/Mail, SPEC §8.2) deferred to task mail-attachment-to-files"},
+    {"id": "CR-5", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "tests for route change and stale load/preview/image/save responses added"},
+    {"id": "CR-6", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "local format-bytes.ts in features/mail/read instead of importing files feature internals"},
+    {"id": "TW-1", "source": "test-writer", "severity": "Low", "disposition": "fixed",
+     "note": "observation: failed proxied reload failed the whole view (same as CR-3)"},
+    {"id": "TW-2", "source": "test-writer", "severity": "Low", "disposition": "fixed",
+     "note": "observation: saving set keyed by part id only; now keyed by message id and part id"}
+  ],
+  "validation": [
+    {"command": "sh scripts/check.sh", "result": "pass"},
+    {"command": "cd web && npx ng test --watch=false --include='src/app/features/mail/**/*.spec.ts'", "result": "pass"},
+    {"command": "cd web && npm run e2e -- e2e/mail-read/read.spec.ts", "result": "pass"}
+  ]
+}
