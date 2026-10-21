@@ -16,7 +16,8 @@ Triage actions (SPEC.md §7.3).
 - [ ] `POST /api/v1/mail/messages/actions {ids, action, targetFolderId?}`: READ, UNREAD, FLAG, UNFLAG, MOVE, ARCHIVE, DELETE (to Trash; permanent in Trash), SPAM; applied on IMAP and cache consistently; partial failures reported per id
 - [x] `external` GreenMail tests reflect every action
   - verified (2026-10-21 04:05+0200 by dell26/agent-1): cd server && ./gradlew integrationTest --tests '*MailActionGreenMailTests' (GreenMail 2.1.5, @ExternalTest) -> 16 tests, 0 failures: READ, UNREAD, FLAG, UNFLAG, MOVE, ARCHIVE, DELETE (to Trash + permanent in Trash), SPAM each checked on IMAP server and cache
-- [ ] API documented: `api/openapi.yaml` regenerated (`UPDATE_OPENAPI=1 ./gradlew test --tests '*OpenApiContractTest'`) and `OpenApiContractTest` passes without the flag
+- [x] API documented: `api/openapi.yaml` regenerated (`UPDATE_OPENAPI=1 ./gradlew test --tests '*OpenApiContractTest'`) and `OpenApiContractTest` passes without the flag
+  - verified (2026-10-21 04:05+0200 by dell26/agent-1): cd server && ./gradlew test --tests '*OpenApiContractTest' (without UPDATE_OPENAPI, after merging latest main) -> 1 test passed; api/openapi.yaml contains POST /api/v1/mail/messages/actions, web client regenerated
 
 ## Notes
 - ASSUMPTION (2026-10-21 03:02+0200 by dell26/agent-5): Actions response is 200 with one result per distinct id in request order ({id, ok, errorCode, detail}), also when all fail; no 207 Multi-Status
