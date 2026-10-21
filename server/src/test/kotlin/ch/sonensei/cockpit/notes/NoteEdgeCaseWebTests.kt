@@ -310,6 +310,42 @@ class NoteEdgeCaseWebTests(
 	}
 
 	@Test
+	fun `a NUL tag is reported together with other tag errors and a rejected change has no side effects`(events: ApplicationEvents) {
+		val note = newNote("""{"title":"Plan","bodyMd":"first","tags":["Home"]}""")
+		val eventsBefore = events.stream(ChangeEvent::class.java).count()
+
+		val problem =
+			patch(note.id(), """{"bodyMd":"second","tags":["#\u0000", "${"x".repeat(51)}"]}""", note.etag())
+				.andExpect { status { isBadRequest() } }
+				.json()
+		val created =
+			mockMvc
+				.post(NOTES) {
+					with(csrf())
+					contentType = MediaType.APPLICATION_JSON
+					content = """{"title":"Other","tags":[" \u0000 "]}"""
+				}.andExpect { status { isBadRequest() } }
+				.json()
+
+		problem.get("errors").values().map { it.get("field").asString() to it.get("message").asString() } shouldContainExactly
+			listOf("tags" to "must be at most 50 characters each", "tags" to "must not contain NUL characters")
+		created.get("errors").values().map { it.get("message").asString() } shouldContainExactly
+			listOf("must not contain NUL characters")
+		events.stream(ChangeEvent::class.java).count() shouldBe eventsBefore
+		fetch(note.id()).get("bodyMd").asString() shouldBe "first"
+		revisions(note.id()).shouldBeEmpty()
+		list().titles() shouldContainExactly listOf("Plan")
+		mockMvc
+			.get("$NOTES/tags")
+			.andExpect { status { isOk() } }
+			.json()
+			.get("items")
+			.values()
+			.map { it.get("tag").asString() } shouldContainExactly listOf("Home")
+		mockMvc.get("$NOTES?tag={tag}", "\u0000").andExpect { status { isBadRequest() } }
+	}
+
+	@Test
 	fun `values exactly at their maximum are accepted, duplicates do not count towards the tag limit`() {
 		val tags = (1..50).map { "t$it".padEnd(50, 'x') }
 		val note =
