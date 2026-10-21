@@ -19,6 +19,8 @@ export const MAIL_FOLDER_EVENT = 'MAIL_FOLDER';
 export const MAIL_ACCOUNT_EVENT = 'MAIL_ACCOUNT';
 /** Bursts of change events (a sync touches several folders) cause one refetch. */
 export const REFRESH_DEBOUNCE_MS = 300;
+/** At most this many conversations of an action are looked up at the same time. */
+export const THREAD_LOOKUP_CONCURRENCY = 6;
 
 /** Actions after which a message is no longer in the shown folder. */
 const REMOVING: ReadonlySet<MailAction> = new Set(['MOVE', 'ARCHIVE', 'DELETE', 'SPAM']);
@@ -87,6 +89,11 @@ export class MailListStore {
    * refetch that started before one is dropped and redone.
    */
   private mutationSeq = 0;
+  /**
+   * Counts the replacements of the loaded list (a load or a refetch): a next page requested for
+   * the list before is dropped, since its cursor no longer follows the list's last item.
+   */
+  private listGeneration = 0;
   private running = 0;
   private refreshQueued = false;
 
@@ -110,6 +117,7 @@ export class MailListStore {
   /** Shows a scope from its first page, with nothing selected. */
   async load(scope: MailScope): Promise<void> {
     const seq = ++this.loadSeq;
+    this.listGeneration++;
     this.scope.set(scope);
     this.items.set(null);
     this.nextCursor.set(null);
@@ -137,11 +145,15 @@ export class MailListStore {
     const cursor = this.nextCursor();
     if (!cursor || this.loadingMore() || this.items() === null) return;
     const seq = this.loadSeq;
+    const generation = this.listGeneration;
     this.loadingMore.set(true);
     this.moreError.set(null);
     try {
       const page = await this.mail.list(this.scope(), cursor);
       if (seq !== this.loadSeq) return;
+      // A refetch replaced the list meanwhile: the page would leave a gap after its new end. The
+      // next scroll loads more from the refetch's cursor.
+      if (generation !== this.listGeneration) return;
       const shown = new Set((this.items() ?? []).map((item) => item.id));
       this.items.update((items) => [
         ...(items ?? []),
@@ -186,6 +198,7 @@ export class MailListStore {
       this.selectedIds.update((selected) => new Set([...selected].filter((id) => ids.has(id))));
       this.items.set(page.items);
       this.nextCursor.set(page.nextCursor);
+      this.listGeneration++;
     } catch {
       // A live update is best effort: the list stays as it is until the next event or reload.
     }
@@ -303,19 +316,21 @@ export class MailListStore {
     return { failed, detail };
   }
 
-  /** The message ids behind each item: the item itself, or its conversation in the shown folder. */
+  /**
+   * The message ids behind each item: the item itself, or its conversation in the shown folder.
+   * At most {@link THREAD_LOOKUP_CONCURRENCY} conversations are looked up at a time; the first
+   * failed lookup fails the whole action.
+   */
   private async messageIds(items: MailSummary[]): Promise<string[][]> {
     if (!this.scope().threaded) return items.map((item) => [item.id]);
-    return Promise.all(
-      items.map(async (item) => {
-        if ((item.threadSize ?? 1) <= 1) return [item.id];
-        const thread = await this.mail.thread(item.id);
-        const ids = thread
-          .filter((message) => message.folderId === item.folderId)
-          .map((message) => message.id);
-        return ids.includes(item.id) ? ids : [item.id, ...ids];
-      }),
-    );
+    return mapWithLimit(items, THREAD_LOOKUP_CONCURRENCY, async (item) => {
+      if ((item.threadSize ?? 1) <= 1) return [item.id];
+      const thread = await this.mail.thread(item.id);
+      const ids = thread
+        .filter((message) => message.folderId === item.folderId)
+        .map((message) => message.id);
+      return ids.includes(item.id) ? ids : [item.id, ...ids];
+    });
   }
 
   private applyOptimistic(action: MailAction, ids: ReadonlySet<string>): void {
@@ -421,6 +436,33 @@ function nextAfterRemoval(
     if (remaining.has(before[i].id)) return before[i].id;
   }
   return after[0]?.id ?? null;
+}
+
+/**
+ * `fn` applied to every item, with at most `limit` calls running at a time; results in item
+ * order. Rejects with the first failure and starts no further calls after it.
+ */
+async function mapWithLimit<T, R>(
+  items: readonly T[],
+  limit: number,
+  fn: (item: T) => Promise<R>,
+): Promise<R[]> {
+  const results: R[] = new Array<R>(items.length);
+  let next = 0;
+  let failed = false;
+  const worker = async (): Promise<void> => {
+    while (!failed && next < items.length) {
+      const index = next++;
+      try {
+        results[index] = await fn(items[index]);
+      } catch (error) {
+        failed = true;
+        throw error;
+      }
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
+  return results;
 }
 
 function errorMessage(error: unknown): string {

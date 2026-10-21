@@ -57,6 +57,40 @@ describe('mailShortcutFor', () => {
     },
   );
 
+  it.each([
+    ['AltGr on Windows (Ctrl+Alt)', { ctrlKey: true, altKey: true }],
+    ['AltGr reported as AltGraph', { modifierAltGraph: true }],
+    [
+      'AltGr reported as AltGraph with Ctrl+Alt',
+      { ctrlKey: true, altKey: true, modifierAltGraph: true },
+    ],
+    ['Option on macOS', { altKey: true }],
+    ['Option and Shift on macOS', { altKey: true, shiftKey: true }],
+  ])('takes # and ! typed with %s', (_, init: KeyboardEventInit) => {
+    expect(mailShortcutFor(key('#', init))).toBe('delete');
+    expect(mailShortcutFor(key('!', init))).toBe('spam');
+  });
+
+  it.each([
+    ['Ctrl', { ctrlKey: true }],
+    ['Meta', { metaKey: true }],
+    ['Meta+Alt', { metaKey: true, altKey: true }],
+    ['Ctrl+Shift', { ctrlKey: true, shiftKey: true }],
+  ])('ignores # and ! in a %s chord', (_, init: KeyboardEventInit) => {
+    expect(mailShortcutFor(key('#', init))).toBeNull();
+    expect(mailShortcutFor(key('!', init))).toBeNull();
+  });
+
+  it('ignores letter shortcuts typed with AltGr or Option', () => {
+    expect(mailShortcutFor(key('e', { ctrlKey: true, altKey: true }))).toBeNull();
+    expect(mailShortcutFor(key('e', { modifierAltGraph: true }))).toBeNull();
+    expect(mailShortcutFor(key('j', { altKey: true }))).toBeNull();
+  });
+
+  it('does not repeat # typed with AltGr while held', () => {
+    expect(mailShortcutFor(key('#', { ctrlKey: true, altKey: true, repeat: true }))).toBeNull();
+  });
+
   it('allows Shift, which the symbol keys need', () => {
     expect(mailShortcutFor(key('#', { shiftKey: true }))).toBe('delete');
   });

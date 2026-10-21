@@ -4,7 +4,9 @@ Date: 2026-10-21
 
 Task: web-mail-list - Mail list and triage
 
-Scope: current task; findings CR-1 .. CR-7 of `reviews/web-mail-list/review.md`, changes limited to `web/src/app/features/mail/list/`
+Scope: current task; round 1: findings CR-1 .. CR-7 of the first review, round 2: findings CR-1 .. CR-3 (P3) of the second review in `reviews/web-mail-list/review.md`; changes limited to `web/src/app/features/mail/list/`
+
+# Round 1 (first review, CR-1 .. CR-7)
 
 ## Fixed findings
 
@@ -137,6 +139,82 @@ Focused tests:
 
 Full test suite:
 - `cd web && npm run check` (api:check, `ng lint --max-warnings=0`, e2e:typecheck, `ng test --watch=false`, `ng build`) — Pass: "All files pass linting.", 91 test files, 1683 tests passed, build complete. The existing warning that the initial bundle exceeds its budget is unchanged.
+
+Lint/type-check/build:
+- Included in `npm run check` above — Pass
+
+`.taskcheck`:
+- Not run by the fixer. Only web files changed and the web part of `scripts/check.sh` (`npm run -s check`) passed. The parent worker runs the full `.taskcheck`.
+
+Remaining unresolved findings:
+0
+
+Round 1 status: all validated findings fixed and validation passed.
+
+# Round 2 (second review, CR-1 .. CR-3, P3)
+
+## Fixed findings
+
+### CR-1 (second review) — A refetch that finishes before an overlapping "load more" can leave a gap
+
+Files changed:
+- `web/src/app/features/mail/list/mail-list-store.ts`
+- `web/src/app/features/mail/list/mail-list-store.spec.ts`
+
+Problem:
+`loadMore()` appended its page without checking whether a refetch had replaced the list since the page was requested. When the refetch resolved first (and new mail had moved the list's end), the page after the old cursor was appended to the shorter list. The item between the new end and the old cursor was then missing.
+
+Fix:
+Added a private `listGeneration` counter. `load()` increments it, and so does `refresh()` when it replaces `items`/`nextCursor`. `loadMore()` records the generation when it starts and drops its page if the generation changed. The list then keeps the refetch's `nextCursor`, so the next load more continues from there. The existing order (load more first, refetch later, handled by `mutationSeq`) is unchanged. Known limitation: a dropped page is not re-requested automatically. If the end-of-list sentinel stays in view, the IntersectionObserver does not fire again. More mail then loads by scrolling, by `j` on the last item, or with the existing "Load more" button.
+
+Validation:
+- New store spec "drops a next page that arrives after a refetch replaced the list, leaving no gap": the refetch (`[new, a]`, cursor `c-a`) resolves before the load more (cursor `c-b`). The stale page is dropped, the list stays `[new, a]` with cursor `c-a`, and the next load more requests `c-a` and gives `[new, a, b, c]` — Pass
+- Existing spec "drops a refetch that overlaps a load more and refetches the longer list" — Pass
+
+### CR-2 (second review) — Conversation actions fetch every thread in parallel without a limit
+
+Files changed:
+- `web/src/app/features/mail/list/mail-list-store.ts`
+- `web/src/app/features/mail/list/mail-list-store.spec.ts`
+
+Problem:
+In the threaded view, `messageIds` called `mail.thread()` for every multi-message target at once through an unbounded `Promise.all`.
+
+Fix:
+Added the exported constant `THREAD_LOOKUP_CONCURRENCY = 6` and a module-private helper `mapWithLimit`. It runs at most that many lookups at a time, keeps results in item order, rejects on the first failure and starts no further lookups after it. `messageIds` uses it. The existing behavior on failure is unchanged: the action is not sent, every target is rolled back and the error is shown.
+
+Validation:
+- New spec "looks up at most 6 conversations at a time": 19 conversations, held lookups. Exactly 6 run at first, the peak stays at 6, all 19 are looked up, and the ids are sent in list order — Pass
+- New spec "stops looking up conversations after a failed lookup and rolls back every item": fewer than all lookups are made, nothing is sent, all items are restored and the server message is shown — Pass
+- Existing conversation-action specs (single-message conversation, shared ids, rollback of a conversation, thread lookup failure) — Pass
+
+### CR-3 (second review) — `#` (delete) cannot be typed on layouts that need AltGr/Option for it
+
+Files changed:
+- `web/src/app/features/mail/list/mail-shortcuts.ts`
+- `web/src/app/features/mail/list/mail-shortcuts.spec.ts`
+
+Problem:
+`mailShortcutFor` ignored every event with `ctrlKey` or `altKey`. AltGr on Windows reports Ctrl+Alt, and Option on macOS reports Alt. So `#` (and `!`) typed that way on layouts such as Swiss German was ignored.
+
+Fix:
+For the symbol keys `#` and `!` only, an event is now accepted when its modifiers are those of AltGr or Option: no Meta, and either `getModifierState('AltGraph')` or `altKey`. That covers Ctrl+Alt on Windows, AltGraph on Linux and Option on macOS. Other events with Ctrl, Alt, Meta or AltGraph are still rejected. This includes Ctrl or Ctrl+Shift without Alt, any Meta chord, and every letter shortcut with a modifier. AltGraph now counts as a modifier for letters too, so on Linux AltGr+e does not archive. Repeated symbol keys still don't trigger an action.
+
+Validation:
+- New specs: `#` and `!` are taken with Ctrl+Alt, with AltGraph (with and without Ctrl+Alt), with Alt (Option) and with Alt+Shift. They are ignored with Ctrl, Meta, Meta+Alt and Ctrl+Shift. Letters (`e`, `j`) with Ctrl+Alt, AltGraph or Alt are ignored, and a repeated AltGr `#` is ignored. Existing modifier specs are unchanged — Pass
+
+## Not fixed
+
+None.
+
+## Validation summary
+
+Focused tests:
+- `cd web && npx ng test --include='src/app/features/mail/list/**/*.spec.ts' --watch=false` — Pass (7 files, 182 tests). The first run failed one new spec (AltGr+`e` with only the AltGraph state was accepted). Fixed by counting AltGraph as a modifier, then rerun — Pass
+- `cd web && npx prettier --write src/app/features/mail/list/` — applied before the test runs
+
+Full test suite:
+- `cd web && npm run check` (api:check, `ng lint --max-warnings=0`, e2e:typecheck, `ng test --watch=false`, `ng build`) — Pass: "All files pass linting.", 91 test files, 1702 tests passed, build complete. The existing warning that the initial bundle exceeds its budget is unchanged.
 
 Lint/type-check/build:
 - Included in `npm run check` above — Pass

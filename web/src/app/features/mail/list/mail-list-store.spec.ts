@@ -6,6 +6,7 @@ import {
   MAIL_FOLDER_EVENT,
   MailListStore,
   REFRESH_DEBOUNCE_MS,
+  THREAD_LOOKUP_CONCURRENCY,
   withAction,
 } from './mail-list-store';
 import { FakeEvents, FakeMail, INBOX, OTHER, summary } from './mail-testing';
@@ -377,6 +378,30 @@ describe('MailListStore', () => {
       expect(store.nextCursor()).toBe('c2');
       expect(mail.lists).toHaveLength(4);
       expect(mail.lists[3].limit).toBe(2 + MAIL_PAGE_SIZE);
+    });
+
+    it('drops a next page that arrives after a refetch replaced the list, leaving no gap', async () => {
+      await loaded([summary('a'), summary('b')], undefined, 'c-b');
+      await emit({});
+      const more = store.loadMore();
+      expect(mail.lists[2].cursor).toBe('c-b');
+      // New mail arrived: the refetch (sized for two items) ends one item earlier.
+      mail.lists[1].resolve({ items: [summary('new'), summary('a')], nextCursor: 'c-a' });
+      await flush();
+      expect(ids()).toEqual(['new', 'a']);
+      // Appending the page after b would leave b out of the list.
+      mail.lists[2].resolve({ items: [summary('c'), summary('d')], nextCursor: 'c-d' });
+      await more;
+      expect(ids()).toEqual(['new', 'a']);
+      expect(store.nextCursor()).toBe('c-a');
+      expect(store.loadingMore()).toBe(false);
+      expect(store.moreError()).toBeNull();
+      // The next scroll continues from the refetch's cursor.
+      void store.loadMore();
+      expect(mail.lists[3].cursor).toBe('c-a');
+      mail.lists[3].resolve({ items: [summary('b'), summary('c')], nextCursor: null });
+      await flush();
+      expect(ids()).toEqual(['new', 'a', 'b', 'c']);
     });
   });
 
@@ -751,6 +776,53 @@ describe('MailListStore', () => {
       expect(mail.applies).toEqual([]);
       expect(ids()).toEqual(['a']);
       expect(errors[0]).toContain('Gone');
+    });
+
+    it(`looks up at most ${THREAD_LOOKUP_CONCURRENCY} conversations at a time`, async () => {
+      const count = THREAD_LOOKUP_CONCURRENCY * 3 + 1;
+      const items = Array.from({ length: count }, (_, i) => summary(`t${i}`, { threadSize: 2 }));
+      await loaded(items, threaded);
+      const pending: (() => void)[] = [];
+      let running = 0;
+      let peak = 0;
+      const thread = vi.spyOn(mail, 'thread').mockImplementation(
+        (id) =>
+          new Promise<MailSummary[]>((resolve) => {
+            running++;
+            peak = Math.max(peak, running);
+            pending.push(() => {
+              running--;
+              resolve([summary(`${id}-0`), summary(id)]);
+            });
+          }),
+      );
+      store.toggleAll();
+      void store.apply('ARCHIVE');
+      await flush();
+      expect(running).toBe(THREAD_LOOKUP_CONCURRENCY);
+      while (pending.length) {
+        pending.splice(0).forEach((finish) => finish());
+        await flush();
+      }
+      expect(peak).toBe(THREAD_LOOKUP_CONCURRENCY);
+      expect(thread).toHaveBeenCalledTimes(count);
+      expect(mail.applies[0].ids).toEqual(items.flatMap((item) => [`${item.id}-0`, item.id]));
+    });
+
+    it('stops looking up conversations after a failed lookup and rolls back every item', async () => {
+      const count = THREAD_LOOKUP_CONCURRENCY * 2;
+      const items = Array.from({ length: count }, (_, i) => summary(`t${i}`, { threadSize: 2 }));
+      await loaded(items, threaded);
+      const thread = vi
+        .spyOn(mail, 'thread')
+        .mockRejectedValueOnce(new ApiError(503, 'Unavailable', 'Try later'))
+        .mockResolvedValue([]);
+      store.toggleAll();
+      expect(await store.apply('ARCHIVE')).toBe(false);
+      expect(thread.mock.calls.length).toBeLessThan(count);
+      expect(mail.applies).toEqual([]);
+      expect(ids()).toEqual(items.map((item) => item.id));
+      expect(errors[0]).toContain('Try later');
     });
 
     it('sends flat items as they are, without loading threads', async () => {
