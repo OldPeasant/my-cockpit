@@ -4,22 +4,41 @@ Date: 2026-10-21
 
 Task: and-next-today: Android Next and Today
 
-Scope: `git diff 44de27f6a4147ff3ccabc0ef3acc6c2cd968b92f..efaa0a513c809eadca3dbdea96250cb6bbdb7b81` (task commits 47a1bca1, 6a264214, 6f721d1f, efaa0a51), committed changes only. The working tree was clean.
+Scope: `git diff 6fdf4313172fb7a14eaa7342e8a4bf8f218e669e..dcb758c4c346ef3db0f735c311d4877b04f68567`, the whole final task diff. Reviewed revision: dcb758c4. This is a re-review after the fixer's commit 8b5ce29a and the test-writer's commit dcb758c4. I checked the fixes in `reviews/and-next-today/fixes.md` against the code. Committed changes only; the working tree was clean.
 
 Requirements:
-- `tasks/and-next-today.md`: acceptance criteria and the 4 recorded assumptions
+- `tasks/and-next-today.md`: both acceptance criteria and the 5 recorded assumptions, including the CR-4 deferral
 - `SPEC.md` §5.3 (Next Actions filters, Today view), §9.3 (offline read-only)
-- `AGENTS.md` project notes (lint is part of the contract, `.taskcheck`)
-- `reviews/and-next-today/tests.md` (test-writer report, findings TW-1 and TW-2)
-- Existing code in `android/.../gtd/data` (`TaskRepository`, `GtdConnectivity`, `Cached`)
+- `docs/ARCHITECTURE.md`, `docs/QUALITY.md` (freshness by patch-id), `AGENTS.md` project notes (lint is part of the contract, touches, assumptions)
+- The previous review (findings CR-1 to CR-6), `reviews/and-next-today/fixes.md`, `reviews/and-next-today/tests.md`
+- Server `TaskService.complete`/`uncomplete` (`server/.../gtd/domain/TaskService.kt:143-165`), to check the version assumption behind the CR-3 fix
 
 Git range:
 - Branch: main
-- HEAD: efaa0a513c809eadca3dbdea96250cb6bbdb7b81
-- Base/start: 44de27f6a4147ff3ccabc0ef3acc6c2cd968b92f
-- Commits reviewed: 4
+- HEAD: dcb758c4c346ef3db0f735c311d4877b04f68567
+- Base/start: 6fdf4313172fb7a14eaa7342e8a4bf8f218e669e
+- Commits reviewed: 8 (151c043f, aeeee6e6, 7b457e81, f6cf571f, 5766c60c, 8b5ce29a, daddf775, dcb758c4)
 
-Summary: 0 P0, 2 P1, 2 P2, 2 P3
+Validation run by the reviewer:
+- `cd android && ./gradlew ktlintCheck lintDebug testDebugUnitTest --tests 'ch.sonensei.cockpit.gtd.next.*' --tests 'ch.sonensei.cockpit.gtd.today.*'`: BUILD SUCCESSFUL. JUnit XML for `gtd.next.*` and `gtd.today.*`: 105 tests, 0 failures, 0 errors, 0 skipped. `lint-results-debug.xml` has no issues.
+
+Summary: 0 P0, 0 P1, 0 P2, 1 P3
+
+## Status of previous findings
+
+- **CR-1 (P1, `LocalContext` resources in the snackbar): fixed.** `TaskListUi.kt:148` now uses `LocalResources.current`, without a suppression. Lint is clean.
+- **CR-2 (P1, filtered count not a plural): fixed.** `next_count_filtered` is a `<plurals>` resource (`strings_next_today.xml:27-30`), with the total as the quantity (`NextScreen.kt:129`). The new `NextScreenTest` cases check the singular and the plural text.
+- **CR-3 (P2, completed tasks hidden forever): fixed.** `CompletionState` now splits in-flight ids (`pending`) from completed ids mapped to the version the server returned (`completed`). `hides()` (`TaskCompletion.kt:114`) hides a cached copy only while its id is pending, or while its version is at most the completed version. This holds because the server raises the version on every change: `uncomplete` and other edits go through `modify` with a version check, so a task reopened elsewhere always has a higher version. I traced each path:
+  - A successful undo clears both `pending` and `completed`.
+  - A refused undo clears only `pending`, so the task shows again once the reloaded list has it open at a newer version.
+  - A double tap is still ignored, also while an undo is pending.
+  - Completing a reopened task again works.
+  - In Today, a stale pre-completion copy in one view no longer hides the reopened copy in the other, because `filterNot(hides)` runs before `distinctBy`.
+
+  Regression tests are in `TaskCompleterTest`, `NextViewModelTest` and `TodayViewModelTest`.
+- **CR-4 (P2, a failed first load stays on "Loading…"): deferred, not fixed.** The deferral is reasonable: `TaskRepository.observe` in `gtd/data` drops the refresh result, and `gtd/data` is outside this task's touches. It is recorded as an assumption in `tasks/and-next-today.md`. Follow-up task `tasks/and-gtd-load-error.md` depends on this task, touches `gtd/data`, `gtd/next` and `gtd/today`, and has acceptance criteria for an error with retry. Whether to accept the deferral is the parent worker's decision.
+- **CR-5 (P3, context map rebuilt per row): fixed.** The map is built with `remember(state.contexts)` before the `LazyColumn` (`NextScreen.kt:120`).
+- **CR-6 (P3, `toggleCreativity` hard to read): fixed.** It is now a two-line expression body like the sibling toggles (`NextViewModel.kt:106-107`). ktlint passes.
 
 ## P0 Critical
 
@@ -27,54 +46,31 @@ None.
 
 ## P1 High
 
-- [ ] **CR-1 | Snackbar reads resources through LocalContext; `lintDebug` fails `.taskcheck`**
-    - File: `android/app/src/main/java/ch/sonensei/cockpit/gtd/next/TaskListUi.kt:148`
-    - Category: Quality
-    - Problem: `CompletionSnackbarEffect` uses `LocalContext.current.resources`. Android lint reports the error `LocalContextResourcesRead` here. I confirmed it in `android/app/build/reports/lint-results-debug.txt` (generated 2026-10-21 10:49, after the last production change). This is the same issue as TW-1.
-    - Why it matters: `scripts/check.sh` (`.taskcheck`) runs `lintDebug`, so the check fails and `tasks.py done` cannot pass. AGENTS.md says lint warnings must be fixed, not suppressed. The resources read this way can also be stale after a configuration change, such as a locale change.
-    - Suggested fix: use `LocalResources.current` (lint's suggestion), or resolve the strings with `stringResource` outside the `LaunchedEffect`. Do not suppress the check.
-
-- [ ] **CR-2 | Filtered count string should be a plural; `lintDebug` fails `.taskcheck`**
-    - File: `android/app/src/main/res/values/strings_next_today.xml:27` (used at `android/app/src/main/java/ch/sonensei/cockpit/gtd/next/NextScreen.kt:127`)
-    - Category: Quality
-    - Problem: `next_count_filtered` ("%1$d of %2$d next actions") is a plain `<string>`. Lint reports the error `PluralsCandidate`, which I confirmed in the same lint report. This is the same issue as TW-2.
-    - Why it matters: it blocks `.taskcheck` and `done`. The text is also wrong for a total of 1 ("1 of 1 next actions") and cannot be translated correctly.
-    - Suggested fix: change it to a `<plurals>` resource with the total as the quantity, and read it with `pluralStringResource(R.plurals.next_count_filtered, state.total, state.tasks.size, state.total)`. The existing screen tests should still pass with the same English text.
+None.
 
 ## P2 Medium
 
-- [ ] **CR-3 | Completed tasks stay hidden for the whole life of the view model, even after they are reopened elsewhere**
-    - File: `android/app/src/main/java/ch/sonensei/cockpit/gtd/next/TaskCompletion.kt:118` (ids are removed only at `:124` and `:135`), applied at `NextViewModel.kt:86` and `TodayViewModel.kt:73`
-    - Category: Correctness
-    - Problem: when a completion succeeds, its id stays in `CompletionState.hidden` permanently. Only a refused completion or a successful undo on this device removes it. Suppose the task is later reopened somewhere else (for example on the web, or through the logbook). The change stream reloads the Next and Today caches and the task is back in `next.data`, but both view models keep filtering it out. The same happens when an undo here fails with CONFLICT: the snackbar says "The list now shows its current state", but the task stays hidden even if it is open on the server.
-    - Why it matters: an open next action silently disappears from Next and Today as long as the tab's view model lives. Next and Today are long-lived tabs, so this can last a long time. The cached list no longer matches the server.
-    - Suggested fix: hide an id only until the cache catches up. For example, drop it from `hidden` once a refreshed list (a newer `refreshedAt`) no longer contains it, or once the undo offer is gone and the reload after the completion has run. A failed undo should un-hide the task as well, because the list is then reloaded from the server. Add a test: complete, then the cache shows the task open again, then the task is visible.
-
-- [ ] **CR-4 | A failed first load leaves Next and Today on "Loading…" forever, with no error and no retry**
-    - File: `android/app/src/main/java/ch/sonensei/cockpit/gtd/next/NextViewModel.kt:63`, `android/app/src/main/java/ch/sonensei/cockpit/gtd/today/TodayViewModel.kt:42`
-    - Category: Correctness
-    - Problem: `loading` is `refreshedAt == null && total == 0 && !offline`. If the first refresh ends in `RefreshResult.Failed`, nothing changes: no cache meta is written and the offline flag is left as it is. `Failed` covers a non-5xx error status, an unreadable body, and `SQLiteException` such as a full device. The screen then shows "Loading…" indefinitely (`NextScreen.kt:124`, `TodayScreen.kt:96`), with no message and no way to retry.
-    - Why it matters: a failure path never ends loading and does not leave a recoverable screen. A full disk or a malformed server answer would make both tabs look stuck.
-    - Suggested fix: expose the outcome of the initial refresh to the view model, or a "load failed" state. One way is for the view model to call `refresh` itself and keep the result. Then show an error with a retry action instead of "Loading…". If this needs a change in `gtd/data`, which is outside this task's touches, record an assumption or a follow-up task instead.
+None.
 
 ## P3 Low
 
-- [ ] **CR-5 | Context map rebuilt for every Next row**
-    - File: `android/app/src/main/java/ch/sonensei/cockpit/gtd/next/NextScreen.kt:154`
+- [ ] **CR-7 | `CompletionState.hidden` is now used only by tests and no longer means "hidden"**
+    - File: `android/app/src/main/java/ch/sonensei/cockpit/gtd/next/TaskCompletion.kt:111`
     - Category: Quality
-    - Problem: `state.contexts.associateBy { it.id }` runs inside the `items` lambda, so it is rebuilt once per row on every composition. `TodayContent` builds it once (`TodayScreen.kt:86`).
-    - Why it matters: unnecessary work while scrolling, and the two screens are inconsistent.
-    - Suggested fix: build the map once before the `LazyColumn`, as `TodayContent` does, or with `remember(state.contexts)`.
-
-- [ ] **CR-6 | `toggleCreativity` is hard to read**
-    - File: `android/app/src/main/java/ch/sonensei/cockpit/gtd/next/NextViewModel.kt:104-116`
-    - Category: Quality
-    - Problem: the formatter split a one-line `if` across 12 lines. The sibling toggles are one-liners with the same logic.
-    - Why it matters: it is harder to read and to compare with the other toggles.
-    - Suggested fix: write it like `toggleEnergy`, splitting the expression body so it fits within the line limit (for example with a local `val`), and re-run `ktlintFormat`.
+    - Problem: after the CR-3 fix, the lists filter with `hides(task)`, which depends on the cached version. The derived `hidden` property (`pending + completed.keys`) is no longer used by any production code: `grep` finds it only in `TaskCompleterTest.kt` (lines 48-236). It also includes ids whose newer copies are shown again. For example, after a refused undo of a task reopened elsewhere, the id is still in `hidden`, but the list shows the task.
+    - Why it matters: the name and its KDoc ("the tasks the lists may hide") suggest a visibility rule that the lists do not use. The tests that assert on `hidden` check bookkeeping, not what the user sees, so a future change could keep them green while visibility breaks.
+    - Suggested fix: remove `hidden` and assert on `hides(...)`, `pending` or `completed` in `TaskCompleterTest`. If keeping it, rename it (for example `tracked`) and state in its KDoc that it is not the visibility rule.
 
 ## Review conclusion
 
-Material issues found; fix before completing the task.
+No material issues found.
 
-Both acceptance criteria are otherwise implemented and well tested. The Next filters (context, energy, creativity, max estimate) match the recorded assumptions. Today shows the overdue, due-today and scheduled sections. Completion hides the task at once and the undo snackbar calls `/uncomplete` with the returned version. The 95 focused tests passed according to the test report. CR-1 and CR-2 block `.taskcheck`. CR-3 and CR-4 are correctness and resilience gaps that should be fixed, or explicitly deferred by the parent worker with a recorded assumption.
+Both acceptance criteria are implemented and verified by the run above:
+- Next has context, energy, creativity and max-estimate filters, applied on the device as the recorded assumption says.
+- Today shows overdue, due-today and scheduled sections.
+- Completing hides the task at once and offers undo in a snackbar.
+- The `gtd.next.*` and `gtd.today.*` Robolectric and Compose tests pass (105 tests).
+
+The fixes for CR-1, CR-2, CR-3, CR-5 and CR-6 are correct and complete. CR-4 is deferred with a recorded assumption and a follow-up task. CR-7 is an optional cleanup.
+
+The hashes in `fixes.md` and `tests.md` (for example 27b65654 and 5c884837) come from before a rebase. Under the patch-id freshness rule in `docs/QUALITY.md` the evidence still counts. The parent worker should set `reviewed_revision` to the current hash.
