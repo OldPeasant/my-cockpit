@@ -1,0 +1,286 @@
+<section class="gtd" aria-labelledby="gtd-title">
+  <h2 id="gtd-title" i18n="@@settings.gtd">Tasks &amp; projects</h2>
+
+  <div class="row">
+    <div class="describe">
+      <h3 id="contexts-label" i18n="@@gtdSettings.contexts">Contexts</h3>
+      <p i18n="@@gtdSettings.contexts.hint">
+        Where or with what you can do a task, such as &#64;home or &#64;phone. Drag them or use the
+        arrows to change their order.
+      </p>
+    </div>
+    <div class="control">
+      @if (loadError().context; as error) {
+        <div class="load-error" role="alert">
+          <p i18n="@@gtdSettings.contexts.loadFailed">Contexts could not be loaded: {{ error }}</p>
+          <button
+            mat-stroked-button
+            type="button"
+            (click)="load('context')"
+            i18n="@@settings.retry"
+          >
+            Try again
+          </button>
+        </div>
+      } @else if (contexts(); as list) {
+        @if (list.length) {
+          <ul
+            class="items contexts"
+            aria-labelledby="contexts-label"
+            cdkDropList
+            [cdkDropListDisabled]="busy().has('context')"
+            (cdkDropListDropped)="drop('context', $event)"
+          >
+            @for (context of list; track context.id; let i = $index, first = $first, last = $last) {
+              <li cdkDrag>
+                <span class="grip" cdkDragHandle aria-hidden="true">⋮⋮</span>
+                <label
+                  class="swatch"
+                  [style.--swatch]="context.color ?? noColor"
+                  [class.none]="!context.color"
+                >
+                  <input
+                    type="color"
+                    [value]="pickerColor(context.color)"
+                    [attr.aria-label]="colorLabel(context)"
+                    (change)="setColor(context, $any($event.target).value)"
+                  />
+                </label>
+                <input
+                  #name
+                  class="name"
+                  type="text"
+                  maxlength="100"
+                  [value]="context.name"
+                  [attr.aria-label]="contextLabel(context)"
+                  (change)="renameContext(context, name)"
+                  (keydown.enter)="name.blur()"
+                  (keydown.escape)="name.value = context.name; name.blur()"
+                />
+                <div class="tools">
+                  @if (context.color) {
+                    <button
+                      mat-icon-button
+                      type="button"
+                      [attr.aria-label]="clearColorLabel(context)"
+                      [title]="clearColorLabel(context)"
+                      (click)="setColor(context, null)"
+                    >
+                      <svg viewBox="0 0 24 24" aria-hidden="true">
+                        <path
+                          d="M12 3.1 6.6 8.5a7.5 7.5 0 0 0-.9 9.6L4 19.8 5.2 21l16-16L20 3.8l-3 3zM7.1 16.6a5.5 5.5 0 0 1 .9-6.7L12 5.9l3.5 3.6zm10.6-5.4 1.4-1.4a7.5 7.5 0 0 1-9.7 10.9l1.5-1.5a5.5 5.5 0 0 0 6.8-8z"
+                        />
+                      </svg>
+                    </button>
+                  }
+                  <button
+                    mat-icon-button
+                    type="button"
+                    [disabled]="first || busy().has('context')"
+                    [attr.aria-label]="upLabel(context.name)"
+                    [title]="upLabel(context.name)"
+                    (click)="reorder('context', i, i - 1)"
+                  >
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="m7.4 15.4 4.6-4.6 4.6 4.6L18 14l-6-6-6 6z" />
+                    </svg>
+                  </button>
+                  <button
+                    mat-icon-button
+                    type="button"
+                    [disabled]="last || busy().has('context')"
+                    [attr.aria-label]="downLabel(context.name)"
+                    [title]="downLabel(context.name)"
+                    (click)="reorder('context', i, i + 1)"
+                  >
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="M7.4 8.6 12 13.2l4.6-4.6L18 10l-6 6-6-6z" />
+                    </svg>
+                  </button>
+                  <button
+                    mat-icon-button
+                    type="button"
+                    class="delete"
+                    [disabled]="busy().has('context')"
+                    [attr.aria-label]="deleteLabel(context.name)"
+                    [title]="deleteLabel(context.name)"
+                    (click)="removeContext(context)"
+                  >
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                      <path
+                        d="M6 19a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V7H6zM19 4h-3.5l-1-1h-5l-1 1H5v2h14z"
+                      />
+                    </svg>
+                  </button>
+                </div>
+              </li>
+            }
+          </ul>
+        } @else {
+          <p class="note" i18n="@@gtdSettings.contexts.none">
+            No contexts yet. Add your first one below.
+          </p>
+        }
+        <form
+          class="add"
+          (submit)="$event.preventDefault(); addContext()"
+          [formGroup]="newContext"
+          novalidate
+        >
+          <label
+            class="swatch"
+            [style.--swatch]="newContext.controls.color.value || noColor"
+            [class.none]="!newContext.controls.color.value"
+          >
+            <input
+              type="color"
+              i18n-aria-label="@@gtdSettings.contexts.newColor"
+              aria-label="Color of the new context"
+              [value]="pickerColor(newContext.controls.color.value)"
+              (change)="newContext.controls.color.setValue($any($event.target).value)"
+            />
+          </label>
+          <mat-form-field subscriptSizing="dynamic">
+            <mat-label i18n="@@gtdSettings.contexts.new">New context</mat-label>
+            <input matInput formControlName="name" maxlength="100" placeholder="@errands" />
+            @if (newContext.controls.name.touched && newContext.controls.name.invalid) {
+              <mat-error i18n="@@gtdSettings.nameRequired">Enter a name.</mat-error>
+            }
+          </mat-form-field>
+          <button
+            mat-stroked-button
+            type="submit"
+            [disabled]="busy().has('context')"
+            i18n="@@gtdSettings.contexts.add"
+          >
+            Add context
+          </button>
+        </form>
+        @if (error().context; as message) {
+          <p class="error" role="alert">{{ message }}</p>
+        }
+      } @else {
+        <p class="note" role="status" i18n="@@gtdSettings.contexts.loading">Loading contexts…</p>
+      }
+    </div>
+  </div>
+
+  <div class="row">
+    <div class="describe">
+      <h3 id="areas-label" i18n="@@gtdSettings.areas">Areas of focus</h3>
+      <p i18n="@@gtdSettings.areas.hint">
+        Group your projects by the parts of your life they belong to, such as Work, Family or
+        Health.
+      </p>
+    </div>
+    <div class="control">
+      @if (loadError().area; as error) {
+        <div class="load-error" role="alert">
+          <p i18n="@@gtdSettings.areas.loadFailed">Areas could not be loaded: {{ error }}</p>
+          <button mat-stroked-button type="button" (click)="load('area')" i18n="@@settings.retry">
+            Try again
+          </button>
+        </div>
+      } @else if (areas(); as list) {
+        @if (list.length) {
+          <ul
+            class="items areas"
+            aria-labelledby="areas-label"
+            cdkDropList
+            [cdkDropListDisabled]="busy().has('area')"
+            (cdkDropListDropped)="drop('area', $event)"
+          >
+            @for (area of list; track area.id; let i = $index, first = $first, last = $last) {
+              <li cdkDrag>
+                <span class="grip" cdkDragHandle aria-hidden="true">⋮⋮</span>
+                <input
+                  #title
+                  class="name"
+                  type="text"
+                  maxlength="200"
+                  [value]="area.title"
+                  [attr.aria-label]="areaLabel(area)"
+                  (change)="renameArea(area, title)"
+                  (keydown.enter)="title.blur()"
+                  (keydown.escape)="title.value = area.title; title.blur()"
+                />
+                <div class="tools">
+                  <button
+                    mat-icon-button
+                    type="button"
+                    [disabled]="first || busy().has('area')"
+                    [attr.aria-label]="upLabel(area.title)"
+                    [title]="upLabel(area.title)"
+                    (click)="reorder('area', i, i - 1)"
+                  >
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="m7.4 15.4 4.6-4.6 4.6 4.6L18 14l-6-6-6 6z" />
+                    </svg>
+                  </button>
+                  <button
+                    mat-icon-button
+                    type="button"
+                    [disabled]="last || busy().has('area')"
+                    [attr.aria-label]="downLabel(area.title)"
+                    [title]="downLabel(area.title)"
+                    (click)="reorder('area', i, i + 1)"
+                  >
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="M7.4 8.6 12 13.2l4.6-4.6L18 10l-6 6-6-6z" />
+                    </svg>
+                  </button>
+                  <button
+                    mat-icon-button
+                    type="button"
+                    class="delete"
+                    [disabled]="busy().has('area')"
+                    [attr.aria-label]="deleteLabel(area.title)"
+                    [title]="deleteLabel(area.title)"
+                    (click)="removeArea(area)"
+                  >
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                      <path
+                        d="M6 19a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V7H6zM19 4h-3.5l-1-1h-5l-1 1H5v2h14z"
+                      />
+                    </svg>
+                  </button>
+                </div>
+              </li>
+            }
+          </ul>
+        } @else {
+          <p class="note" i18n="@@gtdSettings.areas.none">
+            No areas yet. Add your first one below.
+          </p>
+        }
+        <form
+          class="add"
+          (submit)="$event.preventDefault(); addArea()"
+          [formGroup]="newArea"
+          novalidate
+        >
+          <mat-form-field subscriptSizing="dynamic">
+            <mat-label i18n="@@gtdSettings.areas.new">New area</mat-label>
+            <input matInput formControlName="title" maxlength="200" />
+            @if (newArea.controls.title.touched && newArea.controls.title.invalid) {
+              <mat-error i18n="@@gtdSettings.nameRequired">Enter a name.</mat-error>
+            }
+          </mat-form-field>
+          <button
+            mat-stroked-button
+            type="submit"
+            [disabled]="busy().has('area')"
+            i18n="@@gtdSettings.areas.add"
+          >
+            Add area
+          </button>
+        </form>
+        @if (error().area; as message) {
+          <p class="error" role="alert">{{ message }}</p>
+        }
+      } @else {
+        <p class="note" role="status" i18n="@@gtdSettings.areas.loading">Loading areas…</p>
+      }
+    </div>
+  </div>
+</section>

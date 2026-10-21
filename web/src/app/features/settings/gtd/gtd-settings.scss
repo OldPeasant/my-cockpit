@@ -1,0 +1,181 @@
+h2 {
+  margin: 0 0 var(--app-space-2);
+  font: var(--mat-sys-title-large);
+}
+
+.note {
+  margin: 0 0 var(--app-space-3);
+  color: var(--app-fg-muted);
+}
+
+.error {
+  margin: var(--app-space-2) 0 0;
+  color: var(--app-danger);
+}
+
+.load-error {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--app-space-3);
+  color: var(--app-danger);
+
+  p {
+    margin: 0;
+  }
+}
+
+// One setting per row: what it is on the left, the control on the right (as in General).
+.row {
+  display: grid;
+  grid-template-columns: minmax(0, 16rem) minmax(0, 1fr);
+  gap: var(--app-space-2) var(--app-space-5);
+  padding: var(--app-space-4) 0;
+  border-top: 1px solid var(--app-border);
+}
+
+h3 {
+  margin: 0 0 var(--app-space-1);
+  font: var(--mat-sys-title-small);
+}
+
+.describe p {
+  margin: 0;
+  max-width: 40ch;
+  color: var(--app-fg-muted);
+  font: var(--mat-sys-body-medium);
+}
+
+.control {
+  min-width: 0;
+}
+
+.items {
+  margin: 0 0 var(--app-space-3);
+  padding: 0;
+  list-style: none;
+
+  li {
+    display: flex;
+    align-items: center;
+    gap: var(--app-space-2);
+    padding: var(--app-space-1) 0;
+    background: var(--app-bg);
+
+    & + li {
+      border-top: 1px solid var(--app-border);
+    }
+  }
+}
+
+.grip {
+  flex: none;
+  padding: 0 var(--app-space-1);
+  color: var(--app-fg-muted);
+  cursor: grab;
+  user-select: none;
+  letter-spacing: -0.2em;
+}
+
+// The context's color as a dot that opens the color picker; no color: an outlined dot.
+.swatch {
+  position: relative;
+  flex: none;
+  width: 1.25rem;
+  height: 1.25rem;
+  border-radius: 50%;
+  background: var(--swatch);
+  cursor: pointer;
+
+  &.none {
+    background: transparent;
+    border: 2px dashed var(--app-border);
+  }
+
+  &:focus-within {
+    outline: 2px solid var(--app-accent);
+    outline-offset: 2px;
+  }
+
+  input {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    opacity: 0;
+    cursor: pointer;
+  }
+}
+
+.name {
+  flex: 1;
+  min-width: 0;
+  padding: var(--app-space-1) var(--app-space-2);
+  border: 1px solid transparent;
+  border-radius: var(--app-radius);
+  background: transparent;
+  color: var(--app-fg);
+  font: var(--mat-sys-body-large);
+
+  &:hover {
+    border-color: var(--app-border);
+  }
+
+  &:focus-visible {
+    border-color: var(--app-accent);
+    outline: none;
+    background: var(--app-surface-raised);
+  }
+}
+
+.tools {
+  display: flex;
+  flex: none;
+
+  svg {
+    width: 1.25rem;
+    height: 1.25rem;
+    fill: currentColor;
+  }
+}
+
+.delete:not(:disabled) {
+  color: var(--app-danger);
+}
+
+.add {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--app-space-3);
+
+  mat-form-field {
+    width: min(100%, 16rem);
+  }
+}
+
+// Drag feedback (CDK): the dragged row floats, its old place stays as a gap.
+.cdk-drag-preview {
+  box-shadow: 0 4px 12px color-mix(in srgb, var(--app-fg) 18%, transparent);
+  border-radius: var(--app-radius);
+}
+
+.cdk-drag-placeholder {
+  opacity: 0.3;
+}
+
+.cdk-drop-list-dragging li:not(.cdk-drag-placeholder) {
+  transition: transform 200ms ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cdk-drop-list-dragging li:not(.cdk-drag-placeholder) {
+    transition: none;
+  }
+}
+
+@media (max-width: 720px) {
+  .row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

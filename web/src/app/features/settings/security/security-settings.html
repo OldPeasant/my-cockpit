@@ -69,7 +69,13 @@
     <div class="control">
       @if (codes(); as list) {
         <div class="fresh" role="region" aria-labelledby="fresh-label">
-          <p id="fresh-label" #freshTitle class="fresh-title" tabindex="-1" i18n="@@security.codes.fresh">
+          <p
+            id="fresh-label"
+            #freshTitle
+            class="fresh-title"
+            tabindex="-1"
+            i18n="@@security.codes.fresh"
+          >
             Your new recovery codes. They are shown only now; save them somewhere safe.
           </p>
           <ol class="codes">

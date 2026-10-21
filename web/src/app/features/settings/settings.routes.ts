@@ -22,7 +22,11 @@ export default [
         title: $localize`:@@nav.settings:Settings`,
         loadComponent: () => import('./general/general-settings'),
       },
-      placeholder(SETTINGS_SECTIONS.gtd),
+      {
+        path: SETTINGS_SECTIONS.gtd.path,
+        title: SETTINGS_SECTIONS.gtd.label,
+        loadComponent: () => import('./gtd/gtd-settings'),
+      },
       {
         path: SETTINGS_SECTIONS.security.path,
         title: SETTINGS_SECTIONS.security.label,

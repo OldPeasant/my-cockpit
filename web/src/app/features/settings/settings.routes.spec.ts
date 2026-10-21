@@ -53,8 +53,20 @@ describe('settings routes', () => {
     );
   });
 
+  it('opens Tasks & projects at /settings/gtd', async () => {
+    const harness = await RouterTestingHarness.create();
+    await harness.navigateByUrl('/settings/gtd');
+    const http = TestBed.inject(HttpTestingController);
+    http.expectOne('/api/v1/contexts').flush({ items: [] });
+    http.expectOne('/api/v1/areas').flush({ items: [] });
+
+    expect(harness.routeNativeElement?.querySelector('app-gtd-settings')).not.toBeNull();
+    expect(harness.routeNativeElement?.querySelector('a.active')?.textContent?.trim()).toBe(
+      'Tasks & projects',
+    );
+  });
+
   it.each([
-    ['gtd', 'Tasks & projects'],
     ['calendars', 'Calendars'],
     ['integrations', 'Integrations'],
     ['mail', 'Mail'],
