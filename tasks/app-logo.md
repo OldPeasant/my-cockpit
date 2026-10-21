@@ -18,7 +18,8 @@ on the web login and first-run setup pages, and on the Android login screen. Sou
 - [ ] Web: the top bar shows the logo (about 28 px) before the "My Cockpit" link text, also in the collapsed drawer layout < 900 px; `auth-layout.ts` shows it (about 64 px) above the login and setup forms
 - [ ] Android: `res/drawable/ic_logo.xml` vector of the mark (transparent background, light/dark via theme colours or a `drawable-night` variant) shown above the title on `LoginScreen` (about 72 dp), `contentDescription = null`
 - [ ] Tests: `logo.spec.ts` (renders, aria-hidden, size input), shell and auth-layout specs still pass; `cd web && npm run check` and `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` pass
-- [ ] Seen working: screenshots of the web top bar (light and dark), web login page and the Android login screen (Compose preview or emulator), compared with `docs/brand/mark.svg`; record how they were made
+- [x] Seen working: screenshots of the web top bar (light and dark), web login page and the Android login screen (Compose preview or emulator), compared with `docs/brand/mark.svg`; record how they were made
+  - verified (2026-10-22 00:48+0200 by dell26/agent-2): node .tmp/shots.mjs (Playwright chromium on ng build output web/dist, auth API mocked) -> topbar light/dark (prefers-color-scheme) + data-theme=dark override + compact 600px + login light/dark + setup screenshots, logo visible, ink switches navy/white, sky orange; node .tmp/compare.mjs renders docs/brand/mark.svg vs logo.ts SVG at 256px -> 20/65536 px differ (antialiasing); Android: Robolectric NATIVE graphics captureToImage of LoginScreen in CockpitTheme (w411dp xxhdpi, day and night qualifiers) -> logo 72dp above title, navy ink light, white ink night, matches mark.svg
 
 ## Notes
 - The owner chose the mark on 2026-10-21; do not redesign it.
