@@ -65,6 +65,15 @@ class ReminderActivityIntentTest {
     }
 
     @Test
+    fun `a relaunch from Recents does not open the item of the old notification again`() {
+        val replayed = openIntent(4, ReminderItemResponse.Type.TASK).addFlags(Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY)
+
+        controller = Robolectric.buildActivity(MainActivity::class.java, replayed).setup()
+
+        assertNull(ReminderOpenRequests.requests.value)
+    }
+
+    @Test
     fun `a normal launch makes no open request`() {
         controller =
             Robolectric

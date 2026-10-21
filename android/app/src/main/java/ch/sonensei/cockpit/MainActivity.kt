@@ -15,8 +15,9 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-        // A recreated activity has handled its intent already.
-        if (savedInstanceState == null) ReminderOpenRequests.offer(intent)
+        // A recreated activity has handled its intent already, and a relaunch from Recents replays an old one.
+        val fromHistory = intent.flags and Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY != 0
+        if (savedInstanceState == null && !fromHistory) ReminderOpenRequests.offer(intent)
         setContent { CockpitTheme { CockpitRoot() } }
     }
 
