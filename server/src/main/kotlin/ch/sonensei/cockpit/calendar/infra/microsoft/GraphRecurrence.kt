@@ -13,6 +13,7 @@ import java.time.ZoneId
 import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 import java.time.format.DateTimeParseException
+import java.time.temporal.ChronoUnit
 
 /**
  * Translates between Graph's `patternedRecurrence` and RRULEs (RFC 5545), for the patterns Graph has: daily, weekly,
@@ -119,7 +120,14 @@ internal object GraphRecurrence {
 	}
 
 	/**
-	 * [rule] as a `patternedRecurrence` for a series with [timing]; [zoneName] is the series' zone as Graph names it.
+	 * [rule] as a `patternedRecurrence` for a series with [timing]; [zoneName] is the series' zone as Graph names it and
+	 * [zone] the zone its times are sent in (the series' zone, or UTC for a fixed offset Graph has no name for).
+	 *
+	 * Graph reads the pattern in the zone of the times it gets: when that start falls on another day than in the
+	 * series' zone (a fixed offset sent in UTC), the pattern moves by that day. The range starts on the day Graph gets,
+	 * the days of the week (and the week's first day) move with it, and a day of the month moves when it stays within
+	 * the 1st to the 28th (else the day before or after does not exist in every month). A relative pattern (`2TU`,
+	 * `BYSETPOS`) has no such day and is refused.
 	 *
 	 * @throws IllegalArgumentException when Graph cannot express [rule]
 	 */
@@ -128,6 +136,7 @@ internal object GraphRecurrence {
 		rule: String,
 		timing: Timing,
 		zoneName: String,
+		zone: ZoneId = (timing as? Timing.Timed)?.zone ?: ZoneOffset.UTC,
 	): ObjectNode {
 		val parts =
 			rule
@@ -137,7 +146,14 @@ internal object GraphRecurrence {
 				.associate { it.substringBefore('=').trim().uppercase() to it.substringAfter('=', "").trim().uppercase() }
 		val unsupported = parts.keys - SUPPORTED
 		require(unsupported.isEmpty()) { "Microsoft calendars cannot repeat by ${unsupported.sorted().joinToString()}" }
-		val start = timing.localStart.toLocalDate()
+		// The start as Graph gets it, and how many days it lies after the start in the series' zone.
+		val sent =
+			when (timing) {
+				is Timing.AllDay -> timing.localStart
+				is Timing.Timed -> LocalDateTime.ofInstant(timing.start, zone)
+			}
+		val start = sent.toLocalDate()
+		val shift = ChronoUnit.DAYS.between(timing.localStart.toLocalDate(), start)
 		val interval = parts["INTERVAL"]?.toIntOrNull() ?: 1
 		require(interval >= 1) { "Invalid INTERVAL" }
 		val byDay = parts["BYDAY"]?.split(',')?.map(::weekday).orEmpty()
@@ -153,11 +169,22 @@ internal object GraphRecurrence {
 
 		fun days(list: List<Pair<Int?, DayOfWeek>>) {
 			val array = pattern.putArray("daysOfWeek")
-			list.forEach { array.add(it.second.name.lowercase()) }
+			for ((_, day) in list) {
+				val sentDay = day.plus(shift)
+				array.add(sentDay.name.lowercase())
+			}
+		}
+
+		/** Day of the month [day] of the series' zone on the day Graph gets. */
+		fun monthDay(day: Int): Int {
+			if (shift == 0L) return day
+			require(day in 1..28 && day + shift in 1..28) { "Microsoft calendars cannot express this repeat rule at this time of the day" }
+			return day + shift.toInt()
 		}
 
 		/** The relative part (`index` and days) of a monthly/yearly rule with BYDAY. */
 		fun relative() {
+			require(shift == 0L) { "Microsoft calendars cannot express this repeat rule at this time of the day" }
 			val numbers = byDay.mapNotNull { it.first }.distinct()
 			val position =
 				when {
@@ -192,15 +219,16 @@ internal object GraphRecurrence {
 					"Microsoft calendars cannot express this repeat rule"
 				}
 				pattern.put("type", "weekly")
-				pattern.put("firstDayOfWeek", (parts["WKST"]?.let { weekday(it).second } ?: DayOfWeek.MONDAY).name.lowercase())
-				days(byDay.ifEmpty { listOf(null to start.dayOfWeek) })
+				val weekStart = parts["WKST"]?.let { weekday(it).second } ?: DayOfWeek.MONDAY
+				pattern.put("firstDayOfWeek", weekStart.plus(shift).name.lowercase())
+				days(byDay.ifEmpty { listOf(null to timing.localStart.dayOfWeek) })
 			}
 			"MONTHLY" -> {
 				require(months.isEmpty()) { "Microsoft calendars cannot express this repeat rule" }
 				if (byDay.isEmpty()) {
 					require(setPos.isEmpty()) { "Microsoft calendars cannot express this repeat rule" }
 					pattern.put("type", "absoluteMonthly")
-					pattern.put("dayOfMonth", monthDays.singleOrNull() ?: start.dayOfMonth)
+					pattern.put("dayOfMonth", monthDay(monthDays.singleOrNull() ?: timing.localStart.dayOfMonth))
 				} else {
 					require(monthDays.isEmpty()) { "Microsoft calendars cannot express this repeat rule" }
 					pattern.put("type", "relativeMonthly")
@@ -208,11 +236,11 @@ internal object GraphRecurrence {
 				}
 			}
 			"YEARLY" -> {
-				pattern.put("month", months.singleOrNull() ?: start.monthValue)
+				pattern.put("month", months.singleOrNull() ?: timing.localStart.monthValue)
 				if (byDay.isEmpty()) {
 					require(setPos.isEmpty()) { "Microsoft calendars cannot express this repeat rule" }
 					pattern.put("type", "absoluteYearly")
-					pattern.put("dayOfMonth", monthDays.singleOrNull() ?: start.dayOfMonth)
+					pattern.put("dayOfMonth", monthDay(monthDays.singleOrNull() ?: timing.localStart.dayOfMonth))
 				} else {
 					require(monthDays.isEmpty()) { "Microsoft calendars cannot express this repeat rule" }
 					pattern.put("type", "relativeYearly")
@@ -236,7 +264,7 @@ internal object GraphRecurrence {
 			}
 			until != null -> {
 				range.put("type", "endDate")
-				range.put("endDate", lastDate(until, timing).toString())
+				range.put("endDate", lastDate(until, timing, zone, sent.toLocalTime()).toString())
 			}
 			else -> range.put("type", "noEnd")
 		}
@@ -244,26 +272,31 @@ internal object GraphRecurrence {
 	}
 
 	/**
-	 * The date of the last occurrence an UNTIL allows. Graph's patterns recur at most once a day, at the series' start
-	 * time: an UNTIL before that time on its day ends the series the day before.
+	 * The date (in [zone], where the series starts at [startTime]) of the last occurrence an UNTIL allows. Graph's
+	 * patterns recur at most once a day, at the series' start time: an UNTIL before that time on its day ends the series
+	 * the day before.
 	 */
 	private fun lastDate(
 		until: String,
 		timing: Timing,
+		zone: ZoneId,
+		startTime: LocalTime,
 	): LocalDate {
 		try {
-			if (until.length == 8) return LocalDate.parse(until, DateTimeFormatter.BASIC_ISO_DATE)
-			val zone: ZoneId = (timing as? Timing.Timed)?.zone ?: ZoneOffset.UTC
+			val date = if (until.length == 8) LocalDate.parse(until, DateTimeFormatter.BASIC_ISO_DATE) else null
+			if (timing is Timing.AllDay && date != null) return date
+			// A date or a floating UNTIL is in the series' zone.
+			val seriesZone: ZoneId = (timing as? Timing.Timed)?.zone ?: ZoneOffset.UTC
 			val instant: Instant =
-				if (until.endsWith("Z")) {
-					LocalDateTime.parse(until.dropLast(1), LOCAL_BASIC).toInstant(ZoneOffset.UTC)
-				} else {
-					LocalDateTime.parse(until, LOCAL_BASIC).atZone(zone).toInstant()
+				when {
+					date != null -> date.atTime(LocalTime.MAX).atZone(seriesZone).toInstant()
+					until.endsWith("Z") -> LocalDateTime.parse(until.dropLast(1), LOCAL_BASIC).toInstant(ZoneOffset.UTC)
+					else -> LocalDateTime.parse(until, LOCAL_BASIC).atZone(seriesZone).toInstant()
 				}
 			val local = instant.atZone(zone).toLocalDateTime()
 			return when (timing) {
 				is Timing.AllDay -> local.toLocalDate()
-				is Timing.Timed -> if (local.toLocalTime() < timing.localStart.toLocalTime()) local.toLocalDate().minusDays(1) else local.toLocalDate()
+				is Timing.Timed -> if (local.toLocalTime() < startTime) local.toLocalDate().minusDays(1) else local.toLocalDate()
 			}
 		} catch (e: DateTimeParseException) {
 			throw IllegalArgumentException("Invalid UNTIL", e)

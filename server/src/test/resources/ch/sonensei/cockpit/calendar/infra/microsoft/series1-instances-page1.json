@@ -1,6 +1,6 @@
 {
   "@odata.context": "https://graph.microsoft.com/v1.0/$metadata#Collection(event)",
-  "@odata.nextLink": "https://graph.microsoft.com/v1.0/me/events/AAMkSeries1/instances?startDateTime=2025-10-21T00%3A00%3A00Z&endDateTime=2028-10-20T00%3A00%3A00Z&$skip=6",
+  "@odata.nextLink": "https://graph.microsoft.com/v1.0/me/calendars/AAMkCalPrimary/events/AAMkSeries1/instances?startDateTime=2025-10-21T00%3A00%3A00Z&endDateTime=2028-10-20T00%3A00%3A00Z&$skip=6",
   "value": [
     {
       "@odata.type": "#microsoft.graph.event",

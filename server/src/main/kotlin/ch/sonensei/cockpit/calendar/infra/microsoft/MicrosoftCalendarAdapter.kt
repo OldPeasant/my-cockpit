@@ -50,7 +50,10 @@ import kotlin.math.abs
  * differ from Graph's copy (a series keeps its exceptions, attendees are not invited again), with `If-Match` on the
  * event's etag; 412 is [RemoteEventChangedException]. An occurrence of a series is changed or deleted through its
  * instance; EXDATEs and cancelled overrides delete instances. "This and following" arrives from the engine as the old
- * series ending (UNTIL, an `endDate`) plus a new series with its exceptions, which maps onto these calls.
+ * series ending (UNTIL, an `endDate`) plus a new series with its exceptions, which maps onto these calls. Exchange
+ * drops a series' exceptions when its pattern changes, so those in the window that the new pattern still has are put
+ * back afterwards. Events are addressed through their calendar (`/me/calendars/{calendar}/events/{id}`), which also
+ * reaches calendars of other mailboxes shared with the user.
  *
  * Cursors are JSON: the delta link and the window's anchor date between runs; within a run the next page's link, whether
  * the run is a full listing, and the series already read.
@@ -73,9 +76,11 @@ class MicrosoftCalendarAdapter(
 		val connection = connectionId(source)
 		val result = mutableListOf<RemoteCalendar>()
 		var page = expectOk(client.call(connection, HttpMethod.GET, "/me/calendars"), "Listing the calendars")
+		var pages = 1
 		while (true) {
 			page.path("value").forEach { result += GraphEventMapping.toCalendar(it) }
 			val next = page.text(NEXT_LINK) ?: break
+			if (++pages > MAX_PAGES) throw CalendarProviderException("Microsoft Graph sent too many pages of calendars")
 			page = expectOk(client.follow(connection, client.relative(next)), "Listing the calendars")
 		}
 		return result
@@ -109,20 +114,10 @@ class MicrosoftCalendarAdapter(
 			if (restart) {
 				Cursor(NEXT, today, full = true)
 			} else {
-				Cursor(
-					NEXT,
-					state.anchor,
-					state.link,
-					full = state.mode == NEXT && state.full,
-					seen =
-						if (state.mode ==
-							NEXT
-						) {
-							state.seen
-						} else {
-							emptySet()
-						},
-				)
+				// A next page continues the run; a delta link starts a new one.
+				val continuing = state.mode == NEXT
+				val seen = if (continuing) state.seen else emptySet()
+				Cursor(NEXT, state.anchor, state.link, full = continuing && state.full, seen = seen)
 			}
 		val window = window(run.anchor)
 		val response =
@@ -154,7 +149,7 @@ class MicrosoftCalendarAdapter(
 				val type = item.text("type")
 				val seriesId = if (type == GraphEventMapping.SERIES_MASTER) item.text("id") else item.text("seriesMasterId")
 				when {
-					seriesId != null -> if (seen.add(seriesId)) events += readSeries(connection, seriesId, window)
+					seriesId != null -> if (seen.add(seriesId)) events += readSeries(connection, calendarExternalId, seriesId, window)
 					else -> events += GraphEventMapping.toRemote(item, RemoteEventKey(requireId(item)))
 				}
 			} catch (e: RuntimeException) {
@@ -190,16 +185,17 @@ class MicrosoftCalendarAdapter(
 	 */
 	private fun readSeries(
 		connection: UUID,
+		calendar: String,
 		seriesId: String,
 		window: OccurrenceRange,
 	): List<RemoteEvent> {
-		val response = client.call(connection, HttpMethod.GET, EVENT, mapOf("event" to seriesId))
+		val response = client.call(connection, HttpMethod.GET, EVENT, eventPath(calendar, seriesId))
 		if (response.status == 404) return emptyList()
 		val master = expectOk(response, "Fetching a series")
 		val key = RemoteEventKey(seriesId)
 		val plain = GraphEventMapping.toRemote(master, key)
 		if (plain.rrule == null) return listOf(plain)
-		val instances = instances(connection, seriesId, window.from, window.to)
+		val instances = instances(connection, calendar, seriesId, window.from, window.to)
 		val expected = expected(plain, window)
 		val matched = mutableSetOf<OccurrenceId>()
 		val exceptions = mutableListOf<RemoteEvent>()
@@ -237,6 +233,7 @@ class MicrosoftCalendarAdapter(
 	/** Every instance (occurrences and exceptions) of series [seriesId] from [from] to [to]. */
 	private fun instances(
 		connection: UUID,
+		calendar: String,
 		seriesId: String,
 		from: Instant,
 		to: Instant,
@@ -248,7 +245,7 @@ class MicrosoftCalendarAdapter(
 					connection,
 					HttpMethod.GET,
 					"$EVENT/instances",
-					mapOf("event" to seriesId),
+					eventPath(calendar, seriesId),
 					mapOf("startDateTime" to from.toString(), "endDateTime" to to.toString()),
 				),
 				"Fetching the occurrences of a series",
@@ -299,9 +296,9 @@ class MicrosoftCalendarAdapter(
 		if (occurrence != null) {
 			// The instance exists with its series: its exception is a change of it.
 			val instance =
-				findInstance(connection, event.key.externalId, occurrence)
+				findInstance(connection, calendarExternalId, event.key.externalId, occurrence)
 					?: throw CalendarProviderException("Microsoft has no such occurrence of the series")
-			return writeInstance(connection, instance, event, ifMatch = null)
+			return writeInstance(connection, calendarExternalId, instance, event, ifMatch = null)
 		}
 		val body = body(event, recurrence = event.rrule != null)
 		body.put("transactionId", event.key.externalId)
@@ -312,8 +309,8 @@ class MicrosoftCalendarAdapter(
 			)
 		val id = requireId(created)
 		if (event.rrule == null) return answer(created, RemoteEventKey(id))
-		deleteOccurrences(connection, id, event.exdates)
-		return currentSeries(connection, id)
+		deleteOccurrences(connection, calendarExternalId, id, event.exdates)
+		return currentSeries(connection, calendarExternalId, id)
 	}
 
 	override fun updateEvent(
@@ -326,27 +323,38 @@ class MicrosoftCalendarAdapter(
 		val occurrence = event.key.recurrenceId
 		if (occurrence != null) {
 			val instance =
-				findInstance(connection, event.key.externalId, occurrence)
+				findInstance(connection, calendarExternalId, event.key.externalId, occurrence)
 					?: throw RemoteEventChangedException("The occurrence was deleted at Microsoft")
-			return writeInstance(connection, instance, event, ifMatch)
+			return writeInstance(connection, calendarExternalId, instance, event, ifMatch)
 		}
 		val id = event.key.externalId
-		val response = client.call(connection, HttpMethod.GET, EVENT, mapOf("event" to id))
+		val response = client.call(connection, HttpMethod.GET, EVENT, eventPath(calendarExternalId, id))
 		if (response.status == 404) throw RemoteEventChangedException("The event was deleted at Microsoft")
 		val current = expectOk(response, "Fetching an event")
-		val recurrence = event.rrule != null || current.text("type") == GraphEventMapping.SERIES_MASTER
+		val master = current.text("type") == GraphEventMapping.SERIES_MASTER
+		val recurrence = event.rrule != null || master
 		val desired = body(event, recurrence)
 		val changes = GraphEventMapping.changes(json, desired, currentBody(current, RemoteEventKey(id), recurrence) ?: json.createObjectNode())
+		GraphEventMapping.keepAttendeeTypes(changes, current)
+		// Exchange drops a series' exceptions when its pattern changes: read them first to put back what it dropped.
+		val window = window(LocalDate.now(clock.withZone(ZoneOffset.UTC)))
+		val exceptions =
+			if (master && event.rrule != null && changes.has("recurrence")) {
+				instances(connection, calendarExternalId, id, window.from, window.to).filter { it.text("type") == GraphEventMapping.EXCEPTION }
+			} else {
+				emptyList()
+			}
 		val stored =
 			if (changes.isEmpty) {
 				if (ifMatch != null && current.text(ETAG) != ifMatch) throw RemoteEventChangedException()
 				current
 			} else {
-				patch(connection, id, changes, ifMatch, "Changing an event")
+				patch(connection, calendarExternalId, id, changes, ifMatch, "Changing an event")
 			}
 		if (event.rrule == null) return answer(stored, RemoteEventKey(id))
-		deleteOccurrences(connection, id, event.exdates)
-		return currentSeries(connection, id)
+		restoreExceptions(connection, calendarExternalId, id, exceptions, window)
+		deleteOccurrences(connection, calendarExternalId, id, event.exdates)
+		return currentSeries(connection, calendarExternalId, id)
 	}
 
 	override fun deleteEvent(
@@ -359,22 +367,23 @@ class MicrosoftCalendarAdapter(
 		val id =
 			key.recurrenceId?.let { occurrence ->
 				// Already gone.
-				findInstance(connection, key.externalId, occurrence)?.let(::requireId) ?: return null
+				findInstance(connection, calendarExternalId, key.externalId, occurrence)?.let(::requireId) ?: return null
 			} ?: key.externalId
-		delete(connection, id, ifMatch)
+		delete(connection, calendarExternalId, id, ifMatch)
 		return null
 	}
 
 	/** Changes the instance [instance] like [event] (an override); a cancelled override deletes it. */
 	private fun writeInstance(
 		connection: UUID,
+		calendar: String,
 		instance: JsonNode,
 		event: RemoteEvent,
 		ifMatch: String?,
 	): RemoteEvent {
 		val id = requireId(instance)
 		if (event.status == EventStatus.CANCELLED) {
-			delete(connection, id, ifMatch)
+			delete(connection, calendar, id, ifMatch)
 			return event.copy(etag = null)
 		}
 		val changes =
@@ -383,34 +392,77 @@ class MicrosoftCalendarAdapter(
 				body(event, recurrence = false),
 				currentBody(instance, event.key, false) ?: json.createObjectNode(),
 			)
+		GraphEventMapping.keepAttendeeTypes(changes, instance)
 		if (changes.isEmpty) {
 			if (ifMatch != null && instance.text(ETAG) != ifMatch) throw RemoteEventChangedException()
 			return answer(instance, event.key)
 		}
-		return answer(patch(connection, id, changes, ifMatch, "Changing an occurrence"), event.key)
+		return answer(patch(connection, calendar, id, changes, ifMatch, "Changing an occurrence"), event.key)
 	}
 
 	/**
-	 * The instance of series [seriesId] that originally starts at [occurrence], looked up in the weeks around it (an
-	 * exception moved further away is not found); null when there is none.
+	 * The instance of series [seriesId] that originally starts at [occurrence], looked up in the weeks around it and,
+	 * when it is not there (an exception moved further away), in the whole sync window; null when there is none.
 	 */
 	private fun findInstance(
 		connection: UUID,
+		calendar: String,
 		seriesId: String,
 		occurrence: OccurrenceId,
 	): JsonNode? {
 		val at = instantOf(occurrence)
-		val instances = instances(connection, seriesId, at.minus(INSTANCE_SEARCH), at.plus(INSTANCE_SEARCH))
-		return instances
+		val near = instances(connection, calendar, seriesId, at.minus(INSTANCE_SEARCH), at.plus(INSTANCE_SEARCH))
+		instanceAt(near, at)?.let { return it }
+		val window = window(LocalDate.now(clock.withZone(ZoneOffset.UTC)))
+		return instanceAt(instances(connection, calendar, seriesId, window.from, window.to), at)
+	}
+
+	/** The instance of [instances] that originally starts closest to [at], within half a day. */
+	private fun instanceAt(
+		instances: List<JsonNode>,
+		at: Instant,
+	): JsonNode? =
+		instances
 			.map { it to abs(Duration.between(GraphEventMapping.originalStart(it), at).toMinutes()) }
 			.filter { it.second < HALF_DAY_MINUTES }
 			.minByOrNull { it.second }
 			?.first
+
+	/**
+	 * Puts back [exceptions] (series [seriesId]'s exceptions in [window] before its pattern changed) that Graph turned
+	 * back into plain occurrences: each such occurrence is patched with the fields the exception had. Exceptions whose
+	 * occurrence the new pattern no longer has stay gone. Best effort: a failure leaves that occurrence as the pattern has
+	 * it (the series itself is already changed).
+	 */
+	private fun restoreExceptions(
+		connection: UUID,
+		calendar: String,
+		seriesId: String,
+		exceptions: List<JsonNode>,
+		window: OccurrenceRange,
+	) {
+		if (exceptions.isEmpty()) return
+		val after = instances(connection, calendar, seriesId, window.from, window.to)
+		for (exception in exceptions) {
+			val instance = instanceAt(after, GraphEventMapping.originalStart(exception)) ?: continue
+			if (instance.text("type") == GraphEventMapping.EXCEPTION) continue
+			val key = RemoteEventKey(seriesId)
+			val wanted = currentBody(exception, key, false) ?: continue
+			val changes = GraphEventMapping.changes(json, wanted, currentBody(instance, key, false) ?: json.createObjectNode())
+			GraphEventMapping.keepAttendeeTypes(changes, exception)
+			if (changes.isEmpty) continue
+			try {
+				patch(connection, calendar, requireId(instance), changes, null, "Restoring a changed occurrence")
+			} catch (e: CalendarProviderException) {
+				log.warn("Could not restore a changed occurrence of a Microsoft series: {}", e.message)
+			}
+		}
 	}
 
 	/** Deletes the instances of series [seriesId] at [exdates] (those in the current window) that Graph still has. */
 	private fun deleteOccurrences(
 		connection: UUID,
+		calendar: String,
 		seriesId: String,
 		exdates: Set<OccurrenceId>,
 	) {
@@ -418,18 +470,19 @@ class MicrosoftCalendarAdapter(
 		val window = window(LocalDate.now(clock.withZone(ZoneOffset.UTC)))
 		val wanted = exdates.filter { instantOf(it) in window.from..window.to }
 		if (wanted.isEmpty()) return
-		val instances = instances(connection, seriesId, window.from, window.to)
+		val instances = instances(connection, calendar, seriesId, window.from, window.to)
 		val byOccurrence = instances.groupBy { nearest(wanted, GraphEventMapping.originalStart(it)) }
-		wanted.forEach { exdate -> byOccurrence[exdate]?.forEach { delete(connection, requireId(it), null) } }
+		wanted.forEach { exdate -> byOccurrence[exdate]?.forEach { delete(connection, calendar, requireId(it), null) } }
 	}
 
 	/** Series [seriesId] as Graph has it now, with its EXDATEs. */
 	private fun currentSeries(
 		connection: UUID,
+		calendar: String,
 		seriesId: String,
 	): RemoteEvent =
 		try {
-			readSeries(connection, seriesId, window(LocalDate.now(clock.withZone(ZoneOffset.UTC)))).firstOrNull()
+			readSeries(connection, calendar, seriesId, window(LocalDate.now(clock.withZone(ZoneOffset.UTC)))).firstOrNull()
 				?: throw RemoteEventChangedException("The event was deleted at Microsoft")
 		} catch (e: RuntimeException) {
 			if (e !is IllegalArgumentException && e !is DateTimeException) throw e
@@ -438,12 +491,13 @@ class MicrosoftCalendarAdapter(
 
 	private fun patch(
 		connection: UUID,
+		calendar: String,
 		id: String,
 		changes: JsonNode,
 		ifMatch: String?,
 		what: String,
 	): JsonNode {
-		val response = client.call(connection, HttpMethod.PATCH, EVENT, mapOf("event" to id), body = changes, ifMatch = ifMatch)
+		val response = client.call(connection, HttpMethod.PATCH, EVENT, eventPath(calendar, id), body = changes, ifMatch = ifMatch)
 		when (response.status) {
 			// Deleted at Microsoft meanwhile: the refetch shows that.
 			404 -> throw RemoteEventChangedException("The event was deleted at Microsoft")
@@ -454,10 +508,11 @@ class MicrosoftCalendarAdapter(
 
 	private fun delete(
 		connection: UUID,
+		calendar: String,
 		id: String,
 		ifMatch: String?,
 	) {
-		val response = client.call(connection, HttpMethod.DELETE, EVENT, mapOf("event" to id), ifMatch = ifMatch)
+		val response = client.call(connection, HttpMethod.DELETE, EVENT, eventPath(calendar, id), ifMatch = ifMatch)
 		when {
 			// Already gone.
 			response.status == 404 -> return
@@ -508,6 +563,12 @@ class MicrosoftCalendarAdapter(
 		if (!response.body.isObject) throw CalendarProviderException("$what: Microsoft answered without a JSON object")
 		return response.body
 	}
+
+	/** The variables of [EVENT] for event [id] in [calendar]. */
+	private fun eventPath(
+		calendar: String,
+		id: String,
+	) = mapOf("calendar" to calendar, "event" to id)
 
 	private fun requireId(node: JsonNode): String =
 		node.text("id") ?: throw IllegalArgumentException("Microsoft Graph sent an event without id")
@@ -564,7 +625,8 @@ class MicrosoftCalendarAdapter(
 		const val FUTURE_DAYS = 730L
 		const val REFRESH_DAYS = 7L
 
-		private const val EVENT = "/me/events/{event}"
+		/** An event, addressed through its calendar: `/me/events` only has the events of the user's own mailbox. */
+		private const val EVENT = "/me/calendars/{calendar}/events/{event}"
 		private const val NEXT_LINK = "@odata.nextLink"
 		private const val DELTA_LINK = "@odata.deltaLink"
 		private const val ETAG = "@odata.etag"

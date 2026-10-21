@@ -8,6 +8,7 @@ import ch.sonensei.cockpit.calendar.infra.microsoft.MicrosoftCalendarAdapterTest
 import ch.sonensei.cockpit.calendar.infra.microsoft.MicrosoftCalendarAdapterTests.Companion.CALENDAR
 import ch.sonensei.cockpit.calendar.infra.microsoft.MicrosoftCalendarAdapterTests.Companion.CONNECTION
 import ch.sonensei.cockpit.calendar.infra.microsoft.MicrosoftCalendarAdapterTests.Companion.DELTA
+import ch.sonensei.cockpit.calendar.infra.microsoft.MicrosoftCalendarAdapterTests.Companion.EVENTS
 import ch.sonensei.cockpit.calendar.infra.microsoft.MicrosoftCalendarAdapterTests.Companion.NOW
 import ch.sonensei.cockpit.calendar.infra.microsoft.MicrosoftCalendarAdapterTests.Companion.at
 import ch.sonensei.cockpit.calendar.infra.microsoft.MicrosoftCalendarAdapterTests.Companion.recording
@@ -208,13 +209,13 @@ class MicrosoftCalendarSyncTests(
 		// Graph answers with the shortened series once it is patched.
 		val ended = master().apply { (get("recurrence").get("range") as ObjectNode).put("endDate", "2026-11-15") }
 		wireMock.stubFor(
-			get(urlPathEqualTo("$API/me/events/AAMkSeries1"))
+			get(urlPathEqualTo("$EVENTS/AAMkSeries1"))
 				.inScenario("split")
 				.whenScenarioStateIs("ended")
 				.willReturn(json(jsonMapper.writeValueAsString(ended))),
 		)
 		wireMock.stubFor(
-			patch(urlPathEqualTo("$API/me/events/AAMkSeries1"))
+			patch(urlPathEqualTo("$EVENTS/AAMkSeries1"))
 				.inScenario("split")
 				.whenScenarioStateIs(Scenario.STARTED)
 				.willSetStateTo("ended")
@@ -230,7 +231,7 @@ class MicrosoftCalendarSyncTests(
 				(get("recurrence").get("range") as ObjectNode).put("startDate", "2026-11-16")
 			}
 		stub(post(urlPathEqualTo("$API/me/calendars/$CALENDAR/events")), jsonMapper.writeValueAsString(next), 201)
-		stub(get(urlPathEqualTo("$API/me/events/AAMkSeries2")), jsonMapper.writeValueAsString(next))
+		stub(get(urlPathEqualTo("$EVENTS/AAMkSeries2")), jsonMapper.writeValueAsString(next))
 		val instances =
 			listOf("2026-11-16", "2026-11-23", "2026-11-30", "2026-12-07", "2026-12-14", "2026-12-21", "2026-12-28").map {
 				mapOf(
@@ -241,12 +242,12 @@ class MicrosoftCalendarSyncTests(
 					"end" to mapOf("dateTime" to "${it}T08:30:00.0000000", "timeZone" to "UTC"),
 				)
 			}
-		stub(get(urlPathEqualTo("$API/me/events/AAMkSeries2/instances")), jsonMapper.writeValueAsString(mapOf("value" to instances)))
+		stub(get(urlPathEqualTo("$EVENTS/AAMkSeries2/instances")), jsonMapper.writeValueAsString(mapOf("value" to instances)))
 
 		val changed =
 			api.patchEventOk(series.id.toString(), """{"title":"Team sync (new)"}""", "?scope=FOLLOWING&occurrence=2026-11-16T08:00:00Z")
 
-		writes() shouldContainExactly listOf("PATCH $API/me/events/AAMkSeries1", "POST $API/me/calendars/$CALENDAR/events")
+		writes() shouldContainExactly listOf("PATCH $EVENTS/AAMkSeries1", "POST $API/me/calendars/$CALENDAR/events")
 		val patchBody = jsonMapper.readTree(requestBody("PATCH"))
 		patchBody.propertyNames().toList() shouldContainExactly listOf("recurrence")
 		patchBody
@@ -283,8 +284,8 @@ class MicrosoftCalendarSyncTests(
 		syncOk()
 		val id = local("AAMkSingle1")!!.id.toString()
 		val etag = etag(api.event(id))
-		stub(patch(urlPathEqualTo("$API/me/events/AAMkSingle1")), recording("error-412-irresolvable-conflict.json"), 412)
-		stub(get(urlPathEqualTo("$API/me/events/AAMkSingle1")), single("delta-full-page1.json", "AAMkSingle1"))
+		stub(patch(urlPathEqualTo("$EVENTS/AAMkSingle1")), recording("error-412-irresolvable-conflict.json"), 412)
+		stub(get(urlPathEqualTo("$EVENTS/AAMkSingle1")), single("delta-full-page1.json", "AAMkSingle1"))
 		stub(get(urlPathEqualTo(DELTA)).withQueryParam("\$deltatoken", equalTo("DELTA-1")), recording("delta-incremental.json"))
 
 		api.patchEvent(id, """{"title":"Mine"}""", ifMatch = etag).isProblem(409).andExpect {
@@ -294,7 +295,7 @@ class MicrosoftCalendarSyncTests(
 		val refreshed = local("AAMkSingle1")!!
 		refreshed.title shouldBe "Dentist (moved)"
 		refreshed.externalEtag shouldBe "W/\"DwAAABYAAAA9\""
-		writes() shouldContainExactly listOf("PATCH $API/me/events/AAMkSingle1")
+		writes() shouldContainExactly listOf("PATCH $EVENTS/AAMkSingle1")
 	}
 
 	private fun master(): ObjectNode = jsonMapper.readTree(recording("series1-master.json")) as ObjectNode
@@ -323,17 +324,17 @@ class MicrosoftCalendarSyncTests(
 		stub(get(urlPathEqualTo(DELTA)).withQueryParam("startDateTime", equalTo("2025-10-21T00:00:00Z")), recording("delta-full-page1.json"))
 		stub(get(urlPathEqualTo(DELTA)).withQueryParam("\$skiptoken", equalTo("SKIP-1")), recording("delta-full-page2.json"))
 		wireMock.stubFor(
-			get(urlPathEqualTo("$API/me/events/AAMkSeries1"))
+			get(urlPathEqualTo("$EVENTS/AAMkSeries1"))
 				.inScenario("split")
 				.whenScenarioStateIs(Scenario.STARTED)
 				.willReturn(json(recording("series1-master.json"))),
 		)
 		stub(
-			get(urlPathEqualTo("$API/me/events/AAMkSeries1/instances")).withQueryParam("\$skip", absent()),
+			get(urlPathEqualTo("$EVENTS/AAMkSeries1/instances")).withQueryParam("\$skip", absent()),
 			recording("series1-instances-page1.json"),
 		)
 		stub(
-			get(urlPathEqualTo("$API/me/events/AAMkSeries1/instances")).withQueryParam("\$skip", equalTo("6")),
+			get(urlPathEqualTo("$EVENTS/AAMkSeries1/instances")).withQueryParam("\$skip", equalTo("6")),
 			recording("series1-instances-page2.json"),
 		)
 	}

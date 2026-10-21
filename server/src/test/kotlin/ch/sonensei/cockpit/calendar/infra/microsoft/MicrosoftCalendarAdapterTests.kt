@@ -40,6 +40,7 @@ import com.github.tomakehurst.wiremock.client.WireMock.post
 import com.github.tomakehurst.wiremock.client.WireMock.urlPathEqualTo
 import com.github.tomakehurst.wiremock.core.WireMockConfiguration.wireMockConfig
 import com.github.tomakehurst.wiremock.http.Fault
+import com.github.tomakehurst.wiremock.stubbing.Scenario
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.assertions.throwables.shouldThrowExactly
 import io.kotest.matchers.collections.shouldContainExactly
@@ -125,7 +126,7 @@ class MicrosoftCalendarAdapterTests {
 		)
 		wireMock.verify(getRequestedFor(urlPathEqualTo(DELTA)).withQueryParam("\$skiptoken", equalTo("SKIP-1")))
 		// The series came with occurrences on both pages, but is read once.
-		wireMock.verify(1, getRequestedFor(urlPathEqualTo("$API/me/events/AAMkSeries1")))
+		wireMock.verify(1, getRequestedFor(urlPathEqualTo("$EVENTS/AAMkSeries1")))
 		first.events.map { it.key } shouldContainExactly
 			listOf(
 				RemoteEventKey("AAMkSingle1"),
@@ -183,7 +184,7 @@ class MicrosoftCalendarAdapterTests {
 		exception.rrule.shouldBeNull()
 		exception.etag shouldBe "W/\"DwAAABYAAAA4\""
 		(exception.timing as Timing.Timed).start shouldBe Instant.parse("2026-10-19T08:00:00Z")
-		wireMock.verify(2, getRequestedFor(urlPathEqualTo("$API/me/events/AAMkSeries1/instances")))
+		wireMock.verify(2, getRequestedFor(urlPathEqualTo("$EVENTS/AAMkSeries1/instances")))
 	}
 
 	@Test
@@ -274,8 +275,8 @@ class MicrosoftCalendarAdapterTests {
 	fun `createEvent of a series sends its pattern and deletes the instances of its EXDATEs`() {
 		stub(post(urlPathEqualTo("$API/me/calendars/$CALENDAR/events")), recording("series1-master.json"), 201)
 		stubSeries()
-		stub(delete(urlPathEqualTo("$API/me/events/AAMkSeries1-20261109")), "", 204)
-		stub(delete(urlPathEqualTo("$API/me/events/AAMkSeries1-20261116")), "", 204)
+		stub(delete(urlPathEqualTo("$EVENTS/AAMkSeries1-20261109")), "", 204)
+		stub(delete(urlPathEqualTo("$EVENTS/AAMkSeries1-20261116")), "", 204)
 
 		val series =
 			RemoteEvent(
@@ -299,28 +300,28 @@ class MicrosoftCalendarAdapterTests {
 		recurrence.get("range").get("startDate").asString() shouldBe "2026-10-05"
 		recurrence.get("range").get("endDate").asString() shouldBe "2026-12-28"
 		recurrence.get("range").get("recurrenceTimeZone").asString() shouldBe "W. Europe Standard Time"
-		wireMock.verify(deleteRequestedFor(urlPathEqualTo("$API/me/events/AAMkSeries1-20261116")))
+		wireMock.verify(deleteRequestedFor(urlPathEqualTo("$EVENTS/AAMkSeries1-20261116")))
 		stored.key shouldBe RemoteEventKey("AAMkSeries1")
 		stored.rrule shouldBe "FREQ=WEEKLY;BYDAY=MO;UNTIL=20261228T225959Z"
 	}
 
 	@Test
 	fun `updateEvent sends only the changed fields with If-Match`() {
-		stub(get(urlPathEqualTo("$API/me/events/AAMkSingle1")), dentist())
-		stub(patch(urlPathEqualTo("$API/me/events/AAMkSingle1")), dentist(subject = "Dentist (new)", etag = "W/\\\"DwAAABYAAAA5\\\""))
+		stub(get(urlPathEqualTo("$EVENTS/AAMkSingle1")), dentist())
+		stub(patch(urlPathEqualTo("$EVENTS/AAMkSingle1")), dentist(subject = "Dentist (new)", etag = "W/\\\"DwAAABYAAAA5\\\""))
 
 		val current = adapter.fetchEventsOf(dentist())
 		val stored = adapter.updateEvent(source, CALENDAR, current.copy(title = "Dentist (new)"), "W/\"DwAAABYAAAA1\"")
 
 		stored.title shouldBe "Dentist (new)"
 		stored.etag shouldBe "W/\"DwAAABYAAAA5\""
-		wireMock.verify(patchRequestedFor(urlPathEqualTo("$API/me/events/AAMkSingle1")).withHeader("If-Match", equalTo("W/\"DwAAABYAAAA1\"")))
+		wireMock.verify(patchRequestedFor(urlPathEqualTo("$EVENTS/AAMkSingle1")).withHeader("If-Match", equalTo("W/\"DwAAABYAAAA1\"")))
 		sentBody("PATCH").propertyNames().toList() shouldContainExactly listOf("subject")
 	}
 
 	@Test
 	fun `updateEvent without changes writes nothing, but refuses a stale etag`() {
-		stub(get(urlPathEqualTo("$API/me/events/AAMkSingle1")), dentist())
+		stub(get(urlPathEqualTo("$EVENTS/AAMkSingle1")), dentist())
 		val current = adapter.fetchEventsOf(dentist())
 
 		adapter.updateEvent(source, CALENDAR, current, "W/\"DwAAABYAAAA1\"").etag shouldBe "W/\"DwAAABYAAAA1\""
@@ -331,51 +332,51 @@ class MicrosoftCalendarAdapterTests {
 
 	@Test
 	fun `412 and 404 on update are changes at Microsoft`() {
-		stub(get(urlPathEqualTo("$API/me/events/AAMkSingle1")), dentist())
-		stub(patch(urlPathEqualTo("$API/me/events/AAMkSingle1")), recording("error-412-irresolvable-conflict.json"), 412)
+		stub(get(urlPathEqualTo("$EVENTS/AAMkSingle1")), dentist())
+		stub(patch(urlPathEqualTo("$EVENTS/AAMkSingle1")), recording("error-412-irresolvable-conflict.json"), 412)
 		val current = adapter.fetchEventsOf(dentist())
 
 		shouldThrow<RemoteEventChangedException> { adapter.updateEvent(source, CALENDAR, current.copy(title = "Mine"), "W/\"DwAAABYAAAA1\"") }
 
-		stub(get(urlPathEqualTo("$API/me/events/AAMkSingle1")), """{"error": {"code": "ErrorItemNotFound"}}""", 404)
+		stub(get(urlPathEqualTo("$EVENTS/AAMkSingle1")), """{"error": {"code": "ErrorItemNotFound"}}""", 404)
 		shouldThrow<RemoteEventChangedException> { adapter.updateEvent(source, CALENDAR, current.copy(title = "Mine"), null) }
 	}
 
 	@Test
 	fun `changing one occurrence patches its instance - without If-Match when first overridden`() {
 		stubSeriesInstancesAround()
-		stub(patch(urlPathEqualTo("$API/me/events/AAMkSeries1-20261116")), occurrenceJson("2026-11-16", "Team sync (this one)"))
+		stub(patch(urlPathEqualTo("$EVENTS/AAMkSeries1-20261116")), occurrenceJson("2026-11-16", "Team sync (this one)"))
 
 		val override = occurrence("2026-11-16T08:00:00Z", "Team sync (this one)")
 		val created = adapter.createEvent(source, CALENDAR, override)
 		created.key shouldBe override.key
 		created.title shouldBe "Team sync (this one)"
-		wireMock.verify(patchRequestedFor(urlPathEqualTo("$API/me/events/AAMkSeries1-20261116")).withHeader("If-Match", absent()))
+		wireMock.verify(patchRequestedFor(urlPathEqualTo("$EVENTS/AAMkSeries1-20261116")).withHeader("If-Match", absent()))
 		sentBody("PATCH").get("subject").asString() shouldBe "Team sync (this one)"
 		sentBody("PATCH").has("recurrence") shouldBe false
 
 		wireMock.resetRequests()
 		adapter.updateEvent(source, CALENDAR, override, "W/\"I6\"")
-		wireMock.verify(patchRequestedFor(urlPathEqualTo("$API/me/events/AAMkSeries1-20261116")).withHeader("If-Match", equalTo("W/\"I6\"")))
+		wireMock.verify(patchRequestedFor(urlPathEqualTo("$EVENTS/AAMkSeries1-20261116")).withHeader("If-Match", equalTo("W/\"I6\"")))
 	}
 
 	@Test
 	fun `a cancelled override and a deleted occurrence delete the instance`() {
 		stubSeriesInstancesAround()
-		stub(delete(urlPathEqualTo("$API/me/events/AAMkSeries1-20261116")), "", 204)
+		stub(delete(urlPathEqualTo("$EVENTS/AAMkSeries1-20261116")), "", 204)
 
 		val cancelled = occurrence("2026-11-16T08:00:00Z", "Team sync").copy(status = EventStatus.CANCELLED)
 		adapter.updateEvent(source, CALENDAR, cancelled, "W/\"I6\"").etag.shouldBeNull()
 		adapter.deleteEvent(source, CALENDAR, cancelled.key, "W/\"I6\"").shouldBeNull()
 
-		wireMock.verify(2, deleteRequestedFor(urlPathEqualTo("$API/me/events/AAMkSeries1-20261116")).withHeader("If-Match", equalTo("W/\"I6\"")))
+		wireMock.verify(2, deleteRequestedFor(urlPathEqualTo("$EVENTS/AAMkSeries1-20261116")).withHeader("If-Match", equalTo("W/\"I6\"")))
 		wireMock.verify(0, patchRequestedFor(anyUrl()))
 	}
 
 	@Test
 	fun `deleting an occurrence Graph does not have, or an event that is gone, succeeds`() {
 		stubSeriesInstancesAround()
-		stub(delete(urlPathEqualTo("$API/me/events/AAMkSingle1")), """{"error": {"code": "ErrorItemNotFound"}}""", 404)
+		stub(delete(urlPathEqualTo("$EVENTS/AAMkSingle1")), """{"error": {"code": "ErrorItemNotFound"}}""", 404)
 
 		adapter.deleteEvent(source, CALENDAR, RemoteEventKey("AAMkSeries1", at("2026-11-09T08:00:00Z")), null).shouldBeNull()
 		adapter.deleteEvent(source, CALENDAR, RemoteEventKey("AAMkSingle1"), "W/\"DwAAABYAAAA1\"").shouldBeNull()
@@ -384,7 +385,7 @@ class MicrosoftCalendarAdapterTests {
 	@Test
 	fun `ending a series before an occurrence (this and following) sends the shortened pattern`() {
 		stubSeries()
-		stub(patch(urlPathEqualTo("$API/me/events/AAMkSeries1")), recording("series1-master.json"))
+		stub(patch(urlPathEqualTo("$EVENTS/AAMkSeries1")), recording("series1-master.json"))
 
 		val ended =
 			RemoteEvent(
@@ -466,7 +467,7 @@ class MicrosoftCalendarAdapterTests {
 		page.complete shouldBe true
 		page.hasMore shouldBe false
 		json.readTree(page.cursor).get("mode").asString() shouldBe "delta"
-		wireMock.verify(0, getRequestedFor(urlPathEqualTo("$API/me/events/AAMkSeries1")))
+		wireMock.verify(0, getRequestedFor(urlPathEqualTo("$EVENTS/AAMkSeries1")))
 	}
 
 	@Test
@@ -518,14 +519,14 @@ class MicrosoftCalendarAdapterTests {
 	@Test
 	fun `an occurrence whose series master is gone yields nothing`() {
 		stubDeltaPage(instanceJson("AAMkGone-20261026", "occurrence", "2026-10-26T08:00:00", seriesId = "AAMkGone"))
-		stub(get(urlPathEqualTo("$API/me/events/AAMkGone")), """{"error": {"code": "ErrorItemNotFound"}}""", 404)
+		stub(get(urlPathEqualTo("$EVENTS/AAMkGone")), """{"error": {"code": "ErrorItemNotFound"}}""", 404)
 
 		val page = adapter.fetchEvents(source, CALENDAR, null)
 
 		page.events shouldBe emptyList()
 		page.complete shouldBe true
 		json.readTree(page.cursor).get("mode").asString() shouldBe "delta"
-		wireMock.verify(0, getRequestedFor(urlPathEqualTo("$API/me/events/AAMkGone/instances")))
+		wireMock.verify(0, getRequestedFor(urlPathEqualTo("$EVENTS/AAMkGone/instances")))
 	}
 
 	@Test
@@ -542,13 +543,13 @@ class MicrosoftCalendarAdapterTests {
 	@Test
 	fun `an exception without a matching occurrence of the pattern is keyed by its original start`() {
 		stubDeltaPage(instanceJson("AAMkSeries1-20261026", "occurrence", "2026-10-26T08:00:00"))
-		stub(get(urlPathEqualTo("$API/me/events/AAMkSeries1")), recording("series1-master.json"))
+		stub(get(urlPathEqualTo("$EVENTS/AAMkSeries1")), recording("series1-master.json"))
 		val all =
 			json.readTree(recording("series1-instances-page1.json")).get("value").toList() +
 				json.readTree(recording("series1-instances-page2.json")).get("value").toList() +
 				// A Wednesday: the Monday pattern has no occurrence within half a day of it.
 				listOf(json.readTree(instanceJson("AAMkSeries1-x", "exception", "2026-10-21T12:00:00", originalStart = "2026-10-21T07:00:00Z")))
-		stub(get(urlPathEqualTo("$API/me/events/AAMkSeries1/instances")), json.writeValueAsString(mapOf("value" to all)))
+		stub(get(urlPathEqualTo("$EVENTS/AAMkSeries1/instances")), json.writeValueAsString(mapOf("value" to all)))
 
 		val events = adapter.fetchEvents(source, CALENDAR, null).events.associateBy { it.key }
 
@@ -561,9 +562,9 @@ class MicrosoftCalendarAdapterTests {
 	@Test
 	fun `an exception that cannot be read is skipped, its series is still returned`() {
 		stubDeltaPage(instanceJson("AAMkSeries1-20261026", "occurrence", "2026-10-26T08:00:00"))
-		stub(get(urlPathEqualTo("$API/me/events/AAMkSeries1")), recording("series1-master.json"))
+		stub(get(urlPathEqualTo("$EVENTS/AAMkSeries1")), recording("series1-master.json"))
 		val broken = """{"id": "AAMkSeries1-y", "type": "exception", "seriesMasterId": "AAMkSeries1", "originalStart": "2026-11-23T08:00:00Z"}"""
-		stub(get(urlPathEqualTo("$API/me/events/AAMkSeries1/instances")), """{"value": [$broken]}""")
+		stub(get(urlPathEqualTo("$EVENTS/AAMkSeries1/instances")), """{"value": [$broken]}""")
 
 		val events = adapter.fetchEvents(source, CALENDAR, null).events
 
@@ -581,7 +582,7 @@ class MicrosoftCalendarAdapterTests {
 			 "start": {"dateTime": "2026-10-05T00:00:00", "timeZone": "UTC"}, "end": {"dateTime": "2026-10-06T00:00:00", "timeZone": "UTC"}}
 			""".trimIndent()
 		stubDeltaPage(instanceJson("AAMkAllDaySeries-20261026", "occurrence", "2026-10-26T00:00:00", seriesId = "AAMkAllDaySeries"))
-		stub(get(urlPathEqualTo("$API/me/events/AAMkAllDaySeries")), master)
+		stub(get(urlPathEqualTo("$EVENTS/AAMkAllDaySeries")), master)
 		// A Thursday that was planned at midnight in Tokyo (15:00 UTC the day before).
 		val exception =
 			"""
@@ -589,7 +590,7 @@ class MicrosoftCalendarAdapterTests {
 			 "subject": "Gym day (moved)", "isAllDay": true, "originalStart": "2026-10-21T15:00:00Z",
 			 "start": {"dateTime": "2026-10-23T00:00:00", "timeZone": "UTC"}, "end": {"dateTime": "2026-10-24T00:00:00", "timeZone": "UTC"}}
 			""".trimIndent()
-		stub(get(urlPathEqualTo("$API/me/events/AAMkAllDaySeries/instances")), """{"value": [$exception]}""")
+		stub(get(urlPathEqualTo("$EVENTS/AAMkAllDaySeries/instances")), """{"value": [$exception]}""")
 
 		val events = adapter.fetchEvents(source, CALENDAR, null).events.associateBy { it.key }
 
@@ -642,14 +643,14 @@ class MicrosoftCalendarAdapterTests {
 	fun `occurrences of a series beyond the page limit are refused`() {
 		// Graph keeps sending a next link: the lookup stops after 100 pages.
 		stub(
-			get(urlPathEqualTo("$API/me/events/AAMkSeries1/instances")),
-			"""{"value": [], "@odata.nextLink": "https://graph.microsoft.com/v1.0/me/events/AAMkSeries1/instances?${'$'}skip=1"}""",
+			get(urlPathEqualTo("$EVENTS/AAMkSeries1/instances")),
+			"""{"value": [], "@odata.nextLink": "https://graph.microsoft.com/v1.0/me/calendars/$CALENDAR/events/AAMkSeries1/instances?${'$'}skip=1"}""",
 		)
 
 		shouldThrowExactly<CalendarProviderException> {
 			adapter.deleteEvent(source, CALENDAR, RemoteEventKey("AAMkSeries1", at("2026-11-16T08:00:00Z")), null)
 		}.message shouldContain "too many pages"
-		wireMock.verify(100, getRequestedFor(urlPathEqualTo("$API/me/events/AAMkSeries1/instances")))
+		wireMock.verify(100, getRequestedFor(urlPathEqualTo("$EVENTS/AAMkSeries1/instances")))
 		wireMock.verify(0, deleteRequestedFor(anyUrl()))
 	}
 
@@ -658,7 +659,7 @@ class MicrosoftCalendarAdapterTests {
 	@Test
 	fun `updating a series with new EXDATEs deletes those instances only, without changing the series`() {
 		stubSeries()
-		stub(delete(urlPathEqualTo("$API/me/events/AAMkSeries1-20261116")), "", 204)
+		stub(delete(urlPathEqualTo("$EVENTS/AAMkSeries1-20261116")), "", 204)
 
 		val series =
 			teamSync().copy(
@@ -676,7 +677,7 @@ class MicrosoftCalendarAdapterTests {
 
 		wireMock.verify(0, patchRequestedFor(anyUrl()))
 		wireMock.verify(1, deleteRequestedFor(anyUrl()))
-		wireMock.verify(deleteRequestedFor(urlPathEqualTo("$API/me/events/AAMkSeries1-20261116")).withHeader("If-Match", absent()))
+		wireMock.verify(deleteRequestedFor(urlPathEqualTo("$EVENTS/AAMkSeries1-20261116")).withHeader("If-Match", absent()))
 		stored.key shouldBe RemoteEventKey("AAMkSeries1")
 		stored.rrule shouldBe "FREQ=WEEKLY;BYDAY=MO;UNTIL=20261228T225959Z"
 	}
@@ -705,24 +706,169 @@ class MicrosoftCalendarAdapterTests {
 
 	@Test
 	fun `deleting with a stale etag is a change at Microsoft, other failures are provider errors`() {
-		stub(delete(urlPathEqualTo("$API/me/events/AAMkSingle1")), recording("error-412-irresolvable-conflict.json"), 412)
+		stub(delete(urlPathEqualTo("$EVENTS/AAMkSingle1")), recording("error-412-irresolvable-conflict.json"), 412)
 		shouldThrow<RemoteEventChangedException> { adapter.deleteEvent(source, CALENDAR, RemoteEventKey("AAMkSingle1"), "W/\"old\"") }
 
-		stub(delete(urlPathEqualTo("$API/me/events/AAMkSingle1")), """{"error": {"code": "ErrorInvalidRequest"}}""", 400)
+		stub(delete(urlPathEqualTo("$EVENTS/AAMkSingle1")), """{"error": {"code": "ErrorInvalidRequest"}}""", 400)
 		shouldThrowExactly<CalendarProviderException> { adapter.deleteEvent(source, CALENDAR, RemoteEventKey("AAMkSingle1"), null) }
 			.message shouldContain "HTTP 400"
 	}
 
 	@Test
 	fun `404 on a patch is a change at Microsoft`() {
-		stub(get(urlPathEqualTo("$API/me/events/AAMkSingle1")), dentist())
-		stub(patch(urlPathEqualTo("$API/me/events/AAMkSingle1")), """{"error": {"code": "ErrorItemNotFound"}}""", 404)
+		stub(get(urlPathEqualTo("$EVENTS/AAMkSingle1")), dentist())
+		stub(patch(urlPathEqualTo("$EVENTS/AAMkSingle1")), """{"error": {"code": "ErrorItemNotFound"}}""", 404)
 		val current = adapter.fetchEventsOf(dentist())
 
 		shouldThrow<RemoteEventChangedException> { adapter.updateEvent(source, CALENDAR, current.copy(title = "Mine"), null) }
 	}
 
+	@Test
+	fun `a changed pattern puts back the exceptions Graph dropped, with the fields they had`() {
+		val before = seriesInstances()
+		// Exchange answers the pattern change by turning the 19 October exception back into a plain occurrence.
+		val after =
+			before.map {
+				if (it.get("id").asString() == "AAMkSeries1-20261019") {
+					json.readTree(instanceJson("AAMkSeries1-20261019", "occurrence", "2026-10-19T07:00:00"))
+				} else {
+					it
+				}
+			}
+		stub(get(urlPathEqualTo("$EVENTS/AAMkSeries1")), recording("series1-master.json"))
+		wireMock.stubFor(
+			get(urlPathEqualTo("$EVENTS/AAMkSeries1/instances"))
+				.inScenario("pattern")
+				.whenScenarioStateIs(Scenario.STARTED)
+				.willReturn(jsonResponse(json.writeValueAsString(mapOf("value" to before)))),
+		)
+		wireMock.stubFor(
+			patch(urlPathEqualTo("$EVENTS/AAMkSeries1"))
+				.inScenario("pattern")
+				.willSetStateTo("changed")
+				.willReturn(jsonResponse(recording("series1-master.json"))),
+		)
+		wireMock.stubFor(
+			get(urlPathEqualTo("$EVENTS/AAMkSeries1/instances"))
+				.inScenario("pattern")
+				.whenScenarioStateIs("changed")
+				.willReturn(jsonResponse(json.writeValueAsString(mapOf("value" to after)))),
+		)
+		stub(patch(urlPathEqualTo("$EVENTS/AAMkSeries1-20261019")), occurrenceJson("2026-10-19", "Team sync (moved)"))
+
+		adapter.updateEvent(source, CALENDAR, teamSync().copy(rrule = "FREQ=WEEKLY;BYDAY=MO;UNTIL=20261116T075959Z"), "W/\"DwAAABYAAAA3\"")
+
+		wireMock.verify(2, patchRequestedFor(anyUrl()))
+		val restore =
+			wireMock.allServeEvents
+				.map { it.request }
+				.single { it.method.value() == "PATCH" && it.url.startsWith("$EVENTS/AAMkSeries1-20261019") }
+		restore.getHeader("If-Match").shouldBeNull()
+		val body = json.readTree(restore.bodyAsString)
+		body.get("subject").asString() shouldBe "Team sync (moved)"
+		body.get("start").get("dateTime").asString() shouldBe "2026-10-19T10:00:00"
+		body.get("end").get("dateTime").asString() shouldBe "2026-10-19T10:30:00"
+		body.has("recurrence") shouldBe false
+	}
+
+	@Test
+	fun `exceptions Graph kept after a pattern change, and changes without a new pattern, are not patched again`() {
+		stubSeries()
+		stub(patch(urlPathEqualTo("$EVENTS/AAMkSeries1")), recording("series1-master.json"))
+
+		adapter.updateEvent(source, CALENDAR, teamSync().copy(rrule = "FREQ=WEEKLY;BYDAY=MO;UNTIL=20261116T075959Z"), null)
+		wireMock.verify(1, patchRequestedFor(anyUrl()))
+
+		wireMock.resetRequests()
+		adapter.updateEvent(source, CALENDAR, teamSync().copy(title = "Team sync (renamed)"), null)
+		wireMock.verify(1, patchRequestedFor(anyUrl()))
+		// Without a pattern change the exceptions are not read before the patch.
+		wireMock.verify(1, getRequestedFor(urlPathEqualTo("$EVENTS/AAMkSeries1/instances")).withQueryParam("\$skip", absent()))
+	}
+
+	@Test
+	fun `an exception moved further than the weeks around its occurrence is found in the whole window`() {
+		val moved =
+			instanceJson("AAMkSeries1-moved", "exception", "2027-02-01T08:00:00", originalStart = "2026-11-16T08:00:00Z")
+		// The weeks around 16 November: the moved exception is not among them.
+		stub(
+			get(urlPathEqualTo("$EVENTS/AAMkSeries1/instances")).withQueryParam("startDateTime", equalTo("2026-10-12T08:00:00Z")),
+			"""{"value": []}""",
+		)
+		stub(
+			get(urlPathEqualTo("$EVENTS/AAMkSeries1/instances")).withQueryParam("startDateTime", equalTo("2025-10-21T00:00:00Z")),
+			"""{"value": [$moved]}""",
+		)
+		stub(delete(urlPathEqualTo("$EVENTS/AAMkSeries1-moved")), "", 204)
+
+		adapter.deleteEvent(source, CALENDAR, RemoteEventKey("AAMkSeries1", at("2026-11-16T08:00:00Z")), "W/\"AAMkSeries1-moved\"").shouldBeNull()
+
+		wireMock.verify(
+			deleteRequestedFor(urlPathEqualTo("$EVENTS/AAMkSeries1-moved")).withHeader("If-Match", equalTo("W/\"AAMkSeries1-moved\"")),
+		)
+	}
+
+	@Test
+	fun `changed attendees keep the type Graph has for them, new ones are required`() {
+		val graph = json.readTree(dentist()) as tools.jackson.databind.node.ObjectNode
+		graph.set(
+			"attendees",
+			json.readTree(
+				"""
+				[{"type": "optional", "emailAddress": {"address": "Sam.Sample@example.test", "name": "Sam Sample"}},
+				 {"type": "resource", "emailAddress": {"address": "room.1@example.test", "name": "Room 1"}}]
+				""".trimIndent(),
+			),
+		)
+		stub(get(urlPathEqualTo("$EVENTS/AAMkSingle1")), json.writeValueAsString(graph))
+		stub(patch(urlPathEqualTo("$EVENTS/AAMkSingle1")), json.writeValueAsString(graph))
+		val current = GraphEventMapping.toRemote(graph, RemoteEventKey("AAMkSingle1"))
+
+		val kim = Attendee("kim.demo@example.test", null, AttendeeStatus.NEEDS_ACTION)
+		adapter.updateEvent(source, CALENDAR, current.copy(attendees = current.attendees + kim), null)
+
+		val types = mutableMapOf<String, String>()
+		for (attendee in sentBody("PATCH").get("attendees")) {
+			types[attendee.at("/emailAddress/address").asString()] = attendee.get("type").asString()
+		}
+		types shouldBe mapOf("Sam.Sample@example.test" to "optional", "room.1@example.test" to "resource", "kim.demo@example.test" to "required")
+	}
+
+	@Test
+	fun `calendars beyond the page limit are refused`() {
+		stub(
+			get(urlPathEqualTo("$API/me/calendars")),
+			"""{"value": [], "@odata.nextLink": "https://graph.microsoft.com/v1.0/me/calendars?${'$'}skip=2"}""",
+		)
+
+		shouldThrowExactly<CalendarProviderException> { adapter.listCalendars(source) }.message shouldContain "too many pages"
+		wireMock.verify(100, getRequestedFor(urlPathEqualTo("$API/me/calendars")))
+	}
+
+	@Test
+	fun `events are read, changed and deleted through their calendar`() {
+		val other = "AAMkCalShared"
+		stub(get(urlPathEqualTo("$API/me/calendars/$other/events/AAMkSingle1")), dentist())
+		stub(patch(urlPathEqualTo("$API/me/calendars/$other/events/AAMkSingle1")), dentist(subject = "Dentist (new)"))
+		stub(delete(urlPathEqualTo("$API/me/calendars/$other/events/AAMkSingle1")), "", 204)
+		val current = adapter.fetchEventsOf(dentist())
+
+		adapter.updateEvent(source, other, current.copy(title = "Dentist (new)"), null).title shouldBe "Dentist (new)"
+		adapter.deleteEvent(source, other, RemoteEventKey("AAMkSingle1"), null)
+
+		wireMock.verify(patchRequestedFor(urlPathEqualTo("$API/me/calendars/$other/events/AAMkSingle1")))
+		wireMock.verify(deleteRequestedFor(urlPathEqualTo("$API/me/calendars/$other/events/AAMkSingle1")))
+		wireMock.verify(0, anyRequestedFor(urlPathEqualTo("$API/me/events/AAMkSingle1")))
+	}
+
 	// --- helpers
+
+	/** All instances of series AAMkSeries1 as recorded, in one list. */
+	private fun seriesInstances(): List<JsonNode> =
+		json.readTree(recording("series1-instances-page1.json")).get("value").toList() +
+			json.readTree(recording("series1-instances-page2.json")).get("value").toList()
+
+	private fun jsonResponse(body: String) = aResponse().withStatus(200).withHeader("Content-Type", "application/json").withBody(body)
 
 	/** Series AAMkSeries1 as recorded in `series1-master.json`, as the cockpit has it. */
 	private fun teamSync() =
@@ -854,13 +1000,13 @@ class MicrosoftCalendarAdapterTests {
 	}
 
 	private fun stubSeries() {
-		stub(get(urlPathEqualTo("$API/me/events/AAMkSeries1")), recording("series1-master.json"))
+		stub(get(urlPathEqualTo("$EVENTS/AAMkSeries1")), recording("series1-master.json"))
 		stub(
-			get(urlPathEqualTo("$API/me/events/AAMkSeries1/instances")).withQueryParam("\$skip", absent()),
+			get(urlPathEqualTo("$EVENTS/AAMkSeries1/instances")).withQueryParam("\$skip", absent()),
 			recording("series1-instances-page1.json"),
 		)
 		stub(
-			get(urlPathEqualTo("$API/me/events/AAMkSeries1/instances")).withQueryParam("\$skip", equalTo("6")),
+			get(urlPathEqualTo("$EVENTS/AAMkSeries1/instances")).withQueryParam("\$skip", equalTo("6")),
 			recording("series1-instances-page2.json"),
 		)
 	}
@@ -870,7 +1016,7 @@ class MicrosoftCalendarAdapterTests {
 		val all =
 			json.readTree(recording("series1-instances-page1.json")).get("value").toList() +
 				json.readTree(recording("series1-instances-page2.json")).get("value").toList()
-		stub(get(urlPathEqualTo("$API/me/events/AAMkSeries1/instances")), json.writeValueAsString(mapOf("value" to all)))
+		stub(get(urlPathEqualTo("$EVENTS/AAMkSeries1/instances")), json.writeValueAsString(mapOf("value" to all)))
 	}
 
 	class FixedTokens : OAuthTokenProvider {
@@ -892,6 +1038,9 @@ class MicrosoftCalendarAdapterTests {
 		const val API = "/v1.0"
 		const val CALENDAR = "AAMkCalPrimary"
 		const val DELTA = "$API/me/calendars/$CALENDAR/calendarView/delta"
+
+		/** The events of [CALENDAR], as the adapter addresses them. */
+		const val EVENTS = "$API/me/calendars/$CALENDAR/events"
 		const val TOKEN = "fictitious-graph-access-token"
 		const val NEW_ID = "0192a5f0-0000-7000-8000-0000000000aa"
 		val CONNECTION: UUID = UUID.fromString("0192a5f0-0000-7000-8000-000000000002")

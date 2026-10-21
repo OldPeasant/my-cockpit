@@ -129,9 +129,12 @@ internal object GraphEventMapping {
 		body.putObject("body").put("contentType", "text").put("content", event.description ?: "")
 		body.putObject("location").put("displayName", event.location ?: "")
 		val zoneName: String
+		// The zone the times are sent in.
+		val zone: ZoneId
 		when (val timing = event.timing) {
 			is Timing.AllDay -> {
 				zoneName = "UTC"
+				zone = ZoneOffset.UTC
 				body.put("isAllDay", true)
 				body.set("start", time(json, timing.startDate.atStartOfDay(), zoneName))
 				body.set("end", time(json, timing.endDate.atStartOfDay(), zoneName))
@@ -139,7 +142,7 @@ internal object GraphEventMapping {
 			is Timing.Timed -> {
 				val named = WindowsZones.name(timing.zone)
 				// A fixed offset has no name: the times go in UTC.
-				val zone = if (named == null) ZoneOffset.UTC else timing.zone
+				zone = if (named == null) ZoneOffset.UTC else timing.zone
 				zoneName = named ?: "UTC"
 				body.put("isAllDay", false)
 				body.set("start", time(json, LocalDateTime.ofInstant(timing.start, zone), zoneName))
@@ -147,14 +150,8 @@ internal object GraphEventMapping {
 			}
 		}
 		if (recurrence) {
-			val rule = event.rrule
-			if (rule ==
-				null
-			) {
-				body.putNull("recurrence")
-			} else {
-				body.set("recurrence", GraphRecurrence.toRecurrence(json, rule, event.timing, zoneName))
-			}
+			val pattern = event.rrule?.let { GraphRecurrence.toRecurrence(json, it, event.timing, zoneName, zone) }
+			body.set("recurrence", pattern ?: json.nullNode())
 		}
 		val attendees = body.putArray("attendees")
 		event.attendees.forEach {
@@ -198,6 +195,29 @@ internal object GraphEventMapping {
 			listOf("start", "end", "isAllDay").forEach { diff.set(it, desired.get(it)) }
 		}
 		return diff
+	}
+
+	/**
+	 * Gives the attendees of [changes] (a [changes] diff) the `type` (required, optional, resource) they have in
+	 * [current] (the event at Graph), matched by email; attendees Graph does not have yet stay required.
+	 */
+	fun keepAttendeeTypes(
+		changes: ObjectNode,
+		current: JsonNode,
+	) {
+		val attendees = changes.get("attendees") ?: return
+		val types =
+			current
+				.path("attendees")
+				.mapNotNull { attendee ->
+					val email = attendee.path("emailAddress").text("address") ?: return@mapNotNull null
+					val type = attendee.text("type") ?: return@mapNotNull null
+					email.lowercase() to type
+				}.toMap()
+		for (attendee in attendees) {
+			val email = attendee.path("emailAddress").text("address")?.lowercase() ?: continue
+			types[email]?.let { (attendee as ObjectNode).put("type", it) }
+		}
 	}
 
 	// --- reading

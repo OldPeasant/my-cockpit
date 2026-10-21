@@ -282,6 +282,105 @@ class GraphEventMappingTests {
 			.map { it.asString() } shouldBe listOf("sunday")
 	}
 
+	/** The recurrence Graph gets for [rule] on a series starting at [start] (30 minutes) in the fixed [offset]. */
+	private fun fixedOffsetRecurrence(
+		rule: String,
+		start: String,
+		offset: Int,
+	): JsonNode {
+		val at = Instant.parse(start)
+		val event = planning(Timing.Timed(at, at.plusSeconds(1800), ZoneOffset.ofHours(offset))).copy(rrule = rule)
+		return GraphEventMapping.toBody(json, event, recurrence = true).get("recurrence")
+	}
+
+	private fun JsonNode.days() = at("/pattern/daysOfWeek").values().map { it.asString() }
+
+	@Test
+	fun `explicit weekdays of a fixed offset series move to the days Graph gets`() {
+		// Monday and Wednesday 01:00 at UTC+2 are Sunday and Tuesday 23:00 in UTC.
+		val east = fixedOffsetRecurrence("FREQ=WEEKLY;BYDAY=MO,WE", "2026-10-04T23:00:00Z", 2)
+		east.days() shouldBe listOf("sunday", "tuesday")
+		east.at("/range/startDate").asString() shouldBe "2026-10-04"
+		east.at("/range/recurrenceTimeZone").asString() shouldBe "UTC"
+
+		// Friday and Sunday 21:00 at UTC-5 are Saturday and Monday 02:00 in UTC.
+		val west = fixedOffsetRecurrence("FREQ=DAILY;BYDAY=FR,SU", "2026-10-03T02:00:00Z", -5)
+		west.days() shouldBe listOf("saturday", "monday")
+		west.at("/range/startDate").asString() shouldBe "2026-10-03"
+	}
+
+	@Test
+	fun `the first day of the week moves with the days, so every other week stays the same weeks`() {
+		val recurrence = fixedOffsetRecurrence("FREQ=WEEKLY;INTERVAL=2;BYDAY=MO;WKST=MO", "2026-10-04T23:00:00Z", 2)
+
+		recurrence.days() shouldBe listOf("sunday")
+		recurrence.at("/pattern/firstDayOfWeek").asString() shouldBe "sunday"
+		recurrence.at("/pattern/interval").asInt() shouldBe 2
+	}
+
+	@Test
+	fun `a fixed offset series on the same day in UTC keeps its days`() {
+		// Monday 10:00 at UTC+2 is Monday 08:00 in UTC.
+		val recurrence = fixedOffsetRecurrence("FREQ=WEEKLY;BYDAY=MO,WE", "2026-10-05T08:00:00Z", 2)
+
+		recurrence.days() shouldBe listOf("monday", "wednesday")
+		recurrence.at("/pattern/firstDayOfWeek").asString() shouldBe "monday"
+		recurrence.at("/range/startDate").asString() shouldBe "2026-10-05"
+	}
+
+	@ParameterizedTest
+	@CsvSource(
+		// The 15th, 01:00 at UTC+2, is the 14th in UTC: explicit and from the start.
+		"FREQ=MONTHLY;BYMONTHDAY=15, 2026-10-14T23:00:00Z, 2, 14",
+		"FREQ=MONTHLY, 2026-10-14T23:00:00Z, 2, 14",
+		// The 15th, 21:00 at UTC-5, is the 16th in UTC.
+		"FREQ=MONTHLY;BYMONTHDAY=15, 2026-10-16T02:00:00Z, -5, 16",
+		"FREQ=YEARLY;BYMONTH=10;BYMONTHDAY=15, 2026-10-14T23:00:00Z, 2, 14",
+	)
+	fun `a day of the month of a fixed offset series moves to the day Graph gets`(
+		rule: String,
+		start: String,
+		offset: Int,
+		day: Int,
+	) {
+		val recurrence = fixedOffsetRecurrence(rule, start, offset)
+
+		recurrence.at("/pattern/dayOfMonth").asInt() shouldBe day
+		recurrence.at("/range/startDate").asString() shouldBe
+			Instant
+				.parse(start)
+				.atZone(ZoneOffset.UTC)
+				.toLocalDate()
+				.toString()
+	}
+
+	@ParameterizedTest
+	@CsvSource(
+		// The 1st at UTC+2 is the last day of the month before in UTC: not one day of the month.
+		"FREQ=MONTHLY;BYMONTHDAY=1, 2026-10-14T23:00:00Z, 2",
+		"FREQ=MONTHLY, 2026-09-30T23:00:00Z, 2",
+		// The 28th at UTC-5 is the 29th in UTC, which February does not always have.
+		"FREQ=MONTHLY;BYMONTHDAY=28, 2026-10-16T02:00:00Z, -5",
+		// The second Monday at UTC+2 is not always the second Sunday in UTC.
+		"FREQ=MONTHLY;BYDAY=2MO, 2026-10-11T23:00:00Z, 2",
+		"'FREQ=YEARLY;BYMONTH=11;BYDAY=MO,TU;BYSETPOS=1', 2026-10-04T23:00:00Z, 2",
+	)
+	fun `a fixed offset pattern that cannot move to the days Graph gets is refused`(
+		rule: String,
+		start: String,
+		offset: Int,
+	) {
+		shouldThrow<IllegalArgumentException> { fixedOffsetRecurrence(rule, start, offset) }
+	}
+
+	@Test
+	fun `the end of a fixed offset series is the day of its last occurrence in UTC`() {
+		// The last occurrence, Monday 16 November 01:00 at UTC+2, is Sunday 15 November 23:00 in UTC.
+		val recurrence = fixedOffsetRecurrence("FREQ=WEEKLY;BYDAY=MO;UNTIL=20261115T230000Z", "2026-10-04T23:00:00Z", 2)
+
+		recurrence.at("/range/endDate").asString() shouldBe "2026-11-15"
+	}
+
 	// --- changes
 
 	@Test
