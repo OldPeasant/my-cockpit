@@ -223,7 +223,7 @@ class NotesBackupContributorTests(
 
 	@Test
 	fun `front matter is valid YAML that gives back titles and tags with quotes, backslashes and control characters`() {
-		val title = "Plan: \"A\" \\ B # not a comment\tend\u0085next line\u0090"
+		val title = "Plan: \"A\" \\ B # not a comment\tend\u0085next\u2028line\u0090"
 		val tags =
 			listOf(
 				"back\\slash",
@@ -234,9 +234,9 @@ class NotesBackupContributorTests(
 				"line\nbreak",
 				"del\u007f",
 				"nel\u0085",
-				"ls ps ",
+				"ls\u2028ps\u2029",
 				"c1\u0080\u0090\u009f",
-				"nonchar￾￿",
+				"nonchar\ufffe\uffff",
 			)
 		note(id(1), title, "body", tags = tags)
 

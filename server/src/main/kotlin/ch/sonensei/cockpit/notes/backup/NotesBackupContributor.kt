@@ -234,7 +234,7 @@ class NotesBackupContributor(
 						c == '\\' -> append("\\\\")
 						c == '\n' -> append("\\n")
 						c == '\t' -> append("\\t")
-						c < ' ' || c in '\u007f'..'\u009f' || c == ' ' || c == ' ' || c >= '￾' ->
+						c < ' ' || c in '\u007f'..'\u009f' || c == '\u2028' || c == '\u2029' || c >= '\ufffe' ->
 							append("\\u%04x".format(c.code))
 						else -> append(c)
 					}
