@@ -169,6 +169,14 @@ class BookmarkEdgeCaseTests(
 		error("The metadata of bookmark $id was not fetched in time")
 	}
 
+	/**
+	 * Sets the status of [bookmark] back to `PENDING` (its fetch number unchanged), as if its fetch had not finished yet:
+	 * [BookmarkService.applyMetadata] stores only the first result of a fetch.
+	 */
+	private fun pendingAgain(bookmark: Bookmark) {
+		jdbc.update("update bookmark set metadata_status = 'PENDING' where id = ?", bookmark.id)
+	}
+
 	private fun searchTitle(id: UUID): String? =
 		jdbc
 			.queryForList("select title from search_document where item_type = 'BOOKMARK' and item_id = ?", String::class.java, id)
@@ -238,6 +246,7 @@ class BookmarkEdgeCaseTests(
 	fun `stored metadata bumps the version, re-indexes and fills only empty fields`() {
 		val bookmark = failedBookmark(title = "Own title")
 
+		pendingAgain(bookmark)
 		service.applyMetadata(
 			bookmark.id,
 			bookmark.metadataFetch,
@@ -258,8 +267,10 @@ class BookmarkEdgeCaseTests(
 	@Test
 	fun `with overwrite, values the page does not have keep the current ones`() {
 		val bookmark = failedBookmark(title = "Kept title", description = "Kept text")
+		pendingAgain(bookmark)
 		service.applyMetadata(bookmark.id, bookmark.metadataFetch, false, PageMetadata(favicon = "https://cdn.example/old.ico"))
 
+		pendingAgain(bookmark)
 		service.applyMetadata(bookmark.id, bookmark.metadataFetch, true, PageMetadata(title = "New title")) shouldBe true
 
 		val stored = service.get(bookmark.id)
@@ -275,10 +286,12 @@ class BookmarkEdgeCaseTests(
 		val longTitle = "t".repeat(499) + " and more words"
 		val longDescription = "d".repeat(2_500)
 
+		pendingAgain(bookmark)
 		service.applyMetadata(bookmark.id, bookmark.metadataFetch, false, PageMetadata(longTitle, longDescription)) shouldBe true
 		service.get(bookmark.id).title shouldBe "t".repeat(499)
 		service.get(bookmark.id).description shouldBe "d".repeat(BookmarkService.MAX_DESCRIPTION_LENGTH)
 
+		pendingAgain(bookmark)
 		service.applyMetadata(
 			bookmark.id,
 			bookmark.metadataFetch,
@@ -295,6 +308,7 @@ class BookmarkEdgeCaseTests(
 	fun `fetched text that is only whitespace or NUL characters counts as missing`() {
 		val bookmark = failedBookmark(title = "Mine", description = "My text")
 
+		pendingAgain(bookmark)
 		service.applyMetadata(bookmark.id, bookmark.metadataFetch, true, PageMetadata(" \u0000 \n", "\u0000")) shouldBe true
 
 		val stored = service.get(bookmark.id)
@@ -309,6 +323,7 @@ class BookmarkEdgeCaseTests(
 		// 499 characters plus an emoji (two UTF-16 chars) cross the 500 limit in the middle of the emoji.
 		val title = "a".repeat(499) + "🍅 tomato"
 
+		pendingAgain(bookmark)
 		service.applyMetadata(bookmark.id, bookmark.metadataFetch, false, PageMetadata(title = title)) shouldBe true
 
 		val stored = service.get(bookmark.id).title!!
@@ -322,7 +337,10 @@ class BookmarkEdgeCaseTests(
 		val bookmark = failedBookmark()
 		val limit = BookmarkService.MAX_DESCRIPTION_LENGTH
 
-		fun store(description: String) = service.applyMetadata(bookmark.id, bookmark.metadataFetch, true, PageMetadata(description = description))
+		fun store(description: String): Boolean {
+			pendingAgain(bookmark)
+			return service.applyMetadata(bookmark.id, bookmark.metadataFetch, true, PageMetadata(description = description))
+		}
 
 		store("d".repeat(limit - 1) + "🍅 more") shouldBe true
 		service.get(bookmark.id).description shouldBe "d".repeat(limit - 1)
@@ -337,11 +355,14 @@ class BookmarkEdgeCaseTests(
 		val bookmark = failedBookmark()
 		val tooLong = "https://cdn.example/" + "f".repeat(BookmarkService.MAX_URL_LENGTH)
 
+		pendingAgain(bookmark)
 		service.applyMetadata(bookmark.id, bookmark.metadataFetch, false, PageMetadata(favicon = tooLong)) shouldBe true
 		service.get(bookmark.id).favicon shouldBe null
+		pendingAgain(bookmark)
 		service.applyMetadata(bookmark.id, bookmark.metadataFetch, false, PageMetadata(favicon = "https://cdn.example/a\u0000.ico")) shouldBe true
 		service.get(bookmark.id).favicon shouldBe null
 		val exact = "https://cdn.example/" + "f".repeat(BookmarkService.MAX_URL_LENGTH - "https://cdn.example/".length)
+		pendingAgain(bookmark)
 		service.applyMetadata(bookmark.id, bookmark.metadataFetch, false, PageMetadata(favicon = exact)) shouldBe true
 		service.get(bookmark.id).favicon shouldBe exact
 	}
@@ -349,6 +370,7 @@ class BookmarkEdgeCaseTests(
 	@Test
 	fun `a failed fetch only sets the status and keeps the fields`() {
 		val bookmark = failedBookmark(title = "Mine")
+		pendingAgain(bookmark)
 		service.applyMetadata(
 			bookmark.id,
 			bookmark.metadataFetch,
@@ -356,6 +378,7 @@ class BookmarkEdgeCaseTests(
 			PageMetadata(description = "Fetched", favicon = "https://cdn.example/f.ico"),
 		)
 
+		pendingAgain(bookmark)
 		service.applyMetadata(bookmark.id, bookmark.metadataFetch, true, null) shouldBe true
 
 		val stored = service.get(bookmark.id)
@@ -371,11 +394,13 @@ class BookmarkEdgeCaseTests(
 		val metadata = PageMetadata(title = "Stale")
 
 		service.applyMetadata(UUID.randomUUID(), bookmark.metadataFetch, false, metadata) shouldBe false
+		pendingAgain(bookmark)
 		service.applyMetadata(bookmark.id, bookmark.metadataFetch + 1, false, metadata) shouldBe false
 		service.get(bookmark.id).title shouldBe null
 		service.get(bookmark.id).version shouldBe bookmark.version
 
 		service.delete(bookmark.id) {}
+		pendingAgain(bookmark)
 		service.applyMetadata(bookmark.id, bookmark.metadataFetch, false, metadata) shouldBe false
 		jdbc.queryForObject("select title from bookmark where id = ?", String::class.java, bookmark.id) shouldBe null
 	}
@@ -393,6 +418,50 @@ class BookmarkEdgeCaseTests(
 		(stored.metadataStatus == MetadataStatus.FETCHED) shouldBe false
 		// The refresh's own fetch (404) still decides the status.
 		settled(bookmark.id).metadataStatus shouldBe MetadataStatus.FAILED
+	}
+
+	@Test
+	fun `only the first result of a fetch is stored, a second one of the same fetch is ignored`() {
+		val bookmark = failedBookmark()
+		pendingAgain(bookmark)
+		service.applyMetadata(bookmark.id, bookmark.metadataFetch, false, PageMetadata(title = "First")) shouldBe true
+		val first = service.get(bookmark.id)
+		published.clear()
+
+		// E.g. the startup re-queue fetched the same bookmark again, and this time the fetch failed.
+		service.applyMetadata(bookmark.id, bookmark.metadataFetch, true, null) shouldBe false
+		service.applyMetadata(bookmark.id, bookmark.metadataFetch, true, PageMetadata(title = "Second")) shouldBe false
+
+		val stored = service.get(bookmark.id)
+		stored.metadataStatus shouldBe MetadataStatus.FETCHED
+		stored.title shouldBe "First"
+		stored.version shouldBe first.version
+		published.filter { it.first.id == bookmark.id } shouldHaveSize 0
+	}
+
+	@Test
+	fun `a URL with a Unicode host and non-ASCII path is found by its words as typed`() {
+		// With a title of its own, so the host is not in the search title (the display title) either.
+		val request = """{"url":"https://bücher.invalid/Straße und Gärten","title":"Garden books"}"""
+		val created = create(request).andExpect { status { isCreated() } }.json()
+		created.text("url") shouldBe "https://xn--bcher-kva.invalid/Stra%C3%9Fe%20und%20G%C3%A4rten"
+
+		val body =
+			jdbc.queryForObject(
+				"select body from search_document where item_type = 'BOOKMARK' and item_id = ?",
+				String::class.java,
+				UUID.fromString(created.id()),
+			)
+		body shouldBe "https://xn--bcher-kva.invalid/Stra%C3%9Fe%20und%20G%C3%A4rten\nhttps://bücher.invalid/Straße und Gärten"
+		for (query in listOf("bücher", "Gärten")) {
+			val hits =
+				mockMvc
+					.get("/api/v1/search?q=$query&types=BOOKMARK")
+					.andExpect { status { isOk() } }
+					.andReturn()
+					.response.contentAsString
+			withClue(query) { (created.id() in hits) shouldBe true }
+		}
 	}
 
 	@Test
@@ -468,6 +537,8 @@ class BookmarkEdgeCaseTests(
 	@Test
 	fun `a 51st tag on PATCH is rejected and the bookmark stays unchanged`() {
 		val created = create("""{"url":"${page("/t")}","title":"Before","tags":["one"]}""").andExpect { status { isCreated() } }.json()
+		// After the background fetch has stored its result, which changes the version.
+		settled(UUID.fromString(created.id()))
 		val current = fetch(created.id())
 
 		patch(current, """{"title":"After","tags":${jsonMapper.writeValueAsString((1..51).map { "t$it" })}}""").andExpect {

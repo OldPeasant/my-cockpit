@@ -48,6 +48,30 @@ class BookmarkUrlsTests {
 	}
 
 	@Test
+	fun `the readable form has a Unicode host and decoded path, query and fragment`() {
+		BookmarkUrls.readable("https://xn--bcher-kva.de/Stra%C3%9Fe?q=caf%C3%A9%20au%20lait#%C3%A9t%C3%A9") shouldBe
+			"https://bücher.de/Straße?q=café au lait#été"
+		BookmarkUrls.readable("https://user@xn--bcher-kva.de:8443/%F0%9F%8D%85") shouldBe "https://user@bücher.de:8443/🍅"
+		BookmarkUrls.readable("http://[::1]:8080/a%20b") shouldBe "http://[::1]:8080/a b"
+		// The readable form of a normalized URL.
+		BookmarkUrls.readable(BookmarkUrls.normalize("https://bücher.de/Straße")!!) shouldBe "https://bücher.de/Straße"
+	}
+
+	@Test
+	fun `escapes that are no valid UTF-8 or decode to control characters stay encoded in the readable form`() {
+		BookmarkUrls.readable("https://example.org/a%FFb%C3") shouldBe null
+		BookmarkUrls.readable("https://example.org/a%00b%0A?q=%7F") shouldBe null
+		BookmarkUrls.readable("https://example.org/%FF%20x%C3%A9") shouldBe "https://example.org/%FF%20xé"
+		BookmarkUrls.readable("https://example.org/100%25") shouldBe "https://example.org/100%"
+	}
+
+	@Test
+	fun `a URL that already reads as it is has no separate readable form`() {
+		BookmarkUrls.readable("https://example.org/a/b?x=1#top") shouldBe null
+		BookmarkUrls.readable("not a url") shouldBe null
+	}
+
+	@Test
 	fun `URLs that are not absolute http(s) URLs with a valid host are refused`() {
 		for (url in listOf(
 			"",

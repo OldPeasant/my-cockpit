@@ -67,12 +67,12 @@ class Bookmark(
 		return ++metadataFetch
 	}
 
-	/** Stores the outcome of fetch number [fetch]: `FETCHED` or `FAILED`. */
+	/** Stores the outcome of fetch number [fetch], the pending one: `FETCHED` or `FAILED`. */
 	fun metadataFetched(
 		fetch: Long,
 		fetched: Boolean,
 	) {
-		check(fetch == metadataFetch) { "Not the latest metadata fetch" }
+		check(fetch == metadataFetch && metadataStatus == MetadataStatus.PENDING) { "Not the pending metadata fetch" }
 		metadataStatus = if (fetched) MetadataStatus.FETCHED else MetadataStatus.FAILED
 	}
 

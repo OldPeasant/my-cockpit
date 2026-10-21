@@ -60,7 +60,7 @@ class FetchedPage(
  *
  * The whole fetch (name resolution, redirects, bodies) must finish within [BookmarkFetchProperties.timeout]. Only the
  * first [BookmarkFetchProperties.maxSize] bytes of a page are read (also after gzip decompression); the rest is not
- * downloaded. Only `text/html` and `application/xhtml+xml` answers are accepted.
+ * downloaded, nor are the bodies of other answers. Only `text/html` and `application/xhtml+xml` answers are accepted.
  */
 class PageFetcher(
 	private val properties: BookmarkFetchProperties,
@@ -212,15 +212,16 @@ class PageFetcher(
 		return remaining
 	}
 
-	/** The first [BookmarkFetchProperties.maxSize] bytes of an HTML answer (2xx); other bodies are discarded. */
+	/**
+	 * The first [BookmarkFetchProperties.maxSize] bytes of an HTML answer (2xx); other bodies (redirects, errors, other
+	 * content types) are not downloaded. Each subscriber is added to [bodies], so [send] can cancel the rest.
+	 */
 	private fun body(
 		info: HttpResponse.ResponseInfo,
 		bodies: MutableCollection<TruncatedBody>,
 	): HttpResponse.BodySubscriber<ByteArray> {
-		if (info.statusCode() !in SUCCESS || !html(info.headers().firstValue("Content-Type").orElse(""))) {
-			return HttpResponse.BodySubscribers.replacing(ByteArray(0))
-		}
-		return TruncatedBody(properties.maxSize.toBytes()).also(bodies::add)
+		val wanted = info.statusCode() in SUCCESS && html(info.headers().firstValue("Content-Type").orElse(""))
+		return TruncatedBody(if (wanted) properties.maxSize.toBytes() else 0).also(bodies::add)
 	}
 
 	private fun page(

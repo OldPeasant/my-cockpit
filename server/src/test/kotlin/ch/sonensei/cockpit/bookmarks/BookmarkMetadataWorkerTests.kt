@@ -222,28 +222,41 @@ class BookmarkMetadataWorkerTests {
 	}
 
 	@Test
-	fun `after shutdown requests are stored as failed without failing the caller`() {
+	fun `after shutdown requests store nothing and do not fail the caller, so the bookmark stays pending`() {
 		val worker = worker()
 		worker.destroy()
 		val request = request(page("/a"))
 		every { service.applyMetadata(any(), any(), any(), any()) } returns true
 
-		// Rejected synchronously by the stopped executor: nothing is fetched, the status is FAILED at once.
+		// Rejected synchronously by the stopped executor: nothing is fetched or stored; the next start fetches it.
 		worker.onRequested(request)
 
-		verify(exactly = 1) { service.applyMetadata(request.id, FETCH, false, null) }
+		verify(exactly = 0) { service.applyMetadata(any(), any(), any(), any()) }
 		server.allServeEvents.size shouldBe 0
 	}
 
 	@Test
 	fun `a rejected request that cannot be stored does not fail the caller`() {
-		val worker = worker()
-		worker.destroy()
-		every { service.applyMetadata(any(), any(), any(), any()) } throws IllegalStateException("database down")
+		val release = CountDownLatch(1)
+		val worker =
+			worker(
+				properties(allowPrivateNetworks = false, threads = 1, queueSize = 1),
+				PageFetcher(properties(allowPrivateNetworks = false)) { _ ->
+					release.await(10, TimeUnit.SECONDS)
+					listOf(InetAddress.getByName("10.0.0.1"))
+				},
+			)
+		val dropped = request("http://dropped.example/")
+		every { service.applyMetadata(any(), any(), any(), any()) } returns true
+		every { service.applyMetadata(dropped.id, any(), any(), any()) } throws IllegalStateException("database down")
 
-		worker.onRequested(request(page("/a")))
+		worker.onRequested(request("http://busy.example/"))
+		worker.onRequested(request("http://queued.example/"))
+		// The queue is full: stored as FAILED on the caller's thread, and that store fails.
+		worker.onRequested(dropped)
+		release.countDown()
 
-		verify(exactly = 1) { service.applyMetadata(any(), any(), any(), any()) }
+		verify(exactly = 1) { service.applyMetadata(dropped.id, any(), any(), any()) }
 	}
 
 	@Test

@@ -25,13 +25,15 @@ import java.time.Instant
 import java.util.UUID
 
 /**
- * Writes the search document of [bookmark]: its display title, and its URL, description and tags as the body. The one
+ * Writes the search document of [bookmark]: its display title, and its URL (as stored and, when different, as a person
+ * reads it: Unicode host, decoded path and query, [BookmarkUrls.readable]), description and tags as the body. The one
  * place that decides what a bookmark's search document holds, used by [BookmarkService] and the Trash restore.
  */
 fun SearchIndexer.indexBookmark(bookmark: Bookmark) {
 	val body =
 		listOfNotNull(
 			bookmark.url,
+			BookmarkUrls.readable(bookmark.url),
 			bookmark.description,
 			bookmark.tags
 				.sorted()
@@ -155,8 +157,9 @@ class BookmarkService(
 	/**
 	 * Stores the result of metadata fetch number [fetch] ([Bookmark.metadataFetch]) of bookmark [id]: [metadata] fills
 	 * the empty title, description and favicon (with [overwrite]: replaces them where something was fetched), `null`
-	 * (the fetch failed) only sets the status. Ignored (`false`) when the bookmark is gone, in the Trash, or a newer
-	 * fetch was requested since (e.g. after a URL change or a refresh).
+	 * (the fetch failed) only sets the status. Ignored (`false`) when the bookmark is gone, in the Trash, a newer fetch
+	 * was requested since (e.g. after a URL change or a refresh), or a result of this fetch was already stored (the
+	 * first one wins, e.g. when the startup re-queue fetched a bookmark a second time).
 	 *
 	 * Runs in a transaction of its own: it is also called after the commit of the saving transaction (when a fetch
 	 * cannot be queued), where joining that finished transaction would never write the change.
@@ -168,7 +171,9 @@ class BookmarkService(
 		overwrite: Boolean,
 		metadata: PageMetadata?,
 	): Boolean {
-		val bookmark = bookmarks.findActiveById(id)?.takeIf { it.metadataFetch == fetch } ?: return false
+		val bookmark =
+			bookmarks.findActiveById(id)?.takeIf { it.metadataFetch == fetch && it.metadataStatus == MetadataStatus.PENDING }
+				?: return false
 		Hibernate.initialize(bookmark.tags)
 		bookmark.metadataFetched(fetch, fetched = metadata != null)
 		if (metadata != null) {

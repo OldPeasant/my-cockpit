@@ -20,8 +20,11 @@ import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.TestInstance
 import org.springframework.util.unit.DataSize
 import java.io.ByteArrayOutputStream
+import java.io.IOException
 import java.net.ServerSocket
 import java.time.Duration
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 import java.util.zip.GZIPOutputStream
 import kotlin.concurrent.thread
 import kotlin.random.Random
@@ -142,6 +145,58 @@ class PageFetcherSizeLimitTests {
 			error shouldBe PageFetchError.UNREACHABLE
 			serving.join(5_000)
 		}
+	}
+
+	@Test
+	fun `over HTTP 1_1 a page larger than max-size is cut off and its connection is closed, not left open`() {
+		ServerSocket(0).use { socket ->
+			val closedByClient = CountDownLatch(1)
+			val serving =
+				thread(isDaemon = true) {
+					socket.accept().use { connection ->
+						connection.getInputStream().read(ByteArray(8_192))
+						val out = connection.getOutputStream()
+						out.write("HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-Length: 100000000\r\n\r\n<title>Endless</title>".toByteArray())
+						// Keeps sending until the client closes the connection (the write then fails) or 10 s are over.
+						val deadline = System.nanoTime() + Duration.ofSeconds(10).toNanos()
+						try {
+							while (System.nanoTime() < deadline) {
+								out.write(ByteArray(8_192) { 'x'.code.toByte() })
+								out.flush()
+								Thread.sleep(5)
+							}
+						} catch (_: IOException) {
+							closedByClient.countDown()
+						}
+					}
+				}
+
+			val page = fetcher.fetch("http://127.0.0.1:${socket.localPort}/")
+
+			page.bytes.size shouldBe MAX.toInt()
+			String(page.bytes.copyOfRange(0, 22)) shouldBe "<title>Endless</title>"
+			closedByClient.await(5, TimeUnit.SECONDS) shouldBe true
+			serving.join(5_000)
+		}
+	}
+
+	@Test
+	fun `a large answer that is not HTML is not downloaded, it fails as not HTML at once`() {
+		server.stubFor(
+			get(urlEqualTo("/video")).willReturn(
+				aResponse()
+					.withHeader("Content-Type", "video/mp4")
+					.withBody(noise(100_000))
+					// The body takes longer than the fetch timeout (5 s) to arrive.
+					.withChunkedDribbleDelay(50, 8_000),
+			),
+		)
+
+		val started = System.nanoTime()
+		val error = shouldThrow<PageFetchException> { fetcher.fetch(local("/video")) }.error
+
+		error shouldBe PageFetchError.NOT_HTML
+		(Duration.ofNanos(System.nanoTime() - started) < Duration.ofSeconds(3)) shouldBe true
 	}
 
 	private companion object {

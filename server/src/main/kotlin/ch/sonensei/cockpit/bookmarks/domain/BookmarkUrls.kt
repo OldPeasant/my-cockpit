@@ -1,8 +1,11 @@
 package ch.sonensei.cockpit.bookmarks.domain
 
+import java.io.ByteArrayOutputStream
 import java.net.IDN
 import java.net.URI
 import java.net.URISyntaxException
+import java.nio.ByteBuffer
+import java.nio.charset.CharacterCodingException
 
 /**
  * Makes URLs as users copy them from a browser or share them from an app safe to store and fetch: a host in Unicode
@@ -62,6 +65,61 @@ internal object BookmarkUrls {
 			}
 		return normalized.takeIf(::parses)
 	}
+
+	/**
+	 * [url] (a [normalize]d URL) as a person reads it, for the search index: the host in Unicode form and the path,
+	 * query and fragment percent-decoded (UTF-8). An escape sequence that is no valid UTF-8 or decodes to a control
+	 * character stays encoded. `null` when that is the same as [url] or [url] is no URL.
+	 */
+	fun readable(url: String): String? {
+		val match = URL.matchEntire(url) ?: return null
+		val (scheme, authority, path, query, fragment) = match.destructured
+		val userInfo = if ('@' in authority) authority.substringBeforeLast('@') + "@" else ""
+		val hostPort = authority.substringAfterLast('@')
+		val readableHostPort =
+			if (hostPort.startsWith("[")) {
+				hostPort
+			} else {
+				val host = hostPort.substringBefore(':')
+				val unicodeHost = runCatching { IDN.toUnicode(host, IDN.ALLOW_UNASSIGNED) }.getOrDefault(host)
+				unicodeHost + hostPort.substring(host.length)
+			}
+		val readable = "$scheme://$userInfo$readableHostPort${decode(path)}${decode(query)}${decode(fragment)}"
+		return readable.takeIf { it != url }
+	}
+
+	/** [text] with each run of `%XX` escapes decoded as UTF-8, unless it is invalid or decodes to a control character. */
+	private fun decode(text: String): String {
+		if ('%' !in text) return text
+		return buildString {
+			var i = 0
+			while (i < text.length) {
+				if (!text.isEscapeAt(i)) {
+					append(text[i++])
+					continue
+				}
+				val start = i
+				val bytes = ByteArrayOutputStream()
+				while (text.isEscapeAt(i)) {
+					bytes.write(text.substring(i + 1, i + 3).toInt(16))
+					i += 3
+				}
+				val decoded =
+					try {
+						Charsets.UTF_8
+							.newDecoder()
+							.decode(ByteBuffer.wrap(bytes.toByteArray()))
+							.toString()
+							.takeUnless { it.any(Char::isISOControl) }
+					} catch (_: CharacterCodingException) {
+						null
+					}
+				append(decoded ?: text.substring(start, i))
+			}
+		}
+	}
+
+	private fun String.isEscapeAt(i: Int) = i + 2 < length && this[i] == '%' && this[i + 1].isHexDigit() && this[i + 2].isHexDigit()
 
 	/** The ASCII form of [host] (an IPv6 literal unchanged), or `null` when it is no valid host. */
 	private fun asciiHost(host: String): String? {

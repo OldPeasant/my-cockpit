@@ -21,9 +21,9 @@ import java.util.concurrent.TimeUnit
  * ([PageMetadataParser]), and [BookmarkService.applyMetadata] stores the result (`FAILED` when the page could not be
  * fetched). A concurrent change of the bookmark is retried a few times.
  *
- * No bookmark stays `PENDING` for good: a request that cannot be queued (queue full, application stopping) is stored
- * as `FAILED` right away, and when the application has started, the fetches of all bookmarks still `PENDING` (their
- * requests were lost when it stopped) are queued again.
+ * No bookmark stays `PENDING` for good: a request that cannot be queued because the queue is full is stored as
+ * `FAILED` right away. Requests that stopping the application interrupts, drops from the queue or rejects store
+ * nothing; when the application has started again, the fetches of all bookmarks still `PENDING` are queued again.
  *
  * Logs name the bookmark id and the reason only, never the URL or page content.
  */
@@ -49,6 +49,11 @@ class BookmarkMetadataWorker(
 		try {
 			executor.execute { run(request) }
 		} catch (e: RejectedExecutionException) {
+			// Stopping: leave the bookmark PENDING like the requests dropped from the queue, the next start fetches it.
+			if (executor.isShutdown) {
+				log.info("Bookmark {}: metadata fetch not queued, the application is stopping", request.id)
+				return
+			}
 			log.warn("Bookmark {}: metadata fetch not queued ({}), stored as failed", request.id, e.javaClass.simpleName)
 			store(request, null)
 		}
