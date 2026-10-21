@@ -1,6 +1,9 @@
 package ch.sonensei.cockpit.mail.api
 
 import ch.sonensei.cockpit.core.auth.WithCockpitUser
+import ch.sonensei.cockpit.core.items.domain.ItemRef
+import ch.sonensei.cockpit.core.items.domain.ItemType
+import ch.sonensei.cockpit.core.items.domain.LinkService
 import ch.sonensei.cockpit.mail.imap.MailAccountService
 import ch.sonensei.cockpit.mail.imap.MailFolderService
 import ch.sonensei.cockpit.mail.imap.MailServer
@@ -60,6 +63,7 @@ class MailActionGreenMailTests(
 	@Autowired private val folders: MailFolderRepository,
 	@Autowired private val messages: MailSyncRepository,
 	@Autowired private val sync: MailHeaderSyncService,
+	@Autowired private val links: LinkService,
 ) : PostgresTestBase() {
 	private lateinit var account: MailAccount
 
@@ -296,6 +300,149 @@ class MailActionGreenMailTests(
 			greenMail.start()
 		}
 		reloaded(first).seen shouldBe false
+	}
+
+	private fun JsonNode.codes(): List<String?> =
+		this["results"].toList().map { if (it["errorCode"].isNull) null else it["errorCode"].asString() }
+
+	private fun deleteOnServer(
+		path: String,
+		subject: String,
+	) = remote { store ->
+		val folder = store.getFolder(path)
+		folder.open(Folder.READ_WRITE)
+		folder.messages.single { it.subject == subject }.setFlag(Flags.Flag.DELETED, true)
+		folder.close(true)
+	}
+
+	@Test
+	fun `duplicate ids are acted on and reported once`() {
+		val (first) = inboxWith(1)
+
+		val result = act("READ", first.id, first.id, first.id)
+
+		result["results"].size() shouldBe 1
+		result.okIds() shouldContainExactly listOf(first.id.toString())
+		onServer("INBOX").getValue("Fictitious message 1") shouldBe (true to false)
+	}
+
+	@Test
+	fun `a linked message deleted for good from Trash stays as a detached row`() {
+		val (first, second) = inboxWith(2)
+		links.create(ItemRef(ItemType.EMAIL, first.id), ItemRef(ItemType.EMAIL, second.id), null)
+
+		act("DELETE", first.id).okIds() shouldContainExactly listOf(first.id.toString())
+		act("DELETE", first.id).okIds() shouldContainExactly listOf(first.id.toString())
+
+		uidsOnServer("Trash").keys.shouldBeEmpty()
+		val kept = reloaded(first)
+		kept.uid shouldBe null
+		kept.isLocated shouldBe false
+		links.linksOf(ItemRef(ItemType.EMAIL, first.id)).size shouldBe 1
+		// The link keeps the row, but the id now stands for nothing on the server.
+		act("FLAG", first.id).codes() shouldBe listOf("NOT_FOUND")
+	}
+
+	@Test
+	fun `a detached id is acted on at its located copy`() {
+		// Another client moved the message to Projects; the sync of Projects cached it there as a new row, and the
+		// INBOX row lost its location.
+		remote { store ->
+			store.getFolder("Projects").create(Folder.HOLDS_MESSAGES)
+			store.getFolder("INBOX").appendMessages(arrayOf(mail(1)))
+		}
+		folderService.sync(account.id)
+		syncAll()
+		val (first) = cached("INBOX")
+		remote { store ->
+			val inbox = store.getFolder("INBOX")
+			inbox.open(Folder.READ_WRITE)
+			inbox.copyMessages(inbox.messages, store.getFolder("Projects"))
+			inbox.messages.forEach { it.setFlag(Flags.Flag.DELETED, true) }
+			inbox.close(true)
+		}
+		sync.syncFolder(folder("Projects").id)
+		jdbc.update("update mail_message set uid = null where id = ?", first.id)
+		val copy = cached("Projects").single()
+		check(copy.id != first.id)
+
+		val result = act("FLAG", first.id)
+
+		result.okIds() shouldContainExactly listOf(first.id.toString())
+		onServer("Projects").getValue("Fictitious message 1") shouldBe (false to true)
+		reloaded(copy).flagged shouldBe true
+	}
+
+	@Test
+	fun `a command the server rejects fails the ids with REJECTED and changes nothing`() {
+		val (first) = inboxWith(1)
+		// The target folder was deleted on the server since the last folder sync.
+		remote { it.getFolder("Projects").delete(false) }
+
+		val result = act("MOVE", first.id, targetFolderId = folder("Projects").id)
+
+		result.codes() shouldBe listOf("REJECTED")
+		result["results"][0]["detail"].asString() shouldBe MailActionError.REJECTED.message
+		uidsOnServer("INBOX").keys shouldBe setOf("Fictitious message 1")
+		reloaded(first).folderId shouldBe folder("INBOX").id
+	}
+
+	@Test
+	fun `a source folder whose UIDVALIDITY changed fails the ids with NOT_FOUND`() {
+		val (first) = inboxWith(1)
+		jdbc.update("update mail_folder set uidvalidity = uidvalidity + 1 where id = ?", folder("INBOX").id)
+
+		act("READ", first.id).codes() shouldBe listOf("NOT_FOUND")
+
+		onServer("INBOX").getValue("Fictitious message 1") shouldBe (false to false)
+		reloaded(first).seen shouldBe false
+	}
+
+	@Test
+	fun `a source folder deleted on the server fails the ids with NOT_FOUND`() {
+		val (first) = inboxWith(1)
+		act("MOVE", first.id, targetFolderId = folder("Projects").id)
+		remote { it.getFolder("Projects").delete(true) }
+
+		act("READ", first.id).codes() shouldBe listOf("NOT_FOUND")
+	}
+
+	@Test
+	fun `a move moves the messages still on the server and reports the others as NOT_FOUND`() {
+		val (first, second, third) = inboxWith(3)
+		deleteOnServer("INBOX", "Fictitious message 2")
+
+		val result = act("ARCHIVE", first.id, second.id, third.id)
+
+		result.codes() shouldBe listOf(null, "NOT_FOUND", null)
+		uidsOnServer("Archive").keys shouldBe setOf("Fictitious message 1", "Fictitious message 3")
+		reloaded(first).folderId shouldBe folder("Archive").id
+		reloaded(third).folderId shouldBe folder("Archive").id
+		// The vanished message is not moved in the cache; the next INBOX sync removes it.
+		reloaded(second).folderId shouldBe folder("INBOX").id
+	}
+
+	@Test
+	fun `an action on messages all gone from the server fails each with NOT_FOUND`() {
+		val (first) = inboxWith(1)
+		deleteOnServer("INBOX", "Fictitious message 1")
+
+		act("DELETE", first.id).codes() shouldBe listOf("NOT_FOUND")
+		uidsOnServer("Trash").keys.shouldBeEmpty()
+	}
+
+	@Test
+	fun `messages of several folders are acted on per folder in one request`() {
+		val (first, second) = inboxWith(2)
+		act("ARCHIVE", second.id)
+
+		val result = act("FLAG", first.id, second.id)
+
+		result.okIds() shouldContainExactly listOf(first.id.toString(), second.id.toString())
+		onServer("INBOX").getValue("Fictitious message 1") shouldBe (false to true)
+		onServer("Archive").getValue("Fictitious message 2") shouldBe (false to true)
+		reloaded(first).flagged shouldBe true
+		reloaded(second).flagged shouldBe true
 	}
 
 	companion object {
