@@ -1,0 +1,25 @@
+{
+  "schema": 1,
+  "task": "and-reminders",
+  "reviewed_revision": "817a624e9b4197646d0bb0df546bb62ab5f95448",
+  "helpers": {
+    "test-writer":   {"status": "completed", "report": "reviews/and-reminders/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/and-reminders/review.md"},
+    "fixer":         {"status": "completed", "report": "reviews/and-reminders/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "CR-1 (first review)", "source": "code-reviewer", "severity": "P1", "disposition": "fixed",
+     "note": "reminder intent replayed from Recents reopened the item; ignored via FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY (3c001ef5), covered by ReminderActivityIntentTest"},
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P1", "disposition": "fixed",
+     "note": "reminder sync not restarted after logout + new login; ReminderPromptViewModel.onShellShown() from LaunchedEffect (fixes.md)"},
+    {"id": "CR-2", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "logout left notifications of reminders a later sync dropped; ReminderNotifier.dismissAll() on logout (fixes.md)"}
+  ],
+  "validation": [
+    {"command": "cd android && ./gradlew ktlintCheck testDebugUnitTest --rerun --tests 'ch.sonensei.cockpit.reminders.*'", "result": "pass"},
+    {"command": "cd android && ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.reminders.*' --tests 'ch.sonensei.cockpit.auth.*'", "result": "pass"},
+    {"command": "cd android && ./gradlew testDebugUnitTest --rerun createDebugUnitTestCoverageReport", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
