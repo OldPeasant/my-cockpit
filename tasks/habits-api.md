@@ -17,3 +17,4 @@ Habits with streaks (SPEC.md §8.5).
 - [ ] API documented: `api/openapi.yaml` regenerated (`UPDATE_OPENAPI=1 ./gradlew test --tests '*OpenApiContractTest'`) and `OpenApiContractTest` passes without the flag
 
 ## Notes
+- ASSUMPTION (2026-10-21 21:38+0200 by dell26/agent-2): Habit migration lives in db/migration/journal/V202610211930__journal_habits.sql (not journal/habits/ as in touches): MigrationConventionTests requires a flat <module>/ folder whose name matches the file prefix
