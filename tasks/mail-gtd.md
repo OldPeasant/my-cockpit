@@ -17,3 +17,4 @@ Turn mail into tasks, waiting-fors, notes (SPEC.md §7.3).
 - [ ] API documented: `api/openapi.yaml` regenerated (`UPDATE_OPENAPI=1 ./gradlew test --tests '*OpenApiContractTest'`) and `OpenApiContractTest` passes without the flag
 
 ## Notes
+- ASSUMPTION (2026-10-21 05:26+0200 by dell26/agent-3): to-waiting on a received (not sent) mail waits for its sender instead of being rejected; 'sent' = in the Sent-role folder or From matches the account address or an identity. waitingForText holds names/addresses (no contact lookup: no contacts service yet)
