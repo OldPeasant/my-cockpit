@@ -22,7 +22,8 @@ Markdown notes with images, tags, pins and history (SPEC.md §8.1).
   - verified (2026-10-21 02:21+0200 by dell26/agent-3): cd server && ./gradlew test --tests 'ch.sonensei.cockpit.notes.*' --tests '*OpenApiContractTest' (Postgres via Testcontainers) -> 70 tests, 0 failures; NoteInfraTests/NoteMarkdownTests cover NOTE resolver, flexmark-stripped search document, trash delete/restore re-index, ChangeEvents
 - [x] `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.notes.*'` passes (Postgres via Testcontainers where persistence is involved)
   - verified (2026-10-21 02:21+0200 by dell26/agent-3): cd server && ./gradlew test --tests 'ch.sonensei.cockpit.notes.*' -> BUILD SUCCESSFUL, 69 notes tests (NoteWeb 20, NoteEdgeCaseWeb 26, NoteInfra 9, NoteRevisionInfra 5, NoteMarkdown 8, NoteImageMaxSize 1), 0 failures; persistence tests on Postgres Testcontainers
-- [ ] API documented: `api/openapi.yaml` regenerated (`UPDATE_OPENAPI=1 ./gradlew test --tests '*OpenApiContractTest'`) and `OpenApiContractTest` passes without the flag
+- [x] API documented: `api/openapi.yaml` regenerated (`UPDATE_OPENAPI=1 ./gradlew test --tests '*OpenApiContractTest'`) and `OpenApiContractTest` passes without the flag
+  - verified (2026-10-21 02:21+0200 by dell26/agent-3): UPDATE_OPENAPI=1 ./gradlew test --tests '*OpenApiContractTest' regenerated api/openapi.yaml (+ npm run api:gen); then ./gradlew test --tests '*OpenApiContractTest' without flag -> pass; cd web && npm run check -> pass
 
 ## Notes
 - ASSUMPTION (2026-10-21 01:10+0200 by dell26/agent-3): Note history: before a title/body change the previous content is kept as a revision, but at most one per 5 minutes (autosave sessions keep the pre-session state, not every keystroke); a revision restore always keeps the replaced content. Revisions are earlier versions only (current content not listed); numbered per note; newest 20 kept.
