@@ -1,11 +1,11 @@
 ---
 title: Android reminders
-status: todo
-owner: 
+status: in_progress
+owner: dell26/agent-4
 deps: [and-gtd-data,reminders-core,and-capture-entrypoints]
 touches: [android/app/src/main/java/ch/sonensei/cockpit/reminders,android/app/src/test/java/ch/sonensei/cockpit/reminders,android/app/src/main/AndroidManifest.xml]
 prio: 2
-lease_until: 
+lease_until: 2026-10-21T09:33:06Z
 extended: 
 releases: 1
 ---
