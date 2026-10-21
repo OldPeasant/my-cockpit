@@ -3,7 +3,7 @@ title: App icon and favicon from the brand mark
 status: todo
 owner:
 deps: [p0-web-shell,and-shell]
-touches: [docs/brand,web/public,web/src/index.html,android/app/src/main/res/drawable/ic_launcher.xml,android/app/src/main/res/mipmap-anydpi-v26,android/app/src/main/res/drawable/ic_launcher_foreground.xml,android/app/src/main/res/drawable/ic_launcher_background.xml,android/app/src/main/res/drawable/ic_launcher_monochrome.xml,android/app/src/main/AndroidManifest.xml]
+touches: [docs/brand,web/public/favicon.svg,web/public/favicon.ico,web/public/apple-touch-icon.png,web/src/index.html,android/app/src/main/res/drawable/ic_launcher.xml,android/app/src/main/res/mipmap-anydpi-v26,android/app/src/main/res/drawable/ic_launcher_foreground.xml,android/app/src/main/res/drawable/ic_launcher_background.xml,android/app/src/main/res/drawable/ic_launcher_monochrome.xml,android/app/src/main/AndroidManifest.xml]
 prio: 2
 ---
 ## Goal
