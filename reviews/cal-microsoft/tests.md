@@ -4,6 +4,131 @@ Date: 2026-10-21
 
 Task: cal-microsoft - Microsoft Graph calendar adapter
 
+Scope: round 3. Task cal-microsoft, base 0a701f27cd0e4db92d84a54985f0f5ce2ae0c04d, measured HEAD 7480faa19774a204b1bddb221121f6581933d112 (`git log 0a701f27..HEAD`), plus this round's uncommitted test change. This round covers the round-2 fixes for the second review (321a89e2, rebased as bc79ea7e: `RestoredEtags`, an empty diff succeeds whatever the etag, `instancesOrNull` / 404 from `/instances`). The production files have not changed since that commit (`git log 0a701f27..HEAD -- server/src/main/kotlin/ch/sonensei/cockpit/calendar/infra/microsoft` shows 7c33b3c8, 6d334f70, bc79ea7e). The previous rounds' report is kept below the separator.
+
+Requirements:
+- tasks/cal-microsoft.md acceptance criteria 1-3 and its assumptions, including the 2026-10-21 14:24 one (an empty diff succeeds whatever the If-Match etag, restored-exception etags kept in memory only, bounded to 1000)
+- SPEC.md §6.2 (412 is "changed remotely", THIS/FOLLOWING/ALL)
+- reviews/cal-microsoft/review.md (second review CR-1 P2, CR-2 P3) and reviews/cal-microsoft/fixes.md (round 2)
+- docs/ARCHITECTURE.md "Coverage", AGENTS.md conventions (fictitious test data, lint)
+
+## Test files changed
+
+- `server/src/test/kotlin/ch/sonensei/cockpit/calendar/infra/microsoft/MicrosoftCalendarAdapterTests.kt`
+
+## Tests added or updated
+
+Count: 8 added, none changed or removed (MicrosoftCalendarAdapterTests went from 59 to 67, microsoft.* from 165 to 173). There is one new helper, `movedOverrideJson()`.
+
+Section "round-2 fixes (restored etags, empty diffs, series gone)" in MicrosoftCalendarAdapterTests (WireMock):
+- `after a pattern change, cancelling an override deletes the exception Graph put back with its current etag`: covers the cancelled-override path of `writeInstance` with `RestoredEtags`. The DELETE carries `If-Match: W/"restored"` (Graph's etag of the put-back exception), not the cockpit's stale `DwAAABYAAAA4`. Before this round only the PATCH path was tested.
+- `an exception put back after a pattern change and then changed in Outlook is a change at Microsoft`: the instance's etag moved on after the restore (`outlook-edit`). The remembered mapping must not apply, so the cockpit's own etag is sent, 412 follows and the result is `RemoteEventChangedException`. No request carries `If-Match: restored`. This protects against `RestoredEtags` hiding a real remote change.
+- `an exception Graph kept unchanged through a pattern change is not patched, and its override is written with Graph's new etag`: the new `changes.isEmpty -> instance` branch of `restoreExceptions`. Graph keeps the exception with a new etag, there is no restore PATCH, and the next override write uses `If-Match: W/"kept"`.
+- `an exception Graph kept but changed through a pattern change is left alone and its old etag stays stale`: the `type == exception` with changes branch. It is not patched and not remembered, so the later write sends the stale etag (412 -> `RemoteEventChangedException`).
+- `an exception that could not be put back is not remembered - writing its override with the old etag is a change at Microsoft`: the restore PATCH fails (500), and the following override write sends the cockpit's etag, not the plain occurrence's.
+- `a series gone at Microsoft by the time the whole window is asked has no such occurrence`: CR-2 for the second lookup in `findInstance`. The weeks around the occurrence are empty, and the whole window answers 404. Delete returns null, and a change raises `RemoteEventChangedException`, with no PATCH or DELETE. Before this round only a 404 on the first lookup was tested.
+- `an unchanged series writes nothing and returns Graph's series, whatever the etag`: the empty-diff rule on the master path of `updateEvent` for a series. It returns `currentSeries` with Graph's etag `DwAAABYAAAA3`. Before this round only a single event and an occurrence were tested.
+- `a changed series with a stale etag is sent with it, and Graph's 412 is a change at Microsoft`: the counterpart. A non-empty diff on a series still sends the caller's stale If-Match, and 412 becomes `RemoteEventChangedException`.
+
+## Requirement coverage
+
+| Requirement | Tests | Command | Result |
+|---|---|---|---|
+| AC1 writes: empty diff succeeds whatever the etag (assumption 14:24), real changes still go out with the caller's If-Match | `updateEvent without changes writes nothing and returns Graph's version, whatever the etag`, `an unchanged occurrence writes nothing ...`, `an unchanged series writes nothing ...`, `a changed occurrence with a stale etag is sent with it ...`, `a changed series with a stale etag is sent with it ...` | focused command below | Pass |
+| AC1 occurrence edits / 'following' split: second review CR-1, overrides written after a pattern change (`RestoredEtags`) | `after a pattern change, an override is written against the exception Graph put back ...`, `after a pattern change, an override with an etag other than the exception's ...`, `after a pattern change, cancelling an override deletes ...`, `an exception put back ... then changed in Outlook ...`, `an exception Graph kept unchanged ...`, `an exception Graph kept but changed ...`, `an exception that could not be put back is not remembered ...`, sync test `changing the pattern of a whole series with an exception succeeds, the exception keeps Graph's new etag` | focused command below | Pass |
+| AC1 occurrence edits: second review CR-2, series gone at Microsoft (404 from `/instances`) | `a series gone at Microsoft has no occurrences - delete succeeds, change is a change at Microsoft`, `a series gone at Microsoft by the time the whole window is asked has no such occurrence` | focused command below | Pass |
+| AC1 rest (calendars, delta sync, writes, occurrence edits, split) | unchanged from the previous round (see below) | focused command below | Pass |
+| AC2 Tests against WireMock recordings of Graph | MicrosoftCalendarAdapterTests (67), MicrosoftCalendarSyncTests (5) | focused command below | Pass |
+| AC3 `./gradlew test --tests 'ch.sonensei.cockpit.calendar.infra.microsoft.*'` passes, Postgres via Testcontainers | all 173 microsoft.* tests; MicrosoftCalendarSyncTests extends `PostgresTestBase` (Testcontainers) | `cd server && ./gradlew ktlintCheck test --rerun --tests 'ch.sonensei.cockpit.calendar.infra.microsoft.*' jacocoTestReport -Pkotlin.daemon.jvmargs=-Xmx3g` | Pass (173 tests, 0 failures, 0 errors, 0 skipped) |
+
+## Focused test execution
+
+Command:
+
+`cd server && ./gradlew ktlintCheck test --rerun --tests 'ch.sonensei.cockpit.calendar.infra.microsoft.*' jacocoTestReport -Pkotlin.daemon.jvmargs=-Xmx3g`
+
+Result:
+
+Pass. BUILD SUCCESSFUL, run from 2026-10-21T12:28:09Z to 12:28:50Z. JUnit: GraphEventMappingTests 44, GraphRecurrenceTests 37, MicrosoftCalendarAdapterTests 67, MicrosoftCalendarSyncTests 5 (Postgres via Testcontainers), WindowsZonesTests 20. Total 173 tests, 0 failures, 0 errors, 0 skipped. ktlintCheck passes with no suppressions. A first run reported one line over 140 characters in a new test, and it was rewrapped by hand. `ktlintFormat` was not run, so that no production file could be touched. `-Pkotlin.daemon.jvmargs=-Xmx3g` is a command-line property only. No configuration was changed.
+
+## Full test execution
+
+Command:
+
+`cd server && ./gradlew check -Pkotlin.daemon.jvmargs=-Xmx3g`
+
+Result:
+
+Not completed (environment). After 8m 33s the Gradle test executor was killed with exit value 137 (SIGKILL, out of memory: the machine had 856 MB free and 8 GB swap fully used, with other agents running). Up to the kill, 132 test classes with 1457 tests had finished, with 0 failures and 0 errors. This is not a passing full run. The parent's `.taskcheck` must provide it.
+
+## .taskcheck
+
+Result:
+
+Not run by the test-writer (`sh scripts/check.sh` runs all parts and was noted to take more than 10 minutes under load, and the server part was already killed by memory pressure above). The parent runs it before `done`.
+
+## Bugs found
+
+None. Every new test passed against the round-2 code. The `RestoredEtags` mapping is applied only when the caller's etag is the one the exception had and Graph's instance still has the etag the adapter saw after putting it back. In every other case (remote edit after the restore, a failed restore, an exception Graph kept with other fields) the caller's etag is sent and a real remote change still ends in 409. The empty-diff rule holds for single events, occurrences and series, and a non-empty diff still carries the caller's If-Match. A 404 on either `/instances` lookup is treated as "no such occurrence".
+
+## Coverage
+
+Status: verified (fresh focused run on a stable snapshot)
+
+Metric: whole-file coverage of task-changed production files. Only microsoft.* tests were executed for the report.
+Changed-line coverage: not measured separately. All 5 files are added by this task (`git diff --name-status 0a701f27..HEAD -- server/src/main web/src android/app/src/main` lists only `A` entries), so whole-file coverage equals changed-line coverage for the task.
+
+Evidence:
+- Task id cal-microsoft, immutable base 0a701f27cd0e4db92d84a54985f0f5ce2ae0c04d (given by the parent), measured HEAD 7480faa19774a204b1bddb221121f6581933d112. Task ownership: the parent's range 0a701f27..HEAD, the task `touches` (`calendar/infra/microsoft` main and test), and the commits touching those paths, which are all "cal-microsoft:". The range also contains other tasks' commits (cal-google, heartbeats), and they are excluded because they are outside the task's paths.
+- Source/test snapshot: HEAD 7480faa1 plus uncommitted `MicrosoftCalendarAdapterTests.kt` sha256 3d8409b05102c51467d9d65419970ef813ccdb047e873aeb28bb4fe21819cf98. Production sha256: MicrosoftCalendarAdapter.kt be68d6c7...23e3, GraphEventMapping.kt 4869f021...adc2, GraphRecurrence.kt ea1571c2...14e2, GraphClient.kt 926569e8...11b4, WindowsZones.kt 39327688...fb23. The other test files are unchanged (MicrosoftCalendarSyncTests.kt 414f7bd4...3af7). Hashes were taken after the run and match the inputs of the run.
+- Included files: `server/src/main/kotlin/ch/sonensei/cockpit/calendar/infra/microsoft/{GraphClient,GraphEventMapping,GraphRecurrence,MicrosoftCalendarAdapter,WindowsZones}.kt`. No renamed, deleted or excluded files. All 5 are in the JaCoCo report.
+- Provider: JaCoCo via the Gradle `jacoco` plugin (project config, unchanged). Command as in "Focused test execution", working directory `server/`, test selection `ch.sonensei.cockpit.calendar.infra.microsoft.*`.
+- Run: 2026-10-21T12:28:09Z to 12:28:50Z, exit status 0. `build/jacoco/test.exec` was written 12:28:46Z, and the XML report 12:28:49Z.
+- Report: `server/build/reports/jacoco/test/jacocoTestReport.xml`, sha256 5fc34f002e643b148fc69686f502e672e6c60e8764833ebf28e886a4a478073b. The later, killed `./gradlew check` did not regenerate the XML (same hash afterwards), but it did overwrite `test.exec`.
+- Freshness: `--rerun` forced the test task, and the inputs did not change during or after the run.
+- Final run after the latest test additions: yes. No production code changed in this round.
+
+Values below use covered/total (percentage). JaCoCo "Statements" are instructions.
+
+| Changed file | Statements (instructions) | Branches | Functions (methods) | Lines |
+|---|---:|---:|---:|---:|
+| `server/src/main/kotlin/ch/sonensei/cockpit/calendar/infra/microsoft/MicrosoftCalendarAdapter.kt` | 2403/2541 (94.6%) | 190/229 (83.0%) | 46/47 (97.9%) | 318/324 (98.1%) |
+| `server/src/main/kotlin/ch/sonensei/cockpit/calendar/infra/microsoft/GraphEventMapping.kt` | 1110/1112 (99.8%) | 133/138 (96.4%) | 17/17 (100.0%) | 122/122 (100.0%) |
+| `server/src/main/kotlin/ch/sonensei/cockpit/calendar/infra/microsoft/GraphRecurrence.kt` | 1758/1920 (91.6%) | 233/302 (77.2%) | 14/14 (100.0%) | 179/179 (100.0%) |
+| `server/src/main/kotlin/ch/sonensei/cockpit/calendar/infra/microsoft/GraphClient.kt` | 537/543 (98.9%) | 34/38 (89.5%) | 14/14 (100.0%) | 75/75 (100.0%) |
+| `server/src/main/kotlin/ch/sonensei/cockpit/calendar/infra/microsoft/WindowsZones.kt` | 912/912 (100.0%) | 14/14 (100.0%) | 3/3 (100.0%) | 151/151 (100.0%) |
+| **Aggregate (summed counters, 5 of 5 files, none excluded or missing)** | 6720/7028 (95.6%) | 604/721 (83.8%) | 94/95 (98.9%) | 845/851 (99.3%) |
+
+The adapter's counters grew with the round-2 code (`RestoredEtags`, `instancesOrNull`), from 2384 to 2541 instructions and from 213 to 229 branches. Uncovered branches went from 36 to 39: lines 243, 483 and 652 below. All other new branches of 321a89e2 are covered, and JaCoCo shows lines 396-411, 427, 430, 472 and 474 fully covered.
+
+| File and uncovered lines/branch locations | Required behavior or risk | Action/test added or reason left uncovered |
+|---|---|---|
+| `MicrosoftCalendarAdapter.kt:396-411` (`writeInstance` with `RestoredEtags`: DELETE, stale-after-restore, not remembered) | Second review CR-1: override written after a pattern change | Covered now by the 5 restored-etag tests above |
+| `MicrosoftCalendarAdapter.kt:472-474` (`restoreExceptions`: kept unchanged / kept changed) | CR-1: Graph keeping exceptions through a pattern change | Covered now: `an exception Graph kept unchanged ...`, `... kept but changed ...` |
+| `MicrosoftCalendarAdapter.kt:430` (404 on the whole-window lookup) | Second review CR-2 | Covered now: `a series gone at Microsoft by the time the whole window is asked ...` |
+| `MicrosoftCalendarAdapter.kt:243` (`instances()` throws on 404) | The series master was just read successfully and `/instances` then answers 404 (pull in `readSeries`, the pre-PATCH exception read, the restore or EXDATE read). The result is a provider error (502) for that run | Race with a remote delete within one request sequence. The next poll sees the removal, and fixes.md states this behavior is intended. Left uncovered, low risk. |
+| `MicrosoftCalendarAdapter.kt:652` (`removeEldestEntry` beyond 1000 entries), `662` (`remember` with a missing or equal etag), `672` (instance without etag) | Bound of the in-memory map, and degenerate etags | Eviction needs more than 1000 restores against WireMock. The assumption accepts a lost entry (a false 409 until the next sync). Graph always sends etags. Not material, left uncovered. |
+| `MicrosoftCalendarAdapter.kt:483` (`now.text("id") ?: continue`) | Instance without id | Graph always sends ids. Not material. |
+| `MicrosoftCalendarAdapter.kt:512-513, 566-567, 578-579` and partial branches `113, 152, 158, 199, 213, 220, 349, 406, 467-468, 496-497, 510, 556, 608-609, 640` | Defensive rethrows, unreadable Graph answers, and small branch variants | As in the previous round (see the table below, line numbers shifted by the round-2 changes). Not material. |
+| `GraphRecurrence.kt`, `GraphEventMapping.kt`, `GraphClient.kt` | Unchanged since the previous round | Same gaps and reasons as the previous round below |
+
+## Unable to test
+
+- Real Exchange behavior around a pattern PATCH: whether an exception gets a new etag when it is put back, and whether Graph sometimes keeps exceptions. The `RestoredEtags` tests model this with WireMock stubs, not with recordings of these exact calls. There is no Microsoft tenant or network access here, as in the previous round.
+- Eviction of `RestoredEtags` beyond 1000 entries and the loss of entries on restart. These are accepted by the recorded assumption and not tested.
+
+## Summary
+
+Tests added and the focused validation passed. Task-scoped coverage is sufficient, and no production defects were found. The full `./gradlew check` could not finish here (killed by the OS for lack of memory, 0 failures up to then). The parent's `.taskcheck` run still has to supply full-suite evidence.
+
+---
+
+# Test Report (previous round, kept for reference)
+
+Date: 2026-10-21
+
+Task: cal-microsoft - Microsoft Graph calendar adapter
+
 Scope: task cal-microsoft, base 56df48eaf8823eb85b5572575b56d75ea0cb0806, task commits 613e1115..9a8214e8 (HEAD 9a8214e81df2f706c6a908765d3d6f9c41a9e48f, 6 commits, all cal-microsoft), plus this run's uncommitted test changes. This pass covers the final code after the fixes for review findings CR-1 to CR-6 (c1e66634).
 
 Requirements:

@@ -1120,7 +1120,196 @@ class MicrosoftCalendarAdapterTests {
 		adapter.fetchEvents(source, CALENDAR, null).events.map { it.key } shouldContainExactly listOf(RemoteEventKey("AAMkFine"))
 	}
 
+	// --- round-2 fixes (restored etags, empty diffs, series gone): further cases (test-writer)
+
+	@Test
+	fun `after a pattern change, cancelling an override deletes the exception Graph put back with its current etag`() {
+		stubRestoredException()
+		stub(delete(urlPathEqualTo("$EVENTS/AAMkSeries1-20261019")).atPriority(9), recording("error-412-irresolvable-conflict.json"), 412)
+		stub(delete(urlPathEqualTo("$EVENTS/AAMkSeries1-20261019")).withHeader("If-Match", equalTo("W/\"restored\"")).atPriority(1), "", 204)
+
+		adapter.updateEvent(source, CALENDAR, teamSync().copy(rrule = "FREQ=WEEKLY;BYDAY=MO;UNTIL=20261116T075959Z"), "W/\"DwAAABYAAAA3\"")
+		wireMock.resetRequests()
+
+		val cancelled = movedOverride().copy(status = EventStatus.CANCELLED)
+		adapter.updateEvent(source, CALENDAR, cancelled, "W/\"DwAAABYAAAA4\"").etag.shouldBeNull()
+
+		wireMock.verify(1, deleteRequestedFor(anyUrl()))
+		wireMock.verify(
+			deleteRequestedFor(urlPathEqualTo("$EVENTS/AAMkSeries1-20261019")).withHeader("If-Match", equalTo("W/\"restored\"")),
+		)
+	}
+
+	@Test
+	fun `an exception put back after a pattern change and then changed in Outlook is a change at Microsoft`() {
+		stubRestoredException()
+		adapter.updateEvent(source, CALENDAR, teamSync().copy(rrule = "FREQ=WEEKLY;BYDAY=MO;UNTIL=20261116T075959Z"), "W/\"DwAAABYAAAA3\"")
+		// Someone renames the put-back exception in Outlook before the cockpit writes it: Graph's etag moves on.
+		val edited = movedOverrideJson().put("subject", "Team sync (edited in Outlook)").put("@odata.etag", "W/\"outlook-edit\"")
+		wireMock.stubFor(
+			get(urlPathEqualTo("$EVENTS/AAMkSeries1/instances"))
+				.inScenario("pattern")
+				.whenScenarioStateIs("restored")
+				.willReturn(jsonResponse(json.writeValueAsString(mapOf("value" to listOf(edited))))),
+		)
+		wireMock.resetRequests()
+
+		shouldThrow<RemoteEventChangedException> {
+			adapter.updateEvent(source, CALENDAR, movedOverride().copy(title = "Team sync (renamed)"), "W/\"DwAAABYAAAA4\"")
+		}
+		// The cockpit's own etag goes out, not the one remembered for the put-back version.
+		wireMock.verify(
+			patchRequestedFor(urlPathEqualTo("$EVENTS/AAMkSeries1-20261019")).withHeader("If-Match", equalTo("W/\"DwAAABYAAAA4\"")),
+		)
+		wireMock.verify(0, patchRequestedFor(anyUrl()).withHeader("If-Match", equalTo("W/\"restored\"")))
+	}
+
+	@Test
+	fun `an exception Graph kept unchanged through a pattern change is not patched, and its override is written with Graph's new etag`() {
+		val before = seriesInstances()
+		// Graph keeps the exception with all its fields, in a new version.
+		val after =
+			before.map {
+				if (it.get("id").asString() == "AAMkSeries1-20261019") {
+					(it.deepCopy() as tools.jackson.databind.node.ObjectNode).put("@odata.etag", "W/\"kept\"")
+				} else {
+					it
+				}
+			}
+		stubPatternChange(before, after)
+		stubPatchOnlyIfMatch(
+			"$EVENTS/AAMkSeries1-20261019",
+			"W/\"kept\"",
+			json.writeValueAsString(movedOverrideJson().put("subject", "Team sync (renamed)").put("@odata.etag", "W/\"after-rename\"")),
+		)
+
+		adapter.updateEvent(source, CALENDAR, teamSync().copy(rrule = "FREQ=WEEKLY;BYDAY=MO;UNTIL=20261116T075959Z"), "W/\"DwAAABYAAAA3\"")
+		// Only the series is patched: the exception already is what it was.
+		wireMock.verify(1, patchRequestedFor(anyUrl()))
+		wireMock.verify(patchRequestedFor(urlPathEqualTo("$EVENTS/AAMkSeries1")))
+		wireMock.resetRequests()
+
+		val renamed = adapter.updateEvent(source, CALENDAR, movedOverride().copy(title = "Team sync (renamed)"), "W/\"DwAAABYAAAA4\"")
+
+		renamed.etag shouldBe "W/\"after-rename\""
+		wireMock.verify(
+			patchRequestedFor(urlPathEqualTo("$EVENTS/AAMkSeries1-20261019")).withHeader("If-Match", equalTo("W/\"kept\"")),
+		)
+	}
+
+	@Test
+	fun `an exception Graph kept but changed through a pattern change is left alone and its old etag stays stale`() {
+		val before = seriesInstances()
+		// Graph keeps the exception, but with other fields than the cockpit knows of (changed meanwhile).
+		val after =
+			before.map {
+				if (it.get("id").asString() == "AAMkSeries1-20261019") {
+					(it.deepCopy() as tools.jackson.databind.node.ObjectNode)
+						.put("subject", "Team sync (edited in Outlook)")
+						.put("@odata.etag", "W/\"kept-changed\"")
+				} else {
+					it
+				}
+			}
+		stubPatternChange(before, after)
+		stubPatchOnlyIfMatch("$EVENTS/AAMkSeries1-20261019", "W/\"kept-changed\"", json.writeValueAsString(movedOverrideJson()))
+
+		adapter.updateEvent(source, CALENDAR, teamSync().copy(rrule = "FREQ=WEEKLY;BYDAY=MO;UNTIL=20261116T075959Z"), "W/\"DwAAABYAAAA3\"")
+		wireMock.verify(1, patchRequestedFor(anyUrl()))
+		wireMock.verify(0, patchRequestedFor(urlPathEqualTo("$EVENTS/AAMkSeries1-20261019")))
+		wireMock.resetRequests()
+
+		shouldThrow<RemoteEventChangedException> {
+			adapter.updateEvent(source, CALENDAR, movedOverride().copy(title = "Team sync (renamed)"), "W/\"DwAAABYAAAA4\"")
+		}
+		wireMock.verify(
+			patchRequestedFor(urlPathEqualTo("$EVENTS/AAMkSeries1-20261019")).withHeader("If-Match", equalTo("W/\"DwAAABYAAAA4\"")),
+		)
+	}
+
+	@Test
+	fun `an exception that could not be put back is not remembered - writing its override with the old etag is a change at Microsoft`() {
+		val before = seriesInstances()
+		val plain = json.readTree(instanceJson("AAMkSeries1-20261019", "occurrence", "2026-10-19T07:00:00"))
+		val after = before.map { if (it.get("id").asString() == "AAMkSeries1-20261019") plain else it }
+		stubPatternChange(before, after)
+		wireMock.stubFor(
+			patch(urlPathEqualTo("$EVENTS/AAMkSeries1-20261019"))
+				.inScenario("pattern")
+				.whenScenarioStateIs("changed")
+				.willSetStateTo("failed")
+				.willReturn(aResponse().withStatus(500).withBody("""{"error": {"code": "ErrorInternalServerError"}}""")),
+		)
+		wireMock.stubFor(
+			get(urlPathEqualTo("$EVENTS/AAMkSeries1/instances"))
+				.inScenario("pattern")
+				.whenScenarioStateIs("failed")
+				.willReturn(jsonResponse(json.writeValueAsString(mapOf("value" to after)))),
+		)
+		stubPatchOnlyIfMatch("$EVENTS/AAMkSeries1-20261019", "W/\"AAMkSeries1-20261019\"", json.writeValueAsString(movedOverrideJson()))
+
+		adapter.updateEvent(source, CALENDAR, teamSync().copy(rrule = "FREQ=WEEKLY;BYDAY=MO;UNTIL=20261116T075959Z"), "W/\"DwAAABYAAAA3\"")
+		wireMock.resetRequests()
+
+		shouldThrow<RemoteEventChangedException> { adapter.updateEvent(source, CALENDAR, movedOverride(), "W/\"DwAAABYAAAA4\"") }
+		wireMock.verify(
+			patchRequestedFor(urlPathEqualTo("$EVENTS/AAMkSeries1-20261019")).withHeader("If-Match", equalTo("W/\"DwAAABYAAAA4\"")),
+		)
+	}
+
+	@Test
+	fun `a series gone at Microsoft by the time the whole window is asked has no such occurrence`() {
+		// The weeks around 16 November have nothing; the whole window answers 404: the series was deleted meanwhile.
+		stub(
+			get(urlPathEqualTo("$EVENTS/AAMkSeries1/instances")).withQueryParam("startDateTime", equalTo("2026-10-12T08:00:00Z")),
+			"""{"value": []}""",
+		)
+		stub(
+			get(urlPathEqualTo("$EVENTS/AAMkSeries1/instances")).withQueryParam("startDateTime", equalTo("2025-10-21T00:00:00Z")),
+			"""{"error": {"code": "ErrorItemNotFound"}}""",
+			404,
+		)
+		val key = RemoteEventKey("AAMkSeries1", at("2026-11-16T08:00:00Z"))
+
+		adapter.deleteEvent(source, CALENDAR, key, "W/\"I6\"").shouldBeNull()
+		shouldThrow<RemoteEventChangedException> { adapter.updateEvent(source, CALENDAR, occurrence("2026-11-16T08:00:00Z", "Mine"), "W/\"I6\"") }
+
+		val wholeWindow =
+			getRequestedFor(urlPathEqualTo("$EVENTS/AAMkSeries1/instances")).withQueryParam("startDateTime", equalTo("2025-10-21T00:00:00Z"))
+		wireMock.verify(2, wholeWindow)
+		wireMock.verify(0, deleteRequestedFor(anyUrl()))
+		wireMock.verify(0, patchRequestedFor(anyUrl()))
+	}
+
+	@Test
+	fun `an unchanged series writes nothing and returns Graph's series, whatever the etag`() {
+		stubSeries()
+
+		val stored = adapter.updateEvent(source, CALENDAR, teamSync(), "W/\"old\"")
+
+		stored.key shouldBe RemoteEventKey("AAMkSeries1")
+		stored.etag shouldBe "W/\"DwAAABYAAAA3\""
+		stored.rrule shouldBe teamSync().rrule
+		wireMock.verify(0, patchRequestedFor(anyUrl()))
+		wireMock.verify(0, deleteRequestedFor(anyUrl()))
+	}
+
+	@Test
+	fun `a changed series with a stale etag is sent with it, and Graph's 412 is a change at Microsoft`() {
+		stubSeries()
+		stubPatchOnlyIfMatch("$EVENTS/AAMkSeries1", "W/\"DwAAABYAAAA3\"", recording("series1-master.json"))
+
+		shouldThrow<RemoteEventChangedException> {
+			adapter.updateEvent(source, CALENDAR, teamSync().copy(title = "Team sync (renamed)"), "W/\"old\"")
+		}
+		wireMock.verify(patchRequestedFor(urlPathEqualTo("$EVENTS/AAMkSeries1")).withHeader("If-Match", equalTo("W/\"old\"")))
+	}
+
 	// --- helpers
+
+	/** The recorded 19 October exception of AAMkSeries1 (etag DwAAABYAAAA4), as a copy. */
+	private fun movedOverrideJson(): tools.jackson.databind.node.ObjectNode =
+		seriesInstances().single { it.get("id").asString() == "AAMkSeries1-20261019" }.deepCopy() as tools.jackson.databind.node.ObjectNode
 
 	/**
 	 * Series AAMkSeries1 whose `/instances` answer [before] until its master is patched (pattern change), and [after]
