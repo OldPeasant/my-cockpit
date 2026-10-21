@@ -69,18 +69,21 @@ fun NotesScreen(modifier: Modifier = Modifier) {
 @Composable
 fun NotesRoute(modifier: Modifier = Modifier) {
     // "new:<random>" for a new note (each one gets its own editor), else "<id>#<random>": the open note, and this
-    // opening of it (a note opened again is loaded again).
+    // opening of it (a note opened again is loaded again, unless its editor still holds unsaved text).
     var open by rememberSaveable { mutableStateOf<String?>(null) }
     // The save started when the editor was left: the list reloads once it is done.
     var saving by remember { mutableStateOf<Job?>(null) }
+    val editors: NoteEditors = hiltViewModel()
     val current = open
     if (current == null) {
         val viewModel: NotesListViewModel = hiltViewModel()
         val state by viewModel.uiState.collectAsStateWithLifecycle()
-        // Reloaded each time the list is shown, so a note edited a moment ago shows its new text and place.
+        // Reloaded each time the list is shown, so a note edited a moment ago shows its new text and place. Before
+        // that, editors left with unsaved text try again, and the ones with nothing left are dropped.
         LaunchedEffect(Unit) {
             saving?.join()
             saving = null
+            editors.settle()
             viewModel.refresh()
         }
         NotesListContent(
@@ -88,7 +91,8 @@ fun NotesRoute(modifier: Modifier = Modifier) {
             callbacks =
                 NotesListCallbacks(
                     open = { open = "$it$OPENING${UUID.randomUUID()}" },
-                    create = { open = NEW_NOTE + UUID.randomUUID() },
+                    // A new note that could not be created yet is opened again rather than started over.
+                    create = { open = editors.unsentNewNote() ?: (NEW_NOTE + UUID.randomUUID()) },
                     selectTag = viewModel::selectTag,
                     retry = viewModel::refresh,
                 ),
@@ -109,7 +113,7 @@ fun NotesRoute(modifier: Modifier = Modifier) {
     }
 }
 
-private const val NEW_NOTE = "new:"
+private const val NEW_NOTE = NoteEditors.NEW_NOTE_KEY
 private const val OPENING = "#"
 
 /** What the list can ask for, so it can be tested without a view model. */

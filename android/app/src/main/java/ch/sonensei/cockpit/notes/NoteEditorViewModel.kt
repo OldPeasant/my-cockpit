@@ -2,8 +2,10 @@ package ch.sonensei.cockpit.notes
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -13,7 +15,6 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import java.util.UUID
-import javax.inject.Inject
 
 /** Where the text stands against the server. */
 enum class SaveStatus { SAVED, UNSAVED, SAVING, OFFLINE, FAILED }
@@ -60,13 +61,16 @@ data class NoteEditorUiState(
  * One note: the rendered Markdown or the plain editor, saved automatically [AUTOSAVE_DELAY_MS] after the last change.
  * Saves run one at a time, each over the version the previous one returned. A save the server refuses because the
  * note changed elsewhere stops the autosave until the user keeps their text or takes the server's.
+ *
+ * Saves run in [saves], a scope that outlives this view model: leaving the editor, or the whole Notes screen (also
+ * through the shell's back arrow), neither cancels a running save nor drops text that waits for its autosave (see
+ * [onCleared]). [NoteEditors] creates and clears these view models.
  */
-@HiltViewModel
 class NoteEditorViewModel
-    @Inject
     constructor(
         private val notes: NotesRepository,
         images: NoteImages,
+        private val saves: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate),
     ) : ViewModel() {
         val imageLoader = images.loader
 
@@ -113,6 +117,12 @@ class NoteEditorViewModel
             state.update { it.copy(loading = true, unloaded = true) }
             viewModelScope.launch { load(id) }
         }
+
+        /**
+         * Nothing here is waiting: the text is saved (or there is none), and no save, upload, load or conflict is under
+         * way. The editor can then be dropped without losing anything.
+         */
+        val settled: Boolean get() = !pending()
 
         /** Something here is not on the server yet, or waits for the user: the shown note must not be replaced. */
         private fun pending(): Boolean {
@@ -169,21 +179,32 @@ class NoteEditorViewModel
         fun saveNow(): Job {
             autosave?.cancel()
             autosave = null
-            return viewModelScope.launch { save() }
+            return saves.launch { save() }
         }
 
         /**
          * Saves after [delayMs], unless another change comes first. Only the wait is cancelled: a save that started
-         * runs to its end (cancelling it could leave the note saved without its new version, so the next save would
-         * conflict with itself). Text typed meanwhile is saved by its own autosave, over the new version.
+         * runs to its end, in [saves] (cancelling it could leave the note saved without its new version, so the next
+         * save would conflict with itself). Text typed meanwhile is saved by its own autosave, over the new version.
          */
         private fun saveSoon(delayMs: Long) {
             autosave?.cancel()
             autosave =
                 viewModelScope.launch {
                     delay(delayMs)
-                    viewModelScope.launch { save() }
+                    saves.launch { save() }
                 }
+        }
+
+        /**
+         * The editor is gone for good (closed and dropped, or the Notes screen was left, e.g. by the shell's back
+         * arrow): text still waiting for its autosave is saved now, in [saves], as this view model's scope is cancelled.
+         * Nothing is saved during a conflict (that waits for the user) or before the note was loaded.
+         */
+        override fun onCleared() {
+            autosave?.cancel()
+            autosave = null
+            saves.launch { save() }
         }
 
         /** Saves the current text if it differs from the saved note; returns whether the save went through. */
@@ -247,8 +268,9 @@ class NoteEditorViewModel
         }
 
         /**
-         * Inserts the image uploaded while the conflict came up: at its cursor when the text is still the one it was added
-         * to, else at the end. Returns whether there was one.
+         * Inserts the image uploaded while the conflict came up: [atCursor] (keep my version) at the cursor it was added
+         * at, clamped to the text, even if that text changed meanwhile; else (use the other version) at the end of the
+         * text. Returns whether there was one.
          */
         private fun insertPendingImage(atCursor: Boolean): Boolean {
             val (image, at) = pendingImage ?: return false

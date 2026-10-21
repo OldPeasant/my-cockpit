@@ -95,9 +95,9 @@ internal object NoteEditorTags {
 }
 
 /**
- * Note [id] (`null`: a new note). [key] picks the view model (each new note gets its own); [opening] identifies this
- * opening of the editor, so a note opened again is loaded again. Leaving (the back arrow or the system back) saves what
- * is not saved yet: [onClose] gets that save, `null` when the editor closes because the note is gone.
+ * Note [id] (`null`: a new note). [key] picks the editor from [NoteEditors] (each new note gets its own); [opening]
+ * identifies this opening of the editor, so a note opened again is loaded again. Leaving (the back arrow or the system
+ * back) saves what is not saved yet: [onClose] gets that save, `null` when the editor closes because the note is gone.
  */
 @Composable
 fun NoteEditorRoute(
@@ -106,7 +106,7 @@ fun NoteEditorRoute(
     onClose: (saving: Job?) -> Unit,
     modifier: Modifier = Modifier,
     opening: String = key,
-    viewModel: NoteEditorViewModel = hiltViewModel(key = "note:$key"),
+    viewModel: NoteEditorViewModel = noteEditor(key),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     LaunchedEffect(viewModel, opening) { viewModel.open(id, opening) }
@@ -168,6 +168,13 @@ fun NoteEditorRoute(
             ),
         modifier = modifier,
     )
+}
+
+/** The editor for [key], kept by the Notes screen's [NoteEditors]. */
+@Composable
+private fun noteEditor(key: String): NoteEditorViewModel {
+    val editors: NoteEditors = hiltViewModel()
+    return remember(editors, key) { editors.editor(key) }
 }
 
 @Composable

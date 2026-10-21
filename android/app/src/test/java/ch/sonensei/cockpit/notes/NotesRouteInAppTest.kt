@@ -137,6 +137,71 @@ class NotesRouteInAppTest {
         coVerify(exactly = 0) { repo.save(any(), any()) }
     }
 
+    @Test
+    fun `the shell's back arrow leaves the Notes screen and still saves the text typed last`() {
+        coEvery { repo.list(null) } returns NotesResult.Ok(listOf(loaded))
+        coEvery { repo.get(id) } returns NotesResult.Ok(loaded)
+        coEvery { repo.save(loaded, NoteDraft("", "Shopping\nMilk")) } answers {
+            events += "saved"
+            SaveResult.Saved(edited)
+        }
+        openNotes()
+
+        composeRule.onNodeWithTag(NotesTags.note(id)).performClick()
+        composeRule.waitUntil(WAIT_MS) { composeRule.onAllNodesWithTag(NoteEditorTags.TOGGLE).fetchSemanticsNodes().isNotEmpty() }
+        composeRule.onNodeWithTag(NoteEditorTags.TOGGLE).performClick()
+        composeRule.onNodeWithTag(NoteEditorTags.BODY).performTextReplacement("Shopping\nMilk")
+        // The top bar's own arrow (not the editor's "Back to notes"): it pops the whole Notes screen.
+        composeRule.onNodeWithContentDescription("Back").performClick()
+        composeRule.waitUntil(
+            WAIT_MS,
+        ) { composeRule.onAllNodesWithTag(screenTag(CockpitDestination.More)).fetchSemanticsNodes().isNotEmpty() }
+
+        composeRule.waitUntil(WAIT_MS) { "saved" in events }
+        coVerify(exactly = 1) { repo.save(loaded, NoteDraft("", "Shopping\nMilk")) }
+    }
+
+    @Test
+    fun `a new note left with unsaved text after it was created shows that text when opened from the list`() {
+        val createdId = UUID.fromString("00000000-0000-7000-8000-000000000002")
+        val created = Note(createdId, null, "Idea", "Idea", false, emptyList(), Instant.EPOCH, 1)
+        coEvery { repo.list(null) } returns NotesResult.Ok(listOf(loaded, created))
+        coEvery { repo.save(null, NoteDraft("", "Idea")) } returns SaveResult.Saved(created)
+        coEvery { repo.save(created, NoteDraft("", "Idea and more")) } returns SaveResult.Offline
+        openNotes()
+
+        composeRule.onNodeWithTag(NotesTags.NEW).performClick()
+        composeRule.onNodeWithTag(NoteEditorTags.BODY).performTextReplacement("Idea")
+        // To the rendered view: saved at once, so the note is created.
+        composeRule.onNodeWithTag(NoteEditorTags.TOGGLE).performClick()
+        composeRule.waitUntil(WAIT_MS) { composeRule.onAllNodesWithTag(NoteEditorTags.VIEW).fetchSemanticsNodes().isNotEmpty() }
+        composeRule.onNodeWithTag(NoteEditorTags.TOGGLE).performClick()
+        composeRule.onNodeWithTag(NoteEditorTags.BODY).performTextReplacement("Idea and more")
+        composeRule.onNodeWithContentDescription("Back to notes").performClick()
+        composeRule.waitUntil(WAIT_MS) { composeRule.onAllNodesWithTag(NotesTags.note(createdId)).fetchSemanticsNodes().isNotEmpty() }
+
+        composeRule.onNodeWithTag(NotesTags.note(createdId)).performClick()
+        composeRule.waitUntil(WAIT_MS) { composeRule.onAllNodesWithText("Idea and more").fetchSemanticsNodes().isNotEmpty() }
+        coVerify(exactly = 0) { repo.get(createdId) }
+    }
+
+    @Test
+    fun `a new note that could not be created is opened again by New note, with its text`() {
+        coEvery { repo.list(null) } returns NotesResult.Ok(listOf(loaded))
+        coEvery { repo.save(null, NoteDraft("", "Offline idea")) } returns SaveResult.Offline
+        openNotes()
+
+        composeRule.onNodeWithTag(NotesTags.NEW).performClick()
+        composeRule.onNodeWithTag(NoteEditorTags.BODY).performTextReplacement("Offline idea")
+        composeRule.onNodeWithContentDescription("Back to notes").performClick()
+        composeRule.waitUntil(WAIT_MS) { composeRule.onAllNodesWithTag(NotesTags.NEW).fetchSemanticsNodes().isNotEmpty() }
+
+        composeRule.onNodeWithTag(NotesTags.NEW).performClick()
+        composeRule.waitUntil(WAIT_MS) { composeRule.onAllNodesWithText("Offline idea").fetchSemanticsNodes().isNotEmpty() }
+        // Tried when leaving, and once more when the list was shown.
+        coVerify(atLeast = 2) { repo.save(null, NoteDraft("", "Offline idea")) }
+    }
+
     private companion object {
         const val WAIT_MS = 5_000L
     }
