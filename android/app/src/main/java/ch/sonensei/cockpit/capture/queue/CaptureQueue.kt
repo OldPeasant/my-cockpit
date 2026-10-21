@@ -5,6 +5,7 @@ import android.content.Context
 import android.net.Uri
 import android.provider.OpenableColumns
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.Flow
@@ -64,8 +65,10 @@ class CaptureQueue internal constructor(
      * device's time zone now, so a capture sent later keeps its due date (see [RelativeDueDates]).
      *
      * Throws [IllegalArgumentException] for input the server always rejects (blank [text], more than
-     * [MAX_ATTACHMENTS] attachments) and [IOException] if an attachment cannot be read or copied (also when access to it
-     * was denied). Nothing is queued then and no copies are left behind, also when the caller is cancelled.
+     * [MAX_ATTACHMENTS] attachments, text over [MAX_TEXT_LENGTH] after pinning) and [IOException] if an attachment
+     * cannot be read or copied (also when access to it was denied). Nothing is queued then and no copies are left
+     * behind, also when the caller is cancelled. Once stored, a capture is never reported as failed: a failure to
+     * schedule the upload job is ignored, the next capture schedules it again.
      */
     suspend fun capture(
         text: String,
@@ -77,6 +80,8 @@ class CaptureQueue internal constructor(
         val now = clock.millis()
         val id = UuidV7.generate(now)
         val today = Instant.ofEpochMilli(now).atZone(zone()).toLocalDate()
+        val pinnedText = RelativeDueDates.pin(text, today)
+        require(pinnedText.length <= MAX_TEXT_LENGTH) { "At most $MAX_TEXT_LENGTH characters" }
         var queued = false
         try {
             val copies =
@@ -101,7 +106,7 @@ class CaptureQueue internal constructor(
                 dao.insert(
                     PendingCaptureEntity(
                         id = id.toString(),
-                        text = RelativeDueDates.pin(text, today),
+                        text = pinnedText,
                         notes = notes?.takeIf { it.isNotBlank() },
                         createdAtEpochMs = now,
                         lastError = null,
@@ -110,7 +115,13 @@ class CaptureQueue internal constructor(
                     copies,
                 )
                 queued = true
-                scheduler.schedule()
+                try {
+                    scheduler.schedule()
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (_: Exception) {
+                    // The capture is stored: the next capture or a pending run sends it, so the caller must not retry.
+                }
             }
         } finally {
             if (!queued) withContext(NonCancellable) { files.delete(id.toString()) }
@@ -121,6 +132,9 @@ class CaptureQueue internal constructor(
     companion object {
         /** The server accepts at most this many files per capture (`CaptureRequest.fileIds`). */
         const val MAX_ATTACHMENTS = 50
+
+        /** The server accepts at most this many characters of text (`CaptureRequest.text`), after pinning due dates. */
+        const val MAX_TEXT_LENGTH = 100_000
     }
 }
 

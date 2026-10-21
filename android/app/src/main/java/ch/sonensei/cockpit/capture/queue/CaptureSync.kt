@@ -52,7 +52,9 @@ class WorkManagerCaptureSyncScheduler
              * APPEND_OR_REPLACE while a run is sending: it may have read the queue before the new capture, so another
              * run follows it. Otherwise REPLACE: a job that only waits (for the network or out a retry backoff, which
              * grows to hours) would hold the new capture back, and starting afresh is safe because the capture is
-             * idempotent and uploaded file ids are stored.
+             * idempotent and uploaded file ids are stored. Accepted race: a job that starts between reading the states
+             * and enqueueing is replaced mid-run; a file it uploaded but had not stored the id of yet is uploaded again
+             * and the first copy stays unreferenced on the server. No capture is lost or duplicated.
              */
             internal fun policyFor(states: List<WorkInfo.State>): ExistingWorkPolicy =
                 if (WorkInfo.State.RUNNING in states) ExistingWorkPolicy.APPEND_OR_REPLACE else ExistingWorkPolicy.REPLACE

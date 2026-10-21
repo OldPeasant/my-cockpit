@@ -5,6 +5,8 @@ import ch.sonensei.cockpit.core.network.generated.apis.CaptureApi
 import ch.sonensei.cockpit.core.network.generated.apis.FilesApi
 import ch.sonensei.cockpit.core.network.generated.models.CaptureRequest
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.MultipartBody
 import okhttp3.RequestBody.Companion.asRequestBody
@@ -52,10 +54,14 @@ class CaptureUploader internal constructor(
             val id = pending.capture.id
             val outcome = if (session.isLoggedIn) sendSafely(pending) else Outcome.Retry(NOT_LOGGED_IN)
             when (outcome) {
-                Outcome.Sent -> {
-                    dao.delete(id)
-                    files.delete(id)
-                }
+                Outcome.Sent ->
+                    try {
+                        dao.delete(id)
+                    } finally {
+                        // Also when the run is stopped during or right after the delete: copies whose row is gone
+                        // (its attachments cascade with it) are referenced by nothing any more.
+                        withContext(NonCancellable) { if (dao.attachments(id).isEmpty()) files.delete(id) }
+                    }
                 is Outcome.Rejected -> dao.markFailed(id, outcome.error, clock.millis(), rejected = true)
                 is Outcome.Retry -> {
                     // The server is down, unreachable or the device logged out: the later captures would fail the same way.
