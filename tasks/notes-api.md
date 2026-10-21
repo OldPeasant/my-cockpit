@@ -12,7 +12,8 @@ extended: dell26/agent-3
 Markdown notes with images, tags, pins and history (SPEC.md §8.1).
 
 ## Acceptance criteria
-- [ ] CRUD `/api/v1/notes` (title optional → derived from first line; body_md, tags, pinned, archived) with ETag; list filter by tag/pinned/archived
+- [x] CRUD `/api/v1/notes` (title optional → derived from first line; body_md, tags, pinned, archived) with ETag; list filter by tag/pinned/archived
+  - verified (2026-10-21 02:21+0200 by dell26/agent-3): cd server && ./gradlew test --tests 'ch.sonensei.cockpit.notes.*' --tests '*OpenApiContractTest' (Postgres via Testcontainers) -> 70 tests, 0 failures; NoteWebTests/NoteEdgeCaseWebTests cover CRUD, derived title, ETag/If-Match 428/412, tag/pinned/archived filters incl. archived=all and 400 on invalid
 - [ ] Inline links `[[type:id]]` in the body are synced to the link table on save; `POST /api/v1/notes/{id}/images` stores into `/Attachments/Notes` and returns the `cockpit-file:{id}` reference
 - [ ] Last 20 revisions kept (`GET …/revisions`, `POST …/revisions/{n}/restore`)
 - [ ] Resolver NOTE, search indexing (Markdown stripped via flexmark), trash, ChangeEvents
