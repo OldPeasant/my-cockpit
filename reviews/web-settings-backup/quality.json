@@ -1,0 +1,21 @@
+{
+  "schema": 1,
+  "task": "web-settings-backup",
+  "reviewed_revision": "36f90acd4d6476669ef9745405096d63714677d6",
+  "helpers": {
+    "test-writer": {"status": "completed", "report": "reviews/web-settings-backup/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/web-settings-backup/review.md"},
+    "fixer": {"status": "completed", "report": "reviews/web-settings-backup/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "CR-1 (round 1)", "source": "code-reviewer", "severity": "P1", "disposition": "fixed",
+     "note": "restore upload took the File's own Content-Type (application/x-zip-compressed on Windows) which the server refuses; body re-typed to application/zip (fixes.md)"},
+    {"id": "TW-1 (round 1)", "source": "test-writer", "severity": "P3", "disposition": "fixed",
+     "note": "restore passphrase over 256 chars blocked the restore silently; now shows a field error (fixes.md)"}
+  ],
+  "validation": [
+    {"command": "cd web && npm run check", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
