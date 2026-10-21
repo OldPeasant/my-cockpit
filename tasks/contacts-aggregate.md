@@ -17,3 +17,4 @@ Everything about a person (SPEC.md §8.3).
 - [ ] API documented: `api/openapi.yaml` regenerated (`UPDATE_OPENAPI=1 ./gradlew test --tests '*OpenApiContractTest'`) and `OpenApiContractTest` passes without the flag
 
 ## Notes
+- ASSUMPTION (2026-10-21 23:34+0200 by dell26/agent-1): Mail lookup by address reads mail_message directly via a read-only SQL query in contacts.aggregate (CorrespondenceQuery): the mail module has no address search service and the task's touches exclude mail/. Messages are then loaded through MailReadService.get.
