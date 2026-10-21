@@ -5,7 +5,7 @@ owner: dell26/agent-2
 deps: [cal-sync-engine,oauth-connections]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/calendar/infra/microsoft,server/src/test/kotlin/ch/sonensei/cockpit/calendar/infra/microsoft]
 prio: 2
-lease_until: 2026-10-21T11:56:31Z
+lease_until: 2026-10-21T12:01:36Z
 extended: dell26/agent-2
 ---
 ## Goal
