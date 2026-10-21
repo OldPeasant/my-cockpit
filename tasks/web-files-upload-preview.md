@@ -19,3 +19,4 @@ Uploads with progress and previews (SPEC.md §8.2).
 
 ## Notes
 - ASSUMPTION (2026-10-21 06:04+0200 by dell26/agent-4): Capture dialog attachments upload to the drive root (no /Attachments/Tasks folder exists yet on the server); Save waits until no attachment is still uploading; files of a cancelled capture stay in the drive. Touched web/src/app/features/capture and files/browser (outside touches) because the criteria require it.
+- ASSUMPTION (2026-10-21 06:04+0200 by dell26/agent-4): Chunked upload: SHA-256 computed in the browser with a small incremental TS implementation (WebCrypto cannot hash multi-GB files in parts); each chunk is retried 3 times (1s/3s/9s) on network/408/429/5xx; a failed upload resumes via GET /uploads/{id} on Retry. 2 files upload in parallel.
