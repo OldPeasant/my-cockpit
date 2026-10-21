@@ -154,6 +154,20 @@ class GoogleEventMappingTests {
 	}
 
 	@Test
+	fun `the status is read as tentative or cancelled, anything else is confirmed`() {
+		fun status(value: String?) =
+			read(
+				"""{"id": "e1", ${value?.let { "\"status\": \"$it\"," } ?: ""} "start": {"dateTime": "2026-10-22T10:00:00Z"}}""",
+			).status
+
+		status("tentative") shouldBe EventStatus.TENTATIVE
+		status("cancelled") shouldBe EventStatus.CANCELLED
+		status("confirmed") shouldBe EventStatus.CONFIRMED
+		status("something-new") shouldBe EventStatus.CONFIRMED
+		status(null) shouldBe EventStatus.CONFIRMED
+	}
+
+	@Test
 	fun `events without id, without start or with an invalid date cannot be read`() {
 		shouldThrow<IllegalArgumentException> { read("""{"start": {"dateTime": "2026-10-22T10:00:00Z"}}""") }
 		shouldThrow<IllegalArgumentException> { read("""{"id": "e1", "start": {}}""") }

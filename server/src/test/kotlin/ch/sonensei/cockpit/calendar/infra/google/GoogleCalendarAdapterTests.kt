@@ -665,6 +665,18 @@ class GoogleCalendarAdapterTests {
 	}
 
 	@Test
+	fun `a source whose connection was removed fails as removed, not as unlinked, before calling Google`() {
+		tokens.removed = true
+		tokens.failure = OAuthConnectionNotFoundException()
+
+		val error = shouldThrow<CalendarProviderException> { adapter.listCalendars(source) }
+
+		error.message shouldContain "was removed"
+		error.message!! shouldNotContain "not linked"
+		wireMock.verify(0, anyRequestedFor(anyUrl()))
+	}
+
+	@Test
 	fun `every kind of token failure is a provider error naming what to do, never the token`() {
 		tokens.failure = OAuthConnectionNotFoundException()
 		shouldThrow<CalendarProviderException> { adapter.listCalendars(source) }.message shouldContain "was removed"
@@ -693,10 +705,11 @@ class GoogleCalendarAdapterTests {
 		stub(get(urlPathEqualTo(EVENTS)).withQueryParam("pageToken", equalTo("EV-page-2")), recording("events-full-page2.json"))
 	}
 
-	/** Bearer tokens of [CONNECTION] only, or [failure]; [CONNECTION] belongs to [provider]. */
+	/** Bearer tokens of [CONNECTION] only, or [failure]; [CONNECTION] belongs to [provider], or is unknown once [removed]. */
 	class FixedTokens : OAuthTokenProvider {
 		var failure: OAuthException? = null
 		var provider = OAuthProvider.GOOGLE
+		var removed = false
 
 		override fun accessToken(
 			connectionId: UUID,
@@ -708,7 +721,7 @@ class GoogleCalendarAdapterTests {
 		}
 
 		override fun connection(connectionId: UUID): OAuthConnectionInfo? =
-			if (connectionId != CONNECTION) {
+			if (connectionId != CONNECTION || removed) {
 				null
 			} else {
 				OAuthConnectionInfo(

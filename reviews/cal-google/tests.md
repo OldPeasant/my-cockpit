@@ -2,50 +2,63 @@
 
 Date: 2026-10-21
 
-Task: cal-google - Google Calendar adapter (SPEC.md §6.2)
+Task: cal-google - Google Calendar adapter (SPEC.md §6.2). Second round, after the fix commit d2324910.
 
-Scope: `git diff 04c871d6f9a1996de04712dfb6f11ccf850c2e0c..31f638f96e419a6f5308bed441f0a5e09c0c0eeb` (task commits 66e272e2, 54386289, 052654e6, 31f638f9 on `main`), limited to `server/src/main/kotlin/ch/sonensei/cockpit/calendar/infra/google`, its tests and WireMock recordings. The new tests are uncommitted working-tree changes (see Coverage evidence for hashes).
+Scope: `git diff 1d2f349eede723cd1f2f25dda0ade84523830235..f798eb17ff25ce8ec407f654172b76ebf403c3a2` (task commits ce10f500..f798eb17 on `main`, as given by the parent), limited to `server/src/main/kotlin/ch/sonensei/cockpit/calendar/infra/google`, its tests and WireMock recordings, plus the test-only `server/src/test/kotlin/ch/sonensei/cockpit/calendar/sync/FakeCalendarAdapter.kt` (TW-2 fix). The tests added in this round are uncommitted working-tree changes (hashes under Coverage).
 
 Requirements:
 - `tasks/cal-google.md` acceptance criteria 1-3
-- SPEC.md §6.2 (via the adapter's KDoc and the sync engine contract in `calendar/sync/CalendarProviderAdapter.kt`)
+- SPEC.md §6.2 (through the adapter's KDoc and the sync engine contract `calendar/sync/CalendarProviderAdapter.kt`)
 - `docs/ARCHITECTURE.md` "Coverage", `docs/QUALITY.md`, AGENTS.md
-- Parent agent instructions (gap list: calendarList paging, 409 retry, instance delete / 404, 403 rate limit vs denial, malformed events, all-day EXDATE, unknown cursor)
-- `reviews/cal-google/review.md` finding CR-1, used to write a reproducing test
+- `reviews/cal-google/fixes.md` (fixes for CR-1/TW-1, TW-2, CR-3) and the parent's instruction to confirm them
 
 ## Test files changed
 
-- `server/src/test/kotlin/ch/sonensei/cockpit/calendar/infra/google/GoogleCalendarAdapterTests.kt` (12 tests added, no existing test changed)
-- `server/src/test/kotlin/ch/sonensei/cockpit/calendar/infra/google/GoogleEventMappingTests.kt` (new, 18 tests)
+- `server/src/test/kotlin/ch/sonensei/cockpit/calendar/infra/google/GoogleCalendarAdapterTests.kt` (1 test added; the `FixedTokens` test double got a `removed` flag)
+- `server/src/test/kotlin/ch/sonensei/cockpit/calendar/infra/google/GoogleEventMappingTests.kt` (1 test added)
+
+No existing test was changed, weakened or disabled.
 
 ## Tests added or updated
 
-Count: 30 added (GoogleCalendarAdapterTests 20 -> 32, GoogleEventMappingTests 0 -> 18; GoogleCalendarSyncTests unchanged at 5). Total in scope: 55.
+Count: 2 added in this round.
 
-Gaps the parent listed that the existing tests already covered: calendarList paging, deleted and free/busy calendars (`listCalendars reads every page...`); 409 retry with a cockpit-derived id; instance delete, 404 and 410 on delete; 403 rate limit vs. denial on calendarList; the event without times being skipped; unknown cursor (`410 within an incremental run's pages...`).
+- `GoogleEventMappingTests > the status is read as tentative or cancelled, anything else is confirmed`: unit check of the CR-1/TW-1 mapping change in `toRemote`. Covers tentative, cancelled, confirmed, an unknown value and a missing status.
+- `GoogleCalendarAdapterTests > a source whose connection was removed fails as removed, not as unlinked, before calling Google`: the CR-3 fix added a provider check. A connection the token store no longer knows (`connection()` returns null) must still give the "was removed" error from the token path, not "not linked", and no request may go to Google.
+
+Totals in scope: GoogleCalendarAdapterTests 34, GoogleEventMappingTests 19, GoogleCalendarSyncTests 5 (58). The sync-engine suites (CalendarSync*Tests) have 91 tests.
+
+How the fixes are covered:
+
+| Fix | Test(s) |
+|---|---|
+| CR-1/TW-1: a cancelled write answer stays CANCELLED | `GoogleCalendarAdapterTests > cancelling an edited occurrence keeps it cancelled in Google's answer` (from round 1, failed before the fix, passes now). New: `GoogleEventMappingTests > the status is read as tentative or cancelled, anything else is confirmed`. Listings still treat cancelled items as deletions/EXDATEs: `an incremental fetch sends the sync token, and a changed series gets its cancelled occurrences as EXDATEs`, `a changed all-day series gets the dates of its own cancelled occurrences only`, `GoogleEventMappingTests > a cancelled occurrence of an all-day series is keyed by its date` (all pass) |
+| TW-2: sync tests use a registry with only the fake adapter | `CalendarSyncEdgeCaseTests > GET sources shows a source without adapter as not syncable, without status`, `CalendarSyncEdgeCaseTests > syncDue never syncs local sources or types without adapter`, `CalendarSyncTests > POST sync of a local, unsupported or unknown source fails` now pass. `GoogleCalendarSyncTests` (5 tests) still runs against the real registry with the Google adapter and passes |
+| CR-3: refuse a connection of another provider | `a source linked to a connection of another provider fails without sending its token to Google` (fixer, all 5 operations, 0 WireMock requests). New: `a source whose connection was removed fails as removed, not as unlinked, before calling Google`. The GOOGLE-provider happy path runs through every other adapter test, because `FixedTokens` now returns a GOOGLE connection |
 
 ## Requirement coverage
 
 | Requirement | Tests | Command | Result |
 |---|---|---|---|
-| AC1 calendar list | existing `listCalendars reads every page...`; new `a calendar without a name is named by its id, and only owners and writers may write` | `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.calendar.infra.google.*'` | Pass |
-| AC1 incremental sync with syncToken, 410 -> full resync | existing 410/paging tests; new `sync and page tokens with reserved characters reach Google unchanged`, `a rate limit while fetching events is a provider error to retry later`, `a changed series without cancelled occurrences is kept as sent, and a last page without sync token leaves no cursor`, `a failing lookup of a series' cancelled occurrences fails the fetch`, `a changed all-day series gets the dates of its own cancelled occurrences only` | same | Pass |
-| AC1 writes via API | new `409 for an insert without a cockpit-derived id is an error, not a lookup`, `a repeated insert whose stored copy cannot be fetched is a provider error`, `a delete Google rejects is a provider error`, `every kind of token failure is a provider error naming what to do, never the token`; mapping tests for bodies (zones, all-day EXDATE line, attendees, reminders, status) | same | Pass |
-| AC1 recurring instance edits | new `updating an exception patches its instance with If-Match, 410 there is a remote change`, `an exception of an occurrence Google deleted (410) is a provider error`, mapping tests for EXDATE parsing (TZID, floating, VALUE=DATE, all-day, malformed), instance keys and ids | same | Pass |
-| AC1 recurring instance edits: deleting an edited occurrence | new `cancelling an edited occurrence keeps it cancelled in Google's answer` | same | **Fail** (TW-1) |
-| AC1 'this and following' split | existing `changing this and following occurrences ends the series...` (GoogleCalendarSyncTests, Postgres via Testcontainers) | same | Pass |
-| AC2 WireMock recordings incl. 410 and 412 | existing tests using `error-410-*.json`, `error-412-*.json`; new tests use WireMock with recorded-style bodies | same | Pass |
-| AC3 the scoped Gradle command passes | all 55 tests | same | **Fail**: 54 passed, 1 failed (TW-1) |
+| AC1 calendar list | `listCalendars reads every page, prefers the user's name and skips deleted and free-busy calendars`, `GoogleEventMappingTests > a calendar without a name is named by its id, and only owners and writers may write`, `GoogleCalendarSyncTests > a first sync stores Google's calendar and events...` | `cd server && ./gradlew ktlintCheck test --tests 'ch.sonensei.cockpit.calendar.infra.google.*' --tests 'ch.sonensei.cockpit.calendar.sync.*' jacocoTestReport` | Pass |
+| AC1 incremental sync with syncToken, 410 -> full resync | `the first fetch lists the calendar completely...`, `an incremental fetch sends the sync token...`, `an incremental run continues with the page token...`, `410 Gone for an expired sync token starts a complete listing`, `410 within an incremental run's pages also starts over completely, an unknown cursor too`, `410 during a complete listing is an error, not an endless restart`, `GoogleCalendarSyncTests > 410 for the stored sync token lists the calendar again and removes what Google no longer has` | same | Pass |
+| AC1 writes via API | `createEvent inserts with an id derived from the cockpit id...`, `a repeated insert whose id exists returns the stored event`, `updateEvent patches with If-Match and an explicit recurrence`, `deleteEvent deletes with If-Match...`, `412 on a write is a remote change, so is a 404 of the event`, `GoogleCalendarSyncTests > an event created in the cockpit is inserted at Google...`, mapping tests for request bodies | same | Pass |
+| AC1 writes only with a Google connection (CR-3) | `a source linked to a connection of another provider fails without sending its token to Google`, `a source whose connection was removed fails as removed, not as unlinked, before calling Google`, `a source without connection or with a connection to reconnect fails before calling Google`, `every kind of token failure is a provider error naming what to do, never the token` | same | Pass |
+| AC1 recurring instance edits (incl. cancelling an edited occurrence, CR-1/TW-1) | `an exception of a series is a patch of its instance...`, `an exception of an all-day series patches the instance named by its date`, `updating an exception patches its instance with If-Match, 410 there is a remote change`, `cancelling an edited occurrence keeps it cancelled in Google's answer`, `the status is read as tentative or cancelled, anything else is confirmed` | same | Pass |
+| AC1 'this and following' split | `GoogleCalendarSyncTests > changing this and following occurrences ends the series at Google and continues it as a new one with its exceptions` (Postgres via Testcontainers) | same | Pass |
+| AC2 WireMock recordings incl. 410 and 412 | tests using `error-410-full-sync-required.json`, `error-412-condition-not-met.json` and the other recordings; `GoogleCalendarSyncTests > 412 from Google fails the edit with 409 and shows Google's version` | same | Pass |
+| AC3 `./gradlew test --tests 'ch.sonensei.cockpit.calendar.infra.google.*'` passes | all 58 tests in the package | same (a superset of the AC3 command) | Pass: 58 tests, 0 failures |
+| Sync-engine regression (TW-2) | CalendarSyncEdgeCaseTests 31, CalendarSyncOverrideTests 25, CalendarSyncTests 17, CalendarSyncUnitTests 18 | same | Pass: 91 tests, 0 failures |
 
 ## Focused test execution
 
 Command:
 
-`cd server && ./gradlew ktlintCheck test --tests 'ch.sonensei.cockpit.calendar.infra.google.*' jacocoTestReport --continue`
+`cd server && ./gradlew ktlintCheck test --tests 'ch.sonensei.cockpit.calendar.infra.google.*' --tests 'ch.sonensei.cockpit.calendar.sync.*' jacocoTestReport`
 
 Result:
 
-Fail: 55 tests, 54 passed, 1 failed (`GoogleCalendarAdapterTests > cancelling an edited occurrence keeps it cancelled in Google's answer()`: expected CANCELLED but was CONFIRMED). ktlint passed. The same command without the TW-1 test (previous snapshot, 54 tests) passed completely: BUILD SUCCESSFUL.
+Pass. BUILD SUCCESSFUL in 58s. 149 tests in 7 classes (Google 58, sync engine 91), 0 failures, 0 skipped. ktlint (main and test source sets) passed.
 
 ## Full test execution
 
@@ -55,131 +68,59 @@ Command:
 
 Result:
 
-Fail: 3114 tests, 3 failed. All 3 are outside this test scope, in the cal-sync-engine tests. They fail because this task registers a Google adapter (see TW-2):
-- `CalendarSyncEdgeCaseTests > GET sources shows a source without adapter as not syncable, without status` (expected syncable false, was true)
-- `CalendarSyncEdgeCaseTests > syncDue never syncs local sources or types without adapter` (expected 1, was 2)
-- `CalendarSyncTests > POST sync of a local, unsupported or unknown source fails` (expected 409, was 200)
-
-This run was made before the TW-1 test was added. The Google tests all passed in it.
+Pass. BUILD SUCCESSFUL in 7m 7s. 3118 tests, 0 failures, 0 errors, 0 skipped (counted from `server/build/test-results/test/TEST-*.xml`). In this run the known flaky `ClockConfigurationTests` passed as well.
 
 ## .taskcheck
 
 Result:
 
-Not run. `.taskcheck` (`sh scripts/check.sh`) runs `cd server && ./gradlew --quiet check` with `set -e`. That command fails as shown above (TW-2) and now also on TW-1, so `.taskcheck` cannot pass until both are fixed. The web and Android steps were not attempted.
+Not run. `.taskcheck` is `sh scripts/check.sh` (server, web and Android). This task changes only server code, and its server part (`./gradlew check`) passed above. The parent runs `.taskcheck` before `done`.
 
 ## Bugs found
 
-### Google's answer with status "cancelled" is read as CONFIRMED
-
-Finding ID:
-
-`TW-1` (reproduces code-reviewer CR-1)
-
-Test:
-
-`GoogleCalendarAdapterTests > cancelling an edited occurrence keeps it cancelled in Google's answer`
-
-Production source:
-
-`server/src/main/kotlin/ch/sonensei/cockpit/calendar/infra/google/GoogleEventMapping.kt:74` (`status = if (node.text("status") == "tentative") TENTATIVE else CONFIRMED`), used by `GoogleCalendarAdapter.answer` (`GoogleCalendarAdapter.kt:269`)
-
-Requirement:
-
-AC1 "recurring instance edits". When the user deletes an occurrence that already has an override, `CalendarEventService.deleteOccurrence` (`CalendarEventService.kt:249-251`) sets the override CANCELLED. The write-through sends that as `updateEvent`, and the engine copies the adapter's returned event back onto the local override.
-
-Expected behavior:
-
-The PATCH sends `"status": "cancelled"` (this works). Google answers with the cancelled instance, and `updateEvent` returns a `RemoteEvent` with `status = CANCELLED`, so the occurrence stays removed locally.
-
-Actual behavior:
-
-The returned event has `status = CONFIRMED`. Per CR-1, the write-through then stores the override as CONFIRMED and SYNCED, so the deleted occurrence shows up again until the next sync.
-
-Severity:
-
-High
-
-Fix required:
-
-`Yes — production code must be fixed by the parent worker / fixer.`
-
-### Existing sync-engine tests use GOOGLE as "a type without adapter"
-
-Finding ID:
-
-`TW-2`
-
-Test:
-
-`CalendarSyncEdgeCaseTests > GET sources shows a source without adapter as not syncable, without status`, `CalendarSyncEdgeCaseTests > syncDue never syncs local sources or types without adapter`, `CalendarSyncTests > POST sync of a local, unsupported or unknown source fails`
-
-Production source:
-
-`server/src/main/kotlin/ch/sonensei/cockpit/calendar/infra/google/GoogleCalendarAdapter.kt:41` (`@Component`, which registers `CalendarSourceType.GOOGLE`). The failing assertions are at `server/src/test/kotlin/ch/sonensei/cockpit/calendar/sync/CalendarSyncEdgeCaseTests.kt:352,368` and `CalendarSyncTests.kt:307`.
-
-Requirement:
-
-AC3 and `.taskcheck` (`./gradlew check`) must pass. The behavior these tests check (a type without adapter is not syncable, is skipped by `syncDue`, and its POST sync returns 409) is still correct. Only their choice of GOOGLE as that type is out of date.
-
-Expected behavior:
-
-`./gradlew check` passes with the Google adapter registered.
-
-Actual behavior:
-
-The 3 tests fail because GOOGLE now has an adapter. They are outside this helper's edit scope and the task's `touches`, so I did not change them.
-
-Severity:
-
-High (blocks `.taskcheck` and `done`)
-
-Fix required:
-
-`Yes — production code must be fixed by the parent worker / fixer.` The required change is in these three tests, not in production code: switch them to a source type that has no adapter (for example `CALDAV` or `MICROSOFT`, after checking that no other task has added one). Keep what they assert. Do not delete or skip them.
+None in this round. TW-1 (with CR-1) and TW-2 from round 1 are fixed. Their tests pass on the final code (see "How the fixes are covered").
 
 ## Coverage
 
-Status: verified for the snapshot before the TW-1 test was added (all 54 tests passed). For the final snapshot (55 tests), the coverage is partial-failed and only diagnostic, because its test run had the TW-1 failure. Production code is identical in both snapshots, and the counters are identical.
+Status: verified (fresh run on the final code plus the 2 new tests, exit 0).
 
 Metric: whole-file coverage of task-changed production files.
-Changed-line coverage: not measured separately. All three files were added by this task, so whole-file coverage equals changed-line coverage here.
+Changed-line coverage: not measured separately. All three files were added by this task (`git diff --stat` of the base shows them as new), so whole-file coverage equals changed-line coverage here.
 
 Evidence:
-- Task id, immutable base, measured HEAD, and task-owned commits/file-scope source: cal-google; base 04c871d6f9a1996de04712dfb6f11ccf850c2e0c; HEAD 31f638f96e419a6f5308bed441f0a5e09c0c0eeb; commits 66e272e2, 54386289, 052654e6, 31f638f9 as given by the parent; files from `git diff --stat <base>..HEAD`
-- Source/test snapshot identifier (including uncommitted inputs): production files unchanged from HEAD, sha256 `GoogleCalendarAdapter.kt` 418c5eb5…6c214, `GoogleCalendarClient.kt` 0cbd01e1…1d111, `GoogleEventMapping.kt` 31d80f06…a6a96. Verified run: `GoogleCalendarAdapterTests.kt` fb8e1bbf…c885f, `GoogleEventMappingTests.kt` 305cfbee…a4ba2, `GoogleCalendarSyncTests.kt` 06d4bfec…a45d (committed). Final diagnostic run: `GoogleCalendarAdapterTests.kt` e07bb232…a094, other files the same.
-- Exact included files; renamed/deleted/excluded files and reasons: included `server/src/main/kotlin/ch/sonensei/cockpit/calendar/infra/google/{GoogleCalendarAdapter,GoogleCalendarClient,GoogleEventMapping}.kt`. Excluded: tests and JSON test recordings (not production). No renames or deletions.
-- Provider/version, command, working directory, and test selection: JaCoCo through the Gradle `jacoco` plugin (default tool version of Gradle 9.8.1); `./gradlew ktlintCheck test --tests 'ch.sonensei.cockpit.calendar.infra.google.*' jacocoTestReport` in `server/`; tests selected: `ch.sonensei.cockpit.calendar.infra.google.*`
-- Run start/completion time and exit status: verified run 2026-10-21 12:04:57-12:05:25 +02:00 (from JUnit timestamps and the report mtime), exit 0 (BUILD SUCCESSFUL), 54/54 passed. Diagnostic run: tests 2026-10-21 ~12:10:59 +02:00, exit 1 (1 failure); report generated with `./gradlew jacocoTestReport -x test` from that run's `test.exec` at 12:11:13.
-- Generated report paths and report hashes/run identifier: `server/build/reports/jacoco/test/jacocoTestReport.xml`; verified run sha256 ff21b5fbccaa483d691f9d628744fe04feec9d8657ea40e60b240cfc3ae01e; diagnostic run sha256 54f3a21efcaad0a38aeb461d2dc70d0953767577f8cbe6d271b5381ab6ba6e70
-- Evidence outputs are fresh and inputs stayed unchanged: yes. Gradle reran the tests because the test sources had changed. I took hashes before and after, and the files did not change during either run.
-- Final run after latest test additions and production fixes: no for a passing run. The final snapshot's run fails on TW-1, so its coverage is only diagnostic. No production fixes have been made yet, and coverage must be measured again after the fixer's change.
+- Task id, immutable base, measured HEAD, and task-owned commits/file-scope source: cal-google; base 1d2f349eede723cd1f2f25dda0ade84523830235; HEAD f798eb17ff25ce8ec407f654172b76ebf403c3a2; commits ce10f500..f798eb17 as given by the parent; production files from `git diff --stat 1d2f349e..HEAD`.
+- Source/test snapshot identifier (including uncommitted inputs), sha256 prefixes: `GoogleCalendarAdapter.kt` b7192bcf07ca6bc9, `GoogleCalendarClient.kt` 0cbd01e1c540e4ee, `GoogleEventMapping.kt` 3cccb75e0a52c94e (all three unchanged from HEAD); `GoogleCalendarAdapterTests.kt` 7a89560f41fa7593 (uncommitted), `GoogleCalendarSyncTests.kt` 06d4bfec3983fec5 (HEAD), `GoogleEventMappingTests.kt` 32804b5166b78543 (uncommitted), `sync/FakeCalendarAdapter.kt` d58d1fb44c2f92fc (HEAD).
+- Exact included files: `server/src/main/kotlin/ch/sonensei/cockpit/calendar/infra/google/GoogleCalendarAdapter.kt`, `GoogleCalendarClient.kt`, `GoogleEventMapping.kt`. Excluded: tests, WireMock recordings (test resources), `reviews/` (documentation), and `sync/FakeCalendarAdapter.kt` (test code). No production files were renamed or deleted.
+- Provider/version, command, working directory, and test selection: JaCoCo (Gradle `jacoco` plugin, version from the project's build), OpenJDK 21.0.12.1; `./gradlew ktlintCheck test --tests 'ch.sonensei.cockpit.calendar.infra.google.*' --tests 'ch.sonensei.cockpit.calendar.sync.*' jacocoTestReport` in `server/`.
+- Run start/completion time and exit status: started 2026-10-21T12:44:28+02:00, report written 2026-10-21T12:45:30+02:00, BUILD SUCCESSFUL (exit 0).
+- Generated report paths and report hashes/run identifier: `server/build/reports/jacoco/test/jacocoTestReport.xml`, sha256 72a7a3b270f1b7600b21f607fca2dcbed62bb818b0cb947bb9d7b71b96a70027 (Git-ignored).
+- Evidence outputs are fresh and inputs stayed unchanged: yes. Gradle recompiled the test sources and re-executed `test` and `jacocoTestReport`. `sha256sum -c` of the snapshot after both runs: all OK.
+- Final run after latest test additions and production fixes: yes. It ran on the final production code (d2324910 fixes, no later production change) with both new tests.
 
-Values below use covered/total (percentage) from the verified run. The diagnostic run gave the same counters.
+Values below use covered/total (percentage), from JaCoCo `<sourcefile>` counters in package `ch/sonensei/cockpit/calendar/infra/google`. Statements = JaCoCo INSTRUCTION.
 
-| Changed file | Statements (JaCoCo instructions) | Branches | Functions (methods) | Lines |
+| Changed file | Statements | Branches | Functions | Lines |
 |---|---:|---:|---:|---:|
-| `server/src/main/kotlin/ch/sonensei/cockpit/calendar/infra/google/GoogleCalendarAdapter.kt` | 1054/1067 (98.8%) | 92/98 (93.9%) | 15/16 (93.8%) | 155/155 (100%) |
+| `server/src/main/kotlin/ch/sonensei/cockpit/calendar/infra/google/GoogleCalendarAdapter.kt` | 1084/1097 (98.8%) | 98/104 (94.2%) | 15/16 (93.8%) | 160/160 (100%) |
 | `server/src/main/kotlin/ch/sonensei/cockpit/calendar/infra/google/GoogleCalendarClient.kt` | 457/458 (99.8%) | 31/32 (96.9%) | 13/13 (100%) | 66/66 (100%) |
-| `server/src/main/kotlin/ch/sonensei/cockpit/calendar/infra/google/GoogleEventMapping.kt` | 1281/1282 (99.9%) | 109/110 (99.1%) | 27/27 (100%) | 159/159 (100%) |
-| **Aggregate (summed counters, all 3 scoped files measured, none missing)** | 2792/2807 (99.5%) | 232/240 (96.7%) | 55/56 (98.2%) | 380/380 (100%) |
+| `server/src/main/kotlin/ch/sonensei/cockpit/calendar/infra/google/GoogleEventMapping.kt` | 1289/1290 (99.9%) | 111/112 (99.1%) | 27/27 (100%) | 162/162 (100%) |
+| **Aggregate (summed counters, 3 of 3 scoped files, none missing or excluded)** | 2830/2845 (99.5%) | 240/248 (96.8%) | 55/56 (98.2%) | 388/388 (100%) |
 
-Before the new tests, the same files had: Adapter branches 88/98 and Mapping branches 108/110 (first run of this session, with the earlier test additions only partly in place).
+There is no task-level coverage threshold (ARCHITECTURE.md "Coverage": coverage informs the test-writer and is not a gate).
 
 | File and uncovered lines/branch locations | Required behavior or risk | Action/test added or reason left uncovered |
 |---|---|---|
-| `GoogleCalendarAdapter.kt:51` (`pollInterval` getter) | constant | Left: trivial |
-| `GoogleCalendarAdapter.kt:120`, `:273` (rethrow of RuntimeExceptions other than IllegalArgumentException/DateTimeException) | defensive path for programming errors | Left: not reachable through valid or malformed Google JSON |
-| `GoogleCalendarClient.kt:48` (`status < 200` side of `ok`) | Google never answers 1xx as a final status | Left: not meaningful |
-| `GoogleEventMapping.kt:41` (`isInstance` false branch) | `isInstance` is not called by production code | Left. Note for the parent: `isInstance` is dead production code |
-| `GoogleEventMapping.kt:74` | status "cancelled" in a write answer | TW-1 (failing test added) |
+| `GoogleCalendarAdapter.kt:121` (3 of 4 branches missed) | Re-throwing a RuntimeException other than IllegalArgumentException/DateTimeException while reading a listed event | Justified gap: a defensive rethrow of unexpected programming errors. The mapping only throws the two handled types, which are tested (`events without id, without start or with an invalid date cannot be read`; skipped malformed events in the adapter tests) |
+| `GoogleCalendarAdapter.kt:274` (3 of 4 branches missed) | Same defensive rethrow in `answer()` for write answers | Justified gap, same reason. The handled case is tested (`an answer to a write that cannot be read is a provider error`) |
+| `GoogleCalendarAdapter.kt` (1 of 16 methods) | A Kotlin-generated method of the adapter (all 160 lines are covered) | Justified gap: no source line is uncovered |
+| `GoogleCalendarClient.kt:48` (1 of 4 branches) | One bound of `status in 200..299` (a status above 299 that is not an error is never sent by the tests on that side of the range, or vice versa) | Justified gap: both success and many error statuses (400, 403, 404, 409, 410, 412, 5xx) are tested |
+| `GoogleEventMapping.kt:41` (1 of 2 branches) | `isInstance` returning false (no `recurringEventId`) | No test added: `isInstance` has no production caller (only `GoogleEventMappingTests:128` calls it, with an instance). It is unused code, not behavior. Reported to the parent as a maintainability note (remove it or use it); not a defect |
 
 ## Unable to test
 
-- Real Google API behavior (for example, whether Google accepts a recurring event whose `timeZone` is null because its zone is a fixed offset other than UTC; Google documents `timeZone` as required for recurring events). WireMock cannot show this. The mapping test only pins down what the adapter sends. Follow-up only if fixed-offset zones can reach a series.
-- CR-2 (reminders sent as popups) and CR-3 (connection provider not checked) are design and security choices for the parent to decide. I did not add a test for them, because neither the task nor the SPEC states the required behavior.
-- `.taskcheck` web and Android steps were not run, because the server step already fails (TW-2).
+- Calls against the real Google Calendar API: not possible here (no real account or credentials, and tests must not use real data). AC2 asks for WireMock recordings, which is what all tests use. No follow-up needed for this task.
+- CR-2 (reminders are written as popup overrides) was deliberately not fixed. The parent records it as an assumption. No test asserts other behavior.
 
 ## Summary
 
-Tests added; production defects were discovered and must be passed to the `fixer` before task completion. TW-1 (High) is a production fix in `GoogleEventMapping` / `answer`. TW-2 (High) is a change to three cal-sync-engine tests that still treat GOOGLE as a type without an adapter. Until both are fixed, `./gradlew check` and `.taskcheck` fail. Task-scoped coverage is high (lines 380/380, branches 232/240), and the remaining gaps are justified above.
+Tests added and all validation passed. The fixes for TW-1/CR-1, TW-2 and CR-3 are covered by passing tests. Task-scoped coverage is 100% of lines and 96.8% of branches, and the remaining gaps are justified. No production defects were found in this round.

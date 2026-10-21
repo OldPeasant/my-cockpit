@@ -2,24 +2,36 @@
 
 Date: 2026-10-21
 
-Task: cal-google - Google Calendar adapter (SPEC.md §6.2)
+Task: cal-google - Google Calendar adapter (SPEC.md §6.2), second review round (final revision)
 
-Scope: `git diff 04c871d6..31f638f9`, committed changes only (server `calendar/infra/google` main code, tests and WireMock recordings)
+Scope: `git diff 1d2f349e..f798eb17 -- server`, committed changes only. That covers the production code in `calendar/infra/google`, its tests and WireMock recordings, and `calendar/sync/FakeCalendarAdapter.kt`. Uncommitted test changes in the working tree come from the test-writer running in parallel and were not reviewed.
 
 Requirements:
-- tasks/cal-google.md acceptance criteria 1-3
-- SPEC.md §6.1, §6.2, §4.2
-- AGENTS.md project notes (module boundaries, no secrets or event content in logs at INFO or above)
-- Sync engine contract: `calendar/sync/CalendarProviderAdapter.kt`, `CalendarSyncService.kt`, `CalendarWriteThrough.kt`, `RemoteEventMapping.kt`
-- Parent agent instructions
+- tasks/cal-google.md acceptance criteria 1-3, and the recorded assumption about the reminder mapping (CR-2 of round 1)
+- SPEC.md §6.2 and §4.2
+- AGENTS.md project notes (module boundaries, no secrets or event content in logs or messages)
+- The sync engine contract: `calendar/sync/CalendarProviderAdapter.kt`, `CalendarWriteThrough.kt`, `RemoteEventMapping.kt`
+- The round-1 review and `reviews/cal-google/fixes.md`
+- The parent agent's instructions
 
 Git range:
 - Branch: main
-- HEAD: 31f638f96e419a6f5308bed441f0a5e09c0c0eeb
-- Base/start: 04c871d6f9a1996de04712dfb6f11ccf850c2e0c
-- Commits reviewed: 4 (66e272e2, 54386289, 052654e6, 31f638f9); working tree clean
+- HEAD: f798eb17ff25ce8ec407f654172b76ebf403c3a2
+- Base/start: 1d2f349eede723cd1f2f25dda0ade84523830235
+- Commits reviewed: 7 (ce10f500, 9db2706b, 996af00b, 3dcc3c77, 9314f3ce, d2324910, f798eb17)
 
-Summary: 0 P0, 1 P1, 0 P2, 2 P3
+Summary: 0 P0, 0 P1, 0 P2, 2 P3
+
+## Verification of round-1 findings
+
+- **CR-1 (cancelled answer read back as CONFIRMED): fixed.** `GoogleEventMapping.toRemote` now maps `"cancelled"` to `EventStatus.CANCELLED` (`GoogleEventMapping.kt:76-81`). The listing path is unaffected:
+    - `fetchEvents` checks `isCancelled` before it calls `toRemote` (`GoogleCalendarAdapter.kt:113-114`);
+    - `withCancelledInstances` reads only keys, never calls `toRemote`.
+
+  So the change only affects write answers (`answer()`). The write-through then stores the override as CANCELLED (`copyFrom` copies the status, `RemoteEventMapping.kt:84`). The new adapter test `cancelling an edited occurrence keeps it cancelled in Google's answer` covers this.
+- **CR-2 (reminders written as popup overrides): accepted.** It is recorded as an assumption in tasks/cal-google.md, and the code is unchanged. This is not reopened.
+- **CR-3 (token sent to non-Google connections): fixed.** `connectionId()` looks up `tokens.connection(id)` and refuses any provider other than GOOGLE before a token is requested (`GoogleCalendarAdapter.kt:291-304`). A missing connection still fails through the token path with "was removed". All five adapter operations go through `connectionId`. The test `a source linked to a connection of another provider fails without sending its token to Google` asserts that WireMock receives no requests.
+- **TW-2 (sync tests assumed GOOGLE has no adapter): fixed in test code.** `FakeCalendarAdapterConfiguration` adds a `@Primary` registry that contains only the fake adapter. It is imported only by the `calendar/sync` tests. `GoogleCalendarSyncTests` does not import it and uses the real registry. The real registry is still created, so its duplicate check still runs.
 
 ## P0 Critical
 
@@ -27,12 +39,7 @@ None.
 
 ## P1 High
 
-- [ ] **CR-1 | Google's answer with status "cancelled" is read back as CONFIRMED, so a deleted edited occurrence comes back locally**
-    - File: `server/src/main/kotlin/ch/sonensei/cockpit/calendar/infra/google/GoogleEventMapping.kt:74` (used by `GoogleCalendarAdapter.answer`, `GoogleCalendarAdapter.kt:269-275`)
-    - Category: Correctness
-    - Problem: `toRemote` maps every status except `"tentative"` to `EventStatus.CONFIRMED`. If the user deletes "this occurrence" and that occurrence already has an override, `CalendarEventService.deleteOccurrence` (`CalendarEventService.kt:249-251`) sets the override's status to `CANCELLED` and records an UPDATE. Write-through then calls `updateEvent`. `toBody` sends `"status": "cancelled"` (`GoogleEventMapping.kt:135`), which cancels the instance at Google. Google answers with the instance and `status: "cancelled"`. `answer()` turns that into a CONFIRMED `RemoteEvent`, and `CalendarWriteThrough.write` calls `event.copyFrom(stored)`, which overwrites the override's status with CONFIRMED and marks it SYNCED. The occurrence the user just deleted is committed as visible and confirmed again. It only goes away after the next incremental sync delivers the cancelled instance as a deletion. If the user edits it in the meantime, the patch sends `status: "confirmed"` and restores the occurrence at Google. The same mapping affects the cancelled overrides that a "this and following" split re-creates on the new series (`createEvent` with a recurrence id), and the 409 path of `createEvent` when the existing id belongs to a deleted event.
-    - Why it matters: Criterion 1 requires that recurring instance edits work. Removing an edited occurrence is one of these edits, and here it gives the wrong local state and can resurrect the occurrence at Google.
-    - Suggested fix: Map `"cancelled"` to `EventStatus.CANCELLED` when reading a write answer, or keep the local status when the answer is cancelled. Then the override stays CANCELLED, which is how the engine hides removed occurrences. Add an adapter test (patch answer with `status: "cancelled"`) and a write-through test for deleting an occurrence that has an override.
+None.
 
 ## P2 Medium
 
@@ -40,31 +47,32 @@ None.
 
 ## P3 Low
 
-- [ ] **CR-2 | Every write converts Google e-mail reminders and default reminders into popup overrides**
-    - File: `server/src/main/kotlin/ch/sonensei/cockpit/calendar/infra/google/GoogleEventMapping.kt:132-134`
+- [ ] **CR-1 | Every write replaces Google's attendee list, which drops the attendee flags the cockpit does not model**
+    - File: `server/src/main/kotlin/ch/sonensei/cockpit/calendar/infra/google/GoogleEventMapping.kt:131-138`
     - Category: Correctness
-    - Problem: On read, `minutes()` keeps both `popup` and `email` reminders, and `useDefault` is resolved to the calendar's defaults (`GoogleEventMapping.kt:229-238`). On write, `toBody` always sends `useDefault: false` and makes every minute a `popup` override. So any cockpit edit, even just the title, silently changes the event's reminders at Google: e-mail reminders become popups, and events that use the calendar defaults get fixed overrides. Neither the code nor an assumption documents this.
-    - Why it matters: Editing an unrelated field changes provider data the user never touched, and the change shows up in every other Google client.
-    - Suggested fix: Leave `reminders` out of patches when the reminder minutes did not change, or record the lossy mapping as an assumption (`tasks.py assume`).
+    - Problem: `toBody` always sends `attendees`, built only from email, displayName and responseStatus. The `Attendee` model (`calendar/model/CalendarEvent.kt:206-212`) has no `optional`, `resource`, `comment` or `additionalGuests`. A Google `PATCH` replaces array fields as a whole. So any cockpit edit of an event, even a title change, rewrites the attendee list at Google: optional attendees become required, and their comments and guest counts are lost. This is the same kind of lossy write as round-1 CR-2, but the recorded assumption covers only reminders.
+    - Why it matters: Editing an unrelated field changes data that other attendees see in their own Google clients.
+    - Suggested fix: Leave `attendees` out of patches when the attendee list is unchanged from Google's copy. Otherwise, record the lossy attendee mapping as an assumption (`tasks.py assume`), as was done for reminders.
 
-- [ ] **CR-3 | The adapter sends the connection's bearer token without checking that it is a Google connection**
-    - File: `server/src/main/kotlin/ch/sonensei/cockpit/calendar/infra/google/GoogleCalendarAdapter.kt:287-296`, `GoogleCalendarClient.kt:64,75`
-    - Category: Security
-    - Problem: `connectionId(source)` takes any UUID from the source config, and the client sends that connection's API access token to the Google API. Nothing in the adapter or in the calendar module (`grep` finds no validation of `connectionId` outside `infra/google`) checks that the connection's provider is Google. If a source is misconfigured with a Microsoft connection, a Microsoft Graph access token goes to Google.
-    - Why it matters: A credential goes to a third party it was not issued for. The risk is low because the app has a single user, but the check is cheap.
-    - Suggested fix: Before using the connection, check `tokens.connection(id)?.provider == OAuthProvider.GOOGLE`, and otherwise fail with a `CalendarProviderException` ("The source is not linked to a Google connection").
+- [ ] **CR-2 | The `toRemote` KDoc was garbled by the CR-1 fix**
+    - File: `server/src/main/kotlin/ch/sonensei/cockpit/calendar/infra/google/GoogleEventMapping.kt:51-55`
+    - Category: Quality
+    - Problem: The sentence added for the cancelled status runs into the existing sentence about `[calendarZone]` on one very long line. The KDoc now reads as one run-on paragraph, unlike the wrapping used in the rest of the file.
+    - Why it matters: It makes the only place that documents the listing-versus-answer status rule harder to read.
+    - Suggested fix: Re-wrap the KDoc: one sentence on the CANCELLED status for write answers, then the existing sentence on `calendarZone`/`defaultReminders`.
 
 ## Notes (not findings)
 
-- Criteria 1-2 otherwise hold up against the code:
-    - calendar list with paging, and the read-only flag from `accessRole`;
-    - `syncToken` cursors, and 410 restarting a full listing (`complete = true`) without looping when the 410 comes during a full listing;
-    - writes use `If-Match`, and 412 becomes `RemoteEventChangedException`;
-    - instance ids `<id>_<UTC basic>` and `<id>_<date>`;
-    - "this and following" goes through the engine's UNTIL plus new-series writes, covered end to end in `GoogleCalendarSyncTests` against Postgres.
-- Path and query values go through URI-template encoding (tested with `#` and `@` in calendar ids). Error messages and logs contain no tokens, response bodies or event content. The only INFO log has no content.
-- `python tasks.py verify cal-google` shows no evidence recorded yet for criteria 1-3. The parent worker must record it, including an actual run of `./gradlew test --tests 'ch.sonensei.cockpit.calendar.infra.google.*'`. The reviewer did not run the suite.
+- Criteria 1-2 hold against the code:
+    - calendar list with paging, skipping deleted and freeBusyReader calendars, and the read-only flag from `accessRole`;
+    - `sync:` / `page:` / `full:` cursors;
+    - 410 restarts with a complete listing during an incremental run or its pages, and is an error during a full listing (no loop);
+    - writes send `If-Match`, and 412 (and 404/410 on update) becomes `RemoteEventChangedException`;
+    - instance ids `<id>_<UTC basic>` and `<id>_<yyyyMMdd>`;
+    - "this and following": the old series ends (UNTIL), a new series is inserted with a UUID-derived id, and its exception becomes a patch of the new instance. This runs end to end against Postgres and WireMock in `GoogleCalendarSyncTests`, together with the 410 resync and the 412 → 409 flow.
+- Security: path and query values go through URI-template encoding. Error messages and logs contain no token, response body or event content. The bearer token goes only to the configured API URL, and only for GOOGLE connections.
+- `python tasks.py verify cal-google` still shows no evidence for criteria 1-3. The parent worker must record it, including an actual run of `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.calendar.infra.google.*'`. The reviewer did not run the suite.
 
 ## Review conclusion
 
-Material issues found; fix before completing the task.
+No material issues found. The round-1 fixes are correct and tested. The two P3 findings are minor and can be fixed or recorded at the parent worker's discretion.
