@@ -4,29 +4,44 @@ Date: 2026-10-21
 
 Task: web-files-browser - Files: browser and operations
 
-Scope: task commits e4d3f8a7, 27747043, d5d8ff48 on top of base 79a8ec19 (web/src/app/features/files/browser/*, web/src/app/features/files/files.routes.ts, web/e2e/files-browser/browser.spec.ts); server contract read from server/src/main/kotlin/ch/sonensei/cockpit/files/api/*
+Scope: re-review of the final code at HEAD b39b306c. Task commits in `2c1825c8..b39b306c` (900578df, dd2934c0, d346dbee, 95e9cadd, 60443304, 9fd5366b, b03516a0, a2240248, b39b306c): web/src/app/features/files/browser/*, web/src/app/features/files/files.routes.ts (+ spec), web/src/app/app.spec.ts, web/e2e/files-browser/browser.spec.ts. Production code was fully reviewed at a2240248. The delta `a2240248..b39b306c` changes only test code (web/src/app/features/files/browser/files-page.spec.ts, +66 lines, 3 new tests) and reviews/web-files-browser/tests.md. That delta was reviewed in full here. Review artifacts under reviews/ were read for context only.
 
 Requirements:
 - tasks/web-files-browser.md (acceptance criteria and recorded assumptions)
 - SPEC.md §8.2 (Files), §4.2 (ETag/If-Match, Trash)
-- docs/ARCHITECTURE.md, web/src/app/features/README.md, AGENTS.md project notes
-- Server API: DriveController.kt, FolderController.kt, FilesDtos.kt, FilesWebSupport.kt, FilesService.kt (special folder rules)
+- docs/ARCHITECTURE.md, AGENTS.md project notes
+- Earlier review rounds (CR-1 to CR-5, TW-1) and reviews/web-files-browser/fixes.md
 
 Git range:
 - Branch: main
-- HEAD: d5d8ff48
-- Base/start: 79a8ec193e9fb82a82832b25d529dad71811ac07
-- Commits reviewed: 3
+- HEAD: b39b306c1a66a508958fa1a35e314f9261c76318
+- Base/start: 2c1825c89ea94926fe6b46ba21166e5030844bd2
+- Commits reviewed: 9 (production code unchanged since a2240248; the only uncommitted change is this report)
 
-Summary: 0 P0, 0 P1, 4 P2, 1 P3
+Summary: 0 P0, 0 P1, 0 P2, 1 P3
 
-Criteria check (from the code):
-- #1 Folder tree, list/grid, breadcrumbs, new folder, rename, move dialog, delete (to Trash), download, folder as zip, disk usage: all present. Endpoints, methods, `If-Match` (`"<version>"`), PATCH bodies (`name`, `parentId`/`folderId`, explicit `null` for the root) and the usage fields match the server contract. Special folders hide rename/move/delete, consistent with the server's `ConflictException` rules.
-- #2 Vitest covers create, rename, move (folder and file to root), delete, special folders, load error with retry, usage failure, name validation and server errors. Gaps are in CR-3.
-- #3 The Playwright spec covers create folder, rename, move through the picker and delete to the Trash, and checks the Trash through the API.
-- `python tasks.py verify web-files-browser` showed no criterion recorded yet when this review ran. The parent worker still has to record the evidence.
+Delta a2240248..b39b306c (test code only):
+- "does not change anything when the rename dialog is cancelled": opens Rename on Report.pdf, clicks Cancel, waits for the dialog to close (the `closed` helper answers and settles all pending requests), then checks there was no PATCH, no info notification, no new request (no listing, tree or usage reload) and an unchanged listing. This pins the NameDialog cancel path (`mat-dialog-close` closes with `''`, `openName` returns `false`, files-page.ts:247-251), the counterpart of the TW-1 move-dialog fix.
+- "ignores a 'Show more' failure that answers after navigating to another folder": the root page 2 fails with a 503 after the newer DOCS load has answered. The test asserts the stale request was really sent (`cursor=2`), and that neither `moreError` ("Try later") nor a "Show more" button for the old folder appears. It discriminates: without the `seq === this.loadSeq` guard in `loadMore`'s catch (files-page.ts:147), the detail text would render and the test would fail.
+- "ignores a picker load failure that answers after a newer picker load": in the move dialog, the Trip 2026 load fails after the newer root load answered. The test asserts the Trip request was sent, no `role="alert"` is shown, and the picker stays on "My drive" with the root folders. It discriminates on the guard at move-dialog.ts:183.
+- The three tests use the existing FakeDrive and helpers and test behavior through the DOM, not implementation details. No existing test was removed or weakened. Test data is fictitious.
+- Run by this review: `npx ng test --watch=false --include src/app/features/files/browser/files-page.spec.ts` -> 1 file, 35 tests passed.
 
-Security: no secrets or personal data in the diff. File names are rendered through interpolation only. Download URLs use `encodeURIComponent` on the id under the same-origin `rootUrl` (`''`). GET downloads use the session cookie and need no XSRF. No issues found.
+Earlier findings, checked against the current code (unchanged since a2240248):
+- CR-1 (stale tree and usage, first round): resolved. `FolderTree.load` keeps a per-folder sequence number; `FilesPage.loadUsage` has a `usageSeq` guard (files-page.ts:260-268). Out-of-order tests exist for both.
+- CR-2 (closing a dialog while it saves): resolved. Both dialogs set `ref.disableClose = true` while their request runs and disable Cancel; closing is re-enabled in `finally`.
+- CR-3 (missing tests): resolved, and further strengthened by the three tests above (late failures, rename cancel).
+- CR-4 (no runtime evidence for downloads): resolved. The e2e spec downloads a file and a folder zip (browser.spec.ts:74-103). The parent reported `npm run e2e -- e2e/files-browser/browser.spec.ts` -> 6 passed. This review did not run it again.
+- CR-5 (no heading while loading or after an error): partly resolved; the remaining case is CR-1 below.
+- TW-1 (cancelling the move dialog showed "Moved" and reloaded): resolved (move-dialog.ts:70); the rename-dialog counterpart is now covered by a test.
+
+Acceptance criteria (from the code):
+- #1: every listed feature is present: tree, list and grid, breadcrumbs, new folder, rename, move dialog, delete to the Trash, download, folder as zip, and disk usage. Endpoints, `If-Match` and request bodies match the server contract. Nothing changed since the earlier review.
+- #2: Vitest coverage of operations and error states is broad, including late successes and late failures of every guarded async path (listing, "Show more", tree, usage, picker). The focused spec passes (see above); the full `npm run check` was not run by this review.
+- #3: the e2e spec covers create folder, rename, move and delete, with a server-side check of the Trash.
+- The parent worker must record criterion evidence with `tasks.py verify` before running `done`. This is a process step, not a code finding.
+
+Security: no secrets or personal data. Names are rendered only through interpolation. Download URLs encode the id with `encodeURIComponent` under the same-origin `rootUrl`. Test data is fictitious. No issues found.
 
 ## P0 Critical
 
@@ -38,45 +53,19 @@ None.
 
 ## P2 Medium
 
-- [ ] **CR-1 | The folder tree and the usage can show stale data when operations overlap**
-    - File: `web/src/app/features/files/browser/folder-tree.ts:123`, `web/src/app/features/files/browser/folder-tree.ts:149-166`; `web/src/app/features/files/browser/files-page.ts:259-265`
-    - Category: Correctness
-    - Problem: `refresh()` force-loads every known folder with no request identity. `load(id, true)` writes `children[id]` from whichever response arrives last. Two quick operations each call `changed()`, for example deleting two entries one after the other (only the deleted entry is busy, so the second delete is possible right away). If the first refresh of a folder answers after the second, the tree shows the older list again, including a folder that was already deleted. `loading.delete(id)` in `finally` also clears the in-flight mark that the other request set. The same applies to `loadUsage()`, which has no sequence guard. `FilesPage.load()` does guard this case with `loadSeq`, so the listing and the tree can then disagree.
-    - Why it matters: after a quick series of operations the tree, and to a lesser degree the storage numbers, are wrong until the next refresh. Clicking a stale tree link to a deleted folder shows a load error.
-    - Suggested fix: keep a per-folder request counter (or a single tree-wide generation) in `FolderTree.load`, and apply a result only if it is still the latest for that id. Do the same for `loadUsage` with a counter like `loadSeq`. Add a vitest that answers two refreshes out of order.
-
-- [ ] **CR-2 | Closing a dialog while its save runs leaves the page out of date**
-    - File: `web/src/app/features/files/browser/name-dialog.ts:75` (Cancel with `mat-dialog-close`, Escape and backdrop stay active while `saving()`); `web/src/app/features/files/browser/move-dialog.ts:67` (the same during `moving()`); `web/src/app/features/files/browser/files-page.ts:171`, `:182`, `:193`
-    - Category: Correctness
-    - Problem: neither dialog sets `disableClose`, and Cancel is not disabled while the request runs. If the user cancels or presses Escape after submitting, the dialog closes with `undefined`/`false`. The page then skips `changed()`, even though the server may already have committed the create, rename or move. The listing and tree keep the old name or place and the old `version`. The next rename, move or delete of that entry then fails with 412 ("could not be changed"), and only navigating away fixes it.
-    - Why it matters: this is the "cancelled write may already have been committed" case. It leaves the screen stale and makes the next action fail.
-    - Suggested fix: block closing while saving (`ref.disableClose = true` during the request, plus `[disabled]="saving()"`/`moving()` on Cancel). Alternatively, have the page call `changed()` after every close of a dialog that had started a save.
-
-- [ ] **CR-3 | Pagination, tree failures and navigation races have no tests**
-    - File: `web/src/app/features/files/browser/files-page.ts:130-150` (`loadMore`, "Show more", `moreError`); `web/src/app/features/files/browser/drive.service.ts:79-88` (`subfolders` paging and its stop rule); `web/src/app/features/files/browser/folder-tree.ts:83-89,156-163` (failed branch); `web/src/app/features/files/browser/files-page.ts:121,138` (sequence guards); `web/src/app/features/files/browser/files-page.ts:210` (404 on delete)
-    - Category: Tests
-    - Problem: `files-page.spec.ts` never returns a `nextCursor`, so loading more entries, removing duplicates, the "Show more" error and multi-page `subfolders` (the move dialog and tree for folders with more than 100 entries) never run. The guards against out-of-order results on fast folder changes, the tree's "could not be loaded" state and the delete 404 path are also untested. Criterion #2 asks for operations and error states to be covered.
-    - Why it matters: these are the paths most likely to regress silently. The `subfolders` stop rule depends on the server ordering folders first.
-    - Suggested fix: extend `FakeDrive` with a page size and cursor. Add tests for "Show more" (success and failure), `subfolders` across pages, two `params.next` calls answered out of order, a failed tree branch, and DELETE returning 404. (A concurrent test-writer run may already add some of these. Check its result before duplicating.)
-
-- [ ] **CR-4 | Download and zip download have no runtime evidence**
-    - File: `web/src/app/features/files/browser/drive.service.ts:163-166`; `web/e2e/files-browser/browser.spec.ts:9-71`
-    - Category: Tests
-    - Problem: criterion #1 lists "download" and "download folder as zip". The only check is a vitest assertion on the `href` value. The e2e spec does not start a download, so nobody has checked that the plain links, sent with the session cookie through the e2e stack's proxy, return the file or zip as an attachment and not a 401 or an SPA fallback.
-    - Why it matters: under AGENTS.md "Evidence", a criterion about running behavior needs a run in the named configuration. An `href` string is not evidence that the download works.
-    - Suggested fix: when recording evidence for #1, include a run against the e2e stack. For example, add a Playwright step that clicks "Download as zip", waits for the `download` event, and checks `suggestedFilename()` and a non-empty file. Otherwise mark the download part as skipped with a reason.
+None.
 
 ## P3 Low
 
-- [ ] **CR-5 | The page has no heading while loading or after a load error, and `aria-labelledby` points to a missing id**
-    - File: `web/src/app/features/files/browser/files-page.html:36`, `:43`, `:102`
+- [ ] **CR-1 | After navigating to another folder, the heading and breadcrumbs still show the previous folder while it loads, and stay that way if the load fails** (open; carried over from the a2240248 review, production code unchanged)
+    - File: `web/src/app/features/files/browser/files-page.ts:109-128`; `web/src/app/features/files/browser/files-page.html:38-56`
     - Category: Quality
-    - Problem: the `h1#files-title` is rendered only as the last crumb. While loading, and after a load error (crumbs never set, for example a deleted or invalid folder id), the page has no `h1`, and `section[aria-labelledby="files-title"]` refers to an element that does not exist.
-    - Why it matters: screen-reader users get no page heading or region name in the error state, which is exactly when they need orientation.
-    - Suggested fix: always render an `h1`, falling back to the route title "Files" (or "My drive") until the crumbs load. For example, render the heading outside the crumbs loop and keep the crumbs as links only.
+    - Problem: `load()` resets `entries`, `nextCursor` and the errors, but not `crumbs`. The page reuses one component for every folder, through the route matcher. So when a user goes from folder A to folder B, the `h1` (with `aria-current="page"`) and the breadcrumbs still name A while B loads. If B cannot be loaded (for example, it was deleted in another tab, or a tree link is stale), "The folder could not be loaded" appears under A's heading. Meanwhile `folderId` is already B: "Download as zip", "New folder" and the tree's current marker all refer to B. The "Files" fallback that the CR-5 fix added only shows on the first load.
+    - Why it matters: the heading names the wrong folder in exactly the state where the user needs to know where they are. "New folder" in that state creates the folder in B, not in the A that the heading names.
+    - Suggested fix: when `folderId` changes, clear `crumbs` at the start of `load()`, as `entries` already is, so the "Files" heading shows until the new crumbs arrive or the load fails. Keep the crumbs on a reload of the same folder to avoid flicker. Add a vitest that navigates to a folder whose load fails and checks the heading.
 
 ## Review conclusion
 
-Material issues found; fix before completing the task.
+No material issues found.
 
-None of the findings blocks a criterion on its own. The parent worker should fix or explicitly disposition CR-1 to CR-3 and provide the runtime download evidence asked for in CR-4 before running `done`.
+The test-only delta a2240248..b39b306c is sound: the three new tests are meaningful, discriminate on the guards they target, and pass. Earlier findings remain resolved, apart from the narrower heading case left open as P3 CR-1. The parent worker should still record criterion evidence (`tasks.py verify`) before running `done`.

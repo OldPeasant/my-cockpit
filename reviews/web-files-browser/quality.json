@@ -1,0 +1,32 @@
+{
+  "schema": 1,
+  "task": "web-files-browser",
+  "reviewed_revision": "b39b306c1a66a508958fa1a35e314f9261c76318",
+  "helpers": {
+    "test-writer": {"status": "completed", "report": "reviews/web-files-browser/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/web-files-browser/review.md"},
+    "fixer": {"status": "completed", "report": "reviews/web-files-browser/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "TW-1", "source": "test-writer", "severity": "Medium", "disposition": "fixed",
+     "note": "cancelling the move dialog showed a Moved toast and reloaded"},
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "first review: stale folder tree and usage on overlapping refreshes; per-folder and usage sequence guards"},
+    {"id": "CR-2", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "first review: dialogs could close while saving; closing blocked during the request"},
+    {"id": "CR-3", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "first review: missing tests for pagination, tree failure, races, delete 404; added"},
+    {"id": "CR-4", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "first review: no runtime download evidence; Playwright spec downloads a file and the folder zip, e2e 6 passed"},
+    {"id": "CR-5", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "first review: no h1 while loading or on error; h1 always rendered (remaining part tracked as re-review CR-1)"},
+    {"id": "CR-1 (re-review)", "source": "code-reviewer", "severity": "P3", "disposition": "accepted",
+     "note": "heading/breadcrumbs keep the previous folder name while the next folder loads or fails; cosmetic, actions use the routed folder; recorded as assumption"}
+  ],
+  "validation": [
+    {"command": "cd web && npm run check", "result": "pass"},
+    {"command": "cd web && npm run e2e -- e2e/files-browser/browser.spec.ts", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
