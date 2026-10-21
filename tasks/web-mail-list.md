@@ -16,7 +16,8 @@ Unified inbox and folders (SPEC.md §7.3).
   - verified (2026-10-21 07:55+0200 by dell26/agent-2): npm --prefix web run e2e -- e2e/mail-list/list.spec.ts -> pass (unified inbox, folder tree, selection, Shift+I/e/v/toolbar against GreenMail); Vitest mail-list page/store/shortcuts/folder-tree specs (threaded toggle, infinite scroll + load more, multi-select, j/k/e/#/u/v incl. AltGr #) -> 186 passed
 - [x] Live updates via SSE
   - verified (2026-10-21 07:40+0200 by dell26/agent-2): npm --prefix web run e2e -- e2e/mail-list/list.spec.ts -> live-update step passes (message appended via IMAP + sync hook shows up without reload via SSE MAIL_FOLDER event); Vitest 'live updates' specs in mail-list-store.spec.ts / mail-folders-store.spec.ts pass in npm run check
-- [ ] Vitest component/service tests cover selection, shortcuts, optimistic actions with rollback; `cd web && npm run check` passes
+- [x] Vitest component/service tests cover selection, shortcuts, optimistic actions with rollback; `cd web && npm run check` passes
+  - verified (2026-10-21 07:55+0200 by dell26/agent-2): cd web && npm run check at bf3a5e7b -> lint clean, 91 files / 1706 tests passed, build ok; mail list specs cover selection, shortcuts, optimistic actions with rollback (store coverage 100% lines, 132/143 branches)
 - [x] Playwright `e2e/mail-list/list.spec.ts` passes against the e2e stack (`npm run e2e -- e2e/mail-list/list.spec.ts`, see p0-e2e-harness): mark read, archive, move against GreenMail
   - verified (2026-10-21 07:39+0200 by dell26/agent-2): npm --prefix web run e2e -- e2e/mail-list/list.spec.ts (run-e2e.mjs: podman compose e2e stack server+postgres+GreenMail, chromium) at 11d5d088 -> 6 passed incl. 'Mail list > mark read, archive and move against GreenMail; live updates' (checked over IMAP)
 
