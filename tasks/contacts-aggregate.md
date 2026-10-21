@@ -11,7 +11,8 @@ lease_until: 2026-10-21T22:09:33Z
 Everything about a person (SPEC.md §8.3).
 
 ## Acceptance criteria
-- [ ] `GET /api/v1/contacts/{id}/related`: recent mails from/to, upcoming events with them, Waiting For items
+- [x] `GET /api/v1/contacts/{id}/related`: recent mails from/to, upcoming events with them, Waiting For items
+  - verified (2026-10-21 23:53+0200 by dell26/agent-1): cd server && ./gradlew test --tests 'ch.sonensei.cockpit.contacts.aggregate.*' (Testcontainers Postgres) on 314a570ad -> ContactAggregateWebTests+EdgeCaseTests: GET /contacts/{id}/related returns mails from/to/cc newest first (Trash/Spam/Drafts/detached/duplicates excluded, cap 20), upcoming attendee occurrences incl. recurring/all-day (cancelled/past/>90d excluded, cap 20), Waiting For tasks by contact across pages; unknown/trashed contact 404 -> pass
 - [ ] `GET /api/v1/contacts/autocomplete?q=` merges contacts and recent correspondents
 - [ ] `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.contacts.aggregate.*'` passes (Postgres via Testcontainers where persistence is involved)
 - [ ] API documented: `api/openapi.yaml` regenerated (`UPDATE_OPENAPI=1 ./gradlew test --tests '*OpenApiContractTest'`) and `OpenApiContractTest` passes without the flag
