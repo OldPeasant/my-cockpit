@@ -1,0 +1,32 @@
+{
+  "schema": 1,
+  "task": "web-today-events",
+  "reviewed_revision": "b59a2baee297e3f41365ea390275dfeb7a9ef061",
+  "helpers": {
+    "test-writer": {"status": "completed", "report": "reviews/web-today-events/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/web-today-events/review.md"},
+    "fixer": {"status": "completed", "report": "reviews/web-today-events/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "first review: cancelled/tentative status conveyed only visually; visually hidden status text added"},
+    {"id": "CR-2", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "first review: adjacent-day all-day events shown when browser and calendar zone differ; isOnDate filter by local date"},
+    {"id": "CR-3", "source": "code-reviewer", "severity": "P3", "disposition": "invalid",
+     "note": "first review: untested branches; already covered by the test-writer's tests (confirmed in re-review)"},
+    {"id": "TW-1", "source": "test-writer", "severity": "Low", "disposition": "fixed",
+     "note": "timed event covering exactly the whole local day labelled 12:00 AM - 12:00 AM; now shown as All day"},
+    {"id": "CR-1b", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "second review CR-1: doc comment in today-sections.ts over 100 columns; rewrapped"},
+    {"id": "TW-2", "source": "test-writer", "severity": "Low", "disposition": "accepted",
+     "note": "observation: an open Today view does not roll over at midnight; not required by the task"},
+    {"id": "TW-3", "source": "test-writer", "severity": "Low", "disposition": "accepted",
+     "note": "observation: events running since yesterday sort by title, as the documented comparator says"}
+  ],
+  "validation": [
+    {"command": "cd web && npx ng test --watch=false --include='src/app/features/gtd/today/*.spec.ts'", "result": "pass"},
+    {"command": "cd web && npm run check", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
