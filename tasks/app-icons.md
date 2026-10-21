@@ -1,11 +1,11 @@
 ---
 title: App icon and favicon from the brand mark
-status: in_progress
+status: done
 owner: dell26/agent-3
 deps: [p0-web-shell,and-shell]
 touches: [docs/brand,web/public/favicon.svg,web/public/favicon.ico,web/public/apple-touch-icon.png,web/src/index.html,android/app/src/main/res/drawable/ic_launcher.xml,android/app/src/main/res/mipmap-anydpi-v26,android/app/src/main/res/drawable/ic_launcher_foreground.xml,android/app/src/main/res/drawable/ic_launcher_background.xml,android/app/src/main/res/drawable/ic_launcher_monochrome.xml,android/app/src/main/AndroidManifest.xml]
 prio: 2
-lease_until: 2026-10-21T16:56:38Z
+lease_until: 
 ---
 ## Goal
 Web and Android show the chosen My Cockpit mark (instrument panel with a 30° artificial horizon) instead of
@@ -30,3 +30,4 @@ the placeholder icons. Source of truth: `docs/brand/` (`README.md` has colours a
 - ASSUMPTION (2026-10-21 18:22+0200 by dell26/agent-3): Apple touch icon is rendered as a full square (app-icon.svg without rx): iOS applies its own corner mask and fills transparent pixels black.
 - ASSUMPTION (2026-10-21 18:22+0200 by dell26/agent-3): Themed (monochrome) Android icon draws the sky half of the horizon at 50 % alpha, since a one-colour icon cannot show the accent; needles are cut out as in mark.svg.
 - ASSUMPTION (2026-10-21 18:22+0200 by dell26/agent-3): Icons are rendered with Playwright Chromium (already a web dev dependency) via docs/brand/generate-icons.mjs, not ImageMagick; the ICO is assembled by the script (PNG entries 16/32/48).
+- done by dell26/agent-3: `sh scripts/check.sh` passed in 55s on a1c3997f7; criteria verified 4/4
