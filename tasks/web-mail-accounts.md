@@ -13,7 +13,8 @@ Manage mail accounts (SPEC.md §7.1).
 ## Acceptance criteria
 - [x] Add IMAP/SMTP (with test connection), Google, Microsoft; identities, signature (Markdown), folder role mapping, notification toggle
   - verified (2026-10-22 00:05+0200 by dell26/agent-3): Vitest component specs (cd web && npx ng test --watch=false --include 'src/app/features/settings/mail/*.spec.ts' --include settings.routes.spec.ts -> 6 files, 120 passed) exercise IMAP/SMTP add with test connection + folder detection, Google/Microsoft add via OAuth connection (purpose=MAIL), primary identity edit, Markdown signature, folder role mapping, notification toggle against HttpTestingController; real IMAP/Google/Microsoft servers not reachable here (h-mail-real)
-- [ ] Vitest component/service tests cover account forms and test-connection states; `cd web && npm run check` passes
+- [x] Vitest component/service tests cover account forms and test-connection states; `cd web && npm run check` passes
+  - verified (2026-10-22 00:05+0200 by dell26/agent-3): cd web && npm run check -> exit 0, 131 test files passed (incl. mail-settings, mail-account-editor, folder-roles specs: account forms and test-connection running/ok/failed states); task-scoped coverage 99.53% statements / 93.24% branches (reviews/web-mail-accounts/tests.md)
 
 ## Notes
 - ASSUMPTION (2026-10-21 23:12+0200 by dell26/agent-3): Identities: the mail account API has no identity endpoints (mail-imap left them out), so the settings edit only the primary identity (display name + email address). Extra identities are new task mail-identities.
