@@ -17,3 +17,4 @@ Near-real-time new mail (SPEC.md §7.2).
 
 ## Notes
 - ASSUMPTION (2026-10-21 22:07+0200 by dell26/agent-1): The IDLE connection is opened outside the ImapConnectionPool (one extra connection per account), with a read timeout of re-idle-interval + read-timeout, because an IDLE holds its connection for good
+- ASSUMPTION (2026-10-21 22:07+0200 by dell26/agent-1): New-mail notification is SSE event 'mail' (ClientNotification) with accountId, folderId, count and up to 10 {id, from, subject, receivedAt} of unread arrivals in the Inbox; every arrival also gets an EMAIL CREATED ChangeEvent. Arrivals of a first/full sync are never announced
