@@ -299,7 +299,10 @@ export class TaskDetail {
       const target = await run();
       // The editor switched to another task meanwhile: the conversion stays done, the screen is not ours.
       if (task.id !== this.taskId()) return;
-      void this.router.navigate(target.commands, { queryParams: target.queryParams });
+      const { commands, queryParams } = target;
+      void (queryParams
+        ? this.router.navigate(commands, { queryParams })
+        : this.router.navigate(commands));
     } catch (error) {
       if (task.id === this.taskId()) await this.failed(error);
     } finally {

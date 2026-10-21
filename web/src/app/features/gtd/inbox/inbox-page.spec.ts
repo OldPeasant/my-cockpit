@@ -1,4 +1,5 @@
 import { TestBed } from '@angular/core/testing';
+import { MatDialog } from '@angular/material/dialog';
 import { provideRouter, Router } from '@angular/router';
 import { Subject } from 'rxjs';
 import {
@@ -6,7 +7,10 @@ import {
   ChangeEvent,
   completeTask,
   ContextResponse,
+  convertTaskToEvent,
   convertTaskToNote,
+  ConvertToEventRequest,
+  EventResponse,
   createProject,
   deleteTask,
   listContexts,
@@ -58,6 +62,22 @@ function note(from: TaskResponse): NoteResponse {
   };
 }
 
+/** The event the fake server makes of an item (`POST /tasks/{id}/convert-to-event`). */
+function event(from: TaskResponse, body: ConvertToEventRequest): EventResponse {
+  return {
+    id: `e-${from.id}`,
+    calendarId: body.calendarId ?? 'cal1',
+    title: from.title,
+    allDay: body.allDay ?? false,
+    start: body.start,
+    end: body.end,
+    startDate: body.startDate,
+    endDate: body.endDate,
+    timeZone: body.timeZone,
+    version: 1,
+  } as EventResponse;
+}
+
 const HOME = { id: 'c1', name: '@home', position: 1 } as ContextResponse;
 const KITCHEN = {
   id: 'p1',
@@ -73,6 +93,8 @@ describe('InboxPage', () => {
   let inbox: TaskResponse[];
   let element: HTMLElement;
   let resync: Subject<void>;
+  /** The "To calendar" dialogs opened, each answered by emitting on its subject. */
+  let dialogs: { data: unknown; closed: Subject<ConvertToEventRequest | undefined> }[];
   /** Answers a call instead of the default fake server when it returns a promise. */
   let answer:
     ((fn: unknown, params: Record<string, unknown>) => Promise<unknown> | undefined) | undefined;
@@ -132,6 +154,9 @@ describe('InboxPage', () => {
         if (fn === completeTask) return { ...current, completedAt: '2026-10-20T10:00:00Z' };
         if (fn === deleteTask) return undefined;
         if (fn === convertTaskToNote) return note(current);
+        if (fn === convertTaskToEvent) {
+          return event(current, params['body'] as ConvertToEventRequest);
+        }
         throw new Error('unexpected call');
       },
     };
@@ -140,11 +165,20 @@ describe('InboxPage', () => {
       resync$: resync,
       events$: () => new Subject<ChangeEvent>(),
     };
+    dialogs = [];
+    const dialog = {
+      open: (_component: unknown, config: { data: unknown }) => {
+        const closed = new Subject<ConvertToEventRequest | undefined>();
+        dialogs.push({ data: config.data, closed });
+        return { afterClosed: () => closed };
+      },
+    };
     TestBed.configureTestingModule({
       providers: [
         provideRouter([]),
         { provide: Api, useValue: api },
         { provide: ChangeEventsService, useValue: events },
+        { provide: MatDialog, useValue: dialog },
       ],
     });
   });
@@ -528,14 +562,105 @@ describe('InboxPage', () => {
     expect(callsOf(moveTask)).toHaveLength(0);
   });
 
-  it('offers To calendar disabled, its key does nothing', async () => {
-    await render([task('t1')]);
-    await press('p');
-    expect(button('To calendar')!.disabled).toBe(true);
-    await press('c');
-    expect(calls.filter((call) => call.fn !== listTasks && call.fn !== listContexts)).toEqual(
-      calls.filter((call) => call.fn === listProjects),
-    );
+  describe('To calendar', () => {
+    const moved = () => element.querySelector('.moved[role=status]');
+    const TIMED: ConvertToEventRequest = {
+      calendarId: 'cal1',
+      allDay: false,
+      start: '2026-10-22T07:00:00.000Z',
+      end: '2026-10-22T08:00:00.000Z',
+      timeZone: 'Europe/Zurich',
+    };
+
+    async function close(result: ConvertToEventRequest | undefined, index = 0): Promise<void> {
+      dialogs[index].closed.next(result);
+      dialogs[index].closed.complete();
+      await refresh();
+    }
+
+    it('C asks for calendar and time, then converts the item and offers the calendar', async () => {
+      await render([task('t1', { version: 4 }), task('t2')]);
+      await press('p');
+
+      await press('c');
+      expect(dialogs).toHaveLength(1);
+      expect(dialogs[0].data).toEqual({ title: 'Item t1' });
+      expect(callsOf(convertTaskToEvent)).toHaveLength(0);
+
+      await close(TIMED);
+
+      expect(callsOf(convertTaskToEvent)).toHaveLength(1);
+      expect(callsOf(convertTaskToEvent)[0].params).toEqual({
+        id: 't1',
+        'If-Match': '"4"',
+        body: TIMED,
+      });
+      expect(title()).toBe('Item t2');
+      expect(progress()).toBe('50');
+      expect(moved()?.textContent).toContain('Moved to the calendar as the event “Item t1”.');
+      const link = moved()?.querySelector('a');
+      expect(link?.textContent?.trim()).toBe('Open calendar');
+      expect(link?.getAttribute('href')).toBe('/calendar?date=2026-10-22');
+    });
+
+    it('opens the calendar on the start day of an all-day event', async () => {
+      await render([task('t1')]);
+      await press('p');
+      button('To calendar')!.click();
+      await refresh();
+      await close({ allDay: true, startDate: '2026-11-03', endDate: '2026-11-04' });
+
+      expect(moved()?.querySelector('a')?.getAttribute('href')).toBe('/calendar?date=2026-11-03');
+    });
+
+    it('keeps the item when the dialog is cancelled', async () => {
+      await render([task('t1')]);
+      await press('p');
+      await press('c');
+      await close(undefined);
+
+      expect(callsOf(convertTaskToEvent)).toHaveLength(0);
+      expect(title()).toBe('Item t1');
+      expect(moved()).toBeNull();
+    });
+
+    it('ignores action keys while the dialog is open', async () => {
+      await render([task('t1')]);
+      await press('p');
+      await press('c');
+      await press('n');
+      await press('c');
+
+      expect(callsOf(moveTask)).toHaveLength(0);
+      expect(dialogs).toHaveLength(1);
+      await close(undefined);
+      await press('c');
+      expect(dialogs).toHaveLength(2);
+    });
+
+    it('brings the item back when the server refuses', async () => {
+      answer = (fn) => (fn === convertTaskToEvent ? Promise.reject(new Error('409')) : undefined);
+      await render([task('t1')]);
+      await press('p');
+      await press('c');
+      await close(TIMED);
+
+      expect(callsOf(convertTaskToEvent)).toHaveLength(1);
+      expect(title()).toBe('Item t1');
+      expect(progress()).toBe('0');
+      expect(moved()).toBeNull();
+    });
+
+    it('does not convert when processing stopped while the dialog was open', async () => {
+      await render([task('t1')]);
+      await press('p');
+      await press('c');
+      button('Back to list')!.click();
+      await refresh();
+      await close(TIMED);
+
+      expect(callsOf(convertTaskToEvent)).toHaveLength(0);
+    });
   });
 
   describe('To reference', () => {
@@ -1049,12 +1174,13 @@ describe('InboxPage', () => {
       expect(element.querySelector('.prompt')).not.toBeNull();
     });
 
-    it('marks the enabled action buttons with their shortcut', async () => {
+    it('marks every action button with its shortcut', async () => {
       await render([task('t1')]);
       await press('p');
       expect(button('Next')!.getAttribute('aria-keyshortcuts')).toBe('N');
       expect(button('Trash')!.getAttribute('aria-keyshortcuts')).toBe('X');
-      expect(button('To calendar')!.hasAttribute('aria-keyshortcuts')).toBe(false);
+      expect(button('To calendar')!.getAttribute('aria-keyshortcuts')).toBe('C');
+      expect(button('To calendar')!.disabled).toBe(false);
     });
   });
 

@@ -3,7 +3,9 @@
 <form class="to-calendar" [formGroup]="form" (ngSubmit)="submit()">
   <mat-dialog-content>
     <p class="subject">
-      <span i18n="@@toCalendar.subject">“{{ data.title }}” becomes an event; the task goes to the Trash.</span>
+      <span i18n="@@toCalendar.subject"
+        >“{{ data.title }}” becomes an event; the task goes to the Trash.</span
+      >
       @if (data.unsaved) {
         <span class="warning" i18n="@@toCalendar.unsaved"
           >Your unsaved changes are discarded: the event gets the saved version.</span
@@ -23,7 +25,12 @@
     } @else if (calendars.error()) {
       <div class="banner" role="alert">
         <p i18n="@@toCalendar.loadFailed">The calendars could not be loaded.</p>
-        <button mat-stroked-button type="button" (click)="retryCalendars()" i18n="@@toCalendar.retry">
+        <button
+          mat-stroked-button
+          type="button"
+          (click)="retryCalendars()"
+          i18n="@@toCalendar.retry"
+        >
           Try again
         </button>
       </div>

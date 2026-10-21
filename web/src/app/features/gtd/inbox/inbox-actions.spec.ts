@@ -41,13 +41,14 @@ describe('INBOX_ACTION_GROUPS', () => {
     );
   });
 
-  it('disables only To calendar', () => {
-    expect(all.filter((info) => info.disabled).map((info) => info.action)).toEqual(['calendar']);
+  it('offers To calendar with the key C', () => {
+    const calendar = all.find((info) => info.action === 'calendar')!;
+    expect(calendar.key).toBe('C');
+    expect(calendar.keys).toEqual(['c']);
   });
 
   it('offers To reference with the key R', () => {
     const reference = all.find((info) => info.action === 'reference')!;
-    expect(reference.disabled).toBeFalsy();
     expect(reference.key).toBe('R');
     expect(reference.keys).toEqual(['r']);
   });
@@ -69,6 +70,7 @@ describe('actionForKey', () => {
     ['t', 'tickler'],
     ['m', 'someday'],
     ['r', 'reference'],
+    ['c', 'calendar'],
     ['x', 'trash'],
     ['Delete', 'trash'],
   ])('maps %s to %s', (key, action) => {
@@ -79,10 +81,6 @@ describe('actionForKey', () => {
     expect(actionForKey('N')).toBe('next');
     expect(actionForKey('DELETE')).toBe('trash');
     expect(actionForKey('R')).toBe('reference');
-  });
-
-  it('returns null for the disabled action', () => {
-    expect(actionForKey('c')).toBeNull();
   });
 
   it.each(['q', 'Enter', 'Escape', ' ', '', 'ArrowDown', 'Backspace'])(
