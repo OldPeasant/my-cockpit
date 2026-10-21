@@ -819,4 +819,70 @@ describe('FilesPage', () => {
     expect(root.querySelector('.usage')).toBeNull();
     expect(names()).toHaveLength(3);
   });
+
+  it('does not change anything when the rename dialog is cancelled', async () => {
+    await open(DOCS);
+
+    await menu('Report.pdf', 'Rename');
+    const el = await dialog('app-files-name-dialog');
+    const before = drive.requests.length;
+    button('Cancel', el).click();
+    await closed('app-files-name-dialog');
+
+    expect(drive.requests.some((r) => r.method === 'PATCH')).toBe(false);
+    expect(notifications.info).not.toHaveBeenCalled();
+    // Nothing is reloaded: no listing, tree or usage request after the cancel.
+    expect(drive.requests).toHaveLength(before);
+    expect(names()).toEqual(['Trip 2026', 'Report.pdf']);
+  });
+
+  it('ignores a "Show more" failure that answers after navigating to another folder', async () => {
+    drive.file('0192f0c4-0000-7000-8000-0000000000f2', 'Notes.txt', 10);
+    drive.pageSize = 2;
+    await open();
+    drive.failures.set('cursor=2', { status: 503, title: 'Unavailable', detail: 'Try later' });
+
+    button('Show more').click();
+    await tick();
+    params.next(convertToParamMap({ folderId: DOCS }));
+    await tick();
+    // The new folder answers first, the old root page 2 fails afterwards.
+    drive.answer(http, (req) => req.urlWithParams.includes(DOCS));
+    await settle();
+
+    expect(drive.requests.some((r) => r.params.get('cursor') === '2')).toBe(true);
+    expect(crumbs()).toEqual(['My drive', 'Documents']);
+    expect(names()).toEqual(['Trip 2026', 'Report.pdf']);
+    expect(root.querySelector('.more-entries')).toBeNull();
+    expect(root.textContent).not.toContain('Try later');
+  });
+
+  it('ignores a picker load failure that answers after a newer picker load', async () => {
+    await open(DOCS);
+
+    await menu('Report.pdf', 'Move');
+    const el = await dialog('app-files-move-dialog');
+    drive.failures.set(`folderId=${TRIP}`, {
+      status: 503,
+      title: 'Unavailable',
+      detail: 'Trip offline',
+    });
+
+    // Open Trip 2026, and go back to the root before Trip answers (with a failure).
+    button('Trip 2026', el).click();
+    await tick();
+    button('My drive', el).click();
+    await tick();
+    drive.answer(http, (req) => !req.urlWithParams.includes(TRIP));
+    await settle();
+
+    expect(drive.requests.some((r) => r.urlWithParams.includes(`folderId=${TRIP}`))).toBe(true);
+    expect(el.querySelector('[role="alert"]')).toBeNull();
+    expect(el.querySelector('[aria-current="location"]')?.textContent?.trim()).toBe('My drive');
+    expect([...el.querySelectorAll('.folder span')].map((n) => n.textContent?.trim())).toEqual([
+      'Attachments',
+      'Documents',
+      'Photos',
+    ]);
+  });
 });
