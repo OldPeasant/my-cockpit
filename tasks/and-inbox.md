@@ -16,3 +16,4 @@ Process the inbox on the phone (SPEC.md §5.3).
 
 ## Notes
 - ASSUMPTION (2026-10-21 09:51+0200 by dell26/agent-4): Android inbox omits 'To reference' and 'To calendar' (task says: except calendar/reference until later); actions shown: Do it, Next, To project, Waiting, Schedule, Tickler, Someday, Trash.
+- ASSUMPTION (2026-10-21 09:51+0200 by dell26/agent-4): Clarification PATCH uses a hand-written Retrofit interface (InboxTaskPatchApi, JsonObject body) because the generated TaskPatchRequest serializes every null field, which the server treats as 'clear'; sending it would wipe due date/notes/recurrence.
