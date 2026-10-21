@@ -135,3 +135,61 @@ Remaining unresolved findings:
 ## Final status
 
 Round 1 (CR-1, CR-2) and round 2 (re-review CR-1, re-review CR-2): all validated findings fixed and validation passed. CR-3 stays deferred as out of scope.
+
+## Round 3 (final review findings)
+
+Date: 2026-10-21
+
+Findings source: `reviews/mail-gtd/review.md` (final review), CR-1 and CR-2.
+
+### Fixed findings
+
+#### CR-1 — display names in the to-note header are not neutralized for inline `[[type:id]]` links
+
+Files changed:
+- `server/src/main/kotlin/ch/sonensei/cockpit/mail/gtd/MailGtdService.kt`
+- `server/src/test/kotlin/ch/sonensei/cockpit/mail/gtd/MailGtdWebTests.kt`
+
+Problem:
+`noteBody` neutralized only the mail text. The header lines (`**From:**`, `**To:**`, `**Cc:**`) embed display names that the sender controls. A display name such as `[[task:UUID]]` token therefore reached the note body unchanged, and `NoteService` synced it as an inline link to the user's item.
+
+Fix (parent worker commits 4849bb8b and a79e4c5e, validated here; the fixer changed no code in this round):
+- `noteBody` now runs `neutralizeInlineLinks` on the whole assembled body (header and text) before `truncate`. The generated parts of the header never contain `[[`, so this changes nothing else. Truncation only shortens the text, so it cannot create a new `[[`.
+- `neutralizeInlineLinks` now writes each `[[` as `[ [` instead of the Markdown escape `[\[`. The lookahead regex `\[(?=\[)` also handles runs such as `[[[` (giving `[ [ [`). Reason: with the escape form, flexmark's `TextCollectingVisitor` (used by `NoteMarkdown.plainText`) threw `AssertionError: length:174 != computeLength(): 176` under `-ea` (as in tests). It happened on a header that combined bold labels, escapes, angle-bracket address autolinks and hard line breaks. The space form has no escape for flexmark to miscount, and `NoteMarkdown.INLINE_LINK` cannot match it.
+- The inline-link test assertion for the body text now expects `See [ [task:UUID]]` (UUID = the target id). New regression test: `inline link tokens in display names and the subject do not link the note to other items`. It uses `[[...]]` tokens in the From, To and Cc display names and in the subject, plus a triple bracket in Cc. It asserts that the note links only to the mail, that the header shows the neutralized names, and that the body contains no `[[`.
+
+Completeness check: `NoteMarkdown.inlineLinks` is called only on `bodyMd` (`NoteService.kt:106`, `:225`), so the note title (subject) cannot create links. The whole body is now covered.
+
+Validation:
+- `cd server && ./gradlew ktlintCheck test --rerun-tasks --tests 'ch.sonensei.cockpit.mail.gtd.*'` — Pass (BUILD SUCCESSFUL; MailGtdWebTests 43, MailGtdMailServerTests 5, 0 failures, 0 errors, 0 skipped; the new CR-1 test ran and passed)
+
+### Not fixed
+
+#### CR-2 — `MailConnectionException` handler copied from `MailMessageController`
+
+Status:
+Out of scope
+
+Reason:
+A shared handler would have to change `MailMessageController` and `MailAccountController`, which are outside this task's touches. The parent worker deferred it with a recorded assumption, and the final review agrees that this task needs no change while it stays deferred.
+
+### Validation summary (round 3)
+
+Focused tests:
+- `cd server && ./gradlew ktlintCheck test --rerun-tasks --tests 'ch.sonensei.cockpit.mail.gtd.*'` — Pass (48 tests, 0 failures)
+
+Full test suite:
+- Not run by the fixer in round 3; the parent worker runs `.taskcheck` before `done`.
+
+Lint/type-check/build:
+- `cd server && ./gradlew ktlintCheck` — Pass (part of the command above)
+
+`.taskcheck`:
+- Not run by the fixer in round 3; the parent worker runs it.
+
+Remaining unresolved findings:
+1 (CR-2, out of scope)
+
+### Final status (round 3)
+
+All validated findings fixed and validation passed. CR-2 stays deferred as out of scope.
