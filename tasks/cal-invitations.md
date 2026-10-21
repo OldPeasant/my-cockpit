@@ -13,7 +13,8 @@ Accept/decline invitations for Google/Microsoft events (SPEC.md §6.2).
 ## Acceptance criteria
 - [x] `POST /api/v1/calendar/events/{id}/respond {ACCEPTED|DECLINED|TENTATIVE}` via the adapter; attendee status reflected
   - verified (2026-10-21 21:43+0200 by dell26/agent-1): cd server && ./gradlew test --tests 'ch.sonensei.cockpit.calendar.invitations.*' (Postgres Testcontainers + WireMock as Google/Graph) -> InvitationApiTests/MicrosoftInvitationApiTests pass: POST /api/v1/calendar/events/{id}/respond ACCEPTED/DECLINED/TENTATIVE answers via Google patch / Graph accept|decline|tentativelyAccept, stored attendee status + new ETag returned; 428/412/404/409/502 cases covered
-- [ ] `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.calendar.invitations.*'` passes (Postgres via Testcontainers where persistence is involved)
+- [x] `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.calendar.invitations.*'` passes (Postgres via Testcontainers where persistence is involved)
+  - verified (2026-10-21 21:43+0200 by dell26/agent-1): cd server && ./gradlew test --tests 'ch.sonensei.cockpit.calendar.invitations.*' --tests '*OpenApiContractTest' -> BUILD SUCCESSFUL, 47 tests, 0 failures (5 invitation classes incl. Postgres Testcontainers API tests); also ./gradlew ktlintCheck test --tests 'ch.sonensei.cockpit.calendar.*' -> 897 tests, 0 failures
 - [ ] API documented: `api/openapi.yaml` regenerated (`UPDATE_OPENAPI=1 ./gradlew test --tests '*OpenApiContractTest'`) and `OpenApiContractTest` passes without the flag
 
 ## Notes
