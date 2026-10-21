@@ -5,7 +5,7 @@ owner: dell26/agent-3
 deps: [and-gtd-data,reminders-core,and-capture-entrypoints]
 touches: [android/app/src/main/java/ch/sonensei/cockpit/reminders,android/app/src/test/java/ch/sonensei/cockpit/reminders,android/app/src/main/AndroidManifest.xml]
 prio: 2
-lease_until: 2026-10-21T08:29:14Z
+lease_until: 2026-10-21T08:34:17Z
 ---
 ## Goal
 Local notifications for reminders (SPEC.md §9.2).
