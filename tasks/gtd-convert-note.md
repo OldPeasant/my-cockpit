@@ -5,7 +5,7 @@ owner: dell26/agent-1
 deps: [notes-api,gtd-capture-api]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/gtd/convert,server/src/test/kotlin/ch/sonensei/cockpit/gtd/convert]
 prio: 2
-lease_until: 2026-10-21T04:57:14Z
+lease_until: 2026-10-21T05:02:14Z
 releases: 1
 extended: 
 ---
