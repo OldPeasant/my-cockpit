@@ -1,0 +1,35 @@
+{
+  "schema": 1,
+  "task": "mail-gtd",
+  "reviewed_revision": "94f2d89a626b72bb27dde9ca4e10249e1376db16",
+  "helpers": {
+    "test-writer": {"status": "completed", "report": "reviews/mail-gtd/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/mail-gtd/review.md"},
+    "fixer": {"status": "completed", "report": "reviews/mail-gtd/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "CR-1 (round 1)", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "HTML-only mails lost paragraph/line structure in the note body; fixed (fixes.md round 1)"},
+    {"id": "CR-2 (round 1)", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "mail text was parsed for inline [[type:id]] links; neutralized (fixes.md round 1)"},
+    {"id": "CR-3 (round 1)", "source": "code-reviewer", "severity": "P3", "disposition": "deferred",
+     "note": "duplicated MailConnectionException handler; follow-up task mail-connection-errors"},
+    {"id": "re-review CR-1", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "HTML source indentation turned into Markdown code blocks; fixed (fixes.md round 2)"},
+    {"id": "re-review CR-2", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "more sanitizer block elements treated as boundaries (fixes.md round 2)"},
+    {"id": "final CR-1 (round 3)", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "display names in the to-note header were not neutralized for inline links (fixes.md round 3)"},
+    {"id": "TW-1", "source": "test-writer", "severity": "High", "disposition": "fixed",
+     "note": "to-note returned 500 on Markdown backslash escapes (flexmark miscount); fixed in mail-gtd (fixes.md round 4), root cause tracked in task notes-markdown-escapes"},
+    {"id": "CR-2 (final review)", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "removal of the U+2216 workaround was not tracked; resolved by deps and criterion in task notes-markdown-escapes (review.md final delta round)"},
+    {"id": "CR-1 (final delta review)", "source": "code-reviewer", "severity": "P3", "disposition": "deferred",
+     "note": "MailConnectionException handler copied from MailMessageController; follow-up task mail-connection-errors"}
+  ],
+  "validation": [
+    {"command": "cd server && ./gradlew test --rerun --tests 'ch.sonensei.cockpit.mail.gtd.*' --tests '*OpenApiContractTest'", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
