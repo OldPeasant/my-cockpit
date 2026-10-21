@@ -5,7 +5,7 @@ owner: dell26/agent-3
 deps: [cal-google,cal-microsoft]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/calendar/invitations,server/src/test/kotlin/ch/sonensei/cockpit/calendar/invitations]
 prio: 3
-lease_until: 2026-10-21T20:33:45Z
+lease_until: 2026-10-21T20:38:50Z
 releases: 1
 extended: 
 ---
