@@ -4,24 +4,38 @@ Date: 2026-10-21
 
 Task: and-capture-queue - Android offline capture queue
 
-Scope: `git diff 9a9b449f..b3fcc20e` (android/app/src/main/java/ch/sonensei/cockpit/capture/queue/, android/app/src/test/java/ch/sonensei/cockpit/capture/queue/, exported Room schema android/app/schemas/.../CaptureQueueDatabase/1.json)
+Scope: `git diff 9ab97b9282b72018867805d12a9ea2f3c4389035..908508eb6239d9b721cf95625d66ae32123ee5e7`, the final revision after the fixes in `reviews/and-capture-queue/fixes.md`. Production code: `android/app/src/main/java/ch/sonensei/cockpit/capture/queue/`. Tests: `android/app/src/test/java/ch/sonensei/cockpit/capture/queue/`. Also the exported Room schema `android/app/schemas/.../CaptureQueueDatabase/1.json`. Re-review of CR-1..CR-5 from the previous review, and of the TW-1 fix (UUIDv7 ordering).
+
+Reviewed revision: 908508eb6239d9b721cf95625d66ae32123ee5e7
 
 Requirements:
-- tasks/and-capture-queue.md acceptance criteria and recorded assumptions (#1-#4)
-- SPEC.md §4.5, §9.3, §15 Phase 3 acceptance scenario
-- api/openapi.yaml (`POST /api/v1/capture`, `POST /api/v1/files`, `CaptureRequest`)
+- tasks/and-capture-queue.md: acceptance criteria #1-#4 and the recorded assumptions (7 lines, including the "no re-schedule on login" assumption)
+- SPEC.md §4.5, §9.3
+- api/openapi.yaml `CaptureRequest` (text maxLength 100000, fileIds maxItems 50); server `gtd/api/CaptureDtos.kt`, `gtd/domain/CaptureService.kt`, `gtd/domain/CaptureParser.kt`
 - AGENTS.md project notes, docs/ARCHITECTURE.md conventions
-- Assumption recorded by gtd-capture-api on relative due tokens (review CR-5 there)
+- reviews/and-capture-queue/fixes.md
 
 Git range:
 - Branch: main
-- HEAD: b3fcc20ea0db3deda25fb4d520edb517bc5694d9
-- Base/start: 9a9b449fa95b41c2ae399b7d4923d3601fb57f10
-- Commits reviewed: 2 (3f9f2f44 implementation, b3fcc20e tests)
+- HEAD: 908508eb6239d9b721cf95625d66ae32123ee5e7
+- Base/start: 9ab97b9282b72018867805d12a9ea2f3c4389035
+- Commits reviewed: 7. The task commits are 442d42f2 (implementation), 7e57fcc2 (tests), debfce2e (test-writer tests and reports) and 908508eb (fixes). The other three are `assume:` commits that touch only `tasks/`. The hashes in the review request (ca37372f, 36e4d181, 430d2200, 3ca2d00e) do not exist in this clone. The commits above are the ones actually present between the base and HEAD.
+- Uncommitted changes: none
 
-Summary: 0 P0, 0 P1, 2 P2, 3 P3
+Summary: 0 P0, 0 P1, 0 P2, 3 P3
 
-Checked without findings: UUIDv7 bit layout (version, variant, 48-bit timestamp; operator precedence of `and`/`shl` is correct), local write before any network use, Room transaction for capture plus attachments, FK cascade on delete, remote file id persisted per attachment so retries do not re-upload, 2xx/409 treated as sent, 401/408/429/5xx/IO retried, stop-on-first-retry ordering, status Flow as one query, no duplicate Hilt bindings (`CaptureApi`/`FilesApi`/`CaptureQueueDatabase` are bound only in `CaptureQueueModule`; `Retrofit` comes from `NetworkModule`), `@HiltAndroidApp` present for the worker entry point, Room schema export configured (`room { schemaDirectory(...) }`), no logging of capture text, notes or file content. Tests cover offline write, upload order, idempotent retry, 409, rejected capture, logged-out and copy cleanup. Acceptance criterion evidence (`tasks.py verify`) was not yet recorded at review time; the parent must record it before `done`.
+### Earlier findings: re-check
+
+- **CR-1 (backoff):** resolved. `WorkManagerCaptureSyncScheduler.schedule()` reads the unique work states and uses `APPEND_OR_REPLACE` only while a run is RUNNING, `REPLACE` otherwise (`CaptureSync.kt:28-60`). `CaptureSyncTest` drives a job into retry backoff (ENQUEUED, `runAttemptCount` 1). It then checks that a new `schedule()` creates a fresh ENQUEUED job with 0 attempts and does not leave it BLOCKED behind the old job. A run that returns RETRY while a follow-up is appended is harmless: its retry rereads the whole queue. Login re-schedule is out of scope and recorded as an assumption, as the request states. The small read-then-enqueue race is CR-2 below.
+- **CR-2 (relative due dates):** resolved. `RelativeDueDates.pin` follows the server's `CaptureParser` rules. Compared line by line: same token regex, title line = first non-blank line, same trailing punctuation set, case-insensitive values, first recognized `!` token wins, and invalid dates are skipped. `capture()` pins the date in the device zone at capture time. The server resolves in the user's configured zone instead (`CaptureService.today()`). That choice is covered by the recorded assumption. Notes are not parsed by the server and are left untouched.
+- **CR-3 (orphaned copies):** resolved. A `finally` guarded by the `queued` flag deletes the copies under `NonCancellable`, and `SecurityException` is wrapped into `IOException`. `withContext(NonCancellable)` may throw `CancellationException` on return because of the prompt-cancellation rule. In that case `queued` is already true, so the copies of a committed capture are kept, which is correct. Tests cover a revoked grant and cancellation during the copy.
+- **CR-4 (unexpected exceptions):** resolved. `sendSafely` maps non-cancellation exceptions to `Outcome.Failed`: the capture is marked, the pass goes on, and the result is RETRY. `CaptureSyncWorker.doWork` maps leftover exceptions to `Result.retry()`. `CancellationException` is rethrown in both places, and nothing is logged.
+- **CR-5 (input the server always rejects):** blank text and more than 50 attachments are now refused. The server's text and notes length limits are still not checked (CR-3 below).
+- **TW-1 (ordering within one millisecond):** resolved. `UuidV7Generator` implements RFC 9562 §6.2 method 1 with a synchronized 12-bit counter. Version and variant bits are still correct. `sendable()` orders by `createdAtEpochMs, id`. Lowercase fixed-width hex strings sort in the same order as the numeric ids.
+
+Checked without findings: local write before any network use, the Room transaction, the FK cascade, a remote file id stored per attachment, 2xx/409 counted as sent, the retry/reject mapping, the status Flow, Hilt bindings, and no capture content in logs or errors.
+
+Test evidence: I could not run Gradle in this review session (permission denied). The JUnit XML from the fixer run (`android/app/build/test-results/testDebugUnitTest/TEST-ch.sonensei.cockpit.capture.queue.*.xml`, written 01:35, one minute before commit 908508eb) shows 49 tests, 0 failures, 0 errors, 0 skipped. No acceptance criterion has recorded evidence yet: `python tasks.py verify and-capture-queue` shows #1-#4 unticked. The parent must record evidence before `done`.
 
 ## P0 Critical
 
@@ -33,43 +47,31 @@ None.
 
 ## P2 Medium
 
-- [ ] **CR-1 | New captures queue behind a retry backoff that can last hours**
-    - File: `android/app/src/main/java/ch/sonensei/cockpit/capture/queue/CaptureSync.kt:40`
-    - Category: Correctness
-    - Problem: `schedule()` uses `ExistingWorkPolicy.APPEND_OR_REPLACE`. When the existing job is ENQUEUED waiting for a retry (not running), the new request is appended as a dependent and only runs after the parent finishes. Exponential backoff from 30 s grows up to WorkManager's 5 h cap after repeated `Result.retry()` (server down overnight, or "Not logged in" retries while logged out, assumption #1). Nothing reschedules on login. So after the user logs in again or the server comes back, both the old and new captures wait until the parent's backoff runs out, which can take hours. The pending count stays above zero the whole time.
-    - Why it matters: SPEC.md §9.3/§15 expect captures to sync soon after connectivity returns. A capture the user makes after the problem is fixed still waits behind a stale backoff. The comment on line 38 says "a run waiting for its retry sends everything queued anyway", but that run may not start for hours.
-    - Suggested fix: Replace a job that is only waiting (ENQUEUED with backoff) and append only when a run is RUNNING. One way is to check `getWorkInfosForUniqueWork` and choose REPLACE or APPEND_OR_REPLACE. A REPLACE of a waiting job is safe because the capture is idempotent and uploaded file ids are persisted. Also call `schedule()` after login, or leave a hook for that. Add a test for scheduling while the previous job is in backoff.
-
-- [ ] **CR-2 | Relative due tokens in offline captures resolve to the upload day; decision not recorded**
-    - File: `android/app/src/main/java/ch/sonensei/cockpit/capture/queue/CaptureQueue.kt:61-101`
-    - Category: Correctness
-    - Problem: The gtd-capture-api assumption says the server resolves `!today`/`!tomorrow` with its own clock when the request arrives. It hands client-side resolution to this task ("The Android capture queue (and-capture-queue) may resolve them client-side before queueing; no capturedAt field was added"). `capture()` stores and sends the raw text unchanged, and this task records no assumption about it. Take "Pay rent !today" captured offline at 23:30 and uploaded the next morning: it is due a day late.
-    - Why it matters: An offline capture's due date silently depends on when it syncs (SPEC.md §4.5 syntax, §9.3 offline capture). The open decision passed to this task was dropped without a trace.
-    - Suggested fix: Either rewrite `!today`/`!tomorrow` in the title line to an absolute `!yyyy-MM-dd` (local zone) at capture time, or record a `tasks.py assume` that the upload-day behavior is accepted, so a human can revisit it.
+None.
 
 ## P3 Low
 
-- [ ] **CR-3 | Attachment copies orphaned on non-IOException failures during copy**
-    - File: `android/app/src/main/java/ch/sonensei/cockpit/capture/queue/CaptureQueue.kt:68-83`
-    - Category: Quality
-    - Problem: Cleanup of partial copies happens only for `IOException`. Other failures leave `files/capture_queue/<id>/` behind, and no row refers to it, so nothing ever deletes it. Examples: `ContentResolver.openInputStream` throwing `SecurityException` (a share grant that has expired or been revoked) or `IllegalArgumentException`, or cancellation of the calling coroutine mid-copy. The `SecurityException` also escapes `capture()`, although the KDoc promises `IOException`.
-    - Why it matters: Shared photos and videos can be large, and these invisible leaks pile up in app storage.
-    - Suggested fix: Clean up in a `catch (e: Throwable)` or `finally` guarded by a success flag (as the insert block already does with `Exception`). Optionally wrap `SecurityException` in `IOException` so the documented contract holds.
-
-- [ ] **CR-4 | Unexpected exceptions fail the whole job chain; pending captures stall until the next capture**
-    - File: `android/app/src/main/java/ch/sonensei/cockpit/capture/queue/CaptureSync.kt:62-66`, `CaptureUploader.kt:79-101`
+- [ ] **CR-1 | A failed `schedule()` makes `capture()` throw after the capture was committed**
+    - File: `android/app/src/main/java/ch/sonensei/cockpit/capture/queue/CaptureQueue.kt:100-114`, `CaptureSync.kt:42-44`
     - Category: Correctness
-    - Problem: Only `IOException` is mapped to a retry. Any other exception makes `CoroutineWorker` return failure, and every appended job in the unique chain fails with it. Examples: a kotlinx `SerializationException` on an unexpected 2xx body from `uploadFile`/`capture`, `IllegalArgumentException` from `UUID.fromString`, a Room `SQLiteException`. Pending captures are then not sent again until a new `capture()` replaces the failed chain.
-    - Why it matters: Captures can stay unsent with no retry and no `lastError` shown.
-    - Suggested fix: In `doWork`, catch non-cancellation exceptions and return `Result.retry()`, or record them per capture as a failure, without logging content.
+    - Problem: `schedule()` now suspends on `getWorkInfosForUniqueWorkFlow(...).first()` and on `enqueueUniqueWork(...).await()`. Before the fix, an enqueue error stayed inside WorkManager's asynchronous operation. Now any failure there (a WorkManager database error, an uninitialized WorkManager) is thrown out of `capture()` after `dao.insert` has committed the capture and `queued = true`. The caller gets an exception for a capture that is in fact stored, and the KDoc does not mention this case.
+    - Why it matters: A share target or widget that shows "capture failed" invites the user to capture again. The original is still sent later, so the server gets two tasks.
+    - Suggested fix: In `capture()`, catch non-cancellation exceptions from `scheduler.schedule()` and return the id anyway. The capture is stored, and the next `schedule()` or the job sends it. Otherwise, document that the capture may already be queued when `schedule()` fails.
 
-- [ ] **CR-5 | `capture()` accepts input the server always rejects**
-    - File: `android/app/src/main/java/ch/sonensei/cockpit/capture/queue/CaptureQueue.kt:61-65`
+- [ ] **CR-2 | Check-then-enqueue race can REPLACE a run that has just started**
+    - File: `android/app/src/main/java/ch/sonensei/cockpit/capture/queue/CaptureSync.kt:42-44`
     - Category: Correctness
-    - Problem: Two inputs are queued that the server always answers with 400 ("a text without a title" and `fileIds` `maxItems: 50` in api/openapi.yaml): blank `text`, and more than 50 attachments. The uploader marks such a capture `rejected`. It then stays in the pending count forever, and nothing can retry or remove it.
-    - Why it matters: Callers (share target, widget) get no error at capture time. Instead the queue holds an item that can never be sent.
-    - Suggested fix: Reject blank text and more than 50 attachments in `capture()` with `IllegalArgumentException`, before copying anything.
+    - Problem: The policy is chosen from a snapshot of the work states. If the job moves from ENQUEUED to RUNNING between the snapshot and `enqueueUniqueWork`, `REPLACE` cancels the running worker in the middle of an upload. A file the server has already stored, but whose id was not yet saved by `markUploaded`, is uploaded again by the next run and the first copy stays on the server as an orphan. The capture itself is idempotent, so no data is lost.
+    - Why it matters: The window is narrow, but it leaks unreferenced files on the server, and the KDoc says REPLACE is used only when no run is sending.
+    - Suggested fix: Accept the race and say so in the `policyFor` KDoc. Or avoid it, for example by serializing `schedule()` calls and only replacing work that has `runAttemptCount > 0` (actually in backoff). A longer-term option is a server-side cleanup of unreferenced files. This finding is low priority.
+
+- [ ] **CR-3 | `capture()` still queues texts over the server's length limits**
+    - File: `android/app/src/main/java/ch/sonensei/cockpit/capture/queue/CaptureQueue.kt:75-76`
+    - Category: Correctness
+    - Problem: The CR-5 fix checks only blank text and the attachment count. The server also always returns 400 in two more cases. First, `text` longer than 100000 characters (`@Size(max = MAX_CAPTURE_TEXT_LENGTH)` in `CaptureDtos.kt:23`, `maxLength: 100000` in api/openapi.yaml). Second, combined notes (the extra text lines plus `notes`) longer than `TaskService.MAX_NOTES_LENGTH` (`CaptureService.kt:62`). Pinning also makes `!today` 5 characters longer, so a text just under the limit can go over it after pinning. Such a capture is marked rejected, stays in the pending count, and cannot be removed.
+    - Why it matters: This is the dead-end queue entry that CR-5 was meant to prevent, through another input. It is unlikely with typed text and more likely with large shared text.
+    - Suggested fix: Add `require(pinnedText.length <= 100_000)` on the pinned text (and optionally a notes length check) before copying, as a named constant next to `MAX_ATTACHMENTS`, and test it.
 
 ## Review conclusion
 
-Material issues found; fix before completing the task. CR-1 and CR-2 should be fixed, or CR-2 explicitly recorded as an assumption. CR-3 to CR-5 are small robustness fixes.
+No material issues found. CR-1 to CR-5 from the previous review are resolved: CR-1 apart from the login re-schedule, which is recorded as an assumption. The three remaining findings are low-priority robustness points that the parent may fix or record. Before `done`, the parent must record acceptance-criterion evidence with `tasks.py verify`; none is recorded yet.

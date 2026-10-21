@@ -96,6 +96,9 @@ class QueueHarness(
     val uploader =
         CaptureUploader(session, dao, store, retrofit.create(CaptureApi::class.java), retrofit.create(FilesApi::class.java), clock)
 
+    /** A generated API client against the harness's server, for uploaders built with other collaborators. */
+    fun <T> retrofitApi(api: Class<T>): T = retrofit.create(api)
+
     /** A source file outside the store, as a picked attachment would be. */
     fun source(
         name: String,
