@@ -1,10 +1,11 @@
 ---
 title: Contact detail aggregation and autocomplete
-status: todo
-owner:
+status: in_progress
+owner: dell26/agent-1
 deps: [contacts-api,mail-read-api,cal-local-api,gtd-tasks-api]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/contacts/aggregate,server/src/test/kotlin/ch/sonensei/cockpit/contacts/aggregate]
 prio: 2
+lease_until: 2026-10-21T21:48:20Z
 ---
 ## Goal
 Everything about a person (SPEC.md §8.3).
