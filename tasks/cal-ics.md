@@ -1,11 +1,11 @@
 ---
 title: ICS feed adapter
-status: in_progress
+status: done
 owner: dell26/agent-1
 deps: [cal-sync-engine]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/calendar/infra/ics,server/src/test/kotlin/ch/sonensei/cockpit/calendar/infra/ics]
 prio: 2
-lease_until: 2026-10-21T17:06:46Z
+lease_until: 
 extended: 
 releases: 1
 ---
@@ -25,3 +25,4 @@ Read-only ICS subscriptions (SPEC.md §6.1).
 - ASSUMPTION (2026-10-21 16:49+0200 by dell26/agent-3): CR-5: if any VEVENT of a feed cannot be read, the ICS adapter returns complete=false (readable events upserted, nothing deleted); the skip count is only logged, not shown in lastError, because that needs a sync-engine change outside this task
 - extended by dell26/agent-3: Implementation, fixes and 3 review rounds done (review.md round 3: 0 findings; fixes.md). ICS tests pass (./gradlew test --tests 'ch.sonensei.cockpit.calendar.infra.ics.*'). Left: reviews/cal-ics/tests.md was never committed -> run test-writer once more on final code (d0a9995f added SSRF/parser tests after round-3 review), then code-reviewer re-run (test code changed), write quality.json, tasks.py verify 1+2, done. Note: scripts/check.sh failed once on core ClockConfigurationTests (nanos vs micros truncation flake, outside this task).
 - release by dell26/agent-3: All work done and committed: ICS adapter + tests, 4 review rounds (round 4 on final code), tests.md/review.md/fixes.md/quality.json committed, criteria 1+2 verified, sh scripts/check.sh passes (2026-10-21). Left only: quality.json reviewed_revision=98542708 is the pre-rebase hash of the same code (git diff 98542708 9d315f20 -- server is empty); set it to the current hash of the last code commit (cal-ics 'sync store-failure test' commit) if done rejects it, commit, then python tasks.py done cal-ics. No re-review needed.
+- done by dell26/agent-1: `sh scripts/check.sh` passed in 532s on eba6f91aa; criteria verified 2/2
