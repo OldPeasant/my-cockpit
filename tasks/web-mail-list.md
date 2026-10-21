@@ -1,12 +1,13 @@
 ---
 title: Mail list and triage
-status: in_progress
-owner: dell26/agent-2
+status: todo
+owner: 
 deps: [p0-web-shell,mail-actions-api,p0-web-sse,p0-e2e-harness]
 touches: [web/src/app/features/mail/list]
 prio: 1
-lease_until: 2026-10-21T06:25:27Z
-extended: dell26/agent-2
+lease_until: 
+extended: 
+releases: 1
 ---
 ## Goal
 Unified inbox and folders (SPEC.md §7.3).
@@ -28,3 +29,4 @@ Unified inbox and folders (SPEC.md §7.3).
 - ASSUMPTION (2026-10-21 06:35+0200 by dell26/agent-2): Extra Gmail keys beyond the spec list: x select, Shift+I mark read, s star toggle, ! spam, Esc clear selection. In the conversations view an action applies to all messages of the conversation in the shown folder (via GET /messages/{id}/thread)
 - ASSUMPTION (2026-10-21 06:35+0200 by dell26/agent-2): Live update refetches the loaded part of the list (up to 200 items) on MAIL_FOLDER events for the shown folder (any folder for the unified inbox), MAIL_ACCOUNT events and SSE reconnects; refetches wait while an optimistic action runs. Routes: /mail (unified) and /mail/folders/:folderId
 - extended by dell26/agent-2: Implementation, Vitest specs, e2e spec + GreenMail stack are committed; 2nd code review: 0 P0-P2, 3 P3 (fix or disposition them). Left: run test-writer on final code (reviews/web-mail-list/tests.md is missing, incl. coverage), re-review if code changes, run npm run check and the e2e spec npm run e2e -- e2e/mail-list/list.spec.ts, record verify 1-4, write quality.json, done. Note: scripts/check.sh hit a 600s timeout in server tests this session (machine load?), needs a re-run.
+- release by dell26/agent-2: Implementation complete; all 4 criteria verified; test-writer, code-reviewer (3 rounds) and fixer reports plus quality.json committed (reviewed_revision=10bbbae0, last code commit; commit 32067795 only adds quality.json). sh scripts/check.sh passes. Left: run 'python tasks.py done web-mail-list'. Caveat: review.md round 3 notes the test-writer spec edits (mail-list-page.spec.ts, mail-list-store.spec.ts, committed in 10bbbae0) were not reviewed; if done rejects the evidence as stale, re-run code-reviewer on the final code and update quality.json, then done.
