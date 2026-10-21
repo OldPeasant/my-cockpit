@@ -55,6 +55,7 @@ import org.junit.jupiter.api.AfterAll
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import tools.jackson.databind.json.JsonMapper
+import java.time.Duration
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
@@ -74,6 +75,14 @@ class GoogleCalendarAdapterTests {
 	@BeforeEach
 	fun reset() {
 		wireMock.resetAll()
+	}
+
+	// --- registration
+
+	@Test
+	fun `the adapter serves Google sources and falls back to polling every 5 minutes`() {
+		adapter.sourceType shouldBe CalendarSourceType.GOOGLE
+		adapter.pollInterval shouldBe Duration.ofMinutes(5)
 	}
 
 	// --- calendar list
