@@ -15,3 +15,4 @@ Next actions with filters and Today (SPEC.md §5.3).
 - [ ] `cd android && ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.gtd.next.*'` passes, covering filters (Robolectric/Compose UI tests for screens); same for `gtd.today`
 
 ## Notes
+- ASSUMPTION (2026-10-21 10:30+0200 by dell26/agent-1): Next filters are applied on the device to the cached Next list (so they work offline), with server semantics: one context, exact energy/creativity, max estimate only matches estimated tasks. Area/project/due filters and saved presets are left out on Android (criterion names context/energy/creativity/estimate only).
