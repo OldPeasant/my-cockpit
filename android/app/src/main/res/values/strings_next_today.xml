@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Shared by the Next and Today task lists -->
+    <string name="tasks_loading">Loading…</string>
+    <string name="tasks_offline">Offline: showing the list from %1$s. Completing tasks needs a connection.</string>
+    <string name="tasks_offline_never">Offline: nothing loaded yet.</string>
+    <string name="tasks_complete">Complete %1$s</string>
+    <string name="tasks_estimate">%1$d min</string>
+    <plurals name="tasks_overdue">
+        <item quantity="one">%1$d day overdue</item>
+        <item quantity="other">%1$d days overdue</item>
+    </plurals>
+    <string name="tasks_due_today">Due today</string>
+    <string name="tasks_due_today_at">Due today %1$s</string>
+    <string name="tasks_due_on">Due %1$s</string>
+    <string name="tasks_completed">Completed %1$s</string>
+    <string name="tasks_undo">Undo</string>
+    <string name="tasks_message_offline">Not saved: the server is unreachable. Try again when you are online.</string>
+    <string name="tasks_message_conflict">This task was changed elsewhere. The list now shows its current state.</string>
+    <string name="tasks_message_failed">The server refused the change. The list shows the task as it is.</string>
+
+    <!-- Next actions -->
+    <plurals name="next_count">
+        <item quantity="one">%1$d next action</item>
+        <item quantity="other">%1$d next actions</item>
+    </plurals>
+    <string name="next_count_filtered">%1$d of %2$d next actions</string>
+    <string name="next_filters">Filter</string>
+    <string name="next_filters_active">Filter (%1$d)</string>
+    <string name="next_filter_context">Context</string>
+    <string name="next_filter_energy">Energy</string>
+    <string name="next_filter_creativity">Creativity</string>
+    <string name="next_filter_estimate">Time available</string>
+    <string name="next_filter_at_most">≤ %1$d min</string>
+    <string name="next_filter_clear">Clear filters</string>
+    <string name="next_energy_low">Low</string>
+    <string name="next_energy_medium">Medium</string>
+    <string name="next_energy_high">High</string>
+    <string name="next_creativity_routine">Routine</string>
+    <string name="next_creativity_mixed">Mixed</string>
+    <string name="next_creativity_creative">Creative</string>
+    <string name="next_empty">No next actions. Process your inbox to add some.</string>
+    <string name="next_empty_filtered">No next action matches these filters.</string>
+
+    <!-- Today -->
+    <string name="today_overdue">Overdue</string>
+    <string name="today_due">Due today</string>
+    <string name="today_scheduled">Scheduled for today</string>
+    <string name="today_empty">Nothing due or scheduled today.</string>
+</resources>
