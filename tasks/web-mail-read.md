@@ -5,7 +5,7 @@ owner: dell26/agent-2
 deps: [web-mail-list,web-links-panel,mail-gtd]
 touches: [web/src/app/features/mail/read]
 prio: 1
-lease_until: 2026-10-21T16:06:18Z
+lease_until: 2026-10-21T16:11:21Z
 ---
 ## Goal
 Read mail safely (SPEC.md §7.3).
