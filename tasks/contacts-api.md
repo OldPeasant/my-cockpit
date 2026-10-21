@@ -13,7 +13,8 @@ extended:
 Contacts (SPEC.md §8.3).
 
 ## Acceptance criteria
-- [ ] Contact entity (SPEC.md §8.3 fields), CRUD with ETag, photo via Files, resolver CONTACT, search, trash
+- [x] Contact entity (SPEC.md §8.3 fields), CRUD with ETag, photo via Files, resolver CONTACT, search, trash
+  - verified (2026-10-21 10:00+0200 by dell26/agent-1): server: ./gradlew test --rerun --tests 'ch.sonensei.cockpit.contacts.*' (Testcontainers Postgres, HEAD e74cb34f) -> ContactWebTests 11/11 + ContactEdgeCaseTests 44/44 pass, covering §8.3 fields, CRUD with ETag/If-Match/412, photo via Files, CONTACT resolver, global search, trash delete/restore/purge
 - [ ] vCard import (multi-contact file) and export (ez-vcard)
 - [ ] `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.contacts.*'` passes (Postgres via Testcontainers where persistence is involved)
 - [ ] API documented: `api/openapi.yaml` regenerated (`UPDATE_OPENAPI=1 ./gradlew test --tests '*OpenApiContractTest'`) and `OpenApiContractTest` passes without the flag
