@@ -5,7 +5,7 @@ owner: dell26/agent-3
 deps: [and-gtd-data,reminders-core,and-capture-entrypoints]
 touches: [android/app/src/main/java/ch/sonensei/cockpit/reminders,android/app/src/test/java/ch/sonensei/cockpit/reminders,android/app/src/main/AndroidManifest.xml]
 prio: 2
-lease_until: 2026-10-21T09:22:37Z
+lease_until: 2026-10-21T09:27:39Z
 extended: dell26/agent-3
 ---
 ## Goal
