@@ -4,6 +4,7 @@ import { provideRouter } from '@angular/router';
 import { NoteResponse } from '../../../api/generated';
 import { NotificationService, provideHttp } from '../../../core/http';
 import NotesPage, { NOTES_VIEW_KEY } from './notes-page';
+import { NotesService } from './notes.service';
 
 const LIST = '/api/v1/notes';
 const TAGS = '/api/v1/notes/tags';
@@ -320,5 +321,438 @@ describe('NotesPage', () => {
   it('shows an empty state without notes', async () => {
     await create([]);
     expect(root.querySelector('.empty')?.textContent).toContain('No notes yet');
+  });
+
+  describe('edge cases', () => {
+    afterEach(() => vi.restoreAllMocks());
+
+    function typeInto(selector: string, value: string): void {
+      const el = root.querySelector<HTMLInputElement | HTMLTextAreaElement>(selector)!;
+      el.value = value;
+      el.dispatchEvent(new Event('input'));
+      fixture.detectChanges();
+    }
+
+    function keydown(selector: string, init: KeyboardEventInit): void {
+      root.querySelector(selector)!.dispatchEvent(new KeyboardEvent('keydown', init));
+      fixture.detectChanges();
+    }
+
+    function patch(id: string) {
+      return http.expectOne((r) => r.method === 'PATCH' && r.url === `${LIST}/${id}`);
+    }
+
+    it('shows a loading state until the notes arrive', async () => {
+      notifications = { error: vi.fn(), info: vi.fn() };
+      TestBed.configureTestingModule({
+        providers: [
+          provideHttp(),
+          provideHttpClientTesting(),
+          provideRouter([]),
+          { provide: NotificationService, useValue: notifications },
+        ],
+      });
+      http = TestBed.inject(HttpTestingController);
+      fixture = TestBed.createComponent(NotesPage);
+      root = fixture.nativeElement as HTMLElement;
+      fixture.detectChanges();
+      http.expectOne((r) => r.url === TAGS).flush({ items: [] });
+      await tick();
+      fixture.detectChanges();
+      expect(root.querySelector('.hint')?.textContent).toContain('Loading notes');
+
+      await flushList([RECIPES]);
+      expect(root.querySelector('.hint')).toBeNull();
+      expect(titles()).toEqual(['Recipes']);
+    });
+
+    it('still loads the notes when the tags cannot be loaded, without a tag row', async () => {
+      notifications = { error: vi.fn(), info: vi.fn() };
+      TestBed.configureTestingModule({
+        providers: [
+          provideHttp(),
+          provideHttpClientTesting(),
+          provideRouter([]),
+          { provide: NotificationService, useValue: notifications },
+        ],
+      });
+      http = TestBed.inject(HttpTestingController);
+      fixture = TestBed.createComponent(NotesPage);
+      root = fixture.nativeElement as HTMLElement;
+      fixture.detectChanges();
+      http
+        .expectOne((r) => r.url === TAGS)
+        .flush({ title: 'Oops', status: 500 }, { status: 500, statusText: 'Server Error' });
+      await flushList([GARDEN, RECIPES]);
+
+      expect(root.querySelector('.tags')).toBeNull();
+      expect(root.querySelector('.load-error')).toBeNull();
+      expect(titles()).toEqual(['Garden ideas', 'Recipes']);
+    });
+
+    it('starts in list view when the list view was chosen before', async () => {
+      localStorage.setItem(NOTES_VIEW_KEY, 'list');
+      await create();
+      expect(root.querySelectorAll('.cards.list')).toHaveLength(2);
+      expect(button('.view-list').getAttribute('aria-pressed')).toBe('true');
+
+      button('.view-grid').click();
+      fixture.detectChanges();
+      expect(root.querySelectorAll('.cards.list')).toHaveLength(0);
+      expect(localStorage.getItem(NOTES_VIEW_KEY)).toBe('grid');
+    });
+
+    it('falls back to the grid for an unknown stored view', async () => {
+      localStorage.setItem(NOTES_VIEW_KEY, 'masonry-old');
+      await create();
+      expect(root.querySelectorAll('.cards.list')).toHaveLength(0);
+      expect(button('.view-grid').getAttribute('aria-pressed')).toBe('true');
+    });
+
+    it('works with the grid and still switches views when storage is unavailable', async () => {
+      vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
+        throw new Error('storage disabled');
+      });
+      vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+        throw new Error('storage disabled');
+      });
+      await create();
+      expect(root.querySelectorAll('.cards.list')).toHaveLength(0);
+
+      button('.view-list').click();
+      fixture.detectChanges();
+      expect(root.querySelectorAll('.cards.list')).toHaveLength(2);
+    });
+
+    it('does not reload when the active view is chosen again', async () => {
+      await create();
+      button('.show-active').click();
+      await settle();
+      http.expectNone((r) => r.url === LIST);
+      expect(titles()).toHaveLength(3);
+    });
+
+    it('shows the newest tag filter when an older response arrives last', async () => {
+      await create();
+      const tag = button('.tags .tag');
+      tag.click(); // filter by Holiday
+      tag.click(); // and off again, before the first answer
+      const [older, newer] = http.match((r) => r.url === LIST && r.method === 'GET');
+      expect(older.request.params.get('tag')).toBe('Holiday');
+      expect(newer.request.params.has('tag')).toBe(false);
+
+      newer.flush({ items: [GARDEN, RECIPES, PACKING] });
+      await settle();
+      older.flush({ items: [PACKING] });
+      await settle();
+
+      expect(tag.getAttribute('aria-pressed')).toBe('false');
+      expect(titles()).toEqual(['Garden ideas', 'Recipes', 'Packing list']);
+    });
+
+    it('ignores the failure of an outdated load', async () => {
+      await create();
+      const tag = button('.tags .tag');
+      tag.click();
+      tag.click();
+      const [older, newer] = http.match((r) => r.url === LIST && r.method === 'GET');
+
+      newer.flush({ items: [RECIPES] });
+      await settle();
+      older.flush({ title: 'Oops', status: 500 }, { status: 500, statusText: 'Server Error' });
+      await settle();
+
+      expect(root.querySelector('.load-error')).toBeNull();
+      expect(titles()).toEqual(['Recipes']);
+    });
+
+    it('says when no note has the chosen tag', async () => {
+      await create();
+      button('.tags .tag').click();
+      await flushList([]);
+      expect(root.querySelector('.empty')?.textContent).toContain('No notes tagged #Holiday');
+    });
+
+    it('drops a note that was deleted elsewhere when pinning it (404)', async () => {
+      await create();
+      button('.card .pin', 1).click();
+      patch(RECIPES.id).flush(
+        { title: 'Not Found', status: 404 },
+        { status: 404, statusText: 'Not Found' },
+      );
+      await settle();
+
+      expect(titles()).toEqual(['Garden ideas', 'Packing list']);
+      expect(root.querySelector('.error[role=alert]')).toBeNull();
+    });
+
+    it('reloads after a conflict (409) as well', async () => {
+      await create();
+      button('.card .archive', 2).click();
+      patch(PACKING.id).flush(
+        { title: 'Conflict', status: 409, detail: 'Changed elsewhere.' },
+        { status: 409, statusText: 'Conflict' },
+      );
+      await settle();
+      await flushList([GARDEN, RECIPES, { ...PACKING, version: 2 }]);
+
+      expect(root.querySelector('.error[role=alert]')?.textContent).toContain(
+        '“Packing list” could not be changed: Changed elsewhere.',
+      );
+    });
+
+    it('shows a server error without reloading and lets the change be tried again', async () => {
+      await create();
+      button('.card .pin', 1).click();
+      patch(RECIPES.id).flush(
+        { title: 'Server Error', status: 500, detail: 'Try later.' },
+        { status: 500, statusText: 'Server Error' },
+      );
+      await settle();
+      http.expectNone((r) => r.url === LIST);
+      expect(root.querySelector('.error[role=alert]')?.textContent).toContain(
+        '“Recipes” could not be changed: Try later.',
+      );
+
+      const pin = button('.card .pin', 1);
+      expect(pin.disabled).toBe(false);
+      pin.click();
+      patch(RECIPES.id).flush({ ...RECIPES, pinned: true, version: 2 });
+      await settle();
+      expect(root.querySelector('.error[role=alert]')).toBeNull();
+      // Both pinned now: Recipes changed more recently than Garden ideas.
+      expect(titles()).toEqual(['Recipes', 'Garden ideas', 'Packing list']);
+      expect(root.querySelectorAll('.card.pinned')).toHaveLength(2);
+    });
+
+    it('shows a generic message for an unexpected (non-API) failure', async () => {
+      await create();
+      vi.spyOn(TestBed.inject(NotesService), 'setPinned').mockRejectedValue(new Error('boom'));
+      button('.card .pin', 1).click();
+      await settle();
+      expect(root.querySelector('.error[role=alert]')?.textContent).toContain(
+        '“Recipes” could not be changed: Something went wrong.',
+      );
+    });
+
+    it('disables the actions of a note while its change runs and sends it only once', async () => {
+      await create();
+      button('.card .pin', 1).click();
+      fixture.detectChanges();
+      expect(button('.card .pin', 1).disabled).toBe(true);
+      expect(button('.card .archive', 1).disabled).toBe(true);
+      expect(button('.card .pin', 0).disabled).toBe(false);
+      button('.card .archive', 1).click();
+
+      const req = patch(RECIPES.id);
+      req.flush({ ...RECIPES, pinned: true, version: 2 });
+      await settle();
+      expect(button('.card .pin', 1).disabled).toBe(false);
+    });
+
+    it('does not put a note into the archived view when its pin finishes after switching', async () => {
+      await create();
+      button('.card .pin', 1).click();
+      button('.show-archived').click();
+      const pending = patch(RECIPES.id);
+      const archivedNote = { ...PACKING, archived: true };
+      await flushList([archivedNote], (p) => p.get('archived') === 'true');
+
+      pending.flush({ ...RECIPES, pinned: true, version: 2 });
+      await settle();
+      expect(titles()).toEqual(['Packing list']);
+    });
+
+    it('clears the error of an action when switching to the archived notes', async () => {
+      await create();
+      button('.card .pin', 1).click();
+      patch(RECIPES.id).flush(
+        { title: 'Server Error', status: 500 },
+        { status: 500, statusText: 'Server Error' },
+      );
+      await settle();
+      expect(root.querySelector('.error[role=alert]')).not.toBeNull();
+
+      button('.show-archived').click();
+      await flushList([]);
+      expect(root.querySelector('.error[role=alert]')).toBeNull();
+    });
+
+    it('saves with Ctrl+Enter and Cmd+Enter, but not an empty draft', async () => {
+      await create();
+      button('.composer-open').click();
+      await settle();
+
+      keydown('.draft-body', { key: 'Enter', ctrlKey: true });
+      http.expectNone((r) => r.method === 'POST');
+
+      typeInto('.draft-title', '   ');
+      typeInto('.draft-body', '  \n ');
+      expect(button('.composer .save').disabled).toBe(true);
+      keydown('.draft-body', { key: 'Enter', metaKey: true });
+      http.expectNone((r) => r.method === 'POST');
+
+      typeInto('.draft-title', '  Book club  ');
+      keydown('.draft-body', { key: 'Enter', metaKey: true });
+      const req = http.expectOne((r) => r.method === 'POST' && r.url === LIST);
+      expect(req.request.body).toEqual({ title: 'Book club', bodyMd: '  \n ', tags: [] });
+      req.flush(note('0192f0c4-0000-7000-8000-000000000005', { title: 'Book club' }), {
+        status: 201,
+        statusText: 'Created',
+      });
+      await settle();
+      http.expectOne((r) => r.url === TAGS).flush({ items: [] });
+      await settle();
+      expect(titles()).toContain('Book club');
+    });
+
+    it('sends a note only once when saved twice quickly', async () => {
+      await create();
+      button('.composer-open').click();
+      await settle();
+      typeInto('.draft-body', 'Call the plumber');
+      button('.composer .save').click();
+      keydown('.draft-body', { key: 'Enter', ctrlKey: true });
+
+      const [req, ...more] = http.match((r) => r.method === 'POST');
+      expect(more).toHaveLength(0);
+      fixture.detectChanges();
+      expect(button('.composer .save').disabled).toBe(true);
+      req.flush(note('0192f0c4-0000-7000-8000-000000000006', { bodyMd: 'Call the plumber' }), {
+        status: 201,
+        statusText: 'Created',
+      });
+      await settle();
+      http.expectOne((r) => r.url === TAGS).flush({ items: [] });
+    });
+
+    it('discards the draft with Escape and starts empty next time', async () => {
+      await create();
+      button('.composer-open').click();
+      await settle();
+      typeInto('.draft-title', 'Half a thought');
+      keydown('.draft-body', { key: 'Escape' });
+      expect(root.querySelector('.draft-title')).toBeNull();
+
+      button('.composer-open').click();
+      await settle();
+      expect(root.querySelector<HTMLInputElement>('.draft-title')?.value).toBe('');
+      http.expectNone((r) => r.method === 'POST');
+    });
+
+    it('focuses the text when the composer opens', async () => {
+      await create();
+      button('.composer-open').click();
+      await settle();
+      expect(document.activeElement).toBe(root.querySelector('.draft-body'));
+    });
+
+    it('cancels the composer and clears its error', async () => {
+      await create();
+      button('.composer-open').click();
+      await settle();
+      typeInto('.draft-body', 'Draft');
+      button('.composer .save').click();
+      http
+        .expectOne((r) => r.method === 'POST')
+        .flush({ title: 'Bad', status: 400 }, { status: 400, statusText: 'Bad Request' });
+      await settle();
+      expect(root.querySelector('.composer .error')).not.toBeNull();
+
+      [...root.querySelectorAll<HTMLButtonElement>('.composer button')]
+        .find((b) => b.textContent?.includes('Cancel'))!
+        .click();
+      fixture.detectChanges();
+      button('.composer-open').click();
+      await settle();
+      expect(root.querySelector('.composer .error')).toBeNull();
+      expect(root.querySelector<HTMLTextAreaElement>('.draft-body')?.value).toBe('');
+    });
+
+    it('keeps typed tags when the composer opens while a tag filter is active', async () => {
+      await create();
+      button('.composer-open').click();
+      await settle();
+      typeInto('.draft-tags', 'work');
+      button('.tags .tag').click();
+      await flushList([PACKING]);
+      // The composer stays open; its typed tags are not replaced by the filter.
+      expect(root.querySelector<HTMLInputElement>('.draft-tags')?.value).toBe('work');
+    });
+
+    it('does not add a new note to a tag-filtered list it does not belong to', async () => {
+      await create();
+      button('.tags .tag').click();
+      await flushList([PACKING]);
+      button('.composer-open').click();
+      await settle();
+      typeInto('.draft-tags', '#work, Work');
+      typeInto('.draft-body', 'Quarterly plan');
+      button('.composer .save').click();
+
+      const req = http.expectOne((r) => r.method === 'POST');
+      expect(req.request.body.tags).toEqual(['work']);
+      req.flush(
+        note('0192f0c4-0000-7000-8000-000000000007', {
+          bodyMd: 'Quarterly plan',
+          tags: ['work'],
+        }),
+        { status: 201, statusText: 'Created' },
+      );
+      await settle();
+      http.expectOne((r) => r.url === TAGS).flush({ items: [] });
+      await settle();
+
+      expect(titles()).toEqual(['Packing list']);
+      expect(notifications.info).toHaveBeenCalledWith('Note saved');
+    });
+
+    it('matches the tag filter regardless of case for a new note', async () => {
+      await create();
+      button('.tags .tag').click();
+      await flushList([PACKING]);
+      button('.composer-open').click();
+      await settle();
+      typeInto('.draft-tags', 'HOLIDAY');
+      typeInto('.draft-body', 'Travel insurance');
+      button('.composer .save').click();
+      http.expectOne((r) => r.method === 'POST').flush(
+        note('0192f0c4-0000-7000-8000-000000000008', {
+          displayTitle: 'Travel insurance',
+          bodyMd: 'Travel insurance',
+          tags: ['HOLIDAY'],
+          updatedAt: '2026-10-21T08:00:00Z',
+        }),
+        { status: 201, statusText: 'Created' },
+      );
+      await settle();
+      http.expectOne((r) => r.url === TAGS).flush({ items: [] });
+      await settle();
+      expect(titles()).toEqual(['Travel insurance', 'Packing list']);
+    });
+
+    it('searches across pinned and other notes and keeps pinned first', async () => {
+      const pinnedSoup = note('0192f0c4-0000-7000-8000-000000000009', {
+        title: 'Soup ideas',
+        pinned: true,
+        updatedAt: '2026-08-01T08:00:00Z',
+      });
+      await create([GARDEN, RECIPES, PACKING, pinnedSoup]);
+      typeInto('input.search', '  SOUP ');
+      await settle();
+      expect(titles()).toEqual(['Soup ideas', 'Recipes']);
+      const groups = [...root.querySelectorAll('h2.group')].map((h) => h.textContent?.trim());
+      expect(groups).toEqual(['Pinned', 'Other notes']);
+    });
+
+    it('keeps the search when the tag filter changes', async () => {
+      await create();
+      typeInto('input.search', 'passport');
+      await settle();
+      button('.tags .tag').click();
+      await flushList([PACKING, { ...RECIPES, tags: ['Holiday'] }]);
+      expect(titles()).toEqual(['Packing list']);
+      expect(root.querySelector<HTMLInputElement>('input.search')?.value).toBe('passport');
+    });
   });
 });

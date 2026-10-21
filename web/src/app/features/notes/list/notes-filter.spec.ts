@@ -74,7 +74,40 @@ describe('matchesQuery', () => {
   });
 });
 
+describe('matchesQuery edge cases', () => {
+  it('ignores a lone # and extra whitespace between words', () => {
+    const n = note('01', { title: 'Train', displayTitle: 'Train', tags: ['work'] });
+    expect(matchesQuery(n, '#')).toBe(true);
+    expect(matchesQuery(n, '  train \t  #WORK ')).toBe(true);
+  });
+
+  it('does not match a word that only appears across the boundary of two fields', () => {
+    const n = note('01', { title: 'Lake', displayTitle: 'Lake', bodyMd: 'side', tags: [] });
+    expect(matchesQuery(n, 'lakeside')).toBe(false);
+  });
+});
+
+describe('sortNotes edge cases', () => {
+  it('handles an empty list and a single note', () => {
+    expect(sortNotes([])).toEqual([]);
+    expect(sortNotes([note('01')]).map((n) => n.id)).toEqual(['01']);
+  });
+
+  it('keeps a pinned note above a more recently changed unpinned one', () => {
+    const pinnedOld = note('01', { pinned: true, updatedAt: '2020-01-01T00:00:00Z' });
+    const fresh = note('02', { updatedAt: '2026-10-21T08:00:00Z' });
+    expect(sortNotes([fresh, pinnedOld]).map((n) => n.id)).toEqual(['01', '02']);
+  });
+});
+
 describe('filterNotes', () => {
+  it('returns every note, pinned first, for an empty query and nothing for an empty list', () => {
+    const a = note('01', { updatedAt: '2026-10-09T08:00:00Z' });
+    const b = note('02', { pinned: true });
+    expect(filterNotes([a, b], '').map((n) => n.id)).toEqual(['02', '01']);
+    expect(filterNotes([], 'train')).toEqual([]);
+  });
+
   it('keeps the matching notes, pinned first', () => {
     const a = note('01', { bodyMd: 'train to Lucerne', updatedAt: '2026-10-09T08:00:00Z' });
     const b = note('02', { bodyMd: 'train times', pinned: true });
@@ -122,5 +155,20 @@ describe('parseTags', () => {
   it('splits on commas and spaces, drops # and keeps each tag once', () => {
     expect(parseTags('#Holiday, work  holiday,,#ideas')).toEqual(['Holiday', 'work', 'ideas']);
     expect(parseTags('  ')).toEqual([]);
+  });
+
+  it('keeps the first spelling of a tag and ignores bare #', () => {
+    expect(parseTags('Work\nwork ## #WORK')).toEqual(['Work']);
+    expect(parseTags('')).toEqual([]);
+  });
+});
+
+describe('excerpt edge cases', () => {
+  it('handles Windows line endings and a text exactly at the limit', () => {
+    expect(excerpt({ title: undefined, bodyMd: 'Title\r\nLine one\r\nLine two' })).toBe(
+      'Line one\nLine two',
+    );
+    const exact = 'y'.repeat(EXCERPT_LENGTH);
+    expect(excerpt({ title: 'T', bodyMd: exact })).toBe(exact);
   });
 });

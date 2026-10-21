@@ -110,4 +110,56 @@ describe('NotesService', () => {
     req.flush(note('01', { archived: true, version: 5 }));
     await expect(archived).resolves.toMatchObject({ archived: true });
   });
+
+  it('follows the cursor across three pages and keeps the server order', async () => {
+    const result = service.list({ archived: false });
+    http
+      .expectOne((r) => r.url === '/api/v1/notes' && !r.params.has('cursor'))
+      .flush({ items: [note('01', { pinned: true }), note('02')], nextCursor: 'c2' });
+    await tick();
+    http
+      .expectOne((r) => r.params.get('cursor') === 'c2')
+      .flush({ items: [], nextCursor: 'c3' });
+    await tick();
+    http
+      .expectOne((r) => r.params.get('cursor') === 'c3')
+      .flush({ items: [note('03')], nextCursor: null });
+
+    await expect(result).resolves.toEqual([note('01', { pinned: true }), note('02'), note('03')]);
+  });
+
+  it('fails as a whole when a later page fails, instead of returning part of the notes', async () => {
+    const result = service.list({ archived: false });
+    http.expectOne((r) => r.url === '/api/v1/notes').flush({ items: [note('01')], nextCursor: 'c2' });
+    await tick();
+    http
+      .expectOne((r) => r.params.get('cursor') === 'c2')
+      .flush(
+        { title: 'Service Unavailable', status: 503 },
+        { status: 503, statusText: 'Service Unavailable' },
+      );
+
+    await expect(result).rejects.toMatchObject({ name: 'ApiError', status: 503 });
+  });
+
+  it('rejects a change of a note deleted elsewhere with a 404 ApiError', async () => {
+    const pinned = service.setPinned(note('01'), false);
+    http
+      .expectOne((r) => r.method === 'PATCH')
+      .flush({ title: 'Not Found', status: 404 }, { status: 404, statusText: 'Not Found' });
+
+    await expect(pinned).rejects.toMatchObject({ name: 'ApiError', status: 404 });
+  });
+
+  it('passes a failed create on with its problem detail', async () => {
+    const created = service.create({ bodyMd: 'x', tags: [] });
+    const req = http.expectOne((r) => r.method === 'POST');
+    expect(req.request.context.get(SILENT_ERRORS)).toBe(true);
+    req.flush(
+      { title: 'Bad Request', status: 400, detail: 'Too many tags.' },
+      { status: 400, statusText: 'Bad Request' },
+    );
+
+    await expect(created).rejects.toMatchObject({ status: 400, userMessage: 'Too many tags.' });
+  });
 });
