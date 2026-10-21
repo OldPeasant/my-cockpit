@@ -1,5 +1,11 @@
 import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
-import { FormControl, ReactiveFormsModule, ValidationErrors, Validators } from '@angular/forms';
+import {
+  FormControl,
+  FormGroup,
+  ReactiveFormsModule,
+  ValidationErrors,
+  Validators,
+} from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MAT_DIALOG_DATA, MatDialogModule, MatDialogRef } from '@angular/material/dialog';
 import { MatFormFieldModule } from '@angular/material/form-field';
@@ -42,7 +48,7 @@ export function nameError(name: string): ValidationErrors | null {
   ],
   template: `
     <h2 mat-dialog-title>{{ data.title }}</h2>
-    <form (ngSubmit)="submit()">
+    <form [formGroup]="form" (ngSubmit)="submit()">
       <mat-dialog-content>
         <mat-form-field subscriptSizing="dynamic">
           <mat-label>{{ data.label }}</mat-label>
@@ -94,6 +100,7 @@ export class NameDialog {
       (control) => nameError(control.value as string),
     ],
   });
+  protected readonly form = new FormGroup({ name: this.name });
   protected readonly saving = signal(false);
   protected readonly error = signal<string | null>(null);
 

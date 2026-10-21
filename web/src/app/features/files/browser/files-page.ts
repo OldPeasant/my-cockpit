@@ -30,7 +30,7 @@ export const VIEW_MODE_KEY = 'cockpit.files.view';
 
 const UNITS = ['B', 'KB', 'MB', 'GB', 'TB'];
 
-/** A byte count for people: 1 decimal from KB on, powers of 1024 (as file managers do). */
+/** A byte count for people: up to 1 decimal below 100, powers of 1024 (as file managers do). */
 export function formatBytes(bytes: number): string {
   let value = Math.max(0, bytes);
   let unit = 0;
@@ -39,7 +39,7 @@ export function formatBytes(bytes: number): string {
     unit++;
   }
   const digits = unit === 0 || value >= 100 ? 0 : 1;
-  return `${value.toFixed(digits)} ${UNITS[unit]}`;
+  return `${value.toFixed(digits).replace(/\.0$/, '')} ${UNITS[unit]}`;
 }
 
 /**
