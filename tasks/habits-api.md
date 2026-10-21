@@ -1,11 +1,11 @@
 ---
 title: Habits API
-status: todo
-owner: 
+status: in_progress
+owner: dell26/agent-2
 deps: [p0-items-links,reminders-core]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/journal/habits,server/src/test/kotlin/ch/sonensei/cockpit/journal/habits,server/src/main/resources/db/migration/journal/habits]
 prio: 3
-lease_until: 
+lease_until: 2026-10-21T21:24:18Z
 extended: 
 releases: 1
 ---
