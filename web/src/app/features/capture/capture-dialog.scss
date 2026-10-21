@@ -145,10 +145,6 @@
 }
 
 .drop,
-.files-note {
-  margin: 0;
-}
-
 .file-list {
   margin: var(--app-space-1) 0 0;
   padding: 0;
@@ -162,11 +158,24 @@
 }
 
 .file-name {
+  flex: 1;
+  min-width: 0;
   overflow: hidden;
   color: var(--app-fg);
-  text-decoration: line-through;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.file-status {
+  font-variant-numeric: tabular-nums;
+}
+
+[data-state='failed'] .file-status {
+  color: var(--app-danger);
+}
+
+[data-state='cancelled'] .file-name {
+  text-decoration: line-through;
 }
 
 .foot {

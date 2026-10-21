@@ -1,0 +1,117 @@
+// A quiet list: each file is one line of text over a hairline that fills as its bytes go out.
+
+:host {
+  position: fixed;
+  right: var(--app-space-4);
+  bottom: var(--app-space-4);
+  z-index: 10;
+  width: min(24rem, calc(100vw - 2 * var(--app-space-4)));
+  max-height: 50vh;
+  overflow: auto;
+  border-radius: var(--app-radius);
+  box-shadow: var(--mat-sys-level2);
+
+  &:empty {
+    display: none;
+  }
+}
+
+.uploads {
+  padding: var(--app-space-3);
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius);
+  background: var(--app-surface-raised);
+}
+
+.head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--app-space-3);
+  margin-bottom: var(--app-space-2);
+
+  h2 {
+    margin: 0;
+    font: var(--mat-sys-title-small);
+  }
+}
+
+ul {
+  display: flex;
+  flex-direction: column;
+  gap: var(--app-space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.line {
+  display: flex;
+  align-items: baseline;
+  gap: var(--app-space-2);
+  font: var(--mat-sys-body-small);
+}
+
+.name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--app-fg);
+  font: var(--mat-sys-body-medium);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.status {
+  color: var(--app-fg-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.link {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--app-accent);
+  font: var(--mat-sys-label-medium);
+  cursor: pointer;
+
+  &:focus-visible {
+    outline: 2px solid var(--app-accent);
+    outline-offset: 2px;
+  }
+}
+
+.bar {
+  height: 3px;
+  margin-top: var(--app-space-1);
+  overflow: hidden;
+  border-radius: 2px;
+  background: var(--app-border);
+
+  .fill {
+    display: block;
+    height: 100%;
+    background: var(--app-accent);
+    transition: width 200ms linear;
+  }
+}
+
+.job[data-state='failed'] {
+  .status {
+    color: var(--app-danger);
+  }
+
+  .fill {
+    background: var(--app-danger);
+  }
+}
+
+.job[data-state='cancelled'] .fill {
+  background: var(--app-fg-muted);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bar .fill {
+    transition: none;
+  }
+}

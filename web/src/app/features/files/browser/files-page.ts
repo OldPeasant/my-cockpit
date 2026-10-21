@@ -5,6 +5,7 @@ import {
   computed,
   DestroyRef,
   inject,
+  Injector,
   signal,
   viewChild,
 } from '@angular/core';
@@ -13,10 +14,17 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatDialog } from '@angular/material/dialog';
 import { MatMenuModule } from '@angular/material/menu';
 import { ActivatedRoute, RouterLink } from '@angular/router';
-import { firstValueFrom } from 'rxjs';
+import { debounceTime, filter, firstValueFrom } from 'rxjs';
 import { DriveUsageResponse } from '../../../api/generated';
 import { ApiError, NotificationService } from '../../../core/http';
 import { ItemTypeIcon } from '../../../shared/links';
+import { openPreview } from '../preview/preview-dialog';
+import { FileThumb } from '../preview/file-thumb';
+import { previewKind } from '../preview/preview-kind';
+import { FileDrop } from '../upload/file-drop';
+import { formatBytes } from '../upload/format-bytes';
+import { UploadPanel } from '../upload/upload-panel';
+import { UploadService } from '../upload/upload.service';
 import { Crumb, DriveEntry, DriveService } from './drive.service';
 import { FolderTree } from './folder-tree';
 import { MoveDialog, MoveDialogData } from './move-dialog';
@@ -28,19 +36,10 @@ export type ViewMode = 'list' | 'grid';
 /** `localStorage` key of the chosen {@link ViewMode}. */
 export const VIEW_MODE_KEY = 'cockpit.files.view';
 
-const UNITS = ['B', 'KB', 'MB', 'GB', 'TB'];
+export { formatBytes };
 
-/** A byte count for people: up to 1 decimal below 100, powers of 1024 (as file managers do). */
-export function formatBytes(bytes: number): string {
-  let value = Math.max(0, bytes);
-  let unit = 0;
-  while (value >= 1024 && unit < UNITS.length - 1) {
-    value /= 1024;
-    unit++;
-  }
-  const digits = unit === 0 || value >= 100 ? 0 : 1;
-  return `${value.toFixed(digits).replace(/\.0$/, '')} ${UNITS[unit]}`;
-}
+/** Uploads finishing within this time refresh the listing once. */
+export const UPLOAD_REFRESH_MS = 300;
 
 /**
  * The drive (SPEC.md §8.2): the folder tree beside the shown folder's entries as a list or a grid,
@@ -50,7 +49,17 @@ export function formatBytes(bytes: number): string {
 @Component({
   selector: 'app-files-page',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [DatePipe, FolderTree, ItemTypeIcon, MatButtonModule, MatMenuModule, RouterLink],
+  imports: [
+    DatePipe,
+    FileDrop,
+    FileThumb,
+    FolderTree,
+    ItemTypeIcon,
+    MatButtonModule,
+    MatMenuModule,
+    RouterLink,
+    UploadPanel,
+  ],
   templateUrl: './files-page.html',
   styleUrl: './files-page.scss',
 })
@@ -58,6 +67,8 @@ export default class FilesPage {
   private readonly drive = inject(DriveService);
   private readonly dialog = inject(MatDialog);
   private readonly notifications = inject(NotificationService);
+  private readonly uploads = inject(UploadService);
+  private readonly injector = inject(Injector);
 
   private readonly tree = viewChild(FolderTree);
 
@@ -104,6 +115,35 @@ export default class FilesPage {
         void this.load();
       });
     void this.loadUsage();
+    // A file stored into the shown folder appears in the listing.
+    this.uploads.uploaded
+      .pipe(
+        filter((file) => (file.folderId ?? null) === this.folderId()),
+        debounceTime(UPLOAD_REFRESH_MS),
+        takeUntilDestroyed(),
+      )
+      .subscribe(() => this.changed());
+  }
+
+  /** Uploads files picked or dropped into the shown folder. */
+  protected upload(files: FileList | readonly File[] | null): void {
+    if (files?.length) this.uploads.upload(Array.from(files), this.folderId());
+  }
+
+  protected onPicked(input: HTMLInputElement): void {
+    this.upload(input.files);
+    // The same file can be picked again.
+    input.value = '';
+  }
+
+  /** Files open in the preview when there is one for their type, else they download. */
+  protected canPreview(entry: DriveEntry): boolean {
+    return entry.kind === 'file' && !!previewKind(entry.file.mime, entry.name);
+  }
+
+  protected preview(entry: DriveEntry): void {
+    const files = (this.entries() ?? []).flatMap((e) => (e.kind === 'file' ? [e.file] : []));
+    openPreview(this.injector, files, entry.id);
   }
 
   protected async load(): Promise<void> {
@@ -239,8 +279,9 @@ export default class FilesPage {
 
   protected openLabel(entry: DriveEntry): string {
     const name = entry.name;
-    return entry.kind === 'folder'
-      ? $localize`:@@files.openFolder:Open folder ${name}:name:`
+    if (entry.kind === 'folder') return $localize`:@@files.openFolder:Open folder ${name}:name:`;
+    return this.canPreview(entry)
+      ? $localize`:@@files.previewFile:Preview ${name}:name:`
       : $localize`:@@files.downloadFile:Download ${name}:name:`;
   }
 

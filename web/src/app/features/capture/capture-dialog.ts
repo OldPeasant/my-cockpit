@@ -14,6 +14,7 @@ import { MatDialog, MatDialogRef } from '@angular/material/dialog';
 import { catchError, debounceTime, distinctUntilChanged, from, map, of, switchMap } from 'rxjs';
 import { CapturePreviewResponse } from '../../api/generated';
 import { NotificationService } from '../../core/http';
+import { UploadJob, UploadService } from '../files/upload/upload.service';
 import { CaptureService } from './capture.service';
 import { uuidv7 } from './uuidv7';
 
@@ -27,7 +28,9 @@ interface PreviewResult {
 
 /**
  * The quick capture dialog (SPEC.md §4.5): one text field with a live preview of the capture syntax,
- * optional notes and a drop/paste area for attachments (not uploaded yet: files come in phase 2).
+ * optional notes and a drop/paste area for attachments. Dropped and pasted files upload to the drive
+ * root right away; the capture links the uploaded ones (`fileIds`), so saving waits until none is
+ * still uploading.
  * Enter saves to the Inbox and closes, Shift+Enter saves and keeps the dialog open for the next one.
  *
  * Every draft has a client-generated UUIDv7 id: a failed save that is retried reuses it, so the
@@ -43,13 +46,16 @@ interface PreviewResult {
 export class CaptureDialog {
   private readonly captures = inject(CaptureService);
   private readonly notifications = inject(NotificationService);
+  private readonly uploads = inject(UploadService);
   private readonly dialogRef = inject(MatDialogRef<CaptureDialog>, { optional: true });
   private readonly textField = viewChild.required<ElementRef<HTMLInputElement>>('textField');
 
   protected readonly text = signal('');
   protected readonly notes = signal('');
-  /** Names of dropped or pasted files: shown, but not saved until files are supported. */
-  protected readonly files = signal<readonly string[]>([]);
+  /** Uploads of dropped or pasted files, linked to the capture once done. */
+  protected readonly files = signal<readonly UploadJob[]>([]);
+  /** Whether an attachment is still uploading: saving waits for it. */
+  protected readonly uploading = computed(() => this.files().some((job) => !job.finished()));
   protected readonly saving = signal(false);
   protected readonly dragging = signal(false);
   /** Captures saved while the dialog stayed open (Shift+Enter). */
@@ -121,10 +127,6 @@ export class CaptureDialog {
     }
   }
 
-  protected removeFile(index: number): void {
-    this.files.update((names) => names.filter((_, i) => i !== index));
-  }
-
   protected cancel(): void {
     this.dialogRef?.close();
   }
@@ -136,16 +138,18 @@ export class CaptureDialog {
   async submit(keepOpen = false): Promise<boolean> {
     const rawText = this.text();
     const text = rawText.trim();
-    if (this.saving() || !text) return false;
+    if (this.saving() || this.uploading() || !text) return false;
     this.saving.set(true);
     const rawNotes = this.notes();
     const files = this.files();
+    const fileIds = files.flatMap((job) => job.result()?.id ?? []);
     try {
       const notes = rawNotes.trim();
       const task = await this.captures.save({
         id: this.draftId,
         text,
         ...(notes ? { notes } : {}),
+        ...(fileIds.length ? { fileIds } : {}),
       });
       this.draftId = uuidv7();
       this.notifications.info($localize`:@@capture.saved:Captured to Inbox: ${task.title}:title:`);
@@ -153,7 +157,7 @@ export class CaptureDialog {
         // Clear only what was saved: input added while the save ran is the next capture.
         if (this.text() === rawText) this.text.set('');
         if (this.notes() === rawNotes) this.notes.set('');
-        this.files.update((current) => without(current, files));
+        this.files.update((current) => current.filter((job) => !files.includes(job)));
         this.savedCount.update((n) => n + 1);
         this.textField().nativeElement.focus();
       } else {
@@ -168,20 +172,20 @@ export class CaptureDialog {
     }
   }
 
-  private addFiles(files: FileList): void {
-    const names = Array.from(files, (file) => file.name);
-    this.files.update((current) => [...current, ...names]);
+  protected retryFile(job: UploadJob): void {
+    this.uploads.retry(job);
   }
-}
 
-/** `names` without one entry per name in `removed`. */
-function without(names: readonly string[], removed: readonly string[]): readonly string[] {
-  const left = [...removed];
-  return names.filter((name) => {
-    const i = left.indexOf(name);
-    if (i >= 0) left.splice(i, 1);
-    return i < 0;
-  });
+  /** Removes an attachment, cancelling its upload when it has not finished. */
+  protected removeFile(job: UploadJob): void {
+    if (!job.finished() || job.state() === 'failed') this.uploads.cancel(job);
+    this.files.update((jobs) => jobs.filter((other) => other !== job));
+  }
+
+  private addFiles(files: FileList): void {
+    const jobs = this.uploads.upload(Array.from(files), null);
+    this.files.update((current) => [...current, ...jobs]);
+  }
 }
 
 /** Opens the dialog with the caller's injector, so its content sees route-level providers. */

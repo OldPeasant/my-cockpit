@@ -281,16 +281,11 @@ h1 {
   color: var(--app-danger);
 }
 
-@media (max-width: 720px) {
-  .files {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  .side {
-    order: 2;
-  }
-
-  .meta .date {
-    display: none;
-  }
+// Files with a preview open it: a button that looks like the download links beside it.
+button.open {
+  border: 0;
+  background: none;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
 }

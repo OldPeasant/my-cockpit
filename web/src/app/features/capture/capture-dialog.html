@@ -44,7 +44,9 @@
         @if (p.list === 'WAITING') {
           <li class="token waiting">
             @if (p.waitingFor) {
-              <ng-container i18n="@@capture.waitingFor">Waiting for {{ p.waitingFor }}</ng-container>
+              <ng-container i18n="@@capture.waitingFor"
+                >Waiting for {{ p.waitingFor }}</ng-container
+              >
             } @else {
               <ng-container i18n="@@capture.waiting">Waiting</ng-container>
             }
@@ -84,19 +86,44 @@
 
   <div class="files">
     @if (files().length > 0) {
-      <p class="files-note" i18n="@@capture.filesNotSaved">
-        Attachments can't be saved yet, so these files stay out of the capture:
-      </p>
       <ul class="file-list">
-        @for (name of files(); track $index) {
-          <li>
-            <span class="file-name">{{ name }}</span>
+        @for (job of files(); track job.id) {
+          <li [attr.data-state]="job.state()">
+            <span class="file-name">{{ job.name }}</span>
+            <span class="file-status" role="status">
+              @switch (job.state()) {
+                @case ('done') {
+                  <ng-container i18n="@@capture.fileAttached">Attached</ng-container>
+                }
+                @case ('failed') {
+                  <ng-container i18n="@@capture.fileFailed">Upload failed</ng-container>
+                }
+                @case ('cancelled') {
+                  <ng-container i18n="@@capture.fileCancelled">Cancelled</ng-container>
+                }
+                @default {
+                  {{ job.percent() }} %
+                }
+              }
+            </span>
+            @if (job.state() === 'failed') {
+              <button
+                type="button"
+                class="link"
+                i18n-aria-label="@@capture.retryFile"
+                aria-label="Retry {{ job.name }}"
+                (click)="retryFile(job)"
+                i18n="@@capture.retry"
+              >
+                Retry
+              </button>
+            }
             <button
               type="button"
               class="link"
               i18n-aria-label="@@capture.removeFile"
-              aria-label="Remove {{ name }}"
-              (click)="removeFile($index)"
+              aria-label="Remove {{ job.name }}"
+              (click)="removeFile(job)"
               i18n="@@capture.remove"
             >
               Remove
@@ -122,7 +149,7 @@
       <button
         type="button"
         class="primary"
-        [disabled]="saving() || !text().trim()"
+        [disabled]="saving() || uploading() || !text().trim()"
         (click)="submit()"
         i18n="@@capture.save"
       >

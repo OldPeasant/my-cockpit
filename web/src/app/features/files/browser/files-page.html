@@ -33,7 +33,7 @@
     }
   </aside>
 
-  <section class="main" aria-labelledby="files-title">
+  <section class="main" aria-labelledby="files-title" (appFileDrop)="upload($event)">
     <header class="head">
       @if (crumbs().length) {
         <nav class="crumbs" i18n-aria-label="@@files.breadcrumbs" aria-label="Breadcrumbs">
@@ -56,7 +56,19 @@
       }
 
       <div class="toolbar">
-        <button mat-flat-button type="button" (click)="newFolder()" i18n="@@files.newFolder">
+        <button mat-flat-button type="button" (click)="picker.click()" i18n="@@files.upload">
+          Upload
+        </button>
+        <input
+          #picker
+          type="file"
+          multiple
+          hidden
+          i18n-aria-label="@@files.upload.pick"
+          aria-label="Files to upload"
+          (change)="onPicked(picker)"
+        />
+        <button mat-stroked-button type="button" (click)="newFolder()" i18n="@@files.newFolder">
           New folder
         </button>
         @if (folderId(); as id) {
@@ -117,6 +129,20 @@
                   <span class="name">{{ entry.name }}</span>
                 </a>
                 <span class="meta"></span>
+              } @else if (canPreview(entry)) {
+                <button
+                  type="button"
+                  class="open"
+                  [attr.aria-label]="openLabel(entry)"
+                  (click)="preview(entry)"
+                >
+                  <app-file-thumb [file]="entry.file" />
+                  <span class="name">{{ entry.name }}</span>
+                </button>
+                <span class="meta">
+                  <span class="size">{{ formatBytes(entry.file.size) }}</span>
+                  <span class="date">{{ entry.file.updatedAt | date: 'mediumDate' }}</span>
+                </span>
               } @else {
                 <a
                   class="open"
@@ -192,12 +218,15 @@
           </div>
         }
       } @else {
-        <p class="empty" i18n="@@files.empty">
-          This folder is empty. Create a folder to get started.
+        <p class="empty" i18n="@@files.emptyUpload">
+          This folder is empty. Drop files here or upload them to get started.
         </p>
       }
     } @else {
       <p class="note" role="status" i18n="@@files.loading">Loading the folder…</p>
     }
+
   </section>
+
+  <app-upload-panel />
 </div>

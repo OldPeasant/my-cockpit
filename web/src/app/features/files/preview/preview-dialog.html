@@ -1,0 +1,98 @@
+@if (file(); as f) {
+  <div class="preview" [attr.data-kind]="kind()">
+    <header class="bar">
+      <h2 id="preview-title" class="name" [title]="f.name">{{ f.name }}</h2>
+      @if (files.length > 1) {
+        <span class="position" i18n="@@files.preview.position"
+          >{{ index() + 1 }} of {{ files.length }}</span
+        >
+      }
+      <a class="action" [href]="downloadUrl()" download i18n="@@files.download">Download</a>
+      <button type="button" class="action" (click)="close()" i18n="@@files.preview.close">
+        Close
+      </button>
+    </header>
+
+    <div class="stage">
+      @if (files.length > 1) {
+        <button
+          type="button"
+          class="step prev"
+          [disabled]="index() === 0"
+          (click)="prev()"
+          i18n-aria-label="@@files.preview.prev"
+          aria-label="Previous file"
+        >
+          <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+            <path d="M15.4 7.4 14 6l-6 6 6 6 1.4-1.4L10.8 12z" />
+          </svg>
+        </button>
+      }
+
+      <div class="content">
+        @switch (kind()) {
+          @case ('image') {
+            @if (imageError()) {
+              <p class="note" role="alert" i18n="@@files.preview.imageFailed">
+                The image could not be shown. Download it to open it.
+              </p>
+            } @else {
+              <img [src]="src()" [alt]="f.name" (error)="imageError.set(true)" />
+            }
+          }
+          @case ('pdf') {
+            <app-pdf-viewer [src]="src()" />
+          }
+          @case ('audio') {
+            <audio controls preload="metadata" [src]="src()" [attr.aria-label]="f.name"></audio>
+          }
+          @case ('video') {
+            <video controls preload="metadata" [src]="src()" [attr.aria-label]="f.name"></video>
+          }
+          @default {
+            @if (textError()) {
+              <p class="note" role="alert" i18n="@@files.preview.textFailed">
+                The text could not be loaded. Download the file to open it.
+              </p>
+            } @else if (text(); as t) {
+              <article
+                class="sheet"
+                tabindex="0"
+                i18n-aria-label="@@files.preview.contents"
+                aria-label="Contents"
+              >
+                @if (kind() === 'markdown') {
+                  <div class="markdown" [innerHTML]="markdown()"></div>
+                } @else {
+                  <pre>{{ t.text }}</pre>
+                }
+                @if (t.truncated) {
+                  <p class="truncated" i18n="@@files.preview.truncated">
+                    Only the beginning of the file is shown. Download it to see all of it.
+                  </p>
+                }
+              </article>
+            } @else {
+              <p class="note" role="status" i18n="@@files.preview.loading">Loading…</p>
+            }
+          }
+        }
+      </div>
+
+      @if (files.length > 1) {
+        <button
+          type="button"
+          class="step next"
+          [disabled]="index() === files.length - 1"
+          (click)="next()"
+          i18n-aria-label="@@files.preview.next"
+          aria-label="Next file"
+        >
+          <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+            <path d="M8.6 16.6 10 18l6-6-6-6-1.4 1.4 4.6 4.6z" />
+          </svg>
+        </button>
+      }
+    </div>
+  </div>
+}
