@@ -19,7 +19,8 @@ List and read messages (SPEC.md §7.4).
   - verified (2026-10-21 02:41+0200 by dell26/agent-5): cd server && ./gradlew test --tests 'ch.sonensei.cockpit.mail.api.*' (RemoteImageFetcher*/PublicAddressesTests: size/time limits, SSRF incl. IPv6 NAT64/SIIT/bench/doc ranges, DNS pinning, redirects; attachment streaming; body cache LRU) + integrationTest MailBodyCacheEvictionGreenMailTests -> all pass
 - [x] `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.mail.api.*'` passes (Postgres via Testcontainers where persistence is involved) plus `external` GreenMail tests
   - verified (2026-10-21 02:41+0200 by dell26/agent-5): cd server && ./gradlew ktlintCheck test --tests 'ch.sonensei.cockpit.mail.api.*' (Postgres via Testcontainers) -> 215 tests, 0 failures; ./gradlew integrationTest --tests 'ch.sonensei.cockpit.mail.api.*' (external GreenMail) -> 8 tests, 0 failures
-- [ ] API documented: `api/openapi.yaml` regenerated (`UPDATE_OPENAPI=1 ./gradlew test --tests '*OpenApiContractTest'`) and `OpenApiContractTest` passes without the flag
+- [x] API documented: `api/openapi.yaml` regenerated (`UPDATE_OPENAPI=1 ./gradlew test --tests '*OpenApiContractTest'`) and `OpenApiContractTest` passes without the flag
+  - verified (2026-10-21 02:41+0200 by dell26/agent-5): api/openapi.yaml regenerated earlier with UPDATE_OPENAPI=1 (5 mail operations present); cd server && ./gradlew test --tests '*OpenApiContractTest' without flag on HEAD 575c63f2 -> BUILD SUCCESSFUL, 1 test pass
 
 ## Notes
 - ASSUMPTION (2026-10-20 22:37+0200 by dell26/agent-1): GET /mail/messages: accountId alone lists that account's Inbox (role INBOX); neither param = unified Inbox of all accounts; folderId = that folder. The q= search parameter is left to the mail-search task.
