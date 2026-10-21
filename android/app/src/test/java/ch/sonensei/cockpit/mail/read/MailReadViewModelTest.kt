@@ -389,4 +389,30 @@ class MailReadViewModelTest {
             assertFalse(vm.uiState.value.removed)
             assertFalse(vm.uiState.value.busy)
         }
+
+    @Test
+    fun `a mail closed or replaced before it loaded is not marked read`() =
+        runTest(dispatcher) {
+            val first = CompletableDeferred<MailResult<MailMessage>>()
+            coEvery { reader.message(id(1)) } coAnswers { first.await() }
+            val vm = MailReadViewModel(reader, mail).also { it.open(id(1)) }
+            advanceUntilIdle()
+            vm.close()
+            first.complete(MailResult.Ok(message()))
+            advanceUntilIdle()
+            coVerify(exactly = 0) { mail.markRead(any()) }
+
+            // Another mail opened before the first one loaded: only the one shown is marked read.
+            val again = CompletableDeferred<MailResult<MailMessage>>()
+            coEvery { reader.message(id(1)) } coAnswers { again.await() }
+            coEvery { reader.message(id(2)) } returns MailResult.Ok(message(n = 2))
+            vm.open(id(1))
+            advanceUntilIdle()
+            vm.open(id(2))
+            again.complete(MailResult.Ok(message()))
+            advanceUntilIdle()
+
+            coVerify(exactly = 0) { mail.markRead(id(1)) }
+            coVerify(exactly = 1) { mail.markRead(id(2)) }
+        }
 }

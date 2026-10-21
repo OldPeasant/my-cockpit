@@ -131,3 +131,78 @@ Remaining unresolved findings:
 ## Final status
 
 All validated findings fixed and validation passed.
+
+---
+
+# Fix Report - second round
+
+Date: 2026-10-21
+
+Task: and-mail-list-read - Android mail list and reading
+
+Scope: findings CR-1 (P2) and CR-2 (P3) of the second review in `reviews/and-mail-list-read/review.md` (reviewed revision 7b14fdfd), both approved as in scope by the parent worker. Changes stay in `android/app/src/{main,test}/java/ch/sonensei/cockpit/mail/{list,read}`. Code base for this round: 0a392ff4.
+
+## Fixed findings
+
+### CR-1 (second review) - Infinite scroll retries a failed page in a tight loop with no backoff
+
+Files changed:
+- `android/app/src/main/java/ch/sonensei/cockpit/mail/list/MailScreen.kt`
+- `android/app/src/test/java/ch/sonensei/cockpit/mail/list/MailListScreenStatesTest.kt`
+
+Problem:
+The load-more trigger emitted `nearEnd && nextCursor != null && !loading && !loadingMore`. A failed `loadMore()` (or a failed `refresh()`) resets `loadingMore`/`loading` to false and keeps the cursor, so the trigger fired again immediately. While near the end of the list, offline or with a failing server, it sent a request about once per frame.
+
+Fix:
+The trigger is now also false while the list shows a load failure (`message` is `OFFLINE` or `FAILED`). A failed page or refresh is not requested again automatically. The existing Retry button calls `refresh()`. A successful load clears `message`, and the trigger then fires again if the list is still near its end. `ARCHIVE_FAILED`/`DELETE_FAILED` do not block paging. I left the view model unchanged: it already clears `message` on every successful load, so no new flag was needed. Test changes:
+- In "near the end the next page is asked for again once a load ends", the second step used to model a failed page that was asked for again. It now models a page that loaded and has a next cursor. The finding showed the old expectation was wrong.
+- New regression test "a failed page is not asked for again until a retry succeeds". After an OFFLINE failure, then a FAILED one, no new request is made, even after 1 s of frames. After a successful refresh, paging resumes.
+- New regression test "a failed refresh near the end does not ask for the next page".
+- New test "a failed archive does not stop paging".
+
+With the production change temporarily reverted, the two regression tests fail. With it restored, they pass.
+
+Validation:
+- `cd android && ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.mail.list.MailListScreenStatesTest' --tests 'ch.sonensei.cockpit.mail.read.MailReadViewModelTest'` with the fix reverted - 3 expected failures (the two new list tests and the new read test)
+- `cd android && ./gradlew ktlintCheck testDebugUnitTest --tests 'ch.sonensei.cockpit.mail.*' lintDebug` - Pass (MailListScreenStatesTest 15/15)
+
+### CR-2 (second review) - A mail closed before it loaded is still marked read on the server
+
+Files changed:
+- `android/app/src/main/java/ch/sonensei/cockpit/mail/read/MailReadViewModel.kt`
+- `android/app/src/test/java/ch/sonensei/cockpit/mail/read/MailReadViewModelTest.kt`
+
+Problem:
+`load()` called `mail.markRead(...)` for an unread mail even when the session had changed: the mail had been closed, or another mail opened, before the load finished. The server then marked a mail read that the user never saw, and the list kept its unread dot.
+
+Fix:
+`markRead` runs only when `opened == session`, the same check `updateFor` makes. New test "a mail closed or replaced before it loaded is not marked read" covers two cases: a mail closed before its load completes gets no `markRead`, and a mail replaced by another before it loads gets no `markRead` while the mail shown gets exactly one. The test fails with the fix reverted.
+
+Validation:
+- `cd android && ./gradlew ktlintCheck testDebugUnitTest --tests 'ch.sonensei.cockpit.mail.*' lintDebug` - Pass (MailReadViewModelTest 17/17)
+
+## Not fixed
+
+None.
+
+## Validation summary
+
+Focused tests:
+- `cd android && ./gradlew ktlintFormat` - no changes needed
+- `cd android && ./gradlew ktlintCheck testDebugUnitTest --tests 'ch.sonensei.cockpit.mail.*' lintDebug` - BUILD SUCCESSFUL. 12 mail test classes, 116 tests, 0 failures, 0 skipped. Per class: MailListViewModelEdgeCasesTest 20, MailListViewModelTest 6, MailListScreenTest 8, MailListScreenStatesTest 15, MailModelsTest 9, MailRepositoryTest 8, MailRouteInAppTest 4, MailReadViewModelTest 17, MailReadScreenTest 17, MailReadRepositoryTest 5, MailWebViewTest 5, MailBodyViewTest 2.
+
+Full test suite:
+- `sh scripts/check.sh` (server, web and android lint plus unit tests) - Pass ("all checks passed")
+
+Lint/type-check/build:
+- ktlintCheck and lintDebug - Pass (included in the command above)
+
+`.taskcheck`:
+- Pass (`sh scripts/check.sh`)
+
+Remaining unresolved findings:
+0
+
+## Final status
+
+All validated findings fixed and validation passed.

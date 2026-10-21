@@ -106,12 +106,93 @@ class MailListScreenStatesTest {
         composeRule.waitForIdle()
         assertEquals(listOf("more"), calls)
 
-        // That page failed and kept its cursor: the next attempt follows when it ends.
+        // That page loaded and has a next one, still near the end: the next page follows when it ends.
         shown.value = shown.value.copy(loadingMore = true)
         composeRule.waitForIdle()
-        shown.value = shown.value.copy(loadingMore = false)
+        shown.value = shown.value.copy(loadingMore = false, messages = (1..5).map { mail(it) }, nextCursor = "c2")
         composeRule.waitForIdle()
         assertEquals(listOf("more", "more"), calls)
+    }
+
+    @Test
+    fun `a failed page is not asked for again until a retry succeeds`() {
+        val shown =
+            mutableStateOf(
+                MailListUiState(
+                    accounts = listOf(MailAccountFolders(work, emptyList())),
+                    messages = (1..3).map { mail(it) },
+                    nextCursor = "c1",
+                    loaded = true,
+                ),
+            )
+        composeRule.setContent {
+            CockpitTheme {
+                MailListContent(shown.value, MailListCallbacks(loadMore = { calls += "more" }), clock = clock)
+            }
+        }
+        composeRule.waitForIdle()
+        assertEquals(listOf("more"), calls)
+
+        // The page fails offline and keeps its cursor: no new request by itself, also not after more frames.
+        shown.value = shown.value.copy(loadingMore = true)
+        composeRule.waitForIdle()
+        shown.value = shown.value.copy(loadingMore = false, message = MailListMessage.OFFLINE)
+        composeRule.waitForIdle()
+        composeRule.mainClock.advanceTimeBy(1_000)
+        composeRule.waitForIdle()
+        assertEquals(listOf("more"), calls)
+
+        // A server error is not retried either.
+        shown.value = shown.value.copy(message = MailListMessage.FAILED)
+        composeRule.waitForIdle()
+        assertEquals(listOf("more"), calls)
+
+        // The Retry button's refresh succeeds and clears the failure: paging goes on.
+        shown.value = shown.value.copy(loading = true)
+        composeRule.waitForIdle()
+        shown.value = shown.value.copy(loading = false, message = null)
+        composeRule.waitForIdle()
+        assertEquals(listOf("more", "more"), calls)
+    }
+
+    @Test
+    fun `a failed refresh near the end does not ask for the next page`() {
+        val shown =
+            mutableStateOf(
+                MailListUiState(
+                    accounts = listOf(MailAccountFolders(work, emptyList())),
+                    messages = (1..3).map { mail(it) },
+                    nextCursor = "c1",
+                    loaded = true,
+                    loading = true,
+                ),
+            )
+        composeRule.setContent {
+            CockpitTheme {
+                MailListContent(shown.value, MailListCallbacks(loadMore = { calls += "more" }), clock = clock)
+            }
+        }
+        composeRule.waitForIdle()
+        shown.value = shown.value.copy(loading = false, message = MailListMessage.FAILED)
+        composeRule.waitForIdle()
+        composeRule.mainClock.advanceTimeBy(1_000)
+        composeRule.waitForIdle()
+        assertTrue(calls.isEmpty())
+    }
+
+    @Test
+    fun `a failed archive does not stop paging`() {
+        show(
+            MailListUiState(
+                accounts = listOf(MailAccountFolders(work, emptyList())),
+                messages = (1..3).map { mail(it) },
+                nextCursor = "c1",
+                loaded = true,
+                message = MailListMessage.ARCHIVE_FAILED,
+            ),
+        )
+        composeRule.waitForIdle()
+        assertEquals(listOf("more"), calls)
     }
 
     @Test

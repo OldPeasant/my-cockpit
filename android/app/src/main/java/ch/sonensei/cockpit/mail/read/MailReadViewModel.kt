@@ -132,8 +132,9 @@ class MailReadViewModel
                 when (val result = reader.message(messageId)) {
                     is MailResult.Ok -> {
                         updateFor(opened) { it.copy(message = result.value, loading = false) }
-                        // Read state is the mail server's: a failure shows on the next load.
-                        if (!result.value.seen) mail.markRead(result.value.id)
+                        // Read state is the mail server's: a failure shows on the next load. Only a mail still open
+                        // (so shown) counts as read.
+                        if (opened == session && !result.value.seen) mail.markRead(result.value.id)
                     }
                     MailResult.Offline -> updateFor(opened) { it.copy(loading = false, error = MailReadError.OFFLINE) }
                     is MailResult.Failed ->

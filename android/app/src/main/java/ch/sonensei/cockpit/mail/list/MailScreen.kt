@@ -199,8 +199,10 @@ private fun Messages(
     clock: Clock,
 ) {
     val loadMore by rememberUpdatedState(callbacks.loadMore)
-    // Asks again whenever a page can be loaded while near the end: after a load ends, fails, or finds more mail.
-    val canLoadMore by rememberUpdatedState(state.nextCursor != null && !state.loading && !state.loadingMore)
+    // Asks again whenever a page can be loaded while near the end: after a load ends or finds more mail. A failed load
+    // is not retried by itself (that would loop while offline); the Retry button does it, and a success clears it.
+    val failed = state.message == MailListMessage.OFFLINE || state.message == MailListMessage.FAILED
+    val canLoadMore by rememberUpdatedState(state.nextCursor != null && !state.loading && !state.loadingMore && !failed)
     LaunchedEffect(listState) {
         snapshotFlow {
             val info = listState.layoutInfo
