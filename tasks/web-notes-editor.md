@@ -18,3 +18,4 @@ Edit notes (SPEC.md §8.1).
 - [ ] Playwright `e2e/notes/editor.spec.ts` passes against the e2e stack (`npm run e2e -- e2e/notes/editor.spec.ts`, see p0-e2e-harness): paste an image, toggle a checklist, reload → persisted
 
 ## Notes
+- ASSUMPTION (2026-10-21 06:31+0200 by R1963MACOS/agent-1): Preview uses an own escaped Markdown renderer (features/notes/editor/note-markdown.ts, no new library) trusted via bypassSecurityTrustHtml because Angular's sanitizer strips checkbox inputs; images only from cockpit-file: (shown via /api/v1/files/{id}/preview with the session cookie) and https:
