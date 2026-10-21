@@ -15,7 +15,8 @@ Uploads with progress and previews (SPEC.md §8.2).
 ## Acceptance criteria
 - [x] Drag & drop and picker upload, multi-file, progress, chunked resumable upload > 50 MB with retry; cancel
   - verified (2026-10-21 09:14+0200 by dell26/agent-4): npm --prefix web run test:ci -- --include=src/app/features/files --include=src/app/features/capture (HEAD 62d8e66a) -> 17 files/292 passed: files-page.spec picker + drop, drop-hint.spec, upload.service.spec (2 parallel, >50 MB chunked w/ real SHA-256, chunk retry 503/500/408/429/network, resume via GET /uploads/{id}, cancel incl. DELETE), upload-panel.spec progress; plus Playwright crit.5 60 MB upload
-- [ ] Previews: images (thumbnails, lightbox), PDF (pdfjs-dist), text/Markdown, audio/video
+- [x] Previews: images (thumbnails, lightbox), PDF (pdfjs-dist), text/Markdown, audio/video
+  - verified (2026-10-21 09:14+0200 by dell26/agent-4): npm --prefix web run test:ci -- --include=src/app/features/files --include=src/app/features/capture (HEAD 62d8e66a) -> 292 passed: preview-kind.spec (mime->image/pdf/text/markdown/audio/video), file-thumb.spec, preview-dialog.spec (lightbox, text, Markdown, media), pdf-viewer.spec (13, fake pdf.js); real pdfjs-dist page render in Playwright crit.5
 - [ ] Capture dialog attachments enabled (upload then pass fileIds)
 - [ ] Vitest component/service tests cover chunk retry, preview selection by mime; `cd web && npm run check` passes
 - [x] Playwright `e2e/files-upload/upload.spec.ts` passes against the e2e stack (`npm run e2e -- e2e/files-upload/upload.spec.ts`, see p0-e2e-harness): 60 MB upload completes; PDF preview renders a page
