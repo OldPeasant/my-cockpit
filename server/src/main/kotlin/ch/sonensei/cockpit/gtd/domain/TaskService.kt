@@ -453,9 +453,19 @@ class TaskService(
 				} else {
 					cb.isNull(root.get<Instant>("completedAt"))
 				}
-			// A task in a tickler is hidden until its date (SPEC.md §5.1).
 			val ticklerDate = root.get<LocalDate>("ticklerDate")
-			predicates += cb.or(cb.isNull(ticklerDate), cb.lessThanOrEqualTo(ticklerDate, today()))
+			val dates = filter.dates
+			if (dates == null) {
+				// A task in a tickler is hidden until its date (SPEC.md §5.1).
+				predicates += cb.or(cb.isNull(ticklerDate), cb.lessThanOrEqualTo(ticklerDate, today()))
+			} else {
+				// The calendar overlay (SPEC.md §6.3): due tasks and ticklers of the shown days.
+				predicates +=
+					cb.or(
+						cb.between(root.get("dueDate"), dates.start, dates.endInclusive),
+						cb.between(ticklerDate, dates.start, dates.endInclusive),
+					)
+			}
 			filter.list?.let { predicates += cb.equal(root.get<TaskList>("list"), it) }
 			filter.projectId?.let { predicates += cb.equal(root.get<UUID>("projectId"), it) }
 			filter.contextId?.let { predicates += cb.isMember(it, root.get<Collection<UUID>>("contextIds")) }

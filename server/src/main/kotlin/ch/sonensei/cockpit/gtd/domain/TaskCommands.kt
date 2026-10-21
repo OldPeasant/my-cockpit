@@ -65,6 +65,8 @@ data class TaskFilter(
 	val maxMinutes: Int? = null,
 	val due: DueFilter? = null,
 	val completed: Boolean = false,
+	/** Only tasks with a due or tickler date in this range (both inclusive); includes tasks still in a tickler. */
+	val dates: ClosedRange<LocalDate>? = null,
 )
 
 /** Changes of a checklist item; `null` leaves a field unchanged. */

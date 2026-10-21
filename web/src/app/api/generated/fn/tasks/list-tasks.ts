@@ -52,6 +52,16 @@ export interface ListTasks$Params {
   completed?: boolean;
 
 /**
+ * Only tasks due or in a tickler on or after this date
+ */
+  from?: string;
+
+/**
+ * Only tasks due or in a tickler on or before this date
+ */
+  to?: string;
+
+/**
  * Cursor from the previous page
  */
   cursor?: string;
@@ -73,6 +83,8 @@ export function listTasks(http: HttpClient, rootUrl: string, params?: ListTasks$
     rb.query('maxMinutes', params.maxMinutes, {});
     rb.query('due', params.due, {});
     rb.query('completed', params.completed, {});
+    rb.query('from', params.from, {});
+    rb.query('to', params.to, {});
     rb.query('cursor', params.cursor, {});
     rb.query('limit', params.limit, {});
   }

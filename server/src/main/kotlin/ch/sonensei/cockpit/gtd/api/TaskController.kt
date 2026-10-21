@@ -21,6 +21,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse
 import io.swagger.v3.oas.annotations.tags.Tag
 import jakarta.validation.Valid
 import org.springframework.dao.DataIntegrityViolationException
+import org.springframework.format.annotation.DateTimeFormat
 import org.springframework.http.HttpHeaders
 import org.springframework.http.HttpStatus
 import org.springframework.http.MediaType
@@ -37,6 +38,8 @@ import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.RestController
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder
 import tools.jackson.databind.json.JsonMapper
+import java.time.LocalDate
+import java.time.temporal.ChronoUnit
 import java.util.UUID
 import io.swagger.v3.oas.annotations.parameters.RequestBody as DocumentedBody
 
@@ -62,7 +65,9 @@ class TaskController(
 				"Open tasks (default) are ordered by position, then id; with `completed=true` the done tasks (Logbook) " +
 				"are returned, newest first. `due` is relative to today in the user's time zone: OVERDUE before today, " +
 				"TODAY today, WEEK today and the next 6 days. " +
-				"`maxMinutes` only matches tasks with an estimate.",
+				"`maxMinutes` only matches tasks with an estimate. " +
+				"`from` and `to` (both or neither, inclusive, at most $MAX_RANGE_DAYS days) only match tasks whose due or " +
+				"tickler date is in that range, including tasks still in a tickler (the calendar overlay).",
 	)
 	@ApiResponse(responseCode = "200", description = "One page of tasks")
 	@ApiResponse(
@@ -91,6 +96,14 @@ class TaskController(
 		@Parameter(description = "true: done tasks (Logbook) instead of open ones")
 		@RequestParam(required = false, defaultValue = "false")
 		completed: Boolean,
+		@Parameter(description = "Only tasks due or in a tickler on or after this date")
+		@RequestParam(required = false)
+		@DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
+		from: LocalDate?,
+		@Parameter(description = "Only tasks due or in a tickler on or before this date")
+		@RequestParam(required = false)
+		@DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
+		to: LocalDate?,
 		@Parameter(description = "Cursor from the previous page") @RequestParam(required = false) cursor: String?,
 		@Parameter(description = "Page size, 1-200 (default 50)") @RequestParam(required = false) limit: Int?,
 	): TaskPageResponse {
@@ -100,7 +113,8 @@ class TaskController(
 				DueFilter.entries.find { it.name.equals(value, ignoreCase = true) }
 					?: throw InvalidRequestException("due", "must be one of overdue, today, week")
 			}
-		val filter = TaskFilter(list, projectId, context, energy, creativity, maxMinutes, dueFilter, completed)
+		val dates = dateRange(from, to)
+		val filter = TaskFilter(list, projectId, context, energy, creativity, maxMinutes, dueFilter, completed, dates)
 		// The on-read check: what became due since the last tickler run is on its new list (SPEC.md §5.1).
 		tickler.run()
 		val page = tasks.list(filter, CursorRequest.of(cursor, limit))
@@ -365,6 +379,24 @@ class TaskController(
 			)
 		val NOT_NULLABLE = setOf("title", "position", "contextIds")
 	}
+}
+
+/** The longest `from`-`to` range of the task list: a year, more than any calendar view shows. */
+private const val MAX_RANGE_DAYS = 366
+
+/** The date range of the task list filter, `null` without one; both ends or none, at most [MAX_RANGE_DAYS] days. */
+private fun dateRange(
+	from: LocalDate?,
+	to: LocalDate?,
+): ClosedRange<LocalDate>? {
+	if (from == null && to == null) return null
+	if (from == null) throw InvalidRequestException("from", "is required with to")
+	if (to == null) throw InvalidRequestException("to", "is required with from")
+	if (to.isBefore(from)) throw InvalidRequestException("to", "must not be before from")
+	if (ChronoUnit.DAYS.between(from, to) >= MAX_RANGE_DAYS) {
+		throw InvalidRequestException("to", "must be at most $MAX_RANGE_DAYS days after from")
+	}
+	return from..to
 }
 
 /** The responses of the workflow actions that return the task (uncomplete, move). */

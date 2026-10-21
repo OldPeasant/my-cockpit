@@ -4862,7 +4862,10 @@ paths:
         \ are ordered by position, then id; with `completed=true` the done tasks (Logbook)\
         \ are returned, newest first. `due` is relative to today in the user's time\
         \ zone: OVERDUE before today, TODAY today, WEEK today and the next 6 days.\
-        \ `maxMinutes` only matches tasks with an estimate."
+        \ `maxMinutes` only matches tasks with an estimate. `from` and `to` (both\
+        \ or neither, inclusive, at most 366 days) only match tasks whose due or tickler\
+        \ date is in that range, including tasks still in a tickler (the calendar\
+        \ overlay)."
       operationId: listTasks
       parameters:
       - description: Only tasks on this list
@@ -4936,6 +4939,20 @@ paths:
         schema:
           type: boolean
           default: false
+      - description: Only tasks due or in a tickler on or after this date
+        in: query
+        name: from
+        required: false
+        schema:
+          type: string
+          format: date
+      - description: Only tasks due or in a tickler on or before this date
+        in: query
+        name: to
+        required: false
+        schema:
+          type: string
+          format: date
       - description: Cursor from the previous page
         in: query
         name: cursor
