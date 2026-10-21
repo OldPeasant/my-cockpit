@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <title>My Cockpit</title>
+  <rect width="64" height="64" rx="14" fill="#14243A"/>
+  <g transform="translate(32 32) scale(0.7) translate(-32 -32) translate(0.5 0.5)">
+    <g fill="#EEF2F7">
+      <circle cx="12" cy="12" r="8"/>
+      <circle cx="42" cy="10" r="8"/>
+      <circle cx="10" cy="42" r="8"/>
+    </g>
+    <path d="M12 12 L8.8 8.8 M42 10 L45.9 7.75 M10 42 L10 37.5" fill="none" stroke="#14243A" stroke-width="2.75" stroke-linecap="round"/>
+    <circle cx="42" cy="42" r="19" fill="#E8962E"/>
+    <path d="M25.55 51.5 L58.45 32.5 A19 19 0 0 1 25.55 51.5 Z" fill="#EEF2F7"/>
+  </g>
+</svg>

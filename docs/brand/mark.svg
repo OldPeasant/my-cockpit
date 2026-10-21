@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <title>My Cockpit</title>
+  <style>
+    .ink { fill: #14243A; }
+    .sky { fill: #E8962E; }
+    @media (prefers-color-scheme: dark) { .ink { fill: #EEF2F7; } }
+  </style>
+  <defs>
+    <mask id="needles" maskUnits="userSpaceOnUse" x="0" y="0" width="64" height="64">
+      <rect width="64" height="64" fill="#fff"/>
+      <path d="M12 12 L8.8 8.8 M42 10 L45.9 7.75 M10 42 L10 37.5" fill="none" stroke="#000" stroke-width="2.75" stroke-linecap="round"/>
+    </mask>
+  </defs>
+  <g transform="translate(0.5 0.5)">
+    <g class="ink" mask="url(#needles)">
+      <circle cx="12" cy="12" r="8"/>
+      <circle cx="42" cy="10" r="8"/>
+      <circle cx="10" cy="42" r="8"/>
+    </g>
+    <circle class="sky" cx="42" cy="42" r="19"/>
+    <path class="ink" d="M25.55 51.5 L58.45 32.5 A19 19 0 0 1 25.55 51.5 Z"/>
+  </g>
+</svg>
