@@ -469,6 +469,21 @@ class InboxRepositoryTest {
     }
 
     @Test
+    fun `a next-step answer with an unreadable due date still counts as processed`() {
+        // The next step was set; only its answer could not be read (a LocalDate field this time, not a date-time).
+        val project = UUID.fromString(uuid(50))
+        dispatcher.enqueue("$path/move", taskAnswer())
+        dispatcher.enqueue("$PROJECTS/$project", json(projectJson(50, "Kitchen").replace("\"stalled\":false", "\"stalled\":true")))
+        val badDueDate = projectJson(50, "Kitchen").replace("\"stalled\":false", "\"stalled\":false,\"dueDate\":\"someday\"")
+        dispatcher.enqueue("$PROJECTS/$project/next-step", json(badDueDate))
+
+        assertEquals(ProcessResult.Processed, process(InboxAction.ToProject(ProjectChoice.Existing(project))))
+
+        assertEquals("\"$id\"", call("POST", "$PROJECTS/$project/next-step").json()["taskId"].toString())
+        assertFalse(gtd.connectivity.offline.value)
+    }
+
+    @Test
     fun `a connection lost during the stalled check after the move still counts as processed`() {
         val project = UUID.fromString(uuid(50))
         val projects = mockk<ProjectsApi> { coEvery { getProject(project) } throws IOException("connection reset") }
