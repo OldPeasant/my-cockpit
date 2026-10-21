@@ -15,3 +15,4 @@ Automate SPEC.md §13.2 Phase 3 where an emulator allows.
 - [ ] ARCHITECTURE.md documents how to run them (system image, AVD)
 
 ## Notes
+- ASSUMPTION (2026-10-21 13:53+0200 by dell26/agent-1): No emulator here: KVM is readable but the SDK has no emulator/system image and writes outside the clone (SDK dir) are denied. The flows run as Robolectric tests against the real e2e stack (podman, 127.0.0.1); the instrumented variant (same shared code) compiles (compileDebugAndroidTestKotlin) but was never run.
