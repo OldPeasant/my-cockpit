@@ -15,3 +15,4 @@ Manage contexts and areas (SPEC.md §5.1).
 - [ ] Vitest component/service tests cover reorder and delete flows; `cd web && npm run check` passes
 
 ## Notes
+- ASSUMPTION (2026-10-21 03:26+0200 by dell26/agent-3): Delete options: contexts -> 'remove from tasks' (server default) or 'replace with another context' (client patches each open+done task's contextIds, then deletes); areas -> 'leave projects without area' (server default) or 'move to another area' (client patches each project, any status). No server bulk-reassign endpoint exists, so reassignment is sequential client-side and stops before the delete on the first failure.
