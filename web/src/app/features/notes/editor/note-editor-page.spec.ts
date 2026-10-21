@@ -700,6 +700,270 @@ describe('NoteEditorPage', () => {
     http.expectNone((r) => r.method === 'PATCH');
   });
 
+  function setTitle(value: string): void {
+    const title = root.querySelector('.title') as HTMLInputElement;
+    title.value = value;
+    title.dispatchEvent(new Event('input'));
+  }
+
+  function titleValue(): string {
+    return ((harness.routeNativeElement as HTMLElement).querySelector('.title') as HTMLInputElement)
+      .value;
+  }
+
+  it('sends a title the server trims further only once when opening another note', async () => {
+    await open();
+    vi.useFakeTimers();
+    typeTitleTheServerTrims();
+    void harness.navigateByUrl(`/notes/${OTHER_ID}`);
+    await vi.advanceTimersByTimeAsync(0);
+    http
+      .expectOne((r) => r.url === URL && r.method === 'PATCH')
+      .flush(note({ title: 'Packing', version: 2 }));
+    await vi.advanceTimersByTimeAsync(0);
+    // The body was not changed and the title was adopted: nothing is left to send.
+    http.expectNone((r) => r.url === URL && r.method === 'PATCH');
+    http.expectOne((r) => r.url === `/api/v1/notes/${OTHER_ID}` && r.method === 'GET');
+  });
+
+  it('sends a title the server trims further only once when the page is left', async () => {
+    await open();
+    vi.useFakeTimers();
+    typeTitleTheServerTrims();
+    void harness.navigateByUrl('/elsewhere');
+    await vi.advanceTimersByTimeAsync(0);
+    http
+      .expectOne((r) => r.url === URL && r.method === 'PATCH')
+      .flush(note({ title: 'Packing', version: 2 }));
+    await vi.advanceTimersByTimeAsync(AUTOSAVE_DEBOUNCE_MS * 3);
+    http.expectNone((r) => r.method === 'PATCH');
+  });
+
+  it('shows no title when the server drops the whole title, and does not save it again', async () => {
+    await open();
+    vi.useFakeTimers();
+    // JS trim() keeps U+001F, so the client sends it; the server trims it to nothing.
+    setTitle('\u001F');
+    await vi.advanceTimersByTimeAsync(AUTOSAVE_DEBOUNCE_MS);
+    const save = http.expectOne((r) => r.url === URL && r.method === 'PATCH');
+    expect(save.request.body.title).toBe('\u001F');
+    save.flush(note({ title: undefined, displayTitle: 'Passport', version: 2 }));
+    await vi.advanceTimersByTimeAsync(0);
+    harness.detectChanges();
+    expect(titleValue()).toBe('');
+    expect(state()).toBe('Saved');
+    await vi.advanceTimersByTimeAsync(AUTOSAVE_DEBOUNCE_MS * 3);
+    http.expectNone((r) => r.method === 'PATCH');
+  });
+
+  it('keeps a title retyped during the save instead of the one the server kept, and saves it', async () => {
+    await open();
+    vi.useFakeTimers();
+    typeTitleTheServerTrims();
+    await vi.advanceTimersByTimeAsync(AUTOSAVE_DEBOUNCE_MS);
+    const first = http.expectOne((r) => r.url === URL && r.method === 'PATCH');
+    setTitle('Packing for Lisbon');
+    first.flush(note({ title: 'Packing', version: 2 }));
+    await vi.advanceTimersByTimeAsync(0);
+    harness.detectChanges();
+    expect(titleValue()).toBe('Packing for Lisbon');
+    expect(state()).toBe('Unsaved changes');
+    await vi.advanceTimersByTimeAsync(AUTOSAVE_DEBOUNCE_MS);
+    const second = http.expectOne((r) => r.url === URL && r.method === 'PATCH');
+    expect(second.request.body.title).toBe('Packing for Lisbon');
+    expect(second.request.headers.get('If-Match')).toBe('"2"');
+    second.flush(note({ title: 'Packing for Lisbon', version: 3 }));
+    await vi.advanceTimersByTimeAsync(0);
+    harness.detectChanges();
+    expect(state()).toBe('Saved');
+    await vi.advanceTimersByTimeAsync(AUTOSAVE_DEBOUNCE_MS * 2);
+    http.expectNone((r) => r.method === 'PATCH');
+  });
+
+  it('adopts the title the server kept and saves the body typed during the save with it', async () => {
+    await open();
+    vi.useFakeTimers();
+    typeTitleTheServerTrims();
+    await vi.advanceTimersByTimeAsync(AUTOSAVE_DEBOUNCE_MS);
+    const first = http.expectOne((r) => r.url === URL && r.method === 'PATCH');
+    type('- [ ] Passport');
+    first.flush(note({ title: 'Packing', version: 2 }));
+    await vi.advanceTimersByTimeAsync(0);
+    harness.detectChanges();
+    expect(titleValue()).toBe('Packing');
+    await vi.advanceTimersByTimeAsync(AUTOSAVE_DEBOUNCE_MS);
+    const second = http.expectOne((r) => r.url === URL && r.method === 'PATCH');
+    // The adopted title goes out, not the one with U+001F again.
+    expect(second.request.body).toEqual({ title: 'Packing', bodyMd: '- [ ] Passport' });
+    expect(second.request.headers.get('If-Match')).toBe('"2"');
+  });
+
+  it('on leaving, saves the body typed during a save whose title the server trimmed, then opens the other note', async () => {
+    await open();
+    vi.useFakeTimers();
+    typeTitleTheServerTrims();
+    void harness.navigateByUrl(`/notes/${OTHER_ID}`);
+    await vi.advanceTimersByTimeAsync(0);
+    const first = http.expectOne((r) => r.url === URL && r.method === 'PATCH');
+    type('- [ ] Passport');
+    first.flush(note({ title: 'Packing', version: 2 }));
+    await vi.advanceTimersByTimeAsync(0);
+    http.expectNone((r) => r.url === `/api/v1/notes/${OTHER_ID}`);
+    const second = http.expectOne((r) => r.url === URL && r.method === 'PATCH');
+    expect(second.request.body).toEqual({ title: 'Packing', bodyMd: '- [ ] Passport' });
+    expect(second.request.headers.get('If-Match')).toBe('"2"');
+    second.flush(note({ title: 'Packing', bodyMd: '- [ ] Passport', version: 3 }));
+    await vi.advanceTimersByTimeAsync(0);
+    http.expectNone((r) => r.url === URL && r.method === 'PATCH');
+    http
+      .expectOne((r) => r.url === `/api/v1/notes/${OTHER_ID}` && r.method === 'GET')
+      .flush(note({ id: OTHER_ID, title: 'Recipes', bodyMd: 'Soup', version: 9 }));
+    await vi.advanceTimersByTimeAsync(0);
+    flushLinks();
+    harness.detectChanges();
+    expect(titleValue()).toBe('Recipes');
+    await vi.advanceTimersByTimeAsync(AUTOSAVE_DEBOUNCE_MS * 2);
+    http.expectNone((r) => r.method === 'PATCH');
+  });
+
+  it('when the page is left, saves the body typed during a save whose title the server trimmed', async () => {
+    await open();
+    vi.useFakeTimers();
+    typeTitleTheServerTrims();
+    void harness.navigateByUrl(`/notes/${OTHER_ID}`);
+    await vi.advanceTimersByTimeAsync(0);
+    const first = http.expectOne((r) => r.url === URL && r.method === 'PATCH');
+    type('- [ ] Passport');
+    void harness.navigateByUrl('/elsewhere');
+    await vi.advanceTimersByTimeAsync(0);
+    expect(harness.routeNativeElement?.textContent).toBe('Elsewhere');
+    first.flush(note({ title: 'Packing', version: 2 }));
+    await vi.advanceTimersByTimeAsync(0);
+    const second = http.expectOne((r) => r.url === URL && r.method === 'PATCH');
+    expect(second.request.body).toEqual({ title: 'Packing', bodyMd: '- [ ] Passport' });
+    second.flush(note({ title: 'Packing', bodyMd: '- [ ] Passport', version: 3 }));
+    await vi.advanceTimersByTimeAsync(AUTOSAVE_DEBOUNCE_MS * 3);
+    http.expectNone((r) => r.method === 'PATCH');
+    http.expectNone((r) => r.url === `/api/v1/notes/${OTHER_ID}`);
+  });
+
+  it('stays on the note when the save after adopting the trimmed title fails on leaving', async () => {
+    await open();
+    vi.useFakeTimers();
+    typeTitleTheServerTrims();
+    void harness.navigateByUrl(`/notes/${OTHER_ID}`);
+    await vi.advanceTimersByTimeAsync(0);
+    const first = http.expectOne((r) => r.url === URL && r.method === 'PATCH');
+    type('- [ ] Passport');
+    first.flush(note({ title: 'Packing', version: 2 }));
+    await vi.advanceTimersByTimeAsync(0);
+    http
+      .expectOne((r) => r.url === URL && r.method === 'PATCH')
+      .flush(null, { status: 503, statusText: 'Service Unavailable' });
+    await vi.advanceTimersByTimeAsync(0);
+    await vi.advanceTimersByTimeAsync(0);
+    harness.detectChanges();
+    http.expectNone((r) => r.url === `/api/v1/notes/${OTHER_ID}`);
+    expect(TestBed.inject(Router).url).toBe(`/notes/${ID}`);
+    root = harness.routeNativeElement as HTMLElement;
+    expect(titleValue()).toBe('Packing');
+    expect(editor().value()).toBe('- [ ] Passport');
+    expect(state()).toBe('Not saved');
+    await vi.advanceTimersByTimeAsync(AUTOSAVE_DEBOUNCE_MS * 3);
+    http.expectNone((r) => r.method === 'PATCH');
+  });
+
+  it('opens the other note when the save after adopting the trimmed title hits a conflict on leaving', async () => {
+    await open();
+    vi.useFakeTimers();
+    typeTitleTheServerTrims();
+    void harness.navigateByUrl(`/notes/${OTHER_ID}`);
+    await vi.advanceTimersByTimeAsync(0);
+    const first = http.expectOne((r) => r.url === URL && r.method === 'PATCH');
+    type('- [ ] Passport');
+    first.flush(note({ title: 'Packing', version: 2 }));
+    await vi.advanceTimersByTimeAsync(0);
+    http.expectOne((r) => r.url === URL && r.method === 'PATCH').flush(...CONFLICT);
+    await vi.advanceTimersByTimeAsync(0);
+    http.expectNone((r) => r.method === 'PATCH');
+    http
+      .expectOne((r) => r.url === `/api/v1/notes/${OTHER_ID}` && r.method === 'GET')
+      .flush(note({ id: OTHER_ID, title: 'Recipes', bodyMd: 'Soup', version: 9 }));
+    await vi.advanceTimersByTimeAsync(0);
+    flushLinks();
+    harness.detectChanges();
+    root = harness.routeNativeElement as HTMLElement;
+    expect(titleValue()).toBe('Recipes');
+    expect(state()).toBe('Saved');
+    await vi.advanceTimersByTimeAsync(AUTOSAVE_DEBOUNCE_MS * 2);
+    http.expectNone((r) => r.method === 'PATCH');
+  });
+
+  it('keeps the untrimmed title when its save fails, and adopts the server title on retry', async () => {
+    await open();
+    vi.useFakeTimers();
+    typeTitleTheServerTrims();
+    await vi.advanceTimersByTimeAsync(AUTOSAVE_DEBOUNCE_MS);
+    http
+      .expectOne((r) => r.url === URL && r.method === 'PATCH')
+      .flush(null, { status: 503, statusText: 'Service Unavailable' });
+    await vi.advanceTimersByTimeAsync(0);
+    harness.detectChanges();
+    expect(titleValue()).toBe('\u001FPacking');
+    expect(state()).toBe('Not saved');
+    (root.querySelector('.banner[role=alert] .retry') as HTMLButtonElement).click();
+    await vi.advanceTimersByTimeAsync(0);
+    const retry = http.expectOne((r) => r.url === URL && r.method === 'PATCH');
+    expect(retry.request.body.title).toBe('\u001FPacking');
+    retry.flush(note({ title: 'Packing', version: 2 }));
+    await vi.advanceTimersByTimeAsync(0);
+    harness.detectChanges();
+    expect(titleValue()).toBe('Packing');
+    expect(state()).toBe('Saved');
+    await vi.advanceTimersByTimeAsync(AUTOSAVE_DEBOUNCE_MS * 3);
+    http.expectNone((r) => r.method === 'PATCH');
+  });
+
+  // The body is never adopted from the server: if a server stored it differently, leaving must
+  // still end instead of sending the same draft again and again.
+  it('sends the body only once when the page is left and the server stores the body differently', async () => {
+    await open();
+    vi.useFakeTimers();
+    type('Passport\r\nCharger');
+    void harness.navigateByUrl('/elsewhere');
+    await vi.advanceTimersByTimeAsync(0);
+    expect(harness.routeNativeElement?.textContent).toBe('Elsewhere');
+    const save = http.expectOne((r) => r.url === URL && r.method === 'PATCH');
+    expect(save.request.body.bodyMd).toBe('Passport\r\nCharger');
+    save.flush(note({ bodyMd: 'Passport\nCharger', version: 2 }));
+    await vi.advanceTimersByTimeAsync(AUTOSAVE_DEBOUNCE_MS * 3);
+    http.expectNone((r) => r.method === 'PATCH');
+  });
+
+  it('opens another note after one save when the server stores the body differently', async () => {
+    await open();
+    vi.useFakeTimers();
+    type('Passport\r\nCharger');
+    void harness.navigateByUrl(`/notes/${OTHER_ID}`);
+    await vi.advanceTimersByTimeAsync(0);
+    http
+      .expectOne((r) => r.url === URL && r.method === 'PATCH')
+      .flush(note({ bodyMd: 'Passport\nCharger', version: 2 }));
+    await vi.advanceTimersByTimeAsync(0);
+    http.expectNone((r) => r.url === URL && r.method === 'PATCH');
+    http
+      .expectOne((r) => r.url === `/api/v1/notes/${OTHER_ID}` && r.method === 'GET')
+      .flush(note({ id: OTHER_ID, title: 'Recipes', bodyMd: 'Soup', version: 9 }));
+    await vi.advanceTimersByTimeAsync(0);
+    flushLinks();
+    harness.detectChanges();
+    root = harness.routeNativeElement as HTMLElement;
+    expect(titleValue()).toBe('Recipes');
+    expect(editor().value()).toBe('Soup');
+    await vi.advanceTimersByTimeAsync(AUTOSAVE_DEBOUNCE_MS * 2);
+    http.expectNone((r) => r.method === 'PATCH');
+  });
+
   /** Edits the note, opens the other one and types again while that save on leaving runs. */
   async function typeDuringSaveOnLeaving(): Promise<TestRequest> {
     await open();
