@@ -4,7 +4,7 @@ Date: 2026-10-21
 
 Task: web-today-events - Today view: calendar events
 
-Scope: re-review of the final revision, `git diff 3ed76da7..dab36870 -- web`. Commits: 5c72edf0 (implementation), 6c7efdba (tests), 80efa0cb (fixes for the first review's CR-1, CR-2 and the whole-day span), dab36870 (doc-comment rewrap resolving this review's CR-1). Files: `web/src/app/features/gtd/today/today-events.{ts,html,scss,spec.ts}`, `today-view.{ts,html,scss,spec.ts}`, `today-sections.ts`. Heartbeat/extend commits in the range touch only `tasks/` and are outside the review. A test-writer's uncommitted change to `today-events.spec.ts` in the working tree is not part of this committed revision and was not reviewed.
+Scope: re-review of the final revision, `git diff 3ed76da7..e42e6ed7 -- web`. Commits: 5c72edf0 (implementation), 6c7efdba (tests), 80efa0cb (fixes for the first review's CR-1, CR-2 and the whole-day span), dab36870 (doc-comment rewrap resolving this review's CR-1), e42e6ed7 (test-only: one more component test in `today-events.spec.ts`, plus review and test reports). Files: `web/src/app/features/gtd/today/today-events.{ts,html,scss,spec.ts}`, `today-view.{ts,html,scss,spec.ts}`, `today-sections.ts`. Heartbeat/extend commits in the range touch only `tasks/` and are outside the review.
 
 Requirements:
 - `tasks/web-today-events.md` acceptance criteria and recorded assumption
@@ -15,9 +15,9 @@ Requirements:
 
 Git range:
 - Branch: main
-- HEAD: dab3687050b9ff917319e4ec9f2d86297222a61e
+- HEAD: e42e6ed7c1580728b49d6e1d5c4930478b9af7d7
 - Base/start: 3ed76da7c9f369ff3f2667f10c88807cbf19691e
-- Commits reviewed: 4 (task commits; the remaining commits in the range are heartbeat/extend task-state commits)
+- Commits reviewed: 5 (task commits; the remaining commits in the range are heartbeat/extend task-state commits)
 
 Summary: 0 P0, 0 P1, 0 P2, 0 P3
 
@@ -49,6 +49,24 @@ Second review:
   only re-wraps the JSDoc of `TodaySection`, with the wording unchanged. No line in
   `today-sections.ts` exceeds 100 characters now. Comment-only change; no behavior affected.
 
+## Test-only commit e42e6ed7
+
+The only `web/` change is one new component test, "picks all-day events by the browser's local
+date, also just after and before midnight" (`today-events.spec.ts:319-337`). It fixes the system
+time at 00:30 and 23:30 local time on 2026-10-20. It then checks that only the all-day occurrences
+covering that local date are listed: Birthday (no `endDate`, one day), Holiday and Vacation
+(multi-day). Yesterday's and tomorrow's occurrences are left out, and the result is title-ordered.
+
+- The test asserts rendered behavior, not implementation details.
+- It exercises the real `isOnDate` and `localDate` path through the component, with no extra
+  mocking.
+- It destroys each fixture before the next render.
+- It uses fictitious data.
+
+Reusing the root `CalendarStore` across the two renders in one TestBed does not affect the
+assertion, since the calendars are the same. No production code changed, and no existing test was
+weakened or removed. No issues found.
+
 ## Acceptance criteria
 
 1. Today lists today's events, time-ordered, above tasks: met in code. `<app-today-events>` is
@@ -57,13 +75,12 @@ Second review:
    title. Covered by `today-events.spec.ts` (ordering tests) and `today-view.spec.ts` ("shows today's
    calendar events above the task sections", DOM position against the first task section).
 2. Vitest tests cover the events section: met. They cover the request (range and visible ids),
-   ordering, labels, status, color and name, the hidden-calendar filter, loading, empty and error
-   states with retry for both stores, reloading on a visibility change, out-of-order answers, SSE
-   refresh and resync, and a failed refresh keeping stale data. `npm run check` passing was not
-   re-run in this review session, because shell access was limited to read-only inspection.
-   `fixes.md` reports `npm run check` passing (107 files, 2129 tests) and `.taskcheck` passing after
-   one re-run of a flaky timeout. The parent worker must record this evidence with `tasks.py verify`
-   for the final revision.
+   ordering, labels, status, color and name, the hidden-calendar filter, local-date selection of
+   all-day events, loading, empty and error states with retry for both stores, reloading on a
+   visibility change, out-of-order answers, SSE refresh and resync, and a failed refresh keeping
+   stale data. `npm run check` passing was not re-run in this review session, because shell access
+   was limited to read-only inspection. The parent worker must record the `npm run check` result for
+   this final revision with `tasks.py verify`.
 
 ## Also checked and found fine
 
@@ -100,5 +117,5 @@ None.
 ## Review conclusion
 
 No material issues found. All findings from both reviews are resolved in revision
-dab3687050b9ff917319e4ec9f2d86297222a61e. The parent worker still has to record the
-acceptance-criteria evidence (`npm run check` result) before `done`.
+e42e6ed7c1580728b49d6e1d5c4930478b9af7d7. The parent worker still has to record the
+acceptance-criteria evidence (`npm run check` result on this revision) before `done`.
