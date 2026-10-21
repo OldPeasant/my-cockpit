@@ -1,11 +1,11 @@
 ---
 title: Inbox/task detail: to calendar
-status: in_progress
+status: done
 owner: dell26/agent-1
 deps: [web-gtd-convert-note,gtd-convert-event,web-cal-views]
 touches: [web/src/app/features/gtd/inbox,web/src/app/features/gtd/task-detail]
 prio: 2
-lease_until: 2026-10-21T19:07:51Z
+lease_until: 
 ---
 ## Goal
 Enable 'To calendar' in processing and task detail.
@@ -20,3 +20,4 @@ Enable 'To calendar' in processing and task detail.
 - ASSUMPTION (2026-10-21 20:25+0200 by dell26/agent-1): To calendar dialog (gtd/task-detail/to-calendar-dialog.ts) asks only calendar (writable, default first) and times (timed in the settings' zone, or all-day); no zone/repeat/reminders - the task becomes a plain event, the calendar dialog edits the rest. Defaults: next full hour, 1 hour.
 - ASSUMPTION (2026-10-21 20:25+0200 by dell26/agent-1): After converting, task detail opens /calendar?date=<event start day>; the inbox shows 'Moved to the calendar as the event ...' with an 'Open calendar' link like 'To reference' does. Inline inbox attribute changes are not saved (an event has no GTD attributes).
 - ASSUMPTION (2026-10-21 20:25+0200 by dell26/agent-1): Touched gtd/data/task-store.ts (convertToEvent, outside touches) like web-gtd-convert-note did for convertToNote; reused calendar/edit/event-times and CalendarStore instead of duplicating them. No frontend-design pass: the dialog reuses the existing event dialog's Material look.
+- done by dell26/agent-1: `sh scripts/check.sh` passed in 82s on 3c5484f31; criteria verified 2/2
