@@ -1,10 +1,11 @@
 ---
 title: Contacts API
-status: todo
-owner:
+status: in_progress
+owner: dell26/agent-2
 deps: [p0-items-links,p0-search-core,p0-trash-core,files-api]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/contacts,server/src/test/kotlin/ch/sonensei/cockpit/contacts,server/src/main/resources/db/migration/contacts]
 prio: 2
+lease_until: 2026-10-21T02:03:44Z
 ---
 ## Goal
 Contacts (SPEC.md §8.3).
