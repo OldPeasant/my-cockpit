@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "task": "cal-sync-engine",
-  "reviewed_revision": "b70efd142914c80b0b3ac3760fca1409389b68fc",
+  "reviewed_revision": "3de7e37da920fabaf3e9990d09152b04e71127af",
   "helpers": {
     "test-writer": {"status": "completed", "report": "reviews/cal-sync-engine/tests.md"},
     "code-reviewer": {"status": "completed", "report": "reviews/cal-sync-engine/review.md"},
