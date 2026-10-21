@@ -72,6 +72,41 @@ class ShareIntentParserTest {
     }
 
     @Test
+    fun `a subject alone becomes a single-line title`() {
+        assertEquals(
+            SharedContent("Meeting notes Q4", null, emptyList()),
+            ShareIntentParser.parse(send("text/plain") { putExtra(Intent.EXTRA_SUBJECT, " Meeting notes\n Q4 ") }),
+        )
+    }
+
+    @Test
+    fun `a blank subject is ignored`() {
+        assertEquals(
+            SharedContent("Buy milk", "2 liters", emptyList()),
+            ShareIntentParser.parse(
+                send("text/plain") {
+                    putExtra(Intent.EXTRA_SUBJECT, "   ")
+                    putExtra(Intent.EXTRA_TEXT, "Buy milk\n2 liters")
+                },
+            ),
+        )
+        assertNull(ShareIntentParser.parse(send("text/plain") { putExtra(Intent.EXTRA_SUBJECT, " ") }))
+    }
+
+    @Test
+    fun `an image with a subject is titled with the subject`() {
+        val content =
+            ShareIntentParser.parse(
+                send("image/png") {
+                    putExtra(Intent.EXTRA_SUBJECT, "Whiteboard")
+                    putExtra(Intent.EXTRA_STREAM, image(4))
+                },
+            )
+
+        assertEquals(SharedContent("Whiteboard", null, listOf(image(4))), content)
+    }
+
+    @Test
     fun `a single image is attached`() {
         val content = ShareIntentParser.parse(send("image/jpeg") { putExtra(Intent.EXTRA_STREAM, image(1)) })
 

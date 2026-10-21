@@ -3,15 +3,20 @@ package ch.sonensei.cockpit.capture.share
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertTextEquals
+import androidx.compose.ui.test.click
 import androidx.compose.ui.test.junit4.v2.createEmptyComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextClearance
 import androidx.compose.ui.test.performTextReplacement
+import androidx.compose.ui.test.performTouchInput
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.ViewModelProvider
 import androidx.test.core.app.ActivityScenario
@@ -195,6 +200,70 @@ class ShareActivityTest {
         assertEquals(ShareError.UNREADABLE_FILE, stateOf(scenario).error)
         composeRule.onNodeWithTag(ShareTags.ERROR).assertExists()
         assertFalse(scenario.closing())
+        assertTrue(queued().isEmpty())
+    }
+
+    @Test
+    fun `a single file of any type is copied with its caption`() {
+        val pdf = TestFilesProvider.share("contract.pdf", "terms")
+        val scenario =
+            launch(
+                Intent(Intent.ACTION_SEND)
+                    .setType("application/pdf")
+                    .putExtra(Intent.EXTRA_STREAM, pdf)
+                    .putExtra(Intent.EXTRA_TEXT, "Sign contract")
+                    .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION),
+            )
+
+        composeRule.waitUntil(5_000) { composeRule.onAllNodesWithTag(ShareTags.FILE).fetchSemanticsNodes().size == 1 }
+        composeRule.onNodeWithTag(ShareTags.SAVE).performClick()
+        awaitClosed(scenario)
+
+        TestFilesProvider.dir.deleteRecursively()
+        val pending = queued().single()
+        assertEquals("Sign contract", pending.capture.text)
+        val attachment = pending.attachments.single()
+        assertEquals("contract.pdf", attachment.name)
+        assertEquals("terms", File(attachment.localPath).readText())
+    }
+
+    @Test
+    fun `too many files keep the sheet open with an error and queue nothing`() {
+        val files = (1..51).map { TestFilesProvider.share("photo-$it.jpg", "p$it") }
+        val scenario =
+            launch(
+                Intent(Intent.ACTION_SEND_MULTIPLE)
+                    .setType("image/*")
+                    .putParcelableArrayListExtra(Intent.EXTRA_STREAM, ArrayList<Uri>(files)),
+            )
+
+        composeRule.waitUntil(5_000) { !stateOf(scenario).loadingFiles }
+        composeRule.onNodeWithTag(ShareTags.SAVE).performScrollTo().performClick()
+
+        composeRule.onNodeWithTag(ShareTags.ERROR).performScrollTo().assertTextEquals("Too many files. Share at most 50 at once.")
+        assertFalse(scenario.closing())
+        assertTrue(queued().isEmpty())
+    }
+
+    @Test
+    fun `a tap outside the sheet closes it without queueing`() {
+        val scenario = launch(Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, "Not now"))
+
+        composeRule.onNodeWithTag(ShareTags.TEXT).assertExists()
+        composeRule.onRoot().performTouchInput { click(Offset(10f, 10f)) }
+        awaitClosed(scenario)
+
+        assertTrue(queued().isEmpty())
+    }
+
+    @Test
+    fun `edits survive a configuration change`() {
+        val scenario = launch(Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, "Draft"))
+        composeRule.onNodeWithTag(ShareTags.TEXT).performTextReplacement("Draft, edited")
+
+        scenario.recreate()
+
+        composeRule.onNodeWithTag(ShareTags.TEXT).assertTextEquals("Draft, edited")
         assertTrue(queued().isEmpty())
     }
 
