@@ -1,11 +1,11 @@
 ---
 title: Android calendar agenda and day/week
-status: in_progress
+status: done
 owner: dell26/agent-1
 deps: [and-login,cal-local-api]
 touches: [android/app/src/main/java/ch/sonensei/cockpit/calendar/agenda,android/app/src/test/java/ch/sonensei/cockpit/calendar/agenda]
 prio: 2
-lease_until: 2026-10-21T15:41:00Z
+lease_until: 
 releases: 1
 extended: 
 ---
@@ -21,3 +21,4 @@ Calendar on the phone (SPEC.md §9.2 item 4).
 ## Notes
 - ASSUMPTION (2026-10-21 15:35+0200 by dell26/agent-1): Agenda offline Room cache (SPEC 9.3) is not in this task's acceptance criteria; deferred to new task and-cal-cache. Offline, the agenda shows the offline banner with what is already loaded in memory.
 - release by dell26/agent-1: Implementation complete (agenda infinite scroll by range, day/week views, calendar visibility with pending-write handling); first code review + fixer done (reviews/and-cal-agenda/review.md, fixes.md; CR-2 offline cache deferred to and-cal-cache). ktlintCheck + testDebugUnitTest --tests 'ch.sonensei.cockpit.calendar.agenda.*' pass at 9b979438. Left: run test-writer (no tests.md yet, needs coverage numbers) and code-reviewer again on final code (9b979438), fix anything valid, tasks.py verify #1 and #2, write quality.json, run .taskcheck, done.
+- done by dell26/agent-1: `sh scripts/check.sh` passed in 44s on a463ebeb9; criteria verified 2/2
