@@ -1,0 +1,28 @@
+{
+  "schema": 1,
+  "task": "mail-actions-api",
+  "reviewed_revision": "daca89e3bd2e10f02f8c901aa3033693a059c167",
+  "helpers": {
+    "test-writer": {"status": "completed", "report": "reviews/mail-actions-api/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/mail-actions-api/review.md"},
+    "fixer": {"status": "completed", "report": "reviews/mail-actions-api/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "first-review CR-1", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "cache-update failure aborted the bulk request; per-group transactions with one retry (fixes.md)"},
+    {"id": "first-review CR-2", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "fallback and edge paths untested; tests added, FolderNotFoundException now REJECTED (fixes.md)"},
+    {"id": "first-review CR-3", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "COPY fallback cleanup failure after copy now keeps COPYUID result (fixes.md)"},
+    {"id": "first-review CR-4", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "OpenAPI nullability/required fields corrected, client regenerated (fixes.md)"},
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P3", "disposition": "accepted",
+     "note": "OpenAPI ids has minItems 0 while the server returns 400 for an empty list (documented in the 400 response); non-blocking, recorded as assumption, fix with @Size(min = 1) when the API is next touched"}
+  ],
+  "validation": [
+    {"command": "cd server && ./gradlew test --tests '*MailAction*' integrationTest --tests '*MailActionGreenMailTests'", "result": "pass"},
+    {"command": "cd server && ./gradlew test --tests '*OpenApiContractTest'", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
