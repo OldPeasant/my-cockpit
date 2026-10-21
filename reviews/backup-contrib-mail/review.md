@@ -1,24 +1,24 @@
 # Code Review
 
-Date: 2026-10-21
+Date: 2026-10-22
 
 Task: backup-contrib-mail - Backup contributor: mail accounts
 
-Scope: implementation commit b405ee14ddec5d3467df63dfc76f8c3bb6a82391 on base 3380f4bd2d7a247317bae24cd0564c0345591d7d (`git diff 3380f4bd..b405ee14`). The server code is identical to HEAD 830c1222 (`git diff b405ee14 830c1222 -- server` is empty). Files: `server/src/main/kotlin/ch/sonensei/cockpit/mail/backup/MailBackupContributor.kt`, `server/src/test/kotlin/ch/sonensei/cockpit/mail/backup/MailBackupFixture.kt`. The test-writer's tests, written at the same time, were not part of this scope.
+Scope: the whole task diff `git diff ccf3147398c6260f18f2a25efcd388e1b35f91a5..9199bd87` on `main`. Task commits: 87170b6f (implementation: `server/src/main/kotlin/ch/sonensei/cockpit/mail/backup/MailBackupContributor.kt`, `server/src/test/kotlin/ch/sonensei/cockpit/mail/backup/MailBackupFixture.kt`), e82aea62 and 9199bd87 (`MailBackupContributorTests.kt`, `reviews/backup-contrib-mail/tests.md`), a231741f (restore warning for linked mails older than the sync window, follow-up task `tasks/mail-restore-retake-linked.md`). This review replaces the earlier one and also checks how its findings CR-1 and CR-2 were resolved.
 
 Requirements:
-- tasks/backup-contrib-mail.md (acceptance criteria 1-2, recorded assumptions #1-#3)
-- SPEC.md §10.2 (zip format, secrets, links survive), §7.1
+- tasks/backup-contrib-mail.md (acceptance criteria 1-2, recorded assumptions #1-#4)
+- SPEC.md §10.2 (backup format, secrets, links survive), §7.1
 - docs/ARCHITECTURE.md, docs/QUALITY.md, AGENTS.md project notes
-- Compared with core/backupcontrib/OAuthBackupContributor.kt, calendar/backup/CalendarBackupContributor.kt, core/backupcontrib/LinksBackupContributor.kt, mail/sync/MailHeaderStore.kt, mail/sync/MailHeaderSyncService.kt, mail/imap/MailFolderService.kt, mail/model/MailMessageLocator.kt, backup/BackupRoundTripTest.kt
+- Context code: backup/domain/BackupContributor.kt (reader and writer API), mail/sync/MailHeaderStore.kt (`isLinked`, `pruneDetached`, `linkedDetachedMessageIds`, `reattachable`), mail/sync/MailHeaderSyncService.kt (`full`, `retakeLinked`), backup/BackupRoundTripTest.kt (fixture discovery)
 
 Git range:
 - Branch: main
-- HEAD: 830c1222523d09077e26f969d76f1782999e889a
-- Base/start: 3380f4bd2d7a247317bae24cd0564c0345591d7d
-- Commits reviewed: 1 (b405ee14, rebased as 830c1222; the other commits in the range are only task-state/assumption commits)
+- HEAD: 9199bd87
+- Base/start: ccf3147398c6260f18f2a25efcd388e1b35f91a5
+- Commits reviewed: 4 (87170b6f, e82aea62, a231741f, 9199bd87). The working tree was clean.
 
-Summary: 0 P0, 0 P1, 2 P2, 0 P3
+Summary: 0 P0, 0 P1, 0 P2, 1 P3
 
 ## P0 Critical
 
@@ -30,32 +30,52 @@ None.
 
 ## P2 Medium
 
-- [ ] **CR-1 | Linked mails older than the sync window stay unresolvable after a restore**
-    - File: `server/src/main/kotlin/ch/sonensei/cockpit/mail/backup/MailBackupContributor.kt:77` (folders restored with `uidvalidity` null), interacting with `server/src/main/kotlin/ch/sonensei/cockpit/mail/sync/MailHeaderSyncService.kt:160-178`
-    - Category: Correctness
-    - Problem: Restored folders have `uidvalidity = null`, so the first sync takes the "first sync" path of `full()` (`resync = false`). That path only fetches the sync window and never calls `retakeLinked`. A restored ref (detached, `uid` null) whose message arrived before the window (default 12 months, 6 in the fixture's IMAP account) is never matched by Message-ID. `MailMessageLocator.current` then returns null, so the link or reminder shows nothing until the owner scrolls back far enough for `loadOlder` to load it. Assumption #2 records this, but SPEC.md §10.2 says the refs exist "to keep links to emails", and linked mails are often older than the window (e.g. an invoice linked to a task).
-    - Why it matters: For older linked mails, a backup round trip on a real install silently breaks links that SPEC.md §10.2 says must survive. The round-trip test cannot catch this because it compares exports, not resolution against an IMAP server.
-    - Suggested fix: Make the first sync after a restore look up linked detached rows by Message-ID. One option that stays inside this task's files is to restore folders with a sentinel UIDVALIDITY that no server reports (IMAP UIDVALIDITY is a non-zero 32-bit value, so `0` works). The first sync then takes the resync path: `detachFolder` (a no-op), the window pass, `retakeLinked`, `pruneDetached`. Check first that `pruneDetached` does not drop refs that only a reminder points to (`MailHeaderStore.isLinked` only looks at links). The cleaner option is to run `retakeLinked` in `full()` on the first sync as well, which would need a small follow-up task in `mail/sync`. If the current behavior is kept on purpose, flag it for humans as a deviation from §10.2 (the assumption already exists) and add a restore warning saying that links to mails older than the sync window come back only when those mails are loaded.
-
-- [ ] **CR-2 | Criterion 1 has no automated check in the reviewed commit (passwords secret, linked only, no content)**
-    - File: `server/src/test/kotlin/ch/sonensei/cockpit/mail/backup/MailBackupFixture.kt:1` (the only test file); `server/src/test/kotlin/ch/sonensei/cockpit/backup/BackupRoundTripTest.kt:102-103` (exports without a passphrase)
-    - Category: Tests
-    - Problem: `BackupRoundTripTest` exports without a passphrase, so `writer.includesSecrets` is false. The export of the `mail_passwords` secret (`MailBackupContributor.kt:58`) and the import that encrypts it back into `mail_account.password` never run. The round trip only compares export before and after. It would still pass if the export left out the link/reminder filter in `messageRefs()` (the extra row is simply not restored), and it never checks that no subject, addresses or body reach the backup. `restoreWarnings` and the "restored without password" case are not covered either. Unlike calendar (`CalendarBackupContributorTests.kt`) and core (`CoreBackupContributorsTests.kt`), the reviewed commit has no contributor test.
-    - Why it matters: Criterion 1 (secrets only through the secrets mechanism, refs for linked mails only, no message content) has no repeatable evidence. A regression that leaks a password into `mail_accounts.json`, or that exports unlinked messages, would go unnoticed.
-    - Suggested fix: Add `MailBackupContributorTests`, following `CalendarBackupContributorTests`. Cover: with a passphrase the password is only in the secrets and comes back decryptable after import; without a passphrase the IMAP password is null and the warnings name the IMAP account; `mail_accounts.json` has no password or sync-state fields; `mail_message_refs.jsonl` holds only the linked and reminded messages, with no subject or address fields; a restored ref is detached (`uid` null). The test-writer is reportedly adding these. Check them before recording evidence for criterion 1.
+None.
 
 ## P3 Low
 
-None.
+- [ ] **CR-1 | Import log line ignores singular and plural**
+    - File: `server/src/main/kotlin/ch/sonensei/cockpit/mail/backup/MailBackupContributor.kt:92`
+    - Category: Quality
+    - Problem: The import logs "Restored {} IMAP mail accounts without their password", which reads "Restored 1 IMAP mail accounts" in the common one-account case. The `count()` helper in the same class already handles singular and plural for the restore warnings.
+    - Why it matters: A small inconsistency in an operator-facing message. It has no functional impact.
+    - Suggested fix: Optional. Build the message with `count(withoutPassword, "IMAP mail account")`, and update the assertion in `MailBackupContributorTests.kt:355`.
 
-Checked without findings:
-- Ids, `created_at`, `updated_at` and `version` are kept through JDBC, the same way as the other contributors. The CHECK constraints (`mail_account_credentials`, ports, roles) and the unique indexes (folder path and role, default identity) are satisfied by data exported from a valid database.
-- Accounts are inserted before identities, folders and refs, so the foreign keys hold. `dependsOn` the OAuth contributor matches calendar. The `oauth_connection_id` has no foreign key, as the schema intends.
-- Password handling: the password is decrypted only when `includesSecrets` is true, written only through `writer.secret`, and re-encrypted with `SecretCipher` (the same format as `EncryptedSecretConverter`). Without it, `MailSessions` reports AUTHENTICATION_FAILED. Logs and warnings contain only counts.
-- Restored folders keep their path, role and `role_overridden`. `MailFolderService.sync` matches them by path and keeps the overrides. Folders that are gone from the server are deleted, and refs fall back to `folder_id` null through the foreign key's `on delete set null`. `MailHeaderStore.upsert` reattaches detached refs by Message-ID within the window, preferring the same folder.
-- Detached refs are hidden from lists (`uid is not null`) and resolve through `MailMessageLocator`, as the KDoc says.
-- Reading the core `link` and `reminder` tables with SQL inside the export snapshot follows the precedent in `NotesBackupContributor`, and assumption #2 records it.
+## Resolution of the earlier findings
+
+- Earlier CR-1 (linked mails older than the sync window are not reattached after a restore): accepted as resolved for this task's scope. The fix has three parts:
+  - The restore warning at `MailBackupContributor.kt:109-111`, shown only when `mail_message_refs` exists.
+  - Assumption #4, which humans can review.
+  - The follow-up task `tasks/mail-restore-retake-linked.md`. It depends on `backup-contrib-mail` and on `mail-sync-perf` (which exists and is still todo). Its criteria cover `retakeLinked` on the first sync, `isLinked` counting reminders, and removing the warning again.
+
+  The reason for not using a sentinel UIDVALIDITY holds up in the code. `MailHeaderStore.isLinked` (line 152) checks only `links.linksOf(...)`, so on the resync path `pruneDetached` (lines 117-122) would delete refs that only a reminder points to, such as the fixture's reminded Google message. Rejecting the sentinel avoids that data loss.
+- Earlier CR-2 (no contributor tests for criterion 1): resolved. `MailBackupContributorTests.kt` covers:
+  - the password only in the encrypted secrets with a passphrase, and nowhere without one, including no ciphertext;
+  - no password or sync-state fields in `mail_accounts.json`;
+  - refs only for messages that a link (either end) or a reminder points to, and not for links or reminders of other item types that use the same UUID;
+  - an exact set of ref fields and no content strings anywhere in `data/`;
+  - restored refs that are detached and have no content;
+  - the password encrypted again on import, and null when the passphrase is missing;
+  - every restore-warning variant;
+  - reattachment by Message-ID through `MailHeaderStore.upsert`.
+
+  The sha256 hashes in `tests.md` for `MailBackupContributor.kt`, `MailBackupContributorTests.kt` and `MailBackupFixture.kt` match the files at HEAD. The commit hashes it cites (3ec522fd, 24a2beb3) are from before the rebase, but the content is identical.
+
+## Checked without findings
+
+- Criterion 1:
+  - `mail_accounts.json` nests identities (ordered by position) and folders (path, role, override, selectable), as assumption #1 records.
+  - Passwords are decrypted only when `writer.includesSecrets` is true. They are written only through `writer.secret(PASSWORDS, ...)`, never to the data files, logs or warnings.
+  - The ref query uses EXISTS on both ends of `link` and on `reminder` with `item_type = EMAIL`. It writes no ref file when nothing matches.
+  - Refs carry only id, times, version, account, folder and Message-ID.
+- Criterion 2: `MailBackupFixture` seeds an IMAP account (with a password, identities, an overridden folder and sync state) and a Google OAuth account. It links to a mail from a task, links from a detached mail, and adds a reminder on a mail. `BackupRoundTripTest` finds it by classpath scanning, and the contributor id matches. The test-writer reports that `BackupRoundTripTest` passes.
+- Import order and constraints: the account is inserted before its identities and folders, and refs are inserted after all accounts, so the foreign keys hold. `dependsOn` the OAuth contributor matches the calendar contributor. Ids, times and versions are kept through JDBC, the same way as the other contributors.
+- Restored folders have null sync state, so the first sync is a full window sync. `reattachable` prefers the same folder and then any folder of the account, and a test covers this.
+- Architecture: the contributor stays inside `mail/backup`. Reading the core `link`/`reminder` tables with SQL inside the export follows an existing precedent and is recorded in assumption #2. No build files, migrations, API or shared docs changed.
+- Security: the fixture and test data are fictitious. No secrets are in the diff. Logs contain only counts.
+
+Note for the parent worker: `python tasks.py verify backup-contrib-mail` shows both criteria as not yet verified. Record the evidence (for criterion 2, the exact `./gradlew test --tests '*BackupRoundTripTest'` run) before `done`.
 
 ## Review conclusion
 
-Material issues found; fix before completing the task. CR-2 must be resolved (contributor tests for criterion 1) before criterion 1 can be verified. CR-1 needs a fix, or an explicit human-visible decision on the recorded assumption #2, plus a restore warning.
+No material issues found.
