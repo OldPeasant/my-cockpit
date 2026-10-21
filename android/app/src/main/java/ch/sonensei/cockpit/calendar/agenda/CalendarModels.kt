@@ -46,7 +46,7 @@ data class Occurrence(
     /** The first and the last day (inclusive) it touches in [zone]. */
     fun days(zone: ZoneId): ClosedRange<LocalDate> {
         if (allDay || start == null) {
-            val first = startDate ?: start?.atZone(zone)?.toLocalDate() ?: LocalDate.EPOCH
+            val first = startDate ?: start?.atZone(zone)?.toLocalDate() ?: NO_DATE
             val last = endDate?.minusDays(1)?.takeIf { it >= first } ?: first
             return first..last
         }
@@ -78,6 +78,9 @@ data class DayEntry(
 }
 
 const val MINUTES_PER_DAY = 24 * 60
+
+/** Stands for a date not known yet (`LocalDate.EPOCH` needs API 34). */
+val NO_DATE: LocalDate = LocalDate.of(1970, 1, 1)
 
 /** The entries of [occurrence] on [date] in [zone], or `null` when it does not touch that day. */
 fun entryOn(

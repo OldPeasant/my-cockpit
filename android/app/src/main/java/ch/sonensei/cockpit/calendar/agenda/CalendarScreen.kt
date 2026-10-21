@@ -59,6 +59,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
@@ -347,7 +348,7 @@ private fun Agenda(
             .filter { it }
             .collect { loadMore() }
     }
-    val locale = Locale.getDefault()
+    val locale = currentLocale()
     LazyColumn(Modifier.fillMaxSize().testTag(CalendarTags.AGENDA), state = listState, contentPadding = PaddingValues(bottom = 24.dp)) {
         items(items, key = { it.key }) { item ->
             when (item) {
@@ -452,15 +453,21 @@ private fun timeLabel(
     val occurrence = entry.occurrence
     if (entry.allDay || occurrence.start == null) return stringResource(R.string.calendar_all_day)
     val continues = stringResource(R.string.calendar_continues)
-    val start = if (entry.continuesBefore) "…" else formatTime(occurrence.start, zone)
-    val end = if (entry.continuesAfter) continues else occurrence.end?.let { formatTime(it, zone) }
+    val locale = currentLocale()
+    val start = if (entry.continuesBefore) "…" else formatTime(occurrence.start, zone, locale)
+    val end = if (entry.continuesAfter) continues else occurrence.end?.let { formatTime(it, zone, locale) }
     return if (end == null) start else "$start – $end"
 }
 
 private fun formatTime(
     instant: Instant,
     zone: ZoneId,
-): String = DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT).withLocale(Locale.getDefault()).format(instant.atZone(zone))
+    locale: Locale,
+): String = DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT).withLocale(locale).format(instant.atZone(zone))
+
+/** The locale of the configuration, so the dates follow a change of the system language. */
+@Composable
+private fun currentLocale(): Locale = LocalConfiguration.current.locales[0]
 
 @Composable
 private fun AgendaFooter(
@@ -496,7 +503,7 @@ private fun RangeHeader(
     state: CalendarUiState,
     callbacks: CalendarCallbacks,
 ) {
-    val locale = Locale.getDefault()
+    val locale = currentLocale()
     val week = state.view == CalendarView.WEEK
     val title =
         if (week) {
@@ -546,7 +553,7 @@ private fun TimeGrid(
     val entriesByDay =
         remember(state.occurrences, days, state.zone) { days.associateWith { entriesOn(state.occurrences, it, state.zone) } }
     val week = state.view == CalendarView.WEEK
-    val locale = Locale.getDefault()
+    val locale = currentLocale()
     Column(Modifier.fillMaxSize().testTag(CalendarTags.TIME_GRID)) {
         if (week) {
             Row(Modifier.fillMaxWidth().padding(start = GUTTER)) {

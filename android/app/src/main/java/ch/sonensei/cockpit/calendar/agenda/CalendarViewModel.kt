@@ -27,15 +27,15 @@ enum class CalendarMessage { OFFLINE, FAILED, VISIBILITY_FAILED }
 
 data class CalendarUiState(
     val view: CalendarView = CalendarView.AGENDA,
-    val today: LocalDate = LocalDate.EPOCH,
+    val today: LocalDate = NO_DATE,
     /** The day shown by the day view, and a day of the week shown by the week view. */
-    val anchor: LocalDate = LocalDate.EPOCH,
+    val anchor: LocalDate = NO_DATE,
     val firstDayOfWeek: DayOfWeek = DayOfWeek.MONDAY,
     val zone: ZoneId = ZoneId.systemDefault(),
     val calendars: List<CalendarInfo> = emptyList(),
     /** The loaded days [from, to) and their occurrences. */
-    val from: LocalDate = LocalDate.EPOCH,
-    val to: LocalDate = LocalDate.EPOCH,
+    val from: LocalDate = NO_DATE,
+    val to: LocalDate = NO_DATE,
     val occurrences: List<Occurrence> = emptyList(),
     /** A load of the whole range is running. */
     val loading: Boolean = false,
