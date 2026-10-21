@@ -5,7 +5,7 @@ owner: dell26/agent-3
 deps: [and-share-target,and-capture-entrypoints,and-inbox,and-next-today,and-projects-lists,and-reminders,and-notes,p2-smoke]
 touches: [android/app/src/androidTest,android/app/build.gradle.kts]
 prio: 1
-lease_until: 2026-10-21T13:49:31Z
+lease_until: 2026-10-21T13:54:33Z
 releases: 1
 extended: 
 ---
