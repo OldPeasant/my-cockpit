@@ -23,7 +23,8 @@ Provider-independent two-way sync framework (SPEC.md §6.2).
   - verified (2026-10-21 02:25+0200 by dell26/agent-6): FakeCalendarAdapter tests in CalendarSync{,EdgeCase,Override}Tests: 'a later sync fetches only the changes since the cursor and merges changes, additions and deletions', deletion/override tests, 409 conflict tests -> all passed (91/91)
 - [x] `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.calendar.sync.*'` passes (Postgres via Testcontainers where persistence is involved)
   - verified (2026-10-21 02:25+0200 by dell26/agent-6): cd server && ./gradlew test --tests 'ch.sonensei.cockpit.calendar.sync.*' with Postgres via Testcontainers at HEAD b70efd14 -> 91 tests, 0 failures
-- [ ] API documented: `api/openapi.yaml` regenerated (`UPDATE_OPENAPI=1 ./gradlew test --tests '*OpenApiContractTest'`) and `OpenApiContractTest` passes without the flag
+- [x] API documented: `api/openapi.yaml` regenerated (`UPDATE_OPENAPI=1 ./gradlew test --tests '*OpenApiContractTest'`) and `OpenApiContractTest` passes without the flag
+  - verified (2026-10-21 02:25+0200 by dell26/agent-6): api/openapi.yaml regenerated with UPDATE_OPENAPI=1 in commit 8f77a4df (web client via npm run api:gen); cd server && ./gradlew test --tests '*OpenApiContractTest' without the flag at HEAD b70efd14 -> 1 test, 0 failures
 
 ## Notes
 - ASSUMPTION (2026-10-21 00:42+0200 by dell26/agent-2): Sync status (last attempt/success/error) and per-calendar cursors live in new tables calendar_source_sync and calendar_sync_cursor (migration in db/migration/calendar, outside the task's touches), so a sync never bumps the ETag of sources/calendars.
