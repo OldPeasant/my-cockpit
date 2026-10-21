@@ -127,6 +127,57 @@ describe('Shell', () => {
     expect(root.querySelector('button.menu')).not.toBeNull();
   });
 
+  it('shows the decorative brand mark before the text of the brand link', async () => {
+    await setup(false);
+    const brand = root.querySelector<HTMLAnchorElement>('a.brand')!;
+    expect(Array.from(brand.children).map((el) => el.tagName.toLowerCase())).toEqual([
+      'app-logo',
+      'span',
+    ]);
+    const logo = brand.querySelector<HTMLElement>('app-logo')!;
+    expect(logo.getAttribute('aria-hidden')).toBe('true');
+    expect(logo.style.getPropertyValue('--logo-size')).toBe('28px');
+    // The accessible name still comes from the text alone: no label, no text inside the mark.
+    expect(brand.textContent?.trim()).toBe('My Cockpit');
+    expect(brand.hasAttribute('aria-label')).toBe(false);
+    expect(brand.getAttribute('href')).toBe('/');
+  });
+
+  it('shows the brand mark in the top bar only in the compact layout', async () => {
+    await setup(false);
+    expect(root.querySelector('header.topbar app-logo')).toBeNull();
+
+    breakpoint.next({ matches: true, breakpoints: {} });
+    await fixture.whenStable();
+    const topbarLogo = root.querySelector<HTMLElement>('header.topbar app-logo.topbar-logo')!;
+    expect(topbarLogo).not.toBeNull();
+    expect(topbarLogo.getAttribute('aria-hidden')).toBe('true');
+    expect(topbarLogo.style.getPropertyValue('--logo-size')).toBe('28px');
+    expect(topbarLogo.previousElementSibling?.classList).toContain('menu');
+    // The drawer keeps its brand link with the mark, too.
+    expect(root.querySelector('a.brand app-logo')).not.toBeNull();
+
+    // Widening again removes the extra top-bar mark; the brand link keeps its own.
+    breakpoint.next({ matches: false, breakpoints: {} });
+    await fixture.whenStable();
+    expect(root.querySelector('header.topbar app-logo')).toBeNull();
+    expect(root.querySelectorAll('app-logo')).toHaveLength(1);
+  });
+
+  it('closes the drawer when the brand link (or its mark) is clicked in the compact layout', async () => {
+    await setup(true);
+    const sidenav: MatSidenav = fixture.debugElement.query(
+      By.directive(MatSidenav),
+    ).componentInstance;
+    root.querySelector<HTMLButtonElement>('button.menu')!.click();
+    await fixture.whenStable();
+    expect(sidenav.opened).toBe(true);
+
+    root.querySelector<HTMLElement>('a.brand app-logo')!.click();
+    await fixture.whenStable();
+    expect(sidenav.opened).toBe(false);
+  });
+
   it('opens capture with Q, Ctrl+Shift+Space and the + button', async () => {
     await setup();
     const q = keydown({ key: 'q' });

@@ -3,14 +3,17 @@ package ch.sonensei.cockpit.auth
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assert
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.junit4.v2.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -20,6 +23,7 @@ import androidx.compose.ui.test.performTextInput
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -210,6 +214,21 @@ class LoginScreenTest {
         composeRule.onNodeWithTag(LoginTags.SERVER_URL).assertIsNotEnabled()
         composeRule.onNodeWithTag(LoginTags.PASSWORD).assertIsNotEnabled()
         composeRule.onNodeWithTag(LoginTags.CODE).assertIsNotEnabled()
+    }
+
+    @Test
+    fun `the brand mark is decorative and the title alone names the screen`() {
+        show(filled)
+
+        // The 72 dp logo has contentDescription = null: no node exposes a description (or role) for it to TalkBack.
+        composeRule
+            .onAllNodes(SemanticsMatcher.keyIsDefined(SemanticsProperties.ContentDescription), useUnmergedTree = true)
+            .assertCountEquals(0)
+        composeRule
+            .onAllNodes(SemanticsMatcher.keyIsDefined(SemanticsProperties.Role), useUnmergedTree = true)
+            .fetchSemanticsNodes()
+            .forEach { assertNotEquals(Role.Image, it.config[SemanticsProperties.Role]) }
+        composeRule.onAllNodesWithText("Sign in to your cockpit").assertCountEquals(1)
     }
 
     private fun show(state: LoginUiState) =
