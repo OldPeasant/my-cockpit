@@ -1,10 +1,11 @@
 ---
 title: IMAP IDLE push and polling
-status: todo
-owner:
+status: in_progress
+owner: dell26/agent-1
 deps: [mail-header-sync,p0-events-sse]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/mail/sync,server/src/test/kotlin/ch/sonensei/cockpit/mail/sync]
 prio: 1
+lease_until: 2026-10-21T20:14:38Z
 ---
 ## Goal
 Near-real-time new mail (SPEC.md §7.2).
