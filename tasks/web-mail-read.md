@@ -19,3 +19,4 @@ Read mail safely (SPEC.md §7.3).
 ## Notes
 - ASSUMPTION (2026-10-21 17:26+0200 by dell26/agent-2): Per-sender 'always load images' allowlist is kept client-side in localStorage (cockpit.mail.loadImagesFrom): the API has no allowlist endpoint; a server-side list can replace it later
 - ASSUMPTION (2026-10-21 17:26+0200 by dell26/agent-2): Save to Files downloads the attachment in the browser and uploads it to the Files root via POST /api/v1/files (no server copy endpoint); attachments above 50 MB would need the resumable upload and fail with 413
+- ASSUMPTION (2026-10-21 17:26+0200 by dell26/agent-2): Attachment preview covers raster images (inline=true URL) and text/* (first 100k chars); other types offer only download and save to Files
