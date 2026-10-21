@@ -1,0 +1,37 @@
+{
+  "schema": 1,
+  "task": "and-cal-agenda",
+  "reviewed_revision": "9cc992432d0611565a45eab01f99973b31b1843c",
+  "helpers": {
+    "test-writer": {"status": "completed", "report": "reviews/and-cal-agenda/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/and-cal-agenda/review.md"},
+    "fixer": {"status": "completed", "report": "reviews/and-cal-agenda/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "R1-CR-1", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "overlapping visibility toggles and stale calendar lists; pending writes ignore a second toggle"},
+    {"id": "R1-CR-2", "source": "code-reviewer", "severity": "P2", "disposition": "deferred",
+     "note": "offline agenda read cache (SPEC 9.3) deferred to task and-cal-cache, assumption recorded"},
+    {"id": "R1-CR-3", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "failure and supersession tests for range loading added"},
+    {"id": "R1-CR-4", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "now line in day/week grid moves with the clock"},
+    {"id": "TW-1", "source": "test-writer", "severity": "Low", "disposition": "fixed",
+     "note": "infinite scroll loads again after a range with few events (91805bb3)"},
+    {"id": "R2-CR-1", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "agenda and today reload when the app resumes on a later day"},
+    {"id": "FX-1", "source": "parent", "severity": "P2", "disposition": "fixed",
+     "note": "agenda opened scrolled past today; now opens at its first day"},
+    {"id": "R3-CR-1", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "restored scroll position kept after rotation/tab switch"},
+    {"id": "R3-CR-2", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "regression test CalendarAgendaStartTest added by test-writer"},
+    {"id": "R4-CR-1", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "after process death the agenda opens at today instead of its footer"}
+  ],
+  "validation": [
+    {"command": "cd android && ./gradlew ktlintCheck testDebugUnitTest --tests 'ch.sonensei.cockpit.calendar.agenda.*' lintDebug", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
