@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "task": "cal-invitations",
-  "reviewed_revision": "32b52ae73efcecc0990b35a48237332992c9d00b",
+  "reviewed_revision": "96c6766d96a47a10c9494cc908ba977ed9604b0e",
   "helpers": {
     "test-writer": {"status": "completed", "report": "reviews/cal-invitations/tests.md"},
     "code-reviewer": {"status": "completed", "report": "reviews/cal-invitations/review.md"},
