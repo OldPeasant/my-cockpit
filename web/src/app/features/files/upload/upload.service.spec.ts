@@ -425,6 +425,11 @@ describe('UploadService', () => {
       const create = await next('POST', '/api/v1/uploads');
       expect(create.request.body).toEqual({ name: 'backup.bin', folderId: null, size: BIG_SIZE });
       service.cancel(job);
+      create.flush(session());
+      (await next('DELETE', `/api/v1/uploads/${UPLOAD_ID}`)).flush(null, {
+        status: 204,
+        statusText: 'No Content',
+      });
     });
 
     it.each<[string, (req: TestRequest) => void]>([
@@ -639,13 +644,80 @@ describe('UploadService', () => {
       expect(job.state()).toBe('cancelled');
     });
 
-    it('cancel while the upload is being created leaves nothing behind', async () => {
+    it('cancel while the upload is being created lets it finish, then DELETEs it', async () => {
       const [job] = service.upload([bigFile()], FOLDER);
       const create = await next('POST', '/api/v1/uploads');
       service.cancel(job);
-      expect(create.cancelled).toBe(true);
+      // The server may already have created it: the request is not aborted.
+      expect(create.cancelled).toBe(false);
       expect(job.state()).toBe('cancelled');
       http.expectNone((r) => r.method === 'DELETE');
+
+      create.flush(session());
+      const del = await next('DELETE', `/api/v1/uploads/${UPLOAD_ID}`);
+      expect(del.request.context.get(SILENT_ERRORS)).toBe(true);
+      del.flush(null, { status: 204, statusText: 'No Content' });
+      expect(job.uploadId).toBeNull();
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      http.expectNone(chunkUrl(0));
+      expect(job.state()).toBe('cancelled');
+    });
+
+    it('a cancel while the upload is being created, which then fails, leaves nothing behind', async () => {
+      const [job] = service.upload([bigFile()], FOLDER);
+      const create = await next('POST', '/api/v1/uploads');
+      service.cancel(job);
+      create.flush(problem(507, 'Insufficient Storage'), {
+        status: 507,
+        statusText: 'Insufficient Storage',
+      });
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      http.expectNone((r) => r.method === 'DELETE');
+      expect(job.state()).toBe('cancelled');
+      expect(job.error()).toBeNull();
+    });
+
+    it('cancel while the upload is being completed lets it finish: the file counts as uploaded', async () => {
+      const uploaded: FileResponse[] = [];
+      service.uploaded.subscribe((f) => uploaded.push(f));
+      const [job] = service.upload([bigFile()], FOLDER);
+      (await next('POST', '/api/v1/uploads')).flush(session());
+      await acceptChunk(0);
+      await acceptChunk(1);
+      await acceptChunk(2);
+      const done = await complete();
+      service.cancel(job);
+      expect(done.cancelled).toBe(false);
+      // No DELETE: it could no longer abort a stored file.
+      http.expectNone((r) => r.method === 'DELETE');
+
+      const result = stored('holiday.mp4');
+      done.flush(result);
+      await until(job, 'done');
+      expect(job.result()).toEqual(result);
+      expect(job.uploadId).toBeNull();
+      expect(uploaded).toEqual([result]);
+      http.expectNone((r) => r.method === 'DELETE');
+    });
+
+    it('cancel while the upload is being completed, which then fails, DELETEs the upload', async () => {
+      const [job] = service.upload([bigFile()], FOLDER);
+      (await next('POST', '/api/v1/uploads')).flush(session());
+      await acceptChunk(0);
+      await acceptChunk(1);
+      await acceptChunk(2);
+      const done = await complete();
+      service.cancel(job);
+      done.flush(problem(422, 'Unprocessable', 'Checksum mismatch'), {
+        status: 422,
+        statusText: 'Unprocessable',
+      });
+      (await next('DELETE', `/api/v1/uploads/${UPLOAD_ID}`)).flush(null, {
+        status: 204,
+        statusText: 'No Content',
+      });
+      expect(job.state()).toBe('cancelled');
+      expect(job.error()).toBeNull();
     });
   });
 

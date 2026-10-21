@@ -95,6 +95,10 @@ export class PdfViewer {
   private doc: PDFDocumentProxy | null = null;
   private loading: PDFDocumentLoadingTask | null = null;
   private renderTask: RenderTask | null = null;
+  /** Settles when the last started render has finished or stopped after its cancel. */
+  private rendering: Promise<void> = Promise.resolve();
+  /** Counts render requests; a render whose number is no longer the latest gives up. */
+  private renderSeq = 0;
 
   constructor() {
     effect(() => {
@@ -143,9 +147,14 @@ export class PdfViewer {
   private async render(number: number, canvas: HTMLCanvasElement): Promise<void> {
     const doc = this.doc;
     if (!doc) return;
+    // Only the latest request draws: pdf.js refuses a second render on the same canvas.
+    const seq = ++this.renderSeq;
     this.renderTask?.cancel();
     try {
       const page = await doc.getPage(number);
+      if (seq !== this.renderSeq) return;
+      await this.rendering;
+      if (seq !== this.renderSeq) return;
       const width = canvas.parentElement?.clientWidth || 800;
       const base = page.getViewport({ scale: 1 });
       const ratio = window.devicePixelRatio || 1;
@@ -155,17 +164,25 @@ export class PdfViewer {
       canvas.style.width = `${Math.floor(viewport.width / ratio)}px`;
       const task = page.render({ canvas, viewport });
       this.renderTask = task;
+      this.rendering = task.promise.then(
+        () => undefined,
+        () => undefined,
+      );
       await task.promise;
-      if (this.renderTask === task) this.rendered.set(number);
+      if (seq === this.renderSeq) this.rendered.set(number);
     } catch (error) {
-      // A render cancelled for the next page is no failure.
-      if ((error as { name?: string } | null)?.name !== 'RenderingCancelledException') {
+      // A render cancelled for the next page, or a stale one, is no failure.
+      if (
+        seq === this.renderSeq &&
+        (error as { name?: string } | null)?.name !== 'RenderingCancelledException'
+      ) {
         this.error.set(true);
       }
     }
   }
 
   private close(): void {
+    this.renderSeq++;
     this.renderTask?.cancel();
     this.renderTask = null;
     void this.loading?.destroy();

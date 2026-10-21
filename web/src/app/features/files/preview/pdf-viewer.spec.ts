@@ -36,6 +36,11 @@ class FakePdf {
   readonly tasks: { url: string; destroy: ReturnType<typeof vi.fn>; doc: Deferred<unknown> }[] = [];
   /** Whether renders finish at once. */
   autoRender = true;
+  /** Whether getPage waits for the test (see `pageLoads`). */
+  manualPages = false;
+  readonly pageLoads: { page: number; load: Deferred<void> }[] = [];
+  /** Whether a render is running on the canvas: pdf.js refuses a second one. */
+  private busy = false;
 
   constructor(readonly numPages: number) {}
 
@@ -53,24 +58,41 @@ class FakePdf {
     const { numPages } = this;
     this.tasks[this.tasks.length - 1].doc.resolve({
       numPages,
-      getPage: async (page: number) => ({
-        getViewport: ({ scale }: { scale: number }) => ({
-          width: 600 * scale,
-          height: 800 * scale,
-        }),
-        render: () => {
-          const done = deferred<void>();
-          const cancel = vi.fn(() => {
-            const error = new Error('cancelled');
-            error.name = 'RenderingCancelledException';
-            done.reject(error);
-          });
-          this.renders.push({ page, done, cancel });
-          if (this.autoRender) done.resolve();
-          return { promise: done.promise, cancel };
-        },
-      }),
+      getPage: async (page: number) => {
+        if (this.manualPages) {
+          const load = deferred<void>();
+          this.pageLoads.push({ page, load });
+          await load.promise;
+        }
+        return this.page(page);
+      },
     });
+  }
+
+  private page(page: number) {
+    return {
+      getViewport: ({ scale }: { scale: number }) => ({
+        width: 600 * scale,
+        height: 800 * scale,
+      }),
+      render: () => {
+        if (this.busy) throw new Error('Cannot use the same canvas during multiple render()');
+        this.busy = true;
+        const done = deferred<void>();
+        void done.promise.then(
+          () => (this.busy = false),
+          () => (this.busy = false),
+        );
+        const cancel = vi.fn(() => {
+          const error = new Error('cancelled');
+          error.name = 'RenderingCancelledException';
+          done.reject(error);
+        });
+        this.renders.push({ page, done, cancel });
+        if (this.autoRender) done.resolve();
+        return { promise: done.promise, cancel };
+      },
+    };
   }
 }
 
@@ -155,6 +177,56 @@ describe('PdfViewer', () => {
     await render();
     expect(canvas().getAttribute('data-rendered')).toBe('2');
     expect(el().querySelector('[role="alert"]')).toBeNull();
+  });
+
+  it('draws only the latest page when pages change while one is still loading', async () => {
+    await create();
+    pdf.manualPages = true;
+    pdf.autoRender = false;
+    pdf.open();
+    await render();
+    // Page 1 loads and starts drawing; then Next twice while page 2 is still loading.
+    pdf.pageLoads[0].load.resolve();
+    await render();
+    expect(pdf.renders.map((r) => r.page)).toEqual([1]);
+    button('Next page').click();
+    await render();
+    button('Next page').click();
+    await render();
+    expect(pdf.renders[0].cancel).toHaveBeenCalled();
+    expect(pdf.pageLoads.map((l) => l.page)).toEqual([1, 2, 3]);
+
+    // Page 3 answers first, then the stale page 2: only page 3 is drawn.
+    pdf.pageLoads[2].load.resolve();
+    await render();
+    pdf.pageLoads[1].load.resolve();
+    await render();
+    expect(pdf.renders.map((r) => r.page)).toEqual([1, 3]);
+    pdf.renders[1].done.resolve();
+    await render();
+    expect(count()).toBe('Page 3 of 3');
+    expect(canvas().getAttribute('data-rendered')).toBe('3');
+    expect(el().querySelector('[role="alert"]')).toBeNull();
+  });
+
+  it('a stale render that fails does not show an error', async () => {
+    await create();
+    pdf.autoRender = false;
+    pdf.open();
+    await render();
+    const first = pdf.renders[0];
+    // The cancel of page 1 is not honored: its render fails later, after page 2 was requested.
+    first.cancel.mockImplementation(() => undefined);
+    button('Next page').click();
+    await render();
+    first.done.reject(new Error('Rendering failed'));
+    await render();
+    expect(el().querySelector('[role="alert"]')).toBeNull();
+    // Page 2 started only after page 1 had stopped.
+    expect(pdf.renders.map((r) => r.page)).toEqual([1, 2]);
+    pdf.renders[1].done.resolve();
+    await render();
+    expect(canvas().getAttribute('data-rendered')).toBe('2');
   });
 
   it('shows an error when the document cannot be loaded', async () => {

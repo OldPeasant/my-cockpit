@@ -96,6 +96,12 @@ describe('UploadPanel', () => {
     expect(row('a.txt').querySelector('.status')?.textContent?.trim()).toBe(
       `${formatBytes(1024)} / ${formatBytes(2048)}`,
     );
+    // The byte counter stays out of the live region: only state changes are announced.
+    const live = (name: string) =>
+      row(name).querySelector('.status [role="status"]')?.textContent?.trim();
+    expect(row('a.txt').querySelector('.status')?.getAttribute('role')).toBeNull();
+    expect(live('a.txt')).toBe('');
+    expect(live('c.txt')).toBe('Waiting');
     const bar = row('a.txt').querySelector('[role="progressbar"]')!;
     expect(bar.getAttribute('aria-valuenow')).toBe('50');
     expect(bar.getAttribute('aria-label')).toBe('Upload of a.txt');
@@ -104,6 +110,7 @@ describe('UploadPanel', () => {
     await until(a, 'done');
     expect(heading()).toBe('Uploading 2 files');
     expect(row('a.txt').querySelector('.status')?.textContent?.trim()).toBe('Uploaded');
+    expect(live('a.txt')).toBe('Uploaded');
 
     (await request('b.txt')).flush(stored('b.txt'));
     await until(b, 'done');

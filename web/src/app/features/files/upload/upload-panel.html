@@ -24,25 +24,28 @@
         <li class="job" [attr.data-state]="job.state()">
           <div class="line">
             <span class="name" [title]="job.name">{{ job.name }}</span>
-            <span class="status" role="status">
-              @switch (job.state()) {
-                @case ('queued') {
-                  <ng-container i18n="@@files.upload.queued">Waiting</ng-container>
+            <span class="status">
+              <!-- Only state changes are announced; the progressbar exposes the bytes sent. -->
+              <span role="status">
+                @switch (job.state()) {
+                  @case ('queued') {
+                    <ng-container i18n="@@files.upload.queued">Waiting</ng-container>
+                  }
+                  @case ('done') {
+                    <ng-container i18n="@@files.upload.done">Uploaded</ng-container>
+                  }
+                  @case ('cancelled') {
+                    <ng-container i18n="@@files.upload.cancelled">Cancelled</ng-container>
+                  }
+                  @case ('failed') {
+                    <ng-container i18n="@@files.upload.failed"
+                      >Failed: {{ job.error() }}</ng-container
+                    >
+                  }
                 }
-                @case ('uploading') {
-                  {{ formatBytes(job.loaded()) }} / {{ formatBytes(job.file.size) }}
-                }
-                @case ('done') {
-                  <ng-container i18n="@@files.upload.done">Uploaded</ng-container>
-                }
-                @case ('cancelled') {
-                  <ng-container i18n="@@files.upload.cancelled">Cancelled</ng-container>
-                }
-                @case ('failed') {
-                  <ng-container i18n="@@files.upload.failed"
-                    >Failed: {{ job.error() }}</ng-container
-                  >
-                }
+              </span>
+              @if (job.state() === 'uploading') {
+                {{ formatBytes(job.loaded()) }} / {{ formatBytes(job.file.size) }}
               }
             </span>
             @if (job.state() === 'failed') {

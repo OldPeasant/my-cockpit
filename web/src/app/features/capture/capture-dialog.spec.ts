@@ -657,17 +657,61 @@ describe('CaptureDialog', () => {
       await settle();
     });
 
-    it('a failed attachment does not block saving and is not linked', async () => {
+    it('a failed attachment blocks saving, with the reason, until it is removed', async () => {
       pasteFiles('scan.jpg', 'receipt.pdf');
       await settle();
       expectUpload('scan.jpg').flush(null, { status: 500, statusText: 'Server Error' });
       expectUpload('receipt.pdf').flush(stored('receipt.pdf', FILE_A));
       await settle();
       type('Expenses');
+      expect(saveButton().disabled).toBe(true);
+      const reason = el().querySelector('.files-failed');
+      expect(reason?.textContent?.trim()).toBe('Retry or remove the failed attachment to save.');
+      expect(saveButton().getAttribute('aria-describedby')).toBe(reason?.id);
+      press('Enter');
+      press('Enter', { shiftKey: true });
+      await expect(fixture.componentInstance.submit()).resolves.toBe(false);
+      http.expectNone('/api/v1/capture');
+      expect(names()).toEqual(['scan.jpg', 'receipt.pdf']);
+
+      action('Remove', 'scan.jpg')!.click();
+      fixture.detectChanges();
+      expect(el().querySelector('.files-failed')).toBeNull();
       expect(saveButton().disabled).toBe(false);
+      expect(saveButton().hasAttribute('aria-describedby')).toBe(false);
       press('Enter');
       expect(expectCapture().request.body.fileIds).toEqual([FILE_A]);
       await settle();
+    });
+
+    it('a retry of a failed attachment lifts the block once it is attached', async () => {
+      pasteFiles('scan.jpg');
+      await settle();
+      expectUpload('scan.jpg').flush(null, { status: 503, statusText: 'Service Unavailable' });
+      await settle();
+      type('Scan');
+      expect(saveButton().disabled).toBe(true);
+      action('Retry', 'scan.jpg')!.click();
+      await settle();
+      // Still blocked while the retry uploads.
+      expect(el().querySelector('.files-failed')).toBeNull();
+      expect(saveButton().disabled).toBe(true);
+      expectUpload('scan.jpg').flush(stored('scan.jpg', FILE_C));
+      await settle();
+      expect(saveButton().disabled).toBe(false);
+    });
+
+    it('announces only state changes, not the changing percentage', async () => {
+      pasteFiles('scan.jpg');
+      await settle();
+      const live = () =>
+        el().querySelector('.file-list li .file-status [role="status"]')?.textContent?.trim();
+      expect(status('scan.jpg')).toBe('0 %');
+      expect(live()).toBe('');
+      expect(el().querySelector('.file-list li .file-status')?.getAttribute('role')).toBeNull();
+      expectUpload('scan.jpg').flush(stored('scan.jpg', FILE_A));
+      await settle();
+      expect(live()).toBe('Attached');
     });
 
     it('Remove cancels a running upload; a removed attachment is not linked', async () => {

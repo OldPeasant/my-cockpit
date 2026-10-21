@@ -90,28 +90,30 @@
         @for (job of files(); track job.id) {
           <li [attr.data-state]="job.state()">
             <span class="file-name">{{ job.name }}</span>
-            <span class="file-status" role="status">
-              @switch (job.state()) {
-                @case ('done') {
-                  <ng-container i18n="@@capture.fileAttached">Attached</ng-container>
+            <span class="file-status">
+              <!-- Only state changes are announced, not the percentage of each progress tick. -->
+              <span role="status">
+                @switch (job.state()) {
+                  @case ('done') {
+                    <ng-container i18n="@@capture.fileAttached">Attached</ng-container>
+                  }
+                  @case ('failed') {
+                    <ng-container i18n="@@capture.fileFailed">Upload failed</ng-container>
+                  }
+                  @case ('cancelled') {
+                    <ng-container i18n="@@capture.fileCancelled">Cancelled</ng-container>
+                  }
                 }
-                @case ('failed') {
-                  <ng-container i18n="@@capture.fileFailed">Upload failed</ng-container>
-                }
-                @case ('cancelled') {
-                  <ng-container i18n="@@capture.fileCancelled">Cancelled</ng-container>
-                }
-                @default {
-                  {{ job.percent() }} %
-                }
+              </span>
+              @if (!job.finished()) {
+                {{ job.percent() }} %
               }
             </span>
             @if (job.state() === 'failed') {
               <button
                 type="button"
                 class="link"
-                i18n-aria-label="@@capture.retryFile"
-                aria-label="Retry {{ job.name }}"
+                [attr.aria-label]="retryLabel(job)"
                 (click)="retryFile(job)"
                 i18n="@@capture.retry"
               >
@@ -121,8 +123,7 @@
             <button
               type="button"
               class="link"
-              i18n-aria-label="@@capture.removeFile"
-              aria-label="Remove {{ job.name }}"
+              [attr.aria-label]="removeLabel(job)"
               (click)="removeFile(job)"
               i18n="@@capture.remove"
             >
@@ -131,6 +132,11 @@
           </li>
         }
       </ul>
+      @if (failedFiles()) {
+        <p id="capture-files-failed" class="files-failed" i18n="@@capture.filesFailed">
+          Retry or remove the failed attachment to save.
+        </p>
+      }
     } @else {
       <p class="drop" i18n="@@capture.dropHint">Drop or paste a file here to attach it.</p>
     }
@@ -149,7 +155,8 @@
       <button
         type="button"
         class="primary"
-        [disabled]="saving() || uploading() || !text().trim()"
+        [disabled]="saving() || uploading() || failedFiles() || !text().trim()"
+        [attr.aria-describedby]="failedFiles() ? 'capture-files-failed' : null"
         (click)="submit()"
         i18n="@@capture.save"
       >

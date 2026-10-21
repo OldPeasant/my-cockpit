@@ -30,7 +30,7 @@ interface PreviewResult {
  * The quick capture dialog (SPEC.md §4.5): one text field with a live preview of the capture syntax,
  * optional notes and a drop/paste area for attachments. Dropped and pasted files upload to the drive
  * root right away; the capture links the uploaded ones (`fileIds`), so saving waits until none is
- * still uploading.
+ * still uploading or failed (the user retries or removes a failed one).
  * Enter saves to the Inbox and closes, Shift+Enter saves and keeps the dialog open for the next one.
  *
  * Every draft has a client-generated UUIDv7 id: a failed save that is retried reuses it, so the
@@ -56,6 +56,10 @@ export class CaptureDialog {
   protected readonly files = signal<readonly UploadJob[]>([]);
   /** Whether an attachment is still uploading: saving waits for it. */
   protected readonly uploading = computed(() => this.files().some((job) => !job.finished()));
+  /** Whether an attachment failed: saving waits until the user retries or removes it. */
+  protected readonly failedFiles = computed(() =>
+    this.files().some((job) => job.state() === 'failed'),
+  );
   protected readonly saving = signal(false);
   protected readonly dragging = signal(false);
   /** Captures saved while the dialog stayed open (Shift+Enter). */
@@ -138,7 +142,7 @@ export class CaptureDialog {
   async submit(keepOpen = false): Promise<boolean> {
     const rawText = this.text();
     const text = rawText.trim();
-    if (this.saving() || this.uploading() || !text) return false;
+    if (this.saving() || this.uploading() || this.failedFiles() || !text) return false;
     this.saving.set(true);
     const rawNotes = this.notes();
     const files = this.files();
@@ -170,6 +174,16 @@ export class CaptureDialog {
     } finally {
       this.saving.set(false);
     }
+  }
+
+  protected retryLabel(job: UploadJob): string {
+    const name = job.name;
+    return $localize`:@@capture.retryFile:Retry ${name}:name:`;
+  }
+
+  protected removeLabel(job: UploadJob): string {
+    const name = job.name;
+    return $localize`:@@capture.removeFile:Remove ${name}:name:`;
   }
 
   protected retryFile(job: UploadJob): void {

@@ -313,3 +313,17 @@ button.open {
   text-align: start;
   cursor: pointer;
 }
+
+@media (max-width: 720px) {
+  .files {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .side {
+    order: 2;
+  }
+
+  .meta .date {
+    display: none;
+  }
+}

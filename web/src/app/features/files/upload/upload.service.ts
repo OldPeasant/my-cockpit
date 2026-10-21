@@ -60,6 +60,8 @@ export class UploadJob {
   uploadId: string | null = null;
   /** Stops the request in flight, set while one runs. */
   stop: (() => void) | null = null;
+  /** Set while the server completes the upload: a cancel then can no longer discard it. */
+  completing = false;
 
   constructor(
     readonly file: File,
@@ -84,7 +86,9 @@ class Cancelled extends Error {}
  * progress. Files up to {@link CHUNKED_THRESHOLD} go in one multipart request; larger ones through a
  * resumable upload in chunks, each retried after a network or server error, with the SHA-256 the
  * server checks computed along the way. A failed upload can be retried: a chunked one resumes with
- * the chunks the server is missing. Cancelling stops the request and discards the server's chunks.
+ * the chunks the server is missing. Cancelling stops the request and discards the server's chunks;
+ * creating and completing an upload are left to finish, since the server may already have done it:
+ * a created upload is then deleted, a completed one counts as uploaded.
  *
  * The jobs live in this root service, so uploads go on while the user moves between pages.
  */
@@ -118,7 +122,7 @@ export class UploadService {
     job.state.set('cancelled');
     job.error.set(null);
     job.stop?.();
-    this.discard(job);
+    if (!job.completing) this.discard(job);
   }
 
   /** Queues a failed upload again; a chunked one resumes where it stopped. */
@@ -158,7 +162,7 @@ export class UploadService {
     job.loaded.set(0);
     try {
       const file = job.chunked ? await this.sendChunked(job) : await this.sendWhole(job);
-      if (job.state() !== 'uploading') return;
+      // Stored, even when cancelled while the server completed it: a cancel came too late.
       job.loaded.set(job.file.size);
       job.result.set(file);
       job.state.set('done');
@@ -205,15 +209,27 @@ export class UploadService {
       done += bytes.length;
       job.loaded.set(done);
     }
-    const response = await this.send<FileResponse>(
-      job,
-      new HttpRequest(
-        'POST',
-        this.url(completeUpload.PATH, upload.id),
-        { sha256: hash.hex() },
-        { context: silent() },
-      ),
-    );
+    let response: HttpResponse<FileResponse>;
+    job.completing = true;
+    try {
+      response = await this.send<FileResponse>(
+        job,
+        new HttpRequest(
+          'POST',
+          this.url(completeUpload.PATH, upload.id),
+          { sha256: hash.hex() },
+          { context: silent() },
+        ),
+        undefined,
+        false,
+      );
+    } catch (error) {
+      // Cancelled while the server refused to complete it: the chunks can be discarded now.
+      if (job.state() === 'cancelled') this.discard(job);
+      throw error;
+    } finally {
+      job.completing = false;
+    }
     job.uploadId = null;
     return response.body!;
   }
@@ -246,9 +262,16 @@ export class UploadService {
         },
         { context: silent() },
       ),
+      undefined,
+      false,
     );
     const upload = response.body!;
     job.uploadId = upload.id;
+    // Cancelled while the server created it: delete the new upload.
+    if (job.state() !== 'uploading') {
+      this.discard(job);
+      throw new Cancelled();
+    }
     return upload;
   }
 
@@ -281,11 +304,15 @@ export class UploadService {
     }
   }
 
-  /** Runs `request`, reporting the bytes sent; {@link cancel} stops it. */
+  /**
+   * Runs `request`, reporting the bytes sent; {@link cancel} stops it unless it is not `abortable`
+   * (a request whose effect the server may have committed already: the caller handles the cancel).
+   */
   private send<T>(
     job: UploadJob,
     request: HttpRequest<unknown>,
     progress?: (loaded: number) => void,
+    abortable = true,
   ): Promise<HttpResponse<T>> {
     this.check(job);
     return new Promise((resolve, reject) => {
@@ -300,10 +327,12 @@ export class UploadService {
         },
         complete: () => (job.stop = null),
       });
-      job.stop = () => {
-        subscription.unsubscribe();
-        reject(new Cancelled());
-      };
+      job.stop = abortable
+        ? () => {
+            subscription.unsubscribe();
+            reject(new Cancelled());
+          }
+        : null;
     });
   }
 
