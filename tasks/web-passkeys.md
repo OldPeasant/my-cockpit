@@ -2,7 +2,7 @@
 title: Web passkeys
 status: todo
 owner:
-deps: [passkeys-server,p0-web-devices,p0-web-auth]
+deps: [passkeys-server,p0-web-devices,p0-web-auth,web-totp-reenroll]
 touches: [web/src/app/features/settings/security,web/src/app/features/auth]
 prio: 2
 ---
