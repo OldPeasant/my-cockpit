@@ -29,6 +29,7 @@ import retrofit2.http.Header
 import retrofit2.http.PATCH
 import retrofit2.http.Path
 import java.io.IOException
+import java.time.DateTimeException
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 import javax.inject.Inject
@@ -175,6 +176,7 @@ class InboxRepository
             } catch (_: HttpFailure) {
             } catch (_: SerializationException) {
             } catch (_: IllegalArgumentException) {
+            } catch (_: DateTimeException) {
             }
         }
 

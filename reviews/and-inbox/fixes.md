@@ -93,3 +93,54 @@ Remaining unresolved findings:
 ## Final status
 
 All validated findings fixed and validation passed.
+
+---
+
+# Fix Report (second round)
+
+Date: 2026-10-21
+
+Task: and-inbox - Android inbox processing
+
+Scope: current task; approved finding TW-1 from `reviews/and-inbox/tests.md`. The change is limited to `android/app/src/main/java/ch/sonensei/cockpit/gtd/inbox/InboxRepository.kt`.
+
+## Fixed findings
+
+### TW-1 — An unreadable date in the project answer after the move makes processing fail
+
+Files changed:
+- `android/app/src/main/java/ch/sonensei/cockpit/gtd/inbox/InboxRepository.kt`
+
+Problem:
+`makeNextStepIfStalled` runs after the item has already moved to the project. It ignored connection, HTTP, serialization and argument errors, but not `java.time.DateTimeException`, which the generated date parser throws for an unreadable date. Such an answer escaped, so `process` returned `Rejected(null)` although the move had succeeded.
+
+Fix:
+Added `catch (_: DateTimeException) {}` to the existing catch chain (plus the `java.time.DateTimeException` import). This matches the set that `GtdConnectivity.refreshing` in `gtd/data/GtdRefresh.kt` catches. The project then stays stalled, as the KDoc already describes for an unreadable answer. No test was changed.
+
+Validation:
+- `cd android && ./gradlew ktlintCheck testDebugUnitTest --tests 'ch.sonensei.cockpit.gtd.inbox.*' lintDebug` — Pass (BUILD SUCCESSFUL). `a project answer with an unreadable date after the move still counts as processed` now passes.
+
+## Not fixed
+
+None.
+
+## Validation summary
+
+Focused tests:
+- `cd android && ./gradlew ktlintCheck testDebugUnitTest --tests 'ch.sonensei.cockpit.gtd.inbox.*' lintDebug` — BUILD SUCCESSFUL. 100 tests, 0 failures, 0 skipped: InboxRepositoryTest 34/34, InboxViewModelTest 28/28, InboxScreenTest 21/21, InboxActionsTest 11/11, InboxRouteTest 4/4, InboxGraphTest 2/2. ktlintCheck and lintDebug passed.
+
+Full test suite:
+- Not run in this round (the change only adds one catch clause in the inbox package; the parent worker runs `.taskcheck`)
+
+Lint/type-check/build:
+- `ktlintCheck`, `lintDebug` and the Kotlin compile — Pass (included in the focused command)
+
+`.taskcheck`:
+- Not run (`sh scripts/check.sh` covers server and web too; the parent worker runs it before `done`)
+
+Remaining unresolved findings:
+0
+
+## Final status
+
+All validated findings fixed and validation passed.
