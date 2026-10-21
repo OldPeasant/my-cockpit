@@ -1,0 +1,29 @@
+{
+  "schema": 1,
+  "task": "contacts-api",
+  "reviewed_revision": "46d3430ea924afad70d254fc5303adde03e9bdd6",
+  "helpers": {
+    "test-writer":   {"status": "completed", "report": "reviews/contacts-api/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/contacts-api/review.md"},
+    "fixer":         {"status": "completed", "report": "reviews/contacts-api/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "CR-1 (first review)", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "q filter matched JSON keys/labels; now matches email addresses only (fixes.md CR-1)"},
+    {"id": "CR-2 (first review)", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "PATCH failed once the photo file was trashed; photo is checked only when the request changes it (fixes.md CR-2)"},
+    {"id": "CR-3 (first review)", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "photo file-name sanitizing aligned with FileNames (fixes.md CR-3)"},
+    {"id": "TW-1", "source": "test-writer", "severity": "Medium", "disposition": "fixed",
+     "note": "export 500 on label containing a quote; labels made safe (fixes.md TW-1)"},
+    {"id": "TW-2", "source": "test-writer", "severity": "High", "disposition": "fixed",
+     "note": "gtd convert fixtures used CONTACT as a type without resolver; switched to HABIT (tests.md TW-2)"},
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P3", "disposition": "deferred",
+     "note": "convert test fixtures will break again when habits-api adds a HABIT resolver; follow-up in habits-api (it must pick a resolver-less type or stub the registry)"}
+  ],
+  "validation": [
+    {"command": "cd server && ./gradlew test --rerun --tests 'ch.sonensei.cockpit.contacts.*' --tests '*OpenApiContractTest'", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
