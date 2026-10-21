@@ -7,7 +7,9 @@ import { ChangeEventsService } from '../../../core/events';
 import { NotificationService } from '../../../core/http';
 import MailListPage, { senderName, THREADED_KEY } from './mail-list-page';
 import { FakeEvents, FakeMail, summary } from './mail-testing';
-import { MailService } from './mail.service';
+import { ApiError } from '../../../core/http';
+import { MailListStore } from './mail-list-store';
+import { MailPage, MailService } from './mail.service';
 
 const flush = async () => {
   for (let i = 0; i < 10; i++) await Promise.resolve();
@@ -39,7 +41,15 @@ describe('MailListPage', () => {
   let dialogResult: string | undefined;
   let dialogOpened: unknown[];
 
-  async function create(folderId: string | null = 'inbox-1') {
+  async function create(
+    folderId: string | null = 'inbox-1',
+    options: {
+      /** Adjusts the fake before the page starts. */
+      setup?: (mail: FakeMail) => void;
+      /** What the first page request answers: the default three items, a page, an error, or nothing yet. */
+      firstPage?: MailPage | Error | 'pending';
+    } = {},
+  ) {
     mail = new FakeMail();
     mail.accounts = () => Promise.resolve([account('acc-1', 'Work'), account('acc-2', 'Home')]);
     mail.folders = (id: string) =>
@@ -55,6 +65,7 @@ describe('MailListPage', () => {
     params = new BehaviorSubject(convertToParamMap(folderId ? { folderId } : {}));
     dialogOpened = [];
     dialogResult = undefined;
+    options.setup?.(mail);
     TestBed.configureTestingModule({
       imports: [MailListPage],
       providers: [
@@ -80,19 +91,27 @@ describe('MailListPage', () => {
     });
     fixture = TestBed.createComponent(MailListPage);
     await flush();
-    mail.lists[0].resolve({
-      items: [
-        summary('a', { subject: 'Report', folderId: folderId ?? 'inbox-1' }),
-        summary('b', { subject: 'Lunch', seen: true, folderId: folderId ?? 'inbox-1' }),
-        summary('c', {
-          subject: 'Invoice',
-          hasAttachments: true,
-          flagged: true,
-          folderId: folderId ?? 'inbox-1',
-        }),
-      ],
-      nextCursor: null,
-    });
+    const first = options.firstPage;
+    if (first === 'pending') {
+      fixture.detectChanges();
+      return;
+    }
+    if (first instanceof Error) mail.lists[0].reject(first);
+    else if (first) mail.lists[0].resolve(first);
+    else
+      mail.lists[0].resolve({
+        items: [
+          summary('a', { subject: 'Report', folderId: folderId ?? 'inbox-1' }),
+          summary('b', { subject: 'Lunch', seen: true, folderId: folderId ?? 'inbox-1' }),
+          summary('c', {
+            subject: 'Invoice',
+            hasAttachments: true,
+            flagged: true,
+            folderId: folderId ?? 'inbox-1',
+          }),
+        ],
+        nextCursor: null,
+      });
     await flush();
     fixture.detectChanges();
   }
@@ -265,6 +284,221 @@ describe('MailListPage', () => {
     params.next(convertToParamMap({ folderId: 'proj-1' }));
     await flush();
     expect(mail.lists[1].scope.folderId).toBe('proj-1');
+  });
+
+  const listStore = () => fixture.debugElement.injector.get(MailListStore);
+
+  describe('states', () => {
+    it('shows a loading note until the first page arrives', async () => {
+      await create('inbox-1', { firstPage: 'pending' });
+      expect(el().querySelector('.note[role="status"]')?.textContent?.trim()).toBe(
+        'Loading messages…',
+      );
+      expect(rows()).toEqual([]);
+    });
+
+    it('shows a load error and loads again from its button', async () => {
+      await create('inbox-1', {
+        firstPage: new ApiError(502, 'Bad gateway', 'Mail server down'),
+      });
+      const alert = el().querySelector('.load-error[role="alert"]')!;
+      expect(alert.textContent).toContain('Mail server down');
+      alert.querySelector('button')!.click();
+      expect(mail.lists[1].scope).toEqual({ folderId: 'inbox-1', threaded: false });
+      fixture.detectChanges();
+      expect(el().querySelector('.load-error')).toBeNull();
+    });
+
+    it('asks to add an account when none is set up', async () => {
+      await create(null, {
+        setup: (fake) => (fake.accounts = () => Promise.resolve([])),
+        firstPage: { items: [], nextCursor: null },
+      });
+      const empty = el().querySelector('.empty')!;
+      expect(empty.textContent).toContain('No mail account is set up yet.');
+      expect(empty.querySelector('a')?.getAttribute('href')).toBe('/settings');
+    });
+
+    it('says so when the folder is empty and disables the actions', async () => {
+      await create('inbox-1', { firstPage: { items: [], nextCursor: null } });
+      expect(el().querySelector('p.empty')?.textContent?.trim()).toBe('No messages here.');
+      expect(button('Archive').disabled).toBe(true);
+      expect(button('Move').disabled).toBe(true);
+      expect(el().querySelector<HTMLInputElement>('.select-all')!.disabled).toBe(true);
+    });
+  });
+
+  it('moves the cursor to a clicked row without opening or selecting it', async () => {
+    await create();
+    rows()[2].querySelector<HTMLButtonElement>('button.open')!.click();
+    fixture.detectChanges();
+    expect(rows()[2].getAttribute('aria-current')).toBe('true');
+    expect(rows()[2].classList).not.toContain('selected');
+  });
+
+  it('selects all from the toolbar checkbox, indeterminate while only some are selected', async () => {
+    await create();
+    const all = el().querySelector<HTMLInputElement>('.select-all')!;
+    rows()[0].querySelector<HTMLInputElement>('input[type=checkbox]')!.click();
+    fixture.detectChanges();
+    expect(all.indeterminate).toBe(true);
+    all.click();
+    fixture.detectChanges();
+    expect(all.checked).toBe(true);
+    expect(all.indeterminate).toBe(false);
+    expect(el().querySelector('.count')?.textContent).toContain('3 selected');
+    all.click();
+    fixture.detectChanges();
+    expect(el().querySelector('.count')).toBeNull();
+  });
+
+  it.each([
+    ['Delete', 'DELETE'],
+    ['Mark read', 'READ'],
+    ['Mark unread', 'UNREAD'],
+    ['Star', 'FLAG'],
+    ['Spam', 'SPAM'],
+  ])('runs %s from the toolbar on the cursor item', async (name, action) => {
+    await create();
+    button(name).click();
+    await flush();
+    expect(mail.applies[0]).toMatchObject({ action, ids: ['a'] });
+  });
+
+  it('shows conversations with their size and unread state when that was the stored choice', async () => {
+    localStorage.setItem(THREADED_KEY, 'true');
+    await create('inbox-1', {
+      firstPage: {
+        items: [
+          summary('t', { threadSize: 3, threadUnread: 1, seen: true, snippet: 'See you at noon' }),
+          summary('s', { threadSize: 1, threadUnread: 0, seen: false }),
+        ],
+        nextCursor: null,
+      },
+    });
+    expect(mail.lists[0].scope).toEqual({ folderId: 'inbox-1', threaded: true });
+    expect(rows()[0].querySelector('.thread-size')?.textContent).toBe('3');
+    expect(rows()[0].querySelector('.snippet')?.textContent).toBe('See you at noon');
+    expect(rows()[1].querySelector('.thread-size')).toBeNull();
+    // Threaded unread state comes from the conversation, not the newest message.
+    expect(rows()[0].classList).toContain('unread');
+    expect(rows()[1].classList).not.toContain('unread');
+  });
+
+  it('starts flat and still switches when storage is unavailable', async () => {
+    const get = vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
+      throw new DOMException('denied', 'SecurityError');
+    });
+    const set = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new DOMException('denied', 'SecurityError');
+    });
+    try {
+      await create();
+      expect(mail.lists[0].scope.threaded).toBe(false);
+      el().querySelectorAll<HTMLButtonElement>('.views button')[1].click();
+      fixture.detectChanges();
+      expect(mail.lists[1].scope.threaded).toBe(true);
+    } finally {
+      get.mockRestore();
+      set.mockRestore();
+    }
+  });
+
+  it('does not reload when the shown view is chosen again', async () => {
+    await create();
+    el().querySelectorAll<HTMLButtonElement>('.views button')[0].click();
+    expect(mail.lists).toHaveLength(1);
+  });
+
+  it('opens no folder picker for items of several accounts, nor a second picker', async () => {
+    await create(null);
+    listStore().items.update((items) => [...items!, summary('z', { accountId: 'acc-2' })]);
+    listStore().toggleAll();
+    press('v');
+    await flush();
+    expect(dialogOpened).toEqual([]);
+
+    listStore().clearSelection();
+    fixture.detectChanges();
+    const dialog = TestBed.inject(MatDialog) as unknown as { openDialogs: unknown[] };
+    dialog.openDialogs.push({});
+    button('Move').click();
+    await flush();
+    expect(dialogOpened).toEqual([]);
+  });
+
+  it('formats today as a time, this year as day and month, and older mail with the year', async () => {
+    const now = new Date();
+    await create('inbox-1', {
+      firstPage: {
+        items: [
+          summary('today', { receivedAt: now.toISOString() }),
+          summary('year', {
+            receivedAt: new Date(now.getFullYear(), 0, 1, 12).toISOString(),
+          }),
+          summary('old', { receivedAt: '2020-03-15T12:00:00Z' }),
+        ],
+        nextCursor: null,
+      },
+    });
+    const times = rows().map((row) => row.querySelector('time')?.textContent?.trim());
+    expect(times[0]).toMatch(/^\d{1,2}:\d{2}/);
+    expect(times[2]).toBe('Mar 15, 2020');
+    if (now.getMonth() !== 0 || now.getDate() !== 1) expect(times[1]).toBe('Jan 1');
+  });
+
+  describe('infinite scroll', () => {
+    let observers: {
+      callback: (entries: { isIntersecting: boolean }[]) => void;
+      observed: Element[];
+      disconnected: boolean;
+    }[];
+
+    beforeEach(() => {
+      observers = [];
+      vi.stubGlobal(
+        'IntersectionObserver',
+        class {
+          readonly record: (typeof observers)[number];
+          constructor(callback: (entries: { isIntersecting: boolean }[]) => void) {
+            this.record = { callback, observed: [], disconnected: false };
+            observers.push(this.record);
+          }
+          observe(target: Element) {
+            this.record.observed.push(target);
+          }
+          disconnect() {
+            this.record.disconnected = true;
+          }
+        },
+      );
+    });
+    afterEach(() => vi.unstubAllGlobals());
+
+    it('loads older messages when the end of the list comes into view', async () => {
+      await create();
+      expect(observers).toEqual([]);
+      listStore().nextCursor.set('next');
+      fixture.detectChanges();
+      await fixture.whenStable();
+      expect(observers).toHaveLength(1);
+      expect(observers[0].observed[0]).toBe(el().querySelector('.more'));
+
+      observers[0].callback([{ isIntersecting: false }]);
+      expect(mail.lists).toHaveLength(1);
+      observers[0].callback([{ isIntersecting: true }]);
+      expect(mail.lists[1].cursor).toBe('next');
+
+      mail.lists[1].reject(new ApiError(500, 'Server error', 'Try later'));
+      await flush();
+      fixture.detectChanges();
+      expect(el().querySelector('.more [role="alert"]')?.textContent).toContain('Try later');
+
+      listStore().nextCursor.set(null);
+      fixture.detectChanges();
+      await fixture.whenStable();
+      expect(observers[0].disconnected).toBe(true);
+    });
   });
 });
 

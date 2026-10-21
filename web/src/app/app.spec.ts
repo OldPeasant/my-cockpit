@@ -66,6 +66,7 @@ describe('App', () => {
     '/projects',
     '/files',
     '/notes',
+    '/mail',
   ];
 
   it.each(NAV_SECTIONS.filter((s) => !BUILT.includes(s.path)).map((s) => [s.path, s.label]))(
@@ -98,6 +99,15 @@ describe('App', () => {
     expect(root.querySelector('app-inbox-page h1')?.textContent?.trim()).toBe('Inbox');
     expect(root.querySelector('app-coming-soon')).toBeNull();
     expect(document.title).toBe('Inbox');
+    expect(root.querySelector('a.link.active')?.getAttribute('aria-current')).toBe('page');
+  });
+
+  it('lazy-loads the mail list at /mail', async () => {
+    await harness.navigateByUrl('/mail');
+    const root = harness.routeNativeElement as HTMLElement;
+    expect(root.querySelector('app-mail-list-page h1')?.textContent?.trim()).toBe('All inboxes');
+    expect(root.querySelector('app-coming-soon')).toBeNull();
+    expect(document.title).toBe('Mail');
     expect(root.querySelector('a.link.active')?.getAttribute('aria-current')).toBe('page');
   });
 
