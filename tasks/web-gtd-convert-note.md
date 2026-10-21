@@ -13,7 +13,8 @@ releases: 1
 Enable 'To reference (note)' in processing and task detail.
 
 ## Acceptance criteria
-- [ ] Action converts and navigates/offers to open the note
+- [x] Action converts and navigates/offers to open the note
+  - verified (2026-10-21 08:34+0200 by dell26/agent-1): cd web && npm run test:ci -- --include=gtd/inbox/inbox-page.spec.ts --include=gtd/task-detail/task-detail.spec.ts --include=gtd/data/task-store.spec.ts -> 3 files / 183 tests passed; 'To reference' describes check convert API call, task detail router.navigate(['/notes', id]) after confirm, inbox 'Open note' link href /notes/<id>. The /notes/:id page itself comes with web-notes-editor (still in progress, not on main), so opening the note end to end is not shown (see assumption, review CR-2)
 - [ ] Vitest component/service tests cover the action calls convert and updates the inbox; `cd web && npm run check` passes
 
 ## Notes
