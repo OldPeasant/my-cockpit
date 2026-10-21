@@ -19,7 +19,8 @@ Turn mail into tasks, waiting-fors, notes (SPEC.md §7.3).
   - verified (2026-10-21 08:12+0200 by dell26/agent-1): same run -> move tests pass (move creating a new row, move keeping the row, repeated moves, waiting/note links, request with old id): links re-resolved by Message-ID (MailGtdWebTests, MailGtdMailServerTests 5/5)
 - [x] `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.mail.gtd.*'` passes (Postgres via Testcontainers where persistence is involved)
   - verified (2026-10-21 08:12+0200 by dell26/agent-1): cd server && ./gradlew -Pkotlin.daemon.jvmargs=-Xmx3g test --rerun --tests 'ch.sonensei.cockpit.mail.gtd.*' -> BUILD SUCCESSFUL, 51 tests (46+5), 0 failures/errors/skipped, Postgres via Testcontainers
-- [ ] API documented: `api/openapi.yaml` regenerated (`UPDATE_OPENAPI=1 ./gradlew test --tests '*OpenApiContractTest'`) and `OpenApiContractTest` passes without the flag
+- [x] API documented: `api/openapi.yaml` regenerated (`UPDATE_OPENAPI=1 ./gradlew test --tests '*OpenApiContractTest'`) and `OpenApiContractTest` passes without the flag
+  - verified (2026-10-21 08:12+0200 by dell26/agent-1): api/openapi.yaml + web client regenerated in 6b3f157c (controller/DTO unchanged since); cd server && ./gradlew test --rerun --tests '*OpenApiContractTest' (no UPDATE_OPENAPI) -> 1/1 pass
 
 ## Notes
 - ASSUMPTION (2026-10-21 05:26+0200 by dell26/agent-3): to-waiting on a received (not sent) mail waits for its sender instead of being rejected; 'sent' = in the Sent-role folder or From matches the account address or an identity. waitingForText holds names/addresses (no contact lookup: no contacts service yet)
