@@ -205,6 +205,32 @@ class BookmarkEdgeCaseTests(
 		fetch(created.id()).text("metadataStatus") shouldBe "FETCHED"
 	}
 
+	@Test
+	fun `a PATCH with the unencoded form of the stored URL does not fetch the page again`() {
+		stubPage("/two%20words", "<title>Two words</title>")
+		val created = create("""{"url":"${page("/two words")}"}""").andExpect { status { isCreated() } }.json()
+		created.text("url") shouldBe page("/two%20words")
+		val fetched = settled(UUID.fromString(created.id()))
+		fetched.metadataStatus shouldBe MetadataStatus.FETCHED
+
+		val changed = patch(fetch(created.id()), """{"url":"${page("/two words")}"}""").andExpect { status { isOk() } }.json()
+
+		changed.text("url") shouldBe page("/two%20words")
+		changed.text("metadataStatus") shouldBe "FETCHED"
+		service.get(fetched.id).metadataFetch shouldBe fetched.metadataFetch
+		server.verify(1, getRequestedFor(urlEqualTo("/two%20words")))
+	}
+
+	@Test
+	fun `the URL length limit applies to the encoded form`() {
+		val base = "https://unreachable.invalid/"
+		// 28 + 400 characters as typed, but each 'é' becomes '%C3%A9' (6 characters): 2 428 once encoded.
+		create("""{"url":"$base${E_ACUTE_JSON.repeat(400)}"}""").andExpect { status { isBadRequest() } }
+		// 28 + 336 * 6 = 2 044 once encoded: within the limit.
+		create("""{"url":"$base${E_ACUTE_JSON.repeat(336)}"}""").andExpect { status { isCreated() } }
+		jdbc.queryForObject("select count(*) from bookmark", Long::class.java) shouldBe 1
+	}
+
 	// --- applyMetadata
 
 	@Test
@@ -288,6 +314,21 @@ class BookmarkEdgeCaseTests(
 		withClue("stored ${stored.length} chars ending in U+%04X".format(stored.last().code)) {
 			stored shouldBe "a".repeat(499)
 		}
+	}
+
+	@Test
+	fun `cutting a fetched description does not split a character in two, a whole one at the limit is kept`() {
+		val bookmark = failedBookmark()
+		val limit = BookmarkService.MAX_DESCRIPTION_LENGTH
+
+		fun store(description: String) = service.applyMetadata(bookmark.id, bookmark.metadataFetch, true, PageMetadata(description = description))
+
+		store("d".repeat(limit - 1) + "🍅 more") shouldBe true
+		service.get(bookmark.id).description shouldBe "d".repeat(limit - 1)
+
+		// The emoji ends exactly at the limit: nothing is cut.
+		store("d".repeat(limit - 2) + "🍅 more") shouldBe true
+		service.get(bookmark.id).description shouldBe "d".repeat(limit - 2) + "🍅"
 	}
 
 	@Test
@@ -520,5 +561,8 @@ class BookmarkEdgeCaseTests(
 
 	private companion object {
 		const val BOOKMARKS = "/api/v1/bookmarks"
+
+		/** A JSON escape of 'é', so the request body stays ASCII. */
+		const val E_ACUTE_JSON = "\\u00e9"
 	}
 }

@@ -86,6 +86,19 @@ class PageFetcherEdgeCaseTests {
 	}
 
 	@Test
+	fun `a host with an underscore (saved as a bookmark) is not fetched but fails as an invalid URL`() {
+		var resolved = false
+		val fetcher =
+			PageFetcher(properties(allowPrivateNetworks = false)) { _ ->
+				resolved = true
+				emptyList()
+			}
+
+		failure { fetcher.fetch("https://a_b.example.com/") } shouldBe PageFetchError.INVALID_URL
+		resolved shouldBe false
+	}
+
+	@Test
 	fun `a redirect without or with a malformed Location fails`() {
 		stub("/no-location", 302)
 		stub("/bad-location", 301, mapOf("Location" to "http://exa mple.org/"))

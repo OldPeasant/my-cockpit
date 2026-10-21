@@ -5,6 +5,8 @@ import ch.sonensei.cockpit.bookmarks.domain.BookmarkService
 import ch.sonensei.cockpit.bookmarks.domain.PageMetadata
 import ch.sonensei.cockpit.bookmarks.infra.BookmarkFetchProperties
 import ch.sonensei.cockpit.bookmarks.infra.BookmarkMetadataWorker
+import ch.sonensei.cockpit.bookmarks.infra.PageFetchError
+import ch.sonensei.cockpit.bookmarks.infra.PageFetchException
 import ch.sonensei.cockpit.bookmarks.infra.PageFetcher
 import com.github.tomakehurst.wiremock.WireMockServer
 import com.github.tomakehurst.wiremock.client.WireMock.aResponse
@@ -227,6 +229,35 @@ class BookmarkMetadataWorkerTests {
 		worker.onRequested(request(page("/a")))
 
 		verify(exactly = 1) { service.applyMetadata(any(), any(), any(), any()) }
+	}
+
+	@Test
+	fun `a fetch interrupted by stopping the application stores nothing, so the bookmark stays pending`() {
+		val started = CountDownLatch(1)
+		var fetchThread: Thread? = null
+		val fetcher = mockk<PageFetcher>()
+		every { fetcher.fetch(any()) } answers {
+			fetchThread = Thread.currentThread()
+			started.countDown()
+			try {
+				Thread.sleep(10_000)
+				error("not interrupted")
+			} catch (e: InterruptedException) {
+				// What PageFetcher does when its wait is interrupted.
+				throw PageFetchException(PageFetchError.TIMEOUT, e)
+			}
+		}
+		every { service.applyMetadata(any(), any(), any(), any()) } returns true
+		val worker = worker(fetcher = fetcher)
+
+		worker.onRequested(request("https://slow.example/"))
+		started.await(5, TimeUnit.SECONDS) shouldBe true
+		worker.destroy()
+		val thread = checkNotNull(fetchThread)
+		thread.join(5_000)
+
+		thread.isAlive shouldBe false
+		verify(exactly = 0) { service.applyMetadata(any(), any(), any(), any()) }
 	}
 
 	@Test
