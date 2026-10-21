@@ -150,6 +150,32 @@ describe('NameDialog', () => {
     expect(await result).toBe(true);
   });
 
+  it('cannot be closed while saving, and can again after a failed save', async () => {
+    await open();
+    let fail!: (error: Error) => void;
+    save.mockImplementationOnce(() => new Promise<void>((_, reject) => (fail = reject)));
+    const escape = () =>
+      el.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true }));
+    const cancel = () =>
+      [...el.querySelectorAll<HTMLButtonElement>('button')].find(
+        (b) => b.textContent?.trim() === 'Cancel',
+      ) as HTMLButtonElement;
+
+    await submit('Taxes');
+    expect(cancel().disabled).toBe(true);
+    escape();
+    await settle();
+    expect(ref.getState()).toBe(0); // MatDialogState.OPEN
+
+    fail(new ApiError(409, 'Conflict', 'Name taken'));
+    await settle();
+    expect(cancel().disabled).toBe(false);
+    const result = firstValueFrom(ref.afterClosed());
+    escape();
+    expect(await result).toBeUndefined();
+    expect(save).toHaveBeenCalledTimes(1);
+  });
+
   it('does not save an invalid name', async () => {
     await open();
     await submit('..');

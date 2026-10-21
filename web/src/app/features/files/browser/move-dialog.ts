@@ -64,7 +64,15 @@ export interface MoveDialogData {
       }
     </mat-dialog-content>
     <mat-dialog-actions align="end">
-      <button mat-button type="button" mat-dialog-close i18n="@@files.cancel">Cancel</button>
+      <button
+        mat-button
+        type="button"
+        [mat-dialog-close]="undefined"
+        [disabled]="moving()"
+        i18n="@@files.cancel"
+      >
+        Cancel
+      </button>
       <button
         mat-flat-button
         type="button"
@@ -181,12 +189,15 @@ export class MoveDialog implements OnInit {
     const target = this.here();
     this.moving.set(true);
     this.moveError.set(null);
+    // The move may be committed even if its answer never arrives here: no closing until it has.
+    this.ref.disableClose = true;
     try {
       await this.drive.move(this.data.entry, target);
       this.ref.close(target);
     } catch (error) {
       this.moveError.set(message(error));
     } finally {
+      this.ref.disableClose = false;
       this.moving.set(false);
     }
   }

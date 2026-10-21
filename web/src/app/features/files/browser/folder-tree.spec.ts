@@ -176,6 +176,42 @@ describe('FolderTree', () => {
     expect(names()).toEqual(['My drive', 'Documents', 'Trip 2026', 'Receipts']);
   });
 
+  describe('with refreshes answered out of order', () => {
+    let pending: { resolve: (folders: FolderSummary[]) => void; reject: (e: Error) => void }[];
+
+    beforeEach(async () => {
+      await create();
+      pending = [];
+      subfolders.mockImplementation(
+        () => new Promise<FolderSummary[]>((resolve, reject) => pending.push({ resolve, reject })),
+      );
+      const tree = fixture.componentInstance.tree();
+      tree.refresh();
+      tree.refresh();
+      expect(pending).toHaveLength(2);
+    });
+
+    it('keeps the newer answer when the older one arrives last', async () => {
+      // Photos was deleted between the two refreshes.
+      pending[1].resolve([folder(DOCS, 'Documents')]);
+      await settle();
+      pending[0].resolve([folder(DOCS, 'Documents'), folder(PHOTOS, 'Photos')]);
+      await settle();
+
+      expect(names()).toEqual(['My drive', 'Documents']);
+    });
+
+    it('ignores a failure of the older load after the newer one succeeded', async () => {
+      pending[1].resolve([folder(DOCS, 'Documents')]);
+      await settle();
+      pending[0].reject(new Error('unavailable'));
+      await settle();
+
+      expect(root.querySelector('.note.error')).toBeNull();
+      expect(names()).toEqual(['My drive', 'Documents']);
+    });
+  });
+
   it('does not load a folder twice while its load is still running', async () => {
     let release!: (folders: FolderSummary[]) => void;
     subfolders.mockImplementationOnce(

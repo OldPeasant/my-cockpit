@@ -35,20 +35,25 @@
 
   <section class="main" aria-labelledby="files-title">
     <header class="head">
-      <nav class="crumbs" i18n-aria-label="@@files.breadcrumbs" aria-label="Breadcrumbs">
-        <ol>
-          @for (crumb of crumbs(); track crumb.id; let last = $last) {
-            <li>
-              @if (last) {
-                <h1 id="files-title" aria-current="page">{{ crumb.name }}</h1>
-              } @else {
-                <a [routerLink]="crumb.id ? ['/files', crumb.id] : '/files'">{{ crumb.name }}</a>
-                <span class="sep" aria-hidden="true">/</span>
-              }
-            </li>
-          }
-        </ol>
-      </nav>
+      @if (crumbs().length) {
+        <nav class="crumbs" i18n-aria-label="@@files.breadcrumbs" aria-label="Breadcrumbs">
+          <ol>
+            @for (crumb of crumbs(); track crumb.id; let last = $last) {
+              <li>
+                @if (last) {
+                  <h1 id="files-title" aria-current="page">{{ crumb.name }}</h1>
+                } @else {
+                  <a [routerLink]="crumb.id ? ['/files', crumb.id] : '/files'">{{ crumb.name }}</a>
+                  <span class="sep" aria-hidden="true">/</span>
+                }
+              </li>
+            }
+          </ol>
+        </nav>
+      } @else {
+        <!-- Until the crumbs are loaded (or when they cannot be), the page still has its heading. -->
+        <h1 id="files-title" i18n="@@files.title">Files</h1>
+      }
 
       <div class="toolbar">
         <button mat-flat-button type="button" (click)="newFolder()" i18n="@@files.newFolder">

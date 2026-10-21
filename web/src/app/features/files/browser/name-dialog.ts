@@ -72,7 +72,15 @@ export function nameError(name: string): ValidationErrors | null {
         }
       </mat-dialog-content>
       <mat-dialog-actions align="end">
-        <button mat-button type="button" mat-dialog-close i18n="@@files.cancel">Cancel</button>
+        <button
+          mat-button
+          type="button"
+          mat-dialog-close
+          [disabled]="saving()"
+          i18n="@@files.cancel"
+        >
+          Cancel
+        </button>
         <button mat-flat-button type="submit" [disabled]="saving()">{{ data.confirm }}</button>
       </mat-dialog-actions>
     </form>
@@ -114,6 +122,8 @@ export class NameDialog {
     }
     this.saving.set(true);
     this.error.set(null);
+    // The save may be committed even if its answer never arrives here: no closing until it has.
+    this.ref.disableClose = true;
     try {
       await this.data.save(name);
       this.ref.close(true);
@@ -124,6 +134,7 @@ export class NameDialog {
           : $localize`:@@files.error:Something went wrong.`,
       );
     } finally {
+      this.ref.disableClose = false;
       this.saving.set(false);
     }
   }

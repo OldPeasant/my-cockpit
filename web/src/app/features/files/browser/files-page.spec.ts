@@ -497,10 +497,15 @@ describe('FilesPage', () => {
     await open(DOCS);
 
     expect(root.querySelector('.load-error')?.textContent).toContain('Folder not found');
+    // The page keeps its heading, which names the section, while it has no crumbs.
+    expect(root.querySelector('h1#files-title')?.textContent?.trim()).toBe('Files');
+    expect(root.querySelector('section[aria-labelledby="files-title"]')).not.toBeNull();
     button('Try again').click();
     await settle();
     expect(root.querySelector('.load-error')).toBeNull();
     expect(names()).toEqual(['Trip 2026', 'Report.pdf']);
+    expect(root.querySelectorAll('#files-title')).toHaveLength(1);
+    expect(root.querySelector('h1#files-title')?.textContent?.trim()).toBe('Documents');
   });
 
   it('loads more entries page by page and hides "Show more" after the last page', async () => {
@@ -609,6 +614,73 @@ describe('FilesPage', () => {
 
     expect(drive.requests.some((r) => r.method === 'PATCH')).toBe(false);
     expect(notifications.info).not.toHaveBeenCalled();
+  });
+
+  it('keeps the move dialog open until a running move has answered', async () => {
+    await open();
+
+    await menu('Documents', 'Move');
+    const el = await dialog('app-files-move-dialog');
+    button('Photos', el).click();
+    await settle();
+    button('Move here', el).click();
+    await tick();
+    TestBed.tick();
+
+    // The PATCH is still running: neither Cancel nor Escape can close the dialog.
+    expect(button('Cancel', el).disabled).toBe(true);
+    el.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true }));
+    await tick();
+    expect(document.querySelector('app-files-move-dialog')).not.toBeNull();
+
+    await closed('app-files-move-dialog');
+    expect(drive.requests.filter((r) => r.method === 'PATCH')).toHaveLength(1);
+    expect(notifications.info).toHaveBeenCalledWith('Moved “Documents”');
+    expect(names()).toEqual(['Attachments', 'Photos']);
+  });
+
+  it('shows the newest usage when an older usage load answers last', async () => {
+    await open();
+    const isUsage = (req: HttpRequest<unknown>): boolean => req.url === '/api/v1/drive/usage';
+
+    /** Deletes an entry and answers everything it reloads except the usage. */
+    async function deleteKeepingUsage(name: string): Promise<void> {
+      byLabel(`Actions for ${name}`).click();
+      await tick();
+      fixture.detectChanges();
+      const items = [...document.querySelectorAll<HTMLElement>('.mat-mdc-menu-item')].filter(
+        (el) => el.textContent?.trim() === 'Delete',
+      );
+      items.at(-1)?.click();
+      for (let round = 0; round < 10; round++) {
+        await tick();
+        drive.answer(http, (req) => !isUsage(req));
+      }
+      fixture.detectChanges();
+    }
+
+    await deleteKeepingUsage('Photos');
+    await deleteKeepingUsage('Documents');
+    const pending = http.match(isUsage);
+    expect(pending).toHaveLength(2);
+    const [older, newer] = pending;
+    const usage = (fileCount: number, usedBytes: number) => ({
+      fileCount,
+      folderCount: 1,
+      maxFileSize: 1024 ** 3,
+      totalSpaceBytes: 100 * 1024 ** 3,
+      usableSpaceBytes: 75 * 1024 ** 3,
+      usedBytes,
+      trashBytes: 0,
+      trashFileCount: 0,
+    });
+
+    newer.flush(usage(1, 1536));
+    await tick();
+    older.flush(usage(7, 9000));
+    await settle();
+
+    expect(root.querySelector('.usage')?.textContent).toContain('1.5 KB in 1 file');
   });
 
   it('shows in the move dialog when its folders cannot be loaded', async () => {

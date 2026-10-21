@@ -104,8 +104,12 @@ export class FolderTree {
   protected readonly children = signal<Readonly<Record<string, FolderSummary[]>>>({});
   protected readonly expanded = signal<ReadonlySet<string>>(new Set());
   protected readonly failed = signal<ReadonlySet<string>>(new Set());
-  /** Folders whose subfolders are being fetched. */
-  private readonly loading = new Set<string>();
+  /**
+   * The running load per folder id: only the latest load of a folder may apply its answer, so an
+   * older answer that arrives last cannot bring back what a newer one already removed.
+   */
+  private readonly loading = new Map<string, number>();
+  private loadSeq = 0;
 
   constructor() {
     effect(() => {
@@ -148,12 +152,15 @@ export class FolderTree {
 
   private async load(id: string, force = false): Promise<void> {
     if (!force && (id in this.children() || this.loading.has(id))) return;
-    this.loading.add(id);
+    const seq = ++this.loadSeq;
+    this.loading.set(id, seq);
     this.failed.update((ids) => without(ids, id));
     try {
       const folders = await this.drive.subfolders(id === ROOT ? null : id);
+      if (this.loading.get(id) !== seq) return;
       this.children.update((all) => ({ ...all, [id]: folders }));
     } catch {
+      if (this.loading.get(id) !== seq) return;
       this.children.update((all) => {
         const rest = { ...all };
         delete rest[id];
@@ -161,7 +168,7 @@ export class FolderTree {
       });
       this.failed.update((ids) => new Set(ids).add(id));
     } finally {
-      this.loading.delete(id);
+      if (this.loading.get(id) === seq) this.loading.delete(id);
     }
   }
 }

@@ -81,7 +81,6 @@ export default class FilesPage {
   protected readonly usage = signal<DriveUsageResponse | null>(null);
   protected readonly view = signal<ViewMode>(storedViewMode());
 
-  protected readonly title = computed(() => this.crumbs().at(-1)?.name ?? '');
   /** Share of the disk in use (by everything on it), 0-100. */
   protected readonly usedPercent = computed(() => {
     const usage = this.usage();
@@ -94,6 +93,8 @@ export default class FilesPage {
 
   /** Counts the folder loads: a page that arrives for an earlier load is ignored. */
   private loadSeq = 0;
+  /** Counts the usage loads: an answer that arrives for an earlier load is ignored. */
+  private usageSeq = 0;
 
   constructor() {
     inject(ActivatedRoute)
@@ -257,8 +258,10 @@ export default class FilesPage {
   }
 
   private async loadUsage(): Promise<void> {
+    const seq = ++this.usageSeq;
     try {
-      this.usage.set(await this.drive.usage());
+      const usage = await this.drive.usage();
+      if (seq === this.usageSeq) this.usage.set(usage);
     } catch {
       // The usage is extra information: without it the meter is simply not shown.
     }
