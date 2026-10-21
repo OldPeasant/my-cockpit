@@ -13,6 +13,7 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
+import androidx.lifecycle.Lifecycle
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.rememberNavController
 import androidx.test.core.app.ApplicationProvider
@@ -227,6 +228,48 @@ class ReminderUiTest {
         shadowOf(context as Application).grantPermissions(Manifest.permission.POST_NOTIFICATIONS)
         ShadowAlarmManager.setCanScheduleExactAlarms(true)
         viewModel.refreshPermissions()
+        composeRule.waitForIdle()
+
+        composeRule.onNodeWithTag(ReminderPromptTags.CARD).assertDoesNotExist()
+        assertEquals(0L, scheduledAlarms(context).single().windowLengthMs)
+    }
+
+    @Test
+    fun `granting the permission dialog stops asking for notifications, exact alarms are still asked for`() {
+        graph.reminderScheduler().apply(listOf(reminder(1, minutes = 30)))
+        showPrompt(viewModel())
+        composeRule.onNodeWithTag(ReminderPromptTags.ALLOW_NOTIFICATIONS).performClick()
+        composeRule.waitForIdle()
+        val activity = shadowOf(composeRule.activity)
+        val dialog = activity.nextStartedActivity
+
+        // The user allows the dialog; the launcher callback re-reads the permission.
+        shadowOf(context as Application).grantPermissions(Manifest.permission.POST_NOTIFICATIONS)
+        activity.receiveResult(
+            dialog,
+            Activity.RESULT_OK,
+            Intent()
+                .putExtra("android.content.pm.extra.REQUEST_PERMISSIONS_NAMES", arrayOf(Manifest.permission.POST_NOTIFICATIONS))
+                .putExtra("android.content.pm.extra.REQUEST_PERMISSIONS_RESULTS", intArrayOf(PackageManager.PERMISSION_GRANTED)),
+        )
+        composeRule.waitForIdle()
+
+        composeRule.onNodeWithTag(ReminderPromptTags.ALLOW_NOTIFICATIONS).assertDoesNotExist()
+        composeRule.onNodeWithTag(ReminderPromptTags.ALLOW_EXACT).assertIsDisplayed()
+    }
+
+    @Test
+    fun `coming back from the exact alarm settings page hides the prompt and makes the alarms exact`() {
+        shadowOf(context as Application).grantPermissions(Manifest.permission.POST_NOTIFICATIONS)
+        graph.reminderScheduler().apply(listOf(reminder(1, minutes = 30)))
+        showPrompt(viewModel())
+        composeRule.onNodeWithTag(ReminderPromptTags.ALLOW_EXACT).performClick()
+        assertTrue("inexact before the grant", scheduledAlarms(context).single().windowLengthMs != 0L)
+
+        // The system page covers the app, the user grants exact alarms, then returns: the app resumes.
+        composeRule.activityRule.scenario.moveToState(Lifecycle.State.STARTED)
+        ShadowAlarmManager.setCanScheduleExactAlarms(true)
+        composeRule.activityRule.scenario.moveToState(Lifecycle.State.RESUMED)
         composeRule.waitForIdle()
 
         composeRule.onNodeWithTag(ReminderPromptTags.CARD).assertDoesNotExist()
