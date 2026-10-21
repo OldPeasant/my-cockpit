@@ -126,8 +126,11 @@ function timeFields(
   };
 }
 
-/** The request creating the event of `form`. */
-export function createRequest(form: EventFormValue): CreateEventRequest {
+/**
+ * The request creating the event of `form`. `attendees` only when `withAttendees` (local
+ * calendars: providers manage the guests of synced ones).
+ */
+export function createRequest(form: EventFormValue, withAttendees: boolean): CreateEventRequest {
   const rrule = rruleOf(form.repeat, form.rrule);
   return {
     title: form.title.trim(),
@@ -139,7 +142,7 @@ export function createRequest(form: EventFormValue): CreateEventRequest {
     ...(form.location.trim() ? { location: form.location.trim() } : {}),
     ...(form.description.trim() ? { description: form.description } : {}),
     reminderMinutes: [...form.reminderMinutes],
-    ...(form.attendees.length ? { attendees: form.attendees } : {}),
+    ...(withAttendees && form.attendees.length ? { attendees: form.attendees } : {}),
   };
 }
 

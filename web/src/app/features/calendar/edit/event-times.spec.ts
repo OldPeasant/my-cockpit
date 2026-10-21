@@ -1,4 +1,12 @@
-import { addDays, addHours, instantOf, isTimeZone, timeZones, wallClockOf } from './event-times';
+import {
+  addDays,
+  addHours,
+  instantOf,
+  isTimeZone,
+  nextFullHour,
+  timeZones,
+  wallClockOf,
+} from './event-times';
 
 describe('event times', () => {
   it('shows an instant as date and time in a zone', () => {
@@ -37,6 +45,52 @@ describe('event times', () => {
     // Right before and after the change.
     expect(instantOf('2026-03-29', '01:59', 'Europe/Zurich')).toBe('2026-03-29T00:59:00.000Z');
     expect(instantOf('2026-03-29', '03:00', 'Europe/Zurich')).toBe('2026-03-29T01:00:00.000Z');
+  });
+
+  it('resolves a skipped time to after the change in zones west of UTC too', () => {
+    // New York 2026-03-08: clocks jump from 02:00 EST to 03:00 EDT (07:00Z).
+    expect(instantOf('2026-03-08', '02:30', 'America/New_York')).toBe('2026-03-08T07:30:00.000Z');
+    expect(wallClockOf('2026-03-08T07:30:00.000Z', 'America/New_York').time).toBe('03:30');
+    expect(instantOf('2026-03-08', '02:00', 'America/New_York')).toBe('2026-03-08T07:00:00.000Z');
+    expect(instantOf('2026-03-08', '01:59', 'America/New_York')).toBe('2026-03-08T06:59:00.000Z');
+    expect(instantOf('2026-03-08', '03:00', 'America/New_York')).toBe('2026-03-08T07:00:00.000Z');
+    // The same rule as in Zurich: 02:30 becomes 03:30 local time.
+    expect(wallClockOf(instantOf('2026-03-29', '02:30', 'Europe/Zurich'), 'Europe/Zurich')).toEqual(
+      { date: '2026-03-29', time: '03:30' },
+    );
+  });
+
+  it('resolves a repeated time in New York to its first occurrence', () => {
+    // 2026-11-01: clocks go back from 02:00 EDT to 01:00 EST (06:00Z).
+    expect(instantOf('2026-11-01', '01:30', 'America/New_York')).toBe('2026-11-01T05:30:00.000Z');
+    expect(instantOf('2026-11-01', '02:00', 'America/New_York')).toBe('2026-11-01T07:00:00.000Z');
+  });
+
+  it('round-trips every quarter hour of a New York DST change day except the skipped hour', () => {
+    for (let minutes = 0; minutes < 24 * 60; minutes += 15) {
+      const time = `${String(Math.floor(minutes / 60)).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}`;
+      if (time >= '02:00' && time < '03:00') continue;
+      const back = wallClockOf(
+        instantOf('2026-03-08', time, 'America/New_York'),
+        'America/New_York',
+      );
+      expect(back).toEqual({ date: '2026-03-08', time });
+    }
+  });
+
+  it('finds the next full hour on the clocks of a zone', () => {
+    expect(nextFullHour('2026-03-23T08:10:00Z', 'Europe/Zurich')).toBe('2026-03-23T09:00:00.000Z');
+    // Kolkata is UTC+05:30: its full hours are at :30 UTC.
+    expect(nextFullHour('2026-03-23T08:10:00Z', 'Asia/Kolkata')).toBe('2026-03-23T08:30:00.000Z');
+    expect(nextFullHour('2026-03-23T08:40:00Z', 'Asia/Kolkata')).toBe('2026-03-23T09:30:00.000Z');
+    // Right on the hour: the next one.
+    expect(nextFullHour('2026-03-23T09:00:00Z', 'UTC')).toBe('2026-03-23T10:00:00.000Z');
+    // Across midnight and into the next day.
+    expect(nextFullHour('2026-03-22T22:59:00Z', 'Europe/Zurich')).toBe('2026-03-22T23:00:00.000Z');
+    // Across the skipped hour of a DST change (01:30 EST: next is 03:00 EDT).
+    expect(nextFullHour('2026-03-08T06:30:00Z', 'America/New_York')).toBe(
+      '2026-03-08T07:00:00.000Z',
+    );
   });
 
   it('resolves a time repeated by the autumn DST change to its first occurrence', () => {

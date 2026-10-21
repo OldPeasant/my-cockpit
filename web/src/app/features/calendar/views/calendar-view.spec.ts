@@ -26,6 +26,7 @@ import { SettingsService } from '../../settings/settings.service';
 import { fakeSettings } from '../../settings/testing';
 import calendarRoutes from '../calendar.routes';
 import { EventEditor } from '../edit/event-editor';
+import { wallClockOf } from '../edit/event-times';
 import CalendarView from './calendar-view';
 import { fakeCalendar, fakeOccurrence } from './testing';
 
@@ -742,6 +743,22 @@ describe('CalendarView', () => {
       expect(start.getTime()).toBeGreaterThan(Date.now());
       expect(start.getTime() - Date.now()).toBeLessThanOrEqual(3_600_000);
       expect(new Date(draft.end).getTime() - start.getTime()).toBe(3_600_000);
+    });
+
+    it('rounds the New event start to a full hour in the zone of the settings', async () => {
+      // Kolkata is UTC+05:30: a full hour there is :30 in UTC (and in most browser zones).
+      settings.set(fakeSettings({ timeZone: 'Asia/Kolkata', weekStart: 'MONDAY' }));
+      await render();
+      await answerCalendars(work);
+      [...root.querySelectorAll<HTMLButtonElement>('button')]
+        .find((b) => b.textContent!.trim() === 'New event')!
+        .click();
+      await settle();
+      const [draft] = editor.create.mock.calls[0] as [{ start: string; end: string }];
+      expect(wallClockOf(draft.start, 'Asia/Kolkata').time).toMatch(/^\d\d:00$/);
+      expect(new Date(draft.start).getUTCMinutes()).toBe(30);
+      expect(new Date(draft.start).getTime()).toBeGreaterThan(Date.now());
+      expect(new Date(draft.start).getTime() - Date.now()).toBeLessThanOrEqual(3_600_000);
     });
   });
 });

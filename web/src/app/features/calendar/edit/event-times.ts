@@ -31,11 +31,25 @@ export function instantOf(date: string, time: string, timeZone: string): string 
   const first = offsetAt(wall, timeZone);
   let instant = wall - first;
   const second = offsetAt(instant, timeZone);
-  if (second !== first) instant = wall - second;
+  if (second !== first) {
+    instant = wall - second;
+    // Neither offset shows the typed clock: a time skipped by a DST change. The offset from before
+    // the change (the smaller one) puts it the same distance after the change, in every zone.
+    if (instant + offsetAt(instant, timeZone) !== wall) instant = wall - Math.min(first, second);
+  }
   // An ambiguous time (clocks set back): prefer the earlier instant if it shows the same clock.
   const earlier = instant - HOUR_MS;
   if (earlier + offsetAt(earlier, timeZone) === wall) instant = earlier;
   return new Date(instant).toISOString();
+}
+
+/** The next full hour after `now` on the clocks of `timeZone`, as `...Z`. */
+export function nextFullHour(now: string | Date, timeZone: string): string {
+  const { date, time } = wallClockOf(now, timeZone);
+  const hour = Number(time.slice(0, 2)) + 1;
+  return hour < 24
+    ? instantOf(date, `${pad(hour)}:00`, timeZone)
+    : instantOf(addDays(date, 1), '00:00', timeZone);
 }
 
 /** `date` (`yyyy-MM-dd`) moved by `days`. */

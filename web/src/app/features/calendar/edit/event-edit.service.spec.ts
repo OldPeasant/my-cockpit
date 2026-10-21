@@ -3,7 +3,13 @@ import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { ApiError, NotificationService, provideHttp, SILENT_ERRORS } from '../../../core/http';
 import { fakeEvent, fakeOccurrence } from '../views/testing';
-import { EditScope, EventEditService, isConflict, isSeries } from './event-edit.service';
+import {
+  EditScope,
+  EventEditService,
+  isConflict,
+  isGenerated,
+  isSeries,
+} from './event-edit.service';
 
 const tick = (): Promise<void> => new Promise((resolve) => setTimeout(resolve));
 
@@ -105,42 +111,59 @@ describe('EventEditService', () => {
     http.match(() => true).forEach((req) => req.flush({}));
   });
 
-  it('changes this occurrence of an override on the override itself', async () => {
-    void service.update(override(), 'THIS', { title: 'Swim' }, 9);
-    await tick();
-    const patch = expectPatch('o1');
-    // The override stands for its occurrence: no occurrence parameter, its own version.
-    expect(patch).toMatchObject({ scope: 'THIS', occurrence: null, ifMatch: '"2"' });
-    patch.req.flush(fakeEvent('o1'));
-  });
+  for (const scope of ['THIS', 'FOLLOWING', 'ALL'] as EditScope[]) {
+    it(`changes an override with scope ${scope} on the override itself, with its own version`, async () => {
+      void service.update(override(), scope, { title: 'Swim' });
+      await tick();
+      const patch = expectPatch('o1');
+      // The override stands for its occurrence: no occurrence parameter, no extra request.
+      expect(patch).toMatchObject({ scope, occurrence: null, ifMatch: '"2"' });
+      http.expectNone((r) => r.method === 'GET');
+      patch.req.flush(fakeEvent('o1'));
+    });
+  }
 
-  it('changes following occurrences of an override on the master with the version seen', async () => {
-    void service.update(override(), 'FOLLOWING', { title: 'Swim' }, 9);
-    await tick();
-    const patch = expectPatch('m1');
-    expect(patch).toMatchObject({ scope: 'FOLLOWING', occurrence: OCCURRENCE, ifMatch: '"9"' });
-    patch.req.flush(fakeEvent('m1'));
-  });
+  describe('reread', () => {
+    const occurrencesUrl = '/api/v1/calendar/events';
 
-  it('fetches the master version when changing all occurrences from an override without it', async () => {
-    const result = service.update(override(), 'ALL', { location: 'Pool' });
-    const get = http.expectOne((r) => r.method === 'GET' && r.url === '/api/v1/calendar/events/m1');
-    get.flush(fakeEvent('m1', { version: 7, rrule: 'FREQ=WEEKLY' }));
-    await tick();
-    const patch = expectPatch('m1');
-    expect(patch).toMatchObject({ scope: 'ALL', occurrence: OCCURRENCE, ifMatch: '"7"' });
-    expect(patch.req.request.body).toEqual({ location: 'Pool' });
-    patch.req.flush(fakeEvent('m1', { version: 8 }));
-    await expect(result).resolves.toMatchObject({ version: 8 });
-  });
+    it('finds a generated occurrence again in a range around its original start', async () => {
+      const result = service.reread(generated());
+      const req = http.expectOne((r) => r.method === 'GET' && r.url === occurrencesUrl);
+      expect(req.request.params.get('from')).toBe('2026-03-29T07:00:00.000Z');
+      expect(req.request.params.get('to')).toBe('2026-03-31T07:00:00.000Z');
+      expect(req.request.params.getAll('calendarIds')).toEqual(['work']);
+      expect(req.request.context.get(SILENT_ERRORS)).toBe(true);
+      const moved = { ...generated(), start: '2026-03-30T09:00:00Z', version: 6 };
+      req.flush({
+        items: [
+          fakeOccurrence('Other', { seriesId: 'm2', occurrence: OCCURRENCE }),
+          { ...generated(), occurrence: '2026-04-06T07:00:00Z' },
+          moved,
+        ],
+      });
+      await expect(result).resolves.toEqual(moved);
+    });
 
-  it('sends no change when the master cannot be fetched', async () => {
-    const result = service.update(override(), 'ALL', { location: 'Pool' });
-    http
-      .expectOne((r) => r.method === 'GET' && r.url === '/api/v1/calendar/events/m1')
-      .flush({ status: 404, title: 'Not Found' }, { status: 404, statusText: 'Not Found' });
-    await expect(result).rejects.toMatchObject({ status: 404 });
-    http.expectNone((r) => r.method === 'PATCH');
+    it('covers the days around the date of an all-day occurrence', async () => {
+      void service.reread(
+        fakeOccurrence('Holiday', {
+          eventId: 'm1',
+          seriesId: 'm1',
+          occurrence: '2026-04-06',
+          allDay: true,
+        }),
+      );
+      const req = http.expectOne((r) => r.method === 'GET' && r.url === occurrencesUrl);
+      expect(req.request.params.get('from')).toBe('2026-04-05T00:00:00.000Z');
+      expect(req.request.params.get('to')).toBe('2026-04-08T00:00:00.000Z');
+      req.flush({ items: [] });
+    });
+
+    it('is undefined when the series no longer has the occurrence', async () => {
+      const result = service.reread(generated());
+      http.expectOne((r) => r.method === 'GET' && r.url === occurrencesUrl).flush({ items: [] });
+      await expect(result).resolves.toBeUndefined();
+    });
   });
 
   it('reports a stale version as a conflict, silently', async () => {
@@ -183,12 +206,13 @@ describe('EventEditService', () => {
     expect(third.request.headers.get('If-Match')).toBe('"2"');
     third.flush(null, { status: 204, statusText: 'No Content' });
 
-    void service.delete(override(), 'ALL', 9);
+    void service.delete(override(), 'ALL');
     await tick();
     const fourth = http.expectOne((r) => r.method === 'DELETE');
-    expect(fourth.request.url).toBe('/api/v1/calendar/events/m1');
+    expect(fourth.request.url).toBe('/api/v1/calendar/events/o1');
     expect(fourth.request.params.get('scope')).toBe('ALL');
-    expect(fourth.request.headers.get('If-Match')).toBe('"9"');
+    expect(fourth.request.params.has('occurrence')).toBe(false);
+    expect(fourth.request.headers.get('If-Match')).toBe('"2"');
     fourth.flush(null, { status: 204, statusText: 'No Content' });
   });
 });
@@ -203,6 +227,14 @@ describe('isConflict', () => {
     expect(isConflict({ status: 409 })).toBe(false);
     expect(isConflict(new Error('409'))).toBe(false);
     expect(isConflict(undefined)).toBe(false);
+  });
+});
+
+describe('isGenerated', () => {
+  it('is an occurrence of a series that no override replaces', () => {
+    expect(isGenerated(generated())).toBe(true);
+    expect(isGenerated(override())).toBe(false);
+    expect(isGenerated(single())).toBe(false);
   });
 });
 

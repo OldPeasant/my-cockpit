@@ -27,7 +27,7 @@ import { CalendarResponse, OccurrenceResponse } from '../../../api/generated';
 import { NotificationService } from '../../../core/http';
 import { SettingsService } from '../../settings/settings.service';
 import { EditorContext, EventEditor, MovedTimes, timesOf } from '../edit/event-editor';
-import { addHours } from '../edit/event-times';
+import { addHours, nextFullHour } from '../edit/event-times';
 import { calendarColor, CalendarStore } from './calendar-store';
 import {
   dateIn,
@@ -166,11 +166,12 @@ export default class CalendarView {
     else void this.occurrences.refresh();
   }
 
-  /** Opens the dialog for a new event in the next full hour. */
+  /** Opens the dialog for a new event in the next full hour (on the clocks of the settings zone). */
   protected newEvent(): void {
-    const start = new Date();
-    start.setMinutes(60, 0, 0);
-    void this.create({ allDay: false, start: start.toISOString(), end: addHours(start, 1) });
+    const timeZone = this.settings()?.timeZone;
+    if (!timeZone) return;
+    const start = nextFullHour(new Date(), timeZone);
+    void this.create({ allDay: false, start, end: addHours(start, 1) });
   }
 
   private onSelect(info: DateSelectInfo): void {

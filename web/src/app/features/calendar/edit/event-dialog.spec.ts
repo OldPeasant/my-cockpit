@@ -35,6 +35,7 @@ describe('EventDialog', () => {
   let stored: Map<string, EventResponse>;
   let events: {
     get: ReturnType<typeof vi.fn>;
+    reread: ReturnType<typeof vi.fn>;
     create: ReturnType<typeof vi.fn>;
     update: ReturnType<typeof vi.fn>;
     delete: ReturnType<typeof vi.fn>;
@@ -57,6 +58,8 @@ describe('EventDialog', () => {
           ? Promise.resolve(stored.get(id)!)
           : Promise.reject(new ApiError(404, 'Not Found')),
       ),
+      // The view's occurrence is current unless a test says otherwise.
+      reread: vi.fn((occurrence: OccurrenceResponse) => Promise.resolve(occurrence)),
       create: vi.fn(() => Promise.resolve(fakeEvent('new'))),
       update: vi.fn(() => Promise.resolve(fakeEvent('e1'))),
       delete: vi.fn(() => Promise.resolve()),
@@ -253,7 +256,6 @@ describe('EventDialog', () => {
         expect.objectContaining({ eventId: 'e1', version: 2 }),
         undefined,
         { title: 'Dentist (moved)' },
-        undefined,
       );
       expect(ref.close).toHaveBeenCalledWith('saved');
     });
@@ -305,11 +307,57 @@ describe('EventDialog', () => {
           expect.objectContaining({ version: 3 }),
           undefined,
           { title: 'Dentist at 12' },
-          undefined,
         );
         expect(ref.close).toHaveBeenCalledWith('saved');
       });
     }
+
+    it('shows the current times of the event, not those of the view, also after Reload', async () => {
+      // The view still shows 09:00-10:00; the event was moved to 11:00-12:00 elsewhere.
+      stored.set(
+        'e1',
+        fakeEvent('e1', {
+          title: 'Dentist',
+          calendarId: 'family',
+          start: '2026-03-23T10:00:00Z',
+          end: '2026-03-23T11:00:00Z',
+          version: 2,
+        }),
+      );
+      await edit(occurrence());
+      expect(input('startTime').value).toBe('11:00');
+      expect(input('endTime').value).toBe('12:00');
+      expect(events.reread).not.toHaveBeenCalled();
+
+      events.update.mockRejectedValueOnce(new ApiError(412, 'Precondition Failed'));
+      type('title', 'Dentist (moved)');
+      await save();
+      // Moved again elsewhere, to the next day 14:00-15:30.
+      stored.set(
+        'e1',
+        fakeEvent('e1', {
+          title: 'Dentist',
+          calendarId: 'family',
+          start: '2026-03-24T13:00:00Z',
+          end: '2026-03-24T14:30:00Z',
+          version: 3,
+        }),
+      );
+      button('Reload')!.click();
+      await stable();
+      expect(input('startDate').value).toBe('2026-03-24');
+      expect(input('startTime').value).toBe('14:00');
+      expect(input('endTime').value).toBe('15:30');
+
+      // Changing only the end sends the current start, not the one the view had.
+      type('endTime', '16:00');
+      await save();
+      expect(events.update).toHaveBeenLastCalledWith(
+        expect.objectContaining({ eventId: 'e1', version: 3 }),
+        undefined,
+        { start: '2026-03-24T13:00:00.000Z', end: '2026-03-24T15:00:00.000Z' },
+      );
+    });
 
     it('offers a retry when the event cannot be loaded', async () => {
       stored.clear();
@@ -332,7 +380,6 @@ describe('EventDialog', () => {
       expect(events.delete).toHaveBeenCalledWith(
         expect.objectContaining({ eventId: 'e1', version: 2 }),
         undefined,
-        undefined,
       );
       expect(ref.close).toHaveBeenCalledWith('deleted');
     });
@@ -347,14 +394,9 @@ describe('EventDialog', () => {
       await stable();
       expect(el().querySelector('.attendees')!.textContent).toContain('anna@example.test');
       await save();
-      expect(events.update).toHaveBeenCalledWith(
-        expect.anything(),
-        undefined,
-        {
-          attendees: [{ email: 'anna@example.test', status: 'NEEDS_ACTION' }],
-        },
-        undefined,
-      );
+      expect(events.update).toHaveBeenCalledWith(expect.anything(), undefined, {
+        attendees: [{ email: 'anna@example.test', status: 'NEEDS_ACTION' }],
+      });
     });
 
     it('adds guests on Enter once per address and refuses an invalid one', async () => {
@@ -415,12 +457,9 @@ describe('EventDialog', () => {
       el().querySelector<HTMLButtonElement>('button[aria-label="Remove guest Anna"]')!.click();
       await stable();
       await save();
-      expect(events.update).toHaveBeenCalledWith(
-        expect.anything(),
-        undefined,
-        { attendees: [{ email: 'ben@example.test', status: 'DELEGATED' }] },
-        undefined,
-      );
+      expect(events.update).toHaveBeenCalledWith(expect.anything(), undefined, {
+        attendees: [{ email: 'ben@example.test', status: 'DELEGATED' }],
+      });
     });
 
     it('adds and removes reminders', async () => {
@@ -449,12 +488,9 @@ describe('EventDialog', () => {
         .click();
       await stable();
       await save();
-      expect(events.update).toHaveBeenCalledWith(
-        expect.anything(),
-        undefined,
-        { reminderMinutes: [1440] },
-        undefined,
-      );
+      expect(events.update).toHaveBeenCalledWith(expect.anything(), undefined, {
+        reminderMinutes: [1440],
+      });
     });
 
     it('says it is loading until the event arrives', async () => {
@@ -510,7 +546,6 @@ describe('EventDialog', () => {
         expect.objectContaining({ eventId: 'm1', occurrence: OCCURRENCE }),
         'FOLLOWING',
         { title: 'Swim (pool B)' },
-        4,
       );
       expect(ref.close).toHaveBeenCalledWith('saved');
     });
@@ -532,12 +567,7 @@ describe('EventDialog', () => {
       await chooseRepeat('Every day');
       await save();
       expect(scopes.ask).toHaveBeenCalledWith('change', ['FOLLOWING', 'ALL']);
-      expect(events.update).toHaveBeenCalledWith(
-        expect.anything(),
-        'ALL',
-        { rrule: 'FREQ=DAILY' },
-        4,
-      );
+      expect(events.update).toHaveBeenCalledWith(expect.anything(), 'ALL', { rrule: 'FREQ=DAILY' });
     });
 
     it('keeps a custom repeat rule it cannot edit', async () => {
@@ -557,12 +587,9 @@ describe('EventDialog', () => {
       type('title', 'Swim (pool B)');
       await save();
       expect(scopes.ask).toHaveBeenCalledWith('change', ['THIS', 'FOLLOWING', 'ALL']);
-      expect(events.update).toHaveBeenCalledWith(
-        expect.anything(),
-        'THIS',
-        { title: 'Swim (pool B)' },
-        4,
-      );
+      expect(events.update).toHaveBeenCalledWith(expect.anything(), 'THIS', {
+        title: 'Swim (pool B)',
+      });
     });
 
     it('asks a scope for a delete and deletes nothing when cancelled', async () => {
@@ -577,11 +604,81 @@ describe('EventDialog', () => {
       scopes.ask.mockResolvedValueOnce('THIS');
       button('Delete')!.click();
       await stable();
-      expect(events.delete).toHaveBeenCalledWith(expect.anything(), 'THIS', 4);
+      expect(events.delete).toHaveBeenCalledWith(expect.anything(), 'THIS');
       expect(ref.close).toHaveBeenCalledWith('deleted');
     });
 
-    it('loads an override with the rule and version of its master', async () => {
+    it('reads a generated occurrence again and shows its current times and version', async () => {
+      // The series moved to 10:00 since the view loaded.
+      events.reread.mockResolvedValueOnce({
+        ...generated(),
+        start: '2026-03-30T08:00:00Z',
+        end: '2026-03-30T09:00:00Z',
+        version: 5,
+      });
+      stored.set(
+        'm1',
+        fakeEvent('m1', { title: 'Swim', calendarId: 'family', rrule: 'FREQ=WEEKLY', version: 5 }),
+      );
+      scopes.ask.mockResolvedValueOnce('THIS');
+      await edit(generated());
+      expect(events.reread).toHaveBeenCalledExactlyOnceWith(generated());
+      expect(input('startTime').value).toBe('10:00');
+      expect(input('endTime').value).toBe('11:00');
+      type('endTime', '11:30');
+      await save();
+      expect(events.update).toHaveBeenCalledExactlyOnceWith(
+        expect.objectContaining({ eventId: 'm1', occurrence: OCCURRENCE, version: 5 }),
+        'THIS',
+        { start: '2026-03-30T08:00:00.000Z', end: '2026-03-30T09:30:00.000Z' },
+      );
+    });
+
+    it('edits the override a generated occurrence became since the view loaded', async () => {
+      events.reread.mockResolvedValueOnce(
+        fakeOccurrence('Swim (late)', {
+          eventId: 'o1',
+          seriesId: 'm1',
+          occurrence: OCCURRENCE,
+          calendarId: 'family',
+          start: '2026-03-30T17:00:00Z',
+          end: '2026-03-30T18:00:00Z',
+          version: 1,
+        }),
+      );
+      stored.set(
+        'o1',
+        fakeEvent('o1', {
+          title: 'Swim (late)',
+          calendarId: 'family',
+          seriesId: 'm1',
+          start: '2026-03-30T17:00:00Z',
+          end: '2026-03-30T18:00:00Z',
+          version: 1,
+        }),
+      );
+      await edit(generated());
+      expect(events.get.mock.calls.map((call) => call[0])).toEqual(['o1', 'm1']);
+      expect(input('title').value).toBe('Swim (late)');
+      expect(input('startTime').value).toBe('19:00');
+      type('title', 'Swim (later)');
+      await save();
+      expect(events.update).toHaveBeenCalledWith(
+        expect.objectContaining({ eventId: 'o1', version: 1 }),
+        'THIS',
+        { title: 'Swim (later)' },
+      );
+    });
+
+    it('cannot be edited when the series no longer has the occurrence', async () => {
+      events.reread.mockResolvedValueOnce(undefined);
+      await edit(generated());
+      expect(alerts().join(' ')).toContain('The event could not be loaded.');
+      expect(events.get).not.toHaveBeenCalled();
+      expect(el().querySelector<HTMLButtonElement>('button[type="submit"]')!.disabled).toBe(true);
+    });
+
+    it('loads an override with the rule of its master and saves it with its own version', async () => {
       stored.set(
         'o1',
         fakeEvent('o1', { title: 'Swim (late)', calendarId: 'family', seriesId: 'm1', version: 2 }),
@@ -609,7 +706,6 @@ describe('EventDialog', () => {
         expect.objectContaining({ eventId: 'o1', version: 2 }),
         'ALL',
         { location: 'Pool B' },
-        6,
       );
     });
 
@@ -626,8 +722,10 @@ describe('EventDialog', () => {
         'm1',
         fakeEvent('m1', { title: 'Swim', calendarId: 'family', rrule: 'FREQ=WEEKLY', version: 5 }),
       );
+      events.reread.mockResolvedValueOnce({ ...generated(), version: 5 });
       button('Reload')!.click();
       await stable();
+      expect(events.reread).toHaveBeenCalledTimes(2);
       scopes.ask.mockResolvedValueOnce('ALL');
       type('title', 'Swim (pool C)');
       await save();
@@ -635,12 +733,37 @@ describe('EventDialog', () => {
         expect.objectContaining({ version: 5 }),
         'ALL',
         { title: 'Swim (pool C)' },
-        5,
       );
     });
   });
 
   describe('read-only and synced calendars', () => {
+    it('sends no guests of a new event moved to a synced calendar', async () => {
+      const google = fakeCalendar('google', { name: 'Google', sourceType: 'GOOGLE' });
+      await open({
+        mode: 'create',
+        draft: { allDay: false, start: '2026-03-23T08:00:00Z', end: '2026-03-23T09:00:00Z' },
+        calendars: [...CALENDARS, google],
+        timeZone: 'Europe/Zurich',
+      });
+      type('title', 'Planning');
+      const email = el().querySelector<HTMLInputElement>('input[type="email"]')!;
+      email.value = 'anna@example.test';
+      email.dispatchEvent(new Event('input'));
+      button('Add guest')!.click();
+      await stable();
+      const loader = TestbedHarnessEnvironment.loader(fixture);
+      const calendar = (await loader.getAllHarnesses(MatSelectHarness))[1];
+      await calendar.open();
+      await calendar.clickOptions({ text: 'Google' });
+      await stable();
+      expect(el().textContent).toContain("Guests are managed by the event's calendar provider.");
+      await save();
+      expect(events.create).toHaveBeenCalledOnce();
+      expect(events.create.mock.calls[0][0]).toMatchObject({ calendarId: 'google' });
+      expect(events.create.mock.calls[0][0]).not.toHaveProperty('attendees');
+    });
+
     it('shows an event of a read-only calendar without editing', async () => {
       stored.set('h1', fakeEvent('h1', { title: 'Easter Monday', calendarId: 'feed' }));
       await edit(fakeOccurrence('Easter Monday', { eventId: 'h1', calendarId: 'feed' }));
@@ -680,12 +803,9 @@ describe('EventDialog', () => {
       // Other fields can still change; attendees are not sent.
       type('title', 'Planning Q2');
       await save();
-      expect(events.update).toHaveBeenCalledWith(
-        expect.anything(),
-        undefined,
-        { title: 'Planning Q2' },
-        undefined,
-      );
+      expect(events.update).toHaveBeenCalledWith(expect.anything(), undefined, {
+        title: 'Planning Q2',
+      });
     });
   });
 });

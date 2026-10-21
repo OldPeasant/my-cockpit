@@ -155,7 +155,7 @@ describe('event form', () => {
 
   describe('createRequest', () => {
     it('sends a timed event as instants with its zone and only filled fields', () => {
-      expect(createRequest(timedForm({ title: '  Dentist ', description: '  ' }))).toEqual({
+      expect(createRequest(timedForm({ title: '  Dentist ', description: '  ' }), true)).toEqual({
         title: 'Dentist',
         calendarId: 'family',
         allDay: false,
@@ -174,6 +174,7 @@ describe('event form', () => {
           endDate: '2026-04-07',
           repeat: 'YEARLY',
         }),
+        true,
       );
       expect(request).toEqual({
         title: 'Dentist',
@@ -198,6 +199,7 @@ describe('event form', () => {
             repeat: 'custom',
             rrule: 'FREQ=WEEKLY;BYDAY=MO',
           }),
+          true,
         ),
       ).toMatchObject({
         location: 'Room 4',
@@ -206,6 +208,11 @@ describe('event form', () => {
         attendees,
         rrule: 'FREQ=WEEKLY;BYDAY=MO',
       });
+    });
+
+    it('sends no attendees for a calendar whose provider manages them', () => {
+      const attendees = [{ email: 'anna@example.test', status: 'NEEDS_ACTION' as const }];
+      expect(createRequest(timedForm({ attendees }), false)).not.toHaveProperty('attendees');
     });
   });
 

@@ -15,7 +15,13 @@ import {
   OccurrenceResponse,
 } from '../../../api/generated';
 import { ApiError } from '../../../core/http';
-import { EditScope, EventEditService, isConflict, isSeries } from './event-edit.service';
+import {
+  EditScope,
+  EventEditService,
+  isConflict,
+  isGenerated,
+  isSeries,
+} from './event-edit.service';
 import {
   createRequest,
   editForm,
@@ -107,7 +113,6 @@ export class EventDialog {
 
   /** The values the dialog opened with (edit: the diff base). */
   private initial: EventFormValue | undefined;
-  private masterVersion: number | undefined;
   /** The `rrule` a custom repeat keeps. */
   protected readonly customRule = signal('');
   protected readonly calendarId = signal('');
@@ -156,14 +161,23 @@ export class EventDialog {
     return this.data.mode === 'edit' && isSeries(this.data.occurrence);
   }
 
-  /** Loads the event (again, after a conflict) and shows its current values. */
+  /**
+   * Loads the event (again, after a conflict) and shows its current values: the occurrence the
+   * view showed may be out of date, so its times and version are read again too.
+   */
   protected async load(): Promise<void> {
     if (this.data.mode !== 'edit') return;
-    const occurrence = this.data.occurrence;
     this.loading.set(true);
     this.loadFailed.set(false);
     this.error.set(null);
     try {
+      let occurrence = this.data.occurrence;
+      if (isGenerated(occurrence)) {
+        // Its times come from the series: read the occurrence itself again (it may be an override now).
+        const fresh = await this.events.reread(occurrence);
+        if (!fresh) throw new Error('The series no longer has this occurrence');
+        occurrence = fresh;
+      }
       const event = await this.events.get(occurrence.eventId);
       const master =
         occurrence.seriesId && occurrence.seriesId !== event.id
@@ -171,10 +185,19 @@ export class EventDialog {
           : event.rrule
             ? event
             : undefined;
-      this.masterVersion = master?.version;
-      // The answer is newer than the occurrence the view showed.
-      const current: OccurrenceResponse =
-        occurrence.eventId === event.id ? { ...occurrence, version: event.version } : occurrence;
+      const current: OccurrenceResponse = isGenerated(occurrence)
+        ? occurrence
+        : // A single event or an override: the answer is newer than the occurrence.
+          {
+            ...occurrence,
+            version: event.version,
+            allDay: event.allDay,
+            start: event.start,
+            end: event.end,
+            startDate: event.startDate,
+            endDate: event.endDate,
+            timeZone: event.timeZone,
+          };
       this.data = { ...this.data, occurrence: current };
       this.reset(editForm(current, event, master, this.data.timeZone));
       this.conflict.set(false);
@@ -258,7 +281,7 @@ export class EventDialog {
     }
     if (this.data.mode === 'create') {
       await this.run(async () => {
-        await this.events.create(createRequest(value));
+        await this.events.create(createRequest(value, this.attendeesEditable()));
         return 'saved';
       });
       return;
@@ -275,7 +298,7 @@ export class EventDialog {
       if (!scope) return;
     }
     await this.run(async () => {
-      await this.events.update(occurrence, scope, patch, this.masterVersion);
+      await this.events.update(occurrence, scope, patch);
       return 'saved';
     });
   }
@@ -289,7 +312,7 @@ export class EventDialog {
       if (!scope) return;
     }
     await this.run(async () => {
-      await this.events.delete(occurrence, scope, this.masterVersion);
+      await this.events.delete(occurrence, scope);
       return 'deleted';
     });
   }
