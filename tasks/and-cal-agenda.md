@@ -1,11 +1,11 @@
 ---
 title: Android calendar agenda and day/week
-status: todo
-owner: 
+status: in_progress
+owner: dell26/agent-1
 deps: [and-login,cal-local-api]
 touches: [android/app/src/main/java/ch/sonensei/cockpit/calendar/agenda,android/app/src/test/java/ch/sonensei/cockpit/calendar/agenda]
 prio: 2
-lease_until: 
+lease_until: 2026-10-21T15:10:13Z
 releases: 1
 extended: 
 ---
