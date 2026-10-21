@@ -5,7 +5,7 @@ owner: dell26/agent-1
 deps: [cal-sync-engine]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/calendar/infra/caldav,server/src/test/kotlin/ch/sonensei/cockpit/calendar/infra/caldav]
 prio: 2
-lease_until: 2026-10-21T15:46:04Z
+lease_until: 2026-10-21T15:51:06Z
 releases: 1
 extended: 
 ---
