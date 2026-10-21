@@ -5,7 +5,7 @@ owner: R1963MACOS/agent-1
 deps: [p0-web-shell,files-api,p0-e2e-harness]
 touches: [web/src/app/features/files/browser]
 prio: 1
-lease_until: 2026-10-21T02:42:57Z
+lease_until: 2026-10-21T02:48:00Z
 ---
 ## Goal
 Drive UI (SPEC.md §8.2).
