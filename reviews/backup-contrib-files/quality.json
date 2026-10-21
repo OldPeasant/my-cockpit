@@ -1,0 +1,27 @@
+{
+  "schema": 1,
+  "task": "backup-contrib-files",
+  "reviewed_revision": "a5986525da1300033538ce8a89a699ba2566623b",
+  "helpers": {
+    "test-writer":   {"status": "completed", "report": "reviews/backup-contrib-files/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/backup-contrib-files/review.md"},
+    "fixer":         {"status": "completed", "report": "reviews/backup-contrib-files/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "layout tests for criterion 1 added by test-writer (FilesBackupContributorTests)"},
+    {"id": "CR-2", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "bad backup data now throws InvalidBackupException"},
+    {"id": "CR-3", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "file export query uses fetch size 1000 (cursor); KDoc corrected"},
+    {"id": "CR-4", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "KDoc narrowed to case-insensitive uniqueness; assumption corrected via tasks.py assume"},
+    {"id": "CR-5", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "fixture file 2025 now sits next to folder 2025"}
+  ],
+  "validation": [
+    {"command": "cd server && ./gradlew test --tests '*FilesBackup*' --tests '*BackupRoundTripTest'", "result": "pass"},
+    {"command": "sh scripts/check.sh (run by tasks.py done on the merged result)", "result": "pass"}
+  ]
+}
