@@ -21,6 +21,7 @@ import { ItemTypeIcon } from '../../../shared/links';
 import { openPreview } from '../preview/preview-dialog';
 import { FileThumb } from '../preview/file-thumb';
 import { previewKind } from '../preview/preview-kind';
+import { DropHint } from '../upload/drop-hint';
 import { FileDrop } from '../upload/file-drop';
 import { formatBytes } from '../upload/format-bytes';
 import { UploadPanel } from '../upload/upload-panel';
@@ -51,6 +52,7 @@ export const UPLOAD_REFRESH_MS = 300;
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     DatePipe,
+    DropHint,
     FileDrop,
     FileThumb,
     FolderTree,

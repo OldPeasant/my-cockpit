@@ -1,0 +1,18 @@
+// Laid over the drop target (its parent must be positioned), 4px outside its edges.
+:host {
+  position: absolute;
+  inset: -6px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding-bottom: var(--app-space-3);
+  border: 2px dashed var(--app-accent);
+  border-radius: var(--app-radius);
+  pointer-events: none;
+}
+
+p {
+  margin: 0;
+  color: var(--app-accent);
+  font: var(--mat-sys-title-small);
+}
