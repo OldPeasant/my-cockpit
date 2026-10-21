@@ -113,8 +113,10 @@ class InvitationService(
 				changes.publish(ItemType.EVENT, saved.id, ChangeOp.UPDATED)
 				saved.also { Hibernate.initialize(it.exdates) }
 			}!!
-		if (event.isRecurring) sync.refetch(target.calendarId)
-		return event
+		if (!event.isRecurring) return event
+		sync.refetch(target.calendarId)
+		// The refetch may have stored a newer version: return that, with its ETag.
+		return readTx.execute { events.findActiveById(id)?.also { Hibernate.initialize(it.exdates) } } ?: event
 	}
 
 	private fun target(

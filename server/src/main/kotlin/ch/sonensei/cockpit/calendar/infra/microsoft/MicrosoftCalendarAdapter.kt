@@ -60,9 +60,10 @@ import kotlin.math.abs
  *
  * Invitations: the user's answer is Graph's `accept`/`decline`/`tentativelyAccept` action on the event (or the
  * occurrence's instance), which sends the answer to the organizer; the event is read again afterwards. Graph has no
- * `If-Match` on these actions, so the etag is compared before. The attendee whose address is the OAuth connection's
- * gets the new status in the returned event, since Graph does not always list the user's own answer among the
- * attendees.
+ * `If-Match` on these actions, so the etag is compared before; an event without the user among its attendees and
+ * without an answer of the user is not an invitation. Graph does not always list the user's own answer among the
+ * attendees: the attendee whose address is the OAuth connection's gets the event's `responseStatus` when read (sync
+ * too), and the new status in the returned event.
  *
  * Cursors are JSON: the delta link and the window's anchor date between runs; within a run the next page's link, whether
  * the run is a full listing, and the series already read.
@@ -113,6 +114,7 @@ class MicrosoftCalendarAdapter(
 		cursor: String?,
 	): RemoteEventChanges {
 		val connection = connectionId(source)
+		val self = selfAddress(connection)
 		val state = readCursor(cursor)
 		val today = LocalDate.now(clock.withZone(ZoneOffset.UTC))
 		val restart =
@@ -159,8 +161,8 @@ class MicrosoftCalendarAdapter(
 				val type = item.text("type")
 				val seriesId = if (type == GraphEventMapping.SERIES_MASTER) item.text("id") else item.text("seriesMasterId")
 				when {
-					seriesId != null -> if (seen.add(seriesId)) events += readSeries(connection, calendarExternalId, seriesId, window)
-					else -> events += GraphEventMapping.toRemote(item, RemoteEventKey(requireId(item)))
+					seriesId != null -> if (seen.add(seriesId)) events += readSeries(connection, calendarExternalId, seriesId, window, self)
+					else -> events += GraphEventMapping.toRemote(item, RemoteEventKey(requireId(item)), self = self)
 				}
 			} catch (e: RuntimeException) {
 				if (e !is IllegalArgumentException && e !is DateTimeException) throw e
@@ -191,19 +193,20 @@ class MicrosoftCalendarAdapter(
 
 	/**
 	 * Series [seriesId]: its master with the EXDATEs of [window] first, then its exceptions in [window]. Empty when
-	 * Graph no longer has it.
+	 * Graph no longer has it. [self] is the user's address ([GraphEventMapping.toRemote]).
 	 */
 	private fun readSeries(
 		connection: UUID,
 		calendar: String,
 		seriesId: String,
 		window: OccurrenceRange,
+		self: String?,
 	): List<RemoteEvent> {
 		val response = client.call(connection, HttpMethod.GET, EVENT, eventPath(calendar, seriesId))
 		if (response.status == 404) return emptyList()
 		val master = expectOk(response, "Fetching a series")
 		val key = RemoteEventKey(seriesId)
-		val plain = GraphEventMapping.toRemote(master, key)
+		val plain = GraphEventMapping.toRemote(master, key, self = self)
 		if (plain.rrule == null) return listOf(plain)
 		val instances = instances(connection, calendar, seriesId, window.from, window.to)
 		val expected = expected(plain, window)
@@ -216,7 +219,7 @@ class MicrosoftCalendarAdapter(
 			if (instance.text("type") == GraphEventMapping.EXCEPTION) {
 				val id = occurrence ?: fallbackOccurrence(original, plain.timing)
 				try {
-					exceptions += GraphEventMapping.toRemote(instance, RemoteEventKey(seriesId, id))
+					exceptions += GraphEventMapping.toRemote(instance, RemoteEventKey(seriesId, id), self = self)
 				} catch (e: RuntimeException) {
 					if (e !is IllegalArgumentException && e !is DateTimeException) throw e
 					log.warn("Skipped a Microsoft exception of a series that could not be read: {}", e.message)
@@ -328,7 +331,7 @@ class MicrosoftCalendarAdapter(
 				"Creating an event",
 			)
 		val id = requireId(created)
-		if (event.rrule == null) return answer(created, RemoteEventKey(id))
+		if (event.rrule == null) return answer(created, RemoteEventKey(id), selfAddress(connection))
 		deleteOccurrences(connection, calendarExternalId, id, event.exdates)
 		return currentSeries(connection, calendarExternalId, id)
 	}
@@ -366,7 +369,7 @@ class MicrosoftCalendarAdapter(
 			}
 		// Nothing to send: Graph already has what the cockpit wants, so no change at Microsoft is lost, whatever the etag.
 		val stored = if (changes.isEmpty) current else patch(connection, calendarExternalId, id, changes, ifMatch, "Changing an event")
-		if (event.rrule == null) return answer(stored, RemoteEventKey(id))
+		if (event.rrule == null) return answer(stored, RemoteEventKey(id), selfAddress(connection))
 		restoreExceptions(connection, calendarExternalId, id, exceptions, window)
 		deleteOccurrences(connection, calendarExternalId, id, event.exdates)
 		return currentSeries(connection, calendarExternalId, id)
@@ -420,6 +423,8 @@ class MicrosoftCalendarAdapter(
 			throw RemoteEventChangedException()
 		}
 		if (current.path("isOrganizer").asBoolean(false)) throw InvitationNotRespondableException("You organize this event")
+		val self = selfAddress(connection)
+		if (self != null && !invited(current, self)) throw InvitationNotRespondableException("You are not invited to this event")
 		val answered =
 			client.call(
 				connection,
@@ -433,13 +438,13 @@ class MicrosoftCalendarAdapter(
 		restored.forget(calendarExternalId, id)
 		val stored =
 			if (occurrence == null && current.text("type") == GraphEventMapping.SERIES_MASTER) {
-				currentSeries(connection, calendarExternalId, id)
+				currentSeries(connection, calendarExternalId, id, self)
 			} else {
 				val after = client.call(connection, HttpMethod.GET, EVENT, eventPath(calendarExternalId, id))
 				// A declined event may be gone from the user's calendar right away: the next sync removes it.
-				answer(if (after.status == 404) current else expectOk(after, "Fetching an event"), key)
+				answer(if (after.status == 404) current else expectOk(after, "Fetching an event"), key, self)
 			}
-		val self = tokens.connection(connection)?.email ?: return stored
+		if (self == null) return stored
 		return stored.copy(attendees = stored.attendees.map { if (it.email.equals(self, ignoreCase = true)) it.copy(status = response) else it })
 	}
 
@@ -469,10 +474,11 @@ class MicrosoftCalendarAdapter(
 				currentBody(instance, event.key, false) ?: json.createObjectNode(),
 			)
 		GraphEventMapping.keepAttendeeTypes(changes, instance)
-		if (changes.isEmpty) return answer(instance, event.key)
+		val self = selfAddress(connection)
+		if (changes.isEmpty) return answer(instance, event.key, self)
 		val stored = patch(connection, calendar, id, changes, expected, "Changing an occurrence")
 		restored.forget(calendar, id)
-		return answer(stored, event.key)
+		return answer(stored, event.key, self)
 	}
 
 	/**
@@ -568,9 +574,10 @@ class MicrosoftCalendarAdapter(
 		connection: UUID,
 		calendar: String,
 		seriesId: String,
+		self: String? = selfAddress(connection),
 	): RemoteEvent =
 		try {
-			readSeries(connection, calendar, seriesId, window(LocalDate.now(clock.withZone(ZoneOffset.UTC)))).firstOrNull()
+			readSeries(connection, calendar, seriesId, window(LocalDate.now(clock.withZone(ZoneOffset.UTC))), self).firstOrNull()
 				?: throw RemoteEventChangedException("The event was deleted at Microsoft")
 		} catch (e: RuntimeException) {
 			if (e !is IllegalArgumentException && e !is DateTimeException) throw e
@@ -631,13 +638,14 @@ class MicrosoftCalendarAdapter(
 		null
 	}
 
-	/** Graph's answer to a write as the stored event. */
+	/** Graph's answer to a write as the stored event; [self] is the user's address ([GraphEventMapping.toRemote]). */
 	private fun answer(
 		node: JsonNode,
 		key: RemoteEventKey,
+		self: String?,
 	): RemoteEvent =
 		try {
-			GraphEventMapping.toRemote(node, key)
+			GraphEventMapping.toRemote(node, key, self = self)
 		} catch (e: RuntimeException) {
 			if (e !is IllegalArgumentException && e !is DateTimeException) throw e
 			throw CalendarProviderException("Microsoft answered with an event that could not be read", e)
@@ -657,6 +665,20 @@ class MicrosoftCalendarAdapter(
 		calendar: String,
 		id: String,
 	) = mapOf("calendar" to calendar, "event" to id)
+
+	/** The address of the user of OAuth connection [connection], if known. */
+	private fun selfAddress(connection: UUID): String? = tokens.connection(connection)?.email
+
+	/**
+	 * Whether the user (address [self]) is invited to Graph's [event]: an attendee has the user's address, or Graph
+	 * shows the user's own answer to it (`responseStatus` other than `none` or `organizer`).
+	 */
+	private fun invited(
+		event: JsonNode,
+		self: String,
+	): Boolean =
+		event.path("attendees").any { it.path("emailAddress").text("address").equals(self, ignoreCase = true) } ||
+			event.path("responseStatus").text("response") in setOf("notResponded", "accepted", "declined", "tentativelyAccepted")
 
 	private fun requireId(node: JsonNode): String =
 		node.text("id") ?: throw IllegalArgumentException("Microsoft Graph sent an event without id")

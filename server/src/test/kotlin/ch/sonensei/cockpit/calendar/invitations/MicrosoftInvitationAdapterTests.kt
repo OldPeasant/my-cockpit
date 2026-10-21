@@ -237,6 +237,58 @@ class MicrosoftInvitationAdapterTests {
 	}
 
 	@Test
+	fun `an event the user is not an attendee of and has not answered is not an invitation, nothing is sent`() {
+		val foreign =
+			invitation("inv-1", "none")
+				.replace("Alex.Example@example.test", "kim.example@example.test")
+		stub(get(urlPathEqualTo("$EVENTS/AAMkInv1")), foreign)
+
+		shouldThrow<InvitationNotRespondableException> {
+			adapter.respondToInvitation(source, CALENDAR, RemoteEventKey("AAMkInv1"), AttendeeStatus.ACCEPTED, null)
+		}.message shouldBe "You are not invited to this event"
+		wireMock.verify(0, postRequestedFor(anyUrl()))
+	}
+
+	@Test
+	fun `an invitation Graph shows the user's answer to is answered even when no attendee has the connection's address`() {
+		// E.g. the user is invited under another address of the mailbox.
+		stub(
+			get(urlPathEqualTo("$EVENTS/AAMkInv1")),
+			invitation("inv-1", "notResponded").replace("Alex.Example@example.test", "alex.alias@example.test"),
+		)
+		stub(post(urlPathEqualTo("$EVENTS/AAMkInv1/accept")), "", 202)
+
+		adapter.respondToInvitation(source, CALENDAR, RemoteEventKey("AAMkInv1"), AttendeeStatus.ACCEPTED, null)
+
+		wireMock.verify(postRequestedFor(urlPathEqualTo("$EVENTS/AAMkInv1/accept")))
+	}
+
+	@Test
+	fun `sync shows the user's answer from Graph's responseStatus when the attendee list does not show it yet`() {
+		val delta = "$API/me/calendars/$CALENDAR/calendarView/delta"
+		stub(
+			get(urlPathEqualTo(delta)),
+			"""{"value": [${answeredOnlyInResponseStatus(invitation("inv-2", "none"))}],
+			 "@odata.deltaLink": "https://graph.example.test$delta?${'$'}deltatoken=D1"}""",
+		)
+
+		val synced = adapter.fetchEvents(source, CALENDAR, null).events.single()
+		synced.attendees.single { it.email == "Alex.Example@example.test" }.status shouldBe AttendeeStatus.ACCEPTED
+		// Others keep their own answers.
+		synced.attendees.single { it.email == "sam.example@example.test" }.status shouldBe AttendeeStatus.ACCEPTED
+
+		// Without the connection's address, the attendee list is all there is.
+		tokens.email = null
+		adapter
+			.fetchEvents(source, CALENDAR, null)
+			.events
+			.single()
+			.attendees
+			.single { it.email == "Alex.Example@example.test" }
+			.status shouldBe AttendeeStatus.NEEDS_ACTION
+	}
+
+	@Test
 	fun `only ACCEPTED, DECLINED and TENTATIVE are answers, nothing is sent otherwise`() {
 		shouldThrow<IllegalArgumentException> {
 			adapter.respondToInvitation(source, CALENDAR, RemoteEventKey("AAMkInv1"), AttendeeStatus.NEEDS_ACTION, null)
@@ -339,6 +391,10 @@ class MicrosoftInvitationAdapterTests {
 			"end": {"dateTime": "${date}T10:00:00.0000000", "timeZone": "UTC"},
 			"organizer": {"emailAddress": {"name": "Sam Example", "address": "sam.example@example.test"}},
 			"attendees": [${attendees(status)}]}"""
+
+		/** [event] (with the user's answer `none`) as Graph may send it after the user accepted: only `responseStatus` shows it. */
+		fun answeredOnlyInResponseStatus(event: String) =
+			event.replace(""""responseStatus": {"response": "none"}""", """"responseStatus": {"response": "accepted"}""")
 
 		private fun attendees(status: String) =
 			"""{"type": "required", "status": {"response": "organizer"},

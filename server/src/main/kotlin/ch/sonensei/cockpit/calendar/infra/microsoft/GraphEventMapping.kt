@@ -49,7 +49,8 @@ internal object GraphEventMapping {
 
 	/**
 	 * [node] as a [RemoteEvent] with [key]. A series master gets its RRULE and [exdates]; the caller keys an exception by
-	 * its series and occurrence.
+	 * its series and occurrence. The attendee with the user's address [self] gets the user's own answer (the event's
+	 * `responseStatus`) when the attendee list does not show one: Graph does not always update the user's attendee.
 	 *
 	 * @throws IllegalArgumentException or [java.time.DateTimeException] for an event that cannot be read
 	 */
@@ -57,6 +58,7 @@ internal object GraphEventMapping {
 		node: JsonNode,
 		key: RemoteEventKey,
 		exdates: Set<OccurrenceId> = emptySet(),
+		self: String? = null,
 	): RemoteEvent {
 		val timing = timing(node)
 		val master = node.text("type") == SERIES_MASTER
@@ -70,7 +72,7 @@ internal object GraphEventMapping {
 			location = node.path("location").text("displayName")?.takeIf { it.isNotBlank() },
 			rrule = if (master) GraphRecurrence.toRule(node.path("recurrence"), timing) else null,
 			exdates = if (master) exdates else emptySet(),
-			attendees = node.path("attendees").mapNotNull(::attendee),
+			attendees = attendees(node, self),
 			reminderMinutes =
 				if (node.path("isReminderOn").asBoolean(false) && node.path("reminderMinutesBeforeStart").isNumber) {
 					listOf(node.path("reminderMinutesBeforeStart").asInt())
@@ -240,17 +242,33 @@ internal object GraphEventMapping {
 		return text.trim().ifEmpty { null }
 	}
 
+	/** The attendees of [node]; the one with address [self] shows the event's `responseStatus` if it has no answer. */
+	private fun attendees(
+		node: JsonNode,
+		self: String?,
+	): List<Attendee> {
+		val attendees = node.path("attendees").mapNotNull(::attendee)
+		val own = status(node.path("responseStatus").text("response"))
+		if (self == null || own == AttendeeStatus.NEEDS_ACTION) return attendees
+		return attendees.map {
+			if (it.status == AttendeeStatus.NEEDS_ACTION && it.email.equals(self, ignoreCase = true)) it.copy(status = own) else it
+		}
+	}
+
 	private fun attendee(node: JsonNode): Attendee? {
 		val email = node.path("emailAddress").text("address") ?: return null
-		val status =
-			when (node.path("status").text("response")) {
-				"accepted", "organizer" -> AttendeeStatus.ACCEPTED
-				"declined" -> AttendeeStatus.DECLINED
-				"tentativelyAccepted" -> AttendeeStatus.TENTATIVE
-				else -> AttendeeStatus.NEEDS_ACTION
-			}
+		val status = status(node.path("status").text("response"))
 		return Attendee(email, node.path("emailAddress").text("name")?.takeIf { it.isNotBlank() }, status)
 	}
+
+	/** Graph's `response` (of an attendee's `status` or the event's `responseStatus`) as an [AttendeeStatus]. */
+	private fun status(response: String?): AttendeeStatus =
+		when (response) {
+			"accepted", "organizer" -> AttendeeStatus.ACCEPTED
+			"declined" -> AttendeeStatus.DECLINED
+			"tentativelyAccepted" -> AttendeeStatus.TENTATIVE
+			else -> AttendeeStatus.NEEDS_ACTION
+		}
 
 	// --- writing
 
