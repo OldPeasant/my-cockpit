@@ -23,6 +23,10 @@ h1 {
   font: var(--mat-sys-body-large);
 }
 
+.events {
+  margin-bottom: var(--app-space-5);
+}
+
 .group + .group {
   margin-top: var(--app-space-5);
 }

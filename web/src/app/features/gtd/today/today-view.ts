@@ -11,6 +11,7 @@ import { Router, RouterLink } from '@angular/router';
 import { TaskResponse } from '../../../api/generated';
 import { ContextStore, localDate, ProjectStore, TaskStore } from '../data';
 import { TaskRow } from '../ui';
+import { TodayEvents } from './today-events';
 import { TODAY_SECTIONS } from './today-sections';
 
 /** One store per task section of the view (each loads its own query). */
@@ -27,13 +28,14 @@ interface TaskSection {
 }
 
 /**
- * The Today view (SPEC.md §5.3): overdue tasks, tasks due today and tasks scheduled for today, then
- * the sections other features add through {@link TODAY_SECTIONS} (calendar events, habits).
+ * The Today view (SPEC.md §5.3): today's calendar events, then overdue tasks, tasks due today and
+ * tasks scheduled for today, then the sections other features add through {@link TODAY_SECTIONS}
+ * (habits).
  */
 @Component({
   selector: 'app-today-view',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [DatePipe, MatButtonModule, NgComponentOutlet, RouterLink, TaskRow],
+  imports: [DatePipe, MatButtonModule, NgComponentOutlet, RouterLink, TaskRow, TodayEvents],
   providers: [
     { provide: OVERDUE, useClass: TaskStore },
     { provide: DUE_TODAY, useClass: TaskStore },

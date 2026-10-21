@@ -7,8 +7,8 @@ import {
 } from '@angular/core';
 
 /**
- * A section another feature adds to the Today view (SPEC.md §5.3: today's calendar events, habits
- * due). The component renders the whole section, heading included; sections show in `order`
+ * A section another feature adds to the Today view (SPEC.md §5.3: habits due; today's calendar
+ * events are built in, above the tasks). The component renders the whole section, heading included; sections show in `order`
  * (lower first) after the task sections.
  */
 export interface TodaySection {
@@ -25,7 +25,7 @@ export const TODAY_SECTIONS = new InjectionToken<readonly TodaySection[]>('TODAY
  * providers or `today.routes.ts`):
  *
  * ```ts
- * provideTodaySection({ id: 'calendar', order: 10, component: TodayEvents })
+ * provideTodaySection({ id: 'habits', order: 10, component: TodayHabits })
  * ```
  */
 export function provideTodaySection(section: TodaySection): EnvironmentProviders {

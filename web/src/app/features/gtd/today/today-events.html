@@ -1,0 +1,70 @@
+<section class="events" aria-labelledby="today-events">
+  <h2 id="today-events">
+    <span i18n="@@gtd.today.events">Calendar</span>
+    @if (loaded() && events().length) {
+      <span class="count">{{ events().length }}</span>
+    }
+  </h2>
+
+  @if (failed()) {
+    <div class="load-error" role="alert">
+      <p i18n="@@gtd.today.eventsFailed">Today's events could not be loaded.</p>
+      <button mat-stroked-button type="button" (click)="retry()" i18n="@@gtd.today.eventsRetry">
+        Try again
+      </button>
+    </div>
+  } @else if (!loaded()) {
+    <p class="note" role="status" i18n="@@gtd.today.eventsLoading">Loading events…</p>
+  } @else if (!events().length) {
+    <p class="note" i18n="@@gtd.today.noEvents">No events today.</p>
+  } @else {
+    <ul class="list">
+      @for (event of events(); track event.key) {
+        <li
+          class="event"
+          [class.cancelled]="event.occurrence.status === 'CANCELLED'"
+          [class.tentative]="event.occurrence.status === 'TENTATIVE'"
+          [style.--event-color]="event.color"
+        >
+          <span class="time">
+            @switch (event.span) {
+              @case ('allDay') {
+                <ng-container i18n="@@gtd.today.allDay">All day</ng-container>
+              }
+              @case ('from') {
+                <ng-container i18n="@@gtd.today.eventFrom"
+                  >From {{ event.occurrence.start | date: 'shortTime' }}</ng-container
+                >
+              }
+              @case ('until') {
+                <ng-container i18n="@@gtd.today.eventUntil"
+                  >Until {{ event.occurrence.end | date: 'shortTime' }}</ng-container
+                >
+              }
+              @default {
+                {{ event.occurrence.start | date: 'shortTime' }} –
+                {{ event.occurrence.end | date: 'shortTime' }}
+              }
+            }
+          </span>
+          <span class="body">
+            <span class="title">{{ event.occurrence.title }}</span>
+            @if (event.occurrence.location || event.calendarName) {
+              <span class="meta">
+                @if (event.occurrence.location) {
+                  <span class="location">{{ event.occurrence.location }}</span>
+                }
+                @if (event.calendarName) {
+                  <span class="calendar">{{ event.calendarName }}</span>
+                }
+              </span>
+            }
+          </span>
+        </li>
+      }
+    </ul>
+  }
+  <a mat-button class="open" routerLink="/calendar" i18n="@@gtd.today.openCalendar"
+    >Open calendar</a
+  >
+</section>

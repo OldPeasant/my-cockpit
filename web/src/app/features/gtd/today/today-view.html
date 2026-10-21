@@ -4,6 +4,8 @@
     <p class="date">{{ today | date: 'fullDate' }}</p>
   </header>
 
+  <app-today-events class="events" />
+
   @if (failed()) {
     <div class="load-error" role="alert">
       <p i18n="@@gtd.today.loadFailed">Today's tasks could not be loaded.</p>

@@ -5,6 +5,7 @@ import { NEVER, Subject } from 'rxjs';
 import {
   Api,
   completeTask,
+  listCalendars,
   listContexts,
   listProjects,
   listTasks,
@@ -97,7 +98,8 @@ describe('TodayView', () => {
         if (fn === listTasks) {
           return new Promise((resolve, reject) => taskCalls.push({ params, resolve, reject }));
         }
-        if (fn === listProjects || fn === listContexts) return Promise.resolve({ items: [] });
+        if (fn === listProjects || fn === listContexts || fn === listCalendars)
+          return Promise.resolve({ items: [] });
         if (fn === completeTask) {
           return Promise.resolve({ ...(params as object), completedAt: '2026-10-20T09:31:00Z' });
         }
@@ -368,6 +370,19 @@ describe('TodayView', () => {
     await refresh();
 
     expect(TestBed.inject(Router).url).toBe(`/tasks/${RENEW_PASSPORT.id}`);
+  });
+
+  it("shows today's calendar events above the task sections", async () => {
+    configure();
+    await render();
+    await answer([RENEW_PASSPORT], [], []);
+
+    const events = root.querySelector('app-today-events');
+    expect(events?.querySelector('#today-events')?.textContent).toContain('Calendar');
+    const overdue = root.querySelector('section.group')!;
+    expect(
+      events!.compareDocumentPosition(overdue) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
   });
 
   describe('extension slots', () => {

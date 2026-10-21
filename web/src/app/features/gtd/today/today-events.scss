@@ -1,0 +1,99 @@
+:host {
+  display: block;
+}
+
+h2 {
+  display: flex;
+  align-items: baseline;
+  gap: var(--app-space-2);
+  margin: 0 0 var(--app-space-2);
+  font: var(--mat-sys-title-medium);
+}
+
+.count,
+.note {
+  color: var(--app-fg-muted);
+}
+
+.count {
+  font: var(--mat-sys-label-large);
+}
+
+.note {
+  margin: 0;
+  font: var(--mat-sys-body-medium);
+}
+
+.list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--app-border);
+}
+
+// The calendar's color as a bar, like an event block in the calendar views.
+.event {
+  display: grid;
+  grid-template-columns: 9rem 1fr;
+  gap: var(--app-space-3);
+  padding: var(--app-space-2) var(--app-space-3);
+  border-bottom: 1px solid var(--app-border);
+  border-left: 4px solid var(--event-color);
+}
+
+.time {
+  color: var(--app-fg-muted);
+  font: var(--mat-sys-label-large);
+  font-variant-numeric: tabular-nums;
+}
+
+.body {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.title {
+  font: var(--mat-sys-body-large);
+  overflow-wrap: anywhere;
+}
+
+.meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--app-space-2);
+  color: var(--app-fg-muted);
+  font: var(--mat-sys-body-small);
+}
+
+.tentative .title {
+  font-style: italic;
+}
+
+.cancelled .title {
+  color: var(--app-fg-muted);
+  text-decoration: line-through;
+}
+
+.load-error {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--app-space-3);
+  color: var(--app-danger);
+
+  p {
+    margin: 0;
+  }
+}
+
+.open {
+  margin-top: var(--app-space-1);
+}
+
+@media (max-width: 40rem) {
+  .event {
+    grid-template-columns: 1fr;
+    gap: 0;
+  }
+}
