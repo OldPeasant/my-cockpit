@@ -4,23 +4,67 @@ Date: 2026-10-21
 
 Task: cal-ics - ICS feed adapter
 
-Scope: `git diff 8a2124d4..1255af33 -- server` (production code in `server/src/main/kotlin/ch/sonensei/cockpit/calendar/infra/ics`, tests in `server/src/test/kotlin/ch/sonensei/cockpit/calendar/infra/ics`). Committed changes only. Tests the test-writer is adding in parallel (uncommitted) are out of scope.
+Scope: `git diff b32f928d..6099cd36 -- server` (production code in `server/src/main/kotlin/ch/sonensei/cockpit/calendar/infra/ics`, tests in `server/src/test/kotlin/ch/sonensei/cockpit/calendar/infra/ics`). This is a re-review after the fixes. It checks the earlier findings CR-1 to CR-5 and looks for new problems caused by the fixes. Only committed changes are reviewed. Test files that a test-writer is adding in parallel (uncommitted) are not part of it.
 
 Requirements:
-- tasks/cal-ics.md acceptance criteria and recorded assumptions (Notes)
-- SPEC.md §4.1, §4.2, §6.1, §6.2
-- docs/ARCHITECTURE.md (code conventions)
-- AGENTS.md project notes
-- Sync engine contract: `calendar/sync/CalendarProviderAdapter.kt`, `calendar/sync/CalendarSyncService.kt`, `calendar/sync/RemoteEventMapping.kt`
-- Existing SSRF conventions: `mail/api/RemoteImageFetcher.kt` (`PublicAddresses`, `HostResolver`)
+- tasks/cal-ics.md: acceptance criteria and the recorded assumptions (Notes). Recorded assumptions are not reported as findings.
+- SPEC.md §4.2, §6.1, §6.2
+- docs/ARCHITECTURE.md and the AGENTS.md project notes
+- The sync engine contract: `calendar/sync/CalendarProviderAdapter.kt` (`RemoteEventChanges.complete`) and `calendar/sync/CalendarSyncService.kt` (`mergeEvents`, `upsertOverride`, `removeMissing`)
+- The earlier review, reviews/cal-ics/review.md (revision 1255af33), and the fix report, reviews/cal-ics/fixes.md
 
 Git range:
 - Branch: main
-- HEAD: 1255af332191d5204e743382a46419a01ad2eeb7
-- Base/start: 8a2124d43a4a4f14463307934b4b960a247a1bd9
-- Commits reviewed: 2 (b5a5a5bc, 1255af33)
+- HEAD: 6099cd3658cf92bbf2312bc68d743ab621b9f222
+- Base/start: b32f928d4c1b4282c2ae95617e71c11dd0ee5e16
+- Commits reviewed: 6 (2f2bdf7a, 56a6d8a1, 62c361ce, 58e15660, 5234efd6, 6099cd36). The commits that change code are 2f2bdf7a, 56a6d8a1, 58e15660 and 5234efd6.
 
-Summary: 0 P0, 1 P1, 2 P2, 2 P3
+Summary: 0 P0, 0 P1, 0 P2, 2 P3
+
+## Status of earlier findings
+
+- **CR-1 (P1, a 2xx body that is not iCalendar deleted the whole feed): resolved.** `IcsParser` now sets `IcsComponent.ended` only when a component is closed by its own `END` (`IcsParser.kt:51-62`). `IcsFeedAdapter.fetchEvents` refuses the download unless there is at least one `VCALENDAR` root and every root is ended (`IcsFeedAdapter.kt:64-67`). The cases I traced:
+  - An empty body, an HTML page, or a stray `VEVENT` gives no `VCALENDAR` root, so it is refused.
+  - A body cut off anywhere before the final `END:VCALENDAR` is refused. This includes a cut inside the `END:VCALENDAR` line, because a partial name such as `END:VCAL` matches nothing and is ignored.
+  - A complete `VCALENDAR` with no events is still a complete listing.
+
+  The regression test is `IcsFeedSyncTests` "a 200 answer that is not an iCalendar file keeps the events and records an error", together with the adapter and parser tests.
+- **CR-2 (P2, the body read had no deadline): resolved.** `fetch` sets one deadline for the whole fetch (`IcsFeedClient.kt:74`). Each hop uses `sendAsync` and then `future.get(remaining)`, and on timeout or interrupt it calls `future.cancel(true)` (`IcsFeedClient.kt:149-191`). On JDK 21 this cancel aborts the exchange. Bodies are collected inside the future by `LimitedBody`, so the deadline covers headers, body and redirects. The property KDoc was corrected (`IcsFeedProperties.kt:18-22`). It says plainly that host resolution for the SSRF check is outside the deadline. Tests:
+  - a trickled body, given up within 3 s at a 500 ms timeout;
+  - a chain of redirects that is too slow as a whole;
+  - a late answer;
+  - interrupt handling.
+
+  The size limit was checked for:
+  - Bodies with a `Content-Length` over the limit are refused at subscribe time.
+  - Streamed and chunked bodies are refused once they grow past the limit.
+  - Gzip bodies are limited both compressed (by `LimitedBody`) and decompressed (by `read`).
+  - Bodies of error and redirect answers are discarded with `BodySubscribers.replacing`. An endless body of that kind is still cut off by the deadline.
+- **CR-3 (P2, missing tests): resolved by 58e15660 and 5234efd6.** The following have focused tests now:
+  - the size limit: Content-Length, chunked, gzip before and after decompression, and exactly at the limit;
+  - gzip and broken gzip;
+  - webcal and webcals;
+  - the redirect limit and redirect loops;
+  - a host with mixed public and private addresses;
+  - userinfo URLs, `allow-private-networks` and allowed private hosts;
+  - charset handling;
+  - the parser and the mapping (TZID fallbacks, DURATION, VALARM, UID generation, etag).
+- **CR-4 (P3, overrides of a dropped series caused a permanent error): resolved.** `IcsEventMapping.events` keeps an exception only when the same feed has a mapped, non-cancelled master with an `RRULE` (`IcsEventMapping.kt:63-65`). This covers cancelled series, RDATE-only series, a missing series and an unreadable series. The sync regression test checks that there is no `lastError`.
+- **CR-5 (P3, unreadable events were deleted silently): resolved as recorded in the task assumption of 16:49.** If any VEVENT cannot be read, the adapter returns `complete = false` (`IcsFeedAdapter.kt:68-71`), so `CalendarSyncService.mergeEvents` does not call `removeMissing`. Earlier local copies and their links are kept. The skip is not shown in `lastError`, and this is a recorded assumption, so it is not reported here.
+
+The new nominal-days handling of `DURATION` (`plusNominal`, `IcsEventMapping.kt:196-210`) is correct for these values:
+- `P1D` and `P1W`;
+- negative and signed values;
+- mixed values such as `P1DT1H30M`. Days are added as calendar days and the rest as exact time.
+
+A value without a leading day or week part falls back to exact time. `duration()` for VALARM triggers is unchanged.
+
+Other things I checked that are fine:
+- `LimitedBody` ignores `onNext` after it has refused the body.
+- The first failure (the "larger than" message) is the one reported.
+- `CalendarProviderException`s thrown inside the future are passed through unwrapped.
+- The interrupt flag is restored after an interrupt.
+- No error message or log line contains the feed URL or the body.
 
 ## P0 Critical
 
@@ -28,47 +72,30 @@ None.
 
 ## P1 High
 
-- [ ] **CR-1 | A 2xx response that is not an iCalendar file (or is cut short) deletes every event of the feed and its links**
-    - File: `server/src/main/kotlin/ch/sonensei/cockpit/calendar/infra/ics/IcsFeedAdapter.kt:58-62` (with `IcsFeedClient.kt:77`, `IcsParser.kt:26-58`)
-    - Category: Correctness
-    - Problem: Any status 200..299 is read as the feed. `IcsParser.parse` never fails: an empty body, an HTML page (for example a login, captive-portal or "feed disabled" page served with 200), or a body without `BEGIN:VCALENDAR` gives no `VCALENDAR` root, so `IcsEventMapping.events` returns an empty list. The adapter still returns `RemoteEventChanges(events = [], complete = true)`. In `CalendarSyncService.mergeEvents`, `complete` triggers `removeMissing`, which calls `deleteForGood` on every synced event of the calendar. That deletion skips the Trash and publishes `ItemDeletedEvent`, so `LinkService.onItemDeleted` also removes the user's links to those events (meeting notes, follow-up tasks). A body that ends early without an I/O error behaves the same way, because the parser closes unclosed components at the end. The events that remain are kept and the rest are deleted. Nothing checks that the feed is a complete calendar (a `VCALENDAR` root that was closed by `END:VCALENDAR`) before it is treated as the full listing.
-    - Why it matters: The user loses data (links, plus every event until the next good poll) because of a temporary server-side problem. This is not "the feed no longer has them" as described in the adapter KDoc and SPEC §6.2.
-    - Suggested fix: Throw `CalendarProviderException("The feed is not an iCalendar file")` unless the parsed text has a `VCALENDAR` root that was properly ended. The parser could, for example, report whether `END:VCALENDAR` was seen. A feed whose `VCALENDAR` is valid but empty should still be allowed to clear the calendar. Add a WireMock test where a 200 HTML/empty body after a good sync keeps the events and records an error.
+None.
 
 ## P2 Medium
 
-- [ ] **CR-2 | The request timeout does not limit reading the body, so a slow feed server can block calendar sync indefinitely**
-    - File: `server/src/main/kotlin/ch/sonensei/cockpit/calendar/infra/ics/IcsFeedClient.kt:145,155,184,193-206`; `IcsFeedProperties.kt:136-137`
-    - Category: Security
-    - Problem: The only deadline is `HttpRequest.Builder.timeout(properties.timeout)`. In JDK HttpClient (toolchain JDK 21, `server/build.gradle.kts:16`) this timeout covers the wait for the response headers. With `BodyHandlers.ofInputStream()`, `send` returns once the headers arrive, and the later `input.read(buffer)` calls in `read()` have no deadline. A server that sends headers and then one byte every few seconds, while staying under `max-size`, keeps the fetch running with no end. The KDoc on `timeout` ("Time for one request, from sending it to the end of the body") and the `HttpTimeoutException` catch in `text()` assume a guarantee the client does not give. Name resolution through `InetAddress.getAllByName` (`IcsFeedClient.kt:49,128`) also has no limit. I could not run an empirical check here because running ad-hoc scripts is denied in this sandbox. The finding relies on the JDK HttpClient timeout semantics. `RemoteImageFetcher` (`mail/api/RemoteImageFetcher.kt:131-141`) was written with a per-read deadline for exactly this reason.
-    - Why it matters: `CalendarSyncScheduler.run` is a single `@Scheduled` task, and `syncDue` syncs sources one after another while holding the source lock. Any feed URL that someone gets the user to subscribe to can stall every calendar sync (Google, Microsoft, CalDAV), and with the default single scheduler thread it can also stall other `@Scheduled` jobs. A manual `POST /sources/{id}/sync` waits on the same lock.
-    - Suggested fix: Enforce a whole-fetch deadline while reading the body. Options: use `sendAsync(...)` with an `ofByteArray`-style limited subscriber and `orTimeout`; read on the caller thread and close the body stream from a timer when the deadline passes; or reuse the deadline-socket approach of `RemoteImageFetcher`, which would also close the documented DNS-rebinding gap. Correct the property KDoc and add a WireMock test with `withChunkedDribbleDelay` or `withFixedDelay` past the configured timeout.
-
-- [ ] **CR-3 | The size limit, gzip decoding, webcal mapping, redirect limit and parser/mapping edge cases have no tests**
-    - File: `server/src/test/kotlin/ch/sonensei/cockpit/calendar/infra/ics/IcsFeedSyncTests.kt` (whole file, as committed in 1255af33)
-    - Category: Tests
-    - Problem: The committed tests cover the first sync, 304 with ETag and with Last-Modified, update/delete, read-only, a 500 response, loopback/private literals and a redirect to loopback. Nothing exercises `max-size` (the Content-Length rejection or the streamed limit for chunked or gzip bodies), gzip decompression, `webcal://` to `https://`, more than `max-redirects` hops, a resolver that returns both a public and a private address (`HostResolver` is injectable for this), `allow-private-networks`, URLs with userinfo, charset handling, or the mapping rules in `IcsEventMapping` (TZID fallbacks, DURATION/missing DTEND, cancelled events, VALARM triggers, UID generation, the etag excluding DTSTAMP beyond the one case). These are the security-relevant parts of acceptance criterion 1 and the "tolerant parser" assumption.
-    - Why it matters: These are regression-prone and security-relevant paths. A broken size limit or a resolver bypass would go unnoticed.
-    - Suggested fix: Add focused unit tests for `IcsParser` and `IcsEventMapping`, `IcsFeedClient` tests with a fake `HostResolver` and WireMock (size, gzip, redirects, mixed addresses, userinfo, webcal), and the regression tests named in CR-1 and CR-2. A test-writer is reportedly adding tests now. Check this against its final output.
+None.
 
 ## P3 Low
 
-- [ ] **CR-4 | Overrides whose series the adapter drops cause a permanent sync error and a full download on every poll**
-    - File: `server/src/main/kotlin/ch/sonensei/cockpit/calendar/infra/ics/IcsEventMapping.kt:84-85,121-131`
-    - Category: Correctness
-    - Problem: A cancelled series master is left out (`return null`), but its `RECURRENCE-ID` exceptions are still returned. The same happens for exceptions of a master without an `RRULE` (for example an RDATE-only series, which is unsupported). In `CalendarSyncService.upsertOverride` such an override has no matching series, so each one counts as skipped (the status gets "Team holidays: 1 events could not be stored" or similar in `lastError` on every sync). `orphanedOverride` then deletes the cursor, so the feed's ETag/Last-Modified is never sent again and every poll is a full download.
-    - Why it matters: The source shows a permanent error to the user, and conditional fetching (criterion 1) stops working for that feed, even though the feed is valid.
-    - Suggested fix: In the adapter, drop overrides whose UID has no non-cancelled recurring master in the same feed.
-
-- [ ] **CR-5 | Unreadable feed events are silently deleted locally and not reported in the sync status**
-    - File: `server/src/main/kotlin/ch/sonensei/cockpit/calendar/infra/ics/IcsFeedAdapter.kt:59-62`
+- [ ] **CR-1 | A test comment still quotes the old per-request timeout contract**
+    - File: `server/src/test/kotlin/ch/sonensei/cockpit/calendar/infra/ics/IcsFeedClientTests.kt:296`
     - Category: Quality
-    - Problem: Events that `IcsEventMapping` cannot read (for example a malformed DTSTART) are only logged at WARN. Because the result is `complete = true`, their earlier local copies are then removed as if the feed had deleted them, and `lastError` stays null. The engine reports events it could not store ("N events could not be stored"), but events the adapter could not read are invisible to the user.
-    - Why it matters: Events and their links disappear with no sign in the UI, and the result differs from events the engine rejects, which do show an error.
-    - Suggested fix: Surface the adapter's skip count, for example by keeping the existing local copy of an unreadable UID if it can be identified, or by passing the count to the engine so it appears in `lastError`. At minimum, record the behavior with `tasks.py assume`.
+    - Problem: The trickle test quotes `IcsFeedProperties.timeout` as "Time for one request, from sending it to the end of the body." The fix changed that KDoc to say the timeout covers the whole fetch, including redirects (`IcsFeedProperties.kt:18-21`). The next test (`:312`) checks the new whole-fetch contract, so the comment above it now contradicts it.
+    - Why it matters: Someone reading the test is pointed to a contract that no longer exists.
+    - Suggested fix: Update the quote to match the current KDoc, or remove it.
+
+- [ ] **CR-2 | `timeout` and `connect-timeout` are not validated like the other properties**
+    - File: `server/src/main/kotlin/ch/sonensei/cockpit/calendar/infra/ics/IcsFeedProperties.kt:32-36` (used at `IcsFeedClient.kt:64,74,155`)
+    - Category: Quality
+    - Problem: The `init` block checks `max-size`, `max-redirects` and `poll-interval`, but not the two timeouts.
+        - With `cockpit.calendar.ics.timeout` set to zero or a negative value, `send` finds `remaining <= 0` and throws "The feed server did not answer in time" on every fetch, without sending a request. That message is misleading.
+        - With `connect-timeout` set to zero or a negative value, `HttpClient.Builder.connectTimeout` throws an `IllegalArgumentException` while the bean is being built, and the message does not name the property.
+    - Why it matters: A misconfiguration looks like a failing feed server, or it stops startup with an unclear error. The existing checks show that the project wants these values validated at startup with a clear message.
+    - Suggested fix: Add `require(timeout.isPositive)` and `require(connectTimeout.isPositive)` with messages that name the property, and extend the existing properties test.
 
 ## Review conclusion
 
-Material issues found; fix before completing the task.
-
-Notes on things that were checked and are fine: messages of `CalendarProviderException` and the log lines contain no feed URL, token or body (IOExceptions report only their simple class name). Userinfo URLs and non-http(s) redirect targets are refused. Every redirect hop is checked again, including IPv6 literals, mapped and transition addresses through `PublicAddresses`, and all resolved addresses. The streamed size limit applies after gzip decompression. Writes are refused both by the read-only calendar (409 from the event API) and by the adapter. The DNS-rebinding gap and allowing any port are recorded task assumptions and are not reported as findings.
+No material issues found. The earlier findings CR-1 to CR-5 are resolved (CR-5 as recorded in the task assumption). The two remaining findings are low-priority cleanups and do not block completing the task.
