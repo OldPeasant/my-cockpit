@@ -10,6 +10,7 @@ import {
 } from './mail-list-store';
 import { FakeEvents, FakeMail, INBOX, OTHER, summary } from './mail-testing';
 import {
+  MAIL_MAX_ACTION_IDS,
   MAIL_MAX_PAGE_SIZE,
   MAIL_PAGE_SIZE,
   MailScope,
@@ -333,6 +334,50 @@ describe('MailListStore', () => {
       expect(ids()).toEqual(['a', 'b']);
       expect(mail.lists).toHaveLength(2);
     });
+
+    it('keeps a queued refetch waiting while another action still runs after a failure', async () => {
+      await loaded([summary('a'), summary('b'), summary('c')]);
+      const first = store.apply('ARCHIVE'); // a, cursor moves to b
+      await flush();
+      const second = store.apply('FLAG'); // b
+      await flush();
+      await emit({});
+      mail.applies[0].reject(new Error('offline'));
+      await first;
+      expect(ids()).toEqual(['a', 'b', 'c']);
+      expect(store.items()![1].flagged).toBe(true);
+      expect(mail.lists).toHaveLength(1);
+      mail.succeed(1);
+      await second;
+      expect(mail.lists).toHaveLength(2);
+      mail.lists[1].resolve({
+        items: [summary('a'), summary('b', { flagged: true }), summary('c')],
+        nextCursor: null,
+      });
+      await flush();
+      expect(ids()).toEqual(['a', 'b', 'c']);
+      expect(store.items()![1].flagged).toBe(true);
+      expect(mail.lists).toHaveLength(2);
+    });
+
+    it('drops a refetch that overlaps a load more and refetches the longer list', async () => {
+      await loaded([summary('a'), summary('b')], undefined, 'c1');
+      await emit({});
+      expect(mail.lists).toHaveLength(2);
+      const more = store.loadMore();
+      expect(mail.lists[2].cursor).toBe('c1');
+      const page = Array.from({ length: MAIL_PAGE_SIZE }, (_, i) => summary(`p${i}`));
+      mail.lists[2].resolve({ items: page, nextCursor: 'c2' });
+      await more;
+      expect(store.items()).toHaveLength(2 + MAIL_PAGE_SIZE);
+      // The refetch was sized for two items: its shorter answer must not replace the list.
+      mail.lists[1].resolve({ items: [summary('a'), summary('b')], nextCursor: 'c1' });
+      await flush();
+      expect(store.items()).toHaveLength(2 + MAIL_PAGE_SIZE);
+      expect(store.nextCursor()).toBe('c2');
+      expect(mail.lists).toHaveLength(4);
+      expect(mail.lists[3].limit).toBe(2 + MAIL_PAGE_SIZE);
+    });
   });
 
   describe('loading edge cases', () => {
@@ -533,6 +578,124 @@ describe('MailListStore', () => {
       mail.succeed(1);
       await second;
       expect(ids()).toEqual(['a', 'c']);
+    });
+
+    it('applies to the given ids that are still loaded, in list order', async () => {
+      await loaded([summary('a'), summary('b'), summary('c')]);
+      const done = store.apply('MOVE', OTHER, ['c', 'gone', 'b']);
+      await flush();
+      expect(mail.applies[0]).toMatchObject({ action: 'MOVE', ids: ['b', 'c'], target: OTHER });
+      expect(ids()).toEqual(['a']);
+      mail.succeed();
+      expect(await done).toBe(true);
+    });
+
+    it('does nothing when none of the given ids is loaded any more', async () => {
+      await loaded([summary('a')]);
+      expect(await store.apply('MOVE', OTHER, ['gone'])).toBe(false);
+      expect(mail.applies).toEqual([]);
+      expect(ids()).toEqual(['a']);
+    });
+
+    it('does not bring back an item a later action removed when an earlier flag action fails', async () => {
+      await loaded([summary('a'), summary('b')]);
+      const flag = store.apply('FLAG'); // a
+      await flush();
+      const archive = store.apply('ARCHIVE'); // a again: it is still under the cursor
+      await flush();
+      expect(mail.applies.map((call) => call.ids)).toEqual([['a'], ['a']]);
+      mail.succeed(1);
+      expect(await archive).toBe(true);
+      mail.applies[0].reject(new Error('offline'));
+      expect(await flag).toBe(false);
+      expect(ids()).toEqual(['b']);
+      expect(errors).toHaveLength(1);
+    });
+
+    it('keeps a later successful flag change when an earlier action on the same item fails', async () => {
+      await loaded([summary('a', { seen: false, flagged: false })]);
+      const flag = store.apply('FLAG');
+      await flush();
+      const read = store.apply('READ');
+      await flush();
+      mail.succeed(1);
+      expect(await read).toBe(true);
+      mail.applies[0].reject(new Error('offline'));
+      expect(await flag).toBe(false);
+      expect(store.items()![0]).toMatchObject({ flagged: false, seen: true });
+    });
+
+    it('keeps a field a later action changed again when the earlier action on it fails', async () => {
+      await loaded([summary('a', { seen: false })]);
+      const read = store.apply('READ');
+      await flush();
+      const unread = store.apply('UNREAD');
+      await flush();
+      mail.succeed(1);
+      await unread;
+      mail.applies[0].reject(new Error('offline'));
+      expect(await read).toBe(false);
+      expect(store.items()![0].seen).toBe(false);
+    });
+
+    it('restores the removed item as it was after an earlier action changed it', async () => {
+      await loaded([summary('a'), summary('b')]);
+      const flag = store.apply('FLAG');
+      await flush();
+      const archive = store.apply('ARCHIVE');
+      await flush();
+      mail.succeed(0);
+      await flag;
+      mail.applies[1].reject(new Error('offline'));
+      expect(await archive).toBe(false);
+      expect(ids()).toEqual(['a', 'b']);
+      expect(store.items()![0].flagged).toBe(true);
+    });
+
+    it('refetches the list after a rollback, once no action runs', async () => {
+      await loaded([summary('a'), summary('b')]);
+      const first = store.apply('READ'); // a
+      await flush();
+      store.setCursor('b');
+      const second = store.apply('FLAG'); // b
+      await flush();
+      mail.applies[0].reject(new Error('offline'));
+      await first;
+      expect(mail.lists).toHaveLength(1);
+      mail.succeed(1);
+      await second;
+      expect(mail.lists).toHaveLength(2);
+      expect(mail.lists[1].cursor).toBeUndefined();
+      mail.lists[1].resolve({
+        items: [summary('a', { seen: true }), summary('b', { flagged: true })],
+        nextCursor: null,
+      });
+      await flush();
+      expect(store.items()!.map((item) => [item.seen, item.flagged])).toEqual([
+        [true, false],
+        [false, true],
+      ]);
+    });
+
+    it('sends at most 1000 ids per request and merges the results', async () => {
+      const many = Array.from({ length: 2500 }, (_, i) => summary(`m${i}`));
+      await loaded(many);
+      store.toggleAll();
+      const done = store.apply('ARCHIVE');
+      await flush();
+      expect(mail.applies.map((call) => call.ids.length)).toEqual([
+        MAIL_MAX_ACTION_IDS,
+        MAIL_MAX_ACTION_IDS,
+        500,
+      ]);
+      expect(new Set(mail.applies.flatMap((call) => call.ids)).size).toBe(2500);
+      mail.succeed(0, ['m3'], 'Locked');
+      mail.applies[1].reject(new ApiError(503, 'Unavailable', 'Try later'));
+      mail.succeed(2);
+      expect(await done).toBe(false);
+      expect(ids()).toEqual(['m3', ...many.slice(1000, 2000).map((item) => item.id)]);
+      expect(errors).toHaveLength(1);
+      expect(errors[0]).toContain('Locked');
     });
 
     it('marks a conversation unread with at least one unread message', async () => {

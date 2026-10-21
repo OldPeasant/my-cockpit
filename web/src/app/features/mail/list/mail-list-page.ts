@@ -142,15 +142,23 @@ export default class MailListPage {
   protected async move(): Promise<void> {
     const accountId = this.moveAccountId();
     if (!accountId || this.dialog.openDialogs.length) return;
+    // The folder is picked for these items: a live refetch while the dialog is open may move the
+    // cursor or prune the selection, but must not change what is moved.
+    const targets = this.store.targets();
     const data: MailMoveDialogData = {
-      folders: this.folders.moveTargets(accountId, this.store.targets()[0]?.folderId),
+      folders: this.folders.moveTargets(accountId, targets[0]?.folderId),
     };
     const target = await firstValueFrom(
       this.dialog
         .open<MailMoveDialog, MailMoveDialogData, string>(MailMoveDialog, { data, width: '24rem' })
         .afterClosed(),
     );
-    if (target) await this.store.apply('MOVE', target);
+    if (target)
+      await this.store.apply(
+        'MOVE',
+        target,
+        targets.map((item) => item.id),
+      );
   }
 
   protected onKeydown(event: KeyboardEvent): void {
@@ -164,18 +172,22 @@ export default class MailListPage {
   private run(shortcut: MailShortcut): void {
     switch (shortcut) {
       case 'next':
-        return this.store.moveCursor(1);
+        this.store.moveCursor(1);
+        return this.focusCursor();
       case 'previous':
-        return this.store.moveCursor(-1);
+        this.store.moveCursor(-1);
+        return this.focusCursor();
       case 'select': {
         const id = this.store.cursorId();
         if (id) this.store.toggleSelected(id);
         return;
       }
       case 'archive':
-        return this.act('ARCHIVE');
+        this.act('ARCHIVE');
+        return this.focusCursor();
       case 'delete':
-        return this.act('DELETE');
+        this.act('DELETE');
+        return this.focusCursor();
       case 'unread':
         return this.act('UNREAD');
       case 'read':
@@ -186,10 +198,23 @@ export default class MailListPage {
         void this.move();
         return;
       case 'spam':
-        return this.act('SPAM');
+        this.act('SPAM');
+        return this.focusCursor();
       case 'clear':
         return this.store.clearSelection();
     }
+  }
+
+  /**
+   * Roving focus: after a key moved the cursor, focus follows it to the row's button, so assistive
+   * technology announces the message the next key acts on.
+   */
+  private focusCursor(): void {
+    const id = this.store.cursorId();
+    if (!id) return;
+    this.host.nativeElement
+      .querySelector<HTMLElement>(`[data-id="${CSS.escape(id)}"] .open`)
+      ?.focus({ preventScroll: true });
   }
 
   protected unread(item: MailSummary): boolean {

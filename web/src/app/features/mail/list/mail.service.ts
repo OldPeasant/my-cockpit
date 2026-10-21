@@ -19,6 +19,8 @@ import { SILENT_ERRORS } from '../../../core/http';
 export const MAIL_PAGE_SIZE = 50;
 /** The largest page the server returns (`CursorRequest.MAX_LIMIT`). */
 export const MAIL_MAX_PAGE_SIZE = 200;
+/** The most ids one action request may carry (`MailActionRequest.ids`). */
+export const MAIL_MAX_ACTION_IDS = 1000;
 
 export type MailAction = MailActionRequest['action'];
 

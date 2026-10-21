@@ -1,7 +1,7 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { MatDialog } from '@angular/material/dialog';
 import { ActivatedRoute, convertToParamMap, ParamMap, provideRouter } from '@angular/router';
-import { BehaviorSubject, of } from 'rxjs';
+import { BehaviorSubject, Observable, of, Subject } from 'rxjs';
 import { MailAccountResponse, MailFolderResponse } from '../../../api/generated';
 import { ChangeEventsService } from '../../../core/events';
 import { NotificationService } from '../../../core/http';
@@ -9,7 +9,7 @@ import MailListPage, { senderName, THREADED_KEY } from './mail-list-page';
 import { FakeEvents, FakeMail, summary } from './mail-testing';
 import { ApiError } from '../../../core/http';
 import { MailListStore } from './mail-list-store';
-import { MailPage, MailService } from './mail.service';
+import { MailPage, MailService, MailSummary } from './mail.service';
 
 const flush = async () => {
   for (let i = 0; i < 10; i++) await Promise.resolve();
@@ -40,6 +40,8 @@ describe('MailListPage', () => {
   let params: BehaviorSubject<ParamMap>;
   let dialogResult: string | undefined;
   let dialogOpened: unknown[];
+  /** When set, the picker stays open until the test emits on it. */
+  let dialogClosed: Observable<string | undefined> | undefined;
 
   async function create(
     folderId: string | null = 'inbox-1',
@@ -65,6 +67,7 @@ describe('MailListPage', () => {
     params = new BehaviorSubject(convertToParamMap(folderId ? { folderId } : {}));
     dialogOpened = [];
     dialogResult = undefined;
+    dialogClosed = undefined;
     options.setup?.(mail);
     TestBed.configureTestingModule({
       imports: [MailListPage],
@@ -83,7 +86,7 @@ describe('MailListPage', () => {
             openDialogs: [],
             open: (_: unknown, config: unknown) => {
               dialogOpened.push(config);
-              return { afterClosed: () => of(dialogResult) };
+              return { afterClosed: () => dialogClosed ?? of(dialogResult) };
             },
           },
         },
@@ -244,6 +247,70 @@ describe('MailListPage', () => {
     await flush();
     expect(dialogOpened).toHaveLength(1);
     expect(mail.applies).toEqual([]);
+  });
+
+  describe('when a refetch changes the list while the folder picker is open', () => {
+    let closed: Subject<string | undefined>;
+
+    async function openPicker() {
+      closed = new Subject<string | undefined>();
+      dialogClosed = closed;
+      press('v');
+      await flush();
+      expect(dialogOpened).toHaveLength(1);
+    }
+
+    async function refetch(items: MailSummary[]) {
+      void listStore().refresh();
+      mail.lists.at(-1)!.resolve({ items, nextCursor: null });
+      await flush();
+      fixture.detectChanges();
+    }
+
+    it('does not move the item the cursor moved to', async () => {
+      await create();
+      await openPicker();
+      await refetch([summary('b'), summary('c')]);
+      expect(listStore().cursorId()).toBe('b');
+      closed.next('proj-1');
+      closed.complete();
+      await flush();
+      expect(mail.applies).toEqual([]);
+      expect(
+        listStore()
+          .items()!
+          .map((item) => item.id),
+      ).toEqual(['b', 'c']);
+    });
+
+    it('moves the picked items that are still there, not the cursor item', async () => {
+      await create();
+      listStore().toggleSelected('b');
+      listStore().toggleSelected('c');
+      fixture.detectChanges();
+      await openPicker();
+      await refetch([summary('a'), summary('b')]);
+      closed.next('proj-1');
+      closed.complete();
+      await flush();
+      expect(mail.applies[0]).toMatchObject({ action: 'MOVE', ids: ['b'], target: 'proj-1' });
+    });
+  });
+
+  it('moves focus with the keyboard cursor to its row', async () => {
+    await create();
+    const open = (index: number) => rows()[index].querySelector('button.open');
+    press('j');
+    expect(document.activeElement).toBe(open(1));
+    press('j', { repeat: true });
+    expect(document.activeElement).toBe(open(2));
+    press('k');
+    expect(document.activeElement).toBe(open(1));
+    press('e');
+    // The archived row goes; focus is on the next message, which the cursor is on now.
+    expect(rows().map((row) => row.dataset['id'])).toEqual(['a', 'c']);
+    expect(document.activeElement).toBe(open(1));
+    expect(listStore().cursorId()).toBe('c');
   });
 
   it('cannot move items of several accounts at once', async () => {

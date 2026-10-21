@@ -61,9 +61,16 @@ describe('mailShortcutFor', () => {
     expect(mailShortcutFor(key('#', { shiftKey: true }))).toBe('delete');
   });
 
-  it('ignores repeated and composing keys', () => {
-    expect(mailShortcutFor(key('j', { repeat: true }))).toBeNull();
+  it('ignores composing keys', () => {
     expect(mailShortcutFor(key('j', { isComposing: true }))).toBeNull();
+  });
+
+  it('repeats j/k while held, but never an action or selection', () => {
+    expect(mailShortcutFor(key('j', { repeat: true }))).toBe('next');
+    expect(mailShortcutFor(key('k', { repeat: true }))).toBe('previous');
+    for (const pressed of ['x', 'e', '#', 'u', 'I', 's', 'v', '!', 'Escape']) {
+      expect(mailShortcutFor(key(pressed, { repeat: true }))).toBeNull();
+    }
   });
 
   it('ignores a key another handler already handled', () => {

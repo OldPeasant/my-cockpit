@@ -30,13 +30,17 @@ export const MAIL_SHORTCUTS: readonly { key: string; shortcut: MailShortcut }[] 
 ];
 
 const BY_KEY = new Map(MAIL_SHORTCUTS.map(({ key, shortcut }) => [key, shortcut]));
+/** Shortcuts that auto-repeat while their key is held: moving the cursor, never an action. */
+const REPEATABLE: ReadonlySet<MailShortcut> = new Set(['next', 'previous']);
 
 /**
- * Maps a keydown to a mail list shortcut, or `null`: never while typing, with Ctrl/Alt/Meta, on a
- * repeated or already handled key. Keys are case-sensitive (`I` is Shift+i, as in Gmail).
+ * Maps a keydown to a mail list shortcut, or `null`: never while typing, with Ctrl/Alt/Meta, on an
+ * already handled key, or on a repeated key other than `j`/`k`. Keys are case-sensitive (`I` is
+ * Shift+i, as in Gmail).
  */
 export function mailShortcutFor(event: KeyboardEvent): MailShortcut | null {
-  if (event.defaultPrevented || event.isComposing || event.repeat) return null;
+  if (event.defaultPrevented || event.isComposing) return null;
   if (event.ctrlKey || event.altKey || event.metaKey || isTypingTarget(event.target)) return null;
-  return BY_KEY.get(event.key) ?? null;
+  const shortcut = BY_KEY.get(event.key) ?? null;
+  return shortcut && event.repeat && !REPEATABLE.has(shortcut) ? null : shortcut;
 }

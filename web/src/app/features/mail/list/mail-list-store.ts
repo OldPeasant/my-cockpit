@@ -4,6 +4,7 @@ import { debounceTime, filter, merge } from 'rxjs';
 import { ChangeEventsService } from '../../../core/events';
 import { ApiError, NotificationService } from '../../../core/http';
 import {
+  MAIL_MAX_ACTION_IDS,
   MAIL_MAX_PAGE_SIZE,
   MAIL_PAGE_SIZE,
   MailAction,
@@ -21,13 +22,22 @@ export const REFRESH_DEBOUNCE_MS = 300;
 
 /** Actions after which a message is no longer in the shown folder. */
 const REMOVING: ReadonlySet<MailAction> = new Set(['MOVE', 'ARCHIVE', 'DELETE', 'SPAM']);
+/** The fields of an item each flag action changes (what its rollback puts back). */
+const CHANGED_FIELDS: Partial<Record<MailAction, readonly (keyof MailSummary)[]>> = {
+  READ: ['seen', 'threadUnread'],
+  UNREAD: ['seen', 'threadUnread'],
+  FLAG: ['flagged'],
+  UNFLAG: ['flagged'],
+};
 
 /**
  * The shown message list (SPEC.md §7.3): pages loaded so far, the keyboard cursor, the selection
  * and the triage actions.
  *
- * - Actions are optimistic: the list changes at once, and items whose action failed are put back
- *   as they were (at their old place), with the server's message as an error.
+ * - Actions are optimistic: the list changes at once. When an action fails for an item, only what
+ *   that action changed is put back (a removed item at its old place, else its changed flags, and
+ *   only where no later action changed them again), the server's message is shown as an error,
+ *   and the list is refetched to settle what overlapping actions did.
  * - In the threaded view an item stands for its conversation: actions apply to every message of
  *   the conversation in the shown folder.
  * - Live: a `MAIL_FOLDER` change event for the shown folder (any folder for the unified Inbox), a
@@ -72,7 +82,10 @@ export class MailListStore {
 
   /** Counts the loads: a page that arrives for an earlier load is ignored. */
   private loadSeq = 0;
-  /** Counts the optimistic changes: a refetch that started before one is dropped and redone. */
+  /**
+   * Counts the changes of the loaded list (optimistic changes, rollbacks and appended pages): a
+   * refetch that started before one is dropped and redone.
+   */
   private mutationSeq = 0;
   private running = 0;
   private refreshQueued = false;
@@ -135,6 +148,8 @@ export class MailListStore {
         ...page.items.filter((item) => !shown.has(item.id)),
       ]);
       this.nextCursor.set(page.nextCursor);
+      // A refetch running now was sized for the shorter list: it must not shrink it back.
+      this.mutationSeq++;
     } catch (error) {
       if (seq === this.loadSeq) this.moreError.set(errorMessage(error));
     } finally {
@@ -209,26 +224,30 @@ export class MailListStore {
   }
 
   /**
-   * Applies an action to {@link targets}. Returns false when nothing was targeted or something
-   * failed (the failed items are back in the list, and the error has been shown).
+   * Applies an action to {@link targets}, or to the items `targetIds` names (those still loaded),
+   * e.g. the targets as they were when a dialog for the action opened. Returns false when nothing
+   * was targeted or something failed (the failed items are back in the list, and the error has
+   * been shown).
    */
-  async apply(action: MailAction, targetFolderId?: string): Promise<boolean> {
-    const targets = this.targets();
+  async apply(
+    action: MailAction,
+    targetFolderId?: string,
+    targetIds?: readonly string[],
+  ): Promise<boolean> {
+    const targets = targetIds ? this.loaded(targetIds) : this.targets();
     if (!targets.length) return false;
     this.running++;
     this.mutationSeq++;
     const seq = this.loadSeq;
     const snapshot = (this.items() ?? []).slice();
-    const targetIds = new Set(targets.map((item) => item.id));
-    this.applyOptimistic(action, targetIds);
+    this.applyOptimistic(action, new Set(targets.map((item) => item.id)));
     let failed: MailSummary[] = targets;
     let detail: string | null;
     try {
       const idsByItem = await this.messageIds(targets);
-      const results = await this.mail.apply(action, [...new Set(idsByItem.flat())], targetFolderId);
-      const failedIds = new Set(results.filter((result) => !result.ok).map((result) => result.id));
-      detail = results.find((result) => !result.ok)?.detail ?? null;
-      failed = targets.filter((_, index) => idsByItem[index].some((id) => failedIds.has(id)));
+      const outcome = await this.send(action, [...new Set(idsByItem.flat())], targetFolderId);
+      detail = outcome.detail;
+      failed = targets.filter((_, index) => idsByItem[index].some((id) => outcome.failed.has(id)));
     } catch (error) {
       detail = errorMessage(error);
     } finally {
@@ -236,14 +255,52 @@ export class MailListStore {
     }
     if (failed.length && seq === this.loadSeq) {
       this.mutationSeq++;
-      this.rollback(snapshot, failed);
+      this.rollback(action, snapshot, failed);
       const reason = detail ?? fallbackMessage();
       this.notifications.error(
         $localize`:@@mail.list.actionFailed:Not every message could be changed: ${reason}:reason:`,
       );
+      // Overlapping actions on the same items: the server's state settles what the view shows.
+      this.refreshQueued = true;
     }
     this.runQueuedRefresh();
     return failed.length === 0;
+  }
+
+  /** The loaded items among `ids`, in list order. */
+  private loaded(ids: readonly string[]): MailSummary[] {
+    const wanted = new Set(ids);
+    return (this.items() ?? []).filter((item) => wanted.has(item.id));
+  }
+
+  /**
+   * Sends the action in requests of at most {@link MAIL_MAX_ACTION_IDS} ids (the server's limit).
+   * Returns the ids that failed (every id of a request that failed as a whole) and the first
+   * failure's message.
+   */
+  private async send(
+    action: MailAction,
+    ids: string[],
+    targetFolderId?: string,
+  ): Promise<{ failed: ReadonlySet<string>; detail: string | null }> {
+    const chunks: string[][] = [];
+    for (let i = 0; i < ids.length; i += MAIL_MAX_ACTION_IDS) {
+      chunks.push(ids.slice(i, i + MAIL_MAX_ACTION_IDS));
+    }
+    const outcomes = await Promise.all(
+      chunks.map(async (chunk) => {
+        try {
+          const results = await this.mail.apply(action, chunk, targetFolderId);
+          const failures = results.filter((result) => !result.ok);
+          return { failed: failures.map((result) => result.id), detail: failures[0]?.detail };
+        } catch (error) {
+          return { failed: chunk, detail: errorMessage(error) };
+        }
+      }),
+    );
+    const failed = new Set(outcomes.flatMap((outcome) => outcome.failed));
+    const detail = outcomes.find((outcome) => outcome.failed.length)?.detail ?? null;
+    return { failed, detail };
   }
 
   /** The message ids behind each item: the item itself, or its conversation in the shown folder. */
@@ -274,15 +331,31 @@ export class MailListStore {
     this.items.set(items.map((item) => (ids.has(item.id) ? withAction(item, action) : item)));
   }
 
-  /** Puts the failed items back as they were, at their old place among the others. */
-  private rollback(snapshot: MailSummary[], failed: MailSummary[]): void {
-    const failedIds = new Set(failed.map((item) => item.id));
+  /**
+   * Undoes what `action` changed on the failed items, and nothing else: a removing action puts the
+   * items that are still gone back at their old place (as they were before it); a flag action
+   * puts back the fields it changed on the items still shown, unless a later action changed them
+   * again. Items removed meanwhile by another action stay removed.
+   */
+  private rollback(action: MailAction, snapshot: MailSummary[], failed: MailSummary[]): void {
+    const failedById = new Map(failed.map((item) => [item.id, item]));
     const current = this.items() ?? [];
-    const present = new Set(current.map((item) => item.id));
+    if (!REMOVING.has(action)) {
+      const fields = CHANGED_FIELDS[action] ?? [];
+      this.items.set(
+        current.map((item) => {
+          const old = failedById.get(item.id);
+          return old ? withFieldsRestored(item, old, withAction(old, action), fields) : item;
+        }),
+      );
+      return;
+    }
+    const currentById = new Map(current.map((item) => [item.id, item]));
     const restored: MailSummary[] = [];
     for (const old of snapshot) {
-      if (failedIds.has(old.id)) restored.push(old);
-      else if (present.has(old.id)) restored.push(current.find((item) => item.id === old.id)!);
+      const now = currentById.get(old.id);
+      if (now) restored.push(now);
+      else if (failedById.has(old.id)) restored.push(old);
     }
     // Items that arrived after the snapshot (a refetch) stay, after the restored ones.
     const known = new Set(restored.map((item) => item.id));
@@ -311,6 +384,23 @@ export function withAction(item: MailSummary, action: MailAction): MailSummary {
     default:
       return item;
   }
+}
+
+/**
+ * `item` with each of `fields` back at its value in `before`, where it still has the value the
+ * failed action set (`after`): a later action's change of the field is kept.
+ */
+function withFieldsRestored(
+  item: MailSummary,
+  before: MailSummary,
+  after: MailSummary,
+  fields: readonly (keyof MailSummary)[],
+): MailSummary {
+  const changed = fields.filter((field) => item[field] === after[field]);
+  if (!changed.length) return item;
+  const restored: MailSummary = { ...item };
+  for (const field of changed) Object.assign(restored, { [field]: before[field] });
+  return restored;
 }
 
 /**
