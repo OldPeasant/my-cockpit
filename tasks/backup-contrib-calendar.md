@@ -15,3 +15,4 @@ Calendar data in backups (SPEC.md §10.2).
 - [ ] Round-trip test (`./gradlew test --tests '*BackupRoundTripTest'`) passes with this module's `BackupFixture` seeding local recurring events with overrides and an external source
 
 ## Notes
+- ASSUMPTION (2026-10-21 18:43+0200 by dell26/agent-3): External (non-LOCAL source) events are exported as id refs (id, calendarId, externalId, parent, recurrence id) and restored as placeholder rows titled '(restored, waiting for sync)' at 1970-01-01 (SYNCED, no etag), so the first full sync matches them by external id, fills them in and keeps their ids, hence links survive (SPEC 10.2); unsynced local changes (PENDING) of external events are lost
