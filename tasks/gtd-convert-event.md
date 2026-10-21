@@ -17,3 +17,4 @@ lease_until: 2026-10-21T14:25:46Z
 
 ## Notes
 - ASSUMPTION (2026-10-21 16:10+0200 by dell26/agent-1): convert-to-event takes the same time fields as createEvent (allDay, start, end, timeZone, startDate, endDate); calendarId is optional and defaults to the default calendar, like createEvent. Event title = task title, description = task notes (none when blank).
+- ASSUMPTION (2026-10-21 16:10+0200 by dell26/agent-1): Regenerated web/src/app/api/generated (outside touches) because npm run check's api:check requires it to match api/openapi.yaml.
