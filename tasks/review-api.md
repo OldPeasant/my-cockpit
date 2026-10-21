@@ -16,3 +16,4 @@ Resumable weekly review (SPEC.md §8.6).
 - [ ] API documented: `api/openapi.yaml` regenerated (`UPDATE_OPENAPI=1 ./gradlew test --tests '*OpenApiContractTest'`) and `OpenApiContractTest` passes without the flag
 
 ## Notes
+- ASSUMPTION (2026-10-22 00:21+0200 by dell26/agent-1): Stale next action = open task on the NEXT list whose updatedAt is more than 30 days ago (olderThanDays param, default 30); SPEC §8.6 does not define 'stale'
