@@ -51,7 +51,9 @@ describe('NoteCard', () => {
   });
 
   it('leaves out the text and tag list when the note has neither', () => {
-    render(note({ title: undefined, displayTitle: 'Only a line', bodyMd: 'Only a line', tags: [] }));
+    render(
+      note({ title: undefined, displayTitle: 'Only a line', bodyMd: 'Only a line', tags: [] }),
+    );
 
     expect(element.querySelector('.title')?.textContent?.trim()).toBe('Only a line');
     expect(element.querySelector('.text')).toBeNull();

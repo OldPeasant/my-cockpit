@@ -1,0 +1,163 @@
+@if (loadError(); as error) {
+  <div class="status" role="alert">
+    <p i18n="@@notes.editor.loadFailed">The note could not be loaded: {{ error }}</p>
+    <a mat-stroked-button routerLink="/notes" i18n="@@notes.editor.back">All notes</a>
+    <button mat-button type="button" (click)="load()" i18n="@@notes.retry">Try again</button>
+  </div>
+} @else if (note(); as current) {
+  <article class="sheet" i18n-aria-label="@@notes.editor.aria" aria-label="Note">
+    <div class="top">
+      <a class="back" routerLink="/notes" i18n="@@notes.editor.back">All notes</a>
+      <span class="save-state" role="status" [attr.data-state]="saveState()">
+        @switch (saveState()) {
+          @case ('saved') {
+            <ng-container i18n="@@notes.editor.saved">Saved</ng-container>
+          }
+          @case ('pending') {
+            <ng-container i18n="@@notes.editor.pending">Unsaved changes</ng-container>
+          }
+          @case ('saving') {
+            <ng-container i18n="@@notes.editor.saving">Saving…</ng-container>
+          }
+          @case ('error') {
+            <ng-container i18n="@@notes.editor.notSaved">Not saved</ng-container>
+          }
+          @case ('conflict') {
+            <ng-container i18n="@@notes.editor.conflictState"
+              >Not saved: changed elsewhere</ng-container
+            >
+          }
+        }
+      </span>
+      <div class="toggle" role="group" i18n-aria-label="@@notes.editor.layout" aria-label="Layout">
+        <button
+          type="button"
+          class="mode-edit"
+          [attr.aria-pressed]="mode() === 'edit'"
+          (click)="setMode('edit')"
+          i18n="@@notes.editor.mode.edit"
+        >
+          Write
+        </button>
+        <button
+          type="button"
+          class="mode-split"
+          [attr.aria-pressed]="mode() === 'split'"
+          (click)="setMode('split')"
+          i18n="@@notes.editor.mode.split"
+        >
+          Side by side
+        </button>
+        <button
+          type="button"
+          class="mode-preview"
+          [attr.aria-pressed]="mode() === 'preview'"
+          (click)="setMode('preview')"
+          i18n="@@notes.editor.mode.preview"
+        >
+          Preview
+        </button>
+      </div>
+      <button
+        mat-button
+        type="button"
+        class="revisions"
+        (click)="openRevisions()"
+        i18n="@@notes.editor.revisions"
+      >
+        Earlier versions
+      </button>
+    </div>
+
+    @if (saveState() === 'conflict') {
+      <div class="banner conflict" role="alert">
+        <p i18n="@@notes.editor.conflict">
+          This note was changed somewhere else since you opened it. Your edits are not saved yet.
+        </p>
+        <div class="banner-actions">
+          <button
+            mat-button
+            type="button"
+            class="use-theirs"
+            (click)="useTheirs()"
+            i18n="@@notes.editor.useTheirs"
+          >
+            Discard my edits
+          </button>
+          <button
+            mat-flat-button
+            type="button"
+            class="keep-mine"
+            (click)="keepMine()"
+            i18n="@@notes.editor.keepMine"
+          >
+            Save my version
+          </button>
+        </div>
+      </div>
+    }
+    @if (saveError(); as error) {
+      <div class="banner" role="alert">
+        <p>{{ error }}</p>
+        @if (saveState() === 'error') {
+          <div class="banner-actions">
+            <button mat-button type="button" class="retry" (click)="retry()" i18n="@@notes.retry">
+              Try again
+            </button>
+          </div>
+        }
+      </div>
+    }
+
+    <div class="columns">
+      <div class="main">
+        <input
+          class="title"
+          type="text"
+          [value]="title()"
+          (input)="onTitle($event)"
+          [placeholder]="current.displayTitle"
+          i18n-aria-label="@@notes.new.title"
+          aria-label="Title"
+        />
+        <div class="panes" [attr.data-mode]="mode()">
+          <app-markdown-editor
+            class="pane source"
+            [hidden]="mode() === 'preview'"
+            [value]="body()"
+            (valueChange)="onBody($event)"
+            i18n-label="@@notes.new.bodyAria"
+            label="Text"
+            i18n-placeholder="@@notes.editor.placeholder"
+            placeholder="Write in Markdown. Paste or drop images, type [[ to link an item."
+            [uploadImage]="uploadImage"
+            [searchLinks]="searchLinks"
+            (uploadFailed)="onUploadFailed($event)"
+          />
+          @if (mode() !== 'edit') {
+            <section
+              class="pane preview"
+              i18n-aria-label="@@notes.editor.mode.preview"
+              aria-label="Preview"
+            >
+              @if (body().trim()) {
+                <app-note-markdown-view
+                  [source]="body()"
+                  [links]="linkInfo()"
+                  (checklistToggle)="onToggle($event)"
+                />
+              } @else {
+                <p class="empty" i18n="@@notes.editor.emptyPreview">Nothing to preview yet.</p>
+              }
+            </section>
+          }
+        </div>
+      </div>
+      <aside class="side">
+        <app-linked-items [item]="ref()" />
+      </aside>
+    </div>
+  </article>
+} @else {
+  <p class="status" role="status" i18n="@@notes.editor.loading">Loading note…</p>
+}

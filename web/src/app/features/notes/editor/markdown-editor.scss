@@ -1,0 +1,71 @@
+// Not encapsulated (ViewEncapsulation.None) to reach CodeMirror's DOM: every selector starts with this element.
+app-markdown-editor {
+  display: block;
+  min-block-size: 0;
+
+  .cm-editor {
+    block-size: 100%;
+    min-block-size: 320px;
+    color: var(--app-fg);
+    background: transparent;
+    font: var(--mat-sys-body-large);
+
+    &.cm-focused {
+      outline: none;
+    }
+  }
+
+  .cm-scroller {
+    font-family: ui-monospace, 'SF Mono', 'Cascadia Code', Menlo, Consolas, monospace;
+    font-size: 0.9375rem;
+    line-height: 1.6;
+  }
+
+  .cm-content {
+    padding: var(--app-space-3) 0;
+    caret-color: var(--app-accent);
+  }
+
+  .cm-line {
+    padding: 0;
+  }
+
+  .cm-placeholder {
+    color: var(--app-fg-muted);
+  }
+
+  .cm-inline-link {
+    padding: 0 2px;
+    border-radius: 4px;
+    background: var(--mat-sys-secondary-container);
+    color: var(--mat-sys-on-secondary-container);
+  }
+
+  .cm-tooltip.cm-tooltip-autocomplete {
+    border: 1px solid var(--app-border);
+    border-radius: var(--app-radius);
+    background: var(--app-surface-raised);
+    color: var(--app-fg);
+    box-shadow: var(--mat-sys-level2);
+    font: var(--mat-sys-body-medium);
+
+    > ul {
+      max-block-size: 18em;
+
+      > li {
+        padding: var(--app-space-1) var(--app-space-3);
+      }
+
+      > li[aria-selected] {
+        background: var(--mat-sys-secondary-container);
+        color: var(--mat-sys-on-secondary-container);
+      }
+    }
+  }
+
+  .cm-completionDetail {
+    margin-inline-start: var(--app-space-2);
+    color: var(--app-fg-muted);
+    font-style: normal;
+  }
+}
