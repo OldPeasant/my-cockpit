@@ -147,13 +147,13 @@ class MailGtdService(
 				header,
 				text
 					?.replace("\u0000", "")
-					?.let(::neutralizeInlineLinks)
 					?.trim()
 					.orEmpty(),
 			).filter {
 				it.isNotEmpty()
 			}.joinToString("\n\n")
-		return truncate(body, NoteService.MAX_BODY_LENGTH)
+		// Display names in the header are sender-controlled too, so the whole body is neutralized.
+		return truncate(neutralizeInlineLinks(body), NoteService.MAX_BODY_LENGTH)
 	}
 
 	private fun <T : Any> inTransaction(block: () -> T): T = checkNotNull(transactions.execute { block() })

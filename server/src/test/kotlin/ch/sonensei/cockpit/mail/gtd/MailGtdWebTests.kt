@@ -412,6 +412,30 @@ class MailGtdWebTests(
 	}
 
 	@Test
+	fun `inline link tokens in display names and the subject do not link the note to other items`() {
+		val other = UUID.randomUUID()
+		val mail =
+			message(
+				inbox,
+				subject = "Re [[task:$other]]",
+				from = listOf(MailAddress("mallory@example.test", "[[task:$other]]")),
+				to = listOf(MailAddress("ann@work.example", "[[note:$other]]")),
+				cc = listOf(MailAddress("erin@example.test", "[[[task:$other]]]")),
+			)
+		bodies.put(mail.id, "Hello", null)
+		attachments.save(mail.id, emptyList())
+
+		val result = created(mail.id, "to-note")
+
+		linkedEnds("NOTE", result["id"].asString()).single()["id"].asString() shouldBe mail.id.toString()
+		val note = getJson("/api/v1/notes/${result["id"].asString()}")
+		val body = note["bodyMd"].asString()
+		body shouldContain "**From:** [\\[task:$other]] <mallory@example.test>"
+		body shouldContain "**To:** [\\[note:$other]] <ann@work.example>"
+		body shouldNotContain "[["
+	}
+
+	@Test
 	fun `links survive a move that gives the message a new row, re-resolved by Message-ID`() {
 		val original = message(inbox, messageId = "<moved@example.test>")
 		val taskId = created(original.id, "to-task")["id"].asString()
