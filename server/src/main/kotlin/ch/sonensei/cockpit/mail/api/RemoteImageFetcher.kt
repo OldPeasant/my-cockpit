@@ -115,8 +115,8 @@ object PublicAddresses {
 				(b[0] == 0x20 && b[1] == 0x01 && ((b[2] == 0x0d && b[3] == 0xb8) || (b[2] == 0 && b[3] == 0))) ||
 				// 2001:2::/48 benchmarking (RFC 5180).
 				(b[0] == 0x20 && b[1] == 0x01 && b[2] == 0 && b[3] == 0x02 && b[4] == 0 && b[5] == 0) ||
-				// 3fff::/20 documentation (RFC 9637).
-				(b[0] == 0x3f && b[1] >= 0xf0) ||
+				// 3fff::/20 documentation (RFC 9637): 0x3f, 0xff, then a zero high nibble (3fff:0000 to 3fff:0fff).
+				(b[0] == 0x3f && b[1] == 0xff && (b[2] and 0xf0) == 0) ||
 				// 64:ff9b:1::/48 local-use NAT64 (RFC 8215).
 				(b[0] == 0 && b[1] == 0x64 && b[2] == 0xff && b[3] == 0x9b && b[4] == 0 && b[5] == 0x01) ||
 				// ::ffff:0:0:0/96 SIIT IPv4-translated.

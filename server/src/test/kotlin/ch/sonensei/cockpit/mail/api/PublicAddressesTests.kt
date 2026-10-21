@@ -79,9 +79,21 @@ class PublicAddressesTests {
 	 * (RFC 8215, here embedding 10.0.0.1), benchmarking 2001:2::/48 (RFC 5180) and documentation 3fff::/20 (RFC 9637).
 	 */
 	@ParameterizedTest
-	@ValueSource(strings = ["64:ff9b:1::a00:1", "2001:2::1", "3fff::1"])
+	@ValueSource(
+		strings = [
+			"64:ff9b:1::a00:1", "64:ff9b:1:ffff:ffff:ffff:ffff:ffff", "2001:2::1", "2001:2:0:ffff::1", "3fff::1",
+			"3fff:fff:ffff::1",
+		],
+	)
 	fun `IPv6 local-use NAT64, benchmarking and documentation addresses are not public`(address: String) {
 		PublicAddresses.isPublic(InetAddress.getByName(address)) shouldBe false
+	}
+
+	/** Just outside the IPv6 ranges above: 3fff::/20 ends at 3fff:fff, 2001:2::/48 and 64:ff9b:1::/48 are /48s. */
+	@ParameterizedTest
+	@ValueSource(strings = ["3fff:1000::1", "3ffe:ffff::1", "3ff0::1", "2001:2:1::1", "2001:3::1", "64:ff9b:2::1"])
+	fun `addresses just outside the blocked IPv6 ranges are public`(address: String) {
+		PublicAddresses.isPublic(InetAddress.getByName(address)) shouldBe true
 	}
 
 	/** SIIT IPv4-translated addresses (::ffff:0:0:0/96) are blocked whatever IPv4 address they embed. */
