@@ -141,12 +141,37 @@ test.describe('Phase 1 demo', () => {
       .poll(async () => (await project(page.request, 'Holiday')).nextTaskId)
       .toBe(plan?.id);
     expect((await project(page.request, 'Holiday')).stalled).toBe(false);
+
+    // The "New project" path of To project (step 2 names a new project; "Holiday" had to exist for
+    // the `#Holiday` capture): the new project gets the item as its next step.
+    await capture(page, 'Measure the shed');
+    await page.keyboard.press('p');
+    await expect(page.getByRole('heading', { name: 'Measure the shed' })).toBeVisible();
+    await page.keyboard.press('p');
+    await page.locator('form.prompt select').selectOption({ label: 'New project…' });
+    await page.getByLabel('New project title', { exact: true }).fill('Garden shed');
+    await page.getByRole('button', { name: 'Move' }).click();
+    await expect(page.getByText('Inbox zero.')).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(page.getByText('Your inbox is empty.')).toBeVisible();
+
+    await expect
+      .poll(async () => (await project(page.request, 'Garden shed')).nextTaskId ?? null)
+      .not.toBeNull();
+    const shed = (await listTasks(page.request, 'NEXT')).find(
+      (t) => t.title === 'Measure the shed',
+    );
+    const garden = await project(page.request, 'Garden shed');
+    expect(shed?.projectId).toBe(garden.id);
+    expect(garden.nextTaskId).toBe(shed?.id);
+    expect(garden.stalled).toBe(false);
   });
 
   test('3. Next filtered to @phone and ≤ 15 min shows only "Call plumber"; done, it is in the Logbook', async () => {
     await page.goto('/next');
     const list = page.getByRole('list', { name: 'Next actions' });
-    await expect(list.locator('app-task-row')).toHaveCount(3);
+    // The three items of step 2, plus "Measure the shed" of the new project.
+    await expect(list.locator('app-task-row')).toHaveCount(4);
 
     await page
       .getByRole('group', { name: 'Context' })
@@ -203,9 +228,18 @@ test.describe('Phase 1 demo', () => {
     await expect(page.getByText('Your inbox is empty.')).toBeVisible();
 
     // Hidden from every list, in the views and on the server.
-    for (const view of ['/inbox', '/today', '/next', '/waiting', '/someday', '/scheduled']) {
+    // Each view waits for its loaded content (a known row or its empty state) before the negative check.
+    const loaded: Record<string, (p: Page) => Locator> = {
+      '/inbox': (p) => p.getByText('Your inbox is empty.'),
+      '/today': (p) => p.getByText('Nothing overdue, due or scheduled today.'),
+      '/next': (p) => p.getByRole('button', { name: 'Buy milk', exact: true }),
+      '/waiting': (p) => p.getByText('Nothing to wait for.'),
+      '/someday': (p) => p.getByText('No someday ideas.'),
+      '/scheduled': (p) => p.getByText('Nothing scheduled.'),
+    };
+    for (const [view, signal] of Object.entries(loaded)) {
       await page.goto(view);
-      await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+      await expect(signal(page), `${view} loaded`).toBeVisible();
       await expect(page.getByRole('button', { name: 'Renew passport' })).toHaveCount(0);
     }
     for (const list of ['INBOX', 'NEXT', 'WAITING', 'SOMEDAY', 'SCHEDULED']) {
