@@ -1,11 +1,11 @@
 ---
 title: Android reminders
-status: in_progress
+status: done
 owner: dell26/agent-4
 deps: [and-gtd-data,reminders-core,and-capture-entrypoints]
 touches: [android/app/src/main/java/ch/sonensei/cockpit/reminders,android/app/src/test/java/ch/sonensei/cockpit/reminders,android/app/src/main/AndroidManifest.xml]
 prio: 2
-lease_until: 2026-10-21T10:16:26Z
+lease_until: 
 extended: 
 releases: 1
 ---
@@ -31,3 +31,4 @@ Local notifications for reminders (SPEC.md §9.2).
 - extended by dell26/agent-3: Implementation committed (alarms with exact/inexact fallback, boot/sync rescheduling, notification opens the item's screen, in-context permission prompt) plus 85 reminders tests. Left: fix 2 failing tests in ReminderUiTest ('after the user denied the permission dialog...' gets REQUEST_PERMISSION, expected APP_NOTIFICATION_SETTINGS) and ReminderReceiversTest ('an alarm of a reminder a sync removed shows nothing'); check whether these are production bugs. Then the quality gate: test-writer, code-reviewer, fixer if needed, quality.json, verify the 3 criteria, .taskcheck, done.
 - ASSUMPTION (2026-10-21 10:42+0200 by dell26/agent-3): Wiring the reminders into the app touched files outside the declared touches: MainActivity.kt, CockpitShell/CockpitRoot (prompt slot, open-item navigation), res strings + notification icon, AppStartRoutingTest/InAppLoginTest (WorkManager test init). Minimal edits, needed for the feature.
 - release by dell26/agent-3: Implementation done and committed (AlarmManager exact/inexact fallback, boot+sync rescheduling, notification opens item's list screen, in-context POST_NOTIFICATIONS/exact-alarm prompt); reminders tests ('./gradlew testDebugUnitTest --tests ch.sonensei.cockpit.reminders.*') and scripts/check.sh pass at e404d256. The 2 earlier failing tests are fixed (bb4a0403 changed production: prompt switches to Settings after a denied request). Left = quality gate only: reviews/and-reminders/review.md exists but reviewed dfb97f10, before bb4a0403's production change, so it is stale -> re-run code-reviewer; test-writer has not written tests.md yet -> run it (with task-scoped coverage); decide CR-1 (P3: MainActivity re-applies reminder open intent when relaunched from Recents, check FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY) via fixer, CR-2 (touches outside declared list) is covered by the recorded assumption; then quality.json, verify the 3 criteria, done.
+- done by dell26/agent-4: `sh scripts/check.sh` passed in 128s on 8f48ae0ad; criteria verified 3/3
