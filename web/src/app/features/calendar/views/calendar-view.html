@@ -41,6 +41,37 @@
         }
       </ul>
     }
+    <h2 id="calendar-overlay-title" class="calendar-overlay-title" i18n="@@calendar.overlay.title">
+      Tasks
+    </h2>
+    <label class="calendar-toggle calendar-overlay-toggle">
+      <input
+        type="checkbox"
+        aria-describedby="calendar-overlay-hint"
+        [checked]="overlay.enabled()"
+        (change)="setOverlay($any($event.target).checked)"
+      />
+      <span class="calendar-name" i18n="@@calendar.overlay.toggle">Due tasks and ticklers</span>
+    </label>
+    <p id="calendar-overlay-hint" class="calendar-hint">
+      @if (overlay.enabled() && !overlayApplies()) {
+        <ng-container i18n="@@calendar.overlay.otherViews"
+          >Shown in the day and week views.</ng-container
+        >
+      } @else {
+        <ng-container i18n="@@calendar.overlay.hint"
+          >Due dates and tickler dates of open tasks, in the day and week views.</ng-container
+        >
+      }
+    </p>
+    @if (overlay.enabled() && overlay.error()) {
+      <div class="calendar-note" role="alert">
+        <p i18n="@@calendar.overlay.failed">The tasks could not be loaded.</p>
+        <button mat-stroked-button type="button" (click)="retryOverlay()" i18n="@@calendar.retry">
+          Try again
+        </button>
+      </div>
+    }
   </aside>
 
   <div class="calendar-main">

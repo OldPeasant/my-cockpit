@@ -14,10 +14,13 @@ import { filter, Subject } from 'rxjs';
 import {
   Api,
   ChangeEvent,
+  getEvent,
   listCalendars,
   listEventOccurrences,
   OccurrenceResponse,
+  listTasks,
   Settings,
+  TaskResponse,
   updateCalendar,
 } from '../../../api/generated';
 import { ChangeEventsService } from '../../../core/events';
@@ -27,8 +30,9 @@ import { fakeSettings } from '../../settings/testing';
 import calendarRoutes from '../calendar.routes';
 import { EventEditor } from '../edit/event-editor';
 import { wallClockOf } from '../edit/event-times';
+import { TASK_OVERLAY_KEY } from '../overlay/task-overlay';
 import CalendarView from './calendar-view';
-import { fakeCalendar, fakeOccurrence } from './testing';
+import { fakeCalendar, fakeEvent, fakeOccurrence } from './testing';
 
 interface Call {
   fn: unknown;
@@ -68,7 +72,28 @@ describe('calendar routes', () => {
     expect(route.title).toBe('Calendar');
     expect(await route.loadComponent!()).toMatchObject({ default: CalendarView });
   });
+
+  it('redirects the deep link of an event to the calendar, which opens it', () => {
+    const route = calendarRoutes.find((r) => r.path === 'events/:id')!;
+    const redirect = route.redirectTo as (snapshot: { params: Record<string, string> }) => string;
+    expect(redirect({ params: { id: 'e/1' } })).toBe('/calendar?event=e%2F1');
+  });
 });
+
+/** A fictitious open task as the server returns it. */
+function fakeTask(id: string, fields: Partial<TaskResponse> = {}): TaskResponse {
+  return {
+    id,
+    title: `Task ${id}`,
+    list: 'NEXT',
+    contextIds: [],
+    position: 0,
+    createdAt: '2026-03-01T08:00:00Z',
+    updatedAt: '2026-03-01T08:00:00Z',
+    version: 1,
+    ...fields,
+  };
+}
 
 describe('CalendarView', () => {
   let calls: Call[];
@@ -263,7 +288,9 @@ describe('CalendarView', () => {
     expect(titles()).toEqual(['Swim', 'Standup']);
     const loads = callsOf(listEventOccurrences).length;
 
-    const checkboxes = [...root.querySelectorAll<HTMLInputElement>('input[type="checkbox"]')];
+    const checkboxes = [
+      ...root.querySelectorAll<HTMLInputElement>('.calendar-list input[type="checkbox"]'),
+    ];
     expect(checkboxes.map((box) => box.closest('label')!.textContent!.trim())).toEqual([
       'Family',
       'Work',
@@ -282,14 +309,16 @@ describe('CalendarView', () => {
   it('reports a toggle the server refuses and shows the calendar again', async () => {
     await render();
     await answerCalendars(fakeCalendar('work', { name: 'Work' }));
-    const box = root.querySelector<HTMLInputElement>('input[type="checkbox"]')!;
+    const box = root.querySelector<HTMLInputElement>('.calendar-list input[type="checkbox"]')!;
     box.click();
     await settle();
     callsOf(updateCalendar)[0].reject(new Error('412'));
     await settle();
     await fixture.whenStable();
     expect(notifications.error).toHaveBeenCalledWith('The calendar "Work" could not be changed.');
-    expect(root.querySelector<HTMLInputElement>('input[type="checkbox"]')!.checked).toBe(true);
+    expect(
+      root.querySelector<HTMLInputElement>('.calendar-list input[type="checkbox"]')!.checked,
+    ).toBe(true);
   });
 
   it('invites to add a calendar when there is none', async () => {
@@ -468,7 +497,9 @@ describe('CalendarView', () => {
       fakeCalendar('work', { version: 2, visible: false }),
     );
     expect(titles()).toEqual(['Swim']);
-    const boxes = [...root.querySelectorAll<HTMLInputElement>('input[type="checkbox"]')];
+    const boxes = [
+      ...root.querySelectorAll<HTMLInputElement>('.calendar-list input[type="checkbox"]'),
+    ];
     expect(boxes.map((box) => box.checked)).toEqual([true, false]);
     expect(callsOf(listEventOccurrences)).toHaveLength(loads);
   });
@@ -492,7 +523,7 @@ describe('CalendarView', () => {
     changes.next({ type: 'CALENDAR', id: 'work', op: 'DELETED', at: '2026-03-23T08:00:00Z' });
     await answerCalendars(fakeCalendar('family'));
     expect(titles()).toEqual(['Swim']);
-    expect(root.querySelectorAll('input[type="checkbox"]')).toHaveLength(1);
+    expect(root.querySelectorAll('.calendar-list input[type="checkbox"]')).toHaveLength(1);
     expect(callsOf(listEventOccurrences).at(-1)!.params).toMatchObject({
       calendarIds: ['family'],
     });
@@ -531,7 +562,7 @@ describe('CalendarView', () => {
       .resolve({ items: [fakeOccurrence('Swim', { calendarId: 'family' })] });
     await settle();
     await fixture.whenStable();
-    const box = root.querySelector<HTMLInputElement>('input[type="checkbox"]')!;
+    const box = root.querySelector<HTMLInputElement>('.calendar-list input[type="checkbox"]')!;
     expect(box.checked).toBe(false);
     expect(titles()).toEqual([]);
 
@@ -548,7 +579,7 @@ describe('CalendarView', () => {
       fakeCalendar('family', { color: '#c62828' }),
       fakeCalendar('work', { color: undefined }),
     );
-    const labels = [...root.querySelectorAll<HTMLElement>('.calendar-toggle')];
+    const labels = [...root.querySelectorAll<HTMLElement>('.calendar-list .calendar-toggle')];
     expect(labels.map((label) => label.style.getPropertyValue('--app-calendar-color'))).toEqual([
       '#c62828',
       'var(--mat-sys-primary)',
@@ -578,7 +609,7 @@ describe('CalendarView', () => {
     await settle();
     await fixture.whenStable();
     expect(root.textContent).not.toContain('The calendars could not be loaded.');
-    expect(root.querySelectorAll('input[type="checkbox"]')).toHaveLength(1);
+    expect(root.querySelectorAll('.calendar-list input[type="checkbox"]')).toHaveLength(1);
   });
 
   describe('editing', () => {
@@ -759,6 +790,195 @@ describe('CalendarView', () => {
       expect(new Date(draft.start).getUTCMinutes()).toBe(30);
       expect(new Date(draft.start).getTime()).toBeGreaterThan(Date.now());
       expect(new Date(draft.start).getTime() - Date.now()).toBeLessThanOrEqual(3_600_000);
+    });
+  });
+
+  describe('task overlay', () => {
+    const work = fakeCalendar('work');
+    const rent = fakeTask('rent', { title: 'Pay rent', dueDate: '2026-03-24' });
+    const call = fakeTask('call', {
+      title: 'Call Ada',
+      dueDate: '2026-03-25',
+      dueTime: '14:30:00',
+    });
+    const passport = fakeTask('passport', {
+      title: 'Renew passport',
+      list: 'SOMEDAY',
+      ticklerDate: '2026-03-27',
+    });
+
+    const toggle = () => root.querySelector<HTMLInputElement>('.calendar-overlay-toggle input')!;
+    const taskEntries = () => events().filter((event) => String(event.id).startsWith('task-'));
+
+    async function showWeek(): Promise<void> {
+      await render();
+      await answerCalendars(work);
+      options()!.datesSet!(week());
+      await settle();
+      callsOf(listEventOccurrences).at(-1)!.resolve({ items: [] });
+      await settle();
+      await fixture.whenStable();
+    }
+
+    async function answerTasks(...items: TaskResponse[]): Promise<void> {
+      callsOf(listTasks).at(-1)!.resolve({ items });
+      await settle();
+      await fixture.whenStable();
+    }
+
+    function check(box: HTMLInputElement, checked: boolean): void {
+      box.checked = checked;
+      box.dispatchEvent(new Event('change'));
+    }
+
+    beforeEach(() => localStorage.removeItem(TASK_OVERLAY_KEY));
+    afterEach(() => localStorage.removeItem(TASK_OVERLAY_KEY));
+
+    it('is off by default and loads no tasks', async () => {
+      await showWeek();
+      expect(toggle().checked).toBe(false);
+      expect(callsOf(listTasks)).toHaveLength(0);
+      expect(taskEntries()).toEqual([]);
+    });
+
+    it('shows the due tasks and ticklers of the shown week once turned on, and hides them again', async () => {
+      await showWeek();
+      check(toggle(), true);
+      await settle();
+      expect(callsOf(listTasks)).toHaveLength(1);
+      expect(callsOf(listTasks)[0].params).toMatchObject({ from: '2026-03-23', to: '2026-03-29' });
+      expect(localStorage.getItem(TASK_OVERLAY_KEY)).toBe('true');
+
+      await answerTasks(rent, call, passport);
+      expect(taskEntries()).toHaveLength(3);
+      expect(taskEntries()).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            id: 'task-due-rent',
+            title: 'Pay rent',
+            allDay: true,
+            start: '2026-03-24',
+            editable: false,
+          }),
+          expect.objectContaining({
+            id: 'task-due-call',
+            allDay: false,
+            // 14:30 in Zurich (CET), for half an hour.
+            start: '2026-03-25T13:30:00.000Z',
+            end: '2026-03-25T14:00:00.000Z',
+          }),
+          expect.objectContaining({
+            id: 'task-tickler-passport',
+            allDay: true,
+            start: '2026-03-27',
+            className: 'app-task-mark app-task-tickler',
+          }),
+        ]),
+      );
+
+      check(toggle(), false);
+      await fixture.whenStable();
+      expect(taskEntries()).toEqual([]);
+      expect(localStorage.getItem(TASK_OVERLAY_KEY)).toBe('false');
+    });
+
+    it('remembers the toggle and loads the tasks of each newly shown week', async () => {
+      localStorage.setItem(TASK_OVERLAY_KEY, 'true');
+      await showWeek();
+      expect(toggle().checked).toBe(true);
+      expect(callsOf(listTasks).at(-1)!.params).toMatchObject({
+        from: '2026-03-23',
+        to: '2026-03-29',
+      });
+      await answerTasks(rent);
+      const loads = callsOf(listTasks).length;
+      options()!.datesSet!(nextWeek());
+      await settle();
+      expect(callsOf(listTasks)).toHaveLength(loads + 1);
+      expect(callsOf(listTasks).at(-1)!.params).toMatchObject({
+        from: '2026-03-30',
+        to: '2026-04-05',
+      });
+      // The same week again: no new request.
+      options()!.datesSet!(nextWeek());
+      await settle();
+      expect(callsOf(listTasks)).toHaveLength(loads + 1);
+    });
+
+    it('shows no tasks in the month and agenda views', async () => {
+      localStorage.setItem(TASK_OVERLAY_KEY, 'true');
+      await render({ view: 'month' });
+      await answerCalendars(work);
+      options()!.datesSet!({
+        start: new Date('2026-02-22T23:00:00Z'),
+        end: new Date('2026-04-05T22:00:00Z'),
+        view: { type: 'dayGridMonth', currentStart: new Date('2026-02-28T23:00:00Z') },
+      } as unknown as DatesSetInfo);
+      await settle();
+      await fixture.whenStable();
+      expect(callsOf(listTasks)).toHaveLength(0);
+      expect(taskEntries()).toEqual([]);
+      expect(root.textContent).toContain('Shown in the day and week views.');
+    });
+
+    it('opens a clicked task instead of the event editor', async () => {
+      localStorage.setItem(TASK_OVERLAY_KEY, 'true');
+      await showWeek();
+      await answerTasks(rent);
+      const jsEvent = { preventDefault: vi.fn() };
+      options()!.eventClick!({
+        event: { extendedProps: taskEntries()[0].extendedProps },
+        jsEvent,
+      } as unknown as EventClickInfo);
+      await settle();
+      expect(navigate).toHaveBeenCalledWith(['/tasks', 'rent']);
+      expect(editor.open).not.toHaveBeenCalled();
+    });
+
+    it('offers a retry when the tasks cannot be loaded', async () => {
+      localStorage.setItem(TASK_OVERLAY_KEY, 'true');
+      await showWeek();
+      const loads = callsOf(listTasks).length;
+      callsOf(listTasks).at(-1)!.reject(new Error('offline'));
+      await settle();
+      await fixture.whenStable();
+      const alert = [...root.querySelectorAll<HTMLElement>('[role="alert"]')].find((a) =>
+        a.textContent!.includes('The tasks could not be loaded.'),
+      )!;
+      alert.querySelector('button')!.click();
+      await settle();
+      expect(callsOf(listTasks)).toHaveLength(loads + 1);
+    });
+  });
+
+  describe('linked event', () => {
+    it('shows the date of the event of the URL and opens it once', async () => {
+      await render({ event: 'e1' });
+      await answerCalendars(fakeCalendar('work'));
+      await settle();
+      const gotoDate = vi.spyOn(fullCalendar()!.getApi(), 'gotoDate');
+      expect(navigate).toHaveBeenCalledWith(
+        [],
+        expect.objectContaining({ queryParams: { event: null }, replaceUrl: true }),
+      );
+      callsOf(getEvent)[0].resolve(fakeEvent('e1', { title: 'Planning' }));
+      await settle();
+      expect(gotoDate).toHaveBeenCalledWith('2026-03-23');
+      expect(editor.open).toHaveBeenCalledOnce();
+      expect(editor.open.mock.calls[0][0]).toMatchObject({ eventId: 'e1', title: 'Planning' });
+      expect(callsOf(getEvent)).toHaveLength(1);
+    });
+
+    it('says so when the linked event cannot be loaded', async () => {
+      await render({ event: 'gone' });
+      await answerCalendars(fakeCalendar('work'));
+      await settle();
+      callsOf(getEvent)[0].reject(new Error('Not Found'));
+      await settle();
+      expect(notifications.error).toHaveBeenCalledWith(
+        'The linked event could not be opened. It may have been deleted.',
+      );
+      expect(editor.open).not.toHaveBeenCalled();
     });
   });
 });

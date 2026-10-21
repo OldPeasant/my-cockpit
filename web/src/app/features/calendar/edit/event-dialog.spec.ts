@@ -4,6 +4,7 @@ import { MAT_DIALOG_DATA, MatDialogRef } from '@angular/material/dialog';
 import { MatSelectHarness } from '@angular/material/select/testing';
 import { CalendarResponse, EventResponse, OccurrenceResponse } from '../../../api/generated';
 import { ApiError } from '../../../core/http';
+import { LinksService } from '../../../shared/links';
 import { fakeCalendar, fakeEvent, fakeOccurrence } from '../views/testing';
 import { EventDialog, EventDialogData, scopesFor } from './event-dialog';
 import { EventEditService } from './event-edit.service';
@@ -76,6 +77,8 @@ describe('EventDialog', () => {
         { provide: MatDialogRef, useValue: ref },
         { provide: EventEditService, useValue: events },
         { provide: ScopePrompt, useValue: scopes },
+        // The event's linked items (overlay/event-links.spec.ts covers them).
+        { provide: LinksService, useValue: { list: vi.fn(() => Promise.resolve([])) } },
       ],
     });
     fixture = TestBed.createComponent(EventDialog);

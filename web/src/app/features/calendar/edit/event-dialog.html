@@ -253,6 +253,10 @@
       @if (error(); as message) {
         <p class="error" role="alert">{{ message }}</p>
       }
+
+      @if (data.mode === 'edit') {
+        <app-calendar-event-links [occurrence]="data.occurrence" [timeZone]="data.timeZone" />
+      }
     }
   </mat-dialog-content>
 

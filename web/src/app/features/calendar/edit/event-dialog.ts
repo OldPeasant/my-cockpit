@@ -15,6 +15,7 @@ import {
   OccurrenceResponse,
 } from '../../../api/generated';
 import { ApiError } from '../../../core/http';
+import { EventLinks } from '../overlay/event-links';
 import {
   EditScope,
   EventEditService,
@@ -69,6 +70,7 @@ export const REMINDER_PRESETS: readonly number[] = [0, 5, 10, 15, 30, 60, 120, 1
   selector: 'app-calendar-event-dialog',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
+    EventLinks,
     ReactiveFormsModule,
     MatButtonModule,
     MatCheckboxModule,

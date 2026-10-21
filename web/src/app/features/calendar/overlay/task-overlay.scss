@@ -1,0 +1,55 @@
+// The task overlay and its toggle in the calendar view (ViewEncapsulation.None, like calendar-view.scss):
+// every selector starts with a class of that page.
+
+// Overlaid tasks: no calendar color, a dashed outline and a mark, so they never read as events.
+// Due tasks show an open checkbox, ticklers a return arrow.
+.app-calendar .app-task-mark {
+  --app-task-color: var(--mat-sys-secondary);
+
+  border: 1px dashed var(--app-task-color);
+  background: color-mix(in srgb, var(--app-task-color) 7%, var(--mat-sys-surface));
+  color: var(--mat-sys-on-surface);
+  cursor: pointer;
+
+  .fc-event-title,
+  .fc-event-main,
+  .fc-event-time {
+    color: inherit;
+  }
+
+  .fc-event-title::before,
+  .fc-list-event-title a::before {
+    display: inline-block;
+    margin-inline-end: 4px;
+    color: var(--app-task-color);
+    font-weight: 600;
+  }
+}
+
+.app-calendar .app-task-due .fc-event-title::before,
+.app-calendar .app-task-due .fc-list-event-title a::before {
+  content: '\2610'; // ☐
+}
+
+.app-calendar .app-task-tickler {
+  --app-task-color: var(--mat-sys-tertiary);
+
+  .fc-event-title::before,
+  .fc-list-event-title a::before {
+    content: '\21BA'; // ↺
+  }
+}
+
+.calendar-page h2.calendar-overlay-title {
+  margin-top: var(--app-space-4);
+}
+
+.calendar-overlay-toggle {
+  --app-calendar-color: var(--mat-sys-secondary);
+}
+
+.calendar-hint {
+  margin: var(--app-space-1) var(--app-space-2) var(--app-space-2);
+  color: var(--app-fg-muted);
+  font: var(--mat-sys-body-small);
+}
