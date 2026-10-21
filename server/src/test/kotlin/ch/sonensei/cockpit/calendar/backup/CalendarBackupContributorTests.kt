@@ -4,8 +4,12 @@ import ch.sonensei.cockpit.backup.RestoreTestDatabases
 import ch.sonensei.cockpit.backup.Zips
 import ch.sonensei.cockpit.backup.domain.BackupService
 import ch.sonensei.cockpit.backup.infra.ZipBackupReader
+import ch.sonensei.cockpit.calendar.api.CalendarEventService
+import ch.sonensei.cockpit.calendar.api.EventChanges
+import ch.sonensei.cockpit.calendar.api.FieldChange
 import ch.sonensei.cockpit.calendar.api.Timing
 import ch.sonensei.cockpit.calendar.model.OccurrenceId
+import ch.sonensei.cockpit.calendar.sync.CalendarProviderException
 import ch.sonensei.cockpit.calendar.sync.CalendarSyncService
 import ch.sonensei.cockpit.calendar.sync.FakeCalendarAdapter
 import ch.sonensei.cockpit.calendar.sync.FakeCalendarAdapter.Companion.remote
@@ -13,6 +17,8 @@ import ch.sonensei.cockpit.calendar.sync.FakeCalendarAdapterConfiguration
 import ch.sonensei.cockpit.calendar.sync.RemoteEvent
 import ch.sonensei.cockpit.calendar.sync.RemoteEventKey
 import ch.sonensei.cockpit.core.crypto.SecretCipher
+import ch.sonensei.cockpit.core.web.ConflictException
+import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.assertions.withClue
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldContain
@@ -32,9 +38,12 @@ import net.fortuna.ical4j.model.component.VTimeZone
 import net.fortuna.ical4j.util.CompatibilityHints
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.extension.ExtendWith
 import org.junit.jupiter.api.io.TempDir
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
+import org.springframework.boot.test.system.CapturedOutput
+import org.springframework.boot.test.system.OutputCaptureExtension
 import org.springframework.context.annotation.Import
 import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.test.context.DynamicPropertyRegistry
@@ -64,9 +73,11 @@ import net.fortuna.ical4j.model.Calendar as IcsCalendar
  */
 @SpringBootTest
 @Import(FakeCalendarAdapterConfiguration::class)
+@ExtendWith(OutputCaptureExtension::class)
 class CalendarBackupContributorTests(
 	@Autowired private val backups: BackupService,
 	@Autowired private val contributor: CalendarBackupContributor,
+	@Autowired private val eventService: CalendarEventService,
 	@Autowired private val cipher: SecretCipher,
 	@Autowired private val sync: CalendarSyncService,
 	@Autowired private val fake: FakeCalendarAdapter,
@@ -325,12 +336,17 @@ class CalendarBackupContributorTests(
 		calendar(HOME, LOCAL, "Home")
 		calendar(SPORT, LOCAL, "Nothing planned")
 		calendar(id(13), LOCAL, "Only Trash")
+		// Sorted before "Home" and without events: it must not take the name "Home.ics" away.
+		calendar(id(14), LOCAL, "HOME")
 		event(id(20), HOME, "Visible")
 		event(id(21), id(13), "Gone", deletedAt = T2)
+		event(id(22), id(13), "Trashed series", rrule = "FREQ=DAILY;COUNT=3", deletedAt = T2)
+		event(id(23), id(13), "Override of the trashed series", parent = id(22), recurrenceAt = Instant.parse("2026-03-03T08:00:00Z"))
 
 		val files = export().readableCalendars()
 
-		files.keys shouldContain "Home.ics"
+		// A VCALENDAR needs a component (RFC 5545 §3.6): calendars with nothing to show get no file.
+		files.keys shouldBe setOf("Home.ics")
 		files.forEach { (name, text) ->
 			withClue(name) { parse(text).validate().hasErrors() shouldBe false }
 		}
@@ -386,9 +402,44 @@ class CalendarBackupContributorTests(
 		credentials(CALDAV).shouldBeNull()
 		jdbc.queryForObject("select count(*) from calendar_source", Int::class.java) shouldBe 2
 
-		val warnings = ZipBackupReader.open(withSecrets.path, backups.canonicalJson).use { contributor.restoreWarnings(it) }
-		warnings shouldHaveSize 1
-		warnings.single() shouldContain "fetched again from their providers"
+		warnings(withSecrets) shouldContainExactly
+			listOf(
+				"The events of 1 external calendar source are fetched again with the next sync",
+				"Without the backup's passphrase, 1 CalDAV calendar source must be reconnected (their passwords are in the secrets)",
+			)
+		warnings(export()) shouldContainExactly
+			listOf(
+				"The events of 1 external calendar source are fetched again with the next sync",
+				"The backup has no calendar passwords: 1 CalDAV calendar source must be reconnected",
+			)
+	}
+
+	@Test
+	fun `restore warnings and the log count only CalDAV sources as missing their password, OAuth and feed sources need none`(
+		output: CapturedOutput,
+	) {
+		source(id(3), "GOOGLE", "Google", config = """{"connectionId": "${id(90)}"}""")
+		source(id(4), "MICROSOFT", "Microsoft", config = """{"connectionId": "${id(91)}"}""")
+		source(id(5), "ICS_FEED", "Holidays", config = """{"url": "https://feeds.example.test/holidays.ics"}""")
+		val oauthAndFeeds = export(PASSPHRASE)
+
+		warnings(oauthAndFeeds) shouldContainExactly listOf("The events of 3 external calendar sources are fetched again with the next sync")
+		wipe()
+		import(oauthAndFeeds.path, PASSPHRASE)
+		output.out shouldNotContain "without a password"
+
+		source(CALDAV, "CALDAV", "Work CalDAV", credential = PASSWORD)
+		source(id(6), "CALDAV", "Private CalDAV", credential = PASSWORD)
+		val withCalDav = export()
+		warnings(withCalDav) shouldContainExactly
+			listOf(
+				"The events of 5 external calendar sources are fetched again with the next sync",
+				"The backup has no calendar passwords: 2 CalDAV calendar sources must be reconnected",
+			)
+		wipe()
+		import(withCalDav.path)
+		output.out shouldContain "Restored 2 CalDAV calendar sources without a password"
+		output.out shouldNotContain PASSWORD
 	}
 
 	@Test
@@ -409,8 +460,9 @@ class CalendarBackupContributorTests(
 		val rows =
 			jdbc
 				.queryForList(
-					"""select id, title, description, version, external_id, external_etag, sync_state, parent_event_id, all_day,
-					start_at, start_date, end_date, recurrence_id_at, recurrence_id_date, rrule from calendar_event order by id""",
+					"""select id, title, description, version, external_id, external_etag, sync_state, status, parent_event_id,
+					all_day, start_at, start_date, end_date, recurrence_id_at, recurrence_id_date, rrule
+					from calendar_event order by id""",
 				).associateBy { it["id"] as UUID }
 		rows.keys shouldBe (30..34).map(::id).toSet()
 		rows.values.forEach {
@@ -418,7 +470,9 @@ class CalendarBackupContributorTests(
 			it["description"].shouldBeNull()
 			it["rrule"].shouldBeNull()
 			it["version"] shouldBe 0L
-			it["external_etag"].shouldBeNull()
+			// Inert until the sync fills them in: hidden from the views, and no provider version matches the etag.
+			it["status"] shouldBe "CANCELLED"
+			it["external_etag"] shouldBe CalendarBackupContributor.PLACEHOLDER_ETAG
 			it["sync_state"] shouldBe "SYNCED"
 		}
 		rows.getValue(id(30))["external_id"] shouldBe "series-1@caldav.example.test"
@@ -507,7 +561,57 @@ class CalendarBackupContributorTests(
 			listOf("Lunch (moved)", "Runs", "Runs (hills)", "Weekly", "Weekly (late)")
 	}
 
+	@Test
+	fun `until a sync fills them in, placeholders are not shown and edits or deletes never overwrite the provider's events`() {
+		fake.addCalendar("/dav/work/", "Work")
+		val second = OccurrenceId.of(Instant.parse("2026-03-09T08:00:00Z"))
+		fake.put("/dav/work/", remote("weekly", "Weekly", start = "2026-03-02T08:00:00Z", rrule = "FREQ=WEEKLY;COUNT=5"))
+		fake.put("/dav/work/", remote("weekly", "Weekly (late)", start = "2026-03-09T10:00:00Z").copy(key = RemoteEventKey("weekly", second)))
+		fake.put("/dav/work/", remote("lunch", "Lunch"))
+		source(CALDAV, "CALDAV", "Work CalDAV", credential = PASSWORD)
+		sync.sync(CALDAV)
+		val ids = eventIds()
+		val zip = export(PASSPHRASE)
+		RestoreTestDatabases.wipe(jdbc, dataDir)
+		import(zip.path, PASSPHRASE)
+		// The provider is unreachable for now: neither a sync nor the refetch after a refused write fills them in.
+		fake.failFetch["/dav/work/"] = CalendarProviderException("Server answered 503")
+		fake.writes.clear()
+
+		eventService.occurrences(Instant.parse("2026-03-01T00:00:00Z"), Instant.parse("2026-04-01T00:00:00Z"), null).shouldBeEmpty()
+
+		val edit = EventChanges(title = FieldChange("Edited before the sync"))
+		shouldThrow<ConflictException> { eventService.update(ids.getValue("lunch"), null, null, edit) {} }
+		shouldThrow<ConflictException> { eventService.update(ids.getValue("weekly@2026-03-09T08:00:00Z"), null, null, edit) {} }
+		shouldThrow<ConflictException> { eventService.delete(ids.getValue("lunch"), null, null) {} }
+		shouldThrow<ConflictException> { eventService.delete(ids.getValue("weekly"), null, null) {} }
+
+		val ifMatch = "if-match=${CalendarBackupContributor.PLACEHOLDER_ETAG}"
+		fake.writes shouldContainExactly
+			listOf("update lunch $ifMatch", "update weekly@2026-03-09T08:00:00Z $ifMatch", "delete lunch $ifMatch", "delete weekly $ifMatch")
+		fake.events("/dav/work/").values.map { it.title } shouldContainExactlyInAnyOrder listOf("Weekly", "Weekly (late)", "Lunch")
+		eventIds() shouldBe ids
+		titles().values.toSet() shouldBe setOf(CalendarBackupContributor.PLACEHOLDER_TITLE)
+
+		fake.failFetch.clear()
+		sync
+			.sync(CALDAV)
+			.status
+			.shouldNotBeNull()
+			.lastError
+			.shouldBeNull()
+		eventService.update(ids.getValue("lunch"), null, null, edit) {}
+
+		fake.event("/dav/work/", RemoteEventKey("lunch")).shouldNotBeNull().title shouldBe "Edited before the sync"
+		eventService
+			.occurrences(Instant.parse("2026-03-01T00:00:00Z"), Instant.parse("2026-04-01T00:00:00Z"), null)
+			.map { it.event.title } shouldContain "Weekly (late)"
+	}
+
 	// --- helpers ----------------------------------------------------------------------------------------------------
+
+	private fun warnings(exported: Exported): List<String> =
+		ZipBackupReader.open(exported.path, backups.canonicalJson).use { contributor.restoreWarnings(it) }
 
 	private class Exported(
 		val path: Path,
@@ -545,7 +649,12 @@ class CalendarBackupContributorTests(
 		transactions.executeWithoutResult { contributor.import(reader) }
 	}
 
-	private fun parse(ics: String): IcsCalendar = CalendarBuilder().build(StringReader(ics))
+	/**
+	 * Parses [ics] strictly with ical4j. Its builder registers each VTIMEZONE as a JVM-wide `ical4j~<uuid>` zone whose
+	 * rules live only as long as the builder: once collected, `ZoneId.of` of that id fails, which breaks tests in the
+	 * same JVM that go through every available zone (`CalDavEventMappingTests`). So the builders are kept.
+	 */
+	private fun parse(ics: String): IcsCalendar = CalendarBuilder().also { builders += it }.build(StringReader(ics))
 
 	private fun Component.text(name: String): String? = getProperty<Property>(name).map { it.value }.orElse(null)
 
@@ -835,6 +944,9 @@ class CalendarBackupContributorTests(
 
 	companion object {
 		private const val DATABASE = "calendar_backup_contributor"
+
+		/** Every ical4j builder [parse] used, kept reachable for the JVM's lifetime (see [parse]). */
+		private val builders = mutableListOf<CalendarBuilder>()
 		private val dataDir: Path = Files.createTempDirectory("cockpit-calendar-backup-data")
 
 		private const val ZURICH = "Europe/Zurich"

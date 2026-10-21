@@ -52,11 +52,16 @@ import java.util.UUID
  * - `data/events.jsonl`: events of LOCAL sources fully (Trash included, with EXDATEs; series masters before their
  *   overrides). Events of external sources only as id refs ([EventBackup.content] null): the provider has them, but
  *   links to them must survive (SPEC.md §10.2). A ref is restored as a placeholder row with its id, external id and
- *   recurrence id, far in the past and without etag: the first sync after the restore (a full one, as sync cursors are
- *   not backed up) matches it by external id and fills it in, or deletes it when the provider no longer has it.
+ *   recurrence id: the first sync after the restore (a full one, as sync cursors are not backed up) matches it by
+ *   external id and fills it in, or deletes it when the provider no longer has it. Until then the placeholder is inert:
+ *   it is [EventStatus.CANCELLED], so the views don't show it (an override would appear at its occurrence otherwise),
+ *   and its etag is [PLACEHOLDER_ETAG], which matches no provider version. An edit or delete before the sync is then
+ *   refused by the provider's `If-Match` check (412: 409 for the user, and the calendar is fetched again) instead of
+ *   overwriting the provider's event with placeholder data.
  *
- * Mirror: `readable/calendar/<calendar-name>.ics` per calendar of a LOCAL source, with its events not in the Trash
- * (UID: the event id), importable into other calendar apps.
+ * Mirror: `readable/calendar/<calendar-name>.ics` per calendar of a LOCAL source that has events not in the Trash, with
+ * those events (UID: the event id), importable into other calendar apps. A calendar without such events gets no file:
+ * a VCALENDAR needs at least one component (RFC 5545 §3.6).
  *
  * Sync status and cursors are not backed up. Rows are read and written with JDBC rather than JPA: a restore must keep
  * ids, `created_at`, `updated_at` and `version` exactly as backed up, which JPA auditing and versioning would overwrite.
@@ -111,9 +116,10 @@ class CalendarBackupContributor(
 		}
 		val names = mutableSetOf<String>()
 		local.sortedWith(compareBy({ it.name }, { it.id })).forEach { calendar ->
+			val ics = ics(byCalendar[calendar.id].orEmpty()) ?: return@forEach
 			val base = fileName(calendar.name)
 			val name = generateSequence(1) { it + 1 }.map { n -> if (n == 1) base else "$base ($n)" }.first { names.add(it.lowercase()) }
-			writer.text("calendar/$name.ics", ics(byCalendar[calendar.id].orEmpty()))
+			writer.text("calendar/$name.ics", ics)
 		}
 	}
 
@@ -123,7 +129,7 @@ class CalendarBackupContributor(
 		var reconnect = 0
 		sources.forEach { source ->
 			val credential = credentials[source.id.toString()]
-			if (credential == null && source.type != CalendarSourceType.LOCAL.name) reconnect++
+			if (credential == null && source.type in WITH_CREDENTIALS) reconnect++
 			jdbc.update(
 				"""insert into calendar_source (id, created_at, updated_at, version, type, name, config, credentials)
 				values (?, ?, ?, ?, ?, ?, ?::jsonb, ?)""",
@@ -164,13 +170,25 @@ class CalendarBackupContributor(
 		}
 		// Overrides are indexed with their series master.
 		restored.forEach { id -> events.findById(id).ifPresent(indexer::index) }
-		if (reconnect > 0) log.warn("Restored {} calendar sources without their credentials: they must be reconnected", reconnect)
+		if (reconnect > 0) log.warn("Restored {} without a password; reconnect to sync again", count(reconnect, "CalDAV calendar source"))
 	}
 
 	override fun restoreWarnings(reader: BackupDataReader): List<String> {
-		val external = reader.json<List<CalendarSourceBackup>>(SOURCES).orEmpty().count { it.type != CalendarSourceType.LOCAL.name }
+		val sources = reader.json<List<CalendarSourceBackup>>(SOURCES).orEmpty()
+		val external = sources.count { it.type != CalendarSourceType.LOCAL.name }
 		if (external == 0) return emptyList()
-		return listOf("The events of the $external external calendar sources are fetched again from their providers with the next sync")
+		val warnings = mutableListOf("The events of ${count(external, "external calendar source")} are fetched again with the next sync")
+		val withCredentials = sources.count { it.type in WITH_CREDENTIALS }
+		if (withCredentials > 0) {
+			val caldav = count(withCredentials, "CalDAV calendar source")
+			warnings +=
+				if (reader.hasSecrets) {
+					"Without the backup's passphrase, $caldav must be reconnected (their passwords are in the secrets)"
+				} else {
+					"The backup has no calendar passwords: $caldav must be reconnected"
+				}
+		}
+		return warnings
 	}
 
 	private fun insert(
@@ -230,8 +248,8 @@ class CalendarBackupContributor(
 		jdbc.update(
 			"""insert into calendar_event
 			(id, created_at, updated_at, version, calendar_id, title, all_day, start_at, end_at, time_zone, start_date, end_date,
-			parent_event_id, recurrence_id_at, recurrence_id_date, status, transparency, external_id, sync_state)
-			values (?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+			parent_event_id, recurrence_id_at, recurrence_id_date, status, transparency, external_id, external_etag, sync_state)
+			values (?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
 			event.id,
 			Instant.EPOCH.toTimestamp(),
 			Instant.EPOCH.toTimestamp(),
@@ -246,9 +264,10 @@ class CalendarBackupContributor(
 			event.parentEventId,
 			event.recurrenceIdAt.toTimestampOrNull(),
 			event.recurrenceIdDate?.let(Date::valueOf),
-			EventStatus.CONFIRMED.name,
+			EventStatus.CANCELLED.name,
 			EventTransparency.OPAQUE.name,
 			event.externalId,
+			PLACEHOLDER_ETAG,
 			EventSyncState.SYNCED.name,
 		)
 	}
@@ -362,11 +381,16 @@ class CalendarBackupContributor(
 			)
 	}
 
-	/** A VCALENDAR with [events] (of one calendar) not in the Trash; overrides of a series in the Trash are left out too. */
-	private fun ics(events: List<EventBackup>): String {
+	/**
+	 * A VCALENDAR with [events] (of one calendar) not in the Trash; overrides of a series in the Trash are left out too.
+	 * Null when no event is left: a VCALENDAR without component is invalid.
+	 */
+	private fun ics(events: List<EventBackup>): String? {
 		val calendar = CalDavEventMapping.newCalendar()
 		val active = events.filter { it.content!!.deletedAt == null }
 		val masters = active.filter { it.parentEventId == null }.associateBy { it.id }
+		// Overrides are written only with their master.
+		if (masters.isEmpty()) return null
 		masters.values.forEach { CalDavEventMapping.write(calendar, remote(it, it.id.toString()), it.content!!.updatedAt) }
 		active
 			.filter { it.parentEventId in masters }
@@ -414,10 +438,22 @@ class CalendarBackupContributor(
 		/** Title of a restored external event until the next sync fills it in. */
 		const val PLACEHOLDER_TITLE = "(restored, waiting for sync)"
 
+		/** Etag of a restored external event until the next sync fills it in: no provider version matches it. */
+		const val PLACEHOLDER_ETAG = "\"cockpit-restored-placeholder\""
+
+		/** Source types with a credential (the CalDAV password), restored only from the backup's secrets. */
+		private val WITH_CREDENTIALS = setOf(CalendarSourceType.CALDAV.name)
+
 		private const val FETCH_SIZE = 1000
 		private const val MAX_FILE_NAME_LENGTH = 100
 		private val NOT_IN_FILE_NAME = Regex("""[/\\:*?"<>|\p{Cntrl}]""")
 		private val ATTENDEES = object : TypeReference<List<Attendee>>() {}
+
+		/** "1 [noun]" or "[count] [noun]s". */
+		private fun count(
+			count: Int,
+			noun: String,
+		) = if (count == 1) "1 $noun" else "$count ${noun}s"
 
 		/** [name] usable as a file name on common systems: reserved characters become `_`, at most 100 characters. */
 		fun fileName(name: String): String =
