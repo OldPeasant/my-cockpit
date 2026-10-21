@@ -43,6 +43,10 @@ android {
     buildFeatures {
         compose = true
     }
+    sourceSets {
+        // Tests that run both on a device and on Robolectric (the Phase 3 demo).
+        listOf("test", "androidTest").forEach { named(it) { kotlin.srcDir("src/sharedTest/java") } }
+    }
     testOptions {
         unitTests {
             // Robolectric needs the merged resources and manifest.
@@ -120,9 +124,6 @@ androidComponents {
                 .dir("src/main/kotlin")
                 .asFile.absolutePath,
         )
-        // Tests that run both on a device and on Robolectric (the Phase 3 demo).
-        val sharedTest = file("src/sharedTest/java").absolutePath
-        (variant.hostTests.values + variant.deviceTests.values).forEach { it.sources.kotlin?.addStaticSourceDirectory(sharedTest) }
     }
 }
 

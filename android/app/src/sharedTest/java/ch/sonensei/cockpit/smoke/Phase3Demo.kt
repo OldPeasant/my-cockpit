@@ -7,6 +7,8 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.util.Base64
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.ComposeTimeoutException
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.SemanticsNodeInteraction
@@ -25,8 +27,6 @@ import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performTextReplacement
 import androidx.compose.ui.test.printToString
-import androidx.compose.ui.semantics.SemanticsProperties
-import androidx.compose.ui.semantics.getOrNull
 import androidx.lifecycle.Lifecycle
 import androidx.test.core.app.ActivityScenario
 import androidx.test.core.app.ApplicationProvider
@@ -268,8 +268,10 @@ abstract class Phase3Demo {
         // The web's Today: overdue and due today, then Next tasks scheduled for today or earlier.
         val today = LocalDate.now()
         val todayIds =
-            (stack.tasks(due = "overdue") + stack.tasks(due = "today") + next.filter { it.scheduledDate?.let { d -> !d.isAfter(today) } == true })
-                .map { it.id }
+            (
+                stack.tasks(due = "overdue") + stack.tasks(due = "today") +
+                    next.filter { it.scheduledDate?.let { d -> !d.isAfter(today) } == true }
+            ).map { it.id }
                 .distinct()
         assertEquals(listOf(taxReturn.id), todayIds)
         tab("Today").performClick()
@@ -327,11 +329,12 @@ abstract class Phase3Demo {
 
     private fun awaitClosed(scenario: ActivityScenario<*>) {
         composeRule.waitUntil(WAIT_MS) {
-            scenario.state == Lifecycle.State.DESTROYED || run {
-                var finishing = false
-                scenario.onActivity { finishing = it.isFinishing }
-                finishing
-            }
+            scenario.state == Lifecycle.State.DESTROYED ||
+                run {
+                    var finishing = false
+                    scenario.onActivity { finishing = it.isFinishing }
+                    finishing
+                }
         }
         close(scenario)
     }
@@ -442,6 +445,9 @@ abstract class Phase3Demo {
 
         /** A 1×1 PNG (fictitious receipt). */
         val PHOTO: ByteArray =
-            Base64.decode("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==", Base64.DEFAULT)
+            Base64.decode(
+                "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
+                Base64.DEFAULT,
+            )
     }
 }
