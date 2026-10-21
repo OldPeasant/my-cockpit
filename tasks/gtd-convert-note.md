@@ -18,3 +18,4 @@ lease_until: 2026-10-21T03:32:36Z
 ## Notes
 - ASSUMPTION (2026-10-21 05:14+0200 by dell26/agent-5): Convert soft-deletes the task (Trash) rather than hard-deleting it, so it can be restored; the task keeps its own links in the Trash.
 - ASSUMPTION (2026-10-21 05:14+0200 by dell26/agent-5): Links are carried over as copies, all as MANUAL links with the same direction and label (SYNC links owned by other items would be removed by their owner's next sync); links to items that no longer exist/are trashed are skipped.
+- ASSUMPTION (2026-10-21 05:14+0200 by dell26/agent-5): Only title and notes move to the note (per criterion); checklist, contexts, dates etc. are not carried over (they stay on the trashed task). Endpoint returns 201 + NoteResponse + Location /api/v1/notes/{id}; If-Match optional like other task workflow actions.
