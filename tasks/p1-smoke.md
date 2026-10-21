@@ -15,3 +15,4 @@ Automate SPEC.md §13.2 Phase 1 end to end.
 - [ ] Defects found are fixed here or recorded as new tasks
 
 ## Notes
+- ASSUMPTION (2026-10-21 04:39+0200 by dell26/agent-4): SPEC.md §13.2 phase 1 step 2 says 'Plan holiday' goes to a new project 'Holiday', but step 1 captures it with '#Holiday', which the parser only resolves for existing projects. The demo creates 'Holiday' in a set-up step and moves 'Plan holiday' to it; the 'New project' path of inbox processing is exercised end to end on a separate item instead.
