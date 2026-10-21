@@ -11,6 +11,9 @@ import ch.sonensei.cockpit.core.persistence.MutableClockTestConfiguration
 import ch.sonensei.cockpit.gtd.domain.TaskChanges
 import ch.sonensei.cockpit.gtd.domain.TaskList
 import ch.sonensei.cockpit.gtd.domain.TaskService
+import ch.sonensei.cockpit.journal.habits.domain.HabitChanges
+import ch.sonensei.cockpit.journal.habits.domain.HabitSchedule
+import ch.sonensei.cockpit.journal.habits.domain.HabitService
 import ch.sonensei.cockpit.notes.domain.FieldChange
 import ch.sonensei.cockpit.notes.domain.NoteChanges
 import ch.sonensei.cockpit.notes.domain.NoteService
@@ -34,6 +37,7 @@ import org.springframework.test.web.servlet.post
 import tools.jackson.databind.json.JsonMapper
 import java.util.UUID
 import ch.sonensei.cockpit.gtd.domain.Change as TaskField
+import ch.sonensei.cockpit.journal.habits.domain.Change as HabitField
 
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -46,6 +50,7 @@ class TaskToNoteWebTests(
 	@Autowired private val notes: NoteService,
 	@Autowired private val links: LinkRepository,
 	@Autowired private val clock: MutableClock,
+	@Autowired private val habitService: HabitService,
 	@Autowired private val jdbc: JdbcTemplate,
 ) : PostgresTestBase() {
 	@BeforeEach
@@ -57,6 +62,8 @@ class TaskToNoteWebTests(
 		jdbc.execute("delete from task")
 		jdbc.execute("delete from note")
 		jdbc.execute("delete from link")
+		jdbc.execute("delete from habit_check")
+		jdbc.execute("delete from habit")
 		jdbc.execute("delete from search_document")
 		clock.set(MutableClockTestConfiguration.START)
 	}
@@ -124,10 +131,10 @@ class TaskToNoteWebTests(
 		val taskRef = ItemRef(ItemType.TASK, task)
 		val outgoing = ItemRef(ItemType.NOTE, newNote("Tax folder"))
 		val incoming = ItemRef(ItemType.NOTE, newNote("Inline linker"))
-		val unknownType = ItemRef(ItemType.HABIT, UUID.randomUUID())
+		val habit = ItemRef(ItemType.HABIT, newHabit())
 		links.save(Link(taskRef, outgoing, "source", LinkOrigin.MANUAL))
 		links.save(Link(incoming, taskRef, null, LinkOrigin.SYNC))
-		links.save(Link(taskRef, unknownType, null, LinkOrigin.MANUAL))
+		links.save(Link(taskRef, habit, null, LinkOrigin.MANUAL))
 
 		val body =
 			jsonMapper.readTree(
@@ -143,7 +150,7 @@ class TaskToNoteWebTests(
 			listOf(
 				Triple(noteRef, outgoing, "source" to LinkOrigin.MANUAL),
 				Triple(incoming, noteRef, null to LinkOrigin.MANUAL),
-				Triple(noteRef, unknownType, null to LinkOrigin.MANUAL),
+				Triple(noteRef, habit, null to LinkOrigin.MANUAL),
 			)
 		// The task keeps its own links in the Trash, so a restore brings them back.
 		links.findTouching(ItemType.TASK, task).size shouldBe 3
@@ -195,4 +202,8 @@ class TaskToNoteWebTests(
 	fun `requires authentication`() {
 		convert(UUID.randomUUID()).andExpect { status { isUnauthorized() } }
 	}
+
+	/** A habit that exists: HABIT has a resolver, so a link to a missing habit would be dropped. */
+	private fun newHabit(): UUID =
+		habitService.create(HabitChanges(name = HabitField("Stretch"), schedule = HabitField(HabitSchedule.DAILY))).habit.id
 }

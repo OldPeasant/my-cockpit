@@ -23,6 +23,9 @@ import ch.sonensei.cockpit.core.items.infra.LinkRepository
 import ch.sonensei.cockpit.gtd.domain.TaskChanges
 import ch.sonensei.cockpit.gtd.domain.TaskList
 import ch.sonensei.cockpit.gtd.domain.TaskService
+import ch.sonensei.cockpit.journal.habits.domain.HabitChanges
+import ch.sonensei.cockpit.journal.habits.domain.HabitSchedule
+import ch.sonensei.cockpit.journal.habits.domain.HabitService
 import ch.sonensei.cockpit.notes.domain.FieldChange
 import ch.sonensei.cockpit.notes.domain.NoteChanges
 import ch.sonensei.cockpit.notes.domain.NoteService
@@ -53,6 +56,7 @@ import tools.jackson.databind.json.JsonMapper
 import java.time.Instant
 import java.util.UUID
 import ch.sonensei.cockpit.gtd.domain.Change as TaskField
+import ch.sonensei.cockpit.journal.habits.domain.Change as HabitField
 
 /**
  * Edge cases of "To calendar": read-only and synced calendars (write-through, provider failure), events, search,
@@ -75,6 +79,7 @@ class TaskToEventEdgeCaseTests(
 	@Autowired private val sync: CalendarSyncService,
 	@Autowired private val fake: FakeCalendarAdapter,
 	@Autowired private val links: LinkRepository,
+	@Autowired private val habitService: HabitService,
 	@Autowired private val jdbc: JdbcTemplate,
 ) : PostgresTestBase() {
 	@BeforeEach
@@ -87,6 +92,8 @@ class TaskToEventEdgeCaseTests(
 		jdbc.execute("delete from note")
 		jdbc.execute("delete from calendar_source")
 		jdbc.execute("delete from link")
+		jdbc.execute("delete from habit_check")
+		jdbc.execute("delete from habit")
 		jdbc.execute("delete from search_document")
 		jdbc.execute("delete from user_settings")
 		fake.reset()
@@ -383,14 +390,14 @@ class TaskToEventEdgeCaseTests(
 	// --- links
 
 	@Test
-	fun `links to other tasks are carried over, links to trashed tasks are skipped, unresolvable types are kept`() {
+	fun `links to other tasks are carried over, links to trashed tasks are skipped, links to other modules are kept`() {
 		val calendar = newCalendar()
 		val task = newTask()
 		val taskRef = ItemRef(ItemType.TASK, task)
 		val blocker = newTask("Find the insurance card")
 		val trashed = newTask("Old reminder")
 		tasks.delete(trashed) {}
-		val habit = ItemRef(ItemType.HABIT, UUID.randomUUID())
+		val habit = ItemRef(ItemType.HABIT, newHabit())
 		links.save(Link(ItemRef(ItemType.TASK, blocker), taskRef, "blocks", LinkOrigin.MANUAL))
 		links.save(Link(taskRef, ItemRef(ItemType.TASK, trashed), null, LinkOrigin.MANUAL))
 		links.save(Link(taskRef, habit, null, LinkOrigin.MANUAL))
@@ -457,4 +464,8 @@ class TaskToEventEdgeCaseTests(
 			}.andExpect { status { isForbidden() } }
 		assertUnchanged(task)
 	}
+
+	/** A habit that exists: HABIT has a resolver, so a link to a missing habit would be dropped. */
+	private fun newHabit(): UUID =
+		habitService.create(HabitChanges(name = HabitField("Stretch"), schedule = HabitField(HabitSchedule.DAILY))).habit.id
 }

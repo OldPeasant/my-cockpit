@@ -13,6 +13,9 @@ import ch.sonensei.cockpit.gtd.domain.Change
 import ch.sonensei.cockpit.gtd.domain.TaskChanges
 import ch.sonensei.cockpit.gtd.domain.TaskList
 import ch.sonensei.cockpit.gtd.domain.TaskService
+import ch.sonensei.cockpit.journal.habits.domain.HabitChanges
+import ch.sonensei.cockpit.journal.habits.domain.HabitSchedule
+import ch.sonensei.cockpit.journal.habits.domain.HabitService
 import ch.sonensei.cockpit.support.PostgresTestBase
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
@@ -27,6 +30,7 @@ import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.test.context.bean.override.mockito.MockitoSpyBean
 import java.time.Instant
 import java.util.UUID
+import ch.sonensei.cockpit.journal.habits.domain.Change as HabitField
 
 /** The conversion is one transaction: a failure after the task was trashed and the event created undoes both. */
 @SpringBootTest
@@ -35,6 +39,7 @@ class TaskToEventRollbackTests(
 	@Autowired private val tasks: TaskService,
 	@Autowired private val calendars: CalendarService,
 	@Autowired private val linkRepository: LinkRepository,
+	@Autowired private val habitService: HabitService,
 	@Autowired private val jdbc: JdbcTemplate,
 ) : PostgresTestBase() {
 	@MockitoSpyBean
@@ -47,6 +52,8 @@ class TaskToEventRollbackTests(
 		jdbc.execute("delete from task")
 		jdbc.execute("delete from calendar_source")
 		jdbc.execute("delete from link")
+		jdbc.execute("delete from habit_check")
+		jdbc.execute("delete from habit")
 		jdbc.execute("delete from search_document")
 		jdbc.execute("delete from user_settings")
 	}
@@ -56,7 +63,7 @@ class TaskToEventRollbackTests(
 		val calendar = calendars.create("Personal", null, visible = true, isDefault = false).calendar.id
 		val task = tasks.create(null, TaskList.INBOX, TaskChanges(title = Change("Call the plumber"))).task.id
 		val taskRef = ItemRef(ItemType.TASK, task)
-		linkRepository.save(Link(taskRef, ItemRef(ItemType.HABIT, UUID.randomUUID()), null, LinkOrigin.MANUAL))
+		linkRepository.save(Link(taskRef, ItemRef(ItemType.HABIT, newHabit()), null, LinkOrigin.MANUAL))
 		doThrow(IllegalStateException("link store down")).`when`(links).create(anyItemRef(), anyItemRef(), any())
 
 		shouldThrow<IllegalStateException> {
@@ -73,6 +80,10 @@ class TaskToEventRollbackTests(
 		) shouldBe 1L
 		linkRepository.findTouching(ItemType.TASK, task).size shouldBe 1
 	}
+
+	/** A habit that exists: HABIT has a resolver, so a link to a missing habit would be dropped. */
+	private fun newHabit(): UUID =
+		habitService.create(HabitChanges(name = HabitField("Stretch"), schedule = HabitField(HabitSchedule.DAILY))).habit.id
 }
 
 /** Mockito's `any()` for a parameter that must not be null in Kotlin: registers the matcher, returns a placeholder. */
