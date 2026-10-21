@@ -13,7 +13,8 @@ Tasks in the calendar and linking events (SPEC.md §6.3).
 ## Acceptance criteria
 - [ ] Optional overlay of due tasks and ticklers in day/week views; event detail has linked items, 'Create task from event', 'Create note for event'
 - [ ] Vitest component/service tests cover overlay toggle and create-linked actions; `cd web && npm run check` passes
-- [ ] Playwright `e2e/calendar-overlay/overlay.spec.ts` passes against the e2e stack (`npm run e2e -- e2e/calendar-overlay/overlay.spec.ts`, see p0-e2e-harness): create note for event → linked both ways
+- [x] Playwright `e2e/calendar-overlay/overlay.spec.ts` passes against the e2e stack (`npm run e2e -- e2e/calendar-overlay/overlay.spec.ts`, see p0-e2e-harness): create note for event → linked both ways
+  - verified (2026-10-21 19:38+0200 by dell26/agent-1): cd web && npm run e2e -- e2e/calendar-overlay/overlay.spec.ts (podman compose e2e stack, chromium, rev 43826282c) -> 23 passed incl. 'shows due tasks and ticklers in the week view' and 'creates a note for an event, linked both ways'
 
 ## Notes
 - ASSUMPTION (2026-10-21 18:51+0200 by dell26/agent-1): Added from/to (local dates, inclusive) to GET /api/v1/tasks (server gtd/api+domain, outside touches): with a range it returns open tasks whose due OR tickler date lies in it, including tasks still in a tickler. The list API hid ticklers and had no date range, so the overlay could not show ticklers otherwise
