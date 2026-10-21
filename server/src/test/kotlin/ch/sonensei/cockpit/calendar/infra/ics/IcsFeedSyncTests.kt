@@ -259,6 +259,24 @@ class IcsFeedSyncTests(
 	}
 
 	@Test
+	fun `an event that ends before it starts cannot be stored, keeps its local copy and is reported, the others are stored`() {
+		serve(feed(STANDUP, RETRO), etag = "\"v1\"")
+		syncOk()
+		val before = local("retro@example.test").shouldNotBeNull()
+
+		// Readable for the parser, but invalid for the store: DTEND one hour before DTSTART.
+		val inverted = RETRO.replace("DURATION:PT1H", "DTEND:20261105T130000Z").replace("SUMMARY:Retrospective", "SUMMARY:Retro (moved)")
+		serve(feed(STANDUP.replace("SUMMARY:Stand-up", "SUMMARY:Daily stand-up"), inverted), etag = "\"v2\"")
+
+		val error = sync.sync(source.id).status!!.lastError
+		error.shouldNotBeNull() shouldContain "could not be stored"
+		val retro = local("retro@example.test").shouldNotBeNull()
+		retro.title shouldBe "Retrospective"
+		retro.endAt shouldBe before.endAt
+		local("standup@example.test").shouldNotBeNull().title shouldBe "Daily stand-up"
+	}
+
+	@Test
 	fun `an exception of a cancelled series is left out, so the sync has no error`() {
 		serve(feed(STANDUP.replace("SUMMARY:Stand-up", "SUMMARY:Stand-up\r\nSTATUS:CANCELLED"), STANDUP_MOVED, RETRO), etag = "\"v1\"")
 
