@@ -15,7 +15,8 @@ Notes in backups (SPEC.md §10.2).
 ## Acceptance criteria
 - [x] data/notes.jsonl, note_revisions.jsonl; readable/notes/<yyyy-mm-dd>-<slug>.md with front matter (id, tags, links) and image links rewritten to `../../files/...`
   - verified (2026-10-21 07:15+0200 by dell26/agent-6): cd server && ./gradlew test --tests '*NotesBackupContributorTests' -> 18 tests, 0 failures (data/notes.jsonl + note_revisions.jsonl, readable/notes/<date>-<slug>.md, front matter id/tags/links, cockpit-file: -> ../../files/... resolved against zip entries)
-- [ ] Round-trip test (`./gradlew test --tests '*BackupRoundTripTest'`) passes with this module's `BackupFixture` seeding notes with images, tags and revisions
+- [x] Round-trip test (`./gradlew test --tests '*BackupRoundTripTest'`) passes with this module's `BackupFixture` seeding notes with images, tags and revisions
+  - verified (2026-10-21 07:15+0200 by dell26/agent-6): cd server && ./gradlew test --tests '*BackupRoundTripTest' (Testcontainers Postgres, NotesBackupFixture with image, tags, revisions) -> 1 test, 0 failures
 
 ## Notes
 - ASSUMPTION (2026-10-21 05:41+0200 by R1963MACOS/agent-1): readable/notes/ mirrors only notes not in the Trash (data/ has all, Trash included); file date = creation day in UTC, slug = title or derived title in lower-case ASCII (accents dropped, max 60 chars, 'note' when empty), clashes get -2, -3 (older note keeps the name).
