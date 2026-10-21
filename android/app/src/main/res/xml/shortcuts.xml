@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Static launcher shortcut (capture/entry): long-press the app icon -> Capture. -->
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut
+        android:enabled="true"
+        android:icon="@drawable/ic_capture_inbox"
+        android:shortcutDisabledMessage="@string/capture_shortcut_disabled"
+        android:shortcutId="capture"
+        android:shortcutLongLabel="@string/capture_shortcut_long"
+        android:shortcutShortLabel="@string/capture_entry_label">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetClass="ch.sonensei.cockpit.capture.entry.CaptureActivity"
+            android:targetPackage="ch.sonensei.cockpit" />
+    </shortcut>
+</shortcuts>

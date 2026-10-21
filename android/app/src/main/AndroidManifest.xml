@@ -20,6 +20,10 @@
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+            <!-- Static app shortcut (capture/entry): Capture. -->
+            <meta-data
+                android:name="android.app.shortcuts"
+                android:resource="@xml/shortcuts" />
         </activity>
         <!-- Share target (capture/share): text, URLs, images and any file, single or multiple. -->
         <activity
@@ -45,6 +49,40 @@
                 <data android:mimeType="*/*" />
             </intent-filter>
         </activity>
+        <!-- Empty capture sheet (capture/entry) behind the widget, the quick-settings tile and the app shortcut. Exported
+             only for the launcher's shortcut; it takes no input from the intent. -->
+        <activity
+            android:name=".capture.entry.CaptureActivity"
+            android:exported="true"
+            android:excludeFromRecents="true"
+            android:label="@string/capture_entry_label"
+            android:taskAffinity=""
+            android:theme="@android:style/Theme.Translucent.NoTitleBar"
+            android:windowSoftInputMode="adjustResize|stateVisible" />
+        <receiver
+            android:name=".capture.entry.CaptureWidgetReceiver"
+            android:exported="true"
+            android:label="@string/capture_entry_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/capture_widget_info" />
+        </receiver>
+        <service
+            android:name=".capture.entry.CaptureTileService"
+            android:exported="true"
+            android:icon="@drawable/ic_capture_inbox"
+            android:label="@string/capture_entry_label"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.service.quicksettings.ACTIVE_TILE"
+                android:value="false" />
+        </service>
     </application>
 
 </manifest>

@@ -36,8 +36,12 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.testTag
@@ -71,7 +75,11 @@ fun CaptureSheet(
     onNotesChange: (String) -> Unit,
     onSave: () -> Unit,
     onCancel: () -> Unit,
+    /** Focus the title (and so open the keyboard) on open: for an empty capture, not for a share to review. */
+    autoFocus: Boolean = false,
 ) {
+    val titleFocus = remember { FocusRequester() }
+    if (autoFocus) LaunchedEffect(Unit) { titleFocus.requestFocus() }
     // A save cannot be interrupted: leaving would cancel the copy of the shared files and drop the capture.
     BackHandler(enabled = state.saving) {}
     Box(
@@ -118,7 +126,7 @@ fun CaptureSheet(
                 TextField(
                     value = state.text,
                     onValueChange = onTextChange,
-                    modifier = Modifier.fillMaxWidth().testTag(ShareTags.TEXT),
+                    modifier = Modifier.fillMaxWidth().focusRequester(titleFocus).testTag(ShareTags.TEXT),
                     textStyle = MaterialTheme.typography.headlineSmall,
                     placeholder = { Text(stringResource(R.string.share_text_hint), style = MaterialTheme.typography.headlineSmall) },
                     singleLine = true,

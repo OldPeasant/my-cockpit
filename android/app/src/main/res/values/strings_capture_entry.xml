@@ -1,0 +1,16 @@
+<resources>
+    <!-- Capture entry points (capture/entry): widget, quick-settings tile, app shortcut -->
+    <string name="capture_entry_label">Capture</string>
+    <string name="capture_shortcut_long">Capture to Inbox</string>
+    <string name="capture_shortcut_disabled">Capture is unavailable</string>
+    <string name="capture_widget_description">Capture a thought to your Inbox, even offline.</string>
+    <string name="capture_widget_open">Capture to Inbox</string>
+    <plurals name="capture_pending">
+        <item quantity="one">%1$d to sync</item>
+        <item quantity="other">%1$d to sync</item>
+    </plurals>
+    <plurals name="capture_pending_failed">
+        <item quantity="one">%1$d not synced</item>
+        <item quantity="other">%1$d not synced</item>
+    </plurals>
+</resources>
