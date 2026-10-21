@@ -117,6 +117,65 @@ class EventFormTest {
     }
 
     @Test
+    fun `an end exactly one minute after the start is valid, one at the start is not`() {
+        assertTrue(form.copy(endTime = LocalTime.of(10, 1)).errors.isEmpty())
+        assertEquals(setOf(FormError.END_BEFORE_START), form.copy(endTime = LocalTime.of(10, 0)).errors)
+        // A one-day all-day event ends on the day it starts.
+        assertTrue(form.copy(allDay = true, endTime = LocalTime.of(0, 0)).errors.isEmpty())
+    }
+
+    @Test
+    fun `presets are matched regardless of case and prefix, only plain FREQ rules are presets`() {
+        assertEquals(Repeat.YEARLY, repeatOf("rrule:freq=yearly"))
+        assertEquals(Repeat.MONTHLY, repeatOf("  RRULE:FREQ=MONTHLY  "))
+        assertEquals(Repeat.CUSTOM, repeatOf("FREQ=DAILY;COUNT=5"))
+        assertEquals(Repeat.CUSTOM, repeatOf("FREQ=HOURLY"))
+        // A custom choice without a rule is a single event, not an empty RRULE.
+        assertEquals(null, form.copy(repeat = Repeat.CUSTOM, rule = " RRULE: ").rrule)
+        for (preset in REPEAT_PRESETS - Repeat.NONE) {
+            assertEquals(preset, repeatOf(form.copy(repeat = preset).rrule))
+        }
+    }
+
+    @Test
+    fun `an untouched custom rule is not sent again, choosing a preset replaces it`() {
+        val custom = form.copy(repeat = Repeat.CUSTOM, rule = "FREQ=WEEKLY;BYDAY=MO,WE")
+        assertFalse("rrule" in patchBody(custom, custom.copy(title = "Gym")))
+        assertEquals(JsonPrimitive("FREQ=WEEKLY"), patchBody(custom, custom.copy(repeat = Repeat.WEEKLY))["rrule"])
+    }
+
+    @Test
+    fun `a blank description is left out of a create and clears it in a patch`() {
+        val body = createBody(form.copy(title = "  Dentist  ", description = "  \n", location = "  "), UUID.randomUUID())
+        assertEquals(JsonPrimitive("Dentist"), body["title"])
+        assertEquals(JsonPrimitive(calendar.toString()), body["calendarId"])
+        assertEquals(JsonPrimitive(false), body["allDay"])
+        assertFalse("description" in body)
+        assertFalse("location" in body)
+        assertFalse("rrule" in body)
+        val patch = patchBody(form.copy(description = "Bring card"), form.copy(description = "  "))
+        assertEquals(JsonNull, patch["description"])
+    }
+
+    @Test
+    fun `a moved all-day event sends its dates, not its unused times`() {
+        val allDay = form.copy(allDay = true)
+        val moved = patchBody(allDay, allDay.withStartDate(day.plusDays(2)))
+        assertEquals(setOf("startDate", "endDate"), moved.keys)
+        assertEquals(JsonPrimitive("2026-10-24"), moved["endDate"])
+        // The hidden times of an all-day event are not a change.
+        assertEquals(emptySet<String>(), patchBody(allDay, allDay.copy(startTime = LocalTime.NOON)).keys)
+    }
+
+    @Test
+    fun `a timed event moved to another zone sends its times with the new zone`() {
+        val patch = patchBody(form, form.copy(zone = ZoneId.of("America/New_York")))
+        assertEquals(setOf("start", "end", "timeZone"), patch.keys)
+        assertEquals(JsonPrimitive("2026-10-21T14:00:00Z"), patch["start"])
+        assertEquals(JsonPrimitive("America/New_York"), patch["timeZone"])
+    }
+
+    @Test
     fun `a time skipped by the DST change moves forward by the gap`() {
         // 29 March 2026: Zurich clocks jump from 02:00 to 03:00.
         assertEquals("2026-03-29T01:30:00Z", instant(LocalDate.parse("2026-03-29"), LocalTime.of(2, 30), zurich))

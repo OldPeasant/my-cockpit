@@ -107,6 +107,8 @@ class EventEditorViewModelTest {
         Dispatchers.setMain(dispatcher)
         coEvery { repo.event(single.eventId) } returns CalendarResult.Ok(details(single))
         coEvery { repo.event(weekly.eventId) } returns CalendarResult.Ok(details(weekly, rrule = "FREQ=WEEKLY"))
+        // Unchanged since the view showed it.
+        coEvery { repo.reread(weekly) } returns CalendarResult.Ok(weekly)
     }
 
     @After
@@ -278,6 +280,139 @@ class EventEditorViewModelTest {
             advanceUntilIdle()
             assertTrue(vm.uiState.value.readOnly)
             assertFalse(vm.uiState.value.canSave)
+        }
+
+    @Test
+    fun `a generated occurrence moved since it was shown is edited at its current time`() =
+        runTest(dispatcher) {
+            val moved = weekly.copy(start = Instant.parse("2026-10-23T08:00:00Z"), end = Instant.parse("2026-10-23T08:15:00Z"))
+            coEvery { repo.reread(weekly) } returns CalendarResult.Ok(moved)
+            coEvery { repo.update(moved, 7, EditScope.THIS, any()) } returns CalendarResult.Ok(details(weekly))
+            val vm = viewModel()
+            vm.edit(weekly, calendars)
+            advanceUntilIdle()
+            val form = vm.uiState.value.form!!
+            assertEquals(LocalTime.of(10, 0) to LocalTime.of(10, 15), form.startTime to form.endTime)
+
+            vm.update { it.copy(title = "Standup (moved)") }
+            vm.save()
+            vm.chooseScope(EditScope.THIS)
+            advanceUntilIdle()
+            coVerify(exactly = 1) { repo.update(moved, 7, EditScope.THIS, any()) }
+            assertFalse(vm.uiState.value.open)
+        }
+
+    @Test
+    fun `a generated occurrence that became an override is edited as that override`() =
+        runTest(dispatcher) {
+            val override =
+                weekly.copy(
+                    eventId = id(6),
+                    title = "Standup (late)",
+                    start = Instant.parse("2026-10-23T07:30:00Z"),
+                    end = Instant.parse("2026-10-23T07:45:00Z"),
+                    version = 2,
+                )
+            coEvery { repo.reread(weekly) } returns CalendarResult.Ok(override)
+            coEvery { repo.event(override.eventId) } returns CalendarResult.Ok(details(override))
+            coEvery { repo.update(override, 2, EditScope.ALL, any()) } returns CalendarResult.Ok(details(override))
+            val vm = viewModel()
+            vm.edit(weekly, calendars)
+            advanceUntilIdle()
+            val form = vm.uiState.value.form!!
+            assertEquals("Standup (late)", form.title)
+            assertEquals(LocalTime.of(9, 30), form.startTime)
+            // The rule comes from the series master.
+            assertEquals(Repeat.WEEKLY, form.repeat)
+            assertTrue(vm.uiState.value.series)
+
+            vm.update { it.copy(location = "Room 4") }
+            vm.save()
+            vm.chooseScope(EditScope.ALL)
+            advanceUntilIdle()
+            coVerify(exactly = 1) { repo.update(override, 2, EditScope.ALL, any()) }
+            coVerify(exactly = 0) { repo.update(weekly, any(), any(), any()) }
+        }
+
+    @Test
+    fun `a generated occurrence its series no longer has says it is gone and shows no form`() =
+        runTest(dispatcher) {
+            coEvery { repo.reread(weekly) } returns CalendarResult.Ok(null)
+            val vm = viewModel()
+            vm.edit(weekly, calendars)
+            advanceUntilIdle()
+            val state = vm.uiState.value
+            assertEquals(EditorMessage.GONE, state.message)
+            assertNull(state.form)
+            assertFalse(state.loading)
+            assertFalse(state.canSave)
+            coVerify(exactly = 0) { repo.event(any()) }
+
+            vm.close()
+            assertFalse(vm.uiState.value.open)
+        }
+
+    @Test
+    fun `a generated occurrence that can't be read again fails the load`() =
+        runTest(dispatcher) {
+            coEvery { repo.reread(weekly) } returns CalendarResult.Offline andThen CalendarResult.Failed(400)
+            val vm = viewModel()
+            vm.edit(weekly, calendars)
+            advanceUntilIdle()
+            assertEquals(EditorMessage.LOAD_OFFLINE, vm.uiState.value.message)
+            vm.reload()
+            advanceUntilIdle()
+            assertEquals(EditorMessage.LOAD_FAILED, vm.uiState.value.message)
+            assertNull(vm.uiState.value.form)
+            coVerify(exactly = 0) { repo.event(any()) }
+        }
+
+    @Test
+    fun `a save answered with 404 says the event is gone and blocks saving`() =
+        runTest(dispatcher) {
+            coEvery { repo.update(single, 4, null, any()) } returns CalendarResult.Failed(404)
+            val vm = viewModel()
+            vm.edit(single, calendars)
+            advanceUntilIdle()
+            vm.update { it.copy(title = "Changed here") }
+            vm.save()
+            advanceUntilIdle()
+            assertEquals(EditorMessage.GONE, vm.uiState.value.message)
+            assertFalse(vm.uiState.value.saving)
+            assertFalse(vm.uiState.value.canSave)
+            vm.save()
+            advanceUntilIdle()
+            coVerify(exactly = 1) { repo.update(any(), any(), any(), any()) }
+        }
+
+    @Test
+    fun `a custom rule stays a choice after a preset was picked, and choosing it again changes nothing`() =
+        runTest(dispatcher) {
+            coEvery { repo.event(weekly.eventId) } returns CalendarResult.Ok(details(weekly, rrule = "FREQ=WEEKLY;BYDAY=MO,WE"))
+            val vm = viewModel()
+
+            fun form() = vm.uiState.value.form!!
+            vm.edit(weekly, calendars)
+            advanceUntilIdle()
+            assertEquals(Repeat.CUSTOM, form().repeat)
+            assertEquals(REPEAT_PRESETS + Repeat.CUSTOM, vm.uiState.value.repeatChoices)
+
+            vm.update { it.copy(repeat = Repeat.DAILY) }
+            assertEquals(REPEAT_PRESETS + Repeat.CUSTOM, vm.uiState.value.repeatChoices)
+            vm.update { it.copy(repeat = Repeat.CUSTOM) }
+            assertEquals("FREQ=WEEKLY;BYDAY=MO,WE", form().rrule)
+            vm.save()
+            assertFalse(vm.uiState.value.open)
+            coVerify(exactly = 0) { repo.update(any(), any(), any(), any()) }
+        }
+
+    @Test
+    fun `a preset rule offers no custom choice`() =
+        runTest(dispatcher) {
+            val vm = viewModel()
+            vm.edit(weekly, calendars)
+            advanceUntilIdle()
+            assertEquals(REPEAT_PRESETS, vm.uiState.value.repeatChoices)
         }
 
     @Test

@@ -92,18 +92,21 @@ internal object EventEditorTags {
     fun scope(scope: EditScope) = "event-editor-scope:$scope"
 }
 
-/** The event form (SPEC.md §6.3), full screen over the calendar views; back closes it without saving. */
+/**
+ * The event form (SPEC.md §6.3), full screen over the calendar views; back closes it without saving. While a save runs
+ * it can't be closed (back is still caught, so it doesn't leave the Calendar screen either).
+ */
 @Composable
 fun EventEditorContent(
     state: EventEditorUiState,
     callbacks: EventEditorCallbacks,
     modifier: Modifier = Modifier,
 ) {
-    BackHandler(onBack = callbacks.close)
+    BackHandler { if (!state.saving) callbacks.close() }
     Surface(modifier.fillMaxSize().testTag(EventEditorTags.EDITOR)) {
         Column(Modifier.fillMaxSize()) {
             Row(Modifier.fillMaxWidth().padding(horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = callbacks.close, modifier = Modifier.testTag(EventEditorTags.CLOSE)) {
+                IconButton(onClick = callbacks.close, enabled = !state.saving, modifier = Modifier.testTag(EventEditorTags.CLOSE)) {
                     Icon(Icons.Outlined.Close, contentDescription = stringResource(R.string.calendar_edit_close))
                 }
                 Text(
@@ -137,6 +140,7 @@ private fun Message(
             EditorMessage.OFFLINE -> R.string.calendar_edit_offline
             EditorMessage.FAILED -> R.string.calendar_edit_failed
             EditorMessage.CONFLICT -> R.string.calendar_edit_conflict
+            EditorMessage.GONE -> R.string.calendar_edit_gone
         }
     val action =
         when (message) {

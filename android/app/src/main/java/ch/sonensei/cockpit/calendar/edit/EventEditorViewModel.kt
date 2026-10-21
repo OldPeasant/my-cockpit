@@ -29,12 +29,18 @@ enum class EditorMessage {
     LOAD_OFFLINE,
     LOAD_FAILED,
 
-    /** Saving failed: no connection (nothing changed) / the server refused the change. */
+    /**
+     * Saving failed: no answer from the server (no connection, a server error, or the answer was lost: the change may
+     * have arrived; a retry is harmless) / the server refused the change.
+     */
     OFFLINE,
     FAILED,
 
     /** The event changed elsewhere (or at its provider) since it was opened: reload before changing it. */
     CONFLICT,
+
+    /** The edited occurrence no longer exists (its series changed or it was removed elsewhere): no reload can show it. */
+    GONE,
 }
 
 data class EventEditorUiState(
@@ -68,10 +74,15 @@ data class EventEditorUiState(
     val targetCalendars: List<CalendarInfo>
         get() = if (creating) calendars.filterNot { it.readOnly } else calendars.filter { it.id == form?.calendarId }
 
-    /** The repeat choices: the presets, and the custom rule a series already has. */
-    val repeatChoices: List<Repeat> get() = if (form?.repeat == Repeat.CUSTOM) REPEAT_PRESETS + Repeat.CUSTOM else REPEAT_PRESETS
+    /**
+     * The repeat choices: the presets, and the custom rule the series was loaded with (still offered after a preset was
+     * picked, so it can be chosen again).
+     */
+    val repeatChoices: List<Repeat>
+        get() = if (form != null && repeatOf(form.rule) == Repeat.CUSTOM) REPEAT_PRESETS + Repeat.CUSTOM else REPEAT_PRESETS
 
-    val canSave: Boolean get() = form != null && !loading && !saving && !readOnly && message != EditorMessage.CONFLICT
+    val canSave: Boolean
+        get() = form != null && !loading && !saving && !readOnly && message != EditorMessage.CONFLICT && message != EditorMessage.GONE
 }
 
 /**
@@ -92,7 +103,7 @@ class EventEditorViewModel internal constructor(
     private val state = MutableStateFlow(EventEditorUiState())
     val uiState: StateFlow<EventEditorUiState> = state.asStateFlow()
 
-    /** The edited occurrence; `null` for a new event. */
+    /** The edited occurrence (as last read from the server); `null` for a new event. */
     private var occurrence: Occurrence? = null
 
     /** The form as loaded: what a change is compared with. */
@@ -176,8 +187,16 @@ class EventEditorViewModel internal constructor(
     /** The scope prompt was cancelled: nothing is saved, the form stays as it is. */
     fun dismissScope() = state.update { it.copy(scopes = null) }
 
-    /** Closes the editor without saving. */
+    /**
+     * Closes the editor without saving. Ignored while a save runs: the server may commit the change even if its answer
+     * never arrives here, so the editor waits for it (and keeps the new event's id for a retry).
+     */
     fun close() {
+        if (state.value.saving) return
+        reset()
+    }
+
+    private fun reset() {
         job?.cancel()
         occurrence = null
         initial = null
@@ -196,25 +215,51 @@ class EventEditorViewModel internal constructor(
         job =
             viewModelScope.launch {
                 when (val result = request()) {
-                    is CalendarResult.Ok -> close()
+                    is CalendarResult.Ok -> reset()
                     CalendarResult.Offline -> state.update { it.copy(saving = false, message = EditorMessage.OFFLINE) }
                     is CalendarResult.Failed ->
                         state.update {
                             it.copy(
                                 saving = false,
-                                message = if (result.status in CONFLICTS) EditorMessage.CONFLICT else EditorMessage.FAILED,
+                                message =
+                                    when (result.status) {
+                                        in CONFLICTS -> EditorMessage.CONFLICT
+                                        NOT_FOUND -> EditorMessage.GONE
+                                        else -> EditorMessage.FAILED
+                                    },
                             )
                         }
                 }
             }
     }
 
+    /**
+     * Loads the event holding the edited occurrence. A generated occurrence is read again first: the view may show it
+     * out of date (the series moved, or the occurrence became an override or was removed elsewhere), and its times
+     * come from it, not from the event.
+     */
     private fun load() {
-        val edited = occurrence ?: return
+        val shown = occurrence ?: return
         job?.cancel()
         state.update { it.copy(loading = true, form = null, message = null, showErrors = false, scopes = null) }
         job =
             viewModelScope.launch {
+                val edited =
+                    if (shown.generated) {
+                        val fresh = repository.reread(shown)
+                        if (fresh !is CalendarResult.Ok) {
+                            state.update { it.copy(loading = false, message = loadFailure(fresh)) }
+                            return@launch
+                        }
+                        fresh.value ?: run {
+                            state.update { it.copy(loading = false, message = EditorMessage.GONE) }
+                            return@launch
+                        }
+                    } else {
+                        shown
+                    }
+                // Saved changes go to the occurrence as it is now.
+                occurrence = edited
                 val event = repository.event(edited.eventId)
                 val master =
                     when {
@@ -224,12 +269,7 @@ class EventEditorViewModel internal constructor(
                     }
                 val failure = listOf(event, master).firstOrNull { it != null && it !is CalendarResult.Ok }
                 if (event !is CalendarResult.Ok || failure != null) {
-                    state.update {
-                        it.copy(
-                            loading = false,
-                            message = if (failure == CalendarResult.Offline) EditorMessage.LOAD_OFFLINE else EditorMessage.LOAD_FAILED,
-                        )
-                    }
+                    state.update { it.copy(loading = false, message = loadFailure(failure)) }
                     return@launch
                 }
                 val form = editForm(edited, event.value, (master as? CalendarResult.Ok)?.value, clock.zone)
@@ -239,9 +279,15 @@ class EventEditorViewModel internal constructor(
             }
     }
 
+    private fun loadFailure(result: CalendarResult<*>?) =
+        if (result == CalendarResult.Offline) EditorMessage.LOAD_OFFLINE else EditorMessage.LOAD_FAILED
+
     private companion object {
         /** Changed concurrently or at the provider (409), or a stale `If-Match` (412). */
         val CONFLICTS = setOf(409, 412)
+
+        /** The event or the occurrence no longer exists (or the event is in the Trash). */
+        const val NOT_FOUND = 404
     }
 }
 

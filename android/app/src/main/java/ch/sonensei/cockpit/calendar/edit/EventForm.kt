@@ -37,7 +37,10 @@ data class EventForm(
     val endTime: LocalTime,
     val zone: ZoneId,
     val repeat: Repeat = Repeat.NONE,
-    /** The rule a [Repeat.CUSTOM] repeat keeps (without the `RRULE:` prefix). */
+    /**
+     * The rule the event was loaded with (without the `RRULE:` prefix), kept when another repeat is picked: a
+     * [Repeat.CUSTOM] repeat stands for it.
+     */
     val rule: String = "",
     val location: String = "",
     val description: String = "",

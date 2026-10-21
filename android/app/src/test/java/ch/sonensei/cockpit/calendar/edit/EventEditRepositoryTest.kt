@@ -21,6 +21,8 @@ import org.junit.Test
 import retrofit2.Retrofit
 import retrofit2.converter.kotlinx.serialization.asConverterFactory
 import java.time.Instant
+import java.time.OffsetDateTime
+import java.time.ZoneOffset
 import java.util.UUID
 
 /** The event calls against a fake server: where a change of an occurrence goes, and how refusals are reported. */
@@ -142,6 +144,88 @@ class EventEditRepositoryTest {
             assertEquals("/api/v1/calendar/events/${id(3)}", request.url.encodedPath)
             assertEquals("THIS", request.url.queryParameter("scope"))
             assertNull(request.url.queryParameter("occurrence"))
+        }
+
+    @Test
+    fun `a generated occurrence without a scope changes only that occurrence`() =
+        runBlocking {
+            server.enqueue(json(eventJson(2)))
+            assertTrue(repository.update(occurrence(id(2), id(2), "2026-10-23T07:00:00Z"), 7, null, patch) is CalendarResult.Ok)
+            val request = server.takeRequest()
+            assertEquals("THIS", request.url.queryParameter("scope"))
+            assertEquals("2026-10-23T07:00:00Z", request.url.queryParameter("occurrence"))
+            assertEquals("\"7\"", request.headers["If-Match"])
+        }
+
+    private fun occurrenceJson(
+        eventId: UUID,
+        original: String,
+        start: String,
+        status: String = "CONFIRMED",
+        seriesId: UUID = id(2),
+    ) = """{"eventId":"$eventId","calendarId":"${id(90)}","title":"Standup","allDay":false,"status":"$status",
+        |"transparency":"OPAQUE","version":3,"start":"$start","end":"2026-10-23T09:00:00Z",
+        |"seriesId":"$seriesId","occurrence":"$original"}
+        """.trimMargin().replace("\n", "")
+
+    private fun occurrences(vararg items: String) = json("""{"items":[${items.joinToString(",")}]}""")
+
+    @Test
+    fun `a generated occurrence is read again from its calendar around its original start`() =
+        runBlocking {
+            val original = "2026-10-23T07:00:00Z"
+            server.enqueue(
+                occurrences(
+                    occurrenceJson(id(2), "2026-10-16T07:00:00Z", "2026-10-16T07:00:00Z"),
+                    occurrenceJson(id(7), original, "2026-10-23T08:00:00Z", seriesId = id(8)),
+                    occurrenceJson(id(5), original, "2026-10-23T08:00:00Z"),
+                ),
+            )
+            val fresh = (repository.reread(occurrence(id(2), id(2), original)) as CalendarResult.Ok).value!!
+            // It became an override (its own event) and moved.
+            assertEquals(id(5), fresh.eventId)
+            assertEquals(Instant.parse("2026-10-23T08:00:00Z"), fresh.start)
+            assertEquals(original, fresh.occurrence)
+
+            val request = server.takeRequest()
+            assertEquals("/api/v1/calendar/events", request.url.encodedPath)
+            assertEquals(listOf(id(90).toString()), request.url.queryParameterValues("calendarIds"))
+            val (from, to) = rangeAround(original)
+            assertEquals(Instant.parse("2026-10-22T07:00:00Z"), from.toInstant())
+            assertEquals(Instant.parse("2026-10-24T07:00:00Z"), to.toInstant())
+            assertEquals(from.toInstant(), OffsetDateTime.parse(request.url.queryParameter("from")!!).toInstant())
+            assertEquals(to.toInstant(), OffsetDateTime.parse(request.url.queryParameter("to")!!).toInstant())
+        }
+
+    @Test
+    fun `an occurrence its series no longer has, or a cancelled one, is read as gone`() =
+        runBlocking {
+            val original = "2026-10-23T07:00:00Z"
+            server.enqueue(occurrences(occurrenceJson(id(2), "2026-10-30T07:00:00Z", "2026-10-30T07:00:00Z")))
+            assertEquals(CalendarResult.Ok(null), repository.reread(occurrence(id(2), id(2), original)))
+            server.enqueue(occurrences(occurrenceJson(id(5), original, original, status = "CANCELLED")))
+            assertEquals(CalendarResult.Ok(null), repository.reread(occurrence(id(2), id(2), original)))
+            server.enqueue(status(500))
+            assertEquals(CalendarResult.Offline, repository.reread(occurrence(id(2), id(2), original)))
+        }
+
+    @Test
+    fun `an all-day occurrence is looked for from the day before to two days after, in UTC`() {
+        val (from, to) = rangeAround("2026-10-24")
+        assertEquals(Instant.parse("2026-10-23T00:00:00Z"), from.toInstant())
+        assertEquals(Instant.parse("2026-10-26T00:00:00Z"), to.toInstant())
+        assertEquals(ZoneOffset.UTC, from.offset)
+    }
+
+    @Test
+    fun `a missing event is a refusal, a server error on load counts as offline`() =
+        runBlocking {
+            server.enqueue(status(404))
+            assertEquals(CalendarResult.Failed(404), repository.event(id(1)))
+            server.enqueue(status(500))
+            assertEquals(CalendarResult.Offline, repository.event(id(1)))
+            server.enqueue(status(422))
+            assertEquals(CalendarResult.Failed(422), repository.create(patch))
         }
 
     @Test

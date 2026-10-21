@@ -2,6 +2,7 @@ package ch.sonensei.cockpit.calendar.edit
 
 import ch.sonensei.cockpit.calendar.agenda.CalendarResult
 import ch.sonensei.cockpit.calendar.agenda.Occurrence
+import ch.sonensei.cockpit.calendar.agenda.toOccurrence
 import ch.sonensei.cockpit.core.network.generated.apis.CalendarsApi
 import ch.sonensei.cockpit.core.network.generated.models.EventResponse
 import dagger.Module
@@ -23,6 +24,8 @@ import java.io.IOException
 import java.time.DateTimeException
 import java.time.Instant
 import java.time.LocalDate
+import java.time.OffsetDateTime
+import java.time.ZoneOffset
 import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -92,6 +95,20 @@ class EventEditRepository
     ) {
         suspend fun event(id: UUID): CalendarResult<EventDetails> = call { body(api.getEvent(id)).toDetails() }
 
+        /**
+         * The current state of the generated [occurrence] (it may have become an override since), or `null` when its
+         * series no longer has it (moved, split, or this occurrence was removed elsewhere).
+         */
+        suspend fun reread(occurrence: Occurrence): CalendarResult<Occurrence?> =
+            call {
+                val (from, to) = rangeAround(requireNotNull(occurrence.occurrence))
+                body(api.listEventOccurrences(from = from, to = to, calendarIds = listOf(occurrence.calendarId)))
+                    .items
+                    .map { it.toOccurrence() }
+                    .firstOrNull { it.seriesId == occurrence.seriesId && it.occurrence == occurrence.occurrence }
+                    ?.takeUnless { it.cancelled }
+            }
+
         /** Creates the event of [body] (see [createBody]). */
         suspend fun create(body: JsonObject): CalendarResult<EventDetails> = call { body(writeApi.createEvent(body)).toDetails() }
 
@@ -150,6 +167,22 @@ private fun <T> body(response: Response<T>): T {
     val body = response.body()
     if (!response.isSuccessful || body == null) throw EventHttpFailure(response.code())
     return body
+}
+
+/** Length of an all-day occurrence's original start (`yyyy-MM-dd`). */
+private const val DATE_LENGTH = 10
+
+/**
+ * A range (in UTC, as the occurrence list takes it) sure to contain the occurrence originally starting at [original]:
+ * an instant ±1 day, or for an all-day series the date counted by the days of the user's zone (at most a day off UTC).
+ */
+internal fun rangeAround(original: String): Pair<OffsetDateTime, OffsetDateTime> {
+    if (original.length == DATE_LENGTH) {
+        val day = LocalDate.parse(original).atStartOfDay().atOffset(ZoneOffset.UTC)
+        return day.minusDays(1) to day.plusDays(2)
+    }
+    val at = OffsetDateTime.parse(original).withOffsetSameInstant(ZoneOffset.UTC)
+    return at.minusDays(1) to at.plusDays(1)
 }
 
 internal fun EventResponse.toDetails() =
