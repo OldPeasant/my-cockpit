@@ -30,7 +30,8 @@ Reports: `test-results/` (traces and screenshots of failures), `playwright-repor
 Specs live in `e2e/<feature>/*.spec.ts`. The phase demo scripts of SPEC.md §13.2 live in `e2e/phase<N>/` and run as
 their own Playwright project `phase-demos` before all other specs (they reset the stack, trigger the global login
 backoff and move the server clock). Every run includes them, also with a spec filter; `npm run e2e -- --no-deps <spec>`
-skips them. Import `test` and `expect` from `support/fixtures`:
+skips them. Specs that need the whole shared inbox (`e2e/gtd-inbox/`) run in the project `inbox-exclusive`, after all
+other specs. Import `test` and `expect` from `support/fixtures`:
 
 - `account` (worker): the owner account. The first worker runs the setup through the API (TOTP code computed
   with otplib) and shares the credentials with the other workers.
