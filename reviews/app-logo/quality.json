@@ -1,0 +1,21 @@
+{
+  "schema": 1,
+  "task": "app-logo",
+  "reviewed_revision": "9dfe408b75111c886119418b822d115c9445407f",
+  "helpers": {
+    "test-writer": {"status": "completed", "report": "reviews/app-logo/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/app-logo/review.md"},
+    "fixer": {"status": "not_required", "reason": "the only finding on the final code is a P3 test-robustness note, deliberately left; the earlier round's P3s were resolved by the test-writer's placement specs"}
+  },
+  "fixes_required": false,
+  "findings": [
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P3", "disposition": "accepted",
+     "note": "LoginScreenTest decorative-logo check asserts no contentDescription on the whole screen; still correct today, a future screen element with a description would need the test narrowed to a test tag then"}
+  ],
+  "validation": [
+    {"command": "npm --prefix web run check", "result": "pass"},
+    {"command": "android/gradlew -p android ktlintCheck testDebugUnitTest lintDebug", "result": "pass"},
+    {"command": "android/gradlew -p android testDebugUnitTest --rerun", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
