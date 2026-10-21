@@ -5,7 +5,7 @@ owner: dell26/agent-4
 deps: [p0-web-shell,mail-actions-api,p0-web-sse,p0-e2e-harness]
 touches: [web/src/app/features/mail/list]
 prio: 1
-lease_until: 2026-10-21T06:31:32Z
+lease_until: 2026-10-21T06:39:07Z
 extended: 
 releases: 1
 ---
