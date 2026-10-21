@@ -15,7 +15,8 @@ Two-way Microsoft sync (SPEC.md §6.2).
 ## Acceptance criteria
 - [x] Calendars, `calendarView/delta` incremental sync, writes, occurrence edits, 'following' split
   - verified (2026-10-21 14:45+0200 by dell26/agent-2): MicrosoftCalendarAdapterTests (67) + MicrosoftCalendarSyncTests (5, engine+WireMock+Testcontainers Postgres) cover listCalendars, calendarView/delta incremental + full relisting, create/update/delete with If-Match, occurrence edits/cancels, FOLLOWING split with exception restore; ./gradlew test --tests 'ch.sonensei.cockpit.calendar.infra.microsoft.*' -> 173 passed
-- [ ] Tests against WireMock recordings of Graph
+- [x] Tests against WireMock recordings of Graph
+  - verified (2026-10-21 14:45+0200 by dell26/agent-2): WireMock stubs from Graph recordings in server/src/test/resources/.../calendar/infra/microsoft (calendars, delta pages, series master/instances) used by MicrosoftCalendarAdapterTests/SyncTests -> all pass (Exchange pattern-change behaviour modelled as stubs; no tenant reachable)
 - [ ] `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.calendar.infra.microsoft.*'` passes (Postgres via Testcontainers where persistence is involved)
 
 ## Notes
