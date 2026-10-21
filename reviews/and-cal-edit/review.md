@@ -4,40 +4,47 @@ Date: 2026-10-21
 
 Task: and-cal-edit - Android event create/edit
 
-Scope: re-review of the final code. Task commits d82af939 (implementation), 54268ba5 (tests) and 746e3979 (fixes for CR-1..CR-3 plus the test-writer's tests) on top of base a75919af. The review covers `android/app/src/main/java/ch/sonensei/cockpit/calendar/edit/`, its tests in `android/app/src/test/java/ch/sonensei/cockpit/calendar/edit/`, `android/app/src/main/res/values/strings_calendar_edit.xml` and the hook in `calendar/agenda/CalendarScreen.kt`. Committed changes only; the working tree was clean.
+Scope: final review of the whole task, base 384c5efc..HEAD bb5b6544 (task commits 5ef72d65, d4fad91e, f83a0341, 7b78b549, bb5b6544). The earlier rounds reviewed the code up to 7b78b549. This round checks the CR-5 fix (bb5b6544), the test-only commit 7b78b549, and looks for regressions across the whole task. It covers `android/app/src/main/java/ch/sonensei/cockpit/calendar/edit/`, its tests in `android/app/src/test/java/ch/sonensei/cockpit/calendar/edit/`, `android/app/src/main/res/values/strings_calendar_edit.xml` and the hook in `calendar/agenda/CalendarScreen.kt`. Committed changes only. The working tree was clean.
 
 Requirements:
 - tasks/and-cal-edit.md: acceptance criteria and the recorded assumptions (Notes)
-- SPEC.md §6.2/§6.3 (THIS/FOLLOWING/ALL scopes, optimistic locking, conflicts), as reflected in api/openapi.yaml (`POST /api/v1/calendar/events`, `PATCH /api/v1/calendar/events/{id}`, `GET /api/v1/calendar/events` occurrences over [from, to))
+- SPEC.md §6.2/§6.3 (THIS/FOLLOWING/ALL scopes, optimistic locking, conflicts), and api/openapi.yaml (`POST /api/v1/calendar/events`, `PATCH /api/v1/calendar/events/{id}`, `GET /api/v1/calendar/events`)
+- Server create semantics: `server/.../calendar/api/CalendarEventService.kt` (`create`, `existingCreate`), `CalendarEventController.kt` (`create`), `CalendarService.requireWritable`, `sync/CalendarWriteThrough.kt`, and the provider adapters' `createEvent`
 - AGENTS.md "Project notes", docs/ARCHITECTURE.md conventions
-- Reference implementation: web/src/app/features/calendar/edit/ (`event-edit.service.ts` `reread`/`rangeAround`, `event-dialog.ts` `load`/`run`)
-- Previous review (CR-1..CR-4) and reviews/and-cal-edit/fixes.md
+- The previous review rounds (CR-1..CR-5) and reviews/and-cal-edit/fixes.md
 
 Git range:
 - Branch: main
-- HEAD: 746e397974c375086c2e9d9945e72aa56ace0684
-- Base/start: a75919afc79e9d4d5e8316d864477b49d5f3c5c6
-- Commits reviewed: 3
+- HEAD: bb5b65443410faa9108ae741e7c5c29833aca434
+- Base/start: 384c5efc10df8d68b9bad30f76a154388de93b2d
+- Commits reviewed: 5
 
-Summary: 0 P0, 0 P1, 0 P2, 1 P3
+Summary: 0 P0, 0 P1, 0 P2, 0 P3
 
 ## Status of the earlier findings
 
-- **CR-1 (generated occurrence not re-read): fixed.** `EventEditRepository.reread` queries the occurrence list of the occurrence's calendar over the same window as the web: ±1 day around an instant, or from the day before to two days after an all-day date, in UTC. It matches on `seriesId` and the original-start string `occurrence`. Both values come from the same endpoint and the same `toOccurrence()` mapping as the agenda, so the string comparison is consistent. A cancelled match counts as gone. The list endpoint has no pagination, so a busy window cannot hide the match. `load()` re-reads only generated occurrences. It stores the fresh occurrence as the edit target, so a later Reload of an occurrence that is now an override loads that override directly, and its If-Match is the override's own version. If the occurrence is gone, the editor shows `GONE`: no form, no Reload, saving blocked. After Close, `CalendarRoute`'s `LifecycleResumeEffect` refreshes the views, which matches the web's `'changed'` result. A re-read failure maps to LOAD_OFFLINE/LOAD_FAILED with Retry. A 404 on save maps to GONE. For create, the contract has no 404 (an unknown calendar is 400), so the new mapping cannot misfire there. Tests: repository (request path, calendarIds, range, match among other series and occurrences, gone, cancelled, 5xx, all-day range); VM (moved, became an override, gone, re-read failure then retry, save 404); screen (GONE).
-- **CR-2 (close while saving): fixed.** `close()` returns early while `saving`. A successful save goes through the private `reset()`. `BackHandler` stays registered but does nothing while saving, so back does not leave the Calendar screen. The close icon is disabled while saving. `newId` is kept across a failed attempt, so a retry reuses the id and stays idempotent. `reset()` cancels `job` from inside the job itself, as its last action, which is harmless. The OFFLINE wording no longer says "Nothing was saved". Tests cover a close during a save (the answer arrives and a retry keeps the id), a close after a failure, and the disabled close in the screen.
-- **CR-3 (custom repeat choice lost): fixed.** `repeatChoices` now keys off `repeatOf(form.rule)`. `rule` holds the rule as loaded, and the UI never changes it. Picking CUSTOM again gives the same `rrule`, so `patchBody` sends nothing for it. A preset rule offers no custom choice. The VM and screen tests cover this.
-- **CR-4 (editForm paths untested): resolved by tests.** `EventEditorViewModelEdgeCasesTest` covers:
-  - an all-day generated occurrence;
-  - a single all-day event, plus its inclusive/exclusive round trip;
-  - a one-day all-day event with a missing end or an end that is not after the start;
-  - an override with its master, using the override's own version;
-  - an override that takes its zone from the series;
-  - an unknown zone;
-  - a failing master load with retry.
+- **CR-1 (generated occurrence not re-read): fixed.** Verified in the previous round. Nothing in bb5b6544 touches `load()`, `reread` or GONE handling for edits.
+- **CR-2 (close while saving): fixed.** `close()` still returns early while `saving`, and `reset()` still clears `newId` only after a successful save or a close.
+- **CR-3 (custom repeat choice lost): fixed.** Unchanged since the previous round.
+- **CR-4 (editForm paths untested): resolved by tests.** 7b78b549 adds the single all-day event round trip (inclusive in the form, exclusive on the wire), the one-day all-day event with a missing end or an end that is not after the start, and an override that takes its zone from the series. The tests assert behaviour, use fictitious data and do not touch production code.
+- **CR-5 (refused create shows CONFLICT with a Reload that does nothing): fixed.** Verified in `EventEditorViewModel.send` (`EventEditorViewModel.kt:216-244`):
+  - `creating` is read from `occurrence == null` before the request starts. `create()` sets `occurrence = null` and `edit()`/`load()` set it to the edited occurrence, so the flag reliably tells a create from an edit. While a save runs, `close()` is ignored and the calendar views (FAB, occurrence tap) are hidden behind the editor, so `occurrence` cannot change before the answer arrives.
+  - When a create fails, the result is always `FAILED`. `canSave` stays true (it blocks only CONFLICT/GONE), so `update()` accepts edits and the user can pick another writable calendar (`targetCalendars` drops read-only ones) and save again.
+  - Edits are unchanged: the `when` falls through to the old mapping (409/412 give CONFLICT, 404 gives GONE, everything else FAILED). The existing tests "a 409 is a conflict too", the 412 conflict test and "a save answered with 404 says the event is gone" are unchanged, and the parent reports they pass.
+  - **No duplicates from the regenerated id.** I checked the server path. `CalendarEventService.create` calls `existingCreate(id)` first. An existing live event with that id is returned with 200 before any writability check, so a 409 can never hide a live event with the id. The other 409 sources on create are all thrown inside the same transaction, before or in place of the insert, and roll it back:
+    - `existingCreate`: the id is in the Trash;
+    - `requireWritable`: the calendar is read-only or not supported;
+    - `CalendarWriteThrough.write`: `registry.find`, or the calendar is "not synced yet".
+
+    The write-through runs in `beforeCommit`, so any 409 it throws rolls the local insert back. Its 409s are thrown before the provider call. `RemoteEventChangedException` cannot happen for a plain create: CalDAV, Google and Microsoft each handle an already-existing resource on create themselves. So after a 409 no live event has the old id, and a new UUIDv7 cannot create a second live copy. One case is worth knowing about. An earlier OFFLINE attempt may have committed, the user then trashes that event elsewhere, and the retry gets a 409. A new event is then created next to the trashed one. That follows from the user's own deliberate Save and is not a live duplicate.
+  - Every other failure keeps the id: OFFLINE (including 5xx), other 4xx, and `Failed(null)`, which the repository uses for parse and IO-shaped failures. Idempotent retries after a lost answer therefore still work.
+  - Tests: "a refused create (409) is a failure, the form stays editable and the retry uses a new id" checks FAILED, `canSave`, a calendar change that is actually sent, and a different `id` on the retry. "other refused creates (412, 404, 422) ... keep the id" checks one id across 4 requests. The existing screen test "a failed save says so and offers no reload, saving stays possible" covers how FAILED renders.
 
 Criterion check:
-- AC1 (event form, recurrence presets, THIS/FOLLOWING/ALL prompt): implemented as described in the first review. The fixes did not change the scope and target mapping (`EventEditRepository.update`), and the prompt still offers only FOLLOWING/ALL for a new rule or calendar.
-- AC2 (`./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.calendar.edit.*'`, covering validation and the scope prompt, with Robolectric/Compose screen tests): the tests exist and assert behavior (EventFormTest, the two VM tests, EventEditRepositoryTest, EventEditorScreenTest, CalendarWithEditorTest). The parent reports `./gradlew ktlintCheck testDebugUnitTest --tests 'ch.sonensei.cockpit.calendar.*'` on HEAD 746e3979: BUILD SUCCESSFUL, 178 tests, 0 failures. I could not run Gradle in this session, so I did not reproduce that result.
+- AC1 (event form, recurrence presets, THIS/FOLLOWING/ALL prompt): implemented. The scope prompt (`scopesFor`, only FOLLOWING/ALL for a new rule) and the scope and target mapping in `EventEditRepository.update` are unchanged by the last two commits.
+- AC2 (`./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.calendar.edit.*'`, covering validation and the scope prompt, with Robolectric/Compose screen tests): the tests exist and assert behaviour (EventFormTest, EventEditorViewModelTest, EventEditorViewModelEdgeCasesTest, EventEditRepositoryTest, EventEditorScreenTest, CalendarWithEditorTest). The parent reports this result on HEAD bb5b6544: `cd android && ./gradlew ktlintCheck testDebugUnitTest --tests 'ch.sonensei.cockpit.calendar.*' lintDebug` -> BUILD SUCCESSFUL, 183 tests, 0 failures. I did not run Gradle in this review session, so I did not reproduce it.
+
+Note (not a finding): the task assumption "409 and 412 both show 'changed elsewhere' with Reload" now applies to edits only. A refused create shows "could not be saved", and only a 409 gets a fresh id. The parent may want to record that with `tasks.py assume`, so a human reviewing assumptions sees the create behaviour.
 
 ## P0 Critical
 
@@ -53,15 +60,15 @@ None.
 
 ## P3 Low
 
-- [ ] **CR-5 | A refused create (409) shows "changed elsewhere" with a Reload button that does nothing**
-    - File: `android/app/src/main/java/ch/sonensei/cockpit/calendar/edit/EventEditorViewModel.kt:226` (409 maps to CONFLICT for creates too), `:242` (`load()` returns at once when there is no occurrence), `EventEditorScreen.kt:147` (Reload offered for CONFLICT), `:85` (`canSave` false under CONFLICT)
+- [x] **CR-5 | A refused create (409) shows "changed elsewhere" with a Reload button that does nothing** (fixed in bb5b6544, verified above)
+    - File: `android/app/src/main/java/ch/sonensei/cockpit/calendar/edit/EventEditorViewModel.kt:216`
     - Category: Correctness
-    - Problem: For `POST /api/v1/calendar/events`, the contract answers 409 when "the id belongs to an event in the Trash, or the calendar is read-only or cannot be changed". `send()` maps it to `CONFLICT`, so a new event shows "This event was changed elsewhere. Reload it…". Reload calls `load()`, which does nothing for a new event (`occurrence` is null). `canSave` stays false under CONFLICT, and `update()` ignores edits, so the user cannot pick another calendar and retry. The only way out is Close, which loses the form.
-    - Why it matters: A rare path (for example, a synced calendar turned read-only while the form was open), but it is a dead end with a misleading message and a button that does nothing.
-    - Suggested fix: When `creating`, map a 409 to `FAILED`. The form stays editable, so the user can choose another calendar and save again. Alternatively, add a create-specific message. Add a VM test for a create answered with 409.
+    - Problem: a 409 on create mapped to CONFLICT. That blocked saving, and Reload did nothing for a new event.
+    - Why it matters: the user hit a dead end and lost the form.
+    - Suggested fix: applied. A failed create is FAILED, the form stays editable, and only a 409 gets a fresh client id.
 
 ## Review conclusion
 
 No material issues found.
 
-The CR-1..CR-3 fixes are correct and complete, and I found no regressions in the occurrence re-read (range and matching), GONE handling, close-while-saving or the custom repeat choice. Tests now cover CR-4. CR-5 is a low-priority edge case the parent may fix or record as a follow-up.
+The CR-5 fix is correct. A regenerated id after a 409 cannot produce a live duplicate, because the server answers a known live id with 200 before any check that could return 409. Edit conflicts (409/412 to CONFLICT, 404 to GONE) behave as before. The test-only commit adds meaningful coverage. I found no regressions in the rest of the task.

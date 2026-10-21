@@ -1,0 +1,28 @@
+{
+  "schema": 1,
+  "task": "and-cal-edit",
+  "reviewed_revision": "85ace943dfcfef15e8d625ef7f8ab117196a559c",
+  "helpers": {
+    "test-writer": {"status": "completed", "report": "reviews/and-cal-edit/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/and-cal-edit/review.md"},
+    "fixer": {"status": "completed", "report": "reviews/and-cal-edit/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "generated occurrence is re-read on open; override/gone handled, save 404 shows GONE"},
+    {"id": "CR-2", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "close/back ignored while saving; offline message no longer claims nothing was saved"},
+    {"id": "CR-3", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "custom repeat choice stays available after picking a preset"},
+    {"id": "CR-4", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "editForm all-day/override/master-failure/zone tests added by test-writer"},
+    {"id": "CR-5", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "refused create shows FAILED and stays editable; 409 on create regenerates the id"}
+  ],
+  "validation": [
+    {"command": "cd android && ./gradlew ktlintCheck testDebugUnitTest --tests 'ch.sonensei.cockpit.calendar.*' lintDebug", "result": "pass"},
+    {"command": "cd android && ./gradlew createDebugUnitTestCoverageReport", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
