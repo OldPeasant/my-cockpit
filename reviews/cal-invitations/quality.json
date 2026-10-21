@@ -1,0 +1,27 @@
+{
+  "schema": 1,
+  "task": "cal-invitations",
+  "reviewed_revision": "32b52ae73efcecc0990b35a48237332992c9d00b",
+  "helpers": {
+    "test-writer": {"status": "completed", "report": "reviews/cal-invitations/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/cal-invitations/review.md"},
+    "fixer": {"status": "completed", "report": "reviews/cal-invitations/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "Microsoft sync applies event-level responseStatus to the user's own attendee; respond returns the event as stored after the series refetch (round 2 confirmed)"},
+    {"id": "CR-2", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "override, series-master, trashed-master and Microsoft occurrence/series tests added by test-writer (round 2 confirmed)"},
+    {"id": "CR-3", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "Microsoft adapter refuses non-attendees with InvitationNotRespondableException (409) before calling Graph"},
+    {"id": "TW-gap", "source": "test-writer", "severity": "P3", "disposition": "accepted",
+     "note": "shared catch blocks for unreadable Graph answers in MicrosoftCalendarAdapter predate this task and stay untested"}
+  ],
+  "validation": [
+    {"command": "cd server && ./gradlew ktlintCheck test --tests 'ch.sonensei.cockpit.calendar.*' --tests '*OpenApiContractTest' jacocoTestReport", "result": "pass"},
+    {"command": "cd server && ./gradlew test --tests 'ch.sonensei.cockpit.calendar.invitations.*' --tests '*OpenApiContractTest'", "result": "pass"},
+    {"command": "cd server && UPDATE_OPENAPI=1 ./gradlew test --tests '*OpenApiContractTest' (no diff in api/openapi.yaml)", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}

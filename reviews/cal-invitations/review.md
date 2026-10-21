@@ -4,40 +4,41 @@ Date: 2026-10-21
 
 Task: cal-invitations - Respond to invitations
 
-Scope: second review round (re-review after fixes). Whole final change of the task: git diff cba4177c4bd01221a608830a3cec18a6a78d5357..654f0968f5d1399be2de0bd675d2f215abbd1444 (commits 967809de6, 121fb209d, 5fe8ce31f, 654f0968f). Committed changes only. Generated files (api/openapi.yaml, web/src/app/api/generated/) were checked for consistency only.
+Scope: third (final) review round. Whole final change of the task: git diff ff1970a6c3d47ae575d708aebabe0070b24dc6ec..637f7b93065226f37d4112c689151285d0f42162, excluding tasks/ and reviews/. Committed changes only. Generated files (api/openapi.yaml, web/src/app/api/generated/) were checked for consistency only. Focus: the tests added in 637f7b930.
 
 Requirements:
-- tasks/cal-invitations.md acceptance criteria and recorded assumptions. The 21:31 assumption replaces the earlier Microsoft-sync assumption.
+- tasks/cal-invitations.md acceptance criteria and recorded assumptions
 - SPEC.md section 6.2 (invitations) and section 4.2 (ETag/If-Match, Problem Details)
-- AGENTS.md project notes (module boundaries, generated files, logging)
-- docs/QUALITY.md (report contract)
-- Previous report (first round, CR-1..CR-3) and reviews/cal-invitations/fixes.md
-- Test results reported by the parent worker and fixer: `./gradlew ktlintCheck test --tests 'ch.sonensei.cockpit.calendar.*'` -> 873 tests, 0 failures. The reviewer did not re-run them.
+- AGENTS.md project notes, docs/QUALITY.md (report contract)
+- Round-2 report (no findings) and reviews/cal-invitations/tests.md
+- Test results reported by the parent worker at this code: `cd server && ./gradlew ktlintCheck test --tests 'ch.sonensei.cockpit.calendar.*' --tests '*OpenApiContractTest' jacocoTestReport` -> BUILD SUCCESSFUL, 897 tests, 0 failures. The reviewer did not re-run them.
 
 Git range:
 - Branch: main
-- HEAD: 654f0968f5d1399be2de0bd675d2f215abbd1444
-- Base/start: cba4177c4bd01221a608830a3cec18a6a78d5357
-- Commits reviewed: 4
+- HEAD: 637f7b93065226f37d4112c689151285d0f42162
+- Base/start: ff1970a6c3d47ae575d708aebabe0070b24dc6ec
+- Commits reviewed: 6 (e62513cbe, e1266aa88, 5b74f6991, f89d7ee23, b69ed2556, 637f7b930)
 
 Summary: 0 P0, 0 P1, 0 P2, 0 P3
 
-## Status of first-round findings
+## Changes since round 2
 
-- CR-1 (Microsoft series answer undone by the refetch, stale ETag): Resolved.
-    - `GraphEventMapping.attendees` applies the event-level `responseStatus` to the attendee that has the connection's address when that attendee shows no answer.
-    - `MicrosoftCalendarAdapter` passes `selfAddress(connection)` on every read path (`fetchEvents`, `readSeries`, `currentSeries`, `answer`), so sync and respond store the same status.
-    - `InvitationService.respond` reloads the event after the series refetch and returns its current version/ETag. It falls back to the saved event if the refetch removed it.
-    - `MicrosoftInvitationApiTests` (Postgres + WireMock Graph) answers a series through the API. Graph returns a newer version during the refetch. The test checks the stored attendee status (ACCEPTED), the stored external etag, and that the response ETag and a later GET ETag both equal the stored version.
-    - Behaviour matches the replacing task assumption.
-- CR-2 (recurring/occurrence paths untested): Resolved. The following tests now exist:
-    - `InvitationApiTests`: override answered through Google's instance; series answered and calendar refetched; override of a series in the Trash returns 404.
-    - `MicrosoftInvitationAdapterTests`: occurrence answered through its instance; missing occurrence/series; series master read back.
-    - `MicrosoftInvitationApiTests`: Microsoft series path through the API.
-- CR-3 (Microsoft returned 502 instead of 409 for non-attendees): Resolved.
-    - `MicrosoftCalendarAdapter.respondToInvitation` checks `invited(current, self)` before posting the action and throws `InvitationNotRespondableException`, which becomes 409.
-    - Tests cover both cases: a non-attendee without an answer is refused with no POST sent; an alias address with `responseStatus` notResponded is still answered.
-    - When the connection email is unknown, the event is answered as before.
+- Production code, generated files and the API contract are unchanged since the code reviewed in round 2. Compared with that round's HEAD (654f0968f, before the rebase), the tree diff outside tasks/ and reviews/ is empty up to b69ed2556. Commit 637f7b930 changes only two test files and tests.md.
+- The round-2 conclusions on production code still apply.
+
+## New tests (637f7b930)
+
+- `InvitationApiTests` "declining a series that the refetch then removes ...":
+    - The test runs the fallback branch of `InvitationService.respond` (`findActiveById(id) ?: event`). The refetch with syncToken S2 lists series01 as cancelled. The test then checks three things: the request was 200 and returned the saved answer (DECLINED); the refetch request was made; the master and override were removed.
+    - Before this commit, no test covered that branch. The test is correct and useful.
+- `InvitationApiTests` "an answer Google returns as an unstorable event is a bad gateway ...":
+    - The RRULE without FREQ makes `copyFrom` fail inside the save transaction. The test asserts the "invalid event" detail, so it checks this exact path, not some other 502.
+    - It also checks that the transaction rolled back: the attendee status, external etag and rrule are unchanged, and no change events were published. `invitationEvent()` is a plain repository lookup, so this read sees the stored state.
+    - The test is correct and covers the `IllegalArgumentException` -> 502 mapping.
+- `MicrosoftInvitationAdapterTests` "sync gives the user's answer from responseStatus to the user's attendee only ...":
+    - I checked the fixture string replacements against the `invitation(...)` template, and they match exactly: `"attendees": [` and `"responseStatus": {"response": "declined"}`. So both parts of the test test something real.
+    - If `responseStatus` were applied to every attendee without an answer, Kim's status would fail. If `responseStatus` overrode a real answer in the attendee list, the second part would fail. This pins the precedence recorded in the task assumption.
+    - Both delta calls start from a null delta link and hit the same URL. WireMock serves the most recent stub, so the second fetch reads the second body as intended.
 
 ## P0 Critical
 
@@ -59,21 +60,15 @@ None.
 
 No material issues found.
 
-Checked in this round:
-- Acceptance criterion 1:
-    - `POST /api/v1/calendar/events/{id}/respond` with body `{"response": ACCEPTED|DECLINED|TENTATIVE}` answers through `CalendarProviderAdapter.respondToInvitation`.
-    - Google patches the `self` attendee with If-Match and `sendUpdates=all`. Microsoft calls the accept/decline/tentativelyAccept action with `sendResponse=true`.
-    - The stored event takes the provider's version, with the user's attendee status.
+Re-checked for the whole task diff:
+- Criterion 1: `POST /api/v1/calendar/events/{id}/respond` sends the answer through the provider adapter. Google sends a PATCH of the `self` attendee with If-Match and `sendUpdates=all`. Microsoft calls the accept/decline/tentativelyAccept action with `sendResponse=true`. The local event then takes the provider's version.
 - Error mapping:
-    - If-Match is required: 428 when missing, 412 on mismatch.
-    - 409 for organizer, non-attendee, read-only, unsynced or non-Google/Microsoft calendars; also for a change at the provider, after which the calendar is refetched.
-    - 404 for an event in the Trash or an override of a series in the Trash.
-    - 502 for other provider failures, as Problem Details.
-- The provider call runs outside any transaction, and the save runs in its own transaction. `CalendarSyncService.refetch` only logs its failures, so a failed refetch after a series answer does not turn the answered request into an error.
-- Graph's write body (`toBody`) does not include attendee status, so the new `self` merge cannot cause unwanted patches on edits.
-- No secrets or event bodies are logged. The warn log contains only the calendar id and the provider message.
-- `api/openapi.yaml` and the generated client (`respond-to-invitation.ts`, `RespondToInvitationRequest`) match the controller: path, POST method, If-Match header, required `response` enum, and the documented status codes.
+    - 428 when If-Match is missing, 412 when it does not match.
+    - 409 for organizer, non-attendee, read-only, unsynced or unsupported calendars, and for a change at the provider (followed by a refetch).
+    - 404 when the event, or the series of an override, is in the Trash.
+    - 502 Problem Details for provider failures and unstorable answers.
+- The provider call runs outside any transaction. The local save is atomic. A failed refetch is only logged.
+- No secrets or event contents are logged.
+- `api/openapi.yaml` and the generated web client match the controller.
 
-Observation (not a finding; covered by the recorded assumption and the fixer's notes): if Graph's attendee list ever shows an older real answer for the user while `responseStatus` shows a newer one, sync keeps the attendee-list value. The respond path, however, always sets the new answer in its returned event. For a series, the refetch could then store the older value. Graph usually lists attendees as `none` in an attendee's copy, so this matches the documented precedence. The owner should revisit it if real Graph data shows otherwise.
-
-Changes to `GoogleCalendarAdapter`, `GoogleEventMapping`, `GraphEventMapping`, `MicrosoftCalendarAdapter` and `CalendarProviderAdapter` are outside the task's `touches`. This is recorded in the first task assumption ("via the adapter").
+The round-2 observation about Graph precedence still applies. When the attendee list and `responseStatus` disagree, the attendee list wins. The new Microsoft test now pins this documented behavior. The owner should revisit it if real Graph data shows otherwise.
