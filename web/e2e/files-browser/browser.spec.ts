@@ -5,7 +5,7 @@ import { expect, test } from '../support/fixtures';
 /**
  * SPEC.md §8.2 drive: in a folder of its own, the test creates a folder, renames it, moves it into
  * another folder through the picker and deletes it to the Trash; the server state follows each step.
- * Then it downloads an uploaded file through its link and its folder as a zip through the toolbar.
+ * Then it downloads an uploaded file through its menu and its folder as a zip through the toolbar.
  */
 test.describe('Files browser', () => {
   test('create folder, rename, move, delete, download', async ({ loggedIn: page }) => {
@@ -85,9 +85,11 @@ test.describe('Files browser', () => {
     await expect(page.getByRole('heading', { level: 1 })).toHaveText(`E2E files ${run}`);
     await expect(entryNames(page)).toHaveText(['Archive', 'notes.txt']);
 
+    // A text file opens in the preview; its menu downloads it.
+    await page.getByRole('button', { name: 'Actions for notes.txt' }).click();
     const [file] = await Promise.all([
       page.waitForEvent('download'),
-      page.getByRole('link', { name: 'Download notes.txt' }).click(),
+      page.getByRole('menuitem', { name: 'Download' }).click(),
     ]);
     expect(file.suggestedFilename()).toBe('notes.txt');
     expect(await readFile(await file.path(), 'utf8')).toBe(text);
