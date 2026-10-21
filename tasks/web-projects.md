@@ -13,7 +13,8 @@ Project list and detail (SPEC.md §5.3).
 ## Acceptance criteria
 - [x] List grouped by area with stalled projects highlighted; create/edit project (status, area, dates)
   - verified (2026-10-21 03:30+0200 by dell26/agent-6): npm run test:ci: projects-pages/projects-states/project-groups/project-form specs (grouping by area, stalled badge, create/edit with status/area/dates) pass, 1226 tests total; e2e projects.spec.ts shows stalled project after skip -> passed
-- [ ] Detail: ordered tasks with drag reorder, next-step marker, description (Markdown preview), add task; completing the next step opens 'choose next step'
+- [x] Detail: ordered tasks with drag reorder, next-step marker, description (Markdown preview), add task; completing the next step opens 'choose next step'
+  - verified (2026-10-21 03:30+0200 by dell26/agent-6): npm run test:ci: projects-states + projects-pages specs cover ordered tasks, keyboard/drag reorder with focus kept, next-step marker, Markdown preview (markdown.spec.ts), add task, completing next step opens prompt -> pass; e2e projects.spec.ts complete next step -> prompt -> passed
 - [ ] Vitest component/service tests cover grouping, stalled badge, next-step prompt; `cd web && npm run check` passes
 - [x] Playwright `e2e/gtd-projects/projects.spec.ts` passes against the e2e stack (`npm run e2e -- e2e/gtd-projects/projects.spec.ts`, see p0-e2e-harness): complete next step → prompt; skip → stalled
   - verified (2026-10-21 03:30+0200 by dell26/agent-6): cd web && npm run e2e -- e2e/gtd-projects/projects.spec.ts (podman-compose e2e stack, deploy/docker-compose.e2e.yml, server image rebuilt at 942dc560) -> 6 passed incl. 'completing the next step prompts; skipping leaves the project stalled'
