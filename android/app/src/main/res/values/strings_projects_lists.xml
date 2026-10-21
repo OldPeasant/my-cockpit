@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Live lists (Waiting For, Someday, project tasks): loaded while shown, not cached -->
+    <string name="lists_retry">Retry</string>
+    <string name="lists_error_offline">The server is unreachable, so this list could not be loaded. Try again when you are online.</string>
+    <string name="lists_error_failed">The server could not send this list. Try again.</string>
+    <string name="lists_stale_offline">Offline: this list may be outdated. Changes need a connection.</string>
+    <string name="lists_stale_failed">This list could not be refreshed and may be outdated.</string>
+
+    <!-- Waiting For -->
+    <string name="waiting_empty">Nothing to wait for. Delegated items show up here.</string>
+    <string name="waiting_follow_up">Follow up</string>
+    <string name="waiting_follow_up_label">Follow up on %1$s</string>
+    <string name="waiting_follow_up_title">Follow up: %1$s</string>
+    <string name="waiting_follow_up_title_who">Follow up with %1$s: %2$s</string>
+    <string name="waiting_followed_up">Added a next action to follow up on %1$s</string>
+    <string name="waiting_for">%1$s</string>
+    <string name="waiting_for_since">%1$s, %2$s</string>
+    <string name="waiting_since_today">since today</string>
+    <plurals name="waiting_days">
+        <item quantity="one">for %d day</item>
+        <item quantity="other">for %d days</item>
+    </plurals>
+
+    <!-- Someday/Maybe -->
+    <string name="someday_empty">No someday ideas. Park things here that you may do later.</string>
+    <string name="someday_activate">Activate</string>
+    <string name="someday_activate_label">Activate %1$s</string>
+    <string name="someday_activated">Moved %1$s to Next</string>
+
+    <!-- Projects -->
+    <plurals name="projects_stalled_count">
+        <item quantity="one">%d project has no next step</item>
+        <item quantity="other">%d projects have no next step</item>
+    </plurals>
+    <string name="projects_none_stalled">Every active project has a next step</string>
+    <string name="projects_show_finished">Finished (%1$d)</string>
+    <string name="projects_empty">No projects yet. Turn an inbox item into one with “To project”.</string>
+    <string name="projects_no_area">No area</string>
+    <string name="projects_open">Open project</string>
+    <string name="projects_stalled">No next step</string>
+    <string name="projects_status_on_hold">On hold</string>
+    <string name="projects_status_someday">Someday</string>
+    <string name="projects_status_completed">Completed</string>
+    <string name="projects_status_dropped">Dropped</string>
+    <string name="projects_back">Back to projects</string>
+    <string name="projects_next_step">Next step</string>
+    <string name="projects_next_step_is">Next step: %1$s</string>
+    <string name="projects_stalled_hint">Choose what to do next.</string>
+    <string name="projects_choose_next_step">Choose next step</string>
+    <string name="projects_make_next_step_label">Make %1$s the next step</string>
+    <string name="projects_next_step_set">Next step: %1$s</string>
+    <string name="projects_no_tasks">No open tasks in this project.</string>
+    <string name="projects_list_inbox">Inbox</string>
+    <string name="projects_list_scheduled">Scheduled</string>
+    <string name="projects_prompt_done">Completed %1$s. What is the next step?</string>
+    <string name="projects_prompt_no_tasks">No open tasks left. Add the next step:</string>
+    <string name="projects_prompt_new">New next step</string>
+    <string name="projects_prompt_add">Add as next step</string>
+    <string name="projects_prompt_skip">Skip</string>
+</resources>
