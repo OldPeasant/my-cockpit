@@ -16,3 +16,4 @@ Mail on the phone (SPEC.md §9.2 item 5).
 
 ## Notes
 - ASSUMPTION (2026-10-21 18:16+0200 by dell26/agent-2): Android mail uses hand-written Retrofit DTOs (mail/list/MailApi.kt) instead of the generated mail models: api/openapi.yaml marks nullable mail fields (nextCursor on the last page, subject, dates, body.html/text) as non-null, so the generated client would fail to parse real answers. Fixing the server's schema annotations is outside this task.
+- ASSUMPTION (2026-10-21 18:16+0200 by dell26/agent-2): Android read view WebView blocks all network loads (blockNetworkLoads + CSP default-src 'none'): remote images stay blocked (no 'load images' toggle on Android), and inline cid: images are not shown because the WebView cannot authenticate attachment downloads. Attachments are listed by name only (no download on Android yet).
