@@ -117,6 +117,8 @@ export type { ListContacts$Params as ListContacts$Params } from './fn/contacts/l
 export { listContacts as listContacts } from './fn/contacts/list-contacts';
 export type { CreateContact$Params as CreateContact$Params } from './fn/contacts/create-contact';
 export { createContact as createContact } from './fn/contacts/create-contact';
+export type { AutocompleteContacts$Params as AutocompleteContacts$Params } from './fn/contacts/autocomplete-contacts';
+export { autocompleteContacts as autocompleteContacts } from './fn/contacts/autocomplete-contacts';
 export type { ExportContacts$Params as ExportContacts$Params } from './fn/contacts/export-contacts';
 export { exportContacts as exportContacts } from './fn/contacts/export-contacts';
 export type { ImportContacts$Params as ImportContacts$Params } from './fn/contacts/import-contacts';
@@ -127,6 +129,8 @@ export type { DeleteContact$Params as DeleteContact$Params } from './fn/contacts
 export { deleteContact as deleteContact } from './fn/contacts/delete-contact';
 export type { UpdateContact$Params as UpdateContact$Params } from './fn/contacts/update-contact';
 export { updateContact as updateContact } from './fn/contacts/update-contact';
+export type { GetContactRelated$Params as GetContactRelated$Params } from './fn/contacts/get-contact-related';
+export { getContactRelated as getContactRelated } from './fn/contacts/get-contact-related';
 export type { ListFolder$Params as ListFolder$Params } from './fn/files/list-folder';
 export { listFolder as listFolder } from './fn/files/list-folder';
 export type { GetDriveUsage$Params as GetDriveUsage$Params } from './fn/files/get-drive-usage';
