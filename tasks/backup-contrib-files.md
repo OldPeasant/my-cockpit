@@ -13,7 +13,8 @@ extended:
 Files in backups (SPEC.md §10.2).
 
 ## Acceptance criteria
-- [ ] data/files.jsonl, folders.json; files/ holds blobs in the original tree with original names (clashes → ' (2)', mapping in files.jsonl); streamed, constant memory for large files
+- [x] data/files.jsonl, folders.json; files/ holds blobs in the original tree with original names (clashes → ' (2)', mapping in files.jsonl); streamed, constant memory for large files
+  - verified (2026-10-21 04:58+0200 by dell26/agent-1): cd server && ./gradlew test --tests '*FilesBackup*' -> FilesBackupContributorTests 24/24 pass (data/folders.json + data/files.jsonl fields, files/ original tree + names, ' (2)'/' (3)' clashes incl. case/folder-vs-file/trash with path in files.jsonl, 60 MB blob export+import with thread allocation < 15 MB)
 - [ ] Round-trip test (`./gradlew test --tests '*BackupRoundTripTest'`) passes with this module's `BackupFixture` seeding nested folders, name clashes and a 60 MB file
 
 ## Notes
