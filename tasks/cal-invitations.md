@@ -5,7 +5,7 @@ owner: dell26/agent-1
 deps: [cal-google,cal-microsoft]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/calendar/invitations,server/src/test/kotlin/ch/sonensei/cockpit/calendar/invitations]
 prio: 3
-lease_until: 2026-10-21T19:58:24Z
+lease_until: 2026-10-21T20:03:26Z
 ---
 ## Goal
 Accept/decline invitations for Google/Microsoft events (SPEC.md §6.2).
