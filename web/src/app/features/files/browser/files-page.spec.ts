@@ -6,7 +6,8 @@ import { ActivatedRoute, convertToParamMap, ParamMap, provideRouter } from '@ang
 import { BehaviorSubject } from 'rxjs';
 import { FileResponse, FolderSummary } from '../../../api/generated';
 import { NotificationService, provideHttp } from '../../../core/http';
-import FilesPage, { formatBytes, VIEW_MODE_KEY } from './files-page';
+import { UploadService } from '../upload/upload.service';
+import FilesPage, { formatBytes, UPLOAD_REFRESH_MS, VIEW_MODE_KEY } from './files-page';
 
 const tick = (): Promise<void> => new Promise((resolve) => setTimeout(resolve));
 const STAMP = '2026-10-20T10:00:00Z';
@@ -16,6 +17,9 @@ const PHOTOS = '0192f0c4-0000-7000-8000-00000000000e';
 const TRIP = '0192f0c4-0000-7000-8000-00000000000f';
 const ATTACHMENTS = '0192f0c4-0000-7000-8000-00000000000a';
 const REPORT = '0192f0c4-0000-7000-8000-0000000000f1';
+const ARCHIVE = '0192f0c4-0000-7000-8000-0000000000f2';
+const BEACH = '0192f0c4-0000-7000-8000-0000000000f3';
+const SUNSET = '0192f0c4-0000-7000-8000-0000000000f4';
 
 interface Problem {
   status: number;
@@ -46,13 +50,13 @@ class FakeDrive {
     });
   }
 
-  file(id: string, name: string, size: number, folderId?: string): void {
+  file(id: string, name: string, size: number, folderId?: string, mime = 'application/pdf'): void {
     this.files.set(id, {
       id,
       name,
       size,
       folderId,
-      mime: 'application/pdf',
+      mime,
       sha256: 'ab'.repeat(32),
       version: 3,
       createdAt: STAMP,
@@ -115,6 +119,19 @@ class FakeDrive {
         items: items.slice(start, end),
         nextCursor: end < items.length ? String(end) : undefined,
       };
+    }
+    if (url === '/api/v1/files' && req.method === 'POST') {
+      // A multipart upload: stored under the given name into the given folder.
+      const id = `0192f0c4-0000-7000-8000-000000000${++this.seq}`;
+      const upload = (req.body as FormData).get('file') as File;
+      this.file(
+        id,
+        req.params.get('name') as string,
+        upload.size,
+        req.params.get('folderId') ?? undefined,
+        upload.type || 'application/octet-stream',
+      );
+      return this.files.get(id)!;
     }
     if (url === '/api/v1/folders' && req.method === 'POST') {
       const id = `0192f0c4-0000-7000-8000-000000000${++this.seq}`;
@@ -300,12 +317,15 @@ describe('FilesPage', () => {
     expect(root.querySelector('.toolbar a[download]')).toBeNull();
   });
 
-  it('shows a folder with breadcrumbs, its tree branch expanded and download links', async () => {
+  it('shows a folder with breadcrumbs, its tree branch expanded, previews and download links', async () => {
+    drive.file(ARCHIVE, 'Taxes.zip', 2048, DOCS, 'application/zip');
     await open(TRIP);
 
     expect(crumbs()).toEqual(['My drive', 'Documents', 'Trip 2026']);
     expect(names()).toEqual([]);
-    expect(root.querySelector('.empty')?.textContent).toContain('This folder is empty');
+    expect(root.querySelector('.empty')?.textContent?.trim()).toBe(
+      'This folder is empty. Drop files here or upload them to get started.',
+    );
     expect(root.querySelector('.toolbar a[download]')?.getAttribute('href')).toBe(
       `/api/v1/folders/${TRIP}/zip`,
     );
@@ -316,12 +336,19 @@ describe('FilesPage', () => {
     params.next(convertToParamMap({ folderId: DOCS }));
     await settle();
     expect(crumbs()).toEqual(['My drive', 'Documents']);
-    expect(names()).toEqual(['Trip 2026', 'Report.pdf']);
-    const file = root.querySelector('.entry[data-kind="file"]') as HTMLElement;
-    expect(file.querySelector('a.open')?.getAttribute('href')).toBe(
-      `/api/v1/files/${REPORT}/content`,
-    );
-    expect(file.querySelector('.size')?.textContent?.trim()).toBe('1.5 KB');
+    expect(names()).toEqual(['Trip 2026', 'Report.pdf', 'Taxes.zip']);
+    const [report, archive] = [...root.querySelectorAll<HTMLElement>('.entry[data-kind="file"]')];
+    // A PDF has a preview: its name opens it instead of downloading.
+    const preview = report.querySelector('button.open')!;
+    expect(preview.getAttribute('aria-label')).toBe('Preview Report.pdf');
+    expect(report.querySelector('a.open')).toBeNull();
+    expect(report.querySelector('.size')?.textContent?.trim()).toBe('1.5 KB');
+    // A zip has none: its name stays a download link.
+    const download = archive.querySelector('a.open')!;
+    expect(download.getAttribute('href')).toBe(`/api/v1/files/${ARCHIVE}/content`);
+    expect(download.hasAttribute('download')).toBe(true);
+    expect(download.getAttribute('aria-label')).toBe('Download Taxes.zip');
+    expect(archive.querySelector('button.open')).toBeNull();
   });
 
   it('switches between list and grid and remembers the choice', async () => {
@@ -884,5 +911,157 @@ describe('FilesPage', () => {
       'Documents',
       'Photos',
     ]);
+  });
+
+  describe('uploads and previews', () => {
+    function fileList(...files: File[]): FileList {
+      return Object.assign([...files], { item: (i: number) => files[i] }) as unknown as FileList;
+    }
+
+    function dragEvent(type: string, data: { types: string[]; files?: FileList }): DragEvent {
+      const event = new Event(type, { bubbles: true, cancelable: true }) as DragEvent;
+      Object.defineProperty(event, 'dataTransfer', { value: { dropEffect: 'none', ...data } });
+      return event;
+    }
+
+    const main = (): HTMLElement => root.querySelector('section.main') as HTMLElement;
+
+    /** Answers requests (incl. the listing refresh after the debounce) until `check` passes. */
+    async function eventually(check: () => void): Promise<void> {
+      await vi.waitFor(
+        async () => {
+          drive.answer(http);
+          await fixture.whenStable();
+          fixture.detectChanges();
+          check();
+        },
+        { timeout: 3000, interval: 20 },
+      );
+      await settle();
+    }
+
+    it('uploads picked files into the shown folder and lists them once stored', async () => {
+      await open(DOCS);
+      const picker = byLabel('Files to upload') as HTMLInputElement;
+      expect(picker.type).toBe('file');
+      expect(picker.multiple).toBe(true);
+      const click = vi.spyOn(picker, 'click').mockImplementation(() => undefined);
+      button('Upload').click();
+      expect(click).toHaveBeenCalled();
+
+      Object.defineProperty(picker, 'files', {
+        configurable: true,
+        value: fileList(
+          new File(['fictitious minutes'], 'Minutes.txt', { type: 'text/plain' }),
+          new File(['%PDF'], 'Offer.pdf', { type: 'application/pdf' }),
+        ),
+      });
+      picker.dispatchEvent(new Event('change'));
+      fixture.detectChanges();
+      // The upload panel shows the running uploads.
+      expect(root.querySelector('app-upload-panel h2')?.textContent?.trim()).toBe(
+        'Uploading 2 files',
+      );
+
+      await eventually(() =>
+        expect(names()).toEqual(['Trip 2026', 'Minutes.txt', 'Offer.pdf', 'Report.pdf']),
+      );
+      const uploads = drive.requests.filter(
+        (r) => r.method === 'POST' && r.url === '/api/v1/files',
+      );
+      expect(uploads.map((r) => r.params.get('folderId'))).toEqual([DOCS, DOCS]);
+      expect(root.querySelector('app-upload-panel h2')?.textContent?.trim()).toBe(
+        'Uploads finished',
+      );
+    });
+
+    it('uploads files dropped on the folder and outlines it while files are dragged over', async () => {
+      await open();
+      expect(main().classList).not.toContain('dragging');
+
+      const over = dragEvent('dragover', { types: ['Files'] });
+      main().dispatchEvent(over);
+      fixture.detectChanges();
+      expect(over.defaultPrevented).toBe(true);
+      expect(over.dataTransfer!.dropEffect).toBe('copy');
+      expect(main().classList).toContain('dragging');
+      expect(main().querySelector('.drop-hint')?.textContent?.trim()).toBe('Drop to upload here');
+
+      // Moving onto a child of the folder keeps the outline; leaving the folder ends it.
+      const child = dragEvent('dragleave', { types: ['Files'] });
+      Object.defineProperty(child, 'relatedTarget', { value: main().querySelector('.toolbar') });
+      main().dispatchEvent(child);
+      fixture.detectChanges();
+      expect(main().classList).toContain('dragging');
+      const away = dragEvent('dragleave', { types: ['Files'] });
+      Object.defineProperty(away, 'relatedTarget', { value: document.body });
+      main().dispatchEvent(away);
+      fixture.detectChanges();
+      expect(main().classList).not.toContain('dragging');
+
+      main().dispatchEvent(dragEvent('dragenter', { types: ['Files'] }));
+      const drop = dragEvent('drop', {
+        types: ['Files'],
+        files: fileList(new File(['fictitious'], 'Budget.csv', { type: 'text/csv' })),
+      });
+      main().dispatchEvent(drop);
+      fixture.detectChanges();
+      expect(drop.defaultPrevented).toBe(true);
+      expect(main().classList).not.toContain('dragging');
+
+      await eventually(() => expect(names()).toContain('Budget.csv'));
+      const upload = drive.requests.find((r) => r.url === '/api/v1/files')!;
+      expect(upload.params.has('folderId')).toBe(false);
+    });
+
+    it('lets drags of anything but files pass by', async () => {
+      await open();
+      const over = dragEvent('dragover', { types: ['text/plain'] });
+      main().dispatchEvent(over);
+      fixture.detectChanges();
+      expect(over.defaultPrevented).toBe(false);
+      expect(main().classList).not.toContain('dragging');
+
+      const drop = dragEvent('drop', { types: ['text/plain'], files: fileList() });
+      main().dispatchEvent(drop);
+      expect(drop.defaultPrevented).toBe(false);
+      expect(http.match((r) => r.url === '/api/v1/files')).toEqual([]);
+    });
+
+    it('does not refresh the listing for an upload into another folder', async () => {
+      await open(DOCS);
+      const before = drive.requests.filter((r) => r.url === '/api/v1/drive').length;
+      const uploads = TestBed.inject(UploadService);
+      uploads.upload([new File(['x'], 'Elsewhere.txt')], PHOTOS);
+      await eventually(() => expect(uploads.active()).toBe(0));
+      await new Promise((resolve) => setTimeout(resolve, UPLOAD_REFRESH_MS + 50));
+      await settle();
+      expect(drive.requests.filter((r) => r.url === '/api/v1/drive').length).toBe(before);
+      expect(names()).toEqual(['Trip 2026', 'Report.pdf']);
+    });
+
+    it('opens the preview of a file, paging through the previewable files of the folder', async () => {
+      drive.file(BEACH, 'Beach.png', 4096, PHOTOS, 'image/png');
+      drive.file(ARCHIVE, 'Cards.zip', 2048, PHOTOS, 'application/zip');
+      drive.file(SUNSET, 'Sunset.jpg', 4096, PHOTOS, 'image/jpeg');
+      await open(PHOTOS);
+      // Images show their thumbnail in the listing.
+      expect(root.querySelector('.entry img')?.getAttribute('src')).toBe(
+        `/api/v1/files/${BEACH}/thumbnail?size=256`,
+      );
+
+      byLabel('Preview Beach.png').click();
+      const preview = await dialog('app-preview-dialog');
+      expect(preview.querySelector('#preview-title')?.textContent?.trim()).toBe('Beach.png');
+      expect(preview.querySelector('.position')?.textContent?.trim()).toBe('1 of 2');
+      expect(preview.querySelector('img')?.getAttribute('src')).toBe(
+        `/api/v1/files/${BEACH}/preview`,
+      );
+      preview.dispatchEvent(
+        new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true, cancelable: true }),
+      );
+      await settle();
+      expect(preview.querySelector('#preview-title')?.textContent?.trim()).toBe('Sunset.jpg');
+    });
   });
 });

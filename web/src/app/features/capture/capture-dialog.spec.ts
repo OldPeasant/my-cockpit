@@ -1,11 +1,28 @@
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { MatDialogRef } from '@angular/material/dialog';
-import { CapturePreviewResponse, TaskResponse } from '../../api/generated';
+import { CapturePreviewResponse, FileResponse, TaskResponse } from '../../api/generated';
 import { NotificationService, provideHttp, SILENT_ERRORS } from '../../core/http';
 import { CaptureDialog, PREVIEW_DEBOUNCE_MS } from './capture-dialog';
 
 const UUIDV7 = /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
+
+const FILE_A = '0192f0c4-0000-7000-8000-0000000000f1';
+const FILE_B = '0192f0c4-0000-7000-8000-0000000000f2';
+const FILE_C = '0192f0c4-0000-7000-8000-0000000000f3';
+
+function stored(name: string, id: string): FileResponse {
+  return {
+    id,
+    name,
+    mime: 'application/octet-stream',
+    size: 1,
+    sha256: 'ab'.repeat(32),
+    version: 0,
+    createdAt: '2026-10-21T08:00:00Z',
+    updatedAt: '2026-10-21T08:00:00Z',
+  };
+}
 
 function task(title: string): TaskResponse {
   return {
@@ -73,6 +90,13 @@ describe('CaptureDialog', () => {
 
   function expectCapture() {
     return http.expectOne((r) => r.method === 'POST' && r.url === '/api/v1/capture');
+  }
+
+  /** The multipart upload of the attachment `name`. */
+  function expectUpload(name: string) {
+    return http.expectOne(
+      (r) => r.method === 'POST' && r.url === '/api/v1/files' && r.params.get('name') === name,
+    );
   }
 
   describe('preview', () => {
@@ -332,16 +356,20 @@ describe('CaptureDialog', () => {
       el().querySelector<HTMLElement>('.capture')!.dispatchEvent(paste);
       first.flush(task('First'));
       await settle();
+      expect(first.request.body).not.toHaveProperty('fileIds');
       expect(textField().value).toBe('Second');
       expect(notesField().value).toBe('');
       expect([...el().querySelectorAll('.file-name')].map((n) => n.textContent)).toEqual([
         'scan.jpg',
       ]);
       expect(el().querySelector('.count')?.textContent?.trim()).toBe('1 item captured');
+      expectUpload('scan.jpg').flush(stored('scan.jpg', FILE_A));
+      await settle();
 
       press('Enter', { shiftKey: true });
       const second = expectCapture();
       expect(second.request.body.text).toBe('Second');
+      expect(second.request.body.fileIds).toEqual([FILE_A]);
       expect(second.request.body.id).toMatch(UUIDV7);
       expect(second.request.body.id).not.toBe(first.request.body.id);
       second.flush(task('Second'));
@@ -533,13 +561,34 @@ describe('CaptureDialog', () => {
     });
   });
 
-  describe('attachments placeholder', () => {
+  describe('attachments', () => {
     function fileList(...names: string[]): FileList {
       const files = names.map((name) => new File(['x'], name));
       return Object.assign(files, { item: (i: number) => files[i] }) as unknown as FileList;
     }
 
-    it('lists dropped and pasted files as not saved, and can remove them', async () => {
+    const names = () => [...el().querySelectorAll('.file-name')].map((n) => n.textContent);
+    const status = (name: string) =>
+      [...el().querySelectorAll('.file-list li')]
+        .find((li) => li.querySelector('.file-name')?.textContent === name)
+        ?.querySelector('.file-status')
+        ?.textContent?.trim();
+    /** The `Retry`/`Remove` button in the row of `name` (by text; see the aria-label test). */
+    const action = (text: 'Retry' | 'Remove', name: string) =>
+      [...el().querySelectorAll('.file-list li')]
+        .filter((li) => li.querySelector('.file-name')?.textContent === name)
+        .flatMap((li) => [...li.querySelectorAll<HTMLButtonElement>('button')])
+        .find((b) => b.textContent?.trim() === text) ?? null;
+
+    function pasteFiles(...fileNames: string[]): ClipboardEvent {
+      const paste = new Event('paste', { cancelable: true }) as ClipboardEvent;
+      Object.defineProperty(paste, 'clipboardData', { value: { files: fileList(...fileNames) } });
+      el().querySelector<HTMLElement>('.capture')!.dispatchEvent(paste);
+      fixture.detectChanges();
+      return paste;
+    }
+
+    it('uploads dropped and pasted files to the drive root and saves their fileIds', async () => {
       const capture = el().querySelector<HTMLElement>('.capture')!;
       const drop = new Event('drop', { cancelable: true }) as DragEvent;
       Object.defineProperty(drop, 'dataTransfer', {
@@ -547,26 +596,124 @@ describe('CaptureDialog', () => {
       });
       capture.dispatchEvent(drop);
       expect(drop.defaultPrevented).toBe(true);
+      expect(pasteFiles('photo.png').defaultPrevented).toBe(true);
+      await settle();
 
-      const paste = new Event('paste', { cancelable: true }) as ClipboardEvent;
-      Object.defineProperty(paste, 'clipboardData', { value: { files: fileList('photo.png') } });
-      capture.dispatchEvent(paste);
-      expect(paste.defaultPrevented).toBe(true);
-      fixture.detectChanges();
-
-      const names = () => [...el().querySelectorAll('.file-name')].map((n) => n.textContent);
       expect(names()).toEqual(['receipt.pdf', 'photo.png']);
-      expect(el().querySelector('.files-note')?.textContent).toContain("can't be saved yet");
+      expect(status('receipt.pdf')).toBe('0 %');
+      const receipt = expectUpload('receipt.pdf');
+      const photo = expectUpload('photo.png');
+      // Attachments go to the drive root, silently (errors show in the list).
+      expect(receipt.request.params.has('folderId')).toBe(false);
+      expect(receipt.request.context.get(SILENT_ERRORS)).toBe(true);
 
-      el().querySelector<HTMLButtonElement>('.file-list button')!.click();
+      // Saving waits for the uploads.
+      type('Expenses');
+      expect(saveButton().disabled).toBe(true);
+      press('Enter');
+      await expect(fixture.componentInstance.submit()).resolves.toBe(false);
+      http.expectNone('/api/v1/capture');
+
+      photo.flush(stored('photo.png', FILE_B));
+      await settle();
+      expect(status('photo.png')).toBe('Attached');
+      expect(saveButton().disabled).toBe(true);
+      receipt.flush(stored('receipt.pdf', FILE_A));
+      await settle();
+      expect(status('receipt.pdf')).toBe('Attached');
+      expect(saveButton().disabled).toBe(false);
+
+      press('Enter');
+      const req = expectCapture();
+      expect(req.request.body).toEqual({
+        id: expect.stringMatching(UUIDV7),
+        text: 'Expenses',
+        fileIds: [FILE_A, FILE_B],
+      });
+      req.flush(task('Expenses'));
+      await settle();
+      expect(close).toHaveBeenCalled();
+    });
+
+    it('a failed upload shows Retry, and the retried file is attached', async () => {
+      pasteFiles('scan.jpg');
+      await settle();
+      expectUpload('scan.jpg').flush(null, { status: 503, statusText: 'Service Unavailable' });
+      await settle();
+      expect(status('scan.jpg')).toBe('Upload failed');
+      expect(el().querySelector('.file-list li')?.getAttribute('data-state')).toBe('failed');
+      expect(notifications.error).not.toHaveBeenCalled();
+
+      action('Retry', 'scan.jpg')!.click();
+      await settle();
+      expectUpload('scan.jpg').flush(stored('scan.jpg', FILE_C));
+      await settle();
+      expect(status('scan.jpg')).toBe('Attached');
+      expect(action('Retry', 'scan.jpg')).toBeNull();
+
+      type('Scan');
+      press('Enter');
+      expect(expectCapture().request.body.fileIds).toEqual([FILE_C]);
+      await settle();
+    });
+
+    it('a failed attachment does not block saving and is not linked', async () => {
+      pasteFiles('scan.jpg', 'receipt.pdf');
+      await settle();
+      expectUpload('scan.jpg').flush(null, { status: 500, statusText: 'Server Error' });
+      expectUpload('receipt.pdf').flush(stored('receipt.pdf', FILE_A));
+      await settle();
+      type('Expenses');
+      expect(saveButton().disabled).toBe(false);
+      press('Enter');
+      expect(expectCapture().request.body.fileIds).toEqual([FILE_A]);
+      await settle();
+    });
+
+    it('Remove cancels a running upload; a removed attachment is not linked', async () => {
+      pasteFiles('scan.jpg', 'receipt.pdf');
+      await settle();
+      const scan = expectUpload('scan.jpg');
+      expectUpload('receipt.pdf').flush(stored('receipt.pdf', FILE_A));
+      await settle();
+
+      action('Remove', 'scan.jpg')!.click();
       fixture.detectChanges();
-      expect(names()).toEqual(['photo.png']);
+      expect(scan.cancelled).toBe(true);
+      expect(names()).toEqual(['receipt.pdf']);
 
-      // Files are never sent with the capture.
+      // A done upload is only unlinked: the file stays in the drive.
+      action('Remove', 'receipt.pdf')!.click();
+      fixture.detectChanges();
+      expect(names()).toEqual([]);
+      http.expectNone((r) => r.method === 'DELETE');
+
       type('Expenses');
       press('Enter');
       expect(expectCapture().request.body).not.toHaveProperty('fileIds');
       await settle();
+    });
+
+    it('Remove of a failed attachment drops it from the list', async () => {
+      pasteFiles('scan.jpg');
+      await settle();
+      expectUpload('scan.jpg').flush(null, { status: 400, statusText: 'Bad Request' });
+      await settle();
+      action('Remove', 'scan.jpg')!.click();
+      fixture.detectChanges();
+      expect(el().querySelector('.file-list')).toBeNull();
+    });
+
+    // TW-1: `aria-label="Retry {{ job.name }}"` with `i18n-aria-label` is applied as the DOM
+    // property `aria-label` (an expando), not as the attribute, so screen readers hear only
+    // "Retry"/"Remove" for every attachment.
+    it('names the Retry and Remove buttons after their file', async () => {
+      pasteFiles('scan.jpg');
+      await settle();
+      expectUpload('scan.jpg').flush(null, { status: 503, statusText: 'Service Unavailable' });
+      await settle();
+      expect(action('Retry', 'scan.jpg')?.getAttribute('aria-label')).toBe('Retry scan.jpg');
+      expect(action('Remove', 'scan.jpg')?.getAttribute('aria-label')).toBe('Remove scan.jpg');
     });
 
     it('marks the dialog while files are dragged over it, and leaves text pastes alone', () => {
@@ -606,7 +753,7 @@ describe('CaptureDialog', () => {
       expect(el().querySelector('.drop')).not.toBeNull();
     });
 
-    it('a drop ends the dragging mark', () => {
+    it('a drop ends the dragging mark', async () => {
       const capture = el().querySelector<HTMLElement>('.capture')!;
       const over = new Event('dragover', { cancelable: true }) as DragEvent;
       Object.defineProperty(over, 'dataTransfer', { value: { types: ['Files'] } });
@@ -618,46 +765,51 @@ describe('CaptureDialog', () => {
       capture.dispatchEvent(drop);
       fixture.detectChanges();
       expect(capture.classList).not.toContain('dragging');
-      expect([...el().querySelectorAll('.file-name')].map((n) => n.textContent)).toEqual([
-        'scan.jpg',
-      ]);
+      expect(names()).toEqual(['scan.jpg']);
+      await settle();
+      expectUpload('scan.jpg').flush(stored('scan.jpg', FILE_A));
+      await settle();
     });
 
     it('Shift+Enter clears the listed files for the next capture', async () => {
-      const capture = el().querySelector<HTMLElement>('.capture')!;
-      const paste = new Event('paste', { cancelable: true }) as ClipboardEvent;
-      Object.defineProperty(paste, 'clipboardData', { value: { files: fileList('photo.png') } });
-      capture.dispatchEvent(paste);
+      pasteFiles('photo.png');
+      await settle();
+      expectUpload('photo.png').flush(stored('photo.png', FILE_A));
+      await settle();
       type('Expenses');
       expect(el().querySelector('.file-list')).not.toBeNull();
       press('Enter', { shiftKey: true });
-      expectCapture().flush(task('Expenses'));
+      const req = expectCapture();
+      expect(req.request.body.fileIds).toEqual([FILE_A]);
+      req.flush(task('Expenses'));
       await settle();
       expect(el().querySelector('.file-list')).toBeNull();
     });
 
-    it('Shift+Enter removes only the submitted files, one entry per name', async () => {
-      const capture = el().querySelector<HTMLElement>('.capture')!;
-      const pasteFiles = (...names: string[]) => {
-        const paste = new Event('paste', { cancelable: true }) as ClipboardEvent;
-        Object.defineProperty(paste, 'clipboardData', { value: { files: fileList(...names) } });
-        capture.dispatchEvent(paste);
-        fixture.detectChanges();
-      };
-      const names = () => [...el().querySelectorAll('.file-name')].map((n) => n.textContent);
-
+    it('Shift+Enter removes only the submitted attachments, also same-named ones added meanwhile', async () => {
       pasteFiles('scan.jpg', 'receipt.pdf');
+      await settle();
+      expectUpload('scan.jpg').flush(stored('scan.jpg', FILE_A));
+      expectUpload('receipt.pdf').flush(stored('receipt.pdf', FILE_B));
+      await settle();
       type('Expenses');
       press('Enter', { shiftKey: true });
       const req = expectCapture();
+      expect(req.request.body.fileIds).toEqual([FILE_A, FILE_B]);
       // While the save runs: one submitted file is removed, a same-named and a new file are added.
-      el().querySelectorAll<HTMLButtonElement>('.file-list button')[1].click();
+      action('Remove', 'receipt.pdf')!.click();
       pasteFiles('scan.jpg', 'invoice.pdf');
+      await settle();
       expect(names()).toEqual(['scan.jpg', 'scan.jpg', 'invoice.pdf']);
 
       req.flush(task('Expenses'));
       await settle();
       expect(names()).toEqual(['scan.jpg', 'invoice.pdf']);
+      expectUpload('scan.jpg').flush(stored('scan.jpg', FILE_C));
+      expectUpload('invoice.pdf').flush(
+        stored('invoice.pdf', '0192f0c4-0000-7000-8000-0000000000f4'),
+      );
+      await settle();
     });
   });
 
