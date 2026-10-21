@@ -16,7 +16,10 @@ import ch.sonensei.cockpit.calendar.sync.RemoteEventChangedException
 import ch.sonensei.cockpit.calendar.sync.RemoteEventKey
 import ch.sonensei.cockpit.core.oauth.domain.OAuthAccessToken
 import ch.sonensei.cockpit.core.oauth.domain.OAuthConnectionInfo
+import ch.sonensei.cockpit.core.oauth.domain.OAuthConnectionNotFoundException
 import ch.sonensei.cockpit.core.oauth.domain.OAuthException
+import ch.sonensei.cockpit.core.oauth.domain.OAuthGrantRejectedException
+import ch.sonensei.cockpit.core.oauth.domain.OAuthProviderUnavailableException
 import ch.sonensei.cockpit.core.oauth.domain.OAuthReconnectRequiredException
 import ch.sonensei.cockpit.core.oauth.domain.OAuthResource
 import ch.sonensei.cockpit.core.oauth.domain.OAuthTokenProvider
@@ -38,6 +41,7 @@ import com.github.tomakehurst.wiremock.client.WireMock.urlPathEqualTo
 import com.github.tomakehurst.wiremock.core.WireMockConfiguration.wireMockConfig
 import com.github.tomakehurst.wiremock.http.Fault
 import io.kotest.assertions.throwables.shouldThrow
+import io.kotest.assertions.throwables.shouldThrowExactly
 import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.shouldBe
@@ -435,7 +439,340 @@ class MicrosoftCalendarAdapterTests {
 		shouldThrow<CalendarProviderException> { adapter.listCalendars(unlinked) }.message shouldContain "not linked"
 	}
 
+	// --- pull: cursors and edge cases
+
+	@Test
+	fun `a next page cursor keeps the window, the full listing and the series already read`() {
+		stubFullListing()
+
+		val first = adapter.fetchEvents(source, CALENDAR, null)
+
+		json.readTree(first.cursor).let {
+			it.get("mode").asString() shouldBe "next"
+			it.get("anchor").asString() shouldBe "2026-10-21"
+			it.get("full").asBoolean() shouldBe true
+			it.get("link").asString() shouldBe "/me/calendars/$CALENDAR/calendarView/delta?\$skiptoken=SKIP-1"
+			it.get("seen").values().map { s -> s.asString() } shouldBe listOf("AAMkSeries1")
+		}
+	}
+
+	@Test
+	fun `a series read on an earlier page of the run is not read again`() {
+		stub(get(urlPathEqualTo(DELTA)).withQueryParam("\$skiptoken", equalTo("SKIP-1")), recording("delta-full-page2.json"))
+
+		val page = adapter.fetchEvents(source, CALENDAR, nextCursor("SKIP-1", full = true, seen = listOf("AAMkSeries1")))
+
+		page.events shouldBe emptyList()
+		page.complete shouldBe true
+		page.hasMore shouldBe false
+		json.readTree(page.cursor).get("mode").asString() shouldBe "delta"
+		wireMock.verify(0, getRequestedFor(urlPathEqualTo("$API/me/events/AAMkSeries1")))
+	}
+
+	@Test
+	fun `the next pages of an incremental fetch are not a full listing`() {
+		stub(get(urlPathEqualTo(DELTA)).withQueryParam("\$skiptoken", equalTo("SKIP-1")), recording("delta-full-page2.json"))
+		stubSeries()
+
+		val page = adapter.fetchEvents(source, CALENDAR, nextCursor("SKIP-1", full = false, seen = emptyList()))
+
+		page.complete shouldBe false
+		page.events.map { it.key } shouldContainExactly
+			listOf(RemoteEventKey("AAMkSeries1"), RemoteEventKey("AAMkSeries1", at("2026-10-19T07:00:00Z")))
+	}
+
+	@Test
+	fun `a delta link six days old is still followed`() {
+		stub(get(urlPathEqualTo(DELTA)).withQueryParam("\$deltatoken", equalTo("DELTA-1")), recording("delta-incremental.json"))
+
+		adapter.fetchEvents(source, CALENDAR, deltaCursor("DELTA-1", "2026-10-15")).complete shouldBe false
+
+		wireMock.verify(0, getRequestedFor(urlPathEqualTo(DELTA)).withQueryParam("startDateTime", equalTo("2025-10-21T00:00:00Z")))
+	}
+
+	@Test
+	fun `410 on a page of a full listing fails instead of starting over again`() {
+		stub(
+			get(urlPathEqualTo(DELTA)).withQueryParam("\$skiptoken", equalTo("SKIP-1")),
+			recording("error-410-sync-state-not-found.json"),
+			410,
+		)
+
+		shouldThrowExactly<CalendarProviderException> {
+			adapter.fetchEvents(source, CALENDAR, nextCursor("SKIP-1", full = true, seen = emptyList()))
+		}.message shouldContain "HTTP 410"
+		wireMock.verify(1, anyRequestedFor(anyUrl()))
+	}
+
+	@Test
+	fun `a removal seen during a full listing does not start another one`() {
+		stub(get(urlPathEqualTo(DELTA)).withQueryParam("\$skiptoken", equalTo("SKIP-2")), recording("delta-removed.json"))
+
+		val page = adapter.fetchEvents(source, CALENDAR, nextCursor("SKIP-2", full = true, seen = emptyList()))
+
+		page.complete shouldBe true
+		page.hasMore shouldBe false
+		json.readTree(page.cursor).get("link").asString() shouldBe "/me/calendars/$CALENDAR/calendarView/delta?\$deltatoken=DELTA-3"
+	}
+
+	@Test
+	fun `an occurrence whose series master is gone yields nothing`() {
+		stubDeltaPage(instanceJson("AAMkGone-20261026", "occurrence", "2026-10-26T08:00:00", seriesId = "AAMkGone"))
+		stub(get(urlPathEqualTo("$API/me/events/AAMkGone")), """{"error": {"code": "ErrorItemNotFound"}}""", 404)
+
+		val page = adapter.fetchEvents(source, CALENDAR, null)
+
+		page.events shouldBe emptyList()
+		page.complete shouldBe true
+		json.readTree(page.cursor).get("mode").asString() shouldBe "delta"
+		wireMock.verify(0, getRequestedFor(urlPathEqualTo("$API/me/events/AAMkGone/instances")))
+	}
+
+	@Test
+	fun `an event that cannot be read is skipped, the others are returned`() {
+		stubDeltaPage(
+			"""{"id": "AAMkBroken", "type": "singleInstance", "subject": "No start"}""",
+			"""{"id": "AAMkFine", "type": "singleInstance", "subject": "Fine",
+			 "start": {"dateTime": "2026-10-23T10:30:00", "timeZone": "UTC"}, "end": {"dateTime": "2026-10-23T11:00:00", "timeZone": "UTC"}}""",
+		)
+
+		adapter.fetchEvents(source, CALENDAR, null).events.map { it.key } shouldContainExactly listOf(RemoteEventKey("AAMkFine"))
+	}
+
+	@Test
+	fun `an exception without a matching occurrence of the pattern is keyed by its original start`() {
+		stubDeltaPage(instanceJson("AAMkSeries1-20261026", "occurrence", "2026-10-26T08:00:00"))
+		stub(get(urlPathEqualTo("$API/me/events/AAMkSeries1")), recording("series1-master.json"))
+		val all =
+			json.readTree(recording("series1-instances-page1.json")).get("value").toList() +
+				json.readTree(recording("series1-instances-page2.json")).get("value").toList() +
+				// A Wednesday: the Monday pattern has no occurrence within half a day of it.
+				listOf(json.readTree(instanceJson("AAMkSeries1-x", "exception", "2026-10-21T12:00:00", originalStart = "2026-10-21T07:00:00Z")))
+		stub(get(urlPathEqualTo("$API/me/events/AAMkSeries1/instances")), json.writeValueAsString(mapOf("value" to all)))
+
+		val events = adapter.fetchEvents(source, CALENDAR, null).events.associateBy { it.key }
+
+		val stray = events.getValue(RemoteEventKey("AAMkSeries1", at("2026-10-21T07:00:00Z")))
+		(stray.timing as Timing.Timed).start shouldBe Instant.parse("2026-10-21T12:00:00Z")
+		// It does not hide the occurrence that really is missing.
+		events.getValue(RemoteEventKey("AAMkSeries1")).exdates shouldBe setOf(at("2026-11-09T08:00:00Z"))
+	}
+
+	@Test
+	fun `an exception that cannot be read is skipped, its series is still returned`() {
+		stubDeltaPage(instanceJson("AAMkSeries1-20261026", "occurrence", "2026-10-26T08:00:00"))
+		stub(get(urlPathEqualTo("$API/me/events/AAMkSeries1")), recording("series1-master.json"))
+		val broken = """{"id": "AAMkSeries1-y", "type": "exception", "seriesMasterId": "AAMkSeries1", "originalStart": "2026-11-23T08:00:00Z"}"""
+		stub(get(urlPathEqualTo("$API/me/events/AAMkSeries1/instances")), """{"value": [$broken]}""")
+
+		val events = adapter.fetchEvents(source, CALENDAR, null).events
+
+		events.map { it.key } shouldContainExactly listOf(RemoteEventKey("AAMkSeries1"))
+	}
+
+	@Test
+	fun `an all-day exception without a matching occurrence is keyed by the nearest UTC day`() {
+		val master =
+			"""
+			{"@odata.etag": "W/\"AD1\"", "id": "AAMkAllDaySeries", "type": "seriesMaster", "subject": "Gym day",
+			 "originalStartTimeZone": "Tokyo Standard Time", "isAllDay": true,
+			 "recurrence": {"pattern": {"type": "weekly", "interval": 1, "daysOfWeek": ["monday"]},
+			                "range": {"type": "noEnd", "startDate": "2026-10-05"}},
+			 "start": {"dateTime": "2026-10-05T00:00:00", "timeZone": "UTC"}, "end": {"dateTime": "2026-10-06T00:00:00", "timeZone": "UTC"}}
+			""".trimIndent()
+		stubDeltaPage(instanceJson("AAMkAllDaySeries-20261026", "occurrence", "2026-10-26T00:00:00", seriesId = "AAMkAllDaySeries"))
+		stub(get(urlPathEqualTo("$API/me/events/AAMkAllDaySeries")), master)
+		// A Thursday that was planned at midnight in Tokyo (15:00 UTC the day before).
+		val exception =
+			"""
+			{"@odata.etag": "W/\"AD2\"", "id": "AAMkAllDaySeries-x", "type": "exception", "seriesMasterId": "AAMkAllDaySeries",
+			 "subject": "Gym day (moved)", "isAllDay": true, "originalStart": "2026-10-21T15:00:00Z",
+			 "start": {"dateTime": "2026-10-23T00:00:00", "timeZone": "UTC"}, "end": {"dateTime": "2026-10-24T00:00:00", "timeZone": "UTC"}}
+			""".trimIndent()
+		stub(get(urlPathEqualTo("$API/me/events/AAMkAllDaySeries/instances")), """{"value": [$exception]}""")
+
+		val events = adapter.fetchEvents(source, CALENDAR, null).events.associateBy { it.key }
+
+		events.getValue(RemoteEventKey("AAMkAllDaySeries", OccurrenceId.of(LocalDate.parse("2026-10-22")))).title shouldBe "Gym day (moved)"
+	}
+
+	@Test
+	fun `a page without next or delta link keeps no cursor`() {
+		stub(get(urlPathEqualTo(DELTA)).withQueryParam("startDateTime", equalTo("2025-10-21T00:00:00Z")), """{"value": []}""")
+
+		val page = adapter.fetchEvents(source, CALENDAR, null)
+
+		page.cursor.shouldBeNull()
+		page.hasMore shouldBe false
+		page.complete shouldBe true
+	}
+
+	@Test
+	fun `a cursor with an invalid anchor starts over`() {
+		stubFullListing()
+
+		val cursor = """{"mode":"delta","anchor":"21.10.2026","link":"/me/calendars/$CALENDAR/calendarView/delta?${'$'}deltatoken=DELTA-1"}"""
+		adapter.fetchEvents(source, CALENDAR, cursor).complete shouldBe true
+
+		wireMock.verify(0, getRequestedFor(urlPathEqualTo(DELTA)).withQueryParam("\$deltatoken", equalTo("DELTA-1")))
+	}
+
+	@Test
+	fun `token, access and server failures become provider exceptions with a message for the user`() {
+		stub(get(urlPathEqualTo("$API/me/calendars")), """{"error": {"code": "ErrorAccessDenied"}}""", 403)
+		shouldThrow<CalendarProviderException> { adapter.listCalendars(source) }.message shouldContain "HTTP 403"
+		stub(get(urlPathEqualTo("$API/me/calendars")), "Service Unavailable", 503)
+		shouldThrow<CalendarProviderException> { adapter.listCalendars(source) }.message shouldContain "HTTP 503"
+		// A 200 without a JSON object.
+		stub(get(urlPathEqualTo("$API/me/calendars")), "<html>proxy login</html>")
+		shouldThrow<CalendarProviderException> { adapter.listCalendars(source) }.message shouldContain "without a JSON object"
+
+		tokens.failure = OAuthConnectionNotFoundException()
+		shouldThrow<CalendarProviderException> { adapter.listCalendars(source) }.message shouldContain "removed"
+		tokens.failure = OAuthProviderUnavailableException("timeout")
+		shouldThrow<CalendarProviderException> { adapter.listCalendars(source) }.message shouldContain "could not be reached"
+		tokens.failure = OAuthGrantRejectedException("invalid_grant")
+		shouldThrow<CalendarProviderException> { adapter.listCalendars(source) }.message shouldContain "invalid_grant"
+
+		val broken = CalendarSource(CalendarSourceType.MICROSOFT, "Microsoft").apply { config = "not json" }
+		shouldThrow<CalendarProviderException> { adapter.listCalendars(broken) }.message shouldContain "not linked"
+	}
+
+	@Test
+	fun `occurrences of a series beyond the page limit are refused`() {
+		// Graph keeps sending a next link: the lookup stops after 100 pages.
+		stub(
+			get(urlPathEqualTo("$API/me/events/AAMkSeries1/instances")),
+			"""{"value": [], "@odata.nextLink": "https://graph.microsoft.com/v1.0/me/events/AAMkSeries1/instances?${'$'}skip=1"}""",
+		)
+
+		shouldThrowExactly<CalendarProviderException> {
+			adapter.deleteEvent(source, CALENDAR, RemoteEventKey("AAMkSeries1", at("2026-11-16T08:00:00Z")), null)
+		}.message shouldContain "too many pages"
+		wireMock.verify(100, getRequestedFor(urlPathEqualTo("$API/me/events/AAMkSeries1/instances")))
+		wireMock.verify(0, deleteRequestedFor(anyUrl()))
+	}
+
+	// --- push: series and occurrences
+
+	@Test
+	fun `updating a series with new EXDATEs deletes those instances only, without changing the series`() {
+		stubSeries()
+		stub(delete(urlPathEqualTo("$API/me/events/AAMkSeries1-20261116")), "", 204)
+
+		val series =
+			teamSync().copy(
+				exdates =
+					setOf(
+						// New: Graph still has it.
+						at("2026-11-16T08:00:00Z"),
+						// Already deleted at Graph.
+						at("2026-11-09T08:00:00Z"),
+						// Before the window.
+						at("2024-10-07T07:00:00Z"),
+					),
+			)
+		val stored = adapter.updateEvent(source, CALENDAR, series, "W/\"DwAAABYAAAA3\"")
+
+		wireMock.verify(0, patchRequestedFor(anyUrl()))
+		wireMock.verify(1, deleteRequestedFor(anyUrl()))
+		wireMock.verify(deleteRequestedFor(urlPathEqualTo("$API/me/events/AAMkSeries1-20261116")).withHeader("If-Match", absent()))
+		stored.key shouldBe RemoteEventKey("AAMkSeries1")
+		stored.rrule shouldBe "FREQ=WEEKLY;BYDAY=MO;UNTIL=20261228T225959Z"
+	}
+
+	@Test
+	fun `changing or overriding an occurrence Graph does not have fails`() {
+		stubSeriesInstancesAround()
+		val gone = occurrence("2026-11-09T08:00:00Z", "Team sync (moved)")
+
+		shouldThrow<RemoteEventChangedException> { adapter.updateEvent(source, CALENDAR, gone, "W/\"I5\"") }
+		shouldThrowExactly<CalendarProviderException> { adapter.createEvent(source, CALENDAR, gone) }.message shouldContain "no such occurrence"
+		wireMock.verify(0, patchRequestedFor(anyUrl()))
+	}
+
+	@Test
+	fun `an unchanged occurrence writes nothing, but refuses a stale etag`() {
+		stubSeriesInstancesAround()
+		val instance = json.readTree(occurrenceJson("2026-11-16", "Team sync"))
+		val unchanged = GraphEventMapping.toRemote(instance, RemoteEventKey("AAMkSeries1", at("2026-11-16T08:00:00Z")))
+		val etag = instance.get("@odata.etag").asString()
+
+		adapter.updateEvent(source, CALENDAR, unchanged, etag).etag shouldBe etag
+		shouldThrow<RemoteEventChangedException> { adapter.updateEvent(source, CALENDAR, unchanged, "W/\"old\"") }
+		wireMock.verify(0, patchRequestedFor(anyUrl()))
+	}
+
+	@Test
+	fun `deleting with a stale etag is a change at Microsoft, other failures are provider errors`() {
+		stub(delete(urlPathEqualTo("$API/me/events/AAMkSingle1")), recording("error-412-irresolvable-conflict.json"), 412)
+		shouldThrow<RemoteEventChangedException> { adapter.deleteEvent(source, CALENDAR, RemoteEventKey("AAMkSingle1"), "W/\"old\"") }
+
+		stub(delete(urlPathEqualTo("$API/me/events/AAMkSingle1")), """{"error": {"code": "ErrorInvalidRequest"}}""", 400)
+		shouldThrowExactly<CalendarProviderException> { adapter.deleteEvent(source, CALENDAR, RemoteEventKey("AAMkSingle1"), null) }
+			.message shouldContain "HTTP 400"
+	}
+
+	@Test
+	fun `404 on a patch is a change at Microsoft`() {
+		stub(get(urlPathEqualTo("$API/me/events/AAMkSingle1")), dentist())
+		stub(patch(urlPathEqualTo("$API/me/events/AAMkSingle1")), """{"error": {"code": "ErrorItemNotFound"}}""", 404)
+		val current = adapter.fetchEventsOf(dentist())
+
+		shouldThrow<RemoteEventChangedException> { adapter.updateEvent(source, CALENDAR, current.copy(title = "Mine"), null) }
+	}
+
 	// --- helpers
+
+	/** Series AAMkSeries1 as recorded in `series1-master.json`, as the cockpit has it. */
+	private fun teamSync() =
+		RemoteEvent(
+			key = RemoteEventKey("AAMkSeries1"),
+			etag = "W/\"DwAAABYAAAA3\"",
+			title = "Team sync",
+			timing = Timing.Timed(Instant.parse("2026-10-05T07:00:00Z"), Instant.parse("2026-10-05T07:30:00Z"), ZoneId.of("Europe/Berlin")),
+			rrule = "FREQ=WEEKLY;BYDAY=MO;UNTIL=20261228T225959Z",
+			status = EventStatus.TENTATIVE,
+			reminderMinutes = listOf(15),
+		)
+
+	private fun nextCursor(
+		skipToken: String,
+		full: Boolean,
+		seen: List<String>,
+	) = json.writeValueAsString(
+		mapOf(
+			"mode" to "next",
+			"anchor" to "2026-10-21",
+			"link" to "/me/calendars/$CALENDAR/calendarView/delta?\$skiptoken=$skipToken",
+			"full" to full,
+			"seen" to seen,
+		),
+	)
+
+	/** The first page of a full listing: [items] (Graph events as JSON) and a delta link. */
+	private fun stubDeltaPage(vararg items: String) {
+		stub(
+			get(urlPathEqualTo(DELTA)).withQueryParam("startDateTime", equalTo("2025-10-21T00:00:00Z")),
+			"""{"value": [${items.joinToString(",")}],
+			 "@odata.deltaLink": "https://graph.microsoft.com/v1.0/me/calendars/$CALENDAR/calendarView/delta?${'$'}deltatoken=D-NEW"}""",
+		)
+	}
+
+	/** An instance of series [seriesId] starting at [start] (UTC, 30 minutes). */
+	private fun instanceJson(
+		id: String,
+		type: String,
+		start: String,
+		seriesId: String = "AAMkSeries1",
+		originalStart: String? = null,
+	) = """
+		{"@odata.etag": "W/\"$id\"", "id": "$id", "type": "$type", "seriesMasterId": "$seriesId", "subject": "Team sync",
+		 "originalStartTimeZone": "W. Europe Standard Time", "isAllDay": false, "showAs": "tentative",
+		 ${originalStart?.let { "\"originalStart\": \"$it\"," } ?: ""}
+		 "start": {"dateTime": "$start", "timeZone": "UTC"},
+		 "end": {"dateTime": "${Instant.parse("${start}Z").plusSeconds(1800).toString().removeSuffix("Z")}", "timeZone": "UTC"}}
+		""".trimIndent()
 
 	/** [node] (a Graph event) as the adapter reads it. */
 	private fun MicrosoftCalendarAdapter.fetchEventsOf(node: String): RemoteEvent {

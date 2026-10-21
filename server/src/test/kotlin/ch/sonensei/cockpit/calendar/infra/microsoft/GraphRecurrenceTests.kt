@@ -106,6 +106,12 @@ class GraphRecurrenceTests {
 	}
 
 	@ParameterizedTest
+	@ValueSource(strings = ["FREQ=DAILY;UNTIL=2026-11-16", "FREQ=DAILY;UNTIL=20261316T080000Z", "FREQ=DAILY;COUNT=0", "FREQ=DAILY;INTERVAL=0"])
+	fun `invalid ends and intervals are refused`(rule: String) {
+		shouldThrow<IllegalArgumentException> { GraphRecurrence.toRecurrence(json, rule, timed, "UTC") }.message shouldContain "Invalid"
+	}
+
+	@ParameterizedTest
 	@ValueSource(strings = ["""{"pattern": {"type": "hourly"}, "range": {"type": "noEnd"}}""", """{"pattern": {"type": "absoluteMonthly"}}"""])
 	fun `patterns that cannot be read are refused`(recurrence: String) {
 		shouldThrow<IllegalArgumentException> { GraphRecurrence.toRule(json.readTree(recurrence), timed) }
