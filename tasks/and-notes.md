@@ -6,6 +6,7 @@ deps: [and-login,notes-api]
 touches: [android/app/src/main/java/ch/sonensei/cockpit/notes,android/app/src/test/java/ch/sonensei/cockpit/notes]
 prio: 2
 lease_until: 2026-10-21T10:33:17Z
+extended: dell26/agent-3
 ---
 ## Goal
 View/edit notes and add photos (SPEC.md §9.2 item 6).
@@ -24,3 +25,4 @@ View/edit notes and add photos (SPEC.md §9.2 item 6).
 - ASSUMPTION (2026-10-21 11:54+0200 by dell26/agent-3): Android: reopening a note reloads it from the server only when nothing is pending (unsaved text, save, upload, conflict); otherwise local text is kept and saved
 - ASSUMPTION (2026-10-21 11:55+0200 by dell26/agent-3): Android: a photo uploaded during a save conflict is inserted after 'Keep my version', appended to the server text after 'Use the other version', dropped if the note was deleted elsewhere and the user discards
 - ASSUMPTION (2026-10-21 11:55+0200 by dell26/agent-3): Android: leaving the editor (toolbar or system back) saves immediately and the notes list waits for that save before reloading
+- extended by dell26/agent-3: Implementation, tests, 1st review + fixes (CR-1..6), 2nd review all committed; ktlint + notes tests pass on 886f9cef. Left: confirm WIP commit 886f9cef fully fixes 2nd-review CR-1 (shell top-bar back must save) and CR-2/CR-5 (unsaved new-note text reachable, editor VMs not piling up), optionally P3 CR-3/CR-4; run fixer report (fixes.md) for them, re-run test-writer + code-reviewer on final code, verify both criteria, sh scripts/check.sh, write reviews/and-notes/quality.json, done.
