@@ -1,15 +1,22 @@
 package ch.sonensei.cockpit.gtd.today
 
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.hasAnyAncestor
+import androidx.compose.ui.test.hasTestTag
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import ch.sonensei.cockpit.gtd.data.GtdContext
 import ch.sonensei.cockpit.gtd.data.GtdTask
 import ch.sonensei.cockpit.gtd.data.TaskList
 import ch.sonensei.cockpit.gtd.next.Completion
+import ch.sonensei.cockpit.gtd.next.CompletionMessage
 import ch.sonensei.cockpit.gtd.next.CompletionSnackbar
 import ch.sonensei.cockpit.gtd.next.TaskListTags
 import ch.sonensei.cockpit.ui.theme.CockpitTheme
@@ -105,5 +112,52 @@ class TodayScreenTest {
     fun `shows loading before anything was loaded`() {
         show(TodayUiState(today = today))
         composeRule.onNodeWithTag(TodayTags.LOADING).assertIsDisplayed()
+    }
+
+    @Test
+    fun `section headers count their tasks and rows show due texts and contexts`() {
+        val errands = GtdContext(id(80), "@errands", 0, 1)
+        val dueNoTime = due.copy(dueTime = null, contextIds = listOf(errands.id))
+        val dueSecond = GtdTask(id(4), "Pick up the parcel", TaskList.NEXT, 3, 1, dueDate = today, timeEstimateMin = 15)
+        show(
+            loaded.copy(
+                sections = listOf(TodaySection(TodaySectionKind.DUE, listOf(dueNoTime, dueSecond))),
+                contexts = listOf(errands),
+            ),
+        )
+        composeRule.onNode(hasText("2") and hasAnyAncestor(hasTestTag(TodayTags.section(TodaySectionKind.DUE)))).assertIsDisplayed()
+        composeRule.onNodeWithTag(TodayTags.section(TodaySectionKind.OVERDUE)).assertDoesNotExist()
+        // The section header and both rows say "Due today".
+        composeRule.onAllNodesWithText("Due today").assertCountEquals(3)
+        composeRule.onNodeWithText("@errands").assertIsDisplayed()
+        composeRule.onNodeWithText("15 min").assertIsDisplayed()
+    }
+
+    @Test
+    fun `a scheduled task due later shows its due date`() {
+        val later = scheduled.copy(dueDate = LocalDate.of(2026, 10, 24))
+        show(loaded.copy(sections = listOf(TodaySection(TodaySectionKind.SCHEDULED, listOf(later)))))
+        composeRule.onNodeWithText("Due Oct 24, 2026").assertIsDisplayed()
+    }
+
+    @Test
+    fun `offline with nothing cached shows the banner and the empty message`() {
+        show(TodayUiState(offline = true, today = today))
+        composeRule.onNodeWithText("Offline: nothing loaded yet.").assertIsDisplayed()
+        composeRule.onNodeWithTag(TodayTags.EMPTY).assertIsDisplayed()
+        composeRule.onNodeWithTag(TodayTags.LOADING).assertDoesNotExist()
+    }
+
+    @Test
+    fun `a refused completion shows why`() {
+        show(loaded.copy(snackbar = CompletionSnackbar.Failed(CompletionMessage.CONFLICT)))
+        composeRule.onNodeWithText("This task was changed elsewhere. The list now shows its current state.").assertIsDisplayed()
+    }
+
+    @Test
+    fun `outside a Hilt activity the Today tab shows the placeholder`() {
+        composeRule.setContent { CockpitTheme { TodayScreen() } }
+        composeRule.onNodeWithText("Today").assertIsDisplayed()
+        composeRule.onNodeWithText("This part of your cockpit is not built yet.").assertIsDisplayed()
     }
 }

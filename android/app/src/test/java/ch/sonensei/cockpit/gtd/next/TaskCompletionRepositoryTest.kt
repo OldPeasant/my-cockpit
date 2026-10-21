@@ -124,6 +124,43 @@ class TaskCompletionRepositoryTest {
             assertEquals(CompletionResult.NotDone(CompletionMessage.FAILED), repository.complete(task))
         }
 
+    @Test
+    fun `a task trashed elsewhere is a conflict`() =
+        runBlocking {
+            dispatcher.enqueue("$TASKS/${uuid(1)}/complete", status(404))
+            enqueueReloads()
+
+            assertEquals(CompletionResult.NotDone(CompletionMessage.CONFLICT), repository.complete(task))
+        }
+
+    @Test
+    fun `undo refused by a newer version is a conflict and the views reload`() =
+        runBlocking {
+            dispatcher.enqueue("$TASKS/${uuid(1)}/uncomplete", status(409))
+            enqueueReloads()
+
+            assertEquals(CompletionResult.NotDone(CompletionMessage.CONFLICT), repository.undo(Completion(task.id, task.title, 4)))
+            assertEquals(true, dispatcher.requests.any { it.url.queryParameter("list") == "NEXT" })
+        }
+
+    @Test
+    fun `undo while the server is unreachable is offline and nothing reloads`() =
+        runBlocking {
+            dispatcher.enqueue("$TASKS/${uuid(1)}/uncomplete", status(502))
+
+            assertEquals(CompletionResult.NotDone(CompletionMessage.OFFLINE), repository.undo(Completion(task.id, task.title, 4)))
+            assertEquals(1, dispatcher.requests.size)
+        }
+
+    @Test
+    fun `an unreadable completion answer is a failure`() =
+        runBlocking {
+            dispatcher.enqueue("$TASKS/${uuid(1)}/complete", json("{\"unexpected\":true}"))
+            enqueueReloads()
+
+            assertEquals(CompletionResult.NotDone(CompletionMessage.FAILED), repository.complete(task))
+        }
+
     private fun completed(version: Int) =
         taskJson(1, "Call the dentist", "NEXT", extra = ""","needsNextStep":false,"completedAt":"2026-10-20T10:00:00Z"""")
             .replace("\"version\":1", "\"version\":$version")

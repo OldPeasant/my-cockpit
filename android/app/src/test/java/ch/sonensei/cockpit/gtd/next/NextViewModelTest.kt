@@ -31,6 +31,7 @@ import org.junit.Before
 import org.junit.Test
 import java.time.Clock
 import java.time.Instant
+import java.time.LocalDate
 import java.time.ZoneOffset
 import java.util.UUID
 
@@ -218,5 +219,74 @@ class NextViewModelTest {
             vm.complete(call)
             coVerify(exactly = 0) { completion.complete(any()) }
             assertEquals(3, vm.shown.size)
+        }
+
+    @Test
+    fun `is loading until the Next list was loaded once`() =
+        test { vm ->
+            nextFlow.value = Cached(emptyList(), offline = false, refreshedAt = null)
+            assertTrue(vm.uiState.value.loading)
+            nextFlow.value = Cached(emptyList(), offline = false, refreshedAt = loadedAt)
+            assertFalse(vm.uiState.value.loading)
+            assertEquals(0, vm.uiState.value.total)
+        }
+
+    @Test
+    fun `cached tasks without a refresh time show at once instead of loading`() =
+        test { vm ->
+            nextFlow.value = nextFlow.value.copy(refreshedAt = null)
+            assertFalse(vm.uiState.value.loading)
+            assertEquals(listOf(call, sketch, water), vm.shown)
+        }
+
+    @Test
+    fun `offline with nothing cached is not loading`() =
+        test { vm ->
+            nextFlow.value = Cached(emptyList(), offline = true, refreshedAt = null)
+            assertFalse(vm.uiState.value.loading)
+            assertTrue(vm.uiState.value.offline)
+        }
+
+    @Test
+    fun `the filter stays when the list reloads, and a completed task leaves the total`() =
+        test { vm ->
+            vm.toggleContext(home.id)
+            val gardening = GtdTask(id(4), "Rake the leaves", TaskList.NEXT, 3, 1, contextIds = listOf(home.id))
+            nextFlow.value = nextFlow.value.copy(data = listOf(call, sketch, water, gardening))
+            assertEquals(listOf(sketch, water, gardening), vm.shown)
+            assertEquals(4, vm.uiState.value.total)
+
+            vm.complete(water)
+            assertEquals(listOf(sketch, gardening), vm.shown)
+            assertEquals(3, vm.uiState.value.total)
+        }
+
+    @Test
+    fun `a context filter stays while its context still exists`() =
+        test { vm ->
+            vm.toggleContext(home.id)
+            contextFlow.value = contextFlow.value.copy(data = listOf(home))
+            assertEquals(home.id, vm.uiState.value.filter.contextId)
+            assertEquals(listOf(sketch, water), vm.shown)
+        }
+
+    @Test
+    fun `toggling a chosen value again clears only that filter`() =
+        test { vm ->
+            vm.toggleEnergy(Energy.HIGH)
+            vm.toggleCreativity(Creativity.CREATIVE)
+            vm.toggleMaxMinutes(60)
+            assertEquals(NextFilter(energy = Energy.HIGH, creativity = Creativity.CREATIVE, maxMinutes = 60), vm.uiState.value.filter)
+            vm.toggleCreativity(Creativity.CREATIVE)
+            vm.toggleMaxMinutes(60)
+            assertEquals(NextFilter(energy = Energy.HIGH), vm.uiState.value.filter)
+            vm.toggleEnergy(Energy.LOW)
+            assertEquals(NextFilter(energy = Energy.LOW), vm.uiState.value.filter)
+        }
+
+    @Test
+    fun `today comes from the clock`() =
+        test { vm ->
+            assertEquals(LocalDate.of(2026, 10, 20), vm.uiState.value.today)
         }
 }

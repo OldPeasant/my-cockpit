@@ -7,6 +7,7 @@ import ch.sonensei.cockpit.gtd.data.TaskList
 import ch.sonensei.cockpit.gtd.data.TaskRepository
 import ch.sonensei.cockpit.gtd.data.TaskView
 import ch.sonensei.cockpit.gtd.next.Completion
+import ch.sonensei.cockpit.gtd.next.CompletionMessage
 import ch.sonensei.cockpit.gtd.next.CompletionResult
 import ch.sonensei.cockpit.gtd.next.CompletionSnackbar
 import ch.sonensei.cockpit.gtd.next.TaskCompletionRepository
@@ -24,6 +25,7 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -147,5 +149,94 @@ class TodayViewModelTest {
         assertNull(sectionOf(undated, today))
         assertNull(sectionOf(undated.copy(scheduledDate = today.plusDays(1)), today))
         assertNull(sectionOf(undated.copy(dueDate = today.plusDays(1)), today))
+    }
+
+    @Test
+    fun `refreshedAt is the older of the two loads`() =
+        test { vm ->
+            val earlier = loadedAt.minusSeconds(600)
+            nextFlow.value = nextFlow.value.copy(refreshedAt = earlier)
+            assertEquals(earlier, vm.uiState.value.refreshedAt)
+            nextFlow.value = nextFlow.value.copy(refreshedAt = loadedAt)
+            todayFlow.value = todayFlow.value.copy(refreshedAt = earlier)
+            assertEquals(earlier, vm.uiState.value.refreshedAt)
+        }
+
+    @Test
+    fun `refreshedAt is unknown while one view was never loaded, but its cached tasks still show`() =
+        test { vm ->
+            todayFlow.value = todayFlow.value.copy(refreshedAt = null)
+            assertNull(vm.uiState.value.refreshedAt)
+            assertFalse(vm.uiState.value.loading)
+            assertEquals(listOf(overdue), vm.sections()[TodaySectionKind.OVERDUE])
+        }
+
+    @Test
+    fun `offline in the Next view also makes Today read-only`() =
+        test { vm ->
+            nextFlow.value = nextFlow.value.copy(offline = true)
+            assertTrue(vm.uiState.value.offline)
+            vm.complete(scheduled)
+            coVerify(exactly = 0) { completion.complete(any()) }
+        }
+
+    @Test
+    fun `offline with nothing cached is not loading`() =
+        test { vm ->
+            todayFlow.value = Cached(emptyList(), offline = true, refreshedAt = null)
+            nextFlow.value = Cached(emptyList(), offline = true, refreshedAt = null)
+            assertFalse(vm.uiState.value.loading)
+            assertTrue(vm.uiState.value.offline)
+        }
+
+    @Test
+    fun `an overdue Next task missing from the cached Today view still shows as overdue`() =
+        test { vm ->
+            val forgotten = GtdTask(id(7), "Reply to the landlord", TaskList.NEXT, 6, 1, dueDate = today.minusDays(5))
+            todayFlow.value = todayFlow.value.copy(data = emptyList())
+            nextFlow.value = nextFlow.value.copy(data = listOf(forgotten, undated))
+            assertEquals(mapOf(TodaySectionKind.OVERDUE to listOf(forgotten)), vm.sections())
+        }
+
+    @Test
+    fun `a task in both views keeps the Today version`() =
+        test { vm ->
+            val stale = overdue.copy(title = "Pay the electricity bill (old)", version = 0)
+            nextFlow.value = nextFlow.value.copy(data = listOf(stale))
+            assertEquals(listOf(overdue), vm.sections()[TodaySectionKind.OVERDUE])
+        }
+
+    @Test
+    fun `a completed task leaves its section and a refused one comes back`() =
+        test { vm ->
+            coEvery { completion.complete(scheduled) } returns CompletionResult.NotDone(CompletionMessage.FAILED)
+            vm.complete(due)
+            assertNull(vm.sections()[TodaySectionKind.DUE])
+            vm.complete(scheduled)
+            assertEquals(listOf(scheduled, scheduledEarlier, later), vm.sections()[TodaySectionKind.SCHEDULED])
+            assertEquals(CompletionSnackbar.Failed(CompletionMessage.FAILED), vm.uiState.value.snackbar)
+            vm.dismiss(vm.uiState.value.snackbar!!)
+            assertNull(vm.uiState.value.snackbar)
+        }
+
+    @Test
+    fun `due today wins over scheduled earlier, and a future due date with a past schedule is scheduled`() {
+        assertEquals(TodaySectionKind.DUE, sectionOf(due.copy(scheduledDate = today.minusDays(4)), today))
+        assertEquals(
+            TodaySectionKind.SCHEDULED,
+            sectionOf(undated.copy(dueDate = today.plusDays(1), scheduledDate = today.minusDays(1)), today),
+        )
+        assertEquals(TodaySectionKind.OVERDUE, sectionOf(undated.copy(dueDate = today.minusDays(1)), today))
+    }
+
+    @Test
+    fun `the date rules follow the clock's day`() {
+        val lateEvening = Clock.fixed(Instant.parse("2026-10-20T23:30:00Z"), ZoneOffset.ofHours(2))
+        val vm = TodayViewModel(tasks, contexts, completion, lateEvening)
+        runTest(UnconfinedTestDispatcher()) {
+            backgroundScope.launch { vm.uiState.collect {} }
+            assertEquals(today.plusDays(1), vm.uiState.value.today)
+            assertEquals(listOf(overdue, due), vm.sections()[TodaySectionKind.OVERDUE])
+        }
     }
 }
