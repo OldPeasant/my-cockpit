@@ -51,6 +51,18 @@ class FilesBackupContributor(
 		files(paths) { all -> all.forEach { file -> blobs.open(file.storageKey).use { writer.file(file.record.path, it) } } }
 	}
 
+	/**
+	 * The paths below `files/` that the export gives the files [fileIds] (for links in other modules' readable mirrors,
+	 * e.g. note images); ids of files that do not exist are left out. Call it in the backup's transaction, so the paths
+	 * match the export.
+	 */
+	fun paths(fileIds: Set<UUID>): Map<UUID, String> {
+		if (fileIds.isEmpty()) return emptyMap()
+		return files(FolderPaths(folders())) { all ->
+			all.filter { it.record.id in fileIds }.associate { it.record.id to it.record.path }
+		}
+	}
+
 	override fun import(reader: BackupDataReader) {
 		val folders = reader.json<List<FolderBackup>>(FOLDERS).orEmpty()
 		// Parents first, for the foreign key.
