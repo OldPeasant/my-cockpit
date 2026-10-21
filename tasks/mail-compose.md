@@ -18,3 +18,4 @@ Compose, reply, forward (SPEC.md §7.3).
 
 ## Notes
 - ASSUMPTION (2026-10-21 10:47+0200 by dell26/agent-2): Drafts live only on the IMAP Drafts folder (no local draft table): each save APPENDs a new version and expunges the old one; all versions share one Message-ID so the header sync re-attaches the cached row and the draft id stays stable. ETag of a draft = IMAP UID of its current version.
+- ASSUMPTION (2026-10-21 10:47+0200 by dell26/agent-2): Reply/reply-all/forward are POST /api/v1/mail/messages/{id}/reply|reply-all|forward creating a draft server-side (quote, Re:/Fwd:, In-Reply-To/References, forwarded attachments); uploads go to POST /api/v1/mail/drafts/{id}/attachments (multipart), Files attachments by fileId; PUT /drafts/{id} with attachments omitted keeps the current ones.
