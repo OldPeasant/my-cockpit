@@ -10,7 +10,7 @@ import {
 import { MatButtonModule } from '@angular/material/button';
 import { MatDialog } from '@angular/material/dialog';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { ActivatedRoute, RouterLink } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { ItemRefDto, NoteResponse } from '../../../api/generated';
 import { ApiError } from '../../../core/http';
 import { itemTypeLabel, LinkedItems, LinksService } from '../../../shared/links';
@@ -50,6 +50,7 @@ export default class NoteEditorPage {
   private readonly service = inject(NoteEditorService);
   private readonly links = inject(LinksService);
   private readonly dialog = inject(MatDialog);
+  private readonly router = inject(Router);
 
   /** The note's id, from the route. */
   protected readonly id = signal('');
@@ -96,8 +97,8 @@ export default class NoteEditorPage {
 
   /** Counts the loads: a note that arrives after another one was opened is ignored. */
   private loadSeq = 0;
-  /** The note the route asks for last: while leaving waits, a newer route wins. */
-  private requested = '';
+  /** Counts the route changes: while leaving waits, a newer route wins. */
+  private openSeq = 0;
 
   constructor() {
     inject(ActivatedRoute)
@@ -122,14 +123,22 @@ export default class NoteEditorPage {
     }
   }
 
-  /** Shows the note `id`, after saving the edits of the one shown before (a chip to another note). */
+  /**
+   * Shows the note `id`, after saving the edits of the one shown before (a chip to another note).
+   * If the save fails (not a conflict: those edits are dropped), it stays on that note.
+   */
   private async open(id: string): Promise<void> {
-    this.requested = id;
+    const seq = ++this.openSeq;
     // Also back to the note shown while leaving it waits: the switch is cancelled, it stays.
     if (id === this.id()) return;
     if (this.note()) await this.leave();
-    // The route changed again while leaving waited.
-    if (id !== this.requested) return;
+    // The page was left or the route changed again while leaving waited.
+    if (this.destroyed || seq !== this.openSeq) return;
+    // The edits could not be saved: stay with them and the retry, and put the address back.
+    if (this.saveState() === 'error' && this.dirty()) {
+      void this.router.navigate(['/notes', this.id()], { replaceUrl: true });
+      return;
+    }
     this.id.set(id);
     this.note.set(null);
     this.linkInfo.set(new Map());

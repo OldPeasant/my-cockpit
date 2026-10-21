@@ -127,3 +127,66 @@ Remaining unresolved findings:
 ### Final status (TW-2 cycle)
 
 All validated findings fixed and validation passed.
+
+## CR-1 / CR-2 fix (third fix cycle)
+
+Date: 2026-10-21
+
+Scope: findings CR-1 (P2) and CR-2 (P3) from `reviews/web-notes-editor/review.md` (review of HEAD `48747768`, base `7ce21cc0`); changes limited to `web/src/app/features/notes/editor` as instructed by the parent worker.
+
+### CR-1 — Switching to another note after a save keeps failing drops the edits without any notice
+
+Files changed:
+- `web/src/app/features/notes/editor/note-editor-page.ts`
+- `web/src/app/features/notes/editor/note-editor-page.spec.ts`
+
+Problem:
+`open()` always went on to the new note after `leave()`. If the retry on leaving failed too, `show()` replaced the unsaved text of the first note and cleared the error banner, so the edits were lost silently.
+
+Fix:
+After `leave()`, if the page is in the `error` save state and still has unsaved edits, `open()` does not load the other note. It keeps the draft and the error banner with its retry, and puts the address back with `router.navigate(['/notes', id], { replaceUrl: true })`. The resulting route change calls `open()` for the note already shown, which returns early. The conflict case is unchanged: leaving in a conflict still drops the edits, as the recorded assumption says. Leaving the page (destroy) is unchanged. Test added: `stays on the note with its edits when the retry before opening another note fails too`. The other note is not requested, the text and the error banner with its retry stay, and the address goes back to the first note. A later successful retry then saves the first note with `If-Match "1"`.
+
+Validation:
+- `cd web && npx ng test --watch=false --include='src/app/features/notes/editor/**/*.spec.ts'` — Pass (97 tests). The new test fails on the code before the fix.
+
+### CR-2 — `open()` goes on loading the next note after the page was destroyed while leaving waited
+
+Files changed:
+- `web/src/app/features/notes/editor/note-editor-page.ts`
+- `web/src/app/features/notes/editor/note-editor-page.spec.ts`
+
+Problem:
+After `await this.leave()`, `open()` checked only that its id was still the last one requested. It did not check whether the page had been destroyed, and with an id instead of a sequence, A → B → A → B let both pending `open(B)` calls continue.
+
+Fix:
+`requested` is replaced by a counter, `openSeq`. Every `open()` call increments it, so after `leave()` only the latest call continues. `open()` also returns when `destroyed` is set. A → B → A behaves as before: `open(A)` while A is shown still increments the counter and returns, which cancels the pending switch. Test added: `does not open the other note when the page is left while leaving the first one waits`. The route goes A → B while leaving waits for an upload, then to another page. The image is still saved into A once, and no GET for B and no links request is sent.
+
+Validation:
+- `cd web && npx ng test --watch=false --include='src/app/features/notes/editor/**/*.spec.ts'` — Pass. The new test fails on the code before the fix.
+
+### Not fixed (third cycle)
+
+None.
+
+### Validation summary (third cycle)
+
+Focused tests:
+- `cd web && npx ng test --watch=false --include='src/app/features/notes/editor/**/*.spec.ts'` — Pass (5 files, 97 tests, including TW-2 and the existing switch/leave tests)
+- `cd web && npx eslint src/app/features/notes/editor --max-warnings=0` — Pass
+- `cd web && npx prettier --check src/app/features/notes/editor/` — Pass
+
+Full test suite:
+- `cd web && npm run check` (api:check, lint, e2e:typecheck, test:ci, build) — Pass (88 files, 1610 tests; build completes)
+
+Lint/type-check/build:
+- Included in `cd web && npm run check` — Pass
+
+`.taskcheck`:
+- Not run (the parent worker runs `sh scripts/check.sh`; the server and Android parts are unchanged)
+
+Remaining unresolved findings:
+0
+
+### Final status (third cycle)
+
+All validated findings fixed and validation passed.

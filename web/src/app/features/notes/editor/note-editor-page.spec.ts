@@ -810,6 +810,48 @@ describe('NoteEditorPage', () => {
     expect(root.querySelector('.banner[role=alert]')).toBeNull();
   });
 
+  it('stays on the note with its edits when the retry before opening another note fails too', async () => {
+    await open();
+    vi.useFakeTimers();
+    type('mine');
+    await vi.advanceTimersByTimeAsync(AUTOSAVE_DEBOUNCE_MS);
+    http
+      .expectOne((r) => r.method === 'PATCH')
+      .flush(null, { status: 503, statusText: 'Service Unavailable' });
+    await vi.advanceTimersByTimeAsync(0);
+
+    void harness.navigateByUrl(`/notes/${OTHER_ID}`);
+    await vi.advanceTimersByTimeAsync(0);
+    http
+      .expectOne((r) => r.url === URL && r.method === 'PATCH')
+      .flush(null, { status: 503, statusText: 'Service Unavailable' });
+    await vi.advanceTimersByTimeAsync(0);
+    await vi.advanceTimersByTimeAsync(0);
+    harness.detectChanges();
+
+    // The other note is not opened, and the address goes back to the first one.
+    http.expectNone((r) => r.url === `/api/v1/notes/${OTHER_ID}`);
+    expect(TestBed.inject(Router).url).toBe(`/notes/${ID}`);
+    root = harness.routeNativeElement as HTMLElement;
+    expect(editor().value()).toBe('mine');
+    expect(state()).toBe('Not saved');
+    expect(root.querySelector('.banner[role=alert] .retry')).not.toBeNull();
+
+    // A successful retry then saves the first note.
+    button('Try again').click();
+    await vi.advanceTimersByTimeAsync(0);
+    const retry = http.expectOne((r) => r.method === 'PATCH');
+    expect(retry.request.url).toBe(URL);
+    expect(retry.request.body.bodyMd).toBe('mine');
+    expect(retry.request.headers.get('If-Match')).toBe('"1"');
+    retry.flush(note({ bodyMd: 'mine', version: 2 }));
+    await vi.advanceTimersByTimeAsync(0);
+    harness.detectChanges();
+    expect(state()).toBe('Saved');
+    expect(root.querySelector('.banner[role=alert]')).toBeNull();
+    http.expectNone((r) => r.method === 'GET' && r.url.startsWith('/api/v1/notes/'));
+  });
+
   it('when leaving during several uploads, saves every image in place of its placeholder', async () => {
     await open(note({ bodyMd: 'Trip' }));
     const tent = pasteImage();
@@ -1003,6 +1045,33 @@ describe('NoteEditorPage', () => {
     const save = http.expectOne((r) => r.method === 'PATCH');
     expect(save.request.url).toBe(`/api/v1/notes/${OTHER_ID}`);
     expect(save.request.headers.get('If-Match')).toBe('"9"');
+  });
+
+  it('does not open the other note when the page is left while leaving the first one waits', async () => {
+    await open(note({ bodyMd: 'Trip' }));
+    const upload = pasteImage();
+    void harness.navigateByUrl(`/notes/${OTHER_ID}`);
+    await settle();
+    http
+      .expectOne((r) => r.url === URL && r.method === 'PATCH')
+      .flush(note({ bodyMd: 'Trip\n\n', version: 2 }));
+    await settle();
+    // Another page before the upload ends.
+    void harness.navigateByUrl('/elsewhere');
+    await settle();
+    expect(harness.routeNativeElement?.textContent).toBe('Elsewhere');
+    upload.flush(TENT);
+    await settle();
+    // The image is still saved into the first note.
+    const saves = http.match((r) => r.method === 'PATCH');
+    expect(saves.map((s) => [s.request.url, s.request.body.bodyMd])).toEqual([
+      [URL, `Trip\n${TENT.markdown}\n`],
+    ]);
+    saves[0].flush(note({ bodyMd: saves[0].request.body.bodyMd, version: 3 }));
+    await settle();
+    await settle();
+    http.expectNone((r) => r.url === `/api/v1/notes/${OTHER_ID}`);
+    http.expectNone((r) => r.url === '/api/v1/links');
   });
 
   /** In conflict on the first note, clicks `action` and opens the other note before it ends. */
