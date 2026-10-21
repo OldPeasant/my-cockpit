@@ -124,6 +124,47 @@ class ReminderReceiversTest {
     }
 
     @Test
+    fun `an alarm broadcast without a reminder id shows nothing`() {
+        graph.reminderScheduler().apply(listOf(reminder(1, minutes = 0)))
+
+        ReminderAlarmReceiver().onReceive(context, Intent(ReminderAlarmReceiver.ACTION_FIRE))
+
+        assertTrue(shadowOf(notifications).allNotifications.isEmpty())
+        assertTrue(graph.reminderStore().notifiedIds().isEmpty())
+    }
+
+    @Test
+    fun `an alarm broadcast with a foreign data uri shows nothing`() {
+        graph.reminderScheduler().apply(listOf(reminder(1, minutes = 0)))
+        val foreign =
+            Intent(ReminderAlarmReceiver.ACTION_FIRE)
+                .setData(android.net.Uri.fromParts("https", reminderId(1).toString(), null))
+
+        ReminderAlarmReceiver().onReceive(context, foreign)
+
+        assertTrue(shadowOf(notifications).allNotifications.isEmpty())
+    }
+
+    @Test
+    fun `after an app update the stored reminders get their alarms again`() {
+        graph.reminderStore().replaceScheduled(listOfNotNull(reminder(1, minutes = 30).toScheduled()))
+
+        ReminderRescheduleReceiver().onReceive(context, Intent(Intent.ACTION_MY_PACKAGE_REPLACED))
+
+        assertEquals(listOf(reminderId(1).toString()), alarmReminderIds(context))
+    }
+
+    @Test
+    fun `the alarm receiver is registered and not exported`() {
+        val info =
+            context.packageManager.getReceiverInfo(
+                android.content.ComponentName(context, ReminderAlarmReceiver::class.java),
+                0,
+            )
+        assertTrue(!info.exported)
+    }
+
+    @Test
     fun `the manifest registers the receivers for boot, update and the exact alarm permission`() {
         val pm = context.packageManager
         for (action in ReminderRescheduleReceiver.RESCHEDULE_ACTIONS) {

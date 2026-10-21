@@ -2,6 +2,7 @@ package ch.sonensei.cockpit.reminders
 
 import android.Manifest
 import android.app.Application
+import android.app.NotificationManager
 import android.content.Context
 import android.content.Intent
 import android.provider.Settings
@@ -29,6 +30,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.Shadows.shadowOf
+import org.robolectric.annotation.Config
 import org.robolectric.shadows.ShadowAlarmManager
 
 /** The permission prompt (shown in context, asking for what is missing) and opening the item of a tapped notification. */
@@ -95,6 +97,41 @@ class ReminderUiTest {
         composeRule.onNodeWithTag(ReminderPromptTags.CARD).assertIsDisplayed()
         composeRule.onNodeWithTag(ReminderPromptTags.ALLOW_NOTIFICATIONS).assertIsDisplayed()
         composeRule.onNodeWithTag(ReminderPromptTags.ALLOW_EXACT).assertIsDisplayed()
+    }
+
+    @Test
+    fun `with notifications allowed the prompt only asks for exact alarms`() {
+        shadowOf(context as Application).grantPermissions(Manifest.permission.POST_NOTIFICATIONS)
+        graph.reminderScheduler().apply(listOf(reminder(1, minutes = 30)))
+        showPrompt(viewModel())
+
+        composeRule.onNodeWithTag(ReminderPromptTags.CARD).assertIsDisplayed()
+        composeRule.onNodeWithTag(ReminderPromptTags.ALLOW_EXACT).assertIsDisplayed()
+        composeRule.onNodeWithTag(ReminderPromptTags.ALLOW_NOTIFICATIONS).assertDoesNotExist()
+    }
+
+    @Test
+    fun `with exact alarms allowed the prompt only asks for notifications`() {
+        ShadowAlarmManager.setCanScheduleExactAlarms(true)
+        graph.reminderScheduler().apply(listOf(reminder(1, minutes = 30)))
+        showPrompt(viewModel())
+
+        composeRule.onNodeWithTag(ReminderPromptTags.ALLOW_NOTIFICATIONS).assertIsDisplayed()
+        composeRule.onNodeWithTag(ReminderPromptTags.ALLOW_EXACT).assertDoesNotExist()
+    }
+
+    @Test
+    @Config(sdk = [30])
+    fun `before Android 13 the prompt asks only for notifications, which opens the app's notification settings`() {
+        shadowOf(context.getSystemService(NotificationManager::class.java)).setNotificationsEnabled(false)
+        graph.reminderScheduler().apply(listOf(reminder(1, minutes = 30)))
+        showPrompt(viewModel())
+
+        composeRule.onNodeWithTag(ReminderPromptTags.ALLOW_EXACT).assertDoesNotExist()
+        composeRule.onNodeWithTag(ReminderPromptTags.ALLOW_NOTIFICATIONS).performClick()
+
+        val started = shadowOf(composeRule.activity).nextStartedActivity
+        assertEquals(Settings.ACTION_APP_NOTIFICATION_SETTINGS, started.action)
     }
 
     @Test
@@ -196,6 +233,11 @@ class ReminderUiTest {
         assertFalse(ReminderOpenRequests.offer(Intent(Intent.ACTION_MAIN)))
         assertFalse(ReminderOpenRequests.offer(null))
         assertFalse(ReminderOpenRequests.offer(Intent(ReminderOpenRequests.ACTION_OPEN_ITEM)))
+        assertFalse(
+            ReminderOpenRequests.offer(
+                Intent(ReminderOpenRequests.ACTION_OPEN_ITEM).putExtra(ReminderOpenRequests.EXTRA_ITEM_TYPE, "TASK"),
+            ),
+        )
         assertNull(ReminderOpenRequests.requests.value)
     }
 

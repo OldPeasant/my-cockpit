@@ -169,6 +169,55 @@ class ReminderSchedulerTest {
     }
 
     @Test
+    fun `rescheduling skips reminders already notified`() {
+        scheduler.apply(listOf(reminder(1, minutes = 0), reminder(2, minutes = 30)))
+        scheduler.fire(reminderId(1).toString())
+        // A reboot drops all alarms.
+        scheduledAlarms(context).toList().forEach { alarmManager(context).cancel(it.operation!!) }
+
+        scheduler.rescheduleAll()
+
+        assertEquals(listOf(reminderId(2).toString()), alarmReminderIds(context))
+    }
+
+    @Test
+    fun `a notified reminder the server no longer lists is forgotten`() {
+        scheduler.apply(listOf(reminder(1, minutes = 0)))
+        scheduler.fire(reminderId(1).toString())
+        clock = Clock.offset(clock, Duration.ofMinutes(1))
+
+        scheduler.apply(emptyList())
+
+        assertTrue(scheduledAlarms(context).isEmpty())
+        assertTrue(store.scheduled.value.isEmpty())
+        assertTrue(store.notifiedIds().isEmpty())
+    }
+
+    @Test
+    fun `a notified reminder the server still lists stays notified until the server marks it fired`() {
+        scheduler.apply(listOf(reminder(1, minutes = 0)))
+        scheduler.fire(reminderId(1).toString())
+
+        scheduler.apply(listOf(reminder(1, minutes = 0)))
+
+        assertEquals(setOf(reminderId(1).toString()), store.notifiedIds())
+        assertNull(scheduler.fire(reminderId(1).toString()))
+    }
+
+    @Test
+    fun `a new earlier reminder takes the place of the latest one at the limit`() {
+        val many = (1..ReminderScheduler.MAX_ALARMS).map { reminder(it, minutes = 100L + it) }
+        scheduler.apply(many)
+
+        scheduler.apply(many + reminder(ReminderScheduler.MAX_ALARMS + 1, minutes = 5))
+
+        val ids = alarmReminderIds(context)
+        assertEquals(ReminderScheduler.MAX_ALARMS, ids.size)
+        assertTrue(reminderId(ReminderScheduler.MAX_ALARMS + 1).toString() in ids)
+        assertTrue("the latest loses its alarm", reminderId(ReminderScheduler.MAX_ALARMS).toString() !in ids)
+    }
+
+    @Test
     fun `the sync window ends a week from now`() {
         assertEquals(NOW.plus(Duration.ofDays(7)), scheduler.syncUntil())
     }
