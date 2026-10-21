@@ -15,7 +15,8 @@ Resumable weekly review (SPEC.md §8.6).
   - verified (2026-10-22 00:33+0200 by dell26/agent-1): WeeklyReviewWebTests + WeeklyReviewEdgeCaseTests over HTTP (MockMvc, Postgres Testcontainers) at 25e7d874b: weekly_review table (Flyway V202610221000) with step progress; start/resume/move step/complete (If-Match), status; step data endpoints /api/v1/weekly-reviews/steps/{stale-next-actions,waiting-for,projects (stalled first),someday,past-events,upcoming-events} -> all asserted, 36 passed
 - [x] `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.review.*'` passes (Postgres via Testcontainers where persistence is involved)
   - verified (2026-10-22 00:33+0200 by dell26/agent-1): cd server && ./gradlew ktlintCheck test --tests 'ch.sonensei.cockpit.review.*' jacocoTestReport (Postgres via Testcontainers) at 25e7d874b -> 36 passed, 0 failed, 0 skipped
-- [ ] API documented: `api/openapi.yaml` regenerated (`UPDATE_OPENAPI=1 ./gradlew test --tests '*OpenApiContractTest'`) and `OpenApiContractTest` passes without the flag
+- [x] API documented: `api/openapi.yaml` regenerated (`UPDATE_OPENAPI=1 ./gradlew test --tests '*OpenApiContractTest'`) and `OpenApiContractTest` passes without the flag
+  - verified (2026-10-22 00:33+0200 by dell26/agent-1): cd server && UPDATE_OPENAPI=1 ./gradlew test --tests '*OpenApiContractTest' (api/openapi.yaml regenerated, web client via npm run api:gen), then ./gradlew test --tests '*OpenApiContractTest' without the flag at 25e7d874b -> BUILD SUCCESSFUL
 
 ## Notes
 - ASSUMPTION (2026-10-22 00:21+0200 by dell26/agent-1): Stale next action = open task on the NEXT list whose updatedAt is more than 30 days ago (olderThanDays param, default 30); SPEC §8.6 does not define 'stale'
