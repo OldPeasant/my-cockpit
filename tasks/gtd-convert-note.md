@@ -1,11 +1,11 @@
 ---
 title: Convert task to reference note
-status: todo
-owner: 
+status: in_progress
+owner: dell26/agent-1
 deps: [notes-api,gtd-capture-api]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/gtd/convert,server/src/test/kotlin/ch/sonensei/cockpit/gtd/convert]
 prio: 2
-lease_until: 
+lease_until: 2026-10-21T04:38:31Z
 releases: 1
 extended: 
 ---
