@@ -328,6 +328,26 @@ class ProjectsScreenTest {
         composeRule.onNodeWithText("Scheduled", useUnmergedTree = true).assertIsDisplayed()
     }
 
+    @Test
+    fun `a project with a due date shows it next to the stalled badge`() {
+        val party =
+            GtdProject(id(16), "Plan the party", ProjectStatus.ACTIVE, stalled = true, version = 2, dueDate = LocalDate.of(2026, 11, 2))
+        show(list.copy(groups = groupByArea(listOf(party), listOf(home))))
+        composeRule.onNodeWithTag(ProjectsTags.stalled(party.id), useUnmergedTree = true).assertIsDisplayed()
+        composeRule.onNodeWithText("Due ", substring = true, useUnmergedTree = true).assertIsDisplayed()
+        composeRule.onNodeWithText("2026", substring = true, useUnmergedTree = true).assertIsDisplayed()
+    }
+
+    @Test
+    fun `a detail that could not load while offline says the server is unreachable and offers a retry`() {
+        show(list.copy(detail = ProjectDetailState(garden, loading = false, error = LoadError.OFFLINE)))
+        composeRule
+            .onNodeWithText("The server is unreachable, so this list could not be loaded. Try again when you are online.")
+            .assertIsDisplayed()
+        composeRule.onNodeWithTag(LiveListTags.RETRY).performClick()
+        assertEquals(listOf("retry"), calls)
+    }
+
     private companion object {
         const val TIMEOUT = 10_000L
     }
