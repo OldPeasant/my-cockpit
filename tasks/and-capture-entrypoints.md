@@ -13,7 +13,8 @@ releases: 1
 More ways to capture (SPEC.md §4.5).
 
 ## Acceptance criteria
-- [ ] Glance widget (text field → queue, pending count), quick-settings tile and static app shortcut opening the capture sheet
+- [~] Glance widget (text field → queue, pending count), quick-settings tile and static app shortcut opening the capture sheet
+  - skipped (2026-10-21 07:06+0200 by dell26/agent-1): no emulator/device here to check the real launcher widget, QS tile and long-press shortcut; the Robolectric tests cover each one (CaptureEntryPointsTest, CaptureEntrySurfacesTest, CaptureWidgetTest: widget renders the pending count and opens CaptureActivity, the tile opens the capture sheet, shortcuts.xml targets CaptureActivity), 35/35 pass at f321300e
 - [ ] `cd android && ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.capture.entry.*'` passes, covering widget state with pending count (Robolectric/Compose UI tests for screens)
 
 ## Notes
