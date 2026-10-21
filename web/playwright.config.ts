@@ -26,10 +26,12 @@ export default defineConfig({
   },
   projects: [
     // The phase demo scripts (SPEC.md §13.2) reset the stack, trigger the global login backoff and move the server
-    // clock, so they run on their own, before every other spec (`--no-deps` skips them).
+    // clock, so they run on their own, before every other spec (`--no-deps` skips them), one at a time and in phase
+    // order.
     {
       name: 'phase-demos',
       testMatch: /phase\d+\/.*\.spec\.ts$/,
+      workers: 1,
       use: { ...devices['Desktop Chrome'] },
     },
     {
