@@ -35,6 +35,8 @@ data class ApiTask(
     val list: String,
     val dueDate: LocalDate?,
     val scheduledDate: LocalDate?,
+    val notesMd: String? = null,
+    val projectId: String? = null,
 )
 
 /** A project as the web sees it (`GET /api/v1/projects`). */
@@ -200,6 +202,8 @@ class E2eStack(
             list = string("list")!!,
             dueDate = string("dueDate")?.let(LocalDate::parse),
             scheduledDate = string("scheduledDate")?.let(LocalDate::parse),
+            notesMd = string("notesMd"),
+            projectId = string("projectId"),
         )
 
     private fun JsonObject.string(name: String): String? = (this[name] as? JsonPrimitive)?.takeUnless { it is JsonNull }?.content

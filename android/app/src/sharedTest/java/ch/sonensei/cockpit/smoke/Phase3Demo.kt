@@ -35,7 +35,9 @@ import ch.sonensei.cockpit.MainActivity
 import ch.sonensei.cockpit.auth.LoginTags
 import ch.sonensei.cockpit.capture.entry.CaptureActivity
 import ch.sonensei.cockpit.capture.queue.CaptureQueue
+import ch.sonensei.cockpit.capture.queue.CaptureQueueDao
 import ch.sonensei.cockpit.capture.queue.CaptureSyncScheduler
+import ch.sonensei.cockpit.capture.queue.PendingCapture
 import ch.sonensei.cockpit.capture.queue.WorkManagerCaptureSyncScheduler
 import ch.sonensei.cockpit.capture.share.ShareActivity
 import ch.sonensei.cockpit.capture.share.ShareTags
@@ -123,12 +125,17 @@ abstract class Phase3Demo {
 
     @Inject lateinit var captureSync: CaptureSyncScheduler
 
+    @Inject lateinit var captureDao: CaptureQueueDao
+
     @Inject lateinit var reminderSync: ReminderSync
 
     protected val context: Context get() = ApplicationProvider.getApplicationContext()
     private lateinit var stack: E2eStack
     private lateinit var account: E2eAccount
     private lateinit var taxReturn: ApiTask
+
+    /** The 3 captures as queued offline (step 2), with the client ids `POST /capture` gets. */
+    private lateinit var queued: List<PendingCapture>
     private val scenarios = mutableListOf<ActivityScenario<*>>()
 
     @Before
@@ -218,6 +225,7 @@ abstract class Phase3Demo {
 
         assertEquals("pending count (widget and sheet show it)", 3, pendingCount())
         assertTrue("nothing reached the server offline", stack.tasks(list = "INBOX").isEmpty())
+        queued = runBlocking { captureDao.sendable() }
     }
 
     /** 3. Network back: within a minute all 3 are in the Inbox, the photo attached. Syncing again adds nothing. */
@@ -226,15 +234,28 @@ abstract class Phase3Demo {
 
         val inbox = eventually(SYNC_WAIT_MS, "all 3 captures in the Inbox") { stack.tasks(list = "INBOX").takeIf { it.size >= 3 } }
         assertEquals(listOf("Holiday ideas", "Receipt", "Pay rent"), inbox.map { it.title })
-        val photoFile = stack.linkedFiles(inbox.single { it.title == "Receipt" }.id).single()
+        assertEquals("the shared URL kept with the page title", "https://example.org/holiday", inbox[0].notesMd?.trim())
+        assertEquals("tasks created under the client ids", queued.map { it.capture.id }, inbox.map { it.id })
+        val receipt = inbox.single { it.title == "Receipt" }
+        val photoFile = stack.linkedFiles(receipt.id).single()
         assertArrayEquals("the photo as shared", PHOTO, stack.fileContent(photoFile))
         eventually(WAIT_MS, "queue empty") { pendingCount().takeIf { it == 0 } }
 
+        // Re-running the sync as after a lost answer: the server got everything (the photo too) but the app kept the
+        // captures, so the job sends all 3 again with their client ids.
+        runBlocking {
+            queued.forEach { (capture, attachments) ->
+                captureDao.insert(capture, attachments.map { it.copy(remoteFileId = photoFile) })
+            }
+        }
+        assertEquals("captures queued again", 3, pendingCount())
         runBlocking { captureSync.schedule() }
         device.runQueuedWork()
         eventually(SYNC_WAIT_MS, "second sync finished") { captureWorkFinished().takeIf { it } }
+        eventually(WAIT_MS, "queue empty after the second sync") { pendingCount().takeIf { it == 0 } }
         assertEquals("no duplicates after another sync", inbox.map { it.id }, stack.tasks(list = "INBOX").map { it.id })
         assertEquals("no other new tasks", 4, stack.tasks().size)
+        assertEquals("the photo linked once", listOf(photoFile), stack.linkedFiles(receipt.id))
     }
 
     /** 4. Process the Inbox on the phone; Next, Today and Projects show what the web shows. */
@@ -279,6 +300,7 @@ abstract class Phase3Demo {
 
         val projects = stack.projects().filter { it.status != "COMPLETED" && it.status != "DROPPED" }
         assertEquals(listOf("Holiday"), projects.map { it.title })
+        assertEquals("Holiday ideas is the new project's step", projects.single().id, next.single { it.title == "Holiday ideas" }.projectId)
         openMoreItem("Projects")
         projects.forEach { project ->
             val tag = ProjectsTags.project(UUID.fromString(project.id))
