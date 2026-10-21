@@ -164,8 +164,13 @@ export class InboxPage {
     }
     this.promptDate.set(action === 'schedule' || action === 'tickler' ? this.tomorrow() : '');
     this.promptText.set('');
+    // The project named in the capture (`#project`) is offered first while it is open.
+    const captured = this.openProjects().find((project) => project.id === task.projectId);
     this.promptProject.set(
-      this.createdProjects.get(task.id) ?? this.openProjects()[0]?.id ?? NEW_PROJECT,
+      this.createdProjects.get(task.id) ??
+        captured?.id ??
+        this.openProjects()[0]?.id ??
+        NEW_PROJECT,
     );
     this.prompt.set(action);
   }
@@ -277,6 +282,10 @@ export class InboxPage {
         }
         await move({ list: 'NEXT', projectId });
         this.createdProjects.delete(task.id);
+        // A project without a next step (e.g. a new one) gets the item as its next step. The item
+        // has moved even when that fails: the project then stays stalled and the HTTP layer says why.
+        const project = this.projects.find(projectId);
+        if (project?.stalled) await this.projects.setNextStep(project, task.id).catch(ignore);
         return;
       }
       default:

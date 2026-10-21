@@ -13,6 +13,7 @@ import {
   listTasks,
   moveTask,
   ProjectResponse,
+  setProjectNextStep,
   TaskResponse,
   updateTask,
 } from '../../../api/generated';
@@ -269,6 +270,87 @@ describe('InboxPage', () => {
 
     expect(callsOf(createProject)[0].params['body']).toEqual({ title: 'Plan the trip' });
     expect(callsOf(moveTask)[0].params['body']).toEqual({ list: 'NEXT', projectId: 'p2' });
+  });
+
+  it('makes the item the next step of a project without one', async () => {
+    const stalled = { id: 'p3', title: 'Holiday', status: 'ACTIVE', stalled: true, version: 4 };
+    answer = (fn) => {
+      if (fn === listProjects) return Promise.resolve({ items: [KITCHEN, stalled] });
+      if (fn === setProjectNextStep) return Promise.resolve({ ...stalled, stalled: false });
+      return undefined;
+    };
+    await render([task('t1', { projectId: 'p3' })]);
+    await press('p');
+    await press('p');
+    // The project of the capture is preselected.
+    expect(element.querySelector<HTMLSelectElement>('.prompt select')!.value).toBe('p3');
+    element.querySelector<HTMLFormElement>('.prompt')!.requestSubmit();
+    await refresh();
+
+    expect(callsOf(moveTask)[0].params['body']).toEqual({ list: 'NEXT', projectId: 'p3' });
+    expect(callsOf(setProjectNextStep)[0].params).toMatchObject({
+      id: 'p3',
+      'If-Match': '"4"',
+      body: { taskId: 't1' },
+    });
+    expect(element.textContent).toContain('Inbox zero.');
+  });
+
+  it('makes the item the next step of its new project', async () => {
+    answer = (fn, params) => {
+      if (fn === createProject) {
+        const body = params['body'] as { title: string };
+        return Promise.resolve({ id: 'p2', title: body.title, status: 'ACTIVE', stalled: true });
+      }
+      if (fn === setProjectNextStep) return Promise.resolve({ id: 'p2', stalled: false });
+      return undefined;
+    };
+    await render([task('t1')]);
+    await press('p');
+    await press('p');
+    const select = element.querySelector<HTMLSelectElement>('.prompt select')!;
+    select.value = '';
+    select.dispatchEvent(new Event('change'));
+    await refresh();
+    const name = element.querySelector<HTMLInputElement>('.prompt input[type=text]')!;
+    name.value = 'Holiday';
+    name.dispatchEvent(new Event('input'));
+    element.querySelector<HTMLFormElement>('.prompt')!.requestSubmit();
+    await refresh();
+
+    expect(callsOf(setProjectNextStep)[0].params).toMatchObject({
+      id: 'p2',
+      body: { taskId: 't1' },
+    });
+  });
+
+  it('keeps the next step of a project that has one', async () => {
+    await render([task('t1')]);
+    await press('p');
+    await press('p');
+    element.querySelector<HTMLFormElement>('.prompt')!.requestSubmit();
+    await refresh();
+
+    expect(callsOf(moveTask)).toHaveLength(1);
+    expect(callsOf(setProjectNextStep)).toHaveLength(0);
+  });
+
+  it('counts the item as processed when setting the next step fails', async () => {
+    const stalled = { id: 'p3', title: 'Holiday', status: 'ACTIVE', stalled: true, version: 1 };
+    answer = (fn) => {
+      if (fn === listProjects) return Promise.resolve({ items: [stalled] });
+      if (fn === setProjectNextStep) return Promise.reject(new Error('offline'));
+      return undefined;
+    };
+    await render([task('t1'), task('t2')]);
+    await press('p');
+    await press('p');
+    element.querySelector<HTMLFormElement>('.prompt')!.requestSubmit();
+    await refresh();
+
+    expect(callsOf(setProjectNextStep)).toHaveLength(1);
+    expect(title()).toBe('Item t2');
+    expect(left()).toBe('1 item left');
   });
 
   it('Escape cancels a prompt, then leaves the processing mode', async () => {
