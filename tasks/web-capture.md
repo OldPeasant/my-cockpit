@@ -13,7 +13,8 @@ Capture from anywhere (SPEC.md §4.5), provided through the shell's `CAPTURE_DIA
 ## Acceptance criteria
 - [x] Dialog: text field with live syntax preview (debounced `capture/preview`), optional notes, paste/drop attachment placeholder (files arrive in phase 2), Enter saves to Inbox and closes, Shift+Enter saves and keeps open
   - verified (2026-10-21 02:21+0200 by dell26/agent-2): capture-dialog.spec.ts (Vitest, ng test --include capture) covers debounced silent capture/preview + stale/out-of-order handling, notes, paste/drop placeholder, Enter=save+close, Shift+Enter=save+keep open -> 52 passed; npm run e2e -- e2e/capture/capture.spec.ts (podman compose e2e stack) exercises Q, typing, Enter/Shift+Enter -> passed
-- [ ] Client generates a UUIDv7 `id` so a retried submit cannot duplicate
+- [x] Client generates a UUIDv7 `id` so a retried submit cannot duplicate
+  - verified (2026-10-21 02:21+0200 by dell26/agent-2): uuidv7.spec.ts (version/variant/ordering) + capture-dialog.spec.ts 'retry resends same id', new id after success -> pass (ng test --include capture: 52 passed)
 - [ ] Vitest component/service tests cover preview, save, double-submit protection; `cd web && npm run check` passes
 - [ ] Playwright `e2e/capture/capture.spec.ts` passes against the e2e stack (`npm run e2e -- e2e/capture/capture.spec.ts`, see p0-e2e-harness): Q opens the dialog, three captures appear in the inbox
 
