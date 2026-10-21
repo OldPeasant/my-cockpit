@@ -451,8 +451,8 @@ class MailGtdWebTests(
 
 		linkedEnds("NOTE", result["id"].asString()).single()["id"].asString() shouldBe mail.id.toString()
 		val body = getJson("/api/v1/notes/${result["id"].asString()}")["bodyMd"].asString()
-		body shouldContain "**From:** Grace \\[ [x]] <grace@example.test>"
-		body shouldEndWith "A \\[\\[b]] https://example.test/e\n[\\[task:$other]]\\"
+		body shouldContain "**From:** Grace ∖[ [x]] <grace@example.test>"
+		body shouldEndWith "A ∖[∖[b]] https://example.test/e\n[∖[task:$other]]\\"
 		body shouldNotContain "[["
 	}
 
@@ -480,10 +480,10 @@ class MailGtdWebTests(
 		linkedEnds("NOTE", result["id"].asString()).single()["id"].asString() shouldBe mail.id.toString()
 		val body = getJson("/api/v1/notes/${result["id"].asString()}")["bodyMd"].asString()
 		body shouldNotContain "[["
-		body shouldContain "**From:** Doe\\, Grace [\\[task:$other]] **x** <grace@example.test>"
-		body shouldContain "**Cc:** \\[ [note:$other]]\\ <erin@example.test>"
-		body shouldContain "Escaped \\[\\[task:$other]] and [\\[note:$other]] and \\\\[ [task:$other]] stay text."
-		body shouldContain "[ [ [ [ ]] \\\\"
+		body shouldContain "**From:** Doe∖, Grace [∖[task:$other]] **x** <grace@example.test>"
+		body shouldContain "**Cc:** ∖[ [note:$other]]\\ <erin@example.test>"
+		body shouldContain "Escaped ∖[∖[task:$other]] and [∖[note:$other]] and ∖∖[ [task:$other]] stay text."
+		body shouldContain "[ [ [ [ ]] ∖\\"
 	}
 
 	@Test
