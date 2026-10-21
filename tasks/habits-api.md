@@ -5,7 +5,7 @@ owner: dell26/agent-2
 deps: [p0-items-links,reminders-core]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/journal/habits,server/src/test/kotlin/ch/sonensei/cockpit/journal/habits,server/src/main/resources/db/migration/journal/habits]
 prio: 3
-lease_until: 2026-10-21T20:13:27Z
+lease_until: 2026-10-21T20:18:30Z
 ---
 ## Goal
 Habits with streaks (SPEC.md §8.5).
