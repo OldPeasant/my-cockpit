@@ -159,8 +159,11 @@ export class TaskDetail {
       )
       .subscribe((event) => {
         if (event.op === 'DELETED') this.state.set('deleted');
-        // Someone else changed it: show the new version unless the user is editing.
-        else if (!this.dirty() && !this.saving()) void this.load(this.taskId(), 'background');
+        // Someone else changed it: show the new version unless the user is editing or the task
+        // is turning into a note.
+        else if (!this.dirty() && !this.saving() && !this.converting()) {
+          void this.load(this.taskId(), 'background');
+        }
       });
     inject(DestroyRef).onDestroy(() => clearTimeout(this.savedTimer));
   }

@@ -1287,6 +1287,30 @@ describe('TaskDetail', () => {
       expect(navigate).toHaveBeenCalledTimes(1);
     });
 
+    it('does not reload on a change event while the conversion runs', async () => {
+      vi.spyOn(window, 'confirm').mockReturnValue(true);
+      let release!: () => void;
+      await render();
+      // The task is already in the Trash on the server: a reload would answer 404.
+      answer = (fn) => {
+        if (fn === getTask) return Promise.reject(new ApiError(404, 'Not Found'));
+        if (fn === convertTaskToNote) return new Promise((resolve) => (release = () => resolve(NOTE)));
+        return undefined;
+      };
+
+      await toReference();
+      events.next({ type: 'TASK', id: 't1', op: 'UPDATED' } as ChangeEvent);
+      await refresh();
+
+      expect(callsOf(getTask)).toHaveLength(1);
+      expect(text()).not.toContain('This task does not exist or is in the Trash.');
+      expect(field<HTMLTextAreaElement>('#td-title')).not.toBeNull();
+
+      release();
+      await refresh();
+      expect(navigate).toHaveBeenCalledWith(['/notes', 'n1']);
+    });
+
     it('cannot convert while a save is running', async () => {
       const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true);
       let release!: () => void;

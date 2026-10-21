@@ -624,6 +624,26 @@ describe('InboxPage', () => {
       expect(title()).toBe('Item t2');
     });
 
+    it('forgets the offered note once a later item gets another action, not when it fails', async () => {
+      await render([task('t1'), task('t2'), task('t3')]);
+      await press('p');
+      await press('r');
+      expect(openNote()?.getAttribute('href')).toBe('/notes/n-t1');
+
+      answer = (fn) => (fn === moveTask ? Promise.reject(new Error('409')) : undefined);
+      await press('n');
+      // The move failed: the note link still describes the last thing that happened.
+      expect(title()).toBe('Item t2');
+      expect(openNote()?.getAttribute('href')).toBe('/notes/n-t1');
+
+      answer = undefined;
+      await press('n');
+
+      expect(callsOf(moveTask).at(-1)!.params).toMatchObject({ id: 't2' });
+      expect(title()).toBe('Item t3');
+      expect(moved()).toBeNull();
+    });
+
     it('brings a failed conversion back as the current item, without a note link', async () => {
       await render([task('t1'), task('t2')]);
       answer = (fn) => (fn === convertTaskToNote ? Promise.reject(new Error('412')) : undefined);

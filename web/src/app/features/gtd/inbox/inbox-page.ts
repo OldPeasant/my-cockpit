@@ -243,6 +243,8 @@ export class InboxPage {
         const base = Object.keys(patch).length ? await this.tasks.update(task, patch) : task;
         await this.apply(action, base, value);
       }
+      // The "Moved to reference" status describes only the latest action.
+      if (action !== 'reference') this.lastNote.set(null);
       this.processed.update((count) => count + 1);
     } catch {
       // Rolled back by the store; the HTTP layer shows the error.
