@@ -128,3 +128,85 @@ Remaining unresolved findings:
 ## Final status
 
 No valid findings required code changes. All six findings (CR-1 to CR-6) are already fixed in c1e66634, and validation passed.
+
+---
+
+# Fix Report - round 2 (second review)
+
+Date: 2026-10-21
+
+Task: cal-microsoft - Microsoft Graph calendar adapter
+
+Scope: current task; findings CR-1 (P2) and CR-2 (P3) of the second `reviews/cal-microsoft/review.md` (HEAD d6768df0 at review time), limited to `server/src/main/kotlin/ch/sonensei/cockpit/calendar/infra/microsoft` and `server/src/test/kotlin/ch/sonensei/cockpit/calendar/infra/microsoft`. Task base commit 0a701f27cd0e4db92d84a54985f0f5ce2ae0c04d, task commits 2100078c..321a89e2, checked at HEAD ca44d5c4.
+
+Note: when the fixer started, commit 321a89e2 (an earlier session's work, not yet reviewed) already had the code changes and regression tests for both findings. The fixer checked them against the findings and the engine's write order (`CalendarWriteThrough`: master first, then the overrides with `ifMatch = override.externalEtag`). It also ran the formatter, lint and the focused tests. Nothing needed correcting, so the fixer made no further code changes.
+
+## Fixed findings
+
+### CR-1 - A series (ALL) pattern change failed with 409 when the series had overrides (fixed in 321a89e2)
+
+Files changed:
+- `server/src/main/kotlin/ch/sonensei/cockpit/calendar/infra/microsoft/MicrosoftCalendarAdapter.kt`
+- `server/src/test/kotlin/ch/sonensei/cockpit/calendar/infra/microsoft/MicrosoftCalendarAdapterTests.kt`
+- `server/src/test/kotlin/ch/sonensei/cockpit/calendar/infra/microsoft/MicrosoftCalendarSyncTests.kt`
+
+Problem:
+When the master's `recurrence` is patched, Exchange resets the series' exceptions, and `restoreExceptions` then re-patches them. Either way, every such instance gets a new etag. The engine's next write of the override then compared or sent the exception's old etag. With an empty diff, the adapter threw `RemoteEventChangedException`. Otherwise Graph answered 412. So the client got a false 409, even though Microsoft had already applied the change.
+
+Fix (both options the review suggested, combined):
+- An empty diff now succeeds whatever the etag. When Graph already has every field the cockpit would send, `updateEvent` (master) and `writeInstance` (occurrence) send nothing and return Graph's current version with its etag. This loses nothing at Microsoft: any field the cockpit maps that changed remotely makes the diff non-empty, and the PATCH then still goes out with the caller's `If-Match`. KDoc on the class and on `writeInstance` describes this.
+- `RestoredEtags` is a new private, bounded (1000 entries), synchronized in-memory map. For each instance `restoreExceptions` patched back (or found already identical to the exception), it records the instance's new etag together with the exception's etag from before. `writeInstance` sends the instance's current etag as `If-Match` only when the caller's `ifMatch` equals that recorded old etag and Graph's instance still has the recorded new etag. In every other case it sends the caller's etag, so a real change at Microsoft still gives 412 and then 409. The entry is dropped after a successful PATCH or DELETE. The same mechanism covers the review's side note: overrides restored by a FOLLOWING split can be edited before the next sync without a false 409. If the entry is lost (restart, eviction), the behavior is the same as before: a spurious 409 until the next sync.
+- `restoreExceptions` now also records instances that Graph kept as `exception` with identical fields (empty diff). Instances Graph kept as `exception` but with different fields are still left alone.
+
+Tests:
+- Sync test (engine + WireMock + Postgres): `changing the pattern of a whole series with an exception succeeds, the exception keeps Graph's new etag`. An ALL PATCH (`title` + `rrule` with UNTIL) on AAMkSeries1, which has the moved 19 October exception in the window. The API call ends in 200. The writes are exactly `PATCH .../AAMkSeries1` and `PATCH .../AAMkSeries1-20261019` (the restore), with no extra override write. The master has the new title, rule and etag. The override keeps its title and gets Graph's new etag `W/"restored"`.
+- Adapter tests: `after a pattern change, an override is written against the exception Graph put back - empty diff or not` (empty diff: no PATCH and etag `restored`; renamed: PATCH with `If-Match: W/"restored"`); `after a pattern change, an override with an etag other than the exception's still is a change at Microsoft` (stale etag: sent unchanged, 412 becomes `RemoteEventChangedException`); `a changed occurrence with a stale etag is sent with it, and Graph's 412 is a change at Microsoft`. The two "unchanged ... whatever the etag" tests now expect success with Graph's etag instead of a refusal. The finding called for this behavior change, and stale etags with real changes are still refused (tests above).
+
+Validation:
+- `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.calendar.infra.microsoft.*' -Pkotlin.daemon.jvmargs=-Xmx3g` - Pass
+
+### CR-2 - A series deleted at Microsoft gave 502 instead of "changed remotely" (fixed in 321a89e2)
+
+Files changed:
+- `server/src/main/kotlin/ch/sonensei/cockpit/calendar/infra/microsoft/MicrosoftCalendarAdapter.kt`
+- `server/src/test/kotlin/ch/sonensei/cockpit/calendar/infra/microsoft/MicrosoftCalendarAdapterTests.kt`
+
+Problem:
+`instances()` passed a 404 from `/instances` (the series is gone) to `expectOk`, which made it a `CalendarProviderException` (502) on every path through `findInstance`.
+
+Fix:
+New `instancesOrNull` returns null on 404. `instances()` keeps its old behavior on top of it: it is used by `restoreExceptions` and the pre-PATCH exception read, where the master was just read successfully. `findInstance` returns null when either lookup (the weeks around the occurrence, or the whole window) gets 404, and does not query the whole window after a 404. As a result, `updateEvent` of an occurrence (including a cancelled override) throws `RemoteEventChangedException` (409 plus refetch), `deleteEvent` with a recurrence id returns null (already gone, so it succeeds), and `createEvent` of an override fails as before with "Microsoft has no such occurrence".
+
+Tests:
+- WireMock test with a 404 from `/instances`: `a series gone at Microsoft has no occurrences - delete succeeds, change is a change at Microsoft`. Delete returns null, change and cancel raise `RemoteEventChangedException`, and create raises `CalendarProviderException`. It checks exactly 4 `/instances` GETs (one per call, no whole-window retry) and no PATCH or DELETE.
+
+Validation:
+- `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.calendar.infra.microsoft.*' -Pkotlin.daemon.jvmargs=-Xmx3g` - Pass
+
+## Not fixed
+
+None.
+
+## Validation summary
+
+Focused tests:
+- `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.calendar.infra.microsoft.*'` - the first two attempts failed in `:compileTestKotlin` with "Not enough memory to run compilation" (machine under load, about 2 GB free). After `./gradlew --stop`, the run with `-Pkotlin.daemon.jvmargs=-Xmx3g` (a command-line property only, no configuration changed) gave BUILD SUCCESSFUL. JUnit results from 2026-10-21T12:22Z: GraphEventMappingTests 44, GraphRecurrenceTests 37, MicrosoftCalendarAdapterTests 59, MicrosoftCalendarSyncTests 5 (Postgres via Testcontainers), WindowsZonesTests 20. Total 165 tests, 0 failures, 0 errors, 0 skipped. The new tests for CR-1 and CR-2 named above are in the results.
+
+Full test suite:
+- Not run by the fixer (left to the parent worker's `sh scripts/check.sh`).
+
+Lint/type-check/build:
+- `cd server && ./gradlew ktlintFormat` - no files changed
+- `cd server && ./gradlew ktlintCheck` - Pass
+- detekt - Not applicable (the server build has no detekt task)
+- Kotlin compile - Pass (the remaining compiler warnings are in files outside this task)
+
+`.taskcheck`:
+- Not run (left to the parent worker before `done`)
+
+Remaining unresolved findings:
+0
+
+## Final status
+
+No valid findings required code changes. CR-1 and CR-2 of the second review are fixed in 321a89e2, and the focused validation passed. The changed code has not been reviewed yet, so test-writer and code-reviewer must run again on it. The parent may want to record the behavior "an empty diff succeeds whatever the etag; restored-exception etags are tracked in memory only" with `tasks.py assume`.
