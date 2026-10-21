@@ -1,0 +1,30 @@
+{
+  "schema": 1,
+  "task": "p2-smoke",
+  "reviewed_revision": "19092c54e76f4a20dfd2c219a910e94d9616b13e",
+  "helpers": {
+    "test-writer": {"status": "completed", "report": "reviews/p2-smoke/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/p2-smoke/review.md"},
+    "fixer": {"status": "completed", "report": "reviews/p2-smoke/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "step 5 skips with the recreate command when server-fresh is already set up; README documents server-fresh as single-use"},
+    {"id": "CR-2", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "'not included' matched exactly"},
+    {"id": "TW-1", "source": "test-writer", "severity": "Low", "disposition": "accepted",
+     "note": "both servers share the fictitious COCKPIT_MASTER_KEY like a real redeploy; phase 1-2 data has no secrets encrypted with it"},
+    {"id": "TW-2", "source": "test-writer", "severity": "Low", "disposition": "fixed",
+     "note": "same as CR-1"},
+    {"id": "TW-3", "source": "test-writer", "severity": "Low", "disposition": "accepted",
+     "note": "run-e2e.mjs and e2e README edited outside touches; recorded as a task assumption"},
+    {"id": "TW-4", "source": "test-writer", "severity": "Low", "disposition": "accepted",
+     "note": "skip cannot tell a kept-stack re-run from a non-fresh server in npm run e2e; run-e2e.mjs always runs down -v and postgres-fresh is tmpfs, so the normal flow is always fresh"}
+  ],
+  "validation": [
+    {"command": "npm --prefix web run e2e -- --project=phase-demos (podman-compose e2e stack incl. server-fresh, chromium)", "result": "pass"},
+    {"command": "npm --prefix web run e2e:typecheck && npx --prefix web eslint web/e2e", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
