@@ -5,7 +5,7 @@ owner: dell26/agent-1
 deps: [and-gtd-data]
 touches: [android/app/src/main/java/ch/sonensei/cockpit/gtd/next,android/app/src/test/java/ch/sonensei/cockpit/gtd/next,android/app/src/main/java/ch/sonensei/cockpit/gtd/today,android/app/src/test/java/ch/sonensei/cockpit/gtd/today]
 prio: 1
-lease_until: 2026-10-21T09:02:29Z
+lease_until: 2026-10-21T09:07:33Z
 ---
 ## Goal
 Next actions with filters and Today (SPEC.md §5.3).
