@@ -1,0 +1,24 @@
+{
+  "schema": 1,
+  "task": "review-api",
+  "reviewed_revision": "e470880d5859c50a2e12bca656e8893a794ef41a",
+  "helpers": {
+    "test-writer": {"status": "completed", "report": "reviews/review-api/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/review-api/review.md"},
+    "fixer": {"status": "completed", "report": "reviews/review-api/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "stale-next-actions 200 response declared application/json; OpenAPI and web client regenerated"},
+    {"id": "CR-2", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "projects step keeps the Projects view (database collation) order within stalled/other groups; test added"},
+    {"id": "CR-3", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "concurrent-start race and one-open-review index covered by WeeklyReviewEdgeCaseTests; re-review marks it resolved"}
+  ],
+  "validation": [
+    {"command": "cd server && ./gradlew ktlintCheck test --tests 'ch.sonensei.cockpit.review.*' jacocoTestReport", "result": "pass"},
+    {"command": "UPDATE_OPENAPI=1 ./gradlew test --tests '*OpenApiContractTest', then without the flag", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
