@@ -233,6 +233,16 @@ class IcsParserTests {
 	}
 
 	@Test
+	fun `a parameter name may end at the colon, a line that ends inside its parameters is skipped`() {
+		val event = single("BEGIN:VEVENT\r\nX-A;FLAG:value\r\nX-B;FLAG\r\nX-C;X-P=open\r\nSUMMARY:Kept\r\nEND:VEVENT")
+
+		val property = event.first("X-A").shouldNotBeNull()
+		property.parameters shouldBe mapOf("FLAG" to "")
+		property.value shouldBe "value"
+		event.properties.map { it.name } shouldContainExactly listOf("X-A", "SUMMARY")
+	}
+
+	@Test
 	fun `param of a missing parameter is null`() {
 		single("BEGIN:VEVENT\r\nSUMMARY:Plain\r\nEND:VEVENT").first("SUMMARY")?.param("TZID").shouldBeNull()
 	}

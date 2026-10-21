@@ -516,6 +516,27 @@ class IcsFeedClientTests {
 	}
 
 	@Test
+	fun `IPv6 link-local and IPv4-mapped metadata addresses are refused`() {
+		for (address in listOf(InetAddress.getByName("fe80::1"), InetAddress.getByName("::ffff:169.254.169.254"))) {
+			refused { IcsFeedClient(properties(), resolving(address)).fetch("$base$FEED", null) }
+				.message!! shouldContain "not a public internet address"
+		}
+		wireMock.verify(0, anyRequestedFor(anyUrl()))
+	}
+
+	@Test
+	fun `numeric encodings of the loopback address are refused by the default resolver`() {
+		serve()
+		val client = IcsFeedClient(properties())
+
+		// 2130706433 and 127.1 are 127.0.0.1 written differently; hex is not an address Java reads, so it is no host.
+		for (host in listOf("2130706433", "127.1", "0x7f000001")) {
+			refused { client.fetch("http://$host:${wireMock.port()}$FEED", null) }
+		}
+		wireMock.verify(0, anyRequestedFor(anyUrl()))
+	}
+
+	@Test
 	fun `a host with a public and a private address is refused`() {
 		val client = IcsFeedClient(properties(), resolving(publicAddress, address(10, 0, 0, 7)))
 
