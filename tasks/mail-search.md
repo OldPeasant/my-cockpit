@@ -13,7 +13,8 @@ extended:
 Find mail (SPEC.md §7.3).
 
 ## Acceptance criteria
-- [ ] Cached headers and bodies indexed in search_document; `GET /api/v1/mail/search?q=&server=true` additionally runs IMAP SEARCH on the server
+- [x] Cached headers and bodies indexed in search_document; `GET /api/v1/mail/search?q=&server=true` additionally runs IMAP SEARCH on the server
+  - verified (2026-10-22 01:48+0200 by dell26/agent-1): server/gradlew -p server test --tests 'ch.sonensei.cockpit.mail.*' (MailSearchWebTests on Postgres Testcontainers: header indexing on sync, body indexing on load, server=true merges IMAP SEARCH hits, failures reported) -> 1146 tests incl. OpenApiContractTest, 0 failures; server/gradlew -p server integrationTest --tests '*MailSearchGreenMailTests' (real IMAP UID SEARCH against GreenMail, UTF-8 word, uncached old message found only with server=true) -> 1 test, 0 failures
 - [ ] `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.mail.search.*'` passes (Postgres via Testcontainers where persistence is involved)
 - [x] API documented: `api/openapi.yaml` regenerated (`UPDATE_OPENAPI=1 ./gradlew test --tests '*OpenApiContractTest'`) and `OpenApiContractTest` passes without the flag
   - verified (2026-10-22 01:29+0200 by dell26/agent-1): server/gradlew -p server test --tests '*OpenApiContractTest' (no UPDATE flag; test asserts api/openapi.yaml equals the generated spec) -> 1 test, 0 failures; api/openapi.yaml + web client regenerated in commit f70bc842c
