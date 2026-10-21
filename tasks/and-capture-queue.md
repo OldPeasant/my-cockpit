@@ -1,11 +1,11 @@
 ---
 title: Android offline capture queue
-status: in_progress
+status: done
 owner: dell26/agent-4
 deps: [and-login,gtd-capture-api,files-api]
 touches: [android/app/src/main/java/ch/sonensei/cockpit/capture/queue,android/app/src/test/java/ch/sonensei/cockpit/capture/queue]
 prio: 1
-lease_until: 2026-10-21T01:26:58Z
+lease_until: 
 releases: 1
 extended: 
 ---
@@ -33,3 +33,4 @@ Offline-first capture (SPEC.md §9.3).
 - release by dell26/agent-1: Done: Room pending_capture queue, AttachmentStore, CaptureUploader, WorkManager job (CaptureSync), status Flow, tests (49 passing in round 1), round-1 test-writer/review/fixer reports, round-2 review.md (0 P0-P2, 3 P3). Commit b6ca2583 adds CaptureQueueConsistencyTest from a round-2 test-writer run whose tests.md was NOT written. Left: (1) sh scripts/check.sh fails with exactly 1 Android test: CaptureQueueConsistencyTest 'a send run cancelled right after the capture row is removed leaves no orphaned attachment copies' -> production bug: attachment copies are not deleted if the send run is cancelled after the row delete (make the cleanup in CaptureUploader NonCancellable or sweep orphans at the start of a run); (2) decide on review P3s CR-1 (catch schedule() failure in capture() after commit), CR-2 (document REPLACE race), CR-3 (require text <= 100000 after pinning); (3) re-run test-writer (writes tests.md) and code-reviewer on final code; (4) tasks.py verify #1-#4, write reviews/and-capture-queue/quality.json, done. Note: gradle may be denied inside sub-agents, run tests in the parent.
 - ASSUMPTION (2026-10-21 02:47+0200 by dell26/agent-4): Review P3 CR-1 (round 3) deferred: capture() does not pre-check the server's combined notes limit (extra text lines + notes <= 100000); such a capture ends as 'rejected' in the queue. Unlikely with typed input; a UI task can add a check or a discard action
 - ASSUMPTION (2026-10-21 02:47+0200 by dell26/agent-4): Review P3 CR-2 (round 3) deferred: copies orphaned by a process kill between copy and insert (or row delete and file delete) are not swept; a later task may add an orphan sweep in sendAll() skipping recent folders
+- done by dell26/agent-4: `sh scripts/check.sh` passed in 51s on 470fe5e70; criteria verified 4/4
