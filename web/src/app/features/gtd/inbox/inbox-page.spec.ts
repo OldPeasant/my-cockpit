@@ -706,6 +706,32 @@ describe('InboxPage', () => {
       expect(left()).toBe('1 item left');
       expect(progress()).toBe('67');
       expect(element.querySelectorAll('.moved').length).toBe(1);
+      // t2 was converted last: its note is offered, not the one of t1 that answered later.
+      expect(openNote()?.getAttribute('href')).toBe('/notes/n-t2');
+    });
+
+    it('a slow conversion answering after a quicker later action leaves no note link', async () => {
+      await render([task('t1'), task('t2'), task('t3')]);
+      let finish!: () => void;
+      answer = (fn, params) =>
+        fn === convertTaskToNote
+          ? new Promise((resolve) => (finish = () => resolve(note(task(String(params['id']))))))
+          : undefined;
+      await press('p');
+
+      await press('r');
+      answer = undefined;
+      await press('x');
+      expect(callsOf(deleteTask).map((call) => call.params['id'])).toEqual(['t2']);
+      expect(moved()).toBeNull();
+
+      finish();
+      await refresh();
+
+      // The trash of t2 was the latest action: the line stays empty.
+      expect(moved()).toBeNull();
+      expect(title()).toBe('Item t3');
+      expect(progress()).toBe('67');
     });
 
     it('a failed conversion keeps the note offered by the previous one', async () => {

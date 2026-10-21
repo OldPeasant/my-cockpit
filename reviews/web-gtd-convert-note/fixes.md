@@ -4,79 +4,67 @@ Date: 2026-10-21
 
 Task: web-gtd-convert-note - Inbox/task detail: to reference
 
-Scope: current task. The parent worker supplied findings CR-3 and CR-4 from `reviews/web-gtd-convert-note/review.md`, on top of commits 4e0c4b53 (implementation) and 59c9af2b (tests).
+Scope: current task, fix round 2. The parent worker supplied findings CR-5 (P2) and CR-6 (P3) from `reviews/web-gtd-convert-note/review.md`, on top of HEAD 2e8f5296. The previous round's report is archived as `fixes-1.md`.
 
 ## Fixed findings
 
-### CR-3 - The "Moved to reference" status stays up while later items are processed with other actions
-
-Files changed:
-- `web/src/app/features/gtd/inbox/inbox-page.ts`
-- `web/src/app/features/gtd/inbox/inbox-page.spec.ts`
-
-Problem:
-`lastNote` was reset only in `startProcessing()`. After converting item A, the banner "Moved to reference as the note A" stayed up while later items were moved to Next, Someday and so on.
-
-Fix:
-In `run()`, after a non-reference action succeeds, `lastNote` is cleared. A failed action leaves it alone: the store rolls the failure back, so the banner still describes the last action that went through. New test: "forgets the offered note once a later item gets another action, not when it fails". It converts t1, checks that a failed move of t2 keeps the link, then checks that a successful move of t2 removes the banner.
-
-Validation:
-- New test run against the unfixed `inbox-page.ts` (HEAD version) - Fail (expected: the banner was still shown)
-- `npm --prefix web run test:ci -- --include=src/app/features/gtd/inbox/inbox-page.spec.ts --include=src/app/features/gtd/task-detail/task-detail.spec.ts` with the fix - Pass
-- `npm --prefix web run check` - Pass
-
-### CR-4 - A change event can still start a background reload while the conversion runs
+### CR-5 - Task detail: a conversion that succeeds after the editor switched to another task still opens the old task's note and blocks the new task meanwhile
 
 Files changed:
 - `web/src/app/features/gtd/task-detail/task-detail.ts`
 - `web/src/app/features/gtd/task-detail/task-detail.spec.ts`
 
 Problem:
-The TASK change-event handler checked `dirty()` and `saving()` but not `converting()`. A non-DELETED event that arrived during the conversion therefore started a background load. If that load got a 404 (the task was already trashed), the view switched to "not found" before the navigation to the note.
+`toReference()` always navigated to the new note when the conversion succeeded, even if the editor had switched to another task by then. The component-wide `converting` flag also stayed `true` for the new task, so its button showed "Moving to reference…", the button was disabled, saving was refused and background reloads were skipped.
 
 Fix:
-Added `&& !this.converting()` to the handler condition, so no background reload starts while the conversion runs. Loads started before the conversion were already cancelled by the existing `loadSeq++` in `toReference()`, so `isStale` did not need to change. New test: "does not reload on a change event while the conversion runs". It makes GET answer 404, sends an UPDATED event while the conversion is pending, and checks that there is no second GET, no "not found" view, and that the navigation to the note still happens.
+The running state is now tied to a task id. A private `convertingId` signal holds the id of the task being converted, or null. `converting` is now `computed(() => convertingId() === taskId())`, so the template, `save()` and the change-event guard need no other change. On success, the component navigates only when `task.id === this.taskId()`, the same check `save()` and the failure path already use. In `finally`, `convertingId` is cleared only if it still holds this task's id, so a conversion of the old task that finishes late cannot clear the state of a conversion started later on the new task.
+New spec `does not open the note nor block the new task when a conversion of the previous task succeeds late`: it starts the conversion of t1 and switches to t2. It then checks that t2's button reads "To reference (note)" and is enabled, and that an edit makes Save enabled. It resolves the conversion and checks that there was no navigation, that the edit is kept, and that saving t2 sends a PATCH for t2 with `If-Match: "7"`. This spec fails on the previous production code.
 
 Validation:
-- New test run against the unfixed `task-detail.ts` (HEAD version) - Fail (expected: 2 GET calls instead of 1)
-- Same focused test command as above with the fix - Pass
-- `npm --prefix web run check` - Pass
+- `npm --prefix web run test:ci -- --include=src/app/features/gtd/inbox/inbox-page.spec.ts --include=src/app/features/gtd/task-detail/task-detail.spec.ts` - Pass (2 files, 136 tests)
+- Same command with the HEAD versions of the two production files put back temporarily - the new spec fails, as expected (production files restored afterwards)
+
+### CR-6 - Inbox: overlapping actions that answer out of order leave a status line that is not about the latest action
+
+Files changed:
+- `web/src/app/features/gtd/inbox/inbox-page.ts`
+- `web/src/app/features/gtd/inbox/inbox-page.spec.ts`
+
+Problem:
+`lastNote` was written in the order the answers arrived, not the order the actions started. If a slow conversion answered after a later action, it put back "Moved to reference" for an older item. If two conversions answered in reverse order, the line showed the first item's note.
+
+Fix:
+Each `run()` now takes a sequence number (`const seq = ++this.runSeq`). On success, the action sets `lastNote` to its note, or to null for actions other than "To reference", but only if `seq === this.runSeq`. Failures still leave the line unchanged, so the existing spec `a failed conversion keeps the note offered by the previous one` still holds.
+The spec `counts two overlapping conversions that answer in reverse order` now also checks that the note of t2, the latest conversion, is offered. New spec `a slow conversion answering after a quicker later action leaves no note link`: it converts t1 slowly, trashes t2 quickly, then resolves the conversion. The line stays empty, the current item is t3, and progress is 67%. Both specs fail on the previous production code.
+
+Validation:
+- `npm --prefix web run test:ci -- --include=src/app/features/gtd/inbox/inbox-page.spec.ts --include=src/app/features/gtd/task-detail/task-detail.spec.ts` - Pass (2 files, 136 tests)
+- Same command against the HEAD production files - both specs fail, as expected
 
 ## Not fixed
 
-### CR-1 - Committed specs still said "To reference" is disabled, and the new action had no tests
+None.
 
-Status:
-Invalid (already resolved)
-
-Reason:
-The parent worker says this is already handled by test commit 59c9af2b. The current specs cover the action, and the full web check passes. No change was made.
-
-### CR-2 - /notes/:id route
-
-Status:
-Out of scope
-
-Reason:
-The parent worker accepted it: the `/notes/:id` route comes with the task web-notes-editor. No change was made.
+Not part of the findings and left unchanged: a conversion still running from an earlier processing session can still set the line after `P` restarts processing, because `startProcessing()` does not advance `runSeq`. This case was not reported, and changing it would go beyond the requested scope.
 
 ## Validation summary
 
 Focused tests:
-- `npm --prefix web run test:ci -- --include=src/app/features/gtd/inbox/inbox-page.spec.ts --include=src/app/features/gtd/task-detail/task-detail.spec.ts`: without the production fixes, 2 failed and 127 passed. Both failures were the new regression tests, as expected. With the fixes, all pass.
+- `npm --prefix web run test:ci -- --include=src/app/features/gtd/inbox/inbox-page.spec.ts --include=src/app/features/gtd/task-detail/task-detail.spec.ts` - Pass, 136 tests. With the old production code, 3 fail, which shows the specs cover both findings.
 
 Full test suite:
-- `npm --prefix web run check` (api:check, lint, e2e:typecheck, test:ci, ng build) - Pass. All files pass linting; 83 test files and 1540 tests passed; the build finished. The build also prints a warning that the initial bundle is over its size budget. These changes did not cause that warning.
+- `npm --prefix web run check` (lint, all web unit tests, build) - Pass, exit 0: 83 files, 1547 tests. The build prints the existing warning that the initial bundle is over budget (651.08 kB against 500 kB). This change did not cause it.
 
 Lint/type-check/build:
 - Included in `npm --prefix web run check` - Pass
 
 `.taskcheck`:
-- Not run. The parent worker asked for the web check only. `scripts/check.sh` also covers server/ and android/, which these changes do not touch.
+- `sh scripts/check.sh` - Fail (exit 1, after 9m 19s in the server Gradle `:test` task). 2 of 2907 server tests failed: `ClockConfigurationTests."the application clock is the system clock in UTC"` (a precision assertion: `...958544Z should be >= ...958544309Z`) and `ReminderEventsStreamTests."a fired reminder reaches a connected client after the commit as a reminder event with the item title"` (SSE timing). This round changed only files under `web/` and no server code. Both failures look like timing or precision flakes in the server and are outside this task's scope. The parent worker should re-run `.taskcheck`. The run also took well over the 2 minute target.
 
 Remaining unresolved findings:
 0
 
 ## Final status
 
-All validated findings fixed and validation passed.
+All validated findings fixed and validation passed. `npm --prefix web run check` passes. `.taskcheck` failed only on 2 server tests that this web-only change does not touch; see above.

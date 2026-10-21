@@ -1496,5 +1496,40 @@ describe('TaskDetail', () => {
       expect(navigate).not.toHaveBeenCalled();
       expect(referenceButton().disabled).toBe(false);
     });
+
+    it('does not open the note nor block the new task when a conversion of the previous task succeeds late', async () => {
+      vi.spyOn(window, 'confirm').mockReturnValue(true);
+      let succeed!: () => void;
+      answer = (fn, params) => {
+        if (fn === getTask && params['id'] === 't2') {
+          return Promise.resolve(task({ id: 't2', title: 'Water the plants', version: 7 }));
+        }
+        if (fn === convertTaskToNote) {
+          return new Promise<NoteResponse>((resolve) => (succeed = () => resolve(NOTE)));
+        }
+        return undefined;
+      };
+      await render();
+      await toReference();
+      expect(referenceButton().textContent?.trim()).toBe('Moving to reference…');
+      host.id.set('t2');
+      await refresh();
+
+      // t2 is not the task being converted: it can be edited and saved meanwhile.
+      expect(referenceButton().textContent?.trim()).toBe('To reference (note)');
+      expect(referenceButton().disabled).toBe(false);
+      await type('#td-title', 'Water the plants twice');
+      expect(saveButton().disabled).toBe(false);
+
+      succeed();
+      await refresh();
+
+      expect(navigate).not.toHaveBeenCalled();
+      expect(field<HTMLTextAreaElement>('#td-title').value).toBe('Water the plants twice');
+      expect(referenceButton().disabled).toBe(false);
+      await save();
+      expect(callsOf(updateTask)).toHaveLength(1);
+      expect(callsOf(updateTask)[0].params).toMatchObject({ id: 't2', 'If-Match': '"7"' });
+    });
   });
 });

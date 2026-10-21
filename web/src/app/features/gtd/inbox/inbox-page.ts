@@ -93,6 +93,8 @@ export class InboxPage {
    * offers that project instead of creating a second one.
    */
   private readonly createdProjects = new Map<string, string>();
+  /** Counts actions: only the latest may set or clear {@link lastNote}. */
+  private runSeq = 0;
   /** The action waiting for its value (a date, a person, a project), if any. */
   protected readonly prompt = linkedSignal<string | undefined, PromptAction | null>({
     source: this.currentId,
@@ -231,20 +233,22 @@ export class InboxPage {
       project: this.promptProject(),
     };
     this.prompt.set(null);
+    const seq = ++this.runSeq;
     this.busy.update((ids) => new Set(ids).add(task.id));
     try {
+      let note: NoteResponse | null = null;
       if (action === 'trash') {
         await this.tasks.remove(task);
       } else if (action === 'reference') {
         // A note has no GTD attributes: the inline changes are not saved.
-        this.lastNote.set(await this.tasks.convertToNote(task));
+        note = await this.tasks.convertToNote(task);
       } else {
         const patch = clarificationPatch(task, { ...clarificationOf(task), ...changes });
         const base = Object.keys(patch).length ? await this.tasks.update(task, patch) : task;
         await this.apply(action, base, value);
       }
-      // The "Moved to reference" status describes only the latest action.
-      if (action !== 'reference') this.lastNote.set(null);
+      // The "Moved to reference" status describes only the latest action, whatever answers last.
+      if (seq === this.runSeq) this.lastNote.set(note);
       this.processed.update((count) => count + 1);
     } catch {
       // Rolled back by the store; the HTTP layer shows the error.

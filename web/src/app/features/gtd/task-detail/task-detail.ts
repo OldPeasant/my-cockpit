@@ -108,8 +108,10 @@ export class TaskDetail {
   protected readonly task = signal<TaskResponse | null>(null);
   protected readonly draft = signal<TaskDraft | null>(null);
   protected readonly saving = signal(false);
-  /** "To reference" is running. */
-  protected readonly converting = signal(false);
+  /** The task whose "To reference" is running, if any. */
+  private readonly convertingId = signal<string | null>(null);
+  /** "To reference" is running for the task shown: another task the editor switched to is free. */
+  protected readonly converting = computed(() => this.convertingId() === this.taskId());
   /** The task met a newer version on the server and was reloaded. */
   protected readonly conflict = signal(false);
   /** The last save error other than a conflict or field errors. */
@@ -249,18 +251,19 @@ export class TaskDetail {
     const task = this.task();
     if (!task || this.saving() || this.converting()) return;
     if (!confirm(this.dirty() ? REFERENCE_DIRTY_CONFIRM : REFERENCE_CONFIRM)) return;
-    this.converting.set(true);
+    this.convertingId.set(task.id);
     this.saveError.set(null);
     this.conflict.set(false);
     // A background reload would replace the form while it turns into a note.
     this.loadSeq++;
     try {
       const note = await this.service.convertToNote(task);
-      void this.router.navigate(['/notes', note.id]);
+      // The editor switched to another task meanwhile: the conversion stays done, the screen is not ours.
+      if (task.id === this.taskId()) void this.router.navigate(['/notes', note.id]);
     } catch (error) {
       if (task.id === this.taskId()) await this.failed(error);
     } finally {
-      this.converting.set(false);
+      if (this.convertingId() === task.id) this.convertingId.set(null);
     }
   }
 
