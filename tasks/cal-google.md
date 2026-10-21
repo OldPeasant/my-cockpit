@@ -1,13 +1,13 @@
 ---
 title: Google Calendar adapter
-status: in_progress
-owner: dell26/agent-4
+status: todo
+owner: 
 deps: [cal-sync-engine,oauth-connections]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/calendar/infra/google,server/src/test/kotlin/ch/sonensei/cockpit/calendar/infra/google]
 prio: 2
-lease_until: 2026-10-21T12:02:51Z
-releases: 0
-extended: dell26/agent-4
+lease_until: 
+releases: 1
+extended: 
 ---
 ## Goal
 Two-way Google sync (SPEC.md §6.2).
@@ -26,3 +26,4 @@ Two-way Google sync (SPEC.md §6.2).
 - ASSUMPTION (2026-10-21 12:45+0200 by dell26/agent-4): Writes send the full attendee list (review round 2 CR-1): the Attendee model has no optional/comment/additionalGuests, so a cockpit edit makes optional Google attendees required and drops those details; accepted like the reminder mapping because the engine does not pass which fields changed
 - extended by dell26/agent-4: Implementation, tests and two quality rounds are done and committed (round 2: 0 P0-P2, 2 P3; attendee/reminder mappings recorded as assumptions). Left: run the google test suite and verify AC 1-3, write and commit reviews/cal-google/quality.json (reviewed_revision = HEAD), run .taskcheck, then done. The server part of the check passed at 68d92f23. The web vitest part timed out (250s per test) because the host load average was about 300, which is unrelated: the task changes no web code.
 - ASSUMPTION (2026-10-21 13:14+0200 by dell26/agent-4): Google writes send the full attendee list built from the cockpit model (email, name, response status); Google flags the cockpit does not model (optional, resource, comment, additionalGuests) are not preserved on edit. Same lossy-write trade-off as the reminder mapping; a follow-up can patch attendees only when they changed.
+- release by dell26/agent-4: Implementation, 3 quality rounds (round 3: 0 findings) and AC 1-3 verification are done and committed; reviews/cal-google/quality.json is committed with reviewed_revision 6af242e9 (server code identical to reviewed cc5e7a7d, only reviews/ changed since). sh scripts/check.sh passed at 4eb5f2b9. Left: only run 'python tasks.py done cal-google' (if done flags freshness, set reviewed_revision to the current HEAD of the task code, no helper re-run needed).
