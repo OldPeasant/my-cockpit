@@ -14,7 +14,8 @@ Drive UI (SPEC.md §8.2).
 ## Acceptance criteria
 - [x] Folder tree + list/grid, breadcrumbs, new folder, rename, move (dialog), delete, download, download folder as zip, disk usage
   - verified (2026-10-21 04:51+0200 by R1963MACOS/agent-1): npm run e2e -- e2e/files-browser/browser.spec.ts against deploy/docker-compose.e2e.yml -> 6 passed (create/rename/move-dialog/delete, file download content + folder zip PK header); tree, list/grid, breadcrumbs, disk usage covered by vitest in features/files/browser (73+ tests pass)
-- [ ] Vitest component/service tests cover operations and error states; `cd web && npm run check` passes
+- [x] Vitest component/service tests cover operations and error states; `cd web && npm run check` passes
+  - verified (2026-10-21 04:51+0200 by R1963MACOS/agent-1): cd web && npm run check -> exit 0: lint 0 warnings, 79 files / 1435 tests pass, build ok; files-browser specs cover operations, 412/404/load/usage/Show more/picker errors; coverage 99.25% stmts, 95.09% branches of changed files
 - [ ] Playwright `e2e/files-browser/browser.spec.ts` passes against the e2e stack (`npm run e2e -- e2e/files-browser/browser.spec.ts`, see p0-e2e-harness): create folder, rename, move, delete
 
 ## Notes
