@@ -5,7 +5,7 @@ owner: dell26/agent-3
 deps: [cal-sync-engine]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/calendar/infra/ics,server/src/test/kotlin/ch/sonensei/cockpit/calendar/infra/ics]
 prio: 2
-lease_until: 2026-10-21T14:50:47Z
+lease_until: 2026-10-21T14:55:48Z
 ---
 ## Goal
 Read-only ICS subscriptions (SPEC.md §6.1).
