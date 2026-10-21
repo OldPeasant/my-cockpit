@@ -5,7 +5,7 @@ owner: R1963MACOS/agent-1
 deps: [cal-sync-engine,oauth-connections]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/calendar/infra/google,server/src/test/kotlin/ch/sonensei/cockpit/calendar/infra/google]
 prio: 2
-lease_until: 2026-10-21T09:46:09Z
+lease_until: 2026-10-21T09:51:13Z
 ---
 ## Goal
 Two-way Google sync (SPEC.md §6.2).
