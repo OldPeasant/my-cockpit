@@ -1,11 +1,11 @@
 ---
 title: Settings: mail accounts
-status: in_progress
+status: done
 owner: dell26/agent-3
 deps: [p0-web-settings,mail-imap]
 touches: [web/src/app/features/settings/mail]
 prio: 1
-lease_until: 2026-10-21T22:24:52Z
+lease_until: 
 ---
 ## Goal
 Manage mail accounts (SPEC.md §7.1).
@@ -20,3 +20,4 @@ Manage mail accounts (SPEC.md §7.1).
 - ASSUMPTION (2026-10-21 23:12+0200 by dell26/agent-3): Identities: the mail account API has no identity endpoints (mail-imap left them out), so the settings edit only the primary identity (display name + email address). Extra identities are new task mail-identities.
 - ASSUMPTION (2026-10-21 23:12+0200 by dell26/agent-3): Google/Microsoft: the add form picks an existing OAuth connection of that provider; 'Connect another account' starts OAuth with purpose=MAIL, the server returns to Settings -> Integrations (fixed callback), and the user comes back to Settings -> Mail to add the account with that connection.
 - ASSUMPTION (2026-10-21 23:12+0200 by dell26/agent-3): Test connection tests the stored account only (server API); the IMAP form therefore saves first, then runs the test and folder detection at once and shows the per-protocol result; a failed test keeps the account so it can be fixed with Edit.
+- done by dell26/agent-3: `sh scripts/check.sh` passed in 81s on 6d0a1257e; criteria verified 2/2
