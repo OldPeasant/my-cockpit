@@ -12,7 +12,8 @@ extended: dell26/agent-1
 Next actions with filters and Today (SPEC.md §5.3).
 
 ## Acceptance criteria
-- [ ] Next with context/energy/creativity/estimate filters; Today with overdue/due/scheduled; complete with undo snackbar
+- [x] Next with context/energy/creativity/estimate filters; Today with overdue/due/scheduled; complete with undo snackbar
+  - verified (2026-10-21 11:19+0200 by dell26/agent-1): cd android && ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.gtd.next.*' --tests 'ch.sonensei.cockpit.gtd.today.*' (Robolectric Compose UI: NextScreenTest 24, NextScreenInAppTest 2, NextViewModelTest 20, NextFilterTest 6 for context/energy/creativity/estimate filters; TodayScreenTest 11, TodayViewModelTest 17 for overdue/due/scheduled sections; TaskCompleterTest 13, TaskCompletionRepositoryTest 9 + snackbar tests for complete/undo) -> 105 passed, 0 failed; no device/emulator here, so on-device behaviour is left to h-android-device
 - [ ] `cd android && ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.gtd.next.*'` passes, covering filters (Robolectric/Compose UI tests for screens); same for `gtd.today`
 
 ## Notes
