@@ -1074,5 +1074,31 @@ describe('FilesPage', () => {
       await settle();
       expect(preview.querySelector('#preview-title')?.textContent?.trim()).toBe('Sunset.jpg');
     });
+
+    it('pages the preview only through the files of a folder that also holds subfolders', async () => {
+      const SUMMER = '0192f0c4-0000-7000-8000-000000000010';
+      drive.folder(SUMMER, 'Summer', PHOTOS);
+      drive.file(SUNSET, 'Sunset.jpg', 4096, PHOTOS, 'image/jpeg');
+      drive.file(BEACH, 'Beach.png', 4096, PHOTOS, 'image/png');
+      await open(PHOTOS);
+      expect(names()).toEqual(['Summer', 'Beach.png', 'Sunset.jpg']);
+
+      byLabel('Preview Sunset.jpg').click();
+      const preview = await dialog('app-preview-dialog');
+      expect(preview.querySelector('#preview-title')?.textContent?.trim()).toBe('Sunset.jpg');
+      expect(preview.querySelector('.position')?.textContent?.trim()).toBe('2 of 2');
+      preview.dispatchEvent(
+        new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true, cancelable: true }),
+      );
+      await settle();
+      expect(preview.querySelector('#preview-title')?.textContent?.trim()).toBe('Beach.png');
+      // The subfolder is no page of the preview: the first file stays at the start.
+      preview.dispatchEvent(
+        new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true, cancelable: true }),
+      );
+      await settle();
+      expect(preview.querySelector('#preview-title')?.textContent?.trim()).toBe('Beach.png');
+      expect(preview.querySelector('.position')?.textContent?.trim()).toBe('1 of 2');
+    });
   });
 });
