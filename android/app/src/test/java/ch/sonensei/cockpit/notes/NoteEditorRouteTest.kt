@@ -217,6 +217,34 @@ class NoteEditorRouteTest {
         coVerify(exactly = 2) { repo.get(id) }
     }
 
+    @Test
+    fun `a note that failed to load cannot be edited, and Retry loads it`() {
+        coEvery { repo.get(id) } returns NotesResult.Offline andThen NotesResult.Ok(loaded)
+        show()
+        composeRule.onNodeWithTag(NoteEditorTags.RETRY_LOAD).assertExists()
+        composeRule.onNodeWithTag(NoteEditorTags.TOGGLE).assertDoesNotExist()
+        composeRule.onNodeWithTag(NoteEditorTags.CAMERA).assertDoesNotExist()
+        composeRule.onNodeWithTag(NoteEditorTags.GALLERY).assertDoesNotExist()
+
+        composeRule.onNodeWithTag(NoteEditorTags.RETRY_LOAD).performClick()
+        composeRule.waitUntil(WAIT_MS) { composeRule.onAllNodesWithText("Shopping").fetchSemanticsNodes().isNotEmpty() }
+        composeRule.onNodeWithTag(NoteEditorTags.RETRY_LOAD).assertDoesNotExist()
+        composeRule.onNodeWithTag(NoteEditorTags.TOGGLE).assertExists()
+        coVerify(exactly = 2) { repo.get(id) }
+        coVerify(exactly = 0) { repo.save(any(), any()) }
+    }
+
+    @Test
+    fun `leaving a note that failed to load saves nothing`() {
+        coEvery { repo.get(id) } returns NotesResult.Failed(500)
+        show()
+        composeRule.onNodeWithContentDescription("Back to notes").performClick()
+        composeRule.waitForIdle()
+        assertEquals(1, closed)
+        composeRule.waitUntil(WAIT_MS) { saves.single()?.isCompleted == true }
+        coVerify(exactly = 0) { repo.save(any(), any()) }
+    }
+
     private companion object {
         const val WAIT_MS = 5_000L
     }

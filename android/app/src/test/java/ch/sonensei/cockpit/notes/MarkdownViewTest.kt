@@ -16,6 +16,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
+import java.io.IOException
 import java.util.UUID
 import java.util.concurrent.CopyOnWriteArrayList
 
@@ -89,6 +90,30 @@ class MarkdownViewTest {
         composeRule.onNodeWithText("Remote image not loaded: https://example.org/a.png").assertExists()
         composeRule.waitForIdle()
         assertTrue(requested.toString(), requested.none { "a.png" in it })
+    }
+
+    @Test
+    fun `the image client sees the drive image request but never the web image`() {
+        val requested = CopyOnWriteArrayList<String>()
+        val client =
+            OkHttpClient
+                .Builder()
+                .addInterceptor { chain ->
+                    requested += chain.request().url.toString()
+                    throw IOException("no network in tests")
+                }.build()
+        val loader = NoteImages(ApplicationProvider.getApplicationContext<Context>(), client).loader
+        composeRule.setContent {
+            CockpitTheme {
+                MarkdownView("![](https://example.org/a.png)\n\n![Receipt](cockpit-file:$fileId)", imageLoader = loader)
+            }
+        }
+
+        // The drive image is requested, so the client does see the images of this view ...
+        composeRule.waitUntil(5_000) { requested.any { fileId.toString() in it } }
+        composeRule.waitForIdle()
+        // ... and the web image never reaches it.
+        assertTrue(requested.toString(), requested.none { "example.org" in it || "a.png" in it })
     }
 
     @Test

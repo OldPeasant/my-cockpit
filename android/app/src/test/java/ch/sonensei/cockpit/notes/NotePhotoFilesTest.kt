@@ -14,6 +14,8 @@ import org.junit.runner.RunWith
 import org.robolectric.Shadows.shadowOf
 import java.io.ByteArrayInputStream
 import java.io.File
+import java.io.IOException
+import java.io.InputStream
 
 /** Reading picked or taken photos, and the camera's files. */
 @RunWith(AndroidJUnit4::class)
@@ -56,6 +58,24 @@ class NotePhotoFilesTest {
             val over = Uri.parse("content://ch.sonensei.test/photo/over")
             register(over, ByteArray(NotePhotoFiles.MAX_BYTES + 1))
             assertNull(NotePhotoFiles.read(context, over))
+        }
+
+    @Test
+    fun `a photo whose stream fails while reading is refused, not a crash`() =
+        runBlocking {
+            val uri = Uri.parse("content://ch.sonensei.test/photo/broken")
+            val broken =
+                object : InputStream() {
+                    override fun read(): Int = throw IOException("fictitious read error")
+
+                    override fun read(
+                        b: ByteArray,
+                        off: Int,
+                        len: Int,
+                    ): Int = throw IOException("fictitious read error")
+                }
+            shadowOf(context.contentResolver).registerInputStream(uri, broken)
+            assertNull(NotePhotoFiles.read(context, uri))
         }
 
     @Test

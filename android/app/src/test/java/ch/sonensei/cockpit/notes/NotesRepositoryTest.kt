@@ -145,7 +145,7 @@ class NotesRepositoryTest {
             val result = notes.save(base, NoteDraft("", "Mine changed")) as SaveResult.Conflict
 
             assertEquals(9L, result.current!!.version)
-            assertEquals("Theirs", result.current!!.bodyMd)
+            assertEquals("Theirs", result.current.bodyMd)
         }
 
     @Test
@@ -296,6 +296,17 @@ class NotesRepositoryTest {
         runBlocking {
             server.close()
             assertEquals(NotesResult.Offline, notes.uploadImage(id(1), NotePhoto(byteArrayOf(1), "image/png", "p.png")))
+        }
+
+    @Test
+    fun `an unreadable answer is a failure without a status, never offline or ok`() =
+        runBlocking {
+            server.enqueue(json("""{"id":"not json"""))
+            assertEquals(NotesResult.Failed(null), notes.get(id(1)))
+            server.enqueue(json(noteJson(1, updatedAt = "yesterday")))
+            assertEquals(NotesResult.Failed(null), notes.get(id(1)))
+            server.enqueue(json("""{"items":[{"tag":"home"}]}"""))
+            assertEquals(NotesResult.Failed(null), notes.tags())
         }
 
     @Test

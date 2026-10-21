@@ -4,24 +4,33 @@ Date: 2026-10-21
 
 Task: and-notes - Android notes
 
-Scope: `git diff 9872626aae5d1f08309397788ffdc91eea3f4c42..HEAD -- android` (committed changes only)
+Scope: `git diff c167a9fa9ecc107793e5865b7e4953e747e0b10c..af0780bf -- android` (committed changes only). Reviewed revision: af0780bfdfc00b087d5346ad1a50b4e002679c62. This is a re-review after the fixes for the previous review (CR-1..CR-6). The current HEAD bb99aee8 is the same code after a rebase: `git diff af0780bf HEAD -- android` is empty.
 
 Requirements:
-- tasks/and-notes.md acceptance criteria and recorded assumptions
-- SPEC.md §8.1 (Notes), §9.2 item 6
-- api/openapi.yaml (`/api/v1/notes`, `/api/v1/notes/{id}`, `/api/v1/notes/{id}/images`, `/api/v1/files/{id}/content`)
+- tasks/and-notes.md acceptance criteria and recorded assumptions (`python tasks.py assumptions`)
+- SPEC.md §9.2 item 6 (Android notes), §4.2 (API conventions)
 - docs/ARCHITECTURE.md and AGENTS.md project conventions
-- Parent instructions: security (no note contents logged, FileProvider scope), autosave concurrency, tests
+- Previous review (CR-1..CR-6) and reviews/and-notes/fixes.md
+- Parent instructions: check that each earlier finding is resolved and look for issues the fixes introduced
 
 Git range:
 - Branch: main
-- HEAD: 39a6326bab9f04e491a1fa1085fa32ab929600d0
-- Base/start: 9872626aae5d1f08309397788ffdc91eea3f4c42
-- Commits reviewed: 2 (81c82c16 implementation, 39a6326b tests; the parent named them ffcd24f7/b76c72ec, which are the same commits before a rebase)
+- HEAD: bb99aee8228b93c0587df382a5913f702164c7ca (same android content as af0780bf)
+- Base/start: c167a9fa9ecc107793e5865b7e4953e747e0b10c
+- Commits reviewed: 4 (c6f41c46 implementation, 1d07ddef and 17f9578f tests, af0780bf fixes)
 
-Summary: 0 P0, 0 P1, 3 P2, 3 P3
+Summary: 0 P0, 0 P1, 2 P2, 3 P3
 
-Checked and found in order: the API contract (PATCH with `If-Match` `"<version>"`, matching the server's `ETags.of`; only `title`/`bodyMd` sent; `null` title clears it; multipart part `file`); conflict mapping (404/409/412 re-fetch the note, deleted note = `Conflict(null)`); autosave serialisation (one `Mutex`, only the delay is cancelled, each save goes over the version the previous one returned, typed text during a save is saved next); list ordering and cancellation of an older list load on tag change; FileProvider (not exported, `grantUriPermissions`, only `cache/notes-photos/`); no logging of note content (`NotesHttpFailure` carries only the status); Coil memory-only cache. No evidence is recorded yet with `tasks.py verify` (both criteria unticked); that is for the parent to do before `done`.
+## Status of the earlier findings
+
+- CR-1 (a failed load let the user create a separate note): resolved. The `unloaded` flag blocks `editable`, `save()` and `addPhoto`, and `retryLoad` now keys on it. The view-model test `after a failed load nothing can be edited, saved or uploaded until the retry loads the note` covers it.
+- CR-2 (reopening a note showed stale text): resolved for existing notes. Each opening gets a unique `<id>#<uuid>` token, and `open()` reloads unless something is pending (`loading`, `uploading`, `conflict`, `status != SAVED`, or `saving.isLocked`). A configuration change keeps the same token, so nothing reloads. View-model and route tests cover this. A view model is still kept for every new note created (see CR-5 below).
+- CR-3 (web images went through the authenticated, server-rewriting client): resolved. `ImageSource.Web.url()` is `null`, and `MdImage` shows a placeholder with the address. A test checks that the client's interceptor never sees the request. The assumption is recorded.
+- CR-4 (the list reloaded before the save): resolved for the editor's back arrow and the system back. `saveNow()` returns the save job, `BackHandler` moved into `NoteEditorRoute`, and the list joins the job before `refresh()`. The shell's own top-bar back arrow still skips this (see CR-1 below).
+- CR-5 (a photo uploaded during a conflict was dropped): resolved. `pendingImage` is inserted after "Keep my version" or "Use the other version", and it is dropped when the user discards a deleted note. Both decisions are tested.
+- CR-6 (missing race tests): resolved. There is a failed-load test, and `NotesListViewModelTest` has `a list for an earlier filter that answers last is dropped`.
+
+No evidence is recorded yet: `tasks.py verify and-notes` shows both criteria unticked. The parent must record it before `done`.
 
 ## P0 Critical
 
@@ -33,49 +42,42 @@ None.
 
 ## P2 Medium
 
-- [ ] **CR-1 | After a failed load, an existing note becomes editable as a new note and edits create a separate note**
-    - File: `android/app/src/main/java/ch/sonensei/cockpit/notes/NoteEditorViewModel.kt:51`
-    - Category: Correctness
-    - Problem: `editable` is `!loading && conflict == null && !closed`. When `load(id)` fails (offline or error), `loading` is false and `note` stays `null`, so `editable` is true. The editor bar then shows Edit, camera and gallery (`NoteEditorScreen.kt:282`). Typing makes `save()` call `notes.save(null, draft)` (line 152), which POSTs a brand new note. Adding a photo calls `create()` (line 213), which creates a new empty note. Once `note` is set, `retryLoad` returns early (line 89), but the "could not load, Retry" banner stays on screen and its button does nothing.
-    - Why it matters: Opening an existing note while offline or on a flaky network and pressing Edit or a photo button silently creates duplicate or stray notes. The real note is never loaded in that editor, and the user believes they edited it.
-    - Suggested fix: Track "an existing note was requested but not loaded" (for example, keep the requested id) and make `editable` false until the load succeeds. Add a view-model test: load fails, then `setEditing(true)`, `setBody` or `addPhoto` must not call `repo.save(null, ...)`.
+- [ ] **CR-1 | The shell's top-bar back arrow leaves the editor without saving and cancels a running save**
+    - File: `android/app/src/main/java/ch/sonensei/cockpit/ui/CockpitShell.kt:61-63`, `android/app/src/main/java/ch/sonensei/cockpit/notes/NoteEditorScreen.kt:114-115`, `android/app/src/main/java/ch/sonensei/cockpit/notes/NoteEditorViewModel.kt:180-187`
+    - Category: Correctness / Integration
+    - Problem: Notes is a `NavSection.More` destination. While the editor is open, the shell's `TopAppBar` shows its own back arrow (`navController.navigateUp()`) above the editor's back arrow. The CR-4 fix only routes the editor's arrow and the system back through `saveNow()`. `navigateUp()` pops the Notes back stack entry, and that clears its `ViewModelStore`. `onCleared` then cancels `viewModelScope`, which cancels the pending 1 s autosave delay and any save in progress, so the save is never started or is aborted.
+    - Why it matters: Text typed in the last second before tapping the more visible top arrow is silently lost. A PATCH that is cancelled mid-flight may or may not have been committed by the server. This is the "leaving the editor saves" behavior that CR-4 and the recorded assumption promise.
+    - Suggested fix: Make every way of leaving go through the same save. One option: a `DisposableEffect` in `NoteEditorRoute` whose `onDispose` starts the save in a scope that outlives the view model (an application-scoped `CoroutineScope` injected into the view model). Another option: let `onCleared` hand any unsaved draft to such a scope. Add a test that pops the Notes entry with unsaved text and asserts that `repo.save` is called.
 
-- [ ] **CR-2 | Reopening a note reuses the old editor view model and never reloads it, so it shows stale text**
-    - File: `android/app/src/main/java/ch/sonensei/cockpit/notes/NoteEditorScreen.kt:105`, `NoteEditorViewModel.kt:76-78`
+- [ ] **CR-2 | Text left unsaved in a new note can never be reached again**
+    - File: `android/app/src/main/java/ch/sonensei/cockpit/notes/NotesScreen.kt:91`, `NotesScreen.kt:101`
     - Category: Correctness
-    - Problem: `hiltViewModel(key = "note:$key")` is scoped to the Notes `NavBackStackEntry` (`CockpitShell.kt:88`), not to the opened editor. Closing the editor (`open = null` in `NotesScreen.kt:92`) does not clear it. When the same note id is opened again, the same instance comes back, and `open()` returns immediately because `opened` is already true. The editor shows the text and version from the earlier visit. The list, which refreshes every time it is shown, already shows the newer server text.
-    - Why it matters: A note changed on the web (or deleted) after it was first opened on the phone shows outdated content. The first edit then runs into a 412 conflict that the user did not cause. Every "new:<uuid>" editor also leaves a view model behind for the lifetime of the Notes tab entry.
-    - Suggested fix: Scope the editor view model to one opening: for example, a key that is unique per opening, as already done for new notes, and clear it on close. Or reload in `open()` when the editor is shown again and no unsaved text or conflict is pending.
-
-- [ ] **CR-3 | Web images in notes are fetched through the authenticated client and rewritten to the Cockpit server**
-    - File: `android/app/src/main/java/ch/sonensei/cockpit/notes/NoteImages.kt:36`, `NoteImages.kt:44`, `MarkdownView.kt:161-163`
-    - Category: Correctness / Security
-    - Problem: `ImageSource.Web` URLs (any `![](https://...)` that is not `cockpit-file:`) go to Coil, which uses the app's shared `OkHttpClient`. That client's `ServerUrlInterceptor` (`core/network/ServerUrl.kt:127-134`) replaces scheme, host and port of every request with the configured server and keeps only the path and query. `https://example.org/pic.png` therefore becomes an authenticated `GET https://<cockpit-server>/pic.png` with the access token.
-    - Why it matters: External images in notes can never render. Note content can also make the app send authenticated GET requests to arbitrary paths on the user's own server. SPEC.md treats remote images cautiously elsewhere (mail blocks them by default).
-    - Suggested fix: Use the authenticated loader only for `CockpitFile` sources. For `Web` sources, show a placeholder or link, or load them with a separate client that has no server-rewrite or token interceptors (a deliberate decision, recorded with `tasks.py assume`). Add a test that maps a web URL to the non-authenticated path or placeholder.
+    - Problem: A new note's editor uses the view-model key `new:<uuid>`. Opening a note from the list uses its id as the key. Suppose the user leaves a new note while its save is OFFLINE or FAILED, either before the first create or after the note got id Y and later text failed to save. The unsaved text then stays only in the `new:<uuid>` view model. No UI route leads back to that view model, and nothing retries its save. Opening Y from the list creates a different view model (key `Y`) that loads the older server text. Existing notes now keep their pending text across reopenings (CR-2 fix), but new notes do not.
+    - Why it matters: Typed text is silently lost in a normal offline case. This contradicts the recorded assumption "unsaved text stays in the editor until saved".
+    - Suggested fix: Once a new note is created, move the editor onto the note's id key (for example, switch `open` to `<id>#<token>` after the first save and keep the same view model). Alternatively, do not let the user leave a new note with unsaved text without a warning or a retry. Add a view-model or route test for "new note, save offline, leave, open again".
 
 ## P3 Low
 
-- [ ] **CR-4 | The list reloads before the just-edited note is saved, so it can show the old text**
-    - File: `android/app/src/main/java/ch/sonensei/cockpit/notes/NotesScreen.kt:78`, `NotesScreen.kt:93`, `NoteEditorScreen.kt:135-138`
-    - Category: Correctness
-    - Problem: The system back (`BackHandler(onBack = close)`) closes without `saveNow()`, so the save only happens when the 1 s autosave delay ends. The toolbar back calls `saveNow()`, which only schedules the save. In both cases the list's `LaunchedEffect(Unit) { viewModel.refresh() }` starts its GET at once and can get the note before the PATCH lands. The comment says the reload exists to show "a note edited a moment ago" with its new text, which this defeats.
-    - Why it matters: The edited note can show outdated text and position in the list until the next refresh.
-    - Suggested fix: Call `saveNow()` from the system back path too, and refresh the list after the pending save finishes (for example, expose a "saved" signal or a suspend save before closing).
-
-- [ ] **CR-5 | A photo uploaded while a conflict appears is silently not inserted**
-    - File: `android/app/src/main/java/ch/sonensei/cockpit/notes/NoteEditorViewModel.kt:219-225`
-    - Category: Correctness
-    - Problem: If a conflict is raised while the upload runs, `editable` is false when the upload returns. The returned Markdown is then dropped with no message. The file stays stored in `/Attachments/Notes`, but no note refers to it.
-    - Why it matters: The user sees the upload finish and the photo disappear, with no hint.
-    - Suggested fix: Keep the pending image Markdown and insert it after "Keep my version", or show a message that the photo was not added.
-
-- [ ] **CR-6 | Missing tests for the failed-load and tag-switch race paths**
-    - File: `android/app/src/test/java/ch/sonensei/cockpit/notes/NoteEditorViewModelTest.kt:246`, `android/app/src/test/java/ch/sonensei/cockpit/notes/NotesListViewModelTest.kt:42`
+- [ ] **CR-3 | No test checks that the list waits for the editor's save before reloading**
+    - File: `android/app/src/main/java/ch/sonensei/cockpit/notes/NotesScreen.kt:81-85`, `android/app/src/test/java/ch/sonensei/cockpit/notes/NotesScreenInAppTest.kt:61`
     - Category: Tests
-    - Problem: `a failed load can be retried` does not check that nothing is editable or saved between the failure and the retry (the gap that hides CR-1). No test switches tags while an earlier list load is still running to show that the older result cannot overwrite the newer one, which `refresh()` handles by cancelling the job.
-    - Why it matters: These are the regression-prone async paths in this task. The list cancellation is correct today, but nothing guards it.
-    - Suggested fix: Add a view-model test for an edit or photo after a failed load. Add a list test with a deferred first `list()` answer, a `selectTag` call, and an assertion that the stale result is not applied.
+    - Problem: The route test checks that `onClose` receives a save job. Nothing checks that `NotesRoute` joins that job before `viewModel.refresh()`, which is the actual CR-4 behavior. Removing the `saving?.join()` would leave every test green.
+    - Why it matters: This ordering is easy to regress during later changes.
+    - Suggested fix: Add a `NotesRoute` test with a deferred `repo.save`. Close the editor and assert that `list()` is not called until the save completes.
+
+- [ ] **CR-4 | The comment on `insertPendingImage` does not match what the code does**
+    - File: `android/app/src/main/java/ch/sonensei/cockpit/notes/NoteEditorViewModel.kt:249-258`
+    - Category: Quality
+    - Problem: The KDoc says the image goes "at its cursor when the text is still the one it was added to, else at the end". The code chooses only by the caller: `keepMine` always uses the stored cursor, even when the body changed between the photo pick and the conflict (the test inserts at 0 into "Mine"). `useTheirs` always appends.
+    - Why it matters: The next maintainer may believe the code checks whether the text changed.
+    - Suggested fix: Reword the comment to say what happens (keep mine: the stored cursor, clamped; use theirs: the end). Or actually check that the body is unchanged.
+
+- [ ] **CR-5 | Editor view models still pile up, one per new note and one per note opened**
+    - File: `android/app/src/main/java/ch/sonensei/cockpit/notes/NotesScreen.kt:101`, `android/app/src/main/java/ch/sonensei/cockpit/notes/NoteEditorScreen.kt:109`
+    - Category: Quality
+    - Problem: `hiltViewModel(key = "note:$key")` is scoped to the Notes back stack entry. Every "new note" (`new:<uuid>`) and every distinct note id opened leaves a view model in that store, with its state and body text, until the Notes entry is popped. The fix report says the number "does not grow with each opening". That holds for reopening the same note, but not for new notes or for different notes.
+    - Why it matters: Memory grows slowly during a long session. This is also the root of CR-2.
+    - Suggested fix: Scope the editor view model to the editor itself (a nested `ViewModelStoreOwner` that is cleared after its save completes), or clear finished new-note view models once their save is done.
 
 ## Review conclusion
 
