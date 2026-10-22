@@ -19,7 +19,7 @@
   "validation": [
     {"command": "cd server && ./gradlew ktlintCheck test --tests 'ch.sonensei.cockpit.review.*' jacocoTestReport", "result": "pass"},
     {"command": "UPDATE_OPENAPI=1 ./gradlew test --tests '*OpenApiContractTest', then without the flag", "result": "pass"},
-    {"command": "cd server && ./gradlew test (full server suite, test maxHeapSize 2g) at 83e20d985", "result": "pass (failed with Java heap space at 1g)"},
-    {"command": "sh scripts/check.sh", "result": "pass (run by tasks.py done on the merged result)"}
+    {"command": "cd server && ./gradlew test (full server suite, test maxHeapSize 2g) at 83e20d985 (at 1g it failed with Java heap space)", "result": "pass"},
+    {"command": "sh scripts/check.sh at 83e20d985", "result": "pass"}
   ]
 }
