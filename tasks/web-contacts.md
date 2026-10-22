@@ -17,7 +17,8 @@ Contact list and detail (SPEC.md §8.3).
   - verified (2026-10-22 09:59+0200 by dell26/agent-1): ng test --include='src/app/features/contacts/**/*.spec.ts' at 2c0a11bec -> 103 passed (list+search, detail related mails/events/waiting-for, inline edit with If-Match/conflict, vCard import/export, sync status); e2e contacts.spec.ts exercises import/list/search/detail/export in the real UI -> passed; code-reviewer: no P0-P2
 - [x] Vitest component/service tests cover detail sections; `cd web && npm run check` passes
   - verified (2026-10-22 10:00+0200 by dell26/agent-1): npm --prefix web run check at 2c0a11bec -> exit 0, 161 test files (3267 tests); contacts specs cover detail sections; task-scoped coverage 99.7% statements, 95.7% branches (reviews/web-contacts/tests.md)
-- [ ] Playwright `e2e/contacts/contacts.spec.ts` passes against the e2e stack (`npm run e2e -- e2e/contacts/contacts.spec.ts`, see p0-e2e-harness): import a vCard; birthday appears in calendar
+- [x] Playwright `e2e/contacts/contacts.spec.ts` passes against the e2e stack (`npm run e2e -- e2e/contacts/contacts.spec.ts`, see p0-e2e-harness): import a vCard; birthday appears in calendar
+  - verified (2026-10-22 10:00+0200 by dell26/agent-1): npm --prefix web run e2e -- e2e/contacts/contacts.spec.ts on main (contacts-birthdays done) + branch, podman compose e2e stack -> 25 passed incl. [chromium] contacts > import a vCard; the birthday appears in the calendar
 
 ## Notes
 - ASSUMPTION (2026-10-22 05:36+0200 by dell26/agent-3): Google/MS sync status = connected OAuth accounts whose granted scopes include contacts (GET /oauth/connections), shown on the list (syncs both ways / paused: sign in again) and per contact (source + its provider's account; with several accounts of a provider the first is shown, since sync links are not exposed by the API). No per-contact last-sync time: the API has none
