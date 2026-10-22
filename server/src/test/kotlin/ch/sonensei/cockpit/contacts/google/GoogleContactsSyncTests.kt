@@ -60,6 +60,7 @@ import org.springframework.test.annotation.DirtiesContext
 import org.springframework.test.context.DynamicPropertyRegistry
 import org.springframework.test.context.DynamicPropertySource
 import org.springframework.transaction.support.TransactionTemplate
+import tools.jackson.databind.JsonNode
 import tools.jackson.databind.json.JsonMapper
 import java.time.Instant
 import java.time.LocalDate
@@ -670,6 +671,75 @@ class GoogleContactsSyncTests(
 		writes() shouldContainExactly listOf("DELETE /v1/people/c1004:deleteContact")
 		contacts.findById(company.id).get().isDeleted shouldBe true
 		linkOf(trashed).resourceName.shouldBeNull()
+	}
+
+	/**
+	 * After a run whose push of c1004's new organization overlapped a local edit: stubs the next run, where Google has
+	 * the new organization and still no name, runs it, and returns the primary name it sent (`null`: none sent).
+	 */
+	private fun nextPushedName(): JsonNode? {
+		(tokens as FixedTokens).beforeCall = null
+		wireMock.resetAll()
+		stubPerson(
+			"people/c1004",
+			"""{"resourceName": "people/c1004", "etag": "%renamed", "organizations": [{"metadata": {"primary": true}, "name": "Other GmbH"}]}""",
+		)
+		stub(patch(urlPathEqualTo("/v1/people/c1004:updateContact")), """{"resourceName": "people/c1004", "etag": "%named"}""")
+		stub(listing().withQueryParam("syncToken", equalTo("CONTACTS-sync-3")), """{"nextSyncToken": "CONTACTS-sync-4"}""")
+		syncOk()
+		patchRequest().queryParameter("updatePersonFields").firstValue().split(",") shouldContain "names"
+		return jsonMapper.readTree(patchRequest().bodyAsString).path("names").firstOrNull()
+	}
+
+	@Test
+	fun `a display name the user gives while the new organization is pushed is kept and written to Google as the name`() {
+		val company = companyWithNewOrganization()
+		duringWrite { service.update(company.id, ContactChanges(displayName = Change("Fictional Holding AG"))) {} }
+
+		syncOk()
+
+		patchRequest().queryParameter("updatePersonFields").firstValue() shouldBe "organizations"
+		val renamed = contacts.findById(company.id).get()
+		renamed.displayName shouldBe "Fictional Holding AG"
+		linkOf(renamed).syncedVersion shouldBeLessThan renamed.version
+
+		val name = nextPushedName().shouldNotBeNull()
+		name.path("unstructuredName").asString() shouldBe "Fictional Holding AG"
+		contacts.findById(company.id).get().displayName shouldBe "Fictional Holding AG"
+	}
+
+	@Test
+	fun `a given name the user adds while the new organization is pushed keeps the display name and is written to Google`() {
+		val company = companyWithNewOrganization()
+		duringWrite { service.update(company.id, ContactChanges(givenName = Change("Erika"))) {} }
+
+		syncOk()
+
+		val named = contacts.findById(company.id).get()
+		named.givenName shouldBe "Erika"
+		named.displayName shouldBe "Fictional GmbH"
+		linkOf(named).syncedVersion shouldBeLessThan named.version
+
+		val name = nextPushedName().shouldNotBeNull()
+		name.path("givenName").asString() shouldBe "Erika"
+		name.has("unstructuredName") shouldBe false
+	}
+
+	@Test
+	fun `a family name the user adds while the new organization is pushed keeps the display name and is written to Google`() {
+		val company = companyWithNewOrganization()
+		duringWrite { service.update(company.id, ContactChanges(familyName = Change("Muster"))) {} }
+
+		syncOk()
+
+		val named = contacts.findById(company.id).get()
+		named.familyName shouldBe "Muster"
+		named.displayName shouldBe "Fictional GmbH"
+		linkOf(named).syncedVersion shouldBeLessThan named.version
+
+		val name = nextPushedName().shouldNotBeNull()
+		name.path("familyName").asString() shouldBe "Muster"
+		name.has("unstructuredName") shouldBe false
 	}
 
 	@Test
