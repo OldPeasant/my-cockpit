@@ -1,0 +1,82 @@
+/* Not encapsulated (TipTap renders the content): every rule is scoped to the element. */
+app-rich-text-editor {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  min-height: 18rem;
+  border: 1px solid var(--mat-sys-outline-variant);
+  border-radius: var(--app-radius);
+  background: var(--mat-sys-surface);
+
+  &:focus-within {
+    border-color: var(--mat-sys-primary);
+  }
+
+  .toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 2px;
+    padding: var(--app-space-1);
+    border-bottom: 1px solid var(--mat-sys-outline-variant);
+  }
+
+  .tool {
+    display: grid;
+    place-items: center;
+    width: 32px;
+    height: 32px;
+    border: 0;
+    border-radius: var(--app-radius);
+    background: none;
+    color: var(--app-fg-muted);
+    cursor: pointer;
+
+    svg {
+      width: 20px;
+      height: 20px;
+      fill: currentColor;
+    }
+
+    &:hover,
+    &:focus-visible {
+      background: var(--mat-sys-surface-container);
+      color: var(--mat-sys-on-surface);
+    }
+
+    &.on {
+      background: var(--mat-sys-secondary-container);
+      color: var(--mat-sys-on-secondary-container);
+    }
+  }
+
+  .body {
+    padding: var(--app-space-3) var(--app-space-4);
+    cursor: text;
+
+    .ProseMirror {
+      min-height: 14rem;
+      outline: none;
+      font: var(--mat-sys-body-large);
+      overflow-wrap: anywhere;
+
+      > :first-child {
+        margin-top: 0;
+      }
+
+      blockquote {
+        margin: var(--app-space-2) 0;
+        padding-left: var(--app-space-3);
+        border-left: 3px solid var(--mat-sys-outline-variant);
+        color: var(--app-fg-muted);
+      }
+
+      a {
+        color: var(--mat-sys-primary);
+      }
+
+      .image-placeholder {
+        color: var(--app-fg-muted);
+        font-style: italic;
+      }
+    }
+  }
+}

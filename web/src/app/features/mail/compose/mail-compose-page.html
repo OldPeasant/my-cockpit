@@ -1,0 +1,198 @@
+<div class="compose">
+  <nav class="bar">
+    <a class="back" routerLink="/mail" i18n-aria-label="@@mailCompose.backAria" aria-label="Back to Mail">
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z" />
+      </svg>
+      <span i18n="@@mailCompose.back">Mail</span>
+    </a>
+    @if (state() === 'ready') {
+      <p class="saved" role="status">
+        @switch (saveState().kind) {
+          @case ('saving') {
+            <ng-container i18n="@@mailCompose.saving">Saving…</ng-container>
+          }
+          @case ('unsaved') {
+            <ng-container i18n="@@mailCompose.unsaved">Unsaved changes</ng-container>
+          }
+          @case ('conflict') {
+            <span class="problem" i18n="@@mailCompose.conflict"
+              >This draft was changed elsewhere. Reload to see that version.</span
+            >
+          }
+          @case ('failed') {
+            <span class="problem" i18n="@@mailCompose.saveFailed"
+              >Not saved: {{ saveProblem() }}</span
+            >
+          }
+          @default {
+            @if (savedAt(); as at) {
+              <ng-container i18n="@@mailCompose.savedAt">Draft saved {{ at | date: 'shortTime' }}</ng-container>
+            }
+          }
+        }
+      </p>
+    }
+  </nav>
+
+  @switch (state()) {
+    @case ('loading') {
+      <p class="status" role="status" i18n="@@mailCompose.loading">Preparing the draft…</p>
+    }
+    @case ('failed') {
+      <div class="status" role="alert">
+        <p i18n="@@mailCompose.loadFailed">The draft could not be opened: {{ loadError() }}</p>
+        <button mat-stroked-button type="button" (click)="retry()" i18n="@@mailCompose.retry">
+          Try again
+        </button>
+      </div>
+    }
+    @case ('noAccount') {
+      <div class="status">
+        <p i18n="@@mailCompose.noAccount">Add a mail account to write mail.</p>
+        <a mat-stroked-button routerLink="/settings/mail" i18n="@@mailCompose.addAccount"
+          >Add a mail account</a
+        >
+      </div>
+    }
+    @case ('ready') {
+      <form class="sheet" (submit)="$event.preventDefault(); send()">
+        <h1 class="cdk-visually-hidden" i18n="@@mailCompose.heading">New message</h1>
+        <div class="head">
+          <mat-form-field subscriptSizing="dynamic">
+            <mat-label i18n="@@mailCompose.from">From</mat-label>
+            <mat-select
+              [value]="accountId()"
+              [disabled]="!canChangeSender() || !!busy()"
+              (selectionChange)="changeSender($event.value)"
+            >
+              @for (account of accounts(); track account.id) {
+                <mat-option [value]="account.id">{{ accountLabel(account) }}</mat-option>
+              }
+            </mat-select>
+          </mat-form-field>
+          <div class="to-row">
+            <app-recipient-input
+              class="grow"
+              i18n-label="@@mailCompose.to"
+              label="To"
+              [recipients]="to()"
+              (recipientsChange)="setTo($event)"
+            />
+            <button
+              mat-button
+              type="button"
+              [attr.aria-expanded]="showCopies()"
+              (click)="toggleCopies()"
+              i18n="@@mailCompose.ccBcc"
+            >
+              Cc/Bcc
+            </button>
+          </div>
+          @if (showCopies()) {
+            <app-recipient-input
+              i18n-label="@@mailCompose.cc"
+              label="Cc"
+              [recipients]="cc()"
+              (recipientsChange)="setCc($event)"
+            />
+            <app-recipient-input
+              i18n-label="@@mailCompose.bcc"
+              label="Bcc"
+              [recipients]="bcc()"
+              (recipientsChange)="setBcc($event)"
+            />
+          }
+          <mat-form-field subscriptSizing="dynamic">
+            <mat-label i18n="@@mailCompose.subject">Subject</mat-label>
+            <input
+              matInput
+              name="subject"
+              autocomplete="off"
+              maxlength="998"
+              [value]="subject()"
+              (input)="setSubject($any($event.target).value)"
+            />
+          </mat-form-field>
+        </div>
+
+        <app-rich-text-editor
+          i18n-label="@@mailCompose.body"
+          label="Message"
+          [html]="startHtml()"
+          (changed)="setBody($event)"
+        />
+
+        @if (shownAttachments().length) {
+          <ul class="attachments" i18n-aria-label="@@mailCompose.attachments" aria-label="Attachments">
+            @for (part of shownAttachments(); track part.partId) {
+              <li>
+                <span class="file">{{ part.filename }}</span>
+                <span class="size">{{ size(part) }}</span>
+                <button
+                  mat-button
+                  type="button"
+                  [disabled]="!!busy()"
+                  (click)="removeAttachment(part)"
+                  i18n="@@mailCompose.removeAttachment"
+                >
+                  Remove
+                </button>
+              </li>
+            }
+          </ul>
+        }
+
+        @if (sendError(); as problem) {
+          <p class="problem" role="alert">{{ problem }}</p>
+        }
+
+        <div class="actions">
+          <button mat-flat-button type="submit" [disabled]="!!busy()" i18n="@@mailCompose.send">
+            Send
+          </button>
+          <input
+            #fileInput
+            class="cdk-visually-hidden"
+            type="file"
+            multiple
+            tabindex="-1"
+            aria-hidden="true"
+            (change)="upload(fileInput)"
+          />
+          <button
+            mat-stroked-button
+            type="button"
+            [disabled]="!!busy()"
+            (click)="fileInput.click()"
+            i18n="@@mailCompose.attachUpload"
+          >
+            Attach file
+          </button>
+          <button
+            mat-stroked-button
+            type="button"
+            [disabled]="!!busy()"
+            (click)="pickFile()"
+            i18n="@@mailCompose.attachFiles"
+          >
+            From Files
+          </button>
+          @if (busy() === 'attach') {
+            <span class="note" role="status" i18n="@@mailCompose.attaching">Attaching…</span>
+          }
+          <span class="spacer"></span>
+          <button
+            mat-button
+            type="button"
+            [disabled]="!!busy()"
+            (click)="discard()"
+            i18n="@@mailCompose.discard"
+          >
+            Discard
+          </button>
+        </div>
+      </form>
+    }
+  }
+</div>

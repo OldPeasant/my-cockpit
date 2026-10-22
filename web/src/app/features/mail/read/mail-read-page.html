@@ -12,6 +12,29 @@
       <span i18n="@@mailRead.back">Mail</span>
     </a>
     @if (state() === 'ready') {
+      <div class="actions" role="group" i18n-aria-label="@@mailRead.respondAria" aria-label="Respond">
+        <a
+          mat-stroked-button
+          routerLink="/mail/compose"
+          [queryParams]="{ reply: message()?.id }"
+          i18n="@@mailRead.reply"
+          >Reply</a
+        >
+        <a
+          mat-stroked-button
+          routerLink="/mail/compose"
+          [queryParams]="{ replyAll: message()?.id }"
+          i18n="@@mailRead.replyAll"
+          >Reply all</a
+        >
+        <a
+          mat-stroked-button
+          routerLink="/mail/compose"
+          [queryParams]="{ forward: message()?.id }"
+          i18n="@@mailRead.forward"
+          >Forward</a
+        >
+      </div>
       <div class="actions" role="group" i18n-aria-label="@@mailRead.gtdAria" aria-label="Process">
         <button
           mat-stroked-button

@@ -19,6 +19,11 @@ export default [
     loadComponent: () => import('./list/mail-list-page'),
   },
   {
+    path: 'compose',
+    title: $localize`:@@mailCompose.title:Compose`,
+    loadComponent: () => import('./compose/mail-compose-page'),
+  },
+  {
     path: 'messages/:id',
     title: $localize`:@@mailRead.title:Message`,
     loadComponent: () => import('./read/mail-read-page'),
