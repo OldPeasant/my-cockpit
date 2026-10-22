@@ -1,10 +1,11 @@
 ---
 title: Habits UI
-status: todo
-owner:
+status: in_progress
+owner: dell26/agent-2
 deps: [p0-web-shell,habits-api,p0-e2e-harness]
 touches: [web/src/app/features/habits]
 prio: 3
+lease_until: 2026-10-22T00:30:43Z
 ---
 ## Goal
 Track habits (SPEC.md §8.5).
