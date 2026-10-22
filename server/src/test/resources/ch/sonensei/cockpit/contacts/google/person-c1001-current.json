@@ -1,0 +1,7 @@
+{
+  "resourceName": "people/c1001",
+  "etag": "%EgcBAgkLLjc9GgQBAgUHIgxHb29nbGVXaW5zPQ==",
+  "metadata": {"sources": [{"type": "CONTACT", "id": "3e9"}], "objectType": "PERSON"},
+  "names": [{"metadata": {"primary": true}, "displayName": "Alex Changed-At-Google", "givenName": "Alex", "familyName": "Changed-At-Google"}],
+  "emailAddresses": [{"metadata": {"primary": true}, "value": "alex.muster@example.test", "type": "work", "formattedType": "Work"}]
+}

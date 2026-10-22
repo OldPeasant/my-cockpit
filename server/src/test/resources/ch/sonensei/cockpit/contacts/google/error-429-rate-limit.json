@@ -1,0 +1,8 @@
+{
+  "error": {
+    "code": 429,
+    "message": "Quota exceeded for quota metric 'Critical read requests' of service 'people.googleapis.com'.",
+    "status": "RESOURCE_EXHAUSTED",
+    "details": [{"@type": "type.googleapis.com/google.rpc.ErrorInfo", "reason": "RATE_LIMIT_EXCEEDED", "domain": "googleapis.com"}]
+  }
+}

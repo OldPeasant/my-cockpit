@@ -1,0 +1,14 @@
+{
+  "connections": [
+    {
+      "resourceName": "people/c1003",
+      "etag": "%EgcBAgkLLjc9GgQBAgUHIgxkNGNvTWZ2c0RvPQ==",
+      "metadata": {"sources": [{"type": "CONTACT", "id": "3eb"}], "objectType": "PERSON"},
+      "names": [{"metadata": {"primary": true}, "displayName": "Sam Beispiel", "givenName": "Sam", "familyName": "Beispiel"}],
+      "emailAddresses": [{"metadata": {"primary": true}, "value": "sam@example.test", "type": "home", "formattedType": "Home"}]
+    }
+  ],
+  "nextSyncToken": "CONTACTS-sync-1",
+  "totalPeople": 3,
+  "totalItems": 3
+}

@@ -1,0 +1,23 @@
+{
+  "connections": [
+    {
+      "resourceName": "people/c1001",
+      "etag": "%EgcBAgkLLjc9GgQBAgUHIgxNZXdldGFnMDAxPQ==",
+      "metadata": {"sources": [{"type": "CONTACT", "id": "3e9"}], "objectType": "PERSON"},
+      "names": [{"metadata": {"primary": true}, "displayName": "Alex Muster-Meier", "givenName": "Alex", "familyName": "Muster-Meier"}],
+      "emailAddresses": [{"metadata": {"primary": true}, "value": "alex.muster@example.test", "type": "work", "formattedType": "Work"}]
+    },
+    {
+      "resourceName": "people/c1003",
+      "etag": "%EgcBAgkLLjc9GgQBAgUHIgxkZWxldGVkMDAzPQ==",
+      "metadata": {"sources": [{"type": "CONTACT", "id": "3eb", "deleted": true}], "deleted": true, "objectType": "PERSON"}
+    },
+    {
+      "resourceName": "people/c1004",
+      "etag": "%EgcBAgkLLjc9GgQBAgUHIgxuZXcwMDA0ZW09",
+      "metadata": {"sources": [{"type": "CONTACT", "id": "3ec"}], "objectType": "PERSON"},
+      "organizations": [{"metadata": {"primary": true}, "name": "Fictional GmbH"}]
+    }
+  ],
+  "nextSyncToken": "CONTACTS-sync-2"
+}

@@ -1,0 +1,54 @@
+{
+  "connections": [
+    {
+      "resourceName": "people/c1001",
+      "etag": "%EgcBAgkLLjc9GgQBAgUHIgxQaEx1bWJ1dGZ2Zz0=",
+      "metadata": {"sources": [{"type": "CONTACT", "id": "3e9"}], "objectType": "PERSON"},
+      "names": [
+        {
+          "metadata": {"primary": true, "source": {"type": "CONTACT", "id": "3e9"}},
+          "displayName": "Alex Muster",
+          "familyName": "Muster",
+          "givenName": "Alex",
+          "displayNameLastFirst": "Muster, Alex",
+          "unstructuredName": "Alex Muster"
+        }
+      ],
+      "emailAddresses": [
+        {"metadata": {"primary": true}, "value": "alex.muster@example.test", "type": "work", "formattedType": "Work"},
+        {"metadata": {}, "value": "not-an-address", "type": "home", "formattedType": "Home"}
+      ],
+      "phoneNumbers": [
+        {"metadata": {"primary": true}, "value": "+41 44 000 00 01", "canonicalForm": "+41440000001", "type": "mobile", "formattedType": "Mobile"}
+      ],
+      "addresses": [
+        {
+          "metadata": {"primary": true},
+          "formattedValue": "Beispielweg 1\n8000 Zürich\nCH",
+          "type": "home",
+          "formattedType": "Home",
+          "streetAddress": "Beispielweg 1",
+          "city": "Zürich",
+          "postalCode": "8000",
+          "country": "CH"
+        }
+      ],
+      "organizations": [{"metadata": {"primary": true}, "name": "Example AG", "title": "Engineer"}],
+      "birthdays": [
+        {"metadata": {"primary": true}, "date": {"year": 1990, "month": 4, "day": 12}},
+        {"metadata": {}, "text": "12.04.1990"}
+      ],
+      "biographies": [{"metadata": {"primary": true}, "value": "Met at the fictitious conference.", "contentType": "TEXT_PLAIN"}]
+    },
+    {
+      "resourceName": "people/c1002",
+      "etag": "%EgcBAgkLLjc9GgQBAgUHIgxYbE1kZ3ZhZ3Z4bz0=",
+      "metadata": {"sources": [{"type": "CONTACT", "id": "3ea"}], "objectType": "PERSON"},
+      "birthdays": [{"metadata": {"primary": true}, "date": {"month": 7, "day": 3}}],
+      "phoneNumbers": [{"metadata": {"primary": true}, "value": "+41 44 000 00 02", "type": "work", "formattedType": "Work"}]
+    }
+  ],
+  "nextPageToken": "CONTACTS-page-2",
+  "totalPeople": 3,
+  "totalItems": 3
+}
