@@ -13,7 +13,8 @@ Files on the phone (SPEC.md §9.2 item 7).
 ## Acceptance criteria
 - [x] Browse, download/open with intents (FileProvider), upload from device
   - verified (2026-10-22 13:27+0200 by dell26/agent-1): cd android && ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.files.*' (Robolectric, real MainActivity + Hilt, FilesRepository faked) -> FilesRouteInAppTest 18/18 pass: browse folder + back, tap file downloads and fires ACTION_VIEW with content://<app>.files FileProvider URI + read grant (content readable through provider), save-as via CreateDocument writes the file, picked files upload into shown folder then reload; no physical device/emulator reachable from this sandbox
-- [ ] `cd android && ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.files.*'` passes, covering browse and upload states (Robolectric/Compose UI tests for screens)
+- [x] `cd android && ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.files.*'` passes, covering browse and upload states (Robolectric/Compose UI tests for screens)
+  - verified (2026-10-22 13:27+0200 by dell26/agent-1): cd android && ./gradlew ktlintCheck lintDebug testDebugUnitTest --tests 'ch.sonensei.cockpit.files.*' createDebugUnitTestCoverageReport at ba712b4d2 -> BUILD SUCCESSFUL, 66 tests 0 failures (FilesViewModelTest browse/upload states, FilesScreenTest Compose UI, FilesRouteInAppTest Robolectric, DeviceFilesTest, FilesRepositoryTest); files coverage 97.7% lines
 
 ## Notes
 - ASSUMPTION (2026-10-22 12:56+0200 by dell26/agent-1): Uploads from Android always use the streaming multipart POST /api/v1/files (any size up to the server max), not the resumable chunked /uploads: the server accepts multipart up to cockpit.files.max-size and the body is streamed, so memory is not an issue; resumability for >50 MB on mobile is left for later.
