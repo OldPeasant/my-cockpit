@@ -1,0 +1,22 @@
+{
+  "schema": 1,
+  "task": "backup-contrib-contacts",
+  "reviewed_revision": "e08bbc456bc8f919eb8aa3cdb6b34b6014797e0c",
+  "helpers": {
+    "test-writer":   {"status": "completed", "report": "reviews/backup-contrib-contacts/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/backup-contrib-contacts/review.md"},
+    "fixer":         {"status": "completed", "report": "reviews/backup-contrib-contacts/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "CR-2", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "earlier review revision: use shared BackupRows helpers instead of inline Timestamp/UUID/Instant conversions (fixes.md); the earlier P1 about missing contributor tests was resolved by ContactsBackupContributorTests"},
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P3", "disposition": "accepted",
+     "note": "encoded(path) duplicates NotesBackupContributor.encoded; sharing it means editing notes/files modules outside this task's touches, deliberately left"}
+  ],
+  "validation": [
+    {"command": "cd server && ./gradlew test --tests '*ContactsBackupContributorTests' --tests '*BackupRoundTripTest'", "result": "pass"},
+    {"command": "cd server && ./gradlew check", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
