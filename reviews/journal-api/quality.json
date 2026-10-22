@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "task": "journal-api",
-  "reviewed_revision": "10068a31968788c5e7dccd645dc15a483801ea72",
+  "reviewed_revision": "8bcff73ff7886e60aca0038362f9ff2553af4688",
   "helpers": {
     "test-writer": {"status": "completed", "report": "reviews/journal-api/tests.md"},
     "code-reviewer": {"status": "completed", "report": "reviews/journal-api/review.md"},
