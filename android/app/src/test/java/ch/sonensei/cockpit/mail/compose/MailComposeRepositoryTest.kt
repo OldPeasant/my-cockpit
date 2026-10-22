@@ -209,6 +209,40 @@ class MailComposeRepositoryTest {
         }
 
     @Test
+    fun `missing fields of a draft read as empty, unusable addresses and attachments without part are dropped`() =
+        runBlocking {
+            server.enqueue(
+                MockResponse
+                    .Builder()
+                    .addHeader("Content-Type", "application/json")
+                    .addHeader("ETag", "\"3\"")
+                    .body(
+                        """{"id":"${id(1)}","accountId":null,"subject":null,"html":null,"text":null,
+                        |"to":[{"name":" ","address":"ann@example.org"},{"name":"Nobody","address":" "}],
+                        |"attachments":[{"partId":null,"filename":"lost.bin"},{"partId":"4","filename":" ","sizeBytes":null}]}
+                        """.trimMargin().replace("\n", ""),
+                    ).build(),
+            )
+
+            val d = (repository.get(id(1)) as MailResult.Ok).value
+
+            assertEquals(null, d.accountId)
+            assertEquals(listOf(Recipient("ann@example.org")), d.to)
+            assertEquals(emptyList<Recipient>(), d.cc)
+            assertEquals("", d.subject)
+            assertEquals("", d.html)
+            assertEquals("", d.text)
+            assertEquals(listOf(DraftAttachment("4", "4", null)), d.attachments)
+        }
+
+    @Test
+    fun `a new mail has no server draft to start from`() =
+        runBlocking {
+            assertEquals(MailResult.Failed(null), repository.start(ComposeMode.New()))
+            assertEquals(0, server.requestCount)
+        }
+
+    @Test
     fun `accounts are listed by name`() =
         runBlocking {
             server.enqueue(
