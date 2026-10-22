@@ -1,0 +1,22 @@
+{
+  "schema": 1,
+  "task": "and-review",
+  "reviewed_revision": "1abe0c84a50923289e8c4d5039bb524ae1b4a7c1",
+  "helpers": {
+    "test-writer": {"status": "completed", "report": "reviews/and-review/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/and-review/review.md"},
+    "fixer": {"status": "not_required", "reason": "no production defects: CR-1 accepted (P3 wording, same as contacts), CR-2 resolved by test-only changes (rename, view model supersede test)"}
+  },
+  "fixes_required": false,
+  "findings": [
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P3", "disposition": "accepted",
+     "note": "offline banner says 'Showing the last loaded review' also when nothing was loaded yet; same wording as contacts, minor"},
+    {"id": "CR-2", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "misnamed screen test renamed; test-writer added a test that a newer refresh supersedes an older one"}
+  ],
+  "validation": [
+    {"command": "android/gradlew -p android ktlintCheck testDebugUnitTest --tests 'ch.sonensei.cockpit.review.*'", "result": "pass"},
+    {"command": "android/gradlew -p android createDebugUnitTestCoverageReport", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
