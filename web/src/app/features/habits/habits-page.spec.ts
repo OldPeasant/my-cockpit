@@ -347,7 +347,9 @@ describe('HabitsPage', () => {
     checkButton(READ).click();
     http.expectOne((r) => r.method === 'PUT').flush(...problem(409, 'Changed elsewhere.'));
     await settle();
-    expect(text(root.querySelector('.hint'))).toBe('Loading habits…');
+    // The list stays on screen while it reloads.
+    expect(root.querySelector('.hint')).toBeNull();
+    expect(text(row(READ).querySelector('.error'))).toContain('Changed elsewhere.');
 
     const fresh = { ...READ, version: 2, stats: { ...READ.stats, todayCount: 1, doneToday: true } };
     await flushList([fresh]);
@@ -785,6 +787,31 @@ describe('HabitsPage', () => {
     await settle();
     expect(checkButton(READ).getAttribute('aria-pressed')).toBe('true');
     expect(text(row(READ).querySelector('.streak dd'))).toBe('5 days');
+  });
+
+  it('keeps the typed values of an open edit form when a check on another habit gets a 412', async () => {
+    await create([READ, WATER]);
+    await openEditAndType(READ, 'Read 30 pages');
+
+    checkButton(WATER).click();
+    http.expectOne((r) => r.method === 'PUT').flush(...problem(412, 'Outdated version.'));
+    await settle();
+    await flushList([
+      { ...READ, version: 4 },
+      { ...WATER, version: 5, stats: { ...WATER.stats, todayCount: 2 } },
+    ]);
+
+    const input = row(READ).querySelector('.name input') as HTMLInputElement;
+    expect(input.value).toBe('Read 30 pages');
+    expect(text(row(WATER).querySelector('.error'))).toContain('Outdated version.');
+    expect(checkButton(WATER).getAttribute('aria-label')).toContain('2 of 3 today');
+
+    // The reloaded version is used for the next save of the open form.
+    await clickSave(READ);
+    const save = http.expectOne((r) => r.method === 'PATCH');
+    expect(save.request.headers.get('If-Match')).toBe('"4"');
+    save.flush({ ...READ, name: 'Read 30 pages', version: 5 });
+    await settle();
   });
 
   it('drops the reload on becoming visible when the view is switched meanwhile', async () => {

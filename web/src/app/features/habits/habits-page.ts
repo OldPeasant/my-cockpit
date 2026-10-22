@@ -73,6 +73,11 @@ export default class HabitsPage implements OnInit {
 
   /** Counts the loads: habits that arrive for an earlier view are ignored. */
   private loadSeq = 0;
+  /**
+   * Counts the local changes (checks, archives, creates, edits) as they start and finish: a quiet
+   * reload that overlapped one may hold stale habits and is dropped.
+   */
+  private changeSeq = 0;
 
   constructor() {
     // A page left open past midnight would check yesterday (`stats.today`): load again on return.
@@ -132,11 +137,15 @@ export default class HabitsPage implements OnInit {
     if (id !== 'new' && !habit) return;
     this.saving.set(true);
     this.saveError.set(null);
+    this.changeSeq++;
     try {
       if (habit) {
-        this.replace(await this.service.update(habit, request));
+        const updated = await this.service.update(habit, request);
+        this.changeSeq++;
+        this.replace(updated);
       } else {
         const created = await this.service.create(request);
+        this.changeSeq++;
         // A new habit is active: it shows up only in the active view.
         if (!this.archived()) {
           this.habits.update((habits) => (habits ? byName([...habits, created]) : habits));
@@ -145,6 +154,8 @@ export default class HabitsPage implements OnInit {
       }
       this.editing.set(null);
     } catch (error) {
+      // Counted before the conflict reload starts, so the failed save does not drop its own reload.
+      this.changeSeq++;
       this.saveError.set(message(error));
       if (habit && isConflict(error)) void this.reloadQuietly();
     } finally {
@@ -216,13 +227,15 @@ export default class HabitsPage implements OnInit {
   /**
    * Loads the habits again while the current ones stay on screen (an open form keeps its values),
    * e.g. after a conflict, so saving the open form again works. Like `load()`, the result is dropped
-   * when another load started meanwhile (a switched view, say).
+   * when another load started meanwhile (a switched view, say), and also when a local change started
+   * or finished meanwhile: the habits may have been read before it and would undo it on screen.
    */
   private async reloadQuietly(): Promise<void> {
     const seq = this.loadSeq;
+    const changes = this.changeSeq;
     try {
       const habits = await this.service.list(this.archived());
-      if (seq === this.loadSeq) this.habits.set(habits);
+      if (seq === this.loadSeq && changes === this.changeSeq) this.habits.set(habits);
     } catch {
       // The list (and an open form's error) stays; the next action shows the problem again.
     }
@@ -233,14 +246,19 @@ export default class HabitsPage implements OnInit {
     if (this.busy().has(habit.id)) return;
     this.busy.update((ids) => new Set(ids).add(habit.id));
     this.rowError.set(null);
+    this.changeSeq++;
     try {
       await action();
+      this.changeSeq++;
     } catch (error) {
+      // Counted before the conflict reload starts, so the failed change does not drop its own reload.
+      this.changeSeq++;
       if (error instanceof ApiError && error.status === 404) {
         this.habits.update((habits) => habits?.filter((h) => h.id !== habit.id) ?? null);
       } else {
         this.rowError.set({ id: habit.id, message: message(error) });
-        if (isConflict(error)) void this.load();
+        // Quietly, so another habit's open edit form keeps what the user typed.
+        if (isConflict(error)) void this.reloadQuietly();
       }
     } finally {
       this.busy.update((ids) => {
