@@ -16,3 +16,4 @@ Write mail (SPEC.md §7.3).
 - [ ] Playwright `e2e/mail-compose/compose.spec.ts` passes against the e2e stack (`npm run e2e -- e2e/mail-compose/compose.spec.ts`, see p0-e2e-harness): reply with a Files attachment is received by GreenMail
 
 ## Notes
+- ASSUMPTION (2026-10-22 09:07+0200 by dell26/agent-1): Identity picker = the mail accounts (display name + address): there is no identity API yet (task mail-identities); identityId stays the server default / what reply chose. Moving a stored draft to another account recreates it there and discards the old copy; disabled for replies (threading headers) and drafts with attachments, which a new draft cannot carry over
