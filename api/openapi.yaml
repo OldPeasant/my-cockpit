@@ -12,6 +12,12 @@ tags:
   name: Calendars
 - description: Web login sessions and device tokens
   name: Auth
+- description: "Drafts are stored in the account's Drafts folder on the mail server;\
+    \ every save replaces the stored version. A draft's `ETag` is the IMAP UID of\
+    \ its current version: saving, attaching, deleting and sending need it in `If-Match`\
+    \ (412 when another save came first). The draft keeps its id across saves. Changes\
+    \ show as `MAIL_FOLDER` change events of the Drafts (and Sent) folder."
+  name: Mail compose
 - description: GTD tasks
   name: Tasks
 - description: Create and download backups
@@ -4397,6 +4403,460 @@ paths:
       summary: Test the connection
       tags:
       - Mail accounts
+  /api/v1/mail/correspondents:
+    get:
+      description: "Addresses you recently wrote to (Sent) or got mail from, newest\
+        \ first, without your own addresses. `q` filters by address or name (contains,\
+        \ case-insensitive)."
+      operationId: listMailCorrespondents
+      parameters:
+      - in: query
+        name: q
+        required: false
+        schema:
+          type: string
+      - description: "1 to 50, default 10"
+        in: query
+        name: limit
+        required: false
+        schema:
+          type: integer
+          format: int32
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CorrespondentListResponse"
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/CorrespondentListResponse"
+          description: The correspondents
+        "400":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: Invalid `limit`
+      summary: "Recent correspondents, for recipient autocomplete"
+      tags:
+      - Mail compose
+  /api/v1/mail/drafts:
+    post:
+      description: "Builds the message (HTML with a plain-text alternative, derived\
+        \ from the HTML when `text` is missing; `From` and `Reply-To` from the identity,\
+        \ by default the account's default identity) and appends it to the account's\
+        \ Drafts folder. Attachments can only be files (`fileId`) here; upload others\
+        \ afterwards."
+      operationId: createMailDraft
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateDraftRequest"
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DraftResponse"
+          description: "Saved in the Drafts folder; `Location` is the draft, `ETag`\
+            \ its version"
+          headers:
+            ETag:
+              schema:
+                type: string
+              style: simple
+            Location:
+              schema:
+                type: string
+              style: simple
+        "400":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: "Invalid request (addresses, identity of another account, unknown\
+            \ attachment, too large)"
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: "No such account, message or file"
+        "409":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: The account has no Drafts folder
+        "502":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: "The mail server failed (`errorCode`, e.g. CONNECTION_FAILED,\
+            \ AUTHENTICATION_FAILED)"
+        "503":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: All connections of the account are busy (`errorCode` POOL_EXHAUSTED);
+            retry later
+      summary: Save a new draft
+      tags:
+      - Mail compose
+  /api/v1/mail/drafts/{id}:
+    delete:
+      description: Deletes it from the Drafts folder on the server.
+      operationId: deleteMailDraft
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - description: The draft's ETag
+        in: header
+        name: If-Match
+        required: true
+        schema:
+          type: string
+      responses:
+        "204":
+          description: Deleted
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: No such draft
+        "412":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: If-Match is stale
+        "428":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: If-Match is missing
+        "502":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: "The mail server failed (`errorCode`, e.g. CONNECTION_FAILED,\
+            \ AUTHENTICATION_FAILED)"
+        "503":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: All connections of the account are busy (`errorCode` POOL_EXHAUSTED);
+            retry later
+      summary: Discard a draft
+      tags:
+      - Mail compose
+    get:
+      operationId: getMailDraft
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DraftResponse"
+          description: "The draft, with its version as `ETag`"
+          headers:
+            ETag:
+              schema:
+                type: string
+              style: simple
+        "400":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: "Invalid request (addresses, identity of another account, unknown\
+            \ attachment, too large)"
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: No such draft (or file)
+        "502":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: "The mail server failed (`errorCode`, e.g. CONNECTION_FAILED,\
+            \ AUTHENTICATION_FAILED)"
+        "503":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: All connections of the account are busy (`errorCode` POOL_EXHAUSTED);
+            retry later
+      summary: "A draft with its content, for editing"
+      tags:
+      - Mail compose
+    put:
+      description: "Replaces recipients, subject, body and identity; `In-Reply-To`/`References`\
+        \ of a reply stay. `attachments` lists what the new version keeps (`partId`\
+        \ of the current version) or adds (`fileId`); omitted, the current attachments\
+        \ stay."
+      operationId: updateMailDraft
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - description: The draft's ETag
+        in: header
+        name: If-Match
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DraftContentRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DraftResponse"
+          description: "The draft, with its version as `ETag`"
+          headers:
+            ETag:
+              schema:
+                type: string
+              style: simple
+        "400":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: "Invalid request (addresses, identity of another account, unknown\
+            \ attachment, too large)"
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: No such draft (or file)
+        "412":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: If-Match is stale
+        "428":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: If-Match is missing
+        "502":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: "The mail server failed (`errorCode`, e.g. CONNECTION_FAILED,\
+            \ AUTHENTICATION_FAILED)"
+        "503":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: All connections of the account are busy (`errorCode` POOL_EXHAUSTED);
+            retry later
+      summary: Save a draft (autosave)
+      tags:
+      - Mail compose
+  /api/v1/mail/drafts/{id}/attachments:
+    post:
+      description: Adds the file as an attachment and saves the draft; everything
+        else stays.
+      operationId: uploadMailDraftAttachment
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - description: The draft's ETag
+        in: header
+        name: If-Match
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+              required:
+              - file
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DraftResponse"
+          description: "The draft, with its version as `ETag`"
+          headers:
+            ETag:
+              schema:
+                type: string
+              style: simple
+        "400":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: "Invalid request (addresses, identity of another account, unknown\
+            \ attachment, too large)"
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: No such draft (or file)
+        "412":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: If-Match is stale
+        "428":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: If-Match is missing
+        "502":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: "The mail server failed (`errorCode`, e.g. CONNECTION_FAILED,\
+            \ AUTHENTICATION_FAILED)"
+        "503":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: All connections of the account are busy (`errorCode` POOL_EXHAUSTED);
+            retry later
+      summary: Upload an attachment into a draft
+      tags:
+      - Mail compose
+  /api/v1/mail/drafts/{id}/send:
+    post:
+      description: "Sends the stored version over SMTP (XOAUTH2 for Google and Microsoft),\
+        \ appends it to the Sent folder (not for Google and Microsoft, whose servers\
+        \ do that themselves) and deletes the draft. Once the server accepted the\
+        \ message the request succeeds; `appendedToSent` and `draftRemoved` tell whether\
+        \ the rest worked."
+      operationId: sendMailDraft
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - description: The draft's ETag
+        in: header
+        name: If-Match
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SendDraftResponse"
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/SendDraftResponse"
+          description: Sent
+        "400":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: "The draft has no recipient (field `to`) or is larger than\
+            \ the size limit (field `attachments`, e.g. after another mail client\
+            \ changed it); nothing was sent"
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: No such draft
+        "412":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: If-Match is stale
+        "422":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: "The SMTP server refused the message (`errorCode` SEND_REJECTED,\
+            \ `rejectedRecipients`); nothing was sent"
+        "428":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: If-Match is missing
+        "502":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: "The mail server failed (`errorCode`, e.g. CONNECTION_FAILED,\
+            \ AUTHENTICATION_FAILED)"
+        "503":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: All connections of the account are busy (`errorCode` POOL_EXHAUSTED);
+            retry later
+      summary: Send a draft
+      tags:
+      - Mail compose
   /api/v1/mail/image-proxy:
     get:
       description: "Fetches an `http`/`https` raster image (no SVG) for \"load images\"\
@@ -4661,6 +5121,208 @@ paths:
       summary: Download an attachment
       tags:
       - Mail messages
+  /api/v1/mail/messages/{id}/forward:
+    post:
+      description: "No recipients, subject with `Fwd: `, the original's headers and\
+        \ body, and all its attachments."
+      operationId: forwardMailMessage
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - description: "Send as this identity; default: the one the original was addressed\
+          \ to, else the default"
+        in: query
+        name: identityId
+        required: false
+        schema:
+          type: string
+          format: uuid
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DraftResponse"
+          description: "Saved in the Drafts folder; `Location` is the draft, `ETag`\
+            \ its version"
+          headers:
+            ETag:
+              schema:
+                type: string
+              style: simple
+            Location:
+              schema:
+                type: string
+              style: simple
+        "400":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: "Invalid request (addresses, identity of another account, unknown\
+            \ attachment, too large)"
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: "No such account, message or file"
+        "502":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: "The mail server failed (`errorCode`, e.g. CONNECTION_FAILED,\
+            \ AUTHENTICATION_FAILED)"
+        "503":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: All connections of the account are busy (`errorCode` POOL_EXHAUSTED);
+            retry later
+      summary: Start a forward as a new draft
+      tags:
+      - Mail compose
+  /api/v1/mail/messages/{id}/reply:
+    post:
+      description: "To the original's `Reply-To`, else `From` (to its `To` when you\
+        \ sent it), subject with `Re: `, `In-Reply-To` and `References` set, the original\
+        \ quoted below an empty first paragraph."
+      operationId: replyToMailMessage
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - description: "Send as this identity; default: the one the original was addressed\
+          \ to, else the default"
+        in: query
+        name: identityId
+        required: false
+        schema:
+          type: string
+          format: uuid
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DraftResponse"
+          description: "Saved in the Drafts folder; `Location` is the draft, `ETag`\
+            \ its version"
+          headers:
+            ETag:
+              schema:
+                type: string
+              style: simple
+            Location:
+              schema:
+                type: string
+              style: simple
+        "400":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: "Invalid request (addresses, identity of another account, unknown\
+            \ attachment, too large)"
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: "No such account, message or file"
+        "502":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: "The mail server failed (`errorCode`, e.g. CONNECTION_FAILED,\
+            \ AUTHENTICATION_FAILED)"
+        "503":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: All connections of the account are busy (`errorCode` POOL_EXHAUSTED);
+            retry later
+      summary: Start a reply as a new draft
+      tags:
+      - Mail compose
+  /api/v1/mail/messages/{id}/reply-all:
+    post:
+      description: "Like a reply, plus the original's other `To` and `Cc` recipients,\
+        \ without your own addresses."
+      operationId: replyAllToMailMessage
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - description: "Send as this identity; default: the one the original was addressed\
+          \ to, else the default"
+        in: query
+        name: identityId
+        required: false
+        schema:
+          type: string
+          format: uuid
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DraftResponse"
+          description: "Saved in the Drafts folder; `Location` is the draft, `ETag`\
+            \ its version"
+          headers:
+            ETag:
+              schema:
+                type: string
+              style: simple
+            Location:
+              schema:
+                type: string
+              style: simple
+        "400":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: "Invalid request (addresses, identity of another account, unknown\
+            \ attachment, too large)"
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: "No such account, message or file"
+        "502":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: "The mail server failed (`errorCode`, e.g. CONNECTION_FAILED,\
+            \ AUTHENTICATION_FAILED)"
+        "503":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: All connections of the account are busy (`errorCode` POOL_EXHAUSTED);
+            retry later
+      summary: Start a reply to all as a new draft
+      tags:
+      - Mail compose
   /api/v1/mail/messages/{id}/thread:
     get:
       description: "Every cached message of the conversation in the message's account\
@@ -8915,6 +9577,26 @@ components:
         timeZone:
           type: string
           example: Europe/Zurich
+    CorrespondentListResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/CorrespondentResponse"
+    CorrespondentResponse:
+      type: object
+      properties:
+        address:
+          type: string
+        lastAt:
+          type: string
+          format: date-time
+          description: The most recent mail with them
+        name:
+          type: string
+      required:
+      - name
     CreateAreaRequest:
       type: object
       description: A new area
@@ -9037,6 +9719,55 @@ components:
           description: "Default: at the end"
       required:
       - name
+    CreateDraftRequest:
+      type: object
+      properties:
+        accountId:
+          type: string
+          format: uuid
+          description: The account whose Drafts folder stores the draft
+        attachments:
+          type: array
+          description: Files of the drive to attach (`fileId` only)
+          items:
+            $ref: "#/components/schemas/DraftAttachmentRequest"
+          maxItems: 100
+          minItems: 0
+        bcc:
+          type: array
+          items:
+            $ref: "#/components/schemas/MailAddressRequest"
+          maxItems: 500
+          minItems: 0
+        cc:
+          type: array
+          items:
+            $ref: "#/components/schemas/MailAddressRequest"
+          maxItems: 500
+          minItems: 0
+        html:
+          type: string
+          description: The editor's HTML (body content)
+        identityId:
+          type: string
+          format: uuid
+          description: "Identity of the account to send as; default: the account's\
+            \ default identity"
+        subject:
+          type: string
+          maxLength: 998
+          minLength: 0
+        text:
+          type: string
+          description: "Plain-text alternative; default: derived from `html`"
+        to:
+          type: array
+          items:
+            $ref: "#/components/schemas/MailAddressRequest"
+          maxItems: 500
+          minItems: 0
+      required:
+      - accountId
     CreateEventRequest:
       type: object
       description: "A new event. Timed: `start`, `end` (default `start` + 1 hour)\
@@ -9466,6 +10197,123 @@ components:
       - id
       - lastSeenAt
       - name
+    DraftAttachmentRequest:
+      type: object
+      description: Exactly one of `partId` (keep an attachment of the current version)
+        and `fileId` (a file of the drive)
+      properties:
+        fileId:
+          type: string
+          format: uuid
+        partId:
+          type: string
+          maxLength: 60
+          minLength: 0
+    DraftContentRequest:
+      type: object
+      properties:
+        attachments:
+          type: array
+          description: "The attachments of the new version; omitted: unchanged (create:\
+            \ none)"
+          items:
+            $ref: "#/components/schemas/DraftAttachmentRequest"
+          maxItems: 100
+          minItems: 0
+        bcc:
+          type: array
+          items:
+            $ref: "#/components/schemas/MailAddressRequest"
+          maxItems: 500
+          minItems: 0
+        cc:
+          type: array
+          items:
+            $ref: "#/components/schemas/MailAddressRequest"
+          maxItems: 500
+          minItems: 0
+        html:
+          type: string
+          description: The editor's HTML (body content)
+        identityId:
+          type: string
+          format: uuid
+          description: "Identity of the account to send as; default: the account's\
+            \ default identity"
+        subject:
+          type: string
+          maxLength: 998
+          minLength: 0
+        text:
+          type: string
+          description: "Plain-text alternative; default: derived from `html`"
+        to:
+          type: array
+          items:
+            $ref: "#/components/schemas/MailAddressRequest"
+          maxItems: 500
+          minItems: 0
+    DraftResponse:
+      type: object
+      description: A draft as stored in the Drafts folder
+      properties:
+        accountId:
+          type: string
+          format: uuid
+        attachments:
+          type: array
+          items:
+            $ref: "#/components/schemas/MailAttachmentResponse"
+        bcc:
+          type: array
+          items:
+            $ref: "#/components/schemas/MailAddressResponse"
+        cc:
+          type: array
+          items:
+            $ref: "#/components/schemas/MailAddressResponse"
+        folderId:
+          type: string
+          format: uuid
+        from:
+          $ref: "#/components/schemas/MailAddressResponse"
+        html:
+          type: string
+          description: Sanitized HTML (body content)
+        id:
+          type: string
+          format: uuid
+          description: Stays the same across saves
+        identityId:
+          type: string
+          format: uuid
+          description: '`null` when `from` matches no identity'
+        inReplyTo:
+          type: string
+          description: Message-ID of the message answered
+        references:
+          type: string
+        savedAt:
+          type: string
+          format: date-time
+          description: When this version was saved
+        subject:
+          type: string
+        text:
+          type: string
+        to:
+          type: array
+          items:
+            $ref: "#/components/schemas/MailAddressResponse"
+      required:
+      - from
+      - html
+      - identityId
+      - inReplyTo
+      - references
+      - savedAt
+      - subject
+      - text
     DriveEntryResponse:
       type: object
       description: "An entry of a folder listing: a folder (`folder` set) or a file\
@@ -10517,6 +11365,20 @@ components:
       - errorCode
       - id
       - ok
+    MailAddressRequest:
+      type: object
+      properties:
+        address:
+          type: string
+          example: ann@example.com
+          maxLength: 320
+          minLength: 0
+        name:
+          type: string
+          maxLength: 200
+          minLength: 0
+      required:
+      - address
     MailAddressResponse:
       type: object
       properties:
@@ -11976,6 +12838,23 @@ components:
             $ref: "#/components/schemas/SearchGroupResponse"
       required:
       - groups
+    SendDraftResponse:
+      type: object
+      properties:
+        appendedToSent:
+          type: boolean
+          description: "A copy was appended to the Sent folder (false for Google/Microsoft:\
+            \ their servers do it)"
+        draftRemoved:
+          type: boolean
+          description: The draft was deleted from the Drafts folder
+        sentMessageId:
+          type: string
+          format: uuid
+          description: "The message in the Sent folder, once the cache has it (later\
+            \ for Google and Microsoft)"
+      required:
+      - sentMessageId
     Settings:
       type: object
       additionalProperties: true

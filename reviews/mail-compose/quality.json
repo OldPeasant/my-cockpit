@@ -1,0 +1,110 @@
+{
+  "schema": 1,
+  "task": "mail-compose",
+  "reviewed_revision": "3c3278225c2b065a7ffea867b6065d81a54dea29",
+  "helpers": {
+    "test-writer": {
+      "status": "completed",
+      "report": "reviews/mail-compose/tests.md"
+    },
+    "code-reviewer": {
+      "status": "completed",
+      "report": "reviews/mail-compose/review.md"
+    },
+    "fixer": {
+      "status": "completed",
+      "report": "reviews/mail-compose/fixes.md"
+    }
+  },
+  "fixes_required": true,
+  "findings": [
+    {
+      "id": "R1-CR-1",
+      "source": "code-reviewer",
+      "severity": "P1",
+      "disposition": "fixed",
+      "note": "address field accepted full mailboxes/groups; now only a bare addr-spec (fixes.md round 1)"
+    },
+    {
+      "id": "R1-CR-2",
+      "source": "code-reviewer",
+      "severity": "P2",
+      "disposition": "fixed",
+      "note": "upload into a draft bypassed max message size; attach() and send() now check (fixes.md round 1)"
+    },
+    {
+      "id": "R1-CR-3",
+      "source": "code-reviewer",
+      "severity": "P2",
+      "disposition": "fixed",
+      "note": "attachment bytes read without running total; withAttachments keeps a running total (fixes.md round 1)"
+    },
+    {
+      "id": "R1-CR-4",
+      "source": "code-reviewer",
+      "severity": "P2",
+      "disposition": "fixed",
+      "note": "read-view sanitizer dropped remote images in drafts/quotes; KEEP_REMOTE_IMAGES options, recorded as assumption"
+    },
+    {
+      "id": "R1-CR-5",
+      "source": "code-reviewer",
+      "severity": "P3",
+      "disposition": "deferred",
+      "note": "correspondent query sorts whole message table; deferred to perf-tuning, recorded as assumption in the task"
+    },
+    {
+      "id": "R1-CR-6",
+      "source": "code-reviewer",
+      "severity": "P3",
+      "disposition": "fixed",
+      "note": "inline cid parts now in multipart/related with the HTML (fixes.md round 1)"
+    },
+    {
+      "id": "R2-CR-1",
+      "source": "code-reviewer",
+      "severity": "P2",
+      "disposition": "fixed",
+      "note": "size checks in send/attach overestimated base64 attachments; exact decoded sizes now (fixes.md round 2)"
+    },
+    {
+      "id": "R2-CR-2",
+      "source": "code-reviewer",
+      "severity": "P3",
+      "disposition": "fixed",
+      "note": "send endpoint 400 now documents the size refusal; openapi.yaml regenerated (fixes.md round 2)"
+    },
+    {
+      "id": "R2-CR-3",
+      "source": "code-reviewer",
+      "severity": "P3",
+      "disposition": "fixed",
+      "note": "address validation tests for group/comment/angle forms added by test-writer (DraftControllerTests)"
+    },
+    {
+      "id": "TW-1",
+      "source": "test-writer",
+      "severity": "P3",
+      "disposition": "fixed",
+      "note": "test for display name in address field failed before R1-CR-1 fix, passes now"
+    }
+  ],
+  "validation": [
+    {
+      "command": "cd server && ./gradlew test --tests 'ch.sonensei.cockpit.mail.compose.*'",
+      "result": "pass"
+    },
+    {
+      "command": "cd server && ./gradlew integrationTest --tests 'ch.sonensei.cockpit.mail.compose.*'",
+      "result": "pass"
+    },
+    {
+      "command": "cd server && ./gradlew test --tests '*OpenApiContractTest'",
+      "result": "pass"
+    },
+    {
+      "command": "sh scripts/check.sh",
+      "result": "pass"
+    }
+  ]
+}

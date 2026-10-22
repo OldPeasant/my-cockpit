@@ -62,6 +62,10 @@ class FilesService(
 	@Transactional(readOnly = true)
 	fun file(id: UUID): FileItem = files.findActiveById(id) ?: throw NotFoundException("File not found")
 
+	/** The contents of an active file (not in the Trash); the caller closes the stream. */
+	@Transactional(readOnly = true)
+	fun open(id: UUID): InputStream = blobs.open(file(id).storageKey)
+
 	/** The absolute path of a folder (`/Attachments/Tasks`); `/` for the root (`null`). */
 	@Transactional(readOnly = true)
 	fun pathOf(folderId: UUID?): String {
