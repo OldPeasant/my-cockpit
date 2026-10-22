@@ -15,7 +15,8 @@ Compose on the phone.
 ## Acceptance criteria
 - [x] Compose/reply/forward (plain text + basic formatting), attachments from device, drafts
   - verified (2026-10-22 10:13+0200 by dell26/agent-2): cd android && ./gradlew ktlintCheck lintDebug testDebugUnitTest --tests 'ch.sonensei.cockpit.mail.compose.*' -> 145 tests in 15 classes, 0 failed: compose/reply/reply-all/forward start (MailComposeViewModelTest, MailComposeInAppTest, MailComposeWiringTest via MailScreen/MailReadScreen buttons), markup formatting to HTML (ComposeModelsTest), device attachments upload/remove (DeviceFilesTest, MailComposeRepositoryTest against MockWebServer), drafts create/update/autosave/discard/412 overwrite; lint clean. Not run on a physical device (h-android-device is a human task)
-- [ ] `cd android && ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.mail.compose.*'` passes, covering draft save and send states (Robolectric/Compose UI tests for screens)
+- [x] `cd android && ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.mail.compose.*'` passes, covering draft save and send states (Robolectric/Compose UI tests for screens)
+  - verified (2026-10-22 11:02+0200 by dell26/agent-2): cd android && ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.mail.compose.*' -> 145 tests in 15 classes, 0 failures/errors (Robolectric + Compose UI: MailComposeSaveSendStatesTest, MailComposeStatesScreenTest, MailComposeOverwriteLeaveEdgeCasesTest cover draft saving/saved/conflict/failed and sending/sent/failed states)
 
 ## Notes
 - ASSUMPTION (2026-10-22 09:01+0200 by dell26/agent-2): Basic formatting on Android = lightweight markup in a plain text field (**bold**, _italic_, '- ' bullet lines) with toolbar buttons; converted to HTML on save, server derives the text alternative. A real rich-text editor on Compose is out of proportion for v1.
