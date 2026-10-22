@@ -46,11 +46,15 @@ export class ContactForm {
   protected readonly isNew = computed(() => this.contact() === null);
 
   constructor() {
-    // A contact reloaded after a conflict refills the form.
+    // Another contact refills the form. The same contact reloaded (a newer version after a
+    // conflict) keeps what the user typed: the page saves it against the new version.
+    let shownId: string | null | undefined;
     effect(() => {
-      const contact = this.contact();
+      const id = this.contact()?.id ?? null;
+      if (id === shownId) return;
+      shownId = id;
       untracked(() => {
-        this.form.set(toForm(contact));
+        this.form.set(toForm(this.contact()));
         this.missingName.set(false);
       });
     });

@@ -210,6 +210,16 @@ describe('ContactsPage', () => {
     );
   });
 
+  it('leaves out the account name when the account has neither email nor name', async () => {
+    await open('/contacts', [ADA], [connection('GOOGLE', { email: undefined, displayName: '' })]);
+    const account = root.querySelector('.sync .account');
+    expect(account?.querySelector('.who')).toBeNull();
+    expect([...(account?.children ?? [])].map((part) => text(part))).toEqual([
+      'Google',
+      'Syncs both ways',
+    ]);
+  });
+
   it('says contacts are kept here only without a connected account', async () => {
     await open();
     expect(text(root.querySelector('.sync .none'))).toContain('Contacts are kept here only.');

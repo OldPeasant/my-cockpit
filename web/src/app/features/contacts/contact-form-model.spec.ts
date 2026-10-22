@@ -1,4 +1,4 @@
-import { hasName, toForm, toRequest } from './contact-form-model';
+import { derivedName, hasName, toForm, toRequest } from './contact-form-model';
 import { contact } from './testing';
 
 const ID = '0192f0c4-0000-7000-8000-000000000001';
@@ -59,7 +59,7 @@ describe('contact form model', () => {
       },
     ];
     expect(toRequest(form, true)).toEqual({
-      displayName: 'Ada Example',
+      displayName: null,
       givenName: 'Ada',
       familyName: 'Example',
       organization: null,
@@ -70,6 +70,43 @@ describe('contact form model', () => {
       phones: [],
       addresses: [{ label: 'office', street: 'Sample St 1', postalCode: '8000', city: 'Zurich' }],
     });
+  });
+
+  it('derives the display name again when a contact named after its name is renamed', () => {
+    const form = toForm(contact(ID));
+    expect(form.displayName).toBe('');
+    form.familyName = 'Lovelace';
+    expect(toRequest(form, true)).toMatchObject({
+      displayName: null,
+      givenName: 'Ada',
+      familyName: 'Lovelace',
+    });
+  });
+
+  it('keeps a display name of its own', () => {
+    const form = toForm(contact(ID, { displayName: 'Countess Ada' }));
+    expect(form.displayName).toBe('Countess Ada');
+    form.familyName = 'Lovelace';
+    expect(toRequest(form, true)).toMatchObject({ displayName: 'Countess Ada' });
+  });
+
+  it('derives the name like the server: name, else organization, else first email', () => {
+    const base = { emails: [{ address: 'ada@example.org' }, { address: 'b@example.org' }] };
+    expect(derivedName({ ...base, givenName: 'Ada', familyName: 'Example' })).toBe('Ada Example');
+    expect(derivedName({ ...base, familyName: 'Example' })).toBe('Example');
+    expect(derivedName({ ...base, organization: 'Example AG' })).toBe('Example AG');
+    expect(derivedName(base)).toBe('ada@example.org');
+    expect(derivedName({ emails: [] })).toBeNull();
+    expect(
+      toForm(
+        contact(ID, {
+          displayName: 'Example AG',
+          givenName: undefined,
+          familyName: undefined,
+          organization: 'Example AG',
+        }),
+      ).displayName,
+    ).toBe('');
   });
 
   it('needs a name, an organization or an email address', () => {

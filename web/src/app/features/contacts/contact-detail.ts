@@ -178,8 +178,15 @@ export default class ContactDetail {
       this.editing.set(false);
       void this.loadRelated();
     } catch (error) {
-      this.saveError.set(message(error));
-      if (isConflict(error)) await this.reloadContact();
+      if (isConflict(error)) {
+        // The form keeps the user's edits; the next Save sends them against the current version.
+        this.saveError.set(
+          $localize`:@@contacts.saveConflict:it was changed elsewhere in the meantime. Your changes are kept: Save again to replace that version, or Cancel to see it.`,
+        );
+        await this.reloadContact();
+      } else {
+        this.saveError.set(message(error));
+      }
     } finally {
       this.saving.set(false);
     }
@@ -203,7 +210,7 @@ export default class ContactDetail {
     }
   }
 
-  /** After a conflict: the current version, so the next try works (the form refills with it). */
+  /** After a conflict: the current version, so the next try sends its version as If-Match. */
   private async reloadContact(): Promise<void> {
     try {
       this.contact.set(await this.service.get(this.id()));

@@ -33,10 +33,15 @@ export const EMPTY_ADDRESS: AddressRow = {
   country: '',
 };
 
-/** The form for `contact`, or an empty one for a new contact. */
+/**
+ * The form for `contact`, or an empty one for a new contact. A display name the server derived
+ * from the name (it equals `derivedName`) is left empty, so it is derived again when the name
+ * changes.
+ */
 export function toForm(contact: ContactResponse | null): ContactFormValue {
+  const displayName = contact?.displayName ?? '';
   return {
-    displayName: contact?.displayName ?? '',
+    displayName: contact && displayName === derivedName(contact) ? '' : displayName,
     givenName: contact?.givenName ?? '',
     familyName: contact?.familyName ?? '',
     organization: contact?.organization ?? '',
@@ -54,6 +59,20 @@ export function toForm(contact: ContactResponse | null): ContactFormValue {
       country: a.country ?? '',
     })),
   };
+}
+
+/**
+ * The display name the server derives for a contact without one (`ContactService.derivedName`):
+ * given and family name, else the organization, else the first email address.
+ */
+export function derivedName(
+  contact: Pick<ContactResponse, 'givenName' | 'familyName' | 'organization' | 'emails'>,
+): string | null {
+  const name = [contact.givenName, contact.familyName]
+    .filter((part) => part != null)
+    .join(' ')
+    .trim();
+  return name || contact.organization?.trim() || contact.emails[0]?.address.trim() || null;
 }
 
 const TEXT_FIELDS = [

@@ -66,7 +66,11 @@ export function isAllDay(event: ContactEventDto): boolean {
   return event.allDay || (!event.start && !!event.startDate);
 }
 
-/** The deep link of an event occurrence: the calendar opens it at its date. */
+/**
+ * The deep link of the event of an occurrence. The calendar opens the event at its own (first)
+ * date: for a recurring event that is the start of the series, not this occurrence, as the
+ * calendar's deep link takes no occurrence date (`?event=` overrides `?date=`).
+ */
 export function eventLink(event: ContactEventDto): string {
   return `/calendar/events/${encodeURIComponent(event.eventId)}`;
 }

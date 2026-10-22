@@ -37,7 +37,9 @@
           @for (a of accounts; track a.id) {
             <li class="account" [class.attention]="a.status !== 'CONNECTED'">
               <span class="provider">{{ sourceLabel(a.provider) }}</span>
-              <span class="who">{{ a.email || a.displayName }}</span>
+              @if (a.email || a.displayName; as who) {
+                <span class="who">{{ who }}</span>
+              }
               @if (a.status === 'CONNECTED') {
                 <span class="state" i18n="@@contacts.sync.connected">Syncs both ways</span>
               } @else {

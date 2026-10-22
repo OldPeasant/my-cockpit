@@ -177,13 +177,22 @@ describe('ContactForm', () => {
     expect(saved).toEqual([]);
   });
 
-  it('refills the form with a reloaded contact, dropping unsaved edits', async () => {
+  it('keeps unsaved edits when the same contact is reloaded with a newer version', async () => {
     await create({ contact: contact(ID, { title: 'Engineer' }) });
     await type('input[name="title"]', 'Draft title');
     await click('.add-phone');
     fixture.componentRef.setInput('contact', contact(ID, { title: 'Lead', version: 2 }));
     await render();
+    expect(values('input[name="title"]')).toEqual(['Draft title']);
+    expect(root.querySelectorAll('.phones .row')).toHaveLength(1);
+  });
+
+  it('refills the form with another contact', async () => {
+    await create({ contact: contact(ID, { title: 'Engineer' }) });
+    await type('input[name="title"]', 'Draft title');
+    const other = '0192f0c4-0000-7000-8000-000000000002';
+    fixture.componentRef.setInput('contact', contact(other, { title: 'Lead' }));
+    await render();
     expect(values('input[name="title"]')).toEqual(['Lead']);
-    expect(root.querySelectorAll('.phones .row')).toHaveLength(0);
   });
 });

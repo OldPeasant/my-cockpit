@@ -34,11 +34,15 @@
             @default {
               @if (account(); as a) {
                 @if (a.status === 'CONNECTED') {
-                  <ng-container i18n="@@contacts.detail.synced"
-                    >Synced with {{ sourceLabel(c.source) }} ({{
-                      a.email || a.displayName
-                    }})</ng-container
-                  >
+                  @if (a.email || a.displayName; as who) {
+                    <ng-container i18n="@@contacts.detail.synced"
+                      >Synced with {{ sourceLabel(c.source) }} ({{ who }})</ng-container
+                    >
+                  } @else {
+                    <ng-container i18n="@@contacts.detail.syncedNoAccountName"
+                      >Synced with {{ sourceLabel(c.source) }}</ng-container
+                    >
+                  }
                 } @else {
                   <span class="attention" i18n="@@contacts.detail.syncPaused"
                     >Sync with {{ sourceLabel(c.source) }} is paused: sign in again in

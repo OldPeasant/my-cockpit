@@ -233,6 +233,13 @@ describe('ContactDetail', () => {
     );
   });
 
+  it('leaves out the account name when the account has neither email nor name', async () => {
+    await open(contact(ID, { source: 'GOOGLE' }), noRelated(ID), [
+      connection('GOOGLE', { email: undefined, displayName: undefined }),
+    ]);
+    expect(text(root.querySelector('.sync-status'))).toBe('Synced with Google');
+  });
+
   it('says when the sync of a contact is paused', async () => {
     await open(contact(ID, { source: 'MICROSOFT' }), noRelated(ID), [
       connection('MICROSOFT', { status: 'RECONNECT_REQUIRED' }),
@@ -275,7 +282,7 @@ describe('ContactDetail', () => {
     expect(text(root.querySelector('.role'))).toBe('Engineer');
   });
 
-  it('keeps editing after a conflict, with the current version for the next try', async () => {
+  it('keeps editing and the typed values after a conflict, with the current version for the next try', async () => {
     await open();
     (root.querySelector('button.edit') as HTMLButtonElement).click();
     await settle();
@@ -290,10 +297,13 @@ describe('ContactDetail', () => {
     await settle();
     http.expectOne(URL).flush(contact(ID, { version: 3 }));
     await settle();
-    expect(text(root.querySelector('.form-error'))).toContain('could not be saved');
+    expect(text(root.querySelector('.form-error'))).toContain('changed elsewhere');
+    expect(text(root.querySelector('.form-error'))).toContain('Your changes are kept');
+    expect((root.querySelector('input[name="title"]') as HTMLInputElement).value).toBe('Engineer');
     (root.querySelector('form') as HTMLFormElement).dispatchEvent(new Event('submit'));
     const retry = http.expectOne((r) => r.method === 'PATCH');
     expect(retry.request.headers.get('If-Match')).toBe('"3"');
+    expect(retry.request.body).toMatchObject({ title: 'Engineer' });
     retry.flush(contact(ID, { version: 4 }));
     await settle();
     http.expectOne(`${URL}/related`).flush(noRelated(ID));
