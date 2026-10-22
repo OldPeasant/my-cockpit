@@ -55,6 +55,9 @@ describe('ReviewPage', () => {
   let moves: ReviewStep[];
   let completed: number;
   let element: HTMLElement;
+  let statusFails: boolean;
+  /** Status and move calls wait for this. */
+  let gate: Promise<void> | undefined;
 
   const text = () => element.textContent?.replace(/\s+/g, ' ') ?? '';
   const button = (label: string) =>
@@ -88,12 +91,19 @@ describe('ReviewPage', () => {
     status = { daysSinceLastReview: 8 };
     moves = [];
     completed = 0;
+    statusFails = false;
+    gate = undefined;
     let version = 1;
     const api = {
       invoke: async (fn: unknown, params: Record<string, unknown> = {}) => {
-        if (fn === getWeeklyReviewStatus) return status;
+        if (fn === getWeeklyReviewStatus) {
+          await gate;
+          if (statusFails) throw new Error('offline');
+          return status;
+        }
         if (fn === startWeeklyReview) return review('GET_CLEAR', version);
         if (fn === moveWeeklyReview) {
+          await gate;
           const step = (params['body'] as { step: ReviewStep }).step;
           moves.push(step);
           return review(step, ++version);
@@ -218,6 +228,71 @@ describe('ReviewPage', () => {
       expect(element.querySelector(selectors[i])).not.toBeNull();
       if (i < REVIEW_STEPS.length - 1) await click(button('Next step'));
     }
+  });
+
+  it('shows a loading state until the review status arrives', async () => {
+    let release!: () => void;
+    gate = new Promise<void>((resolve) => (release = resolve));
+    await render();
+
+    expect(text()).toContain('Loading…');
+    expect(button('Start review')).toBeUndefined();
+
+    release();
+    await refresh();
+    expect(text()).not.toContain('Loading…');
+    expect(button('Start review')).toBeDefined();
+  });
+
+  it('shows a load error with a retry', async () => {
+    statusFails = true;
+    await render();
+
+    expect(element.querySelector('[role=alert]')?.textContent).toContain(
+      'The weekly review could not be loaded.',
+    );
+
+    statusFails = false;
+    await click(button('Try again'));
+
+    expect(element.querySelector('[role=alert]')).toBeNull();
+    expect(heading()).toBe('Weekly review');
+  });
+
+  it('says when the last review was one day ago', async () => {
+    status = { daysSinceLastReview: 1 };
+    await render();
+
+    expect(text()).toContain('Last weekly review: 1 day ago.');
+  });
+
+  it('says when the last review was today', async () => {
+    status = { daysSinceLastReview: 0 };
+    await render();
+
+    expect(text()).toContain('Last weekly review: today.');
+    expect(text()).not.toContain("You haven't done a weekly review yet.");
+  });
+
+  it('disables the navigation while a move is saved and saves it once', async () => {
+    status = { current: review('WAITING_FOR') };
+    await render();
+    let release!: () => void;
+    gate = new Promise<void>((resolve) => (release = resolve));
+
+    await click(button('Next step'));
+    expect(button('Next step')?.disabled).toBe(true);
+    expect(button('Back')?.disabled).toBe(true);
+    expect([...element.querySelectorAll<HTMLButtonElement>('.step')].every((b) => b.disabled)).toBe(
+      true,
+    );
+
+    release();
+    await refresh();
+
+    expect(moves).toEqual(['PROJECTS']);
+    expect(heading()).toBe('Projects');
+    expect(button('Next step')?.disabled).toBe(false);
   });
 
   it('finishes the review on the last step', async () => {

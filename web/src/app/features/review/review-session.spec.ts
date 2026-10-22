@@ -235,6 +235,47 @@ describe('ReviewSession', () => {
     expect(session.reflection()).toBe('Notes');
   });
 
+  it("does not overwrite or complete when today's entry cannot be read", async () => {
+    status = { current: review('REFLECTION') };
+    await session.load();
+    session.setReflection('A fictional busy week.');
+    failing = { fn: getJournalEntry, error: new ApiError(500, 'Server Error') };
+
+    await session.complete();
+
+    expect(callsOf(putJournalEntry)).toHaveLength(0);
+    expect(callsOf(completeWeeklyReview)).toHaveLength(0);
+    expect(session.phase()).toBe('open');
+    expect(session.reflection()).toBe('A fictional busy week.');
+    expect(session.saving()).toBe(false);
+  });
+
+  it('does not append the reflection twice when completing is retried', async () => {
+    status = { current: review('REFLECTION') };
+    await session.load();
+    session.setReflection('A fictional quiet week.');
+    failing = { fn: completeWeeklyReview, error: new ApiError(500, 'Server Error') };
+
+    await session.complete();
+    expect(callsOf(putJournalEntry)).toHaveLength(1);
+    expect(session.phase()).toBe('open');
+
+    await session.complete();
+
+    expect(callsOf(putJournalEntry)).toHaveLength(1);
+    expect(callsOf(completeWeeklyReview)).toHaveLength(2);
+    expect(session.phase()).toBe('completed');
+  });
+
+  it('does nothing when completing without an open review', async () => {
+    await session.load();
+
+    await session.complete();
+
+    expect(callsOf(completeWeeklyReview)).toHaveLength(0);
+    expect(session.phase()).toBe('idle');
+  });
+
   it('keeps the reflection draft for a resumed review and drops it once saved', async () => {
     status = { current: review('REFLECTION') };
     await session.load();
