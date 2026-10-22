@@ -179,6 +179,23 @@ class ContactsBackupContributorTests(
 	}
 
 	@Test
+	fun `a photo whose file name has no or an unknown extension is still a PHOTO uri to its file entry, without type`() {
+		val people = folder(id(40), "People photos")
+		file(id(41), "portrait", people, "application/octet-stream")
+		file(id(42), "alex.unknownext", people, "application/octet-stream")
+		contact(id(1), "Alex Example", photo = id(42))
+		contact(id(2), "Blake Example", photo = id(41))
+
+		val exported = export()
+		val photos = exported.vcards().map { it.photos.single() }
+
+		photos.map { URI("readable/contacts/contacts.vcf").resolve(URI(it.url)).path } shouldContainExactly
+			listOf("files/People photos/alex.unknownext", "files/People photos/portrait")
+		photos.forEach { it.url shouldStartWith "../../files/" }
+		photos[1].contentType.shouldBeNull()
+	}
+
+	@Test
 	fun `a photo whose file is missing leaves the card without PHOTO and keeps the file id out of the mirror`() {
 		contact(id(1), "Alex Example", photo = id(99))
 
