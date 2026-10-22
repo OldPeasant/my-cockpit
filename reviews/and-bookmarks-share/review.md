@@ -4,21 +4,22 @@ Date: 2026-10-22
 
 Task: and-bookmarks-share - Android: share URL to read later
 
-Scope: `git diff 1cda56a79..HEAD -- android/` (committed changes only). An uncommitted test file from the parallel test-writer (`android/app/src/test/java/ch/sonensei/cockpit/capture/queue/ReadLaterUploaderTest.kt`) was in the working tree during the review. It is not committed, so it is outside the reviewed scope.
+Scope: `git diff d7f0f1cc9..68b87bc99` (committed changes only): the implementation commit 5ffa92b8c and the fix commit 68b87bc99, which addresses the earlier findings CR-1 and CR-2. Uncommitted test files from the parallel test-writer (`ReadLaterUploaderTest.kt`, `ShareReadLaterActivityTest.kt`, `ShareReadLaterEdgeTest.kt`) are outside this scope.
 
 Requirements:
-- tasks/and-bookmarks-share.md (acceptance criteria 1-2, three recorded assumptions)
-- SPEC.md §8.4 (Bookmarks / read-later), §9.3 (Offline capture)
-- docs/ARCHITECTURE.md and AGENTS.md project conventions
-- Server contract: api/openapi.yaml `POST /api/v1/bookmarks`, server bookmarks `BookmarkService.normalizeUrl` / `BookmarkUrls.normalize`
+- tasks/and-bookmarks-share.md (acceptance criteria 1-2 and three recorded assumptions)
+- SPEC.md §8.4 (read-later), §9.3 (offline capture)
+- docs/ARCHITECTURE.md and the AGENTS.md project conventions
+- Server contract: api/openapi.yaml `CreateBookmarkRequest` / `BookmarkResponse`, `server/.../bookmarks/domain/BookmarkUrls.kt`, `BookmarkService.normalizeUrl`
+- The previous reviews/and-bookmarks-share/review.md and fixes.md (to check that the fixes are correct)
 
 Git range:
 - Branch: main
-- HEAD: 305b21850
-- Base/start: 1cda56a79602bb43270f4483f1d6bb6943605a71
-- Commits reviewed: 4 (3 `assume:` commits that touch only `tasks/`, and 1 implementation commit 305b21850)
+- HEAD: 68b87bc997230ce22b2b1840f23a5a1b8a14fb16
+- Base/start: d7f0f1cc99024751eb2bb8efcf3b7360b6c28645 (`git merge-base HEAD origin/main`)
+- Commits reviewed: 2 (5ffa92b8c, 68b87bc99)
 
-Summary: 0 P0, 0 P1, 1 P2, 1 P3
+Summary: 0 P0, 0 P1, 0 P2, 2 P3
 
 ## P0 Critical
 
@@ -30,32 +31,33 @@ None.
 
 ## P2 Medium
 
-- [ ] **CR-1 | A 2xx bookmark answer whose body cannot be read is retried, so every run creates another bookmark**
-    - File: `android/app/src/main/java/ch/sonensei/cockpit/capture/queue/CaptureUploader.kt:104-117`
-    - Category: Correctness
-    - Problem: `sendSafely(bookmark)` calls the generated `bookmarksApi.createBookmark(request)`, which returns `Response<BookmarkResponse>`. Retrofit decodes the body before it returns the `Response`. If decoding fails, the call throws. That happens when a 201 body does not match the generated model, for example a server that is newer than the app adds a `metadataStatus` value: the client's `Json` has `ignoreUnknownKeys` but not `coerceInputValues`, so an unknown enum value fails to decode. The generic `catch (_: Exception)` turns the exception into `Outcome.Failed(UNEXPECTED_ERROR)`. The row stays sendable with `rejected = false` and the job asks WorkManager to retry. The server has already saved the bookmark, and `POST /bookmarks` has no client id. So each later run saves the same URL again, with no limit. For captures this path is safe because `POST /capture` is idempotent. Recorded assumption #2 accepts a duplicate after a lost answer, which is a rare, single event. It does not cover this repeated case, where the code already knows the server accepted the request.
-    - Why it matters: Once the app and server versions drift, the read-later list fills with copies of the same page, one per backoff retry, until the app is updated. The queue entry also never clears from the pending count.
-    - Suggested fix: Base the outcome on the HTTP status alone, so that a 2xx counts as `Sent` even if its body cannot be read. Two ways: call the endpoint through a small Retrofit declaration that returns `Response<Unit>` (or `ResponseBody`), or catch the body-decoding exception (`SerializationException`) around `createBookmark` and treat it as `Sent`. Add a test where MockWebServer answers 201 with an unknown `metadataStatus`. It should check that the row is removed and that a second `sendAll()` sends no request.
+None.
 
 ## P3 Low
 
-- [ ] **CR-2 | The client URL check accepts URLs the server always rejects, and the user is still told "Saved to read later"**
-    - File: `android/app/src/main/java/ch/sonensei/cockpit/capture/queue/CaptureQueue.kt:175-178` (used by `android/app/src/main/java/ch/sonensei/cockpit/capture/share/SharedContent.kt:57`)
+- [ ] **CR-1 | The fix for the earlier CR-1 only catches `SerializationException`, so a 2xx body with a date-time or UUID the client cannot read can still save duplicates**
+    - File: `android/app/src/main/java/ch/sonensei/cockpit/capture/queue/CaptureUploader.kt:108-121`
     - Category: Correctness
-    - Problem: `isBookmarkUrl` documents that it rejects "a URL the server always rejects". In fact its authority pattern `[^\s/?#]+` accepts any non-blank authority. The server's `BookmarkUrls.normalize` rejects some of these: a non-numeric or over-long port (`https://example.org:abc/`), an empty host after user info (`https://user@/`), and host names that fail `IDN.toASCII` or the `HOST_NAME` pattern. For such a share the sheet shows the Read later choice and saving shows the success toast. The upload then gets 400, and the row is marked `rejected = true`. It stays in `pending_bookmark` and counts toward the pending count forever. Nothing in the app shows or removes it.
-    - Why it matters: These inputs are rare, and the data is kept rather than lost. But the user is told the page was saved, it never reaches the read-later list, and the widget's pending count stays above zero for good.
-    - Suggested fix: Make the client check match the server's rules for the authority: a host made of labels or an IPv6 literal, and an optional numeric port of up to 5 digits. Then such shares either get no Read later choice or are refused before they are queued. Add the two example URLs above to the "refused and nothing is queued" test.
+    - Problem: The generated `BookmarkResponse` decodes `createdAt`/`updatedAt`/`readAt` with `OffsetDateTimeAdapter` (`OffsetDateTime.parse`, which throws `DateTimeParseException`) and `id`/`snapshotFileId` with `UUIDAdapter` (`UUID.fromString`, which throws a plain `IllegalArgumentException`). kotlinx.serialization does not wrap these exceptions in `SerializationException`. The project already documents this behavior in `core/network/TokenRefresher.kt:44-48`, which catches `IllegalArgumentException` and `DateTimeException` for that reason. In `sendSafely(bookmark)` those exceptions reach the outer `catch (_: Exception)` and become `Outcome.Failed`. The row stays sendable, so every retry posts the same bookmark again. That is the same unbounded-duplicate case the earlier CR-1 described.
+    - Why it matters: The cause is less likely than an unknown enum value. Still, if the server's date-time format and the client's ever drift apart, the read-later list fills with copies, one per backoff retry.
+    - Suggested fix: Decide the outcome from the HTTP status alone. One way is a small Retrofit declaration that returns `Response<Unit>` or `Response<ResponseBody>`. The other is to count any exception thrown after a 2xx as sent, for example by also catching `IllegalArgumentException` and `DateTimeException`, as `TokenRefresher` does. Extend the regression test with a 201 whose `createdAt` is not ISO-8601.
+
+- [ ] **CR-2 | The client URL check compares the raw length, but the server limits the normalized (percent-encoded) length**
+    - File: `android/app/src/main/java/ch/sonensei/cockpit/capture/queue/CaptureQueue.kt:186-187` (server: `server/src/main/kotlin/ch/sonensei/cockpit/bookmarks/domain/BookmarkService.kt:271-273`)
+    - Category: Correctness
+    - Problem: `isBookmarkUrl` says it accepts only URLs that are "short enough for the server", but it checks `url.length <= 2048` on the raw string. `normalizeUrl` on the server first percent-encodes non-ASCII characters and characters a URI does not allow, which turns each one into 3-12 characters. It then rejects a result longer than 2048 with 400. A shared URL with a long non-ASCII path, for example a decoded Cyrillic or CJK Wikipedia link of a few hundred characters, passes the client check. The user then sees "Saved to read later", and the upload is marked `rejected = true` and stays in the pending count for good. This is the same failure as the earlier CR-2, reached through the length rule instead of the authority rule.
+    - Why it matters: These inputs are rare and nothing is lost, but the user is told the page was saved when it never will be.
+    - Suggested fix: Compute the length the way the server's encoding would, counting the UTF-8 percent-encoded length of non-ASCII and disallowed characters, and compare that with 2048. Add a test with a URL that is short before encoding and too long after.
 
 ## Notes (no finding)
 
-- URL detection: trailing punctuation is stripped, `)` is kept when it is balanced, shares with files get no URL, and `ftp://`, `https://` and plain text give no choice. All of these are implemented and tested.
-- Routing: Inbox is the default. Read later bypasses the capture length and attachment checks and calls `CaptureQueue.readLater`. A title equal to the URL is sent as null. `onDestinationChange` ignores calls while saving, after saving, or without a URL. A double submit is blocked by `saving`.
-- Room v2: the auto-migration from 1 to 2 only adds the `pending_bookmark` table. `1.json` is unchanged and `2.json` is committed. The production builder has no destructive fallback. `ReadLaterQueueTest` builds a version 1 database from the committed `1.json`, opens it through Room (which checks the schema on open), and confirms that the existing capture is kept.
-- Uploader failure handling for bookmarks: 401 or offline leads to retry and stops the run, 408, 429 and 5xx lead to retry, other 4xx mark the row rejected but keep it, and unexpected errors are retried while the other rows are still sent. This mirrors the capture loop. Only CR-1 is an exception.
-- Segmented choice: `SingleChoiceSegmentedButtonRow` with a localized label, a localized label on each segment, a decorative icon with no content description, and segments disabled while saving. I found no validated accessibility defect.
-- Test evidence: I was not allowed to run Gradle in this review. The existing results in `android/app/build/test-results/testDebugUnitTest` (written 11:57, before HEAD) show `ShareReadLaterTest` at 10 tests and `ReadLaterQueueTest` at 8 tests, all passing. The parent worker has to re-run the criterion-2 command and record the result. Neither criterion is recorded as verified yet (`tasks.py verify`).
-- There is no committed test yet for the bookmark 401 path or the unexpected-exception (`Failed`) path. The uncommitted `ReadLaterUploaderTest.kt` from the test-writer may cover them. It should be reviewed once it is committed.
+- Earlier CR-1 (an unreadable 2xx body counted as a failure): the main case is fixed and tested. A 201 with an unknown `metadataStatus` now counts as sent, the row is removed, and a second run sends nothing. The request side cannot throw `SerializationException`, because `CreateBookmarkRequest` has only strings and a boolean, so no queued bookmark is wrongly dropped. The remaining gap is CR-1 above.
+- Earlier CR-2 (authority check): fixed. `isHostAndPort` follows `BookmarkUrls.normalize` line by line: the part after the last `@`, an IPv6 bracket, `PORT` `\d{0,5}`, `IDN.toASCII(ALLOW_UNASSIGNED)` and `HOST_NAME`. The regexes copy the server's. The tests cover both invalid authorities (refused, nothing queued) and valid ones (user info, IPv6 with a port, `_` with a trailing dot, an IDN host).
+- Routing: the choice appears only for a share that has an http(s) URL and no files, and Inbox is the default. Read later skips the capture text, attachment and notes checks. A title equal to the URL is sent as null, and a title over 500 characters is shortened without splitting a surrogate pair. `saving` blocks a double submit. A failed store shows `FAILED` and keeps the sheet open, and because nothing was inserted, a retry cannot create a duplicate. `onDestinationChange` is ignored while saving, after saving, and when there is no URL. The capture notes are kept when the user switches back to Inbox.
+- Queue and upload: bookmarks are sent after the captures, with the same outcome mapping (offline or 401 retries and stops the run, 408/429/5xx retries, other 4xx keeps the row as rejected, unexpected errors are retried while the remaining rows are still sent). The pending count and the last error combine both tables. Rejected bookmarks stay in the queue the same way rejected captures already do. Room v2 is a pure auto-migration that adds a table. `2.json` is committed, `1.json` is unchanged, and a migration test opens a v1 database built from `1.json`.
+- Criterion 2 is covered by Robolectric and Compose tests in `capture.share` (`ShareReadLaterTest`: parser, ViewModel routing, and the sheet's segmented choice and changing fields). I was not allowed to run Gradle. `fixes.md` reports `./gradlew ktlintCheck testDebugUnitTest --tests 'ch.sonensei.cockpit.capture.*'` and `sh scripts/check.sh` passing. `tasks.py verify and-bookmarks-share` still shows both criteria unverified. The parent worker has to record evidence before `done`.
+- I found no secrets, personal data or logging of shared content in the diff.
 
 ## Review conclusion
 
-Material issues found; fix before completing the task.
+No material issues found. The two P3 findings are minor resilience gaps in the earlier fixes. They can be fixed or recorded as accepted before the task is completed.
