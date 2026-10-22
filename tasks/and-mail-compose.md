@@ -1,10 +1,11 @@
 ---
 title: Android mail compose
-status: todo
-owner:
+status: in_progress
+owner: dell26/agent-2
 deps: [and-mail-list-read,mail-compose]
 touches: [android/app/src/main/java/ch/sonensei/cockpit/mail/compose,android/app/src/test/java/ch/sonensei/cockpit/mail/compose]
 prio: 2
+lease_until: 2026-10-22T07:18:47Z
 ---
 ## Goal
 Compose on the phone.
