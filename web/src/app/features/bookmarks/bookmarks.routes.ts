@@ -1,7 +1,14 @@
 import { Routes } from '@angular/router';
-import { ComingSoon } from '../../shell/coming-soon';
 
-// Placeholder until the bookmarks feature task replaces it.
 export default [
-  { path: '', title: $localize`:@@nav.bookmarks:Bookmarks`, component: ComingSoon },
+  {
+    path: '',
+    title: $localize`:@@nav.bookmarks:Bookmarks`,
+    loadComponent: () => import('./bookmarks-page'),
+  },
+  {
+    path: ':id',
+    title: $localize`:@@nav.bookmarks:Bookmarks`,
+    loadComponent: () => import('./bookmark-reader'),
+  },
 ] satisfies Routes;

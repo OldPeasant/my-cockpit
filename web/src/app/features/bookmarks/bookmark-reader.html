@@ -1,0 +1,65 @@
+<article class="reader" aria-labelledby="reader-title">
+  <a class="back" routerLink=".." i18n="@@bookmarks.back">Back to bookmarks</a>
+
+  @if (loadError(); as error) {
+    <div class="load-error" role="alert">
+      <p i18n="@@bookmarks.reader.loadFailed">The bookmark could not be loaded: {{ error }}</p>
+      <button mat-stroked-button type="button" (click)="load()" i18n="@@bookmarks.retry">
+        Try again
+      </button>
+    </div>
+  } @else if (bookmark(); as b) {
+    <header class="head">
+      <h1 id="reader-title">{{ b.displayTitle }}</h1>
+      <p class="source">
+        <a class="original" [href]="b.url" target="_blank" rel="noopener noreferrer">{{
+          hostOf(b.url)
+        }}</a>
+        @if (b.readAt) {
+          <span class="read-mark" i18n="@@bookmarks.readMark">read</span>
+        }
+      </p>
+      <button
+        mat-stroked-button
+        type="button"
+        class="mark-read"
+        [attr.aria-pressed]="!!b.readAt"
+        [disabled]="busy()"
+        (click)="toggleRead()"
+      >
+        @if (b.readAt) {
+          <ng-container i18n="@@bookmarks.markUnread">Mark unread</ng-container>
+        } @else {
+          <ng-container i18n="@@bookmarks.markRead">Mark read</ng-container>
+        }
+      </button>
+    </header>
+
+    @if (!b.snapshotFileId) {
+      <p class="empty" i18n="@@bookmarks.reader.noSnapshot">
+        No readable copy was saved for this page. Open the original to read it.
+      </p>
+    } @else if (snapshotError(); as error) {
+      <p class="load-error" role="alert" i18n="@@bookmarks.reader.snapshotFailed">
+        The readable copy could not be loaded: {{ error }}
+      </p>
+    } @else if (snapshot(); as s) {
+      @if (html(); as markup) {
+        <div class="text markdown" [innerHTML]="markup"></div>
+      } @else {
+        <div class="text plain">{{ s.text }}</div>
+      }
+      @if (s.truncated) {
+        <p class="truncated" i18n="@@bookmarks.reader.truncated">
+          The copy is longer than shown here. Open the original for the rest.
+        </p>
+      }
+    } @else {
+      <p class="hint" role="status" i18n="@@bookmarks.reader.loadingSnapshot">
+        Loading the readable copy…
+      </p>
+    }
+  } @else {
+    <p class="hint" role="status" i18n="@@bookmarks.reader.loading">Loading…</p>
+  }
+</article>

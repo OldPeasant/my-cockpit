@@ -1,0 +1,113 @@
+// Not encapsulated (ViewEncapsulation.None) to reach the rendered snapshot HTML: every selector
+// starts with this element. A reading column: the one place in the app set for long text, in a
+// serif at a comfortable measure.
+app-bookmark-reader {
+  .reader {
+    max-width: 42rem;
+    margin: 0 auto;
+    padding: var(--app-space-5) var(--app-space-4) calc(var(--app-space-5) * 2);
+  }
+
+  .back {
+    color: var(--app-fg-muted);
+    font: var(--mat-sys-label-large);
+    text-decoration: none;
+
+    &:hover {
+      color: var(--app-accent);
+    }
+
+    &:focus-visible {
+      outline: 2px solid var(--app-accent);
+      outline-offset: 2px;
+    }
+  }
+
+  .head {
+    margin: var(--app-space-4) 0 var(--app-space-5);
+    padding-bottom: var(--app-space-4);
+    border-bottom: 1px solid var(--app-border);
+  }
+
+  h1 {
+    margin: 0 0 var(--app-space-2);
+    font-family: Georgia, 'Iowan Old Style', 'Palatino Linotype', serif;
+    font-size: 2rem;
+    font-weight: 600;
+    line-height: 1.2;
+    overflow-wrap: anywhere;
+  }
+
+  .source {
+    display: flex;
+    gap: var(--app-space-2);
+    margin: 0 0 var(--app-space-3);
+    color: var(--app-fg-muted);
+    font: var(--mat-sys-body-medium);
+
+    .original {
+      color: var(--app-accent);
+    }
+  }
+
+  .text {
+    font-family: Georgia, 'Iowan Old Style', 'Palatino Linotype', serif;
+    font-size: 1.125rem;
+    line-height: 1.75;
+    overflow-wrap: break-word;
+
+    &.plain {
+      white-space: pre-wrap;
+    }
+
+    h3,
+    h4,
+    h5,
+    h6 {
+      margin: 1.6em 0 0.4em;
+      line-height: 1.3;
+    }
+
+    p,
+    ul,
+    ol,
+    blockquote,
+    pre {
+      margin: 0 0 1em;
+    }
+
+    blockquote {
+      padding-left: var(--app-space-3);
+      border-left: 3px solid var(--app-border);
+      color: var(--app-fg-muted);
+    }
+
+    pre {
+      overflow-x: auto;
+      padding: var(--app-space-3);
+      border-radius: var(--app-radius);
+      background: var(--mat-sys-surface-container);
+      font-size: 0.875rem;
+      line-height: 1.5;
+    }
+
+    a {
+      color: var(--app-accent);
+    }
+  }
+
+  .empty,
+  .hint,
+  .truncated {
+    color: var(--app-fg-muted);
+    font: var(--mat-sys-body-large);
+  }
+
+  .load-error {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--app-space-3);
+    color: var(--mat-sys-error);
+  }
+}

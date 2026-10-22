@@ -14,7 +14,7 @@ describe('App i18n', () => {
     // Fictitious translations keyed by the custom message ids.
     loadTranslations({
       'app.title': 'Mein Cockpit',
-      'nav.bookmarks': 'Lesezeichen',
+      'nav.dashboard': 'Übersicht',
       'comingSoon.text': 'Dieser Bereich kommt bald.',
     });
   });
@@ -24,19 +24,19 @@ describe('App i18n', () => {
   });
 
   // Uses a section that still shows the placeholder (the Inbox is built since web-inbox, Someday
-  // since web-gtd-lists).
+  // since web-gtd-lists, Bookmarks since web-bookmarks).
   it('translates the shell and placeholder texts through their message ids', async () => {
     const { routes } = await import('./app.routes');
     TestBed.configureTestingModule({
       providers: [provideRouter(routes), provideFakeSession(), provideSilentEventSource()],
     });
     const harness = await RouterTestingHarness.create();
-    await harness.navigateByUrl('/bookmarks');
+    await harness.navigateByUrl('/');
     const root = harness.routeNativeElement as HTMLElement;
 
     expect(root.querySelector('.brand')?.textContent?.trim()).toBe('Mein Cockpit');
-    expect(root.querySelector('a.link.active')?.textContent?.trim()).toBe('Lesezeichen');
-    expect(root.querySelector('app-coming-soon h1')?.textContent?.trim()).toBe('Lesezeichen');
+    expect(root.querySelector('a.link.active')?.textContent?.trim()).toBe('Übersicht');
+    expect(root.querySelector('app-coming-soon h1')?.textContent?.trim()).toBe('Übersicht');
     expect(root.querySelector('app-coming-soon p')?.textContent?.trim()).toBe(
       'Dieser Bereich kommt bald.',
     );

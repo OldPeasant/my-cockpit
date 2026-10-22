@@ -1,0 +1,217 @@
+<section class="bookmarks" aria-labelledby="bookmarks-title">
+  <header class="head">
+    <h1 id="bookmarks-title" i18n="@@nav.bookmarks">Bookmarks</h1>
+    <nav class="toggle" i18n-aria-label="@@bookmarks.views" aria-label="Views">
+      <a
+        class="show-queue"
+        routerLink="."
+        [attr.aria-current]="view() === 'queue' ? 'page' : null"
+        i18n="@@bookmarks.view.queue"
+        >Read later</a
+      >
+      <a
+        class="show-all"
+        routerLink="."
+        [queryParams]="{ view: 'all' }"
+        [attr.aria-current]="view() === 'all' && !tag() ? 'page' : null"
+        i18n="@@bookmarks.view.all"
+        >All bookmarks</a
+      >
+    </nav>
+  </header>
+
+  <form class="add" (submit)="$event.preventDefault(); add()">
+    <label class="url">
+      <span class="label" i18n="@@bookmarks.add.url">Web address</span>
+      <input
+        type="url"
+        inputmode="url"
+        autocomplete="off"
+        maxlength="2048"
+        [value]="url()"
+        (input)="setUrl($event)"
+        i18n-placeholder="@@bookmarks.add.urlPlaceholder"
+        placeholder="Paste a link to save it"
+      />
+    </label>
+    <label class="tags-field">
+      <span class="label" i18n="@@bookmarks.add.tags">Tags</span>
+      <input
+        type="text"
+        autocomplete="off"
+        [value]="tagsText()"
+        (input)="setTagsText($event)"
+        i18n-placeholder="@@bookmarks.add.tagsPlaceholder"
+        placeholder="e.g. kotlin, design"
+      />
+    </label>
+    <label class="later">
+      <input type="checkbox" [checked]="readLater()" (change)="setReadLater($event)" />
+      <span i18n="@@bookmarks.add.readLater">Read later</span>
+    </label>
+    <button mat-flat-button type="submit" class="save" [disabled]="adding() || !url().trim()">
+      @if (adding()) {
+        <ng-container i18n="@@bookmarks.add.saving">Saving…</ng-container>
+      } @else {
+        <ng-container i18n="@@bookmarks.add.save">Save link</ng-container>
+      }
+    </button>
+    @if (addError(); as error) {
+      <p class="add-error" role="alert">{{ error }}</p>
+    }
+  </form>
+
+  @if (view() === 'all' && tags().length) {
+    <nav class="tag-filter" i18n-aria-label="@@bookmarks.tagFilter" aria-label="Tags">
+      @for (t of tags(); track t.tag) {
+        <a
+          class="tag"
+          routerLink="."
+          [queryParams]="{ view: 'all', tag: t.tag }"
+          [attr.aria-current]="tag()?.toLowerCase() === t.tag.toLowerCase() ? 'page' : null"
+          >#{{ t.tag }} <span class="count">{{ t.count }}</span></a
+        >
+      }
+    </nav>
+  }
+
+  @if (tag(); as current) {
+    <p class="filtered" role="status">
+      <ng-container i18n="@@bookmarks.taggedWith">Tagged #{{ current }}</ng-container>
+      <a routerLink="." [queryParams]="{ view: 'all' }" class="clear" i18n="@@bookmarks.clearTag"
+        >Show all</a
+      >
+    </p>
+  }
+
+  @if (loadError(); as error) {
+    <div class="load-error" role="alert">
+      <p i18n="@@bookmarks.loadFailed">The bookmarks could not be loaded: {{ error }}</p>
+      <button mat-stroked-button type="button" (click)="load()" i18n="@@bookmarks.retry">
+        Try again
+      </button>
+    </div>
+  } @else if (bookmarks(); as items) {
+    @if (!items.length) {
+      @if (view() === 'queue') {
+        <p class="empty" i18n="@@bookmarks.emptyQueue">
+          Nothing left to read. Save a link above with “Read later” to queue it here.
+        </p>
+      } @else if (tag()) {
+        <p class="empty" i18n="@@bookmarks.emptyTag">No bookmarks with this tag.</p>
+      } @else {
+        <p class="empty" i18n="@@bookmarks.empty">
+          No bookmarks yet. Paste a link above to save it.
+        </p>
+      }
+    } @else {
+      <ul class="list" aria-labelledby="bookmarks-title">
+        @for (b of items; track b.id) {
+          <li
+            class="bookmark"
+            [class.read]="!!b.readAt"
+            [class.busy]="isBusy(b)"
+            [attr.data-id]="b.id"
+          >
+            <span class="icon" aria-hidden="true">
+              @if (faviconOf(b); as icon) {
+                <img [src]="icon" alt="" width="20" height="20" referrerpolicy="no-referrer" />
+              } @else {
+                {{ hostOf(b.url).charAt(0).toUpperCase() }}
+              }
+            </span>
+            <div class="main">
+              <a class="title" [href]="b.url" target="_blank" rel="noopener noreferrer">{{
+                b.displayTitle
+              }}</a>
+              <span class="meta">
+                <span class="host">{{ hostOf(b.url) }}</span>
+                @if (b.metadataStatus === 'PENDING') {
+                  <span class="pending" i18n="@@bookmarks.fetching">fetching title…</span>
+                }
+                @if (b.readAt) {
+                  <span class="read-mark" i18n="@@bookmarks.readMark">read</span>
+                }
+              </span>
+              @if (b.description) {
+                <p class="description">{{ b.description }}</p>
+              }
+              @if (b.tags.length) {
+                <span class="tags">
+                  @for (t of b.tags; track t) {
+                    <a class="tag" routerLink="." [queryParams]="{ view: 'all', tag: t }"
+                      >#{{ t }}</a
+                    >
+                  }
+                </span>
+              }
+            </div>
+            <div class="actions">
+              @if (b.snapshotFileId) {
+                <a mat-button class="snapshot" [routerLink]="b.id" i18n="@@bookmarks.openSnapshot"
+                  >Read here</a
+                >
+              }
+              <button
+                mat-button
+                type="button"
+                class="mark-read"
+                [attr.aria-pressed]="!!b.readAt"
+                [disabled]="isBusy(b)"
+                (click)="toggleRead(b)"
+              >
+                @if (b.readAt) {
+                  <ng-container i18n="@@bookmarks.markUnread">Mark unread</ng-container>
+                } @else {
+                  <ng-container i18n="@@bookmarks.markRead">Mark read</ng-container>
+                }
+              </button>
+              <button
+                mat-button
+                type="button"
+                class="queue"
+                [disabled]="isBusy(b)"
+                (click)="toggleReadLater(b)"
+              >
+                @if (b.readLater) {
+                  <ng-container i18n="@@bookmarks.unqueue">Remove from Read later</ng-container>
+                } @else {
+                  <ng-container i18n="@@bookmarks.queue">Read later</ng-container>
+                }
+              </button>
+              <button
+                mat-button
+                type="button"
+                class="delete"
+                [disabled]="isBusy(b)"
+                (click)="remove(b)"
+                i18n="@@bookmarks.delete"
+              >
+                Delete
+              </button>
+            </div>
+            @if (errorOf(b); as error) {
+              <p class="error" role="alert" i18n="@@bookmarks.changeFailed">
+                “{{ b.displayTitle }}” could not be changed: {{ error }}
+              </p>
+            }
+          </li>
+        }
+      </ul>
+      @if (nextCursor()) {
+        <button
+          mat-stroked-button
+          type="button"
+          class="more"
+          [disabled]="loadingMore()"
+          (click)="loadMore()"
+          i18n="@@bookmarks.more"
+        >
+          Show more
+        </button>
+      }
+    }
+  } @else {
+    <p class="hint" role="status" i18n="@@bookmarks.loading">Loading bookmarks…</p>
+  }
+</section>
