@@ -1,17 +1,20 @@
 import { Component } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter, Router } from '@angular/router';
+import { RouterTestingHarness } from '@angular/router/testing';
 import { NEVER, Subject } from 'rxjs';
 import {
   Api,
   completeTask,
   listCalendars,
   listContexts,
+  listHabits,
   listProjects,
   listTasks,
   TaskResponse,
 } from '../../../api/generated';
 import { ChangeEventsService } from '../../../core/events';
+import { habit } from '../../habits/testing';
 import { TASK_PAGE_SIZE } from '../data';
 import { provideTodaySection, TODAY_SECTIONS, todaySectionProvider } from './today-sections';
 import TodayView from './today-view';
@@ -66,6 +69,45 @@ describe('today routes', () => {
     expect(route.path).toBe('');
     expect(route.title).toBe('Today');
     expect(await route.loadComponent!()).toMatchObject({ default: TodayView });
+  });
+
+  it("registers the habits section, so the routed Today view shows today's habits", async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date(2026, 9, 22, 9, 30));
+    try {
+      const invoke = vi.fn<Invoke>((fn) =>
+        Promise.resolve({
+          items:
+            fn === listHabits
+              ? [habit('0192f0c4-0000-7000-8000-0000000000aa', { name: 'Stretch' })]
+              : [],
+        }),
+      );
+      TestBed.configureTestingModule({
+        providers: [
+          provideRouter([{ path: 'today', children: todayRoutes }]),
+          { provide: Api, useValue: { invoke } },
+          {
+            provide: ChangeEventsService,
+            useValue: { resync$: new Subject<void>(), events$: () => NEVER },
+          },
+        ],
+      });
+      const harness = await RouterTestingHarness.create();
+      await harness.navigateByUrl('/today');
+      for (let i = 0; i < 3; i++) {
+        await settle();
+        harness.detectChanges();
+      }
+
+      const root = harness.routeNativeElement!;
+      const section = root.querySelector('.extension[data-section="habits"] app-today-habits');
+      expect(section?.querySelector('#today-habits')?.textContent).toContain('Habits due');
+      expect(section?.querySelector('.habit .name')?.textContent?.trim()).toBe('Stretch');
+      expect(invoke).toHaveBeenCalledWith(listHabits, { archived: false }, expect.anything());
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 
