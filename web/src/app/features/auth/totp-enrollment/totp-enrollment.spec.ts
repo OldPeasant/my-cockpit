@@ -23,6 +23,7 @@ describe('TotpEnrollment', () => {
     startTotpEnrollment: ReturnType<typeof vi.fn>;
     confirmTotpEnrollment: ReturnType<typeof vi.fn>;
     logout: ReturnType<typeof vi.fn>;
+    checkSession: ReturnType<typeof vi.fn>;
   };
   let notifications: { info: ReturnType<typeof vi.fn>; error: ReturnType<typeof vi.fn> };
 
@@ -50,6 +51,7 @@ describe('TotpEnrollment', () => {
       startTotpEnrollment: vi.fn(() => Promise.resolve(ENROLLMENT)),
       confirmTotpEnrollment: vi.fn(() => Promise.resolve()),
       logout: vi.fn(() => Promise.resolve()),
+      checkSession: vi.fn(() => Promise.resolve(true)),
     };
     notifications = { info: vi.fn(), error: vi.fn() };
   });
@@ -162,13 +164,9 @@ describe('TotpEnrollment', () => {
   });
 
   it('offers sign out while starting failed', async () => {
-    auth.startTotpEnrollment.mockRejectedValueOnce(
-      new ApiError(409, 'Conflict', 'TOTP re-enrollment is not required'),
-    );
+    auth.startTotpEnrollment.mockRejectedValueOnce(new ApiError(502, 'Bad Gateway'));
     await open();
-    expect(root.querySelector('[role=alert]')?.textContent).toContain(
-      'TOTP re-enrollment is not required',
-    );
+    expect(root.querySelector('[role=alert]')?.textContent).toContain('Bad Gateway');
     root.querySelector<HTMLButtonElement>('button.sign-out')!.click();
     await settle();
     expect(router.url).toBe('/login');
@@ -257,18 +255,114 @@ describe('TotpEnrollment', () => {
     );
   });
 
-  it('shows the server message when the confirmation conflicts (409)', async () => {
-    await open();
+  it('refreshes the session and opens the return URL when confirming is no longer required (409)', async () => {
+    await open('/enroll-totp?returnUrl=%2Finbox');
     auth.confirmTotpEnrollment.mockRejectedValueOnce(
       new ApiError(409, 'Conflict', 'TOTP re-enrollment is not required'),
     );
     type('123456');
     await submit();
-    expect(root.querySelector('[role=alert]')?.textContent).toContain(
-      'TOTP re-enrollment is not required',
+    expect(auth.checkSession).toHaveBeenCalledWith(true);
+    expect(router.url).toBe('/inbox');
+  });
+
+  it('refreshes the session and opens the app when starting is no longer required (409)', async () => {
+    auth.startTotpEnrollment.mockRejectedValueOnce(
+      new ApiError(409, 'Conflict', 'TOTP re-enrollment is not required'),
     );
+    await open('/enroll-totp?returnUrl=%2F%2Fevil.example');
+    expect(auth.checkSession).toHaveBeenCalledWith(true);
+    expect(router.url).toBe('/');
+  });
+
+  it('still leaves the page after a 409 when refreshing the session fails', async () => {
+    auth.startTotpEnrollment.mockRejectedValueOnce(
+      new ApiError(409, 'Conflict', 'TOTP re-enrollment is not required'),
+    );
+    auth.checkSession.mockRejectedValueOnce(new ApiError(0, 'The server cannot be reached.'));
+    await open('/enroll-totp?returnUrl=%2Finbox');
+    expect(router.url).toBe('/inbox');
+  });
+
+  it('goes to the login page with the return URL when the session ended on confirm (401)', async () => {
+    await open('/enroll-totp?returnUrl=%2Finbox');
+    auth.confirmTotpEnrollment.mockRejectedValueOnce(new ApiError(401, 'Unauthorized'));
+    type('123456');
+    await submit();
+    expect(router.url).toBe('/login?returnUrl=%2Finbox');
+    expect(auth.checkSession).not.toHaveBeenCalled();
+  });
+
+  it('goes to the login page when the session ended before starting (401)', async () => {
+    auth.startTotpEnrollment.mockRejectedValueOnce(new ApiError(401, 'Unauthorized'));
+    await open('/enroll-totp?returnUrl=%2Finbox');
+    expect(router.url).toBe('/login?returnUrl=%2Finbox');
+  });
+
+  it('drops a return URL of / on the way to the login page (401)', async () => {
+    auth.startTotpEnrollment.mockRejectedValueOnce(new ApiError(401, 'Unauthorized'));
+    await open();
+    expect(router.url).toBe('/login');
+  });
+
+  it('creates a new key on request and shows it', async () => {
+    await open();
+    auth.startTotpEnrollment.mockResolvedValueOnce({
+      otpauthUri: 'otpauth://totp/My%20Cockpit:demo?secret=KRSXG5CTMVRXEZLU&issuer=My%20Cockpit',
+      totpSecret: 'KRSXG5CTMVRXEZLU',
+    });
+    root.querySelector<HTMLButtonElement>('button.new-key')!.click();
+    await settle();
+    expect(auth.startTotpEnrollment).toHaveBeenCalledTimes(2);
+    expect(root.querySelector('.secret')?.textContent).toBe('KRSXG5CTMVRXEZLU');
     expect(router.url).toBe('/enroll-totp');
-    expect(root.querySelector<HTMLButtonElement>('button[type=submit]')!.disabled).toBe(false);
+  });
+
+  it('hints at a replaced key after a refused code and clears the hint with a new key', async () => {
+    await open();
+    auth.confirmTotpEnrollment.mockRejectedValueOnce(
+      new ApiError(400, 'Bad Request', undefined, undefined, undefined, [
+        { field: 'code', message: 'is not a valid code for the new TOTP secret' },
+      ]),
+    );
+    type('123456');
+    await submit();
+    expect(root.querySelector('.key-replaced')?.textContent).toContain('Create a new key');
+    root.querySelector<HTMLButtonElement>('button.new-key')!.click();
+    await settle();
+    expect(root.querySelector('.key-replaced')).toBeNull();
+    expect(root.querySelector('[role=alert]')).toBeNull();
+  });
+
+  it('does not hint at a replaced key when throttled', async () => {
+    await open();
+    auth.confirmTotpEnrollment.mockRejectedValueOnce(new ApiError(429, 'Too Many Requests'));
+    type('123456');
+    await submit();
+    expect(root.querySelector('.key-replaced')).toBeNull();
+  });
+
+  it('does not confirm while a new key is being created', async () => {
+    await open();
+    auth.startTotpEnrollment.mockImplementationOnce(
+      () => new Promise<TotpEnrollmentResponse>(() => undefined),
+    );
+    root.querySelector<HTMLButtonElement>('button.new-key')!.click();
+    await harness.fixture.whenStable();
+    expect(root.querySelector<HTMLButtonElement>('button[type=submit]')!.disabled).toBe(true);
+    type('123456');
+    root.querySelector('form')!.dispatchEvent(new Event('submit'));
+    await harness.fixture.whenStable();
+    expect(auth.confirmTotpEnrollment).not.toHaveBeenCalled();
+  });
+
+  it('cannot create a new key while a confirmation is running', async () => {
+    await open();
+    auth.confirmTotpEnrollment.mockImplementationOnce(() => new Promise<void>(() => undefined));
+    type('123456');
+    root.querySelector('form')!.dispatchEvent(new Event('submit'));
+    await harness.fixture.whenStable();
+    expect(root.querySelector<HTMLButtonElement>('button.new-key')!.disabled).toBe(true);
   });
 
   it('joins several server validation messages', async () => {

@@ -46,6 +46,8 @@ export class TotpEnrollment implements OnInit {
   /** Starting failed: the page offers to try again. */
   protected readonly startError = signal<string | null>(null);
   protected readonly error = signal<string | null>(null);
+  /** A code was refused: the key may have been replaced by a start in another window. */
+  protected readonly keyMayBeReplaced = signal(false);
 
   ngOnInit(): void {
     void this.start();
@@ -57,11 +59,13 @@ export class TotpEnrollment implements OnInit {
     this.starting.set(true);
     this.startError.set(null);
     this.error.set(null);
+    this.keyMayBeReplaced.set(false);
     try {
       this.enrollment.set(await this.auth.startTotpEnrollment());
       this.form.reset();
     } catch (error) {
       if (!(error instanceof ApiError)) throw error;
+      if (await this.leaveOnSessionChange(error)) return;
       this.enrollment.set(null);
       this.startError.set(error.userMessage);
     } finally {
@@ -70,7 +74,8 @@ export class TotpEnrollment implements OnInit {
   }
 
   protected async confirm(): Promise<void> {
-    if (this.submitting() || !this.enrollment()) return;
+    // While a new key is being created, a code from the old one would be refused.
+    if (this.submitting() || this.starting() || !this.enrollment()) return;
     if (this.form.invalid) {
       this.form.markAllAsTouched();
       return;
@@ -78,18 +83,20 @@ export class TotpEnrollment implements OnInit {
     const code = this.form.getRawValue().code.replace(/\s/g, '');
     this.submitting.set(true);
     this.error.set(null);
+    this.keyMayBeReplaced.set(false);
     try {
       await this.auth.confirmTotpEnrollment(code);
       this.notifications.info(
         $localize`:@@totpEnrollment.done:Your authenticator app is set up again.`,
       );
-      const returnUrl = safeReturnUrl(this.route.snapshot.queryParamMap.get(RETURN_URL_PARAM));
-      await this.router.navigateByUrl(returnUrl, { replaceUrl: true });
+      await this.router.navigateByUrl(this.returnUrl(), { replaceUrl: true });
     } catch (error) {
       if (!(error instanceof ApiError)) throw error;
+      if (await this.leaveOnSessionChange(error)) return;
       // A code is good for one attempt only.
       this.form.controls.code.reset();
       this.error.set(this.message(error));
+      this.keyMayBeReplaced.set(error.status === 400);
     } finally {
       this.submitting.set(false);
     }
@@ -102,6 +109,36 @@ export class TotpEnrollment implements OnInit {
       // The local session is cleared anyway; the interceptor showed the failure.
     }
     await this.router.navigateByUrl(LOGIN_PATH, { replaceUrl: true });
+  }
+
+  private returnUrl(): string {
+    return safeReturnUrl(this.route.snapshot.queryParamMap.get(RETURN_URL_PARAM));
+  }
+
+  /**
+   * Leaves the page when the session changed elsewhere: a 401 means it ended (e.g. another
+   * session confirmed first), so log in again; a 409 means the re-enrollment is no longer
+   * required (e.g. confirmed in another tab), so refresh the session and open the app.
+   */
+  private async leaveOnSessionChange(error: ApiError): Promise<boolean> {
+    if (error.status === 401) {
+      const returnUrl = this.returnUrl();
+      await this.router.navigate([LOGIN_PATH], {
+        queryParams: returnUrl === '/' ? {} : { [RETURN_URL_PARAM]: returnUrl },
+        replaceUrl: true,
+      });
+      return true;
+    }
+    if (error.status === 409) {
+      try {
+        await this.auth.checkSession(true);
+      } catch {
+        // Session state unknown (toast shown): the guards of the next page decide.
+      }
+      await this.router.navigateByUrl(this.returnUrl(), { replaceUrl: true });
+      return true;
+    }
+    return false;
   }
 
   private message(error: ApiError): string {

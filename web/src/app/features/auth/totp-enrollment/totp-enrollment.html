@@ -47,15 +47,31 @@
       @if (error()) {
         <p class="notice" role="alert">{{ error() }}</p>
       }
+      @if (keyMayBeReplaced()) {
+        <p class="key-replaced" i18n="@@totpEnrollment.keyReplaced">
+          If you opened this page in another window, the key shown here may have been replaced.
+          Create a new key and scan it again.
+        </p>
+      }
 
       <button
         mat-flat-button
         type="submit"
         class="primary"
-        [disabled]="submitting()"
+        [disabled]="submitting() || starting()"
         i18n="@@totpEnrollment.submit"
       >
         Finish and open My Cockpit
+      </button>
+      <button
+        mat-button
+        type="button"
+        class="switch new-key"
+        [disabled]="starting() || submitting()"
+        (click)="start()"
+        i18n="@@totpEnrollment.newKey"
+      >
+        Create a new key
       </button>
     </form>
   } @else if (startError()) {
