@@ -23,6 +23,9 @@ import javax.inject.Inject
 
 enum class ShareError { EMPTY_TEXT, TOO_MANY_FILES, TEXT_TOO_LONG, NOTES_TOO_LONG, UNREADABLE_FILE, FAILED }
 
+/** Where a shared URL goes (SPEC.md §8.4): a task in the Inbox or a bookmark in the read-later list. */
+enum class ShareDestination { INBOX, READ_LATER }
+
 data class SharedFile(
     val uri: Uri,
     val name: String,
@@ -38,8 +41,14 @@ data class ShareUiState(
     val error: ShareError? = null,
     /** The capture is queued, with its own copies of the files: the sheet can close. */
     val saved: Boolean = false,
+    /** The shared web page: when set, the sheet offers [ShareDestination.READ_LATER] next to the Inbox. */
+    val url: String? = null,
+    val destination: ShareDestination = ShareDestination.INBOX,
 ) {
-    val canSave: Boolean get() = !loadingFiles && !saving && !saved && text.isNotBlank()
+    val readLater: Boolean get() = url != null && destination == ShareDestination.READ_LATER
+
+    /** A read-later bookmark needs no title: the server takes the page's one. */
+    val canSave: Boolean get() = !loadingFiles && !saving && !saved && (readLater || text.isNotBlank())
 }
 
 /** The capture sheet of the share target: edit the shared text, then queue it with copies of the shared files. */
@@ -59,7 +68,14 @@ class ShareViewModel
         fun load(content: SharedContent) {
             if (loaded) return
             loaded = true
-            state.update { it.copy(text = content.title, notes = content.notes.orEmpty(), loadingFiles = content.uris.isNotEmpty()) }
+            state.update {
+                it.copy(
+                    text = content.title,
+                    notes = content.notes.orEmpty(),
+                    loadingFiles = content.uris.isNotEmpty(),
+                    url = content.url,
+                )
+            }
             viewModelScope.launch {
                 val files =
                     withContext(Dispatchers.IO) {
@@ -73,11 +89,18 @@ class ShareViewModel
 
         fun onNotesChange(value: String) = state.update { it.copy(notes = value, error = null) }
 
+        fun onDestinationChange(value: ShareDestination) =
+            state.update { if (it.url == null || it.saving || it.saved) it else it.copy(destination = value, error = null) }
+
         /** Queues the capture; the attachments are copied into the queue's storage before [ShareUiState.saved] is set. */
         fun save() {
             val form = state.value
             if (!form.canSave) {
                 if (!form.loadingFiles && !form.saving && !form.saved) state.update { it.copy(error = ShareError.EMPTY_TEXT) }
+                return
+            }
+            if (form.url != null && form.readLater) {
+                saveReadLater(form, form.url)
                 return
             }
             if (form.files.size > CaptureQueue.MAX_ATTACHMENTS) {
@@ -100,6 +123,28 @@ class ShareViewModel
                         if (form.text.isBlank()) ShareError.EMPTY_TEXT else ShareError.TEXT_TOO_LONG
                     } catch (_: IOException) {
                         ShareError.UNREADABLE_FILE
+                    } catch (_: Exception) {
+                        ShareError.FAILED
+                    }
+                state.update { it.copy(saving = false, error = error, saved = error == null) }
+            }
+        }
+
+        /** Queues the URL for the read-later list; the notes are not part of a bookmark. */
+        private fun saveReadLater(
+            form: ShareUiState,
+            url: String,
+        ) {
+            state.update { it.copy(saving = true, error = null) }
+            viewModelScope.launch {
+                // A title that is only the URL (a bare link was shared) would hide the page's real title.
+                val title = form.text.trim().takeUnless { it.isEmpty() || it == url }
+                val error =
+                    try {
+                        queue.readLater(url, title)
+                        null
+                    } catch (e: CancellationException) {
+                        throw e
                     } catch (_: Exception) {
                         ShareError.FAILED
                     }

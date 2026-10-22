@@ -129,7 +129,57 @@ class CaptureQueue internal constructor(
         return id
     }
 
+    /**
+     * Queues [url] for the read-later list (SPEC.md §8.4) and returns its local id: like [capture] stored first and
+     * sent once the network is up. A blank [title] lets the server take the page's title; a longer one than the server
+     * accepts is shortened. Throws [IllegalArgumentException] for a URL the server always rejects (see
+     * [isBookmarkUrl]); nothing is queued then.
+     */
+    suspend fun readLater(
+        url: String,
+        title: String? = null,
+    ): UUID {
+        val trimmed = url.trim()
+        require(isBookmarkUrl(trimmed)) { "Not an http(s) URL" }
+        val now = clock.millis()
+        val id = UuidV7.generate(now)
+        withContext(NonCancellable) {
+            dao.insertBookmark(
+                PendingBookmarkEntity(
+                    id = id.toString(),
+                    url = trimmed,
+                    title = title?.trim()?.takeIf { it.isNotEmpty() }?.shortened(MAX_TITLE_LENGTH),
+                    createdAtEpochMs = now,
+                    lastError = null,
+                    lastAttemptAtEpochMs = null,
+                ),
+            )
+            try {
+                scheduler.schedule()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: Exception) {
+                // Stored: the next capture or a pending run sends it, as for captures.
+            }
+        }
+        return id
+    }
+
     companion object {
+        /** The server accepts bookmark URLs of at most this many characters (`CreateBookmarkRequest.url`). */
+        const val MAX_URL_LENGTH = 2_048
+
+        /** The server accepts bookmark titles of at most this many characters (`CreateBookmarkRequest.title`). */
+        const val MAX_TITLE_LENGTH = 500
+
+        private val HTTP_URL = Regex("""(?i)https?://[^\s/?#]+(?:[/?#]\S*)?""")
+
+        /** An absolute http(s) URL with a host, without whitespace and short enough for the server. */
+        fun isBookmarkUrl(url: String): Boolean = url.length <= MAX_URL_LENGTH && HTTP_URL.matches(url)
+
+        private fun String.shortened(max: Int): String =
+            if (length <= max) this else take(if (this[max - 1].isHighSurrogate()) max - 1 else max)
+
         /** The server accepts at most this many files per capture (`CaptureRequest.fileIds`). */
         const val MAX_ATTACHMENTS = 50
 

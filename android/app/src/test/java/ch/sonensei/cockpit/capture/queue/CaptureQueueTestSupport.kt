@@ -5,6 +5,7 @@ import android.net.Uri
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import ch.sonensei.cockpit.core.network.AuthSession
+import ch.sonensei.cockpit.core.network.generated.apis.BookmarksApi
 import ch.sonensei.cockpit.core.network.generated.apis.CaptureApi
 import ch.sonensei.cockpit.core.network.generated.apis.FilesApi
 import ch.sonensei.cockpit.core.network.generated.infrastructure.Serializer
@@ -94,7 +95,15 @@ class QueueHarness(
             .addConverterFactory(Serializer.kotlinxSerializationJson.asConverterFactory("application/json".toMediaType()))
             .build()
     val uploader =
-        CaptureUploader(session, dao, store, retrofit.create(CaptureApi::class.java), retrofit.create(FilesApi::class.java), clock)
+        CaptureUploader(
+            session,
+            dao,
+            store,
+            retrofit.create(CaptureApi::class.java),
+            retrofit.create(FilesApi::class.java),
+            retrofit.create(BookmarksApi::class.java),
+            clock,
+        )
 
     /** A generated API client against the harness's server, for uploaders built with other collaborators. */
     fun <T> retrofitApi(api: Class<T>): T = retrofit.create(api)
@@ -116,3 +125,4 @@ class QueueHarness(
 
 const val CAPTURE = "/api/v1/capture"
 const val FILES = "/api/v1/files"
+const val BOOKMARKS = "/api/v1/bookmarks"

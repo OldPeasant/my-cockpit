@@ -24,12 +24,16 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.InsertDriveFile
+import androidx.compose.material.icons.outlined.BookmarkBorder
 import androidx.compose.material.icons.outlined.Inbox
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -48,6 +52,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
@@ -65,6 +70,9 @@ object ShareTags {
     const val SAVE = "share:save"
     const val CANCEL = "share:cancel"
     const val ERROR = "share:error"
+    const val URL = "share:url"
+    const val DESTINATION_INBOX = "share:destination:inbox"
+    const val DESTINATION_READ_LATER = "share:destination:read-later"
 }
 
 /** The compact capture sheet over the sending app: the title is the one big element, everything else stays quiet. */
@@ -75,6 +83,7 @@ fun CaptureSheet(
     onNotesChange: (String) -> Unit,
     onSave: () -> Unit,
     onCancel: () -> Unit,
+    onDestinationChange: (ShareDestination) -> Unit = {},
     /** Focus the title (and so open the keyboard) on open: for an empty capture, not for a share to review. */
     autoFocus: Boolean = false,
 ) {
@@ -109,42 +118,48 @@ fun CaptureSheet(
                     .verticalScroll(rememberScrollState())
                     .padding(start = 24.dp, end = 24.dp, top = 20.dp, bottom = 16.dp),
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        Icons.Outlined.Inbox,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(18.dp),
-                    )
-                    Text(
-                        stringResource(R.string.share_heading),
-                        style = MaterialTheme.typography.titleSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(start = 8.dp),
-                    )
+                if (state.url != null) {
+                    DestinationChoice(state, onDestinationChange)
+                } else {
+                    Heading()
                 }
                 TextField(
                     value = state.text,
                     onValueChange = onTextChange,
                     modifier = Modifier.fillMaxWidth().focusRequester(titleFocus).testTag(ShareTags.TEXT),
                     textStyle = MaterialTheme.typography.headlineSmall,
-                    placeholder = { Text(stringResource(R.string.share_text_hint), style = MaterialTheme.typography.headlineSmall) },
+                    placeholder = {
+                        val hint = if (state.readLater) R.string.share_title_hint_read_later else R.string.share_text_hint
+                        Text(stringResource(hint), style = MaterialTheme.typography.headlineSmall)
+                    },
                     singleLine = true,
                     enabled = !state.saving,
                     keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences, imeAction = ImeAction.Done),
                     keyboardActions = KeyboardActions(onDone = { onSave() }),
                     colors = quietFieldColors(),
                 )
-                TextField(
-                    value = state.notes,
-                    onValueChange = onNotesChange,
-                    modifier = Modifier.fillMaxWidth().heightIn(max = 160.dp).testTag(ShareTags.NOTES),
-                    textStyle = MaterialTheme.typography.bodyMedium,
-                    placeholder = { Text(stringResource(R.string.share_notes_hint), style = MaterialTheme.typography.bodyMedium) },
-                    enabled = !state.saving,
-                    keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
-                    colors = quietFieldColors(),
-                )
+                // A bookmark has no notes: the URL and the page's description stand for them.
+                if (state.readLater) {
+                    Text(
+                        state.url.orEmpty(),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.padding(horizontal = 16.dp).testTag(ShareTags.URL),
+                    )
+                } else {
+                    TextField(
+                        value = state.notes,
+                        onValueChange = onNotesChange,
+                        modifier = Modifier.fillMaxWidth().heightIn(max = 160.dp).testTag(ShareTags.NOTES),
+                        textStyle = MaterialTheme.typography.bodyMedium,
+                        placeholder = { Text(stringResource(R.string.share_notes_hint), style = MaterialTheme.typography.bodyMedium) },
+                        enabled = !state.saving,
+                        keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
+                        colors = quietFieldColors(),
+                    )
+                }
                 if (state.files.isNotEmpty()) {
                     FlowRow(
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -189,13 +204,73 @@ fun CaptureSheet(
                             CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
                             Spacer(Modifier.size(8.dp))
                         }
-                        Text(stringResource(R.string.share_save))
+                        Text(stringResource(if (state.readLater) R.string.share_save_read_later else R.string.share_save))
                     }
                 }
             }
         }
     }
 }
+
+@Composable
+private fun Heading() {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Icon(
+            Icons.Outlined.Inbox,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.size(18.dp),
+        )
+        Text(
+            stringResource(R.string.share_heading),
+            style = MaterialTheme.typography.titleSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(start = 8.dp),
+        )
+    }
+}
+
+/** For a shared web page: the Inbox (a task) or the read-later list (a bookmark), SPEC.md §8.4. */
+@Composable
+private fun DestinationChoice(
+    state: ShareUiState,
+    onDestinationChange: (ShareDestination) -> Unit,
+) {
+    val label = stringResource(R.string.share_destination)
+    SingleChoiceSegmentedButtonRow(
+        Modifier
+            .fillMaxWidth()
+            .padding(bottom = 4.dp)
+            .semantics { contentDescription = label },
+    ) {
+        DESTINATIONS.forEachIndexed { index, (destination, text, icon) ->
+            SegmentedButton(
+                selected = state.destination == destination,
+                onClick = { onDestinationChange(destination) },
+                shape = SegmentedButtonDefaults.itemShape(index, DESTINATIONS.size),
+                enabled = !state.saving,
+                icon = { SegmentedButtonDefaults.Icon(state.destination == destination) { Icon(icon, null, Modifier.size(18.dp)) } },
+                label = { Text(stringResource(text)) },
+                modifier =
+                    Modifier.testTag(
+                        if (destination ==
+                            ShareDestination.INBOX
+                        ) {
+                            ShareTags.DESTINATION_INBOX
+                        } else {
+                            ShareTags.DESTINATION_READ_LATER
+                        },
+                    ),
+            )
+        }
+    }
+}
+
+private val DESTINATIONS =
+    listOf(
+        Triple(ShareDestination.INBOX, R.string.share_destination_inbox, Icons.Outlined.Inbox),
+        Triple(ShareDestination.READ_LATER, R.string.share_destination_read_later, Icons.Outlined.BookmarkBorder),
+    )
 
 @Composable
 private fun quietFieldColors() =

@@ -20,4 +20,10 @@
     </plurals>
     <string name="share_error_unreadable">A shared file could not be read. Share it again from the other app.</string>
     <string name="share_error_failed">The capture could not be stored. Try again.</string>
+    <string name="share_destination">Save to</string>
+    <string name="share_destination_inbox">Inbox</string>
+    <string name="share_destination_read_later">Read later</string>
+    <string name="share_title_hint_read_later">Title (optional)</string>
+    <string name="share_save_read_later">Save to read later</string>
+    <string name="share_saved_read_later">Saved to read later</string>
 </resources>

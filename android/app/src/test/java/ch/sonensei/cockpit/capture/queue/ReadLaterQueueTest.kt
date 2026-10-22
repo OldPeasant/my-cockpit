@@ -1,0 +1,237 @@
+package ch.sonensei.cockpit.capture.queue
+
+import android.content.Context
+import android.database.sqlite.SQLiteDatabase
+import androidx.room.Room
+import androidx.test.core.app.ApplicationProvider
+import androidx.test.ext.junit.runners.AndroidJUnit4
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.runBlocking
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
+import mockwebserver3.MockWebServer
+import mockwebserver3.RecordedRequest
+import org.junit.After
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
+import org.junit.Assert.fail
+import org.junit.Before
+import org.junit.Test
+import org.junit.runner.RunWith
+import java.io.File
+import java.util.concurrent.TimeUnit
+
+fun bookmarkJson(url: String): String =
+    """{"id":"${fileId(9)}","url":"$url","displayTitle":"Page","tags":[],"readLater":true,"metadataStatus":"PENDING",""" +
+        """"version":1,"createdAt":"2026-10-20T10:00:00Z","updatedAt":"2026-10-20T10:00:00Z"}"""
+
+/** Read-later bookmarks go through the offline capture queue (SPEC.md §8.4, §9.3). */
+@RunWith(AndroidJUnit4::class)
+class ReadLaterQueueTest {
+    private val server = MockWebServer()
+    private lateinit var q: QueueHarness
+
+    @Before
+    fun setUp() {
+        server.start()
+        q = QueueHarness(server, clock = TickingClock())
+    }
+
+    @After
+    fun tearDown() {
+        q.close()
+        server.close()
+    }
+
+    private fun take(): RecordedRequest? = server.takeRequest(0, TimeUnit.SECONDS)
+
+    @Test
+    fun `read later is stored offline first and counted as pending`() =
+        runBlocking {
+            q.queue.readLater(" https://example.org/a ", "  A page ")
+
+            val stored = q.dao.sendableBookmarks().single()
+            assertEquals("https://example.org/a", stored.url)
+            assertEquals("A page", stored.title)
+            assertEquals(1, q.scheduler.scheduled)
+            assertEquals(
+                1,
+                q.queue.status
+                    .first()
+                    .pendingCount,
+            )
+            assertNull(take())
+        }
+
+    @Test
+    fun `a URL the server always rejects is refused and nothing is queued`() =
+        runBlocking {
+            for (url in listOf(
+                "example.org",
+                "ftp://example.org",
+                "https://",
+                "https://exa mple.org",
+                "https://e.org/" + "a".repeat(2_048),
+            )) {
+                try {
+                    q.queue.readLater(url)
+                    fail("accepted $url")
+                } catch (_: IllegalArgumentException) {
+                }
+            }
+            assertTrue(q.dao.sendableBookmarks().isEmpty())
+            assertEquals(0, q.scheduler.scheduled)
+        }
+
+    @Test
+    fun `a blank title is left to the server and a long one is shortened`() =
+        runBlocking {
+            q.queue.readLater("https://example.org/a", " ")
+            q.queue.readLater("https://example.org/b", "t".repeat(600))
+
+            val (blank, long) = q.dao.sendableBookmarks()
+            assertNull(blank.title)
+            assertEquals(CaptureQueue.MAX_TITLE_LENGTH, long.title!!.length)
+        }
+
+    @Test
+    fun `the job sends it as a read-later bookmark after the captures and removes it`() =
+        runBlocking {
+            q.queue.readLater("https://example.org/a", "A page")
+            val captureId = q.queue.capture("Call plumber")
+            server.enqueue(answer(201, captureTaskJson(captureId.toString())))
+            server.enqueue(answer(201, bookmarkJson("https://example.org/a")))
+
+            assertEquals(SendResult.DONE, q.uploader.sendAll())
+
+            assertEquals(CAPTURE, take()!!.url.encodedPath)
+            val bookmark = take()!!
+            assertEquals(BOOKMARKS, bookmark.url.encodedPath)
+            val body = Json.parseToJsonElement(bookmark.body!!.utf8()).jsonObject
+            assertEquals("https://example.org/a", body["url"]!!.jsonPrimitive.content)
+            assertEquals("A page", body["title"]!!.jsonPrimitive.content)
+            assertEquals("true", body["readLater"]!!.jsonPrimitive.content)
+            assertTrue(q.dao.sendableBookmarks().isEmpty())
+            assertEquals(
+                0,
+                q.queue.status
+                    .first()
+                    .pendingCount,
+            )
+        }
+
+    @Test
+    fun `offline the bookmark stays queued with the error and is sent on the next run`() =
+        runBlocking {
+            q.queue.readLater("https://example.org/a")
+            server.close()
+
+            assertEquals(SendResult.RETRY, q.uploader.sendAll())
+            val status = q.queue.status.first()
+            assertEquals(1, status.pendingCount)
+            assertEquals(CaptureUploader.OFFLINE, status.lastError)
+        }
+
+    @Test
+    fun `logged out nothing is sent and the bookmark waits`() =
+        runBlocking {
+            val loggedOut = QueueHarness(server, loggedIn = false)
+            try {
+                loggedOut.queue.readLater("https://example.org/a")
+                assertEquals(SendResult.RETRY, loggedOut.uploader.sendAll())
+                assertNull(take())
+                assertEquals(
+                    CaptureUploader.NOT_LOGGED_IN,
+                    loggedOut.queue.status
+                        .first()
+                        .lastError,
+                )
+            } finally {
+                loggedOut.close()
+            }
+        }
+
+    @Test
+    fun `a bookmark the server rejects is kept but no longer sent, a server error is retried`() =
+        runBlocking {
+            q.queue.readLater("https://example.org/rejected")
+            server.enqueue(answer(400, """{"title":"Bad Request","status":400}"""))
+            assertEquals(SendResult.DONE, q.uploader.sendAll())
+            assertTrue(q.dao.sendableBookmarks().isEmpty())
+            assertEquals(
+                1,
+                q.queue.status
+                    .first()
+                    .pendingCount,
+            )
+
+            q.queue.readLater("https://example.org/later")
+            server.enqueue(answer(503))
+            assertEquals(SendResult.RETRY, q.uploader.sendAll())
+            assertEquals(1, q.dao.sendableBookmarks().size)
+            assertFalse(
+                q.queue.status
+                    .first()
+                    .lastError
+                    .isNullOrEmpty(),
+            )
+        }
+
+    /**
+     * A queue written by the previous app version (schema 1, built from its committed export) opens with schema 2: its
+     * captures are kept and read-later bookmarks can be queued. Room's MigrationTestHelper cannot read the exported
+     * schemas under Robolectric, so the old database is built here.
+     */
+    @Test
+    fun `version 1 queues migrate to version 2 with their captures kept`() =
+        runBlocking {
+            val context: Context = ApplicationProvider.getApplicationContext()
+            val file = context.getDatabasePath(MIGRATION_DB).apply { parentFile!!.mkdirs() }
+            val schema =
+                Json
+                    .parseToJsonElement(File("schemas/${CaptureQueueDatabase::class.java.name}/1.json").readText())
+                    .jsonObject["database"]!!
+                    .jsonObject
+            SQLiteDatabase.openOrCreateDatabase(file, null).use { db ->
+                for (entity in schema["entities"]!!.jsonArray) {
+                    val table = entity.jsonObject["tableName"]!!.jsonPrimitive.content
+                    db.execSQL(
+                        entity.jsonObject["createSql"]!!
+                            .jsonPrimitive.content
+                            .replace("\${TABLE_NAME}", table),
+                    )
+                }
+                schema["setupQueries"]!!.jsonArray.forEach { db.execSQL(it.jsonPrimitive.content) }
+                db.execSQL(
+                    "INSERT INTO pending_capture (id, text, notes, createdAtEpochMs, lastError, lastAttemptAtEpochMs, rejected) " +
+                        "VALUES ('${fileId(1)}', 'Kept', NULL, 1, NULL, NULL, 0)",
+                )
+                db.version = 1
+            }
+
+            val migrated = Room.databaseBuilder(context, CaptureQueueDatabase::class.java, MIGRATION_DB).build()
+            try {
+                val dao = migrated.dao()
+                assertEquals(
+                    "Kept",
+                    dao
+                        .sendable()
+                        .single()
+                        .capture.text,
+                )
+                dao.insertBookmark(PendingBookmarkEntity(fileId(2), "https://example.org/a", null, 2, null, null))
+                assertEquals(2, dao.observeStatus().first().pending)
+            } finally {
+                migrated.close()
+                context.deleteDatabase(MIGRATION_DB)
+            }
+        }
+
+    private companion object {
+        const val MIGRATION_DB = "capture-queue-migration-test"
+    }
+}

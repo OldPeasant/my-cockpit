@@ -1,5 +1,6 @@
 package ch.sonensei.cockpit.capture.queue
 
+import androidx.room.AutoMigration
 import androidx.room.Dao
 import androidx.room.Database
 import androidx.room.Entity
@@ -50,6 +51,21 @@ data class PendingAttachmentEntity(
     val remoteFileId: String? = null,
 )
 
+/**
+ * A URL shared to "Read later" (SPEC.md §8.4) not yet accepted by the server; sent as `POST /bookmarks` with
+ * `readLater`. [title] is null when the server should take the page's title.
+ */
+@Entity(tableName = "pending_bookmark")
+data class PendingBookmarkEntity(
+    @PrimaryKey val id: String,
+    val url: String,
+    val title: String?,
+    val createdAtEpochMs: Long,
+    val lastError: String?,
+    val lastAttemptAtEpochMs: Long?,
+    val rejected: Boolean = false,
+)
+
 /** A pending capture with its attachments in [PendingAttachmentEntity.position] order. */
 data class PendingCapture(
     val capture: PendingCaptureEntity,
@@ -80,10 +96,13 @@ abstract class CaptureQueueDao {
     @Transaction
     open suspend fun sendable(): List<PendingCapture> = sendableCaptures().map { PendingCapture(it, attachments(it.id)) }
 
+    /** Captures and read-later bookmarks count alike: both are shares not yet on the server. */
     @Query(
-        "SELECT (SELECT COUNT(*) FROM pending_capture) AS pending, " +
-            "(SELECT lastError FROM pending_capture WHERE lastError IS NOT NULL " +
-            "ORDER BY lastAttemptAtEpochMs DESC LIMIT 1) AS lastError",
+        "SELECT (SELECT COUNT(*) FROM pending_capture) + (SELECT COUNT(*) FROM pending_bookmark) AS pending, " +
+            "(SELECT lastError FROM (" +
+            "SELECT lastError, lastAttemptAtEpochMs FROM pending_capture WHERE lastError IS NOT NULL " +
+            "UNION ALL SELECT lastError, lastAttemptAtEpochMs FROM pending_bookmark WHERE lastError IS NOT NULL" +
+            ") ORDER BY lastAttemptAtEpochMs DESC LIMIT 1) AS lastError",
     )
     abstract fun observeStatus(): Flow<QueueStatusRow>
 
@@ -109,6 +128,24 @@ abstract class CaptureQueueDao {
     @Query("DELETE FROM pending_capture WHERE id = :id")
     abstract suspend fun delete(id: String)
 
+    /** Read-later bookmarks the job still has to send, oldest first. */
+    @Query("SELECT * FROM pending_bookmark WHERE rejected = 0 ORDER BY createdAtEpochMs, id")
+    abstract suspend fun sendableBookmarks(): List<PendingBookmarkEntity>
+
+    @Insert
+    abstract suspend fun insertBookmark(bookmark: PendingBookmarkEntity)
+
+    @Query("UPDATE pending_bookmark SET lastError = :error, lastAttemptAtEpochMs = :atEpochMs, rejected = :rejected WHERE id = :id")
+    abstract suspend fun markBookmarkFailed(
+        id: String,
+        error: String,
+        atEpochMs: Long,
+        rejected: Boolean,
+    )
+
+    @Query("DELETE FROM pending_bookmark WHERE id = :id")
+    abstract suspend fun deleteBookmark(id: String)
+
     @Query("SELECT * FROM pending_capture WHERE rejected = 0 ORDER BY createdAtEpochMs, id")
     protected abstract suspend fun sendableCaptures(): List<PendingCaptureEntity>
 
@@ -121,12 +158,13 @@ abstract class CaptureQueueDao {
 
 /**
  * The offline capture queue. Unlike the GTD read cache it holds data that exists nowhere else yet, so it is never
- * dropped on a schema change: new versions need a migration.
+ * dropped on a schema change: new versions need a migration (2: read-later bookmarks).
  */
 @Database(
-    entities = [PendingCaptureEntity::class, PendingAttachmentEntity::class],
-    version = 1,
+    entities = [PendingCaptureEntity::class, PendingAttachmentEntity::class, PendingBookmarkEntity::class],
+    version = 2,
     exportSchema = true,
+    autoMigrations = [AutoMigration(from = 1, to = 2)],
 )
 abstract class CaptureQueueDatabase : RoomDatabase() {
     abstract fun dao(): CaptureQueueDao

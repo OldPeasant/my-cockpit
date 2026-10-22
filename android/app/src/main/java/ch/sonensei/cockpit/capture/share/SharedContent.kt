@@ -4,12 +4,17 @@ import android.content.ContentResolver
 import android.content.Intent
 import android.net.Uri
 import androidx.core.content.IntentCompat
+import ch.sonensei.cockpit.capture.queue.CaptureQueue
 
-/** What another app shared with us, turned into a capture draft: a title line, optional notes and the files. */
+/**
+ * What another app shared with us, turned into a capture draft: a title line, optional notes and the files. [url] is
+ * the shared web page, if any: such a share can also go to the read-later list (SPEC.md §8.4).
+ */
 data class SharedContent(
     val title: String,
     val notes: String?,
     val uris: List<Uri>,
+    val url: String? = null,
 )
 
 /** Reads `ACTION_SEND` / `ACTION_SEND_MULTIPLE` intents (SPEC.md §4.5). */
@@ -33,8 +38,28 @@ object ShareIntentParser {
                 text != null -> text.substringBefore('\n').trim() to text.substringAfter('\n', "").trim().takeIf { it.isNotEmpty() }
                 else -> subject.orEmpty().singleLine() to null
             }
-        return SharedContent(title, notes, uris)
+        // Files cannot become a bookmark, so a share with files only goes to the Inbox.
+        val url = if (uris.isEmpty()) firstUrl(text) ?: firstUrl(subject) else null
+        return SharedContent(title, notes, uris, url)
     }
+
+    /**
+     * The first http(s) URL in [text], without the punctuation a sentence puts after it. A closing `)` stays when the
+     * URL opened it (`https://en.wikipedia.org/wiki/Bern_(city)`).
+     */
+    private fun firstUrl(text: String?): String? {
+        var url = text?.let { URL_CANDIDATE.find(it)?.value } ?: return null
+        while (url.isNotEmpty()) {
+            val last = url.last()
+            val unbalanced = last == ')' && url.count { it == ')' } > url.count { it == '(' }
+            if (last in TRAILING_PUNCTUATION || unbalanced) url = url.dropLast(1) else break
+        }
+        return url.takeIf(CaptureQueue::isBookmarkUrl)
+    }
+
+    private const val TRAILING_PUNCTUATION = ".,;:!?]}>\"'"
+
+    private val URL_CANDIDATE = Regex("""(?i)\bhttps?://\S+""")
 
     private fun sharedText(intent: Intent): String? {
         val texts =

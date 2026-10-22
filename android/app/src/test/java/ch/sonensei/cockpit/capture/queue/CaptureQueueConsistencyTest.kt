@@ -2,6 +2,7 @@ package ch.sonensei.cockpit.capture.queue
 
 import android.database.sqlite.SQLiteFullException
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import ch.sonensei.cockpit.core.network.generated.apis.BookmarksApi
 import ch.sonensei.cockpit.core.network.generated.apis.CaptureApi
 import ch.sonensei.cockpit.core.network.generated.apis.FilesApi
 import io.mockk.coEvery
@@ -68,6 +69,19 @@ private class StopAfterDeleteDao(
         currentCoroutineContext().job.cancel()
     }
 
+    override suspend fun sendableBookmarks() = real.sendableBookmarks()
+
+    override suspend fun insertBookmark(bookmark: PendingBookmarkEntity) = real.insertBookmark(bookmark)
+
+    override suspend fun markBookmarkFailed(
+        id: String,
+        error: String,
+        atEpochMs: Long,
+        rejected: Boolean,
+    ) = real.markBookmarkFailed(id, error, atEpochMs, rejected)
+
+    override suspend fun deleteBookmark(id: String) = real.deleteBookmark(id)
+
     override suspend fun sendableCaptures(): List<PendingCaptureEntity> = error("not used: sendable() delegates")
 
     override suspend fun insertCapture(capture: PendingCaptureEntity): Unit = error("not used: insert() delegates")
@@ -104,7 +118,8 @@ class CaptureQueueConsistencyTest {
             server.enqueue(answer(201, captureTaskJson(id.toString())))
             // WorkManager stops the worker (e.g. the network constraint is lost) just as the sent capture is removed.
             val dao = StopAfterDeleteDao(q.dao)
-            val uploader = CaptureUploader(q.session, dao, q.store, captureApi(), filesApi(), q.clock)
+            val uploader =
+                CaptureUploader(q.session, dao, q.store, captureApi(), filesApi(), q.retrofitApi(BookmarksApi::class.java), q.clock)
 
             val outcome = runCatching { async { uploader.sendAll() }.await() }
 
@@ -126,7 +141,8 @@ class CaptureQueueConsistencyTest {
             server.enqueue(answer(201, captureTaskJson(id.toString())))
             val dao = spyk(q.dao)
             coEvery { dao.delete(any()) } throws SQLiteFullException("disk full")
-            val uploader = CaptureUploader(q.session, dao, q.store, captureApi(), filesApi(), q.clock)
+            val uploader =
+                CaptureUploader(q.session, dao, q.store, captureApi(), filesApi(), q.retrofitApi(BookmarksApi::class.java), q.clock)
 
             val outcome = runCatching { uploader.sendAll() }
 

@@ -47,13 +47,16 @@ class ShareIntentParserTest {
                 },
             )
 
-        assertEquals(SharedContent("Holiday ideas for 2027", "https://example.org/holiday", emptyList()), content)
+        assertEquals(
+            SharedContent("Holiday ideas for 2027", "https://example.org/holiday", emptyList(), "https://example.org/holiday"),
+            content,
+        )
     }
 
     @Test
     fun `with a subject, multi-line text goes to the notes in full`() {
         assertEquals(
-            SharedContent("Recipe", "Pancakes\nhttps://example.org/pancakes", emptyList()),
+            SharedContent("Recipe", "Pancakes\nhttps://example.org/pancakes", emptyList(), "https://example.org/pancakes"),
             ShareIntentParser.parse(
                 send("text/plain") {
                     putExtra(Intent.EXTRA_SUBJECT, "Recipe")
@@ -76,7 +79,7 @@ class ShareIntentParserTest {
     @Test
     fun `a bare URL becomes the title`() {
         assertEquals(
-            SharedContent("https://example.org/a?b=c", null, emptyList()),
+            SharedContent("https://example.org/a?b=c", null, emptyList(), "https://example.org/a?b=c"),
             ShareIntentParser.parse(send("text/plain") { putExtra(Intent.EXTRA_TEXT, "https://example.org/a?b=c") }),
         )
     }

@@ -2,6 +2,7 @@ package ch.sonensei.cockpit.capture.queue
 
 import android.content.Context
 import androidx.room.Room
+import ch.sonensei.cockpit.core.network.generated.apis.BookmarksApi
 import ch.sonensei.cockpit.core.network.generated.apis.CaptureApi
 import ch.sonensei.cockpit.core.network.generated.apis.FilesApi
 import dagger.Binds
@@ -34,6 +35,9 @@ object CaptureQueueModule {
 
     @Provides
     fun captureApi(retrofit: Retrofit): CaptureApi = retrofit.create(CaptureApi::class.java)
+
+    @Provides
+    fun bookmarksApi(retrofit: Retrofit): BookmarksApi = retrofit.create(BookmarksApi::class.java)
 
     @Provides
     fun filesApi(retrofit: Retrofit): FilesApi = retrofit.create(FilesApi::class.java)

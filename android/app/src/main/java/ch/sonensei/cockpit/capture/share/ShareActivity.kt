@@ -36,7 +36,8 @@ class ShareActivity : ComponentActivity() {
                 val state by viewModel.uiState.collectAsStateWithLifecycle()
                 LaunchedEffect(state.saved) {
                     if (state.saved) {
-                        Toast.makeText(this@ShareActivity, R.string.share_saved, Toast.LENGTH_SHORT).show()
+                        val saved = if (state.readLater) R.string.share_saved_read_later else R.string.share_saved
+                        Toast.makeText(this@ShareActivity, saved, Toast.LENGTH_SHORT).show()
                         finish()
                     }
                 }
@@ -46,6 +47,7 @@ class ShareActivity : ComponentActivity() {
                     onNotesChange = viewModel::onNotesChange,
                     onSave = viewModel::save,
                     onCancel = ::finish,
+                    onDestinationChange = viewModel::onDestinationChange,
                 )
             }
         }

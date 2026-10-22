@@ -1,9 +1,11 @@
 package ch.sonensei.cockpit.capture.queue
 
 import ch.sonensei.cockpit.core.network.AuthSession
+import ch.sonensei.cockpit.core.network.generated.apis.BookmarksApi
 import ch.sonensei.cockpit.core.network.generated.apis.CaptureApi
 import ch.sonensei.cockpit.core.network.generated.apis.FilesApi
 import ch.sonensei.cockpit.core.network.generated.models.CaptureRequest
+import ch.sonensei.cockpit.core.network.generated.models.CreateBookmarkRequest
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.withContext
@@ -30,6 +32,9 @@ enum class SendResult {
  * so a retry does not upload it twice, then calls `POST /capture` with the client id. The capture is idempotent, so a
  * repeated call after a lost answer returns the existing task (200) and counts as sent, as does 409 (the task was sent
  * before and is in the Trash by now). A sent capture is removed together with its attachment copies.
+ *
+ * Then the read-later bookmarks (oldest first) go to `POST /bookmarks` with `readLater`. That call has no client id: if
+ * its answer is lost, the retry saves the URL a second time (accepted: a duplicate bookmark loses nothing).
  */
 class CaptureUploader internal constructor(
     private val session: AuthSession,
@@ -37,6 +42,7 @@ class CaptureUploader internal constructor(
     private val files: AttachmentStore,
     private val captureApi: CaptureApi,
     private val filesApi: FilesApi,
+    private val bookmarksApi: BookmarksApi,
     private val clock: Clock,
 ) {
     @Inject
@@ -46,7 +52,8 @@ class CaptureUploader internal constructor(
         files: AttachmentStore,
         captureApi: CaptureApi,
         filesApi: FilesApi,
-    ) : this(session, dao, files, captureApi, filesApi, Clock.systemUTC())
+        bookmarksApi: BookmarksApi,
+    ) : this(session, dao, files, captureApi, filesApi, bookmarksApi, Clock.systemUTC())
 
     suspend fun sendAll(): SendResult {
         var result = SendResult.DONE
@@ -75,8 +82,39 @@ class CaptureUploader internal constructor(
                 }
             }
         }
+        for (bookmark in dao.sendableBookmarks()) {
+            val outcome = if (session.isLoggedIn) sendSafely(bookmark) else Outcome.Retry(NOT_LOGGED_IN)
+            when (outcome) {
+                Outcome.Sent -> dao.deleteBookmark(bookmark.id)
+                is Outcome.Rejected -> dao.markBookmarkFailed(bookmark.id, outcome.error, clock.millis(), rejected = true)
+                is Outcome.Retry -> {
+                    dao.markBookmarkFailed(bookmark.id, outcome.error, clock.millis(), rejected = false)
+                    return SendResult.RETRY
+                }
+                is Outcome.Failed -> {
+                    dao.markBookmarkFailed(bookmark.id, outcome.error, clock.millis(), rejected = false)
+                    result = SendResult.RETRY
+                }
+            }
+        }
         return result
     }
+
+    private suspend fun sendSafely(bookmark: PendingBookmarkEntity): Outcome =
+        try {
+            val request = CreateBookmarkRequest(url = bookmark.url, title = bookmark.title, readLater = true)
+            val code =
+                try {
+                    bookmarksApi.createBookmark(request).code()
+                } catch (_: IOException) {
+                    return Outcome.Retry(OFFLINE)
+                }
+            if (code in 200..299) Outcome.Sent else failure(code)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: Exception) {
+            Outcome.Failed(UNEXPECTED_ERROR)
+        }
 
     /** [send], with an unexpected exception (e.g. an unreadable answer or stored id) as [Outcome.Failed]. */
     private suspend fun sendSafely(pending: PendingCapture): Outcome =
