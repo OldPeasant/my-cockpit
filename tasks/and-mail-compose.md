@@ -16,3 +16,4 @@ Compose on the phone.
 
 ## Notes
 - ASSUMPTION (2026-10-22 09:01+0200 by dell26/agent-2): Basic formatting on Android = lightweight markup in a plain text field (**bold**, _italic_, '- ' bullet lines) with toolbar buttons; converted to HTML on save, server derives the text alternative. A real rich-text editor on Compose is out of proportion for v1.
+- ASSUMPTION (2026-10-22 09:01+0200 by dell26/agent-2): Reply/forward quote: the server-built quoted HTML is kept verbatim below the user's text (shown read-only as a preview); only the user's own text is editable.
