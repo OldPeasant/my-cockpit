@@ -5,7 +5,7 @@ owner: dell26/agent-2
 deps: [passkeys-server,and-login,app-logo]
 touches: [android/app/src/main/java/ch/sonensei/cockpit/auth,android/app/src/test/java/ch/sonensei/cockpit/auth]
 prio: 3
-lease_until: 2026-10-22T12:44:57Z
+lease_until: 2026-10-22T12:50:32Z
 ---
 ## Goal
 Passkey login via Credential Manager.
