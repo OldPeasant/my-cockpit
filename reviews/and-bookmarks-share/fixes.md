@@ -64,6 +64,76 @@ Lint/type-check/build:
 Remaining unresolved findings:
 0
 
+# Round 2
+
+Date: 2026-10-22
+
+Scope: findings CR-1 and CR-2 (both P3) from the second `reviews/and-bookmarks-share/review.md` (reviewed range d7f0f1cc9..68b87bc99). The parent worker had already committed a fix attempt for both in c87b42d84 (merged in 8358e093f), without the fixer. This round checks that commit against the server (`BookmarkUrls.normalize`, `BookmarkService.normalizeUrl`) and `core/network/TokenRefresher.kt`. Both findings are resolved by c87b42d84, and both have regression tests, so this round changes no code.
+
+## Fixed findings (round 2)
+
+### CR-1 — Only `SerializationException` is caught after a 2xx, so an unreadable date-time or UUID still causes retries and duplicates
+
+Files changed (in c87b42d84):
+- `android/app/src/main/java/ch/sonensei/cockpit/capture/queue/CaptureUploader.kt`
+- `android/app/src/test/java/ch/sonensei/cockpit/capture/queue/ReadLaterQueueTest.kt`
+
+Problem:
+The generated adapters throw `DateTimeParseException` (`OffsetDateTimeAdapter`) and plain `IllegalArgumentException` (`UUIDAdapter`), and kotlinx.serialization does not wrap either one. Those exceptions reached the outer `catch (_: Exception)` and became `Outcome.Failed`, so each retry saved the bookmark again.
+
+Fix (verified):
+`sendSafely(bookmark)` now also catches `DateTimeException` and `IllegalArgumentException` around `bookmarksApi.createBookmark(request)` and returns `Outcome.Sent`. These are the same exceptions `AuthApiTokenRefresher` catches. I checked whether the call could throw them before an answer arrives, which would drop a bookmark the server never saved. It can't. The request is built outside this inner try. `CreateBookmarkRequest` has only strings and a boolean. OkHttp passes a throwable from the async interceptor chain to Retrofit as an `IOException` ("canceled due to ..."), and that is still treated as `Retry(OFFLINE)`.
+
+Regression test: `a 2xx answer with a date-time or id the client cannot parse still counts as sent`. It sends a 201 with `createdAt: "yesterday"` and a 201 with `id: "not-a-uuid"`. For each, the test checks that the row is removed, the pending count is 0, and a second `sendAll()` sends nothing. Mutation check: I swapped each new catch, one at a time, for an unrelated exception type, and `ReadLaterQueueTest` failed each time ("12 tests completed, 1 failed"). After I restored the code it passes, and `git status` is clean.
+
+Validation:
+- `cd android && ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.capture.queue.ReadLaterQueueTest'`: Fail with either catch disabled (as expected), Pass with the committed code
+
+### CR-2 — The client URL check compares the raw length, but the server limits the percent-encoded, normalized length
+
+Files changed (in c87b42d84):
+- `android/app/src/main/java/ch/sonensei/cockpit/capture/queue/CaptureQueue.kt`
+- `android/app/src/test/java/ch/sonensei/cockpit/capture/queue/ReadLaterQueueTest.kt`
+
+Problem:
+`isBookmarkUrl` compared `url.length` with 2048. The server percent-encodes the URL first and then rejects a normalized length over 2048. A short URL with many non-ASCII characters passed the client check and was then rejected for good.
+
+Fix (verified):
+`isBookmarkUrl` now computes the normalized length the way `BookmarkUrls.normalize` builds the URL, and compares that with 2048. I compared the two side by side:
+- The same scheme/authority/path/query/fragment split.
+- The same `USER_INFO`, `PATH` and `QUERY` character sets.
+- The same encoding loop: valid `%XX` kept, every other disallowed code point counted as 3 x its UTF-8 byte count, with a lone surrogate as 1 byte, as `toByteArray` does on the server.
+- The same IDN-to-ASCII host form and the same port handling.
+
+The raw-length check before encoding is still there, as on the server, which checks `trim().length` first. The client also trims before the check. Two differences remain. The client refuses whitespace, and it does not run the server's final `URI(...)` parse. Both are outside CR-2: the first only makes the client stricter, and the second belongs to the authority rules that round 1 covered.
+
+Regression test: `the length limit counts the URL as the server encodes it`. `https://example.org/` + 338 x `é` is 358 characters raw and 2048 once encoded, and it is accepted. One more `a` (2049 encoded) is refused. The test also covers: already encoded `%C3%A9` escapes kept as they are, an IDN host counted in its punycode form (on both sides of the limit), and a second `#` in the fragment counted as `%23`.
+
+Validation:
+- `cd android && ./gradlew ktlintCheck testDebugUnitTest --tests 'ch.sonensei.cockpit.capture.*'`: Pass
+
+## Not fixed (round 2)
+
+None.
+
+## Validation summary (round 2)
+
+Focused tests:
+- `cd android && ./gradlew ktlintCheck testDebugUnitTest --tests 'ch.sonensei.cockpit.capture.*'`: Pass
+- Mutation check of CR-1 (each new catch disabled in turn, `ReadLaterQueueTest`): Fail as expected, then reverted
+
+Full test suite:
+- `sh scripts/check.sh` (server, web, android lint + unit tests): Pass ("all checks passed")
+
+Lint/type-check/build:
+- `ktlintCheck`: Pass (part of the focused run). `lintDebug`: run as part of `scripts/check.sh`, Pass
+
+`.taskcheck`:
+- Pass (`sh scripts/check.sh`)
+
+Remaining unresolved findings (both rounds):
+0
+
 ## Final status
 
-All validated findings fixed and validation passed.
+All validated findings fixed and validation passed. Round 1 fixed CR-1 and CR-2 of the first review. Round 2 confirmed that commit c87b42d84 resolves CR-1 and CR-2 of the second review, with regression tests. Round 2 made no further code changes.
