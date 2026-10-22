@@ -5,7 +5,7 @@ owner: dell26/agent-3
 deps: [p0-web-shell,contacts-aggregate,web-links-panel,p0-e2e-harness]
 touches: [web/src/app/features/contacts]
 prio: 2
-lease_until: 2026-10-22T04:14:01Z
+lease_until: 2026-10-22T04:19:02Z
 ---
 ## Goal
 Contact list and detail (SPEC.md §8.3).
