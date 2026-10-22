@@ -173,47 +173,96 @@ class CaptureQueue internal constructor(
         /** The server accepts bookmark titles of at most this many characters (`CreateBookmarkRequest.title`). */
         const val MAX_TITLE_LENGTH = 500
 
-        private val HTTP_URL = Regex("""(?i)https?://([^\s/?#]*)(?:[/?#]\S*)?""")
+        private val HTTP_URL = Regex("""(?i)(https?)://([^\s/?#]*)([^\s?#]*)(\?[^\s#]*)?(#\S*)?""")
         private val HOST_NAME = Regex("""[A-Za-z0-9_\-]+(\.[A-Za-z0-9_\-]+)*\.?""")
         private val IPV6 = Regex("""\[[0-9A-Fa-f:.]+]""")
         private val PORT = Regex("""\d{0,5}""")
 
+        // The characters the server's BookmarkUrls.normalize keeps in each part of a URL; it percent-encodes the others.
+        private const val UNRESERVED = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~"
+        private const val SUB_DELIMS = "!$&'()*+,;="
+        private const val USER_INFO = UNRESERVED + SUB_DELIMS + ":"
+        private const val PATH = USER_INFO + "@/"
+        private const val QUERY = PATH + "?"
+
         /**
-         * An absolute http(s) URL without whitespace, short enough for the server and with an authority the server
-         * accepts (its `BookmarkUrls.normalize`): optional user info, then a host name (also in Unicode) or an IPv6
-         * literal, then an optional port of at most 5 digits.
+         * An absolute http(s) URL without whitespace or control characters, short enough for the server also once it
+         * is percent-encoded, and with an authority the server accepts (its `BookmarkUrls.normalize` and
+         * `BookmarkService.normalizeUrl`): optional user info, then a host name (also in Unicode) or an IPv6 literal,
+         * then an optional port of at most 5 digits.
          */
         fun isBookmarkUrl(url: String): Boolean {
-            if (url.length > MAX_URL_LENGTH) return false
-            val authority = HTTP_URL.matchEntire(url)?.groupValues?.get(1) ?: return false
-            return isHostAndPort(authority.substringAfterLast('@'))
+            if (url.length > MAX_URL_LENGTH || url.any { it.isISOControl() }) return false
+            val match = HTTP_URL.matchEntire(url) ?: return false
+            val (scheme, authority, path, query, fragment) = match.destructured
+            val hostAndPort = asciiHostAndPort(authority.substringAfterLast('@')) ?: return false
+            val userInfo = if ('@' in authority) encodedLength(authority.substringBeforeLast('@'), USER_INFO) + 1 else 0
+            val queryLength = if (query.isEmpty()) 0 else 1 + encodedLength(query.substring(1), QUERY)
+            val fragmentLength = if (fragment.isEmpty()) 0 else 1 + encodedLength(fragment.substring(1), QUERY)
+            val normalizedLength =
+                scheme.length + "://".length + userInfo + hostAndPort.length + encodedLength(path, PATH) + queryLength +
+                    fragmentLength
+            return normalizedLength <= MAX_URL_LENGTH
         }
 
-        private fun isHostAndPort(hostPort: String): Boolean {
+        /** [hostPort] with the host in the ASCII (IDN) form the server stores, or `null` when the server refuses it. */
+        private fun asciiHostAndPort(hostPort: String): String? {
             val host: String
             val port: String?
             if (hostPort.startsWith("[")) {
                 val end = hostPort.indexOf(']')
-                if (end < 0) return false
+                if (end < 0) return null
                 val rest = hostPort.substring(end + 1)
-                if (rest.isNotEmpty() && !rest.startsWith(":")) return false
+                if (rest.isNotEmpty() && !rest.startsWith(":")) return null
                 host = hostPort.substring(0, end + 1)
                 port = rest.takeIf { it.isNotEmpty() }?.substring(1)
             } else {
                 host = hostPort.substringBefore(':')
                 port = if (':' in hostPort) hostPort.substringAfter(':') else null
             }
-            if (port != null && !PORT.matches(port)) return false
-            if (host.startsWith("[")) return IPV6.matches(host)
-            if (host.isEmpty()) return false
+            if (port != null && !PORT.matches(port)) return null
+            val ascii = asciiHost(host) ?: return null
+            return if (port == null) ascii else "$ascii:$port"
+        }
+
+        private fun asciiHost(host: String): String? {
+            if (host.startsWith("[")) return host.takeIf { IPV6.matches(it) }
+            if (host.isEmpty()) return null
             val ascii =
                 try {
                     IDN.toASCII(host, IDN.ALLOW_UNASSIGNED)
                 } catch (_: IllegalArgumentException) {
-                    return false
+                    return null
                 }
-            return HOST_NAME.matches(ascii)
+            return ascii.takeIf { HOST_NAME.matches(it) }
         }
+
+        /**
+         * The length of [text] once the server percent-encodes (as UTF-8) every character not in [allowed]; valid
+         * `%XX` escapes are kept as they are (its `BookmarkUrls.encode`).
+         */
+        private fun encodedLength(
+            text: String,
+            allowed: String,
+        ): Int {
+            var length = 0
+            var i = 0
+            while (i < text.length) {
+                val c = text[i]
+                val escape = c == '%' && i + 2 < text.length && text[i + 1].isHexDigit() && text[i + 2].isHexDigit()
+                if (escape || c in allowed) {
+                    length++
+                    i++
+                } else {
+                    val codePoint = text.codePointAt(i)
+                    length += 3 * String(Character.toChars(codePoint)).toByteArray(Charsets.UTF_8).size
+                    i += Character.charCount(codePoint)
+                }
+            }
+            return length
+        }
+
+        private fun Char.isHexDigit() = this in '0'..'9' || this in 'a'..'f' || this in 'A'..'F'
 
         private fun String.shortened(max: Int): String =
             if (length <= max) this else take(if (this[max - 1].isHighSurrogate()) max - 1 else max)

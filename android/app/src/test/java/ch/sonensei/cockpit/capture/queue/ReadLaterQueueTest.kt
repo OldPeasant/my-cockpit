@@ -110,6 +110,22 @@ class ReadLaterQueueTest {
         }
 
     @Test
+    fun `the length limit counts the URL as the server encodes it`() {
+        val base = "https://example.org/" // 20 characters; the server writes each "é" as %C3%A9 (6 characters).
+        assertTrue(CaptureQueue.isBookmarkUrl(base + "é".repeat(338))) // 2048 once encoded
+        assertFalse(CaptureQueue.isBookmarkUrl(base + "é".repeat(338) + "a"))
+        // Valid escapes stay as they are, so an already encoded URL of 2048 characters is accepted.
+        assertTrue(CaptureQueue.isBookmarkUrl(base + "%C3%A9".repeat(338)))
+        // An IDN host counts in its longer ASCII form.
+        val idnHost = "https://bücher.example/" // xn--bcher-kva.example: 7 characters longer
+        assertTrue(CaptureQueue.isBookmarkUrl(idnHost + "a".repeat(2048 - idnHost.length - 7)))
+        assertFalse(CaptureQueue.isBookmarkUrl(idnHost + "a".repeat(2048 - idnHost.length - 6)))
+        // A second "#" in the fragment is encoded (%23).
+        assertFalse(CaptureQueue.isBookmarkUrl(base + "a".repeat(2025) + "#a#"))
+        assertTrue(CaptureQueue.isBookmarkUrl(base + "a".repeat(2025) + "#ab"))
+    }
+
+    @Test
     fun `a 2xx answer that cannot be read still counts as sent, so the bookmark is not saved twice`() =
         runBlocking {
             q.queue.readLater("https://example.org/a")
@@ -127,6 +143,35 @@ class ReadLaterQueueTest {
 
             assertEquals(SendResult.DONE, q.uploader.sendAll())
             assertNull(take())
+        }
+
+    @Test
+    fun `a 2xx answer with a date-time or id the client cannot parse still counts as sent`() =
+        runBlocking {
+            // The generated adapters throw DateTimeParseException and IllegalArgumentException here, which
+            // kotlinx.serialization does not wrap in a SerializationException.
+            val answers =
+                listOf(
+                    bookmarkJson("https://example.org/a").replace("\"createdAt\":\"2026-10-20T10:00:00Z\"", "\"createdAt\":\"yesterday\""),
+                    bookmarkJson("https://example.org/a").replace("\"id\":\"${fileId(9)}\"", "\"id\":\"not-a-uuid\""),
+                )
+            for (body in answers) {
+                q.queue.readLater("https://example.org/a")
+                server.enqueue(answer(201, body))
+
+                assertEquals(SendResult.DONE, q.uploader.sendAll())
+                assertEquals(BOOKMARKS, take()!!.url.encodedPath)
+                assertTrue(q.dao.sendableBookmarks().isEmpty())
+                assertEquals(
+                    0,
+                    q.queue.status
+                        .first()
+                        .pendingCount,
+                )
+
+                assertEquals(SendResult.DONE, q.uploader.sendAll())
+                assertNull(take())
+            }
         }
 
     @Test

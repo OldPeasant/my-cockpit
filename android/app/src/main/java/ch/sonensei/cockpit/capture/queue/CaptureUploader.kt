@@ -16,6 +16,7 @@ import okhttp3.RequestBody.Companion.asRequestBody
 import java.io.File
 import java.io.IOException
 import java.time.Clock
+import java.time.DateTimeException
 import java.util.UUID
 import javax.inject.Inject
 
@@ -112,6 +113,15 @@ class CaptureUploader internal constructor(
                 } catch (_: SerializationException) {
                     // Retrofit only decodes the body of a 2xx answer: the server saved the bookmark, but its answer
                     // does not fit this app's model (e.g. a newer server). Sending it again would save it again.
+                    return Outcome.Sent
+                } catch (_: DateTimeException) {
+                    // The same for a date-time the generated OffsetDateTime adapter cannot parse (not wrapped by
+                    // kotlinx.serialization, see TokenRefresher).
+                    return Outcome.Sent
+                } catch (_: IllegalArgumentException) {
+                    // The same for an id the generated UUID adapter cannot parse. Before the answer, the call cannot
+                    // throw this: the request was built above, its body has only strings and a boolean, and OkHttp
+                    // hands a failure in the network chain to Retrofit as an IOException.
                     return Outcome.Sent
                 }
             if (code in 200..299) Outcome.Sent else failure(code)
