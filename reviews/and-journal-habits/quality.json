@@ -1,0 +1,23 @@
+{
+  "schema": 1,
+  "task": "and-journal-habits",
+  "reviewed_revision": "830ecbc241de45f3ff7fe994771cc52ea75accc8",
+  "helpers": {
+    "test-writer": {"status": "completed", "report": "reviews/and-journal-habits/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/and-journal-habits/review.md"},
+    "fixer": {"status": "completed", "report": "reviews/and-journal-habits/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P1", "disposition": "fixed",
+     "note": "428 on creating today's entry is now handled as a conflict (JournalRepository CONFLICTS)"},
+    {"id": "CR-2", "source": "code-reviewer", "severity": "P3", "disposition": "accepted",
+     "note": "journal date from the device clock; a phone ahead of the server's day gets 400 shown as 'server refused the change'; recorded as task assumption, journal API exposes no server today"},
+    {"id": "TW-1", "source": "test-writer", "severity": "Low", "disposition": "fixed",
+     "note": "keep mine with server text equal to mine now settles the status to saved (withStatus)"}
+  ],
+  "validation": [
+    {"command": "android/gradlew -p android ktlintCheck testDebugUnitTest --tests 'ch.sonensei.cockpit.journal.*' --tests 'ch.sonensei.cockpit.habits.*'", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
