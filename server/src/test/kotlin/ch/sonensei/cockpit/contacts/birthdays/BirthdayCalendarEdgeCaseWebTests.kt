@@ -11,6 +11,7 @@ import ch.sonensei.cockpit.support.PostgresTestBase
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldContainExactly
+import io.kotest.matchers.collections.shouldContainExactlyInAnyOrder
 import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeEach
@@ -25,6 +26,7 @@ import org.springframework.transaction.PlatformTransactionManager
 import org.springframework.transaction.support.TransactionTemplate
 import tools.jackson.databind.JsonNode
 import tools.jackson.databind.json.JsonMapper
+import java.time.LocalDate
 import java.util.UUID
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.CountDownLatch
@@ -46,6 +48,7 @@ class BirthdayCalendarEdgeCaseWebTests(
 	@Autowired private val calendarService: CalendarService,
 	@Autowired private val initializer: BirthdayCalendarInitializer,
 	@Autowired private val transactions: PlatformTransactionManager,
+	@Autowired private val birthdayContacts: BirthdayContactRepository,
 ) : PostgresTestBase() {
 	private val api = CalendarApi(mockMvc, jsonMapper)
 
@@ -205,6 +208,57 @@ class BirthdayCalendarEdgeCaseWebTests(
 
 		second.get(10, TimeUnit.SECONDS) shouldBe first.get(10, TimeUnit.SECONDS)
 		jdbc.queryForObject("select count(*) from calendar where external_id = 'virtual:birthdays'", Int::class.java) shouldBe 1
+	}
+
+	@Test
+	fun `two first-time creations before any local calendar exists yield one calendar in one local source`() {
+		// No LOCAL source yet: the birthdays calendar is the user's first calendar (contacts saved before any calendar).
+		val inserted = CountDownLatch(1)
+		val commit = CountDownLatch(1)
+		val first =
+			CompletableFuture.supplyAsync {
+				TransactionTemplate(transactions).execute {
+					val created = calendarService.ensureVirtualCalendar(BirthdayCalendarProvider.KEY, "Birthdays", null)
+					inserted.countDown()
+					commit.await(10, TimeUnit.SECONDS)
+					created.id
+				}
+			}
+		inserted.await(10, TimeUnit.SECONDS) shouldBe true
+
+		val second = CompletableFuture.supplyAsync { calendarService.ensureVirtualCalendar(BirthdayCalendarProvider.KEY, "Birthdays", null).id }
+		// The second call may wait for the first; it must not create a second calendar meanwhile. Let the first commit.
+		runCatching { second.get(500, TimeUnit.MILLISECONDS) }
+		commit.countDown()
+		val firstId = first.get(10, TimeUnit.SECONDS)
+		val secondId = second.get(10, TimeUnit.SECONDS)
+
+		jdbc.queryForObject("select count(*) from calendar where external_id = 'virtual:birthdays'", Int::class.java) shouldBe 1
+		jdbc.queryForObject("select count(*) from calendar_source where type = 'LOCAL'", Int::class.java) shouldBe 1
+		secondId shouldBe firstId
+	}
+
+	@Test
+	fun `the birthday projection reads id, name and birthday of the contacts with a birthday not in the Trash`() {
+		val ada =
+			api.read(
+				api
+					.postJson(
+						CONTACTS,
+						"""{"displayName":"Ada Lovelace","birthday":"1990-12-10","notesMd":"Fictitious notes",""" +
+							""""emails":[{"address":"ada@example.test","label":"work"}]}""",
+					).andExpect { status { isCreated() } },
+			)
+		val leap = contact("Leap Person", "2000-02-29")
+		api.postJson(CONTACTS, """{"displayName":"No Birthday"}""").andExpect { status { isCreated() } }
+		val trashed = contact("In Trash", "1970-01-01")
+		jdbc.update("update contact set deleted_at = now() where id = ?", UUID.fromString(trashed.id()))
+
+		birthdayContacts.findBirthdays() shouldContainExactlyInAnyOrder
+			listOf(
+				BirthdayContact(UUID.fromString(ada.id()), "Ada Lovelace", LocalDate.parse("1990-12-10")),
+				BirthdayContact(UUID.fromString(leap.id()), "Leap Person", LocalDate.parse("2000-02-29")),
+			)
 	}
 
 	@Test
