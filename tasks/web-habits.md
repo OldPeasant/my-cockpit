@@ -5,7 +5,7 @@ owner: dell26/agent-2
 deps: [p0-web-shell,habits-api,p0-e2e-harness]
 touches: [web/src/app/features/habits]
 prio: 3
-lease_until: 2026-10-22T00:30:55Z
+lease_until: 2026-10-22T00:35:58Z
 ---
 ## Goal
 Track habits (SPEC.md §8.5).
