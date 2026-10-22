@@ -1,11 +1,11 @@
 ---
 title: Weekly review wizard
-status: in_progress
+status: done
 owner: dell26/agent-2
 deps: [review-api,web-inbox,web-cal-views,web-gtd-lists]
 touches: [web/src/app/features/review]
 prio: 2
-lease_until: 2026-10-22T02:16:04Z
+lease_until: 
 ---
 ## Goal
 Guided weekly review (SPEC.md §8.6).
@@ -24,3 +24,4 @@ Guided weekly review (SPEC.md §8.6).
 - ASSUMPTION (2026-10-22 03:18+0200 by dell26/agent-2): Keep (stale next actions, someday, projects 'Looks good', waiting 'Still waiting') only removes the item from the step's list; nothing is saved, so a kept stale next action shows again next week
 - ASSUMPTION (2026-10-22 03:18+0200 by dell26/agent-2): Calendar steps' quick-add creates the task in the Inbox (plain capture, no syntax parsing); projects step's 'Add' creates a NEXT task in the stalled project and sets it as next step
 - ASSUMPTION (2026-10-22 03:18+0200 by dell26/agent-2): e2e/review runs in the Playwright project inbox-exclusive (with workers: 1) since its Get clear step processes the shared inbox to zero; playwright.config.ts edited outside the task's touches for that
+- done by dell26/agent-2: `sh scripts/check.sh` passed in 78s on 5d869e202; criteria verified 3/3
