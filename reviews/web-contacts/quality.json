@@ -1,0 +1,33 @@
+{
+  "schema": 1,
+  "task": "web-contacts",
+  "reviewed_revision": "2c0a11bec7f6de07fe04c2f2c36dbedb0ce35bfb",
+  "helpers": {
+    "test-writer":   {"status": "completed", "report": "reviews/web-contacts/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/web-contacts/review.md"},
+    "fixer":         {"status": "completed", "report": "reviews/web-contacts/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "R1-CR-1", "source": "code-reviewer", "severity": "P1", "disposition": "fixed",
+     "note": "criterion 3 needed contacts-birthdays on main: dependency added; that task is done and the e2e spec passes on main"},
+    {"id": "R1-CR-2", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "renaming now updates a derived display name (fixes.md)"},
+    {"id": "R1-CR-3", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "save conflict keeps the user's edits; a second Save stores them (fixes.md)"},
+    {"id": "R1-CR-4", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "calendar has no occurrence deep link (outside touches); doc comment now states the link opens the event (fixes.md)"},
+    {"id": "R1-CR-5", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "sync label no longer renders empty parentheses (fixes.md)"},
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P3", "disposition": "accepted",
+     "note": "after a conflict, a failed non-404 reload keeps the 'Save again' hint; rare (reload must fail right after a 409/412), pinned by a test, reloading the page recovers"},
+    {"id": "CR-2", "source": "code-reviewer", "severity": "P3", "disposition": "accepted",
+     "note": "a save that finishes after navigating to another contact may show the old contact; needs navigation during an in-flight save, a reload or route change recovers"}
+  ],
+  "validation": [
+    {"command": "npm --prefix web exec -- ng test --watch=false --include='src/app/features/contacts/**/*.spec.ts'", "result": "pass"},
+    {"command": "npm --prefix web run check", "result": "pass"},
+    {"command": "npm --prefix web run e2e -- e2e/contacts/contacts.spec.ts", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
