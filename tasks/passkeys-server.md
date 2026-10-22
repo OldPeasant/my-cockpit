@@ -17,7 +17,8 @@ Passkeys as an alternative to password + TOTP (SPEC.md §4.1).
   - verified (2026-10-22 02:22+0200 by dell26/agent-3): ./gradlew test --tests 'ch.sonensei.cockpit.core.auth.passkey.*' (Postgres Testcontainers, webauthn4j) -> PasskeyWebTests 14, PasskeyEdgeCaseTests 17, PasskeyTotpReenrollmentTests 11 pass: registration with session+TOTP, auth ceremony web session login + /passkeys/token device login (Android), list/delete, re-enrollment rules
 - [x] `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.core.auth.passkey.*'` passes (Postgres via Testcontainers where persistence is involved)
   - verified (2026-10-22 02:22+0200 by dell26/agent-3): cd server && ./gradlew test --tests 'ch.sonensei.cockpit.core.auth.passkey.*' at e111036d -> BUILD SUCCESSFUL, 69 tests 0 failures (Postgres via Testcontainers)
-- [ ] API documented: `api/openapi.yaml` regenerated (`UPDATE_OPENAPI=1 ./gradlew test --tests '*OpenApiContractTest'`) and `OpenApiContractTest` passes without the flag
+- [x] API documented: `api/openapi.yaml` regenerated (`UPDATE_OPENAPI=1 ./gradlew test --tests '*OpenApiContractTest'`) and `OpenApiContractTest` passes without the flag
+  - verified (2026-10-22 02:22+0200 by dell26/agent-3): UPDATE_OPENAPI=1 ./gradlew test --tests '*OpenApiContractTest' -> BUILD SUCCESSFUL, api/openapi.yaml unchanged (git status clean, passkey paths present); without flag OpenApiContractTest 1/1 pass
 
 ## Notes
 - ASSUMPTION (2026-10-20 15:01+0200 by R1963MACOS/agent-1): Registration step-up: the TOTP code is checked when registration starts (options call), not recovery codes; wrong codes count against the shared LoginThrottle and return 403 (not 401, so clients don't treat it as logged out).
