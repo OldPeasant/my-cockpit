@@ -1,0 +1,363 @@
+<div class="dashboard">
+  <header class="head">
+    <div>
+      <h1 i18n="@@dashboard.title">Dashboard</h1>
+      <p class="date">{{ now | date: 'fullDate' }}</p>
+    </div>
+    <button
+      mat-stroked-button
+      type="button"
+      class="customize-toggle"
+      aria-controls="dashboard-customize"
+      [attr.aria-expanded]="customizing()"
+      [disabled]="settingsFailed()"
+      (click)="customizing.set(!customizing())"
+    >
+      @if (customizing()) {
+        <ng-container i18n="@@dashboard.customizeDone">Done</ng-container>
+      } @else {
+        <ng-container i18n="@@dashboard.customize">Customize</ng-container>
+      }
+    </button>
+  </header>
+
+  @if (customizing()) {
+    <section id="dashboard-customize" class="customize" aria-labelledby="customize-title">
+      <h2 id="customize-title" i18n="@@dashboard.customizeTitle">Widgets</h2>
+      <p class="hint" i18n="@@dashboard.customizeHint">
+        Choose which widgets show and in which order. Every device gets the same dashboard.
+      </p>
+      <ol class="slots">
+        @for (slot of layout.slots(); track slot.id; let first = $first, last = $last) {
+          <li class="slot" [attr.data-id]="slot.id">
+            <mat-checkbox [checked]="slot.visible" (change)="setVisible(slot.id, $event.checked)">{{
+              widgets[slot.id].title
+            }}</mat-checkbox>
+            <span class="moves">
+              <button
+                mat-icon-button
+                type="button"
+                class="up"
+                [disabled]="first"
+                [attr.aria-label]="moveUpLabel(slot.id)"
+                (click)="move(slot.id, -1)"
+              >
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 15l6-6 6 6" /></svg>
+              </button>
+              <button
+                mat-icon-button
+                type="button"
+                class="down"
+                [disabled]="last"
+                [attr.aria-label]="moveDownLabel(slot.id)"
+                (click)="move(slot.id, 1)"
+              >
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6" /></svg>
+              </button>
+            </span>
+          </li>
+        }
+      </ol>
+      <button mat-button type="button" class="reset" (click)="reset()" i18n="@@dashboard.reset">
+        Reset to default
+      </button>
+    </section>
+  }
+
+  @if (!ready()) {
+    <p class="note" role="status" i18n="@@dashboard.loading">Loading your dashboard…</p>
+  } @else if (!visible().length) {
+    <div class="empty">
+      <p i18n="@@dashboard.empty">All widgets are hidden.</p>
+      @if (!customizing()) {
+        <button
+          mat-stroked-button
+          type="button"
+          (click)="customizing.set(true)"
+          i18n="@@dashboard.emptyCustomize"
+        >
+          Choose widgets
+        </button>
+      }
+    </div>
+  }
+
+  <div class="grid">
+    @for (id of visible(); track id) {
+      <section
+        [class]="'widget w-' + id"
+        [attr.data-widget]="id"
+        [attr.aria-labelledby]="'widget-' + id"
+      >
+        <h2 [id]="'widget-' + id">
+          <a [routerLink]="widgets[id].link">{{ widgets[id].title }}</a>
+        </h2>
+        @let state = data.state(id);
+        @if (state.status === 'loading') {
+          <p class="note" role="status" i18n="@@dashboard.widgetLoading">Loading…</p>
+        } @else if (state.status === 'error') {
+          <div class="failed" role="alert">
+            <p i18n="@@dashboard.widgetFailed">This widget could not be loaded.</p>
+            <button
+              mat-stroked-button
+              type="button"
+              (click)="retry(id)"
+              i18n="@@dashboard.widgetRetry"
+            >
+              Try again
+            </button>
+          </div>
+        } @else {
+          @switch (id) {
+            @case ('today') {
+              @let today = data.state('today');
+              @if (today.status === 'ready') {
+                @let t = today.value;
+                <div class="readouts">
+                  <a class="readout" routerLink="/today">
+                    <span class="figure" [class.alert]="t.tasks.length > 0">{{
+                      t.tasks.length
+                    }}</span>
+                    <span class="unit" i18n="@@dashboard.todayTasks">{t.tasks.length, plural,
+                      =1 {task due}
+                      other {tasks due}
+                    }</span>
+                  </a>
+                  <a class="readout" routerLink="/calendar">
+                    <span class="figure">{{ t.events.length }}</span>
+                    <span class="unit" i18n="@@dashboard.todayEvents">{t.events.length, plural,
+                      =1 {event}
+                      other {events}
+                    }</span>
+                  </a>
+                  @if (t.habitsDue) {
+                    <a class="readout" routerLink="/habits">
+                      <span class="figure">{{ t.habitsDone }}/{{ t.habitsDue }}</span>
+                      <span class="unit" i18n="@@dashboard.todayHabits">habits done</span>
+                    </a>
+                  }
+                </div>
+                @if (t.events.length || t.tasks.length) {
+                  <ul class="list">
+                    @for (event of t.events.slice(0, shown); track $index) {
+                      <li class="event">
+                        <span class="when">
+                          @if (event.allDay) {
+                            <ng-container i18n="@@dashboard.allDay">All day</ng-container>
+                          } @else {
+                            {{ event.start | date: 'shortTime' }}
+                          }
+                        </span>
+                        <a routerLink="/calendar">{{ event.title }}</a>
+                      </li>
+                    }
+                    @for (task of t.tasks.slice(0, shown); track task.id) {
+                      <li class="task" [class.overdue]="isOverdue(task.dueDate)">
+                        <span class="when">
+                          @if (isOverdue(task.dueDate)) {
+                            <ng-container i18n="@@dashboard.overdue">Overdue</ng-container>
+                          } @else {
+                            <ng-container i18n="@@dashboard.dueToday">Due</ng-container>
+                          }
+                        </span>
+                        <a [routerLink]="['/tasks', task.id]">{{ task.title }}</a>
+                      </li>
+                    }
+                  </ul>
+                } @else {
+                  <p class="note" i18n="@@dashboard.todayClear">Nothing due and no events today.</p>
+                }
+              }
+            }
+            @case ('inbox') {
+              @let inbox = data.state('inbox');
+              @if (inbox.status === 'ready') {
+                <div class="readouts">
+                  <a class="readout" routerLink="/inbox">
+                    <span class="figure" [class.lit]="inbox.value.tasks.count > 0">{{
+                      count(inbox.value.tasks)
+                    }}</span>
+                    <span
+                      class="unit"
+                      i18n="@@dashboard.inboxTasks"
+                      >{inbox.value.tasks.count, plural,
+                        =1 {task to process}
+                        other {tasks to process}
+                      }</span
+                    >
+                  </a>
+                  <a class="readout" routerLink="/mail">
+                    <span class="figure" [class.lit]="inbox.value.unreadMail.count > 0">{{
+                      count(inbox.value.unreadMail)
+                    }}</span>
+                    <span class="unit" i18n="@@dashboard.inboxMail">unread mail</span>
+                  </a>
+                </div>
+              }
+            }
+            @case ('upcoming') {
+              @let upcoming = data.state('upcoming');
+              @if (upcoming.status === 'ready') {
+                @if (upcoming.value.length) {
+                  <ul class="list">
+                    @for (event of upcoming.value.slice(0, shown); track $index) {
+                      <li class="event">
+                        <span class="when">
+                          @if (event.allDay) {
+                            {{ event.startDate | date: 'EEE d' }}
+                          } @else {
+                            {{ event.start | date: 'EEE d, HH:mm' }}
+                          }
+                        </span>
+                        <a routerLink="/calendar">{{ event.title }}</a>
+                      </li>
+                    }
+                  </ul>
+                  @if (upcoming.value.length > shown) {
+                    <a class="more" routerLink="/calendar" i18n="@@dashboard.upcomingMore"
+                      >{{ upcoming.value.length - shown }} more</a
+                    >
+                  }
+                } @else {
+                  <p class="note" i18n="@@dashboard.upcomingNone">
+                    No events in the next {{ upcomingDays }} days.
+                  </p>
+                }
+              }
+            }
+            @case ('waitingOverdue') {
+              @let waiting = data.state('waitingOverdue');
+              @if (waiting.status === 'ready') {
+                @if (waiting.value.length) {
+                  <ul class="list">
+                    @for (task of waiting.value.slice(0, shown); track task.id) {
+                      <li class="task overdue">
+                        <span class="when">{{ task.dueDate | date: 'd MMM' }}</span>
+                        <a [routerLink]="['/tasks', task.id]">{{ task.title }}</a>
+                        @if (task.waitingForText) {
+                          <span class="meta">{{ task.waitingForText }}</span>
+                        }
+                      </li>
+                    }
+                  </ul>
+                  @if (waiting.value.length > shown) {
+                    <a class="more" routerLink="/waiting" i18n="@@dashboard.waitingMore"
+                      >{{ waiting.value.length - shown }} more</a
+                    >
+                  }
+                } @else {
+                  <p class="note" i18n="@@dashboard.waitingNone">
+                    Nothing you wait for is overdue.
+                  </p>
+                }
+              }
+            }
+            @case ('stalledProjects') {
+              @let stalled = data.state('stalledProjects');
+              @if (stalled.status === 'ready') {
+                @if (stalled.value.length) {
+                  <ul class="list">
+                    @for (project of stalled.value.slice(0, shown); track project.id) {
+                      <li class="project">
+                        <a [routerLink]="['/projects', project.id]">{{ project.title }}</a>
+                      </li>
+                    }
+                  </ul>
+                  @if (stalled.value.length > shown) {
+                    <a class="more" routerLink="/projects" i18n="@@dashboard.stalledMore"
+                      >{{ stalled.value.length - shown }} more</a
+                    >
+                  }
+                } @else {
+                  <p class="note" i18n="@@dashboard.stalledNone">
+                    Every active project has a next step.
+                  </p>
+                }
+              }
+            }
+            @case ('weeklyReview') {
+              @let review = data.state('weeklyReview');
+              @if (review.status === 'ready') {
+                @let days = review.value.daysSinceLastReview;
+                @if (days === undefined || days === null) {
+                  <p class="note" i18n="@@dashboard.reviewNever">No weekly review done yet.</p>
+                } @else {
+                  <a class="readout" routerLink="/review">
+                    <span class="figure" [class.alert]="days > reviewDueDays">
+                      @if (days === 0) {
+                        <ng-container i18n="@@dashboard.reviewToday">Today</ng-container>
+                      } @else {
+                        {{ days }}
+                      }
+                    </span>
+                    @if (days > 0) {
+                      <span class="unit" i18n="@@dashboard.reviewDaysAgo">{days, plural,
+                        =1 {day ago}
+                        other {days ago}
+                      }</span>
+                    }
+                  </a>
+                }
+                @if (review.value.current) {
+                  <a mat-stroked-button routerLink="/review" i18n="@@dashboard.reviewContinue"
+                    >Continue the open review</a
+                  >
+                } @else if (days === undefined || days === null || days >= reviewDueDays) {
+                  <a mat-flat-button routerLink="/review" i18n="@@dashboard.reviewStart"
+                    >Start a weekly review</a
+                  >
+                }
+              }
+            }
+            @case ('readLater') {
+              @let reading = data.state('readLater');
+              @if (reading.status === 'ready') {
+                @if (reading.value.items.length) {
+                  <ul class="list">
+                    @for (bookmark of reading.value.items.slice(0, shown); track bookmark.id) {
+                      <li class="bookmark">
+                        <a [routerLink]="['/bookmarks', bookmark.id]">{{
+                          bookmark.displayTitle
+                        }}</a>
+                      </li>
+                    }
+                  </ul>
+                  @if (reading.value.items.length > shown) {
+                    <a class="more" routerLink="/bookmarks" i18n="@@dashboard.readLaterMore"
+                      >{{ reading.value.items.length - shown
+                      }}{{ reading.value.more ? '+' : '' }} more</a
+                    >
+                  }
+                } @else {
+                  <p class="note" i18n="@@dashboard.readLaterNone">Your reading queue is empty.</p>
+                }
+              }
+            }
+            @case ('pinnedNotes') {
+              @let pinned = data.state('pinnedNotes');
+              @if (pinned.status === 'ready') {
+                @if (pinned.value.items.length) {
+                  <ul class="list">
+                    @for (note of pinned.value.items.slice(0, shown); track note.id) {
+                      <li class="note-item">
+                        <a [routerLink]="['/notes', note.id]">{{ note.displayTitle }}</a>
+                      </li>
+                    }
+                  </ul>
+                  @if (pinned.value.items.length > shown) {
+                    <a class="more" routerLink="/notes" i18n="@@dashboard.pinnedMore"
+                      >{{ pinned.value.items.length - shown
+                      }}{{ pinned.value.more ? '+' : '' }} more</a
+                    >
+                  }
+                } @else {
+                  <p class="note" i18n="@@dashboard.pinnedNone">Pin a note to keep it here.</p>
+                }
+              }
+            }
+          }
+        }
+      </section>
+    }
+  </div>
+</div>

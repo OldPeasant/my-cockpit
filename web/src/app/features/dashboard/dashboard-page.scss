@@ -1,0 +1,232 @@
+.dashboard {
+  max-width: 72rem;
+  padding: var(--app-space-5) var(--app-space-4);
+}
+
+.head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--app-space-3);
+  margin-bottom: var(--app-space-4);
+}
+
+h1 {
+  margin: 0;
+  font: var(--mat-sys-headline-medium);
+}
+
+.date,
+.hint,
+.note,
+.when,
+.meta,
+.unit,
+.more {
+  color: var(--app-fg-muted);
+}
+
+.date {
+  margin: var(--app-space-1) 0 0;
+  font: var(--mat-sys-body-large);
+}
+
+.note,
+.hint {
+  margin: 0;
+  font: var(--mat-sys-body-medium);
+}
+
+// The customize panel: one row per widget, its checkbox and the moves.
+.customize {
+  margin-bottom: var(--app-space-4);
+  padding: var(--app-space-4);
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius);
+  background: var(--app-surface-raised);
+
+  h2 {
+    margin: 0 0 var(--app-space-1);
+    font: var(--mat-sys-title-medium);
+  }
+}
+
+.slots {
+  max-width: 32rem;
+  margin: var(--app-space-3) 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--app-border);
+}
+
+.slot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--app-space-2);
+  border-bottom: 1px solid var(--app-border);
+}
+
+.moves {
+  display: inline-flex;
+
+  svg {
+    width: 1.25rem;
+    height: 1.25rem;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+}
+
+.empty {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--app-space-3);
+
+  p {
+    margin: 0;
+  }
+}
+
+// Widgets flow in the chosen order; Today is the widest because it holds the most.
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(17rem, 1fr));
+  gap: var(--app-space-3);
+}
+
+.widget {
+  display: flex;
+  flex-direction: column;
+  gap: var(--app-space-3);
+  min-width: 0;
+  padding: var(--app-space-4);
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius);
+
+  h2 {
+    margin: 0;
+    font: var(--mat-sys-title-medium);
+
+    a {
+      color: inherit;
+      text-decoration: none;
+
+      &:hover {
+        text-decoration: underline;
+      }
+    }
+  }
+
+  a:focus-visible {
+    outline: 2px solid var(--app-accent);
+    outline-offset: 2px;
+  }
+
+  > [mat-stroked-button],
+  > [mat-flat-button] {
+    align-self: flex-start;
+  }
+}
+
+@media (min-width: 40rem) {
+  .w-today {
+    grid-column: span 2;
+  }
+}
+
+// The readouts: the number is what the widget is for, its label stays small beside it.
+.readouts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--app-space-2) var(--app-space-5);
+}
+
+.readout {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--app-space-2);
+  color: inherit;
+  text-decoration: none;
+}
+
+.figure {
+  font: var(--mat-sys-display-small);
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+
+  &.lit {
+    color: var(--app-accent);
+  }
+
+  &.alert {
+    color: var(--app-danger);
+  }
+}
+
+.unit {
+  font: var(--mat-sys-label-large);
+}
+
+.list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+
+  li {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0 var(--app-space-2);
+    padding: var(--app-space-1) 0;
+    border-top: 1px solid var(--app-border);
+  }
+
+  a {
+    min-width: 0;
+    color: inherit;
+    overflow-wrap: anywhere;
+    text-decoration: none;
+
+    &:hover {
+      text-decoration: underline;
+    }
+  }
+}
+
+.when {
+  flex: 0 0 6.5rem;
+  font: var(--mat-sys-label-medium);
+  font-variant-numeric: tabular-nums;
+}
+
+.overdue .when {
+  color: var(--app-danger);
+}
+
+.meta {
+  flex-basis: 100%;
+  padding-left: calc(6.5rem + var(--app-space-2));
+  font: var(--mat-sys-body-small);
+}
+
+.more {
+  font: var(--mat-sys-label-large);
+}
+
+.failed {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--app-space-3);
+  color: var(--app-danger);
+
+  p {
+    margin: 0;
+  }
+}
