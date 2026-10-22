@@ -131,7 +131,7 @@ class PasskeyRepositoryTest {
         runBlocking {
             val expected =
                 listOf(
-                    json(400, PROBLEM) to LoginResult.InvalidRequest,
+                    json(400, PROBLEM) to LoginResult.PasskeyFailed,
                     json(401, PROBLEM) to LoginResult.PasskeyRejected,
                     json(403, PROBLEM) to LoginResult.TotpResetRequired,
                     json(429, PROBLEM).newBuilder().addHeader("Retry-After", "17").build() to LoginResult.TooManyAttempts(17),
@@ -243,6 +243,123 @@ class PasskeyRepositoryTest {
             assertNull(repository.list())
         }
 
+    @Test
+    fun `a 429 without a usable Retry-After waits the default time`() =
+        runBlocking {
+            server.enqueue(json(429, PROBLEM))
+            server.enqueue(json(200, AUTH_OPTIONS))
+            server.enqueue(json(429, PROBLEM).newBuilder().addHeader("Retry-After", "soon").build())
+            authenticator.next = CredentialOutcome.Success(ASSERTION)
+
+            val default = LoginResult.TooManyAttempts(AuthRepository.DEFAULT_RETRY_AFTER_SECONDS)
+            assertEquals(default, repository.login(serverAddress(), authenticator))
+            assertEquals(default, repository.login(serverAddress(), authenticator))
+        }
+
+    @Test
+    fun `options without a body are a server error and never open the passkey sheet`() =
+        runBlocking {
+            server.enqueue(MockResponse.Builder().code(204).build())
+
+            assertEquals(LoginResult.ServerError, repository.login(serverAddress(), authenticator))
+            assertTrue(authenticator.requests.isEmpty())
+        }
+
+    @Test
+    fun `an authenticator that answers with a registration outcome fails the login`() =
+        runBlocking {
+            server.enqueue(json(200, AUTH_OPTIONS))
+            authenticator.next = CredentialOutcome.AlreadyRegistered
+
+            assertEquals(LoginResult.PasskeyFailed, repository.login(serverAddress(), authenticator))
+            assertEquals(1, server.requestCount)
+            assertNull(tokenStore.current())
+        }
+
+    @Test
+    fun `losing the server after the passkey sheet is a network error and stores nothing`() =
+        runBlocking {
+            server.enqueue(json(200, AUTH_OPTIONS))
+            authenticator.next = CredentialOutcome.Success(ASSERTION)
+            authenticator.onCall = { server.close() }
+
+            assertEquals(LoginResult.Network, repository.login(serverAddress(), authenticator))
+            assertNull(tokenStore.current())
+        }
+
+    @Test
+    fun `failing registration option requests never open the passkey sheet`() =
+        runBlocking {
+            loggedIn()
+            server.enqueue(json(400, PROBLEM))
+            server.enqueue(json(500, PROBLEM))
+            server.enqueue(MockResponse.Builder().code(204).build())
+
+            assertEquals(PasskeyRegistrationResult.WrongCode, repository.register("Pixel", "", authenticator))
+            assertEquals(PasskeyRegistrationResult.ServerError, repository.register("Pixel", "123456", authenticator))
+            assertEquals(PasskeyRegistrationResult.ServerError, repository.register("Pixel", "123456", authenticator))
+            server.close()
+            assertEquals(PasskeyRegistrationResult.Network, repository.register("Pixel", "123456", authenticator))
+            assertTrue(authenticator.registrations.isEmpty())
+        }
+
+    @Test
+    fun `an unusable authenticator answer fails the registration without a finish request`() =
+        runBlocking {
+            loggedIn()
+            val outcomes =
+                listOf(
+                    CredentialOutcome.NoCredential,
+                    CredentialOutcome.Success("not json"),
+                    CredentialOutcome.Success("\"just a string\""),
+                )
+            outcomes.forEach { outcome ->
+                server.enqueue(json(200, CREATION_OPTIONS))
+                authenticator.next = outcome
+                assertEquals(outcome.toString(), PasskeyRegistrationResult.Failed, repository.register("Pixel", "123456", authenticator))
+            }
+            assertEquals(outcomes.size, server.requestCount)
+        }
+
+    @Test
+    fun `finishing a registration without a readable answer or connection reports it`() =
+        runBlocking {
+            loggedIn()
+            server.enqueue(json(200, CREATION_OPTIONS))
+            server.enqueue(MockResponse.Builder().code(204).build())
+            authenticator.next = CredentialOutcome.Success(ATTESTATION)
+            assertEquals(PasskeyRegistrationResult.ServerError, repository.register("Pixel", "123456", authenticator))
+
+            server.enqueue(json(200, CREATION_OPTIONS))
+            authenticator.onCall = { server.close() }
+            assertEquals(PasskeyRegistrationResult.Network, repository.register("Pixel", "123456", authenticator))
+        }
+
+    @Test
+    fun `malformed server answers are a failure, never a crash`() =
+        runBlocking {
+            loggedIn()
+            server.enqueue(json(200, """[{"id":"0192f1a0-0000-7000-8000-000000000009","name":"Pixel","createdAt":"yesterday"}]"""))
+            server.enqueue(json(200, """[{"id":"not-a-uuid","name":"Pixel","createdAt":"2026-10-22T10:00:00Z"}]"""))
+            server.enqueue(json(200, """{"ceremonyId":"ceremony-2"}"""))
+            server.enqueue(json(200, "not json"))
+
+            assertNull(repository.list())
+            assertNull(repository.list())
+            assertEquals(PasskeyRegistrationResult.ServerError, repository.register("Pixel", "123456", authenticator))
+            assertEquals(LoginResult.ServerError, repository.login(serverAddress(), authenticator))
+            assertTrue(authenticator.registrations.isEmpty() && authenticator.requests.isEmpty())
+        }
+
+    @Test
+    fun `the list is null without a connection`() =
+        runBlocking {
+            loggedIn()
+            server.close()
+
+            assertNull(repository.list())
+        }
+
     private suspend fun loggedIn() {
         serverUrls.setServerUrl(serverAddress())
         tokenStore.login(AuthTokens("access-1", "refresh-1"), DEVICE_ID)
@@ -265,13 +382,18 @@ class PasskeyRepositoryTest {
         val requests = mutableListOf<String>()
         val registrations = mutableListOf<String>()
 
+        /** Runs while the system sheet would be open, e.g. to drop the connection. */
+        var onCall: () -> Unit = {}
+
         override suspend fun authenticate(requestJson: String): CredentialOutcome {
             requests += requestJson
+            onCall()
             return next
         }
 
         override suspend fun register(requestJson: String): CredentialOutcome {
             registrations += requestJson
+            onCall()
             return next
         }
     }

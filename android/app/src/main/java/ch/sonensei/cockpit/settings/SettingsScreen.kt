@@ -1,7 +1,10 @@
 package ch.sonensei.cockpit.settings
 
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.runtime.Composable
@@ -15,7 +18,8 @@ import ch.sonensei.cockpit.ui.PlaceholderScreen
 
 @Composable
 fun SettingsScreen(modifier: Modifier = Modifier) {
-    Column(modifier = modifier, horizontalAlignment = Alignment.CenterHorizontally) {
+    // Scrolls so that logout stays reachable however many passkeys are listed; the placeholder gives up its space first.
+    Column(modifier = modifier.fillMaxSize().verticalScroll(rememberScrollState()), horizontalAlignment = Alignment.CenterHorizontally) {
         PasskeySettings(Modifier.padding(16.dp))
         PlaceholderScreen(R.string.nav_settings, Icons.Outlined.Settings, Modifier.weight(1f))
         LogoutButton(Modifier.padding(bottom = 32.dp))

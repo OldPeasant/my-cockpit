@@ -143,7 +143,8 @@ class PasskeyRepository internal constructor(
             }
             is Call.Status ->
                 when (token.code) {
-                    400 -> LoginResult.InvalidRequest
+                    // A malformed assertion or ceremony: nothing the user can fix in the form.
+                    400 -> LoginResult.PasskeyFailed
                     401 -> LoginResult.PasskeyRejected
                     403 -> LoginResult.TotpResetRequired
                     429 -> tooMany(token)
