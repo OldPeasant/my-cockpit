@@ -1,9 +1,7 @@
 package ch.sonensei.cockpit.calendar.model
 
 import ch.sonensei.cockpit.core.persistence.SoftDeletableRepository
-import jakarta.persistence.LockModeType
 import org.springframework.data.jpa.repository.JpaRepository
-import org.springframework.data.jpa.repository.Lock
 import org.springframework.data.jpa.repository.Query
 import java.time.Instant
 import java.time.LocalDate
@@ -11,11 +9,6 @@ import java.util.UUID
 
 interface CalendarSourceRepository : JpaRepository<CalendarSource, UUID> {
 	fun findAllByOrderByIdAsc(): List<CalendarSource>
-
-	/** The source with [id], its row locked until the transaction ends (serializes creations in that source). */
-	@Lock(LockModeType.PESSIMISTIC_WRITE)
-	@Query("select s from CalendarSource s where s.id = :id")
-	fun findForUpdate(id: UUID): CalendarSource?
 }
 
 interface CalendarRepository : JpaRepository<Calendar, UUID> {

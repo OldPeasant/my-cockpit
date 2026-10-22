@@ -4,7 +4,7 @@ Date: 2026-10-22
 
 Task: contacts-birthdays - Birthdays calendar
 
-Scope: Findings CR-1, CR-2 and CR-3 from `reviews/contacts-birthdays/review.md` (task commits 62465bb8, 42a2e2b1, b475864c on base eb0cbfa7). This round started from uncommitted changes left by an earlier interrupted fix session. I reviewed them: the CR-1 and CR-3 parts were kept, and the CR-2 part was replaced (see CR-2).
+Scope: Second round: finding TW-1 from `reviews/contacts-birthdays/tests.md` (the same issue as CR-1 P3 of the re-review). First round: findings CR-1, CR-2 and CR-3 from `reviews/contacts-birthdays/review.md` (task commits 62465bb8, 42a2e2b1, b475864c on base eb0cbfa7). This round started from uncommitted changes left by an earlier interrupted fix session. I reviewed them: the CR-1 and CR-3 parts were kept, and the CR-2 part was replaced (see CR-2).
 
 ## Fixed findings
 
@@ -47,6 +47,26 @@ Validation:
 - `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.contacts.birthdays.BirthdayCalendarEdgeCaseWebTests'` with the fix disabled — Fail as expected (duplicate key)
 - `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.contacts.birthdays.*'` — Pass
 
+### TW-1 (= re-review CR-1, P3) — Concurrent first creation without a LOCAL source creates two LOCAL sources and two Birthdays calendars
+
+Second fix round (2026-10-22), from `reviews/contacts-birthdays/tests.md` TW-1 and the same issue in the re-review `reviews/contacts-birthdays/review.md`.
+
+Files changed:
+- `server/src/main/kotlin/ch/sonensei/cockpit/calendar/api/CalendarService.kt`
+- `server/src/main/kotlin/ch/sonensei/cockpit/calendar/model/CalendarRepositories.kt`
+
+Problem:
+The CR-2 fix locked the LOCAL source row. When no LOCAL source existed yet, each concurrent first call created its own source in `localSource()` before taking the lock, so the two calls locked different rows. The result was two LOCAL sources and two `virtual:birthdays` calendars. The committed regression test `two first-time creations before any local calendar exists yield one calendar in one local source` failed with `expected:<1> but was:<2>`.
+
+Fix:
+`ensureVirtualCalendar` now follows the precedent in `files/domain/FilesService.kt`. The fast path looks up an existing LOCAL source and its calendar, takes no lock and creates nothing. If either is missing, it calls `select pg_advisory_xact_lock(?)` with a documented constant key `VIRTUAL_CALENDAR_LOCK = 0x43414C20_56495254L` ("CAL VIRT"). I grepped for `pg_advisory`: the only other keys are the two `FilesService` constants, so the new key does not collide with them. After taking the lock, it re-reads (and only then creates) the source and the calendar. A concurrent second call waits until the first transaction commits. Under READ COMMITTED it then sees the first call's source and calendar. `CalendarSourceRepository.findForUpdate` is removed, because the advisory lock replaces it. The CR-2 fix had added it, and nothing else used it. The KDoc now describes the advisory lock. There is no Flyway migration and no change to the test file.
+
+Note (not changed, outside this finding): `CalendarService.create()` (the user creates a local calendar through the API) still calls `localSource()` without the lock. A user creating the first calendar at the same moment as the first birthday-calendar creation could in theory still create a second LOCAL source. TW-1 does not cover that path, so the parent worker can decide whether it needs its own task.
+
+Validation:
+- `cd server && ./gradlew ktlintFormat` — Pass
+- `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.contacts.birthdays.*' --tests 'ch.sonensei.cockpit.calendar.*' ktlintCheck` — Pass (927 tests, 0 failures, 0 skipped, Postgres via Testcontainers; includes the TW-1 test and the CR-2 test `a second first-time creation waits for the first one and returns its calendar`)
+
 ### CR-3 — Every occurrence request loads full contact entities with a birthday
 
 Files changed:
@@ -68,6 +88,13 @@ None.
 
 ## Validation summary
 
+Second round (TW-1):
+- `cd server && ./gradlew ktlintFormat` — Pass
+- `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.contacts.birthdays.*' --tests 'ch.sonensei.cockpit.calendar.*' ktlintCheck` — Pass (927 tests, 0 failures)
+- Full server suite and `.taskcheck` — Not run in this round. The parent worker runs them before `done`.
+
+First round:
+
 Focused tests:
 - `cd server && ./gradlew ktlintFormat` — Pass
 - `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.contacts.birthdays.*'` — Pass (29 tests, Postgres via Testcontainers)
@@ -87,4 +114,4 @@ Remaining unresolved findings:
 
 ## Final status
 
-All validated findings fixed and validation passed. The only failure in the full server suite is one unrelated flaky test, which passed when rerun on its own.
+All validated findings fixed and validation passed. Second round: TW-1 is fixed, and the birthdays and calendar tests pass (927 tests, 0 failures). First round: the only failure in the full server suite is one unrelated flaky test, which passed when rerun on its own.

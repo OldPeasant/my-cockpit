@@ -12,6 +12,7 @@ import ch.sonensei.cockpit.core.web.ConflictException
 import ch.sonensei.cockpit.core.web.FieldError
 import ch.sonensei.cockpit.core.web.InvalidRequestException
 import ch.sonensei.cockpit.core.web.NotFoundException
+import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import java.util.UUID
@@ -42,6 +43,7 @@ class CalendarService(
 	private val calendars: CalendarRepository,
 	private val changes: ChangeEventPublisher,
 	private val providers: CalendarProviderRegistry,
+	private val jdbc: JdbcTemplate,
 ) {
 	@Transactional(readOnly = true)
 	fun list(): List<CalendarView> {
@@ -94,18 +96,21 @@ class CalendarService(
 
 	/**
 	 * The read-only calendar of the [VirtualCalendarProvider] with [key], created (visible, not the default) with
-	 * [name] and [color] when it does not exist yet. Concurrent first calls (two contact commits, or one during the
-	 * startup check) wait for each other on the LOCAL source's row lock, so the second finds the calendar instead of
-	 * failing on the unique external id.
+	 * [name] and [color] when it does not exist yet (and the LOCAL source with it, when there is none). Concurrent first
+	 * calls (two contact commits, or one during the startup check) wait for each other on a transaction-scoped advisory
+	 * lock taken before anything is created, so the second finds the source and the calendar of the first instead of
+	 * creating a second LOCAL source or failing on the unique external id.
 	 */
 	fun ensureVirtualCalendar(
 		key: String,
 		name: String,
 		color: String?,
 	): Calendar {
+		existingLocalSource()?.let { existing ->
+			calendars.findBySourceIdAndExternalId(existing.id, VIRTUAL_PREFIX + key)?.let { return it }
+		}
+		jdbc.queryForList("select pg_advisory_xact_lock(?)", VIRTUAL_CALENDAR_LOCK)
 		val source = localSource()
-		calendars.findBySourceIdAndExternalId(source.id, VIRTUAL_PREFIX + key)?.let { return it }
-		sources.findForUpdate(source.id)
 		calendars.findBySourceIdAndExternalId(source.id, VIRTUAL_PREFIX + key)?.let { return it }
 		val calendar = Calendar(source.id, name)
 		calendar.color = color
@@ -163,8 +168,9 @@ class CalendarService(
 	}
 
 	private fun localSource(): CalendarSource =
-		sources.findAllByOrderByIdAsc().firstOrNull { it.type == CalendarSourceType.LOCAL }
-			?: sources.saveAndFlush(CalendarSource(CalendarSourceType.LOCAL, LOCAL_SOURCE_NAME))
+		existingLocalSource() ?: sources.saveAndFlush(CalendarSource(CalendarSourceType.LOCAL, LOCAL_SOURCE_NAME))
+
+	private fun existingLocalSource(): CalendarSource? = sources.findAllByOrderByIdAsc().firstOrNull { it.type == CalendarSourceType.LOCAL }
 
 	private fun load(id: UUID): Calendar = calendars.findById(id).orElse(null) ?: throw NotFoundException("Calendar not found")
 
@@ -187,6 +193,12 @@ class CalendarService(
 
 		/** The `externalId` of a LOCAL calendar whose events a [VirtualCalendarProvider] computes, before its key. */
 		const val VIRTUAL_PREFIX = "virtual:"
+
+		/**
+		 * `pg_advisory_xact_lock` key that serializes the first creation of virtual calendars (and of the LOCAL source
+		 * with them); any constant unique within the application ("CAL VIRT").
+		 */
+		private const val VIRTUAL_CALENDAR_LOCK = 0x43414C20_56495254L
 		private val COLOR = Regex("^#[0-9a-fA-F]{6}$")
 	}
 }
