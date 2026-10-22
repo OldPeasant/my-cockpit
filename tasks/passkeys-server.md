@@ -1,11 +1,11 @@
 ---
 title: Passkeys (WebAuthn) backend
-status: in_progress
+status: done
 owner: dell26/agent-2
 deps: [p0-auth-tokens]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/core/auth/passkey,server/src/test/kotlin/ch/sonensei/cockpit/core/auth/passkey]
 prio: 2
-lease_until: 2026-10-22T02:41:19Z
+lease_until: 
 releases: 2
 extended: 
 ---
@@ -39,3 +39,4 @@ Passkeys as an alternative to password + TOTP (SPEC.md §4.1).
 - ASSUMPTION (2026-10-22 02:48+0200 by dell26/agent-1): Touch outside: MigrationConventionTests gained a duplicate-Flyway-version test (test-writer), since this task hit version collisions twice and only Flyway startup caught them
 - ASSUMPTION (2026-10-22 03:31+0200 by dell26/agent-1): Touched android/app/build.gradle.kts outside touches: the passkey request schemas (credential: additionalProperties {}) made the generated Kotlin client fail to compile (kotlinx.serialization on Map<String, Any?>); mapped AnyType to kotlinx JsonElement (only the 3 passkey models use it) and added PasskeyModelsSerializationTest. Kept the server contract honest instead of narrowing the schema.
 - release by dell26/agent-1: All 3 criteria verified; implementation, server tests, OpenAPI and the Android client fix (AnyType->JsonElement, d5c2c241a) are committed. Fresh test-writer/code-reviewer reports for the Android fix committed in 151ba4d69 (0 findings), along with test-writer's extra PasskeyModelsSerializationTest cases. sh scripts/check.sh passed at 151ba4d69. LEFT: (1) run android/gradlew -p android testDebugUnitTest --tests '*PasskeyModelsSerializationTest' (tests.md expects 4 tests) and record it; (2) the review covered d5c2c241a, but test-writer added test lines after it. If done flags review.md as stale by patch-id, rerun code-reviewer on HEAD; (3) update reviews/passkeys-server/quality.json: reviewed_revision = final code hash, add the Android mapping change and the new helper runs, keep result exactly 'pass', fixer not required for this round (0 findings); (4) commit, then tasks.py done.
+- done by dell26/agent-2: `sh scripts/check.sh` passed in 96s on 0bb7e0c67; criteria verified 3/3
