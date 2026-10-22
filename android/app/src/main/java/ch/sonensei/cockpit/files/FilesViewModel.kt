@@ -3,7 +3,10 @@ package ch.sonensei.cockpit.files
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -12,6 +15,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.FileOutputStream
 import java.io.IOException
@@ -61,123 +65,160 @@ sealed interface FilesEvent {
     ) : FilesEvent
 }
 
-/** The drive (SPEC.md §8.2 on the phone, §9.2 item 7): browse folders, open or save files, upload from the device. */
+/**
+ * The drive (SPEC.md §8.2 on the phone, §9.2 item 7): browse folders, open or save files, upload from the device.
+ * Device files (the cache, picked files) are touched on [io], never on the main thread.
+ */
 @HiltViewModel
-class FilesViewModel
+class FilesViewModel internal constructor(
+    private val files: FilesRepository,
+    private val io: CoroutineDispatcher,
+) : ViewModel() {
     @Inject
-    constructor(
-        private val files: FilesRepository,
-    ) : ViewModel() {
-        private val state = MutableStateFlow(FilesUiState())
-        val uiState: StateFlow<FilesUiState> = state.asStateFlow()
+    constructor(files: FilesRepository) : this(files, Dispatchers.IO)
 
-        private val eventChannel = Channel<FilesEvent>(Channel.BUFFERED)
-        val events: Flow<FilesEvent> = eventChannel.receiveAsFlow()
+    private val state = MutableStateFlow(FilesUiState())
+    val uiState: StateFlow<FilesUiState> = state.asStateFlow()
 
-        private var loadJob: Job? = null
-        private var downloadJob: Job? = null
-        private var nextUploadKey = 0L
+    private val eventChannel = Channel<FilesEvent>(Channel.BUFFERED)
+    val events: Flow<FilesEvent> = eventChannel.receiveAsFlow()
 
-        /** The folder shown; `null` at the drive root. */
-        private fun folderId(): UUID? =
-            state.value.path
-                .lastOrNull()
-                ?.id
+    private var loadJob: Job? = null
+    private var downloadJob: Job? = null
+    private var nextUploadKey = 0L
 
-        /** Loads the folder shown again; a load still running is dropped. */
-        fun refresh() {
-            loadJob?.cancel()
-            val folder = folderId()
-            state.update { it.copy(loading = true) }
-            loadJob =
-                viewModelScope.launch {
-                    val result = files.list(folder)
-                    state.update {
-                        it.copy(
-                            entries = (result as? FilesResult.Ok)?.value ?: it.entries,
-                            loading = false,
-                            loaded = it.loaded || result is FilesResult.Ok,
-                            message = result.message(),
-                        )
-                    }
-                }
-        }
+    /** The folder shown; `null` at the drive root. */
+    private fun folderId(): UUID? =
+        state.value.path
+            .lastOrNull()
+            ?.id
 
-        fun openFolder(folder: DriveEntry.Folder) = show(state.value.path + FolderCrumb(folder.id, folder.name))
-
-        /** Shows the folder at [depth] of the path: 0 is the drive root. */
-        fun goTo(depth: Int) {
-            if (depth < state.value.path.size) show(state.value.path.take(depth.coerceAtLeast(0)))
-        }
-
-        /** Goes to the parent folder; `false` at the drive root. */
-        fun up(): Boolean {
-            val path = state.value.path
-            if (path.isEmpty()) return false
-            show(path.dropLast(1))
-            return true
-        }
-
-        private fun show(path: List<FolderCrumb>) {
-            // Nothing of the new folder has arrived yet: neither the old entries nor its "empty" text may show.
-            state.update { it.copy(path = path, entries = emptyList(), loaded = false, message = null) }
-            refresh()
-        }
-
-        /** Downloads [file] into [target] (a cache file the screen chose) and then asks the screen to open it. */
-        fun open(
-            file: DriveEntry.File,
-            target: File,
-        ) = download(file, { openCache(target) }) { FilesEvent.Open(target, file.mime) }
-
-        /** Downloads [file] into the document [target] opens (the user picked where). */
-        fun save(
-            file: DriveEntry.File,
-            target: () -> OutputStream?,
-        ) = download(file, target) { FilesEvent.Saved(file.name) }
-
-        private fun download(
-            file: DriveEntry.File,
-            target: () -> OutputStream?,
-            done: () -> FilesEvent,
-        ) {
-            // One at a time: a second tap while a file is downloading is ignored.
-            if (downloadJob?.isActive == true) return
-            state.update { it.copy(downloading = file.id, downloadMessage = null) }
-            downloadJob =
-                viewModelScope.launch {
-                    val result = files.download(file.id, target)
-                    state.update { it.copy(downloading = null, downloadMessage = result.message()) }
-                    if (result is FilesResult.Ok) eventChannel.send(done())
-                }
-        }
-
-        fun dismissDownloadMessage() = state.update { it.copy(downloadMessage = null) }
-
-        /** Uploads [sources] one after the other into the folder shown now, which is reloaded if still shown. */
-        fun upload(sources: List<UploadSource>) {
-            if (sources.isEmpty()) return
-            val folder = folderId()
-            val items = sources.map { UploadItem(nextUploadKey++, it.name, UploadState.UPLOADING) }
-            state.update { it.copy(uploads = it.uploads + items) }
+    /** Loads the folder shown again; a load still running is dropped. */
+    fun refresh() {
+        loadJob?.cancel()
+        val folder = folderId()
+        state.update { it.copy(loading = true) }
+        loadJob =
             viewModelScope.launch {
-                sources.zip(items).forEach { (source, item) ->
-                    val result = files.upload(folder, source)
-                    setUpload(item.key, result.uploadState())
+                val result = files.list(folder)
+                state.update {
+                    it.copy(
+                        entries = (result as? FilesResult.Ok)?.value ?: it.entries,
+                        loading = false,
+                        loaded = it.loaded || result is FilesResult.Ok,
+                        message = result.message(),
+                    )
                 }
-                if (folderId() == folder) refresh()
             }
-        }
-
-        /** Hides the finished upload [key]. */
-        fun dismissUpload(key: Long) =
-            state.update { s -> s.copy(uploads = s.uploads.filterNot { it.key == key && it.state != UploadState.UPLOADING }) }
-
-        private fun setUpload(
-            key: Long,
-            upload: UploadState,
-        ) = state.update { s -> s.copy(uploads = s.uploads.map { if (it.key == key) it.copy(state = upload) else it }) }
     }
+
+    fun openFolder(folder: DriveEntry.Folder) = show(state.value.path + FolderCrumb(folder.id, folder.name))
+
+    /** Shows the folder at [depth] of the path: 0 is the drive root. */
+    fun goTo(depth: Int) {
+        if (depth < state.value.path.size) show(state.value.path.take(depth.coerceAtLeast(0)))
+    }
+
+    /** Goes to the parent folder; `false` at the drive root. */
+    fun up(): Boolean {
+        val path = state.value.path
+        if (path.isEmpty()) return false
+        show(path.dropLast(1))
+        return true
+    }
+
+    private fun show(path: List<FolderCrumb>) {
+        // Nothing of the new folder has arrived yet: neither the old entries nor its "empty" text may show.
+        state.update { it.copy(path = path, entries = emptyList(), loaded = false, message = null) }
+        refresh()
+    }
+
+    /**
+     * Downloads [file] into the cache file [target] chooses, then asks the screen to open it. [target] runs only once
+     * this download starts (it deletes the files opened earlier), and a failed download deletes what it wrote.
+     */
+    fun open(
+        file: DriveEntry.File,
+        target: () -> File,
+    ) {
+        var cache: File? = null
+        download(
+            file,
+            prepare = { cache = target() },
+            out = { cache?.let(::openCache) },
+            discard = { cache?.delete() },
+        ) { FilesEvent.Open(checkNotNull(cache), file.mime) }
+    }
+
+    /** Downloads [file] into the document [target] opens (the user picked where); a failed download calls [discard]. */
+    fun save(
+        file: DriveEntry.File,
+        target: () -> OutputStream?,
+        discard: () -> Unit = {},
+    ) = download(file, prepare = {}, out = target, discard = discard) { FilesEvent.Saved(file.name) }
+
+    private fun download(
+        file: DriveEntry.File,
+        prepare: () -> Unit,
+        out: () -> OutputStream?,
+        discard: () -> Unit,
+        done: () -> FilesEvent,
+    ) {
+        // One at a time: a second tap while a file is downloading is ignored, before it touches any file.
+        if (downloadJob?.isActive == true) return
+        state.update { it.copy(downloading = file.id, downloadMessage = null) }
+        downloadJob =
+            viewModelScope.launch {
+                var ok = false
+                try {
+                    prepare()
+                    val result = files.download(file.id, out)
+                    ok = result is FilesResult.Ok
+                    state.update { it.copy(downloading = null, downloadMessage = result.message()) }
+                    if (ok) eventChannel.send(done())
+                } finally {
+                    // Failed or cancelled: an empty or cut-off file must not look like a copy.
+                    if (!ok) withContext(NonCancellable + io) { runCatching { discard() } }
+                }
+            }
+    }
+
+    fun dismissDownloadMessage() = state.update { it.copy(downloadMessage = null) }
+
+    /** Uploads [sources] one after the other into the folder shown now, which is reloaded if still shown. */
+    fun upload(sources: List<UploadSource>) = upload(folderId(), sources)
+
+    /** Like [upload], for files picked on the device: [describe] asks their providers for names and sizes, off the main thread. */
+    fun uploadPicked(describe: () -> List<UploadSource>) {
+        val folder = folderId()
+        viewModelScope.launch { upload(folder, withContext(io) { describe() }) }
+    }
+
+    private fun upload(
+        folder: UUID?,
+        sources: List<UploadSource>,
+    ) {
+        if (sources.isEmpty()) return
+        val items = sources.map { UploadItem(nextUploadKey++, it.name, UploadState.UPLOADING) }
+        state.update { it.copy(uploads = it.uploads + items) }
+        viewModelScope.launch {
+            sources.zip(items).forEach { (source, item) ->
+                val result = files.upload(folder, source)
+                setUpload(item.key, result.uploadState())
+            }
+            if (folderId() == folder) refresh()
+        }
+    }
+
+    /** Hides the finished upload [key]. */
+    fun dismissUpload(key: Long) =
+        state.update { s -> s.copy(uploads = s.uploads.filterNot { it.key == key && it.state != UploadState.UPLOADING }) }
+
+    private fun setUpload(
+        key: Long,
+        upload: UploadState,
+    ) = state.update { s -> s.copy(uploads = s.uploads.map { if (it.key == key) it.copy(state = upload) else it }) }
+}
 
 private fun openCache(file: File): OutputStream? =
     try {

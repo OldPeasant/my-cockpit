@@ -6,9 +6,11 @@ import android.content.Context
 import android.database.Cursor
 import android.database.MatrixCursor
 import android.net.Uri
+import android.os.Bundle
 import android.os.ParcelFileDescriptor
 import android.provider.OpenableColumns
 import androidx.core.content.FileProvider
+import androidx.core.os.BundleCompat
 import org.robolectric.Robolectric
 import java.io.File
 import java.lang.reflect.Modifier
@@ -59,6 +61,19 @@ class PickedFilesProvider : ContentProvider() {
         return ParcelFileDescriptor.open(file(context!!, uri.lastPathSegment!!), ParcelFileDescriptor.parseMode(mode))
     }
 
+    /** `DocumentsContract.deleteDocument` arrives here: deletes the bytes, refused for [DENIED]. */
+    override fun call(
+        method: String,
+        arg: String?,
+        extras: Bundle?,
+    ): Bundle? {
+        if (method != DELETE_DOCUMENT) return null
+        val uri = extras?.let { BundleCompat.getParcelable(it, EXTRA_URI, Uri::class.java) } ?: return null
+        if (uri.lastPathSegment == DENIED) throw SecurityException("fictitious: permission revoked")
+        file(context!!, uri.lastPathSegment!!).delete()
+        return null
+    }
+
     override fun insert(
         uri: Uri,
         values: ContentValues?,
@@ -97,6 +112,12 @@ class PickedFilesProvider : ContentProvider() {
 
         /** Opening throws a SecurityException (the grant was revoked). */
         const val DENIED = "denied"
+
+        /** The (hidden) method name `DocumentsContract.deleteDocument` calls. */
+        private const val DELETE_DOCUMENT = "android:deleteDocument"
+
+        /** The (hidden) `DocumentsContract.EXTRA_URI`: the document to delete. */
+        private const val EXTRA_URI = "uri"
 
         fun uri(segment: String): Uri = Uri.parse("content://$AUTHORITY/picked/$segment")
 

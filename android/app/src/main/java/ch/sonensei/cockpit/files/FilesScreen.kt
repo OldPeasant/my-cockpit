@@ -52,6 +52,8 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.Saver
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -115,16 +117,20 @@ fun FilesRoute(modifier: Modifier = Modifier) {
         }
     }
 
+    val resolver = context.contentResolver
     val pickUploads =
         rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
-            viewModel.upload(uris.map { describePicked(context.contentResolver, it) })
+            if (uris.isNotEmpty()) viewModel.uploadPicked { uris.map { describePicked(resolver, it) } }
         }
-    var saving by remember { mutableStateOf<DriveEntry.File?>(null) }
+    // Saveable: the activity may be recreated (rotation, the system reclaiming it) while the "save as" picker is open.
+    var saving by rememberSaveable(stateSaver = PendingSaveSaver) { mutableStateOf<DriveEntry.File?>(null) }
     val pickSaveTarget =
         rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("*/*")) { uri ->
             val file = saving
             saving = null
-            if (uri != null && file != null) viewModel.save(file) { openForWriting(context.contentResolver, uri) }
+            if (uri != null && file != null) {
+                viewModel.save(file, { openForWriting(resolver, uri) }) { discardDocument(resolver, uri) }
+            }
         }
 
     FilesContent(
@@ -132,7 +138,7 @@ fun FilesRoute(modifier: Modifier = Modifier) {
         callbacks =
             FilesCallbacks(
                 openFolder = viewModel::openFolder,
-                openFile = { viewModel.open(it, OpenedFiles.target(context, it.id, it.name)) },
+                openFile = { file -> viewModel.open(file) { OpenedFiles.target(context, file.id, file.name) } },
                 saveFile = {
                     saving = it
                     pickSaveTarget.launch(it.name)
@@ -146,6 +152,13 @@ fun FilesRoute(modifier: Modifier = Modifier) {
         modifier = modifier,
     )
 }
+
+/** The file waiting for the "save as" picker's answer, kept as strings in the saved state. */
+private val PendingSaveSaver =
+    Saver<DriveEntry.File?, List<String>>(
+        save = { file -> file?.let { listOf(it.id.toString(), it.name, it.mime, it.size.toString(), it.updatedAt.toString()) } },
+        restore = { DriveEntry.File(UUID.fromString(it[0]), it[1], it[2], it[3].toLong(), Instant.parse(it[4])) },
+    )
 
 /** What the screen can ask for, so it can be tested without a view model. */
 data class FilesCallbacks(

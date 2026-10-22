@@ -55,7 +55,33 @@ class DeviceFilesTest {
         assertEquals("file", OpenedFiles.safeName(".."))
         assertEquals("file", OpenedFiles.safeName("  "))
         assertEquals("a_b.txt", OpenedFiles.safeName("a\u0000b.txt"))
-        assertEquals(120, OpenedFiles.safeName("x".repeat(300)).length)
+    }
+
+    @Test
+    fun `long names are cut to 200 UTF-8 bytes between characters, keeping the extension`() {
+        assertEquals("x".repeat(200), OpenedFiles.safeName("x".repeat(300)))
+        assertEquals("x".repeat(196) + ".pdf", OpenedFiles.safeName("x".repeat(300) + ".pdf"))
+
+        // 3 bytes each: 100 of them are 300 bytes, too long for a file system's 255.
+        val cjk = OpenedFiles.safeName("税".repeat(100) + ".pdf")
+        assertEquals("税".repeat(65) + ".pdf", cjk)
+        assertTrue(cjk.toByteArray(Charsets.UTF_8).size <= 200)
+
+        // 4 bytes and 2 UTF-16 chars each: never cut in half.
+        val emoji = OpenedFiles.safeName("x" + "📄".repeat(80))
+        assertEquals("x" + "📄".repeat(49), emoji)
+        assertTrue(emoji.toByteArray(Charsets.UTF_8).size <= 200)
+
+        // A cut that leaves only dots is no name.
+        assertEquals("file", OpenedFiles.safeName(".".repeat(250) + "x".repeat(20)))
+        assertEquals("Steuern 2025.pdf", OpenedFiles.safeName("Steuern 2025.pdf"))
+    }
+
+    @Test
+    fun `a long name written to the cache can be opened`() {
+        val file = OpenedFiles.target(context, id(6), "税".repeat(100) + ".pdf").apply { writeText("pdf") }
+        assertTrue(file.name.endsWith(".pdf"))
+        assertEquals("pdf", file.readText())
     }
 
     @Test
@@ -127,6 +153,17 @@ class DeviceFilesTest {
         // A folder cannot be opened as a file.
         PickedFilesProvider.file(context, "a-folder").mkdirs()
         assertNull(openForWriting(context.contentResolver, PickedFilesProvider.uri("a-folder")))
+    }
+
+    @Test
+    fun `discarding a failed save deletes the created document, and a provider that refuses does not crash`() {
+        PickedFilesProvider.register()
+        val created = PickedFilesProvider.file(context, "half.pdf").apply { writeText("cut") }
+
+        discardDocument(context.contentResolver, PickedFilesProvider.uri("half.pdf"))
+        discardDocument(context.contentResolver, PickedFilesProvider.uri(PickedFilesProvider.DENIED))
+
+        assertFalse(created.exists())
     }
 
     @Test

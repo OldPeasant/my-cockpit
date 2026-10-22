@@ -28,6 +28,7 @@ import dagger.hilt.android.testing.HiltTestApplication
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.mockk
+import kotlinx.coroutines.CompletableDeferred
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
@@ -170,6 +171,32 @@ class FilesRouteInAppTest {
     }
 
     @Test
+    fun `tapping another file while one downloads leaves the first intact, and it still opens`() {
+        val other = DriveEntry.File(id(4), "Quittung.pdf", "application/pdf", 10, Instant.parse("2026-10-02T09:00:00Z"))
+        coEvery { repo.list(null) } returns FilesResult.Ok(listOf(docs, pdf, other))
+        val gate = CompletableDeferred<Unit>()
+        coEvery { repo.download(pdf.id, any()) } coAnswers {
+            secondArg<() -> OutputStream?>()()!!.use { it.write("fictitious tax return".toByteArray()) }
+            gate.await()
+            FilesResult.Ok(21L)
+        }
+        openFiles()
+
+        composeRule.onNodeWithTag(FilesTags.entry(pdf.id)).performClick()
+        waitForTag(FilesTags.DOWNLOADING)
+        composeRule.onNodeWithTag(FilesTags.entry(other.id)).performClick()
+        composeRule.waitForIdle()
+        gate.complete(Unit)
+        composeRule.waitUntil(WAIT_MS) { shadowOf(activity()).peekNextStartedActivity() != null }
+
+        val started = shadowOf(activity()).nextStartedActivity
+        assertTrue(started.data!!.path!!.endsWith("/Steuern 2025.pdf"))
+        val read = activity().contentResolver.openInputStream(started.data!!)!!.use { String(it.readBytes()) }
+        assertEquals("fictitious tax return", read)
+        coVerify(exactly = 0) { repo.download(other.id, any()) }
+    }
+
+    @Test
     fun `a file no app on the phone opens says so and starts nothing`() {
         downloadWrites("fictitious")
         openFiles()
@@ -216,6 +243,53 @@ class FilesRouteInAppTest {
 
         assertEquals("Steuern 2025.pdf saved", ShadowToast.getTextOfLatestToast())
         assertEquals("fictitious tax return", PickedFilesProvider.file(activity(), "saved-tax.pdf").readText())
+    }
+
+    @Test
+    fun `a save still arrives when the activity was recreated while the save-as picker was open`() {
+        PickedFilesProvider.register()
+        downloadWrites("fictitious tax return")
+        openFiles()
+        composeRule.onNodeWithTag(FilesTags.more(pdf.id)).performClick()
+        composeRule.onNodeWithTag(FilesTags.SAVE).performClick()
+        composeRule.waitForIdle()
+        val request = shadowOf(activity()).nextStartedActivityForResult
+
+        scenario!!.recreate()
+        waitForTag(FilesTags.entry(pdf.id))
+        val chosen = PickedFilesProvider.uri("saved-after-rotation.pdf")
+        composeRule.runOnUiThread {
+            (activity() as ComponentActivity).activityResultRegistry.dispatchResult(
+                request.requestCode,
+                Activity.RESULT_OK,
+                Intent().setData(chosen),
+            )
+        }
+        composeRule.waitUntil(WAIT_MS) { ShadowToast.getTextOfLatestToast() != null }
+
+        assertEquals("Steuern 2025.pdf saved", ShadowToast.getTextOfLatestToast())
+        assertEquals("fictitious tax return", PickedFilesProvider.file(activity(), "saved-after-rotation.pdf").readText())
+    }
+
+    @Test
+    fun `a failed save deletes the document the save-as picker created`() {
+        PickedFilesProvider.register()
+        coEvery { repo.download(pdf.id, any()) } coAnswers {
+            secondArg<() -> OutputStream?>()()!!.use { it.write("cut".toByteArray()) }
+            FilesResult.Offline
+        }
+        val created = PickedFilesProvider.file(ApplicationProvider.getApplicationContext(), "half.pdf").apply { writeText("") }
+        openFiles()
+        composeRule.onNodeWithTag(FilesTags.more(pdf.id)).performClick()
+        composeRule.onNodeWithTag(FilesTags.SAVE).performClick()
+        composeRule.waitForIdle()
+        val request = shadowOf(activity()).nextStartedActivityForResult
+
+        shadowOf(activity()).receiveResult(request.intent, Activity.RESULT_OK, Intent().setData(PickedFilesProvider.uri("half.pdf")))
+        waitForTag(FilesTags.DOWNLOAD_MESSAGE)
+        composeRule.waitUntil(WAIT_MS) { !created.exists() }
+
+        composeRule.onNodeWithText("Offline. The file could not be downloaded.").assertExists()
     }
 
     @Test

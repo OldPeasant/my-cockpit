@@ -5,6 +5,7 @@ import android.content.ContentResolver
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.provider.DocumentsContract
 import android.provider.OpenableColumns
 import androidx.core.content.FileProvider
 import java.io.File
@@ -63,6 +64,21 @@ internal fun openForWriting(
         null
     }
 
+/**
+ * Deletes the document the "save as" picker created for a save that failed, so no empty or cut-off copy stays where
+ * the user chose. Best effort: a provider that refuses keeps it.
+ */
+internal fun discardDocument(
+    resolver: ContentResolver,
+    uri: Uri,
+) {
+    try {
+        DocumentsContract.deleteDocument(resolver, uri)
+    } catch (_: Exception) {
+        // Nothing more to do: the banner already says the file was not saved.
+    }
+}
+
 /** Its own class: a manifest can declare `FileProvider` itself only once (the notes' camera photos use it). */
 class OpenedFilesProvider : FileProvider()
 
@@ -108,16 +124,63 @@ object OpenedFiles {
             false
         }
 
-    /** A file name without path separators or characters file systems refuse; never empty, `.` or `..`. */
+    /**
+     * A file name without path separators or characters file systems refuse; never empty, `.` or `..`. A long one is
+     * cut to at most [MAX_NAME_BYTES] UTF-8 bytes (file systems count bytes) between characters, keeping its extension.
+     */
     internal fun safeName(name: String): String {
         val cleaned =
             name
                 .map { c -> if (c in FORBIDDEN || c.code < SPACE) '_' else c }
                 .joinToString("")
                 .trim()
-                .take(MAX_NAME)
-        return cleaned.takeUnless { it.isEmpty() || it.all { c -> c == '.' } } ?: "file"
+        val fitted = fitBytes(cleaned)
+        return fitted.takeUnless { it.isEmpty() || it.all { c -> c == '.' } } ?: "file"
     }
+
+    private fun fitBytes(name: String): String {
+        if (utf8Size(name) <= MAX_NAME_BYTES) return name
+        val dot = name.lastIndexOf('.')
+        val extension = if (dot > 0 && name.length - dot <= MAX_EXTENSION) name.substring(dot) else ""
+        val stem = name.substring(0, name.length - extension.length)
+        return prefixOfBytes(stem, MAX_NAME_BYTES - utf8Size(extension)).trimEnd() + extension
+    }
+
+    /** The longest start of [text] of at most [max] UTF-8 bytes that does not split a character. */
+    private fun prefixOfBytes(
+        text: String,
+        max: Int,
+    ): String {
+        var bytes = 0
+        var end = 0
+        while (end < text.length) {
+            val codePoint = text.codePointAt(end)
+            bytes += utf8Size(codePoint)
+            if (bytes > max) break
+            end += Character.charCount(codePoint)
+        }
+        return text.substring(0, end)
+    }
+
+    private fun utf8Size(text: String): Int {
+        var bytes = 0
+        var i = 0
+        while (i < text.length) {
+            val codePoint = text.codePointAt(i)
+            bytes += utf8Size(codePoint)
+            i += Character.charCount(codePoint)
+        }
+        return bytes
+    }
+
+    // A lone surrogate counts as 3 bytes, more than the `?` it is written as.
+    private fun utf8Size(codePoint: Int) =
+        when {
+            codePoint < 0x80 -> 1
+            codePoint < 0x800 -> 2
+            codePoint < 0x10000 -> 3
+            else -> 4
+        }
 
     /** The mime type without parameters (`text/plain; charset=utf-8` → `text/plain`); any type when it is not a valid one. */
     internal fun viewType(mime: String): String =
@@ -130,5 +193,6 @@ object OpenedFiles {
     private const val DIR = "files-open"
     private const val FORBIDDEN = "/\\:*?\"<>|"
     private const val SPACE = 0x20
-    private const val MAX_NAME = 120
+    private const val MAX_NAME_BYTES = 200
+    private const val MAX_EXTENSION = 16
 }
