@@ -1,3 +1,4 @@
+import { HttpContext } from '@angular/common/http';
 import { TestBed } from '@angular/core/testing';
 import {
   Api,
@@ -11,7 +12,7 @@ import {
   WeeklyReviewResponse,
   WeeklyReviewStatusResponse,
 } from '../../api/generated';
-import { ApiError } from '../../core/http';
+import { ApiError, SILENT_ERRORS } from '../../core/http';
 import { localDate } from '../gtd/data';
 import { draftKey, ReviewSession } from './review-session';
 import { ReviewStep, stepIndex } from './review-steps';
@@ -19,6 +20,7 @@ import { ReviewStep, stepIndex } from './review-steps';
 interface Call {
   fn: unknown;
   params: Record<string, unknown>;
+  context?: HttpContext;
 }
 
 function review(step: ReviewStep = 'GET_CLEAR', fields: Partial<WeeklyReviewResponse> = {}) {
@@ -40,7 +42,15 @@ describe('ReviewSession', () => {
   let journal: JournalEntryResponse | null;
   /** The error the next call of `fn` throws. */
   let failing: { fn: unknown; error: unknown } | undefined;
+  /** Calls of `held.fn` wait until the test calls `held.release()`. */
+  let held: { fn: unknown; until: Promise<void>; release: () => void } | undefined;
   let session: ReviewSession;
+
+  function hold(fn: unknown): void {
+    let release!: () => void;
+    const until = new Promise<void>((resolve) => (release = resolve));
+    held = { fn, until, release };
+  }
 
   const callsOf = (fn: unknown) => calls.filter((call) => call.fn === fn);
 
@@ -50,9 +60,11 @@ describe('ReviewSession', () => {
     status = { daysSinceLastReview: 9 };
     journal = null;
     failing = undefined;
+    held = undefined;
     const api = {
-      invoke: async (fn: unknown, params: Record<string, unknown> = {}) => {
-        calls.push({ fn, params });
+      invoke: async (fn: unknown, params: Record<string, unknown> = {}, context?: HttpContext) => {
+        calls.push({ fn, params, context });
+        if (held && held.fn === fn) await held.until;
         if (failing && failing.fn === fn) {
           const { error } = failing;
           failing = undefined;
@@ -288,5 +300,149 @@ describe('ReviewSession', () => {
 
     await resumed.complete();
     expect(localStorage.getItem(draftKey('r1'))).toBeNull();
+  });
+
+  it('saves only one move when a second one is asked while the first is saved', async () => {
+    status = { current: review() };
+    await session.load();
+    hold(moveWeeklyReview);
+
+    const first = session.goTo('PAST_CALENDAR');
+    expect(session.saving()).toBe(true);
+    await session.goTo('SOMEDAY');
+    held!.release();
+    await first;
+
+    expect(callsOf(moveWeeklyReview).map((call) => call.params['body'])).toEqual([
+      { step: 'PAST_CALENDAR' },
+    ]);
+    expect(session.step()).toBe('PAST_CALENDAR');
+  });
+
+  it('completes only once when finishing is clicked twice', async () => {
+    status = { current: review('REFLECTION') };
+    await session.load();
+    hold(completeWeeklyReview);
+
+    const first = session.complete();
+    await session.complete();
+    held!.release();
+    await first;
+
+    expect(callsOf(completeWeeklyReview)).toHaveLength(1);
+    expect(session.phase()).toBe('completed');
+  });
+
+  it('reloads the review when a move finds it gone', async () => {
+    status = { current: review() };
+    await session.load();
+    status = { daysSinceLastReview: 0 };
+    failing = { fn: moveWeeklyReview, error: new ApiError(404, 'Not Found') };
+
+    await session.goTo('PAST_CALENDAR');
+
+    expect(session.phase()).toBe('idle');
+    expect(session.review()).toBeNull();
+  });
+
+  it('shows the start screen when another tab already completed the review', async () => {
+    status = { current: review('REFLECTION') };
+    await session.load();
+    status = { daysSinceLastReview: 0 };
+    failing = { fn: completeWeeklyReview, error: new ApiError(409, 'Conflict') };
+
+    await session.complete();
+
+    expect(callsOf(getWeeklyReviewStatus)).toHaveLength(2);
+    expect(session.phase()).toBe('idle');
+    expect(session.daysSinceLast()).toBe(0);
+    expect(session.saving()).toBe(false);
+  });
+
+  it('stays on the start screen when starting fails', async () => {
+    await session.load();
+    failing = { fn: startWeeklyReview, error: new ApiError(500, 'Server Error') };
+
+    await session.start();
+
+    expect(session.phase()).toBe('idle');
+    expect(session.saving()).toBe(false);
+  });
+
+  it("looks up today's journal entry without an error message for a missing one", async () => {
+    status = { current: review('REFLECTION') };
+    await session.load();
+    session.setReflection('A fictional short week.');
+
+    await session.complete();
+
+    const lookup = callsOf(getJournalEntry)[0];
+    expect(lookup.params).toEqual({ date: localDate() });
+    expect(lookup.context?.get(SILENT_ERRORS)).toBe(true);
+  });
+
+  it('keeps a reflection draft per review', async () => {
+    localStorage.setItem(draftKey('r-older'), 'A fictional draft of another review');
+    status = { current: review('REFLECTION') };
+
+    await session.load();
+
+    expect(session.reflection()).toBe('');
+    session.setReflection('This review only');
+    expect(localStorage.getItem(draftKey('r1'))).toBe('This review only');
+    expect(localStorage.getItem(draftKey('r-older'))).toBe('A fictional draft of another review');
+  });
+
+  it('drops the stored draft when the reflection is cleared', async () => {
+    status = { current: review('REFLECTION') };
+    await session.load();
+    session.setReflection('Soon gone');
+
+    session.setReflection('');
+
+    expect(localStorage.getItem(draftKey('r1'))).toBeNull();
+  });
+
+  it('does not store a draft before a review is open', async () => {
+    await session.load();
+
+    session.setReflection('No review yet');
+
+    expect(session.reflection()).toBe('No review yet');
+    expect(localStorage.length).toBe(0);
+  });
+
+  describe('without usable browser storage', () => {
+    afterEach(() => vi.restoreAllMocks());
+
+    it('resumes the review without a draft when storage cannot be read', async () => {
+      vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
+        throw new Error('denied');
+      });
+      status = { current: review('REFLECTION') };
+
+      await session.load();
+
+      expect(session.phase()).toBe('open');
+      expect(session.reflection()).toBe('');
+    });
+
+    it('keeps the reflection in the page and saves it when storage cannot be written', async () => {
+      vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+        throw new Error('quota');
+      });
+      status = { current: review('REFLECTION') };
+      await session.load();
+
+      session.setReflection('A fictional thought');
+      expect(session.reflection()).toBe('A fictional thought');
+
+      await session.complete();
+
+      expect(callsOf(putJournalEntry)[0].params['body']).toMatchObject({
+        bodyMd: '## Weekly review\n\nA fictional thought\n',
+      });
+      expect(session.phase()).toBe('completed');
+    });
   });
 });
