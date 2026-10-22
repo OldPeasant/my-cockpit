@@ -11,7 +11,8 @@ lease_until: 2026-10-22T09:58:09Z
 Automate SPEC.md §13.2 Phase 5 against GreenMail.
 
 ## Acceptance criteria
-- [ ] `web/e2e/phase5` covers steps 1–6 (e2e stack includes GreenMail); earlier phase specs pass
+- [x] `web/e2e/phase5` covers steps 1–6 (e2e stack includes GreenMail); earlier phase specs pass
+  - verified (2026-10-22 11:43+0200 by dell26/agent-2): npm --prefix web run e2e -- --project=phase-demos against the podman-compose e2e stack (server, postgres, GreenMail with IMAP+SMTP published) at beb8f3c55 -> 30 passed (1.0m): phase5 steps 1-6 plus phases 0 (5), 1 (10), 2 (6), 4 (3); e2e:typecheck exit 0
 
 ## Notes
 - ASSUMPTION (2026-10-22 11:10+0200 by dell26/agent-2): Step 2 needs mail arriving via SMTP, so GreenMail's SMTP port is now published on the host (E2E_SMTP_PORT in deploy/docker-compose.e2e.yml + run-e2e.mjs, outside touches) and the spec delivers with a small SMTP client (web/e2e/phase5/smtp.ts)
