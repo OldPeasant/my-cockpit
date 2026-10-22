@@ -548,6 +548,68 @@ describe('DashboardData', () => {
       });
     });
 
+    it('keeps the old data when the quiet reload after showing a widget again fails', async () => {
+      handlers.set(listNotes, () => Promise.resolve({ items: [note('n1')] }));
+      await showReady(['pinnedNotes']);
+      data.show([]);
+      handlers.set(listNotes, () => Promise.reject(new Error('notes down')));
+
+      data.show(['pinnedNotes']);
+      await flush();
+
+      expect(callsOf(listNotes)).toHaveLength(1);
+      expect(data.state('pinnedNotes')).toMatchObject({
+        status: 'ready',
+        value: { items: [{ id: 'n1' }] },
+      });
+    });
+
+    it('loads a widget visibly when it is shown again after its first load failed while hidden', async () => {
+      const first = deferred<unknown>();
+      handlers.set(listNotes, () => first.promise);
+      data.show(['pinnedNotes']);
+      data.show([]);
+      first.reject(new Error('notes down'));
+      await flush();
+      expect(data.state('pinnedNotes').status).toBe('error');
+      const retry = deferred<unknown>();
+      handlers.set(listNotes, () => retry.promise);
+
+      data.show(['pinnedNotes']);
+      expect(data.state('pinnedNotes').status).toBe('loading');
+      retry.resolve({ items: [note('n3')] });
+      await flush();
+
+      expect(callsOf(listNotes)).toHaveLength(2);
+      expect(data.state('pinnedNotes')).toMatchObject({
+        status: 'ready',
+        value: { items: [{ id: 'n3' }] },
+      });
+    });
+
+    it('drops the answer of a quiet re-show reload that a newer change-event reload overtook', async () => {
+      handlers.set(listNotes, () => Promise.resolve({ items: [note('n1')] }));
+      await showReady(['pinnedNotes']);
+      data.show([]);
+      const answers = [deferred<unknown>(), deferred<unknown>()];
+      let call = 0;
+      handlers.set(listNotes, () => answers[call++].promise);
+
+      data.show(['pinnedNotes']);
+      change('NOTE');
+      await vi.advanceTimersByTimeAsync(300);
+      expect(callsOf(listNotes)).toHaveLength(2);
+      answers[1].resolve({ items: [note('newer')] });
+      await flush();
+      answers[0].resolve({ items: [note('older')] });
+      await flush();
+
+      expect(data.state('pinnedNotes')).toMatchObject({
+        status: 'ready',
+        value: { items: [{ id: 'newer' }] },
+      });
+    });
+
     it('does not request a widget again while its first load is running', async () => {
       const notes = deferred<unknown>();
       handlers.set(listNotes, () => notes.promise);

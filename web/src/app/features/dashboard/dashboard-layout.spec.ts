@@ -311,6 +311,105 @@ describe('DashboardLayout', () => {
     expect(layout.slots()).toEqual(DEFAULT_LAYOUT);
   });
 
+  it('drops a change when the settings cannot be loaded, and saves the next one once they load', async () => {
+    const failed = layout.setVisible('today', false);
+    expect(layout.visible()).not.toContain('today');
+    http
+      .expectOne({ method: 'GET', url: SETTINGS })
+      .flush({ title: 'Boom', status: 500 }, { status: 500, statusText: 'Server Error' });
+    await expect(failed).rejects.toBeTruthy();
+
+    // No PATCH was sent (http.verify() in afterEach), and the change no longer shows.
+    expect(layout.slots()).toEqual(DEFAULT_LAYOUT);
+
+    const saved = layout.setVisible('inbox', false);
+    http
+      .expectOne({ method: 'GET', url: SETTINGS })
+      .flush(fakeSettings({ [LAYOUT_SETTING]: ['readLater'] }), { headers: { ETag: '"5"' } });
+    await tick();
+    await tick();
+    const req = http.expectOne({ method: 'PATCH', url: SETTINGS });
+    const stored = req.request.body[LAYOUT_SETTING] as string[];
+    expect(stored[0]).toBe('readLater');
+    expect(stored).toContain('inbox:hidden');
+    expect(stored).toContain('today');
+    req.flush(fakeSettings({ [LAYOUT_SETTING]: stored }));
+    await saved;
+    expect(layout.slots()).toEqual(parseLayout(stored));
+  });
+
+  it('applies every change made before the settings are loaded on the stored layout', async () => {
+    const saves = [layout.setVisible('today', false), layout.move('pinnedNotes', -10)];
+    expect(layout.visible()[0]).toBe('pinnedNotes');
+    expect(layout.visible()).not.toContain('today');
+    for (const get of http.match({ method: 'GET', url: SETTINGS })) {
+      get.flush(fakeSettings({ [LAYOUT_SETTING]: ['readLater:hidden'] }), {
+        headers: { ETag: '"2"' },
+      });
+    }
+
+    const bodies: string[][] = [];
+    for (let i = 0; i < saves.length; i++) {
+      await tick();
+      await tick();
+      const req = http.expectOne({ method: 'PATCH', url: SETTINGS });
+      bodies.push(req.request.body[LAYOUT_SETTING] as string[]);
+      req.flush(fakeSettings({ [LAYOUT_SETTING]: bodies[i] }));
+    }
+    await Promise.all(saves);
+
+    expect(bodies[0][0]).toBe('readLater:hidden');
+    expect(bodies[0]).toContain('today:hidden');
+    expect(bodies[1].slice(0, 2)).toEqual(['pinnedNotes', 'readLater:hidden']);
+    expect(bodies[1]).toContain('today:hidden');
+    expect(layout.slots()).toEqual(parseLayout(bodies[1]));
+  });
+
+  it('builds a queued change on the layout another device saved when the earlier save hits a 412', async () => {
+    await loadSettings();
+
+    const stale = layout.setVisible('upcoming', false);
+    const next = layout.setVisible('today', false);
+    await tick();
+    http
+      .expectOne({ method: 'PATCH', url: SETTINGS })
+      .flush(
+        { title: 'Precondition Failed', status: 412 },
+        { status: 412, statusText: 'Precondition Failed' },
+      );
+    await tick();
+    // The settings service reloads the server state; another device moved Read-later first.
+    http
+      .expectOne({ method: 'GET', url: SETTINGS })
+      .flush(fakeSettings({ [LAYOUT_SETTING]: ['readLater'] }), { headers: { ETag: '"9"' } });
+    await expect(stale).rejects.toBeTruthy();
+    await tick();
+
+    const req = http.expectOne({ method: 'PATCH', url: SETTINGS });
+    expect(req.request.headers.get('If-Match')).toBe('"9"');
+    const stored = req.request.body[LAYOUT_SETTING] as string[];
+    expect(stored[0]).toBe('readLater');
+    expect(stored).toContain('today:hidden');
+    expect(stored).toContain('upcoming');
+    req.flush(fakeSettings({ [LAYOUT_SETTING]: stored }));
+    await next;
+    expect(layout.slots()).toEqual(parseLayout(stored));
+  });
+
+  it('brings the stored layout back when a reset is refused', async () => {
+    await loadSettings(['inbox:hidden', 'pinnedNotes']);
+
+    const reset = layout.reset();
+    expect(layout.slots()).toEqual(DEFAULT_LAYOUT);
+    await tick();
+    http
+      .expectOne({ method: 'PATCH', url: SETTINGS })
+      .flush({ title: 'Bad Request', status: 400 }, { status: 400, statusText: 'Bad Request' });
+    await expect(reset).rejects.toBeTruthy();
+
+    expect(layout.slots()).toEqual(parseLayout(['inbox:hidden', 'pinnedNotes']));
+  });
+
   it('resets the layout to the setting default', async () => {
     await loadSettings(['inbox:hidden']);
 
