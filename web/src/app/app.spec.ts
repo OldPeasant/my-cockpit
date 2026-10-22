@@ -195,6 +195,7 @@ describe('App routes with auth guards', () => {
     login: ReturnType<typeof vi.fn>;
     user: () => { username: string } | null;
     loggedIn: () => boolean;
+    totpEnrollmentRequired: () => boolean;
     logout: ReturnType<typeof vi.fn>;
   };
 
@@ -209,6 +210,7 @@ describe('App routes with auth guards', () => {
       }),
       user: () => (state.loggedIn ? { username: 'demo' } : null),
       loggedIn: () => state.loggedIn,
+      totpEnrollmentRequired: () => false,
       logout: vi.fn(() => Promise.resolve()),
     };
     TestBed.configureTestingModule({
