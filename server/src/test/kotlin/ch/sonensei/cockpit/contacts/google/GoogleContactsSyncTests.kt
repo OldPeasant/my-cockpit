@@ -31,12 +31,16 @@ import com.github.tomakehurst.wiremock.client.WireMock.patch
 import com.github.tomakehurst.wiremock.client.WireMock.post
 import com.github.tomakehurst.wiremock.client.WireMock.urlPathEqualTo
 import com.github.tomakehurst.wiremock.core.WireMockConfiguration.wireMockConfig
+import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.collections.shouldBeEmpty
+import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.collections.shouldContainExactlyInAnyOrder
+import io.kotest.matchers.longs.shouldBeLessThan
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.shouldNotBe
 import io.kotest.matchers.string.shouldContain
 import org.junit.jupiter.api.AfterAll
 import org.junit.jupiter.api.BeforeEach
@@ -44,6 +48,7 @@ import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.boot.test.context.TestConfiguration
+import org.springframework.context.ApplicationContext
 import org.springframework.context.ApplicationEventPublisher
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Import
@@ -57,6 +62,10 @@ import tools.jackson.databind.json.JsonMapper
 import java.time.Instant
 import java.time.LocalDate
 import java.util.UUID
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicReference
+import kotlin.concurrent.thread
 
 /**
  * [GoogleContactsSync] against WireMock playing the People API (recorded responses in the resources next to this
@@ -80,6 +89,7 @@ class GoogleContactsSyncTests(
 	@Autowired private val jsonMapper: JsonMapper,
 	@Autowired private val jdbc: JdbcTemplate,
 	@Autowired private val tx: TransactionTemplate,
+	@Autowired private val context: ApplicationContext,
 ) : PostgresTestBase() {
 	@TestConfiguration(proxyBeanMethods = false)
 	class TokensConfiguration {
@@ -92,10 +102,16 @@ class GoogleContactsSyncTests(
 	class FixedTokens : OAuthTokenProvider {
 		var failure: OAuthException? = null
 
+		/** When set, a token request counts [entered] down and waits for [gate] (to hold a run in the middle). */
+		var entered: CountDownLatch? = null
+		var gate: CountDownLatch? = null
+
 		override fun accessToken(
 			connectionId: UUID,
 			resource: OAuthResource,
 		): OAuthAccessToken {
+			entered?.countDown()
+			gate?.let { check(it.await(10, TimeUnit.SECONDS)) { "gate not opened" } }
 			failure?.let { throw it }
 			require(connectionId == CONNECTION) { "unknown connection" }
 			return OAuthAccessToken(TOKEN, Instant.parse("2030-01-01T00:00:00Z"))
@@ -123,7 +139,11 @@ class GoogleContactsSyncTests(
 		jdbc.execute("delete from contact")
 		jdbc.execute("delete from search_document where item_type = 'CONTACT'")
 		wireMock.resetAll()
-		(tokens as FixedTokens).failure = null
+		(tokens as FixedTokens).apply {
+			failure = null
+			entered = null
+			gate = null
+		}
 	}
 
 	// --- helpers
@@ -437,6 +457,278 @@ class GoogleContactsSyncTests(
 		contact("people/c1004").organization shouldBe "Fictional GmbH"
 	}
 
+	@Test
+	fun `412 for the etag also means Google's version wins`() {
+		stubFullListing()
+		syncOk()
+		rename(contact("people/c1001"), "Changed-Here")
+		stub(patch(urlPathEqualTo("/v1/people/c1001:updateContact")), """{"error": {"code": 412}}""", 412)
+		stub(get(urlPathEqualTo("/v1/people/c1001")), recording("person-c1001-current.json"))
+		stubIncremental("""{"nextSyncToken": "CONTACTS-sync-2"}""")
+
+		syncOk()
+
+		contact("people/c1001").displayName shouldBe "Alex Changed-At-Google"
+	}
+
+	@Test
+	fun `a person deleted at Google after a stale etag goes to the Trash`() {
+		stubFullListing()
+		syncOk()
+		val changed = rename(contact("people/c1001"), "Changed-Here")
+		stub(patch(urlPathEqualTo("/v1/people/c1001:updateContact")), recording("error-400-etag-mismatch.json"), 400)
+		stub(get(urlPathEqualTo("/v1/people/c1001")), """{"error": {"code": 404, "status": "NOT_FOUND"}}""", 404)
+		stubIncremental("""{"nextSyncToken": "CONTACTS-sync-2"}""")
+
+		syncOk()
+
+		contacts.findById(changed.id).get().isDeleted shouldBe true
+		linkOf(changed).resourceName.shouldBeNull()
+	}
+
+	@Test
+	fun `a person Google does not return after a stale etag is reported, the local change is pushed again later`() {
+		stubFullListing()
+		syncOk()
+		val changed = rename(contact("people/c1001"), "Changed-Here")
+		stub(patch(urlPathEqualTo("/v1/people/c1001:updateContact")), recording("error-400-etag-mismatch.json"), 400)
+		stub(get(urlPathEqualTo("/v1/people/c1001")), """{"error": {"code": 400, "status": "INVALID_ARGUMENT"}}""", 400)
+		stubIncremental("""{"nextSyncToken": "CONTACTS-sync-2"}""")
+
+		sync.sync(CONNECTION).lastError shouldBe "1 contacts could not be synced with Google"
+
+		contacts.findById(changed.id).get().familyName shouldBe "Changed-Here"
+		linkOf(changed).syncedVersion shouldBeLessThan changed.version
+
+		wireMock.resetAll()
+		stub(patch(urlPathEqualTo("/v1/people/c1001:updateContact")), """{"resourceName": "people/c1001", "etag": "%later"}""")
+		stub(listing().withQueryParam("syncToken", equalTo("CONTACTS-sync-2")), """{"nextSyncToken": "CONTACTS-sync-3"}""")
+		syncOk()
+		writes() shouldContainExactly listOf("PATCH /v1/people/c1001:updateContact")
+		linkOf(changed).etag shouldBe "%later"
+	}
+
+	@Test
+	fun `a delete Google refuses is retried by the next run, 404 counts as deleted`() {
+		stubFullListing()
+		syncOk()
+		val sam = contact("people/c1003")
+		service.delete(sam.id) {}
+		stub(delete(urlPathEqualTo("/v1/people/c1003:deleteContact")), """{"error": {"code": 400, "status": "INVALID_ARGUMENT"}}""", 400)
+		stubIncremental("""{"nextSyncToken": "CONTACTS-sync-2"}""")
+
+		sync.sync(CONNECTION).lastError shouldBe "1 contacts could not be synced with Google"
+		linkOf(sam).resourceName shouldBe "people/c1003"
+
+		wireMock.resetAll()
+		stub(delete(urlPathEqualTo("/v1/people/c1003:deleteContact")), """{"error": {"code": 404, "status": "NOT_FOUND"}}""", 404)
+		stub(listing().withQueryParam("syncToken", equalTo("CONTACTS-sync-2")), """{"nextSyncToken": "CONTACTS-sync-3"}""")
+		syncOk()
+		writes() shouldContainExactly listOf("DELETE /v1/people/c1003:deleteContact")
+		linkOf(sam).resourceName.shouldBeNull()
+	}
+
+	@Test
+	fun `a contact in the Trash here stays there when Google changes it before the delete was pushed`() {
+		stubFullListing()
+		syncOk()
+		val alex = contact("people/c1001")
+		service.delete(alex.id) {}
+		stub(delete(urlPathEqualTo("/v1/people/c1001:deleteContact")), """{"error": {"code": 400, "status": "INVALID_ARGUMENT"}}""", 400)
+		stubIncremental(recording("connections-incremental.json"))
+
+		sync.sync(CONNECTION)
+
+		contacts.findById(alex.id).get().isDeleted shouldBe true
+		contacts.findById(alex.id).get().familyName shouldBe "Muster"
+		linkOf(alex).resourceName shouldBe "people/c1001"
+	}
+
+	@Test
+	fun `a create Google answers without a resource name is reported and tried again by the next run`() {
+		val sam = trashedAndRestoredSam()
+		stub(post(urlPathEqualTo("/v1/people:createContact")), "{}")
+
+		sync.sync(CONNECTION).lastError shouldBe "1 contacts could not be synced with Google"
+
+		linkOf(sam).resourceName.shouldBeNull()
+		wireMock.resetAll()
+		stub(post(urlPathEqualTo("/v1/people:createContact")), """{"resourceName": "people/c2002", "etag": "%c"}""")
+		stub(listing().withQueryParam("syncToken", equalTo("CONTACTS-sync-3")), """{"nextSyncToken": "CONTACTS-sync-4"}""")
+		syncOk()
+		linkOf(sam).resourceName shouldBe "people/c2002"
+	}
+
+	@Test
+	fun `a created person with a resource name that is not people slash id fails the run and is not linked`() {
+		val sam = trashedAndRestoredSam()
+		stub(post(urlPathEqualTo("/v1/people:createContact")), """{"resourceName": "people/../me", "etag": "%c"}""")
+
+		sync.sync(CONNECTION).lastError shouldBe "Google returned an unexpected contact resource name"
+
+		linkOf(sam).resourceName.shouldBeNull()
+		contacts.findById(sam.id).get().externalId shouldBe "people/c1003"
+	}
+
+	/** Sam (people/c1003) synced, trashed and deleted at Google, then restored here; the next listing has token sync-2. */
+	private fun trashedAndRestoredSam(): Contact {
+		stubFullListing()
+		syncOk()
+		val sam = contact("people/c1003")
+		service.delete(sam.id) {}
+		stub(delete(urlPathEqualTo("/v1/people/c1003:deleteContact")), "{}")
+		stubIncremental("""{"nextSyncToken": "CONTACTS-sync-2"}""")
+		syncOk()
+		tx.execute { trash.restore(sam.id) }
+		wireMock.resetAll()
+		stub(listing().withQueryParam("syncToken", equalTo("CONTACTS-sync-2")), """{"nextSyncToken": "CONTACTS-sync-3"}""")
+		return sam
+	}
+
+	// --- pull: failures and odd listings
+
+	@Test
+	fun `a listing Google refuses fails the run and keeps the sync token`() {
+		stubFullListing()
+		val before = syncOk()
+		stub(
+			listing().withQueryParam("syncToken", equalTo("CONTACTS-sync-1")),
+			"""{"error": {"code": 400, "status": "INVALID_ARGUMENT"}}""",
+			400,
+		)
+
+		val state = sync.sync(CONNECTION)
+
+		state.lastError shouldBe "Listing the Google contacts failed (HTTP 400)"
+		state.syncToken shouldBe "CONTACTS-sync-1"
+		state.lastSuccessAt shouldBe before.lastSuccessAt
+	}
+
+	@Test
+	fun `an expired token answer to a full listing fails the run instead of listing again and again`() {
+		stub(listing(), recording("error-400-expired-sync-token.json"), 400)
+
+		sync.sync(CONNECTION).lastError shouldBe "Listing the Google contacts failed (HTTP 400)"
+
+		wireMock.allServeEvents.size shouldBe 1
+	}
+
+	@Test
+	fun `a 5xx answer of the listing fails the run with a safe message`() {
+		stub(listing(), """{"error": {"code": 503, "message": "backend down for Alex Muster"}}""", 503)
+
+		val state = sync.sync(CONNECTION)
+
+		state.lastError shouldBe "Google Contacts failed (HTTP 503)"
+		state.lastSuccessAt.shouldBeNull()
+		active().shouldBeEmpty()
+	}
+
+	@Test
+	fun `persons without a resource name and deletions of unknown persons are ignored`() {
+		stubFullListing()
+		syncOk()
+		stubIncremental(
+			"""
+			{"connections": [
+			  {"etag": "%no-name", "names": [{"displayName": "Without Resource Name"}]},
+			  {"resourceName": "people/c9999", "etag": "%gone", "metadata": {"deleted": true}}
+			], "nextSyncToken": "CONTACTS-sync-2"}
+			""",
+		)
+
+		syncOk().syncToken shouldBe "CONTACTS-sync-2"
+
+		active() shouldContainExactlyInAnyOrder listOf("Alex Muster", "+41 44 000 00 02", "Sam Beispiel")
+	}
+
+	@Test
+	fun `a person that cannot be stored is skipped and reported, the others are synced`() {
+		// Another Google connection already has a contact with the id people/c1002 (the id is unique per source).
+		val other = UUID.fromString("0192a5f0-0000-7000-8000-0000000000c2")
+		val taken = service.createSynced(ContactSource.GOOGLE, "people/c1002", ContactChanges(displayName = Change("Other account")))
+		jdbc.update("insert into contacts_google_account (connection_id) values (?)", other)
+		jdbc.update(
+			"insert into contacts_google_link (contact_id, connection_id, resource_name, synced_version) values (?, ?, ?, ?)",
+			taken.id,
+			other,
+			"people/c1002",
+			taken.version,
+		)
+		stubFullListing()
+
+		val state = sync.sync(CONNECTION)
+
+		state.lastError shouldBe "1 contacts could not be synced with Google"
+		state.syncToken shouldBe "CONTACTS-sync-1"
+		contact("people/c1001").displayName shouldBe "Alex Muster"
+		contact("people/c1003").displayName shouldBe "Sam Beispiel"
+		links.findByConnectionIdAndResourceName(CONNECTION, "people/c1002").shouldBeNull()
+		contacts.findById(taken.id).get().displayName shouldBe "Other account"
+	}
+
+	@Test
+	fun `a person restored at Google after it was deleted there comes back`() {
+		stubFullListing()
+		syncOk()
+		stubIncremental(recording("connections-incremental.json"))
+		syncOk()
+		contacts.findAll().single { it.displayName == "Sam Beispiel" }.isDeleted shouldBe true
+		// Google lists the person again under its old resource name (e.g. restored from Google's Trash).
+		stub(
+			listing().withQueryParam("syncToken", equalTo("CONTACTS-sync-2")),
+			recording("connections-full-page2.json").replace("CONTACTS-sync-1", "CONTACTS-sync-3"),
+		)
+
+		val state = sync.sync(CONNECTION)
+
+		state.lastError.shouldBeNull()
+		active() shouldContain "Sam Beispiel"
+		link("people/c1003")
+	}
+
+	@Test
+	fun `a contact restored from a backup that is in the Trash gives up its id, the person gets a new contact`() {
+		val restored = service.createSynced(ContactSource.GOOGLE, "people/c1003", ContactChanges(displayName = Change("Sam (from backup)")))
+		service.delete(restored.id) {}
+		stubFullListing()
+
+		syncOk()
+
+		val old = contacts.findById(restored.id).get()
+		old.isDeleted shouldBe true
+		old.externalId.shouldBeNull()
+		val sam = contact("people/c1003")
+		sam.id shouldNotBe restored.id
+		sam.externalId shouldBe "people/c1003"
+	}
+
+	// --- concurrency
+
+	@Test
+	fun `a run already going on for the connection is not started a second time`() {
+		stubFullListing()
+		val fixed = tokens as FixedTokens
+		val entered = CountDownLatch(1).also { fixed.entered = it }
+		val gate = CountDownLatch(1).also { fixed.gate = it }
+		val first = AtomicReference<GoogleContactsAccount>()
+		val running = thread { first.set(sync.sync(CONNECTION)) }
+		try {
+			entered.await(10, TimeUnit.SECONDS) shouldBe true
+
+			val second = sync.sync(CONNECTION)
+
+			second.lastAttemptAt.shouldNotBeNull()
+			second.syncToken.shouldBeNull()
+			wireMock.allServeEvents.shouldBeEmpty()
+		} finally {
+			gate.countDown()
+			running.join(10_000)
+		}
+		first.get().shouldNotBeNull().syncToken shouldBe "CONTACTS-sync-1"
+		wireMock.allServeEvents.size shouldBe 2
+	}
+
 	// --- disconnect
 
 	@Test
@@ -449,6 +741,36 @@ class GoogleContactsSyncTests(
 		accounts.findById(CONNECTION).isPresent shouldBe false
 		links.findAll().shouldBeEmpty()
 		active().size shouldBe 3
+	}
+
+	@Test
+	fun `disconnecting a Microsoft connection leaves the Google sync state alone`() {
+		stubFullListing()
+		syncOk()
+
+		tx.executeWithoutResult { events.publishEvent(OAuthConnectionDisconnected(CONNECTION, OAuthProvider.MICROSOFT)) }
+
+		accounts.findById(CONNECTION).isPresent shouldBe true
+		links.findAll().size shouldBe 3
+	}
+
+	@Test
+	fun `createSynced refuses the LOCAL source and keeps the external id of a provider contact`() {
+		shouldThrow<IllegalArgumentException> {
+			service.createSynced(ContactSource.LOCAL, "people/c1", ContactChanges(displayName = Change("Local")))
+		}
+
+		val created = service.createSynced(ContactSource.GOOGLE, "people/c3001", ContactChanges(givenName = Change("Noa")))
+
+		created.source shouldBe ContactSource.GOOGLE
+		created.externalId shouldBe "people/c3001"
+		created.displayName shouldBe "Noa"
+		contacts.findAll().map { it.displayName } shouldContainExactly listOf("Noa")
+	}
+
+	@Test
+	fun `the scheduler is off in the test configuration, so tests sync explicitly`() {
+		context.getBeanNamesForType(GoogleContactsSyncScheduler::class.java).toList().shouldBeEmpty()
 	}
 
 	companion object {
