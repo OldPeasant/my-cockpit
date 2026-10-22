@@ -5,7 +5,7 @@ owner: dell26/agent-1
 deps: [and-login,contacts-aggregate]
 touches: [android/app/src/main/java/ch/sonensei/cockpit/contacts,android/app/src/test/java/ch/sonensei/cockpit/contacts]
 prio: 3
-lease_until: 2026-10-22T10:42:56Z
+lease_until: 2026-10-22T10:48:05Z
 ---
 ## Goal
 Contacts on the phone.
