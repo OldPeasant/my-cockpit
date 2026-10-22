@@ -5,7 +5,7 @@ owner: dell26/agent-1
 deps: [web-today-events,web-habits]
 touches: [web/src/app/features/gtd/today]
 prio: 3
-lease_until: 2026-10-22T02:15:55Z
+lease_until: 2026-10-22T02:20:57Z
 ---
 ## Goal
 Today shows habits due.
