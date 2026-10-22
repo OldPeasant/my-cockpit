@@ -70,7 +70,7 @@ class ReviewScreenTest {
     }
 
     @Test
-    fun `the last review reads as today or one day ago`() {
+    fun `the last review reads as today`() {
         show(overview(days = 0))
         composeRule.onNodeWithTag(ReviewTags.LAST).assertTextEquals("Last weekly review: today")
     }

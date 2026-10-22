@@ -1,18 +1,22 @@
 package ch.sonensei.cockpit.review
 
 import io.mockk.coEvery
+import io.mockk.coVerify
 import io.mockk.mockk
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import java.time.Instant
@@ -68,6 +72,46 @@ class ReviewViewModelTest {
             vm.refresh()
             advanceUntilIdle()
             assertNull(vm.uiState.value.message)
+        }
+
+    @Test
+    fun `while a load runs the state says loading and keeps the message until the answer arrives`() =
+        runTest(dispatcher) {
+            val pending = CompletableDeferred<ReviewResult<ReviewOverview>>()
+            coEvery { repo.overview() } returns ReviewResult.Offline coAndThen { pending.await() }
+            val vm = ReviewViewModel(repo)
+            vm.refresh()
+            advanceUntilIdle()
+
+            vm.refresh()
+            runCurrent()
+            assertTrue(vm.uiState.value.loading)
+            assertEquals(ReviewMessage.OFFLINE, vm.uiState.value.message)
+
+            pending.complete(ReviewResult.Ok(overview))
+            advanceUntilIdle()
+            assertEquals(ReviewUiState(overview = overview), vm.uiState.value)
+        }
+
+    @Test
+    fun `a newer refresh drops the running load, so an older answer arriving last never overwrites it`() =
+        runTest(dispatcher) {
+            val older = CompletableDeferred<ReviewResult<ReviewOverview>>()
+            val newer = overview.copy(daysSinceLastReview = 0)
+            coEvery { repo.overview() } coAnswers { older.await() } andThen ReviewResult.Ok(newer)
+            val vm = ReviewViewModel(repo)
+
+            vm.refresh()
+            runCurrent()
+            vm.refresh()
+            advanceUntilIdle()
+            assertEquals(ReviewUiState(overview = newer), vm.uiState.value)
+
+            // The dropped load's answer (here a failure) shows up late and must change nothing.
+            older.complete(ReviewResult.Failed(403))
+            advanceUntilIdle()
+            assertEquals(ReviewUiState(overview = newer), vm.uiState.value)
+            coVerify(exactly = 2) { repo.overview() }
         }
 
     @Test

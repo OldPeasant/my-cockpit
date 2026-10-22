@@ -125,6 +125,45 @@ class ReviewRepositoryTest {
         }
 
     @Test
+    fun `a 4xx just below a server error is a failure, 500 itself counts as offline`() =
+        runBlocking {
+            answer(status(499), json("""{"items":[]}"""))
+            assertEquals(ReviewResult.Failed(499), reviews.overview())
+
+            answer(status(500), json("""{"items":[]}"""))
+            assertEquals(ReviewResult.Offline, reviews.overview())
+        }
+
+    @Test
+    fun `a refused projects call fails the whole overview`() =
+        runBlocking {
+            answer(json("""{"current":null,"daysSinceLastReview":2}"""), status(404))
+            assertEquals(ReviewResult.Failed(404), reviews.overview())
+        }
+
+    @Test
+    fun `a successful answer without a body is a failure with its status`() =
+        runBlocking {
+            answer(status(204), json("""{"items":[]}"""))
+            assertEquals(ReviewResult.Failed(204), reviews.overview())
+        }
+
+    @Test
+    fun `a body that is not JSON is a failure without a status`() =
+        runBlocking {
+            answer(json("""{"current":null}"""), json("<html>maintenance</html>"))
+            assertEquals(ReviewResult.Failed(null), reviews.overview())
+        }
+
+    @Test
+    fun `an unreadable start date is a failure without a status`() =
+        runBlocking {
+            val badDate = reviewJson.replace("\"startedAt\":\"2026-10-20T18:00:00Z\"", "\"startedAt\":\"last Tuesday\"")
+            answer(json("""{"current":$badDate,"daysSinceLastReview":1}"""), json("""{"items":[]}"""))
+            assertEquals(ReviewResult.Failed(null), reviews.overview())
+        }
+
+    @Test
     fun `an unreachable server is offline`() =
         runBlocking {
             server.close()
