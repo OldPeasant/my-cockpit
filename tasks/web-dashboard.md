@@ -1,11 +1,11 @@
 ---
 title: Dashboard
-status: todo
-owner: 
+status: in_progress
+owner: dell26/agent-1
 deps: [web-today-habits,web-weekly-review,web-bookmarks,web-notes-list,web-mail-list]
 touches: [web/src/app/features/dashboard]
 prio: 2
-lease_until: 
+lease_until: 2026-10-22T09:35:25Z
 releases: 0
 extended: 
 ---
