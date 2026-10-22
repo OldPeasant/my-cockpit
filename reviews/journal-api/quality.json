@@ -1,0 +1,26 @@
+{
+  "schema": 1,
+  "task": "journal-api",
+  "reviewed_revision": "10068a31968788c5e7dccd645dc15a483801ea72",
+  "helpers": {
+    "test-writer": {"status": "completed", "report": "reviews/journal-api/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/journal-api/review.md"},
+    "fixer": {"status": "completed", "report": "reviews/journal-api/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "test gaps (concurrent create, oversized image 413, tag spelling) covered by the edge case and image size tests; round 2 review confirms"},
+    {"id": "CR-2", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "Trash restore racing a PUT of the same date maps DataIntegrityViolationException to 409; race test added"},
+    {"id": "TW-1", "source": "test-writer", "severity": "P3", "disposition": "fixed",
+     "note": "entries migration moved to db/migration/journal/ per the migration naming convention"},
+    {"id": "CR-R2-NOTE", "source": "code-reviewer", "severity": "P3", "disposition": "accepted",
+     "note": "task touches still names db/migration/journal/entries while the migration lives in db/migration/journal/; task metadata only, not changed by hand (AGENTS.md)"}
+  ],
+  "validation": [
+    {"command": "cd server && ./gradlew test --tests 'ch.sonensei.cockpit.journal.entries.*' jacocoTestReport at 10068a319 (30 tests, Testcontainers Postgres; lines 100%, branches 95.2%)", "result": "pass"},
+    {"command": "UPDATE_OPENAPI=1 ./gradlew test --tests '*OpenApiContractTest', then without the flag; npm run api:gen (no diff)", "result": "pass"},
+    {"command": "sh scripts/check.sh at 10068a319 (full server suite incl. MigrationConventionTests, web, android)", "result": "pass"}
+  ]
+}
