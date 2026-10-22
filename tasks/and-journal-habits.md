@@ -5,7 +5,7 @@ owner: dell26/agent-1
 deps: [and-shell,journal-api,habits-api,and-login]
 touches: [android/app/src/main/java/ch/sonensei/cockpit/journal,android/app/src/test/java/ch/sonensei/cockpit/journal,android/app/src/main/java/ch/sonensei/cockpit/habits,android/app/src/test/java/ch/sonensei/cockpit/habits]
 prio: 3
-lease_until: 2026-10-22T12:50:56Z
+lease_until: 2026-10-22T12:51:16Z
 releases: 0
 extended: 
 ---
