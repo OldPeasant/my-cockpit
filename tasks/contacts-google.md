@@ -15,7 +15,8 @@ Two-way People API sync.
 ## Acceptance criteria
 - [x] Incremental sync with sync tokens, writes with etag; WireMock-recorded tests
   - verified (2026-10-22 06:33+0200 by dell26/agent-2): GoogleContactsSyncTests (56 WireMock-recorded People API tests incl. syncToken/requestSyncToken paging, EXPIRED_SYNC_TOKEN full listing, If-Match etag on updateContact, FAILED_PRECONDITION -> Google wins) + GoogleContactsClientTests (16): server/gradlew -p server test --tests 'ch.sonensei.cockpit.contacts.google.*' on f289af85 -> all pass
-- [ ] `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.contacts.google.*'` passes (Postgres via Testcontainers where persistence is involved)
+- [x] `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.contacts.google.*'` passes (Postgres via Testcontainers where persistence is involved)
+  - verified (2026-10-22 06:33+0200 by dell26/agent-2): server/gradlew -p server test --tests 'ch.sonensei.cockpit.contacts.google.*' (Postgres via Testcontainers, Docker) on f289af85 -> BUILD SUCCESSFUL, 118 tests, 0 failures, 0 skipped; sh scripts/check.sh -> all checks passed
 
 ## Notes
 - ASSUMPTION (2026-10-22 04:48+0200 by dell26/agent-1): Every CONNECTED Google OAuth connection whose scopes include .../auth/contacts is synced (the OAuth purpose is not stored); sync runs every cockpit.contacts.google.sync.interval (PT5M); local edits are pushed by the next run, not immediately
