@@ -15,3 +15,4 @@ Journal and habits on the phone (SPEC.md §9.2 item 8).
 - [ ] `cd android && ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.journal.*'` passes, covering entry autosave (Robolectric/Compose UI tests for screens); `habits` check-off
 
 ## Notes
+- ASSUMPTION (2026-10-22 13:38+0200 by dell26/agent-1): Android journal shows only today's entry (date from the device clock, fixed while the screen is open); no heatmap, on-this-day, mood or tag editing on the phone: §9.2 item 8 asks for 'journal'; mood/tags of an existing entry are kept as is on save
