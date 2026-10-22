@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Files (files/FilesScreen.kt). -->
+<resources>
+    <string name="files_root">Files</string>
+    <string name="files_upload">Upload</string>
+    <string name="files_empty">Nothing here yet. Upload a file from this phone with the button below.</string>
+    <string name="files_offline">Offline. Showing what was loaded before.</string>
+    <string name="files_failed">The folder could not be loaded.</string>
+    <string name="files_retry">Retry</string>
+    <string name="files_more">More for %1$s</string>
+    <string name="files_open">Open</string>
+    <string name="files_save">Save to device</string>
+    <string name="files_downloading">Downloading %1$s…</string>
+    <string name="files_download_offline">Offline. The file could not be downloaded.</string>
+    <string name="files_download_failed">The file could not be downloaded.</string>
+    <string name="files_dismiss">Dismiss</string>
+    <string name="files_saved">%1$s saved</string>
+    <string name="files_no_app">No app on this phone opens this file</string>
+    <string name="files_uploading">Uploading…</string>
+    <string name="files_uploaded">Uploaded</string>
+    <string name="files_upload_offline">Offline, not uploaded</string>
+    <string name="files_upload_too_large">Too large for the drive</string>
+    <string name="files_upload_failed">Could not be uploaded</string>
+    <string name="files_special">Managed by Cockpit</string>
+</resources>
