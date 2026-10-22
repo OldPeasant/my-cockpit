@@ -108,10 +108,16 @@ class GoogleContactsSyncTests(
 		var entered: CountDownLatch? = null
 		var gate: CountDownLatch? = null
 
+		/** When set, runs before the token of the n-th Google call of a run is handed out (n counts from 1). */
+		var beforeCall: ((Int) -> Unit)? = null
+		var calls = 0
+
 		override fun accessToken(
 			connectionId: UUID,
 			resource: OAuthResource,
 		): OAuthAccessToken {
+			calls++
+			beforeCall?.invoke(calls)
 			entered?.countDown()
 			gate?.let { check(it.await(10, TimeUnit.SECONDS)) { "gate not opened" } }
 			failure?.let { throw it }
@@ -145,6 +151,8 @@ class GoogleContactsSyncTests(
 			failure = null
 			entered = null
 			gate = null
+			beforeCall = null
+			calls = 0
 		}
 	}
 
@@ -584,6 +592,84 @@ class GoogleContactsSyncTests(
 		patchRequest().queryParameter("updatePersonFields").firstValue() shouldBe "biographies"
 		jsonMapper.readTree(patchRequest().bodyAsString).has("names") shouldBe false
 		contacts.findById(company.id).get().displayName shouldBe "Other GmbH"
+	}
+
+	/** Syncs twice so the organization-only person c1004 is linked, then changes its organization to "Other GmbH". */
+	private fun companyWithNewOrganization(): Contact {
+		stubFullListing()
+		syncOk()
+		stubIncremental(recording("connections-incremental.json"))
+		syncOk()
+		val company = contact("people/c1004")
+		company.displayName shouldBe "Fictional GmbH"
+		val changed = service.update(company.id, ContactChanges(organization = Change("Other GmbH"))) {}
+		wireMock.resetAll()
+		stubPerson("people/c1004", listed("people/c1004", "connections-incremental.json"))
+		stub(patch(urlPathEqualTo("/v1/people/c1004:updateContact")), """{"resourceName": "people/c1004", "etag": "%renamed"}""")
+		stub(listing().withQueryParam("syncToken", equalTo("CONTACTS-sync-2")), """{"nextSyncToken": "CONTACTS-sync-3"}""")
+		return changed
+	}
+
+	/** Runs [edit] while the push of the run below is between reading the person (call 1) and writing it (call 2). */
+	private fun duringWrite(edit: () -> Unit) {
+		(tokens as FixedTokens).apply {
+			calls = 0
+			beforeCall = { if (it == 2) edit() }
+		}
+	}
+
+	@Test
+	fun `an organization-only contact whose note is edited while its new organization is pushed never gets the old one as a name`() {
+		val company = companyWithNewOrganization()
+		duringWrite { service.update(company.id, ContactChanges(notesMd = Change("Invoices quarterly."))) {} }
+
+		syncOk()
+
+		patchRequest().queryParameter("updatePersonFields").firstValue() shouldBe "organizations"
+		// The note edited meanwhile is not synced yet, so the next run pushes it.
+		val edited = contacts.findById(company.id).get()
+		edited.notesMd shouldBe "Invoices quarterly."
+		linkOf(edited).syncedVersion shouldBeLessThan edited.version
+
+		(tokens as FixedTokens).beforeCall = null
+		wireMock.resetAll()
+		stubPerson(
+			"people/c1004",
+			"""{"resourceName": "people/c1004", "etag": "%renamed", "organizations": [{"metadata": {"primary": true}, "name": "Other GmbH"}]}""",
+		)
+		stub(patch(urlPathEqualTo("/v1/people/c1004:updateContact")), """{"resourceName": "people/c1004", "etag": "%noted"}""")
+		stub(listing().withQueryParam("syncToken", equalTo("CONTACTS-sync-3")), """{"nextSyncToken": "CONTACTS-sync-4"}""")
+
+		syncOk()
+
+		// Google has no name for the person: the old derived display name must not be written as one.
+		patchRequest().queryParameter("updatePersonFields").firstValue() shouldBe "biographies"
+		jsonMapper.readTree(patchRequest().bodyAsString).has("names") shouldBe false
+		contacts.findById(company.id).get().displayName shouldBe "Other GmbH"
+	}
+
+	@Test
+	fun `a contact moved to the Trash during the push of its change stays there and is deleted at Google by the next run`() {
+		val company = companyWithNewOrganization()
+		duringWrite { service.delete(company.id) {} }
+
+		syncOk()
+
+		patchRequest().queryParameter("updatePersonFields").firstValue() shouldBe "organizations"
+		val trashed = contacts.findById(company.id).get()
+		trashed.isDeleted shouldBe true
+		linkOf(trashed).resourceName shouldBe "people/c1004"
+
+		(tokens as FixedTokens).beforeCall = null
+		wireMock.resetAll()
+		stub(delete(urlPathEqualTo("/v1/people/c1004:deleteContact")), "{}")
+		stub(listing().withQueryParam("syncToken", equalTo("CONTACTS-sync-3")), """{"nextSyncToken": "CONTACTS-sync-4"}""")
+
+		syncOk()
+
+		writes() shouldContainExactly listOf("DELETE /v1/people/c1004:deleteContact")
+		contacts.findById(company.id).get().isDeleted shouldBe true
+		linkOf(trashed).resourceName.shouldBeNull()
 	}
 
 	@Test

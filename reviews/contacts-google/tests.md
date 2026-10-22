@@ -4,59 +4,65 @@ Date: 2026-10-22
 
 Task: contacts-google - Google contacts sync
 
-Scope: `git diff f558cf46a1923daf70c0c7e5d2d44ee774dc6761..dff44523b6c544b4e0d95580bf27faf038cebfd4` (task commits 2dd849d18, 369c64b4e, 0a8cd16a9, 2661e7ba2, dff44523b, as given by the parent), plus the uncommitted test additions listed below. Branch: main. HEAD: dff44523b6c544b4e0d95580bf27faf038cebfd4.
+Scope: `git diff e1aea044cfec34dd7dae7f7c88c819b3598bcab2..49d2e4ae53abf83924f7e91a5c4d244bf6b9f9f1`, excluding `tasks/` and `reviews/`. Task commits as given by the parent: 5d600784, 73915140, a4dadd65, 11309e57, fc249070, 77d6f984 and 9ea4c179, merged in 49d2e4ae. Branch: main. HEAD: 49d2e4ae53abf83924f7e91a5c4d244bf6b9f9f1. The only uncommitted change is the test file listed below. The production files were clean when tests ran.
 
 Requirements:
-- `tasks/contacts-google.md`: acceptance criteria 1 (incremental sync with sync tokens, writes with etag, WireMock-recorded tests) and 2 (focused Gradle test command passes, Postgres via Testcontainers), and the recorded assumptions in its Notes (Google wins on conflicts, expired token -> full listing + Trash, deletes and tombstones, field-group push, disconnect).
-- `reviews/contacts-google/review.md` and `reviews/contacts-google/fixes.md` (the behavior that changed after the review).
+- `tasks/contacts-google.md`: criterion 1 (incremental sync with sync tokens, writes with etag, WireMock-recorded tests), criterion 2 (the focused Gradle command passes, with Postgres via Testcontainers), and the ASSUMPTION notes. Those notes cover: Google wins on conflicts, an expired token leads to a full listing plus Trash, delete/re-create and tombstones, a field-group push, and Google deriving the display name.
+- `reviews/contacts-google/fixes.md` round 2: CR-1 (the display name is derived again after a push) and CR-3 (persons the run created stay through a full listing).
 - `docs/ARCHITECTURE.md` "Coverage", `docs/QUALITY.md`, `AGENTS.md`.
+
+This report replaces the earlier `tests.md`, which referred to commit hashes from a rewritten history. All results below are for HEAD 49d2e4ae plus the uncommitted test change.
 
 ## Test files changed
 
-- `server/src/test/kotlin/ch/sonensei/cockpit/contacts/google/GoogleContactsSyncTests.kt` (uncommitted; sha256 `a4fd84c26ea7d374fec2889a280acb7d7ef02ac62efe55c459d2da4278fcdf19`)
+- `server/src/test/kotlin/ch/sonensei/cockpit/contacts/google/GoogleContactsSyncTests.kt`
+  - Uncommitted, +86 lines, sha256 `b01a171e249638d3ec0f8ccc6862a0a765c18ba18b5586ee32a053f848acae98`.
+  - `FixedTokens` got a `beforeCall` hook and a `calls` counter, reset in `@BeforeEach`. The hook runs a local edit between the push's read (GET, call 1) and its write (PATCH, call 2). The ordering is fixed and uses no threads or delays.
 
-I reviewed the existing tests (commit 0a8cd16a9 and the fixer's changes) against the final code. They match the current contract: GET before PATCH, only changed field groups, tombstones, and resource-name checks. None needed changes. No existing test was changed, weakened, skipped or removed.
+The other test files are unchanged. No existing test was weakened, skipped or removed.
 
 ## Tests added or updated
 
-Count: 6 added, 0 updated. All are in `GoogleContactsSyncTests` and run against WireMock and Postgres via Testcontainers. They use fictitious data.
+Count: 2 added, 0 updated.
 
-1. `an incremental listing over several pages sends the sync token with every page and trashes nothing it did not list`: both pages carry `syncToken` and `requestSyncToken=true`. The last page's `nextSyncToken` is stored. Contacts the incremental listing does not mention stay active, because `removeMissing` runs only for full listings.
-2. `a full listing after an expired token that fails on a later page trashes nothing`: an expired token, then page 2 of the full listing answers 503. The run fails with a safe message, and Sam (on the failed page) is not moved to the Trash.
-3. `a full listing after an expired token leaves a restored contact that waits for its create alone`: a restored contact whose `createContact` failed (link without resource name) is not trashed by the full listing. The new token is stored.
-4. `a change of several field groups is written in one update that names each group`: `updatePersonFields=emailAddresses,phoneNumbers`, `personFields` is sent, and the etag is sent. The body has only those groups. Google's unchanged and unreadable email entries are kept. The changed phone drops `canonicalForm` and keeps its type. The link etag and synced version are updated.
-5. `a rate limit on a write fails the run before the pull, keeps the sync token, and the change is pushed later`: PATCH 429 sets the rate-limit error. No listing is requested, and the token and synced version are unchanged. The next run pushes the change.
-6. `a purged contact whose delete Google refuses is forgotten once Google lists it as deleted, no delete is sent again`: the pull's `removedAtGoogle` path for a tombstone. The tombstone is removed, and the next run sends no DELETE.
+The round-2 fixes already had regression tests from the fixer, all of which pass:
+- WireMock: `an organization-only contact edited twice in a row never gets its old organization as a name` (CR-1).
+- WireMock: `a full listing after an expired token that lags behind does not trash the contact the push just created` (CR-3).
+- Mapping: `after a push a derived display name is derived again from the pushed fields`, `after a push a name the user or Google gave stays`, `two pushes in a row of an organization-only contact never send the old organization as a name`.
+
+Coverage showed that the guard in `GoogleContactsSync.markSynced` (line 289: contact trashed or changed after the push read it) was never run by any test. The two new tests run it:
+
+1. `an organization-only contact whose note is edited while its new organization is pushed never gets the old one as a name`:
+   - Setup: the organization of c1004 changes to "Other GmbH". While the push is running, the note is edited.
+   - First run: sends `organizations` only. The note stays unsynced (`syncedVersion < version`), so the next run should push it.
+   - Second run: Google has the new organization and no name. The test expects only `biographies` to be sent, no `names`, and display name "Other GmbH".
+   - **FAILS**: see TW-1.
+2. `a contact moved to the Trash during the push of its change stays there and is deleted at Google by the next run`:
+   - First run: the contact stays in the Trash and keeps its resource name. The name re-derive does not touch it.
+   - Next run: sends exactly `DELETE people/c1004:deleteContact` and clears the link. Passes.
 
 ## Requirement coverage
 
-Command for every row below: `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.contacts.google.*'`. **I could not run it**: this sub-agent is denied every `./gradlew` invocation (permission policy; `server/gradlew -p server --version` was refused). So the Result column is "Not run" for this round. The fixer's report (`fixes.md`) records 102 passing tests on the code at HEAD, without the 6 tests added here.
-
 | Requirement | Tests | Command | Result |
 |---|---|---|---|
-| AC1: first sync lists everything page by page, keeps the sync token | `a first sync lists every contact page by page and keeps the sync token` | focused command above | Not run: Gradle denied to sub-agent |
-| AC1: incremental sync with the sync token | `a later sync applies only the changes since the sync token, deleted persons go to the Trash`; `a person listed with the etag already stored is not changed again`; new #1 | focused command above | Not run: Gradle denied to sub-agent |
-| AC1 / assumption: expired token (400 EXPIRED_SYNC_TOKEN or 410) -> full listing, missing contacts to the Trash | `an expired sync token lists everything again and trashes the contacts Google no longer has`; `410 Gone for the sync token also starts a full listing`; `an expired token answer to a full listing fails the run instead of listing again and again`; new #2, #3 | focused command above | Not run: Gradle denied to sub-agent |
-| AC1: writes carry the etag; only changed field groups are pushed | `a local change is written to Google with the person's etag and not again on the next run`; `editing only the note of a phone-only contact ...`; `editing the note of an organization-only contact ...`; `a local change Google has no field for is marked synced without a write`; new #4; `GooglePersonMappingTests` toUpdate tests (11) | focused command above | Not run: Gradle denied to sub-agent |
-| Assumption: conflicts, Google wins (newer etag on read, 400 FAILED_PRECONDITION, 412) | `when the person changed at Google since the last sync ...`; `when the person changes at Google between the read and the write ...`; `412 for the etag also means Google's version wins` | focused command above | Not run: Gradle denied to sub-agent |
-| Assumption: 404 on read/update trashes the local contact | `a contact deleted at Google before the push ...`; `... between the read and the write ...`; `a person deleted at Google after a stale etag goes to the Trash` | focused command above | Not run: Gradle denied to sub-agent |
-| Assumption: deletes, restore re-creates, tombstones after purge | `a contact moved to the Trash is deleted at Google, and created there again when restored`; `a contact purged from the Trash before the push is still deleted at Google`; `a purged contact whose delete Google refuses is not imported again, and the delete is retried`; `a contact purged after its person was deleted at Google leaves no link behind`; `a delete Google refuses is retried ...`; new #6 | focused command above | Not run: Gradle denied to sub-agent |
-| Error handling: refused writes, rate limits, 5xx, token failures, invalid resource names | `a write Google refuses ...`; `a rate limit fails the run ...`; new #5; `a 5xx answer of the listing ...`; `a listing Google refuses ...`; resource-name tests (3); `GoogleContactsClientTests` (16) | focused command above | Not run: Gradle denied to sub-agent |
-| Adoption of backup-restored contacts, restored-at-Google person | `a contact restored from a backup is adopted ...`; `... that is in the Trash gives up its id ...`; `a person restored at Google after it was deleted there comes back`; `a person that cannot be stored is skipped and reported ...` | focused command above | Not run: Gradle denied to sub-agent |
-| Assumption: which connections are synced, scheduler | `GoogleContactsSyncUnitTests` (6); `the scheduler is off in the test configuration ...` | focused command above | Not run: Gradle denied to sub-agent |
-| Assumption: disconnect forgets state, contacts stay | `disconnecting the Google account forgets its sync state, the contacts stay`; `disconnecting a Microsoft connection leaves the Google sync state alone` | focused command above | Not run: Gradle denied to sub-agent |
-| `ContactService.createSynced` | `createSynced refuses the LOCAL source and keeps the external id of a provider contact` | focused command above | Not run: Gradle denied to sub-agent |
-| AC2: the focused Gradle command passes with Postgres via Testcontainers | whole package, 108 tests (102 existing + 6 new) | focused command above | Not run: Gradle denied to sub-agent; the parent must run it |
+| AC1: incremental sync with sync tokens (full listing page by page, token kept, incremental with token on every page, expired token by 400/410 leads to a full listing plus Trash) | `a first sync lists every contact page by page and keeps the sync token`, `a later sync applies only the changes since the sync token, ...`, `an incremental listing over several pages ...`, `an expired sync token lists everything again ...`, `410 Gone for the sync token also starts a full listing`, `a full listing after an expired token that fails on a later page trashes nothing`, `an expired token answer to a full listing fails the run ...` | `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.contacts.google.*' ktlintCheck --continue` | Pass |
+| AC1: writes with etag (update with etag, stale etag 400 FAILED_PRECONDITION or 412 means Google wins, 404 trashes the contact, delete, re-create after restore) | `a local change is written to Google with the person's etag ...`, `when the person changes at Google between the read and the write, Google's version wins`, `412 for the etag also means Google's version wins`, `a contact deleted at Google between the read and the write goes to the Trash`, `a contact moved to the Trash is deleted at Google, and created there again when restored`, `a change of several field groups is written in one update that names each group` | same | Pass |
+| AC1: WireMock-recorded tests | `GoogleContactsSyncTests` (recorded JSON in `server/src/test/resources/ch/sonensei/cockpit/contacts/google/`), `GoogleContactsClientTests` | same | Pass |
+| Round-2 CR-1: a derived display name is derived again after a push | `an organization-only contact edited twice in a row never gets its old organization as a name`, mapping tests `after a push ...` (3) | same | Pass |
+| Round-2 CR-1, edge case: a local edit during the push | `an organization-only contact whose note is edited while its new organization is pushed never gets the old one as a name` | same | **Fail** (TW-1) |
+| Round-2 CR-1 guard: contact trashed during the push | `a contact moved to the Trash during the push of its change stays there and is deleted at Google by the next run` | same | Pass |
+| Round-2 CR-3: a full listing keeps persons the run just created | `a full listing after an expired token that lags behind does not trash the contact the push just created` | same | Pass |
+| AC2: focused Gradle command passes (Postgres via Testcontainers) | all 115 tests in `ch.sonensei.cockpit.contacts.google.*` | `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.contacts.google.*' ktlintCheck --continue` | **Fail**: 115 tests, 1 failed (TW-1); ktlintCheck passes |
 
 ## Focused test execution
 
 Command:
 
-`cd server && ./gradlew test --tests 'ch.sonensei.cockpit.contacts.google.*'`
+`cd server && ./gradlew test --tests 'ch.sonensei.cockpit.contacts.google.*' ktlintCheck --continue` (Docker/Testcontainers available; 06:16 run on the final test snapshot)
 
 Result:
 
-Not run. This sub-agent is denied `./gradlew`, so the parent worker has to run it. Expected: 108 tests (`GoogleContactsSyncTests` 49, `GooglePersonMappingTests` 37, `GoogleContactsClientTests` 16, `GoogleContactsSyncUnitTests` 6). I checked the new tests statically against the production code paths. Their names, imports and line lengths follow the file's existing ktlint-clean style, but they have not been compiled.
+Fail. 115 tests completed, 1 failed: the new TW-1 regression test at `GoogleContactsSyncTests.kt:646`, expected `biographies` but was `names,biographies`. `ktlintCheck` passes; an earlier run caught a test name longer than 140 characters, which I shortened. The other 114 tests pass, including all 113 that existed before.
 
 ## Full test execution
 
@@ -66,78 +72,134 @@ Command:
 
 Result:
 
-Not run (Gradle denied to sub-agent).
+Not run. The full server suite takes about 10 minutes, according to `fixes.md`. Its result is already known to be Fail because of the new TW-1 test. The parent should run it after the fix.
 
 ## .taskcheck
 
 Result:
 
-Not run (`sh scripts/check.sh` runs Gradle, which this sub-agent is denied).
+Not run. `sh scripts/check.sh` includes `server ./gradlew check`, which fails on TW-1 until the production fix lands. The parent runs it before `done`.
 
 ## Bugs found
 
-None. Reading the final code, I found no behavior that violates the acceptance criteria or the recorded assumptions. This is not confirmed by execution until the parent runs the new tests. If one of the 6 new tests fails, check whether the test or the production code is wrong before changing either.
+### A local edit during the push of a derived-name contact leaves the stale derived name, and the next push writes it to Google as the person's name
+
+Finding ID:
+
+`TW-1`
+
+Test:
+
+`GoogleContactsSyncTests.an organization-only contact whose note is edited while its new organization is pushed never gets the old one as a name`
+
+Production source:
+
+`server/src/main/kotlin/ch/sonensei/cockpit/contacts/google/GoogleContactsSync.kt:287-290` (`markSynced` skips the re-derive when `stored.version != contact.version`), combined with `server/src/main/kotlin/ch/sonensei/cockpit/contacts/google/GooglePersonMapping.kt:186-195` (`namesChanged`), `:203-210` (`derivedNameAfterPush`) and `:228-235` (`mergeNames`).
+
+Requirement:
+
+Task ASSUMPTION (05:28, review CR-5): the display name of a GOOGLE contact is derived from Google, and a display name the cockpit derived is not pushed as a name. Round-2 CR-1 in `fixes.md`: "Otherwise the old derived name would stay and look like a name the user gave, and a later push would write it to Google as the person's name."
+
+Expected behavior:
+
+The organization of an organization-only contact changes. Its note is also edited between the push's GET and PATCH. The next run pushes the note (`updatePersonFields=biographies`) and sends no `names`, and the display name becomes the new derived one ("Other GmbH").
+
+Actual behavior:
+
+1. Run 1 pushes `organizations`. `markSynced` sees that the contact version changed, so it skips the rename. The contact keeps "Fictional GmbH" as its display name.
+2. Run 2 reads the person. Google now has organization "Other GmbH" and no name.
+3. `derivedNameAfterPush` returns null, because "Fictional GmbH" no longer equals the name derived from Google.
+4. `namesChanged` returns true ("Fictional GmbH" != "Other GmbH"), and `mergeNames` keeps the name because it differs from `derivedName`. The PATCH is therefore sent with `updatePersonFields=names,biographies`.
+5. Per the code, the old organization is written as `unstructuredName` "Fictional GmbH", so it becomes a real name at Google. This is the exact outcome CR-1 meant to prevent.
+
+The window is narrow: a user edit between the GET and the PATCH-response transaction of one run. When it is hit, the result is permanent wrong data at Google.
+
+Severity:
+
+Low. It needs a concurrent edit within milliseconds to seconds of the push, but the corruption it causes is silent and persists.
+
+Fix required:
+
+`Yes — production code must be fixed by the parent worker / fixer.` For example: when the re-derive is skipped because the contact changed, keep enough state for the next push to recognize the stale derived name. Another option is to store the derived name in a separate transaction that does not depend on the version. The choice belongs to the fixer.
 
 ## Coverage
 
-Status: unavailable. The configured provider is JaCoCo via `cd server && ./gradlew test jacocoTestReport` (`docs/ARCHITECTURE.md` "Coverage"). This sub-agent is denied every `./gradlew` invocation, so no fresh coverage run exists for this snapshot. I read no existing report: any `server/build/reports/jacoco` output would describe an earlier state, so it is not substituted here.
+Status: partial-failed. The data comes from a fresh run of the final test snapshot, but that run had 1 failing test (TW-1). Every test executed, so the counters are complete for that run. Treat them as diagnostic until a run passes after the fix.
 
-Metric: whole-file coverage of task-changed production files.
-Changed-line coverage: not measured (no fresh JaCoCo XML).
+Metric: whole-file coverage of task-changed production files. The 5 `contacts/google` files are new in this task, so for them whole-file coverage equals changed-line coverage.
+Changed-line coverage: measured separately for `ContactService.kt`, the only modified pre-existing file. I took the JaCoCo line entries in its added range (lines 96-113, `createSynced`): 7/7 executable lines covered, 5/6 branches covered. The missed branch is at line 108, `fields.photoFileId != null`: no synced contact has a photo.
 
 Evidence:
-- Task id, immutable base, measured HEAD, and task-owned commits/file-scope source: `contacts-google`; base `f558cf46a1923daf70c0c7e5d2d44ee774dc6761`; HEAD `dff44523b6c544b4e0d95580bf27faf038cebfd4`; commits 2dd849d18, 369c64b4e, 0a8cd16a9, 2661e7ba2, dff44523b and the scope as given by the parent, cross-checked with `git diff --name-only f558cf46a..HEAD -- server/src/main`.
-- Source/test snapshot identifier (including uncommitted inputs): HEAD dff44523b plus the uncommitted `GoogleContactsSyncTests.kt` (sha256 `a4fd84c26ea7d374fec2889a280acb7d7ef02ac62efe55c459d2da4278fcdf19`). No other uncommitted or untracked files.
-- Exact included files:
-  - `server/src/main/kotlin/ch/sonensei/cockpit/contacts/google/GoogleContactsClient.kt`
-  - `server/src/main/kotlin/ch/sonensei/cockpit/contacts/google/GoogleContactsState.kt`
-  - `server/src/main/kotlin/ch/sonensei/cockpit/contacts/google/GoogleContactsSync.kt`
-  - `server/src/main/kotlin/ch/sonensei/cockpit/contacts/google/GoogleContactsSyncScheduler.kt`
-  - `server/src/main/kotlin/ch/sonensei/cockpit/contacts/google/GooglePersonMapping.kt`
-  - `server/src/main/kotlin/ch/sonensei/cockpit/contacts/domain/ContactService.kt` (materially modified: `createSynced`; whole-file numbers would include pre-existing code)
+- Task id, base, measured HEAD and file-scope source:
+  - Task `contacts-google`. Base `e1aea044cfec34dd7dae7f7c88c819b3598bcab2` and the task commit list come from the parent.
+  - Measured HEAD: `49d2e4ae53abf83924f7e91a5c4d244bf6b9f9f1`.
+  - File scope: `git diff --name-only e1aea044..HEAD -- server/src/main`.
+- Source/test snapshot:
+  - Production files at HEAD, unmodified. Git blobs: `GoogleContactsSync.kt` 2ae2d6ed, `GooglePersonMapping.kt` 6f0427fc, `GoogleContactsClient.kt` 21a9ad41, `GoogleContactsState.kt` 9d0bfc27, `GoogleContactsSyncScheduler.kt` 82b90ef1, `ContactService.kt` 7e6f323e.
+  - Uncommitted `GoogleContactsSyncTests.kt`: sha256 `b01a171e...acae98`. It was the same before and after the run.
+  - The other test files are at their committed blobs.
+- Included files: the 5 `contacts/google` production files, plus `ContactService.kt` (added `createSynced`).
+  - Excluded: `server/src/main/resources/db/migration/contacts/V202610221100__contacts_google_sync.sql`. It is SQL, which JaCoCo cannot instrument. Flyway applies it in every Testcontainers test, so it is exercised indirectly.
+  - Excluded: `server/src/test/resources/config/application.properties` (test configuration).
+  - No renamed or deleted files.
+- Provider, command and selection:
+  - JaCoCo through the Gradle `jacoco` plugin (`server/build.gradle.kts`; the plugin's default version, since the build does not pin one).
+  - Working directory: `server/`.
+  - Commands: `./gradlew test --tests 'ch.sonensei.cockpit.contacts.google.*' ktlintCheck --continue`, then `./gradlew jacocoTestReport -x test`. The report task depends on `test` and does not run after a failed test task, so it was run separately on the fresh exec data.
+  - Selection: all 115 tests in `ch.sonensei.cockpit.contacts.google.*`.
+- Run times and exit status:
+  - Test run: started 06:15:55 and completed about 06:16:40 (+02:00). Exit 1 (1 test failed; ktlint passed).
+  - Report run: completed 06:16:51. Exit 0.
+- Reports:
+  - `server/build/jacoco/test.exec`: written 06:16:40.5, sha256 `b76166e67b8f42ae7ba229e303feafe38288ecdb7e46890f59c39b73caace77f`.
+  - `server/build/reports/jacoco/test/jacocoTestReport.xml`: written 06:16:50.9, sha256 `3629fc9761790a83cf19ee844a32bc4c46d03750785b2dcf0357b218122d5209`.
+- Freshness: the test task re-executed because its test inputs had changed. `test.exec` was rewritten by this run. The test file hash was the same before and after the run, and the production files were unchanged.
+- Final run after the latest test additions: yes. Not yet after a production fix, because TW-1 is still open. After the fixer changes code, this coverage is stale and must be measured again.
 
-  Excluded: `server/src/main/resources/db/migration/contacts/V202610221100__contacts_google_sync.sql` (SQL, not instrumented by JaCoCo; it is applied by Flyway in every Testcontainers test). No renamed or deleted files.
-- Provider/version, command, working directory, and test selection: JaCoCo (Gradle `jacoco` plugin); `./gradlew test --tests 'ch.sonensei.cockpit.contacts.google.*' jacocoTestReport` in `server/`. Not executed (permission denied).
-- Run start/completion time and exit status: no run.
-- Generated report paths and report hashes/run identifier: none. The expected path is `server/build/reports/jacoco/test/jacocoTestReport.xml`.
-- Evidence outputs are fresh and inputs stayed unchanged: not applicable (no run).
-- Final run after latest test additions and production fixes: no. Gradle is denied to this sub-agent.
+Values are covered/total (percentage). The scheduler and state files have no branches, so their branch metric is N/A.
 
-Values below use covered/total (percentage); zero-denominator or unsupported metrics are N/A.
-
-| Changed file | Statements | Branches | Functions | Lines |
+| Changed file | Instructions | Branches | Methods | Lines |
 |---|---:|---:|---:|---:|
-| `contacts/google/GoogleContactsClient.kt` | not measured | not measured | not measured | not measured |
-| `contacts/google/GoogleContactsState.kt` | not measured | not measured | not measured | not measured |
-| `contacts/google/GoogleContactsSync.kt` | not measured | not measured | not measured | not measured |
-| `contacts/google/GoogleContactsSyncScheduler.kt` | not measured | not measured | not measured | not measured |
-| `contacts/google/GooglePersonMapping.kt` | not measured | not measured | not measured | not measured |
-| `contacts/domain/ContactService.kt` | not measured | not measured | not measured | not measured |
+| `server/src/main/kotlin/ch/sonensei/cockpit/contacts/google/GoogleContactsSync.kt` | 1589/1641 (96.8%) | 163/179 (91.1%) | 51/51 (100%) | 252/252 (100%) |
+| `server/src/main/kotlin/ch/sonensei/cockpit/contacts/google/GooglePersonMapping.kt` | 2153/2228 (96.6%) | 247/280 (88.2%) | 39/39 (100%) | 242/244 (99.2%) |
+| `server/src/main/kotlin/ch/sonensei/cockpit/contacts/google/GoogleContactsClient.kt` | 524/525 (99.8%) | 37/38 (97.4%) | 18/18 (100%) | 75/75 (100%) |
+| `server/src/main/kotlin/ch/sonensei/cockpit/contacts/google/GoogleContactsState.kt` | 109/109 (100%) | N/A | 23/23 (100%) | 24/24 (100%) |
+| `server/src/main/kotlin/ch/sonensei/cockpit/contacts/google/GoogleContactsSyncScheduler.kt` | 25/33 (75.8%) | N/A | 2/4 (50.0%) | 8/10 (80.0%) |
+| `server/src/main/kotlin/ch/sonensei/cockpit/contacts/domain/ContactService.kt` (whole file, mostly pre-existing code; google tests only) | 961/1518 (63.3%) | 58/112 (51.8%) | 31/41 (75.6%) | 114/157 (72.6%) |
 
-No aggregate: there are no measured counters. All 6 files are unmeasured, and the migration is excluded as stated above.
+Aggregate for the 5 `contacts/google` files (summed counters):
+- Instructions: 4400/4536 (97.0%)
+- Branches: 447/497 (89.9%)
+- Methods: 133/135 (98.5%)
+- Lines: 601/605 (99.3%)
 
-I compared each branch of the production code with the tests by reading them. This is not instrumented coverage:
+The aggregate excludes `ContactService.kt` (reported per file above, plus its changed-line figure) and the SQL migration (not instrumentable). No scoped file lacked report data.
+
+Remaining uncovered locations:
 
 | File and uncovered lines/branch locations | Required behavior or risk | Action/test added or reason left uncovered |
 |---|---|---|
-| `GoogleContactsSync.kt` `pull()`: `pageToken` loop with a `syncToken` set | AC1: incremental sync over several pages | New test #1 |
-| `GoogleContactsSync.kt` `pull()`: exception from a later page after an expired token (`removeMissing` not reached) | Expired token -> full listing must not trash on an incomplete listing | New test #2 |
-| `GoogleContactsSync.kt` `removeMissing()`: links without `resourceName` | A pending create is not trashed by a full listing | New test #3 |
-| `GoogleContactsSync.kt` `update()`: several groups in `updatePersonFields` | AC1: field-group writes with the etag | New test #4 |
-| `GoogleContactsSync.kt` `sync()`: `GoogleContactsException` raised during the push | A run-level failure keeps the sync token and skips the pull | New test #5 |
-| `GoogleContactsSync.kt` `removedAtGoogle()`: tombstone branch reached from the pull | Tombstones are removed when Google reports the person deleted | New test #6 |
-| `GoogleContactsSync.kt` `push()`: link with neither contact nor resource name (`links.delete`) | Clean-up after a purge | Already covered by `a contact purged after its person was deleted at Google leaves no link behind` |
-| `GoogleContactsSync.kt` `sync()`: lock already held | No overlapping runs | Already covered by `a run already going on for the connection is not started a second time` |
-| `GoogleContactsSync.kt` `create()`: a create response without `etag` (the link stores a null etag; the next push's read then always differs, so Google wins) | Edge case: Google always returns an etag when `personFields` are requested | Left uncovered: not realistic for the People API, and no requirement covers it. Mentioned for the reviewer |
-| `GoogleContactsSyncScheduler.kt`: `GoogleContactsSyncSchedulingConfiguration` bean when the property is missing or true | Default scheduling | Not covered by a Spring context test (tests turn the scheduler off). `run()` is covered by `GoogleContactsSyncUnitTests`. Low risk: plain `@Scheduled` configuration |
-
-Follow-up for the parent: run `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.contacts.google.*' jacocoTestReport`, then read the `<sourcefile>` counters (`INSTRUCTION`, `BRANCH`, `LINE`, `METHOD`) for the files above. These live under package `ch/sonensei/cockpit/contacts/google`, plus `ContactService.kt` in `ch/sonensei/cockpit/contacts/domain`. Then send the results to a test-writer run so they can be recorded here. These numbers must not be taken from an earlier run.
+| `GoogleContactsSync.kt:289` (contact changed or trashed after the push read it) | CR-1 re-derive guard | Covered now by the 2 new tests. The tests found TW-1. |
+| `GoogleContactsSync.kt:161,162,211,301` | `checkNotNull` null branches | Not reachable: `push` only builds these writes with a contact and resource name. No test added. |
+| `GoogleContactsSync.kt:190,284,288,306` | `links.findById` / `contacts.findById` return null (link or contact removed by a concurrent disconnect or purge during an HTTP call) | Defensive branches. Reaching them needs a disconnect during a call; the new `beforeCall` hook could do it if wanted. Low risk: each one just returns. Left uncovered. |
+| `GoogleContactsSync.kt:302` | purged contact whose link has no resource name | Not reachable: `DELETE_PURGED` requires a resource name. |
+| `GoogleContactsSync.kt:335` | 400 without `FAILED_PRECONDITION` on update | Covered in behavior by `a write Google refuses is skipped and reported` (403/other). Only the 400-with-another-reason combination is missing. Low risk. |
+| `GoogleContactsSync.kt:442` | a backup-restored contact of another connection with the same resource name | Cross-connection collision, which needs two Google connections. The test token provider supports one. Left uncovered, not in the criteria. |
+| `GoogleContactsSync.kt:452,453` | person without an etag on a non-forced pull; link to a contact row that is gone | Defensive. Google always sends etags. |
+| `GoogleContactsSync.kt:480` | `removedAtGoogle` for a contact already deleted or missing | Defensive branches. |
+| `GooglePersonMapping.kt` (27 partially covered lines, e.g. 268-274, 329-341, 352-381, 434) | Null/blank fallbacks in entry merging, address and birthday parsing | Mostly elvis/`?.` branches for malformed Google entries. The mapping behavior in the criteria (merge, keep unmodeled parts, cut and limits) is tested by the 40 `GooglePersonMappingTests`. No meaningful gap. |
+| `GoogleContactsClient.kt:52` | one branch of URL building | Trivial. |
+| `GoogleContactsSyncScheduler.kt:14,19` | the scheduling configuration bean (scheduler enabled) | The test configuration turns the scheduler off on purpose (`cockpit.contacts.google.sync.scheduler.enabled=false`). Bootstrap code. |
+| `ContactService.kt:108` | `createSynced` with a photo | The sync never passes a photo (photos are not synced, per the ASSUMPTION). |
 
 ## Unable to test
 
-- Running any test, the full suite, `.taskcheck` and the coverage measurement: Gradle is denied to this sub-agent by the permission policy, not by a transient error. Follow-up: the parent runs them (commands above).
-- Against the real Google People API: not possible here, and not required. Criterion 1 asks for WireMock-recorded tests, which the recordings in `server/src/test/resources/ch/sonensei/cockpit/contacts/google/` provide.
+- The real Google People API is not called; it is reproduced by WireMock with recorded responses, as criterion 1 requires. No follow-up.
+- The scheduler running on its interval in production configuration: off in tests by design. No follow-up for this task.
+- A cross-connection resource-name collision (two Google accounts): the test token provider models one connection. Optional follow-up.
 
 ## Summary
 
-Meaningful task behavior remains untested and requires follow-up. I added 6 tests for gaps in the sync-token paging, the expired-token full listing, multi-group etag writes, rate limits on writes, and tombstone removal. Reading the code, I found no production defects. Neither the 6 new tests nor the existing 102 have been run on this snapshot, and coverage was not measured, because this sub-agent may not run Gradle. The parent must run the focused command and `jacocoTestReport` before this evidence counts.
+Tests added; production defects were discovered and must be passed to the `fixer` before task completion.
+
+TW-1 (Low) breaks criterion 2 until it is fixed: the focused command now fails 1 of 115 tests. After the fix, re-run the focused command, `jacocoTestReport` and this test-writer.
