@@ -4,155 +4,137 @@ Date: 2026-10-22
 
 Task: contacts-birthdays - Birthdays calendar
 
-Scope: the final code of the task after the review fixes (second test-writer run). Task commits rebased onto base `9a47e3f5d674d437515fe536cb7c4a235672588d`: `766bef82` (implementation), `7475d4a4` (tests + earlier report), `df38f677` (review report), `a7dfcc68` (fixes CR-1..3), `14311f86` (task file only). HEAD is `14311f86906a600c99518bf5f3212ce38d0264a1` on `main`. The parent supplied base `a300dc2f` and HEAD `d4a49482`. Main was rebased while this run was in progress. `git diff d4a49482 HEAD -- server web api` is empty, so the code tree I measured is the one the parent asked for. Uncommitted inputs: my edits to `BirthdayCalendarEdgeCaseWebTests.kt`. `reviews/contacts-birthdays/review.md` was also modified in the working tree, but not by me (it is outside this report).
+Scope: the final code of the task, `git diff ecc4a85fdd1237af423d31969dd58df7fda8c883..218c8e72a4e4312ede0082ec13f2d3142fcfe9ef` (base = the claim commit, HEAD = the merge of `origin/wip/contacts-birthdays`, on `main`). This is the third test-writer run. It reviews the final tests, including the two race tests from commit 9cdc69c1 (now `4f75b688`) that came after the second run: rollback, and no wait for an existing calendar. The working tree was clean when I started. I changed no test files in this run.
 
 Requirements:
-- `tasks/contacts-birthdays.md` acceptance criteria and the four recorded ASSUMPTIONs
+- `tasks/contacts-birthdays.md`: acceptance criteria and every ASSUMPTION, including the 05:35 note that `pg_advisory_xact_lock(VIRTUAL_CALENDAR_LOCK)` replaces the `findForUpdate` row lock
 - SPEC.md §8.3 (virtual read-only birthdays calendar)
-- `reviews/contacts-birthdays/review.md` (CR-2 creation race, CR-3 projection) and `fixes.md` (the claimed behavior of the fixes)
-- docs/ARCHITECTURE.md "Coverage"
-- Parent instructions: re-verify `CalendarService.ensureVirtualCalendar` locking (`CalendarSourceRepository.findForUpdate`) and the `BirthdayContact` JPQL projection on the final code
+- `reviews/contacts-birthdays/review.md` and `fixes.md` (CR-1..3, TW-1)
+- docs/ARCHITECTURE.md "Coverage" (informs the test-writer; not a gate, no threshold)
+- Parent instructions: re-run on the final code; the parent ran Gradle, because this helper cannot
 
 ## Test files changed
 
-- `server/src/test/kotlin/ch/sonensei/cockpit/contacts/birthdays/BirthdayCalendarEdgeCaseWebTests.kt` (2 tests added; existing tests unchanged)
+None in this run. The final test files at HEAD are:
 
-`BirthdayCalendarUnitTests.kt` and `BirthdayCalendarWebTests.kt` are unchanged in this run.
+- `server/src/test/kotlin/ch/sonensei/cockpit/contacts/birthdays/BirthdayCalendarUnitTests.kt` (blob `b3556bb3`)
+- `server/src/test/kotlin/ch/sonensei/cockpit/contacts/birthdays/BirthdayCalendarWebTests.kt` (blob `6cd36e7e`)
+- `server/src/test/kotlin/ch/sonensei/cockpit/contacts/birthdays/BirthdayCalendarEdgeCaseWebTests.kt` (blob `fb8e2692`)
 
 ## Tests added or updated
 
-Count: 2 added (package total: 31 tests = 13 unit + 8 web + 10 edge-case)
+Count: 0 in this run. The package has 33 tests: 13 unit, 8 web and 12 edge-case.
 
-- `two first-time creations before any local calendar exists yield one calendar in one local source`: a regression test for the creation race in the case the fix does not cover. It fails, see TW-1.
-- `the birthday projection reads id, name and birthday of the contacts with a birthday not in the Trash`: calls `BirthdayContactRepository.findBirthdays()` directly against Postgres. The contacts are one with a birthday, emails and notes, one with a Feb 29 birthday, one without a birthday, and one with a birthday that is in the Trash. Only the first two come back, with exactly `id`, `displayName` and `birthday`.
+I checked each acceptance criterion, assumption and changed behavior against the 33 tests and found no meaningful gap. For the same reason, I did not add tests for the few uncovered task branches (see Coverage). The two tests added in 9cdc69c1 are correct and deterministic:
+- `a first-time creation that rolls back lets the waiting one create the calendar and its local source`: the second call waits on the advisory lock while the first is open. After the first rolls back, the second creates exactly one calendar in one LOCAL source. The ordering is controlled with latches. The only timing assumption is a 500 ms "still waiting" check, which is the same pattern as the other race tests.
+- `an existing birthdays calendar is returned without waiting for another virtual calendar's creation`: covers the lock-free fast path in `ensureVirtualCalendar`. While another virtual calendar's creation holds the advisory lock, an existing calendar is still returned at once (within 5 s). `finally` releases the other transaction.
 
 ## Requirement coverage
 
+All rows were run by the parent with: `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.contacts.birthdays.*' jacocoTestReport` (Testcontainers Postgres), on HEAD 218c8e72, with a clean tree.
+
 | Requirement | Tests | Command | Result |
 |---|---|---|---|
-| AC1: birthdays appear as yearly all-day occurrences in `GET /calendar/events` from a virtual calendar | `BirthdayCalendarWebTests` (8), `BirthdayCalendarUnitTests` (date logic, 13), `BirthdayCalendarEdgeCaseWebTests` (range/zone/visibility/SPI cases) | `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.contacts.birthdays.*' ktlintCheck` | Pass |
-| AC1: Feb 29 handled (Feb 28 in non-leap years, Feb 29 in leap years, 2100/2400) | `February 29 falls on February 28 in non-leap years and stays on February 29 in leap years`, `a February 29 birthday is not on March 1 and not twice in a leap year`, `a February 29 birthday falls on February 28 in other years` | same | Pass |
-| CR-3 fix: projection reads only id/name/birthday of contacts with a birthday that are not in the Trash (real Postgres JPQL) | `the birthday projection reads id, name and birthday of the contacts with a birthday not in the Trash` (new); indirectly all web tests | same | Pass |
-| CR-2 fix: concurrent first creations, LOCAL source exists: the second call waits and returns the same calendar | `a second first-time creation waits for the first one and returns its calendar` | same | Pass |
-| CR-2 fix: concurrent first creations, no LOCAL source yet: one calendar, one LOCAL source | `two first-time creations before any local calendar exists yield one calendar in one local source` (new) | same | **Fail** (TW-1) |
-| ASSUMPTION: lazy creation (startup / contact change with a birthday), idempotent, keeps the user's name/color/visibility | initializer unit tests, `the calendar is created only once there is a birthday, and only once`, `startup creates the calendar for birthdays saved before`, `ensuring the calendar again keeps the user's name, color and visibility` | same | Pass |
-| ASSUMPTION: read-only, 404 on `GET /calendar/events/{contactId}` | `birthday occurrences cannot be created in, read or changed` | same | Pass |
-| SPI: only LOCAL calendars whose external id is `virtual:` plus a provider key are virtual; an unknown key yields nothing | `a calendar of another source whose external id looks virtual has no computed occurrences`, `a local calendar with an unknown virtual key has no occurrences and does not break the others` | same | Pass |
-| CR-1 contract doc (OpenAPI) | `OpenApiContractTest` (in the full suite) | `cd server && ./gradlew test jacocoTestReport --continue` | Pass |
-| AC2: `./gradlew test --tests 'ch.sonensei.cockpit.contacts.birthdays.*'` passes (Postgres via Testcontainers) | all 31 tests in the package | `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.contacts.birthdays.*' ktlintCheck` | **Fail**: 30 passed, 1 failed (TW-1) |
+| AC1: birthdays appear as yearly all-day occurrences in `GET /calendar/events` from a virtual (read-only, LOCAL, visible, non-default) calendar | `birthdays are yearly all-day occurrences of a read-only virtual calendar`, `a range over several years yields one occurrence per year with the age reached`, `an occurrence is a one-day series member of the contact titled with name and age` | above | Pass |
+| AC1: Feb 29 handled (Feb 28 in non-leap years, Feb 29 in leap years, 2100/2400, never on Mar 1, never twice) | `a February 29 birthday falls on February 28 in other years` (web), `February 29 falls on February 28 in non-leap years and stays on February 29 in leap years`, `a February 29 birthday is not on March 1 and not twice in a leap year` (unit) | above | Pass |
+| AC1: merged with stored events in start order; calendar filter; visibility; hidden but explicitly requested | `occurrences merge with stored events in start order and respect the calendar filter and visibility`, `a hidden birthdays calendar still answers when requested explicitly`, `a range without any birthday keeps the stored events as before` | above | Pass |
+| AC1: range edges in the user's zone, exclusive end, new year | `a range inside the birthday or ending at its start is judged in the user's zone`, `a range over the new year lists the birthdays of both years in date order`, unit tests on range boundaries, empty and inverted ranges | above | Pass |
+| ASSUMPTION: no occurrence in the birth year; age omitted above 130 | `no occurrence before the first birthday, no age for placeholder years`, `there is no occurrence in the year of birth or before`, `the age is shown up to 130 years and omitted above` | above | Pass |
+| ASSUMPTION: Trash and changed birthdays are reflected on the next fetch; projection reads only id/name/birthday | `contacts in the Trash and changed birthdays are reflected`, `the birthday projection reads id, name and birthday of the contacts with a birthday not in the Trash` | above | Pass |
+| ASSUMPTION: lazy creation (startup / contact change with a birthday), only once, keeps the user's name/color/visibility | `the calendar is created only once there is a birthday, and only once`, `startup creates the calendar for birthdays saved before`, `ensuring the calendar again keeps the user's name, color and visibility`, both initializer unit tests | above | Pass |
+| ASSUMPTION: read-only; 404 on `GET /calendar/events/{contactId}` | `birthday occurrences cannot be created in, read or changed` | above | Pass |
+| SPI: only LOCAL `virtual:<key>` calendars are virtual; an unknown key yields nothing | `a calendar of another source whose external id looks virtual has no computed occurrences`, `a local calendar with an unknown virtual key has no occurrences and does not break the others` | above | Pass |
+| ASSUMPTION 05:35 / TW-1 fix: concurrent first creation serialized by the advisory lock (with and without a LOCAL source, rollback of the first, no wait when the calendar exists) | `a second first-time creation waits for the first one and returns its calendar`, `two first-time creations before any local calendar exists yield one calendar in one local source`, `a first-time creation that rolls back lets the waiting one create the calendar and its local source`, `an existing birthdays calendar is returned without waiting for another virtual calendar's creation` | above | Pass |
+| AC2: `./gradlew test --tests 'ch.sonensei.cockpit.contacts.birthdays.*'` passes (Postgres via Testcontainers) | all 33 tests | above | Pass (33/33: Unit 13, Web 8, EdgeCase 12, 0 failures, 0 skipped, per `build/test-results/test/TEST-*.xml`) |
 
 ## Focused test execution
 
 Command:
 
-`cd server && ./gradlew ktlintFormat && ./gradlew test --tests 'ch.sonensei.cockpit.contacts.birthdays.*' ktlintCheck`
+`cd server && ./gradlew test --tests 'ch.sonensei.cockpit.contacts.birthdays.*' jacocoTestReport` (run by the parent, because this helper cannot run Gradle)
 
 Result:
 
-Fail. 31 tests, 1 failed: `BirthdayCalendarEdgeCaseWebTests > two first-time creations before any local calendar exists yield one calendar in one local source` (`expected:<1> but was:<2>` at the `virtual:birthdays` row count). ktlint is clean. The failure reproduced in the full run below.
+Pass. BUILD SUCCESSFUL, 33 tests, 0 failures. I checked the result XMLs: `BirthdayCalendarEdgeCaseWebTests` tests=12, `BirthdayCalendarUnitTests` tests=13, `BirthdayCalendarWebTests` tests=8, all with failures=0, errors=0 and skipped=0. Timestamps are 2026-10-22T04:07:43Z to 04:08:08Z, which is after the HEAD commit at 06:07:25+02:00.
 
 ## Full test execution
 
 Command:
 
-`cd server && ./gradlew test jacocoTestReport --continue` (full server suite, including the calendar tests, Testcontainers Postgres)
+`cd server && ./gradlew test` (full server suite)
 
 Result:
 
-Fail. 4161 tests, 1 failed: the same TW-1 test. All other tests passed, including every `calendar.*` test and `OpenApiContractTest`. The fixer's report mentions an `IcsFeedClientTests` flake; it did not occur in this run. Build time 6m59s. Web and Android are not affected by this task's code in this revision; only the generated `occurrence-response.ts` description changed, and the fixer reported `npm run check` passing for it. I did not rerun them.
+Not run on 218c8e72 in this run, because this helper cannot run Gradle. The second run's full suite (4161 tests) passed except for TW-1, which is now fixed and covered by the passing race tests above. The parent should run the full suite through `.taskcheck` before `done`.
 
 ## .taskcheck
 
 Result:
 
-Not run. `scripts/check.sh` runs `cd server && ./gradlew check`, which includes the failing TW-1 test (the full server suite above), so it would fail on the server step. Rerun it after TW-1 is fixed.
+Not run by this helper (it cannot run Gradle). The task notes say `.taskcheck` passed on 9cdc69c1. The parent runs it before `done`.
 
 ## Bugs found
 
-### Concurrent first creation of the birthdays calendar without a LOCAL source creates two LOCAL sources and two Birthdays calendars
+None in this run.
 
-Finding ID:
+TW-1 from the previous run (concurrent first creation without a LOCAL source made two LOCAL sources and two Birthdays calendars) is fixed by the advisory lock in `CalendarService.ensureVirtualCalendar`. Its regression test `two first-time creations before any local calendar exists yield one calendar in one local source` now passes.
 
-`TW-1`
-
-Test:
-
-`BirthdayCalendarEdgeCaseWebTests > two first-time creations before any local calendar exists yield one calendar in one local source`
-
-Production source:
-
-`server/src/main/kotlin/ch/sonensei/cockpit/calendar/api/CalendarService.kt:106-110` (`ensureVirtualCalendar`) together with `localSource()` at `CalendarService.kt:167-169`
-
-Requirement:
-
-Review finding CR-2 and the documented behavior of the fix (KDoc of `ensureVirtualCalendar`, `fixes.md`): concurrent first calls (two contact commits, or one during the startup check) wait for each other, so the second finds the calendar instead of creating another one. The ASSUMPTION says there is one Birthdays calendar, created lazily once a contact has a birthday. The calendar is often created before any local calendar exists: a user whose first data is contacts has no LOCAL calendar source yet.
-
-Expected behavior:
-
-When no LOCAL source exists, two concurrent `ensureVirtualCalendar("birthdays", ...)` calls leave exactly one LOCAL source and one `virtual:birthdays` calendar, and both calls return that calendar's id.
-
-Actual behavior:
-
-`localSource()` cannot see the first transaction's uncommitted LOCAL source, so the second call creates its own LOCAL source. `findForUpdate` then locks a different row and does not wait. The unique index `calendar_external_id` is on `(source_id, external_id)`, so the second insert does not conflict. Result: 2 LOCAL sources and 2 `virtual:birthdays` calendars, and no error is logged. `virtualKeys` treats both as virtual (both sources are LOCAL), so every birthday is listed twice in `GET /calendar/events`. `localSource()` and the existing `create()` then pick one of the two sources by id. The test reproduces this deterministically with latches (no sleeps decide the outcome). The fixer's own regression test creates a calendar first (`api.createCalendar()`, "the LOCAL source exists"), so this case was not exercised. The unlocked `localSource()` creation already existed in `create()`, but `ensureVirtualCalendar` is new task code that claims concurrency safety, and it is the path that typically creates the first source.
-
-Severity:
-
-Low. It needs two first-time creations at the same moment on an instance without any local calendar, for example two clients saving contacts with birthdays at once on a fresh install, or a contact save during the startup check. The result is persistent (duplicate calendar and duplicate occurrences) and needs manual cleanup.
-
-Fix required:
-
-`Yes — production code must be fixed by the parent worker / fixer.`
+The remaining known limitation is accepted in the 05:35 assumption and the review's CR-1, so it is not a new defect: `CalendarService.create()` creates the LOCAL source without the lock. No test covers a simultaneous `create()` plus first `ensureVirtualCalendar`.
 
 ## Coverage
 
-Status: partial-failed. The coverage data is fresh and complete for the full server suite, but the run exited nonzero because of the TW-1 test. The numbers below are diagnostic until TW-1 is fixed and coverage is re-measured.
+Status: verified (for the focused birthdays suite only; see the limitation below).
 
-Metric: whole-file coverage of task-changed production files.
-Changed-line coverage: measured by intersecting JaCoCo XML per-line counters (`ci > 0`, `cb`/`mb`) with the added lines of `git diff -U0 9a47e3f5..HEAD -- server/src/main` (the same code as `a300dc2f..d4a49482`). Executable changed lines: 74/74 covered (100%). Branches on changed lines: 41/46 covered (89.1%); the 5 missed branches are listed in the gap table. `CalendarDtos.kt`, `CalendarEventController.kt` and `CalendarRepositories.kt` have no executable changed lines (descriptions, an interface annotation).
+Metric: whole-file coverage of task-changed production files, measured from the birthdays suite alone. For the five calendar files this metric mostly reflects pre-existing code that the calendar module's own tests cover, not this suite.
+
+Changed-line coverage: measured. Method: intersect JaCoCo XML per-line counters (`ci > 0`; `cb`/`mb`) with the added/modified lines of `git diff -U0 ecc4a85f..218c8e72 -- <file>`. Result: executable changed lines 77/78 (98.7%), branches on changed lines 46/52 (88.5%). `CalendarDtos.kt` and `CalendarEventController.kt` have no executable changed lines (description strings only).
 
 Evidence:
-- Task id, immutable base, measured HEAD, and task-owned commits/file-scope source: `contacts-birthdays`. Base supplied by the parent: `a300dc2f8dd709f79dbf625afd456659e05ced37` (task commits up to `d4a49482`). After the rebase on main during this run, the base is `9a47e3f5d674d437515fe536cb7c4a235672588d` and the measured HEAD is `14311f86906a600c99518bf5f3212ce38d0264a1`, with commits `766bef82`, `7475d4a4`, `df38f677`, `a7dfcc68`, `14311f86`. Ownership comes from the parent's commit list, matched by commit subject. `git diff d4a49482 HEAD -- server web api` is empty.
-- Source/test snapshot identifier (including uncommitted inputs): HEAD `14311f86` plus the modified `BirthdayCalendarEdgeCaseWebTests.kt` sha256 `9417ee3030c9914e911699797930a68b969305eaaaa740a715c988a82435ee45`. Unchanged: `BirthdayCalendarUnitTests.kt` sha256 `4852b26b7c6cc2cf0e7c57a8a1db51bab4cc418f1d2307d80c547543132c81a2`, `BirthdayCalendarWebTests.kt` sha256 `71d7ae509991ac6f546717c4f11d9e2a2a7064081216c25aab28bec842e282bd`.
-- Exact included files; renamed/deleted/excluded files and reasons: the 9 production files from `git diff --name-only 9a47e3f5..HEAD -- server/src/main` (table below). There are no renames or deletions. `CalendarRepositories.kt` holds only Spring Data repository interfaces, so it compiles to no instrumented bytecode and JaCoCo reports no counters for it: unmeasured, not 100%. Its new `findForUpdate` query runs through Spring Data proxies in the race tests. Excluded: test files, `api/openapi.yaml` and `web/.../occurrence-response.ts` (generated), and the `tasks/` and `reviews/` files.
-- Provider/version, command, working directory, and test selection: JaCoCo through the Gradle `jacoco` plugin. The build configuration is unchanged since the earlier run, which recorded version 0.8.15; I did not query the version again. Command: `./gradlew test jacocoTestReport --continue` in `server/`, full server suite. `jacocoTestReport` was skipped because `test` failed, so I generated the report from this run's `build/jacoco/test.exec` with `./gradlew jacocoTestReport -x test`.
-- Run start/completion time and exit status: about 2026-10-22T05:12:50+02:00 to 05:19:49+02:00 (6m59s, from Gradle's build time and the `test.exec` mtime). Exit status nonzero (BUILD FAILED, 1 test failed). The report was generated at 05:19:56+02:00, exit 0.
-- Generated report paths and report hashes/run identifier: `server/build/jacoco/test.exec` sha256 `f4f3a1d7f63291bfddb7b9400325084a5bd0ce39b81605475bc52082d21d251f` (mtime 05:19:48). `server/build/reports/jacoco/test/jacocoTestReport.xml` sha256 `759f88ef33cba1bd9ab0bd05691fc0c4901e5d40de88d05ed312e1b7a9236d98`.
-- Evidence outputs are fresh and inputs stayed unchanged: yes. The test task ran again (new test compiled in). `test.exec` and the test result XML have this run's timestamps. The test-file hash and the git status were the same before and after the run.
-- Final run after latest test additions and production fixes: yes for the test additions and the CR-1..3 fixes. A fix for TW-1 will make these numbers stale.
+- Task id, immutable base, measured HEAD, and task-owned commits/file-scope source: `contacts-birthdays`. The base is `ecc4a85fdd1237af423d31969dd58df7fda8c883` and the measured HEAD is `218c8e72a4e4312ede0082ec13f2d3142fcfe9ef`, both supplied by the parent. Task commits from `git log ecc4a85f..218c8e72`: `0e65ff39`, `4d1a65ba`, `2a60258e`, `29d59a8b`, `0bea08a0`, `ccf6db89`, `139b2432`, `a00dbc12`, `4f75b688`, and the merge `218c8e72`. The file scope is `git diff --name-only ecc4a85f..218c8e72 -- server/src/main`.
+- Source/test snapshot identifier (including uncommitted inputs): HEAD `218c8e72` with a clean working tree (`git status --porcelain` empty). There are no uncommitted inputs. Test blobs: EdgeCase `fb8e2692`, Unit `b3556bb3`, Web `6cd36e7e`.
+- Exact included files: `contacts/birthdays/BirthdayCalendar.kt`, `contacts/birthdays/BirthdayCalendarInitializer.kt`, `calendar/api/VirtualCalendars.kt`, `calendar/api/CalendarService.kt`, `calendar/api/CalendarEventService.kt`, `calendar/api/CalendarEventController.kt`, `calendar/api/CalendarDtos.kt`, `calendar/recurrence/OccurrenceExpander.kt`, all under `server/src/main/kotlin/ch/sonensei/cockpit/`. There are no renames or deletions. `CalendarRepositories.kt` is no longer in the diff (`findForUpdate` was removed). Excluded: test files, `api/openapi.yaml` and `web/.../occurrence-response.ts` (generated description changes), and `tasks/` and `reviews/`.
+- Provider/version, command, working directory, and test selection: JaCoCo through the Gradle `jacoco` plugin (0.8.15 per the earlier run; the build configuration is unchanged). The command is `./gradlew test --tests 'ch.sonensei.cockpit.contacts.birthdays.*' jacocoTestReport`, run in `server/` by the parent. Only the three birthdays test classes ran: `build/test-results/test/` holds only their three XMLs.
+- Run start/completion time and exit status: tests ran from 2026-10-22T04:07:43Z to 04:08:10Z (result XML timestamps and mtimes). `test.exec` mtime is 06:08:09+02:00 and the report mtime is 06:08:12+02:00. Exit status: BUILD SUCCESSFUL, as reported by the parent.
+- Generated report paths and report hashes/run identifier: `server/build/reports/jacoco/test/jacocoTestReport.xml` sha256 `adfd37a521a481e51fabbf747a4ebef031d055cb0adf642133efb3f26d172a49`. Exec data: `server/build/jacoco/test.exec` (1087675 bytes).
+- Evidence outputs are fresh and inputs stayed unchanged: yes. The report postdates the HEAD commit. The tree was clean, and I made no source or test changes in this run.
+- Final run after latest test additions and production fixes: yes. It ran on the final HEAD 218c8e72, after the 9cdc69c1 race tests and the advisory-lock fix.
 
-Values below use covered/total (percentage). JaCoCo has no statement counter; the Statements column shows INSTRUCTION counters.
+Values come from the JaCoCo XML per source file, as covered/total (percentage). JaCoCo has no statement counter, so the Statements column uses INSTRUCTION counters. The parent quoted class-level counters (for example `BirthdayCalendarProvider` 15/15 lines + `BirthdayContact` 4/4 = 19/19 for the file; `CalendarService` class 71/77, whose file also contains `CalendarView`/`CalendarChanges`). The file-level values below are consistent with those.
 
 | Changed file | Statements (instructions) | Branches | Functions (methods) | Lines |
 |---|---:|---:|---:|---:|
-| `server/src/main/kotlin/ch/sonensei/cockpit/contacts/birthdays/BirthdayCalendar.kt` | 141/141 (100%) | 10/10 (100%) | 8/8 (100%) | 19/19 (100%) |
-| `server/src/main/kotlin/ch/sonensei/cockpit/contacts/birthdays/BirthdayCalendarInitializer.kt` | 43/43 (100%) | 8/8 (100%) | 4/4 (100%) | 11/11 (100%) |
-| `server/src/main/kotlin/ch/sonensei/cockpit/calendar/api/VirtualCalendars.kt` | 64/68 (94.1%) | N/A (0 branches) | 8/8 (100%) | 8/8 (100%) |
-| `server/src/main/kotlin/ch/sonensei/cockpit/calendar/api/CalendarService.kt` | 666/697 (95.6%) | 59/62 (95.2%) | 24/25 (96.0%) | 83/84 (98.8%) |
-| `server/src/main/kotlin/ch/sonensei/cockpit/calendar/api/CalendarEventService.kt` | 3092/3133 (98.7%) | 347/362 (95.9%) | 53/55 (96.4%) | 375/378 (99.2%) |
-| `server/src/main/kotlin/ch/sonensei/cockpit/calendar/api/CalendarEventController.kt` | 653/659 (99.1%) | 35/36 (97.2%) | 12/14 (85.7%) | 72/73 (98.6%) |
-| `server/src/main/kotlin/ch/sonensei/cockpit/calendar/api/CalendarDtos.kt` | 1411/1505 (93.8%) | 34/40 (85.0%) | 104/122 (85.2%) | 213/213 (100%) |
-| `server/src/main/kotlin/ch/sonensei/cockpit/calendar/recurrence/OccurrenceExpander.kt` | 891/931 (95.7%) | 81/96 (84.4%) | 31/33 (93.9%) | 105/106 (99.1%) |
-| `server/src/main/kotlin/ch/sonensei/cockpit/calendar/model/CalendarRepositories.kt` | N/A (no bytecode) | N/A | N/A | N/A |
-| Aggregate (summed counters over the 8 measured files; `CalendarRepositories.kt` unmeasured, see above) | 6961/7177 (97.0%) | 574/614 (93.5%) | 244/269 (90.7%) | 886/892 (99.3%) |
+| `contacts/birthdays/BirthdayCalendar.kt` | 141/141 (100%) | 10/10 (100%) | 8/8 (100%) | 19/19 (100%) |
+| `contacts/birthdays/BirthdayCalendarInitializer.kt` | 43/43 (100%) | 8/8 (100%) | 4/4 (100%) | 11/11 (100%) |
+| `calendar/api/VirtualCalendars.kt` | 64/68 (94.1%) | N/A (0 branches) | 8/8 (100%) | 8/8 (100%) |
+| `calendar/api/CalendarService.kt` | 571/720 (79.3%) | 40/64 (62.5%) | 24/26 (92.3%) | 79/86 (91.9%) |
+| `calendar/api/CalendarEventService.kt` | 577/3133 (18.4%) | 53/362 (14.6%) | 14/55 (25.5%) | 83/378 (22.0%) |
+| `calendar/api/CalendarEventController.kt` | 186/659 (28.2%) | 1/36 (2.8%) | 4/14 (28.6%) | 37/73 (50.7%) |
+| `calendar/api/CalendarDtos.kt` | 977/1505 (64.9%) | 21/40 (52.5%) | 77/122 (63.1%) | 182/213 (85.4%) |
+| `calendar/recurrence/OccurrenceExpander.kt` | 356/931 (38.2%) | 22/96 (22.9%) | 24/33 (72.7%) | 52/106 (49.1%) |
+| Aggregate (summed counters, all 8 files measured, none excluded) | 2915/7200 (40.5%) | 155/616 (25.2%) | 163/270 (60.4%) | 471/894 (52.7%) |
 
-Most uncovered counters in the five calendar files are pre-existing code outside the task's changed lines: `CalendarService.kt:26-31, 157`; `CalendarEventService.kt:93, 145, 266-267, 413, 420, 533, 561, 604, 734-756`; `CalendarDtos.kt:56-57, 104, 164, 173-174, 246-270`; `CalendarEventController.kt:234, 263, 282`; `OccurrenceExpander.kt:101, 124-248`. They are not listed one by one below.
+The low whole-file values in the five calendar files are pre-existing code (event CRUD, recurrence edits, series scopes, the other DTOs and endpoints) that only the calendar module's tests exercise. Those tests were not part of this focused run. Second run, full suite, same files before the advisory-lock change: CalendarService 83/84 lines, CalendarEventService 375/378, OccurrenceExpander 105/106. This run does not re-measure those values.
+
+Uncovered task code (changed lines):
 
 | File and uncovered lines/branch locations | Required behavior or risk | Action/test added or reason left uncovered |
 |---|---|---|
-| `CalendarService.kt:104-111` (no line or branch gap, but a behavior gap) | Concurrent first creation without a LOCAL source | Test added; it fails: TW-1 |
-| `BirthdayCalendar.kt:22-27` (JPQL projection; JaCoCo cannot see the query) | CR-3: only contacts with a birthday that are not in the Trash; correct column mapping | Test added: `the birthday projection reads ...` (Pass) |
-| `CalendarEventService.kt:107` (`providers.isEmpty()` true branch) | No virtual provider registered | Not reachable in the application context (the birthdays provider is always a bean); defensive, non-material |
-| `CalendarEventService.kt:112` (2 branches of the overlap filter, plus the null branch of `providers[key]?`, which is reported as partial) | A provider returning occurrences outside the requested days | The birthdays provider already returns only in-range occurrences (unit-tested). A test would need a fake provider bean and its own Spring context; non-material. The unknown-key path is tested at the API level. |
+| `OccurrenceExpander.kt:139` (`return ordered(generated + overridden, range.zone)` in series expansion) | Refactor only: stored recurring series now sort through the shared `ordered()` | Not exercised by the birthdays suite, because no birthday test stores a recurring series. The calendar recurrence tests cover it; the second run's full suite covered this file at 105/106 lines. Justified gap. |
+| `CalendarEventService.kt:107` (`providers.isEmpty()` true branch) | No virtual provider registered | Not reachable in the application context (the birthdays provider is always a bean); defensive |
+| `CalendarEventService.kt:112` (2 branches: the overlap filter rejecting a provider's out-of-range occurrence, and `providers[key]?` with a known key and a null result) | A provider returning occurrences outside the requested days | The only provider already returns in-range occurrences only (unit-tested). A test would need a fake provider bean and its own Spring context. The unknown-key path is tested at the API level. Non-material. |
 | `CalendarEventService.kt:121` (`occurrenceDate == null`) | Virtual occurrence without a series date | The only provider always sets it; non-material |
-| `CalendarService.kt:126` (1 branch: LOCAL calendar with a non-null external id not starting with `virtual:`) | Other LOCAL calendars with external ids | LOCAL calendars normally have a null external id; the non-LOCAL and unknown-key cases are tested; non-material |
-| `VirtualCalendars.kt:15-16` (default values of `seriesId` / `occurrenceDate`) | Data-class defaults | The only provider always passes both; non-material |
+| `CalendarService.kt:131` (1 branch: a LOCAL calendar whose non-null external id does not start with `virtual:`) | Other LOCAL calendars with an external id | LOCAL calendars normally have a null external id. The non-LOCAL and unknown-key cases are tested. Non-material. |
+| `CalendarService.kt:173` (1 branch of `firstOrNull { type == LOCAL }`: a non-LOCAL source listed first) | Picking the LOCAL source when other sources exist | Exercised when a feed source sorts first by id. That depends on random ids in the impostor test, so this run did not hit it. The predicate is pre-existing logic moved into `existingLocalSource()`. Non-material. |
+| `VirtualCalendars.kt:15-16` (data-class default values of `endDate` / `seriesId` / `occurrenceDate`, 4 instructions) | Defaults of the SPI data class | The only provider passes all values explicitly; non-material |
 
 ## Unable to test
 
-- The startup check (`ApplicationReadyEvent`) racing a contact commit was not tested as a real event race. It uses the same `ensureVirtualCalendar` path as the two race tests, so TW-1 and its fix apply to it as well.
-- Contact changes arriving through provider sync (CardDAV/Google/Microsoft) were not exercised separately. They go through the same `ChangeEvent` path that the initializer unit test covers.
-- Web and Android handling of birthday occurrences (opening one in the event dialog) is out of scope. It is the follow-up task `web-and-birthday-occurrences`.
+- Full server suite and `.taskcheck` on 218c8e72: this helper cannot run Gradle. The parent must run them before `done`.
+- The startup check (`ApplicationReadyEvent`) racing a real contact commit was not tested as an event race. It uses the same `ensureVirtualCalendar` path and lock as the four race tests.
+- `CalendarService.create()` racing a first `ensureVirtualCalendar` (possible second LOCAL source): this is accepted behavior per the 05:35 assumption and CR-1, so no test was added. Follow-up only if humans reject that assumption.
+- Contact changes through provider sync (CardDAV/Google/Microsoft) were not exercised separately. They publish the same `ChangeEvent` that the initializer tests cover.
+- Web and Android handling of birthday occurrences is out of scope (follow-up task `web-and-birthday-occurrences`).
 
 ## Summary
 
-Tests added; production defects were discovered and must be passed to the `fixer` before task completion. TW-1 (Low): a concurrent first creation without an existing LOCAL calendar source creates duplicate LOCAL sources and duplicate Birthdays calendars. All other 4160 server tests pass. The CR-2 lock works when a LOCAL source exists, and the CR-3 projection is verified against Postgres. Coverage numbers are fresh but partial-failed because of the TW-1 test, so coverage must be re-measured after the fix.
+Tests and task-scoped coverage are sufficient; no production defects found. All 33 birthdays tests pass on the final revision 218c8e72, including the regression test for TW-1 and the rollback and no-wait race tests. Both acceptance criteria are covered. All new birthdays code is fully covered: changed lines 77/78 and changed branches 46/52, with the remaining gaps defensive or covered by the calendar suite. The full server suite and `.taskcheck` still have to be run by the parent.

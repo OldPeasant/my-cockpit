@@ -1,0 +1,27 @@
+{
+  "schema": 1,
+  "task": "contacts-birthdays",
+  "reviewed_revision": "218c8e72a4e4312ede0082ec13f2d3142fcfe9ef",
+  "helpers": {
+    "test-writer": {"status": "completed", "report": "reviews/contacts-birthdays/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/contacts-birthdays/review.md"},
+    "fixer": {"status": "completed", "report": "reviews/contacts-birthdays/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "first round: birthday occurrence eventIds are documented as virtual; /calendar/events/{id} returns 404 for them"},
+    {"id": "CR-2", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "first round: concurrent first creation of the virtual calendar serialized (now by pg_advisory_xact_lock)"},
+    {"id": "CR-3", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "first round: occurrence requests load only id/name/birthday projections of contacts"},
+    {"id": "TW-1", "source": "test-writer", "severity": "P3", "disposition": "fixed",
+     "note": "two first creations without a LOCAL source made two sources; advisory lock fixes it, regression test passes"},
+    {"id": "CR-1 (re-review)", "source": "code-reviewer", "severity": "P3", "disposition": "accepted",
+     "note": "create() takes the LOCAL source without the lock; accepted by the 05:35 assumption (single-user, negligible). Final review at 218c8e72 has no findings"}
+  ],
+  "validation": [
+    {"command": "cd server && ./gradlew test --tests 'ch.sonensei.cockpit.contacts.birthdays.*' jacocoTestReport", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
