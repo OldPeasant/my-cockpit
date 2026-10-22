@@ -1,0 +1,28 @@
+{
+  "schema": 1,
+  "task": "web-today-habits",
+  "reviewed_revision": "af92f0544a0d8d71bfa7c04c6a6d67b0d9aaa184",
+  "helpers": {
+    "test-writer":   {"status": "completed", "report": "reviews/web-today-habits/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/web-today-habits/review.md"},
+    "fixer":         {"status": "completed", "report": "reviews/web-today-habits/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "reload on return now uses refresh() like HabitsPage"},
+    {"id": "CR-2", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "overlap and conflict tests added by the test-writer"},
+    {"id": "CR-3", "source": "code-reviewer", "severity": "P3", "disposition": "deferred",
+     "note": "shared check label/error helpers need features/habits (outside touches); follow-up task web-habits-shared-labels"},
+    {"id": "TW-1", "source": "test-writer", "severity": "Medium", "disposition": "fixed",
+     "note": "loading note no longer stuck when returning during the first load"},
+    {"id": "TW-2", "source": "test-writer", "severity": "Low", "disposition": "fixed",
+     "note": "load error cleared after a successful reload on return"}
+  ],
+  "validation": [
+    {"command": "cd web && npx ng test --include='src/app/features/gtd/today/*.spec.ts'", "result": "pass"},
+    {"command": "cd web && npm run check", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
