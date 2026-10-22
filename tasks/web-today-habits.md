@@ -15,3 +15,4 @@ Today shows habits due.
 - [ ] Vitest component/service tests cover habits section; `cd web && npm run check` passes
 
 ## Notes
+- ASSUMPTION (2026-10-22 03:48+0200 by dell26/agent-1): Today habits section is hidden when the user has no active habits, shows 'No habits due today' when habits exist but none is due; registered via provideTodaySection in today.routes.ts (order 10); messages.xlf left to a dedicated extract like other web tasks
