@@ -5,7 +5,7 @@ owner: dell26/agent-1
 deps: [contacts-api,oauth-connections]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/contacts/google,server/src/test/kotlin/ch/sonensei/cockpit/contacts/google]
 prio: 2
-lease_until: 2026-10-22T03:58:51Z
+lease_until: 2026-10-22T04:03:55Z
 extended: dell26/agent-1
 ---
 ## Goal
