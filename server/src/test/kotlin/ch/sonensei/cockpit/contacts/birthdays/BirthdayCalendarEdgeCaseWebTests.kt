@@ -241,6 +241,58 @@ class BirthdayCalendarEdgeCaseWebTests(
 	}
 
 	@Test
+	fun `a first-time creation that rolls back lets the waiting one create the calendar and its local source`() {
+		val inserted = CountDownLatch(1)
+		val rollBack = CountDownLatch(1)
+		val first =
+			CompletableFuture.runAsync {
+				TransactionTemplate(transactions).executeWithoutResult { status ->
+					calendarService.ensureVirtualCalendar(BirthdayCalendarProvider.KEY, "Birthdays", null)
+					inserted.countDown()
+					rollBack.await(10, TimeUnit.SECONDS)
+					status.setRollbackOnly()
+				}
+			}
+		inserted.await(10, TimeUnit.SECONDS) shouldBe true
+
+		val second = CompletableFuture.supplyAsync { calendarService.ensureVirtualCalendar(BirthdayCalendarProvider.KEY, "Birthdays", null).id }
+		shouldThrow<TimeoutException> { second.get(500, TimeUnit.MILLISECONDS) }
+		rollBack.countDown()
+		first.get(10, TimeUnit.SECONDS)
+		val secondId = second.get(10, TimeUnit.SECONDS)
+
+		// The rolled-back attempt left nothing behind and did not keep the second call waiting.
+		jdbc.queryForObject("select id from calendar where external_id = 'virtual:birthdays'", UUID::class.java) shouldBe secondId
+		jdbc.queryForObject("select count(*) from calendar_source where type = 'LOCAL'", Int::class.java) shouldBe 1
+	}
+
+	@Test
+	fun `an existing birthdays calendar is returned without waiting for another virtual calendar's creation`() {
+		contact("Ada Lovelace", "1990-12-10")
+		val birthdays = birthdaysCalendar()
+		val inserted = CountDownLatch(1)
+		val commit = CountDownLatch(1)
+		val other =
+			CompletableFuture.runAsync {
+				TransactionTemplate(transactions).executeWithoutResult {
+					calendarService.ensureVirtualCalendar("fictitious-other", "Other", null)
+					inserted.countDown()
+					commit.await(10, TimeUnit.SECONDS)
+				}
+			}
+		try {
+			inserted.await(10, TimeUnit.SECONDS) shouldBe true
+
+			// The other creation is still open; finding the existing calendar does not wait for it.
+			val again = CompletableFuture.supplyAsync { calendarService.ensureVirtualCalendar(BirthdayCalendarProvider.KEY, "Birthdays", null).id }
+			again.get(5, TimeUnit.SECONDS).toString() shouldBe birthdays.id()
+		} finally {
+			commit.countDown()
+			other.get(10, TimeUnit.SECONDS)
+		}
+	}
+
+	@Test
 	fun `the birthday projection reads id, name and birthday of the contacts with a birthday not in the Trash`() {
 		val ada =
 			api.read(
