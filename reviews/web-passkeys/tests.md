@@ -199,10 +199,56 @@ Values below use covered/total (percentage); zero-denominator or unsupported met
 - The visual layout (passkey button below the form, the "or" divider) has no unit test. Not
   needed for the criteria.
 
+## Revision 587a4cf4f (e2e locator fix)
+
+Scope: commit `587a4cf4f8cd05e3a5f4f329befe2fe6690b8eee` on top of `b29ee70e0` (review report).
+`git diff --stat 651bef4f8 587a4cf4f` shows only `reviews/web-passkeys/*`, the unit spec files
+listed above, and three e2e specs. No production code changed since the measured task commit.
+
+What changed: `getByRole('button', { name: 'Sign in' })` became
+`getByRole('button', { name: 'Sign in', exact: true })` in `web/e2e/phase0/demo.spec.ts` (lines 94
+and 183), `web/e2e/phase2/demo.spec.ts` (line 372) and `web/e2e/support/smoke.spec.ts` (line 13).
+Reason: the login page now has a second button, "Sign in with a passkey". Playwright's default
+name match is a case-insensitive substring match, so the old locator matched both buttons and
+failed in strict mode. This change is a regression fix for existing e2e specs that the task
+broke. It does not weaken them: they still target the same password "Sign in" button (`login.html:93-100`).
+
+Ambiguity check (test-writer, grep):
+- `grep -rnE "name: *['\"]Sign in" web/e2e web/src`: every `Sign in` button locator now uses
+  `exact: true`. The only other matches are `getByRole('button', { name: 'Sign in with a passkey' })`
+  (unique) and `getByRole('heading', { name: 'Sign in' })` in `web/e2e/passkeys/passkeys.spec.ts:73`.
+  The login page has one heading (`login.html:2`), so that locator is not ambiguous.
+- `grep -rniE "/sign ?in|hasText: *['\"]sign in|getByText\(['\"]sign in" web/e2e web/src`: no
+  matches (no regex or text locators that could hit both buttons).
+- The unit specs (`web/src/**/*.spec.ts`) query the login DOM with CSS selectors or text
+  assertions, not substring role locators, so they are not affected. `login.spec.ts` already checks
+  the passkey button text exactly (`toBe('Sign in with a passkey')`).
+- No other ambiguous `Sign in` locators remain.
+
+Commands run by the test-writer (in `web/`, on HEAD `587a4cf4f`, clean working tree before this
+report edit):
+- `npm run e2e:typecheck` (`tsc -p e2e/tsconfig.json`): Pass, exit 0, no output.
+- `npm run lint` (`ng lint --max-warnings=0`): Pass, "All files pass linting."
+
+E2e execution: not run by the test-writer, as the parent instructed. Parent-reported results:
+before the fix, `npm run e2e -- e2e/passkeys/passkeys.spec.ts` (with the phase-demos project)
+failed in phase0 step 3 and phase2 step 5 with "strict mode violation: getByRole('button',
+{ name: 'Sign in' }) resolved to 2 elements". After the fix,
+`npm run e2e -- e2e/passkeys/passkeys.spec.ts e2e/support/smoke.spec.ts` on the podman e2e stack
+(includes phase-demos) gave 35 passed. This report did not reproduce those runs. AC3 evidence
+comes from the parent's `tasks.py verify`.
+
+Unit tests and coverage: unchanged. This commit touches only e2e specs, which are not part of the
+Vitest unit suite or its v8 coverage. Production code is identical to `651bef4f8`, so the coverage
+figures in the "Coverage" section still describe the current production code. They were not
+re-measured for this revision.
+
 ## Summary
 
 Tests added and all validation passed. The focused suite (224 tests), the full web suite with
 coverage (3453 tests), `npm run lint` and `.taskcheck` all pass, and no production defects were
 found. Task-scoped whole-file coverage is 99.44% of statements, 95.36% of branches, 100% of
 functions and 99.66% of lines. Changed-line coverage is 160/161. AC3 (e2e) was not run by the
-test-writer.
+test-writer. Revision `587a4cf4f` makes the `Sign in` button locators exact in three existing e2e
+specs. A grep found no other ambiguous `Sign in` locators, and `npm run e2e:typecheck` and
+`npm run lint` pass. Production code and unit coverage are unchanged.
