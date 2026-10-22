@@ -14,6 +14,7 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.IOException
+import java.net.IDN
 import java.time.Clock
 import java.time.Instant
 import java.time.ZoneId
@@ -172,10 +173,47 @@ class CaptureQueue internal constructor(
         /** The server accepts bookmark titles of at most this many characters (`CreateBookmarkRequest.title`). */
         const val MAX_TITLE_LENGTH = 500
 
-        private val HTTP_URL = Regex("""(?i)https?://[^\s/?#]+(?:[/?#]\S*)?""")
+        private val HTTP_URL = Regex("""(?i)https?://([^\s/?#]*)(?:[/?#]\S*)?""")
+        private val HOST_NAME = Regex("""[A-Za-z0-9_\-]+(\.[A-Za-z0-9_\-]+)*\.?""")
+        private val IPV6 = Regex("""\[[0-9A-Fa-f:.]+]""")
+        private val PORT = Regex("""\d{0,5}""")
 
-        /** An absolute http(s) URL with a host, without whitespace and short enough for the server. */
-        fun isBookmarkUrl(url: String): Boolean = url.length <= MAX_URL_LENGTH && HTTP_URL.matches(url)
+        /**
+         * An absolute http(s) URL without whitespace, short enough for the server and with an authority the server
+         * accepts (its `BookmarkUrls.normalize`): optional user info, then a host name (also in Unicode) or an IPv6
+         * literal, then an optional port of at most 5 digits.
+         */
+        fun isBookmarkUrl(url: String): Boolean {
+            if (url.length > MAX_URL_LENGTH) return false
+            val authority = HTTP_URL.matchEntire(url)?.groupValues?.get(1) ?: return false
+            return isHostAndPort(authority.substringAfterLast('@'))
+        }
+
+        private fun isHostAndPort(hostPort: String): Boolean {
+            val host: String
+            val port: String?
+            if (hostPort.startsWith("[")) {
+                val end = hostPort.indexOf(']')
+                if (end < 0) return false
+                val rest = hostPort.substring(end + 1)
+                if (rest.isNotEmpty() && !rest.startsWith(":")) return false
+                host = hostPort.substring(0, end + 1)
+                port = rest.takeIf { it.isNotEmpty() }?.substring(1)
+            } else {
+                host = hostPort.substringBefore(':')
+                port = if (':' in hostPort) hostPort.substringAfter(':') else null
+            }
+            if (port != null && !PORT.matches(port)) return false
+            if (host.startsWith("[")) return IPV6.matches(host)
+            if (host.isEmpty()) return false
+            val ascii =
+                try {
+                    IDN.toASCII(host, IDN.ALLOW_UNASSIGNED)
+                } catch (_: IllegalArgumentException) {
+                    return false
+                }
+            return HOST_NAME.matches(ascii)
+        }
 
         private fun String.shortened(max: Int): String =
             if (length <= max) this else take(if (this[max - 1].isHighSurrogate()) max - 1 else max)

@@ -76,6 +76,12 @@ class ReadLaterQueueTest {
                 "https://",
                 "https://exa mple.org",
                 "https://e.org/" + "a".repeat(2_048),
+                "https://example.org:abc/",
+                "https://example.org:123456/",
+                "https://user@/",
+                "https://[::1/",
+                "https://[::1]x/",
+                "https://exa\$mple.org/",
             )) {
                 try {
                     q.queue.readLater(url)
@@ -85,6 +91,42 @@ class ReadLaterQueueTest {
             }
             assertTrue(q.dao.sendableBookmarks().isEmpty())
             assertEquals(0, q.scheduler.scheduled)
+        }
+
+    @Test
+    fun `URLs with an authority the server accepts are queued`() =
+        runBlocking {
+            val urls =
+                listOf(
+                    "https://example.org",
+                    "http://example.org:8080/a?b=c#d",
+                    "https://user:secret@example.org/",
+                    "https://[2001:db8::1]:443/",
+                    "https://my_site.example.org./",
+                    "https://bücher.example/",
+                )
+            for (url in urls) q.queue.readLater(url)
+            assertEquals(urls, q.dao.sendableBookmarks().map { it.url })
+        }
+
+    @Test
+    fun `a 2xx answer that cannot be read still counts as sent, so the bookmark is not saved twice`() =
+        runBlocking {
+            q.queue.readLater("https://example.org/a")
+            server.enqueue(answer(201, bookmarkJson("https://example.org/a").replace("\"PENDING\"", "\"SOMETHING_NEW\"")))
+
+            assertEquals(SendResult.DONE, q.uploader.sendAll())
+            assertEquals(BOOKMARKS, take()!!.url.encodedPath)
+            assertTrue(q.dao.sendableBookmarks().isEmpty())
+            assertEquals(
+                0,
+                q.queue.status
+                    .first()
+                    .pendingCount,
+            )
+
+            assertEquals(SendResult.DONE, q.uploader.sendAll())
+            assertNull(take())
         }
 
     @Test

@@ -9,6 +9,7 @@ import ch.sonensei.cockpit.core.network.generated.models.CreateBookmarkRequest
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.SerializationException
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.MultipartBody
 import okhttp3.RequestBody.Companion.asRequestBody
@@ -108,6 +109,10 @@ class CaptureUploader internal constructor(
                     bookmarksApi.createBookmark(request).code()
                 } catch (_: IOException) {
                     return Outcome.Retry(OFFLINE)
+                } catch (_: SerializationException) {
+                    // Retrofit only decodes the body of a 2xx answer: the server saved the bookmark, but its answer
+                    // does not fit this app's model (e.g. a newer server). Sending it again would save it again.
+                    return Outcome.Sent
                 }
             if (code in 200..299) Outcome.Sent else failure(code)
         } catch (e: CancellationException) {
