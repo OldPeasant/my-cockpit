@@ -634,4 +634,132 @@ describe('HabitsPage', () => {
     expect(row(READ)).toBeNull();
     expect(text(root.querySelector('.empty'))).toContain('No archived habits');
   });
+
+  it('uses the singular and plural of days and weeks for streaks', async () => {
+    const one = { ...READ, stats: { ...READ.stats, currentStreak: 1, longestStreak: 1 } };
+    const none = { ...RUN, stats: { ...RUN.stats, currentStreak: 0, longestStreak: 2 } };
+    await create([one, none]);
+
+    expect(text(row(READ).querySelector('.streak dd'))).toBe('1 day');
+    expect(text(row(READ).querySelector('.best dd'))).toBe('1 day');
+    expect(text(row(RUN).querySelector('.streak dd'))).toBe('0 weeks');
+    expect(row(RUN).querySelector('.streak')?.classList).not.toContain('hot');
+    expect(text(row(RUN).querySelector('.best dd'))).toBe('2 weeks');
+  });
+
+  function becomeVisible(state: DocumentVisibilityState = 'visible'): void {
+    const visibility = vi.spyOn(document, 'visibilityState', 'get').mockReturnValue(state);
+    try {
+      document.dispatchEvent(new Event('visibilitychange'));
+    } finally {
+      visibility.mockRestore();
+    }
+  }
+
+  it('reloads the habits when the page becomes visible again, keeping the list meanwhile', async () => {
+    await create([READ]);
+
+    becomeVisible();
+    await settle();
+    // The list stays on screen while the new day's habits load.
+    expect(root.querySelector('.hint')).toBeNull();
+    expect(row(READ)).not.toBeNull();
+    const nextDay = { ...READ, stats: { ...READ.stats, today: '2026-10-23', currentStreak: 5 } };
+    await flushList([nextDay]);
+    expect(text(row(READ).querySelector('.streak dd'))).toBe('5 days');
+
+    // The next check goes to the new day.
+    checkButton(READ).click();
+    http
+      .expectOne((r) => r.method === 'PUT' && r.url === `${LIST}/${READ.id}/checks/2026-10-23`)
+      .flush({ ...nextDay, stats: { ...nextDay.stats, todayCount: 1, doneToday: true } });
+    await settle();
+  });
+
+  it('does not reload when the page is hidden, a form is open or a check is running', async () => {
+    await create([READ]);
+
+    becomeVisible('hidden');
+    await settle();
+
+    await openEditAndType(READ, 'Read 30 pages');
+    becomeVisible();
+    await settle();
+    (row(READ).querySelector('.cancel') as HTMLButtonElement).click();
+    await settle();
+
+    checkButton(READ).click();
+    becomeVisible();
+    await settle();
+    http.expectOne((r) => r.method === 'PUT').flush(READ);
+    await settle();
+    // No GET besides the first load (http.verify() in afterEach).
+  });
+
+  it('does not reload while the habits are still loading', async () => {
+    await create([READ]);
+    (root.querySelector('.show-archived') as HTMLButtonElement).click();
+    await settle();
+
+    becomeVisible();
+    await settle();
+    await flushList([], true);
+  });
+
+  it('tries a failed load again when the page becomes visible', async () => {
+    notifications = { error: vi.fn(), info: vi.fn() };
+    TestBed.configureTestingModule({
+      providers: [
+        provideHttp(),
+        provideHttpClientTesting(),
+        provideRouter([]),
+        { provide: NotificationService, useValue: notifications },
+      ],
+    });
+    http = TestBed.inject(HttpTestingController);
+    fixture = TestBed.createComponent(HabitsPage);
+    root = fixture.nativeElement as HTMLElement;
+    fixture.detectChanges();
+    http.expectOne((r) => r.url === LIST).flush(...problem(502, 'Bad gateway.'));
+    await settle();
+    expect(root.querySelector('.load-error')).not.toBeNull();
+
+    becomeVisible();
+    await settle();
+    await flushList([READ]);
+    expect(root.querySelector('.load-error')).toBeNull();
+    expect(row(READ)).not.toBeNull();
+  });
+
+  it('stops listening for the page becoming visible when destroyed', async () => {
+    await create([READ]);
+    fixture.destroy();
+
+    becomeVisible();
+    await tick();
+    // No reload (http.verify() in afterEach).
+  });
+
+  it('ignores a conflict reload that arrives after a newer load of the same view', async () => {
+    await create([READ]);
+    await openEditAndType(READ, 'Read 30 pages');
+    await clickSave(READ);
+    http.expectOne((r) => r.method === 'PATCH').flush(...problem(412, 'Changed elsewhere.'));
+    await settle();
+
+    // Away to the archived view and back: a newer load of the active habits.
+    (root.querySelector('.show-archived') as HTMLButtonElement).click();
+    await settle();
+    (root.querySelector('.show-active') as HTMLButtonElement).click();
+    await settle();
+    const [reloadReq, archivedReq, activeReq] = http.match((r) => r.method === 'GET');
+    archivedReq.flush({ items: [] });
+    activeReq.flush({ items: [WATER] });
+    await settle();
+    reloadReq.flush({ items: [{ ...READ, version: 2 }] });
+    await settle();
+
+    expect(row(WATER)).not.toBeNull();
+    expect(row(READ)).toBeNull();
+  });
 });

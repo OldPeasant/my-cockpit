@@ -6,7 +6,6 @@ import {
   nextCount,
   requestOf,
   scheduleLabel,
-  streakLabel,
   todayProgress,
 } from './habit-display';
 import { habit } from './testing';
@@ -24,13 +23,6 @@ describe('habit display', () => {
     expect(nextCount(water(5))).toBe(0);
     expect(todayProgress(water(2))).toBeCloseTo(2 / 3);
     expect(todayProgress(water(5))).toBe(1);
-  });
-
-  it('labels streaks in days or weeks', () => {
-    expect(streakLabel(1, 'DAYS')).toBe('1 day');
-    expect(streakLabel(5, 'DAYS')).toBe('5 days');
-    expect(streakLabel(1, 'WEEKS')).toBe('1 week');
-    expect(streakLabel(0, 'WEEKS')).toBe('0 weeks');
   });
 
   it('rounds the 30-day completion and keeps "no due days" apart from 0 %', () => {

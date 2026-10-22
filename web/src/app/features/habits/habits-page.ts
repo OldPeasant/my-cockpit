@@ -3,6 +3,8 @@ import {
   ChangeDetectionStrategy,
   Component,
   computed,
+  DestroyRef,
+  DOCUMENT,
   inject,
   OnInit,
   signal,
@@ -17,7 +19,6 @@ import {
   HabitDraft,
   nextCount,
   scheduleLabel,
-  streakLabel,
   todayProgress,
 } from './habit-display';
 import { HabitForm } from './habit-form';
@@ -67,12 +68,21 @@ export default class HabitsPage implements OnInit {
   });
 
   protected readonly scheduleLabel = scheduleLabel;
-  protected readonly streakLabel = streakLabel;
   protected readonly completionPercent = completionPercent;
   protected readonly todayProgress = todayProgress;
 
   /** Counts the loads: habits that arrive for an earlier view are ignored. */
   private loadSeq = 0;
+
+  constructor() {
+    // A page left open past midnight would check yesterday (`stats.today`): load again on return.
+    const document = inject(DOCUMENT);
+    const visible = () => {
+      if (document.visibilityState === 'visible') this.refresh();
+    };
+    document.addEventListener('visibilitychange', visible);
+    inject(DestroyRef).onDestroy(() => document.removeEventListener('visibilitychange', visible));
+  }
 
   ngOnInit(): void {
     void this.load();
@@ -136,7 +146,7 @@ export default class HabitsPage implements OnInit {
       this.editing.set(null);
     } catch (error) {
       this.saveError.set(message(error));
-      if (habit && isConflict(error)) void this.reloadKeepingForm();
+      if (habit && isConflict(error)) void this.reloadQuietly();
     } finally {
       this.saving.set(false);
     }
@@ -190,13 +200,31 @@ export default class HabitsPage implements OnInit {
     this.habits.update((habits) => habits?.map((h) => (h.id === habit.id ? habit : h)) ?? null);
   }
 
-  /** Loads the habits again after a conflict, so saving the open form again works. */
-  private async reloadKeepingForm(): Promise<void> {
+  /**
+   * Loads the habits again when the page is shown again, unless the user is busy with it or they
+   * are loading anyway.
+   */
+  private refresh(): void {
+    if (this.editing() !== null || this.saving() || this.busy().size) return;
+    if (this.loadError()) {
+      void this.load();
+    } else if (this.habits()) {
+      void this.reloadQuietly();
+    }
+  }
+
+  /**
+   * Loads the habits again while the current ones stay on screen (an open form keeps its values),
+   * e.g. after a conflict, so saving the open form again works. Like `load()`, the result is dropped
+   * when another load started meanwhile (a switched view, say).
+   */
+  private async reloadQuietly(): Promise<void> {
+    const seq = this.loadSeq;
     try {
       const habits = await this.service.list(this.archived());
-      this.habits.set(habits);
+      if (seq === this.loadSeq) this.habits.set(habits);
     } catch {
-      // The form keeps its error; the next save shows the problem again.
+      // The list (and an open form's error) stays; the next action shows the problem again.
     }
   }
 

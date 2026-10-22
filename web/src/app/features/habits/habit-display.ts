@@ -28,17 +28,6 @@ export function todayProgress(habit: HabitResponse): number {
   return Math.min(1, habit.stats.todayCount / Math.max(1, habit.targetCount));
 }
 
-/** "5 days" / "1 week": a streak with its unit. */
-export function streakLabel(count: number, unit: HabitResponse['stats']['streakUnit']): string {
-  return unit === 'WEEKS'
-    ? count === 1
-      ? $localize`:@@habits.streak.week:${count}:count: week`
-      : $localize`:@@habits.streak.weeks:${count}:count: weeks`
-    : count === 1
-      ? $localize`:@@habits.streak.day:${count}:count: day`
-      : $localize`:@@habits.streak.days:${count}:count: days`;
-}
-
 /** The 30-day completion as a whole percent; null without due days. */
 export function completionPercent(habit: HabitResponse): number | null {
   const rate = habit.stats.completionRateLast30Days;

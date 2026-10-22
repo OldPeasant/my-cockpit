@@ -143,11 +143,31 @@
             <dl class="stats">
               <div class="streak" [class.hot]="habit.stats.currentStreak > 0">
                 <dt i18n="@@habits.stats.streak">Streak</dt>
-                <dd>{{ streakLabel(habit.stats.currentStreak, habit.stats.streakUnit) }}</dd>
+                <dd>
+                  <ng-container
+                    *ngTemplateOutlet="
+                      streak;
+                      context: {
+                        $implicit: habit.stats.currentStreak,
+                        unit: habit.stats.streakUnit,
+                      }
+                    "
+                  />
+                </dd>
               </div>
               <div class="best">
                 <dt i18n="@@habits.stats.best">Best</dt>
-                <dd>{{ streakLabel(habit.stats.longestStreak, habit.stats.streakUnit) }}</dd>
+                <dd>
+                  <ng-container
+                    *ngTemplateOutlet="
+                      streak;
+                      context: {
+                        $implicit: habit.stats.longestStreak,
+                        unit: habit.stats.streakUnit,
+                      }
+                    "
+                  />
+                </dd>
               </div>
               <div class="rate">
                 <dt i18n="@@habits.stats.rate">30 days</dt>
@@ -199,4 +219,19 @@
       </li>
     }
   </ul>
+</ng-template>
+
+<!-- "5 days" / "1 week": a streak with its unit. -->
+<ng-template #streak let-count let-unit="unit">
+  @if (unit === 'WEEKS') {
+    <ng-container i18n="@@habits.streak.weeks">{count, plural,
+      =1 {1 week}
+      other {{{ count }} weeks}
+    }</ng-container>
+  } @else {
+    <ng-container i18n="@@habits.streak.days">{count, plural,
+      =1 {1 day}
+      other {{{ count }} days}
+    }</ng-container>
+  }
 </ng-template>
