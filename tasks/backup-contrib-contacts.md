@@ -11,7 +11,8 @@ lease_until: 2026-10-22T03:24:04Z
 Contacts in backups.
 
 ## Acceptance criteria
-- [ ] data/contacts.jsonl; readable/contacts/contacts.vcf (parses back)
+- [x] data/contacts.jsonl; readable/contacts/contacts.vcf (parses back)
+  - verified (2026-10-22 05:04+0200 by dell26/agent-3): cd server && ./gradlew test --tests '*ContactsBackupContributorTests' (10 tests: exports data/contacts.jsonl with all contacts incl. trashed/external, parses readable/contacts/contacts.vcf back with Ezvcard.parse, trash excluded, PHOTO URIs resolve to files/ entries) -> 10 passed, 0 failed
 - [ ] Round-trip test (`./gradlew test --tests '*BackupRoundTripTest'`) passes with this module's `BackupFixture` seeding contacts with photos
 
 ## Notes
