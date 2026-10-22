@@ -2,10 +2,10 @@ package ch.sonensei.cockpit.contacts.birthdays
 
 import ch.sonensei.cockpit.calendar.api.CalendarService
 import ch.sonensei.cockpit.calendar.api.VirtualOccurrence
-import ch.sonensei.cockpit.contacts.domain.Contact
 import ch.sonensei.cockpit.core.events.domain.ChangeEvent
 import ch.sonensei.cockpit.core.events.domain.ChangeOp
 import ch.sonensei.cockpit.core.items.domain.ItemType
+import ch.sonensei.cockpit.core.persistence.UuidV7
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.collections.shouldContainExactlyInAnyOrder
@@ -27,14 +27,14 @@ class BirthdayCalendarUnitTests {
 	private val repository = mockk<BirthdayContactRepository>()
 	private val provider = BirthdayCalendarProvider(repository)
 
-	private fun withContacts(vararg contacts: Contact) {
-		every { repository.findByBirthdayIsNotNullAndDeletedAtIsNull() } returns contacts.toList()
+	private fun withContacts(vararg contacts: BirthdayContact) {
+		every { repository.findBirthdays() } returns contacts.toList()
 	}
 
 	private fun contact(
 		name: String,
 		birthday: String,
-	) = Contact(name).apply { this.birthday = LocalDate.parse(birthday) }
+	) = BirthdayContact(UuidV7.generate(), name, LocalDate.parse(birthday))
 
 	private fun dates(
 		from: String,
@@ -116,7 +116,7 @@ class BirthdayCalendarUnitTests {
 		provider.occurrences(LocalDate.parse("2026-12-10"), LocalDate.parse("2026-12-10")).shouldBeEmpty()
 		provider.occurrences(LocalDate.parse("2027-01-01"), LocalDate.parse("2026-01-01")).shouldBeEmpty()
 
-		verify(exactly = 0) { repository.findByBirthdayIsNotNullAndDeletedAtIsNull() }
+		verify(exactly = 0) { repository.findBirthdays() }
 	}
 
 	@Test

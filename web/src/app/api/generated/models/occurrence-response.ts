@@ -3,7 +3,7 @@
 
 
 /**
- * One occurrence in a range. `eventId` is the event that provides its data (the series master for a generated occurrence, the override for a changed one, the event itself for a single event); `version` is that event's. Occurrences of a series have `seriesId` and `occurrence` (the original start), which identify them for `?scope=&occurrence=` edits.
+ * One occurrence in a range. `eventId` is the event that provides its data (the series master for a generated occurrence, the override for a changed one, the event itself for a single event); `version` is that event's. Occurrences of a series have `seriesId` and `occurrence` (the original start), which identify them for `?scope=&occurrence=` edits. Occurrences of a virtual read-only calendar (e.g. Birthdays) have no stored event: `eventId` and `seriesId` identify the item they are computed from (the contact for a birthday), `GET /calendar/events/{eventId}` answers 404 and they cannot be changed.
  */
 export interface OccurrenceResponse {
   allDay: boolean;

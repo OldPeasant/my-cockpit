@@ -54,7 +54,8 @@ class CalendarEventController(
 		description =
 			"Every occurrence overlapping [from, to) of the events of the given calendars (default: the visible ones), " +
 				"series expanded, ordered by start. All-day events count by the days the range touches in the user's " +
-				"time zone. The range is at most 400 days.",
+				"time zone. The range is at most 400 days. Virtual read-only calendars (e.g. Birthdays) add computed " +
+				"occurrences without a stored event (see `OccurrenceResponse`).",
 	)
 	@ApiResponse(
 		responseCode = "200",

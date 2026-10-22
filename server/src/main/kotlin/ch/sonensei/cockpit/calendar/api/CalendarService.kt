@@ -94,7 +94,9 @@ class CalendarService(
 
 	/**
 	 * The read-only calendar of the [VirtualCalendarProvider] with [key], created (visible, not the default) with
-	 * [name] and [color] when it does not exist yet.
+	 * [name] and [color] when it does not exist yet. Concurrent first calls (two contact commits, or one during the
+	 * startup check) wait for each other on the LOCAL source's row lock, so the second finds the calendar instead of
+	 * failing on the unique external id.
 	 */
 	fun ensureVirtualCalendar(
 		key: String,
@@ -102,6 +104,8 @@ class CalendarService(
 		color: String?,
 	): Calendar {
 		val source = localSource()
+		calendars.findBySourceIdAndExternalId(source.id, VIRTUAL_PREFIX + key)?.let { return it }
+		sources.findForUpdate(source.id)
 		calendars.findBySourceIdAndExternalId(source.id, VIRTUAL_PREFIX + key)?.let { return it }
 		val calendar = Calendar(source.id, name)
 		calendar.color = color

@@ -3,15 +3,28 @@ package ch.sonensei.cockpit.contacts.birthdays
 import ch.sonensei.cockpit.calendar.api.VirtualCalendarProvider
 import ch.sonensei.cockpit.calendar.api.VirtualOccurrence
 import ch.sonensei.cockpit.contacts.domain.Contact
+import org.springframework.data.jpa.repository.Query
 import org.springframework.data.repository.Repository
 import org.springframework.stereotype.Component
 import org.springframework.transaction.annotation.Transactional
 import java.time.LocalDate
 import java.util.UUID
 
+/** What the birthdays calendar needs of a contact with a birthday. */
+data class BirthdayContact(
+	val id: UUID,
+	val displayName: String,
+	val birthday: LocalDate,
+)
+
 /** The contacts with a birthday, read by the birthdays calendar. */
 interface BirthdayContactRepository : Repository<Contact, UUID> {
-	fun findByBirthdayIsNotNullAndDeletedAtIsNull(): List<Contact>
+	/** Only the columns the calendar shows, not the whole contacts (emails, addresses, notes). */
+	@Query(
+		"select new ch.sonensei.cockpit.contacts.birthdays.BirthdayContact(c.id, c.displayName, c.birthday) " +
+			"from Contact c where c.birthday is not null and c.deletedAt is null",
+	)
+	fun findBirthdays(): List<BirthdayContact>
 
 	fun existsByBirthdayIsNotNullAndDeletedAtIsNull(): Boolean
 
@@ -37,8 +50,8 @@ class BirthdayCalendarProvider(
 	): List<VirtualOccurrence> {
 		if (!toDate.isAfter(fromDate)) return emptyList()
 		val years = fromDate.year..toDate.minusDays(1).year
-		return contacts.findByBirthdayIsNotNullAndDeletedAtIsNull().flatMap { contact ->
-			val birthday = contact.birthday!!
+		return contacts.findBirthdays().flatMap { contact ->
+			val birthday = contact.birthday
 			years
 				.filter { it > birthday.year }
 				.map { year -> birthday.withYear(year) }
@@ -48,7 +61,7 @@ class BirthdayCalendarProvider(
 	}
 
 	private fun title(
-		contact: Contact,
+		contact: BirthdayContact,
 		birthday: LocalDate,
 		date: LocalDate,
 	): String {

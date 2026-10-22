@@ -8,6 +8,7 @@ import ch.sonensei.cockpit.calendar.api.CalendarApi.Companion.text
 import ch.sonensei.cockpit.calendar.api.CalendarService
 import ch.sonensei.cockpit.core.auth.WithCockpitUser
 import ch.sonensei.cockpit.support.PostgresTestBase
+import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.shouldBe
@@ -20,9 +21,15 @@ import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc
 import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.get
+import org.springframework.transaction.PlatformTransactionManager
+import org.springframework.transaction.support.TransactionTemplate
 import tools.jackson.databind.JsonNode
 import tools.jackson.databind.json.JsonMapper
 import java.util.UUID
+import java.util.concurrent.CompletableFuture
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.TimeoutException
 
 /**
  * Edge cases of the virtual birthdays calendar in `GET /calendar/events` (task contacts-birthdays, SPEC.md §8.3): which
@@ -38,6 +45,7 @@ class BirthdayCalendarEdgeCaseWebTests(
 	@Autowired private val jdbc: JdbcTemplate,
 	@Autowired private val calendarService: CalendarService,
 	@Autowired private val initializer: BirthdayCalendarInitializer,
+	@Autowired private val transactions: PlatformTransactionManager,
 ) : PostgresTestBase() {
 	private val api = CalendarApi(mockMvc, jsonMapper)
 
@@ -172,6 +180,31 @@ class BirthdayCalendarEdgeCaseWebTests(
 		calendar.get("color").asString() shouldBe "#00aa00"
 		calendar.get("visible").asBoolean() shouldBe false
 		calendar.get("readOnly").asBoolean() shouldBe true
+	}
+
+	@Test
+	fun `a second first-time creation waits for the first one and returns its calendar`() {
+		api.createCalendar() // the LOCAL source exists, as it does once any calendar was created
+		val inserted = CountDownLatch(1)
+		val commit = CountDownLatch(1)
+		val first =
+			CompletableFuture.supplyAsync {
+				TransactionTemplate(transactions).execute {
+					val created = calendarService.ensureVirtualCalendar(BirthdayCalendarProvider.KEY, "Birthdays", null)
+					inserted.countDown()
+					commit.await(10, TimeUnit.SECONDS)
+					created.id
+				}
+			}
+		inserted.await(10, TimeUnit.SECONDS) shouldBe true
+
+		// The first transaction has inserted but not committed: the second waits instead of inserting a duplicate.
+		val second = CompletableFuture.supplyAsync { calendarService.ensureVirtualCalendar(BirthdayCalendarProvider.KEY, "Birthdays", null).id }
+		shouldThrow<TimeoutException> { second.get(500, TimeUnit.MILLISECONDS) }
+		commit.countDown()
+
+		second.get(10, TimeUnit.SECONDS) shouldBe first.get(10, TimeUnit.SECONDS)
+		jdbc.queryForObject("select count(*) from calendar where external_id = 'virtual:birthdays'", Int::class.java) shouldBe 1
 	}
 
 	@Test
