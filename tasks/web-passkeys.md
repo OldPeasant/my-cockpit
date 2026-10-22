@@ -1,11 +1,11 @@
 ---
 title: Web passkeys
-status: in_progress
+status: done
 owner: dell26/agent-1
 deps: [passkeys-server,p0-web-devices,p0-web-auth,web-totp-reenroll]
 touches: [web/src/app/features/settings/security,web/src/app/features/auth]
 prio: 2
-lease_until: 2026-10-22T10:32:48Z
+lease_until: 
 ---
 ## Goal
 Use passkeys in the browser.
@@ -22,3 +22,4 @@ Use passkeys in the browser.
 - ASSUMPTION (2026-10-22 11:52+0200 by dell26/agent-1): The WebAuthn browser helper (features/auth/passkey/webauthn.ts) is shared by login and Security settings, so settings/security imports it from features/auth; core/ was outside the task's touches. Options/credentials are converted to/from JSON by hand instead of parseCreationOptionsFromJSON/toJSON for older browsers.
 - ASSUMPTION (2026-10-22 11:52+0200 by dell26/agent-1): Passkey login refreshes AuthService via checkSession(true) after loginWithPasskey instead of adding a method to core/auth (outside touches); costs one extra GET /auth/me. The 'remember me' checkbox of the login form also applies to passkey login. The passkey button is hidden when the browser has no WebAuthn.
 - ASSUMPTION (2026-10-22 11:52+0200 by dell26/agent-1): e2e/passkeys runs on http://localhost:<port> instead of the harness's 127.0.0.1 (browsers reject IP RP IDs) and logs in itself; it registers and deletes a passkey on the shared owner account and causes one failed passkey login (counts once against the global login throttle).
+- done by dell26/agent-1: `sh scripts/check.sh` passed in 82s on 62452d338; criteria verified 3/3
