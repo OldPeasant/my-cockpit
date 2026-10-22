@@ -6,6 +6,7 @@ deps: [contacts-api,oauth-connections]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/contacts/google,server/src/test/kotlin/ch/sonensei/cockpit/contacts/google]
 prio: 2
 lease_until: 2026-10-22T03:53:47Z
+extended: dell26/agent-1
 ---
 ## Goal
 Two-way People API sync.
@@ -24,3 +25,4 @@ Two-way People API sync.
 - ASSUMPTION (2026-10-22 05:28+0200 by dell26/agent-1): Push reads the person first (GET) and sends only the field groups that differ from Google's mapped values, merged into Google's entries; a newer Google etag means Google wins without a write. Unmodeled parts (middle names, year-less birthdays, P.O. boxes...) survive edits (review CR-1/CR-2)
 - ASSUMPTION (2026-10-22 05:28+0200 by dell26/agent-1): The display name of a named GOOGLE contact is derived from Google (names.displayName is output-only); a different local display name is not pushed and Google's comes back on the next change there (review CR-5)
 - ASSUMPTION (2026-10-22 05:28+0200 by dell26/agent-1): contacts_google_link keeps a tombstone (contact_id set null) when a linked contact is purged, so the next push still deletes the person at Google and the pull does not re-import it; migration V202610221100 edited in place since it was never published (review CR-3)
+- extended by dell26/agent-1: Implementation, WireMock tests, review (review.md) and fixes for CR-1..CR-6 + restored-person bug (fixes.md, focused tests passed per fixer) are committed. Left: code changed after review, so re-run test-writer (writes the still-missing tests.md with coverage) and code-reviewer on HEAD; run fixer only if new findings; parent runs ./gradlew test --tests 'ch.sonensei.cockpit.contacts.google.*' (sub-agents can't run Gradle); tasks.py verify criteria 1+2; sh scripts/check.sh; write quality.json (result exactly 'pass'); done.
