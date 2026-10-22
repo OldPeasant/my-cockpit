@@ -1,11 +1,11 @@
 ---
 title: Dashboard
-status: in_progress
+status: done
 owner: dell26/agent-1
 deps: [web-today-habits,web-weekly-review,web-bookmarks,web-notes-list,web-mail-list]
 touches: [web/src/app/features/dashboard]
 prio: 2
-lease_until: 2026-10-22T09:57:22Z
+lease_until: 
 releases: 0
 extended: 
 ---
@@ -24,3 +24,4 @@ Configurable home (SPEC.md §8.7).
 - ASSUMPTION (2026-10-22 10:26+0200 by dell26/agent-1): Counts are capped at one page (50): Inbox tasks and unread mail show 'N+' beyond it; unread mail = unseen messages among the newest 50 of the unified Inbox (no unread-count API exists).
 - ASSUMPTION (2026-10-22 10:38+0200 by dell26/agent-1): Review fixes: unread mail shows 'N+' only when N>0 (a '0+' was misleading); the last-weekly-review figure turns red and 'Start a weekly review' shows from 7 days on (>=7). The server sends no WEEKLY_REVIEW change event, so that widget refreshes on page open, re-show and SSE resync only.
 - release by dell26/agent-1: handed back by dell26/agent-1: pushes had failed (remote: error: GH006: Protected branch update failed for refs/heads/main. | remote: error: | To https://github.com/OldP…); continue from wip/web-dashboard
+- done by dell26/agent-1: `sh scripts/check.sh` passed in 62s on 0e41ae0ab; criteria verified 2/2
