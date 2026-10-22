@@ -7,8 +7,8 @@ touches: [server/src/main/kotlin/ch/sonensei/cockpit/mail/compose,server/src/tes
 prio: 1
 lease_until: 
 extended: 
-releases: 3
-hold: given back 3 times; last: Implementation complete; all 4 criteria verified; test-writer, code-reviewer (2 rounds) and fixer reports plus quality.json committed (reviewed_revision 73b44d6c, code unchan
+releases: 0
+hold: 
 ---
 ## Goal
 Compose, reply, forward (SPEC.md §7.3).
