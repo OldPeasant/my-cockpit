@@ -15,7 +15,8 @@ Virtual read-only birthdays calendar (SPEC.md §8.3).
 ## Acceptance criteria
 - [x] Birthdays appear as yearly all-day occurrences in `GET /calendar/events` from a virtual calendar; Feb 29 handled
   - verified (2026-10-22 06:19+0200 by dell26/agent-1): cd server && ./gradlew test --tests 'ch.sonensei.cockpit.contacts.birthdays.*' (Testcontainers Postgres) at 218c8e72 -> 33 passed; BirthdayCalendarWebTests/EdgeCaseWebTests assert yearly all-day occurrences in GET /calendar/events from the read-only virtual Birthdays calendar, Feb 29 -> Feb 28 in non-leap years
-- [ ] `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.contacts.birthdays.*'` passes (Postgres via Testcontainers where persistence is involved)
+- [x] `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.contacts.birthdays.*'` passes (Postgres via Testcontainers where persistence is involved)
+  - verified (2026-10-22 06:19+0200 by dell26/agent-1): cd server && ./gradlew test --tests 'ch.sonensei.cockpit.contacts.birthdays.*' jacocoTestReport at 218c8e72 -> BUILD SUCCESSFUL, 33 tests (13 unit, 8 web, 12 edge-case; Postgres via Testcontainers), 0 failures
 
 ## Notes
 - ASSUMPTION (2026-10-22 04:35+0200 by dell26/agent-2): Virtual calendars: the calendar module got a small SPI (calendar.api.VirtualCalendarProvider + CalendarService.ensureVirtualCalendar); the birthdays calendar is a stored read-only LOCAL calendar (externalId 'virtual:birthdays', so name/color/visibility/backup work as for any calendar) whose occurrences are computed from contacts, not stored. Touches calendar/api and OccurrenceExpander outside the task's touches.
