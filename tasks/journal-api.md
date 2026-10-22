@@ -13,7 +13,8 @@ extended:
 Daily journal (SPEC.md §8.5).
 
 ## Acceptance criteria
-- [ ] One entry per date (upsert by date), Markdown with images (Attachments/Journal), mood, tags; heatmap endpoint (dates with entries); 'on this day'
+- [x] One entry per date (upsert by date), Markdown with images (Attachments/Journal), mood, tags; heatmap endpoint (dates with entries); 'on this day'
+  - verified (2026-10-22 02:30+0200 by dell26/agent-1): cd server && ./gradlew test --tests 'ch.sonensei.cockpit.journal.entries.*' (Testcontainers Postgres) on 10068a319 -> 30 passed: PUT creates/replaces by date with If-Match, mood 1-5, tags normalized, image stored in /Attachments/Journal (413 above max), heatmap dates+mood, on-this-day incl. 29 Feb on 28 Feb
 - [ ] Resolver JOURNAL_ENTRY, search, trash
 - [ ] `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.journal.entries.*'` passes (Postgres via Testcontainers where persistence is involved)
 - [ ] API documented: `api/openapi.yaml` regenerated (`UPDATE_OPENAPI=1 ./gradlew test --tests '*OpenApiContractTest'`) and `OpenApiContractTest` passes without the flag
