@@ -107,6 +107,10 @@ openApiGenerate {
             "SettingsPatch" to "kotlinx.serialization.json.JsonObject",
         ),
     )
+    // Free-form values (additionalProperties: {}, e.g. the WebAuthn credential JSON of passkeys) would become
+    // Map<String, Any?>, which kotlinx.serialization cannot compile.
+    typeMappings.set(mapOf("AnyType" to "JsonElement"))
+    importMappings.set(mapOf("JsonElement" to "kotlinx.serialization.json.JsonElement"))
     // core.network builds Retrofit itself, so the generated ApiClient is skipped. Only src/main/kotlin is compiled.
     ignoreFileOverride.set(file("openapi-generator-ignore").absolutePath)
     cleanupOutput.set(true)

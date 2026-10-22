@@ -4,18 +4,33 @@ Date: 2026-10-22
 
 Task: passkeys-server - Passkeys (WebAuthn) backend
 
-Scope: `git diff 99936ef802eab20a25c99700b72d6dfc6dee7c90 e111036da34cc43b3f139e955eea8db9569f8954` (base = merge-base with origin/main). Commits 149437b1 (implementation), 706267e8 (test-writer tests), cdf39218 (fix for CR-1/TW-1), 993b14dc (server test heap) and e111036d (two concurrency tests in `PasskeyTotpReenrollmentTests`, fresh `tests.md`). The generated `api/openapi.yaml` and `web/src/app/api/generated/` were checked for consistency only. This report replaces the review of `99936ef8..993b14dc`. The earlier conclusions are carried over because the production code did not change in e111036d. The new review work is on the test commit.
+Scope: `git diff fc7737af267cba0c4fcbf1b0e41c889b2232b745 1235c108058d8cddfdd5f0fb3e96166634ae0cd8` (fc7737af2 is an ancestor of HEAD). This report replaces the reviews of e111036d and 00be3bd6b.
+
+After the rebase, the task commits are:
+- e19f713c0 (implementation)
+- 2e1aca37d (test-writer tests)
+- 35f64b753 (fix for CR-1/TW-1)
+- 3bb996573 (concurrency tests)
+- 31f582ecf (review report)
+- 8c2744705 (quality.json)
+- 741d65149 (migration rename, formerly 00be3bd6b)
+- 6589bd58e (duplicate-version test, which the coordinator called c94b045e2)
+- 1235c1080 (OpenAPI regeneration)
+
+The other commits in the range are `tasks/`-only heartbeat and assume commits from main.
+
+`git log fc7737af2..1235c1080 -- server api web docs` lists only these task commits. So no code from main came into the range after the last review. New review work: the test in 6589bd58e and the `api/openapi.yaml` change in 1235c1080. Everything else is carried over from the 00be3bd6b and e111036d reviews because that code is unchanged.
 
 Requirements:
-- `tasks/passkeys-server.md`: acceptance criteria and all recorded assumptions, including the 2026-10-22 TOTP re-enrollment assumption and the test-heap assumption
-- `SPEC.md` §4.1, §4.2 and §10.2; `docs/ARCHITECTURE.md`; the `AGENTS.md` project notes; `docs/QUALITY.md`
-- Parent instructions: review the final code, focusing on the new tests (correctness, flakiness risk, cleanup of executors and latches)
+- `tasks/passkeys-server.md`: acceptance criteria and recorded assumptions, including the two new ones from 2026-10-22 02:47 and 02:48 (migration renamed to V202610221005; `MigrationConventionTests` touched outside `touches`)
+- `SPEC.md` §4.1, §4.2 and §10.2; `docs/ARCHITECTURE.md` (persistence conventions, Flyway); the `AGENTS.md` project notes (migration naming; generated files are regenerated, never merged by hand); `docs/QUALITY.md`
+- Parent instructions: review the new test and the yaml change, and write the final report for 1235c1080
 
 Git range:
 - Branch: main
-- HEAD: e111036da34cc43b3f139e955eea8db9569f8954
-- Base/start: 99936ef802eab20a25c99700b72d6dfc6dee7c90
-- Commits reviewed: 5 (149437b1, 706267e8, cdf39218, 993b14dc, e111036d). The working tree was clean at HEAD e111036d when the review started, so the files I read are the committed revision.
+- HEAD: 1235c108058d8cddfdd5f0fb3e96166634ae0cd8
+- Base/start: fc7737af267cba0c4fcbf1b0e41c889b2232b745
+- Commits reviewed: 9 task commits (listed in Scope). There were no uncommitted code changes. Only the helper reports in `reviews/passkeys-server/` were modified in the working tree. This was a read-only inspection: I did not run Gradle.
 
 Summary: 0 P0, 0 P1, 0 P2, 0 P3
 
@@ -35,73 +50,72 @@ None.
 
 None.
 
-## New tests in e111036d
+## New test (6589bd58e): `MigrationConventionTests`, "no two migrations share a Flyway version, even across module folders"
 
-The two new tests are in `server/src/test/kotlin/ch/sonensei/cockpit/core/auth/passkey/PasskeyTotpReenrollmentTests.kt:316-370`. The class KDoc (lines 52-58) gained one clause about the sign counter.
+File: `server/src/test/kotlin/ch/sonensei/cockpit/core/persistence/MigrationConventionTests.kt:45-55`
 
-### "a second passkey login with the same passkey waits for the first, then continues from its sign count" (lines 316-341)
+- **Correct key.**
+    - The test groups by `v[1] + v[2]`, which is the 12-digit timestamp plus the optional `_<n>` test suffix. This is the same version key that the existing lowest-version test uses (line 59).
+    - `V202610221000` in `core/` and in `review/` would get the same key and fail the test. That is exactly the clash that broke Spring startup before 741d65149.
+- **Scope of the scan.**
+    - `classpath*:db/migration/**/*.sql` covers the main migrations and the test-only `core/V202610200000_1__core_test_persistence_fixture.sql`. The test fixture has its own key `202610200000_1`, so it does not collide with `202610200000`. This matches what Flyway sees in the test context.
+    - The Flyway configuration fixtures under `ch/sonensei/cockpit/support/flyway/` are not under `db/migration`, so they are correctly excluded.
+- **Unmatched names.** The test drops files whose name does not match (`filterKeys { it != null }`). That is fine because the first test in the class (lines 28-43) already fails for any such file.
+- **Meaningful assertion.**
+    - `duplicates.shouldBeEmpty()` prints the clashing paths on failure, and the clue gives a concrete fix.
+    - The test does not depend on a database or Spring, so it is fast and deterministic.
+    - In the current tree, no version prefix is used twice, so it passes. The parent's run at 1235c108 confirms this: 73 tests, 0 failures, including `*MigrationConventionTests`.
+- **Outside `touches`.** The file is outside `touches`, and that is recorded as an assumption (02:48). The change only adds lines to a test class and one import. It does not change existing tests, so it has a low risk of conflicting with other tasks.
 
-- `TestAuthenticator.authenticate` increments `signCount` before it signs. Registration stores count 0, the first assertion carries 1 and the second carries 2.
-- The first login holds its transaction through `heldTransaction`, which owns the `findFirstForUpdate` lock. The second login must block in `PasskeyService.verifyAssertion:245` before it reads the passkey at line 246. After the release, the second login reads the committed row (version and count 1) and saves count 2.
-- Each `@Transactional` call runs on its own executor thread, so each has its own persistence context and no stale entity carries over.
-- The final `sign_count = 2` check and the `Success` assertion check the right things.
+## OpenAPI regeneration (1235c1080)
 
-### "two concurrent assertions with the same sign count, as from a cloned authenticator, log in only once" (lines 343-370)
+- **Tag order only.** The diff `00be3bd6b..1235c1080 -- api/openapi.yaml` only reorders entries in the top-level `tags:` list.
+    - The removed set (Bookmarks, Files, Contacts, Capture, Setup, Projects, Mail accounts, Search) equals the added set.
+    - Every description is unchanged.
+    - No path, operation or schema changed, and the `Passkeys` tag keeps its place.
+- **Whole task diff.** Over the full task diff (`fc7737af2..1235c1080`), the YAML changes are:
+    - this tag reordering plus the `Passkeys` tag;
+    - the passkey paths (`@@ -403,0 +406,238`);
+    - the passkey component schemas.
 
-- Setting `authenticator.signCount = 0` before the second `authenticate` produces a second assertion with count 1, the same as the first.
-- After the first login commits count 1, webauthn4j's counter check fails. It throws a `VerificationException`, which `verifyAssertion:252-253` maps to `InvalidCredentials`.
-- `auth_session` = 2 is correct: one session is the `@BeforeEach` password `webLogin()` and the other is the first passkey login. `register()` creates no session.
-- `sign_count = 1` confirms that the replay did not write.
+  Nothing from main was removed.
+- **Regenerated, not edited by hand.** The file was regenerated rather than merged by hand, as `AGENTS.md` and `api/README.md` require. The parent reports that `npm --prefix web run api:gen` produces no diff in the generated web client. That fits a change limited to tag order, because the client generator groups by tag name and not by tag position.
+- **Contract test.** The parent reports that `OpenApiContractTest` passes at 1235c108. At 00be3bd6b, the full `./gradlew -p server check` ran 4129 tests and only this test failed, on tag order. The other 4128 tests passed. That includes Spring context startup with the renamed migration and every passkey test. Between 00be3bd6b and 1235c108, only the YAML file and one test file changed, so the rest of that run is still valid for the final revision.
 
-### Flakiness
+## Migration rename (741d65149, formerly 00be3bd6b; carried over)
 
-- The negative wait `shouldThrow<TimeoutException> { future.get(500 ms) }` cannot fail by mistake while the lock works, because the waiter is blocked on a database row lock until `release.countDown()`. On a very slow machine the worst case is a false pass: the second task may not have reached the lock within 500 ms. The positive assertions afterwards (success and sign count, or rejection) still hold in that case, so the test does not become flaky. This is the same pattern as the three earlier concurrency tests in the class.
-- The pool has 2 threads. One is held by `heldTransaction` and the other runs the competing call, so neither task waits for a free thread. The main thread uses its own connection only after both futures finish.
-- `heldTransaction` waits for `ran` before it returns. This ensures that the lock is held before the competing call is submitted. All waits are bounded to 10 s, so a regression fails the test instead of hanging the check.
+- The rename is a pure rename (100%).
+- `core/V202610221005__core_auth_passkey.sql` follows the `<module>/V<yyyyMMddHHmm>__<module>_<desc>.sql` convention. No version prefix is used twice, and the new test now guards this.
+- No code or configuration refers to the old file name. The migration only depends on `app_user` (`core/V202610201000`), and `spring.flyway.out-of-order=true` is set.
+- The old version was never on main, so no applied migration was edited.
+- The previous CR-1 (P3) is resolved: the assumption from 02:47 records the new version. The older assumption line still names V202610221000, and that is fine because it is a historical entry and the newer line supersedes it.
 
-### Cleanup
+## Merge with main (carried over)
 
-- Every test calls `release.countDown()` in `finally` and then `executor.shutdownNow()`. On the success path both futures have completed, including their commit, before `finally` runs, so no thread is left over.
-- On a failure path the held transaction is released first. A thread still blocked on the row lock then proceeds, and `@AfterEach`'s `delete from app_user` waits on the same row lock, so cleanup is serialized by the database. There is no `awaitTermination`, but given the bounded waits I found no concrete leak that would affect other tests.
-- The throttle failure that the rejected replay records is reset by `@AfterEach` (`throttle.recordSuccess()`).
+- `SecurityConfiguration.kt`, `LoginService.kt`, `DeviceTokenService.kt` and all `core/auth/passkey/**` files are identical to the revision reviewed at e111036d.
+- Main changed nothing under `core/` between the old and the new base. So the passkey changes to the shared auth classes still sit on the same main code they were written against.
 
-### Report consistency
+## Carried over from the review of e111036d (code unchanged)
 
-- `reviews/passkeys-server/tests.md` describes these two tests accurately.
-- It reports `PasskeyTotpReenrollmentTests` 11/11 and the auth selection with 280 tests and 0 failures. I did not re-run the tests in this review (read-only inspection).
-
-## Verification of the earlier finding (carried over, code unchanged)
-
-- **CR-1 (resolved).** In `PasskeyService.verifyAssertion` (`server/src/main/kotlin/ch/sonensei/cockpit/core/auth/passkey/domain/PasskeyService.kt:242-247`), `users.findFirstForUpdate()` runs before `passkeys.findByCredentialId(...)`.
-    - As a result, the account and the passkey are read only after the row lock is held. This is the same order as `LoginService.verify` and `TotpEnrollmentService`.
-    - The two TW-1 tests (lines 218-281) cover the re-enrollment side, and the new tests cover the sign-counter side.
-- **Nothing new introduced by the fix.**
-    - Throttle admission, single-use ceremonies, parsing before lookup, the uniform `InvalidCredentials` result and the log reasons are unchanged.
-    - Requests for an unknown passkey briefly hold the account lock. This matches the password login, and both are bounded by the shared `LoginThrottle`.
-
-## Heap change (993b14dc)
-
-- `server/build.gradle.kts` raises the test JVM `maxHeapSize` from 1g to 2g and explains why in a comment. The change is recorded as a task assumption.
-- The `.taskcheck` duration above 2 minutes is assigned to `ci-split-check` and is not a defect of this task.
-
-## Verified without findings (carried over, production code unchanged)
-
-- Challenges, ceremonies and relying party:
-    - Each ceremony gets 32 random bytes from `SecureRandom`, is single use and expires after 5 minutes.
-    - Registration and authentication ceremonies are kept in separate bounded stores, and a registration ceremony is bound to its owner.
-    - The RP ID and origin come from the stored ceremony, not from the finishing request.
-- WebAuthn verification:
+- **CR-1 of the first review is resolved.** `PasskeyService.verifyAssertion` takes the account lock (`users.findFirstForUpdate()`) before it loads the passkey.
+- **Concurrency tests:**
+    - The sign-counter and replay tests are correct.
+    - Every wait is bounded, and the latch and executor are always cleaned up.
+- **Ceremonies:**
+    - Each challenge is 32 random bytes from `SecureRandom`.
+    - Each ceremony is single use, expires after 5 minutes, and is kept in a bounded store.
+    - A registration ceremony is bound to its owner.
+    - The RP ID and origin come from the stored ceremony.
+- **WebAuthn verification:**
     - User verification and user presence are required, and attestation is `none`.
-    - The sign counter is checked and persisted. The user handle must match the owner.
-- Re-enrollment:
-    - Registration is refused while TOTP re-enrollment is required.
-    - A passkey web login gets a session that may only enroll TOTP again.
-    - A passkey device token request gets 403 `TotpEnrollmentRequired`.
+    - The sign counter is checked and persisted, and the user handle must match the owner.
+- **TOTP re-enrollment:**
+    - Registration is refused while re-enrollment is required.
+    - A passkey web login gets a re-enroll-only session.
+    - A passkey token request gets 403 `TotpEnrollmentRequired`.
     - A restore wipes `auth_passkey`.
-- Errors and logging: errors are Problem Details. No secrets, challenges, credentials, tokens or user handles are logged.
-- Migration: `core/V202610221000__core_auth_passkey.sql` is new and follows the naming convention. No applied migration was edited.
-- CSRF and permits: only the authentication-options, login and token endpoints are public. The web login still needs the CSRF header.
-- Generated files: `api/openapi.yaml` and the generated web client match the controller and DTOs.
+- **Errors and logging:** errors are Problem Details, and no secrets are logged.
+- **Public endpoints and CSRF:** only the authentication-options, login and token endpoints are public, and CSRF still applies to the web login.
 
 ## Review conclusion
 
