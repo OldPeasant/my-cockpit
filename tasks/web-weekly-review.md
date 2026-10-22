@@ -18,3 +18,4 @@ Guided weekly review (SPEC.md §8.6).
 ## Notes
 - ASSUMPTION (2026-10-22 03:18+0200 by dell26/agent-2): Step 1 'flagged mails': the mail API has no flagged filter, so Get clear embeds the Inbox processing and links to Mail for flagged mails instead of listing them
 - ASSUMPTION (2026-10-22 03:18+0200 by dell26/agent-2): Reflection: appended as a '## Weekly review' section to today's journal entry (created if missing, mood/tags kept), saved before the review is completed; the draft is kept in localStorage per review id so a resumed review keeps it
+- ASSUMPTION (2026-10-22 03:18+0200 by dell26/agent-2): Keep (stale next actions, someday, projects 'Looks good', waiting 'Still waiting') only removes the item from the step's list; nothing is saved, so a kept stale next action shows again next week
