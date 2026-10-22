@@ -127,6 +127,26 @@ class FilesRepositoryTest {
         }
 
     @Test
+    fun `an answer with a malformed id or date is unreadable, not a lost connection`() =
+        runBlocking {
+            server.enqueue(json("""{"items":[{"type":"FILE","file":${fileJson(1, "a.pdf").replace(id(1).toString(), "not-a-uuid")}}]}"""))
+            assertEquals(FilesResult.Failed(null), files.list(null))
+            server.enqueue(
+                json("""{"items":[{"type":"FILE","file":${fileJson(2, "b.pdf").replace("2026-10-02T09:00:00Z", "yesterday")}}]}"""),
+            )
+            assertEquals(FilesResult.Failed(null), files.list(null))
+            server.enqueue(json("""{"items":[{"type":"LINK"}]}"""))
+            assertEquals(FilesResult.Failed(null), files.list(null))
+        }
+
+    @Test
+    fun `an entry whose folder is missing is skipped`() =
+        runBlocking {
+            server.enqueue(json("""{"items":[{"type":"FOLDER"},{"type":"FOLDER","folder":${folderJson(4, "Projects")}}]}"""))
+            assertEquals(FilesResult.Ok(listOf(DriveEntry.Folder(id(4), "Projects", null))), files.list(null))
+        }
+
+    @Test
     fun `a download streams the contents into the target`() =
         runBlocking {
             server.enqueue(
