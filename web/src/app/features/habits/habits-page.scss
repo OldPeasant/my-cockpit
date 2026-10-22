@@ -1,0 +1,261 @@
+.habits {
+  max-width: 60rem;
+  padding: var(--app-space-5) var(--app-space-4);
+}
+
+.head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--app-space-3);
+  margin-bottom: var(--app-space-4);
+}
+
+h1 {
+  margin: 0;
+  font: var(--mat-sys-headline-medium);
+}
+
+.summary {
+  margin: var(--app-space-1) 0 0;
+  color: var(--app-fg-muted);
+  font: var(--mat-sys-body-large);
+  font-variant-numeric: tabular-nums;
+}
+
+.tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--app-space-2);
+}
+
+.toggle {
+  display: inline-flex;
+  overflow: hidden;
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius);
+
+  button {
+    padding: var(--app-space-1) var(--app-space-3);
+    border: 0;
+    background: none;
+    color: var(--app-fg-muted);
+    font: var(--mat-sys-label-large);
+    cursor: pointer;
+
+    &[aria-pressed='true'] {
+      background: var(--mat-sys-secondary-container);
+      color: var(--mat-sys-on-secondary-container);
+    }
+
+    &:focus-visible {
+      outline: 2px solid var(--app-accent);
+      outline-offset: -2px;
+    }
+  }
+}
+
+.new-form {
+  display: block;
+  margin-bottom: var(--app-space-5);
+}
+
+.group {
+  margin: var(--app-space-5) 0 var(--app-space-2);
+  color: var(--app-fg-muted);
+  font: var(--mat-sys-title-small);
+}
+
+.list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.habit {
+  border-bottom: 1px solid var(--app-border);
+
+  &:first-child {
+    border-top: 1px solid var(--app-border);
+  }
+
+  app-habit-form {
+    display: block;
+    margin: var(--app-space-2) 0;
+  }
+}
+
+.row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: var(--app-space-4);
+  padding: var(--app-space-3) 0;
+}
+
+// The one-tap check: a ring that fills towards the day's target, solid once the habit is done.
+.check {
+  --size: 2.75rem;
+  --ring: var(--app-accent);
+
+  display: grid;
+  place-items: center;
+  width: var(--size);
+  height: var(--size);
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background:
+    radial-gradient(closest-side, var(--app-bg) calc(100% - 3px), transparent calc(100% - 2px)),
+    conic-gradient(var(--ring) calc(var(--progress, 0) * 360deg), var(--app-border) 0);
+  color: var(--ring);
+  cursor: pointer;
+  transition: background 160ms ease-out;
+
+  .tick {
+    width: 1.25rem;
+    height: 1.25rem;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2.5;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    opacity: 0;
+  }
+
+  .count {
+    font: var(--mat-sys-label-medium);
+    font-variant-numeric: tabular-nums;
+  }
+
+  &:hover .tick {
+    opacity: 0.35;
+  }
+
+  &[aria-pressed='true'] {
+    background: var(--ring);
+    color: var(--mat-sys-on-primary);
+
+    .tick {
+      opacity: 1;
+    }
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--app-accent);
+    outline-offset: 3px;
+  }
+
+  &:disabled {
+    cursor: progress;
+  }
+}
+
+.main {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.name {
+  overflow-wrap: anywhere;
+  font: var(--mat-sys-title-medium);
+}
+
+.done .name {
+  color: var(--app-fg-muted);
+}
+
+.schedule {
+  color: var(--app-fg-muted);
+  font: var(--mat-sys-body-medium);
+}
+
+.stats {
+  display: flex;
+  gap: var(--app-space-4);
+  margin: 0;
+
+  > div {
+    display: flex;
+    flex-direction: column;
+    min-width: 4.5rem;
+  }
+
+  dt {
+    color: var(--app-fg-muted);
+    font: var(--mat-sys-label-small);
+  }
+
+  dd {
+    display: flex;
+    align-items: center;
+    gap: var(--app-space-1);
+    margin: 0;
+    font: var(--mat-sys-label-large);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+
+  .hot dd {
+    color: var(--app-accent);
+  }
+}
+
+.bar {
+  position: relative;
+  display: inline-block;
+  width: 2.5rem;
+  height: 4px;
+  overflow: hidden;
+  border-radius: 2px;
+  background: var(--app-border);
+
+  &::after {
+    position: absolute;
+    inset: 0;
+    background: var(--app-accent);
+    content: '';
+    transform: scaleX(var(--rate, 0));
+    transform-origin: left;
+  }
+}
+
+.actions {
+  display: flex;
+}
+
+.busy {
+  opacity: 0.7;
+}
+
+.error {
+  margin: 0 0 var(--app-space-3);
+  color: var(--mat-sys-error);
+}
+
+.load-error,
+.empty,
+.hint {
+  color: var(--app-fg-muted);
+}
+
+@media (max-width: 40rem) {
+  .row {
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: var(--app-space-2) var(--app-space-3);
+  }
+
+  .stats,
+  .actions {
+    grid-column: 2;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .check {
+    transition: none;
+  }
+}

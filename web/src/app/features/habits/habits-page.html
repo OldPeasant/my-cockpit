@@ -1,0 +1,202 @@
+<section class="habits" aria-labelledby="habits-title">
+  <header class="head">
+    <div>
+      <h1 id="habits-title" i18n="@@nav.habits">Habits</h1>
+      @if (!archived() && habits() && due().length) {
+        <p class="summary" role="status" i18n="@@habits.summary">
+          {{ doneDue() }} of {{ due().length }} done today
+        </p>
+      }
+    </div>
+    <div class="tools">
+      <div class="toggle" role="group" i18n-aria-label="@@habits.show" aria-label="Show">
+        <button
+          type="button"
+          class="show-active"
+          [attr.aria-pressed]="!archived()"
+          (click)="setArchived(false)"
+          i18n="@@habits.show.active"
+        >
+          Active
+        </button>
+        <button
+          type="button"
+          class="show-archived"
+          [attr.aria-pressed]="archived()"
+          (click)="setArchived(true)"
+          i18n="@@habits.show.archived"
+        >
+          Archived
+        </button>
+      </div>
+      @if (!archived() && editing() !== 'new') {
+        <button mat-flat-button type="button" class="new" (click)="openNew()" i18n="@@habits.new">
+          New habit
+        </button>
+      }
+    </div>
+  </header>
+
+  @if (editing() === 'new') {
+    <app-habit-form
+      class="new-form"
+      [initial]="draft()"
+      [saving]="saving()"
+      [error]="saveError()"
+      (save)="save($event)"
+      (cancelled)="closeForm()"
+    />
+  }
+
+  @if (loadError(); as error) {
+    <div class="load-error" role="alert">
+      <p i18n="@@habits.loadFailed">The habits could not be loaded: {{ error }}</p>
+      <button mat-stroked-button type="button" (click)="load()" i18n="@@habits.retry">
+        Try again
+      </button>
+    </div>
+  } @else if (habits(); as all) {
+    @if (!all.length) {
+      @if (archived()) {
+        <p class="empty" i18n="@@habits.emptyArchived">
+          No archived habits. Archive a habit to stop tracking it and keep its history.
+        </p>
+      } @else if (editing() !== 'new') {
+        <p class="empty" i18n="@@habits.empty">
+          No habits yet. Add one you want to do every day or a few times a week.
+        </p>
+      }
+    } @else if (archived()) {
+      <ng-container *ngTemplateOutlet="list; context: { $implicit: all, label: 'habits-title' }" />
+    } @else {
+      @if (due().length) {
+        <h2 class="group" id="habits-due" i18n="@@habits.dueToday">Due today</h2>
+        <ng-container
+          *ngTemplateOutlet="list; context: { $implicit: due(), label: 'habits-due' }"
+        />
+      }
+      @if (notDue().length) {
+        <h2 class="group" id="habits-not-due" i18n="@@habits.notDueToday">Not due today</h2>
+        <ng-container
+          *ngTemplateOutlet="list; context: { $implicit: notDue(), label: 'habits-not-due' }"
+        />
+      }
+    }
+  } @else {
+    <p class="hint" role="status" i18n="@@habits.loading">Loading habits…</p>
+  }
+</section>
+
+<ng-template #list let-items let-label="label">
+  <ul class="list" [attr.aria-labelledby]="label">
+    @for (habit of items; track habit.id) {
+      <li
+        class="habit"
+        [class.done]="habit.stats.doneToday"
+        [class.busy]="isBusy(habit)"
+        [attr.data-id]="habit.id"
+      >
+        @if (editing() === habit.id) {
+          <app-habit-form
+            [initial]="draft()"
+            [editing]="true"
+            [saving]="saving()"
+            [error]="saveError()"
+            (save)="save($event)"
+            (cancelled)="closeForm()"
+          />
+        } @else {
+          <div class="row">
+            @if (!habit.archived) {
+              <button
+                type="button"
+                class="check"
+                [class.partial]="!habit.stats.doneToday && habit.stats.todayCount > 0"
+                [style.--progress]="todayProgress(habit)"
+                [attr.aria-pressed]="habit.stats.doneToday"
+                [attr.aria-label]="checkLabel(habit)"
+                [disabled]="isBusy(habit)"
+                (click)="check(habit)"
+              >
+                @if (habit.targetCount > 1 && !habit.stats.doneToday) {
+                  <span class="count" aria-hidden="true">
+                    {{ habit.stats.todayCount }}/{{ habit.targetCount }}
+                  </span>
+                } @else {
+                  <svg class="tick" viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M5 12.5l4.5 4.5L19 7.5" />
+                  </svg>
+                }
+              </button>
+            }
+            <div class="main">
+              <span class="name">{{ habit.name }}</span>
+              <span class="schedule">
+                {{ scheduleLabel(habit) }}
+                @if (habit.reminderTime) {
+                  <span class="reminder" i18n="@@habits.reminderAt"
+                    >, reminder at {{ habit.reminderTime.slice(0, 5) }}</span
+                  >
+                }
+              </span>
+            </div>
+            <dl class="stats">
+              <div class="streak" [class.hot]="habit.stats.currentStreak > 0">
+                <dt i18n="@@habits.stats.streak">Streak</dt>
+                <dd>{{ streakLabel(habit.stats.currentStreak, habit.stats.streakUnit) }}</dd>
+              </div>
+              <div class="best">
+                <dt i18n="@@habits.stats.best">Best</dt>
+                <dd>{{ streakLabel(habit.stats.longestStreak, habit.stats.streakUnit) }}</dd>
+              </div>
+              <div class="rate">
+                <dt i18n="@@habits.stats.rate">30 days</dt>
+                <dd>
+                  @let percent = completionPercent(habit);
+                  @if (percent !== null) {
+                    <span class="bar" [style.--rate]="percent / 100" aria-hidden="true"></span>
+                    {{ percent }}&#8239;%
+                  } @else {
+                    –
+                  }
+                </dd>
+              </div>
+            </dl>
+            <div class="actions">
+              @if (!habit.archived) {
+                <button
+                  mat-button
+                  type="button"
+                  class="edit"
+                  [disabled]="isBusy(habit)"
+                  (click)="openEdit(habit)"
+                  i18n="@@habits.edit"
+                >
+                  Edit
+                </button>
+              }
+              <button
+                mat-button
+                type="button"
+                class="archive"
+                [disabled]="isBusy(habit)"
+                (click)="toggleArchived(habit)"
+              >
+                @if (habit.archived) {
+                  <ng-container i18n="@@habits.unarchive">Unarchive</ng-container>
+                } @else {
+                  <ng-container i18n="@@habits.archive">Archive</ng-container>
+                }
+              </button>
+            </div>
+          </div>
+          @if (errorOf(habit); as error) {
+            <p class="error" role="alert" i18n="@@habits.changeFailed">
+              “{{ habit.name }}” could not be changed: {{ error }}
+            </p>
+          }
+        }
+      </li>
+    }
+  </ul>
+</ng-template>

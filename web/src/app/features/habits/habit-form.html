@@ -1,0 +1,129 @@
+<form
+  class="habit-form"
+  (submit)="$event.preventDefault(); submit()"
+  (keydown.escape)="cancelled.emit()"
+>
+  <label class="field name">
+    <span i18n="@@habits.form.name">Name</span>
+    <input
+      #name
+      type="text"
+      maxlength="200"
+      [value]="draft().name"
+      (input)="setName($event)"
+      i18n-placeholder="@@habits.form.namePlaceholder"
+      placeholder="e.g. Read 20 pages"
+    />
+  </label>
+
+  <fieldset class="field">
+    <legend i18n="@@habits.form.schedule">How often</legend>
+    <div class="toggle schedule">
+      <button
+        type="button"
+        class="schedule-daily"
+        [attr.aria-pressed]="draft().schedule === 'DAILY'"
+        (click)="setSchedule('DAILY')"
+        i18n="@@habits.schedule.daily"
+      >
+        Every day
+      </button>
+      <button
+        type="button"
+        class="schedule-per-week"
+        [attr.aria-pressed]="draft().schedule === 'TIMES_PER_WEEK'"
+        (click)="setSchedule('TIMES_PER_WEEK')"
+        i18n="@@habits.form.perWeek"
+      >
+        Times a week
+      </button>
+      <button
+        type="button"
+        class="schedule-weekdays"
+        [attr.aria-pressed]="draft().schedule === 'WEEKDAYS'"
+        (click)="setSchedule('WEEKDAYS')"
+        i18n="@@habits.form.weekdays"
+      >
+        Chosen days
+      </button>
+    </div>
+
+    @if (draft().schedule === 'TIMES_PER_WEEK') {
+      <label class="inline">
+        <input
+          class="times-per-week"
+          type="number"
+          min="1"
+          max="7"
+          [value]="draft().timesPerWeek"
+          (input)="setNumber('timesPerWeek', $event)"
+        />
+        <span i18n="@@habits.form.timesPerWeekSuffix">times a week</span>
+      </label>
+    } @else if (draft().schedule === 'WEEKDAYS') {
+      <div class="days" role="group" i18n-aria-label="@@habits.form.days" aria-label="Days">
+        @for (w of weekdays; track w.day) {
+          <button
+            type="button"
+            class="day"
+            [attr.aria-pressed]="draft().weekdays.includes(w.day)"
+            (click)="toggleDay(w.day)"
+          >
+            {{ w.label }}
+          </button>
+        }
+      </div>
+    }
+  </fieldset>
+
+  <div class="row">
+    <label class="field">
+      <span i18n="@@habits.form.target">Times a day</span>
+      <input
+        class="target"
+        type="number"
+        min="1"
+        max="1000"
+        [value]="draft().targetCount"
+        (input)="setNumber('targetCount', $event)"
+      />
+    </label>
+    <label class="field">
+      <span i18n="@@habits.form.reminder">Reminder (optional)</span>
+      <input
+        class="reminder"
+        type="time"
+        [value]="draft().reminderTime"
+        (input)="setReminder($event)"
+      />
+    </label>
+  </div>
+
+  @if (tried() && problem(); as message) {
+    <p class="error" role="alert">{{ message }}</p>
+  } @else if (error(); as message) {
+    <p class="error" role="alert" i18n="@@habits.form.saveFailed">
+      The habit could not be saved: {{ message }}
+    </p>
+  }
+
+  <div class="actions">
+    <button
+      mat-button
+      type="button"
+      class="cancel"
+      [disabled]="saving()"
+      (click)="cancelled.emit()"
+      i18n="@@habits.form.cancel"
+    >
+      Cancel
+    </button>
+    <button mat-flat-button type="submit" class="save" [disabled]="saving()">
+      @if (editing()) {
+        <ng-container i18n="@@habits.form.saveChanges">Save changes</ng-container>
+      } @else {
+        <ng-container i18n="@@habits.form.create">Add habit</ng-container>
+      }
+    </button>
+  </div>
+</form>
