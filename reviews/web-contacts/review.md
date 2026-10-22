@@ -4,9 +4,9 @@ Date: 2026-10-22
 
 Task: web-contacts - Contacts UI
 
-Scope: final revision, `git diff 1f6a57005..HEAD` (task commits 13df9e2eb..6042bedc3 merged in ebc35ae6c): `web/src/app/features/contacts/`, `web/e2e/contacts/contacts.spec.ts`, one line in `web/src/app/app.spec.ts`, plus earlier review and fix reports. Production code was reviewed at HEAD. Test files a concurrent test-writer may add later are not part of this review.
+Scope: final revision, `git diff 1f6a57005..2c0a11bec` (task commits 13df9e2eb..6042bedc3 merged in ebc35ae6c, then test-writer commit 2c0a11bec): `web/src/app/features/contacts/`, `web/e2e/contacts/contacts.spec.ts`, one line in `web/src/app/app.spec.ts`, plus review, fix and test reports. Production code was reviewed at ebc35ae6c and is unchanged in 2c0a11bec. The commit adds only spec tests and `reviews/web-contacts/tests.md` (`git diff ebc35ae6c 2c0a11bec --stat`).
 
-Reviewed revision: ebc35ae6c159616eeb2b6426648a575e6d7eb6e8
+Reviewed revision: 2c0a11bec7f6de07fe04c2f2c36dbedb0ce35bfb (first review round of this revision's production code: ebc35ae6c159616eeb2b6426648a575e6d7eb6e8)
 
 Requirements:
 - tasks/web-contacts.md acceptance criteria and Notes (assumptions)
@@ -17,9 +17,9 @@ Requirements:
 
 Git range:
 - Branch: main (local clone of the claimed task)
-- HEAD: ebc35ae6c159616eeb2b6426648a575e6d7eb6e8
+- HEAD: 2c0a11bec7f6de07fe04c2f2c36dbedb0ce35bfb (reviewed revision; the clone's HEAD 602f22ce8 adds only the earlier review report)
 - Base/start: 1f6a57005 (claim commit)
-- Commits reviewed: 7 task commits (13df9e2eb, e3c67bdfd, 630a2f1f8, 26fbebb03, 3a3dd131f, fc3ad426d, 6042bedc3) and the merge ebc35ae6c
+- Commits reviewed: 8 task commits (13df9e2eb, e3c67bdfd, 630a2f1f8, 26fbebb03, 3a3dd131f, fc3ad426d, 6042bedc3, 2c0a11bec) and the merge ebc35ae6c
 - Uncommitted changes: none at review start
 
 Summary: 0 P0, 0 P1, 0 P2, 2 P3
@@ -29,6 +29,18 @@ Summary: 0 P0, 0 P1, 0 P2, 2 P3
 - CR-1 (P1, criterion 3 needed `contacts-birthdays` on main): resolved. `contacts-birthdays` is a dependency in `tasks/web-contacts.md:5` and is done on main. The parent reports `npm --prefix web run e2e -- e2e/contacts/contacts.spec.ts` against the e2e stack -> 1 passed, on main with the dependency merged. The spec (`web/e2e/contacts/contacts.spec.ts`) imports a vCard through the real file chooser, checks list, search, detail, export and the Birthdays-calendar entry `${name} (37)` on 2027-03-14. That matches criterion 3. The parent still has to record this with `tasks.py verify` (no criterion has evidence recorded yet).
 - CR-2..CR-5: resolved in the previous round. I re-checked them in the code at HEAD: `toForm`/`derivedName` (`contact-form-model.ts:41-76`), id-keyed form refill (`contact-form.ts:48-60`), corrected doc comment of `eventLink` (`contact-display.ts:69-76`), and the sync label without empty parentheses (`contact-detail.html:37-45`, `contacts-page.html:40-42`).
 - CR-6 (P3, misleading "Save again" message when the conflict reload fails): not changed. The code is the same, and a test now pins the behaviour (`contact-detail.spec.ts:364`). Restated as CR-1 below, so the parent can decide on it.
+
+## Tests added in 2c0a11bec
+
+I read every new test. They are sound and none of them weakens an existing one:
+- `contact-detail.spec.ts`, double Save: two synchronous `submit` events reach `ContactDetail.save()` before `busy` propagates. `expectOne` for the PATCH therefore really tests the `saving()` guard (`contact-detail.ts:163`). Double Delete does the same for the `deleting()` guard (`:197`).
+- `contact-detail.spec.ts`, late load error and late failed related load of an earlier route: these test the `loadSeq` guards in the `catch` branches of `load()` and `loadRelated()` (`:134`, `:144`).
+- `contacts-page.spec.ts`: a double Show more (`loadingMore` guard), a failed Show more and a quiet reload that arrive after the search changed (`loadSeq` guards in `loadMore()`/`reloadQuietly()`), the file picker opened from the Import button, and an import report without skipped cards.
+- `contact-form-model.spec.ts`: `toForm` with a missing family name and an unlabelled email. It relies on the fixture's `givenName: 'Ada'` (`testing.ts`), so `displayName: 'Ada'` counts as derived and is left empty. That is correct.
+
+Both specs run `http.verify()` after each test (`contact-detail.spec.ts:155`, `contacts-page.spec.ts:99`), so stray or duplicate requests would fail. Parent-reported results on 2c0a11bec: `npm --prefix web run check` -> exit 0, 161 files, 3267 tests; contacts tests 103 passed. I did not re-run them.
+
+Remaining test gap: none of the new tests covers CR-2 below, a save or conflict reload that finishes after a route change. The new tests cover only the guarded paths.
 
 ## P0 Critical
 
