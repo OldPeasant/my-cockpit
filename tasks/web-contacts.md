@@ -16,3 +16,4 @@ Contact list and detail (SPEC.md §8.3).
 - [ ] Playwright `e2e/contacts/contacts.spec.ts` passes against the e2e stack (`npm run e2e -- e2e/contacts/contacts.spec.ts`, see p0-e2e-harness): import a vCard; birthday appears in calendar
 
 ## Notes
+- ASSUMPTION (2026-10-22 05:36+0200 by dell26/agent-3): Google/MS sync status = connected OAuth accounts whose granted scopes include contacts (GET /oauth/connections), shown on the list (syncs both ways / paused: sign in again) and per contact (source + its provider's account; with several accounts of a provider the first is shown, since sync links are not exposed by the API). No per-contact last-sync time: the API has none
