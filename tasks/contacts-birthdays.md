@@ -6,6 +6,7 @@ deps: [contacts-api,cal-local-api]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/contacts/birthdays,server/src/test/kotlin/ch/sonensei/cockpit/contacts/birthdays]
 prio: 2
 lease_until: 2026-10-22T03:45:05Z
+extended: dell26/agent-2
 ---
 ## Goal
 Virtual read-only birthdays calendar (SPEC.md §8.3).
@@ -21,3 +22,4 @@ Virtual read-only birthdays calendar (SPEC.md §8.3).
 - ASSUMPTION (2026-10-22 04:35+0200 by dell26/agent-2): No CALENDAR/EVENT change event is published when a contact's birthday changes; clients see changes on their next range fetch (CONTACT change events are published as before).
 - ASSUMPTION (2026-10-22 05:10+0200 by dell26/agent-2): Concurrent first creation of a virtual calendar is serialized by a row lock on the LOCAL calendar source (CalendarSourceRepository.findForUpdate) instead of catching the unique-key violation, so no ERROR is logged; touches calendar/model outside the task's touches.
 - ASSUMPTION (2026-10-22 05:10+0200 by dell26/agent-2): Client handling of birthday occurrences (web dialog currently 404s on them) is out of scope; follow-up task web-and-birthday-occurrences created, the OccurrenceResponse description documents the virtual case.
+- extended by dell26/agent-2: Implementation, tests and fixes committed; birthdays suite passes (31 tests, Testcontainers). Left: last code change (advisory lock for first virtual calendar creation, 1e21e5e5 + test e61b8f64) came after the re-review, so re-run test-writer and code-reviewer on final code; record an assumption that the advisory lock replaces the row lock noted earlier; write quality.json; tasks.py verify #1/#2; run .taskcheck; done.
