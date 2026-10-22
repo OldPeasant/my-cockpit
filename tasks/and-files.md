@@ -1,10 +1,11 @@
 ---
 title: Android files
-status: todo
-owner:
+status: in_progress
+owner: dell26/agent-1
 deps: [and-login,files-preview]
 touches: [android/app/src/main/java/ch/sonensei/cockpit/files,android/app/src/test/java/ch/sonensei/cockpit/files]
 prio: 3
+lease_until: 2026-10-22T11:04:25Z
 ---
 ## Goal
 Files on the phone (SPEC.md §9.2 item 7).
