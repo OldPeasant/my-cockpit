@@ -11,7 +11,8 @@ lease_until: 2026-10-22T13:11:31Z
 Review progress on the phone.
 
 ## Acceptance criteria
-- [ ] Shows current review steps and stalled projects read-only
+- [x] Shows current review steps and stalled projects read-only
+  - verified (2026-10-22 14:55+0200 by dell26/agent-1): ReviewScreenTest (9) + ReviewRouteInAppTest (Hilt/Robolectric, More > Review shows real screen: 8 steps with current step 5, stalled project listed) + ReviewRepositoryCallsTest (only GET status/projects called, never start/move/complete) via cd android && ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.review.*' -> 28 tests, 0 failures
 - [ ] `cd android && ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.review.*'` passes, covering step rendering (Robolectric/Compose UI tests for screens)
 
 ## Notes
