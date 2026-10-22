@@ -15,6 +15,7 @@ import { SecurityService } from './security.service';
 
 const DEVICES = '/api/v1/auth/devices';
 const CODES = '/api/v1/auth/recovery-codes';
+const PASSKEYS = '/api/v1/auth/passkeys';
 
 const tick = (): Promise<void> => new Promise((resolve) => setTimeout(resolve));
 
@@ -55,6 +56,7 @@ describe('SecuritySettings', () => {
     root = fixture.nativeElement as HTMLElement;
     await settle();
     http.expectOne({ method: 'GET', url: DEVICES }).flush(devices);
+    http.expectOne({ method: 'GET', url: PASSKEYS }).flush([]);
     await settle();
   }
 
@@ -65,6 +67,8 @@ describe('SecuritySettings', () => {
 
   afterEach(() => {
     TestBed.inject(MatDialog).closeAll();
+    // Tests that create the component themselves don't care about the passkey list.
+    http.match({ method: 'GET', url: PASSKEYS }).forEach((request) => request.flush([]));
     http.verify();
   });
 
@@ -362,6 +366,7 @@ describe('SecuritySettings', () => {
 
       expect(root.querySelector('[role="status"]')?.textContent).toContain('Loading devices');
       http.expectOne(DEVICES).flush([device('d1', 'Pixel 9')]);
+      http.expectOne(PASSKEYS).flush([]);
       await settle();
       expect(root.querySelector('[role="status"]')).toBeNull();
       expect(deviceNames()).toEqual(['Pixel 9']);

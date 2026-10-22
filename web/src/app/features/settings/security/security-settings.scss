@@ -50,7 +50,8 @@ h3 {
   min-width: 0;
 }
 
-.devices {
+.devices,
+.passkeys {
   margin: 0;
   padding: 0;
   list-style: none;
@@ -89,6 +90,22 @@ h3 {
 .revoke {
   --mat-button-text-label-text-color: var(--app-danger);
   flex: none;
+}
+
+.add-passkey {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--app-space-3);
+  margin-top: var(--app-space-3);
+
+  mat-form-field {
+    width: min(100%, 14rem);
+  }
+}
+
+.added {
+  margin-top: var(--app-space-2);
 }
 
 .regenerate {

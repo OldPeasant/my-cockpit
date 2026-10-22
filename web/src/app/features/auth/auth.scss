@@ -50,3 +50,30 @@ p {
 .sign-out {
   margin-top: var(--app-space-3);
 }
+
+// The passkey alternative below the password form, set off by a ruled "or".
+.passkey {
+  display: flex;
+  flex-direction: column;
+  gap: var(--app-space-3);
+  margin-top: var(--app-space-4);
+}
+
+.or {
+  display: flex;
+  align-items: center;
+  gap: var(--app-space-3);
+  color: var(--app-fg-muted);
+  font: var(--mat-sys-label-medium);
+
+  &::before,
+  &::after {
+    content: '';
+    flex: 1;
+    border-top: 1px solid var(--app-border);
+  }
+}
+
+.passkey-button {
+  align-self: stretch;
+}

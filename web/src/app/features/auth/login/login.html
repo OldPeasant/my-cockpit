@@ -100,4 +100,19 @@
       Sign in
     </button>
   </form>
+  @if (passkeySupported) {
+    <div class="passkey">
+      <span class="or" aria-hidden="true" i18n="@@login.or">or</span>
+      <button
+        mat-stroked-button
+        type="button"
+        class="passkey-button"
+        [disabled]="submitting() || blocked()"
+        (click)="signInWithPasskey()"
+        i18n="@@login.passkey"
+      >
+        Sign in with a passkey
+      </button>
+    </div>
+  }
 </app-auth-layout>

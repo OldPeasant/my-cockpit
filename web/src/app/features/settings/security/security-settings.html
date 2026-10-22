@@ -60,6 +60,128 @@
 
   <div class="row">
     <div class="describe">
+      <h3 id="passkeys-label" #passkeysHeading tabindex="-1" i18n="@@security.passkeys">
+        Passkeys
+      </h3>
+      <p i18n="@@security.passkeys.hint">
+        Sign in with your fingerprint, face or security key instead of password and code. Adding one
+        needs a current code from your authenticator app.
+      </p>
+    </div>
+    <div class="control">
+      @if (passkeysError(); as error) {
+        <div class="load-error" role="alert">
+          <p i18n="@@security.passkeys.loadFailed">Passkeys could not be loaded: {{ error }}</p>
+          <button mat-stroked-button type="button" (click)="loadPasskeys()" i18n="@@settings.retry">
+            Try again
+          </button>
+        </div>
+      } @else if (passkeys(); as list) {
+        @if (list.length) {
+          <ul class="passkeys" aria-labelledby="passkeys-label">
+            @for (passkey of list; track passkey.id) {
+              <li>
+                <div class="device">
+                  <span class="name">{{ passkey.name }}</span>
+                  <span class="seen">
+                    @if (passkey.lastUsedAt) {
+                      <ng-container i18n="@@security.passkeys.lastUsed"
+                        >Last used {{ passkey.lastUsedAt | date: 'medium' }}</ng-container
+                      >
+                    } @else {
+                      <ng-container i18n="@@security.passkeys.created"
+                        >Added {{ passkey.createdAt | date: 'medium' }}, not used yet</ng-container
+                      >
+                    }
+                  </span>
+                </div>
+                <button
+                  #deletePasskeyButton
+                  mat-button
+                  type="button"
+                  class="revoke"
+                  [disabled]="deleting().has(passkey.id)"
+                  (click)="deletePasskey(passkey)"
+                  [attr.aria-label]="deleteLabel(passkey)"
+                  i18n="@@security.passkeys.delete"
+                >
+                  Delete
+                </button>
+              </li>
+            }
+          </ul>
+        } @else {
+          <p class="note" i18n="@@security.passkeys.none">No passkeys yet.</p>
+        }
+        @if (deleteError(); as error) {
+          <p class="error" role="alert" i18n="@@security.passkeys.deleteFailed">
+            {{ error.name }} could not be deleted: {{ error.message }}
+          </p>
+        }
+      } @else {
+        <p class="note" role="status" i18n="@@security.passkeys.loading">Loading passkeys…</p>
+      }
+
+      @if (passkeysSupported) {
+        <form
+          class="add-passkey"
+          [formGroup]="passkeyForm"
+          (submit)="$event.preventDefault(); addPasskey()"
+          novalidate
+        >
+          <mat-form-field subscriptSizing="dynamic">
+            <mat-label i18n="@@security.passkeys.name">Name</mat-label>
+            <input
+              matInput
+              formControlName="name"
+              maxlength="100"
+              autocomplete="off"
+              placeholder="Laptop"
+              i18n-placeholder="@@security.passkeys.namePlaceholder"
+            />
+            @if (passkeyForm.controls.name.touched && passkeyForm.controls.name.invalid) {
+              <mat-error i18n="@@security.passkeys.nameInvalid">Name the passkey.</mat-error>
+            }
+          </mat-form-field>
+          <mat-form-field subscriptSizing="dynamic">
+            <mat-label i18n="@@security.codes.totp">Code from authenticator app</mat-label>
+            <input
+              matInput
+              formControlName="totp"
+              inputmode="numeric"
+              autocomplete="one-time-code"
+              maxlength="8"
+            />
+            @if (passkeyForm.controls.totp.touched && passkeyForm.controls.totp.invalid) {
+              <mat-error i18n="@@security.codes.totpInvalid">Enter the 6-digit code.</mat-error>
+            }
+          </mat-form-field>
+          <button
+            mat-stroked-button
+            type="submit"
+            [disabled]="adding()"
+            i18n="@@security.passkeys.add"
+          >
+            Add passkey
+          </button>
+        </form>
+        @if (addError(); as error) {
+          <p class="error" role="alert">{{ error }}</p>
+        } @else if (added(); as name) {
+          <p class="note added" role="status" i18n="@@security.passkeys.added">
+            Passkey {{ name }} added.
+          </p>
+        }
+      } @else {
+        <p class="note" i18n="@@security.passkeys.unsupportedHint">
+          This browser cannot create passkeys.
+        </p>
+      }
+    </div>
+  </div>
+
+  <div class="row">
+    <div class="describe">
       <h3 id="codes-label" i18n="@@security.codes">Recovery codes</h3>
       <p i18n="@@security.codes.hint">
         Each code signs you in once if you lose your authenticator app. New codes replace all old
