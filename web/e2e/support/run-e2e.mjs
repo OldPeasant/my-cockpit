@@ -7,6 +7,7 @@
 //   E2E_COMPOSE   compose command (default "docker compose"; e.g. "podman-compose")
 //   E2E_PORT      host port of the server (default: a free one)
 //   E2E_IMAP_PORT host port of GreenMail's IMAP (default: a free one)
+//   E2E_SMTP_PORT host port of GreenMail's SMTP (default: a free one)
 //   E2E_FRESH_PORT host port of the fresh-install server (default: a free one)
 //   E2E_KEEP=1    leave the stack running after the tests (tear it down with the printed command)
 import { spawn, spawnSync } from 'node:child_process';
@@ -38,6 +39,7 @@ async function main() {
   }
   const port = process.env.E2E_PORT ?? String(await freePort());
   const imapPort = process.env.E2E_IMAP_PORT ?? String(await freePort());
+  const smtpPort = process.env.E2E_SMTP_PORT ?? String(await freePort());
   const freshPort = process.env.E2E_FRESH_PORT ?? String(await freePort());
   // One project per clone, so parallel clones on the same machine get separate stacks.
   const project = `cockpit-e2e-${createHash('sha256').update(webDir).digest('hex').slice(0, 8)}`;
@@ -48,6 +50,7 @@ async function main() {
     ...process.env,
     E2E_PORT: port,
     E2E_IMAP_PORT: imapPort,
+    E2E_SMTP_PORT: smtpPort,
     E2E_FRESH_PORT: freshPort,
     E2E_IMAGE: `localhost/${project}:latest`,
   };
@@ -87,6 +90,7 @@ async function main() {
   try {
     status = await runPlaywright(baseUrl, {
       E2E_IMAP_PORT: imapPort,
+      E2E_SMTP_PORT: smtpPort,
       E2E_FRESH_BASE_URL: freshBaseUrl,
     });
     if (status !== 0 && !interrupted) compose(['logs', '--tail', '100', 'server', 'server-fresh']);

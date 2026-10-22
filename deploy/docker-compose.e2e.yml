@@ -49,13 +49,15 @@ services:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres-fresh:5432/cockpit_e2e
 
   # Test mail server (SMTP 3025, IMAP 3143, no TLS). Any login is accepted and creates its mailbox. The server reaches
-  # it as `greenmail`; specs use its IMAP port on the host (E2E_IMAP_PORT, set by run-e2e.mjs) to deliver mail.
+  # it as `greenmail`; specs use its IMAP port on the host (E2E_IMAP_PORT, set by run-e2e.mjs) to deliver mail, and its
+  # SMTP port (E2E_SMTP_PORT) where a mail must arrive the way real mail does (phase 5 demo, IDLE push).
   greenmail:
     image: docker.io/greenmail/standalone:2.1.5
     environment:
       GREENMAIL_OPTS: -Dgreenmail.setup.test.smtp -Dgreenmail.setup.test.imap -Dgreenmail.hostname=0.0.0.0 -Dgreenmail.auth.disabled
     ports:
       - "127.0.0.1:${E2E_IMAP_PORT:-18143}:3143"
+      - "127.0.0.1:${E2E_SMTP_PORT:-18025}:3025"
 
   postgres:
     image: docker.io/library/postgres:16-alpine

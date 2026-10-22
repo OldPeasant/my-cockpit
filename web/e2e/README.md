@@ -23,6 +23,7 @@ down and exit non-zero (130/143). Options (environment):
 | `E2E_KEEP=1`         | keep the stack running afterwards (prints the `down` command)                           |
 | `E2E_BASE_URL`       | run against an already running e2e stack, no compose up/down                            |
 | `E2E_IMAP_PORT`      | host port of GreenMail's IMAP, default a free one (18143 with `E2E_BASE_URL`)           |
+| `E2E_SMTP_PORT`      | host port of GreenMail's SMTP, default a free one (18025 with `E2E_BASE_URL`)           |
 | `E2E_FRESH_PORT`     | host port of the fresh-install server `server-fresh`, default a free one                |
 | `E2E_FRESH_BASE_URL` | with `E2E_BASE_URL`: that stack's `server-fresh`; without it, phase 2 step 5 is skipped |
 
