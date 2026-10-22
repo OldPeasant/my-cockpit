@@ -19,3 +19,4 @@ Read-later queue and bookmarks (SPEC.md §8.4).
 - ASSUMPTION (2026-10-22 03:46+0200 by dell26/agent-3): Search (SPEC 8.4) is left to the global search; the bookmarks API has no search parameter and the task criteria do not name it
 - ASSUMPTION (2026-10-22 03:46+0200 by dell26/agent-3): app.i18n.spec.ts now uses the Dashboard placeholder instead of Bookmarks (outside touches, needed because Bookmarks is no longer a placeholder)
 - ASSUMPTION (2026-10-22 03:58+0200 by dell26/agent-3): app.spec.ts: /bookmarks moved to the BUILT list (outside touches, needed because Bookmarks is no longer a placeholder)
+- ASSUMPTION (2026-10-22 03:58+0200 by dell26/agent-3): Favicons are not loaded from third-party sites: the production CSP allows only same-origin images and direct loads would leak the owner's IP (cf. SPEC 4.1 mail images); the list shows a letter tile instead until a server-side favicon proxy exists
