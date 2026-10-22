@@ -1,10 +1,11 @@
 ---
 title: Google contacts sync
-status: todo
-owner:
+status: in_progress
+owner: dell26/agent-1
 deps: [contacts-api,oauth-connections]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/contacts/google,server/src/test/kotlin/ch/sonensei/cockpit/contacts/google]
 prio: 2
+lease_until: 2026-10-22T02:58:14Z
 ---
 ## Goal
 Two-way People API sync.
