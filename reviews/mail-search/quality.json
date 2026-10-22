@@ -1,0 +1,25 @@
+{
+  "schema": 1,
+  "task": "mail-search",
+  "reviewed_revision": "7469ead33b668ad8f5f223b111546330ffa8adba",
+  "helpers": {
+    "test-writer": {"status": "completed", "report": "reviews/mail-search/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/mail-search/review.md"},
+    "fixer": {"status": "completed", "report": "reviews/mail-search/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P1", "disposition": "fixed",
+     "note": "messages of deleted folders returned by search (500): LOCATED predicate + unindexFolder on folder deletion (fixes.md, verified in review round 2)"},
+    {"id": "CR-2", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "reconciler miscounted unindexable rows and repeated delete: removeStale once per run, indexMissing returns indexed count"},
+    {"id": "CR-3", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "GreenMail test now proves the UTF-8 IMAP SEARCH path (uncached message found only with server=true)"}
+  ],
+  "validation": [
+    {"command": "server/gradlew -p server test --tests 'ch.sonensei.cockpit.mail.search.*'", "result": "pass"},
+    {"command": "server/gradlew -p server test --tests 'ch.sonensei.cockpit.mail.*' --tests '*OpenApiContractTest'", "result": "pass"},
+    {"command": "server/gradlew -p server integrationTest --tests '*MailSearchGreenMailTests'", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
