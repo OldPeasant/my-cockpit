@@ -267,7 +267,7 @@ class MailComposeViewModel
                                 attachments = result.value.attachments,
                                 accountLocked = true,
                                 draft = if (dirty) DraftState.UNSAVED else DraftState.SAVED,
-                                problem = null,
+                                problem = it.problem.takeUnless { p -> p in SAVE_PROBLEMS },
                             )
                         }
                         if (dirty) scheduleAutosave()
@@ -448,5 +448,9 @@ class MailComposeViewModel
             /** SPEC.md §7.3: drafts autosave every 10 s. */
             const val AUTOSAVE_MILLIS = 10_000L
             val TOO_LARGE = setOf(400, 413)
+
+            /** What a successful save resolves; a send or upload problem stays until its own next try. */
+            val SAVE_PROBLEMS =
+                setOf(ComposeProblem.OFFLINE, ComposeProblem.SAVE_FAILED, ComposeProblem.INVALID_ADDRESS, ComposeProblem.NO_ACCOUNT)
         }
     }
