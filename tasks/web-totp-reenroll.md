@@ -19,7 +19,8 @@ must lead the owner through it (SPEC.md §10.2, §4.1).
 - [x] Enrollment screen: starts enrollment (QR code + secret), confirms with a TOTP code, then opens the app;
       wrong code shows the server's validation error
   - verified (2026-10-22 03:29+0200 by dell26/agent-3): totp-enrollment.spec.ts (38 tests: auto start, QR + secret shown, confirm 204 -> opens returnUrl, 400 shows server field message, 401/409/new key) in sh scripts/check.sh on 5beb4fbc -> web 2758 tests passed
-- [ ] `cd web && npm run check` passes, with unit tests for the new flow
+- [x] `cd web && npm run check` passes, with unit tests for the new flow
+  - verified (2026-10-22 03:29+0200 by dell26/agent-3): sh scripts/check.sh (includes cd web && npm run check: api:check, lint, e2e typecheck, test:ci, build) on 5beb4fbc -> 'All files pass linting', 134 files / 2758 tests passed, all checks passed, exit 0
 
 ## Notes
 - From backup-secrets review (CR-1): `web/src/app/features/auth/login/login.ts` ignores `totpEnrollmentRequired`
