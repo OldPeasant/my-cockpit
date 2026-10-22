@@ -10,40 +10,24 @@ import { RequestBuilder } from '../../request-builder';
 import { SearchResponse } from '../../models/search-response';
 
 export interface Search$Params {
-  /**
-   * Search text
-   */
+
+/**
+ * Search text
+ */
   q: string;
 
-  /**
-   * Only these item types (comma-separated or repeated); all types when absent
-   */
-  types?: Array<
-    | 'TASK'
-    | 'PROJECT'
-    | 'NOTE'
-    | 'EVENT'
-    | 'EMAIL'
-    | 'FILE'
-    | 'FOLDER'
-    | 'CONTACT'
-    | 'BOOKMARK'
-    | 'JOURNAL_ENTRY'
-    | 'HABIT'
-  >;
+/**
+ * Only these item types (comma-separated or repeated); all types when absent
+ */
+  types?: Array<'TASK' | 'PROJECT' | 'NOTE' | 'EVENT' | 'EMAIL' | 'FILE' | 'FOLDER' | 'CONTACT' | 'BOOKMARK' | 'JOURNAL_ENTRY' | 'HABIT'>;
 
-  /**
-   * Maximum number of items, 1..50
-   */
+/**
+ * Maximum number of items, 1..50
+ */
   limit?: number;
 }
 
-export function search(
-  http: HttpClient,
-  rootUrl: string,
-  params: Search$Params,
-  context?: HttpContext,
-): Observable<StrictHttpResponse<SearchResponse>> {
+export function search(http: HttpClient, rootUrl: string, params: Search$Params, context?: HttpContext): Observable<StrictHttpResponse<SearchResponse>> {
   const rb = new RequestBuilder(rootUrl, search.PATH, 'get');
   if (params) {
     rb.query('q', params.q, {});
@@ -51,11 +35,13 @@ export function search(
     rb.query('limit', params.limit, {});
   }
 
-  return http.request(rb.build({ responseType: 'json', accept: 'application/json', context })).pipe(
+  return http.request(
+    rb.build({ responseType: 'json', accept: 'application/json', context })
+  ).pipe(
     filter((r: any): r is HttpResponse<any> => r instanceof HttpResponse),
     map((r: HttpResponse<any>) => {
       return r as StrictHttpResponse<SearchResponse>;
-    }),
+    })
   );
 }
 

@@ -7,32 +7,30 @@ import { filter, map } from 'rxjs/operators';
 import { StrictHttpResponse } from '../../strict-http-response';
 import { RequestBuilder } from '../../request-builder';
 
+
 export interface PreviewFile$Params {
   id: string;
 
-  /**
-   * Byte range(s) of an inline preview, e.g. `bytes=0-1023`
-   */
+/**
+ * Byte range(s) of an inline preview, e.g. `bytes=0-1023`
+ */
   Range?: string;
 }
 
-export function previewFile(
-  http: HttpClient,
-  rootUrl: string,
-  params: PreviewFile$Params,
-  context?: HttpContext,
-): Observable<StrictHttpResponse<Blob>> {
+export function previewFile(http: HttpClient, rootUrl: string, params: PreviewFile$Params, context?: HttpContext): Observable<StrictHttpResponse<Blob>> {
   const rb = new RequestBuilder(rootUrl, previewFile.PATH, 'get');
   if (params) {
     rb.path('id', params.id, {});
     rb.header('Range', params.Range, {});
   }
 
-  return http.request(rb.build({ responseType: 'blob', accept: '*/*', context })).pipe(
+  return http.request(
+    rb.build({ responseType: 'blob', accept: '*/*', context })
+  ).pipe(
     filter((r: any): r is HttpResponse<any> => r instanceof HttpResponse),
     map((r: HttpResponse<any>) => {
       return r as StrictHttpResponse<Blob>;
-    }),
+    })
   );
 }
 

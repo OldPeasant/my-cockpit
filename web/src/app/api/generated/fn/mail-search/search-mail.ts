@@ -10,30 +10,26 @@ import { RequestBuilder } from '../../request-builder';
 import { MailSearchResponse } from '../../models/mail-search-response';
 
 export interface SearchMail$Params {
-  /**
-   * Search text
-   */
+
+/**
+ * Search text
+ */
   q: string;
   accountId?: string;
   folderId?: string;
 
-  /**
-   * Also search on the mail server (slower)
-   */
+/**
+ * Also search on the mail server (slower)
+ */
   server?: boolean;
 
-  /**
-   * Maximum number of messages, 1..200
-   */
+/**
+ * Maximum number of messages, 1..200
+ */
   limit?: number;
 }
 
-export function searchMail(
-  http: HttpClient,
-  rootUrl: string,
-  params: SearchMail$Params,
-  context?: HttpContext,
-): Observable<StrictHttpResponse<MailSearchResponse>> {
+export function searchMail(http: HttpClient, rootUrl: string, params: SearchMail$Params, context?: HttpContext): Observable<StrictHttpResponse<MailSearchResponse>> {
   const rb = new RequestBuilder(rootUrl, searchMail.PATH, 'get');
   if (params) {
     rb.query('q', params.q, {});
@@ -43,11 +39,13 @@ export function searchMail(
     rb.query('limit', params.limit, {});
   }
 
-  return http.request(rb.build({ responseType: 'json', accept: 'application/json', context })).pipe(
+  return http.request(
+    rb.build({ responseType: 'json', accept: 'application/json', context })
+  ).pipe(
     filter((r: any): r is HttpResponse<any> => r instanceof HttpResponse),
     map((r: HttpResponse<any>) => {
       return r as StrictHttpResponse<MailSearchResponse>;
-    }),
+    })
   );
 }
 

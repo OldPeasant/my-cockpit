@@ -13,19 +13,14 @@ import { HabitResponse } from '../../models/habit-response';
 export interface UpdateHabit$Params {
   id: string;
 
-  /**
-   * ETag of the habit
-   */
+/**
+ * ETag of the habit
+ */
   'If-Match'?: string;
-  body: HabitRequest;
+      body: HabitRequest
 }
 
-export function updateHabit(
-  http: HttpClient,
-  rootUrl: string,
-  params: UpdateHabit$Params,
-  context?: HttpContext,
-): Observable<StrictHttpResponse<HabitResponse>> {
+export function updateHabit(http: HttpClient, rootUrl: string, params: UpdateHabit$Params, context?: HttpContext): Observable<StrictHttpResponse<HabitResponse>> {
   const rb = new RequestBuilder(rootUrl, updateHabit.PATH, 'patch');
   if (params) {
     rb.path('id', params.id, {});
@@ -33,11 +28,13 @@ export function updateHabit(
     rb.body(params.body, 'application/json');
   }
 
-  return http.request(rb.build({ responseType: 'json', accept: 'application/json', context })).pipe(
+  return http.request(
+    rb.build({ responseType: 'json', accept: 'application/json', context })
+  ).pipe(
     filter((r: any): r is HttpResponse<any> => r instanceof HttpResponse),
     map((r: HttpResponse<any>) => {
       return r as StrictHttpResponse<HabitResponse>;
-    }),
+    })
   );
 }
 

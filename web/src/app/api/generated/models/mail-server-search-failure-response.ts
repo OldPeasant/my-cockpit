@@ -3,14 +3,7 @@
 
 export interface MailServerSearchFailureResponse {
   accountId?: string;
-  errorCode?:
-    | 'AUTHENTICATION_FAILED'
-    | 'TLS_FAILED'
-    | 'TIMEOUT'
-    | 'CONNECTION_FAILED'
-    | 'OAUTH_RECONNECT_REQUIRED'
-    | 'OAUTH_UNAVAILABLE'
-    | 'POOL_EXHAUSTED';
+  errorCode?: 'AUTHENTICATION_FAILED' | 'TLS_FAILED' | 'TIMEOUT' | 'CONNECTION_FAILED' | 'OAUTH_RECONNECT_REQUIRED' | 'OAUTH_UNAVAILABLE' | 'POOL_EXHAUSTED';
 
   /**
    * A fixed message for the error code

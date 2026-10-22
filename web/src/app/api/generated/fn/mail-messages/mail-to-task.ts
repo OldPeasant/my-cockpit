@@ -13,22 +13,19 @@ export interface MailToTask$Params {
   id: string;
 }
 
-export function mailToTask(
-  http: HttpClient,
-  rootUrl: string,
-  params: MailToTask$Params,
-  context?: HttpContext,
-): Observable<StrictHttpResponse<MailGtdItemResponse>> {
+export function mailToTask(http: HttpClient, rootUrl: string, params: MailToTask$Params, context?: HttpContext): Observable<StrictHttpResponse<MailGtdItemResponse>> {
   const rb = new RequestBuilder(rootUrl, mailToTask.PATH, 'post');
   if (params) {
     rb.path('id', params.id, {});
   }
 
-  return http.request(rb.build({ responseType: 'json', accept: 'application/json', context })).pipe(
+  return http.request(
+    rb.build({ responseType: 'json', accept: 'application/json', context })
+  ).pipe(
     filter((r: any): r is HttpResponse<any> => r instanceof HttpResponse),
     map((r: HttpResponse<any>) => {
       return r as StrictHttpResponse<MailGtdItemResponse>;
-    }),
+    })
   );
 }
 

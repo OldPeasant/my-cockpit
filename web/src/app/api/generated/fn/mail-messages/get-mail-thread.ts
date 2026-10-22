@@ -13,22 +13,19 @@ export interface GetMailThread$Params {
   id: string;
 }
 
-export function getMailThread(
-  http: HttpClient,
-  rootUrl: string,
-  params: GetMailThread$Params,
-  context?: HttpContext,
-): Observable<StrictHttpResponse<MailThreadResponse>> {
+export function getMailThread(http: HttpClient, rootUrl: string, params: GetMailThread$Params, context?: HttpContext): Observable<StrictHttpResponse<MailThreadResponse>> {
   const rb = new RequestBuilder(rootUrl, getMailThread.PATH, 'get');
   if (params) {
     rb.path('id', params.id, {});
   }
 
-  return http.request(rb.build({ responseType: 'json', accept: 'application/json', context })).pipe(
+  return http.request(
+    rb.build({ responseType: 'json', accept: 'application/json', context })
+  ).pipe(
     filter((r: any): r is HttpResponse<any> => r instanceof HttpResponse),
     map((r: HttpResponse<any>) => {
       return r as StrictHttpResponse<MailThreadResponse>;
-    }),
+    })
   );
 }
 

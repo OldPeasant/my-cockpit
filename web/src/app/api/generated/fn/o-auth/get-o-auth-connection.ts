@@ -13,22 +13,19 @@ export interface GetOAuthConnection$Params {
   id: string;
 }
 
-export function getOAuthConnection(
-  http: HttpClient,
-  rootUrl: string,
-  params: GetOAuthConnection$Params,
-  context?: HttpContext,
-): Observable<StrictHttpResponse<OAuthConnectionResponse>> {
+export function getOAuthConnection(http: HttpClient, rootUrl: string, params: GetOAuthConnection$Params, context?: HttpContext): Observable<StrictHttpResponse<OAuthConnectionResponse>> {
   const rb = new RequestBuilder(rootUrl, getOAuthConnection.PATH, 'get');
   if (params) {
     rb.path('id', params.id, {});
   }
 
-  return http.request(rb.build({ responseType: 'json', accept: 'application/json', context })).pipe(
+  return http.request(
+    rb.build({ responseType: 'json', accept: 'application/json', context })
+  ).pipe(
     filter((r: any): r is HttpResponse<any> => r instanceof HttpResponse),
     map((r: HttpResponse<any>) => {
       return r as StrictHttpResponse<OAuthConnectionResponse>;
-    }),
+    })
   );
 }
 

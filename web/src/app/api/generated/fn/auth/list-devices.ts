@@ -9,23 +9,21 @@ import { RequestBuilder } from '../../request-builder';
 
 import { DeviceResponse } from '../../models/device-response';
 
-export interface ListDevices$Params {}
+export interface ListDevices$Params {
+}
 
-export function listDevices(
-  http: HttpClient,
-  rootUrl: string,
-  params?: ListDevices$Params,
-  context?: HttpContext,
-): Observable<StrictHttpResponse<Array<DeviceResponse>>> {
+export function listDevices(http: HttpClient, rootUrl: string, params?: ListDevices$Params, context?: HttpContext): Observable<StrictHttpResponse<Array<DeviceResponse>>> {
   const rb = new RequestBuilder(rootUrl, listDevices.PATH, 'get');
   if (params) {
   }
 
-  return http.request(rb.build({ responseType: 'json', accept: 'application/json', context })).pipe(
+  return http.request(
+    rb.build({ responseType: 'json', accept: 'application/json', context })
+  ).pipe(
     filter((r: any): r is HttpResponse<any> => r instanceof HttpResponse),
     map((r: HttpResponse<any>) => {
       return r as StrictHttpResponse<Array<DeviceResponse>>;
-    }),
+    })
   );
 }
 

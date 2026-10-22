@@ -13,19 +13,14 @@ import { TaskResponse } from '../../models/task-response';
 export interface UpdateTask$Params {
   id: string;
 
-  /**
-   * ETag of the task
-   */
+/**
+ * ETag of the task
+ */
   'If-Match'?: string;
-  body: TaskPatchRequest;
+      body: TaskPatchRequest
 }
 
-export function updateTask(
-  http: HttpClient,
-  rootUrl: string,
-  params: UpdateTask$Params,
-  context?: HttpContext,
-): Observable<StrictHttpResponse<TaskResponse>> {
+export function updateTask(http: HttpClient, rootUrl: string, params: UpdateTask$Params, context?: HttpContext): Observable<StrictHttpResponse<TaskResponse>> {
   const rb = new RequestBuilder(rootUrl, updateTask.PATH, 'patch');
   if (params) {
     rb.path('id', params.id, {});
@@ -33,11 +28,13 @@ export function updateTask(
     rb.body(params.body, 'application/json');
   }
 
-  return http.request(rb.build({ responseType: 'json', accept: 'application/json', context })).pipe(
+  return http.request(
+    rb.build({ responseType: 'json', accept: 'application/json', context })
+  ).pipe(
     filter((r: any): r is HttpResponse<any> => r instanceof HttpResponse),
     map((r: HttpResponse<any>) => {
       return r as StrictHttpResponse<TaskResponse>;
-    }),
+    })
   );
 }
 

@@ -13,19 +13,14 @@ import { CalendarResponse } from '../../models/calendar-response';
 export interface UpdateCalendar$Params {
   id: string;
 
-  /**
-   * ETag of the calendar
-   */
+/**
+ * ETag of the calendar
+ */
   'If-Match'?: string;
-  body: CalendarPatchRequest;
+      body: CalendarPatchRequest
 }
 
-export function updateCalendar(
-  http: HttpClient,
-  rootUrl: string,
-  params: UpdateCalendar$Params,
-  context?: HttpContext,
-): Observable<StrictHttpResponse<CalendarResponse>> {
+export function updateCalendar(http: HttpClient, rootUrl: string, params: UpdateCalendar$Params, context?: HttpContext): Observable<StrictHttpResponse<CalendarResponse>> {
   const rb = new RequestBuilder(rootUrl, updateCalendar.PATH, 'patch');
   if (params) {
     rb.path('id', params.id, {});
@@ -33,11 +28,13 @@ export function updateCalendar(
     rb.body(params.body, 'application/json');
   }
 
-  return http.request(rb.build({ responseType: 'json', accept: 'application/json', context })).pipe(
+  return http.request(
+    rb.build({ responseType: 'json', accept: 'application/json', context })
+  ).pipe(
     filter((r: any): r is HttpResponse<any> => r instanceof HttpResponse),
     map((r: HttpResponse<any>) => {
       return r as StrictHttpResponse<CalendarResponse>;
-    }),
+    })
   );
 }
 

@@ -13,22 +13,19 @@ export interface ListMailFolders$Params {
   id: string;
 }
 
-export function listMailFolders(
-  http: HttpClient,
-  rootUrl: string,
-  params: ListMailFolders$Params,
-  context?: HttpContext,
-): Observable<StrictHttpResponse<MailFolderListResponse>> {
+export function listMailFolders(http: HttpClient, rootUrl: string, params: ListMailFolders$Params, context?: HttpContext): Observable<StrictHttpResponse<MailFolderListResponse>> {
   const rb = new RequestBuilder(rootUrl, listMailFolders.PATH, 'get');
   if (params) {
     rb.path('id', params.id, {});
   }
 
-  return http.request(rb.build({ responseType: 'json', accept: 'application/json', context })).pipe(
+  return http.request(
+    rb.build({ responseType: 'json', accept: 'application/json', context })
+  ).pipe(
     filter((r: any): r is HttpResponse<any> => r instanceof HttpResponse),
     map((r: HttpResponse<any>) => {
       return r as StrictHttpResponse<MailFolderListResponse>;
-    }),
+    })
   );
 }
 

@@ -4,6 +4,7 @@
 import { MailMessageSummaryResponse } from '../models/mail-message-summary-response';
 import { MailServerSearchResponse } from '../models/mail-server-search-response';
 export interface MailSearchResponse {
+
   /**
    * More messages match than `limit`
    */

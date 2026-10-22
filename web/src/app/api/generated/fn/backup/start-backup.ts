@@ -11,25 +11,22 @@ import { BackupJobResponse } from '../../models/backup-job-response';
 import { StartBackupRequest } from '../../models/start-backup-request';
 
 export interface StartBackup$Params {
-  body?: StartBackupRequest;
+      body?: StartBackupRequest
 }
 
-export function startBackup(
-  http: HttpClient,
-  rootUrl: string,
-  params?: StartBackup$Params,
-  context?: HttpContext,
-): Observable<StrictHttpResponse<BackupJobResponse>> {
+export function startBackup(http: HttpClient, rootUrl: string, params?: StartBackup$Params, context?: HttpContext): Observable<StrictHttpResponse<BackupJobResponse>> {
   const rb = new RequestBuilder(rootUrl, startBackup.PATH, 'post');
   if (params) {
     rb.body(params.body, 'application/json');
   }
 
-  return http.request(rb.build({ responseType: 'json', accept: 'application/json', context })).pipe(
+  return http.request(
+    rb.build({ responseType: 'json', accept: 'application/json', context })
+  ).pipe(
     filter((r: any): r is HttpResponse<any> => r instanceof HttpResponse),
     map((r: HttpResponse<any>) => {
       return r as StrictHttpResponse<BackupJobResponse>;
-    }),
+    })
   );
 }
 

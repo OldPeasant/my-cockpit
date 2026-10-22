@@ -11,25 +11,22 @@ import { CreateNoteRequest } from '../../models/create-note-request';
 import { NoteResponse } from '../../models/note-response';
 
 export interface CreateNote$Params {
-  body: CreateNoteRequest;
+      body: CreateNoteRequest
 }
 
-export function createNote(
-  http: HttpClient,
-  rootUrl: string,
-  params: CreateNote$Params,
-  context?: HttpContext,
-): Observable<StrictHttpResponse<NoteResponse>> {
+export function createNote(http: HttpClient, rootUrl: string, params: CreateNote$Params, context?: HttpContext): Observable<StrictHttpResponse<NoteResponse>> {
   const rb = new RequestBuilder(rootUrl, createNote.PATH, 'post');
   if (params) {
     rb.body(params.body, 'application/json');
   }
 
-  return http.request(rb.build({ responseType: 'json', accept: 'application/json', context })).pipe(
+  return http.request(
+    rb.build({ responseType: 'json', accept: 'application/json', context })
+  ).pipe(
     filter((r: any): r is HttpResponse<any> => r instanceof HttpResponse),
     map((r: HttpResponse<any>) => {
       return r as StrictHttpResponse<NoteResponse>;
-    }),
+    })
   );
 }
 

@@ -13,19 +13,14 @@ import { ProjectResponse } from '../../models/project-response';
 export interface UpdateProject$Params {
   id: string;
 
-  /**
-   * ETag of the project
-   */
+/**
+ * ETag of the project
+ */
   'If-Match'?: string;
-  body: ProjectPatchRequest;
+      body: ProjectPatchRequest
 }
 
-export function updateProject(
-  http: HttpClient,
-  rootUrl: string,
-  params: UpdateProject$Params,
-  context?: HttpContext,
-): Observable<StrictHttpResponse<ProjectResponse>> {
+export function updateProject(http: HttpClient, rootUrl: string, params: UpdateProject$Params, context?: HttpContext): Observable<StrictHttpResponse<ProjectResponse>> {
   const rb = new RequestBuilder(rootUrl, updateProject.PATH, 'patch');
   if (params) {
     rb.path('id', params.id, {});
@@ -33,11 +28,13 @@ export function updateProject(
     rb.body(params.body, 'application/json');
   }
 
-  return http.request(rb.build({ responseType: 'json', accept: 'application/json', context })).pipe(
+  return http.request(
+    rb.build({ responseType: 'json', accept: 'application/json', context })
+  ).pipe(
     filter((r: any): r is HttpResponse<any> => r instanceof HttpResponse),
     map((r: HttpResponse<any>) => {
       return r as StrictHttpResponse<ProjectResponse>;
-    }),
+    })
   );
 }
 

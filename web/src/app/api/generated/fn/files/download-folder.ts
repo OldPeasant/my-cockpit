@@ -7,26 +7,24 @@ import { filter, map } from 'rxjs/operators';
 import { StrictHttpResponse } from '../../strict-http-response';
 import { RequestBuilder } from '../../request-builder';
 
+
 export interface DownloadFolder$Params {
   id: string;
 }
 
-export function downloadFolder(
-  http: HttpClient,
-  rootUrl: string,
-  params: DownloadFolder$Params,
-  context?: HttpContext,
-): Observable<StrictHttpResponse<Blob>> {
+export function downloadFolder(http: HttpClient, rootUrl: string, params: DownloadFolder$Params, context?: HttpContext): Observable<StrictHttpResponse<Blob>> {
   const rb = new RequestBuilder(rootUrl, downloadFolder.PATH, 'get');
   if (params) {
     rb.path('id', params.id, {});
   }
 
-  return http.request(rb.build({ responseType: 'blob', accept: 'application/zip', context })).pipe(
+  return http.request(
+    rb.build({ responseType: 'blob', accept: 'application/zip', context })
+  ).pipe(
     filter((r: any): r is HttpResponse<any> => r instanceof HttpResponse),
     map((r: HttpResponse<any>) => {
       return r as StrictHttpResponse<Blob>;
-    }),
+    })
   );
 }
 

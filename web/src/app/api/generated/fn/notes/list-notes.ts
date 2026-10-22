@@ -10,38 +10,34 @@ import { RequestBuilder } from '../../request-builder';
 import { NotePageResponse } from '../../models/note-page-response';
 
 export interface ListNotes$Params {
-  /**
-   * Only notes with this tag (regardless of case)
-   */
+
+/**
+ * Only notes with this tag (regardless of case)
+ */
   tag?: string;
 
-  /**
-   * true: only pinned notes, false: only notes that are not pinned
-   */
+/**
+ * true: only pinned notes, false: only notes that are not pinned
+ */
   pinned?: boolean;
 
-  /**
-   * false (default): only notes that are not archived, true: only archived notes, all: both
-   */
+/**
+ * false (default): only notes that are not archived, true: only archived notes, all: both
+ */
   archived?: 'true' | 'false' | 'all';
 
-  /**
-   * Cursor from the previous page
-   */
+/**
+ * Cursor from the previous page
+ */
   cursor?: string;
 
-  /**
-   * Page size, 1-200 (default 50)
-   */
+/**
+ * Page size, 1-200 (default 50)
+ */
   limit?: number;
 }
 
-export function listNotes(
-  http: HttpClient,
-  rootUrl: string,
-  params?: ListNotes$Params,
-  context?: HttpContext,
-): Observable<StrictHttpResponse<NotePageResponse>> {
+export function listNotes(http: HttpClient, rootUrl: string, params?: ListNotes$Params, context?: HttpContext): Observable<StrictHttpResponse<NotePageResponse>> {
   const rb = new RequestBuilder(rootUrl, listNotes.PATH, 'get');
   if (params) {
     rb.query('tag', params.tag, {});
@@ -51,11 +47,13 @@ export function listNotes(
     rb.query('limit', params.limit, {});
   }
 
-  return http.request(rb.build({ responseType: 'json', accept: 'application/json', context })).pipe(
+  return http.request(
+    rb.build({ responseType: 'json', accept: 'application/json', context })
+  ).pipe(
     filter((r: any): r is HttpResponse<any> => r instanceof HttpResponse),
     map((r: HttpResponse<any>) => {
       return r as StrictHttpResponse<NotePageResponse>;
-    }),
+    })
   );
 }
 

@@ -10,28 +10,26 @@ import { RequestBuilder } from '../../request-builder';
 import { HabitListResponse } from '../../models/habit-list-response';
 
 export interface ListHabits$Params {
-  /**
-   * `true`: only archived habits; default: only active ones
-   */
+
+/**
+ * `true`: only archived habits; default: only active ones
+ */
   archived?: boolean;
 }
 
-export function listHabits(
-  http: HttpClient,
-  rootUrl: string,
-  params?: ListHabits$Params,
-  context?: HttpContext,
-): Observable<StrictHttpResponse<HabitListResponse>> {
+export function listHabits(http: HttpClient, rootUrl: string, params?: ListHabits$Params, context?: HttpContext): Observable<StrictHttpResponse<HabitListResponse>> {
   const rb = new RequestBuilder(rootUrl, listHabits.PATH, 'get');
   if (params) {
     rb.query('archived', params.archived, {});
   }
 
-  return http.request(rb.build({ responseType: 'json', accept: 'application/json', context })).pipe(
+  return http.request(
+    rb.build({ responseType: 'json', accept: 'application/json', context })
+  ).pipe(
     filter((r: any): r is HttpResponse<any> => r instanceof HttpResponse),
     map((r: HttpResponse<any>) => {
       return r as StrictHttpResponse<HabitListResponse>;
-    }),
+    })
   );
 }
 

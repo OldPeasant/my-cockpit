@@ -7,6 +7,7 @@ import { AttendeeDto } from '../models/attendee-dto';
  * A new event. Timed: `start`, `end` (default `start` + 1 hour) and `timeZone` (default the user's); all-day (`allDay: true`): `startDate` and the exclusive `endDate` (default the day after). `calendarId` defaults to the default calendar.
  */
 export interface CreateEventRequest {
+
   /**
    * Default false
    */

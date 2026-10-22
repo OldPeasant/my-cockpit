@@ -11,25 +11,22 @@ import { RefreshRequest } from '../../models/refresh-request';
 import { TokenResponse } from '../../models/token-response';
 
 export interface RefreshDeviceToken$Params {
-  body: RefreshRequest;
+      body: RefreshRequest
 }
 
-export function refreshDeviceToken(
-  http: HttpClient,
-  rootUrl: string,
-  params: RefreshDeviceToken$Params,
-  context?: HttpContext,
-): Observable<StrictHttpResponse<TokenResponse>> {
+export function refreshDeviceToken(http: HttpClient, rootUrl: string, params: RefreshDeviceToken$Params, context?: HttpContext): Observable<StrictHttpResponse<TokenResponse>> {
   const rb = new RequestBuilder(rootUrl, refreshDeviceToken.PATH, 'post');
   if (params) {
     rb.body(params.body, 'application/json');
   }
 
-  return http.request(rb.build({ responseType: 'json', accept: 'application/json', context })).pipe(
+  return http.request(
+    rb.build({ responseType: 'json', accept: 'application/json', context })
+  ).pipe(
     filter((r: any): r is HttpResponse<any> => r instanceof HttpResponse),
     map((r: HttpResponse<any>) => {
       return r as StrictHttpResponse<TokenResponse>;
-    }),
+    })
   );
 }
 

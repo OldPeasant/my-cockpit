@@ -11,28 +11,23 @@ import { CapturePreviewRequest } from '../../models/capture-preview-request';
 import { CapturePreviewResponse } from '../../models/capture-preview-response';
 
 export interface PreviewCapture$Params {
-  body: CapturePreviewRequest;
+      body: CapturePreviewRequest
 }
 
-export function previewCapture(
-  http: HttpClient,
-  rootUrl: string,
-  params: PreviewCapture$Params,
-  context?: HttpContext,
-): Observable<StrictHttpResponse<CapturePreviewResponse>> {
+export function previewCapture(http: HttpClient, rootUrl: string, params: PreviewCapture$Params, context?: HttpContext): Observable<StrictHttpResponse<CapturePreviewResponse>> {
   const rb = new RequestBuilder(rootUrl, previewCapture.PATH, 'post');
   if (params) {
     rb.body(params.body, 'application/json');
   }
 
-  return http
-    .request(rb.build({ responseType: 'json', accept: 'application/problem+json', context }))
-    .pipe(
-      filter((r: any): r is HttpResponse<any> => r instanceof HttpResponse),
-      map((r: HttpResponse<any>) => {
-        return r as StrictHttpResponse<CapturePreviewResponse>;
-      }),
-    );
+  return http.request(
+    rb.build({ responseType: 'json', accept: 'application/problem+json', context })
+  ).pipe(
+    filter((r: any): r is HttpResponse<any> => r instanceof HttpResponse),
+    map((r: HttpResponse<any>) => {
+      return r as StrictHttpResponse<CapturePreviewResponse>;
+    })
+  );
 }
 
 previewCapture.PATH = '/api/v1/capture/preview';

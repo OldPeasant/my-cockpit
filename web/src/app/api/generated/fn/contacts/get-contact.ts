@@ -13,22 +13,19 @@ export interface GetContact$Params {
   id: string;
 }
 
-export function getContact(
-  http: HttpClient,
-  rootUrl: string,
-  params: GetContact$Params,
-  context?: HttpContext,
-): Observable<StrictHttpResponse<ContactResponse>> {
+export function getContact(http: HttpClient, rootUrl: string, params: GetContact$Params, context?: HttpContext): Observable<StrictHttpResponse<ContactResponse>> {
   const rb = new RequestBuilder(rootUrl, getContact.PATH, 'get');
   if (params) {
     rb.path('id', params.id, {});
   }
 
-  return http.request(rb.build({ responseType: 'json', accept: 'application/json', context })).pipe(
+  return http.request(
+    rb.build({ responseType: 'json', accept: 'application/json', context })
+  ).pipe(
     filter((r: any): r is HttpResponse<any> => r instanceof HttpResponse),
     map((r: HttpResponse<any>) => {
       return r as StrictHttpResponse<ContactResponse>;
-    }),
+    })
   );
 }
 

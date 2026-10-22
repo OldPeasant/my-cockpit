@@ -11,30 +11,28 @@ import { Settings } from '../../models/settings';
 import { SettingsPatch } from '../../models/settings-patch';
 
 export interface UpdateSettings$Params {
-  /**
-   * ETag from the last GET or PATCH
-   */
+
+/**
+ * ETag from the last GET or PATCH
+ */
   'If-Match'?: string;
-  body: SettingsPatch;
+      body: SettingsPatch
 }
 
-export function updateSettings(
-  http: HttpClient,
-  rootUrl: string,
-  params: UpdateSettings$Params,
-  context?: HttpContext,
-): Observable<StrictHttpResponse<Settings>> {
+export function updateSettings(http: HttpClient, rootUrl: string, params: UpdateSettings$Params, context?: HttpContext): Observable<StrictHttpResponse<Settings>> {
   const rb = new RequestBuilder(rootUrl, updateSettings.PATH, 'patch');
   if (params) {
     rb.header('If-Match', params['If-Match'], {});
     rb.body(params.body, 'application/json');
   }
 
-  return http.request(rb.build({ responseType: 'json', accept: 'application/json', context })).pipe(
+  return http.request(
+    rb.build({ responseType: 'json', accept: 'application/json', context })
+  ).pipe(
     filter((r: any): r is HttpResponse<any> => r instanceof HttpResponse),
     map((r: HttpResponse<any>) => {
       return r as StrictHttpResponse<Settings>;
-    }),
+    })
   );
 }
 

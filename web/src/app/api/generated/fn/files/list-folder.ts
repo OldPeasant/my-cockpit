@@ -10,28 +10,24 @@ import { RequestBuilder } from '../../request-builder';
 import { DrivePageResponse } from '../../models/drive-page-response';
 
 export interface ListFolder$Params {
-  /**
-   * The folder; omitted: the drive root
-   */
+
+/**
+ * The folder; omitted: the drive root
+ */
   folderId?: string;
 
-  /**
-   * Cursor from the previous page
-   */
+/**
+ * Cursor from the previous page
+ */
   cursor?: string;
 
-  /**
-   * Page size, 1-200 (default 50)
-   */
+/**
+ * Page size, 1-200 (default 50)
+ */
   limit?: number;
 }
 
-export function listFolder(
-  http: HttpClient,
-  rootUrl: string,
-  params?: ListFolder$Params,
-  context?: HttpContext,
-): Observable<StrictHttpResponse<DrivePageResponse>> {
+export function listFolder(http: HttpClient, rootUrl: string, params?: ListFolder$Params, context?: HttpContext): Observable<StrictHttpResponse<DrivePageResponse>> {
   const rb = new RequestBuilder(rootUrl, listFolder.PATH, 'get');
   if (params) {
     rb.query('folderId', params.folderId, {});
@@ -39,11 +35,13 @@ export function listFolder(
     rb.query('limit', params.limit, {});
   }
 
-  return http.request(rb.build({ responseType: 'json', accept: 'application/json', context })).pipe(
+  return http.request(
+    rb.build({ responseType: 'json', accept: 'application/json', context })
+  ).pipe(
     filter((r: any): r is HttpResponse<any> => r instanceof HttpResponse),
     map((r: HttpResponse<any>) => {
       return r as StrictHttpResponse<DrivePageResponse>;
-    }),
+    })
   );
 }
 

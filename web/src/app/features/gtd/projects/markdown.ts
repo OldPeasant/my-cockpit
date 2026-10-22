@@ -104,8 +104,5 @@ function emphasis(text: string): string {
     .replace(/(^|[^*])\*([^*\s][^*]*?)\*(?!\*)/g, '$1<em>$2</em>')
     .replace(/(^|[^\w])_([^_\s][^_]*?)_(?!\w)/g, '$1<em>$2</em>')
     .replace(/~~(.+?)~~/g, '<del>$1</del>')
-    .replace(
-      new RegExp(`${ANCHOR}(\\d+)${ANCHOR}`, 'g'),
-      (match, index: string) => anchors[+index],
-    );
+    .replace(new RegExp(`${ANCHOR}(\\d+)${ANCHOR}`, 'g'), (match, index: string) => anchors[+index]);
 }

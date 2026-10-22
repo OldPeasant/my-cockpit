@@ -3,6 +3,7 @@
 
 import { MailActionResultResponse } from '../models/mail-action-result-response';
 export interface MailActionResponse {
+
   /**
    * One result per distinct requested id, in request order
    */

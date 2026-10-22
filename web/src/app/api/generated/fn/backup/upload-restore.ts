@@ -10,25 +10,22 @@ import { RequestBuilder } from '../../request-builder';
 import { RestoreReportResponse } from '../../models/restore-report-response';
 
 export interface UploadRestore$Params {
-  body: Blob;
+      body: Blob
 }
 
-export function uploadRestore(
-  http: HttpClient,
-  rootUrl: string,
-  params: UploadRestore$Params,
-  context?: HttpContext,
-): Observable<StrictHttpResponse<RestoreReportResponse>> {
+export function uploadRestore(http: HttpClient, rootUrl: string, params: UploadRestore$Params, context?: HttpContext): Observable<StrictHttpResponse<RestoreReportResponse>> {
   const rb = new RequestBuilder(rootUrl, uploadRestore.PATH, 'post');
   if (params) {
     rb.body(params.body, 'application/zip');
   }
 
-  return http.request(rb.build({ responseType: 'json', accept: 'application/json', context })).pipe(
+  return http.request(
+    rb.build({ responseType: 'json', accept: 'application/json', context })
+  ).pipe(
     filter((r: any): r is HttpResponse<any> => r instanceof HttpResponse),
     map((r: HttpResponse<any>) => {
       return r as StrictHttpResponse<RestoreReportResponse>;
-    }),
+    })
   );
 }
 

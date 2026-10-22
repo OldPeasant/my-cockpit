@@ -13,25 +13,20 @@ export interface ListChecklistItems$Params {
   taskId: string;
 }
 
-export function listChecklistItems(
-  http: HttpClient,
-  rootUrl: string,
-  params: ListChecklistItems$Params,
-  context?: HttpContext,
-): Observable<StrictHttpResponse<ChecklistResponse>> {
+export function listChecklistItems(http: HttpClient, rootUrl: string, params: ListChecklistItems$Params, context?: HttpContext): Observable<StrictHttpResponse<ChecklistResponse>> {
   const rb = new RequestBuilder(rootUrl, listChecklistItems.PATH, 'get');
   if (params) {
     rb.path('taskId', params.taskId, {});
   }
 
-  return http
-    .request(rb.build({ responseType: 'json', accept: 'application/problem+json', context }))
-    .pipe(
-      filter((r: any): r is HttpResponse<any> => r instanceof HttpResponse),
-      map((r: HttpResponse<any>) => {
-        return r as StrictHttpResponse<ChecklistResponse>;
-      }),
-    );
+  return http.request(
+    rb.build({ responseType: 'json', accept: 'application/problem+json', context })
+  ).pipe(
+    filter((r: any): r is HttpResponse<any> => r instanceof HttpResponse),
+    map((r: HttpResponse<any>) => {
+      return r as StrictHttpResponse<ChecklistResponse>;
+    })
+  );
 }
 
 listChecklistItems.PATH = '/api/v1/tasks/{taskId}/checklist';

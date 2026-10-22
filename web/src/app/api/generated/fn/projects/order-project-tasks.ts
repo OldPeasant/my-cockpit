@@ -12,29 +12,24 @@ import { TaskListResponse } from '../../models/task-list-response';
 
 export interface OrderProjectTasks$Params {
   id: string;
-  body: OrderTasksRequest;
+      body: OrderTasksRequest
 }
 
-export function orderProjectTasks(
-  http: HttpClient,
-  rootUrl: string,
-  params: OrderProjectTasks$Params,
-  context?: HttpContext,
-): Observable<StrictHttpResponse<TaskListResponse>> {
+export function orderProjectTasks(http: HttpClient, rootUrl: string, params: OrderProjectTasks$Params, context?: HttpContext): Observable<StrictHttpResponse<TaskListResponse>> {
   const rb = new RequestBuilder(rootUrl, orderProjectTasks.PATH, 'put');
   if (params) {
     rb.path('id', params.id, {});
     rb.body(params.body, 'application/json');
   }
 
-  return http
-    .request(rb.build({ responseType: 'json', accept: 'application/problem+json', context }))
-    .pipe(
-      filter((r: any): r is HttpResponse<any> => r instanceof HttpResponse),
-      map((r: HttpResponse<any>) => {
-        return r as StrictHttpResponse<TaskListResponse>;
-      }),
-    );
+  return http.request(
+    rb.build({ responseType: 'json', accept: 'application/problem+json', context })
+  ).pipe(
+    filter((r: any): r is HttpResponse<any> => r instanceof HttpResponse),
+    map((r: HttpResponse<any>) => {
+      return r as StrictHttpResponse<TaskListResponse>;
+    })
+  );
 }
 
 orderProjectTasks.PATH = '/api/v1/projects/{id}/order';

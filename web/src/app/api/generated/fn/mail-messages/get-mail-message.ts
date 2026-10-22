@@ -14,23 +14,20 @@ export interface GetMailMessage$Params {
   remoteImages?: 'BLOCK' | 'PROXY';
 }
 
-export function getMailMessage(
-  http: HttpClient,
-  rootUrl: string,
-  params: GetMailMessage$Params,
-  context?: HttpContext,
-): Observable<StrictHttpResponse<MailMessageResponse>> {
+export function getMailMessage(http: HttpClient, rootUrl: string, params: GetMailMessage$Params, context?: HttpContext): Observable<StrictHttpResponse<MailMessageResponse>> {
   const rb = new RequestBuilder(rootUrl, getMailMessage.PATH, 'get');
   if (params) {
     rb.path('id', params.id, {});
     rb.query('remoteImages', params.remoteImages, {});
   }
 
-  return http.request(rb.build({ responseType: 'json', accept: 'application/json', context })).pipe(
+  return http.request(
+    rb.build({ responseType: 'json', accept: 'application/json', context })
+  ).pipe(
     filter((r: any): r is HttpResponse<any> => r instanceof HttpResponse),
     map((r: HttpResponse<any>) => {
       return r as StrictHttpResponse<MailMessageResponse>;
-    }),
+    })
   );
 }
 

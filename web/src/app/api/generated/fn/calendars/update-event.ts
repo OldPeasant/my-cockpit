@@ -13,29 +13,24 @@ import { EventResponse } from '../../models/event-response';
 export interface UpdateEvent$Params {
   id: string;
 
-  /**
-   * Which occurrences of a series to change
-   */
+/**
+ * Which occurrences of a series to change
+ */
   scope?: 'THIS' | 'FOLLOWING' | 'ALL';
 
-  /**
-   * Original start of the occurrence: an instant (timed series) or a date (all-day series)
-   */
+/**
+ * Original start of the occurrence: an instant (timed series) or a date (all-day series)
+ */
   occurrence?: string;
 
-  /**
-   * ETag of the addressed event
-   */
+/**
+ * ETag of the addressed event
+ */
   'If-Match'?: string;
-  body: EventPatchRequest;
+      body: EventPatchRequest
 }
 
-export function updateEvent(
-  http: HttpClient,
-  rootUrl: string,
-  params: UpdateEvent$Params,
-  context?: HttpContext,
-): Observable<StrictHttpResponse<EventResponse>> {
+export function updateEvent(http: HttpClient, rootUrl: string, params: UpdateEvent$Params, context?: HttpContext): Observable<StrictHttpResponse<EventResponse>> {
   const rb = new RequestBuilder(rootUrl, updateEvent.PATH, 'patch');
   if (params) {
     rb.path('id', params.id, {});
@@ -45,11 +40,13 @@ export function updateEvent(
     rb.body(params.body, 'application/json');
   }
 
-  return http.request(rb.build({ responseType: 'json', accept: 'application/json', context })).pipe(
+  return http.request(
+    rb.build({ responseType: 'json', accept: 'application/json', context })
+  ).pipe(
     filter((r: any): r is HttpResponse<any> => r instanceof HttpResponse),
     map((r: HttpResponse<any>) => {
       return r as StrictHttpResponse<EventResponse>;
-    }),
+    })
   );
 }
 

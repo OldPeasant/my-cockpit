@@ -13,19 +13,14 @@ import { UpdateAreaRequest } from '../../models/update-area-request';
 export interface UpdateArea$Params {
   id: string;
 
-  /**
-   * ETag of the area
-   */
+/**
+ * ETag of the area
+ */
   'If-Match'?: string;
-  body: UpdateAreaRequest;
+      body: UpdateAreaRequest
 }
 
-export function updateArea(
-  http: HttpClient,
-  rootUrl: string,
-  params: UpdateArea$Params,
-  context?: HttpContext,
-): Observable<StrictHttpResponse<AreaResponse>> {
+export function updateArea(http: HttpClient, rootUrl: string, params: UpdateArea$Params, context?: HttpContext): Observable<StrictHttpResponse<AreaResponse>> {
   const rb = new RequestBuilder(rootUrl, updateArea.PATH, 'patch');
   if (params) {
     rb.path('id', params.id, {});
@@ -33,11 +28,13 @@ export function updateArea(
     rb.body(params.body, 'application/json');
   }
 
-  return http.request(rb.build({ responseType: 'json', accept: 'application/json', context })).pipe(
+  return http.request(
+    rb.build({ responseType: 'json', accept: 'application/json', context })
+  ).pipe(
     filter((r: any): r is HttpResponse<any> => r instanceof HttpResponse),
     map((r: HttpResponse<any>) => {
       return r as StrictHttpResponse<AreaResponse>;
-    }),
+    })
   );
 }
 

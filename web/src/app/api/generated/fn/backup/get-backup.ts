@@ -10,28 +10,26 @@ import { RequestBuilder } from '../../request-builder';
 import { BackupJobResponse } from '../../models/backup-job-response';
 
 export interface GetBackup$Params {
-  /**
-   * Id of the backup job
-   */
+
+/**
+ * Id of the backup job
+ */
   id: string;
 }
 
-export function getBackup(
-  http: HttpClient,
-  rootUrl: string,
-  params: GetBackup$Params,
-  context?: HttpContext,
-): Observable<StrictHttpResponse<BackupJobResponse>> {
+export function getBackup(http: HttpClient, rootUrl: string, params: GetBackup$Params, context?: HttpContext): Observable<StrictHttpResponse<BackupJobResponse>> {
   const rb = new RequestBuilder(rootUrl, getBackup.PATH, 'get');
   if (params) {
     rb.path('id', params.id, {});
   }
 
-  return http.request(rb.build({ responseType: 'json', accept: 'application/json', context })).pipe(
+  return http.request(
+    rb.build({ responseType: 'json', accept: 'application/json', context })
+  ).pipe(
     filter((r: any): r is HttpResponse<any> => r instanceof HttpResponse),
     map((r: HttpResponse<any>) => {
       return r as StrictHttpResponse<BackupJobResponse>;
-    }),
+    })
   );
 }
 

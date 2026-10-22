@@ -10,38 +10,34 @@ import { RequestBuilder } from '../../request-builder';
 import { ProjectPageResponse } from '../../models/project-page-response';
 
 export interface ListProjects$Params {
-  /**
-   * Only projects with this status
-   */
+
+/**
+ * Only projects with this status
+ */
   status?: 'ACTIVE' | 'ON_HOLD' | 'SOMEDAY' | 'COMPLETED' | 'DROPPED';
 
-  /**
-   * Only projects in this area
-   */
+/**
+ * Only projects in this area
+ */
   areaId?: string;
 
-  /**
-   * true: only stalled projects, false: only projects that are not stalled
-   */
+/**
+ * true: only stalled projects, false: only projects that are not stalled
+ */
   stalled?: boolean;
 
-  /**
-   * Cursor from the previous page
-   */
+/**
+ * Cursor from the previous page
+ */
   cursor?: string;
 
-  /**
-   * Page size, 1-200 (default 50)
-   */
+/**
+ * Page size, 1-200 (default 50)
+ */
   limit?: number;
 }
 
-export function listProjects(
-  http: HttpClient,
-  rootUrl: string,
-  params?: ListProjects$Params,
-  context?: HttpContext,
-): Observable<StrictHttpResponse<ProjectPageResponse>> {
+export function listProjects(http: HttpClient, rootUrl: string, params?: ListProjects$Params, context?: HttpContext): Observable<StrictHttpResponse<ProjectPageResponse>> {
   const rb = new RequestBuilder(rootUrl, listProjects.PATH, 'get');
   if (params) {
     rb.query('status', params.status, {});
@@ -51,11 +47,13 @@ export function listProjects(
     rb.query('limit', params.limit, {});
   }
 
-  return http.request(rb.build({ responseType: 'json', accept: 'application/json', context })).pipe(
+  return http.request(
+    rb.build({ responseType: 'json', accept: 'application/json', context })
+  ).pipe(
     filter((r: any): r is HttpResponse<any> => r instanceof HttpResponse),
     map((r: HttpResponse<any>) => {
       return r as StrictHttpResponse<ProjectPageResponse>;
-    }),
+    })
   );
 }
 

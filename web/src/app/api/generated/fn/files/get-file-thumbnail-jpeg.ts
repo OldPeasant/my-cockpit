@@ -7,32 +7,30 @@ import { filter, map } from 'rxjs/operators';
 import { StrictHttpResponse } from '../../strict-http-response';
 import { RequestBuilder } from '../../request-builder';
 
+
 export interface GetFileThumbnail$Jpeg$Params {
   id: string;
 
-  /**
-   * Longer side in pixels: 256 or 1024
-   */
+/**
+ * Longer side in pixels: 256 or 1024
+ */
   size?: '256' | '1024';
 }
 
-export function getFileThumbnail$Jpeg(
-  http: HttpClient,
-  rootUrl: string,
-  params: GetFileThumbnail$Jpeg$Params,
-  context?: HttpContext,
-): Observable<StrictHttpResponse<Blob>> {
+export function getFileThumbnail$Jpeg(http: HttpClient, rootUrl: string, params: GetFileThumbnail$Jpeg$Params, context?: HttpContext): Observable<StrictHttpResponse<Blob>> {
   const rb = new RequestBuilder(rootUrl, getFileThumbnail$Jpeg.PATH, 'get');
   if (params) {
     rb.path('id', params.id, {});
     rb.query('size', params.size, {});
   }
 
-  return http.request(rb.build({ responseType: 'blob', accept: 'image/jpeg', context })).pipe(
+  return http.request(
+    rb.build({ responseType: 'blob', accept: 'image/jpeg', context })
+  ).pipe(
     filter((r: any): r is HttpResponse<any> => r instanceof HttpResponse),
     map((r: HttpResponse<any>) => {
       return r as StrictHttpResponse<Blob>;
-    }),
+    })
   );
 }
 

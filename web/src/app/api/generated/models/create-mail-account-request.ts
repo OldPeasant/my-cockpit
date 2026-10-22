@@ -3,6 +3,7 @@
 
 import { MailServerRequest } from '../models/mail-server-request';
 export interface CreateMailAccountRequest {
+
   /**
    * Defaults to the email address
    */

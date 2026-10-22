@@ -9,23 +9,21 @@ import { RequestBuilder } from '../../request-builder';
 
 import { MailAccountListResponse } from '../../models/mail-account-list-response';
 
-export interface ListMailAccounts$Params {}
+export interface ListMailAccounts$Params {
+}
 
-export function listMailAccounts(
-  http: HttpClient,
-  rootUrl: string,
-  params?: ListMailAccounts$Params,
-  context?: HttpContext,
-): Observable<StrictHttpResponse<MailAccountListResponse>> {
+export function listMailAccounts(http: HttpClient, rootUrl: string, params?: ListMailAccounts$Params, context?: HttpContext): Observable<StrictHttpResponse<MailAccountListResponse>> {
   const rb = new RequestBuilder(rootUrl, listMailAccounts.PATH, 'get');
   if (params) {
   }
 
-  return http.request(rb.build({ responseType: 'json', accept: 'application/json', context })).pipe(
+  return http.request(
+    rb.build({ responseType: 'json', accept: 'application/json', context })
+  ).pipe(
     filter((r: any): r is HttpResponse<any> => r instanceof HttpResponse),
     map((r: HttpResponse<any>) => {
       return r as StrictHttpResponse<MailAccountListResponse>;
-    }),
+    })
   );
 }
 

@@ -11,25 +11,22 @@ import { CreateReminderRequest } from '../../models/create-reminder-request';
 import { ReminderResponse } from '../../models/reminder-response';
 
 export interface CreateReminder$Params {
-  body: CreateReminderRequest;
+      body: CreateReminderRequest
 }
 
-export function createReminder(
-  http: HttpClient,
-  rootUrl: string,
-  params: CreateReminder$Params,
-  context?: HttpContext,
-): Observable<StrictHttpResponse<ReminderResponse>> {
+export function createReminder(http: HttpClient, rootUrl: string, params: CreateReminder$Params, context?: HttpContext): Observable<StrictHttpResponse<ReminderResponse>> {
   const rb = new RequestBuilder(rootUrl, createReminder.PATH, 'post');
   if (params) {
     rb.body(params.body, 'application/json');
   }
 
-  return http.request(rb.build({ responseType: 'json', accept: 'application/json', context })).pipe(
+  return http.request(
+    rb.build({ responseType: 'json', accept: 'application/json', context })
+  ).pipe(
     filter((r: any): r is HttpResponse<any> => r instanceof HttpResponse),
     map((r: HttpResponse<any>) => {
       return r as StrictHttpResponse<ReminderResponse>;
-    }),
+    })
   );
 }
 

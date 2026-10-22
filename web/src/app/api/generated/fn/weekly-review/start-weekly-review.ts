@@ -9,23 +9,21 @@ import { RequestBuilder } from '../../request-builder';
 
 import { WeeklyReviewResponse } from '../../models/weekly-review-response';
 
-export interface StartWeeklyReview$Params {}
+export interface StartWeeklyReview$Params {
+}
 
-export function startWeeklyReview(
-  http: HttpClient,
-  rootUrl: string,
-  params?: StartWeeklyReview$Params,
-  context?: HttpContext,
-): Observable<StrictHttpResponse<WeeklyReviewResponse>> {
+export function startWeeklyReview(http: HttpClient, rootUrl: string, params?: StartWeeklyReview$Params, context?: HttpContext): Observable<StrictHttpResponse<WeeklyReviewResponse>> {
   const rb = new RequestBuilder(rootUrl, startWeeklyReview.PATH, 'post');
   if (params) {
   }
 
-  return http.request(rb.build({ responseType: 'json', accept: 'application/json', context })).pipe(
+  return http.request(
+    rb.build({ responseType: 'json', accept: 'application/json', context })
+  ).pipe(
     filter((r: any): r is HttpResponse<any> => r instanceof HttpResponse),
     map((r: HttpResponse<any>) => {
       return r as StrictHttpResponse<WeeklyReviewResponse>;
-    }),
+    })
   );
 }
 

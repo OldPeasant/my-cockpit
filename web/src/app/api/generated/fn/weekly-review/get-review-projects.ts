@@ -9,23 +9,21 @@ import { RequestBuilder } from '../../request-builder';
 
 import { ReviewProjectListResponse } from '../../models/review-project-list-response';
 
-export interface GetReviewProjects$Params {}
+export interface GetReviewProjects$Params {
+}
 
-export function getReviewProjects(
-  http: HttpClient,
-  rootUrl: string,
-  params?: GetReviewProjects$Params,
-  context?: HttpContext,
-): Observable<StrictHttpResponse<ReviewProjectListResponse>> {
+export function getReviewProjects(http: HttpClient, rootUrl: string, params?: GetReviewProjects$Params, context?: HttpContext): Observable<StrictHttpResponse<ReviewProjectListResponse>> {
   const rb = new RequestBuilder(rootUrl, getReviewProjects.PATH, 'get');
   if (params) {
   }
 
-  return http.request(rb.build({ responseType: 'json', accept: 'application/json', context })).pipe(
+  return http.request(
+    rb.build({ responseType: 'json', accept: 'application/json', context })
+  ).pipe(
     filter((r: any): r is HttpResponse<any> => r instanceof HttpResponse),
     map((r: HttpResponse<any>) => {
       return r as StrictHttpResponse<ReviewProjectListResponse>;
-    }),
+    })
   );
 }
 

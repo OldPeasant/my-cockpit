@@ -10,38 +10,34 @@ import { RequestBuilder } from '../../request-builder';
 import { BookmarkPageResponse } from '../../models/bookmark-page-response';
 
 export interface ListBookmarks$Params {
-  /**
-   * Only bookmarks with this tag (regardless of case)
-   */
+
+/**
+ * Only bookmarks with this tag (regardless of case)
+ */
   tag?: string;
 
-  /**
-   * true: only bookmarks in the read-later list, false: only those that are not
-   */
+/**
+ * true: only bookmarks in the read-later list, false: only those that are not
+ */
   readLater?: boolean;
 
-  /**
-   * true: only read bookmarks, false: only unread ones
-   */
+/**
+ * true: only read bookmarks, false: only unread ones
+ */
   read?: boolean;
 
-  /**
-   * Cursor from the previous page
-   */
+/**
+ * Cursor from the previous page
+ */
   cursor?: string;
 
-  /**
-   * Page size, 1-200 (default 50)
-   */
+/**
+ * Page size, 1-200 (default 50)
+ */
   limit?: number;
 }
 
-export function listBookmarks(
-  http: HttpClient,
-  rootUrl: string,
-  params?: ListBookmarks$Params,
-  context?: HttpContext,
-): Observable<StrictHttpResponse<BookmarkPageResponse>> {
+export function listBookmarks(http: HttpClient, rootUrl: string, params?: ListBookmarks$Params, context?: HttpContext): Observable<StrictHttpResponse<BookmarkPageResponse>> {
   const rb = new RequestBuilder(rootUrl, listBookmarks.PATH, 'get');
   if (params) {
     rb.query('tag', params.tag, {});
@@ -51,14 +47,14 @@ export function listBookmarks(
     rb.query('limit', params.limit, {});
   }
 
-  return http
-    .request(rb.build({ responseType: 'json', accept: 'application/problem+json', context }))
-    .pipe(
-      filter((r: any): r is HttpResponse<any> => r instanceof HttpResponse),
-      map((r: HttpResponse<any>) => {
-        return r as StrictHttpResponse<BookmarkPageResponse>;
-      }),
-    );
+  return http.request(
+    rb.build({ responseType: 'json', accept: 'application/problem+json', context })
+  ).pipe(
+    filter((r: any): r is HttpResponse<any> => r instanceof HttpResponse),
+    map((r: HttpResponse<any>) => {
+      return r as StrictHttpResponse<BookmarkPageResponse>;
+    })
+  );
 }
 
 listBookmarks.PATH = '/api/v1/bookmarks';

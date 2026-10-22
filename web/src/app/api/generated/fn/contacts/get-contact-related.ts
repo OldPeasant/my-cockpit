@@ -13,25 +13,20 @@ export interface GetContactRelated$Params {
   id: string;
 }
 
-export function getContactRelated(
-  http: HttpClient,
-  rootUrl: string,
-  params: GetContactRelated$Params,
-  context?: HttpContext,
-): Observable<StrictHttpResponse<ContactRelatedResponse>> {
+export function getContactRelated(http: HttpClient, rootUrl: string, params: GetContactRelated$Params, context?: HttpContext): Observable<StrictHttpResponse<ContactRelatedResponse>> {
   const rb = new RequestBuilder(rootUrl, getContactRelated.PATH, 'get');
   if (params) {
     rb.path('id', params.id, {});
   }
 
-  return http
-    .request(rb.build({ responseType: 'json', accept: 'application/problem+json', context }))
-    .pipe(
-      filter((r: any): r is HttpResponse<any> => r instanceof HttpResponse),
-      map((r: HttpResponse<any>) => {
-        return r as StrictHttpResponse<ContactRelatedResponse>;
-      }),
-    );
+  return http.request(
+    rb.build({ responseType: 'json', accept: 'application/problem+json', context })
+  ).pipe(
+    filter((r: any): r is HttpResponse<any> => r instanceof HttpResponse),
+    map((r: HttpResponse<any>) => {
+      return r as StrictHttpResponse<ContactRelatedResponse>;
+    })
+  );
 }
 
 getContactRelated.PATH = '/api/v1/contacts/{id}/related';

@@ -11,25 +11,22 @@ import { RecoveryCodesResponse } from '../../models/recovery-codes-response';
 import { RegenerateRecoveryCodesRequest } from '../../models/regenerate-recovery-codes-request';
 
 export interface RegenerateRecoveryCodes$Params {
-  body: RegenerateRecoveryCodesRequest;
+      body: RegenerateRecoveryCodesRequest
 }
 
-export function regenerateRecoveryCodes(
-  http: HttpClient,
-  rootUrl: string,
-  params: RegenerateRecoveryCodes$Params,
-  context?: HttpContext,
-): Observable<StrictHttpResponse<RecoveryCodesResponse>> {
+export function regenerateRecoveryCodes(http: HttpClient, rootUrl: string, params: RegenerateRecoveryCodes$Params, context?: HttpContext): Observable<StrictHttpResponse<RecoveryCodesResponse>> {
   const rb = new RequestBuilder(rootUrl, regenerateRecoveryCodes.PATH, 'post');
   if (params) {
     rb.body(params.body, 'application/json');
   }
 
-  return http.request(rb.build({ responseType: 'json', accept: 'application/json', context })).pipe(
+  return http.request(
+    rb.build({ responseType: 'json', accept: 'application/json', context })
+  ).pipe(
     filter((r: any): r is HttpResponse<any> => r instanceof HttpResponse),
     map((r: HttpResponse<any>) => {
       return r as StrictHttpResponse<RecoveryCodesResponse>;
-    }),
+    })
   );
 }
 

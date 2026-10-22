@@ -12,26 +12,23 @@ import { FileResponse } from '../../models/file-response';
 
 export interface CompleteUpload$Params {
   id: string;
-  body: CompleteUploadRequest;
+      body: CompleteUploadRequest
 }
 
-export function completeUpload(
-  http: HttpClient,
-  rootUrl: string,
-  params: CompleteUpload$Params,
-  context?: HttpContext,
-): Observable<StrictHttpResponse<FileResponse>> {
+export function completeUpload(http: HttpClient, rootUrl: string, params: CompleteUpload$Params, context?: HttpContext): Observable<StrictHttpResponse<FileResponse>> {
   const rb = new RequestBuilder(rootUrl, completeUpload.PATH, 'post');
   if (params) {
     rb.path('id', params.id, {});
     rb.body(params.body, 'application/json');
   }
 
-  return http.request(rb.build({ responseType: 'json', accept: 'application/json', context })).pipe(
+  return http.request(
+    rb.build({ responseType: 'json', accept: 'application/json', context })
+  ).pipe(
     filter((r: any): r is HttpResponse<any> => r instanceof HttpResponse),
     map((r: HttpResponse<any>) => {
       return r as StrictHttpResponse<FileResponse>;
-    }),
+    })
   );
 }
 

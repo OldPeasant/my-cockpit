@@ -9,23 +9,21 @@ import { RequestBuilder } from '../../request-builder';
 
 import { AreaListResponse } from '../../models/area-list-response';
 
-export interface ListAreas$Params {}
+export interface ListAreas$Params {
+}
 
-export function listAreas(
-  http: HttpClient,
-  rootUrl: string,
-  params?: ListAreas$Params,
-  context?: HttpContext,
-): Observable<StrictHttpResponse<AreaListResponse>> {
+export function listAreas(http: HttpClient, rootUrl: string, params?: ListAreas$Params, context?: HttpContext): Observable<StrictHttpResponse<AreaListResponse>> {
   const rb = new RequestBuilder(rootUrl, listAreas.PATH, 'get');
   if (params) {
   }
 
-  return http.request(rb.build({ responseType: 'json', accept: 'application/json', context })).pipe(
+  return http.request(
+    rb.build({ responseType: 'json', accept: 'application/json', context })
+  ).pipe(
     filter((r: any): r is HttpResponse<any> => r instanceof HttpResponse),
     map((r: HttpResponse<any>) => {
       return r as StrictHttpResponse<AreaListResponse>;
-    }),
+    })
   );
 }
 

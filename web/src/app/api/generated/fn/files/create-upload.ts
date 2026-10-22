@@ -11,25 +11,22 @@ import { CreateUploadRequest } from '../../models/create-upload-request';
 import { UploadResponse } from '../../models/upload-response';
 
 export interface CreateUpload$Params {
-  body: CreateUploadRequest;
+      body: CreateUploadRequest
 }
 
-export function createUpload(
-  http: HttpClient,
-  rootUrl: string,
-  params: CreateUpload$Params,
-  context?: HttpContext,
-): Observable<StrictHttpResponse<UploadResponse>> {
+export function createUpload(http: HttpClient, rootUrl: string, params: CreateUpload$Params, context?: HttpContext): Observable<StrictHttpResponse<UploadResponse>> {
   const rb = new RequestBuilder(rootUrl, createUpload.PATH, 'post');
   if (params) {
     rb.body(params.body, 'application/json');
   }
 
-  return http.request(rb.build({ responseType: 'json', accept: 'application/json', context })).pipe(
+  return http.request(
+    rb.build({ responseType: 'json', accept: 'application/json', context })
+  ).pipe(
     filter((r: any): r is HttpResponse<any> => r instanceof HttpResponse),
     map((r: HttpResponse<any>) => {
       return r as StrictHttpResponse<UploadResponse>;
-    }),
+    })
   );
 }
 

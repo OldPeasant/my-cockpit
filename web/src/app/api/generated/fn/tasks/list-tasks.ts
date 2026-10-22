@@ -10,73 +10,69 @@ import { RequestBuilder } from '../../request-builder';
 import { TaskPageResponse } from '../../models/task-page-response';
 
 export interface ListTasks$Params {
-  /**
-   * Only tasks on this list
-   */
+
+/**
+ * Only tasks on this list
+ */
   list?: 'INBOX' | 'NEXT' | 'WAITING' | 'SOMEDAY' | 'SCHEDULED';
 
-  /**
-   * Only tasks of this project
-   */
+/**
+ * Only tasks of this project
+ */
   projectId?: string;
 
-  /**
-   * Only tasks with this context (id)
-   */
+/**
+ * Only tasks with this context (id)
+ */
   context?: string;
 
-  /**
-   * Only tasks with this energy
-   */
+/**
+ * Only tasks with this energy
+ */
   energy?: 'LOW' | 'MEDIUM' | 'HIGH';
 
-  /**
-   * Only tasks with this creativity
-   */
+/**
+ * Only tasks with this creativity
+ */
   creativity?: 'ROUTINE' | 'MIXED' | 'CREATIVE';
 
-  /**
-   * Only tasks estimated at most this many minutes
-   */
+/**
+ * Only tasks estimated at most this many minutes
+ */
   maxMinutes?: number;
 
-  /**
-   * Only tasks due in this window (case-insensitive)
-   */
+/**
+ * Only tasks due in this window (case-insensitive)
+ */
   due?: 'overdue' | 'today' | 'week';
 
-  /**
-   * true: done tasks (Logbook) instead of open ones
-   */
+/**
+ * true: done tasks (Logbook) instead of open ones
+ */
   completed?: boolean;
 
-  /**
-   * Only tasks due or in a tickler on or after this date
-   */
+/**
+ * Only tasks due or in a tickler on or after this date
+ */
   from?: string;
 
-  /**
-   * Only tasks due or in a tickler on or before this date
-   */
+/**
+ * Only tasks due or in a tickler on or before this date
+ */
   to?: string;
 
-  /**
-   * Cursor from the previous page
-   */
+/**
+ * Cursor from the previous page
+ */
   cursor?: string;
 
-  /**
-   * Page size, 1-200 (default 50)
-   */
+/**
+ * Page size, 1-200 (default 50)
+ */
   limit?: number;
 }
 
-export function listTasks(
-  http: HttpClient,
-  rootUrl: string,
-  params?: ListTasks$Params,
-  context?: HttpContext,
-): Observable<StrictHttpResponse<TaskPageResponse>> {
+export function listTasks(http: HttpClient, rootUrl: string, params?: ListTasks$Params, context?: HttpContext): Observable<StrictHttpResponse<TaskPageResponse>> {
   const rb = new RequestBuilder(rootUrl, listTasks.PATH, 'get');
   if (params) {
     rb.query('list', params.list, {});
@@ -93,11 +89,13 @@ export function listTasks(
     rb.query('limit', params.limit, {});
   }
 
-  return http.request(rb.build({ responseType: 'json', accept: 'application/json', context })).pipe(
+  return http.request(
+    rb.build({ responseType: 'json', accept: 'application/json', context })
+  ).pipe(
     filter((r: any): r is HttpResponse<any> => r instanceof HttpResponse),
     map((r: HttpResponse<any>) => {
       return r as StrictHttpResponse<TaskPageResponse>;
-    }),
+    })
   );
 }
 

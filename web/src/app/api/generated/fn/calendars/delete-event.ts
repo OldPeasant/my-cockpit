@@ -7,31 +7,27 @@ import { filter, map } from 'rxjs/operators';
 import { StrictHttpResponse } from '../../strict-http-response';
 import { RequestBuilder } from '../../request-builder';
 
+
 export interface DeleteEvent$Params {
   id: string;
 
-  /**
-   * Which occurrences of a series to delete
-   */
+/**
+ * Which occurrences of a series to delete
+ */
   scope?: 'THIS' | 'FOLLOWING' | 'ALL';
 
-  /**
-   * Original start of the occurrence: an instant (timed series) or a date (all-day series)
-   */
+/**
+ * Original start of the occurrence: an instant (timed series) or a date (all-day series)
+ */
   occurrence?: string;
 
-  /**
-   * ETag of the addressed event
-   */
+/**
+ * ETag of the addressed event
+ */
   'If-Match'?: string;
 }
 
-export function deleteEvent(
-  http: HttpClient,
-  rootUrl: string,
-  params: DeleteEvent$Params,
-  context?: HttpContext,
-): Observable<StrictHttpResponse<void>> {
+export function deleteEvent(http: HttpClient, rootUrl: string, params: DeleteEvent$Params, context?: HttpContext): Observable<StrictHttpResponse<void>> {
   const rb = new RequestBuilder(rootUrl, deleteEvent.PATH, 'delete');
   if (params) {
     rb.path('id', params.id, {});
@@ -40,11 +36,13 @@ export function deleteEvent(
     rb.header('If-Match', params['If-Match'], {});
   }
 
-  return http.request(rb.build({ responseType: 'text', accept: '*/*', context })).pipe(
+  return http.request(
+    rb.build({ responseType: 'text', accept: '*/*', context })
+  ).pipe(
     filter((r: any): r is HttpResponse<any> => r instanceof HttpResponse),
     map((r: HttpResponse<any>) => {
       return (r as HttpResponse<any>).clone({ body: undefined }) as StrictHttpResponse<void>;
-    }),
+    })
   );
 }
 

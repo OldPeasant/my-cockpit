@@ -14,19 +14,14 @@ export interface UpdateMailFolder$Params {
   id: string;
   folderId: string;
 
-  /**
-   * The folder's ETag
-   */
+/**
+ * The folder's ETag
+ */
   'If-Match': string;
-  body: UpdateMailFolderRequest;
+      body: UpdateMailFolderRequest
 }
 
-export function updateMailFolder(
-  http: HttpClient,
-  rootUrl: string,
-  params: UpdateMailFolder$Params,
-  context?: HttpContext,
-): Observable<StrictHttpResponse<MailFolderResponse>> {
+export function updateMailFolder(http: HttpClient, rootUrl: string, params: UpdateMailFolder$Params, context?: HttpContext): Observable<StrictHttpResponse<MailFolderResponse>> {
   const rb = new RequestBuilder(rootUrl, updateMailFolder.PATH, 'patch');
   if (params) {
     rb.path('id', params.id, {});
@@ -35,11 +30,13 @@ export function updateMailFolder(
     rb.body(params.body, 'application/json');
   }
 
-  return http.request(rb.build({ responseType: 'json', accept: 'application/json', context })).pipe(
+  return http.request(
+    rb.build({ responseType: 'json', accept: 'application/json', context })
+  ).pipe(
     filter((r: any): r is HttpResponse<any> => r instanceof HttpResponse),
     map((r: HttpResponse<any>) => {
       return r as StrictHttpResponse<MailFolderResponse>;
-    }),
+    })
   );
 }
 

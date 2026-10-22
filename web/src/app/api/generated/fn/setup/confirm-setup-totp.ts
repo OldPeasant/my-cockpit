@@ -10,25 +10,22 @@ import { RequestBuilder } from '../../request-builder';
 import { ConfirmTotpRequest } from '../../models/confirm-totp-request';
 
 export interface ConfirmSetupTotp$Params {
-  body: ConfirmTotpRequest;
+      body: ConfirmTotpRequest
 }
 
-export function confirmSetupTotp(
-  http: HttpClient,
-  rootUrl: string,
-  params: ConfirmSetupTotp$Params,
-  context?: HttpContext,
-): Observable<StrictHttpResponse<void>> {
+export function confirmSetupTotp(http: HttpClient, rootUrl: string, params: ConfirmSetupTotp$Params, context?: HttpContext): Observable<StrictHttpResponse<void>> {
   const rb = new RequestBuilder(rootUrl, confirmSetupTotp.PATH, 'post');
   if (params) {
     rb.body(params.body, 'application/json');
   }
 
-  return http.request(rb.build({ responseType: 'text', accept: '*/*', context })).pipe(
+  return http.request(
+    rb.build({ responseType: 'text', accept: '*/*', context })
+  ).pipe(
     filter((r: any): r is HttpResponse<any> => r instanceof HttpResponse),
     map((r: HttpResponse<any>) => {
       return (r as HttpResponse<any>).clone({ body: undefined }) as StrictHttpResponse<void>;
-    }),
+    })
   );
 }
 

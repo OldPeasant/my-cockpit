@@ -13,22 +13,19 @@ export interface MailToNote$Params {
   id: string;
 }
 
-export function mailToNote(
-  http: HttpClient,
-  rootUrl: string,
-  params: MailToNote$Params,
-  context?: HttpContext,
-): Observable<StrictHttpResponse<MailGtdItemResponse>> {
+export function mailToNote(http: HttpClient, rootUrl: string, params: MailToNote$Params, context?: HttpContext): Observable<StrictHttpResponse<MailGtdItemResponse>> {
   const rb = new RequestBuilder(rootUrl, mailToNote.PATH, 'post');
   if (params) {
     rb.path('id', params.id, {});
   }
 
-  return http.request(rb.build({ responseType: 'json', accept: 'application/json', context })).pipe(
+  return http.request(
+    rb.build({ responseType: 'json', accept: 'application/json', context })
+  ).pipe(
     filter((r: any): r is HttpResponse<any> => r instanceof HttpResponse),
     map((r: HttpResponse<any>) => {
       return r as StrictHttpResponse<MailGtdItemResponse>;
-    }),
+    })
   );
 }
 
