@@ -1,11 +1,13 @@
 ---
 title: Android: share URL to read later
-status: in_progress
-owner: dell26/agent-2
+status: todo
+owner: 
 deps: [and-capture-entrypoints,bookmarks-api]
 touches: [android/app/src/main/java/ch/sonensei/cockpit/capture/share,android/app/src/test/java/ch/sonensei/cockpit/capture/share]
 prio: 3
-lease_until: 2026-10-22T11:32:38Z
+lease_until: 
+releases: 0
+extended: 
 ---
 ## Goal
 Share sheet offers Inbox or Read later (SPEC.md §8.4).
@@ -18,3 +20,4 @@ Share sheet offers Inbox or Read later (SPEC.md §8.4).
 - ASSUMPTION (2026-10-22 11:58+0200 by dell26/agent-2): Read-later shares go into the existing capture queue (new pending_bookmark table, Room auto-migration 1->2, sent by CaptureUploader after the captures) instead of a second queue; this touches capture/queue outside the task's touches, because the criterion asks for 'the offline queue'.
 - ASSUMPTION (2026-10-22 11:58+0200 by dell26/agent-2): POST /bookmarks has no client id, so a retry after a lost answer can create a duplicate bookmark; accepted (nothing lost) instead of adding server-side idempotency to an Android task.
 - ASSUMPTION (2026-10-22 11:58+0200 by dell26/agent-2): The choice is offered only when the share contains an http(s) URL and no files; Inbox stays the default. Read later sends the sheet's title (none if it is just the URL, so the server takes the page title), no notes, and the pending count of the widget includes queued bookmarks.
+- release by dell26/agent-2: handed back by dell26/agent-2: pushes had failed (remote: error: GH006: Protected branch update failed for refs/heads/main. | remote: error: | To https://github.com/OldP…); continue from wip/and-bookmarks-share
