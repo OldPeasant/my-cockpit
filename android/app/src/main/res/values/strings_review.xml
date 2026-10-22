@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="review_offline">Can\'t reach the server. Showing the last loaded review.</string>
+    <string name="review_failed">The weekly review could not be loaded.</string>
+    <string name="review_retry">Retry</string>
+    <string name="review_never">No weekly review completed yet.</string>
+    <string name="review_last_today">Last weekly review: today</string>
+    <plurals name="review_last_days">
+        <item quantity="one">Last weekly review: %1$d day ago</item>
+        <item quantity="other">Last weekly review: %1$d days ago</item>
+    </plurals>
+    <string name="review_in_progress">Review in progress: step %1$d of %2$d</string>
+    <string name="review_none_open">No review in progress. Start one on the web.</string>
+    <string name="review_steps">Steps</string>
+    <string name="review_step_done">done</string>
+    <string name="review_step_current">current step</string>
+    <string name="review_step_get_clear">Get clear</string>
+    <string name="review_step_past_calendar">Review past calendar</string>
+    <string name="review_step_upcoming_calendar">Review upcoming calendar</string>
+    <string name="review_step_waiting_for">Waiting For</string>
+    <string name="review_step_projects">Projects</string>
+    <string name="review_step_next_actions">Next Actions</string>
+    <string name="review_step_someday">Someday/Maybe</string>
+    <string name="review_step_reflection">Habits &amp; journal reflection</string>
+    <string name="review_stalled">Stalled projects</string>
+    <string name="review_no_stalled">Every active project has a next step.</string>
+    <string name="review_stalled_hint">No next step</string>
+</resources>
