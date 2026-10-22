@@ -38,15 +38,18 @@ describe('ContactsPage', () => {
   let root: HTMLElement;
   let http: HttpTestingController;
   let changes: Subject<ChangeEvent>;
+  let resync: Subject<void>;
   let notifications: { error: ReturnType<typeof vi.fn>; info: ReturnType<typeof vi.fn> };
 
   async function open(
     url = '/contacts',
     items: ContactResponse[] = [ADA, BOB],
     accounts: OAuthConnectionResponse[] = [],
+    nextCursor?: string,
   ): Promise<void> {
     notifications = { error: vi.fn(), info: vi.fn() };
     changes = new Subject();
+    resync = new Subject();
     TestBed.configureTestingModule({
       providers: [
         provideHttp(),
@@ -56,7 +59,7 @@ describe('ContactsPage', () => {
         {
           provide: ChangeEventsService,
           useValue: {
-            resync$: new Subject<void>(),
+            resync$: resync,
             events$: (type: string) => changes.pipe(filter((e) => e.type === type)),
           },
         },
@@ -67,7 +70,7 @@ describe('ContactsPage', () => {
     await harness.navigateByUrl(url);
     root = harness.routeNativeElement as HTMLElement;
     http.expectOne(CONNECTIONS).flush(accounts);
-    flushList(items);
+    flushList(items, nextCursor);
     await settle();
   }
 
@@ -258,5 +261,144 @@ describe('ContactsPage', () => {
     expect(text(root.querySelector('.import-report.failed'))).toContain(
       'The file could not be imported',
     );
+    (root.querySelector('.import-report button') as HTMLButtonElement).click();
+    await settle();
+    expect(root.querySelector('.import-report')).toBeNull();
+  });
+
+  it('does nothing when the file dialog is closed without a file', async () => {
+    await open('/contacts', [ADA]);
+    const input = root.querySelector('input[type="file"]') as HTMLInputElement;
+    Object.defineProperty(input, 'files', { value: [] });
+    input.dispatchEvent(new Event('change'));
+    await settle();
+    // http.verify() in afterEach: no import was sent.
+    expect(root.querySelector('.import-report')).toBeNull();
+  });
+
+  it('reloads the list once after a burst of contact changes, keeping it on screen', async () => {
+    await open('/contacts', [ADA]);
+    vi.useFakeTimers();
+    changes.next({ type: 'CONTACT', id: BOB.id, op: 'CREATED' });
+    changes.next({ type: 'CONTACT', id: BOB.id, op: 'UPDATED' });
+    changes.next({ type: 'BOOKMARK', id: 'other', op: 'CREATED' });
+    await vi.advanceTimersByTimeAsync(CONTACT_SEARCH_DEBOUNCE_MS - 1);
+    http.expectNone((r) => r.url === LIST);
+    await vi.advanceTimersByTimeAsync(1);
+    vi.useRealTimers();
+    const req = http.expectOne((r) => r.url === LIST);
+    expect(req.request.params.has('cursor')).toBe(false);
+    harness.detectChanges();
+    expect(rows()).toEqual(['Ada Example']);
+    expect(root.querySelector('.hint')).toBeNull();
+    req.flush({ items: [ADA, BOB] });
+    await settle();
+    expect(rows()).toEqual(['Ada Example', 'Bob Sample']);
+  });
+
+  it('reloads the list after a resync, keeping the search', async () => {
+    await open('/contacts?q=ada', [ADA]);
+    resync.next();
+    const req = http.expectOne((r) => r.url === LIST);
+    expect(req.request.params.get('q')).toBe('ada');
+    req.flush({ items: [] });
+    await settle();
+    expect(text(root.querySelector('.empty'))).toContain('No contact matches “ada”.');
+  });
+
+  it('keeps the list when a quiet reload fails', async () => {
+    await open('/contacts', [ADA]);
+    resync.next();
+    http.expectOne((r) => r.url === LIST).flush(null, { status: 503, statusText: 'Unavailable' });
+    await settle();
+    expect(rows()).toEqual(['Ada Example']);
+    expect(root.querySelector('.load-error')).toBeNull();
+  });
+
+  it('does not reload over pages loaded with Show more', async () => {
+    await open('/contacts', [ADA], [], 'next');
+    resync.next();
+    await settle();
+    // http.verify() in afterEach: no reload was requested.
+    expect(root.querySelector('.more')).toBeTruthy();
+  });
+
+  it('toasts a failed Show more and keeps the list and the button', async () => {
+    await open('/contacts', [ADA], [], 'next');
+    (root.querySelector('.more') as HTMLButtonElement).click();
+    await settle();
+    expect((root.querySelector('.more') as HTMLButtonElement).disabled).toBe(true);
+    http
+      .expectOne((r) => r.url === LIST && r.params.get('cursor') === 'next')
+      .flush(null, { status: 503, statusText: 'Unavailable' });
+    await settle();
+    expect(notifications.error).toHaveBeenCalledTimes(1);
+    expect(rows()).toEqual(['Ada Example']);
+    const more = root.querySelector('.more') as HTMLButtonElement;
+    expect(more.disabled).toBe(false);
+    more.click();
+    http
+      .expectOne((r) => r.url === LIST && r.params.get('cursor') === 'next')
+      .flush({ items: [BOB] });
+    await settle();
+    expect(rows()).toEqual(['Ada Example', 'Bob Sample']);
+  });
+
+  it('searches at once on Enter and does not search the same text again', async () => {
+    await open();
+    const input = root.querySelector('input[type="search"]') as HTMLInputElement;
+    input.value = '  bob ';
+    input.dispatchEvent(new Event('input'));
+    (root.querySelector('form.search') as HTMLFormElement).dispatchEvent(new Event('submit'));
+    await settle();
+    const req = http.expectOne((r) => r.url === LIST);
+    expect(req.request.params.get('q')).toBe('bob');
+    req.flush({ items: [BOB] });
+    await settle();
+    expect(TestBed.inject(Router).url).toBe('/contacts?q=bob');
+    // The typing pause ends with the same search: nothing is loaded again.
+    await new Promise((resolve) => setTimeout(resolve, CONTACT_SEARCH_DEBOUNCE_MS + 10));
+    await settle();
+    expect(rows()).toEqual(['Bob Sample']);
+  });
+
+  it('shows the latest search when an earlier one answers last', async () => {
+    await open();
+    await harness.navigateByUrl('/contacts?q=ada');
+    await harness.navigateByUrl('/contacts?q=bob');
+    const [ada, bob] = http.match((r) => r.url === LIST);
+    expect(ada.request.params.get('q')).toBe('ada');
+    expect(bob.request.params.get('q')).toBe('bob');
+    bob.flush({ items: [BOB] });
+    await settle();
+    ada.flush({ items: [ADA] });
+    await settle();
+    expect(rows()).toEqual(['Bob Sample']);
+  });
+
+  it('drops a Show more page that arrives after the search changed', async () => {
+    await open('/contacts', [ADA], [], 'next');
+    (root.querySelector('.more') as HTMLButtonElement).click();
+    const more = http.expectOne((r) => r.url === LIST && r.params.get('cursor') === 'next');
+    await harness.navigateByUrl('/contacts?q=bob');
+    http.expectOne((r) => r.url === LIST && r.params.get('q') === 'bob').flush({ items: [BOB] });
+    await settle();
+    more.flush({ items: [ADA, { ...BOB, id: 'late' }] });
+    await settle();
+    expect(rows()).toEqual(['Bob Sample']);
+    expect(notifications.error).not.toHaveBeenCalled();
+  });
+
+  it('shows the latest search when an earlier one fails last', async () => {
+    await open();
+    await harness.navigateByUrl('/contacts?q=ada');
+    await harness.navigateByUrl('/contacts?q=bob');
+    const [ada, bob] = http.match((r) => r.url === LIST);
+    bob.flush({ items: [BOB] });
+    await settle();
+    ada.flush(null, { status: 503, statusText: 'Unavailable' });
+    await settle();
+    expect(root.querySelector('.load-error')).toBeNull();
+    expect(rows()).toEqual(['Bob Sample']);
   });
 });

@@ -388,4 +388,214 @@ describe('ContactDetail', () => {
     await settle();
     expect(text(root.querySelector('.load-error'))).toContain('could not be loaded');
   });
+
+  it('loads a missing contact again with Try again', async () => {
+    await start(`/contacts/${ID}`);
+    http.expectOne(URL).flush(null, { status: 503, statusText: 'Service Unavailable' });
+    await settle();
+    (root.querySelector('.load-error button') as HTMLButtonElement).click();
+    await settle();
+    expect(text(root.querySelector('.hint'))).toBe('Loading contact…');
+    http.expectOne(URL).flush(contact(ID));
+    await settle();
+    expect(text(root.querySelector('.related .hint'))).toBe('Loading related items…');
+    http.expectOne(`${URL}/related`).flush(noRelated(ID));
+    await settle();
+    flushLinks();
+    await settle();
+    expect(root.querySelector('.load-error')).toBeNull();
+    expect(text(root.querySelector('h1'))).toBe('Ada Example');
+  });
+
+  it('says how to add fields to a contact without any', async () => {
+    await open(contact(ID, { emails: [] }));
+    expect(root.querySelectorAll('dd')).toHaveLength(0);
+    expect(text(root.querySelector('.fields .hint'))).toBe(
+      'No email, phone or address yet. Use Edit to add them.',
+    );
+    expect(root.querySelector('.notes')).toBeNull();
+  });
+
+  it('shows the first account of the provider and ignores accounts of the other one', async () => {
+    await open(contact(ID, { source: 'GOOGLE' }), noRelated(ID), [
+      connection('MICROSOFT'),
+      connection('GOOGLE', { id: 'first', email: 'first@google.example' }),
+      connection('GOOGLE', { id: 'second', email: 'second@google.example' }),
+    ]);
+    expect(text(root.querySelector('.sync-status'))).toBe(
+      'Synced with Google (first@google.example)',
+    );
+  });
+
+  it('still shows a synced contact when its accounts cannot be loaded', async () => {
+    await start(`/contacts/${ID}`);
+    http.expectOne(URL).flush(contact(ID, { source: 'MICROSOFT' }));
+    await settle();
+    http.expectOne(`${URL}/related`).flush(noRelated(ID));
+    http
+      .expectOne('/api/v1/oauth/connections')
+      .flush(null, { status: 500, statusText: 'Server Error' });
+    await settle();
+    flushLinks();
+    await settle();
+    expect(text(root.querySelector('h1'))).toBe('Ada Example');
+    expect(text(root.querySelector('.sync-status'))).toBe('From Microsoft, not syncing');
+  });
+
+  it('shows the contact of the latest route when an earlier one answers last', async () => {
+    const OTHER = '0192f0c4-0000-7000-8000-000000000002';
+    await start(`/contacts/${ID}`);
+    const first = http.expectOne(URL);
+    await harness.navigateByUrl(`/contacts/${OTHER}`);
+    const second = http.expectOne(`/api/v1/contacts/${OTHER}`);
+    second.flush(
+      contact(OTHER, { displayName: 'Bob Sample', givenName: 'Bob', familyName: 'Sample' }),
+    );
+    await settle();
+    first.flush(contact(ID));
+    await settle();
+    http.expectOne(`/api/v1/contacts/${OTHER}/related`).flush(noRelated(OTHER));
+    await settle();
+    flushLinks();
+    await settle();
+    expect(text(root.querySelector('h1'))).toBe('Bob Sample');
+    expect(root.querySelector('a.export')?.getAttribute('href')).toBe(
+      `/api/v1/contacts/export?ids=${OTHER}`,
+    );
+  });
+
+  it('drops related items and accounts of the previous contact that arrive late', async () => {
+    const OTHER = '0192f0c4-0000-7000-8000-000000000002';
+    await start(`/contacts/${ID}`);
+    http.expectOne(URL).flush(contact(ID, { source: 'GOOGLE' }));
+    await settle();
+    const lateRelated = http.expectOne(`${URL}/related`);
+    const lateAccounts = http.expectOne('/api/v1/oauth/connections');
+    await harness.navigateByUrl(`/contacts/${OTHER}`);
+    http.expectOne(`/api/v1/contacts/${OTHER}`).flush(contact(OTHER, { source: 'MICROSOFT' }));
+    await settle();
+    const related = http.expectOne(`/api/v1/contacts/${OTHER}/related`);
+    const accounts = http.expectOne('/api/v1/oauth/connections');
+    related.flush(noRelated(OTHER));
+    accounts.flush([]);
+    await settle();
+    lateRelated.flush(RELATED);
+    lateAccounts.flush([connection('MICROSOFT')]);
+    await settle();
+    flushLinks();
+    await settle();
+    expect(text(root.querySelector('.waiting .hint'))).toBe('Nothing you are waiting for.');
+    expect(text(root.querySelector('.mails .hint'))).toBe('No mail with them yet.');
+    expect(text(root.querySelector('.sync-status'))).toBe('From Microsoft, not syncing');
+  });
+
+  it('keeps editing with the error when saving fails for another reason', async () => {
+    await open();
+    (root.querySelector('button.edit') as HTMLButtonElement).click();
+    await settle();
+    type('input[name="title"]', 'Engineer');
+    (root.querySelector('form') as HTMLFormElement).dispatchEvent(new Event('submit'));
+    await settle();
+    expect(text(root.querySelector('button.save'))).toBe('Saving…');
+    http
+      .expectOne((r) => r.method === 'PATCH')
+      .flush(
+        { status: 400, title: 'Bad Request', detail: 'Invalid birthday' },
+        { status: 400, statusText: 'Bad Request' },
+      );
+    await settle();
+    // No reload of the contact: only a conflict asks for the current version.
+    expect(root.querySelector('app-contact-form')).toBeTruthy();
+    expect(text(root.querySelector('.form-error'))).toContain('could not be saved');
+    expect((root.querySelector('input[name="title"]') as HTMLInputElement).value).toBe('Engineer');
+    expect((root.querySelector('button.save') as HTMLButtonElement).disabled).toBe(false);
+  });
+
+  it('shows that the contact is gone when a conflict reload finds nothing', async () => {
+    await open();
+    (root.querySelector('button.edit') as HTMLButtonElement).click();
+    await settle();
+    type('input[name="title"]', 'Engineer');
+    (root.querySelector('form') as HTMLFormElement).dispatchEvent(new Event('submit'));
+    http
+      .expectOne((r) => r.method === 'PATCH')
+      .flush(
+        { status: 409, title: 'Conflict', detail: 'Changed elsewhere' },
+        { status: 409, statusText: 'Conflict' },
+      );
+    await settle();
+    http
+      .expectOne(URL)
+      .flush(
+        { status: 404, title: 'Not Found', detail: 'No such contact' },
+        { status: 404, statusText: 'Not Found' },
+      );
+    await settle();
+    expect(text(root.querySelector('.load-error'))).toContain('could not be loaded');
+  });
+
+  it('stays on the contact and toasts the error when the Trash move fails', async () => {
+    await open();
+    (root.querySelector('button.delete') as HTMLButtonElement).click();
+    await settle();
+    expect((root.querySelector('button.delete') as HTMLButtonElement).disabled).toBe(true);
+    http
+      .expectOne((r) => r.method === 'DELETE' && r.url === URL)
+      .flush(null, { status: 500, statusText: 'Server Error' });
+    await settle();
+    expect(notifications.error).toHaveBeenCalledTimes(1);
+    expect(notifications.info).not.toHaveBeenCalled();
+    expect(TestBed.inject(Router).url).toBe(`/contacts/${ID}`);
+    expect(text(root.querySelector('h1'))).toBe('Ada Example');
+    expect((root.querySelector('button.delete') as HTMLButtonElement).disabled).toBe(false);
+  });
+
+  it('after a conflicting Trash move, retries with the current version', async () => {
+    await open();
+    (root.querySelector('button.delete') as HTMLButtonElement).click();
+    http
+      .expectOne((r) => r.method === 'DELETE')
+      .flush(
+        { status: 412, title: 'Precondition Failed', detail: 'Changed elsewhere' },
+        { status: 412, statusText: 'Precondition Failed' },
+      );
+    await settle();
+    http.expectOne(URL).flush(contact(ID, { displayName: 'Ada Lovelace', version: 5 }));
+    await settle();
+    expect(notifications.error).toHaveBeenCalledTimes(1);
+    expect(text(root.querySelector('h1'))).toBe('Ada Lovelace');
+    (root.querySelector('button.delete') as HTMLButtonElement).click();
+    const retry = http.expectOne((r) => r.method === 'DELETE');
+    expect(retry.request.headers.get('If-Match')).toBe('"5"');
+    retry.flush(null, { status: 204, statusText: 'No Content' });
+    await settle();
+    expect(notifications.info).toHaveBeenCalledWith('Moved “Ada Lovelace” to the Trash');
+    http.expectOne('/api/v1/oauth/connections').flush([]);
+    http.expectOne((r) => r.url === '/api/v1/contacts').flush({ items: [] });
+  });
+
+  it('does not replace a contact being edited with a change from elsewhere', async () => {
+    await open();
+    (root.querySelector('button.edit') as HTMLButtonElement).click();
+    await settle();
+    type('input[name="title"]', 'Draft');
+    changes.next({ type: 'CONTACT', id: ID, op: 'UPDATED' });
+    await settle();
+    // http.verify() in afterEach: no reload was requested.
+    expect((root.querySelector('input[name="title"]') as HTMLInputElement).value).toBe('Draft');
+  });
+
+  it('ignores a change from elsewhere that is not newer, or that fails to load', async () => {
+    await open(contact(ID, { version: 3 }));
+    changes.next({ type: 'CONTACT', id: ID, op: 'UPDATED' });
+    http.expectOne(URL).flush(contact(ID, { displayName: 'Stale Name', version: 3 }));
+    await settle();
+    expect(text(root.querySelector('h1'))).toBe('Ada Example');
+
+    changes.next({ type: 'CONTACT', id: ID, op: 'UPDATED' });
+    http.expectOne(URL).flush(null, { status: 503, statusText: 'Service Unavailable' });
+    await settle();
+    expect(text(root.querySelector('h1'))).toBe('Ada Example');
+    expect(root.querySelector('.load-error')).toBeNull();
+  });
 });
