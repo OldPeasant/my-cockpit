@@ -16,3 +16,4 @@ Configurable home (SPEC.md §8.7).
 
 ## Notes
 - ASSUMPTION (2026-10-22 10:25+0200 by dell26/agent-1): Layout stored in a new server setting dashboardWidgets (TextList, core/settings/infra/DashboardSettings.kt): ordered widget ids, '<id>:hidden' for hidden; widgets missing from the list show at the end. Outside the task's touches, but settings must be registered server-side.
+- ASSUMPTION (2026-10-22 10:25+0200 by dell26/agent-1): Widget definitions: Today = overdue + due-today tasks, today's events, habits due/done; Upcoming = next 7 days; Waiting For overdue = WAITING tasks with due=overdue; Stalled = ACTIVE projects with stalled=true; Read-later = readLater & unread bookmarks; last weekly review turns red and offers 'Start' after 7 days.
