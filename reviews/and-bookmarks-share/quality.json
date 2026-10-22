@@ -1,0 +1,37 @@
+{
+  "schema": 1,
+  "task": "and-bookmarks-share",
+  "reviewed_revision": "74e8c90a13986a3874ade4f06e201e406b6b16f8",
+  "helpers": {
+    "test-writer":   {"status": "completed", "report": "reviews/and-bookmarks-share/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/and-bookmarks-share/review.md"},
+    "fixer":         {"status": "completed", "report": "reviews/and-bookmarks-share/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "round 1: unreadable 2xx bookmark answer was retried and duplicated; SerializationException now counts as sent"},
+    {"id": "CR-2", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "round 1: client URL check now mirrors the server's authority rules"},
+    {"id": "R2-CR-1", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "round 2 CR-1: any unreadable 2xx answer (date-time, UUID) counts as sent"},
+    {"id": "R2-CR-2", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "round 2 CR-2: length limit applies to the percent-encoded normalized URL"},
+    {"id": "TW-1", "source": "test-writer", "severity": "Low", "disposition": "fixed",
+     "note": "URLs with ISO control characters are refused"},
+    {"id": "TW-2", "source": "test-writer", "severity": "Low", "disposition": "fixed",
+     "note": "encoded length over 2048 is refused"},
+    {"id": "TW-3", "source": "test-writer", "severity": "Low", "disposition": "fixed",
+     "note": "IPv6 literals java.net.URI cannot parse are refused (60b9ae665, tests in ReadLaterUploaderTest)"},
+    {"id": "FLAKE-1", "source": "test-writer", "severity": "Low", "disposition": "fixed",
+     "note": "ShareViewModel.load no longer hops to IO for shares without files, removing the resetMain race"},
+    {"id": "TW-NOTE-1", "source": "test-writer", "severity": "Low", "disposition": "accepted",
+     "note": "round 3: ShareViewModel.defaultTitle 0-files branch is now unreachable; kept as a harmless safety net, not a defect"}
+  ],
+  "validation": [
+    {"command": "cd android && ./gradlew ktlintCheck testDebugUnitTest --tests 'ch.sonensei.cockpit.capture.share.*' --rerun", "result": "pass"},
+    {"command": "cd android && ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.capture.share.*' --tests 'ch.sonensei.cockpit.capture.queue.*' --rerun", "result": "pass"},
+    {"command": "cd android && ./gradlew createDebugUnitTestCoverageReport", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
