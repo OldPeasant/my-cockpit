@@ -5,7 +5,7 @@ owner: dell26/agent-2
 deps: [and-capture-entrypoints,bookmarks-api]
 touches: [android/app/src/main/java/ch/sonensei/cockpit/capture/share,android/app/src/test/java/ch/sonensei/cockpit/capture/share]
 prio: 3
-lease_until: 2026-10-22T12:13:00Z
+lease_until: 2026-10-22T12:18:02Z
 releases: 0
 extended: 
 ---
