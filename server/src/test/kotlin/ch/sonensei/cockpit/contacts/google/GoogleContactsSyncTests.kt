@@ -324,6 +324,82 @@ class GoogleContactsSyncTests(
 	}
 
 	@Test
+	fun `an incremental listing over several pages sends the sync token with every page and trashes nothing it did not list`() {
+		stubFullListing()
+		syncOk()
+		stub(
+			listing().withQueryParam("syncToken", equalTo("CONTACTS-sync-1")).withQueryParam("pageToken", absent()),
+			"""
+			{"connections": [
+			  {"resourceName": "people/c1001", "etag": "%inc-c1001",
+			   "names": [{"metadata": {"primary": true}, "displayName": "Alex Muster-Meier",
+			              "givenName": "Alex", "familyName": "Muster-Meier"}]}
+			], "nextPageToken": "CONTACTS-inc-page-2"}
+			""",
+		)
+		stub(
+			listing().withQueryParam("syncToken", equalTo("CONTACTS-sync-1")).withQueryParam("pageToken", equalTo("CONTACTS-inc-page-2")),
+			"""
+			{"connections": [
+			  {"resourceName": "people/c1004", "etag": "%inc-c1004", "organizations": [{"name": "Fictional GmbH"}]}
+			], "nextSyncToken": "CONTACTS-sync-2"}
+			""",
+		)
+		wireMock.resetRequests()
+
+		syncOk().syncToken shouldBe "CONTACTS-sync-2"
+
+		// Persons an incremental listing does not mention did not change; they are not moved to the Trash.
+		active() shouldContainExactlyInAnyOrder listOf("Alex Muster-Meier", "+41 44 000 00 02", "Sam Beispiel", "Fictional GmbH")
+		val pages = wireMock.allServeEvents.map { it.request }.filter { it.url.startsWith(CONNECTIONS) }
+		pages.size shouldBe 2
+		pages.forEach {
+			it.queryParameter("syncToken").firstValue() shouldBe "CONTACTS-sync-1"
+			it.queryParameter("requestSyncToken").firstValue() shouldBe "true"
+		}
+		link("people/c1001").etag shouldBe "%inc-c1001"
+	}
+
+	@Test
+	fun `a full listing after an expired token that fails on a later page trashes nothing`() {
+		stubFullListing()
+		syncOk()
+		stub(listing().withQueryParam("syncToken", equalTo("CONTACTS-sync-1")), recording("error-400-expired-sync-token.json"), 400)
+		stub(
+			listing().withQueryParam("syncToken", absent()).withQueryParam("pageToken", equalTo("CONTACTS-page-2")),
+			"""{"error": {"code": 503, "status": "UNAVAILABLE"}}""",
+			503,
+		)
+
+		val state = sync.sync(CONNECTION)
+
+		state.lastError shouldBe "Google Contacts failed (HTTP 503)"
+		// Sam (people/c1003) is on the page that failed: an incomplete listing must not count him as gone.
+		active() shouldContainExactlyInAnyOrder listOf("Alex Muster", "+41 44 000 00 02", "Sam Beispiel")
+		link("people/c1003").contactId.shouldNotBeNull()
+	}
+
+	@Test
+	fun `a full listing after an expired token leaves a restored contact that waits for its create alone`() {
+		val sam = trashedAndRestoredSam()
+		stub(post(urlPathEqualTo("/v1/people:createContact")), """{"error": {"code": 400, "status": "INVALID_ARGUMENT"}}""", 400)
+		stub(listing().withQueryParam("syncToken", equalTo("CONTACTS-sync-2")), recording("error-400-expired-sync-token.json"), 400)
+		stub(listing().withQueryParam("syncToken", absent()).withQueryParam("pageToken", absent()), recording("connections-full-page1.json"))
+		stub(
+			listing().withQueryParam("syncToken", absent()).withQueryParam("pageToken", equalTo("CONTACTS-page-2")),
+			"""{"nextSyncToken": "CONTACTS-sync-5"}""",
+		)
+
+		val state = sync.sync(CONNECTION)
+
+		state.lastError shouldBe "1 contacts could not be synced with Google"
+		state.syncToken shouldBe "CONTACTS-sync-5"
+		contacts.findById(sam.id).get().isDeleted shouldBe false
+		linkOf(sam).resourceName.shouldBeNull()
+		active() shouldContainExactlyInAnyOrder listOf("Alex Muster", "+41 44 000 00 02", "Sam Beispiel")
+	}
+
+	@Test
 	fun `410 Gone for the sync token also starts a full listing`() {
 		stubFullListing()
 		syncOk()
@@ -464,6 +540,73 @@ class GoogleContactsSyncTests(
 		writes().shouldBeEmpty()
 		linkOf(changed).syncedVersion shouldBe changed.version
 		linkOf(changed).etag shouldBe "%EgcBAgkLLjc9GgQBAgUHIgxQaEx1bWJ1dGZ2Zz0="
+	}
+
+	@Test
+	fun `a change of several field groups is written in one update that names each group`() {
+		stubFullListing()
+		syncOk()
+		val alex = contact("people/c1001")
+		val changed =
+			service.update(
+				alex.id,
+				ContactChanges(
+					emails = Change(alex.emails + ContactEmail("alex.private@example.test", "home")),
+					phones = Change(listOf(ContactPhone("+41 44 000 00 09", "mobile"))),
+				),
+			) {}
+		stubPerson("people/c1001")
+		stub(patch(urlPathEqualTo("/v1/people/c1001:updateContact")), """{"resourceName": "people/c1001", "etag": "%two-groups"}""")
+		stubIncremental("""{"nextSyncToken": "CONTACTS-sync-2"}""")
+
+		syncOk()
+
+		val request = patchRequest()
+		request.queryParameter("updatePersonFields").firstValue() shouldBe "emailAddresses,phoneNumbers"
+		request.queryParameter("personFields").firstValue() shouldBe GooglePersonMapping.PERSON_FIELDS
+		val body = jsonMapper.readTree(request.bodyAsString)
+		body.propertyNames().asSequence().toList() shouldContainExactlyInAnyOrder listOf("etag", "emailAddresses", "phoneNumbers")
+		body.get("etag").asString() shouldBe "%EgcBAgkLLjc9GgQBAgUHIgxQaEx1bWJ1dGZ2Zz0="
+		// The unchanged address stays Google's entry, the new one is added, the entry the cockpit cannot read is kept.
+		body.get("emailAddresses").values().map { it.get("value").asString() } shouldContainExactly
+			listOf("alex.muster@example.test", "alex.private@example.test", "not-an-address")
+		body
+			.get("emailAddresses")
+			.get(1)
+			.get("type")
+			.asString() shouldBe "home"
+		val phone = body.get("phoneNumbers").single()
+		phone.get("value").asString() shouldBe "+41 44 000 00 09"
+		phone.get("type").asString() shouldBe "mobile"
+		phone.has("canonicalForm") shouldBe false
+		linkOf(changed).etag shouldBe "%two-groups"
+		linkOf(changed).syncedVersion shouldBe changed.version
+	}
+
+	@Test
+	fun `a rate limit on a write fails the run before the pull, keeps the sync token, and the change is pushed later`() {
+		stubFullListing()
+		syncOk()
+		val changed = rename(contact("people/c1001"), "Muster-Neu")
+		stubPerson("people/c1001")
+		stub(patch(urlPathEqualTo("/v1/people/c1001:updateContact")), recording("error-429-rate-limit.json"), 429)
+		stubIncremental("""{"nextSyncToken": "CONTACTS-sync-2"}""")
+		wireMock.resetRequests()
+
+		val state = sync.sync(CONNECTION)
+
+		state.lastError shouldBe "Google Contacts rate limit reached (HTTP 429), retrying later"
+		state.syncToken shouldBe "CONTACTS-sync-1"
+		wireMock.allServeEvents.none { it.request.url.startsWith(CONNECTIONS) } shouldBe true
+		linkOf(changed).syncedVersion shouldBeLessThan changed.version
+
+		wireMock.resetAll()
+		stubPerson("people/c1001")
+		stub(patch(urlPathEqualTo("/v1/people/c1001:updateContact")), """{"resourceName": "people/c1001", "etag": "%after-limit"}""")
+		stubIncremental("""{"nextSyncToken": "CONTACTS-sync-2"}""")
+		syncOk().syncToken shouldBe "CONTACTS-sync-2"
+		writes() shouldContainExactly listOf("PATCH /v1/people/c1001:updateContact")
+		linkOf(changed).etag shouldBe "%after-limit"
 	}
 
 	@Test
@@ -630,6 +773,29 @@ class GoogleContactsSyncTests(
 		syncOk()
 		writes() shouldContainExactly listOf("DELETE /v1/people/c1003:deleteContact")
 		links.findByConnectionIdAndResourceName(CONNECTION, "people/c1003").shouldBeNull()
+	}
+
+	@Test
+	fun `a purged contact whose delete Google refuses is forgotten once Google lists it as deleted, no delete is sent again`() {
+		stubFullListing()
+		syncOk()
+		val sam = contact("people/c1003")
+		service.delete(sam.id) {}
+		tx.execute { trash.purge(sam.id) }
+		stub(delete(urlPathEqualTo("/v1/people/c1003:deleteContact")), """{"error": {"code": 400, "status": "INVALID_ARGUMENT"}}""", 400)
+		// The incremental listing reports people/c1003 as deleted at Google (and changes c1001, adds c1004).
+		stubIncremental(recording("connections-incremental.json"))
+
+		sync.sync(CONNECTION).lastError shouldBe "1 contacts could not be synced with Google"
+
+		links.findByConnectionIdAndResourceName(CONNECTION, "people/c1003").shouldBeNull()
+		links.findAll().none { it.contactId == null } shouldBe true
+		contacts.findAll().none { it.displayName == "Sam Beispiel" } shouldBe true
+
+		wireMock.resetAll()
+		stub(listing().withQueryParam("syncToken", equalTo("CONTACTS-sync-2")), """{"nextSyncToken": "CONTACTS-sync-3"}""")
+		syncOk()
+		writes().shouldBeEmpty()
 	}
 
 	@Test
