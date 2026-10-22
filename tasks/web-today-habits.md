@@ -11,7 +11,8 @@ lease_until: 2026-10-22T02:41:10Z
 Today shows habits due.
 
 ## Acceptance criteria
-- [ ] Habits due today with one-tap check
+- [x] Habits due today with one-tap check
+  - verified (2026-10-22 04:26+0200 by dell26/agent-1): npx ng test --include='src/app/features/gtd/today/*.spec.ts' (web, Vitest) -> 3 files, 85 passed; today-habits.spec.ts covers only dueToday habits listed, one-tap check via HabitsService.setCheck, conflict/reload paths; today-view.spec.ts renders the section in the routed Today view
 - [ ] Vitest component/service tests cover habits section; `cd web && npm run check` passes
 
 ## Notes
