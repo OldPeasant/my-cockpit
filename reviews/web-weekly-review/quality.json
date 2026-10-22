@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "task": "web-weekly-review",
-  "reviewed_revision": "0b0dfb92d00b7724681fc40a60b81b5eee6c91bd",
+  "reviewed_revision": "4309401c6bb4705ccdcb03cceea792bee936431f",
   "helpers": {
     "test-writer": {"status": "completed", "report": "reviews/web-weekly-review/tests.md"},
     "code-reviewer": {"status": "completed", "report": "reviews/web-weekly-review/review.md"},
