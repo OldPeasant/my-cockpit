@@ -423,6 +423,56 @@ describe('TodayHabits', () => {
     expect(row(READ)).not.toBeNull();
   });
 
+  it('loads in full on return after a failed load, ending in the error again if it fails', async () => {
+    await create(null);
+    listRequest().flush({ title: 'Server error' }, { status: 503, statusText: 'Unavailable' });
+    await settle();
+
+    becomeVisible();
+    fixture.detectChanges();
+    const reload = listRequest();
+    // A full load: the old error goes and the loading note shows while it runs.
+    expect(root.querySelector('.load-error')).toBeNull();
+    expect(text(root.querySelector('[role="status"]'))).toBe('Loading habits…');
+
+    // A second return while that load runs sends nothing more.
+    becomeVisible();
+    http.expectNone((r) => r.method === 'GET');
+
+    reload.flush({ title: 'Server error' }, { status: 503, statusText: 'Unavailable' });
+    await settle();
+
+    expect(root.querySelector('[role="status"]')).toBeNull();
+    expect(text(root.querySelector('.load-error'))).toContain(
+      "Today's habits could not be loaded.",
+    );
+  });
+
+  it('keeps the habits and shows no load error when a reload on return fails', async () => {
+    await create([READ]);
+
+    becomeVisible();
+    listRequest().flush({ title: 'Server error' }, { status: 503, statusText: 'Unavailable' });
+    await settle();
+
+    expect(row(READ)).not.toBeNull();
+    expect(root.querySelector('.load-error')).toBeNull();
+    expect(root.querySelector('[role="status"]')).toBeNull();
+  });
+
+  it('reloads on return while hidden without habits, showing a habit added meanwhile', async () => {
+    await create([]);
+    expect(root.querySelector('section')).toBeNull();
+
+    becomeVisible();
+    // Quiet: the section stays hidden (no loading note) while the reload runs.
+    fixture.detectChanges();
+    expect(root.querySelector('section')).toBeNull();
+    await flushList([READ]);
+
+    expect(row(READ)).not.toBeNull();
+  });
+
   it('shows a weekly streak in weeks', async () => {
     const weekly = habit('0192f0c4-0000-7000-8000-000000000005', {
       name: 'Long walk',

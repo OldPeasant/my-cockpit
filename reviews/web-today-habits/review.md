@@ -4,21 +4,29 @@ Date: 2026-10-22
 
 Task: web-today-habits - Today view: habits due
 
-Scope: commits of task web-today-habits on top of base 1c092335a (12badc077 assume, a6613d25e implementation)
+Scope: final code of task web-today-habits, 1c092335a..97b339fa2 (second pass after fixes; production and test code under web/src/app/features/gtd/today/)
 
 Requirements:
-- tasks/web-today-habits.md acceptance criteria (1) habits due today with one-tap check, (2) Vitest tests cover the habits section; `cd web && npm run check` passes
+- tasks/web-today-habits.md acceptance criteria (1) habits due today with one-tap check, (2) Vitest component/service tests cover the habits section; `cd web && npm run check` passes
 - SPEC.md §5.3 (Today view: habits due), §8.5 (one-tap check)
-- AGENTS.md project notes (feature folders, touches, i18n/lint conventions)
-- Existing conventions: web/src/app/features/habits/habits-page.ts, habit-display.ts, habits.service.ts; gtd/today/today-sections.ts, today-view.ts
+- AGENTS.md project notes (feature folders, touches, lint/i18n conventions)
+- Existing conventions: web/src/app/features/habits/habits-page.ts (`refresh()`, `reloadQuietly()`, `run()`), habit-display.ts, habits.service.ts; gtd/today/today-sections.ts, today-view.ts
+- First review (this file's previous revision) and reviews/web-today-habits/fixes.md
 
 Git range:
 - Branch: main
-- HEAD: a6613d25eb3780a079810997efc0c60cbddf3e5a (the parent named 553be17ef; the commit at HEAD is the same task commit after a rebase, with the same subject and files)
+- HEAD: 97b339fa29322566c54b2e18c50450301569460d
 - Base/start: 1c092335a2909e97cec38e57d680049129ca72ef
-- Commits reviewed: 2 (one task-notes commit, one implementation commit)
+- Commits reviewed: 4 (12badc077 task notes, a6613d25e implementation, 4145de0ae tests and first reports, 97b339fa2 fix for CR-1/TW-1/TW-2)
+- Uncommitted changes: none at review time
 
-Summary: 0 P0, 0 P1, 2 P2, 1 P3
+Summary: 0 P0, 0 P1, 0 P2, 1 P3
+
+## Disposition of first-pass findings
+
+- **CR-1 (P2, reload on return could leave the section loading or keep a stale error): resolved.** `today-habits.ts:81-88` adds `refresh()`, called from the `visibilitychange` handler (`today-habits.ts:55-57`). It skips while a check runs, runs a full `load()` after a failed load (this clears `failed`), reloads quietly only when habits are on screen, and does nothing while the first load or a retry is running (`habits` is null and `failed` is false then). This matches `HabitsPage.refresh()` (`habits-page.ts:218-225`). I traced both paths from the first review. Path 1: no second request, so the first load's own result or error ends the loading note. Path 2: the full load clears the error. Tests: `today-habits.spec.ts:386` (shown again during the first load, no second GET, habits show), `:400` (first load fails after a return, error with retry shows), `:413` (return after a failed load shows the habits).
+- **CR-2 (P2, overlap and conflict handling untested): resolved.** Tests now cover a 409/412 conflict with a quiet reload that keeps the habits on screen (`:214`), a failed conflict reload (`:243`), no reload for a non-conflict error (`:260`), a double tap (`:274`), two checks at once answered in reverse order (`:287`), a quiet reload dropped after a check that started meanwhile (`:326`, `:341`), and no reload on return while a check runs (`:357`).
+- **CR-3 (P3, check logic copied from HabitsPage): still open, accepted as a follow-up.** `checkLabel()` (`today-habits.ts:131-141`) and `message()` (`:144-148`) are still copies of `habits-page.ts:198-208` and its `message()`. Moving them into `habit-display.ts` would change `web/src/app/features/habits/`, which is outside this task's `touches`, so leaving them here is reasonable. It is listed again below so the decision stays visible.
 
 ## P0 Critical
 
@@ -30,34 +38,25 @@ None.
 
 ## P2 Medium
 
-- [ ] **CR-1 | Quiet reload on visibilitychange can leave the section stuck on "Loading habits…" or showing a stale error**
-    - File: `web/src/app/features/gtd/today/today-habits.ts:55-74`
-    - Category: Correctness
-    - Problem: The `visibilitychange` handler calls `load(true)` whenever no check is running. It does not look at whether the habits have loaded or whether the last load failed. Two paths go wrong:
-      1. The first load (seq 1, `habits` null) is still running when the tab becomes visible again. `load(true)` raises `seq` to 2, so the first response is dropped even if it succeeds. If the quiet request then fails, `quietly` stops `failed` from being set, and `habits` stays null. The template stays on "Loading habits…" (`!loaded()`) with no retry and no error.
-      2. The section shows the load error (`failed` is true), and the user comes back to the tab. The quiet reload succeeds and sets `habits`, but `failed` stays true. The `@if (failed())` branch comes first in the template, so the error still shows even though the data has loaded.
-      `habits-page.ts:218-225` (`refresh()`) avoids both cases. It runs a full `load()` after a load error and reloads quietly only once habits are on screen.
-    - Why it matters: The review rule says every path must end loading and leave a screen the user can recover from. Path 1 leaves a permanent spinner in the Today view until the user leaves the page.
-    - Suggested fix: Do the same as `HabitsPage.refresh()`. When `failed()` is true, call `load()`. When `habits()` is not null, call `load(true)`. Otherwise do nothing, because a load is already running. Add a Vitest case for "visible during initial load" and one for "visible after a failed load".
-
-- [ ] **CR-2 | The overlap and conflict handling has no tests**
-    - File: `web/src/app/features/gtd/today/today-habits.spec.ts:139-211`
-    - Category: Tests
-    - Problem: `check()` handles a 409/412 conflict with a row error plus a quiet reload (`today-habits.ts:95-97`). The shared `seq` counter is there so that a reload overlapping a check is dropped (`today-habits.ts:48-49, 82-90`). No test covers either one. The visibility test only covers a quiet reload with nothing else running. The tests also do not cover the visibility handler being skipped while a check is busy, or the CR-1 paths.
-    - Why it matters: Out-of-order async results are a known source of regressions. Without tests, a change to the `seq` bookkeeping could let a stale list undo a check the user just made, and no test would fail.
-    - Suggested fix: Add tests for these cases: (a) a quiet reload starts, a check starts and finishes, then the old list response arrives and must not overwrite the checked habit; (b) a check gets a 412, so the row error shows and the reload request is sent and applied; (c) visibilitychange while a check is busy sends no list request.
+None.
 
 ## P3 Low
 
-- [ ] **CR-3 | Check logic copied from HabitsPage instead of shared**
-    - File: `web/src/app/features/gtd/today/today-habits.ts:78-135`
+- [ ] **CR-3 | Check label and error message copied from HabitsPage instead of shared (carried over, accepted as out of touches)**
+    - File: `web/src/app/features/gtd/today/today-habits.ts:131-148`
     - Category: Quality
-    - Problem: These parts are near-verbatim copies of `habits-page.ts:197-208, 244-285`: `checkLabel()`, `message()`, the busy-set and 404/conflict handling in `check()`, and the unstyled `[class.partial]` binding in the template. `habit-display.ts` already holds the shared display helpers (`nextCount`, `todayProgress`, `scheduleLabel`), so `checkLabel` and the error-message helper would fit there too.
-    - Why it matters: The two views promise "the same one-tap check". If someone changes the labels or error handling in one copy, the views drift apart. CR-1 already shows this: the refresh guard in HabitsPage was not copied.
-    - Suggested fix: Move `checkLabel(habit)` and the error-message function into `habit-display.ts` and use them from both components. Keeping the `check()` flow per component is fine. The habits folder is outside this task's `touches`, so this can be a follow-up.
+    - Problem: `checkLabel()` and `message()` are near-verbatim copies of the same helpers in `web/src/app/features/habits/habits-page.ts`. The `check()` flow (busy set, 404 drop, conflict reload, sequence counter) also copies `HabitsPage.run()`.
+    - Why it matters: Both views promise the same one-tap check. If someone changes a label or the error mapping in one copy, the two views drift apart. The first pass showed this already: the refresh guard had not been copied.
+    - Suggested fix: Follow-up task touching `web/src/app/features/habits/`: move `checkLabel(habit)` and the error-message helper into `habit-display.ts` and use them from both components.
+
+## Notes (no finding)
+
+- The conflict reload is dropped when another habit's check finishes while it runs, because `check()` raises `seq` at the end (`today-habits.ts:98, 103`). The habit with the conflict then keeps its stale state and row error until the next tap or return. `HabitsPage.run()` behaves the same way via `changeSeq`, so this is consistent and a safe choice: a stale list must not undo the other check. Not reported.
+- Acceptance criterion 1: only habits with `stats.dueToday` are listed (`today-habits.ts:42`). The one-tap check goes through `HabitsService.setCheck` with `nextCount` (`:97`). The section is registered via `provideTodaySection` in `today.routes.ts`, and `today-view.spec.ts` checks that the routed Today view renders it.
+- Acceptance criterion 2: I did not run the tests in this pass. fixes.md records `npx ng test --include='src/app/features/gtd/today/*.spec.ts'` -> 82 passed and `cd web && npm run check` -> lint clean, 2856 tests passed. The parent should record its own run of `npm run check` on the final revision as the evidence.
 
 ## Review conclusion
 
-Material issues found; fix before completing the task.
+No material issues found.
 
-Both acceptance criteria are otherwise met. The section lists only habits with `stats.dueToday`. Each habit has a one-tap check through `HabitsService.setCheck` with `nextCount`, and the section is registered through `provideTodaySection` in `today.routes.ts`, inside the task's `touches`. Vitest covers listing, check, uncheck, target counting, check errors, 404, the empty and hidden states, load failure with retry, and the visibility reload. CR-1 should be fixed, and CR-2's tests added, before the task is completed.
+CR-1 and CR-2 are resolved in the final code. CR-3 (P3) stays open as an accepted follow-up outside this task's touches.
