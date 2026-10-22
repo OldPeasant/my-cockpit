@@ -1,0 +1,95 @@
+{
+  "schema": 1,
+  "task": "web-habits",
+  "reviewed_revision": "a063548f83e602ba2bb0c845b4a55d448ffb8e56",
+  "helpers": {
+    "test-writer": {
+      "status": "completed",
+      "report": "reviews/web-habits/tests.md"
+    },
+    "code-reviewer": {
+      "status": "completed",
+      "report": "reviews/web-habits/review.md"
+    },
+    "fixer": {
+      "status": "completed",
+      "report": "reviews/web-habits/fixes.md"
+    }
+  },
+  "fixes_required": true,
+  "findings": [
+    {
+      "id": "R1-CR-1",
+      "source": "code-reviewer",
+      "severity": "P2",
+      "disposition": "fixed",
+      "note": "round 1 (with TW-1): conflict reload made sequenced via reloadQuietly() and loadSeq guard"
+    },
+    {
+      "id": "R1-TW-1",
+      "source": "test-writer",
+      "severity": "Medium",
+      "disposition": "fixed",
+      "note": "round 1: same defect as R1-CR-1, fixed together"
+    },
+    {
+      "id": "R1-CR-2",
+      "source": "code-reviewer",
+      "severity": "P3",
+      "disposition": "fixed",
+      "note": "round 1: streak plurals moved to ICU"
+    },
+    {
+      "id": "R1-CR-3",
+      "source": "code-reviewer",
+      "severity": "P3",
+      "disposition": "fixed",
+      "note": "round 1: reload on visibilitychange so stats.today is fresh after midnight"
+    },
+    {
+      "id": "R1-CR-4",
+      "source": "code-reviewer",
+      "severity": "P3",
+      "disposition": "invalid",
+      "note": "round 1: the specs already covered the case"
+    },
+    {
+      "id": "R2-CR-1",
+      "source": "code-reviewer",
+      "severity": "P2",
+      "disposition": "fixed",
+      "note": "round 2 (with TW-2): late quiet reload no longer undoes local changes (changeSeq guard)"
+    },
+    {
+      "id": "R2-TW-2",
+      "source": "test-writer",
+      "severity": "Medium",
+      "disposition": "fixed",
+      "note": "round 2: same defect as R2-CR-1, fixed together"
+    },
+    {
+      "id": "R2-CR-2",
+      "source": "code-reviewer",
+      "severity": "P3",
+      "disposition": "fixed",
+      "note": "round 2: a check/archive conflict no longer clears another habit's open edit form"
+    },
+    {
+      "id": "R3-CR-1",
+      "source": "code-reviewer",
+      "severity": "P3",
+      "disposition": "accepted",
+      "note": "dropped quiet reload is not retried; narrow one-GET window, recovers on next 409/412 or tab return; recorded as known limitation via tasks.py assume"
+    }
+  ],
+  "validation": [
+    {
+      "command": "cd web && npx ng test --watch=false --include='src/app/features/habits/**/*.spec.ts'",
+      "result": "pass"
+    },
+    {
+      "command": "sh scripts/check.sh",
+      "result": "pass"
+    }
+  ]
+}
