@@ -15,3 +15,4 @@ Contacts on the phone.
 - [ ] `cd android && ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.contacts.*'` passes, covering intent construction (Robolectric/Compose UI tests for screens)
 
 ## Notes
+- ASSUMPTION (2026-10-22 12:20+0200 by dell26/agent-1): Android contacts are read-only (list/search/detail; create/edit stays on the web): the criteria only name list/search/detail/intents, SPEC §9.2 item 7 says 'Contacts (view, call/mail intents)'.
