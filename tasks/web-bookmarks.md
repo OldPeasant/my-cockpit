@@ -15,3 +15,4 @@ Read-later queue and bookmarks (SPEC.md §8.4).
 - [ ] Vitest component/service tests cover queue actions; `cd web && npm run check` passes
 
 ## Notes
+- ASSUMPTION (2026-10-22 03:46+0200 by dell26/agent-3): Snapshot view shows the file in snapshotFileId via /files/{id}/preview (Markdown rendered with the shared renderMarkdown, other text as plain text); the API has no way to request a snapshot, so the UI only shows existing ones
