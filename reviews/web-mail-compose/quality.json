@@ -1,0 +1,36 @@
+{
+  "schema": 1,
+  "task": "web-mail-compose",
+  "reviewed_revision": "9313a3f954fc23776520b83aa5e6227ad42cec0d",
+  "helpers": {
+    "test-writer": {"status": "completed", "report": "reviews/web-mail-compose/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/web-mail-compose/review.md"},
+    "fixer": {"status": "completed", "report": "reviews/web-mail-compose/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P1", "disposition": "fixed",
+     "note": "sender change (draft move) now runs in the write queue; Send uses the account shown"},
+    {"id": "CR-2", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "Enter in Subject no longer sends; only the Send button sends"},
+    {"id": "CR-3", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "?draft= updated after first create and after a move"},
+    {"id": "CR-4", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "tests for edits during a save and sender move failure/race added"},
+    {"id": "CR-5", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "Files picker shows a note when more than 200 entries exist"},
+    {"id": "CR-6", "source": "code-reviewer", "severity": "P3", "disposition": "accepted",
+     "note": "rare: a save finishing during navigation away can cancel it; draft is saved, nothing lost; recorded as assumption"},
+    {"id": "CR-7", "source": "code-reviewer", "severity": "P3", "disposition": "accepted",
+     "note": "test comment wording only; the test is a valid guard test, no behavior change"},
+    {"id": "TW-1", "source": "test-writer", "severity": "High", "disposition": "fixed",
+     "note": "same root cause as CR-1"},
+    {"id": "TW-2", "source": "test-writer", "severity": "High", "disposition": "fixed",
+     "note": "same root cause as CR-1"}
+  ],
+  "validation": [
+    {"command": "sh scripts/check.sh", "result": "pass"},
+    {"command": "cd web && npm run check", "result": "pass"},
+    {"command": "cd web && npm run e2e -- e2e/mail-compose/compose.spec.ts", "result": "pass"}
+  ]
+}
