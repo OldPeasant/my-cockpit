@@ -369,11 +369,20 @@ def no_unfinished_merge():
 
 
 def sync():
+    """Catch up with main: rebase our unpushed commits, or merge main if they contain a merge (a merged
+    wip/<id>, or `git merge origin/main` after conflicts). A rebase would flatten that merge and replay
+    every merged commit, with the very conflicts the merge resolved."""
     no_unfinished_merge()
-    if upstream() and git("pull", "--rebase", "--autostash", check=False).returncode:
+    if not upstream():
+        return
+    fetched = git("fetch", "-q", check=False).returncode == 0  # failed: the pull below reports it
+    if fetched and git("merge-base", "--is-ancestor", "@{u}", "HEAD", check=False).returncode == 0:
+        return  # main is already in our history: nothing to catch up (and nothing to flatten)
+    how = "--no-rebase" if git("rev-list", "--merges", "-n1", "@{u}..HEAD").stdout.strip() else "--rebase"
+    if git("pull", how, "--no-edit", "--autostash", check=False).returncode:
         if merge_state():
             sys.exit(f"CONFLICT while catching up with main in: {' '.join(conflicted())}\n{CONFLICT_HELP}")
-        git("pull", "--rebase", "--autostash")  # not a conflict: fail with git's own message
+        git("pull", how, "--no-edit", "--autostash")  # not a conflict: fail with git's own message
 
 
 def check_cmd():
