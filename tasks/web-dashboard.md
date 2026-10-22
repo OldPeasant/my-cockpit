@@ -15,3 +15,4 @@ Configurable home (SPEC.md §8.7).
 - [ ] Vitest component/service tests cover widget configuration persistence; `cd web && npm run check` passes
 
 ## Notes
+- ASSUMPTION (2026-10-22 10:25+0200 by dell26/agent-1): Layout stored in a new server setting dashboardWidgets (TextList, core/settings/infra/DashboardSettings.kt): ordered widget ids, '<id>:hidden' for hidden; widgets missing from the list show at the end. Outside the task's touches, but settings must be registered server-side.
