@@ -107,4 +107,130 @@ describe('BookmarkReader', () => {
     await settle();
     expect(root.querySelector('.load-error')?.getAttribute('role')).toBe('alert');
   });
+
+  describe('gaps', () => {
+    function fail(status: number, title: string, detail?: string) {
+      return [
+        { type: 'about:blank', title, status, ...(detail ? { detail } : {}) },
+        { status, statusText: title },
+      ] as const;
+    }
+
+    it('tries loading the bookmark again after an error', async () => {
+      await open();
+      http.expectOne(`/api/v1/bookmarks/${ID}`).flush(...fail(500, 'Server error'));
+      await settle();
+      (root.querySelector('.load-error button') as HTMLButtonElement).click();
+      http
+        .expectOne(`/api/v1/bookmarks/${ID}`)
+        .flush(bookmark(ID, { displayTitle: 'On slow software' }));
+      await settle();
+      expect(root.querySelector('.load-error')).toBeNull();
+      expect(text(root.querySelector('h1'))).toBe('On slow software');
+    });
+
+    it('shows the bookmark with an error when its snapshot cannot be loaded', async () => {
+      await open();
+      http
+        .expectOne(`/api/v1/bookmarks/${ID}`)
+        .flush(bookmark(ID, { displayTitle: 'On slow software', snapshotFileId: FILE }));
+      await settle();
+      http
+        .expectOne(`/api/v1/files/${FILE}/preview`)
+        .flush(...fail(404, 'Not Found', 'The file is gone.'));
+      await settle();
+      expect(text(root.querySelector('h1'))).toBe('On slow software');
+      const error = root.querySelector('.load-error') as HTMLElement;
+      expect(error.getAttribute('role')).toBe('alert');
+      expect(text(error)).toBe('The readable copy could not be loaded: The file is gone.');
+      expect(root.querySelector('.hint')).toBeNull();
+      expect(root.querySelector('.text')).toBeNull();
+      expect((root.querySelector('.mark-read') as HTMLButtonElement).disabled).toBe(false);
+    });
+
+    it('toasts a conflict when marking read and shows the current version', async () => {
+      await open();
+      http.expectOne(`/api/v1/bookmarks/${ID}`).flush(bookmark(ID));
+      await settle();
+      (root.querySelector('.mark-read') as HTMLButtonElement).click();
+      harness.detectChanges();
+      expect((root.querySelector('.mark-read') as HTMLButtonElement).disabled).toBe(true);
+      http
+        .expectOne((r) => r.method === 'PATCH')
+        .flush(...fail(412, 'Precondition Failed', 'Changed elsewhere.'));
+      await settle();
+      expect(notifications.error).toHaveBeenCalledWith('Changed elsewhere.');
+      http
+        .expectOne((r) => r.method === 'GET' && r.url === `/api/v1/bookmarks/${ID}`)
+        .flush(bookmark(ID, { readAt: '2026-10-22T09:00:00Z', version: 3 }));
+      await settle();
+      expect(text(root.querySelector('.mark-read'))).toBe('Mark unread');
+      expect((root.querySelector('.mark-read') as HTMLButtonElement).disabled).toBe(false);
+    });
+
+    it('keeps the bookmark when reloading after a conflict fails', async () => {
+      await open();
+      http.expectOne(`/api/v1/bookmarks/${ID}`).flush(bookmark(ID));
+      await settle();
+      (root.querySelector('.mark-read') as HTMLButtonElement).click();
+      http.expectOne((r) => r.method === 'PATCH').flush(...fail(409, 'Conflict'));
+      await settle();
+      http.expectOne(`/api/v1/bookmarks/${ID}`).flush(...fail(500, 'Server error'));
+      await settle();
+      expect(notifications.error).toHaveBeenCalledTimes(1);
+      expect(text(root.querySelector('.mark-read'))).toBe('Mark read');
+      expect((root.querySelector('.mark-read') as HTMLButtonElement).disabled).toBe(false);
+    });
+
+    it('ignores a bookmark and a snapshot that answer for the previous id', async () => {
+      const OTHER = '0192f0c4-0000-7000-8000-000000000002';
+      await open();
+      const first = http.expectOne(`/api/v1/bookmarks/${ID}`);
+      await harness.navigateByUrl(`/bookmarks/${OTHER}`);
+      http
+        .expectOne(`/api/v1/bookmarks/${OTHER}`)
+        .flush(bookmark(OTHER, { displayTitle: 'The second one', snapshotFileId: FILE }));
+      await settle();
+      const preview = http.expectOne(`/api/v1/files/${FILE}/preview`);
+      first.flush(bookmark(ID, { displayTitle: 'The first one' }));
+      await settle();
+      expect(text(root.querySelector('h1'))).toBe('The second one');
+
+      // Going back while the snapshot of the second one loads: its answer is dropped too.
+      await harness.navigateByUrl(`/bookmarks/${ID}`);
+      const again = http.expectOne(`/api/v1/bookmarks/${ID}`);
+      preview.flush('Late text', { headers: { 'Content-Type': 'text/plain' } });
+      await settle();
+      again.flush(bookmark(ID, { displayTitle: 'The first one' }));
+      await settle();
+      expect(text(root.querySelector('h1'))).toBe('The first one');
+      expect(root.querySelector('.text')).toBeNull();
+      expect(text(root.querySelector('.empty'))).toContain('No readable copy');
+    });
+
+    it('ignores a failed load that answers for the previous id', async () => {
+      const OTHER = '0192f0c4-0000-7000-8000-000000000002';
+      await open();
+      const first = http.expectOne(`/api/v1/bookmarks/${ID}`);
+      await harness.navigateByUrl(`/bookmarks/${OTHER}`);
+      http.expectOne(`/api/v1/bookmarks/${OTHER}`).flush(bookmark(OTHER));
+      await settle();
+      first.flush(...fail(404, 'Not Found'));
+      await settle();
+      expect(root.querySelector('.load-error')).toBeNull();
+      expect(root.querySelector('h1')).toBeTruthy();
+    });
+
+    it('toasts another failure when marking read without reloading', async () => {
+      await open();
+      http.expectOne(`/api/v1/bookmarks/${ID}`).flush(bookmark(ID));
+      await settle();
+      (root.querySelector('.mark-read') as HTMLButtonElement).click();
+      http.expectOne((r) => r.method === 'PATCH').flush(...fail(500, 'Server error'));
+      await settle();
+      expect(notifications.error).toHaveBeenCalledWith('Server error');
+      http.expectNone(`/api/v1/bookmarks/${ID}`);
+      expect(text(root.querySelector('.mark-read'))).toBe('Mark read');
+    });
+  });
 });

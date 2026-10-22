@@ -94,4 +94,20 @@ describe('BookmarksService', () => {
       .flush('Plain', { headers: { 'Content-Type': 'text/plain' } });
     await expect(plain).resolves.toEqual({ text: 'Plain', markdown: false, truncated: false });
   });
+
+  it('encodes the file id and treats a snapshot without a type as plain text', async () => {
+    const snapshot = service.snapshot('a/b');
+    const req = http.expectOne('/api/v1/files/a%2Fb/preview');
+    expect(req.request.context.get(SILENT_ERRORS)).toBe(true);
+    req.flush('');
+    await expect(snapshot).resolves.toEqual({ text: '', markdown: false, truncated: false });
+  });
+
+  it('loads one bookmark without toasting errors', async () => {
+    const one = service.get('01');
+    const req = http.expectOne((r) => r.method === 'GET' && r.url === `${LIST}/01`);
+    expect(req.request.context.get(SILENT_ERRORS)).toBe(true);
+    req.flush(bookmark('01'));
+    await expect(one).resolves.toEqual(bookmark('01'));
+  });
 });

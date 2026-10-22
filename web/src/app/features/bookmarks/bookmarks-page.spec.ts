@@ -314,4 +314,409 @@ describe('BookmarksPage', () => {
     await settle();
     expect(row(ESSAY)).toBeTruthy();
   });
+
+  describe('gaps', () => {
+    const AT = '2026-10-22T09:00:00Z';
+    const NEW = bookmark('0192f0c4-0000-7000-8000-000000000003', {
+      displayTitle: 'Saved on the phone',
+      url: 'https://example.net/phone',
+    });
+
+    function problem(status: number, title: string, detail?: string) {
+      return [
+        { type: 'about:blank', title, status, ...(detail ? { detail } : {}) },
+        { status, statusText: title },
+      ] as const;
+    }
+
+    function submit(): void {
+      (root.querySelector('.add') as HTMLFormElement).dispatchEvent(new Event('submit'));
+      harness.detectChanges();
+    }
+
+    function expectNoList(): void {
+      http.expectNone((r) => r.method === 'GET' && r.url === LIST);
+    }
+
+    it('reloads the first page quietly on a CREATED event and on a resync', async () => {
+      await open();
+      changes.next({ type: 'BOOKMARK', op: 'CREATED', id: NEW.id, at: AT });
+      await settle();
+      // The current bookmarks stay on screen while the reload runs.
+      expect(root.querySelector('.hint')).toBeNull();
+      expect(root.querySelectorAll('.bookmark')).toHaveLength(2);
+      flushList([NEW, ESSAY, GUIDE]);
+      await settle();
+      flushTags();
+      await settle();
+      expect(row(NEW)).toBeTruthy();
+      expect(root.querySelectorAll('.bookmark')).toHaveLength(3);
+
+      resyncs.next();
+      await settle();
+      expect(root.querySelectorAll('.bookmark')).toHaveLength(3);
+      flushList([ESSAY]);
+      await settle();
+      flushTags();
+      await settle();
+      expect(root.querySelectorAll('.bookmark')).toHaveLength(1);
+      expect(row(ESSAY)).toBeTruthy();
+    });
+
+    it('keeps the list when a quiet reload fails', async () => {
+      await open();
+      resyncs.next();
+      await settle();
+      http
+        .expectOne((r) => r.method === 'GET' && r.url === LIST)
+        .flush(...problem(500, 'Server error'));
+      await settle();
+      flushTags();
+      await settle();
+      expect(root.querySelectorAll('.bookmark')).toHaveLength(2);
+      expect(root.querySelector('.load-error')).toBeNull();
+    });
+
+    it('does not reload the first page quietly while more pages are loaded', async () => {
+      await open('/bookmarks', [ESSAY], 'c1');
+      changes.next({ type: 'BOOKMARK', op: 'CREATED', id: NEW.id, at: AT });
+      await settle();
+      expectNoList();
+      flushTags();
+      await settle();
+      expect(root.querySelectorAll('.bookmark')).toHaveLength(1);
+    });
+
+    it('does not reload quietly while a change of a bookmark is running', async () => {
+      await open();
+      button(ESSAY, 'mark-read').click();
+      const patch = http.expectOne((r) => r.method === 'PATCH');
+      resyncs.next();
+      await settle();
+      expectNoList();
+      flushTags();
+      patch.flush({ ...ESSAY, readAt: AT, version: 2 });
+      await settle();
+      expect(row(ESSAY)).toBeNull();
+      expect(row(GUIDE)).toBeTruthy();
+    });
+
+    it('adds a bookmark with "Read later" unchecked in the all view', async () => {
+      await open('/bookmarks?view=all', [ESSAY]);
+      const box = root.querySelector('.later input') as HTMLInputElement;
+      expect(box.checked).toBe(false);
+      type('.url input', 'https://example.net/phone');
+      submit();
+      const req = http.expectOne((r) => r.method === 'POST' && r.url === LIST);
+      expect(req.request.body).toEqual({
+        url: 'https://example.net/phone',
+        readLater: false,
+        tags: [],
+      });
+      req.flush({ ...NEW, readLater: false }, { status: 201, statusText: 'Created' });
+      await settle();
+      flushTags();
+      await settle();
+      expect(row(NEW)).toBeTruthy();
+      expect(root.querySelectorAll('.bookmark')[0].getAttribute('data-id')).toBe(NEW.id);
+      expect(notifications.info).toHaveBeenCalledWith('Bookmark saved');
+    });
+
+    it('does not show a bookmark added with "Read later" unchecked in the queue', async () => {
+      await open();
+      const box = root.querySelector('.later input') as HTMLInputElement;
+      expect(box.checked).toBe(true);
+      box.checked = false;
+      box.dispatchEvent(new Event('change'));
+      type('.url input', 'example.net/phone');
+      submit();
+      const req = http.expectOne((r) => r.method === 'POST' && r.url === LIST);
+      expect(req.request.body.readLater).toBe(false);
+      req.flush({ ...NEW, readLater: false }, { status: 201, statusText: 'Created' });
+      await settle();
+      flushTags();
+      await settle();
+      expect(row(NEW)).toBeNull();
+      expect(root.querySelectorAll('.bookmark')).toHaveLength(2);
+      expect(notifications.info).toHaveBeenCalledWith('Bookmark saved');
+      expect((root.querySelector('.url input') as HTMLInputElement).value).toBe('');
+    });
+
+    it('shows an added bookmark in a tag view only when it has that tag, ignoring case', async () => {
+      await open('/bookmarks?view=all&tag=essays', [ESSAY]);
+      type('.url input', 'example.net/a');
+      type('.tags-field input', 'kotlin');
+      submit();
+      const other = bookmark('0192f0c4-0000-7000-8000-000000000004', { tags: ['kotlin'] });
+      http
+        .expectOne((r) => r.method === 'POST')
+        .flush(other, { status: 201, statusText: 'Created' });
+      await settle();
+      flushTags();
+      await settle();
+      expect(row(other)).toBeNull();
+      expect(root.querySelectorAll('.bookmark')).toHaveLength(1);
+
+      type('.url input', 'example.net/b');
+      type('.tags-field input', 'Essays');
+      submit();
+      const req = http.expectOne((r) => r.method === 'POST');
+      expect(req.request.body.tags).toEqual(['Essays']);
+      const matching = bookmark('0192f0c4-0000-7000-8000-000000000005', { tags: ['Essays'] });
+      req.flush(matching, { status: 201, statusText: 'Created' });
+      await settle();
+      flushTags();
+      await settle();
+      expect(row(matching)).toBeTruthy();
+    });
+
+    it('shows the server error of an add and keeps the address', async () => {
+      await open();
+      type('.url input', 'example.net/broken');
+      submit();
+      expect((root.querySelector('.save') as HTMLButtonElement).disabled).toBe(true);
+      http
+        .expectOne((r) => r.method === 'POST')
+        .flush(...problem(400, 'Bad Request', 'The address is too long.'));
+      await settle();
+      expect(text(root.querySelector('.add-error'))).toBe('The address is too long.');
+      expect((root.querySelector('.url input') as HTMLInputElement).value).toBe(
+        'example.net/broken',
+      );
+      expect((root.querySelector('.save') as HTMLButtonElement).disabled).toBe(false);
+      expect(notifications.info).not.toHaveBeenCalled();
+    });
+
+    it('ignores a change event whose bookmark is not newer than the shown one', async () => {
+      await open();
+      changes.next({ type: 'BOOKMARK', op: 'UPDATED', id: ESSAY.id, at: AT });
+      http
+        .expectOne((r) => r.method === 'GET' && r.url === `${LIST}/${ESSAY.id}`)
+        .flush({ ...ESSAY, displayTitle: 'Stale title', version: ESSAY.version });
+      await settle();
+      expect(text(row(ESSAY).querySelector('.title'))).toBe('On slow software');
+    });
+
+    it('does not load a changed bookmark that is not shown', async () => {
+      await open();
+      changes.next({ type: 'BOOKMARK', op: 'UPDATED', id: NEW.id, at: AT });
+      await settle();
+      http.expectNone(`${LIST}/${NEW.id}`);
+    });
+
+    it('shows an added bookmark once when its CREATED event reloaded the list first', async () => {
+      await open();
+      type('.url input', 'https://example.net/phone');
+      submit();
+      const post = http.expectOne((r) => r.method === 'POST' && r.url === LIST);
+      changes.next({ type: 'BOOKMARK', op: 'CREATED', id: NEW.id, at: AT });
+      await settle();
+      flushList([NEW, ESSAY, GUIDE]);
+      await settle();
+      flushTags();
+      post.flush(NEW, { status: 201, statusText: 'Created' });
+      await settle();
+      flushTags();
+      await settle();
+      expect(root.querySelectorAll(`.bookmark[data-id="${NEW.id}"]`)).toHaveLength(1);
+      expect(root.querySelectorAll('.bookmark')).toHaveLength(3);
+    });
+
+    it('keeps a bookmark whose refresh fails with another error than 404', async () => {
+      await open();
+      changes.next({ type: 'BOOKMARK', op: 'UPDATED', id: ESSAY.id, at: AT });
+      http
+        .expectOne((r) => r.method === 'GET' && r.url === `${LIST}/${ESSAY.id}`)
+        .flush(...problem(500, 'Server error'));
+      await settle();
+      expect(row(ESSAY)).toBeTruthy();
+      expect(row(ESSAY).querySelector('.error')).toBeNull();
+    });
+
+    it('drops a changed bookmark that has gone meanwhile (404)', async () => {
+      await open();
+      changes.next({ type: 'BOOKMARK', op: 'UPDATED', id: ESSAY.id, at: AT });
+      http
+        .expectOne((r) => r.method === 'GET' && r.url === `${LIST}/${ESSAY.id}`)
+        .flush(...problem(404, 'Not Found'));
+      await settle();
+      expect(row(ESSAY)).toBeNull();
+      expect(row(GUIDE)).toBeTruthy();
+    });
+
+    it('drops a changed bookmark that left the queue (read elsewhere)', async () => {
+      await open();
+      changes.next({ type: 'BOOKMARK', op: 'UPDATED', id: ESSAY.id, at: AT });
+      http
+        .expectOne((r) => r.method === 'GET' && r.url === `${LIST}/${ESSAY.id}`)
+        .flush({ ...ESSAY, readAt: AT, version: 2 });
+      await settle();
+      expect(row(ESSAY)).toBeNull();
+    });
+
+    it('does not load a bookmark from a change event while it is being changed here', async () => {
+      await open();
+      button(ESSAY, 'mark-read').click();
+      const patch = http.expectOne((r) => r.method === 'PATCH');
+      changes.next({ type: 'BOOKMARK', op: 'UPDATED', id: ESSAY.id, at: AT });
+      await settle();
+      http.expectNone(`${LIST}/${ESSAY.id}`);
+      patch.flush({ ...ESSAY, readAt: AT, version: 2 });
+      await settle();
+      expect(row(ESSAY)).toBeNull();
+    });
+
+    it('drops the row without an error when a row action answers 404', async () => {
+      await open();
+      button(ESSAY, 'mark-read').click();
+      http.expectOne((r) => r.method === 'PATCH').flush(...problem(404, 'Not Found'));
+      await settle();
+      expect(row(ESSAY)).toBeNull();
+      expect(root.querySelector('.error')).toBeNull();
+
+      button(GUIDE, 'delete').click();
+      http.expectOne((r) => r.method === 'DELETE').flush(...problem(404, 'Not Found'));
+      await settle();
+      expect(row(GUIDE)).toBeNull();
+      expect(notifications.info).not.toHaveBeenCalled();
+    });
+
+    it('shows a server error next to the bookmark without reloading it, and clears it on the next try', async () => {
+      await open();
+      button(ESSAY, 'queue').click();
+      http
+        .expectOne((r) => r.method === 'PATCH')
+        .flush(...problem(500, 'Server error', 'Storage is unavailable.'));
+      await settle();
+      expect(text(row(ESSAY).querySelector('.error'))).toBe(
+        '“On slow software” could not be changed: Storage is unavailable.',
+      );
+      expect(row(GUIDE).querySelector('.error')).toBeNull();
+      expect(button(ESSAY, 'queue').disabled).toBe(false);
+
+      button(ESSAY, 'queue').click();
+      harness.detectChanges();
+      expect(row(ESSAY).querySelector('.error')).toBeNull();
+      http.expectOne((r) => r.method === 'PATCH').flush({ ...ESSAY, readLater: false, version: 2 });
+      await settle();
+      expect(row(ESSAY)).toBeNull();
+    });
+
+    it('drops the bookmark when it is gone while reloading after a conflict', async () => {
+      await open();
+      button(ESSAY, 'mark-read').click();
+      http.expectOne((r) => r.method === 'PATCH').flush(...problem(409, 'Conflict'));
+      await settle();
+      http
+        .expectOne((r) => r.method === 'GET' && r.url === `${LIST}/${ESSAY.id}`)
+        .flush(...problem(404, 'Not Found'));
+      await settle();
+      expect(row(ESSAY)).toBeNull();
+    });
+
+    it('puts a bookmark into the queue in the all view, where it stays', async () => {
+      const out = { ...GUIDE, readLater: false };
+      await open('/bookmarks?view=all', [out]);
+      expect(text(button(out, 'queue'))).toBe('Read later');
+      button(out, 'queue').click();
+      const req = http.expectOne((r) => r.method === 'PATCH');
+      expect(req.request.body).toEqual({ readLater: true });
+      req.flush({ ...GUIDE, readLater: true, version: 2 });
+      await settle();
+      expect(text(button(out, 'queue'))).toBe('Remove from Read later');
+    });
+
+    it('toasts a failed "Show more" and keeps the button', async () => {
+      await open('/bookmarks', [ESSAY], 'c1');
+      (root.querySelector('.more') as HTMLButtonElement).click();
+      http
+        .expectOne((r) => r.method === 'GET' && r.url === LIST)
+        .flush(...problem(500, 'Server error', 'Try later.'));
+      await settle();
+      expect(notifications.error).toHaveBeenCalledWith('Try later.');
+      expect((root.querySelector('.more') as HTMLButtonElement).disabled).toBe(false);
+      expect(root.querySelectorAll('.bookmark')).toHaveLength(1);
+    });
+
+    it('ignores a list that answers for an earlier view', async () => {
+      await open();
+      const router = TestBed.inject(Router);
+      await router.navigateByUrl('/bookmarks?view=all');
+      await settle();
+      await router.navigateByUrl('/bookmarks');
+      await settle();
+      const [all, queue] = http.match((r) => r.method === 'GET' && r.url === LIST);
+      expect(all.request.params.has('readLater')).toBe(false);
+      expect(queue.request.params.get('readLater')).toBe('true');
+      queue.flush({ items: [GUIDE] });
+      await settle();
+      all.flush({ items: [ESSAY, GUIDE] });
+      await settle();
+      expect(root.querySelectorAll('.bookmark')).toHaveLength(1);
+      expect(row(GUIDE)).toBeTruthy();
+      expect(root.querySelector('.show-queue')?.getAttribute('aria-current')).toBe('page');
+    });
+
+    it('ignores a quiet reload and a "Show more" that answer after the view changed', async () => {
+      await open('/bookmarks', [ESSAY], 'c1');
+      (root.querySelector('.more') as HTMLButtonElement).click();
+      const more = http.expectOne((r) => r.method === 'GET' && r.params.get('cursor') === 'c1');
+      await TestBed.inject(Router).navigateByUrl('/bookmarks?view=all');
+      await settle();
+      const all = http.expectOne(
+        (r) => r.method === 'GET' && r.url === LIST && !r.params.has('cursor'),
+      );
+      all.flush({ items: [GUIDE] });
+      await settle();
+      more.flush({ items: [ESSAY] });
+      await settle();
+      expect(root.querySelectorAll('.bookmark')).toHaveLength(1);
+      expect(row(GUIDE)).toBeTruthy();
+
+      resyncs.next();
+      await settle();
+      const quiet = http.expectOne((r) => r.method === 'GET' && r.url === LIST);
+      await TestBed.inject(Router).navigateByUrl('/bookmarks');
+      await settle();
+      const queue = http.expectOne((r) => r.method === 'GET' && r.url === LIST);
+      queue.flush({ items: [ESSAY] });
+      await settle();
+      quiet.flush({ items: [GUIDE, NEW] });
+      await settle();
+      expect(root.querySelectorAll('.bookmark')).toHaveLength(1);
+      expect(row(ESSAY)).toBeTruthy();
+    });
+
+    it('ignores a refreshed bookmark when a change of it started meanwhile', async () => {
+      await open();
+      changes.next({ type: 'BOOKMARK', op: 'UPDATED', id: ESSAY.id, at: AT });
+      const refresh = http.expectOne((r) => r.method === 'GET' && r.url === `${LIST}/${ESSAY.id}`);
+      button(ESSAY, 'queue').click();
+      const patch = http.expectOne((r) => r.method === 'PATCH');
+      refresh.flush({ ...ESSAY, displayTitle: 'From elsewhere', version: 2 });
+      await settle();
+      expect(text(row(ESSAY).querySelector('.title'))).toBe('On slow software');
+      patch.flush({ ...ESSAY, readLater: false, version: 3 });
+      await settle();
+      expect(row(ESSAY)).toBeNull();
+    });
+
+    it('does not reload when the query string names the same view', async () => {
+      await open('/bookmarks?view=all', [ESSAY]);
+      await TestBed.inject(Router).navigateByUrl('/bookmarks?view=all&tag=');
+      await settle();
+      expectNoList();
+      expect(row(ESSAY)).toBeTruthy();
+    });
+
+    it('shows the empty texts of the all view and of a tag', async () => {
+      await open('/bookmarks?view=all', []);
+      expect(text(root.querySelector('.empty'))).toContain('No bookmarks yet');
+      await TestBed.inject(Router).navigateByUrl('/bookmarks?view=all&tag=rust');
+      await settle();
+      flushList([]);
+      await settle();
+      expect(text(root.querySelector('.empty'))).toBe('No bookmarks with this tag.');
+    });
+  });
 });

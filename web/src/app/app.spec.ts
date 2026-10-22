@@ -69,6 +69,7 @@ describe('App', () => {
     '/mail',
     '/habits',
     '/review',
+    '/bookmarks',
   ];
 
   it.each(NAV_SECTIONS.filter((s) => !BUILT.includes(s.path)).map((s) => [s.path, s.label]))(
@@ -110,6 +111,15 @@ describe('App', () => {
     expect(root.querySelector('app-mail-list-page h1')?.textContent?.trim()).toBe('All inboxes');
     expect(root.querySelector('app-coming-soon')).toBeNull();
     expect(document.title).toBe('Mail');
+    expect(root.querySelector('a.link.active')?.getAttribute('aria-current')).toBe('page');
+  });
+
+  it('lazy-loads the bookmarks page at /bookmarks', async () => {
+    await harness.navigateByUrl('/bookmarks');
+    const root = harness.routeNativeElement as HTMLElement;
+    expect(root.querySelector('app-bookmarks-page h1')?.textContent?.trim()).toBe('Bookmarks');
+    expect(root.querySelector('app-coming-soon')).toBeNull();
+    expect(document.title).toBe('Bookmarks');
     expect(root.querySelector('a.link.active')?.getAttribute('aria-current')).toBe('page');
   });
 
