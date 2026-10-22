@@ -1,11 +1,11 @@
 ---
 title: Habits UI
-status: todo
-owner: 
+status: in_progress
+owner: dell26/agent-3
 deps: [p0-web-shell,habits-api,p0-e2e-harness]
 touches: [web/src/app/features/habits]
 prio: 3
-lease_until: 
+lease_until: 2026-10-22T01:56:07Z
 releases: 1
 extended: 
 ---
