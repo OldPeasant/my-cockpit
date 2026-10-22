@@ -24,3 +24,4 @@ must lead the owner through it (SPEC.md §10.2, §4.1).
   and always requires a TOTP/recovery code. Server endpoints: `startTotpEnrollment`, `confirmTotpEnrollment`
   in the generated client (`web/src/app/api/generated/fn/auth/`).
 - ASSUMPTION (2026-10-22 02:42+0200 by dell26/agent-3): Password-only login is a third login mode reached from the recovery-code view ('No recovery code left after a restore?'), not an empty recovery code field: the client cannot know when the server allows it, and an accidental empty submit stays blocked; a 401 in that mode says a recovery code may still be needed.
+- ASSUMPTION (2026-10-22 02:42+0200 by dell26/agent-3): Enrollment page lives at /enroll-totp (new route in app.routes.ts, outside touches but required) and starts the enrollment automatically on open; it keeps returnUrl and offers Sign out. messages.xlf is not re-extracted (left to a dedicated extract, as other tasks do).
