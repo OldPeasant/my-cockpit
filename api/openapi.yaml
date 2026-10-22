@@ -10,31 +10,18 @@ tags:
   name: OAuth
 - description: Calendars and their events
   name: Calendars
-- description: "Bookmarks and the read-later queue, with title, description and favicon\
-    \ from the page"
-  name: Bookmarks
 - description: Web login sessions and device tokens
   name: Auth
 - description: GTD tasks
   name: Tasks
-- description: "The drive: folders, files, uploads and downloads"
-  name: Files
 - description: Create and download backups
   name: Backup
 - description: "WebAuthn passkeys: registration, login and management"
   name: Passkeys
-- description: Contacts and their vCard import/export
-  name: Contacts
 - description: User settings
   name: Settings
 - description: "Markdown notes with tags, pins, images and history"
   name: Notes
-- description: Quick capture to the Inbox
-  name: Capture
-- description: First-run creation of the owner account
-  name: Setup
-- description: "GTD projects, areas of focus and contexts"
-  name: Projects
 - description: Links between items of any type
   name: Links
 - description: "Deleted items: list, restore, delete permanently"
@@ -45,6 +32,25 @@ tags:
     \ Mail server failures are 502 (503 when the account's connections are busy) with\
     \ an `errorCode`."
   name: Mail messages
+- description: "IMAP/SMTP accounts with password, and Google/Microsoft accounts through\
+    \ an OAuth connection (XOAUTH2). Passwords are write-only. Changes send `change`\
+    \ events of type `MAIL_ACCOUNT` and `MAIL_FOLDER`."
+  name: Mail accounts
+- description: Global search across all item types
+  name: Search
+- description: "Bookmarks and the read-later queue, with title, description and favicon\
+    \ from the page"
+  name: Bookmarks
+- description: "The drive: folders, files, uploads and downloads"
+  name: Files
+- description: Contacts and their vCard import/export
+  name: Contacts
+- description: Quick capture to the Inbox
+  name: Capture
+- description: First-run creation of the owner account
+  name: Setup
+- description: "GTD projects, areas of focus and contexts"
+  name: Projects
 - description: The resumable weekly review and the data of its steps
   name: Weekly review
 - description: "Reminders for items of any type. When a reminder is due, the server\
@@ -54,12 +60,6 @@ tags:
   name: Reminders
 - description: Change notifications (Server-Sent Events)
   name: Events
-- description: "IMAP/SMTP accounts with password, and Google/Microsoft accounts through\
-    \ an OAuth connection (XOAUTH2). Passwords are write-only. Changes send `change`\
-    \ events of type `MAIL_ACCOUNT` and `MAIL_FOLDER`."
-  name: Mail accounts
-- description: Global search across all item types
-  name: Search
 - description: "Searching cached mail, and on request the mail servers (IMAP SEARCH)"
   name: Mail search
 - description: "Daily journal entries with mood, tags and images"
