@@ -71,6 +71,29 @@ describe('dashboard layout', () => {
     expect(ids(moveWidget(DEFAULT_LAYOUT, 'today', 99)).at(-1)).toBe('today');
     expect(moveWidget(DEFAULT_LAYOUT, 'today', 0)).toEqual(DEFAULT_LAYOUT);
   });
+
+  it('leaves a layout without the widget unchanged, and never changes its input', () => {
+    const partial = DEFAULT_LAYOUT.filter((slot) => slot.id !== 'inbox');
+    expect(moveWidget(partial, 'inbox', 1)).toEqual(partial);
+    const before = [...DEFAULT_LAYOUT];
+    moveWidget(DEFAULT_LAYOUT, 'today', 3);
+    setVisible(DEFAULT_LAYOUT, 'today', false);
+    expect(DEFAULT_LAYOUT).toEqual(before);
+  });
+
+  it('shows or hides only the given widget, and can show it again', () => {
+    const hidden = setVisible(DEFAULT_LAYOUT, 'readLater', false);
+    expect(hidden.filter((slot) => !slot.visible).map((slot) => slot.id)).toEqual(['readLater']);
+    expect(hidden.map((slot) => slot.id)).toEqual([...WIDGET_IDS]);
+    expect(setVisible(hidden, 'readLater', true)).toEqual(DEFAULT_LAYOUT);
+  });
+
+  it('skips a bare hidden suffix and keeps a fully hidden layout hidden', () => {
+    expect(parseLayout([':hidden', ''])).toEqual(DEFAULT_LAYOUT);
+    const allHidden = WIDGET_IDS.map((id) => `${id}:hidden`);
+    expect(parseLayout(allHidden).every((slot) => !slot.visible)).toBe(true);
+    expect(serializeLayout(parseLayout(allHidden))).toEqual(allHidden);
+  });
 });
 
 describe('DashboardLayout', () => {
@@ -180,6 +203,25 @@ describe('DashboardLayout', () => {
     await expect(saved).rejects.toBeTruthy();
 
     expect(layout.visible()).toContain('inbox');
+  });
+
+  it('does not load the settings again once they are loaded', async () => {
+    await loadSettings(['inbox']);
+
+    await layout.ensureLoaded();
+    // http.verify() in afterEach fails on a second GET.
+    expect(layout.visible()[0]).toBe('inbox');
+  });
+
+  it('fails ensureLoaded when the settings cannot be loaded, keeping the default layout', async () => {
+    const loading = layout.ensureLoaded();
+    http
+      .expectOne({ method: 'GET', url: SETTINGS })
+      .flush({ title: 'Boom', status: 500 }, { status: 500, statusText: 'Server Error' });
+
+    await expect(loading).rejects.toBeTruthy();
+    expect(layout.loaded()).toBe(false);
+    expect(layout.slots()).toEqual(DEFAULT_LAYOUT);
   });
 
   it('resets the layout to the setting default', async () => {

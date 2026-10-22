@@ -11,6 +11,8 @@ import { ChangeEvent } from '../../api/generated';
 import { ChangeEventsService } from '../../core/events';
 import { NotificationService, provideHttp, SILENT_ERRORS } from '../../core/http';
 import { bookmark } from '../bookmarks/testing';
+import { fakeOccurrence } from '../calendar/views/testing';
+import { habit } from '../habits/testing';
 import { fakeSettings } from '../settings/testing';
 import { LAYOUT_SETTING } from './dashboard-layout';
 import routes from './dashboard.routes';
@@ -50,7 +52,7 @@ describe('DashboardPage', () => {
   let changes: Subject<ChangeEvent>;
   let resyncs: Subject<void>;
 
-  async function open(stored: unknown[] = []): Promise<void> {
+  async function open(stored: unknown[] = [], settingsFail = false): Promise<void> {
     changes = new Subject();
     resyncs = new Subject();
     TestBed.configureTestingModule({
@@ -72,9 +74,12 @@ describe('DashboardPage', () => {
     harness = await RouterTestingHarness.create();
     await harness.navigateByUrl('/');
     root = harness.routeNativeElement as HTMLElement;
-    http
-      .expectOne({ method: 'GET', url: SETTINGS })
-      .flush(fakeSettings({ [LAYOUT_SETTING]: stored }), { headers: { ETag: '"1"' } });
+    const settings = http.expectOne({ method: 'GET', url: SETTINGS });
+    if (settingsFail) {
+      settings.flush({ title: 'Boom', status: 500 }, { status: 500, statusText: 'Server Error' });
+    } else {
+      settings.flush(fakeSettings({ [LAYOUT_SETTING]: stored }), { headers: { ETag: '"1"' } });
+    }
     await settle();
   }
 
@@ -288,5 +293,203 @@ describe('DashboardPage', () => {
     root.querySelector<HTMLButtonElement>('.empty button')!.click();
     harness.detectChanges();
     expect(root.querySelector('.customize')).not.toBeNull();
+  });
+
+  it('shows the default layout when the settings fail, without letting it be changed', async () => {
+    await open([], true);
+
+    expect(widgets()).toHaveLength(8);
+    expect(root.querySelector<HTMLButtonElement>('.customize-toggle')!.disabled).toBe(true);
+    flushWidgets();
+    await settle();
+  });
+
+  it('fills the Today widget with tasks, events and habits', async () => {
+    await open(['today']);
+    const overdue = task('t1', { title: 'Renew the fictitious permit', dueDate: '2000-01-01' });
+    const due = task('t2', { title: 'Water the plants', dueDate: '2999-01-01' });
+    flushWidgets({
+      '/api/v1/tasks?due=overdue': { items: [overdue] },
+      '/api/v1/tasks?due=today': { items: [overdue, due] },
+      '/api/v1/calendar/events': {
+        items: [
+          fakeOccurrence('Standup'),
+          fakeOccurrence('Cancelled lunch', { status: 'CANCELLED' }),
+          fakeOccurrence('Holiday', { allDay: true, startDate: '2026-10-22' }),
+        ],
+      },
+      '/api/v1/habits': {
+        items: [
+          habit('h1', { stats: { dueToday: true, doneToday: true } }),
+          habit('h2', { stats: { dueToday: true, doneToday: false } }),
+        ],
+      },
+    });
+    await settle();
+
+    const today = widget('today');
+    const figures = [...today.querySelectorAll('.figure')].map((f) => f.textContent?.trim());
+    expect(figures).toEqual(['2', '2', '1/2']);
+    const items = [...today.querySelectorAll('li')].map((li) => [
+      li.querySelector('.when')!.textContent!.trim(),
+      li.querySelector('a')!.textContent!.trim(),
+    ]);
+    expect(items).toEqual([
+      [expect.any(String), 'Standup'],
+      ['All day', 'Holiday'],
+      ['Overdue', 'Renew the fictitious permit'],
+      ['Due', 'Water the plants'],
+    ]);
+    expect(today.querySelector('li.task.overdue a')?.getAttribute('href')).toBe('/tasks/t1');
+    expect(today.textContent).not.toContain('Cancelled lunch');
+  });
+
+  it('says when nothing is due today and leaves the habits out when none are due', async () => {
+    await open(['today']);
+    flushWidgets();
+    await settle();
+
+    const today = widget('today');
+    expect(today.textContent).toContain('Nothing due and no events today.');
+    expect(today.querySelector('a[href="/habits"]')).toBeNull();
+  });
+
+  it.each([
+    [{}, 'No weekly review done yet.', 'Start a weekly review'],
+    [{ daysSinceLastReview: 0 }, 'Today', null],
+    [{ daysSinceLastReview: 3 }, '3', null],
+    [{ daysSinceLastReview: 7 }, '7', 'Start a weekly review'],
+    [{ daysSinceLastReview: 12, current: { id: 'r1' } }, '12', 'Continue the open review'],
+  ])('shows the weekly review status %o', async (status, shown, action) => {
+    await open(['weeklyReview']);
+    flushWidgets({ '/api/v1/weekly-reviews/status': status });
+    await settle();
+
+    const review = widget('weeklyReview');
+    const readout = review.querySelector('.figure') ?? review.querySelector('.note');
+    expect(readout?.textContent?.trim()).toBe(shown);
+    const button = review.querySelector('a[mat-flat-button], a[mat-stroked-button]');
+    expect(button?.textContent?.trim() ?? null).toBe(action);
+  });
+
+  it('shows five entries of a list widget and how many more there are', async () => {
+    await open(['pinnedNotes', 'readLater']);
+    const notes = ['n1', 'n2', 'n3', 'n4', 'n5', 'n6', 'n7'].map((id) => note(id, `Note ${id}`));
+    flushWidgets({
+      '/api/v1/notes': { items: notes, nextCursor: 'next' },
+      '/api/v1/bookmarks': {
+        items: ['b1', 'b2', 'b3', 'b4', 'b5', 'b6'].map((id) => bookmark(id)),
+      },
+    });
+    await settle();
+
+    expect(widget('pinnedNotes').querySelectorAll('li')).toHaveLength(5);
+    expect(widget('pinnedNotes').querySelector('.more')?.textContent?.trim()).toBe('2+ more');
+    expect(widget('readLater').querySelector('.more')?.textContent?.trim()).toBe('1 more');
+  });
+
+  it('lists upcoming events, overdue Waiting For and stalled projects, with how many more', async () => {
+    await open(['upcoming', 'waitingOverdue', 'stalledProjects']);
+    const events = ['A', 'B', 'C', 'D', 'E', 'F', 'G'].map((title) =>
+      fakeOccurrence(`Event ${title}`),
+    );
+    events[0] = fakeOccurrence('Event A', { allDay: true, startDate: '2026-10-23' });
+    const waiting = ['w1', 'w2', 'w3', 'w4', 'w5', 'w6'].map((id) =>
+      task(id, { list: 'WAITING', dueDate: '2026-10-01', waitingForText: `Answer ${id}` }),
+    );
+    const projects = ['p1', 'p2', 'p3', 'p4', 'p5', 'p6', 'p7', 'p8'].map((id) => ({
+      id,
+      title: `Project ${id}`,
+    }));
+    flushWidgets({
+      '/api/v1/calendar/events': { items: events },
+      '/api/v1/tasks?list=WAITING': { items: waiting },
+      '/api/v1/projects': { items: projects },
+    });
+    await settle();
+
+    const upcoming = widget('upcoming');
+    expect(upcoming.querySelectorAll('li')).toHaveLength(5);
+    expect(upcoming.querySelector('.more')?.textContent?.trim()).toBe('2 more');
+    const waitingWidget = widget('waitingOverdue');
+    expect(waitingWidget.querySelectorAll('li')).toHaveLength(5);
+    expect(waitingWidget.querySelector('.meta')?.textContent).toContain('Answer w1');
+    expect(waitingWidget.querySelector('.more')?.textContent?.trim()).toBe('1 more');
+    const stalled = widget('stalledProjects');
+    expect(stalled.querySelector('a[href="/projects/p1"]')?.textContent).toContain('Project p1');
+    expect(stalled.querySelector('.more')?.textContent?.trim()).toBe('3 more');
+  });
+
+  it('says so when there are no upcoming events and nothing waited for is overdue', async () => {
+    await open(['upcoming', 'waitingOverdue']);
+    flushWidgets();
+    await settle();
+
+    expect(widget('upcoming').textContent).toContain('No events in the next 7 days.');
+    expect(widget('waitingOverdue').textContent).toContain('Nothing you wait for is overdue.');
+  });
+
+  it('moves a widget up from the customize panel', async () => {
+    await open();
+    flushWidgets();
+    await settle();
+
+    root.querySelector<HTMLButtonElement>('.customize-toggle')!.click();
+    harness.detectChanges();
+    const last = root.querySelector<HTMLElement>('.slot[data-id="pinnedNotes"]')!;
+    expect(last.querySelector<HTMLButtonElement>('.down')!.disabled).toBe(true);
+    expect(last.querySelector('.up')?.getAttribute('aria-label')).toBe('Move Pinned notes up');
+    last.querySelector<HTMLButtonElement>('.up')!.click();
+    await settle();
+
+    expect(widgets().slice(-2)).toEqual(['pinnedNotes', 'readLater']);
+    const req = http.expectOne({ method: 'PATCH', url: SETTINGS });
+    expect((req.request.body[LAYOUT_SETTING] as string[]).slice(-2)).toEqual([
+      'pinnedNotes',
+      'readLater',
+    ]);
+    req.flush(fakeSettings({ [LAYOUT_SETTING]: req.request.body[LAYOUT_SETTING] }));
+    await settle();
+  });
+
+  it('rolls back a refused layout change', async () => {
+    await open();
+    flushWidgets();
+    await settle();
+
+    root.querySelector<HTMLButtonElement>('.customize-toggle')!.click();
+    harness.detectChanges();
+    root
+      .querySelector<HTMLElement>('.slot[data-id="inbox"]')!
+      .querySelector<HTMLInputElement>('input[type="checkbox"]')!
+      .click();
+    await settle();
+    expect(widgets()).not.toContain('inbox');
+
+    http
+      .expectOne({ method: 'PATCH', url: SETTINGS })
+      .flush({ title: 'Bad Request', status: 400 }, { status: 400, statusText: 'Bad Request' });
+    await settle();
+
+    expect(widgets()).toContain('inbox');
+  });
+
+  it('resets the layout to the default from the customize panel', async () => {
+    await open(['inbox:hidden', 'pinnedNotes']);
+    flushWidgets();
+    await settle();
+
+    root.querySelector<HTMLButtonElement>('.customize-toggle')!.click();
+    harness.detectChanges();
+    root.querySelector<HTMLButtonElement>('.reset')!.click();
+    await settle();
+
+    const req = http.expectOne({ method: 'PATCH', url: SETTINGS });
+    expect(req.request.body).toEqual({ [LAYOUT_SETTING]: null });
+    req.flush(fakeSettings({ [LAYOUT_SETTING]: [] }));
+    await settle();
+    expect(widgets()[0]).toBe('today');
+    // The Inbox widget, shown again, loads its data.
+    flushWidgets();
   });
 });
