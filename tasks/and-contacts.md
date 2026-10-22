@@ -11,7 +11,8 @@ lease_until: 2026-10-22T10:53:02Z
 Contacts on the phone.
 
 ## Acceptance criteria
-- [ ] List/search, detail with call/mail intents and related items
+- [x] List/search, detail with call/mail intents and related items
+  - verified (2026-10-22 12:36+0200 by dell26/agent-1): Implemented in android/app/src/main/java/ch/sonensei/cockpit/contacts (ContactsListContent with debounced server search q=, paged; ContactDetailContent with Call=ACTION_DIAL tel:, Email=ACTION_SENDTO mailto:, Waiting For/recent mail/upcoming events from GET /contacts/{id}/related + linked items from GET /links?type=CONTACT). Exercised by cd android && ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.contacts.*' --rerun -> 46 passed, incl. ContactsRouteInAppTest (Robolectric, real Hilt MainActivity, fake repository: open contact from list, Call starts ACTION_DIAL tel:+41441234567, Email starts ACTION_SENDTO mailto:anna@example.org, no-app toast, back to list) and ContactsScreensTest (search, related items). Not run on a device/emulator against a live server.
 - [ ] `cd android && ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.contacts.*'` passes, covering intent construction (Robolectric/Compose UI tests for screens)
 
 ## Notes
