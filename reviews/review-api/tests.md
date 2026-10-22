@@ -119,3 +119,100 @@ Aggregate over the 5 measured Kotlin files (summed counters): instructions 1155/
 ## Summary
 
 Tests and task-scoped coverage are sufficient; no production defects found.
+
+---
+
+# Round 2: re-check of the final revision 83e20d985
+
+Date: 2026-10-22
+
+Task: review-api - Weekly review API
+
+Scope: base `06e12ecb30a0e5bd75b2e4b0aac04f85f4d048e2` (as given by the parent worker after the latest rebase), final HEAD `83e20d9851f54e21151f9c482771bc68e79fe2ca`. The previous round covered reviewed revision `e470880d5859c50a2e12bca656e8893a794ef41a` (the round 1 text above names `25e7d874b`, the same review code before a later rebase). The only code change since then is `83e20d985`: `server/build.gradle.kts`, test `maxHeapSize` `1g` -> `2g`, plus its comment.
+
+Requirements:
+- `tasks/review-api.md` acceptance criteria (unchanged since round 1)
+- The parent worker's instructions for this re-check
+
+## Scope check
+
+- `git diff --stat e470880d5 HEAD -- server/src/main/kotlin/ch/sonensei/cockpit/review server/src/test/kotlin/ch/sonensei/cockpit/review server/src/main/resources/db/migration/review` -> empty. The review production code, its migration and its tests are byte-identical to the revision tested in round 1.
+- `git diff --name-only 06e12ecb3 HEAD -- server` -> only the 6 review production files, the review migration, the 2 review test files and `server/build.gradle.kts`. No other server file belongs to the task.
+- `git diff --stat e470880d5 HEAD` also lists `mail/search`, `mail/sync`, `mail/api`, `mail/imap`, `core/search` sources and tests, `api/openapi.yaml` and the generated web client. These are absent from `06e12ecb3..HEAD`, so they came from main (task `mail-search`) during the rebase and are not owned by this task.
+- `git show 83e20d985` -> one file, `server/build.gradle.kts`, 3 insertions and 2 deletions in `tasks.test { ... }`: `maxHeapSize = "1g"` became `"2g"`, and the comment explains the change.
+- Working tree clean (`git status --short` empty); no uncommitted inputs.
+
+## Test files changed
+
+None in this round.
+
+## Tests added or updated
+
+Count: 0. The heap setting is build configuration with no product behavior. The test is that the suite runs: the full server suite failed with "Java heap space" at 1g and passes at 2g (see below). A unit test that asserts the Gradle property would only copy the configuration and protect nothing.
+
+## Requirement coverage (round 2)
+
+All commands were run by the parent worker at `83e20d985`. The test-writer cannot run Gradle here.
+
+| Requirement | Tests | Command | Result |
+|---|---|---|---|
+| All round 1 rows (review model, locking, steps, events) | unchanged review tests (27 EdgeCase + 9 Web) | `cd server && ./gradlew test` (full server suite, includes `ch.sonensei.cockpit.review.*`) | Pass (BUILD SUCCESSFUL in 5m58s, reported by the parent) |
+| AC2: `./gradlew test --tests 'ch.sonensei.cockpit.review.*'` passes | same 36 tests | `cd server && ./gradlew ktlintCheck test --tests 'ch.sonensei.cockpit.review.*' jacocoTestReport` (round 1, identical review code) and the full `./gradlew test` above | Pass |
+| Server suite no longer runs out of heap (reason for `83e20d985`) | whole server suite | `cd server && ./gradlew test` with 1g, then with 2g (parent) | 1g: failed with "Java heap space" in Gradle Test Executor; 2g: Pass |
+
+## Focused test execution
+
+Command:
+
+`cd server && ./gradlew ktlintCheck test --tests 'ch.sonensei.cockpit.review.*' jacocoTestReport` (parent, round 1, review code identical to HEAD)
+
+Result:
+
+Pass (36 tests).
+
+## Full test execution
+
+Command:
+
+`cd server && ./gradlew test` (parent, at `83e20d985`, 2g heap)
+
+Result:
+
+Pass (BUILD SUCCESSFUL in 5m58s).
+
+## .taskcheck
+
+Result:
+
+Not run by the test-writer (no Gradle access). The parent runs `sh scripts/check.sh` before `done`.
+
+## Bugs found
+
+None.
+
+## Coverage
+
+Status: verified, carried over from round 1. The review sources and tests are byte-identical to the measured revision (the scope check above). A heap-size change does not change which code the tests execute, so the JaCoCo counters in round 1 still describe this code.
+
+Metric: whole-file coverage of task-changed production files.
+Changed-line coverage: not measured (as in round 1).
+
+Evidence:
+- Task id, immutable base, measured HEAD, and task-owned commits/file-scope source: `review-api`; base `06e12ecb3`; final HEAD `83e20d985`; the coverage was measured on the same review code (round 1). Ownership: `git diff --name-only 06e12ecb3 HEAD -- server` and the task's `touches`.
+- Source/test snapshot identifier (including uncommitted inputs): commit `83e20d985`, clean working tree.
+- Exact included files; renamed/deleted/excluded files and reasons: the same 5 Kotlin files as round 1. Excluded as before: `WeeklyReviewRepository.kt` (interface, no counters) and the Flyway migration (SQL). New exclusion: `server/build.gradle.kts` (build configuration, not instrumentable, no product behavior).
+- Provider/version, command, working directory, and test selection: no new coverage run this round. Round 1 values are kept, as the parent instructed.
+- Run start/completion time and exit status: no new coverage run. The full `./gradlew test` at `83e20d985` exited 0 (parent).
+- Generated report paths and report hashes/run identifier: see round 1.
+- Evidence outputs are fresh and inputs stayed unchanged: the review inputs did not change since the measured run (empty diff on the review paths).
+- Final run after latest test additions and production fixes: yes for the tests (the full suite at `83e20d985`); coverage is from round 1 on identical review code.
+
+The coverage table and the uncovered-gap table in round 1 still apply unchanged: aggregate over the 5 measured files, instructions 1155/1211 (95.4%), branches 36/42 (85.7%), lines 181/182 (99.5%), methods N/A.
+
+## Unable to test
+
+- Gradle runs by the test-writer (see round 1). All results in this round come from the parent.
+
+## Summary
+
+No additional tests were necessary for the reviewed scope. The review module is unchanged since the last tested revision, the only new change (`server/build.gradle.kts` test heap 1g -> 2g) is build configuration, and the parent's full server suite passes with it. No production defects were found.

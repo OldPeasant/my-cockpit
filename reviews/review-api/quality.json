@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "task": "review-api",
-  "reviewed_revision": "e470880d5859c50a2e12bca656e8893a794ef41a",
+  "reviewed_revision": "83e20d9851f54e21151f9c482771bc68e79fe2ca",
   "helpers": {
     "test-writer": {"status": "completed", "report": "reviews/review-api/tests.md"},
     "code-reviewer": {"status": "completed", "report": "reviews/review-api/review.md"},
@@ -19,6 +19,7 @@
   "validation": [
     {"command": "cd server && ./gradlew ktlintCheck test --tests 'ch.sonensei.cockpit.review.*' jacocoTestReport", "result": "pass"},
     {"command": "UPDATE_OPENAPI=1 ./gradlew test --tests '*OpenApiContractTest', then without the flag", "result": "pass"},
-    {"command": "sh scripts/check.sh", "result": "pass"}
+    {"command": "cd server && ./gradlew test (full server suite, test maxHeapSize 2g) at 83e20d985", "result": "pass (failed with Java heap space at 1g)"},
+    {"command": "sh scripts/check.sh", "result": "pass (run by tasks.py done on the merged result)"}
   ]
 }
