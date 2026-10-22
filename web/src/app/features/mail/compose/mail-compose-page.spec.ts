@@ -123,7 +123,7 @@ class FakeComposeService {
     return Promise.resolve([]);
   }
   files() {
-    return Promise.resolve([]);
+    return Promise.resolve({ entries: [], more: false });
   }
 }
 
@@ -786,6 +786,141 @@ describe('MailComposePage', () => {
       // Sent from the account shown as sender: the draft must have ended up there.
       expect(service.stored.accountId).toBe(OTHER_ACCOUNT);
       expect((page()['accountId'] as () => string)()).toBe(OTHER_ACCOUNT);
+    });
+
+    it('reports a failed move once and shows the account holding the draft in From', async () => {
+      await open({ draft: DRAFT });
+      vi.spyOn(service, 'create').mockRejectedValueOnce(
+        new ApiError(502, 'Bad Gateway', 'Drafts folder not reachable'),
+      );
+      call('changeSender', OTHER_ACCOUNT);
+      await settle();
+      fixture.detectChanges();
+      expect(errors).toEqual(['Drafts folder not reachable']);
+      expect(el().querySelector('mat-select')?.textContent).toContain('jane@example.test');
+      // Later saves and Send keep using the draft where it is.
+      call('setTo', [{ address: 'ann@example.test' }]);
+      await call('send');
+      expect(service.updates.map((u) => u.id)).toEqual([DRAFT]);
+      expect(service.sends).toEqual([{ id: DRAFT, etag: '"2"' }]);
+    });
+
+    it('moves nothing when the sender is changed and changed back during the first save', async () => {
+      await open();
+      const gate = deferred();
+      const create = service.create.bind(service);
+      vi.spyOn(service, 'create').mockImplementationOnce(async (body) => {
+        await gate.promise;
+        return create(body);
+      });
+      call('setSubject', 'Hi');
+      await vi.advanceTimersByTimeAsync(AUTOSAVE_INTERVAL_MS);
+      call('changeSender', OTHER_ACCOUNT);
+      call('changeSender', ACCOUNT);
+      gate.resolve();
+      await settle();
+      expect(service.creates.map((c) => c.accountId)).toEqual([ACCOUNT]);
+      expect(service.discards).toEqual([]);
+    });
+
+    it('starts the moved draft with the new account’s default identity', async () => {
+      await open({ draft: DRAFT });
+      call('changeSender', OTHER_ACCOUNT);
+      await settle();
+      expect(service.creates).toEqual([
+        expect.objectContaining({ accountId: OTHER_ACCOUNT, identityId: undefined }),
+      ]);
+    });
+  });
+
+  describe('Send button and Enter', () => {
+    it('does not send when the form is submitted (Enter in Subject); the Send button sends', async () => {
+      await open();
+      call('setTo', [{ address: 'ann@example.test' }]);
+      fixture.detectChanges();
+      const form = el().querySelector('form')!;
+      expect(form.noValidate).toBe(true);
+      expect(form.querySelector('button[type=submit]')).toBeNull();
+
+      const subject = el().querySelector<HTMLInputElement>('input[name=subject]')!;
+      subject.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+      // What the browser's implicit submission fires on Enter in a text field.
+      const submit = new Event('submit', { bubbles: true, cancelable: true });
+      form.dispatchEvent(submit);
+      await settle();
+      expect(submit.defaultPrevented).toBe(true);
+      expect(service.sends).toEqual([]);
+
+      const send = [...el().querySelectorAll('button')].find(
+        (b) => b.textContent?.trim() === 'Send',
+      )!;
+      send.click();
+      await settle();
+      expect(service.sends).toEqual([{ id: DRAFT, etag: '"1"' }]);
+    });
+  });
+
+  describe('draft in the URL', () => {
+    const urlCalls = () =>
+      vi
+        .mocked(TestBed.inject(Router).navigate)
+        .mock.calls.filter(([commands]) => Array.isArray(commands) && commands.length === 0);
+
+    it('puts a new draft into the URL once it is first saved, and only then', async () => {
+      await open();
+      expect(urlCalls()).toEqual([]);
+      call('setSubject', 'One');
+      await vi.advanceTimersByTimeAsync(AUTOSAVE_INTERVAL_MS);
+      await settle();
+      expect(urlCalls()).toEqual([
+        [
+          [],
+          expect.objectContaining({
+            relativeTo: expect.anything(),
+            queryParams: { draft: DRAFT },
+            replaceUrl: true,
+          }),
+        ],
+      ]);
+
+      call('setSubject', 'Two');
+      await vi.advanceTimersByTimeAsync(AUTOSAVE_INTERVAL_MS);
+      await settle();
+      expect(service.updates).toHaveLength(1);
+      expect(urlCalls()).toHaveLength(1);
+    });
+
+    it('leaves the URL of an opened draft as it is', async () => {
+      await open({ draft: DRAFT });
+      call('setSubject', 'Changed');
+      await vi.advanceTimersByTimeAsync(AUTOSAVE_INTERVAL_MS);
+      await settle();
+      expect(urlCalls()).toEqual([]);
+    });
+
+    it('puts the moved draft into the URL', async () => {
+      const MOVED = '0192f0c4-0000-7000-8000-00000000d002';
+      await open({ draft: DRAFT });
+      vi.spyOn(service, 'create').mockImplementationOnce((body) => {
+        service.creates.push(body);
+        service.stored = { ...service.stored, id: MOVED, accountId: body.accountId };
+        return Promise.resolve({ draft: service.stored, etag: '"7"' });
+      });
+      call('changeSender', OTHER_ACCOUNT);
+      await settle();
+      expect(service.discards).toEqual([{ id: DRAFT, etag: '"1"' }]);
+      expect(urlCalls()).toEqual([
+        [[], expect.objectContaining({ queryParams: { draft: MOVED }, replaceUrl: true })],
+      ]);
+    });
+
+    it('does not touch the URL when the draft is first saved on leaving the page', async () => {
+      await open();
+      call('setSubject', 'Left behind');
+      fixture.destroy();
+      await settle();
+      expect(service.creates).toHaveLength(1);
+      expect(urlCalls()).toEqual([]);
     });
   });
 

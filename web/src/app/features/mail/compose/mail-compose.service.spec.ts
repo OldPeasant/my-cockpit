@@ -1,7 +1,7 @@
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
 import { provideHttp } from '../../../core/http';
-import { MailComposeService, SUGGESTION_LIMIT } from './mail-compose.service';
+import { FILES_LIMIT, MailComposeService, SUGGESTION_LIMIT } from './mail-compose.service';
 
 const DRAFT = '0192f0c4-0000-7000-8000-00000000d001';
 const MESSAGE = '0192f0c4-0000-7000-8000-00000000a001';
@@ -136,7 +136,19 @@ describe('MailComposeService', () => {
     await flush();
     const req = http.expectOne((r) => r.url === '/api/v1/drive');
     expect(req.request.params.has('folderId')).toBe(false);
+    expect(req.request.params.get('limit')).toBe(String(FILES_LIMIT));
     req.flush({ items: [{ type: 'FILE', file: { id: 'f1', name: 'a.pdf' } }] });
-    expect(await root).toHaveLength(1);
+    const listing = await root;
+    expect(listing.entries).toHaveLength(1);
+    expect(listing.more).toBe(false);
+  });
+
+  it('says when a drive folder holds more entries than listed', async () => {
+    const listing = service.files('folder-1');
+    await flush();
+    const req = http.expectOne((r) => r.url === '/api/v1/drive');
+    expect(req.request.params.get('folderId')).toBe('folder-1');
+    req.flush({ items: [], nextCursor: 'next-page' });
+    expect((await listing).more).toBe(true);
   });
 });

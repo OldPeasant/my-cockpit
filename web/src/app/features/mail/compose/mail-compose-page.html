@@ -63,7 +63,8 @@
       </div>
     }
     @case ('ready') {
-      <form class="sheet" (submit)="$event.preventDefault(); send()">
+      <!-- Only the Send button sends: Enter in a field (Subject) must not submit the form. -->
+      <form class="sheet" novalidate (submit)="$event.preventDefault()">
         <h1 class="cdk-visually-hidden" i18n="@@mailCompose.heading">New message</h1>
         <div class="head">
           <mat-form-field subscriptSizing="dynamic">
@@ -159,7 +160,13 @@
         }
 
         <div class="actions">
-          <button mat-flat-button type="submit" [disabled]="!!busy()" i18n="@@mailCompose.send">
+          <button
+            mat-flat-button
+            type="button"
+            [disabled]="!!busy()"
+            (click)="send()"
+            i18n="@@mailCompose.send"
+          >
             Send
           </button>
           <input

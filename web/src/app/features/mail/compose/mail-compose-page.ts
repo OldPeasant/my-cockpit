@@ -116,6 +116,10 @@ export default class MailComposePage {
   private readonly editor = viewChild(RichTextEditor);
 
   private draftId: string | null = null;
+  /** The account whose Drafts folder holds the draft (`accountId` is the sender chosen). */
+  private draftAccountId: string | null = null;
+  /** The draft the URL opens (`?draft=`). */
+  private urlDraftId: string | null = null;
   private etag: string | null = null;
   private identityId: string | null = null;
   private html = '';
@@ -126,10 +130,13 @@ export default class MailComposePage {
   private queue: Promise<unknown> = Promise.resolve();
   /** Sent or discarded: nothing is saved any more. */
   private finished = false;
+  /** The page was left: the URL belongs to another page now. */
+  private left = false;
   private timer?: ReturnType<typeof setInterval>;
 
   constructor() {
     inject(DestroyRef).onDestroy(() => {
+      this.left = true;
       clearInterval(this.timer);
       // Leaving with unsaved changes: they still go to the Drafts folder.
       if (this.dirty()) void this.save();
@@ -174,22 +181,17 @@ export default class MailComposePage {
     return addressLabel(account.displayName, account.emailAddress);
   }
 
-  /** Another sender: before the first save just the account; afterwards the draft moves to it. */
+  /**
+   * Another sender: before the first save just the account; afterwards the draft moves to it. The
+   * move is queued, so a save still running (the first one too) finishes before it is decided.
+   */
   protected changeSender(accountId: string): void {
     if (accountId === this.accountId() || !this.canChangeSender()) return;
     this.accountId.set(accountId);
-    this.identityId = null;
-    if (!this.stored()) {
-      this.edited();
-      return;
-    }
-    void this.write(async () => {
-      const old = { id: this.draftId!, etag: this.etag! };
-      const revision = this.revision;
-      this.apply(await this.service.create({ accountId, ...this.content() }), revision);
-      // The copy in the other account's Drafts folder is no longer needed.
-      await this.service.discard(old.id, old.etag).catch(() => undefined);
-    });
+    if (!this.stored()) this.edited();
+    void this.write(() => this.followSender()).catch((error: unknown) =>
+      this.notifications.error(messageOf(error)),
+    );
   }
 
   protected size(part: MailAttachmentResponse): string {
@@ -285,18 +287,14 @@ export default class MailComposePage {
       const accounts = await this.service.accounts();
       this.accounts.set(accounts);
       const draftId = params.get('draft');
+      this.urlDraftId = draftId;
       const source = (['reply', 'replyAll', 'forward'] as const).find((mode) => params.has(mode));
       let loaded: VersionedDraft | null = null;
       if (draftId) {
         loaded = await this.service.get(draftId);
       } else if (source) {
+        // `apply` puts the new draft into the URL.
         loaded = await this.service.respond(params.get(source)!, source satisfies ResponseMode);
-        // A reload opens this draft instead of starting another one.
-        void this.router.navigate([], {
-          relativeTo: this.route,
-          queryParams: { draft: loaded.draft.id },
-          replaceUrl: true,
-        });
       }
       if (loaded) {
         this.load(loaded);
@@ -334,7 +332,9 @@ export default class MailComposePage {
   /** Takes over what the server stored: the version, the attachments, when. */
   private apply(saved: VersionedDraft, revision?: number): void {
     this.draftId = saved.draft.id;
+    this.draftAccountId = saved.draft.accountId ?? this.draftAccountId;
     this.etag = saved.etag;
+    this.showInUrl(saved.draft.id);
     this.identityId = saved.draft.identityId ?? null;
     this.attachments.set(saved.draft.attachments ?? []);
     this.stored.set(true);
@@ -342,6 +342,20 @@ export default class MailComposePage {
     this.saveState.set(
       this.dirty() ? { kind: 'unsaved' } : { kind: 'saved', at: saved.draft.savedAt ?? null },
     );
+  }
+
+  /**
+   * A reload opens this draft instead of starting another one (a new, started or moved draft). The
+   * page stays: it read its query once.
+   */
+  private showInUrl(draftId: string): void {
+    if (draftId === this.urlDraftId || this.left || this.finished) return;
+    this.urlDraftId = draftId;
+    void this.router.navigate([], {
+      relativeTo: this.route,
+      queryParams: { draft: draftId },
+      replaceUrl: true,
+    });
   }
 
   /** Saves the content (and, when given, the attachments to keep) as a new version. */
@@ -364,6 +378,35 @@ export default class MailComposePage {
       );
       throw error;
     }
+  }
+
+  /**
+   * Moves a stored draft to the account chosen as sender: recreated there, the old copy discarded.
+   * When it cannot move (it holds attachments or reply headers by now, or the create fails), the
+   * sender shown goes back to the account holding the draft, since that is the one Send uses.
+   */
+  private async followSender(): Promise<void> {
+    const target = this.accountId();
+    if (!this.stored() || this.finished || !target || target === this.draftAccountId) return;
+    const back = () => {
+      if (this.accountId() === target) this.accountId.set(this.draftAccountId);
+    };
+    if (!this.canChangeSender()) {
+      back();
+      return;
+    }
+    const old = { id: this.draftId!, etag: this.etag! };
+    const revision = this.revision;
+    try {
+      // The identity belongs to the old account: the new one starts with its default.
+      const content = { ...this.content(), identityId: undefined };
+      this.apply(await this.service.create({ ...content, accountId: target }), revision);
+    } catch (error) {
+      back();
+      throw error;
+    }
+    // The copy in the other account's Drafts folder is no longer needed.
+    await this.service.discard(old.id, old.etag).catch(() => undefined);
   }
 
   private async ensureStored(): Promise<void> {

@@ -4,7 +4,7 @@ import { MatDialogModule } from '@angular/material/dialog';
 import { DriveEntryResponse, FileResponse, FolderSummary } from '../../../api/generated';
 import { ApiError } from '../../../core/http';
 import { formatBytes } from '../read/format-bytes';
-import { MailComposeService } from './mail-compose.service';
+import { FILES_LIMIT, MailComposeService } from './mail-compose.service';
 
 /**
  * Picks a file of the drive to attach: browses folders from the root (a path of folders to go back
@@ -47,6 +47,11 @@ import { MailComposeService } from './mail-compose.service';
             </li>
           }
         </ul>
+        @if (more()) {
+          <p class="note" i18n="@@mailCompose.pickMore">
+            Only the first {{ limit }} entries of this folder are shown.
+          </p>
+        }
       } @else {
         <p class="note" i18n="@@mailCompose.pickEmpty">This folder is empty.</p>
       }
@@ -112,6 +117,9 @@ export class FilePickerDialog {
 
   protected readonly path = signal<FolderSummary[]>([]);
   protected readonly entries = signal<DriveEntryResponse[]>([]);
+  /** The folder holds more entries than the ones listed. */
+  protected readonly more = signal(false);
+  protected readonly limit = FILES_LIMIT;
   protected readonly loading = signal(true);
   protected readonly error = signal<string | null>(null);
   /** Counts the loads: only the latest one may show its folder. */
@@ -142,9 +150,10 @@ export class FilePickerDialog {
     this.loading.set(true);
     this.error.set(null);
     try {
-      const entries = await this.service.files(folderId);
+      const listing = await this.service.files(folderId);
       if (seq !== this.seq) return;
-      this.entries.set(entries);
+      this.entries.set(listing.entries);
+      this.more.set(listing.more);
     } catch (error) {
       if (seq !== this.seq) return;
       this.error.set(

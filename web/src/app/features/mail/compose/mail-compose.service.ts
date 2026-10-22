@@ -39,8 +39,17 @@ export interface RecipientSuggestion {
   name: string;
 }
 
+/** One listing of a drive folder; `more`: the folder holds entries beyond these. */
+export interface FolderListing {
+  entries: DriveEntryResponse[];
+  more: boolean;
+}
+
 /** Suggestions shown at most. */
 export const SUGGESTION_LIMIT = 8;
+
+/** Entries of a drive folder listed at most. */
+export const FILES_LIMIT = 200;
 
 /**
  * The compose API (SPEC.md §7.3, §7.4): drafts in the account's Drafts folder (create, save, upload,
@@ -110,14 +119,17 @@ export class MailComposeService {
       .map((item) => ({ address: item.address!, name: item.name ?? '' }));
   }
 
-  /** The folders and files of a drive folder (`null`: the root), first page. */
-  async files(folderId: string | null): Promise<DriveEntryResponse[]> {
+  /**
+   * The folders and files of a drive folder (`null`: the root), first page; `more` when the folder
+   * holds further entries.
+   */
+  async files(folderId: string | null): Promise<FolderListing> {
     const page = await this.api.invoke(
       listFolder,
-      { folderId: folderId ?? undefined, limit: 200 },
+      { folderId: folderId ?? undefined, limit: FILES_LIMIT },
       silent(),
     );
-    return page.items;
+    return { entries: page.items, more: !!page.nextCursor };
   }
 }
 

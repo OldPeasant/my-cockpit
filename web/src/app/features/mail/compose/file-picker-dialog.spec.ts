@@ -3,7 +3,7 @@ import { MatDialog, MatDialogRef } from '@angular/material/dialog';
 import { DriveEntryResponse, FileResponse } from '../../../api/generated';
 import { ApiError } from '../../../core/http';
 import { FilePickerDialog } from './file-picker-dialog';
-import { MailComposeService } from './mail-compose.service';
+import { FolderListing, MailComposeService } from './mail-compose.service';
 
 const ROOT_FOLDER = '0192f0c4-0000-7000-8000-00000000fd01';
 const SUB_FOLDER = '0192f0c4-0000-7000-8000-00000000fd02';
@@ -18,15 +18,21 @@ function file(id: string, name: string, size = 2048): DriveEntryResponse {
 
 interface Pending {
   folderId: string | null;
-  resolve: (entries: DriveEntryResponse[]) => void;
+  resolve: (entries: DriveEntryResponse[], more?: boolean) => void;
   reject: (error: unknown) => void;
 }
 
 /** Answers each folder listing only when the test says so. */
 class FakeFiles {
   calls: Pending[] = [];
-  files(folderId: string | null): Promise<DriveEntryResponse[]> {
-    return new Promise((resolve, reject) => this.calls.push({ folderId, resolve, reject }));
+  files(folderId: string | null): Promise<FolderListing> {
+    return new Promise((resolve, reject) =>
+      this.calls.push({
+        folderId,
+        resolve: (entries, more = false) => resolve({ entries, more }),
+        reject,
+      }),
+    );
   }
 }
 
@@ -66,6 +72,19 @@ describe('FilePickerDialog', () => {
     expect(entries[0]).toContain('Projects/');
     expect(entries[1]).toContain('budget.pdf');
     expect(entries[1]).toContain('2');
+  });
+
+  it('says when a folder holds more entries than listed, and not for a complete one', async () => {
+    TestBed.tick();
+    service.calls[0].resolve([folder(ROOT_FOLDER, 'Projects'), file('f-1', 'budget.pdf')], true);
+    await settle();
+    expect(pane().textContent).toContain('Only the first 200 entries of this folder are shown.');
+
+    button('Projects/').click();
+    await settle();
+    service.calls[1].resolve([file('f-2', 'plan.odt')]);
+    await settle();
+    expect(pane().textContent).not.toContain('Only the first');
   });
 
   it('opens a folder, shows it in the path and goes back to the root', async () => {
