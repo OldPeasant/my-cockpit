@@ -13,7 +13,8 @@ extended:
 Track habits (SPEC.md §8.5).
 
 ## Acceptance criteria
-- [ ] Habit list with one-tap check, streaks, stats, create/edit
+- [x] Habit list with one-tap check, streaks, stats, create/edit
+  - verified (2026-10-22 03:38+0200 by dell26/agent-3): npx ng test --watch=false --include='src/app/features/habits/**/*.spec.ts' (web) -> 4 files, 71 passed; habits-page.spec covers list grouped by due today with streaks + 30-day completion, one-tap check/uncheck, create/edit via habit-form.spec, archive; component-level (no browser run)
 - [ ] Vitest component/service tests cover check toggle and streak display; `cd web && npm run check` passes
 
 ## Notes
