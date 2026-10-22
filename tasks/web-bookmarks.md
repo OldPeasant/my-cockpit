@@ -11,7 +11,8 @@ lease_until: 2026-10-22T02:30:51Z
 Read-later queue and bookmarks (SPEC.md §8.4).
 
 ## Acceptance criteria
-- [ ] Read-later queue, all by tag, add by URL, mark read, snapshot view
+- [x] Read-later queue, all by tag, add by URL, mark read, snapshot view
+  - verified (2026-10-22 04:12+0200 by dell26/agent-3): cd web && npx ng test --watch=false --include 'src/app/features/bookmarks/**/*.spec.ts' -> 4 files, 78 passed: read-later queue (list, mark read, take out of queue, trash), all view by tag via query string, add by URL with tags/validation/errors, mark read/unread with conflict+404 handling, snapshot reader (Markdown sanitized, plain text, back link keeps view/tag), live SSE updates
 - [ ] Vitest component/service tests cover queue actions; `cd web && npm run check` passes
 
 ## Notes
