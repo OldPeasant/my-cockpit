@@ -1,11 +1,13 @@
 ---
 title: Android journal and habits
-status: in_progress
-owner: dell26/agent-1
+status: todo
+owner: 
 deps: [and-shell,journal-api,habits-api,and-login]
 touches: [android/app/src/main/java/ch/sonensei/cockpit/journal,android/app/src/test/java/ch/sonensei/cockpit/journal,android/app/src/main/java/ch/sonensei/cockpit/habits,android/app/src/test/java/ch/sonensei/cockpit/habits]
 prio: 3
-lease_until: 2026-10-22T12:46:16Z
+lease_until: 
+releases: 0
+extended: 
 ---
 ## Goal
 Journal and habits on the phone (SPEC.md §9.2 item 8).
@@ -21,3 +23,4 @@ Journal and habits on the phone (SPEC.md §9.2 item 8).
 - ASSUMPTION (2026-10-22 13:38+0200 by dell26/agent-1): Android habits screen only lists active habits and checks them off for the server's today (stats.today): one tap sends targetCount, tapping a done habit sends 0; creating/editing habits stays on the web
 - ASSUMPTION (2026-10-22 13:38+0200 by dell26/agent-1): Journal reuses the notes feature's MarkdownView, NoteImages loader and NotePhotoFiles (camera/gallery) instead of copying them; strings live in new res/values/strings_journal.xml and strings_habits.xml (outside the listed touches, but new per-feature files)
 - ASSUMPTION (2026-10-22 13:46+0200 by dell26/agent-1): Journal date from the device clock (not the server's today): a phone whose date is ahead of the user's server time zone gets 400 on save and shows 'Not saved: the server refused the change'; accepted (review CR-2) as rare, journal API exposes no server today
+- release by dell26/agent-1: handed back by dell26/agent-1: pushes had failed (remote: error: GH006: Protected branch update failed for refs/heads/main. | remote: error: | To https://github.com/OldP…); continue from wip/and-journal-habits
