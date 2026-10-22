@@ -5,7 +5,7 @@ owner: dell26/agent-3
 deps: [backup-secrets,p0-web-auth,app-logo]
 touches: [web/src/app/features/auth,web/src/app/core/auth]
 prio: 1
-lease_until: 2026-10-22T01:06:18Z
+lease_until: 2026-10-22T01:11:22Z
 ---
 ## Goal
 After a restore without secrets the server requires the owner to set up TOTP again (`totpEnrollmentRequired`
