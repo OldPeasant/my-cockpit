@@ -67,8 +67,10 @@ mix it with specs that use `loggedIn`).
 Mail: the stack includes GreenMail (`greenmail`, SMTP 3025 / IMAP 3143, no TLS, any login accepted and its mailbox
 created). `support/imap.ts` has `GREENMAIL_SERVERS` (the account settings as the server sees GreenMail) and a minimal
 `Imap` client on the host port (`E2E_IMAP_PORT`) to create folders, deliver mail with APPEND and check the result with
-SEARCH. Nothing syncs mail on a schedule in the e2e stack: `POST /api/test/mail/sync` (e2e profile) reads the folder list
-and new headers of every account (`mail.testsupport`).
+SEARCH. `e2e/phase5/smtp.ts` delivers through GreenMail's SMTP on the host port (`E2E_SMTP_PORT`), the way outside mail
+arrives. The server IDLEs on every account's Inbox as in production, so new Inbox mail shows up by itself; other folders
+are polled only every 5 minutes. `POST /api/test/mail/sync` (e2e profile) reads the folder list and new headers of every
+account now (`mail.testsupport`).
 
 Test data is fictitious. `npm run e2e:typecheck` type-checks the suites, `npm run lint` lints them (both run in
 `npm run check`).

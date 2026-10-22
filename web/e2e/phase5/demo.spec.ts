@@ -84,7 +84,7 @@ test.describe('Phase 5 demo', () => {
 
   test('1. add an IMAP/SMTP account: the folders appear and the unified inbox lists the messages', async () => {
     await page.goto('/settings/mail');
-    await page.getByRole('button', { name: 'IMAP/SMTP' }).click();
+    await page.getByRole('radio', { name: 'IMAP/SMTP' }).check();
     const form = page.locator('form.mail-form');
     await form.getByLabel('Email address').fill(ADDRESS);
     await form.getByLabel('Your name (optional)').fill(ACCOUNT_NAME);
@@ -220,6 +220,7 @@ test.describe('Phase 5 demo', () => {
     const folder = await api.post<{ id: string }>('/api/v1/folders', { name: `Finance ${run}` });
     await api.upload(folder.id, FILE_NAME, 'Fictitious budget: 42\n');
 
+    await page.goto('/mail');
     await open(page, SUBJECTS.budget);
     await page.getByRole('link', { name: 'Reply', exact: true }).click();
     await expect(page).toHaveURL(/\/mail\/compose\?draft=[0-9a-f-]{36}$/);
