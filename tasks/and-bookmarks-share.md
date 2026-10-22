@@ -1,10 +1,11 @@
 ---
 title: Android: share URL to read later
-status: todo
-owner:
+status: in_progress
+owner: dell26/agent-2
 deps: [and-capture-entrypoints,bookmarks-api]
 touches: [android/app/src/main/java/ch/sonensei/cockpit/capture/share,android/app/src/test/java/ch/sonensei/cockpit/capture/share]
 prio: 3
+lease_until: 2026-10-22T10:09:51Z
 ---
 ## Goal
 Share sheet offers Inbox or Read later (SPEC.md §8.4).
