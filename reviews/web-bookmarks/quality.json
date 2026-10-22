@@ -1,0 +1,34 @@
+{
+  "schema": 1,
+  "task": "web-bookmarks",
+  "reviewed_revision": "0db6057b105e1ad6533c725246f6e67ff276b834",
+  "helpers": {
+    "test-writer":   {"status": "completed", "report": "reviews/web-bookmarks/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/web-bookmarks/review.md"},
+    "fixer":         {"status": "completed", "report": "reviews/web-bookmarks/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "round 1: remote favicons blocked by CSP and leaking the IP; list now shows the letter tile only"},
+    {"id": "CR-2", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "round 1: change events for unlisted bookmarks ignored; refreshOne now inserts bookmarks that entered the view in server order"},
+    {"id": "CR-3", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "round 1: quiet reload overwrote a local change; changeSeq and per-id changedAt guards"},
+    {"id": "CR-4", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "round 1: reader back link lost view and tag; now preserved"},
+    {"id": "CR-5", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "round 1: race and error paths untested; tests added by fixer and test-writer"},
+    {"id": "TW-1", "source": "test-writer", "severity": "Medium", "disposition": "fixed",
+     "note": "round 1: stale app.spec.ts placeholder test; updated test committed with the task"},
+    {"id": "TW-2", "source": "test-writer", "severity": "Low", "disposition": "fixed",
+     "note": "round 1: bookmarks-page.scss over the component style budget; reduced, warning gone"},
+    {"id": "R2-CR-1", "source": "code-reviewer", "severity": "P3", "disposition": "accepted",
+     "note": "round 2: overlapping remote-only quiet reloads/refreshes answering out of order can briefly show an older row; heals on next event or navigation; local changes are guarded (recorded as task assumption)"}
+  ],
+  "validation": [
+    {"command": "cd web && npx ng test --watch=false --include 'src/app/features/bookmarks/**/*.spec.ts'", "result": "pass"},
+    {"command": "cd web && npm run check", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
