@@ -91,6 +91,19 @@ class MailComposeStatesScreenTest {
     }
 
     @Test
+    fun `while back saves the draft, the form, send, save and discard are locked`() {
+        showContent(editing.copy(leaving = true, to = "ann@example.org", draft = DraftState.SAVING))
+
+        composeRule.onNodeWithTag(MailComposeTags.SEND).assertIsNotEnabled()
+        composeRule.onNodeWithTag(MailComposeTags.SUBJECT).assertIsNotEnabled()
+        composeRule.onNodeWithTag(MailComposeTags.BODY).assertIsNotEnabled()
+        composeRule.onNodeWithTag(MailComposeTags.ATTACH).assertIsNotEnabled()
+        composeRule.onNodeWithTag(MailComposeTags.MENU).performClick()
+        composeRule.onNodeWithTag(MailComposeTags.SAVE).assertIsNotEnabled()
+        composeRule.onNodeWithTag(MailComposeTags.DISCARD).assertIsNotEnabled()
+    }
+
+    @Test
     fun `a sent mail says so and can no longer be changed`() {
         showContent(editing.copy(phase = ComposePhase.SENT, to = "ann@example.org", draft = DraftState.SAVED))
 
