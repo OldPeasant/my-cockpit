@@ -1,11 +1,11 @@
 ---
 title: Android: share URL to read later
-status: todo
-owner: 
+status: in_progress
+owner: dell26/agent-2
 deps: [and-capture-entrypoints,bookmarks-api]
 touches: [android/app/src/main/java/ch/sonensei/cockpit/capture/share,android/app/src/test/java/ch/sonensei/cockpit/capture/share]
 prio: 3
-lease_until: 
+lease_until: 2026-10-22T11:33:23Z
 releases: 0
 extended: 
 ---
