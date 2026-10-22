@@ -103,7 +103,7 @@ Defined in `SPEC.md` §11. Introduced by the tasks that need them, and listed he
 |---|---|---|
 | `ANDROID_HOME` | android build, check | Android SDK location |
 | `DOCKER_HOST`, `TESTCONTAINERS_RYUK_DISABLED` | server tests, integration tests | Podman instead of Docker |
-| `E2E_COMPOSE`, `E2E_PORT`, `E2E_IMAP_PORT`, `E2E_KEEP`, `E2E_BASE_URL` | `npm run e2e` | compose command, server and GreenMail IMAP ports, keep the stack, or use a running one (`web/e2e/README.md`) |
+| `E2E_COMPOSE`, `E2E_PORT`, `E2E_IMAP_PORT`, `E2E_SMTP_PORT`, `E2E_KEEP`, `E2E_BASE_URL` | `npm run e2e` | compose command, server and GreenMail IMAP/SMTP ports, keep the stack, or use a running one (`web/e2e/README.md`) |
 | `SPRING_DATASOURCE_URL`, `_USERNAME`, `_PASSWORD` | server | Postgres connection (`application.properties`) |
 | `COCKPIT_MASTER_KEY` | server | AES-256-GCM key for stored credentials (base64, 32 bytes, `core.crypto`). Required: startup fails without it. Tests use a fictitious key from `server/src/test/resources/config/application.properties` |
 | `GOOGLE_CLIENT_ID/SECRET`, `MS_CLIENT_ID/SECRET/TENANT` | server | OAuth apps (`core.oauth`); unset = provider disabled. Setup: `docs/oauth-setup.md` |
@@ -175,7 +175,7 @@ the Inbox on the phone, compares Next/Today/Projects with the API, and waits for
 
 ```sh
 # 1. The e2e stack on a fixed port (tear down: the same command with `down -v`; `podman-compose` works the same way)
-E2E_PORT=18090 E2E_FRESH_PORT=18091 E2E_IMAP_PORT=18092 \
+E2E_PORT=18090 E2E_FRESH_PORT=18091 E2E_IMAP_PORT=18092 E2E_SMTP_PORT=18093 \
   docker compose -p cockpit-e2e-android -f deploy/docker-compose.e2e.yml up -d --build
 curl -s http://127.0.0.1:18090/actuator/health   # wait for "UP"
 

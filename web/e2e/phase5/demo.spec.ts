@@ -249,18 +249,22 @@ test.describe('Phase 5 demo', () => {
     await picker.getByRole('button', { name: new RegExp(FILE_NAME) }).click();
     await expect(page.locator('.attachments')).toContainText(FILE_NAME);
 
-    // Autosave: the draft, with the file, is in Drafts on GreenMail.
-    await expect(page.getByRole('status').filter({ hasText: 'Draft saved' })).toBeVisible();
-    let drafts: number[] = [];
+    // Autosave: attaching saved the edited draft (the status shows no unsaved changes), and that version, with the
+    // typed text and the file, is the one draft in Drafts on GreenMail.
+    await expect(page.locator('p.saved[role="status"]')).toHaveText(/^\s*Draft saved \S/);
+    let draft = '';
     await expect
       .poll(
-        async () => (drafts = await imap.search('Drafts', `SUBJECT "Re: ${SUBJECTS.budget}"`)),
-        {
-          timeout: 30_000,
+        async () => {
+          const ids = await imap.search('Drafts', `SUBJECT "Re: ${SUBJECTS.budget}"`);
+          draft = ids.length === 1 ? await imap.fetch('Drafts', ids[0]) : '';
+          return ids.length;
         },
+        { timeout: 30_000 },
       )
-      .toHaveLength(1);
-    expect(await imap.fetch('Drafts', drafts[0])).toMatch(new RegExp(`filename="?${FILE_NAME}`));
+      .toBe(1);
+    expect(draft).toContain(`Here are the numbers ${run}.`);
+    expect(draft).toMatch(new RegExp(`filename="?${FILE_NAME}`));
 
     await page.getByRole('button', { name: 'Send', exact: true }).click();
     await expect(page.getByText('Message sent')).toBeVisible();
@@ -311,9 +315,8 @@ test.describe('Phase 5 demo', () => {
       }),
     ).toHaveCount(1);
 
-    // The sent reply of step 5, from the Sent folder. The cockpit reads the copy in Sent with its next sync of the
-    // folder (every 5 minutes); the e2e hook runs it now.
-    await syncMail(page.request);
+    // The sent reply of step 5, from the cockpit's Sent folder: sending saved the copy there and read that folder
+    // right away, no sync hook needed.
     await page.goto('/mail');
     await accountTree(page).getByRole('link', { name: 'Sent', exact: true }).click();
     await expect(page.getByRole('heading', { level: 1 })).toHaveText('Sent');
@@ -456,12 +459,6 @@ function frameImages(page: Page): Promise<{ proxied: boolean; loaded: boolean }[
         loaded: img.complete && img.naturalWidth > 0,
       }));
   });
-}
-
-/** Reads the folder list and new headers of every account now (e2e hook, `mail.testsupport`). */
-async function syncMail(request: APIRequestContext): Promise<void> {
-  const response = await request.post('/api/test/mail/sync');
-  expect(response.ok(), `POST /api/test/mail/sync: ${response.status()}`).toBe(true);
 }
 
 function apiOf(request: APIRequestContext) {
