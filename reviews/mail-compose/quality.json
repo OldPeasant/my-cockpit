@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "task": "mail-compose",
-  "reviewed_revision": "3c3278225c2b065a7ffea867b6065d81a54dea29",
+  "reviewed_revision": "402d3ea81328da54680b87dca63c265186f56c50",
   "helpers": {
     "test-writer": {
       "status": "completed",
