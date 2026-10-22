@@ -5,7 +5,7 @@ owner: dell26/agent-1
 deps: [web-mail-read,mail-compose]
 touches: [web/src/app/features/mail/compose]
 prio: 1
-lease_until: 2026-10-22T07:53:51Z
+lease_until: 2026-10-22T07:58:52Z
 ---
 ## Goal
 Write mail (SPEC.md §7.3).
