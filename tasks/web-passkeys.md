@@ -11,7 +11,8 @@ lease_until: 2026-10-22T10:27:44Z
 Use passkeys in the browser.
 
 ## Acceptance criteria
-- [ ] Register/delete passkeys in Security settings; 'Sign in with a passkey' on login
+- [x] Register/delete passkeys in Security settings; 'Sign in with a passkey' on login
+  - verified (2026-10-22 12:12+0200 by dell26/agent-1): e2e/passkeys/passkeys.spec.ts in the real e2e stack (npm run e2e, chromium, virtual authenticator) -> Settings > Security: 'Add passkey' (name + TOTP) lists it, 'Delete <name>' + confirm removes it; login page 'Sign in with a passkey' button signs in without password/TOTP; all 3 passkey tests passed (35 passed incl. phase demos)
 - [x] Vitest component/service tests cover ceremony error handling; `cd web && npm run check` passes
   - verified (2026-10-22 12:11+0200 by dell26/agent-1): cd web && npm run check (api:check, lint, e2e:typecheck, test:ci, ng build) -> exit 0, 166 files / 3453 Vitest tests passed; new webauthn.spec.ts, passkey-login.service.spec.ts and passkey cases in login/security specs cover cancelled/duplicate/unsupported/failed ceremonies, 401/403/409/400/429/404; task-scoped coverage 99.4% statements (reviews/web-passkeys/tests.md)
 - [x] Playwright `e2e/passkeys/passkeys.spec.ts` passes against the e2e stack (`npm run e2e -- e2e/passkeys/passkeys.spec.ts`, see p0-e2e-harness): virtual authenticator (CDP) registers and logs in
