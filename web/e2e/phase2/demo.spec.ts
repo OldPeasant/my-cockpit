@@ -369,7 +369,7 @@ test.describe('Phase 2 demo', () => {
       await webPage.getByLabel('Username').fill(account.username);
       await webPage.getByLabel('Password', { exact: true }).fill(account.password);
       await webPage.getByLabel('Code from your authenticator app').fill(totp(totpSecret));
-      await webPage.getByRole('button', { name: 'Sign in' }).click();
+      await webPage.getByRole('button', { name: 'Sign in', exact: true }).click();
       await expect(webPage.getByRole('navigation', { name: 'Main' })).toBeVisible();
       await webPage.goto('/notes');
       await webPage.getByText('Trip to Zanzibar').first().click();

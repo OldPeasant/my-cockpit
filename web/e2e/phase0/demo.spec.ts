@@ -91,7 +91,7 @@ test.describe('Phase 0 demo', () => {
     await signIn(page, totp(enrolled.totpSecret));
     await expect(page.getByRole('alert')).toHaveText('Too many failed attempts.');
     await expect(page.locator('.backoff .wait')).toHaveText(/Try again in \d+ s\./);
-    await expect(page.getByRole('button', { name: 'Sign in' })).toBeDisabled();
+    await expect(page.getByRole('button', { name: 'Sign in', exact: true })).toBeDisabled();
     await expect(page).toHaveURL(/\/login/);
 
     // Skip the 30 s wait: move the server clock past it, then reload to clear the form's countdown.
@@ -180,7 +180,7 @@ async function submitLogin(page: Page): Promise<void> {
   const answered = page.waitForResponse(
     (r) => r.url().endsWith('/api/v1/auth/login') && r.request().method() === 'POST',
   );
-  await page.getByRole('button', { name: 'Sign in' }).click();
+  await page.getByRole('button', { name: 'Sign in', exact: true }).click();
   await answered;
 }
 

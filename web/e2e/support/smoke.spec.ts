@@ -10,7 +10,7 @@ test.describe('smoke', () => {
     await page.getByLabel('Username').fill(account.username);
     await page.getByLabel('Password', { exact: true }).fill(account.password);
     await page.getByLabel('Code from your authenticator app').fill(totp(account.totpSecret));
-    await page.getByRole('button', { name: 'Sign in' }).click();
+    await page.getByRole('button', { name: 'Sign in', exact: true }).click();
 
     await expect(page.getByRole('navigation', { name: 'Main' })).toBeVisible();
     await expect(page).not.toHaveURL(/\/login/);
