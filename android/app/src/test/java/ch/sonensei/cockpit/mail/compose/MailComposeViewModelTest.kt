@@ -236,12 +236,15 @@ class MailComposeViewModelTest {
     fun `a failed send returns to editing with the reason, the draft stays`() =
         runTest(dispatcher) {
             coEvery { repository.create(any(), any()) } returns MailResult.Ok(draft())
+            // A conflict refetches the version first; here that fails too.
+            coEvery { repository.get(id(1)) } returns MailResult.Failed(null)
             val vm = newCompose()
             vm.setTo("ann@example.org")
             val outcomes =
                 mapOf(
                     SendOutcome.Rejected to ComposeProblem.REJECTED,
-                    SendOutcome.Invalid to ComposeProblem.NO_RECIPIENT,
+                    // With a recipient on screen, the server's 400 means the mail is too large.
+                    SendOutcome.Invalid to ComposeProblem.TOO_LARGE,
                     SendOutcome.Offline to ComposeProblem.OFFLINE,
                     SendOutcome.Conflict to ComposeProblem.SEND_FAILED,
                     SendOutcome.Failed(500) to ComposeProblem.SEND_FAILED,

@@ -106,16 +106,23 @@ class MailComposeRepository
         /** The current version of draft [id]. */
         suspend fun get(id: UUID): MailResult<Draft> = mailCall { draft(api.get(id.toString())) }
 
-        /** Uploads [file] into the draft; `Failed(400)` when it makes the mail too large. */
+        /**
+         * Uploads [file] into the draft; `Failed(400)` when it makes the mail too large, `Failed(null)` when the file can
+         * no longer be read (not [MailResult.Offline]: trying again does not help).
+         */
         suspend fun attach(
             id: UUID,
             etag: String,
             file: PickedFile,
-        ): MailResult<Draft> =
-            mailCall {
-                val part = MultipartBody.Part.createFormData("file", file.name, PickedFileBody(file))
-                draft(api.attach(id.toString(), etag, part))
-            }
+        ): MailResult<Draft> {
+            val body = PickedFileBody(file)
+            val result =
+                mailCall {
+                    val part = MultipartBody.Part.createFormData("file", file.name, body)
+                    draft(api.attach(id.toString(), etag, part))
+                }
+            return if (body.unreadable) MailResult.Failed(null) else result
+        }
 
         suspend fun send(
             id: UUID,
@@ -192,11 +199,21 @@ private class PickedFileBody(
 ) : RequestBody() {
     override fun contentType(): MediaType? = file.mime.toMediaTypeOrNull()
 
+    /** The file could not be opened: the failed request is not a connection problem. */
+    @Volatile
+    var unreadable = false
+        private set
+
     // Unknown: a provider's size may be wrong, and a wrong length breaks the request.
     override fun contentLength(): Long = -1
 
     override fun writeTo(sink: BufferedSink) {
-        val input = file.open() ?: throw IOException("The file can no longer be read")
+        // OkHttp only expects an IOException here; the flag tells the caller what it was.
+        val input =
+            file.open() ?: run {
+                unreadable = true
+                throw IOException("The file can no longer be read")
+            }
         input.source().use { sink.writeAll(it) }
     }
 }

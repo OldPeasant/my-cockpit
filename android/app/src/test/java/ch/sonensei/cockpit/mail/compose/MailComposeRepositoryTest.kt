@@ -167,6 +167,22 @@ class MailComposeRepositoryTest {
         }
 
     @Test
+    fun `a picked file that can no longer be read fails the upload, it is not reported as offline`() =
+        runBlocking {
+            server.enqueue(draft(etag = "\"9\""))
+            val file =
+                object : PickedFile {
+                    override val name = "gone.txt"
+                    override val mime = "text/plain"
+                    override val sizeBytes = 5L
+
+                    override fun open(): ByteArrayInputStream? = null
+                }
+
+            assertEquals(MailResult.Failed(null), repository.attach(id(1), "\"8\"", file))
+        }
+
+    @Test
     fun `send maps the answers of the server`() =
         runBlocking {
             server.enqueue(

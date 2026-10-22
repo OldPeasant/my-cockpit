@@ -125,6 +125,37 @@ class MailComposeRouteTest {
     }
 
     @Test
+    fun `a compose opened again with the same mode after sending stays open`() {
+        coEvery { repository.send(id(1), "\"1\"") } returns SendOutcome.Sent
+        val vm = MailComposeViewModel(repository)
+        val mode = ComposeMode.New(work.id)
+        var open by mutableStateOf(true)
+        composeRule.setContent {
+            CockpitTheme {
+                // As the Mail screen does: the route is shown while a compose is open, onClose hides it.
+                if (open) {
+                    MailComposeRoute(mode = mode, onClose = {
+                        closed++
+                        open = false
+                    }, viewModel = vm)
+                }
+            }
+        }
+        composeRule.onNodeWithTag(MailComposeTags.field(RecipientField.TO)).performTextInput("ann@example.org")
+        composeRule.onNodeWithTag(MailComposeTags.SEND).performClick()
+        composeRule.waitUntil(WAIT_MS) { closed == 1 }
+
+        composeRule.runOnIdle { open = true }
+        composeRule.waitForIdle()
+        composeRule.waitUntil(WAIT_MS) { vm.uiState.value.phase == ComposePhase.EDITING }
+        composeRule.waitForIdle()
+
+        assertEquals(1, closed)
+        composeRule.onNodeWithTag(MailComposeTags.TITLE).assertTextEquals("New message")
+        composeRule.onNodeWithTag(MailComposeTags.field(RecipientField.TO)).assertTextEquals("")
+    }
+
+    @Test
     fun `a file picked in the system picker is described by its provider and uploaded into the draft`() {
         Robolectric.setupContentProvider(DeviceFilesTest.PickedFilesProvider::class.java, DeviceFilesTest.PickedFilesProvider.AUTHORITY)
         val picked = Uri.parse("content://${DeviceFilesTest.PickedFilesProvider.AUTHORITY}/files/report")

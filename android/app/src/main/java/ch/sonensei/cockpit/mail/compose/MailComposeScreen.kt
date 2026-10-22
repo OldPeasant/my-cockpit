@@ -77,7 +77,10 @@ fun MailComposeRoute(
     modifier: Modifier = Modifier,
     viewModel: MailComposeViewModel = hiltViewModel(),
 ) {
-    LaunchedEffect(viewModel, mode) { viewModel.start(mode) }
+    // The compose this route opened: the view model is shared, so a state of an earlier compose (closed, maybe even
+    // with the same mode) must neither show here nor close this one.
+    var session by remember(viewModel, mode) { mutableStateOf<Int?>(null) }
+    LaunchedEffect(viewModel, mode) { session = viewModel.start(mode) }
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val resolver = LocalContext.current.contentResolver
     val picker =
@@ -85,11 +88,12 @@ fun MailComposeRoute(
             viewModel.attach(uris.map { describePicked(resolver, it) })
         }
     BackHandler(onBack = viewModel::leave)
-    // A state of an earlier compose (the view model is shared) must not close this one.
-    val closed = state.mode == mode && (state.phase == ComposePhase.SENT || state.phase == ComposePhase.CLOSED)
+    // Until start answered, an open compose of the same mode is the one start keeps (configuration change).
+    val own = if (session == null) state.mode == mode && !state.ended else state.session == session
+    val closed = own && state.ended
     LaunchedEffect(closed) { if (closed) onClose() }
     MailComposeContent(
-        state = if (state.mode == mode) state else MailComposeUiState(mode = mode),
+        state = if (own) state else MailComposeUiState(mode = mode),
         callbacks =
             MailComposeCallbacks(
                 back = viewModel::leave,
