@@ -53,7 +53,8 @@ import java.util.concurrent.TimeoutException
  * Passkeys (task passkeys-server) for an account restored from a backup without its TOTP secret
  * (`totp_reenroll_required`, SPEC.md §10.2): registration is refused, a passkey web login gets a session that may only
  * enroll TOTP again, the passkey device token is refused with 403, and the passkey login takes the account row lock, so
- * it cannot interleave with a re-enrollment confirm. The restore is simulated as in `TotpEnrollmentWebTests`.
+ * it cannot interleave with a re-enrollment confirm or with another login of the same passkey (sign counter). The
+ * restore is simulated as in `TotpEnrollmentWebTests`.
  */
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -306,6 +307,62 @@ class PasskeyTotpReenrollmentTests(
 
 			mockMvc.get("/api/v1/auth/me") { cookie(Cookie(SessionCookies.NAME, grant.token)) }.andExpect { status { isUnauthorized() } }
 			mockMvc.get("/api/v1/auth/passkeys") { cookie(confirming) }.andExpect { status { isOk() } }
+		} finally {
+			release.countDown()
+			executor.shutdownNow()
+		}
+	}
+
+	@Test
+	fun `a second passkey login with the same passkey waits for the first, then continues from its sign count`() {
+		val authenticator = register()
+		val (firstCeremony, firstOptions) = authenticationOptions()
+		val (secondCeremony, secondOptions) = authenticationOptions()
+		val first = jsonMapper.writeValueAsString(authenticator.authenticate(firstOptions))
+		val second = jsonMapper.writeValueAsString(authenticator.authenticate(secondOptions))
+		val release = CountDownLatch(1)
+		val executor = Executors.newFixedThreadPool(2)
+		try {
+			val firstLogin = heldTransaction(executor, release) { passkeys.login(firstCeremony, first, rememberDevice = false) }
+			val secondLogin = executor.submit<LoginResult> { passkeys.login(secondCeremony, second, rememberDevice = false) }
+			withClue("the second login waits for the first one's transaction (account row lock)") {
+				shouldThrow<TimeoutException> { secondLogin.get(500, TimeUnit.MILLISECONDS) }
+			}
+			release.countDown()
+			firstLogin.get(10, TimeUnit.SECONDS).shouldBeInstanceOf<LoginResult.Success>()
+			withClue("the second login reads the committed passkey, so it neither fails a version check nor sees a stale count") {
+				secondLogin.get(10, TimeUnit.SECONDS).shouldBeInstanceOf<LoginResult.Success>()
+			}
+			jdbc.queryForObject("select sign_count from auth_passkey", Long::class.java) shouldBe 2L
+		} finally {
+			release.countDown()
+			executor.shutdownNow()
+		}
+	}
+
+	@Test
+	fun `two concurrent assertions with the same sign count, as from a cloned authenticator, log in only once`() {
+		val authenticator = register()
+		val (firstCeremony, firstOptions) = authenticationOptions()
+		val (secondCeremony, secondOptions) = authenticationOptions()
+		val first = jsonMapper.writeValueAsString(authenticator.authenticate(firstOptions))
+		authenticator.signCount = 0
+		val replayed = jsonMapper.writeValueAsString(authenticator.authenticate(secondOptions))
+		val release = CountDownLatch(1)
+		val executor = Executors.newFixedThreadPool(2)
+		try {
+			val firstLogin = heldTransaction(executor, release) { passkeys.login(firstCeremony, first, rememberDevice = false) }
+			val replayLogin = executor.submit<LoginResult> { passkeys.login(secondCeremony, replayed, rememberDevice = false) }
+			withClue("the replay waits for the first login's transaction (account row lock)") {
+				shouldThrow<TimeoutException> { replayLogin.get(500, TimeUnit.MILLISECONDS) }
+			}
+			release.countDown()
+			firstLogin.get(10, TimeUnit.SECONDS).shouldBeInstanceOf<LoginResult.Success>()
+			withClue("the replay sees the committed sign count and is rejected like wrong credentials, not with an error") {
+				replayLogin.get(10, TimeUnit.SECONDS) shouldBe LoginResult.InvalidCredentials
+			}
+			jdbc.queryForObject("select sign_count from auth_passkey", Long::class.java) shouldBe 1L
+			jdbc.queryForObject("select count(*) from auth_session", Int::class.java) shouldBe 2
 		} finally {
 			release.countDown()
 			executor.shutdownNow()

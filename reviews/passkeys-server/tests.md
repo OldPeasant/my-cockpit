@@ -4,259 +4,181 @@ Date: 2026-10-22
 
 Task: passkeys-server - Passkeys (WebAuthn) backend
 
-Scope: `git diff 02030f45ce121c7092583362d666dd74b3dfeb7e 83b45e76e087cdb2acb3409fd84e50246c7fe7ae` on branch `main`.
-Base `02030f45` (merge-base with origin/main) and the single task code commit `83b45e76` (a squash of the earlier
-owner's work plus the adaptation to main's TOTP re-enrollment) were supplied by the parent worker. The diff matches
-the task's `touches` plus the touch-outside edits recorded in the task assumptions (LoginService.startSession,
-DeviceTokenService.issueFor, SecurityConfiguration permit/CSRF rules, migration). Working tree before this run: clean.
-Uncommitted input added by this run: `server/src/test/kotlin/ch/sonensei/cockpit/core/auth/passkey/PasskeyTotpReenrollmentTests.kt`
-(new, untracked, sha256 `f34f35fe439adb8b3d542119f12a964a2a575decf41cfeee468bc390f81e291f`). This report replaces the
-earlier one, which described an older revision on an older main.
+Scope: `git diff 99936ef802eab20a25c99700b72d6dfc6dee7c90 993b14dc77dfb64d3cdd39079dcb98dcf9c7336e` on branch `main`.
+The parent supplied the base `99936ef8` (merge-base with origin/main) and the task commits: `149437b1` (implementation),
+`706267e8` (earlier test-writer run: `PasskeyTotpReenrollmentTests`), `cdf39218` (fixer: TW-1/CR-1,
+`PasskeyService.verifyAssertion` now takes the account row lock before it loads the passkey), and `993b14dc` (test JVM
+heap 1g -> 2g in `server/build.gradle.kts`). The diff matches the task's `touches` plus the touch-outside edits recorded
+in the task assumptions. This report replaces the earlier one, which covered the pre-fix revision `83b45e76` (TW-1 open).
+Uncommitted inputs in this run: `server/src/test/kotlin/ch/sonensei/cockpit/core/auth/passkey/PasskeyTotpReenrollmentTests.kt`
+(modified by this run). `reviews/passkeys-server/review.md` was also modified in the working tree, but not by this
+helper; it is not a test input.
 
 Requirements:
-- `tasks/passkeys-server.md` acceptance criteria and recorded assumptions, in particular the 2026-10-22 assumption:
-  a re-enrolling account (restored without its TOTP secret) cannot register a passkey (403 via fullAccess, the service
-  ignores the unconfirmed secret), a passkey web login gives a re-enroll-only session, the passkey device token
-  returns 403 TotpEnrollmentRequired like the password token
-- `SPEC.md` 4.1 (passkeys), 4.2 (Problem Details), 10.2 (restore without TOTP secret, forced re-enrollment)
+- `tasks/passkeys-server.md` acceptance criteria and assumptions (in particular the 2026-10-22 re-enrollment assumption)
+- `SPEC.md` 4.1 (passkeys), 4.2 (Problem Details), 10.2 (restore without TOTP secret)
 - `docs/ARCHITECTURE.md` "Coverage", `docs/QUALITY.md`, `AGENTS.md` project notes
-- Parent instructions: focus on the changes since the old revision (re-enrollment handling, `findFirstForUpdate`
-  lock in `verifyAssertion`, `MeResponse.of(principal)`, migration move)
+- Parent instructions: confirm TW-1 is fixed, look for gaps from the lock-order change (unknown passkey, inactive
+  account, concurrent logins with the same passkey / sign counter)
 
 ## Test files changed
 
-- `server/src/test/kotlin/ch/sonensei/cockpit/core/auth/passkey/PasskeyTotpReenrollmentTests.kt` (new)
-
-Existing passkey tests (`PasskeyWebTests`, `PasskeyEdgeCaseTests`, `PasskeyServiceUnitTests`,
-`PasskeyCeremoniesTests`, `PasskeyRelyingPartiesTests`, `PasskeyConfiguredRelyingPartyTests`, `TestAuthenticator`)
-are unchanged. A separate class was used so the re-enrollment setup (restore simulation, enrollment helpers, held
-transactions) stays in one place; it uses the same Spring context configuration as `PasskeyWebTests`.
+- `server/src/test/kotlin/ch/sonensei/cockpit/core/auth/passkey/PasskeyTotpReenrollmentTests.kt` (2 tests added, class
+  KDoc extended by one clause; no existing test changed)
 
 ## Tests added or updated
 
-Count: 9 (all in `PasskeyTotpReenrollmentTests`)
+Count: 2
 
-1. `a passkey web login of a normal account reports no TOTP enrollment and has full access`
-2. `a passkey web login of a re-enrolling account gets a session that may only enroll TOTP again`
-3. `a session of a re-enrolling account is refused passkey registration before its TOTP code is checked`
-4. `the service does not accept a code of the unconfirmed TOTP secret of a re-enrollment`
-5. `a passkey device token is refused with 403 while re-enrolling, wrong passkeys stay 401, and no device is created`
-6. `after the re-enrollment the passkey device token works and has full access`
-7. `a passkey token request that runs while a confirm is not committed yet waits, then gets a device with full access` (FAILS, TW-1)
-8. `a passkey web login that runs while a confirm is not committed yet waits, then gets a session with full access` (FAILS, TW-1)
-9. `a passkey login whose transaction runs while the confirm runs is ended by the confirm and never gets full access`
+1. `a second passkey login with the same passkey waits for the first, then continues from its sign count`: login A
+   (sign count 1) holds its transaction open, login B (sign count 2, same passkey) must wait on the account lock and
+   then succeed; the stored sign count is 2. Before the fix, B would have loaded the passkey (version, sign count 0)
+   before waiting and then failed the optimistic version check on save.
+2. `two concurrent assertions with the same sign count, as from a cloned authenticator, log in only once`: two
+   assertions with sign count 1; the second waits for the first and is then rejected as `InvalidCredentials` (no
+   exception, no 409); sign count stays 1 and only one passkey session exists besides the setup's password session.
+   Before the fix, the replay would have checked against the stale count 0 (and passed verification) before failing
+   on the version check.
+
+Both are regression tests for the lock-order change from the sign-counter side; the two TW-1 tests cover the
+re-enrollment side. This helper could not run them against the pre-fix code (that would need a checkout or a
+production change). The "before the fix" behavior above comes from reading the code: it was not run.
+
+The other paths the parent named were already covered, and the lock order does not change their result:
+- Unknown passkey (lock is taken, then `rejected("unknown passkey")`; the transaction ends and releases it):
+  `PasskeyWebTests` `a deleted passkey can no longer log in`, and `invalid assertions are rejected like wrong
+  credentials` (foreign authenticator with the owner's user handle).
+- Inactive account: `PasskeyEdgeCaseTests` `a passkey of an account whose setup is not complete cannot log in`.
+- Account missing: not reachable while a passkey exists (the FK cascades on account delete; `deleting the account
+  deletes its passkeys`).
 
 ## Requirement coverage
 
-Focused command (F): `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.core.auth.passkey.*'` -> 67 tests,
-65 passed, 2 failed (both TW-1). Postgres via Testcontainers.
+Focused command (F): `cd server && ./gradlew ktlintCheck test --tests 'ch.sonensei.cockpit.core.auth.passkey.PasskeyTotpReenrollmentTests'`
+-> BUILD SUCCESSFUL, 11/11 tests.
+Auth command (A): `cd server && ./gradlew clean test --tests 'ch.sonensei.cockpit.core.auth.*' jacocoTestReport`
+-> BUILD SUCCESSFUL, 280 tests, 0 failures, 0 errors, 0 skipped (Postgres via Testcontainers).
 
 | Requirement | Tests | Command | Result |
 |---|---|---|---|
-| AC1 registration needs an authenticated session + TOTP; registration ceremony with webauthn4j | `PasskeyWebTests`: `a logged-in owner registers a passkey after confirming with TOTP`, `registration needs a login, the CSRF header and a correct TOTP code`, `wrong TOTP codes ... throttle`, `a registration ceremony works once ...`, `the same authenticator cannot be registered twice`; `PasskeyEdgeCaseTests` (UV required, RP binding, name length, transports, ceremony swap) | F | Pass |
-| AC1 authentication ceremony, web session login | `PasskeyWebTests`: `a passkey logs the browser in ...`, `the web passkey login needs the CSRF header`, `invalid assertions are rejected ...`, `a sign count that does not increase is rejected`, `failed passkey logins share the login throttle`; `PasskeyEdgeCaseTests` (synced passkeys, browser-session cookie, no user handle, throttle reset) | F | Pass |
-| AC1 Android token login and Android registration with a bearer token | `PasskeyWebTests`: `a passkey logs an Android device in ...`, `an Android device registers a passkey with its bearer token`; `PasskeyConfiguredRelyingPartyTests` (apk-key-hash origin) | F | Pass |
-| AC1 credential list/delete | `PasskeyWebTests`: `a deleted passkey can no longer log in`; `PasskeyEdgeCaseTests`: `managing passkeys needs a login, the CSRF header for a session, and a UUID` | F | Pass |
-| New: passkey web login returns `MeResponse.of(principal)` incl. `totpEnrollmentRequired` | tests 1, 2 | F | Pass |
-| New: re-enrolling account's passkey web login gets a re-enroll-only session (me/enrollment ok; passkeys, settings, devices, registration 403); after confirm it gets full access | test 2 | F | Pass |
-| New: registration refused for a re-enrolling session (fullAccess rule), before the TOTP check (no throttle use) | test 3 | F | Pass |
-| New: `startRegistration` ignores the unconfirmed re-enrollment secret even for a principal claiming full access; the same code works once the flag is cleared | test 4 | F | Pass |
-| New: passkey device token returns 403 Problem `TotpEnrollmentRequired` while re-enrolling, no device created; a non-verifying assertion stays 401 | test 5 | F | Pass |
-| New: after re-enrollment the passkey device token gives a full-access device | test 6 | F | Pass |
-| New: `verifyAssertion` takes the account row lock, so a passkey login cannot interleave with a re-enrollment confirm (login holds the lock first -> confirm waits and ends the passkey session) | test 9 | F | Pass |
-| New: same lock, other order (confirm holds the lock first -> passkey token/web login waits, then sees the cleared flag) | tests 7, 8 | F | Fail (TW-1) |
-| Migration moved to `core/V202610221000__core_auth_passkey.sql` | every Postgres-backed passkey test (tables `auth_passkey` created by Flyway on a fresh Testcontainers DB) | F | Pass |
-| AC2 `./gradlew test --tests 'ch.sonensei.cockpit.core.auth.passkey.*'` passes | whole package | F | Fail: 2 failing tests (TW-1) |
-| AC3 OpenAPI contract test passes without the flag | `OpenApiContractTest` | `cd server && ./gradlew test --tests '*OpenApiContractTest'` | Pass (1 test). Regeneration with `UPDATE_OPENAPI=1` not re-run by this helper. |
+| AC1 registration needs an authenticated session + TOTP; registration ceremony (webauthn4j) | `PasskeyWebTests` registration tests; `PasskeyEdgeCaseTests` (UV required, RP binding, name length, transports, ceremony swap); `PasskeyTotpReenrollmentTests` re-enrollment refusals | A | Pass |
+| AC1 authentication ceremony, web session login | `PasskeyWebTests` login, CSRF, invalid assertions, sign count, throttle; `PasskeyEdgeCaseTests` (synced passkeys, session cookie, no user handle, throttle reset, inactive account) | A | Pass |
+| AC1 Android token login and registration with a bearer token | `PasskeyWebTests` token login and Android registration; `PasskeyConfiguredRelyingPartyTests` (apk-key-hash origin) | A | Pass |
+| AC1 credential list/delete | `PasskeyWebTests` `a deleted passkey can no longer log in`; `PasskeyEdgeCaseTests` management authorization | A | Pass |
+| Re-enrollment assumption (registration refused, re-enroll-only web session, 403 device token) | `PasskeyTotpReenrollmentTests` tests 1-6 | F, A | Pass |
+| TW-1 fixed: a passkey login that waits for an uncommitted re-enrollment confirm continues with full access | `... a passkey token request that runs while a confirm is not committed yet waits, then gets a device with full access`, `... a passkey web login that runs while a confirm is not committed yet waits, then gets a session with full access` | F, A | Pass (both failed on the pre-fix revision) |
+| Lock order: login first, confirm waits | `a passkey login whose transaction runs while the confirm runs is ended by the confirm and never gets full access` | F, A | Pass |
+| Lock order: concurrent logins with the same passkey are serialised and read the committed sign counter | the 2 new tests | F, A | Pass |
+| AC2 `./gradlew test --tests 'ch.sonensei.cockpit.core.auth.passkey.*'` passes | all passkey classes (subset of A) | A | Pass |
+| AC3 OpenAPI regenerated, `OpenApiContractTest` passes without the flag | `OpenApiContractTest` | Not run: not in this helper's selection, and this run changed no production code or API. The parent's `./gradlew check` on `993b14dc` includes it. | Not run |
 
 ## Focused test execution
 
 Command:
 
-`cd server && ./gradlew ktlintCheck test --tests 'ch.sonensei.cockpit.core.auth.passkey.*'` (ktlint) and
-`cd server && ./gradlew test --tests 'ch.sonensei.cockpit.core.auth.passkey.*'` (final, 2026-10-22 ~01:52)
+`cd server && ./gradlew ktlintCheck test --tests 'ch.sonensei.cockpit.core.auth.passkey.PasskeyTotpReenrollmentTests'`
 
 Result:
 
-Fail: 67 tests, 2 failed (`PasskeyTotpReenrollmentTests` tests 7 and 8, production defect TW-1). Per class:
-PasskeyCeremoniesTests 7/7, PasskeyWebTests 14/14, PasskeyEdgeCaseTests 17/17, PasskeyRelyingPartiesTests 9/9,
-PasskeyConfiguredRelyingPartyTests 4/4, PasskeyServiceUnitTests 7/7, PasskeyTotpReenrollmentTests 7/9.
-`ktlintTestSourceSetCheck` passes after one formatting fix in the new file.
-
-Also run: `./gradlew test --tests 'ch.sonensei.cockpit.core.auth.*'` (part of the coverage run) -> 278 tests, 2 failed
-(the same two); all other auth tests incl. `TotpEnrollmentWebTests` and the LoginService/DeviceTokenService tests pass.
+Pass (11 tests, 0 failures; ktlint main and test source sets pass).
 
 ## Full test execution
 
 Command:
 
-`cd server && ./gradlew check` (the server step of `.taskcheck`), run twice:
-1. with the new test file -> exit 1: the 2 TW-1 failures, plus `Gradle Test Executor 11 FAILED ... java.lang.OutOfMemoryError`
-   after 2230 tests (1 skipped); about 100 test classes never ran.
-2. without the new test file (moved aside temporarily, then restored with identical sha256) -> exit 1, again
-   `OutOfMemoryError` in the test executor, so the OOM exists without this run's tests.
+`cd server && ./gradlew clean test --tests 'ch.sonensei.cockpit.core.auth.*' jacocoTestReport` (the parent's request).
 
 Result:
 
-Fail. The OOM happens in `ch.sonensei.cockpit.files.FilesWebTests` `a 60 MB file uploads in chunks and downloads
-identical` (last entries of `build/test-results/test/binary/results-generic.bin`), test heap `maxHeapSize = "1g"`.
-That test is outside this task. This helper did not check whether the OOM also happens at base `02030f45`. That needs
-a checkout, which it must not do. The task's passkey test classes add Spring contexts to the test JVM's context cache
-(e.g. `PasskeyConfiguredRelyingPartyTests` with its own properties), so the task may add to the memory pressure.
-The parent worker must decide whether this blocks `done` (`.taskcheck` runs this command).
+Pass: 280 tests, 0 failures. This helper did not rerun the full `./gradlew check`. Per the parent, `./gradlew check` on
+`993b14dc` (heap 2g) gave BUILD SUCCESSFUL in 6m22s. That run did not include the 2 tests added here.
 
 ## .taskcheck
 
 Result:
 
-Not run as a whole. Its server step (`./gradlew check`) was run directly (above) and fails, so `.taskcheck` would
-fail too. The web and Android steps were not run: this task changes no web or Android code, apart from the
-regenerated web API client.
+Not run (the parent runs it; its server step `./gradlew check` passed on `993b14dc`, as the parent reported).
 
 ## Bugs found
 
-### Passkey login fails with an optimistic-lock error instead of waiting for a concurrent account update
-
-Finding ID:
-
-`TW-1`
-
-Test:
-
-`PasskeyTotpReenrollmentTests.a passkey token request that runs while a confirm is not committed yet waits, then gets a device with full access`
-and `PasskeyTotpReenrollmentTests.a passkey web login that runs while a confirm is not committed yet waits, then gets a session with full access`
-
-Production source:
-
-`server/src/main/kotlin/ch/sonensei/cockpit/core/auth/passkey/domain/PasskeyService.kt:242-244` (`verifyAssertion`),
-with `server/src/main/kotlin/ch/sonensei/cockpit/core/auth/passkey/infra/PasskeyRepository.kt:11`
-(`select p from Passkey p join fetch p.user where p.credentialId = :credentialId`).
-
-Requirement:
-
-Task assumption 2026-10-22 and the code comment on `verifyAssertion`: the passkey login is "locked like in
-LoginService.verify, so the grant cannot interleave with a TOTP re-enrollment confirm". `TotpEnrollmentService`
-documents that the confirm and every login lock the account row, so a login running in parallel waits. The password
-path's equivalent test (`TotpEnrollmentWebTests` `a device token request that runs while a confirm is not committed yet
-waits, then gets a device with full access`) passes.
-
-Expected behavior:
-
-While a re-enrollment confirm holds the account row lock and has not committed, a passkey token or web login waits for
-it. Then it reads the committed account (flag cleared) and issues a full-access device or session.
-
-Actual behavior:
-
-`findByCredentialId` join-fetches `passkey.user`, so the `UserAccount` enters the persistence context with the old,
-unlocked `version` *before* `users.findFirstForUpdate()` runs. When the lock is granted after the confirm commits, the
-locked query returns a newer version of the same entity, and Hibernate throws `StaleObjectStateException`
-("Query result contains conflicting version of entity already held in persistence context"), surfacing as
-`ObjectOptimisticLockingFailureException`. The service call throws: no device or session is created, the
-single-use ceremony is used up, and the throttle attempt that `tryBeginAttempt` counted is never reset. Over HTTP,
-`ProblemDetailsAdvice` maps this to 409 Conflict, which is not documented for `/passkeys/login` or `/passkeys/token`.
-Any concurrent committed update of the account row between the passkey read and the lock does the same, not just the
-TOTP confirm. The reverse order (passkey login takes the lock first) works (test 9 passes). Both failures are
-deterministic: they happened in every run.
-
-Possible fix direction, for the fixer to decide: take the account lock before loading the passkey with its user, or
-load the passkey without fetching the user and compare `passkey.user.id` via the FK id, as `LoginService.verify` does.
-
-Severity:
-
-Medium. A narrow race with no security bypass (it fails closed), but a legitimate login fails with an undocumented
-409, uses up a throttle attempt, and the documented locking guarantee is not met.
-
-Fix required:
-
-`Yes — production code must be fixed by the parent worker / fixer.`
+None. TW-1 (from the previous report) is fixed. Its two regression tests pass, and no new defect was found.
 
 ## Coverage
 
-Status: partial-failed (diagnostic). The coverage run had 2 failing tests (TW-1). It ran an auth-scoped test
-selection, not the full suite, because the full suite cannot finish (OOM, see above).
+Status: verified (task-scoped JaCoCo run on the final code plus this run's new tests; selection
+`ch.sonensei.cockpit.core.auth.*`, which contains every passkey test and the auth tests for the touch-outside files).
 
 Metric: whole-file coverage of task-changed production files.
-Changed-line coverage: not measured (the JaCoCo setup reports per file and per line, but this run did not intersect
-those lines with the diff).
+Changed-line coverage: not measured.
 
 Evidence:
 - Task id, immutable base, measured HEAD, and task-owned commits/file-scope source: `passkeys-server`; base
-  `02030f45ce121c7092583362d666dd74b3dfeb7e`; HEAD `83b45e76e087cdb2acb3409fd84e50246c7fe7ae` (the single task-owned
-  commit, supplied by the parent); file scope `git diff --name-only 02030f45 83b45e76 -- server/src/main`.
-- Source/test snapshot identifier (including uncommitted inputs): HEAD `83b45e76` plus untracked
-  `PasskeyTotpReenrollmentTests.kt` sha256 `f34f35fe439adb8b3d542119f12a964a2a575decf41cfeee468bc390f81e291f`; same
-  hash before and after the run; no other working-tree changes.
-- Exact included files: `core/auth/domain/DeviceTokenService.kt`, `core/auth/domain/LoginService.kt`,
-  `core/auth/infra/SecurityConfiguration.kt`, `core/auth/passkey/api/PasskeyController.kt`, `.../api/PasskeyDtos.kt`,
-  `.../api/PasskeyRelyingParties.kt`, `.../domain/Passkey.kt`, `.../domain/PasskeyCeremonies.kt`,
-  `.../domain/PasskeyService.kt`, `.../infra/PasskeyRepository.kt` (all under
-  `server/src/main/kotlin/ch/sonensei/cockpit/`). Excluded:
-  `server/src/main/resources/db/migration/core/V202610221000__core_auth_passkey.sql` (SQL, not instrumented by
-  JaCoCo; every Postgres passkey test runs it through Flyway); `api/openapi.yaml` and `web/src/app/api/generated/**`
-  (generated); docs, tasks and reviews. No renames or deletions of production files in scope.
+  `99936ef802eab20a25c99700b72d6dfc6dee7c90`; HEAD `993b14dc77dfb64d3cdd39079dcb98dcf9c7336e`; commits
+  `149437b1`, `706267e8`, `cdf39218`, `993b14dc` as supplied by the parent; file scope
+  `git diff --name-only 99936ef8 993b14dc -- server/src/main`.
+- Source/test snapshot identifier (including uncommitted inputs): HEAD `993b14dc` plus modified
+  `PasskeyTotpReenrollmentTests.kt` sha256 `f93d444d9598bcb6ee88f13887cadb9789a0bbb26e994b0624cf778b74325fb9` (the
+  same before and after the run); no other source or test changes in the working tree.
+- Exact included files (under `server/src/main/kotlin/ch/sonensei/cockpit/`): `core/auth/domain/DeviceTokenService.kt`,
+  `core/auth/domain/LoginService.kt`, `core/auth/infra/SecurityConfiguration.kt`,
+  `core/auth/passkey/api/{PasskeyController,PasskeyDtos,PasskeyRelyingParties}.kt`,
+  `core/auth/passkey/domain/{Passkey,PasskeyCeremonies,PasskeyService}.kt`, `core/auth/passkey/infra/PasskeyRepository.kt`.
+  Excluded: `server/src/main/resources/db/migration/core/V202610221000__core_auth_passkey.sql` (SQL, not instrumented;
+  Flyway runs it in every Postgres passkey test); `server/build.gradle.kts` (build config, heap size only);
+  `api/openapi.yaml` and `web/src/app/api/generated/**` (generated); docs, tasks, reviews. No renames or deletions.
 - Provider/version, command, working directory, and test selection: JaCoCo via the Gradle `jacoco` plugin (project
-  configuration, unchanged); `./gradlew -I ../.tmp/ignore-failures.gradle clean test --tests 'ch.sonensei.cockpit.core.auth.*' jacocoTestReport`
-  in `server/`. The Git-ignored init script only sets `ignoreFailures = true` on Test tasks, so that
-  `jacocoTestReport` runs although tests fail. No project file was changed. Selection: all tests in
-  `ch.sonensei.cockpit.core.auth.*` (278 tests).
-- Run start/completion time and exit status: 2026-10-22T01:48:54+02:00 to 01:51:40+02:00. Gradle exit 0 because of
-  `ignoreFailures`, with 2 test failures (TW-1).
+  configuration, unchanged; tool version is the plugin default, not pinned in `build.gradle.kts`);
+  `./gradlew clean test --tests 'ch.sonensei.cockpit.core.auth.*' jacocoTestReport` in `server/`; 280 tests.
+- Run start/completion time and exit status: 2026-10-22T02:16:33+02:00 to 02:18:41+02:00, exit 0, 0 test failures.
 - Generated report paths and report hashes/run identifier: `server/build/reports/jacoco/test/jacocoTestReport.xml`
-  sha256 `4c64738be8945d2c84586e87ba5455eddb4d5aefbd5a51b39fcd7e83a8618bcd`; `server/build/jacoco/test.exec` sha256
-  `f492ba6f0c57b0d389d4d7d02c40c5abadefeca4b26168a66d66425d4ea83888`.
-- Evidence outputs are fresh and inputs stayed unchanged: yes. The run started with `clean`, so `build/` (including
-  old reports and exec data) was regenerated, and the input hashes were the same before and after.
-- Final run after latest test additions and production fixes: yes, after the latest test additions. No production
-  fix has been made yet. After the TW-1 fix, coverage must be measured again.
+  sha256 `27f11be0c29aff39f8d41ebee7f3731f54291a2bfad4367f2205944d0223618e`; `server/build/jacoco/test.exec` sha256
+  `45f7f17cb579bc8afc277a91b408016e08bea05fa97cdcef04d8ad924c04214f`.
+- Evidence outputs are fresh and inputs stayed unchanged: yes. `clean` removed the old `build/`, and the test-file
+  hash was the same before and after the run.
+- Final run after latest test additions and production fixes: yes (after the fix `cdf39218` and this run's 2 tests).
 
-Values below use covered/total (percentage); counters are JaCoCo's (INSTRUCTION as statements). Each file is in the
-report.
+Values below use covered/total (percentage); JaCoCo counters (INSTRUCTION as statements, METHOD as functions).
 
-| Changed file | Statements (instructions) | Branches | Functions (methods) | Lines |
+| Changed file | Statements | Branches | Functions | Lines |
 |---|---:|---:|---:|---:|
-| `core/auth/passkey/domain/PasskeyService.kt` | 1196/1228 (97.4%) | 79/88 (89.8%) | 49/50 (98.0%) | 177/177 (100.0%) |
+| `core/auth/passkey/domain/PasskeyService.kt` | 1198/1230 (97.4%) | 79/88 (89.8%) | 49/50 (98.0%) | 178/178 (100.0%) |
 | `core/auth/passkey/api/PasskeyController.kt` | 328/335 (97.9%) | 18/20 (90.0%) | 14/14 (100.0%) | 47/47 (100.0%) |
 | `core/auth/passkey/api/PasskeyDtos.kt` | 584/586 (99.7%) | 2/2 (100.0%) | 70/70 (100.0%) | 127/127 (100.0%) |
 | `core/auth/passkey/api/PasskeyRelyingParties.kt` | 188/197 (95.4%) | 21/22 (95.5%) | 3/3 (100.0%) | 28/28 (100.0%) |
 | `core/auth/passkey/domain/Passkey.kt` | 102/109 (93.6%) | 1/4 (25.0%) | 17/18 (94.4%) | 28/28 (100.0%) |
 | `core/auth/passkey/domain/PasskeyCeremonies.kt` | 265/269 (98.5%) | 12/14 (85.7%) | 26/26 (100.0%) | 38/38 (100.0%) |
-| `core/auth/passkey/infra/PasskeyRepository.kt` | N/A (interface, no bytecode instructions) | N/A | N/A | N/A |
+| `core/auth/passkey/infra/PasskeyRepository.kt` | N/A (interface, no bytecode) | N/A | N/A | N/A |
 | `core/auth/domain/LoginService.kt` | 723/729 (99.2%) | 60/60 (100.0%) | 46/48 (95.8%) | 105/105 (100.0%) |
 | `core/auth/domain/DeviceTokenService.kt` | 405/408 (99.3%) | 17/18 (94.4%) | 27/27 (100.0%) | 69/69 (100.0%) |
 | `core/auth/infra/SecurityConfiguration.kt` | 345/347 (99.4%) | 2/4 (50.0%) | 11/11 (100.0%) | 48/48 (100.0%) |
-| **Aggregate (summed counters, 9 measured files; PasskeyRepository N/A; SQL migration excluded)** | 4136/4208 (98.3%) | 212/232 (91.4%) | 263/267 (98.5%) | 667/667 (100.0%) |
+| **Aggregate (summed counters, 9 measured files; PasskeyRepository N/A; SQL migration excluded)** | 4138/4210 (98.3%) | 212/232 (91.4%) | 263/267 (98.5%) | 668/668 (100.0%) |
 
 `LoginService.kt`, `DeviceTokenService.kt` and `SecurityConfiguration.kt` are whole-file numbers: they include
 pre-existing code and hits from pre-existing auth tests.
 
 | File and uncovered lines/branch locations | Required behavior or risk | Action/test added or reason left uncovered |
 |---|---|---|
-| `PasskeyService.kt:244` (1/10 branches: account present but id differs from passkey owner) | Single-account system; the passkey FK always points to the one account | Not reachable with one account (the FK cascades on delete); inactive account is covered (`PasskeyEdgeCaseTests` setup-not-complete). Justified gap. |
-| `PasskeyService.kt:212` (1/4: Kotlin guard `Verified if ...` false-path variant) | Re-enroll check on token issue | Both outcomes covered (tests 5, 6 and the `PasskeyWebTests` token login); the remaining branch is compiler-generated. Justified. |
-| `PasskeyService.kt:125` (1/6), `142-143`, `252`, `265`, `293` | `checkNotNull` on webauthn4j results after successful verify, null-safe transport parsing, `findFirstBy()` null | Defensive null checks that webauthn4j's verification already guarantees. No meaningful test. Justified. |
-| `PasskeyService.kt:312` (static `ALGORITHMS` init) | Constant | Constant initialization only, nothing to test. |
+| `PasskeyService.kt:247` (1/10 branches: locked account present but its id differs from the passkey's owner) | Single-account system; the passkey FK always points to the one account | Not reachable with one account. The inactive-account and unknown-passkey branches are covered (see above). Justified gap. |
+| `PasskeyService.kt:212` (1/4: compiler-generated variant of the `Verified if` guard) | Re-enroll check on token issue | Both outcomes covered (`PasskeyTotpReenrollmentTests` tests 5, 6, token-login tests). Justified. |
+| `PasskeyService.kt:125, 142-143, 255, 268, 296, 315` | `checkNotNull` on webauthn4j results after verify, `findFirstBy()` null and owner-mismatch variants, transport parsing, static `ALGORITHMS` init | Defensive or constant code that webauthn4j / the single account already guarantees. Justified. |
 | `PasskeyController.kt:269` (2/4: principal not a `CockpitPrincipal`) | Defensive `IllegalStateException` | Every authenticated request carries a `CockpitPrincipal`. Justified. |
-| `PasskeyRelyingParties.kt:44` (1/2: origin without host) | `requireNotNull` on a parsed request origin | A servlet request always has a host. Justified. |
-| `Passkey.kt:25,53` (3/4 branches) | Kotlin JPA no-arg / nullable `createdAt` fallbacks | Generated or defensive code. Justified. |
-| `PasskeyCeremonies.kt:89-90` (1/2 each: `removeIf` predicate false path) | Purge of expired ceremonies | Expiry and eviction are covered in `PasskeyCeremoniesTests`; the missing branch is a not-yet-expired entry seen during a purge. Low risk. Justified. |
-| `SecurityConfiguration.kt:138` (2/4: request without a CSRF attribute) | Pre-existing CSRF cookie filter | Pre-existing code outside the task's change. |
-| `LoginService.kt:225-226` (`CredentialCheck.Verified` data-class methods), `DeviceTokenService.kt:124` (`createdAt` null fallback) | Generated or defensive code | Not task behavior. Justified. |
-| Concurrent account update before the passkey assertion's lock | Locking guarantee of `verifyAssertion` | Tests 7 and 8 added; they fail -> TW-1. |
+| `PasskeyRelyingParties.kt:44` (1/2: request origin without host) | `requireNotNull` | A servlet request always has a host. Justified. |
+| `PasskeyDtos.kt:191` (2 instructions) | Generated/default code | No behavior. Justified. |
+| `Passkey.kt:25, 53` (3/4 branches) | JPA no-arg / `uvInitialized ||` short-circuit variants | Generated or trivial. Justified. |
+| `PasskeyCeremonies.kt:89-90` (1/2 each: `removeIf` predicate false path) | Purge of expired ceremonies | Expiry and eviction covered in `PasskeyCeremoniesTests`. Low risk. Justified. |
+| `SecurityConfiguration.kt:138` (2/4), `LoginService.kt:225-226`, `DeviceTokenService.kt:124` | Pre-existing CSRF filter branch, data-class methods, `createdAt` null fallback | Pre-existing or generated code, not task behavior. Justified. |
 
 ## Unable to test
 
-- The OpenAPI regeneration path (`UPDATE_OPENAPI=1 ./gradlew test --tests '*OpenApiContractTest'`) was not re-run.
-  Only the contract test without the flag was run (pass). Follow-up: the parent worker records AC3 with its own run.
-- Full server suite: cannot finish because of the test-JVM `OutOfMemoryError` in `FilesWebTests` (also without this
-  run's tests). About 100 test classes never ran in `./gradlew check`. Follow-up: the parent worker decides. Options
-  are to check the base, or to hold the task if `.taskcheck` cannot pass.
-- Real browser or Android Credential Manager ceremonies: not run here. The software authenticator `TestAuthenticator`
-  produces the same JSON. No e2e criterion names this.
+- The new tests were not run against the pre-fix revision. Doing so needs a checkout or a production change, and this
+  helper may do neither. Their regression value is argued from the code above.
+- `OpenApiContractTest` and the `UPDATE_OPENAPI=1` regeneration were not rerun here (no production or API change in this
+  run). The parent records AC3 from its own run.
+- Real browser or Android Credential Manager ceremonies: not run here. `TestAuthenticator` produces the same JSON. No
+  e2e criterion names this.
 
 ## Summary
 
-Tests added; production defects were discovered and must be passed to the `fixer` before task completion.
-Defect TW-1 (Medium): `PasskeyService.verifyAssertion` join-fetches the account before it takes the row lock. A
-passkey login that waits for a concurrent re-enrollment confirm therefore fails with an optimistic-lock error (HTTP
-409) instead of continuing. In addition, `./gradlew check` (the server step of `.taskcheck`) currently fails with an
-`OutOfMemoryError` in `FilesWebTests`, also without this run's tests.
+Tests added and all validation passed. TW-1 is fixed: both regression tests pass. Two concurrency tests were added for
+the sign-counter side of the new lock order. No production defects found. The 280 auth tests pass, and task-scoped
+coverage is 98.3% instructions / 91.4% branches / 100% lines; the remaining gaps are justified.

@@ -4,21 +4,20 @@ Date: 2026-10-22
 
 Task: passkeys-server - Passkeys (WebAuthn) backend
 
-Scope: `git diff af1ceb6bf6a4015f5d143a817b1750c7056b17d8 da26f8db` (task code commits 3f6b7f4b and da26f8db; heartbeat/verify commits under `tasks/` ignored; generated `api/openapi.yaml` and `web/src/app/api/generated/` checked for consistency only). This report replaces the review of the 2026-10-20 revision.
+Scope: `git diff 99936ef802eab20a25c99700b72d6dfc6dee7c90 993b14dc77dfb64d3cdd39079dcb98dcf9c7336e` (base = merge-base with origin/main). Commits 149437b1 (implementation), 706267e8 (test-writer tests), cdf39218 (fix for CR-1/TW-1) and 993b14dc (server test heap). The generated `api/openapi.yaml` and `web/src/app/api/generated/` were checked for consistency only. Uncommitted test changes from the parallel test-writer were ignored. This report replaces the review of 3f6b7f4b + da26f8db.
 
 Requirements:
-- `tasks/passkeys-server.md` acceptance criteria and recorded assumptions, in particular the 2026-10-22 TOTP re-enrollment assumption
-- `SPEC.md` §4.1 (auth, passkeys), §4.2 (Problem Details, optimistic locking), §10.2 (restore, TOTP re-enrollment)
-- `docs/ARCHITECTURE.md`, `AGENTS.md` project notes, `docs/QUALITY.md`
-- Parent instructions: focus on WebAuthn security, re-enrollment handling, the `findFirstForUpdate` lock in `verifyAssertion`, Problem Details, secret logging, migration
+- `tasks/passkeys-server.md`: acceptance criteria and all recorded assumptions, including the 2026-10-22 TOTP re-enrollment assumption and the test-heap assumption
+- `SPEC.md` §4.1, §4.2 and §10.2; `docs/ARCHITECTURE.md`; the `AGENTS.md` project notes; `docs/QUALITY.md`
+- Parent instructions: confirm that CR-1 is resolved and that the fix introduces nothing new
 
 Git range:
 - Branch: main
-- HEAD: da26f8dbab45f6b38e09dd5fc79f77c15b63a3d6
-- Base/start: af1ceb6bf6a4015f5d143a817b1750c7056b17d8
-- Commits reviewed: 2 (3f6b7f4b implementation, da26f8db test-writer tests); no uncommitted changes
+- HEAD: 993b14dc77dfb64d3cdd39079dcb98dcf9c7336e
+- Base/start: 99936ef802eab20a25c99700b72d6dfc6dee7c90
+- Commits reviewed: 4 (149437b1, 706267e8, cdf39218, 993b14dc). There were no uncommitted changes when the review started.
 
-Summary: 0 P0, 1 P1, 0 P2, 0 P3
+Summary: 0 P0, 0 P1, 0 P2, 0 P3
 
 ## P0 Critical
 
@@ -26,12 +25,7 @@ None.
 
 ## P1 High
 
-- [ ] **CR-1 | Passkey login loads the account before taking the row lock: a concurrent confirm makes it fail with 409, and the package tests fail**
-    - File: `server/src/main/kotlin/ch/sonensei/cockpit/core/auth/passkey/domain/PasskeyService.kt:242-244` (with `server/src/main/kotlin/ch/sonensei/cockpit/core/auth/passkey/infra/PasskeyRepository.kt:11`)
-    - Category: Correctness
-    - Problem: `verifyAssertion` first calls `passkeys.findByCredentialId(...)`. That query is `join fetch p.user`, so it puts the `UserAccount` into the persistence context without a lock, at its current `version`. Only then does it call `users.findFirstForUpdate()`. Suppose a TOTP re-enrollment confirm (or any other committed update of `app_user`) commits between the two reads. The locked query then returns a newer version of an entity the persistence context already holds. Hibernate rejects that with a stale-state / optimistic-locking error instead of returning the fresh row. The `Passkey` row is also read before the lock, so two concurrent logins with the same passkey hit the same version conflict on `saveAndFlush(passkey)`. The code comment ("Locked like in LoginService.verify, so the grant cannot interleave with a TOTP re-enrollment confirm") and the 2026-10-22 assumption promise that a login waits for the confirm and then sees the cleared flag. `LoginService.verify` keeps that promise because it locks before reading anything. The passkey path does not. The test-writer's `PasskeyTotpReenrollmentTests` tests `a passkey token request that runs while a confirm is not committed yet waits, then gets a device with full access` and `a passkey web login that runs while a confirm is not committed yet waits, then gets a session with full access` encode the expected behavior. Both are committed in da26f8db and fail deterministically (`reviews/passkeys-server/tests.md`, finding TW-1: 67 tests, 65 passed, 2 failed). The password-path equivalent in `TotpEnrollmentWebTests` passes. I confirmed the ordering in the current code. The failure mode matches the JPA rule that a lock on an already-managed versioned entity triggers a version check.
-    - Why it matters: Acceptance criterion 2 (`./gradlew test --tests 'ch.sonensei.cockpit.core.auth.passkey.*'` passes) is not met at this revision. In use, a legitimate passkey login that races with a confirm or a concurrent passkey login fails. `ProblemDetailsAdvice` maps the error to a 409, which `/passkeys/login` and `/passkeys/token` do not document. The login also uses up its single-use ceremony and counts as a failed attempt in the shared `LoginThrottle`. The documented locking guarantee does not hold. It fails closed, so there is no access bypass.
-    - Suggested fix: Take the account lock before loading the passkey. Call `users.findFirstForUpdate()` first (as `LoginService.verify` does), then load the passkey, compare `passkey.user.id` with the locked account's id, and re-read or lock the passkey after the account lock so its `signCount`/`version` are current. Alternatively, drop `join fetch p.user` and compare the FK id without loading the user before the lock. Keep the two TW-1 tests as the regression tests, and re-run the whole package.
+None.
 
 ## P2 Medium
 
@@ -41,21 +35,45 @@ None.
 
 None.
 
-## Verified without findings
+## Verification of the previous finding
 
-- Challenges: 32 random bytes from `SecureRandom`, one per ceremony. `PasskeyCeremonies.finish` removes a ceremony before any check (single use, also on failure), checks expiry (5 min), and has separate bounded stores for registration and authentication. Registration ceremonies are bound to the starting owner's id. An authentication ceremony cannot be finished as a registration or the other way round (type check after `finish`).
-- Origin and RP ID: `ServerProperty` is built from the RP stored in the ceremony, not from the finishing request. The rpIdHash, origin and challenge are verified by webauthn4j. Defaults from `COCKPIT_DOMAIN` accept the request's own origin only when its host equals the domain. Explicit `COCKPIT_AUTH_PASSKEY_*` values take precedence. A spoofed `Host` header cannot make an authenticator sign for the real RP.
-- User verification and presence: required in `RegistrationParameters` and `AuthenticationParameters` (`true, true`), and requested as `required` in the options. Attestation is `none`, so the non-strict manager is appropriate (recorded assumption).
-- Sign counter: the stored value is passed in `CredentialRecordImpl`. webauthn4j's default handler rejects a non-increasing counter (covered by `a sign count that does not increase is rejected`). The new counter and the UV/BS flags are persisted on success.
-- User handle: when present, it must equal the owner's 16-byte id handle. The passkey must belong to the active account.
-- Re-enrollment: `startRegistration` ignores the TOTP secret while `totpReenrollRequired` is set, and `fullAccess` returns 403 for re-enroll-only sessions. A passkey web login gets a re-enroll-only session because the role is derived per request from the account flag. `issueToken` returns 403 Problem `TotpEnrollmentRequired` without creating a device. Restore truncates all tables (`RestoreService.wipeDatabase`), so `auth_passkey` does not survive a restore, which matches the "users re-register" assumption.
-- Throttle: registration TOTP checks and both assertion endpoints share `LoginThrottle`. Success is recorded only after the grant is written.
-- Problem Details: controller rejections use `application/problem+json` (401/403/429 with `Retry-After`). Validation and domain exceptions go through the shared advice.
-- Logging: only passkey ids, exception class names and fixed reasons, all at INFO. No TOTP codes, challenges, credentials, tokens or user handles are logged. The request DTO with the TOTP code hides it in `toString`.
-- Migration: new file `core/V202610221000__core_auth_passkey.sql`, named per the convention, with no version collision in `core/`. It declares the `BaseEntity` columns, a unique index on `credential_id`, and an FK to `app_user` with cascade. No applied migration was edited.
-- CSRF and permits: only the passkey authentication options, login and token endpoints are public. The web login still needs the CSRF header. Options and token are exempt, matching the password token endpoint.
-- Generated files: the passkey paths, the 403 on `/passkeys/token` and the schemas in `api/openapi.yaml` match the controller and DTOs. `web/src/app/api/generated/` has the matching functions and models.
+- **CR-1 (resolved).** The issue was that passkey login loaded the account before taking the row lock.
+    - `git range-diff af1ceb6b..da26f8db 99936ef8..706267e8` shows that 149437b1 and 706267e8 are identical to the previously reviewed 3f6b7f4b and da26f8db. The earlier review still applies to those two commits. The only new code is cdf39218 and 993b14dc.
+    - In `PasskeyService.verifyAssertion` (`server/src/main/kotlin/ch/sonensei/cockpit/core/auth/passkey/domain/PasskeyService.kt:245-247`), `users.findFirstForUpdate()` now runs before `passkeys.findByCredentialId(...)`. This lock is a `PESSIMISTIC_WRITE` on `select u from UserAccount u` (`UserAccountRepository.kt:19-21`).
+    - As a result, the `join fetch p.user` in the passkey query resolves to the account that is already managed and locked, so the version check that caused the 409 no longer happens. The `Passkey` row (sign counter, version) is now read after the lock. This also serializes concurrent logins with the same passkey, so `saveAndFlush(passkey)` no longer hits a stale version.
+    - This is the same order as `LoginService.verify` (`LoginService.kt:97`) and `TotpEnrollmentService` (`TotpEnrollmentService.kt:77`), which take the same lock.
+- **Regression coverage.** The two TW-1 tests in `PasskeyTotpReenrollmentTests` cover the fix:
+    - "a passkey token request that runs while a confirm is not committed yet waits..."
+    - "a passkey web login that runs while a confirm is not committed yet waits..."
+
+  Both run real concurrent transactions against Postgres: a `TransactionTemplate` holds the confirm's row lock, and `CountDownLatch` controls when it is released. `reviews/passkeys-server/fixes.md` records `./gradlew test --tests 'ch.sonensei.cockpit.core.auth.passkey.*' --tests 'ch.sonensei.cockpit.core.auth.*'` with 278 tests and 0 failures, including `PasskeyTotpReenrollmentTests` 9/9. I did not re-run the tests in this review (read-only inspection).
+- **Nothing new introduced by the fix.**
+    - Throttle admission, single-use ceremony consumption, the order of parsing before lookup, the uniform `InvalidCredentials` result and the log reasons are unchanged.
+    - The active, owner-id and user-handle checks still run against the locked account.
+    - Requests for an unknown passkey now hold the account lock briefly before they are rejected. This matches the password login, which locks on every attempt, and both are bounded by the shared `LoginThrottle`.
+    - The updated comment describes the code accurately.
+
+## Heap change (993b14dc)
+
+- `server/build.gradle.kts:102-104` raises the test JVM `maxHeapSize` from 1g to 2g and explains why in a comment.
+- The change is recorded as an assumption in the task, because it falls outside the task's `touches`. No document or CI file names the old 1g value, so no documentation is now stale.
+- The `.taskcheck` duration above the 2-minute target is recorded in the assumption and assigned to `ci-split-check`. It is not a defect of this task.
+
+## Verified without findings (carried over, code unchanged since the previous review)
+
+- Challenges, ceremonies and relying party:
+    - Each ceremony gets 32 random bytes from `SecureRandom`, is single use and expires after 5 minutes.
+    - Registration and authentication ceremonies are kept in separate bounded stores, and a registration ceremony is bound to its owner.
+    - The RP ID and origin come from the stored ceremony, not from the finishing request. The defaults derived from `COCKPIT_DOMAIN` behave as recorded in the assumptions.
+- WebAuthn verification:
+    - User verification and user presence are required, and attestation is `none`.
+    - The sign counter is checked and persisted. The user handle must match the owner.
+- Re-enrollment: registration is refused while TOTP re-enrollment is required. A passkey web login gets a session that may only enroll TOTP again, and a passkey device token request gets 403 `TotpEnrollmentRequired`. A restore wipes `auth_passkey`.
+- Errors and logging: errors are Problem Details. Nothing secret is logged: no TOTP codes, challenges, credentials, tokens or user handles.
+- Migration: `core/V202610221000__core_auth_passkey.sql` is new, follows the naming convention and does not collide with another version. No applied migration was edited.
+- CSRF and permits: only the authentication-options, login and token endpoints are public. The web login still needs the CSRF header.
+- Generated files: `api/openapi.yaml` and the generated web client match the controller and DTOs.
 
 ## Review conclusion
 
-Material issues found; fix before completing the task.
+No material issues found.
