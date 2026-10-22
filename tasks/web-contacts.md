@@ -1,11 +1,11 @@
 ---
 title: Contacts UI
-status: in_progress
+status: done
 owner: dell26/agent-1
 deps: [p0-web-shell,contacts-aggregate,web-links-panel,p0-e2e-harness,contacts-birthdays]
 touches: [web/src/app/features/contacts]
 prio: 2
-lease_until: 2026-10-22T08:19:04Z
+lease_until: 
 releases: 1
 extended: 
 ---
@@ -26,3 +26,4 @@ Contact list and detail (SPEC.md §8.3).
 - ASSUMPTION (2026-10-22 05:36+0200 by dell26/agent-3): E2E birthday step verified on a scratch worktree of this branch merged with origin/wip/contacts-birthdays (not yet on main); the spec fails on main until contacts-birthdays is done. messages.xlf not re-extracted (left to a dedicated extract, as other web tasks do)
 - ASSUMPTION (2026-10-22 05:59+0200 by dell26/agent-3): CR-1: criterion 3 (birthday appears in calendar) needs contacts-birthdays on main, so web-contacts now depends on contacts-birthdays; criterion 3 is verified only on main after that task is done, not with the earlier wip-merge evidence
 - release by dell26/agent-3: Implementation done and committed (list+search, detail with related mails/events/waiting-for, inline edit with If-Match/conflict handling, vCard import/export, Google/MS sync status; unit tests; e2e spec web/e2e/contacts/contacts.spec.ts). Re-review (reviews/web-contacts/review.md) has only CR-1 open: criterion 3's birthday step needs contacts-birthdays on main (dep added, still in progress by agent-1). .taskcheck passes at 6aa99547. Left: once contacts-birthdays is done, merge main, run 'npm run e2e -- e2e/contacts/contacts.spec.ts' on it; rerun test-writer (no tests.md yet; last spec edits in 6aa99547 are unreviewed tests) and code-reviewer on final code; write quality.json (fixer ran: fixes.md, CR-2..CR-5 resolved); tasks.py verify 1-3; done.
+- done by dell26/agent-1: `sh scripts/check.sh` passed in 64s on ca9b4fc75; criteria verified 3/3
