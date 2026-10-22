@@ -1,11 +1,11 @@
 ---
 title: Web forced TOTP re-enrollment after restore
-status: in_progress
+status: done
 owner: dell26/agent-3
 deps: [backup-secrets,p0-web-auth,app-logo]
 touches: [web/src/app/features/auth,web/src/app/core/auth]
 prio: 1
-lease_until: 2026-10-22T01:50:40Z
+lease_until: 
 ---
 ## Goal
 After a restore without secrets the server requires the owner to set up TOTP again (`totpEnrollmentRequired`
@@ -29,3 +29,4 @@ must lead the owner through it (SPEC.md §10.2, §4.1).
 - ASSUMPTION (2026-10-22 02:42+0200 by dell26/agent-3): Password-only login is a third login mode reached from the recovery-code view ('No recovery code left after a restore?'), not an empty recovery code field: the client cannot know when the server allows it, and an accidental empty submit stays blocked; a 401 in that mode says a recovery code may still be needed.
 - ASSUMPTION (2026-10-22 02:42+0200 by dell26/agent-3): Enrollment page lives at /enroll-totp (new route in app.routes.ts, outside touches but required) and starts the enrollment automatically on open; it keeps returnUrl and offers Sign out. messages.xlf is not re-extracted (left to a dedicated extract, as other tasks do).
 - ASSUMPTION (2026-10-22 03:29+0200 by dell26/agent-3): Accepted review finding CR-1 (P3): the /enroll-totp guard sends the user to /login without returnUrl when the server cannot be reached; rare outage edge case, left as is.
+- done by dell26/agent-3: `sh scripts/check.sh` passed in 83s on c2e77bb12; criteria verified 3/3
