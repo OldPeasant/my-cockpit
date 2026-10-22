@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="contacts_search">Search contacts</string>
+    <string name="contacts_clear_search">Clear search</string>
+    <string name="contacts_empty">No contacts yet. Add them on the web or import a vCard there.</string>
+    <string name="contacts_empty_search">No contacts match \"%1$s\".</string>
+    <string name="contacts_offline">Can\'t reach the server. Showing the last loaded contacts.</string>
+    <string name="contacts_failed">The contacts could not be loaded.</string>
+    <string name="contacts_retry">Retry</string>
+    <string name="contacts_back">Back to contacts</string>
+    <string name="contacts_call">Call</string>
+    <string name="contacts_email">Email</string>
+    <string name="contacts_call_number">Call %1$s</string>
+    <string name="contacts_email_address">Email %1$s</string>
+    <string name="contacts_no_app">No app on this phone can handle this.</string>
+    <string name="contacts_phones">Phone</string>
+    <string name="contacts_emails">Email</string>
+    <string name="contacts_addresses">Address</string>
+    <string name="contacts_birthday">Birthday</string>
+    <string name="contacts_notes">Notes</string>
+    <string name="contacts_waiting_for">Waiting for</string>
+    <string name="contacts_waiting_since">Since %1$s</string>
+    <string name="contacts_mails">Recent mail</string>
+    <string name="contacts_mail_from">From them, %1$s</string>
+    <string name="contacts_mail_to">To them, %1$s</string>
+    <string name="contacts_no_subject">(no subject)</string>
+    <string name="contacts_events">Upcoming events</string>
+    <string name="contacts_links">Linked items</string>
+    <string name="contacts_link_deleted">Deleted</string>
+    <string name="contacts_untitled">Untitled</string>
+    <string name="contacts_nothing_related">No open Waiting For items, mail, events or links with this contact.</string>
+    <string name="contacts_related_offline">Can\'t reach the server. Mail, events and Waiting For items are not shown.</string>
+    <string name="contacts_related_failed">Mail, events and Waiting For items could not be loaded.</string>
+    <string name="contacts_not_loaded">This contact could not be loaded.</string>
+</resources>
