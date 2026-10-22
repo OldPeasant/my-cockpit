@@ -4,52 +4,54 @@ Date: 2026-10-22
 
 Task: web-mail-compose - Mail compose, reply, forward
 
-Scope: second round. Final code of the task range `3f042d8b6159be030e20ee9566780e2affe3e108..dd03a60d7`, limited to `web/src` and `web/e2e/mail-compose/compose.spec.ts`. The focus is the fix commit dd03a60d7 (CR-1..CR-5): the queued `changeSender`/`followSender`, `draftAccountId`, replacing the URL through `router.navigate(..., replaceUrl)` (`showInUrl`), the Send button's `type`, and the Files picker note. Only committed code was reviewed. A test-writer's uncommitted edits to `mail-compose-page.spec.ts` were in the working tree and were ignored.
+Scope: third (final) round. Final code of the task range `3f042d8b6159be030e20ee9566780e2affe3e108..e6e15c374bac7b30ce159da63f89abc13b5f7449`, limited to `web/src` and `web/e2e/mail-compose/compose.spec.ts`. The previous round reviewed the code at dd03a60d7. This round reviews the only code change since then: the test-only diff `git diff dd03a60d7 e6e15c374 -- web`, which adds four tests to `web/src/app/features/mail/compose/mail-compose-page.spec.ts`. Only committed code was reviewed. The working tree was clean.
 
-Reviewed revision: dd03a60d7
+Reviewed revision: e6e15c374bac7b30ce159da63f89abc13b5f7449
 
 Requirements:
-- tasks/web-mail-compose.md (acceptance criteria and the five recorded assumptions)
+- tasks/web-mail-compose.md (acceptance criteria and recorded assumptions)
 - SPEC.md §7.3/§7.4, §4.2 (ETag/If-Match)
 - docs/ARCHITECTURE.md, AGENTS.md project notes
-- First review round: reviews/web-mail-compose/review.md at 3be16cce4; fixer report reviews/web-mail-compose/fixes.md
+- Earlier rounds: reviews/web-mail-compose/review.md at 3be16cce4 (round 1) and 5c364a9ee (round 2, code at dd03a60d7); fixer report reviews/web-mail-compose/fixes.md
 
 Git range:
 - Branch: main
-- HEAD: dd03a60d7
-- Base/start: 3f042d8b6159be030e20ee9566780e2affe3e108
-- Commits reviewed: 5 (06b177538, 8df2c8a51, 3be16cce4, 27c4e17c6, dd03a60d7). 3be16cce4 holds only the review report. Code review in this round focused on dd03a60d7.
+- HEAD: e6e15c374bac7b30ce159da63f89abc13b5f7449
+- Base/start: 3f042d8b6159be030e20ee9566780e2affe3e108 (task base); dd03a60d7 for this round's delta
+- Commits reviewed: 2 since the previous round (5c364a9ee, which holds only the round-2 review report, and e6e15c374). e6e15c374 changes `web/src/app/features/mail/compose/mail-compose-page.spec.ts` (+101 lines), `reviews/web-mail-compose/tests.md`, and the task files `tasks/web-mail-compose.md` and `tasks/and-mail-compose.md`.
 
-Summary: 0 P0, 0 P1, 0 P2, 1 P3
+Summary: 0 P0, 0 P1, 0 P2, 2 P3
+
+## Production code unchanged since dd03a60d7
+
+`git diff --stat dd03a60d7 HEAD -- web api server android scripts` lists only `web/src/app/features/mail/compose/mail-compose-page.spec.ts`. No production code, generated API, build file or e2e spec changed. The findings and analysis of the round-2 review therefore still apply to the production code.
+
+## Review of the new tests (e6e15c374)
+
+The new `describe('sender change queued behind other writes')` block (spec lines 927-1026) has four tests. I traced each one against `followSender` (mail-compose-page.ts:388-410), `changeSender` (:188-195), `send` (:230-255) and `ownSent` (:467-469), using the fake service in the spec:
+
+- **"puts From back when the draft got an attachment before the queued move ran".** The upload is held at a gate while `changeSender(OTHER_ACCOUNT)` is called. Once the upload finishes, the queued `followSender` reaches the `!canChangeSender()` branch and calls `back()`. The test asserts that there are no creates, discards or errors, that `accountId` is ACCOUNT again, and that the rendered `mat-select` shows the old address. If the `canChangeSender` guard were removed, the draft would be recreated and the test would fail. The test is correct. See CR-7 for its comment.
+- **"keeps a sender picked while an earlier move was failing and moves the draft there".** The first move's `create` waits on a gate and then rejects. The second `changeSender(THIRD)` runs while the first move is in flight. The test checks that `back()` keeps THIRD (its `accountId() === target` guard), that the error is reported once, and that the second queued move recreates the draft in THIRD and discards the old copy (`DRAFT`, `"1"`). If `back()` reset the sender without that guard, the test would fail. The test is correct.
+- **"after a failed move, Send treats the mail as sent from the account holding the draft".** With an IMAP draft account and a Google target, the move fails, so Send uses `(DRAFT, "1")` and reports the missing Sent copy. Without `back()`, `ownSent()` would read the Google account and show "Message sent". The test checks this path, which the round-2 review traced only by hand.
+- **"sends a moved draft from its new account".** A successful move to a Google account. Send uses the new etag `"2"`, and no Sent-copy warning appears. The create body carries the content (`to`) and the new `accountId`. The test is correct.
+
+Conventions: the tests use the spec's existing helpers (`open`, `call`, `settle`, `deferred`, `fileInput`, `account`, `draft`) and fictitious `.test` addresses. `toHaveBeenCalledExactlyOnceWith` is used across the web suite. The tests assert observable behaviour: service calls, notifications, the selected sender and the rendered select. `npx eslint` and `npx prettier --check` on the spec pass.
+
+Fake limitation: the fake `create` returns the same draft id (`DRAFT`), so the tests that involve a move tell the old and new copies apart only by etag and account. That is enough for what these tests claim. Recording it here so nobody treats it as id coverage.
 
 ## Status of earlier findings
 
-- **CR-1 (P1, sender change outside the write queue): Resolved.** `changeSender` (mail-compose-page.ts:188-195) now only sets the picked account. It marks an unstored draft as edited and queues `followSender()` (:388-410), which decides when it runs. I traced these cases:
-  - **Change during an in-flight first create.** The create stores the draft in the old account, so `draftAccountId` is the old one. `followSender` then sees `target !== draftAccountId`, recreates the draft in the new account with the content and revision captured before the await, and discards the old copy.
-  - **Change and change back before the move runs.** `target === draftAccountId`, so nothing moves.
-  - **Several changes.** The first queued move uses the latest selection, and later moves find nothing to do.
-  - **Failed create.** `back()` resets From to `draftAccountId` only if the user did not pick yet another account. The error goes to `notifications.error` through the `.catch` in `changeSender`, so the rejection is no longer unhandled. Later updates and Send use the old draft.
-  - **Wrong account type for the Sent copy.** `ownSent()` now reads the right account: the select is disabled while busy (html:74), and `accountId` equals `draftAccountId` whenever a move is not pending.
-  - **Identity.** The identity is cleared on a move (`identityId: undefined`), so the new account uses its default.
-  - Tests cover the race, the failed move (the error is reported once, From shows the old account, update and Send go to the old draft), the change-back case and the identity.
-- **CR-2 (P2, Enter in Subject sends): Resolved.**
-  - Send is `type="button"` with `(click)="send()"` (html:163-171).
-  - The form has `novalidate`, and its `(submit)` only calls `preventDefault()` (html:67).
-  - Every other button in the form is `type="button"`: Cc/Bcc, Remove, Attach file, From Files and Discard, plus the rich-text toolbar buttons. Material's `matChipRemove` sets `type="button"` itself (`chips.mjs:57`). So no button can act as the implicit default button.
-  - A test checks that the form has no submit button, that a submit event is prevented without sending, and that clicking Send sends.
-  - The Playwright spec clicks Send by role and name (compose.spec.ts:84), so the change does not affect it.
-- **CR-3 (P2, URL not updated for new or moved drafts): Resolved.** `apply()` calls `showInUrl()` (:337, :351-359). It replaces the query with `?draft=<id>` whenever the stored draft differs from `urlDraftId`: on the first create, after a move, and when a reply/forward starts. It does nothing after `finished`, or after `left` (set on destroy). The compose route has a single route config (mail.routes.ts:21-25), so the default reuse strategy keeps the component, and `open()` reads the query only once. Tests cover a new draft (navigates once), an opened draft (no navigation), a moved draft, and a save on leaving the page (no navigation). See CR-6 for a timing gap in the `left` guard.
-- **CR-4 (P2, missing tests): Resolved.** The test-writer's commit 27c4e17c6 tests edits made during an in-flight save. The fix commit adds tests for the failed move, the change during the first save, and the change back. See the CR-1 to CR-3 notes above.
-- **CR-5 (P3, Files picker hides entries beyond 200): Resolved (as a note).** `files()` returns `{ entries, more: !!nextCursor }` with `FILES_LIMIT = 200` (mail-compose.service.ts:126-133). The dialog shows "Only the first 200 entries of this folder are shown." (`@@mailCompose.pickMore`, file-picker-dialog.ts:50-54). The note is set only by the latest load (`seq` check). Service and dialog tests cover it. There is still no paging; the finding offered a note as the minimum fix, so this is acceptable.
+- **CR-1 (P1, sender change outside the write queue): Resolved** in dd03a60d7 (see the round-2 analysis). The new tests add coverage for a move skipped because the draft has an attachment, a sender picked while a move is failing, and the Sent-copy account after a failed and after a successful move.
+- **CR-2 (P2, Enter in Subject sends): Resolved** in dd03a60d7. No change in this round.
+- **CR-3 (P2, URL not updated for new or moved drafts): Resolved** in dd03a60d7. No change in this round. The timing gap described in CR-6 remains.
+- **CR-4 (P2, missing tests): Resolved.** The coverage is stronger with e6e15c374.
+- **CR-5 (P3, Files picker hides entries beyond 200): Resolved (as a note)** in dd03a60d7. There is still no paging, which is acceptable as stated in round 2.
+- **CR-6 (P3, a save finishing while leaving can cancel the user's navigation): Open.** Production code is unchanged, so the finding still applies. Details below.
 
 Validation run in this review:
-- `cd web && npx ng test --watch=false --include 'src/app/features/mail/**/*.spec.ts'`:
-  - The first run reported 2 failed and 394 passed.
-  - A run a few minutes later reported 396 passed.
-  - Both runs included the test-writer's concurrent, uncommitted edits to `mail-compose-page.spec.ts`. The failing assertion was at line 1017-1019, beyond the committed spec, and it was gone in the second run.
-  - For the committed spec at dd03a60d7, the fixer reported 18 files and 392 passed. I could not isolate the committed spec, because stashing is outside this review's permissions.
-- `cd web && npx ng lint` -> all files pass linting.
-- Playwright was not run, as instructed. Criterion #3 still needs that run as evidence before `done`.
+- `cd web && npx ng test --watch=false --include 'src/app/features/mail/**/*.spec.ts'` at e6e15c374 (clean working tree) -> 18 files, 396 passed. That is the 392 reported for dd03a60d7 plus the 4 new tests.
+- `cd web && npx eslint src/app/features/mail/compose/mail-compose-page.spec.ts` -> no problems. `npx prettier --check` on the same file -> passes.
+- Playwright and Gradle were not run, as instructed. Criterion #3 still needs the Playwright run against the e2e stack as evidence before `done`.
 
 ## P0 Critical
 
@@ -65,13 +67,20 @@ None.
 
 ## P3 Low
 
-- [ ] **CR-6 | A save that finishes while the user is leaving the page can cancel the user's navigation**
+- [ ] **CR-6 | A save that finishes while the user is leaving the page can cancel the user's navigation** (open, carried over from round 2)
     - File: `web/src/app/features/mail/compose/mail-compose-page.ts:139`, `:351-359`
     - Category: Correctness
-    - Problem: `left` is set only in the `DestroyRef` callback, which runs once the new route has been activated. Suppose the user starts a navigation away (the "Mail" back link, browser Back, the app menu) while a first create or a sender move is in flight. If that write finishes before the new route activates, `apply()` → `showInUrl()` calls `router.navigate([], { relativeTo, queryParams: { draft }, replaceUrl: true })`. The Angular router cancels the earlier navigation in favour of this newer one, so the user stays on the compose page. With browser Back, the replaced URL can also overwrite the history entry. The window includes loading the lazy `mail-list-page` chunk (`loadComponent`, mail.routes.ts:19), for example after the compose page was reloaded. Before the fix, this could only happen right after `respond()` on open. Now it can happen on any first autosave and on every move.
+    - Problem: `left` is set only in the `DestroyRef` callback, which runs once the new route has been activated. Suppose the user starts a navigation away (the "Mail" back link, browser Back, the app menu) while a first create or a sender move is in flight. If that write finishes before the new route activates, `apply()` calls `showInUrl()`, which calls `router.navigate([], { relativeTo, queryParams: { draft }, replaceUrl: true })`. The Angular router cancels the earlier navigation in favour of this newer one, so the user stays on the compose page. With browser Back, the replaced URL can also overwrite the history entry. The window includes loading the lazy `mail-list-page` chunk (mail.routes.ts:19).
     - Why it matters: Once in a while a Back click does nothing, or browser Back ends up on the compose URL again. Nothing is lost, because the draft is saved, but the navigation looks broken.
     - Suggested fix: Skip `showInUrl` while another navigation is in progress (`router.currentNavigation()` / `getCurrentNavigation()` is non-null and is not one this page started), or set `left` on `NavigationStart` for a URL outside this route. Add a test in which a navigation is in progress when the create resolves.
 
+- [ ] **CR-7 | A new test's comment describes a user action the UI does not allow** (new, test code only)
+    - File: `web/src/app/features/mail/compose/mail-compose-page.spec.ts:943`
+    - Category: Tests
+    - Problem: The first new test calls `changeSender` while an upload holds `busy = 'attach'`, and its comment reads "Picked while the upload is on its way". In the template, the From select is `[disabled]="!canChangeSender() || !!busy()"` (mail-compose-page.html:74), so a user cannot pick a sender during an upload. Other orders are also safe: a sender picked before an attachment is added queues its move ahead of the attachment write. So the `!canChangeSender()` branch in `followSender` (mail-compose-page.ts:394-397) is a defensive guard that no UI path reaches today. The test is valid as a test of that guard, but the comment presents it as a real user flow.
+    - Why it matters: A later maintainer may think the select is meant to stay usable during uploads, or may remove the disabled binding on the assumption that this test covers it.
+    - Suggested fix: Reword the comment, for example "The select is disabled while busy; this drives the guard in followSender directly". No production change is needed.
+
 ## Review conclusion
 
-No material issues found. All five earlier findings (CR-1 to CR-5) are resolved in dd03a60d7, and the only new finding is CR-6 (P3). The parent worker still has to record evidence for acceptance criteria #1 to #3, including the Playwright run against the e2e stack for #3.
+No material issues found. CR-1 to CR-5 remain resolved at e6e15c374bac7b30ce159da63f89abc13b5f7449, whose production code is identical to dd03a60d7. The four new tests are correct, test what their titles claim, and pass (396 passed). The open findings are CR-6 (P3, carried over) and CR-7 (P3, wording of a test comment only). The parent worker still has to record evidence for acceptance criteria #1 to #3, including the Playwright run against the e2e stack for #3.
