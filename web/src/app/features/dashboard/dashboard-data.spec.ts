@@ -258,7 +258,24 @@ describe('DashboardData', () => {
 
       expect(data.state('inbox')).toEqual({
         status: 'ready',
-        value: { tasks: { count: 0, more: false }, unreadMail: { count: 0, more: true } },
+        value: { tasks: { count: 0, more: false }, unreadMail: { count: 0, more: false } },
+      });
+    });
+
+    it('flags the unread mail count as cut only when the cut page has unread mail', async () => {
+      let items = [{ seen: true }, { seen: true }];
+      handlers.set(listMailMessages, () => Promise.resolve({ items, nextCursor: 'more' }));
+
+      data.show(['inbox']);
+      await flush();
+      expect(data.state('inbox')).toMatchObject({
+        value: { unreadMail: { count: 0, more: false } },
+      });
+
+      items = [{ seen: false }, { seen: true }];
+      await data.load('inbox');
+      expect(data.state('inbox')).toMatchObject({
+        value: { unreadMail: { count: 1, more: true } },
       });
     });
 
@@ -467,7 +484,6 @@ describe('DashboardData', () => {
       await showReady(['readLater']);
 
       change('NOTE');
-      change('WEEKLY_REVIEW');
       change('CONTACT');
       await vi.advanceTimersByTimeAsync(300);
 
@@ -490,7 +506,7 @@ describe('DashboardData', () => {
       ['inbox', 'MAIL_FOLDER', listMailMessages],
       ['upcoming', 'CALENDAR', listEventOccurrences],
       ['waitingOverdue', 'TASK', listTasks],
-      ['weeklyReview', 'WEEKLY_REVIEW', getWeeklyReviewStatus],
+      ['pinnedNotes', 'NOTE', listNotes],
       ['readLater', 'BOOKMARK', listBookmarks],
     ] as [WidgetId, string, unknown][])('reloads %s after a %s change', async (id, type, fn) => {
       await showReady([id]);
@@ -499,6 +515,52 @@ describe('DashboardData', () => {
       await vi.advanceTimersByTimeAsync(300);
 
       expect(callsOf(fn).length).toBeGreaterThan(0);
+    });
+
+    it('does not reload the weekly review on change events (the server sends none)', async () => {
+      await showReady(['weeklyReview']);
+
+      for (const type of ['WEEKLY_REVIEW', 'TASK', 'PROJECT', 'EVENT']) change(type);
+      await vi.advanceTimersByTimeAsync(300);
+
+      expect(invoke).not.toHaveBeenCalled();
+    });
+
+    it('reloads a loaded widget quietly when it is shown again after being hidden', async () => {
+      handlers.set(listNotes, () => Promise.resolve({ items: [note('n1')] }));
+      await showReady(['readLater', 'pinnedNotes']);
+      data.show(['readLater']);
+      const reload = deferred<unknown>();
+      handlers.set(listNotes, () => reload.promise);
+
+      data.show(['pinnedNotes', 'readLater']);
+      expect(invoke.mock.calls.map(([fn]) => fn)).toEqual([listNotes]);
+      expect(data.state('pinnedNotes')).toMatchObject({
+        status: 'ready',
+        value: { items: [{ id: 'n1' }] },
+      });
+      reload.resolve({ items: [note('n2')] });
+      await flush();
+
+      expect(data.state('pinnedNotes')).toMatchObject({
+        status: 'ready',
+        value: { items: [{ id: 'n2' }] },
+      });
+    });
+
+    it('does not request a widget again while its first load is running', async () => {
+      const notes = deferred<unknown>();
+      handlers.set(listNotes, () => notes.promise);
+
+      data.show(['pinnedNotes']);
+      data.show(['readLater', 'pinnedNotes']);
+      data.show(['readLater']);
+      data.show(['pinnedNotes']);
+      notes.resolve({ items: [] });
+      await flush();
+
+      expect(callsOf(listNotes)).toHaveLength(1);
+      expect(data.state('pinnedNotes').status).toBe('ready');
     });
 
     it('reloads every shown widget, and only those, after a resync', async () => {

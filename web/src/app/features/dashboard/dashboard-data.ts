@@ -70,14 +70,18 @@ export type WidgetState<T> =
   | { readonly status: 'error' }
   | { readonly status: 'ready'; readonly value: T };
 
-/** The change event types (`ChangeEvent.type`) after which a widget loads again. */
+/**
+ * The change event types (`ChangeEvent.type`) after which a widget loads again. The server sends no
+ * change event for weekly reviews, so the Last weekly review widget loads again only when the page
+ * opens, when it is shown again and after an SSE resync.
+ */
 const SOURCES: Record<WidgetId, readonly string[]> = {
   today: ['TASK', 'EVENT', 'HABIT'],
   inbox: ['TASK', 'MAIL_FOLDER'],
   upcoming: ['EVENT', 'CALENDAR'],
   waitingOverdue: ['TASK'],
   stalledProjects: ['PROJECT', 'TASK'],
-  weeklyReview: ['WEEKLY_REVIEW'],
+  weeklyReview: [],
   readLater: ['BOOKMARK'],
   pinnedNotes: ['NOTE'],
 };
@@ -114,11 +118,21 @@ export class DashboardData {
     return this.signal(id)() as WidgetState<WidgetData[K]>;
   }
 
-  /** Sets the shown widgets; those not loaded yet (or failed) load now. */
+  /**
+   * Sets the shown widgets. Those not loaded yet (or failed) load now; a loaded widget shown again
+   * after being hidden loads again quietly (it may have missed change events while hidden); a
+   * widget whose first load is still running is left alone.
+   */
   show(ids: readonly WidgetId[]): void {
+    const before = this.shown;
     this.shown = new Set(ids);
     for (const id of ids) {
-      if (this.signal(id)().status !== 'ready') void this.load(id);
+      const status = this.signal(id)().status;
+      if (status === 'ready') {
+        if (!before.has(id)) void this.load(id, true);
+      } else if (status === 'error' || !this.seq.has(id)) {
+        void this.load(id);
+      }
     }
   }
 
@@ -205,11 +219,13 @@ export class DashboardData {
       this.api.invoke(listTasks, { list: 'INBOX', limit: PAGE }, silent()),
       this.api.invoke(listMailMessages, { limit: PAGE }, silent()),
     ]);
+    const unread = (mail.items ?? []).filter((message) => !message.seen).length;
     return {
       tasks: { count: tasks.items.length, more: !!tasks.nextCursor },
       unreadMail: {
-        count: (mail.items ?? []).filter((message) => !message.seen).length,
-        more: !!mail.nextCursor,
+        count: unread,
+        // Only a page with unread mail may have cut some off: never "0+".
+        more: unread > 0 && !!mail.nextCursor,
       },
     };
   }

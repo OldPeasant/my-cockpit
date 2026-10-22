@@ -283,7 +283,7 @@
                   <p class="note" i18n="@@dashboard.reviewNever">No weekly review done yet.</p>
                 } @else {
                   <a class="readout" routerLink="/review">
-                    <span class="figure" [class.alert]="days > reviewDueDays">
+                    <span class="figure" [class.alert]="days >= reviewDueDays">
                       @if (days === 0) {
                         <ng-container i18n="@@dashboard.reviewToday">Today</ng-container>
                       } @else {

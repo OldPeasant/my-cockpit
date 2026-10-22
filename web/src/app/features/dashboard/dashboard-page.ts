@@ -11,7 +11,6 @@ import {
 import { MatButtonModule } from '@angular/material/button';
 import { MatCheckboxModule } from '@angular/material/checkbox';
 import { RouterLink } from '@angular/router';
-import { OccurrenceResponse } from '../../api/generated';
 import { localDate } from '../gtd/data';
 import { Count, DashboardData, UPCOMING_DAYS } from './dashboard-data';
 import { DashboardLayout, WidgetId } from './dashboard-layout';
@@ -104,11 +103,6 @@ export default class DashboardPage {
   /** "12", or "50+" when the list was cut at its page size. */
   protected count(count: Count): string {
     return count.more ? `${count.count}+` : String(count.count);
-  }
-
-  /** Whether `event` is an all-day one (its date) or timed (its start). */
-  protected eventStart(event: OccurrenceResponse): string | undefined {
-    return event.allDay ? event.startDate : event.start;
   }
 
   protected isOverdue(dueDate: string | undefined): boolean {

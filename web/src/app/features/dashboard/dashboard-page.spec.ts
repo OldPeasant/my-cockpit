@@ -254,7 +254,7 @@ describe('DashboardPage', () => {
     expect(widgets()).not.toContain('upcoming');
   });
 
-  it('moves a widget down and up from the customize panel', async () => {
+  it('moves a widget down from the customize panel; the first one cannot move up', async () => {
     await open();
     flushWidgets();
     await settle();
@@ -271,7 +271,7 @@ describe('DashboardPage', () => {
     expect((req.request.body[LAYOUT_SETTING] as string[]).slice(0, 2)).toEqual(['inbox', 'today']);
     req.flush(fakeSettings({ [LAYOUT_SETTING]: req.request.body[LAYOUT_SETTING] }));
     await settle();
-    // A widget shown again after the move loads its data.
+    // A move shows no hidden widget, so no widget loads again.
     expect(pending()).toHaveLength(0);
   });
 
@@ -370,6 +370,48 @@ describe('DashboardPage', () => {
     expect(readout?.textContent?.trim()).toBe(shown);
     const button = review.querySelector('a[mat-flat-button], a[mat-stroked-button]');
     expect(button?.textContent?.trim() ?? null).toBe(action);
+  });
+
+  it.each([
+    [6, false],
+    [7, true],
+  ])('marks the weekly review as due after %i days: %s', async (days, due) => {
+    await open(['weeklyReview']);
+    flushWidgets({ '/api/v1/weekly-reviews/status': { daysSinceLastReview: days } });
+    await settle();
+
+    const review = widget('weeklyReview');
+    expect(review.querySelector('.figure')?.classList.contains('alert')).toBe(due);
+    expect(review.textContent?.includes('Start a weekly review')).toBe(due);
+  });
+
+  it("keeps a widget's data on screen while it reloads after being shown again", async () => {
+    await open(['pinnedNotes', 'readLater']);
+    flushWidgets({ '/api/v1/notes': { items: [note('n1', 'Recipes')] } });
+    await settle();
+
+    root.querySelector<HTMLButtonElement>('.customize-toggle')!.click();
+    harness.detectChanges();
+    const checkbox = () =>
+      root
+        .querySelector<HTMLElement>('.slot[data-id="pinnedNotes"]')!
+        .querySelector<HTMLInputElement>('input[type="checkbox"]')!;
+    checkbox().click();
+    await settle();
+    const hide = http.expectOne({ method: 'PATCH', url: SETTINGS });
+    hide.flush(fakeSettings({ [LAYOUT_SETTING]: hide.request.body[LAYOUT_SETTING] }));
+    await settle();
+    expect(widgets()).not.toContain('pinnedNotes');
+
+    checkbox().click();
+    await settle();
+    expect(widget('pinnedNotes').textContent).toContain('Recipes');
+    const reload = http.expectOne((r) => r.url === '/api/v1/notes');
+    const show = http.expectOne({ method: 'PATCH', url: SETTINGS });
+    show.flush(fakeSettings({ [LAYOUT_SETTING]: show.request.body[LAYOUT_SETTING] }));
+    reload.flush({ items: [note('n2', 'Gift ideas')] });
+    await settle();
+    expect(widget('pinnedNotes').textContent).toContain('Gift ideas');
   });
 
   it('shows five entries of a list widget and how many more there are', async () => {
@@ -472,6 +514,8 @@ describe('DashboardPage', () => {
     await settle();
 
     expect(widgets()).toContain('inbox');
+    // The Inbox widget, shown again, reloads quietly.
+    flushWidgets();
   });
 
   it('resets the layout to the default from the customize panel', async () => {

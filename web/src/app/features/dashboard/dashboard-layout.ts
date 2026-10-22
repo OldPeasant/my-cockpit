@@ -1,4 +1,4 @@
-import { computed, inject, Injectable } from '@angular/core';
+import { computed, inject, Injectable, signal } from '@angular/core';
 import { SettingsService } from '../settings/settings.service';
 
 /** The setting holding the layout (server: `DashboardSettings.DASHBOARD_WIDGETS`). */
@@ -86,19 +86,36 @@ function isWidgetId(id: string): id is WidgetId {
   return (WIDGET_IDS as readonly string[]).includes(id);
 }
 
+/** A layout change waiting for its save to start. */
+interface PendingChange {
+  readonly apply: (layout: readonly WidgetSlot[]) => readonly WidgetSlot[];
+}
+
 /**
  * Which dashboard widgets show, in which order: stored in the user settings (SPEC.md §4.7), so
  * every device has the same dashboard. Changes are optimistic like every settings change.
+ *
+ * Changes are saved one after the other, and each one is applied to the layout its predecessors
+ * left: quick clicks while a save is unanswered build on each other, and a refused change drops
+ * out without taking the later ones with it. Until its save starts, a change shows through
+ * {@link slots} on top of the stored layout.
  */
 @Injectable({ providedIn: 'root' })
 export class DashboardLayout {
   private readonly settings = inject(SettingsService);
+  /** Changes made but not handed to the settings service yet, oldest first. */
+  private readonly pending = signal<readonly PendingChange[]>([]);
+  private saving: Promise<unknown> = Promise.resolve();
 
-  /** Every widget in its order; the default layout while the settings are not loaded. */
-  readonly slots = computed((): readonly WidgetSlot[] => {
+  /** The stored layout (shown optimistically while saved); the default before the settings load. */
+  private readonly stored = computed((): readonly WidgetSlot[] => {
     const settings = this.settings.settings();
     return settings ? parseLayout(settings[LAYOUT_SETTING]) : DEFAULT_LAYOUT;
   });
+  /** Every widget in its order, with the changes still waiting to be saved. */
+  readonly slots = computed((): readonly WidgetSlot[] =>
+    this.pending().reduce((layout, change) => change.apply(layout), this.stored()),
+  );
   /** The ids of the shown widgets, in order. */
   readonly visible = computed(() =>
     this.slots()
@@ -123,15 +140,35 @@ export class DashboardLayout {
 
   /** Back to the default layout (the setting's default, an empty list). */
   reset(): Promise<unknown> {
-    return this.settings.update({ [LAYOUT_SETTING]: null });
+    return this.change(() => DEFAULT_LAYOUT, true);
   }
 
   /**
-   * Saves `change` applied to the stored layout. The settings are loaded first: a layout built
-   * from the default would overwrite the stored one.
+   * Shows `apply` at once and saves it applied to the stored layout once the earlier changes are
+   * saved (or refused). The settings are loaded first: a layout built from the default would
+   * overwrite the stored one. `reset` saves `null`, the setting's default.
    */
-  private async change(change: (layout: readonly WidgetSlot[]) => WidgetSlot[]): Promise<unknown> {
-    await this.ensureLoaded();
-    return this.settings.update({ [LAYOUT_SETTING]: serializeLayout(change(this.slots())) });
+  private change(apply: PendingChange['apply'], reset = false): Promise<unknown> {
+    const change: PendingChange = { apply };
+    this.pending.update((pending) => [...pending, change]);
+    const loaded = this.ensureLoaded();
+    loaded.catch(() => undefined);
+    const result = this.saving
+      .then(() => loaded)
+      .then(() => {
+        const value = reset ? null : serializeLayout(apply(this.stored()));
+        // The settings service shows the saved value from now on, and rolls it back on failure.
+        this.drop(change);
+        return this.settings.update({ [LAYOUT_SETTING]: value });
+      })
+      .finally(() => this.drop(change));
+    this.saving = result.catch(() => undefined);
+    return result;
+  }
+
+  private drop(change: PendingChange): void {
+    if (this.pending().includes(change)) {
+      this.pending.update((pending) => pending.filter((other) => other !== change));
+    }
   }
 }
