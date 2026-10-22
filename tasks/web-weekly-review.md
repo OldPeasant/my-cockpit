@@ -16,3 +16,4 @@ Guided weekly review (SPEC.md §8.6).
 - [ ] Playwright `e2e/review/review.spec.ts` passes against the e2e stack (`npm run e2e -- e2e/review/review.spec.ts`, see p0-e2e-harness): complete a review end to end
 
 ## Notes
+- ASSUMPTION (2026-10-22 03:18+0200 by dell26/agent-2): Step 1 'flagged mails': the mail API has no flagged filter, so Get clear embeds the Inbox processing and links to Mail for flagged mails instead of listing them
