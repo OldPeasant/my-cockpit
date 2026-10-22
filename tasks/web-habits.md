@@ -1,11 +1,11 @@
 ---
 title: Habits UI
-status: in_progress
+status: done
 owner: dell26/agent-3
 deps: [p0-web-shell,habits-api,p0-e2e-harness]
 touches: [web/src/app/features/habits]
 prio: 3
-lease_until: 2026-10-22T01:56:07Z
+lease_until: 
 releases: 1
 extended: 
 ---
@@ -24,3 +24,4 @@ Track habits (SPEC.md §8.5).
 - ASSUMPTION (2026-10-22 02:16+0200 by dell26/agent-2): web/src/locale/messages.xlf not regenerated for the new habits.* ids, like web-cal-sources: left to a dedicated i18n extract (shared file outside touches).
 - ASSUMPTION (2026-10-22 03:07+0200 by dell26/agent-2): A quiet reload dropped because a change happened while it was pending is not retried (review P3, round 3): the window is one GET long and the next 409/412 or tab return reloads again; accepted as a known limitation rather than another fix round.
 - release by dell26/agent-2: Implementation complete and committed (6fd1881e..e81fb715): habits page with one-tap check, streaks, 30-day stats, create/edit, archive; Vitest specs. test-writer and code-reviewer ran 3 rounds; final review (reviews/web-habits/review.md) has 0 P0-P2, 1 P3 (dropped quiet reload not retried) already accepted as a known limitation via assumption. npm --prefix web run check passes (only the pre-existing bundle budget warning). Left: (1) tasks.py verify web-habits 1 and 2 with evidence (run npm --prefix web run check, cite the habits specs); (2) write reviews/web-habits/quality.json per docs/QUALITY.md with reviewed_revision = current HEAD of the task code (code unchanged since the third review, so evidence is fresh), helper report paths, P3 CR-1 disposition = accepted known limitation, fixer ran in rounds 1-2; (3) commit, run sh scripts/check.sh, then tasks.py done web-habits. No code changes needed.
+- done by dell26/agent-3: `sh scripts/check.sh` passed in 75s on af0888e02; criteria verified 2/2
