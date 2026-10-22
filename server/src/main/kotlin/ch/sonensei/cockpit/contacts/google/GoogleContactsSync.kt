@@ -271,8 +271,10 @@ class GoogleContactsSync(
 
 	/**
 	 * Stores that [contact] (as pushed) is in sync with the person's [etag]. [displayName]: the derived display name it
-	 * gets now ([GooglePersonMapping.derivedNameAfterPush]); only set when the contact was not changed meanwhile, so
-	 * the version after it still counts as synced.
+	 * gets now ([GooglePersonMapping.derivedNameAfterPush]). When the contact was not changed meanwhile, the version
+	 * after it still counts as synced. When it was changed meanwhile but still has the old derived name (no name was
+	 * given), it gets the new one too, so the next push does not write the old one to Google as a name; the change made
+	 * meanwhile stays unsynced.
 	 */
 	private fun markSynced(
 		link: GoogleContactLink,
@@ -286,8 +288,12 @@ class GoogleContactsSync(
 			current.syncedVersion = contact.version
 			if (displayName == null) return@executeWithoutResult
 			val stored = contacts.findById(contact.id).orElse(null) ?: return@executeWithoutResult
-			if (stored.isDeleted || stored.version != contact.version) return@executeWithoutResult
-			current.syncedVersion = service.update(contact.id, ContactChanges(displayName = Change(displayName))) {}.version
+			if (stored.isDeleted) return@executeWithoutResult
+			if (stored.version == contact.version) {
+				current.syncedVersion = service.update(contact.id, ContactChanges(displayName = Change(displayName))) {}.version
+			} else if (stored.displayName == contact.displayName && stored.givenName == null && stored.familyName == null) {
+				service.update(contact.id, ContactChanges(displayName = Change(displayName))) {}
+			}
 		}
 	}
 

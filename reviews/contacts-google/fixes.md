@@ -86,3 +86,30 @@ Remaining unresolved findings:
 ## Final status
 
 All validated findings fixed and validation passed.
+
+## Round 3
+
+Date: 2026-10-22
+
+Task: contacts-google (round-3 finding from `reviews/contacts-google/tests.md`)
+
+### TW-1 - A local edit during the push of a derived-name contact leaves the stale derived name, and the next push writes it to Google as a name (Low)
+
+Files changed:
+- `server/src/main/kotlin/ch/sonensei/cockpit/contacts/google/GoogleContactsSync.kt`
+
+Problem:
+`markSynced` set the re-derived display name only when the contact version was unchanged since the push read it. If the user edited the contact (e.g. its note) between the GET and the PATCH-response transaction, an organization-only contact kept the old derived name ("Fictional GmbH"). The next push treated that name as user-given (`namesChanged` true, `mergeNames` keeps it) and wrote it to Google as `unstructuredName` (`updatePersonFields=names,biographies`).
+
+Fix:
+In `markSynced`, when the contact changed meanwhile, it now still gets the new derived display name if it is not trashed, still has the display name that was pushed, and has no given or family name (the user did not rename it). `syncedVersion` stays at the pushed version in that case, so the change made meanwhile is still pushed by the next run. The unchanged-version path is the same as before. The test was not changed.
+
+Validation:
+- `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.contacts.google.*' ktlintCheck --continue` - Pass: BUILD SUCCESSFUL, 115 tests, 0 failures, 0 skipped (from the result XMLs). This includes the TW-1 test `an organization-only contact whose note is edited while its new organization is pushed never gets the old one as a name`, which failed before the fix, and the guard test for a contact trashed during the push.
+
+Round-3 validation summary:
+- Full test suite (`cd server && ./gradlew check`): Not run by the fixer (about 10 min). The parent runs it.
+- `.taskcheck`: Not run. The parent runs it before `done`.
+- Remaining unresolved findings: 1 (CR-2, excluded by the parent).
+
+Round-3 final status: All validated findings fixed and validation passed.
