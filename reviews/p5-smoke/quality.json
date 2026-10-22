@@ -1,0 +1,24 @@
+{
+  "schema": 1,
+  "task": "p5-smoke",
+  "reviewed_revision": "beb8f3c55ac3a65c5993c81c1ac50c4731b205ec",
+  "helpers": {
+    "test-writer": {"status": "completed", "report": "reviews/p5-smoke/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/p5-smoke/review.md"},
+    "fixer": {"status": "completed", "report": "reviews/p5-smoke/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "step 6 no longer forces a mail sync; relies on DraftService.send resyncing Sent"},
+    {"id": "CR-2", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "E2E_SMTP_PORT documented in docs/ARCHITECTURE.md env table and compose example"},
+    {"id": "CR-3", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "step 5 checks the saved draft content (typed text + attachment) in GreenMail Drafts"}
+  ],
+  "validation": [
+    {"command": "npm --prefix web run e2e:typecheck", "result": "pass"},
+    {"command": "npm --prefix web run e2e -- --project=phase-demos (30 passed: phases 0, 1, 2, 4, 5)", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
