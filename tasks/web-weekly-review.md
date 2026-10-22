@@ -5,7 +5,7 @@ owner: dell26/agent-2
 deps: [review-api,web-inbox,web-cal-views,web-gtd-lists]
 touches: [web/src/app/features/review]
 prio: 2
-lease_until: 2026-10-22T02:10:59Z
+lease_until: 2026-10-22T02:16:04Z
 ---
 ## Goal
 Guided weekly review (SPEC.md §8.6).
