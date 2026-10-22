@@ -1,4 +1,4 @@
-import { faviconOf, hostOf, inQueue, normalizeUrl, parseTags } from './bookmark-display';
+import { hostOf, inQueue, normalizeUrl, parseTags } from './bookmark-display';
 import { bookmark } from './testing';
 
 describe('bookmark display', () => {
@@ -32,13 +32,5 @@ describe('bookmark display', () => {
     expect(inQueue(bookmark('1'))).toBe(true);
     expect(inQueue(bookmark('1', { readAt: '2026-10-21T08:00:00Z' }))).toBe(false);
     expect(inQueue(bookmark('1', { readLater: false }))).toBe(false);
-  });
-
-  it('shows only http(s) favicons', () => {
-    expect(faviconOf(bookmark('1', { favicon: 'https://example.org/i.png' }))).toBe(
-      'https://example.org/i.png',
-    );
-    expect(faviconOf(bookmark('1', { favicon: 'javascript:x' }))).toBeNull();
-    expect(faviconOf(bookmark('1'))).toBeNull();
   });
 });

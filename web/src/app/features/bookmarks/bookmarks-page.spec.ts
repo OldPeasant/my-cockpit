@@ -115,7 +115,9 @@ describe('BookmarksPage', () => {
     expect(row(ESSAY).querySelector('.title')?.getAttribute('href')).toBe(ESSAY.url);
     expect(row(ESSAY).querySelector('.title')?.getAttribute('rel')).toContain('noopener');
     expect(text(row(ESSAY).querySelector('.host'))).toBe('example.org');
-    expect(row(ESSAY).querySelector('.icon img')?.getAttribute('src')).toBe(ESSAY.favicon);
+    // No remote favicon (CSP, privacy): the host's initial instead, also when a favicon is known.
+    expect(root.querySelector('img')).toBeNull();
+    expect(text(row(ESSAY).querySelector('.icon'))).toBe('E');
     expect(text(row(ESSAY).querySelector('.tags'))).toBe('#essays');
     expect(text(row(GUIDE).querySelector('.icon'))).toBe('D');
     expect(text(row(GUIDE).querySelector('.pending'))).toBe('fetching title…');
@@ -334,6 +336,10 @@ describe('BookmarksPage', () => {
       harness.detectChanges();
     }
 
+    function ids(): (string | null)[] {
+      return [...root.querySelectorAll('.bookmark')].map((el) => el.getAttribute('data-id'));
+    }
+
     function expectNoList(): void {
       http.expectNone((r) => r.method === 'GET' && r.url === LIST);
     }
@@ -377,14 +383,49 @@ describe('BookmarksPage', () => {
       expect(root.querySelector('.load-error')).toBeNull();
     });
 
-    it('does not reload the first page quietly while more pages are loaded', async () => {
+    it('loads only the created bookmark while more pages are loaded, and puts it on top', async () => {
       await open('/bookmarks', [ESSAY], 'c1');
       changes.next({ type: 'BOOKMARK', op: 'CREATED', id: NEW.id, at: AT });
       await settle();
       expectNoList();
       flushTags();
+      http
+        .expectOne((r) => r.method === 'GET' && r.url === `${LIST}/${NEW.id}`)
+        .flush({ ...NEW, createdAt: AT });
       await settle();
-      expect(root.querySelectorAll('.bookmark')).toHaveLength(1);
+      expect(ids()).toEqual([NEW.id, ESSAY.id]);
+      expect(root.querySelector('.more')).toBeTruthy();
+    });
+
+    it('does not put a created bookmark older than the last shown one on the loaded pages', async () => {
+      await open('/bookmarks', [ESSAY], 'c1');
+      changes.next({ type: 'BOOKMARK', op: 'CREATED', id: NEW.id, at: AT });
+      await settle();
+      flushTags();
+      http
+        .expectOne((r) => r.method === 'GET' && r.url === `${LIST}/${NEW.id}`)
+        .flush({ ...NEW, createdAt: '2026-10-01T08:00:00Z' });
+      await settle();
+      // It comes with "Show more".
+      expect(ids()).toEqual([ESSAY.id]);
+    });
+
+    it('loads only the created bookmark while a change of another one is running', async () => {
+      await open();
+      button(ESSAY, 'mark-read').click();
+      const patch = http.expectOne((r) => r.method === 'PATCH');
+      changes.next({ type: 'BOOKMARK', op: 'CREATED', id: NEW.id, at: AT });
+      await settle();
+      expectNoList();
+      flushTags();
+      http
+        .expectOne((r) => r.method === 'GET' && r.url === `${LIST}/${NEW.id}`)
+        .flush({ ...NEW, createdAt: AT });
+      await settle();
+      expect(ids()).toEqual([NEW.id, ESSAY.id, GUIDE.id]);
+      patch.flush({ ...ESSAY, readAt: AT, version: 2 });
+      await settle();
+      expect(ids()).toEqual([NEW.id, GUIDE.id]);
     });
 
     it('does not reload quietly while a change of a bookmark is running', async () => {
@@ -497,11 +538,160 @@ describe('BookmarksPage', () => {
       expect(text(row(ESSAY).querySelector('.title'))).toBe('On slow software');
     });
 
-    it('does not load a changed bookmark that is not shown', async () => {
+    it('adds a changed bookmark that entered the view, in its place by date', async () => {
+      const older = { ...GUIDE, createdAt: '2026-10-19T08:00:00Z' };
+      await open('/bookmarks', [ESSAY, older]);
+      // E.g. put back into Read later on another device.
+      changes.next({ type: 'BOOKMARK', op: 'UPDATED', id: NEW.id, at: AT });
+      http
+        .expectOne((r) => r.method === 'GET' && r.url === `${LIST}/${NEW.id}`)
+        .flush({ ...NEW, createdAt: '2026-10-19T12:00:00Z', version: 3 });
+      await settle();
+      expect(ids()).toEqual([ESSAY.id, NEW.id, older.id]);
+    });
+
+    it('adds a changed bookmark at the end when no more pages exist', async () => {
+      await open('/bookmarks?view=all&tag=essays', [ESSAY]);
+      changes.next({ type: 'BOOKMARK', op: 'UPDATED', id: NEW.id, at: AT });
+      http
+        .expectOne((r) => r.method === 'GET' && r.url === `${LIST}/${NEW.id}`)
+        .flush({ ...NEW, tags: ['Essays'], createdAt: '2026-10-01T08:00:00Z', version: 2 });
+      await settle();
+      expect(ids()).toEqual([ESSAY.id, NEW.id]);
+    });
+
+    it('does not add a changed bookmark that does not belong to the view', async () => {
       await open();
+      changes.next({ type: 'BOOKMARK', op: 'UPDATED', id: NEW.id, at: AT });
+      http
+        .expectOne((r) => r.method === 'GET' && r.url === `${LIST}/${NEW.id}`)
+        .flush({ ...NEW, readAt: AT, version: 2 });
+      await settle();
+      expect(ids()).toEqual([ESSAY.id, GUIDE.id]);
+
+      changes.next({ type: 'BOOKMARK', op: 'UPDATED', id: NEW.id, at: AT });
+      http
+        .expectOne((r) => r.method === 'GET' && r.url === `${LIST}/${NEW.id}`)
+        .flush(...problem(404, 'Not Found'));
+      await settle();
+      expect(ids()).toEqual([ESSAY.id, GUIDE.id]);
+    });
+
+    it('does not load a changed bookmark while the list loads', async () => {
+      await open();
+      await TestBed.inject(Router).navigateByUrl('/bookmarks?view=all');
+      await settle();
       changes.next({ type: 'BOOKMARK', op: 'UPDATED', id: NEW.id, at: AT });
       await settle();
       http.expectNone(`${LIST}/${NEW.id}`);
+      flushList([NEW]);
+      await settle();
+      expect(ids()).toEqual([NEW.id]);
+    });
+
+    it('drops a quiet reload that overlaps a change made here', async () => {
+      await open();
+      resyncs.next();
+      await settle();
+      const quiet = http.expectOne((r) => r.method === 'GET' && r.url === LIST);
+      button(ESSAY, 'mark-read').click();
+      http.expectOne((r) => r.method === 'PATCH').flush({ ...ESSAY, readAt: AT, version: 2 });
+      await settle();
+      expect(ids()).toEqual([GUIDE.id]);
+      // Read before the change: it still lists the bookmark as unread.
+      quiet.flush({ items: [ESSAY, GUIDE] });
+      await settle();
+      expect(ids()).toEqual([GUIDE.id]);
+    });
+
+    it('drops a quiet reload that overlaps an add, a delete or a queue change', async () => {
+      await open();
+      resyncs.next();
+      await settle();
+      const first = http.expectOne((r) => r.method === 'GET' && r.url === LIST);
+      type('.url input', 'https://example.net/phone');
+      submit();
+      http
+        .expectOne((r) => r.method === 'POST')
+        .flush({ ...NEW, createdAt: AT }, { status: 201, statusText: 'Created' });
+      await settle();
+      flushTags();
+      first.flush({ items: [ESSAY, GUIDE] });
+      await settle();
+      expect(ids()).toEqual([NEW.id, ESSAY.id, GUIDE.id]);
+
+      resyncs.next();
+      await settle();
+      const second = http.expectOne((r) => r.method === 'GET' && r.url === LIST);
+      button(GUIDE, 'delete').click();
+      http.expectOne((r) => r.method === 'DELETE').flush(null, { status: 204, statusText: '' });
+      await settle();
+      flushTags();
+      second.flush({ items: [NEW, ESSAY, GUIDE] });
+      await settle();
+      expect(ids()).toEqual([NEW.id, ESSAY.id]);
+
+      resyncs.next();
+      await settle();
+      const third = http.expectOne((r) => r.method === 'GET' && r.url === LIST);
+      button(ESSAY, 'queue').click();
+      http.expectOne((r) => r.method === 'PATCH').flush({ ...ESSAY, readLater: false, version: 2 });
+      await settle();
+      third.flush({ items: [NEW, ESSAY] });
+      await settle();
+      expect(ids()).toEqual([NEW.id]);
+    });
+
+    it('drops a refreshed bookmark that was deleted here meanwhile', async () => {
+      await open();
+      changes.next({ type: 'BOOKMARK', op: 'UPDATED', id: ESSAY.id, at: AT });
+      const refresh = http.expectOne((r) => r.method === 'GET' && r.url === `${LIST}/${ESSAY.id}`);
+      button(ESSAY, 'delete').click();
+      http.expectOne((r) => r.method === 'DELETE').flush(null, { status: 204, statusText: '' });
+      await settle();
+      flushTags();
+      refresh.flush({ ...ESSAY, displayTitle: 'From elsewhere', version: 2 });
+      await settle();
+      expect(ids()).toEqual([GUIDE.id]);
+    });
+
+    it('keeps a refreshed bookmark when another bookmark was changed here meanwhile', async () => {
+      await open();
+      changes.next({ type: 'BOOKMARK', op: 'UPDATED', id: GUIDE.id, at: AT });
+      const refresh = http.expectOne((r) => r.method === 'GET' && r.url === `${LIST}/${GUIDE.id}`);
+      button(ESSAY, 'mark-read').click();
+      http.expectOne((r) => r.method === 'PATCH').flush({ ...ESSAY, readAt: AT, version: 2 });
+      await settle();
+      refresh.flush({ ...GUIDE, displayTitle: 'The guide', metadataStatus: 'FETCHED', version: 2 });
+      await settle();
+      expect(text(row(GUIDE).querySelector('.title'))).toBe('The guide');
+    });
+
+    it('ignores a 404 of a refreshed bookmark that was changed here meanwhile', async () => {
+      await open();
+      changes.next({ type: 'BOOKMARK', op: 'UPDATED', id: ESSAY.id, at: AT });
+      const refresh = http.expectOne((r) => r.method === 'GET' && r.url === `${LIST}/${ESSAY.id}`);
+      button(ESSAY, 'queue').click();
+      http.expectOne((r) => r.method === 'PATCH').flush({ ...ESSAY, version: 2 });
+      await settle();
+      refresh.flush(...problem(404, 'Not Found'));
+      await settle();
+      expect(row(ESSAY)).toBeTruthy();
+    });
+
+    it('opens the reader with the view and tag, so it can lead back to them', async () => {
+      const tagged = { ...GUIDE, tags: ['essays'] };
+      await open('/bookmarks?view=all&tag=essays', [tagged]);
+      expect(row(tagged).querySelector('.snapshot')?.getAttribute('href')).toBe(
+        `/bookmarks/${GUIDE.id}?view=all&tag=essays`,
+      );
+      await TestBed.inject(Router).navigateByUrl('/bookmarks?view=all');
+      await settle();
+      flushList([tagged]);
+      await settle();
+      expect(row(tagged).querySelector('.snapshot')?.getAttribute('href')).toBe(
+        `/bookmarks/${GUIDE.id}?view=all`,
+      );
     });
 
     it('shows an added bookmark once when its CREATED event reloaded the list first', async () => {

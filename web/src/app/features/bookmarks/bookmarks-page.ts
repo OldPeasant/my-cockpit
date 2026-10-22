@@ -1,11 +1,18 @@
-import { ChangeDetectionStrategy, Component, DestroyRef, inject, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  DestroyRef,
+  inject,
+  signal,
+} from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { MatButtonModule } from '@angular/material/button';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { BookmarkResponse, BookmarkTagResponse } from '../../api/generated';
 import { ChangeEventsService } from '../../core/events';
 import { ApiError, NotificationService } from '../../core/http';
-import { faviconOf, hostOf, inQueue, normalizeUrl, parseTags } from './bookmark-display';
+import { hostOf, inQueue, normalizeUrl, parseTags } from './bookmark-display';
 import { BookmarksService, BookmarkView } from './bookmarks.service';
 
 /** The item type of bookmarks in change events. */
@@ -50,10 +57,21 @@ export default class BookmarksPage {
   protected readonly rowError = signal<{ id: string; message: string } | null>(null);
 
   protected readonly hostOf = hostOf;
-  protected readonly faviconOf = faviconOf;
+
+  /** The query params of the current view, so the reader can lead back to it. */
+  protected readonly viewParams = computed(() =>
+    this.view() === 'all' ? { view: 'all', tag: this.tag() } : {},
+  );
 
   /** Counts the loads: bookmarks that arrive for an earlier view are ignored. */
   private loadSeq = 0;
+  /**
+   * Counts the local changes (add, mark read, queue, delete), at their start and end: a quiet reload
+   * that overlaps one may have read the bookmarks before it and would undo it on screen.
+   */
+  private changeSeq = 0;
+  /** The `changeSeq` of the last local change, by bookmark id. */
+  private readonly changedAt = new Map<string, number>();
 
   constructor() {
     const destroyRef = inject(DestroyRef);
@@ -74,7 +92,7 @@ export default class BookmarksPage {
       .events$(BOOKMARK_TYPE)
       .pipe(takeUntilDestroyed(destroyRef))
       .subscribe((event) => {
-        if (event.op === 'CREATED') return void this.reloadQuietly();
+        if (event.op === 'CREATED') return void this.reloadQuietly(event.id);
         if (event.op === 'DELETED') return this.drop(event.id);
         void this.refreshOne(event.id);
       });
@@ -141,12 +159,14 @@ export default class BookmarksPage {
     }
     this.adding.set(true);
     this.addError.set(null);
+    this.noteChange();
     try {
       const created = await this.service.create({
         url,
         readLater: this.readLater(),
         tags: parseTags(this.tagsText()),
       });
+      this.noteChange(created.id);
       this.url.set('');
       this.tagsText.set('');
       if (this.belongs(created)) {
@@ -163,6 +183,7 @@ export default class BookmarksPage {
     } catch (error) {
       this.addError.set(message(error));
     } finally {
+      this.noteChange();
       this.adding.set(false);
     }
   }
@@ -236,30 +257,65 @@ export default class BookmarksPage {
     this.bookmarks.update((current) => current?.filter((b) => b.id !== id) ?? null);
   }
 
-  /** Loads a bookmark changed elsewhere (e.g. its fetched title) unless it is being changed here. */
+  /**
+   * Adds a bookmark that entered the view in its place, newest first. With more pages to load, only
+   * one newer than the last shown belongs on the loaded ones; an older one comes with "Show more".
+   */
+  private insert(bookmark: BookmarkResponse): void {
+    this.bookmarks.update((current) => {
+      if (!current || current.some((b) => b.id === bookmark.id)) return current;
+      const at = current.findIndex((b) => isNewer(bookmark, b));
+      if (at < 0) return this.nextCursor() ? current : [...current, bookmark];
+      return [...current.slice(0, at), bookmark, ...current.slice(at)];
+    });
+  }
+
+  /** Records a local change; `id` names the bookmark it changed. */
+  private noteChange(id?: string): void {
+    this.changeSeq++;
+    if (id) this.changedAt.set(id, this.changeSeq);
+  }
+
+  /**
+   * Loads a bookmark changed or created elsewhere (e.g. its fetched title, or read on another
+   * device): replaced, dropped when it left the view, or added when it entered it. Not while it is
+   * being changed here, and dropped when it was changed here meanwhile.
+   */
   private async refreshOne(id: string): Promise<void> {
-    if (this.busy().has(id) || !this.bookmarks()?.some((b) => b.id === id)) return;
+    if (!this.bookmarks() || this.busy().has(id)) return;
     const seq = this.loadSeq;
+    const changes = this.changeSeq;
+    const current = (): boolean =>
+      seq === this.loadSeq && (this.changedAt.get(id) ?? 0) <= changes;
     try {
       const bookmark = await this.service.get(id);
-      if (seq !== this.loadSeq || this.busy().has(id)) return;
+      if (!current()) return;
       const shown = this.bookmarks()?.find((b) => b.id === id);
-      if (shown && shown.version < bookmark.version) this.put(bookmark);
+      if (!shown) {
+        if (this.belongs(bookmark)) this.insert(bookmark);
+      } else if (shown.version < bookmark.version) {
+        this.put(bookmark);
+      }
     } catch (error) {
-      if (error instanceof ApiError && error.status === 404) this.drop(id);
+      if (current() && error instanceof ApiError && error.status === 404) this.drop(id);
     }
   }
 
-  /** Loads the first page again while the current bookmarks stay on screen. */
-  private async reloadQuietly(): Promise<void> {
+  /**
+   * Loads the first page again while the current bookmarks stay on screen. When that would lose
+   * what is shown (more pages loaded) or a change is running, only `created` is loaded.
+   */
+  private async reloadQuietly(created?: string): Promise<void> {
     if (!this.bookmarks() || this.busy().size || this.nextCursor()) {
+      if (created) void this.refreshOne(created);
       void this.loadTags();
       return;
     }
     const seq = this.loadSeq;
+    const changes = this.changeSeq;
     try {
       const page = await this.service.list(this.view(), this.tag());
-      if (seq !== this.loadSeq || this.busy().size) return;
+      if (seq !== this.loadSeq || changes !== this.changeSeq) return;
       this.bookmarks.set(page.items);
       this.nextCursor.set(page.nextCursor ?? null);
     } catch {
@@ -281,9 +337,13 @@ export default class BookmarksPage {
     if (this.busy().has(bookmark.id)) return;
     this.busy.update((ids) => new Set(ids).add(bookmark.id));
     this.rowError.set(null);
+    this.noteChange(bookmark.id);
     try {
       await action();
+      this.noteChange(bookmark.id);
     } catch (error) {
+      // Counted before the conflict reload starts.
+      this.noteChange(bookmark.id);
       if (error instanceof ApiError && error.status === 404) {
         this.drop(bookmark.id);
       } else {
@@ -307,6 +367,12 @@ export default class BookmarksPage {
       if (error instanceof ApiError && error.status === 404) this.drop(id);
     }
   }
+}
+
+/** Whether `a` comes before `b` in the newest-first order of the server. */
+function isNewer(a: BookmarkResponse, b: BookmarkResponse): boolean {
+  const diff = Date.parse(a.createdAt) - Date.parse(b.createdAt);
+  return diff > 0 || (diff === 0 && a.id > b.id);
 }
 
 function isConflict(error: unknown): boolean {

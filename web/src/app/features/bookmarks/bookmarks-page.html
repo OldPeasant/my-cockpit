@@ -113,13 +113,8 @@
             [class.busy]="isBusy(b)"
             [attr.data-id]="b.id"
           >
-            <span class="icon" aria-hidden="true">
-              @if (faviconOf(b); as icon) {
-                <img [src]="icon" alt="" width="20" height="20" referrerpolicy="no-referrer" />
-              } @else {
-                {{ hostOf(b.url).charAt(0).toUpperCase() }}
-              }
-            </span>
+            <!-- No remote favicon: the CSP blocks it and loading it would tell the site the owner's IP. -->
+            <span class="icon" aria-hidden="true">{{ hostOf(b.url).charAt(0).toUpperCase() }}</span>
             <div class="main">
               <a class="title" [href]="b.url" target="_blank" rel="noopener noreferrer">{{
                 b.displayTitle
@@ -148,7 +143,12 @@
             </div>
             <div class="actions">
               @if (b.snapshotFileId) {
-                <a mat-button class="snapshot" [routerLink]="b.id" i18n="@@bookmarks.openSnapshot"
+                <a
+                  mat-button
+                  class="snapshot"
+                  [routerLink]="b.id"
+                  [queryParams]="viewParams()"
+                  i18n="@@bookmarks.openSnapshot"
                   >Read here</a
                 >
               }

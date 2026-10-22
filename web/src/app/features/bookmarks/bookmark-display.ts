@@ -44,8 +44,3 @@ export function parseTags(input: string): string[] {
 export function inQueue(bookmark: BookmarkResponse): boolean {
   return bookmark.readLater && !bookmark.readAt;
 }
-
-/** Only `http(s)` icons are shown; anything else could be a `javascript:` or tracking scheme. */
-export function faviconOf(bookmark: BookmarkResponse): string | null {
-  return bookmark.favicon && /^https?:\/\//i.test(bookmark.favicon) ? bookmark.favicon : null;
-}

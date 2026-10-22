@@ -16,7 +16,7 @@ describe('BookmarkReader', () => {
   let http: HttpTestingController;
   let notifications: { error: ReturnType<typeof vi.fn>; info: ReturnType<typeof vi.fn> };
 
-  async function open(): Promise<void> {
+  async function open(query = ''): Promise<void> {
     notifications = { error: vi.fn(), info: vi.fn() };
     TestBed.configureTestingModule({
       providers: [
@@ -28,7 +28,7 @@ describe('BookmarkReader', () => {
     });
     http = TestBed.inject(HttpTestingController);
     harness = await RouterTestingHarness.create();
-    await harness.navigateByUrl(`/bookmarks/${ID}`);
+    await harness.navigateByUrl(`/bookmarks/${ID}${query}`);
     root = harness.routeNativeElement as HTMLElement;
   }
 
@@ -94,6 +94,22 @@ describe('BookmarkReader', () => {
     await settle();
     expect(text(root.querySelector('.mark-read'))).toBe('Mark unread');
     expect(text(root.querySelector('.read-mark'))).toBe('read');
+  });
+
+  it('leads back to the view and tag it was opened from', async () => {
+    await open('?view=all&tag=essays');
+    http.expectOne(`/api/v1/bookmarks/${ID}`).flush(bookmark(ID));
+    await settle();
+    expect(root.querySelector('.back')?.getAttribute('href')).toBe(
+      '/bookmarks?view=all&tag=essays',
+    );
+  });
+
+  it('leads back to the read-later queue when opened from it', async () => {
+    await open();
+    http.expectOne(`/api/v1/bookmarks/${ID}`).flush(bookmark(ID));
+    await settle();
+    expect(root.querySelector('.back')?.getAttribute('href')).toBe('/bookmarks');
   });
 
   it('shows an error when the bookmark cannot be loaded', async () => {
