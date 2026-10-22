@@ -94,6 +94,24 @@ class ContactService(
 	}
 
 	/**
+	 * Creates a contact that lives at [source] (not LOCAL) under [externalId], for a provider sync. Validated like
+	 * [create]; the sync passes fields that fit.
+	 */
+	fun createSynced(
+		source: ContactSource,
+		externalId: String,
+		fields: ContactChanges,
+	): Contact {
+		require(source != ContactSource.LOCAL) { "a synced contact has a provider source" }
+		val contact = Contact(displayName = "", source = source).apply { this.externalId = externalId }
+		apply(contact, fields)
+		validate(contact, checkPhoto = fields.photoFileId != null)
+		val saved = contacts.saveAndFlush(contact)
+		changed(saved, ChangeOp.CREATED)
+		return saved
+	}
+
+	/**
 	 * Changes the given fields. Clearing the display name derives it again from the other fields.
 	 *
 	 * @throws InvalidRequestException (400) for invalid fields or an unknown photo file (only checked when it changes)
