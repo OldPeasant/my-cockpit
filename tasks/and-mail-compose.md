@@ -5,7 +5,7 @@ owner: dell26/agent-2
 deps: [and-mail-list-read,mail-compose]
 touches: [android/app/src/main/java/ch/sonensei/cockpit/mail/compose,android/app/src/test/java/ch/sonensei/cockpit/mail/compose]
 prio: 2
-lease_until: 2026-10-22T07:38:52Z
+lease_until: 2026-10-22T07:43:56Z
 ---
 ## Goal
 Compose on the phone.
