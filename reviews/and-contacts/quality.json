@@ -1,0 +1,25 @@
+{
+  "schema": 1,
+  "task": "and-contacts",
+  "reviewed_revision": "cb9ff834e7be6d807dbc69c1ea698581f0e125d6",
+  "helpers": {
+    "test-writer": {"status": "completed", "report": "reviews/and-contacts/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/and-contacts/review.md"},
+    "fixer": {"status": "completed", "report": "reviews/and-contacts/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "related-items repository test relied on the order of two concurrent requests; now a path-based MockWebServer dispatcher"},
+    {"id": "CR-2", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "a failed new search said 'No contacts match'; stale related items under a 'not shown' banner; loaded is reset per search and the banner says 'may be out of date' when items are kept"},
+    {"id": "CR-3", "source": "code-reviewer", "severity": "P3", "disposition": "accepted",
+     "note": "a failed reload of an already shown contact keeps the old data without a banner; rare, non-blocking, recorded as an assumption on the task"}
+  ],
+  "validation": [
+    {"command": "cd android && ./gradlew ktlintCheck testDebugUnitTest --tests 'ch.sonensei.cockpit.contacts.*' --rerun", "result": "pass"},
+    {"command": "cd android && ./gradlew ktlintCheck lintDebug", "result": "pass"},
+    {"command": "cd android && ./gradlew createDebugUnitTestCoverageReport", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
