@@ -1,0 +1,22 @@
+{
+  "schema": 1,
+  "task": "passkeys-server",
+  "reviewed_revision": "70bed4e026da32d5e77800d61aca2c22c4e909d3",
+  "helpers": {
+    "test-writer": {"status": "completed", "report": "reviews/passkeys-server/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/passkeys-server/review.md"},
+    "fixer": {"status": "completed", "report": "reviews/passkeys-server/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P1", "disposition": "fixed",
+     "note": "passkey login loaded the account before taking the row lock (409 on a concurrent re-enrollment confirm); PasskeyService.verifyAssertion now locks first (5330a4dc9); final review confirms"},
+    {"id": "TW-1", "source": "test-writer", "severity": "High", "disposition": "fixed",
+     "note": "same defect as CR-1; the two regression tests in PasskeyTotpReenrollmentTests pass after the fix"}
+  ],
+  "validation": [
+    {"command": "cd server && ./gradlew test --tests 'ch.sonensei.cockpit.core.auth.passkey.*' at e111036d (= 70bed4e02 after rebase; 69 tests, Postgres via Testcontainers)", "result": "pass"},
+    {"command": "UPDATE_OPENAPI=1 ./gradlew test --tests '*OpenApiContractTest' (no diff), then without the flag", "result": "pass"},
+    {"command": "sh scripts/check.sh on the task merged with main", "result": "pass"}
+  ]
+}
