@@ -10,7 +10,6 @@
     <string name="files_more">More for %1$s</string>
     <string name="files_open">Open</string>
     <string name="files_save">Save to device</string>
-    <string name="files_downloading">Downloading %1$s…</string>
     <string name="files_download_offline">Offline. The file could not be downloaded.</string>
     <string name="files_download_failed">The file could not be downloaded.</string>
     <string name="files_dismiss">Dismiss</string>

@@ -59,6 +59,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.semantics
@@ -100,6 +101,7 @@ fun FilesRoute(modifier: Modifier = Modifier) {
     BackHandler(enabled = state.path.isNotEmpty()) { viewModel.up() }
 
     val noApp = stringResource(R.string.files_no_app)
+    val resources = LocalResources.current
     LaunchedEffect(viewModel) {
         viewModel.events.collect { event ->
             when (event) {
@@ -108,7 +110,7 @@ fun FilesRoute(modifier: Modifier = Modifier) {
                         Toast.makeText(context, noApp, Toast.LENGTH_SHORT).show()
                     }
                 is FilesEvent.Saved ->
-                    Toast.makeText(context, context.getString(R.string.files_saved, event.name), Toast.LENGTH_SHORT).show()
+                    Toast.makeText(context, resources.getString(R.string.files_saved, event.name), Toast.LENGTH_SHORT).show()
             }
         }
     }
