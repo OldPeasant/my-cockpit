@@ -15,7 +15,8 @@ Configurable home (SPEC.md §8.7).
 ## Acceptance criteria
 - [x] Widgets: Today, Inbox count (tasks + unread mail), Stalled projects, Waiting For overdue, Upcoming events, Read-later, Pinned notes, Last weekly review; show/hide and order saved in settings
   - verified (2026-10-22 10:43+0200 by dell26/agent-1): cd web && npx ng test --watch=false --include 'src/app/features/dashboard/**/*.spec.ts' -> 84 passed (dashboard-page.spec renders all 8 widgets: Today, Inbox tasks+unread mail, Upcoming, Waiting For overdue, Stalled projects, Last weekly review, Read later, Pinned notes; hide/move in Customize PATCHes dashboardWidgets with If-Match and the stored order/hidden state is shown); cd server && ./gradlew test --tests '*DashboardSettingsWebTests' --tests '*SettingsServiceTests' (Testcontainers Postgres) -> pass (setting registered, default empty, order kept, invalid values 400)
-- [ ] Vitest component/service tests cover widget configuration persistence; `cd web && npm run check` passes
+- [x] Vitest component/service tests cover widget configuration persistence; `cd web && npm run check` passes
+  - verified (2026-10-22 11:36+0200 by dell26/agent-1): cd web && npx ng test --watch=false --include 'src/app/features/dashboard/**/*.spec.ts' -> 87 passed (dashboard-layout.spec: hide/move/reset PATCH bodies, If-Match chain, rollback on refusal, quick changes while a save is unanswered, 412 reload, reset shown while in flight; dashboard-page.spec customize panel); cd web && npm run check -> pass (lint clean, 164 files / 3353 tests, build ok, existing bundle budget warning); sh scripts/check.sh -> all checks passed
 
 ## Notes
 - ASSUMPTION (2026-10-22 10:25+0200 by dell26/agent-1): Layout stored in a new server setting dashboardWidgets (TextList, core/settings/infra/DashboardSettings.kt): ordered widget ids, '<id>:hidden' for hidden; widgets missing from the list show at the end. Outside the task's touches, but settings must be registered server-side.
