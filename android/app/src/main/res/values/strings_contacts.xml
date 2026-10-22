@@ -31,5 +31,7 @@
     <string name="contacts_nothing_related">No open Waiting For items, mail, events or links with this contact.</string>
     <string name="contacts_related_offline">Can\'t reach the server. Mail, events and Waiting For items are not shown.</string>
     <string name="contacts_related_failed">Mail, events and Waiting For items could not be loaded.</string>
+    <string name="contacts_related_offline_stale">Can\'t reach the server. Mail, events and Waiting For items may be out of date.</string>
+    <string name="contacts_related_failed_stale">Mail, events and Waiting For items could not be reloaded and may be out of date.</string>
     <string name="contacts_not_loaded">This contact could not be loaded.</string>
 </resources>

@@ -45,7 +45,8 @@ class ContactsListViewModel
         /** Searches for [query] once typing pauses. */
         fun search(query: String) {
             if (query == state.value.query) return
-            state.update { it.copy(query = query) }
+            // Nothing has arrived for the new search yet, so its empty-match text must not show before it does.
+            state.update { it.copy(query = query, loaded = false) }
             load(debounce = true)
         }
 

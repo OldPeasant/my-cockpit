@@ -315,10 +315,12 @@ fun ContactDetailContent(
             details(contact, callbacks)
             state.relatedMessage?.let { message ->
                 item {
+                    // Items from an earlier load stay shown, so the banner then says they may be out of date.
+                    val stale = state.related != null
                     Banner(
                         message,
-                        R.string.contacts_related_offline,
-                        R.string.contacts_related_failed,
+                        if (stale) R.string.contacts_related_offline_stale else R.string.contacts_related_offline,
+                        if (stale) R.string.contacts_related_failed_stale else R.string.contacts_related_failed,
                         state.loading,
                         callbacks.retry,
                         tag = ContactsTags.RELATED_MESSAGE,

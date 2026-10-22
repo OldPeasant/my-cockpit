@@ -3,8 +3,10 @@ package ch.sonensei.cockpit.contacts
 import ch.sonensei.cockpit.core.network.generated.apis.ContactsApi
 import ch.sonensei.cockpit.core.network.generated.infrastructure.Serializer
 import kotlinx.coroutines.runBlocking
+import mockwebserver3.Dispatcher
 import mockwebserver3.MockResponse
 import mockwebserver3.MockWebServer
+import mockwebserver3.RecordedRequest
 import okhttp3.MediaType.Companion.toMediaType
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -87,23 +89,27 @@ class ContactsRepositoryTest {
     @Test
     fun `related combines the contact's related items and its links`() =
         runBlocking {
-            server.enqueue(
-                json(
-                    """{"contactId":"${id(1)}","waitingFor":[{"id":"${id(2)}","title":"Send the offer","waitingSince":"2026-10-01"}],
-                    |"mails":[{"id":"${id(3)}","accountId":"${id(9)}","direction":"FROM","from":[],"to":[],"seen":true,
-                    |"subject":"Hello","receivedAt":"2026-10-20T08:00:00Z"}],
-                    |"events":[{"eventId":"${id(4)}","calendarId":"${id(9)}","title":"Lunch","allDay":true,"startDate":"2026-11-02"}]}
-                    """.trimMargin().replace("\n", ""),
-                ),
-            )
-            server.enqueue(
-                json(
-                    """{"items":[{"id":"${id(5)}","direction":"INCOMING","origin":"MANUAL","createdAt":"2026-10-01T09:00:00Z",
-                    |"source":{"type":"NOTE","id":"${id(6)}","title":"Meeting notes","available":true},
-                    |"target":{"type":"CONTACT","id":"${id(1)}","title":"Anna","available":true}}]}
-                    """.trimMargin().replace("\n", ""),
-                ),
-            )
+            // Both calls run at once, so the answer is picked by path, not by arrival order.
+            val relatedBody =
+                """{"contactId":"${id(1)}","waitingFor":[{"id":"${id(2)}","title":"Send the offer","waitingSince":"2026-10-01"}],
+                |"mails":[{"id":"${id(3)}","accountId":"${id(9)}","direction":"FROM","from":[],"to":[],"seen":true,
+                |"subject":"Hello","receivedAt":"2026-10-20T08:00:00Z"}],
+                |"events":[{"eventId":"${id(4)}","calendarId":"${id(9)}","title":"Lunch","allDay":true,"startDate":"2026-11-02"}]}
+                """.trimMargin().replace("\n", "")
+            val linksBody =
+                """{"items":[{"id":"${id(5)}","direction":"INCOMING","origin":"MANUAL","createdAt":"2026-10-01T09:00:00Z",
+                |"source":{"type":"NOTE","id":"${id(6)}","title":"Meeting notes","available":true},
+                |"target":{"type":"CONTACT","id":"${id(1)}","title":"Anna","available":true}}]}
+                """.trimMargin().replace("\n", "")
+            server.dispatcher =
+                object : Dispatcher() {
+                    override fun dispatch(request: RecordedRequest): MockResponse =
+                        when (request.url.encodedPath) {
+                            "/api/v1/contacts/${id(1)}/related" -> json(relatedBody)
+                            "/api/v1/links" -> json(linksBody)
+                            else -> status(404)
+                        }
+                }
 
             val related = (contacts.related(id(1)) as ContactsResult.Ok).value
             assertEquals("Send the offer", related.waitingFor.single().title)

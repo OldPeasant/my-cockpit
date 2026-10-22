@@ -13,6 +13,7 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -67,6 +68,38 @@ class ContactsViewModelsTest {
             advanceUntilIdle()
             assertEquals(listOf(contact(1)), vm.uiState.value.contacts)
             assertEquals(ContactsMessage.OFFLINE, vm.uiState.value.message)
+        }
+
+    @Test
+    fun `a failed new search does not claim that nothing matches it`() =
+        runTest(dispatcher) {
+            coEvery { repo.list("zz") } returns ContactsResult.Ok(emptyList())
+            coEvery { repo.list("Bob") } returns ContactsResult.Offline
+            val vm = ContactsListViewModel(repo)
+            vm.search("zz")
+            advanceUntilIdle()
+            assertTrue(vm.uiState.value.loaded)
+
+            vm.search("Bob")
+            assertFalse(vm.uiState.value.loaded)
+            advanceUntilIdle()
+            assertEquals("Bob", vm.uiState.value.query)
+            assertFalse(vm.uiState.value.loaded)
+            assertEquals(ContactsMessage.OFFLINE, vm.uiState.value.message)
+        }
+
+    @Test
+    fun `a failed refresh keeps the related items shown, with a message`() =
+        runTest(dispatcher) {
+            coEvery { repo.get(id(1)) } returns ContactsResult.Ok(contact(1))
+            coEvery { repo.related(id(1)) } returns ContactsResult.Ok(nothing) andThen ContactsResult.Offline
+            val vm = ContactDetailViewModel(repo)
+            vm.open(id(1))
+            advanceUntilIdle()
+            vm.refresh()
+            advanceUntilIdle()
+            assertEquals(nothing, vm.uiState.value.related)
+            assertEquals(ContactsMessage.OFFLINE, vm.uiState.value.relatedMessage)
         }
 
     @Test

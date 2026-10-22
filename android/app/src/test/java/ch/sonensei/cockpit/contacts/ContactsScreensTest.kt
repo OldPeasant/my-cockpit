@@ -161,6 +161,25 @@ class ContactsScreensTest {
     }
 
     @Test
+    fun `related items kept from an earlier load are marked as possibly out of date`() {
+        val related = ContactRelated(listOf(RelatedWaiting(id(10), "Send the offer", null)), emptyList(), emptyList(), emptyList())
+        showDetail(ContactDetailUiState(contact = anna, related = related, relatedMessage = ContactsMessage.OFFLINE))
+        val detail = composeRule.onNodeWithTag(ContactsTags.DETAIL)
+        detail.performScrollToNode(hasTestTag(ContactsTags.RELATED_MESSAGE))
+        composeRule.onNodeWithText("Can't reach the server. Mail, events and Waiting For items may be out of date.").assertExists()
+        composeRule.onNodeWithText("are not shown", substring = true).assertDoesNotExist()
+        detail.performScrollToNode(hasTestTag(ContactsTags.related(id(10))))
+        composeRule.onNodeWithTag(ContactsTags.related(id(10))).assertExists()
+    }
+
+    @Test
+    fun `a failed new search shows no empty-match text`() {
+        showList(ContactsListUiState(query = "Bob", loaded = false, message = ContactsMessage.OFFLINE))
+        composeRule.onNodeWithTag(ContactsTags.EMPTY).assertDoesNotExist()
+        composeRule.onNodeWithTag(ContactsTags.MESSAGE).assertExists()
+    }
+
+    @Test
     fun `a contact that could not be loaded says so`() {
         showDetail(ContactDetailUiState(message = ContactsMessage.FAILED))
         composeRule.onNodeWithTag(ContactsTags.MESSAGE).assertExists()
