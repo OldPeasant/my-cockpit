@@ -13,7 +13,8 @@ Contacts in backups.
 ## Acceptance criteria
 - [x] data/contacts.jsonl; readable/contacts/contacts.vcf (parses back)
   - verified (2026-10-22 05:04+0200 by dell26/agent-3): cd server && ./gradlew test --tests '*ContactsBackupContributorTests' (10 tests: exports data/contacts.jsonl with all contacts incl. trashed/external, parses readable/contacts/contacts.vcf back with Ezvcard.parse, trash excluded, PHOTO URIs resolve to files/ entries) -> 10 passed, 0 failed
-- [ ] Round-trip test (`./gradlew test --tests '*BackupRoundTripTest'`) passes with this module's `BackupFixture` seeding contacts with photos
+- [x] Round-trip test (`./gradlew test --tests '*BackupRoundTripTest'`) passes with this module's `BackupFixture` seeding contacts with photos
+  - verified (2026-10-22 05:05+0200 by dell26/agent-3): cd server && ./gradlew test --tests '*BackupRoundTripTest' with ContactsBackupFixture seeding contacts with drive-file photos (incl. external GOOGLE and trashed contacts) -> 1 passed, 0 failed
 
 ## Notes
 - ASSUMPTION (2026-10-22 04:21+0200 by dell26/agent-3): contacts.jsonl holds every contact fully, also those of external sources (GOOGLE/MICROSOFT/CARDDAV) and the Trash: no contact sync exists yet, and full rows keep links and are lossless; the vcf mirror only has contacts not in the Trash
