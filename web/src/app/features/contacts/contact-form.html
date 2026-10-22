@@ -1,0 +1,296 @@
+<form class="contact-form" (submit)="$event.preventDefault(); submit()" novalidate>
+  @let f = form();
+  <fieldset class="names">
+    <legend i18n="@@contacts.form.name">Name</legend>
+    <label>
+      <span class="label" i18n="@@contacts.form.givenName">First name</span>
+      <input
+        name="givenName"
+        autocomplete="off"
+        maxlength="200"
+        [value]="f.givenName"
+        (input)="setText('givenName', $event)"
+      />
+    </label>
+    <label>
+      <span class="label" i18n="@@contacts.form.familyName">Last name</span>
+      <input
+        name="familyName"
+        autocomplete="off"
+        maxlength="200"
+        [value]="f.familyName"
+        (input)="setText('familyName', $event)"
+      />
+    </label>
+    <label class="wide">
+      <span class="label" i18n="@@contacts.form.displayName">Shown as</span>
+      <input
+        name="displayName"
+        autocomplete="off"
+        maxlength="200"
+        [value]="f.displayName"
+        (input)="setText('displayName', $event)"
+        i18n-placeholder="@@contacts.form.displayNameHint"
+        placeholder="Leave empty to use the name"
+      />
+    </label>
+    <label>
+      <span class="label" i18n="@@contacts.form.title">Job title</span>
+      <input
+        name="title"
+        autocomplete="off"
+        maxlength="200"
+        [value]="f.title"
+        (input)="setText('title', $event)"
+      />
+    </label>
+    <label>
+      <span class="label" i18n="@@contacts.form.organization">Organization</span>
+      <input
+        name="organization"
+        autocomplete="off"
+        maxlength="200"
+        [value]="f.organization"
+        (input)="setText('organization', $event)"
+      />
+    </label>
+    <label>
+      <span class="label" i18n="@@contacts.form.birthday">Birthday</span>
+      <input
+        name="birthday"
+        type="date"
+        [value]="f.birthday"
+        (input)="setText('birthday', $event)"
+      />
+    </label>
+  </fieldset>
+
+  <fieldset class="rows emails">
+    <legend i18n="@@contacts.form.emails">Email</legend>
+    @for (e of f.emails; track $index) {
+      <div class="row">
+        <input
+          type="email"
+          class="value"
+          autocomplete="off"
+          maxlength="320"
+          [value]="e.address"
+          (input)="setRow('emails', $index, 'address', $event)"
+          i18n-aria-label="@@contacts.form.emailAddress"
+          aria-label="Email address"
+          placeholder="name@example.org"
+        />
+        <input
+          class="row-label"
+          autocomplete="off"
+          maxlength="50"
+          [value]="e.label"
+          (input)="setRow('emails', $index, 'label', $event)"
+          i18n-aria-label="@@contacts.form.emailLabel"
+          aria-label="Email label"
+          i18n-placeholder="@@contacts.form.emailLabelHint"
+          placeholder="work, home…"
+        />
+        <button
+          mat-button
+          type="button"
+          class="remove"
+          (click)="removeRow('emails', $index)"
+          i18n="@@contacts.form.remove"
+        >
+          Remove
+        </button>
+      </div>
+    }
+    <button
+      mat-button
+      type="button"
+      class="add-row add-email"
+      (click)="addRow('emails')"
+      i18n="@@contacts.form.addEmail"
+    >
+      Add email
+    </button>
+  </fieldset>
+
+  <fieldset class="rows phones">
+    <legend i18n="@@contacts.form.phones">Phone</legend>
+    @for (p of f.phones; track $index) {
+      <div class="row">
+        <input
+          type="tel"
+          class="value"
+          autocomplete="off"
+          maxlength="50"
+          [value]="p.number"
+          (input)="setRow('phones', $index, 'number', $event)"
+          i18n-aria-label="@@contacts.form.phoneNumber"
+          aria-label="Phone number"
+        />
+        <input
+          class="row-label"
+          autocomplete="off"
+          maxlength="50"
+          [value]="p.label"
+          (input)="setRow('phones', $index, 'label', $event)"
+          i18n-aria-label="@@contacts.form.phoneLabel"
+          aria-label="Phone label"
+          i18n-placeholder="@@contacts.form.phoneLabelHint"
+          placeholder="mobile, work…"
+        />
+        <button
+          mat-button
+          type="button"
+          class="remove"
+          (click)="removeRow('phones', $index)"
+          i18n="@@contacts.form.remove"
+        >
+          Remove
+        </button>
+      </div>
+    }
+    <button
+      mat-button
+      type="button"
+      class="add-row add-phone"
+      (click)="addRow('phones')"
+      i18n="@@contacts.form.addPhone"
+    >
+      Add phone
+    </button>
+  </fieldset>
+
+  <fieldset class="rows addresses">
+    <legend i18n="@@contacts.form.addresses">Address</legend>
+    @for (a of f.addresses; track $index) {
+      <div class="address">
+        <input
+          class="street"
+          autocomplete="off"
+          maxlength="500"
+          [value]="a.street"
+          (input)="setRow('addresses', $index, 'street', $event)"
+          i18n-aria-label="@@contacts.form.street"
+          aria-label="Street"
+          i18n-placeholder="@@contacts.form.street"
+          placeholder="Street"
+        />
+        <input
+          class="postal"
+          autocomplete="off"
+          maxlength="50"
+          [value]="a.postalCode"
+          (input)="setRow('addresses', $index, 'postalCode', $event)"
+          i18n-aria-label="@@contacts.form.postalCode"
+          aria-label="Postal code"
+          i18n-placeholder="@@contacts.form.postalCode"
+          placeholder="Postal code"
+        />
+        <input
+          class="city"
+          autocomplete="off"
+          maxlength="200"
+          [value]="a.city"
+          (input)="setRow('addresses', $index, 'city', $event)"
+          i18n-aria-label="@@contacts.form.city"
+          aria-label="City"
+          i18n-placeholder="@@contacts.form.city"
+          placeholder="City"
+        />
+        <input
+          class="region"
+          autocomplete="off"
+          maxlength="200"
+          [value]="a.region"
+          (input)="setRow('addresses', $index, 'region', $event)"
+          i18n-aria-label="@@contacts.form.region"
+          aria-label="Region"
+          i18n-placeholder="@@contacts.form.region"
+          placeholder="Region"
+        />
+        <input
+          class="country"
+          autocomplete="off"
+          maxlength="200"
+          [value]="a.country"
+          (input)="setRow('addresses', $index, 'country', $event)"
+          i18n-aria-label="@@contacts.form.country"
+          aria-label="Country"
+          i18n-placeholder="@@contacts.form.country"
+          placeholder="Country"
+        />
+        <input
+          class="row-label"
+          autocomplete="off"
+          maxlength="50"
+          [value]="a.label"
+          (input)="setRow('addresses', $index, 'label', $event)"
+          i18n-aria-label="@@contacts.form.addressLabel"
+          aria-label="Address label"
+          i18n-placeholder="@@contacts.form.addressLabelHint"
+          placeholder="home, office…"
+        />
+        <button
+          mat-button
+          type="button"
+          class="remove"
+          (click)="removeRow('addresses', $index)"
+          i18n="@@contacts.form.remove"
+        >
+          Remove
+        </button>
+      </div>
+    }
+    <button
+      mat-button
+      type="button"
+      class="add-row add-address"
+      (click)="addRow('addresses')"
+      i18n="@@contacts.form.addAddress"
+    >
+      Add address
+    </button>
+  </fieldset>
+
+  <label class="notes">
+    <span class="label" i18n="@@contacts.form.notes">Notes (Markdown)</span>
+    <textarea
+      name="notesMd"
+      rows="5"
+      [value]="f.notesMd"
+      (input)="setText('notesMd', $event)"
+    ></textarea>
+  </label>
+
+  @if (missingName()) {
+    <p class="form-error" role="alert" i18n="@@contacts.form.missingName">
+      Enter a name, an organization or an email address.
+    </p>
+  } @else if (error(); as message) {
+    <p class="form-error" role="alert" i18n="@@contacts.form.saveFailed">
+      The contact could not be saved: {{ message }}
+    </p>
+  }
+
+  <div class="buttons">
+    <button mat-flat-button type="submit" class="save" [disabled]="busy()">
+      @if (busy()) {
+        <ng-container i18n="@@contacts.form.saving">Saving…</ng-container>
+      } @else if (isNew()) {
+        <ng-container i18n="@@contacts.form.create">Create contact</ng-container>
+      } @else {
+        <ng-container i18n="@@contacts.form.save">Save changes</ng-container>
+      }
+    </button>
+    <button
+      mat-button
+      type="button"
+      class="cancel"
+      [disabled]="busy()"
+      (click)="cancelled.emit()"
+      i18n="@@contacts.form.cancel"
+    >
+      Cancel
+    </button>
+  </div>
+</form>

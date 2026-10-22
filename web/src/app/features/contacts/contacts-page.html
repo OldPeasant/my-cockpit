@@ -1,0 +1,179 @@
+<section class="contacts" aria-labelledby="contacts-title">
+  <header class="head">
+    <h1 id="contacts-title" i18n="@@nav.contacts">Contacts</h1>
+    <div class="tools">
+      <a mat-flat-button class="new" routerLink="new" i18n="@@contacts.new">New contact</a>
+      <input
+        #file
+        type="file"
+        class="file"
+        hidden
+        accept=".vcf,.vcard,text/vcard,text/x-vcard"
+        (change)="importFile($event)"
+      />
+      <button
+        mat-stroked-button
+        type="button"
+        class="import"
+        [disabled]="importing()"
+        (click)="file.click()"
+      >
+        @if (importing()) {
+          <ng-container i18n="@@contacts.importing">Importing…</ng-container>
+        } @else {
+          <ng-container i18n="@@contacts.import">Import vCard</ng-container>
+        }
+      </button>
+      <a mat-stroked-button class="export" [href]="exportUrl" download i18n="@@contacts.exportAll"
+        >Export all</a
+      >
+    </div>
+  </header>
+
+  @if (syncAccounts(); as accounts) {
+    <aside class="sync" i18n-aria-label="@@contacts.sync" aria-label="Sync">
+      @if (accounts.length) {
+        <ul class="accounts">
+          @for (a of accounts; track a.id) {
+            <li class="account" [class.attention]="a.status !== 'CONNECTED'">
+              <span class="provider">{{ sourceLabel(a.provider) }}</span>
+              <span class="who">{{ a.email || a.displayName }}</span>
+              @if (a.status === 'CONNECTED') {
+                <span class="state" i18n="@@contacts.sync.connected">Syncs both ways</span>
+              } @else {
+                <span class="state" i18n="@@contacts.sync.reconnect"
+                  >Paused: sign in again in Settings</span
+                >
+              }
+            </li>
+          }
+        </ul>
+      } @else {
+        <p class="none" i18n="@@contacts.sync.none">
+          Contacts are kept here only. Connect a Google or Microsoft account to sync them.
+        </p>
+      }
+      <a class="manage" routerLink="/settings/integrations" i18n="@@contacts.sync.manage"
+        >Manage accounts</a
+      >
+    </aside>
+  }
+
+  @if (importError(); as error) {
+    <div class="import-report failed" role="alert">
+      <p i18n="@@contacts.importFailed">The file could not be imported: {{ error }}</p>
+      <button mat-button type="button" (click)="dismissImport()" i18n="@@contacts.dismiss">
+        Dismiss
+      </button>
+    </div>
+  } @else if (importResult(); as result) {
+    <div class="import-report" role="status">
+      <p i18n="@@contacts.imported">
+        {{ result.file }}:
+        {result.imported, plural,
+          =0 {no contacts}
+          =1 {1 contact}
+          other {{{result.imported}} contacts}
+        }
+        imported.
+      </p>
+      @if (result.skipped.length) {
+        <p i18n="@@contacts.skipped">
+          {result.skipped.length, plural,
+            =1 {1 card was}
+            other {{{result.skipped.length}} cards were}
+          }
+          skipped:
+        </p>
+        <ul class="skipped">
+          @for (s of result.skipped; track s.index) {
+            <li i18n="@@contacts.skippedCard">Card {{ s.index + 1 }}: {{ s.reason }}</li>
+          }
+        </ul>
+      }
+      <button mat-button type="button" (click)="dismissImport()" i18n="@@contacts.dismiss">
+        Dismiss
+      </button>
+    </div>
+  }
+
+  <form class="search" role="search" (submit)="$event.preventDefault(); searchNow()">
+    <input
+      type="search"
+      autocomplete="off"
+      [value]="searchText()"
+      (input)="setSearch($event)"
+      i18n-aria-label="@@contacts.search"
+      aria-label="Search contacts"
+      i18n-placeholder="@@contacts.searchPlaceholder"
+      placeholder="Search by name or email"
+    />
+  </form>
+
+  @if (loadError(); as error) {
+    <div class="load-error" role="alert">
+      <p i18n="@@contacts.loadFailed">The contacts could not be loaded: {{ error }}</p>
+      <button mat-stroked-button type="button" (click)="load()" i18n="@@contacts.retry">
+        Try again
+      </button>
+    </div>
+  } @else if (contacts(); as items) {
+    @if (!items.length) {
+      @if (query()) {
+        <p class="empty">
+          <ng-container i18n="@@contacts.noMatch">No contact matches “{{ query() }}”.</ng-container>
+          <button mat-button type="button" (click)="clearSearch()" i18n="@@contacts.clearSearch">
+            Show all
+          </button>
+        </p>
+      } @else {
+        <p class="empty" i18n="@@contacts.empty">
+          No contacts yet. Create one, or import a vCard file from your phone or mail program.
+        </p>
+      }
+    } @else {
+      <ul class="list" aria-labelledby="contacts-title">
+        @for (c of items; track c.id) {
+          <li class="contact" [attr.data-id]="c.id">
+            <a class="row" [routerLink]="c.id" [queryParams]="query() ? { q: query() } : {}">
+              <span class="monogram" aria-hidden="true">{{ initials(c) }}</span>
+              <span class="main">
+                <span class="name">{{ c.displayName }}</span>
+                @if (roleLine(c); as role) {
+                  <span class="role">{{ role }}</span>
+                }
+              </span>
+              <span class="reach">
+                @if (c.emails.length) {
+                  <span class="email">{{ c.emails[0].address }}</span>
+                }
+                @if (c.phones.length) {
+                  <span class="phone">{{ c.phones[0].number }}</span>
+                }
+              </span>
+              @if (c.source !== 'LOCAL') {
+                <span class="source" [attr.data-source]="c.source">{{
+                  sourceLabel(c.source)
+                }}</span>
+              }
+            </a>
+          </li>
+        }
+      </ul>
+      @if (nextCursor()) {
+        <button
+          mat-stroked-button
+          type="button"
+          class="more"
+          [disabled]="loadingMore()"
+          (click)="loadMore()"
+          i18n="@@contacts.more"
+        >
+          Show more
+        </button>
+      }
+    }
+  } @else {
+    <p class="hint" role="status" i18n="@@contacts.loading">Loading contacts…</p>
+  }
+</section>

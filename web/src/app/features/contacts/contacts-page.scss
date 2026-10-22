@@ -1,0 +1,210 @@
+.contacts {
+  max-width: 60rem;
+  padding: var(--app-space-5) var(--app-space-4);
+}
+
+.head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--app-space-3);
+  margin-bottom: var(--app-space-4);
+}
+
+h1 {
+  margin: 0;
+  font: var(--mat-sys-headline-medium);
+}
+
+.tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--app-space-2);
+}
+
+.hint,
+.empty,
+.role,
+.reach,
+.none,
+.who {
+  color: var(--app-fg-muted);
+}
+
+a {
+  &:focus-visible {
+    outline: 2px solid var(--app-accent);
+    outline-offset: 2px;
+  }
+}
+
+// Which accounts the contacts sync with: a quiet line under the title, louder only when paused.
+.sync {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--app-space-2) var(--app-space-4);
+  margin-bottom: var(--app-space-4);
+  padding: var(--app-space-2) var(--app-space-3);
+  border-left: 3px solid var(--app-accent);
+  background: var(--app-surface-raised);
+  font: var(--mat-sys-body-medium);
+
+  .accounts {
+    display: grid;
+    gap: var(--app-space-1);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .account {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--app-space-2);
+
+    &.attention .state {
+      color: var(--mat-sys-error);
+    }
+  }
+
+  .provider {
+    font: var(--mat-sys-label-large);
+  }
+
+  .none {
+    margin: 0;
+  }
+
+  .manage {
+    color: var(--app-accent);
+    font: var(--mat-sys-label-large);
+  }
+}
+
+.import-report {
+  display: grid;
+  justify-items: start;
+  gap: var(--app-space-1);
+  margin-bottom: var(--app-space-4);
+  padding: var(--app-space-3) var(--app-space-4);
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius);
+  font: var(--mat-sys-body-medium);
+
+  p,
+  .skipped {
+    margin: 0;
+  }
+
+  &.failed {
+    color: var(--mat-sys-error);
+  }
+}
+
+.search input {
+  box-sizing: border-box;
+  width: 100%;
+  margin-bottom: var(--app-space-3);
+  padding: var(--app-space-2) var(--app-space-3);
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius);
+  background: var(--app-bg);
+  color: inherit;
+  font: var(--mat-sys-body-large);
+
+  &:focus-visible {
+    outline: 2px solid var(--app-accent);
+    outline-offset: -1px;
+    border-color: transparent;
+  }
+}
+
+.load-error {
+  color: var(--mat-sys-error);
+}
+
+.list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.contact + .contact {
+  border-top: 1px solid var(--app-border);
+}
+
+// One line per contact: monogram, name and role, how to reach them, and where they sync from.
+.row {
+  display: grid;
+  grid-template-columns: 2.5rem minmax(0, 1.2fr) minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--app-space-3);
+  padding: var(--app-space-2) var(--app-space-1);
+  color: inherit;
+  text-decoration: none;
+
+  &:hover .name {
+    color: var(--app-accent);
+  }
+
+  &:focus-visible {
+    outline-offset: -2px;
+  }
+}
+
+.monogram {
+  display: grid;
+  place-items: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 50%;
+  background: var(--mat-sys-secondary-container);
+  color: var(--mat-sys-on-secondary-container);
+  font: var(--mat-sys-label-large);
+}
+
+.main,
+.reach {
+  display: grid;
+  min-width: 0;
+
+  > span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
+.name {
+  font: var(--mat-sys-title-medium);
+}
+
+.role,
+.reach {
+  font: var(--mat-sys-body-medium);
+}
+
+.source {
+  padding: 0 var(--app-space-2);
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius);
+  color: var(--app-fg-muted);
+  font: var(--mat-sys-label-medium);
+}
+
+.more {
+  margin-top: var(--app-space-3);
+}
+
+@media (max-width: 40rem) {
+  .row {
+    grid-template-columns: 2.5rem minmax(0, 1fr) auto;
+  }
+
+  .reach {
+    display: none;
+  }
+}

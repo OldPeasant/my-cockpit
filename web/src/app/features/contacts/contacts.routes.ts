@@ -1,7 +1,15 @@
 import { Routes } from '@angular/router';
-import { ComingSoon } from '../../shell/coming-soon';
 
-// Placeholder until the contacts feature task replaces it.
 export default [
-  { path: '', title: $localize`:@@nav.contacts:Contacts`, component: ComingSoon },
+  {
+    path: '',
+    title: $localize`:@@nav.contacts:Contacts`,
+    loadComponent: () => import('./contacts-page'),
+  },
+  {
+    // `new` creates a contact, any other id shows one.
+    path: ':id',
+    title: $localize`:@@nav.contacts:Contacts`,
+    loadComponent: () => import('./contact-detail'),
+  },
 ] satisfies Routes;

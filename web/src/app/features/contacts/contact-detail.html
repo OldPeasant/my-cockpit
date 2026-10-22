@@ -1,0 +1,251 @@
+<article class="contact-detail" aria-labelledby="contact-title">
+  <a class="back" routerLink="/contacts" [queryParams]="backParams()" i18n="@@contacts.back"
+    >Back to contacts</a
+  >
+
+  @if (isNew()) {
+    <h1 id="contact-title" class="new-title" i18n="@@contacts.newTitle">New contact</h1>
+    <app-contact-form
+      [busy]="saving()"
+      [error]="saveError()"
+      (save)="save($event)"
+      (cancelled)="cancelEdit()"
+    />
+  } @else if (loadError(); as error) {
+    <div class="load-error" role="alert">
+      <p i18n="@@contacts.detail.loadFailed">The contact could not be loaded: {{ error }}</p>
+      <button mat-stroked-button type="button" (click)="load()" i18n="@@contacts.retry">
+        Try again
+      </button>
+    </div>
+  } @else if (contact(); as c) {
+    <header class="identity">
+      <span class="monogram" aria-hidden="true">{{ initials(c) }}</span>
+      <div class="who">
+        <h1 id="contact-title">{{ c.displayName }}</h1>
+        @if (roleLine(c); as role) {
+          <p class="role">{{ role }}</p>
+        }
+        <p class="sync-status" [attr.data-source]="c.source">
+          @switch (c.source) {
+            @case ('LOCAL') {
+              <ng-container i18n="@@contacts.detail.local">Kept in the cockpit only</ng-container>
+            }
+            @default {
+              @if (account(); as a) {
+                @if (a.status === 'CONNECTED') {
+                  <ng-container i18n="@@contacts.detail.synced"
+                    >Synced with {{ sourceLabel(c.source) }} ({{
+                      a.email || a.displayName
+                    }})</ng-container
+                  >
+                } @else {
+                  <span class="attention" i18n="@@contacts.detail.syncPaused"
+                    >Sync with {{ sourceLabel(c.source) }} is paused: sign in again in
+                    <a routerLink="/settings/integrations">Settings</a></span
+                  >
+                }
+              } @else {
+                <ng-container i18n="@@contacts.detail.fromSource"
+                  >From {{ sourceLabel(c.source) }}, not syncing</ng-container
+                >
+              }
+            }
+          }
+        </p>
+      </div>
+      @if (!editing()) {
+        <div class="actions">
+          <button
+            mat-flat-button
+            type="button"
+            class="edit"
+            (click)="edit()"
+            i18n="@@contacts.edit"
+          >
+            Edit
+          </button>
+          <a
+            mat-stroked-button
+            class="export"
+            [href]="exportUrl()"
+            download
+            i18n="@@contacts.export"
+            >Export vCard</a
+          >
+          <button
+            mat-button
+            type="button"
+            class="delete"
+            [disabled]="deleting()"
+            (click)="remove()"
+            i18n="@@contacts.delete"
+          >
+            Delete
+          </button>
+        </div>
+      }
+    </header>
+
+    <div class="body">
+      <section class="fields" aria-labelledby="contact-fields">
+        <h2 id="contact-fields" class="visually-hidden" i18n="@@contacts.detail.fields">Details</h2>
+        @if (editing()) {
+          <app-contact-form
+            [contact]="c"
+            [busy]="saving()"
+            [error]="saveError()"
+            (save)="save($event)"
+            (cancelled)="cancelEdit()"
+          />
+        } @else {
+          <dl>
+            @if (c.emails.length) {
+              <dt i18n="@@contacts.form.emails">Email</dt>
+              @for (e of c.emails; track $index) {
+                <dd class="email">
+                  <a [href]="'mailto:' + e.address">{{ e.address }}</a>
+                  @if (e.label) {
+                    <span class="tag">{{ e.label }}</span>
+                  }
+                </dd>
+              }
+            }
+            @if (c.phones.length) {
+              <dt i18n="@@contacts.form.phones">Phone</dt>
+              @for (p of c.phones; track $index) {
+                <dd class="phone">
+                  <a [href]="telUrl(p.number)">{{ p.number }}</a>
+                  @if (p.label) {
+                    <span class="tag">{{ p.label }}</span>
+                  }
+                </dd>
+              }
+            }
+            @if (c.addresses.length) {
+              <dt i18n="@@contacts.form.addresses">Address</dt>
+              @for (a of c.addresses; track $index) {
+                <dd class="address">
+                  {{ addressLine(a) }}
+                  @if (a.label) {
+                    <span class="tag">{{ a.label }}</span>
+                  }
+                </dd>
+              }
+            }
+            @if (c.birthday) {
+              <dt i18n="@@contacts.form.birthday">Birthday</dt>
+              <dd class="birthday">{{ c.birthday | date: 'longDate' : 'UTC' }}</dd>
+            }
+          </dl>
+          @if (!c.emails.length && !c.phones.length && !c.addresses.length && !c.birthday) {
+            <p class="hint" i18n="@@contacts.detail.noFields">
+              No email, phone or address yet. Use Edit to add them.
+            </p>
+          }
+          @if (notesHtml(); as html) {
+            <div class="notes markdown" [innerHTML]="html"></div>
+          }
+        }
+      </section>
+
+      <div class="related">
+        @if (relatedError(); as error) {
+          <div class="load-error" role="alert">
+            <p i18n="@@contacts.related.loadFailed">
+              Mails, events and Waiting For items could not be loaded: {{ error }}
+            </p>
+            <button mat-button type="button" (click)="loadRelated()" i18n="@@contacts.retry">
+              Try again
+            </button>
+          </div>
+        } @else if (related(); as r) {
+          <section class="waiting" aria-labelledby="contact-waiting">
+            <h2 id="contact-waiting" i18n="@@contacts.related.waiting">Waiting for</h2>
+            @if (r.waitingFor.length) {
+              <ul>
+                @for (w of r.waitingFor; track w.id) {
+                  <li>
+                    <a [routerLink]="['/tasks', w.id]">{{ w.title }}</a>
+                    @if (w.dueDate) {
+                      <span class="when" i18n="@@contacts.related.due"
+                        >due {{ w.dueDate | date: 'mediumDate' : 'UTC' }}</span
+                      >
+                    } @else if (w.waitingSince) {
+                      <span class="when" i18n="@@contacts.related.since"
+                        >since {{ w.waitingSince | date: 'mediumDate' : 'UTC' }}</span
+                      >
+                    }
+                  </li>
+                }
+              </ul>
+            } @else {
+              <p class="hint" i18n="@@contacts.related.noWaiting">Nothing you are waiting for.</p>
+            }
+          </section>
+
+          <section class="events" aria-labelledby="contact-events">
+            <h2 id="contact-events" i18n="@@contacts.related.events">Upcoming</h2>
+            @if (r.events.length) {
+              <ul>
+                @for (e of r.events; track e.eventId + (e.occurrence ?? '')) {
+                  <li>
+                    <a [routerLink]="eventLink(e)">{{ e.title }}</a>
+                    <span class="when">
+                      @if (isAllDay(e)) {
+                        {{ e.startDate | date: 'EEE, mediumDate' : 'UTC' }}
+                      } @else {
+                        {{ e.start | date: 'EEE, medium' }}
+                      }
+                    </span>
+                  </li>
+                }
+              </ul>
+            } @else {
+              <p class="hint" i18n="@@contacts.related.noEvents">
+                No events with them in the next 90 days.
+              </p>
+            }
+          </section>
+
+          <section class="mails" aria-labelledby="contact-mails">
+            <h2 id="contact-mails" i18n="@@contacts.related.mails">Recent mail</h2>
+            @if (r.mails.length) {
+              <ul>
+                @for (m of r.mails; track m.id) {
+                  <li [class.unread]="!m.seen">
+                    <span class="direction" [attr.data-direction]="m.direction">
+                      @if (m.direction === 'FROM') {
+                        <ng-container i18n="@@contacts.related.from">From</ng-container>
+                      } @else {
+                        <ng-container i18n="@@contacts.related.to">To</ng-container>
+                      }
+                    </span>
+                    <a [routerLink]="['/mail/messages', m.id]">
+                      @if (m.subject) {
+                        {{ m.subject }}
+                      } @else {
+                        <ng-container i18n="@@contacts.related.noSubject"
+                          >(no subject)</ng-container
+                        >
+                      }
+                    </a>
+                    <span class="when">{{ m.receivedAt ?? m.sentAt | date: 'mediumDate' }}</span>
+                  </li>
+                }
+              </ul>
+            } @else {
+              <p class="hint" i18n="@@contacts.related.noMails">No mail with them yet.</p>
+            }
+          </section>
+        } @else {
+          <p class="hint" role="status" i18n="@@contacts.related.loading">Loading related items…</p>
+        }
+
+        <app-linked-items class="links" [item]="ref()" />
+      </div>
+    </div>
+  } @else {
+    <p class="hint" role="status" i18n="@@contacts.detail.loading">Loading contact…</p>
+  }
+</article>
