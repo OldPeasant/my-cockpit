@@ -5,7 +5,7 @@ owner: dell26/agent-3
 deps: [p0-auth-tokens]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/core/auth/passkey,server/src/test/kotlin/ch/sonensei/cockpit/core/auth/passkey]
 prio: 2
-lease_until: 2026-10-22T00:41:10Z
+lease_until: 2026-10-22T00:46:13Z
 releases: 0
 extended: 
 ---
