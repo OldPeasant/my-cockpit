@@ -19,7 +19,8 @@ Daily journal (SPEC.md §8.5).
   - verified (2026-10-22 02:30+0200 by dell26/agent-1): same run -> 'entries resolve, are searchable and sync their inline links', 'a deleted entry goes to the Trash...restore then conflicts', delete/restore/purge events, restore race 409 tests passed
 - [x] `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.journal.entries.*'` passes (Postgres via Testcontainers where persistence is involved)
   - verified (2026-10-22 02:30+0200 by dell26/agent-1): cd server && ./gradlew test --tests 'ch.sonensei.cockpit.journal.entries.*' on 10068a319 -> BUILD SUCCESSFUL, JournalEntryWebTests 11, JournalEntryEdgeCaseWebTests 18, JournalImageMaxSizeWebTests 1, 0 failures (Postgres via Testcontainers)
-- [ ] API documented: `api/openapi.yaml` regenerated (`UPDATE_OPENAPI=1 ./gradlew test --tests '*OpenApiContractTest'`) and `OpenApiContractTest` passes without the flag
+- [x] API documented: `api/openapi.yaml` regenerated (`UPDATE_OPENAPI=1 ./gradlew test --tests '*OpenApiContractTest'`) and `OpenApiContractTest` passes without the flag
+  - verified (2026-10-22 02:30+0200 by dell26/agent-1): cd server && UPDATE_OPENAPI=1 ./gradlew test --tests '*OpenApiContractTest' -> api/openapi.yaml regenerated (commit 10068a319, Mail search paths restored); then ./gradlew test --tests '*OpenApiContractTest' without flag -> 1 passed; npm run api:gen -> no diff
 
 ## Notes
 - ASSUMPTION (2026-10-22 01:11+0200 by dell26/agent-2): Journal entries are addressed by date: GET/PUT/DELETE /api/v1/journal/entries/{yyyy-MM-dd}. PUT is the upsert with the whole content (bodyMd, mood, tags; omitted = defaults): 201 without If-Match when the date has no entry (If-Match then 412), 200 with If-Match required to replace; concurrent create = 409. Dates after today (user time zone) are rejected
