@@ -631,6 +631,57 @@ class GooglePersonMappingTests {
 		update(contact.apply { organization = "Other GmbH" }, current).fields shouldContainExactly listOf("organizations")
 	}
 
+	@Test
+	fun `after a push a derived display name is derived again from the pushed fields`() {
+		val organization = """{"etag": "%o", "organizations": [{"name": "Fictional GmbH"}]}"""
+		val phone = """{"etag": "%p", "phoneNumbers": [{"value": "+41 44 000 00 71"}]}"""
+		val email = """{"etag": "%e", "emailAddresses": [{"value": "info@fictional.example.test"}]}"""
+
+		val renamedCompany = contactOf(organization).apply { this.organization = "Other GmbH" }
+		val renumbered = contactOf(phone).apply { phones = listOf(ContactPhone("+41 44 000 00 72")) }
+		val readdressed = contactOf(email).apply { emails = listOf(ContactEmail("office@fictional.example.test")) }
+
+		GooglePersonMapping.derivedNameAfterPush(renamedCompany, person(organization)) shouldBe "Other GmbH"
+		GooglePersonMapping.derivedNameAfterPush(renumbered, person(phone)) shouldBe "+41 44 000 00 72"
+		GooglePersonMapping.derivedNameAfterPush(readdressed, person(email)) shouldBe "office@fictional.example.test"
+	}
+
+	@Test
+	fun `after a push a name the user or Google gave stays`() {
+		val organization = """{"etag": "%o", "organizations": [{"name": "Fictional GmbH"}]}"""
+		val named = """{"etag": "%n", "names": [{"unstructuredName": "Hauswart"}], "organizations": [{"name": "Fictional GmbH"}]}"""
+
+		// A name the user gave (it differs from the derived one).
+		val userNamed =
+			contactOf(organization).apply {
+				displayName = "Empfang"
+				this.organization = "Other GmbH"
+			}
+		GooglePersonMapping.derivedNameAfterPush(userNamed, person(organization)).shouldBeNull()
+		// Google's name.
+		val googleNamed = contactOf(named).apply { this.organization = "Other GmbH" }
+		GooglePersonMapping.derivedNameAfterPush(googleNamed, person(named)).shouldBeNull()
+		// Given and family name.
+		GooglePersonMapping.derivedNameAfterPush(contactOf(rich).apply { notesMd = "New note." }, person(rich)).shouldBeNull()
+		// Nothing the name is derived from changed.
+		val noted = contactOf(organization).apply { notesMd = "Invoices quarterly." }
+		GooglePersonMapping.derivedNameAfterPush(noted, person(organization)).shouldBeNull()
+	}
+
+	@Test
+	fun `two pushes in a row of an organization-only contact never send the old organization as a name`() {
+		val before = """{"etag": "%o1", "organizations": [{"name": "Fictional GmbH"}]}"""
+		val contact = contactOf(before).apply { organization = "Other GmbH" }
+		update(contact, before).fields shouldContainExactly listOf("organizations")
+
+		// The sync stores the derived name the first push gives, then the note is edited.
+		GooglePersonMapping.derivedNameAfterPush(contact, person(before))?.let { contact.displayName = it }
+		contact.notesMd = "Invoices quarterly."
+		val after = """{"etag": "%o2", "organizations": [{"name": "Other GmbH"}]}"""
+
+		update(contact, after).fields shouldContainExactly listOf("biographies")
+	}
+
 	private fun JsonNode.only(): JsonNode {
 		size() shouldBe 1
 		return get(0)

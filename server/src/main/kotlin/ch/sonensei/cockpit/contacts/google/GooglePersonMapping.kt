@@ -130,7 +130,8 @@ object GooglePersonMapping {
 	 * groups where the contact differs from what [toChanges] reads from [current] are sent, so the others stay as they
 	 * are at Google. A sent group starts from Google's entries and changes only what the contact models, so parts the
 	 * cockpit does not show (a middle name, a year-less birthday, an address' P.O. box, entries it cannot read) stay.
-	 * A display name the cockpit derived (phone, organization, [UNNAMED]) is not pushed as a name.
+	 * A display name the cockpit derived (phone, organization, [UNNAMED]) is not pushed as a name; after the push,
+	 * [derivedNameAfterPush] derives it again from the pushed fields.
 	 */
 	fun toUpdate(
 		json: JsonMapper,
@@ -190,15 +191,38 @@ object GooglePersonMapping {
 		val familyName = base.familyName.given()
 		if (contact.givenName != givenName || contact.familyName != familyName) return true
 		if (contact.givenName != null || contact.familyName != null) return false
-		val displayName =
-			base.displayName.given()
-				?: base.organization.given()
-				?: base.emails
-					.given()
-					.firstOrNull()
-					?.address
-		return contact.displayName != displayName
+		return contact.displayName != displayName(base)
 	}
+
+	/**
+	 * The display name to store for [contact] once its push succeeded, or `null` to keep the one it has. A contact
+	 * without given or family name whose display name is only the one derived from [current] (Google has no name for
+	 * it) gets the one derived from its fields now (e.g. its new organization). Otherwise the old derived name would
+	 * stay and look like a name the user gave, and a later push would write it to Google as the person's name.
+	 */
+	fun derivedNameAfterPush(
+		contact: Contact,
+		current: JsonNode,
+	): String? {
+		if (contact.givenName != null || contact.familyName != null || hasName(current)) return null
+		val derived = derivedName(contact)
+		return derived.takeIf { contact.displayName == displayName(toChanges(current)) && it != contact.displayName }
+	}
+
+	/** The display name a contact gets from [person] read by [toChanges] (derived when Google has no name). */
+	private fun displayName(person: ContactChanges): String? =
+		person.displayName.given()
+			?: person.organization.given()
+			?: person.emails
+				.given()
+				.firstOrNull()
+				?.address
+
+	/** Whether Google has a name for [person] (rather than showing one derived from its other fields). */
+	private fun hasName(person: JsonNode): Boolean =
+		primary(person.path("names"))?.let { name ->
+			listOf("displayName", "unstructuredName", "givenName", "familyName").any { name.text(it).cut() != null }
+		} ?: false
 
 	/** Changes the primary name in place (keeping its other parts and the other names), or drops a derived one. */
 	private fun mergeNames(

@@ -1,6 +1,8 @@
 package ch.sonensei.cockpit.contacts.google
 
+import ch.sonensei.cockpit.contacts.domain.Change
 import ch.sonensei.cockpit.contacts.domain.Contact
+import ch.sonensei.cockpit.contacts.domain.ContactChanges
 import ch.sonensei.cockpit.contacts.domain.ContactService
 import ch.sonensei.cockpit.contacts.domain.ContactSource
 import ch.sonensei.cockpit.contacts.infra.ContactRepository
@@ -36,7 +38,8 @@ import java.util.concurrent.locks.ReentrantLock
  * - Pull: `people.connections.list` with the sync token of the last run (`requestSyncToken`), so only changes come;
  *   deleted persons (`metadata.deleted`) move their contact to the Trash. Without a token, or when Google answers that
  *   it expired (`EXPIRED_SYNC_TOKEN`, HTTP 400/410), everything is listed and contacts whose person is missing are
- *   moved to the Trash. A listed person with the etag already stored is skipped (e.g. the echo of a push).
+ *   moved to the Trash (not the ones this run's push just created: listings lag behind writes). A listed person with
+ *   the etag already stored is skipped (e.g. the echo of a push).
  *
  * HTTP calls run outside transactions; each contact is stored in its own one, so one contact Google sends that does
  * not fit (it is skipped and logged by id) does not stop the run. The run's error (no contact data) is kept in
@@ -84,7 +87,9 @@ class GoogleContactsSync(
 			}
 			val error =
 				try {
-					val skipped = push(connectionId) + pull(connectionId)
+					// Resource names this run's push created: a full listing right after may not show them yet.
+					val created = mutableSetOf<String>()
+					val skipped = push(connectionId, created) + pull(connectionId, created)
 					if (skipped > 0) "$skipped contacts could not be synced with Google" else null
 				} catch (e: GoogleContactsException) {
 					log.warn("Google contacts sync of connection {} failed: {}", connectionId, e.message)
@@ -123,8 +128,11 @@ class GoogleContactsSync(
 		val link: GoogleContactLink,
 	)
 
-	/** Writes local changes to Google; returns how many could not be written. */
-	private fun push(connectionId: UUID): Int {
+	/** Writes local changes to Google, adding the resource names it creates to [created]; returns how many failed. */
+	private fun push(
+		connectionId: UUID,
+		created: MutableSet<String>,
+	): Int {
 		val pending =
 			tx.execute {
 				links.findByConnectionId(connectionId).mapNotNull { link ->
@@ -150,7 +158,7 @@ class GoogleContactsSync(
 		for (item in pending) {
 			val ok =
 				when (item.write) {
-					Write.CREATE -> create(connectionId, checkNotNull(item.contact), item.link)
+					Write.CREATE -> create(connectionId, checkNotNull(item.contact), item.link, created)
 					Write.UPDATE -> update(connectionId, checkNotNull(item.contact), item.link)
 					Write.DELETE, Write.DELETE_PURGED -> delete(connectionId, item.contact, item.link)
 				}
@@ -163,6 +171,7 @@ class GoogleContactsSync(
 		connectionId: UUID,
 		contact: Contact,
 		link: GoogleContactLink,
+		created: MutableSet<String>,
 	): Boolean {
 		val response =
 			client.call(
@@ -184,6 +193,7 @@ class GoogleContactsSync(
 			current.syncedVersion = contact.version
 			lookup.updateExternalId(contact.id, resourceName)
 		}
+		created += resourceName
 		return true
 	}
 
@@ -225,7 +235,10 @@ class GoogleContactsSync(
 				body = update.person,
 			)
 		when {
-			response.ok -> markSynced(link, contact, GooglePersonMapping.etag(response.body))
+			response.ok -> {
+				val displayName = GooglePersonMapping.derivedNameAfterPush(contact, current.body)
+				markSynced(link, contact, GooglePersonMapping.etag(response.body), displayName)
+			}
 			response.status == 404 -> removedAtGoogle(connectionId, resourceName)
 			isStaleEtag(response) -> {
 				val person = read(connectionId, path)
@@ -256,15 +269,25 @@ class GoogleContactsSync(
 		return apply(connectionId, person, force = true)
 	}
 
+	/**
+	 * Stores that [contact] (as pushed) is in sync with the person's [etag]. [displayName]: the derived display name it
+	 * gets now ([GooglePersonMapping.derivedNameAfterPush]); only set when the contact was not changed meanwhile, so
+	 * the version after it still counts as synced.
+	 */
 	private fun markSynced(
 		link: GoogleContactLink,
 		contact: Contact,
 		etag: String?,
+		displayName: String? = null,
 	) {
 		tx.executeWithoutResult {
 			val current = links.findById(link.id).orElse(null) ?: return@executeWithoutResult
 			current.etag = etag
 			current.syncedVersion = contact.version
+			if (displayName == null) return@executeWithoutResult
+			val stored = contacts.findById(contact.id).orElse(null) ?: return@executeWithoutResult
+			if (stored.isDeleted || stored.version != contact.version) return@executeWithoutResult
+			current.syncedVersion = service.update(contact.id, ContactChanges(displayName = Change(displayName))) {}.version
 		}
 	}
 
@@ -313,8 +336,14 @@ class GoogleContactsSync(
 
 	// --- pull
 
-	/** Applies Google's changes since the last run (or everything); returns how many persons could not be stored. */
-	private fun pull(connectionId: UUID): Int {
+	/**
+	 * Applies Google's changes since the last run (or everything); returns how many persons could not be stored.
+	 * [created]: the resource names this run's push created, which a full listing does not trash when it lacks them.
+	 */
+	private fun pull(
+		connectionId: UUID,
+		created: Set<String>,
+	): Int {
 		var syncToken = state(connectionId).syncToken
 		var pageToken: String? = null
 		val seen = mutableSetOf<String>()
@@ -349,7 +378,8 @@ class GoogleContactsSync(
 			}
 			pageToken = response.body.path("nextPageToken").asString(null)
 			if (pageToken == null) {
-				if (syncToken == null) removeMissing(connectionId, seen)
+				// Google's listings lag behind writes, so a person created moments ago may be missing; it is not gone.
+				if (syncToken == null) removeMissing(connectionId, seen + created)
 				tx.executeWithoutResult {
 					accounts.findById(connectionId).ifPresent { it.syncToken = response.body.path("nextSyncToken").asString(null) }
 				}

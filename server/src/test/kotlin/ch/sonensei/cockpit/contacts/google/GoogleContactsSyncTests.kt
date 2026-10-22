@@ -400,6 +400,28 @@ class GoogleContactsSyncTests(
 	}
 
 	@Test
+	fun `a full listing after an expired token that lags behind does not trash the contact the push just created`() {
+		val sam = trashedAndRestoredSam()
+		stub(post(urlPathEqualTo("/v1/people:createContact")), """{"resourceName": "people/c2001", "etag": "%created"}""")
+		stub(listing().withQueryParam("syncToken", equalTo("CONTACTS-sync-2")), recording("error-400-expired-sync-token.json"), 400)
+		// The listing does not show people/c2001 yet: Google's listings lag behind writes.
+		stub(listing().withQueryParam("syncToken", absent()).withQueryParam("pageToken", absent()), recording("connections-full-page1.json"))
+		stub(
+			listing().withQueryParam("syncToken", absent()).withQueryParam("pageToken", equalTo("CONTACTS-page-2")),
+			"""{"nextSyncToken": "CONTACTS-sync-5"}""",
+		)
+
+		syncOk().syncToken shouldBe "CONTACTS-sync-5"
+
+		writes() shouldContainExactly listOf("POST /v1/people:createContact")
+		val after = contacts.findById(sam.id).get()
+		after.isDeleted shouldBe false
+		after.externalId shouldBe "people/c2001"
+		linkOf(after).resourceName shouldBe "people/c2001"
+		active() shouldContainExactlyInAnyOrder listOf("Alex Muster", "+41 44 000 00 02", "Sam Beispiel")
+	}
+
+	@Test
 	fun `410 Gone for the sync token also starts a full listing`() {
 		stubFullListing()
 		syncOk()
@@ -524,6 +546,44 @@ class GoogleContactsSyncTests(
 
 		patchRequest().queryParameter("updatePersonFields").firstValue() shouldBe "biographies"
 		jsonMapper.readTree(patchRequest().bodyAsString).has("names") shouldBe false
+	}
+
+	@Test
+	fun `an organization-only contact edited twice in a row never gets its old organization as a name`() {
+		stubFullListing()
+		syncOk()
+		stubIncremental(recording("connections-incremental.json"))
+		syncOk()
+		val company = contact("people/c1004")
+		// First edit: the organization (the display name was derived from it).
+		service.update(company.id, ContactChanges(organization = Change("Other GmbH"))) {}
+		stubPerson("people/c1004", listed("people/c1004", "connections-incremental.json"))
+		stub(patch(urlPathEqualTo("/v1/people/c1004:updateContact")), """{"resourceName": "people/c1004", "etag": "%renamed"}""")
+		stub(listing().withQueryParam("syncToken", equalTo("CONTACTS-sync-2")), """{"nextSyncToken": "CONTACTS-sync-3"}""")
+
+		syncOk()
+
+		patchRequest().queryParameter("updatePersonFields").firstValue() shouldBe "organizations"
+		val renamed = contacts.findById(company.id).get()
+		renamed.displayName shouldBe "Other GmbH"
+		linkOf(renamed).syncedVersion shouldBe renamed.version
+		linkOf(renamed).etag shouldBe "%renamed"
+
+		// Second edit: only the note. Google now has the new organization and still no name.
+		service.update(company.id, ContactChanges(notesMd = Change("Invoices quarterly."))) {}
+		wireMock.resetAll()
+		stubPerson(
+			"people/c1004",
+			"""{"resourceName": "people/c1004", "etag": "%renamed", "organizations": [{"metadata": {"primary": true}, "name": "Other GmbH"}]}""",
+		)
+		stub(patch(urlPathEqualTo("/v1/people/c1004:updateContact")), """{"resourceName": "people/c1004", "etag": "%noted"}""")
+		stub(listing().withQueryParam("syncToken", equalTo("CONTACTS-sync-3")), """{"nextSyncToken": "CONTACTS-sync-4"}""")
+
+		syncOk()
+
+		patchRequest().queryParameter("updatePersonFields").firstValue() shouldBe "biographies"
+		jsonMapper.readTree(patchRequest().bodyAsString).has("names") shouldBe false
+		contacts.findById(company.id).get().displayName shouldBe "Other GmbH"
 	}
 
 	@Test

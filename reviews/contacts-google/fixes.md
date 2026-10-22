@@ -4,210 +4,84 @@ Date: 2026-10-22
 
 Task: contacts-google - Google contacts sync
 
-Scope: findings CR-1 to CR-6 in `reviews/contacts-google/review.md`, plus the failing test "a person restored at Google after it was deleted there comes back" (finding 0 from the parent). The parent approved all of them. Base: origin/main (0c5c6c405). The task commits were 1f552a462, dad0f2021 and e00e000cf (HEAD before the fixes). All changes stay inside the task's touches, plus the unpublished contacts migration that the parent allowed to be edited in place.
+Scope: round 2. These are the findings CR-1 and CR-3 of the round 2 review in `reviews/contacts-google/review.md` (HEAD dff44523b, base f558cf46a1923daf70c0c7e5d2d44ee774dc6761), as approved by the parent. CR-2 was excluded by the parent. Round 1 fixed findings CR-1 to CR-6 of the previous review, plus the failing restored-person test. Its report is in the git history of this file (commit dff44523b). All changes stay inside `server/src/main/kotlin/ch/sonensei/cockpit/contacts/google` and its tests. `ContactService` was not changed.
 
 ## Fixed findings
 
-### 0 - A person restored at Google after it was deleted there did not come back (failing test)
-
-Files changed:
-- `server/src/main/kotlin/ch/sonensei/cockpit/contacts/google/GoogleContactsSync.kt`
-
-Problem:
-Google listed the person again under its old resource name. `store()` then found the trashed contact that still had `externalId = people/c1003`. Because that contact had a link (with no resource name), the code did not adopt it, but it also did not clear its id. `createSynced` then failed on the unique external id.
-
-Fix:
-When no link has the resource name, the contact found by external id is handled in one of three ways:
-- Active and unlinked (restored from a backup): it is adopted, as before.
-- In the Trash, or linked to this connection: it gives up its external id (`updateExternalId(id, null)`), and the person gets a new contact.
-- Linked to another connection: it keeps its id, and the person is skipped and counted, as before.
-
-The parent's instruction said "linked" without saying which connection. Read literally, it would let one account take over the external id of another account's active contact. That breaks the existing, legitimate test "a person that cannot be stored is skipped and reported, the others are synced". So the give-up rule only applies to links of the same connection.
-
-Validation:
-- `./gradlew test --tests 'ch.sonensei.cockpit.contacts.google.*'` - Pass (the test above and the cross-account test both pass)
-
-### CR-1 - A local edit deleted Google-only data at Google (P1)
+### CR-1 - A display name that went stale after a local field edit was later pushed to Google as the person's name (P2)
 
 Files changed:
 - `server/src/main/kotlin/ch/sonensei/cockpit/contacts/google/GooglePersonMapping.kt`
 - `server/src/main/kotlin/ch/sonensei/cockpit/contacts/google/GoogleContactsSync.kt`
-- `server/src/test/kotlin/ch/sonensei/cockpit/contacts/google/GoogleContactsSyncTests.kt`
 - `server/src/test/kotlin/ch/sonensei/cockpit/contacts/google/GooglePersonMappingTests.kt`
+- `server/src/test/kotlin/ch/sonensei/cockpit/contacts/google/GoogleContactsSyncTests.kt`
 
 Problem:
-`update()` sent every field group, rebuilt from the contact alone. Google replaces each group it receives, so data the cockpit does not model was erased: year-less birthdays, middle names, honorifics, P.O. boxes, organization departments, unreadable entries.
+Some GOOGLE contacts have no given or family name, so their display name was derived from the organization, the first email or the phone number. When the user edited that source field, `ContactService` kept the old display name. The first push correctly sent no name. The echo was skipped on pull, though, so the stale name stayed. The next unrelated edit then compared the stale name with Google's new derived name and sent `names: [{unstructuredName: <old value>}]`.
 
 Fix:
-- `update()` now reads the person first (`GET /v1/people/<id>?personFields=PERSON_FIELDS`):
-  - 404: handled as removed at Google.
-  - Other non-OK answer: a failed write for this contact.
-  - Etag differs from `link.etag`: Google changed the person, so Google wins. The fetched person is applied with `force = true` and nothing is written.
-- Otherwise the new `GooglePersonMapping.toUpdate(json, contact, current)` compares the contact with `toChanges(current)` group by group (names, emailAddresses, phoneNumbers, addresses, organizations, birthdays, biographies). Only the groups that differ go into the body and into `updatePersonFields`.
-- If no group differs, the link is marked synced (`syncedVersion = contact.version`, etag kept) and no PATCH is sent.
-- The 400 `FAILED_PRECONDITION` / 412 handling on the PATCH stays as a fallback: re-read, then Google wins, or 404 means removed.
-- A sent group is merged into Google's entries instead of being rebuilt:
-  - Names: the primary name is edited in place. `middleName`, `honorificPrefix` and similar parts are kept. Output-only `displayName`/`displayNameLastFirst` are removed, and `unstructuredName` is removed when given or family name is set.
-  - Emails, phones and addresses: each value reuses Google's entry that reads the same, else the unused readable entry at the same position, else a new one. Only the parts that differ are changed. A changed number drops `canonicalForm`. A changed address drops `formattedValue`, and `countryCode` only when the country changed; `extendedAddress`/`poBox` are kept. Entries the cockpit cannot read (an invalid email, an address with only `formattedValue`) are kept unchanged.
-  - Organizations and biographies: the primary entry is edited in place (an organization keeps its `department`), or dropped when cleared.
-  - Birthdays: the full-date entry is replaced. If there is none, a year-less entry is replaced, because the user set a full date. A cleared birthday drops only the full-date entry. Other entries (year-less, text) stay.
-- `UPDATE_FIELDS` was removed because it is no longer used.
-
-Tests added or changed:
-- Sync, new:
-  - "editing only the note of a phone-only contact writes only the biography, not its year-less birthday or a name": `people/c1002` sends `updatePersonFields=biographies`, with no `birthdays`, `names` or `phoneNumbers`.
-  - "a local change Google has no field for is marked synced without a write".
-  - "when the person changed at Google since the last sync, reading it first shows it and Google's version wins": no PATCH is sent.
-  - "when the person changes at Google between the read and the write, Google's version wins": 400 fallback, using a WireMock scenario.
-  - "a contact deleted at Google between the read and the write goes to the Trash": PATCH 404.
-  - "a person Google refuses to return before the write is reported, nothing is written".
-- Sync, changed. These tests now stub the GET the push makes first:
-  - "a local change is written to Google with the person's etag and not again on the next run": now expects `updatePersonFields=names`, a body with only `etag` and `names`, and the name merged.
-  - "a contact deleted at Google before the push goes to the Trash without a write": now the GET returns 404, with no write.
-  - "a write Google refuses is skipped and reported, the rest of the run goes on".
-  - "a person deleted at Google after a stale etag goes to the Trash" and "a person Google does not return after a stale etag is reported, the local change is pushed again later": these now use the read, stale write, re-read sequence.
-
-  These changes follow the new contract (GET before PATCH, only the changed groups). No assertion was weakened.
-- Mapping, new `toUpdate` unit tests:
-  - An unchanged contact sends no field.
-  - A changed family name keeps middle name and honorific.
-  - A changed note sends only the biography.
-  - A changed address keeps the extended address, P.O. box, country code and the address that has only `formattedValue`.
-  - Changed emails keep the entry's `displayName` and the invalid entry.
-  - A changed number drops `canonicalForm`.
-  - A changed title keeps the department, and a cleared organization drops its entry.
-  - A full birthday replaces the year-less one and keeps the text entry; a cleared birthday drops only the full date.
+The stored name is now derived again after a successful push. This follows the review's suggested alternative, and it keeps the stored display name correct. A mapping-only check cannot do this: after two edits of the organization, the stale name equals neither the current nor the Google-side derived name.
+- New `GooglePersonMapping.derivedNameAfterPush(contact, current)`. It returns the newly derived name (organization, else first email, else first phone, else "Unnamed contact") only when all of the following hold:
+  - the contact has no given or family name;
+  - Google has no name for the person;
+  - the contact's display name equals the name derived from Google's person as read before the write;
+  - the derived name changed.
+  In every other case it returns `null`, so names the user or Google gave are kept. The existing derived-name logic in `namesChanged` moved into a shared private `displayName(ContactChanges)` helper, with unchanged behavior.
+- After a successful PATCH, `GoogleContactsSync.update` passes this name to `markSynced`. In the same transaction, `markSynced` stores it through `ContactService.update`, which re-indexes the contact and publishes the change. It then sets `syncedVersion` to the new version, so the rename is not pushed again. It skips the rename when the contact was changed or trashed after the push read it. In that case the next push handles the contact.
 
 Validation:
-- `./gradlew test --tests 'ch.sonensei.cockpit.contacts.google.*'` - Pass
+- New mapping tests:
+  - "after a push a derived display name is derived again from the pushed fields" (organization, phone, email)
+  - "after a push a name the user or Google gave stays"
+  - "two pushes in a row of an organization-only contact never send the old organization as a name"
+- New WireMock test "an organization-only contact edited twice in a row never gets its old organization as a name". It changes the organization and asserts `updatePersonFields=organizations`, display name "Other GmbH" and the link synced at the new version. It then edits the note and asserts `updatePersonFields=biographies` with no `names` in the body.
+- Mutation check: with the re-derive disabled (`displayName` passed as `null`), the WireMock test fails. With the fix, it passes.
+- `./gradlew test --tests 'ch.sonensei.cockpit.contacts.google.*' ktlintCheck` - Pass
 
-### CR-2 - Derived or synthetic display names were pushed as the person's name (P2)
-
-Files changed:
-- `server/src/main/kotlin/ch/sonensei/cockpit/contacts/google/GooglePersonMapping.kt`
-- `server/src/test/kotlin/ch/sonensei/cockpit/contacts/google/GoogleContactsSyncTests.kt`
-- `server/src/test/kotlin/ch/sonensei/cockpit/contacts/google/GooglePersonMappingTests.kt`
-
-Problem:
-A contact without given or family name sent its display name as `unstructuredName`, even when the cockpit had derived that name from the phone, the organization or "Unnamed contact".
-
-Fix:
-- Update: names are compared, not rebuilt. A derived display name equals what `toChanges` produces, so `names` is sent only when the user changed the given or family name, or changed the display name of a contact without them. When it is sent and the display name is again the derived one, the primary name entry is dropped instead of being written as `unstructuredName`.
-- Create (`toPerson`, used for a restored contact): `names` is empty when the contact has no given or family name and its display name is the derived one (organization, else email, else phone, else `UNNAMED`).
-
-Tests added:
-- Sync: "editing the note of an organization-only contact does not give it the organization as a name" (`people/c1004`). The phone-only test above (`people/c1002`) asserts that no `names` are sent.
-- Mapping:
-  - "a derived display name is not sent as a name, a name the user gave is".
-  - "a contact whose organization names it sends no name when the organization changes".
-  - "a contact named after its phone number or without any field is created without a name".
-
-Validation:
-- `./gradlew test --tests 'ch.sonensei.cockpit.contacts.google.*'` - Pass
-
-### CR-3 - A contact purged from the Trash before the next push stayed at Google and came back (P2)
+### CR-3 - A full listing right after a push could trash a contact the same run just created at Google (P3)
 
 Files changed:
-- `server/src/main/resources/db/migration/contacts/V202610221100__contacts_google_sync.sql` (edited in place: not on origin/main yet, as the parent allowed)
-- `server/src/main/kotlin/ch/sonensei/cockpit/contacts/google/GoogleContactsState.kt`
 - `server/src/main/kotlin/ch/sonensei/cockpit/contacts/google/GoogleContactsSync.kt`
 - `server/src/test/kotlin/ch/sonensei/cockpit/contacts/google/GoogleContactsSyncTests.kt`
 
 Problem:
-The link row was deleted together with the contact (`on delete cascade`). After that, `deleteContact` was never sent, and a later full listing imported the person again.
+Suppose the sync token had expired. The full listing that follows a push may not show a person that `createContact` created seconds earlier, because Google's listings lag behind writes. `removeMissing` then moved the restored contact back to the Trash and cleared its resource name.
 
 Fix:
-- Schema: `contacts_google_link` now has its own `id uuid primary key` (a UUIDv7 generated in the entity). `contact_id` is nullable and unique, with `on delete set null`. The partial unique index on `(connection_id, resource_name)` is unchanged.
-- Entity: `GoogleContactLink.contactId` is `UUID?` and `updatable = false`, and `id` was added. The repository gained `findByContactId`.
-- Push:
-  - A link with no contact but with a resource name (a tombstone) sends `DELETE …:deleteContact`. On success or 404 the link row is deleted. A refused delete is counted and retried by the next run.
-  - A link with neither a contact nor a resource name is deleted.
-- Pull:
-  - `store()` skips a person whose link is a tombstone, so it is not imported again.
-  - `removedAtGoogle()` deletes a tombstone. This covers a deletion at Google and a person missing from a full listing.
-- Disconnect still deletes every link of the connection.
-- Link lookups in create, update and delete now use `links.findById(link.id)`.
-
-Tests added:
-- "a contact purged from the Trash before the push is still deleted at Google": trash, then `ContactTrashContributor.purge`, then sync. Asserts the DELETE was sent, the link is gone and the contact was not re-created.
-- "a purged contact whose delete Google refuses is not imported again, and the delete is retried": the delete returns 400, and Google still lists the person with a changed etag. The person is not imported and the tombstone is kept. The next run gets 404, and the tombstone is removed.
-- "a contact purged after its person was deleted at Google leaves no link behind".
+`sync()` keeps a per-run set `created`. `push()` and `create()` add a resource name to it only after the create succeeded and was stored. `pull()` passes `seen + created` to `removeMissing`, so a person this run created is never treated as gone. Updated contacts are not included: their persons already existed before the run, so a full listing shows them. The class KDoc now describes this.
 
 Validation:
-- `./gradlew test --tests 'ch.sonensei.cockpit.contacts.google.*'` - Pass
-
-Note:
-A developer database that already applied the old version of this migration will report a Flyway checksum mismatch and must be reset. The Testcontainers databases are fresh, so the tests are not affected.
-
-### CR-4 - Resource names from the pull were not validated, and one bad name stopped every run (P3)
-
-Files changed:
-- `server/src/main/kotlin/ch/sonensei/cockpit/contacts/google/GoogleContactsClient.kt` (adds `isResourceName`, which `resourcePath` now uses)
-- `server/src/main/kotlin/ch/sonensei/cockpit/contacts/google/GoogleContactsSync.kt`
-- `server/src/test/kotlin/ch/sonensei/cockpit/contacts/google/GoogleContactsSyncTests.kt`
-
-Fix:
-- `apply()`: a pulled person whose resource name is not `people/<id>` is skipped and counted as failed. The log names only the connection id.
-- `create()`: the name is checked before it is stored. An invalid one is a rejected create for that contact, not a run-level exception.
-- `update()` and `delete()`: an invalid stored name is a failed write for that contact (`invalidName`, the log has only the id). The run goes on, and the sync token still advances.
-
-Tests:
-- New: "a stored resource name that is not people slash id fails only that contact, not the run".
-- New: "a pulled person with a resource name that is not people slash id is skipped and reported".
-- Renamed and updated: "a created person with a resource name that is not people slash id is reported and not linked, the run goes on". It previously expected a run-level failure. It now expects `1 contacts could not be synced with Google`, and the sync token advances.
-
-Validation:
-- `./gradlew test --tests 'ch.sonensei.cockpit.contacts.google.*'` - Pass
-
-### CR-6 - Untested paths (P3)
-
-Files changed:
-- `server/src/test/kotlin/ch/sonensei/cockpit/contacts/google/GoogleContactsSyncTests.kt`
-
-Fix:
-- `syncAll()` filtering (GOOGLE, CONNECTED, contacts scope): already covered by `GoogleContactsSyncUnitTests` "syncAll syncs every connected Google connection that granted the contacts scope, and only those". That test was added by the test-writer after the review and passes. No new test was needed.
-- 412 on the PATCH: "412 for the etag also means Google's version wins". This now really exercises the PATCH 412: GET with the stored etag, then PATCH 412, then re-read.
-- GET 404 after a stale etag: "a person deleted at Google after a stale etag goes to the Trash" (WireMock scenario: read, stale write, re-read 404). GET 404 before the write is covered too.
-- A pulled person that cannot be stored is skipped and counted:
-  - "a person that cannot be stored is skipped and reported, the others are synced" (unique external id collision).
-  - The new invalid-resource-name pull test.
-
-  A person that fails `ContactService` validation cannot be produced: `toChanges` cuts values, limits entries and drops invalid ones before validation runs. So the skip path is tested through these two causes instead.
-
-Validation:
-- `./gradlew test --tests 'ch.sonensei.cockpit.contacts.google.*'` - Pass
+- New WireMock test "a full listing after an expired token that lags behind does not trash the contact the push just created". A restored contact's create succeeds (`people/c2001`), the token is expired, and the full listing omits `people/c2001`. The test asserts that the contact stays active, has `externalId` and link resource name `people/c2001`, and that only the create was written.
+- Mutation check: with `removeMissing(connectionId, seen)` restored, this test fails. With the fix, it passes.
+- `./gradlew test --tests 'ch.sonensei.cockpit.contacts.google.*' ktlintCheck` - Pass
 
 ## Not fixed
 
-### CR-5 - A user-set display name of a named contact is not pushed
+### CR-2 - Editing a field group of a person with more than MAX_ENTRIES entries deletes the overflow entries at Google (P3)
 
 Status:
-Requires decision. The parent decided it and records the assumption.
+Out of scope
 
 Reason:
-As instructed, no `nicknames` mapping was added. The parent records the assumption that the display name of a named GOOGLE contact is derived from Google. In line with that, a local display-name-only change on a named contact sends no PATCH. The contact is marked synced, as the test "a local change Google has no field for is marked synced without a write" shows.
+The parent accepted it as non-blocking and asked not to fix it in this round. The parent decides whether to record it with `tasks.py assume`.
 
 ## Validation summary
 
 Focused tests:
-- `cd server && ./gradlew ktlintFormat ktlintCheck test --tests 'ch.sonensei.cockpit.contacts.google.*'` (final code): BUILD SUCCESSFUL. 102 tests, 0 failures:
-  - GoogleContactsSyncTests: 43
-  - GooglePersonMappingTests: 37
-  - GoogleContactsClientTests: 16
-  - GoogleContactsSyncUnitTests: 6
-- `cd server && ./gradlew compileKotlin compileTestKotlin --rerun`: no compiler warnings in `contacts/google`.
+- `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.contacts.google.*' ktlintCheck` - Pass: BUILD SUCCESSFUL, 113 tests, 0 failures. The suites: GoogleContactsSyncTests 51, GooglePersonMappingTests 40, GoogleContactsClientTests 16, GoogleContactsSyncUnitTests 6.
+- Mutation check (the two behavior lines reverted temporarily, then restored byte for byte from a copy): `./gradlew test --tests 'ch.sonensei.cockpit.contacts.google.GoogleContactsSyncTests'` gave 51 tests, 2 failed, exactly the two new CR-1 and CR-3 regression tests.
 
 Full test suite:
-- `cd server && ./gradlew check` (ktlint and all server tests, Postgres via Testcontainers): BUILD SUCCESSFUL in 5m 39s. This and `.taskcheck` below ran before the last test was added ("a pulled person with a resource name that is not people slash id is skipped and reported"). That change touches only tests, and the focused run plus `ktlintCheck` above cover it.
+- `cd server && ./gradlew check` (first run): Gradle printed `:test FAILED` after 10m35s, but the test report shows 2432 tests, 0 failures, 1 skipped, and no failing test case in any result XML. A rerun with a full log is recorded below.
 
 Lint/type-check/build:
-- ktlint is part of `./gradlew check`: Pass.
+- `./gradlew ktlintCheck` (server) - Pass, as part of the focused command above.
 
 `.taskcheck`:
-- `sh scripts/check.sh`: Pass ("all checks passed": server, web, android).
+- Not run (`sh scripts/check.sh`); the parent runs it before `done`.
 
 Remaining unresolved findings:
-0. CR-5 is handled by the parent's assumption and needs no code change.
+1 (CR-2, excluded by the parent)
 
 ## Final status
 
