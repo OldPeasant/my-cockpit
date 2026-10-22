@@ -924,6 +924,107 @@ describe('MailComposePage', () => {
     });
   });
 
+  describe('sender change queued behind other writes', () => {
+    const THIRD_ACCOUNT = '0192f0c4-0000-7000-8000-0000000acc03';
+    const sender = () => (page()['accountId'] as () => string)();
+
+    it('puts From back when the draft got an attachment before the queued move ran', async () => {
+      await open({ draft: DRAFT });
+      const gate = deferred();
+      const upload = service.upload.bind(service);
+      vi.spyOn(service, 'upload').mockImplementationOnce(async (id, etag, file) => {
+        await gate.promise;
+        return upload(id, etag, file);
+      });
+      const uploading = call('upload', fileInput(new File(['x'], 'agenda.txt'))) as Promise<void>;
+      await settle();
+      expect(service.upload).toHaveBeenCalledTimes(1);
+
+      // Picked while the upload is on its way: the draft has no attachment yet.
+      call('changeSender', OTHER_ACCOUNT);
+      gate.resolve();
+      await uploading;
+      await settle();
+      expect(service.creates).toEqual([]);
+      expect(service.discards).toEqual([]);
+      expect(errors).toEqual([]);
+      expect(sender()).toBe(ACCOUNT);
+      fixture.detectChanges();
+      expect(el().querySelector('mat-select')?.textContent).toContain('jane@example.test');
+    });
+
+    it('keeps a sender picked while an earlier move was failing and moves the draft there', async () => {
+      service.accountList = [...service.accountList, account(THIRD_ACCOUNT, 'j.doe@club.test')];
+      await open({ draft: DRAFT });
+      const gate = deferred();
+      vi.spyOn(service, 'create').mockImplementationOnce(async (body) => {
+        service.creates.push(body);
+        await gate.promise;
+        throw new ApiError(502, 'Bad Gateway', 'Drafts folder not reachable');
+      });
+      call('changeSender', OTHER_ACCOUNT);
+      await settle();
+      call('changeSender', THIRD_ACCOUNT);
+      gate.resolve();
+      await settle();
+
+      expect(errors).toEqual(['Drafts folder not reachable']);
+      expect(service.creates.map((c) => c.accountId)).toEqual([OTHER_ACCOUNT, THIRD_ACCOUNT]);
+      expect(service.stored.accountId).toBe(THIRD_ACCOUNT);
+      expect(sender()).toBe(THIRD_ACCOUNT);
+      expect(service.discards).toEqual([{ id: DRAFT, etag: '"1"' }]);
+    });
+
+    it('after a failed move, Send treats the mail as sent from the account holding the draft', async () => {
+      service.accountList = [
+        account(ACCOUNT, 'jane@example.test'),
+        account(OTHER_ACCOUNT, 'jd@work.test', 'GOOGLE'),
+      ];
+      service.stored = draft({ to: [{ name: '', address: 'ann@example.test' }] });
+      await open({ draft: DRAFT });
+      vi.spyOn(service, 'create').mockRejectedValueOnce(
+        new ApiError(502, 'Bad Gateway', 'Drafts folder not reachable'),
+      );
+      vi.spyOn(service, 'send').mockResolvedValueOnce({
+        sentMessageId: 's',
+        appendedToSent: false,
+        draftRemoved: true,
+      });
+      call('changeSender', OTHER_ACCOUNT);
+      await settle();
+      await call('send');
+      expect(service.send).toHaveBeenCalledExactlyOnceWith(DRAFT, '"1"');
+      // The IMAP account sent it, so the missing Sent copy is reported.
+      expect(infos).toEqual(['Message sent, but no copy was saved in Sent']);
+    });
+
+    it('sends a moved draft from its new account', async () => {
+      service.accountList = [
+        account(ACCOUNT, 'jane@example.test'),
+        account(OTHER_ACCOUNT, 'jd@work.test', 'GOOGLE'),
+      ];
+      service.stored = draft({ to: [{ name: '', address: 'ann@example.test' }] });
+      await open({ draft: DRAFT });
+      vi.spyOn(service, 'send').mockResolvedValueOnce({
+        sentMessageId: 's',
+        appendedToSent: false,
+        draftRemoved: true,
+      });
+      call('changeSender', OTHER_ACCOUNT);
+      await settle();
+      await call('send');
+      expect(service.creates).toEqual([
+        expect.objectContaining({
+          accountId: OTHER_ACCOUNT,
+          to: [{ address: 'ann@example.test' }],
+        }),
+      ]);
+      expect(service.send).toHaveBeenCalledExactlyOnceWith(DRAFT, '"2"');
+      // Google keeps its own Sent copy: no warning.
+      expect(infos).toEqual(['Message sent']);
+    });
+  });
+
   function fileInput(...files: File[]): HTMLInputElement {
     const input = document.createElement('input');
     Object.defineProperty(input, 'files', { value: files });
