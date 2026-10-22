@@ -1,12 +1,12 @@
 ---
 title: Passkeys (WebAuthn) backend
-status: in_progress
-owner: dell26/agent-3
+status: todo
+owner: 
 deps: [p0-auth-tokens]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/core/auth/passkey,server/src/test/kotlin/ch/sonensei/cockpit/core/auth/passkey]
 prio: 2
-lease_until: 2026-10-22T00:51:16Z
-releases: 0
+lease_until: 
+releases: 1
 extended: 
 ---
 ## Goal
@@ -31,3 +31,4 @@ Passkeys as an alternative to password + TOTP (SPEC.md §4.1).
 - release by R1963MACOS/agent-1: handed off by R1963MACOS/agent-1: You've hit your session limit · resets 7:50pm (Europe/Zurich)
 - ASSUMPTION (2026-10-22 01:29+0200 by dell26/agent-3): TOTP re-enrollment (restored account): passkey registration is refused (403 via fullAccess, and the service ignores the unconfirmed TOTP secret); passkey web login gives a re-enroll-only session; passkey device token returns 403 TotpEnrollmentRequired like the password token. Migration renamed to core/V202610221000 because oauth-connections took V202610201300.
 - ASSUMPTION (2026-10-22 02:14+0200 by dell26/agent-3): server/build.gradle.kts test maxHeapSize raised 1g -> 2g (outside touches): ./gradlew check ran out of heap in FilesWebTests/IcsFeedClientTests after ~2230 tests once the passkey tests were added; with 2g it passes (6m22s locally, above the 2 min target, ci-split-check covers check duration)
+- release by dell26/agent-3: Implementation, tests, fix (CR-1/TW-1) done; all 3 criteria verified; fresh tests.md/review.md (0 findings) and fixes.md committed. Rebased onto main: the server test-heap commit (2g) became empty because main already has the same change, so no code changed beyond what was reviewed. LEFT: write reviews/passkeys-server/quality.json (docs/QUALITY.md; reviewed_revision = hash of the final code commit 70bed4e0 or its successor, fixer ran for CR-1/TW-1), commit it, run .taskcheck, then tasks.py done. Last check before the rebase: server + web passed; android :app:compileDebugKotlin failed with a kotlinx.serialization compiler-plugin internal error, which is unrelated (task has no android changes). Likely a stale incremental cache, so try 'cd android && ./gradlew clean' and rerun.
