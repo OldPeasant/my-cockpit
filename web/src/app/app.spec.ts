@@ -44,15 +44,17 @@ describe('App', () => {
     expect(TestBed.createComponent(App).componentInstance).toBeTruthy();
   });
 
-  it('renders the shell with the dashboard placeholder at /', async () => {
+  it('renders the shell with the dashboard at /', async () => {
     await harness.navigateByUrl('/');
     const root = harness.routeNativeElement as HTMLElement;
     expect(root.querySelector('app-shell .brand')?.textContent?.trim()).toBe('My Cockpit');
-    expect(root.querySelector('app-coming-soon h1')?.textContent?.trim()).toBe('Dashboard');
+    expect(root.querySelector('app-dashboard-page h1')?.textContent?.trim()).toBe('Dashboard');
+    expect(root.querySelector('app-coming-soon')).toBeNull();
   });
 
   /** Sections whose feature is built and so no longer shows the placeholder. */
   const BUILT = [
+    '/',
     '/settings',
     '/trash',
     '/inbox',
