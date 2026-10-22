@@ -1,0 +1,29 @@
+{
+  "schema": 1,
+  "task": "contacts-google",
+  "reviewed_revision": "f289af85d1bc6bc9872a78cac94e92ea75f39cb9",
+  "helpers": {
+    "test-writer":   {"status": "completed", "report": "reviews/contacts-google/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/contacts-google/review.md"},
+    "fixer":         {"status": "completed", "report": "reviews/contacts-google/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "R1-CR-1..CR-6", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "round 1 findings (field-group push, tombstones, resource name checks, display name), fixed in the field-group push commit; verified in review rounds 2 and 3"},
+    {"id": "R2-CR-1", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "stale derived display name pushed as a name; re-derived after push (fixes.md)"},
+    {"id": "R2-CR-2", "source": "code-reviewer", "severity": "P3", "disposition": "accepted",
+     "note": "editing a field group with more than MAX_ENTRIES entries drops the overflow at Google; recorded as task assumption"},
+    {"id": "R2-CR-3", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "full listing right after a push no longer trashes just-created persons (fixes.md)"},
+    {"id": "TW-1", "source": "test-writer", "severity": "Low", "disposition": "fixed",
+     "note": "edit during push left stale derived name; markSynced re-derives unless the user renamed (fixes.md Round 3)"},
+    {"id": "R3-CR-1", "source": "code-reviewer", "severity": "P3", "disposition": "accepted",
+     "note": "optimistic-lock conflict in markSynced within ms of a push aborts the run and Google wins next run; recorded as task assumption"}
+  ],
+  "validation": [
+    {"command": "cd server && ./gradlew test --tests 'ch.sonensei.cockpit.contacts.google.*' ktlintCheck", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
