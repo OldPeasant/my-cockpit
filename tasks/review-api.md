@@ -5,7 +5,7 @@ owner: dell26/agent-1
 deps: [gtd-projects-api,cal-local-api]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/review,server/src/test/kotlin/ch/sonensei/cockpit/review,server/src/main/resources/db/migration/review]
 prio: 2
-lease_until: 2026-10-22T00:30:51Z
+lease_until: 2026-10-22T00:35:55Z
 releases: 1
 extended: 
 ---
