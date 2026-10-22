@@ -1,10 +1,11 @@
 ---
 title: Android contacts
-status: todo
-owner:
+status: in_progress
+owner: dell26/agent-1
 deps: [and-login,contacts-aggregate]
 touches: [android/app/src/main/java/ch/sonensei/cockpit/contacts,android/app/src/test/java/ch/sonensei/cockpit/contacts]
 prio: 3
+lease_until: 2026-10-22T10:34:18Z
 ---
 ## Goal
 Contacts on the phone.
