@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="journal_edit">Edit</string>
+    <string name="journal_view">Done</string>
+    <string name="journal_body_hint">How was your day? Markdown works here.</string>
+    <string name="journal_empty_body">Nothing written today yet. Tap Edit to start.</string>
+    <string name="journal_status_saved">Saved</string>
+    <string name="journal_status_unsaved">Unsaved changes</string>
+    <string name="journal_status_saving">Saving…</string>
+    <string name="journal_status_offline">Not saved: no connection</string>
+    <string name="journal_status_failed">Not saved: the server refused the change</string>
+    <string name="journal_save_retry">Save again</string>
+    <string name="journal_take_photo">Take photo</string>
+    <string name="journal_pick_photo">Add photo from gallery</string>
+    <string name="journal_uploading">Uploading photo…</string>
+    <string name="journal_conflict">Today\'s entry was changed on another device while you wrote it.</string>
+    <string name="journal_conflict_deleted">Today\'s entry was deleted on another device while you wrote it.</string>
+    <string name="journal_keep_mine">Keep my version</string>
+    <string name="journal_use_theirs">Use the other version</string>
+    <string name="journal_keep_mine_deleted">Save my text again</string>
+    <string name="journal_use_theirs_deleted">Discard my text</string>
+    <string name="journal_load_offline">Can\'t reach the server, so today\'s entry could not be loaded.</string>
+    <string name="journal_load_failed">Today\'s entry could not be loaded.</string>
+    <string name="journal_photo_unreadable">That photo could not be read. Try another one.</string>
+    <string name="journal_photo_offline">Photo not added: no connection.</string>
+    <string name="journal_photo_failed">Photo not added: the server refused it.</string>
+    <string name="journal_retry">Retry</string>
+    <string name="journal_dismiss">Dismiss</string>
+</resources>

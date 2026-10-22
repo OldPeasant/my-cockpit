@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="habits_due_today">Due today</string>
+    <string name="habits_not_due_today">Not due today</string>
+    <string name="habits_empty">No habits yet. Add them in the web app, then check them off here.</string>
+    <string name="habits_daily">Daily</string>
+    <string name="habits_times_per_week">%1$d× a week</string>
+    <plurals name="habits_streak_days">
+        <item quantity="one">%1$d-day streak</item>
+        <item quantity="other">%1$d-day streak</item>
+    </plurals>
+    <plurals name="habits_streak_weeks">
+        <item quantity="one">%1$d-week streak</item>
+        <item quantity="other">%1$d-week streak</item>
+    </plurals>
+    <string name="habits_completion">%1$d%% of the last 30 days</string>
+    <string name="habits_progress">%1$d of %2$d today</string>
+    <string name="habits_load_offline">Can\'t reach the server, so your habits could not be loaded.</string>
+    <string name="habits_load_failed">Your habits could not be loaded.</string>
+    <string name="habits_check_offline">Not checked off: no connection.</string>
+    <string name="habits_check_failed">Not checked off: the server refused the change.</string>
+    <string name="habits_retry">Retry</string>
+    <string name="habits_dismiss">Dismiss</string>
+</resources>
