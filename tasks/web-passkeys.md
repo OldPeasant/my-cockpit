@@ -17,3 +17,4 @@ Use passkeys in the browser.
 
 ## Notes
 - ASSUMPTION (2026-10-22 11:52+0200 by dell26/agent-1): The WebAuthn browser helper (features/auth/passkey/webauthn.ts) is shared by login and Security settings, so settings/security imports it from features/auth; core/ was outside the task's touches. Options/credentials are converted to/from JSON by hand instead of parseCreationOptionsFromJSON/toJSON for older browsers.
+- ASSUMPTION (2026-10-22 11:52+0200 by dell26/agent-1): Passkey login refreshes AuthService via checkSession(true) after loginWithPasskey instead of adding a method to core/auth (outside touches); costs one extra GET /auth/me. The 'remember me' checkbox of the login form also applies to passkey login. The passkey button is hidden when the browser has no WebAuthn.
