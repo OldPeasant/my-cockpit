@@ -11,7 +11,8 @@ lease_until: 2026-10-22T11:38:25Z
 Files on the phone (SPEC.md §9.2 item 7).
 
 ## Acceptance criteria
-- [ ] Browse, download/open with intents (FileProvider), upload from device
+- [x] Browse, download/open with intents (FileProvider), upload from device
+  - verified (2026-10-22 13:27+0200 by dell26/agent-1): cd android && ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.files.*' (Robolectric, real MainActivity + Hilt, FilesRepository faked) -> FilesRouteInAppTest 18/18 pass: browse folder + back, tap file downloads and fires ACTION_VIEW with content://<app>.files FileProvider URI + read grant (content readable through provider), save-as via CreateDocument writes the file, picked files upload into shown folder then reload; no physical device/emulator reachable from this sandbox
 - [ ] `cd android && ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.files.*'` passes, covering browse and upload states (Robolectric/Compose UI tests for screens)
 
 ## Notes
