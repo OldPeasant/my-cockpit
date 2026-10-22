@@ -13,7 +13,8 @@ extended:
 Share sheet offers Inbox or Read later (SPEC.md §8.4).
 
 ## Acceptance criteria
-- [ ] Shared URLs show a choice Inbox / Read later; read-later goes through the offline queue too
+- [x] Shared URLs show a choice Inbox / Read later; read-later goes through the offline queue too
+  - verified (2026-10-22 13:56+0200 by dell26/agent-2): ShareReadLaterTest/ShareReadLaterEdgeTest/ShareReadLaterActivityTest (Robolectric, real Hilt+Room activity: URL share shows Inbox/Read later choice, Read later stores pending_bookmark in CaptureQueue and CaptureUploader sends POST /bookmarks readLater=true; ReadLaterQueueTest/ReadLaterUploaderTest offline retry) via cd android && ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.capture.share.*' --tests 'ch.sonensei.cockpit.capture.queue.*' --rerun -> 197 tests, 0 failures
 - [ ] `cd android && ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.capture.share.*'` passes, covering the choice routing (Robolectric/Compose UI tests for screens)
 
 ## Notes
