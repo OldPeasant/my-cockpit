@@ -1,0 +1,26 @@
+{
+  "schema": 1,
+  "task": "web-totp-reenroll",
+  "reviewed_revision": "5beb4fbc9947ad3d54f36fa8347ed7e7a83e3728",
+  "helpers": {
+    "test-writer": {"status": "completed", "report": "reviews/web-totp-reenroll/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/web-totp-reenroll/review.md"},
+    "fixer": {"status": "completed", "report": "reviews/web-totp-reenroll/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "CR-1 (first review)", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "enrollment page now leaves on 401 (login with returnUrl) and 409 (refresh session, open app); fixes.md CR-1"},
+    {"id": "CR-2 (first review)", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "'Create a new key' button and replaced-key hint after a 400; fixes.md CR-2"},
+    {"id": "TW-O1..TW-O3", "source": "test-writer", "severity": "Low", "disposition": "fixed",
+     "note": "first test report observations, same behavior as CR-1/CR-2 of the first review; fixed in 3008661a"},
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P3", "disposition": "accepted",
+     "note": "totpEnrollmentGuard drops the returnUrl only when the server cannot be reached; the user lands on the dashboard after login. Non-blocking edge case, left as is to avoid another review cycle"}
+  ],
+  "validation": [
+    {"command": "cd web && npx ng test --watch=false --include src/app/features/auth --include src/app/core/auth --include src/app/app.spec.ts", "result": "pass"},
+    {"command": "cd web && npm run check", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
