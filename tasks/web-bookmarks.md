@@ -1,11 +1,11 @@
 ---
 title: Bookmarks UI
-status: in_progress
+status: done
 owner: dell26/agent-3
 deps: [p0-web-shell,bookmarks-api,p0-e2e-harness]
 touches: [web/src/app/features/bookmarks]
 prio: 3
-lease_until: 2026-10-22T02:30:51Z
+lease_until: 
 ---
 ## Goal
 Read-later queue and bookmarks (SPEC.md §8.4).
@@ -23,3 +23,4 @@ Read-later queue and bookmarks (SPEC.md §8.4).
 - ASSUMPTION (2026-10-22 03:58+0200 by dell26/agent-3): app.spec.ts: /bookmarks moved to the BUILT list (outside touches, needed because Bookmarks is no longer a placeholder)
 - ASSUMPTION (2026-10-22 03:58+0200 by dell26/agent-3): Favicons are not loaded from third-party sites: the production CSP allows only same-origin images and direct loads would leak the owner's IP (cf. SPEC 4.1 mail images); the list shows a letter tile instead until a server-side favicon proxy exists
 - ASSUMPTION (2026-10-22 04:12+0200 by dell26/agent-3): Review P3 CR-1 (second pass) accepted: overlapping remote-only quiet reloads/refreshes answering out of order can briefly show an older row state; it heals on the next event or navigation, local changes are guarded by changeSeq/changedAt.
+- done by dell26/agent-3: `sh scripts/check.sh` passed in 84s on cad30c817; criteria verified 2/2
