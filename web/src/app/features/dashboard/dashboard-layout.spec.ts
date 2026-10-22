@@ -290,6 +290,56 @@ describe('DashboardLayout', () => {
     expect(layout.slots()).toEqual(hidden);
   });
 
+  it('drops a refused reset it showed, and saves the change queued behind it on the stored layout', async () => {
+    const storedLayout = ['pinnedNotes', 'inbox:hidden'];
+    await loadSettings(storedLayout);
+
+    const reset = layout.reset();
+    const hide = layout.setVisible('today', false);
+    await tick();
+    const resetReq = http.expectOne({ method: 'PATCH', url: SETTINGS });
+    // While the reset PATCH is unanswered, the reset and the change after it both show.
+    expect(layout.slots()).toEqual(setVisible(DEFAULT_LAYOUT, 'today', false));
+
+    resetReq.flush(
+      { title: 'Bad Request', status: 400 },
+      { status: 400, statusText: 'Bad Request' },
+    );
+    await expect(reset).rejects.toBeTruthy();
+    const expected = setVisible(parseLayout(storedLayout), 'today', false);
+    expect(layout.slots()).toEqual(expected);
+    await tick();
+
+    const req = http.expectOne({ method: 'PATCH', url: SETTINGS });
+    expect(req.request.body).toEqual({ [LAYOUT_SETTING]: serializeLayout(expected) });
+    req.flush(fakeSettings({ [LAYOUT_SETTING]: req.request.body[LAYOUT_SETTING] }));
+    await hide;
+    expect(layout.slots()).toEqual(expected);
+  });
+
+  it('shows a reset queued behind an unanswered change until the reset itself is saved', async () => {
+    await loadSettings(['pinnedNotes']);
+
+    const hide = layout.setVisible('inbox', false);
+    const reset = layout.reset();
+    expect(layout.slots()).toEqual(DEFAULT_LAYOUT);
+    await tick();
+    const hideReq = http.expectOne({ method: 'PATCH', url: SETTINGS });
+    expect(layout.slots()).toEqual(DEFAULT_LAYOUT);
+    hideReq.flush(fakeSettings({ [LAYOUT_SETTING]: hideReq.request.body[LAYOUT_SETTING] }));
+    await hide;
+    // The hidden Inbox is stored now, but the reset still waits for its save: it keeps showing.
+    expect(layout.slots()).toEqual(DEFAULT_LAYOUT);
+    await tick();
+
+    const resetReq = http.expectOne({ method: 'PATCH', url: SETTINGS });
+    expect(resetReq.request.body).toEqual({ [LAYOUT_SETTING]: null });
+    expect(layout.slots()).toEqual(DEFAULT_LAYOUT);
+    resetReq.flush(fakeSettings({ [LAYOUT_SETTING]: [] }));
+    await reset;
+    expect(layout.slots()).toEqual(DEFAULT_LAYOUT);
+  });
+
   it('loads the settings before a change, so the stored layout is not overwritten', async () => {
     const saved = layout.setVisible('today', false);
     http
