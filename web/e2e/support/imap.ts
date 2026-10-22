@@ -84,6 +84,13 @@ export class Imap {
     return (result ?? '').replace('* SEARCH', '').trim().split(/\s+/).filter(Boolean).map(Number);
   }
 
+  /** The raw message with sequence number `seq` in `folder` (lines joined by `\n`), left unread. */
+  async fetch(folder: string, seq: number): Promise<string> {
+    await this.command(`EXAMINE ${quote(folder)}`);
+    const lines = await this.command(`FETCH ${seq} BODY.PEEK[]`);
+    return lines.join('\n');
+  }
+
   async logout(): Promise<void> {
     try {
       await this.command('LOGOUT');

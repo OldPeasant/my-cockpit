@@ -216,9 +216,7 @@ export default class MailComposePage {
         .subscribe(resolve),
     );
     if (!file) return;
-    await this.attach(() =>
-      this.storeContent([...this.keptAttachments(), { fileId: file.id }]),
-    );
+    await this.attach(() => this.storeContent([...this.keptAttachments(), { fileId: file.id }]));
   }
 
   protected async removeAttachment(part: MailAttachmentResponse): Promise<void> {
@@ -441,7 +439,9 @@ function recipients(list: MailAddressResponse[] | undefined): Recipient[] {
   return (list ?? [])
     .filter((address) => !!address.address)
     .map((address) =>
-      address.name ? { address: address.address!, name: address.name } : { address: address.address! },
+      address.name
+        ? { address: address.address!, name: address.name }
+        : { address: address.address! },
     );
 }
 
