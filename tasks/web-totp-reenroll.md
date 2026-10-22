@@ -13,8 +13,9 @@ in the login and `GET /api/v1/auth/me` responses; every other endpoint answers 4
 must lead the owner through it (SPEC.md §10.2, §4.1).
 
 ## Acceptance criteria
-- [ ] Login accepts password + recovery code (or password only when the server allows it) and, when
+- [x] Login accepts password + recovery code (or password only when the server allows it) and, when
       `totpEnrollmentRequired` is true, routes to an enrollment screen instead of the app
+  - verified (2026-10-22 03:29+0200 by dell26/agent-3): login.spec.ts + auth.guards.spec.ts + app.spec.ts (route flow: password+recovery code, password-only mode, totpEnrollmentRequired -> /enroll-totp, shell never loaded) via cd web && npx ng test --watch=false --include src/app/features/auth --include src/app/core/auth --include src/app/app.spec.ts -> 207 passed (test-writer run on 3008661a+tests)
 - [ ] Enrollment screen: starts enrollment (QR code + secret), confirms with a TOTP code, then opens the app;
       wrong code shows the server's validation error
 - [ ] `cd web && npm run check` passes, with unit tests for the new flow
