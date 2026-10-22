@@ -15,7 +15,8 @@ Contact list and detail (SPEC.md §8.3).
 ## Acceptance criteria
 - [x] List with search, detail with related mails/events/waiting-for, edit, vCard import/export, Google/MS sync status
   - verified (2026-10-22 09:59+0200 by dell26/agent-1): ng test --include='src/app/features/contacts/**/*.spec.ts' at 2c0a11bec -> 103 passed (list+search, detail related mails/events/waiting-for, inline edit with If-Match/conflict, vCard import/export, sync status); e2e contacts.spec.ts exercises import/list/search/detail/export in the real UI -> passed; code-reviewer: no P0-P2
-- [ ] Vitest component/service tests cover detail sections; `cd web && npm run check` passes
+- [x] Vitest component/service tests cover detail sections; `cd web && npm run check` passes
+  - verified (2026-10-22 10:00+0200 by dell26/agent-1): npm --prefix web run check at 2c0a11bec -> exit 0, 161 test files (3267 tests); contacts specs cover detail sections; task-scoped coverage 99.7% statements, 95.7% branches (reviews/web-contacts/tests.md)
 - [ ] Playwright `e2e/contacts/contacts.spec.ts` passes against the e2e stack (`npm run e2e -- e2e/contacts/contacts.spec.ts`, see p0-e2e-harness): import a vCard; birthday appears in calendar
 
 ## Notes
