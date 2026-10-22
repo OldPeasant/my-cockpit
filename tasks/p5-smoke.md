@@ -16,3 +16,4 @@ Automate SPEC.md §13.2 Phase 5 against GreenMail.
 ## Notes
 - ASSUMPTION (2026-10-22 11:10+0200 by dell26/agent-2): Step 2 needs mail arriving via SMTP, so GreenMail's SMTP port is now published on the host (E2E_SMTP_PORT in deploy/docker-compose.e2e.yml + run-e2e.mjs, outside touches) and the spec delivers with a small SMTP client (web/e2e/phase5/smtp.ts)
 - ASSUMPTION (2026-10-22 11:10+0200 by dell26/agent-2): Step 6 'Waiting For from a sent mail': the Sent copy is read into the cockpit by the regular folder poll (5 min); the spec triggers it with the e2e hook POST /api/test/mail/sync instead of waiting
+- ASSUMPTION (2026-10-22 11:10+0200 by dell26/agent-2): Step 3 runs every action through the list toolbar on a selected message (Mark read/unread, Star, Move, Archive, Delete, Spam); Delete is checked as the move to Trash and Spam as the move to Junk on GreenMail
