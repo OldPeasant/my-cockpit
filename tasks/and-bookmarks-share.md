@@ -15,3 +15,4 @@ Share sheet offers Inbox or Read later (SPEC.md §8.4).
 - [ ] `cd android && ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.capture.share.*'` passes, covering the choice routing (Robolectric/Compose UI tests for screens)
 
 ## Notes
+- ASSUMPTION (2026-10-22 11:58+0200 by dell26/agent-2): Read-later shares go into the existing capture queue (new pending_bookmark table, Room auto-migration 1->2, sent by CaptureUploader after the captures) instead of a second queue; this touches capture/queue outside the task's touches, because the criterion asks for 'the offline queue'.
