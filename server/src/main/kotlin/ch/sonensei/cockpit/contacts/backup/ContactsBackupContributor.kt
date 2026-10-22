@@ -12,6 +12,11 @@ import ch.sonensei.cockpit.contacts.domain.ContactPhone
 import ch.sonensei.cockpit.contacts.domain.ContactService
 import ch.sonensei.cockpit.contacts.domain.ContactSource
 import ch.sonensei.cockpit.contacts.domain.VCardService
+import ch.sonensei.cockpit.core.backupcontrib.instant
+import ch.sonensei.cockpit.core.backupcontrib.instantOrNull
+import ch.sonensei.cockpit.core.backupcontrib.toTimestamp
+import ch.sonensei.cockpit.core.backupcontrib.toTimestampOrNull
+import ch.sonensei.cockpit.core.backupcontrib.uuid
 import ch.sonensei.cockpit.files.backup.FilesBackupContributor
 import ezvcard.VCardVersion
 import ezvcard.io.text.VCardWriter
@@ -26,7 +31,6 @@ import java.io.OutputStreamWriter
 import java.net.URLEncoder
 import java.sql.Date
 import java.sql.ResultSet
-import java.sql.Timestamp
 import java.time.Instant
 import java.time.LocalDate
 import java.util.UUID
@@ -97,10 +101,10 @@ class ContactsBackupContributor(
 				emails, phones, addresses, organization, title, birthday, notes_md, photo_file_id, source, external_id)
 				values (?, ?, ?, ?, ?, ?, ?, ?, ?::jsonb, ?::jsonb, ?::jsonb, ?, ?, ?, ?, ?, ?, ?)""",
 				contact.id,
-				Timestamp.from(contact.createdAt),
-				Timestamp.from(contact.updatedAt),
+				contact.createdAt.toTimestamp(),
+				contact.updatedAt.toTimestamp(),
 				contact.version,
-				contact.deletedAt?.let(Timestamp::from),
+				contact.deletedAt.toTimestampOrNull(),
 				contact.displayName,
 				contact.givenName,
 				contact.familyName,
@@ -132,11 +136,11 @@ class ContactsBackupContributor(
 
 	private fun row(rs: ResultSet) =
 		ContactBackup(
-			id = rs.getObject("id", UUID::class.java),
-			createdAt = rs.getTimestamp("created_at").toInstant(),
-			updatedAt = rs.getTimestamp("updated_at").toInstant(),
+			id = rs.uuid("id"),
+			createdAt = rs.instant("created_at"),
+			updatedAt = rs.instant("updated_at"),
 			version = rs.getLong("version"),
-			deletedAt = rs.getTimestamp("deleted_at")?.toInstant(),
+			deletedAt = rs.instantOrNull("deleted_at"),
 			displayName = rs.getString("display_name"),
 			givenName = rs.getString("given_name"),
 			familyName = rs.getString("family_name"),
