@@ -53,7 +53,7 @@ export class TodayHabits {
     // A view left open past midnight would check yesterday (`stats.today`): load again on return.
     const document = inject(DOCUMENT);
     const visible = () => {
-      if (document.visibilityState === 'visible' && !this.busy().size) void this.load(true);
+      if (document.visibilityState === 'visible') this.refresh();
     };
     document.addEventListener('visibilitychange', visible);
     inject(DestroyRef).onDestroy(() => document.removeEventListener('visibilitychange', visible));
@@ -71,6 +71,19 @@ export class TodayHabits {
       if (seq === this.seq) this.habits.set(habits);
     } catch {
       if (seq === this.seq && !quietly) this.failed.set(true);
+    }
+  }
+
+  /**
+   * Loads the habits again when the page is shown again, unless a check is running or they are
+   * loading anyway (like the Habits view). After a failed load it loads in full, so the error goes.
+   */
+  private refresh(): void {
+    if (this.busy().size) return;
+    if (this.failed()) {
+      void this.load();
+    } else if (this.habits()) {
+      void this.load(true);
     }
   }
 

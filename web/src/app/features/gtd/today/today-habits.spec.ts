@@ -382,20 +382,31 @@ describe('TodayHabits', () => {
   });
 
   // TW-1: a return to the page while the first load runs must not leave the section loading.
-  it('ends the loading note with a retry when a reload on return fails during the first load', async () => {
+  // Like the Habits view, the return sends no second request: the first load is still running.
+  it('ends the loading note when the page is shown again during the first load', async () => {
     await create(null);
     const first = listRequest();
 
     becomeVisible();
-    const reload = listRequest();
+    http.expectNone((r) => r.method === 'GET');
     first.flush({ items: [READ] });
     await settle();
-    reload.flush({ title: 'Server error' }, { status: 503, statusText: 'Unavailable' });
+
+    // The first load's habits, never loading forever.
+    expect(root.querySelector('[role="status"]')).toBeNull();
+    expect(row(READ)).not.toBeNull();
+  });
+
+  it('ends the loading note with a retry when the first load fails after a return', async () => {
+    await create(null);
+    const first = listRequest();
+
+    becomeVisible();
+    first.flush({ title: 'Server error' }, { status: 503, statusText: 'Unavailable' });
     await settle();
 
-    // Either the first load's habits or the load error with its retry, never loading forever.
-    const loading = root.querySelector('[role="status"]');
-    expect(loading).toBeNull();
+    expect(root.querySelector('[role="status"]')).toBeNull();
+    expect(root.querySelector('.load-error')).not.toBeNull();
   });
 
   // TW-2: a reload on return that succeeds after a failed load must not keep the load error.
