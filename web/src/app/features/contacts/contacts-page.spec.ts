@@ -411,4 +411,66 @@ describe('ContactsPage', () => {
     expect(root.querySelector('.load-error')).toBeNull();
     expect(rows()).toEqual(['Bob Sample']);
   });
+
+  it('opens the file picker from the Import vCard button', async () => {
+    await open('/contacts', [ADA]);
+    const input = root.querySelector('input[type="file"]') as HTMLInputElement;
+    expect(input.getAttribute('accept')).toContain('.vcf');
+    const picker = vi.spyOn(input, 'click').mockImplementation(() => undefined);
+    (root.querySelector('button.import') as HTMLButtonElement).click();
+    expect(picker).toHaveBeenCalledTimes(1);
+  });
+
+  it('reports an import without skipped cards and leaves out the skipped list', async () => {
+    await open('/contacts', [ADA]);
+    const input = root.querySelector('input[type="file"]') as HTMLInputElement;
+    Object.defineProperty(input, 'files', { value: [new File(['x'], 'team.vcf')] });
+    input.dispatchEvent(new Event('change'));
+    http
+      .expectOne((r) => r.method === 'POST' && r.url === `${LIST}/import`)
+      .flush({ imported: [ADA, BOB], skipped: [] });
+    await settle();
+    flushList([ADA, BOB]);
+    await settle();
+    expect(text(root.querySelector('.import-report'))).toContain('team.vcf: 2 contacts imported.');
+    expect(root.querySelector('.skipped')).toBeNull();
+    expect(text(root.querySelector('.import-report'))).not.toContain('skipped');
+  });
+
+  it('asks for the next page once when Show more is pressed twice quickly', async () => {
+    await open('/contacts', [ADA], [], 'next');
+    const more = root.querySelector('.more') as HTMLButtonElement;
+    more.click();
+    more.click();
+    http
+      .expectOne((r) => r.url === LIST && r.params.get('cursor') === 'next')
+      .flush({ items: [BOB] });
+    await settle();
+    expect(rows()).toEqual(['Ada Example', 'Bob Sample']);
+  });
+
+  it('does not toast a failed Show more that arrives after the search changed', async () => {
+    await open('/contacts', [ADA], [], 'next');
+    (root.querySelector('.more') as HTMLButtonElement).click();
+    const more = http.expectOne((r) => r.url === LIST && r.params.get('cursor') === 'next');
+    await harness.navigateByUrl('/contacts?q=bob');
+    http.expectOne((r) => r.url === LIST && r.params.get('q') === 'bob').flush({ items: [BOB] });
+    await settle();
+    more.flush(null, { status: 503, statusText: 'Unavailable' });
+    await settle();
+    expect(notifications.error).not.toHaveBeenCalled();
+    expect(rows()).toEqual(['Bob Sample']);
+  });
+
+  it('drops a quiet reload that answers after the search changed', async () => {
+    await open('/contacts', [ADA]);
+    resync.next();
+    const quiet = http.expectOne((r) => r.url === LIST && !r.params.has('q'));
+    await harness.navigateByUrl('/contacts?q=bob');
+    http.expectOne((r) => r.url === LIST && r.params.get('q') === 'bob').flush({ items: [BOB] });
+    await settle();
+    quiet.flush({ items: [ADA, BOB] });
+    await settle();
+    expect(rows()).toEqual(['Bob Sample']);
+  });
 });

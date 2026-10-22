@@ -698,4 +698,71 @@ describe('ContactDetail', () => {
     expect(text(root.querySelector('h1'))).toBe('Ada Example');
     expect(root.querySelector('.load-error')).toBeNull();
   });
+
+  it('sends one change when Save is pressed again while the first save is pending', async () => {
+    await open();
+    (root.querySelector('button.edit') as HTMLButtonElement).click();
+    await settle();
+    type('input[name="title"]', 'Engineer');
+    const form = root.querySelector('form') as HTMLFormElement;
+    form.dispatchEvent(new Event('submit'));
+    form.dispatchEvent(new Event('submit'));
+    await settle();
+    const save = http.expectOne((r) => r.method === 'PATCH' && r.url === URL);
+    save.flush(contact(ID, { title: 'Engineer', version: 2 }));
+    await settle();
+    http.expectOne(`${URL}/related`).flush(noRelated(ID));
+    await settle();
+    expect(text(root.querySelector('.role'))).toBe('Engineer');
+  });
+
+  it('moves the contact to the Trash once when Delete is pressed twice quickly', async () => {
+    await open();
+    const remove = root.querySelector('button.delete') as HTMLButtonElement;
+    remove.click();
+    remove.click();
+    const req = http.expectOne((r) => r.method === 'DELETE' && r.url === URL);
+    req.flush(null, { status: 204, statusText: 'No Content' });
+    await settle();
+    expect(notifications.info).toHaveBeenCalledTimes(1);
+    http.expectOne('/api/v1/oauth/connections').flush([]);
+    http.expectOne((r) => r.url === '/api/v1/contacts').flush({ items: [] });
+  });
+
+  it('ignores a load error of an earlier route that arrives last', async () => {
+    const OTHER = '0192f0c4-0000-7000-8000-000000000002';
+    await start(`/contacts/${ID}`);
+    const first = http.expectOne(URL);
+    await harness.navigateByUrl(`/contacts/${OTHER}`);
+    http
+      .expectOne(`/api/v1/contacts/${OTHER}`)
+      .flush(contact(OTHER, { displayName: 'Bob Sample', givenName: 'Bob', familyName: 'Sample' }));
+    await settle();
+    http.expectOne(`/api/v1/contacts/${OTHER}/related`).flush(noRelated(OTHER));
+    first.flush(null, { status: 503, statusText: 'Service Unavailable' });
+    await settle();
+    flushLinks();
+    await settle();
+    expect(root.querySelector('.load-error')).toBeNull();
+    expect(text(root.querySelector('h1'))).toBe('Bob Sample');
+  });
+
+  it('ignores a failed related-items load of the previous contact that arrives late', async () => {
+    const OTHER = '0192f0c4-0000-7000-8000-000000000002';
+    await start(`/contacts/${ID}`);
+    http.expectOne(URL).flush(contact(ID));
+    await settle();
+    const lateRelated = http.expectOne(`${URL}/related`);
+    await harness.navigateByUrl(`/contacts/${OTHER}`);
+    http.expectOne(`/api/v1/contacts/${OTHER}`).flush(contact(OTHER));
+    await settle();
+    http.expectOne(`/api/v1/contacts/${OTHER}/related`).flush(RELATED);
+    await settle();
+    lateRelated.flush(null, { status: 503, statusText: 'Service Unavailable' });
+    await settle();
+    flushLinks();
+    await settle();
+    expect(root.querySelector('.related .load-error')).toBeNull();
+    expect(items('.waiting')).toHaveLength(2);
+  });
 });

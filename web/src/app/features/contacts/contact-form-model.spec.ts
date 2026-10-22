@@ -26,6 +26,19 @@ describe('contact form model', () => {
     });
   });
 
+  it('fills empty text for a missing family name and an email without label', () => {
+    const form = toForm(
+      contact(ID, {
+        displayName: 'Ada',
+        familyName: undefined,
+        emails: [{ address: 'ada@example.org' }],
+      }),
+    );
+    expect(form.familyName).toBe('');
+    expect(form.displayName).toBe('');
+    expect(form.emails).toEqual([{ address: 'ada@example.org', label: '' }]);
+  });
+
   it('leaves empty fields and rows out of a new contact', () => {
     const form = toForm(null);
     form.givenName = '  Grace ';
