@@ -5,7 +5,7 @@ owner: dell26/agent-1
 deps: [contacts-api,cal-local-api]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/contacts/birthdays,server/src/test/kotlin/ch/sonensei/cockpit/contacts/birthdays]
 prio: 2
-lease_until: 2026-10-22T04:27:17Z
+lease_until: 2026-10-22T04:29:06Z
 extended: 
 releases: 1
 ---
