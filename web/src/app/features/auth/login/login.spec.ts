@@ -345,6 +345,70 @@ describe('Login', () => {
     expect(router.url).toBe('/enroll-totp');
   });
 
+  async function usePasswordOnly(): Promise<void> {
+    root.querySelector<HTMLButtonElement>('button.switch')!.click();
+    await fixture().whenStable();
+    root.querySelector<HTMLButtonElement>('button.password-switch')!.click();
+    await fixture().whenStable();
+    type('input[formControlName=username]', 'demo');
+    type('input[formControlName=password]', 'a long password');
+  }
+
+  it('drops an unsafe return URL when routing to the TOTP enrollment', async () => {
+    await open('/login?returnUrl=%2F%2Fevil.example');
+    login.mockResolvedValueOnce({ username: 'demo', totpEnrollmentRequired: true });
+    fill();
+    await submit();
+    expect(router.url).toBe('/enroll-totp');
+  });
+
+  it('opens the return URL after a password-only login that needs no enrollment', async () => {
+    await open('/login?returnUrl=%2Finbox');
+    await usePasswordOnly();
+    login.mockResolvedValueOnce({ username: 'demo', totpEnrollmentRequired: false });
+    await submit();
+    expect(login).toHaveBeenCalledWith({
+      username: 'demo',
+      password: 'a long password',
+      rememberDevice: false,
+    });
+    expect(router.url).toBe('/inbox');
+  });
+
+  it('does not send a password-only login without a password', async () => {
+    await open();
+    root.querySelector<HTMLButtonElement>('button.switch')!.click();
+    await fixture().whenStable();
+    root.querySelector<HTMLButtonElement>('button.password-switch')!.click();
+    await fixture().whenStable();
+    type('input[formControlName=username]', 'demo');
+    await submit();
+    expect(login).not.toHaveBeenCalled();
+  });
+
+  it('starts the backoff when a password-only login is throttled', async () => {
+    await open();
+    await usePasswordOnly();
+    login.mockRejectedValueOnce(
+      new ApiError(429, 'Too Many Requests', undefined, undefined, undefined, [], 5),
+    );
+    await submit();
+    expect(root.querySelector('.notice.backoff')?.textContent?.replace(/\s+/g, ' ')).toContain(
+      'Try again in 5 s.',
+    );
+    expect(root.querySelector<HTMLButtonElement>('button[type=submit]')!.disabled).toBe(true);
+  });
+
+  it('shows the server message on other errors of a password-only login', async () => {
+    await open();
+    await usePasswordOnly();
+    login.mockRejectedValueOnce(new ApiError(0, 'The server cannot be reached.'));
+    await submit();
+    const alert = root.querySelector('[role=alert]')?.textContent;
+    expect(alert).toContain('The server cannot be reached.');
+    expect(alert).not.toContain('recovery code');
+  });
+
   it('explains a refused password-only login and goes back to the app code', async () => {
     await open();
     root.querySelector<HTMLButtonElement>('button.switch')!.click();

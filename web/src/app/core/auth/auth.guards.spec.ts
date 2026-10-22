@@ -124,6 +124,40 @@ describe('auth guards', () => {
       expect(router.url).toBe('/setup');
     });
 
+    it('loginGuard sends the session to /enroll-totp without a return URL', async () => {
+      await harness.navigateByUrl('/login');
+      expect(router.url).toBe('/enroll-totp');
+    });
+
+    it('loginGuard drops an unsafe return URL on the way to /enroll-totp', async () => {
+      await harness.navigateByUrl('/login?returnUrl=%2F%2Fevil.example');
+      expect(router.url).toBe('/enroll-totp');
+    });
+
+    it('totpEnrollmentGuard sends a normal session to the dashboard for an unsafe return URL', async () => {
+      enrollmentRequired = false;
+      await harness.navigateByUrl('/enroll-totp?returnUrl=https%3A%2F%2Fevil.example');
+      expect(router.url).toBe('/');
+    });
+
+    it('totpEnrollmentGuard does not loop when the return URL is the enrollment page', async () => {
+      enrollmentRequired = false;
+      await harness.navigateByUrl('/enroll-totp?returnUrl=%2Fenroll-totp');
+      expect(router.url).toBe('/');
+    });
+
+    it('totpEnrollmentGuard sends a user without a session to /login without a return URL', async () => {
+      loggedIn = false;
+      await harness.navigateByUrl('/enroll-totp');
+      expect(router.url).toBe('/login');
+    });
+
+    it('totpEnrollmentGuard sends to /login when the setup status fails', async () => {
+      setupStatus.mockImplementation(() => Promise.reject(new ApiError(0, 'unreachable')));
+      await harness.navigateByUrl('/enroll-totp');
+      expect(router.url).toBe('/login');
+    });
+
     it('totpEnrollmentGuard sends to /login when the server fails', async () => {
       checkSession.mockImplementation(() => Promise.reject(new ApiError(502, 'Bad Gateway')));
       await harness.navigateByUrl('/enroll-totp');
@@ -242,6 +276,9 @@ describe('auth guards', () => {
       ['/enroll-totp', '/'],
       ['/enroll-totp?returnUrl=%2Finbox', '/'],
       ['/login#x', '/'],
+      ['/setup?step=2', '/'],
+      ['/enroll-totp#top', '/'],
+      ['/enroll-totp-help', '/enroll-totp-help'],
       ['/logins', '/logins'],
     ])('%s -> %s', (input, expected) => {
       expect(safeReturnUrl(input)).toBe(expected);

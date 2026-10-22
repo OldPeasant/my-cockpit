@@ -308,4 +308,89 @@ describe('AuthService', () => {
     expect(TestBed.inject(Router).url).toBe('/');
     expect(auth.totpEnrollmentRequired()).toBe(true);
   });
+
+  /** A session that must set up TOTP again, as `/me` reports it. */
+  async function enrollmentSession(): Promise<void> {
+    const session = auth.checkSession();
+    await tick();
+    backend.expectOne('/api/v1/auth/me').flush({ username: 'demo', totpEnrollmentRequired: true });
+    await session;
+  }
+
+  it('rejects a throttled confirmation with retryAfter, without a toast', async () => {
+    await enrollmentSession();
+    const confirm = auth.confirmTotpEnrollment('123456').catch((error: unknown) => error);
+    await tick();
+    backend
+      .expectOne('/api/v1/auth/totp-enrollment/confirm')
+      .flush(
+        { status: 429, title: 'Too Many Requests' },
+        { status: 429, statusText: 'Too Many Requests', headers: { 'Retry-After': '42' } },
+      );
+    const error = (await confirm) as ApiError;
+    expect(error.status).toBe(429);
+    expect(error.retryAfter).toBe(42);
+    expect(notifications.error).not.toHaveBeenCalled();
+    expect(auth.totpEnrollmentRequired()).toBe(true);
+  });
+
+  it('rejects a confirmation the server no longer expects (409), keeping the flag', async () => {
+    await enrollmentSession();
+    const confirm = auth.confirmTotpEnrollment('123456').catch((error: unknown) => error);
+    await tick();
+    backend
+      .expectOne('/api/v1/auth/totp-enrollment/confirm')
+      .flush(
+        { status: 409, title: 'Conflict', detail: 'TOTP re-enrollment is not required' },
+        { status: 409, statusText: 'Conflict' },
+      );
+    const error = (await confirm) as ApiError;
+    expect(error.status).toBe(409);
+    expect(error.userMessage).toBe('TOTP re-enrollment is not required');
+    expect(notifications.error).not.toHaveBeenCalled();
+    expect(auth.totpEnrollmentRequired()).toBe(true);
+  });
+
+  it('does not redirect when the enrollment session expired (401)', async () => {
+    await enrollmentSession();
+    const confirm = auth.confirmTotpEnrollment('123456').catch((error: unknown) => error);
+    await tick();
+    backend
+      .expectOne('/api/v1/auth/totp-enrollment/confirm')
+      .flush(null, { status: 401, statusText: 'Unauthorized' });
+    expect(((await confirm) as ApiError).status).toBe(401);
+    expect(TestBed.inject(Router).url).toBe('/');
+    expect(notifications.error).not.toHaveBeenCalled();
+  });
+
+  it('confirms without a known session and stays logged out locally', async () => {
+    const confirm = auth.confirmTotpEnrollment('123456');
+    await tick();
+    backend
+      .expectOne('/api/v1/auth/totp-enrollment/confirm')
+      .flush(null, { status: 204, statusText: 'No Content' });
+    await confirm;
+    expect(auth.loggedIn()).toBe(false);
+    expect(auth.totpEnrollmentRequired()).toBe(false);
+  });
+
+  it('forgets the enrollment flag on logout', async () => {
+    await enrollmentSession();
+    const logout = auth.logout();
+    await tick();
+    backend.expectOne('/api/v1/auth/logout').flush(null, { status: 204, statusText: 'No Content' });
+    await logout;
+    expect(auth.totpEnrollmentRequired()).toBe(false);
+    expect(auth.loggedIn()).toBe(false);
+  });
+
+  it('takes the enrollment flag from a refreshed /me', async () => {
+    await enrollmentSession();
+    expect(auth.totpEnrollmentRequired()).toBe(true);
+    const refreshed = auth.checkSession(true);
+    await tick();
+    backend.expectOne('/api/v1/auth/me').flush({ username: 'demo', totpEnrollmentRequired: false });
+    expect(await refreshed).toBe(true);
+    expect(auth.totpEnrollmentRequired()).toBe(false);
+  });
 });

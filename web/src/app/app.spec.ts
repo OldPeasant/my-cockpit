@@ -188,7 +188,7 @@ describe('App', () => {
 describe('App routes with auth guards', () => {
   let harness: RouterTestingHarness;
   let router: Router;
-  let state: { setupRequired: boolean; loggedIn: boolean };
+  let state: { setupRequired: boolean; loggedIn: boolean; enrollmentRequired: boolean };
   let auth: {
     setupRequired: ReturnType<typeof vi.fn>;
     checkSession: ReturnType<typeof vi.fn>;
@@ -196,21 +196,36 @@ describe('App routes with auth guards', () => {
     user: () => { username: string } | null;
     loggedIn: () => boolean;
     totpEnrollmentRequired: () => boolean;
+    startTotpEnrollment: ReturnType<typeof vi.fn>;
+    confirmTotpEnrollment: ReturnType<typeof vi.fn>;
     logout: ReturnType<typeof vi.fn>;
   };
 
   beforeEach(async () => {
-    state = { setupRequired: false, loggedIn: false };
+    state = { setupRequired: false, loggedIn: false, enrollmentRequired: false };
     auth = {
       setupRequired: vi.fn(() => Promise.resolve(state.setupRequired)),
       checkSession: vi.fn(() => Promise.resolve(state.loggedIn)),
       login: vi.fn(() => {
         state.loggedIn = true;
-        return Promise.resolve({ username: 'demo' });
+        return Promise.resolve({
+          username: 'demo',
+          totpEnrollmentRequired: state.enrollmentRequired,
+        });
       }),
       user: () => (state.loggedIn ? { username: 'demo' } : null),
       loggedIn: () => state.loggedIn,
-      totpEnrollmentRequired: () => false,
+      totpEnrollmentRequired: () => state.loggedIn && state.enrollmentRequired,
+      startTotpEnrollment: vi.fn(() =>
+        Promise.resolve({
+          totpSecret: 'JBSWY3DPEHPK3PXP',
+          otpauthUri: 'otpauth://totp/My%20Cockpit:demo?secret=JBSWY3DPEHPK3PXP',
+        }),
+      ),
+      confirmTotpEnrollment: vi.fn(() => {
+        state.enrollmentRequired = false;
+        return Promise.resolve();
+      }),
       logout: vi.fn(() => Promise.resolve()),
     };
     TestBed.configureTestingModule({
@@ -302,5 +317,53 @@ describe('App routes with auth guards', () => {
     await harness.navigateByUrl('/login?returnUrl=%2Fnotes');
     expect(router.url).toBe('/notes');
     expect(auth.checkSession).toHaveBeenCalledWith(true);
+  });
+
+  // web-totp-reenroll: after a restore without secrets the session may only set up TOTP again.
+  it('leads a login that needs TOTP enrollment through /enroll-totp back to the return URL', async () => {
+    state.enrollmentRequired = true;
+    await harness.navigateByUrl('/trash');
+    expect(router.url).toBe('/login?returnUrl=%2Ftrash');
+
+    const type = (selector: string, value: string): void => {
+      const input = page().querySelector<HTMLInputElement>(selector)!;
+      input.value = value;
+      input.dispatchEvent(new Event('input'));
+    };
+    type('input[formControlName=username]', 'demo');
+    type('input[formControlName=password]', 'a fictitious password');
+    type('input[name=totp]', '123456');
+    page().querySelector('form')!.dispatchEvent(new Event('submit'));
+
+    await vi.waitFor(() => expect(router.url).toBe('/enroll-totp?returnUrl=%2Ftrash'));
+    await vi.waitFor(() =>
+      expect(page().querySelector('app-totp-enrollment .secret')).not.toBeNull(),
+    );
+    expect(page().querySelector('app-shell')).toBeNull();
+    expect(document.title).toBe('Set up your authenticator app');
+    expect(auth.startTotpEnrollment).toHaveBeenCalledTimes(1);
+
+    type('input[name=code]', '654321');
+    page().querySelector('app-totp-enrollment form')!.dispatchEvent(new Event('submit'));
+    await vi.waitFor(() => expect(router.url).toBe('/trash'));
+    expect(auth.confirmTotpEnrollment).toHaveBeenCalledWith('654321');
+    await harness.fixture.whenStable();
+    expect(page().querySelector('app-trash-page h1')?.textContent?.trim()).toBe('Trash');
+  });
+
+  it('keeps a session that needs TOTP enrollment out of every shell route', async () => {
+    state.loggedIn = true;
+    state.enrollmentRequired = true;
+    await harness.navigateByUrl('/notes');
+    expect(router.url).toBe('/enroll-totp?returnUrl=%2Fnotes');
+    expect(page().querySelector('app-shell')).toBeNull();
+    expect(page().querySelector('app-totp-enrollment')).not.toBeNull();
+  });
+
+  it('sends a normal session away from /enroll-totp', async () => {
+    state.loggedIn = true;
+    await harness.navigateByUrl('/enroll-totp?returnUrl=%2Fnotes');
+    expect(router.url).toBe('/notes');
+    expect(auth.startTotpEnrollment).not.toHaveBeenCalled();
   });
 });
