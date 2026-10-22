@@ -4,7 +4,7 @@ Date: 2026-10-22
 
 Task: web-dashboard - Dashboard
 
-Scope: findings CR-1..CR-6 in `reviews/web-dashboard/review.md` and the dead-code note (`DashboardPage.eventStart`) in `reviews/web-dashboard/tests.md`, on top of HEAD eeed1dda1. Only files in `web/src/app/features/dashboard/` were changed.
+Scope: findings CR-1..CR-6 in `reviews/web-dashboard/review.md` and the dead-code note (`DashboardPage.eventStart`) in `reviews/web-dashboard/tests.md`, on top of HEAD eeed1dda1; then finding CR-7 from the second review, on top of HEAD adda0e2ca. Only files in `web/src/app/features/dashboard/` were changed.
 
 ## Fixed findings
 
@@ -102,6 +102,23 @@ Renamed the test to "moves a widget down from the customize panel; the first one
 Validation:
 - Focused dashboard tests — Pass
 
+### CR-7 — Reset is not shown optimistically while its PATCH is in flight
+
+Files changed:
+- `web/src/app/features/dashboard/dashboard-layout.ts`
+- `web/src/app/features/dashboard/dashboard-layout.spec.ts`
+
+Problem:
+`change()` dropped every change from `pending` right before calling `settings.update`. For a reset the patch is `{ dashboardWidgets: null }`, and `SettingsService.save` leaves `null` values out of what it shows (`withoutResets`). So while the reset PATCH was unanswered, the dashboard went back to the old stored layout, and a change queued after the reset showed on that old layout.
+
+Fix:
+A reset change now stays in `pending` until its save settles. Only non-reset changes are dropped before `update`. The existing `finally` drops the reset after success or failure. `() => DEFAULT_LAYOUT` gives the same result on any layout, so applying it on top of `stored()` cannot apply anything twice. Saved values are unchanged. The class doc comment notes the exception.
+
+Validation:
+- New spec "shows a reset, and a change made after it, while the reset save is unanswered". While the reset PATCH is unanswered, `slots()` is `DEFAULT_LAYOUT` and `visible()` lists every widget. A "hide Today" queued meanwhile shows on the default layout. It stays shown after the reset answers and while its own PATCH runs, and it is saved built on the default layout. With the production file temporarily restored from HEAD (before the fix), this spec fails ("expected [ { id: 'pinnedNotes', ... } ] to deeply equal [ Array(8) ]"). With the fix it passes.
+- The existing reset specs still pass: "brings the stored layout back when a reset is refused", "resets the layout to the setting default", "builds a change made right after a reset on the default layout".
+- `cd web && npx ng test --watch=false --include 'src/app/features/dashboard/**/*.spec.ts'` — Pass, 3 files, 85 tests
+
 ### TW-note — Unused `DashboardPage.eventStart()`
 
 Files changed:
@@ -122,13 +139,19 @@ None.
 
 ## Validation summary
 
-Focused tests:
+Focused tests (CR-7, on top of adda0e2ca):
+- `cd web && npx ng test --watch=false --include 'src/app/features/dashboard/**/*.spec.ts'` — Pass, 3 files, 85 tests
+- `cd web && npx prettier --check src/app/features/dashboard` — Pass (All matched files use Prettier code style)
+- `cd web && npm run lint` — Pass (All files pass linting)
+
+Focused tests (CR-1..CR-6):
 - `cd web && npx prettier --write src/app/features/dashboard` — done
 - `cd web && npx ng lint --max-warnings=0` — Pass (All files pass linting)
 - `cd web && npx ng test --watch=false --include 'src/app/features/dashboard/**/*.spec.ts'` — Pass, 3 files, 77 tests (was 67)
 
 Full test suite:
-- `cd web && npm run check` (api:check, lint, e2e:typecheck, test:ci, ng build) — Pass, exit 0. 164 files, 3343 tests. The build shows the known initial-bundle budget warning (676.62 kB of 500 kB). It is a warning only, and this change did not cause it.
+- CR-7: `npm run check` was not run for this change. The parent runs it (or `.taskcheck`) on the final code.
+- CR-1..CR-6: `cd web && npm run check` (api:check, lint, e2e:typecheck, test:ci, ng build) — Pass, exit 0. 164 files, 3343 tests. The build shows the known initial-bundle budget warning (676.62 kB of 500 kB). It is a warning only, and this change did not cause it.
 
 Lint/type-check/build:
 - Included in `npm run check` above — Pass

@@ -260,6 +260,36 @@ describe('DashboardLayout', () => {
     await hide;
   });
 
+  it('shows a reset, and a change made after it, while the reset save is unanswered', async () => {
+    await loadSettings(['pinnedNotes', 'inbox:hidden']);
+
+    const reset = layout.reset();
+    await tick();
+    const resetReq = http.expectOne({ method: 'PATCH', url: SETTINGS });
+    expect(resetReq.request.body).toEqual({ [LAYOUT_SETTING]: null });
+    // The reset PATCH is unanswered: the default layout shows.
+    expect(layout.slots()).toEqual(DEFAULT_LAYOUT);
+    expect(layout.visible()).toEqual([...WIDGET_IDS]);
+
+    const hide = layout.setVisible('today', false);
+    await tick();
+    const hidden = setVisible(DEFAULT_LAYOUT, 'today', false);
+    expect(layout.slots()).toEqual(hidden);
+    expect(layout.visible()).toEqual(WIDGET_IDS.filter((id) => id !== 'today'));
+
+    resetReq.flush(fakeSettings({ [LAYOUT_SETTING]: [] }));
+    await reset;
+    expect(layout.slots()).toEqual(hidden);
+    await tick();
+
+    const req = http.expectOne({ method: 'PATCH', url: SETTINGS });
+    expect(req.request.body).toEqual({ [LAYOUT_SETTING]: serializeLayout(hidden) });
+    expect(layout.slots()).toEqual(hidden);
+    req.flush(fakeSettings({ [LAYOUT_SETTING]: req.request.body[LAYOUT_SETTING] }));
+    await hide;
+    expect(layout.slots()).toEqual(hidden);
+  });
+
   it('loads the settings before a change, so the stored layout is not overwritten', async () => {
     const saved = layout.setVisible('today', false);
     http

@@ -97,8 +97,8 @@ interface PendingChange {
  *
  * Changes are saved one after the other, and each one is applied to the layout its predecessors
  * left: quick clicks while a save is unanswered build on each other, and a refused change drops
- * out without taking the later ones with it. Until its save starts, a change shows through
- * {@link slots} on top of the stored layout.
+ * out without taking the later ones with it. Until its save starts (a reset: until its save
+ * settles), a change shows through {@link slots} on top of the stored layout.
  */
 @Injectable({ providedIn: 'root' })
 export class DashboardLayout {
@@ -156,7 +156,12 @@ export class DashboardLayout {
     const result = this.saving
       .then(() => loaded)
       .then(() => {
-        const value = reset ? null : serializeLayout(apply(this.stored()));
+        if (reset) {
+          // The settings service cannot show a reset (only the response knows the default), so
+          // the change keeps showing until its save settles; it is idempotent on any layout.
+          return this.settings.update({ [LAYOUT_SETTING]: null });
+        }
+        const value = serializeLayout(apply(this.stored()));
         // The settings service shows the saved value from now on, and rolls it back on failure.
         this.drop(change);
         return this.settings.update({ [LAYOUT_SETTING]: value });
