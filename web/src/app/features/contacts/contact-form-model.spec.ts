@@ -109,6 +109,27 @@ describe('contact form model', () => {
     ).toBe('');
   });
 
+  it('treats a display name taken from the email as derived, the organization of a named contact as its own', () => {
+    const byEmail = toForm(
+      contact(ID, {
+        displayName: 'ada@example.org',
+        givenName: undefined,
+        familyName: undefined,
+      }),
+    );
+    expect(byEmail.displayName).toBe('');
+    byEmail.givenName = 'Ada';
+    expect(toRequest(byEmail, true)).toMatchObject({ displayName: null, givenName: 'Ada' });
+
+    // The server derives "Ada Example" here, so "Example AG" was chosen by the user.
+    const named = toForm(contact(ID, { displayName: 'Example AG', organization: 'Example AG' }));
+    expect(named.displayName).toBe('Example AG');
+  });
+
+  it('starts a new contact with an empty display name', () => {
+    expect(toForm(null).displayName).toBe('');
+  });
+
   it('needs a name, an organization or an email address', () => {
     const form = toForm(null);
     expect(hasName(form)).toBe(false);

@@ -152,6 +152,24 @@ describe('ContactForm', () => {
     );
   });
 
+  it('sends a typed birthday and notes, and null for a cleared birthday', async () => {
+    await create();
+    await type('input[name="givenName"]', 'Grace');
+    await type('input[name="birthday"]', '1990-03-14');
+    await type('textarea[name="notesMd"]', 'Met at the **meetup**\n');
+    await submit();
+    expect(saved).toEqual([
+      { givenName: 'Grace', birthday: '1990-03-14', notesMd: 'Met at the **meetup**' },
+    ]);
+
+    await create({ contact: contact(ID, { birthday: '1990-03-14' }) });
+    expect(values('input[name="birthday"]')).toEqual(['1990-03-14']);
+    await type('input[name="birthday"]', '');
+    await submit();
+    expect(saved).toHaveLength(1);
+    expect(saved[0]).toMatchObject({ birthday: null });
+  });
+
   it('accepts an email address alone as the name of a new contact', async () => {
     await create();
     await click('.add-email');
@@ -185,6 +203,39 @@ describe('ContactForm', () => {
     await render();
     expect(values('input[name="title"]')).toEqual(['Draft title']);
     expect(root.querySelectorAll('.phones .row')).toHaveLength(1);
+  });
+
+  it('leaves "Shown as" empty for a derived display name, so a rename derives it again', async () => {
+    await create({ contact: contact(ID) });
+    const shownAs = root.querySelector('input[name="displayName"]') as HTMLInputElement;
+    expect(shownAs.value).toBe('');
+    expect(shownAs.placeholder).toBe('Leave empty to use the name');
+    await type('input[name="familyName"]', 'Lovelace');
+    await submit();
+    expect(saved).toHaveLength(1);
+    expect(saved[0]).toMatchObject({ displayName: null, givenName: 'Ada', familyName: 'Lovelace' });
+  });
+
+  it('shows and sends a display name of its own, and null once it is cleared', async () => {
+    await create({ contact: contact(ID, { displayName: 'Countess Ada' }) });
+    expect(values('input[name="displayName"]')).toEqual(['Countess Ada']);
+    await submit();
+    await type('input[name="displayName"]', '   ');
+    await submit();
+    expect(saved.map((r) => r.displayName)).toEqual(['Countess Ada', null]);
+  });
+
+  it('keeps the edits over several reloads of the same contact and still refills for a new one', async () => {
+    await create({ contact: contact(ID, { title: 'Engineer' }) });
+    await type('input[name="title"]', 'Draft title');
+    fixture.componentRef.setInput('contact', contact(ID, { title: 'Lead', version: 2 }));
+    await render();
+    fixture.componentRef.setInput('contact', contact(ID, { title: 'Head', version: 3 }));
+    await render();
+    expect(values('input[name="title"]')).toEqual(['Draft title']);
+    await submit();
+    expect(saved).toHaveLength(1);
+    expect(saved[0]).toMatchObject({ title: 'Draft title' });
   });
 
   it('refills the form with another contact', async () => {

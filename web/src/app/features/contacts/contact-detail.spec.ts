@@ -240,6 +240,13 @@ describe('ContactDetail', () => {
     expect(text(root.querySelector('.sync-status'))).toBe('Synced with Google');
   });
 
+  it('names the account by its display name when it has no email', async () => {
+    await open(contact(ID, { source: 'MICROSOFT' }), noRelated(ID), [
+      connection('MICROSOFT', { email: undefined }),
+    ]);
+    expect(text(root.querySelector('.sync-status'))).toBe('Synced with Microsoft (Jane Doe)');
+  });
+
   it('says when the sync of a contact is paused', async () => {
     await open(contact(ID, { source: 'MICROSOFT' }), noRelated(ID), [
       connection('MICROSOFT', { status: 'RECONNECT_REQUIRED' }),
@@ -307,6 +314,72 @@ describe('ContactDetail', () => {
     retry.flush(contact(ID, { version: 4 }));
     await settle();
     http.expectOne(`${URL}/related`).flush(noRelated(ID));
+  });
+
+  it('renames a contact whose display name was derived and shows the new name', async () => {
+    await open();
+    (root.querySelector('button.edit') as HTMLButtonElement).click();
+    await settle();
+    expect((root.querySelector('input[name="displayName"]') as HTMLInputElement).value).toBe('');
+    type('input[name="familyName"]', 'Lovelace');
+    (root.querySelector('form') as HTMLFormElement).dispatchEvent(new Event('submit'));
+    const req = http.expectOne((r) => r.method === 'PATCH' && r.url === URL);
+    expect(req.request.body).toMatchObject({
+      displayName: null,
+      givenName: 'Ada',
+      familyName: 'Lovelace',
+    });
+    req.flush(contact(ID, { displayName: 'Ada Lovelace', familyName: 'Lovelace', version: 2 }));
+    await settle();
+    http.expectOne(`${URL}/related`).flush(noRelated(ID));
+    await settle();
+    expect(text(root.querySelector('h1'))).toBe('Ada Lovelace');
+  });
+
+  it('after a conflict, Cancel shows the current version and Edit starts from it', async () => {
+    await open();
+    (root.querySelector('button.edit') as HTMLButtonElement).click();
+    await settle();
+    type('input[name="title"]', 'Engineer');
+    (root.querySelector('form') as HTMLFormElement).dispatchEvent(new Event('submit'));
+    http
+      .expectOne((r) => r.method === 'PATCH')
+      .flush(
+        { status: 409, title: 'Conflict', detail: 'Changed elsewhere' },
+        { status: 409, statusText: 'Conflict' },
+      );
+    await settle();
+    http.expectOne(URL).flush(contact(ID, { title: 'Lead', version: 3 }));
+    await settle();
+    (root.querySelector('button.cancel') as HTMLButtonElement).click();
+    await settle();
+    expect(root.querySelector('app-contact-form')).toBeNull();
+    expect(text(root.querySelector('.role'))).toBe('Lead');
+    (root.querySelector('button.edit') as HTMLButtonElement).click();
+    await settle();
+    expect((root.querySelector('input[name="title"]') as HTMLInputElement).value).toBe('Lead');
+    expect(root.querySelector('.form-error')).toBeNull();
+  });
+
+  it('keeps the form, the typed values and the conflict message when the reload fails', async () => {
+    await open();
+    (root.querySelector('button.edit') as HTMLButtonElement).click();
+    await settle();
+    type('input[name="title"]', 'Engineer');
+    (root.querySelector('form') as HTMLFormElement).dispatchEvent(new Event('submit'));
+    http
+      .expectOne((r) => r.method === 'PATCH')
+      .flush(
+        { status: 412, title: 'Precondition Failed', detail: 'Changed elsewhere' },
+        { status: 412, statusText: 'Precondition Failed' },
+      );
+    await settle();
+    http.expectOne(URL).flush(null, { status: 503, statusText: 'Service Unavailable' });
+    await settle();
+    expect(root.querySelector('.load-error')).toBeNull();
+    expect(text(root.querySelector('.form-error'))).toContain('Your changes are kept');
+    expect((root.querySelector('input[name="title"]') as HTMLInputElement).value).toBe('Engineer');
+    expect((root.querySelector('button.save') as HTMLButtonElement).disabled).toBe(false);
   });
 
   it('cancels editing without saving', async () => {
@@ -593,6 +666,23 @@ describe('ContactDetail', () => {
     await settle();
     // http.verify() in afterEach: no reload was requested.
     expect((root.querySelector('input[name="title"]') as HTMLInputElement).value).toBe('Draft');
+  });
+
+  it('does not reload for the change event of its own pending save', async () => {
+    await open();
+    (root.querySelector('button.edit') as HTMLButtonElement).click();
+    await settle();
+    type('input[name="title"]', 'Engineer');
+    (root.querySelector('form') as HTMLFormElement).dispatchEvent(new Event('submit'));
+    const save = http.expectOne((r) => r.method === 'PATCH');
+    // The echo of this very save arrives before its response: no reload (http.verify in afterEach).
+    changes.next({ type: 'CONTACT', id: ID, op: 'UPDATED' });
+    await settle();
+    save.flush(contact(ID, { title: 'Engineer', version: 2 }));
+    await settle();
+    http.expectOne(`${URL}/related`).flush(noRelated(ID));
+    await settle();
+    expect(text(root.querySelector('.role'))).toBe('Engineer');
   });
 
   it('ignores a change from elsewhere that is not newer, or that fails to load', async () => {
