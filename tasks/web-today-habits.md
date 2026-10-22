@@ -1,11 +1,11 @@
 ---
 title: Today view: habits due
-status: in_progress
+status: done
 owner: dell26/agent-1
 deps: [web-today-events,web-habits]
 touches: [web/src/app/features/gtd/today]
 prio: 3
-lease_until: 2026-10-22T02:56:19Z
+lease_until: 
 ---
 ## Goal
 Today shows habits due.
@@ -18,3 +18,4 @@ Today shows habits due.
 
 ## Notes
 - ASSUMPTION (2026-10-22 03:48+0200 by dell26/agent-1): Today habits section is hidden when the user has no active habits, shows 'No habits due today' when habits exist but none is due; registered via provideTodaySection in today.routes.ts (order 10); messages.xlf left to a dedicated extract like other web tasks
+- done by dell26/agent-1: `sh scripts/check.sh` passed in 673s on bf143d84a; criteria verified 2/2
