@@ -5,7 +5,7 @@ owner: dell26/agent-3
 deps: [backup-contrib-core,contacts-api]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/contacts/backup,server/src/test/kotlin/ch/sonensei/cockpit/contacts/backup]
 prio: 2
-lease_until: 2026-10-22T02:51:07Z
+lease_until: 2026-10-22T02:56:08Z
 ---
 ## Goal
 Contacts in backups.
