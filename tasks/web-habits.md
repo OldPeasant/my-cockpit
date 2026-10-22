@@ -15,7 +15,8 @@ Track habits (SPEC.md §8.5).
 ## Acceptance criteria
 - [x] Habit list with one-tap check, streaks, stats, create/edit
   - verified (2026-10-22 03:38+0200 by dell26/agent-3): npx ng test --watch=false --include='src/app/features/habits/**/*.spec.ts' (web) -> 4 files, 71 passed; habits-page.spec covers list grouped by due today with streaks + 30-day completion, one-tap check/uncheck, create/edit via habit-form.spec, archive; component-level (no browser run)
-- [ ] Vitest component/service tests cover check toggle and streak display; `cd web && npm run check` passes
+- [x] Vitest component/service tests cover check toggle and streak display; `cd web && npm run check` passes
+  - verified (2026-10-22 03:38+0200 by dell26/agent-3): habits-page.spec 'checks a habit with one tap and shows the new streak', 'unchecks a done habit with the next tap', habit-display.spec streak plurals pass; sh scripts/check.sh (includes cd web && npm run check) -> all checks passed, web 138 files / 2828 tests passed
 
 ## Notes
 - ASSUMPTION (2026-10-22 02:15+0200 by dell26/agent-2): One-tap check on a habit with targetCount > 1 counts up by one per tap and wraps to 0 after the target; a once-a-day habit toggles 0/1. The check always targets the server's stats.today.
