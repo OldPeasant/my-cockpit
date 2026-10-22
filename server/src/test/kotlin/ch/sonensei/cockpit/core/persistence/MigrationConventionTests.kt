@@ -3,6 +3,7 @@ package ch.sonensei.cockpit.core.persistence
 import io.kotest.assertions.withClue
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.collections.shouldNotBeEmpty
+import io.kotest.matchers.maps.shouldBeEmpty
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.Test
@@ -38,6 +39,18 @@ class MigrationConventionTests {
 					match.groupValues[2].isNotEmpty() shouldBe match.groupValues[4].startsWith("test_")
 				}
 			}
+		}
+	}
+
+	@Test
+	fun `no two migrations share a Flyway version, even across module folders`() {
+		val duplicates =
+			migrations
+				.groupBy { path -> NAME.matchEntire(path.substringAfter("/"))?.groupValues?.let { v -> v[1] + v[2] } }
+				.filterKeys { it != null }
+				.filterValues { it.size > 1 }
+		withClue("pick a later V<yyyyMMddHHmm> for one of them; Flyway refuses to start otherwise") {
+			duplicates.shouldBeEmpty()
 		}
 	}
 
