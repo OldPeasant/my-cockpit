@@ -5,6 +5,7 @@ import ch.sonensei.cockpit.core.settings.domain.SettingDefinition
 import ch.sonensei.cockpit.core.settings.domain.SettingType
 import ch.sonensei.cockpit.core.settings.domain.SettingsChangedEvent
 import ch.sonensei.cockpit.core.settings.domain.SettingsService
+import ch.sonensei.cockpit.core.settings.infra.DashboardSettings
 import ch.sonensei.cockpit.core.settings.infra.UserSettingsRepository
 import ch.sonensei.cockpit.core.web.InvalidRequestException
 import ch.sonensei.cockpit.gtd.infra.GtdSettings
@@ -119,6 +120,6 @@ class SettingsServiceTests(
 
 	private companion object {
 		/** Every setting of the application: the core ones and those modules register as beans. */
-		val REGISTERED_KEYS = (CoreSettings.ALL + GtdSettings.NEXT_ACTION_PRESETS).map { it.key }.sorted()
+		val REGISTERED_KEYS = (CoreSettings.ALL + GtdSettings.NEXT_ACTION_PRESETS + DashboardSettings.DASHBOARD_WIDGETS).map { it.key }.sorted()
 	}
 }
