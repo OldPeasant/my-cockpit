@@ -1,11 +1,11 @@
 ---
 title: Android passkeys
-status: in_progress
+status: done
 owner: dell26/agent-2
 deps: [passkeys-server,and-login,app-logo]
 touches: [android/app/src/main/java/ch/sonensei/cockpit/auth,android/app/src/test/java/ch/sonensei/cockpit/auth]
 prio: 3
-lease_until: 2026-10-22T13:33:31Z
+lease_until: 
 releases: 0
 extended: 
 ---
@@ -24,3 +24,4 @@ Passkey login via Credential Manager.
 - ASSUMPTION (2026-10-22 14:44+0200 by dell26/agent-2): Digital Asset Links (/.well-known/assetlinks.json naming the app's package and signing cert) is not served yet; passkeys on a real install need it. Left to new task deploy-assetlinks (deploy/server), outside this task's touches.
 - ASSUMPTION (2026-10-22 15:16+0200 by dell26/agent-2): Criterion 1 (real passkey login/registration) verified only at unit/Robolectric level: needs a device plus deploy-assetlinks; to be checked on the owner's phone (h-android-device).
 - ASSUMPTION (2026-10-22 15:16+0200 by dell26/agent-2): Review finding CR-6 (P3) accepted: if the passkey list failed to load and the user then adds a passkey, the list shows the new passkey with Retry still offered; Retry reloads the full list.
+- done by dell26/agent-2: `sh scripts/check.sh` passed in 54s on e9fcd30b0; criteria verified 1/2, skipped #1
