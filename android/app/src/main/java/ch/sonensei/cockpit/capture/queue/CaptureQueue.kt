@@ -15,6 +15,8 @@ import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.IOException
 import java.net.IDN
+import java.net.URI
+import java.net.URISyntaxException
 import java.time.Clock
 import java.time.Instant
 import java.time.ZoneId
@@ -226,7 +228,8 @@ class CaptureQueue internal constructor(
         }
 
         private fun asciiHost(host: String): String? {
-            if (host.startsWith("[")) return host.takeIf { IPV6.matches(it) }
+            // The server's IPV6 pattern lets through literals such as `[1]` that its final `URI(...)` parse refuses.
+            if (host.startsWith("[")) return host.takeIf { IPV6.matches(it) && parsesAsUriHost(it) }
             if (host.isEmpty()) return null
             val ascii =
                 try {
@@ -236,6 +239,18 @@ class CaptureQueue internal constructor(
                 }
             return ascii.takeIf { HOST_NAME.matches(it) }
         }
+
+        /**
+         * Whether [host] parses as the host of a URI, as in the server's final `URI(...)` check in
+         * `BookmarkUrls.normalize`; the rest of the URL the server builds is percent-encoded and always parses.
+         */
+        private fun parsesAsUriHost(host: String): Boolean =
+            try {
+                URI("http://$host/")
+                true
+            } catch (_: URISyntaxException) {
+                false
+            }
 
         /**
          * The length of [text] once the server percent-encodes (as UTF-8) every character not in [allowed]; valid

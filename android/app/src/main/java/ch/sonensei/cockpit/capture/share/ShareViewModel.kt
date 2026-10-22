@@ -76,6 +76,8 @@ class ShareViewModel
                     url = content.url,
                 )
             }
+            // Without files the state is complete already: no file names to read.
+            if (content.uris.isEmpty()) return
             viewModelScope.launch {
                 val files =
                     withContext(Dispatchers.IO) {

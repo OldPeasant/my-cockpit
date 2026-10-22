@@ -134,6 +134,64 @@ Lint/type-check/build:
 Remaining unresolved findings (both rounds):
 0
 
+# Round 3
+
+Date: 2026-10-22
+
+Scope: finding TW-3 from the round-2 `reviews/and-bookmarks-share/tests.md`. Its failing regression test (`ReadLaterUploaderTest`, "an IPv6 literal the server cannot parse as a URI is refused and nothing is queued") was committed in d6dd072f2 and is left unchanged. Also FLAKE-1: the parent worker put the `ShareReadLaterTest` flake found while validating TW-3 in scope.
+
+## Fixed findings (round 3)
+
+### TW-3 — The client accepts IPv6 literals that the server's final URI parse rejects
+
+Files changed:
+- `android/app/src/main/java/ch/sonensei/cockpit/capture/queue/CaptureQueue.kt`
+
+Problem:
+`CaptureQueue.isBookmarkUrl` only checked a bracketed host against the server's loose `IPV6` pattern (`\[[0-9A-Fa-f:.]+]`). `BookmarkUrls.normalize` on the server also requires the normalized URL to parse with `java.net.URI(...)`. So `https://[1]/a`, `https://[:]/a`, `https://[1.2.3.4]/a` and `https://[1:2:3:4:5:6:7:8:9]/a` were queued even though `POST /bookmarks` always answers 400 for them.
+
+Fix:
+`asciiHost` now also requires an IPv6 literal to parse as a URI host (`URI("http://$host/")`, in the new private helper `parsesAsUriHost`). This copies the server's final check for the only part that check can reject: the server percent-encodes user info, path, query and fragment, and the port must be digits. Host names stay as before, because `URI` accepts names with `_` as a registry-based authority.
+
+Validation:
+- `cd android && ./gradlew ktlintCheck testDebugUnitTest --tests 'ch.sonensei.cockpit.capture.*'`: Pass (with `--rerun`; the TW-3 test is in the results and passes, and the other IPv6 cases in "URLs at the server's limits are accepted" still pass)
+
+### FLAKE-1 — `ShareReadLaterTest` fails now and then in `tearDown` because `Dispatchers.Main` is set while in use
+
+Files changed:
+- `android/app/src/main/java/ch/sonensei/cockpit/capture/share/ShareViewModel.kt`
+
+Problem:
+The first TW-3 focused run had 1 failure out of 231 tests, in `ShareReadLaterTest` "a failing read-later store reports an error and keeps the sheet open": `IllegalStateException: Dispatchers.Main is used concurrently with setting it` from `Dispatchers.resetMain()` in `tearDown`. The parent worker found the cause. `ShareViewModel.load` always launched a coroutine that switches to `Dispatchers.IO` and then resumes on Main, also when the share has no files. With `UnconfinedTestDispatcher` as Main, that resume can still be running when `tearDown` resets Main.
+
+Fix:
+`load` now returns before the launch when `content.uris` is empty. The state is already complete then: `files` is empty, `loadingFiles` is `false` (set from `uris.isNotEmpty()`), and `text.ifBlank { defaultTitle(emptyList()) }` would only turn a blank title into `""`. `SharedContent.parse` trims the title, so a blank title already is `""`. User behavior is unchanged. Shares with files still load as before. The tests that share files (`ShareViewModelTest`) wait for loading with `awaitFiles()` or assert on `loadingFiles` on purpose. They did not fail in any run, so I left them unchanged, as instructed.
+
+Validation:
+- `cd android && ./gradlew ktlintCheck testDebugUnitTest --tests 'ch.sonensei.cockpit.capture.*' --rerun`, 3 runs: Pass, Pass, Pass (231 tests, 0 failures, 0 errors)
+
+## Not fixed (round 3)
+
+None.
+
+## Validation summary (round 3)
+
+Focused tests:
+- `cd android && ./gradlew ktlintCheck testDebugUnitTest --tests 'ch.sonensei.cockpit.capture.*'` after the TW-3 fix: Fail once (FLAKE-1), then Pass twice with `--rerun`
+- The same command with `--rerun` after the FLAKE-1 fix, 3 runs: Pass all 3 (231 tests, 0 failures)
+
+Full test suite:
+- Not run by the fixer (left to the parent worker's `.taskcheck` run)
+
+Lint/type-check/build:
+- `ktlintCheck`: Pass
+
+`.taskcheck`:
+- Not run
+
+Remaining unresolved findings (all rounds):
+0
+
 ## Final status
 
-All validated findings fixed and validation passed. Round 1 fixed CR-1 and CR-2 of the first review. Round 2 confirmed that commit c87b42d84 resolves CR-1 and CR-2 of the second review, with regression tests. Round 2 made no further code changes.
+All validated findings fixed and validation passed. Round 1 fixed CR-1 and CR-2 of the first review. Round 2 confirmed that commit c87b42d84 resolves CR-1 and CR-2 of the second review, with regression tests, and changed no code. Round 3 fixed TW-3 in `CaptureQueue.kt` and FLAKE-1 in `ShareViewModel.kt`.
