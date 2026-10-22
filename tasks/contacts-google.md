@@ -15,3 +15,4 @@ Two-way People API sync.
 - [ ] `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.contacts.google.*'` passes (Postgres via Testcontainers where persistence is involved)
 
 ## Notes
+- ASSUMPTION (2026-10-22 04:48+0200 by dell26/agent-1): Every CONNECTED Google OAuth connection whose scopes include .../auth/contacts is synced (the OAuth purpose is not stored); sync runs every cockpit.contacts.google.sync.interval (PT5M); local edits are pushed by the next run, not immediately
