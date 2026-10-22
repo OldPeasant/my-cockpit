@@ -67,6 +67,7 @@ describe('App', () => {
     '/files',
     '/notes',
     '/mail',
+    '/habits',
   ];
 
   it.each(NAV_SECTIONS.filter((s) => !BUILT.includes(s.path)).map((s) => [s.path, s.label]))(
