@@ -1,11 +1,11 @@
 ---
 title: Android contacts
-status: in_progress
+status: done
 owner: dell26/agent-1
 deps: [and-login,contacts-aggregate]
 touches: [android/app/src/main/java/ch/sonensei/cockpit/contacts,android/app/src/test/java/ch/sonensei/cockpit/contacts]
 prio: 3
-lease_until: 2026-10-22T10:58:05Z
+lease_until: 
 ---
 ## Goal
 Contacts on the phone.
@@ -20,3 +20,4 @@ Contacts on the phone.
 - ASSUMPTION (2026-10-22 12:20+0200 by dell26/agent-1): Android contacts are read-only (list/search/detail; create/edit stays on the web): the criteria only name list/search/detail/intents, SPEC §9.2 item 7 says 'Contacts (view, call/mail intents)'.
 - ASSUMPTION (2026-10-22 12:20+0200 by dell26/agent-1): Related items (Waiting For, recent mails, upcoming events, linked items) are shown but not tappable: opening them needs cross-feature navigation the shell does not offer yet. Call = ACTION_DIAL (no CALL_PHONE permission, user presses call), mail = ACTION_SENDTO mailto: to an external mail app. Strings live in res/values/strings_contacts.xml (outside touches, same per-feature pattern as other features).
 - ASSUMPTION (2026-10-22 12:36+0200 by dell26/agent-1): Review finding CR-3 (P3) accepted, not fixed: when a contact is already shown and its reload fails, the old data stays without a banner (the banner shows only when no contact is loaded). Rare; a follow-up can show a stale banner.
+- done by dell26/agent-1: `sh scripts/check.sh` passed in 81s on 5fa094eba; criteria verified 2/2
