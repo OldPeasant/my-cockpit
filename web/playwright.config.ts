@@ -36,16 +36,17 @@ export default defineConfig({
     },
     {
       name: 'chromium',
-      testIgnore: [/phase\d+\//, /gtd-inbox\//],
+      testIgnore: [/phase\d+\//, /gtd-inbox\//, /review\//],
       dependencies: ['phase-demos'],
       use: { ...devices['Desktop Chrome'] },
     },
-    // Inbox processing counts every item of the shared inbox, which the other specs fill while they run: it runs after
-    // them.
+    // Inbox processing (also in the weekly review) counts every item of the shared inbox, which the other specs fill
+    // while they run: it runs after them, one spec at a time.
     {
       name: 'inbox-exclusive',
-      testMatch: /gtd-inbox\/.*\.spec\.ts$/,
+      testMatch: /(gtd-inbox|review)\/.*\.spec\.ts$/,
       dependencies: ['chromium'],
+      workers: 1,
       use: { ...devices['Desktop Chrome'] },
     },
   ],
