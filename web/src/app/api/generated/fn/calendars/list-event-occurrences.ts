@@ -10,24 +10,28 @@ import { RequestBuilder } from '../../request-builder';
 import { OccurrenceListResponse } from '../../models/occurrence-list-response';
 
 export interface ListEventOccurrences$Params {
-
-/**
- * Start of the range (inclusive), ISO-8601 date-time
- */
+  /**
+   * Start of the range (inclusive), ISO-8601 date-time
+   */
   from: string;
 
-/**
- * End of the range (exclusive), ISO-8601 date-time
- */
+  /**
+   * End of the range (exclusive), ISO-8601 date-time
+   */
   to: string;
 
-/**
- * Only these calendars (comma-separated or repeated); default the visible calendars
- */
+  /**
+   * Only these calendars (comma-separated or repeated); default the visible calendars
+   */
   calendarIds?: Array<string>;
 }
 
-export function listEventOccurrences(http: HttpClient, rootUrl: string, params: ListEventOccurrences$Params, context?: HttpContext): Observable<StrictHttpResponse<OccurrenceListResponse>> {
+export function listEventOccurrences(
+  http: HttpClient,
+  rootUrl: string,
+  params: ListEventOccurrences$Params,
+  context?: HttpContext,
+): Observable<StrictHttpResponse<OccurrenceListResponse>> {
   const rb = new RequestBuilder(rootUrl, listEventOccurrences.PATH, 'get');
   if (params) {
     rb.query('from', params.from, {});
@@ -35,13 +39,11 @@ export function listEventOccurrences(http: HttpClient, rootUrl: string, params: 
     rb.query('calendarIds', params.calendarIds, {});
   }
 
-  return http.request(
-    rb.build({ responseType: 'json', accept: 'application/json', context })
-  ).pipe(
+  return http.request(rb.build({ responseType: 'json', accept: 'application/json', context })).pipe(
     filter((r: any): r is HttpResponse<any> => r instanceof HttpResponse),
     map((r: HttpResponse<any>) => {
       return r as StrictHttpResponse<OccurrenceListResponse>;
-    })
+    }),
   );
 }
 

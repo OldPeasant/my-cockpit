@@ -9,21 +9,23 @@ import { RequestBuilder } from '../../request-builder';
 
 import { MeResponse } from '../../models/me-response';
 
-export interface GetCurrentUser$Params {
-}
+export interface GetCurrentUser$Params {}
 
-export function getCurrentUser(http: HttpClient, rootUrl: string, params?: GetCurrentUser$Params, context?: HttpContext): Observable<StrictHttpResponse<MeResponse>> {
+export function getCurrentUser(
+  http: HttpClient,
+  rootUrl: string,
+  params?: GetCurrentUser$Params,
+  context?: HttpContext,
+): Observable<StrictHttpResponse<MeResponse>> {
   const rb = new RequestBuilder(rootUrl, getCurrentUser.PATH, 'get');
   if (params) {
   }
 
-  return http.request(
-    rb.build({ responseType: 'json', accept: 'application/json', context })
-  ).pipe(
+  return http.request(rb.build({ responseType: 'json', accept: 'application/json', context })).pipe(
     filter((r: any): r is HttpResponse<any> => r instanceof HttpResponse),
     map((r: HttpResponse<any>) => {
       return r as StrictHttpResponse<MeResponse>;
-    })
+    }),
   );
 }
 

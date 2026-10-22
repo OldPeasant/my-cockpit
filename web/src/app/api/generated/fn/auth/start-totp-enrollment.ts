@@ -9,21 +9,23 @@ import { RequestBuilder } from '../../request-builder';
 
 import { TotpEnrollmentResponse } from '../../models/totp-enrollment-response';
 
-export interface StartTotpEnrollment$Params {
-}
+export interface StartTotpEnrollment$Params {}
 
-export function startTotpEnrollment(http: HttpClient, rootUrl: string, params?: StartTotpEnrollment$Params, context?: HttpContext): Observable<StrictHttpResponse<TotpEnrollmentResponse>> {
+export function startTotpEnrollment(
+  http: HttpClient,
+  rootUrl: string,
+  params?: StartTotpEnrollment$Params,
+  context?: HttpContext,
+): Observable<StrictHttpResponse<TotpEnrollmentResponse>> {
   const rb = new RequestBuilder(rootUrl, startTotpEnrollment.PATH, 'post');
   if (params) {
   }
 
-  return http.request(
-    rb.build({ responseType: 'json', accept: 'application/json', context })
-  ).pipe(
+  return http.request(rb.build({ responseType: 'json', accept: 'application/json', context })).pipe(
     filter((r: any): r is HttpResponse<any> => r instanceof HttpResponse),
     map((r: HttpResponse<any>) => {
       return r as StrictHttpResponse<TotpEnrollmentResponse>;
-    })
+    }),
   );
 }
 

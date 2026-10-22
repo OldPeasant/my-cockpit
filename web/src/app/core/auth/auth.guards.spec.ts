@@ -2,7 +2,13 @@ import { Component } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter, Router } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
-import { authGuard, loginGuard, safeReturnUrl, setupGuard } from './auth.guards';
+import {
+  authGuard,
+  loginGuard,
+  safeReturnUrl,
+  setupGuard,
+  totpEnrollmentGuard,
+} from './auth.guards';
 import { ApiError } from '../http';
 import { AuthService } from './auth.service';
 
@@ -12,6 +18,7 @@ class Page {}
 describe('auth guards', () => {
   let setupRequired: boolean;
   let loggedIn: boolean;
+  let enrollmentRequired: boolean;
   let setupStatus: ReturnType<typeof vi.fn>;
   let checkSession: ReturnType<typeof vi.fn>;
   let harness: RouterTestingHarness;
@@ -20,6 +27,7 @@ describe('auth guards', () => {
   beforeEach(async () => {
     setupRequired = false;
     loggedIn = false;
+    enrollmentRequired = false;
     checkSession = vi.fn(() => Promise.resolve(loggedIn));
     setupStatus = vi.fn(() => Promise.resolve(setupRequired));
     TestBed.configureTestingModule({
@@ -27,6 +35,7 @@ describe('auth guards', () => {
         provideRouter([
           { path: 'setup', canActivate: [setupGuard], component: Page },
           { path: 'login', canActivate: [loginGuard], component: Page },
+          { path: 'enroll-totp', canActivate: [totpEnrollmentGuard], component: Page },
           {
             path: '',
             canActivate: [authGuard],
@@ -38,7 +47,11 @@ describe('auth guards', () => {
         ]),
         {
           provide: AuthService,
-          useValue: { setupRequired: setupStatus, checkSession },
+          useValue: {
+            setupRequired: setupStatus,
+            checkSession,
+            totpEnrollmentRequired: () => enrollmentRequired,
+          },
         },
       ],
     });
@@ -63,6 +76,58 @@ describe('auth guards', () => {
       await harness.navigateByUrl('/inbox');
       expect(router.url).toBe('/setup');
       expect(checkSession).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('forced TOTP re-enrollment', () => {
+    beforeEach(() => {
+      loggedIn = true;
+      enrollmentRequired = true;
+    });
+
+    it('authGuard sends the session to /enroll-totp with the return URL', async () => {
+      await harness.navigateByUrl('/inbox?view=all');
+      expect(router.url).toBe('/enroll-totp?returnUrl=%2Finbox%3Fview%3Dall');
+    });
+
+    it('authGuard sends the dashboard to /enroll-totp without a return URL', async () => {
+      await harness.navigateByUrl('/');
+      expect(router.url).toBe('/enroll-totp');
+    });
+
+    it('loginGuard sends the session to /enroll-totp, keeping the return URL', async () => {
+      await harness.navigateByUrl('/login?returnUrl=%2Finbox');
+      expect(router.url).toBe('/enroll-totp?returnUrl=%2Finbox');
+    });
+
+    it('totpEnrollmentGuard opens the page and asks the server again', async () => {
+      await harness.navigateByUrl('/enroll-totp?returnUrl=%2Finbox');
+      expect(router.url).toBe('/enroll-totp?returnUrl=%2Finbox');
+      expect(checkSession).toHaveBeenCalledWith(true);
+    });
+
+    it('totpEnrollmentGuard sends a normal session to the return URL', async () => {
+      enrollmentRequired = false;
+      await harness.navigateByUrl('/enroll-totp?returnUrl=%2Finbox');
+      expect(router.url).toBe('/inbox');
+    });
+
+    it('totpEnrollmentGuard sends a user without a session to /login', async () => {
+      loggedIn = false;
+      await harness.navigateByUrl('/enroll-totp?returnUrl=%2Finbox');
+      expect(router.url).toBe('/login?returnUrl=%2Finbox');
+    });
+
+    it('totpEnrollmentGuard sends to /setup while setup is needed', async () => {
+      setupRequired = true;
+      await harness.navigateByUrl('/enroll-totp');
+      expect(router.url).toBe('/setup');
+    });
+
+    it('totpEnrollmentGuard sends to /login when the server fails', async () => {
+      checkSession.mockImplementation(() => Promise.reject(new ApiError(502, 'Bad Gateway')));
+      await harness.navigateByUrl('/enroll-totp');
+      expect(router.url).toBe('/login');
     });
   });
 
@@ -174,6 +239,10 @@ describe('auth guards', () => {
       ['/login', '/'],
       ['/login?returnUrl=%2F', '/'],
       ['/setup', '/'],
+      ['/enroll-totp', '/'],
+      ['/enroll-totp?returnUrl=%2Finbox', '/'],
+      ['/login#x', '/'],
+      ['/logins', '/logins'],
     ])('%s -> %s', (input, expected) => {
       expect(safeReturnUrl(input)).toBe(expected);
     });

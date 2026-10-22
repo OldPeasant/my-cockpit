@@ -11,22 +11,25 @@ import { CaptureRequest } from '../../models/capture-request';
 import { TaskResponse } from '../../models/task-response';
 
 export interface Capture$Params {
-      body: CaptureRequest
+  body: CaptureRequest;
 }
 
-export function capture(http: HttpClient, rootUrl: string, params: Capture$Params, context?: HttpContext): Observable<StrictHttpResponse<TaskResponse>> {
+export function capture(
+  http: HttpClient,
+  rootUrl: string,
+  params: Capture$Params,
+  context?: HttpContext,
+): Observable<StrictHttpResponse<TaskResponse>> {
   const rb = new RequestBuilder(rootUrl, capture.PATH, 'post');
   if (params) {
     rb.body(params.body, 'application/json');
   }
 
-  return http.request(
-    rb.build({ responseType: 'json', accept: 'application/json', context })
-  ).pipe(
+  return http.request(rb.build({ responseType: 'json', accept: 'application/json', context })).pipe(
     filter((r: any): r is HttpResponse<any> => r instanceof HttpResponse),
     map((r: HttpResponse<any>) => {
       return r as StrictHttpResponse<TaskResponse>;
-    })
+    }),
   );
 }
 

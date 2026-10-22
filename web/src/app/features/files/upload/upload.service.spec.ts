@@ -381,44 +381,48 @@ describe('UploadService', () => {
   describe('chunked files', () => {
     beforeEach(() => setup());
 
-    it('creates a resumable upload, sends every chunk and completes with the real SHA-256', async () => {
-      payload = REAL;
-      waitTimeout = REAL_FILE_TIMEOUT;
-      const CHUNK = REAL.chunk;
-      const uploaded: FileResponse[] = [];
-      service.uploaded.subscribe((f) => uploaded.push(f));
-      const [job] = service.upload([bigFile()], FOLDER);
-      expect(job.chunked).toBe(true);
+    it(
+      'creates a resumable upload, sends every chunk and completes with the real SHA-256',
+      async () => {
+        payload = REAL;
+        waitTimeout = REAL_FILE_TIMEOUT;
+        const CHUNK = REAL.chunk;
+        const uploaded: FileResponse[] = [];
+        service.uploaded.subscribe((f) => uploaded.push(f));
+        const [job] = service.upload([bigFile()], FOLDER);
+        expect(job.chunked).toBe(true);
 
-      const create = await next('POST', '/api/v1/uploads');
-      expect(create.request.body).toEqual({
-        name: 'holiday.mp4',
-        folderId: FOLDER,
-        size: BIG_SIZE,
-        mime: 'video/mp4',
-      });
-      create.flush(session());
-      expect(session().chunkCount).toBe(3);
+        const create = await next('POST', '/api/v1/uploads');
+        expect(create.request.body).toEqual({
+          name: 'holiday.mp4',
+          folderId: FOLDER,
+          size: BIG_SIZE,
+          mime: 'video/mp4',
+        });
+        create.flush(session());
+        expect(session().chunkCount).toBe(3);
 
-      const first = await next('PUT', chunkUrl(0));
-      first.event({ type: HttpEventType.UploadProgress, loaded: 5 * MB, total: CHUNK });
-      expect(job.loaded()).toBe(5 * MB);
-      first.flush(null, { status: 204, statusText: 'No Content' });
-      await acceptChunk(1);
-      const last = await next('PUT', chunkUrl(2));
-      last.event({ type: HttpEventType.UploadProgress, loaded: MB, total: MB });
-      expect(job.loaded()).toBe(2 * CHUNK + MB);
-      last.flush(null, { status: 204, statusText: 'No Content' });
+        const first = await next('PUT', chunkUrl(0));
+        first.event({ type: HttpEventType.UploadProgress, loaded: 5 * MB, total: CHUNK });
+        expect(job.loaded()).toBe(5 * MB);
+        first.flush(null, { status: 204, statusText: 'No Content' });
+        await acceptChunk(1);
+        const last = await next('PUT', chunkUrl(2));
+        last.event({ type: HttpEventType.UploadProgress, loaded: MB, total: MB });
+        expect(job.loaded()).toBe(2 * CHUNK + MB);
+        last.flush(null, { status: 204, statusText: 'No Content' });
 
-      const done = await complete();
-      expect(done.request.body).toEqual({ sha256: REAL.digest });
-      const result = stored('holiday.mp4');
-      done.flush(result);
-      await until(job, 'done');
-      expect(job.result()).toEqual(result);
-      expect(job.uploadId).toBeNull();
-      expect(uploaded).toEqual([result]);
-    }, REAL_FILE_TIMEOUT);
+        const done = await complete();
+        expect(done.request.body).toEqual({ sha256: REAL.digest });
+        const result = stored('holiday.mp4');
+        done.flush(result);
+        await until(job, 'done');
+        expect(job.result()).toEqual(result);
+        expect(job.uploadId).toBeNull();
+        expect(uploaded).toEqual([result]);
+      },
+      REAL_FILE_TIMEOUT,
+    );
 
     it('leaves out an unknown mime type when creating the upload', async () => {
       const [job] = service.upload([bigFile('backup.bin', '')], null);

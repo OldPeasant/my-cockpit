@@ -10,26 +10,28 @@ import { RequestBuilder } from '../../request-builder';
 import { ReminderListResponse } from '../../models/reminder-list-response';
 
 export interface ListUpcomingReminders$Params {
-
-/**
- * Latest reminder time to include (ISO-8601 instant)
- */
+  /**
+   * Latest reminder time to include (ISO-8601 instant)
+   */
   until: string;
 }
 
-export function listUpcomingReminders(http: HttpClient, rootUrl: string, params: ListUpcomingReminders$Params, context?: HttpContext): Observable<StrictHttpResponse<ReminderListResponse>> {
+export function listUpcomingReminders(
+  http: HttpClient,
+  rootUrl: string,
+  params: ListUpcomingReminders$Params,
+  context?: HttpContext,
+): Observable<StrictHttpResponse<ReminderListResponse>> {
   const rb = new RequestBuilder(rootUrl, listUpcomingReminders.PATH, 'get');
   if (params) {
     rb.query('until', params.until, {});
   }
 
-  return http.request(
-    rb.build({ responseType: 'json', accept: 'application/json', context })
-  ).pipe(
+  return http.request(rb.build({ responseType: 'json', accept: 'application/json', context })).pipe(
     filter((r: any): r is HttpResponse<any> => r instanceof HttpResponse),
     map((r: HttpResponse<any>) => {
       return r as StrictHttpResponse<ReminderListResponse>;
-    })
+    }),
   );
 }
 

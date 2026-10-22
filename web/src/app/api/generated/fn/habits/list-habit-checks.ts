@@ -12,18 +12,23 @@ import { HabitCheckListResponse } from '../../models/habit-check-list-response';
 export interface ListHabitChecks$Params {
   id: string;
 
-/**
- * First date (default: 29 days before today)
- */
+  /**
+   * First date (default: 29 days before today)
+   */
   from?: string;
 
-/**
- * Last date (default: today)
- */
+  /**
+   * Last date (default: today)
+   */
   to?: string;
 }
 
-export function listHabitChecks(http: HttpClient, rootUrl: string, params: ListHabitChecks$Params, context?: HttpContext): Observable<StrictHttpResponse<HabitCheckListResponse>> {
+export function listHabitChecks(
+  http: HttpClient,
+  rootUrl: string,
+  params: ListHabitChecks$Params,
+  context?: HttpContext,
+): Observable<StrictHttpResponse<HabitCheckListResponse>> {
   const rb = new RequestBuilder(rootUrl, listHabitChecks.PATH, 'get');
   if (params) {
     rb.path('id', params.id, {});
@@ -31,14 +36,14 @@ export function listHabitChecks(http: HttpClient, rootUrl: string, params: ListH
     rb.query('to', params.to, {});
   }
 
-  return http.request(
-    rb.build({ responseType: 'json', accept: 'application/problem+json', context })
-  ).pipe(
-    filter((r: any): r is HttpResponse<any> => r instanceof HttpResponse),
-    map((r: HttpResponse<any>) => {
-      return r as StrictHttpResponse<HabitCheckListResponse>;
-    })
-  );
+  return http
+    .request(rb.build({ responseType: 'json', accept: 'application/problem+json', context }))
+    .pipe(
+      filter((r: any): r is HttpResponse<any> => r instanceof HttpResponse),
+      map((r: HttpResponse<any>) => {
+        return r as StrictHttpResponse<HabitCheckListResponse>;
+      }),
+    );
 }
 
 listHabitChecks.PATH = '/api/v1/habits/{id}/checks';

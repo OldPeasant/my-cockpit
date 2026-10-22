@@ -11,22 +11,25 @@ import { CalendarSourceResponse } from '../../models/calendar-source-response';
 import { CreateCalendarSourceRequest } from '../../models/create-calendar-source-request';
 
 export interface CreateCalendarSource$Params {
-      body: CreateCalendarSourceRequest
+  body: CreateCalendarSourceRequest;
 }
 
-export function createCalendarSource(http: HttpClient, rootUrl: string, params: CreateCalendarSource$Params, context?: HttpContext): Observable<StrictHttpResponse<CalendarSourceResponse>> {
+export function createCalendarSource(
+  http: HttpClient,
+  rootUrl: string,
+  params: CreateCalendarSource$Params,
+  context?: HttpContext,
+): Observable<StrictHttpResponse<CalendarSourceResponse>> {
   const rb = new RequestBuilder(rootUrl, createCalendarSource.PATH, 'post');
   if (params) {
     rb.body(params.body, 'application/json');
   }
 
-  return http.request(
-    rb.build({ responseType: 'json', accept: 'application/json', context })
-  ).pipe(
+  return http.request(rb.build({ responseType: 'json', accept: 'application/json', context })).pipe(
     filter((r: any): r is HttpResponse<any> => r instanceof HttpResponse),
     map((r: HttpResponse<any>) => {
       return r as StrictHttpResponse<CalendarSourceResponse>;
-    })
+    }),
   );
 }
 

@@ -13,19 +13,22 @@ export interface GetWeeklyReview$Params {
   id: string;
 }
 
-export function getWeeklyReview(http: HttpClient, rootUrl: string, params: GetWeeklyReview$Params, context?: HttpContext): Observable<StrictHttpResponse<WeeklyReviewResponse>> {
+export function getWeeklyReview(
+  http: HttpClient,
+  rootUrl: string,
+  params: GetWeeklyReview$Params,
+  context?: HttpContext,
+): Observable<StrictHttpResponse<WeeklyReviewResponse>> {
   const rb = new RequestBuilder(rootUrl, getWeeklyReview.PATH, 'get');
   if (params) {
     rb.path('id', params.id, {});
   }
 
-  return http.request(
-    rb.build({ responseType: 'json', accept: 'application/json', context })
-  ).pipe(
+  return http.request(rb.build({ responseType: 'json', accept: 'application/json', context })).pipe(
     filter((r: any): r is HttpResponse<any> => r instanceof HttpResponse),
     map((r: HttpResponse<any>) => {
       return r as StrictHttpResponse<WeeklyReviewResponse>;
-    })
+    }),
   );
 }
 

@@ -1,4 +1,4 @@
-// Shared by the login and setup pages.
+// Shared by the login, setup and TOTP enrollment pages.
 
 h1 {
   margin: 0 0 var(--app-space-4);
@@ -37,5 +37,16 @@ p {
 
 .primary {
   align-self: stretch;
+  margin-top: var(--app-space-3);
+}
+
+.switches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 var(--app-space-2);
+}
+
+// Leaves the forced TOTP enrollment without finishing it.
+.sign-out {
   margin-top: var(--app-space-3);
 }

@@ -13,19 +13,22 @@ export interface GetHabit$Params {
   id: string;
 }
 
-export function getHabit(http: HttpClient, rootUrl: string, params: GetHabit$Params, context?: HttpContext): Observable<StrictHttpResponse<HabitResponse>> {
+export function getHabit(
+  http: HttpClient,
+  rootUrl: string,
+  params: GetHabit$Params,
+  context?: HttpContext,
+): Observable<StrictHttpResponse<HabitResponse>> {
   const rb = new RequestBuilder(rootUrl, getHabit.PATH, 'get');
   if (params) {
     rb.path('id', params.id, {});
   }
 
-  return http.request(
-    rb.build({ responseType: 'json', accept: 'application/json', context })
-  ).pipe(
+  return http.request(rb.build({ responseType: 'json', accept: 'application/json', context })).pipe(
     filter((r: any): r is HttpResponse<any> => r instanceof HttpResponse),
     map((r: HttpResponse<any>) => {
       return r as StrictHttpResponse<HabitResponse>;
-    })
+    }),
   );
 }
 

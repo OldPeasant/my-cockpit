@@ -12,7 +12,9 @@ const publicFile = (name: string): Buffer => readFileSync(join(webRoot, 'public'
 function iconLinks(): HTMLLinkElement[] {
   const html = readFileSync(join(webRoot, 'src', 'index.html'), 'utf8');
   const doc = new DOMParser().parseFromString(html, 'text/html');
-  return Array.from(doc.head.querySelectorAll<HTMLLinkElement>('link[rel~="icon"], link[rel="apple-touch-icon"]'));
+  return Array.from(
+    doc.head.querySelectorAll<HTMLLinkElement>('link[rel~="icon"], link[rel="apple-touch-icon"]'),
+  );
 }
 
 const PNG_SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);

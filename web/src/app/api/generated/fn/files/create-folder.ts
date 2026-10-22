@@ -11,22 +11,25 @@ import { CreateFolderRequest } from '../../models/create-folder-request';
 import { FolderResponse } from '../../models/folder-response';
 
 export interface CreateFolder$Params {
-      body: CreateFolderRequest
+  body: CreateFolderRequest;
 }
 
-export function createFolder(http: HttpClient, rootUrl: string, params: CreateFolder$Params, context?: HttpContext): Observable<StrictHttpResponse<FolderResponse>> {
+export function createFolder(
+  http: HttpClient,
+  rootUrl: string,
+  params: CreateFolder$Params,
+  context?: HttpContext,
+): Observable<StrictHttpResponse<FolderResponse>> {
   const rb = new RequestBuilder(rootUrl, createFolder.PATH, 'post');
   if (params) {
     rb.body(params.body, 'application/json');
   }
 
-  return http.request(
-    rb.build({ responseType: 'json', accept: 'application/json', context })
-  ).pipe(
+  return http.request(rb.build({ responseType: 'json', accept: 'application/json', context })).pipe(
     filter((r: any): r is HttpResponse<any> => r instanceof HttpResponse),
     map((r: HttpResponse<any>) => {
       return r as StrictHttpResponse<FolderResponse>;
-    })
+    }),
   );
 }
 

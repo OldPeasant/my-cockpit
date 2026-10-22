@@ -13,14 +13,19 @@ import { WeeklyReviewResponse } from '../../models/weekly-review-response';
 export interface MoveWeeklyReview$Params {
   id: string;
 
-/**
- * ETag of the review
- */
+  /**
+   * ETag of the review
+   */
   'If-Match'?: string;
-      body: MoveWeeklyReviewRequest
+  body: MoveWeeklyReviewRequest;
 }
 
-export function moveWeeklyReview(http: HttpClient, rootUrl: string, params: MoveWeeklyReview$Params, context?: HttpContext): Observable<StrictHttpResponse<WeeklyReviewResponse>> {
+export function moveWeeklyReview(
+  http: HttpClient,
+  rootUrl: string,
+  params: MoveWeeklyReview$Params,
+  context?: HttpContext,
+): Observable<StrictHttpResponse<WeeklyReviewResponse>> {
   const rb = new RequestBuilder(rootUrl, moveWeeklyReview.PATH, 'patch');
   if (params) {
     rb.path('id', params.id, {});
@@ -28,13 +33,11 @@ export function moveWeeklyReview(http: HttpClient, rootUrl: string, params: Move
     rb.body(params.body, 'application/json');
   }
 
-  return http.request(
-    rb.build({ responseType: 'json', accept: 'application/json', context })
-  ).pipe(
+  return http.request(rb.build({ responseType: 'json', accept: 'application/json', context })).pipe(
     filter((r: any): r is HttpResponse<any> => r instanceof HttpResponse),
     map((r: HttpResponse<any>) => {
       return r as StrictHttpResponse<WeeklyReviewResponse>;
-    })
+    }),
   );
 }
 

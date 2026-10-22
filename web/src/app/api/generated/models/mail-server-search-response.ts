@@ -7,7 +7,6 @@ import { MailServerSearchFailureResponse } from '../models/mail-server-search-fa
  * What the search on the mail servers did
  */
 export interface MailServerSearchResponse {
-
   /**
    * Accounts whose server could not be searched
    */

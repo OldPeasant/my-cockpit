@@ -10,24 +10,28 @@ import { RequestBuilder } from '../../request-builder';
 import { ContactPageResponse } from '../../models/contact-page-response';
 
 export interface ListContacts$Params {
-
-/**
- * Only contacts whose display name or an email address contains this text (case-insensitive)
- */
+  /**
+   * Only contacts whose display name or an email address contains this text (case-insensitive)
+   */
   q?: string;
 
-/**
- * Cursor from the previous page
- */
+  /**
+   * Cursor from the previous page
+   */
   cursor?: string;
 
-/**
- * Page size, 1-200 (default 50)
- */
+  /**
+   * Page size, 1-200 (default 50)
+   */
   limit?: number;
 }
 
-export function listContacts(http: HttpClient, rootUrl: string, params?: ListContacts$Params, context?: HttpContext): Observable<StrictHttpResponse<ContactPageResponse>> {
+export function listContacts(
+  http: HttpClient,
+  rootUrl: string,
+  params?: ListContacts$Params,
+  context?: HttpContext,
+): Observable<StrictHttpResponse<ContactPageResponse>> {
   const rb = new RequestBuilder(rootUrl, listContacts.PATH, 'get');
   if (params) {
     rb.query('q', params.q, {});
@@ -35,13 +39,11 @@ export function listContacts(http: HttpClient, rootUrl: string, params?: ListCon
     rb.query('limit', params.limit, {});
   }
 
-  return http.request(
-    rb.build({ responseType: 'json', accept: 'application/json', context })
-  ).pipe(
+  return http.request(rb.build({ responseType: 'json', accept: 'application/json', context })).pipe(
     filter((r: any): r is HttpResponse<any> => r instanceof HttpResponse),
     map((r: HttpResponse<any>) => {
       return r as StrictHttpResponse<ContactPageResponse>;
-    })
+    }),
   );
 }
 

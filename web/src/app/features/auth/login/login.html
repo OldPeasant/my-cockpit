@@ -16,43 +16,65 @@
       />
     </mat-form-field>
 
-    @if (useRecoveryCode()) {
-      <mat-form-field appearance="outline">
-        <mat-label i18n="@@login.recoveryCode">Recovery code</mat-label>
-        <input
-          matInput
-          name="recoveryCode"
-          formControlName="recoveryCode"
-          autocomplete="off"
-          spellcheck="false"
-          required
-        />
-        <mat-hint i18n="@@login.recoveryCode.hint">Each recovery code works once.</mat-hint>
-      </mat-form-field>
-    } @else {
-      <mat-form-field appearance="outline">
-        <mat-label i18n="@@login.totp">Code from your authenticator app</mat-label>
-        <input
-          matInput
-          name="totp"
-          formControlName="totp"
-          inputmode="numeric"
-          autocomplete="one-time-code"
-          maxlength="7"
-          required
-        />
-        @if (form.controls.totp.hasError('pattern')) {
-          <mat-error i18n="@@login.totp.invalid">Enter the 6 digits shown in the app.</mat-error>
-        }
-      </mat-form-field>
-    }
-    <button mat-button type="button" class="switch" (click)="toggleRecoveryCode()">
-      @if (useRecoveryCode()) {
-        <ng-container i18n="@@login.useTotp">Use the authenticator app instead</ng-container>
-      } @else {
-        <ng-container i18n="@@login.useRecoveryCode">Use a recovery code</ng-container>
+    @switch (factor()) {
+      @case ('recovery') {
+        <mat-form-field appearance="outline">
+          <mat-label i18n="@@login.recoveryCode">Recovery code</mat-label>
+          <input
+            matInput
+            name="recoveryCode"
+            formControlName="recoveryCode"
+            autocomplete="off"
+            spellcheck="false"
+            required
+          />
+          <mat-hint i18n="@@login.recoveryCode.hint">Each recovery code works once.</mat-hint>
+        </mat-form-field>
       }
-    </button>
+      @case ('password') {
+        <p class="password-only" i18n="@@login.passwordOnly.text">
+          After a restore without the backup passphrase, the password alone signs you in once no
+          recovery code is left. You then set up the authenticator app again.
+        </p>
+      }
+      @default {
+        <mat-form-field appearance="outline">
+          <mat-label i18n="@@login.totp">Code from your authenticator app</mat-label>
+          <input
+            matInput
+            name="totp"
+            formControlName="totp"
+            inputmode="numeric"
+            autocomplete="one-time-code"
+            maxlength="7"
+            required
+          />
+          @if (form.controls.totp.hasError('pattern')) {
+            <mat-error i18n="@@login.totp.invalid">Enter the 6 digits shown in the app.</mat-error>
+          }
+        </mat-form-field>
+      }
+    }
+    <div class="switches">
+      <button mat-button type="button" class="switch" (click)="toggleRecoveryCode()">
+        @if (factor() === 'totp') {
+          <ng-container i18n="@@login.useRecoveryCode">Use a recovery code</ng-container>
+        } @else {
+          <ng-container i18n="@@login.useTotp">Use the authenticator app instead</ng-container>
+        }
+      </button>
+      @if (factor() === 'recovery') {
+        <button
+          mat-button
+          type="button"
+          class="switch password-switch"
+          (click)="useFactor('password')"
+          i18n="@@login.usePasswordOnly"
+        >
+          No recovery code left after a restore?
+        </button>
+      }
+    </div>
 
     <mat-checkbox formControlName="rememberDevice" i18n="@@login.remember"
       >Keep me signed in on this device for 30 days</mat-checkbox

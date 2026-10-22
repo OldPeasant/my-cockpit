@@ -12,23 +12,26 @@ import { CreateChecklistItemRequest } from '../../models/create-checklist-item-r
 
 export interface CreateChecklistItem$Params {
   taskId: string;
-      body: CreateChecklistItemRequest
+  body: CreateChecklistItemRequest;
 }
 
-export function createChecklistItem(http: HttpClient, rootUrl: string, params: CreateChecklistItem$Params, context?: HttpContext): Observable<StrictHttpResponse<ChecklistItemResponse>> {
+export function createChecklistItem(
+  http: HttpClient,
+  rootUrl: string,
+  params: CreateChecklistItem$Params,
+  context?: HttpContext,
+): Observable<StrictHttpResponse<ChecklistItemResponse>> {
   const rb = new RequestBuilder(rootUrl, createChecklistItem.PATH, 'post');
   if (params) {
     rb.path('taskId', params.taskId, {});
     rb.body(params.body, 'application/json');
   }
 
-  return http.request(
-    rb.build({ responseType: 'json', accept: 'application/json', context })
-  ).pipe(
+  return http.request(rb.build({ responseType: 'json', accept: 'application/json', context })).pipe(
     filter((r: any): r is HttpResponse<any> => r instanceof HttpResponse),
     map((r: HttpResponse<any>) => {
       return r as StrictHttpResponse<ChecklistItemResponse>;
-    })
+    }),
   );
 }
 

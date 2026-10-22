@@ -42,7 +42,11 @@
                   [class.soon]="soon(item)"
                   [title]="item.purgeAt | date: 'medium'"
                   i18n="@@trash.purgeIn"
-                  >{daysLeft(item), plural, =0 {purged today} =1 {purged in 1 day} other {purged in {{ daysLeft(item) }} days}}</span
+                  >{daysLeft(item), plural,
+                    =0 {purged today}
+                    =1 {purged in 1 day}
+                    other {purged in {{ daysLeft(item) }} days}
+                  }</span
                 >
               </span>
             </div>

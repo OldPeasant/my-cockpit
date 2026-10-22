@@ -11,22 +11,25 @@ import { CreateTaskRequest } from '../../models/create-task-request';
 import { TaskResponse } from '../../models/task-response';
 
 export interface CreateTask$Params {
-      body: CreateTaskRequest
+  body: CreateTaskRequest;
 }
 
-export function createTask(http: HttpClient, rootUrl: string, params: CreateTask$Params, context?: HttpContext): Observable<StrictHttpResponse<TaskResponse>> {
+export function createTask(
+  http: HttpClient,
+  rootUrl: string,
+  params: CreateTask$Params,
+  context?: HttpContext,
+): Observable<StrictHttpResponse<TaskResponse>> {
   const rb = new RequestBuilder(rootUrl, createTask.PATH, 'post');
   if (params) {
     rb.body(params.body, 'application/json');
   }
 
-  return http.request(
-    rb.build({ responseType: 'json', accept: 'application/json', context })
-  ).pipe(
+  return http.request(rb.build({ responseType: 'json', accept: 'application/json', context })).pipe(
     filter((r: any): r is HttpResponse<any> => r instanceof HttpResponse),
     map((r: HttpResponse<any>) => {
       return r as StrictHttpResponse<TaskResponse>;
-    })
+    }),
   );
 }
 

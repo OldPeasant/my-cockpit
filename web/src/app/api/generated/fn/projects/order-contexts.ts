@@ -11,23 +11,28 @@ import { ContextListResponse } from '../../models/context-list-response';
 import { OrderRequest } from '../../models/order-request';
 
 export interface OrderContexts$Params {
-      body: OrderRequest
+  body: OrderRequest;
 }
 
-export function orderContexts(http: HttpClient, rootUrl: string, params: OrderContexts$Params, context?: HttpContext): Observable<StrictHttpResponse<ContextListResponse>> {
+export function orderContexts(
+  http: HttpClient,
+  rootUrl: string,
+  params: OrderContexts$Params,
+  context?: HttpContext,
+): Observable<StrictHttpResponse<ContextListResponse>> {
   const rb = new RequestBuilder(rootUrl, orderContexts.PATH, 'put');
   if (params) {
     rb.body(params.body, 'application/json');
   }
 
-  return http.request(
-    rb.build({ responseType: 'json', accept: 'application/problem+json', context })
-  ).pipe(
-    filter((r: any): r is HttpResponse<any> => r instanceof HttpResponse),
-    map((r: HttpResponse<any>) => {
-      return r as StrictHttpResponse<ContextListResponse>;
-    })
-  );
+  return http
+    .request(rb.build({ responseType: 'json', accept: 'application/problem+json', context }))
+    .pipe(
+      filter((r: any): r is HttpResponse<any> => r instanceof HttpResponse),
+      map((r: HttpResponse<any>) => {
+        return r as StrictHttpResponse<ContextListResponse>;
+      }),
+    );
 }
 
 orderContexts.PATH = '/api/v1/contexts/order';

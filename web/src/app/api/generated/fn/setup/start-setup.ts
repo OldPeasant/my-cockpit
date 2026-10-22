@@ -11,22 +11,25 @@ import { SetupRequest } from '../../models/setup-request';
 import { SetupResponse } from '../../models/setup-response';
 
 export interface StartSetup$Params {
-      body: SetupRequest
+  body: SetupRequest;
 }
 
-export function startSetup(http: HttpClient, rootUrl: string, params: StartSetup$Params, context?: HttpContext): Observable<StrictHttpResponse<SetupResponse>> {
+export function startSetup(
+  http: HttpClient,
+  rootUrl: string,
+  params: StartSetup$Params,
+  context?: HttpContext,
+): Observable<StrictHttpResponse<SetupResponse>> {
   const rb = new RequestBuilder(rootUrl, startSetup.PATH, 'post');
   if (params) {
     rb.body(params.body, 'application/json');
   }
 
-  return http.request(
-    rb.build({ responseType: 'json', accept: 'application/json', context })
-  ).pipe(
+  return http.request(rb.build({ responseType: 'json', accept: 'application/json', context })).pipe(
     filter((r: any): r is HttpResponse<any> => r instanceof HttpResponse),
     map((r: HttpResponse<any>) => {
       return r as StrictHttpResponse<SetupResponse>;
-    })
+    }),
   );
 }
 

@@ -7,7 +7,6 @@ import { filter, map } from 'rxjs/operators';
 import { StrictHttpResponse } from '../../strict-http-response';
 import { RequestBuilder } from '../../request-builder';
 
-
 export interface CompleteOAuthConnection$Params {
   provider: 'google' | 'microsoft';
   code?: string;
@@ -15,7 +14,12 @@ export interface CompleteOAuthConnection$Params {
   error?: string;
 }
 
-export function completeOAuthConnection(http: HttpClient, rootUrl: string, params: CompleteOAuthConnection$Params, context?: HttpContext): Observable<StrictHttpResponse<void>> {
+export function completeOAuthConnection(
+  http: HttpClient,
+  rootUrl: string,
+  params: CompleteOAuthConnection$Params,
+  context?: HttpContext,
+): Observable<StrictHttpResponse<void>> {
   const rb = new RequestBuilder(rootUrl, completeOAuthConnection.PATH, 'get');
   if (params) {
     rb.path('provider', params.provider, {});
@@ -24,13 +28,11 @@ export function completeOAuthConnection(http: HttpClient, rootUrl: string, param
     rb.query('error', params.error, {});
   }
 
-  return http.request(
-    rb.build({ responseType: 'text', accept: '*/*', context })
-  ).pipe(
+  return http.request(rb.build({ responseType: 'text', accept: '*/*', context })).pipe(
     filter((r: any): r is HttpResponse<any> => r instanceof HttpResponse),
     map((r: HttpResponse<any>) => {
       return (r as HttpResponse<any>).clone({ body: undefined }) as StrictHttpResponse<void>;
-    })
+    }),
   );
 }
 

@@ -9,21 +9,23 @@ import { RequestBuilder } from '../../request-builder';
 
 import { NoteTagListResponse } from '../../models/note-tag-list-response';
 
-export interface ListNoteTags$Params {
-}
+export interface ListNoteTags$Params {}
 
-export function listNoteTags(http: HttpClient, rootUrl: string, params?: ListNoteTags$Params, context?: HttpContext): Observable<StrictHttpResponse<NoteTagListResponse>> {
+export function listNoteTags(
+  http: HttpClient,
+  rootUrl: string,
+  params?: ListNoteTags$Params,
+  context?: HttpContext,
+): Observable<StrictHttpResponse<NoteTagListResponse>> {
   const rb = new RequestBuilder(rootUrl, listNoteTags.PATH, 'get');
   if (params) {
   }
 
-  return http.request(
-    rb.build({ responseType: 'json', accept: 'application/json', context })
-  ).pipe(
+  return http.request(rb.build({ responseType: 'json', accept: 'application/json', context })).pipe(
     filter((r: any): r is HttpResponse<any> => r instanceof HttpResponse),
     map((r: HttpResponse<any>) => {
       return r as StrictHttpResponse<NoteTagListResponse>;
-    })
+    }),
   );
 }
 

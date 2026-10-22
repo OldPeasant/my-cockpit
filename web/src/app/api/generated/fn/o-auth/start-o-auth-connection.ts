@@ -7,30 +7,32 @@ import { filter, map } from 'rxjs/operators';
 import { StrictHttpResponse } from '../../strict-http-response';
 import { RequestBuilder } from '../../request-builder';
 
-
 export interface StartOAuthConnection$Params {
   provider: 'google' | 'microsoft';
 
-/**
- * What the account is connected for; passed back to the SPA after the callback
- */
+  /**
+   * What the account is connected for; passed back to the SPA after the callback
+   */
   purpose: 'CALENDAR' | 'MAIL' | 'CONTACTS';
 }
 
-export function startOAuthConnection(http: HttpClient, rootUrl: string, params: StartOAuthConnection$Params, context?: HttpContext): Observable<StrictHttpResponse<void>> {
+export function startOAuthConnection(
+  http: HttpClient,
+  rootUrl: string,
+  params: StartOAuthConnection$Params,
+  context?: HttpContext,
+): Observable<StrictHttpResponse<void>> {
   const rb = new RequestBuilder(rootUrl, startOAuthConnection.PATH, 'get');
   if (params) {
     rb.path('provider', params.provider, {});
     rb.query('purpose', params.purpose, {});
   }
 
-  return http.request(
-    rb.build({ responseType: 'text', accept: '*/*', context })
-  ).pipe(
+  return http.request(rb.build({ responseType: 'text', accept: '*/*', context })).pipe(
     filter((r: any): r is HttpResponse<any> => r instanceof HttpResponse),
     map((r: HttpResponse<any>) => {
       return (r as HttpResponse<any>).clone({ body: undefined }) as StrictHttpResponse<void>;
-    })
+    }),
   );
 }
 

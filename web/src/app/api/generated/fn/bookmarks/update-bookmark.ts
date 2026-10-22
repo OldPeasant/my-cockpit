@@ -13,14 +13,19 @@ import { BookmarkResponse } from '../../models/bookmark-response';
 export interface UpdateBookmark$Params {
   id: string;
 
-/**
- * ETag of the bookmark
- */
+  /**
+   * ETag of the bookmark
+   */
   'If-Match'?: string;
-      body: BookmarkPatchRequest
+  body: BookmarkPatchRequest;
 }
 
-export function updateBookmark(http: HttpClient, rootUrl: string, params: UpdateBookmark$Params, context?: HttpContext): Observable<StrictHttpResponse<BookmarkResponse>> {
+export function updateBookmark(
+  http: HttpClient,
+  rootUrl: string,
+  params: UpdateBookmark$Params,
+  context?: HttpContext,
+): Observable<StrictHttpResponse<BookmarkResponse>> {
   const rb = new RequestBuilder(rootUrl, updateBookmark.PATH, 'patch');
   if (params) {
     rb.path('id', params.id, {});
@@ -28,13 +33,11 @@ export function updateBookmark(http: HttpClient, rootUrl: string, params: Update
     rb.body(params.body, 'application/json');
   }
 
-  return http.request(
-    rb.build({ responseType: 'json', accept: 'application/json', context })
-  ).pipe(
+  return http.request(rb.build({ responseType: 'json', accept: 'application/json', context })).pipe(
     filter((r: any): r is HttpResponse<any> => r instanceof HttpResponse),
     map((r: HttpResponse<any>) => {
       return r as StrictHttpResponse<BookmarkResponse>;
-    })
+    }),
   );
 }
 

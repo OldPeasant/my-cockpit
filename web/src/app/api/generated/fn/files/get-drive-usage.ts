@@ -9,21 +9,23 @@ import { RequestBuilder } from '../../request-builder';
 
 import { DriveUsageResponse } from '../../models/drive-usage-response';
 
-export interface GetDriveUsage$Params {
-}
+export interface GetDriveUsage$Params {}
 
-export function getDriveUsage(http: HttpClient, rootUrl: string, params?: GetDriveUsage$Params, context?: HttpContext): Observable<StrictHttpResponse<DriveUsageResponse>> {
+export function getDriveUsage(
+  http: HttpClient,
+  rootUrl: string,
+  params?: GetDriveUsage$Params,
+  context?: HttpContext,
+): Observable<StrictHttpResponse<DriveUsageResponse>> {
   const rb = new RequestBuilder(rootUrl, getDriveUsage.PATH, 'get');
   if (params) {
   }
 
-  return http.request(
-    rb.build({ responseType: 'json', accept: 'application/json', context })
-  ).pipe(
+  return http.request(rb.build({ responseType: 'json', accept: 'application/json', context })).pipe(
     filter((r: any): r is HttpResponse<any> => r instanceof HttpResponse),
     map((r: HttpResponse<any>) => {
       return r as StrictHttpResponse<DriveUsageResponse>;
-    })
+    }),
   );
 }
 

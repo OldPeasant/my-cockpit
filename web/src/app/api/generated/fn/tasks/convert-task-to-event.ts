@@ -13,14 +13,19 @@ import { EventResponse } from '../../models/event-response';
 export interface ConvertTaskToEvent$Params {
   id: string;
 
-/**
- * ETag of the task (optional)
- */
+  /**
+   * ETag of the task (optional)
+   */
   'If-Match'?: string;
-      body: ConvertToEventRequest
+  body: ConvertToEventRequest;
 }
 
-export function convertTaskToEvent(http: HttpClient, rootUrl: string, params: ConvertTaskToEvent$Params, context?: HttpContext): Observable<StrictHttpResponse<EventResponse>> {
+export function convertTaskToEvent(
+  http: HttpClient,
+  rootUrl: string,
+  params: ConvertTaskToEvent$Params,
+  context?: HttpContext,
+): Observable<StrictHttpResponse<EventResponse>> {
   const rb = new RequestBuilder(rootUrl, convertTaskToEvent.PATH, 'post');
   if (params) {
     rb.path('id', params.id, {});
@@ -28,13 +33,11 @@ export function convertTaskToEvent(http: HttpClient, rootUrl: string, params: Co
     rb.body(params.body, 'application/json');
   }
 
-  return http.request(
-    rb.build({ responseType: 'json', accept: 'application/json', context })
-  ).pipe(
+  return http.request(rb.build({ responseType: 'json', accept: 'application/json', context })).pipe(
     filter((r: any): r is HttpResponse<any> => r instanceof HttpResponse),
     map((r: HttpResponse<any>) => {
       return r as StrictHttpResponse<EventResponse>;
-    })
+    }),
   );
 }
 

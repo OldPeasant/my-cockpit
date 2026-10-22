@@ -1,5 +1,5 @@
 import { Routes } from '@angular/router';
-import { authGuard, loginGuard, setupGuard } from './core/auth';
+import { authGuard, loginGuard, setupGuard, totpEnrollmentGuard } from './core/auth';
 import { provideReminderNotifications } from './core/notifications';
 import { provideCapture } from './features/capture/capture.providers';
 import { provideSearch } from './features/search/search.providers';
@@ -23,6 +23,12 @@ export const routes: Routes = [
     title: $localize`:@@login.pageTitle:Sign in`,
     canActivate: [loginGuard],
     loadComponent: () => import('./features/auth/login/login'),
+  },
+  {
+    path: 'enroll-totp',
+    title: $localize`:@@totpEnrollment.pageTitle:Set up your authenticator app`,
+    canActivate: [totpEnrollmentGuard],
+    loadComponent: () => import('./features/auth/totp-enrollment/totp-enrollment'),
   },
   {
     path: '',

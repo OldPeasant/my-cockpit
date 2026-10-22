@@ -13,14 +13,19 @@ import { NoteResponse } from '../../models/note-response';
 export interface UpdateNote$Params {
   id: string;
 
-/**
- * ETag of the note
- */
+  /**
+   * ETag of the note
+   */
   'If-Match'?: string;
-      body: NotePatchRequest
+  body: NotePatchRequest;
 }
 
-export function updateNote(http: HttpClient, rootUrl: string, params: UpdateNote$Params, context?: HttpContext): Observable<StrictHttpResponse<NoteResponse>> {
+export function updateNote(
+  http: HttpClient,
+  rootUrl: string,
+  params: UpdateNote$Params,
+  context?: HttpContext,
+): Observable<StrictHttpResponse<NoteResponse>> {
   const rb = new RequestBuilder(rootUrl, updateNote.PATH, 'patch');
   if (params) {
     rb.path('id', params.id, {});
@@ -28,13 +33,11 @@ export function updateNote(http: HttpClient, rootUrl: string, params: UpdateNote
     rb.body(params.body, 'application/json');
   }
 
-  return http.request(
-    rb.build({ responseType: 'json', accept: 'application/json', context })
-  ).pipe(
+  return http.request(rb.build({ responseType: 'json', accept: 'application/json', context })).pipe(
     filter((r: any): r is HttpResponse<any> => r instanceof HttpResponse),
     map((r: HttpResponse<any>) => {
       return r as StrictHttpResponse<NoteResponse>;
-    })
+    }),
   );
 }
 

@@ -11,23 +11,28 @@ import { AreaListResponse } from '../../models/area-list-response';
 import { OrderRequest } from '../../models/order-request';
 
 export interface OrderAreas$Params {
-      body: OrderRequest
+  body: OrderRequest;
 }
 
-export function orderAreas(http: HttpClient, rootUrl: string, params: OrderAreas$Params, context?: HttpContext): Observable<StrictHttpResponse<AreaListResponse>> {
+export function orderAreas(
+  http: HttpClient,
+  rootUrl: string,
+  params: OrderAreas$Params,
+  context?: HttpContext,
+): Observable<StrictHttpResponse<AreaListResponse>> {
   const rb = new RequestBuilder(rootUrl, orderAreas.PATH, 'put');
   if (params) {
     rb.body(params.body, 'application/json');
   }
 
-  return http.request(
-    rb.build({ responseType: 'json', accept: 'application/problem+json', context })
-  ).pipe(
-    filter((r: any): r is HttpResponse<any> => r instanceof HttpResponse),
-    map((r: HttpResponse<any>) => {
-      return r as StrictHttpResponse<AreaListResponse>;
-    })
-  );
+  return http
+    .request(rb.build({ responseType: 'json', accept: 'application/problem+json', context }))
+    .pipe(
+      filter((r: any): r is HttpResponse<any> => r instanceof HttpResponse),
+      map((r: HttpResponse<any>) => {
+        return r as StrictHttpResponse<AreaListResponse>;
+      }),
+    );
 }
 
 orderAreas.PATH = '/api/v1/areas/order';

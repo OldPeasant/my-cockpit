@@ -14,11 +14,11 @@ export interface EventPatchRequest {
    */
   attendees?: Array<AttendeeDto>;
   calendarId?: string;
-  conferenceUrl?: (string | null);
-  description?: (string | null);
+  conferenceUrl?: string | null;
+  description?: string | null;
   end?: string;
   endDate?: string;
-  location?: (string | null);
+  location?: string | null;
 
   /**
    * Replaces the reminders
@@ -28,7 +28,7 @@ export interface EventPatchRequest {
   /**
    * `null` makes a series a single event
    */
-  rrule?: (string | null);
+  rrule?: string | null;
   start?: string;
   startDate?: string;
 

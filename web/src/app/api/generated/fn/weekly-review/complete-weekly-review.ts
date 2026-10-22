@@ -12,26 +12,29 @@ import { WeeklyReviewResponse } from '../../models/weekly-review-response';
 export interface CompleteWeeklyReview$Params {
   id: string;
 
-/**
- * ETag of the review
- */
+  /**
+   * ETag of the review
+   */
   'If-Match'?: string;
 }
 
-export function completeWeeklyReview(http: HttpClient, rootUrl: string, params: CompleteWeeklyReview$Params, context?: HttpContext): Observable<StrictHttpResponse<WeeklyReviewResponse>> {
+export function completeWeeklyReview(
+  http: HttpClient,
+  rootUrl: string,
+  params: CompleteWeeklyReview$Params,
+  context?: HttpContext,
+): Observable<StrictHttpResponse<WeeklyReviewResponse>> {
   const rb = new RequestBuilder(rootUrl, completeWeeklyReview.PATH, 'post');
   if (params) {
     rb.path('id', params.id, {});
     rb.header('If-Match', params['If-Match'], {});
   }
 
-  return http.request(
-    rb.build({ responseType: 'json', accept: 'application/json', context })
-  ).pipe(
+  return http.request(rb.build({ responseType: 'json', accept: 'application/json', context })).pipe(
     filter((r: any): r is HttpResponse<any> => r instanceof HttpResponse),
     map((r: HttpResponse<any>) => {
       return r as StrictHttpResponse<WeeklyReviewResponse>;
-    })
+    }),
   );
 }
 

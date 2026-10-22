@@ -2,7 +2,10 @@
  * A UUIDv7 (RFC 9562): 48 bits of Unix milliseconds, then version, 74 random bits and the variant.
  * The client picks the capture id, so a retried request is recognized by the server.
  */
-export function uuidv7(now = Date.now(), random: (bytes: Uint8Array<ArrayBuffer>) => void = fillRandom): string {
+export function uuidv7(
+  now = Date.now(),
+  random: (bytes: Uint8Array<ArrayBuffer>) => void = fillRandom,
+): string {
   const bytes = new Uint8Array(16);
   random(bytes);
   let ms = Math.max(0, Math.floor(now));

@@ -13,20 +13,25 @@ export interface ListNoteRevisions$Params {
   id: string;
 }
 
-export function listNoteRevisions(http: HttpClient, rootUrl: string, params: ListNoteRevisions$Params, context?: HttpContext): Observable<StrictHttpResponse<NoteRevisionListResponse>> {
+export function listNoteRevisions(
+  http: HttpClient,
+  rootUrl: string,
+  params: ListNoteRevisions$Params,
+  context?: HttpContext,
+): Observable<StrictHttpResponse<NoteRevisionListResponse>> {
   const rb = new RequestBuilder(rootUrl, listNoteRevisions.PATH, 'get');
   if (params) {
     rb.path('id', params.id, {});
   }
 
-  return http.request(
-    rb.build({ responseType: 'json', accept: 'application/problem+json', context })
-  ).pipe(
-    filter((r: any): r is HttpResponse<any> => r instanceof HttpResponse),
-    map((r: HttpResponse<any>) => {
-      return r as StrictHttpResponse<NoteRevisionListResponse>;
-    })
-  );
+  return http
+    .request(rb.build({ responseType: 'json', accept: 'application/problem+json', context }))
+    .pipe(
+      filter((r: any): r is HttpResponse<any> => r instanceof HttpResponse),
+      map((r: HttpResponse<any>) => {
+        return r as StrictHttpResponse<NoteRevisionListResponse>;
+      }),
+    );
 }
 
 listNoteRevisions.PATH = '/api/v1/notes/{id}/revisions';

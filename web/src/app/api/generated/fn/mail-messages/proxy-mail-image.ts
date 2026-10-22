@@ -7,24 +7,26 @@ import { filter, map } from 'rxjs/operators';
 import { StrictHttpResponse } from '../../strict-http-response';
 import { RequestBuilder } from '../../request-builder';
 
-
 export interface ProxyMailImage$Params {
   url: string;
 }
 
-export function proxyMailImage(http: HttpClient, rootUrl: string, params: ProxyMailImage$Params, context?: HttpContext): Observable<StrictHttpResponse<Blob>> {
+export function proxyMailImage(
+  http: HttpClient,
+  rootUrl: string,
+  params: ProxyMailImage$Params,
+  context?: HttpContext,
+): Observable<StrictHttpResponse<Blob>> {
   const rb = new RequestBuilder(rootUrl, proxyMailImage.PATH, 'get');
   if (params) {
     rb.query('url', params.url, {});
   }
 
-  return http.request(
-    rb.build({ responseType: 'blob', accept: 'image/*', context })
-  ).pipe(
+  return http.request(rb.build({ responseType: 'blob', accept: 'image/*', context })).pipe(
     filter((r: any): r is HttpResponse<any> => r instanceof HttpResponse),
     map((r: HttpResponse<any>) => {
       return r as StrictHttpResponse<Blob>;
-    })
+    }),
   );
 }
 

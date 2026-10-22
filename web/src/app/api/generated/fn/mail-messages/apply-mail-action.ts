@@ -11,22 +11,25 @@ import { MailActionRequest } from '../../models/mail-action-request';
 import { MailActionResponse } from '../../models/mail-action-response';
 
 export interface ApplyMailAction$Params {
-      body: MailActionRequest
+  body: MailActionRequest;
 }
 
-export function applyMailAction(http: HttpClient, rootUrl: string, params: ApplyMailAction$Params, context?: HttpContext): Observable<StrictHttpResponse<MailActionResponse>> {
+export function applyMailAction(
+  http: HttpClient,
+  rootUrl: string,
+  params: ApplyMailAction$Params,
+  context?: HttpContext,
+): Observable<StrictHttpResponse<MailActionResponse>> {
   const rb = new RequestBuilder(rootUrl, applyMailAction.PATH, 'post');
   if (params) {
     rb.body(params.body, 'application/json');
   }
 
-  return http.request(
-    rb.build({ responseType: 'json', accept: 'application/json', context })
-  ).pipe(
+  return http.request(rb.build({ responseType: 'json', accept: 'application/json', context })).pipe(
     filter((r: any): r is HttpResponse<any> => r instanceof HttpResponse),
     map((r: HttpResponse<any>) => {
       return r as StrictHttpResponse<MailActionResponse>;
-    })
+    }),
   );
 }
 

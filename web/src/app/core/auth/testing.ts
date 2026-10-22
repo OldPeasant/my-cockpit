@@ -7,6 +7,7 @@ export function provideFakeSession(username = 'demo'): Provider {
   const fake: Partial<AuthService> = {
     user: user.asReadonly(),
     loggedIn: signal(true).asReadonly(),
+    totpEnrollmentRequired: signal(false).asReadonly(),
     setupRequired: () => Promise.resolve(false),
     checkSession: () => Promise.resolve(true),
     logout: () => Promise.resolve(),

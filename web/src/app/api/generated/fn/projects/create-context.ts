@@ -11,22 +11,25 @@ import { ContextResponse } from '../../models/context-response';
 import { CreateContextRequest } from '../../models/create-context-request';
 
 export interface CreateContext$Params {
-      body: CreateContextRequest
+  body: CreateContextRequest;
 }
 
-export function createContext(http: HttpClient, rootUrl: string, params: CreateContext$Params, context?: HttpContext): Observable<StrictHttpResponse<ContextResponse>> {
+export function createContext(
+  http: HttpClient,
+  rootUrl: string,
+  params: CreateContext$Params,
+  context?: HttpContext,
+): Observable<StrictHttpResponse<ContextResponse>> {
   const rb = new RequestBuilder(rootUrl, createContext.PATH, 'post');
   if (params) {
     rb.body(params.body, 'application/json');
   }
 
-  return http.request(
-    rb.build({ responseType: 'json', accept: 'application/json', context })
-  ).pipe(
+  return http.request(rb.build({ responseType: 'json', accept: 'application/json', context })).pipe(
     filter((r: any): r is HttpResponse<any> => r instanceof HttpResponse),
     map((r: HttpResponse<any>) => {
       return r as StrictHttpResponse<ContextResponse>;
-    })
+    }),
   );
 }
 

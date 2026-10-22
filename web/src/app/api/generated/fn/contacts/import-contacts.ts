@@ -10,25 +10,30 @@ import { RequestBuilder } from '../../request-builder';
 import { VCardImportResponse } from '../../models/v-card-import-response';
 
 export interface ImportContacts$Params {
-      body?: {
-'file': Blob;
-}
+  body?: {
+    file: Blob;
+  };
 }
 
-export function importContacts(http: HttpClient, rootUrl: string, params?: ImportContacts$Params, context?: HttpContext): Observable<StrictHttpResponse<VCardImportResponse>> {
+export function importContacts(
+  http: HttpClient,
+  rootUrl: string,
+  params?: ImportContacts$Params,
+  context?: HttpContext,
+): Observable<StrictHttpResponse<VCardImportResponse>> {
   const rb = new RequestBuilder(rootUrl, importContacts.PATH, 'post');
   if (params) {
     rb.body(params.body, 'multipart/form-data');
   }
 
-  return http.request(
-    rb.build({ responseType: 'json', accept: 'application/problem+json', context })
-  ).pipe(
-    filter((r: any): r is HttpResponse<any> => r instanceof HttpResponse),
-    map((r: HttpResponse<any>) => {
-      return r as StrictHttpResponse<VCardImportResponse>;
-    })
-  );
+  return http
+    .request(rb.build({ responseType: 'json', accept: 'application/problem+json', context }))
+    .pipe(
+      filter((r: any): r is HttpResponse<any> => r instanceof HttpResponse),
+      map((r: HttpResponse<any>) => {
+        return r as StrictHttpResponse<VCardImportResponse>;
+      }),
+    );
 }
 
 importContacts.PATH = '/api/v1/contacts/import';

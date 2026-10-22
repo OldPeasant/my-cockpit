@@ -13,14 +13,19 @@ import { FolderResponse } from '../../models/folder-response';
 export interface UpdateFolder$Params {
   id: string;
 
-/**
- * ETag of the folder
- */
+  /**
+   * ETag of the folder
+   */
   'If-Match'?: string;
-      body: FolderPatchRequest
+  body: FolderPatchRequest;
 }
 
-export function updateFolder(http: HttpClient, rootUrl: string, params: UpdateFolder$Params, context?: HttpContext): Observable<StrictHttpResponse<FolderResponse>> {
+export function updateFolder(
+  http: HttpClient,
+  rootUrl: string,
+  params: UpdateFolder$Params,
+  context?: HttpContext,
+): Observable<StrictHttpResponse<FolderResponse>> {
   const rb = new RequestBuilder(rootUrl, updateFolder.PATH, 'patch');
   if (params) {
     rb.path('id', params.id, {});
@@ -28,13 +33,11 @@ export function updateFolder(http: HttpClient, rootUrl: string, params: UpdateFo
     rb.body(params.body, 'application/json');
   }
 
-  return http.request(
-    rb.build({ responseType: 'json', accept: 'application/json', context })
-  ).pipe(
+  return http.request(rb.build({ responseType: 'json', accept: 'application/json', context })).pipe(
     filter((r: any): r is HttpResponse<any> => r instanceof HttpResponse),
     map((r: HttpResponse<any>) => {
       return r as StrictHttpResponse<FolderResponse>;
-    })
+    }),
   );
 }
 

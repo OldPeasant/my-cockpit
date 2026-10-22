@@ -11,22 +11,25 @@ import { HabitRequest } from '../../models/habit-request';
 import { HabitResponse } from '../../models/habit-response';
 
 export interface CreateHabit$Params {
-      body: HabitRequest
+  body: HabitRequest;
 }
 
-export function createHabit(http: HttpClient, rootUrl: string, params: CreateHabit$Params, context?: HttpContext): Observable<StrictHttpResponse<HabitResponse>> {
+export function createHabit(
+  http: HttpClient,
+  rootUrl: string,
+  params: CreateHabit$Params,
+  context?: HttpContext,
+): Observable<StrictHttpResponse<HabitResponse>> {
   const rb = new RequestBuilder(rootUrl, createHabit.PATH, 'post');
   if (params) {
     rb.body(params.body, 'application/json');
   }
 
-  return http.request(
-    rb.build({ responseType: 'json', accept: 'application/json', context })
-  ).pipe(
+  return http.request(rb.build({ responseType: 'json', accept: 'application/json', context })).pipe(
     filter((r: any): r is HttpResponse<any> => r instanceof HttpResponse),
     map((r: HttpResponse<any>) => {
       return r as StrictHttpResponse<HabitResponse>;
-    })
+    }),
   );
 }
 

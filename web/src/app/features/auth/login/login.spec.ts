@@ -22,6 +22,7 @@ describe('Login', () => {
         provideRouter([
           { path: 'login', component: Login },
           { path: 'inbox', component: Target },
+          { path: 'enroll-totp', component: Target },
           { path: '', component: Target },
         ]),
         { provide: AuthService, useValue: { login } },
@@ -286,5 +287,82 @@ describe('Login', () => {
     expect(root.querySelector('[role=alert]')?.textContent).toContain(
       'The server cannot be reached.',
     );
+  });
+
+  it('opens the TOTP enrollment instead of the app when the server requires it', async () => {
+    await open('/login?returnUrl=%2Finbox');
+    login.mockResolvedValueOnce({ username: 'demo', totpEnrollmentRequired: true });
+    root.querySelector<HTMLButtonElement>('button.switch')!.click();
+    await fixture().whenStable();
+    type('input[formControlName=username]', 'demo');
+    type('input[formControlName=password]', 'a long password');
+    type('input[name=recoveryCode]', 'abcde-fghjk');
+    await submit();
+    expect(login).toHaveBeenCalledWith({
+      username: 'demo',
+      password: 'a long password',
+      rememberDevice: false,
+      recoveryCode: 'abcde-fghjk',
+    });
+    expect(router.url).toBe('/enroll-totp?returnUrl=%2Finbox');
+  });
+
+  it('opens the TOTP enrollment without a return URL when going to the dashboard', async () => {
+    await open();
+    login.mockResolvedValueOnce({ username: 'demo', totpEnrollmentRequired: true });
+    fill();
+    await submit();
+    expect(router.url).toBe('/enroll-totp');
+  });
+
+  it('opens the app when the server says no enrollment is required', async () => {
+    await open();
+    login.mockResolvedValueOnce({ username: 'demo', totpEnrollmentRequired: false });
+    fill();
+    await submit();
+    expect(router.url).toBe('/');
+  });
+
+  it('logs in with the password alone after a restore with no recovery code left', async () => {
+    await open();
+    expect(root.querySelector('button.password-switch')).toBeNull();
+    root.querySelector<HTMLButtonElement>('button.switch')!.click();
+    await fixture().whenStable();
+    root.querySelector<HTMLButtonElement>('button.password-switch')!.click();
+    await fixture().whenStable();
+    expect(root.querySelector('input[name=totp]')).toBeNull();
+    expect(root.querySelector('input[name=recoveryCode]')).toBeNull();
+    expect(root.querySelector('.password-only')?.textContent).toContain('password alone');
+    login.mockResolvedValueOnce({ username: 'demo', totpEnrollmentRequired: true });
+    type('input[formControlName=username]', 'demo');
+    type('input[formControlName=password]', 'a long password');
+    await submit();
+    expect(login).toHaveBeenCalledWith({
+      username: 'demo',
+      password: 'a long password',
+      rememberDevice: false,
+    });
+    expect(router.url).toBe('/enroll-totp');
+  });
+
+  it('explains a refused password-only login and goes back to the app code', async () => {
+    await open();
+    root.querySelector<HTMLButtonElement>('button.switch')!.click();
+    await fixture().whenStable();
+    root.querySelector<HTMLButtonElement>('button.password-switch')!.click();
+    await fixture().whenStable();
+    login.mockRejectedValueOnce(new ApiError(401, 'Unauthorized'));
+    type('input[formControlName=username]', 'demo');
+    type('input[formControlName=password]', 'a long password');
+    await submit();
+    expect(root.querySelector('[role=alert]')?.textContent).toContain(
+      'a recovery code is still needed',
+    );
+    const toggle = root.querySelector<HTMLButtonElement>('button.switch')!;
+    expect(toggle.textContent?.trim()).toBe('Use the authenticator app instead');
+    toggle.click();
+    await fixture().whenStable();
+    expect(root.querySelector('[role=alert]')).toBeNull();
+    expect(root.querySelector('input[name=totp]')).not.toBeNull();
   });
 });

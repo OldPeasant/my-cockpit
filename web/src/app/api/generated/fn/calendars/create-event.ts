@@ -11,22 +11,25 @@ import { CreateEventRequest } from '../../models/create-event-request';
 import { EventResponse } from '../../models/event-response';
 
 export interface CreateEvent$Params {
-      body: CreateEventRequest
+  body: CreateEventRequest;
 }
 
-export function createEvent(http: HttpClient, rootUrl: string, params: CreateEvent$Params, context?: HttpContext): Observable<StrictHttpResponse<EventResponse>> {
+export function createEvent(
+  http: HttpClient,
+  rootUrl: string,
+  params: CreateEvent$Params,
+  context?: HttpContext,
+): Observable<StrictHttpResponse<EventResponse>> {
   const rb = new RequestBuilder(rootUrl, createEvent.PATH, 'post');
   if (params) {
     rb.body(params.body, 'application/json');
   }
 
-  return http.request(
-    rb.build({ responseType: 'json', accept: 'application/json', context })
-  ).pipe(
+  return http.request(rb.build({ responseType: 'json', accept: 'application/json', context })).pipe(
     filter((r: any): r is HttpResponse<any> => r instanceof HttpResponse),
     map((r: HttpResponse<any>) => {
       return r as StrictHttpResponse<EventResponse>;
-    })
+    }),
   );
 }
 

@@ -13,19 +13,22 @@ export interface GetArea$Params {
   id: string;
 }
 
-export function getArea(http: HttpClient, rootUrl: string, params: GetArea$Params, context?: HttpContext): Observable<StrictHttpResponse<AreaResponse>> {
+export function getArea(
+  http: HttpClient,
+  rootUrl: string,
+  params: GetArea$Params,
+  context?: HttpContext,
+): Observable<StrictHttpResponse<AreaResponse>> {
   const rb = new RequestBuilder(rootUrl, getArea.PATH, 'get');
   if (params) {
     rb.path('id', params.id, {});
   }
 
-  return http.request(
-    rb.build({ responseType: 'json', accept: 'application/json', context })
-  ).pipe(
+  return http.request(rb.build({ responseType: 'json', accept: 'application/json', context })).pipe(
     filter((r: any): r is HttpResponse<any> => r instanceof HttpResponse),
     map((r: HttpResponse<any>) => {
       return r as StrictHttpResponse<AreaResponse>;
-    })
+    }),
   );
 }
 

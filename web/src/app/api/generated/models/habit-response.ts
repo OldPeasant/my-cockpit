@@ -34,5 +34,7 @@ export interface HabitResponse {
   /**
    * The due weekdays, in week order; only for WEEKDAYS (else empty)
    */
-  weekdays: Array<'MONDAY' | 'TUESDAY' | 'WEDNESDAY' | 'THURSDAY' | 'FRIDAY' | 'SATURDAY' | 'SUNDAY'>;
+  weekdays: Array<
+    'MONDAY' | 'TUESDAY' | 'WEDNESDAY' | 'THURSDAY' | 'FRIDAY' | 'SATURDAY' | 'SUNDAY'
+  >;
 }

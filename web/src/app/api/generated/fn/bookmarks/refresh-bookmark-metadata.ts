@@ -12,26 +12,29 @@ import { BookmarkResponse } from '../../models/bookmark-response';
 export interface RefreshBookmarkMetadata$Params {
   id: string;
 
-/**
- * ETag of the bookmark
- */
+  /**
+   * ETag of the bookmark
+   */
   'If-Match'?: string;
 }
 
-export function refreshBookmarkMetadata(http: HttpClient, rootUrl: string, params: RefreshBookmarkMetadata$Params, context?: HttpContext): Observable<StrictHttpResponse<BookmarkResponse>> {
+export function refreshBookmarkMetadata(
+  http: HttpClient,
+  rootUrl: string,
+  params: RefreshBookmarkMetadata$Params,
+  context?: HttpContext,
+): Observable<StrictHttpResponse<BookmarkResponse>> {
   const rb = new RequestBuilder(rootUrl, refreshBookmarkMetadata.PATH, 'post');
   if (params) {
     rb.path('id', params.id, {});
     rb.header('If-Match', params['If-Match'], {});
   }
 
-  return http.request(
-    rb.build({ responseType: 'json', accept: 'application/json', context })
-  ).pipe(
+  return http.request(rb.build({ responseType: 'json', accept: 'application/json', context })).pipe(
     filter((r: any): r is HttpResponse<any> => r instanceof HttpResponse),
     map((r: HttpResponse<any>) => {
       return r as StrictHttpResponse<BookmarkResponse>;
-    })
+    }),
   );
 }
 

@@ -12,18 +12,23 @@ import { NoteResponse } from '../../models/note-response';
 export interface RestoreNoteRevision$Params {
   id: string;
 
-/**
- * Number of the revision
- */
+  /**
+   * Number of the revision
+   */
   number: number;
 
-/**
- * ETag of the note
- */
+  /**
+   * ETag of the note
+   */
   'If-Match'?: string;
 }
 
-export function restoreNoteRevision(http: HttpClient, rootUrl: string, params: RestoreNoteRevision$Params, context?: HttpContext): Observable<StrictHttpResponse<NoteResponse>> {
+export function restoreNoteRevision(
+  http: HttpClient,
+  rootUrl: string,
+  params: RestoreNoteRevision$Params,
+  context?: HttpContext,
+): Observable<StrictHttpResponse<NoteResponse>> {
   const rb = new RequestBuilder(rootUrl, restoreNoteRevision.PATH, 'post');
   if (params) {
     rb.path('id', params.id, {});
@@ -31,13 +36,11 @@ export function restoreNoteRevision(http: HttpClient, rootUrl: string, params: R
     rb.header('If-Match', params['If-Match'], {});
   }
 
-  return http.request(
-    rb.build({ responseType: 'json', accept: 'application/json', context })
-  ).pipe(
+  return http.request(rb.build({ responseType: 'json', accept: 'application/json', context })).pipe(
     filter((r: any): r is HttpResponse<any> => r instanceof HttpResponse),
     map((r: HttpResponse<any>) => {
       return r as StrictHttpResponse<NoteResponse>;
-    })
+    }),
   );
 }
 

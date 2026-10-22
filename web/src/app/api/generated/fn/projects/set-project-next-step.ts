@@ -13,14 +13,19 @@ import { ProjectResponse } from '../../models/project-response';
 export interface SetProjectNextStep$Params {
   id: string;
 
-/**
- * ETag of the project (optional)
- */
+  /**
+   * ETag of the project (optional)
+   */
   'If-Match'?: string;
-      body: NextStepRequest
+  body: NextStepRequest;
 }
 
-export function setProjectNextStep(http: HttpClient, rootUrl: string, params: SetProjectNextStep$Params, context?: HttpContext): Observable<StrictHttpResponse<ProjectResponse>> {
+export function setProjectNextStep(
+  http: HttpClient,
+  rootUrl: string,
+  params: SetProjectNextStep$Params,
+  context?: HttpContext,
+): Observable<StrictHttpResponse<ProjectResponse>> {
   const rb = new RequestBuilder(rootUrl, setProjectNextStep.PATH, 'post');
   if (params) {
     rb.path('id', params.id, {});
@@ -28,13 +33,11 @@ export function setProjectNextStep(http: HttpClient, rootUrl: string, params: Se
     rb.body(params.body, 'application/json');
   }
 
-  return http.request(
-    rb.build({ responseType: 'json', accept: 'application/json', context })
-  ).pipe(
+  return http.request(rb.build({ responseType: 'json', accept: 'application/json', context })).pipe(
     filter((r: any): r is HttpResponse<any> => r instanceof HttpResponse),
     map((r: HttpResponse<any>) => {
       return r as StrictHttpResponse<ProjectResponse>;
-    })
+    }),
   );
 }
 

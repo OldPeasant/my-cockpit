@@ -10,32 +10,45 @@ import { RequestBuilder } from '../../request-builder';
 import { LinkListResponse } from '../../models/link-list-response';
 
 export interface ListLinks$Params {
+  /**
+   * Type of the item
+   */
+  type:
+    | 'TASK'
+    | 'PROJECT'
+    | 'NOTE'
+    | 'EVENT'
+    | 'EMAIL'
+    | 'FILE'
+    | 'FOLDER'
+    | 'CONTACT'
+    | 'BOOKMARK'
+    | 'JOURNAL_ENTRY'
+    | 'HABIT';
 
-/**
- * Type of the item
- */
-  type: 'TASK' | 'PROJECT' | 'NOTE' | 'EVENT' | 'EMAIL' | 'FILE' | 'FOLDER' | 'CONTACT' | 'BOOKMARK' | 'JOURNAL_ENTRY' | 'HABIT';
-
-/**
- * Id of the item
- */
+  /**
+   * Id of the item
+   */
   id: string;
 }
 
-export function listLinks(http: HttpClient, rootUrl: string, params: ListLinks$Params, context?: HttpContext): Observable<StrictHttpResponse<LinkListResponse>> {
+export function listLinks(
+  http: HttpClient,
+  rootUrl: string,
+  params: ListLinks$Params,
+  context?: HttpContext,
+): Observable<StrictHttpResponse<LinkListResponse>> {
   const rb = new RequestBuilder(rootUrl, listLinks.PATH, 'get');
   if (params) {
     rb.query('type', params.type, {});
     rb.query('id', params.id, {});
   }
 
-  return http.request(
-    rb.build({ responseType: 'json', accept: 'application/json', context })
-  ).pipe(
+  return http.request(rb.build({ responseType: 'json', accept: 'application/json', context })).pipe(
     filter((r: any): r is HttpResponse<any> => r instanceof HttpResponse),
     map((r: HttpResponse<any>) => {
       return r as StrictHttpResponse<LinkListResponse>;
-    })
+    }),
   );
 }
 

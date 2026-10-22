@@ -12,26 +12,29 @@ import { TaskResponse } from '../../models/task-response';
 export interface UncompleteTask$Params {
   id: string;
 
-/**
- * ETag of the task (optional)
- */
+  /**
+   * ETag of the task (optional)
+   */
   'If-Match'?: string;
 }
 
-export function uncompleteTask(http: HttpClient, rootUrl: string, params: UncompleteTask$Params, context?: HttpContext): Observable<StrictHttpResponse<TaskResponse>> {
+export function uncompleteTask(
+  http: HttpClient,
+  rootUrl: string,
+  params: UncompleteTask$Params,
+  context?: HttpContext,
+): Observable<StrictHttpResponse<TaskResponse>> {
   const rb = new RequestBuilder(rootUrl, uncompleteTask.PATH, 'post');
   if (params) {
     rb.path('id', params.id, {});
     rb.header('If-Match', params['If-Match'], {});
   }
 
-  return http.request(
-    rb.build({ responseType: 'json', accept: 'application/json', context })
-  ).pipe(
+  return http.request(rb.build({ responseType: 'json', accept: 'application/json', context })).pipe(
     filter((r: any): r is HttpResponse<any> => r instanceof HttpResponse),
     map((r: HttpResponse<any>) => {
       return r as StrictHttpResponse<TaskResponse>;
-    })
+    }),
   );
 }
 

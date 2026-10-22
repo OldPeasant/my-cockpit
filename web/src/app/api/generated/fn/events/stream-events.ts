@@ -9,22 +9,26 @@ import { RequestBuilder } from '../../request-builder';
 
 import { ChangeEvent } from '../../models/change-event';
 
-export interface StreamEvents$Params {
-}
+export interface StreamEvents$Params {}
 
-export function streamEvents(http: HttpClient, rootUrl: string, params?: StreamEvents$Params, context?: HttpContext): Observable<StrictHttpResponse<ChangeEvent>> {
+export function streamEvents(
+  http: HttpClient,
+  rootUrl: string,
+  params?: StreamEvents$Params,
+  context?: HttpContext,
+): Observable<StrictHttpResponse<ChangeEvent>> {
   const rb = new RequestBuilder(rootUrl, streamEvents.PATH, 'get');
   if (params) {
   }
 
-  return http.request(
-    rb.build({ responseType: 'text', accept: 'text/event-stream', context })
-  ).pipe(
-    filter((r: any): r is HttpResponse<any> => r instanceof HttpResponse),
-    map((r: HttpResponse<any>) => {
-      return r as StrictHttpResponse<ChangeEvent>;
-    })
-  );
+  return http
+    .request(rb.build({ responseType: 'text', accept: 'text/event-stream', context }))
+    .pipe(
+      filter((r: any): r is HttpResponse<any> => r instanceof HttpResponse),
+      map((r: HttpResponse<any>) => {
+        return r as StrictHttpResponse<ChangeEvent>;
+      }),
+    );
 }
 
 streamEvents.PATH = '/api/v1/events';

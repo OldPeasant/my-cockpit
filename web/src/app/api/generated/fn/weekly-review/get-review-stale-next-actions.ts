@@ -10,26 +10,28 @@ import { RequestBuilder } from '../../request-builder';
 import { ReviewTaskListResponse } from '../../models/review-task-list-response';
 
 export interface GetReviewStaleNextActions$Params {
-
-/**
- * Days without a change (1 to 3650)
- */
+  /**
+   * Days without a change (1 to 3650)
+   */
   olderThanDays?: number;
 }
 
-export function getReviewStaleNextActions(http: HttpClient, rootUrl: string, params?: GetReviewStaleNextActions$Params, context?: HttpContext): Observable<StrictHttpResponse<ReviewTaskListResponse>> {
+export function getReviewStaleNextActions(
+  http: HttpClient,
+  rootUrl: string,
+  params?: GetReviewStaleNextActions$Params,
+  context?: HttpContext,
+): Observable<StrictHttpResponse<ReviewTaskListResponse>> {
   const rb = new RequestBuilder(rootUrl, getReviewStaleNextActions.PATH, 'get');
   if (params) {
     rb.query('olderThanDays', params.olderThanDays, {});
   }
 
-  return http.request(
-    rb.build({ responseType: 'json', accept: 'application/json', context })
-  ).pipe(
+  return http.request(rb.build({ responseType: 'json', accept: 'application/json', context })).pipe(
     filter((r: any): r is HttpResponse<any> => r instanceof HttpResponse),
     map((r: HttpResponse<any>) => {
       return r as StrictHttpResponse<ReviewTaskListResponse>;
-    })
+    }),
   );
 }
 

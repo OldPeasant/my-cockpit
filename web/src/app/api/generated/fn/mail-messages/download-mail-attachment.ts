@@ -7,14 +7,18 @@ import { filter, map } from 'rxjs/operators';
 import { StrictHttpResponse } from '../../strict-http-response';
 import { RequestBuilder } from '../../request-builder';
 
-
 export interface DownloadMailAttachment$Params {
   id: string;
   partId: string;
   inline?: boolean;
 }
 
-export function downloadMailAttachment(http: HttpClient, rootUrl: string, params: DownloadMailAttachment$Params, context?: HttpContext): Observable<StrictHttpResponse<Blob>> {
+export function downloadMailAttachment(
+  http: HttpClient,
+  rootUrl: string,
+  params: DownloadMailAttachment$Params,
+  context?: HttpContext,
+): Observable<StrictHttpResponse<Blob>> {
   const rb = new RequestBuilder(rootUrl, downloadMailAttachment.PATH, 'get');
   if (params) {
     rb.path('id', params.id, {});
@@ -22,14 +26,14 @@ export function downloadMailAttachment(http: HttpClient, rootUrl: string, params
     rb.query('inline', params.inline, {});
   }
 
-  return http.request(
-    rb.build({ responseType: 'blob', accept: 'application/octet-stream', context })
-  ).pipe(
-    filter((r: any): r is HttpResponse<any> => r instanceof HttpResponse),
-    map((r: HttpResponse<any>) => {
-      return r as StrictHttpResponse<Blob>;
-    })
-  );
+  return http
+    .request(rb.build({ responseType: 'blob', accept: 'application/octet-stream', context }))
+    .pipe(
+      filter((r: any): r is HttpResponse<any> => r instanceof HttpResponse),
+      map((r: HttpResponse<any>) => {
+        return r as StrictHttpResponse<Blob>;
+      }),
+    );
 }
 
 downloadMailAttachment.PATH = '/api/v1/mail/messages/{id}/attachments/{partId}';

@@ -12,26 +12,29 @@ import { NoteResponse } from '../../models/note-response';
 export interface ConvertTaskToNote$Params {
   id: string;
 
-/**
- * ETag of the task (optional)
- */
+  /**
+   * ETag of the task (optional)
+   */
   'If-Match'?: string;
 }
 
-export function convertTaskToNote(http: HttpClient, rootUrl: string, params: ConvertTaskToNote$Params, context?: HttpContext): Observable<StrictHttpResponse<NoteResponse>> {
+export function convertTaskToNote(
+  http: HttpClient,
+  rootUrl: string,
+  params: ConvertTaskToNote$Params,
+  context?: HttpContext,
+): Observable<StrictHttpResponse<NoteResponse>> {
   const rb = new RequestBuilder(rootUrl, convertTaskToNote.PATH, 'post');
   if (params) {
     rb.path('id', params.id, {});
     rb.header('If-Match', params['If-Match'], {});
   }
 
-  return http.request(
-    rb.build({ responseType: 'json', accept: 'application/json', context })
-  ).pipe(
+  return http.request(rb.build({ responseType: 'json', accept: 'application/json', context })).pipe(
     filter((r: any): r is HttpResponse<any> => r instanceof HttpResponse),
     map((r: HttpResponse<any>) => {
       return r as StrictHttpResponse<NoteResponse>;
-    })
+    }),
   );
 }
 

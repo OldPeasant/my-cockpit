@@ -7,14 +7,18 @@ import { filter, map } from 'rxjs/operators';
 import { StrictHttpResponse } from '../../strict-http-response';
 import { RequestBuilder } from '../../request-builder';
 
-
 export interface PutUploadChunk$Params {
   id: string;
   n: number;
-      body: Blob
+  body: Blob;
 }
 
-export function putUploadChunk(http: HttpClient, rootUrl: string, params: PutUploadChunk$Params, context?: HttpContext): Observable<StrictHttpResponse<void>> {
+export function putUploadChunk(
+  http: HttpClient,
+  rootUrl: string,
+  params: PutUploadChunk$Params,
+  context?: HttpContext,
+): Observable<StrictHttpResponse<void>> {
   const rb = new RequestBuilder(rootUrl, putUploadChunk.PATH, 'put');
   if (params) {
     rb.path('id', params.id, {});
@@ -22,13 +26,11 @@ export function putUploadChunk(http: HttpClient, rootUrl: string, params: PutUpl
     rb.body(params.body, 'application/octet-stream');
   }
 
-  return http.request(
-    rb.build({ responseType: 'text', accept: '*/*', context })
-  ).pipe(
+  return http.request(rb.build({ responseType: 'text', accept: '*/*', context })).pipe(
     filter((r: any): r is HttpResponse<any> => r instanceof HttpResponse),
     map((r: HttpResponse<any>) => {
       return (r as HttpResponse<any>).clone({ body: undefined }) as StrictHttpResponse<void>;
-    })
+    }),
   );
 }
 

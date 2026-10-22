@@ -12,7 +12,8 @@ import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { ActivatedRoute, Router } from '@angular/router';
-import { AuthService, safeReturnUrl } from '../../../core/auth';
+import { AuthService, safeReturnUrl, totpEnrollmentUrl } from '../../../core/auth';
+import { LoginRequest } from '../../../api/generated';
 import { ApiError, RETURN_URL_PARAM } from '../../../core/http';
 import { AuthLayout } from '../auth-layout';
 
@@ -22,7 +23,16 @@ const TOTP_PATTERN = /^\s*\d{3}\s?\d{3}\s*$/;
 /** Wait when a 429 comes without a usable Retry-After header. */
 const DEFAULT_BACKOFF_SECONDS = 60;
 
-/** Login with password and a TOTP or recovery code (SPEC.md §4.1). */
+/**
+ * The second factor sent with the password. `password` sends none: after a restore without
+ * secrets the server accepts the password alone while no unused recovery code is left (SPEC.md §10.2).
+ */
+export type SecondFactor = 'totp' | 'recovery' | 'password';
+
+/**
+ * Login with password and a TOTP or recovery code (SPEC.md §4.1). A session that must set up TOTP
+ * again (after a restore, SPEC.md §10.2) goes to the enrollment page instead of the app.
+ */
 @Component({
   selector: 'app-login',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -50,7 +60,7 @@ export class Login {
     rememberDevice: [false],
   });
 
-  protected readonly useRecoveryCode = signal(false);
+  protected readonly factor = signal<SecondFactor>('totp');
   protected readonly submitting = signal(false);
   protected readonly error = signal<string | null>(null);
   /** Seconds left of the login backoff after too many failures (429). */
@@ -63,17 +73,19 @@ export class Login {
     inject(DestroyRef).onDestroy(() => this.stopTimer());
   }
 
+  /** From the authenticator code to a recovery code, and from anything else back to the app. */
   protected toggleRecoveryCode(): void {
-    const recovery = !this.useRecoveryCode();
-    this.useRecoveryCode.set(recovery);
+    this.useFactor(this.factor() === 'totp' ? 'recovery' : 'totp');
+  }
+
+  protected useFactor(factor: SecondFactor): void {
+    this.factor.set(factor);
     const { totp, recoveryCode } = this.form.controls;
-    if (recovery) {
-      totp.disable();
-      recoveryCode.enable();
-    } else {
-      recoveryCode.disable();
-      totp.enable();
-    }
+    if (factor === 'totp') totp.enable();
+    else totp.disable();
+    if (factor === 'recovery') recoveryCode.enable();
+    else recoveryCode.disable();
+    this.error.set(null);
   }
 
   protected async submit(): Promise<void> {
@@ -86,20 +98,32 @@ export class Login {
     this.submitting.set(true);
     this.error.set(null);
     try {
-      await this.auth.login({
+      const me = await this.auth.login({
         username: value.username.trim(),
         password: value.password,
         rememberDevice: value.rememberDevice,
-        ...(this.useRecoveryCode()
-          ? { recoveryCode: value.recoveryCode.trim() }
-          : { totp: value.totp.replace(/\s/g, '') }),
+        ...this.secondFactor(value.totp, value.recoveryCode),
       });
       const returnUrl = safeReturnUrl(this.route.snapshot.queryParamMap.get(RETURN_URL_PARAM));
-      await this.router.navigateByUrl(returnUrl, { replaceUrl: true });
+      await this.router.navigateByUrl(
+        me.totpEnrollmentRequired ? totpEnrollmentUrl(this.router, returnUrl) : returnUrl,
+        { replaceUrl: true },
+      );
     } catch (error) {
       this.showError(error);
     } finally {
       this.submitting.set(false);
+    }
+  }
+
+  private secondFactor(totp: string, recoveryCode: string): Partial<LoginRequest> {
+    switch (this.factor()) {
+      case 'totp':
+        return { totp: totp.replace(/\s/g, '') };
+      case 'recovery':
+        return { recoveryCode: recoveryCode.trim() };
+      case 'password':
+        return {};
     }
   }
 
@@ -111,6 +135,10 @@ export class Login {
     if (error.status === 429) {
       this.error.set(null);
       this.startBackoff(error.retryAfter ?? DEFAULT_BACKOFF_SECONDS);
+    } else if (error.status === 401 && this.factor() === 'password') {
+      this.error.set(
+        $localize`:@@login.error.passwordOnly:Wrong username or password, or a recovery code is still needed. Use one of your recovery codes.`,
+      );
     } else if (error.status === 401) {
       this.error.set(
         $localize`:@@login.error.credentials:Wrong username, password or code. Check them and try again.`,

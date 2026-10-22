@@ -11,22 +11,25 @@ import { BookmarkResponse } from '../../models/bookmark-response';
 import { CreateBookmarkRequest } from '../../models/create-bookmark-request';
 
 export interface CreateBookmark$Params {
-      body: CreateBookmarkRequest
+  body: CreateBookmarkRequest;
 }
 
-export function createBookmark(http: HttpClient, rootUrl: string, params: CreateBookmark$Params, context?: HttpContext): Observable<StrictHttpResponse<BookmarkResponse>> {
+export function createBookmark(
+  http: HttpClient,
+  rootUrl: string,
+  params: CreateBookmark$Params,
+  context?: HttpContext,
+): Observable<StrictHttpResponse<BookmarkResponse>> {
   const rb = new RequestBuilder(rootUrl, createBookmark.PATH, 'post');
   if (params) {
     rb.body(params.body, 'application/json');
   }
 
-  return http.request(
-    rb.build({ responseType: 'json', accept: 'application/json', context })
-  ).pipe(
+  return http.request(rb.build({ responseType: 'json', accept: 'application/json', context })).pipe(
     filter((r: any): r is HttpResponse<any> => r instanceof HttpResponse),
     map((r: HttpResponse<any>) => {
       return r as StrictHttpResponse<BookmarkResponse>;
-    })
+    }),
   );
 }
 

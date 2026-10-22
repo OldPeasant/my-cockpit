@@ -13,19 +13,22 @@ export interface GetReminder$Params {
   id: string;
 }
 
-export function getReminder(http: HttpClient, rootUrl: string, params: GetReminder$Params, context?: HttpContext): Observable<StrictHttpResponse<ReminderResponse>> {
+export function getReminder(
+  http: HttpClient,
+  rootUrl: string,
+  params: GetReminder$Params,
+  context?: HttpContext,
+): Observable<StrictHttpResponse<ReminderResponse>> {
   const rb = new RequestBuilder(rootUrl, getReminder.PATH, 'get');
   if (params) {
     rb.path('id', params.id, {});
   }
 
-  return http.request(
-    rb.build({ responseType: 'json', accept: 'application/json', context })
-  ).pipe(
+  return http.request(rb.build({ responseType: 'json', accept: 'application/json', context })).pipe(
     filter((r: any): r is HttpResponse<any> => r instanceof HttpResponse),
     map((r: HttpResponse<any>) => {
       return r as StrictHttpResponse<ReminderResponse>;
-    })
+    }),
   );
 }
 

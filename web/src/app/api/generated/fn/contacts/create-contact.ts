@@ -11,22 +11,25 @@ import { ContactRequest } from '../../models/contact-request';
 import { ContactResponse } from '../../models/contact-response';
 
 export interface CreateContact$Params {
-      body: ContactRequest
+  body: ContactRequest;
 }
 
-export function createContact(http: HttpClient, rootUrl: string, params: CreateContact$Params, context?: HttpContext): Observable<StrictHttpResponse<ContactResponse>> {
+export function createContact(
+  http: HttpClient,
+  rootUrl: string,
+  params: CreateContact$Params,
+  context?: HttpContext,
+): Observable<StrictHttpResponse<ContactResponse>> {
   const rb = new RequestBuilder(rootUrl, createContact.PATH, 'post');
   if (params) {
     rb.body(params.body, 'application/json');
   }
 
-  return http.request(
-    rb.build({ responseType: 'json', accept: 'application/json', context })
-  ).pipe(
+  return http.request(rb.build({ responseType: 'json', accept: 'application/json', context })).pipe(
     filter((r: any): r is HttpResponse<any> => r instanceof HttpResponse),
     map((r: HttpResponse<any>) => {
       return r as StrictHttpResponse<ContactResponse>;
-    })
+    }),
   );
 }
 

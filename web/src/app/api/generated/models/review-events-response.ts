@@ -7,7 +7,6 @@ import { OccurrenceResponse } from '../models/occurrence-response';
  * The occurrences of a calendar step in [from, to), by start; cancelled ones are left out
  */
 export interface ReviewEventsResponse {
-
   /**
    * Start of the first day (inclusive)
    */

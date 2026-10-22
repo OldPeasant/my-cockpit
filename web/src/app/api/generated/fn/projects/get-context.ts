@@ -13,19 +13,22 @@ export interface GetContext$Params {
   id: string;
 }
 
-export function getContext(http: HttpClient, rootUrl: string, params: GetContext$Params, context?: HttpContext): Observable<StrictHttpResponse<ContextResponse>> {
+export function getContext(
+  http: HttpClient,
+  rootUrl: string,
+  params: GetContext$Params,
+  context?: HttpContext,
+): Observable<StrictHttpResponse<ContextResponse>> {
   const rb = new RequestBuilder(rootUrl, getContext.PATH, 'get');
   if (params) {
     rb.path('id', params.id, {});
   }
 
-  return http.request(
-    rb.build({ responseType: 'json', accept: 'application/json', context })
-  ).pipe(
+  return http.request(rb.build({ responseType: 'json', accept: 'application/json', context })).pipe(
     filter((r: any): r is HttpResponse<any> => r instanceof HttpResponse),
     map((r: HttpResponse<any>) => {
       return r as StrictHttpResponse<ContextResponse>;
-    })
+    }),
   );
 }
 

@@ -10,33 +10,37 @@ import { RequestBuilder } from '../../request-builder';
 import { ContactSuggestionDto } from '../../models/contact-suggestion-dto';
 
 export interface AutocompleteContacts$Params {
-
-/**
- * The text typed so far
- */
+  /**
+   * The text typed so far
+   */
   q: string;
 
-/**
- * Maximum number of suggestions, 1-50 (default 10)
- */
+  /**
+   * Maximum number of suggestions, 1-50 (default 10)
+   */
   limit?: number;
 }
 
-export function autocompleteContacts(http: HttpClient, rootUrl: string, params: AutocompleteContacts$Params, context?: HttpContext): Observable<StrictHttpResponse<Array<ContactSuggestionDto>>> {
+export function autocompleteContacts(
+  http: HttpClient,
+  rootUrl: string,
+  params: AutocompleteContacts$Params,
+  context?: HttpContext,
+): Observable<StrictHttpResponse<Array<ContactSuggestionDto>>> {
   const rb = new RequestBuilder(rootUrl, autocompleteContacts.PATH, 'get');
   if (params) {
     rb.query('q', params.q, {});
     rb.query('limit', params.limit, {});
   }
 
-  return http.request(
-    rb.build({ responseType: 'json', accept: 'application/problem+json', context })
-  ).pipe(
-    filter((r: any): r is HttpResponse<any> => r instanceof HttpResponse),
-    map((r: HttpResponse<any>) => {
-      return r as StrictHttpResponse<Array<ContactSuggestionDto>>;
-    })
-  );
+  return http
+    .request(rb.build({ responseType: 'json', accept: 'application/problem+json', context }))
+    .pipe(
+      filter((r: any): r is HttpResponse<any> => r instanceof HttpResponse),
+      map((r: HttpResponse<any>) => {
+        return r as StrictHttpResponse<Array<ContactSuggestionDto>>;
+      }),
+    );
 }
 
 autocompleteContacts.PATH = '/api/v1/contacts/autocomplete';

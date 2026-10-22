@@ -10,25 +10,28 @@ import { RequestBuilder } from '../../request-builder';
 import { ConfirmTotpEnrollmentRequest } from '../../models/confirm-totp-enrollment-request';
 
 export interface ConfirmTotpEnrollment$Params {
-      body: ConfirmTotpEnrollmentRequest
+  body: ConfirmTotpEnrollmentRequest;
 }
 
-export function confirmTotpEnrollment(http: HttpClient, rootUrl: string, params: ConfirmTotpEnrollment$Params, context?: HttpContext): Observable<StrictHttpResponse<{
-}>> {
+export function confirmTotpEnrollment(
+  http: HttpClient,
+  rootUrl: string,
+  params: ConfirmTotpEnrollment$Params,
+  context?: HttpContext,
+): Observable<StrictHttpResponse<{}>> {
   const rb = new RequestBuilder(rootUrl, confirmTotpEnrollment.PATH, 'post');
   if (params) {
     rb.body(params.body, 'application/json');
   }
 
-  return http.request(
-    rb.build({ responseType: 'json', accept: 'application/problem+json', context })
-  ).pipe(
-    filter((r: any): r is HttpResponse<any> => r instanceof HttpResponse),
-    map((r: HttpResponse<any>) => {
-      return r as StrictHttpResponse<{
-      }>;
-    })
-  );
+  return http
+    .request(rb.build({ responseType: 'json', accept: 'application/problem+json', context }))
+    .pipe(
+      filter((r: any): r is HttpResponse<any> => r instanceof HttpResponse),
+      map((r: HttpResponse<any>) => {
+        return r as StrictHttpResponse<{}>;
+      }),
+    );
 }
 
 confirmTotpEnrollment.PATH = '/api/v1/auth/totp-enrollment/confirm';

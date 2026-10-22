@@ -10,32 +10,34 @@ import { RequestBuilder } from '../../request-builder';
 import { TrashPageResponse } from '../../models/trash-page-response';
 
 export interface ListTrash$Params {
-
-/**
- * Opaque cursor from the previous page's `nextCursor`
- */
+  /**
+   * Opaque cursor from the previous page's `nextCursor`
+   */
   cursor?: string;
 
-/**
- * Page size, 1..200 (default 50)
- */
+  /**
+   * Page size, 1..200 (default 50)
+   */
   limit?: number;
 }
 
-export function listTrash(http: HttpClient, rootUrl: string, params?: ListTrash$Params, context?: HttpContext): Observable<StrictHttpResponse<TrashPageResponse>> {
+export function listTrash(
+  http: HttpClient,
+  rootUrl: string,
+  params?: ListTrash$Params,
+  context?: HttpContext,
+): Observable<StrictHttpResponse<TrashPageResponse>> {
   const rb = new RequestBuilder(rootUrl, listTrash.PATH, 'get');
   if (params) {
     rb.query('cursor', params.cursor, {});
     rb.query('limit', params.limit, {});
   }
 
-  return http.request(
-    rb.build({ responseType: 'json', accept: 'application/json', context })
-  ).pipe(
+  return http.request(rb.build({ responseType: 'json', accept: 'application/json', context })).pipe(
     filter((r: any): r is HttpResponse<any> => r instanceof HttpResponse),
     map((r: HttpResponse<any>) => {
       return r as StrictHttpResponse<TrashPageResponse>;
-    })
+    }),
   );
 }
 

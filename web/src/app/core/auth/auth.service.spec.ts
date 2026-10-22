@@ -240,4 +240,72 @@ describe('AuthService', () => {
     await confirm;
     expect(await auth.setupRequired()).toBe(false);
   });
+
+  it('knows from the login that TOTP must be set up again', async () => {
+    const result = auth.login({ username: 'demo', password: 'pw', recoveryCode: 'abcde-fghjk' });
+    await tick();
+    backend
+      .expectOne('/api/v1/auth/login')
+      .flush({ username: 'demo', totpEnrollmentRequired: true });
+    expect((await result).totpEnrollmentRequired).toBe(true);
+    expect(auth.loggedIn()).toBe(true);
+    expect(auth.totpEnrollmentRequired()).toBe(true);
+  });
+
+  it('starts the TOTP re-enrollment and returns the new secret, errors without toast', async () => {
+    const started = auth.startTotpEnrollment();
+    await tick();
+    const req = backend.expectOne('/api/v1/auth/totp-enrollment');
+    expect(req.request.method).toBe('POST');
+    req.flush({ totpSecret: 'JBSWY3DPEHPK3PXP', otpauthUri: 'otpauth://totp/x' });
+    expect(await started).toEqual({
+      totpSecret: 'JBSWY3DPEHPK3PXP',
+      otpauthUri: 'otpauth://totp/x',
+    });
+
+    const conflict = auth.startTotpEnrollment().catch((error: unknown) => error);
+    await tick();
+    backend
+      .expectOne('/api/v1/auth/totp-enrollment')
+      .flush({ status: 409, title: 'Conflict' }, { status: 409, statusText: 'Conflict' });
+    expect(((await conflict) as ApiError).status).toBe(409);
+    expect(notifications.error).not.toHaveBeenCalled();
+  });
+
+  it('clears the enrollment flag once the new TOTP is confirmed', async () => {
+    const session = auth.checkSession();
+    await tick();
+    backend.expectOne('/api/v1/auth/me').flush({ username: 'demo', totpEnrollmentRequired: true });
+    await session;
+    const confirm = auth.confirmTotpEnrollment('123456');
+    await tick();
+    const req = backend.expectOne('/api/v1/auth/totp-enrollment/confirm');
+    expect(req.request.body).toEqual({ code: '123456' });
+    req.flush(null, { status: 204, statusText: 'No Content' });
+    await confirm;
+    expect(auth.totpEnrollmentRequired()).toBe(false);
+    expect(auth.user()?.username).toBe('demo');
+  });
+
+  it('keeps the enrollment flag when the confirmation fails, without a toast or redirect', async () => {
+    const session = auth.checkSession();
+    await tick();
+    backend.expectOne('/api/v1/auth/me').flush({ username: 'demo', totpEnrollmentRequired: true });
+    await session;
+    const confirm = auth.confirmTotpEnrollment('000000').catch((error: unknown) => error);
+    await tick();
+    backend.expectOne('/api/v1/auth/totp-enrollment/confirm').flush(
+      {
+        status: 400,
+        title: 'Bad Request',
+        errors: [{ field: 'code', message: 'is not a valid code for the new TOTP secret' }],
+      },
+      { status: 400, statusText: 'Bad Request' },
+    );
+    const error = (await confirm) as ApiError;
+    expect(error.errors[0].message).toBe('is not a valid code for the new TOTP secret');
+    expect(notifications.error).not.toHaveBeenCalled();
+    expect(TestBed.inject(Router).url).toBe('/');
+    expect(auth.totpEnrollmentRequired()).toBe(true);
+  });
 });

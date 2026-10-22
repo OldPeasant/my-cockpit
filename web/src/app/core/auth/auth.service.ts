@@ -3,6 +3,7 @@ import { computed, inject, Injectable, signal } from '@angular/core';
 import {
   Api,
   confirmSetupTotp,
+  confirmTotpEnrollment,
   getCurrentUser,
   getSetupStatus,
   login,
@@ -12,6 +13,8 @@ import {
   SetupRequest,
   SetupResponse,
   startSetup,
+  startTotpEnrollment,
+  TotpEnrollmentResponse,
 } from '../../api/generated';
 import { ApiError, SILENT_ERRORS, SKIP_LOGIN_REDIRECT } from '../http';
 
@@ -40,6 +43,11 @@ export class AuthService {
 
   readonly user = computed(() => this.current() ?? null);
   readonly loggedIn = computed(() => !!this.current());
+  /**
+   * The session may only set up TOTP again (after a restore without secrets, SPEC.md §10.2):
+   * every other endpoint answers 403 until {@link confirmTotpEnrollment} succeeds.
+   */
+  readonly totpEnrollmentRequired = computed(() => !!this.current()?.totpEnrollmentRequired);
 
   /** Whether the first-run setup still has to be completed (asked once, until setup completes). */
   async setupRequired(): Promise<boolean> {
@@ -94,5 +102,17 @@ export class AuthService {
   async confirmSetup(code: string): Promise<void> {
     await this.api.invoke(confirmSetupTotp, { body: { code } }, quiet());
     this.setupRequiredCache = false;
+  }
+
+  /** Creates a new TOTP secret for the re-enrollment; each call replaces the previous one. */
+  startTotpEnrollment(): Promise<TotpEnrollmentResponse> {
+    return this.api.invoke(startTotpEnrollment, undefined, quiet());
+  }
+
+  /** Confirms the new secret with a code; the session then has full access. */
+  async confirmTotpEnrollment(code: string): Promise<void> {
+    await this.api.invoke(confirmTotpEnrollment, { body: { code } }, quiet());
+    const me = this.current();
+    if (me) this.current.set({ ...me, totpEnrollmentRequired: false });
   }
 }

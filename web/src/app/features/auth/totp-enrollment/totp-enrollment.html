@@ -1,0 +1,86 @@
+<app-auth-layout>
+  <h1 i18n="@@totpEnrollment.title">Set up your authenticator app again</h1>
+  <p i18n="@@totpEnrollment.text">
+    My Cockpit was restored from a backup without its secrets, so the old codes no longer work.
+    Connect your authenticator app again to continue.
+  </p>
+
+  @if (enrollment(); as enrollment) {
+    <section class="block" aria-labelledby="enroll-qr">
+      <h2 id="enroll-qr" i18n="@@totpEnrollment.qr.title">Scan the code</h2>
+      <p i18n="@@totpEnrollment.qr.text">
+        Scan it with your authenticator app and remove the old My Cockpit entry there.
+      </p>
+      <div class="qr">
+        <app-qr-code
+          [value]="enrollment.otpauthUri"
+          i18n-label="@@totpEnrollment.qr.label"
+          label="QR code for your authenticator app"
+        />
+      </div>
+      <p class="secret-label" i18n="@@totpEnrollment.secret">
+        Can't scan it? Enter this key instead:
+      </p>
+      <code class="secret">{{ enrollment.totpSecret }}</code>
+    </section>
+
+    <form class="form" [formGroup]="form" (ngSubmit)="confirm()" novalidate>
+      <h2 i18n="@@totpEnrollment.confirm.title">Confirm</h2>
+      <mat-form-field appearance="outline">
+        <mat-label i18n="@@totpEnrollment.code">Code from your authenticator app</mat-label>
+        <input
+          matInput
+          name="code"
+          formControlName="code"
+          inputmode="numeric"
+          autocomplete="one-time-code"
+          maxlength="7"
+          required
+        />
+        @if (form.controls.code.hasError('pattern')) {
+          <mat-error i18n="@@totpEnrollment.code.invalid"
+            >Enter the 6 digits shown in the app.</mat-error
+          >
+        }
+      </mat-form-field>
+
+      @if (error()) {
+        <p class="notice" role="alert">{{ error() }}</p>
+      }
+
+      <button
+        mat-flat-button
+        type="submit"
+        class="primary"
+        [disabled]="submitting()"
+        i18n="@@totpEnrollment.submit"
+      >
+        Finish and open My Cockpit
+      </button>
+    </form>
+  } @else if (startError()) {
+    <p class="notice" role="alert">{{ startError() }}</p>
+    <button
+      mat-flat-button
+      type="button"
+      class="primary retry"
+      [disabled]="starting()"
+      (click)="start()"
+      i18n="@@totpEnrollment.retry"
+    >
+      Try again
+    </button>
+  } @else {
+    <p class="loading" role="status" i18n="@@totpEnrollment.loading">Creating a new key…</p>
+  }
+
+  <button
+    mat-button
+    type="button"
+    class="switch sign-out"
+    (click)="signOut()"
+    i18n="@@totpEnrollment.signOut"
+  >
+    Sign out
+  </button>
+</app-auth-layout>

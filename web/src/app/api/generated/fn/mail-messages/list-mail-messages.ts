@@ -13,15 +13,20 @@ export interface ListMailMessages$Params {
   accountId?: string;
   folderId?: string;
 
-/**
- * One item per conversation instead of per message
- */
+  /**
+   * One item per conversation instead of per message
+   */
   threaded?: boolean;
   cursor?: string;
   limit?: number;
 }
 
-export function listMailMessages(http: HttpClient, rootUrl: string, params?: ListMailMessages$Params, context?: HttpContext): Observable<StrictHttpResponse<MailMessageListResponse>> {
+export function listMailMessages(
+  http: HttpClient,
+  rootUrl: string,
+  params?: ListMailMessages$Params,
+  context?: HttpContext,
+): Observable<StrictHttpResponse<MailMessageListResponse>> {
   const rb = new RequestBuilder(rootUrl, listMailMessages.PATH, 'get');
   if (params) {
     rb.query('accountId', params.accountId, {});
@@ -31,13 +36,11 @@ export function listMailMessages(http: HttpClient, rootUrl: string, params?: Lis
     rb.query('limit', params.limit, {});
   }
 
-  return http.request(
-    rb.build({ responseType: 'json', accept: 'application/json', context })
-  ).pipe(
+  return http.request(rb.build({ responseType: 'json', accept: 'application/json', context })).pipe(
     filter((r: any): r is HttpResponse<any> => r instanceof HttpResponse),
     map((r: HttpResponse<any>) => {
       return r as StrictHttpResponse<MailMessageListResponse>;
-    })
+    }),
   );
 }
 

@@ -9,21 +9,23 @@ import { RequestBuilder } from '../../request-builder';
 
 import { SetupStatusResponse } from '../../models/setup-status-response';
 
-export interface GetSetupStatus$Params {
-}
+export interface GetSetupStatus$Params {}
 
-export function getSetupStatus(http: HttpClient, rootUrl: string, params?: GetSetupStatus$Params, context?: HttpContext): Observable<StrictHttpResponse<SetupStatusResponse>> {
+export function getSetupStatus(
+  http: HttpClient,
+  rootUrl: string,
+  params?: GetSetupStatus$Params,
+  context?: HttpContext,
+): Observable<StrictHttpResponse<SetupStatusResponse>> {
   const rb = new RequestBuilder(rootUrl, getSetupStatus.PATH, 'get');
   if (params) {
   }
 
-  return http.request(
-    rb.build({ responseType: 'json', accept: 'application/json', context })
-  ).pipe(
+  return http.request(rb.build({ responseType: 'json', accept: 'application/json', context })).pipe(
     filter((r: any): r is HttpResponse<any> => r instanceof HttpResponse),
     map((r: HttpResponse<any>) => {
       return r as StrictHttpResponse<SetupStatusResponse>;
-    })
+    }),
   );
 }
 

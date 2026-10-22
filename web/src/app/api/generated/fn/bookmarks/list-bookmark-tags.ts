@@ -9,21 +9,23 @@ import { RequestBuilder } from '../../request-builder';
 
 import { BookmarkTagListResponse } from '../../models/bookmark-tag-list-response';
 
-export interface ListBookmarkTags$Params {
-}
+export interface ListBookmarkTags$Params {}
 
-export function listBookmarkTags(http: HttpClient, rootUrl: string, params?: ListBookmarkTags$Params, context?: HttpContext): Observable<StrictHttpResponse<BookmarkTagListResponse>> {
+export function listBookmarkTags(
+  http: HttpClient,
+  rootUrl: string,
+  params?: ListBookmarkTags$Params,
+  context?: HttpContext,
+): Observable<StrictHttpResponse<BookmarkTagListResponse>> {
   const rb = new RequestBuilder(rootUrl, listBookmarkTags.PATH, 'get');
   if (params) {
   }
 
-  return http.request(
-    rb.build({ responseType: 'json', accept: 'application/json', context })
-  ).pipe(
+  return http.request(rb.build({ responseType: 'json', accept: 'application/json', context })).pipe(
     filter((r: any): r is HttpResponse<any> => r instanceof HttpResponse),
     map((r: HttpResponse<any>) => {
       return r as StrictHttpResponse<BookmarkTagListResponse>;
-    })
+    }),
   );
 }
 

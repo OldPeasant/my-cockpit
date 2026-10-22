@@ -11,28 +11,30 @@ import { ConfirmRestoreRequest } from '../../models/confirm-restore-request';
 import { RestoreResultResponse } from '../../models/restore-result-response';
 
 export interface ConfirmRestore$Params {
-
-/**
- * Id of the upload, from its validation report
- */
+  /**
+   * Id of the upload, from its validation report
+   */
   id: string;
-      body?: ConfirmRestoreRequest
+  body?: ConfirmRestoreRequest;
 }
 
-export function confirmRestore(http: HttpClient, rootUrl: string, params: ConfirmRestore$Params, context?: HttpContext): Observable<StrictHttpResponse<RestoreResultResponse>> {
+export function confirmRestore(
+  http: HttpClient,
+  rootUrl: string,
+  params: ConfirmRestore$Params,
+  context?: HttpContext,
+): Observable<StrictHttpResponse<RestoreResultResponse>> {
   const rb = new RequestBuilder(rootUrl, confirmRestore.PATH, 'post');
   if (params) {
     rb.path('id', params.id, {});
     rb.body(params.body, 'application/json');
   }
 
-  return http.request(
-    rb.build({ responseType: 'json', accept: 'application/json', context })
-  ).pipe(
+  return http.request(rb.build({ responseType: 'json', accept: 'application/json', context })).pipe(
     filter((r: any): r is HttpResponse<any> => r instanceof HttpResponse),
     map((r: HttpResponse<any>) => {
       return r as StrictHttpResponse<RestoreResultResponse>;
-    })
+    }),
   );
 }
 

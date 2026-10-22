@@ -13,10 +13,15 @@ import { HabitResponse } from '../../models/habit-response';
 export interface SetHabitCheck$Params {
   id: string;
   date: string;
-      body: HabitCheckRequest
+  body: HabitCheckRequest;
 }
 
-export function setHabitCheck(http: HttpClient, rootUrl: string, params: SetHabitCheck$Params, context?: HttpContext): Observable<StrictHttpResponse<HabitResponse>> {
+export function setHabitCheck(
+  http: HttpClient,
+  rootUrl: string,
+  params: SetHabitCheck$Params,
+  context?: HttpContext,
+): Observable<StrictHttpResponse<HabitResponse>> {
   const rb = new RequestBuilder(rootUrl, setHabitCheck.PATH, 'put');
   if (params) {
     rb.path('id', params.id, {});
@@ -24,13 +29,11 @@ export function setHabitCheck(http: HttpClient, rootUrl: string, params: SetHabi
     rb.body(params.body, 'application/json');
   }
 
-  return http.request(
-    rb.build({ responseType: 'json', accept: 'application/json', context })
-  ).pipe(
+  return http.request(rb.build({ responseType: 'json', accept: 'application/json', context })).pipe(
     filter((r: any): r is HttpResponse<any> => r instanceof HttpResponse),
     map((r: HttpResponse<any>) => {
       return r as StrictHttpResponse<HabitResponse>;
-    })
+    }),
   );
 }
 

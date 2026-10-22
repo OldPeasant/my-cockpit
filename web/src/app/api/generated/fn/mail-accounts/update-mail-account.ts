@@ -13,14 +13,19 @@ import { UpdateMailAccountRequest } from '../../models/update-mail-account-reque
 export interface UpdateMailAccount$Params {
   id: string;
 
-/**
- * The account's ETag
- */
+  /**
+   * The account's ETag
+   */
   'If-Match': string;
-      body: UpdateMailAccountRequest
+  body: UpdateMailAccountRequest;
 }
 
-export function updateMailAccount(http: HttpClient, rootUrl: string, params: UpdateMailAccount$Params, context?: HttpContext): Observable<StrictHttpResponse<MailAccountResponse>> {
+export function updateMailAccount(
+  http: HttpClient,
+  rootUrl: string,
+  params: UpdateMailAccount$Params,
+  context?: HttpContext,
+): Observable<StrictHttpResponse<MailAccountResponse>> {
   const rb = new RequestBuilder(rootUrl, updateMailAccount.PATH, 'patch');
   if (params) {
     rb.path('id', params.id, {});
@@ -28,13 +33,11 @@ export function updateMailAccount(http: HttpClient, rootUrl: string, params: Upd
     rb.body(params.body, 'application/json');
   }
 
-  return http.request(
-    rb.build({ responseType: 'json', accept: 'application/json', context })
-  ).pipe(
+  return http.request(rb.build({ responseType: 'json', accept: 'application/json', context })).pipe(
     filter((r: any): r is HttpResponse<any> => r instanceof HttpResponse),
     map((r: HttpResponse<any>) => {
       return r as StrictHttpResponse<MailAccountResponse>;
-    })
+    }),
   );
 }
 

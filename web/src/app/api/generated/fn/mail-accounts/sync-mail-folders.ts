@@ -13,19 +13,22 @@ export interface SyncMailFolders$Params {
   id: string;
 }
 
-export function syncMailFolders(http: HttpClient, rootUrl: string, params: SyncMailFolders$Params, context?: HttpContext): Observable<StrictHttpResponse<MailFolderListResponse>> {
+export function syncMailFolders(
+  http: HttpClient,
+  rootUrl: string,
+  params: SyncMailFolders$Params,
+  context?: HttpContext,
+): Observable<StrictHttpResponse<MailFolderListResponse>> {
   const rb = new RequestBuilder(rootUrl, syncMailFolders.PATH, 'post');
   if (params) {
     rb.path('id', params.id, {});
   }
 
-  return http.request(
-    rb.build({ responseType: 'json', accept: 'application/json', context })
-  ).pipe(
+  return http.request(rb.build({ responseType: 'json', accept: 'application/json', context })).pipe(
     filter((r: any): r is HttpResponse<any> => r instanceof HttpResponse),
     map((r: HttpResponse<any>) => {
       return r as StrictHttpResponse<MailFolderListResponse>;
-    })
+    }),
   );
 }
 

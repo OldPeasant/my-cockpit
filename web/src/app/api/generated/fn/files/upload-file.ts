@@ -10,22 +10,26 @@ import { RequestBuilder } from '../../request-builder';
 import { FileResponse } from '../../models/file-response';
 
 export interface UploadFile$Params {
-
-/**
- * Target folder; omitted: the drive root
- */
+  /**
+   * Target folder; omitted: the drive root
+   */
   folderId?: string;
 
-/**
- * Name of the file; default: the part's filename
- */
+  /**
+   * Name of the file; default: the part's filename
+   */
   name?: string;
-      body?: {
-'file': Blob;
-}
+  body?: {
+    file: Blob;
+  };
 }
 
-export function uploadFile(http: HttpClient, rootUrl: string, params?: UploadFile$Params, context?: HttpContext): Observable<StrictHttpResponse<FileResponse>> {
+export function uploadFile(
+  http: HttpClient,
+  rootUrl: string,
+  params?: UploadFile$Params,
+  context?: HttpContext,
+): Observable<StrictHttpResponse<FileResponse>> {
   const rb = new RequestBuilder(rootUrl, uploadFile.PATH, 'post');
   if (params) {
     rb.query('folderId', params.folderId, {});
@@ -33,13 +37,11 @@ export function uploadFile(http: HttpClient, rootUrl: string, params?: UploadFil
     rb.body(params.body, 'multipart/form-data');
   }
 
-  return http.request(
-    rb.build({ responseType: 'json', accept: 'application/json', context })
-  ).pipe(
+  return http.request(rb.build({ responseType: 'json', accept: 'application/json', context })).pipe(
     filter((r: any): r is HttpResponse<any> => r instanceof HttpResponse),
     map((r: HttpResponse<any>) => {
       return r as StrictHttpResponse<FileResponse>;
-    })
+    }),
   );
 }
 

@@ -10,32 +10,45 @@ import { RequestBuilder } from '../../request-builder';
 import { ReminderListResponse } from '../../models/reminder-list-response';
 
 export interface ListReminders$Params {
+  /**
+   * Type of the item
+   */
+  itemType:
+    | 'TASK'
+    | 'PROJECT'
+    | 'NOTE'
+    | 'EVENT'
+    | 'EMAIL'
+    | 'FILE'
+    | 'FOLDER'
+    | 'CONTACT'
+    | 'BOOKMARK'
+    | 'JOURNAL_ENTRY'
+    | 'HABIT';
 
-/**
- * Type of the item
- */
-  itemType: 'TASK' | 'PROJECT' | 'NOTE' | 'EVENT' | 'EMAIL' | 'FILE' | 'FOLDER' | 'CONTACT' | 'BOOKMARK' | 'JOURNAL_ENTRY' | 'HABIT';
-
-/**
- * Id of the item
- */
+  /**
+   * Id of the item
+   */
   itemId: string;
 }
 
-export function listReminders(http: HttpClient, rootUrl: string, params: ListReminders$Params, context?: HttpContext): Observable<StrictHttpResponse<ReminderListResponse>> {
+export function listReminders(
+  http: HttpClient,
+  rootUrl: string,
+  params: ListReminders$Params,
+  context?: HttpContext,
+): Observable<StrictHttpResponse<ReminderListResponse>> {
   const rb = new RequestBuilder(rootUrl, listReminders.PATH, 'get');
   if (params) {
     rb.query('itemType', params.itemType, {});
     rb.query('itemId', params.itemId, {});
   }
 
-  return http.request(
-    rb.build({ responseType: 'json', accept: 'application/json', context })
-  ).pipe(
+  return http.request(rb.build({ responseType: 'json', accept: 'application/json', context })).pipe(
     filter((r: any): r is HttpResponse<any> => r instanceof HttpResponse),
     map((r: HttpResponse<any>) => {
       return r as StrictHttpResponse<ReminderListResponse>;
-    })
+    }),
   );
 }
 

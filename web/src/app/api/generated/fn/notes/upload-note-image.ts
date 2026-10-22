@@ -11,25 +11,28 @@ import { NoteImageResponse } from '../../models/note-image-response';
 
 export interface UploadNoteImage$Params {
   id: string;
-      body?: {
-'file': Blob;
-}
+  body?: {
+    file: Blob;
+  };
 }
 
-export function uploadNoteImage(http: HttpClient, rootUrl: string, params: UploadNoteImage$Params, context?: HttpContext): Observable<StrictHttpResponse<NoteImageResponse>> {
+export function uploadNoteImage(
+  http: HttpClient,
+  rootUrl: string,
+  params: UploadNoteImage$Params,
+  context?: HttpContext,
+): Observable<StrictHttpResponse<NoteImageResponse>> {
   const rb = new RequestBuilder(rootUrl, uploadNoteImage.PATH, 'post');
   if (params) {
     rb.path('id', params.id, {});
     rb.body(params.body, 'multipart/form-data');
   }
 
-  return http.request(
-    rb.build({ responseType: 'json', accept: 'application/json', context })
-  ).pipe(
+  return http.request(rb.build({ responseType: 'json', accept: 'application/json', context })).pipe(
     filter((r: any): r is HttpResponse<any> => r instanceof HttpResponse),
     map((r: HttpResponse<any>) => {
       return r as StrictHttpResponse<NoteImageResponse>;
-    })
+    }),
   );
 }
 

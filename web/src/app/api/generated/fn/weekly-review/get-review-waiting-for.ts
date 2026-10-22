@@ -9,21 +9,23 @@ import { RequestBuilder } from '../../request-builder';
 
 import { ReviewTaskListResponse } from '../../models/review-task-list-response';
 
-export interface GetReviewWaitingFor$Params {
-}
+export interface GetReviewWaitingFor$Params {}
 
-export function getReviewWaitingFor(http: HttpClient, rootUrl: string, params?: GetReviewWaitingFor$Params, context?: HttpContext): Observable<StrictHttpResponse<ReviewTaskListResponse>> {
+export function getReviewWaitingFor(
+  http: HttpClient,
+  rootUrl: string,
+  params?: GetReviewWaitingFor$Params,
+  context?: HttpContext,
+): Observable<StrictHttpResponse<ReviewTaskListResponse>> {
   const rb = new RequestBuilder(rootUrl, getReviewWaitingFor.PATH, 'get');
   if (params) {
   }
 
-  return http.request(
-    rb.build({ responseType: 'json', accept: 'application/json', context })
-  ).pipe(
+  return http.request(rb.build({ responseType: 'json', accept: 'application/json', context })).pipe(
     filter((r: any): r is HttpResponse<any> => r instanceof HttpResponse),
     map((r: HttpResponse<any>) => {
       return r as StrictHttpResponse<ReviewTaskListResponse>;
-    })
+    }),
   );
 }
 

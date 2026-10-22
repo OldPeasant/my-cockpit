@@ -8,7 +8,6 @@ import { SkippedVCardDto } from '../models/skipped-v-card-dto';
  * Result of a vCard import
  */
 export interface VCardImportResponse {
-
   /**
    * The contacts created, in file order
    */

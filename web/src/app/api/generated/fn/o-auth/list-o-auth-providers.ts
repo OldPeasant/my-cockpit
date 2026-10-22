@@ -9,21 +9,23 @@ import { RequestBuilder } from '../../request-builder';
 
 import { OAuthProviderResponse } from '../../models/o-auth-provider-response';
 
-export interface ListOAuthProviders$Params {
-}
+export interface ListOAuthProviders$Params {}
 
-export function listOAuthProviders(http: HttpClient, rootUrl: string, params?: ListOAuthProviders$Params, context?: HttpContext): Observable<StrictHttpResponse<Array<OAuthProviderResponse>>> {
+export function listOAuthProviders(
+  http: HttpClient,
+  rootUrl: string,
+  params?: ListOAuthProviders$Params,
+  context?: HttpContext,
+): Observable<StrictHttpResponse<Array<OAuthProviderResponse>>> {
   const rb = new RequestBuilder(rootUrl, listOAuthProviders.PATH, 'get');
   if (params) {
   }
 
-  return http.request(
-    rb.build({ responseType: 'json', accept: 'application/json', context })
-  ).pipe(
+  return http.request(rb.build({ responseType: 'json', accept: 'application/json', context })).pipe(
     filter((r: any): r is HttpResponse<any> => r instanceof HttpResponse),
     map((r: HttpResponse<any>) => {
       return r as StrictHttpResponse<Array<OAuthProviderResponse>>;
-    })
+    }),
   );
 }
 

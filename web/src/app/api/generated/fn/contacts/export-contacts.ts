@@ -7,28 +7,29 @@ import { filter, map } from 'rxjs/operators';
 import { StrictHttpResponse } from '../../strict-http-response';
 import { RequestBuilder } from '../../request-builder';
 
-
 export interface ExportContacts$Params {
-
-/**
- * Only these contacts
- */
+  /**
+   * Only these contacts
+   */
   ids?: Array<string>;
 }
 
-export function exportContacts(http: HttpClient, rootUrl: string, params?: ExportContacts$Params, context?: HttpContext): Observable<StrictHttpResponse<string>> {
+export function exportContacts(
+  http: HttpClient,
+  rootUrl: string,
+  params?: ExportContacts$Params,
+  context?: HttpContext,
+): Observable<StrictHttpResponse<string>> {
   const rb = new RequestBuilder(rootUrl, exportContacts.PATH, 'get');
   if (params) {
     rb.query('ids', params.ids, {});
   }
 
-  return http.request(
-    rb.build({ responseType: 'text', accept: 'text/vcard', context })
-  ).pipe(
+  return http.request(rb.build({ responseType: 'text', accept: 'text/vcard', context })).pipe(
     filter((r: any): r is HttpResponse<any> => r instanceof HttpResponse),
     map((r: HttpResponse<any>) => {
       return r as StrictHttpResponse<string>;
-    })
+    }),
   );
 }
 

@@ -13,14 +13,19 @@ import { RespondToInvitationRequest } from '../../models/respond-to-invitation-r
 export interface RespondToInvitation$Params {
   id: string;
 
-/**
- * ETag of the event
- */
+  /**
+   * ETag of the event
+   */
   'If-Match'?: string;
-      body: RespondToInvitationRequest
+  body: RespondToInvitationRequest;
 }
 
-export function respondToInvitation(http: HttpClient, rootUrl: string, params: RespondToInvitation$Params, context?: HttpContext): Observable<StrictHttpResponse<EventResponse>> {
+export function respondToInvitation(
+  http: HttpClient,
+  rootUrl: string,
+  params: RespondToInvitation$Params,
+  context?: HttpContext,
+): Observable<StrictHttpResponse<EventResponse>> {
   const rb = new RequestBuilder(rootUrl, respondToInvitation.PATH, 'post');
   if (params) {
     rb.path('id', params.id, {});
@@ -28,13 +33,11 @@ export function respondToInvitation(http: HttpClient, rootUrl: string, params: R
     rb.body(params.body, 'application/json');
   }
 
-  return http.request(
-    rb.build({ responseType: 'json', accept: 'application/json', context })
-  ).pipe(
+  return http.request(rb.build({ responseType: 'json', accept: 'application/json', context })).pipe(
     filter((r: any): r is HttpResponse<any> => r instanceof HttpResponse),
     map((r: HttpResponse<any>) => {
       return r as StrictHttpResponse<EventResponse>;
-    })
+    }),
   );
 }
 

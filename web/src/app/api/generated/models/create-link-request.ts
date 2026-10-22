@@ -3,7 +3,6 @@
 
 import { ItemRefDto } from '../models/item-ref-dto';
 export interface CreateLinkRequest {
-
   /**
    * Optional short label, e.g. "origin"
    */

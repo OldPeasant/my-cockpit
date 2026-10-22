@@ -7,34 +7,46 @@ import { filter, map } from 'rxjs/operators';
 import { StrictHttpResponse } from '../../strict-http-response';
 import { RequestBuilder } from '../../request-builder';
 
-
 export interface RestoreTrashItem$Params {
+  /**
+   * Type of the item
+   */
+  type:
+    | 'TASK'
+    | 'PROJECT'
+    | 'NOTE'
+    | 'EVENT'
+    | 'EMAIL'
+    | 'FILE'
+    | 'FOLDER'
+    | 'CONTACT'
+    | 'BOOKMARK'
+    | 'JOURNAL_ENTRY'
+    | 'HABIT';
 
-/**
- * Type of the item
- */
-  type: 'TASK' | 'PROJECT' | 'NOTE' | 'EVENT' | 'EMAIL' | 'FILE' | 'FOLDER' | 'CONTACT' | 'BOOKMARK' | 'JOURNAL_ENTRY' | 'HABIT';
-
-/**
- * Id of the item
- */
+  /**
+   * Id of the item
+   */
   id: string;
 }
 
-export function restoreTrashItem(http: HttpClient, rootUrl: string, params: RestoreTrashItem$Params, context?: HttpContext): Observable<StrictHttpResponse<void>> {
+export function restoreTrashItem(
+  http: HttpClient,
+  rootUrl: string,
+  params: RestoreTrashItem$Params,
+  context?: HttpContext,
+): Observable<StrictHttpResponse<void>> {
   const rb = new RequestBuilder(rootUrl, restoreTrashItem.PATH, 'post');
   if (params) {
     rb.path('type', params.type, {});
     rb.path('id', params.id, {});
   }
 
-  return http.request(
-    rb.build({ responseType: 'text', accept: '*/*', context })
-  ).pipe(
+  return http.request(rb.build({ responseType: 'text', accept: '*/*', context })).pipe(
     filter((r: any): r is HttpResponse<any> => r instanceof HttpResponse),
     map((r: HttpResponse<any>) => {
       return (r as HttpResponse<any>).clone({ body: undefined }) as StrictHttpResponse<void>;
-    })
+    }),
   );
 }
 

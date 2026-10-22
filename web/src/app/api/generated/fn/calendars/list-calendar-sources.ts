@@ -9,21 +9,23 @@ import { RequestBuilder } from '../../request-builder';
 
 import { CalendarSourceListResponse } from '../../models/calendar-source-list-response';
 
-export interface ListCalendarSources$Params {
-}
+export interface ListCalendarSources$Params {}
 
-export function listCalendarSources(http: HttpClient, rootUrl: string, params?: ListCalendarSources$Params, context?: HttpContext): Observable<StrictHttpResponse<CalendarSourceListResponse>> {
+export function listCalendarSources(
+  http: HttpClient,
+  rootUrl: string,
+  params?: ListCalendarSources$Params,
+  context?: HttpContext,
+): Observable<StrictHttpResponse<CalendarSourceListResponse>> {
   const rb = new RequestBuilder(rootUrl, listCalendarSources.PATH, 'get');
   if (params) {
   }
 
-  return http.request(
-    rb.build({ responseType: 'json', accept: 'application/json', context })
-  ).pipe(
+  return http.request(rb.build({ responseType: 'json', accept: 'application/json', context })).pipe(
     filter((r: any): r is HttpResponse<any> => r instanceof HttpResponse),
     map((r: HttpResponse<any>) => {
       return r as StrictHttpResponse<CalendarSourceListResponse>;
-    })
+    }),
   );
 }
 

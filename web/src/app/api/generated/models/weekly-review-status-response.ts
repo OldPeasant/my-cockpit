@@ -7,7 +7,6 @@ import { WeeklyReviewResponse } from '../models/weekly-review-response';
  * The open weekly review, if any, and when the last one was completed
  */
 export interface WeeklyReviewStatusResponse {
-
   /**
    * The open review; `null` when none is open
    */
