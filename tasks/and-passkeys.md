@@ -1,11 +1,11 @@
 ---
 title: Android passkeys
-status: todo
-owner: 
+status: in_progress
+owner: dell26/agent-2
 deps: [passkeys-server,and-login,app-logo]
 touches: [android/app/src/main/java/ch/sonensei/cockpit/auth,android/app/src/test/java/ch/sonensei/cockpit/auth]
 prio: 3
-lease_until: 
+lease_until: 2026-10-22T13:00:40Z
 releases: 0
 extended: 
 ---
