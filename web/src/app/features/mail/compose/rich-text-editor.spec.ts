@@ -57,6 +57,45 @@ describe('RichTextEditor', () => {
     expect(bullets.getAttribute('aria-pressed')).toBe('true');
   });
 
+  it.each([
+    ['Bold', '<strong>'],
+    ['Italic', '<em>'],
+    ['Underline', '<u>'],
+    ['Numbered list', '<ol>'],
+    ['Quote', '<blockquote>'],
+  ])('applies %s from the toolbar', (label, tag) => {
+    editor().focus();
+    const view = (
+      editor() as unknown as { editor: { commands: { setTextSelection(r: object): void } } }
+    ).editor;
+    view.commands.setTextSelection({ from: 1, to: 6 });
+    const button = fixture.nativeElement.querySelector(
+      `button[aria-label="${label}"]`,
+    ) as HTMLButtonElement;
+    button.click();
+    fixture.detectChanges();
+    expect(fixture.componentInstance.changes.at(-1)).toContain(tag);
+    expect(button.getAttribute('aria-pressed')).toBe('true');
+  });
+
+  it('keeps the text selection when a toolbar button is pressed', () => {
+    const buttons = fixture.nativeElement.querySelectorAll('.toolbar button');
+    for (const button of buttons) {
+      const down = new MouseEvent('mousedown', { cancelable: true, bubbles: true });
+      button.dispatchEvent(down);
+      expect(down.defaultPrevented).toBe(true);
+    }
+  });
+
+  it('shows an image without alt text as a generic placeholder', async () => {
+    fixture.destroy();
+    fixture = TestBed.createComponent(Host);
+    fixture.componentInstance.html.set('<p><img src="https://x.test/b.png"></p>');
+    fixture.detectChanges();
+    await fixture.whenStable();
+    expect(body().querySelector('.image-placeholder')?.textContent).toBe('[image]');
+  });
+
   it('adds a link from the prompt and removes it with an empty answer', () => {
     editor().focus();
     const link = fixture.nativeElement.querySelector(

@@ -24,6 +24,25 @@ describe('MailComposeService', () => {
     for (let i = 0; i < 5; i++) await Promise.resolve();
   };
 
+  it('lists the mail accounts to send from', async () => {
+    const result = service.accounts();
+    await flush();
+    const req = http.expectOne('/api/v1/mail/accounts');
+    expect(req.request.method).toBe('GET');
+    const account = { id: 'acc-1', displayName: 'Jane Doe', emailAddress: 'jane@example.test' };
+    req.flush({ items: [account] });
+    expect(await result).toEqual([account]);
+  });
+
+  it('fails on a draft answer without id', async () => {
+    const result = service.create({ accountId: 'acc-1' });
+    await flush();
+    http
+      .expectOne('/api/v1/mail/drafts')
+      .flush({ subject: 'Hi' }, { status: 201, statusText: 'Created', headers: { ETag: '"1"' } });
+    await expect(result).rejects.toThrow('id');
+  });
+
   it('creates a draft and keeps its ETag', async () => {
     const result = service.create({ accountId: 'acc-1', subject: 'Hi' });
     await flush();

@@ -165,6 +165,14 @@ describe('MailListPage', () => {
     expect(mail.lists[0].scope).toEqual({ folderId: 'inbox-1', threaded: false });
   });
 
+  it('offers a Compose link to a new message', async () => {
+    await create();
+    const compose = [...el().querySelectorAll('a')].find(
+      (a) => a.textContent?.trim() === 'Compose',
+    );
+    expect(compose?.getAttribute('href')).toBe('/mail/compose');
+  });
+
   it('shows the unified Inbox with account names when there are several accounts', async () => {
     await create(null);
     expect(el().querySelector('h1')?.textContent).toBe('All inboxes');

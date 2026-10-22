@@ -77,6 +77,20 @@ describe('mail routes', () => {
     expect(gets[0].request.params.get('remoteImages')).toBe('BLOCK');
   });
 
+  it('opens the compose page at /mail/compose and loads the sender accounts', async () => {
+    const harness = await RouterTestingHarness.create();
+    await harness.navigateByUrl('/mail/compose');
+    const http = TestBed.inject(HttpTestingController);
+    expect(harness.routeNativeElement?.tagName.toLowerCase()).toBe('app-mail-compose-page');
+    expect(document.title).toBe('Compose');
+    await Promise.resolve();
+    expect(http.match((req) => req.url === '/api/v1/mail/accounts')).toHaveLength(1);
+  });
+
+  it('does not take the compose path for the list', () => {
+    expect(match('compose')).toBeNull();
+  });
+
   it('does not take a message path for the list', () => {
     expect(match('messages', MESSAGE)).toBeNull();
   });

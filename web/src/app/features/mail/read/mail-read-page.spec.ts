@@ -163,6 +163,14 @@ describe('MailReadPage', () => {
     expect(service.gets).toEqual([{ id: ID, loadImages: false }]);
   });
 
+  it('links Reply, Reply all and Forward to the compose page for this message', async () => {
+    await create();
+    const href = (text: string) => button(text)?.getAttribute('href');
+    expect(href('Reply')).toBe(`/mail/compose?reply=${ID}`);
+    expect(href('Reply all')).toBe(`/mail/compose?replyAll=${ID}`);
+    expect(href('Forward')).toBe(`/mail/compose?forward=${ID}`);
+  });
+
   it('shows plain-text mail as text, not in a frame', async () => {
     await create(
       message({ body: { html: '', text: '<b>not bold</b>', remoteImagesBlocked: false } }),

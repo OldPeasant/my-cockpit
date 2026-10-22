@@ -418,4 +418,393 @@ describe('MailComposePage', () => {
     expect(service.discards).toEqual([{ id: DRAFT, etag: '"1"' }]);
     expect(infos).toEqual(['Draft discarded']);
   });
+
+  describe('writes in flight', () => {
+    it('saves an edit made while a save is running on the next tick, with the new ETag', async () => {
+      await open({ draft: DRAFT });
+      const gate = deferred();
+      const update = service.update.bind(service);
+      vi.spyOn(service, 'update').mockImplementationOnce(async (id, etag, body) => {
+        await gate.promise;
+        return update(id, etag, body);
+      });
+      call('setSubject', 'First');
+      await vi.advanceTimersByTimeAsync(AUTOSAVE_INTERVAL_MS);
+      expect(service.update).toHaveBeenCalledTimes(1);
+
+      // Typed while the first save is still on its way.
+      call('setSubject', 'Second');
+      gate.resolve();
+      await settle();
+      expect(service.updates.map((u) => u.body.subject)).toEqual(['First']);
+      fixture.detectChanges();
+      expect(el().querySelector('.saved')?.textContent).toContain('Unsaved changes');
+
+      await vi.advanceTimersByTimeAsync(AUTOSAVE_INTERVAL_MS);
+      await settle();
+      expect(service.updates.map((u) => [u.body.subject, u.etag])).toEqual([
+        ['First', '"1"'],
+        ['Second', '"2"'],
+      ]);
+      fixture.detectChanges();
+      expect(el().querySelector('.saved')?.textContent).toContain('Draft saved');
+    });
+
+    it('never runs two saves at once: a tick during a slow save waits for it', async () => {
+      await open({ draft: DRAFT });
+      const gate = deferred();
+      const update = service.update.bind(service);
+      let running = 0;
+      let most = 0;
+      vi.spyOn(service, 'update').mockImplementation(async (id, etag, body) => {
+        running++;
+        most = Math.max(most, running);
+        await gate.promise;
+        running--;
+        return update(id, etag, body);
+      });
+      call('setSubject', 'One');
+      await vi.advanceTimersByTimeAsync(AUTOSAVE_INTERVAL_MS);
+      call('setSubject', 'Two');
+      await vi.advanceTimersByTimeAsync(AUTOSAVE_INTERVAL_MS);
+      expect(service.update).toHaveBeenCalledTimes(1);
+
+      gate.resolve();
+      await settle();
+      expect(most).toBe(1);
+      expect(service.updates.map((u) => u.etag)).toEqual(['"1"', '"2"']);
+    });
+
+    it('sends only once when Send is pressed twice', async () => {
+      await open();
+      call('setTo', [{ address: 'ann@example.test' }]);
+      await Promise.all([call('send'), call('send')]);
+      expect(service.sends).toHaveLength(1);
+      expect(service.creates).toHaveLength(1);
+    });
+
+    it('discards with the ETag of a save still running', async () => {
+      await open({ draft: DRAFT });
+      const gate = deferred();
+      const update = service.update.bind(service);
+      vi.spyOn(service, 'update').mockImplementationOnce(async (id, etag, body) => {
+        await gate.promise;
+        return update(id, etag, body);
+      });
+      call('setSubject', 'Pending');
+      await vi.advanceTimersByTimeAsync(AUTOSAVE_INTERVAL_MS);
+      const discarding = call('discard') as Promise<void>;
+      await settle();
+      expect(service.discards).toEqual([]);
+      gate.resolve();
+      await discarding;
+      expect(service.discards).toEqual([{ id: DRAFT, etag: '"2"' }]);
+    });
+  });
+
+  describe('failures', () => {
+    it('shows a failed save and retries it on the next tick', async () => {
+      await open({ draft: DRAFT });
+      service.updateError = new ApiError(503, 'Unavailable', 'Mail server unreachable');
+      call('setSubject', 'Try');
+      await vi.advanceTimersByTimeAsync(AUTOSAVE_INTERVAL_MS);
+      await settle();
+      fixture.detectChanges();
+      expect(el().querySelector('.saved')?.textContent).toContain(
+        'Not saved: Mail server unreachable',
+      );
+
+      service.updateError = undefined;
+      await vi.advanceTimersByTimeAsync(AUTOSAVE_INTERVAL_MS);
+      await settle();
+      fixture.detectChanges();
+      expect(service.updates).toHaveLength(2);
+      expect(service.updates[1].body.subject).toBe('Try');
+      expect(el().querySelector('.saved')?.textContent).toContain('Draft saved');
+    });
+
+    it('reports an unexpected save error without details', async () => {
+      await open({ draft: DRAFT });
+      service.updateError = new Error('boom');
+      call('setSubject', 'Try');
+      await vi.advanceTimersByTimeAsync(AUTOSAVE_INTERVAL_MS);
+      await settle();
+      fixture.detectChanges();
+      expect(el().querySelector('.saved')?.textContent).toContain(
+        'Not saved: Something went wrong.',
+      );
+    });
+
+    it('reports a failed upload and lets the user attach again', async () => {
+      await open({ draft: DRAFT });
+      vi.spyOn(service, 'upload').mockRejectedValueOnce(
+        new ApiError(413, 'Payload Too Large', 'The file is too large.'),
+      );
+      const input = fileInput(new File(['x'], 'huge.bin'));
+      await call('upload', input);
+      fixture.detectChanges();
+      expect(errors).toEqual(['The file is too large.']);
+      expect(input.value).toBe('');
+      expect((page()['busy'] as () => unknown)()).toBeNull();
+      expect(el().querySelector('.attachments')).toBeNull();
+
+      await call('upload', fileInput(new File(['y'], 'small.txt')));
+      expect(service.uploads.map((u) => u.name)).toEqual(['small.txt']);
+    });
+
+    it('reports a failed draft creation before an upload and uploads nothing', async () => {
+      await open();
+      vi.spyOn(service, 'create').mockRejectedValueOnce(
+        new ApiError(502, 'Bad Gateway', 'Drafts folder not reachable'),
+      );
+      await call('upload', fileInput(new File(['x'], 'agenda.txt')));
+      expect(errors).toEqual(['Drafts folder not reachable']);
+      expect(service.uploads).toEqual([]);
+    });
+
+    it('reports a failed attach from Files', async () => {
+      await open({ draft: DRAFT });
+      stubDialog({ id: 'file-1' });
+      service.updateError = new ApiError(404, 'Not Found', 'The file no longer exists.');
+      await call('pickFile');
+      expect(errors).toEqual(['The file no longer exists.']);
+    });
+
+    it('shows why the draft could not be opened and opens it on retry', async () => {
+      vi.spyOn(service, 'get').mockRejectedValueOnce(
+        new ApiError(404, 'Not Found', 'Draft not found'),
+      );
+      await open({ draft: DRAFT });
+      expect(el().querySelector('[role=alert]')?.textContent).toContain(
+        'The draft could not be opened: Draft not found',
+      );
+      expect(el().querySelector('form')).toBeNull();
+
+      (el().querySelector('[role=alert] button') as HTMLButtonElement).click();
+      await settle();
+      fixture.detectChanges();
+      expect(el().querySelector('form')).not.toBeNull();
+    });
+
+    it('reports a failed discard and stays on the page', async () => {
+      await open({ draft: DRAFT });
+      vi.spyOn(service, 'discard').mockRejectedValueOnce(
+        new ApiError(412, 'Precondition Failed', 'Changed elsewhere'),
+      );
+      await call('discard');
+      expect(errors).toEqual(['Changed elsewhere']);
+      expect(TestBed.inject(Router).navigate).not.toHaveBeenCalledWith(['/mail']);
+      expect((page()['busy'] as () => unknown)()).toBeNull();
+    });
+
+    it('shows a send failure caused by saving the latest changes', async () => {
+      await open({ draft: DRAFT });
+      call('setTo', [{ address: 'ann@example.test' }]);
+      service.updateError = new ApiError(412, 'Precondition Failed', 'Changed elsewhere');
+      await call('send');
+      expect(service.sends).toEqual([]);
+      expect((page()['sendError'] as () => string)()).toBe('Changed elsewhere');
+    });
+  });
+
+  describe('more compose behaviour', () => {
+    it('discards a never saved message without asking the server', async () => {
+      await open();
+      await call('discard');
+      expect(service.discards).toEqual([]);
+      expect(TestBed.inject(Router).navigate).toHaveBeenCalledWith(['/mail']);
+    });
+
+    it('adds nothing when the Files dialog is cancelled or no file was chosen', async () => {
+      await open({ draft: DRAFT });
+      stubDialog(undefined);
+      await call('pickFile');
+      await call('upload', fileInput());
+      expect(service.updates).toEqual([]);
+      expect(service.uploads).toEqual([]);
+    });
+
+    it('says when no copy was kept in Sent for an IMAP account', async () => {
+      vi.spyOn(service, 'send').mockResolvedValueOnce({
+        sentMessageId: 's',
+        appendedToSent: false,
+        draftRemoved: true,
+      });
+      await open();
+      call('setTo', [{ address: 'ann@example.test' }]);
+      await call('send');
+      expect(infos).toEqual(['Message sent, but no copy was saved in Sent']);
+    });
+
+    it('does not warn about Sent for providers that store sent mail themselves', async () => {
+      service.accountList = [account(ACCOUNT, 'jane@example.test', 'GOOGLE')];
+      vi.spyOn(service, 'send').mockResolvedValueOnce({
+        sentMessageId: 's',
+        appendedToSent: false,
+        draftRemoved: true,
+      });
+      await open();
+      call('setTo', [{ address: 'ann@example.test' }]);
+      await call('send');
+      expect(infos).toEqual(['Message sent']);
+    });
+
+    it('sends a saved, unchanged draft without saving it again', async () => {
+      service.stored = draft({ to: [{ name: '', address: 'ann@example.test' }] });
+      await open({ draft: DRAFT });
+      await call('send');
+      expect(service.updates).toEqual([]);
+      expect(service.sends).toEqual([{ id: DRAFT, etag: '"1"' }]);
+    });
+
+    it('shows Cc/Bcc of a stored draft and saves Bcc changes', async () => {
+      service.stored = draft({ bcc: [{ name: '', address: 'boss@example.test' }] });
+      await open({ draft: DRAFT });
+      expect(el().querySelectorAll('app-recipient-input')).toHaveLength(3);
+      call('setBcc', [{ address: 'boss@example.test' }, { address: 'audit@example.test' }]);
+      await vi.advanceTimersByTimeAsync(AUTOSAVE_INTERVAL_MS);
+      await settle();
+      expect(service.updates[0].body.bcc).toEqual([
+        { address: 'boss@example.test' },
+        { address: 'audit@example.test' },
+      ]);
+    });
+
+    it('opens the Cc/Bcc fields with their button', async () => {
+      await open();
+      expect(el().querySelectorAll('app-recipient-input')).toHaveLength(1);
+      const toggle = [...el().querySelectorAll('button')].find((b) =>
+        b.textContent?.includes('Cc/Bcc'),
+      )!;
+      toggle.click();
+      fixture.detectChanges();
+      expect(toggle.getAttribute('aria-expanded')).toBe('true');
+      expect(el().querySelectorAll('app-recipient-input')).toHaveLength(3);
+    });
+
+    it('lists real attachments but not inline images of the body', async () => {
+      service.stored = draft({
+        attachments: [
+          { partId: '2', filename: 'report.pdf', sizeBytes: 2048, contentId: '' },
+          { partId: '3', filename: 'logo.png', sizeBytes: 10, contentId: 'logo', inline: true },
+        ],
+      });
+      await open({ draft: DRAFT });
+      const list = el().querySelector('.attachments')!;
+      expect(list.textContent).toContain('report.pdf');
+      expect(list.textContent).not.toContain('logo.png');
+      // Removing one keeps the inline image (it belongs to the body).
+      await call('removeAttachment', { partId: '2', filename: 'report.pdf', sizeBytes: 2048 });
+      expect(service.updates[0].body.attachments).toEqual([{ partId: '3' }]);
+    });
+
+    it('keeps the sender of a stored draft with attachments', async () => {
+      service.stored = draft({
+        attachments: [{ partId: '2', filename: 'a.pdf', sizeBytes: 1, contentId: '' }],
+      });
+      await open({ draft: DRAFT });
+      expect((page()['canChangeSender'] as () => boolean)()).toBe(false);
+      call('changeSender', OTHER_ACCOUNT);
+      await settle();
+      expect((page()['accountId'] as () => string)()).toBe(ACCOUNT);
+      expect(service.creates).toEqual([]);
+    });
+
+    it('saves nothing when leaving after sending or without changes', async () => {
+      await open({ draft: DRAFT });
+      fixture.destroy();
+      await settle();
+      expect(service.updates).toEqual([]);
+    });
+
+    it('stops autosaving when the page is left', async () => {
+      await open({ draft: DRAFT });
+      call('setSubject', 'Bye');
+      fixture.destroy();
+      await settle();
+      await vi.advanceTimersByTimeAsync(AUTOSAVE_INTERVAL_MS * 3);
+      expect(service.updates).toHaveLength(1);
+    });
+  });
+
+  describe('sender move and repeated clicks', () => {
+    it('keeps the moved draft when the old copy cannot be removed', async () => {
+      await open();
+      call('setSubject', 'Hi');
+      await vi.advanceTimersByTimeAsync(AUTOSAVE_INTERVAL_MS);
+      await settle();
+      vi.spyOn(service, 'discard').mockRejectedValueOnce(new ApiError(503, 'Unavailable'));
+      call('changeSender', OTHER_ACCOUNT);
+      await settle();
+      expect(service.stored.accountId).toBe(OTHER_ACCOUNT);
+      expect(errors).toEqual([]);
+      // Later saves go to the moved draft, with its version.
+      call('setSubject', 'Hi again');
+      await vi.advanceTimersByTimeAsync(AUTOSAVE_INTERVAL_MS);
+      await settle();
+      expect(service.updates.map((u) => u.etag)).toEqual(['"2"']);
+    });
+
+    it('discards only once when Discard is pressed twice', async () => {
+      await open({ draft: DRAFT });
+      await Promise.all([call('discard'), call('discard')]);
+      expect(service.discards).toHaveLength(1);
+    });
+  });
+
+  describe('sender changes racing a save', () => {
+    it('reports a failed move to another account and keeps showing the account holding the draft', async () => {
+      await open({ draft: DRAFT });
+      vi.spyOn(service, 'create').mockRejectedValueOnce(
+        new ApiError(502, 'Bad Gateway', 'Drafts folder not reachable'),
+      );
+      call('changeSender', OTHER_ACCOUNT);
+      await settle();
+      fixture.detectChanges();
+      const reported = errors.length > 0 || (page()['saveProblem'] as () => string)() !== '';
+      expect(reported).toBe(true);
+      // The draft is still in the first account: that is where Send would send it from.
+      expect((page()['accountId'] as () => string)()).toBe(ACCOUNT);
+    });
+
+    it('stores the draft in the account picked while its first save was running', async () => {
+      await open();
+      const gate = deferred();
+      const create = service.create.bind(service);
+      vi.spyOn(service, 'create').mockImplementationOnce(async (body) => {
+        await gate.promise;
+        return create(body);
+      });
+      call('setTo', [{ address: 'ann@example.test' }]);
+      await vi.advanceTimersByTimeAsync(AUTOSAVE_INTERVAL_MS);
+      expect(service.create).toHaveBeenCalledTimes(1);
+
+      call('changeSender', OTHER_ACCOUNT);
+      gate.resolve();
+      await settle();
+      await call('send');
+      // Sent from the account shown as sender: the draft must have ended up there.
+      expect(service.stored.accountId).toBe(OTHER_ACCOUNT);
+      expect((page()['accountId'] as () => string)()).toBe(OTHER_ACCOUNT);
+    });
+  });
+
+  function fileInput(...files: File[]): HTMLInputElement {
+    const input = document.createElement('input');
+    Object.defineProperty(input, 'files', { value: files });
+    return input;
+  }
+
+  function stubDialog(result: unknown): void {
+    const dialog = (fixture.componentInstance as unknown as { dialog: { open: unknown } }).dialog;
+    vi.spyOn(dialog as { open: () => unknown }, 'open').mockReturnValue({
+      afterClosed: () => ({ subscribe: (fn: (v: unknown) => void) => fn(result) }),
+    });
+  }
 });
+
+function deferred(): { promise: Promise<void>; resolve: () => void } {
+  let resolve!: () => void;
+  const promise = new Promise<void>((r) => (resolve = r));
+  return { promise, resolve };
+}

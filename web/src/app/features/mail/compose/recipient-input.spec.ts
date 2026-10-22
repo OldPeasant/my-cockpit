@@ -180,6 +180,83 @@ describe('RecipientInput', () => {
     expect(input().value).toBe('');
   });
 
+  it('adds no chip for an empty field or an address already there', () => {
+    fixture.componentInstance.recipients.set([{ address: 'ann@example.test' }]);
+    fixture.detectChanges();
+    type('   ');
+    enter();
+    type('Ann@Example.test');
+    enter();
+    expect(fixture.componentInstance.recipients()).toEqual([{ address: 'ann@example.test' }]);
+  });
+
+  it('leaves pasting a single address to the input', () => {
+    const paste = new Event('paste', { cancelable: true }) as ClipboardEvent;
+    Object.defineProperty(paste, 'clipboardData', { value: { getData: () => 'ann@example.test' } });
+    input().dispatchEvent(paste);
+    expect(paste.defaultPrevented).toBe(false);
+    expect(fixture.componentInstance.recipients()).toEqual([]);
+  });
+
+  it('shows no suggestions when looking them up fails', async () => {
+    vi.spyOn(service, 'suggestions').mockRejectedValueOnce(new Error('offline'));
+    type('ann');
+    await vi.advanceTimersByTimeAsync(SUGGEST_DEBOUNCE_MS);
+    expect(inner().suggestions()).toEqual([]);
+  });
+
+  it('shows only the suggestions of the latest text when answers arrive out of order', async () => {
+    const answers: ((found: RecipientSuggestion[]) => void)[] = [];
+    vi.spyOn(service, 'suggestions').mockImplementation(
+      () => new Promise((resolve) => answers.push(resolve)),
+    );
+    type('a');
+    await vi.advanceTimersByTimeAsync(SUGGEST_DEBOUNCE_MS);
+    type('ann');
+    await vi.advanceTimersByTimeAsync(SUGGEST_DEBOUNCE_MS);
+    expect(answers).toHaveLength(2);
+
+    answers[1]([{ address: 'anna@example.test', name: 'Anna' }]);
+    await vi.advanceTimersByTimeAsync(0);
+    answers[0]([{ address: 'alex@example.test', name: 'Alex' }]);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(inner().suggestions()).toEqual([{ address: 'anna@example.test', name: 'Anna' }]);
+  });
+
+  it('drops a pending lookup once the typed address became a chip', async () => {
+    let answer!: (found: RecipientSuggestion[]) => void;
+    vi.spyOn(service, 'suggestions').mockImplementation(
+      () => new Promise((resolve) => (answer = resolve)),
+    );
+    type('ann');
+    await vi.advanceTimersByTimeAsync(SUGGEST_DEBOUNCE_MS);
+    type('ann@example.test');
+    enter();
+    answer([{ address: 'anna@example.test', name: 'Anna' }]);
+    await vi.advanceTimersByTimeAsync(SUGGEST_DEBOUNCE_MS);
+    expect(inner().suggestions()).toEqual([]);
+    expect(fixture.componentInstance.recipients()).toEqual([{ address: 'ann@example.test' }]);
+  });
+
+  it('adds the highlighted suggestion, not the typed text, on Enter', async () => {
+    service.result = [{ address: 'anna@example.test', name: 'Anna' }];
+    input().focus();
+    type('ann');
+    await vi.advanceTimersByTimeAsync(SUGGEST_DEBOUNCE_MS);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    // Let the panel open and highlight its first option.
+    await vi.advanceTimersByTimeAsync(0);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    // Enter reaches the chip input and the autocomplete: only the highlighted suggestion is added.
+    enter();
+    await fixture.whenStable();
+    expect(fixture.componentInstance.recipients()).toEqual([
+      { address: 'anna@example.test', name: 'Anna' },
+    ]);
+  });
+
   it('clears the suggestions when the field is emptied', async () => {
     service.result = [{ address: 'anna@example.test', name: 'Anna' }];
     type('ann');
