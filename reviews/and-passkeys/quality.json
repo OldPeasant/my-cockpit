@@ -1,0 +1,29 @@
+{
+  "schema": 1,
+  "task": "and-passkeys",
+  "reviewed_revision": "3f45c4350b37cb98d54a193a231ade3b1adbb0c0",
+  "helpers": {
+    "test-writer":   {"status": "completed", "report": "reviews/and-passkeys/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/and-passkeys/review.md"},
+    "fixer":         {"status": "completed", "report": "reviews/and-passkeys/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P1", "disposition": "invalid",
+     "note": "round 1: assetlinks.json is a server/deploy concern outside this task's touches, not a defect of the Android code; tracked by new task deploy-assetlinks and an assumption on and-passkeys; criterion 1 skipped with that reason"},
+    {"id": "CR-2", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "round 1: passkey name capped at 100 characters, canSubmit checks the length"},
+    {"id": "CR-3", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "round 1: 400 from the passkey token endpoint maps to PasskeyFailed"},
+    {"id": "CR-4", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "round 1: running list load is cancelled by a new load or a successful registration"},
+    {"id": "CR-5", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "round 1: settings column scrolls so logout stays reachable"},
+    {"id": "R2-CR-6", "source": "code-reviewer", "severity": "P3", "disposition": "accepted",
+     "note": "round 2: after a failed list load, adding a passkey shows only the new one with Retry still offered; Retry loads the full list; recorded as assumption"}
+  ],
+  "validation": [
+    {"command": "cd android && ./gradlew ktlintCheck testDebugUnitTest --tests 'ch.sonensei.cockpit.auth.*' lintDebug --rerun", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
