@@ -13,7 +13,8 @@ releases: 1
 Two-way People API sync.
 
 ## Acceptance criteria
-- [ ] Incremental sync with sync tokens, writes with etag; WireMock-recorded tests
+- [x] Incremental sync with sync tokens, writes with etag; WireMock-recorded tests
+  - verified (2026-10-22 06:33+0200 by dell26/agent-2): GoogleContactsSyncTests (56 WireMock-recorded People API tests incl. syncToken/requestSyncToken paging, EXPIRED_SYNC_TOKEN full listing, If-Match etag on updateContact, FAILED_PRECONDITION -> Google wins) + GoogleContactsClientTests (16): server/gradlew -p server test --tests 'ch.sonensei.cockpit.contacts.google.*' on f289af85 -> all pass
 - [ ] `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.contacts.google.*'` passes (Postgres via Testcontainers where persistence is involved)
 
 ## Notes
