@@ -13,7 +13,8 @@ releases: 1
 Virtual read-only birthdays calendar (SPEC.md §8.3).
 
 ## Acceptance criteria
-- [ ] Birthdays appear as yearly all-day occurrences in `GET /calendar/events` from a virtual calendar; Feb 29 handled
+- [x] Birthdays appear as yearly all-day occurrences in `GET /calendar/events` from a virtual calendar; Feb 29 handled
+  - verified (2026-10-22 06:19+0200 by dell26/agent-1): cd server && ./gradlew test --tests 'ch.sonensei.cockpit.contacts.birthdays.*' (Testcontainers Postgres) at 218c8e72 -> 33 passed; BirthdayCalendarWebTests/EdgeCaseWebTests assert yearly all-day occurrences in GET /calendar/events from the read-only virtual Birthdays calendar, Feb 29 -> Feb 28 in non-leap years
 - [ ] `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.contacts.birthdays.*'` passes (Postgres via Testcontainers where persistence is involved)
 
 ## Notes
