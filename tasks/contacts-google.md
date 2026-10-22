@@ -1,11 +1,11 @@
 ---
 title: Google contacts sync
-status: in_progress
+status: done
 owner: dell26/agent-2
 deps: [contacts-api,oauth-connections]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/contacts/google,server/src/test/kotlin/ch/sonensei/cockpit/contacts/google]
 prio: 2
-lease_until: 2026-10-22T04:59:20Z
+lease_until: 
 extended: 
 releases: 1
 ---
@@ -32,3 +32,4 @@ Two-way People API sync.
 - ASSUMPTION (2026-10-22 06:06+0200 by dell26/agent-1): Review round 2 CR-2 accepted as known limitation: editing a field group of a Google person with more entries than the contact limit (MAX_ENTRIES) drops the overflow entries at Google on push
 - release by dell26/agent-1: Implementation complete; round-2 review fixes (CR-1 re-derive display name after push, CR-3 keep just-created persons on full listing) committed in dc98927c9; CR-2 accepted as assumption. On dc98927c9: server/gradlew -p server test --tests 'ch.sonensei.cockpit.contacts.google.*' ktlintCheck passes (113 tests per fixer). Left (finalization only): code changed after review.md, so re-run test-writer (must write reviews/contacts-google/tests.md with task-scoped coverage; it is still missing) and code-reviewer on HEAD; fixer only if new findings; parent runs the focused gradle tests (sub-agents can't run Gradle); tasks.py verify 1 (WireMock tests in GoogleContactsSyncTests) and 2; sh scripts/check.sh; write quality.json (result exactly 'pass', reviewed_revision = final hash); done.
 - ASSUMPTION (2026-10-22 06:23+0200 by dell26/agent-2): Review round 3 CR-1 (P3) accepted: an optimistic-lock conflict in markSynced (user saves within ms of a push) aborts that run and the next run treats the contact as changed at Google (Google wins); left as known limitation, not worth another review round
+- done by dell26/agent-2: `sh scripts/check.sh` passed in 426s on d3b8f6e60; criteria verified 2/2
