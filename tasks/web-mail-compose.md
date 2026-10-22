@@ -1,11 +1,11 @@
 ---
 title: Mail compose, reply, forward
-status: in_progress
+status: done
 owner: dell26/agent-1
 deps: [web-mail-read,mail-compose]
 touches: [web/src/app/features/mail/compose]
 prio: 1
-lease_until: 2026-10-22T08:03:56Z
+lease_until: 
 ---
 ## Goal
 Write mail (SPEC.md §7.3).
@@ -26,3 +26,4 @@ Write mail (SPEC.md §7.3).
 - ASSUMPTION (2026-10-22 09:07+0200 by dell26/agent-1): Autosave: every 10 s (fixed interval, not debounce) the page saves when something changed; all writes go through one queue so each uses the ETag of the previous; a 412 stops autosave and asks to reload; leaving the page saves pending changes. The account signature is not inserted (the server leaves it to the client; not in this task's criteria)
 - ASSUMPTION (2026-10-22 09:08+0200 by dell26/agent-1): Editor images (e.g. in quoted replies) are kept in the HTML but shown as [alt] placeholders so the editor never loads remote images; TipTap's StarterKit schema may simplify complex quoted HTML (tables, styles) when the draft is saved
 - ASSUMPTION (2026-10-22 09:43+0200 by dell26/agent-1): CR-6 (P3) left as is: if a first save or sender move finishes while the user navigates away, the ?draft= URL update can cancel that navigation; draft is saved, nothing lost, user clicks again. Fix would be skipping showInUrl during a foreign navigation.
+- done by dell26/agent-1: `sh scripts/check.sh` passed in 79s on 7ca1047e0; criteria verified 3/3
