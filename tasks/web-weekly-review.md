@@ -11,7 +11,8 @@ lease_until: 2026-10-22T02:10:59Z
 Guided weekly review (SPEC.md §8.6).
 
 ## Acceptance criteria
-- [ ] 8 steps of SPEC.md §8.6 with embedded inbox processing, keep/someday/delete actions, resumable; reflection saved as journal entry when journal exists
+- [x] 8 steps of SPEC.md §8.6 with embedded inbox processing, keep/someday/delete actions, resumable; reflection saved as journal entry when journal exists
+  - verified (2026-10-22 03:56+0200 by dell26/agent-2): Code: web/src/app/features/review (8 steps per SPEC §8.6, Get clear embeds InboxPage, keep/someday/delete actions, step persisted server-side + reflection draft in localStorage; reflection appended to today's journal entry). Vitest review specs (7 files, 109 tests) + e2e review.spec.ts walk all 8 steps -> pass; code-reviewer found no P0-P2
 - [ ] Vitest component/service tests cover step navigation and resume; `cd web && npm run check` passes
 - [ ] Playwright `e2e/review/review.spec.ts` passes against the e2e stack (`npm run e2e -- e2e/review/review.spec.ts`, see p0-e2e-harness): complete a review end to end
 
