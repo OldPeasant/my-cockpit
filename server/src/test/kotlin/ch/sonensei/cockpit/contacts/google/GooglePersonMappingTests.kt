@@ -422,6 +422,215 @@ class GooglePersonMappingTests {
 		back.notesMd shouldBe Change("Prefers email.")
 	}
 
+	@Test
+	fun `a contact named after its phone number or without any field is created without a name`() {
+		val phoneOnly =
+			GooglePersonMapping.toPerson(
+				json,
+				contact("+41 44 000 00 51") { phones = listOf(ContactPhone("+41 44 000 00 51")) },
+				null,
+			)
+		val unnamed = GooglePersonMapping.toPerson(json, contact(GooglePersonMapping.UNNAMED), null)
+		val company = GooglePersonMapping.toPerson(json, contact("Fiktiv AG") { organization = "Fiktiv AG" }, null)
+
+		phoneOnly.get("names").size() shouldBe 0
+		unnamed.get("names").size() shouldBe 0
+		company.get("names").size() shouldBe 0
+	}
+
+	// --- toUpdate
+
+	/** Google's person with parts the cockpit does not model; [contactOf] gives the contact as the pull stores it. */
+	private val rich =
+		"""
+		{"resourceName": "people/c61", "etag": "%rich",
+		 "names": [{"metadata": {"primary": true}, "displayName": "Dr. Kim Lee Beispiel", "givenName": "Kim", "middleName": "Lee",
+		            "familyName": "Beispiel", "honorificPrefix": "Dr.", "unstructuredName": "Dr. Kim Lee Beispiel"}],
+		 "emailAddresses": [{"value": "kim@example.test", "type": "work", "displayName": "Kim at work"}, {"value": "not-an-address"}],
+		 "phoneNumbers": [{"value": "+41 44 000 00 61", "canonicalForm": "+41440000061", "type": "mobile"}],
+		 "addresses": [{"streetAddress": "Probeweg 2", "extendedAddress": "c/o Fiktiv", "poBox": "PF 12", "city": "Bern",
+		                "formattedValue": "Probeweg 2, Bern", "country": "Schweiz", "countryCode": "CH"},
+		               {"formattedValue": "Somewhere only Google shows"}],
+		 "organizations": [{"name": "Fiktiv AG", "title": "Planner", "department": "Research"}],
+		 "birthdays": [{"date": {"month": 2, "day": 29}}, {"text": "29. Feb"}],
+		 "biographies": [{"value": "Old note.", "contentType": "TEXT_PLAIN"}]}
+		"""
+
+	private fun contactOf(person: String): Contact {
+		val changes = changes(person)
+		// Without a display name from Google, ContactService derives it: given and family name, organization, email.
+		val displayName =
+			changes.displayName?.value
+				?: listOfNotNull(changes.givenName?.value, changes.familyName?.value).joinToString(" ").ifEmpty { null }
+				?: changes.organization?.value
+				?: changes.emails!!
+					.value
+					.first()
+					.address
+		return contact(displayName) {
+			givenName = changes.givenName?.value
+			familyName = changes.familyName?.value
+			emails = changes.emails!!.value
+			phones = changes.phones!!.value
+			addresses = changes.addresses!!.value
+			organization = changes.organization?.value
+			title = changes.title?.value
+			birthday = changes.birthday?.value
+			notesMd = changes.notesMd?.value
+		}
+	}
+
+	private fun update(
+		contact: Contact,
+		current: String = rich,
+	) = GooglePersonMapping.toUpdate(json, contact, person(current))
+
+	@Test
+	fun `an unchanged contact sends no field`() {
+		val update = update(contactOf(rich))
+
+		update.fields.shouldBeEmpty()
+	}
+
+	@Test
+	fun `a changed family name changes only that part of Google's name`() {
+		val update = update(contactOf(rich).apply { familyName = "Muster" })
+
+		update.fields shouldContainExactly listOf("names")
+		update.person.get("etag").asString() shouldBe "%rich"
+		val name = update.person.get("names").only()
+		name.get("familyName").asString() shouldBe "Muster"
+		name.get("middleName").asString() shouldBe "Lee"
+		name.get("honorificPrefix").asString() shouldBe "Dr."
+		name.has("unstructuredName") shouldBe false
+		name.has("displayName") shouldBe false
+	}
+
+	@Test
+	fun `a changed note sends only the biography, so the year-less birthday stays at Google`() {
+		val update = update(contactOf(rich).apply { notesMd = "New note." })
+
+		update.fields shouldContainExactly listOf("biographies")
+		update.person.has("birthdays") shouldBe false
+		update.person
+			.get("biographies")
+			.only()
+			.get("value")
+			.asString() shouldBe "New note."
+	}
+
+	@Test
+	fun `a changed address keeps the parts the cockpit does not show, and the address it cannot read`() {
+		val update = update(contactOf(rich).apply { addresses = listOf(addresses.single().copy(city = "Thun")) })
+
+		update.fields shouldContainExactly listOf("addresses")
+		val addresses = update.person.get("addresses")
+		addresses.size() shouldBe 2
+		val changed = addresses.get(0)
+		changed.get("city").asString() shouldBe "Thun"
+		changed.get("extendedAddress").asString() shouldBe "c/o Fiktiv"
+		changed.get("poBox").asString() shouldBe "PF 12"
+		changed.get("countryCode").asString() shouldBe "CH"
+		changed.has("formattedValue") shouldBe false
+		addresses.get(1).get("formattedValue").asString() shouldBe "Somewhere only Google shows"
+	}
+
+	@Test
+	fun `changed emails keep the entry details Google has and the entries the cockpit cannot read`() {
+		val update =
+			update(contactOf(rich).apply { emails = listOf(emails.single().copy(label = "home"), ContactEmail("kim.new@example.test")) })
+
+		update.fields shouldContainExactly listOf("emailAddresses")
+		val emails = update.person.get("emailAddresses")
+		emails.size() shouldBe 3
+		emails.get(0).get("type").asString() shouldBe "home"
+		emails.get(0).get("displayName").asString() shouldBe "Kim at work"
+		emails.get(1).get("value").asString() shouldBe "kim.new@example.test"
+		emails.get(1).has("type") shouldBe false
+		emails.get(2).get("value").asString() shouldBe "not-an-address"
+	}
+
+	@Test
+	fun `a changed phone number drops Google's canonical form of the old one`() {
+		val update = update(contactOf(rich).apply { phones = listOf(ContactPhone("+41 44 000 00 62", "mobile")) })
+
+		update.fields shouldContainExactly listOf("phoneNumbers")
+		val phone = update.person.get("phoneNumbers").only()
+		phone.get("value").asString() shouldBe "+41 44 000 00 62"
+		phone.has("canonicalForm") shouldBe false
+		phone.get("type").asString() shouldBe "mobile"
+	}
+
+	@Test
+	fun `a changed title keeps the department, a cleared organization drops the entry`() {
+		val retitled = update(contactOf(rich).apply { title = "Lead" })
+		val cleared =
+			update(
+				contactOf(rich).apply {
+					organization = null
+					title = null
+				},
+			)
+
+		retitled.fields shouldContainExactly listOf("organizations")
+		val organization = retitled.person.get("organizations").only()
+		organization.get("title").asString() shouldBe "Lead"
+		organization.get("department").asString() shouldBe "Research"
+		cleared.person.get("organizations").size() shouldBe 0
+	}
+
+	@Test
+	fun `a full birthday replaces the year-less one and keeps the text`() {
+		val update = update(contactOf(rich).apply { birthday = LocalDate.of(1988, 2, 29) })
+
+		update.fields shouldContainExactly listOf("birthdays")
+		val birthdays = update.person.get("birthdays")
+		birthdays.size() shouldBe 2
+		val date = birthdays.get(0).get("date")
+		listOf(date.get("year").asInt(), date.get("month").asInt(), date.get("day").asInt()) shouldContainExactly listOf(1988, 2, 29)
+		birthdays.get(1).get("text").asString() shouldBe "29. Feb"
+	}
+
+	@Test
+	fun `a cleared birthday drops only the full date`() {
+		val current = """{"etag": "%b", "birthdays": [{"date": {"year": 1990, "month": 1, "day": 2}}, {"date": {"month": 3, "day": 4}}]}"""
+
+		val update = update(contactOf(current).apply { birthday = null }, current)
+
+		update.fields shouldContainExactly listOf("birthdays")
+		val birthdays = update.person.get("birthdays")
+		birthdays.size() shouldBe 1
+		birthdays
+			.get(0)
+			.get("date")
+			.has("year") shouldBe false
+	}
+
+	@Test
+	fun `a derived display name is not sent as a name, a name the user gave is`() {
+		val current = """{"etag": "%p", "phoneNumbers": [{"value": "+41 44 000 00 71"}]}"""
+		val renumbered = contactOf(current).apply { phones = listOf(ContactPhone("+41 44 000 00 72")) }
+		val named = contactOf(current).apply { displayName = "Hauswart" }
+
+		update(renumbered, current).fields shouldContainExactly listOf("phoneNumbers")
+		val update = update(named, current)
+		update.fields shouldContainExactly listOf("names")
+		update.person
+			.get("names")
+			.only()
+			.get("unstructuredName")
+			.asString() shouldBe "Hauswart"
+	}
+
+	@Test
+	fun `a contact whose organization names it sends no name when the organization changes`() {
+		val current = """{"etag": "%o", "organizations": [{"name": "Fictional GmbH"}]}"""
+		val contact = contactOf(current)
+		contact.displayName shouldBe "Fictional GmbH"
+
+		update(contact.apply { organization = "Other GmbH" }, current).fields shouldContainExactly listOf("organizations")
+	}
+
 	private fun JsonNode.only(): JsonNode {
 		size() shouldBe 1
 		return get(0)

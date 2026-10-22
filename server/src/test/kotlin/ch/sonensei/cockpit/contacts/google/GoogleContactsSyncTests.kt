@@ -19,6 +19,7 @@ import ch.sonensei.cockpit.core.oauth.domain.OAuthProvider
 import ch.sonensei.cockpit.core.oauth.domain.OAuthReconnectRequiredException
 import ch.sonensei.cockpit.core.oauth.domain.OAuthResource
 import ch.sonensei.cockpit.core.oauth.domain.OAuthTokenProvider
+import ch.sonensei.cockpit.core.persistence.UuidV7
 import ch.sonensei.cockpit.support.PostgresTestBase
 import com.github.tomakehurst.wiremock.WireMockServer
 import com.github.tomakehurst.wiremock.client.MappingBuilder
@@ -31,6 +32,7 @@ import com.github.tomakehurst.wiremock.client.WireMock.patch
 import com.github.tomakehurst.wiremock.client.WireMock.post
 import com.github.tomakehurst.wiremock.client.WireMock.urlPathEqualTo
 import com.github.tomakehurst.wiremock.core.WireMockConfiguration.wireMockConfig
+import com.github.tomakehurst.wiremock.stubbing.Scenario
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldContain
@@ -174,12 +176,55 @@ class GoogleContactsSyncTests(
 
 	private fun syncOk(): GoogleContactsAccount = sync.sync(CONNECTION).also { it.lastError.shouldBeNull() }
 
-	private fun contact(resourceName: String): Contact = contacts.findById(link(resourceName).contactId).get()
+	private fun contact(resourceName: String): Contact = contacts.findById(checkNotNull(link(resourceName).contactId)).get()
 
 	private fun link(resourceName: String): GoogleContactLink =
 		links.findByConnectionIdAndResourceName(CONNECTION, resourceName).shouldNotBeNull()
 
-	private fun linkOf(contact: Contact): GoogleContactLink = links.findById(contact.id).get()
+	private fun linkOf(contact: Contact): GoogleContactLink = links.findByContactId(contact.id).shouldNotBeNull()
+
+	/** The person [resourceName] as the recorded listing [recording] has it (with the etag the sync stored). */
+	private fun listed(
+		resourceName: String,
+		recording: String = if (resourceName == "people/c1003") "connections-full-page2.json" else "connections-full-page1.json",
+	): String {
+		val person =
+			jsonMapper
+				.readTree(recording(recording))
+				.path("connections")
+				.values()
+				.single { it.path("resourceName").asString() == resourceName }
+		return jsonMapper.writeValueAsString(person)
+	}
+
+	/** `people.get` of [resourceName] answers [body] (by default: unchanged since the recorded full listing). */
+	private fun stubPerson(
+		resourceName: String,
+		body: String = listed(resourceName),
+		status: Int = 200,
+	) = stub(get(urlPathEqualTo("/v1/$resourceName")), body, status)
+
+	/**
+	 * Alex (people/c1001) is unchanged at Google when the push reads him, then changes there before the write: the
+	 * write answers [writeBody] with [writeStatus], and the read after it answers [afterBody] with [afterStatus].
+	 */
+	private fun stubChangedBeforeWrite(
+		writeBody: String,
+		writeStatus: Int,
+		afterBody: String,
+		afterStatus: Int,
+	) {
+		val person = get(urlPathEqualTo("/v1/people/c1001")).inScenario("write")
+		stub(person.whenScenarioStateIs(Scenario.STARTED), listed("people/c1001"))
+		stub(
+			patch(urlPathEqualTo("/v1/people/c1001:updateContact")).inScenario("write").willSetStateTo("changed"),
+			writeBody,
+			writeStatus,
+		)
+		stub(get(urlPathEqualTo("/v1/people/c1001")).inScenario("write").whenScenarioStateIs("changed"), afterBody, afterStatus)
+	}
+
+	private fun patchRequest() = wireMock.allServeEvents.map { it.request }.single { it.method.value() == "PATCH" }
 
 	private fun active(): List<String> = contacts.findAllActive().map { it.displayName }
 
@@ -331,6 +376,7 @@ class GoogleContactsSyncTests(
 		stubFullListing()
 		syncOk()
 		val changed = rename(contact("people/c1001"), "Muster-Neu")
+		stubPerson("people/c1001")
 		stub(
 			patch(urlPathEqualTo("/v1/people/c1001:updateContact")),
 			"""{"resourceName": "people/c1001", "etag": "%after-update"}""",
@@ -340,26 +386,17 @@ class GoogleContactsSyncTests(
 		syncOk()
 
 		writes() shouldContainExactly listOf("PATCH /v1/people/c1001:updateContact")
-		val request = wireMock.allServeEvents.map { it.request }.single { it.method.value() == "PATCH" }
-		request.queryParameter("updatePersonFields").firstValue() shouldContain "names"
+		val request = patchRequest()
+		// Only the changed field group: the others (emails, the birthday, ...) stay as they are at Google.
+		request.queryParameter("updatePersonFields").firstValue() shouldBe "names"
 		val body = jsonMapper.readTree(request.bodyAsString)
 		body.get("etag").asString() shouldBe "%EgcBAgkLLjc9GgQBAgUHIgxQaEx1bWJ1dGZ2Zz0="
-		body
-			.get("names")
-			.get(0)
-			.get("familyName")
-			.asString() shouldBe "Muster-Neu"
-		body
-			.get("emailAddresses")
-			.get(0)
-			.get("value")
-			.asString() shouldBe "alex.muster@example.test"
-		body
-			.get("birthdays")
-			.get(0)
-			.get("date")
-			.get("year")
-			.asInt() shouldBe 1990
+		body.propertyNames().asSequence().toList() shouldContainExactlyInAnyOrder listOf("etag", "names")
+		val name = body.get("names").get(0)
+		name.get("familyName").asString() shouldBe "Muster-Neu"
+		name.get("givenName").asString() shouldBe "Alex"
+		name.has("unstructuredName") shouldBe false
+		name.has("displayName") shouldBe false
 		linkOf(changed).etag shouldBe "%after-update"
 		linkOf(changed).syncedVersion shouldBe changed.version
 
@@ -370,16 +407,76 @@ class GoogleContactsSyncTests(
 	}
 
 	@Test
-	fun `when the person changed at Google meanwhile, Google's version wins`() {
+	fun `editing only the note of a phone-only contact writes only the biography, not its year-less birthday or a name`() {
 		stubFullListing()
 		syncOk()
-		rename(contact("people/c1001"), "Changed-Here")
-		stub(patch(urlPathEqualTo("/v1/people/c1001:updateContact")), recording("error-400-etag-mismatch.json"), 400)
-		stub(get(urlPathEqualTo("/v1/people/c1001")), recording("person-c1001-current.json"))
+		val phoneOnly = contact("people/c1002")
+		val changed = service.update(phoneOnly.id, ContactChanges(notesMd = Change("Call after five."))) {}
+		stubPerson("people/c1002")
+		stub(patch(urlPathEqualTo("/v1/people/c1002:updateContact")), """{"resourceName": "people/c1002", "etag": "%noted"}""")
 		stubIncremental("""{"nextSyncToken": "CONTACTS-sync-2"}""")
 
 		syncOk()
 
+		val request = patchRequest()
+		request.queryParameter("updatePersonFields").firstValue() shouldBe "biographies"
+		val body = jsonMapper.readTree(request.bodyAsString)
+		body.has("birthdays") shouldBe false
+		body.has("names") shouldBe false
+		body.has("phoneNumbers") shouldBe false
+		val biography = body.get("biographies").get(0)
+		biography.get("value").asString() shouldBe "Call after five."
+		biography.get("contentType").asString() shouldBe "TEXT_PLAIN"
+		linkOf(changed).etag shouldBe "%noted"
+		contacts.findById(changed.id).get().displayName shouldBe "+41 44 000 00 02"
+	}
+
+	@Test
+	fun `editing the note of an organization-only contact does not give it the organization as a name`() {
+		stubFullListing()
+		syncOk()
+		stubIncremental(recording("connections-incremental.json"))
+		syncOk()
+		val company = contact("people/c1004")
+		company.displayName shouldBe "Fictional GmbH"
+		service.update(company.id, ContactChanges(notesMd = Change("Invoices quarterly."))) {}
+		stubPerson("people/c1004", listed("people/c1004", "connections-incremental.json"))
+		stub(patch(urlPathEqualTo("/v1/people/c1004:updateContact")), """{"resourceName": "people/c1004", "etag": "%noted"}""")
+		stub(listing().withQueryParam("syncToken", equalTo("CONTACTS-sync-2")), """{"nextSyncToken": "CONTACTS-sync-3"}""")
+
+		syncOk()
+
+		patchRequest().queryParameter("updatePersonFields").firstValue() shouldBe "biographies"
+		jsonMapper.readTree(patchRequest().bodyAsString).has("names") shouldBe false
+	}
+
+	@Test
+	fun `a local change Google has no field for is marked synced without a write`() {
+		stubFullListing()
+		syncOk()
+		// The display name of a contact with given and family name is derived at Google.
+		val changed = service.update(contact("people/c1001").id, ContactChanges(displayName = Change("Alex (Example AG)"))) {}
+		stubPerson("people/c1001")
+		stubIncremental("""{"nextSyncToken": "CONTACTS-sync-2"}""")
+
+		syncOk()
+
+		writes().shouldBeEmpty()
+		linkOf(changed).syncedVersion shouldBe changed.version
+		linkOf(changed).etag shouldBe "%EgcBAgkLLjc9GgQBAgUHIgxQaEx1bWJ1dGZ2Zz0="
+	}
+
+	@Test
+	fun `when the person changed at Google since the last sync, reading it first shows it and Google's version wins`() {
+		stubFullListing()
+		syncOk()
+		rename(contact("people/c1001"), "Changed-Here")
+		stubPerson("people/c1001", recording("person-c1001-current.json"))
+		stubIncremental("""{"nextSyncToken": "CONTACTS-sync-2"}""")
+
+		syncOk()
+
+		writes().shouldBeEmpty()
 		val alex = contact("people/c1001")
 		alex.displayName shouldBe "Alex Changed-At-Google"
 		link("people/c1001").etag shouldBe "%EgcBAgkLLjc9GgQBAgUHIgxHb29nbGVXaW5zPQ=="
@@ -387,10 +484,57 @@ class GoogleContactsSyncTests(
 	}
 
 	@Test
-	fun `a contact deleted at Google before the push goes to the Trash`() {
+	fun `when the person changes at Google between the read and the write, Google's version wins`() {
+		stubFullListing()
+		syncOk()
+		rename(contact("people/c1001"), "Changed-Here")
+		stubChangedBeforeWrite(recording("error-400-etag-mismatch.json"), 400, recording("person-c1001-current.json"), 200)
+		stubIncremental("""{"nextSyncToken": "CONTACTS-sync-2"}""")
+
+		syncOk()
+
+		writes() shouldContainExactly listOf("PATCH /v1/people/c1001:updateContact")
+		val alex = contact("people/c1001")
+		alex.displayName shouldBe "Alex Changed-At-Google"
+		link("people/c1001").etag shouldBe "%EgcBAgkLLjc9GgQBAgUHIgxHb29nbGVXaW5zPQ=="
+		link("people/c1001").syncedVersion shouldBe alex.version
+	}
+
+	@Test
+	fun `412 for the etag also means Google's version wins`() {
+		stubFullListing()
+		syncOk()
+		rename(contact("people/c1001"), "Changed-Here")
+		stubChangedBeforeWrite("""{"error": {"code": 412}}""", 412, recording("person-c1001-current.json"), 200)
+		stubIncremental("""{"nextSyncToken": "CONTACTS-sync-2"}""")
+
+		syncOk()
+
+		writes() shouldContainExactly listOf("PATCH /v1/people/c1001:updateContact")
+		contact("people/c1001").displayName shouldBe "Alex Changed-At-Google"
+	}
+
+	@Test
+	fun `a contact deleted at Google before the push goes to the Trash without a write`() {
 		stubFullListing()
 		syncOk()
 		val changed = rename(contact("people/c1001"), "Changed-Here")
+		stubPerson("people/c1001", """{"error": {"code": 404, "status": "NOT_FOUND"}}""", 404)
+		stubIncremental("""{"nextSyncToken": "CONTACTS-sync-2"}""")
+
+		syncOk()
+
+		writes().shouldBeEmpty()
+		contacts.findById(changed.id).get().isDeleted shouldBe true
+		linkOf(changed).resourceName.shouldBeNull()
+	}
+
+	@Test
+	fun `a contact deleted at Google between the read and the write goes to the Trash`() {
+		stubFullListing()
+		syncOk()
+		val changed = rename(contact("people/c1001"), "Changed-Here")
+		stubPerson("people/c1001")
 		stub(patch(urlPathEqualTo("/v1/people/c1001:updateContact")), """{"error": {"code": 404, "status": "NOT_FOUND"}}""", 404)
 		stubIncremental("""{"nextSyncToken": "CONTACTS-sync-2"}""")
 
@@ -443,10 +587,74 @@ class GoogleContactsSyncTests(
 	}
 
 	@Test
+	fun `a contact purged from the Trash before the push is still deleted at Google`() {
+		stubFullListing()
+		syncOk()
+		val sam = contact("people/c1003")
+		service.delete(sam.id) {}
+		tx.execute { trash.purge(sam.id) }
+		stub(delete(urlPathEqualTo("/v1/people/c1003:deleteContact")), "{}")
+		stubIncremental("""{"nextSyncToken": "CONTACTS-sync-2"}""")
+
+		syncOk()
+
+		writes() shouldContainExactly listOf("DELETE /v1/people/c1003:deleteContact")
+		links.findByConnectionIdAndResourceName(CONNECTION, "people/c1003").shouldBeNull()
+		links.findAll().size shouldBe 2
+		contacts.findAll().none { it.displayName == "Sam Beispiel" } shouldBe true
+	}
+
+	@Test
+	fun `a purged contact whose delete Google refuses is not imported again, and the delete is retried`() {
+		stubFullListing()
+		syncOk()
+		val sam = contact("people/c1003")
+		service.delete(sam.id) {}
+		tx.execute { trash.purge(sam.id) }
+		stub(delete(urlPathEqualTo("/v1/people/c1003:deleteContact")), """{"error": {"code": 400, "status": "INVALID_ARGUMENT"}}""", 400)
+		// Google still lists the person (e.g. it changed there meanwhile).
+		stubIncremental(
+			recording("connections-full-page2.json")
+				.replace("CONTACTS-sync-1", "CONTACTS-sync-2")
+				.replace("%EgcBAgkLLjc9GgQBAgUHIgxkNGNvTWZ2c0RvPQ==", "%changed-at-google"),
+		)
+
+		sync.sync(CONNECTION).lastError shouldBe "1 contacts could not be synced with Google"
+
+		contacts.findAll().none { it.displayName == "Sam Beispiel" } shouldBe true
+		link("people/c1003").contactId.shouldBeNull()
+
+		wireMock.resetAll()
+		stub(delete(urlPathEqualTo("/v1/people/c1003:deleteContact")), """{"error": {"code": 404, "status": "NOT_FOUND"}}""", 404)
+		stub(listing().withQueryParam("syncToken", equalTo("CONTACTS-sync-2")), """{"nextSyncToken": "CONTACTS-sync-3"}""")
+		syncOk()
+		writes() shouldContainExactly listOf("DELETE /v1/people/c1003:deleteContact")
+		links.findByConnectionIdAndResourceName(CONNECTION, "people/c1003").shouldBeNull()
+	}
+
+	@Test
+	fun `a contact purged after its person was deleted at Google leaves no link behind`() {
+		stubFullListing()
+		syncOk()
+		stubIncremental(recording("connections-incremental.json"))
+		syncOk()
+		val sam = contacts.findAll().single { it.displayName == "Sam Beispiel" }
+		tx.execute { trash.purge(sam.id) }
+		wireMock.resetRequests()
+		stub(listing().withQueryParam("syncToken", equalTo("CONTACTS-sync-2")), """{"nextSyncToken": "CONTACTS-sync-3"}""")
+
+		syncOk()
+
+		writes().shouldBeEmpty()
+		links.findAll().none { it.contactId == null } shouldBe true
+	}
+
+	@Test
 	fun `a write Google refuses is skipped and reported, the rest of the run goes on`() {
 		stubFullListing()
 		syncOk()
 		rename(contact("people/c1001"), "Changed-Here")
+		stubPerson("people/c1001")
 		stub(patch(urlPathEqualTo("/v1/people/c1001:updateContact")), """{"error": {"code": 400, "status": "INVALID_ARGUMENT"}}""", 400)
 		stubIncremental(recording("connections-incremental.json"))
 
@@ -458,30 +666,16 @@ class GoogleContactsSyncTests(
 	}
 
 	@Test
-	fun `412 for the etag also means Google's version wins`() {
-		stubFullListing()
-		syncOk()
-		rename(contact("people/c1001"), "Changed-Here")
-		stub(patch(urlPathEqualTo("/v1/people/c1001:updateContact")), """{"error": {"code": 412}}""", 412)
-		stub(get(urlPathEqualTo("/v1/people/c1001")), recording("person-c1001-current.json"))
-		stubIncremental("""{"nextSyncToken": "CONTACTS-sync-2"}""")
-
-		syncOk()
-
-		contact("people/c1001").displayName shouldBe "Alex Changed-At-Google"
-	}
-
-	@Test
 	fun `a person deleted at Google after a stale etag goes to the Trash`() {
 		stubFullListing()
 		syncOk()
 		val changed = rename(contact("people/c1001"), "Changed-Here")
-		stub(patch(urlPathEqualTo("/v1/people/c1001:updateContact")), recording("error-400-etag-mismatch.json"), 400)
-		stub(get(urlPathEqualTo("/v1/people/c1001")), """{"error": {"code": 404, "status": "NOT_FOUND"}}""", 404)
+		stubChangedBeforeWrite(recording("error-400-etag-mismatch.json"), 400, """{"error": {"code": 404, "status": "NOT_FOUND"}}""", 404)
 		stubIncremental("""{"nextSyncToken": "CONTACTS-sync-2"}""")
 
 		syncOk()
 
+		writes() shouldContainExactly listOf("PATCH /v1/people/c1001:updateContact")
 		contacts.findById(changed.id).get().isDeleted shouldBe true
 		linkOf(changed).resourceName.shouldBeNull()
 	}
@@ -491,8 +685,12 @@ class GoogleContactsSyncTests(
 		stubFullListing()
 		syncOk()
 		val changed = rename(contact("people/c1001"), "Changed-Here")
-		stub(patch(urlPathEqualTo("/v1/people/c1001:updateContact")), recording("error-400-etag-mismatch.json"), 400)
-		stub(get(urlPathEqualTo("/v1/people/c1001")), """{"error": {"code": 400, "status": "INVALID_ARGUMENT"}}""", 400)
+		stubChangedBeforeWrite(
+			recording("error-400-etag-mismatch.json"),
+			400,
+			"""{"error": {"code": 400, "status": "INVALID_ARGUMENT"}}""",
+			400,
+		)
 		stubIncremental("""{"nextSyncToken": "CONTACTS-sync-2"}""")
 
 		sync.sync(CONNECTION).lastError shouldBe "1 contacts could not be synced with Google"
@@ -501,11 +699,42 @@ class GoogleContactsSyncTests(
 		linkOf(changed).syncedVersion shouldBeLessThan changed.version
 
 		wireMock.resetAll()
+		stubPerson("people/c1001")
 		stub(patch(urlPathEqualTo("/v1/people/c1001:updateContact")), """{"resourceName": "people/c1001", "etag": "%later"}""")
 		stub(listing().withQueryParam("syncToken", equalTo("CONTACTS-sync-2")), """{"nextSyncToken": "CONTACTS-sync-3"}""")
 		syncOk()
 		writes() shouldContainExactly listOf("PATCH /v1/people/c1001:updateContact")
 		linkOf(changed).etag shouldBe "%later"
+	}
+
+	@Test
+	fun `a person Google refuses to return before the write is reported, nothing is written`() {
+		stubFullListing()
+		syncOk()
+		val changed = rename(contact("people/c1001"), "Changed-Here")
+		stubPerson("people/c1001", """{"error": {"code": 400, "status": "INVALID_ARGUMENT"}}""", 400)
+		stubIncremental("""{"nextSyncToken": "CONTACTS-sync-2"}""")
+
+		sync.sync(CONNECTION).lastError shouldBe "1 contacts could not be synced with Google"
+
+		writes().shouldBeEmpty()
+		linkOf(changed).syncedVersion shouldBeLessThan changed.version
+	}
+
+	@Test
+	fun `a stored resource name that is not people slash id fails only that contact, not the run`() {
+		stubFullListing()
+		syncOk()
+		val changed = rename(contact("people/c1001"), "Changed-Here")
+		jdbc.update("update contacts_google_link set resource_name = ? where contact_id = ?", "people/../me", changed.id)
+		stubIncremental("""{"nextSyncToken": "CONTACTS-sync-2"}""")
+
+		val state = sync.sync(CONNECTION)
+
+		state.lastError shouldBe "1 contacts could not be synced with Google"
+		state.syncToken shouldBe "CONTACTS-sync-2"
+		writes().shouldBeEmpty()
+		wireMock.allServeEvents.none { it.request.url.contains("people/..") } shouldBe true
 	}
 
 	@Test
@@ -560,12 +789,14 @@ class GoogleContactsSyncTests(
 	}
 
 	@Test
-	fun `a created person with a resource name that is not people slash id fails the run and is not linked`() {
+	fun `a created person with a resource name that is not people slash id is reported and not linked, the run goes on`() {
 		val sam = trashedAndRestoredSam()
 		stub(post(urlPathEqualTo("/v1/people:createContact")), """{"resourceName": "people/../me", "etag": "%c"}""")
 
-		sync.sync(CONNECTION).lastError shouldBe "Google returned an unexpected contact resource name"
+		val state = sync.sync(CONNECTION)
 
+		state.lastError shouldBe "1 contacts could not be synced with Google"
+		state.syncToken shouldBe "CONTACTS-sync-3"
 		linkOf(sam).resourceName.shouldBeNull()
 		contacts.findById(sam.id).get().externalId shouldBe "people/c1003"
 	}
@@ -643,13 +874,35 @@ class GoogleContactsSyncTests(
 	}
 
 	@Test
+	fun `a pulled person with a resource name that is not people slash id is skipped and reported`() {
+		stubFullListing()
+		syncOk()
+		stubIncremental(
+			"""
+			{"connections": [
+			  {"resourceName": "people/../me", "etag": "%odd", "names": [{"displayName": "Odd Name"}]},
+			  {"resourceName": "people/c1005", "etag": "%new", "names": [{"displayName": "Noa Fiktiv", "givenName": "Noa"}]}
+			], "nextSyncToken": "CONTACTS-sync-2"}
+			""",
+		)
+
+		val state = sync.sync(CONNECTION)
+
+		state.lastError shouldBe "1 contacts could not be synced with Google"
+		state.syncToken shouldBe "CONTACTS-sync-2"
+		active() shouldContain "Noa Fiktiv"
+		contacts.findAll().none { it.displayName == "Odd Name" } shouldBe true
+	}
+
+	@Test
 	fun `a person that cannot be stored is skipped and reported, the others are synced`() {
 		// Another Google connection already has a contact with the id people/c1002 (the id is unique per source).
 		val other = UUID.fromString("0192a5f0-0000-7000-8000-0000000000c2")
 		val taken = service.createSynced(ContactSource.GOOGLE, "people/c1002", ContactChanges(displayName = Change("Other account")))
 		jdbc.update("insert into contacts_google_account (connection_id) values (?)", other)
 		jdbc.update(
-			"insert into contacts_google_link (contact_id, connection_id, resource_name, synced_version) values (?, ?, ?, ?)",
+			"insert into contacts_google_link (id, contact_id, connection_id, resource_name, synced_version) values (?, ?, ?, ?, ?)",
+			UuidV7.generate(),
 			taken.id,
 			other,
 			"people/c1002",

@@ -16,8 +16,11 @@ create table contacts_google_account (
 -- Which Google person a contact is: resource_name (people/c...) and the person's etag as last seen. resource_name is
 -- null when the person is gone at Google (deleted there, or here and pushed); a restored contact is then created again.
 -- synced_version is the contact version that matches Google; a higher version is a local change to push.
+-- Purging the contact sets contact_id to null: the row stays as a tombstone until the next push has deleted the person
+-- at Google, and keeps a pull from importing it again meanwhile.
 create table contacts_google_link (
-    contact_id     uuid primary key references contact (id) on delete cascade,
+    id             uuid primary key,
+    contact_id     uuid unique references contact (id) on delete set null,
     connection_id  uuid   not null references contacts_google_account (connection_id) on delete cascade,
     resource_name  text,
     etag           text,

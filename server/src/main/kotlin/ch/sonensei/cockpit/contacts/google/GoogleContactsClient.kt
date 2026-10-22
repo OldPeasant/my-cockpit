@@ -142,8 +142,11 @@ class GoogleContactsClient(
 		 * like `people/<id>` is refused rather than put into a URL.
 		 */
 		fun resourcePath(resourceName: String): String {
-			if (!RESOURCE_NAME.matches(resourceName)) throw GoogleContactsException("Google returned an unexpected contact resource name")
+			if (!isResourceName(resourceName)) throw GoogleContactsException("Google returned an unexpected contact resource name")
 			return "/v1/$resourceName"
 		}
+
+		/** Whether [resourceName] looks like `people/<id>`, so [resourcePath] accepts it. */
+		fun isResourceName(resourceName: String): Boolean = RESOURCE_NAME.matches(resourceName)
 	}
 }

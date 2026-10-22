@@ -27,10 +27,12 @@ import java.util.concurrent.locks.ReentrantLock
  * Two-way sync of the contacts of each Google OAuth connection with the People API (SPEC.md §8.3).
  *
  * A run first pushes local changes, then pulls Google's:
- * - Push: a GOOGLE contact whose version is above the version last synced is written with `people.updateContact`,
- *   carrying the person's etag; Google refusing a stale etag (`FAILED_PRECONDITION`) means the person changed there,
- *   and Google's version wins (it is fetched and applied). A contact in the Trash is deleted at Google; a contact
- *   whose person is gone (e.g. restored from the Trash) is created again with `people.createContact`.
+ * - Push: for a GOOGLE contact whose version is above the version last synced, the person is read first. If its etag
+ *   is not the one last synced, it changed there and Google's version wins (it is applied). Otherwise only the field
+ *   groups the contact changed are written with `people.updateContact`, carrying the etag, so Google data the
+ *   cockpit does not model stays; Google refusing a stale etag (`FAILED_PRECONDITION`, 412) also lets Google win. A
+ *   contact in the Trash is deleted at Google, also after it was purged (its link stays as a tombstone until then); a
+ *   contact whose person is gone (e.g. restored from the Trash) is created again with `people.createContact`.
  * - Pull: `people.connections.list` with the sync token of the last run (`requestSyncToken`), so only changes come;
  *   deleted persons (`metadata.deleted`) move their contact to the Trash. Without a token, or when Google answers that
  *   it expired (`EXPIRED_SYNC_TOKEN`, HTTP 400/410), everything is listed and contacts whose person is missing are
@@ -112,32 +114,45 @@ class GoogleContactsSync(
 
 	// --- push
 
-	private enum class Write { CREATE, UPDATE, DELETE }
+	private enum class Write { CREATE, UPDATE, DELETE, DELETE_PURGED }
+
+	/** A write for [link]; [contact] is `null` for a tombstone (the contact was purged). */
+	private class Pending(
+		val write: Write,
+		val contact: Contact?,
+		val link: GoogleContactLink,
+	)
 
 	/** Writes local changes to Google; returns how many could not be written. */
 	private fun push(connectionId: UUID): Int {
 		val pending =
 			tx.execute {
 				links.findByConnectionId(connectionId).mapNotNull { link ->
-					val contact = contacts.findById(link.contactId).orElse(null) ?: return@mapNotNull null
+					val contact = link.contactId?.let { contacts.findById(it).orElse(null) }
 					val write =
 						when {
+							contact == null && link.resourceName != null -> Write.DELETE_PURGED
+							contact == null -> {
+								// Purged after its person was gone at Google: nothing is left to do.
+								links.delete(link)
+								null
+							}
 							contact.isDeleted && link.resourceName != null -> Write.DELETE
 							contact.isDeleted -> null
 							link.resourceName == null -> Write.CREATE
 							contact.version > link.syncedVersion -> Write.UPDATE
 							else -> null
 						}
-					write?.let { Triple(it, contact, link) }
+					write?.let { Pending(it, contact, link) }
 				}
 			}!!
 		var failed = 0
-		for ((write, contact, link) in pending) {
+		for (item in pending) {
 			val ok =
-				when (write) {
-					Write.CREATE -> create(connectionId, contact)
-					Write.UPDATE -> update(connectionId, contact, link)
-					Write.DELETE -> delete(connectionId, contact, link)
+				when (item.write) {
+					Write.CREATE -> create(connectionId, checkNotNull(item.contact), item.link)
+					Write.UPDATE -> update(connectionId, checkNotNull(item.contact), item.link)
+					Write.DELETE, Write.DELETE_PURGED -> delete(connectionId, item.contact, item.link)
 				}
 			if (!ok) failed++
 		}
@@ -147,6 +162,7 @@ class GoogleContactsSync(
 	private fun create(
 		connectionId: UUID,
 		contact: Contact,
+		link: GoogleContactLink,
 	): Boolean {
 		val response =
 			client.call(
@@ -157,85 +173,138 @@ class GoogleContactsSync(
 				body = GooglePersonMapping.toPerson(json, contact, etag = null),
 			)
 		val resourceName = GooglePersonMapping.resourceName(response.body)
-		if (!response.ok || resourceName == null) return rejected(contact, response, "create")
-		// Checked now, so a later push or pull never puts an odd resource name into a URL.
-		GoogleContactsClient.resourcePath(resourceName)
+		// Checked before it is stored, so a later push or pull never puts an odd resource name into a URL.
+		if (!response.ok || resourceName == null || !GoogleContactsClient.isResourceName(resourceName)) {
+			return rejected(contact.id, response, "create")
+		}
 		tx.executeWithoutResult {
-			val link = links.findById(contact.id).orElse(null) ?: return@executeWithoutResult
-			link.resourceName = resourceName
-			link.etag = GooglePersonMapping.etag(response.body)
-			link.syncedVersion = contact.version
+			val current = links.findById(link.id).orElse(null) ?: return@executeWithoutResult
+			current.resourceName = resourceName
+			current.etag = GooglePersonMapping.etag(response.body)
+			current.syncedVersion = contact.version
 			lookup.updateExternalId(contact.id, resourceName)
 		}
 		return true
 	}
 
+	/**
+	 * Writes the local change of [contact]. The person is read first: when its etag is no longer the one last synced,
+	 * it changed at Google, and Google's version wins (it is applied, nothing is written). Otherwise only the field
+	 * groups the contact changed are written ([GooglePersonMapping.toUpdate]), with that etag; Google refusing it as
+	 * stale (the person changed in between) also lets Google's version win.
+	 */
 	private fun update(
 		connectionId: UUID,
 		contact: Contact,
 		link: GoogleContactLink,
 	): Boolean {
 		val resourceName = checkNotNull(link.resourceName)
+		if (!GoogleContactsClient.isResourceName(resourceName)) return invalidName(contact.id)
+		val path = GoogleContactsClient.resourcePath(resourceName)
+		val current = read(connectionId, path)
+		when {
+			current.status == 404 -> {
+				removedAtGoogle(connectionId, resourceName)
+				return true
+			}
+			!current.ok -> return rejected(contact.id, current, "read")
+			GooglePersonMapping.etag(current.body) != link.etag -> return googleWins(connectionId, contact, current.body)
+		}
+		val update = GooglePersonMapping.toUpdate(json, contact, current.body)
+		if (update.fields.isEmpty()) {
+			// Nothing Google has was changed (e.g. only the photo, or the display name Google derives).
+			markSynced(link, contact, etag = link.etag)
+			return true
+		}
 		val response =
 			client.call(
 				connectionId,
 				HttpMethod.PATCH,
-				"${GoogleContactsClient.resourcePath(resourceName)}:updateContact",
-				query = mapOf("updatePersonFields" to GooglePersonMapping.UPDATE_FIELDS, "personFields" to GooglePersonMapping.PERSON_FIELDS),
-				body = GooglePersonMapping.toPerson(json, contact, link.etag),
+				"$path:updateContact",
+				query = mapOf("updatePersonFields" to update.fields.joinToString(","), "personFields" to GooglePersonMapping.PERSON_FIELDS),
+				body = update.person,
 			)
 		when {
-			response.ok ->
-				tx.executeWithoutResult {
-					val current = links.findById(contact.id).orElse(null) ?: return@executeWithoutResult
-					current.etag = GooglePersonMapping.etag(response.body)
-					current.syncedVersion = contact.version
-				}
+			response.ok -> markSynced(link, contact, GooglePersonMapping.etag(response.body))
 			response.status == 404 -> removedAtGoogle(connectionId, resourceName)
 			isStaleEtag(response) -> {
-				// Changed at Google since the last sync: Google's version wins.
-				log.info("Contact {} changed at Google and here; keeping Google's version", contact.id)
-				val person =
-					client.call(
-						connectionId,
-						HttpMethod.GET,
-						GoogleContactsClient.resourcePath(resourceName),
-						query = mapOf("personFields" to GooglePersonMapping.PERSON_FIELDS),
-					)
+				val person = read(connectionId, path)
 				when {
-					person.ok -> return apply(connectionId, person.body, force = true)
+					person.ok -> return googleWins(connectionId, contact, person.body)
 					person.status == 404 -> removedAtGoogle(connectionId, resourceName)
-					else -> return rejected(contact, person, "read")
+					else -> return rejected(contact.id, person, "read")
 				}
 			}
-			else -> return rejected(contact, response, "update")
+			else -> return rejected(contact.id, response, "update")
 		}
 		return true
 	}
 
-	private fun delete(
+	private fun read(
+		connectionId: UUID,
+		path: String,
+	): GoogleContactsClient.Response =
+		client.call(connectionId, HttpMethod.GET, path, query = mapOf("personFields" to GooglePersonMapping.PERSON_FIELDS))
+
+	/** Changed at Google since the last sync, and here: Google's version wins. */
+	private fun googleWins(
 		connectionId: UUID,
 		contact: Contact,
+		person: JsonNode,
+	): Boolean {
+		log.info("Contact {} changed at Google and here; keeping Google's version", contact.id)
+		return apply(connectionId, person, force = true)
+	}
+
+	private fun markSynced(
+		link: GoogleContactLink,
+		contact: Contact,
+		etag: String?,
+	) {
+		tx.executeWithoutResult {
+			val current = links.findById(link.id).orElse(null) ?: return@executeWithoutResult
+			current.etag = etag
+			current.syncedVersion = contact.version
+		}
+	}
+
+	/** Deletes the person of a contact in the Trash, or of a purged one ([contact] `null`: the link is a tombstone). */
+	private fun delete(
+		connectionId: UUID,
+		contact: Contact?,
 		link: GoogleContactLink,
 	): Boolean {
-		val response =
-			client.call(connectionId, HttpMethod.DELETE, "${GoogleContactsClient.resourcePath(checkNotNull(link.resourceName))}:deleteContact")
-		if (!response.ok && response.status != 404) return rejected(contact, response, "delete")
+		val id = contact?.id ?: link.id
+		val resourceName = checkNotNull(link.resourceName)
+		if (!GoogleContactsClient.isResourceName(resourceName)) return invalidName(id)
+		val response = client.call(connectionId, HttpMethod.DELETE, "${GoogleContactsClient.resourcePath(resourceName)}:deleteContact")
+		if (!response.ok && response.status != 404) return rejected(id, response, "delete")
 		tx.executeWithoutResult {
-			val current = links.findById(contact.id).orElse(null) ?: return@executeWithoutResult
-			current.resourceName = null
-			current.etag = null
-			current.syncedVersion = contact.version
+			val current = links.findById(link.id).orElse(null) ?: return@executeWithoutResult
+			if (contact == null) {
+				links.delete(current)
+			} else {
+				current.resourceName = null
+				current.etag = null
+				current.syncedVersion = contact.version
+			}
 		}
 		return true
 	}
 
+	/** [id]: the contact's, or the link's of a purged contact; never contact data. */
 	private fun rejected(
-		contact: Contact,
+		id: UUID,
 		response: GoogleContactsClient.Response,
 		action: String,
 	): Boolean {
-		log.warn("Google refused to {} contact {} (HTTP {} {})", action, contact.id, response.status, response.errorReasons())
+		log.warn("Google refused to {} contact {} (HTTP {} {})", action, id, response.status, response.errorReasons())
+		return false
+	}
+
+	/** A stored resource name that is not `people/<id>` is not put into a URL; only this contact is not synced. */
+	private fun invalidName(id: UUID): Boolean {
+		log.warn("Contact {} has an unexpected Google resource name and is not synced", id)
 		return false
 	}
 
@@ -294,7 +363,8 @@ class GoogleContactsSync(
 
 	/**
 	 * Stores one person from Google: creates, changes or (deleted there) trashes its contact. [force] applies it even
-	 * when its etag is the stored one. Returns false when it could not be stored.
+	 * when its etag is the stored one. Returns false when it could not be stored, also when its resource name is not
+	 * `people/<id>` (a later write would put it into a URL).
 	 */
 	private fun apply(
 		connectionId: UUID,
@@ -302,6 +372,10 @@ class GoogleContactsSync(
 		force: Boolean,
 	): Boolean {
 		val resourceName = GooglePersonMapping.resourceName(person) ?: return true
+		if (!GoogleContactsClient.isResourceName(resourceName)) {
+			log.warn("Google listed a contact with an unexpected resource name for connection {}; skipped", connectionId)
+			return false
+		}
 		if (GooglePersonMapping.isDeleted(person)) {
 			removedAtGoogle(connectionId, resourceName)
 			return true
@@ -326,20 +400,27 @@ class GoogleContactsSync(
 		val link = links.findByConnectionIdAndResourceName(connectionId, resourceName)
 		if (link == null) {
 			val changes = GooglePersonMapping.toChanges(person)
-			// A contact restored from a backup (no link) is adopted; one in the Trash gives up the id and stays there.
-			val existing = lookup.findBySourceAndExternalId(ContactSource.GOOGLE, resourceName)?.takeIf { !links.existsById(it.id) }
+			// A contact restored from a backup (active, no link) is adopted. One in the Trash, or one linked to this
+			// connection (its person was deleted at Google before), gives up the id and stays as it is; the person gets
+			// a new contact. One of another connection keeps it: the person cannot be stored (the id is unique).
+			val found = lookup.findBySourceAndExternalId(ContactSource.GOOGLE, resourceName)
+			val foundLink = found?.let { links.findByContactId(it.id) }
 			val contact =
-				if (existing != null && !existing.isDeleted) {
-					service.update(existing.id, changes) {}
+				if (found != null && !found.isDeleted && foundLink == null) {
+					service.update(found.id, changes) {}
 				} else {
-					existing?.let { lookup.updateExternalId(it.id, null) }
+					if (found != null && (found.isDeleted || foundLink?.connectionId == connectionId)) {
+						lookup.updateExternalId(found.id, null)
+					}
 					service.createSynced(ContactSource.GOOGLE, resourceName, changes)
 				}
 			links.saveAndFlush(GoogleContactLink(contact.id, connectionId, resourceName, etag, contact.version))
 			return
 		}
+		// A tombstone: the contact was purged here, and the next push deletes the person at Google.
+		val contactId = link.contactId ?: return
 		if (!force && etag != null && etag == link.etag) return
-		val contact = contacts.findById(link.contactId).orElse(null) ?: return
+		val contact = contacts.findById(contactId).orElse(null) ?: return
 		// In the Trash here and not yet deleted at Google: the next push deletes it.
 		if (contact.isDeleted) return
 		val updated = service.update(contact.id, GooglePersonMapping.toChanges(person)) {}
@@ -347,19 +428,27 @@ class GoogleContactsSync(
 		link.syncedVersion = updated.version
 	}
 
-	/** The person is gone at Google: its contact goes to the Trash, and a restore creates it there again. */
+	/**
+	 * The person is gone at Google: its contact goes to the Trash, and a restore creates it there again. The tombstone
+	 * of a purged contact is removed.
+	 */
 	private fun removedAtGoogle(
 		connectionId: UUID,
 		resourceName: String,
 	) {
 		tx.executeWithoutResult {
 			val link = links.findByConnectionIdAndResourceName(connectionId, resourceName) ?: return@executeWithoutResult
-			val contact = contacts.findById(link.contactId).orElse(null)
+			val contactId = link.contactId
+			if (contactId == null) {
+				links.delete(link)
+				return@executeWithoutResult
+			}
+			val contact = contacts.findById(contactId).orElse(null)
 			link.resourceName = null
 			link.etag = null
 			links.saveAndFlush(link)
 			if (contact != null && !contact.isDeleted) service.delete(contact.id) {}
-			link.syncedVersion = contacts.findById(link.contactId).map { it.version }.orElse(link.syncedVersion)
+			link.syncedVersion = contacts.findById(contactId).map { it.version }.orElse(link.syncedVersion)
 		}
 	}
 

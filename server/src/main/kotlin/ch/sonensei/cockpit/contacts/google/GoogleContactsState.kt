@@ -2,6 +2,7 @@ package ch.sonensei.cockpit.contacts.google
 
 import ch.sonensei.cockpit.contacts.domain.Contact
 import ch.sonensei.cockpit.contacts.domain.ContactSource
+import ch.sonensei.cockpit.core.persistence.UuidV7
 import jakarta.persistence.Column
 import jakarta.persistence.Entity
 import jakarta.persistence.Id
@@ -39,13 +40,15 @@ class GoogleContactsAccount(
 /**
  * Which Google person a contact is (`contacts_google_link`). [resourceName] is `null` while the person does not exist
  * at Google (any more); [syncedVersion] is the contact version that matches Google's [etag].
+ *
+ * Purging the contact from the Trash sets [contactId] to `null` (in the database): the link stays as a tombstone, so
+ * the next push still deletes the person at Google and a pull does not import it again meanwhile.
  */
 @Entity
 @Table(name = "contacts_google_link")
 class GoogleContactLink(
-	@Id
-	@Column(name = "contact_id", nullable = false, updatable = false)
-	val contactId: UUID,
+	@Column(name = "contact_id", updatable = false)
+	val contactId: UUID?,
 	@Column(name = "connection_id", nullable = false, updatable = false)
 	val connectionId: UUID,
 	@Column(name = "resource_name")
@@ -54,12 +57,17 @@ class GoogleContactLink(
 	var etag: String?,
 	@Column(name = "synced_version", nullable = false)
 	var syncedVersion: Long,
+	@Id
+	@Column(name = "id", nullable = false, updatable = false)
+	val id: UUID = UuidV7.generate(),
 )
 
 interface GoogleContactsAccountRepository : JpaRepository<GoogleContactsAccount, UUID>
 
 interface GoogleContactLinkRepository : JpaRepository<GoogleContactLink, UUID> {
 	fun findByConnectionId(connectionId: UUID): List<GoogleContactLink>
+
+	fun findByContactId(contactId: UUID): GoogleContactLink?
 
 	fun findByConnectionIdAndResourceName(
 		connectionId: UUID,
