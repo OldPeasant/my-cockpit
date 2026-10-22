@@ -14,7 +14,8 @@ Passkey login via Credential Manager.
 
 ## Acceptance criteria
 - [ ] Login with passkey; registration from settings
-- [ ] `cd android && ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.auth.*'` passes, covering credential manager result handling (Robolectric/Compose UI tests for screens)
+- [x] `cd android && ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.auth.*'` passes, covering credential manager result handling (Robolectric/Compose UI tests for screens)
+  - verified (2026-10-22 15:16+0200 by dell26/agent-2): cd android && ./gradlew ktlintCheck testDebugUnitTest --tests 'ch.sonensei.cockpit.auth.*' lintDebug -> BUILD SUCCESSFUL, 185 tests 0 failures (Credential Manager result/exception mapping in PasskeyCredentials tests, MockWebServer repository tests, Robolectric Compose tests for login passkey button and settings passkey section, in-app Hilt tests)
 
 ## Notes
 - ASSUMPTION (2026-10-22 14:09+0200 by dell26/agent-2): Passkey settings section lists and adds passkeys only; deleting passkeys stays in the web app (criterion only asks for registration).
