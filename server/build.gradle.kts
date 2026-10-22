@@ -99,8 +99,9 @@ tasks.test {
 		.withPropertyName("openApiContract")
 		.withPathSensitivity(PathSensitivity.NONE)
 	inputs.property("updateOpenApi", providers.environmentVariable("UPDATE_OPENAPI").orElse(""))
-	// Gradle's default of 512 MB is too small for the cached Spring contexts plus the 60 MB upload test.
-	maxHeapSize = "1g"
+	// Gradle's default of 512 MB is too small for the cached Spring contexts plus the 60 MB upload test;
+	// 1 GB ran out of heap once the suite reached ~60 Spring contexts (2026-10-22).
+	maxHeapSize = "2g"
 }
 
 tasks.register<Test>("integrationTest") {
