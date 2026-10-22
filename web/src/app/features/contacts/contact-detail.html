@@ -135,7 +135,7 @@
             }
             @if (c.birthday) {
               <dt i18n="@@contacts.form.birthday">Birthday</dt>
-              <dd class="birthday">{{ c.birthday | date: 'longDate' : 'UTC' }}</dd>
+              <dd class="birthday">{{ c.birthday | date: 'longDate' }}</dd>
             }
           </dl>
           @if (!c.emails.length && !c.phones.length && !c.addresses.length && !c.birthday) {
@@ -169,11 +169,11 @@
                     <a [routerLink]="['/tasks', w.id]">{{ w.title }}</a>
                     @if (w.dueDate) {
                       <span class="when" i18n="@@contacts.related.due"
-                        >due {{ w.dueDate | date: 'mediumDate' : 'UTC' }}</span
+                        >due {{ w.dueDate | date: 'mediumDate' }}</span
                       >
                     } @else if (w.waitingSince) {
                       <span class="when" i18n="@@contacts.related.since"
-                        >since {{ w.waitingSince | date: 'mediumDate' : 'UTC' }}</span
+                        >since {{ w.waitingSince | date: 'mediumDate' }}</span
                       >
                     }
                   </li>
@@ -193,9 +193,10 @@
                     <a [routerLink]="eventLink(e)">{{ e.title }}</a>
                     <span class="when">
                       @if (isAllDay(e)) {
-                        {{ e.startDate | date: 'EEE, mediumDate' : 'UTC' }}
+                        {{ e.startDate | date: 'EEE' }} {{ e.startDate | date: 'mediumDate' }}
                       } @else {
-                        {{ e.start | date: 'EEE, medium' }}
+                        {{ e.start | date: 'EEE' }} {{ e.start | date: 'mediumDate' }}
+                        {{ e.start | date: 'shortTime' }}
                       }
                     </span>
                   </li>

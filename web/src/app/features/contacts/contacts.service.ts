@@ -95,7 +95,7 @@ export class ContactsService {
 
 /** Whether the connection was granted access to the provider's contacts. */
 export function syncsContacts(connection: OAuthConnectionResponse): boolean {
-  return (connection.scopes ?? []).some((scope) => /contacts/i.test(scope));
+  return connection.scopes.some((scope) => /contacts/i.test(scope));
 }
 
 function silent(): HttpContext {
