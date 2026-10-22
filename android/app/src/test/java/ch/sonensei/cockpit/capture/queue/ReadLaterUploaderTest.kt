@@ -395,4 +395,33 @@ class ReadLaterUploaderTest {
             }
             assertTrue(q.dao.sendableBookmarks().isEmpty())
         }
+
+    @Test
+    fun `every IPv6 form the server's URI parse accepts is still queued, other malformed literals are refused`() =
+        runBlocking {
+            // Valid RFC 4291 forms: unspecified, full, upper case, IPv4-mapped, IPv4-compatible, with a port.
+            val valid =
+                listOf(
+                    "https://[::]/a",
+                    "https://[2001:0db8:0000:0000:0000:0000:0000:0001]/a",
+                    "https://[2001:DB8::A]/a",
+                    "https://[::ffff:192.0.2.1]/a",
+                    "https://[1:2:3:4:5:6:1.2.3.4]/a",
+                    "https://[fe80::1]:8080/a?q=1#top",
+                )
+            // These also pass the server's IPV6 pattern, but its URI(...) check refuses them.
+            val malformed = listOf("https://[1::2::3]/a", "https://[12345::1]/a", "https://[::1.2.3]/a", "https://[::1.2.3.256]/a")
+            for (url in valid) assertTrue("URI($url) parses", runCatching { URI(url) }.isSuccess)
+            for (url in malformed) assertTrue("URI($url) throws", runCatching { URI(url) }.exceptionOrNull() is URISyntaxException)
+
+            for (url in valid) {
+                assertTrue("isBookmarkUrl($url)", CaptureQueue.isBookmarkUrl(url))
+                q.queue.readLater(url)
+            }
+            for (url in malformed) {
+                assertFalse("isBookmarkUrl($url)", CaptureQueue.isBookmarkUrl(url))
+                assertTrue(runCatching { q.queue.readLater(url) }.exceptionOrNull() is IllegalArgumentException)
+            }
+            assertEquals(valid, q.dao.sendableBookmarks().map { it.url })
+        }
 }
