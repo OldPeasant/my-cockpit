@@ -4,8 +4,23 @@ Date: 2026-10-22
 
 Task: passkeys-server - Passkeys (WebAuthn) backend
 
-Scope: `git diff fc7737af267cba0c4fcbf1b0e41c889b2232b745 1235c108058d8cddfdd5f0fb3e96166634ae0cd8` on branch `main`.
-The base is the merge-base with origin/main, supplied by the parent. The final revision is `1235c108` (HEAD).
+Scope (final, this run): `git diff cc9bf955b9cf1c254e3f971a95d82d2eb361d728 d5c2c241a02a16b1914443996cf8ee1f5578ba3a` on
+branch `main`. The base is the merge-base with origin/main, supplied by the parent. The final revision named by the
+parent is `d5c2c241a`.
+
+Final-revision update (this run): after another rebase, the task commits are `cc9bf955b..HEAD`:
+`9f81810a7`, `1e9acdd3d`, `2aeb30577`, `4388997a7`, `d4ed56f42`, `0265a11a1`, `53751cb86`, `f18983e8b`, `4a2106b56`,
+`82e041312`. I checked the hash mapping with git:
+- `git rev-parse HEAD` is `82e0413125ba8191ece4e205445a533e0eb6b4b3`. `git diff d5c2c241a 82e041312` touches only
+  `tasks/` (three task files), so `82e041312` is the same code as `d5c2c241a`.
+- `d6512521a` is the parent's name for `4a2106b56`: `git diff d6512521a 4a2106b56 -- server api web android` is empty.
+- `git diff 1235c1080 d6512521a -- server api web android` is empty, so everything below about `1235c108` still applies.
+- The only code change since then is `d5c2c241a` (`82e041312`): `android/app/build.gradle.kts` (4 lines) and the new
+  `android/app/src/test/java/ch/sonensei/cockpit/core/network/PasskeyModelsSerializationTest.kt`. See
+  "Android client change (d5c2c241a)" below.
+
+The rest of this section is from the previous run, on the pre-rebase scope
+`fc7737af267cba0c4fcbf1b0e41c889b2232b745..1235c108058d8cddfdd5f0fb3e96166634ae0cd8`.
 
 Task commits on the first-parent chain `fc7737af2..1235c1080` (history after the latest rebase):
 - `e19f713c0` implementation
@@ -53,6 +68,9 @@ Requirements:
 
 ## Test files changed
 
+- `android/app/src/test/java/ch/sonensei/cockpit/core/network/PasskeyModelsSerializationTest.kt` (this run): added by the
+  parent in `d5c2c241a` with one test. This helper kept that test unchanged and added three tests. Uncommitted, sha256
+  `d10d0736abc32c71aad4a58d3814dbc3ed5fc95207bebaee346f028bf3f88e9d`.
 - `server/src/test/kotlin/ch/sonensei/cockpit/core/persistence/MigrationConventionTests.kt`: one test and one import
   added by this helper, no existing test changed. Committed by the parent in `6589bd58e`, sha256
   `f7e907da870726c66914bbfd59a73bfdd21798b68c0306365563af29c750529f`. The file is outside the task's `touches`
@@ -60,9 +78,52 @@ Requirements:
   assumption.
 - Earlier runs, unchanged since `70bed4e02`: `server/src/test/kotlin/ch/sonensei/cockpit/core/auth/passkey/*`
 
+## Android client change (d5c2c241a)
+
+What changed: `api/openapi.yaml` declares the WebAuthn `credential` of `PasskeyLoginRequest`,
+`PasskeyRegistrationRequest` and `PasskeyTokenRequest` as a free-form object (`additionalProperties: {}`). The Kotlin
+generator turned that into `Map<String, Any?>`, and the kotlinx.serialization compiler plugin failed on it, so
+`:app:compileDebugKotlin` (part of `.taskcheck`) broke. `android/app/build.gradle.kts` now maps `AnyType` to
+`kotlinx.serialization.json.JsonElement`. The parent reports that only the three passkey models reference `JsonElement`
+in the generated code. I confirmed in `android/app/build/generated/openapi/.../models/` that all three have
+`@Contextual val credential: Map<String, JsonElement?>`.
+
+Requirement: AC3 (OpenAPI regenerated, clients follow) together with the project rule that `.taskcheck` (Android
+compile + unit tests) passes. The behavior that matters is that the Android client sends the credential to the server
+as the same nested JSON object that the authenticator produced, through the app's real serializer and Retrofit stack.
+
+Assessment of the parent's test (`credential JSON survives a round trip`): it is a correct regression guard for the
+compile failure (the file does not compile without the mapping), and its assertions are meaningful. Gaps:
+- It uses its own `Json { ignoreUnknownKeys = true }`, not the app's `Serializer.kotlinxSerializationJson`, whose
+  `serializersModule` is what resolves the `@Contextual` annotation on the map at runtime in the app.
+- It covers only `PasskeyLoginRequest`, and only strings and a nested object, not arrays, numbers, booleans or `null`,
+  which real `RegistrationResponseJSON` / `AuthenticationResponseJSON` contain (`transports`, `publicKeyAlgorithm`,
+  `authenticatorAttachment: null`, `clientExtensionResults`).
+- It does not check what Retrofit actually puts on the wire.
+
+Tests added by this helper in `PasskeyModelsSerializationTest` (the parent's test is unchanged):
+1. `all three passkey requests keep every JSON kind of the credential with the app Json`: encodes each of the three
+   models with `Serializer.kotlinxSerializationJson` and checks that `credential` in the output is the same nested JSON
+   object (strings, nested objects, an array, a negative number, a boolean, a `null`).
+2. `a credential decoded from wire JSON encodes back to the same JSON`: decodes a fictitious `PasskeyTokenRequest` body
+   with the app Json, checks that the `null` key is kept, and that re-encoding gives the identical JSON tree.
+3. `the passkey token call posts the credential as a nested JSON object`: `PasskeysApi.issueDeviceTokenWithPasskey`
+   through `CockpitHttp.okHttpClient` / `CockpitHttp.retrofit` (the app's stack, default Json) against `MockWebServer`.
+   It checks `POST /api/v1/auth/passkeys/token`, that the body's `credential` equals the object passed in, and that the
+   `TokenResponse` is decoded. This follows the pattern of `AuthApiTokenRefresherTest`.
+
+All data is fictitious (base64url placeholders, a made-up UUIDv7, "Test phone").
+
+These tests are written but not run: this helper cannot run Gradle. The parent must run
+`android/gradlew -p android ktlintCheck testDebugUnitTest --tests '*PasskeyModelsSerializationTest'` and expects 4 tests.
+If one fails, it must be checked before treating it as a production defect. A possible test-side cause is the decoding
+of `null` inside `Map<String, JsonElement?>`: test 2 deliberately asserts only the key and the re-encoded JSON, not
+whether the value decodes as Kotlin `null` or `JsonNull`.
+
 ## Tests added or updated
 
-Count: 1 in this run. The run on `70bed4e02` added 2. The other passkey test classes come from the implementation and
+Count: 3 in this run (Android, see above). The run at `1235c108` added 1 (`MigrationConventionTests`). The run on
+`70bed4e02` added 2. The other passkey test classes come from the implementation and
 the first test-writer run.
 
 1. `MigrationConventionTests` `no two migrations share a Flyway version, even across module folders`
@@ -95,6 +156,15 @@ Postgres passkey test runs Flyway on a fresh database, so the renamed file is ex
 
 Commands (all run by the parent; this helper cannot run Gradle):
 
+- **(AND-1) Android check**, on `d5c2c241a` with the mapping, before the test file was added:
+  `android/gradlew -p android ktlintCheck testDebugUnitTest lintDebug`
+  - Result: BUILD SUCCESSFUL in 5m29s.
+- **(AND-2) Android focused**, on `d5c2c241a`:
+  `android/gradlew -p android ktlintCheck testDebugUnitTest --tests '*PasskeyModelsSerializationTest'`
+  - Result: BUILD SUCCESSFUL. The result XML shows tests=1, failures=0 (the parent's test only).
+- **(AND-3) Android focused, with this helper's tests**: the same command as AND-2 on the working tree with the
+  updated test file (sha256 `d10d0736...88e9d`). Not run yet; the parent runs it. Expected: 4 tests.
+
 - **(A) Auth suite with coverage**, on `70bed4e02` (= `3bb996573`):
   `cd server && ./gradlew clean test --tests 'ch.sonensei.cockpit.core.auth.*' jacocoTestReport`
   - Result: BUILD SUCCESSFUL, 280 tests, 0 failures, 0 errors, 0 skipped (Postgres via Testcontainers).
@@ -120,10 +190,22 @@ Commands (all run by the parent; this helper cannot run Gradle):
 | Migration rename: the passkey migration has a unique Flyway version and follows the naming convention | `MigrationConventionTests`: the new duplicate-version test and the existing naming test; every Postgres passkey test runs the renamed migration | C (naming and passkey tests, before the new test), F (all, incl. the new test) | Pass |
 | AC2 `./gradlew test --tests 'ch.sonensei.cockpit.core.auth.passkey.*'` passes | all passkey classes | F at `1235c108` (also in A and C) | Pass |
 | AC3 OpenAPI regenerated, `OpenApiContractTest` passes without the flag | `OpenApiContractTest` | C, F | C at `00be3bd6b`: Fail (tag order only), fixed by `1235c1080`. F at `1235c108`: Pass |
+| AC3 / `.taskcheck`: the generated Android client compiles with the passkey models | Android `:app:compileDebugKotlin` within the Android check | AND-1 at `d5c2c241a` (mapping only, before the test file) | Pass (parent: BUILD SUCCESSFUL in 5m29s) |
+| Android passkey models serialize the WebAuthn credential as nested JSON | `PasskeyModelsSerializationTest` `credential JSON survives a round trip` | AND-2 at `d5c2c241a` | Pass (parent: tests=1, failures=0) |
+| Same, with the app Json, all three models, all JSON kinds, and on the wire via Retrofit | `PasskeyModelsSerializationTest`: the three tests added by this helper | AND-3 (to be run by the parent) | Not run: this helper cannot run Gradle |
 
 ## Focused test execution
 
-Command (run by the parent at `1235c108`):
+Android (this run), command (parent):
+
+`android/gradlew -p android ktlintCheck testDebugUnitTest --tests '*PasskeyModelsSerializationTest'`
+
+Result:
+
+At `d5c2c241a` with the parent's single test: Pass (tests=1, failures=0). With the three tests added by this helper: Not
+run yet (AND-3, parent).
+
+Server, command (run by the parent at `1235c108`, same server code as `d5c2c241a`):
 
 `server/gradlew -p server ktlintCheck test --tests *OpenApiContractTest --tests *MigrationConventionTests --tests ch.sonensei.cockpit.core.auth.passkey.*`
 
@@ -133,7 +215,15 @@ Pass: BUILD SUCCESSFUL, 73 tests, 0 failures, ktlint passes.
 
 ## Full test execution
 
-Command (run by the parent at `00be3bd6b`, before `6589bd58e` and `1235c1080`):
+Android, command (parent, at `d5c2c241a` before the test file was added):
+
+`android/gradlew -p android ktlintCheck testDebugUnitTest lintDebug`
+
+Result:
+
+Pass: BUILD SUCCESSFUL in 5m29s.
+
+Server, command (run by the parent at `00be3bd6b`, before `6589bd58e` and `1235c1080`):
 
 `server/gradlew -p server check`
 
@@ -148,17 +238,32 @@ not rerun at `1235c108`. The commits since `00be3bd6b` change only a test file a
 
 Result:
 
-Not run by this helper. The parent runs `sh scripts/check.sh` after the reports.
+Not run by this helper. The parent runs `sh scripts/check.sh` after the reports. Its earlier run is what found the
+Android compile failure fixed by `d5c2c241a`; it must be rerun on the final tree, including the updated Android test
+file.
 
 ## Bugs found
 
 None in production code.
+- The Android compile failure (`Map<String, Any?>` in the generated passkey models) was found by the parent's
+  `.taskcheck` run and fixed by `d5c2c241a` before this run.
 - The Flyway version collision was fixed by `741d65149` (`00be3bd6b`) before this run. The new test guards against it
   happening again.
 - The `OpenApiContractTest` failure was a stale generated file after the merge (tag order), not a defect. It is fixed by
   `1235c1080`.
 
 ## Coverage
+
+Android change `d5c2c241a` (this run): not applicable, with no task-scoped Android coverage.
+- `git diff --name-only cc9bf955b d5c2c241a -- android/app/src/main` is empty, so the task changed no Android production
+  file that the Android JaCoCo run (`createDebugUnitTestCoverageReport`, docs/ARCHITECTURE.md "Coverage") would measure.
+- `android/app/build.gradle.kts` is a build script, so it is not instrumented. The models in
+  `android/app/build/generated/openapi/` are generated code, outside the task coverage scope. Their behavior is
+  exercised by `PasskeyModelsSerializationTest` (AND-2, and AND-3 once the parent runs it), not measured as coverage.
+- No Android coverage command was run, and no Android numbers are reported.
+
+Server: the server code at `d5c2c241a` / `82e041312` is identical to `1235c108` (see Scope), so the server coverage
+below still applies unchanged.
 
 Status: verified at `70bed4e02` (= `3bb996573`) and carried forward to `1235c108`. No instrumented input changed:
 - `git diff 70bed4e02 1235c1080` shows no change to any task Kotlin source under `core/auth` or any auth test.
@@ -248,6 +353,8 @@ pre-existing code and hits from pre-existing auth tests.
 
 ## Unable to test
 
+- The three Android tests added in this run have not been executed (AND-3). The parent must run them and record the
+  result before using them as evidence.
 - This helper cannot run Gradle. Every result above comes from runs by the parent, as the parent reported them.
 - The full `./gradlew -p server check` was not rerun at `1235c108`. It ran at `00be3bd6b`, and F covers the two changes
   since then. The parent's `.taskcheck` runs it on the final revision.
@@ -260,8 +367,17 @@ pre-existing code and hits from pre-existing auth tests.
 
 ## Summary
 
-Tests added and all validation passed: the focused run (F) at `1235c108` passed 73 tests, 0 failures. Only
-`.taskcheck` is left, which the parent runs.
+Final revision `d5c2c241a` (this run): tests added. The parent's Android runs at `d5c2c241a` passed (AND-1, AND-2).
+The three Android tests added in this run still have to be run by the parent (AND-3), followed by `.taskcheck`.
+- The parent's `PasskeyModelsSerializationTest` test is a valid regression guard for the compile failure, but it was
+  narrow. The added tests cover all three models with the app's Json, every JSON value kind, and the request Retrofit
+  actually sends.
+- Android coverage is not applicable: no `android/app/src/main` file changed. The build script and the generated code
+  are not instrumented.
+- The server code is unchanged since `1235c108`, so the server results and coverage below still apply.
+
+Previous run (`1235c108`): tests added and all validation passed. The focused run (F) at `1235c108` passed 73 tests,
+0 failures.
 - The rename needed no passkey test change.
 - One convention test now checks that Flyway versions are unique across module folders. It is outside the task's
   `touches`.
