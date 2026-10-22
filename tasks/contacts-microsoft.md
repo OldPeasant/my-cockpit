@@ -5,6 +5,7 @@ owner:
 deps: [contacts-api,oauth-connections]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/contacts/microsoft,server/src/test/kotlin/ch/sonensei/cockpit/contacts/microsoft]
 prio: 3
+hold: microsoft will come later
 ---
 ## Goal
 Two-way Graph contacts sync.
@@ -14,3 +15,4 @@ Two-way Graph contacts sync.
 - [ ] `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.contacts.microsoft.*'` passes (Postgres via Testcontainers where persistence is involved)
 
 ## Notes
+- hold by Peter Gürtler: microsoft will come later
