@@ -16,3 +16,4 @@ Track habits (SPEC.md §8.5).
 
 ## Notes
 - ASSUMPTION (2026-10-22 02:15+0200 by dell26/agent-2): One-tap check on a habit with targetCount > 1 counts up by one per tap and wraps to 0 after the target; a once-a-day habit toggles 0/1. The check always targets the server's stats.today.
+- ASSUMPTION (2026-10-22 02:15+0200 by dell26/agent-2): Habits page has no delete action (archive/unarchive only) and no per-day history grid: SPEC 8.5 asks for list, check, streaks and 30-day completion; delete and history are left for later.
