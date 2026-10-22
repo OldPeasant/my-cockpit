@@ -5,7 +5,7 @@ owner: dell26/agent-1
 deps: [contacts-api,oauth-connections]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/contacts/google,server/src/test/kotlin/ch/sonensei/cockpit/contacts/google]
 prio: 2
-lease_until: 2026-10-22T03:46:43Z
+lease_until: 2026-10-22T03:48:24Z
 ---
 ## Goal
 Two-way People API sync.
