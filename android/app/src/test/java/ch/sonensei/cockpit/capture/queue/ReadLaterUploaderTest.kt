@@ -23,6 +23,8 @@ import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import java.io.IOException
+import java.net.URI
+import java.net.URISyntaxException
 import java.util.concurrent.TimeUnit
 
 /** Edge cases of sending read-later bookmarks from the capture queue (SPEC.md §8.4, §9.3). */
@@ -338,4 +340,59 @@ class ReadLaterUploaderTest {
 
         assertFalse(CaptureQueue.isBookmarkUrl(url))
     }
+
+    // The limit applies to the whole URL as BookmarkUrls.normalize writes it, so every part counts in its encoded form.
+
+    @Test
+    fun `a character outside the basic plane counts with all four UTF-8 bytes`() {
+        val base = "https://example.org/" // 20 characters; the server writes each emoji as 4 escapes (12 characters).
+        assertTrue(CaptureQueue.isBookmarkUrl(base + "😀".repeat(169))) // 2048 once encoded
+        assertFalse(CaptureQueue.isBookmarkUrl(base + "😀".repeat(169) + "a"))
+    }
+
+    @Test
+    fun `a percent sign that starts no escape counts as an encoded percent sign`() {
+        val base = "https://example.org/"
+        // Each lone "%" becomes %25 (3 characters).
+        assertTrue(CaptureQueue.isBookmarkUrl(base + "%".repeat(676))) // 2048 once encoded
+        assertFalse(CaptureQueue.isBookmarkUrl(base + "%".repeat(677)))
+        // A valid escape at the very end is kept, an incomplete one ("%4" -> %254) is not.
+        assertTrue(CaptureQueue.isBookmarkUrl(base + "a".repeat(2025) + "%41"))
+        assertTrue(CaptureQueue.isBookmarkUrl(base + "a".repeat(2024) + "%4"))
+        assertFalse(CaptureQueue.isBookmarkUrl(base + "a".repeat(2025) + "%4"))
+    }
+
+    @Test
+    fun `query, user info and port count in the encoded length too`() {
+        // Query: "https://example.org/?" is 21 characters, 337 x "é" are 2022 once encoded.
+        val query = "https://example.org/?" + "é".repeat(337)
+        assertTrue(CaptureQueue.isBookmarkUrl(query + "a?b=c")) // "?" stays as it is in a query: 2048
+        assertFalse(CaptureQueue.isBookmarkUrl(query + "a?b=cd"))
+        // User info: "é" -> %C3%A9, plus the "@": "https://%C3%A9@example.org/" is 27 characters.
+        assertTrue(CaptureQueue.isBookmarkUrl("https://é@example.org/" + "a".repeat(2021)))
+        assertFalse(CaptureQueue.isBookmarkUrl("https://é@example.org/" + "a".repeat(2022)))
+        // An "@" inside the user info is encoded (%40): "https://a%40b@example.org/" is 26 characters.
+        assertTrue(CaptureQueue.isBookmarkUrl("https://a@b@example.org/" + "a".repeat(2022)))
+        assertFalse(CaptureQueue.isBookmarkUrl("https://a@b@example.org/" + "a".repeat(2023)))
+        // The port: "https://example.org:8443/" is 25 characters, 337 x "é" are 2022 once encoded.
+        val port = "https://example.org:8443/" + "é".repeat(337)
+        assertTrue(CaptureQueue.isBookmarkUrl(port + "a"))
+        assertFalse(CaptureQueue.isBookmarkUrl(port + "aa"))
+    }
+
+    @Test
+    fun `an IPv6 literal the server cannot parse as a URI is refused and nothing is queued`() =
+        runBlocking {
+            // These pass the server's IPV6 pattern, but its final URI(...) check in BookmarkUrls.normalize throws, so
+            // POST /bookmarks answers 400 for good.
+            val urls = listOf("https://[1]/a", "https://[:]/a", "https://[1.2.3.4]/a", "https://[1:2:3:4:5:6:7:8:9]/a")
+            for (url in urls) {
+                assertTrue("URI($url) throws", runCatching { URI(url) }.exceptionOrNull() is URISyntaxException)
+            }
+            for (url in urls) {
+                assertFalse("isBookmarkUrl($url)", CaptureQueue.isBookmarkUrl(url))
+                assertTrue(runCatching { q.queue.readLater(url) }.exceptionOrNull() is IllegalArgumentException)
+            }
+            assertTrue(q.dao.sendableBookmarks().isEmpty())
+        }
 }
