@@ -1,11 +1,11 @@
 ---
 title: Weekly review API
-status: in_progress
+status: done
 owner: dell26/agent-1
 deps: [gtd-projects-api,cal-local-api]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/review,server/src/test/kotlin/ch/sonensei/cockpit/review,server/src/main/resources/db/migration/review]
 prio: 2
-lease_until: 2026-10-22T00:40:57Z
+lease_until: 
 releases: 1
 extended: 
 ---
@@ -29,3 +29,4 @@ Resumable weekly review (SPEC.md §8.6).
 - ASSUMPTION (2026-10-22 00:22+0200 by dell26/agent-1): Step 1 (inbox/flagged mail) and step 8 (reflection/journal) have no dedicated data endpoint: clients use the existing inbox, mail and journal APIs
 - release by dell26/agent-1: All 3 criteria implemented and verified; test-writer, code-reviewer (re-review on final code) and fixer reports plus quality.json committed in 7ba5d66f6 (reviewed_revision e470880d5, task code unchanged since review). sh scripts/check.sh passed at 7ba5d66f6 but took ~10+ min. Left: only run 'python tasks.py done review-api' (if main moves, set reviewed_revision to the new hash; no helper re-run needed unless task code changes).
 - ASSUMPTION (2026-10-22 02:10+0200 by dell26/agent-1): Raised server test JVM maxHeapSize 1g -> 2g in server/build.gradle.kts (outside touches): .taskcheck OOMed (Java heap space in Gradle Test Executor) with ~60 cached Spring contexts after mail-search merged; not caused by review tests, which share the standard context
+- done by dell26/agent-1: `sh scripts/check.sh` passed in 91s on 73dde5783; criteria verified 3/3
