@@ -4,33 +4,37 @@ Date: 2026-10-22
 
 Task: and-files - Android files
 
-Scope: `git diff 236a674ae..HEAD -- android`; committed changes only. The parent named the task commits ad8cfd84f, 75b350c21, 82d213a9e, 5903df968. After a rebase the branch holds them as 7c4cdd757, 48e95279e, 670ec3f22, b2da3656f (plus 577c0dcc3, reports only). `git diff 5903df968 HEAD -- android` is empty, so the reviewed code is the same as the named fix revision.
+Scope: `git diff 236a674ae..HEAD -- android`, committed changes only. This is the final review after the fixes in ba712b4d2 for the second review's CR-1 and CR-2. The working tree was clean.
 
 Requirements:
-- tasks/and-files.md acceptance criteria and recorded assumptions: streaming multipart upload; "Save to device" via ACTION_CREATE_DOCUMENT; "Open" via cache plus a dedicated FileProvider; browse/open/save/upload only; OpenedFiles.target stays on main (deliberate partial of the earlier CR-4)
+- tasks/and-files.md acceptance criteria and recorded assumptions: streaming multipart upload; "Save to device" via ACTION_CREATE_DOCUMENT; "Open" via cache plus a dedicated FileProvider; browse/open/save/upload only; OpenedFiles.target stays on main (the deliberate partial of the first review's CR-4)
 - SPEC.md §8.2, §9.2 item 7
 - docs/ARCHITECTURE.md, AGENTS.md "Project notes"
-- Previous review (CR-1..CR-5 on 8621c16f9) and reviews/and-files/fixes.md
+- Previous reviews and reviews/and-files/fixes.md (both sections)
 
 Git range:
 - Branch: main
-- HEAD: 577c0dcc3a9b5a675c8187f983a7f4996b9bdac7
+- HEAD: ba712b4d2914a827c401cbc03c7695406c7e316a
 - Base/start: 236a674ae
-- Commits reviewed: 4 code commits (7c4cdd757, 48e95279e, 670ec3f22, b2da3656f) plus 577c0dcc3 (fixes report only)
+- Commits reviewed: 6 task commits touching android/ (7cc9ac06f, 387cc679c, e205d09cf, 47962da18, 83e84d55c, ba712b4d2) plus 6a2a23f58 (report only)
 
-Summary: 0 P0, 0 P1, 1 P2, 1 P3
+Summary: 0 P0, 0 P1, 0 P2, 0 P3
 
-Reviewer note: This sub-agent could not run Gradle. The parent ran this in android/ on the final code: `./gradlew ktlintCheck lintDebug testDebugUnitTest --tests 'ch.sonensei.cockpit.files.*' createDebugUnitTestCoverageReport`. Result: exit 0, 59 tests, 0 failures. `python tasks.py verify and-files` still shows both criteria unrecorded. The parent has to record them before `done`.
+Reviewer note: This sub-agent could not run Gradle. The parent ran this in android/ on HEAD ba712b4d2: `./gradlew ktlintCheck lintDebug testDebugUnitTest --tests 'ch.sonensei.cockpit.files.*' createDebugUnitTestCoverageReport`. Result: exit 0, 66 tests, 0 failures. `python tasks.py verify and-files` still shows both criteria unrecorded. The parent has to record them before `done`.
 
 ## Status of the previous findings
 
-- CR-1 (second tap deletes the file being downloaded): **Fixed.** `FilesViewModel.open` now takes a target factory. `download` checks single-flight first (FilesViewModel.kt:168) and only then calls `prepare()` inside the coroutine (FilesViewModel.kt:174). An ignored tap therefore never calls `OpenedFiles.target`. Covered by FilesViewModelTest.kt:149 and FilesRouteInAppTest.kt:174, which goes through the real route and reads the granted URI.
-- CR-2 (pending save lost on recreation): **Fixed.** FilesScreen.kt:126 uses `rememberSaveable` with `PendingSaveSaver` (FilesScreen.kt:157). The saved list holds Strings and is Bundle-safe, and the save and restore are symmetric. The view model survives configuration changes, and after process death a new one handles the result correctly. Covered by FilesRouteInAppTest.kt:249 (`scenario.recreate()`, then the result goes to the new registry).
-- CR-3 (failed or cancelled save leaves a document behind): **Fixed for started downloads.** The `try/finally` in FilesViewModel.kt:173-182 calls `discard` under `NonCancellable + io` with errors ignored. For "Save" it deletes the document (DeviceFiles.kt:71 `discardDocument`), and for "Open" it deletes the cache file. Covered by view model, DeviceFiles and route tests. A save that never starts because of single-flight still leaves the document behind; see the new CR-1.
-- CR-4 (provider queries and cache work on main): **Partly fixed, remainder accepted by assumption.** `describePicked` runs inside `withContext(io)` (FilesViewModel.kt:194). The folder is captured when the user picks the files, so uploads go to the folder shown at pick time. `OpenedFiles.target` still runs on Main, now once per started download. This matches the recorded assumption, so it is not re-raised.
-- CR-5 (cache names cut by characters): **Fixed.** `safeName` caps names at 200 UTF-8 bytes on code-point boundaries (DeviceFiles.kt:141-163) and keeps an extension of up to 16 chars (at most 64 bytes, so it always fits). A result that is empty or only dots becomes `file`. Path separators and control characters are still replaced. Covered by DeviceFilesTest.
+Second review (ids used in the previous review.md):
 
-Also checked and found sound: the manifest provider is `exported="false"` with `grantUriPermissions="true"` and only `cache/files-open/` is shared. ACTION_VIEW gets a read grant per URI. `ok` is set before the `Open`/`Saved` event is sent, so a successful download is never discarded. Download state is cleared on every completed path. The paging, error mapping, streaming download/upload and folder-load race handling are unchanged since the earlier review and still correct. No file names or contents are logged.
+- CR-1 (a "Save to device" started during another download was silently dropped and left the empty document the picker created): **Fixed.** There are two layers.
+    - UI: while `state.downloading != null`, every file row is disabled (FilesScreen.kt:384, 391; `clickable(enabled = ...)` at EntryRow). The menu items "Open" and "Save to device" are also disabled (FilesScreen.kt:410, 419). The save-as picker therefore cannot be launched during a download. Folders stay clickable, so browsing continues. Because `downloading` is set synchronously in `download` (FilesViewModel.kt:176), the row is disabled from the next frame.
+    - View model: if a save still arrives during a running download, the save's `discard` runs on `io` with errors ignored (FilesViewModel.kt:172-175), and its target is never opened. For an ignored open, `discard` is `cache?.delete()` on a null `cache`, so it does nothing. That keeps the first review's CR-1 fix intact: an ignored tap never calls `OpenedFiles.target`.
+    - Tests: FilesScreenTest "while a file downloads, no other file can be opened or saved" asserts the disabled row and menu items, and that a folder still opens. FilesViewModelTest "a save ignored while another file downloads discards its document..." asserts one discard, an unopened target, no download for the other file, and that the running download still completes and opens. The updated "a download cancelled with the screen..." test asserts the ignored save is discarded exactly once. FilesRouteInAppTest:301 now takes its "no picker started" branch through the real route.
+- CR-2 (view model callbacks held the Activity): **Fixed.** FilesRoute now captures `context.applicationContext` and its `contentResolver` (FilesScreen.kt:121-122). It uses them in every lambda handed to the view model: the open target factory (`OpenedFiles.target(app, ...)`, which only uses `cacheDir`), the save target and discard (`openForWriting` / `discardDocument` with the app resolver) and the picked-upload describe lambda. The Activity `context` is used only in the composition-scoped event collector (toasts, `OpenedFiles.launch`). That is correct, because starting an activity needs it and the collector does not outlive the composition.
+
+First review: CR-1, CR-2, CR-3 and CR-5 stay fixed, and the code paths involved did not change in ba712b4d2 beyond what is described above. CR-3's line "a save ignored by single-flight never discards anything" is replaced by the discard above, which is the intended fix. CR-4 remains partly fixed, and the rest is covered by the recorded assumption.
+
+Also re-checked and found sound: the manifest provider is `exported="false"` with `grantUriPermissions="true"` and only `cache/files-open/` is shared. ACTION_VIEW gets a per-URI read grant. `ok` is set before the `Open`/`Saved` event is sent, so a successful download is never discarded. `downloading` is cleared on every completed path. The pending save is `rememberSaveable` with a symmetric String-only Saver. Folder-load races are handled through `loadJob` cancellation. Uploads go to the folder shown at pick time, and provider queries run on `io`. No file names or contents are logged. No new issues were found in the final diff.
 
 ## P0 Critical
 
@@ -42,22 +46,12 @@ None.
 
 ## P2 Medium
 
-- [ ] **CR-1 | "Save to device" started while another file downloads is silently dropped and leaves the empty document the picker created**
-    - File: `android/app/src/main/java/ch/sonensei/cockpit/files/FilesScreen.kt:142`, `android/app/src/main/java/ch/sonensei/cockpit/files/FilesScreen.kt:132`, `android/app/src/main/java/ch/sonensei/cockpit/files/FilesViewModel.kt:168`
-    - Category: Correctness
-    - Problem: While file A downloads, only A's overflow menu becomes a spinner (FilesScreen.kt:388). Every other row still offers "Save to device". Choosing it launches ACTION_CREATE_DOCUMENT (FilesScreen.kt:142-145), and the picker creates the document at the place the user chose. The result callback then calls `viewModel.save(...)`, which returns early on `downloadJob?.isActive` (FilesViewModel.kt:168). Nothing is downloaded, `discard` is never called, and no message or toast appears. FilesViewModelTest.kt:223/230 asserts this behaviour ("the ignored save discarded something" must be false).
-    - Why it matters: The user picked a place to save, and a 0-byte file with the drive file's name is left there with no hint that the save never happened. This is the same outcome the earlier CR-3 fixed for failed saves, reached by a different path.
-    - Suggested fix: Do not offer an action that will be ignored. For example, hide or disable "Open"/"Save" and the row click on every row while `state.downloading != null`, or make the route skip `pickSaveTarget.launch` while a download runs. Also (or instead), when `save` is rejected by single-flight, call `discard` and report it. Update the view model test to expect the new behaviour.
+None.
 
 ## P3 Low
 
-- [ ] **CR-2 | View model coroutines keep the Activity alive for the length of a download or upload**
-    - File: `android/app/src/main/java/ch/sonensei/cockpit/files/FilesScreen.kt:141`, `android/app/src/main/java/ch/sonensei/cockpit/files/FilesScreen.kt:132`, `android/app/src/main/java/ch/sonensei/cockpit/files/FilesScreen.kt:123`
-    - Category: Quality
-    - Problem: The lambdas passed into the view model capture the Activity: the `open` target factory holds `context` (LocalContext, the Activity), and the `save` target/discard and the `uploadPicked` describe lambda hold `resolver` (`context.contentResolver`, whose ContextImpl refers back to the Activity). `PickedUpload` keeps that resolver until its upload ends. These lambdas live in `viewModelScope` coroutines that outlive configuration changes, and the fix made this deliberate: the discard now also runs after the view model is cleared.
-    - Why it matters: After a rotation during a large download or upload, the destroyed Activity and its view tree cannot be garbage-collected until the transfer ends. LeakCanary or StrictMode would flag it.
-    - Suggested fix: Capture `context.applicationContext` and `context.applicationContext.contentResolver` in the route before building these lambdas. The FileProvider URI, the cache dir and document deletion all work with the application context.
+None.
 
 ## Review conclusion
 
-Material issues found; fix before completing the task. The earlier CR-1, CR-2, CR-3 and CR-5 are correctly fixed and tested. CR-4 is partly fixed, and the rest is covered by a recorded assumption. Both acceptance criteria are implemented in substance: browse, open via FileProvider, save, and streaming upload, with browse and upload states covered by view-model, Compose and Robolectric route tests. The new CR-1 is a correctness gap in the save flow that should be closed (or recorded as an assumption by the parent). CR-2 is a minor cleanup.
+No material issues found. Both acceptance criteria are implemented: browse, open via a FileProvider ACTION_VIEW intent, save to device, and streaming upload from device. Browse and upload states are covered by view-model, Compose screen and Robolectric route tests, and the parent's focused Gradle run passed (66 tests, 0 failures). Before `done`, the parent still has to record the evidence with `tasks.py verify`.

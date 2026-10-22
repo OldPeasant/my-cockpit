@@ -1,0 +1,33 @@
+{
+  "schema": 1,
+  "task": "and-files",
+  "reviewed_revision": "ba712b4d2914a827c401cbc03c7695406c7e316a",
+  "helpers": {
+    "test-writer": {"status": "completed", "report": "reviews/and-files/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/and-files/review.md"},
+    "fixer": {"status": "completed", "report": "reviews/and-files/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "R1-CR-1", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "first review: second tap during a download deleted the file being downloaded; cache target now chosen after the single-flight check"},
+    {"id": "R1-CR-2", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "first review: pending save lost on activity recreation; now rememberSaveable"},
+    {"id": "R1-CR-3", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "first review: failed/cancelled save left an empty or truncated document; now discarded"},
+    {"id": "R1-CR-4", "source": "code-reviewer", "severity": "P3", "disposition": "accepted",
+     "note": "first review: picked-file provider queries moved to IO; open-cache cleanup stays on main (small local cache work, once per download; moving it broke Robolectric route tests), recorded with tasks.py assume"},
+    {"id": "R1-CR-5", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "first review: cache names now limited by UTF-8 bytes, keeping the extension"},
+    {"id": "R2-CR-1", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "second review (same as TW-1): save during another download left an empty document; open/save disabled while downloading and an ignored save is discarded"},
+    {"id": "TW-1", "source": "test-writer", "severity": "Medium", "disposition": "fixed",
+     "note": "same defect as R2-CR-1; regression test in FilesRouteInAppTest passes"},
+    {"id": "R2-CR-2", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "second review: callbacks held the Activity; now use the application context"}
+  ],
+  "validation": [
+    {"command": "cd android && ./gradlew ktlintCheck lintDebug testDebugUnitTest --tests 'ch.sonensei.cockpit.files.*' createDebugUnitTestCoverageReport", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
