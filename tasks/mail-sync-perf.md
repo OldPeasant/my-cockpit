@@ -2,7 +2,7 @@
 title: Cheaper link checks and loadOlder candidate narrowing in mail sync
 status: todo
 owner:
-deps: [mail-header-sync, mail-idle]
+deps: [mail-header-sync, mail-idle, mail-idle-flaky-test]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/core/items,server/src/main/kotlin/ch/sonensei/cockpit/mail/sync,server/src/test/kotlin/ch/sonensei/cockpit/mail/sync]
 prio: 2
 ---
