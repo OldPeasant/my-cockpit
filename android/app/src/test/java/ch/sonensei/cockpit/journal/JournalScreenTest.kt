@@ -140,6 +140,80 @@ class JournalScreenTest {
     }
 
     @Test
+    fun `a photo goes in at the cursor, which follows text inserted from elsewhere`() {
+        val image = "![lake.jpg](cockpit-file:fictitious)"
+        var state by mutableStateOf(loaded(body = "Lake", editing = true))
+        composeRule.setContent {
+            CockpitTheme {
+                JournalContent(
+                    state,
+                    callbacks.copy(setBody = { state = state.copy(body = it, status = SaveStatus.UNSAVED) }),
+                    imageLoader = null,
+                )
+            }
+        }
+
+        composeRule.onNodeWithTag(JournalTags.BODY).performTextReplacement("Lake view")
+        composeRule.onNodeWithTag(JournalTags.CAMERA).performClick()
+        // The view model inserts the uploaded image at that cursor: the cursor stays behind the inserted text.
+        state = state.copy(body = "Lake view\n$image\n")
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag(JournalTags.GALLERY).performClick()
+
+        assertEquals(listOf("photo ${PhotoSource.CAMERA} 9", "photo ${PhotoSource.GALLERY} ${"Lake view\n$image\n".length}"), calls)
+    }
+
+    @Test
+    fun `while a photo uploads its buttons are replaced by a progress indicator`() {
+        show(loaded(editing = true).copy(uploading = true))
+
+        composeRule.onNodeWithTag(JournalTags.UPLOADING).assertIsDisplayed()
+        composeRule.onNodeWithContentDescription("Uploading photo…").assertIsDisplayed()
+        composeRule.onNodeWithTag(JournalTags.CAMERA).assertDoesNotExist()
+        composeRule.onNodeWithTag(JournalTags.GALLERY).assertDoesNotExist()
+    }
+
+    @Test
+    fun `a conflict with an entry deleted elsewhere offers to save the text again or discard it`() {
+        show(loaded().copy(conflict = JournalConflict(null), status = SaveStatus.UNSAVED))
+
+        composeRule.onNodeWithText("deleted on another device", substring = true).assertIsDisplayed()
+        composeRule.onNodeWithTag(JournalTags.KEEP_MINE).assertTextContains("Save my text again")
+        composeRule.onNodeWithTag(JournalTags.USE_THEIRS).assertTextContains("Discard my text")
+        // The status still says the text is not saved, but no retry competes with the decision.
+        composeRule.onNodeWithTag(JournalTags.SAVE_RETRY).assertDoesNotExist()
+    }
+
+    @Test
+    fun `a save the server refused says so and can be retried`() {
+        show(loaded(status = SaveStatus.FAILED))
+
+        composeRule.onNodeWithTag(JournalTags.STATUS).assertTextContains("the server refused", substring = true)
+        composeRule.onNodeWithTag(JournalTags.SAVE_RETRY).performClick()
+        assertEquals(listOf("save"), calls)
+    }
+
+    @Test
+    fun `while today's entry loads nothing can be written`() {
+        show(JournalUiState(date = day))
+
+        composeRule.onNodeWithTag(JournalTags.LOADING).assertIsDisplayed()
+        composeRule.onNodeWithTag(JournalTags.STATUS).assertDoesNotExist()
+        composeRule.onNodeWithTag(JournalTags.TOGGLE).assertDoesNotExist()
+        composeRule.onNodeWithTag(JournalTags.CAMERA).assertDoesNotExist()
+        composeRule.onNodeWithTag(JournalTags.BODY).assertDoesNotExist()
+    }
+
+    @Test
+    fun `a photo problem can be dismissed`() {
+        show(loaded().copy(message = JournalMessage.PHOTO_OFFLINE))
+
+        composeRule.onNodeWithText("Photo not added: no connection.").assertIsDisplayed()
+        composeRule.onNodeWithText("Dismiss").performClick()
+        assertEquals(listOf("dismiss"), calls)
+    }
+
+    @Test
     fun `an empty entry invites to write`() {
         show(loaded(body = ""))
 

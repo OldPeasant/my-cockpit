@@ -134,6 +134,18 @@ class JournalRepositoryTest {
     @Test
     fun `a create refused because the day got an entry elsewhere is a conflict`() =
         runBlocking {
+            // The server requires If-Match once the day has an entry: 428 Precondition Required.
+            server.enqueue(status(428))
+            server.enqueue(json(entryJson(body = "From the web")))
+
+            val result = journal.save(day, null, "Mine") as JournalSaveResult.Conflict
+
+            assertEquals("From the web", result.current!!.bodyMd)
+        }
+
+    @Test
+    fun `a create that loses the race against a concurrent create is a conflict`() =
+        runBlocking {
             server.enqueue(status(409))
             server.enqueue(json(entryJson(body = "From the web")))
 

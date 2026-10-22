@@ -106,8 +106,8 @@ class JournalRepository
 
         /**
          * Saves [bodyMd] as the entry of [date]: creates it ([base] `null`) or replaces [base], keeping its mood and
-         * tags. A refusal because the day changed elsewhere (`409`, `412`, or `404` when it was deleted) is a
-         * [JournalSaveResult.Conflict] with the server's current entry.
+         * tags. A refusal because the day changed elsewhere (`409`, `412`, `428` when a create finds an entry made
+         * elsewhere, or `404` when it was deleted) is a [JournalSaveResult.Conflict] with the server's current entry.
          */
         suspend fun save(
             date: LocalDate,
@@ -159,7 +159,7 @@ class JournalRepository
         private companion object {
             const val NOT_FOUND = 404
             const val SERVER_ERROR = 500
-            val CONFLICTS = setOf(NOT_FOUND, 409, 412)
+            val CONFLICTS = setOf(NOT_FOUND, 409, 412, 428)
         }
     }
 

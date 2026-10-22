@@ -178,7 +178,7 @@ class JournalViewModel internal constructor(
     /** Resolves the conflict with the text written here: it is saved over the server's entry (or as a new one). */
     fun keepMine() {
         val conflict = state.value.conflict ?: return
-        state.update { it.copy(entry = conflict.current, conflict = null, status = SaveStatus.UNSAVED) }
+        state.update { it.copy(entry = conflict.current, conflict = null).withStatus() }
         insertPendingImage(atCursor = true)
         saveSoon(0)
     }

@@ -97,6 +97,25 @@ class HabitsScreenTest {
     }
 
     @Test
+    fun `a done habit with a target above one shows no partial progress`() {
+        show(HabitsUiState(habits = listOf(water.copy(todayCount = 3, doneToday = true)), loading = false, loaded = true))
+
+        composeRule
+            .onNodeWithTag(HabitsTags.habit(water.id))
+            .assertIsOn()
+            .assertTextContains("Daily, 4-day streak, 75% of the last 30 days", substring = true)
+    }
+
+    @Test
+    fun `while loading for the first time only the progress bar shows`() {
+        show(HabitsUiState())
+
+        composeRule.onNodeWithTag(HabitsTags.LOADING).assertIsDisplayed()
+        composeRule.onNodeWithTag(HabitsTags.LIST).assertDoesNotExist()
+        composeRule.onNodeWithTag(HabitsTags.EMPTY).assertDoesNotExist()
+    }
+
+    @Test
     fun `without habits the screen says where to add them`() {
         show(HabitsUiState(loading = false, loaded = true))
 

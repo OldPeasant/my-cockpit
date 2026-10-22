@@ -181,6 +181,68 @@ class HabitsViewModelTest {
         }
 
     @Test
+    fun `two habits can be checked off at the same time, answers in reverse order`() =
+        runTest(dispatcher) {
+            val waterAnswer = CompletableDeferred<HabitsResult<Habit>>()
+            val stretchAnswer = CompletableDeferred<HabitsResult<Habit>>()
+            coEvery { repo.check(water, done = true) } coAnswers { waterAnswer.await() }
+            coEvery { repo.check(stretch, done = true) } coAnswers { stretchAnswer.await() }
+            val vm = HabitsViewModel(repo)
+            runCurrent()
+
+            vm.toggle(water.id)
+            vm.toggle(stretch.id)
+            runCurrent()
+            assertEquals(setOf(water.id, stretch.id), vm.uiState.value.checking)
+
+            stretchAnswer.complete(HabitsResult.Ok(stretch.copy(doneToday = true)))
+            runCurrent()
+            assertEquals(setOf(water.id), vm.uiState.value.checking)
+            waterAnswer.complete(HabitsResult.Offline)
+            advanceUntilIdle()
+
+            val state = vm.uiState.value
+            assertTrue(state.checking.isEmpty())
+            assertFalse(state.habits.first { it.id == water.id }.doneToday)
+            assertTrue(state.habits.first { it.id == stretch.id }.doneToday)
+            assertEquals(HabitsMessage.CHECK_OFFLINE, state.message)
+        }
+
+    @Test
+    fun `a check-off answered after a reload updates the reloaded list`() =
+        runTest(dispatcher) {
+            val renamed = water.copy(name = "Drink more water")
+            val answer = CompletableDeferred<HabitsResult<Habit>>()
+            coEvery { repo.list() } returnsMany listOf(HabitsResult.Ok(listOf(water, stretch)), HabitsResult.Ok(listOf(renamed)))
+            coEvery { repo.check(water, done = true) } coAnswers { answer.await() }
+            val vm = HabitsViewModel(repo)
+            runCurrent()
+
+            vm.toggle(water.id)
+            runCurrent()
+            vm.reload()
+            runCurrent()
+            assertEquals(listOf(renamed), vm.uiState.value.habits)
+
+            answer.complete(HabitsResult.Ok(renamed.copy(doneToday = true, todayCount = 1)))
+            advanceUntilIdle()
+            assertEquals(listOf(renamed.copy(doneToday = true, todayCount = 1)), vm.uiState.value.habits)
+            assertTrue(
+                vm.uiState.value.checking
+                    .isEmpty(),
+            )
+        }
+
+    @Test
+    fun `a reload while the list loads is ignored`() =
+        runTest(dispatcher) {
+            val vm = HabitsViewModel(repo)
+            vm.reload()
+            advanceUntilIdle()
+            coVerify(exactly = 1) { repo.list() }
+        }
+
+    @Test
     fun `an unknown habit is not checked`() =
         runTest(dispatcher) {
             val vm = HabitsViewModel(repo)

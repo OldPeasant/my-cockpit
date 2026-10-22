@@ -333,4 +333,190 @@ class JournalViewModelTest {
             advanceUntilIdle()
             assertEquals("Theirs\n$image\n", vm.uiState.value.body)
         }
+
+    @Test
+    fun `text typed while a save runs is saved next, over the version that save returned`() =
+        test { vm ->
+            val first = CompletableDeferred<JournalSaveResult>()
+            val v4 = loaded.copy(bodyMd = "A", version = 4)
+            coEvery { repo.save(day, loaded, "A") } coAnswers { first.await() }
+            coEvery { repo.save(day, v4, "AB") } returns saved("AB", 5)
+            runCurrent()
+            vm.setBody("A")
+            advanceTimeBy(1_001)
+            assertEquals(SaveStatus.SAVING, vm.uiState.value.status)
+
+            vm.setBody("AB")
+            advanceTimeBy(1_001)
+            // The second save waits for the first: nothing goes out over the old version twice.
+            coVerify(exactly = 1) { repo.save(any(), any(), any()) }
+            assertEquals(SaveStatus.UNSAVED, vm.uiState.value.status)
+
+            first.complete(JournalSaveResult.Saved(v4))
+            advanceUntilIdle()
+            coVerify(exactly = 1) { repo.save(day, v4, "AB") }
+            assertEquals("AB", vm.uiState.value.body)
+            assertEquals(
+                5L,
+                vm.uiState.value.entry!!
+                    .version,
+            )
+            assertEquals(SaveStatus.SAVED, vm.uiState.value.status)
+        }
+
+    @Test
+    fun `text typed while a save runs into a conflict is the text kept`() =
+        test { vm ->
+            val first = CompletableDeferred<JournalSaveResult>()
+            val theirs = loaded.copy(bodyMd = "From the web", version = 7)
+            coEvery { repo.save(day, loaded, "Mine") } coAnswers { first.await() }
+            coEvery { repo.save(day, theirs, "Mine and more") } returns saved("Mine and more", 8)
+            runCurrent()
+            vm.setBody("Mine")
+            advanceTimeBy(1_001)
+            vm.setBody("Mine and more")
+            first.complete(JournalSaveResult.Conflict(theirs))
+            advanceUntilIdle()
+
+            // The pending autosave did not go out over the conflict.
+            assertEquals(JournalConflict(theirs), vm.uiState.value.conflict)
+            assertEquals("Mine and more", vm.uiState.value.body)
+            coVerify(exactly = 1) { repo.save(any(), any(), any()) }
+
+            vm.keepMine()
+            advanceUntilIdle()
+            coVerify(exactly = 1) { repo.save(day, theirs, "Mine and more") }
+            assertEquals(SaveStatus.SAVED, vm.uiState.value.status)
+            assertTrue(vm.uiState.value.editable)
+        }
+
+    @Test
+    fun `writing goes on after a resolved conflict, over the kept version`() =
+        test { vm ->
+            val theirs = loaded.copy(bodyMd = "From the web", version = 7)
+            val kept = loaded.copy(bodyMd = "Mine", version = 8)
+            coEvery { repo.save(day, loaded, "Mine") } returns JournalSaveResult.Conflict(theirs)
+            coEvery { repo.save(day, theirs, "Mine") } returns JournalSaveResult.Saved(kept)
+            coEvery { repo.save(day, kept, "Mine, later") } returns saved("Mine, later", 9)
+            runCurrent()
+            vm.setBody("Mine")
+            advanceUntilIdle()
+            vm.keepMine()
+            advanceUntilIdle()
+
+            vm.setEditing(true)
+            assertTrue(vm.uiState.value.editing)
+            vm.setBody("Mine, later")
+            advanceUntilIdle()
+            coVerify(exactly = 1) { repo.save(day, kept, "Mine, later") }
+            assertEquals(SaveStatus.SAVED, vm.uiState.value.status)
+        }
+
+    @Test
+    fun `keeping my text when the server already has the same text ends as saved`() =
+        test { vm ->
+            // The first save reached the server, but its answer was lost: the retry then hits the new version.
+            val onServer = loaded.copy(bodyMd = "Mine", version = 4)
+            coEvery { repo.save(day, loaded, "Mine") } returnsMany
+                listOf(JournalSaveResult.Offline, JournalSaveResult.Conflict(onServer))
+            coEvery { repo.save(day, onServer, "Mine") } returns saved("Mine", 5)
+            runCurrent()
+            vm.setBody("Mine")
+            advanceUntilIdle()
+            vm.saveNow()
+            advanceUntilIdle()
+            assertEquals(JournalConflict(onServer), vm.uiState.value.conflict)
+
+            vm.keepMine()
+            advanceUntilIdle()
+            assertNull(vm.uiState.value.conflict)
+            assertEquals("Mine", vm.uiState.value.body)
+            // The text equals the server's entry: the screen must not claim unsaved changes that no save will ever take.
+            assertEquals(SaveStatus.SAVED, vm.uiState.value.status)
+        }
+
+    @Test
+    fun `discarding my text when the entry was deleted elsewhere leaves an empty day in the editor`() =
+        test { vm ->
+            coEvery { repo.save(day, loaded, "Mine") } returns JournalSaveResult.Conflict(null)
+            runCurrent()
+            vm.setBody("Mine")
+            advanceUntilIdle()
+
+            vm.useTheirs()
+            advanceUntilIdle()
+            val state = vm.uiState.value
+            assertNull(state.conflict)
+            assertNull(state.entry)
+            assertEquals("", state.body)
+            assertTrue(state.editing)
+            assertEquals(SaveStatus.SAVED, state.status)
+            coVerify(exactly = 1) { repo.save(any(), any(), any()) }
+        }
+
+    @Test
+    fun `a photo uploaded while a conflict came up goes in at the cursor when the user keeps their text`() =
+        test { vm ->
+            val image = "![lake.jpg](cockpit-file:$id)"
+            val upload = CompletableDeferred<JournalResult<String>>()
+            val theirs = loaded.copy(bodyMd = "Theirs", version = 7)
+            coEvery { repo.uploadImage(photo) } coAnswers { upload.await() }
+            coEvery { repo.save(day, loaded, "Mine here") } returns JournalSaveResult.Conflict(theirs)
+            coEvery { repo.save(day, theirs, any()) } answers { saved(thirdArg(), 8) }
+            runCurrent()
+            vm.setBody("Mine here")
+            vm.addPhoto(photo, at = 4)
+            advanceUntilIdle()
+            upload.complete(JournalResult.Ok(image))
+            advanceUntilIdle()
+
+            vm.keepMine()
+            advanceUntilIdle()
+            assertEquals("Mine\n$image\n here", vm.uiState.value.body)
+            coVerify(exactly = 1) { repo.save(day, theirs, "Mine\n$image\n here") }
+            assertEquals(SaveStatus.SAVED, vm.uiState.value.status)
+        }
+
+    @Test
+    fun `a second photo while one uploads is ignored`() =
+        test { vm ->
+            val upload = CompletableDeferred<JournalResult<String>>()
+            coEvery { repo.uploadImage(any()) } coAnswers { upload.await() }
+            runCurrent()
+            vm.addPhoto(photo)
+            runCurrent()
+            vm.addPhoto(NotePhoto(byteArrayOf(2), "image/jpeg", "hill.jpg"))
+            upload.complete(JournalResult.Offline)
+            advanceUntilIdle()
+            coVerify(exactly = 1) { repo.uploadImage(any()) }
+            assertFalse(vm.uiState.value.uploading)
+        }
+
+    @Test
+    fun `a load the server refused says so, and a retry is ignored once the entry is loaded`() =
+        test({ coEvery { repo.get(day) } returnsMany listOf(JournalResult.Failed(403), JournalResult.Ok(loaded)) }) { vm ->
+            runCurrent()
+            assertEquals(JournalMessage.LOAD_FAILED, vm.uiState.value.message)
+            assertFalse(vm.uiState.value.loading)
+            assertFalse(vm.uiState.value.editable)
+
+            vm.retryLoad()
+            runCurrent()
+            vm.retryLoad()
+            runCurrent()
+            coVerify(exactly = 2) { repo.get(day) }
+            assertTrue(vm.uiState.value.editable)
+        }
+
+    @Test
+    fun `saving again without changes sends nothing`() =
+        test { vm ->
+            runCurrent()
+            vm.saveNow()
+            vm.setEditing(true)
+            vm.setEditing(false)
+            advanceUntilIdle()
+            coVerify(exactly = 0) { repo.save(any(), any(), any()) }
+            assertEquals(SaveStatus.SAVED, vm.uiState.value.status)
+        }
 }
