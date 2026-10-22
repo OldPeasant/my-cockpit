@@ -1,7 +1,6 @@
 import { Routes } from '@angular/router';
-import { ComingSoon } from '../../shell/coming-soon';
+import { ReviewPage } from './review-page';
 
-// Placeholder until the review feature task replaces it.
 export default [
-  { path: '', title: $localize`:@@nav.review:Review`, component: ComingSoon },
+  { path: '', title: $localize`:@@nav.review:Review`, component: ReviewPage },
 ] satisfies Routes;

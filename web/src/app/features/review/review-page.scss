@@ -1,0 +1,247 @@
+:host {
+  display: block;
+}
+
+.note {
+  padding: var(--app-space-5) var(--app-space-4);
+  color: var(--app-fg-muted);
+}
+
+// Start and finish screens: the 8 steps as a quiet outline under the title.
+
+.intro {
+  max-width: 560px;
+  padding: var(--app-space-5) var(--app-space-4);
+
+  h1 {
+    margin: 0 0 var(--app-space-2);
+    font: var(--mat-sys-headline-medium);
+  }
+}
+
+.last {
+  margin: 0 0 var(--app-space-4);
+  color: var(--app-fg-muted);
+  font: var(--mat-sys-body-large);
+}
+
+.outline {
+  margin: 0 0 var(--app-space-5);
+  padding-left: var(--app-space-5);
+  color: var(--app-fg-muted);
+  font: var(--mat-sys-body-medium);
+  line-height: 1.8;
+}
+
+// The wizard: the step rail on the left, the step on the right.
+
+.wizard {
+  display: grid;
+  grid-template-columns: 220px minmax(0, 1fr);
+  gap: var(--app-space-5);
+  max-width: 1080px;
+  padding: var(--app-space-5) var(--app-space-4);
+}
+
+.rail ol {
+  position: sticky;
+  top: var(--app-space-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.rail li {
+  position: relative;
+
+  // The thread between the step numbers: solid up to the current step.
+  &:not(:last-child)::after {
+    content: '';
+    position: absolute;
+    top: 30px;
+    bottom: -6px;
+    left: 15px;
+    width: 2px;
+    background: var(--app-border);
+  }
+
+  &:has(.done)::after {
+    background: var(--app-accent);
+  }
+}
+
+.step {
+  display: flex;
+  align-items: center;
+  gap: var(--app-space-3);
+  width: 100%;
+  min-height: 44px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--app-fg-muted);
+  font: var(--mat-sys-body-medium);
+  text-align: left;
+  cursor: pointer;
+
+  &:hover:not(:disabled) .name {
+    color: var(--app-fg);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--app-accent);
+    outline-offset: 2px;
+    border-radius: var(--app-radius);
+  }
+
+  &:disabled {
+    cursor: default;
+  }
+}
+
+.num {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border: 2px solid var(--app-border);
+  border-radius: 50%;
+  background: var(--app-bg);
+  font: var(--mat-sys-label-large);
+  font-variant-numeric: tabular-nums;
+}
+
+.step.done .num {
+  border-color: var(--app-accent);
+  color: var(--app-accent);
+}
+
+.step[aria-current='step'] {
+  color: var(--app-fg);
+  font-weight: 600;
+
+  .num {
+    border-color: var(--app-accent);
+    background: var(--app-accent);
+    color: var(--mat-sys-on-primary);
+  }
+}
+
+.stage {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.stage-head {
+  padding-bottom: var(--app-space-3);
+  border-bottom: 1px solid var(--app-border);
+
+  h1 {
+    margin: 0;
+    font: var(--mat-sys-headline-medium);
+  }
+}
+
+.count {
+  margin: 0 0 var(--app-space-1);
+  color: var(--app-fg-muted);
+  font: var(--mat-sys-label-large);
+}
+
+.hint {
+  max-width: 64ch;
+  margin: var(--app-space-2) 0 0;
+  color: var(--app-fg-muted);
+  font: var(--mat-sys-body-large);
+}
+
+.body {
+  padding: var(--app-space-3) 0 var(--app-space-4);
+}
+
+.stage-foot {
+  position: sticky;
+  bottom: 0;
+  display: flex;
+  justify-content: space-between;
+  gap: var(--app-space-3);
+  padding: var(--app-space-3) 0;
+  border-top: 1px solid var(--app-border);
+  background: var(--app-bg);
+}
+
+button,
+a.secondary {
+  font: var(--mat-sys-label-large);
+}
+
+.primary,
+.secondary {
+  display: inline-flex;
+  align-items: center;
+  min-height: 40px;
+  padding: 0 var(--app-space-4);
+  border-radius: var(--app-radius);
+  text-decoration: none;
+  cursor: pointer;
+
+  &:focus-visible {
+    outline: 2px solid var(--app-accent);
+    outline-offset: 2px;
+  }
+
+  &:disabled {
+    cursor: default;
+    opacity: 0.45;
+  }
+}
+
+.primary {
+  border: 1px solid var(--app-accent);
+  background: var(--app-accent);
+  color: var(--mat-sys-on-primary);
+}
+
+.secondary {
+  border: 1px solid var(--app-border);
+  background: var(--app-surface-raised);
+  color: var(--app-fg);
+
+  &:hover:not(:disabled) {
+    border-color: var(--app-accent);
+  }
+}
+
+// Narrow screens: the rail becomes a row of step numbers above the step.
+
+@media (max-width: 720px) {
+  .wizard {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--app-space-3);
+  }
+
+  .rail ol {
+    position: static;
+    display: flex;
+    justify-content: space-between;
+  }
+
+  .rail li:not(:last-child)::after {
+    display: none;
+  }
+
+  .step {
+    width: auto;
+  }
+
+  .name {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+}

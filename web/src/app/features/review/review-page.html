@@ -1,0 +1,145 @@
+@switch (session.phase()) {
+  @case ('loading') {
+    <p class="note" i18n="@@review.loading">Loading…</p>
+  }
+  @case ('error') {
+    <div class="intro" role="alert">
+      <p class="note" i18n="@@review.pageError">The weekly review could not be loaded.</p>
+      <button type="button" class="secondary" (click)="session.load()" i18n="@@review.retry">
+        Try again
+      </button>
+    </div>
+  }
+  @case ('idle') {
+    <section class="intro" aria-labelledby="review-title">
+      <h1 id="review-title" i18n="@@review.title">Weekly review</h1>
+      <p class="last">
+        @if (session.daysSinceLast(); as days) {
+          <ng-container i18n="@@review.lastDays"
+            >Last weekly review: {days, plural, =1 {1 day} other {{{days}} days}} ago.</ng-container
+          >
+        } @else if (session.daysSinceLast() === 0) {
+          <ng-container i18n="@@review.lastToday">Last weekly review: today.</ng-container>
+        } @else {
+          <ng-container i18n="@@review.never">You haven't done a weekly review yet.</ng-container>
+        }
+      </p>
+      <ol class="outline">
+        @for (info of steps; track info.step) {
+          <li>{{ info.title }}</li>
+        }
+      </ol>
+      <button
+        type="button"
+        class="primary"
+        [disabled]="session.saving()"
+        (click)="session.start()"
+        i18n="@@review.start"
+      >
+        Start review
+      </button>
+    </section>
+  }
+  @case ('completed') {
+    <section class="intro" aria-labelledby="review-done-title">
+      <h1 id="review-done-title" i18n="@@review.doneTitle">Review complete</h1>
+      <p class="last" i18n="@@review.doneText">Your system is current. See you next week.</p>
+      <a class="secondary" routerLink="/" i18n="@@review.toDashboard">Go to the dashboard</a>
+    </section>
+  }
+  @case ('open') {
+    <div class="wizard">
+      <nav class="rail" aria-label="Review steps" i18n-aria-label="@@review.stepsLabel">
+        <ol>
+          @for (info of steps; track info.step; let i = $index) {
+            <li>
+              <button
+                type="button"
+                class="step"
+                [class.done]="i < session.index()"
+                [attr.aria-current]="i === session.index() ? 'step' : null"
+                [disabled]="session.saving()"
+                (click)="goTo(info.step)"
+              >
+                <span class="num" aria-hidden="true">{{ i + 1 }}</span>
+                <span class="name">{{ info.title }}</span>
+              </button>
+            </li>
+          }
+        </ol>
+      </nav>
+
+      <section class="stage" aria-labelledby="step-title">
+        <header class="stage-head">
+          <p class="count" i18n="@@review.stepOf">
+            Step {{ session.index() + 1 }} of {{ steps.length }}
+          </p>
+          <h1 id="step-title">{{ current().title }}</h1>
+          <p class="hint">{{ current().hint }}</p>
+        </header>
+
+        <div class="body">
+          @switch (session.step()) {
+            @case ('GET_CLEAR') {
+              <app-review-get-clear-step />
+            }
+            @case ('PAST_CALENDAR') {
+              <app-review-calendar-step range="past" />
+            }
+            @case ('UPCOMING_CALENDAR') {
+              <app-review-calendar-step range="upcoming" />
+            }
+            @case ('WAITING_FOR') {
+              <app-review-waiting-step />
+            }
+            @case ('PROJECTS') {
+              <app-review-projects-step />
+            }
+            @case ('NEXT_ACTIONS') {
+              <app-review-next-actions-step />
+            }
+            @case ('SOMEDAY') {
+              <app-review-someday-step />
+            }
+            @case ('REFLECTION') {
+              <app-review-reflection-step />
+            }
+          }
+        </div>
+
+        <footer class="stage-foot">
+          <button
+            type="button"
+            class="secondary"
+            [disabled]="!previous() || session.saving()"
+            (click)="goTo(previous())"
+            i18n="@@review.back"
+          >
+            Back
+          </button>
+          @if (next(); as nextStep) {
+            <button
+              type="button"
+              class="primary"
+              [disabled]="session.saving()"
+              (click)="goTo(nextStep)"
+              i18n="@@review.next"
+            >
+              Next step
+            </button>
+          } @else {
+            <button
+              type="button"
+              class="primary"
+              [disabled]="session.saving()"
+              (click)="session.complete()"
+              i18n="@@review.finish"
+            >
+              Finish review
+            </button>
+          }
+        </footer>
+      </section>
+    </div>
+  }
+}

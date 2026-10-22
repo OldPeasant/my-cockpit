@@ -1,0 +1,222 @@
+// Shared by the review steps: a list of items, each with its choices at the end of the line.
+
+:host {
+  display: block;
+}
+
+.status {
+  margin: 0 0 var(--app-space-2);
+  color: var(--app-fg-muted);
+  font: var(--mat-sys-body-medium);
+
+  &:empty {
+    display: none;
+  }
+}
+
+.empty {
+  margin: var(--app-space-4) 0;
+  color: var(--app-fg-muted);
+  list-style: none;
+}
+
+.aside {
+  max-width: 64ch;
+  margin: var(--app-space-3) 0 0;
+  color: var(--app-fg-muted);
+  font: var(--mat-sys-body-medium);
+
+  a {
+    color: var(--app-accent);
+  }
+}
+
+.items,
+.habits,
+.events {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.item {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--app-space-2) var(--app-space-3);
+  padding: var(--app-space-3) 0;
+  border-bottom: 1px solid var(--app-border);
+}
+
+.item.stalled {
+  box-shadow: inset 3px 0 0 var(--app-danger);
+  padding-left: var(--app-space-3);
+}
+
+.what {
+  display: grid;
+  gap: var(--app-space-1);
+  min-width: 0;
+  flex: 1 1 240px;
+}
+
+.title {
+  overflow-wrap: anywhere;
+  color: var(--app-fg);
+  font: var(--mat-sys-body-large);
+}
+
+a.title {
+  text-decoration: none;
+
+  &:hover {
+    text-decoration: underline;
+  }
+}
+
+.meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--app-space-2);
+  color: var(--app-fg-muted);
+  font: var(--mat-sys-body-small);
+}
+
+.flag {
+  color: var(--app-danger);
+  font-weight: 600;
+}
+
+.choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--app-space-2);
+}
+
+.choice {
+  display: inline-flex;
+  align-items: center;
+  min-height: 32px;
+  padding: 0 var(--app-space-3);
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius);
+  background: var(--app-surface-raised);
+  color: var(--app-fg);
+  font: var(--mat-sys-label-large);
+  white-space: nowrap;
+  cursor: pointer;
+
+  &:hover:not(:disabled) {
+    border-color: var(--app-accent);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--app-accent);
+    outline-offset: 2px;
+  }
+
+  &:disabled {
+    cursor: default;
+    opacity: 0.45;
+  }
+}
+
+.choice.danger:hover:not(:disabled) {
+  border-color: var(--app-danger);
+  color: var(--app-danger);
+}
+
+.inline,
+.capture {
+  display: flex;
+  gap: var(--app-space-2);
+  max-width: 520px;
+
+  input {
+    flex: 1;
+    min-width: 0;
+    min-height: 32px;
+    padding: 0 var(--app-space-2);
+    border: 1px solid var(--app-border);
+    border-radius: var(--app-radius);
+    background: var(--app-bg);
+    color: var(--app-fg);
+    font: var(--mat-sys-body-medium);
+
+    &:focus-visible {
+      outline: 2px solid var(--app-accent);
+      outline-offset: 0;
+    }
+  }
+}
+
+.capture {
+  margin-bottom: var(--app-space-3);
+}
+
+// Calendar steps: one block per day.
+
+.day {
+  padding: var(--app-space-2) 0;
+  border-bottom: 1px solid var(--app-border);
+
+  h3 {
+    margin: 0 0 var(--app-space-1);
+    font: var(--mat-sys-title-small);
+  }
+}
+
+.events li {
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr);
+  gap: var(--app-space-3);
+  padding: var(--app-space-1) 0;
+}
+
+.time {
+  color: var(--app-fg-muted);
+  font: var(--mat-sys-body-medium);
+  font-variant-numeric: tabular-nums;
+}
+
+// Reflection step.
+
+.habits li {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: var(--app-space-2);
+  padding: var(--app-space-2) 0;
+  border-bottom: 1px solid var(--app-border);
+}
+
+.reflection {
+  display: grid;
+  gap: var(--app-space-2);
+  margin-top: var(--app-space-4);
+  font: var(--mat-sys-label-large);
+
+  textarea {
+    width: 100%;
+    box-sizing: border-box;
+    padding: var(--app-space-2) var(--app-space-3);
+    border: 1px solid var(--app-border);
+    border-radius: var(--app-radius);
+    background: var(--app-bg);
+    color: var(--app-fg);
+    font: var(--mat-sys-body-large);
+    resize: vertical;
+
+    &:focus-visible {
+      outline: 2px solid var(--app-accent);
+      outline-offset: 0;
+    }
+  }
+}
+
+// The embedded inbox brings its own frame: drop its page padding.
+
+.embedded {
+  margin: 0 calc(-1 * var(--app-space-4));
+}
