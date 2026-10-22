@@ -292,6 +292,60 @@ class FilesRouteInAppTest {
         composeRule.onNodeWithText("Offline. The file could not be downloaded.").assertExists()
     }
 
+    /**
+     * Review CR-3: the save-as picker creates the document before anything is downloaded, so a save that is not carried
+     * out must not leave it behind empty. Whatever the fix (no save while downloading, the save queued, or the
+     * document discarded), the place the user chose never ends up with an empty file.
+     */
+    @Test
+    fun `saving another file while one downloads leaves no empty document where the user chose`() {
+        PickedFilesProvider.register()
+        val other = DriveEntry.File(id(4), "Quittung.pdf", "application/pdf", 10, Instant.parse("2026-10-02T09:00:00Z"))
+        coEvery { repo.list(null) } returns FilesResult.Ok(listOf(docs, pdf, other))
+        val gate = CompletableDeferred<Unit>()
+        coEvery { repo.download(pdf.id, any()) } coAnswers {
+            secondArg<() -> OutputStream?>()()!!.use { it.write("fictitious tax return".toByteArray()) }
+            gate.await()
+            FilesResult.Ok(21L)
+        }
+        coEvery { repo.download(other.id, any()) } coAnswers {
+            secondArg<() -> OutputStream?>()()!!.use { it.write("fictitious receipt".toByteArray()) }
+            FilesResult.Ok(18L)
+        }
+        openFiles()
+        composeRule.onNodeWithTag(FilesTags.entry(pdf.id)).performClick()
+        waitForTag(FilesTags.DOWNLOADING)
+
+        // The picker has created the (empty) document by the time its result arrives.
+        val created = PickedFilesProvider.file(ApplicationProvider.getApplicationContext(), "receipt.pdf").apply { writeText("") }
+        val request =
+            if (composeRule.onAllNodesWithTag(FilesTags.more(other.id)).fetchSemanticsNodes().isEmpty()) {
+                null
+            } else {
+                composeRule.onNodeWithTag(FilesTags.more(other.id)).performClick()
+                if (composeRule.onAllNodesWithTag(FilesTags.SAVE).fetchSemanticsNodes().isEmpty()) {
+                    null
+                } else {
+                    composeRule.onNodeWithTag(FilesTags.SAVE).performClick()
+                    composeRule.waitForIdle()
+                    shadowOf(activity()).nextStartedActivityForResult
+                }
+            }
+        if (request == null) {
+            // No save can start while a file downloads: no picker, so no document was created.
+            created.delete()
+            gate.complete(Unit)
+            return
+        }
+        shadowOf(activity()).receiveResult(request.intent, Activity.RESULT_OK, Intent().setData(PickedFilesProvider.uri("receipt.pdf")))
+        composeRule.waitForIdle()
+        gate.complete(Unit)
+        composeRule.waitUntil(WAIT_MS) { shadowOf(activity()).peekNextStartedActivity() != null }
+
+        val settled = runCatching { composeRule.waitUntil(WAIT_MS) { !created.exists() || created.length() > 0 } }.isSuccess
+        assertTrue("the save-as document for ${other.name} was left empty and nothing said so", settled)
+    }
+
     @Test
     fun `a cancelled save-as picker downloads nothing`() {
         openFiles()

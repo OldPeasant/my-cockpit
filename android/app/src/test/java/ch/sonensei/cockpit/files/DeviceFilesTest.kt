@@ -78,6 +78,28 @@ class DeviceFilesTest {
     }
 
     @Test
+    fun `two-byte characters count as two bytes and are never cut in half`() {
+        // 150 umlauts are 300 bytes; with ".txt" (4 bytes) 98 of them fit into 200.
+        val umlauts = OpenedFiles.safeName("ä".repeat(150) + ".txt")
+        assertEquals("ä".repeat(98) + ".txt", umlauts)
+        assertEquals(200, umlauts.toByteArray(Charsets.UTF_8).size)
+
+        // An odd budget: 1 + 99 * 2 = 199 bytes, the next umlaut would make 201.
+        val odd = OpenedFiles.safeName("x" + "ä".repeat(150))
+        assertEquals("x" + "ä".repeat(99), odd)
+        assertEquals(199, odd.toByteArray(Charsets.UTF_8).size)
+    }
+
+    @Test
+    fun `an extension of up to 16 characters is kept, a longer one is cut like the rest of the name`() {
+        val sixteen = "." + "y".repeat(15)
+        assertEquals("x".repeat(200 - sixteen.length) + sixteen, OpenedFiles.safeName("x".repeat(300) + sixteen))
+
+        val seventeen = "." + "y".repeat(16)
+        assertEquals("x".repeat(200), OpenedFiles.safeName("x".repeat(300) + seventeen))
+    }
+
+    @Test
     fun `a long name written to the cache can be opened`() {
         val file = OpenedFiles.target(context, id(6), "税".repeat(100) + ".pdf").apply { writeText("pdf") }
         assertTrue(file.name.endsWith(".pdf"))

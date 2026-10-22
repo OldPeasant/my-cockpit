@@ -231,6 +231,38 @@ class FilesViewModelTest {
         }
 
     @Test
+    fun `a save cancelled with the screen discards the chosen document`() =
+        runTest(dispatcher) {
+            coEvery { repo.download(pdf.id, any()) } coAnswers { CompletableDeferred<FilesResult<Long>>().await() }
+            val store = ViewModelStore()
+            val factory = viewModelFactory { initializer { FilesViewModel(repo, dispatcher) } }
+            val vm = ViewModelProvider(store, factory)[FilesViewModel::class.java]
+            var discarded = 0
+            vm.save(pdf, { null }) { discarded++ }
+            advanceUntilIdle()
+            assertEquals("discarded while still downloading", 0, discarded)
+
+            store.clear()
+            advanceUntilIdle()
+            assertEquals(1, discarded)
+        }
+
+    @Test
+    fun `a discard that fails does not hide why the save failed, and the next save still works`() =
+        runTest(dispatcher) {
+            coEvery { repo.download(pdf.id, any()) } returnsMany listOf(FilesResult.Offline, FilesResult.Ok(3L))
+            val vm = FilesViewModel(repo, dispatcher)
+            vm.save(pdf, { null }) { throw IllegalStateException("fictitious: the provider is gone") }
+            advanceUntilIdle()
+            assertEquals(FilesMessage.OFFLINE, vm.uiState.value.downloadMessage)
+            assertNull(vm.uiState.value.downloading)
+
+            vm.save(pdf, { null })
+            advanceUntilIdle()
+            assertEquals(FilesEvent.Saved("2025.pdf"), vm.events.first())
+        }
+
+    @Test
     fun `saving reports the saved file`() =
         runTest(dispatcher) {
             coEvery { repo.download(pdf.id, any()) } returns FilesResult.Ok(3L)
