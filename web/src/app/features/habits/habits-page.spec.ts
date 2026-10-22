@@ -843,4 +843,109 @@ describe('HabitsPage', () => {
     expect(root.querySelector('.load-error')).toBeNull();
     expect(checkButton(READ).disabled).toBe(false);
   });
+
+  it('drops the reload on becoming visible when it answers while a check is still running', async () => {
+    await create([WATER]);
+
+    becomeVisible();
+    await settle();
+    const reloadReq = http.expectOne((r) => r.method === 'GET');
+    checkButton(WATER).click();
+    const put = http.expectOne((r) => r.method === 'PUT');
+    expect(put.request.body).toEqual({ count: 2 });
+
+    // The reload answers first, with a count read before the check reached the server.
+    reloadReq.flush({ items: [{ ...WATER, stats: { ...WATER.stats, todayCount: 0 } }] });
+    await settle();
+    expect(text(checkButton(WATER))).toBe('1/3');
+
+    put.flush({ ...WATER, stats: { ...WATER.stats, todayCount: 2 } });
+    await settle();
+    expect(text(checkButton(WATER))).toBe('2/3');
+
+    // The next tap counts on from the check, not from the stale reload.
+    checkButton(WATER).click();
+    const next = http.expectOne((r) => r.method === 'PUT');
+    expect(next.request.body).toEqual({ count: 3 });
+    next.flush({ ...WATER, stats: { ...WATER.stats, todayCount: 3, doneToday: true } });
+    await settle();
+  });
+
+  it('does not bring back a habit archived while the reload on becoming visible is pending', async () => {
+    await create([READ, WATER]);
+
+    becomeVisible();
+    await settle();
+    const reloadReq = http.expectOne((r) => r.method === 'GET');
+    (row(READ).querySelector('.archive') as HTMLButtonElement).click();
+    http.expectOne((r) => r.method === 'PATCH').flush({ ...READ, archived: true, version: 2 });
+    await settle();
+    expect(row(READ)).toBeNull();
+
+    reloadReq.flush({ items: [READ, WATER] });
+    await settle();
+    expect(row(READ)).toBeNull();
+    expect(row(WATER)).not.toBeNull();
+  });
+
+  it('keeps a saved edit when an earlier conflict reload answers after the save', async () => {
+    await create([READ, WATER]);
+    await openEditAndType(READ, 'Read 30 pages');
+
+    // A conflict on another habit starts a quiet reload.
+    checkButton(WATER).click();
+    http.expectOne((r) => r.method === 'PUT').flush(...problem(409, 'Changed elsewhere.'));
+    await settle();
+    const reloadReq = http.expectOne((r) => r.method === 'GET');
+
+    await clickSave(READ);
+    http
+      .expectOne((r) => r.method === 'PATCH')
+      .flush({ ...READ, name: 'Read 30 pages', version: 2 });
+    await settle();
+    expect(text(row(READ).querySelector('.name'))).toBe('Read 30 pages');
+
+    // The reload was read before the save: the saved name and version stay.
+    reloadReq.flush({ items: [READ, WATER] });
+    await settle();
+    expect(text(row(READ).querySelector('.name'))).toBe('Read 30 pages');
+    expect(text(row(WATER).querySelector('.error'))).toContain('Changed elsewhere.');
+
+    (row(READ).querySelector('.edit') as HTMLButtonElement).click();
+    await settle();
+    await clickSave(READ);
+    const resave = http.expectOne((r) => r.method === 'PATCH');
+    expect(resave.request.headers.get('If-Match')).toBe('"2"');
+    resave.flush({ ...READ, name: 'Read 30 pages', version: 3 });
+    await settle();
+  });
+
+  it('keeps a created habit when an earlier conflict reload answers after the create', async () => {
+    await create([READ]);
+    (root.querySelector('.new') as HTMLButtonElement).click();
+    await settle();
+
+    checkButton(READ).click();
+    http.expectOne((r) => r.method === 'PUT').flush(...problem(412, 'Outdated version.'));
+    await settle();
+    const reloadReq = http.expectOne((r) => r.method === 'GET');
+
+    const input = root.querySelector('.new-form .name input') as HTMLInputElement;
+    input.value = 'Meditate';
+    input.dispatchEvent(new Event('input'));
+    (root.querySelector('.new-form .save') as HTMLButtonElement).click();
+    await settle();
+    const meditate = habit('0192f0c4-0000-7000-8000-000000000009', { name: 'Meditate' });
+    http
+      .expectOne((r) => r.method === 'POST')
+      .flush(meditate, { status: 201, statusText: 'Created' });
+    await settle();
+
+    reloadReq.flush({ items: [READ] });
+    await settle();
+    expect([...root.querySelectorAll('.habit .name')].map(text)).toEqual([
+      'Meditate',
+      'Read 20 pages',
+    ]);
+  });
 });
