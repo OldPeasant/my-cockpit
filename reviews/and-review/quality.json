@@ -1,13 +1,13 @@
 {
   "schema": 1,
   "task": "and-review",
-  "reviewed_revision": "1abe0c84a50923289e8c4d5039bb524ae1b4a7c1",
+  "reviewed_revision": "f50f26c08d02d08d5e005e53a93636f0204ddc03",
   "helpers": {
     "test-writer": {"status": "completed", "report": "reviews/and-review/tests.md"},
     "code-reviewer": {"status": "completed", "report": "reviews/and-review/review.md"},
-    "fixer": {"status": "not_required", "reason": "no production defects: CR-1 accepted (P3 wording, same as contacts), CR-2 resolved by test-only changes (rename, view model supersede test)"}
+    "fixer": {"status": "completed", "report": "reviews/and-review/fixes.md"}
   },
-  "fixes_required": false,
+  "fixes_required": true,
   "findings": [
     {"id": "CR-1", "source": "code-reviewer", "severity": "P3", "disposition": "accepted",
      "note": "offline banner says 'Showing the last loaded review' also when nothing was loaded yet; same wording as contacts, minor"},
