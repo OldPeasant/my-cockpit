@@ -11,7 +11,8 @@ lease_until: 2026-10-22T12:18:44Z
 Journal and habits on the phone (SPEC.md §9.2 item 8).
 
 ## Acceptance criteria
-- [ ] Today's journal entry with photo, habit check-off list
+- [x] Today's journal entry with photo, habit check-off list
+  - verified (2026-10-22 14:00+0200 by dell26/agent-1): cd android && ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.journal.*' --tests 'ch.sonensei.cockpit.habits.*' (Robolectric) -> 76 passed: JournalRouteInAppTest/HabitsRouteInAppTest open More > Journal / Habits in MainActivity (Hilt, repository mocked) and show today's entry, save edited text, check a habit off; JournalViewModelTest/JournalScreenTest cover photo upload + insertion at the cursor and the camera/gallery buttons; Journal/HabitsRepositoryTest check the HTTP calls (PUT entries/{date} with If-Match, POST journal/images multipart, PUT habits/{id}/checks/{today}) against MockWebServer. Not run on a device/emulator (no SDK access in this session), so the system camera/gallery picker itself was not exercised
 - [ ] `cd android && ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.journal.*'` passes, covering entry autosave (Robolectric/Compose UI tests for screens); `habits` check-off
 
 ## Notes
