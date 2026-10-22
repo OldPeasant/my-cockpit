@@ -80,8 +80,10 @@ data class MailComposeUiState(
     val invalid: Set<RecipientField> = emptySet(),
     /** Leaving failed to save: the screen offers to leave without saving. */
     val leaveBlocked: Boolean = false,
+    /** Back was pressed and the draft is being saved: edits, send and discard wait for the screen to close. */
+    val leaving: Boolean = false,
 ) {
-    val editable: Boolean get() = phase == ComposePhase.EDITING
+    val editable: Boolean get() = phase == ComposePhase.EDITING && !leaving
 
     /** Sent, discarded or left: the screen closes. */
     val ended: Boolean get() = phase == ComposePhase.SENT || phase == ComposePhase.CLOSED

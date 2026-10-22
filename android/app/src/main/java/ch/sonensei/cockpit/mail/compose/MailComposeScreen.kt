@@ -252,7 +252,7 @@ private fun Toolbar(
                 )
                 DropdownMenuItem(
                     text = { Text(stringResource(R.string.mail_compose_discard)) },
-                    enabled = state.phase == ComposePhase.EDITING || state.phase == ComposePhase.STARTING,
+                    enabled = (state.phase == ComposePhase.EDITING || state.phase == ComposePhase.STARTING) && !state.leaving,
                     onClick = {
                         menu = false
                         callbacks.discard()

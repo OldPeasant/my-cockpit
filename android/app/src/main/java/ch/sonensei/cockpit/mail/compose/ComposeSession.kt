@@ -40,6 +40,9 @@ internal class ComposeSession(
     /** The autosave while it waits; `null` once its save runs, so that save is never cancelled half-way. */
     private var autosave: Job? = null
 
+    /** The start while it runs: a retry meanwhile would prepare a second reply draft. */
+    private var loading: Job? = null
+
     private val dirty get() = edits != savedEdits
 
     fun update(change: (MailComposeUiState) -> MailComposeUiState) {
@@ -48,39 +51,40 @@ internal class ComposeSession(
     }
 
     fun retry() {
-        if (stored == null && !value.ended) load()
+        if (stored == null && !value.ended && loading?.isActive != true) load()
     }
 
     fun load() {
-        scope.launch {
-            if (mode is ComposeMode.New) {
-                val accounts = repository.accounts()
-                if (value.ended) return@launch
-                update { s ->
-                    val list = (accounts as? MailResult.Ok)?.value ?: s.accounts
-                    val chosen = s.accountId ?: mode.accountId?.takeIf { id -> list.isEmpty() || list.any { it.id == id } }
-                    s.copy(
-                        phase = ComposePhase.EDITING,
-                        accounts = list,
-                        accountId = chosen ?: list.firstOrNull()?.id,
-                        problem =
-                            when {
-                                accounts is MailResult.Offline -> ComposeProblem.OFFLINE
-                                accounts is MailResult.Ok && list.isEmpty() -> ComposeProblem.NO_ACCOUNT
-                                accounts is MailResult.Failed -> ComposeProblem.START_FAILED
-                                else -> null
-                            },
-                    )
+        loading =
+            scope.launch {
+                if (mode is ComposeMode.New) {
+                    val accounts = repository.accounts()
+                    if (value.ended) return@launch
+                    update { s ->
+                        val list = (accounts as? MailResult.Ok)?.value ?: s.accounts
+                        val chosen = s.accountId ?: mode.accountId?.takeIf { id -> list.isEmpty() || list.any { it.id == id } }
+                        s.copy(
+                            phase = ComposePhase.EDITING,
+                            accounts = list,
+                            accountId = chosen ?: list.firstOrNull()?.id,
+                            problem =
+                                when {
+                                    accounts is MailResult.Offline -> ComposeProblem.OFFLINE
+                                    accounts is MailResult.Ok && list.isEmpty() -> ComposeProblem.NO_ACCOUNT
+                                    accounts is MailResult.Failed -> ComposeProblem.START_FAILED
+                                    else -> null
+                                },
+                        )
+                    }
+                    return@launch
                 }
-                return@launch
+                update { it.copy(phase = ComposePhase.STARTING, problem = null) }
+                when (val result = repository.start(mode)) {
+                    is MailResult.Ok -> prepared(result.value)
+                    MailResult.Offline -> if (!value.ended) update { it.copy(problem = ComposeProblem.OFFLINE) }
+                    is MailResult.Failed -> if (!value.ended) update { it.copy(problem = ComposeProblem.START_FAILED) }
+                }
             }
-            update { it.copy(phase = ComposePhase.STARTING, problem = null) }
-            when (val result = repository.start(mode)) {
-                is MailResult.Ok -> prepared(result.value)
-                MailResult.Offline -> if (!value.ended) update { it.copy(problem = ComposeProblem.OFFLINE) }
-                is MailResult.Failed -> if (!value.ended) update { it.copy(problem = ComposeProblem.START_FAILED) }
-            }
-        }
     }
 
     /** The reply or forward the server prepared; left meanwhile, it is discarded like any untouched one. */
@@ -185,15 +189,25 @@ internal class ComposeSession(
         return if (result.isStale()) overwrite(current, content) else result
     }
 
-    /** Stores [content] over the newest version of [current], keeping those of its attachments that still exist. */
+    /**
+     * Stores [content] over the newest version of [current], keeping those of its attachments that still exist. Part ids
+     * change between versions, so the kept ones (part ids of [current]) are found in the newest version by name, size
+     * and kind; of equal ones, one is kept per kept one.
+     */
     private suspend fun overwrite(
         current: Draft,
         content: DraftContent,
     ): MailResult<Draft> =
         when (val fresh = repository.get(current.id)) {
             is MailResult.Ok -> {
-                val kept = fresh.value.attachments.map { it.partId }
-                repository.update(current.id, fresh.value.etag, content.copy(keep = content.keep.filter { it in kept }))
+                val wanted = content.keep.mapNotNull { id -> current.attachments.firstOrNull { it.partId == id } }.toMutableList()
+                val keep =
+                    fresh.value.attachments
+                        .filter { a ->
+                            val match = wanted.firstOrNull { it.sameFileAs(a) }
+                            match != null && wanted.remove(match)
+                        }.map { it.partId }
+                repository.update(current.id, fresh.value.etag, content.copy(keep = keep))
             }
             else -> fresh
         }
@@ -330,7 +344,7 @@ internal class ComposeSession(
 
     fun discard() {
         val s = value
-        if (s.phase == ComposePhase.SENDING || s.ended) return
+        if (s.phase == ComposePhase.SENDING || s.ended || s.leaving) return
         cancelAutosave()
         scope.launch {
             val done =
@@ -351,6 +365,7 @@ internal class ComposeSession(
 
     fun leave() {
         val s = value
+        if (s.leaving) return
         when (s.phase) {
             ComposePhase.SENDING, ComposePhase.SENT, ComposePhase.CLOSED -> return
             ComposePhase.STARTING -> {
@@ -361,14 +376,18 @@ internal class ComposeSession(
             ComposePhase.EDITING -> Unit
         }
         cancelAutosave()
+        // Locked while the draft is saved: a send or an edit meanwhile would be closed away unseen.
+        update { it.copy(leaving = true, leaveBlocked = false) }
         scope.launch {
             if (!touched && stored != null && mode !is ComposeMode.New) {
                 writes.withLock { stored?.let { discardStored(it) } }
-                update { it.copy(phase = ComposePhase.CLOSED) }
+                update { it.copy(phase = ComposePhase.CLOSED, leaving = false) }
                 return@launch
             }
             val saved = !dirty || store()
-            update { if (saved) it.copy(phase = ComposePhase.CLOSED) else it.copy(leaveBlocked = true) }
+            update {
+                if (saved) it.copy(phase = ComposePhase.CLOSED, leaving = false) else it.copy(leaving = false, leaveBlocked = true)
+            }
         }
     }
 
@@ -392,7 +411,11 @@ internal fun List<DraftAttachment>.withoutRemoved(
     val removed = before.filterNot { b -> now.any { it.partId == b.partId } }.toMutableList()
     if (removed.isEmpty()) return this
     return filterNot { a ->
-        val match = removed.firstOrNull { it.name == a.name && it.sizeBytes == a.sizeBytes && it.inline == a.inline }
+        val match = removed.firstOrNull { it.sameFileAs(a) }
         match != null && removed.remove(match)
     }
 }
+
+/** The same file in another version of the draft (part ids change between versions). */
+private fun DraftAttachment.sameFileAs(other: DraftAttachment) =
+    name == other.name && sizeBytes == other.sizeBytes && inline == other.inline
