@@ -410,6 +410,29 @@ class PasskeyViewModelsTest {
         }
 
     @Test
+    fun `a passkey added after the list failed to load is listed, and the retry stays offered`() =
+        runTest(dispatcher) {
+            coEvery { passkeys.list() } returns null
+            coEvery { passkeys.register(any(), any(), any()) } returns PasskeyRegistrationResult.Success(PASSKEY)
+            val viewModel = PasskeySettingsViewModel(passkeys)
+            advanceUntilIdle()
+            assertTrue(viewModel.uiState.value.loadFailed)
+
+            viewModel.openForm()
+            viewModel.onCodeChange("123456")
+            viewModel.submit(credentials)
+            advanceUntilIdle()
+
+            val state = viewModel.uiState.value
+            assertEquals(listOf(PASSKEY), state.passkeys)
+            assertEquals("Pixel", state.added)
+            // Older passkeys are still unknown: the list is incomplete, so the failure and its retry remain.
+            assertTrue(state.loadFailed)
+            // No load was running, so the registration starts none.
+            coVerify(exactly = 1) { passkeys.list() }
+        }
+
+    @Test
     fun `a passkey name is capped at the server's 100 characters`() =
         runTest(dispatcher) {
             coEvery { passkeys.list() } returns emptyList()

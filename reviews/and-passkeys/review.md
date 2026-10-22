@@ -4,22 +4,35 @@ Date: 2026-10-22
 
 Task: and-passkeys - Android passkeys (passkey login via Credential Manager, registration from settings)
 
-Scope: `git diff b876b933c..HEAD` (implementation commit 7dfbb43ed, merged by 741e5dcbd), committed changes only
+Scope: re-review of the final code. Task commits between base 870413dd0 and b1daad478: f29f54305 (implementation), 0948e3615 (follow-up task deploy-assetlinks), a334707fa (earlier review report), b1daad478 (fixes for CR-2..CR-5). Committed changes only. This report supersedes the earlier review of this task (findings CR-1..CR-5); see "Status of previous findings".
+
+Scope notes:
+- The supplied range `870413dd0..b1daad478` also contains the and-review task's commits (bcb2b04c3..6b0273eee, already done and reviewed under `reviews/and-review/`). Those files (`android/.../review/*`, `strings_review.xml`, `reviews/and-review/*`, `tasks/and-review.md`) are not part of this task and were not reviewed. The task diff reviewed is `git diff 1726672a3..b1daad478` (1726672a3 = merge base with main for these commits).
+- During the review the local branch was rebased: HEAD is now ee040f481 with the same four task commits (`git range-diff` shows them identical; `git diff b1daad478 ee040f481 -- android` is empty), so the findings apply unchanged to ee040f481.
+- The working tree has uncommitted test edits (`InAppPasskeyTest.kt`, `PasskeyViewModelsTest.kt`), presumably from a test-writer run in progress; they were not reviewed.
 
 Requirements:
-- tasks/and-passkeys.md acceptance criteria and recorded assumption (settings list and add passkeys only; deletion stays in the web app)
-- SPEC.md §4.1 (Android login: password+TOTP or passkey via Credential Manager), §9.2 item 1
-- docs/ARCHITECTURE.md (passkey environment variables row), AGENTS.md project notes
-- api/openapi.yaml `/api/v1/auth/passkeys*` operations and schemas
-- server `core.auth.passkey.api.PasskeyDtos` (request validation), tasks/passkeys-server.md, tasks/deploy-passkey-env.md
+- tasks/and-passkeys.md acceptance criteria and recorded assumptions (settings list and add passkeys only; Digital Asset Links left to deploy-assetlinks)
+- SPEC.md §4.1 (Android login: password+TOTP or passkey via Credential Manager, tokens in Keystore-backed storage), §9.2 item 1
+- api/openapi.yaml `/api/v1/auth/passkeys`, `/authentication/options`, `/token`, `/registration/options`, `/registration` operations and the `Passkey*` schemas
+- docs/ARCHITECTURE.md (passkey environment variables row), AGENTS.md project notes (touches, lint, logging, assumptions)
+- tasks/deploy-assetlinks.md (follow-up for CR-1)
 
 Git range:
 - Branch: main
-- HEAD: 741e5dcbd0bf374e915504699d8c4157e71e8717
-- Base/start: b876b933c8bab901bf8a0bd756d884c111a3bba3
-- Commits reviewed: 1 (7dfbb43ed; 741e5dcbd is the merge of it)
+- HEAD: b1daad4784f3d51d1445822c229554cd9f3dff03 (rebased meanwhile to ee040f481, patch-identical)
+- Base/start: 870413dd0d59738dece5252f2c47b2dca2d97018 (task merge base 1726672a3c9754c2e625b3a690f3aed51a48b7a9)
+- Commits reviewed: 4 (f29f54305, 0948e3615, a334707fa, b1daad478)
 
-Summary: 0 P0, 1 P1, 1 P2, 3 P3
+Summary: 0 P0, 0 P1, 0 P2, 1 P3
+
+## Status of previous findings
+
+- **CR-1 (P1) Digital Asset Links not provided or tracked** - Resolved as tracked. `tasks/deploy-assetlinks.md` exists (deps and-passkeys, deploy-passkey-env; criteria cover serving `/.well-known/assetlinks.json`, env configuration and the `android:apk-key-hash` origin), and the assumption is recorded in `tasks/and-passkeys.md`. The end-to-end flow on a real install still depends on that task; see the note on criterion 1 evidence below.
+- **CR-2 (P2) Passkey name not limited to 100 characters** - Fixed. `PasskeyForm.NAME_MAX = 100`; `onNameChange` truncates (`PasskeySettingsViewModel.kt:84`) and `canSubmit` checks the trimmed length (`:33`), so no over-long name reaches the authenticator. The default name is already capped (`AuthRepository.DEVICE_NAME_MAX`). Covered by `a passkey name is capped at the server's 100 characters`.
+- **CR-3 (P3) 400 from the token endpoint showed "Fill in every field"** - Fixed. `PasskeyRepository.kt:279` maps 400 to `LoginResult.PasskeyFailed`; the test expectation in `token answers map to login results` was changed accordingly (intended behavior change, not a weakened test).
+- **CR-4 (P3) Late list answer could overwrite a newly added passkey** - Fixed. `load()` cancels the running `loadJob` (`PasskeySettingsViewModel.kt:71`); a successful registration cancels a running load and starts a fresh one (`:97-102`). Retrofit/`CompletableDeferred` resumption after cancellation throws, so the stale answer never reaches `state.update`. Covered by `a list that answers after a registration does not hide the new passkey` and `a new load replaces a running one, so an older answer never wins`.
+- **CR-5 (P3) Settings column did not scroll** - Fixed. `SettingsScreen.kt:22` uses `fillMaxSize().verticalScroll(...)`; `verticalScroll` keeps the minimum height from `fillMaxSize`, so the `weight(1f)` placeholder fills free space when content fits and shrinks to zero otherwise, keeping logout reachable by scrolling. No automated scroll test; the change is two lines and reasoned correctly in `fixes.md`. The file lies outside the task's `touches` (as did the original 2-line insertion of the passkey section, which criterion 1 requires); no other open task touches it.
 
 ## P0 Critical
 
@@ -27,47 +40,29 @@ None.
 
 ## P1 High
 
-- [ ] **CR-1 | Digital Asset Links for the passkey RP ID are neither provided nor tracked, so Android passkey login cannot work in a real deployment**
-    - File: `android/app/src/main/java/ch/sonensei/cockpit/auth/PasskeyCredentials.kt:72` (consumer); missing on the server/deploy side
-    - Category: Integration
-    - Problem: Credential Manager only performs WebAuthn get/create for an RP ID when the domain serves `/.well-known/assetlinks.json` that associates this app (`delegate_permission/common.get_login_creds` with the signing cert fingerprint). The `passkeys-server` task explicitly recorded "Android's /.well-known/assetlinks.json is left to deployment/and-passkeys". This task does not add it, there is no assetlinks handling anywhere in the repository (server, `deploy/Caddyfile`, web), no follow-up task exists (`deploy-passkey-env` only forwards `COCKPIT_AUTH_PASSKEY_*`), and no assumption was recorded on this task. Without it every passkey request ends in the authenticator error path (shown as "passkey could not be used" / "could not be created").
-    - Why it matters: criterion 1 ("Login with passkey; registration from settings") is only satisfied in unit tests with a fake authenticator; the end-to-end flow is blocked by an untracked integration dependency that was handed to this task. Criterion 1 currently has no recorded evidence either (`tasks.py verify and-passkeys` shows both unticked).
-    - Suggested fix: at minimum, create a follow-up task (serve `assetlinks.json` for `COCKPIT_DOMAIN` with the app package and configurable SHA-256 cert fingerprint, document it next to `COCKPIT_AUTH_PASSKEY_ORIGINS`) and record an assumption on this task; when verifying criterion 1, either run it against a real stack with assetlinks and the Android origin configured, or mark it skipped with that reason rather than citing unit tests.
+None.
 
 ## P2 Medium
 
-- [ ] **CR-2 | Passkey name is not limited to the server's 100 characters; an over-long name creates an orphaned passkey on the device**
-    - File: `android/app/src/main/java/ch/sonensei/cockpit/auth/PasskeySettings.kt:180`, `android/app/src/main/java/ch/sonensei/cockpit/auth/PasskeySettingsViewModel.kt:32`, `android/app/src/main/java/ch/sonensei/cockpit/auth/PasskeyRepository.kt:191`
-    - Category: Correctness
-    - Problem: `PasskeyRegistrationRequest.name` has `maxLength: 100` (server `@Size(max = 100)`), but the name field accepts any length and `PasskeyForm.canSubmit` only checks non-blank. The name is first sent in the final `finishPasskeyRegistration` call, after the authenticator has already created and stored the credential. The server then answers 400, which maps to `Failed` ("The passkey could not be created. Try again."); retrying with the same name repeats this.
-    - Why it matters: each attempt leaves a passkey in the user's credential provider that the server never registered (it later fails login with 401), and the error message does not tell the user what to change.
-    - Suggested fix: cap the input at 100 characters (as `deviceName()` already does with `DEVICE_NAME_MAX`) and/or include the length in `canSubmit`; add a view model test for the boundary.
+None.
 
 ## P3 Low
 
-- [ ] **CR-3 | A 400 from the passkey token endpoint shows the password form's "Fill in every field" message**
-    - File: `android/app/src/main/java/ch/sonensei/cockpit/auth/PasskeyRepository.kt:146`
+- [ ] **CR-6 | After a failed list load, a successful registration shows only the new passkey as the list**
+    - File: `android/app/src/main/java/ch/sonensei/cockpit/auth/PasskeySettingsViewModel.kt:97-102`
     - Category: Correctness
-    - Problem: passkey login maps 400 to `LoginResult.InvalidRequest`, rendered as `login_error_invalid_request` ("... Fill in every field and try again."), although the passkey flow needs only the server address and the 400 is caused by a malformed assertion/ceremony.
-    - Why it matters: misleading guidance; the user cannot fix it by filling fields.
-    - Suggested fix: map 400 to `PasskeyFailed` (or `ServerError`) in the passkey path.
+    - Problem: if the initial `list()` failed (`passkeys == null`, `loadFailed == true`, `loadJob` completed), `submit` sees `stale == false`, sets `passkeys = emptyList() + result.passkey` and does not reload. The section then renders a one-entry list (the new passkey) next to "Your passkeys could not be loaded. Retry", although the user may have several passkeys.
+    - Why it matters: a list that looks complete but is not; recoverable through Retry and the failure text stays visible, hence low priority.
+    - Suggested fix: also reload after success when the list was never loaded or the last load failed (e.g. `val stale = loadJob?.isActive == true || it.passkeys == null || it.loadFailed`), and add a view model test for that path.
 
-- [ ] **CR-4 | Passkey list load can overwrite a passkey just added**
-    - File: `android/app/src/main/java/ch/sonensei/cockpit/auth/PasskeySettingsViewModel.kt:63-65` and `:85-87`
-    - Category: Correctness
-    - Problem: `load()` and `submit()` both write `passkeys` without shared request identity. If a (slow or retried) list request was answered before the registration finished but is delivered after it, `passkeys ?: it.passkeys` replaces the list that already contains the new passkey. Repeated Retry taps also start parallel loads with no ordering.
-    - Why it matters: the confirmation says the passkey was added while the list does not show it until the next reload. Low probability on normal networks.
-    - Suggested fix: cancel the running load job when starting a new load or after a successful registration (or reload after success).
+## Notes for the parent worker
 
-- [ ] **CR-5 | Settings column does not scroll as the passkey list grows**
-    - File: `android/app/src/main/java/ch/sonensei/cockpit/settings/SettingsScreen.kt:19-21`
-    - Category: Quality
-    - Problem: the passkey section is placed in a non-scrolling `Column` above a `weight(1f)` placeholder and the logout button. Each passkey adds a row; with several passkeys, a small screen or large font scale the logout button is pushed off screen with no way to reach it.
-    - Why it matters: logout becomes unreachable in plausible configurations.
-    - Suggested fix: make the settings column scrollable (or bound the list), keeping logout reachable.
+- Contract check: request paths, methods and bodies match api/openapi.yaml (options calls keep `publicKey` as raw JSON via `PasskeyCeremonyApi`; `PasskeyTokenRequest` and `PasskeyRegistrationRequest` use the generated models; 400/401/403/429 on `/token`, 400/403/429 on `/registration/options` and 400/409 on `/registration` are all mapped; `Retry-After` is honored on login). `deviceName` is capped at 100 and the TOTP is trimmed; an over-long TOTP gets a 400 before the authenticator runs, mapped to "code is wrong", which is acceptable.
+- Security/logging: no logging added; `PasskeyForm.toString` omits the code (tested); tokens are stored through the same `PersistentTokenStore` path as the password login, off the main thread. `androidx.credentials` and `credentials-play-services-auth` were already in the build (minSdk 29), so no dependency or ARCHITECTURE update is needed.
+- Tests (criterion 2): the committed tests cover Credential Manager exception/response mapping (`PasskeyCredentialsTest`), repository flows against MockWebServer with real Retrofit/kotlinx serialization, both view models, the Compose screens (`PasskeyScreensTest`) and the real Hilt app on Robolectric (`InAppPasskeyTest`). Gradle could not be run in this review sandbox, so the suite result was not independently re-run; `fixes.md` reports `./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.auth.*'` passing (183 tests) and `sh scripts/check.sh` passing.
+- Evidence: `python tasks.py verify and-passkeys` currently shows both criteria unrecorded. For criterion 1, the unit/Robolectric tests use a fake or absent authenticator; a real passkey login/registration needs a device and the assetlinks/origin setup of deploy-assetlinks. Unless it is actually run on a device against a configured server, record criterion 1 as `--skip` with that reason (the assumption already exists) rather than citing the unit tests as proof of the end-to-end flow.
+- Minor, not a finding: on 429 the settings form reuses the login message ("Sign-in is paused for a moment") and does not block resubmission for `Retry-After` seconds; a repeated tap only yields another 429.
 
 ## Review conclusion
 
-Material issues found; fix before completing the task.
-
-Notes for the parent worker: the review could not run Gradle in this sandbox (command denied), so test results were not independently re-run; the test sources were read and exercise the Credential Manager exception mapping, real Retrofit/kotlinx serialization against MockWebServer, the view models and the Compose screens. Thinking about the TOO_MANY_ATTEMPTS case in settings: it reuses the login string ("Sign-in is paused") and ignores `Retry-After`; acceptable but worth aligning if CR-2 is touched.
+No material issues found. CR-1 is tracked by deploy-assetlinks plus a recorded assumption, and CR-2..CR-5 are fixed and covered by tests. CR-6 is an optional low-priority improvement. Criterion evidence still has to be recorded as described above.

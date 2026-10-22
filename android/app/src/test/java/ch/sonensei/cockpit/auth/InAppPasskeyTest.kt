@@ -2,6 +2,7 @@ package ch.sonensei.cockpit.auth
 
 import android.os.Looper
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsNotDisplayed
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.isSelectable
@@ -63,6 +64,9 @@ class InAppPasskeyTest {
 
     private val server = MockWebServer()
     private val paths = CopyOnWriteArrayList<String>()
+
+    /** What the fake server lists as the user's passkeys. */
+    @Volatile private var passkeyList = "[$PASSKEY]"
     private var scenario: ActivityScenario<MainActivity>? = null
 
     @Before
@@ -76,7 +80,7 @@ class InAppPasskeyTest {
                     val path = request.url.encodedPath
                     paths += path
                     return when (path) {
-                        "/api/v1/auth/passkeys" -> json(200, "[$PASSKEY]")
+                        "/api/v1/auth/passkeys" -> json(200, passkeyList)
                         "/api/v1/auth/passkeys/authentication/options" -> json(200, AUTH_OPTIONS)
                         else -> json(404, PROBLEM)
                     }
@@ -104,6 +108,26 @@ class InAppPasskeyTest {
         composeRule.onNodeWithTag(PasskeyTags.SECTION).assertIsDisplayed()
         composeRule.waitUntil(WAIT_MS) { composeRule.onAllNodesWithText("Laptop").fetchSemanticsNodes().isNotEmpty() }
         composeRule.onNodeWithText("Laptop").assertIsDisplayed()
+    }
+
+    @Test
+    fun `with many passkeys the settings scroll, so log out stays reachable`() {
+        passkeyList =
+            (10..39).joinToString(",", "[", "]") {
+                """{"id":"0192f1a0-0000-7000-8000-0000000000$it","name":"Key $it","createdAt":"2026-10-22T10:00:00Z"}"""
+            }
+        runBlocking { serverUrls.setServerUrl(server.url("/").toString()) }
+        tokenStore.login(AuthTokens("access-1", "refresh-1"), null)
+        scenario = ActivityScenario.launch(MainActivity::class.java)
+
+        composeRule.onNode(hasText("More") and isSelectable()).performClick()
+        composeRule.onNodeWithTag(screenTag(CockpitDestination.More)).performScrollToNode(hasText("Settings"))
+        composeRule.onNodeWithText("Settings").performClick()
+        composeRule.waitUntil(WAIT_MS) { composeRule.onAllNodesWithText("Key 39").fetchSemanticsNodes().isNotEmpty() }
+
+        // Thirty passkeys are far taller than the screen: log out is below it and reached by scrolling.
+        composeRule.onNodeWithText("Log out").assertIsNotDisplayed()
+        composeRule.onNodeWithText("Log out").performScrollTo().assertIsDisplayed()
     }
 
     @Test
