@@ -4,80 +4,76 @@ Date: 2026-10-22
 
 Task: web-totp-reenroll - Web forced TOTP re-enrollment after restore
 
-Scope: base d566559d47b65a84b1419e68a26bd3c5ef2bfd93 .. HEAD d77fd81488f22f04a4ae5c12282ff53ef069d25f
-(task commits 154242f2, 13e9efea, d77fd814, given by the parent worker and matching `git log d566559d..HEAD`),
-plus the uncommitted test changes of this report (listed below). Branch: main. Web only.
+Scope: base 98d1e4a985b6761a52738793f8990b8bfac4548c .. HEAD 3008661a240c700e1010f413a4b4b1cbebe4b1ee
+(task commits a87dd44d, b58c240a, b7a3845f, 5842f710, 3008661a, given by the parent worker and matching
+`git log 98d1e4a9..HEAD`), plus the uncommitted test additions of this report in
+`web/src/app/features/auth/totp-enrollment/totp-enrollment.spec.ts`. Branch: main. Web only.
+This report replaces the earlier one (written for the pre-fix revision d77fd814 on base d566559d, before
+the rebase); it covers the final code including the CR-1/CR-2 fixes of 3008661a.
 
 Requirements:
 - tasks/web-totp-reenroll.md acceptance criteria and its recorded assumptions (password-only login as a
   third mode reached from the recovery-code view; enrollment page at /enroll-totp, auto-start, keeps the
   return URL, offers Sign out)
+- reviews/web-totp-reenroll/review.md (CR-1, CR-2) and fixes.md (fixed behavior: 401 leads to login with the
+  safe return URL, 409 refreshes the session and opens the return URL, "Create a new key" button,
+  replaced-key hint after a 400, no confirm while a new key is created)
 - SPEC.md 4.1 / 10.2 (via the task text), docs/ARCHITECTURE.md "Coverage", docs/QUALITY.md
-- Server contract for reference: server/.../core/auth/api/TotpEnrollmentController.kt and
-  domain/TotpEnrollmentService.kt (start/confirm 409 when not required, confirm 400 field error,
-  429 with Retry-After, 401 without session)
 
 ## Test files changed
 
-- `web/src/app/features/auth/totp-enrollment/totp-enrollment.spec.ts`
-- `web/src/app/features/auth/login/login.spec.ts`
-- `web/src/app/core/auth/auth.service.spec.ts`
-- `web/src/app/core/auth/auth.guards.spec.ts`
-- `web/src/app/app.spec.ts`
+- `web/src/app/features/auth/totp-enrollment/totp-enrollment.spec.ts` (this run; uncommitted)
+
+Task test files already committed and re-run against the final code: `web/src/app/core/auth/auth.service.spec.ts`,
+`web/src/app/core/auth/auth.guards.spec.ts`, `web/src/app/features/auth/login/login.spec.ts`, `web/src/app/app.spec.ts`,
+`web/src/app/features/auth/totp-enrollment/totp-enrollment.spec.ts`.
 
 ## Tests added or updated
 
-Count: 32 new test cases (12 component, 5 login, 6 service, 6 guard, 3 app-route integration) plus
-3 new safeReturnUrl table rows on top of the parent's existing task specs. The `App routes with auth guards`
-fake in app.spec.ts was extended (state flag `enrollmentRequired`, `startTotpEnrollment`,
-`confirmTotpEnrollment`); no existing assertion was changed or removed.
+Count: 8 new test cases in this run (TotpEnrollment component), on top of the 30 component cases and the
+login/service/guard/app-route cases already committed in the task. No existing assertion was changed or removed.
 
-Added cases:
-- TotpEnrollment: sign-out still navigates when logout fails; sign-out offered after a failed start (409);
-  loading state while the key is created; double "Try again" click starts once; retry failing again shows
-  the new error with retry enabled; double submit sends one confirmation (button disabled); space around
-  the code is removed; empty code not sent; 429 without Retry-After ("Try again later."); confirm 409 shows
-  the server detail and stays on the page; several field errors joined; a new code after a wrong one succeeds.
-- Login: unsafe return URL dropped on the way to /enroll-totp; password-only login without enrollment opens
-  the return URL; password-only without password not sent; password-only 429 starts the backoff;
-  password-only non-401 error shows the server message (not the recovery-code hint).
-- AuthService: confirm 429 carries retryAfter, no toast, flag kept; confirm 409 keeps the flag, no toast;
-  confirm 401 does not redirect; confirm without a cached session stays logged out; logout clears the flag;
-  refreshed /me clears the flag.
-- Guards: loginGuard to /enroll-totp without return URL and with an unsafe one; totpEnrollmentGuard sends a
-  normal session to / for an unsafe or self-referencing return URL, sends no-session users to /login without
-  a return URL, sends to /login when the setup status fails; safeReturnUrl rows `/setup?step=2`,
-  `/enroll-totp#top`, `/enroll-totp-help`.
-- App routes (real `routes`): login with enrollment required goes through /enroll-totp (title, QR/key,
-  confirm) back to /trash; a session needing enrollment is kept out of shell routes; a normal session is
-  sent away from /enroll-totp without starting an enrollment.
+Added in this run (gaps in the CR-1/CR-2 fix code):
+- "creates a new key only once when \"Create a new key\" is clicked twice quickly" (in-flight guard of `start()`)
+- "clears a typed code when a new key is created" (form reset; a code of the old key is not sent)
+- "hides the old key and offers to try again when creating a new key fails" (old QR/key removed, error with
+  "Try again", retry shows the new key)
+- "removes the replaced-key hint when the next attempt is refused for another reason" (400 then 429)
+- "goes to the login page without an unsafe return URL when the session ended (401)"
+- "does not claim success when confirming is no longer required (409)" (no success toast)
+- "goes to the login page when the session ended while creating a new key (401)"
+- "shows the error and stays on the page when confirming fails otherwise" (network error: message shown, no
+  replaced-key hint, submit enabled again, no navigation; covers the previously uncovered `userMessage` fallback)
 
 ## Requirement coverage
 
-Focused command (F): `cd web && npx ng test --watch=false --include='src/app/core/auth/*.spec.ts' --include='src/app/features/auth/**/*.spec.ts'`
-plus `npx ng test --watch=false --include='src/app/app.spec.ts'`. Full command: `cd web && npm run check`.
+Focused command (F): `cd web && npx ng test --watch=false --include src/app/features/auth --include src/app/core/auth --include src/app/app.spec.ts`
+(8 files, 207 tests at the first run; the enrollment spec alone was re-run with 38 tests after the last addition).
+Full command (C): `cd web && npm run check`.
 
 | Requirement | Tests | Command | Result |
 |---|---|---|---|
-| AC1: login with password + recovery code | Login "switches to a recovery code and sends it...", "opens the TOTP enrollment instead of the app when the server requires it" | F | Pass |
-| AC1: password only (third mode) | Login "logs in with the password alone...", "explains a refused password-only login...", "opens the return URL after a password-only login...", "does not send a password-only login without a password", "starts the backoff when a password-only login is throttled", "shows the server message on other errors of a password-only login" | F | Pass |
-| AC1: totpEnrollmentRequired routes to enrollment instead of the app | Login enrollment tests (with/without/unsafe return URL); guards "forced TOTP re-enrollment" block; App routes "leads a login that needs TOTP enrollment...", "keeps a session that needs TOTP enrollment out of every shell route"; AuthService "knows from the login..." | F + app.spec | Pass |
-| AC2: starts enrollment, shows QR code + secret | TotpEnrollment "starts the enrollment and shows the QR code and the key", loading state, retry tests, start 409; AuthService "starts the TOTP re-enrollment..."; App routes integration | F + app.spec | Pass |
-| AC2: confirms with a TOTP code, then opens the app | TotpEnrollment "confirms with the code, then opens the return URL", double submit, unsafe return URL, retry after wrong code; AuthService "clears the enrollment flag once the new TOTP is confirmed"; App routes integration (lands on /trash) | F + app.spec | Pass |
-| AC2: wrong code shows the server's validation error | TotpEnrollment "shows the server's validation error for a wrong code and clears it", "joins several server validation messages", 409, 429 with/without Retry-After; AuthService 400/409/429/401 confirm tests | F | Pass |
-| AC3: `npm run check` passes with unit tests for the new flow | whole web suite, lint, api:check, e2e:typecheck, build | `cd web && npm run check` | Pass (exit 0, 134 files, 2740 tests) |
+| AC1: login with password + recovery code | Login "switches to a recovery code and sends it...", "opens the TOTP enrollment instead of the app when the server requires it" | F, C | Pass |
+| AC1: password only (third mode) | Login "logs in with the password alone...", "explains a refused password-only login...", "opens the return URL after a password-only login...", "does not send a password-only login without a password", "starts the backoff when a password-only login is throttled", "shows the server message on other errors of a password-only login" | F, C | Pass |
+| AC1: totpEnrollmentRequired routes to enrollment instead of the app | Login enrollment tests (with/without/unsafe return URL); guards "forced TOTP re-enrollment" block; App routes "leads a login that needs TOTP enrollment...", "keeps a session that needs TOTP enrollment out of every shell route"; AuthService "knows from the login..." | F, C | Pass |
+| AC2: starts enrollment, shows QR code + secret | TotpEnrollment "starts the enrollment and shows the QR code and the key", loading state, retry tests, "creates a new key on request and shows it", "creates a new key only once...", "hides the old key and offers to try again when creating a new key fails"; AuthService "starts the TOTP re-enrollment..."; App routes integration | F, C | Pass |
+| AC2: confirms with a TOTP code, then opens the app | TotpEnrollment "confirms with the code, then opens the return URL", double submit, unsafe return URL, "accepts a new code after a wrong one...", "does not confirm while a new key is being created", "clears a typed code when a new key is created"; AuthService "clears the enrollment flag..."; App routes integration (lands on /trash) | F, C | Pass |
+| AC2: wrong code shows the server's validation error | TotpEnrollment "shows the server's validation error for a wrong code and clears it", "joins several server validation messages", 429 with/without Retry-After, replaced-key hint tests, "shows the error and stays on the page when confirming fails otherwise"; AuthService 400/409/429/401 confirm tests | F, C | Pass |
+| CR-1 fix: 401/409 on start/confirm leave the page | TotpEnrollment 409 confirm/start, 409 with failing refresh, 401 confirm/start/new key, 401 with `/` and with an unsafe return URL, "does not claim success when confirming is no longer required (409)" | F, C | Pass |
+| CR-2 fix: new key button, replaced-key hint, no confirm while creating | "creates a new key on request...", "hints at a replaced key...", "does not hint at a replaced key when throttled", "removes the replaced-key hint when the next attempt is refused...", "does not confirm while a new key is being created", "cannot create a new key while a confirmation is running" | F, C | Pass |
+| AC3: `npm run check` passes with unit tests for the new flow | whole web suite, lint, api:check, e2e:typecheck, build | C | Pass (exit 0, 134 files, 2758 tests) |
 
 ## Focused test execution
 
 Command:
 
-`cd web && npx ng test --watch=false --include='src/app/core/auth/*.spec.ts' --include='src/app/features/auth/**/*.spec.ts'`
+`cd web && npx ng test --watch=false --include src/app/features/auth --include src/app/core/auth --include src/app/app.spec.ts`
 
 Result:
 
-Pass: 7 files, 145 tests. `npx ng test --watch=false --include='src/app/app.spec.ts'`: Pass, 45 tests.
-(One new test initially failed because it typed 8 characters into a field with `maxlength="7"`, which
-Angular also enforces as a validator; the test was wrong and was changed to a realistic 7-character input.)
+Pass: 8 files, 207 tests (with the first 7 additions). After the 8th addition:
+`cd web && npx ng test --watch=false --include src/app/features/auth/totp-enrollment` -> Pass, 1 file, 38 tests.
+All new tests passed on the first run; no production defect surfaced.
 
 ## Full test execution
 
@@ -87,65 +83,58 @@ Command:
 
 Result:
 
-Pass (exit 0): api:check, `ng lint --max-warnings=0` ("All files pass linting."), e2e:typecheck,
-test:ci 134 files / 2740 tests passed, `ng build` complete.
+Pass (exit 0, 2026-10-22T03:23:00+02:00 to 03:24:27+02:00, with all 8 additions): api:check,
+`ng lint --max-warnings=0` ("All files pass linting."), e2e:typecheck, test:ci 134 files / 2758 tests passed,
+`ng build` complete.
 
 ## .taskcheck
 
 Result:
 
-Not run: `.taskcheck` (`sh scripts/check.sh`) also runs the server and Android parts, which this
-web-only task does not touch; its web part is `npm run check`, run above. The parent worker runs
-`.taskcheck` before `done`.
+Not run by the test-writer: `.taskcheck` (`sh scripts/check.sh`) also runs the server and Android parts,
+which this web-only task does not touch; its web part is `npm run check`, run above. The fixer reported a
+passing `sh scripts/check.sh` on 3008661a's code; the parent worker runs `.taskcheck` before `done`.
 
 ## Bugs found
 
-None. No test failed against production code.
-
-Observations for the parent (not acceptance-criteria violations, no failing test, no fix required for
-this task's criteria):
-- TW-O1 (Low): when another session's start replaced the pending secret, confirm answers 400 "is not a
-  valid code for the new TOTP secret" (server docs: the session "must start again"); the page offers no
-  "create a new key" action while an enrollment is shown, so the user has to reload the page.
-  Source: web/src/app/features/auth/totp-enrollment/totp-enrollment.html (retry only in the startError branch).
-- TW-O2 (Low): a 409 on start (re-enrollment no longer required) shows the server detail and a "Try again"
-  button that repeats the 409, instead of leading to the app; Sign out works (tested).
-- TW-O3 (Low): a 401 on confirm (session ended, e.g. another session confirmed first) shows the error
-  message but does not lead to the login page, because the call uses SKIP_LOGIN_REDIRECT; Sign out works.
+None. No test failed against production code. The earlier observations TW-O1 to TW-O3 (no new-key action,
+409 on start not leading to the app, 401 on confirm not leading to login) are resolved by 3008661a and are
+now covered by tests.
 
 ## Coverage
 
-Status: verified (fresh run, exit 0, after the latest test additions; no production code changed).
+Status: verified (fresh run, exit 0, after the latest test additions on the final production code).
 
 Metric: whole-file coverage of task-changed production files.
 Changed-line coverage: not measured.
 
 Evidence:
 - Task id, immutable base, measured HEAD, and task-owned commits/file-scope source: web-totp-reenroll;
-  base d566559d47b65a84b1419e68a26bd3c5ef2bfd93; HEAD d77fd81488f22f04a4ae5c12282ff53ef069d25f; commits
-  154242f2, 13e9efea, d77fd814 from the parent worker, checked with `git diff --stat d566559d..HEAD`.
-- Source/test snapshot identifier (including uncommitted inputs): production files unchanged at HEAD
-  (sha256 prefixes auth.service.ts 5bbbef27a9c1, auth.guards.ts f0b5b6979b95, login.ts b53ea029931a,
-  totp-enrollment.ts f484e7139c44, app.routes.ts 72a3b5cce503). Uncommitted test files (sha256 prefixes,
-  identical before and after the run): app.spec.ts 5551507d31f2, auth.guards.spec.ts 19ad19eafc38,
-  auth.service.spec.ts 4d1ca6e844be, login.spec.ts ac0f521c19d3, totp-enrollment.spec.ts d775f88ca7d8.
+  base 98d1e4a985b6761a52738793f8990b8bfac4548c; HEAD 3008661a240c700e1010f413a4b4b1cbebe4b1ee; commits a87dd44d,
+  b58c240a, b7a3845f, 5842f710, 3008661a from the parent worker, checked with `git diff --stat 98d1e4a9..HEAD`.
+- Source/test snapshot identifier (including uncommitted inputs): production files unmodified at HEAD
+  (git blob ids: app.routes.ts 82d973de, auth.guards.ts dc5fa1d5, auth.service.ts fc641063, login.ts d0c7ccc0,
+  totp-enrollment.ts 58cc4f32, totp-enrollment.html 0684071e). Only uncommitted test input:
+  totp-enrollment.spec.ts sha256 215c4bca5cc01505e9ff0b493d327a3581e0ccd67b49b4daedf4ac01d9248be6, identical
+  before and after the final run. (`reviews/web-totp-reenroll/review.md` was also modified in the working
+  tree during this run, not by the test-writer; it is not a test or source input.)
 - Exact included files; renamed/deleted/excluded files and reasons: included web/src/app/core/auth/auth.service.ts,
   web/src/app/core/auth/auth.guards.ts, web/src/app/features/auth/login/login.ts,
   web/src/app/features/auth/totp-enrollment/totp-enrollment.ts, web/src/app/app.routes.ts.
-  Excluded: web/src/app/core/auth/index.ts (re-exports only, no executable code; absent from the v8
-  report), web/src/app/core/auth/testing.ts and all *.spec.ts (test code), web/src/app/features/auth/auth.scss
-  (styles). login.html and totp-enrollment.html are templates compiled into their components; v8 reports
-  no separate counters for them, so they are covered only indirectly through the component tests (DOM
-  assertions). No renames or deletions.
+  Excluded: web/src/app/core/auth/index.ts (re-exports only, no executable code; absent from the v8 report),
+  web/src/app/core/auth/testing.ts and all *.spec.ts (test code), web/src/app/features/auth/auth.scss (styles).
+  login.html and totp-enrollment.html are templates compiled into their components; v8 reports no separate
+  counters for them, so they are covered only indirectly through the component DOM assertions. No renames
+  or deletions.
 - Provider/version, command, working directory, and test selection: Vitest 5.0.5 + @vitest/coverage-v8 5.0.5;
-  `npm run coverage` in web/; whole web suite (134 files, 2740 tests).
-- Run start/completion time and exit status: 2026-10-22T02:47:56+02:00 to 02:48:48+02:00, exit 0.
+  `npm run coverage` in web/; whole web suite (134 files, 2758 tests).
+- Run start/completion time and exit status: 2026-10-22T03:24:27+02:00 to 03:25:39+02:00, exit 0.
 - Generated report paths and report hashes/run identifier: web/coverage/web/coverage-summary.json
-  (sha256 ab1fada00923d7615fb89a37486262a2a9ff31915ec12fccb9ce30f302fa904b), web/coverage/web/coverage-final.json
-  (sha256 37b634a50e4450cfd1543df6fe3254319c8618f7abbe41102016538a9ad6e70b), both written 02:48:48.
-- Evidence outputs are fresh and inputs stayed unchanged: yes (report mtimes at run end; test and
-  production hashes identical before and after).
-- Final run after latest test additions and production fixes: yes (no production fixes were made).
+  (sha256 45756634fb107d8af7d383f9c71db0b6f7abf5d7c89752d898c3cc6fe5370f19, written 03:25:38),
+  web/coverage/web/coverage-final.json (sha256 699dd6de904a139b37b2fd8ff9c3694ea80aeba8cb592b25c4e6c8b6fc4109eb).
+- Evidence outputs are fresh and inputs stayed unchanged: yes (report mtime at run end, hashes differ from the
+  intermediate run; spec hash and production blobs identical before and after).
+- Final run after latest test additions and production fixes: yes (includes 3008661a and all 8 additions).
 
 Values below use covered/total (percentage); zero-denominator or unsupported metrics are N/A.
 
@@ -154,27 +143,31 @@ Values below use covered/total (percentage); zero-denominator or unsupported met
 | `web/src/app/core/auth/auth.service.ts` | 39/39 (100%) | 20/20 (100%) | 13/13 (100%) | 31/31 (100%) |
 | `web/src/app/core/auth/auth.guards.ts` | 47/47 (100%) | 35/35 (100%) | 6/6 (100%) | 43/43 (100%) |
 | `web/src/app/features/auth/login/login.ts` | 69/70 (98.57%) | 40/42 (95.23%) | 12/12 (100%) | 58/58 (100%) |
-| `web/src/app/features/auth/totp-enrollment/totp-enrollment.ts` | 55/57 (96.49%) | 24/27 (88.88%) | 7/7 (100%) | 47/47 (100%) |
+| `web/src/app/features/auth/totp-enrollment/totp-enrollment.ts` | 73/75 (97.33%) | 35/38 (92.10%) | 9/9 (100%) | 63/63 (100%) |
 | `web/src/app/app.routes.ts` | 19/19 (100%) | N/A (0/0) | 18/18 (100%) | 19/19 (100%) |
-| Aggregate (summed counters, 5 files; index.ts excluded as above) | 229/232 (98.71%) | 119/124 (95.97%) | 56/56 (100%) | 198/198 (100%) |
+| Aggregate (summed counters, 5 files; index.ts excluded as above) | 247/250 (98.80%) | 130/135 (96.30%) | 58/58 (100%) | 214/214 (100%) |
 
-Before the app.spec.ts additions, app.routes.ts had 18/19 statements and 17/18 functions: the
-`loadComponent` of the new /enroll-totp route was never executed. The new App-routes tests cover it.
+An intermediate run (same command, 03:21:05 to 03:22:37, exit 0, with the first 7 additions) showed
+totp-enrollment.ts at 72/75 statements, 34/38 branches, 62/63 lines: line 151 (`return error.userMessage`,
+a confirm failure that is neither a field error nor a 429) was uncovered. The 8th test covers it.
 
 | File and uncovered lines/branch locations | Required behavior or risk | Action/test added or reason left uncovered |
 |---|---|---|
-| `web/src/app/features/auth/login/login.ts:131` (statement + if branch) | rethrow of a non-ApiError in showError (pre-existing code) | Not tested: defensive programming-error path, outside this task's change |
-| `web/src/app/features/auth/totp-enrollment/totp-enrollment.ts:64, 89` (statements + if branches) | rethrow of a non-ApiError from start/confirm | Not tested: defensive path; the rethrow ends as an unhandled rejection in the global error handler, no user-visible behavior to assert |
-| `web/src/app/features/auth/login/login.ts:50`, `totp-enrollment.ts:32` (if branch #0) | class declaration line; compiler-generated branch (decorator/field init), no source behavior | Non-material, no test possible from source |
+| `web/src/app/features/auth/totp-enrollment/totp-enrollment.ts:151` (statement + branch 146 else) | confirm fails with a network/server error: show the message, stay on the page | Covered now: "shows the error and stays on the page when confirming fails otherwise" |
+| `web/src/app/features/auth/totp-enrollment/totp-enrollment.ts:67, 94` (statements + if branches) | rethrow of a non-ApiError from start/confirm | Not tested: defensive programming-error path; it ends as an unhandled rejection in the global error handler, no user-visible behavior to assert |
+| `web/src/app/features/auth/login/login.ts:131` (statement + if branch) | rethrow of a non-ApiError in showError (pre-existing code) | Not tested: defensive path, outside this task's change |
+| `web/src/app/features/auth/login/login.ts:50`, `totp-enrollment.ts:32` (branch #0) | class declaration line; compiler-generated branch, no source behavior | Non-material, no test possible from source |
 
 ## Unable to test
 
 - Real browser flow against the real server (restore without secrets, then login and enrollment end to end):
   not part of the acceptance criteria (AC3 names unit tests and `npm run check`); no Playwright test added.
+- Multi-tab/multi-session races against the real server (another tab replacing the key, another session
+  confirming first): simulated in unit tests with 400/401/409 responses; not run against a server.
 - Actual QR code scannability by an authenticator app: only the rendered QR SVG presence is asserted.
 - Template-only coverage counters (login.html, totp-enrollment.html): not reported separately by v8.
 
 ## Summary
 
-Tests added and all validation passed. No production defects found; three low-severity UX observations
-(TW-O1 to TW-O3) are listed for the parent to decide on.
+Tests added and all validation passed. No production defects found in the final revision (3008661a);
+task-scoped coverage is 98.80% statements / 96.30% branches with only defensive rethrow paths uncovered.

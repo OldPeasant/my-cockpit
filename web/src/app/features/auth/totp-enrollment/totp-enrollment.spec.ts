@@ -365,6 +365,111 @@ describe('TotpEnrollment', () => {
     expect(root.querySelector<HTMLButtonElement>('button.new-key')!.disabled).toBe(true);
   });
 
+  it('creates a new key only once when "Create a new key" is clicked twice quickly', async () => {
+    await open();
+    let resolve!: (value: TotpEnrollmentResponse) => void;
+    auth.startTotpEnrollment.mockImplementationOnce(() => new Promise((r) => (resolve = r)));
+    const newKey = root.querySelector<HTMLButtonElement>('button.new-key')!;
+    newKey.click();
+    newKey.click();
+    expect(auth.startTotpEnrollment).toHaveBeenCalledTimes(2);
+    resolve(ENROLLMENT);
+    await settle();
+    expect(root.querySelector<HTMLButtonElement>('button.new-key')!.disabled).toBe(false);
+  });
+
+  it('clears a typed code when a new key is created', async () => {
+    await open();
+    type('123456');
+    root.querySelector<HTMLButtonElement>('button.new-key')!.click();
+    await settle();
+    expect(root.querySelector<HTMLInputElement>('input[name=code]')!.value).toBe('');
+    await submit();
+    expect(auth.confirmTotpEnrollment).not.toHaveBeenCalled();
+  });
+
+  it('hides the old key and offers to try again when creating a new key fails', async () => {
+    await open();
+    auth.startTotpEnrollment
+      .mockRejectedValueOnce(new ApiError(502, 'Bad Gateway'))
+      .mockResolvedValueOnce({
+        otpauthUri: 'otpauth://totp/My%20Cockpit:demo?secret=KRSXG5CTMVRXEZLU&issuer=My%20Cockpit',
+        totpSecret: 'KRSXG5CTMVRXEZLU',
+      });
+    root.querySelector<HTMLButtonElement>('button.new-key')!.click();
+    await settle();
+    expect(root.querySelector('.secret')).toBeNull();
+    expect(root.querySelector('form')).toBeNull();
+    expect(root.querySelector('[role=alert]')?.textContent).toContain('Bad Gateway');
+    root.querySelector<HTMLButtonElement>('button.retry')!.click();
+    await settle();
+    expect(root.querySelector('.secret')?.textContent).toBe('KRSXG5CTMVRXEZLU');
+    expect(root.querySelector('[role=alert]')).toBeNull();
+  });
+
+  it('removes the replaced-key hint when the next attempt is refused for another reason', async () => {
+    await open();
+    auth.confirmTotpEnrollment
+      .mockRejectedValueOnce(
+        new ApiError(400, 'Bad Request', undefined, undefined, undefined, [
+          { field: 'code', message: 'is not a valid code for the new TOTP secret' },
+        ]),
+      )
+      .mockRejectedValueOnce(new ApiError(429, 'Too Many Requests'));
+    type('111111');
+    await submit();
+    expect(root.querySelector('.key-replaced')).not.toBeNull();
+    type('222222');
+    await submit();
+    expect(root.querySelector('.key-replaced')).toBeNull();
+    expect(root.querySelector('[role=alert]')?.textContent).toContain(
+      'Too many failed attempts. Try again later.',
+    );
+  });
+
+  it('goes to the login page without an unsafe return URL when the session ended (401)', async () => {
+    await open('/enroll-totp?returnUrl=%2F%2Fevil.example');
+    auth.confirmTotpEnrollment.mockRejectedValueOnce(new ApiError(401, 'Unauthorized'));
+    type('123456');
+    await submit();
+    expect(router.url).toBe('/login');
+  });
+
+  it('does not claim success when confirming is no longer required (409)', async () => {
+    await open('/enroll-totp?returnUrl=%2Finbox');
+    auth.confirmTotpEnrollment.mockRejectedValueOnce(
+      new ApiError(409, 'Conflict', 'TOTP re-enrollment is not required'),
+    );
+    type('123456');
+    await submit();
+    expect(router.url).toBe('/inbox');
+    expect(notifications.info).not.toHaveBeenCalled();
+  });
+
+  it('goes to the login page when the session ended while creating a new key (401)', async () => {
+    await open('/enroll-totp?returnUrl=%2Finbox');
+    auth.startTotpEnrollment.mockRejectedValueOnce(new ApiError(401, 'Unauthorized'));
+    root.querySelector<HTMLButtonElement>('button.new-key')!.click();
+    await settle();
+    expect(router.url).toBe('/login?returnUrl=%2Finbox');
+  });
+
+  it('shows the error and stays on the page when confirming fails otherwise', async () => {
+    await open('/enroll-totp?returnUrl=%2Finbox');
+    auth.confirmTotpEnrollment.mockRejectedValueOnce(
+      new ApiError(0, 'The server cannot be reached.'),
+    );
+    type('123456');
+    await submit();
+    expect(root.querySelector('[role=alert]')?.textContent).toContain(
+      'The server cannot be reached.',
+    );
+    expect(root.querySelector('.key-replaced')).toBeNull();
+    expect(root.querySelector<HTMLButtonElement>('button[type=submit]')!.disabled).toBe(false);
+    expect(router.url).toBe('/enroll-totp?returnUrl=%2Finbox');
+    expect(notifications.info).not.toHaveBeenCalled();
+  });
+
   it('joins several server validation messages', async () => {
     await open();
     auth.confirmTotpEnrollment.mockRejectedValueOnce(
