@@ -5,7 +5,7 @@ owner: dell26/agent-3
 deps: [p0-web-shell,bookmarks-api,p0-e2e-harness]
 touches: [web/src/app/features/bookmarks]
 prio: 3
-lease_until: 2026-10-22T02:20:44Z
+lease_until: 2026-10-22T02:25:49Z
 ---
 ## Goal
 Read-later queue and bookmarks (SPEC.md §8.4).
