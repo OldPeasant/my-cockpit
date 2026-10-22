@@ -22,6 +22,11 @@ enum class LoginError {
     TOO_MANY_ATTEMPTS,
     NETWORK,
     SERVER,
+    PASSKEY_REJECTED,
+    NO_PASSKEY,
+    PASSKEY_UNAVAILABLE,
+    PASSKEY_FAILED,
+    TOTP_RESET_REQUIRED,
 }
 
 data class LoginUiState(
@@ -41,6 +46,10 @@ data class LoginUiState(
                 retryAfterSeconds == 0L &&
                 listOf(serverUrl, username, password, code).none { it.isBlank() }
 
+    /** A passkey login needs only the server: the passkey names the account and replaces password and code. */
+    val canSubmitPasskey: Boolean
+        get() = !submitting && retryAfterSeconds == 0L && serverUrl.isNotBlank()
+
     override fun toString(): String =
         "LoginUiState(serverUrl=$serverUrl, username=$username, useRecoveryCode=$useRecoveryCode, " +
             "submitting=$submitting, error=$error, retryAfterSeconds=$retryAfterSeconds)"
@@ -52,6 +61,7 @@ class LoginViewModel
     @Inject
     constructor(
         private val repository: AuthRepository,
+        private val passkeys: PasskeyRepository,
     ) : ViewModel() {
         private val state = MutableStateFlow(LoginUiState())
         val uiState: StateFlow<LoginUiState> = state.asStateFlow()
@@ -88,6 +98,18 @@ class LoginViewModel
             }
         }
 
+        /** Logs in with a passkey the user picks in the system sheet that [credentials] shows. */
+        fun submitPasskey(credentials: PasskeyCredentials) {
+            val form = state.value
+            if (!form.canSubmitPasskey) return
+            state.update { it.copy(submitting = true, error = null) }
+            viewModelScope.launch {
+                val result = passkeys.login(form.serverUrl, credentials)
+                state.update { it.after(result) }
+                if (result is LoginResult.TooManyAttempts) startCountdown(result.retryAfterSeconds)
+            }
+        }
+
         private fun LoginUiState.after(result: LoginResult): LoginUiState =
             when (result) {
                 LoginResult.Success -> copy(submitting = false, password = "", code = "")
@@ -107,6 +129,12 @@ class LoginViewModel
                     copy(submitting = false, code = "", error = LoginError.TOO_MANY_ATTEMPTS, retryAfterSeconds = result.retryAfterSeconds)
                 LoginResult.Network -> copy(submitting = false, error = LoginError.NETWORK)
                 LoginResult.ServerError -> copy(submitting = false, error = LoginError.SERVER)
+                LoginResult.PasskeyCancelled -> copy(submitting = false)
+                LoginResult.PasskeyRejected -> copy(submitting = false, error = LoginError.PASSKEY_REJECTED)
+                LoginResult.NoPasskey -> copy(submitting = false, error = LoginError.NO_PASSKEY)
+                LoginResult.PasskeyUnavailable -> copy(submitting = false, error = LoginError.PASSKEY_UNAVAILABLE)
+                LoginResult.PasskeyFailed -> copy(submitting = false, error = LoginError.PASSKEY_FAILED)
+                LoginResult.TotpResetRequired -> copy(submitting = false, error = LoginError.TOTP_RESET_REQUIRED)
             }
 
         private fun startCountdown(seconds: Long) {

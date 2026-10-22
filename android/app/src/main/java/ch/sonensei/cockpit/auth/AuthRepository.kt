@@ -68,6 +68,24 @@ sealed interface LoginResult {
 
     /** The server answered with an error or an unreadable body. */
     data object ServerError : LoginResult
+
+    /** The user closed the passkey sheet; nothing to report. */
+    data object PasskeyCancelled : LoginResult
+
+    /** The server does not know the passkey, or its ceremony expired (401). */
+    data object PasskeyRejected : LoginResult
+
+    /** The device holds no passkey for this server. */
+    data object NoPasskey : LoginResult
+
+    /** The device cannot use passkeys (no credential provider). */
+    data object PasskeyUnavailable : LoginResult
+
+    /** The authenticator failed. */
+    data object PasskeyFailed : LoginResult
+
+    /** The passkey is valid, but TOTP must be set up again in the web app first (403 after a restore). */
+    data object TotpResetRequired : LoginResult
 }
 
 /**
@@ -208,18 +226,21 @@ class AuthRepository internal constructor(
             }
         }
 
-    private fun deviceName(): String =
-        listOf(Build.MANUFACTURER, Build.MODEL)
-            .filter { !it.isNullOrBlank() && it != Build.UNKNOWN }
-            .joinToString(" ")
-            .ifBlank { "Android" }
-            .take(DEVICE_NAME_MAX)
-
-    private fun retryAfter(header: String?): Long = header?.trim()?.toLongOrNull()?.coerceAtLeast(1) ?: DEFAULT_RETRY_AFTER_SECONDS
-
     internal companion object {
         const val DEFAULT_RETRY_AFTER_SECONDS = 30L
         const val REVOKE_TIMEOUT_MS = 5_000L
         const val DEVICE_NAME_MAX = 100
     }
 }
+
+/** This device as the server lists it, e.g. "Google Pixel 9". */
+internal fun deviceName(): String =
+    listOf(Build.MANUFACTURER, Build.MODEL)
+        .filter { !it.isNullOrBlank() && it != Build.UNKNOWN }
+        .joinToString(" ")
+        .ifBlank { "Android" }
+        .take(AuthRepository.DEVICE_NAME_MAX)
+
+/** The wait a 429 asks for; a missing or unreadable `Retry-After` gets a default. */
+internal fun retryAfter(header: String?): Long =
+    header?.trim()?.toLongOrNull()?.coerceAtLeast(1) ?: AuthRepository.DEFAULT_RETRY_AFTER_SECONDS

@@ -29,6 +29,7 @@ import org.junit.Test
 class LoginViewModelTest {
     private val dispatcher = StandardTestDispatcher()
     private val repository = mockk<AuthRepository>()
+    private val passkeys = mockk<PasskeyRepository>()
 
     @Before
     fun setUp() {
@@ -44,7 +45,7 @@ class LoginViewModelTest {
     @Test
     fun `the configured server prefills the form`() =
         runTest(dispatcher) {
-            val viewModel = LoginViewModel(repository)
+            val viewModel = LoginViewModel(repository, passkeys)
             advanceUntilIdle()
 
             assertEquals("https://cockpit.example.org/", viewModel.uiState.value.serverUrl)
@@ -53,7 +54,7 @@ class LoginViewModelTest {
     @Test
     fun `submitting needs every field`() =
         runTest(dispatcher) {
-            val viewModel = LoginViewModel(repository)
+            val viewModel = LoginViewModel(repository, passkeys)
             advanceUntilIdle()
             viewModel.onUsernameChange("alex")
             viewModel.onPasswordChange("pw")
@@ -172,7 +173,7 @@ class LoginViewModelTest {
         runTest(dispatcher) {
             every { repository.serverUrl } returns flowOf(null)
 
-            val viewModel = LoginViewModel(repository)
+            val viewModel = LoginViewModel(repository, passkeys)
             advanceUntilIdle()
 
             assertEquals("", viewModel.uiState.value.serverUrl)
@@ -183,7 +184,7 @@ class LoginViewModelTest {
         runTest(dispatcher) {
             val configured = MutableSharedFlow<String?>()
             every { repository.serverUrl } returns configured
-            val viewModel = LoginViewModel(repository)
+            val viewModel = LoginViewModel(repository, passkeys)
             runCurrent()
 
             viewModel.onServerUrlChange("https://typed.example.org")
@@ -344,7 +345,7 @@ class LoginViewModelTest {
     }
 
     private fun kotlinx.coroutines.test.TestScope.filledIn(): LoginViewModel {
-        val viewModel = LoginViewModel(repository)
+        val viewModel = LoginViewModel(repository, passkeys)
         advanceUntilIdle()
         viewModel.onUsernameChange("alex")
         viewModel.onPasswordChange("pw")

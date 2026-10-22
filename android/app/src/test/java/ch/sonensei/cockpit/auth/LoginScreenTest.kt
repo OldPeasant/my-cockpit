@@ -158,6 +158,11 @@ class LoginScreenTest {
                 LoginError.TOO_MANY_ATTEMPTS to "Too many failed attempts",
                 LoginError.NETWORK to "The server cannot be reached",
                 LoginError.SERVER to "The server had a problem signing you in",
+                LoginError.PASSKEY_REJECTED to "The server did not accept this passkey",
+                LoginError.NO_PASSKEY to "This device has no passkey for this server",
+                LoginError.PASSKEY_UNAVAILABLE to "Passkeys are not available on this device",
+                LoginError.PASSKEY_FAILED to "The passkey could not be used",
+                LoginError.TOTP_RESET_REQUIRED to "Set up your authenticator app again",
             )
         assertEquals(LoginError.entries.toSet(), messages.keys)
 

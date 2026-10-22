@@ -22,7 +22,7 @@ val LocalLogout = staticCompositionLocalOf<(() -> Unit)?> { null }
 fun CockpitRoot(viewModel: SessionViewModel = hiltViewModel()) {
     val loggedIn by viewModel.loggedIn.collectAsStateWithLifecycle()
     if (loggedIn) {
-        CompositionLocalProvider(LocalLogout provides viewModel::logout) {
+        CompositionLocalProvider(LocalLogout provides viewModel::logout, LocalPasskeySettingsEnabled provides true) {
             CockpitShell(prompts = { ReminderPermissionPrompt() })
         }
     } else {

@@ -10,11 +10,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import ch.sonensei.cockpit.R
 import ch.sonensei.cockpit.auth.LogoutButton
+import ch.sonensei.cockpit.auth.PasskeySettings
 import ch.sonensei.cockpit.ui.PlaceholderScreen
 
 @Composable
 fun SettingsScreen(modifier: Modifier = Modifier) {
     Column(modifier = modifier, horizontalAlignment = Alignment.CenterHorizontally) {
+        PasskeySettings(Modifier.padding(16.dp))
         PlaceholderScreen(R.string.nav_settings, Icons.Outlined.Settings, Modifier.weight(1f))
         LogoutButton(Modifier.padding(bottom = 32.dp))
     }

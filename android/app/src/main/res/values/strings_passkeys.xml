@@ -1,0 +1,32 @@
+<resources>
+    <!-- Passkey login (auth feature) -->
+    <string name="login_passkey">Sign in with a passkey</string>
+    <string name="login_error_passkey_rejected">The server did not accept this passkey. Try again, or sign in with your password.</string>
+    <string name="login_error_no_passkey">This device has no passkey for this server. Sign in with your password and add one in the settings.</string>
+    <string name="login_error_passkey_unavailable">Passkeys are not available on this device. Sign in with your password.</string>
+    <string name="login_error_passkey_failed">The passkey could not be used. Try again, or sign in with your password.</string>
+    <string name="login_error_totp_reset_required">Set up your authenticator app again in the web app first, then sign in here.</string>
+
+    <!-- Passkeys in the settings -->
+    <string name="passkeys_title">Passkeys</string>
+    <string name="passkeys_body">Sign in with your fingerprint, face or screen lock instead of password and code.</string>
+    <string name="passkeys_empty">No passkeys yet.</string>
+    <string name="passkeys_load_failed">Your passkeys could not be loaded.</string>
+    <string name="passkeys_retry">Retry</string>
+    <string name="passkeys_last_used">Last used %1$s</string>
+    <string name="passkeys_never_used">Never used</string>
+    <string name="passkeys_add">Add a passkey</string>
+    <string name="passkeys_add_title">Add a passkey</string>
+    <string name="passkeys_name">Name</string>
+    <string name="passkeys_code_hint">Confirms it is you before the passkey is created.</string>
+    <string name="passkeys_create">Create</string>
+    <string name="passkeys_adding">Creating…</string>
+    <string name="passkeys_cancel">Cancel</string>
+    <string name="passkeys_added">Passkey \"%1$s\" added.</string>
+    <string name="passkeys_error_wrong_code">The code is wrong. Enter the current code from your authenticator app.</string>
+    <string name="passkeys_error_already_registered">This passkey is already registered.</string>
+    <string name="passkeys_error_unavailable">Passkeys are not available on this device.</string>
+    <string name="passkeys_error_failed">The passkey could not be created. Try again.</string>
+    <string name="passkeys_error_network">The server cannot be reached. Check your connection.</string>
+    <string name="passkeys_error_server">The server had a problem adding the passkey. Try again later.</string>
+</resources>

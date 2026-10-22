@@ -4,6 +4,7 @@ import androidx.annotation.StringRes
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.imePadding
@@ -15,8 +16,13 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Key
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -50,6 +56,7 @@ object LoginTags {
     const val CODE = "login:code"
     const val TOGGLE_FACTOR = "login:toggleFactor"
     const val SUBMIT = "login:submit"
+    const val PASSKEY = "login:passkey"
     const val ERROR = "login:error"
     const val SCREEN = "screen:login"
 }
@@ -57,6 +64,7 @@ object LoginTags {
 @Composable
 fun LoginRoute(viewModel: LoginViewModel = hiltViewModel()) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val credentials = rememberPasskeyCredentials()
     LoginScreen(
         state = state,
         onServerUrlChange = viewModel::onServerUrlChange,
@@ -65,10 +73,14 @@ fun LoginRoute(viewModel: LoginViewModel = hiltViewModel()) {
         onCodeChange = viewModel::onCodeChange,
         onUseRecoveryCodeChange = viewModel::onUseRecoveryCodeChange,
         onSubmit = viewModel::submit,
+        onPasskeySubmit = { viewModel.submitPasskey(credentials) },
     )
 }
 
-/** The login form: where (server) and who (account, second factor), then one action. Stateless. */
+/**
+ * The login form: where (server) and who (account, second factor), then one action; or, with [onPasskeySubmit], a
+ * passkey instead of account and second factor. Stateless.
+ */
 @Composable
 fun LoginScreen(
     state: LoginUiState,
@@ -79,6 +91,7 @@ fun LoginScreen(
     onUseRecoveryCodeChange: (Boolean) -> Unit,
     onSubmit: () -> Unit,
     modifier: Modifier = Modifier,
+    onPasskeySubmit: (() -> Unit)? = null,
 ) {
     val editable = !state.submitting
     Surface(modifier = modifier.fillMaxSize().testTag(LoginTags.SCREEN)) {
@@ -185,6 +198,18 @@ fun LoginScreen(
                         },
                     )
                 }
+
+                onPasskeySubmit?.let {
+                    OutlinedButton(
+                        onClick = it,
+                        enabled = state.canSubmitPasskey,
+                        modifier = Modifier.fillMaxWidth().testTag(LoginTags.PASSKEY),
+                    ) {
+                        Icon(Icons.Outlined.Key, contentDescription = null, modifier = Modifier.size(ButtonDefaults.IconSize))
+                        Spacer(Modifier.size(ButtonDefaults.IconSpacing))
+                        Text(stringResource(R.string.login_passkey))
+                    }
+                }
             }
         }
     }
@@ -232,6 +257,11 @@ private fun LoginError.messageRes(): Int =
         LoginError.TOO_MANY_ATTEMPTS -> R.string.login_error_too_many_attempts
         LoginError.NETWORK -> R.string.login_error_network
         LoginError.SERVER -> R.string.login_error_server
+        LoginError.PASSKEY_REJECTED -> R.string.login_error_passkey_rejected
+        LoginError.NO_PASSKEY -> R.string.login_error_no_passkey
+        LoginError.PASSKEY_UNAVAILABLE -> R.string.login_error_passkey_unavailable
+        LoginError.PASSKEY_FAILED -> R.string.login_error_passkey_failed
+        LoginError.TOTP_RESET_REQUIRED -> R.string.login_error_totp_reset_required
     }
 
 @Preview
@@ -252,5 +282,6 @@ private fun LoginScreenPreview() =
             onCodeChange = {},
             onUseRecoveryCodeChange = {},
             onSubmit = {},
+            onPasskeySubmit = {},
         )
     }
