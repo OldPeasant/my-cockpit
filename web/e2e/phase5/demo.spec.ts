@@ -192,6 +192,12 @@ test.describe('Phase 5 demo', () => {
       dialogs.push(dialog.message());
       void dialog.dismiss();
     });
+    // The browser never fetches the remote image itself, before or after "load images".
+    const direct: string[] = [];
+    const onRequest = (request: { url(): string }) => {
+      if (request.url().startsWith('https://images.example.test/')) direct.push(request.url());
+    };
+    page.on('request', onRequest);
 
     await open(page, SUBJECTS.newsletter);
     await expect(page.locator('app-mail-frame iframe')).toHaveAttribute(
@@ -201,6 +207,8 @@ test.describe('Phase 5 demo', () => {
     await expect.poll(() => frameText(page)).toContain('Hello reader');
     expect(await frameFlags(page)).toEqual({ ran: false, handler: false });
     expect(await page.title()).not.toContain('pwned');
+    // Sanitized, not only sandboxed: the script and the event handler are gone from the rendered body.
+    expect(await frameMarkup(page)).toEqual({ scripts: 0, handlers: 0, scriptSource: false });
 
     await expect(page.getByText('Remote images are hidden')).toBeVisible();
     expect(await frameImages(page)).toEqual([]);
@@ -211,7 +219,10 @@ test.describe('Phase 5 demo', () => {
     await expect.poll(() => frameImages(page)).toEqual([{ proxied: true, loaded: true }]);
     expect(proxied).toEqual([REMOTE_IMAGE]);
     expect(await frameFlags(page)).toEqual({ ran: false, handler: false });
+    expect(await frameMarkup(page)).toEqual({ scripts: 0, handlers: 0, scriptSource: false });
     expect(dialogs).toEqual([]);
+    expect(direct, 'requests to the remote image host').toEqual([]);
+    page.off('request', onRequest);
     await page.unroute('**/api/v1/mail/image-proxy**');
   });
 
@@ -270,8 +281,12 @@ test.describe('Phase 5 demo', () => {
     } finally {
       await peer.logout();
     }
-    // The sent mail is in Sent, the draft is gone.
-    expect(await imap.search('Sent', `SUBJECT "Re: ${SUBJECTS.budget}"`)).toHaveLength(1);
+    // The sent mail, with the text and the file, is in Sent; the draft is gone.
+    const sent = await imap.search('Sent', `SUBJECT "Re: ${SUBJECTS.budget}"`);
+    expect(sent).toHaveLength(1);
+    const sentRaw = await imap.fetch('Sent', sent[0]);
+    expect(sentRaw).toContain(`Here are the numbers ${run}.`);
+    expect(sentRaw).toMatch(new RegExp(`filename="?${FILE_NAME}`));
     expect(await imap.search('Drafts', `SUBJECT "Re: ${SUBJECTS.budget}"`)).toEqual([]);
   });
 
@@ -411,6 +426,22 @@ function frameFlags(page: Page): Promise<{ ran: boolean; handler: boolean }> {
     const win = document.querySelector<HTMLIFrameElement>('app-mail-frame iframe')
       ?.contentWindow as (Window & Record<string, unknown>) | null;
     return { ran: !!win?.['__mailScriptRan'], handler: !!win?.['__mailHandlerRan'] };
+  });
+}
+
+/** What is left of the mail's active content in the frame's body: script elements, `on*` attributes, script source. */
+function frameMarkup(
+  page: Page,
+): Promise<{ scripts: number; handlers: number; scriptSource: boolean }> {
+  return page.evaluate(() => {
+    const body =
+      document.querySelector<HTMLIFrameElement>('app-mail-frame iframe')?.contentDocument?.body;
+    const elements = [...(body?.querySelectorAll('*') ?? [])];
+    return {
+      scripts: body?.querySelectorAll('script').length ?? -1,
+      handlers: elements.filter((el) => [...el.attributes].some((a) => /^on/i.test(a.name))).length,
+      scriptSource: (body?.innerHTML ?? '').includes('__mailScriptRan'),
+    };
   });
 }
 
