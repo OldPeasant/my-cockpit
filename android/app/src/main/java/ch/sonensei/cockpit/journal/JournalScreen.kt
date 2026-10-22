@@ -221,7 +221,7 @@ fun JournalContent(
                             modifier = Modifier.fillMaxWidth().weight(1f).testTag(JournalTags.BODY),
                         )
                     else ->
-                        Column(Modifier.verticalScroll(rememberScrollState()).testTag(JournalTags.VIEW)) {
+                        Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).testTag(JournalTags.VIEW)) {
                             if (state.body.isBlank()) {
                                 Text(
                                     stringResource(R.string.journal_empty_body),
