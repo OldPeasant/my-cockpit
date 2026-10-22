@@ -1,11 +1,11 @@
 ---
 title: Mail search
-status: in_progress
+status: done
 owner: dell26/agent-1
 deps: [mail-read-api,p0-search-core]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/mail/search,server/src/test/kotlin/ch/sonensei/cockpit/mail/search]
 prio: 2
-lease_until: 2026-10-22T00:20:46Z
+lease_until: 
 releases: 1
 extended: 
 ---
@@ -27,3 +27,4 @@ Find mail (SPEC.md §7.3).
 - ASSUMPTION (2026-10-22 00:14+0200 by dell26/agent-3): A scheduled reconciler (cockpit.mail.search.reconcile.*, hourly, off in tests) indexes cached messages without document and removes documents of gone/detached messages (e.g. account deleted via FK cascade).
 - ASSUMPTION (2026-10-22 00:56+0200 by dell26/agent-3): Folder list sync (mail/imap MailFolderService) calls MailSearchIndex.unindexFolder before deleting a vanished folder, outside the declared touches, so stale mail leaves search immediately rather than at the hourly reconcile
 - release by dell26/agent-3: Implementation, API + openapi.yaml/web client regen, fixes for review round 1 (CR-1..3) are committed; code review round 2 (reviews/mail-search/review.md) is clean (0 findings). test-writer round 2 added tests (committed in dddf48b2: MailSearchWordsTests, MailSearchWebTests, MailActionServiceTests) but did NOT write reviews/mail-search/tests.md. ./gradlew test --tests 'ch.sonensei.cockpit.mail.*' -> 1144 tests, 0 failures. scripts/check.sh: one run failed (likely a flaky/concurrent Gradle run, no failing test XML found), rerun passed; it takes ~4 min. Left: rerun test-writer to produce tests.md with coverage numbers; if it changes only tests, rerun code-reviewer on the final code; run integrationTest --tests '*MailSearchGreenMailTests' and OpenApiContractTest; tasks.py verify 1-3; write quality.json (fixer round 1 = fixes.md); done.
+- done by dell26/agent-1: `sh scripts/check.sh` passed in 74s on f551ba636; criteria verified 3/3
