@@ -1,11 +1,11 @@
 ---
 title: Contacts UI
-status: todo
-owner: 
+status: in_progress
+owner: dell26/agent-1
 deps: [p0-web-shell,contacts-aggregate,web-links-panel,p0-e2e-harness,contacts-birthdays]
 touches: [web/src/app/features/contacts]
 prio: 2
-lease_until: 
+lease_until: 2026-10-22T08:05:08Z
 releases: 1
 extended: 
 ---
