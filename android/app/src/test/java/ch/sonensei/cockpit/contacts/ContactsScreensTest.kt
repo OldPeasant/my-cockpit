@@ -16,6 +16,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
+import java.time.Instant
 import java.time.LocalDate
 import java.util.UUID
 
@@ -153,6 +154,30 @@ class ContactsScreensTest {
     }
 
     @Test
+    fun `a sent mail and a timed event show when they happen`() {
+        // Noon UTC, so the date part is the same in every time zone the test may run in.
+        val related =
+            ContactRelated(
+                waitingFor = emptyList(),
+                mails = listOf(RelatedMail(id(20), "Offer v2", fromContact = false, at = Instant.parse("2026-10-03T12:00:00Z"))),
+                events = listOf(RelatedEvent(id(21), "Workshop", Instant.parse("2026-11-02T12:00:00Z"), null)),
+                links = emptyList(),
+            )
+        showDetail(ContactDetailUiState(contact = bert, related = related))
+
+        val detail = composeRule.onNodeWithTag(ContactsTags.DETAIL)
+        detail.performScrollToNode(hasTestTag(ContactsTags.related(id(20))))
+        val mail = composeRule.onNodeWithTag(ContactsTags.related(id(20)))
+        mail.assertTextContains("Offer v2", substring = true)
+        mail.assertTextContains("To them, ", substring = true)
+        mail.assertTextContains("2026", substring = true)
+        detail.performScrollToNode(hasTestTag(ContactsTags.related(id(21))))
+        val event = composeRule.onNodeWithTag(ContactsTags.related(id(21)))
+        event.assertTextContains("Workshop", substring = true)
+        event.assertTextContains("2026", substring = true)
+    }
+
+    @Test
     fun `related items that failed to load show a banner, the contact stays`() {
         showDetail(ContactDetailUiState(contact = anna, relatedMessage = ContactsMessage.FAILED))
         composeRule.onNodeWithText("Anna Muster").assertExists()
@@ -170,6 +195,27 @@ class ContactsScreensTest {
         composeRule.onNodeWithText("are not shown", substring = true).assertDoesNotExist()
         detail.performScrollToNode(hasTestTag(ContactsTags.related(id(10))))
         composeRule.onNodeWithTag(ContactsTags.related(id(10))).assertExists()
+    }
+
+    @Test
+    fun `related items kept from an earlier load whose reload failed say they may be out of date`() {
+        val related = ContactRelated(listOf(RelatedWaiting(id(10), "Send the offer", null)), emptyList(), emptyList(), emptyList())
+        showDetail(ContactDetailUiState(contact = anna, related = related, relatedMessage = ContactsMessage.FAILED))
+        val detail = composeRule.onNodeWithTag(ContactsTags.DETAIL)
+        detail.performScrollToNode(hasTestTag(ContactsTags.RELATED_MESSAGE))
+        composeRule.onNodeWithText("Mail, events and Waiting For items could not be reloaded and may be out of date.").assertExists()
+        composeRule.onNodeWithText("Mail, events and Waiting For items could not be loaded.").assertDoesNotExist()
+        detail.performScrollToNode(hasTestTag(ContactsTags.related(id(10))))
+        composeRule.onNodeWithTag(ContactsTags.related(id(10))).assertExists()
+    }
+
+    @Test
+    fun `related items never loaded while offline say they are not shown`() {
+        showDetail(ContactDetailUiState(contact = anna, relatedMessage = ContactsMessage.OFFLINE))
+        composeRule.onNodeWithTag(ContactsTags.DETAIL).performScrollToNode(hasTestTag(ContactsTags.RELATED_MESSAGE))
+        composeRule.onNodeWithText("Can't reach the server. Mail, events and Waiting For items are not shown.").assertExists()
+        composeRule.onNodeWithText("may be out of date", substring = true).assertDoesNotExist()
+        composeRule.onNodeWithTag(ContactsTags.NOTHING_RELATED).assertDoesNotExist()
     }
 
     @Test

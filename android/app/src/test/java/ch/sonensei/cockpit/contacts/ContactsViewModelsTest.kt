@@ -68,6 +68,25 @@ class ContactsViewModelsTest {
             advanceUntilIdle()
             assertEquals(listOf(contact(1)), vm.uiState.value.contacts)
             assertEquals(ContactsMessage.OFFLINE, vm.uiState.value.message)
+            // Same search: the list shown still belongs to it.
+            assertTrue(vm.uiState.value.loaded)
+        }
+
+    @Test
+    fun `retrying a failed new search that then succeeds shows its result`() =
+        runTest(dispatcher) {
+            coEvery { repo.list("Bob") } returns ContactsResult.Offline andThen ContactsResult.Ok(emptyList())
+            val vm = ContactsListViewModel(repo)
+            vm.search("Bob")
+            advanceUntilIdle()
+            assertFalse(vm.uiState.value.loaded)
+
+            vm.refresh()
+            advanceUntilIdle()
+            assertTrue(vm.uiState.value.loaded)
+            assertNull(vm.uiState.value.message)
+            assertEquals(emptyList<Contact>(), vm.uiState.value.contacts)
+            coVerify(exactly = 2) { repo.list("Bob") }
         }
 
     @Test
