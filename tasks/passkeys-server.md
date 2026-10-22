@@ -1,11 +1,11 @@
 ---
 title: Passkeys (WebAuthn) backend
-status: todo
-owner: 
+status: in_progress
+owner: dell26/agent-1
 deps: [p0-auth-tokens]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/core/auth/passkey,server/src/test/kotlin/ch/sonensei/cockpit/core/auth/passkey]
 prio: 2
-lease_until: 
+lease_until: 2026-10-22T01:03:11Z
 releases: 1
 extended: 
 ---
