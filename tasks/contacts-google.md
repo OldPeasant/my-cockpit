@@ -1,11 +1,11 @@
 ---
 title: Google contacts sync
-status: todo
-owner: 
+status: in_progress
+owner: dell26/agent-2
 deps: [contacts-api,oauth-connections]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/contacts/google,server/src/test/kotlin/ch/sonensei/cockpit/contacts/google]
 prio: 2
-lease_until: 
+lease_until: 2026-10-22T04:30:50Z
 extended: 
 releases: 1
 ---
