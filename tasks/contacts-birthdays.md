@@ -15,3 +15,4 @@ Virtual read-only birthdays calendar (SPEC.md §8.3).
 - [ ] `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.contacts.birthdays.*'` passes (Postgres via Testcontainers where persistence is involved)
 
 ## Notes
+- ASSUMPTION (2026-10-22 04:35+0200 by dell26/agent-2): Virtual calendars: the calendar module got a small SPI (calendar.api.VirtualCalendarProvider + CalendarService.ensureVirtualCalendar); the birthdays calendar is a stored read-only LOCAL calendar (externalId 'virtual:birthdays', so name/color/visibility/backup work as for any calendar) whose occurrences are computed from contacts, not stored. Touches calendar/api and OccurrenceExpander outside the task's touches.
