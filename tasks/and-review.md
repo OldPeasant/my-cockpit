@@ -5,7 +5,7 @@ owner: dell26/agent-1
 deps: [and-login,review-api]
 touches: [android/app/src/main/java/ch/sonensei/cockpit/review,android/app/src/test/java/ch/sonensei/cockpit/review]
 prio: 3
-lease_until: 2026-10-22T13:11:31Z
+lease_until: 2026-10-22T13:16:34Z
 ---
 ## Goal
 Review progress on the phone.
