@@ -6,6 +6,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -24,10 +25,12 @@ import androidx.compose.material.icons.outlined.Archive
 import androidx.compose.material.icons.outlined.ArrowDropDown
 import androidx.compose.material.icons.outlined.AttachFile
 import androidx.compose.material.icons.outlined.Delete
+import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.Flag
 import androidx.compose.material.icons.outlined.Mail
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
@@ -65,6 +68,8 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import ch.sonensei.cockpit.R
+import ch.sonensei.cockpit.mail.compose.ComposeMode
+import ch.sonensei.cockpit.mail.compose.MailComposeRoute
 import ch.sonensei.cockpit.mail.read.MailReadRoute
 import ch.sonensei.cockpit.ui.PlaceholderScreen
 import dagger.hilt.internal.GeneratedComponentManagerHolder
@@ -96,6 +101,7 @@ fun MailRoute(
     viewModel: MailListViewModel = hiltViewModel(),
 ) {
     var open by rememberSaveable { mutableStateOf<String?>(null) }
+    var composing by rememberSaveable { mutableStateOf<String?>(null) }
     val listState = rememberLazyListState()
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     // Reloaded when the screen is shown and when the app comes back to it, so mail that arrived meanwhile appears.
@@ -104,7 +110,10 @@ fun MailRoute(
         onPauseOrDispose {}
     }
     val current = open?.let(UUID::fromString)
-    if (current == null) {
+    val compose = composing?.let(ComposeMode::parse)
+    if (compose != null) {
+        MailComposeRoute(mode = compose, onClose = { composing = null }, modifier = modifier)
+    } else if (current == null) {
         MailListContent(
             state = state,
             callbacks =
@@ -114,6 +123,7 @@ fun MailRoute(
                     act = viewModel::act,
                     loadMore = viewModel::loadMore,
                     retry = viewModel::refresh,
+                    compose = { composing = ComposeMode.New(state.folder?.accountId).encode() },
                 ),
             listState = listState,
             modifier = modifier,
@@ -124,6 +134,7 @@ fun MailRoute(
             onClose = { open = null },
             onSeen = viewModel::markSeen,
             onRemoved = viewModel::removed,
+            onCompose = { composing = it.encode() },
             modifier = modifier,
         )
     }
@@ -136,6 +147,7 @@ data class MailListCallbacks(
     val act: (UUID, MailListAction) -> Unit = { _, _ -> },
     val loadMore: () -> Unit = {},
     val retry: () -> Unit = {},
+    val compose: () -> Unit = {},
 )
 
 internal object MailListTags {
@@ -146,6 +158,7 @@ internal object MailListTags {
     const val MESSAGE = "mail-message"
     const val RETRY = "mail-retry"
     const val LOADING_MORE = "mail-loading-more"
+    const val COMPOSE = "mail-compose"
 
     fun row(id: UUID) = "mail-row:$id"
 
@@ -174,20 +187,28 @@ fun MailListContent(
     listState: LazyListState = rememberLazyListState(),
     clock: Clock = Clock.systemDefaultZone(),
 ) {
-    Column(modifier.fillMaxSize()) {
-        MailboxPicker(state, callbacks.select)
-        state.message?.let { ListMessage(it, callbacks.retry) }
-        if (state.loading) LinearProgressIndicator(Modifier.fillMaxWidth()) else Spacer(Modifier.height(4.dp))
-        when {
-            state.loaded && state.messages.isEmpty() ->
-                Text(
-                    stringResource(if (state.accounts.isEmpty()) R.string.mail_no_accounts else R.string.mail_empty),
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(24.dp).testTag(MailListTags.EMPTY),
-                )
-            else -> Messages(state, callbacks, listState, clock)
+    Box(modifier.fillMaxSize()) {
+        Column(Modifier.fillMaxSize()) {
+            MailboxPicker(state, callbacks.select)
+            state.message?.let { ListMessage(it, callbacks.retry) }
+            if (state.loading) LinearProgressIndicator(Modifier.fillMaxWidth()) else Spacer(Modifier.height(4.dp))
+            when {
+                state.loaded && state.messages.isEmpty() ->
+                    Text(
+                        stringResource(if (state.accounts.isEmpty()) R.string.mail_no_accounts else R.string.mail_empty),
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(24.dp).testTag(MailListTags.EMPTY),
+                    )
+                else -> Messages(state, callbacks, listState, clock)
+            }
         }
+        ExtendedFloatingActionButton(
+            onClick = callbacks.compose,
+            icon = { Icon(Icons.Outlined.Edit, contentDescription = null) },
+            text = { Text(stringResource(R.string.mail_compose)) },
+            modifier = Modifier.align(Alignment.BottomEnd).padding(16.dp).testTag(MailListTags.COMPOSE),
+        )
     }
 }
 
@@ -214,7 +235,8 @@ private fun Messages(
             .collect { load -> if (load) loadMore() }
     }
     val today = LocalDate.now(clock)
-    LazyColumn(Modifier.fillMaxSize().testTag(MailListTags.LIST), state = listState) {
+    // The bottom padding keeps the last row clear of the compose button.
+    LazyColumn(Modifier.fillMaxSize().testTag(MailListTags.LIST), state = listState, contentPadding = PaddingValues(bottom = 88.dp)) {
         items(state.messages, key = { it.id }) { mail ->
             SwipeRow(mail, state.canArchive, callbacks) {
                 MailRow(mail, state.account(mail.accountId)?.takeIf { state.showAccounts }, today, clock, callbacks.open)

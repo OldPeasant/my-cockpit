@@ -15,6 +15,9 @@ import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
+import androidx.compose.material.icons.automirrored.outlined.Forward
+import androidx.compose.material.icons.automirrored.outlined.Reply
+import androidx.compose.material.icons.automirrored.outlined.ReplyAll
 import androidx.compose.material.icons.outlined.Archive
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.HourglassEmpty
@@ -41,6 +44,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import ch.sonensei.cockpit.R
+import ch.sonensei.cockpit.mail.compose.ComposeMode
 import ch.sonensei.cockpit.mail.list.MailListAction
 import java.time.Instant
 import java.time.ZoneId
@@ -59,6 +63,7 @@ fun MailReadRoute(
     modifier: Modifier = Modifier,
     onSeen: (UUID) -> Unit = {},
     onRemoved: (UUID) -> Unit = {},
+    onCompose: (ComposeMode) -> Unit = {},
     viewModel: MailReadViewModel = hiltViewModel(),
 ) {
     // One view model for all mails (cleared with the Mail screen); it drops the mail when the view closes.
@@ -84,6 +89,7 @@ fun MailReadRoute(
                 retry = viewModel::retry,
                 gtd = viewModel::gtd,
                 act = viewModel::act,
+                compose = onCompose,
             ),
         modifier = modifier,
     )
@@ -95,6 +101,7 @@ data class MailReadCallbacks(
     val retry: () -> Unit = {},
     val gtd: (MailGtdAction) -> Unit = {},
     val act: (MailListAction) -> Unit = {},
+    val compose: (ComposeMode) -> Unit = {},
 )
 
 internal object MailReadTags {
@@ -108,6 +115,9 @@ internal object MailReadTags {
     const val NOTICE = "mail-read-notice"
     const val IMAGES_BLOCKED = "mail-read-images-blocked"
     const val ATTACHMENTS = "mail-read-attachments"
+    const val REPLY = "mail-read-reply"
+    const val REPLY_ALL = "mail-read-reply-all"
+    const val FORWARD = "mail-read-forward"
 
     fun gtd(action: MailGtdAction) = "mail-read-gtd:$action"
 
@@ -132,7 +142,7 @@ fun MailReadContent(
         state.notice?.let { Notice(it) }
         val message = state.message
         when {
-            message != null -> Message(message, zone, body)
+            message != null -> Message(message, zone, body, callbacks.compose.takeUnless { state.busy })
             state.error != null -> Error(state.error, callbacks.retry)
         }
     }
@@ -230,6 +240,7 @@ private fun ColumnScope.Message(
     message: MailMessage,
     zone: ZoneId,
     body: @Composable (String, Modifier) -> Unit,
+    compose: ((ComposeMode) -> Unit)?,
 ) {
     Column(
         Modifier.fillMaxWidth().padding(horizontal = 16.dp).testTag(MailReadTags.HEADERS),
@@ -261,7 +272,8 @@ private fun ColumnScope.Message(
             )
         }
     }
-    HorizontalDivider(Modifier.padding(top = 8.dp))
+    ReplyButtons(message.id, compose)
+    HorizontalDivider()
     if (message.html.isNotBlank()) {
         body(message.html, Modifier.fillMaxWidth().weight(1f))
     } else {
@@ -272,6 +284,39 @@ private fun ColumnScope.Message(
                 modifier = Modifier.verticalScroll(rememberScrollState()).padding(16.dp).testTag(MailReadTags.TEXT),
             )
         }
+    }
+}
+
+/** Reply, reply all and forward start a draft from the mail (SPEC.md §7.3); disabled while an action runs. */
+@Composable
+private fun ReplyButtons(
+    id: UUID,
+    compose: ((ComposeMode) -> Unit)?,
+) {
+    Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+        ReplyButton(Icons.AutoMirrored.Outlined.Reply, R.string.mail_read_reply, MailReadTags.REPLY, compose != null) {
+            compose?.invoke(ComposeMode.Reply(id))
+        }
+        ReplyButton(Icons.AutoMirrored.Outlined.ReplyAll, R.string.mail_read_reply_all, MailReadTags.REPLY_ALL, compose != null) {
+            compose?.invoke(ComposeMode.ReplyAll(id))
+        }
+        ReplyButton(Icons.AutoMirrored.Outlined.Forward, R.string.mail_read_forward, MailReadTags.FORWARD, compose != null) {
+            compose?.invoke(ComposeMode.Forward(id))
+        }
+    }
+}
+
+@Composable
+private fun ReplyButton(
+    icon: ImageVector,
+    label: Int,
+    tag: String,
+    enabled: Boolean,
+    onClick: () -> Unit,
+) {
+    TextButton(onClick = onClick, enabled = enabled, modifier = Modifier.testTag(tag)) {
+        Icon(icon, contentDescription = null, modifier = Modifier.padding(end = 4.dp))
+        Text(stringResource(label))
     }
 }
 
