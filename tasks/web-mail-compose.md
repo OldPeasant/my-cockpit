@@ -1,10 +1,11 @@
 ---
 title: Mail compose, reply, forward
-status: todo
-owner:
+status: in_progress
+owner: dell26/agent-1
 deps: [web-mail-read,mail-compose]
 touches: [web/src/app/features/mail/compose]
 prio: 1
+lease_until: 2026-10-22T07:18:42Z
 ---
 ## Goal
 Write mail (SPEC.md §7.3).
