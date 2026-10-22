@@ -1,12 +1,13 @@
 ---
 title: Google contacts sync
-status: in_progress
-owner: dell26/agent-1
+status: todo
+owner: 
 deps: [contacts-api,oauth-connections]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/contacts/google,server/src/test/kotlin/ch/sonensei/cockpit/contacts/google]
 prio: 2
-lease_until: 2026-10-22T04:24:05Z
-extended: dell26/agent-1
+lease_until: 
+extended: 
+releases: 1
 ---
 ## Goal
 Two-way People API sync.
@@ -27,3 +28,4 @@ Two-way People API sync.
 - ASSUMPTION (2026-10-22 05:28+0200 by dell26/agent-1): contacts_google_link keeps a tombstone (contact_id set null) when a linked contact is purged, so the next push still deletes the person at Google and the pull does not re-import it; migration V202610221100 edited in place since it was never published (review CR-3)
 - extended by dell26/agent-1: Implementation, WireMock tests, review (review.md) and fixes for CR-1..CR-6 + restored-person bug (fixes.md, focused tests passed per fixer) are committed. Left: code changed after review, so re-run test-writer (writes the still-missing tests.md with coverage) and code-reviewer on HEAD; run fixer only if new findings; parent runs ./gradlew test --tests 'ch.sonensei.cockpit.contacts.google.*' (sub-agents can't run Gradle); tasks.py verify criteria 1+2; sh scripts/check.sh; write quality.json (result exactly 'pass'); done.
 - ASSUMPTION (2026-10-22 06:06+0200 by dell26/agent-1): Review round 2 CR-2 accepted as known limitation: editing a field group of a Google person with more entries than the contact limit (MAX_ENTRIES) drops the overflow entries at Google on push
+- release by dell26/agent-1: Implementation complete; round-2 review fixes (CR-1 re-derive display name after push, CR-3 keep just-created persons on full listing) committed in dc98927c9; CR-2 accepted as assumption. On dc98927c9: server/gradlew -p server test --tests 'ch.sonensei.cockpit.contacts.google.*' ktlintCheck passes (113 tests per fixer). Left (finalization only): code changed after review.md, so re-run test-writer (must write reviews/contacts-google/tests.md with task-scoped coverage; it is still missing) and code-reviewer on HEAD; fixer only if new findings; parent runs the focused gradle tests (sub-agents can't run Gradle); tasks.py verify 1 (WireMock tests in GoogleContactsSyncTests) and 2; sh scripts/check.sh; write quality.json (result exactly 'pass', reviewed_revision = final hash); done.
