@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "task": "backup-contrib-contacts",
-  "reviewed_revision": "e08bbc456bc8f919eb8aa3cdb6b34b6014797e0c",
+  "reviewed_revision": "95d82e41a3c906008824ba0fcc13ab29cc9ea731",
   "helpers": {
     "test-writer":   {"status": "completed", "report": "reviews/backup-contrib-contacts/tests.md"},
     "code-reviewer": {"status": "completed", "report": "reviews/backup-contrib-contacts/review.md"},
