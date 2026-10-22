@@ -11,7 +11,8 @@ lease_until: 2026-10-22T08:59:21Z
 Configurable home (SPEC.md §8.7).
 
 ## Acceptance criteria
-- [ ] Widgets: Today, Inbox count (tasks + unread mail), Stalled projects, Waiting For overdue, Upcoming events, Read-later, Pinned notes, Last weekly review; show/hide and order saved in settings
+- [x] Widgets: Today, Inbox count (tasks + unread mail), Stalled projects, Waiting For overdue, Upcoming events, Read-later, Pinned notes, Last weekly review; show/hide and order saved in settings
+  - verified (2026-10-22 10:43+0200 by dell26/agent-1): cd web && npx ng test --watch=false --include 'src/app/features/dashboard/**/*.spec.ts' -> 84 passed (dashboard-page.spec renders all 8 widgets: Today, Inbox tasks+unread mail, Upcoming, Waiting For overdue, Stalled projects, Last weekly review, Read later, Pinned notes; hide/move in Customize PATCHes dashboardWidgets with If-Match and the stored order/hidden state is shown); cd server && ./gradlew test --tests '*DashboardSettingsWebTests' --tests '*SettingsServiceTests' (Testcontainers Postgres) -> pass (setting registered, default empty, order kept, invalid values 400)
 - [ ] Vitest component/service tests cover widget configuration persistence; `cd web && npm run check` passes
 
 ## Notes
