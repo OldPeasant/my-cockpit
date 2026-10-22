@@ -218,16 +218,53 @@ class FilesViewModelTest {
             val store = ViewModelStore()
             val factory = viewModelFactory { initializer { FilesViewModel(repo, dispatcher) } }
             val vm = ViewModelProvider(store, factory)[FilesViewModel::class.java]
-            var discarded = false
+            var discarded = 0
             vm.open(pdf) { target }
-            vm.save(pdf, { null }) { discarded = true }
+            vm.save(pdf, { null }) { discarded++ }
             advanceUntilIdle()
             assertTrue(target.exists())
+            // The ignored save's document (created empty by the "save as" picker) is discarded right away.
+            assertEquals("the ignored save left its document behind", 1, discarded)
 
             store.clear()
             advanceUntilIdle()
             assertFalse(target.exists())
-            assertFalse("the ignored save discarded something", discarded)
+            assertEquals("the ignored save was discarded again", 1, discarded)
+        }
+
+    @Test
+    fun `a save ignored while another file downloads discards its document, the running download is not touched`() =
+        runTest(dispatcher) {
+            val other = DriveEntry.File(id(4), "b.txt", "text/plain", 1, Instant.parse("2026-10-01T09:00:00Z"))
+            val first = temp.newFile("2025.pdf")
+            val gate = CompletableDeferred<Unit>()
+            coEvery { repo.download(pdf.id, any()) } coAnswers {
+                secondArg<() -> OutputStream?>()()!!.use { it.write("pdf".toByteArray()) }
+                gate.await()
+                FilesResult.Ok(3L)
+            }
+            val vm = FilesViewModel(repo, dispatcher)
+            vm.open(pdf) { first }
+            advanceUntilIdle()
+
+            var opened = false
+            var discarded = 0
+            val target: () -> OutputStream? = {
+                opened = true
+                null
+            }
+            vm.save(other, target) { discarded++ }
+            advanceUntilIdle()
+            assertEquals(1, discarded)
+            assertFalse("the ignored save opened its document", opened)
+            assertEquals(pdf.id, vm.uiState.value.downloading)
+
+            gate.complete(Unit)
+            advanceUntilIdle()
+            coVerify(exactly = 0) { repo.download(other.id, any()) }
+            assertEquals(FilesEvent.Open(first, "application/pdf"), vm.events.first())
+            assertEquals("pdf", first.readText())
+            assertEquals(1, discarded)
         }
 
     @Test

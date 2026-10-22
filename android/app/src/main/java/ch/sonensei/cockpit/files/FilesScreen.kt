@@ -117,7 +117,9 @@ fun FilesRoute(modifier: Modifier = Modifier) {
         }
     }
 
-    val resolver = context.contentResolver
+    // The view model keeps these callbacks past the activity (rotation): they hold the application, never the activity.
+    val app = context.applicationContext
+    val resolver = app.contentResolver
     val pickUploads =
         rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
             if (uris.isNotEmpty()) viewModel.uploadPicked { uris.map { describePicked(resolver, it) } }
@@ -138,7 +140,7 @@ fun FilesRoute(modifier: Modifier = Modifier) {
         callbacks =
             FilesCallbacks(
                 openFolder = viewModel::openFolder,
-                openFile = { file -> viewModel.open(file) { OpenedFiles.target(context, file.id, file.name) } },
+                openFile = { file -> viewModel.open(file) { OpenedFiles.target(app, file.id, file.name) } },
                 saveFile = {
                     saving = it
                     pickSaveTarget.launch(it.name)
@@ -378,12 +380,15 @@ private fun FileRow(
     callbacks: FilesCallbacks,
 ) {
     var menu by remember { mutableStateOf(false) }
+    // One download at a time: while one runs, no file can be opened or saved (the "save as" picker would create a document).
+    val idle = downloading == null
     EntryRow(
         tag = FilesTags.entry(file.id),
         kind = fileKind(file.mime),
         title = file.name,
         subtitle = "${formatSize(file.size)}, ${formatInstant(file.updatedAt)}",
         onClick = { callbacks.openFile(file) },
+        enabled = idle,
     ) {
         if (downloading == file.id) {
             CircularProgressIndicator(
@@ -402,6 +407,7 @@ private fun FileRow(
                             menu = false
                             callbacks.openFile(file)
                         },
+                        enabled = idle,
                         modifier = Modifier.testTag(FilesTags.OPEN),
                     )
                     DropdownMenuItem(
@@ -410,6 +416,7 @@ private fun FileRow(
                             menu = false
                             callbacks.saveFile(file)
                         },
+                        enabled = idle,
                         modifier = Modifier.testTag(FilesTags.SAVE),
                     )
                 }
@@ -425,12 +432,13 @@ private fun EntryRow(
     title: String,
     subtitle: String?,
     onClick: () -> Unit,
+    enabled: Boolean = true,
     trailing: @Composable () -> Unit = {},
 ) {
     Row(
         Modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick)
+            .clickable(enabled = enabled, onClick = onClick)
             .padding(start = 16.dp, end = 4.dp, top = 8.dp, bottom = 8.dp)
             .testTag(tag),
         verticalAlignment = Alignment.CenterVertically,

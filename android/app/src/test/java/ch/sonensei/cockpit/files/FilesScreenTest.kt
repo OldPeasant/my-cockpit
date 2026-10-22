@@ -149,4 +149,18 @@ class FilesScreenTest {
         composeRule.onNodeWithContentDescription("Dismiss").performClick()
         assertEquals(listOf("dismiss download"), calls)
     }
+
+    @Test
+    fun `while a file downloads, no other file can be opened or saved`() {
+        val other = DriveEntry.File(id(4), "b.txt", "text/plain", 1, Instant.parse("2026-10-01T09:00:00Z"))
+        show(FilesUiState(entries = listOf(docs, pdf, other), loaded = true, downloading = pdf.id))
+
+        // Folders still open: browsing goes on while the file downloads.
+        composeRule.onNodeWithTag(FilesTags.entry(docs.id)).performClick()
+        composeRule.onNodeWithTag(FilesTags.entry(other.id)).assertIsNotEnabled().performClick()
+        composeRule.onNodeWithTag(FilesTags.more(other.id)).performClick()
+        composeRule.onNodeWithTag(FilesTags.OPEN).assertIsNotEnabled().performClick()
+        composeRule.onNodeWithTag(FilesTags.SAVE).assertIsNotEnabled().performClick()
+        assertEquals(listOf("folder Documents"), calls)
+    }
 }

@@ -150,7 +150,10 @@ class FilesViewModel internal constructor(
         ) { FilesEvent.Open(checkNotNull(cache), file.mime) }
     }
 
-    /** Downloads [file] into the document [target] opens (the user picked where); a failed download calls [discard]. */
+    /**
+     * Downloads [file] into the document [target] opens (the user picked where); a failed download, or a save ignored
+     * because another file is downloading, calls [discard].
+     */
     fun save(
         file: DriveEntry.File,
         target: () -> OutputStream?,
@@ -164,8 +167,12 @@ class FilesViewModel internal constructor(
         discard: () -> Unit,
         done: () -> FilesEvent,
     ) {
-        // One at a time: a second tap while a file is downloading is ignored, before it touches any file.
-        if (downloadJob?.isActive == true) return
+        // One at a time: a second tap while a file is downloading is ignored, before it touches any file. What it was
+        // given is discarded: the "save as" picker already created an empty document, which must not look like a copy.
+        if (downloadJob?.isActive == true) {
+            viewModelScope.launch(io) { runCatching { discard() } }
+            return
+        }
         state.update { it.copy(downloading = file.id, downloadMessage = null) }
         downloadJob =
             viewModelScope.launch {

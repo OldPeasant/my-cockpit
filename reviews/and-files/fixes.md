@@ -124,3 +124,77 @@ Remaining unresolved findings:
 ## Final status
 
 All validated findings fixed and validation passed (CR-4's main-dispatcher cache preparation kept as a deliberate, documented partial).
+
+# Second review: fixes for review CR-1, CR-2 and test report TW-1
+
+Date: 2026-10-22
+
+Task: and-files - Android files
+
+Scope: current task; the second review's findings CR-1 (P2) and CR-2 (P3) of `reviews/and-files/review.md` (they replace the first review's ids, which the section above uses) and TW-1 of `reviews/and-files/tests.md`, which is the same defect as the second review's CR-1. Code base: HEAD 36015d3e1 plus this fixer's uncommitted changes in `android/app/src/{main,test}/java/ch/sonensei/cockpit/files`.
+
+## Fixed findings
+
+### Second-review CR-1 / TW-1 - "Save to device" started while another file downloads is silently dropped and leaves the empty document the picker created
+
+Files changed:
+- `android/app/src/main/java/ch/sonensei/cockpit/files/FilesViewModel.kt`
+- `android/app/src/main/java/ch/sonensei/cockpit/files/FilesScreen.kt`
+- `android/app/src/test/java/ch/sonensei/cockpit/files/FilesViewModelTest.kt`
+- `android/app/src/test/java/ch/sonensei/cockpit/files/FilesScreenTest.kt`
+
+Problem:
+While one file downloaded, every other row still offered "Save to device". The save-as picker created the document, then `FilesViewModel.save` returned early on the single-flight check without calling `discard`, leaving a 0-byte file and no message.
+
+Fix:
+- `FilesViewModel.download`: when a download is ignored because another one runs, its `discard` is now called off the main thread (`viewModelScope.launch(io) { runCatching { discard() } }`, the same dispatcher and error handling as the failure path). For an ignored open this is a no-op (its cache file was never chosen); for an ignored save it deletes the picker's document. The `save` KDoc says so. This supersedes the line "A save ignored by the single-flight check never discards anything" in the first CR-3 section above.
+- `FilesScreen.kt`: while any download runs (`state.downloading != null`) the file rows are not clickable and the menu's "Open" and "Save to device" items are disabled (`EntryRow` got an `enabled` parameter, default `true`, passed to `clickable`). Folders stay clickable, so browsing continues. The save-as picker therefore cannot be started during a download; the view-model discard is the safety net for any remaining race.
+- No message is shown for the discarded save: with the UI change it is no longer reachable through the screen, so a new string and banner were not added.
+
+Tests:
+- `FilesViewModelTest` "a download cancelled with the screen discards what it wrote": updated to the new behaviour. It asserted that the ignored save discarded nothing; it now asserts the ignored save is discarded exactly once (right away, and not again when the view model is cleared).
+- `FilesViewModelTest` "a save ignored while another file downloads discards its document, the running download is not touched": new. The ignored save's target is never opened, its discard runs once, the running download keeps going and its file is opened with its content, and nothing is downloaded for the other file.
+- `FilesScreenTest` "while a file downloads, no other file can be opened or saved": new. Another file's row and its menu's Open and Save items are disabled and calling them does nothing; a folder still opens.
+- `FilesRouteInAppTest` "saving another file while one downloads leaves no empty document where the user chose" (test-writer's regression test): unchanged. With the disabled Save item no picker is started, so it takes its "no save can start" branch.
+
+Validation:
+- Not run by the fixer (sub-agents cannot run Gradle). The parent runs `cd android && ./gradlew ktlintCheck lintDebug testDebugUnitTest --tests 'ch.sonensei.cockpit.files.*'`.
+
+### Second-review CR-2 - View model coroutines keep the Activity alive for the length of a download or upload
+
+Files changed:
+- `android/app/src/main/java/ch/sonensei/cockpit/files/FilesScreen.kt`
+
+Problem:
+The lambdas handed to the view model (the open target factory, the save target and discard, the picked-upload describe lambda) captured the Activity through `context` and `context.contentResolver`, so a rotation during a long transfer kept the destroyed Activity alive.
+
+Fix:
+`FilesRoute` now takes `val app = context.applicationContext` and `val resolver = app.contentResolver`; the open target factory uses `OpenedFiles.target(app, ...)`. `OpenedFiles.target` takes a plain `Context` and only uses `cacheDir`, which the application context has. The event collector (toasts and `OpenedFiles.launch`, which starts an activity) still uses the Activity `context`, because it runs in the composition and does not outlive it.
+
+Validation:
+- Covered by the existing route tests that open, save and upload through the real route (`FilesRouteInAppTest`). Not run by the fixer; see the parent's run.
+
+## Not fixed
+
+None.
+
+## Validation summary
+
+Focused tests:
+- Not run by the fixer (no Gradle access). Command for the parent: `cd android && ./gradlew ktlintCheck lintDebug testDebugUnitTest --tests 'ch.sonensei.cockpit.files.*'`.
+
+Full test suite:
+- Not run (parent runs `.taskcheck`).
+
+Lint/type-check/build:
+- Not run by the fixer; included in the parent's command above.
+
+`.taskcheck`:
+- Not run (fixer cannot run Gradle).
+
+Remaining unresolved findings:
+0
+
+## Final status
+
+All validated findings fixed; validation is pending the parent's Gradle run.
