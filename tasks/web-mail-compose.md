@@ -13,7 +13,8 @@ Write mail (SPEC.md §7.3).
 ## Acceptance criteria
 - [x] TipTap editor, identity picker, to/cc/bcc with autocomplete (recent correspondents), attachments (upload or from Files), autosave every 10 s, send
   - verified (2026-10-22 09:32+0200 by dell26/agent-1): npm --prefix web run e2e -- e2e/mail-compose/compose.spec.ts (podman e2e stack, real server + GreenMail, at 3d7d740d5) -> reply with Files attachment received; plus mail-compose-page/recipient-input/rich-text-editor/service specs (TipTap editor, sender/identity, to/cc/bcc suggestions from recent correspondents, upload + Files attach, 10 s autosave, send) pass in npm run check -> 3165 passed
-- [ ] Vitest component/service tests cover autosave timing (fake timers), recipient chips; `cd web && npm run check` passes
+- [x] Vitest component/service tests cover autosave timing (fake timers), recipient chips; `cd web && npm run check` passes
+  - verified (2026-10-22 09:32+0200 by dell26/agent-1): cd web && npm run check at 3d7d740d5 -> lint clean, 155 files / 3165 tests passed; autosave fake-timer test 'creates the draft 10 s after the first edit, not before' and recipient-input chip specs included
 - [x] Playwright `e2e/mail-compose/compose.spec.ts` passes against the e2e stack (`npm run e2e -- e2e/mail-compose/compose.spec.ts`, see p0-e2e-harness): reply with a Files attachment is received by GreenMail
   - verified (2026-10-22 09:26+0200 by dell26/agent-1): cd web && npm run e2e -- e2e/mail-compose/compose.spec.ts (podman-compose e2e stack with GreenMail, chromium) at dd03a60d7 -> 25 passed incl. 'reply with a Files attachment is received by GreenMail': Reply from read view, body typed, file attached via From Files dialog, draft saved, Send; peer INBOX has 'Re: <subject>' with text, filename and In-Reply-To; Sent has a copy; Drafts empty
 
