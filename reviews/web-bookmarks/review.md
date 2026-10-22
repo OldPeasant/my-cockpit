@@ -4,26 +4,35 @@ Date: 2026-10-22
 
 Task: web-bookmarks - Bookmarks UI
 
-Scope: commits after base 1c092335 up to HEAD 7dadda74 (`git diff 1c092335..HEAD -- web`): `web/src/app/features/bookmarks/` (service, display helpers, page, reader route `/bookmarks/:id`, specs) and `web/src/app/app.i18n.spec.ts`
+Scope: second review pass of the task commits after base 7e5c5064 up to e5175734 (`git log 7e5c5064..e5175734`): `web/src/app/features/bookmarks/` (page, reader, service, display helpers, styles, specs), `web/src/app/app.spec.ts`, `web/src/app/app.i18n.spec.ts`. Focus: the fixes for CR-1 to CR-4 and TW-2 from the first review (`reviews/web-bookmarks/fixes.md`), and the final code, especially the new `insert`, `changeSeq` and per-id `changedAt` logic.
 
 Requirements:
 - tasks/web-bookmarks.md acceptance criteria and recorded assumptions
-- SPEC.md §4.1, §4.2, §8.4
-- docs/ARCHITECTURE.md (web conventions, testing)
-- AGENTS.md project notes
-- deploy/Caddyfile (production CSP)
-- Generated API client models and functions for Bookmarks, ChangeEvent and the files preview (`api/openapi.yaml` contract)
-- Sibling feature `web/src/app/features/habits` for conventions
+- SPEC.md §8.4 (and §4.1 for the favicon/IP-leak question)
+- docs/ARCHITECTURE.md, AGENTS.md project notes
+- reviews/web-bookmarks/fixes.md (claimed fixes)
+- server `BookmarkService` (list order `createdAt desc, id desc`, keyset cursor), to check the client-side insert order
 
 Git range:
 - Branch: main
-- HEAD: 7dadda74
-- Base/start: 1c092335a2909e97cec38e57d680049129ca72ef
-- Commits reviewed: 1 (7dadda74)
+- HEAD: e5175734
+- Base/start: 7e5c50644d247bc7ee46c1d4279a5c815d2f42bb
+- Commits reviewed: 3 (a77cc233, 1bf79432, e5175734)
 
-Review method note: shell access was not available to the reviewer, so the commit list and diff could not be printed. The review covers the full current contents of every file in the feature folder named in the scope (bookmarks.routes.ts, bookmarks-page.ts/.html/.scss, bookmark-reader.ts/.html/.scss, bookmarks.service.ts, bookmark-display.ts and their specs), plus the contracts and docs listed above. `testing.ts` and `app.i18n.spec.ts` were not read in full. Tests and `npm run check` were not re-run by the reviewer.
+Review method note: the reviewer had no shell access, so the reviewer could not print the diff or run tests. The review covers the full current contents of `bookmarks-page.ts/.html`, `bookmark-reader.ts/.html`, `bookmarks.service.ts`, `bookmark-display.ts`, `bookmarks-page.spec.ts`, `bookmark-reader.spec.ts` and the server `BookmarkService.kt`. Test and check results are the ones reported in fixes.md (73 focused tests, `npm run check` passing). The reviewer did not re-run them.
 
-Summary: 0 P0, 0 P1, 1 P2, 4 P3
+Summary: 0 P0, 0 P1, 0 P2, 1 P3
+
+## Verification of the earlier findings
+
+- CR-1 (favicons blocked by CSP, IP leak): fixed. No `<img>` is rendered. The `aria-hidden` letter tile always shows (`bookmarks-page.html:116-117`). `faviconOf` was removed. The first-page test asserts that no `img` is present and that the letter shows. The limitation is recorded as a task assumption.
+- CR-2 (changes of bookmarks not shown were ignored): fixed. `refreshOne` fetches any changed id while a list is shown. It inserts the bookmark when `belongs()` is true. `insert` follows the server order (`createdAt desc, id desc`, confirmed in `BookmarkService.list`). With more pages loaded, it only inserts a bookmark newer than the last shown one. That is correct for the keyset cursor: an older bookmark comes with the next page, and `loadMore` dedupes by id. With more pages loaded or a change running, `CREATED` falls back to `refreshOne(id)`. Tests cover the insert position, appending when no more pages exist, an older bookmark with a cursor, not belonging, 404, and the list still loading.
+- CR-3 (a quiet reload overwrote a local change): fixed for local changes. `changeSeq` is bumped at the start and end of `run()` (also on errors, before the conflict reload) and of `add()`. `reloadQuietly` discards its result when the counter moved. `refreshOne` uses the per-id `changedAt`. Because of that, a delete, patch or add of the same id here discards a refresh that was started earlier, including its 404 drop. A change to a different row does not. I traced the add path both ways. A `CREATED` refresh that resolves before the POST is inserted once, because `add()` skips known ids. One that resolves after the POST is discarded through `changedAt(created.id)`. Tests cover each case. See CR-1 below for the remaining remote-vs-remote ordering gap.
+- CR-4 (Back lost the view and tag): fixed. "Read here" passes `viewParams()`, and Angular drops the null `tag`. The reader's back link uses `queryParamsHandling="preserve"`. Page and reader tests assert the resulting hrefs.
+- TW-2 (style budget): fixes.md reports a passing build without the budget warning. The reviewer did not re-run it.
+- CR-5 (tests for race and error paths): now covered. There are tests for a stale list for an earlier view, a quiet reload on `CREATED` and resync, an add error, and a 404 on a row change and on a refresh.
+
+Security: nothing new. Outbound links keep `rel="noopener noreferrer"`. No third-party requests remain. The reader still renders Markdown through `renderMarkdown` plus Angular's `[innerHTML]` sanitizer, and the test asserts that `<script>` is stripped.
 
 ## P0 Critical
 
@@ -35,43 +44,17 @@ None.
 
 ## P2 Medium
 
-- [ ] **CR-1 | Remote favicons are blocked by the production CSP and leave an empty icon instead of the letter fallback**
-    - File: `web/src/app/features/bookmarks/bookmarks-page.html:117-121`, `web/src/app/features/bookmarks/bookmark-display.ts:49-51`
-    - Category: Integration
-    - Problem: The list renders `<img [src]="faviconOf(b)">` pointing straight at the bookmarked site's favicon URL (absolute http(s) URL per `BookmarkResponse.favicon`). The deployed CSP in `deploy/Caddyfile:24` is `img-src 'self' data: blob:`, so the browser blocks every external favicon. When a favicon is set, the template takes the `@if` branch and never shows the host-initial fallback. The result is an empty icon box for every bookmark whose metadata fetch found a favicon, which is the normal case. Unit tests in jsdom don't enforce CSP, so they can't catch this. Loading third-party images directly also sends the owner's IP and request timing to every bookmarked site each time the list renders. SPEC.md §4.1 avoids that for mail, where remote images go through a server proxy.
-    - Why it matters: In the deployed stack the favicon feature never works, and it hides the fallback that would otherwise show. It only looks right in dev, where no CSP is set.
-    - Suggested fix: Show the letter fallback unless the icon can load. One option is to render the letter underneath and hide a failed `<img>` with an `(error)` handler. A better option is to serve favicons same-origin through the server: a server-side proxy or a stored file, which needs a server/API task. Recording that as a task or assumption is the parent's call. Don't widen `img-src` to arbitrary hosts.
+None.
 
 ## P3 Low
 
-- [ ] **CR-2 | Change events for bookmarks not currently listed are ignored, so items that enter the view from elsewhere don't appear**
-    - File: `web/src/app/features/bookmarks/bookmarks-page.ts:240-241`, `:254-258`
+- [ ] **CR-1 | A quiet reload that answers late can overwrite a newer change that arrived from elsewhere, or a newer quiet reload**
+    - File: `web/src/app/features/bookmarks/bookmarks-page.ts:314-320` (with `:284-302`)
     - Category: Correctness
-    - Problem: `refreshOne` returns early when the event's id isn't in the shown list. Some changes should add a row to the current view, for example: another device puts a bookmark back into Read later, marks one unread, or adds the filtered tag, or the bookmark is restored from the Trash and that is reported as `UPDATED` (`ChangeEvent.op` only has CREATED/UPDATED/DELETED). None of these show up until the user navigates. `reloadQuietly` also does nothing while more than one page is loaded (`this.nextCursor()` is set), so with more than 50 bookmarks, `CREATED` events from other devices (for example an Android share to Read later) are dropped too.
-    - Why it matters: The live update is only partial, and the queue goes stale without any sign.
-    - Suggested fix: For an `UPDATED` id that isn't shown, fetch it and insert it in order when `belongs()` is true. When more pages are loaded, insert fetched `CREATED` items at the top instead of skipping the reload.
-
-- [ ] **CR-3 | A quiet reload that was started before a row change can overwrite that change's result**
-    - File: `web/src/app/features/bookmarks/bookmarks-page.ts:254-264`
-    - Category: Correctness
-    - Problem: `reloadQuietly` only throws its response away if a change is still running when the response arrives (`this.busy().size`). Suppose a reload starts (for example from the CREATED event of the user's own `add()`), then a PATCH or DELETE starts and finishes before the reload's response arrives. The older list then replaces the newer state with `bookmarks.set(page.items)`, so a just-read or just-deleted bookmark briefly reappears. The following `UPDATED`/`DELETED` SSE event usually repairs it, through the version check in `refreshOne` or `drop`. Without that event (SSE reconnecting) it stays wrong until the next load.
-    - Why it matters: Out-of-order async results flicker or show stale state. This is exactly the race class the review checklist names.
-    - Suggested fix: Keep a mutation counter or generation that increments when any change starts. Capture it when the reload starts and discard the reload result if it changed. Alternatively, merge by `version` instead of replacing the list.
-
-- [ ] **CR-4 | Reader's "Back to bookmarks" loses the view and tag the user came from**
-    - File: `web/src/app/features/bookmarks/bookmark-reader.html:2`
-    - Category: Correctness
-    - Problem: `routerLink=".."` navigates to `/bookmarks` with no query params. A user who opens "Read here" from `/bookmarks?view=all&tag=essays` lands back in the Read later queue, not in the filtered list.
-    - Why it matters: A small navigation regression in the "all bookmarks by tag" flow from the acceptance criterion.
-    - Suggested fix: Pass the originating `view`/`tag` as query params on the "Read here" link and back again. Using `Location.back()` when there is in-app history would also work.
-
-- [ ] **CR-5 | Race and error paths of the page have no tests**
-    - File: `web/src/app/features/bookmarks/bookmarks-page.spec.ts`
-    - Category: Tests
-    - Problem: The spec covers the main queue actions well: list, tag filter, add, mark read/unread, unqueue, delete, 412 conflict, metadata event, load more, load error. It has no test for: (a) a stale list response for an earlier view being ignored (`loadSeq`), (b) `resync$`/`CREATED` triggering `reloadQuietly`, (c) `add()` failing on the server (the `addError` from `ApiError`), (d) a 404 on a row change dropping the row.
-    - Why it matters: These are the guards most likely to regress, and the bugs they prevent are invisible in normal use.
-    - Suggested fix: Add focused cases for (a) to (d) with `HttpTestingController`, flushing responses out of order where relevant.
+    - Problem: `reloadQuietly` only checks `loadSeq` and `changeSeq`, and `changeSeq` counts local changes only. Two cases are not guarded. (a) Several quiet reloads overlap, for example a burst of `CREATED` events when the phone syncs several shares, or a `CREATED` event followed by a resync. Whichever response arrives last wins, even if it is the oldest. (b) A `refreshOne` result is applied while an older quiet reload is still in flight. A concrete case: a bookmark is created on another device, so its `CREATED` event starts a reload. Its metadata `UPDATED` event follows quickly, and `refreshOne` shows the fetched title. If the reload response arrives after that, `bookmarks.set(page.items)` puts back the older `PENDING` version ("fetching title…"). No further event repairs it, so the row stays stale until the user navigates. Case (a) can likewise drop the newest created bookmark from the list.
+    - Why it matters: This is the out-of-order async result class again (an older request overwrites a newer result). It is narrower than the original CR-3: it needs remote events close together and responses that arrive out of order. It shows stale state without any sign, but it heals on the next navigation or event.
+    - Suggested fix: Give quiet reloads their own request identity, so a reload is applied only if it is still the latest one (`++reloadSeq`, checked on arrival). Also bump a generation when `refreshOne` applies a result, so an older reload is discarded. A simpler option is to merge the reload by `version` and keep the newer one per id. Add a test that flushes two quiet reloads out of order, and one where a refresh lands before an older reload.
 
 ## Review conclusion
 
-No material issues found. The acceptance criteria look implemented: Read-later queue, all bookmarks by tag, add by URL, mark read, and the snapshot view. Queue actions have Vitest coverage. The XSS checks passed. `renderMarkdown` escapes all text and its `"` before markup is added, links only take http(s)/mailto targets, and Angular's `[innerHTML]` sanitizer runs on top. `[href]="b.url"` is sanitized by Angular, and the server contract says the URL is absolute http(s). Outbound links use `rel="noopener noreferrer"`. `normalizeUrl` rejects `javascript:`/`mailto:`/`ftp:`. CR-1 should be fixed or recorded as a known limitation or follow-up task before or soon after completion, because favicons won't work in the deployed stack. CR-2 to CR-5 are optional improvements.
+No material issues found. All fixes from the first review are correct and complete. The new insert, `changeSeq` and per-id `changedAt` logic is sound for local changes and matches the server's order and cursor. Both acceptance criteria look implemented and tested: Read-later queue, all bookmarks by tag, add by URL, mark read, the snapshot view, and Vitest coverage of the queue actions. `npm run check` passing is reported by the fixer and was not re-run here. CR-1 is an optional robustness improvement.
