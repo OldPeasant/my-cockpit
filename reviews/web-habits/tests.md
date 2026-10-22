@@ -2,24 +2,31 @@
 
 Date: 2026-10-22
 
-Task: web-habits (Habits UI)
+Task: web-habits (Habits UI), second pass on the code after the fixes
 
-Scope: task commit 2226ef19e720b72d5e845b720c4a2842250da16b on main, base 40a04b17293e02c853fb96c1f775770355949039 (supplied by the parent). Production changes are only under `web/src/app/features/habits/`. The rest of `git diff --stat 40a04b17..2226ef19` is two `tasks/*.md` files, and those are out of scope. HEAD = 2226ef19 at measurement time. The only uncommitted changes are the test files listed below (plus `reviews/web-habits/review.md` from the code-reviewer, which I did not touch).
+Scope: `git diff dcbfae15eaeafd1591491534f472fffc8ed3d9bb..b9162130404aaccfce7a13f7a437ecde1a5919df -- web/` (base and scope supplied by the parent). Task commits: 47d7cc80, 2fa4b0bc, cc3b59d4, b9162130. Production changes are only in `web/src/app/features/habits/`. The other web change is one line (`'/habits'`) in `web/src/app/app.spec.ts`, which is a test. HEAD = b9162130404aaccfce7a13f7a437ecde1a5919df on main when I measured. My only uncommitted change is `web/src/app/features/habits/habits-page.spec.ts`. `reviews/web-habits/review.md` is also modified, but by the code-reviewer, and I did not touch it.
 
 Requirements:
-- `tasks/web-habits.md` acceptance criteria 1 and 2 (supplied by the parent)
-- SPEC.md §8.5 (habits: schedule daily / N per week / weekdays, target_count, reminder_time, archived; one-tap check, streaks, completion % over the last 30 days)
-- SPEC.md §4.2 (optimistic locking via If-Match, Problem Details), docs/ARCHITECTURE.md "Coverage"
+- `tasks/web-habits.md` acceptance criteria 1 and 2, plus the recorded assumptions (one-tap counts up to the target and then wraps; the check targets `stats.today`)
+- SPEC.md §8.5 (habits list, one-tap check, streaks, 30-day completion)
+- `reviews/web-habits/fixes.md` (TW-1/CR-1 conflict reload guard, CR-3 reload on `visibilitychange`, CR-2 ICU plural streaks)
+- docs/ARCHITECTURE.md "Coverage"
 
 ## Test files changed
 
-- `web/src/app/features/habits/habit-form.spec.ts` (new, 14 tests)
-- `web/src/app/features/habits/habits-page.spec.ts` (20 tests added, existing 10 unchanged)
-- `web/src/app/features/habits/habit-display.spec.ts` (1 test added, existing 8 unchanged)
+- `web/src/app/features/habits/habits-page.spec.ts` (3 tests added; no existing test changed)
 
 ## Tests added or updated
 
-Count: 35 added (habit specs went from 22 to 57 tests). No existing test was changed, weakened or skipped.
+Count: 3 added. The habits specs now have 66 tests: 40 page, 14 form, 8 display, 4 service. No existing test was changed, weakened or skipped.
+
+I checked the fixed behavior against the existing specs first:
+- TW-1/CR-1: `ignores a conflict reload of the active habits that arrives after switching to archived` (the original TW-1 test, unchanged) and `ignores a conflict reload that arrives after a newer load of the same view` both pass. Nothing was missing.
+- CR-2: `uses the singular and plural of days and weeks for streaks` covers 1 day, 0 weeks and 2 weeks. The other page tests cover '4 days', '12 days' and '1 week'. Nothing was missing.
+- CR-3: five specs cover the reload on becoming visible: the next check goes to the new `stats.today`; no reload when the page is hidden, a form is open or a check is running; no reload while the habits are loading; a failed load is retried; no reload after the component is destroyed. Three cases were missing, so I added these tests:
+  - `keeps a check made while the reload on becoming visible is still pending`: the user taps while the quiet reload is running, and the reload answers last. **Fails: TW-2.**
+  - `drops the reload on becoming visible when the view is switched meanwhile`: the `loadSeq` guard on the visibility path. Passes.
+  - `keeps the list when the reload on becoming visible fails`: the list stays, no load error is shown, and the check stays enabled. Passes.
 
 ## Requirement coverage
 
@@ -27,18 +34,16 @@ Focused command (F): `cd web && npx ng test --watch=false --include='src/app/fea
 
 | Requirement | Tests | Command | Result |
 |---|---|---|---|
-| AC1 habit list, grouped by due today | `groups the habits by due today ...`, `shows only the "not due" group when nothing is due today`, `shows the loading state until the habits arrive`, `offers to retry a failed load` | F | Pass |
+| AC1 habit list grouped by due today, loading/empty/error states | `groups the habits by due today ...`, `shows only the "not due" group ...`, `shows the loading state ...`, `offers to retry a failed load` | F | Pass |
 | AC1/AC2 one-tap check toggle | `checks a habit with one tap ...`, `unchecks a done habit with the next tap`, `counts a habit with a target up one per tap`, `sends one check for a double tap`, display `toggles a once-a-day habit between 0 and 1`, `counts up to the target, then back to 0` | F | Pass |
-| AC1/AC2 streak display and stats (30-day %) | `groups the habits ... shows streaks and the 30-day completion`, `checks a habit with one tap and shows the new streak`, display `labels streaks in days or weeks`, `rounds the 30-day completion ...` | F | Pass |
-| AC1 create | `creates a habit with the form`, `does not send a habit without a name`, `shows a failed create in the form without reloading`, `closes the new-habit form with Escape ...` | F | Pass |
-| AC1 edit (If-Match, cancel, conflicts) | `edits a habit with its version as If-Match`, `keeps the edit form after a 412, reloads, and saves again with the new version`, `keeps the form and its error when the reload after a 409 fails`, `disables the form while saving and closes it on cancel`, `keeps the form open when Escape is pressed while saving`, `pre-fills the form with the days of a weekday habit` | F | Pass |
-| Habit form: schedule switching, weekday toggle, times per week, times a day, reminder, validation | `habit-form.spec.ts` (all 14 tests) | F | Pass |
-| Archive / unarchive / archived view | `archives a habit and shows the archived ones without a check`, `unarchives a habit from the archived view`, `switches between the active and archived habits` | F | Pass |
-| Row errors: 409/412 reload, 404 drop, generic error | `reloads the habits after a check conflict ...`, `reloads the habits after a 412 on archive`, `drops a habit that is gone (404) ...`, `shows a failed check next to the habit ...`, `shows a generic message for a failure that is not an API error` | F | Pass |
-| Late responses of an earlier view are ignored | `ignores habits of an earlier view that arrive late`, `ignores a failed load of an earlier view that arrives late` | F | Pass |
-| Late conflict reload must not overwrite another view | `ignores a conflict reload of the active habits that arrives after switching to archived` | F | **Fail (TW-1)** |
-| Service: list/create/update/setCheck, If-Match, silent errors | `habits.service.spec.ts` (4 tests) | F | Pass |
-| AC2 `cd web && npm run check` passes | whole web suite | `cd web && npm run check` | **Fail**: api:check, lint and e2e:typecheck passed; test:ci failed only on the TW-1 test; `ng build` was therefore not reached |
+| AC1/AC2 streak display (ICU plural, CR-2) and 30-day stats | `groups the habits ... streaks and the 30-day completion`, `checks a habit with one tap and shows the new streak`, `uses the singular and plural of days and weeks for streaks`, display `rounds the 30-day completion ...` | F | Pass |
+| AC1 create / edit (If-Match, 409/412, cancel, Escape) | `creates a habit with the form`, `edits a habit with its version as If-Match`, `keeps the edit form after a 412, reloads, and saves again ...`, `keeps the form and its error when the reload after a 409 fails`, the rest of the form tests, `habit-form.spec.ts` (14) | F | Pass |
+| Archive / unarchive / archived view, 404 drop, row errors | `archives a habit ...`, `unarchives a habit ...`, `switches between ...`, `drops a habit that is gone (404) ...`, `reloads the habits after a 412 on archive`, `shows a generic message ...` | F | Pass |
+| TW-1/CR-1 sequenced conflict reload | `ignores a conflict reload of the active habits that arrives after switching to archived`, `ignores a conflict reload that arrives after a newer load of the same view` | F | Pass |
+| CR-3 reload on becoming visible | `reloads the habits when the page becomes visible again ...`, `does not reload when the page is hidden, a form is open or a check is running`, `does not reload while the habits are still loading`, `tries a failed load again ...`, `stops listening ... when destroyed`, `drops the reload on becoming visible when the view is switched meanwhile`, `keeps the list when the reload on becoming visible fails` | F | Pass |
+| CR-3: a check made during the quiet reload must not be undone by the reload | `keeps a check made while the reload on becoming visible is still pending` | F | **Fail (TW-2)** |
+| Service: list/create/update/setCheck, If-Match, silent errors | `habits.service.spec.ts` (4) | F | Pass |
+| AC2 `cd web && npm run check` passes | whole web suite | `cd web && npm run check` | **Fail**: api:check, lint and e2e:typecheck pass; test:ci fails only on the TW-2 test (2740 passed, 1 failed), so `ng build` was not reached |
 
 ## Focused test execution
 
@@ -48,9 +53,9 @@ Command:
 
 Result:
 
-Fail: 4 files, 56 passed, 1 failed (TW-1, a production defect; the test stays in the file).
+Fail: 4 files, 65 passed, 1 failed (TW-2, a production defect; the test stays in the file).
 
-Also: `cd web && npx eslint --max-warnings=0 src/app/features/habits` passed (exit 0), and `cd web && npx prettier --check src/app/features/habits` passed.
+Also, `cd web && npx eslint --max-warnings=0 src/app/features/habits` passes (exit 0), and `cd web && npx prettier --check src/app/features/habits` passes ("All matched files use Prettier code style!").
 
 ## Full test execution
 
@@ -60,49 +65,49 @@ Command:
 
 Result:
 
-Fail: 137 files, 2731 passed, 1 failed (only TW-1). In the filtered coverage run below, the whole web suite passes with only that test deselected (2731 passed, 1 skipped by filter).
+Fail (exit 1). My first run (around 00:32Z) had 83 failures in 12 files. Almost all of them were 5000 ms timeouts in unrelated specs such as `settings/general/general-settings.spec.ts`, which points to machine load from parallel agents. The filtered coverage run right after it (full suite, only TW-2 deselected) passed all 137 files. The second run (finished 00:36:00Z) had 137 files, 2740 passed and 1 failed. The only failure was TW-2.
 
 ## .taskcheck
 
 Result:
 
-Not run. `scripts/check.sh` runs `npm run -s check` for web, and that fails right now because of the TW-1 test (shown above). The server and Android parts are unaffected by this task. The parent must run `.taskcheck` again after TW-1 is fixed.
+Not run. `scripts/check.sh` runs `npm run -s check` for web, and that currently fails on the TW-2 test (shown above). The parent must run `.taskcheck` after TW-2 is fixed.
 
 ## Bugs found
 
-### A conflict reload of the active habits overwrites the archived view
+### A check made while the reload on becoming visible is pending is undone by the reload
 
 Finding ID:
 
-`TW-1`
+`TW-2`
 
 Test:
 
-`HabitsPage > ignores a conflict reload of the active habits that arrives after switching to archived` (`web/src/app/features/habits/habits-page.spec.ts`)
+`HabitsPage > keeps a check made while the reload on becoming visible is still pending` (`web/src/app/features/habits/habits-page.spec.ts:766`)
 
 Production source:
 
-`web/src/app/features/habits/habits-page.ts:194-201` (`reloadKeepingForm`), started from `save()` at line 139
+`web/src/app/features/habits/habits-page.ts:221-229` (`reloadQuietly`), started by `refresh()` at line 212 (the CR-3 fix). The same applies to the conflict reload started at line 149.
 
 Requirement:
 
-AC1 (habit list with archive, SPEC.md §8.5). The page's own design rule (the `loadSeq` comment at line 74): "habits that arrive for an earlier view are ignored".
+AC1 one-tap check (SPEC.md §8.5): after a tap, the row shows the habit's new state. The fix for CR-3 (`fixes.md`) says the visibility reload must not interfere while the user works with the list, which is why `refresh()` skips the reload while a row is busy.
 
 Expected behavior:
 
-1. An edit save fails with 412/409, which starts `reloadKeepingForm()` (GET `archived=false`).
-2. The user switches to "Archived" (GET `archived=true`).
-3. The archived response arrives first, then the late active-list reload response.
+1. The page becomes visible, and `reloadQuietly()` sends GET `archived=false`.
+2. Before that answers, the user taps the check of "Read 20 pages". PUT `.../checks/2026-10-22` answers with `doneToday: true`, `currentStreak: 5`, and the row shows it as done.
+3. The GET then answers with the state it read before the check (`doneToday: false`).
 
-The archived view must keep showing the archived habits, here the empty-state text "No archived habits".
+The row must keep showing the check (aria-pressed "true", "5 days").
 
 Actual behavior:
 
-`reloadKeepingForm()` calls `this.habits.set(habits)` without checking `loadSeq` or the current view. The late active list replaces the archived list. The "Archived" toggle stays pressed, but the view shows the active habit "Read 20 pages" with its check, Edit and Archive buttons. The same applies the other way round: if a later `load()` starts while the reload is pending, the reload can overwrite it with stale data. A likely fix is to take a `loadSeq` snapshot in `reloadKeepingForm` (without bumping it, or bumping it so later loads still win) and ignore the result if the sequence or view has changed.
+`reloadQuietly()` guards only against a newer `load()` (`seq === this.loadSeq`). It does not guard against a check or change made after it started, so `habits.set(habits)` replaces the checked row with the stale one. aria-pressed goes back to "false" (assertion at line 786: expected 'true', received 'false'). The server has the check, but the page shows it as not done until the next reload. Checks send an absolute count without If-Match. For a habit with a target above 1, the next tap therefore sends the same count again, and that tap is lost (for example, 2/3 shown as 1/3, and the next tap sends 2 again). This is a likely window: returning to the tab and tapping right away. A possible fix is to drop or merge the quiet reload's result when a check or change started (or finished) after the reload began, e.g. by bumping a separate change counter in `run()` and `save()`, or by reloading again after it.
 
 Severity:
 
-Low. It needs a conflict followed by a quick view switch. The wrong list stays until the next reload, and actions on it go to the real habit ids.
+Low. The server data is correct, and the display fixes itself on the next reload. However, it breaks the one-tap check display right after returning to the tab, and it can swallow a tap on count habits.
 
 Fix required:
 
@@ -110,54 +115,53 @@ Fix required:
 
 ## Coverage
 
-Status: verified (fresh run with one known-failing test deselected, see below).
+Status: verified (fresh run of the full web suite with the one known-failing TW-2 test deselected; without the filter, the run exits 1 and writes no report).
 
 Metric: whole-file coverage of task-changed production files.
-Changed-line coverage: not measured separately. Every in-scope file is new in this task, apart from `habits.routes.ts` (8 changed lines), so whole-file coverage is effectively changed-line coverage for the new files.
+Changed-line coverage: not measured separately. Every in-scope file except `habits.routes.ts` (8 changed lines) is new in this task, so whole-file coverage is effectively changed-line coverage for those files.
 
 Evidence:
-- Task id, immutable base, measured HEAD, and task-owned commits/file-scope source: web-habits; base 40a04b17293e02c853fb96c1f775770355949039; HEAD 2226ef19e720b72d5e845b720c4a2842250da16b; task commit 2226ef19 and base were supplied by the parent. File scope comes from `git diff --stat 40a04b17 2226ef19` restricted to `web/src`, without `*.spec.ts` and the test helper `testing.ts`.
-- Source/test snapshot identifier (including uncommitted inputs): production files are unchanged from HEAD (sha256: habits-page.ts daefe16d…, habit-form.ts 3a292061…, habit-display.ts eac2bb71…, habits.service.ts d2b27767…, habits.routes.ts a290896a…, habits-page.html 15b0da40…, habit-form.html f67a9085…). Uncommitted specs (sha256): habit-form.spec.ts 2f222528…, habits-page.spec.ts ff071e11…, habit-display.spec.ts 34132d8b…, habits.service.spec.ts 35b4012f… (unchanged). Combined hash of all habits `*.ts`/`*.html` files before and after the final run: 991a7f4b… (identical).
-- Exact included files: `habit-display.ts`, `habit-form.ts`, `habit-form.html`, `habits-page.ts`, `habits-page.html`, `habits.service.ts`, `habits.routes.ts` (all under `web/src/app/features/habits/`). Excluded: `*.spec.ts` and `testing.ts` (test helper); `*.scss` (styles, not instrumented); `tasks/*.md` (not code). Nothing was renamed or deleted.
-- Provider/version, command, working directory, and test selection: Vitest 5.0.5 + @vitest/coverage-v8 5.0.5 via `@angular/build:unit-test`. Command: `npm run coverage -- --filter='^(?!.*ignores a conflict reload of the active habits).*$'` in `web/`. This is the full web suite with only the TW-1 test deselected. Without the filter the run exits 1 and writes no report (I tried this first, at 00:19:19Z-00:20:30Z; no `coverage/` output was produced).
-- Run start/completion time and exit status: 2026-10-22T00:22:48Z to 00:23:35Z, exit 0 (137 files, 2731 passed, 1 deselected).
-- Generated report paths and report hashes/run identifier: `web/coverage/web/coverage-final.json` (sha256 58516c2d…), `web/coverage/web/coverage-summary.json` (sha256 32a4c40a…), `lcov.info`. Written at 02:23:35 local time (+0200) by this run.
-- Evidence outputs are fresh and inputs stayed unchanged: yes. `web/coverage/` did not exist before my first successful run. Report mtimes fall inside the final run window. Input hashes were the same before and after.
-- Final run after latest test additions and production fixes: yes for the latest test additions. No production fixes have been made yet (TW-1 is open), so a new run is needed after the fix.
+- Task id, immutable base, measured HEAD, and task-owned commits/file-scope source: web-habits; base dcbfae15eaeafd1591491534f472fffc8ed3d9bb; HEAD b9162130404aaccfce7a13f7a437ecde1a5919df; commits 47d7cc80, 2fa4b0bc, cc3b59d4, b9162130. The parent supplied the base and the scope, and I checked them with `git log`/`git diff --stat dcbfae15..HEAD`.
+- Source/test snapshot identifier (including uncommitted inputs): production files equal HEAD. Combined sha256 of all `web/src/app/features/habits/*.ts` and `*.html` (specs included), before and after the run: 40775c18…6fee (identical). Spec sha256: habits-page.spec.ts c5ccbfb3… (uncommitted, 3 tests added), habit-form.spec.ts 2f222528…, habit-display.spec.ts b65f43f9…, habits.service.spec.ts 35b4012f….
+- Exact included files: `habit-display.ts`, `habit-form.ts`, `habit-form.html`, `habits-page.ts`, `habits-page.html`, `habits.service.ts`, `habits.routes.ts` (all in `web/src/app/features/habits/`). Excluded: `*.spec.ts`, `testing.ts` (test helper), `web/src/app/app.spec.ts` (test), `*.scss` (styles, not instrumented). Nothing was renamed or deleted.
+- Provider/version, command, working directory, and test selection: Vitest 5.0.5 + @vitest/coverage-v8 ^5.0.5 via `@angular/build:unit-test`, node v24.21.0. Command run in `web/`: `npm run coverage -- --filter='^(?!.*keeps a check made while the reload on becoming visible is still pending).*$'`. This is the full web suite with only TW-2 deselected.
+- Run start/completion time and exit status: 2026-10-22T00:33:42Z to 00:34:58Z, exit 0 (137 files, 2740 passed, 1 skipped by the filter).
+- Generated report paths and report hashes/run identifier: `web/coverage/web/coverage-final.json` (sha256 4e2be369…), `web/coverage/web/coverage-summary.json` (sha256 9aa5ca80…), `lcov.info`. All were written at 02:34:57-58 +0200, inside the run window.
+- Evidence outputs are fresh and inputs stayed unchanged: yes. The report mtimes fall inside this run, Vitest rewrites `coverage/` on each run, and the input hash is the same before and after.
+- Final run after latest test additions and production fixes: yes. The run covers the code after the fixes (b9162130) and my 3 new tests. TW-2 is open, so a new run is needed after it is fixed.
 
-Values below use covered/total (percentage).
+Values below use covered/total (percentage). Statements, branches and functions come from the provider's counters in `coverage-final.json`. Lines come from `coverage-summary.json`.
 
 | Changed file | Statements | Branches | Functions | Lines |
 |---|---:|---:|---:|---:|
-| `web/src/app/features/habits/habit-display.ts` | 34/34 (100%) | 46/47 (97.87%) | 14/14 (100%) | 31/31 (100%) |
+| `web/src/app/features/habits/habit-display.ts` | 33/33 (100%) | 40/41 (97.56%) | 13/13 (100%) | 30/30 (100%) |
 | `web/src/app/features/habits/habit-form.ts` | 35/35 (100%) | 16/16 (100%) | 13/13 (100%) | 25/25 (100%) |
 | `web/src/app/features/habits/habit-form.html` | 102/102 (100%) | 6/6 (100%) | 11/11 (100%) | 66/66 (100%) |
-| `web/src/app/features/habits/habits-page.ts` | 126/129 (97.67%) | 67/78 (85.90%) | 40/40 (100%) | 99/99 (100%) |
-| `web/src/app/features/habits/habits-page.html` | 180/180 (100%) | 37/37 (100%) | 11/11 (100%) | 117/117 (100%) |
+| `web/src/app/features/habits/habits-page.ts` | 140/143 (97.90%) | 80/91 (87.91%) | 44/44 (100%) | 109/109 (100%) |
+| `web/src/app/features/habits/habits-page.html` | 194/194 (100%) | 39/39 (100%) | 11/11 (100%) | 126/126 (100%) |
 | `web/src/app/features/habits/habits.service.ts` | 10/10 (100%) | 5/5 (100%) | 5/5 (100%) | 7/7 (100%) |
 | `web/src/app/features/habits/habits.routes.ts` | 1/2 (50%) | N/A (0/0) | 0/1 (0%) | 1/2 (50%) |
-| **Aggregate (7 files, summed counters)** | 488/492 (99.19%) | 177/189 (93.65%) | 94/95 (98.95%) | 346/347 (99.71%) |
+| **Aggregate (7 files, summed counters)** | 515/519 (99.23%) | 186/198 (93.94%) | 97/98 (98.98%) | 364/365 (99.73%) |
 
-All 7 scoped files were measured; none are missing. The aggregate leaves out only the excluded files listed above.
-
-For comparison, an intermediate run earlier in this session (00:20:45Z-00:21:52Z, same filtered command, before the last 5 tests were added) left `habits-page.ts` at 125/129 statements and 65/78 branches, `habits-page.html` at 36/37 branches, and `habit-display.ts` at 45/47 branches. Those gaps led to the last 5 added tests.
+All 7 scoped files were measured, and none are missing. The aggregate leaves out only the excluded files listed above. The test for the TW-2 path did not run in this measurement, but it would only execute lines that are already covered.
 
 | File and uncovered lines/branch locations | Required behavior or risk | Action/test added or reason left uncovered |
 |---|---|---|
-| `habits-page.ts:120,122` (`save` guards: no form open / already saving / edited habit missing) | Defensive. The form's own `saving` guard blocks double submits, and the edited habit can only disappear through a reload | Justified gap: not reachable through the UI. Double submit is covered at the form level (`neither saves nor cancels while saving`) |
-| `habits-page.ts:131#1,132#1` (create while in archived view; create while the list is null) | Defensive. "New habit" is hidden in the archived view, and switching views closes the form | Justified gap: not reachable through the UI |
-| `habits-page.ts:156#1,157` (archive the habit currently being edited) | Defensive. The row's archive button is replaced by the form while editing | Justified gap: not reachable through the UI |
-| `habits-page.ts:57#1,59#1,190#1,212#1` (`?? []` / `?? null` when the list is null) | A response arriving while a reload shows the loading state | Low value. The conflict-reload tests show that the list is replaced by the fresh load |
-| `habits-page.ts:40#0` | Branch the compiler emits on the class declaration (decorator/metadata output), not behavior | Non-material |
-| `habit-display.ts:52#1` (`timesPerWeek ?? 1` for a TIMES_PER_WEEK habit without timesPerWeek) | API contract fallback | Non-material. The server always sends timesPerWeek for that schedule |
-| `habits.routes.ts:7` (lazy `loadComponent`) | Route wiring | Non-material. The route is registered in `app.routes.ts`, and lazy loading runs only in the browser/e2e |
+| `habits-page.ts:130,132` (`save` guards: no form open / already saving / edited habit missing) | Defensive. The form's own `saving` guard blocks a double submit | Justified gap: not reachable through the UI. The form test `neither saves nor cancels while saving` covers it |
+| `habits-page.ts:141#1,142#1` (create in the archived view; create while the list is null) | Defensive. "New habit" is hidden in the archived view, and switching views closes the form | Justified gap: not reachable through the UI |
+| `habits-page.ts:166#1,167` (archive the habit currently being edited) | Defensive. The row's archive button is replaced by the form while editing | Justified gap: not reachable through the UI |
+| `habits-page.ts:58#1,60#1,200#1,240#1` (`?? []` / `?? null` when the list is null) | A row result arriving while a load shows the loading state | Low value. The ordering tests show that the fresh load wins |
+| `habits-page.ts:41#0` | Branch the compiler emits on the class declaration, not behavior | Non-material |
+| `habit-display.ts:41#1` (`timesPerWeek ?? 1`) | Fallback for the API contract | Non-material. The server always sends timesPerWeek for TIMES_PER_WEEK |
+| `habits.routes.ts:7` (lazy `loadComponent`) | Route wiring | Non-material. The route is registered in `app.routes.ts`, and the lazy load runs only in a browser/e2e |
+| `habits-page.ts:221-229` (stale result of the quiet reload after a check) | AC1 one-tap check | TW-2. The covering test fails and stays in place |
 
 ## Unable to test
 
-- AC2's `ng build` step of `npm run check` was not reached because test:ci fails on TW-1. Needs a new run after the fix.
-- Browser-level behavior (real focus and Escape in a browser, visual progress ring) was not run in Playwright. This task's criteria do not name e2e, so no follow-up is required.
-- Daily reminders (`reminder_time`): the UI only stores and shows the time. Delivering reminders is outside this task.
+- AC2's `ng build` step was not reached in `npm run check`, because test:ci fails on TW-2. It needs a new run after the fix.
+- Browser-level behavior (a real tab switch firing `visibilitychange`, focus and Escape in a browser) was not run in Playwright. The jsdom specs simulate `visibilityState`. The criteria do not name e2e, so no follow-up is required.
+- The remaining CR-3 limitation in `fixes.md` (a check tapped on a stale tab before it was hidden and shown again uses the old date) is a documented limitation, not a test gap.
 
 ## Summary
 
-I added the tests, and they found one production defect (TW-1, Low). It must go to the `fixer` before the task is completed. All other acceptance-criterion behavior (check toggle, streak and stats display, create/edit, archive, conflict paths) is tested and passes. Task-scoped coverage is 99.19% statements and 93.65% branches; the remaining gaps are justified above.
+Tests added; production defects were discovered and must be passed to the `fixer` before task completion. The fixes for TW-1/CR-1, CR-2 and CR-3 are tested and pass. One new defect, TW-2 (Low), was found on the new visibility reload path: a quiet reload that answers after a check undoes the check on screen. Task-scoped coverage is 99.23% statements and 93.94% branches (summed over 7 files), and the remaining gaps are justified above.

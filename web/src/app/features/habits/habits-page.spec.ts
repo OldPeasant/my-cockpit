@@ -762,4 +762,58 @@ describe('HabitsPage', () => {
     expect(row(WATER)).not.toBeNull();
     expect(row(READ)).toBeNull();
   });
+
+  it('keeps a check made while the reload on becoming visible is still pending', async () => {
+    await create([READ]);
+
+    becomeVisible();
+    await settle();
+    const reloadReq = http.expectOne((r) => r.method === 'GET');
+    // The user taps before the reload answers; the check answers first.
+    checkButton(READ).click();
+    http
+      .expectOne((r) => r.method === 'PUT')
+      .flush({
+        ...READ,
+        stats: { ...READ.stats, todayCount: 1, doneToday: true, currentStreak: 5 },
+      });
+    await settle();
+    expect(checkButton(READ).getAttribute('aria-pressed')).toBe('true');
+
+    // The reload was answered before the check reached the server: it must not undo the check.
+    reloadReq.flush({ items: [READ] });
+    await settle();
+    expect(checkButton(READ).getAttribute('aria-pressed')).toBe('true');
+    expect(text(row(READ).querySelector('.streak dd'))).toBe('5 days');
+  });
+
+  it('drops the reload on becoming visible when the view is switched meanwhile', async () => {
+    await create([READ]);
+
+    becomeVisible();
+    await settle();
+    (root.querySelector('.show-archived') as HTMLButtonElement).click();
+    await settle();
+    const reloadReq = http.expectOne((r) => r.params.get('archived') === 'false');
+    http.expectOne((r) => r.params.get('archived') === 'true').flush({ items: [] });
+    await settle();
+    reloadReq.flush({ items: [READ] });
+    await settle();
+
+    expect(row(READ)).toBeNull();
+    expect(text(root.querySelector('.empty'))).toContain('No archived habits');
+  });
+
+  it('keeps the list when the reload on becoming visible fails', async () => {
+    await create([READ]);
+
+    becomeVisible();
+    await settle();
+    http.expectOne((r) => r.method === 'GET').flush(...problem(503, 'Try again later.'));
+    await settle();
+
+    expect(row(READ)).not.toBeNull();
+    expect(root.querySelector('.load-error')).toBeNull();
+    expect(checkButton(READ).disabled).toBe(false);
+  });
 });
