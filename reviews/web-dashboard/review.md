@@ -4,7 +4,7 @@ Date: 2026-10-22
 
 Task: web-dashboard - Dashboard
 
-Scope: `git diff d54b8b3c0186aa51a8db33aa61e2f7ef7fad5c3a..9c2e59fce1eb6b70fd38c800ece61a9d6e2c0bbc` (merge base with origin/main to HEAD), 7 commits: 754456300 (server setting), fe13b3300 (dashboard), e3f6ce790 (app spec), 9d27831c5 (tests and reports), 6a54f71c5 (fixes for CR-1..CR-6), adda0e2ca (more tests), 9c2e59fce (fix for CR-7). This is the final review of the whole task. It checks each earlier finding against the current code and reviews the test additions in adda0e2ca and 9c2e59fce. Uncommitted changes (for example spec files from a parallel test-writer) are not included.
+Scope: `git diff d54b8b3c0186aa51a8db33aa61e2f7ef7fad5c3a..5383db25346fea91fbbfd005af32361b4c20b683` (merge base with origin/main to HEAD), 8 commits: 754456300 (server setting), fe13b3300 (dashboard), e3f6ce790 (app spec), 9d27831c5 (tests and reports), 6a54f71c5 (fixes for CR-1..CR-6), adda0e2ca (more tests), 9c2e59fce (fix for CR-7), 5383db253 (two layout specs, third-pass test and review reports). This is the final review of the whole task. It checks each earlier finding against the current code and reviews the test additions in adda0e2ca, 9c2e59fce and 5383db253 (`git diff 9c2e59fce..5383db253 -- web/`: test code only, no production change). Uncommitted changes (for example spec files from a parallel test-writer) are not included.
 
 Requirements:
 - tasks/web-dashboard.md acceptance criteria and recorded assumptions
@@ -12,13 +12,14 @@ Requirements:
 - docs/ARCHITECTURE.md (stack, conventions, coverage)
 - AGENTS.md project notes (touches, settings registration, generated API files)
 - reviews/web-dashboard/fixes.md (the fixes being checked)
-- Parent instructions (final review, check CR-1..CR-7, review the tests in adda0e2ca and 9c2e59fce)
+- Parent instructions (final review, check CR-1..CR-7, review the tests in adda0e2ca, 9c2e59fce and 5383db253)
+- reviews/web-dashboard/tests.md (third pass: test run results for the 5383db253 specs)
 
 Git range:
 - Branch: main
-- HEAD: 9c2e59fce1eb6b70fd38c800ece61a9d6e2c0bbc
+- HEAD: 5383db25346fea91fbbfd005af32361b4c20b683
 - Base/start: d54b8b3c0186aa51a8db33aa61e2f7ef7fad5c3a (merge base with origin/main)
-- Commits reviewed: 7
+- Commits reviewed: 8
 
 Summary: 0 P0, 0 P1, 0 P2, 0 P3 open. CR-1..CR-7 from the earlier reviews are fixed in the current code.
 
@@ -27,6 +28,7 @@ Notes on verification:
 - Criterion 2: the layout, data and page specs cover persistence: the PATCH body, the If-Match chain, rollback, quick changes in a row, reset (shown at once, refused, followed by a change), loading the settings before a change, a failed settings load, and a 412 with a reload in between. I did not run `npm run check` myself. At review time the task file has verify evidence for criterion 1 only, so the parent still has to record criterion 2.
 - CR-7 fix (`dashboard-layout.ts:151-172`): a reset now stays in `pending` until its save settles (the `finally` drops it). Applying `() => DEFAULT_LAYOUT` is idempotent, so showing it on top of `stored()` is safe. A change queued after the reset waits on `this.saving`, so it runs only after the reset has settled. It is then built on the server's default (an empty list, so `DEFAULT_LAYOUT`) or, if the reset failed, on the rolled-back layout. On a refused reset the `finally` drops it and `SettingsService.save` has already brought back the previous values. The new spec "shows a reset, and a change made after it, while the reset save is unanswered" checks `slots()`/`visible()` while the reset PATCH is unanswered, after it answers, and the body of the following PATCH.
 - Tests in adda0e2ca: the data specs cover a failed quiet reload after a widget is shown again (old data stays, no error), a visible reload of a widget whose first load failed while it was hidden, and an older quiet reload overtaken by a newer change-event reload (the older answer is dropped through `seq`). The layout specs cover a change dropped when the settings cannot load (no PATCH, and the next change saves on the loaded layout), several changes made before the settings load, a queued change built on another device's layout after a 412 (new ETag `"9"` is sent), and a refused reset. Each test asserts behavior (request bodies, headers, shown state) and matches the current code paths. The spec "applies every change made before the settings are loaded" flushes every settings GET with `http.match`, because each early change calls `ensureLoaded()` while the settings are still null. `FilterPresets.ensureLoaded` works the same way and `SettingsService.load` drops late answers, so this is existing project behavior and not a defect of this task.
+- Tests in 5383db253 (`dashboard-layout.spec.ts:293-341`, only file changed under `web/`): I traced both specs through `DashboardLayout.change()` and `SettingsService.update/save`. (1) "drops a refused reset it showed, and saves the change queued behind it on the stored layout": while the reset PATCH runs, `pending` is `[reset, hide]`, so `slots()` is the default with Today hidden. On the 400, `SettingsService.save` shows `previous` again and the reset's `finally` drops it. The queued hide then runs on `stored()` (the rolled-back `['pinnedNotes','inbox:hidden']`) and sends exactly that layout with Today hidden. The assertion right after the rejection holds whether or not the hide has already been handed to the settings service, because both states show the same layout. (2) "shows a reset queued behind an unanswered change until the reset itself is saved": `pending` is `[hide, reset]`, so the default shows at once. The hide is dropped when its save starts and stored optimistically, while the reset stays in `pending` and keeps hiding it. The reset PATCH waits on `this.saving` and sends `null`, and the answer `[]` parses to the default. Both specs check visible state and request bodies, not internals. They match the current code and cover the refused-reset and queued-reset paths of the CR-7 change. tests.md records `npx ng test --include 'src/app/features/dashboard/**/*.spec.ts'` (3 files, 87 tests) and `npm run check` (164 files, 3353 tests, exit 0) as passing on this spec file. I did not run them myself.
 
 ## P0 Critical
 
@@ -93,4 +95,4 @@ None.
 
 ## Review conclusion
 
-No material issues found. CR-1..CR-7 are fixed in the current code, and the test additions in adda0e2ca and 9c2e59fce are sound. The parent still has to record `verify` evidence for criterion 2 (`cd web && npm run check`), run `.taskcheck` and write `quality.json`.
+No material issues found. CR-1..CR-7 are fixed in the current code, and the test additions in adda0e2ca, 9c2e59fce and 5383db253 are sound. 5383db253 changes no production code, so it adds no new findings. The parent still has to record `verify` evidence for criterion 2 (`cd web && npm run check`), run `.taskcheck` and write `quality.json`.

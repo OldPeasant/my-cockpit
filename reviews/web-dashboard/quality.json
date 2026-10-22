@@ -1,0 +1,35 @@
+{
+  "schema": 1,
+  "task": "web-dashboard",
+  "reviewed_revision": "5383db25346fea91fbbfd005af32361b4c20b683",
+  "helpers": {
+    "test-writer": {"status": "completed", "report": "reviews/web-dashboard/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/web-dashboard/review.md"},
+    "fixer": {"status": "completed", "report": "reviews/web-dashboard/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "quick customize clicks during an unanswered PATCH lost earlier changes; pending-change queue"},
+    {"id": "CR-2", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "unread mail showed '0+'; '+' only when count > 0 and page is cut"},
+    {"id": "CR-3", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "weekly review overdue styling and Start button use the same >= 7 days threshold"},
+    {"id": "CR-4", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "dead WEEKLY_REVIEW change-event subscription removed"},
+    {"id": "CR-5", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "widget shown again reloads quietly; no duplicate request while loading"},
+    {"id": "CR-6", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "misleading spec name and comment corrected"},
+    {"id": "CR-7", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "reset stays in pending until its save settles, so it shows at once"},
+    {"id": "TW-1", "source": "test-writer", "severity": "Low", "disposition": "fixed",
+     "note": "first-pass note: dead code DashboardPage.eventStart removed (fixes.md)"}
+  ],
+  "validation": [
+    {"command": "cd web && npx ng test --watch=false --include 'src/app/features/dashboard/**/*.spec.ts'", "result": "pass"},
+    {"command": "cd web && npm run check", "result": "pass"},
+    {"command": "cd server && ./gradlew test --tests '*DashboardSettingsWebTests' --tests '*SettingsServiceTests'", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
