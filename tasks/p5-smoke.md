@@ -5,7 +5,7 @@ owner: dell26/agent-2
 deps: [web-mail-accounts,web-mail-compose,mail-idle,mail-search,backup-contrib-mail,and-mail-compose,p4-smoke]
 touches: [web/e2e/phase5]
 prio: 1
-lease_until: 2026-10-22T09:32:47Z
+lease_until: 2026-10-22T09:37:51Z
 ---
 ## Goal
 Automate SPEC.md §13.2 Phase 5 against GreenMail.
