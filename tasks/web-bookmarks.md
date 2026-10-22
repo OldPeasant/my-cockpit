@@ -13,7 +13,8 @@ Read-later queue and bookmarks (SPEC.md §8.4).
 ## Acceptance criteria
 - [x] Read-later queue, all by tag, add by URL, mark read, snapshot view
   - verified (2026-10-22 04:12+0200 by dell26/agent-3): cd web && npx ng test --watch=false --include 'src/app/features/bookmarks/**/*.spec.ts' -> 4 files, 78 passed: read-later queue (list, mark read, take out of queue, trash), all view by tag via query string, add by URL with tags/validation/errors, mark read/unread with conflict+404 handling, snapshot reader (Markdown sanitized, plain text, back link keeps view/tag), live SSE updates
-- [ ] Vitest component/service tests cover queue actions; `cd web && npm run check` passes
+- [x] Vitest component/service tests cover queue actions; `cd web && npm run check` passes
+  - verified (2026-10-22 04:12+0200 by dell26/agent-3): cd web && npm run check -> exit 0: lint clean (All files pass linting), 149 test files / 3014 tests passed incl. bookmarks-page/reader/service/display specs, build OK
 
 ## Notes
 - ASSUMPTION (2026-10-22 03:46+0200 by dell26/agent-3): Snapshot view shows the file in snapshotFileId via /files/{id}/preview (Markdown rendered with the shared renderMarkdown, other text as plain text); the API has no way to request a snapshot, so the UI only shows existing ones
