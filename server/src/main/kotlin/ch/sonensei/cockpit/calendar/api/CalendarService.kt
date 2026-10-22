@@ -92,6 +92,37 @@ class CalendarService(
 		return view(saved)
 	}
 
+	/**
+	 * The read-only calendar of the [VirtualCalendarProvider] with [key], created (visible, not the default) with
+	 * [name] and [color] when it does not exist yet.
+	 */
+	fun ensureVirtualCalendar(
+		key: String,
+		name: String,
+		color: String?,
+	): Calendar {
+		val source = localSource()
+		calendars.findBySourceIdAndExternalId(source.id, VIRTUAL_PREFIX + key)?.let { return it }
+		val calendar = Calendar(source.id, name)
+		calendar.color = color
+		calendar.readOnly = true
+		calendar.externalId = VIRTUAL_PREFIX + key
+		validate(calendar)
+		val saved = calendars.saveAndFlush(calendar)
+		changes.publish(CALENDAR_CHANGE_TYPE, saved.id, ChangeOp.CREATED)
+		return saved
+	}
+
+	/** The [VirtualCalendarProvider.key] of each virtual calendar among [ids]. */
+	@Transactional(readOnly = true)
+	fun virtualKeys(ids: Collection<UUID>): Map<UUID, String> {
+		val local = sources.findAllByOrderByIdAsc().filter { it.type == CalendarSourceType.LOCAL }.mapTo(HashSet()) { it.id }
+		return calendars
+			.findAllById(ids)
+			.filter { it.sourceId in local && it.externalId?.startsWith(VIRTUAL_PREFIX) == true }
+			.associate { it.id to it.externalId!!.removePrefix(VIRTUAL_PREFIX) }
+	}
+
 	/** The calendar for new events without a calendar. */
 	@Transactional(readOnly = true)
 	fun defaultCalendar(): Calendar? = calendars.findByIsDefaultTrue()
@@ -149,6 +180,9 @@ class CalendarService(
 
 		const val LOCAL_SOURCE_NAME = "Cockpit"
 		const val MAX_NAME_LENGTH = 200
+
+		/** The `externalId` of a LOCAL calendar whose events a [VirtualCalendarProvider] computes, before its key. */
+		const val VIRTUAL_PREFIX = "virtual:"
 		private val COLOR = Regex("^#[0-9a-fA-F]{6}$")
 	}
 }

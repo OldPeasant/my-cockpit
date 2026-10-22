@@ -5,6 +5,7 @@ import ch.sonensei.cockpit.calendar.model.CalendarEventIndexer
 import ch.sonensei.cockpit.calendar.model.CalendarEventRepository
 import ch.sonensei.cockpit.calendar.model.CalendarRepository
 import ch.sonensei.cockpit.calendar.model.EventStatus
+import ch.sonensei.cockpit.calendar.model.EventTransparency
 import ch.sonensei.cockpit.calendar.model.OccurrenceId
 import ch.sonensei.cockpit.calendar.recurrence.Occurrence
 import ch.sonensei.cockpit.calendar.recurrence.OccurrenceExpander
@@ -23,6 +24,7 @@ import ch.sonensei.cockpit.core.web.InvalidRequestException
 import ch.sonensei.cockpit.core.web.NotFoundException
 import net.fortuna.ical4j.model.Recur
 import org.hibernate.Hibernate
+import org.springframework.beans.factory.ObjectProvider
 import org.springframework.context.ApplicationEventPublisher
 import org.springframework.dao.DataIntegrityViolationException
 import org.springframework.stereotype.Service
@@ -74,6 +76,7 @@ class CalendarEventService(
 	private val settings: SettingsService,
 	private val clock: Clock,
 	private val writeThrough: CalendarWriteThrough,
+	private val virtualProviders: ObjectProvider<VirtualCalendarProvider>,
 ) {
 	/**
 	 * The occurrences of the events of [calendarIds] (default: the visible calendars) overlapping [from, to), seen from
@@ -90,7 +93,32 @@ class CalendarEventService(
 		val ids = calendarIds?.takeIf { it.isNotEmpty() } ?: calendarRepository.findAll().filter { it.visible }.map { it.id }
 		if (ids.isEmpty()) return emptyList()
 		val range = OccurrenceRange(from, to, settings.timeZone())
-		return expander.expand(events.findCandidatesInRange(ids, from, to, range.fromDate, range.toDate), range)
+		val stored = expander.expand(events.findCandidatesInRange(ids, from, to, range.fromDate, range.toDate), range)
+		val virtual = virtualOccurrences(ids, range)
+		return if (virtual.isEmpty()) stored else expander.ordered(stored + virtual, range.zone)
+	}
+
+	/** The occurrences of the virtual calendars among [calendarIds] in [range] (see [VirtualCalendarProvider]). */
+	private fun virtualOccurrences(
+		calendarIds: Collection<UUID>,
+		range: OccurrenceRange,
+	): List<Occurrence> {
+		val providers = virtualProviders.orderedStream().toList().associateBy { it.key }
+		if (providers.isEmpty()) return emptyList()
+		return calendars.virtualKeys(calendarIds).flatMap { (calendarId, key) ->
+			providers[key]
+				?.occurrences(range.fromDate, range.toDate)
+				.orEmpty()
+				.filter { it.startDate < range.toDate && it.endDate > range.fromDate }
+				.map { it.toOccurrence(calendarId) }
+		}
+	}
+
+	private fun VirtualOccurrence.toOccurrence(calendarId: UUID): Occurrence {
+		val event = CalendarEvent(calendarId, title, id)
+		event.setAllDay(startDate, endDate)
+		event.transparency = EventTransparency.TRANSPARENT
+		return Occurrence(event, seriesId, occurrenceDate?.let(OccurrenceId::of), null, null, startDate, endDate)
 	}
 
 	@Transactional(readOnly = true)

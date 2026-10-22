@@ -99,8 +99,14 @@ class OccurrenceExpander {
 				.flatten()
 				.filter { it.status != EventStatus.CANCELLED }
 				.mapNotNull { override -> asOccurrence(override, seriesId = null, occurrenceId = null)?.takeIf { overlaps(it, range) } }
-		return (occurrences + orphans).sortedWith(compareBy({ sortKey(it, range.zone) }, { it.event.id }))
+		return ordered(occurrences + orphans, range.zone)
 	}
+
+	/** [occurrences] ordered by start (all-day ones from the start of their first day in [zone]), then event id. */
+	fun ordered(
+		occurrences: Collection<Occurrence>,
+		zone: ZoneId,
+	): List<Occurrence> = occurrences.sortedWith(compareBy({ sortKey(it, zone) }, { it.event.id }))
 
 	/**
 	 * The occurrences of [event] (a single event or a series master) in [range], with [overrides] (of this series)
@@ -130,7 +136,7 @@ class OccurrenceExpander {
 				.filter { it.status != EventStatus.CANCELLED }
 				.mapNotNull { asOccurrence(it, seriesId = event.id, occurrenceId = it.recurrenceId) }
 				.filter { overlaps(it, range) }
-		return (generated + overridden).sortedWith(compareBy({ sortKey(it, range.zone) }, { it.event.id }))
+		return ordered(generated + overridden, range.zone)
 	}
 
 	/** The original starts of the series' occurrences that may overlap [range] (a superset, filtered by the caller). */
