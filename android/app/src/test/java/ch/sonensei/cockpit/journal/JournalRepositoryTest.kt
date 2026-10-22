@@ -164,6 +164,29 @@ class JournalRepositoryTest {
         }
 
     @Test
+    fun `a conflict whose current entry cannot be fetched is reported as that problem, never as a conflict`() =
+        runBlocking {
+            // The server is down for the fetch: the save stays retryable instead of offering a decision without data.
+            server.enqueue(status(412))
+            server.enqueue(status(503))
+            assertEquals(JournalSaveResult.Offline, journal.save(day, base, "Mine"))
+
+            server.enqueue(status(428))
+            server.enqueue(status(403))
+            assertEquals(JournalSaveResult.Failed(403), journal.save(day, null, "Mine"))
+        }
+
+    @Test
+    fun `an unreadable answer is a failure without a status`() =
+        runBlocking {
+            server.enqueue(json("""{"id":"not-a-uuid"}"""))
+            assertEquals(JournalResult.Failed(null), journal.get(day))
+
+            server.enqueue(json("""{"id":"$id","date":"2026-10-22","bodyMd":"x","tags":[],"updatedAt":"yesterday","version":1}"""))
+            assertEquals(JournalSaveResult.Failed(null), journal.save(day, base, "x"))
+        }
+
+    @Test
     fun `server errors are offline, refusals are failures`() =
         runBlocking {
             server.enqueue(status(503))

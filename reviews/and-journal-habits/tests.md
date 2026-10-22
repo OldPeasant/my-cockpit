@@ -4,75 +4,81 @@ Date: 2026-10-22
 
 Task: and-journal-habits - Android journal and habits
 
-Scope: base `f3c2102802292ecc2e011934b7c70f3128d02bb9`..HEAD `629ca2f7a06ea36369a7a1b5fcd4932a655f2f48` (task commits 3c75b4067, 64762cd29, 629ca2f7a; ownership from the task file and the parent's commit list), plus uncommitted working-tree changes present at measurement time: the fixer's in-progress edit of `JournalRepository.kt` / `JournalRepositoryTest.kt` (428 as conflict, review finding) and the test files below.
+Scope: base `f3c2102802292ecc2e011934b7c70f3128d02bb9`..`43c5a2346b865d449869b3a78ef74a8c721a3033` (task commits e495ab72d, 54a47eb10, 0ac22a651, 43c5a2346, after the parent's rebase; ownership from the task file and the parent's commit list). The fix commit 43c5a2346 contains CR-1 (HTTP 428 on a create is a conflict, `JournalRepository.kt`) and TW-1 (`keepMine` derives the status with `withStatus()`, `JournalViewModel.kt`). Measured state: 43c5a2346 plus one uncommitted test edit by the test-writer (`JournalRepositoryTest.kt`, +2 tests).
 
 Requirements:
 - `tasks/and-journal-habits.md` acceptance criteria and recorded assumptions (today's entry only, device clock; habits one-tap check sends targetCount / 0)
 - `SPEC.md` §8.5, §9.2 item 8 (via the task notes)
 - `docs/ARCHITECTURE.md` "Coverage"; `AGENTS.md`
-- Parent instructions (do not edit `JournalRepositoryTest.kt`)
+- Parent instructions; code review finding CR-1
 
 ## Test files changed
 
-- `android/app/src/test/java/ch/sonensei/cockpit/journal/JournalViewModelTest.kt` (extended)
-- `android/app/src/test/java/ch/sonensei/cockpit/journal/JournalScreenTest.kt` (extended)
-- `android/app/src/test/java/ch/sonensei/cockpit/journal/JournalRouteInAppTest.kt` (new, Hilt + Robolectric in MainActivity)
-- `android/app/src/test/java/ch/sonensei/cockpit/habits/HabitsViewModelTest.kt` (extended)
-- `android/app/src/test/java/ch/sonensei/cockpit/habits/HabitsScreenTest.kt` (extended)
-- `android/app/src/test/java/ch/sonensei/cockpit/habits/HabitsRouteInAppTest.kt` (new, Hilt + Robolectric in MainActivity)
+Over the whole task, from the test-writer (the earlier ones are already committed in 43c5a2346):
+
+- `android/app/src/test/java/ch/sonensei/cockpit/journal/JournalViewModelTest.kt` (extended, committed)
+- `android/app/src/test/java/ch/sonensei/cockpit/journal/JournalScreenTest.kt` (extended, committed)
+- `android/app/src/test/java/ch/sonensei/cockpit/journal/JournalRouteInAppTest.kt` (new, committed)
+- `android/app/src/test/java/ch/sonensei/cockpit/habits/HabitsViewModelTest.kt` (extended, committed)
+- `android/app/src/test/java/ch/sonensei/cockpit/habits/HabitsScreenTest.kt` (extended, committed)
+- `android/app/src/test/java/ch/sonensei/cockpit/habits/HabitsRouteInAppTest.kt` (new, committed)
+- `android/app/src/test/java/ch/sonensei/cockpit/journal/JournalRepositoryTest.kt` (this round, uncommitted, +2 tests; sha256 2c359a68c19d10bea2f6499855f9cb12c25f45bb901589275e7d0c61b8716ec7)
 
 ## Tests added or updated
 
-Count: 23 new tests (existing tests unchanged; the focused run's 74 also includes the fixer's concurrent JournalRepositoryTest change)
+Count: 25 by the test-writer (23 in the first round, 2 in this round). No existing test was changed or weakened.
 
-- JournalViewModelTest (+9): text typed while a save runs is saved next, over the version that save returned; text typed while a save runs into a conflict is the text kept; writing goes on after a resolved conflict, over the kept version; keeping my text when the server already has the same text ends as saved (FAILS, TW-1); discarding my text when the entry was deleted elsewhere leaves an empty day in the editor; a photo uploaded while a conflict came up goes in at the cursor when the user keeps their text; a second photo while one uploads is ignored; a load the server refused says so, and a retry is ignored once the entry is loaded; saving again without changes sends nothing.
-- JournalScreenTest (+6): photo goes in at the cursor, which follows text inserted from elsewhere; uploading replaces photo buttons by progress; deleted-elsewhere conflict labels and no competing retry; refused save text + retry; loading state allows no writing; photo problem can be dismissed.
-- JournalRouteInAppTest (+2): Journal destination in MainActivity is the real screen (not the placeholder), loads today's entry and saves edited text when the editor is left; the shell's back arrow leaves the Journal and the text typed last is still saved (onCleared -> JournalSaveScope).
-- HabitsViewModelTest (+3): two habits checked off at the same time with answers in reverse order (one success, one offline); a check-off answered after a reload updates the reloaded list; reload while loading is ignored.
-- HabitsScreenTest (+2): done habit with target above one shows no partial progress; first load shows only the progress bar.
-- HabitsRouteInAppTest (+1): Habits destination in MainActivity is the real list, a tap checks the habit off and the row shows the server's new stats.
+This round (re-check of the fix commit):
+- `JournalRepositoryTest > a conflict whose current entry cannot be fetched is reported as that problem, never as a conflict`: 412 then the refetch answers 503, giving `JournalSaveResult.Offline`. 428 (the CR-1 path) then the refetch answers 403, giving `JournalSaveResult.Failed(403)`. The save stays retryable and the user is never offered a conflict decision without the server's data.
+- `JournalRepositoryTest > an unreadable answer is a failure without a status`: malformed JSON on load gives `JournalResult.Failed(null)`, and malformed JSON on save gives `JournalSaveResult.Failed(null)`.
+
+The fixes themselves are already covered:
+- CR-1: the fixer's `a create refused because the day got an entry elsewhere is a conflict` (428), plus the 428 + refetch failure case above.
+- TW-1: `JournalViewModelTest > keeping my text when the server already has the same text ends as saved`. It failed before the fix and passes now.
+
+First round (committed): 9 JournalViewModelTest (autosave ordering while a save runs, typing into a conflict, writing after a resolved conflict, TW-1, discarding over a deleted entry, photo during a conflict plus keepMine, second photo ignored, refused load and retry, no-op save), 6 JournalScreenTest (cursor follows inserted text, uploading state, deleted-conflict labels, refused-save retry, loading state, photo message dismiss), 2 JournalRouteInAppTest (real screen in MainActivity, saves when the editor is left; shell back still saves the text typed last), 3 HabitsViewModelTest (parallel checks answered in reverse order, check answered after a reload, reload while loading ignored), 2 HabitsScreenTest, 1 HabitsRouteInAppTest (real list in MainActivity, tap checks off).
 
 ## Requirement coverage
 
 | Requirement | Tests | Command | Result |
 |---|---|---|---|
-| AC1 Today's journal entry (load, render, edit) | JournalRouteInAppTest `the Journal screen shows today's entry...`; JournalViewModelTest `opens today's entry...`, `a day without an entry opens in the editor`, load-failure tests; JournalScreenTest | `cd android && ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.journal.*' --tests 'ch.sonensei.cockpit.habits.*'` | Pass |
-| AC1 ... with photo | JournalViewModelTest photo tests (insert at cursor, conflict + keepMine/useTheirs, second photo ignored, upload errors); JournalScreenTest cursor/uploading tests | same | Pass. Camera/gallery launcher callbacks in `JournalRoute` not executed (see Unable to test) |
-| AC1 Habit check-off list | HabitsRouteInAppTest; HabitsViewModelTest (check, uncheck, double tap, parallel checks, reload race, failures); HabitsScreenTest | same | Pass |
-| AC2 journal tests pass, covering entry autosave (Robolectric/Compose UI) | JournalViewModelTest autosave/ordering/conflict tests; JournalScreenTest; JournalRouteInAppTest | same | Fail: 1 of 74 fails (TW-1, production defect) |
-| AC2 habits check-off tests | Habits* tests above | same | Pass |
+| AC1 Today's journal entry (load, render, edit) | JournalRouteInAppTest (2); JournalViewModelTest load/edit tests; JournalScreenTest; JournalRepositoryTest load tests | `cd android && ./gradlew ktlintCheck testDebugUnitTest --tests 'ch.sonensei.cockpit.journal.*' --tests 'ch.sonensei.cockpit.habits.*'` | Pass |
+| AC1 ... with photo | JournalViewModelTest photo tests; JournalScreenTest cursor/uploading/camera/gallery callback tests; JournalRepositoryTest upload test | same | Pass. The system camera/gallery launcher callbacks were not executed (see Unable to test) |
+| AC1 Habit check-off list | HabitsRouteInAppTest; HabitsViewModelTest; HabitsScreenTest; HabitsRepositoryTest | same | Pass |
+| AC2 journal tests pass, covering entry autosave (Robolectric/Compose UI tests for screens) | JournalViewModelTest (25), JournalScreenTest (13), JournalRouteInAppTest (2), JournalRepositoryTest (13) | same | Pass (53/53 journal) |
+| AC2 habits check-off tests | HabitsViewModelTest (10), HabitsScreenTest (8), HabitsRouteInAppTest (1), HabitsRepositoryTest (4) | same | Pass (23/23 habits) |
+| CR-1 a create answered 428 is a conflict | JournalRepositoryTest 428 tests | same | Pass |
+| TW-1 keepMine status | JournalViewModelTest `keeping my text when the server already has the same text ends as saved` | same | Pass |
 
 ## Focused test execution
 
 Command:
 
-`cd android && ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.journal.*' --tests 'ch.sonensei.cockpit.habits.*'` (run 2026-10-22 ~13:49-13:50 +02:00)
+`cd android && ./gradlew ktlintCheck testDebugUnitTest --tests 'ch.sonensei.cockpit.journal.*' --tests 'ch.sonensei.cockpit.habits.*'` (on 43c5a2346 plus the 2 new tests, 2026-10-22 ~13:56 +02:00, per the result XML timestamps)
 
 Result:
 
-Fail: 74 tests completed, 1 failed (`JournalViewModelTest > keeping my text when the server already has the same text ends as saved`: `expected:<SAVED> but was:<UNSAVED>`). All other 73 pass, including the 3 new Hilt in-app tests. This run included the fixer's uncommitted `JournalRepository.kt` / `JournalRepositoryTest.kt` changes as they were at that moment.
-
-`cd android && ./gradlew ktlintCheck` -> BUILD SUCCESSFUL (new test files are lint-clean).
+Pass: BUILD SUCCESSFUL. 76 tests, 0 failures, 0 errors, 0 skipped. Per class: JournalRepositoryTest 13, JournalViewModelTest 25, JournalScreenTest 13, JournalRouteInAppTest 2, HabitsRepositoryTest 4, HabitsViewModelTest 10, HabitsScreenTest 8, HabitsRouteInAppTest 1. ktlint is clean.
 
 ## Full test execution
 
 Command:
 
-`cd android && ./gradlew testDebugUnitTest` (not run by the test-writer)
+`cd android && ./gradlew createDebugUnitTestCoverageReport` (full Android unit suite plus coverage, test-writer run on 43c5a2346 plus the 2 new tests)
 
 Result:
 
-Not run: it would fail on TW-1, and the fixer was changing production code at the same time. Before these tests were added, the parent's full run (`./gradlew createDebugUnitTestCoverageReport`, full Android unit suite) exited 0.
+Pass: BUILD SUCCESSFUL in 1m 49s (exit 0). Earlier, the parent ran `./gradlew lintDebug createDebugUnitTestCoverageReport` on 43c5a2346 without the 2 new tests: exit 0, 1688 tests, 0 failures.
 
 ## .taskcheck
 
 Result:
 
-Not run: `sh scripts/check.sh` would fail on TW-1 until it is fixed. The parent must run it after the fix.
+Not run by the test-writer. The parent runs `sh scripts/check.sh` before `done`.
 
 ## Bugs found
 
-### Keeping my text after a conflict whose server text equals mine leaves the status stuck at "Unsaved changes"
+### TW-1 (fixed in 43c5a2346): keeping my text after a conflict whose server text equals mine left the status stuck at "Unsaved changes"
 
 Finding ID:
 
@@ -84,19 +90,19 @@ Test:
 
 Production source:
 
-`android/app/src/main/java/ch/sonensei/cockpit/journal/JournalViewModel.kt:181` (`keepMine` sets `status = SaveStatus.UNSAVED` unconditionally), together with `:164` (`save()` returns early when `isSaved()` without updating the status)
+`android/app/src/main/java/ch/sonensei/cockpit/journal/JournalViewModel.kt:181` (`keepMine`)
 
 Requirement:
 
-AC2 entry autosave. The save status shown to the user must match reality: "Unsaved changes" means a save is still pending.
+AC2 entry autosave: the status shown must match reality.
 
 Expected behavior:
 
-After `keepMine()`, if the body equals the server's current entry (`conflict.current.bodyMd`, or `""` when the entry was deleted and the body is empty), the status is `SAVED` (e.g. by using `withStatus()` instead of a fixed `UNSAVED`). Otherwise the existing save over the server's version runs.
+After `keepMine()`, if the text equals the server's current entry, the status is SAVED.
 
 Actual behavior:
 
-The status stays `UNSAVED` ("Unsaved changes") and no save ever runs to clear it, until the user types again. A realistic path is covered by the test: a save reaches the server but its answer is lost (Offline), the retry gets a 412 conflict whose current entry already has this text, and the user taps "Keep my version".
+Before 43c5a2346 the status stayed UNSAVED and no save ever cleared it. Fixed in 43c5a2346 (`withStatus()`); the test passes now.
 
 Severity:
 
@@ -104,59 +110,54 @@ Low
 
 Fix required:
 
-`Yes — production code must be fixed by the parent worker / fixer.`
+`Yes — production code must be fixed by the parent worker / fixer.` Done in 43c5a2346 and verified by the focused and full runs above.
+
+No new production defects were found in this round.
 
 ## Coverage
 
-Status: partial-failed. This is diagnostic only, not verified task coverage. The test task failed (TW-1), so the documented command `./gradlew createDebugUnitTestCoverageReport` cannot complete. The report below comes from the JaCoCo execution data of the focused (journal + habits only) run. Production code was also changing during the run (fixer).
+Status: verified (fresh full-suite run, exit 0, on 43c5a2346 plus the 2 new uncommitted tests).
 
 Metric: whole-file coverage of task-changed production files.
 Changed-line coverage: not measured (the existing tooling has no changed-line report).
 
 Evidence:
-- Task id, immutable base, measured HEAD, and task-owned commits/file-scope source: and-journal-habits; base f3c2102802292ecc2e011934b7c70f3128d02bb9; HEAD 629ca2f7a06ea36369a7a1b5fcd4932a655f2f48; commits 3c75b4067, 64762cd29, 629ca2f7a from the parent and `git log base..HEAD`.
-- Source/test snapshot identifier (including uncommitted inputs): sha256 of the production files after the run: JournalRepository.kt 5b1e5f3a2663be47... (uncommitted fixer edit), JournalScreen.kt 1927391e0fd7fe1c..., JournalViewModel.kt 8f5f4f62db478d6c..., HabitsRepository.kt 50c382dac066524..., HabitsScreen.kt cb2f76dc4b47bb71..., HabitsViewModel.kt 7772d7f5564cd08c.... Test files: working tree as listed above, plus the fixer's uncommitted JournalRepositoryTest.kt.
-- Exact included files: the 6 Kotlin files under `android/app/src/main/java/ch/sonensei/cockpit/{journal,habits}/`. Excluded: `strings_journal.xml`, `strings_habits.xml` (resources, no executable code). No renames or deletions.
-- Provider/version, command, working directory, and test selection: JaCoCo via AGP `enableUnitTestCoverage`; `./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.journal.*' --tests 'ch.sonensei.cockpit.habits.*'`, then `./gradlew createDebugUnitTestCoverageReport -x testDebugUnitTest`, in `android/`.
-- Run start/completion time and exit status: tests ~13:49:50-13:50:35 +02:00, exit nonzero (1 failure); report 13:50:38-13:50:42 +02:00, exit 0.
-- Generated report paths and report hashes/run identifier: `android/app/build/reports/coverage/test/debug/report.xml`, sha256 c7eb13228cf36d58e2adf306fc158801b94d66331c7fb87105f177a4c6194ba2. This overwrote the parent's earlier full-suite report.
-- Evidence outputs are fresh and inputs stayed unchanged: the report is fresh from this run's exec data. Inputs were not stable: the fixer was editing JournalRepository during the run.
-- Final run after latest test additions and production fixes: no. It must be rerun after the TW-1 fix and the fixer's 428 change.
+- Task id, immutable base, measured HEAD, and task-owned commits/file-scope source: and-journal-habits; base f3c2102802292ecc2e011934b7c70f3128d02bb9; HEAD 43c5a2346b865d449869b3a78ef74a8c721a3033; commits e495ab72d, 54a47eb10, 0ac22a651, 43c5a2346 (`git log base..HEAD`, from the parent).
+- Source/test snapshot identifier (including uncommitted inputs): production code is the committed state at 43c5a2346 (no uncommitted production changes, per `git status`). The only uncommitted input is `JournalRepositoryTest.kt`, sha256 2c359a68c19d10bea2f6499855f9cb12c25f45bb901589275e7d0c61b8716ec7. `reviews/and-journal-habits/review.md` is also modified in the working tree; it is not a test input.
+- Exact included files: `android/app/src/main/java/ch/sonensei/cockpit/journal/{JournalRepository,JournalViewModel,JournalScreen}.kt`, `.../habits/{HabitsRepository,HabitsViewModel,HabitsScreen}.kt`. Excluded: `res/values/strings_journal.xml`, `strings_habits.xml` (resources, no executable code). No renames or deletions. No scoped file is missing from the report.
+- Provider/version, command, working directory, and test selection: JaCoCo via AGP `enableUnitTestCoverage`; `./gradlew createDebugUnitTestCoverageReport` in `android/`; full Android unit suite.
+- Run start/completion time and exit status: about 13:56:30-13:58:19 +02:00 on 2026-10-22, exit 0.
+- Generated report paths and report hashes/run identifier: `android/app/build/reports/coverage/test/debug/report.xml` (written 13:58:18 +02:00), sha256 f86d4dde2a063197447390001e33018aa83b967f69225d2fd43d457fdf957b44; exec data `android/app/build/outputs/unit_test_code_coverage/debugUnitTest/testDebugUnitTest.exec`, sha256 20c5ae714c5dd05e3c73187a92b6178dd716397bac910eaf8bd034e1731d2749.
+- Evidence outputs are fresh and inputs stayed unchanged: yes. Gradle reran the tests because the test input changed, and the report timestamp falls inside this run. The working tree before and after the run held only the test edit and the review.md change.
+- Final run after latest test additions and production fixes: yes.
 
-Values below use covered/total (percentage), from the diagnostic focused run. Only journal + habits tests ran, so lines covered elsewhere only by shell/navigation tests (placeholder branch) show as missed here.
+Values below use covered/total (percentage).
 
 | Changed file | Instructions | Branches | Methods | Lines |
 |---|---:|---:|---:|---:|
-| `journal/JournalRepository.kt` | 474/539 (87.9%) | 22/26 (84.6%) | 29/35 (82.9%) | 68/78 (87.2%) |
-| `journal/JournalViewModel.kt` | 1272/1279 (99.5%) | 79/90 (87.8%) | 44/44 (100%) | 124/124 (100%) |
-| `journal/JournalScreen.kt` | 2604/2895 (89.9%) | 129/178 (72.5%) | 39/58 (67.2%) | 177/203 (87.2%) |
+| `journal/JournalRepository.kt` | 506/539 (93.9%) | 25/26 (96.2%) | 29/35 (82.9%) | 73/78 (93.6%) |
+| `journal/JournalViewModel.kt` | 1270/1277 (99.5%) | 79/90 (87.8%) | 44/44 (100%) | 124/124 (100%) |
+| `journal/JournalScreen.kt` | 2624/2895 (90.6%) | 130/178 (73.0%) | 39/58 (67.2%) | 178/203 (87.7%) |
 | `habits/HabitsRepository.kt` | 357/394 (90.6%) | 9/10 (90.0%) | 28/30 (93.3%) | 55/63 (87.3%) |
 | `habits/HabitsViewModel.kt` | 454/454 (100%) | 18/18 (100%) | 19/19 (100%) | 47/47 (100%) |
-| `habits/HabitsScreen.kt` | 1532/1614 (94.9%) | 56/72 (77.8%) | 25/29 (86.2%) | 126/131 (96.2%) |
-| Aggregate (summed, all 6 files, none missing) | 6693/7175 (93.3%) | 313/394 (79.4%) | 184/215 (85.6%) | 597/646 (92.4%) |
+| `habits/HabitsScreen.kt` | 1552/1614 (96.2%) | 57/72 (79.2%) | 25/29 (86.2%) | 127/131 (96.9%) |
+| Aggregate (summed, all 6 files, none missing or excluded) | 6763/7173 (94.3%) | 318/394 (80.7%) | 184/215 (85.6%) | 604/646 (93.5%) |
 
-The parent's earlier full-suite run (before these tests, exit 0) gave lines/branches of: JournalViewModel 120/124, 69/90; JournalScreen 142/203, 61/178; HabitsScreen 116/131, 47/72. The others are unchanged. The new in-app tests raise JournalScreen from 142 to 177 lines (route wiring) and HabitsScreen from 116 to 126 lines.
+Compared with the parent's run on 43c5a2346 before this round's tests: JournalRepository went from 68/78 to 73/78 lines and from 22/26 to 25/26 branches. The other files are unchanged.
 
 | File and uncovered lines/branch locations | Required behavior or risk | Action/test added or reason left uncovered |
 |---|---|---|
-| `JournalScreen.kt:125-136, 146-162` (camera/gallery launcher callbacks, `NotePhotoFiles` create/clear, ActivityNotFoundException path) | AC1 photo from camera or gallery | Not tested: it needs system activity results (TakePicture/PickVisualMedia) in Robolectric. The upload/insert logic behind it is tested in the view model. Follow-up possible with a test `ActivityResultRegistry`. |
-| `JournalScreen.kt:79, 108` and `HabitsScreen.kt:57, 78` (non-Hilt placeholder branch, default callback lambdas) | Shell navigation outside Hilt | Covered by shell tests in the full suite; not run in this focused run |
-| `JournalScreen.kt:254, 330-333` (SAVING status text; LOAD_FAILED/PHOTO_UNREADABLE/PHOTO_FAILED banner strings) | Plain string mapping | Not material |
-| `HabitsScreen.kt:227, 229` (LOAD_FAILED/CHECK_FAILED strings) | Plain string mapping | Not material |
-| `JournalRepository.kt:138-155` (conflict refetch offline/failed, unreadable answers), `:54` (Hilt module) | Save conflict error paths | Not touched by the test-writer: the fixer owns `JournalRepositoryTest.kt` in this round (428 change). The fixer or reviewer should add a test for a conflict whose refetch is offline. |
-| `HabitsRepository.kt:70, 113-123` (Hilt module, serialization/date error mapping) | Malformed server answers | Low risk, same pattern as the other repositories |
+| `JournalScreen.kt:125-136, 146-162` (camera/gallery `ActivityResult` callbacks, `NotePhotoFiles` create/clear, `ActivityNotFoundException` path) | AC1 photo from the camera or gallery | Not tested: needs system activity results under Robolectric (a test `ActivityResultRegistry`). The upload and insert logic is tested in the view model, and the button-to-callback wiring is tested in JournalScreenTest. Optional follow-up. |
+| `JournalScreen.kt:79` (non-Hilt placeholder branch), `254` (SAVING text), `330-333` (LOAD_FAILED / PHOTO_UNREADABLE / PHOTO_FAILED strings) | Placeholder outside Hilt; string mapping | Not material |
+| `JournalRepository.kt:54` (Hilt `@Provides`), `145-146, 151-152` (IllegalArgumentException / DateTimeException catch arms), branch at `176` | Defensive mapping of malformed answers | The SerializationException arm is now tested. The other arms are the same mapping with no distinct behavior. Not material. |
+| `HabitsRepository.kt:70, 113-123` (Hilt module, malformed-answer catch arms) | Defensive mapping | Same pattern as the journal; low risk |
+| `HabitsScreen.kt:57, 207, 227, 229` (default lambda, `when` end, LOAD_FAILED / CHECK_FAILED strings) | String mapping | Not material |
 
 ## Unable to test
 
-- Camera/gallery system pickers (`JournalRoute` launchers) under Robolectric: not executed. The photo flow from picked URI to upload is covered only from `addPhoto` downward. Follow-up is optional.
-- Real-device or browser behaviour: out of scope for this AC, which names unit/Robolectric tests.
-- The 1 s autosave delay inside the in-app test: the Robolectric main looper does not advance coroutine delays reliably. The in-app tests trigger the immediate save (leaving the editor, leaving the screen) instead. The delay itself is covered with virtual time in JournalViewModelTest.
+- The system camera and gallery pickers in `JournalRoute`: not executed under Robolectric. The flow is covered from `addPhoto` downward only. Optional follow-up.
+- The real 1 s autosave delay inside the in-app tests: the in-app tests trigger the immediate saves instead (leaving the editor, leaving the screen). The delay itself is covered with virtual time in JournalViewModelTest.
 
 ## Summary
 
-Tests added; production defects were discovered and must be passed to the `fixer` before task completion (TW-1, Low). After the fix, the parent must rerun:
-
-1. `cd android && ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.journal.*' --tests 'ch.sonensei.cockpit.habits.*'`
-2. `cd android && ./gradlew ktlintCheck`
-3. `cd android && ./gradlew createDebugUnitTestCoverageReport` (full suite + fresh coverage; replaces the diagnostic numbers above)
-4. `sh scripts/check.sh` (`.taskcheck`)
+Tests and task-scoped coverage are sufficient; no production defects remain open. TW-1 is fixed and verified in 43c5a2346. This round added 2 JournalRepositoryTest tests (uncommitted). Focused run: 76/76 pass. The full Android suite with coverage passes (exit 0).
