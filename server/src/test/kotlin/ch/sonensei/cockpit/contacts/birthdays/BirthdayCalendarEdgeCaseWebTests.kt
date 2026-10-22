@@ -208,6 +208,8 @@ class BirthdayCalendarEdgeCaseWebTests(
 
 		second.get(10, TimeUnit.SECONDS) shouldBe first.get(10, TimeUnit.SECONDS)
 		jdbc.queryForObject("select count(*) from calendar where external_id = 'virtual:birthdays'", Int::class.java) shouldBe 1
+		// The birthdays calendar joins the existing LOCAL source instead of creating another one.
+		jdbc.queryForObject("select count(*) from calendar_source where type = 'LOCAL'", Int::class.java) shouldBe 1
 	}
 
 	@Test
@@ -227,8 +229,8 @@ class BirthdayCalendarEdgeCaseWebTests(
 		inserted.await(10, TimeUnit.SECONDS) shouldBe true
 
 		val second = CompletableFuture.supplyAsync { calendarService.ensureVirtualCalendar(BirthdayCalendarProvider.KEY, "Birthdays", null).id }
-		// The second call may wait for the first; it must not create a second calendar meanwhile. Let the first commit.
-		runCatching { second.get(500, TimeUnit.MILLISECONDS) }
+		// The second call cannot see the first one's uncommitted source: it must wait for it instead of creating its own.
+		shouldThrow<TimeoutException> { second.get(500, TimeUnit.MILLISECONDS) }
 		commit.countDown()
 		val firstId = first.get(10, TimeUnit.SECONDS)
 		val secondId = second.get(10, TimeUnit.SECONDS)
