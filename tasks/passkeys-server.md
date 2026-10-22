@@ -15,7 +15,8 @@ Passkeys as an alternative to password + TOTP (SPEC.md §4.1).
 ## Acceptance criteria
 - [x] Registration (requires an authenticated session + TOTP) and authentication ceremonies with webauthn4j; credential list/delete; works for web sessions and Android token login
   - verified (2026-10-22 02:22+0200 by dell26/agent-3): ./gradlew test --tests 'ch.sonensei.cockpit.core.auth.passkey.*' (Postgres Testcontainers, webauthn4j) -> PasskeyWebTests 14, PasskeyEdgeCaseTests 17, PasskeyTotpReenrollmentTests 11 pass: registration with session+TOTP, auth ceremony web session login + /passkeys/token device login (Android), list/delete, re-enrollment rules
-- [ ] `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.core.auth.passkey.*'` passes (Postgres via Testcontainers where persistence is involved)
+- [x] `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.core.auth.passkey.*'` passes (Postgres via Testcontainers where persistence is involved)
+  - verified (2026-10-22 02:22+0200 by dell26/agent-3): cd server && ./gradlew test --tests 'ch.sonensei.cockpit.core.auth.passkey.*' at e111036d -> BUILD SUCCESSFUL, 69 tests 0 failures (Postgres via Testcontainers)
 - [ ] API documented: `api/openapi.yaml` regenerated (`UPDATE_OPENAPI=1 ./gradlew test --tests '*OpenApiContractTest'`) and `OpenApiContractTest` passes without the flag
 
 ## Notes
