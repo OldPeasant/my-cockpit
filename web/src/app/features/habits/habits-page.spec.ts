@@ -4,6 +4,7 @@ import { provideRouter } from '@angular/router';
 import { HabitResponse } from '../../api/generated';
 import { NotificationService, provideHttp } from '../../core/http';
 import HabitsPage from './habits-page';
+import { HabitsService } from './habits.service';
 import { habit } from './testing';
 
 const LIST = '/api/v1/habits';
@@ -280,5 +281,357 @@ describe('HabitsPage', () => {
     await settle();
     await flushList([READ]);
     expect(row(READ)).not.toBeNull();
+  });
+
+  function problem(status: number, detail: string) {
+    return [
+      { title: 'Error', status, detail },
+      { status, statusText: 'Error' },
+    ] as const;
+  }
+
+  async function openEditAndType(h: HabitResponse, name: string): Promise<void> {
+    (row(h).querySelector('.edit') as HTMLButtonElement).click();
+    await settle();
+    const input = row(h).querySelector('.name input') as HTMLInputElement;
+    input.value = name;
+    input.dispatchEvent(new Event('input'));
+    fixture.detectChanges();
+  }
+
+  async function clickSave(h: HabitResponse): Promise<void> {
+    (row(h).querySelector('.save') as HTMLButtonElement).click();
+    await settle();
+  }
+
+  it('shows the loading state until the habits arrive', async () => {
+    notifications = { error: vi.fn(), info: vi.fn() };
+    TestBed.configureTestingModule({
+      providers: [
+        provideHttp(),
+        provideHttpClientTesting(),
+        provideRouter([]),
+        { provide: NotificationService, useValue: notifications },
+      ],
+    });
+    http = TestBed.inject(HttpTestingController);
+    fixture = TestBed.createComponent(HabitsPage);
+    root = fixture.nativeElement as HTMLElement;
+    fixture.detectChanges();
+
+    expect(text(root.querySelector('.hint'))).toBe('Loading habits…');
+    await flushList([READ]);
+    expect(root.querySelector('.hint')).toBeNull();
+  });
+
+  it('shows a habit reminder next to its schedule', async () => {
+    await create([{ ...READ, reminderTime: '07:30:00' }]);
+    expect(text(row(READ).querySelector('.schedule'))).toBe('Every day , reminder at 07:30');
+  });
+
+  it('sends one check for a double tap', async () => {
+    await create([READ]);
+
+    checkButton(READ).click();
+    checkButton(READ).click();
+
+    const req = http.expectOne((r) => r.method === 'PUT');
+    req.flush({ ...READ, stats: { ...READ.stats, todayCount: 1, doneToday: true } });
+    await settle();
+    expect(checkButton(READ).disabled).toBe(false);
+  });
+
+  it('reloads the habits after a check conflict and keeps the error on the row', async () => {
+    await create([READ]);
+
+    checkButton(READ).click();
+    http.expectOne((r) => r.method === 'PUT').flush(...problem(409, 'Changed elsewhere.'));
+    await settle();
+    expect(text(root.querySelector('.hint'))).toBe('Loading habits…');
+
+    const fresh = { ...READ, version: 2, stats: { ...READ.stats, todayCount: 1, doneToday: true } };
+    await flushList([fresh]);
+    expect(checkButton(READ).getAttribute('aria-pressed')).toBe('true');
+    expect(text(row(READ).querySelector('.error'))).toBe(
+      '“Read 20 pages” could not be changed: Changed elsewhere.',
+    );
+  });
+
+  it('reloads the habits after a 412 on archive', async () => {
+    await create([READ]);
+
+    (row(READ).querySelector('.archive') as HTMLButtonElement).click();
+    http.expectOne((r) => r.method === 'PATCH').flush(...problem(412, 'Outdated version.'));
+    await settle();
+
+    await flushList([{ ...READ, version: 3 }]);
+    expect(text(row(READ).querySelector('.error'))).toContain('Outdated version.');
+  });
+
+  it('drops a habit that is gone (404) on check or archive, without an error', async () => {
+    await create([READ, WATER]);
+
+    checkButton(READ).click();
+    http.expectOne((r) => r.method === 'PUT').flush(...problem(404, 'Not found.'));
+    await settle();
+    expect(row(READ)).toBeNull();
+
+    (row(WATER).querySelector('.archive') as HTMLButtonElement).click();
+    http.expectOne((r) => r.method === 'PATCH').flush(...problem(404, 'Not found.'));
+    await settle();
+    expect(row(WATER)).toBeNull();
+    expect(root.querySelector('.error')).toBeNull();
+    expect(notifications.info).not.toHaveBeenCalled();
+  });
+
+  it('shows a generic message for a failure that is not an API error', async () => {
+    await create([READ]);
+    vi.spyOn(TestBed.inject(HabitsService), 'setCheck').mockRejectedValue(new Error('boom'));
+
+    checkButton(READ).click();
+    await settle();
+
+    expect(text(row(READ).querySelector('.error'))).toBe(
+      '“Read 20 pages” could not be changed: Something went wrong.',
+    );
+  });
+
+  it('keeps the edit form after a 412, reloads, and saves again with the new version', async () => {
+    await create([READ]);
+    await openEditAndType(READ, 'Read 30 pages');
+    await clickSave(READ);
+
+    http.expectOne((r) => r.method === 'PATCH').flush(...problem(412, 'Changed elsewhere.'));
+    await settle();
+    expect(text(row(READ).querySelector('app-habit-form .error'))).toBe(
+      'The habit could not be saved: Changed elsewhere.',
+    );
+
+    await flushList([{ ...READ, version: 7, stats: { ...READ.stats, currentStreak: 9 } }]);
+    const input = row(READ).querySelector('.name input') as HTMLInputElement;
+    expect(input.value).toBe('Read 30 pages');
+
+    await clickSave(READ);
+    const retry = http.expectOne((r) => r.method === 'PATCH');
+    expect(retry.request.headers.get('If-Match')).toBe('"7"');
+    expect(retry.request.body).toMatchObject({ name: 'Read 30 pages' });
+    retry.flush({ ...READ, name: 'Read 30 pages', version: 8 });
+    await settle();
+    expect(row(READ).querySelector('app-habit-form')).toBeNull();
+    expect(text(row(READ).querySelector('.name'))).toBe('Read 30 pages');
+  });
+
+  it('keeps the form and its error when the reload after a 409 fails', async () => {
+    await create([READ]);
+    await openEditAndType(READ, 'Read 30 pages');
+    await clickSave(READ);
+
+    http.expectOne((r) => r.method === 'PATCH').flush(...problem(409, 'Changed elsewhere.'));
+    await settle();
+    http.expectOne((r) => r.method === 'GET').flush(...problem(502, 'Bad gateway.'));
+    await settle();
+
+    expect(row(READ).querySelector('app-habit-form')).not.toBeNull();
+    expect(text(row(READ).querySelector('app-habit-form .error'))).toContain('Changed elsewhere.');
+    expect(root.querySelector('.load-error')).toBeNull();
+  });
+
+  it('shows a failed create in the form without reloading', async () => {
+    await create([READ]);
+    (root.querySelector('.new') as HTMLButtonElement).click();
+    await settle();
+    const input = root.querySelector('.new-form .name input') as HTMLInputElement;
+    input.value = 'Read 20 pages';
+    input.dispatchEvent(new Event('input'));
+    (root.querySelector('.new-form .save') as HTMLButtonElement).click();
+    await settle();
+
+    http.expectOne((r) => r.method === 'POST').flush(...problem(409, 'Name already used.'));
+    await settle();
+
+    expect(text(root.querySelector('.new-form .error'))).toBe(
+      'The habit could not be saved: Name already used.',
+    );
+    expect(notifications.info).not.toHaveBeenCalled();
+    // No reload for a conflict on create (http.verify() in afterEach).
+  });
+
+  it('disables the form while saving and closes it on cancel', async () => {
+    await create([READ]);
+    await openEditAndType(READ, 'Read 30 pages');
+    await clickSave(READ);
+
+    expect((row(READ).querySelector('.save') as HTMLButtonElement).disabled).toBe(true);
+    expect((row(READ).querySelector('.cancel') as HTMLButtonElement).disabled).toBe(true);
+    http.expectOne((r) => r.method === 'PATCH').flush(...problem(503, 'Try again later.'));
+    await settle();
+
+    (row(READ).querySelector('.cancel') as HTMLButtonElement).click();
+    await settle();
+    expect(row(READ).querySelector('app-habit-form')).toBeNull();
+    expect(text(row(READ).querySelector('.name'))).toBe('Read 20 pages');
+
+    // Opening the form again starts fresh, without the old error.
+    (row(READ).querySelector('.edit') as HTMLButtonElement).click();
+    await settle();
+    expect(row(READ).querySelector('app-habit-form .error')).toBeNull();
+    expect((row(READ).querySelector('.name input') as HTMLInputElement).value).toBe(
+      'Read 20 pages',
+    );
+  });
+
+  it('closes the new-habit form with Escape and shows the button again', async () => {
+    await create([READ]);
+    (root.querySelector('.new') as HTMLButtonElement).click();
+    await settle();
+    expect(root.querySelector('.new')).toBeNull();
+
+    root
+      .querySelector('.new-form form')
+      ?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    await settle();
+
+    expect(root.querySelector('.new-form')).toBeNull();
+    expect(root.querySelector('.new')).not.toBeNull();
+  });
+
+  it('switches between the active and archived habits', async () => {
+    await create([READ]);
+    (root.querySelector('.new') as HTMLButtonElement).click();
+    await settle();
+
+    (root.querySelector('.show-archived') as HTMLButtonElement).click();
+    await settle();
+    expect(root.querySelector('.new-form')).toBeNull();
+    expect(text(root.querySelector('.hint'))).toBe('Loading habits…');
+    await flushList([], true);
+
+    expect(root.querySelector('.show-archived')?.getAttribute('aria-pressed')).toBe('true');
+    expect(root.querySelector('.new')).toBeNull();
+    expect(root.querySelector('.summary')).toBeNull();
+    expect(text(root.querySelector('.empty'))).toContain('No archived habits');
+
+    // The current view again: no request.
+    (root.querySelector('.show-archived') as HTMLButtonElement).click();
+    await settle();
+
+    (root.querySelector('.show-active') as HTMLButtonElement).click();
+    await settle();
+    await flushList([READ]);
+    expect(row(READ)).not.toBeNull();
+    expect(root.querySelector('.new')).not.toBeNull();
+  });
+
+  it('unarchives a habit from the archived view', async () => {
+    await create([]);
+    (root.querySelector('.show-archived') as HTMLButtonElement).click();
+    await settle();
+    const archived = { ...READ, archived: true, version: 2 };
+    await flushList([archived], true);
+    expect(row(READ).querySelector('.edit')).toBeNull();
+
+    (row(READ).querySelector('.archive') as HTMLButtonElement).click();
+    const req = http.expectOne((r) => r.method === 'PATCH');
+    expect(req.request.headers.get('If-Match')).toBe('"2"');
+    expect(req.request.body).toEqual({ archived: false });
+    req.flush({ ...READ, archived: false, version: 3 });
+    await settle();
+
+    expect(row(READ)).toBeNull();
+    expect(notifications.info).toHaveBeenCalledWith('Moved “Read 20 pages” back to Habits');
+  });
+
+  it('ignores habits of an earlier view that arrive late', async () => {
+    await create([READ]);
+    (root.querySelector('.show-archived') as HTMLButtonElement).click();
+    await settle();
+    (root.querySelector('.show-active') as HTMLButtonElement).click();
+    await settle();
+
+    const [archivedReq, activeReq] = http.match((r) => r.method === 'GET');
+    activeReq.flush({ items: [WATER] });
+    await settle();
+    archivedReq.flush({ items: [{ ...RUN, archived: true }] });
+    await settle();
+
+    expect(row(WATER)).not.toBeNull();
+    expect(row(RUN)).toBeNull();
+  });
+
+  it('ignores a failed load of an earlier view that arrives late', async () => {
+    await create([READ]);
+    (root.querySelector('.show-archived') as HTMLButtonElement).click();
+    await settle();
+    (root.querySelector('.show-active') as HTMLButtonElement).click();
+    await settle();
+
+    const [archivedReq, activeReq] = http.match((r) => r.method === 'GET');
+    activeReq.flush({ items: [READ] });
+    await settle();
+    archivedReq.flush(...problem(502, 'Bad gateway.'));
+    await settle();
+
+    expect(root.querySelector('.load-error')).toBeNull();
+    expect(row(READ)).not.toBeNull();
+  });
+
+  it('shows only the "not due" group when nothing is due today', async () => {
+    await create([RUN]);
+
+    expect([...root.querySelectorAll('.group')].map(text)).toEqual(['Not due today']);
+    expect(root.querySelector('.summary')).toBeNull();
+  });
+
+  it('keeps the form open when Escape is pressed while saving', async () => {
+    await create([READ]);
+    await openEditAndType(READ, 'Read 30 pages');
+    await clickSave(READ);
+
+    row(READ)
+      .querySelector('app-habit-form form')
+      ?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    await settle();
+    expect(row(READ).querySelector('app-habit-form')).not.toBeNull();
+
+    http.expectOne((r) => r.method === 'PATCH').flush({ ...READ, name: 'Read 30 pages' });
+    await settle();
+    expect(row(READ).querySelector('app-habit-form')).toBeNull();
+  });
+
+  it('pre-fills the form with the days of a weekday habit', async () => {
+    const gym = habit('0192f0c4-0000-7000-8000-000000000004', {
+      name: 'Gym',
+      schedule: 'WEEKDAYS',
+      weekdays: ['TUESDAY', 'THURSDAY'],
+    });
+    await create([gym]);
+
+    (row(gym).querySelector('.edit') as HTMLButtonElement).click();
+    await settle();
+    const pressedDays = [...row(gym).querySelectorAll('.day[aria-pressed="true"]')].map(text);
+    expect(pressedDays).toEqual(['Tue', 'Thu']);
+    expect(text(row(gym).querySelector('.save'))).toBe('Save changes');
+  });
+
+  it('ignores a conflict reload of the active habits that arrives after switching to archived', async () => {
+    await create([READ]);
+    await openEditAndType(READ, 'Read 30 pages');
+    await clickSave(READ);
+    http.expectOne((r) => r.method === 'PATCH').flush(...problem(412, 'Changed elsewhere.'));
+    await settle();
+
+    (root.querySelector('.show-archived') as HTMLButtonElement).click();
+    await settle();
+    const archivedReq = http.expectOne((r) => r.params.get('archived') === 'true');
+    const reloadReq = http.expectOne((r) => r.params.get('archived') === 'false');
+    archivedReq.flush({ items: [] });
+    await settle();
+    reloadReq.flush({ items: [{ ...READ, version: 2 }] });
+    await settle();
+
+    // The archived view must not show the active habit (it would offer "Archive" on it).
+    expect(root.querySelector('.show-archived')?.getAttribute('aria-pressed')).toBe('true');
+    expect(row(READ)).toBeNull();
+    expect(text(root.querySelector('.empty'))).toContain('No archived habits');
   });
 });

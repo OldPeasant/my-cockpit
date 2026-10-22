@@ -99,4 +99,15 @@ describe('habit display', () => {
       reminderTime: '07:30',
     });
   });
+
+  it('keeps the days and times a week of the habit in its draft', () => {
+    const gym = habit('01', { schedule: 'WEEKDAYS', weekdays: ['TUESDAY', 'SATURDAY'] });
+    expect(draftOf(gym)).toMatchObject({ schedule: 'WEEKDAYS', weekdays: ['TUESDAY', 'SATURDAY'] });
+    // A copy: editing the draft does not change the habit.
+    draftOf(gym).weekdays.push('SUNDAY');
+    expect(gym.weekdays).toEqual(['TUESDAY', 'SATURDAY']);
+
+    const run = habit('02', { schedule: 'TIMES_PER_WEEK', timesPerWeek: 5 });
+    expect(draftOf(run)).toMatchObject({ schedule: 'TIMES_PER_WEEK', timesPerWeek: 5 });
+  });
 });
