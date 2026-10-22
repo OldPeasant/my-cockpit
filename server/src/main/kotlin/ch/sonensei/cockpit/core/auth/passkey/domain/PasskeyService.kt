@@ -239,9 +239,12 @@ class PasskeyService(
 				// As in finishRegistration: any failure to parse is malformed input.
 				return rejected("malformed response (${e.javaClass.simpleName})")
 			}
+		// Locked like in LoginService.verify, so the grant cannot interleave with a TOTP re-enrollment confirm. The lock
+		// comes before any other read: the account and the passkey (sign counter, version) are then the committed state
+		// after a concurrent confirm or passkey login, not a stale copy that fails the optimistic version check.
+		val lockedAccount = users.findFirstForUpdate()
 		val passkey = passkeys.findByCredentialId(data.credentialId) ?: return rejected("unknown passkey")
-		// Locked like in LoginService.verify, so the grant cannot interleave with a TOTP re-enrollment confirm.
-		val account = users.findFirstForUpdate()?.takeIf { it.isActive && it.id == passkey.user.id } ?: return rejected("account not active")
+		val account = lockedAccount?.takeIf { it.isActive && it.id == passkey.user.id } ?: return rejected("account not active")
 		val userHandle = data.userHandle
 		if (userHandle != null && !userHandle.contentEquals(userHandle(account.id))) return rejected("user handle mismatch")
 		try {
