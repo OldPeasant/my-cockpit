@@ -152,7 +152,8 @@ class VCardService(
 		return files.storeFile(folder.id, "Contact photo $name$extension", type?.mediaType ?: "image/jpeg", photo.data.inputStream()).id
 	}
 
-	private fun toVCard(contact: Contact): VCard =
+	/** One contact as it is exported, without photo (e.g. for the backup's mirror, which adds it). */
+	fun toVCard(contact: Contact): VCard =
 		VCard().apply {
 			uid = Uid("urn:uuid:${contact.id}")
 			setFormattedName(contact.displayName)
