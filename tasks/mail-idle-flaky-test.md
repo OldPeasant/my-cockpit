@@ -5,7 +5,7 @@ owner: dell26/agent-1
 deps: []
 touches: [server/src/test/kotlin/ch/sonensei/cockpit/mail/sync/MailIdleGreenMailTests.kt]
 prio: 1
-lease_until: 2026-10-25T22:22:34Z
+lease_until: 2026-10-25T22:27:38Z
 ---
 ## Goal
 `MailIdleGreenMailTests > an account that does not notify gets change events but no notification()` failed in CI
