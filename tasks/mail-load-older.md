@@ -1,11 +1,11 @@
 ---
 title: Load older mail on demand (API for MailHeaderSyncService.loadOlder)
-status: todo
-owner: 
+status: in_progress
+owner: r1963macos/agent-1
 deps: [mail-read-api,mail-actions-api]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/mail/api,server/src/test/kotlin/ch/sonensei/cockpit/mail/api,api/openapi.yaml,web/src/app/api/generated]
 prio: 2
-lease_until: 
+lease_until: 2026-10-25T22:41:05Z
 releases: 2
 extended: 
 ---
