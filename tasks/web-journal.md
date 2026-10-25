@@ -5,7 +5,7 @@ owner: dell26/agent-2
 deps: [p0-web-shell,journal-api,p0-e2e-harness]
 touches: [web/src/app/features/journal]
 prio: 3
-lease_until: 2026-10-25T23:16:24Z
+lease_until: 2026-10-25T23:21:27Z
 releases: 0
 extended: 
 ---
