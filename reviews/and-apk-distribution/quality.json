@@ -1,0 +1,20 @@
+{
+  "schema": 1,
+  "task": "and-apk-distribution",
+  "reviewed_revision": "62845b85dbb8ff40cea9afa5f88b6cd086b1869e",
+  "helpers": {
+    "test-writer": {"status": "completed", "report": "reviews/and-apk-distribution/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/and-apk-distribution/review.md"},
+    "fixer": {"status": "not_required", "reason": "the only finding (CR-1, P3) is outside this task's touches and is deferred to task download-spa-404"}
+  },
+  "fixes_required": false,
+  "findings": [
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P3", "disposition": "deferred",
+     "note": "unknown /download/* paths fall back to SPA index.html for logged-in users; follow-up task download-spa-404"}
+  ],
+  "validation": [
+    {"command": "cd server && ./gradlew ktlintCheck test --tests 'ch.sonensei.cockpit.core.download.*' jacocoTestReport", "result": "pass"},
+    {"command": "cd android && ./gradlew ktlintCheck assembleRelease -PcockpitVersionCode=7", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
