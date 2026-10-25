@@ -23,12 +23,16 @@ describe('App i18n', () => {
     clearTranslations();
   });
 
-  // Uses a section that still shows the placeholder (the Inbox is built since web-inbox, Someday
-  // since web-gtd-lists, Bookmarks since web-bookmarks, the Dashboard since web-dashboard).
+  // Every section is built since web-journal, so the placeholder is rendered on its own.
   it('translates the shell and placeholder texts through their message ids', async () => {
     const { routes } = await import('./app.routes');
+    const { ComingSoon } = await import('./shell/coming-soon');
     TestBed.configureTestingModule({
-      providers: [provideRouter(routes), provideFakeSession(), provideSilentEventSource()],
+      providers: [
+        provideRouter([{ path: 'placeholder', component: ComingSoon }, ...routes]),
+        provideFakeSession(),
+        provideSilentEventSource(),
+      ],
     });
     const harness = await RouterTestingHarness.create();
     await harness.navigateByUrl('/journal');
@@ -36,8 +40,10 @@ describe('App i18n', () => {
 
     expect(root.querySelector('.brand')?.textContent?.trim()).toBe('Mein Cockpit');
     expect(root.querySelector('a.link.active')?.textContent?.trim()).toBe('Tagebuch');
-    expect(root.querySelector('app-coming-soon h1')?.textContent?.trim()).toBe('Tagebuch');
-    expect(root.querySelector('app-coming-soon p')?.textContent?.trim()).toBe(
+
+    await harness.navigateByUrl('/placeholder');
+    const placeholder = harness.routeNativeElement as HTMLElement;
+    expect(placeholder.querySelector('app-coming-soon p')?.textContent?.trim()).toBe(
       'Dieser Bereich kommt bald.',
     );
   });

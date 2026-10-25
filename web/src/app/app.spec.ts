@@ -52,44 +52,23 @@ describe('App', () => {
     expect(root.querySelector('app-coming-soon')).toBeNull();
   });
 
-  /** Sections whose feature is built and so no longer shows the placeholder. */
-  const BUILT = [
-    '/',
-    '/settings',
-    '/trash',
-    '/inbox',
-    '/today',
-    '/next',
-    '/waiting',
-    '/someday',
-    '/scheduled',
-    '/logbook',
-    '/calendar',
-    '/projects',
-    '/files',
-    '/notes',
-    '/mail',
-    '/habits',
-    '/review',
-    '/bookmarks',
-    '/contacts',
-  ];
-
-  it.each(NAV_SECTIONS.filter((s) => !BUILT.includes(s.path)).map((s) => [s.path, s.label]))(
-    'lazy-loads a coming soon page for %s',
-    async (path, label) => {
-      await harness.navigateByUrl(path);
+  it('builds every navigation section, so none shows the coming soon placeholder', async () => {
+    for (const section of NAV_SECTIONS) {
+      await harness.navigateByUrl(section.path);
       const root = harness.routeNativeElement as HTMLElement;
-      expect(root.querySelector('app-coming-soon h1')?.textContent?.trim()).toBe(label);
-      expect(root.querySelector('app-coming-soon p')?.textContent?.trim()).toBe(
-        'This section is coming soon.',
-      );
-      expect(document.title).toBe(label);
-      const active = root.querySelector('a.link.active');
-      expect(active?.textContent?.trim()).toBe(label);
-      expect(active?.getAttribute('aria-current')).toBe('page');
-    },
-  );
+      expect(root.querySelector('app-coming-soon'), section.path).toBeNull();
+    }
+  });
+
+  it('lazy-loads the journal page at /journal', async () => {
+    await harness.navigateByUrl('/journal');
+    const root = harness.routeNativeElement as HTMLElement;
+    expect(root.querySelector('app-journal-page')).not.toBeNull();
+    expect(document.title).toBe('Journal');
+    const active = root.querySelector('a.link.active');
+    expect(active?.textContent?.trim()).toBe('Journal');
+    expect(active?.getAttribute('aria-current')).toBe('page');
+  });
 
   it('lazy-loads the settings page at /settings', async () => {
     await harness.navigateByUrl('/settings');
