@@ -1,0 +1,27 @@
+{
+  "schema": 1,
+  "task": "bookmarks-snapshot",
+  "reviewed_revision": "42a9cb18206a81b34f35a05ac6aadf76091e77b1",
+  "helpers": {
+    "test-writer": {"status": "completed", "report": "reviews/bookmarks-snapshot/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/bookmarks-snapshot/review.md"},
+    "fixer": {"status": "completed", "report": "reviews/bookmarks-snapshot/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "main element wrappers kept in the first pass, retry without class/id and form removal below 500 characters; covered by ReadableExtractorEdgeCaseTests"},
+    {"id": "CR-4", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "only the page's main element and its ancestors are protected; comment/teaser article blocks removed again; regression tests added"},
+    {"id": "CR-2", "source": "code-reviewer", "severity": "P3", "disposition": "accepted",
+     "note": "snapshot reuses the 1 MB metadata fetch limit; recorded as assumption, a separate limit needs bookmarks/infra (outside touches)"},
+    {"id": "CR-3", "source": "code-reviewer", "severity": "P3", "disposition": "accepted",
+     "note": "duplicated BookmarkService.changed bookkeeping, pointer comment added; restructuring needs bookmarks/domain (outside touches)"},
+    {"id": "CR-5", "source": "code-reviewer", "severity": "P3", "disposition": "accepted",
+     "note": "cosmetic test name, not renamed to avoid another review round"}
+  ],
+  "validation": [
+    {"command": "cd server && ./gradlew test --tests 'ch.sonensei.cockpit.bookmarks.snapshot.*'", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
