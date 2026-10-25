@@ -1,11 +1,11 @@
 ---
 title: Combined New view (GTD inbox + mail inbox)
-status: in_progress
+status: done
 owner: dell26/agent-2
 deps: [web-inbox,web-mail-list,mail-gtd]
 touches: [web/src/app/features/new,web/src/app/app.routes.ts,web/src/app/shell/nav-sections.ts,web/e2e/new]
 prio: 2
-lease_until: 2026-10-26T00:11:55Z
+lease_until: 
 releases: 0
 extended: 
 ---
@@ -30,3 +30,4 @@ views and their behavior stay unchanged, mails never become tasks automatically.
 - ASSUMPTION (2026-10-25 23:40+0100 by r1963macos/agent-2): New view: while older mail is still to load, Inbox tasks older than the oldest loaded mail are held back, so loading the next mail page only appends rows. In a large mailbox, old captures therefore appear only after scrolling far enough. Strict merge order wins over showing all tasks at once.
 - ASSUMPTION (2026-10-25 23:40+0100 by r1963macos/agent-2): New view: filter keys are 1/2/3 (All/GTD Inbox/Mail), URL param ?source=inbox|mail (absent = all). Row keys reuse the mail list's: j/k cursor, o/Enter open, t = '→ Inbox task' on mail rows. The mail rows show the unified inbox flat (not threaded).
 - release by r1963macos/agent-2: handed off by r1963macos/agent-2: You've hit your session limit · resets 4:10am (Europe/Zurich)
+- done by dell26/agent-2: `sh scripts/check.sh` passed in 87s on c1670648e; criteria verified 4/4
