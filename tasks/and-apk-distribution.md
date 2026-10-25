@@ -11,7 +11,8 @@ lease_until: 2026-10-25T22:47:48Z
 Distribute the app without the Play Store (SPEC.md §11).
 
 ## Acceptance criteria
-- [ ] CI builds a signed release APK (keystore from CI secrets; debug-signed when absent) and attaches it as an artifact
+- [~] CI builds a signed release APK (keystore from CI secrets; debug-signed when absent) and attaches it as an artifact
+  - skipped (2026-10-25 23:28+0100 by dell26/agent-1): No GitHub Actions run observable here (gh CLI not permitted) and keytool/openssl blocked, so the keystore-signed path could not be built locally. Partial local evidence: cd android && ./gradlew ktlintCheck assembleRelease -PcockpitVersionCode=7 -> app-release.apk + output-metadata.json (versionCode 7); ./gradlew :app:signingReport -> release variant Config: debug (fallback when COCKPIT_KEYSTORE_FILE unset)
 - [ ] Server serves `${COCKPIT_DATA_DIR}/android/cockpit.apk` at `/download/android` (authenticated) with version info; test
 - [ ] `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.core.download.*'` passes (Postgres via Testcontainers where persistence is involved)
 
