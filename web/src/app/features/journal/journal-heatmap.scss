@@ -1,0 +1,146 @@
+:host {
+  --cell: 11px;
+  --gap: 3px;
+
+  display: block;
+  min-inline-size: 0;
+}
+
+.heatmap {
+  margin: 0;
+}
+
+.scroll {
+  overflow-x: auto;
+  padding-block: var(--app-space-1);
+  // The newest weeks matter most: a narrow screen shows the end of the year first.
+  direction: rtl;
+}
+
+.grid {
+  display: inline-flex;
+  gap: var(--gap);
+  direction: ltr;
+}
+
+.weekdays,
+.week {
+  display: grid;
+  grid-template-rows: 1rem repeat(7, var(--cell));
+  gap: var(--gap);
+}
+
+.weekdays {
+  margin-inline-end: var(--app-space-1);
+  color: var(--app-fg-muted);
+  font: var(--mat-sys-label-small);
+  line-height: var(--cell);
+
+  span {
+    visibility: hidden;
+
+    &:first-child {
+      grid-row: 2;
+    }
+
+    &.shown {
+      visibility: visible;
+    }
+  }
+}
+
+.month {
+  inline-size: var(--cell);
+  overflow: visible;
+  color: var(--app-fg-muted);
+  font: var(--mat-sys-label-small);
+  white-space: nowrap;
+}
+
+.day {
+  display: block;
+  inline-size: var(--cell);
+  block-size: var(--cell);
+  padding: 0;
+  border: 0;
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--app-fg) 7%, transparent);
+  cursor: pointer;
+
+  &.outside {
+    background: none;
+    cursor: default;
+  }
+
+  // Mood 1 (bad) to 5 (great) as the strength of the accent; an entry without mood sits in the middle.
+  &.entry {
+    background: color-mix(in srgb, var(--app-accent) var(--strength, 60%), transparent);
+  }
+
+  &[data-mood='1'] {
+    --strength: 25%;
+  }
+
+  &[data-mood='2'] {
+    --strength: 42%;
+  }
+
+  &[data-mood='3'] {
+    --strength: 60%;
+  }
+
+  &[data-mood='4'] {
+    --strength: 80%;
+  }
+
+  &[data-mood='5'] {
+    --strength: 100%;
+  }
+
+  &[data-mood='none'] {
+    --strength: 60%;
+
+    background-image: linear-gradient(
+      135deg,
+      transparent 45%,
+      color-mix(in srgb, var(--app-bg) 70%, transparent) 45% 55%,
+      transparent 55%
+    );
+  }
+
+  &.selected {
+    outline: 2px solid var(--app-fg);
+    outline-offset: 1px;
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--app-accent);
+    outline-offset: 1px;
+  }
+
+  &:hover:not(.outside) {
+    box-shadow: inset 0 0 0 1px var(--app-fg-muted);
+  }
+}
+
+figcaption {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--app-space-2);
+  margin-top: var(--app-space-2);
+  color: var(--app-fg-muted);
+  font: var(--mat-sys-body-small);
+  font-variant-numeric: tabular-nums;
+}
+
+.legend {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--gap);
+
+  .day {
+    cursor: default;
+  }
+}

@@ -1,0 +1,54 @@
+<figure class="heatmap">
+  <div class="scroll">
+    <div
+      class="grid"
+      role="group"
+      i18n-aria-label="@@journal.heatmap.aria"
+      aria-label="Entries by day"
+    >
+      <div class="weekdays" aria-hidden="true">
+        @for (name of weekdays(); track $index) {
+          <span [class.shown]="$index % 2 === 0">{{ name }}</span>
+        }
+      </div>
+      @for (week of weeks(); track week.cells[0].date) {
+        <div class="week">
+          <span class="month" aria-hidden="true">{{ week.month }}</span>
+          @for (cell of week.cells; track cell.date) {
+            @if (cell.inRange) {
+              <button
+                type="button"
+                class="day"
+                [attr.data-date]="cell.date"
+                [attr.data-mood]="cell.hasEntry ? (cell.mood ?? 'none') : null"
+                [class.entry]="cell.hasEntry"
+                [class.selected]="cell.date === selected()"
+                [attr.aria-current]="cell.date === selected() ? 'date' : null"
+                [attr.aria-label]="label(cell)"
+                [attr.title]="label(cell)"
+                [tabindex]="cell.date === focusDate() ? 0 : -1"
+                (click)="daySelected.emit(cell.date)"
+                (keydown)="onKeydown($event, cell)"
+              ></button>
+            } @else {
+              <span class="day outside" aria-hidden="true"></span>
+            }
+          }
+        </div>
+      }
+    </div>
+  </div>
+  <figcaption>
+    <span class="count" i18n="@@journal.heatmap.count"
+      >{count(), plural, =0 {No entries} =1 {1 entry} other {{{ count() }} entries}} in the last 12
+      months</span
+    >
+    <span class="legend" aria-hidden="true">
+      <ng-container i18n="@@journal.heatmap.legend.low">Low mood</ng-container>
+      @for (mood of [1, 2, 3, 4, 5]; track mood) {
+        <span class="day entry" [attr.data-mood]="mood"></span>
+      }
+      <ng-container i18n="@@journal.heatmap.legend.high">Great</ng-container>
+    </span>
+  </figcaption>
+</figure>

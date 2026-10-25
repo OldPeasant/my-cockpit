@@ -1,0 +1,229 @@
+<section class="journal" aria-labelledby="journal-title">
+  <header class="head">
+    <div class="day-title">
+      @if (relative(); as relative) {
+        <p class="relative">{{ relative }}</p>
+      }
+      <h1 id="journal-title">{{ title() || journalLabel }}</h1>
+    </div>
+    <nav class="day-nav" i18n-aria-label="@@journal.nav" aria-label="Days">
+      <button
+        mat-stroked-button
+        type="button"
+        class="previous"
+        [disabled]="!date()"
+        (click)="step(-1)"
+        i18n="@@journal.previous"
+      >
+        Previous day
+      </button>
+      <button
+        mat-stroked-button
+        type="button"
+        class="next"
+        [disabled]="!canGoForward()"
+        (click)="step(1)"
+        i18n="@@journal.next"
+      >
+        Next day
+      </button>
+      @if (today() && !isToday()) {
+        <a mat-flat-button class="go-today" routerLink="/journal" i18n="@@journal.goToday">Today</a>
+      }
+    </nav>
+  </header>
+
+  @if (heatmap(); as heatmap) {
+    <app-journal-heatmap
+      class="year"
+      [heatmap]="heatmap"
+      [selected]="date()"
+      [firstDay]="firstDay()"
+      (daySelected)="openDay($event)"
+    />
+  }
+
+  @if (loadError(); as error) {
+    <div class="status" role="alert">
+      <p i18n="@@journal.loadFailed">The journal could not be loaded: {{ error }}</p>
+      <button mat-stroked-button type="button" (click)="load()" i18n="@@journal.retry">
+        Try again
+      </button>
+    </div>
+  } @else if (loaded()) {
+    <div class="columns">
+      <article class="sheet" i18n-aria-label="@@journal.entry.aria" aria-label="Entry">
+        <div class="toolbar">
+          <div class="mood" role="group" i18n-aria-label="@@journal.mood" aria-label="Mood">
+            @for (value of moods; track value) {
+              <button
+                type="button"
+                class="mood-option"
+                [attr.data-mood]="value"
+                [attr.aria-pressed]="mood() === value"
+                [attr.title]="moodLabel(value)"
+                (click)="setMood(value)"
+              >
+                <span class="dot" aria-hidden="true"></span>
+                <span class="mood-label">{{ moodLabel(value) }}</span>
+              </button>
+            }
+          </div>
+          <span class="save-state" role="status" [attr.data-state]="saveState()">
+            @switch (saveState()) {
+              @case ('saved') {
+                @if (entry()) {
+                  <ng-container i18n="@@journal.saved">Saved</ng-container>
+                } @else {
+                  <ng-container i18n="@@journal.notStarted">Not written yet</ng-container>
+                }
+              }
+              @case ('pending') {
+                <ng-container i18n="@@journal.pending">Unsaved changes</ng-container>
+              }
+              @case ('saving') {
+                <ng-container i18n="@@journal.saving">Saving…</ng-container>
+              }
+              @case ('error') {
+                <ng-container i18n="@@journal.notSaved">Not saved</ng-container>
+              }
+              @case ('conflict') {
+                <ng-container i18n="@@journal.conflictState"
+                  >Not saved: changed elsewhere</ng-container
+                >
+              }
+            }
+          </span>
+          <div class="toggle" role="group" i18n-aria-label="@@journal.layout" aria-label="Layout">
+            <button
+              type="button"
+              class="mode-edit"
+              [attr.aria-pressed]="!preview()"
+              (click)="preview.set(false)"
+              i18n="@@journal.mode.edit"
+            >
+              Write
+            </button>
+            <button
+              type="button"
+              class="mode-preview"
+              [attr.aria-pressed]="preview()"
+              (click)="preview.set(true)"
+              i18n="@@journal.mode.preview"
+            >
+              Preview
+            </button>
+          </div>
+        </div>
+
+        @if (saveState() === 'conflict') {
+          <div class="banner conflict" role="alert">
+            <p i18n="@@journal.conflict">
+              This entry was changed somewhere else since you opened it. Your edits are not saved
+              yet.
+            </p>
+            <div class="banner-actions">
+              <button
+                mat-button
+                type="button"
+                class="use-theirs"
+                (click)="useTheirs()"
+                i18n="@@journal.useTheirs"
+              >
+                Discard my edits
+              </button>
+              <button
+                mat-flat-button
+                type="button"
+                class="keep-mine"
+                (click)="keepMine()"
+                i18n="@@journal.keepMine"
+              >
+                Save my version
+              </button>
+            </div>
+          </div>
+        }
+        @if (saveError(); as error) {
+          <div class="banner" role="alert">
+            <p>{{ error }}</p>
+            @if (saveState() === 'error') {
+              <div class="banner-actions">
+                <button
+                  mat-button
+                  type="button"
+                  class="retry"
+                  (click)="retry()"
+                  i18n="@@journal.retry"
+                >
+                  Try again
+                </button>
+              </div>
+            }
+          </div>
+        }
+
+        @if (preview()) {
+          @if (body().trim()) {
+            <app-note-markdown-view class="preview" [source]="body()" [readonly]="true" />
+          } @else {
+            <p class="empty-preview" i18n="@@journal.emptyPreview">Nothing written for this day.</p>
+          }
+        } @else {
+          <app-markdown-editor
+            class="editor"
+            [value]="body()"
+            [label]="title()"
+            [placeholder]="placeholder"
+            [uploadImage]="uploadImage"
+            (valueChange)="onBody($event)"
+            (uploadFailed)="onUploadFailed($event)"
+          />
+        }
+
+        <label class="tags">
+          <span i18n="@@journal.tags">Tags</span>
+          <input
+            type="text"
+            [value]="tagsText()"
+            (input)="onTags($event)"
+            (blur)="tidyTags()"
+            i18n-placeholder="@@journal.tags.placeholder"
+            placeholder="travel, family"
+          />
+        </label>
+      </article>
+
+      <aside class="earlier" aria-labelledby="on-this-day-title">
+        <h2 id="on-this-day-title" i18n="@@journal.onThisDay">On this day</h2>
+        @if (onThisDayError()) {
+          <p class="muted" i18n="@@journal.onThisDay.failed">Earlier years could not be loaded.</p>
+        } @else if (onThisDay().length) {
+          <ul class="earlier-list">
+            @for (item of onThisDay(); track item.id) {
+              <li>
+                <a class="earlier-entry" [routerLink]="['/journal', item.date]">
+                  <span class="earlier-year">
+                    @if (item.mood) {
+                      <span class="dot" [attr.data-mood]="item.mood" aria-hidden="true"></span>
+                    }
+                    {{ yearsAgo(item) }}
+                  </span>
+                  <span class="earlier-text">{{
+                    excerpt(item.bodyMd) || moodLabel(item.mood ?? 0) || item.displayTitle
+                  }}</span>
+                </a>
+              </li>
+            }
+          </ul>
+        } @else {
+          <p class="muted" i18n="@@journal.onThisDay.none">
+            No entries from this day in earlier years. What you write today shows up here next year.
+          </p>
+        }
+      </aside>
+    </div>
+  } @else {
+    <p class="status muted" role="status" i18n="@@journal.loading">Loading…</p>
+  }
+</section>
