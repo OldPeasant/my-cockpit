@@ -5,7 +5,7 @@ owner: dell26/agent-2
 deps: [web-inbox,web-mail-list,mail-gtd]
 touches: [web/src/app/features/new,web/src/app/app.routes.ts,web/src/app/shell/nav-sections.ts,web/e2e/new]
 prio: 2
-lease_until: 2026-10-26T00:01:47Z
+lease_until: 2026-10-26T00:11:55Z
 releases: 0
 extended: 
 ---
@@ -22,6 +22,7 @@ views and their behavior stay unchanged, mails never become tasks automatically.
 - [x] Uses only the existing APIs (no new server endpoint); Vitest component/service tests cover merge order across paging, each filter, SSE add/remove, "→ Inbox task"; `cd web && npm run check` passes
   - verified (2026-10-26 00:44+0100 by dell26/agent-2): git diff 464e31b7..HEAD touches no server/ or api/ files (fake Api in specs throws on any op except listTasks/listMailMessages/mailToTask); cd web && npm run check -> pass, 3630 tests (test-writer round 2), 68 New-view tests incl. merge across paging, each filter, SSE add/remove, '→ Inbox task'
 - [x] Playwright `e2e/new/new.spec.ts` passes against the e2e stack (`npm run e2e -- e2e/new/new.spec.ts`, see p0-e2e-harness): a capture and a GreenMail message both appear under All, only one under each filter; "→ Inbox task" adds the task without removing the mail
+  - verified (2026-10-26 00:44+0100 by dell26/agent-2): cd web && npm run e2e -- --project=chromium e2e/new/new.spec.ts against deploy/docker-compose.e2e.yml via podman-compose (GreenMail 2.1.5) -> 31 passed incl. 'New view > capture and mail under All, filters, → Inbox task' (2.9s); first run had a nav-render race in the spec, fixed in b484d22f
   - verified (2026-10-26 00:44+0100 by dell26/agent-2): cd web && npm run e2e -- --project=chromium e2e/new/new.spec.ts against deploy/docker-compose.e2e.yml via podman-compose (GreenMail 2.1.5) -> 31 passed incl. 'New view > capture and mail under All, filters, → Inbox task' (2.9s); first run had a nav-render race in the spec, fixed in b484d22f
 
 ## Notes
