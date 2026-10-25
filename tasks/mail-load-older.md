@@ -1,10 +1,11 @@
 ---
 title: Load older mail on demand (API for MailHeaderSyncService.loadOlder)
-status: todo
-owner:
+status: in_progress
+owner: r1963macos/agent-1
 deps: [mail-read-api,mail-actions-api]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/mail/api,server/src/test/kotlin/ch/sonensei/cockpit/mail/api,api/openapi.yaml,web/src/app/api/generated]
 prio: 2
+lease_until: 2026-10-25T22:33:49Z
 ---
 ## Goal
 SPEC.md §7.2: headers are cached for the sync window, "older loaded on demand when scrolling". `MailHeaderSyncService.loadOlder(folderId, limit)` exists (mail-header-sync) but no API calls it; `GET /api/v1/mail/messages` (mail-read-api) reads only the cache and ends with `nextCursor: null` at the end of the window.
