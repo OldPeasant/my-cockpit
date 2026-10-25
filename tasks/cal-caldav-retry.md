@@ -29,3 +29,4 @@ connections too, and today one dropped request fails the sync of that calendar. 
   closes every connection). The drop rate is much higher on GitHub runners; not understood yet (Radicale
   `[server] max_connections`/`timeout`, container start-up readiness: `Wait.forListeningPort()` may be too early).
 - Failing CI runs: 39631689604, 39626614823 (`gh run view <id> --log-failed`).
+- ASSUMPTION (2026-10-26 00:42+0100 by dell26/agent-1): The Radicale test helper dav() retries every method once (MKCALENDAR, unconditional PUT/DELETE too), unlike CalDavClient: the tests own the server and check outcomes, and restricting it would leave most setup requests unprotected. A repeated MKCALENDAR that already succeeded would answer 405 and fail reset(); accepted as far rarer than a drop.
