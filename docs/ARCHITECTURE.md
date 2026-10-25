@@ -127,7 +127,7 @@ pagination helpers live in `server/.../core/web` (summary in `api/README.md`).
 
 | Command | What | Time |
 |---|---|---|
-| `sh scripts/check.sh` (= `.taskcheck`) | TFP gate tests, server ktlint + tests, web eslint + Vitest + build, android ktlint + unit tests + Android Lint | ~25 s warm, ~3 min on a cold clone (downloads) |
+| `sh scripts/check.sh [tfp\|server\|web\|android ...]` (no argument = all parts = `.taskcheck`) | TFP gate tests, server ktlint + tests, web eslint + Vitest + build, android ktlint + unit tests + Android Lint | ~25 s warm, ~3 min on a cold clone (downloads) |
 | `cd server && ./gradlew check` | server lint + `test` (unit tests + Spring tests against the shared Postgres Testcontainer; needs Docker/Podman) | ~12 s warm |
 | `cd server && ./gradlew integrationTest` | server tests tagged `external` (`@ExternalTest`: GreenMail, Radicale, WireMock, ...). Not part of `check`/`.taskcheck` | |
 | `cd web && npm run e2e [-- <spec>]` | Playwright (chromium) against `deploy/docker-compose.e2e.yml` (server image in profile `e2e`, fresh Postgres, GreenMail 2.1.5): builds/starts the stack, waits for health, runs the specs in `web/e2e/`, tears down (`web/e2e/README.md`). Not part of `.taskcheck` | ~20 s for `support/smoke.spec.ts` with cached image layers (stack healthy after ~16 s, 2 tests ~2 s); a changed source rebuilds the image first |
@@ -138,8 +138,10 @@ pagination helpers live in `server/.../core/web` (summary in `api/README.md`).
 | `python3 tests/test_quality_gate.py` (and the other `tests/test_*.py`, `bash tests/test_publish.sh`) | TFP tooling | |
 
 CI (`.github/workflows/ci.yml`, GitHub Actions, on pushes to `main` and on PRs; commits that only touch
-`tasks/`, `reviews/` or `BOARD.md` are skipped, and runs on `main` are never cancelled) runs `sh scripts/check.sh`,
-`./gradlew integrationTest` and `docker build .` with the runtimes above. Lint it with
+`tasks/`, `reviews/` or `BOARD.md` are skipped, and runs on `main` are never cancelled) runs the fast check as
+parallel jobs, one per part (`sh scripts/check.sh tfp|server|web|android`, each with only the setup it needs;
+without arguments `check.sh` runs every part, as `.taskcheck` does), plus `./gradlew integrationTest` and
+`docker build .`, with the runtimes above. Lint it with
 `docker run --rm -v "$PWD:/repo:Z" -w /repo docker.io/rhysd/actionlint:latest` after editing.
 
 Server test infrastructure (`server/src/test/kotlin/ch/sonensei/cockpit/support/`):

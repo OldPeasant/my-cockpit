@@ -4,6 +4,8 @@
 # Triggers: pushes to main and pull requests. Board-only and review-evidence commits (tasks/, reviews/,
 # BOARD.md) don't start CI; wip/* backups and status/* branches are not built. Runs on main are never
 # cancelled, so every finished task gets a complete result; other refs cancel superseded runs.
+# Jobs run in parallel: the fast check split per part (check-tfp, check-server, check-web, check-android,
+# each `sh scripts/check.sh <part>` with only the setup that part needs), integration tests, image build.
 name: CI
 
 on:
@@ -30,27 +32,61 @@ env:
   JAVA_VERSION: "21"
 
 jobs:
-  check:
-    name: Fast check (scripts/check.sh)
+  # The fast check, one job per part (sh scripts/check.sh <part>). Timeouts: about twice the measured
+  # duration (server tests 14.5 min in run 39625365916, the whole serial check 32 min).
+  check-tfp:
+    name: Fast check (tfp gate tests)
     runs-on: ubuntu-24.04
-    timeout-minutes: 40
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - name: sh scripts/check.sh tfp
+        run: sh scripts/check.sh tfp
+
+  check-server:
+    name: Fast check (server)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: ${{ env.JAVA_VERSION }}
+      - uses: gradle/actions/setup-gradle@v5
+      - name: sh scripts/check.sh server
+        run: sh scripts/check.sh server
+
+  check-web:
+    name: Fast check (web)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
       - uses: actions/setup-node@v5
         with:
           node-version-file: .nvmrc
           cache: npm
           cache-dependency-path: web/package-lock.json
+      - name: sh scripts/check.sh web
+        run: sh scripts/check.sh web
+
+  check-android:
+    name: Fast check (android)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: ${{ env.JAVA_VERSION }}
       - uses: android-actions/setup-android@v3
         with:
           packages: platform-tools platforms;android-37.0 build-tools;36.0.0
       - uses: gradle/actions/setup-gradle@v5
-      - name: Run scripts/check.sh
-        run: sh scripts/check.sh
+      - name: sh scripts/check.sh android
+        run: sh scripts/check.sh android
 
   integration:
     name: Server integration tests
