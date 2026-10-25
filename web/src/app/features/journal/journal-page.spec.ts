@@ -1288,6 +1288,37 @@ describe('JournalPage', () => {
         expect(state()).toBe('Saved');
         expect(puts()).toEqual([]);
       });
+
+      it(`does not show a "${action}" reload failure that arrives after another day was opened`, async () => {
+        await open('/journal/2026-10-24', {
+          entry: journalEntry('2026-10-24', { bodyMd: 'Mine', version: 2 }),
+        });
+        vi.useFakeTimers();
+        type('Mine, edited');
+        await vi.advanceTimersByTimeAsync(AUTOSAVE_DEBOUNCE_MS);
+        http.expectOne((r) => r.method === 'PUT').flush(...problem(412, 'Changed elsewhere.'));
+        await vi.advanceTimersByTimeAsync(0);
+        harness.detectChanges();
+
+        el(`.${action}`).click();
+        await vi.advanceTimersByTimeAsync(0);
+        const reload = http.expectOne(
+          (r) => r.method === 'GET' && r.url === `${ENTRIES}/2026-10-24`,
+        );
+        vi.useRealTimers();
+        void harness.navigateByUrl('/journal/2026-10-22');
+        await settle();
+        flushDay('2026-10-22', { entry: journalEntry('2026-10-22', { bodyMd: 'Other day' }) });
+        await settle();
+        reload.flush(...problem(503, 'Try again later.'));
+        await settle();
+
+        expect(router.url).toBe('/journal/2026-10-22');
+        expect(editor().value()).toBe('Other day');
+        expect(state()).toBe('Saved');
+        expect(root().querySelector('.banner')).toBeNull();
+        expect(puts()).toEqual([]);
+      });
     }
 
     it('drops my edits on a conflict when asked and shows the newer entry', async () => {

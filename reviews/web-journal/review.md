@@ -4,10 +4,10 @@ Date: 2026-10-25
 
 Task: web-journal - Journal UI
 
-Scope: re-review of the whole task on the final code, `git diff 50b5c1b7f HEAD -- web` (production code, Vitest specs, Playwright spec, shell spec edits), with focus on the only code change since the previous review: commit d35d1d13e (6 new tests in `web/src/app/features/journal/journal-page.spec.ts`). `git diff --stat f9601e8c6 HEAD` confirms no production code changed after the last fix commit (only `reviews/`, `tasks/web-journal-rollover.md` and the page spec).
+Scope: re-review of the whole task on the final code, `git diff 9e5279e40..HEAD -- web` (production code, Vitest specs, Playwright spec, shell spec edits). The focus is the only code change since the previous review, commit 692159200 (HEAD). It adds 2 tests to `web/src/app/features/journal/journal-page.spec.ts`. `git show --stat` for HEAD, 27c8e06f1 and 25b35c33f confirms that only `journal-page.spec.ts` and `reviews/` changed after the last fix commit 7c24c1e01. Production code is unchanged since then.
 
 Requirements:
-- tasks/web-journal.md acceptance criteria and recorded assumptions (Notes, including CR-5/CR-6 of the first review accepted as P3 follow-ups)
+- tasks/web-journal.md acceptance criteria and recorded assumptions (Notes, including the earlier P3 findings accepted as follow-ups)
 - tasks/web-journal-rollover.md (follow-up task for the accepted findings)
 - SPEC.md §8.5 (Journal), §4.2 (ETag/If-Match)
 - docs/ARCHITECTURE.md, docs/QUALITY.md, AGENTS.md project conventions
@@ -15,19 +15,18 @@ Requirements:
 
 Git range:
 - Branch: main
-- HEAD: d35d1d13e9f69a16f15d04cbf09e9e2dfd30068a
-- Base/start: 50b5c1b7f
-- Commits reviewed: 9 task commits (ce5575b03, 333f9ba8a, 65997de45, 053c3d566, 90aa5dcdd, f9601e8c6, c26db2c96, b19f77104, d35d1d13e); the other commits since the base only touch `tasks/`
-- Uncommitted changes: none at review time
-- Note: the hashes given in the review request (13bcad8fb..974f46385, HEAD 7c10bbfd5) are not in the current history; the branch was rewritten (rebase/merge onto main). The commit contents match the description (last commit adds the tests, production code unchanged), so the review covers the current HEAD above.
+- HEAD: 692159200e6123b544de9b6393fe0a0a721badfc
+- Base/start: 9e5279e40277f1b7be5819f8f39d10b9763317ed
+- Commits reviewed: 10 (505fa2903, 1c906c875, 32fb28e2b, 0b8d2e883, 79059018c, 7c24c1e01, a02f276a5, 25b35c33f, 27c8e06f1, 692159200)
+- Uncommitted changes: none at review time (`git status --short` empty)
 
-Commands run during this review:
-- `npx ng test --watch=false --include 'src/app/features/journal/**/*.spec.ts'` (in `web/`) -> 5 files, 93 tests passed
-- `npx eslint src/app/features/journal` (in `web/`) -> no findings
-- `npx prettier --check src/app/features/journal e2e/journal` (in `web/`) -> all files formatted
-- Playwright not re-run by the reviewer (parent reports `npm run e2e -- journal/journal.spec.ts` against the compose e2e stack -> 31 passed, recorded as criterion 1 evidence in the task file)
+Commands run during this review (in `web/`):
+- `npx ng test --watch=false --include 'src/app/features/journal/**/*.spec.ts'` -> 5 files, 95 tests passed
+- `npx eslint src/app/features/journal` -> no findings
+- `npx prettier --check src/app/features/journal e2e/journal` -> all files formatted
+- The reviewer did not re-run Playwright. Criterion 1 evidence in the task file records `npm run e2e -- journal/journal.spec.ts` against the compose e2e stack -> 31 passed.
 
-Summary: 0 P0, 0 P1, 0 P2, 2 P3
+Summary: 0 P0, 0 P1, 0 P2, 3 P3
 
 ## P0 Critical
 
@@ -46,41 +45,45 @@ None.
 - [ ] **CR-1 | "Today" does not move on at midnight in a page left open (carried over; disposition: deferred to web-journal-rollover)**
     - File: `web/src/app/features/journal/journal-page.ts:143`, `web/src/app/features/journal/journal-page.ts:334`
     - Category: Correctness
-    - Problem: `today` is set from the heatmap, which `load()` fetches only while `today()` is null. The page instance is kept for every day, so `today` is loaded once for the lifetime of the page. A tab left open overnight still labels the previous day "Today", "Next day" stays disabled and `/journal` opens yesterday's entry.
-    - Why it matters: Contradicts "'Today' opens today's entry" for a page that is often left open. Still present at HEAD; recorded in the task Notes and covered by `tasks/web-journal-rollover.md` criterion 1.
-    - Suggested fix: Refresh heatmap and `today` on `visibilitychange` or a timer, and reopen the day when it was today (as planned in web-journal-rollover).
+    - Problem: `today` comes from the heatmap, and `load()` fetches the heatmap only while `today()` is null. The page instance is kept for every day, so `today` is loaded once for the lifetime of the page.
+    - Why it matters: In a tab left open overnight, the previous day is still labelled "Today". The task Notes record this finding, and `tasks/web-journal-rollover.md` criterion 1 covers it.
+    - Suggested fix: Follow the plan in web-journal-rollover: refresh the heatmap and `today` on `visibilitychange` or a timer.
 
 - [ ] **CR-2 | Edits in conflict are dropped without a prompt when the user leaves the day (carried over; disposition: deferred to web-journal-rollover)**
     - File: `web/src/app/features/journal/journal-page.ts:225`, `web/src/app/features/journal/journal-page.ts:290`
     - Category: Correctness
-    - Problem: `flush()` returns without saving while `saveState === 'conflict'`, and `open()` keeps the user on the day only for `'error' && dirty()`. In conflict state (409/412/428) moving to another day shows that day and drops the edits.
-    - Why it matters: The banner says the edits are not saved yet, but one click on another day discards them. Still present at HEAD; recorded in the task Notes and covered by `tasks/web-journal-rollover.md` criterion 2.
-    - Suggested fix: Treat `'conflict' && dirty()` like `'error'` in `open()` or prompt (keep mine / discard / stay), as planned in web-journal-rollover.
+    - Problem: `flush()` returns without saving while `saveState === 'conflict'`. `open()` keeps the user on the day only for `'error' && dirty()`, so opening another day in conflict state drops the edits.
+    - Why it matters: The banner says the edits are not saved yet, but the edits are dropped when the user opens another day. `tasks/web-journal-rollover.md` criterion 2 covers this.
+    - Suggested fix: Follow the plan in web-journal-rollover: prompt the user to keep mine, discard or stay.
 
-## New tests in d35d1d13e, checked
+- [ ] **CR-3 | A late heatmap response from a superseded load overwrites the newer heatmap**
+    - File: `web/src/app/features/journal/journal-page.ts:143`, `web/src/app/features/journal/journal-page.ts:331-335`
+    - Category: Correctness
+    - Problem: When the route changes before the first heatmap arrived, both loads request the heatmap. The new test at `journal-page.spec.ts:932` asserts that two heatmap requests are sent. `loadHeatmap()` sets `heatmap` and `today` without checking `loadSeq`, so the older response always writes them, even when it arrives last. The `seq` check at line 144 stops the old load only after the stale data was written. Here is a sequence that loses data: the newer heatmap arrives, the day loads, and the user's first edit is saved. `markDay` then adds the day to the heatmap, and the slow first heatmap response arrives and replaces it with the server state from before the save. The day is unmarked until the page is reloaded.
+    - Why it matters: The window is narrow: it needs a slow first request, a route change and a save within that time, and the data stays correct on the server. For that reason this is P3. Still, it is an out-of-order write of shared state that the page guards everywhere else (entry, on-this-day, conflict reloads).
+    - Suggested fix: Pass `seq` to `loadHeatmap()` and set `heatmap`/`today` only when `seq === this.loadSeq`. Another option is to share one in-flight heatmap promise between loads. In the test at line 932, assert that a day saved before the late heatmap arrives stays marked. This fits naturally into web-journal-rollover, which reworks heatmap refresh anyway.
 
-- "puts an image in the new editor when its upload ends after going back from Preview": asserts the image replaces the placeholder exactly once in the re-created editor, a single PUT with `If-Match: "2"`, no further autosave and state "Saved". Exercises `settleUpload` returning early when the editor already replaced the placeholder (`journal-page.ts:324`).
-- "saves an image still uploading when the journal is left": asserts the first PUT on leaving has no upload placeholder, navigation completes, the PUT after the upload ends carries the image with `If-Match: "3"`, and no autosave runs after destruction (`journal-page.ts:307-312`, `:328`).
-- "stays on today when its save failed": asserts the URL stays `/journal`, no GET for the previous day, the text is kept and state "Not saved" (`journal-page.ts:290-295`).
-- "opens only the last day chosen while the save of the day left is running": asserts the intermediate day is never loaded, the same page instance shows the last route, and no extra PUT (`openSeq`, `journal-page.ts:281-289`).
-- Two parameterized tests for keep-mine / use-theirs reloads arriving after another day was opened: assert the late reload neither overwrites the newer day nor triggers a PUT (`loadSeq` guards, `journal-page.ts:247-269`).
+## New tests in 692159200, checked
 
-The tests use the real routes and HTTP testing backend, assert observable behavior (requests, headers, editor value, status text, URL) rather than internals, and close regression gaps around the previously fixed CR-1/CR-3/CR-4 paths. No existing test was removed or weakened (the commit only adds lines).
+- "ignores the failures of a day that was left before they arrived" (`journal-page.spec.ts:905`): opens 24, then 23, then 22 without waiting. It answers 22 first and then makes 23's entry and on-this-day requests fail with 503. It asserts that no alert is shown, the editor keeps 22's text, the state is "Saved" and 22's on-this-day list is unchanged. This exercises the `seq === this.loadSeq` guards in the `catch` branches of `load()` (line 157) and `loadOnThisDay()` (line 343), the failure path of the out-of-order checks. Earlier tests covered only late successes.
+- "opens only the day chosen last when the route changes before the first heatmap arrived" (`journal-page.spec.ts:932`): `/journal` and then `/journal/2026-10-20` before any heatmap arrives. The newer heatmap answers first and the older one last. The test asserts that today's entry and on-this-day are never requested, and that the URL, title, editor text and heatmap selection show the 20th. This exercises the `seq !== this.loadSeq` return after `loadHeatmap()` (line 144). I traced it against the code: `open(null)` with `today` null gives target `''`. Line 287 does not return early because `target` is falsy, so load 1 starts. Then `open('2026-10-20')` starts load 2. When load 1 finishes, it returns at line 144. The assertions hold for the reason the test name gives. The test does not cover the stale heatmap write in CR-3.
+
+Both tests use the real routes and the HTTP testing backend. They assert observable behavior (requests, editor value, status, URL, DOM) rather than internals, and they add only lines. No existing test was removed or weakened.
 
 ## Checked without findings
 
-- ETag/If-Match (SPEC.md §4.2): `If-Match: "<version>"` for existing entries, none for creation; saves serialized through `inFlight`; edits during a save rescheduled; 409/412/428 handled as conflict.
-- Out-of-order results: `loadSeq` guards entry, on-this-day and conflict reloads; `persist` ignores results for a day no longer shown; `openSeq` lets the newest route win while `leave()` waits.
-- Loading and error states: load errors show "Try again"; save errors show retry and keep the user on the day; on-this-day failure is shown inline without blocking the entry.
-- Route matcher `journalDay` keeps one page instance for `/journal` and `/journal/:date`; invalid and future dates redirect to `/journal`.
-- Security: no logging of entry contents, no `innerHTML`; preview via the existing read-only `NoteMarkdownView`; all calls through the generated client with `SILENT_ERRORS`.
-- i18n: user texts use `$localize`/`i18n` with ids.
+- ETag/If-Match (SPEC.md §4.2): existing entries are saved with `If-Match: "<version>"` and new ones without it. Saves are serialized through `inFlight`, edits made during a save are rescheduled, and 409/412/428 are handled as a conflict.
+- Out-of-order results (apart from CR-3): `loadSeq` guards the entry, on-this-day and conflict reloads, on both success and failure. `persist` ignores results for a day that is no longer shown. With `openSeq`, the newest route wins while `leave()` waits.
+- Loading and error states: load errors show "Try again". Save errors show a retry and keep the user on the day. An on-this-day failure is shown inline and does not block the entry.
+- Route matcher `journalDay` keeps one page instance for `/journal` and `/journal/:date`. Invalid and future dates redirect to `/journal`.
+- Security: no logging of entry contents and no `innerHTML`. The preview uses the existing read-only `NoteMarkdownView`. All calls go through the generated client.
+- i18n: user-facing texts use `$localize`/`i18n` with ids.
 - Shell specs (`app.spec.ts`, `app.i18n.spec.ts`) no longer expect a placeholder journal.
-- Playwright spec matches the UI and API contract (201 on create, `If-Match` on delete, fictitious data, server-side "today").
+- The Playwright spec matches the UI and API contract.
 
 ## Evidence note
 
-The task file shows criterion 1 verified with the Playwright run against the compose e2e stack. Criterion 2 (`Vitest ... ; cd web && npm run check passes`) is still unverified at review time; the reviewer confirmed the journal Vitest specs (93 passed), eslint and prettier on the journal files, but did not run the full `npm run check`. The parent must run it on the final code and record it with `tasks.py verify`.
+Criterion 1 is verified in the task file with the Playwright run against the compose e2e stack. Criterion 2 ("Vitest ... ; `cd web && npm run check` passes") is still unverified at review time. The reviewer confirmed the journal Vitest specs (95 passed), eslint and prettier on the journal files, but did not run the full `npm run check`. The parent must run it on the final code and record it with `tasks.py verify`.
 
 ## Review conclusion
 
