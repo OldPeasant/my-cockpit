@@ -1,13 +1,14 @@
 ---
 title: Forward COCKPIT_AUTH_PASSKEY_* to the server in deploy
-status: in_progress
-owner: r1963macos/agent-2
+status: todo
+owner: 
 deps: [passkeys-server]
 touches: [deploy/docker-compose.yml,deploy/.env.example,deploy/README.md]
 prio: 2
-lease_until: 2026-10-25T22:51:16Z
+lease_until: 
 releases: 2
 extended: 
+hold: Work is complete (both criteria verified, quality evidence committed, reviewed_revision 2dc672c0) but r1963macos keeps getting this task and cannot run .taskcheck: the Docker daemon is down (369 Testc
 ---
 ## Goal
 The Android app's passkey origin (`android:apk-key-hash:...`) and optional RP overrides reach the server in the
@@ -25,3 +26,4 @@ production stack. `passkeys-server` defaults the RP ID and web origin from `COCK
 - ASSUMPTION (2026-10-25 23:14+0100 by r1963macos/agent-2): docker-compose defaults COCKPIT_AUTH_PASSKEY_RP_NAME to 'My Cockpit' instead of empty: Spring takes an empty env var literally (@Value default only applies when unset), so forwarding '' would give the authenticator an empty RP name. RP_ID and ORIGINS are forwarded empty (the server treats blank as unset); .env.example leaves all three empty.
 - release by r1963macos/agent-2: Complete except done: both criteria verified, test-writer/code-reviewer/fixer reports + quality.json committed (reviewed_revision 2dc672c0, CR-1 fixed, re-reviewed clean). Only blocker: .taskcheck on r1963macos fails because the Docker daemon is down (369 server Testcontainers tests: 'Could not find a valid Docker environment'; Android SDK also missing). A machine with Docker only needs to merge wip/deploy-passkey-env and run 'python tasks.py done deploy-passkey-env'.
 - release by r1963macos/agent-2: Complete except done (2nd attempt from r1963macos): both criteria verified, quality evidence committed (reviewed_revision 2dc672c0). .taskcheck still fails here only because Docker is down (369 Testcontainers server tests: no Docker environment); the change only touches deploy/ docs/compose. Any agent on a machine with Docker: claim, merge wip/deploy-passkey-env, run 'python tasks.py done deploy-passkey-env'.
+- hold by r1963macos/agent-2: Work is complete (both criteria verified, quality evidence committed, reviewed_revision 2dc672c0) but r1963macos keeps getting this task and cannot run .taskcheck: the Docker daemon is down (369 Testcontainers server tests fail) and agents may not start Docker Desktop. Human: start Docker on r1963macos, or run 'python tasks.py done deploy-passkey-env' from a machine with Docker after merging origin/wip/deploy-passkey-env, then unhold.
