@@ -506,6 +506,57 @@ describe('JournalPage', () => {
       await settle();
       expect(spy).toHaveBeenCalledTimes(1);
     });
+
+    it('puts an image in the new editor when its upload ends after going back from Preview', async () => {
+      await open('/journal', { entry: journalEntry(TODAY, { bodyMd: 'Lake', version: 2 }) });
+      const upload = pasteImage();
+      el('.mode-preview').click();
+      await settle();
+      el('.mode-edit').click();
+      await settle();
+      vi.useFakeTimers();
+
+      upload.flush(IMAGE);
+      await vi.advanceTimersByTimeAsync(0);
+      harness.detectChanges();
+      // Once, without the placeholder.
+      expect(editor().value()).toBe(`Lake\n${IMAGE.markdown}\n`);
+      await vi.advanceTimersByTimeAsync(AUTOSAVE_DEBOUNCE_MS);
+
+      const [save, ...more] = puts();
+      expect(more).toEqual([]);
+      expect(save.request.body.bodyMd).toBe(`Lake\n${IMAGE.markdown}\n`);
+      expect(save.request.headers.get('If-Match')).toBe('"2"');
+      save.flush(journalEntry(TODAY, { bodyMd: save.request.body.bodyMd, version: 3 }));
+      await vi.advanceTimersByTimeAsync(AUTOSAVE_DEBOUNCE_MS * 2);
+      harness.detectChanges();
+      expect(puts()).toEqual([]);
+      expect(state()).toBe('Saved');
+    });
+
+    it('saves an image still uploading when the journal is left', async () => {
+      await open('/journal', { entry: journalEntry(TODAY, { bodyMd: 'Lake', version: 2 }) });
+      const upload = pasteImage();
+
+      void harness.navigateByUrl('/elsewhere');
+      await settle();
+      const first = http.expectOne((r) => r.method === 'PUT');
+      expect(first.request.body.bodyMd).not.toContain('uploading:');
+      first.flush(journalEntry(TODAY, { bodyMd: first.request.body.bodyMd, version: 3 }));
+      await settle();
+      expect(harness.routeNativeElement?.textContent).toContain('Elsewhere');
+
+      vi.useFakeTimers();
+      upload.flush(IMAGE);
+      await vi.advanceTimersByTimeAsync(0);
+      const second = http.expectOne((r) => r.method === 'PUT');
+      expect(second.request.body.bodyMd).toBe(`Lake\n${IMAGE.markdown}\n`);
+      expect(second.request.headers.get('If-Match')).toBe('"3"');
+      second.flush(journalEntry(TODAY, { bodyMd: second.request.body.bodyMd, version: 4 }));
+      // The page is gone: no autosave after that.
+      await vi.advanceTimersByTimeAsync(AUTOSAVE_DEBOUNCE_MS * 2);
+      expect(puts()).toEqual([]);
+    });
   });
 
   describe('heatmap', () => {
@@ -771,6 +822,45 @@ describe('JournalPage', () => {
       http.expectNone((r) => r.url === `${ENTRIES}/2026-10-23`);
       expect(editor().value()).toBe('Market day');
       expect(state()).toBe('Not saved');
+    });
+
+    it('stays on today when its save failed', async () => {
+      await open('/journal');
+
+      type('Market day');
+      el('.previous').click();
+      await settle();
+      http.expectOne((r) => r.method === 'PUT').flush(...problem(503, 'Try again later.'));
+      await settle();
+      await settle();
+
+      expect(router.url).toBe('/journal');
+      http.expectNone((r) => r.url === `${ENTRIES}/2026-10-24`);
+      expect(editor().value()).toBe('Market day');
+      expect(state()).toBe('Not saved');
+    });
+
+    it('opens only the last day chosen while the save of the day left is running', async () => {
+      await open('/journal');
+      const page = harness.routeDebugElement?.componentInstance as JournalPage;
+
+      type('Swim');
+      el('.previous').click();
+      await settle();
+      const save = http.expectOne((r) => r.method === 'PUT' && r.url === `${ENTRIES}/${TODAY}`);
+      void harness.navigateByUrl('/journal/2026-10-20');
+      await settle();
+      save.flush(journalEntry(TODAY, { bodyMd: 'Swim', version: 1 }));
+      await settle();
+
+      http.expectNone((r) => r.url === `${ENTRIES}/2026-10-24`);
+      http.expectNone((r) => r.params.get('date') === '2026-10-24');
+      flushDay('2026-10-20', { entry: journalEntry('2026-10-20', { bodyMd: 'Hike' }) });
+      await settle();
+      expect(router.url).toBe('/journal/2026-10-20');
+      expect(harness.routeDebugElement?.componentInstance).toBe(page);
+      expect(editor().value()).toBe('Hike');
+      expect(puts()).toEqual([]);
     });
 
     it('saves the edits when leaving the journal', async () => {
@@ -1112,6 +1202,39 @@ describe('JournalPage', () => {
 
       expect(state()).toBe('Saved');
     });
+
+    for (const action of ['keep-mine', 'use-theirs'] as const) {
+      it(`ignores the entry "${action}" reloads when it arrives after another day was opened`, async () => {
+        await open('/journal/2026-10-24', {
+          entry: journalEntry('2026-10-24', { bodyMd: 'Mine', version: 2 }),
+        });
+        vi.useFakeTimers();
+        type('Mine, edited');
+        await vi.advanceTimersByTimeAsync(AUTOSAVE_DEBOUNCE_MS);
+        http.expectOne((r) => r.method === 'PUT').flush(...problem(412, 'Changed elsewhere.'));
+        await vi.advanceTimersByTimeAsync(0);
+        harness.detectChanges();
+        expect(state()).toBe('Not saved: changed elsewhere');
+
+        el(`.${action}`).click();
+        await vi.advanceTimersByTimeAsync(0);
+        const reload = http.expectOne(
+          (r) => r.method === 'GET' && r.url === `${ENTRIES}/2026-10-24`,
+        );
+        vi.useRealTimers();
+        void harness.navigateByUrl('/journal/2026-10-22');
+        await settle();
+        flushDay('2026-10-22', { entry: journalEntry('2026-10-22', { bodyMd: 'Other day' }) });
+        await settle();
+        reload.flush(journalEntry('2026-10-24', { bodyMd: 'Theirs', version: 5 }));
+        await settle();
+
+        expect(router.url).toBe('/journal/2026-10-22');
+        expect(editor().value()).toBe('Other day');
+        expect(state()).toBe('Saved');
+        expect(puts()).toEqual([]);
+      });
+    }
 
     it('drops my edits on a conflict when asked and shows the newer entry', async () => {
       await open('/journal', { entry: journalEntry(TODAY, { bodyMd: 'Mine', version: 2 }) });
