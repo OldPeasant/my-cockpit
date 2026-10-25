@@ -1269,6 +1269,72 @@ paths:
       summary: Fetch the page metadata again
       tags:
       - Bookmarks
+  /api/v1/bookmarks/{id}/snapshot:
+    post:
+      description: "Fetches the page now, extracts its main content and stores it\
+        \ as a sanitized HTML file (no scripts, styles, forms or images) in the Attachments\
+        \ folder; `snapshotFileId` points to it. A previous snapshot goes to the Trash."
+      operationId: saveBookmarkSnapshot
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - description: ETag of the bookmark
+        in: header
+        name: If-Match
+        required: false
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BookmarkResponse"
+          description: The bookmark with its (new) ETag
+          headers:
+            ETag:
+              description: "Version of the bookmark, for If-Match"
+              schema:
+                type: string
+              style: simple
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: Not found or in the Trash
+        "409":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: Changed concurrently
+        "412":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: If-Match does not match the current ETag
+        "428":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: If-Match is missing
+        "502":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: The page could not be fetched or has no readable content; `errorCode`
+            says why
+      summary: Save a readable copy of the page
+      tags:
+      - Bookmarks
   /api/v1/calendar/calendars:
     get:
       description: "Every calendar of every source, ordered by name."

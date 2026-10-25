@@ -97,6 +97,8 @@ export type { UpdateBookmark$Params as UpdateBookmark$Params } from './fn/bookma
 export { updateBookmark as updateBookmark } from './fn/bookmarks/update-bookmark';
 export type { RefreshBookmarkMetadata$Params as RefreshBookmarkMetadata$Params } from './fn/bookmarks/refresh-bookmark-metadata';
 export { refreshBookmarkMetadata as refreshBookmarkMetadata } from './fn/bookmarks/refresh-bookmark-metadata';
+export type { SaveBookmarkSnapshot$Params as SaveBookmarkSnapshot$Params } from './fn/bookmarks/save-bookmark-snapshot';
+export { saveBookmarkSnapshot as saveBookmarkSnapshot } from './fn/bookmarks/save-bookmark-snapshot';
 export type { ListCalendars$Params as ListCalendars$Params } from './fn/calendars/list-calendars';
 export { listCalendars as listCalendars } from './fn/calendars/list-calendars';
 export type { CreateCalendar$Params as CreateCalendar$Params } from './fn/calendars/create-calendar';
