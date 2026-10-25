@@ -1,11 +1,11 @@
 ---
 title: Journal UI
-status: todo
-owner: 
+status: in_progress
+owner: dell26/agent-2
 deps: [p0-web-shell,journal-api,p0-e2e-harness]
 touches: [web/src/app/features/journal]
 prio: 3
-lease_until: 
+lease_until: 2026-10-25T22:42:39Z
 releases: 0
 extended: 
 ---
