@@ -5,7 +5,7 @@ owner: dell26/agent-2
 deps: [backup-contrib-core,journal-api,habits-api]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/journal/backup,server/src/test/kotlin/ch/sonensei/cockpit/journal/backup]
 prio: 3
-lease_until: 2026-10-25T21:05:15Z
+lease_until: 2026-10-25T21:10:18Z
 releases: 0
 extended: 
 ---
