@@ -11,7 +11,8 @@ lease_until: 2026-10-25T20:32:15Z
 Bookmarks in backups.
 
 ## Acceptance criteria
-- [ ] data/bookmarks.jsonl; readable/bookmarks.html in Netscape format (imports in Firefox — parse test)
+- [x] data/bookmarks.jsonl; readable/bookmarks.html in Netscape format (imports in Firefox — parse test)
+  - verified (2026-10-25 21:14+0100 by dell26/agent-1): cd server && ./gradlew test --tests '*BookmarksBackupContributorTests' -> 7/7 pass: data/bookmarks.jsonl with all fields + Trash; readable/bookmarks.html (Netscape DOCTYPE) parsed with jsoup walking DL/DT>A/DD like Firefox BookmarkHTMLUtils -> urls, titles, ADD_DATE, LAST_MODIFIED, TAGS, ICON_URI, TOREAD, descriptions read back (no real Firefox run)
 - [ ] Round-trip test (`./gradlew test --tests '*BackupRoundTripTest'`) passes with this module's `BackupFixture` seeding bookmarks
 
 ## Notes
