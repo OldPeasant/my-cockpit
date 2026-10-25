@@ -40,10 +40,6 @@ class MailHeaderStore(
 	@Transactional(readOnly = true)
 	fun locatedUids(folderId: UUID): List<Long> = messages.locatedUids(folderId)
 
-	/** The arrival time of the oldest message cached in the folder; null when none has one. */
-	@Transactional(readOnly = true)
-	fun oldestReceivedAt(folderId: UUID): Instant? = messages.oldestReceivedAt(folderId)
-
 	/** The ids of the messages cached at these UIDs of the folder. */
 	@Transactional(readOnly = true)
 	fun locatedIds(

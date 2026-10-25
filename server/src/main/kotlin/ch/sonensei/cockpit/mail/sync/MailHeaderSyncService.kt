@@ -59,7 +59,8 @@ data class ServerSearchResult(
  *   (changes and VANISHED reported on open) when the server supports it, else with CONDSTORE (`CHANGEDSINCE` the cached
  *   HIGHESTMODSEQ, plus a UID search for expunges), else by fetching the flags of every cached UID.
  * - **Older mail on demand** ([loadOlder]): the most recently arrived messages missing from the cache. Only the
- *   arrival dates of the missing messages that arrived shortly before the oldest cached one are read, not of all.
+ *   arrival dates of the missing messages in the shortest window back from now that holds enough of them are read,
+ *   not of all.
  * - **Search on the server** ([searchServer]): IMAP SEARCH in the folder; found messages missing from the cache are
  *   cached, so they can be listed and opened like any other.
  *
@@ -149,7 +150,7 @@ class MailHeaderSyncService(
 						if (missing.size <= limit) {
 							missing
 						} else {
-							val candidates = newestMissing(remote, missing, limit, store.oldestReceivedAt(folder.id))
+							val candidates = newestMissing(remote, missing, limit)
 							val dates = remote.receivedDates(candidates)
 							candidates
 								.sortedWith(compareByDescending<Long> { dates[it] ?: Instant.EPOCH }.thenByDescending { it })
@@ -214,21 +215,23 @@ class MailHeaderSyncService(
 	}
 
 	/**
-	 * The missing messages that arrived since some time before the oldest cached message (or now), at least [limit] of
-	 * them (or all): the window starts a week back and doubles while it holds too few. Every missing
-	 * message outside the window arrived earlier than every one inside (IMAP `SINCE` compares INTERNALDATE by day),
-	 * so the [limit] most recently arrived are among these, and only their dates need to be read.
+	 * The missing messages that arrived since some time back from now, at least [limit] of them (or all): the window
+	 * starts a week back and doubles while it holds too few. It does not depend on what is cached, so a single old
+	 * message in the cache (moved in, found by [searchServer]) does not widen it. IMAP `SINCE` compares INTERNALDATE
+	 * by day: on a server that maps every INTERNALDATE to its day in one timezone, every missing message outside the
+	 * window arrived earlier than every one inside, so the [limit] most recently arrived are among these, and only
+	 * their dates need to be read. A server that takes each message's day in its own offset can leave a message up to
+	 * about a day newer than a loaded one outside the window; a later page then picks it up.
 	 */
 	private fun newestMissing(
 		remote: RemoteFolder,
 		missing: List<Long>,
 		limit: Int,
-		oldestCached: Instant?,
 	): List<Long> {
-		val anchor = oldestCached ?: clock.instant()
+		val now = clock.instant()
 		var span = WINDOW_START
 		while (true) {
-			val since = anchor.minus(span)
+			val since = now.minus(span)
 			if (!since.isAfter(Instant.EPOCH)) return missing
 			val inWindow = remote.uidsSince(since).toHashSet()
 			val candidates = missing.filter { it in inWindow }

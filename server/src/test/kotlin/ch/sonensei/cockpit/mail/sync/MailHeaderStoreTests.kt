@@ -286,29 +286,6 @@ class MailHeaderStoreTests(
 	}
 
 	@Test
-	fun `oldestReceivedAt is the earliest arrival of the located messages of that folder only`() {
-		val early = Instant.parse("2026-01-05T07:00:00Z")
-		store.oldestReceivedAt(inbox.id).shouldBeNull()
-		store.upsert(
-			account.id,
-			inbox.id,
-			listOf(
-				remote(1, "<a@example.test>").copy(receivedAt = Instant.parse("2026-03-01T10:00:00Z")),
-				remote(2, "<b@example.test>").copy(receivedAt = early),
-				remote(3, "<c@example.test>").copy(receivedAt = Instant.parse("2025-12-24T18:00:00Z")),
-				remote(4, "<d@example.test>").copy(receivedAt = null),
-			),
-		)
-		store.upsert(account.id, archive.id, listOf(remote(1, "<z@example.test>").copy(receivedAt = Instant.parse("2020-01-01T00:00:00Z"))))
-		store.oldestReceivedAt(inbox.id) shouldBe Instant.parse("2025-12-24T18:00:00Z")
-		// A detached (linked) row no longer counts: it is not in the folder on the server.
-		link(row(inbox, 3))
-		store.reconcile(inbox.id, emptyList(), setOf(3L))
-
-		store.oldestReceivedAt(inbox.id) shouldBe early
-	}
-
-	@Test
 	fun `a detached row is taken over by a later message with its Message-ID and keeps its id and thread`() {
 		store.upsert(account.id, inbox.id, listOf(remote(1, "<a@example.test>", subject = "Plan")))
 		val original = row(inbox, 1)

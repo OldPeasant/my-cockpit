@@ -4,7 +4,6 @@ import ch.sonensei.cockpit.mail.model.MailMessage
 import org.springframework.data.jpa.repository.JpaRepository
 import org.springframework.data.jpa.repository.Query
 import org.springframework.data.repository.query.Param
-import java.time.Instant
 import java.util.UUID
 
 /** Message-ID → thread key of a cached message. */
@@ -19,11 +18,6 @@ interface MailSyncRepository : JpaRepository<MailMessage, UUID> {
 	fun locatedUids(
 		@Param("folderId") folderId: UUID,
 	): List<Long>
-
-	@Query("select min(m.receivedAt) from MailMessage m where m.folderId = :folderId and m.uid is not null")
-	fun oldestReceivedAt(
-		@Param("folderId") folderId: UUID,
-	): Instant?
 
 	fun findByFolderIdAndUidIn(
 		folderId: UUID,
