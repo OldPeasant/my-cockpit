@@ -14,7 +14,8 @@ Follow-ups from the mail-header-sync review (reviews/mail-header-sync/review.md 
 resyncs and paging through old mail cheap.
 
 ## Acceptance criteria
-- [ ] `LinkService.hasLinks(ItemRef)` (or a batched variant) backed by an `exists` query; `MailHeaderStore.isLinked` uses it instead of resolving all links (CR-6)
+- [x] `LinkService.hasLinks(ItemRef)` (or a batched variant) backed by an `exists` query; `MailHeaderStore.isLinked` uses it instead of resolving all links (CR-6)
+  - verified (2026-10-26 00:07+0100 by dell26/agent-1): read LinkService.hasLinks (existsBySourceTypeAndSourceId || existsByTargetTypeAndTargetId derived exists queries) and MailHeaderStore.isLinked (uses hasLinks); server/gradlew -p server test --tests '*LinkServiceTests*' --tests '*MailHeaderStoreTests*' (Testcontainers Postgres, Docker on dell26) at 6b431d6a6 -> 21/21 and 24/24 passed
 - [x] `MailHeaderSyncService.loadOlder` narrows candidates (e.g. `UID SEARCH BEFORE` the oldest cached date) instead of reading INTERNALDATE of every uncached message on every page; still picks by arrival date (CR-7)
   - verified (2026-10-25 23:48+0100 by r1963macos/agent-1): cd server && ./gradlew test --tests '*MailHeaderSyncServiceTests*' at c56e3174 -> 41/41 passed; incl. tests that only the window candidates' dates are read, window doubling + bisection (10y archive cached 5y back, limit 100 -> 100..200 dates read instead of ~1759), one far-older cached message keeps the window narrow, pick order by arrival date. Real IMAP SINCE path (GreenMail) not run here: no Docker
 - [x] Class comment of `MailHeaderSyncService`: the Message-ID lookup of linked rows is described under the full resync, not the incremental sync (CR-8)
