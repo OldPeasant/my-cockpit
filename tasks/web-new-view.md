@@ -5,7 +5,7 @@ owner: dell26/agent-2
 deps: [web-inbox,web-mail-list,mail-gtd]
 touches: [web/src/app/features/new,web/src/app/app.routes.ts,web/src/app/shell/nav-sections.ts,web/e2e/new]
 prio: 2
-lease_until: 2026-10-26T00:06:52Z
+lease_until: 2026-10-26T00:11:55Z
 releases: 0
 extended: 
 ---
