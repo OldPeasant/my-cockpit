@@ -560,4 +560,17 @@ class ReadableExtractorEdgeCaseTests {
 			page.text shouldNotContain "fictitious teaser"
 		}
 	}
+
+	@Test
+	fun `the main element itself is kept in the first pass even when its class looks unlikely`() {
+		// More than 500 characters, so no retry runs. If the first pass dropped the main element, the retry would keep
+		// everything and the comments would show up in the result.
+		val mains = listOf("<article class=\"share-header\">" to "</article>", "<div role=\"main\" class=\"share-header\">" to "</div>")
+		for (main in mains) {
+			val page = extract("<body>${main.first}<p>$prose</p><p>$prose</p><p>$prose</p>$comments${main.second}</body>")
+
+			page.text shouldContain "tomato plants"
+			page.text shouldNotContain "fictitious comment"
+		}
+	}
 }
