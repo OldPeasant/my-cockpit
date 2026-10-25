@@ -1,0 +1,29 @@
+{
+  "schema": 1,
+  "task": "mail-sync-perf",
+  "reviewed_revision": "50de2442c2238a269a5c8948ad5b3c51a71c0366",
+  "helpers": {
+    "test-writer": {"status": "completed", "report": "reviews/mail-sync-perf/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/mail-sync-perf/review.md"},
+    "fixer": {"status": "completed", "report": "reviews/mail-sync-perf/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "R1-CR-1", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "first review (98e9f945): one old cached message widened the loadOlder window; window now grows from now (fixes.md round 1)"},
+    {"id": "R1-CR-2", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "first review: count > 0 replaced by derived exists queries (fixes.md round 1)"},
+    {"id": "R1-CR-3", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "first review: KDoc states the one-timezone INTERNALDATE assumption (fixes.md round 1)"},
+    {"id": "R2-CR-1", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "second review: doubling overshoot on deep pages; window start is now bisected (fixes.md round 2)"},
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P3", "disposition": "accepted",
+     "note": "final review: one 149-char KDoc line in newestMissing; cosmetic, ktlint passes, not worth invalidating the review"}
+  ],
+  "validation": [
+    {"command": "server/gradlew -p server ktlintCheck test --tests '*MailHeaderSyncServiceTests*'", "result": "pass"},
+    {"command": "server/gradlew -p server test --tests '*LinkServiceTests*' --tests '*MailHeaderStoreTests*' --tests '*MailHeaderSyncServiceTests*'", "result": "pass"},
+    {"command": "server/gradlew -p server integrationTest --tests '*HeaderSyncGreenMailTests*'", "result": "pass"},
+    {"command": "server/gradlew -p server integrationTest --tests '*mail.sync*'", "result": "pass"}
+  ]
+}
