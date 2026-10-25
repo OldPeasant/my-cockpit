@@ -113,3 +113,78 @@ Remaining unresolved findings:
 
 All validated findings fixed and validation passed. Focused validation passed. The Postgres and GreenMail suites
 could not run here because there is no Docker daemon.
+
+---
+
+# Fix Report (round 2)
+
+Date: 2026-10-25
+
+Task: mail-sync-perf - Cheaper link checks and loadOlder candidate narrowing in mail sync
+
+Scope: current task; finding CR-1 of the second review in `reviews/mail-sync-perf/review.md` (reviewed revision
+e8aa3f4d, HEAD 631648ca)
+
+## Fixed findings
+
+### CR-1 — Doubling from now overshoots up to the cached frontier's age, so deep pages read the dates of almost every uncached message again (P2)
+
+Files changed:
+- `server/src/main/kotlin/ch/sonensei/cockpit/mail/sync/MailHeaderSyncService.kt`
+- `server/src/test/kotlin/ch/sonensei/cockpit/mail/sync/MailHeaderSyncServiceTests.kt`
+
+Problem:
+`newestMissing` returned the first power-of-two window back from now that held `limit` missing UIDs. If the cache is
+complete back to age A, that window spans between A and 2A. So every page read the INTERNALDATE of all uncached
+messages between A and 2A old, which in a typical archive is nearly all of them (the CR-7 cost again).
+
+Fix:
+The doubling still finds the bracket: `short` is the last span with fewer than `limit` missing messages (zero for the
+first window) and `span` is the first with enough. Then the window start is bisected between them with `uidsSince`.
+A middle span with at least `limit` missing becomes the new `span` and candidate set. Otherwise it becomes `short`.
+This stops once the candidates are at most `2 * limit`, or once the bracket is at most one day wide (`SINCE`
+compares by day). The early exits are unchanged (all missing in the window; the window reaches the epoch). Every
+window still starts back from now, so it holds every missing message newer than its cut, and correctness is the same
+as before. Each page costs at most about log2(A in days) extra UID searches. I updated the KDoc of `newestMissing`
+and the loadOlder bullet of the class comment, which no longer says "shortest window".
+Tests in `MailHeaderSyncServiceTests`:
+- new regression test `loadOlder reads only about the limit of dates when the cache is complete far back`. It
+  covers 10 years of one message a day, with the last 5 years cached, and `limit = 100`. It asserts that the loaded
+  messages are the 100 next older ones (1826..1925), that the dates read are in 100..200 (about 191; without the
+  bisection, 1759), and that there are at most 25 `uidsSince` calls;
+- `loadOlder keeps the candidates narrow when one far older message is cached` and `loadOlder of a folder without
+  cached messages starts the window a week before now`: the first week held more than `2 * limit`. Their exact call
+  sequences now include the bisection step at 3.5 days (`uidsSince 2026-10-16T22:00:00Z`) and the smaller date read
+  (`[27..30]`, `[1..4]`). The loaded messages are unchanged.
+- The other `uidsSince` sequence tests are unchanged and still pass (their windows hold at most `2 * limit`).
+
+Validation:
+- `cd server && ./gradlew ktlintFormat test --tests '*MailHeaderSyncServiceTests*' ktlintCheck compileTestKotlin` — Pass (BUILD SUCCESSFUL; MailHeaderSyncServiceTests: 41 tests, 0 failures, 0 skipped)
+
+## Not fixed
+
+None.
+
+## Validation summary
+
+Focused tests:
+- `cd server && ./gradlew ktlintFormat test --tests '*MailHeaderSyncServiceTests*' ktlintCheck compileTestKotlin` — BUILD SUCCESSFUL; 41/41 passed
+
+Full test suite:
+- Not run: no Docker daemon here, so the Postgres/Testcontainers tests and the `external` GreenMail tests
+  (`HeaderSyncGreenMailTests`, the real `SEARCH SINCE` path) cannot run. This round changes only
+  `MailHeaderSyncService.newestMissing` and its unit tests.
+
+Lint/type-check/build:
+- `ktlintCheck`, `compileKotlin`, `compileTestKotlin` — Pass
+
+`.taskcheck`:
+- Not run by the fixer (it includes the server unit suite, which needs Docker here); the parent worker runs it.
+
+Remaining unresolved findings:
+0
+
+## Final status
+
+All validated findings fixed and validation passed. Focused validation passed. The Docker-backed suites could not run
+here.

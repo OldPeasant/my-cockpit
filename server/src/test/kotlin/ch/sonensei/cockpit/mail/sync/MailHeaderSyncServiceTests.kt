@@ -12,6 +12,7 @@ import ch.sonensei.cockpit.mail.model.MailSecurity
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldContainExactly
+import io.kotest.matchers.ints.shouldBeInRange
 import io.kotest.matchers.shouldBe
 import io.mockk.every
 import io.mockk.mockk
@@ -442,11 +443,13 @@ class MailHeaderSyncServiceTests {
 		service.loadOlder(folder.id, limit = 3) shouldBe OlderMessagesResult(loaded = 3, hasMore = true)
 
 		upserted() shouldContainExactly listOf(28, 29, 30)
+		// The week holds 24..30, more than twice the limit: bisected to 3.5 days (SINCE day 2026-10-16), {27..30}.
 		remote.calls shouldContainExactly
 			listOf(
 				"uidsFrom 1",
 				"uidsSince 2026-10-13T10:00:00Z",
-				"receivedDates [24, 25, 26, 27, 28, 29, 30]",
+				"uidsSince 2026-10-16T22:00:00Z",
+				"receivedDates [27, 28, 29, 30]",
 				"headers [28, 29, 30]",
 			)
 	}
@@ -468,6 +471,29 @@ class MailHeaderSyncServiceTests {
 		remote.calls.filter { it.startsWith("uidsSince") } shouldContainExactly
 			listOf(7L, 14L, 28L, 56L).map { "uidsSince ${now.minus(Duration.ofDays(it))}" }
 		remote.calls.single { it.startsWith("receivedDates") } shouldBe "receivedDates [1, 2, 3, 4, 5]"
+	}
+
+	@Test
+	fun `loadOlder reads only about the limit of dates when the cache is complete far back`() {
+		cachedState(uidNext = 3651)
+		// Ten years of mail, one message a day: UID u arrived u days ago. The last five years are cached.
+		every { store.locatedUids(folder.id) } returns (1L..1825L).toList()
+		remote.status = remote.status.copy(uidNext = 3651)
+		remote.datedSearch = true
+		remote.uids = (1L..3650L).toList()
+		remote.received = remote.uids.associateWith { now.minus(Duration.ofDays(it)) }
+
+		service.loadOlder(folder.id, limit = 100) shouldBe OlderMessagesResult(loaded = 100, hasMore = true)
+
+		upserted() shouldContainExactly (1826L..1925L).toList()
+		// Doubling alone stops at 3584 days, whose window holds 1759 missing messages; bisecting narrows it.
+		val read =
+			remote.calls
+				.single { it.startsWith("receivedDates") }
+				.removeSurrounding("receivedDates [", "]")
+				.split(", ")
+		read.size shouldBeInRange 100..200
+		remote.calls.count { it.startsWith("uidsSince") } shouldBeInRange 1..25
 	}
 
 	@Test
@@ -497,14 +523,21 @@ class MailHeaderSyncServiceTests {
 		remote.status = remote.status.copy(uidNext = 7)
 		remote.datedSearch = true
 		remote.uids = (1L..6L).toList()
-		// 1..5 arrived within the last week, 6 a month ago: its date is never read.
+		// 1..5 arrived within the last week, 6 a month ago: its date is never read (nor 5's, see below).
 		remote.received = (1L..5L).associateWith { now.minus(Duration.ofDays(it)) } + (6L to now.minus(Duration.ofDays(30)))
 
 		service.loadOlder(folder.id, limit = 2) shouldBe OlderMessagesResult(loaded = 2, hasMore = true)
 
 		upserted() shouldContainExactly listOf(1, 2)
+		// The week holds 1..5, more than twice the limit: bisected to 3.5 days (SINCE day 2026-10-16), {1..4}.
 		remote.calls shouldContainExactly
-			listOf("uidsFrom 1", "uidsSince 2026-10-13T10:00:00Z", "receivedDates [1, 2, 3, 4, 5]", "headers [1, 2]")
+			listOf(
+				"uidsFrom 1",
+				"uidsSince 2026-10-13T10:00:00Z",
+				"uidsSince 2026-10-16T22:00:00Z",
+				"receivedDates [1, 2, 3, 4]",
+				"headers [1, 2]",
+			)
 	}
 
 	@Test

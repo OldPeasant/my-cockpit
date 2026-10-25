@@ -59,8 +59,8 @@ data class ServerSearchResult(
  *   (changes and VANISHED reported on open) when the server supports it, else with CONDSTORE (`CHANGEDSINCE` the cached
  *   HIGHESTMODSEQ, plus a UID search for expunges), else by fetching the flags of every cached UID.
  * - **Older mail on demand** ([loadOlder]): the most recently arrived messages missing from the cache. Only the
- *   arrival dates of the missing messages in the shortest window back from now that holds enough of them are read,
- *   not of all.
+ *   arrival dates of the missing messages in a window back from now that holds enough but not many more of them
+ *   (about up to twice the limit, or one more day of mail) are read, not of all.
  * - **Search on the server** ([searchServer]): IMAP SEARCH in the folder; found messages missing from the cache are
  *   cached, so they can be listed and opened like any other.
  *
@@ -216,11 +216,15 @@ class MailHeaderSyncService(
 
 	/**
 	 * The missing messages that arrived since some time back from now, at least [limit] of them (or all): the window
-	 * starts a week back and doubles while it holds too few. It does not depend on what is cached, so a single old
-	 * message in the cache (moved in, found by [searchServer]) does not widen it. IMAP `SINCE` compares INTERNALDATE
-	 * by day: on a server that maps every INTERNALDATE to its day in one timezone, every missing message outside the
-	 * window arrived earlier than every one inside, so the [limit] most recently arrived are among these, and only
-	 * their dates need to be read. A server that takes each message's day in its own offset can leave a message up to
+	 * starts a week back and doubles while it holds too few. Once it holds enough, its start is bisected between the
+	 * last two spans until the window holds at most about twice [limit] (or the two spans are a day apart, as `SINCE`
+	 * compares by day), so a cache that is complete far back does not make every older message a candidate. The
+	 * window does not depend on what is cached, so a single old message in the cache (moved in, found by
+	 * [searchServer]) does not widen it.
+	 *
+	 * IMAP `SINCE` compares INTERNALDATE by day: on a server that maps every INTERNALDATE to its day in one timezone,
+	 * every missing message outside the window arrived earlier than every one inside, so the [limit] most recently
+	 * arrived are among these, and only their dates need to be read. A server that takes each message's day in its own offset can leave a message up to
 	 * about a day newer than a loaded one outside the window; a later page then picks it up.
 	 */
 	private fun newestMissing(
@@ -229,15 +233,35 @@ class MailHeaderSyncService(
 		limit: Int,
 	): List<Long> {
 		val now = clock.instant()
+
+		fun missingSince(span: Duration): List<Long> {
+			val inWindow = remote.uidsSince(now.minus(span)).toHashSet()
+			return missing.filter { it in inWindow }
+		}
+
+		var short = Duration.ZERO
 		var span = WINDOW_START
+		var candidates: List<Long>
 		while (true) {
-			val since = now.minus(span)
-			if (!since.isAfter(Instant.EPOCH)) return missing
-			val inWindow = remote.uidsSince(since).toHashSet()
-			val candidates = missing.filter { it in inWindow }
-			if (candidates.size >= limit || candidates.size == missing.size) return candidates
+			if (!now.minus(span).isAfter(Instant.EPOCH)) return missing
+			candidates = missingSince(span)
+			if (candidates.size == missing.size) return candidates
+			if (candidates.size >= limit) break
+			short = span
 			span = span.multipliedBy(2)
 		}
+		// `short` holds fewer than limit, `span` enough: narrow `span` while it holds too many.
+		while (candidates.size > 2 * limit && span.minus(short) > Duration.ofDays(1)) {
+			val middle = short.plus(span.minus(short).dividedBy(2))
+			val inMiddle = missingSince(middle)
+			if (inMiddle.size >= limit) {
+				span = middle
+				candidates = inMiddle
+			} else {
+				short = middle
+			}
+		}
+		return candidates
 	}
 
 	private fun full(
