@@ -332,4 +332,48 @@ class ReadableExtractorEdgeCaseTests {
 	fun `class names that look unlikely but also say content are kept`() {
 		extract("<body><div class=\"sidebar-content\"><p>$prose</p></div></body>").text shouldContain "tomato plants"
 	}
+
+	@Test
+	fun `a form wrapping the whole page keeps its article`() {
+		val page =
+			extract(
+				"""
+				<body><form id="aspnetForm" action="/default.aspx"><input type="hidden" name="__VIEWSTATE" value="x">
+				<div class="page"><article><p>$prose</p><p>$prose</p></article></div></form></body>
+				""".trimIndent(),
+			)
+
+		page.text shouldContain "tomato plants"
+		page.html shouldNotContain "<form"
+		page.html shouldNotContain "__VIEWSTATE"
+	}
+
+	@Test
+	fun `a form wrapping the whole page without an article falls back to an extraction that keeps forms`() {
+		val page =
+			extract("<body><form id=\"aspnetForm\" action=\"/default.aspx\"><div><p>$prose</p><p>$prose</p></div></form></body>")
+
+		page.text shouldContain "tomato plants"
+		page.html shouldNotContain "<form"
+	}
+
+	@Test
+	fun `a wrapper with an unlikely class around the article is kept`() {
+		val page =
+			extract(
+				"""
+				<body><div class="layout has-sidebar"><article><p>$prose</p><p>$prose</p></article>
+				<div class="sidebar"><p>Subscribe to the newsletter, it has tips, tricks and more tips every week.</p></div></div></body>
+				""".trimIndent(),
+			)
+
+		page.text shouldContain "tomato plants"
+		page.text shouldNotContain "Subscribe"
+	}
+
+	@Test
+	fun `a wrapper with an unlikely class and no main element falls back to an extraction that keeps it`() {
+		extract("<body><div class=\"layout has-sidebar\"><div><p>$prose</p><p>$prose</p></div></div></body>").text shouldContain
+			"tomato plants"
+	}
 }

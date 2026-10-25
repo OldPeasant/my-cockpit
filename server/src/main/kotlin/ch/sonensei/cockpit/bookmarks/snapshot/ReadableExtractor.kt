@@ -24,6 +24,9 @@ class ReadablePage(
  * removed; every paragraph scores its parent (fully) and grandparent (half) by its length and commas; the scores are
  * weighted by the container's tag, class and id and reduced by its share of link text. The best container wins, with
  * those of its siblings that score close to it or are paragraphs of prose. Without any candidate the whole body is used.
+ * A form or an unlikely element that contains an `article`, `main` or `[role=main]` element is kept (it wraps the page).
+ * When the result has less than [MIN_TEXT_LENGTH] characters, the extraction runs again on a fresh parse without
+ * removing forms and unlikely class/id elements (they may wrap the content), and the longer result wins.
  *
  * The result is sanitized with jsoup's [Cleaner] against a list of text, list, table and link elements: no scripts,
  * styles, event handlers, forms, frames or images (they would load remote content when the copy is opened), links are
@@ -37,13 +40,25 @@ object ReadableExtractor {
 	): ReadablePage {
 		// An unknown charset name: let jsoup detect it from the page (meta charset, BOM) instead.
 		val charset = page.charset?.takeIf { runCatching { Charset.isSupported(it) }.getOrDefault(false) }
-		val document = Jsoup.parse(ByteArrayInputStream(page.bytes), charset, page.uri.toString())
+		val parse = { Jsoup.parse(ByteArrayInputStream(page.bytes), charset, page.uri.toString()) }
+		val document = parse()
 		val title = title(document) ?: fallbackTitle
-		val content = mainContent(document)
+		var content = cleaned(mainContent(document, stripUnlikely = true), page)
+		if (content.text().trim().length < MIN_TEXT_LENGTH) {
+			val retry = cleaned(mainContent(parse(), stripUnlikely = false), page)
+			if (retry.text().trim().length > content.text().trim().length) content = retry
+		}
+		return ReadablePage(title, render(title, page.uri.toString(), content), content.text().trim())
+	}
+
+	/** The sanitized body of a document holding [content], without elements the cleaning left empty. */
+	private fun cleaned(
+		content: Element,
+		page: FetchedPage,
+	): Element {
 		val cleaned = Cleaner(SAFELIST).clean(Document.createShell(page.uri.toString()).also { it.body().appendChild(content) })
 		removeEmpty(cleaned.body())
-		val text = cleaned.body().text().trim()
-		return ReadablePage(title, render(title, page.uri.toString(), cleaned.body()), text)
+		return cleaned.body()
 	}
 
 	private fun title(document: Document): String? =
@@ -53,15 +68,27 @@ object ReadableExtractor {
 			document.selectFirst("h1")?.text(),
 		).firstNotNullOfOrNull { it?.replace(WHITESPACE, " ")?.trim()?.ifEmpty { null } }
 
-	/** The main content of [document] (detached from it), see [ReadableExtractor]. */
-	private fun mainContent(document: Document): Element {
+	/**
+	 * The main content of [document] (detached from it), see [ReadableExtractor]. With [stripUnlikely], forms and
+	 * elements whose class or id says they are not content are removed first, unless they wrap the page's main element.
+	 */
+	private fun mainContent(
+		document: Document,
+		stripUnlikely: Boolean,
+	): Element {
 		val body = document.body()
 		body.select(NEVER_CONTENT).remove()
 		body.select("[hidden], [aria-hidden=true], [style~=(?i)display\\s*:\\s*none], [style~=(?i)visibility\\s*:\\s*hidden]").remove()
 		body
 			.select("*")
-			.filter { it.tagName() !in KEEP_TAGS && unlikely(it) }
+			.filter { it.tagName() !in KEEP_TAGS && it.attr("role") in UNLIKELY_ROLES && !wrapsMain(it) }
 			.forEach { if (it.parent() != null) it.remove() }
+		if (stripUnlikely) {
+			body
+				.select("*")
+				.filter { it.tagName() !in KEEP_TAGS && (it.tagName() == "form" || unlikely(it)) && !wrapsMain(it) }
+				.forEach { if (it.parent() != null) it.remove() }
+		}
 		divsToParagraphs(body)
 
 		val scores = HashMap<Element, Double>()
@@ -96,9 +123,11 @@ object ReadableExtractor {
 	/** Whether the class or id of [element] says it is not content (and does not also say it may be). */
 	private fun unlikely(element: Element): Boolean {
 		val names = "${element.className()} ${element.id()}"
-		if (names.isBlank()) return element.attr("role") in UNLIKELY_ROLES
-		return UNLIKELY.containsMatchIn(names) && !MAYBE.containsMatchIn(names) || element.attr("role") in UNLIKELY_ROLES
+		return names.isNotBlank() && UNLIKELY.containsMatchIn(names) && !MAYBE.containsMatchIn(names)
 	}
+
+	/** Whether [element] is or contains the page's main element, so removing it would remove the content. */
+	private fun wrapsMain(element: Element): Boolean = element.selectFirst(MAIN_ELEMENTS) != null
 
 	/** Turns `<div>`s that only hold text and inline elements into paragraphs, so they score like them. */
 	private fun divsToParagraphs(body: Element) {
@@ -176,10 +205,16 @@ object ReadableExtractor {
 	private val WHITESPACE = Regex("\\s+")
 	private val SENTENCE_END = Regex("\\.( |$)")
 
-	/** Never content: scripts, styles, embedded objects, forms and the page's navigation. */
+	/** Never content: scripts, styles, embedded objects, form controls and the page's navigation. */
 	private const val NEVER_CONTENT =
-		"script, style, noscript, template, iframe, frame, frameset, object, embed, applet, form, input, button, select, " +
+		"script, style, noscript, template, iframe, frame, frameset, object, embed, applet, input, button, select, " +
 			"textarea, svg, canvas, nav, footer, aside, dialog, link, meta"
+
+	/** The page's main element: a form or unlikely element containing it wraps the page and is kept. */
+	private const val MAIN_ELEMENTS = "article, main, [role=main]"
+
+	/** Below this many characters of text, the extraction is retried without removing forms and unlikely elements. */
+	private const val MIN_TEXT_LENGTH = 500
 
 	private val KEEP_TAGS = setOf("html", "body", "article", "main")
 	private val UNLIKELY_ROLES = setOf("navigation", "banner", "complementary", "contentinfo", "menu", "menubar", "dialog", "alert")
