@@ -7,7 +7,7 @@ touches: [web/src/app/features/journal]
 prio: 3
 lease_until: 2026-10-25T23:31:31Z
 releases: 0
-extended: 
+extended: dell26/agent-2
 ---
 ## Goal
 Write and browse the journal (SPEC.md §8.5).
@@ -22,3 +22,4 @@ Write and browse the journal (SPEC.md §8.5).
 - ASSUMPTION (2026-10-25 22:09+0100 by dell26/agent-2) [confirmed 2026-10-26 00:09+0100 by Peter Gürtler]: Today = the server's today in the user's time zone (heatmap 'to' default), not the browser clock; future dates in /journal/:date redirect to /journal. Routes: /journal (today) and /journal/:date (the deep link the search resolver already uses).
 - ASSUMPTION (2026-10-25 22:46+0100 by dell26/agent-2): Review findings CR-5 (Today does not roll over at midnight in a tab left open) and CR-6 (edits in conflict state are dropped without a prompt when switching day) are P3 and left as follow-ups, not fixed in this task.
 - release by dell26/agent-2: handed back by dell26/agent-2: pushes had failed (remote: error: GH006: Protected branch update failed for refs/heads/main. | remote: error: | To https://github.com/OldP…); continue from wip/web-journal
+- extended by dell26/agent-2: Implementation and e2e (criterion 1) done; last commit 40f964b19 adds one test (late conflict-reload failure) + latest review.md (CR-3 deferred to web-journal-rollover). Left: re-run test-writer + code-reviewer on final code (evidence stale after 40f964b19), write reviews/web-journal/quality.json (CR-1/2/3 deferred to web-journal-rollover, fixes.md exists), verify criterion 2 (web Vitest 171 files passed inside scripts/check.sh; record full 'npm run check'), then done.
