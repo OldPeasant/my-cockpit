@@ -5,7 +5,7 @@ owner: dell26/agent-1
 deps: [backup-contrib-core,bookmarks-api]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/bookmarks/backup,server/src/test/kotlin/ch/sonensei/cockpit/bookmarks/backup]
 prio: 3
-lease_until: 2026-10-25T20:27:13Z
+lease_until: 2026-10-25T20:32:15Z
 ---
 ## Goal
 Bookmarks in backups.
