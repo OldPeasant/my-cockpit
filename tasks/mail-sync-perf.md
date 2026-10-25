@@ -1,11 +1,13 @@
 ---
 title: Cheaper link checks and loadOlder candidate narrowing in mail sync
-status: in_progress
-owner: r1963macos/agent-1
+status: todo
+owner: 
 deps: [mail-header-sync, mail-idle, mail-idle-flaky-test]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/core/items,server/src/main/kotlin/ch/sonensei/cockpit/mail/sync,server/src/test/kotlin/ch/sonensei/cockpit/mail/sync]
 prio: 2
-lease_until: 2026-10-25T23:08:58Z
+lease_until: 
+releases: 1
+extended: 
 ---
 ## Goal
 Follow-ups from the mail-header-sync review (reviews/mail-header-sync/review.md CR-6, CR-7, CR-8): make large
@@ -21,3 +23,4 @@ resyncs and paging through old mail cheap.
 
 ## Notes
 - ASSUMPTION (2026-10-25 23:48+0100 by r1963macos/agent-1): loadOlder narrows candidates with UID SEARCH SINCE windows grown back from now (7 days, doubling, then bisected to <= ~2x limit missing) instead of SEARCH BEFORE the oldest cached date: a window from now also covers missing messages newer than the oldest cached one, and one old cached message (moved in, found by search) can't widen it. Assumes the server maps INTERNALDATE to days in one timezone; otherwise a later page picks up a skipped message.
+- release by r1963macos/agent-1: Implementation complete (c56e3174): LinkService.hasLinks via derived exists queries, isLinked uses it; loadOlder narrows candidates by SINCE windows from now (doubling + bisection); class comment fixed. Criteria 2,3 verified. BLOCKED here: Docker daemon not running on r1963macos, so Postgres tests (LinkServiceTests, MailHeaderStoreTests - new tests written, never run), integrationTest HeaderSyncGreenMailTests and .taskcheck cannot run. Left: on a machine with Docker run ./gradlew test + integrationTest --tests '*HeaderSyncGreenMailTests*', verify criteria 1 and 4, re-run test-writer + code-reviewer on the final code (last review/tests.md are for e8aa3f4d, stale after the bisection fix in reviews/mail-sync-perf/fixes.md round 2), write quality.json, done.
