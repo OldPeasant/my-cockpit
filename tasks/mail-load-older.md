@@ -17,3 +17,4 @@ SPEC.md §7.2: headers are cached for the sync window, "older loaded on demand w
 - [ ] `api/openapi.yaml` regenerated and `OpenApiContractTest` passes without the flag; web client regenerated
 
 ## Notes
+- ASSUMPTION (2026-10-25 23:19+0100 by r1963macos/agent-1): Endpoint is POST /api/v1/mail/folders/{id}/load-older?limit= (1..200, default 100 = MailHeaderSyncService.DEFAULT_OLDER_LIMIT), no body; RemoteFolderNotFoundException maps to 404 like other reads of a folder gone from the server
