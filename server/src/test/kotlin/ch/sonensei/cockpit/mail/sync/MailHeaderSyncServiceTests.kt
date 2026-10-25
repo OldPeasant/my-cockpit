@@ -20,12 +20,14 @@ import io.mockk.verify
 import io.mockk.verifyOrder
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.Timeout
 import java.time.Clock
 import java.time.Duration
 import java.time.Instant
 import java.time.ZoneOffset
 import java.util.Optional
 import java.util.UUID
+import java.util.concurrent.TimeUnit
 
 class MailHeaderSyncServiceTests {
 	private val now = Instant.parse("2026-10-20T10:00:00Z")
@@ -494,6 +496,35 @@ class MailHeaderSyncServiceTests {
 				.split(", ")
 		read.size shouldBeInRange 100..200
 		remote.calls.count { it.startsWith("uidsSince") } shouldBeInRange 1..25
+	}
+
+	@Test
+	@Timeout(value = 10, unit = TimeUnit.SECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
+	fun `loadOlder stops bisecting at a day when more than twice the limit arrived on the same day`() {
+		cachedState(uidNext = 12)
+		every { store.locatedUids(folder.id) } returns emptyList()
+		remote.status = remote.status.copy(uidNext = 12)
+		remote.datedSearch = true
+		remote.uids = (1L..11L).toList()
+		// 1..10 arrived at the same moment two days ago, 11 a month ago: SINCE cannot split the 1..10.
+		remote.received = (1L..10L).associateWith { now.minus(Duration.ofDays(2)) } + (11L to now.minus(Duration.ofDays(30)))
+
+		service.loadOlder(folder.id, limit = 2) shouldBe OlderMessagesResult(loaded = 2, hasMore = true)
+
+		// Equal arrival dates: the higher UIDs win.
+		upserted() shouldContainExactly listOf(9, 10)
+		// 7 days: {1..10}; bisected to 3.5 and 1.75 days (still {1..10}), 0.875 days: none. The bracket is then
+		// under a day wide, so it stops with the ten candidates; 11's date is never read.
+		remote.calls shouldContainExactly
+			listOf(
+				"uidsFrom 1",
+				"uidsSince 2026-10-13T10:00:00Z",
+				"uidsSince 2026-10-16T22:00:00Z",
+				"uidsSince 2026-10-18T16:00:00Z",
+				"uidsSince 2026-10-19T13:00:00Z",
+				"receivedDates ${(1L..10L).toList()}",
+				"headers [9, 10]",
+			)
 	}
 
 	@Test

@@ -300,6 +300,37 @@ class HeaderSyncGreenMailTests(
 	}
 
 	@Test
+	fun `paging older mail with narrowed SINCE windows on the server loads the newest arrival first`() {
+		val now = Instant.now()
+		append(
+			"Archive",
+			mail("<recent@example.test>", "Recent", received = now.minus(10, ChronoUnit.DAYS)),
+			// UID order is not arrival order. The first SINCE window that holds one of the uncached messages
+			// (448 days) holds four of the five, more than twice the limit, so the server is asked again with
+			// bisected windows before any date is read.
+			mail("<d403@example.test>", "Old 403", received = now.minus(403, ChronoUnit.DAYS)),
+			mail("<d900@example.test>", "Old 900", received = now.minus(900, ChronoUnit.DAYS)),
+			mail("<d409@example.test>", "Old 409", received = now.minus(409, ChronoUnit.DAYS)),
+			mail("<d400@example.test>", "Old 400", received = now.minus(400, ChronoUnit.DAYS)),
+			mail("<d406@example.test>", "Old 406", received = now.minus(406, ChronoUnit.DAYS)),
+		)
+		val archive = folder("Archive")
+		sync.syncFolder(archive.id)
+		cached(archive).map { it.messageIdHeader } shouldBe listOf("<recent@example.test>")
+
+		val loadedInOrder =
+			(1..5).map { page ->
+				val before = cached(archive).map { it.messageIdHeader }.toSet()
+				sync.loadOlder(archive.id, limit = 1) shouldBe OlderMessagesResult(loaded = 1, hasMore = page < 5)
+				cached(archive).map { it.messageIdHeader }.single { it !in before }
+			}
+
+		loadedInOrder shouldBe
+			listOf("<d400@example.test>", "<d403@example.test>", "<d406@example.test>", "<d409@example.test>", "<d900@example.test>")
+		sync.loadOlder(archive.id, limit = 1) shouldBe OlderMessagesResult(loaded = 0, hasMore = false)
+	}
+
+	@Test
 	fun `a reply that arrives before its parent stays in the conversation when the root arrives last`() {
 		append(
 			"INBOX",
