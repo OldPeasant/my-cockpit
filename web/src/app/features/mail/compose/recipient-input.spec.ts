@@ -180,6 +180,28 @@ describe('RecipientInput', () => {
     expect(input().value).toBe('');
   });
 
+  it('marks contact suggestions and adds a chosen contact as name and address only', async () => {
+    service.result = [
+      { address: 'ann@example.test', name: 'Ann Example', contactId: 'c-1' },
+      { address: 'anna@example.test', name: 'Anna' },
+    ];
+    input().focus();
+    type('ann');
+    await vi.advanceTimersByTimeAsync(SUGGEST_DEBOUNCE_MS);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    const options = Array.from(document.querySelectorAll('mat-option')) as HTMLElement[];
+    expect(options.map((o) => o.classList.contains('contact'))).toEqual([true, false]);
+    expect(options[0].querySelector('svg.kind')).not.toBeNull();
+    expect(options[0].textContent).toContain('Contact:');
+    expect(options[1].querySelector('svg.kind')).toBeNull();
+    options[0].click();
+    fixture.detectChanges();
+    expect(fixture.componentInstance.recipients()).toEqual([
+      { address: 'ann@example.test', name: 'Ann Example' },
+    ]);
+  });
+
   it('adds no chip for an empty field or an address already there', () => {
     fixture.componentInstance.recipients.set([{ address: 'ann@example.test' }]);
     fixture.detectChanges();

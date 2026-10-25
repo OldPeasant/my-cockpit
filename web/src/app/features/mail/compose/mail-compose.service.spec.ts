@@ -5,6 +5,8 @@ import { FILES_LIMIT, MailComposeService, SUGGESTION_LIMIT } from './mail-compos
 
 const DRAFT = '0192f0c4-0000-7000-8000-00000000d001';
 const MESSAGE = '0192f0c4-0000-7000-8000-00000000a001';
+const CONTACT = '0192f0c4-0000-7000-8000-00000000c001';
+const OTHER = '0192f0c4-0000-7000-8000-00000000c002';
 
 const draft = { id: DRAFT, accountId: 'acc-1', subject: 'Hi', attachments: [] };
 
@@ -112,23 +114,49 @@ describe('MailComposeService', () => {
     expect((await result).draft.id).toBe(DRAFT);
   });
 
-  it('asks for recent correspondents and drops entries without address', async () => {
+  it('asks the contacts autocomplete and keeps its merged order, contacts first', async () => {
     const result = service.suggestions('ann');
     await flush();
-    const req = http.expectOne((r) => r.url === '/api/v1/mail/correspondents');
+    const req = http.expectOne((r) => r.url === '/api/v1/contacts/autocomplete');
+    expect(req.request.method).toBe('GET');
     expect(req.request.params.get('q')).toBe('ann');
     expect(req.request.params.get('limit')).toBe(String(SUGGESTION_LIMIT));
-    req.flush({
-      items: [
-        { address: 'ann@example.test', name: 'Ann', lastAt: '2026-10-20T10:00:00Z' },
-        { name: 'Nobody' },
-        { address: 'anna@example.test', name: null },
-      ],
-    });
-    expect(await result).toEqual([
-      { address: 'ann@example.test', name: 'Ann' },
-      { address: 'anna@example.test', name: '' },
+    req.flush([
+      { contactId: CONTACT, email: 'ann@example.test', name: 'Ann Example' },
+      { contactId: CONTACT, email: 'ann@work.example.test', name: 'Ann Example' },
+      { email: 'anna@example.test', name: 'Anna' },
+      { email: 'annika@example.test' },
     ]);
+    expect(await result).toEqual([
+      { address: 'ann@example.test', name: 'Ann Example', contactId: CONTACT },
+      { address: 'ann@work.example.test', name: 'Ann Example', contactId: CONTACT },
+      { address: 'anna@example.test', name: 'Anna' },
+      { address: 'annika@example.test', name: '' },
+    ]);
+  });
+
+  it('drops suggestions without address and keeps the first of a repeated address', async () => {
+    const result = service.suggestions('ann');
+    await flush();
+    http
+      .expectOne((r) => r.url === '/api/v1/contacts/autocomplete')
+      .flush([
+        { contactId: CONTACT, name: 'Ann without mail' },
+        { contactId: CONTACT, email: '  ', name: 'Blank' },
+        { contactId: CONTACT, email: 'ann@example.test', name: 'Ann Example' },
+        { contactId: OTHER, email: 'ANN@example.test', name: 'Ann Twin' },
+        { email: 'ann@example.test', name: 'ann (old)' },
+      ]);
+    expect(await result).toEqual([
+      { address: 'ann@example.test', name: 'Ann Example', contactId: CONTACT },
+    ]);
+  });
+
+  it('has no suggestions when the autocomplete answers nothing', async () => {
+    const result = service.suggestions('zz');
+    await flush();
+    http.expectOne((r) => r.url === '/api/v1/contacts/autocomplete').flush([]);
+    expect(await result).toEqual([]);
   });
 
   it('lists a drive folder (the root without folderId)', async () => {

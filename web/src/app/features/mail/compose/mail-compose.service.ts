@@ -2,6 +2,7 @@ import { HttpContext } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
 import {
   Api,
+  autocompleteContacts,
   createMailDraft,
   CreateDraftRequest,
   deleteMailDraft,
@@ -12,7 +13,6 @@ import {
   getMailDraft,
   listFolder,
   listMailAccounts,
-  listMailCorrespondents,
   MailAccountResponse,
   replyAllToMailMessage,
   replyToMailMessage,
@@ -33,10 +33,11 @@ export interface VersionedDraft {
   etag: string;
 }
 
-/** An autocomplete suggestion for a recipient. */
+/** An autocomplete suggestion for a recipient; `contactId` when the address belongs to a contact. */
 export interface RecipientSuggestion {
   address: string;
   name: string;
+  contactId?: string;
 }
 
 /** One listing of a drive folder; `more`: the folder holds entries beyond these. */
@@ -53,7 +54,7 @@ export const FILES_LIMIT = 200;
 
 /**
  * The compose API (SPEC.md §7.3, §7.4): drafts in the account's Drafts folder (create, save, upload,
- * discard, send), reply/forward drafts, recent correspondents and the files to attach. Errors are not
+ * discard, send), reply/forward drafts, recipient suggestions and the files to attach. Errors are not
  * toasted: the compose view reports them.
  */
 @Injectable({ providedIn: 'root' })
@@ -107,16 +108,29 @@ export class MailComposeService {
     return versioned(await this.api.invoke$Response(fn, { id }, silent()));
   }
 
-  /** Recent correspondents matching `query` (address or name), newest first. */
+  /**
+   * Recipients matching `query` (name or address) from the contacts autocomplete: contacts first,
+   * then recent correspondents, as the server merges them. Entries without address are dropped and
+   * an address suggested twice is kept once (its first, best ranked entry).
+   */
   async suggestions(query: string): Promise<RecipientSuggestion[]> {
-    const page = await this.api.invoke(
-      listMailCorrespondents,
-      { q: query || undefined, limit: SUGGESTION_LIMIT },
+    const found = await this.api.invoke(
+      autocompleteContacts,
+      { q: query, limit: SUGGESTION_LIMIT },
       silent(),
     );
-    return (page.items ?? [])
-      .filter((item) => !!item.address)
-      .map((item) => ({ address: item.address!, name: item.name ?? '' }));
+    const seen = new Set<string>();
+    const result: RecipientSuggestion[] = [];
+    for (const item of found ?? []) {
+      const address = item.email?.trim();
+      if (!address || seen.has(address.toLowerCase())) continue;
+      seen.add(address.toLowerCase());
+      const name = item.name ?? '';
+      result.push(
+        item.contactId ? { address, name, contactId: item.contactId } : { address, name },
+      );
+    }
+    return result;
   }
 
   /**

@@ -55,8 +55,8 @@ export function parseRecipients(text: string): Recipient[] {
 
 /**
  * A recipient field (To, Cc or Bcc): the recipients as chips, an input that turns typed addresses
- * into chips (Enter, comma, semicolon, leaving the field, pasting a list) and suggestions of recent
- * correspondents while typing. Invalid addresses stay as chips marked invalid, so they can be fixed.
+ * into chips (Enter, comma, semicolon, leaving the field, pasting a list) and suggestions while
+ * typing: contacts (marked with a person icon) first, then recent correspondents. Invalid addresses stay as chips marked invalid, so they can be fixed.
  */
 @Component({
   selector: 'app-recipient-input',
@@ -107,7 +107,17 @@ export function parseRecipients(text: string): Recipient[] {
         (optionSelected)="choose($event)"
       >
         @for (suggestion of suggestions(); track suggestion.address) {
-          <mat-option [value]="suggestion">
+          <mat-option [value]="suggestion" [class.contact]="!!suggestion.contactId">
+            @if (suggestion.contactId) {
+              <svg class="kind" viewBox="0 0 24 24" aria-hidden="true">
+                <path
+                  d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"
+                />
+              </svg>
+              <span class="cdk-visually-hidden" i18n="@@mailCompose.contactSuggestion"
+                >Contact:</span
+              >
+            }
             @if (suggestion.name) {
               <span class="name">{{ suggestion.name }}</span>
             }
@@ -133,6 +143,11 @@ export function parseRecipients(text: string): Recipient[] {
       width: 18px;
       height: 18px;
       fill: currentColor;
+    }
+    .kind {
+      margin-right: var(--app-space-2);
+      vertical-align: middle;
+      fill: var(--app-fg-muted);
     }
     .name {
       margin-right: var(--app-space-2);
@@ -192,7 +207,8 @@ export class RecipientInput {
 
   protected choose(event: MatAutocompleteSelectedEvent): void {
     const suggestion = event.option.value as RecipientSuggestion;
-    this.add([suggestion.name ? suggestion : { address: suggestion.address }]);
+    const { address, name } = suggestion;
+    this.add([name ? { address, name } : { address }]);
     this.field().nativeElement.value = '';
     this.suggestions.set([]);
   }
