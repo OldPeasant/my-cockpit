@@ -19,7 +19,8 @@ connections too, and today one dropped request fails the sync of that calendar. 
   arrives, only for requests safe to repeat (PROPFIND, REPORT, GET; PUT/DELETE with If-Match or If-None-Match); no retry
   after a response was received or on timeouts; covered by unit tests (WireMock fault, e.g. `Fault.EMPTY_RESPONSE`)
   - verified (2026-10-26 00:51+0100 by dell26/agent-1): cd server && ./gradlew ktlintCheck test --tests '*CalDavClientTests' -> 27 passed, 0 failed (WireMock Fault.EMPTY_RESPONSE / CONNECTION_RESET_BY_PEER retried once for GET/PROPFIND/REPORT/If-Match PUT/If-None-Match PUT/If-Match DELETE; unconditional PUT/DELETE, MKCALENDAR, POST, MALFORMED_RESPONSE_CHUNK after headers and a 200 ms read timeout not retried; second drop fails); JaCoCo CalDavClient.kt lines 162/168, branches 112/118
-- [ ] The test helper `dav()` in `CalDavRadicaleSyncTests` retries the same way
+- [x] The test helper `dav()` in `CalDavRadicaleSyncTests` retries the same way
+  - verified (2026-10-26 00:52+0100 by dell26/agent-1): CalDavRadicaleSyncTests.dav() now calls the shared sendRetryingDrop(..., repeatable = true) (same once-retry, 200 ms backoff, no retry after headers or on timeout); exercised by 10x ./gradlew integrationTest --tests '*CalDavRadicaleSyncTests' --rerun on rootless Podman -> 10/10 runs passed
 - [ ] `cd server && ./gradlew integrationTest --tests '*CalDavRadicaleSyncTests' --rerun` passes 10 times in a row
   (Docker or Podman), and the cause of Radicale's drops is noted (found or ruled-out causes) in this task's notes
 
