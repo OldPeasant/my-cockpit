@@ -1,11 +1,11 @@
 ---
 title: MailIdleGreenMailTests: wait for the change event (flaky in CI)
-status: in_progress
+status: done
 owner: dell26/agent-1
 deps: []
 touches: [server/src/test/kotlin/ch/sonensei/cockpit/mail/sync/MailIdleGreenMailTests.kt]
 prio: 1
-lease_until: 2026-10-25T22:32:43Z
+lease_until: 
 ---
 ## Goal
 `MailIdleGreenMailTests > an account that does not notify gets change events but no notification()` failed in CI
@@ -23,3 +23,4 @@ published a little after the message becomes visible, the list is still empty. M
 
 ## Notes
 - Seen once in the last 40 CI runs; the log does not show the actual list size.
+- done by dell26/agent-1: `sh scripts/check.sh` passed in 58s on 0b21a5f93; criteria verified 2/2
