@@ -1,10 +1,11 @@
 ---
 title: Journal UI
-status: todo
-owner:
+status: in_progress
+owner: dell26/agent-2
 deps: [p0-web-shell,journal-api,p0-e2e-harness]
 touches: [web/src/app/features/journal]
 prio: 3
+lease_until: 2026-10-25T21:23:02Z
 ---
 ## Goal
 Write and browse the journal (SPEC.md §8.5).
