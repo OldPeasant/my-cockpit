@@ -4,23 +4,41 @@ Date: 2026-10-25
 
 Task: bookmarks-snapshot - Readable snapshots
 
-Scope: task commits `a116ea33e..125489c20` (committed changes only; working tree clean)
+Scope: the whole task diff `d2c3d585a..20a0f47b8` (committed changes only). This is the second review, on the final code after the CR-1 fix (production change in 86c1da611 and 20a0f47b8, `ReadableExtractor.kt`; tests in fabb56e30). The uncommitted change to `reviews/bookmarks-snapshot/tests.md` is a helper report and was not reviewed.
 
 Requirements:
-- `tasks/bookmarks-snapshot.md` acceptance criteria 1-2 and its two recorded assumptions (POST /{id}/snapshot with If-Match, synchronous fetch with the `cockpit.bookmarks.fetch.*` limits, 502 + `errorCode`, HTML file in Attachments, no images, CSP, previous snapshot to Trash)
+- `tasks/bookmarks-snapshot.md` acceptance criteria 1-2 and recorded assumptions #1-#3 (`tasks.py assumptions`)
 - SPEC.md §8.4 (readable snapshot), §4.2 (Problem Details, ETag/If-Match)
-- docs/ARCHITECTURE.md (conventions, packages), AGENTS.md project notes (logging, generated files)
-- Existing code: `BookmarkService`, `BookmarkMetadataWorker`, `PageFetcher`, `FilesService`, `ProblemDetailsAdvice`
+- docs/ARCHITECTURE.md and the AGENTS.md project notes (module boundaries, logging, generated files)
+- Previous review (`reviews/bookmarks-snapshot/review.md`, first revision) and `reviews/bookmarks-snapshot/fixes.md`
+- Existing code: `BookmarkService`, `PageFetcher`, `FilesService`, the Mozilla Readability approach that criterion 1 names as the model
 
 Git range:
 - Branch: main
-- HEAD: 125489c20
-- Base/start: a116ea33e37c47a2460a3b6ee97ec95c6e65d7bb
-- Commits reviewed: 2 (2424773cf implementation, 125489c20 edge-case tests and test report)
+- HEAD: 20a0f47b8
+- Base/start: d2c3d585af1d8d3c52e1ac0582bc9bd83046cdb0
+- Commits reviewed: 6 (4217b37fc, 326e092b4, 79d9790e5, 86c1da611, fabb56e30, 20a0f47b8)
 
-Summary: 0 P0, 0 P1, 1 P2, 2 P3
+Summary: 0 P0, 0 P1, 1 P2, 1 P3 (open). CR-1 is resolved and CR-2 is accepted as assumption #3. CR-3 is still open. CR-4 is new and was introduced by the CR-1 fix.
 
-Checked without findings: sanitization (jsoup `Cleaner` with a tag/attribute safelist, http/https/mailto only, title and source inserted as text nodes, CSP and no-referrer meta); SSRF (reuses `PageFetcher`, same checks as the metadata worker); transactions (fetch outside a transaction, `open-in-view=false`, URL re-checked in the write transaction, concurrent writes end in an optimistic-lock 409 and the blob is removed on rollback by `FilesService.storeFile`); logging (bookmark id plus fixed `PageFetchError` messages or exception class names only, no URL or page content); Problem Details for 502 with `errorCode`; If-Match checked before the fetch; file name validation compatible with `FileNames.validate`; `api/openapi.yaml` and the generated web client match the controller. Both acceptance criteria are covered by tests (46 tests in `ch.sonensei.cockpit.bookmarks.snapshot.*`, run by the test-writer against Postgres via Testcontainers).
+Checked without findings:
+- CR-1 fix:
+    - `form` is no longer in `NEVER_CONTENT`. The form controls (`input`, `button`, `select`, `textarea`) are still removed in both passes.
+    - The retry (`extract`, lines 46-50) parses the page again, so the first pass's changes to the tree do not leak into it.
+    - The retry result goes through the same `cleaned()` step (`Cleaner(SAFELIST)` plus `removeEmpty`), so the Cleaner drops a kept `<form>` tag and its attributes. The test `the result of the retry is sanitized like the first` covers this with the full XSS vector set.
+    - Both passes still remove `NEVER_CONTENT`, hidden elements and unlikely roles (lines 80-85). Tests: `hidden elements, navigation and footers stay out of the retry`, `roles that are never content are dropped in the retry as well`.
+    - The title comes from the first parse, before any mutation.
+    - Retry selection works like Readability: the retry runs only below 500 characters, and the longer result wins (a tie keeps the first). The boundary is tested at 499 and 500.
+    - `wrapsMain` uses `selectFirst`, which also matches the element itself. So a `[role=main]` element with an unlikely class or role protects itself.
+- Unchanged since the first review and re-read:
+    - Controller and 502 Problem Details with `errorCode`.
+    - If-Match is checked before the fetch.
+    - The fetch runs outside a transaction, and the URL is re-checked in the write transaction.
+    - SSRF protection comes from reusing `PageFetcher`.
+    - Logging contains only the id and fixed messages.
+    - File name sanitizing.
+    - `api/openapi.yaml` and the generated web client match.
+- Tests: the parent reports 58 passing tests on HEAD in `ch.sonensei.cockpit.bookmarks.snapshot.*` (web tests against Postgres via Testcontainers) and ReadableExtractor coverage of 209/209 lines and 124/148 branches. I could not run Gradle here. Both criteria are still unverified in `tasks.py verify` (the parent records them).
 
 ## P0 Critical
 
@@ -32,29 +50,54 @@ None.
 
 ## P2 Medium
 
-- [ ] **CR-1 | Page-wide wrappers are removed before scoring and nothing falls back, so some pages end as NO_CONTENT or lose their article**
-    - File: `server/src/main/kotlin/ch/sonensei/cockpit/bookmarks/snapshot/ReadableExtractor.kt:59` (`NEVER_CONTENT` includes `form`, line 180-182) and `:61-64` (removal of "unlikely" class/id elements)
+- [ ] **CR-4 | `wrapsMain` protects any element that contains an `<article>`, so comment and teaser sections are no longer removed in the first pass**
+    - File: `server/src/main/kotlin/ch/sonensei/cockpit/bookmarks/snapshot/ReadableExtractor.kt:130` (`wrapsMain`, with `MAIN_ELEMENTS` at line 214), used at lines 84 and 89
     - Category: Correctness
-    - Problem: Before any scoring, `mainContent` removes every `<form>` in the body and every element whose class or id matches `UNLIKELY` without matching `MAYBE`. Both removals take the whole subtree with them. `KEEP_TAGS` protects only an `article`/`main` element itself, not its ancestors. A page whose content sits inside such a wrapper loses all of it. Two examples: ASP.NET WebForms pages wrap the whole body in `<form id="aspnetForm">`, and layouts use wrappers like `<div class="layout has-sidebar"><article>...</article></div>`. The snapshot is then empty (`readable.text.isEmpty()` gives 502 `NO_CONTENT`) or contains only what was outside the wrapper. Mozilla's Readability, which the criterion names as the model, handles this. It runs the extraction again without the "strip unlikely" flag when the result is too short, and it removes forms only conditionally inside the chosen article. No test covers a wrapper ancestor. `an article element is never dropped because of its class` checks only the article element itself.
-    - Why it matters: Criterion 1 requires extracting the main content. On these page layouts "Save snapshot" fails or saves the wrong part, and the user gets no hint why.
-    - Suggested fix: If the first pass yields no or very little text, run `mainContent` again on a fresh parse without the unlikely-class removal (and without dropping `form` wrappers). Or skip removing an element that contains an `article`/`main` or most of the body's text. Add an extractor test for a `<form>` wrapper and for a wrapper with an unlikely class around the article.
+    - Problem: The guard is meant to keep wrappers of the page's main element. It actually keeps every unlikely, form or unlikely-role element that contains any `article` element. Pages commonly use `<article>` for individual comments (the HTML spec recommends it, and WordPress core renders `<article class="comment-body">` inside `<div id="comments" class="comments-area">`) and for teaser cards in "related" blocks. Here is a static trace for `<article class="post"><p>…</p>…<div id="comments" class="comments-area"><ol class="comment-list"><li class="comment"><article class="comment-body"><p>…</p></article></li></ol></div></article>`:
+        1. Before the fix, `#comments`, `.comment-list` and `li.comment` all matched `UNLIKELY` and were removed.
+        2. Now every one of them contains an `<article>`, so they all stay. The `article.comment-body` elements themselves are also kept, because `article` is in `KEEP_TAGS`.
+        3. `article.post` wins the scoring (+10 tag, +25 for the "post" class), and its whole subtree is cloned (line 118), comments included.
+        4. The longer text also makes the 500-character retry less likely to run.
+
+        The same happens with `<div class="related"><article class="teaser">…` and with `role="complementary"` blocks of teaser articles (line 84). No test covers an unlikely block that contains a non-main `<article>`. The existing comment test (`keeps the main content and drops navigation, sidebar, comments and footer`) uses a comment block without `<article>`.
+    - Why it matters: Criterion 1 requires extracting the main content. This is a regression the fix introduced: for a common markup pattern, the saved copy now includes reader comments or teasers that the first version removed.
+    - Suggested fix: Protect only the ancestors of the page's main element, not of any article. Two options:
+        - Compute the main element once per pass: `main`/`[role=main]` if present, otherwise the outermost `article` with the most text (or one that holds most of the body text). Then skip removing exactly its ancestors.
+        - Restrict `MAIN_ELEMENTS` to `main, [role=main]` and require an `article` to hold most of the wrapper's text.
+
+        Add a test with a comment section of `<article>` items inside, or next to, the post article, checking that the comments are dropped. Also add a test for a `div.related` with teaser articles.
 
 ## P3 Low
 
-- [ ] **CR-2 | Snapshots are silently truncated at the metadata fetch limit**
-    - File: `server/src/main/kotlin/ch/sonensei/cockpit/bookmarks/snapshot/BookmarkSnapshotService.kt:73` (with `server/src/main/kotlin/ch/sonensei/cockpit/bookmarks/infra/BookmarkFetchProperties.kt:14`, `maxSize` default 1MB, documented as "the metadata is in its head")
+- [x] **CR-2 | Snapshots are silently truncated at the metadata fetch limit** (accepted)
+    - File: `server/src/main/kotlin/ch/sonensei/cockpit/bookmarks/snapshot/BookmarkSnapshotService.kt:73`
     - Category: Correctness
-    - Problem: The snapshot reuses `PageFetcher` with the metadata limit. A page longer than `max-size` (inline scripts and JSON often push modern article pages past 1 MB) is cut off. jsoup parses the partial document and the saved copy ends mid-article. `FetchedPage` does not say whether the body was truncated, so neither the file nor the API response shows that the copy is incomplete. The assumption records that the limits are reused, but not this effect.
-    - Why it matters: The user trusts the snapshot as the readable copy of the page and may learn only later that it is incomplete.
-    - Suggested fix: Mention the truncation in the recorded assumption so a human can decide. Possible follow-ups are a separate, larger snapshot size limit or a truncation flag on `FetchedPage` (both outside this task's `touches`, so a follow-up task).
+    - Problem: The snapshot reuses the 1 MB metadata fetch limit, and a longer page is cut off without any hint.
+    - Why it matters: A user may not notice that the copy is incomplete.
+    - Suggested fix: Already done for this task: assumption #3 records it for a human to decide. A larger snapshot limit or a truncation flag needs `bookmarks/infra`, which is outside this task's touches, so it is a follow-up. No further change is needed in this task.
 
 - [ ] **CR-3 | The snapshot service duplicates BookmarkService's change bookkeeping**
-    - File: `server/src/main/kotlin/ch/sonensei/cockpit/bookmarks/snapshot/BookmarkSnapshotService.kt:86-97`
+    - File: `server/src/main/kotlin/ch/sonensei/cockpit/bookmarks/snapshot/BookmarkSnapshotService.kt:93-97`
     - Category: Architecture
-    - Problem: The write transaction saves the bookmark through `BookmarkRepository` and repeats by hand what `BookmarkService.changed` does (`Hibernate.initialize(tags)`, `indexer.indexBookmark`, `changes.publish(... UPDATED)`). The `BookmarkService` KDoc says that every change of a bookmark re-indexes it and publishes a change event. This is now a second write path that has to be kept in sync by hand.
-    - Why it matters: If `BookmarkService` later adds a step to every bookmark change (for example link-index upkeep or another event), the snapshot path will silently skip it.
-    - Suggested fix: Add a small `BookmarkService` method (for example `attachSnapshot(id, expectedUrl, store: () -> UUID)`) that runs the URL check, the update and `changed` in one place. This would be a follow-up if `bookmarks/domain` must stay outside this task's `touches`. Otherwise, add a comment pointing to `BookmarkService.changed`.
+    - Problem: Re-assessed and still present. The write transaction saves through `BookmarkRepository` and repeats the private `BookmarkService.changed` by hand: `Hibernate.initialize(tags)`, `indexer.indexBookmark`, and `changes.publish(BOOKMARK, id, UPDATED)`. The `BookmarkService` KDoc (line 47) says every change re-indexes and publishes an event. The steps match today, and `indexBookmark` is already shared with the Trash restore, so this is a known second path rather than a defect. It still has to be kept in sync by hand.
+    - Why it matters: A step added later to `BookmarkService.changed` (for example link-index upkeep) would silently be skipped for snapshots.
+    - Suggested fix: Moving the write into `BookmarkService` needs `bookmarks/domain`, which is outside this task's touches. The cheap fix within scope is a short comment at lines 93-97 that points to `BookmarkService.changed`. Either add that, or record "accepted, follow-up" in quality.json and an assumption. It does not block the task.
+
+## Resolved
+
+- [x] **CR-1 | Page-wide wrappers are removed before scoring and nothing falls back** (resolved)
+    - File: `server/src/main/kotlin/ch/sonensei/cockpit/bookmarks/snapshot/ReadableExtractor.kt:46-50, 80-91`
+    - Category: Correctness
+    - Problem (original): A `<form>` wrapper or an unlikely-class wrapper around the article took the content with it, and the result was `NO_CONTENT` or a truncated copy.
+    - Resolution: Forms and unlikely class/id elements are now removed only in the first pass, and only when they do not contain a main element. A fresh-parse retry without that removal runs below 500 characters, and the longer result wins. Both results are sanitized by the same path. Regression tests cover:
+        - a form wrapper with and without an article;
+        - an unlikely-class wrapper with and without an article;
+        - `main` and `[role=main]` inside a wrapper;
+        - the retry boundary;
+        - retry sanitization and the removal of hidden content and never-content elements in the retry.
+
+        The ASP.NET and `has-sidebar` layouts from the original finding are handled. The over-broad guard is tracked separately as CR-4.
 
 ## Review conclusion
 
-Material issues found; fix before completing the task. CR-1 (P2) affects criterion 1 for a class of real-world pages. The parent worker decides whether to fix it now or record it as a follow-up. CR-2 and CR-3 are low priority.
+Material issues found; fix before completing the task. The CR-1 fix works for the layouts it targeted, and the sanitization of the retry result is correct. However, the `wrapsMain` guard (CR-4, P2) brings back comment and teaser sections for pages that mark them up with `<article>`. CR-3 (P3) remains for the parent to decide (a pointer comment or an accepted follow-up).
