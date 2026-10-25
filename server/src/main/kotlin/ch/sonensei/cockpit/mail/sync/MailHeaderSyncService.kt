@@ -11,6 +11,7 @@ import ch.sonensei.cockpit.mail.model.MailFolderRepository
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
 import java.time.Clock
+import java.time.Duration
 import java.time.Instant
 import java.time.ZoneOffset
 import java.util.UUID
@@ -52,12 +53,13 @@ data class ServerSearchResult(
  *
  * - **Full sync** (first sync, or UIDVALIDITY changed): the headers of the messages that arrived within the
  *   account's sync window ([MailAccount.syncWindowMonths], default 12) are fetched. After a UIDVALIDITY change every
- *   cached UID is invalid: rows are detached first, found again by Message-ID, and the rest removed.
+ *   cached UID is invalid: rows are detached first and found again by Message-ID. Linked rows the window pass did not
+ *   find are then looked up by Message-ID on the server; the rest is removed.
  * - **Incremental sync**: messages from the cached UIDNEXT on are new; flags and expunges are reconciled with QRESYNC
  *   (changes and VANISHED reported on open) when the server supports it, else with CONDSTORE (`CHANGEDSINCE` the cached
  *   HIGHESTMODSEQ, plus a UID search for expunges), else by fetching the flags of every cached UID.
- *   Linked rows the window pass did not find are then looked up by Message-ID before the rest is removed.
- * - **Older mail on demand** ([loadOlder]): the most recently arrived messages missing from the cache.
+ * - **Older mail on demand** ([loadOlder]): the most recently arrived messages missing from the cache. Only the
+ *   arrival dates of the missing messages that arrived shortly before the oldest cached one are read, not of all.
  * - **Search on the server** ([searchServer]): IMAP SEARCH in the folder; found messages missing from the cache are
  *   cached, so they can be listed and opened like any other.
  *
@@ -147,8 +149,9 @@ class MailHeaderSyncService(
 						if (missing.size <= limit) {
 							missing
 						} else {
-							val dates = remote.receivedDates(missing)
-							missing
+							val candidates = newestMissing(remote, missing, limit, store.oldestReceivedAt(folder.id))
+							val dates = remote.receivedDates(candidates)
+							candidates
 								.sortedWith(compareByDescending<Long> { dates[it] ?: Instant.EPOCH }.thenByDescending { it })
 								.take(limit)
 								.sorted()
@@ -208,6 +211,30 @@ class MailHeaderSyncService(
 			}
 		if (changed || result.loaded > 0) changes.publish(FOLDER_EVENT, folderId, ChangeOp.UPDATED)
 		return result
+	}
+
+	/**
+	 * The missing messages that arrived since some time before the oldest cached message (or now), at least [limit] of
+	 * them (or all): the window starts a week back and doubles while it holds too few. Every missing
+	 * message outside the window arrived earlier than every one inside (IMAP `SINCE` compares INTERNALDATE by day),
+	 * so the [limit] most recently arrived are among these, and only their dates need to be read.
+	 */
+	private fun newestMissing(
+		remote: RemoteFolder,
+		missing: List<Long>,
+		limit: Int,
+		oldestCached: Instant?,
+	): List<Long> {
+		val anchor = oldestCached ?: clock.instant()
+		var span = WINDOW_START
+		while (true) {
+			val since = anchor.minus(span)
+			if (!since.isAfter(Instant.EPOCH)) return missing
+			val inWindow = remote.uidsSince(since).toHashSet()
+			val candidates = missing.filter { it in inWindow }
+			if (candidates.size >= limit || candidates.size == missing.size) return candidates
+			span = span.multipliedBy(2)
+		}
 	}
 
 	private fun full(
@@ -311,6 +338,7 @@ class MailHeaderSyncService(
 	companion object {
 		const val DEFAULT_OLDER_LIMIT = 100
 		private const val BATCH_SIZE = 200
+		private val WINDOW_START = Duration.ofDays(7)
 		private const val FOLDER_EVENT = MailFolderService.FOLDER_EVENT
 	}
 }

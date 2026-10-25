@@ -40,6 +40,10 @@ class MailHeaderStore(
 	@Transactional(readOnly = true)
 	fun locatedUids(folderId: UUID): List<Long> = messages.locatedUids(folderId)
 
+	/** The arrival time of the oldest message cached in the folder; null when none has one. */
+	@Transactional(readOnly = true)
+	fun oldestReceivedAt(folderId: UUID): Instant? = messages.oldestReceivedAt(folderId)
+
 	/** The ids of the messages cached at these UIDs of the folder. */
 	@Transactional(readOnly = true)
 	fun locatedIds(
@@ -168,7 +172,7 @@ class MailHeaderStore(
 		searchIndex.unindex(message.id)
 	}
 
-	private fun isLinked(message: MailMessage): Boolean = links.linksOf(ItemRef(ItemType.EMAIL, message.id)).isNotEmpty()
+	private fun isLinked(message: MailMessage): Boolean = links.hasLinks(ItemRef(ItemType.EMAIL, message.id))
 
 	private fun assignThread(
 		message: MailMessage,

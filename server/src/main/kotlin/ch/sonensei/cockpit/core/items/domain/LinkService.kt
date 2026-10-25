@@ -109,6 +109,10 @@ class LinkService(
 		}
 	}
 
+	/** Whether [item] has any link, in either direction. Unlike [linksOf] it resolves nothing. */
+	@Transactional(readOnly = true)
+	fun hasLinks(item: ItemRef): Boolean = links.existsTouching(item.type, item.id)
+
 	/**
 	 * Replaces the links [source] owns (origin SYNC, e.g. the inline `[[type:id]]` links of a note): afterwards the
 	 * SYNC links from [source] are exactly [targets] without [source] itself. Stale ones are deleted, missing ones

@@ -21,6 +21,16 @@ interface LinkRepository : JpaRepository<Link, UUID> {
 		@Param("id") id: UUID,
 	): List<Link>
 
+	/** Whether an item has a link in either direction. */
+	@Query(
+		"""select count(l) > 0 from Link l
+		where (l.sourceType = :type and l.sourceId = :id) or (l.targetType = :type and l.targetId = :id)""",
+	)
+	fun existsTouching(
+		@Param("type") type: ItemType,
+		@Param("id") id: UUID,
+	): Boolean
+
 	fun findBySourceTypeAndSourceIdAndOrigin(
 		sourceType: ItemType,
 		sourceId: UUID,
