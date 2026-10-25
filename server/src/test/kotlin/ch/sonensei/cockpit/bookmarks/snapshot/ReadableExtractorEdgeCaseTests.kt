@@ -473,4 +473,40 @@ class ReadableExtractorEdgeCaseTests {
 		page.html shouldNotContain "onclick"
 		page.html shouldNotContain "onsubmit"
 	}
+
+	@Test
+	fun `hidden elements, navigation and footers stay out of the retry`() {
+		// The form wraps everything and holds no main element, so only the retry finds the content. The sanitizer drops
+		// the hidden and style attributes, so hidden text would become visible if the retry kept it.
+		val page =
+			extract(
+				"""
+				<body><form action="/search"><nav><p>Home. Garden. Shop. Contact us for more tips and tricks.</p></nav>
+				<div><p>$prose</p><p>$prose</p>
+				<p hidden>Hidden paragraph of the fictitious page, it must never show up in the copy.</p>
+				<p style="display: none">Collapsed paragraph of the fictitious page, it must never show up in the copy.</p></div>
+				<footer><p>Footer of the fictitious page with an imprint, a privacy policy and more.</p></footer></form></body>
+				""".trimIndent(),
+			)
+
+		page.text shouldContain "tomato plants"
+		page.text shouldNotContain "Hidden paragraph"
+		page.text shouldNotContain "Collapsed paragraph"
+		page.text shouldNotContain "Contact us"
+		page.text shouldNotContain "imprint"
+	}
+
+	@Test
+	fun `an element with a never-content role around the article is kept, other such roles inside it are dropped`() {
+		val page =
+			extract(
+				"""
+				<body><div role="complementary"><article><p>$prose</p><p>$prose</p></article>
+				<div role="navigation"><p>Navigation entry of the fictitious page, with enough words to be scored.</p></div></div></body>
+				""".trimIndent(),
+			)
+
+		page.text shouldContain "tomato plants"
+		page.text shouldNotContain "Navigation entry"
+	}
 }
