@@ -47,6 +47,7 @@ export const routes: Routes = [
         pathMatch: 'full',
         loadChildren: () => import('./features/dashboard/dashboard.routes'),
       },
+      { path: 'new', loadChildren: () => import('./features/new/new.routes') },
       { path: 'calendar', loadChildren: () => import('./features/calendar/calendar.routes') },
       { path: 'mail', loadChildren: () => import('./features/mail/mail.routes') },
       { path: 'notes', loadChildren: () => import('./features/notes/notes.routes') },

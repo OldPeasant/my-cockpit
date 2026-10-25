@@ -16,7 +16,11 @@ export const NAV_GROUPS: readonly NavGroup[] = [
   {
     id: 'home',
     label: $localize`:@@nav.group.home:Home`,
-    sections: [{ id: 'dashboard', path: '/', label: $localize`:@@nav.dashboard:Dashboard` }],
+    sections: [
+      { id: 'dashboard', path: '/', label: $localize`:@@nav.dashboard:Dashboard` },
+      // GTD Inbox and mail inbox together (SPEC.md §5.3 "New view").
+      { id: 'new', path: '/new', label: $localize`:@@nav.new:New` },
+    ],
   },
   {
     id: 'tasks',

@@ -260,12 +260,12 @@ describe('Command palette with provideSearch()', () => {
 
   it('offers the "New task" command, which opens the quick capture dialog', async () => {
     expect(groupNames()).toEqual(['Go to', 'Commands']);
-    await type('new');
+    await type('new t');
     expect(labels()).toEqual(['New task']);
     await key('Enter');
     expect(close).toHaveBeenCalled();
     expect(openCapture).toHaveBeenCalled();
-    (await searchRequest('new')).flush({ groups: [] });
+    (await searchRequest('new t')).flush({ groups: [] });
   });
 
   it('shows the results grouped by type as you type, below matching commands', async () => {
@@ -336,8 +336,8 @@ describe('Command palette with provideSearch()', () => {
   });
 
   it('keeps the commands when the search fails', async () => {
-    await type('new');
-    (await searchRequest('new')).flush(
+    await type('new t');
+    (await searchRequest('new t')).flush(
       { title: 'Boom', status: 500 },
       { status: 500, statusText: 'Server Error' },
     );

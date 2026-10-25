@@ -1,0 +1,124 @@
+<section class="new" aria-labelledby="new-title">
+  <header class="head">
+    <h1 id="new-title" i18n="@@nav.new">New</h1>
+    <div class="filters" role="group" i18n-aria-label="@@new.filter" aria-label="Source">
+      @for (option of filters; track option.value) {
+        <button
+          type="button"
+          [attr.aria-pressed]="filter() === option.value"
+          [title]="option.key"
+          (click)="setFilter(option.value)"
+        >
+          {{ option.label }}
+        </button>
+      }
+    </div>
+  </header>
+
+  @if (taskError() || mailError()) {
+    <div class="load-error" role="alert">
+      @if (taskError(); as error) {
+        <p i18n="@@new.tasksFailed">The Inbox could not be loaded: {{ error }}</p>
+      }
+      @if (mailError(); as error) {
+        <p i18n="@@new.mailFailed">The messages could not be loaded: {{ error }}</p>
+      }
+      <button mat-stroked-button type="button" (click)="retry()" i18n="@@mail.retry">
+        Try again
+      </button>
+    </div>
+  }
+
+  @if (loading()) {
+    <p class="note" role="status" i18n="@@new.loading">Loading…</p>
+  } @else if (rows().length) {
+    <ul class="rows" aria-labelledby="new-title">
+      @for (row of rows(); track row.key) {
+        <li
+          class="row"
+          [attr.data-source]="row.kind"
+          [attr.data-key]="row.key"
+          [class.cursor]="row.key === cursorKey()"
+          [attr.aria-current]="row.key === cursorKey() ? 'true' : null"
+        >
+          <span class="source">
+            @if (row.kind === 'task') {
+              <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                <path
+                  d="M19 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2zm0 12h-4a3 3 0 0 1-6 0H5V5h14v10z"
+                />
+              </svg>
+              <span class="label" i18n="@@new.source.inbox">GTD Inbox</span>
+            } @else {
+              <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                <path
+                  d="M20 4H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2zm0 4-8 5-8-5V6l8 5 8-5v2z"
+                />
+              </svg>
+              <span class="label" i18n="@@new.source.mail">Mail</span>
+            }
+          </span>
+          <button type="button" class="open" (click)="cursorKey.set(row.key); open(row)">
+            @switch (row.kind) {
+              @case ('task') {
+                <span class="text">
+                  <span class="title">{{ row.task.title }}</span>
+                </span>
+              }
+              @case ('mail') {
+                <span class="text" [class.unread]="!row.mail.seen">
+                  <span class="title">{{ subject(row.mail) }}</span>
+                  <span class="snippet">
+                    <span class="from">{{ sender(row.mail) }}</span>
+                    @if (row.mail.snippet) {
+                      – {{ row.mail.snippet }}
+                    }
+                  </span>
+                </span>
+              }
+            }
+            <time [attr.datetime]="row.at">{{ row.at | date: dateFormat(row.at) }}</time>
+          </button>
+          @if (row.kind === 'mail') {
+            <button
+              mat-stroked-button
+              type="button"
+              class="to-task"
+              title="t"
+              [disabled]="converting().has(row.mail.id)"
+              (click)="toTask(row.mail)"
+              i18n="@@new.toTask"
+            >
+              → Inbox task
+            </button>
+          }
+        </li>
+      }
+    </ul>
+  } @else if (!taskError() && !mailError()) {
+    <p class="empty" i18n="@@new.empty">Nothing new. Captures and incoming mail show up here.</p>
+  }
+
+  @if (!loading() && moreMail()) {
+    <div class="more" #sentinel>
+      @if (mail.moreError(); as error) {
+        <p class="error" role="alert" i18n="@@mail.moreFailed">
+          Older messages could not be loaded: {{ error }}
+        </p>
+      }
+      <button
+        mat-stroked-button
+        type="button"
+        [disabled]="mail.loadingMore()"
+        (click)="mail.loadMore()"
+        i18n="@@mail.loadMore"
+      >
+        Load older messages
+      </button>
+    </div>
+  }
+
+  <p class="keys" i18n="@@new.keysHint">
+    Keys: 1 all, 2 GTD Inbox, 3 mail, j/k next/previous, o open, t make an Inbox task
+  </p>
+</section>
