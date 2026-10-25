@@ -5,7 +5,7 @@ owner: dell26/agent-1
 deps: [and-login,p0-ci,p0-deploy,ci-split-check]
 touches: [.github,server/src/main/kotlin/ch/sonensei/cockpit/core/download,server/src/test/kotlin/ch/sonensei/cockpit/core/download]
 prio: 2
-lease_until: 2026-10-25T22:47:48Z
+lease_until: 2026-10-25T22:52:48Z
 ---
 ## Goal
 Distribute the app without the Play Store (SPEC.md §11).
