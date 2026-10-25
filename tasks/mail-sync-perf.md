@@ -19,3 +19,4 @@ resyncs and paging through old mail cheap.
 - [ ] Unit tests and the `external` GreenMail sync tests pass
 
 ## Notes
+- ASSUMPTION (2026-10-25 23:48+0100 by r1963macos/agent-1): loadOlder narrows candidates with UID SEARCH SINCE windows grown back from now (7 days, doubling, then bisected to <= ~2x limit missing) instead of SEARCH BEFORE the oldest cached date: a window from now also covers missing messages newer than the oldest cached one, and one old cached message (moved in, found by search) can't widen it. Assumes the server maps INTERNALDATE to days in one timezone; otherwise a later page picks up a skipped message.
