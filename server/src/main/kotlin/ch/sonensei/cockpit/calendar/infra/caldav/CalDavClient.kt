@@ -11,8 +11,10 @@ import java.net.URISyntaxException
 import java.net.http.HttpClient
 import java.net.http.HttpRequest
 import java.net.http.HttpResponse
+import java.net.http.HttpTimeoutException
 import java.time.Duration
 import java.util.Base64
+import java.util.concurrent.atomic.AtomicBoolean
 import javax.xml.XMLConstants
 import javax.xml.parsers.DocumentBuilderFactory
 import javax.xml.parsers.ParserConfigurationException
@@ -28,6 +30,7 @@ internal class CalDavClient(
 	username: String?,
 	password: String?,
 	private val http: HttpClient,
+	private val readTimeout: Duration = READ_TIMEOUT,
 ) {
 	private val authorization: String? =
 		username?.let { "Basic " + Base64.getEncoder().encodeToString("$it:${password.orEmpty()}".toByteArray(Charsets.UTF_8)) }
@@ -71,7 +74,8 @@ internal class CalDavClient(
 
 	/**
 	 * Sends [method] to [uri] with [body] and [headers]; follows redirects within the server's origin. 401 and 5xx
-	 * answers and network failures throw.
+	 * answers and network failures throw. A request safe to repeat (see [repeatable]) is sent once more when the
+	 * connection fails before any answer arrives.
 	 */
 	fun send(
 		method: String,
@@ -87,7 +91,7 @@ internal class CalDavClient(
 			val request =
 				HttpRequest
 					.newBuilder(target)
-					.timeout(READ_TIMEOUT)
+					.timeout(readTimeout)
 					.method(method, body?.let { HttpRequest.BodyPublishers.ofString(it, Charsets.UTF_8) } ?: HttpRequest.BodyPublishers.noBody())
 					.apply {
 						if (body != null) header("Content-Type", contentType)
@@ -96,7 +100,7 @@ internal class CalDavClient(
 					}.build()
 			val response =
 				try {
-					http.send(request, HttpResponse.BodyHandlers.ofString(Charsets.UTF_8))
+					http.sendRetryingDrop(request, HttpResponse.BodyHandlers.ofString(Charsets.UTF_8), repeatable(method, headers))
 				} catch (e: IOException) {
 					throw CalendarProviderException("$what: the CalDAV server could not be reached", e)
 				} catch (e: InterruptedException) {
@@ -158,6 +162,20 @@ internal class CalDavClient(
 		private const val HTTPS_PORT = 443
 		val CONNECT_TIMEOUT: Duration = Duration.ofSeconds(10)
 		private val READ_TIMEOUT = Duration.ofSeconds(60)
+		private val SAFE_METHODS = setOf("GET", "HEAD", "OPTIONS", "PROPFIND", "REPORT")
+		private val CONDITIONAL_METHODS = setOf("PUT", "DELETE")
+		private val CONDITIONS = setOf("if-match", "if-none-match")
+
+		/**
+		 * Whether [method] with [headers] may be sent twice: reading methods, and writes guarded by an `If-Match` or
+		 * `If-None-Match` precondition (a repeated write that already happened fails with 412 instead of writing twice).
+		 */
+		fun repeatable(
+			method: String,
+			headers: Map<String, String>,
+		): Boolean =
+			method.uppercase() in SAFE_METHODS ||
+				(method.uppercase() in CONDITIONAL_METHODS && headers.keys.any { it.lowercase() in CONDITIONS })
 
 		fun httpClient(): HttpClient =
 			HttpClient
@@ -166,6 +184,37 @@ internal class CalDavClient(
 				.followRedirects(HttpClient.Redirect.NEVER)
 				.build()
 	}
+}
+
+/** The pause before a request whose connection was dropped is sent again. */
+internal val DROPPED_CONNECTION_BACKOFF: Duration = Duration.ofMillis(200)
+
+/**
+ * Sends [request] like [HttpClient.send]; when [repeatable] and the connection fails before any answer arrives (the
+ * server closed it or reset it, e.g. `EOFException`), sends it once more after [DROPPED_CONNECTION_BACKOFF]. A failure
+ * after the status line and headers arrived, and a timeout, are thrown at once: the server may have acted on it, or is
+ * merely slow.
+ */
+internal fun <T> HttpClient.sendRetryingDrop(
+	request: HttpRequest,
+	handler: HttpResponse.BodyHandler<T>,
+	repeatable: Boolean,
+): HttpResponse<T> {
+	val answered = AtomicBoolean(false)
+	val tracking =
+		HttpResponse.BodyHandler { info ->
+			answered.set(true)
+			handler.apply(info)
+		}
+	try {
+		return send(request, tracking)
+	} catch (e: HttpTimeoutException) {
+		throw e
+	} catch (e: IOException) {
+		if (!repeatable || answered.get()) throw e
+	}
+	Thread.sleep(DROPPED_CONNECTION_BACKOFF)
+	return send(request, handler)
 }
 
 /** One `response` of a WebDAV multistatus: its [href], its own [status] (e.g. 404: removed) and its found properties. */

@@ -456,13 +456,18 @@ class CalDavRadicaleSyncTests(
 
 		private val http: HttpClient = HttpClient.newHttpClient()
 
+		/**
+		 * [method] on [path] at Radicale, sent once more when Radicale drops the connection before answering, as
+		 * [CalDavClient] does. Every request here may repeat (MKCALENDAR, unconditional PUT and DELETE included): the
+		 * tests check the outcome, not the status of a repeated write.
+		 */
 		private fun dav(
 			method: String,
 			path: String,
 			body: String? = null,
 			contentType: String = "application/xml; charset=utf-8",
 		): HttpResponse<String> =
-			http.send(
+			http.sendRetryingDrop(
 				HttpRequest
 					.newBuilder(URI.create(radicale.baseUrl() + path))
 					.method(method, body?.let { HttpRequest.BodyPublishers.ofString(it) } ?: HttpRequest.BodyPublishers.noBody())
@@ -470,6 +475,7 @@ class CalDavRadicaleSyncTests(
 					.apply { if (body != null) header("Content-Type", contentType) }
 					.build(),
 				HttpResponse.BodyHandlers.ofString(),
+				repeatable = true,
 			)
 	}
 }

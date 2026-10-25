@@ -2,6 +2,7 @@ package ch.sonensei.cockpit.calendar.infra.caldav
 
 import ch.sonensei.cockpit.calendar.sync.CalendarProviderException
 import com.github.tomakehurst.wiremock.WireMockServer
+import com.github.tomakehurst.wiremock.client.ResponseDefinitionBuilder
 import com.github.tomakehurst.wiremock.client.WireMock.aResponse
 import com.github.tomakehurst.wiremock.client.WireMock.absent
 import com.github.tomakehurst.wiremock.client.WireMock.anyRequestedFor
@@ -10,11 +11,14 @@ import com.github.tomakehurst.wiremock.client.WireMock.equalTo
 import com.github.tomakehurst.wiremock.client.WireMock.request
 import com.github.tomakehurst.wiremock.client.WireMock.urlPathEqualTo
 import com.github.tomakehurst.wiremock.core.WireMockConfiguration.wireMockConfig
+import com.github.tomakehurst.wiremock.http.Fault
 import com.github.tomakehurst.wiremock.http.RequestMethod
 import com.github.tomakehurst.wiremock.matching.RequestPatternBuilder
+import com.github.tomakehurst.wiremock.stubbing.Scenario
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldContainExactly
+import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
@@ -23,6 +27,7 @@ import org.junit.jupiter.api.AfterAll
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import java.net.URI
+import java.time.Duration
 import java.util.Base64
 
 /**
@@ -205,6 +210,92 @@ class CalDavClientTests {
 		}
 	}
 
+	// --- dropped connections
+
+	@Test
+	fun `reads and conditional writes are sent once more when the connection drops before an answer`() {
+		listOf(
+			Triple("GET", emptyMap<String, String>(), null),
+			Triple("PROPFIND", mapOf("Depth" to "1"), "<x/>"),
+			Triple("REPORT", mapOf("Depth" to "1"), "<x/>"),
+			Triple("PUT", mapOf("If-Match" to "\"e1\""), "BEGIN:VCALENDAR"),
+			Triple("PUT", mapOf("If-None-Match" to "*"), "BEGIN:VCALENDAR"),
+			Triple("DELETE", mapOf("if-match" to "\"e1\""), null),
+		).forEach { (method, headers, body) ->
+			wireMock.resetAll()
+			dropOnceThen(method, "/dav/x", Fault.EMPTY_RESPONSE, aResponse().withStatus(207).withBody("second"))
+
+			val response = local.send(method, local.resolve("/dav/x")!!, body, headers = headers, what = "Working")
+
+			response.status shouldBe 207
+			response.body shouldBe "second"
+			wireMock.findAll(davRequest(method, "/dav/x")) shouldHaveSize 2
+		}
+	}
+
+	@Test
+	fun `a connection reset before the answer is retried like a closed connection`() {
+		dropOnceThen("GET", "/dav/x.ics", Fault.CONNECTION_RESET_BY_PEER, aResponse().withStatus(200).withBody("ok"))
+
+		local.send("GET", local.resolve("/dav/x.ics")!!, what = "Reading").body shouldBe "ok"
+		wireMock.findAll(davRequest("GET", "/dav/x.ics")) shouldHaveSize 2
+	}
+
+	@Test
+	fun `a request is retried only once, then the failure is a provider failure`() {
+		wireMock.stubFor(request("GET", urlPathEqualTo("/dav/x.ics")).willReturn(aResponse().withFault(Fault.EMPTY_RESPONSE)))
+
+		shouldThrow<CalendarProviderException> {
+			local.send("GET", local.resolve("/dav/x.ics")!!, what = "Reading")
+		}.message shouldBe "Reading: the CalDAV server could not be reached"
+		wireMock.findAll(davRequest("GET", "/dav/x.ics")) shouldHaveSize 2
+	}
+
+	@Test
+	fun `writes without a precondition and other methods are not repeated`() {
+		listOf("PUT", "DELETE", "MKCALENDAR", "POST").forEach { method ->
+			wireMock.resetAll()
+			dropOnceThen(method, "/dav/x", Fault.EMPTY_RESPONSE, aResponse().withStatus(201))
+
+			shouldThrow<CalendarProviderException> {
+				local.send(method, local.resolve("/dav/x")!!, "body", headers = mapOf("Depth" to "0"), what = "Writing")
+			}.message shouldBe "Writing: the CalDAV server could not be reached"
+			wireMock.findAll(davRequest(method, "/dav/x")) shouldHaveSize 1
+		}
+	}
+
+	@Test
+	fun `a connection that fails after the answer started is not repeated`() {
+		dropOnceThen("GET", "/dav/x.ics", Fault.MALFORMED_RESPONSE_CHUNK, aResponse().withStatus(200).withBody("ok"))
+
+		shouldThrow<CalendarProviderException> {
+			local.send("GET", local.resolve("/dav/x.ics")!!, what = "Reading")
+		}.message shouldBe "Reading: the CalDAV server could not be reached"
+		wireMock.findAll(davRequest("GET", "/dav/x.ics")) shouldHaveSize 1
+	}
+
+	@Test
+	fun `a timeout is not repeated`() {
+		val impatient = CalDavClient(local.base, "alice", PASSWORD, CalDavClient.httpClient(), Duration.ofMillis(200))
+		dropOnceThen("GET", "/dav/x.ics", null, aResponse().withStatus(200).withFixedDelay(2_000))
+
+		shouldThrow<CalendarProviderException> {
+			impatient.send("GET", impatient.resolve("/dav/x.ics")!!, what = "Reading")
+		}.message shouldBe "Reading: the CalDAV server could not be reached"
+		wireMock.findAll(davRequest("GET", "/dav/x.ics")) shouldHaveSize 1
+	}
+
+	@Test
+	fun `only reading methods and writes with a precondition are repeatable`() {
+		listOf("GET", "head", "OPTIONS", "PROPFIND", "REPORT").forEach { CalDavClient.repeatable(it, emptyMap()) shouldBe true }
+		CalDavClient.repeatable("PUT", mapOf("IF-MATCH" to "\"e\"")) shouldBe true
+		CalDavClient.repeatable("delete", mapOf("If-None-Match" to "*")) shouldBe true
+		CalDavClient.repeatable("PUT", mapOf("Content-Type" to CalDavClient.ICS)) shouldBe false
+		CalDavClient.repeatable("DELETE", emptyMap()) shouldBe false
+		CalDavClient.repeatable("MKCALENDAR", mapOf("If-Match" to "\"e\"")) shouldBe false
+		CalDavClient.repeatable("POST", mapOf("If-Match" to "\"e\"")) shouldBe false
+	}
+
 	// --- MultiStatus
 
 	@Test
@@ -289,6 +380,24 @@ class CalDavClientTests {
 		val response = aResponse().withStatus(status).withBody(body)
 		headers.forEach { (name, value) -> response.withHeader(name, value) }
 		wireMock.stubFor(request(method, urlPathEqualTo(path)).willReturn(response))
+	}
+
+	/** The first [method] on [path] fails with [fault] (or answers late, without one), the next ones get [then]. */
+	private fun dropOnceThen(
+		method: String,
+		path: String,
+		fault: Fault?,
+		then: ResponseDefinitionBuilder,
+	) {
+		val first = if (fault != null) aResponse().withFault(fault) else then
+		wireMock.stubFor(
+			request(method, urlPathEqualTo(path))
+				.inScenario("drop")
+				.whenScenarioStateIs(Scenario.STARTED)
+				.willReturn(first)
+				.willSetStateTo("dropped"),
+		)
+		wireMock.stubFor(request(method, urlPathEqualTo(path)).inScenario("drop").whenScenarioStateIs("dropped").willReturn(then))
 	}
 
 	private fun davRequest(
