@@ -1,11 +1,11 @@
 ---
 title: Readable snapshots
-status: in_progress
+status: done
 owner: dell26/agent-1
 deps: [bookmarks-api,files-api]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/bookmarks/snapshot,server/src/test/kotlin/ch/sonensei/cockpit/bookmarks/snapshot]
 prio: 3
-lease_until: 2026-10-25T21:47:57Z
+lease_until: 
 ---
 ## Goal
 Save a readable copy (SPEC.md §8.4).
@@ -22,3 +22,4 @@ Save a readable copy (SPEC.md §8.4).
 - ASSUMPTION (2026-10-25 21:48+0100 by dell26/agent-1): Snapshots reuse the metadata fetch size limit (cockpit.bookmarks.fetch.max-size, 1MB): a longer page is cut off silently and the snapshot ends early (review CR-2); raising it or a separate snapshot limit needs a change in bookmarks/infra (outside touches).
 - ASSUMPTION (2026-10-25 22:12+0100 by dell26/agent-1): Extraction protects only the page's main element (main/[role=main], else the outermost article with the most text) and its wrappers from the unlikely-class/form removal (review CR-1/CR-4); a page without main whose largest article is a teaser in an unlikely block keeps that block in the first pass and scoring decides. Class names containing MAYBE words (e.g. related-posts: 'post') are not treated as unlikely, like Readability's maybe-candidate rule.
 - ASSUMPTION (2026-10-25 22:12+0100 by dell26/agent-1): BookmarkSnapshotService writes the bookmark itself and repeats BookmarkService.changed (tags init, re-index, UPDATED event) with a comment to keep them in sync (review CR-3); moving the write into bookmarks/domain is outside this task's touches.
+- done by dell26/agent-1: `sh scripts/check.sh` passed in 64s on b92b2618e; criteria verified 2/2
