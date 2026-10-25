@@ -5,7 +5,7 @@ owner: r1963macos/agent-2
 deps: [passkeys-server]
 touches: [deploy/docker-compose.yml,deploy/.env.example,deploy/README.md]
 prio: 2
-lease_until: 2026-10-25T22:38:36Z
+lease_until: 2026-10-25T22:43:37Z
 ---
 ## Goal
 The Android app's passkey origin (`android:apk-key-hash:...`) and optional RP overrides reach the server in the
