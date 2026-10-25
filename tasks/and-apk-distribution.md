@@ -16,3 +16,4 @@ Distribute the app without the Play Store (SPEC.md §11).
 - [ ] `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.core.download.*'` passes (Postgres via Testcontainers where persistence is involved)
 
 ## Notes
+- ASSUMPTION (2026-10-25 23:20+0100 by dell26/agent-1): Version info comes from AGP's output-metadata.json, shipped with cockpit.apk in the CI artifact and copied next to it in COCKPIT_DATA_DIR/android; GET /download/android sends X-Cockpit-App-Version and GET /download/android/version returns JSON. CI passes github.run_number as versionCode so sideloaded updates install. Small edits outside touches were needed: SecurityConfiguration (/download/** needs login), android/app/build.gradle.kts (signing), deploy/README.md, api/openapi.yaml + web generated client.
