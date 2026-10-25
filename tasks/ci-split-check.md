@@ -13,8 +13,9 @@ GitHub runners (server tests alone 14.5 min, run 39625365916) against `timeout-m
 will time out. Run the parts as parallel jobs so each has room and the whole result arrives sooner.
 
 ## Acceptance criteria
-- [ ] `.github/workflows/ci.yml` runs the check as separate jobs (tfp gate tests, server, web, android), each with
+- [x] `.github/workflows/ci.yml` runs the check as separate jobs (tfp gate tests, server, web, android), each with
   only the setup it needs and its own `timeout-minutes` with clear headroom over its measured duration
+  - verified (2026-10-25 22:57+0100 by dell26/agent-1): .github/workflows/ci.yml at 3d4763ba: jobs check-tfp (checkout only, 10 min), check-server (java+gradle, 35 min), check-web (node from .nvmrc, 35 min), check-android (java+android SDK 37/build-tools 36+gradle, 35 min), each 'sh scripts/check.sh <part>'; actionlint (docker rhysd/actionlint) -> 0 errors; code-reviewer confirmed per-job setup needs (reviews/ci-split-check/review.md). Headroom: server 2.4x measured 14.5 min (run 39625365916); web/android ~2x the 17.5 min upper bound (32 min serial - server), not measured per job
 - [ ] CI still runs exactly what agents run: the jobs call `scripts/check.sh` with a part selector (e.g.
   `sh scripts/check.sh server`); `sh scripts/check.sh` without arguments behaves as before (`.taskcheck`,
   `COCKPIT_NO_ANDROID=1` still work)
