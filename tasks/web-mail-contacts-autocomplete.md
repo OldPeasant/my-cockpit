@@ -11,7 +11,8 @@ lease_until: 2026-10-25T22:03:01Z
 Recipients from contacts.
 
 ## Acceptance criteria
-- [ ] Autocomplete uses the contacts endpoint
+- [x] Autocomplete uses the contacts endpoint
+  - verified (2026-10-25 22:48+0100 by dell26/agent-1): MailComposeService.suggestions calls generated autocompleteContacts; cd web && npx ng test --watch=false --include='src/app/features/mail/compose/**/*.spec.ts' (HttpTestingController expects GET /api/v1/contacts/autocomplete with q, limit; asserts no /api/v1/mail/correspondents call) -> 126 passed
 - [ ] Vitest component/service tests cover merged suggestions; `cd web && npm run check` passes
 
 ## Notes
