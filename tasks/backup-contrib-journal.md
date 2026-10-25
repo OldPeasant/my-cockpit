@@ -5,7 +5,7 @@ owner: dell26/agent-2
 deps: [backup-contrib-core,journal-api,habits-api]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/journal/backup,server/src/test/kotlin/ch/sonensei/cockpit/journal/backup]
 prio: 3
-lease_until: 2026-10-25T20:32:57Z
+lease_until: 2026-10-25T20:38:30Z
 ---
 ## Goal
 Journal and habits in backups.
