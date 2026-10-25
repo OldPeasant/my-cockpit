@@ -1,0 +1,22 @@
+{
+  "schema": 1,
+  "task": "backup-contrib-journal",
+  "reviewed_revision": "96d5fe1e5d1d6e971d253f8ed78a4dcfb5e90961",
+  "helpers": {
+    "test-writer": {"status": "completed", "report": "reviews/backup-contrib-journal/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/backup-contrib-journal/review.md"},
+    "fixer": {"status": "not_required", "reason": "no production bugs from test-writer; code-reviewer reported only two non-blocking P3 findings, both accepted"}
+  },
+  "fixes_required": false,
+  "findings": [
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P3", "disposition": "accepted",
+     "note": "raw U+2028/U+2029/U+FFFE char literals in quoted(); behaviour is correct and the YAML round-trip test in JournalBackupContributorTests would catch an accidental edit"},
+    {"id": "CR-2", "source": "code-reviewer", "severity": "P3", "disposition": "accepted",
+     "note": "helpers duplicated from NotesBackupContributor; extracting them to core/backupcontrib touches other modules outside this task's touches"}
+  ],
+  "validation": [
+    {"command": "cd server && ./gradlew test --tests '*JournalBackupContributorTests'", "result": "pass"},
+    {"command": "cd server && ./gradlew test --rerun --tests '*BackupRoundTripTest'", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
