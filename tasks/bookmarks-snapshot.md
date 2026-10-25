@@ -11,7 +11,8 @@ lease_until: 2026-10-25T21:37:51Z
 Save a readable copy (SPEC.md §8.4).
 
 ## Acceptance criteria
-- [ ] 'Save snapshot' extracts the main content (Readability-style heuristics with jsoup), stores sanitized HTML as a file
+- [x] 'Save snapshot' extracts the main content (Readability-style heuristics with jsoup), stores sanitized HTML as a file
+  - verified (2026-10-25 22:22+0100 by dell26/agent-1): POST /api/v1/bookmarks/{id}/snapshot via BookmarkSnapshotWebTests + BookmarkSnapshotEdgeCaseWebTests (MockMvc, Postgres Testcontainers, stubbed page) and ReadableExtractorTests/EdgeCaseTests (jsoup heuristics, sanitization) -> 62 tests pass; snapshot stored as sanitized text/html file in Attachments
 - [ ] `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.bookmarks.snapshot.*'` passes (Postgres via Testcontainers where persistence is involved)
 
 ## Notes
