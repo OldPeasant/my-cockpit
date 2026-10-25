@@ -56,7 +56,8 @@ export function parseRecipients(text: string): Recipient[] {
 /**
  * A recipient field (To, Cc or Bcc): the recipients as chips, an input that turns typed addresses
  * into chips (Enter, comma, semicolon, leaving the field, pasting a list) and suggestions while
- * typing: contacts (marked with a person icon) first, then recent correspondents. Invalid addresses stay as chips marked invalid, so they can be fixed.
+ * typing: contacts (marked with a person icon) first, then recent correspondents. Invalid
+ * addresses stay as chips marked invalid, so they can be fixed.
  */
 @Component({
   selector: 'app-recipient-input',
