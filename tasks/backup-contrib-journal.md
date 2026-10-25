@@ -1,11 +1,11 @@
 ---
 title: Backup contributor: journal and habits
-status: todo
-owner: 
+status: in_progress
+owner: dell26/agent-2
 deps: [backup-contrib-core,journal-api,habits-api]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/journal/backup,server/src/test/kotlin/ch/sonensei/cockpit/journal/backup]
 prio: 3
-lease_until: 
+lease_until: 2026-10-25T20:55:19Z
 releases: 0
 extended: 
 ---
