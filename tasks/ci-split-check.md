@@ -25,3 +25,4 @@ will time out. Run the parts as parallel jobs so each has room and the whole res
 - The integration-test job fails for an unrelated reason (flaky Radicale tests, task cal-caldav-retry); a red
   integration job does not block this task's third criterion as long as the check jobs are green.
 - server/gradle.properties raises the Gradle/Kotlin heap (clean test compile ran out of memory, 2026-10-21).
+- ASSUMPTION (2026-10-25 22:52+0100 by dell26/agent-1): CI job timeouts set to ~2x measured: server 35 min (14.5 min measured in run 39625365916), android 30, web 20, tfp 10; web/android durations were not measured separately (gh run view not available here), estimated from the 32 min serial total
