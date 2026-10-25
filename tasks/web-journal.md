@@ -13,7 +13,8 @@ extended:
 Write and browse the journal (SPEC.md §8.5).
 
 ## Acceptance criteria
-- [ ] 'Today' opens/creates today's entry (CodeMirror + image paste), calendar heatmap, on-this-day
+- [x] 'Today' opens/creates today's entry (CodeMirror + image paste), calendar heatmap, on-this-day
+  - verified (2026-10-25 23:27+0100 by dell26/agent-2): cd web && npm run e2e -- journal/journal.spec.ts (Playwright chromium against deploy/docker-compose.e2e.yml via podman-compose, real setup/login) -> 31 passed incl. e2e/journal/journal.spec.ts 'write today, paste an image, see the heatmap and on this day'
 - [ ] Vitest component/service tests cover today entry creation, heatmap; `cd web && npm run check` passes
 
 ## Notes
