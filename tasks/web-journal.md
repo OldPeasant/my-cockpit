@@ -5,7 +5,7 @@ owner: dell26/agent-2
 deps: [p0-web-shell,journal-api,p0-e2e-harness]
 touches: [web/src/app/features/journal]
 prio: 3
-lease_until: 2026-10-25T22:31:03Z
+lease_until: 2026-10-25T22:36:35Z
 ---
 ## Goal
 Write and browse the journal (SPEC.md §8.5).
