@@ -74,11 +74,19 @@ class MailHeaderSyncServiceTests {
 		var changedSince: List<RemoteFlagState> = emptyList()
 		var received: Map<Long, Instant> = emptyMap()
 		var messageIdMatches: List<Long> = emptyList()
+
+		/**
+		 * When set, [uidsSince] answers like an IMAP server (`SEARCH SINCE` compares the INTERNALDATE by day, here
+		 * in UTC): only UIDs in [received] arrived on or after the day of `since`. Otherwise it answers all [uids].
+		 */
+		var datedSearch = false
 		val calls = mutableListOf<String>()
 
 		override fun uidsSince(since: Instant): List<Long> {
 			calls += "uidsSince $since"
-			return uids
+			if (!datedSearch) return uids
+			val day = since.atOffset(ZoneOffset.UTC).toLocalDate()
+			return uids.filter { uid -> received[uid]?.let { !it.atOffset(ZoneOffset.UTC).toLocalDate().isBefore(day) } ?: false }
 		}
 
 		override fun uidsFrom(fromUid: Long): List<Long> {
@@ -150,6 +158,8 @@ class MailHeaderSyncServiceTests {
 		every { store.reconcile(any(), any(), any()) } answers {
 			StoreCounts(updated = secondArg<List<RemoteFlagState>>().size, removed = thirdArg<Set<Long>>().size)
 		}
+		// Explicit, so a relaxed mock never answers with a mocked Instant: no cached message has an arrival time.
+		every { store.oldestReceivedAt(any()) } returns null
 	}
 
 	private fun cachedState(
@@ -407,8 +417,117 @@ class MailHeaderSyncServiceTests {
 		service.loadOlder(folder.id, limit = 4) shouldBe OlderMessagesResult(loaded = 4, hasMore = true)
 
 		upserted() shouldContainExactly listOf(4, 5, 6, 7)
+		// The fake's SINCE search answers every UID here, so all missing UIDs are candidates (narrowing: tests below).
 		remote.calls shouldContainExactly
-			listOf("uidsFrom 1", "receivedDates ${(1L..19L).filter { it != 10L && it != 15L }}", "headers [4, 5, 6, 7]")
+			listOf(
+				"uidsFrom 1",
+				"uidsSince 2026-10-13T10:00:00Z",
+				"receivedDates ${(1L..19L).filter { it != 10L && it != 15L }}",
+				"headers [4, 5, 6, 7]",
+			)
+	}
+
+	@Test
+	fun `loadOlder reads the dates only of missing messages that arrived from a week before the oldest cached one`() {
+		cachedState(uidNext = 51)
+		val oldestCached = Instant.parse("2026-03-01T12:00:00Z")
+		every { store.locatedUids(folder.id) } returns listOf(50)
+		every { store.oldestReceivedAt(folder.id) } returns oldestCached
+		remote.status = remote.status.copy(uidNext = 51)
+		remote.datedSearch = true
+		remote.uids = (1L..30L).toList() + 50L
+		// UID u arrived 31 - u days before the oldest cached message: 24 exactly a week before, 23 a day earlier.
+		remote.received = (1L..30L).associateWith { oldestCached.minus(Duration.ofDays(31 - it)) } + (50L to oldestCached)
+
+		service.loadOlder(folder.id, limit = 3) shouldBe OlderMessagesResult(loaded = 3, hasMore = true)
+
+		upserted() shouldContainExactly listOf(28, 29, 30)
+		remote.calls shouldContainExactly
+			listOf(
+				"uidsFrom 1",
+				"uidsSince 2026-02-22T12:00:00Z",
+				"receivedDates [24, 25, 26, 27, 28, 29, 30]",
+				"headers [28, 29, 30]",
+			)
+	}
+
+	@Test
+	fun `loadOlder doubles the window until it holds at least the limit of missing messages`() {
+		cachedState(uidNext = 100)
+		val oldestCached = Instant.parse("2026-06-01T08:00:00Z")
+		every { store.locatedUids(folder.id) } returns listOf(99)
+		every { store.oldestReceivedAt(folder.id) } returns oldestCached
+		remote.status = remote.status.copy(uidNext = 100)
+		remote.datedSearch = true
+		remote.uids = (1L..10L).toList() + 99L
+		// UID u arrived 10 * u days before the oldest cached message.
+		remote.received = (1L..10L).associateWith { oldestCached.minus(Duration.ofDays(10 * it)) } + (99L to oldestCached)
+
+		service.loadOlder(folder.id, limit = 3) shouldBe OlderMessagesResult(loaded = 3, hasMore = true)
+
+		upserted() shouldContainExactly listOf(1, 2, 3)
+		// 7 days: none, 14: {1}, 28: {1, 2}, 56: {1..5} >= 3.
+		remote.calls.filter { it.startsWith("uidsSince") } shouldContainExactly
+			listOf(7L, 14L, 28L, 56L).map { "uidsSince ${oldestCached.minus(Duration.ofDays(it))}" }
+		remote.calls.single { it.startsWith("receivedDates") } shouldBe "receivedDates [1, 2, 3, 4, 5]"
+	}
+
+	@Test
+	fun `loadOlder takes every missing message as candidate once the window reaches the epoch`() {
+		cachedState(uidNext = 4)
+		every { store.locatedUids(folder.id) } returns emptyList()
+		remote.status = remote.status.copy(uidNext = 4)
+		remote.datedSearch = true
+		remote.uids = listOf(1, 2, 3)
+		// Only one message arrived after 1970: no window before the epoch holds the limit of two.
+		remote.received =
+			mapOf(1L to now.minus(Duration.ofDays(1)), 2L to Instant.parse("1969-07-20T20:17:00Z"), 3L to Instant.parse("1968-01-01T00:00:00Z"))
+
+		service.loadOlder(folder.id, limit = 2) shouldBe OlderMessagesResult(loaded = 2, hasMore = true)
+
+		upserted() shouldContainExactly listOf(1, 2)
+		val spans = generateSequence(Duration.ofDays(7)) { it.multipliedBy(2) }.takeWhile { now.minus(it).isAfter(Instant.EPOCH) }.toList()
+		spans.size shouldBe 12
+		remote.calls.filter { it.startsWith("uidsSince") } shouldContainExactly spans.map { "uidsSince ${now.minus(it)}" }
+		remote.calls.single { it.startsWith("receivedDates") } shouldBe "receivedDates [1, 2, 3]"
+	}
+
+	@Test
+	fun `loadOlder without a cached arrival time starts the window a week before now`() {
+		cachedState(uidNext = 7)
+		every { store.locatedUids(folder.id) } returns emptyList()
+		remote.status = remote.status.copy(uidNext = 7)
+		remote.datedSearch = true
+		remote.uids = (1L..6L).toList()
+		// 1..5 arrived within the last week, 6 a month ago: its date is never read.
+		remote.received = (1L..5L).associateWith { now.minus(Duration.ofDays(it)) } + (6L to now.minus(Duration.ofDays(30)))
+
+		service.loadOlder(folder.id, limit = 2) shouldBe OlderMessagesResult(loaded = 2, hasMore = true)
+
+		upserted() shouldContainExactly listOf(1, 2)
+		remote.calls shouldContainExactly
+			listOf("uidsFrom 1", "uidsSince 2026-10-13T10:00:00Z", "receivedDates [1, 2, 3, 4, 5]", "headers [1, 2]")
+	}
+
+	@Test
+	fun `loadOlder still picks missing messages that arrived after the oldest cached one first`() {
+		cachedState(uidNext = 31)
+		val oldestCached = Instant.parse("2026-01-10T09:00:00Z")
+		every { store.locatedUids(folder.id) } returns listOf(20, 30)
+		every { store.oldestReceivedAt(folder.id) } returns oldestCached
+		remote.status = remote.status.copy(uidNext = 31)
+		remote.datedSearch = true
+		remote.uids = (10L..14L).toList() + listOf(20L, 25L, 30L)
+		// 25 is a gap between the cached messages; 10..14 arrived 1..5 days before the oldest cached one.
+		remote.received =
+			(10L..14L).associateWith { oldestCached.minus(Duration.ofDays(it - 9)) } +
+			mapOf(20L to oldestCached, 25L to Instant.parse("2026-06-01T09:00:00Z"), 30L to Instant.parse("2026-10-01T09:00:00Z"))
+
+		service.loadOlder(folder.id, limit = 2) shouldBe OlderMessagesResult(loaded = 2, hasMore = true)
+
+		upserted() shouldContainExactly listOf(10, 25)
+		remote.calls shouldContainExactly
+			listOf("uidsFrom 1", "uidsSince 2026-01-03T09:00:00Z", "receivedDates [10, 11, 12, 13, 14, 25]", "headers [10, 25]")
 	}
 
 	@Test

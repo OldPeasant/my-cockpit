@@ -18,6 +18,7 @@ import ch.sonensei.cockpit.support.PostgresTestBase
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldContainExactly
+import io.kotest.matchers.collections.shouldContainExactlyInAnyOrder
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
@@ -250,6 +251,61 @@ class MailHeaderStoreTests(
 		detached.folderId shouldBe inbox.id
 		detached.messageIdHeader shouldBe "<b@example.test>"
 		store.locatedUids(inbox.id) shouldContainExactly listOf(3L)
+	}
+
+	@Test
+	fun `a message that is only the target of a link counts as linked and is detached, not deleted`() {
+		store.upsert(account.id, inbox.id, listOf(remote(1, "<a@example.test>"), remote(2, "<b@example.test>")))
+		val target = row(inbox, 1)
+		links.create(ItemRef(ItemType.EMAIL, row(inbox, 2).id), ItemRef(ItemType.EMAIL, target.id), null)
+
+		store.reconcile(inbox.id, emptyList(), setOf(1L)) shouldBe StoreCounts(removed = 1)
+
+		messages.findById(target.id).orElseThrow().isLocated shouldBe false
+		store.detachFolder(inbox.id)
+		store.pruneDetached(inbox.id) shouldBe 0
+		store.linkedDetachedMessageIds(inbox.id) shouldContainExactlyInAnyOrder listOf("<a@example.test>", "<b@example.test>")
+	}
+
+	@Test
+	fun `a message linked under another item type with the same id is not linked`() {
+		store.upsert(account.id, inbox.id, listOf(remote(1, "<a@example.test>")))
+		val message = row(inbox, 1)
+		// A link row of a note that happens to share the message's id: only EMAIL ends count.
+		jdbc.update(
+			"""insert into link (id, created_at, updated_at, version, source_type, source_id, target_type, target_id, origin)
+			values (?, now(), now(), 0, 'NOTE', ?, 'TASK', ?, 'MANUAL')""",
+			UuidV7.generate(),
+			message.id,
+			UuidV7.generate(),
+		)
+
+		store.reconcile(inbox.id, emptyList(), setOf(1L)) shouldBe StoreCounts(removed = 1)
+
+		messages.findById(message.id).isPresent shouldBe false
+	}
+
+	@Test
+	fun `oldestReceivedAt is the earliest arrival of the located messages of that folder only`() {
+		val early = Instant.parse("2026-01-05T07:00:00Z")
+		store.oldestReceivedAt(inbox.id).shouldBeNull()
+		store.upsert(
+			account.id,
+			inbox.id,
+			listOf(
+				remote(1, "<a@example.test>").copy(receivedAt = Instant.parse("2026-03-01T10:00:00Z")),
+				remote(2, "<b@example.test>").copy(receivedAt = early),
+				remote(3, "<c@example.test>").copy(receivedAt = Instant.parse("2025-12-24T18:00:00Z")),
+				remote(4, "<d@example.test>").copy(receivedAt = null),
+			),
+		)
+		store.upsert(account.id, archive.id, listOf(remote(1, "<z@example.test>").copy(receivedAt = Instant.parse("2020-01-01T00:00:00Z"))))
+		store.oldestReceivedAt(inbox.id) shouldBe Instant.parse("2025-12-24T18:00:00Z")
+		// A detached (linked) row no longer counts: it is not in the folder on the server.
+		link(row(inbox, 3))
+		store.reconcile(inbox.id, emptyList(), setOf(3L))
+
+		store.oldestReceivedAt(inbox.id) shouldBe early
 	}
 
 	@Test

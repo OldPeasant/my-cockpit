@@ -13,6 +13,8 @@ import ch.sonensei.cockpit.core.web.InvalidRequestException
 import ch.sonensei.cockpit.core.web.NotFoundException
 import ch.sonensei.cockpit.support.PostgresTestBase
 import io.kotest.assertions.throwables.shouldThrow
+import io.kotest.matchers.booleans.shouldBeFalse
+import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldContainExactlyInAnyOrder
 import io.kotest.matchers.collections.shouldHaveSize
@@ -85,6 +87,34 @@ class LinkServiceTests(
 		service.linksOf(task).map { it.link.id } shouldBe listOf(outgoing.link.id, incoming.link.id)
 		service.linksOf(note).map { it.link.id } shouldHaveSize 2
 		service.linksOf(ItemRef(ItemType.TASK, UuidV7.generate())).shouldBeEmpty()
+	}
+
+	@Test
+	fun `hasLinks is true for the source and the target of a link and false for unlinked items`() {
+		service.hasLinks(task).shouldBeFalse()
+
+		service.create(task, note, null)
+
+		service.hasLinks(task).shouldBeTrue()
+		service.hasLinks(note).shouldBeTrue()
+		service.hasLinks(otherTask).shouldBeFalse()
+		service.hasLinks(ItemRef(ItemType.TASK, UuidV7.generate())).shouldBeFalse()
+		// The type is part of the reference: the same id under another type has no links.
+		service.hasLinks(ItemRef(ItemType.NOTE, task.id)).shouldBeFalse()
+		service.hasLinks(ItemRef(ItemType.TASK, note.id)).shouldBeFalse()
+	}
+
+	@Test
+	fun `hasLinks counts sync links and is false again once the links are gone`() {
+		service.sync(note, listOf(otherTask))
+
+		service.hasLinks(note).shouldBeTrue()
+		service.hasLinks(otherTask).shouldBeTrue()
+
+		service.sync(note, emptyList())
+
+		service.hasLinks(note).shouldBeFalse()
+		service.hasLinks(otherTask).shouldBeFalse()
 	}
 
 	@Test
