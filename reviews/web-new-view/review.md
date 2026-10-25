@@ -4,24 +4,32 @@ Date: 2026-10-25
 
 Task: web-new-view - Combined New view (GTD inbox + mail inbox)
 
-Scope: `git diff 614a5151..HEAD -- web` (task commits 98d81e0d, 5784aa66), committed changes only
+Scope: round 2, a re-review of the final code after the fixes. `git diff 614a5151..HEAD -- web` covers task commits d941e026, 634c1bb7 and c149a323; 2d30464f only adds review reports. Focus: web/src/app/features/new, app.routes.ts, shell/nav-sections.ts, app.spec.ts, search/search-palette.provider.spec.ts, e2e/new. Committed changes only.
 
 Requirements:
-- tasks/web-new-view.md acceptance criteria 1-4 and recorded assumptions (nav placement, hold-back of older tasks, keys 1/2/3 + `?source=`, j/k/o/t)
+- tasks/web-new-view.md acceptance criteria 1-4 and the recorded assumptions: nav placement, hold-back of older tasks, keys 1/2/3 with `?source=`, and j/k/o/t
 - SPEC.md §5.3 "New view", §9.1
 - docs/ARCHITECTURE.md, AGENTS.md "Project notes"
-- Existing conventions: features/mail/list (MailListStore, mail-shortcuts, mail-list-page), features/gtd/data (ListStore, TaskStore), e2e/mail-list, e2e/capture, e2e/mail-read
-- Server behaviour checked: MailGtdService.toTask (creates INBOX task + link, does not move or change the mail), MailReadService.list / MailMessageListQuery (sort by `coalesce(received_at, created_at)`)
+- Round-1 report (CR-1..CR-3) and reviews/web-new-view/fixes.md
+- Existing conventions: MailListStore (load/reload/loadMore semantics), MailListPage.focusCursor, gtd ListStore (`loaded`/`error` semantics)
 
 Git range:
 - Branch: main
-- HEAD: 5784aa66e63e1d99422e5be40a508421b33fb3ec
+- HEAD: c149a32326d594e3fd5d924fe0c711a5906f5a9a
 - Base/start: 614a515158d13f77a258d0eb380156a4f2a2bc39
-- Commits reviewed: 2
+- Commits reviewed: 4 (d941e026, 634c1bb7, 2d30464f, c149a323)
 
-Summary: 0 P0, 0 P1, 1 P2, 2 P3
+Summary: 0 P0, 0 P1, 0 P2, 0 P3
 
-Verified without findings: route `/new` (lazy, app.routes.ts) and nav entry directly after Dashboard, before Inbox (nav-sections.ts); merge order by task `createdAt` / mail `receivedAt` with the hold-back rule keeping paging append-only (new-feed.ts, unit-tested); source icon + label per row; infinite scroll via IntersectionObserver plus "Load older messages" fallback; filter via buttons, keys 1/2/3 and `?source=` (replaceUrl, survives reload); open row -> `/tasks/:id` or `/mail/messages/:id`; "→ Inbox task" uses the existing `mailToTask` endpoint through MailReadService, guarded against double submit, error reported and button re-enabled; live updates come from the existing stores (TASK events / resync refetch or drop; MAIL_FOLDER / MAIL_ACCOUNT / resync refetch); only existing APIs are used, no server or `api/openapi.yaml` changes; the search-palette spec adjustment is needed because "new" now also matches the "New" nav section. The e2e spec follows the patterns of e2e/mail-read and e2e/capture (GreenMail via `Imap`, `/api/test/mail/sync`, `q` capture dialog, `list=INBOX&limit=200`) and runs in the `chromium` project like capture.spec. It was only reviewed statically, not run (no Docker).
+The round-1 code was rebased. Commits 98d81e0d/5784aa66 became d941e026/634c1bb7. `git diff 5784aa66 634c1bb7` over the files in scope is empty, so the round-1 review of those files still applies. In this range, only this task changes files under web/. Fix commit c149a323 changes only web/src/app/features/new (plus fixes.md).
+
+## Status of round-1 findings
+
+- **CR-1 (P2): Resolved.** At `new-page.ts:73-77`, a shown source counts as loading only while it has neither data nor an error. I checked this against the store semantics. `ListStore.refresh` sets `error` and leaves `loaded` false on failure. `MailListStore.load` sets `loadError` and leaves `items` null and `nextCursor` null. After a mail failure, `moreMail` is therefore false and no task is held back, so all tasks show under "All". After a task failure, the mails show. `new-page.html:98` now shows the empty state only when no load error is displayed. During "Try again" the outcome depends on the source. For mail, `reload()` clears `loadError` and shows "Loading…" again. For tasks, the error banner stays until the refresh succeeds. Both paths end in a recoverable state. The tests cover both failures under "All", including the absence of "Loading…" (`stops showing "Loading…" when the %s load failed`), the rows of the other source, no empty state next to the error, and retry recovery for both sources.
+- **CR-2 (P3): Resolved.** At `new-page.ts:170`, only `j`/`k` repeat. The button guard at `new-page.ts:187` now applies only to `Enter`, so `o` opens the cursor row from a focused filter button. `focusCursor()` at `new-page.ts:217-223` moves focus to the cursor row's `.open` button with `preventScroll`, the same as `MailListPage.focusCursor`. When the focused `.open` button receives Enter, the native click calls `cursorKey.set(row.key); open(row)`, so the row is still opened only once. New tests cover repeat behaviour, focus following the cursor, and `o` on a focused filter button.
+- **CR-3 (P3): Resolved.** At `new-feed.ts:67-69`, `mailAt()` uses `receivedAt`, else `sentAt`, else `''`. That value drives sorting, the row's `at` and the hold-back cutoff. Mails without any date are left out of `oldest()` (`new-feed.ts:75-78`), so they can no longer switch off the hold-back. A dateless `at` of `''` renders safely: DatePipe returns null for `''`. Three new unit cases are in new-feed.spec.ts. The server falls back to `created_at`, but the client falls back to `sentAt`. That is a reasonable approximation because `created_at` is not exposed in the summary DTO. The fix report documents this.
+
+No regressions or new issues found in the final code. Acceptance criteria 1-3 are implemented as described in round 1. The fixes do not change the route, the nav entry, the filter/URL handling, the "→ Inbox task" flow or the SSE behaviour, which comes from the stores. No new server endpoint is used. I did not re-run the test suites. The fix report records `npm run check` passing (3524 tests). Criterion 4 (Playwright `e2e/new/new.spec.ts` against the e2e stack) could not run on this machine (no Docker). It must be recorded with `tasks.py verify --skip` and a reason, not claimed from this static review or the Vitest suite.
 
 ## P0 Critical
 
@@ -33,31 +41,12 @@ None.
 
 ## P2 Medium
 
-- [ ] **CR-1 | A load failure of one source keeps "Loading…" on screen and hides the other, successfully loaded source under "All"**
-    - File: `web/src/app/features/new/new-page.ts:72`
-    - Category: Correctness
-    - Problem: `loading` is `(filter !== 'mail' && !tasks.loaded()) || (filter !== 'inbox' && mail.items() === null)`. When the mail list request fails, `MailListStore.load` leaves `items` at `null` (only `loadError` is set). When the task request fails, `ListStore.loaded` stays `false`. Under the default "All" filter, `loading()` therefore stays `true` permanently after either failure. The template (`new-page.html:32`) then shows "Loading…" (role=status) next to the error alert, and it never renders the rows of the source that did load. For example, a failing mail backend hides the whole GTD Inbox in the New view until the user switches to "GTD Inbox". No spec covers the failure or retry paths (`new-page.spec.ts` has `taskFailure` / `mailFailure` variables but never sets them).
-    - Why it matters: Under "All", one source failing hides the other source that loaded fine, and the screen says it is still loading at the same moment it shows the error. Review checklist: every path, including failure, must end loading.
-    - Suggested fix: Count a source as loading only while it has neither data nor an error (for example, mail: `items() === null && !loadError()`, tasks: `!loaded() && !error()`). Render the rows of whichever source is available. Add component tests for a task load failure and a mail load failure under "All" (error shown, other source's rows shown, no "Loading…"), and for "Try again" recovering.
+None.
 
 ## P3 Low
 
-- [ ] **CR-2 | Keyboard handling differs from the mail list it claims to reuse: `o` ignored on any focused button, `j`/`k` do not auto-repeat, no roving focus**
-    - File: `web/src/app/features/new/new-page.ts:166`, `web/src/app/features/new/new-page.ts:184`
-    - Category: Quality
-    - Problem: `onKeydown` returns early on `event.repeat` for every key (line 166), so holding `j`/`k` does not move the cursor repeatedly. `mailShortcutFor` explicitly allows repeat for next/previous. Line 184 drops `o` (not just `Enter`) whenever the target is any `HTMLButtonElement`. So after clicking a filter button or "→ Inbox task", focus stays on that button and `o` does nothing, while `j`/`k` still move the cursor. Unlike `MailListPage.focusCursor`, the cursor never moves focus to the row's `.open` button, so assistive technology does not announce the cursor row. The recorded assumption says the row keys "reuse the mail list's".
-    - Why it matters: These are small inconsistencies in a keyboard-first view (SPEC.md §9.1), and opening with `o` after using a filter button silently fails.
-    - Suggested fix: Allow `event.repeat` for `j`/`k` only. Restrict the button guard to `Enter`. Move focus to the cursor row's `.open` button after `j`/`k`, as the mail list does.
-
-- [ ] **CR-3 | Mails without `receivedAt` sort to the bottom and turn off the hold-back, unlike the server's order**
-    - File: `web/src/app/features/new/new-feed.ts:56`, `web/src/app/features/new/new-feed.ts:67`
-    - Category: Correctness
-    - Problem: The server marks `receivedAt` as nullable (`MailMessageController.kt:358`, `nullable = true`; IMAP sync sets it from an optional INTERNALDATE) and sorts the list by `coalesce(received_at, created_at)`. The generated client type declares it as `string`. `time()` maps an unparseable or null value to `0`. Such a mail goes to the very end of the merged list, and `oldest()` becomes `0`, so no task is held back while more mail pages are pending. Each following page is then inserted above existing rows, which breaks the AC1 "without breaking the order" guarantee for that mailbox.
-    - Why it matters: This is a rare edge case (INTERNALDATE is normally present), but in that case the merge order and the append-only paging are wrong.
-    - Suggested fix: Fall back to `sentAt` (or keep the mail's position from the server page) when `receivedAt` is missing, and leave such mails out of the `oldest()` threshold. Add a unit case to new-feed.spec.ts.
+None.
 
 ## Review conclusion
 
-Material issues found; fix before completing the task.
-
-CR-1 should be fixed (with tests) before `done`. CR-2 and CR-3 are minor. No acceptance-criterion evidence has been recorded yet (`tasks.py verify web-new-view` shows all four unticked). Criterion 4 (Playwright against the e2e stack) has not been executed on this machine. It must be recorded with `--skip` and a reason, not claimed from the static review or from the Vitest suite.
+No material issues found.

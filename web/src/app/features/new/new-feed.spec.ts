@@ -132,6 +132,19 @@ describe('mergeNew', () => {
         'mail:u',
       ]);
     });
+
+    it('falls back to the Date header when the arrival is not a date', () => {
+      const garbled = summary('g', { receivedAt: 'not a date', sentAt: '2026-10-20T11:30:00Z' });
+      const rows = mergeNew(tasks, [garbled, ...firstPage], false);
+      expect(keys(rows).slice(0, 3)).toEqual(['task:t1', 'mail:g', 'mail:m1']);
+      expect(rows[1].at).toBe('2026-10-20T11:30:00Z');
+    });
+
+    it('holds no task back when only dateless mails are loaded', () => {
+      const rows = mergeNew(tasks, [undated('u', '')], true);
+      expect(keys(rows)).toEqual(['task:t1', 'task:t2', 'task:t3', 'mail:u']);
+      expect(rows[3].at).toBe('');
+    });
   });
 
   it('orders equal times by source and id', () => {

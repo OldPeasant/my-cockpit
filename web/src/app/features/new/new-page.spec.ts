@@ -45,6 +45,8 @@ describe('NewPage', () => {
   /** When set, the task list / mail list requests fail with it. */
   let taskFailure: unknown;
   let mailFailure: unknown;
+  /** When set, the mail list requests wait for it. */
+  let mailGate: Promise<void> | null;
   let events: FakeEvents;
   let infos: string[];
   let errors: string[];
@@ -71,6 +73,7 @@ describe('NewPage', () => {
     };
     taskFailure = null;
     mailFailure = null;
+    mailGate = null;
     events = new FakeEvents();
     infos = [];
     errors = [];
@@ -83,6 +86,7 @@ describe('NewPage', () => {
         if (fn === listMailMessages) {
           const query = params as ListMailMessages$Params;
           mailCalls.push(query);
+          if (mailGate) await mailGate;
           if (mailFailure) throw mailFailure;
           return pages.get(query.cursor ?? '')!;
         }
@@ -432,6 +436,18 @@ describe('NewPage', () => {
       expect(document.activeElement).toBe(row('mail:m1')!.querySelector('button.open'));
     });
 
+    it('acts on the cursor row with `t` and `o` while focus is on that row', async () => {
+      await open();
+      await press('j');
+      await press('j');
+      const focused = document.activeElement!;
+      expect(focused).toBe(row('mail:m1')!.querySelector('button.open'));
+      await press('t', focused);
+      expect(toTaskCalls).toEqual(['m1']);
+      await press('o', document.activeElement!);
+      expect(TestBed.inject(Router).url).toBe('/mail/messages/m1');
+    });
+
     it('opens the cursor row on `o` while a filter button has the focus', async () => {
       await open();
       await press('j');
@@ -572,6 +588,21 @@ describe('NewPage', () => {
       await open();
       expect(element.querySelector('.load-error[role="alert"]')).not.toBeNull();
       expect(element.querySelector('p.empty')).toBeNull();
+    });
+
+    it('keeps showing "Loading…" while the other source is still loading', async () => {
+      taskFailure = new ApiError(500, 'Server error', 'Down.');
+      let release!: () => void;
+      mailGate = new Promise((resolve) => (release = resolve));
+      await open();
+      expect(element.querySelector('.load-error[role="alert"]')).not.toBeNull();
+      expect(element.querySelector('p.note[role="status"]')).not.toBeNull();
+      expect(rowKeys()).toEqual([]);
+
+      release();
+      await refresh();
+      expect(element.querySelector('p.note[role="status"]')).toBeNull();
+      expect(rowKeys()).toEqual(['mail:m1', 'mail:m2']);
     });
   });
 
