@@ -17,3 +17,4 @@ Write and browse the journal (SPEC.md §8.5).
 ## Notes
 - ASSUMPTION (2026-10-25 22:09+0100 by dell26/agent-2): Opening Today (or any day without an entry) does not create an empty entry: the first edit (text, mood or tag) creates it via PUT without If-Match. Avoids filling the heatmap with empty days.
 - ASSUMPTION (2026-10-25 22:09+0100 by dell26/agent-2): Today = the server's today in the user's time zone (heatmap 'to' default), not the browser clock; future dates in /journal/:date redirect to /journal. Routes: /journal (today) and /journal/:date (the deep link the search resolver already uses).
+- ASSUMPTION (2026-10-25 22:46+0100 by dell26/agent-2): Review findings CR-5 (Today does not roll over at midnight in a tab left open) and CR-6 (edits in conflict state are dropped without a prompt when switching day) are P3 and left as follow-ups, not fixed in this task.
