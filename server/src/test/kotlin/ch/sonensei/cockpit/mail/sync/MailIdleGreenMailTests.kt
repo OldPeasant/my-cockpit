@@ -130,6 +130,12 @@ class MailIdleGreenMailTests(
 		return messages.findByFolderIdAndUidIsNotNull(inbox.id).firstOrNull { it.subject == subject }
 	}
 
+	/**
+	 * The `EMAIL` change events for [message]. A sync announces what arrived only after it stored the messages, so
+	 * a message can be in the cache a moment before its event is published.
+	 */
+	private fun emailChanges(message: MailMessage) = recorder.changes.filter { it.type == ItemType.EMAIL.name && it.id == message.id }
+
 	@Test
 	fun `a delivered message appears within seconds without polling, with a change event and a notification`() {
 		val started = System.nanoTime()
@@ -140,8 +146,8 @@ class MailIdleGreenMailTests(
 		val message = inboxMessage("Budget review").shouldNotBeNull()
 
 		(elapsed < ARRIVAL_LIMIT) shouldBe true
-		recorder.changes shouldContain
-			ChangeEvent(ItemType.EMAIL, message.id, ChangeOp.CREATED, recorder.changes.first { it.id == message.id }.at)
+		eventually("the change event") { emailChanges(message).isNotEmpty() }
+		recorder.changes shouldContain ChangeEvent(ItemType.EMAIL, message.id, ChangeOp.CREATED, emailChanges(message).first().at)
 		eventually("the new-mail notification") { recorder.notifications.isNotEmpty() }
 		val notification = recorder.notifications.single()
 		notification.name shouldBe NewMailAnnouncer.EVENT_NAME
@@ -174,8 +180,9 @@ class MailIdleGreenMailTests(
 
 		eventually("the quiet message") { inboxMessage("Quiet") != null }
 		val message = inboxMessage("Quiet").shouldNotBeNull()
-		recorder.changes.filter { it.type == ItemType.EMAIL.name && it.id == message.id } shouldHaveSize 1
+		eventually("the change event") { emailChanges(message).isNotEmpty() }
 		Thread.sleep(300)
+		emailChanges(message) shouldHaveSize 1
 		recorder.notifications.shouldBeEmpty()
 	}
 
