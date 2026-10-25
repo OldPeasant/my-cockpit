@@ -26,7 +26,7 @@ class MailMessageControllerTests {
 	private val mockMvc =
 		MockMvcBuilders
 			.standaloneSetup(
-				MailMessageController(reads, mockk()),
+				MailMessageController(reads, mockk(), mockk()),
 			).setControllerAdvice(MailConnectionAdvice())
 			.build()
 	private val id = UUID.randomUUID()

@@ -2,6 +2,7 @@ package ch.sonensei.cockpit.mail.api
 
 import ch.sonensei.cockpit.core.web.CursorRequest
 import ch.sonensei.cockpit.core.web.ETags
+import ch.sonensei.cockpit.core.web.InvalidRequestException
 import ch.sonensei.cockpit.mail.model.MailAddress
 import ch.sonensei.cockpit.mail.model.MailMessage
 import ch.sonensei.cockpit.mail.sanitize.RemoteImagePolicy
@@ -24,6 +25,7 @@ import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.ExceptionHandler
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PathVariable
+import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.RestController
@@ -45,6 +47,7 @@ import java.util.UUID
 class MailMessageController(
 	private val reads: MailReadService,
 	private val images: RemoteImageFetcher,
+	private val older: MailOlderService,
 ) {
 	private val log = LoggerFactory.getLogger(javaClass)
 
@@ -56,7 +59,8 @@ class MailMessageController(
 			"`folderId` lists that folder (`accountId`, if given, must be its account); `accountId` alone lists the " +
 				"account's Inbox; neither lists the unified Inbox of all accounts. With `threaded=true` each item is " +
 				"the newest message of a conversation in that list, with `threadSize` and `threadUnread` counted in " +
-				"the list; `GET /messages/{id}/thread` returns the whole conversation. Only cached headers are read.",
+				"the list; `GET /messages/{id}/thread` returns the whole conversation. Only cached headers are read: " +
+				"the last page of a folder has `hasOlder` when `POST /folders/{id}/load-older` may find more.",
 	)
 	@ApiResponse(responseCode = "200", description = "One page of messages")
 	@ApiResponse(
@@ -78,7 +82,62 @@ class MailMessageController(
 		@RequestParam(required = false) limit: Int?,
 	): MailMessageListResponse {
 		val page = reads.list(accountId, folderId, threaded, CursorRequest.of(cursor, limit))
-		return MailMessageListResponse(page.items.map { it.message.toSummary(it.threadSize, it.threadUnread) }, page.nextCursor)
+		val hasOlder = folderId != null && page.nextCursor == null && older.hasOlder(folderId)
+		return MailMessageListResponse(page.items.map { it.message.toSummary(it.threadSize, it.threadUnread) }, page.nextCursor, hasOlder)
+	}
+
+	@PostMapping("/folders/{id}/load-older", produces = [MediaType.APPLICATION_JSON_VALUE])
+	@Operation(
+		operationId = "loadOlderMail",
+		summary = "Load older messages of a folder from the server",
+		description =
+			"Caches the headers of up to `limit` messages of the folder that are not cached yet (past the sync " +
+				"window), the most recently arrived first, so the folder list continues with them. `hasMore` tells " +
+				"whether the server has even older ones. A folder that cannot hold messages loads nothing.",
+	)
+	@ApiResponse(responseCode = "200", description = "What was loaded")
+	@ApiResponse(
+		responseCode = "400",
+		description = "Malformed id or `limit` out of range",
+		content = [Content(mediaType = PROBLEM_JSON, schema = Schema(ref = PROBLEM))],
+	)
+	@ApiResponse(
+		responseCode = "404",
+		description = "No such folder, or it is no longer on the server",
+		content = [Content(mediaType = PROBLEM_JSON, schema = Schema(ref = PROBLEM))],
+	)
+	@ApiResponse(
+		responseCode = "502",
+		description = "The mail server failed",
+		content = [Content(mediaType = PROBLEM_JSON, schema = Schema(ref = PROBLEM))],
+	)
+	@ApiResponse(
+		responseCode = "503",
+		description = "All connections of the account are busy (`errorCode` POOL_EXHAUSTED); retry later",
+		content = [Content(mediaType = PROBLEM_JSON, schema = Schema(ref = PROBLEM))],
+	)
+	fun loadOlder(
+		@PathVariable id: UUID,
+		@Parameter(
+			description = "Maximum number of messages to load, 1..${MailOlderService.MAX_LIMIT}",
+			schema =
+				Schema(
+					type = "integer",
+					format = "int32",
+					defaultValue = "${MailOlderService.DEFAULT_LIMIT}",
+					minimum = "1",
+					maximum = "${MailOlderService.MAX_LIMIT}",
+				),
+		)
+		@RequestParam(required = false)
+		limit: Int?,
+	): MailLoadOlderResponse {
+		val effectiveLimit = limit ?: MailOlderService.DEFAULT_LIMIT
+		if (effectiveLimit !in 1..MailOlderService.MAX_LIMIT) {
+			throw InvalidRequestException("limit", "must be between 1 and ${MailOlderService.MAX_LIMIT}")
+		}
+		val result = older.loadOlder(id, effectiveLimit)
+		return MailLoadOlderResponse(result.loaded, result.hasMore)
 	}
 
 	@GetMapping("/messages/{id}", produces = [MediaType.APPLICATION_JSON_VALUE])
@@ -259,6 +318,19 @@ data class MailMessageListResponse(
 	val items: List<MailMessageSummaryResponse>,
 	@field:Schema(requiredMode = RequiredMode.REQUIRED, nullable = true, description = "`null` on the last page")
 	val nextCursor: String?,
+	@field:Schema(
+		description =
+			"Only on the last page of a folder list: the server may have older messages that are not cached; " +
+				"`POST /folders/{id}/load-older` loads them",
+	)
+	val hasOlder: Boolean,
+)
+
+data class MailLoadOlderResponse(
+	@field:Schema(description = "Messages added to the cache")
+	val loaded: Int,
+	@field:Schema(description = "The server has even older messages in the folder")
+	val hasMore: Boolean,
 )
 
 data class MailThreadResponse(
