@@ -1,0 +1,26 @@
+{
+  "schema": 1,
+  "task": "ci-split-check",
+  "reviewed_revision": "3d4763ba7ffeae176a23d895991a894e2a5e5874",
+  "helpers": {
+    "test-writer": {"status": "completed", "report": "reviews/ci-split-check/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/ci-split-check/review.md"},
+    "fixer": {"status": "completed", "report": "reviews/ci-split-check/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "web/android timeouts raised to 35 min, ~2x the 17.5 min upper bound (32 min serial - 14.5 min server)"},
+    {"id": "CR-2", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "ci.yml comment states which timeout is measured and which is bounded"},
+    {"id": "CR-3", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "superseding assumption recorded with tasks.py assume (final timeouts and the bound behind them)"},
+    {"id": "CR-4", "source": "code-reviewer", "severity": "P3", "disposition": "accepted",
+     "note": "tests/test_check_sh.sh is not listed in ARCHITECTURE.md nor run by check.sh/CI, like the other tests/test_* tooling scripts; doc listing left for a later edit; run with sh (bash on this machine) -> 45 ok"}
+  ],
+  "validation": [
+    {"command": "sh scripts/check.sh", "result": "pass"},
+    {"command": "sh tests/test_check_sh.sh", "result": "pass"},
+    {"command": "docker run --rm -v \"$PWD:/repo:Z\" -w /repo docker.io/rhysd/actionlint:latest", "result": "pass"}
+  ]
+}

@@ -4,11 +4,14 @@ Date: 2026-10-25
 
 Task: ci-split-check - CI: split the fast check into parallel jobs per part
 
-Scope: `git diff 258d81e7dd4e7841ab219ce64eb2b4422bad338e..809185779395768dabec1806c3b38d00943a5ebb`
-(task commit 809185779, supplied by the parent). Measured at HEAD 9e39b3fdef0d0871c8567ed799dbce4e4731a834,
-which only adds a `tasks/ci-split-check.md` board change on top of 809185779 (`git diff 809185779 HEAD --stat`).
-Changed files: `scripts/check.sh`, `.github/workflows/ci.yml`, `docs/ARCHITECTURE.md`, `tasks/ci-split-check.md`.
-Uncommitted inputs: only the new test file `tests/test_check_sh.sh`.
+Scope: `git diff 258d81e7dd4e7841ab219ce64eb2b4422bad338e..d200068745c679aa3509f3fa99eaa1c03d50fbed`
+(base and final revision supplied by the parent). Round 2: final revision d20006874 (fix CR-1/CR-2). Task commits:
+809185779 (implementation), f1452a7fb (this test and the round-1 reports), d20006874 (fixer: only
+`.github/workflows/ci.yml`, check-web and check-android `timeout-minutes` -> 35 and the timeout comment rewritten;
+`git diff f1452a7fb d20006874 --stat` shows only `ci.yml` and `reviews/ci-split-check/fixes.md`).
+Changed files: `scripts/check.sh`, `.github/workflows/ci.yml`, `docs/ARCHITECTURE.md`, `tasks/ci-split-check.md`,
+`tests/test_check_sh.sh`. Measured at HEAD d200068745c679aa3509f3fa99eaa1c03d50fbed, clean working tree apart from
+this report.
 
 Requirements:
 - `tasks/ci-split-check.md` acceptance criteria
@@ -40,7 +43,7 @@ run from an unrelated directory, so the test also checks that the script changes
 | A failing part still fails the check (nonzero exit, later parts not run, no success line), with or without a selector | scenario 7 | `sh tests/test_check_sh.sh` | Pass |
 | Web dependency install (`npm ci` when the lockfile is newer) still happens inside the selected web part | scenario 8 | `sh tests/test_check_sh.sh` | Pass |
 | AC1/AC2: ci.yml runs `sh scripts/check.sh tfp|server|web|android`, one per part, for each of the four parts, and nothing else calls check.sh (static grep of the workflow) | scenario 9 | `sh tests/test_check_sh.sh` | Pass |
-| AC1: separate jobs, only the setup each needs, own `timeout-minutes` | Reviewed by reading the ci.yml diff (tfp: checkout only; server: java + gradle; web: node; android: java + android SDK + gradle; timeouts 10/35/20/30). The parent ran actionlint -> 0 errors. No automated test: YAML structure and runner behaviour can only be proven on GitHub. | n/a | Not testable here (needs a GitHub run, AC3) |
+| AC1: separate jobs, only the setup each needs, own `timeout-minutes` | Reviewed by reading the ci.yml diff at d20006874 (tfp: checkout only; server: java + gradle; web: node; android: java + android SDK + gradle; timeouts tfp 10, server 35, web 35, android 35). The parent ran actionlint on the final code -> 0 errors. No automated test: YAML structure and runner behaviour can only be proven on GitHub. | n/a | Not testable here (needs a GitHub run, AC3) |
 | AC3: a push/PR run on GitHub shows all jobs green, with durations | none | n/a | Not run: needs a GitHub Actions run; no GitHub access from this sub-agent |
 | AC3: ci.yml header and ARCHITECTURE.md updated | Reviewed by reading the diff: both describe the per-part jobs and the selector | n/a | Not testable (documentation) |
 
@@ -48,11 +51,14 @@ run from an unrelated directory, so the test also checks that the script changes
 
 Command:
 
-`sh tests/test_check_sh.sh` (repo root, 2026-10-25)
+`sh tests/test_check_sh.sh` (repo root)
 
 Result:
 
-Pass: 45 ok, 0 FAIL, "all check.sh selector tests passed", exit 0.
+Round 1 (809185779): Pass, 45 ok, 0 FAIL.
+Round 2 (final revision d20006874, 2026-10-25T22:56+01:00): Pass, 45 ok, 0 FAIL, "all check.sh selector tests
+passed", exit 0. The test was not changed: the fix only touched timeouts and a comment in ci.yml, and scenario 9
+(static check of the per-part `sh scripts/check.sh` calls) still holds.
 
 ## Full test execution
 
@@ -62,19 +68,20 @@ Command:
 
 Result:
 
-Not run by the test-writer: sub-agents can't run Gradle/npm here (parent instruction). The parent is running it
-and has already run `sh scripts/check.sh bogus` -> exit 2 with message, `sh scripts/check.sh tfp` -> 20 tests OK,
-"all checks passed (tfp)", and actionlint -> 0 errors. The parent must record the result of the full run.
+Not run by the test-writer: sub-agents can't run Gradle/npm here (parent instruction). Parent results: the full
+no-argument `sh scripts/check.sh` passed at 809185779; `scripts/check.sh` is unchanged since (same sha256 at
+d20006874). Earlier also `sh scripts/check.sh bogus` -> exit 2 with message, `sh scripts/check.sh tfp` -> 20 tests
+OK, and actionlint on the final code -> 0 errors. The ci.yml fix does not affect what check.sh runs locally.
 
 ## .taskcheck
 
 Result:
 
-Not run by the test-writer (same reason, see above; the parent runs it).
+Not run by the test-writer (same reason, see above). Parent: passed at 809185779 with an identical `scripts/check.sh`.
 
 ## Bugs found
 
-None. Every assertion passed against the selector logic of `scripts/check.sh` at 809185779.
+None. Every assertion passed against the selector logic of `scripts/check.sh` and the ci.yml calls at d20006874.
 
 Notes for the parent (not defects):
 - `tests/test_check_sh.sh` is not run by `scripts/check.sh tfp`, which only runs `tests/test_quality_gate.py`
@@ -95,21 +102,21 @@ Changed-line coverage: not measured.
 
 Evidence:
 - Task id, immutable base, measured HEAD, and task-owned commits/file-scope source: ci-split-check; base
-  258d81e7dd4e7841ab219ce64eb2b4422bad338e; task commit 809185779395768dabec1806c3b38d00943a5ebb (from the parent);
-  HEAD 9e39b3fdef0d0871c8567ed799dbce4e4731a834 (adds only a tasks/ board change).
+  258d81e7dd4e7841ab219ce64eb2b4422bad338e; final revision and measured HEAD
+  d200068745c679aa3509f3fa99eaa1c03d50fbed (from the parent); task commits 809185779, f1452a7fb, d20006874.
 - Source/test snapshot identifier (including uncommitted inputs): sha256 `scripts/check.sh`
   d26b0b38ea9b37013a27722d00af105ddc93bcacfcd01105831a52a2c199165e, `.github/workflows/ci.yml`
-  fccdccb5de3503c79bd0c64b5a6199153923ea1badfed546f2b4ce32ed91157b, `tests/test_check_sh.sh`
+  931dd494a1d4d124994d4d657e077cd4f7206a5bff8814ffcb5e6d84388cb79d (round 1: fccdccb5...), `tests/test_check_sh.sh`
   bb0827372d13cf0db6fa374d627e06be16a5e6dc1513cfc889c3752c3c149f53.
 - Exact included files; renamed/deleted/excluded files and reasons: in scope `scripts/check.sh` and
   `.github/workflows/ci.yml`, both with no coverage provider. Excluded: `docs/ARCHITECTURE.md` (documentation)
   and `tasks/ci-split-check.md` (board metadata).
 - Provider/version, command, working directory, and test selection: none (no provider configured).
-- Run start/completion time and exit status: n/a for coverage. The test run on 2026-10-25 exited 0.
+- Run start/completion time and exit status: n/a for coverage. The round-2 test run on 2026-10-25 at 22:56+01:00 exited 0.
 - Generated report paths and report hashes/run identifier: none.
 - Evidence outputs are fresh and inputs stayed unchanged: there are no coverage outputs. The test ran against the
   snapshot hashed above.
-- Final run after latest test additions and production fixes: yes for the test run. No production fixes were made.
+- Final run after latest test additions and production fixes: yes, the test ran on the final revision d20006874 after the fixer's ci.yml change.
 
 | Changed file | Statements | Branches | Functions | Lines |
 |---|---:|---:|---:|---:|
@@ -138,5 +145,5 @@ by this task.
 
 ## Summary
 
-Tests added and the focused run passed (45/45). No production defects found. The full `.taskcheck` run and the
-GitHub run (AC3) are left to the parent worker.
+Tests added and all validation passed. Round 2 on the final revision d20006874: the focused run passed (45/45)
+without test changes. No production defects found. The GitHub run (AC3) is left to the parent worker.
