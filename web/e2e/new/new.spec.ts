@@ -38,6 +38,7 @@ test.describe('New view', () => {
       // "New" sits between Dashboard and Inbox in the navigation.
       await page.goto('/');
       const nav = page.getByRole('navigation').getByRole('link');
+      await expect(nav.filter({ hasText: /^\s*New\s*$/ })).toBeVisible();
       const labels = await nav.allTextContents();
       const at = labels.map((label) => label.trim()).indexOf('New');
       expect(labels.slice(at - 1, at + 2).map((label) => label.trim())).toEqual([
