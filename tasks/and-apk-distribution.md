@@ -1,10 +1,11 @@
 ---
 title: APK build in CI and download from the server
-status: todo
-owner:
+status: in_progress
+owner: dell26/agent-1
 deps: [and-login,p0-ci,p0-deploy,ci-split-check]
 touches: [.github,server/src/main/kotlin/ch/sonensei/cockpit/core/download,server/src/test/kotlin/ch/sonensei/cockpit/core/download]
 prio: 2
+lease_until: 2026-10-25T22:33:24Z
 ---
 ## Goal
 Distribute the app without the Play Store (SPEC.md §11).
