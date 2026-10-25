@@ -1,0 +1,33 @@
+{
+  "schema": 1,
+  "task": "web-journal",
+  "reviewed_revision": "164a790e8946273f3451f3b0d05661970ac99fe4",
+  "helpers": {
+    "test-writer": {"status": "completed", "report": "reviews/web-journal/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/web-journal/review.md"},
+    "fixer": {"status": "completed", "report": "reviews/web-journal/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "R1-CR-1", "source": "code-reviewer", "severity": "P1", "disposition": "fixed",
+     "note": "first review: 428 for an entry created elsewhere is now handled as a conflict (fixes.md CR-1, d74da6ffe)"},
+    {"id": "R1-CR-2", "source": "code-reviewer", "severity": "P1", "disposition": "fixed",
+     "note": "first review: unit specs were not committed; committed in 066cbb472"},
+    {"id": "R1-CR-3", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "first review: one page instance for /journal and /journal/:date (fixes.md CR-3, d74da6ffe)"},
+    {"id": "R1-CR-4", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "first review: image upload finishing during Preview is kept (fixes.md CR-4, d74da6ffe)"},
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P3", "disposition": "deferred",
+     "note": "Today does not roll over at midnight in an open tab (first review CR-5); follow-up task web-journal-rollover"},
+    {"id": "CR-2", "source": "code-reviewer", "severity": "P3", "disposition": "deferred",
+     "note": "edits in conflict dropped without a prompt when leaving the day (first review CR-6); follow-up task web-journal-rollover"},
+    {"id": "CR-3", "source": "code-reviewer", "severity": "P3", "disposition": "deferred",
+     "note": "late heatmap response from a superseded load overwrites the newer heatmap; follow-up task web-journal-rollover"}
+  ],
+  "validation": [
+    {"command": "npm --prefix web run test:ci -- --include 'src/app/features/journal/**/*.spec.ts'", "result": "pass"},
+    {"command": "cd web && npm run check", "result": "pass"},
+    {"command": "cd web && npm run e2e -- journal/journal.spec.ts (deploy/docker-compose.e2e.yml)", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
