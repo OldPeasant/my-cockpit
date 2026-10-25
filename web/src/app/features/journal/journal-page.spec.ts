@@ -901,6 +901,60 @@ describe('JournalPage', () => {
         'A year ago',
       ]);
     });
+
+    it('ignores the failures of a day that was left before they arrived', async () => {
+      await open('/journal/2026-10-24');
+
+      void harness.navigateByUrl('/journal/2026-10-23');
+      await settle();
+      void harness.navigateByUrl('/journal/2026-10-22');
+      await settle();
+
+      const older = http.expectOne(`${ENTRIES}/2026-10-23`);
+      const olderOnThisDay = http.expectOne((r) => r.params.get('date') === '2026-10-23');
+      flushDay('2026-10-22', {
+        entry: journalEntry('2026-10-22', { bodyMd: 'Newer' }),
+        onThisDay: [journalEntry('2025-10-22', { bodyMd: 'A year ago' })],
+      });
+      await settle();
+      older.flush(...problem(503, 'Try again later.'));
+      olderOnThisDay.flush(...problem(503, 'Try again later.'));
+      await settle();
+
+      expect(root().querySelector('.status[role="alert"]')).toBeNull();
+      expect(editor().value()).toBe('Newer');
+      expect(state()).toBe('Saved');
+      expect([...root().querySelectorAll('.earlier-text')].map((item) => text(item))).toEqual([
+        'A year ago',
+      ]);
+    });
+
+    it('opens only the day chosen last when the route changes before the first heatmap arrived', async () => {
+      setup();
+      harness = await RouterTestingHarness.create();
+      void harness.navigateByUrl('/journal');
+      await settle();
+      void harness.navigateByUrl('/journal/2026-10-20');
+      await settle();
+
+      const heatmaps = http.match((r) => r.method === 'GET' && r.url === HEATMAP_URL);
+      expect(heatmaps).toHaveLength(2);
+      // The newer load answers first, the first load last.
+      heatmaps[1].flush(journalHeatmap(TODAY));
+      await settle();
+      heatmaps[0].flush(journalHeatmap(TODAY));
+      await settle();
+
+      http.expectNone((r) => r.url === `${ENTRIES}/${TODAY}`);
+      http.expectNone((r) => r.url === ON_THIS_DAY_URL && r.params.get('date') === TODAY);
+      flushDay('2026-10-20', { entry: journalEntry('2026-10-20', { bodyMd: 'Hike' }) });
+      await settle();
+
+      expect(router.url).toBe('/journal/2026-10-20');
+      expect(text(root().querySelector('h1'))).toBe('Tuesday, October 20, 2026');
+      expect(editor().value()).toBe('Hike');
+      expect(heatmapDay('2026-10-20').classList).toContain('selected');
+    });
   });
 
   describe('saves in flight', () => {
