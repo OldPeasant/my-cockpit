@@ -1,10 +1,11 @@
 ---
 title: CalDAV: survive dropped connections (flaky Radicale integration tests)
-status: todo
-owner:
+status: in_progress
+owner: dell26/agent-1
 deps: []
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/calendar/infra/caldav,server/src/test/kotlin/ch/sonensei/cockpit/calendar/infra/caldav]
 prio: 1
+lease_until: 2026-10-25T23:59:38Z
 ---
 ## Goal
 GitHub CI on main fails in most runs since cal-caldav: `CalDavRadicaleSyncTests` (integrationTest job) loses 4-5 of
@@ -28,3 +29,5 @@ connections too, and today one dropped request fails the sync of that calendar. 
   closes every connection). The drop rate is much higher on GitHub runners; not understood yet (Radicale
   `[server] max_connections`/`timeout`, container start-up readiness: `Wait.forListeningPort()` may be too early).
 - Failing CI runs: 39631689604, 39626614823 (`gh run view <id> --log-failed`).
+- ASSUMPTION (2026-10-26 00:42+0100 by dell26/agent-1): The Radicale test helper dav() retries every method once (MKCALENDAR, unconditional PUT/DELETE too), unlike CalDavClient: the tests own the server and check outcomes, and restricting it would leave most setup requests unprotected. A repeated MKCALENDAR that already succeeded would answer 405 and fail reset(); accepted as far rarer than a drop.
+- ASSUMPTION (2026-10-26 00:42+0100 by dell26/agent-1): Retry backoff is a fixed 200 ms, one retry; 'before any response' means before the status line and headers arrived (tracked via the BodyHandler), so a failure while reading the body is not repeated. HEAD and OPTIONS count as safe methods besides PROPFIND/REPORT/GET. Each retry is logged at INFO (method, host, exception class only).
