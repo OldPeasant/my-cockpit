@@ -1,11 +1,11 @@
 ---
 title: Mail compose: contacts autocomplete
-status: in_progress
+status: done
 owner: dell26/agent-1
 deps: [web-mail-compose,contacts-aggregate]
 touches: [web/src/app/features/mail/compose]
 prio: 3
-lease_until: 2026-10-25T22:03:01Z
+lease_until: 
 ---
 ## Goal
 Recipients from contacts.
@@ -17,3 +17,4 @@ Recipients from contacts.
   - verified (2026-10-25 22:48+0100 by dell26/agent-1): service specs (merged contacts-then-correspondents order, dedupe, no-address, empty, error) + recipient-input specs (contact marker, choose contact, hide taken): focused ng test -> 126 passed; cd web && npm run check -> exit 0, 166 files / 3463 tests passed, build ok; sh scripts/check.sh -> all checks passed
 
 ## Notes
+- done by dell26/agent-1: `sh scripts/check.sh` passed in 69s on 8ceb8cb13; criteria verified 2/2
