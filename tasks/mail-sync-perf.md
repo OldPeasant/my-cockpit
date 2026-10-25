@@ -1,10 +1,11 @@
 ---
 title: Cheaper link checks and loadOlder candidate narrowing in mail sync
-status: todo
-owner:
+status: in_progress
+owner: r1963macos/agent-1
 deps: [mail-header-sync, mail-idle, mail-idle-flaky-test]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/core/items,server/src/main/kotlin/ch/sonensei/cockpit/mail/sync,server/src/test/kotlin/ch/sonensei/cockpit/mail/sync]
 prio: 2
+lease_until: 2026-10-25T22:41:57Z
 ---
 ## Goal
 Follow-ups from the mail-header-sync review (reviews/mail-header-sync/review.md CR-6, CR-7, CR-8): make large
