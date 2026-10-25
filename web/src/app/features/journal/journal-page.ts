@@ -89,12 +89,23 @@ export default class JournalPage {
   });
   protected readonly dirty = computed(() => this.loaded() && !!changes(this.entry(), this.draft()));
 
-  /** Uploads an image; tracked, so leaving the day still puts it in place. */
+  /**
+   * Uploads an image; tracked, so leaving the day waits for it. The editor puts the result in place
+   * of the placeholder; when it is not shown (Preview), the page does that in the text itself.
+   */
   protected readonly uploadImage = (file: File, placeholder: string): Promise<string> => {
     const upload = this.service.uploadImage(file).then((image) => image.markdown);
-    const done = upload.catch(() => '');
-    this.uploads.set(placeholder, done);
-    void done.then(() => this.uploads.delete(placeholder));
+    // Chained one step behind `upload`, so the editor's own handler on it has run by then.
+    const settled = upload
+      .then(
+        (markdown) => ({ markdown, failed: false, error: null as unknown }),
+        (error: unknown) => ({ markdown: '', failed: true, error }),
+      )
+      .then(({ markdown, failed, error }) => {
+        this.uploads.delete(placeholder);
+        this.settleUpload(placeholder, markdown, failed, error);
+      });
+    this.uploads.set(placeholder, settled);
     return upload;
   };
 
@@ -106,8 +117,8 @@ export default class JournalPage {
   private timer?: ReturnType<typeof setTimeout>;
   private inFlight: Promise<void> | null = null;
   private destroyed = false;
-  /** Images still uploading, by their placeholder in the body: their Markdown ('' if failed). */
-  private readonly uploads = new Map<string, Promise<string>>();
+  /** Images still uploading, by their placeholder in the body: settled once put in place. */
+  private readonly uploads = new Map<string, Promise<void>>();
   /** Counts the loads: a day that arrives after another one was opened is ignored. */
   private loadSeq = 0;
   /** Counts the route changes: while leaving waits, a newer route wins. */
@@ -296,18 +307,25 @@ export default class JournalPage {
   private async leave(): Promise<void> {
     await this.flush();
     if (!this.uploads.size) return;
-    while (this.uploads.size) {
-      const results = await Promise.all(
-        [...this.uploads].map(async ([placeholder, done]) => [placeholder, await done] as const),
-      );
-      for (const [placeholder, markdown] of results) {
-        this.uploads.delete(placeholder);
-        if (this.body().includes(placeholder)) {
-          this.body.update((body) => body.replace(placeholder, () => markdown));
-        }
-      }
-    }
+    while (this.uploads.size) await Promise.all(this.uploads.values());
     await this.flush();
+  }
+
+  /**
+   * An upload ended. A placeholder still in the text was not handled by the editor (it is not
+   * shown, e.g. in Preview): put the image in its place (or drop it) and report a failure here.
+   */
+  private settleUpload(
+    placeholder: string,
+    markdown: string,
+    failed: boolean,
+    error: unknown,
+  ): void {
+    if (!this.body().includes(placeholder)) return;
+    this.body.update((body) => body.replace(placeholder, () => markdown));
+    if (failed) this.onUploadFailed(error);
+    // Leaving the day saves it itself, once every upload ended.
+    else if (!this.destroyed) this.schedule();
   }
 
   private async loadHeatmap(): Promise<void> {
@@ -357,7 +375,8 @@ export default class JournalPage {
       else this.saveState.set('pending');
     } catch (error) {
       if (date !== this.date()) return;
-      if (error instanceof ApiError && (error.status === 409 || error.status === 412)) {
+      // 428: the entry was created elsewhere after the day was opened (sent without If-Match).
+      if (error instanceof ApiError && [409, 412, 428].includes(error.status)) {
         clearTimeout(this.timer);
         this.timer = undefined;
         this.saveState.set('conflict');

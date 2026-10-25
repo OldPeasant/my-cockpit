@@ -17,6 +17,7 @@ import {
 import { NotificationService, provideHttp } from '../../core/http';
 import { MarkdownEditor } from '../notes/editor/markdown-editor';
 import JournalPage, { AUTOSAVE_DEBOUNCE_MS } from './journal-page';
+import journalRoutes from './journal.routes';
 import { JournalService } from './journal.service';
 import { journalEntry, journalHeatmap } from './testing';
 
@@ -32,10 +33,9 @@ const tick = (): Promise<void> => new Promise((resolve) => setTimeout(resolve));
 @Component({ template: 'Elsewhere' })
 class Elsewhere {}
 
-// Like journal.routes.ts: today and a date are two routes of the same page.
+// The real journal routes: today and a date are one route, so the page stays between them.
 const ROUTES = [
-  { path: 'journal', component: JournalPage },
-  { path: 'journal/:date', component: JournalPage },
+  { path: 'journal', children: journalRoutes },
   { path: 'elsewhere', component: Elsewhere },
 ];
 
@@ -448,6 +448,64 @@ describe('JournalPage', () => {
       await settle();
       expect(editor().value()).toBe('');
     });
+
+    it('puts an image whose upload ends during Preview in the text and saves it', async () => {
+      await open('/journal', { entry: journalEntry(TODAY, { bodyMd: 'Lake', version: 2 }) });
+      const upload = pasteImage();
+      el('.mode-preview').click();
+      await settle();
+      expect(root().querySelector('app-markdown-editor')).toBeNull();
+      vi.useFakeTimers();
+
+      upload.flush(IMAGE);
+      await vi.advanceTimersByTimeAsync(0);
+      harness.detectChanges();
+      expect(root().querySelector('app-note-markdown-view img')).not.toBeNull();
+      await vi.advanceTimersByTimeAsync(AUTOSAVE_DEBOUNCE_MS);
+
+      const save = http.expectOne((r) => r.method === 'PUT');
+      expect(save.request.body.bodyMd).toBe(`Lake\n${IMAGE.markdown}\n`);
+      expect(save.request.headers.get('If-Match')).toBe('"2"');
+      save.flush(journalEntry(TODAY, { bodyMd: save.request.body.bodyMd, version: 3 }));
+      await vi.advanceTimersByTimeAsync(0);
+      vi.useRealTimers();
+
+      el('.mode-edit').click();
+      await settle();
+      expect(editor().value()).toBe(`Lake\n${IMAGE.markdown}\n`);
+      expect(state()).toBe('Saved');
+    });
+
+    it('reports an upload that fails during Preview and drops its placeholder', async () => {
+      await open('/journal', { entry: journalEntry(TODAY, { bodyMd: 'Lake' }) });
+      const upload = pasteImage();
+      el('.mode-preview').click();
+      await settle();
+
+      upload.flush(...problem(413, 'The image is too large.'));
+      await settle();
+      expect(text(root().querySelector('.banner[role="alert"]'))).toBe(
+        'The image could not be uploaded: The image is too large.',
+      );
+
+      el('.mode-edit').click();
+      await settle();
+      // Like the editor does: the placeholder goes, the line breaks around it stay.
+      expect(editor().value()).toBe('Lake\n\n');
+    });
+
+    it('reports a failed upload once while the editor is shown', async () => {
+      await open('/journal', { entry: journalEntry(TODAY, { bodyMd: 'Lake' }) });
+      const spy = vi.spyOn(
+        JournalPage.prototype as unknown as { onUploadFailed(e: unknown): void },
+        'onUploadFailed',
+      );
+      const upload = pasteImage();
+
+      upload.flush(...problem(413, 'The image is too large.'));
+      await settle();
+      expect(spy).toHaveBeenCalledTimes(1);
+    });
   });
 
   describe('heatmap', () => {
@@ -468,9 +526,7 @@ describe('JournalPage', () => {
       heatmapDay('2026-10-20').click();
       await settle();
       expect(router.url).toBe('/journal/2026-10-20');
-      // The day route is another route: the page loads again.
-      flushHeatmap(heatmap);
-      await settle();
+      // The page stays: no new heatmap.
       flushDay('2026-10-20', { entry: journalEntry('2026-10-20', { bodyMd: 'Hike', mood: 5 }) });
       await settle();
 
@@ -483,8 +539,6 @@ describe('JournalPage', () => {
       heatmapDay(TODAY).click();
       await settle();
       expect(router.url).toBe('/journal');
-      flushHeatmap(heatmap);
-      await settle();
       flushDay(TODAY);
       await settle();
     });
@@ -580,8 +634,6 @@ describe('JournalPage', () => {
       el('.previous').click();
       await settle();
       expect(router.url).toBe('/journal/2026-10-24');
-      flushHeatmap();
-      await settle();
       flushDay('2026-10-24');
       await settle();
       expect(text(root().querySelector('.relative'))).toBe('Yesterday');
@@ -589,7 +641,7 @@ describe('JournalPage', () => {
       expect(text(root().querySelector('.go-today'))).toBe('Today');
       expect(root().querySelector('.go-today')?.getAttribute('href')).toBe('/journal');
 
-      // Within the day route the page stays: no new heatmap.
+      // The page stays: no new heatmap.
       el('.previous').click();
       await settle();
       expect(router.url).toBe('/journal/2026-10-23');
@@ -609,8 +661,6 @@ describe('JournalPage', () => {
       el('.next').click();
       await settle();
       expect(router.url).toBe('/journal');
-      flushHeatmap();
-      await settle();
       flushDay(TODAY);
       await settle();
       expect(el('.next').disabled).toBe(true);
@@ -627,8 +677,7 @@ describe('JournalPage', () => {
 
       expect(router.url).toBe('/journal');
       http.expectNone((r) => r.url.endsWith('2026-10-30'));
-      flushHeatmap();
-      await settle();
+      // The heatmap is known already: only today loads.
       flushDay(TODAY);
       await settle();
       expect(text(root().querySelector('.relative'))).toBe('Today');
@@ -679,6 +728,33 @@ describe('JournalPage', () => {
       expect(router.url).toBe('/journal/2026-10-23');
       expect(editor().value()).toBe('');
       expect(heatmapDay('2026-10-24').classList).toContain('entry');
+    });
+
+    it('keeps the page between today and another day, saving before the next day loads', async () => {
+      await open('/journal');
+      const page = harness.routeDebugElement?.componentInstance as JournalPage;
+
+      type('Swim');
+      el('.previous').click();
+      await settle();
+      const save = http.expectOne((r) => r.method === 'PUT' && r.url === `${ENTRIES}/${TODAY}`);
+      // Yesterday waits for today's save, and nothing loads twice.
+      http.expectNone((r) => r.method === 'GET');
+      save.flush(journalEntry(TODAY, { bodyMd: 'Swim', version: 1 }));
+      await settle();
+      flushDay('2026-10-24');
+      await settle();
+      expect(router.url).toBe('/journal/2026-10-24');
+      expect(harness.routeDebugElement?.componentInstance).toBe(page);
+
+      el('.next').click();
+      await settle();
+      expect(router.url).toBe('/journal');
+      flushDay(TODAY, { entry: journalEntry(TODAY, { bodyMd: 'Swim', version: 1 }) });
+      await settle();
+      expect(harness.routeDebugElement?.componentInstance).toBe(page);
+      expect(editor().value()).toBe('Swim');
+      expect(state()).toBe('Saved');
     });
 
     it('stays on a day whose save failed', async () => {
@@ -1004,6 +1080,37 @@ describe('JournalPage', () => {
 
       expect(state()).toBe('Saved');
       expect(root().querySelector('.banner.conflict')).toBeNull();
+    });
+
+    it('treats an entry created elsewhere (428) as a conflict and saves my version over it', async () => {
+      await open('/journal');
+      vi.useFakeTimers();
+
+      type('Mine');
+      await vi.advanceTimersByTimeAsync(AUTOSAVE_DEBOUNCE_MS);
+      const create = http.expectOne((r) => r.method === 'PUT');
+      expect(create.request.headers.has('If-Match')).toBe(false);
+      create.flush(...problem(428, 'If-Match is required.'));
+      await vi.advanceTimersByTimeAsync(0);
+      harness.detectChanges();
+
+      expect(state()).toBe('Not saved: changed elsewhere');
+      expect(root().querySelector('.retry')).toBeNull();
+
+      el('.keep-mine').click();
+      await vi.advanceTimersByTimeAsync(0);
+      http
+        .expectOne((r) => r.method === 'GET' && r.url === `${ENTRIES}/${TODAY}`)
+        .flush(journalEntry(TODAY, { bodyMd: 'From the phone', version: 3 }));
+      await vi.advanceTimersByTimeAsync(0);
+      const save = http.expectOne((r) => r.method === 'PUT');
+      expect(save.request.headers.get('If-Match')).toBe('"3"');
+      expect(save.request.body.bodyMd).toBe('Mine');
+      save.flush(journalEntry(TODAY, { bodyMd: 'Mine', version: 4 }));
+      await vi.advanceTimersByTimeAsync(0);
+      harness.detectChanges();
+
+      expect(state()).toBe('Saved');
     });
 
     it('drops my edits on a conflict when asked and shows the newer entry', async () => {
