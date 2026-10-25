@@ -1,6 +1,7 @@
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
 import { provideHttp } from '../../../core/http';
+import { SILENT_ERRORS } from '../../../core/http/interceptors';
 import { FILES_LIMIT, MailComposeService, SUGGESTION_LIMIT } from './mail-compose.service';
 
 const DRAFT = '0192f0c4-0000-7000-8000-00000000d001';
@@ -157,6 +158,49 @@ describe('MailComposeService', () => {
     await flush();
     http.expectOne((r) => r.url === '/api/v1/contacts/autocomplete').flush([]);
     expect(await result).toEqual([]);
+  });
+
+  it('has no suggestions when the autocomplete answers an empty body', async () => {
+    const result = service.suggestions('zz');
+    await flush();
+    http.expectOne((r) => r.url === '/api/v1/contacts/autocomplete').flush(null);
+    expect(await result).toEqual([]);
+  });
+
+  it('trims suggested addresses, keeps a contact without name and dedupes after trimming', async () => {
+    const result = service.suggestions('bo');
+    await flush();
+    http
+      .expectOne((r) => r.url === '/api/v1/contacts/autocomplete')
+      .flush([
+        { contactId: CONTACT, email: '  bo@example.test ' },
+        { email: 'Bo@Example.test', name: 'Bo (recent)' },
+        { email: 'bob@example.test', name: null },
+      ]);
+    expect(await result).toEqual([
+      { address: 'bo@example.test', name: '', contactId: CONTACT },
+      { address: 'bob@example.test', name: '' },
+    ]);
+  });
+
+  it('looks up suggestions silently and rejects when the autocomplete fails', async () => {
+    const result = service.suggestions('ann');
+    await flush();
+    const req = http.expectOne((r) => r.url === '/api/v1/contacts/autocomplete');
+    expect(req.request.context.get(SILENT_ERRORS)).toBe(true);
+    req.flush(
+      { status: 500, title: 'Internal Server Error' },
+      { status: 500, statusText: 'Server Error' },
+    );
+    await expect(result).rejects.toBeTruthy();
+  });
+
+  it('no longer asks the mail correspondents endpoint for suggestions', async () => {
+    const result = service.suggestions('ann');
+    await flush();
+    http.expectNone((r) => r.url === '/api/v1/mail/correspondents');
+    http.expectOne((r) => r.url === '/api/v1/contacts/autocomplete').flush([]);
+    await result;
   });
 
   it('lists a drive folder (the root without folderId)', async () => {

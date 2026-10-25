@@ -202,6 +202,50 @@ describe('RecipientInput', () => {
     ]);
   });
 
+  it('announces contacts to screen readers only and hides the icon from them', async () => {
+    service.result = [
+      { address: 'ann@example.test', name: 'Ann Example', contactId: 'c-1' },
+      { address: 'anna@example.test', name: 'Anna' },
+    ];
+    input().focus();
+    type('ann');
+    await vi.advanceTimersByTimeAsync(SUGGEST_DEBOUNCE_MS);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    const options = Array.from(document.querySelectorAll('mat-option')) as HTMLElement[];
+    const label = options[0].querySelector('.cdk-visually-hidden');
+    expect(label?.textContent?.trim()).toBe('Contact:');
+    expect(options[0].querySelector('svg.kind')?.getAttribute('aria-hidden')).toBe('true');
+    expect(options[1].textContent).not.toContain('Contact:');
+  });
+
+  it('adds a chosen contact without name as its address only', async () => {
+    service.result = [{ address: 'bo@example.test', name: '', contactId: 'c-2' }];
+    input().focus();
+    type('bo');
+    await vi.advanceTimersByTimeAsync(SUGGEST_DEBOUNCE_MS);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    const option = document.querySelector('mat-option') as HTMLElement;
+    expect(option.classList.contains('contact')).toBe(true);
+    option.click();
+    fixture.detectChanges();
+    expect(fixture.componentInstance.recipients()).toEqual([{ address: 'bo@example.test' }]);
+  });
+
+  it('hides a contact suggestion whose address is already a recipient, in any case', async () => {
+    fixture.componentInstance.recipients.set([{ address: 'Ann@Example.test', name: 'Ann' }]);
+    service.result = [
+      { address: 'ann@example.test', name: 'Ann Example', contactId: 'c-1' },
+      { address: 'ann@work.example.test', name: 'Ann Example', contactId: 'c-1' },
+    ];
+    type('ann');
+    await vi.advanceTimersByTimeAsync(SUGGEST_DEBOUNCE_MS);
+    expect(inner().suggestions()).toEqual([
+      { address: 'ann@work.example.test', name: 'Ann Example', contactId: 'c-1' },
+    ]);
+  });
+
   it('adds no chip for an empty field or an address already there', () => {
     fixture.componentInstance.recipients.set([{ address: 'ann@example.test' }]);
     fixture.detectChanges();
