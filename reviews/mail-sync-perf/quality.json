@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "task": "mail-sync-perf",
-  "reviewed_revision": "50de2442c2238a269a5c8948ad5b3c51a71c0366",
+  "reviewed_revision": "03af285326de4a0164d8f8b46ac9ddff0d4156f7",
   "helpers": {
     "test-writer": {"status": "completed", "report": "reviews/mail-sync-perf/tests.md"},
     "code-reviewer": {"status": "completed", "report": "reviews/mail-sync-perf/review.md"},
