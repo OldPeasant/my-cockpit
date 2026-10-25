@@ -530,6 +530,43 @@ class MailHeaderSyncServiceTests {
 	}
 
 	@Test
+	fun `paging with loadOlder loads every missing message once, newest arrival first, with narrowed windows`() {
+		cachedState(uidNext = 9)
+		remote.status = remote.status.copy(uidNext = 9)
+		remote.datedSearch = true
+		remote.uids = (1L..8L).toList()
+		// UID order is not arrival order; 7 has no INTERNALDATE, 8 is cached.
+		val daysAgo = mapOf(1L to 3L, 2L to 40L, 3L to 10L, 4L to 200L, 5L to 1L, 6L to 90L, 8L to 0L)
+		remote.received = daysAgo.mapValues { (_, days) -> now.minus(Duration.ofDays(days)) }
+		every { store.locatedUids(folder.id) } returnsMany listOf(listOf(8), listOf(1, 3, 5, 8), listOf(1, 2, 3, 4, 5, 6, 8))
+
+		service.loadOlder(folder.id, limit = 3) shouldBe OlderMessagesResult(loaded = 3, hasMore = true)
+		// 7 days: {1, 5}, 14: {1, 3, 5}.
+		remote.calls.drop(1) shouldContainExactly
+			listOf(
+				"uidsSince ${now.minus(Duration.ofDays(7))}",
+				"uidsSince ${now.minus(Duration.ofDays(14))}",
+				"receivedDates [1, 3, 5]",
+				"headers [1, 3, 5]",
+			)
+
+		remote.calls.clear()
+		service.loadOlder(folder.id, limit = 3) shouldBe OlderMessagesResult(loaded = 3, hasMore = true)
+		// 7..112 days: at most {2, 6}, 224: {2, 4, 6}; the undated 7 is never in a SINCE window.
+		remote.calls.filter { it.startsWith("uidsSince") } shouldContainExactly
+			listOf(7L, 14L, 28L, 56L, 112L, 224L).map { "uidsSince ${now.minus(Duration.ofDays(it))}" }
+		remote.calls.filter { it.startsWith("receivedDates") || it.startsWith("headers") } shouldContainExactly
+			listOf("receivedDates [2, 4, 6]", "headers [2, 4, 6]")
+
+		remote.calls.clear()
+		service.loadOlder(folder.id, limit = 3) shouldBe OlderMessagesResult(loaded = 1, hasMore = false)
+		// Only the undated message is left: it fits the limit, so no window and no dates.
+		remote.calls shouldContainExactly listOf("uidsFrom 1", "headers [7]")
+
+		upserted() shouldContainExactly listOf(1, 3, 5, 2, 4, 6, 7)
+	}
+
+	@Test
 	fun `loadOlder ranks messages without a date last and ties by UID`() {
 		cachedState(uidNext = 5)
 		every { store.locatedUids(folder.id) } returns emptyList()
