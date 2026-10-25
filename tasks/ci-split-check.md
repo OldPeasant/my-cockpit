@@ -1,10 +1,11 @@
 ---
 title: CI: split the fast check into parallel jobs per part
-status: todo
-owner:
+status: in_progress
+owner: dell26/agent-1
 deps: []
 touches: [.github/workflows/ci.yml,scripts/check.sh,docs/ARCHITECTURE.md]
 prio: 1
+lease_until: 2026-10-25T22:10:49Z
 ---
 ## Goal
 The CI job "Fast check (scripts/check.sh)" runs server, web and Android one after another and now takes ~32 min on
