@@ -20,8 +20,9 @@ will time out. Run the parts as parallel jobs so each has room and the whole res
   `sh scripts/check.sh server`); `sh scripts/check.sh` without arguments behaves as before (`.taskcheck`,
   `COCKPIT_NO_ANDROID=1` still work)
   - verified (2026-10-25 22:58+0100 by dell26/agent-1): sh scripts/check.sh (no args, at f01b769d) -> tfp, server, web (3463 tests), android all ran, 'all checks passed', exit 0; sh scripts/check.sh tfp -> 20 tests OK; sh scripts/check.sh bogus -> exit 2; sh tests/test_check_sh.sh (stubbed parts, incl. no-arg order, COCKPIT_NO_ANDROID=1 skip with and without selector, ci.yml calls each part) -> 45 ok, exit 0
-- [ ] A push or PR run on GitHub shows all jobs green with their durations (run id in the evidence); the comment
+- [~] A push or PR run on GitHub shows all jobs green with their durations (run id in the evidence); the comment
   header of ci.yml and docs/ARCHITECTURE.md "Test"/CI section are updated if they describe the job layout
+  - skipped (2026-10-25 22:58+0100 by dell26/agent-1): needs a GitHub Actions run: gh is not permitted in this sandbox and CI only runs on pushes to main/PRs, which only 'done' pushes; owner checks the first main run after done (all 4 check jobs green + per-job durations; raise web/android timeouts if one uses > half). ci.yml header comment and ARCHITECTURE.md Testing/CI text updated
 
 ## Notes
 - The integration-test job fails for an unrelated reason (flaky Radicale tests, task cal-caldav-retry); a red
