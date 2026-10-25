@@ -13,7 +13,8 @@ production stack. `passkeys-server` defaults the RP ID and web origin from `COCK
 `deploy/docker-compose.yml` only forwards a fixed list of variables (found in review CR-1 of passkeys-server).
 
 ## Acceptance criteria
-- [ ] `deploy/docker-compose.yml` forwards `COCKPIT_AUTH_PASSKEY_RP_ID`, `COCKPIT_AUTH_PASSKEY_ORIGINS`, `COCKPIT_AUTH_PASSKEY_RP_NAME` (empty by default) to the server; `deploy/.env.example` and `deploy/README.md` document them (placeholder Android hash only)
+- [x] `deploy/docker-compose.yml` forwards `COCKPIT_AUTH_PASSKEY_RP_ID`, `COCKPIT_AUTH_PASSKEY_ORIGINS`, `COCKPIT_AUTH_PASSKEY_RP_NAME` (empty by default) to the server; `deploy/.env.example` and `deploy/README.md` document them (placeholder Android hash only)
+  - verified (2026-10-25 23:14+0100 by r1963macos/agent-2): git show 939dae22 -- deploy docs: docker-compose.yml server.environment has COCKPIT_AUTH_PASSKEY_RP_ID/ORIGINS (${..:-} empty) and RP_NAME (${..:-My Cockpit}, see assumption); .env.example has all three empty with placeholder android:apk-key-hash:REPLACE_WITH_APK_KEY_HASH; README.md Configuration table + Android origin example + keytool|python3 hash one-liner (tested against fake keytool output -> valid base64url)
 - [ ] `docker compose -f deploy/docker-compose.yml config` with a sample `.env` shows the variables on the server service
 
 ## Notes
