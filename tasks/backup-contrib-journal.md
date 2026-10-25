@@ -1,11 +1,11 @@
 ---
 title: Backup contributor: journal and habits
-status: in_progress
+status: done
 owner: dell26/agent-2
 deps: [backup-contrib-core,journal-api,habits-api]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/journal/backup,server/src/test/kotlin/ch/sonensei/cockpit/journal/backup]
 prio: 3
-lease_until: 2026-10-25T21:20:23Z
+lease_until: 
 releases: 0
 extended: 
 ---
@@ -20,3 +20,4 @@ Journal and habits in backups.
 
 ## Notes
 - release by dell26/agent-2: handed back by dell26/agent-2: pushes had failed (remote: error: GH006: Protected branch update failed for refs/heads/main. | remote: error: | To https://github.com/OldP…); continue from wip/backup-contrib-journal
+- done by dell26/agent-2: `sh scripts/check.sh` passed in 83s on e99cb1e36; criteria verified 2/2
