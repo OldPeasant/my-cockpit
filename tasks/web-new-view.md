@@ -1,10 +1,11 @@
 ---
 title: Combined New view (GTD inbox + mail inbox)
-status: todo
-owner:
+status: in_progress
+owner: r1963macos/agent-2
 deps: [web-inbox,web-mail-list,mail-gtd]
 touches: [web/src/app/features/new,web/src/app/app.routes.ts,web/src/app/shell/nav-sections.ts,web/e2e/new]
 prio: 2
+lease_until: 2026-10-25T22:52:21Z
 ---
 ## Goal
 Web "New" view: one list of everything new, the GTD Inbox items plus the unified mail inbox, with a
