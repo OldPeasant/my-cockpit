@@ -19,6 +19,7 @@ import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.collections.shouldHaveSize
+import io.kotest.matchers.comparables.shouldBeGreaterThanOrEqualTo
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
@@ -26,9 +27,24 @@ import io.kotest.matchers.string.shouldNotContain
 import org.junit.jupiter.api.AfterAll
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.extension.ExtendWith
+import org.springframework.boot.test.system.CapturedOutput
+import org.springframework.boot.test.system.OutputCaptureExtension
+import java.io.EOFException
+import java.net.Authenticator
+import java.net.CookieHandler
+import java.net.ProxySelector
 import java.net.URI
+import java.net.http.HttpClient
+import java.net.http.HttpRequest
+import java.net.http.HttpResponse
 import java.time.Duration
 import java.util.Base64
+import java.util.Optional
+import java.util.concurrent.CompletableFuture
+import java.util.concurrent.Executor
+import javax.net.ssl.SSLContext
+import javax.net.ssl.SSLParameters
 
 /**
  * [CalDavClient] and [MultiStatus] on their own: the origin check of hrefs a CalDAV server sends (they are only followed,
@@ -286,6 +302,98 @@ class CalDavClientTests {
 	}
 
 	@Test
+	fun `the second attempt waits the backoff and its answer goes through the usual checks`() {
+		dropOnceThen("GET", "/dav/x.ics", Fault.EMPTY_RESPONSE, aResponse().withStatus(503).withBody("<p>$PASSWORD</p>"))
+
+		val started = System.nanoTime()
+		shouldThrow<CalendarProviderException> {
+			local.send("GET", local.resolve("/dav/x.ics")!!, what = "Reading")
+		}.message shouldBe "Reading failed at the CalDAV server (HTTP 503)"
+
+		Duration.ofNanos(System.nanoTime() - started) shouldBeGreaterThanOrEqualTo DROPPED_CONNECTION_BACKOFF
+		wireMock.findAll(davRequest("GET", "/dav/x.ics")) shouldHaveSize 2
+	}
+
+	@Test
+	fun `a drop at a redirect target is sent once more to that target with method, body and password`() {
+		stub("REPORT", "/dav/old/", 307, headers = arrayOf("Location" to "/dav/new/"))
+		dropOnceThen("REPORT", "/dav/new/", Fault.EMPTY_RESPONSE, aResponse().withStatus(207).withBody("<D:multistatus xmlns:D=\"DAV:\"/>"))
+
+		local.report(local.resolve("/dav/old/")!!, 1, "<q/>", "Querying").status shouldBe 207
+
+		wireMock.findAll(davRequest("REPORT", "/dav/old/")) shouldHaveSize 1
+		val atTarget = wireMock.findAll(davRequest("REPORT", "/dav/new/"))
+		atTarget shouldHaveSize 2
+		atTarget.forEach {
+			it.bodyAsString shouldBe "<q/>"
+			it.getHeader("Authorization") shouldBe basic("alice:$PASSWORD")
+			it.getHeader("Depth") shouldBe "1"
+		}
+	}
+
+	@Test
+	fun `an unconditional write that drops at a redirect target is not repeated`() {
+		stub("PUT", "/dav/old.ics", 307, headers = arrayOf("Location" to "/dav/new.ics"))
+		dropOnceThen("PUT", "/dav/new.ics", Fault.EMPTY_RESPONSE, aResponse().withStatus(201))
+
+		shouldThrow<CalendarProviderException> {
+			local.send("PUT", local.resolve("/dav/old.ics")!!, "BEGIN:VCALENDAR", CalDavClient.ICS, what = "Writing")
+		}.message shouldBe "Writing: the CalDAV server could not be reached"
+		wireMock.findAll(davRequest("PUT", "/dav/new.ics")) shouldHaveSize 1
+	}
+
+	@Test
+	fun `an interrupt during the backoff is a provider failure, keeps the interrupt flag and sends nothing more`() {
+		// The first send drops and the thread is interrupted at that moment, so the backoff sleep is interrupted.
+		val scripted =
+			ScriptedHttpClient { attempt ->
+				if (attempt == 1) {
+					Thread.currentThread().interrupt()
+					throw EOFException("fictitious drop")
+				}
+			}
+		val client = CalDavClient(local.base, "alice", PASSWORD, scripted)
+		stub("GET", "/dav/x.ics", 200, "ok")
+
+		try {
+			shouldThrow<CalendarProviderException> {
+				client.send("GET", client.resolve("/dav/x.ics")!!, what = "Reading")
+			}.message shouldBe "Reading: interrupted"
+			Thread.currentThread().isInterrupted shouldBe true
+		} finally {
+			Thread.interrupted()
+		}
+		scripted.sends shouldBe 1
+		wireMock.findAll(anyRequestedFor(anyUrl())).shouldBeEmpty()
+	}
+
+	@Test
+	@ExtendWith(OutputCaptureExtension::class)
+	fun `a retry is logged with method and host only, never the password or the body`(output: CapturedOutput) {
+		dropOnceThen("PUT", "/dav/x.ics", Fault.EMPTY_RESPONSE, aResponse().withStatus(204))
+
+		local.send(
+			"PUT",
+			local.resolve("/dav/x.ics")!!,
+			"BEGIN:VCALENDAR\nSUMMARY:Fictitious-Marker-Q9\nEND:VCALENDAR",
+			CalDavClient.ICS,
+			mapOf("If-Match" to "\"e1\""),
+			"Writing",
+		)
+
+		val line = output.all.lines().single { "lost its connection before an answer" in it }
+		line shouldContain "PUT"
+		line shouldContain URI(wireMock.baseUrl()).host
+		line shouldContain "INFO"
+		// Only the client's own lines: WireMock's embedded server may log requests at DEBUG when logging is unconfigured.
+		output.all.lines().filter { "CalDavClient" in it }.forEach {
+			it shouldNotContain PASSWORD
+			it shouldNotContain basic("alice:$PASSWORD").removePrefix("Basic ")
+			it shouldNotContain "Fictitious-Marker-Q9"
+		}
+	}
+
+	@Test
 	fun `only reading methods and writes with a precondition are repeatable`() {
 		listOf("GET", "head", "OPTIONS", "PROPFIND", "REPORT").forEach { CalDavClient.repeatable(it, emptyMap()) shouldBe true }
 		CalDavClient.repeatable("PUT", mapOf("IF-MATCH" to "\"e\"")) shouldBe true
@@ -398,6 +506,52 @@ class CalDavClientTests {
 				.willSetStateTo("dropped"),
 		)
 		wireMock.stubFor(request(method, urlPathEqualTo(path)).inScenario("drop").whenScenarioStateIs("dropped").willReturn(then))
+	}
+
+	/** A real [CalDavClient.httpClient] whose sends first run [beforeSend] (with the 1-based attempt), which may throw. */
+	private class ScriptedHttpClient(
+		private val beforeSend: (attempt: Int) -> Unit,
+	) : HttpClient() {
+		private val real = CalDavClient.httpClient()
+		var sends = 0
+			private set
+
+		override fun cookieHandler(): Optional<CookieHandler> = real.cookieHandler()
+
+		override fun connectTimeout(): Optional<Duration> = real.connectTimeout()
+
+		override fun followRedirects(): HttpClient.Redirect = real.followRedirects()
+
+		override fun proxy(): Optional<ProxySelector> = real.proxy()
+
+		override fun sslContext(): SSLContext = real.sslContext()
+
+		override fun sslParameters(): SSLParameters = real.sslParameters()
+
+		override fun authenticator(): Optional<Authenticator> = real.authenticator()
+
+		override fun version(): HttpClient.Version = real.version()
+
+		override fun executor(): Optional<Executor> = real.executor()
+
+		override fun <T> send(
+			request: HttpRequest,
+			responseBodyHandler: HttpResponse.BodyHandler<T>,
+		): HttpResponse<T> {
+			beforeSend(++sends)
+			return real.send(request, responseBodyHandler)
+		}
+
+		override fun <T> sendAsync(
+			request: HttpRequest,
+			responseBodyHandler: HttpResponse.BodyHandler<T>,
+		): CompletableFuture<HttpResponse<T>> = real.sendAsync(request, responseBodyHandler)
+
+		override fun <T> sendAsync(
+			request: HttpRequest,
+			responseBodyHandler: HttpResponse.BodyHandler<T>,
+			pushPromiseHandler: HttpResponse.PushPromiseHandler<T>?,
+		): CompletableFuture<HttpResponse<T>> = real.sendAsync(request, responseBodyHandler, pushPromiseHandler)
 	}
 
 	private fun davRequest(
