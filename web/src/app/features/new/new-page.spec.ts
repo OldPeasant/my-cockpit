@@ -411,6 +411,36 @@ describe('NewPage', () => {
       expect(TestBed.inject(Router).url).toBe('/new');
     });
 
+    it('moves the cursor while `j`/`k` are held, but repeats no other key', async () => {
+      await open();
+      await press('j');
+      await press('j', document.body, { repeat: true });
+      expect(row('mail:m1')!.getAttribute('aria-current')).toBe('true');
+      await press('k', document.body, { repeat: true });
+      expect(row('task:t1')!.getAttribute('aria-current')).toBe('true');
+      const o = await press('o', document.body, { repeat: true });
+      const t = await press('t', document.body, { repeat: true });
+      expect(o.defaultPrevented).toBe(false);
+      expect(t.defaultPrevented).toBe(false);
+      expect(TestBed.inject(Router).url).toBe('/new');
+    });
+
+    it('moves the focus to the cursor row', async () => {
+      await open();
+      await press('j');
+      await press('j');
+      expect(document.activeElement).toBe(row('mail:m1')!.querySelector('button.open'));
+    });
+
+    it('opens the cursor row on `o` while a filter button has the focus', async () => {
+      await open();
+      await press('j');
+      const filterButton = button('Mail', element.querySelector('.filters')!)!;
+      filterButton.focus();
+      await press('o', filterButton);
+      expect(TestBed.inject(Router).url).toBe('/tasks/t1');
+    });
+
     it('leaves Enter on a focused button to the button', async () => {
       await open();
       await press('j');
@@ -518,6 +548,30 @@ describe('NewPage', () => {
       await open();
       expect(element.querySelector('.load-error[role="alert"]')).not.toBeNull();
       expect(element.querySelector('p.note[role="status"]')).toBeNull();
+    });
+  });
+
+  describe('load errors under All', () => {
+    it('shows every task next to a failed mail load', async () => {
+      mailFailure = new ApiError(503, 'Unavailable', 'Down.');
+      await open();
+      expect(element.querySelector('.load-error[role="alert"]')).not.toBeNull();
+      expect(rowKeys()).toEqual(['task:t1', 'task:t2']);
+    });
+
+    it('shows the mails next to a failed Inbox load', async () => {
+      taskFailure = new ApiError(500, 'Server error', 'Down.');
+      await open();
+      expect(element.querySelector('.load-error[role="alert"]')).not.toBeNull();
+      expect(rowKeys()).toEqual(['mail:m1', 'mail:m2']);
+    });
+
+    it('shows no empty state next to the error', async () => {
+      taskFailure = new ApiError(500, 'Server error', 'Down.');
+      pages.set('', { items: [] });
+      await open();
+      expect(element.querySelector('.load-error[role="alert"]')).not.toBeNull();
+      expect(element.querySelector('p.empty')).toBeNull();
     });
   });
 

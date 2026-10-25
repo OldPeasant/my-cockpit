@@ -30,7 +30,8 @@ export function parseFilter(value: string | null | undefined): NewFilter {
 }
 
 /**
- * The rows of `filter`, newest first: tasks by creation, mails by arrival.
+ * The rows of `filter`, newest first: tasks by creation, mails by arrival (by their `Date` header
+ * when the arrival is unknown, see {@link mailAt}).
  *
  * Mails come in pages (newest first), tasks all at once. While older mails are still to load
  * (`moreMail`), tasks older than the oldest loaded mail are held back: shown now, they would end up
@@ -53,18 +54,34 @@ export function mergeNew(
   }
   if (filter !== 'inbox') {
     for (const mail of mails) {
-      rows.push({ kind: 'mail', key: `mail:${mail.id}`, at: mail.receivedAt, mail });
+      rows.push({ kind: 'mail', key: `mail:${mail.id}`, at: mailAt(mail), mail });
     }
   }
   return rows.sort((a, b) => time(b.at) - time(a.at) || a.key.localeCompare(b.key));
 }
 
-/** The time of the oldest mail; `-Infinity` (hold nothing back) when none is loaded yet. */
+/**
+ * The date a mail sorts by: its arrival (`receivedAt`, which the server may leave empty) or else
+ * its `Date` header, like the server's list order falls back from the arrival to a stored date.
+ */
+function mailAt(mail: MailSummary): string {
+  return [mail.receivedAt, mail.sentAt].find((at) => parse(at) !== undefined) ?? '';
+}
+
+/**
+ * The time of the oldest dated mail; `-Infinity` (hold nothing back) when none is loaded yet.
+ * Mails without any date are left out, so they don't turn off the hold-back.
+ */
 function oldest(mails: readonly MailSummary[]): number {
-  return mails.length ? Math.min(...mails.map((mail) => time(mail.receivedAt))) : -Infinity;
+  const times = mails.map((mail) => parse(mailAt(mail))).filter((ms) => ms !== undefined);
+  return times.length ? Math.min(...times) : -Infinity;
 }
 
 function time(iso: string): number {
-  const ms = Date.parse(iso);
-  return Number.isNaN(ms) ? 0 : ms;
+  return parse(iso) ?? 0;
+}
+
+function parse(iso: string | null | undefined): number | undefined {
+  const ms = iso ? Date.parse(iso) : NaN;
+  return Number.isNaN(ms) ? undefined : ms;
 }

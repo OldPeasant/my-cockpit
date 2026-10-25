@@ -69,10 +69,11 @@ export default class NewPage {
   protected readonly moreMail = computed(
     () => this.filter() !== 'inbox' && !!this.mail.nextCursor(),
   );
+  /** Whether a shown source is still loading: it has neither data nor an error yet. */
   protected readonly loading = computed(
     () =>
-      (this.filter() !== 'mail' && !this.tasks.loaded()) ||
-      (this.filter() !== 'inbox' && this.mail.items() === null),
+      (this.filter() !== 'mail' && !this.tasks.loaded() && !this.tasks.error()) ||
+      (this.filter() !== 'inbox' && this.mail.items() === null && !this.mail.loadError()),
   );
   protected readonly taskError = computed(() =>
     this.filter() !== 'mail' && this.tasks.error() ? errorMessage(this.tasks.error()) : null,
@@ -163,8 +164,10 @@ export default class NewPage {
   }
 
   protected onKeydown(event: KeyboardEvent): void {
-    if (event.defaultPrevented || event.repeat || this.dialog.openDialogs.length) return;
+    if (event.defaultPrevented || this.dialog.openDialogs.length) return;
     if (event.ctrlKey || event.metaKey || event.altKey || isTypingTarget(event.target)) return;
+    // Like the mail list, only the cursor keys repeat while held.
+    if (event.repeat && event.key !== 'j' && event.key !== 'k') return;
     const filter = FILTER_KEYS[event.key];
     if (filter) {
       event.preventDefault();
@@ -181,7 +184,7 @@ export default class NewPage {
         return this.moveCursor(-1);
       case 'o':
       case 'Enter':
-        if (!cursor || event.target instanceof HTMLButtonElement) return;
+        if (!cursor || (event.key === 'Enter' && event.target instanceof HTMLButtonElement)) return;
         event.preventDefault();
         return this.open(cursor);
       case 't':
@@ -203,7 +206,20 @@ export default class NewPage {
     const index = rows.findIndex((row) => row.key === this.cursorKey());
     const next = index < 0 ? 0 : Math.min(rows.length - 1, Math.max(0, index + step));
     this.cursorKey.set(rows[next].key);
+    this.focusCursor();
     if (step === 1 && next >= rows.length - 1) void this.mail.loadMore();
+  }
+
+  /**
+   * Roving focus, as in the mail list: focus follows the cursor to the row's button, so assistive
+   * technology announces the row the next key acts on.
+   */
+  private focusCursor(): void {
+    const key = this.cursorKey();
+    if (!key) return;
+    this.host.nativeElement
+      .querySelector<HTMLElement>(`[data-key="${CSS.escape(key)}"] .open`)
+      ?.focus({ preventScroll: true });
   }
 
   protected sender(mail: MailSummary): string {

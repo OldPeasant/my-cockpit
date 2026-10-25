@@ -107,6 +107,33 @@ describe('mergeNew', () => {
     ]);
   });
 
+  describe('mails without an arrival date', () => {
+    // The server may leave `receivedAt` empty although the generated type says `string`.
+    const undated = (id: string, sentAt: string) =>
+      summary(id, { receivedAt: null as unknown as string, sentAt });
+
+    it('sorts and dates them by their Date header', () => {
+      const rows = mergeNew(tasks, [undated('u', '2026-10-20T11:30:00Z'), ...firstPage], false);
+      expect(keys(rows).slice(0, 3)).toEqual(['task:t1', 'mail:u', 'mail:m1']);
+      expect(rows[1].at).toBe('2026-10-20T11:30:00Z');
+    });
+
+    it('uses the Date header for the hold-back too', () => {
+      const page = [mail('m1', '2026-10-20T11:00:00Z'), undated('u', '2026-10-20T10:00:00Z')];
+      expect(keys(mergeNew(tasks, page, true))).toEqual(['task:t1', 'mail:m1', 'mail:u']);
+    });
+
+    it('leaves a mail without any date out of the hold-back', () => {
+      const page = [...firstPage, undated('u', '')];
+      expect(keys(mergeNew(tasks, page, true))).toEqual([
+        'task:t1',
+        'mail:m1',
+        'mail:m2',
+        'mail:u',
+      ]);
+    });
+  });
+
   it('orders equal times by source and id', () => {
     const at = '2026-10-20T10:00:00Z';
     expect(keys(mergeNew([task('b', at)], [mail('a', at)], false))).toEqual(['mail:a', 'task:b']);

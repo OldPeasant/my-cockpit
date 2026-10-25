@@ -95,7 +95,7 @@
         </li>
       }
     </ul>
-  } @else {
+  } @else if (!taskError() && !mailError()) {
     <p class="empty" i18n="@@new.empty">Nothing new. Captures and incoming mail show up here.</p>
   }
 
