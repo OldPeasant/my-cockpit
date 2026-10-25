@@ -21,3 +21,4 @@ views and their behavior stay unchanged, mails never become tasks automatically.
 ## Notes
 - ASSUMPTION (2026-10-25 23:40+0100 by r1963macos/agent-2): New view: 'New' nav entry sits in the Home group right after Dashboard (the first Tasks entry is Inbox), so it is between Dashboard and Inbox without a new group.
 - ASSUMPTION (2026-10-25 23:40+0100 by r1963macos/agent-2): New view: while older mail is still to load, Inbox tasks older than the oldest loaded mail are held back, so loading the next mail page only appends rows. In a large mailbox, old captures therefore appear only after scrolling far enough. Strict merge order wins over showing all tasks at once.
+- ASSUMPTION (2026-10-25 23:40+0100 by r1963macos/agent-2): New view: filter keys are 1/2/3 (All/GTD Inbox/Mail), URL param ?source=inbox|mail (absent = all). Row keys reuse the mail list's: j/k cursor, o/Enter open, t = '→ Inbox task' on mail rows. The mail rows show the unified inbox flat (not threaded).
