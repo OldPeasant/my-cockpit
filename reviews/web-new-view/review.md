@@ -4,37 +4,35 @@ Date: 2026-10-26
 
 Task: web-new-view - Combined New view (GTD inbox + mail inbox)
 
-Scope: final revision of the task. `git diff 464e31b7..c5811bbf` covers commits 1bb76906 (implementation), 3c747664 (e2e spec and palette spec), 3f14a29a (round-1 reports), b975de5e (fixes), 2ca73f94 (extra tests) and merge c5811bbf. Changed code: web/src/app/features/new/*, web/src/app/app.routes.ts, web/src/app/shell/nav-sections.ts, web/src/app/features/search/search-palette.provider.spec.ts, web/e2e/new/new.spec.ts. Only committed code was reviewed. The working tree has uncommitted test-writer changes (new-page.spec.ts, new.routes.spec.ts) that are not part of this review.
+Scope: final revision a954b1800021d140a1399c27856d14f115494a99 of the task (base 464e31b760b54e108001f2f5da4c3d6defac7483). This is a re-review. The previous round reviewed c5811bbf (all code commits 1bb76906, 3c747664, 3f14a29a, b975de5e, 2ca73f94 and merge c5811bbf) and found no issues. This round reviews the delta `git diff c5811bbf..a954b180`: b484d22f (one line in web/e2e/new/new.spec.ts) and a954b180 (new web/src/app/features/new/new.routes.spec.ts, two new tests in new-page.spec.ts, and the reviews/web-new-view/tests.md report). Only committed code was reviewed. The working tree was clean.
 
 Requirements:
-- tasks/web-new-view.md acceptance criteria 1-4 and the three recorded assumptions: nav placement in the Home group, hold-back of older tasks while more mail can load, and keys 1/2/3, `?source=`, j/k/o/Enter/t with a flat unified inbox
-- SPEC.md §5.3 "New view", §9.1
-- docs/ARCHITECTURE.md (web conventions), AGENTS.md "Project notes"
-- Earlier review rounds and reviews/web-new-view/fixes.md
-- Existing conventions in MailListStore, MailListPage (infinite scroll, focusCursor), ListStore/TaskStore and MailReadService.gtd
+- tasks/web-new-view.md acceptance criteria 1-4 and the recorded assumptions: nav placement in the Home group, hold-back of older tasks while more mail can load, and keys 1/2/3, `?source=`, j/k/o/Enter/t with a flat unified inbox
+- SPEC.md §5.3 "New view"; docs/ARCHITECTURE.md (web conventions, Coverage); AGENTS.md "Project notes"
+- The previous review round (c5811bbf) and reviews/web-new-view/tests.md
+- What the parent worker supplied: the e2e run result, and the test-writer's `npm run check` result
 
 Git range:
 - Branch: main
-- HEAD: c5811bbfe7f2bfaa4e0e70dc1fe8359843b73917
-- Base/start: 464e31b760b54e108001f2f5da4c3d6defac7483
-- Commits reviewed: 6 (1bb76906, 3c747664, 3f14a29a, b975de5e, 2ca73f94, c5811bbf)
+- HEAD: a954b1800021d140a1399c27856d14f115494a99
+- Base/start: 464e31b760b54e108001f2f5da4c3d6defac7483 (delta reviewed from c5811bbfe7f2bfaa4e0e70dc1fe8359843b73917)
+- Commits reviewed: 2 new (b484d22f, a954b180), on top of the 6 reviewed in the previous round
 
 Summary: 0 P0, 0 P1, 0 P2, 0 P3
 
 ## What was checked
 
-- **Criterion 1:** `/new` is lazy-loaded in app.routes.ts, and the route title is "New". The nav entry sits in the Home group right after Dashboard, which makes it the entry before Inbox (the first Tasks section), as the assumption records. `mergeNew` (new-feed.ts) sorts tasks by `createdAt` and mails by `receivedAt`, falling back to `sentAt`. Ties are broken by key. While `nextCursor` is set under "All", tasks older than the oldest loaded mail are held back, so loading the next page only appends rows. Each row has an icon and a label. Infinite scroll uses the same IntersectionObserver sentinel as MailListPage, plus a "Load older messages" button and loadMore on `j` at the last row.
-- **Criterion 2:** The filter comes from `?source=` through `toSignal(queryParamMap)` with `replaceUrl` and `merge`, and `all` removes the param. Keys 1/2/3 are ignored in inputs, with modifiers, on repeat and while a dialog is open. Open goes to `/tasks/:id` or `/mail/messages/:id`, and both routes exist. "→ Inbox task" calls the existing `MailReadService.gtd(id, 'task')` (mail-gtd API). It is guarded against double sends by `converting`, refreshes the task store and leaves the mail list unchanged. Live updates come from the stores: TaskStore refetches on TASK events and on resync. MailListStore refetches the unified inbox on any MAIL_FOLDER/MAIL_ACCOUNT event and on resync.
-- **Criterion 3:** No server or OpenAPI changes are in the diff. Only existing generated API calls are used, through the existing stores and services. Vitest covers merge order across paging, each filter, SSE add/remove and resync, "→ Inbox task" (success, ApiError, unexpected error, double send), load errors with retry, keys and infinite scroll.
-- **Async/state:** Out-of-order answers are handled by the stores' sequence counters (ListStore `requestSeq`, MailListStore `loadSeq`/`listGeneration`/`mutationSeq`). Loading ends on failure: a source counts as loading only while it has neither data nor an error. Errors show a banner with "Try again". The empty state is hidden next to an error. A failed `tasks.refresh()` after a successful conversion shows the recoverable task-error banner.
-- **Security:** Nothing is rendered with innerHTML. Interpolation is escaped by Angular. Cursor keys are passed through `CSS.escape` in selectors. No logging. The e2e test data is fictitious and the e2e password is a labelled dummy.
-- **Out-of-touches edit:** search-palette.provider.spec.ts now types `new t` instead of `new`, because the new "Go to New" palette entry would otherwise also match. This is a needed consequence of the nav entry and does not weaken the test.
-- **app.spec.ts:** It is unchanged against the base. Main's version already checks that no nav section shows the coming-soon placeholder, and this now includes `/new`.
+- **Production code unchanged:** `git diff --stat c5811bbf a954b180` lists only web/e2e/new/new.spec.ts, web/src/app/features/new/new-page.spec.ts, web/src/app/features/new/new.routes.spec.ts and two files under reviews/. No file under web/src outside `*.spec.ts`, no server/API file and no generated file changed. The previous round's findings on the production code still apply.
+- **b484d22f (e2e race fix):** Before reading the nav labels with `allTextContents()`, which does not wait, the spec now waits with `expect(nav.filter({ hasText: /^\s*New\s*$/ })).toBeVisible()`. This web-first assertion retries, so it fixes the empty-array race without weakening the order check. The anchored regex matches only the "New" link, so strict mode is not violated. The parent reports `npm run e2e -- --project=chromium e2e/new/new.spec.ts` against the podman-compose e2e stack -> 31 passed, including the New view spec.
+- **new.routes.spec.ts:** It checks the nav order dashboard/new/inbox, the Home group membership (the recorded assumption), the `/new` path and label, and that the real `routes` lazy-load the New page with title "New", no coming-soon placeholder, and an active nav link with `aria-current="page"`. The Api fake throws on unexpected calls, so the test cannot pass by accident. The test asserts behaviour, not implementation details.
+- **new-page.spec.ts additions:** "keeps live rows of the hidden source out of the filtered list" covers SSE updates of both sources while the Mail filter is active and checks that switching to GTD Inbox shows the new task. "holds back a live capture older than the loaded mail until its page loads" covers the hold-back assumption for SSE-added tasks across paging. Both assert visible row order. tests.md says the first failing run of the second test came from a wrong fixture date: the test-writer changed the fixture, not the expectation. I confirmed that the final expectation matches the documented hold-back rule (the old task appears only after mail m4 loads, at its date position). This also resolves the uncommitted failing test noted in the previous round.
+- **Test execution (this review):** `cd web && npx ng test --watch=false --include='src/app/features/new/**/*.spec.ts'` -> 3 files, 68 tests passed. The test-writer reports `npm run check` -> pass, 3630 tests, and whole-file coverage of the task's production files in tests.md.
+- **Security/data:** The new tests use only fictitious data. No secrets, logging or rendering changes.
 
 ## Evidence notes for the parent worker
 
-- Running `ng test --include='src/app/features/new/**'` in the current working tree gives 1 failure out of 68. That run includes the test-writer's uncommitted spec changes (new-page.spec.ts adds two live-update tests, and new.routes.spec.ts is new). The committed suite was reported green in fixes.md (60/60 focused, `npm run check` 3524 passed). Before committing them, confirm whether the failing test points to a production defect or to a wrong expectation.
-- No criterion is recorded in `tasks.py verify` yet. Criterion 4 (Playwright `e2e/new/new.spec.ts` against the e2e stack) has not been run in any recorded evidence. It must be run with `npm run e2e -- e2e/new/new.spec.ts` against the stack, or marked `--skip` with a reason. A static review or the Vitest suite is not evidence for it.
+- `python tasks.py verify web-new-view` shows all four criteria unverified at a954b180. Record the evidence before `done`. For criterion 4, give the actual e2e command and stack (`npm run e2e -- --project=chromium e2e/new/new.spec.ts` against the podman-compose e2e stack -> 31 passed).
+- tests.md notes a flaky timeout outside this task's scope: app.spec.ts "builds every navigation section..." hit its 5000 ms limit once under the instrumented coverage run, and this task adds one more section to that loop. It passed in `npm run check`. It is not a finding against this task, but if it recurs in `.taskcheck`, a follow-up task to raise that test's timeout may be needed.
 
 ## P0 Critical
 

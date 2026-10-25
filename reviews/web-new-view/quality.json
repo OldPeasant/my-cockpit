@@ -1,0 +1,27 @@
+{
+  "schema": 1,
+  "task": "web-new-view",
+  "reviewed_revision": "a954b1800021d140a1399c27856d14f115494a99",
+  "helpers": {
+    "test-writer": {"status": "completed", "report": "reviews/web-new-view/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/web-new-view/review.md"},
+    "fixer": {"status": "completed", "report": "reviews/web-new-view/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "a failed load kept 'Loading…' and hid the other source under All; fixed in b975de5e, re-reviewed round 2"},
+    {"id": "TW-1", "source": "test-writer", "severity": "Medium", "disposition": "fixed",
+     "note": "same defect as CR-1 found by tests; both tests pass after b975de5e"},
+    {"id": "CR-2", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "key handling aligned with the mail list (j/k repeat, o on focused button, focus follows cursor)"},
+    {"id": "CR-3", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "mails without receivedAt fall back to sentAt for order and hold-back"}
+  ],
+  "validation": [
+    {"command": "cd web && npx ng test --watch=false --include='src/app/features/new/**/*.spec.ts'", "result": "pass"},
+    {"command": "cd web && npm run check", "result": "pass"},
+    {"command": "cd web && npm run e2e -- --project=chromium e2e/new/new.spec.ts", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
