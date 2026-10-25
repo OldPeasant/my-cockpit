@@ -1,0 +1,142 @@
+# Test Report
+
+Date: 2026-10-25
+
+Task: ci-split-check - CI: split the fast check into parallel jobs per part
+
+Scope: `git diff 258d81e7dd4e7841ab219ce64eb2b4422bad338e..809185779395768dabec1806c3b38d00943a5ebb`
+(task commit 809185779, supplied by the parent). Measured at HEAD 9e39b3fdef0d0871c8567ed799dbce4e4731a834,
+which only adds a `tasks/ci-split-check.md` board change on top of 809185779 (`git diff 809185779 HEAD --stat`).
+Changed files: `scripts/check.sh`, `.github/workflows/ci.yml`, `docs/ARCHITECTURE.md`, `tasks/ci-split-check.md`.
+Uncommitted inputs: only the new test file `tests/test_check_sh.sh`.
+
+Requirements:
+- `tasks/ci-split-check.md` acceptance criteria
+- `AGENTS.md` (check.sh = `.taskcheck`, `COCKPIT_NO_ANDROID=1`), `docs/ARCHITECTURE.md` "Test"/CI section
+- Parent instructions (no Gradle/npm in the sub-agent; cheap shell test with stubs)
+
+## Test files changed
+
+- `tests/test_check_sh.sh` (new)
+
+## Tests added or updated
+
+Count: 1 new scenario script with 9 scenarios and 45 assertions.
+
+It copies `scripts/check.sh` into a fixture tree under `.tmp/test-check-sh.XXXXXX` (removed on exit).
+In that tree the part commands are stubs that log their arguments: `tests/test_quality_gate.py`,
+`server/gradlew`, `android/gradlew`, and `npm` on PATH. No Gradle, npm or Android SDK is needed. The copy is
+run from an unrelated directory, so the test also checks that the script changes to its own repo root.
+
+## Requirement coverage
+
+| Requirement | Tests | Command | Result |
+|---|---|---|---|
+| AC2: `check.sh` without arguments behaves as before (all parts, same commands, same order, plain "all checks passed") | scenario 1 | `sh tests/test_check_sh.sh` | Pass |
+| AC2: `COCKPIT_NO_ANDROID=1` still skips android without arguments (`.taskcheck` on machines without the SDK) | scenario 2 | `sh tests/test_check_sh.sh` | Pass |
+| AC2: part selector runs only the named part with the unchanged command (`sh scripts/check.sh server`, ...) | scenario 3 (each of tfp/server/web/android), scenario 4 (several parts, duplicates, script order, all four named) | `sh tests/test_check_sh.sh` | Pass |
+| AC2: `COCKPIT_NO_ANDROID=1` with `android` selected skips and exits 0; it does not affect other parts | scenario 5 | `sh tests/test_check_sh.sh` | Pass |
+| Unknown part -> exit 2 with message, nothing runs (also with a valid part before it, an empty argument, wrong case, `all`) | scenario 6 | `sh tests/test_check_sh.sh` | Pass |
+| A failing part still fails the check (nonzero exit, later parts not run, no success line), with or without a selector | scenario 7 | `sh tests/test_check_sh.sh` | Pass |
+| Web dependency install (`npm ci` when the lockfile is newer) still happens inside the selected web part | scenario 8 | `sh tests/test_check_sh.sh` | Pass |
+| AC1/AC2: ci.yml runs `sh scripts/check.sh tfp|server|web|android`, one per part, for each of the four parts, and nothing else calls check.sh (static grep of the workflow) | scenario 9 | `sh tests/test_check_sh.sh` | Pass |
+| AC1: separate jobs, only the setup each needs, own `timeout-minutes` | Reviewed by reading the ci.yml diff (tfp: checkout only; server: java + gradle; web: node; android: java + android SDK + gradle; timeouts 10/35/20/30). The parent ran actionlint -> 0 errors. No automated test: YAML structure and runner behaviour can only be proven on GitHub. | n/a | Not testable here (needs a GitHub run, AC3) |
+| AC3: a push/PR run on GitHub shows all jobs green, with durations | none | n/a | Not run: needs a GitHub Actions run; no GitHub access from this sub-agent |
+| AC3: ci.yml header and ARCHITECTURE.md updated | Reviewed by reading the diff: both describe the per-part jobs and the selector | n/a | Not testable (documentation) |
+
+## Focused test execution
+
+Command:
+
+`sh tests/test_check_sh.sh` (repo root, 2026-10-25)
+
+Result:
+
+Pass: 45 ok, 0 FAIL, "all check.sh selector tests passed", exit 0.
+
+## Full test execution
+
+Command:
+
+`sh scripts/check.sh` (no arguments, the full `.taskcheck`)
+
+Result:
+
+Not run by the test-writer: sub-agents can't run Gradle/npm here (parent instruction). The parent is running it
+and has already run `sh scripts/check.sh bogus` -> exit 2 with message, `sh scripts/check.sh tfp` -> 20 tests OK,
+"all checks passed (tfp)", and actionlint -> 0 errors. The parent must record the result of the full run.
+
+## .taskcheck
+
+Result:
+
+Not run by the test-writer (same reason, see above; the parent runs it).
+
+## Bugs found
+
+None. Every assertion passed against the selector logic of `scripts/check.sh` at 809185779.
+
+Notes for the parent (not defects):
+- `tests/test_check_sh.sh` is not run by `scripts/check.sh tfp`, which only runs `tests/test_quality_gate.py`
+  (the other `tests/test_*` scripts aren't run by it either). Wiring it in would change `scripts/check.sh` and is
+  the parent's call. Run it by hand with `sh tests/test_check_sh.sh` (or `bash`, ~1 s).
+- Repeated parts run only once and parts always run in the script's order, not the order given
+  (`android web` runs web, then android). Nothing in the spec says otherwise; the test fixes the current behaviour.
+
+## Coverage
+
+Status: not applicable. The project has no coverage tooling for POSIX shell or GitHub Actions YAML
+(`docs/ARCHITECTURE.md` "Coverage" covers server (Kover/JaCoCo), web (Vitest) and android only). Adding a shell
+coverage tool such as kcov or bashcov would mean installing a dependency, which is outside the test-writer's
+authority.
+
+Metric: whole-file coverage of task-changed production files: not measured (no provider).
+Changed-line coverage: not measured.
+
+Evidence:
+- Task id, immutable base, measured HEAD, and task-owned commits/file-scope source: ci-split-check; base
+  258d81e7dd4e7841ab219ce64eb2b4422bad338e; task commit 809185779395768dabec1806c3b38d00943a5ebb (from the parent);
+  HEAD 9e39b3fdef0d0871c8567ed799dbce4e4731a834 (adds only a tasks/ board change).
+- Source/test snapshot identifier (including uncommitted inputs): sha256 `scripts/check.sh`
+  d26b0b38ea9b37013a27722d00af105ddc93bcacfcd01105831a52a2c199165e, `.github/workflows/ci.yml`
+  fccdccb5de3503c79bd0c64b5a6199153923ea1badfed546f2b4ce32ed91157b, `tests/test_check_sh.sh`
+  bb0827372d13cf0db6fa374d627e06be16a5e6dc1513cfc889c3752c3c149f53.
+- Exact included files; renamed/deleted/excluded files and reasons: in scope `scripts/check.sh` and
+  `.github/workflows/ci.yml`, both with no coverage provider. Excluded: `docs/ARCHITECTURE.md` (documentation)
+  and `tasks/ci-split-check.md` (board metadata).
+- Provider/version, command, working directory, and test selection: none (no provider configured).
+- Run start/completion time and exit status: n/a for coverage. The test run on 2026-10-25 exited 0.
+- Generated report paths and report hashes/run identifier: none.
+- Evidence outputs are fresh and inputs stayed unchanged: there are no coverage outputs. The test ran against the
+  snapshot hashed above.
+- Final run after latest test additions and production fixes: yes for the test run. No production fixes were made.
+
+| Changed file | Statements | Branches | Functions | Lines |
+|---|---:|---:|---:|---:|
+| `scripts/check.sh` | N/A (no provider) | N/A | N/A | N/A |
+| `.github/workflows/ci.yml` | N/A (not executable locally) | N/A | N/A | N/A |
+
+Branches of `scripts/check.sh` exercised by the new test, counted by hand (not a tool measurement): the
+validation loop (valid part, unknown part), the default `PARTS`, all four `selected` branches taken and not
+taken, the `COCKPIT_NO_ANDROID` skip and the android run, the web `npm ci` and skip, the success line with and
+without a suffix, and failure propagation under `set -e`. Not exercised: the `python` fallback in
+`PY=$(command -v python3 || command -v python)` and the `ANDROID_HOME` default. Both are older code, not changed
+by this task.
+
+| File and uncovered lines/branch locations | Required behavior or risk | Action/test added or reason left uncovered |
+|---|---|---|
+| `scripts/check.sh` `PY=` python fallback, `ANDROID_HOME` default | Older environment setup, not changed by this task | Left uncovered: out of task scope |
+| `.github/workflows/ci.yml` job setup and timeouts | AC1/AC3: jobs run green on GitHub | Only a GitHub run can show this (AC3). The static check in scenario 9 covers the check.sh calls |
+
+## Unable to test
+
+- AC3 (all jobs green on GitHub, with durations and a run id): needs a push/PR run on GitHub Actions. The
+  parent must record the run id, or skip with a reason.
+- AC1 "only the setup it needs" and the timeout headroom: can only be shown by a real run. Here they were
+  reviewed by reading the diff, and the parent ran actionlint.
+- The full no-argument `sh scripts/check.sh` with the real Gradle/npm: the parent runs it.
+
+## Summary
+
+Tests added and the focused run passed (45/45). No production defects found. The full `.taskcheck` run and the
+GitHub run (AC3) are left to the parent worker.
