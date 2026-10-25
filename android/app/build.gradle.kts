@@ -13,6 +13,13 @@ plugins {
     jacoco
 }
 
+// Release signing (CI job android-apk, SPEC.md §11): the keystore comes from the environment; without
+// COCKPIT_KEYSTORE_FILE the release APK is signed with the debug key, so it still installs for testing.
+val releaseKeystore = providers.environmentVariable("COCKPIT_KEYSTORE_FILE").orNull?.takeIf { it.isNotBlank() }
+
+// CI passes its run number, so every APK it builds is an upgrade of the previous one.
+val cockpitVersionCode = providers.gradleProperty("cockpitVersionCode").orNull?.toInt() ?: 1
+
 android {
     namespace = "ch.sonensei.cockpit"
     compileSdk = 37
@@ -21,10 +28,21 @@ android {
         applicationId = "ch.sonensei.cockpit"
         minSdk = 29
         targetSdk = 36
-        versionCode = 1
+        versionCode = cockpitVersionCode
         versionName = "0.1.0"
         // Instrumented tests run in HiltTestApplication (src/androidTest/.../HiltTestRunner.kt).
         testInstrumentationRunner = "ch.sonensei.cockpit.HiltTestRunner"
+    }
+
+    signingConfigs {
+        if (releaseKeystore != null) {
+            create("release") {
+                storeFile = file(releaseKeystore)
+                storePassword = providers.environmentVariable("COCKPIT_KEYSTORE_PASSWORD").orNull
+                keyAlias = providers.environmentVariable("COCKPIT_KEY_ALIAS").orNull
+                keyPassword = providers.environmentVariable("COCKPIT_KEY_PASSWORD").orNull
+            }
+        }
     }
 
     buildTypes {
@@ -34,6 +52,7 @@ android {
         }
         release {
             isMinifyEnabled = false
+            signingConfig = signingConfigs.getByName(if (releaseKeystore != null) "release" else "debug")
         }
     }
     compileOptions {

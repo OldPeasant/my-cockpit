@@ -391,3 +391,7 @@ export type { MoveWeeklyReview$Params as MoveWeeklyReview$Params } from './fn/we
 export { moveWeeklyReview as moveWeeklyReview } from './fn/weekly-review/move-weekly-review';
 export type { CompleteWeeklyReview$Params as CompleteWeeklyReview$Params } from './fn/weekly-review/complete-weekly-review';
 export { completeWeeklyReview as completeWeeklyReview } from './fn/weekly-review/complete-weekly-review';
+export type { DownloadAndroidApp$Params as DownloadAndroidApp$Params } from './fn/download/download-android-app';
+export { downloadAndroidApp as downloadAndroidApp } from './fn/download/download-android-app';
+export type { GetAndroidAppVersion$Params as GetAndroidAppVersion$Params } from './fn/download/get-android-app-version';
+export { getAndroidAppVersion as getAndroidAppVersion } from './fn/download/get-android-app-version';

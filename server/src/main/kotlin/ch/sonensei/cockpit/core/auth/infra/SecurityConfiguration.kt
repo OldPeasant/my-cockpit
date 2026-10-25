@@ -28,7 +28,7 @@ import org.springframework.web.filter.OncePerRequestFilter
 /**
  * HTTP security (SPEC.md §4.1).
  *
- * - Everything under `/api/`, `/actuator/` and the OpenAPI docs needs a login, except the health endpoint, the
+ * - Everything under `/api/`, `/actuator/`, `/download/` (the Android app) and the OpenAPI docs needs a login, except the health endpoint, the
  *   setup flow (it runs before an account exists) and login/logout (password or passkey). The SPA (static files and the `index.html`
  *   fallback for client routes) is public for GET/HEAD; any other request outside the API needs a login too.
  * - Logins are sessions in the database ([SessionAuthenticationFilter], cookie [SessionCookies.NAME]); there is no
@@ -70,7 +70,7 @@ class SecurityConfiguration {
 					.authenticated()
 					.requestMatchers(HttpMethod.POST, TOTP_ENROLLMENT_PATH, "$TOTP_ENROLLMENT_PATH/**")
 					.authenticated()
-					.requestMatchers("/api/**", "/actuator/**", "/v3/api-docs/**", "/v3/api-docs*", "/swagger-ui/**", "/swagger-ui*")
+					.requestMatchers("/api/**", "/actuator/**", "/download/**", "/v3/api-docs/**", "/v3/api-docs*", "/swagger-ui/**", "/swagger-ui*")
 					.access(fullAccess)
 					.requestMatchers(HttpMethod.GET, "/**")
 					.permitAll()

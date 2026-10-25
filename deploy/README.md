@@ -60,6 +60,20 @@ They replace the server's headers, except `Content-Security-Policy`: Caddy's app
 used when the server sent none, so the server can send a stricter CSP for a single response.
 Caddy hides `/actuator/*` except `/actuator/health`.
 
+## Android app
+
+CI builds the release APK (job `android-apk`, artifact `cockpit-android`). It is signed with the keystore in the
+repository secrets `ANDROID_KEYSTORE_BASE64` (`base64 -w0 release.jks`), `ANDROID_KEYSTORE_PASSWORD`,
+`ANDROID_KEY_ALIAS` and `ANDROID_KEY_PASSWORD`; without them it is debug-signed (fine for testing, but keep one
+key: Android only installs an update signed with the same key). Copy both files of the artifact into the data dir,
+then logged-in users can download the app at `https://<COCKPIT_DOMAIN>/download/android`:
+
+```sh
+docker compose -f deploy/docker-compose.yml exec server mkdir -p /data/android
+docker compose -f deploy/docker-compose.yml cp cockpit.apk server:/data/android/cockpit.apk
+docker compose -f deploy/docker-compose.yml cp output-metadata.json server:/data/android/output-metadata.json
+```
+
 ## Host backup
 
 The in-app backup (Settings → Backup) runs on demand only. Also back up the host regularly:

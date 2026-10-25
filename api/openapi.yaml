@@ -44,6 +44,8 @@ tags:
   name: Mail accounts
 - description: Global search across all item types
   name: Search
+- description: Downloads of the client apps
+  name: Download
 - description: "Bookmarks and the read-later queue, with title, description and favicon\
     \ from the page"
   name: Bookmarks
@@ -8530,8 +8532,79 @@ paths:
       summary: Complete the open review
       tags:
       - Weekly review
+  /download/android:
+    get:
+      description: "The release APK deployed on this server, as an attachment `cockpit-<version>.apk`."
+      operationId: downloadAndroidApp
+      responses:
+        "200":
+          content:
+            application/vnd.android.package-archive:
+              schema:
+                type: string
+                format: binary
+          description: The APK
+          headers:
+            X-Cockpit-App-Version:
+              description: "`versionName` of the APK, if known"
+              schema:
+                type: string
+              style: simple
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: No APK is deployed on this server
+      summary: The Android app (APK)
+      tags:
+      - Download
+  /download/android/version:
+    get:
+      operationId: getAndroidAppVersion
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AndroidAppVersion"
+          description: The version of the APK `GET /download/android` sends
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: No APK is deployed on this server
+      summary: Version of the downloadable Android app
+      tags:
+      - Download
 components:
   schemas:
+    AndroidAppVersion:
+      type: object
+      description: Version of the Android app offered for download. The version fields
+        are null when unknown.
+      properties:
+        size:
+          type: integer
+          format: int64
+          description: Size of the APK in bytes
+        updatedAt:
+          type: string
+          format: date-time
+          description: When the APK was deployed on the server
+        versionCode:
+          type: integer
+          format: int64
+          description: '`versionCode` of the APK; higher is newer'
+          example: 42
+        versionName:
+          type: string
+          description: '`versionName` of the APK'
+          example: 0.1.0
+      required:
+      - size
+      - updatedAt
     AreaListResponse:
       type: object
       description: All areas in order
