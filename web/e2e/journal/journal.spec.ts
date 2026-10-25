@@ -33,7 +33,9 @@ test.describe('Journal', () => {
     await put(page.request, earlier, { bodyMd: `Rainy walk ${run}` });
 
     await page.goto('/journal');
-    await expect(page.getByText('Today', { exact: true })).toBeVisible();
+    await expect(
+      page.locator('app-journal-page').getByText('Today', { exact: true }),
+    ).toBeVisible();
     await expect(page.getByRole('status').filter({ hasText: 'Not written yet' })).toBeVisible();
     const onThisDay = page.getByRole('complementary', { name: 'On this day' });
     await expect(
