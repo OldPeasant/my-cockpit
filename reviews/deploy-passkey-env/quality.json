@@ -1,0 +1,22 @@
+{
+  "schema": 1,
+  "task": "deploy-passkey-env",
+  "reviewed_revision": "2dc672c02116ba8a591220f71600fb3ecdd3e9ed",
+  "helpers": {
+    "test-writer": {"status": "completed", "report": "reviews/deploy-passkey-env/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/deploy-passkey-env/review.md"},
+    "fixer": {"status": "completed", "report": "reviews/deploy-passkey-env/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "README used keytool -printcert -jarfile, which can't read the v2/v3-only APK signature; now apksigner verify --print-certs (fixed in 2dc672c0, re-reviewed clean)"},
+    {"id": "TW-1", "source": "test-writer", "severity": "Low", "disposition": "accepted",
+     "note": "hash filter prints a Python traceback instead of a friendly message when the input has no certificate; it never prints a wrong hash, acceptable for a doc one-liner"}
+  ],
+  "validation": [
+    {"command": "docker compose -f deploy/docker-compose.yml --env-file <set|empty|absent sample> config", "result": "pass"},
+    {"command": "python3 -I .tmp/tw-dpe/check_readme_filter.py (README hash filter, 8 checks)", "result": "pass"},
+    {"command": "python3 -I .tmp/fix-dpe/test_readme_cmd.py deploy/README.md .tmp/fix-dpe", "result": "pass"}
+  ]
+}
