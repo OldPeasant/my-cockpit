@@ -15,7 +15,8 @@ Write and browse the journal (SPEC.md §8.5).
 ## Acceptance criteria
 - [x] 'Today' opens/creates today's entry (CodeMirror + image paste), calendar heatmap, on-this-day
   - verified (2026-10-25 23:27+0100 by dell26/agent-2): cd web && npm run e2e -- journal/journal.spec.ts (Playwright chromium against deploy/docker-compose.e2e.yml via podman-compose, real setup/login) -> 31 passed incl. e2e/journal/journal.spec.ts 'write today, paste an image, see the heatmap and on this day'
-- [ ] Vitest component/service tests cover today entry creation, heatmap; `cd web && npm run check` passes
+- [x] Vitest component/service tests cover today entry creation, heatmap; `cd web && npm run check` passes
+  - verified (2026-10-26 00:24+0100 by dell26/agent-2): npm --prefix web run test:ci -- --include 'src/app/features/journal/**/*.spec.ts' -> 5 files, 97 passed (today entry creation PUT w/o If-Match, heatmap component+page); npm --prefix web run check at 164a790e8 -> pass (lint, typecheck, 171 files/3561 tests, build)
 
 ## Notes
 - ASSUMPTION (2026-10-25 22:09+0100 by dell26/agent-2) [confirmed 2026-10-26 00:09+0100 by Peter Gürtler]: Opening Today (or any day without an entry) does not create an empty entry: the first edit (text, mood or tag) creates it via PUT without If-Match. Avoids filling the heatmap with empty days.
