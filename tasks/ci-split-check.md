@@ -1,11 +1,11 @@
 ---
 title: CI: split the fast check into parallel jobs per part
-status: in_progress
+status: done
 owner: dell26/agent-1
 deps: []
 touches: [.github/workflows/ci.yml,scripts/check.sh,docs/ARCHITECTURE.md]
 prio: 1
-lease_until: 2026-10-25T22:17:31Z
+lease_until: 
 ---
 ## Goal
 The CI job "Fast check (scripts/check.sh)" runs server, web and Android one after another and now takes ~32 min on
@@ -31,3 +31,4 @@ will time out. Run the parts as parallel jobs so each has room and the whole res
 - ASSUMPTION (2026-10-25 22:52+0100 by dell26/agent-1): CI job timeouts set to ~2x measured: server 35 min (14.5 min measured in run 39625365916), android 30, web 20, tfp 10; web/android durations were not measured separately (gh run view not available here), estimated from the 32 min serial total
 - ASSUMPTION (2026-10-25 22:57+0100 by dell26/agent-1): Supersedes the earlier timeout line: final CI timeouts tfp 10, server 35 (2.4x measured 14.5 min), web 35, android 35; web/android not measured separately, bounded by the ~17.5 min the 32 min serial run spent outside the server, so ~2x that bound
 - ASSUMPTION (2026-10-25 22:58+0100 by dell26/agent-1): Criterion 3 (green GitHub run with job durations) not observed: no gh access here and CI runs only on main/PRs; assumed the split jobs pass on GitHub because the same per-part commands pass locally and actionlint is clean; owner checks the first run on main
+- done by dell26/agent-1: `sh scripts/check.sh` passed in 54s on b212b0d93; criteria verified 2/3, skipped #3
