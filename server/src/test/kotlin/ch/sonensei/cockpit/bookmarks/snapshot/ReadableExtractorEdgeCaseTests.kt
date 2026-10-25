@@ -376,4 +376,101 @@ class ReadableExtractorEdgeCaseTests {
 		extract("<body><div class=\"layout has-sidebar\"><div><p>$prose</p><p>$prose</p></div></div></body>").text shouldContain
 			"tomato plants"
 	}
+
+	// --- wrappers of the main element and the retry pass (CR-1)
+
+	@Test
+	fun `a main element or role main inside an unlikely wrapper keeps the wrapper in the first pass`() {
+		// Three paragraphs are more than 500 characters, so no retry runs: the newsletter paragraph (an unlikely class)
+		// stays removed only if the first pass kept the wrapper and removed just the newsletter.
+		for (main in listOf("<main>" to "</main>", "<div role=\"main\">" to "</div>")) {
+			val page =
+				extract(
+					"""
+					<body><div class="layout has-sidebar">${main.first}<p>$prose</p><p>$prose</p><p>$prose</p>${main.second}
+					<p class="newsletter-signup">Subscribe to the fictitious newsletter. It is free.</p></div></body>
+					""".trimIndent(),
+				)
+
+			page.text shouldContain "tomato plants"
+			page.text shouldNotContain "Subscribe"
+		}
+	}
+
+	@Test
+	fun `a short first result is replaced by the longer result of the retry`() {
+		val page =
+			extract(
+				"""
+				<body><div><p>A short teaser outside the form, long enough to count.</p></div>
+				<form action="/search"><div><p>$prose</p><p>$prose</p></div></form></body>
+				""".trimIndent(),
+			)
+
+		page.text shouldContain "tomato plants"
+		page.html shouldNotContain "<form"
+	}
+
+	@Test
+	fun `the first result is kept when the retry finds less text`() {
+		// The retry keeps the unlikely `header-text` block, which then scores best (positive class) but holds less text.
+		val page =
+			extract(
+				"""
+				<body><div class="header-text"><p>Tip of the day, water early.</p></div>
+				<section><div><div><p>$prose</p><p>$prose</p></div></div></section></body>
+				""".trimIndent(),
+			)
+
+		page.text shouldContain "tomato plants"
+		page.text shouldNotContain "Tip of the day"
+	}
+
+	@Test
+	fun `the retry runs below 500 characters of text and not at 500`() {
+		fun text(length: Int) = "Basil grows well in sun and warm soil ".repeat(20).take(length - 1) + "."
+
+		fun page(length: Int) =
+			extract(
+				"<body><div><p>${text(length)}</p></div><p class=\"newsletter\">Subscribe to the fictitious newsletter. It is free.</p></body>",
+			)
+
+		page(500).text shouldNotContain "Subscribe"
+		page(500).text.length shouldBe 500
+		// One character less: the retry keeps the newsletter paragraph (a prose sibling), which makes the result longer.
+		page(499).text shouldContain "Subscribe"
+	}
+
+	@Test
+	fun `roles that are never content are dropped in the retry as well`() {
+		val page =
+			extract(
+				"""
+				<body><form action="/search"><p role="navigation">Home. Garden. Contact.</p>
+				<div><p>$prose</p><p>$prose</p></div></form></body>
+				""".trimIndent(),
+			)
+
+		page.text shouldContain "tomato plants"
+		page.text shouldNotContain "Contact"
+	}
+
+	@Test
+	fun `the result of the retry is sanitized like the first`() {
+		val page =
+			extract(
+				"""
+				<html><head><title>T</title></head><body>
+				<form id="aspnetForm" action="javascript:alert(1)" onsubmit="alert(1)"><input type="hidden" name="__VIEWSTATE" value="x">
+				<div class="layout has-sidebar" onclick="alert(1)"><div><p>$prose</p><p>$prose</p>$vectors</div></div></form></body></html>
+				""".trimIndent(),
+			)
+
+		assertOnlySafeMarkup(page.html)
+		page.text shouldContain "tomato plants"
+		page.html shouldNotContain "<form"
+		page.html shouldNotContain "__VIEWSTATE"
+		page.html shouldNotContain "onclick"
+		page.html shouldNotContain "onsubmit"
+	}
 }
