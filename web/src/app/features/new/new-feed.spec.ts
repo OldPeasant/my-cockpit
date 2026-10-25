@@ -72,6 +72,41 @@ describe('mergeNew', () => {
     expect(keys(mergeNew(tasks, firstPage, true, 'mail'))).toEqual(['mail:m1', 'mail:m2']);
   });
 
+  it('shows a task exactly as old as the oldest loaded mail, holds back one just older', () => {
+    const atOldest = task('same', '2026-10-20T10:00:00Z');
+    const justOlder = task('older', '2026-10-20T09:59:59.999Z');
+    expect(keys(mergeNew([atOldest, justOlder], firstPage, true))).toEqual([
+      'mail:m1',
+      'mail:m2',
+      'task:same',
+    ]);
+  });
+
+  it('holds nothing back once the last mail page is loaded, or without mails', () => {
+    expect(keys(mergeNew(tasks, firstPage, false))).toEqual([
+      'task:t1',
+      'mail:m1',
+      'mail:m2',
+      'task:t2',
+      'task:t3',
+    ]);
+    expect(keys(mergeNew([], [], false))).toEqual([]);
+  });
+
+  it('keeps every row of the selected source as new rows arrive (SSE refetch)', () => {
+    const before = keys(mergeNew(tasks, firstPage, true));
+    const after = keys(mergeNew([task('t0', '2026-10-20T13:00:00Z'), ...tasks], firstPage, true));
+    expect(after).toEqual(['task:t0', ...before]);
+  });
+
+  it('sorts an unparsable date last instead of failing', () => {
+    expect(keys(mergeNew([task('bad', 'not a date')], firstPage, false))).toEqual([
+      'mail:m1',
+      'mail:m2',
+      'task:bad',
+    ]);
+  });
+
   it('orders equal times by source and id', () => {
     const at = '2026-10-20T10:00:00Z';
     expect(keys(mergeNew([task('b', at)], [mail('a', at)], false))).toEqual(['mail:a', 'task:b']);
