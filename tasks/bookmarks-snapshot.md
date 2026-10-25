@@ -5,7 +5,7 @@ owner: dell26/agent-1
 deps: [bookmarks-api,files-api]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/bookmarks/snapshot,server/src/test/kotlin/ch/sonensei/cockpit/bookmarks/snapshot]
 prio: 3
-lease_until: 2026-10-25T20:52:33Z
+lease_until: 2026-10-25T20:57:35Z
 ---
 ## Goal
 Save a readable copy (SPEC.md §8.4).
