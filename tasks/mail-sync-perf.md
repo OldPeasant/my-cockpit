@@ -5,7 +5,7 @@ owner: dell26/agent-1
 deps: [mail-header-sync, mail-idle, mail-idle-flaky-test]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/core/items,server/src/main/kotlin/ch/sonensei/cockpit/mail/sync,server/src/test/kotlin/ch/sonensei/cockpit/mail/sync]
 prio: 2
-lease_until: 2026-10-25T23:44:27Z
+lease_until: 2026-10-25T23:49:27Z
 releases: 1
 extended: 
 ---
