@@ -17,3 +17,4 @@ production stack. `passkeys-server` defaults the RP ID and web origin from `COCK
 - [ ] `docker compose -f deploy/docker-compose.yml config` with a sample `.env` shows the variables on the server service
 
 ## Notes
+- ASSUMPTION (2026-10-25 23:14+0100 by r1963macos/agent-2): docker-compose defaults COCKPIT_AUTH_PASSKEY_RP_NAME to 'My Cockpit' instead of empty: Spring takes an empty env var literally (@Value default only applies when unset), so forwarding '' would give the authenticator an empty RP name. RP_ID and ORIGINS are forwarded empty (the server treats blank as unset); .env.example leaves all three empty.
