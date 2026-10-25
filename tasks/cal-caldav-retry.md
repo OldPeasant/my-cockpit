@@ -5,7 +5,7 @@ owner: dell26/agent-1
 deps: []
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/calendar/infra/caldav,server/src/test/kotlin/ch/sonensei/cockpit/calendar/infra/caldav]
 prio: 1
-lease_until: 2026-10-25T23:53:52Z
+lease_until: 2026-10-25T23:54:33Z
 ---
 ## Goal
 GitHub CI on main fails in most runs since cal-caldav: `CalDavRadicaleSyncTests` (integrationTest job) loses 4-5 of
