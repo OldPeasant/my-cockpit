@@ -16,9 +16,10 @@ will time out. Run the parts as parallel jobs so each has room and the whole res
 - [x] `.github/workflows/ci.yml` runs the check as separate jobs (tfp gate tests, server, web, android), each with
   only the setup it needs and its own `timeout-minutes` with clear headroom over its measured duration
   - verified (2026-10-25 22:57+0100 by dell26/agent-1): .github/workflows/ci.yml at 3d4763ba: jobs check-tfp (checkout only, 10 min), check-server (java+gradle, 35 min), check-web (node from .nvmrc, 35 min), check-android (java+android SDK 37/build-tools 36+gradle, 35 min), each 'sh scripts/check.sh <part>'; actionlint (docker rhysd/actionlint) -> 0 errors; code-reviewer confirmed per-job setup needs (reviews/ci-split-check/review.md). Headroom: server 2.4x measured 14.5 min (run 39625365916); web/android ~2x the 17.5 min upper bound (32 min serial - server), not measured per job
-- [ ] CI still runs exactly what agents run: the jobs call `scripts/check.sh` with a part selector (e.g.
+- [x] CI still runs exactly what agents run: the jobs call `scripts/check.sh` with a part selector (e.g.
   `sh scripts/check.sh server`); `sh scripts/check.sh` without arguments behaves as before (`.taskcheck`,
   `COCKPIT_NO_ANDROID=1` still work)
+  - verified (2026-10-25 22:58+0100 by dell26/agent-1): sh scripts/check.sh (no args, at f01b769d) -> tfp, server, web (3463 tests), android all ran, 'all checks passed', exit 0; sh scripts/check.sh tfp -> 20 tests OK; sh scripts/check.sh bogus -> exit 2; sh tests/test_check_sh.sh (stubbed parts, incl. no-arg order, COCKPIT_NO_ANDROID=1 skip with and without selector, ci.yml calls each part) -> 45 ok, exit 0
 - [ ] A push or PR run on GitHub shows all jobs green with their durations (run id in the evidence); the comment
   header of ci.yml and docs/ARCHITECTURE.md "Test"/CI section are updated if they describe the job layout
 
