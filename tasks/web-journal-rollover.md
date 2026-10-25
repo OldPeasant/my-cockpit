@@ -14,6 +14,7 @@ state are dropped without a prompt when the user opens another day.
 ## Acceptance criteria
 - [ ] /journal (Today) moves to the new day after midnight in the user's time zone (saving the old day first) and the heatmap includes it
 - [ ] Leaving a day whose edits are in conflict state asks before dropping them (keep mine / discard / stay)
-- [ ] Vitest specs cover both; `cd web && npm run check` passes
+- [ ] A heatmap response that arrives after a newer load no longer overwrites the newer heatmap/today (review CR-3: `loadHeatmap()` ignores `loadSeq`)
+- [ ] Vitest specs cover all three; `cd web && npm run check` passes
 
 ## Notes
