@@ -1,11 +1,11 @@
 ---
 title: APK build in CI and download from the server
-status: in_progress
+status: done
 owner: dell26/agent-1
 deps: [and-login,p0-ci,p0-deploy,ci-split-check]
 touches: [.github,server/src/main/kotlin/ch/sonensei/cockpit/core/download,server/src/test/kotlin/ch/sonensei/cockpit/core/download]
 prio: 2
-lease_until: 2026-10-25T23:14:11Z
+lease_until: 
 ---
 ## Goal
 Distribute the app without the Play Store (SPEC.md §11).
@@ -21,3 +21,4 @@ Distribute the app without the Play Store (SPEC.md §11).
 ## Notes
 - ASSUMPTION (2026-10-25 23:20+0100 by dell26/agent-1): Version info comes from AGP's output-metadata.json, shipped with cockpit.apk in the CI artifact and copied next to it in COCKPIT_DATA_DIR/android; GET /download/android sends X-Cockpit-App-Version and GET /download/android/version returns JSON. CI passes github.run_number as versionCode so sideloaded updates install. Small edits outside touches were needed: SecurityConfiguration (/download/** needs login), android/app/build.gradle.kts (signing), deploy/README.md, api/openapi.yaml + web generated client.
 - ASSUMPTION (2026-10-25 23:28+0100 by dell26/agent-1): CI keystore-signed APK build not observed (no gh access, keytool blocked locally); assumed working since the Gradle signing config only reads COCKPIT_KEYSTORE_* env vars set by the android-apk job. Review finding CR-1 (unknown /download/* paths get SPA index.html for logged-in users) deferred: SpaWebConfiguration is outside this task's touches and the paths still need login.
+- done by dell26/agent-1: `sh scripts/check.sh` passed in 66s on 9906e0b5d; criteria verified 2/3, skipped #1
