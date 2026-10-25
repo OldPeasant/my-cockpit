@@ -13,7 +13,8 @@ resyncs and paging through old mail cheap.
 
 ## Acceptance criteria
 - [ ] `LinkService.hasLinks(ItemRef)` (or a batched variant) backed by an `exists` query; `MailHeaderStore.isLinked` uses it instead of resolving all links (CR-6)
-- [ ] `MailHeaderSyncService.loadOlder` narrows candidates (e.g. `UID SEARCH BEFORE` the oldest cached date) instead of reading INTERNALDATE of every uncached message on every page; still picks by arrival date (CR-7)
+- [x] `MailHeaderSyncService.loadOlder` narrows candidates (e.g. `UID SEARCH BEFORE` the oldest cached date) instead of reading INTERNALDATE of every uncached message on every page; still picks by arrival date (CR-7)
+  - verified (2026-10-25 23:48+0100 by r1963macos/agent-1): cd server && ./gradlew test --tests '*MailHeaderSyncServiceTests*' at c56e3174 -> 41/41 passed; incl. tests that only the window candidates' dates are read, window doubling + bisection (10y archive cached 5y back, limit 100 -> 100..200 dates read instead of ~1759), one far-older cached message keeps the window narrow, pick order by arrival date. Real IMAP SINCE path (GreenMail) not run here: no Docker
 - [x] Class comment of `MailHeaderSyncService`: the Message-ID lookup of linked rows is described under the full resync, not the incremental sync (CR-8)
   - verified (2026-10-25 23:48+0100 by r1963macos/agent-1): read MailHeaderSyncService class KDoc at c56e3174: the Message-ID lookup of linked rows (retakeLinked) is now in the Full sync bullet, not Incremental; confirmed by code-reviewer (reviews/mail-sync-perf/review.md)
 - [ ] Unit tests and the `external` GreenMail sync tests pass
