@@ -450,6 +450,9 @@ class CalDavRadicaleSyncTests(
 					"/config/config",
 				).withCopyToContainer(Transferable.of("$USER:$PASSWORD\n"), "/config/users")
 				.waitingFor(Wait.forListeningPort())
+				// A socket-activated Podman API service exits when idle while the Spring context starts; the first
+				// create then fails with a broken pipe on the stale pooled connection, a second attempt reconnects.
+				.withStartupAttempts(2)
 				.also { it.start() }
 
 		private fun GenericContainer<*>.baseUrl() = "http://$host:${getMappedPort(PORT)}"

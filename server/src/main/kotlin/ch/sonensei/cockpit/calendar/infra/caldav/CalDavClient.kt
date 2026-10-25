@@ -1,6 +1,7 @@
 package ch.sonensei.cockpit.calendar.infra.caldav
 
 import ch.sonensei.cockpit.calendar.sync.CalendarProviderException
+import org.slf4j.LoggerFactory
 import org.w3c.dom.Element
 import org.xml.sax.InputSource
 import org.xml.sax.SAXException
@@ -189,6 +190,8 @@ internal class CalDavClient(
 /** The pause before a request whose connection was dropped is sent again. */
 internal val DROPPED_CONNECTION_BACKOFF: Duration = Duration.ofMillis(200)
 
+private val droppedConnectionLog = LoggerFactory.getLogger(CalDavClient::class.java)
+
 /**
  * Sends [request] like [HttpClient.send]; when [repeatable] and the connection fails before any answer arrives (the
  * server closed it or reset it, e.g. `EOFException`), sends it once more after [DROPPED_CONNECTION_BACKOFF]. A failure
@@ -212,6 +215,12 @@ internal fun <T> HttpClient.sendRetryingDrop(
 		throw e
 	} catch (e: IOException) {
 		if (!repeatable || answered.get()) throw e
+		droppedConnectionLog.info(
+			"{} to {} lost its connection before an answer ({}), sending it again",
+			request.method(),
+			request.uri().host,
+			e.javaClass.simpleName,
+		)
 	}
 	Thread.sleep(DROPPED_CONNECTION_BACKOFF)
 	return send(request, handler)
