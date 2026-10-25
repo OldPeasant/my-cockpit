@@ -55,6 +55,28 @@ All settings are in `deploy/.env` (template: `.env.example`): `COCKPIT_DOMAIN`, 
 `MS_CLIENT_ID/SECRET/TENANT`). The server gets `SPRING_DATASOURCE_*` and `COCKPIT_DATA_DIR=/data` from the
 compose file.
 
+Passkeys (optional, all empty by default):
+
+| Variable | Default when empty | Purpose |
+|---|---|---|
+| `COCKPIT_AUTH_PASSKEY_RP_ID` | `COCKPIT_DOMAIN` | Domain the passkeys are bound to |
+| `COCKPIT_AUTH_PASSKEY_ORIGINS` | `https://<COCKPIT_DOMAIN>` | Comma-separated accepted origins. Replaces the default, so list the web origin too |
+| `COCKPIT_AUTH_PASSKEY_RP_NAME` | `My Cockpit` | Name the authenticator shows |
+
+The web app works without them. Passkeys in the Android app need its origin in `COCKPIT_AUTH_PASSKEY_ORIGINS`:
+
+```sh
+COCKPIT_AUTH_PASSKEY_ORIGINS=https://cockpit.example.org,android:apk-key-hash:REPLACE_WITH_APK_KEY_HASH
+```
+
+The hash is the base64url-encoded (no padding) SHA-256 of the APK's signing certificate:
+
+```sh
+keytool -printcert -jarfile cockpit.apk | python3 -c 'import base64,re,sys; print(base64.urlsafe_b64encode(bytes.fromhex(re.search(r"SHA256: (\S+)", sys.stdin.read()).group(1).replace(":", ""))).decode().rstrip("="))'
+```
+
+Restart the server after changing it: `docker compose -f deploy/docker-compose.yml up -d server`.
+
 Security headers (HSTS, CSP, `X-Content-Type-Options`, `frame-ancestors`, ...) are set in `Caddyfile`.
 They replace the server's headers, except `Content-Security-Policy`: Caddy's app-wide CSP is only a default,
 used when the server sent none, so the server can send a stricter CSP for a single response.
