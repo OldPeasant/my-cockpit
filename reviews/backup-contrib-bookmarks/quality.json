@@ -1,0 +1,17 @@
+{
+  "schema": 1,
+  "task": "backup-contrib-bookmarks",
+  "reviewed_revision": "aa9c52e01f34cc847f27a0346116bcdd32708a58",
+  "helpers": {
+    "test-writer": {"status": "completed", "report": "reviews/backup-contrib-bookmarks/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/backup-contrib-bookmarks/review.md"},
+    "fixer": {"status": "not_required", "reason": "the test-writer found no production bugs and the code-reviewer reported no findings"}
+  },
+  "fixes_required": false,
+  "findings": [],
+  "validation": [
+    {"command": "cd server && ./gradlew test --tests '*BookmarksBackupContributorTests' --tests '*BackupRoundTripTest' jacocoTestReport ktlintCheck", "result": "pass"},
+    {"command": "cd server && ./gradlew check", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
