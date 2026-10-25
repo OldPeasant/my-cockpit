@@ -500,6 +500,42 @@ describe('NewPage', () => {
       expect(rowKeys()).toEqual(['mail:m1', 'mail:m2']);
     });
 
+    it('keeps live rows of the hidden source out of the filtered list', async () => {
+      await open('/new?source=mail');
+      tasks = [task('t0', '2026-10-20T13:00:00Z'), ...tasks];
+      events.changes.next({ type: 'TASK', id: 't0', op: 'CREATED' } as never);
+      pages.set('', {
+        items: [mail('m0', '2026-10-20T14:00:00Z'), ...pages.get('')!.items],
+        nextCursor: 'c2',
+      });
+      events.changes.next({ type: MAIL_FOLDER_EVENT, id: 'f-inbox', op: 'UPDATED' } as never);
+      await waitForMailRefetch();
+      expect(rowKeys()).toEqual(['mail:m0', 'mail:m1', 'mail:m2']);
+
+      await press('2');
+      expect(rowKeys()).toEqual(['task:t0', 'task:t1', 'task:t2']);
+    });
+
+    it('holds back a live capture older than the loaded mail until its page loads', async () => {
+      await open();
+      tasks = [...tasks, task('old', '2026-10-17T12:00:00Z')];
+      events.changes.next({ type: 'TASK', id: 'old', op: 'CREATED' } as never);
+      await refresh();
+      expect(rowKeys()).toEqual(['task:t1', 'mail:m1', 'mail:m2']);
+
+      button('Load older messages')!.click();
+      await refresh();
+      expect(rowKeys()).toEqual([
+        'task:t1',
+        'mail:m1',
+        'mail:m2',
+        'mail:m3',
+        'task:t2',
+        'mail:m4',
+        'task:old',
+      ]);
+    });
+
     it('refetches both inboxes after the event stream reconnects', async () => {
       await open();
       tasks = [task('t9', '2026-10-20T15:00:00Z'), ...tasks];

@@ -1,35 +1,40 @@
 # Code Review
 
-Date: 2026-10-25
+Date: 2026-10-26
 
 Task: web-new-view - Combined New view (GTD inbox + mail inbox)
 
-Scope: round 2, a re-review of the final code after the fixes. `git diff 614a5151..HEAD -- web` covers task commits d941e026, 634c1bb7 and c149a323; 2d30464f only adds review reports. Focus: web/src/app/features/new, app.routes.ts, shell/nav-sections.ts, app.spec.ts, search/search-palette.provider.spec.ts, e2e/new. Committed changes only.
+Scope: final revision of the task. `git diff 464e31b7..c5811bbf` covers commits 1bb76906 (implementation), 3c747664 (e2e spec and palette spec), 3f14a29a (round-1 reports), b975de5e (fixes), 2ca73f94 (extra tests) and merge c5811bbf. Changed code: web/src/app/features/new/*, web/src/app/app.routes.ts, web/src/app/shell/nav-sections.ts, web/src/app/features/search/search-palette.provider.spec.ts, web/e2e/new/new.spec.ts. Only committed code was reviewed. The working tree has uncommitted test-writer changes (new-page.spec.ts, new.routes.spec.ts) that are not part of this review.
 
 Requirements:
-- tasks/web-new-view.md acceptance criteria 1-4 and the recorded assumptions: nav placement, hold-back of older tasks, keys 1/2/3 with `?source=`, and j/k/o/t
+- tasks/web-new-view.md acceptance criteria 1-4 and the three recorded assumptions: nav placement in the Home group, hold-back of older tasks while more mail can load, and keys 1/2/3, `?source=`, j/k/o/Enter/t with a flat unified inbox
 - SPEC.md §5.3 "New view", §9.1
-- docs/ARCHITECTURE.md, AGENTS.md "Project notes"
-- Round-1 report (CR-1..CR-3) and reviews/web-new-view/fixes.md
-- Existing conventions: MailListStore (load/reload/loadMore semantics), MailListPage.focusCursor, gtd ListStore (`loaded`/`error` semantics)
+- docs/ARCHITECTURE.md (web conventions), AGENTS.md "Project notes"
+- Earlier review rounds and reviews/web-new-view/fixes.md
+- Existing conventions in MailListStore, MailListPage (infinite scroll, focusCursor), ListStore/TaskStore and MailReadService.gtd
 
 Git range:
 - Branch: main
-- HEAD: c149a32326d594e3fd5d924fe0c711a5906f5a9a
-- Base/start: 614a515158d13f77a258d0eb380156a4f2a2bc39
-- Commits reviewed: 4 (d941e026, 634c1bb7, 2d30464f, c149a323)
+- HEAD: c5811bbfe7f2bfaa4e0e70dc1fe8359843b73917
+- Base/start: 464e31b760b54e108001f2f5da4c3d6defac7483
+- Commits reviewed: 6 (1bb76906, 3c747664, 3f14a29a, b975de5e, 2ca73f94, c5811bbf)
 
 Summary: 0 P0, 0 P1, 0 P2, 0 P3
 
-The round-1 code was rebased. Commits 98d81e0d/5784aa66 became d941e026/634c1bb7. `git diff 5784aa66 634c1bb7` over the files in scope is empty, so the round-1 review of those files still applies. In this range, only this task changes files under web/. Fix commit c149a323 changes only web/src/app/features/new (plus fixes.md).
+## What was checked
 
-## Status of round-1 findings
+- **Criterion 1:** `/new` is lazy-loaded in app.routes.ts, and the route title is "New". The nav entry sits in the Home group right after Dashboard, which makes it the entry before Inbox (the first Tasks section), as the assumption records. `mergeNew` (new-feed.ts) sorts tasks by `createdAt` and mails by `receivedAt`, falling back to `sentAt`. Ties are broken by key. While `nextCursor` is set under "All", tasks older than the oldest loaded mail are held back, so loading the next page only appends rows. Each row has an icon and a label. Infinite scroll uses the same IntersectionObserver sentinel as MailListPage, plus a "Load older messages" button and loadMore on `j` at the last row.
+- **Criterion 2:** The filter comes from `?source=` through `toSignal(queryParamMap)` with `replaceUrl` and `merge`, and `all` removes the param. Keys 1/2/3 are ignored in inputs, with modifiers, on repeat and while a dialog is open. Open goes to `/tasks/:id` or `/mail/messages/:id`, and both routes exist. "→ Inbox task" calls the existing `MailReadService.gtd(id, 'task')` (mail-gtd API). It is guarded against double sends by `converting`, refreshes the task store and leaves the mail list unchanged. Live updates come from the stores: TaskStore refetches on TASK events and on resync. MailListStore refetches the unified inbox on any MAIL_FOLDER/MAIL_ACCOUNT event and on resync.
+- **Criterion 3:** No server or OpenAPI changes are in the diff. Only existing generated API calls are used, through the existing stores and services. Vitest covers merge order across paging, each filter, SSE add/remove and resync, "→ Inbox task" (success, ApiError, unexpected error, double send), load errors with retry, keys and infinite scroll.
+- **Async/state:** Out-of-order answers are handled by the stores' sequence counters (ListStore `requestSeq`, MailListStore `loadSeq`/`listGeneration`/`mutationSeq`). Loading ends on failure: a source counts as loading only while it has neither data nor an error. Errors show a banner with "Try again". The empty state is hidden next to an error. A failed `tasks.refresh()` after a successful conversion shows the recoverable task-error banner.
+- **Security:** Nothing is rendered with innerHTML. Interpolation is escaped by Angular. Cursor keys are passed through `CSS.escape` in selectors. No logging. The e2e test data is fictitious and the e2e password is a labelled dummy.
+- **Out-of-touches edit:** search-palette.provider.spec.ts now types `new t` instead of `new`, because the new "Go to New" palette entry would otherwise also match. This is a needed consequence of the nav entry and does not weaken the test.
+- **app.spec.ts:** It is unchanged against the base. Main's version already checks that no nav section shows the coming-soon placeholder, and this now includes `/new`.
 
-- **CR-1 (P2): Resolved.** At `new-page.ts:73-77`, a shown source counts as loading only while it has neither data nor an error. I checked this against the store semantics. `ListStore.refresh` sets `error` and leaves `loaded` false on failure. `MailListStore.load` sets `loadError` and leaves `items` null and `nextCursor` null. After a mail failure, `moreMail` is therefore false and no task is held back, so all tasks show under "All". After a task failure, the mails show. `new-page.html:98` now shows the empty state only when no load error is displayed. During "Try again" the outcome depends on the source. For mail, `reload()` clears `loadError` and shows "Loading…" again. For tasks, the error banner stays until the refresh succeeds. Both paths end in a recoverable state. The tests cover both failures under "All", including the absence of "Loading…" (`stops showing "Loading…" when the %s load failed`), the rows of the other source, no empty state next to the error, and retry recovery for both sources.
-- **CR-2 (P3): Resolved.** At `new-page.ts:170`, only `j`/`k` repeat. The button guard at `new-page.ts:187` now applies only to `Enter`, so `o` opens the cursor row from a focused filter button. `focusCursor()` at `new-page.ts:217-223` moves focus to the cursor row's `.open` button with `preventScroll`, the same as `MailListPage.focusCursor`. When the focused `.open` button receives Enter, the native click calls `cursorKey.set(row.key); open(row)`, so the row is still opened only once. New tests cover repeat behaviour, focus following the cursor, and `o` on a focused filter button.
-- **CR-3 (P3): Resolved.** At `new-feed.ts:67-69`, `mailAt()` uses `receivedAt`, else `sentAt`, else `''`. That value drives sorting, the row's `at` and the hold-back cutoff. Mails without any date are left out of `oldest()` (`new-feed.ts:75-78`), so they can no longer switch off the hold-back. A dateless `at` of `''` renders safely: DatePipe returns null for `''`. Three new unit cases are in new-feed.spec.ts. The server falls back to `created_at`, but the client falls back to `sentAt`. That is a reasonable approximation because `created_at` is not exposed in the summary DTO. The fix report documents this.
+## Evidence notes for the parent worker
 
-No regressions or new issues found in the final code. Acceptance criteria 1-3 are implemented as described in round 1. The fixes do not change the route, the nav entry, the filter/URL handling, the "→ Inbox task" flow or the SSE behaviour, which comes from the stores. No new server endpoint is used. I did not re-run the test suites. The fix report records `npm run check` passing (3524 tests). Criterion 4 (Playwright `e2e/new/new.spec.ts` against the e2e stack) could not run on this machine (no Docker). It must be recorded with `tasks.py verify --skip` and a reason, not claimed from this static review or the Vitest suite.
+- Running `ng test --include='src/app/features/new/**'` in the current working tree gives 1 failure out of 68. That run includes the test-writer's uncommitted spec changes (new-page.spec.ts adds two live-update tests, and new.routes.spec.ts is new). The committed suite was reported green in fixes.md (60/60 focused, `npm run check` 3524 passed). Before committing them, confirm whether the failing test points to a production defect or to a wrong expectation.
+- No criterion is recorded in `tasks.py verify` yet. Criterion 4 (Playwright `e2e/new/new.spec.ts` against the e2e stack) has not been run in any recorded evidence. It must be run with `npm run e2e -- e2e/new/new.spec.ts` against the stack, or marked `--skip` with a reason. A static review or the Vitest suite is not evidence for it.
 
 ## P0 Critical
 

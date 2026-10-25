@@ -1,46 +1,51 @@
 # Test Report
 
-Date: 2026-10-25
+Date: 2026-10-26
 
-Task: web-new-view: Combined New view (GTD inbox + mail inbox)
+Task: web-new-view: Combined New view (GTD inbox + mail inbox) (round 2, final code after the fixes for CR-1..CR-3 / TW-1)
 
-Scope: `614a515158d13f77a258d0eb380156a4f2a2bc39..5784aa66e63e1d99422e5be40a508421b33fb3ec` (task commits 98d81e0d, 5784aa66, given by the parent worker), limited to `web/`. Branch `main`, HEAD 5784aa66. Uncommitted when measured: only the two test files changed by this report (`new-page.spec.ts`, `new-feed.spec.ts`).
+Scope: `git diff 464e31b760b54e108001f2f5da4c3d6defac7483..HEAD -- web` (base given by the parent worker, = origin/main at claim). The task's earlier commits 1bb76906 (implementation), 3c747664 (e2e spec), b975de5e (fixes), 2ca73f94 (extra tests) arrive through c5811bbf ("merge earlier work from wip/web-new-view"). Branch `main`. Measured HEAD: c5811bbfe7f2bfaa4e0e70dc1fe8359843b73917 at the start; during the run the parent committed b484d22ff7140d42957be8130bf49c34e55b2645, which only adds one line to `web/e2e/new/new.spec.ts` (Playwright, not part of the Vitest run or its coverage). Uncommitted when measured: only the two test files of this report.
 
 Requirements:
-- `tasks/web-new-view.md` acceptance criteria 1-4 and the recorded assumptions (filter keys 1/2/3, `?source=inbox|mail`, held-back tasks while more mail can load, j/k/o/Enter/t keys)
+- `tasks/web-new-view.md` acceptance criteria 1-3 (AC4 is Playwright and is run by the parent) and the recorded assumptions (New in the Home group right after Dashboard; tasks older than the oldest loaded mail held back while more mail can load; keys 1/2/3, `?source=inbox|mail`, j/k/o/Enter/t, flat unified inbox)
 - SPEC.md §5.3 "New view", §9.1
 - docs/ARCHITECTURE.md "Coverage"; AGENTS.md
-- Instructions from the parent worker (edge cases to cover)
+- Instructions from the parent worker
 
 ## Test files changed
 
-- `web/src/app/features/new/new-page.spec.ts`
-- `web/src/app/features/new/new-feed.spec.ts`
+- `web/src/app/features/new/new-page.spec.ts` (2 tests added)
+- `web/src/app/features/new/new.routes.spec.ts` (new, 2 tests)
 
 ## Tests added or updated
 
-Count: 29 (25 in `new-page.spec.ts`, counting each `it.each` case; 4 in `new-feed.spec.ts`). No existing test was changed in substance. I added `taskFailure`/`mailFailure` switches to the fake API, and `press()` can now send a key to any element with any options.
+Count: 4 added, none changed or removed.
+
+The existing suite (`new-feed.spec.ts` 20 tests, `new-page.spec.ts` 44 tests before this round, counting each `it.each` case) already covered merge order across paging, each filter, SSE add/remove, "→ Inbox task" and the load-error fixes. I added tests only for these remaining gaps:
+
+- `new.routes.spec.ts` › `puts "New" right after Dashboard and right before Inbox`: the nav position in AC1 and the recorded assumption (Home group, no group of its own). Before this, only the e2e spec checked the position.
+- `new.routes.spec.ts` › `lazy-loads the New page at /new and marks its navigation entry active`: the real `app.routes.ts` route loads `app-new-page` with the title "New" and the active nav link.
+- `new-page.spec.ts` › `live updates` › `keeps live rows of the hidden source out of the filtered list`: SSE combined with a filter. A new capture does not show under Mail and a new mail does not show under GTD Inbox. After switching to GTD Inbox, the live capture is there.
+- `new-page.spec.ts` › `live updates` › `holds back a live capture older than the loaded mail until its page loads`: SSE combined with the hold-back assumption. An old capture that arrives live stays hidden until the mail pages reach it, then appears after the older mails, so the order stays correct.
 
 ## Requirement coverage
 
-Command for every row: `cd web && npx ng test --watch=false --include='src/app/features/new/**/*.spec.ts'` (51 tests: 49 passed, 2 failed, both TW-1).
+Focused command (F): `cd web && npx ng test --watch=false --include='src/app/features/new/**/*.spec.ts'`: 3 files, 68 tests, all passed.
 
 | Requirement | Tests | Command | Result |
 |---|---|---|---|
-| AC1 merge newest first, source icon + label | `merges both inboxes newest first and shows each row source`; mergeNew `merges tasks by creation...`, `orders equal times...`, `sorts an unparsable date last...` | focused | Pass |
-| AC1 mail paging keeps the order (button, IntersectionObserver, keyboard) | `keeps the order when older mail loads`; `infinite scroll > loads the next mail page when the end of the list comes into view`; `infinite scroll > shows a failed next page and loads it again on the button`; `infinite scroll > loads no mail pages under the GTD Inbox filter`; `loads older mail when the keyboard cursor reaches the last row`; mergeNew `holds back...`, `only appends...`, `shows a task exactly as old as the oldest loaded mail, holds back one just older`, `holds nothing back once the last mail page is loaded, or without mails` | focused | Pass |
-| AC1 row content (sender, snippet, no-subject fallback, unread, date format) | `shows sender, snippet, a subject fallback and the read state of mail rows`; `dates > shows the time today, the day this year and the full date before` | focused | Pass |
-| AC1 route `/new` + nav entry | `app.spec.ts` (existing, changed by the task) | `npm run check` (test:ci) | Pass |
-| AC2 filters All / GTD Inbox / Mail by button, key and URL | `filters by the URL` (3 cases); `switches the filter with the buttons and keys and keeps it in the URL`; `does not navigate when the shown filter is chosen again`; mergeNew `filters by source`; parseFilter (5 cases) | focused | Pass |
-| AC2 keys ignored while typing, with modifiers, on repeat, with a dialog open; Enter on a button | `keys > ignores keys typed into an input`; `keys > ignores keys with modifiers and repeated keys`; `keys > leaves Enter on a focused button to the button`; `keys > ignores keys while a dialog is open`; `keeps the cursor at the first row on k`; `shows the empty state, where the row keys do nothing` | focused | Pass |
-| AC2 opening a row (task detail / mail read view) | `opens a task in its detail view`; `opens a mail in the read view with the keyboard`; `opens a mail in the read view on click` | focused | Pass |
-| AC2/AC3 "→ Inbox task" (mail-gtd API), mail stays, errors, double submit | `makes an Inbox task of a mail and keeps the mail`; `reports a failed "→ Inbox task"`; `reports an unexpected "→ Inbox task" failure with a generic message`; `sends "→ Inbox task" once while it runs (double click, then t)` | focused | Pass |
-| AC2/AC3 SSE add/remove | `adds new captures and new mail live and drops processed items`; `live updates > drops a mail archived elsewhere after the folder refetch`; `live updates > drops a task processed in another view`; `live updates > refetches both inboxes after the event stream reconnects`; mergeNew `keeps every row of the selected source as new rows arrive (SSE refetch)` | focused | Pass |
-| Load errors + retry | `load errors > shows a failed Inbox load and retries it`; `load errors > shows a failed mail load and reloads it`; `load errors > ignores the failure of the hidden source` (2 cases) | focused | Pass |
-| Loading state ends after a failed load | `load errors > stops showing "Loading…" when the Inbox load failed`; `... when the mail load failed` | focused | Fail (TW-1) |
-| AC3 only existing APIs | The fake `Api` throws on any operation other than `listTasks`, `listMailMessages`, `mailToTask`; every page test passes through it | focused | Pass |
-| AC3 `cd web && npm run check` passes | whole web check | `cd web && npm run check` | Fail: lint and api:check pass, test:ci fails on the 2 TW-1 tests (3513 passed, 2 failed of 3515), so `ng build` did not run |
-| AC4 Playwright `e2e/new/new.spec.ts` | `e2e/new/new.spec.ts` (not changed by me) | none | Not run: Docker is not available on this machine, so the e2e stack cannot start. `npm run check` includes `e2e:typecheck`, which passed, but that only type-checks the spec and does not count as running it |
+| AC1 route `/new`, "New" nav entry between Dashboard and Inbox | `new.routes.spec.ts`: both tests; also the existing `app.spec.ts` `builds every navigation section...` and `shell.spec.ts` link rendering | F; `npm run check` | Pass |
+| AC1 merge newest first (task creation / mail date), source icon + label | `merges both inboxes newest first and shows each row source`; mergeNew `merges tasks by creation...`, `orders equal times by source and id`, `sorts an unparsable date last...`, `mails without an arrival date` (5 tests, CR-3) | F | Pass |
+| AC1 load more mail by cursor without breaking the order (+ hold-back assumption) | mergeNew `holds back tasks older...`, `only appends when the next mail page loads`, `shows a task exactly as old as the oldest loaded mail...`, `holds nothing back once the last mail page is loaded...`, `shows every task while no mail is loaded`; page `keeps the order when older mail loads`, `loads older mail when the keyboard cursor reaches the last row`, `infinite scroll` (3 tests), `holds back a live capture older than the loaded mail...` (new) | F | Pass |
+| AC2 filter All / GTD Inbox / Mail: buttons, keys 1/2/3, URL `?source=` (survives reload) | `filters by the URL` (3 cases, a fresh page opened at the URL, like a reload), `switches the filter with the buttons and keys and keeps it in the URL`, `does not navigate when the shown filter is chosen again`, mergeNew `filters by source`, `parseFilter` (5 cases), `infinite scroll` › `loads no mail pages under the GTD Inbox filter`, `ignores the failure of the hidden source` (2 cases) | F | Pass |
+| AC2 opening a row: task detail / mail read view | `opens a task in its detail view`, `opens a mail in the read view on click`, `opens a mail in the read view with the keyboard`, `keys` › `acts on the cursor row with t and o...`, `opens the cursor row on o while a filter button has the focus`, `leaves Enter on a focused button to the button` | F | Pass |
+| AC2 "→ Inbox task" (mail-gtd API), mail stays | `makes an Inbox task of a mail and keeps the mail`, `sends "→ Inbox task" once while it runs`, `reports a failed "→ Inbox task"`, `reports an unexpected "→ Inbox task" failure with a generic message` | F | Pass |
+| AC2 live updates via SSE: new capture / new mail appear, processed / archived disappear | `adds new captures and new mail live and drops processed items`, `live updates` › `drops a mail archived elsewhere...`, `drops a task processed in another view`, `refetches both inboxes after the event stream reconnects`, `keeps live rows of the hidden source out of the filtered list` (new), `holds back a live capture...` (new) | F | Pass |
+| Assumption: keys j/k/o/Enter/t, as in the mail list (CR-2 fix) | `keys` describe (8 tests), `keeps the cursor at the first row on k`, `shows the empty state, where the row keys do nothing` | F | Pass |
+| Load-error fixes (CR-1 / TW-1): "Loading…" ends, the other source stays visible, retry | `load errors` (6 tests incl. 2 `it.each` cases), `load errors under All` (4 tests) | F | Pass |
+| AC3 only existing APIs, no new server endpoint | `git diff --stat 464e31b7..HEAD -- server api web/src/app/api` is empty; the specs' fake `Api` accepts only `listTasks`, `listMailMessages`, `mailToTask` and throws on any other call | git diff; F | Pass |
+| AC3 `cd web && npm run check` passes | whole web suite | `cd web && npm run check` | Pass |
+| AC4 Playwright `e2e/new/new.spec.ts` against the e2e stack | `web/e2e/new/new.spec.ts` | `npm run e2e -- e2e/new/new.spec.ts` | Not run: the parent worker runs it, as instructed. The spec is type-checked by `npm run check` (`e2e:typecheck`), which does not execute it |
 
 ## Focused test execution
 
@@ -50,104 +55,69 @@ Command:
 
 Result:
 
-Fail: 51 tests, 49 passed, 2 failed (the TW-1 tests only).
+Pass: 3 files, 68 tests. The first run of the new test `holds back a live capture...` failed because of a wrong date in my fixture (the "old" capture was newer than mail m4). I fixed the fixture, not the expectation.
 
 ## Full test execution
 
 Command:
 
-`cd web && npm run check` (api:check, lint, e2e:typecheck, test:ci, build). Also run separately: `npx prettier --check src/app/features/new/` (Pass) and `npx ng lint --max-warnings=0` (Pass).
+`cd web && npm run check` (api:check, lint `--max-warnings=0`, e2e:typecheck, test:ci, ng build)
 
 Result:
 
-Fail: 168 test files, 3515 tests, 3513 passed, 2 failed (TW-1). No other test in the repository fails.
+Pass, exit 0: 174 test files, 3630 tests. `npx --prefix web prettier --check web/src/app/features/new`: Pass.
 
 ## .taskcheck
 
 Result:
 
-Not run. Its web part runs the same `npm run check`, which fails on TW-1 for certain. Its server part needs Docker for the DB tests, and Docker is not available on this machine.
+Not run in full (`sh scripts/check.sh` also runs the server and Android checks, which this web-only task does not change; the parent runs `.taskcheck` before `done`). Its web part, `npm run check`, passes.
 
 ## Bugs found
 
-### "Loading…" never ends when one source fails to load under the All filter
-
-Finding ID:
-
-`TW-1`
-
-Test:
-
-`NewPage > load errors > stops showing "Loading…" when the Inbox load failed` and `... when the mail load failed`
-
-Production source:
-
-`web/src/app/features/new/new-page.ts:72-76` (the `loading` computed) and `web/src/app/features/new/new-page.html:32`
-
-Requirement:
-
-AC2/SPEC §5.3 New view behaviour. The error handling convention of the sibling views (Inbox page, mail list page) is to show the error instead of the loading note. The test-writer rule also requires that the loading state ends after a failure and the screen can be retried.
-
-Expected behavior:
-
-When the GTD Inbox or the mail list fails to load under the All filter, the page shows the error with "Try again" and no longer shows "Loading…". The rows of the source that did load should still be visible (suggested, not asserted).
-
-Actual behavior:
-
-`loading` stays true because `tasks.loaded()` stays false or `mail.items()` stays `null` after the failure. The page then shows the error alert and "Loading…" (`role="status"`) together, indefinitely. It also hides all rows of the source that loaded successfully, until a retry succeeds. Under the GTD Inbox or Mail filter the hidden source's failure is ignored correctly (tests pass).
-
-Severity:
-
-Low
-
-Fix required:
-
-`Yes — production code must be fixed by the parent worker / fixer.`
+None.
 
 ## Coverage
 
-Status: partial-failed. The final coverage run passed (exit 0), but it left out the 2 failing TW-1 tests by name with `--filter`. A run of the whole suite fails because of TW-1, and `npm run coverage` then writes no report (exit 1, no `coverage/web/` directory). The numbers below describe the current production code, so they are valid as diagnostic numbers. They are not a verified, all-tests-passing measurement.
+Status: verified for the web part (the only part the task changes).
 
 Metric: whole-file coverage of task-changed production files.
-Changed-line coverage: not measured (every task-changed file under `features/new` is new, so whole-file coverage equals changed-line coverage there; `app.routes.ts` and `nav-sections.ts` are fully covered anyway).
+Changed-line coverage: not measured separately. Every production file in scope except `app.routes.ts` and `nav-sections.ts` is new, so for those whole-file and changed-line coverage are the same. The changed lines of the other two are covered (both files at 100 %).
 
 Evidence:
-- Task id, immutable base, measured HEAD, and task-owned commits/file-scope source: web-new-view; base 614a515158d13f77a258d0eb380156a4f2a2bc39; HEAD 5784aa66e63e1d99422e5be40a508421b33fb3ec; commits 98d81e0d and 5784aa66 as given by the parent, checked with `git diff --stat 614a5151..HEAD` (12 files, all under `web/`)
-- Source/test snapshot identifier (including uncommitted inputs): SHA-256 before and after the run, unchanged: new-feed.ts f8298357…; new-page.ts a72fc82a…; new-page.html 522bd1e2…; new-page.scss 62f5dcf1…; new.routes.ts 4c0da351…; app.routes.ts c20c6e01…; nav-sections.ts a96b4f3f…; new-page.spec.ts 5fda12b2… (uncommitted); new-feed.spec.ts c3b1a173… (uncommitted)
-- Exact included files; renamed/deleted/excluded files and reasons: included `web/src/app/features/new/{new-feed.ts,new-page.ts,new-page.html,new-page.scss,new.routes.ts}`, `web/src/app/app.routes.ts`, `web/src/app/shell/nav-sections.ts`. Excluded: `*.spec.ts`, `web/e2e/new/new.spec.ts` (tests); no renamed or deleted files
-- Provider/version, command, working directory, and test selection: Vitest 5.0.5 + @vitest/coverage-v8 5.0.5 (via `@angular/build:unit-test`); working directory `web/`; `npx ng test --watch=false --filter='^(?!.*stops showing "Loading…").*$' --coverage --coverage-include='src/app/features/new/**' --coverage-include='src/app/app.routes.ts' --coverage-include='src/app/shell/nav-sections.ts' --coverage-reporters=text --coverage-reporters=json-summary --coverage-reporters=json`; whole suite except the 2 TW-1 tests (3513 passed, 2 skipped by the filter)
-- Run start/completion time and exit status: 2026-10-25T22:46:33Z to 22:47:15Z, exit 0
-- Generated report paths and report hashes/run identifier: `web/coverage/web/coverage-summary.json` (sha256 b2c9389e2dd33ca23cf01a45405f8168db25b710c35fde8e051fa6f7db0dd15c), `web/coverage/web/coverage-final.json` (sha256 d51b302cb7856a00a717cf3097651ebf6e45c4176fd5bdeb7cfff52d07509c57)
-- Evidence outputs are fresh and inputs stayed unchanged: yes. The report was written by this run (the earlier failing `npm run coverage` had left no `coverage/web`), and the snapshot hashes match before and after
-- Final run after latest test additions and production fixes: yes, after the latest test additions. No production fix has been made yet; after the TW-1 fix, coverage must be measured again
+- Task id, immutable base, measured HEAD, and task-owned commits/file-scope source: `web-new-view`; base 464e31b760b54e108001f2f5da4c3d6defac7483; HEAD c5811bbfe7f2bfaa4e0e70dc1fe8359843b73917 (b484d22f, committed during the run, changes only the Playwright spec); scope = `git diff --name-only 464e31b7..HEAD -- web/src` without `*.spec.ts`, as given by the parent.
+- Source/test snapshot identifier (including uncommitted inputs): sha256 before and after the runs (unchanged, `sha256sum -c`): `new-feed.ts` 97c0268f…, `new-page.ts` fd5e2d31…, `new-page.html` 46dd63ac…, `new.routes.ts` 4c0da351…, `app.routes.ts` c20c6e01…, `nav-sections.ts` a96b4f3f…, `new-page.spec.ts` b82d41d0…, `new.routes.spec.ts` 7346b2c1…, `new-feed.spec.ts` 32ff8621….
+- Exact included files: `web/src/app/features/new/new-feed.ts`, `new-page.ts`, `new-page.html`, `new.routes.ts`, `web/src/app/app.routes.ts`, `web/src/app/shell/nav-sections.ts`. Excluded: `new-page.scss` (styles, not executable), `*.spec.ts`, `web/e2e/new/new.spec.ts` (Playwright test). No renames or deletions.
+- Provider/version, command, working directory, and test selection: Vitest 5 + `@vitest/coverage-v8` 5 (`^5.0.5`), Node v24.21.0; `npm run coverage` in `web/`; the whole web suite.
+- Run start/completion time and exit status: run 1 started 2026-10-26 00:36:12 +01:00. It failed: 1 of 3630 tests timed out, `app.spec.ts` › `builds every navigation section...` (5000 ms limit). Its output was discarded. Run 2 started 00:37:52 and took 58.45 s. All 174 files and 3630 tests passed.
+- Generated report paths and report hashes/run identifier: `web/coverage/web/coverage-final.json` sha256 8ab579ef96453b0bb8c611803045445ec416e1f773e106be1b58392194fc53e5 (written 00:38:51), `web/coverage/web/coverage-summary.json` sha256 04cf93bbe74af4afde8d165c3e2a537b659daa4d24da590d2a457e6f5245655f.
+- Evidence outputs are fresh and inputs stayed unchanged: yes. Run 2 rewrote the report, and the snapshot hashes match before and after.
+- Final run after latest test additions and production fixes: yes. No production code changed after the fixes in b975de5e.
 
-Values below use covered/total (percentage); zero-denominator or unsupported metrics are N/A.
+Values below use covered/total (percentage); zero-denominator metrics are N/A.
 
 | Changed file | Statements | Branches | Functions | Lines |
 |---|---:|---:|---:|---:|
-| `web/src/app/features/new/new-feed.ts` | 19/19 (100%) | 21/21 (100%) | 6/6 (100%) | 16/16 (100%) |
-| `web/src/app/features/new/new-page.ts` | 116/117 (99.1%) | 84/85 (98.8%) | 31/32 (96.9%) | 89/89 (100%) |
+| `web/src/app/features/new/new-feed.ts` | 24/24 (100%) | 27/27 (100%) | 10/10 (100%) | 19/19 (100%) |
+| `web/src/app/features/new/new-page.ts` | 122/124 (98.38%) | 92/94 (97.87%) | 32/33 (96.97%) | 94/94 (100%) |
 | `web/src/app/features/new/new-page.html` | 109/109 (100%) | 20/20 (100%) | 5/5 (100%) | 69/69 (100%) |
-| `web/src/app/features/new/new-page.scss` | N/A | N/A | N/A | N/A |
-| `web/src/app/features/new/new.routes.ts` | 1/2 (50%) | N/A | 0/1 (0%) | 1/2 (50%) |
-| `web/src/app/app.routes.ts` | 20/20 (100%) | N/A | 19/19 (100%) | 20/20 (100%) |
-| `web/src/app/shell/nav-sections.ts` | 3/3 (100%) | N/A | 1/1 (100%) | 2/2 (100%) |
-| **Aggregate (summed counters, all 7 files)** | 268/270 (99.3%) | 125/126 (99.2%) | 62/64 (96.9%) | 197/198 (99.5%) |
-
-No measured files are missing. The scss file has no executable code.
+| `web/src/app/features/new/new.routes.ts` | 2/2 (100%) | N/A (0/0) | 1/1 (100%) | 2/2 (100%) |
+| `web/src/app/app.routes.ts` | 20/20 (100%) | N/A (0/0) | 19/19 (100%) | 20/20 (100%) |
+| `web/src/app/shell/nav-sections.ts` | 3/3 (100%) | N/A (0/0) | 1/1 (100%) | 2/2 (100%) |
+| **Aggregate (summed counters, all 6 scoped files; none missing)** | 280/282 (99.29%) | 139/141 (98.58%) | 68/69 (98.55%) | 206/206 (100%) |
 
 | File and uncovered lines/branch locations | Required behavior or risk | Action/test added or reason left uncovered |
 |---|---|---|
-| `new-page.ts:40` (1 statement, 1 branch, 1 function in the `@Component` metadata, `providers`) | None; this is decorator metadata emitted by the compiler | Left uncovered: not reachable as behavior |
-| `new.routes.ts:7` (lazy `loadComponent` callback) | The route `/new` loads the page | Not covered by unit tests: unit tests mount the page directly. The `app.spec.ts` route check covers the route entry. AC4 e2e exercises the lazy load but was not run (no Docker) |
-
-Before my additions (first scoped run, New specs only), `new-page.ts` had 114/117 statements and 80/85 branches, and `new-page.html` had 108/109 statements and 19/20 branches. The gaps were the no-subject fallback, the snippet, the date formats and choosing the shown filter again. Tests now cover all of them.
+| `new-page.ts:90` (statement + anonymous function) | none: the function that the Angular compiler generates for `viewChild('sentinel')` | Non-material: compiler glue. The sentinel itself is exercised by the `infinite scroll` tests |
+| `new-page.ts:40` (branch `if[0]`) | none: a branch of the compiled `@Component` decorator/metadata | Non-material: compiler glue |
+| `new-page.ts:219` (`if (!key) return;` in `focusCursor`) | defensive guard: `focusCursor` is called only from `moveCursor` right after `cursorKey.set(...)`, so the key is never null there | Non-material: not reachable through the UI, no test added |
 
 ## Unable to test
 
-- AC4 Playwright `e2e/new/new.spec.ts` against the e2e stack: Docker is not available on this machine. This needs follow-up: run it where Docker is available.
-- `.taskcheck`: not run, for the reasons above.
+- AC4 (Playwright against the e2e stack with GreenMail): not run by me, as instructed. The parent worker runs `npm run e2e -- e2e/new/new.spec.ts`.
+- Real `IntersectionObserver` scrolling geometry (jsdom has no layout). The tests replace the observer with a stub and trigger its callback. The real scroll is left to the e2e/manual check. No follow-up needed.
+- Flaky outside the scope: in the first coverage run, `web/src/app/app.spec.ts` › `builds every navigation section, so none shows the coming soon placeholder` timed out at 5000 ms. The test navigates every NAV_SECTION in one test, and this task adds one more section. On its own it takes 780 ms, and it passed in the second coverage run and in both `npm run check` runs. It looks like a timing flake under the load of instrumented, parallel runs, not a defect in this task. If it recurs, the parent may want a follow-up to give that test a longer timeout.
 
 ## Summary
 
-Tests added; production defects were discovered and must be passed to the `fixer` before task completion. TW-1 (Low): "Loading…" stays next to the load error and hides the other source's rows under the All filter. Everything else in criteria 1-3 is covered and passes. AC4 (e2e) was not run because Docker is not available.
+Tests added and all validation passed. Task-scoped coverage is sufficient, and no production defects were found. AC4 (Playwright) is left to the parent worker.
