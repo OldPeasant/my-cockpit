@@ -69,11 +69,14 @@ The web app works without them. Passkeys in the Android app need its origin in `
 COCKPIT_AUTH_PASSKEY_ORIGINS=https://cockpit.example.org,android:apk-key-hash:REPLACE_WITH_APK_KEY_HASH
 ```
 
-The hash is the base64url-encoded (no padding) SHA-256 of the APK's signing certificate:
+The hash is the base64url-encoded (no padding) SHA-256 of the APK's signing certificate. The APK is
+signed with scheme v2/v3 only, so use `apksigner` (Android SDK `build-tools/<version>/`), not `keytool -printcert -jarfile`:
 
 ```sh
-keytool -printcert -jarfile cockpit.apk | python3 -c 'import base64,re,sys; print(base64.urlsafe_b64encode(bytes.fromhex(re.search(r"SHA256: (\S+)", sys.stdin.read()).group(1).replace(":", ""))).decode().rstrip("="))'
+apksigner verify --print-certs cockpit.apk | python3 -c 'import base64,re,sys; print(base64.urlsafe_b64encode(bytes.fromhex(re.search(r"SHA-?256(?: digest)?: ([0-9A-Fa-f:]+)", sys.stdin.read()).group(1).replace(":", ""))).decode().rstrip("="))'
 ```
+
+The same filter also reads `keytool -list -v -keystore <release.keystore> -alias <alias>` (its `SHA256:` line).
 
 Restart the server after changing it: `docker compose -f deploy/docker-compose.yml up -d server`.
 
