@@ -509,4 +509,55 @@ class ReadableExtractorEdgeCaseTests {
 		page.text shouldContain "tomato plants"
 		page.text shouldNotContain "Navigation entry"
 	}
+
+	// --- only the page's main element protects its wrappers (CR-4)
+
+	private val comments =
+		"""
+		<div id="comments" class="comments-area"><ol class="comment-list">
+		<li class="comment"><article class="comment-body">
+		<p>First fictitious comment, with thanks, questions, and a story.</p></article></li>
+		<li class="comment"><article class="comment-body">
+		<p>Second fictitious comment, with more thanks, and more stories.</p></article></li>
+		</ol></div>
+		""".trimIndent()
+
+	@Test
+	fun `a comment section with an article per comment inside the post is dropped`() {
+		// Three paragraphs are more than 500 characters, so no retry runs and the first pass alone decides.
+		val page = extract("<body><article class=\"post\"><p>$prose</p><p>$prose</p><p>$prose</p>$comments</article></body>")
+
+		page.text shouldContain "tomato plants"
+		page.text shouldNotContain "fictitious comment"
+	}
+
+	@Test
+	fun `a comment section with an article per comment next to the post is dropped`() {
+		for (wrapper in listOf("<main id=\"main\">" to "</main>", "<div class=\"site-content\">" to "</div>")) {
+			val page =
+				extract(
+					"<body>${wrapper.first}<article class=\"post\"><p>$prose</p><p>$prose</p><p>$prose</p></article>$comments" +
+						"${wrapper.second}</body>",
+				)
+
+			page.text shouldContain "tomato plants"
+			page.text shouldNotContain "fictitious comment"
+		}
+	}
+
+	@Test
+	fun `a related block or a complementary role with teaser articles is dropped`() {
+		val teasers =
+			"""
+			<article class="teaser"><p>A fictitious teaser of another story, with seeds, pots, and more soil.</p></article>
+			<article class="teaser"><p>Another fictitious teaser of a story, with herbs, sun, and more water.</p></article>
+			""".trimIndent()
+		// Not `related-posts`: "post" says the block may be content (MAYBE), so it is no unlikely block.
+		for (block in listOf("<div class=\"related\">$teasers</div>", "<div role=\"complementary\">$teasers</div>")) {
+			val page = extract("<body><article class=\"post\"><p>$prose</p><p>$prose</p><p>$prose</p>$block</article></body>")
+
+			page.text shouldContain "tomato plants"
+			page.text shouldNotContain "fictitious teaser"
+		}
+	}
 }

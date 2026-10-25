@@ -90,6 +90,7 @@ class BookmarkSnapshotService(
 					val file = files.storeFile(folder.id, fileName(readable.title), HTML, readable.html.byteInputStream())
 					previous = current.snapshotFileId
 					current.snapshotFileId = file.id
+					// Mirrors the private BookmarkService.changed (tags init, re-index, UPDATED event): keep both in sync.
 					repository.saveAndFlush(current).also {
 						Hibernate.initialize(it.tags)
 						indexer.indexBookmark(it)

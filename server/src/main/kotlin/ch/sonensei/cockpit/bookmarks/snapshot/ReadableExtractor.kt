@@ -24,7 +24,8 @@ class ReadablePage(
  * removed; every paragraph scores its parent (fully) and grandparent (half) by its length and commas; the scores are
  * weighted by the container's tag, class and id and reduced by its share of link text. The best container wins, with
  * those of its siblings that score close to it or are paragraphs of prose. Without any candidate the whole body is used.
- * A form or an unlikely element that contains an `article`, `main` or `[role=main]` element is kept (it wraps the page).
+ * The page's main element (`main` or `[role=main]`, otherwise its outermost `article` with the most text) and the forms
+ * or unlikely elements around it are kept (they wrap the page); other articles, such as comments, are not protected.
  * When the result has less than [MIN_TEXT_LENGTH] characters, the extraction runs again on a fresh parse without
  * removing forms and unlikely class/id elements (they may wrap the content), and the longer result wins.
  *
@@ -79,14 +80,16 @@ object ReadableExtractor {
 		val body = document.body()
 		body.select(NEVER_CONTENT).remove()
 		body.select("[hidden], [aria-hidden=true], [style~=(?i)display\\s*:\\s*none], [style~=(?i)visibility\\s*:\\s*hidden]").remove()
+		// listOf: an Element is an Iterable of its descendants, `parents() + it` would keep the whole subtree.
+		val kept = mainElements(body).flatMapTo(HashSet<Element>()) { listOf(it) + it.parents() }
 		body
 			.select("*")
-			.filter { it.tagName() !in KEEP_TAGS && it.attr("role") in UNLIKELY_ROLES && !wrapsMain(it) }
+			.filter { it.tagName() !in KEEP_TAGS && it !in kept && it.attr("role") in UNLIKELY_ROLES }
 			.forEach { if (it.parent() != null) it.remove() }
 		if (stripUnlikely) {
 			body
 				.select("*")
-				.filter { it.tagName() !in KEEP_TAGS && (it.tagName() == "form" || unlikely(it)) && !wrapsMain(it) }
+				.filter { it.tagName() !in KEEP_TAGS && it !in kept && (it.tagName() == "form" || unlikely(it)) }
 				.forEach { if (it.parent() != null) it.remove() }
 		}
 		divsToParagraphs(body)
@@ -126,8 +129,21 @@ object ReadableExtractor {
 		return names.isNotBlank() && UNLIKELY.containsMatchIn(names) && !MAYBE.containsMatchIn(names)
 	}
 
-	/** Whether [element] is or contains the page's main element, so removing it would remove the content. */
-	private fun wrapsMain(element: Element): Boolean = element.selectFirst(MAIN_ELEMENTS) != null
+	/**
+	 * The page's main elements: every `main` and `[role=main]` element, without them the outermost `article` (not inside
+	 * another one) with the most text. They and their ancestors are never removed, so wrappers keep the content, while
+	 * other articles (comments, teasers) go with the unlikely blocks around them.
+	 */
+	private fun mainElements(body: Element): List<Element> {
+		val main = body.select(MAIN_ELEMENTS)
+		if (main.isNotEmpty()) return main
+		return listOfNotNull(
+			body
+				.select("article")
+				.filter { article -> article.parents().none { it.tagName() == "article" } }
+				.maxByOrNull { it.text().length },
+		)
+	}
 
 	/** Turns `<div>`s that only hold text and inline elements into paragraphs, so they score like them. */
 	private fun divsToParagraphs(body: Element) {
@@ -210,13 +226,13 @@ object ReadableExtractor {
 		"script, style, noscript, template, iframe, frame, frameset, object, embed, applet, input, button, select, " +
 			"textarea, svg, canvas, nav, footer, aside, dialog, link, meta"
 
-	/** The page's main element: a form or unlikely element containing it wraps the page and is kept. */
-	private const val MAIN_ELEMENTS = "article, main, [role=main]"
+	/** The page's main element when it marks one; otherwise its main article is used, see [mainElements]. */
+	private const val MAIN_ELEMENTS = "main, [role=main]"
 
 	/** Below this many characters of text, the extraction is retried without removing forms and unlikely elements. */
 	private const val MIN_TEXT_LENGTH = 500
 
-	private val KEEP_TAGS = setOf("html", "body", "article", "main")
+	private val KEEP_TAGS = setOf("html", "body")
 	private val UNLIKELY_ROLES = setOf("navigation", "banner", "complementary", "contentinfo", "menu", "menubar", "dialog", "alert")
 	private val UNLIKELY =
 		Regex(
