@@ -10,6 +10,8 @@ import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.maps.shouldNotContainKey
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.string.shouldContain
+import io.kotest.matchers.string.shouldNotContain
 import io.kotest.matchers.string.shouldStartWith
 import org.jsoup.Jsoup
 import org.jsoup.nodes.Element
@@ -119,6 +121,36 @@ class BookmarksBackupContributorTests(
 		imported[1].tags.shouldBeEmpty()
 		imported[1].icon.shouldBeNull()
 		imported[1].description.shouldBeNull()
+	}
+
+	@Test
+	fun `the html falls back to the url for a blank title, drops a blank description and keeps every entry on one line`() {
+		bookmark(id(1), "https://blank.example.test/", title = " \t ", description = " \r\n ")
+		bookmark(
+			id(2),
+			"https://lines.example.test/",
+			title = "First\r\nsecond\rthird\nfourth",
+			description = "</DL><DT><A HREF=\"https://injected.example.test/\">Injected</A>\r\nmore",
+			tags = listOf("say \"hi\"", "<b>"),
+			createdAt = T1,
+		)
+
+		val html = export().text("readable/bookmarks.html")
+		val imported = firefoxImport(html)
+
+		html shouldNotContain "\r"
+		imported.map { it.url } shouldContainExactly listOf("https://lines.example.test/", "https://blank.example.test/")
+		val lines = html.lines()
+		val entry = lines.indexOfFirst { it.contains("https://lines.example.test/") }
+		lines[entry] shouldContain ">First second third fourth</A>"
+		lines[entry] shouldContain " TAGS=\"&lt;b&gt;,say &quot;hi&quot;\""
+		lines[entry + 1] shouldBe
+			"    <DD>&lt;/DL&gt;&lt;DT&gt;&lt;A HREF=&quot;https://injected.example.test/&quot;&gt;Injected&lt;/A&gt; more"
+		imported[0].tags shouldContainExactly listOf("<b>", "say \"hi\"")
+		imported[0].description shouldBe "</DL><DT><A HREF=\"https://injected.example.test/\">Injected</A> more"
+		imported[1].title shouldBe "https://blank.example.test/"
+		imported[1].description.shouldBeNull()
+		html.split("<DD>") shouldHaveSize 2
 	}
 
 	@Test
