@@ -4,23 +4,23 @@ Date: 2026-10-25
 
 Task: web-journal - Journal UI
 
-Scope: production and e2e changes of the task, `git diff fc87c85c..HEAD -- web/src/app/features/journal web/e2e/journal web/src/app/app.spec.ts web/src/app/app.i18n.spec.ts` (unit spec files that the test-writer is adding at the same time under `features/journal` are not part of this review)
+Scope: re-review after fixes of the whole task on the final code, `git diff 9005f32273ea0ec9099dcd6b727dfbee07cef392..HEAD -- web/` (production code, committed Vitest specs and the Playwright spec). Reviewed revision: af930887952bb6f0e117763e0b7f50831e943e97.
 
 Requirements:
-- tasks/web-journal.md acceptance criteria and recorded assumptions (Notes)
+- tasks/web-journal.md acceptance criteria and recorded assumptions (Notes, including CR-5/CR-6 of the previous review accepted as P3 follow-ups)
 - SPEC.md §8.5 (Journal), §4.2 (ETag/If-Match)
 - docs/ARCHITECTURE.md, AGENTS.md project conventions
-- api/openapi.yaml (journal endpoints) and the generated client (`putJournalEntry` and others)
-- Server contract in `server/.../journal/entries/api/JournalEntryController.kt` and `core/web/ETags.kt`
+- Previous review (findings CR-1..CR-6) and reviews/web-journal/fixes.md
+- Generated API client and `JournalService` usage, shared `MarkdownEditor` (`features/notes/editor/markdown-editor.ts`) upload contract
 
 Git range:
 - Branch: main
-- HEAD: f8b80211eab0db32cc9da0d185b2a3a800bcc818
-- Base/start: fc87c85caf88a97d6b5fe23b30f101f024dd45aa
-- Commits reviewed: 3 (236096dc1, ff18f4fac, f8b80211e)
-- Uncommitted changes: untracked `web/src/app/features/journal/journal.service.spec.ts` and `testing.ts` (test-writer, not reviewed)
+- HEAD: af930887952bb6f0e117763e0b7f50831e943e97
+- Base/start: 9005f32273ea0ec9099dcd6b727dfbee07cef392
+- Commits reviewed: 6 (3da83659f, 51b538487, c42b5d0a0, 79207a749, de03e977c, af9308879)
+- Uncommitted changes: none at review time
 
-Summary: 0 P0, 2 P1, 2 P2, 2 P3
+Summary: 0 P0, 0 P1, 0 P2, 2 P3
 
 ## P0 Critical
 
@@ -28,64 +28,50 @@ None.
 
 ## P1 High
 
-- [ ] **CR-1 | An entry created elsewhere after the day was opened ends in a 428 loop that cannot be recovered**
-    - File: `web/src/app/features/journal/journal-page.ts:360`, `web/src/app/features/journal/journal.service.ts:59`
-    - Category: Correctness
-    - Problem: When the day had no entry at load time, `entry()` stays `null` and every save is a PUT without `If-Match`. If the entry was created in the meantime (Android app, another tab, or the overlapping instance from CR-3), the server does not answer 409 or 412. `JournalEntryController.put` calls `ETags.checkIfMatch(null, version)` for an existing entry, and that throws `PreconditionRequiredException` (428). `persist` treats only 409/412 as a conflict, so 428 sets `saveState = 'error'`. "Try again" (`retry()` -> `flush()` -> `persist(date, this.entry() /* still null */, ...)`) sends the same request without `If-Match` and gets 428 again every time. The conflict banner ("Discard my edits" / "Save my version"), whose `keepMine()` would fetch the entry and its version, never appears. Leaving the day in that state is also blocked: `open()` sends the user back while `saveState === 'error' && dirty()`.
-    - Why it matters: Writing the same day on two devices is a normal journal flow (SPEC.md §8.5, with the Android client). The user cannot save the edits, and the only way out is a page reload, which drops them.
-    - Suggested fix: Treat 428 as a conflict too (at least when `entry` is null), so the existing `keepMine`/`useTheirs` flow loads the current version. Add a unit test: entry null, PUT answers 428 -> conflict state, and "Save my version" sends `If-Match`.
-
-- [ ] **CR-2 | Acceptance criterion 2 has no committed unit tests at the reviewed revision**
-    - File: `web/src/app/features/journal/` (no `*.spec.ts` at HEAD f8b80211e)
-    - Category: Tests
-    - Problem: Criterion 2 asks for Vitest component/service tests of creating today's entry and of the heatmap. HEAD only changes `app.spec.ts` and `app.i18n.spec.ts` (shell routing) and adds a Playwright spec. The journal service and component specs are still untracked work by the test-writer.
-    - Why it matters: Criterion 2 is not met by the committed code yet. The race- and error-prone logic (`flush`/`persist`, If-Match vs. create, conflict handling, upload placeholders, `heatmapWeeks` padding and week start, `isDate`, future-date redirect) has no unit coverage.
-    - Suggested fix: Commit the test-writer's specs before `done`. Make sure they cover first-edit creation without `If-Match`, later saves with `If-Match: "<version>"`, 409/412 (and 428, see CR-1) -> conflict, `heatmapWeeks` for different `firstDay` values and range edges, and the redirect for future or invalid dates. Then re-run the review on the final code.
+None.
 
 ## P2 Medium
 
-- [ ] **CR-3 | Moving between `/journal` and `/journal/:date` recreates the page, which skips the "save before opening the next day" order**
-    - File: `web/src/app/features/journal/journal.routes.ts:3-14`, `web/src/app/features/journal/journal-page.ts:120-123`, `web/src/app/features/journal/journal-page.ts:269-290`
-    - Category: Correctness
-    - Problem: `''` and `':date'` are two route configs. Angular's default `RouteReuseStrategy` only reuses a component when `routeConfig` is the same, so every move between today and another day ("Previous day" from today, "Next day" to today, a heatmap click on today, the "Today" link) destroys the `JournalPage` instance and creates a new one. `open()` (`await this.leave()`, `openSeq`) only serializes moves inside `:date`. For the others, the old instance saves in the background from `onDestroy` (and waits there for pending image uploads), while the new instance already GETs the day. Example: type today, press "Previous day", then quickly "Next day". The new instance can load today before the old PUT lands. It then shows text without the last edits, or "Not written yet" for a just-created entry. The next edit then gets 412 (conflict), where "Save my version" overwrites the text the old instance just saved, or 428 (CR-1).
-    - Why it matters: Edits can be lost in a normal navigation flow, and the waiting for uploads that `leave()` was designed for makes the race window longer.
-    - Suggested fix: Use one route config for both URLs so the instance is reused and `open()` handles every move, for example a parent `''` route with the component and `':date'` / `''` children, or a `UrlMatcher` with an optional segment. Another option is to let the service own the pending save per date, so a new instance waits for it before its GET.
-
-- [ ] **CR-4 | An image whose upload ends while Preview is shown is lost, and its placeholder stays in the text**
-    - File: `web/src/app/features/journal/journal-page.ts:93-99`, `web/src/app/features/journal/journal-page.ts:296-311`, `web/src/app/features/journal/journal-page.html:166-182`
-    - Category: Correctness
-    - Problem: Switching to Preview destroys `<app-markdown-editor>` (it is inside `@if (preview())`). The editor's `replaceMarker` then does nothing (`this.view !== view`), and no `uploadFailed` is emitted. The page only puts the image Markdown in place of the placeholder in `leave()`, and only for uploads still in `this.uploads`. But `done.then(() => this.uploads.delete(placeholder))` removes the entry as soon as the upload ends. So an upload that ends during Preview leaves `![Uploading name…](uploading:N)` in `body()`. The recreated editor shows it as stale text, `withoutUploadPlaceholders` drops it from every save, and the uploaded file is orphaned in `/Attachments/Journal`. A failed upload during Preview is also never reported.
-    - Why it matters: Image paste is part of criterion 1. A photo that takes a few seconds to upload is silently not saved, and nothing tells the user.
-    - Suggested fix: Let the page replace the placeholder in `body()` (and schedule a save) when each upload ends, not only in `leave()`. Or keep the editor mounted while Preview is shown (hide it instead of removing it). Add a test that toggles Preview during an upload.
+None.
 
 ## P3 Low
 
-- [ ] **CR-5 | "Today" does not move on at midnight in a page left open**
-    - File: `web/src/app/features/journal/journal-page.ts:132`, `web/src/app/features/journal/journal-page.ts:313-317`
+- [ ] **CR-1 | "Today" does not move on at midnight in a page left open (previous CR-5, accepted follow-up)**
+    - File: `web/src/app/features/journal/journal-page.ts:143`, `web/src/app/features/journal/journal-page.ts:334`
     - Category: Correctness
-    - Problem: `today` comes from the heatmap, which is fetched once per instance (`if (!this.today()) await this.loadHeatmap()`). A tab left open on `/journal` overnight keeps labelling the previous day "Today", "Next day" stays disabled, and new writing goes into yesterday's entry.
-    - Why it matters: Small, but it contradicts "'Today' opens today's entry" for a page that is often left open.
+    - Problem: `today` comes from the heatmap, which is loaded only while `today()` is null. Since the CR-3 fix the page instance is kept for every day, so the heatmap and `today` are now loaded once for the whole time the journal stays open (before, a move to or from `/journal` reloaded them). A tab left open overnight still labels the previous day "Today", "Next day" stays disabled, and `/journal` opens yesterday's entry.
+    - Why it matters: Small, but it contradicts "'Today' opens today's entry" for a page that is often left open. Still present at HEAD, recorded in the task Notes as a follow-up.
     - Suggested fix: Refresh the heatmap and `today` when the page becomes visible again (`visibilitychange`) or on a long timer, and reopen the day when it was today.
 
-- [ ] **CR-6 | Edits in conflict are dropped without a prompt when the user leaves the day**
-    - File: `web/src/app/features/journal/journal-page.ts:214`, `web/src/app/features/journal/journal-page.ts:279`
+- [ ] **CR-2 | Edits in conflict are dropped without a prompt when the user leaves the day (previous CR-6, accepted follow-up)**
+    - File: `web/src/app/features/journal/journal-page.ts:225`, `web/src/app/features/journal/journal-page.ts:290`
     - Category: Correctness
-    - Problem: `flush()` returns without saving while `saveState === 'conflict'`. `open()` only keeps the user on the day for `'error' && dirty()`, so in conflict state it goes on to `show()`, which replaces the edits. Leaving the journal section (destroy) drops them the same way. `onBeforeUnload` only covers closing or reloading the tab.
-    - Why it matters: The banner says "Your edits are not saved yet", but one click on another day throws them away.
+    - Problem: `flush()` does not save while `saveState === 'conflict'`, and `open()` keeps the user on the day only for `'error' && dirty()`. In conflict state (now also reached through 428), moving to another day shows that day and drops the edits; leaving the section drops them the same way.
+    - Why it matters: The banner says "Your edits are not saved yet", but one click on another day throws them away. Still present at HEAD, recorded in the task Notes as a follow-up.
     - Suggested fix: Treat `'conflict' && dirty()` like `'error'` in `open()`, so the user stays on the day until they choose "Discard my edits" or "Save my version".
+
+## Fixes of the previous review, checked
+
+- Previous CR-1 (428 loop): `persist` (`journal-page.ts:379`) now treats 409, 412 and 428 as a conflict. The server answers 428 only for a PUT without `If-Match` on an existing entry, which the client sends only when `entry()` is null, so 428 always means "created elsewhere". `keepMine` GETs the current entry and saves with `If-Match: "<version>"`; if the entry was deleted meanwhile (GET 404 -> null) the save creates it again. Covered by the spec "treats an entry created elsewhere (428) as a conflict and saves my version over it" (real HTTP testing backend, checks no `If-Match` first, then `"3"`).
+- Previous CR-2 (no committed unit specs): `journal-dates.spec.ts`, `journal-heatmap.spec.ts`, `journal-page.spec.ts`, `journal.routes.spec.ts`, `journal.service.spec.ts` are committed. They cover first-edit creation without `If-Match`, later saves with `If-Match`, whitespace-only not creating, conflict/428/error paths, the heatmap (week start, range, selection, mood updates), and future/invalid date redirects. `npx ng test --watch=false --include 'src/app/features/journal/**/*.spec.ts'` -> 5 files, 87 tests passed (run during this review).
+- Previous CR-3 (page recreated between `/journal` and `/journal/:date`): `journal.routes.ts` now has a single route with the `journalDay` matcher (`[]` -> today, `[date]` -> `date` param, deeper paths -> no match), so the default `RouteReuseStrategy` keeps the instance and every move goes through `open()` -> `leave()` -> load. Title, lazy load and the `/journal/:date` deep link used by search are unchanged. Interrupted moves are still resolved by `openSeq`; a move back to the shown day returns early and cancels a pending one; the "stays on a failed save" redirect returns to the same day without a reload. The page spec now uses the real `journal.routes` and asserts the same instance across today -> yesterday -> today with yesterday's GET waiting for today's PUT.
+- Previous CR-4 (upload ending during Preview): `uploadImage` chains a settle step one microtask behind the editor's `.then(ok, fail)` handler (registered first, but its second step runs after the editor's handler). The editor dispatches its replacement synchronously and `valueChange` is emitted synchronously, so by the time `settleUpload` runs `body()` no longer contains the placeholder when the editor is shown; nothing is replaced or reported twice. When the editor is gone (Preview, or a newer editor instance whose `view` differs from the one that started the upload) the page replaces the placeholder in `body()`, schedules a save (not when destroyed, `leave()` saves then) or reports the failure. Placeholders stay unique across editor instances because the counter `nextUpload` is module-level. `leave()` now waits for every tracked upload and saves once more. Covered by specs for success and failure during Preview and "reports a failed upload once while the editor is shown" with the real `MarkdownEditor`.
 
 ## Checked without findings
 
-- ETag/If-Match: `If-Match: "<version>"` matches `ETags.of` (strong comparison) and the convention of other features. Creating an entry sends no `If-Match`, as the API requires. Saves are serialized through `inFlight`, and edits made during a save are scheduled again.
-- Results that arrive late: `loadSeq` makes loads, on-this-day and conflict reloads for a day the user already left ignored. `persist` ignores results for a day that is no longer shown.
-- Heatmap date math: UTC-only date arithmetic (`addDays`, `weekdayOf`), padding to `firstDay` from settings `weekStart`, month labels, cells limited to the range. Roving tabindex with arrow keys stays inside the range. Days have `aria-label`, and `aria-current` marks the selected day.
-- "Today" and time zone: the server's `heatmap.to`, as recorded in the assumption. Future and invalid dates redirect to `/journal`.
-- On this day: called with the shown date, links to `/journal/:date`, excerpt is plain text through interpolation (no `innerHTML`).
-- API usage: every call goes through the generated `Api` functions with matching params. Errors are silent and shown inline.
-- i18n: all user texts use `$localize`/`i18n` with ids. `messages.xlf` is left to a dedicated extract, the same as other features.
-- Security: no logging of entry contents, no unsafe HTML, the preview uses the existing read-only `NoteMarkdownView`.
-- Shell specs: the updated `app.spec.ts`/`app.i18n.spec.ts` still check the placeholder text through a test-only route, and now check that every section is built.
+- ETag/If-Match (SPEC.md §4.2): `If-Match: "<version>"` for existing entries, none for creation; saves serialized through `inFlight`; edits during a save rescheduled.
+- Out-of-order results: `loadSeq` guards entry, on-this-day and conflict reloads; `persist` ignores results for a day no longer shown; `openSeq` lets the newest route win while `leave()` waits.
+- Loading and error states: load errors show "Try again"; save errors show retry; conflicts show the banner; on-this-day failure is shown inline without blocking the entry.
+- Heatmap date math (UTC-only), week start from settings, roving tabindex and `aria-current`; `markDay` keeps items sorted and ignores dates outside the range.
+- Security: no logging of entry contents, no `innerHTML`, the preview uses the existing read-only `NoteMarkdownView`; all API calls go through the generated client with `SILENT_ERRORS`.
+- i18n: user texts use `$localize`/`i18n` with ids.
+- Shell specs (`app.spec.ts`, `app.i18n.spec.ts`) no longer expect a placeholder journal and still check the placeholder component through a test-only route.
+- Playwright spec `web/e2e/journal/journal.spec.ts` matches the UI (status texts, roles, heatmap `data-date`/`data-mood`, preview image) and the API contract (201 on create, `If-Match` on delete).
+
+## Evidence note
+
+`python tasks.py verify web-journal` shows both criteria still unverified at review time. Criterion 1 is a running-behavior criterion: the fixer report states the e2e spec was only typechecked, not run. Evidence for criterion 1 needs the Playwright spec run against the stack ARCHITECTURE.md names (or a `--skip` with the reason); a passing Vitest suite is not evidence for it.
 
 ## Review conclusion
 
-Material issues found; fix before completing the task.
+No material issues found.
