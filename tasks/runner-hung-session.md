@@ -1,10 +1,11 @@
 ---
 title: Runner: end a session that hangs after its final result
-status: todo
-owner:
+status: in_progress
+owner: dell26/agent-2
 deps: []
 touches: [agents.py,tests]
 prio: 1
+lease_until: 2026-10-26T00:14:17Z
 ---
 ## Goal
 A `claude -p` session that has printed its final successful `result` event but does not exit must not block
