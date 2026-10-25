@@ -19,3 +19,4 @@ views and their behavior stay unchanged, mails never become tasks automatically.
 - [ ] Playwright `e2e/new/new.spec.ts` passes against the e2e stack (`npm run e2e -- e2e/new/new.spec.ts`, see p0-e2e-harness): a capture and a GreenMail message both appear under All, only one under each filter; "→ Inbox task" adds the task without removing the mail
 
 ## Notes
+- ASSUMPTION (2026-10-25 23:40+0100 by r1963macos/agent-2): New view: 'New' nav entry sits in the Home group right after Dashboard (the first Tasks entry is Inbox), so it is between Dashboard and Inbox without a new group.
