@@ -5,7 +5,7 @@ owner: dell26/agent-2
 deps: [and-passkeys,deploy-passkey-env]
 touches: [deploy,server/src/main/kotlin/ch/sonensei/cockpit/auth]
 prio: 2
-lease_until: 2026-10-26T05:36:48Z
+lease_until: 2026-10-26T05:41:50Z
 ---
 ## Goal
 Android Credential Manager only uses passkeys for an RP ID whose domain serves Digital Asset Links naming the app.
