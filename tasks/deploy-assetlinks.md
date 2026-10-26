@@ -1,11 +1,11 @@
 ---
 title: Serve /.well-known/assetlinks.json for the Android app (passkeys)
-status: todo
-owner: 
+status: in_progress
+owner: dell26/agent-1
 deps: [and-passkeys,deploy-passkey-env]
 touches: [deploy,server/src/main/kotlin/ch/sonensei/cockpit/auth]
 prio: 2
-lease_until: 
+lease_until: 2026-10-26T07:13:04Z
 releases: 1
 extended: 
 ---
