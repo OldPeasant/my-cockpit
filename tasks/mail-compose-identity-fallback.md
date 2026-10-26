@@ -6,6 +6,7 @@ deps: [mail-identities]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/mail/compose]
 prio: 2
 lease_until: 2026-10-26T07:43:04Z
+extended: dell26/agent-2
 ---
 ## Goal
 `DraftService.identity` starts a new draft with the default identity, else the FIRST identity of the
@@ -19,3 +20,4 @@ mail-identities CR-2). A new draft without an explicit identity should be From t
 
 ## Notes
 - ASSUMPTION (2026-10-26 07:48+0100 by dell26/agent-2): Fixed the identities settings hint text (web/src/app/features/settings/mail) and API identityId descriptions too, outside touches, so UI/API docs match the new account-address fallback (review CR-1, CR-2)
+- extended by dell26/agent-2: Implementation, CR-1/CR-2 fixes and final re-review (review.md, 0 findings) are committed. Left: re-run test-writer on final code (tests.md predates the CR-1/CR-2 fixes), run cd server && ./gradlew integrationTest (DraftComposeGreenMailTests) and record it with tasks.py verify 1, write+commit quality.json (reviewed_revision = HEAD), run .taskcheck, then tasks.py done.
