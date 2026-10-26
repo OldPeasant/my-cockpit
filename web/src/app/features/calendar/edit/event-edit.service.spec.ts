@@ -2,13 +2,14 @@ import { HttpTestingController, provideHttpClientTesting } from '@angular/common
 import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { ApiError, NotificationService, provideHttp, SILENT_ERRORS } from '../../../core/http';
-import { fakeEvent, fakeOccurrence } from '../views/testing';
+import { fakeCalendar, fakeEvent, fakeOccurrence } from '../views/testing';
 import {
   EditScope,
   EventEditService,
   isConflict,
   isGenerated,
   isSeries,
+  isVirtual,
 } from './event-edit.service';
 
 const tick = (): Promise<void> => new Promise((resolve) => setTimeout(resolve));
@@ -245,5 +246,27 @@ describe('isSeries', () => {
     expect(isSeries(single())).toBe(false);
     expect(isSeries(fakeOccurrence('Swim', { seriesId: 'm1' }))).toBe(false);
     expect(isSeries(fakeOccurrence('Swim', { occurrence: OCCURRENCE }))).toBe(false);
+  });
+});
+
+describe('isVirtual', () => {
+  it('is a read-only calendar of the local source (Birthdays)', () => {
+    expect(isVirtual(fakeCalendar('birthdays', { readOnly: true, sourceType: 'LOCAL' }))).toBe(
+      true,
+    );
+  });
+
+  it('is not a writable local calendar', () => {
+    expect(isVirtual(fakeCalendar('home', { readOnly: false, sourceType: 'LOCAL' }))).toBe(false);
+  });
+
+  it('is not a read-only calendar of another source, whose events can be loaded', () => {
+    for (const sourceType of ['ICS_FEED', 'GOOGLE', 'MICROSOFT', 'CALDAV'] as const) {
+      expect(isVirtual(fakeCalendar('feed', { readOnly: true, sourceType }))).toBe(false);
+    }
+  });
+
+  it('is false for an unknown calendar', () => {
+    expect(isVirtual(undefined)).toBe(false);
   });
 });

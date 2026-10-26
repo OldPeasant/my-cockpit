@@ -14,6 +14,7 @@ import ch.sonensei.cockpit.calendar.agenda.CalendarInfo
 import ch.sonensei.cockpit.calendar.agenda.CalendarRepository
 import ch.sonensei.cockpit.calendar.agenda.CalendarResult
 import ch.sonensei.cockpit.calendar.agenda.CalendarTags
+import ch.sonensei.cockpit.calendar.agenda.CalendarView
 import ch.sonensei.cockpit.calendar.agenda.CalendarViewModel
 import ch.sonensei.cockpit.calendar.agenda.Occurrence
 import ch.sonensei.cockpit.ui.theme.CockpitTheme
@@ -171,6 +172,31 @@ class CalendarWithEditorTest {
             state.form
                 ?.location,
         )
+    }
+
+    @Test
+    fun `in the day view a tapped birthday opens its contact, not the editor`() {
+        val (calendar, editor) = show()
+        val thursday = today.plusDays(1)
+        composeRule.runOnIdle { calendar.openDay(thursday) }
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag(CalendarTags.entry(birthday.key, thursday)).performClick()
+        composeRule.waitForIdle()
+        assertEquals(adaId, openedContact)
+        assertFalse(editor.uiState.value.open)
+        coVerify(exactly = 0) { editRepo.event(any()) }
+    }
+
+    @Test
+    fun `in the week view a tapped birthday opens its contact, not the editor`() {
+        val (calendar, editor) = show()
+        composeRule.runOnIdle { calendar.select(CalendarView.WEEK) }
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag(CalendarTags.entry(birthday.key, today.plusDays(1))).performClick()
+        composeRule.waitForIdle()
+        assertEquals(adaId, openedContact)
+        assertFalse(editor.uiState.value.open)
+        coVerify(exactly = 0) { editRepo.event(any()) }
     }
 
     @Test

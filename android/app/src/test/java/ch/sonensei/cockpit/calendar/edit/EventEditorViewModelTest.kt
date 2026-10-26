@@ -425,4 +425,63 @@ class EventEditorViewModelTest {
             assertEquals(EditorMessage.LOAD_OFFLINE, vm.uiState.value.message)
             assertNull(vm.uiState.value.form)
         }
+
+    // The virtual Birthdays calendar: its occurrences have no event, eventId and seriesId are the contact.
+    private val birthdays = CalendarInfo(id(91), "Birthdays", null, true, true, 1, virtual = true)
+    private val birthday =
+        Occurrence(
+            id(50),
+            birthdays.id,
+            "Ada Lovelace",
+            null,
+            true,
+            null,
+            null,
+            today.plusDays(1),
+            today.plusDays(2),
+            seriesId = id(50),
+            occurrence = today.plusDays(1).toString(),
+        )
+
+    @Test
+    fun `a birthday is not opened and its event is never loaded`() =
+        runTest(dispatcher) {
+            val vm = viewModel()
+            vm.edit(birthday, calendars + birthdays)
+            advanceUntilIdle()
+            assertEquals(EventEditorUiState(), vm.uiState.value)
+            assertFalse(vm.uiState.value.open)
+            coVerify(exactly = 0) { repo.event(any()) }
+            coVerify(exactly = 0) { repo.reread(any()) }
+        }
+
+    @Test
+    fun `a birthday tapped while an event is open leaves that event's form as it was`() =
+        runTest(dispatcher) {
+            val vm = viewModel()
+            vm.edit(single, calendars + birthdays)
+            advanceUntilIdle()
+            val before = vm.uiState.value
+            vm.edit(birthday, calendars + birthdays)
+            advanceUntilIdle()
+            assertEquals(before, vm.uiState.value)
+            coVerify(exactly = 0) { repo.event(birthday.eventId) }
+        }
+
+    @Test
+    fun `an occurrence of a read-only calendar that is not virtual is still loaded`() =
+        runTest(dispatcher) {
+            val holiday = single.copy(eventId = id(3), calendarId = feed.id, title = "Easter Monday")
+            coEvery { repo.event(holiday.eventId) } returns CalendarResult.Ok(details(holiday))
+            val vm = viewModel()
+            vm.edit(holiday, calendars)
+            advanceUntilIdle()
+            assertTrue(vm.uiState.value.open)
+            assertEquals(
+                "Easter Monday",
+                vm.uiState.value.form
+                    ?.title,
+            )
+            coVerify(exactly = 1) { repo.event(holiday.eventId) }
+        }
 }

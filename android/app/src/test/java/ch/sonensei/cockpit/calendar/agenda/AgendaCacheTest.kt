@@ -63,6 +63,20 @@ class AgendaCacheTest {
         }
 
     @Test
+    fun `the virtual Birthdays calendar reads back virtual, so a cached birthday still opens its contact`() =
+        runBlocking {
+            val birthdays = CalendarInfo(id(92), "Birthdays", null, visible = true, readOnly = true, version = 1, virtual = true)
+            val ada = Occurrence(id(50), birthdays.id, "Ada Lovelace", null, true, null, null, day, day.plusDays(1), seriesId = id(50))
+            cache.store(cache.session(), CachedAgenda(day, day.plusDays(30), listOf(work, holidays, birthdays), listOf(ada), loadedAt))
+
+            val read = cache.read()!!
+
+            assertEquals(listOf(false, false, true), read.calendars.map { it.virtual })
+            assertEquals(listOf(work, holidays, birthdays), read.calendars)
+            assertEquals(id(50), read.occurrences.single().contactId(read.calendars))
+        }
+
+    @Test
     fun `nothing stored reads as null`() =
         runBlocking {
             assertNull(cache.read())

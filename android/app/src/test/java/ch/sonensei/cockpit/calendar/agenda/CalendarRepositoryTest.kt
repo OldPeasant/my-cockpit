@@ -39,8 +39,12 @@ class CalendarRepositoryTest {
     private fun calendarJson(
         visible: Boolean = true,
         version: Long = 3,
-    ) = """{"id":"${id(90)}","name":"Work","color":"#3366ff","visible":$visible,"readOnly":false,"isDefault":true,
-        |"sourceId":"${id(91)}","sourceType":"LOCAL","createdAt":"2026-10-01T09:00:00Z","updatedAt":"2026-10-01T09:00:00Z",
+        n: Int = 90,
+        name: String = "Work",
+        readOnly: Boolean = false,
+        sourceType: String = "LOCAL",
+    ) = """{"id":"${id(n)}","name":"$name","color":"#3366ff","visible":$visible,"readOnly":$readOnly,"isDefault":true,
+        |"sourceId":"${id(91)}","sourceType":"$sourceType","createdAt":"2026-10-01T09:00:00Z","updatedAt":"2026-10-01T09:00:00Z",
         |"version":$version}
         """.trimMargin().replace("\n", "")
 
@@ -109,6 +113,40 @@ class CalendarRepositoryTest {
             server.enqueue(json("""{"items":[${calendarJson()}]}"""))
             val calendars = (repository.calendars() as CalendarResult.Ok).value
             assertEquals(listOf(CalendarInfo(id(90), "Work", 0xFF3366FFL, true, false, 3)), calendars)
+        }
+
+    @Test
+    fun `only a read-only calendar of the local source (Birthdays) is virtual`() =
+        runBlocking {
+            val calendars =
+                listOf(
+                    calendarJson(),
+                    calendarJson(n = 92, name = "Birthdays", readOnly = true, sourceType = "LOCAL"),
+                    calendarJson(n = 93, name = "Holidays", readOnly = true, sourceType = "ICS_FEED"),
+                    calendarJson(n = 94, name = "Shared", readOnly = true, sourceType = "GOOGLE"),
+                    calendarJson(n = 95, name = "Synced", readOnly = false, sourceType = "GOOGLE"),
+                )
+            server.enqueue(json("""{"items":[${calendars.joinToString(",")}]}"""))
+
+            val result = (repository.calendars() as CalendarResult.Ok).value
+
+            assertEquals(
+                listOf("Work" to false, "Birthdays" to true, "Holidays" to false, "Shared" to false, "Synced" to false),
+                result.map { it.name to it.virtual },
+            )
+            assertEquals(listOf(false, true, true, true, false), result.map { it.readOnly })
+        }
+
+    @Test
+    fun `the Birthdays calendar stays virtual after its visibility changes`() =
+        runBlocking {
+            server.enqueue(json(calendarJson(visible = false, version = 2, n = 92, name = "Birthdays", readOnly = true)))
+            val birthdays = CalendarInfo(id(92), "Birthdays", null, true, true, 1, virtual = true)
+
+            val result = repository.setVisible(birthdays, false)
+
+            val expected = CalendarInfo(id(92), "Birthdays", 0xFF3366FFL, false, true, 2, virtual = true)
+            assertEquals(expected, (result as CalendarResult.Ok).value)
         }
 
     @Test
