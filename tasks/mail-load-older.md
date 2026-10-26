@@ -6,9 +6,9 @@ deps: [mail-read-api,mail-actions-api]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/mail/api,server/src/test/kotlin/ch/sonensei/cockpit/mail/api,api/openapi.yaml,web/src/app/api/generated]
 prio: 2
 lease_until: 
-releases: 2
+releases: 0
 extended: 
-hold: Docker daemon down on r1963macos (3rd attempt): OpenApiContractTest regen, mail.api tests, MailLoadOlderGreenMailTests and .taskcheck all need Testcontainers Postgres. Code + unit tests done on wip/ma
+hold: 
 ---
 ## Goal
 SPEC.md §7.2: headers are cached for the sync window, "older loaded on demand when scrolling". `MailHeaderSyncService.loadOlder(folderId, limit)` exists (mail-header-sync) but no API calls it; `GET /api/v1/mail/messages` (mail-read-api) reads only the cache and ends with `nextCursor: null` at the end of the window.
