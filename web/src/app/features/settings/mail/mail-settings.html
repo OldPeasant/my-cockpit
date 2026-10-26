@@ -189,10 +189,17 @@
   <div class="row">
     <div class="describe">
       <h3 id="add-account-label" i18n="@@mailSettings.add">Add an account</h3>
-      <p i18n="@@mailSettings.add.hint">
-        Any mailbox with IMAP and SMTP, or a Google or Microsoft account. The cockpit tests the
-        connection and finds the folders right after adding it.
-      </p>
+      @if (providerOffered('MICROSOFT')) {
+        <p i18n="@@mailSettings.add.hint">
+          Any mailbox with IMAP and SMTP, or a Google or Microsoft account. The cockpit tests the
+          connection and finds the folders right after adding it.
+        </p>
+      } @else {
+        <p i18n="@@mailSettings.add.hintNoMicrosoft">
+          Any mailbox with IMAP and SMTP, or a Google account. The cockpit tests the connection and
+          finds the folders right after adding it.
+        </p>
+      }
     </div>
     <div class="control">
       <mat-button-toggle-group
@@ -207,9 +214,11 @@
         <mat-button-toggle value="GOOGLE" i18n="@@mailSettings.type.google"
           >Google</mat-button-toggle
         >
-        <mat-button-toggle value="MICROSOFT" i18n="@@mailSettings.type.microsoft"
-          >Microsoft</mat-button-toggle
-        >
+        @if (providerOffered('MICROSOFT')) {
+          <mat-button-toggle value="MICROSOFT" i18n="@@mailSettings.type.microsoft"
+            >Microsoft</mat-button-toggle
+          >
+        }
       </mat-button-toggle-group>
 
       @if (type() === 'IMAP_SMTP') {

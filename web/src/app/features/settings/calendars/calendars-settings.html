@@ -106,9 +106,11 @@
         <mat-button-toggle value="CALDAV" i18n="@@calendars.kind.caldav">CalDAV</mat-button-toggle>
         <mat-button-toggle value="ICS_FEED" i18n="@@calendars.kind.ics">ICS feed</mat-button-toggle>
         <mat-button-toggle value="GOOGLE" i18n="@@calendars.kind.google">Google</mat-button-toggle>
-        <mat-button-toggle value="MICROSOFT" i18n="@@calendars.kind.microsoft"
-          >Microsoft</mat-button-toggle
-        >
+        @if (providerOffered('MICROSOFT')) {
+          <mat-button-toggle value="MICROSOFT" i18n="@@calendars.kind.microsoft"
+            >Microsoft</mat-button-toggle
+          >
+        }
       </mat-button-toggle-group>
 
       @switch (kind()) {

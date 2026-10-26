@@ -222,6 +222,11 @@ export default class MailSettings implements OnInit {
     this.oauth.reset({ connectionId: first?.id ?? '', notifyNewMail: true });
   }
 
+  /** Whether the server offers [type] at all (it leaves Microsoft out while that is off). */
+  protected providerOffered(type: AccountType): boolean {
+    return this.providers().some((p) => p.provider === type);
+  }
+
   protected providerConfigured(type: AccountType): boolean {
     return this.providers().some((p) => p.provider === type && p.configured);
   }

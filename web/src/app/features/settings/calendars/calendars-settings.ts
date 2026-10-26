@@ -153,6 +153,11 @@ export default class CalendarsSettings implements OnInit {
     this.addStatus.set(null);
   }
 
+  /** Whether the server offers [provider] at all (it leaves Microsoft out while that is off). */
+  protected providerOffered(provider: OAuthProviderResponse['provider']): boolean {
+    return this.providers().some((p) => p.provider === provider);
+  }
+
   protected providerConfigured(provider: OAuthProviderResponse['provider']): boolean {
     return this.providers().some((p) => p.provider === provider && p.configured);
   }

@@ -105,17 +105,15 @@
     </div>
   </div>
 
-  @if (connections().length) {
+  @if (shownConnections().length) {
     <div class="row">
       <div class="describe">
         <h3 id="accounts-label" i18n="@@integrations.accounts">Accounts</h3>
-        <p i18n="@@integrations.accounts.hint">
-          Google and Microsoft accounts the cockpit may access.
-        </p>
+        <p i18n="@@integrations.accounts.hint">Connected accounts the cockpit may access.</p>
       </div>
       <div class="control">
         <ul class="accounts" aria-labelledby="accounts-label">
-          @for (connection of connections(); track connection.id) {
+          @for (connection of shownConnections(); track connection.id) {
             <li>
               <span class="name">{{
                 connection.email ?? connection.displayName ?? connection.provider

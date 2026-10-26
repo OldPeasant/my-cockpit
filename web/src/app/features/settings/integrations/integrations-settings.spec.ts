@@ -3,14 +3,21 @@ import { Component } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter, Router } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
-import { CalendarSourceResponse, OAuthConnectionResponse } from '../../../api/generated';
+import {
+  CalendarSourceResponse,
+  OAuthConnectionResponse,
+  OAuthProviderResponse,
+} from '../../../api/generated';
 import { NotificationService, provideHttp } from '../../../core/http';
 import { BROWSER_NAVIGATE } from '../calendars/calendar-sources.service';
-import { fakeConnection, fakeSource, fakeSyncedSource } from '../calendars/testing';
+import { fakeConnection, fakeSource, fakeSyncedSource, PROVIDERS } from '../calendars/testing';
 import IntegrationsSettings from './integrations-settings';
 
 const SOURCES = '/api/v1/calendar/sources';
 const CONNECTIONS = '/api/v1/oauth/connections';
+const PROVIDERS_URL = '/api/v1/oauth/providers';
+/** What the server answers while Microsoft is off: Google only. */
+const GOOGLE_ONLY = PROVIDERS.filter((p) => p.provider !== 'MICROSOFT');
 
 const tick = (): Promise<void> => new Promise((resolve) => setTimeout(resolve));
 
@@ -65,9 +72,11 @@ describe('IntegrationsSettings', () => {
   async function load(
     sources: CalendarSourceResponse[] = [fakeSource(), fakeSyncedSource(), failing, fresh],
     connections: OAuthConnectionResponse[] = [],
+    providers: OAuthProviderResponse[] = PROVIDERS,
   ): Promise<void> {
     http.expectOne(SOURCES).flush({ items: sources });
     http.expectOne(CONNECTIONS).flush(connections);
+    http.expectOne(PROVIDERS_URL).flush(providers);
     await settle();
   }
 
@@ -219,6 +228,7 @@ describe('IntegrationsSettings', () => {
       },
     );
     http.expectOne(CONNECTIONS).flush([]);
+    http.expectOne(PROVIDERS_URL).flush(PROVIDERS);
     await settle();
     expect(root().querySelector('[role="alert"]')?.textContent).toContain(
       'Sync status could not be loaded',
@@ -413,6 +423,7 @@ describe('IntegrationsSettings', () => {
         headers: { 'Content-Type': 'application/problem+json' },
       },
     );
+    http.expectOne(PROVIDERS_URL).flush(PROVIDERS);
     await settle();
 
     expect(root().querySelector('[role="alert"]')).toBeNull();
@@ -540,5 +551,52 @@ describe('IntegrationsSettings', () => {
     http.expectNone({ method: 'POST', url: SOURCES });
     expect(root().querySelector('.outcome')).toBeNull();
     expect(TestBed.inject(Router).url).toBe('/settings/integrations');
+  });
+
+  it('hides Microsoft sources and accounts while the server does not offer Microsoft', async () => {
+    await open();
+    await load(
+      [
+        fakeSource(),
+        fakeSyncedSource(),
+        fakeSyncedSource({ id: 's8', type: 'MICROSOFT', name: 'Outlook' }),
+      ],
+      [
+        fakeConnection(),
+        fakeConnection({ id: 'o2', provider: 'MICROSOFT', email: 'jane@outlook.example' }),
+      ],
+      GOOGLE_ONLY,
+    );
+
+    const names = [...root().querySelectorAll('.sources .name')].map((el) =>
+      el.textContent?.trim(),
+    );
+    expect(names).toEqual(['dav.example.test']);
+    const accounts = [...root().querySelectorAll('.accounts > li .name')].map((el) =>
+      el.textContent?.trim(),
+    );
+    expect(accounts).toEqual(['jane@gmail.example']);
+    expect(root().textContent).not.toContain('Microsoft');
+  });
+
+  it('hides Microsoft when the providers cannot be read', async () => {
+    await open();
+    http.expectOne(SOURCES).flush({
+      items: [fakeSource(), fakeSyncedSource({ id: 's8', type: 'MICROSOFT', name: 'Outlook' })],
+    });
+    http.expectOne(CONNECTIONS).flush([fakeConnection({ id: 'o2', provider: 'MICROSOFT' })]);
+    http.expectOne(PROVIDERS_URL).flush(
+      { status: 503, title: 'Service Unavailable' },
+      {
+        status: 503,
+        statusText: 'Service Unavailable',
+        headers: { 'Content-Type': 'application/problem+json' },
+      },
+    );
+    await settle();
+
+    expect(root().querySelector('[role="alert"]')).toBeNull();
+    expect(root().querySelectorAll('.sources > li').length).toBe(0);
+    expect(root().querySelector('.accounts')).toBeNull();
   });
 });

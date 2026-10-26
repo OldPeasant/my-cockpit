@@ -373,6 +373,23 @@ describe('MailSettings', () => {
       expect(navigate).toHaveBeenCalledWith('/api/v1/oauth/google/start?purpose=MAIL');
     });
 
+    it('offers no Microsoft account while the server does not offer Microsoft', async () => {
+      await setup([], [], [{ provider: 'GOOGLE', slug: 'google', configured: true }]);
+
+      const types = [...root.querySelectorAll('.kinds button')].map((b) => b.textContent?.trim());
+      expect(types).toEqual(['IMAP/SMTP', 'Google']);
+      expect(text()).not.toContain('Microsoft');
+      expect(text()).toContain('Any mailbox with IMAP and SMTP, or a Google account.');
+    });
+
+    it('offers a Microsoft account while the server offers Microsoft', async () => {
+      await setup([]);
+
+      const types = [...root.querySelectorAll('.kinds button')].map((b) => b.textContent?.trim());
+      expect(types).toEqual(['IMAP/SMTP', 'Google', 'Microsoft']);
+      expect(text()).toContain('or a Google or Microsoft account.');
+    });
+
     it('says when the provider is not set up on the server', async () => {
       await setup([]);
 

@@ -9,7 +9,11 @@ import {
 } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
-import { CalendarSourceResponse, OAuthConnectionResponse } from '../../../api/generated';
+import {
+  CalendarSourceResponse,
+  OAuthConnectionResponse,
+  OAuthProviderResponse,
+} from '../../../api/generated';
 import { ApiError } from '../../../core/http';
 import { CalendarSourcesService, OAuthSlug } from '../calendars/calendar-sources.service';
 
@@ -61,9 +65,23 @@ export default class IntegrationsSettings implements OnInit {
   /** A "Sync now" that failed as a request (a failed sync itself shows as the source's error). */
   protected readonly syncError = signal<{ name: string; message: string } | null>(null);
 
-  /** The synced sources; the local one has nothing to show here. */
+  /** The OAuth providers the server offers; it leaves Microsoft out while that is off. */
+  protected readonly providers = signal<OAuthProviderResponse[]>([]);
+  private readonly microsoftOffered = computed(() =>
+    this.providers().some((p) => p.provider === 'MICROSOFT'),
+  );
+
+  /** The synced sources; the local one has nothing to show here, Microsoft ones only while it is on. */
   protected readonly external = computed(
-    () => this.sources()?.filter((s) => s.type !== 'LOCAL') ?? null,
+    () =>
+      this.sources()?.filter(
+        (s) => s.type !== 'LOCAL' && (s.type !== 'MICROSOFT' || this.microsoftOffered()),
+      ) ?? null,
+  );
+
+  /** The connected accounts; Microsoft ones only while Microsoft is on. */
+  protected readonly shownConnections = computed(() =>
+    this.connections().filter((c) => c.provider !== 'MICROSOFT' || this.microsoftOffered()),
   );
 
   protected readonly typeLabels = SOURCE_TYPES;
@@ -77,11 +95,13 @@ export default class IntegrationsSettings implements OnInit {
     this.loadError.set(null);
     this.sources.set(null);
     try {
-      const [sources, connections] = await Promise.all([
+      const [sources, connections, providers] = await Promise.all([
         this.service.sources(),
         this.service.connections().catch(() => []),
+        this.service.providers().catch(() => []),
       ]);
       this.connections.set(connections);
+      this.providers.set(providers);
       this.sources.set(sources);
     } catch (error) {
       this.loadError.set(message(error));

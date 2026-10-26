@@ -583,6 +583,22 @@ describe('CalendarsSettings', () => {
     expect(root.textContent).toContain('Microsoft is not set up on this server');
   });
 
+  it('offers no Microsoft calendar while the server does not offer Microsoft', async () => {
+    await setup(undefined, undefined, [{ provider: 'GOOGLE', slug: 'google', configured: true }]);
+
+    const kinds = [...root.querySelectorAll('.kinds button')].map((b) => b.textContent?.trim());
+    expect(kinds).toEqual(['Local', 'CalDAV', 'ICS feed', 'Google']);
+    expect(button('Microsoft')).toBeUndefined();
+    expect(root.textContent).not.toContain('Microsoft');
+  });
+
+  it('offers the Microsoft calendar while the server offers Microsoft', async () => {
+    await setup();
+
+    const kinds = [...root.querySelectorAll('.kinds button')].map((b) => b.textContent?.trim());
+    expect(kinds).toContain('Microsoft');
+  });
+
   it('groups calendars of unknown sources under Other and keeps an external source without calendars', async () => {
     await setup(
       [fakeCalendar({ id: 'c8', sourceId: 'gone', sourceType: 'CALDAV', name: 'Archive' })],
