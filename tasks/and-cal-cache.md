@@ -1,11 +1,11 @@
 ---
 title: Android agenda offline read cache (SPEC 9.3)
-status: in_progress
+status: done
 owner: dell26/agent-1
 deps: [and-cal-agenda]
 touches: [android/app/src/main/java/ch/sonensei/cockpit/calendar/agenda,android/app/src/test/java/ch/sonensei/cockpit/calendar/agenda]
 prio: 2
-lease_until: 2026-10-26T00:50:08Z
+lease_until: 
 ---
 ## Goal
 SPEC.md §9.3 "Read cache": the last-loaded agenda is cached in Room and shown read-only with an
@@ -30,3 +30,4 @@ SPEC.md §9.3 "Read cache": the last-loaded agenda is cached in Room and shown r
 - ASSUMPTION (2026-10-26 01:10+0100 by dell26/agent-1): Only agenda loads are cached (day/week loads are not, they would replace it); offline, a day/week view fully inside the cached days is shown from that cache.
 - ASSUMPTION (2026-10-26 01:10+0100 by dell26/agent-1): Read-only while cached data is shown means: calendar visibility chips disabled, no load-more, tapping an event does not open the editor (it needs the server). The editor's FAB (calendar/edit, outside touches) is unchanged.
 - ASSUMPTION (2026-10-26 01:10+0100 by dell26/agent-1): Added one string calendar_offline_cached to res/values/strings_calendar_agenda.xml (agenda's own strings file, outside the listed touches) for the banner with the load time.
+- done by dell26/agent-1: `sh scripts/check.sh` passed in 71s on 606823b10; criteria verified 4/4
