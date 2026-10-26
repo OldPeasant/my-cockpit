@@ -1,0 +1,19 @@
+---
+title: Android UnifiedPush client
+status: todo
+owner:
+deps: [and-reminders, unifiedpush-server]
+prio: 3
+parent: unifiedpush-android
+---
+## Goal
+Part of `unifiedpush-android` (UnifiedPush for Android), which was split.
+Goal: The app registers with a UnifiedPush distributor (ntfy) and reacts to server pushes; WorkManager periodic sync stays as the fallback.
+
+## Acceptance criteria
+- [ ] UnifiedPush connector library added (libs.versions.toml, ARCHITECTURE.md stack table); registration on login, endpoint sent to `PUT /api/v1/push/unifiedpush/{instanceId}`, unregistered and deleted on logout; no distributor installed -> periodic sync only
+- [ ] A reminder push runs the reminder sync; a new-mail push shows a new-mail notification (or runs the mail sync); unknown or garbled messages are ignored
+- [ ] `cd android && ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.push.*'` passes, covering message handling
+
+## Notes
+- Work done on `unifiedpush-android` before the split is on `origin/wip/unifiedpush-android` (if it exists): merge it first if your part builds on it.
