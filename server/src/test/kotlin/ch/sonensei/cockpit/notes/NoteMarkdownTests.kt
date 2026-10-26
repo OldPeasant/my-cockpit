@@ -235,4 +235,49 @@ class NoteMarkdownTests {
 		title.length shouldBe NoteMarkdown.MAX_DERIVED_TITLE_LENGTH
 		title.last() shouldBe '…'
 	}
+
+	@Test
+	fun `the title of a multi-line block is its first line, with formatting spanning lines resolved`() {
+		NoteMarkdown.titleOf("first *line\nsecond* line\nthird") shouldBe "first line"
+		NoteMarkdown.titleOf("[Bern\ntrip](https://example.test/b) plan") shouldBe "Bern"
+		NoteMarkdown.titleOf("> quoted **a** \\[\n> more") shouldBe "quoted a ["
+		NoteMarkdown.titleOf("1. first &amp; one\n2. second") shouldBe "first & one"
+	}
+
+	@Test
+	fun `the title of a setext heading is the heading text without its underline`() {
+		NoteMarkdown.titleOf("Weekly *review*\n===\nbody") shouldBe "Weekly review"
+		NoteMarkdown.titleOf("\n\nPlan \\[draft]\n---\n\ntext") shouldBe "Plan [draft]"
+	}
+
+	@Test
+	fun `the title of a body starting with a code block is the first code line, verbatim`() {
+		NoteMarkdown.titleOf("```kotlin\nval x = \\[1] &amp;\n```\n\nText") shouldBe "val x = \\[1] &amp;"
+		NoteMarkdown.titleOf("```\n\n```\n\nAfter empty fence") shouldBe "After empty fence"
+		NoteMarkdown.titleOf("    indented \\*\n    two") shouldBe "indented \\*"
+	}
+
+	@Test
+	fun `the title skips HTML comments, HTML blocks and reference definitions spanning lines`() {
+		NoteMarkdown.titleOf("<!--\nhidden\n-->\nVisible") shouldBe "Visible"
+		NoteMarkdown.titleOf("[r]: https://example.test/r\n\nSee [r]") shouldBe "See r"
+	}
+
+	@Test
+	fun `the title of a table is its header row with cells separated`() {
+		NoteMarkdown.titleOf("| Day | Place |\n|---|---|\n| 1 | Thun |") shouldBe "Day Place"
+	}
+
+	@Test
+	fun `a long first line of a multi-line body is cut, the following lines are not appended`() {
+		val words = "abcdefgh ".repeat(20).trim()
+
+		val title = NoteMarkdown.titleOf("**$words**\nsecond line")
+
+		title.length shouldBe NoteMarkdown.MAX_DERIVED_TITLE_LENGTH - 1 // the cut ends at a space, which is trimmed
+		title shouldBe words.take(NoteMarkdown.MAX_DERIVED_TITLE_LENGTH - 1).trimEnd() + "…"
+		title shouldNotContain "second"
+		val exact = "y".repeat(NoteMarkdown.MAX_DERIVED_TITLE_LENGTH)
+		NoteMarkdown.titleOf("$exact\nnext") shouldBe exact
+	}
 }
