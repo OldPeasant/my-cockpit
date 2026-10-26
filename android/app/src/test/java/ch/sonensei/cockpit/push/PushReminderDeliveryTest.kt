@@ -5,6 +5,7 @@ import android.app.Application
 import android.app.Notification
 import android.app.NotificationManager
 import android.content.Context
+import android.content.Intent
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.work.ListenableWorker
@@ -16,12 +17,14 @@ import androidx.work.WorkerParameters
 import androidx.work.testing.TestListenableWorkerBuilder
 import androidx.work.testing.WorkManagerTestInitHelper
 import androidx.work.workDataOf
+import ch.sonensei.cockpit.R
 import ch.sonensei.cockpit.core.network.AuthSession
 import ch.sonensei.cockpit.core.network.generated.apis.RemindersApi
 import ch.sonensei.cockpit.core.network.generated.infrastructure.Serializer
 import ch.sonensei.cockpit.reminders.AlarmManagerReminderAlarms
 import ch.sonensei.cockpit.reminders.NOW
 import ch.sonensei.cockpit.reminders.ReminderNotifier
+import ch.sonensei.cockpit.reminders.ReminderOpenRequests
 import ch.sonensei.cockpit.reminders.ReminderScheduler
 import ch.sonensei.cockpit.reminders.ReminderStore
 import ch.sonensei.cockpit.reminders.itemId
@@ -138,6 +141,38 @@ class PushReminderDeliveryTest {
         assertEquals(ReminderNotifier.CHANNEL_ID, notification.channelId)
         assertEquals("Water the ficus", shadowOf(notification).contentTitle.toString())
         assertTrue(reminderId(1).toString() in store.notifiedIds())
+    }
+
+    @Test
+    fun `a tap on the pushed reminder opens its item, and the notification shows the reminder's time`() {
+        val remindAt = Instant.parse("2026-10-21T07:45:00Z")
+        answer(
+            """{"id":"${reminderId(1)}","channel":"NOTIFICATION","createdAt":"2026-10-21T07:00:00Z",""" +
+                """"remindAt":"$remindAt","firedAt":"$NOW",""" +
+                """"item":{"available":true,"id":"${itemId(7)}","type":"NOTE","title":"Fictitious meeting notes"}}""",
+        )
+
+        assertEquals(PushReminderResult.SHOWN, deliver(1))
+
+        val notification = shown().single()
+        assertEquals(remindAt.toEpochMilli(), notification.`when`)
+        val open: Intent = shadowOf(notification.contentIntent).savedIntent
+        assertEquals(ReminderOpenRequests.ACTION_OPEN_ITEM, open.action)
+        assertEquals("NOTE", open.getStringExtra(ReminderOpenRequests.EXTRA_ITEM_TYPE))
+        assertEquals(itemId(7).toString(), open.getStringExtra(ReminderOpenRequests.EXTRA_ITEM_ID))
+    }
+
+    @Test
+    fun `a pushed reminder whose item has no title is shown as untitled`() {
+        answer(
+            """{"id":"${reminderId(1)}","channel":"NOTIFICATION","createdAt":"2026-10-21T07:00:00Z",""" +
+                """"remindAt":"${NOW.minusSeconds(60)}","firedAt":"$NOW",""" +
+                """"item":{"available":true,"id":"${itemId(1)}","type":"TASK"}}""",
+        )
+
+        assertEquals(PushReminderResult.SHOWN, deliver(1))
+
+        assertEquals(context.getString(R.string.reminder_untitled), shadowOf(shown().single()).contentTitle.toString())
     }
 
     @Test
