@@ -66,18 +66,15 @@ describe('MailReadService', () => {
     expect((await result).title).toBe('T');
   });
 
-  it('copies an attachment into Files under its name', async () => {
-    const result = service.saveToFiles(ID, '2', 'report.pdf');
-    const download = await request(`/api/v1/mail/messages/${ID}/attachments/2`);
-    expect(download.request.responseType).toBe('blob');
-    download.flush(new Blob(['pdf']));
-    const upload = await request('/api/v1/files');
-    expect(upload.request.params.get('name')).toBe('report.pdf');
-    expect(upload.request.params.has('folderId')).toBe(false);
-    expect(upload.request.body instanceof FormData).toBe(true);
-    expect((upload.request.body as FormData).get('file')).toBeInstanceOf(Blob);
-    upload.flush({ id: 'file-1', name: 'report.pdf' }, { status: 201, statusText: 'Created' });
-    expect((await result).name).toBe('report.pdf');
+  it('has the server save an attachment to Files', async () => {
+    const result = service.saveToFiles(ID, '2');
+    const save = await request(`/api/v1/mail/messages/${ID}/attachments/2/save-to-files`);
+    expect(save.request.method).toBe('POST');
+    save.flush(
+      { id: 'file-1', name: 'report (2).pdf', folderId: 'mail-folder' },
+      { status: 201, statusText: 'Created' },
+    );
+    expect((await result).name).toBe('report (2).pdf');
   });
 
   it('builds attachment URLs', () => {

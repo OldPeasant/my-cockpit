@@ -208,6 +208,21 @@ class FilesService(
 		return file
 	}
 
+	/**
+	 * [name] (validated), or its first numbered variant (`report (2).pdf`) that no active file of [folderId] has
+	 * (regardless of case). Only a hint: file names need not be unique, so a concurrent store may still take it.
+	 */
+	@Transactional(readOnly = true)
+	fun freeFileName(
+		folderId: UUID,
+		name: String,
+	): String {
+		val valid = FileNames.validate(name)
+		return generateSequence(1) { it + 1 }
+			.map { if (it == 1) valid else FileNames.numbered(valid, it) }
+			.first { !files.existsActiveInFolderByName(folderId, it) }
+	}
+
 	/** Renames the file, see [updateFile]. */
 	fun renameFile(
 		id: UUID,

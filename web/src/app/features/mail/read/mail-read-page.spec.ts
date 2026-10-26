@@ -76,7 +76,7 @@ class FakeReadService {
   readError?: Error;
   gtds: { id: string; action: MailGtdAction }[] = [];
   gtdResult: Promise<{ id: string; title: string }> = Promise.resolve({ id: 't', title: 'T' });
-  saves: { id: string; partId: string; name: string }[] = [];
+  saves: { id: string; partId: string }[] = [];
   saveResult: Promise<{ name: string }> = Promise.resolve({ name: 'report.pdf' });
   blob: Promise<Blob> = Promise.resolve(new Blob(['line one\nline two']));
 
@@ -97,8 +97,8 @@ class FakeReadService {
   attachment() {
     return this.blob;
   }
-  saveToFiles(id: string, partId: string, name: string) {
-    this.saves.push({ id, partId, name });
+  saveToFiles(id: string, partId: string) {
+    this.saves.push({ id, partId });
     return this.saveResult;
   }
 }
@@ -371,7 +371,7 @@ describe('MailReadPage', () => {
       const save = el().querySelectorAll<HTMLButtonElement>('.attachments li')[0];
       [...save.querySelectorAll('button')].find((b) => b.textContent?.includes('Save'))!.click();
       await flush();
-      expect(service.saves).toEqual([{ id: ID, partId: '2', name: 'report.pdf' }]);
+      expect(service.saves).toEqual([{ id: ID, partId: '2' }]);
       expect(notifications.info).toHaveBeenCalledWith('Saved to Files: report.pdf');
     });
   });
@@ -676,8 +676,8 @@ describe('MailReadPage', () => {
       partButton('Save to Files').click();
       fixture.detectChanges();
       expect(service.saves).toEqual([
-        { id: ID, partId: '4', name: 'old.txt' },
-        { id: OTHER, partId: '4', name: 'new.txt' },
+        { id: ID, partId: '4' },
+        { id: OTHER, partId: '4' },
       ]);
 
       // The older save ends first: the newer one is still running, so its button stays disabled.
@@ -701,7 +701,7 @@ describe('MailReadPage', () => {
       await navigate(ID);
       expect(partButton('Save to Files').disabled).toBe(true);
       partButton('Save to Files').click();
-      expect(service.saves).toEqual([{ id: ID, partId: '4', name: 'old.txt' }]);
+      expect(service.saves).toEqual([{ id: ID, partId: '4' }]);
 
       oldSave.resolve({ name: 'old.txt' });
       await flush();

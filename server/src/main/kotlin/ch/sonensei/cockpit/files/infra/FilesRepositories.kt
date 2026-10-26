@@ -82,6 +82,15 @@ interface FileRepository : SoftDeletableRepository<FileItem> {
 	/** The files of the given folders, in or out of the Trash. */
 	fun findByFolderIdIn(folderIds: Collection<UUID>): List<FileItem>
 
+	/** Whether [folderId] holds a file, not in the Trash, with [name] regardless of case. */
+	@Query(
+		"select count(f) > 0 from FileItem f where f.folderId = :folderId and lower(f.name) = lower(:name) and f.deletedAt is null",
+	)
+	fun existsActiveInFolderByName(
+		folderId: UUID,
+		name: String,
+	): Boolean
+
 	/** Files in the Trash that were deleted themselves, not only as part of a deleted folder. */
 	@Query(
 		"""

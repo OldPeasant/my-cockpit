@@ -208,7 +208,7 @@ export default class MailReadPage {
     if (this.saving().has(key)) return;
     this.saving.update((keys) => new Set(keys).add(key));
     try {
-      const file = await this.service.saveToFiles(id, partId, part.filename);
+      const file = await this.service.saveToFiles(id, partId);
       const name = file.name;
       this.notifications.info($localize`:@@mailRead.savedToFiles:Saved to Files: ${name}:name:`);
     } catch (error) {

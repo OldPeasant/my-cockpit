@@ -283,6 +283,8 @@ export type { GetMailMessage$Params as GetMailMessage$Params } from './fn/mail-m
 export { getMailMessage as getMailMessage } from './fn/mail-messages/get-mail-message';
 export type { DownloadMailAttachment$Params as DownloadMailAttachment$Params } from './fn/mail-messages/download-mail-attachment';
 export { downloadMailAttachment as downloadMailAttachment } from './fn/mail-messages/download-mail-attachment';
+export type { SaveMailAttachmentToFiles$Params as SaveMailAttachmentToFiles$Params } from './fn/mail-messages/save-mail-attachment-to-files';
+export { saveMailAttachmentToFiles as saveMailAttachmentToFiles } from './fn/mail-messages/save-mail-attachment-to-files';
 export type { GetMailThread$Params as GetMailThread$Params } from './fn/mail-messages/get-mail-thread';
 export { getMailThread as getMailThread } from './fn/mail-messages/get-mail-thread';
 export type { MailToNote$Params as MailToNote$Params } from './fn/mail-messages/mail-to-note';

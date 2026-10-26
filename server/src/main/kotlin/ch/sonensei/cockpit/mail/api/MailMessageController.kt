@@ -3,6 +3,8 @@ package ch.sonensei.cockpit.mail.api
 import ch.sonensei.cockpit.core.web.CursorRequest
 import ch.sonensei.cockpit.core.web.ETags
 import ch.sonensei.cockpit.core.web.InvalidRequestException
+import ch.sonensei.cockpit.files.api.FileResponse
+import ch.sonensei.cockpit.files.infra.BlobTooLargeException
 import ch.sonensei.cockpit.mail.model.MailAddress
 import ch.sonensei.cockpit.mail.model.MailMessage
 import ch.sonensei.cockpit.mail.sanitize.RemoteImagePolicy
@@ -19,6 +21,7 @@ import org.slf4j.LoggerFactory
 import org.springframework.http.CacheControl
 import org.springframework.http.ContentDisposition
 import org.springframework.http.HttpHeaders
+import org.springframework.http.HttpStatus
 import org.springframework.http.MediaType
 import org.springframework.http.ProblemDetail
 import org.springframework.http.ResponseEntity
@@ -29,6 +32,7 @@ import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.RestController
+import java.net.URI
 import java.time.Duration
 import java.time.Instant
 import java.util.UUID
@@ -48,6 +52,7 @@ class MailMessageController(
 	private val reads: MailReadService,
 	private val images: RemoteImageFetcher,
 	private val older: MailOlderService,
+	private val attachmentFiles: MailAttachmentFilesService,
 ) {
 	private val log = LoggerFactory.getLogger(javaClass)
 
@@ -242,6 +247,52 @@ class MailMessageController(
 		}
 	}
 
+	@PostMapping("/messages/{id}/attachments/{partId}/save-to-files", produces = [MediaType.APPLICATION_JSON_VALUE])
+	@Operation(
+		operationId = "saveMailAttachmentToFiles",
+		summary = "Save an attachment to Files",
+		description =
+			"Streams the decoded part from the mail server into the auto-managed folder `/Attachments/Mail` (created " +
+				"when missing) under the attachment's filename; a name already taken there gets a number " +
+				"(`report (2).pdf`). The file is linked to the message.",
+	)
+	@ApiResponse(
+		responseCode = "201",
+		description = "The stored file, with its version as ETag",
+		headers = [Header(name = HttpHeaders.ETAG, schema = Schema(type = "string"))],
+		content = [Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = Schema(implementation = FileResponse::class))],
+	)
+	@ApiResponse(
+		responseCode = "404",
+		description = "No such message or attachment, or it is no longer on the server",
+		content = [Content(mediaType = PROBLEM_JSON, schema = Schema(ref = PROBLEM))],
+	)
+	@ApiResponse(
+		responseCode = "413",
+		description = "Larger than the configured maximum file size",
+		content = [Content(mediaType = PROBLEM_JSON, schema = Schema(ref = PROBLEM))],
+	)
+	@ApiResponse(
+		responseCode = "502",
+		description = "The mail server failed",
+		content = [Content(mediaType = PROBLEM_JSON, schema = Schema(ref = PROBLEM))],
+	)
+	@ApiResponse(
+		responseCode = "503",
+		description = "All connections of the account are busy (`errorCode` POOL_EXHAUSTED); retry later",
+		content = [Content(mediaType = PROBLEM_JSON, schema = Schema(ref = PROBLEM))],
+	)
+	fun saveAttachmentToFiles(
+		@PathVariable id: UUID,
+		@PathVariable partId: String,
+	): ResponseEntity<FileResponse> {
+		val file = attachmentFiles.saveToFiles(id, partId)
+		return ResponseEntity
+			.created(URI.create("$FILES_PATH/${file.id}"))
+			.eTag(ETags.of(file.version))
+			.body(FileResponse.of(file))
+	}
+
 	@GetMapping("/image-proxy")
 	@Operation(
 		operationId = "proxyMailImage",
@@ -292,6 +343,13 @@ class MailMessageController(
 		log.debug("Attachment download aborted by the client", e.cause)
 	}
 
+	@ExceptionHandler(BlobTooLargeException::class)
+	fun handleTooLarge(e: BlobTooLargeException): ResponseEntity<ProblemDetail> {
+		val status = HttpStatus.CONTENT_TOO_LARGE
+		val problem = ProblemDetail.forStatusAndDetail(status, "The file exceeds the maximum size of ${e.maxSize} bytes")
+		return ResponseEntity.status(status).contentType(MediaType.APPLICATION_PROBLEM_JSON).body(problem)
+	}
+
 	@ExceptionHandler(RemoteImageException::class)
 	fun handleImageFailure(e: RemoteImageException): ResponseEntity<ProblemDetail> {
 		// The URL is mail content; it is not logged.
@@ -310,6 +368,7 @@ class MailMessageController(
 	private companion object {
 		const val PROBLEM_JSON = MediaType.APPLICATION_PROBLEM_JSON_VALUE
 		const val PROBLEM = "#/components/schemas/ProblemDetail"
+		const val FILES_PATH = "/api/v1/files"
 		val IMAGE_CACHE: Duration = Duration.ofDays(1)
 	}
 }

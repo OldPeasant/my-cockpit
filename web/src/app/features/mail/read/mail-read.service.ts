@@ -11,7 +11,7 @@ import {
   mailToNote,
   mailToTask,
   mailToWaiting,
-  uploadFile,
+  saveMailAttachmentToFiles,
 } from '../../../api/generated';
 import { SILENT_ERRORS } from '../../../core/http';
 
@@ -52,10 +52,12 @@ export class MailReadService {
     return this.api.invoke(downloadMailAttachment, { id, partId, inline }, silent());
   }
 
-  /** Copies an attachment to the root of Files under its file name. */
-  async saveToFiles(id: string, partId: string, name: string): Promise<FileResponse> {
-    const file = await this.attachment(id, partId);
-    return this.api.invoke(uploadFile, { name, body: { file } }, silent());
+  /**
+   * Has the server copy an attachment into `/Attachments/Mail` (a taken name gets a number) and
+   * link it to the message.
+   */
+  saveToFiles(id: string, partId: string): Promise<FileResponse> {
+    return this.api.invoke(saveMailAttachmentToFiles, { id, partId }, silent());
   }
 }
 

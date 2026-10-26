@@ -21,7 +21,7 @@ class MailLoadOlderControllerTests {
 	private val older = mockk<MailOlderService>()
 	private val mockMvc =
 		MockMvcBuilders
-			.standaloneSetup(MailMessageController(reads, mockk(), older))
+			.standaloneSetup(MailMessageController(reads, mockk(), older, mockk()))
 			.setControllerAdvice(MailConnectionAdvice(), ProblemDetailsAdvice())
 			.build()
 	private val folderId = UUID.randomUUID()
