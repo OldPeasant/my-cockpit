@@ -14,3 +14,4 @@ Accessible web UI.
 - [ ] axe-core Playwright scan of every main page in light and dark theme: no serious/critical violations (fixes included); keyboard-only walkthrough of capture and inbox processing
 
 ## Notes
+- ASSUMPTION (2026-10-26 10:47+0100 by dell26/agent-1): Audit = axe-core WCAG 2.1 A/AA tags, failing only on serious/critical impact; 'every main page' = every shell section of app.routes.ts/gtd.routes.ts (4 calendar views) plus login, capture dialog, command palette and inbox processing mode, with seeded inbox/next tasks (other pages scanned with their empty states)
