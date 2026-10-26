@@ -44,6 +44,10 @@ tags:
   name: Mail accounts
 - description: Global search across all item types
   name: Search
+- description: "Further From addresses of an account besides its own (`emailAddress`),\
+    \ each with an optional Reply-To and signature override. Changes send `change`\
+    \ events of type `MAIL_IDENTITY`."
+  name: Mail identities
 - description: Downloads of the client apps
   name: Download
 - description: "Bookmarks and the read-later queue, with title, description and favicon\
@@ -4171,6 +4175,235 @@ paths:
       summary: Add a mail account
       tags:
       - Mail accounts
+  /api/v1/mail/accounts/{accountId}/identities:
+    get:
+      operationId: listMailIdentities
+      parameters:
+      - in: path
+        name: accountId
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MailIdentityListResponse"
+          description: The identities
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: No such account
+      summary: "The account's identities, in their order"
+      tags:
+      - Mail identities
+    post:
+      description: "The new identity comes last. `isDefault: true` makes it the one\
+        \ compose starts with (the previous default loses the flag)."
+      operationId: createMailIdentity
+      parameters:
+      - in: path
+        name: accountId
+        required: true
+        schema:
+          type: string
+          format: uuid
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateMailIdentityRequest"
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MailIdentityResponse"
+          description: Created; `Location` points to the identity
+        "400":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: Invalid request
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: No such account
+        "409":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: The account already has an identity with this address
+      summary: Add an identity
+      tags:
+      - Mail identities
+  /api/v1/mail/accounts/{accountId}/identities/{identityId}:
+    delete:
+      description: Existing drafts and sent mail are not changed.
+      operationId: deleteMailIdentity
+      parameters:
+      - in: path
+        name: accountId
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - in: path
+        name: identityId
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - description: The identity's ETag
+        in: header
+        name: If-Match
+        required: true
+        schema:
+          type: string
+      responses:
+        "204":
+          description: Removed
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: No such account or identity
+        "412":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: If-Match is stale
+        "428":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: If-Match is missing
+      summary: Remove an identity
+      tags:
+      - Mail identities
+    get:
+      operationId: getMailIdentity
+      parameters:
+      - in: path
+        name: accountId
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - in: path
+        name: identityId
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MailIdentityResponse"
+          description: "The identity, with its version as ETag"
+          headers:
+            ETag:
+              schema:
+                type: string
+              style: simple
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: No such account or identity
+      summary: One identity
+      tags:
+      - Mail identities
+    patch:
+      description: "Absent (or null) fields stay unchanged. An empty `replyTo` or\
+        \ `signatureMd` removes it (the account's signature applies again). `isDefault:\
+        \ true` takes the flag from the previous default."
+      operationId: updateMailIdentity
+      parameters:
+      - in: path
+        name: accountId
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - in: path
+        name: identityId
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - description: The identity's ETag
+        in: header
+        name: If-Match
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateMailIdentityRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MailIdentityResponse"
+          description: "The changed identity, with its new ETag"
+          headers:
+            ETag:
+              schema:
+                type: string
+              style: simple
+        "400":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: Invalid request
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: No such account or identity
+        "409":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: The account already has an identity with this address
+        "412":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: If-Match is stale
+        "428":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: If-Match is missing
+      summary: Change an identity
+      tags:
+      - Mail identities
   /api/v1/mail/accounts/{id}:
     delete:
       description: Removes the account with its cached folders and messages. Mail
@@ -10119,6 +10352,33 @@ components:
       required:
       - emailAddress
       - type
+    CreateMailIdentityRequest:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+          description: The From address; once per account
+          minLength: 1
+        isDefault:
+          type: boolean
+          description: Make it the identity compose starts with; defaults to false
+        name:
+          type: string
+          description: The From display name
+          maxLength: 200
+          minLength: 0
+        replyTo:
+          type: string
+          format: email
+          description: Reply-To address; absent or empty for none
+        signatureMd:
+          type: string
+          description: Markdown; overrides the account's signature. Absent or empty
+            for the account's
+      required:
+      - email
+      - name
     CreateNoteRequest:
       type: object
       description: A new note. Every field is optional.
@@ -11729,6 +11989,59 @@ components:
       - messageId
       - title
       - type
+    MailIdentityListResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/MailIdentityResponse"
+      required:
+      - items
+    MailIdentityResponse:
+      type: object
+      properties:
+        accountId:
+          type: string
+          format: uuid
+        createdAt:
+          type: string
+          format: date-time
+        email:
+          type: string
+        id:
+          type: string
+          format: uuid
+        isDefault:
+          type: boolean
+          description: The identity compose starts with (at most one per account)
+        name:
+          type: string
+        position:
+          type: integer
+          format: int32
+        replyTo:
+          type: string
+        signatureMd:
+          type: string
+          description: Markdown; absent when the account's signature applies
+        updatedAt:
+          type: string
+          format: date-time
+        version:
+          type: integer
+          format: int64
+          description: The ETag value for If-Match
+      required:
+      - accountId
+      - createdAt
+      - email
+      - id
+      - isDefault
+      - name
+      - position
+      - updatedAt
+      - version
     MailLoadOlderResponse:
       type: object
       properties:
@@ -13708,6 +14021,28 @@ components:
           - TRASH
           - ARCHIVE
           - SPAM
+    UpdateMailIdentityRequest:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+        isDefault:
+          type: boolean
+          description: true makes it the default (the previous default loses the flag);
+            false clears it
+        name:
+          type: string
+          maxLength: 200
+          minLength: 0
+        replyTo:
+          type: string
+          format: email
+          description: Empty removes the Reply-To
+        signatureMd:
+          type: string
+          description: Markdown; empty removes the override (the account's signature
+            applies)
     UploadResponse:
       type: object
       description: "A resumable upload in progress. Send chunk `n` (0-based) with\

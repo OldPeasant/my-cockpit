@@ -241,6 +241,16 @@ export type { UpdateMailFolder$Params as UpdateMailFolder$Params } from './fn/ma
 export { updateMailFolder as updateMailFolder } from './fn/mail-accounts/update-mail-folder';
 export type { TestMailAccountConnection$Params as TestMailAccountConnection$Params } from './fn/mail-accounts/test-mail-account-connection';
 export { testMailAccountConnection as testMailAccountConnection } from './fn/mail-accounts/test-mail-account-connection';
+export type { ListMailIdentities$Params as ListMailIdentities$Params } from './fn/mail-identities/list-mail-identities';
+export { listMailIdentities as listMailIdentities } from './fn/mail-identities/list-mail-identities';
+export type { CreateMailIdentity$Params as CreateMailIdentity$Params } from './fn/mail-identities/create-mail-identity';
+export { createMailIdentity as createMailIdentity } from './fn/mail-identities/create-mail-identity';
+export type { GetMailIdentity$Params as GetMailIdentity$Params } from './fn/mail-identities/get-mail-identity';
+export { getMailIdentity as getMailIdentity } from './fn/mail-identities/get-mail-identity';
+export type { DeleteMailIdentity$Params as DeleteMailIdentity$Params } from './fn/mail-identities/delete-mail-identity';
+export { deleteMailIdentity as deleteMailIdentity } from './fn/mail-identities/delete-mail-identity';
+export type { UpdateMailIdentity$Params as UpdateMailIdentity$Params } from './fn/mail-identities/update-mail-identity';
+export { updateMailIdentity as updateMailIdentity } from './fn/mail-identities/update-mail-identity';
 export type { ListMailCorrespondents$Params as ListMailCorrespondents$Params } from './fn/mail-compose/list-mail-correspondents';
 export { listMailCorrespondents as listMailCorrespondents } from './fn/mail-compose/list-mail-correspondents';
 export type { CreateMailDraft$Params as CreateMailDraft$Params } from './fn/mail-compose/create-mail-draft';
