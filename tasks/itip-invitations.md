@@ -15,3 +15,4 @@ Invite attendees by mail (SPEC.md §6.2).
 - [ ] `external` GreenMail tests
 
 ## Notes
+- ASSUMPTION (2026-10-26 13:20+0100 by r1963macos/agent-1): No REST endpoint/UI for sending invitations in this task: touches only covers calendar/itip; ItipService.send is the server API, exposing it (controller + openapi + clients) is follow-up task itip-api
