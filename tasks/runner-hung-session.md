@@ -18,11 +18,12 @@ process exits (`while p.poll() is None`), so the dashboard kept showing agent-2 
 already done, until the 1800 s `--timeout` killed it.
 
 ## Acceptance criteria
-- [ ] `agents.py`: once a session has printed a successful `result` event and then prints nothing more for a
+- [x] `agents.py`: once a session has printed a successful `result` event and then prints nothing more for a
   grace period (default 60 s, a command-line option like `--timeout`), the runner ends it with `kill_tree()` and
   logs e.g. `session ended: idle <n>s after final result`. Any new output during the grace period (e.g. a
   further turn started by a task notification) resets the grace period; a session that is still running tools
   is never killed by this rule
+  - verified (2026-10-26 02:16+0100 by dell26/agent-2): python -m unittest tests.test_hung_session (EndsAfterGrace, OutputResetsGrace, running-tool and pending-background tests; --result-grace option tests) -> 30 passed in 139 s; log shows 'session ended: idle <n>s after final result'
 - [ ] A session ended this way is treated like a normal exit 0: not counted as a failure (no back-off), its
   final result is used for the log line, and the runner continues with the actual task state (claims the next
   task if the old one is done)
