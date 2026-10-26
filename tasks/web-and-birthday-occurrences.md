@@ -5,7 +5,7 @@ owner: dell26/agent-1
 deps: [contacts-birthdays]
 touches: [web/src/app/features/calendar,android/app/src/main/java/ch/sonensei/cockpit/calendar]
 prio: 2
-lease_until: 2026-10-26T04:17:44Z
+lease_until: 2026-10-26T04:22:41Z
 ---
 ## Goal
 Occurrences of the virtual Birthdays calendar (SPEC.md §8.3) have no stored event: `eventId`/`seriesId` are the
