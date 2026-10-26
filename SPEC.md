@@ -30,8 +30,8 @@ native Android app, running on the owner's Linux server.
 | Users | Single user |
 | Offline | Offline *capture only* on Android; everything else online |
 | Email | Full client: read, mark, move, delete, compose, reply, forward |
-| Email providers | Generic IMAP/SMTP, Gmail/Google Workspace (OAuth2), Microsoft 365/Outlook (OAuth2) |
-| Calendar | Own calendars + **two-way sync** with external calendars (Google, Microsoft, CalDAV) |
+| Email providers | Generic IMAP/SMTP, Gmail/Google Workspace (OAuth2). Microsoft 365/Outlook (OAuth2): deferred, see ADR 0003 |
+| Calendar | Own calendars + **two-way sync** with external calendars (Google, CalDAV; Microsoft deferred, ADR 0003) |
 | Android | Native Kotlin + Jetpack Compose |
 | Files | Web drive (folders, upload/download, preview, linking). No WebDAV/sync client |
 | Notes | Markdown with pasted/dropped images |
@@ -83,7 +83,7 @@ native Android app, running on the owner's Linux server.
 | Search | PostgreSQL full-text search (`tsvector` + GIN), `pg_trgm` for fuzzy titles |
 | Mail | Eclipse Angus Mail (Jakarta Mail) for IMAP/SMTP incl. XOAUTH2, IMAP IDLE |
 | Calendar | ical4j (iCalendar/RRULE), Google Calendar API v3 (REST), Microsoft Graph (REST), CalDAV via ical4j-connector or plain HTTP REPORT requests |
-| Contacts | ez-vcard; Google People API; Microsoft Graph contacts |
+| Contacts | ez-vcard; Google People API (Microsoft Graph contacts: deferred, ADR 0003) |
 | Markdown | flexmark-java (server-side rendering for export/search text extraction) |
 | Auth | Spring Security, session cookie (web), bearer tokens (Android), TOTP (RFC 6238), WebAuthn/passkeys (webauthn4j / Spring Security WebAuthn) |
 | Build | Gradle (Kotlin DSL), monorepo |
@@ -309,7 +309,7 @@ POST            /api/v1/capture          {id?, text, notes?, fileIds?}  (idempot
 ### 6.1 Concepts
 
 - **Calendar sources:** `LOCAL` (stored in cockpit), `GOOGLE` (OAuth2, Calendar API v3),
-  `MICROSOFT` (OAuth2, Graph), `CALDAV` (URL + credentials, e.g. Nextcloud, iCloud with app
+  `MICROSOFT` (OAuth2, Graph; deferred: built but hidden, ADR 0003), `CALDAV` (URL + credentials, e.g. Nextcloud, iCloud with app
   password). Each source contains one or more **calendars** (name, color, visible, read-only
   flag, default for new events).
 - **Events:** title, description, location, start/end (time zone aware) or all-day, RRULE +
@@ -324,7 +324,7 @@ POST            /api/v1/capture          {id?, text, notes?, fileIds?}  (idempot
 - **Google:** incremental sync with `syncToken`; push notifications via watch channels
   are optional (requires public HTTPS — available), fallback poll every 5 min. Writes go
   directly to Google API, then local copy is updated from the response.
-- **Microsoft:** Graph delta queries (`/calendarView/delta`), poll every 5 min.
+- **Microsoft** (deferred, ADR 0003): Graph delta queries (`/calendarView/delta`), poll every 5 min.
 - **CalDAV:** `sync-collection` REPORT (RFC 6578) when supported, else ctag/etag comparison,
   poll every 10 min.
 - **Conflict policy:** remote is source of truth; local edits are written through
@@ -362,8 +362,8 @@ POST       /api/v1/calendar/sources/{id}/sync
 
 - Account types: `IMAP_SMTP` (host, port, TLS mode, username, password/app password),
   `GOOGLE` (OAuth2, IMAP/SMTP with XOAUTH2 — Gmail API not required), `MICROSOFT`
-  (OAuth2, IMAP/SMTP with XOAUTH2 for Outlook/M365).
-- OAuth apps: the owner registers their own Google Cloud and Azure app; client id/secret
+  (OAuth2, IMAP/SMTP with XOAUTH2 for Outlook/M365; deferred: built but hidden, ADR 0003).
+- OAuth apps: the owner registers their own Google Cloud app (and, once Microsoft is re-enabled, an Azure app); client id/secret
   configured via environment. Setup guide in `docs/oauth-setup.md`. The same Google/
   Microsoft connection is reused for mail, calendar and contacts (combined scopes, one
   `oauth_connection` per provider account).
@@ -447,7 +447,7 @@ POST  /api/v1/mail/drafts, PUT /api/v1/mail/drafts/{id}, POST /api/v1/mail/draft
 
 - `contact(id, display_name, given/family name, emails[], phones[], addresses[],
   organization, title, birthday, notes_md, photo_file_id?, source, external_id, etag)`.
-- Sources: LOCAL, GOOGLE (People API, two-way), MICROSOFT (Graph, two-way), CARDDAV (later).
+- Sources: LOCAL, GOOGLE (People API, two-way), MICROSOFT (Graph, two-way; deferred, ADR 0003), CARDDAV (later).
 - Contact detail shows: linked items, Waiting-For items for this contact, recent emails
   from/to them, upcoming events with them.
 - Birthdays shown as a virtual read-only calendar.
@@ -759,7 +759,7 @@ regression test.
 2. CalDAV (Radicale in the test): an event created in the cockpit appears on the server, and an
    event changed on the server appears in the cockpit after a sync.
 3. Google/Microsoft: sync logic verified against WireMock recordings (incremental sync token/delta,
-   412 conflict → refetch). (H) Connect the real Google and Microsoft accounts. An event created in
+   412 conflict → refetch). (H) Connect the real Google account (Microsoft deferred, ADR 0003). An event created in
    the cockpit appears in Google Calendar within seconds, and vice versa within ≤ 5 min.
 4. Edit "this and following" on a recurring event → correct split on all providers.
 5. Task overlay shows due tasks in week view. "Create note for event" links the two.
@@ -776,7 +776,7 @@ regression test.
    and GreenMail received it.
 6. "→ Inbox task" on a mail creates a linked task. "→ Waiting For" from a sent mail names the
    recipient.
-7. (H) Connect the real Gmail and Microsoft 365 accounts via OAuth and triage one day of mail.
+7. (H) Connect the real Gmail account via OAuth and triage one day of mail (Microsoft 365 deferred, ADR 0003).
 
 **Phase 6 — Contacts, bookmarks, journal & habits, weekly review, dashboard**
 1. Create contacts, import a vCard, see the birthdays calendar. The contact page shows their mails,
@@ -795,8 +795,8 @@ Agents prepare these (scripts, docs, checklists), and the board holds them as ta
 `quality: exempt` for the owner:
 - **Server deploy, DNS and TLS:** the domain, the DNS record, the first deploy on the Linux server,
   running the phase demo scripts against production.
-- **OAuth app registration:** a Google Cloud project (Calendar, People, Gmail scopes) and an Azure
-  app (Graph, IMAP/SMTP), entered into the server `.env` (needed from phase 4).
+- **OAuth app registration:** a Google Cloud project (Calendar, People, Gmail scopes) (an Azure app
+  only once Microsoft is re-enabled, ADR 0003), entered into the server `.env` (needed from phase 4).
 - **Real-device Android tests:** install the APK on the owner's phone and run the (H) steps.
 
 ### 13.4 Out of scope (v1)

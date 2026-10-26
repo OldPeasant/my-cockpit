@@ -9,7 +9,7 @@ hold: HUMAN TASK for the owner: deploy phase 5, connect real mail accounts
 prio: 2
 ---
 ## Goal
-Owner connects Gmail and triages a day of mail (Microsoft 365: h-ms-real).
+Owner connects Gmail and triages a day of mail (Microsoft 365 deferred, ADR 0003).
 
 ## Acceptance criteria
 - [ ] Real Gmail account syncs; send/reply works; actions reflect in the provider

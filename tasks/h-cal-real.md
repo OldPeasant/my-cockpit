@@ -9,7 +9,7 @@ hold: HUMAN TASK for the owner: deploy phase 4, connect real calendars
 prio: 2
 ---
 ## Goal
-Owner verifies two-way sync with a real Google calendar (Microsoft: h-ms-real).
+Owner verifies two-way sync with a real Google calendar (Microsoft deferred, ADR 0003).
 
 ## Acceptance criteria
 - [ ] Event created in the cockpit appears in Google within seconds; a Google change appears in ≤ 5 min

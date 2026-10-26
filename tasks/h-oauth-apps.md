@@ -10,7 +10,7 @@ prio: 2
 ---
 ## Goal
 Owner registers the Google OAuth app following docs/oauth-setup.md (SPEC.md §13.3). Microsoft/Azure is
-h-oauth-azure, done later; until then Microsoft stays disabled (no MS_CLIENT_ID).
+deferred (ADR 0003): no Azure app, no MS_CLIENT_ID.
 
 ## Acceptance criteria
 - [ ] Google client id/secret in the production `.env`; consent screen configured; redirect URI matches
