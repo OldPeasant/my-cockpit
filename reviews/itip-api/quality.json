@@ -1,0 +1,26 @@
+{
+  "schema": 1,
+  "task": "itip-api",
+  "reviewed_revision": "c4650d1a08ac89d2fbfda51b014fcd7748760f1d",
+  "helpers": {
+    "test-writer":   {"status": "completed", "report": "reviews/itip-api/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/itip-api/review.md"},
+    "fixer":         {"status": "completed", "report": "reviews/itip-api/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "failed mail account load showed the no-accounts hint and offered no retry; separate load error and Try again"},
+    {"id": "CR-2", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "To line listed the organizer; the selected account address is left out (case-insensitive)"},
+    {"id": "TW-1", "source": "test-writer", "severity": "Low", "disposition": "fixed",
+     "note": "same UX issue as CR-1"},
+    {"id": "CHECK-1", "source": "parent", "severity": "P2", "disposition": "fixed",
+     "note": "CalendarApiContentTypeTests failed in .taskcheck: invitations 200 also documented application/problem+json; fixed in 5377b19e3, re-reviewed by both helpers"}
+  ],
+  "validation": [
+    {"command": "server/gradlew -p server updateOpenApi ktlintCheck test --tests '*CalendarApiContentTypeTests' --tests '*ItipApiTests' --tests '*OpenApiContractTest'", "result": "pass"},
+    {"command": "npx --prefix web ng test --watch=false --include='src/app/features/calendar/edit/*.spec.ts'", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
