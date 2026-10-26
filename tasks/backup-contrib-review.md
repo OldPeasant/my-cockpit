@@ -1,10 +1,11 @@
 ---
 title: Backup contributor: weekly reviews
-status: todo
-owner:
+status: in_progress
+owner: dell26/agent-2
 deps: [review-api,backup-contrib-core]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/review/backup,server/src/test/kotlin/ch/sonensei/cockpit/review/backup]
 prio: 3
+lease_until: 2026-10-26T11:02:59Z
 ---
 ## Goal
 Weekly reviews (`weekly_review`, SPEC.md §8.6) in backups (SPEC.md §14), so "Last weekly review" and an open review survive a restore.
