@@ -15,7 +15,8 @@ Invite attendees by mail (SPEC.md §6.2).
 ## Acceptance criteria
 - [x] REQUEST/CANCEL as text/calendar mails; incoming REPLY updates attendee status
   - verified (2026-10-26 15:35+0100 by r1963macos/agent-1): cd server && ./gradlew test --tests '*itip*' --tests '*MailReadServiceInInboxTests' ktlintCheck -> ItipMessagesTests 26/26, ItipReplyProcessorTests 11/11, MailReadServiceInInboxTests 4/4 pass, ktlint clean; ./gradlew integrationTest --tests '*ItipGreenMail*' -> 32/32 pass (REQUEST/CANCEL sent as text/calendar via GreenMail SMTP, incoming REPLY in Inbox updates PARTSTAT)
-- [ ] `external` GreenMail tests
+- [x] `external` GreenMail tests
+  - verified (2026-10-26 15:35+0100 by r1963macos/agent-1): cd server && ./gradlew integrationTest --tests '*ItipGreenMail*' (@ExternalTest, GreenMail SMTP/IMAP + test DB) -> ItipGreenMailTests 32 tests, 0 failures, 0 skipped
 
 ## Notes
 - ASSUMPTION (2026-10-26 13:20+0100 by r1963macos/agent-1): No REST endpoint/UI for sending invitations in this task: touches only covers calendar/itip; ItipService.send is the server API, exposing it (controller + openapi + clients) is follow-up task itip-api
