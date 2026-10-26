@@ -18,7 +18,8 @@ SPEC.md §7.2: headers are cached for the sync window, "older loaded on demand w
   - verified (2026-10-26 06:01+0100 by dell26/agent-2): cd server && ./gradlew test --tests 'ch.sonensei.cockpit.mail.api.*' (MailLoadOlderControllerTests 9/9, MailOlderServiceTests 12/12) + ./gradlew integrationTest --tests '*MailLoadOlderGreenMailTests' (GreenMail+Testcontainers, 6/6): POST /api/v1/mail/folders/{id}/load-older -> {loaded,hasMore}; 404 unknown/gone folder, 502 unreachable, 503 busy, 400 bad limit as Problem Details -> pass
 - [x] Folder-scoped list response tells clients that older mail can be loaded (e.g. `hasOlder` when the cache is exhausted and the server has more)
   - verified (2026-10-26 06:02+0100 by dell26/agent-2): MailLoadOlderControllerTests + MailLoadOlderGreenMailTests assert hasOlder on the last page of folderId lists (true until a load returns hasMore=false), false for unified/account-Inbox lists -> pass
-- [ ] `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.mail.api.*'` passes plus an `external` GreenMail test: load older, then the list continues past the window
+- [x] `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.mail.api.*'` passes plus an `external` GreenMail test: load older, then the list continues past the window
+  - verified (2026-10-26 06:02+0100 by dell26/agent-2): cd server && ./gradlew test --tests 'ch.sonensei.cockpit.mail.api.*' -> BUILD SUCCESSFUL; ./gradlew integrationTest --tests 'ch.sonensei.cockpit.mail.api.MailLoadOlderGreenMailTests' (Docker) -> 6/6 incl. load older then list continues past the window
 - [ ] `api/openapi.yaml` regenerated and `OpenApiContractTest` passes without the flag; web client regenerated
 
 ## Notes
