@@ -10,10 +10,12 @@ import ch.sonensei.cockpit.contacts.domain.ContactEmail
 import ch.sonensei.cockpit.contacts.domain.ContactPhone
 import ch.sonensei.cockpit.contacts.domain.EmailsConverter
 import ch.sonensei.cockpit.contacts.domain.PhonesConverter
+import ch.sonensei.cockpit.core.crypto.SecretCipher
 import ch.sonensei.cockpit.files.infra.BlobStore
 import ezvcard.Ezvcard
 import ezvcard.VCard
 import ezvcard.VCardVersion
+import io.kotest.assertions.withClue
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldContainExactly
@@ -21,6 +23,7 @@ import io.kotest.matchers.collections.shouldContainExactlyInAnyOrder
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.maps.shouldNotContainKey
 import io.kotest.matchers.nulls.shouldBeNull
+import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
 import io.kotest.matchers.string.shouldNotContain
@@ -28,9 +31,12 @@ import io.kotest.matchers.string.shouldStartWith
 import org.junit.jupiter.api.AfterAll
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.extension.ExtendWith
 import org.junit.jupiter.api.io.TempDir
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
+import org.springframework.boot.test.system.CapturedOutput
+import org.springframework.boot.test.system.OutputCaptureExtension
 import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.test.context.DynamicPropertyRegistry
 import org.springframework.test.context.DynamicPropertySource
@@ -55,12 +61,14 @@ import kotlin.io.path.readBytes
  * database of its own, because every test empties all tables. All data is fictitious.
  */
 @SpringBootTest
+@ExtendWith(OutputCaptureExtension::class)
 class ContactsBackupContributorTests(
 	@Autowired private val backups: BackupService,
 	@Autowired private val contributor: ContactsBackupContributor,
 	@Autowired private val blobs: BlobStore,
 	@Autowired private val jdbc: JdbcTemplate,
 	@Autowired private val transactions: TransactionTemplate,
+	@Autowired private val cipher: SecretCipher,
 ) {
 	@TempDir lateinit var work: Path
 
@@ -274,6 +282,161 @@ class ContactsBackupContributorTests(
 		matches("colleague").shouldBeEmpty()
 	}
 
+	// --- CardDAV accounts and links ---------------------------------------------------------------------------------
+
+	@Test
+	fun `CardDAV accounts and links are exported without passwords, sync tokens or sync status`() {
+		seedCardDav()
+
+		val exported = export()
+		val accounts = exported.json("data/contacts_carddav_accounts.json")
+		val links = exported.lines("data/contacts_carddav_links.jsonl")
+
+		accounts.map { it["id"].asString() } shouldContainExactly listOf(HOME_ACCOUNT, OPEN_ACCOUNT).map(UUID::toString)
+		accounts[0]["name"].asString() shouldBe "Home server"
+		accounts[0]["url"].asString() shouldBe "https://dav.example.test/dav/"
+		accounts[0]["username"].asString() shouldBe "alice"
+		accounts[0]["addressbookUrl"].asString() shouldBe ADDRESSBOOK
+		accounts[1]["name"].asString() shouldBe "Open server"
+		accounts[1].opt("username").shouldBeNull()
+		accounts[1].opt("addressbookUrl").shouldBeNull()
+		accounts.forEach { account ->
+			listOf("password", "syncToken", "lastAttemptAt", "lastSuccessAt", "lastError").forEach { field ->
+				withClue(field) { account.has(field) shouldBe false }
+			}
+		}
+
+		links.map { it["id"].asString() } shouldContainExactly listOf(id(20), id(21)).map(UUID::toString)
+		links[0]["contactId"].asString() shouldBe id(1).toString()
+		links[0]["accountId"].asString() shouldBe HOME_ACCOUNT.toString()
+		links[0]["href"].asString() shouldBe "/dav/alice/contacts/card-0001.vcf"
+		links[0]["etag"].asString() shouldBe "\"etag-1\""
+		links[0]["syncedVersion"].asLong() shouldBe 3
+		links[1].opt("contactId").shouldBeNull()
+		links[1]["href"].asString() shouldBe "/dav/alice/contacts/card-0002.vcf"
+		links[1]["syncedVersion"].asLong() shouldBe 5
+
+		exported.entryNames.filter { it.startsWith("data/secrets") }.shouldBeEmpty()
+		exported.texts().forEach { (name, text) ->
+			withClue(name) {
+				text shouldNotContain CARDDAV_PASSWORD
+				text shouldNotContain "https://dav.example.test/sync/42"
+				text shouldNotContain "fictitious failure"
+			}
+		}
+	}
+
+	@Test
+	fun `with a passphrase the CardDAV password is only in the encrypted secrets, neither in plain text nor as stored`() {
+		seedCardDav()
+		val stored =
+			jdbc.queryForObject("select password from contacts_carddav_account where id = ?", String::class.java, HOME_ACCOUNT)!!
+
+		val exported = export(PASSPHRASE)
+
+		exported.entryNames shouldContain "data/secrets.enc.json"
+		exported.texts().forEach { (name, text) ->
+			withClue(name) {
+				text shouldNotContain CARDDAV_PASSWORD
+				text shouldNotContain stored
+			}
+		}
+		exported.json("data/contacts_carddav_accounts.json").forEach { it.has("password") shouldBe false }
+	}
+
+	@Test
+	fun `import restores CardDAV accounts and links, the password only with the passphrase, and no sync state`() {
+		seedCardDav()
+		val withSecrets = export(PASSPHRASE)
+		val links = jdbc.queryForList("select * from contacts_carddav_link order by id")
+
+		wipe()
+		import(withSecrets.path, PASSPHRASE)
+
+		cipher.decrypt(carddavPassword(HOME_ACCOUNT).shouldNotBeNull()) shouldBe CARDDAV_PASSWORD
+		carddavPassword(OPEN_ACCOUNT).shouldBeNull()
+		val home = jdbc.queryForMap("select * from contacts_carddav_account where id = ?", HOME_ACCOUNT)
+		home["name"] shouldBe "Home server"
+		home["url"] shouldBe "https://dav.example.test/dav/"
+		home["username"] shouldBe "alice"
+		home["addressbook_url"] shouldBe ADDRESSBOOK
+		home["sync_token"].shouldBeNull()
+		home["last_attempt_at"].shouldBeNull()
+		home["last_success_at"].shouldBeNull()
+		home["last_error"].shouldBeNull()
+		val open = jdbc.queryForMap("select * from contacts_carddav_account where id = ?", OPEN_ACCOUNT)
+		open["username"].shouldBeNull()
+		open["addressbook_url"].shouldBeNull()
+		jdbc.queryForList("select * from contacts_carddav_link order by id") shouldBe links
+		links shouldHaveSize 2
+
+		wipe()
+		import(withSecrets.path)
+
+		carddavPassword(HOME_ACCOUNT).shouldBeNull()
+		jdbc.queryForObject("select count(*) from contacts_carddav_account", Int::class.java) shouldBe 2
+		jdbc.queryForList("select * from contacts_carddav_link order by id") shouldBe links
+	}
+
+	@Test
+	fun `a backup without passphrase restores the accounts without password and logs no secret`(output: CapturedOutput) {
+		seedCardDav()
+		val withoutSecrets = export()
+
+		wipe()
+		import(withoutSecrets.path)
+
+		carddavPassword(HOME_ACCOUNT).shouldBeNull()
+		carddavPassword(OPEN_ACCOUNT).shouldBeNull()
+		jdbc.queryForMap("select * from contacts_carddav_account where id = ?", HOME_ACCOUNT)["addressbook_url"] shouldBe ADDRESSBOOK
+		output.out shouldContain "Restored 2 CardDAV account(s) without a password"
+		output.out shouldNotContain CARDDAV_PASSWORD
+	}
+
+	@Test
+	fun `restore warnings tell that CardDAV accounts need their password, singular and plural`() {
+		seedCardDav()
+
+		warnings(export(PASSPHRASE)) shouldContainExactly
+			listOf(
+				"Without the backup's passphrase, 2 CardDAV contacts accounts must be added again if they need a password " +
+					"(it is in the secrets)",
+			)
+		warnings(export()) shouldContainExactly
+			listOf("The backup has no CardDAV passwords: 2 CardDAV contacts accounts must be added again if they need one")
+
+		jdbc.update("delete from contacts_carddav_account where id = ?", OPEN_ACCOUNT)
+		warnings(export()) shouldContainExactly
+			listOf("The backup has no CardDAV passwords: 1 CardDAV contacts account must be added again if they need one")
+	}
+
+	@Test
+	fun `without CardDAV accounts there are no CardDAV files and no restore warnings`() {
+		contact(id(1), "Alex Example")
+
+		val exported = export(PASSPHRASE)
+
+		exported.entryNames.filter { it.contains("carddav") }.shouldBeEmpty()
+		warnings(exported).shouldBeEmpty()
+		wipe()
+		import(exported.path, PASSPHRASE)
+		jdbc.queryForObject("select count(*) from contacts_carddav_account", Int::class.java) shouldBe 0
+		rows() shouldHaveSize 1
+	}
+
+	@Test
+	fun `an account without links writes an empty links file and restores without links`() {
+		carddavAccount(OPEN_ACCOUNT, "Open server", "http://localhost:5232/", null, null, null)
+
+		val exported = export()
+
+		exported.lines("data/contacts_carddav_links.jsonl").shouldBeEmpty()
+		wipe()
+		import(exported.path)
+		jdbc.queryForObject("select count(*) from contacts_carddav_account", Int::class.java) shouldBe 1
+		jdbc.queryForObject("select count(*) from contacts_carddav_link", Int::class.java) shouldBe 0
+	}
+
 	// --- helpers ----------------------------------------------------------------------------------------------------
 
 	private class Exported(
@@ -286,22 +449,96 @@ class ContactsBackupContributorTests(
 
 		fun text(name: String): String = String(entries.getValue(name), Charsets.UTF_8)
 
+		fun texts(): Map<String, String> = entries.mapValues { String(it.value, Charsets.UTF_8) }
+
+		fun json(name: String): List<JsonNode> = json.readTree(entries.getValue(name)).values().toList()
+
 		fun lines(name: String): List<JsonNode> = text(name).lines().filter { it.isNotBlank() }.map { json.readTree(it) }
 
 		fun vcards(): List<VCard> = Ezvcard.parse(text("readable/contacts/contacts.vcf")).all()
 	}
 
-	private fun export(): Exported {
+	private fun export(passphrase: String? = null): Exported {
 		val target = Files.createTempFile(work, "backup-", ".zip")
-		target.outputStream().use { backups.export(it) }
+		target.outputStream().use { backups.export(it, passphrase) }
 		return Exported(target, backups.canonicalJson)
 	}
 
 	/** Runs only the contacts contributor's import, as restore does (one transaction, into an empty install). */
-	private fun import(zip: Path) =
-		ZipBackupReader.open(zip, backups.canonicalJson).use { reader ->
-			transactions.executeWithoutResult { contributor.import(reader) }
-		}
+	private fun import(
+		zip: Path,
+		passphrase: String? = null,
+	) = ZipBackupReader.open(zip, backups.canonicalJson, passphrase).use { reader ->
+		transactions.executeWithoutResult { contributor.import(reader) }
+	}
+
+	private fun warnings(exported: Exported): List<String> =
+		ZipBackupReader.open(exported.path, backups.canonicalJson).use { contributor.restoreWarnings(it) }
+
+	/** The field's value, or `null` when it is missing or JSON null. */
+	private fun JsonNode.opt(name: String): JsonNode? = get(name)?.takeUnless { it.isNull }
+
+	/**
+	 * Two CardDAV accounts (one with user name, password, address book and sync state, one without), a CARDDAV contact
+	 * linked to a card and the tombstone link of a purged contact.
+	 */
+	private fun seedCardDav() {
+		contact(id(1), "Robin Carddav", source = "CARDDAV", externalId = ADDRESSBOOK + "card-0001.vcf")
+		carddavAccount(HOME_ACCOUNT, "Home server", "https://dav.example.test/dav/", "alice", CARDDAV_PASSWORD, ADDRESSBOOK)
+		jdbc.update(
+			"""update contacts_carddav_account set sync_token = 'https://dav.example.test/sync/42', last_attempt_at = ?,
+			last_success_at = ?, last_error = 'fictitious failure' where id = ?""",
+			Timestamp.from(T1),
+			Timestamp.from(T0),
+			HOME_ACCOUNT,
+		)
+		carddavAccount(OPEN_ACCOUNT, "Open server", "http://localhost:5232/", null, null, null)
+		carddavLink(id(20), id(1), HOME_ACCOUNT, "/dav/alice/contacts/card-0001.vcf", "\"etag-1\"", 3)
+		carddavLink(id(21), null, HOME_ACCOUNT, "/dav/alice/contacts/card-0002.vcf", "\"etag-2\"", 5)
+	}
+
+	private fun carddavAccount(
+		id: UUID,
+		name: String,
+		url: String,
+		username: String?,
+		password: String?,
+		addressbookUrl: String?,
+	) {
+		jdbc.update(
+			"""insert into contacts_carddav_account (id, name, url, username, password, addressbook_url)
+			values (?, ?, ?, ?, ?, ?)""",
+			id,
+			name,
+			url,
+			username,
+			password?.let(cipher::encrypt),
+			addressbookUrl,
+		)
+	}
+
+	private fun carddavLink(
+		id: UUID,
+		contactId: UUID?,
+		accountId: UUID,
+		href: String,
+		etag: String?,
+		syncedVersion: Long,
+	) {
+		jdbc.update(
+			"""insert into contacts_carddav_link (id, contact_id, account_id, href, etag, synced_version)
+			values (?, ?, ?, ?, ?, ?)""",
+			id,
+			contactId,
+			accountId,
+			href,
+			etag,
+			syncedVersion,
+		)
+	}
+
+	private fun carddavPassword(account: UUID): String? =
+		jdbc.queryForObject("select password from contacts_carddav_account where id = ?", String::class.java, account)
 
 	/** The ids of the search documents whose text search matches [word]. */
 	private fun matches(word: String): List<UUID> =
@@ -435,6 +672,12 @@ class ContactsBackupContributorTests(
 		private val T0 = Instant.parse("2026-03-01T08:15:30.123456Z")
 		private val T1 = Instant.parse("2026-03-02T09:00:00Z")
 		private val T2 = Instant.parse("2026-03-03T10:00:00Z")
+
+		private const val PASSPHRASE = "fictitious backup passphrase"
+		private const val CARDDAV_PASSWORD = "fictitious-carddav-pw-4K"
+		private const val ADDRESSBOOK = "https://dav.example.test/dav/alice/contacts/"
+		private val HOME_ACCOUNT: UUID = UUID.fromString("0192f000-0000-7000-8000-000000000010")
+		private val OPEN_ACCOUNT: UUID = UUID.fromString("0192f000-0000-7000-8000-000000000011")
 
 		/** Fictitious UUIDv7-shaped ids, ordered by [n]. */
 		private fun id(n: Int): UUID = UUID.fromString("0192f000-0000-7000-8000-%012d".format(n))
