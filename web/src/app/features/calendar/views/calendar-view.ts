@@ -3,6 +3,7 @@ import {
   Component,
   computed,
   effect,
+  ElementRef,
   inject,
   signal,
   untracked,
@@ -68,6 +69,7 @@ import { OccurrenceRange, OccurrenceStore } from './occurrence-store';
   styleUrls: ['./calendar-view.scss', '../overlay/task-overlay.scss'],
 })
 export default class CalendarView {
+  private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
   private readonly settingsService = inject(SettingsService);
@@ -122,7 +124,11 @@ export default class CalendarView {
         end: `${VIEW_TYPES.day},${VIEW_TYPES.week},${VIEW_TYPES.month},${VIEW_TYPES.agenda}`,
       },
       buttons: {
-        today: { text: $localize`:@@calendar.today:Today` },
+        // The hint is the accessible name: it must contain the visible text (WCAG 2.5.3).
+        today: {
+          text: $localize`:@@calendar.today:Today`,
+          hint: $localize`:@@calendar.today:Today`,
+        },
         [VIEW_TYPES.day]: { text: $localize`:@@calendar.view.day:Day` },
         [VIEW_TYPES.week]: { text: $localize`:@@calendar.view.week:Week` },
         [VIEW_TYPES.month]: { text: $localize`:@@calendar.view.month:Month` },
@@ -285,6 +291,8 @@ export default class CalendarView {
   }
 
   private onDatesSet(info: DatesSetInfo, timeZone: string): void {
+    // After FullCalendar has rendered the view's DOM.
+    setTimeout(() => focusableScrollers(this.host.nativeElement));
     this.range.set({ from: info.start.toISOString(), to: info.end.toISOString() });
     this.viewType.set(info.view.type);
     if (OVERLAY_VIEWS.has(info.view.type))
@@ -298,6 +306,29 @@ export default class CalendarView {
       queryParamsHandling: 'merge',
       replaceUrl: true,
     });
+  }
+}
+
+/**
+ * Makes the scrolling hours of FullCalendar's time grid focusable, so they can be scrolled with the keyboard also
+ * when they hold no event (WCAG 2.1.1). The scroller is a generic element right inside the grid's `rowgroup`, which
+ * may own rows only: the scroller takes over the `rowgroup` role and its parent becomes presentational.
+ */
+function focusableScrollers(root: HTMLElement): void {
+  for (const el of Array.from(
+    root.querySelectorAll<HTMLElement>('full-calendar [style*="overflow"]'),
+  )) {
+    const parent = el.parentElement;
+    if (
+      el.hasAttribute('tabindex') ||
+      parent?.getAttribute('role') !== 'rowgroup' ||
+      !['auto', 'scroll'].includes(getComputedStyle(el).overflowY) ||
+      el.scrollHeight <= el.clientHeight
+    )
+      continue;
+    parent.setAttribute('role', 'none');
+    el.setAttribute('role', 'rowgroup');
+    el.tabIndex = 0;
   }
 }
 

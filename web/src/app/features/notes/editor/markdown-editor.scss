@@ -30,7 +30,8 @@ app-markdown-editor {
     padding: 0;
   }
 
-  .cm-placeholder {
+  // `.cm-editor` outweighs CodeMirror's base theme (`.ͼ2 .cm-placeholder`, #888 fails the WCAG AA contrast).
+  .cm-editor .cm-placeholder {
     color: var(--app-fg-muted);
   }
 

@@ -70,6 +70,11 @@ button {
   background: transparent;
   color: var(--app-fg-muted);
 
+  // Muted text dimmed further would fall below the WCAG AA contrast.
+  kbd {
+    opacity: 1;
+  }
+
   &:hover:not(:disabled) {
     color: var(--app-fg);
   }

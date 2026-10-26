@@ -139,7 +139,12 @@ app-calendar-view {
   --fc-classic-muted: color-mix(in srgb, var(--mat-sys-on-surface) 8%, transparent);
   --fc-classic-strong: color-mix(in srgb, var(--mat-sys-on-surface) 14%, transparent);
   --fc-classic-foreground: var(--mat-sys-on-surface);
-  --fc-classic-faint-foreground: var(--mat-sys-outline);
+  // Day numbers of other months: `outline` alone falls below the WCAG AA contrast on the light surface.
+  --fc-classic-faint-foreground: color-mix(
+    in srgb,
+    var(--mat-sys-outline) 50%,
+    var(--mat-sys-on-surface-variant)
+  );
   --fc-classic-muted-foreground: var(--mat-sys-on-surface-variant);
   --fc-classic-border: var(--mat-sys-outline-variant);
   --fc-classic-strong-border: var(--mat-sys-outline);
