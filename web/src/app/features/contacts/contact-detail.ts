@@ -260,8 +260,8 @@ export default class ContactDetail {
       const accounts = await this.service.carddavAccounts();
       if (seq === this.loadSeq) this.carddavAccounts.set(accounts);
     } catch {
-      this.carddavAccounts.set([]);
-      // Without them, the contact is created here only.
+      // Without them, the contact is created here only; an older request does not clear a newer answer.
+      if (seq === this.loadSeq) this.carddavAccounts.set([]);
     }
   }
 

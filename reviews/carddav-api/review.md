@@ -4,27 +4,60 @@ Date: 2026-10-26
 
 Task: carddav-api - CardDAV accounts: REST API, web settings UI and backup
 
-Scope: committed changes of task carddav-api, `git diff 143022400..e84697ffd` (generated files `api/openapi.yaml` and `web/src/app/api/generated/` only checked against the code). An untracked `web/src/app/features/contacts/carddav-accounts.spec.ts` appeared during the review (test-writer work in progress). It is not committed, so it was not reviewed.
+Scope: committed changes of task carddav-api, `git diff 728a43f4b..caa413abf`. The generated files `api/openapi.yaml` and `web/src/app/api/generated/` were only checked against the code. This is a re-review of the final revision after the fixes in `reviews/carddav-api/fixes.md`. The previous review (CR-1 to CR-6) was done on revision e84697ffd.
 
 Requirements:
-- tasks/carddav-api.md acceptance criteria and recorded assumptions
-- SPEC.md §4.2, §8.3, §10.2, §14 (as summarized in AGENTS.md "Project notes")
-- docs/ARCHITECTURE.md conventions (i18n, coverage), AGENTS.md conventions
-- Parent instructions (focus areas: password handling, backup restore, Problem Details, OpenAPI, web correctness, tests)
+- tasks/carddav-api.md acceptance criteria and its four recorded assumptions
+- AGENTS.md project notes and conventions
+- docs/ARCHITECTURE.md conventions: i18n (lines 242-246) and modules
+- Parent instructions: check each earlier finding, the fix commits (ContactService.validateNew, the order in CardDavContactsSync.createContact, the 409 handling in contact-detail.ts save(), the removal of the `changed` output) and the added tests
 
 Git range:
 - Branch: main
-- HEAD: e84697ffd6a839ce0c761c4d149467607441b1f0
-- Base/start: 143022400e113435ccc2bd2da43ffe9da5c62db8
-- Commits reviewed: 2 (2c6ee03c2, e84697ffd)
+- HEAD: caa413abf2fc48e8c1adca816cf3f6862621412b
+- Base/start: 728a43f4baff41729fbf439a0aa1aadc6ee3a17a
+- Commits reviewed: 4 (0c47dc0f4, 61a4d3518, 55bf0b3c3, caa413abf)
+- Uncommitted changes: none at the start of the review
 
-Summary: 0 P0, 1 P1, 3 P2, 2 P3
+Summary: 0 P0, 0 P1, 1 P2, 0 P3
 
-Verified as correct (no finding):
-- Password is write-only. `AddCardDavAccountRequest.password` is `writeOnly` in OpenAPI and masked in `toString`. `CardDavAccountResponse` only exposes `hasPassword`. Nothing logs it.
-- Backup: passwords are decrypted only when `writer.includesSecrets`, written only through `writer.secret(PASSWORDS, ...)` and re-encrypted with the target install's cipher on import. The accounts JSON has no password field.
-- Restore order is FK-safe. Contacts are inserted first, then accounts, then links. Tombstone links (`contact_id` null) are kept. The restore wipe truncates with cascade.
-- The generated OpenAPI paths, schemas, status codes and the web client match the controller annotations.
+Earlier findings, checked against the current code:
+- CR-1 (no server tests for the REST endpoints): resolved. `CardDavAccountWebTests` (55bf0b3c3, caa413abf) has 19 tests covering:
+    - 201 with Location on add;
+    - 400 for missing or blank name and URL fields;
+    - 404 on get, delete, sync and create-contact;
+    - the NEVER, OK and ERROR state mapping with lastError;
+    - 201 with ETag and Location when a contact is created;
+    - 409 with the CardDAV detail;
+    - no `password` key and no stored password in any response;
+    - the redacting toString.
+- CR-2 (409 for a new contact shown as an edit conflict): resolved. `contact-detail.ts:195` takes the conflict branch only when `!this.isNew()`. Otherwise the Problem Details detail is shown and nothing is reloaded. The spec "shows why the account could not take the contact (409) and keeps the form" asserts the message, that no GET of `/contacts/new` is sent, the route, and the typed value.
+- CR-3 (backup secret path untested): resolved. `ContactsBackupContributorTests` now covers:
+    - export without secrets, and with a passphrase (the password is only in the encrypted secrets);
+    - import with and without the passphrase;
+    - no secret in the logs;
+    - restore warnings, singular and plural;
+    - no files without accounts;
+    - an account without links.
+
+  `ContactsBackupFixture` seeds two accounts, a link and a tombstone. `BackupRoundTripTest` finds the fixture automatically by classpath scan.
+- CR-4 (no web specs for the panel and "Save to"): resolved. Added:
+    - `carddav-accounts.spec.ts` with 14 tests: load, load error with retry, the three states, sync now, remove with confirm, add with its first sync, validation, 400 field errors, busy;
+    - `contact-detail.spec.ts`: posting to the chosen account, staying local, failed account load, the 409 case;
+    - `contact-form.spec.ts`: the "Save to" select.
+- CR-5 (validation after discovery): resolved. `CardDavContactsSync.createContact` (line 116) calls `service.validateNew(fields)` after the account lookup, so an unknown account is still a 404 first, and before `Run(account)`, which can run discovery. `validateNew` runs the same `apply` and `validate` as `create`, without saving. The regression test uses an account at an unreachable URL with no address book. It passes only if validation comes first: if discovery ran first, the answer would be 409, not 400.
+- CR-6 (unused `changed` output): resolved. The output, its emit, the import and the misleading comment are gone. The spec asserts the rendered rows instead.
+
+Also checked, no finding:
+- The CardDavException messages that reach the 409 detail are fixed texts with HTTP status codes only (CardDavClient.kt, CardDavContactsSync.kt). They contain no credentials, URLs with user info, or contact data.
+- `ContactService.validateNew` is outside the task's `touches` but inside the contacts module. It reuses the private validation rules rather than duplicating them. `createSynced` still validates on its own, so a photo deleted between the two checks still gives a 400.
+- Web race handling:
+    - `syncNow` and `remove` merge into the current list when they finish, so a late sync result does not bring back a removed account;
+    - the per-account busy guard blocks a second sync or remove of the same account;
+    - `loadCardDavAccounts` ignores results from an earlier route.
+- The OpenAPI paths and operation ids, `writeOnly` on the password, and the generated client functions match the controller.
+- The restore warnings follow the CalDAV convention in `CalendarBackupContributor`.
+- `python tasks.py verify carddav-api` shows no evidence recorded yet for the three criteria. The parent worker records it after this review, so this is not a finding.
 
 ## P0 Critical
 
@@ -32,58 +65,20 @@ None.
 
 ## P1 High
 
-- [ ] **CR-1 | No server tests for the new REST endpoints (criterion 1)**
-    - File: `server/src/main/kotlin/ch/sonensei/cockpit/contacts/carddav/CardDavAccountController.kt:40`
-    - Category: Tests
-    - Problem: no test under `server/src/test` exercises `/api/v1/contacts/carddav-accounts`. A search for `carddav-accounts` or `CardDavAccountController` finds nothing. `CardDavAccountServiceTests` predates the task and does not cover the new `get`. These behaviors are untested: 201 with `Location` on add; 400 Problem Details for a missing or blank name or a bad URL; 404 on get, delete, sync and create-contact for an unknown id; `sync.state`/`lastError` mapping (NEVER/OK/ERROR); 201 with ETag and `Location` on `POST /{id}/contacts`; 409 when discovery fails; that no response body ever contains the password.
-    - Why it matters: criterion 1 ("password write-only", "status with lastError") cannot be verified by evidence, and a later DTO change could start returning the password with no test failing.
-    - Suggested fix: add a MockMvc/web test class for the controller covering the cases above, including an assertion that the serialized JSON has no `password` key and does not contain the stored password.
+None.
 
 ## P2 Medium
 
-- [ ] **CR-2 | A failed "Save to CardDAV account" shows a false "changed elsewhere" message and requests GET /contacts/new**
-    - File: `web/src/app/features/contacts/contact-detail.ts:193`
-    - Category: Correctness
-    - Problem: by the recorded assumption, `POST /carddav-accounts/{id}/contacts` answers 409 when the account's address book cannot be discovered (`CardDavAccountController.kt:156`). In `save()`, `isConflict(error)` treats every 409 as an optimistic-lock conflict, even for a new contact. The user is told "it was changed elsewhere in the meantime... Save again to replace that version". Then `reloadContact()` calls `service.get('new')`, which the server answers with 400. That error is swallowed. The actual CardDAV problem in the Problem Details `detail` is never shown.
-    - Why it matters: the user gets wrong advice and cannot see why saving to the CardDAV account fails. Saving again fails the same way. This affects criterion 2 ("new contact can target a CardDAV account") in exactly the failure case the 409 was designed for.
-    - Suggested fix: apply the conflict branch only when `!this.isNew()`. For a new contact, show `message(error)` (the server's detail). Add a spec for createIn success and the 409 failure.
-
-- [ ] **CR-3 | Backup secret path and restore warnings are untested**
-    - File: `server/src/main/kotlin/ch/sonensei/cockpit/contacts/backup/CardDavBackup.kt:34`
-    - Category: Tests
-    - Problem: the round-trip test (`BackupRoundTripTest`) exports without a passphrase, so it only covers the case where the password is omitted. Nothing tests:
-        - export with a passphrase: the password appears only in the secrets, and is in neither `contacts_carddav_accounts.json` nor the ciphertext;
-        - import with the passphrase: the password is restored and usable after re-encryption, and `hasPassword` is true;
-        - import without the passphrase: the password is null;
-        - `restoreWarnings` (with or without secrets, singular or plural);
-        - an install without accounts writes neither file.
-
-      `ContactsBackupContributorTests` was not changed. The sibling modules have exactly these tests (`CalendarBackupContributorTests` "with a passphrase the credentials are only in the encrypted secrets..." and "import restores credentials with the passphrase...", and the same in `MailBackupContributorTests`).
-    - Why it matters: criterion 3 names "password encrypted or omitted". The encrypt/decrypt path, which handles a secret, has no verification. A regression that leaks the plaintext into `data/` would go unnoticed.
-    - Suggested fix: add tests to `ContactsBackupContributorTests` that mirror the calendar and mail credential tests.
-
-- [ ] **CR-4 | New web panel and the "Save to" choice have no committed tests**
-    - File: `web/src/app/features/contacts/carddav-accounts.ts:36`
-    - Category: Tests
-    - Problem: the committed diff adds no spec for `CardDavAccounts`: load and load error with retry; add including the client-side and server 400 field messages; the automatic first sync after add; sync now; confirm/cancel remove; per-account error; busy guard. `contact-detail.spec.ts` only asserts that `.save-to` is absent with no accounts. Choosing an account and saving through `createIn` is untested. An untracked `carddav-accounts.spec.ts` exists (test-writer in progress) and was not reviewed.
-    - Why it matters: criterion 2 is web behavior. Without these specs, regressions such as CR-2 go unnoticed.
-    - Suggested fix: commit the component spec, and add a contact-detail spec that selects an account and expects `POST /api/v1/contacts/carddav-accounts/{id}/contacts` (success and 409).
+- [ ] **CR-7 | New UI strings were not extracted and have no German translations**
+    - File: `web/src/app/features/contacts/carddav-accounts.html:1` (also `carddav-accounts.ts:20`, `contact-form.html:5`)
+    - Category: Integration
+    - Problem: the task adds 24 new message ids: 21 `@@contacts.carddav.*` and `@@contacts.saveTo`, `@@contacts.saveTo.here`, `@@contacts.saveTo.carddav`. None of them are in `web/src/locale/messages.xlf` or `web/src/locale/messages.de.xlf` (a grep finds 0 matches in each). The existing contacts messages, such as `contacts.created` and `contacts.form.*`, are present in both files, so the files are otherwise kept in sync. docs/ARCHITECTURE.md lines 242-246 require running `npm run i18n:extract` and adding each `<target>` to `messages.de.xlf` after adding a message. `angular.json` sets `"i18nMissingTranslation": "error"`, so `npm run build:de` fails on these ids. `messages-de.spec.ts` cannot catch this, because it compares only the two xlf files and `messages.xlf` was not re-extracted.
+    - Why it matters: the German build breaks. It is not part of `.taskcheck`, so the gap goes unnoticed until someone builds or ships the German locale. Until then the new panel is English-only, against the "every user-facing string translated to German" convention.
+    - Suggested fix: run `npm run i18n:extract` in `web/` and add informal German ("du") targets for the 24 new units to `src/locale/messages.de.xlf`. Then run `npx ng test --include='src/locale/**'` and `npm run build:de`. `web/src/locale/` is outside the task's `touches`. The convention requires the change, so the parent should record that with `tasks.py assume` or keep the edit small.
 
 ## P3 Low
 
-- [ ] **CR-5 | Contact data is validated only after network discovery**
-    - File: `server/src/main/kotlin/ch/sonensei/cockpit/contacts/carddav/CardDavAccountController.kt:154`
-    - Category: Correctness
-    - Problem: `sync.createContact` builds the `Run` first, which may run address book discovery over HTTP for an account not synced yet. Only then does `service.createSynced` validate the fields (for example, an empty contact). An invalid body for such an account first contacts the CardDAV server, and if discovery fails it answers 409 instead of 400.
-    - Why it matters: the wrong status for invalid input, and a needless remote call within the request.
-    - Suggested fix: validate the changes before discovery. For example, expose a validation step on `ContactService`, or call `createSynced` validation first. Or document the precedence.
-
-- [ ] **CR-6 | `changed` output of CardDavAccounts is never used**
-    - File: `web/src/app/features/contacts/carddav-accounts.ts:39`
-    - Category: Quality
-    - Problem: the component emits `changed` on every list update, and its doc comment says this is "so the page can offer them as a place for new contacts". But `contacts-page.html:64` uses `<app-carddav-accounts />` without binding it. `ContactDetail` loads the accounts on its own.
-    - Why it matters: dead API with a misleading comment.
-    - Suggested fix: remove the output and the comment, or bind it if it is needed.
+None.
 
 ## Review conclusion
 

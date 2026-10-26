@@ -1,4 +1,8 @@
-import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
+import {
+  HttpTestingController,
+  provideHttpClientTesting,
+  TestRequest,
+} from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter, Router } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
@@ -560,6 +564,50 @@ describe('ContactDetail', () => {
       expect((root.querySelector('input[name="givenName"]') as HTMLInputElement).value).toBe(
         'Grace',
       );
+    });
+
+    /**
+     * Opens a new contact, leaves for an existing one and comes back before the first accounts
+     * request answered; returns that first (stale) request and answers the second with HOME, WORK.
+     */
+    async function returnBeforeTheFirstAccountsAnswer(): Promise<TestRequest> {
+      await start('/contacts/new');
+      const stale = http.expectOne((r) => r.method === 'GET' && r.url === CARDDAV);
+      await harness.navigateByUrl(`/contacts/${ID}`);
+      http.expectOne(URL).flush(contact(ID));
+      await settle();
+      http.expectOne(`${URL}/related`).flush(noRelated(ID));
+      await settle();
+      flushLinks();
+      await harness.navigateByUrl('/contacts/new');
+      root = harness.routeNativeElement as HTMLElement;
+      http.expectOne((r) => r.method === 'GET' && r.url === CARDDAV).flush({ items: [HOME, WORK] });
+      await settle();
+      return stale;
+    }
+
+    function offered(): string[] {
+      const select = root.querySelector('.save-to select[name="target"]') as HTMLSelectElement;
+      return select ? [...select.options].map((o) => o.value) : [];
+    }
+
+    it('ignores an older accounts list that answers after the current one', async () => {
+      const stale = await returnBeforeTheFirstAccountsAnswer();
+      expect(offered()).toEqual(['', HOME.id, WORK.id]);
+      stale.flush({ items: [] });
+      await settle();
+      expect(offered()).toEqual(['', HOME.id, WORK.id]);
+    });
+
+    it('ignores an older accounts request that fails after the current one answered', async () => {
+      const stale = await returnBeforeTheFirstAccountsAnswer();
+      expect(offered()).toEqual(['', HOME.id, WORK.id]);
+      stale.flush(
+        { status: 500, title: 'Internal Server Error', detail: 'An unexpected error occurred' },
+        { status: 500, statusText: 'Server Error' },
+      );
+      await settle();
+      expect(offered()).toEqual(['', HOME.id, WORK.id]);
     });
   });
 

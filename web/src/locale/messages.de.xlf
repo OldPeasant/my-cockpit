@@ -2186,6 +2186,206 @@
           <context context-type="linenumber">186</context>
         </context-group>
       </trans-unit>
+      <trans-unit id="contacts.carddav.title" datatype="html">
+        <source>CardDAV address books</source>
+        <target state="translated">CardDAV-Adressbücher</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/contacts/carddav-accounts.html</context>
+          <context context-type="linenumber">3,5</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="contacts.carddav.add" datatype="html">
+        <source> Add CardDAV account </source>
+        <target state="translated">CardDAV-Konto hinzufügen</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/contacts/carddav-accounts.html</context>
+          <context context-type="linenumber">12,15</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="contacts.carddav.loadFailed" datatype="html">
+        <source>The CardDAV accounts could not be loaded: <x id="INTERPOLATION" equiv-text="{{ error }}"/></source>
+        <target state="translated">Die CardDAV-Konten konnten nicht geladen werden: <x id="INTERPOLATION" equiv-text="{{ error }}"/></target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/contacts/carddav-accounts.html</context>
+          <context context-type="linenumber">20,21</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="contacts.carddav.syncing" datatype="html">
+        <source>Syncing…</source>
+        <target state="translated">Wird synchronisiert…</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/contacts/carddav-accounts.html</context>
+          <context context-type="linenumber">33,34</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="contacts.carddav.synced" datatype="html">
+        <source>Synced <x id="INTERPOLATION" equiv-text="{{ a.sync.lastSuccessAt | date: &apos;short&apos; }}"/></source>
+        <target state="translated">Synchronisiert <x id="INTERPOLATION" equiv-text="{{ a.sync.lastSuccessAt | date: &apos;short&apos; }}"/></target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/contacts/carddav-accounts.html</context>
+          <context context-type="linenumber">38,39</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="contacts.carddav.failed" datatype="html">
+        <source>Sync failed: <x id="INTERPOLATION" equiv-text="{{ a.sync.lastError }}"/></source>
+        <target state="translated">Synchronisierung fehlgeschlagen: <x id="INTERPOLATION" equiv-text="{{ a.sync.lastError }}"/></target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/contacts/carddav-accounts.html</context>
+          <context context-type="linenumber">43,44</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="contacts.carddav.never" datatype="html">
+        <source>Not synced yet</source>
+        <target state="translated">Noch nicht synchronisiert</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/contacts/carddav-accounts.html</context>
+          <context context-type="linenumber">47,49</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="contacts.carddav.confirmRemove" datatype="html">
+        <source>Stop syncing? Its contacts stay here.</source>
+        <target state="translated">Synchronisierung beenden? Die Kontakte bleiben hier.</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/contacts/carddav-accounts.html</context>
+          <context context-type="linenumber">55,57</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="contacts.carddav.removeConfirm" datatype="html">
+        <source> Remove account </source>
+        <target state="translated">Konto entfernen</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/contacts/carddav-accounts.html</context>
+          <context context-type="linenumber">65,67</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="contacts.carddav.syncNow" datatype="html">
+        <source> Sync now </source>
+        <target state="translated">Jetzt synchronisieren</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/contacts/carddav-accounts.html</context>
+          <context context-type="linenumber">85,86</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="contacts.carddav.remove" datatype="html">
+        <source> Remove </source>
+        <target state="translated">Entfernen</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/contacts/carddav-accounts.html</context>
+          <context context-type="linenumber">95,96</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="contacts.carddav.none" datatype="html">
+        <source> No CardDAV account. Add one to sync contacts with Nextcloud, iCloud, Radicale or another CardDAV server. </source>
+        <target state="translated">Kein CardDAV-Konto. Füge eines hinzu, um Kontakte mit Nextcloud, iCloud, Radicale oder einem anderen CardDAV-Server zu synchronisieren.</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/contacts/carddav-accounts.html</context>
+          <context context-type="linenumber">109,113</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="contacts.carddav.loading" datatype="html">
+        <source>Loading CardDAV accounts…</source>
+        <target state="translated">CardDAV-Konten werden geladen…</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/contacts/carddav-accounts.html</context>
+          <context context-type="linenumber">114,118</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="contacts.carddav.field.name" datatype="html">
+        <source>Name</source>
+        <target state="translated">Name</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/contacts/carddav-accounts.html</context>
+          <context context-type="linenumber">121,123</context>
+        </context-group>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/contacts/carddav-accounts.ts</context>
+          <context context-type="linenumber">20</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="contacts.carddav.field.url" datatype="html">
+        <source>Server URL</source>
+        <target state="translated">Server-URL</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/contacts/carddav-accounts.html</context>
+          <context context-type="linenumber">131,133</context>
+        </context-group>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/contacts/carddav-accounts.ts</context>
+          <context context-type="linenumber">21</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="contacts.carddav.field.username" datatype="html">
+        <source>User name</source>
+        <target state="translated">Benutzername</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/contacts/carddav-accounts.html</context>
+          <context context-type="linenumber">142,144</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="contacts.carddav.field.password" datatype="html">
+        <source>Password or app password</source>
+        <target state="translated">Passwort oder App-Passwort</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/contacts/carddav-accounts.html</context>
+          <context context-type="linenumber">151,153</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="contacts.carddav.urlHint" datatype="html">
+        <source> The address book URL, or the server URL: its first address book is synced. </source>
+        <target state="translated">Die URL des Adressbuchs oder des Servers: Dann wird sein erstes Adressbuch synchronisiert.</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/contacts/carddav-accounts.html</context>
+          <context context-type="linenumber">161,163</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="contacts.carddav.addFailed" datatype="html">
+        <source> The account could not be added: <x id="INTERPOLATION" equiv-text="{{ error }}"/> </source>
+        <target state="translated">Das Konto konnte nicht hinzugefügt werden: <x id="INTERPOLATION" equiv-text="{{ error }}"/></target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/contacts/carddav-accounts.html</context>
+          <context context-type="linenumber">165,167</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="contacts.carddav.addSave" datatype="html">
+        <source> Add account </source>
+        <target state="translated">Konto hinzufügen</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/contacts/carddav-accounts.html</context>
+          <context context-type="linenumber">176,178</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="contacts.carddav.missing" datatype="html">
+        <source>Enter a name and the server URL.</source>
+        <target state="translated">Gib einen Namen und die Server-URL ein.</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/contacts/carddav-accounts.ts</context>
+          <context context-type="linenumber">128</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="contacts.saveTo" datatype="html">
+        <source>Save to</source>
+        <target state="translated">Speichern in</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/contacts/contact-form.html</context>
+          <context context-type="linenumber">5,6</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="contacts.saveTo.here" datatype="html">
+        <source>My Cockpit only</source>
+        <target state="translated">Nur My Cockpit</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/contacts/contact-form.html</context>
+          <context context-type="linenumber">7,8</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="contacts.saveTo.carddav" datatype="html">
+        <source> <x id="INTERPOLATION" equiv-text="{{ a.name }}"/> (CardDAV, synced) </source>
+        <target state="translated"><x id="INTERPOLATION" equiv-text="{{ a.name }}"/> (CardDAV, synchronisiert)</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/contacts/contact-form.html</context>
+          <context context-type="linenumber">10,11</context>
+        </context-group>
+      </trans-unit>
       <trans-unit id="contacts.back" datatype="html">
         <source>Back to contacts</source>
         <target state="translated">Zurück zu den Kontakten</target>
@@ -2211,7 +2411,7 @@
         </context-group>
       </trans-unit>
       <trans-unit id="contacts.retry" datatype="html">
-        <source> Try again </source>
+        <source>Try again</source>
         <target state="translated">Erneut versuchen</target>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/contacts/contact-detail.html</context>

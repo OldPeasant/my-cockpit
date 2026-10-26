@@ -3,7 +3,11 @@ import { TestBed } from '@angular/core/testing';
 import { provideRouter, Router } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
 import { filter, Subject } from 'rxjs';
-import { ContactResponse, OAuthConnectionResponse } from '../../api/generated';
+import {
+  CardDavAccountResponse,
+  ContactResponse,
+  OAuthConnectionResponse,
+} from '../../api/generated';
 import { ChangeEventsService } from '../../core/events';
 import { NotificationService, provideHttp } from '../../core/http';
 import { CONTACT_SEARCH_DEBOUNCE_MS } from './contacts-page';
@@ -47,6 +51,7 @@ describe('ContactsPage', () => {
     items: ContactResponse[] = [ADA, BOB],
     accounts: OAuthConnectionResponse[] = [],
     nextCursor?: string,
+    carddav: CardDavAccountResponse[] = [],
   ): Promise<void> {
     notifications = { error: vi.fn(), info: vi.fn() };
     changes = new Subject();
@@ -71,7 +76,7 @@ describe('ContactsPage', () => {
     await harness.navigateByUrl(url);
     root = harness.routeNativeElement as HTMLElement;
     http.expectOne(CONNECTIONS).flush(accounts);
-    http.expectOne(CARDDAV).flush({ items: [] });
+    http.expectOne(CARDDAV).flush({ items: carddav });
     flushList(items, nextCursor);
     await settle();
   }
@@ -226,6 +231,28 @@ describe('ContactsPage', () => {
   it('says contacts are kept here only without a connected account', async () => {
     await open();
     expect(text(root.querySelector('.sync .none'))).toContain('Contacts are kept here only.');
+  });
+
+  it('shows the CardDAV accounts panel with each account and its sync state', async () => {
+    const home: CardDavAccountResponse = {
+      id: '0192f0c4-0000-7000-8000-0000000000d1',
+      name: 'Home server',
+      url: 'https://dav.example.test/dav/',
+      username: 'alice',
+      hasPassword: true,
+      sync: { state: 'ERROR', lastError: 'The CardDAV server could not be reached' },
+    };
+    await open('/contacts', [ADA], [], undefined, [home]);
+    const panel = root.querySelector('app-carddav-accounts section.carddav');
+    expect(text(panel?.querySelector('h2') ?? null)).toBe('CardDAV address books');
+    const row = panel?.querySelector(`li.account[data-id="${home.id}"]`) ?? null;
+    expect(row?.getAttribute('data-state')).toBe('ERROR');
+    expect(text(row?.querySelector('.state') ?? null)).toBe(
+      'Sync failed: The CardDAV server could not be reached',
+    );
+    expect(panel?.querySelector('button.add')).not.toBeNull();
+    // The OAuth sync list stays separate from the CardDAV panel.
+    expect(root.querySelector('.sync .account')).toBeNull();
   });
 
   it('offers the export of all contacts as a download', async () => {
