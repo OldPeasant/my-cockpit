@@ -730,6 +730,54 @@ class ItipGreenMailTests(
 		jdbc.queryForObject("select sequence from calendar_itip_reply where event_id = ?::uuid", Int::class.java, event) shouldBe 3
 	}
 
+	@Test
+	fun `older series and occurrence REPLYs stay ignored after the series and its override are edited via the API`() {
+		val series = createEvent(attendees = listOf(ANNA), rrule = "FREQ=WEEKLY")
+		val override = api.patchEventOk(series, """{"title":"Kickoff (room B)"}""", "?scope=THIS&occurrence=2026-11-09T08:00:00Z").id()
+		// First the series answer (it sets every override too), then the one for the occurrence.
+		appendTo("INBOX", replyMail(from = ANNA, uid = series, attendee = ANNA, partStat = "ACCEPTED", sequence = 2))
+		fullSyncInbox()
+		processor.process(cachedInbox().single().id) shouldContainExactly listOf(UUID.fromString(series), UUID.fromString(override))
+		val seriesAnswer = cachedInbox().single().id
+		appendTo(
+			"INBOX",
+			replyMail(from = ANNA, uid = series, attendee = ANNA, partStat = "DECLINED", recurrenceId = "20261109T080000Z", sequence = 2),
+		)
+		fullSyncInbox()
+		processor.process(cachedInbox().map { it.id }.single { it != seriesAnswer }) shouldContainExactly listOf(UUID.fromString(override))
+		val taken = cachedInbox().map { it.id }
+		stored(override).attendees.single().status shouldBe AttendeeStatus.DECLINED
+
+		// The whole series and the occurrence get their attendees replaced, as a client sends them back with a new one.
+		api.patchEventOk(series, """{"attendees":[{"email":"$ANNA","status":"ACCEPTED"},{"email":"$BOB"}]}""", "?scope=ALL")
+		api.patchEventOk(override, """{"attendees":[{"email":"$ANNA","status":"DECLINED"},{"email":"$BOB"}]}""")
+		val before = listOf(series, override).associateWith { stored(it).attendees.map { a -> a.email to a.status } }
+
+		// Answered before the ones taken: lower SEQUENCE for the series, same SEQUENCE and older DTSTAMP for the occurrence.
+		appendTo("INBOX", replyMail(from = ANNA, uid = series, attendee = ANNA, partStat = "TENTATIVE", sequence = 1, stamp = "20261027T120000Z"))
+		appendTo(
+			"INBOX",
+			replyMail(
+				from = ANNA,
+				uid = series,
+				attendee = ANNA,
+				partStat = "ACCEPTED",
+				recurrenceId = "20261109T080000Z",
+				sequence = 2,
+				stamp = "20261026T110000Z",
+			),
+		)
+		fullSyncInbox()
+		val late = cachedInbox().map { it.id } - taken.toSet()
+		late.size shouldBe 2
+		late.forEach { processor.process(it).shouldBeEmpty() }
+
+		listOf(series, override).associateWith { stored(it).attendees.map { a -> a.email to a.status } } shouldBe before
+		before.getValue(series).first() shouldBe (ANNA to AttendeeStatus.ACCEPTED)
+		before.getValue(override).first() shouldBe (ANNA to AttendeeStatus.DECLINED)
+		jdbc.queryForObject("select count(*) from calendar_itip_reply where event_id = ?::uuid", Int::class.java, series) shouldBe 2
+	}
+
 	// --- helpers -------------------------------------------------------------------------------------------------------
 
 	private fun createEvent(
