@@ -1,11 +1,11 @@
 ---
 title: BackupJobService/RestoreService leak their lazy temp work dirs
-status: in_progress
+status: done
 owner: dell26/agent-2
 deps: []
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/backup/domain]
 prio: 2
-lease_until: 2026-10-26T09:23:52Z
+lease_until: 
 ---
 ## Goal
 `BackupJobService` (`workDir` = `Files.createTempDirectory("cockpit-backups")`) and `RestoreService`
@@ -25,3 +25,4 @@ context in the server tests that touches them leaves one (empty) dir in /tmp: on
   - verified (2026-10-26 09:49+0100 by dell26/agent-2): sh scripts/check.sh -> == all checks passed (server, web, android)
 
 ## Notes
+- done by dell26/agent-2: `sh scripts/check.sh` passed in 757s on e718dea91; criteria verified 3/3
