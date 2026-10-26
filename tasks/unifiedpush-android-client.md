@@ -1,11 +1,11 @@
 ---
 title: Android UnifiedPush client
-status: todo
-owner: 
+status: in_progress
+owner: dell26/agent-1
 deps: [and-reminders, unifiedpush-server]
 prio: 3
 parent: unifiedpush-android
-lease_until: 
+lease_until: 2026-10-26T20:01:58Z
 extended: 
 releases: 2
 ---
