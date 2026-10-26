@@ -357,6 +357,33 @@ class PushWebTests(
 		}
 	}
 
+	@Test
+	fun `the Web Push API has its own OpenAPI tag and no tag name is repeated`() {
+		// Regression: PushController and UnifiedPushController both declared the tag "Push"; the
+		// Android generator rejects the contract with "attribute tags.Push is repeated".
+		val contract =
+			jsonMapper.readTree(
+				mockMvc
+					.get("/v3/api-docs")
+					.andExpect { status { isOk() } }
+					.andReturn()
+					.response
+					.getContentAsString(Charsets.UTF_8),
+			)
+		val tagNames = contract["tags"].toList().map { it["name"].asString() }
+
+		withClue("tag names in the contract: $tagNames") {
+			tagNames shouldBe tagNames.distinct()
+			tagNames.count { it == WEB_PUSH_TAG } shouldBe 1
+		}
+		val operations = listOf("$BASE/vapid-public-key" to "get", SUBSCRIPTIONS to "put", SUBSCRIPTIONS to "delete")
+		for ((path, method) in operations) {
+			withClue("$method $path") {
+				contract["paths"][path][method]["tags"].toList().map { it.asString() } shouldBe listOf(WEB_PUSH_TAG)
+			}
+		}
+	}
+
 	private fun insertVapidKey(privateKeyColumn: String) =
 		jdbc.update(
 			"""insert into push_vapid_key (id, created_at, updated_at, version, public_key, private_key)
@@ -378,5 +405,6 @@ class PushWebTests(
 		const val BASE = "/api/v1/push"
 		const val SUBSCRIPTIONS = "$BASE/subscriptions"
 		const val ENDPOINT = "https://push.example.test/send/fictitious-subscription"
+		const val WEB_PUSH_TAG = "Web Push"
 	}
 }
