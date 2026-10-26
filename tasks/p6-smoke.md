@@ -11,7 +11,8 @@ lease_until: 2026-10-26T06:03:49Z
 Automate SPEC.md §13.2 Phase 6.
 
 ## Acceptance criteria
-- [ ] `web/e2e/phase6` covers steps 1–5 (step 2 via API instead of Android share); earlier phase specs pass
+- [x] `web/e2e/phase6` covers steps 1–5 (step 2 via API instead of Android share); earlier phase specs pass
+  - verified (2026-10-26 06:46+0100 by dell26/agent-1): npm --prefix web run e2e (deploy/docker-compose.e2e.yml via podman-compose, chromium) on 11e0ce729 -> 64 passed, incl. phase-demos phase0/1/2/4/5 and all 5 phase6 steps (step 2 via POST /api/v1/bookmarks readLater like the Android uploader; step 5 weekly reviews checked only once backup-contrib-review adds them, see assumption)
 
 ## Notes
 - ASSUMPTION (2026-10-26 06:32+0100 by dell26/agent-1): Step 2 (Android share -> Read later) bookmarks the e2e server's own page http://localhost:8080/ (title 'My Cockpit', favicon.svg): the e2e stack has no internet, so application-e2e.properties now sets cockpit.bookmarks.fetch.allow-private-networks=true (outside the task's touches, e2e profile only).
