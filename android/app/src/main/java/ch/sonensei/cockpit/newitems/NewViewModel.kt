@@ -41,6 +41,8 @@ data class NewUiState(
     val filter: NewFilter = NewFilter.ALL,
     /** The rows of [filter], newest first. */
     val rows: List<NewRow> = emptyList(),
+    /** The whole GTD Inbox, whatever [filter] shows or holds back. */
+    val inbox: List<GtdTask> = emptyList(),
     /** The GTD Inbox is the cached copy from [inboxRefreshedAt]: the server is unreachable. */
     val inboxOffline: Boolean = false,
     /** When the shown Inbox was loaded; `null` while it was never loaded. */
@@ -69,7 +71,8 @@ data class NewUiState(
     /** Nothing to show yet because both parts are still loading for the first time. */
     val firstLoad: Boolean get() = rows.isEmpty() && (loading || (inboxRefreshedAt == null && !inboxOffline && !inboxFailed))
 
-    fun task(id: UUID): GtdTask? = rows.firstNotNullOfOrNull { (it as? NewRow.Task)?.task?.takeIf { t -> t.id == id } }
+    /** The Inbox task [id]; `null` once it left the Inbox (it was processed). */
+    fun task(id: UUID): GtdTask? = inbox.firstOrNull { it.id == id }
 }
 
 /**
@@ -107,6 +110,9 @@ class NewViewModel internal constructor(
     )
 
     private val filter = MutableStateFlow(filterStore.read())
+
+    /** The session this view model belongs to: after a logout, nothing it loaded goes into the cache any more. */
+    private val session = cache.session()
     private val mailPart =
         MutableStateFlow(cache.last?.let { MailPart(it.messages, it.nextCursor, it.loadedAt) } ?: MailPart())
     private var loadJob: Job? = null
@@ -115,7 +121,9 @@ class NewViewModel internal constructor(
         combine(tasks.observe(TaskView.INBOX), mailPart, filter) { inbox, m, f ->
             NewUiState(
                 filter = f,
-                rows = mergeNew(inbox.data, m.messages, m.nextCursor != null, f),
+                // Tasks are held back only while the next mail page can actually be loaded.
+                rows = mergeNew(inbox.data, m.messages, m.nextCursor != null && !m.offline && !m.failed, f),
+                inbox = inbox.data,
                 inboxOffline = inbox.offline,
                 inboxRefreshedAt = inbox.refreshedAt,
                 inboxFailed = inbox.failure != null,
@@ -245,7 +253,7 @@ class NewViewModel internal constructor(
     private fun remember() {
         val m = mailPart.value
         val loadedAt = m.loadedAt ?: return
-        cache.last = CachedMail(m.messages, m.nextCursor, loadedAt)
+        cache.store(session, CachedMail(m.messages, m.nextCursor, loadedAt))
     }
 
     private companion object {

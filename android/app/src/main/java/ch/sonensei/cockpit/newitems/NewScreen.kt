@@ -16,7 +16,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
@@ -122,6 +124,8 @@ fun NewRoute(
     var open by rememberSaveable { mutableStateOf<String?>(null) }
     var composing by rememberSaveable { mutableStateOf<String?>(null) }
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    // Kept here, so the list keeps its position while a task or mail is open on top of it.
+    val listState = rememberLazyListState()
     // Reloaded when the screen is shown and when the app comes back to it, so mail that arrived meanwhile appears.
     LifecycleResumeEffect(viewModel) {
         viewModel.refresh()
@@ -142,6 +146,7 @@ fun NewRoute(
                         dismissNotice = viewModel::dismissNotice,
                     ),
                 modifier = modifier,
+                listState = listState,
             )
         is NewOpen.Task -> {
             val task = state.task(current.id)
@@ -204,6 +209,7 @@ internal fun NewContent(
     callbacks: NewCallbacks,
     modifier: Modifier = Modifier,
     clock: Clock = Clock.systemDefaultZone(),
+    listState: LazyListState = rememberLazyListState(),
 ) {
     Column(modifier.fillMaxSize()) {
         Filters(state.filter, callbacks.setFilter)
@@ -212,7 +218,7 @@ internal fun NewContent(
         state.notice?.let { Notice(it, callbacks.dismissNotice) }
         if (state.loading) LinearProgressIndicator(Modifier.fillMaxWidth()) else Spacer(Modifier.height(4.dp))
         when {
-            state.rows.isNotEmpty() -> Rows(state, callbacks, clock)
+            state.rows.isNotEmpty() -> Rows(state, callbacks, listState, clock)
             state.firstLoad ->
                 Text(
                     stringResource(R.string.new_loading),
@@ -261,10 +267,11 @@ private fun Filters(
 private fun Rows(
     state: NewUiState,
     callbacks: NewCallbacks,
+    listState: LazyListState,
     clock: Clock,
 ) {
     val today = LocalDate.now(clock)
-    LazyColumn(Modifier.fillMaxSize().testTag(NewTags.LIST)) {
+    LazyColumn(Modifier.fillMaxSize().testTag(NewTags.LIST), state = listState) {
         items(state.rows, key = { it.key }) { row ->
             when (row) {
                 is NewRow.Task -> TaskRow(row, today, clock, callbacks.open)

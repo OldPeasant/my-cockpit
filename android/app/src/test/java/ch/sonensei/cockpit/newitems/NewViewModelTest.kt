@@ -108,7 +108,7 @@ class NewViewModelTest {
     @Test
     fun offlineShowsTheCachedMailReadOnly() =
         runTest {
-            cache.last = CachedMail(listOf(invoice), null, loadedAt)
+            cache.store(cache.session(), CachedMail(listOf(invoice), null, loadedAt))
             inbox.value = Cached(listOf(plumber), offline = true, refreshedAt = loadedAt)
             mailAnswers(MailResult.Offline)
             val vm = viewModel()
@@ -187,7 +187,7 @@ class NewViewModelTest {
     fun theLastLoadedMailIsShownAtOnceFromTheCache() =
         runTest {
             val earlier = Instant.parse("2026-10-20T10:00:00Z")
-            cache.last = CachedMail(listOf(party, invoice), "page-2", earlier)
+            cache.store(cache.session(), CachedMail(listOf(party, invoice), "page-2", earlier))
 
             val vm = viewModel().collected(backgroundScope, testScheduler)
 
@@ -387,7 +387,7 @@ class NewViewModelTest {
     @Test
     fun loadMoreWhileTheFirstPageLoadsIsIgnored() =
         runTest {
-            cache.last = CachedMail(listOf(party), "page-2", loadedAt)
+            cache.store(cache.session(), CachedMail(listOf(party), "page-2", loadedAt))
             val answer = CompletableDeferred<MailResult<MailPage>>()
             coEvery { mailRepo.messages(Mailbox.Unified, null) } coAnswers { answer.await() }
             val vm = viewModel().collected(backgroundScope, testScheduler)
@@ -432,7 +432,8 @@ class NewViewModelTest {
             assertFalse(state.loadingMore)
             assertTrue(state.moreMail)
             assertFalse(state.canConvert)
-            assertEquals(listOf("mail:${party.id}", "mail:${invoice.id}"), vm.keys())
+            // The next page cannot load now, so no task waits for it.
+            assertEquals(listOf("mail:${party.id}", "mail:${invoice.id}", "task:${plumber.id}"), vm.keys())
             assertEquals(CachedMail(listOf(party, invoice), "page-2", loadedAt), cache.last)
         }
 
@@ -450,7 +451,8 @@ class NewViewModelTest {
             assertTrue(state.mailFailed)
             assertFalse(state.loadingMore)
             assertTrue(state.moreMail)
-            assertEquals(listOf("mail:${party.id}", "mail:${invoice.id}"), vm.keys())
+            // The next page cannot load now, so no task waits for it.
+            assertEquals(listOf("mail:${party.id}", "mail:${invoice.id}", "task:${plumber.id}"), vm.keys())
         }
 
     @Test
@@ -741,10 +743,107 @@ class NewViewModelTest {
         }
 
     @Test
-    fun theUiStateFindsOnlyListedTasks() {
-        val state = NewUiState(rows = listOf(NewRow.Task(plumber), NewRow.Mail(invoice)))
+    fun theUiStateFindsOnlyInboxTasks() {
+        val state = NewUiState(rows = listOf(NewRow.Mail(invoice)), inbox = listOf(plumber))
 
         assertEquals(plumber, state.task(plumber.id))
         assertEquals(null, state.task(invoice.id))
     }
+
+    @Test
+    fun anOpenTaskIsFoundWhileTheListHidesOrHoldsItBack() =
+        runTest {
+            mailAnswers(MailResult.Ok(MailPage(listOf(party, invoice), "page-2")))
+            val vm = viewModel().collected(backgroundScope, testScheduler)
+            vm.refresh()
+
+            // Older than the oldest loaded mail: held back under All until the next page.
+            assertFalse("task:${plumber.id}" in vm.keys())
+            assertEquals(plumber, vm.uiState.value.task(plumber.id))
+
+            vm.setFilter(NewFilter.MAIL)
+            assertEquals(plumber, vm.uiState.value.task(plumber.id))
+
+            inbox.value = Cached(emptyList(), offline = false, refreshedAt = loadedAt)
+            assertEquals(null, vm.uiState.value.task(plumber.id))
+        }
+
+    // --- Logout ---
+
+    @Test
+    fun aRefreshAnsweringAfterALogoutKeepsNothing() =
+        runTest {
+            val answer = CompletableDeferred<MailResult<MailPage>>()
+            coEvery { mailRepo.messages(Mailbox.Unified, null) } coAnswers { answer.await() }
+            val vm = viewModel().collected(backgroundScope, testScheduler)
+            vm.refresh()
+
+            cache.clear()
+            answer.complete(MailResult.Ok(MailPage(listOf(party, invoice), "page-2")))
+
+            assertEquals(listOf("mail:${party.id}", "mail:${invoice.id}"), vm.keys())
+            assertEquals(null, cache.last)
+        }
+
+    @Test
+    fun aLoadMoreAnsweringAfterALogoutKeepsNothing() =
+        runTest {
+            mailAnswers(MailResult.Ok(MailPage(listOf(party), "page-2")))
+            val older = CompletableDeferred<MailResult<MailPage>>()
+            coEvery { mailRepo.messages(Mailbox.Unified, "page-2") } coAnswers { older.await() }
+            val vm = viewModel().collected(backgroundScope, testScheduler)
+            vm.refresh()
+            vm.loadMore()
+
+            cache.clear()
+            older.complete(MailResult.Ok(MailPage(listOf(invoice), null)))
+            vm.markSeen(party.id)
+            vm.removed(invoice.id)
+
+            assertEquals(null, cache.last)
+        }
+
+    @Test
+    fun aViewModelFromBeforeALogoutKeepsNothing() =
+        runTest {
+            mailAnswers(MailResult.Ok(MailPage(listOf(party, invoice), null)))
+            val vm = viewModel().collected(backgroundScope, testScheduler)
+
+            cache.clear()
+            vm.refresh()
+
+            assertEquals(null, cache.last)
+            mailAnswers(MailResult.Ok(MailPage(listOf(dinner), null)))
+            viewModel().collected(backgroundScope, testScheduler).refresh()
+            assertEquals(listOf(dinner), cache.last?.messages)
+        }
+
+    // --- Held-back tasks ---
+
+    @Test
+    fun offlineTheCachedMailHoldsNoTaskBack() =
+        runTest {
+            cache.store(cache.session(), CachedMail(listOf(party, invoice), "page-2", loadedAt))
+            inbox.value = Cached(listOf(plumber), offline = true, refreshedAt = loadedAt)
+            mailAnswers(MailResult.Offline)
+            val vm = viewModel().collected(backgroundScope, testScheduler)
+
+            vm.refresh()
+
+            assertTrue(vm.uiState.value.moreMail)
+            assertEquals(listOf("mail:${party.id}", "mail:${invoice.id}", "task:${plumber.id}"), vm.keys())
+        }
+
+    @Test
+    fun aFailedMailLoadHoldsNoTaskBack() =
+        runTest {
+            cache.store(cache.session(), CachedMail(listOf(party, invoice), "page-2", loadedAt))
+            mailAnswers(MailResult.Failed(500))
+            val vm = viewModel().collected(backgroundScope, testScheduler)
+            assertEquals(listOf("mail:${party.id}", "mail:${invoice.id}"), vm.keys())
+
+            vm.refresh()
+
+            assertEquals(listOf("mail:${party.id}", "mail:${invoice.id}", "task:${plumber.id}"), vm.keys())
+        }
 }

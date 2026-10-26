@@ -18,6 +18,7 @@ import java.util.UUID
 @RunWith(AndroidJUnit4::class)
 class NewStoresTest {
     private val context: Context get() = ApplicationProvider.getApplicationContext()
+    private val cached = CachedMail(listOf(mail("Invoice", "2026-10-20T09:00:00Z", 3)), "page-2", Instant.parse("2026-10-20T12:00:00Z"))
 
     @Before
     fun clearPreferences() = context.getSharedPreferences("new_view", Context.MODE_PRIVATE).edit { clear() }
@@ -55,12 +56,34 @@ class NewStoresTest {
     fun aLogoutDropsTheCachedMail() =
         runTest {
             val cache = NewMailCache()
-            cache.last = CachedMail(listOf(mail("Invoice", "2026-10-20T09:00:00Z", 3)), "page-2", Instant.parse("2026-10-20T12:00:00Z"))
+            cache.store(cache.session(), cached)
 
             NewItemsModule.newMailSessionCache(cache).clear()
 
             assertNull(cache.last)
         }
+
+    @Test
+    fun aWriteFromBeforeALogoutIsDropped() {
+        val cache = NewMailCache()
+        val before = cache.session()
+
+        cache.clear()
+        cache.store(before, cached)
+
+        assertNull(cache.last)
+        cache.store(cache.session(), cached)
+        assertEquals(cached, cache.last)
+    }
+
+    @Test
+    fun malformedStoredFiltersFallBackToAll() {
+        listOf("", "mail", " MAIL", "INBOX,MAIL").forEach { value ->
+            context.getSharedPreferences("new_view", Context.MODE_PRIVATE).edit { putString("filter", value) }
+
+            assertEquals(value, NewFilter.ALL, PreferencesNewFilterStore(context).read())
+        }
+    }
 
     @Test
     fun whatIsOpenSurvivesEncoding() {

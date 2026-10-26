@@ -25,17 +25,39 @@ data class CachedMail(
 /**
  * The mails the New view showed last, so it can show them read-only while the server is unreachable. Kept in memory
  * only (mail is not cached on the device, SPEC.md §9.3), for as long as the app runs; a logout drops it.
+ *
+ * A write carries the [session] it was loaded in; after a [clear] (a logout) the writes of loads started before it are
+ * dropped, so they cannot bring the previous session's mails back.
  */
 @Singleton
 class NewMailCache
     @Inject
     constructor() {
+        /** [store] and [clear] exclude each other; [sessions] counts the clears (guarded by it). */
+        private val lock = Any()
+        private var sessions = 0L
+
         @Volatile
         var last: CachedMail? = null
+            private set
 
-        fun clear() {
-            last = null
+        /** The current session, to be passed to the [store] of a load that starts now. */
+        fun session(): Long = synchronized(lock) { sessions }
+
+        /** Keeps [mail] unless the cache was cleared since [session]. */
+        fun store(
+            session: Long,
+            mail: CachedMail,
+        ) = synchronized(lock) {
+            if (session == sessions) last = mail
         }
+
+        /** Drops the mails and the writes of loads started before. */
+        fun clear() =
+            synchronized(lock) {
+                sessions++
+                last = null
+            }
     }
 
 /** The filter the New view showed last, so it opens with it again. */
