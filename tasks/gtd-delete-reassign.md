@@ -6,9 +6,9 @@ deps: [web-settings-gtd]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/gtd,api/openapi.yaml,web/src/app/features/settings/gtd]
 prio: 2
 lease_until: 
-releases: 3
+releases: 0
 extended: 
-hold: given back 3 times; last: Not started. Host felix still has a broken JDK (JAVA_HOME=/usr/lib/jvm/java-21-openjdk missing; server/gradlew -p server -v fails), so server integration tests and .taskcheck
+hold: 
 ---
 ## Goal
 Deleting a context/area with "move to another" must also reach items the list endpoints hide
