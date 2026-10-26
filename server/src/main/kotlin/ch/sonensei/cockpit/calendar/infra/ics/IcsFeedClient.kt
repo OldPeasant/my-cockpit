@@ -27,6 +27,7 @@ import java.util.concurrent.ExecutionException
 import java.util.concurrent.Flow
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.TimeoutException
+import java.util.concurrent.atomic.AtomicReference
 import java.util.zip.GZIPInputStream
 
 /** A feed's validators from its last download, sent back to download it only when it changed. */
@@ -153,6 +154,9 @@ internal class IcsFeedClient(
 	): HttpResponse<ByteArray> {
 		val remaining = deadline - System.nanoTime()
 		if (remaining <= 0) throw timedOut(null)
+		// The body's refusal, if it refused: cancelling the body makes the client fail the exchange too, sometimes with its
+		// own IOException before the body's error arrives, and the refusal is what the user needs to hear.
+		val refusal = AtomicReference<CalendarProviderException>()
 		val future =
 			try {
 				val request =
@@ -167,7 +171,7 @@ internal class IcsFeedClient(
 							validators?.lastModified?.let { header("If-Modified-Since", it) }
 						}.GET()
 						.build()
-				http.sendAsync(request, ::body)
+				http.sendAsync(request) { info -> body(info, refusal) }
 			} catch (e: IllegalArgumentException) {
 				throw CalendarProviderException("The feed URL is not valid", e)
 			}
@@ -181,7 +185,7 @@ internal class IcsFeedClient(
 			Thread.currentThread().interrupt()
 			throw CalendarProviderException("Fetching the feed was interrupted", e)
 		} catch (e: ExecutionException) {
-			throw when (val cause = e.cause ?: e) {
+			throw refusal.get() ?: when (val cause = e.cause ?: e) {
 				is CalendarProviderException -> cause
 				is HttpTimeoutException -> timedOut(cause)
 				is IOException -> CalendarProviderException("The feed server could not be reached (${cause.javaClass.simpleName})", cause)
@@ -194,13 +198,17 @@ internal class IcsFeedClient(
 
 	/**
 	 * The body of a feed (2xx) as bytes, still encoded and at most [IcsFeedProperties.maxSize] (a gzip body too, so the
-	 * limit holds before and after decompression); the bodies of other answers are discarded.
+	 * limit holds before and after decompression); the bodies of other answers are discarded. A refused body's error is
+	 * also put into [refusal].
 	 */
-	private fun body(info: HttpResponse.ResponseInfo): HttpResponse.BodySubscriber<ByteArray> {
+	private fun body(
+		info: HttpResponse.ResponseInfo,
+		refusal: AtomicReference<CalendarProviderException>,
+	): HttpResponse.BodySubscriber<ByteArray> {
 		if (info.statusCode() !in SUCCESS) return HttpResponse.BodySubscribers.replacing(ByteArray(0))
 		val max = properties.maxSize.toBytes()
 		val length = info.headers().firstValueAsLong("Content-Length").orElse(-1)
-		return LimitedBody(max, refuseAtOnce = !gzip(info.headers()) && length > max, tooLarge = ::tooLarge)
+		return LimitedBody(max, refuseAtOnce = !gzip(info.headers()) && length > max) { tooLarge().also(refusal::set) }
 	}
 
 	private fun tooLarge() = CalendarProviderException("The feed is larger than ${properties.maxSize}")
@@ -331,7 +339,7 @@ private class LimitedBody(
 	}
 
 	private fun refuse() {
-		// Fail first: cancelling makes the client fail the exchange too, and the first failure is the one reported.
+		// Fail first: cancelling makes the client fail the exchange too (see IcsFeedClient.send for when that wins anyway).
 		result.completeExceptionally(tooLarge())
 		subscription.cancel()
 	}
