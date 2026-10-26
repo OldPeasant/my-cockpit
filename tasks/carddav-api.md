@@ -13,7 +13,8 @@ CardDavAccountService, CardDavContactsSync.sync/createContact) and create contac
 
 ## Acceptance criteria
 - [ ] REST endpoints for CardDAV accounts (list/add/remove/sync now, status with lastError; password write-only), OpenAPI regenerated
-- [ ] web contacts settings: add/remove account, show sync state; new contact can target a CardDAV account
+- [x] web contacts settings: add/remove account, show sync state; new contact can target a CardDAV account
+  - verified (2026-10-26 14:08+0100 by dell26/agent-1): cd web && npx ng test --watch=false --include='src/app/features/contacts/**/*.spec.ts' -> 127 passed (carddav-accounts.spec: add/remove/sync now/state+lastError; contact-detail: Save to CardDAV account POSTs /carddav-accounts/{id}/contacts, 409 shows reason; contacts-page shows panel); npm run build:de + messages-de spec pass
 - [x] account config (password encrypted or omitted) covered by backup/restore and its round-trip test
   - verified (2026-10-26 14:08+0100 by dell26/agent-1): cd server && ./gradlew test --tests '*CardDav*' --tests '*ContactsBackupContributorTests' --tests '*BackupRoundTrip*' -> 86 passed, 0 failed (BackupRoundTripTest incl. CardDAV accounts+links; ContactsBackupContributorTests 17: password only in encrypted secrets with passphrase, restored+re-encrypted on import, null without passphrase, accounts JSON has no password)
 
