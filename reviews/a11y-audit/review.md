@@ -4,20 +4,21 @@ Date: 2026-10-26
 
 Task: a11y-audit - Accessibility audit
 
-Scope: task commit 9e770e525 (`git diff c89e62d59..9e770e525`)
+Scope: final task range `git diff 4682b60fe..5336d8cce -- . ':!tasks' ':!reviews'` (implementation, CR-2 fix, CR-1 unit tests)
 
 Requirements:
-- tasks/a11y-audit.md acceptance criterion and recorded assumptions (scope of "main pages", edits outside touches, FullCalendar DOM patch)
-- SPEC.md, docs/ARCHITECTURE.md (stack table already lists Playwright + `@axe-core/playwright`), AGENTS.md project notes
-- Parent-supplied evidence: `npm --prefix web run e2e -- --no-deps a11y/` against the podman e2e stack -> 5 passed; `cd web && npm run check` -> lint ok, 3672 unit tests passed (not re-run by the reviewer)
+- tasks/a11y-audit.md acceptance criterion and its three recorded assumptions (scan scope, fixes outside `touches`, FullCalendar scroller DOM patch)
+- SPEC.md, docs/ARCHITECTURE.md, AGENTS.md project notes (lint, conventions, slow suites outside `.taskcheck`)
+- Previous review `reviews/a11y-audit/review.md` (CR-1, CR-2) and `reviews/a11y-audit/fixes.md`
+- Parent-supplied evidence (not re-run by the reviewer): `npm --prefix web run check` -> lint clean, 3680 tests passed; focused calendar-view spec -> 59 passed; e2e a11y Playwright suite against the podman stack being re-run by the parent on this revision
 
 Git range:
 - Branch: main
-- HEAD: 9e770e525
-- Base/start: c89e62d590697fac12ca274222dfbdb4b932362d
-- Commits reviewed: 1
+- HEAD: 5336d8cce3e8ccb956b379b1e1dffcc26f16f3c8
+- Base/start: 4682b60fecefe51e45ac2f2483ed93739bc09297
+- Commits reviewed: 3 (29b12262d, 4c6070ef9, 5336d8cce); no uncommitted changes
 
-Summary: 0 P0, 0 P1, 0 P2, 2 P3
+Summary: 0 P0, 0 P1, 0 P2, 0 P3
 
 ## P0 Critical
 
@@ -33,24 +34,18 @@ None.
 
 ## P3 Low
 
-- [ ] **CR-1 | `focusableScrollers` has no unit test**
-    - File: `web/src/app/features/calendar/views/calendar-view.ts:317`
-    - Category: Tests
-    - Problem: The new DOM patch (role swap `rowgroup` -> `none` on the parent, `role=rowgroup` + `tabindex=0` on the scroller, skip when already focusable / not scrollable / parent not a rowgroup) is covered only indirectly by the axe scan of the day/week views in `web/e2e/a11y/a11y.spec.ts`. No calendar-view spec references it, so its guard conditions (idempotence, non-rowgroup parent left alone) are unverified at unit level.
-    - Why it matters: The patch depends on FullCalendar 7's internal DOM; a library update that changes it would only show up in the slow e2e suite, which is not part of `.taskcheck`.
-    - Suggested fix: Add a small unit test that builds a fake `rowgroup > div[style*=overflow]` structure (with stubbed scroll sizes) and asserts the attributes after the call, plus that a second call changes nothing.
+None.
 
-- [ ] **CR-2 | Scroller patch only runs on `datesSet`**
-    - File: `web/src/app/features/calendar/views/calendar-view.ts:295`
-    - Category: Correctness
-    - Problem: `focusableScrollers` runs once per `datesSet` and skips scrollers with `scrollHeight <= clientHeight`. If the time grid becomes scrollable later without a date change (window resized smaller, layout change), the scroller stays non-focusable until the user navigates dates or views.
-    - Why it matters: Keyboard users in that situation cannot scroll the hours (WCAG 2.1.1), the exact case the patch targets; it is an edge case, the normal load path is covered by the e2e scan.
-    - Suggested fix: Either drop the `scrollHeight` guard (the time-grid scroller is the intended target and making it focusable when it does not overflow is harmless), or also re-run the patch on FullCalendar's `windowResize` callback.
+## Status of earlier findings
+
+- CR-1 (`focusableScrollers` has no unit test): resolved. `web/src/app/features/calendar/views/calendar-view.spec.ts` ("keyboard access to the time grid") covers the patch through the real `datesSet` callback: role swap and `tabindex=0`, a non-overflowing `overflow-y: scroll` scroller, idempotence on a second `datesSet`, parents that are not a `rowgroup` (none / `grid`), an existing `tabindex`, non-vertical scrollers (`hidden`, horizontal `auto`), scrollers outside `full-calendar`, plus the today button's accessible name containing its visible text.
+- CR-2 (patch skipped non-overflowing scrollers, only runs on `datesSet`): resolved. The `scrollHeight <= clientHeight` guard is removed in `calendar-view.ts` `focusableScrollers`, so the time-grid scroller is focusable from the first render and stays reachable after a resize. Checked against the installed FullCalendar 7 bundle (`node_modules/fullcalendar/chunks/08b6f884.js`): the only `Scroller` that is a direct child of `role="rowgroup"` with vertical overflow is the time-grid body scroller (`timeScrollerRef`); the day-grid (month) body scroller is not inside a `rowgroup`, and the header/all-day scrollers are horizontal-only (`overflow-y: hidden`) or not direct rowgroup children, so dropping the guard adds no unintended tab stops in other views.
 
 Notes (not findings):
-- Pages scanned match the recorded assumption (all shell sections of `app.routes.ts`/`gtd.routes.ts`, 4 calendar views, login, capture dialog, command palette, processing mode). Detail routes (`/tasks/:id`, opened note/mail/contact) and `/setup`, `/enroll-totp` are not scanned; that scope decision is already recorded as an assumption for human review.
-- The duplicate `$localize` id `calendar.today` for `text` and `hint` uses identical text, which Angular extraction accepts.
-- `afterAll` restores the shared account's theme to `system`, not to its previous value; acceptable because the e2e account is test-only and this is documented in the assumption.
+- Pages scanned, theme handling (`PATCH /settings`, restored to `system` in `afterAll`), and running `a11y/` in the `inbox-exclusive` project match the recorded assumptions. Detail routes and `/setup`, `/enroll-totp` are outside the recorded scan scope; humans review that assumption.
+- The CSS fixes (`calendar-view.scss` faint foreground contrast, `inbox-page.scss` `kbd` opacity, `markdown-editor.scss` placeholder specificity) are small, commented, and use existing theme tokens.
+- `setTimeout` in `onDatesSet` is not cleared on destroy; running it on a detached host is a harmless no-op.
+- The criterion is a running-behaviour criterion (Playwright + axe against the stack). Evidence for it must come from the e2e run on this final revision that the parent is performing; unit tests alone do not satisfy it.
 
 ## Review conclusion
 
