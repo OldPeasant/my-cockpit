@@ -1,11 +1,11 @@
 ---
 title: IcsFeedClient: refusing an oversized Content-Length sometimes surfaces as IOException ('could not be reached') instead of 'larger than'
-status: todo
-owner: 
+status: in_progress
+owner: dell26/agent-1
 deps: []
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/calendar/infra/ics,server/src/test/kotlin/ch/sonensei/cockpit/calendar/infra/ics]
 prio: 2
-lease_until: 
+lease_until: 2026-10-26T06:32:59Z
 extended: 
 hold: 
 releases: 0
