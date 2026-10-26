@@ -21,6 +21,7 @@ context in the server tests that touches them leaves one (empty) dir in /tmp: on
 - [x] `cd server && ./gradlew check` passes and leaves no `cockpit-backups*`/`cockpit-restores*` dirs in the
   JVM temp dir (run it with `java.io.tmpdir` pointed at an empty dir inside the clone and count)
   - verified (2026-10-26 09:49+0100 by dell26/agent-2): cd server && JAVA_TOOL_OPTIONS=-Djava.io.tmpdir=<clone>/.tmp/jtmp ./gradlew check --rerun-tasks (fresh empty dir) -> exit 0, 0 cockpit-backups*/cockpit-restores* dirs left (before: 14+2)
-- [ ] `sh scripts/check.sh` passes
+- [x] `sh scripts/check.sh` passes
+  - verified (2026-10-26 09:49+0100 by dell26/agent-2): sh scripts/check.sh -> == all checks passed (server, web, android)
 
 ## Notes
