@@ -6,6 +6,7 @@ import ch.sonensei.cockpit.core.web.InvalidRequestException
 import ch.sonensei.cockpit.core.web.NotFoundException
 import ch.sonensei.cockpit.mail.model.MailAccountRepository
 import ch.sonensei.cockpit.mail.model.MailFolderRepository
+import ch.sonensei.cockpit.mail.model.MailFolderRole
 import ch.sonensei.cockpit.mail.model.MailMessage
 import ch.sonensei.cockpit.mail.model.MailMessageLocator
 import ch.sonensei.cockpit.mail.model.MailMessageRepository
@@ -89,6 +90,14 @@ class MailReadService(
 	/** The current copy of a message, without body. */
 	@Transactional(readOnly = true)
 	fun get(id: UUID): MailMessage = locator.current(id) ?: throw NotFoundException(MESSAGE_NOT_FOUND)
+
+	/** Message [id], without body, when this row is located in an Inbox; null otherwise (unknown, moved, other folder). */
+	@Transactional(readOnly = true)
+	fun inInbox(id: UUID): MailMessage? =
+		messages.findById(id).orElse(null)?.takeIf { message ->
+			val folderId = message.folderId
+			message.isLocated && folderId != null && folders.findById(folderId).orElse(null)?.role == MailFolderRole.INBOX
+		}
 
 	/**
 	 * A message with its body: HTML sanitized with remote images blocked or proxied ([remoteImages]), `cid:` images

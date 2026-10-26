@@ -1,0 +1,28 @@
+{
+  "schema": 1,
+  "task": "itip-invitations",
+  "reviewed_revision": "4745a792e0658324fb19a59ac9ad6abfbbbafc0f",
+  "helpers": {
+    "test-writer":   {"status": "completed", "report": "reviews/itip-invitations/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/itip-invitations/review.md"},
+    "fixer":         {"status": "completed", "report": "reviews/itip-invitations/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "uninvite CANCEL omits STATUS; mixed recipients for a live event rejected with 400"},
+    {"id": "CR-2", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "ItipReplyProcessor uses MailReadService.inInbox instead of mail repositories"},
+    {"id": "CR-3", "source": "code-reviewer", "severity": "P3", "disposition": "deferred",
+     "note": "newest REPLY per attendee within one mail is applied; cross-message ordering needs per-attendee storage, follow-up task itip-reply-ordering"},
+    {"id": "CR-4", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "REPLY retried up to 3 times on optimistic-lock conflict"},
+    {"id": "CR-5", "source": "code-reviewer", "severity": "P3", "disposition": "accepted",
+     "note": "uninvite CANCEL text part says 'Cancelled'; the text/calendar part (which clients act on) is correct and the API to send it is not exposed yet (itip-api can adjust the wording)"}
+  ],
+  "validation": [
+    {"command": "cd server && ./gradlew test --tests '*itip*' --tests '*MailReadServiceInInboxTests' ktlintCheck", "result": "pass"},
+    {"command": "cd server && ./gradlew integrationTest --tests '*ItipGreenMail*'", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
