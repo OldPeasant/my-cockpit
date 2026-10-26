@@ -17,3 +17,4 @@ screens stay unchanged.
 - [ ] `cd android && ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.newitems.*'` passes, covering merge order, each filter, offline state (Robolectric/Compose UI tests for screens); `./gradlew ktlintCheck lintDebug` passes
 
 ## Notes
+- ASSUMPTION (2026-10-26 10:55+0100 by dell26/agent-2): Android has no task detail screen and GtdTask has no createdAt: 'tap opens the task' shows a read-only task view inside the New screen (title, notes, created), and task creation time is read from the UUIDv7 id timestamp (non-v7 ids sort last), so gtd/data stays untouched.
