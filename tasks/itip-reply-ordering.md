@@ -5,7 +5,7 @@ owner: felix/agent-1
 deps: [itip-invitations]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/calendar]
 prio: 2
-lease_until: 2026-10-26T18:49:12Z
+lease_until: 2026-10-26T18:54:16Z
 extended: 
 releases: 1
 ---
