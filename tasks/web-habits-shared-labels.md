@@ -6,6 +6,7 @@ deps: [web-today-habits]
 touches: [web/src/app/features/habits,web/src/app/features/gtd/today]
 prio: 2
 lease_until: 2026-10-26T10:04:13Z
+extended: felix/agent-1
 ---
 ## Goal
 `checkLabel()` and the error `message()` helper are copied in `features/habits/habits-page.ts` and
@@ -18,3 +19,4 @@ lease_until: 2026-10-26T10:04:13Z
 
 ## Notes
 Follow-up from reviews/web-today-habits/review.md (CR-3, P3).
+- extended by felix/agent-1: Implementation committed (8a14cd9a: checkLabel/errorMessage moved to habit-display.ts, used by habits-page and today-habits). Tests + reviews/web-habits-shared-labels/{tests.md,review.md} committed in 082e245a; test-writer ran npm run check (pass, 3671 tests) and coverage; review has 0 findings. i18n ids confirmed unchanged (git diff 8a14cd9a~1 8a14cd9a | grep @@). Left: re-run code-reviewer if done treats the spec additions (committed after review) as stale; tasks.py verify #1/#2; run .taskcheck; write+commit quality.json (fixer not required); tasks.py done.
