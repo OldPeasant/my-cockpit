@@ -290,7 +290,7 @@ class DraftService(
 	/**
 	 * Creates a reply, reply-all or forward of message [id] as a new draft in the Drafts folder of its account (see
 	 * [ReplyComposer]); a forward carries the original's attachments. It is sent as [identityId], by default the
-	 * identity the original was addressed to, else the account's default identity.
+	 * identity the original was addressed to, else the account's default identity, else the account address.
 	 */
 	fun respond(
 		id: UUID,
@@ -434,12 +434,13 @@ class DraftService(
 	private fun tooLarge() =
 		InvalidRequestException("attachments", "the message must not be larger than ${properties.maxMessageSize.toMegabytes()} MB")
 
+	/** The identity a draft is From: [identityId], else the default identity; null means the account address. */
 	private fun identity(
 		account: MailAccount,
 		identityId: UUID?,
 	): MailIdentity? {
 		val all = identities.findByAccountIdOrderByPositionAscIdAsc(account.id)
-		if (identityId == null) return all.firstOrNull { it.isDefault } ?: all.firstOrNull()
+		if (identityId == null) return all.firstOrNull { it.isDefault }
 		return all.firstOrNull { it.id == identityId } ?: throw InvalidRequestException("identityId", "is not an identity of the account")
 	}
 

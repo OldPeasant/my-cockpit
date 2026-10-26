@@ -394,6 +394,26 @@ class DraftComposeGreenMailTests(
 	}
 
 	@Test
+	fun `a new draft is From the account address unless an identity is default`() {
+		identities.save(MailIdentity(account.id, "Jane Support", "support@example.test"))
+		val plain = createDraft(subject = "No default", html = "<p>Hi</p>")
+		plain.body["identityId"].isNull shouldBe true
+		plain.body["from"]["address"].asString() shouldBe EMAIL
+		plain.body["from"]["name"].asString() shouldBe "Jane Doe"
+		draftRequest(post("/api/v1/mail/drafts/${plain.body["id"].asString()}/send", plain.etag)).andExpect { status { isOk() } }
+		(onServer("INBOX", BOB_USER).single().from.single() as InternetAddress).let {
+			it.address shouldBe EMAIL
+			it.personal shouldBe "Jane Doe"
+		}
+
+		val sales = identities.save(MailIdentity(account.id, "Jane Sales", "sales@example.test").apply { isDefault = true })
+		val defaulted = createDraft(subject = "With default", html = "<p>Hi</p>")
+		defaulted.body["identityId"].asString() shouldBe sales.id.toString()
+		defaulted.body["from"]["address"].asString() shouldBe "sales@example.test"
+		defaulted.body["from"]["name"].asString() shouldBe "Jane Sales"
+	}
+
+	@Test
 	fun `a reply to a sent message threads under it and goes to its recipient`() {
 		val created = createDraft(subject = "Kickoff", html = "<p>Let us start.</p>")
 		draftRequest(post("/api/v1/mail/drafts/${created.body["id"].asString()}/send", created.etag)).andExpect { status { isOk() } }
