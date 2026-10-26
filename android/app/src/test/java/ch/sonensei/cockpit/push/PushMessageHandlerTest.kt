@@ -5,6 +5,7 @@ import io.mockk.every
 import io.mockk.mockk
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.util.UUID
 
@@ -60,10 +61,28 @@ class PushMessageHandlerTest {
                 "reminder",
                 "",
                 """{"kind":null,"id":"$ID"}""",
+                """{"kind":"REMINDER","id":"$ID"}""",
+                """{"kind":"reminder","id":42}""",
+                """{"kind":["reminder"],"id":"$ID"}""",
+                "null",
             )
 
         ignored.forEach { assertNull(it, handle(it)) }
         assertEquals(0, sync.reminderSyncs)
+        assertEquals(0, notifier.shown)
+    }
+
+    @Test
+    fun `a deeply nested message within the size limit is ignored without crashing the push service`() {
+        fun nested(depth: Int) = "[".repeat(depth) + "]".repeat(depth)
+        val top = nested(PushMessageHandler.MAX_PAYLOAD_BYTES / 2)
+        val inField = """{"kind":"mail","id":${nested(PushMessageHandler.MAX_PAYLOAD_BYTES / 2 - 20)}}"""
+        // Preconditions: both are within the limit, so the parser really reads them.
+        assertTrue(top.length <= PushMessageHandler.MAX_PAYLOAD_BYTES)
+        assertTrue(inField.length <= PushMessageHandler.MAX_PAYLOAD_BYTES)
+
+        assertNull(handle(top))
+        assertNull(handle(inField))
         assertEquals(0, notifier.shown)
     }
 

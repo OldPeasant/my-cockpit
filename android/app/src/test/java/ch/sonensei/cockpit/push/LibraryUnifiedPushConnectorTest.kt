@@ -110,6 +110,32 @@ class LibraryUnifiedPushConnectorTest {
     }
 
     @Test
+    fun `the system default distributor is taken over the first installed one`() {
+        installDistributor(DISTRIBUTOR)
+        installDistributor(OTHER_DISTRIBUTOR)
+        val installed = UnifiedPush.getDistributors(context)
+        assertEquals(setOf(DISTRIBUTOR, OTHER_DISTRIBUTOR), installed.toSet())
+        // The user made a distributor the default: Android answers the link intent with that app, not the chooser.
+        val default = installed.last()
+        shadowOf(context.packageManager).addResolveInfoForIntent(
+            Intent(Intent.ACTION_VIEW, Uri.parse(LINK)),
+            ResolveInfo().apply {
+                activityInfo =
+                    ActivityInfo().apply {
+                        packageName = default
+                        name = "$default.LinkActivity"
+                        exported = true
+                        applicationInfo = ApplicationInfo().apply { packageName = default }
+                    }
+            },
+        )
+
+        assertTrue(connector.selectDistributor())
+
+        assertEquals(default, UnifiedPush.getSavedDistributor(context))
+    }
+
+    @Test
     fun `several installed distributors without a link activity still give a registration`() {
         // Distributors that predate the link activity: the library resolves no default (NoneAvailable), yet
         // distributors are installed. The connector promises false only "when no distributor is installed", and the
