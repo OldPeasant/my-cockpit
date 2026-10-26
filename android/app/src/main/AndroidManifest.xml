@@ -104,6 +104,14 @@
                 <action android:name="android.app.action.SCHEDULE_EXACT_ALARM_PERMISSION_STATE_CHANGED" />
             </intent-filter>
         </receiver>
+        <!-- UnifiedPush (push): endpoints and messages from the distributor (e.g. ntfy) reach this app only. -->
+        <service
+            android:name=".push.CockpitPushService"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="org.unifiedpush.android.connector.PUSH_EVENT" />
+            </intent-filter>
+        </service>
         <!-- Camera photos for notes (notes): the camera app writes the photo into this app's cache. -->
         <provider
             android:name="androidx.core.content.FileProvider"

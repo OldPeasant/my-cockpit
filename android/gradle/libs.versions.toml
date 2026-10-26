@@ -16,7 +16,8 @@ kotlinxSerialization = "1.9.0"
 room = "2.8.4"
 work = "2.11.0"
 datastore = "1.1.7"
-tink = "1.18.0"
+tink = "1.23.0"
+unifiedpushConnector = "3.3.5"
 credentials = "1.5.0"
 glance = "1.1.1"
 coil = "3.3.0"
@@ -74,6 +75,8 @@ androidx-datastore-preferences = { group = "androidx.datastore", name = "datasto
 
 # Security, auth, widget, images
 tink-android = { group = "com.google.crypto.tink", name = "tink-android", version.ref = "tink" }
+# UnifiedPush connector; brings plain tink, which duplicates tink-android: excluded in app/build.gradle.kts
+unifiedpush-connector = { group = "org.unifiedpush.android", name = "connector", version.ref = "unifiedpushConnector" }
 androidx-credentials = { group = "androidx.credentials", name = "credentials", version.ref = "credentials" }
 androidx-credentials-play-services-auth = { group = "androidx.credentials", name = "credentials-play-services-auth", version.ref = "credentials" }
 androidx-glance-appwidget = { group = "androidx.glance", name = "glance-appwidget", version.ref = "glance" }

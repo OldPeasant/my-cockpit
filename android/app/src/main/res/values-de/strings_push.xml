@@ -1,0 +1,7 @@
+<resources>
+    <!-- Benachrichtigungen über neue Mails per Server-Push (push) -->
+    <string name="push_mail_channel_name">Neue Mails</string>
+    <string name="push_mail_channel_description">Neue Mails in deinen Posteingängen, gemeldet vom Server</string>
+    <string name="push_mail_title">Neue Mail</string>
+    <string name="push_mail_text">Du hast neue Mails</string>
+</resources>

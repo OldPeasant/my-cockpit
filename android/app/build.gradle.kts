@@ -86,6 +86,8 @@ android {
 val e2eBaseUrl = providers.gradleProperty("e2eBaseUrl")
 
 tasks.withType<Test>().configureEach {
+    // Robolectric keeps an Android runtime per SDK config; with 2000+ tests the 512 MB default heap runs out.
+    maxHeapSize = "2g"
     extensions.configure<JacocoTaskExtension> {
         // Robolectric loads app classes without a code source location; without this JaCoCo records 0 coverage.
         isIncludeNoLocationClasses = true
@@ -198,6 +200,10 @@ dependencies {
     implementation(libs.androidx.datastore.preferences)
 
     implementation(libs.tink.android)
+    implementation(libs.unifiedpush.connector) {
+        // Its classes are in tink-android already (same version); both on the classpath are duplicate classes.
+        exclude(group = "com.google.crypto.tink", module = "tink")
+    }
     implementation(libs.androidx.credentials)
     implementation(libs.androidx.credentials.play.services.auth)
     implementation(libs.androidx.glance.appwidget)

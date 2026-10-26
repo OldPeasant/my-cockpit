@@ -2,6 +2,7 @@ package ch.sonensei.cockpit
 
 import android.app.Application
 import ch.sonensei.cockpit.capture.entry.CaptureWidgetUpdater
+import ch.sonensei.cockpit.push.PushRegistrar
 import dagger.hilt.android.HiltAndroidApp
 import javax.inject.Inject
 
@@ -10,8 +11,11 @@ import javax.inject.Inject
 class CockpitApp : Application() {
     @Inject lateinit var captureWidgetUpdater: CaptureWidgetUpdater
 
+    @Inject lateinit var pushRegistrar: PushRegistrar
+
     override fun onCreate() {
         super.onCreate()
         captureWidgetUpdater.start()
+        pushRegistrar.start()
     }
 }

@@ -1,11 +1,11 @@
 ---
 title: UnifiedPush for Android
-status: todo
-owner: 
+status: in_progress
+owner: dell26/agent-2
 deps: [and-reminders, unifiedpush-server, unifiedpush-android-client]
 touches: [android/app/src/main/java/ch/sonensei/cockpit/push,android/app/src/test/java/ch/sonensei/cockpit/push]
 prio: 3
-lease_until: 
+lease_until: 2026-10-26T22:22:12Z
 subtasks: unifiedpush-server, unifiedpush-android-client
 releases: 0
 extended: 
@@ -21,3 +21,4 @@ Push via a self-hosted distributor (ntfy).
 ## Notes
 - split by dell26/agent-2: into unifiedpush-server, unifiedpush-android-client. Nothing implemented yet: neither the server push API nor the Android client exists. Split into server (registrations + sending) and Android client; this task then only integrates and verifies. Once they are done, this task is only integration: merge what is left on wip/unifiedpush-android (if anything), verify the acceptance criteria end to end, done.
 - hold by Peter Gürtler: test
+- ASSUMPTION (2026-10-26 23:02+0100 by dell26/agent-2): No device/emulator/ntfy in the agent environment: end-to-end verified by combining server tests (WireMock distributor, RFC 8291 encryption, reminder+mail pushes) with Android tests (registration, PUT contract via generated client, message handling) plus a new app-side contract test pinning the server payload format; a manual on-device run with ntfy is left to the owner
