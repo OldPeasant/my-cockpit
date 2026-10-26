@@ -5,7 +5,7 @@ owner: dell26/agent-1
 deps: [itip-invitations]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/calendar/itip,api/openapi.yaml,web/src/app/features/calendar]
 prio: 2
-lease_until: 2026-10-26T15:49:25Z
+lease_until: 2026-10-26T15:54:30Z
 ---
 ## Goal
 Let the user send invitations (REQUEST/CANCEL) for local events from the web UI (SPEC.md §6.2), using `ItipService.send`.
