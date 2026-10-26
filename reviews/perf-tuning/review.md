@@ -4,21 +4,21 @@ Date: 2026-10-26
 
 Task: perf-tuning - Performance baseline and tuning
 
-Scope: `git diff d7388b759..HEAD -- server docs` (committed changes only). The uncommitted working-tree changes present at review time (`SearchEdgeCaseTests.kt` modified, `PerfPercentileTests.kt` untracked, apparently from the test-writer) were not reviewed.
+Scope: second review on the final code. `git diff d7388b759..HEAD -- server docs`, limited to the perf-tuning commits. The range also has the merged `pdf-fulltext` task of another agent (commits 6dcd5b89b..46b2f4a9c: `files/fulltext/*`, `FilesService.kt`, the files migration, `server/build.gradle.kts`, test `application.properties`, one ARCHITECTURE.md line). That task was not reviewed here. The task's own changes are the same as in `git diff 2baefbb45..HEAD -- server docs`. Committed changes only; the working tree was clean.
 
 Requirements:
-- tasks/perf-tuning.md acceptance criterion and recorded assumptions
+- tasks/perf-tuning.md acceptance criterion and its four recorded assumptions
 - SPEC.md, docs/ARCHITECTURE.md ("Persistence conventions", commands table), AGENTS.md project notes
-- MigrationConventionTests (migration naming contract)
-- Results the parent reported: `./gradlew integrationTest --tests '*PerfBaselineTests' --rerun` -> 2 passed, worst p95 118.4 ms; `./gradlew test --tests '*Search*'` -> 105 passed; `./gradlew ktlintCheck` -> passes (Gradle not re-run by the reviewer, it is blocked for sub-agents)
+- Earlier review of this task (CR-1..CR-3) and reviews/perf-tuning/fixes.md
+- Results the parent ran on HEAD (Gradle is blocked for sub-agents and was not re-run by the reviewer): `./gradlew ktlintCheck integrationTest --tests '*PerfBaselineTests' --rerun` -> 2 tests passed, all 24 endpoints p95 below 200 ms (worst 96.5 ms); `./gradlew test --tests '*Search*' --tests '*PerfPercentileTests'` -> 112 tests, 0 failures
 
 Git range:
 - Branch: main
-- HEAD: bd0d0838a289f37a947bfb79a6a509cfad7ad760
+- HEAD: acaab5f01c363ff45c08b7b14df342d86f82cf2c
 - Base/start: d7388b75900291fb47a101514794598f367571eb
-- Commits reviewed: 2 code/doc commits (67b1e02c0, bd0d0838a); the 3 `assume:` commits in the range only touch tasks/
+- Commits reviewed: 4 perf-tuning code/doc commits (6c5f6a55c, 961a67561, ca0d11ce2, acaab5f01). The `assume:`/heartbeat commits only touch tasks/, and the pdf-fulltext commits belong to another task.
 
-Summary: 0 P0, 0 P1, 0 P2, 3 P3
+Summary: 0 P0, 0 P1, 0 P2, 1 P3
 
 ## P0 Critical
 
@@ -34,37 +34,29 @@ None.
 
 ## P3 Low
 
-- [ ] **CR-1 | Seed and docs claim "conversations of 3", but the seeded threads have 1-2 messages**
-    - File: `server/src/test/kotlin/ch/sonensei/cockpit/perf/PerfSeed.kt:148` (also `docs/perf.md:21`)
+- [ ] **CR-1 | Tuning section quotes "after" timings that differ from the final results table**
+    - File: `docs/perf.md:89` (also `docs/perf.md:91`)
     - Category: Quality
-    - Problem: `thread_key` is `'thread-' || g / 3`, but the account is chosen by `g % 2`, so the three messages of a key are split across both accounts (for example g = 3, 5 go to account 2, g = 4 to account 1). `MailMessageListQuery` partitions conversations by `m.account_id, coalesce(m.thread_key, ...)`, so each conversation has 1 or 2 messages, never 3.
-    - Why it matters: docs/perf.md describes the data set the threaded-list numbers rest on. A later reader comparing runs or growing the data set would assume 3-message conversations that are not there.
-    - Suggested fix: derive the thread key per account (for example `'thread-' || g / 6` together with `g % 2`), or change the comment and docs/perf.md to "conversations of 1-2 messages".
+    - Problem: The tuning section gives the effect of the `mail_message_sort` index as "21 → 7 ms p95" for the unified Inbox and "100 → 9 ms p95" for mail search on a common word. The final results table in the same file shows 5.3 ms and 5.5 ms for these endpoints. The "after" figures come from an earlier run on the earlier seed and are not labelled that way. The line above the final table labels its own earlier-run figure ("an earlier run ... measured up to 118 ms").
+    - Why it matters: Small. A reader comparing the two sections sees two different "after" values for one change and cannot tell which run is which. The improvement claim itself still holds.
+    - Suggested fix: Quote the final-table values (21 → 5.3, 100 → 5.5), or note that the arrows come from the intermediate run.
 
-- [ ] **CR-2 | "Every run gets the same data" is stronger than what the seed does**
-    - File: `server/src/test/kotlin/ch/sonensei/cockpit/perf/PerfSeed.kt:13` (also `PerfBaselineTests.kt:31`, `docs/perf.md:19`)
-    - Category: Quality
-    - Problem: `setseed` only fixes `random()`. Ids come from `gen_random_uuid()`, which `setseed` does not affect, and `task_context` and `note_tag` assign contexts and tags by `row_number() over (order by id)`. So which task gets which context, and which note gets which tag, differs on every run. All dates are also relative to `now()`/`current_date`. Volumes and distributions repeat, but the rows themselves do not.
-    - Why it matters: this is a small overstatement. Timings are unlikely to change, but the docs promise more reproducibility than the seed gives.
-    - Suggested fix: number the rows by `g` (or by `created_at`/title) and not by a random uuid, or reword to "the same volumes and distributions".
+## Status of the earlier findings
 
-- [ ] **CR-3 | Mail index placed in a non-module migration folder**
-    - File: `server/src/main/resources/db/migration/perf/V202610261500__perf_mail_unified_sort.sql:4`
-    - Category: Architecture
-    - Problem: docs/ARCHITECTURE.md "Persistence conventions" puts migrations in `db/migration/{module}/` ("Module tables come in module migrations"). `perf` is not a server module, and the index is on the mail module's `mail_message`, next to `mail/V202610202300__mail_message_list_sort.sql` and its sibling sort indexes. The name passes `MigrationConventionTests` (folder = name module), and the task's `touches` asked for this folder, so it is a plan-level inconsistency, not a rule this task broke on its own.
-    - Why it matters: whoever later changes the mail list ordering looks in `mail/` and misses this index. A stale index costs a write on every mail sync.
-    - Suggested fix: before the migration is applied anywhere it matters, move it to `mail/V202610261500__mail_unified_sort.sql`, or note the cross-reference in a comment in the mail list-sort migration's folder or in `MailMessageListQuery`. Otherwise record the folder choice with `tasks.py assume`.
+- CR-1 (thread grouping), fixed. `thread_key` is now `'thread-' || g % 2 || '-' || g / 6`. In Postgres, `%` and `/` bind tighter than `||`, so this groups as intended. The account is `a.n = g % 2`, with `n = row_number() - 1` ordered by email, so the parity in the key is the account. In every block of 6 `g` values, the 3 values of each parity share one key within one account. `MailMessageListQuery` partitions by `(account_id, thread_key)`, so account-wide conversations have 3 messages. The edge blocks are as fixes.md describes: g = 1..5 gives 3 + 2 messages, g = 49 998..50 000 gives 2 + 1. The PerfSeed comment and docs/perf.md ("conversations of 3 messages within one account") match. In a single Inbox list, a conversation shows 1-3 messages because the folder is chosen by `g % 10`. That is realistic, and the docs do not claim otherwise.
+- CR-2 (reproducibility), fixed. No `gen_random_uuid()` remains in PerfSeed.kt. Every id is `md5(prefix || row)::uuid`, and Postgres accepts the 32-hex-digit md5 output as uuid input. Ids are unique within each table: area, context, project, task, note, account, message and event use distinct per-table prefixes plus a unique `g`. Folders use account id + path, which is unique per account. Calendars use source id + `g`. The two `row_number() over (order by id)` assignments (`task_context`, `note_tag`) are now deterministic. These ids are not UUIDv7, as was the earlier `gen_random_uuid()`. The KDoc says so, and the parent's run shows that every endpoint taking such an id as a query parameter (`context`, `projectId`, `accountId`, `folderId`) answers 200. The KDoc of PerfSeed and PerfBaselineTests and docs/perf.md now say "same rows, ids and context/tag assignments, dates relative to the day of the run", which matches the code.
+- CR-3 (migration folder), accepted. The task's `touches` name `db/migration/perf/`, and the folder choice is recorded as an assumption in tasks/perf-tuning.md, which is one of the remedies the finding offered. The file comment says what the index is for. No further action.
 
 ## Verified without findings
 
-- Seed SQL vs. schema: all enum and check constraints hold (task list/energy, project status, mail account type/security/ports/credentials, folder role and unique role per account, `mail_message_uid` > 0 and unique per folder because `uid = g`, calendar single default, timed/all-day/override event checks with `end_date > start_date`, weekly series only on timed rows). Context names are unique case-insensitively, and the `task_context`/`note_tag` OR-joins cannot produce duplicate primary keys.
-- Cleanup: `clean()` runs before the seed and in `@AfterAll`. Every seeded table is cleared directly or by `on delete cascade` (note_tag, mail_folder/message, calendar/calendar_event). No other module has a foreign key into these tables, `project.next_task_id` is `on delete set null`, and the temporary `perf_tag` table is dropped. Seeding uses SQL only, so no indexer events fire, and the mail search reconciler is off in the test configuration.
-- Percentile: nearest rank `sorted[ceil(p/100*n) - 1]`. With n = 50, p95 is the 48th value and p50 the 25th, which is correct.
-- Migration naming: matches `V(\d{12})__perf_[a-z0-9_]+\.sql`, the version is a valid timestamp, and no other migration has the same version.
-- Index use: the unified list (`MailMessageListQuery`, `uid is not null`, `order by coalesce(received_at, created_at) desc, id desc`) and mail search (`LOCATED` includes `uid is not null`, same order) both match the partial index expression.
-- Ranking semantics: `extract(epoch ...)` (numeric) became `date_part('epoch', ...)` (double precision). The formula and the `order by score desc, updated_at desc, item_id` tie-break are unchanged, and `score` is not read by the row mapper. `as materialized` changes only evaluation, not results.
-- Docs: the endpoints listed in docs/perf.md match the 24 in the test. The volumes, the 40 % done, a third in projects, 50-350 words, 10 tags, ~95 % of documents containing `meeting` (consistent with the cubic skew, ~17 % per word draw, and the 64 000 rows in EXPLAIN) and the report path `server/build/reports/perf/perf-baseline.md` all match the code. The criterion's parts (seeded volumes, `external` tag, index as a migration, results in docs/perf.md) are all present.
+- Acceptance criterion: the seed creates exactly 10 000 tasks, 2 000 notes, 50 000 mail headers, 5 000 events and 67 000 search documents, and `seeded volumes match the baseline` asserts this. The p95 check covers 24 list and search endpoints and asserts p95 < 200 ms. It is repeatable (fixed seed, row-derived ids, cleaned before and after) and tagged `@ExternalTest`, so it runs only in `integrationTest`, not in `check`/`.taskcheck`. The new index is a Flyway migration with a valid unique version that matches the naming convention. docs/perf.md has the method, the before/after tables, the tuning and the remaining hot spots. The parent's run on HEAD supports the timing part (worst p95 96.5 ms).
+- docs/perf.md vs. the final run: the after-tuning table's worst value (unified Inbox threaded, 96.5 ms) matches the parent's reported worst p95. The hot-spot ranges (global search 60-120 ms across runs, threaded unified Inbox ~90-100 ms) are consistent with the table and with the earlier 118 ms run. The before-tuning table is labelled as coming from the earlier random-id seed. The endpoint list, request URLs ({id}/{date} masking via the test's regexes), volumes and distributions match PerfSeed and PerfBaselineTests. 67 000 documents and the ~95 % share for `meeting` (64 000 rows in EXPLAIN) are consistent.
+- SearchDocumentRepository.fullText: `as materialized` changes only how the query is evaluated. `date_part('epoch', ...)` keeps the boost formula, and the score is only used for ordering. The test-writer's two new SearchEdgeCaseTests pin the recency order at a fixed `now` and the clamp at 0 for future `updated_at`. The expected orders follow from the formula: without the clamp, a document 60 days in the future would get a boost of 0 and one 29 days in the future a boost of about 31. With the clamp, both get 2.
+- PerfPercentileTests: the nearest-rank formula `sorted[ceil(p/100*n) - 1]`, coerced into range, gives the expected values for n = 50 (p95 = 48th, p50 = 25th), for the boundaries p0/p1/p100, for ranks that fall between two samples, and for a single sample.
+- Seed SQL vs. schema (re-checked after the fix): enum and check constraints, the unique `(folder, uid)` (uid = g), one default calendar, and the timed/all-day event shapes are unchanged by the fix. Cleanup clears every seeded table directly or by cascade.
+- ARCHITECTURE.md: the new commands-table row (command, volumes, ~1.5 min) matches docs/perf.md and the test.
+- Security: test-only data is fictitious (example.org/example.com, placeholder names). Nothing is logged or exposed in production code. The production change is a read-only query rewrite and one index.
 
 ## Review conclusion
 
-No material issues found. The three P3 items are accuracy and placement cleanups and do not block completion.
+No material issues found. The earlier CR-1 and CR-2 are fixed and CR-3 is accepted by a recorded assumption. The remaining P3 is a documentation accuracy nit and does not block completion.

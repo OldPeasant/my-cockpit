@@ -1,0 +1,26 @@
+{
+  "schema": 1,
+  "task": "perf-tuning",
+  "reviewed_revision": "66ac4e18f1bbb4dd7877bd53a68f8a857fb94c62",
+  "helpers": {
+    "test-writer":   {"status": "completed", "report": "reviews/perf-tuning/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/perf-tuning/review.md"},
+    "fixer":         {"status": "completed", "report": "reviews/perf-tuning/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "CR-1 (first review)", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "seeded threads now form 3-message conversations within one account (fixes.md CR-1)"},
+    {"id": "CR-2 (first review)", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "seed ids derived from md5(prefix || row), no gen_random_uuid (fixes.md CR-2)"},
+    {"id": "CR-3 (first review)", "source": "code-reviewer", "severity": "P3", "disposition": "accepted",
+     "note": "migration folder db/migration/perf/ matches the task's touches; recorded as an assumption"},
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P3", "disposition": "accepted",
+     "note": "docs/perf.md tuning section quotes intermediate-run 'after' timings; final table is authoritative and the improvement claim holds"}
+  ],
+  "validation": [
+    {"command": "cd server && ./gradlew ktlintCheck integrationTest --tests '*PerfBaselineTests' --rerun", "result": "pass"},
+    {"command": "cd server && ./gradlew test --tests '*Search*' --tests '*PerfPercentileTests' jacocoTestReport", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
