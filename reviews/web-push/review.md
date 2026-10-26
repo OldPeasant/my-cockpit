@@ -4,34 +4,56 @@ Date: 2026-10-26
 
 Task: web-push - Web Push notifications
 
-Scope: `git diff 1b5761c0..83bbc19b` (committed task changes only; uncommitted test files in the working tree from the parallel test-writer were not reviewed)
+Scope: `git diff c7b117400574a0d13bfd17d594887e9b36241d14..8bc4d528b2347095b8f3ec979e56079720f1e90b`, excluding `tasks/` and `reviews/` (committed changes only). This is a re-review of the final code. The earlier review covered findings CR-1 to CR-5 on an older revision; `reviews/web-push/fixes.md` records how they were fixed.
 
 Requirements:
-- tasks/web-push.md (acceptance criteria and recorded assumptions)
-- SPEC.md §4.6 (reminders and notifications, optional Web Push), §4.2 API conventions, §14 backup
-- docs/ARCHITECTURE.md, AGENTS.md project notes (module boundaries, migrations, logging, generated files)
+- tasks/web-push.md (acceptance criteria and recorded assumptions, including CR-2 accepted as an assumption)
+- SPEC.md §4.6 (optional Web Push), §4.1 (sessions), §4.2 (API conventions), §14 (backup)
+- docs/ARCHITECTURE.md, AGENTS.md project notes (module packages, migrations, logging, generated files, env table)
 - RFC 8291 / RFC 8188 (aes128gcm), RFC 8292 (VAPID), RFC 8030 (push protocol)
 
 Git range:
 - Branch: main
-- HEAD: 83bbc19b0d00499422c356760746ecc45a4c03c5
-- Base/start: 1b5761c03040634cb6e5325c6b914321ea514ca1
-- Commits reviewed: 2 (cdd506ce server push module, 83bbc19b web service worker and subscription flow)
+- HEAD: 8bc4d528b2347095b8f3ec979e56079720f1e90b
+- Base/start: c7b117400574a0d13bfd17d594887e9b36241d14
+- Commits reviewed: 10
+- Uncommitted changes: none
 
-Summary: 0 P0, 0 P1, 1 P2, 4 P3
+Summary: 0 P0, 0 P1, 1 P2, 0 P3
 
-## What was checked and found correct
+## Earlier findings re-checked
 
-- RFC 8291 key derivation in `WebPushCrypto.encrypt`: PRK = HMAC(auth, ecdh), IKM = HKDF(auth, ecdh, "WebPush: info\0" | ua_public | as_public, 32), CEK/nonce from "Content-Encoding: aes128gcm\0" / "Content-Encoding: nonce\0" with a fresh 16-byte salt, single record with the 0x02 delimiter, header `salt | rs | idlen | keyid`. Matches the RFC. The test decryptor (`PushTestBrowser`) is written independently of the server helpers.
-- RFC 8292: ES256 with `SHA256withECDSAinP1363Format` (raw r|s as JWS requires), `aud` = endpoint origin, `exp` 12 h (< 24 h), `vapid t=..., k=...` header. Claims are JSON-escaped.
-- Received P256 keys are checked for length, uncompressed form and curve membership; auth must be 16 bytes.
-- VAPID key pair generated on `ApplicationReadyEvent`, private key stored as `EncryptedSecret` (master key), singleton enforced by a unique + check constraint, concurrent first-start handled via REQUIRES_NEW + re-read.
-- Subscriptions API: authenticated (falls under `/api/**`, test for 401 present), Bean Validation + `InvalidRequestException` give Problem Details 400, https-only endpoint without userinfo, length limit, unsubscribe endpoint in the body (not in access logs). OpenAPI and generated client updated.
-- 404/410 from the push service delete the subscription (`deleteByEndpoint` is `@Transactional @Modifying`); other failures are logged by subscription id only; endpoint URLs, keys and message contents are not logged. Redirects disabled on the HTTP client.
-- Relay acts after commit (`@TransactionalEventListener(fallbackExecution = true)`) on its own thread; core does not depend on the mail module (event name string instead of `NewMailAnnouncer.EVENT_NAME`).
-- Backup/restore: restore truncates every table (`RestoreService` line 254 ff.), so both tables are emptied; keys regenerate on next use and the web app replaces a subscription whose `applicationServerKey` differs. Matches the recorded assumption.
-- Migration `db/migration/core/V202610261400__core_push.sql` follows the naming rule and BaseEntity columns.
-- Service worker: payload shapes match `ReminderResponse` (`id`, `item.title/available/deepLink`) and `NewMailNotification` (`folderId`, `count`, `messages[].id/from/subject`); route `mail/messages/:id` exists; click URLs are confined to the worker scope; CSP `worker-src 'self'` allows the worker; icon exists in `web/public`.
+- CR-1 (logout leaves the browser subscribed): fixed for explicit logout. `AuthService.logout()` (`web/src/app/core/auth/auth.service.ts:95-116`) unsubscribes before the logout request, best effort, with a 3 s cap. The shell effect (`provide-reminder-notifications.ts:25-29`) now does nothing while logged out and subscribes again after a new login in the same tab. Tests: `auth.service.spec.ts`, `push-logout.spec.ts`, `provide-reminder-notifications.spec.ts`. The part of the earlier finding about sessions that end without a logout is still open; see CR-1 below.
+- CR-2 (no `pushsubscriptionchange`): accepted as an assumption in the task notes. Not reported again.
+- CR-3 (concurrent PUT gives a 500): fixed. `PushSubscriptionRepository.upsert` is a single `insert ... on conflict (endpoint) do update` statement that fills every BaseEntity column and bumps the version only when the keys change. Covered by the concurrent-subscribe test and the id/version test in `PushWebTests`.
+- CR-4 (`COCKPIT_PUSH_SUBJECT` not forwarded or documented): fixed. `deploy/docker-compose.yml` forwards it with the same default as `application.properties`, and both `docs/ARCHITECTURE.md` and `deploy/README.md` document it.
+- CR-5 (no known-answer test for RFC 8291): fixed. `WebPushCryptoRfc8291Tests` checks the RFC 8291 Appendix A vector byte for byte through the internal `encrypt` overload. The public overload only adds a random salt and ephemeral key pair.
+
+## Changes since the last review, checked
+
+- `VapidKeyService.current()` wraps `GeneralSecurityException` in `IllegalStateException`, so `generateAtStartup()` catches a non-PKCS#8 stored key (it catches `RuntimeException`). A key the master key can't decrypt fails inside `reveal()` or the converter, which is also a `RuntimeException`. Neither case replaces the stored row. The tests at `PushWebTests.kt:313-358` cover both cases and also generation at startup. They restore a usable key pair in `finally`, so other tests are not affected.
+- The `auth.loggedIn()` gate is correct. The effect reads `loggedIn` first, so a change of session re-runs it. While logged out it neither subscribes nor unsubscribes, because logout already unsubscribed. `PushSubscriptionService` runs its calls one at a time in a queue, so a logout unsubscribe that is still running is ordered before the sync of the next login.
+
+## Other things checked and found correct
+
+- Acceptance criterion 1 is met:
+  - VAPID keys are generated on `ApplicationReadyEvent`. The private key is stored as an `EncryptedSecret`, and a singleton constraint plus a REQUIRES_NEW re-read handle two instances starting at once.
+  - The subscriptions API (GET key, PUT and DELETE subscription) requires a login, validates its input and returns Problem Details. The endpoint is sent in the request body.
+  - The service worker shows `reminder` and `mail` pushes. Their payload shapes match `ReminderResponse` and `NewMailNotification` (`mail/sync/NewMailAnnouncer.kt:31`).
+  - A 404 or 410 from the push service deletes the subscription (`PushService.kt:182-185`, tested in `PushDeliveryTests`).
+- Architecture:
+  - Packages are `core.push.{api,domain,infra}`. Domain importing infra repositories matches other modules (`files`, `backup`).
+  - Core does not depend on the mail module: the relay uses the event name string `"mail"`.
+  - The migration file name follows the `core/V{timestamp}__core_{desc}.sql` rule.
+  - The OpenAPI file and the generated client are updated (`api:check` is part of `npm run check`).
+- Security and logging:
+  - Push service redirects are not followed.
+  - Logs name only subscription ids, never endpoints, keys or message contents.
+  - VAPID claims are JSON-escaped.
+  - Received public keys are checked against the P-256 curve.
+  - Notification click URLs stay inside the worker's scope.
+- Backup: `VapidKeyService` reads the key from the database on every call, with no cache, so after a restore empties the table the next use generates new keys. This matches the recorded assumption.
+- Tests: the server push tests (55, run by the parent against Postgres via Testcontainers) and the web specs cover subscribe, unsubscribe, key replacement, ordering in the queue, the logout paths, the login gate, the service worker's rendering, suppression and click handling, and the toggle hint. The tests check behaviour and do not mock away the logic under test.
 
 ## P0 Critical
 
@@ -43,43 +65,17 @@ None.
 
 ## P2 Medium
 
-- [ ] **CR-1 | Logout (or session expiry) leaves the browser subscribed, so mail senders/subjects and reminder titles keep appearing on a logged-out device**
-    - File: `web/src/app/core/notifications/provide-reminder-notifications.ts:19` (effect only runs inside the authenticated shell); `web/src/app/core/auth/auth.service.ts:88` (`logout()` does not touch push)
+- [ ] **CR-1 | Push subscriptions outlive a session that ends without an explicit logout (browser-session login, idle expiry)**
+    - File: `web/src/app/core/notifications/provide-reminder-notifications.ts:26`; `web/src/app/core/auth/auth.service.ts:95`; `server/src/main/kotlin/ch/sonensei/cockpit/core/push/domain/PushService.kt:128-145` (a subscription is not tied to a session); `server/src/main/kotlin/ch/sonensei/cockpit/core/auth/domain/AuthSession.kt:42-43`
     - Category: Security
-    - Problem: The subscription is only removed when the reminder switch is turned off or permission is lost while the shell is loaded. `AuthService.logout()` ends the session but neither calls `PushSubscriptionService.unsubscribe()` nor does the server tie subscriptions to a session. Before this change, notifications stopped at logout because they came only over the authenticated SSE stream; now the server keeps pushing `mail` (sender + subject, `push-sw.js:71-78`) and `reminder` (item title) notifications to that browser indefinitely, including on the lock screen.
-    - Why it matters: On a shared or borrowed computer, logging out no longer stops personal data (email senders/subjects, task titles) from being displayed. This is a regression of the logout boundary introduced by this task.
-    - Suggested fix: Unsubscribe as part of logout (call `PushSubscriptionService.unsubscribe()` before the logout request, best effort), and/or have the server drop push subscriptions when the session that created them ends (e.g. store the session id with the subscription, or delete all subscriptions on explicit logout). Add a test for the chosen behaviour. If the current behaviour is intended, record it as an assumption.
+    - Problem: Only an explicit `AuthService.logout()` removes the browser's subscription. A session without "remember device" ends when the browser closes (its cookie is a browser-session cookie) or after 12 h idle (`BROWSER_SESSION_IDLE`). After that, the client only sets `loggedIn` to false, and the effect then deliberately does nothing. The server has no link between subscriptions and sessions. So the server keeps pushing mail senders and subjects (`push-sw.js:66-78`) and reminder titles to that browser until it is subscribed again or the push service reports 410. This is the "or session expiry" part of the earlier CR-1, which the fix did not address. It is also not recorded as an assumption in `tasks/web-push.md`.
+    - Why it matters: On a shared or borrowed computer, a user who logs in without "remember device" and just closes the browser expects their data to stop appearing there, as it did before this task, when notifications came only over the authenticated SSE stream. Now personal mail and task data keeps appearing on that machine's lock screen with no session behind it.
+    - Suggested fix: Tie each subscription to the session that created it. For example, store the `auth_session` id on `push_subscription`, delete the subscription when the session is deleted or expires, and skip or delete subscriptions of expired sessions in `PushService.send`. Alternatively, subscribe only for remembered sessions. If the current behaviour is intended, record it with `tasks.py assume` and say in the toggle hint that pushes continue after the session ends. Add a test for the behaviour you choose.
 
 ## P3 Low
 
-- [ ] **CR-2 | No `pushsubscriptionchange` handling in the service worker**
-    - File: `web/public/push-sw.js:26-30`
-    - Category: Correctness
-    - Problem: When the push service rotates or expires a subscription (Firefox does this), the server's endpoint returns 410 and is deleted, but the new subscription is only registered on the next app start (`PushSubscriptionService.sync`). Until then no pushes arrive, which defeats "notifications without an open tab" for a user who rarely opens the app.
-    - Why it matters: Silent loss of push delivery with no feedback.
-    - Suggested fix: Handle `pushsubscriptionchange` in the worker: re-subscribe with the old `applicationServerKey` and PUT the new subscription to `/api/v1/push/subscriptions` (with credentials and the CSRF header the API expects), or at least document the limitation as an assumption.
-
-- [ ] **CR-3 | Concurrent PUT of the same endpoint yields a 500**
-    - File: `server/src/main/kotlin/ch/sonensei/cockpit/core/push/domain/PushService.kt:59-64`
-    - Category: Correctness
-    - Problem: `findByEndpoint` then `save` is a check-then-insert. Two tabs starting at the same time (each runs `sync()` on startup) can both insert; the second hits the `push_subscription_endpoint` unique constraint and the `DataIntegrityViolationException` is not mapped by `ProblemDetailsAdvice` (only optimistic locking is), so it surfaces as a 500. The web client swallows it silently, so the impact is a logged server error rather than a broken flow.
-    - Why it matters: Spurious 500s and error logs for a documented idempotent operation.
-    - Suggested fix: Use an upsert (`insert ... on conflict (endpoint) do update`) or catch `DataIntegrityViolationException` and retry the update path.
-
-- [ ] **CR-4 | `COCKPIT_PUSH_SUBJECT` is neither documented nor forwarded by the deployment**
-    - File: `server/src/main/resources/application.properties:62`; `deploy/docker-compose.yml` (server `environment`), `docs/ARCHITECTURE.md` env table
-    - Category: Integration
-    - Problem: The recorded assumption names `COCKPIT_PUSH_SUBJECT` as the VAPID subject setting, but the compose file passes an explicit environment list that does not include it, and the env-var tables in `docs/ARCHITECTURE.md` / `deploy/README.md` do not mention it. Setting it in `deploy/.env` has no effect. The default (`https://<COCKPIT_DOMAIN>`) works, so this is a configuration/documentation gap only.
-    - Why it matters: An operator cannot change the VAPID contact (e.g. to `mailto:`) as the docs/assumption suggest.
-    - Suggested fix: Add `COCKPIT_PUSH_SUBJECT: ${COCKPIT_PUSH_SUBJECT:-https://${COCKPIT_DOMAIN}}` to the server service and one row to the env table (or create a follow-up task if those files are outside this task's touches).
-
-- [ ] **CR-5 | No known-answer test for the hand-written RFC 8291 implementation**
-    - File: `server/src/test/kotlin/ch/sonensei/cockpit/core/push/WebPushCryptoTests.kt:16`
-    - Category: Tests
-    - Problem: Encryption is verified only by round-trip against `PushTestBrowser`, which was written by the same author from the same reading of the RFC. A shared misunderstanding (e.g. info string, key order) would pass both sides while real browsers reject the message. The review found the derivation correct, but nothing pins it to an external reference.
-    - Why it matters: The assumption explicitly replaces a maintained library with ~150 lines of custom crypto; a regression there fails silently in production (push services accept the body, browsers drop it).
-    - Suggested fix: Add a test that decrypts/derives with the RFC 8291 Appendix A test vector (fixed UA keys, auth secret, salt and AS key pair), e.g. by exposing an internal `encrypt` overload that accepts the salt and ephemeral key pair.
+None.
 
 ## Review conclusion
 
-Material issues found; fix before completing the task. CR-1 (pushes continue after logout) should be resolved or explicitly accepted as an assumption by the parent worker; the P3 items are non-blocking improvements.
+Material issues found; fix before completing the task. CR-1 is the unresolved remainder of the earlier CR-1. Fix it, or have the parent worker accept it explicitly as an assumption. Fixes CR-3, CR-4 and CR-5 hold, CR-2 is accepted, and the changes since the last review are correct and tested.
