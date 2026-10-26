@@ -4,30 +4,23 @@ Date: 2026-10-26
 
 Task: unifiedpush-android-client - Android UnifiedPush client
 
-Scope: `git diff bca3d1ddae4000140494d57a630ee4c0fa8b90e9..ceccb065280d050edadd02d88b8d261704b7c3d7` (committed changes only; mostly production code under `android/app/src/main/java/ch/sonensei/cockpit/push/`, `auth/AuthRepository.kt`, `auth/AuthModule.kt`, `CockpitApp.kt`, `AndroidManifest.xml`, resources, `libs.versions.toml`, `app/build.gradle.kts`, `docs/ARCHITECTURE.md`; tests looked at for coverage of the criteria)
+Scope: committed changes 4acbc4be335ca1cfe8ee476142d291f3f912aa73..f4865e8644fc60afebadd3b7a064fa5705a06596 (push package, AuthRepository/AuthModule logout hooks, CockpitApp, AndroidManifest, libs.versions.toml, app/build.gradle.kts, docs/ARCHITECTURE.md, tests). This is a second review round on the final code. It re-checks the CR-1 fix (a Mutex that orders the PUT and the DELETE) for correctness.
 
 Requirements:
-- `tasks/unifiedpush-android-client.md` acceptance criteria and ASSUMPTION notes
-- `SPEC.md` (Android push, phase 7 "UnifiedPush for Android")
-- `docs/ARCHITECTURE.md` (Android stack table)
-- `AGENTS.md` project conventions (lint, no secrets/contents logged, generated API client, stack table updates)
-- Server contract: `server/src/main/kotlin/ch/sonensei/cockpit/core/push/` (`UnifiedPushController`, `UnifiedPushService`, `PushDispatcher`, `PushMessage`, `WebPushKeys`) and `api/openapi.yaml` (`UnifiedPushRegistrationRequest`)
+- tasks/unifiedpush-android-client.md (acceptance criteria 1-3 and the recorded assumptions)
+- AGENTS.md project notes (conventions, no logging of secrets)
+- docs/ARCHITECTURE.md (stack table)
+- api/openapi.yaml `UnifiedPushRegistrationRequest`, and the server `core/push` payload format `{"kind","id"}`
+- Parent instructions (scope, CR-1/CR-2 context)
 
 Git range:
 - Branch: main
-- HEAD: ceccb065280d050edadd02d88b8d261704b7c3d7
-- Base/start: bca3d1ddae4000140494d57a630ee4c0fa8b90e9
-- Commits reviewed: 5 (25d892d6a, d4916de95, 0d815b1da, 28b02ae76, ceccb0652)
+- HEAD: f4865e8644fc60afebadd3b7a064fa5705a06596 (reviewed revision)
+- Base/start: 4acbc4be335ca1cfe8ee476142d291f3f912aa73
+- Commits reviewed: 9 (f95cd57cf, e163ca5e0, 0b379b07b, bef681fe6, d251563ce, fc20e0af7, c637117ad, ae380a7d7, f4865e864)
+- Uncommitted changes: none at the start of the review
 
-Summary: 0 P0, 0 P1, 0 P2, 2 P3
-
-## Verification notes
-
-- AC1: `unifiedpush-connector` 3.3.5 is in `libs.versions.toml` and `app/build.gradle.kts`, and the ARCHITECTURE.md stack table lists it. The tink bump to 1.23.0 is in the table too. `PushRegistrar.start()` (called from `CockpitApp.onCreate`) registers at app start and after each login, using the logged-in flow with `distinctUntilChanged`. `onNewEndpoint` sends `PUT /api/v1/push/unifiedpush/{instanceId}`. The generated `PushApi` path and verb match the controller, and the body fields `endpoint`/`auth`/`p256dh` match the generated model's constructor order. `PushRegistrarTest` checks this against the serialized JSON. The instance id (a UUID string) matches the server pattern `^[A-Za-z0-9._-]{1,128}$`. The keys from the connector are base64url, which `WebPushKeys` accepts with or without padding. On a user logout, `LogoutHook` sends DELETE before the device is revoked, and `SessionCache` then unregisters at the distributor and forgets the instance. When no distributor is installed, `selectDistributor()` returns false and nothing is registered, so the existing WorkManager periodic syncs are left as they are.
-- AC2: The client parses the payload as `{"kind":"reminder"|"mail","id":"<uuid>"}`, which matches `PushMessage.toJson()` and the `PushKind.wire` values. A reminder push enqueues a one-time `ReminderSyncWorker`, and a mail push shows a notification with no message content. These messages are ignored and covered by tests: unknown kinds, non-JSON input, wrong types, non-UUID ids, invalid UTF-8, empty or oversized payloads, undecrypted pushes, pushes for another instance and pushes while logged out.
-- AC3: In the latest local test results (`android/app/build/test-results/testDebugUnitTest`), all `ch.sonensei.cockpit.push.*` suites pass (59 tests, 0 failures), as does `AuthRepositoryLogoutHookTest` (9 tests). I did not re-run them. The parent must record its own run as evidence.
-- Security and logging: none of the new code logs anything. Exceptions are swallowed without logging, so the endpoint and user data stay out of logs. The service is `exported="false"` with the `PUSH_EVENT` filter, as the connector requires. The `PendingIntent` is `FLAG_IMMUTABLE`.
-- Lint: the latest `lint-results-debug.txt` (2026-10-26 18:04) reports 0 errors and 0 warnings. The only 2 hints are in unrelated files.
+Summary: 0 P0, 0 P1, 0 P2, 1 P3
 
 ## P0 Critical
 
@@ -43,19 +36,21 @@ None.
 
 ## P3 Low
 
-- [ ] **CR-1 | A late endpoint PUT can recreate the server registration after the logout's DELETE**
-    - File: `android/app/src/main/java/ch/sonensei/cockpit/push/PushRegistrar.kt:77`
+- [ ] **CR-1 | A logout hook timeout during an in-flight PUT skips the DELETE and leaves `deleted` unset**
+    - File: `android/app/src/main/java/ch/sonensei/cockpit/push/PushRegistrar.kt:111-118`
     - Category: Correctness
-    - Problem: `onNewEndpoint` checks `session.isLoggedIn && instance == store.current()` when its coroutine starts and then sends the PUT. `deleteOnServer()` (the logout hook, line 98) sends DELETE on another coroutine, and nothing orders the two requests. Example: the app starts, `register()` makes the distributor send the endpoint, and the user logs out a moment later. If the PUT is still in flight when the DELETE is sent, the server can process the DELETE first and then the PUT, which recreates the registration. `clear()` afterwards only unregisters locally, so the server keeps pushing to an endpoint whose keys the device has forgotten. Unless the distributor answers 404 or 410, `PushDispatcher` never removes it.
-    - Why it matters: Logout is meant to remove this device's endpoint on the server (AC1). The window is small and the payloads are ids only, encrypted with keys the device no longer has, so the impact is a stale registration and wasted pushes, not a data leak.
-    - Suggested fix: Order the two requests. For example, run the endpoint PUT and `deleteOnServer` under one `Mutex` in `PushRegistrar`, and in `deleteOnServer` mark the instance as being logged out (or clear it) before sending DELETE, so a PUT that has not been sent yet is dropped.
+    - Problem: `deleteOnServer()` sets `deleted = instance` only after it gets `requests`. `onNewEndpoint` holds that lock for the whole network PUT. The project's OkHttp client sets no timeouts of its own, so the defaults apply: 10 s connect and 10 s read, with no call timeout. On a slow network the PUT can therefore outlast the 5 s `LOGOUT_HOOK_TIMEOUT_MS`. `withTimeoutOrNull` then cancels the wait for the lock. No DELETE is sent and `deleted` stays null. Other `onNewEndpoint` coroutines may be queued on the lock. While `revokeDevice` runs (up to 5 s more), the session is still logged in, so one of them can still get the lock and send its PUT.
+    - Why it matters: In this narrow case the server keeps a registration after a user logout. The impact is small: `clear()` then unregisters at the distributor, the server drops the registration on the distributor's 404/410 (as the task assumption says), and the keys are gone, so any later push is ignored. Still, the comment "drops the ones still waiting" does not hold in this case, and no test covers the hook timeout racing a held lock. The Mutex itself is sound: it cannot deadlock (it is never taken re-entrantly), `return@launch` inside the inline `withLock` releases it, `bestEffort` rethrows cancellation, and the wait for the lock can be cancelled, so the logout's 5 s bound holds.
+    - Suggested fix: Set `deleted = instance` before `requests.withLock { ... }`, so waiting and later PUTs are dropped even if the lock wait times out. Optionally, give the PUT its own short `withTimeoutOrNull` so it holds the lock for less than the hook bound. Add a test in which the PUT outlasts the hook timeout.
 
-- [ ] **CR-2 | Every process start re-registers and may PUT the same endpoint again**
-    - File: `android/app/src/main/java/ch/sonensei/cockpit/push/PushRegistrar.kt:56`
-    - Category: Quality
-    - Problem: `start()` runs in `CockpitApp.onCreate`, so it runs on every process start, including background starts by WorkManager periodic syncs, alarms and push deliveries. Each time it calls `connector.register(...)`. By design (see the task ASSUMPTION) the distributor answers with the endpoint again, and `onNewEndpoint` sends another PUT. The client does not remember which endpoint it last sent, so an unchanged endpoint is sent again, and the server logs `registered` at INFO each time.
-    - Why it matters: When a process is cold-started for a push, a second round trip follows right after it, and the periodic workers can cause more. That costs battery and network, and adds noise to the server log. Because the behavior is intentional (it is the only retry path), this is a low-priority efficiency issue.
-    - Suggested fix: Store the last endpoint and keys the server accepted (a 2xx response) next to the instance in `PreferencesPushInstanceStore`, and skip the PUT when they have not changed. Clear them in `store.clear()`. Re-registering at start is fine as long as an unchanged endpoint is not sent again.
+## Notes (not findings)
+
+- CR-1 from the previous round (PUT and DELETE could reach the server out of order) is fixed in f4865e864. Three tests cover it: a PUT that arrives after the DELETE is not sent, a PUT waiting on the lock is dropped, and the DELETE waits for a PUT already in flight.
+- CR-2 from the previous round (the endpoint is sent again on every process start) was left as is on purpose. The task assumption says this is the retry path and that the PUT is idempotent. It is not reported again.
+- AC1: the library is in libs.versions.toml and the ARCHITECTURE.md stack table, together with the tink 1.23 bump and the exclusion of plain tink, both recorded as assumptions. `register()` runs at start and after each login. `onNewEndpoint` sends the PUT with `endpoint`/`auth`/`p256dh`, which matches the OpenAPI schema (only `endpoint` is required, and the keys are sent only together). Logout runs the DELETE through the `LogoutHook` before the device is revoked, then calls `clear()` and dismisses the notification. Without a distributor, `selectDistributor()` returns false and nothing is registered.
+- AC2: a reminder push enqueues a unique, REPLACE one-time `ReminderSyncWorker`. A mail push shows a notification without any mail content. A push is ignored if it was not decrypted, belongs to another instance, arrives after logout, is unknown, is garbled, is not UTF-8, or is larger than 4 KiB. The payload format matches the server's `PushMessage.toJson()`.
+- Security: the service is `exported="false"`. Nothing logs the endpoint or exception details. Plain-text posts to the endpoint are ignored.
+- AC3: the tests are in `PushMessageHandlerTest`, `PushRegistrarTest`, `PushInAppTest`, `PushAndroidAdaptersTest`, `LibraryUnifiedPushConnectorTest` and `AuthRepositoryLogoutHookTest`. I did not run them in this review. The criteria are not yet recorded with `tasks.py verify`, and `reviews/unifiedpush-android-client/tests.md` does not exist yet. Both are the parent worker's remaining quality-gate steps.
 
 ## Review conclusion
 
