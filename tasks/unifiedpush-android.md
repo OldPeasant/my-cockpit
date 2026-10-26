@@ -9,7 +9,7 @@ lease_until:
 subtasks: unifiedpush-server, unifiedpush-android-client
 releases: 0
 extended: 
-hold: test
+hold: 
 ---
 ## Goal
 Push via a self-hosted distributor (ntfy).
