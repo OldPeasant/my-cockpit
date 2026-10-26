@@ -22,10 +22,14 @@ import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.transaction.support.TransactionTemplate
+import java.io.IOException
+import java.nio.channels.ClosedByInterruptException
 import java.nio.file.Files
 import java.time.Clock
 import java.time.Duration
 import java.util.UUID
+import java.util.concurrent.CompletableFuture
+import java.util.concurrent.TimeUnit
 
 /**
  * Edge cases of [FileTextIndexer] against Postgres (task pdf-fulltext): NUL characters, the character limit end to end,
@@ -165,6 +169,90 @@ class FileTextIndexerEdgeCaseTests(
 		shouldThrow<OutOfMemoryError> { indexerWith(extractor = exhausted).indexPending() }
 
 		row(file).shouldBeNull()
+	}
+
+	@Test
+	fun `a file whose extraction keeps running out of memory is left out after repeated failures, older files go on`() {
+		val huge = files.storeFile(null, "huge.pdf", "application/pdf", "fictitious".byteInputStream())
+		val older = files.storeFile(null, "small.pdf", "application/pdf", "fictitious".byteInputStream())
+		jdbc.update("update file set created_at = created_at - interval '1 hour' where id = ?", older.id)
+		val exhausting =
+			mockk<FileTextExtractor> {
+				every { extract(blobs.path(huge.storageKey), any(), any()) } throws OutOfMemoryError("fictitious")
+				every { extract(blobs.path(older.storageKey), any(), any()) } returns "Small quernmoor"
+			}
+		val crashing = indexerWith(extractor = exhausting)
+
+		repeat(FileTextIndexer.MAX_ERROR_ATTEMPTS) { shouldThrow<OutOfMemoryError> { crashing.indexPending() } }
+		row(older).shouldBeNull()
+
+		crashing.indexPending() shouldBe 1
+
+		row(huge).shouldBeNull()
+		row(older)!!["status"] shouldBe "EXTRACTED"
+		crashing.indexPending() shouldBe 0
+		// Only in memory: after a restart (a new indexer) the file is tried again.
+		indexer.indexPending() shouldBe 1
+	}
+
+	@Test
+	fun `an extraction interrupted by the shutdown stores nothing and stops the batch`() {
+		val interrupted = storeText("interrupted.txt")
+		val next = storeText("next.txt")
+		jdbc.update("update file set created_at = created_at - interval '1 hour' where id = ?", next.id)
+		val closing =
+			mockk<FileTextExtractor> {
+				every { extract(any(), any(), any()) } throws ClosedByInterruptException()
+			}
+
+		indexerWith(extractor = closing).indexPending() shouldBe 1
+
+		row(interrupted).shouldBeNull()
+		row(next).shouldBeNull()
+		indexAll()
+		row(interrupted)!!["status"] shouldBe "EXTRACTED"
+		row(next)!!["status"] shouldBe "EXTRACTED"
+	}
+
+	@Test
+	fun `an extraction failing while the thread is interrupted stores nothing`() {
+		val file = storeText("halted.txt")
+		val halting =
+			mockk<FileTextExtractor> {
+				every { extract(any(), any(), any()) } answers {
+					Thread.currentThread().interrupt()
+					throw IOException("fictitious")
+				}
+			}
+
+		try {
+			indexerWith(extractor = halting).indexPending() shouldBe 1
+		} finally {
+			Thread.interrupted()
+		}
+
+		row(file).shouldBeNull()
+		indexer.indexPending() shouldBe 1
+		row(file)!!["status"] shouldBe "EXTRACTED"
+	}
+
+	@Test
+	fun `a rename that changes nothing waits for a running extraction and keeps its text`() {
+		val file = files.storeFile(null, "same.txt", "text/plain", "Same brackenridge".byteInputStream())
+		var rename: CompletableFuture<*>? = null
+
+		transactions.executeWithoutResult {
+			// What FileTextIndexer.store does: lock the file row, save the text, write the search document.
+			texts.lockFile(file.id)
+			texts.save(file.id, file.sha256, FileTextStatus.EXTRACTED, "Same brackenridge", clock.instant())
+			searchIndexer.upsert(ItemType.FILE, file.id, file.name, "Same brackenridge")
+			rename = CompletableFuture.runAsync { files.renameFile(file.id, "same.txt") }
+			Thread.sleep(300)
+			rename!!.isDone shouldBe false
+		}
+		rename!!.get(10, TimeUnit.SECONDS)
+
+		found("brackenridge") shouldContainExactly listOf(file.id)
 	}
 
 	@Test

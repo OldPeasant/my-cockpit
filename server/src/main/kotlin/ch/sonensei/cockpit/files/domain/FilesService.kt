@@ -459,7 +459,12 @@ class FilesService(
 
 	private fun indexed(folder: Folder) = search.upsert(ItemType.FOLDER, folder.id, folder.name, null)
 
-	private fun indexed(file: FileItem) = search.upsert(ItemType.FILE, file.id, file.name, texts.textOf(file.id))
+	private fun indexed(file: FileItem) {
+		// Lock the row before the text is read, in the order FileTextIndexer takes it, also when the change wrote nothing
+		// (a rename to the same name): otherwise a running extraction's text could be overwritten with null.
+		texts.lockFile(file.id)
+		search.upsert(ItemType.FILE, file.id, file.name, texts.textOf(file.id))
+	}
 
 	private fun nameTaken() = ConflictException("A folder with this name already exists here")
 

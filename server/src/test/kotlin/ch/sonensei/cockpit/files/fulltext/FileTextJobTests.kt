@@ -150,6 +150,38 @@ class FileTextJobTests {
 	}
 
 	@Test
+	fun `after close a tick starts nothing`() {
+		every { indexer.indexPending() } returns 0
+
+		job.close()
+		job.run()
+
+		verify(exactly = 0) { indexer.indexPending() }
+	}
+
+	@Test
+	fun `close lets the running extraction finish without interrupting it and starts no further batch`() {
+		val executor = FileTextJob.newExecutor()
+		val stopping = FileTextJob(indexer, executor)
+		val started = CountDownLatch(1)
+		var interrupted: Boolean? = null
+		every { indexer.indexPending() } answers {
+			started.countDown()
+			Thread.sleep(300)
+			interrupted = Thread.currentThread().isInterrupted
+			20
+		}
+
+		stopping.run()
+		started.await(10, TimeUnit.SECONDS) shouldBe true
+		stopping.close()
+
+		executor.isTerminated shouldBe true
+		interrupted shouldBe false
+		verify(exactly = 1) { indexer.indexPending() }
+	}
+
+	@Test
 	fun `the configured job extracts on its own file-text thread`() {
 		val latch = CountDownLatch(1)
 		var thread: String? = null

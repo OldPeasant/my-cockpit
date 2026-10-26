@@ -11,6 +11,7 @@ import java.util.concurrent.Executor
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 import java.util.concurrent.RejectedExecutionException
+import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 
 /**
@@ -32,7 +33,9 @@ class FileTextJobConfiguration {
  *
  * The extraction runs on [executor] (its own thread), not on the scheduler thread the other jobs share, so a large
  * backlog or a slow PDF never delays reminders or syncs. A tick while the previous run is still busy does nothing.
- * [close] (at the context's shutdown) stops the executor when it is an [ExecutorService].
+ * [close] (at the context's shutdown) stops the job cooperatively: no new batch starts, the running extraction gets
+ * [SHUTDOWN_GRACE] to finish, and only then is the thread interrupted (the indexer stores nothing for an interrupted
+ * extraction), so no healthy file is marked failed and no thread keeps writing while the database pool closes.
  */
 class FileTextJob(
 	private val indexer: FileTextIndexer,
@@ -41,13 +44,14 @@ class FileTextJob(
 ) : AutoCloseable {
 	private val log = LoggerFactory.getLogger(javaClass)
 	private val busy = AtomicBoolean()
+	private val stopping = AtomicBoolean()
 
 	@Scheduled(
 		fixedDelayString = "\${cockpit.files.fulltext.interval:PT30S}",
 		initialDelayString = "\${cockpit.files.fulltext.initial-delay:PT1M}",
 	)
 	fun run() {
-		if (!busy.compareAndSet(false, true)) return
+		if (stopping.get() || !busy.compareAndSet(false, true)) return
 		try {
 			executor.execute {
 				try {
@@ -66,7 +70,7 @@ class FileTextJob(
 		val deadline = nanoTime() + MAX_RUN_TIME.toNanos()
 		try {
 			for (batch in 1..MAX_BATCHES_PER_RUN) {
-				if (indexer.indexPending() == 0 || nanoTime() - deadline >= 0) break
+				if (stopped() || indexer.indexPending() == 0 || nanoTime() - deadline >= 0) break
 			}
 		} catch (e: RuntimeException) {
 			// The database or a bug; retried on the next run.
@@ -74,8 +78,21 @@ class FileTextJob(
 		}
 	}
 
+	private fun stopped() = stopping.get() || Thread.currentThread().isInterrupted
+
 	override fun close() {
-		(executor as? ExecutorService)?.shutdownNow()
+		stopping.set(true)
+		val service = executor as? ExecutorService ?: return
+		service.shutdown()
+		try {
+			if (!service.awaitTermination(SHUTDOWN_GRACE.toMillis(), TimeUnit.MILLISECONDS)) {
+				service.shutdownNow()
+				service.awaitTermination(SHUTDOWN_GRACE.toMillis(), TimeUnit.MILLISECONDS)
+			}
+		} catch (_: InterruptedException) {
+			service.shutdownNow()
+			Thread.currentThread().interrupt()
+		}
 	}
 
 	companion object {
@@ -84,6 +101,9 @@ class FileTextJob(
 
 		/** Bounds one run by time; no new batch starts after it, a larger backlog continues on the next run. */
 		val MAX_RUN_TIME: Duration = Duration.ofMinutes(5)
+
+		/** How long [close] waits for the running extraction before it interrupts it, and again after that. */
+		val SHUTDOWN_GRACE: Duration = Duration.ofSeconds(5)
 
 		/** A single daemon thread named `file-text`. */
 		fun newExecutor(): ExecutorService =
