@@ -21,6 +21,7 @@ Goal: The app registers with a UnifiedPush distributor (ntfy) and reacts to serv
   - verified (2026-10-26 21:04+0100 by dell26/agent-1): android/gradlew -p android testDebugUnitTest --tests 'ch.sonensei.cockpit.push.*' -> PushMessageHandlerTest 12 + PushInAppTest 15 + PushAndroidAdaptersTest 11 passed: reminder push enqueues ReminderSyncWorker, mail push shows content-free notification, unknown/garbled/non-UTF-8/oversized/undecrypted/after-logout pushes ignored
 - [x] `cd android && ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.push.*'` passes, covering message handling
   - verified (2026-10-26 21:04+0100 by dell26/agent-1): android/gradlew -p android testDebugUnitTest --tests 'ch.sonensei.cockpit.push.*' (same as cd android && ./gradlew ...) -> BUILD SUCCESSFUL, 73 push tests passed, 0 failures (message handling: PushMessageHandlerTest 12)
+  - verified (2026-10-26 22:57+0100 by dell26/agent-2): android/gradlew -p android testDebugUnitTest --tests 'ch.sonensei.cockpit.push.*' at ff93b836a (heap 2g) -> BUILD SUCCESSFUL, 73 push tests, 0 failures; full suite 2123 passed
 
 ## Notes
 - Work done on `unifiedpush-android` before the split is on `origin/wip/unifiedpush-android` (if it exists): merge it first if your part builds on it.
