@@ -13,7 +13,6 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse
 import io.swagger.v3.oas.annotations.tags.Tag
 import jakarta.validation.Valid
 import jakarta.validation.constraints.NotBlank
-import jakarta.validation.constraints.Pattern
 import jakarta.validation.constraints.Size
 import org.springframework.http.HttpStatus
 import org.springframework.http.MediaType
@@ -54,12 +53,12 @@ class UnifiedPushController(
 	)
 	@ApiResponse(responseCode = "401", description = "Not logged in", content = [Content()])
 	fun register(
-		@Parameter(description = "The app's UnifiedPush instance (letters, digits, `.`, `_`, `-`)")
+		@Parameter(description = "The app's UnifiedPush instance", schema = Schema(pattern = INSTANCE_ID))
 		@PathVariable
-		@Pattern(regexp = INSTANCE_ID)
 		instanceId: String,
 		@Valid @RequestBody request: UnifiedPushRegistrationRequest,
 	) {
+		checkInstanceId(instanceId)
 		val keys =
 			when {
 				request.p256dh == null && request.auth == null -> null
@@ -92,15 +91,25 @@ class UnifiedPushController(
 	)
 	@ApiResponse(responseCode = "401", description = "Not logged in", content = [Content()])
 	fun unregister(
-		@Parameter(description = "The app's UnifiedPush instance")
+		@Parameter(description = "The app's UnifiedPush instance", schema = Schema(pattern = INSTANCE_ID))
 		@PathVariable
-		@Pattern(regexp = INSTANCE_ID)
 		instanceId: String,
-	) = service.unregister(instanceId)
+	) {
+		checkInstanceId(instanceId)
+		service.unregister(instanceId)
+	}
+
+	// Checked here rather than with @Pattern: method validation would report body field errors under "request".
+	private fun checkInstanceId(instanceId: String) {
+		if (!INSTANCE_ID_REGEX.matches(instanceId)) {
+			throw InvalidRequestException("instanceId", "must be 1 to 128 letters, digits, '.', '_' or '-'")
+		}
+	}
 
 	private companion object {
 		const val PROBLEM_JSON = MediaType.APPLICATION_PROBLEM_JSON_VALUE
-		const val INSTANCE_ID = "[A-Za-z0-9._-]{1,128}"
+		const val INSTANCE_ID = "^[A-Za-z0-9._-]{1,128}$"
+		val INSTANCE_ID_REGEX = Regex(INSTANCE_ID)
 	}
 }
 

@@ -4,6 +4,8 @@ import ch.sonensei.cockpit.core.events.domain.ChangeEventPublisher
 import ch.sonensei.cockpit.core.events.domain.ChangeOp
 import ch.sonensei.cockpit.core.events.domain.ClientNotification
 import ch.sonensei.cockpit.core.items.domain.ItemType
+import ch.sonensei.cockpit.core.push.domain.PushKind
+import ch.sonensei.cockpit.core.push.domain.PushMessage
 import ch.sonensei.cockpit.mail.model.MailAccount
 import ch.sonensei.cockpit.mail.model.MailAccountType
 import ch.sonensei.cockpit.mail.model.MailAddress
@@ -16,7 +18,6 @@ import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
 import io.mockk.every
 import io.mockk.mockk
-import io.mockk.slot
 import io.mockk.verify
 import org.junit.jupiter.api.Test
 import org.springframework.context.ApplicationEventPublisher
@@ -62,12 +63,27 @@ class NewMailAnnouncerTests {
 		return messages.map { it.id }
 	}
 
+	/** The published events: the SSE notification, then the device push. */
+	private fun published(): List<Any> {
+		val published = mutableListOf<Any>()
+		verify(exactly = 2) { events.publishEvent(capture(published)) }
+		return published
+	}
+
 	private fun notification(): NewMailNotification {
-		val event = slot<Any>()
-		verify(exactly = 1) { events.publishEvent(capture(event)) }
-		val published = event.captured.shouldBeInstanceOf<ClientNotification>()
+		val published = published()[0].shouldBeInstanceOf<ClientNotification>()
 		published.name shouldBe NewMailAnnouncer.EVENT_NAME
 		return published.data.shouldBeInstanceOf<NewMailNotification>()
+	}
+
+	@Test
+	fun `announced mail is pushed to the devices with the newest message's id only`() {
+		val older = message(1, receivedAt = now.minus(Duration.ofMinutes(5)))
+		val newer = message(2, receivedAt = now)
+
+		announcer.announce(account, inbox, stored(older, newer))
+
+		published()[1] shouldBe PushMessage(PushKind.MAIL, newer.id)
 	}
 
 	@Test

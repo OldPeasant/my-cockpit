@@ -199,6 +199,7 @@ export type { TokenResponse } from './models/token-response';
 export type { TotpEnrollmentResponse } from './models/totp-enrollment-response';
 export type { TrashItemResponse } from './models/trash-item-response';
 export type { TrashPageResponse } from './models/trash-page-response';
+export type { UnifiedPushRegistrationRequest } from './models/unified-push-registration-request';
 export type { UpdateAreaRequest } from './models/update-area-request';
 export type { UpdateChecklistItemRequest } from './models/update-checklist-item-request';
 export type { UpdateMailAccountRequest } from './models/update-mail-account-request';

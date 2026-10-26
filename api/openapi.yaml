@@ -38,6 +38,12 @@ tags:
     \ Mail server failures are 502 (503 when the account's connections are busy) with\
     \ an `errorCode`."
   name: Mail messages
+- description: "Push registrations. When a reminder fires or new mail arrives, the\
+    \ server POSTs a push to every registered UnifiedPush endpoint. Its payload is\
+    \ `{\"kind\":\"reminder\"|\"mail\",\"id\":\"<uuid>\"}` (the reminder's id, or\
+    \ the newest new message's), never item contents; with Web Push keys it is encrypted\
+    \ (RFC 8291, `aes128gcm`). Endpoints answering 404 or 410 are removed."
+  name: Push
 - description: "IMAP/SMTP accounts with password, and Google/Microsoft accounts through\
     \ an OAuth connection (XOAUTH2). Passwords are write-only. Changes send `change`\
     \ events of type `MAIL_ACCOUNT` and `MAIL_FOLDER`."
@@ -7232,6 +7238,64 @@ paths:
       summary: Order the project's tasks
       tags:
       - Projects
+  /api/v1/push/unifiedpush/{instanceId}:
+    delete:
+      description: "Idempotent: an instance without an endpoint answers 204 as well."
+      operationId: unregisterUnifiedPush
+      parameters:
+      - description: The app's UnifiedPush instance
+        in: path
+        name: instanceId
+        required: true
+        schema:
+          type: string
+          pattern: "^[A-Za-z0-9._-]{1,128}$"
+      responses:
+        "204":
+          description: Removed (or there was nothing to remove)
+        "400":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: Invalid instance id
+        "401":
+          description: Not logged in
+      summary: Remove the UnifiedPush endpoint of an instance
+      tags:
+      - Push
+    put:
+      description: "Idempotent: replaces the endpoint and keys the instance registered\
+        \ before."
+      operationId: registerUnifiedPush
+      parameters:
+      - description: The app's UnifiedPush instance
+        in: path
+        name: instanceId
+        required: true
+        schema:
+          type: string
+          pattern: "^[A-Za-z0-9._-]{1,128}$"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UnifiedPushRegistrationRequest"
+        required: true
+      responses:
+        "204":
+          description: Registered
+        "400":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: "Invalid instance id, endpoint or keys"
+        "401":
+          description: Not logged in
+      summary: Register or update the UnifiedPush endpoint of an instance
+      tags:
+      - Push
   /api/v1/reminders:
     get:
       description: "All reminders of the item, fired or not, earliest first."
@@ -14444,6 +14508,28 @@ components:
           description: Cursor of the next page; absent on the last page
       required:
       - items
+    UnifiedPushRegistrationRequest:
+      type: object
+      properties:
+        auth:
+          type: string
+          description: "Web Push authentication secret (base64url, 16 bytes); together\
+            \ with `p256dh`"
+          maxLength: 64
+          minLength: 0
+        endpoint:
+          type: string
+          description: The endpoint URL the distributor gave the app
+          maxLength: 2048
+          minLength: 0
+        p256dh:
+          type: string
+          description: "Web Push public key (base64url, uncompressed P-256 point);\
+            \ together with `auth`"
+          maxLength: 128
+          minLength: 0
+      required:
+      - endpoint
     UpdateAreaRequest:
       type: object
       description: Changes to an area; fields not sent stay unchanged

@@ -98,10 +98,11 @@ object WebPushEncryption {
 	private fun hmac(
 		key: ByteArray,
 		data: ByteArray,
-	): ByteArray = Mac.getInstance("HmacSHA256").run {
-		init(SecretKeySpec(key, "HmacSHA256"))
-		doFinal(data)
-	}
+	): ByteArray =
+		Mac.getInstance("HmacSHA256").run {
+			init(SecretKeySpec(key, "HmacSHA256"))
+			doFinal(data)
+		}
 
 	private operator fun ByteArray.plus(byte: Int): ByteArray = this + byte.toByte()
 

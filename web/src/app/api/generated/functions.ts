@@ -339,6 +339,10 @@ export type { CompleteOAuthConnection$Params as CompleteOAuthConnection$Params }
 export { completeOAuthConnection as completeOAuthConnection } from './fn/o-auth/complete-o-auth-connection';
 export type { StartOAuthConnection$Params as StartOAuthConnection$Params } from './fn/o-auth/start-o-auth-connection';
 export { startOAuthConnection as startOAuthConnection } from './fn/o-auth/start-o-auth-connection';
+export type { RegisterUnifiedPush$Params as RegisterUnifiedPush$Params } from './fn/push/register-unified-push';
+export { registerUnifiedPush as registerUnifiedPush } from './fn/push/register-unified-push';
+export type { UnregisterUnifiedPush$Params as UnregisterUnifiedPush$Params } from './fn/push/unregister-unified-push';
+export { unregisterUnifiedPush as unregisterUnifiedPush } from './fn/push/unregister-unified-push';
 export type { ListReminders$Params as ListReminders$Params } from './fn/reminders/list-reminders';
 export { listReminders as listReminders } from './fn/reminders/list-reminders';
 export type { CreateReminder$Params as CreateReminder$Params } from './fn/reminders/create-reminder';
