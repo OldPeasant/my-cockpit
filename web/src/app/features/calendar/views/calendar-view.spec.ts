@@ -1046,6 +1046,125 @@ describe('CalendarView', () => {
     });
   });
 
+  describe('keyboard access to the time grid', () => {
+    type Overflow = Partial<Pick<CSSStyleDeclaration, 'overflowX' | 'overflowY'>>;
+
+    /**
+     * A fake FullCalendar time-grid scroller, `<div role=rowgroup><div style="overflow-...">`, inside the host's
+     * full-calendar element (or `container`). Like FullCalendar's `Scroller`, it sets `overflowX`/`overflowY`
+     * inline; the default is its vertical scroller.
+     */
+    function scroller(
+      overflow: Overflow = { overflowX: 'hidden', overflowY: 'auto' },
+      parentRole: string | null = 'rowgroup',
+      container: Element = root.querySelector('full-calendar')!,
+    ): { group: HTMLElement; el: HTMLElement } {
+      const group = document.createElement('div');
+      if (parentRole) group.setAttribute('role', parentRole);
+      const el = document.createElement('div');
+      Object.assign(el.style, overflow);
+      group.append(el);
+      container.append(group);
+      return { group, el };
+    }
+
+    async function datesSet(): Promise<void> {
+      options()!.datesSet!(week());
+      // The patch runs in a timeout after FullCalendar has rendered.
+      await settle();
+    }
+
+    it('makes a scroller inside a rowgroup a focusable rowgroup and its parent presentational', async () => {
+      await render();
+      const { group, el } = scroller();
+      await datesSet();
+      expect(el.getAttribute('role')).toBe('rowgroup');
+      expect(el.tabIndex).toBe(0);
+      expect(el.getAttribute('tabindex')).toBe('0');
+      expect(group.getAttribute('role')).toBe('none');
+    });
+
+    it('also patches a scroller with overflow-y scroll that does not overflow (yet)', async () => {
+      await render();
+      const { group, el } = scroller({ overflowY: 'scroll' });
+      // jsdom lays out nothing: scrollHeight == clientHeight == 0.
+      expect(el.scrollHeight).toBeLessThanOrEqual(el.clientHeight);
+      await datesSet();
+      expect(el.getAttribute('tabindex')).toBe('0');
+      expect(el.getAttribute('role')).toBe('rowgroup');
+      expect(group.getAttribute('role')).toBe('none');
+    });
+
+    it('changes nothing on a second datesSet', async () => {
+      await render();
+      const { group, el } = scroller();
+      await datesSet();
+      const before = group.outerHTML;
+      options()!.datesSet!(nextWeek());
+      await settle();
+      expect(group.outerHTML).toBe(before);
+      expect(group.getAttribute('role')).toBe('none');
+      expect(el.getAttribute('role')).toBe('rowgroup');
+      expect(el.getAttribute('tabindex')).toBe('0');
+    });
+
+    it('leaves scrollers alone whose parent is no rowgroup', async () => {
+      await render();
+      const plain = scroller(undefined, null);
+      const grid = scroller(undefined, 'grid');
+      await datesSet();
+      for (const { el } of [plain, grid]) {
+        expect(el.hasAttribute('tabindex')).toBe(false);
+        expect(el.hasAttribute('role')).toBe(false);
+      }
+      expect(plain.group.hasAttribute('role')).toBe(false);
+      expect(grid.group.getAttribute('role')).toBe('grid');
+    });
+
+    it('leaves scrollers alone that already have a tabindex', async () => {
+      await render();
+      const { group, el } = scroller();
+      el.setAttribute('tabindex', '-1');
+      await datesSet();
+      expect(el.getAttribute('tabindex')).toBe('-1');
+      expect(el.hasAttribute('role')).toBe(false);
+      expect(group.getAttribute('role')).toBe('rowgroup');
+    });
+
+    it('leaves elements alone that do not scroll vertically', async () => {
+      await render();
+      // FullCalendar's horizontal scroller and a cropping (overflow hidden) element.
+      const hidden = scroller({ overflowX: 'hidden', overflowY: 'hidden' });
+      const horizontal = scroller({ overflowX: 'auto', overflowY: 'hidden' });
+      await datesSet();
+      for (const { group, el } of [hidden, horizontal]) {
+        expect(el.hasAttribute('tabindex')).toBe(false);
+        expect(el.hasAttribute('role')).toBe(false);
+        expect(group.getAttribute('role')).toBe('rowgroup');
+      }
+    });
+
+    it('leaves scrollers outside the calendar alone', async () => {
+      await render();
+      const { group, el } = scroller(undefined, 'rowgroup', root);
+      await datesSet();
+      expect(el.hasAttribute('tabindex')).toBe(false);
+      expect(group.getAttribute('role')).toBe('rowgroup');
+    });
+
+    it('names the today button with its visible text', async () => {
+      await render();
+      const today = options()!.buttons!['today']!;
+      expect(today.text).toBe('Today');
+      expect(today.hint).toContain('Today');
+      await settle();
+      const button = [...root.querySelectorAll<HTMLButtonElement>('full-calendar button')].find(
+        (b) => b.textContent!.trim() === 'Today',
+      )!;
+      expect(button.getAttribute('title') ?? button.getAttribute('aria-label')).toContain('Today');
+    });
+  });
+
   describe('linked event', () => {
     it('shows the date of the event of the URL and opens it once', async () => {
       await render({ event: 'e1' });
