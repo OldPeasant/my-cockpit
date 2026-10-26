@@ -18,3 +18,4 @@ CardDavAccountService, CardDavContactsSync.sync/createContact) and create contac
 
 ## Notes
 - ASSUMPTION (2026-10-26 13:28+0100 by dell26/agent-1): CardDAV account API at /api/v1/contacts/carddav-accounts (list/get/add/delete, POST /{id}/sync, POST /{id}/contacts to create a contact there); no edit endpoint: changing URL or password means removing and adding the account again
+- ASSUMPTION (2026-10-26 13:28+0100 by dell26/agent-1): Creating a contact in a CardDAV account whose address book cannot be discovered answers 409 with the CardDAV error as detail (no 502 ApiException exists in core/web)
