@@ -1,0 +1,37 @@
+{
+  "schema": 1,
+  "task": "i18n-german",
+  "reviewed_revision": "9e1c7c073117ad1b9bca0b465d60bd7f5dedbd0b",
+  "helpers": {
+    "test-writer": {"status": "completed", "report": "reviews/i18n-german/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/i18n-german/review.md"},
+    "fixer": {"status": "completed", "report": "reviews/i18n-german/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P1", "disposition": "fixed",
+     "note": "capture.syntaxHint keeps !today/!tomorrow literally"},
+    {"id": "TW-1", "source": "test-writer", "severity": "P1", "disposition": "fixed",
+     "note": "same defect as CR-1; spec test now passes"},
+    {"id": "CR-2", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "review.lastDays reads '[ICU] her'"},
+    {"id": "CR-3", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "review nav is Wochenrückblick on web and Android"},
+    {"id": "CR-4", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "Waiting For is 'Warten auf' everywhere"},
+    {"id": "CR-5", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "mail inbox = Posteingang, GTD inbox = Eingang/GTD-Eingang"},
+    {"id": "CR-6", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "glossary terms unified across platforms"},
+    {"id": "CR-7", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "projects_empty quotes „Zum Projekt“"},
+    {"id": "CR-8", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "Strg/Umschalt instead of Ctrl/Shift"}
+  ],
+  "validation": [
+    {"command": "cd web && npx ng test --watch=false --include src/locale/messages-de.spec.ts", "result": "pass"},
+    {"command": "cd web && npm run build:de", "result": "pass"},
+    {"command": "cd android && ./gradlew lintDebug --rerun-tasks", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
