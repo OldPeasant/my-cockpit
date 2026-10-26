@@ -30,3 +30,4 @@ already done, until the 1800 s `--timeout` killed it.
   a session without a result is not ended early. `sh scripts/check.sh` passes
 
 ## Notes
+- ASSUMPTION (2026-10-26 01:00+0100 by dell26/agent-2): Background tasks are detected from stream-json only: an Agent/Task tool_use (unless run_in_background:false) or Bash run_in_background:true whose tool_result mentions background/async/agentId counts as pending, and each result with origin.kind task-notification settles one. If this over-counts, the session just falls back to --timeout (safe); open tool calls (tool_use without tool_result) and any non-result stream-json event after a result also block the early end.
