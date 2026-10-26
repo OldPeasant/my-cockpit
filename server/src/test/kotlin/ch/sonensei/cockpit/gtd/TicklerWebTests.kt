@@ -396,6 +396,19 @@ class TicklerWebTests(
 	}
 
 	@Test
+	fun `a scheduled task moved to Next by hand gets no marker and is not scheduled for today`() {
+		val dentist = create("""{"title":"Book the dentist","list":"SCHEDULED","scheduledDate":"2026-03-02"}""")
+		move(dentist, """{"list":"NEXT"}""")
+		task(dentist).isAbsent("releasedOn") shouldBe true
+
+		clock.advance(Duration.ofDays(1))
+		tickler.run() shouldBe 0
+		ids("?scheduled=today").shouldBeEmpty()
+		task(dentist).isAbsent("releasedOn") shouldBe true
+		task(dentist).isAbsent("scheduledDate") shouldBe true
+	}
+
+	@Test
 	fun `an unknown scheduled filter is a 400`() {
 		mockMvc.get("$BASE?scheduled=tomorrow").andExpect {
 			status { isBadRequest() }
