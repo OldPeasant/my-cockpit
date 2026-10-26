@@ -11,7 +11,8 @@ lease_until: 2026-10-26T01:15:18Z
 If the first load of a GTD list fails for a reason other than being offline (4xx, unparsable body, disk full), Next/Today show "Loading…" forever (review CR-4 of and-next-today). TaskRepository.observe drops its refresh result.
 
 ## Acceptance criteria
-- [ ] gtd/data exposes the last refresh failure; Next and Today show an error with a retry button instead of endless loading
+- [x] gtd/data exposes the last refresh failure; Next and Today show an error with a retry button instead of endless loading
+  - verified (2026-10-26 01:59+0100 by dell26/agent-1): Read+tests on eb5e289d0: GtdConnectivity.failure(view) -> Cached.failure; NextViewModel/TodayViewModel loadFailed/firstLoadFailed/retry(); NextScreen/TodayScreen show LoadFailed (TaskListTags.ERROR) + Retry (TaskListTags.RETRY) instead of Loading; covered by NextScreenTest/TodayScreenTest/NextRouteTest/TodayRouteTest (Robolectric compose) -> pass
 - [ ] `cd android && ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.gtd.*'` passes, with tests for the failure and retry paths
 
 ## Notes
