@@ -22,7 +22,6 @@ import todayRoutes from './today.routes';
 
 const YESTERDAY = '2026-10-19';
 const TODAY = '2026-10-20';
-const TOMORROW = '2026-10-21';
 
 function task(id: string, title: string, fields: Partial<TaskResponse> = {}): TaskResponse {
   return {
@@ -165,7 +164,7 @@ describe('TodayView', () => {
     }
   }
 
-  const call = (key: 'due' | 'list', value: string) =>
+  const call = (key: 'due' | 'scheduled', value: string) =>
     taskCalls.filter((c) => c.params[key] === value).at(-1)!;
 
   /** Answers the three task requests (in reverse order, so the view can't rely on order). */
@@ -174,7 +173,7 @@ describe('TodayView', () => {
     due: TaskResponse[],
     scheduled: TaskResponse[],
   ): Promise<void> {
-    call('list', 'SCHEDULED').resolve({ items: scheduled });
+    call('scheduled', 'today').resolve({ items: scheduled });
     call('due', 'today').resolve({ items: due });
     call('due', 'overdue').resolve({ items: overdue });
     await refresh();
@@ -195,7 +194,7 @@ describe('TodayView', () => {
     expect(taskCalls.map((c) => c.params)).toEqual([
       { due: 'overdue', cursor: undefined, limit: TASK_PAGE_SIZE },
       { due: 'today', cursor: undefined, limit: TASK_PAGE_SIZE },
-      { list: 'SCHEDULED', cursor: undefined, limit: TASK_PAGE_SIZE },
+      { scheduled: 'today', cursor: undefined, limit: TASK_PAGE_SIZE },
     ]);
     expect(root.querySelector('h1')?.textContent?.trim()).toBe('Today');
     expect(root.querySelector('.date')?.textContent?.trim()).toBe('Tuesday, October 20, 2026');
@@ -211,7 +210,7 @@ describe('TodayView', () => {
     await refresh();
     expect(text()).toContain('Loading today…');
 
-    call('list', 'SCHEDULED').resolve({ items: [] });
+    call('scheduled', 'today').resolve({ items: [] });
     await refresh();
     expect(text()).not.toContain('Loading today…');
   });
@@ -270,31 +269,52 @@ describe('TodayView', () => {
     expect(root.querySelectorAll('app-task-row')).toHaveLength(3);
   });
 
-  it('shows scheduled tasks dated today or earlier, not later ones or undated ones', async () => {
+  it('keeps tasks the server released to Next today in Scheduled for today', async () => {
+    const released = task('t-mail', 'Sort the old mail', { releasedOn: TODAY, position: 0 });
     configure();
     await render();
-    await answer(
-      [],
-      [],
-      [
-        task('t-past', 'Sort the old mail', { list: 'SCHEDULED', scheduledDate: YESTERDAY }),
-        WATER_PLANTS,
-        task('t-future', 'Prepare the trip', { list: 'SCHEDULED', scheduledDate: TOMORROW }),
-        task('t-undated', 'Undated scheduled task', { list: 'SCHEDULED' }),
-      ],
-    );
+    await answer([], [], [released, WATER_PLANTS]);
 
     expect(titlesIn('scheduled')).toEqual(['Sort the old mail', 'Water the plants']);
+  });
+
+  it('shows a released task that is also due today only once, under Due today', async () => {
+    const releasedAndDue = task('t-call', 'Call Alice Example', {
+      releasedOn: TODAY,
+      dueDate: TODAY,
+    });
+    configure();
+    await render();
+    await answer([], [releasedAndDue], [releasedAndDue, WATER_PLANTS]);
+
+    expect(titlesIn('due')).toEqual(['Call Alice Example']);
+    expect(titlesIn('scheduled')).toEqual(['Water the plants']);
+  });
+
+  it('drops a released task from Scheduled for today when it is completed', async () => {
+    const released = task('t-mail', 'Sort the old mail', { releasedOn: TODAY });
+    configure();
+    await render();
+    await answer([], [], [released]);
+
+    root
+      .querySelector<HTMLInputElement>(
+        'section[aria-labelledby="today-scheduled"] input[type=checkbox]',
+      )!
+      .click();
+    await refresh();
+
+    expect(api.invoke).toHaveBeenCalledWith(
+      completeTask,
+      expect.objectContaining({ id: released.id }),
+    );
+    expect(sectionIds()).toEqual([]);
   });
 
   it('says there is nothing today and links to the next actions', async () => {
     configure();
     await render();
-    await answer(
-      [],
-      [],
-      [task('t-future', 'Prepare the trip', { list: 'SCHEDULED', scheduledDate: TOMORROW })],
-    );
+    await answer([], [], []);
 
     expect(sectionIds()).toEqual([]);
     expect(text()).toContain('Nothing overdue, due or scheduled today.');
@@ -308,7 +328,7 @@ describe('TodayView', () => {
     await render();
     call('due', 'overdue').resolve({ items: [RENEW_PASSPORT] });
     call('due', 'today').reject(new Error('503'));
-    call('list', 'SCHEDULED').resolve({ items: [] });
+    call('scheduled', 'today').resolve({ items: [] });
     await refresh();
 
     expect(root.querySelector('[role=alert]')?.textContent).toContain(
@@ -331,7 +351,7 @@ describe('TodayView', () => {
     await render();
     call('due', 'overdue').reject(new Error('503'));
     call('due', 'today').resolve({ items: [PAY_INVOICE] });
-    call('list', 'SCHEDULED').reject(new Error('503'));
+    call('scheduled', 'today').reject(new Error('503'));
     await refresh();
     expect(root.querySelector('[role=alert]')).not.toBeNull();
 
@@ -341,7 +361,7 @@ describe('TodayView', () => {
     const retried = taskCalls.slice(before);
     expect(retried.map((c) => c.params)).toEqual([
       { due: 'overdue', cursor: undefined, limit: TASK_PAGE_SIZE },
-      { list: 'SCHEDULED', cursor: undefined, limit: TASK_PAGE_SIZE },
+      { scheduled: 'today', cursor: undefined, limit: TASK_PAGE_SIZE },
     ]);
 
     retried[0].resolve({ items: [RENEW_PASSPORT] });
@@ -477,7 +497,7 @@ describe('TodayView', () => {
       await render();
       call('due', 'overdue').reject(new Error('503'));
       call('due', 'today').reject(new Error('503'));
-      call('list', 'SCHEDULED').reject(new Error('503'));
+      call('scheduled', 'today').reject(new Error('503'));
       await refresh();
 
       expect(root.querySelector('[role=alert]')).not.toBeNull();

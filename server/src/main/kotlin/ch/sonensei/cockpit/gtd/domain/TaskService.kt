@@ -166,7 +166,8 @@ class TaskService(
 
 	/**
 	 * Moves the task to another list (processing). Moving to WAITING sets `waitingSince` to today unless it was already
-	 * waiting; leaving WAITING clears the waiting-for fields, leaving SCHEDULED clears the scheduled date. A task that
+	 * waiting; leaving WAITING clears the waiting-for fields, leaving SCHEDULED clears the scheduled date, leaving NEXT
+	 * clears the release marker ([Task.releasedOn]). A task that
 	 * changes project goes to the end of its new project; a task without a project goes to the end of its new list; a
 	 * project task that only changes list keeps its position within the project.
 	 *
@@ -197,6 +198,7 @@ class TaskService(
 		return modify(id, checkVersion) { task ->
 			val oldList = task.list
 			task.list = move.list
+			if (move.list != oldList) task.releasedOn = null
 			move.projectId?.let { task.projectId = it }
 			task.scheduledDate = move.scheduledDate
 			task.ticklerDate = move.ticklerDate
@@ -215,7 +217,8 @@ class TaskService(
 	/**
 	 * Releases what is due today in the user's time zone (SPEC.md §5.1): open tasks whose tickler date has come go back
 	 * to the INBOX (their tickler, scheduled date and waiting-for fields are cleared), then open SCHEDULED tasks whose
-	 * date has come become NEXT actions (their scheduled date is cleared). A scheduled task in a tickler waits for the
+	 * date has come become NEXT actions (their scheduled date is cleared; [Task.releasedOn] keeps the day, for the Today
+	 * view's "scheduled for today", SPEC.md §5.3). A scheduled task in a tickler waits for the
 	 * tickler. Each moved task is announced as `UPDATED`. Runs from [TicklerJob] and
 	 * before tasks are read, so nothing depends on the job having run.
 	 *
@@ -227,6 +230,7 @@ class TaskService(
 		ticklers.forEach { task ->
 			task.ticklerDate = null
 			task.scheduledDate = null
+			task.releasedOn = null
 			task.waitingSince = null
 			task.waitingForContactId = null
 			task.waitingForText = null
@@ -235,6 +239,7 @@ class TaskService(
 		val scheduled = tasks.findDueScheduled(today)
 		scheduled.forEach { task ->
 			task.scheduledDate = null
+			task.releasedOn = today
 			moveTo(task, TaskList.NEXT)
 		}
 		return ticklers.size + scheduled.size
@@ -467,6 +472,15 @@ class TaskService(
 					)
 			}
 			filter.list?.let { predicates += cb.equal(root.get<TaskList>("list"), it) }
+			if (filter.scheduledToday) {
+				// Released to Next today, or still SCHEDULED up to today (not released yet).
+				val list = root.get<TaskList>("list")
+				predicates +=
+					cb.or(
+						cb.and(cb.equal(list, TaskList.NEXT), cb.equal(root.get<LocalDate>("releasedOn"), today())),
+						cb.and(cb.equal(list, TaskList.SCHEDULED), cb.lessThanOrEqualTo(root.get("scheduledDate"), today())),
+					)
+			}
 			filter.projectId?.let { predicates += cb.equal(root.get<UUID>("projectId"), it) }
 			filter.contextId?.let { predicates += cb.isMember(it, root.get<Collection<UUID>>("contextIds")) }
 			filter.energy?.let { predicates += cb.equal(root.get<Energy>("energy"), it) }

@@ -38,6 +38,12 @@ data class TaskResponse(
 	@get:Schema(description = "Local date in the user's time zone") val dueDate: LocalDate?,
 	@get:Schema(type = "string", format = "time", example = "14:30:00") val dueTime: LocalTime?,
 	val scheduledDate: LocalDate?,
+	@get:Schema(
+		description =
+			"The day the task moved from SCHEDULED to NEXT on its scheduled date (its `scheduledDate` is then cleared); " +
+				"`null` once it leaves NEXT",
+	)
+	val releasedOn: LocalDate?,
 	@get:Schema(description = "While set, the task is hidden; on that date it returns to the Inbox") val ticklerDate: LocalDate?,
 	val waitingForContactId: UUID?,
 	val waitingForText: String?,
@@ -66,6 +72,7 @@ data class TaskResponse(
 				dueDate = task.dueDate,
 				dueTime = task.dueTime,
 				scheduledDate = task.scheduledDate,
+				releasedOn = task.releasedOn,
 				ticklerDate = task.ticklerDate,
 				waitingForContactId = task.waitingForContactId,
 				waitingForText = task.waitingForText,

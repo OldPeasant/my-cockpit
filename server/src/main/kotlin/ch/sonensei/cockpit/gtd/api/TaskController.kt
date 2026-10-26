@@ -93,6 +93,14 @@ class TaskController(
 		)
 		@RequestParam(required = false)
 		due: String?,
+		@Parameter(
+			description =
+				"`today`: only tasks scheduled for today, i.e. released from SCHEDULED to NEXT today (see `releasedOn`) " +
+					"or still SCHEDULED for today or earlier",
+			schema = Schema(type = "string", allowableValues = ["today"]),
+		)
+		@RequestParam(required = false)
+		scheduled: String?,
 		@Parameter(description = "true: done tasks (Logbook) instead of open ones")
 		@RequestParam(required = false, defaultValue = "false")
 		completed: Boolean,
@@ -113,8 +121,12 @@ class TaskController(
 				DueFilter.entries.find { it.name.equals(value, ignoreCase = true) }
 					?: throw InvalidRequestException("due", "must be one of overdue, today, week")
 			}
+		if (scheduled != null && !scheduled.equals("today", ignoreCase = true)) {
+			throw InvalidRequestException("scheduled", "must be today")
+		}
 		val dates = dateRange(from, to)
-		val filter = TaskFilter(list, projectId, context, energy, creativity, maxMinutes, dueFilter, completed, dates)
+		val filter =
+			TaskFilter(list, projectId, context, energy, creativity, maxMinutes, dueFilter, completed, dates, scheduledToday = scheduled != null)
 		// The on-read check: what became due since the last tickler run is on its new list (SPEC.md §5.1).
 		tickler.run()
 		val page = tasks.list(filter, CursorRequest.of(cursor, limit))

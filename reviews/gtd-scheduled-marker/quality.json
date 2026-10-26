@@ -1,0 +1,21 @@
+{
+  "schema": 1,
+  "task": "gtd-scheduled-marker",
+  "reviewed_revision": "261d73c2e2dc9f26fe66aa361bfdbc70bdca2018",
+  "helpers": {
+    "test-writer": {"status": "completed", "report": "reviews/gtd-scheduled-marker/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/gtd-scheduled-marker/review.md"},
+    "fixer": {"status": "not_required", "reason": "final review has 0 findings, test-writer found no bugs; the earlier review's only finding (CR-1, P3, Android) is deferred to and-today-released"}
+  },
+  "fixes_required": false,
+  "findings": [
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P3", "disposition": "deferred",
+     "note": "earlier review revision: Android Today view still filters on scheduledDate; Android is outside this task's touches, follow-up task and-today-released"}
+  ],
+  "validation": [
+    {"command": "cd server && ./gradlew test --tests 'ch.sonensei.cockpit.gtd.*' --tests '*OpenApiContractTest' jacocoTestReport ktlintCheck", "result": "pass"},
+    {"command": "cd web && npx ng test --watch=false --include src/app/features/gtd/today/today-view.spec.ts --include src/app/features/gtd/data/task-store.spec.ts", "result": "pass"},
+    {"command": "cd web && npm run check", "result": "pass"},
+    {"command": "cd server && ./gradlew check (full server suite, at 28e44631, same patch as 261d73c2 except one test file)", "result": "pass"}
+  ]
+}

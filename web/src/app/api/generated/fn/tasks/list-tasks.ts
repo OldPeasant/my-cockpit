@@ -47,6 +47,11 @@ export interface ListTasks$Params {
   due?: 'overdue' | 'today' | 'week';
 
 /**
+ * `today`: only tasks scheduled for today, i.e. released from SCHEDULED to NEXT today (see `releasedOn`) or still SCHEDULED for today or earlier
+ */
+  scheduled?: 'today';
+
+/**
  * true: done tasks (Logbook) instead of open ones
  */
   completed?: boolean;
@@ -82,6 +87,7 @@ export function listTasks(http: HttpClient, rootUrl: string, params?: ListTasks$
     rb.query('creativity', params.creativity, {});
     rb.query('maxMinutes', params.maxMinutes, {});
     rb.query('due', params.due, {});
+    rb.query('scheduled', params.scheduled, {});
     rb.query('completed', params.completed, {});
     rb.query('from', params.from, {});
     rb.query('to', params.to, {});

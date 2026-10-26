@@ -77,6 +77,8 @@ data class TaskBackup(
 	val recurrenceMode: String?,
 	val nextOccurrenceId: UUID?,
 	val completedAt: Instant?,
+	/** Missing in backups made before the release marker existed. */
+	val releasedOn: LocalDate? = null,
 )
 
 /** One line of `data/checklist_items.jsonl`. */

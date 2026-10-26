@@ -75,6 +75,7 @@ export class TaskStore extends ListStore<TaskResponse, TaskQuery> {
           list: body.list,
           projectId: body.projectId ?? base.projectId,
           scheduledDate: body.list === 'SCHEDULED' ? body.scheduledDate : undefined,
+          releasedOn: body.list === base.list ? base.releasedOn : undefined,
           ticklerDate: body.ticklerDate,
           waitingForText: body.list === 'WAITING' ? body.waitingForText : undefined,
           waitingForContactId: body.list === 'WAITING' ? body.waitingForContactId : undefined,
@@ -207,6 +208,12 @@ export function matchesTask(task: TaskResponse, query: TaskQuery, today = localD
     if (window === 'overdue' && !(due < today)) return false;
     if (window === 'today' && due !== today) return false;
     if (window === 'week' && !(due >= today && due <= addDays(today, 6))) return false;
+  }
+  if (query.scheduled) {
+    // Released from SCHEDULED to Next today, or still SCHEDULED up to today (not released yet).
+    const released = task.list === 'NEXT' && task.releasedOn === today;
+    const pending = task.list === 'SCHEDULED' && !!task.scheduledDate && task.scheduledDate <= today;
+    if (!released && !pending) return false;
   }
   return true;
 }

@@ -603,6 +603,75 @@ describe('TaskStore', () => {
       scheduledDate: undefined,
     });
   });
+
+  it('drops the release marker of a task that leaves Next, keeps it within Next', async () => {
+    const done = store.load({});
+    const a = task('a', { releasedOn: '2026-10-20' });
+    callsOf(listTasks)[0].resolve(page([a]));
+    await done;
+
+    void store.move(a, { list: 'NEXT', projectId: 'p1' });
+    expect(store.find('a')).toMatchObject({ projectId: 'p1', releasedOn: '2026-10-20' });
+
+    void store.move(store.find('a')!, { list: 'SOMEDAY' });
+    expect(store.find('a')).toMatchObject({ list: 'SOMEDAY', releasedOn: undefined });
+  });
+
+  it('drops a released task from a scheduled-for-today list when it leaves Next, and brings it back on an error', async () => {
+    const today = localDate();
+    const done = store.load({ scheduled: 'today' });
+    const released = task('a', { releasedOn: today });
+    const pending = task('b', { list: 'SCHEDULED', scheduledDate: today, position: 2 });
+    callsOf(listTasks)[0].resolve(page([released, pending]));
+    await done;
+    expect(store.items().map((t) => t.id)).toEqual(['a', 'b']);
+
+    // Within Next (another project) it keeps its marker and stays.
+    void store.move(released, { list: 'NEXT', projectId: 'p1' });
+    expect(store.items().map((t) => t.id)).toEqual(['a', 'b']);
+
+    const moved = store.move(store.find('a')!, { list: 'SOMEDAY' });
+    expect(store.items().map((t) => t.id)).toEqual(['b']);
+    callsOf(moveTask)[1].reject(new Error('503'));
+    await expect(moved).rejects.toThrow('503');
+    expect(store.items().map((t) => t.id)).toContain('a');
+    expect(store.find('a')).toMatchObject({ list: 'NEXT', releasedOn: today });
+  });
+
+  it('refetches scheduled for today on a task event, so a task the server released shows up', async () => {
+    const today = localDate();
+    const done = store.load({ scheduled: 'today' });
+    const pending = task('b', { list: 'SCHEDULED', scheduledDate: today });
+    callsOf(listTasks)[0].resolve(page([pending]));
+    await done;
+
+    // The tickler job released it: Next, no scheduled date, marked as released today.
+    changes.next({ type: 'TASK', op: 'UPDATED', id: 'b', at: '2026-10-20T00:00:01Z' });
+    const refetch = callsOf(listTasks)[1];
+    expect(refetch.params).toEqual({
+      scheduled: 'today',
+      cursor: undefined,
+      limit: TASK_PAGE_SIZE,
+    });
+    refetch.resolve(page([task('b', { releasedOn: today, version: 2 })]));
+    await settle();
+
+    expect(store.items()).toEqual([
+      expect.objectContaining({ id: 'b', list: 'NEXT', releasedOn: today }),
+    ]);
+  });
+
+  it('a scheduled task moved to Next by hand is no longer scheduled for today', async () => {
+    const today = localDate();
+    const done = store.load({ scheduled: 'today' });
+    const pending = task('b', { list: 'SCHEDULED', scheduledDate: today });
+    callsOf(listTasks)[0].resolve(page([pending]));
+    await done;
+
+    void store.move(pending, { list: 'NEXT' });
+    expect(store.items()).toEqual([]);
+    expect(store.find('b')).toBeUndefined();
+  });
 });
 
 describe('matchesTask', () => {
@@ -644,6 +713,41 @@ describe('matchesTask', () => {
     expect(matchesTask(due('2026-10-19'), { due: 'today' }, today)).toBe(false);
     expect(matchesTask(due('2026-10-20'), { due: 'week' }, today)).toBe(true);
     expect(matchesTask(due('2026-10-19'), { due: 'week' }, today)).toBe(false);
+  });
+
+  it('matches scheduled for today: released to Next today or still scheduled up to today', () => {
+    const scheduledToday = { scheduled: 'today' } as const;
+    const released = (releasedOn: string, fields: Partial<TaskResponse> = {}) =>
+      task('a', { releasedOn, ...fields });
+    expect(matchesTask(released('2026-10-20'), scheduledToday, today)).toBe(true);
+    expect(matchesTask(released('2026-10-19'), scheduledToday, today)).toBe(false);
+    expect(matchesTask(released('2026-10-20', { list: 'SOMEDAY' }), scheduledToday, today)).toBe(
+      false,
+    );
+    expect(matchesTask(task('b'), scheduledToday, today)).toBe(false);
+    const scheduled = (scheduledDate?: string) => task('c', { list: 'SCHEDULED', scheduledDate });
+    expect(matchesTask(scheduled('2026-10-20'), scheduledToday, today)).toBe(true);
+    expect(matchesTask(scheduled('2026-10-19'), scheduledToday, today)).toBe(true);
+    expect(matchesTask(scheduled('2026-10-21'), scheduledToday, today)).toBe(false);
+    expect(matchesTask(scheduled(), scheduledToday, today)).toBe(false);
+  });
+
+  it('combines scheduled for today with the list, completion and other filters', () => {
+    const released = task('a', { releasedOn: today, energy: 'LOW' });
+    expect(matchesTask(released, { scheduled: 'today', list: 'NEXT' }, today)).toBe(true);
+    expect(matchesTask(released, { scheduled: 'today', list: 'SCHEDULED' }, today)).toBe(false);
+    expect(matchesTask(released, { scheduled: 'today', energy: 'LOW' }, today)).toBe(true);
+    expect(matchesTask(released, { scheduled: 'today', energy: 'HIGH' }, today)).toBe(false);
+    const done = task('b', { releasedOn: today, completedAt: '2026-10-20T10:00:00Z' });
+    expect(matchesTask(done, { scheduled: 'today' }, today)).toBe(false);
+    expect(matchesTask(done, { scheduled: 'today', completed: true }, today)).toBe(true);
+    // A pending scheduled task in a tickler stays hidden until its tickler date.
+    const inTickler = task('c', {
+      list: 'SCHEDULED',
+      scheduledDate: today,
+      ticklerDate: '2026-10-22',
+    });
+    expect(matchesTask(inTickler, { scheduled: 'today' }, today)).toBe(false);
   });
 
   it('hides a task whose tickler date is still to come, on every list (server rule)', () => {

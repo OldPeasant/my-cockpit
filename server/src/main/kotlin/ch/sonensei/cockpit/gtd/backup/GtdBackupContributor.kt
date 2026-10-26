@@ -180,8 +180,8 @@ class GtdBackupContributor(
 		jdbc.update(
 			"""insert into task (id, created_at, updated_at, version, deleted_at, title, notes_md, list, project_id, position,
 			energy, creativity, time_estimate_min, due_date, due_time, scheduled_date, tickler_date, waiting_for_contact_id,
-			waiting_for_text, waiting_since, recurrence_rule, recurrence_mode, completed_at)
-			values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+			waiting_for_text, waiting_since, recurrence_rule, recurrence_mode, completed_at, released_on)
+			values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
 			task.id,
 			task.createdAt.timestamp(),
 			task.updatedAt.timestamp(),
@@ -205,6 +205,7 @@ class GtdBackupContributor(
 			task.recurrenceRule,
 			task.recurrenceMode,
 			task.completedAt?.timestamp(),
+			task.releasedOn,
 		)
 		task.contextIds.forEach { context ->
 			jdbc.update("insert into task_context (task_id, context_id) values (?, ?)", task.id, context)
@@ -289,6 +290,7 @@ class GtdBackupContributor(
 				recurrenceMode = rs.getString("recurrence_mode"),
 				nextOccurrenceId = rs.uuidOrNull("next_occurrence_id"),
 				completedAt = rs.instantOrNull("completed_at"),
+				releasedOn = rs.getObject("released_on", LocalDate::class.java),
 			)
 		}
 
