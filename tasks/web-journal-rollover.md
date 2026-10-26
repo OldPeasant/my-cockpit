@@ -15,7 +15,8 @@ state are dropped without a prompt when the user opens another day.
 ## Acceptance criteria
 - [x] /journal (Today) moves to the new day after midnight in the user's time zone (saving the old day first) and the heatmap includes it
   - verified (2026-10-26 10:37+0100 by dell26/agent-2): cd web && npx ng test --watch=false --include='src/app/features/journal/**/*.spec.ts' -> 6 files, 138 passed; journal-page.spec 'midnight' (fake Date+setInterval, DAY_CHECK_MS and visibilitychange): /journal saves the old day first (PUT If-Match), then shows 2026-10-26 as Today with the reloaded heatmap containing it; journal-dates.spec dayIn: Europe/Zurich vs UTC vs America/New_York day boundaries
-- [ ] Leaving a day whose edits are in conflict state asks before dropping them (keep mine / discard / stay)
+- [x] Leaving a day whose edits are in conflict state asks before dropping them (keep mine / discard / stay)
+  - verified (2026-10-26 10:37+0100 by dell26/agent-2): same journal spec run -> 138 passed; 'leaving a conflict' specs: canDeactivate guard asks LeavePrompt; stay keeps URL and edits, discard opens the other day without PUT, keep-mine GET+PUT If-Match then leaves, failed keep-mine stays, leaving the journal asks too; leave-dialog.spec: three buttons, Escape/backdrop = stay
 - [ ] A heatmap response that arrives after a newer load no longer overwrites the newer heatmap/today (review CR-3: `loadHeatmap()` ignores `loadSeq`)
 - [ ] Vitest specs cover all three; `cd web && npm run check` passes
 
