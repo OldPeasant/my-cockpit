@@ -38,7 +38,7 @@ None.
 
 ## Review notes
 
-- AC1: Both services split the `by lazy` delegate into a `Lazy<Path>` field plus a delegated property, and `destroy()`
+- AC1: Both services split the `by lazy` delegate into a Lazy field of type Path plus a delegated property, and `destroy()`
   (both already implement `DisposableBean`, so Spring calls it on context close) deletes the dir with
   `deleteRecursively()` only when `isInitialized()` is true. Destroying a service that was never used therefore creates
   no temp dir. `runCatching` keeps shutdown from failing, as with the existing zip cleanup. `RestoreService.destroy()`
