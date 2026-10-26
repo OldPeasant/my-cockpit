@@ -1,4 +1,12 @@
-import { addDays, excerpt, heatmapWeeks, isDate, isoWeekday, parseTags } from './journal-dates';
+import {
+  addDays,
+  dayIn,
+  excerpt,
+  heatmapWeeks,
+  isDate,
+  isoWeekday,
+  parseTags,
+} from './journal-dates';
 
 describe('journal dates', () => {
   describe('isoWeekday', () => {
@@ -176,6 +184,21 @@ describe('journal dates', () => {
     it('returns no tags for empty or whitespace-only text', () => {
       expect(parseTags('')).toEqual([]);
       expect(parseTags('  ,  , # ')).toEqual([]);
+    });
+  });
+
+  describe('dayIn', () => {
+    it("gives the day in the user's time zone, which passes midnight before or after UTC", () => {
+      const late = new Date('2026-10-25T23:30:00Z');
+      expect(dayIn('UTC', late)).toBe('2026-10-25');
+      expect(dayIn('Europe/Zurich', late)).toBe('2026-10-26');
+      expect(dayIn('America/New_York', new Date('2026-10-26T03:30:00Z'))).toBe('2026-10-25');
+    });
+
+    it("falls back to the browser's time zone for a missing or unknown one", () => {
+      const noon = new Date('2026-10-25T12:00:00Z');
+      expect(dayIn(undefined, noon)).toBe('2026-10-25');
+      expect(dayIn('Not/AZone', noon)).toBe('2026-10-25');
     });
   });
 });

@@ -15,12 +15,16 @@ import { ApiError } from '../../core/http';
 import { MarkdownEditor, withoutUploadPlaceholders } from '../notes/editor/markdown-editor';
 import { NoteMarkdownView } from '../notes/editor/note-markdown-view';
 import { SettingsService } from '../settings/settings.service';
-import { addDays, excerpt, isDate, isoWeekday, parseTags } from './journal-dates';
+import { addDays, dayIn, excerpt, isDate, isoWeekday, parseTags } from './journal-dates';
 import { JournalHeatmap } from './journal-heatmap';
 import { JournalDraft, JournalService } from './journal.service';
+import { LeavePrompt } from './leave-dialog';
 
 /** Wait after the last keystroke before saving. */
 export const AUTOSAVE_DEBOUNCE_MS = 1000;
+
+/** How often an open page checks whether the day changed (midnight in the user's time zone). */
+export const DAY_CHECK_MS = 60_000;
 
 /** Where the edits stand: saved, waiting for the debounce, saving, failed or in conflict. */
 export type SaveState = 'saved' | 'pending' | 'saving' | 'error' | 'conflict';
@@ -33,13 +37,17 @@ export const MOODS = [1, 2, 3, 4, 5] as const;
  * CodeMirror Markdown editor with images by paste or drop, its mood and tags, saved as you type
  * (debounced; the first edit creates the entry, later ones send `If-Match`). Above it the calendar
  * heatmap of the last year, which opens any day; beside it the entries of the same day in earlier
- * years. Days after today (in the user's time zone) cannot be written: they lead to today.
+ * years. Days after today (in the user's time zone) cannot be written: they lead to today. Left
+ * open past midnight, `/journal` moves on to the new day; leaving edits in conflict asks first.
  */
 @Component({
   selector: 'app-journal-page',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [JournalHeatmap, MarkdownEditor, MatButtonModule, NoteMarkdownView, RouterLink],
-  host: { '(window:beforeunload)': 'onBeforeUnload($event)' },
+  host: {
+    '(window:beforeunload)': 'onBeforeUnload($event)',
+    '(document:visibilitychange)': 'checkDay()',
+  },
   templateUrl: './journal-page.html',
   styleUrl: './journal-page.scss',
 })
@@ -48,6 +56,7 @@ export default class JournalPage {
   private readonly router = inject(Router);
   private readonly locale = inject(LOCALE_ID);
   private readonly settings = inject(SettingsService).settings;
+  private readonly leavePrompt = inject(LeavePrompt);
 
   protected readonly moods = MOODS;
   protected readonly journalLabel = $localize`:@@nav.journal:Journal`;
@@ -123,13 +132,26 @@ export default class JournalPage {
   private loadSeq = 0;
   /** Counts the route changes: while leaving waits, a newer route wins. */
   private openSeq = 0;
+  /** Counts the heatmap requests: only the newest one is shown. */
+  private heatmapSeq = 0;
+  /** Entries saved while a heatmap request runs: its answer may not have them yet. */
+  private readonly savedSince = new Map<string, JournalEntryResponse>();
+  /** The date of the route; null for `/journal` (today). */
+  private routeDate: string | null = null;
+  /** The load whose edits in conflict are being dropped ("Discard my edits"): leaving it asks no more. */
+  private discardSeq = -1;
 
   constructor() {
     inject(ActivatedRoute)
       .paramMap.pipe(takeUntilDestroyed())
-      .subscribe((params) => void this.open(params.get('date')));
+      .subscribe((params) => {
+        this.routeDate = params.get('date');
+        void this.open(this.routeDate);
+      });
+    const dayCheck = setInterval(() => void this.checkDay(), DAY_CHECK_MS);
     inject(DestroyRef).onDestroy(() => {
       this.destroyed = true;
+      clearInterval(dayCheck);
       void this.leave();
     });
   }
@@ -141,7 +163,7 @@ export default class JournalPage {
     this.loaded.set(false);
     try {
       if (!this.today()) await this.loadHeatmap();
-      if (seq !== this.loadSeq) return;
+      if (seq !== this.loadSeq || !this.today()) return;
       const today = this.today() ?? '';
       const date = this.date() || today;
       if (date > today) {
@@ -245,11 +267,14 @@ export default class JournalPage {
   /** Conflict: drop the local edits and show the entry as it is now. */
   protected async useTheirs(): Promise<void> {
     const seq = this.loadSeq;
+    this.discardSeq = seq;
     try {
       const entry = await this.service.get(this.date());
       if (seq === this.loadSeq) this.show(entry);
     } catch (error) {
       if (seq === this.loadSeq) this.saveError.set(message(error));
+    } finally {
+      if (this.discardSeq === seq) this.discardSeq = -1;
     }
   }
 
@@ -267,6 +292,42 @@ export default class JournalPage {
     } catch (error) {
       if (seq === this.loadSeq) this.saveError.set(message(error));
     }
+  }
+
+  /**
+   * Whether the day may be left for `next` (a date, null for today, undefined for another page).
+   * Edits in conflict are not saved by leaving: asks whether to save them, drop them or stay.
+   */
+  async canLeave(next: string | null | undefined): Promise<boolean> {
+    if (this.saveState() !== 'conflict' || this.discardSeq === this.loadSeq) return true;
+    if (next !== undefined && (next ?? this.today()) === this.date()) return true;
+    const choice = await this.leavePrompt.ask();
+    if (choice === 'discard') return true;
+    if (choice === 'stay' || this.saveState() !== 'conflict') return false;
+    await this.keepMine();
+    return this.saveState() === 'saved';
+  }
+
+  /**
+   * After midnight in the user's time zone (checked every minute and when the tab shows again),
+   * loads the heatmap with the new today; `/journal` then moves on to it, saving the old day first.
+   * Edits in conflict keep the old day, now under its date.
+   */
+  protected async checkDay(): Promise<void> {
+    const today = this.today();
+    if (!today || this.destroyed || dayIn(this.settings()?.timeZone) <= today) return;
+    try {
+      await this.loadHeatmap();
+    } catch {
+      return; // Checked again in a minute.
+    }
+    const now = this.today();
+    if (this.destroyed || now === today || this.routeDate !== null || this.date() !== today) return;
+    if (this.saveState() === 'conflict') {
+      void this.router.navigate(['/journal', today], { replaceUrl: true });
+      return;
+    }
+    await this.open(null);
   }
 
   protected onBeforeUnload(event: BeforeUnloadEvent): void {
@@ -328,10 +389,15 @@ export default class JournalPage {
     else if (!this.destroyed) this.schedule();
   }
 
+  /** Loads the heatmap and today; an answer after a newer request is ignored. */
   private async loadHeatmap(): Promise<void> {
+    const seq = ++this.heatmapSeq;
+    this.savedSince.clear();
     const heatmap = await this.service.heatmap();
+    if (seq !== this.heatmapSeq) return;
     this.heatmap.set(heatmap);
     this.today.set(heatmap.to);
+    for (const saved of this.savedSince.values()) this.markDay(saved);
   }
 
   private async loadOnThisDay(date: string, seq: number): Promise<void> {
@@ -389,6 +455,7 @@ export default class JournalPage {
 
   /** The saved entry's day in the heatmap, with its mood. */
   private markDay(saved: JournalEntryResponse): void {
+    this.savedSince.set(saved.date, saved);
     this.heatmap.update((heatmap) => {
       if (!heatmap || saved.date < heatmap.from || saved.date > heatmap.to) return heatmap;
       const day = { date: saved.date, mood: saved.mood };

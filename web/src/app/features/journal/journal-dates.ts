@@ -106,3 +106,22 @@ export function parseTags(text: string): string[] {
   }
   return tags;
 }
+
+const DAY_PARTS: Intl.DateTimeFormatOptions = { year: 'numeric', month: '2-digit', day: '2-digit' };
+
+/**
+ * The day (`yyyy-MM-dd`) of `now` in `timeZone` (IANA); in the browser's time zone when it has
+ * none or an unknown one.
+ */
+export function dayIn(timeZone: string | undefined, now = new Date()): string {
+  let format: Intl.DateTimeFormat;
+  try {
+    format = new Intl.DateTimeFormat('en', { timeZone, ...DAY_PARTS });
+  } catch {
+    format = new Intl.DateTimeFormat('en', DAY_PARTS);
+  }
+  const parts = Object.fromEntries(
+    format.formatToParts(now).map((part) => [part.type, part.value]),
+  );
+  return `${parts['year']}-${parts['month']}-${parts['day']}`;
+}
