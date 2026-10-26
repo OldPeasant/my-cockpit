@@ -24,3 +24,4 @@ on again later.
   `sh scripts/check.sh` passes
 
 ## Notes
+- ASSUMPTION (2026-10-26 09:44+0100 by dell26/agent-1): Microsoft off also stops mail push/poll of existing MICROSOFT accounts (small edit in mail/sync/MailPushService, outside touches) and refuses manual 'Sync now' of MICROSOFT calendar sources with 400; existing Microsoft OAuth connections, sources and accounts are kept, not deleted.
