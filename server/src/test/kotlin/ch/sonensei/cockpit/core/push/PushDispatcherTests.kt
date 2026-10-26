@@ -1,7 +1,12 @@
 package ch.sonensei.cockpit.core.push
 
+import ch.qos.logback.classic.Level
+import ch.qos.logback.classic.Logger
+import ch.qos.logback.classic.spi.ILoggingEvent
+import ch.qos.logback.core.read.ListAppender
 import ch.sonensei.cockpit.core.items.domain.ItemType
 import ch.sonensei.cockpit.core.persistence.UuidV7
+import ch.sonensei.cockpit.core.push.domain.PushDispatcher
 import ch.sonensei.cockpit.core.push.domain.PushKind
 import ch.sonensei.cockpit.core.push.domain.PushMessage
 import ch.sonensei.cockpit.core.push.domain.UnifiedPushService
@@ -23,9 +28,11 @@ import com.github.tomakehurst.wiremock.verification.LoggedRequest
 import io.kotest.matchers.collections.shouldContainExactlyInAnyOrder
 import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.AfterAll
+import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeAll
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
+import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.context.ApplicationEventPublisher
@@ -41,8 +48,18 @@ class PushDispatcherTests(
 	@Autowired private val transactions: TransactionTemplate,
 	@Autowired private val reminders: ReminderRepository,
 ) : PostgresTestBase() {
+	private val logger = LoggerFactory.getLogger(PushDispatcher::class.java) as Logger
+	private val appender = ListAppender<ILoggingEvent>()
+
+	@AfterEach
+	fun detachAppender() {
+		logger.detachAppender(appender)
+	}
+
 	@BeforeEach
 	fun setUp() {
+		appender.start()
+		logger.addAppender(appender)
 		repository.deleteAll()
 		reminders.deleteAll()
 		distributor.resetAll()
@@ -77,6 +94,20 @@ class PushDispatcherTests(
 			if (found.size >= count || System.nanoTime() > deadline) return found
 			Thread.sleep(20)
 		}
+	}
+
+	/**
+	 * Waits until the dispatcher logged the failed push to [instanceId]: its last step for that endpoint, so whatever the
+	 * failure path does (or does not do) to the registration has happened by then.
+	 */
+	private fun awaitFailureLogged(instanceId: String) {
+		val deadline = System.nanoTime() + 10_000_000_000
+		fun logged() =
+			appender.list.toList().any {
+				it.level == Level.WARN && it.formattedMessage.contains("UnifiedPush instance $instanceId failed")
+			}
+		while (!logged() && System.nanoTime() < deadline) Thread.sleep(20)
+		logged() shouldBe true
 	}
 
 	private fun awaitRemoved(instanceId: String) {
@@ -124,6 +155,8 @@ class PushDispatcherTests(
 		listOf("/ok", "/gone", "/missing", "/broken").forEach { requests(it, 1).size shouldBe 1 }
 		awaitRemoved("gone")
 		awaitRemoved("missing")
+		awaitFailureLogged("broken")
+		awaitFailureLogged("reset")
 		repository.findAll().map { it.instanceId } shouldContainExactlyInAnyOrder listOf("ok", "broken", "reset")
 	}
 
@@ -147,8 +180,10 @@ class PushDispatcherTests(
 	fun `an unreachable push server does not break the publisher`() {
 		service.register("down", "http://localhost:1/nothing", null)
 
+		// publishEvent returning normally is the "publisher not broken" part; then wait for the failed send itself.
 		events.publishEvent(ReminderFiredEvent(fired()))
 
+		awaitFailureLogged("down")
 		repository.findByInstanceId("down")?.instanceId shouldBe "down"
 	}
 
