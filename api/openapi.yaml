@@ -38,12 +38,6 @@ tags:
     \ Mail server failures are 502 (503 when the account's connections are busy) with\
     \ an `errorCode`."
   name: Mail messages
-- description: "Web Push (VAPID) for notifications without an open tab. A browser\
-    \ subscribes with the server's public key; the server then sends each `reminder`\
-    \ and `mail` SSE event to it as a push message `{\"event\": <name>, \"data\":\
-    \ <event data>}` (encrypted, RFC 8291). `data` is left out when the message would\
-    \ be too large. Subscriptions the push service reports gone (404/410) are removed."
-  name: Push
 - description: "Push registrations. When a reminder fires or new mail arrives, the\
     \ server POSTs a push to every registered UnifiedPush endpoint. Its payload is\
     \ `{\"kind\":\"reminder\"|\"mail\",\"id\":\"<uuid>\"}` (the reminder's id, or\
@@ -90,6 +84,12 @@ tags:
   name: Journal
 - description: "Habits with checks, streaks and completion stats"
   name: Habits
+- description: "Web Push (VAPID) for notifications without an open tab. A browser\
+    \ subscribes with the server's public key; the server then sends each `reminder`\
+    \ and `mail` SSE event to it as a push message `{\"event\": <name>, \"data\":\
+    \ <event data>}` (encrypted, RFC 8291). `data` is left out when the message would\
+    \ be too large. Subscriptions the push service reports gone (404/410) are removed."
+  name: Web Push
 paths:
   /api/v1/areas:
     get:
@@ -7267,7 +7267,7 @@ paths:
           description: Missing endpoint
       summary: Unsubscribe a browser
       tags:
-      - Push
+      - Web Push
     put:
       description: "Registers the browser's `PushSubscription` (its `toJSON()`). Idempotent:\
         \ the same endpoint again replaces its keys."
@@ -7289,7 +7289,7 @@ paths:
           description: "Endpoint not an https URL, or invalid keys"
       summary: Subscribe this browser
       tags:
-      - Push
+      - Web Push
   /api/v1/push/unifiedpush/{instanceId}:
     delete:
       description: "Idempotent: an instance without an endpoint answers 204 as well."
@@ -7362,7 +7362,7 @@ paths:
           description: The key
       summary: The server's VAPID public key
       tags:
-      - Push
+      - Web Push
   /api/v1/reminders:
     get:
       description: "All reminders of the item, fired or not, earliest first."

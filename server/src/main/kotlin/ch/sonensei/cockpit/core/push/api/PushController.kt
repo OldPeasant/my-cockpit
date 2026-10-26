@@ -24,7 +24,7 @@ import org.springframework.web.bind.annotation.RestController
 @RestController
 @RequestMapping("/api/v1/push")
 @Tag(
-	name = "Push",
+	name = "Web Push",
 	description =
 		"Web Push (VAPID) for notifications without an open tab. A browser subscribes with the server's public key; " +
 			"the server then sends each `reminder` and `mail` SSE event to it as a push message " +
