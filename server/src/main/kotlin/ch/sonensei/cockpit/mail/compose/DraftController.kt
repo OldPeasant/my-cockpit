@@ -5,8 +5,6 @@ import ch.sonensei.cockpit.core.web.InvalidRequestException
 import ch.sonensei.cockpit.mail.api.MailAddressResponse
 import ch.sonensei.cockpit.mail.api.MailAttachmentResponse
 import ch.sonensei.cockpit.mail.api.MailReadService
-import ch.sonensei.cockpit.mail.imap.MailConnectionError
-import ch.sonensei.cockpit.mail.imap.MailConnectionException
 import ch.sonensei.cockpit.mail.model.MailAddress
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.Parameter
@@ -263,17 +261,6 @@ class DraftController(
 		val max = limit ?: DEFAULT_CORRESPONDENTS
 		if (max !in 1..MAX_CORRESPONDENTS) throw InvalidRequestException("limit", "must be between 1 and $MAX_CORRESPONDENTS")
 		return CorrespondentListResponse(correspondents.recent(q, max).map { CorrespondentResponse(it.address, it.name, it.lastAt) })
-	}
-
-	@ExceptionHandler(MailConnectionException::class)
-	fun handleConnectionFailure(e: MailConnectionException): ResponseEntity<ProblemDetail> {
-		// The cause may hold server responses; keep it at DEBUG, never with credentials.
-		log.info("Mail server operation failed: {}", e.error)
-		log.debug("Mail server failure", e.cause)
-		val status = if (e.error == MailConnectionError.POOL_EXHAUSTED) HttpStatus.SERVICE_UNAVAILABLE else HttpStatus.BAD_GATEWAY
-		val problem = ProblemDetail.forStatusAndDetail(status, e.error.message)
-		problem.setProperty("errorCode", e.error.name)
-		return ResponseEntity.status(status).contentType(MediaType.APPLICATION_PROBLEM_JSON).body(problem)
 	}
 
 	@ExceptionHandler(MailSendRejectedException::class)

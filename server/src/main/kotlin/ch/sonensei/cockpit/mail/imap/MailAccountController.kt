@@ -22,14 +22,11 @@ import jakarta.validation.constraints.Min
 import jakarta.validation.constraints.NotBlank
 import jakarta.validation.constraints.NotNull
 import jakarta.validation.constraints.Size
-import org.slf4j.LoggerFactory
 import org.springframework.http.HttpHeaders
 import org.springframework.http.HttpStatus
 import org.springframework.http.MediaType
-import org.springframework.http.ProblemDetail
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.DeleteMapping
-import org.springframework.web.bind.annotation.ExceptionHandler
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PatchMapping
 import org.springframework.web.bind.annotation.PathVariable
@@ -56,8 +53,6 @@ class MailAccountController(
 	private val accounts: MailAccountService,
 	private val folders: MailFolderService,
 ) {
-	private val log = LoggerFactory.getLogger(javaClass)
-
 	@GetMapping(produces = [MediaType.APPLICATION_JSON_VALUE])
 	@Operation(operationId = "listMailAccounts", summary = "All mail accounts, by display name")
 	@ApiResponse(responseCode = "200", description = "The accounts (passwords are never returned)")
@@ -283,17 +278,6 @@ class MailAccountController(
 		folders
 			.overrideRole(id, folderId, request.role, request.automatic ?: false, ifMatch)
 			.let { ETags.ok(it.toResponse(), it.version) }
-
-	@ExceptionHandler(MailConnectionException::class)
-	fun handleConnectionFailure(e: MailConnectionException): ResponseEntity<ProblemDetail> {
-		// The cause may hold server responses; keep it at DEBUG, never with credentials.
-		log.info("Mail server operation failed: {}", e.error)
-		log.debug("Mail server failure", e.cause)
-		val status = if (e.error == MailConnectionError.POOL_EXHAUSTED) HttpStatus.SERVICE_UNAVAILABLE else HttpStatus.BAD_GATEWAY
-		val problem = ProblemDetail.forStatusAndDetail(status, e.error.message)
-		problem.setProperty("errorCode", e.error.name)
-		return ResponseEntity.status(status).contentType(MediaType.APPLICATION_PROBLEM_JSON).body(problem)
-	}
 
 	companion object {
 		const val BASE = "/api/v1/mail/accounts"

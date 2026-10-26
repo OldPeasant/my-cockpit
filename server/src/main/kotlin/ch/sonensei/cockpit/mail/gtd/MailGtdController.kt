@@ -1,8 +1,6 @@
 package ch.sonensei.cockpit.mail.gtd
 
 import ch.sonensei.cockpit.core.items.domain.ItemType
-import ch.sonensei.cockpit.mail.imap.MailConnectionError
-import ch.sonensei.cockpit.mail.imap.MailConnectionException
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.headers.Header
 import io.swagger.v3.oas.annotations.media.Content
@@ -10,13 +8,9 @@ import io.swagger.v3.oas.annotations.media.Schema
 import io.swagger.v3.oas.annotations.media.Schema.RequiredMode
 import io.swagger.v3.oas.annotations.responses.ApiResponse
 import io.swagger.v3.oas.annotations.tags.Tag
-import org.slf4j.LoggerFactory
 import org.springframework.http.HttpHeaders
-import org.springframework.http.HttpStatus
 import org.springframework.http.MediaType
-import org.springframework.http.ProblemDetail
 import org.springframework.http.ResponseEntity
-import org.springframework.web.bind.annotation.ExceptionHandler
 import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestMapping
@@ -31,8 +25,6 @@ import java.util.UUID
 class MailGtdController(
 	private val service: MailGtdService,
 ) {
-	private val log = LoggerFactory.getLogger(javaClass)
-
 	@PostMapping("/to-task", produces = [MediaType.APPLICATION_JSON_VALUE, PROBLEM_JSON])
 	@Operation(
 		operationId = "mailToTask",
@@ -83,17 +75,6 @@ class MailGtdController(
 	fun toNote(
 		@PathVariable id: UUID,
 	): ResponseEntity<MailGtdItemResponse> = created(service.toNote(id), "/api/v1/notes")
-
-	@ExceptionHandler(MailConnectionException::class)
-	fun handleConnectionFailure(e: MailConnectionException): ResponseEntity<ProblemDetail> {
-		// The cause may hold server responses; keep it at DEBUG, never with credentials.
-		log.info("Mail server operation failed: {}", e.error)
-		log.debug("Mail server failure", e.cause)
-		val status = if (e.error == MailConnectionError.POOL_EXHAUSTED) HttpStatus.SERVICE_UNAVAILABLE else HttpStatus.BAD_GATEWAY
-		val problem = ProblemDetail.forStatusAndDetail(status, e.error.message)
-		problem.setProperty("errorCode", e.error.name)
-		return ResponseEntity.status(status).contentType(MediaType.APPLICATION_PROBLEM_JSON).body(problem)
-	}
 
 	private fun created(
 		item: MailGtdItem,

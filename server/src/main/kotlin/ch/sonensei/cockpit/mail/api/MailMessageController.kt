@@ -2,8 +2,6 @@ package ch.sonensei.cockpit.mail.api
 
 import ch.sonensei.cockpit.core.web.CursorRequest
 import ch.sonensei.cockpit.core.web.ETags
-import ch.sonensei.cockpit.mail.imap.MailConnectionError
-import ch.sonensei.cockpit.mail.imap.MailConnectionException
 import ch.sonensei.cockpit.mail.model.MailAddress
 import ch.sonensei.cockpit.mail.model.MailMessage
 import ch.sonensei.cockpit.mail.sanitize.RemoteImagePolicy
@@ -20,7 +18,6 @@ import org.slf4j.LoggerFactory
 import org.springframework.http.CacheControl
 import org.springframework.http.ContentDisposition
 import org.springframework.http.HttpHeaders
-import org.springframework.http.HttpStatus
 import org.springframework.http.MediaType
 import org.springframework.http.ProblemDetail
 import org.springframework.http.ResponseEntity
@@ -228,17 +225,6 @@ class MailMessageController(
 			.cacheControl(CacheControl.maxAge(IMAGE_CACHE).cachePrivate())
 			.header(HttpHeaders.CONTENT_DISPOSITION, ContentDisposition.inline().build().toString())
 			.body(image.bytes)
-	}
-
-	@ExceptionHandler(MailConnectionException::class)
-	fun handleConnectionFailure(e: MailConnectionException): ResponseEntity<ProblemDetail> {
-		// The cause may hold server responses; keep it at DEBUG, never with credentials.
-		log.info("Mail server operation failed: {}", e.error)
-		log.debug("Mail server failure", e.cause)
-		val status = if (e.error == MailConnectionError.POOL_EXHAUSTED) HttpStatus.SERVICE_UNAVAILABLE else HttpStatus.BAD_GATEWAY
-		val problem = ProblemDetail.forStatusAndDetail(status, e.error.message)
-		problem.setProperty("errorCode", e.error.name)
-		return ResponseEntity.status(status).contentType(MediaType.APPLICATION_PROBLEM_JSON).body(problem)
 	}
 
 	@ExceptionHandler(AttachmentDownloadAbortedException::class)
