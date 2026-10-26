@@ -11,7 +11,13 @@ import { MatButtonModule } from '@angular/material/button';
 import { RouterLink } from '@angular/router';
 import { HabitResponse } from '../../../api/generated';
 import { ApiError } from '../../../core/http';
-import { nextCount, scheduleLabel, todayProgress } from '../../habits/habit-display';
+import {
+  checkLabel,
+  errorMessage,
+  nextCount,
+  scheduleLabel,
+  todayProgress,
+} from '../../habits/habit-display';
 import { HabitsService } from '../../habits/habits.service';
 
 /**
@@ -104,7 +110,7 @@ export class TodayHabits {
       if (error instanceof ApiError && error.status === 404) {
         this.habits.update((habits) => habits?.filter((h) => h.id !== habit.id) ?? null);
       } else {
-        this.rowError.set({ id: habit.id, message: message(error) });
+        this.rowError.set({ id: habit.id, message: errorMessage(error) });
         if (error instanceof ApiError && (error.status === 409 || error.status === 412)) {
           void this.load(true);
         }
@@ -127,22 +133,6 @@ export class TodayHabits {
     return error?.id === habit.id ? error.message : null;
   }
 
-  /** The label of the check button, for screen readers (the same texts as the Habits view). */
-  protected checkLabel(habit: HabitResponse): string {
-    const name = habit.name;
-    if (habit.targetCount === 1) {
-      return habit.stats.doneToday
-        ? $localize`:@@habits.uncheck:Uncheck “${name}:name:” for today`
-        : $localize`:@@habits.check:Check “${name}:name:” for today`;
-    }
-    const count = habit.stats.todayCount;
-    const target = habit.targetCount;
-    return $localize`:@@habits.checkCount:“${name}:name:”: ${count}:count: of ${target}:target: today`;
-  }
-}
-
-function message(error: unknown): string {
-  return error instanceof ApiError
-    ? error.userMessage
-    : $localize`:@@habits.error:Something went wrong.`;
+  /** The label of the check button, for screen readers. */
+  protected readonly checkLabel = checkLabel;
 }
