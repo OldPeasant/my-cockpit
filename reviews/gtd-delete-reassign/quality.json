@@ -17,7 +17,6 @@
   "validation": [
     {"command": "server/gradlew -p server test --tests 'ch.sonensei.cockpit.gtd.*' jacocoTestReport ktlintCheck", "result": "pass"},
     {"command": "npm --prefix web run check", "result": "pass"},
-    {"command": "npm --prefix web run coverage", "result": "pass"},
-    {"command": "sh scripts/check.sh", "result": "pass"}
+    {"command": "npm --prefix web run coverage", "result": "pass"}
   ]
 }
