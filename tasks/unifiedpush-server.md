@@ -1,11 +1,11 @@
 ---
 title: Server side of UnifiedPush (registrations + push sending)
-status: todo
-owner: 
+status: in_progress
+owner: dell26/agent-2
 deps: [and-reminders]
 prio: 3
 parent: unifiedpush-android
-lease_until: 
+lease_until: 2026-10-26T16:12:44Z
 extended: 
 releases: 1
 ---
