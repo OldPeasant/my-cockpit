@@ -299,8 +299,6 @@ class AreaContextWebTests(
 
 		delete("$CONTEXTS/${home.id()}?replaceWith=${phone.id()}", home.etag()).andExpect { status { isNoContent() } }
 
-		fun contextsOf(task: String) =
-			jdbc.queryForList("select context_id::text from task_context where task_id = ?::uuid", String::class.java, task)
 		listOf(plain, both, tickler, trashed).forEach { contextsOf(it) shouldContainExactly listOf(phone.id()) }
 		contextsOf(other) shouldContainExactly listOf(errands.id())
 		list(CONTEXTS).map { it.id() } shouldContainExactly listOf(phone.id(), errands.id())
@@ -481,9 +479,7 @@ class AreaContextWebTests(
 	}
 
 	@Test
-	fun `deleting an area with moveTo checks If-Match before the target and moves nothing on 428 or 412`(
-		events: ApplicationEvents,
-	) {
+	fun `deleting an area with moveTo checks If-Match before the target and moves nothing on 428 or 412`(events: ApplicationEvents) {
 		val home = created(AREAS, """{"title":"Home"}""")
 		val family = created(AREAS, """{"title":"Family"}""")
 		val project = created(PROJECTS, """{"title":"Renovate kitchen","areaId":"${home.id()}"}""").id()
