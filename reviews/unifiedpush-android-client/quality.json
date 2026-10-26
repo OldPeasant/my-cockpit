@@ -1,24 +1,57 @@
 {
   "schema": 1,
   "task": "unifiedpush-android-client",
-  "reviewed_revision": "83603e8c2f3536694ca2e3d60ee5dd3bd7e8eec8",
+  "reviewed_revision": "ff93b836a0664bb6e0189fd60279e8cdb40e2aa3",
   "helpers": {
-    "test-writer": {"status": "completed", "report": "reviews/unifiedpush-android-client/tests.md"},
-    "code-reviewer": {"status": "completed", "report": "reviews/unifiedpush-android-client/review.md"},
-    "fixer": {"status": "completed", "report": "reviews/unifiedpush-android-client/fixes.md"}
+    "test-writer": {
+      "status": "completed",
+      "report": "reviews/unifiedpush-android-client/tests.md"
+    },
+    "code-reviewer": {
+      "status": "completed",
+      "report": "reviews/unifiedpush-android-client/review.md"
+    },
+    "fixer": {
+      "status": "completed",
+      "report": "reviews/unifiedpush-android-client/fixes.md"
+    }
   },
   "fixes_required": true,
   "findings": [
-    {"id": "R1-CR-1", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
-     "note": "round 1: a late endpoint PUT could recreate the server registration after the logout DELETE; a Mutex now orders PUT and DELETE (352f1982a)"},
-    {"id": "R1-CR-2", "source": "code-reviewer", "severity": "P3", "disposition": "accepted",
-     "note": "round 1: every process start may PUT the same endpoint again; intended retry path, the PUT is idempotent (task assumption)"},
-    {"id": "R2-CR-1", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
-     "note": "round 2: a logout hook timeout while a PUT held the lock let queued PUTs through; deleted is now set before taking the lock (54d45a508)"}
+    {
+      "id": "R1-CR-1",
+      "source": "code-reviewer",
+      "severity": "P3",
+      "disposition": "fixed",
+      "note": "round 1: a late endpoint PUT could recreate the server registration after the logout DELETE; a Mutex now orders PUT and DELETE (352f1982a)"
+    },
+    {
+      "id": "R1-CR-2",
+      "source": "code-reviewer",
+      "severity": "P3",
+      "disposition": "accepted",
+      "note": "round 1: every process start may PUT the same endpoint again; intended retry path, the PUT is idempotent (task assumption)"
+    },
+    {
+      "id": "R2-CR-1",
+      "source": "code-reviewer",
+      "severity": "P3",
+      "disposition": "fixed",
+      "note": "round 2: a logout hook timeout while a PUT held the lock let queued PUTs through; deleted is now set before taking the lock (54d45a508)"
+    }
   ],
   "validation": [
-    {"command": "android/gradlew -p android testDebugUnitTest --tests 'ch.sonensei.cockpit.push.*' --tests 'ch.sonensei.cockpit.auth.AuthRepositoryLogoutHookTest'", "result": "pass"},
-    {"command": "android/gradlew -p android testDebugUnitTest --tests 'ch.sonensei.cockpit.push.*' --tests 'ch.sonensei.cockpit.auth.*' createDebugUnitTestCoverageReport", "result": "pass"},
-    {"command": "sh scripts/check.sh", "result": "pass"}
+    {
+      "command": "cd android && ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.push.*' createDebugUnitTestCoverageReport (at ff93b836a)",
+      "result": "pass: 73 push tests, 0 failures; push package coverage instructions 1004/1067, branches 74/74, lines 166/171"
+    },
+    {
+      "command": "cd android && ./gradlew ktlintCheck testDebugUnitTest (full suite, maxHeapSize 2g)",
+      "result": "pass: 2123 tests, 0 failures (CockpitThemeTest OOM gone)"
+    },
+    {
+      "command": "sh scripts/check.sh",
+      "result": "pass: all checks passed"
+    }
   ]
 }
