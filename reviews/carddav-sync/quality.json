@@ -1,0 +1,30 @@
+{
+  "schema": 1,
+  "task": "carddav-sync",
+  "reviewed_revision": "f6b0cfde5f4c74cb3bf6685de924677c6783c5a2",
+  "helpers": {
+    "test-writer": {"status": "completed", "report": "reviews/carddav-sync/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/carddav-sync/review.md"},
+    "fixer": {"status": "completed", "report": "reviews/carddav-sync/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "unit tests for CardDavClient, MultiStatus, CardDavMapping, CardDavAccountService and sync branches (discovery, 507, PROPFIND fallback, adoption)"},
+    {"id": "CR-2", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "one token-less sync-collection REPORT per run"},
+    {"id": "CR-3", "source": "code-reviewer", "severity": "P3", "disposition": "accepted",
+     "note": "token still advances when a card fails to store; parity with GoogleContactsSync, recorded with tasks.py assume"},
+    {"id": "CR-4", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "card back under the href of a trashed contact is no longer ignored (final fix via CR-5)"},
+    {"id": "CR-5", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "a sync-trashed contact is restored with the returning card instead of deleting the card; edge case recorded with tasks.py assume"},
+    {"id": "CR-6", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "user-trashed test answers DELETE with 403 so the pull and the guard run"}
+  ],
+  "validation": [
+    {"command": "cd server && ./gradlew ktlintCheck test --tests 'ch.sonensei.cockpit.contacts.carddav.*' jacocoTestReport", "result": "pass"},
+    {"command": "cd server && ./gradlew integrationTest --tests 'ch.sonensei.cockpit.contacts.carddav.*' --rerun", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
