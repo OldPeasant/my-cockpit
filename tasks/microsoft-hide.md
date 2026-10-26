@@ -21,9 +21,10 @@ on again later.
 - [x] Web settings (integrations, calendars, mail accounts) and Android show no Microsoft option when the server
   says Microsoft is off; Vitest (and Android unit tests where Android offers it) cover it; `cd web && npm run check` passes
   - verified (2026-10-26 10:10+0100 by dell26/agent-1): npm --prefix web run check -> passed, 175 test files; Vitest specs for calendars, mail and integrations settings cover Microsoft listed / not listed / providers request failing (no Microsoft option or existing Microsoft items when off); Android: grep of android/app/src/main shows no Microsoft or OAuth provider option, so nothing to hide and no Android test (recorded assumption)
-- [ ] No Microsoft code, enum value or migration is deleted; existing Microsoft tests still pass (setting on in
+- [x] No Microsoft code, enum value or migration is deleted; existing Microsoft tests still pass (setting on in
   those tests); `docs/oauth-setup.md` and `deploy/.env.example` say Microsoft is deferred and how to re-enable it;
   `sh scripts/check.sh` passes
+  - verified (2026-10-26 10:10+0100 by dell26/agent-1): git diff --diff-filter=D 537cbc7ea HEAD -> no files deleted, no migration changed; removed server lines are only descriptions/replaced gated loops; existing Microsoft tests (MicrosoftCalendarAdapterTests, MicrosoftCalendarSyncTests, MicrosoftInvitation*, Graph*) pass with cockpit.microsoft.enabled=true in test config; docs/oauth-setup.md and deploy/.env.example document deferral and MICROSOFT_ENABLED=true; sh scripts/check.sh -> all checks passed
 
 ## Notes
 - ASSUMPTION (2026-10-26 09:44+0100 by dell26/agent-1): Microsoft off also stops mail push/poll of existing MICROSOFT accounts (small edit in mail/sync/MailPushService, outside touches) and refuses manual 'Sync now' of MICROSOFT calendar sources with 400; existing Microsoft OAuth connections, sources and accounts are kept, not deleted.
