@@ -1,0 +1,46 @@
+{
+  "schema": 1,
+  "task": "caldav-radicale-auth",
+  "reviewed_revision": "f103b5de01913561984bf6e514578da0d8a08313",
+  "helpers": {
+    "test-writer": {
+      "status": "completed",
+      "report": "reviews/caldav-radicale-auth/tests.md"
+    },
+    "code-reviewer": {
+      "status": "completed",
+      "report": "reviews/caldav-radicale-auth/review.md"
+    },
+    "fixer": {
+      "status": "completed",
+      "report": "reviews/caldav-radicale-auth/fixes.md"
+    }
+  },
+  "fixes_required": true,
+  "findings": [
+    {
+      "id": "CR-1",
+      "source": "code-reviewer",
+      "severity": "P3",
+      "disposition": "fixed",
+      "note": "new tests send through sendRetryingDrop like every other Radicale request"
+    },
+    {
+      "id": "CR-2",
+      "source": "code-reviewer",
+      "severity": "P3",
+      "disposition": "fixed",
+      "note": "anonymous-request test renamed to what it checks"
+    }
+  ],
+  "validation": [
+    {
+      "command": "cd server && ./gradlew ktlintCheck integrationTest --tests '*CalDavRadicale*'",
+      "result": "pass"
+    },
+    {
+      "command": "sh scripts/check.sh",
+      "result": "pass"
+    }
+  ]
+}
