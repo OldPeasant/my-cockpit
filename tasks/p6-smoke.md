@@ -1,10 +1,11 @@
 ---
 title: Phase 6 demo script
-status: todo
-owner:
+status: in_progress
+owner: dell26/agent-1
 deps: [web-contacts,contacts-google,contacts-birthdays,backup-contrib-contacts,web-mail-contacts-autocomplete,bookmarks-snapshot,backup-contrib-bookmarks,and-bookmarks-share,web-journal,backup-contrib-journal,and-journal-habits,web-dashboard,and-files,and-contacts,and-review,web-passkeys,and-passkeys,p5-smoke]
 touches: [web/e2e/phase6]
 prio: 2
+lease_until: 2026-10-26T05:43:30Z
 ---
 ## Goal
 Automate SPEC.md §13.2 Phase 6.
