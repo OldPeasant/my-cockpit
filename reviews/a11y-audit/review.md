@@ -48,11 +48,11 @@ None.
 ## Checks on the later commits (no findings)
 
 - Trash label-in-name (`web/src/app/features/trash/trash-page.ts:156-160`):
-  - The button's visible text is "Delete permanently" (`trash-page.html:71`, no icon text). The new aria-label `Delete permanently: <title>` starts with that text, so it meets WCAG 2.5.3. "Restore <title>" already met it.
+  - The button's visible text is "Delete permanently" (`trash-page.html:71`, no icon text). The new aria-label `Delete permanently: {item title}` starts with that text, so it meets WCAG 2.5.3. "Restore {item title}" already met it.
   - The i18n id `@@trash.purgeAria` is kept. `src/locale/messages.xlf` has no `trash.*` units at all, so it was already stale before this task and nothing in it is broken by the change.
 - Who relied on the old label:
-  - `grep -rn "permanently" web/src web/e2e` finds no remaining use of `Delete <title> permanently`. All uses in `trash-page.spec.ts` were updated.
-  - In e2e, `phase1/demo.spec.ts:370` uses only `Restore <title>`. `phase2/demo.spec.ts` and `files-browser/browser.spec.ts` check the trash through the API, not through the button name.
+  - `grep -rn "permanently" web/src web/e2e` finds no remaining use of `Delete {item title} permanently`. All uses in `trash-page.spec.ts` were updated.
+  - In e2e, `phase1/demo.spec.ts:370` uses only `Restore {item title}`. `phase2/demo.spec.ts` and `files-browser/browser.spec.ts` check the trash through the API, not through the button name.
 - a11y spec seeding (`web/e2e/a11y/a11y.spec.ts:53-56`, `289-295`):
   - One task is created and trashed, so `/trash` is scanned with a populated row.
   - `deleteTask` reuses the `If-Match` and XSRF handling that `emptyInbox` already used, and `emptyInbox` now calls it.

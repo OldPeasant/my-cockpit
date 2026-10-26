@@ -7,7 +7,7 @@ Task: a11y-audit - Accessibility audit
 Scope: `git diff b5757334f4b1cb369fcf8ddcd4ec1ac2ce6b3ec2..94756fbf0 -- web/` (task commits 9727243fc, f391266f9, 1cd339190, 204a0ecc3, 1a33988eb, 5694cbce8, 94756fbf0, supplied by the parent; they match `git log b5757334f..HEAD`). This report covers the final code at HEAD 94756fbf0. It replaces the earlier report, which covered the code up to 1cd339190 and did not include the trash label change (1a33988eb) or the markdown editor highlight style (5694cbce8).
 
 Requirements:
-- `tasks/a11y-audit.md`: the acceptance criterion and its ASSUMPTION notes (calendar scroller patch; trash 'Delete permanently' aria-label is now 'Delete permanently: <title>' (WCAG 2.5.3 label-in-name); markdown editor uses a HighlightStyle with theme CSS variables instead of `defaultHighlightStyle`, whose literal colors fail AA contrast in dark)
+- `tasks/a11y-audit.md`: the acceptance criterion and its ASSUMPTION notes (calendar scroller patch; trash 'Delete permanently' aria-label is now 'Delete permanently: {task title}' (WCAG 2.5.3 label-in-name); markdown editor uses a HighlightStyle with theme CSS variables instead of `defaultHighlightStyle`, whose literal colors fail AA contrast in dark)
 - `reviews/a11y-audit/review.md` CR-1/CR-2 (calendar time-grid patch)
 - Parent instructions; `docs/ARCHITECTURE.md` "Coverage"; `AGENTS.md`
 
@@ -25,7 +25,7 @@ Already committed in the task and reviewed in this pass (I did not change them):
 Count: 1 added in this pass (`uses no literal color for any token of a richer note`). Across the whole task: 13 new unit tests, plus existing trash tests updated to the new label.
 
 Review of the tests committed in 94756fbf0:
-- Trash: the new label is asserted per row (`Restore Your invoice`, `Delete permanently: Your invoice`), and the generic test `starts the accessible name of each row action with its visible text (WCAG 2.5.3)` checks every row button against its rendered text. That test would fail with the old label `Delete <title> permanently`, so it is a real regression test. It is adequate; nothing added.
+- Trash: the new label is asserted per row (`Restore Your invoice`, `Delete permanently: Your invoice`), and the generic test `starts the accessible name of each row action with its visible text (WCAG 2.5.3)` checks every row button against its rendered text. That test would fail with the old label `Delete {task title} permanently`, so it is a real regression test. It is adequate; nothing added.
 - Markdown editor: the three tests check URL (`var(--app-accent)`, no literal color), Markdown marks (`var(--app-fg-muted)`), and that heading, link and emphasis stay bold, underlined and italic. The URL test fails with `defaultHighlightStyle` (`#219`). The gap: only three token kinds were checked for literal colors. The new test renders a richer note (h2, blockquote, list, strong, inline code, image with URL, horizontal rule, inline HTML). It checks that strong text is bold, and that no styled token span in the editor gets a `color: #...`/`rgb(...)` rule. This protects the contrast fix against a token kind that a later change might style with a literal color again.
 
 ## Requirement coverage
@@ -76,7 +76,7 @@ None.
 Status: verified (web part, whole-file and changed-line).
 
 Metric: whole-file coverage of task-changed production files.
-Changed-line coverage: 11/11 executable added lines covered (100%). Method: added lines from `git diff -U0 b5757334f..HEAD -- <file>`, intersected with the `DA:` entries of `web/coverage/web/lcov.info`. Per file: calendar-view.ts 9/9, markdown-editor.ts 1/1 (the `HighlightStyle.define([...])` call is one statement; the `syntaxHighlighting(highlightStyle)` line has no separate DA entry), trash-page.ts 1/1 (the `$localize` return). Changed-branch coverage was not measured.
+Changed-line coverage: 11/11 executable added lines covered (100%). Method: added lines from `git diff -U0 b5757334f..HEAD -- {file}`, intersected with the `DA:` entries of `web/coverage/web/lcov.info`. Per file: calendar-view.ts 9/9, markdown-editor.ts 1/1 (the `HighlightStyle.define([...])` call is one statement; the `syntaxHighlighting(highlightStyle)` line has no separate DA entry), trash-page.ts 1/1 (the `$localize` return). Changed-branch coverage was not measured.
 
 Evidence:
 - Task id, immutable base, measured HEAD, and task-owned commits/file-scope source: a11y-audit; base b5757334f4b1cb369fcf8ddcd4ec1ac2ce6b3ec2; HEAD 94756fbf0. The task commits were supplied by the parent and match `git log b5757334f..HEAD`. The scope is `git diff b5757334f HEAD -- web/`.
