@@ -7,6 +7,14 @@ screen asks for all three at once.
 
 A provider without a client id and secret is disabled (`GET /api/v1/oauth/providers` shows `configured: false`).
 
+> **Microsoft is deferred** ([ADR 0003](adr/0003-microsoft-deferred.md)). The Microsoft code stays, but it is switched
+> off by the server setting `cockpit.microsoft.enabled` (env `MICROSOFT_ENABLED`, default `false`): the server then
+> leaves Microsoft out of `GET /api/v1/oauth/providers`, refuses Microsoft connections, calendar sources and mail
+> accounts with 400 "Microsoft is not enabled", doesn't sync existing Microsoft sources and accounts, and the web
+> settings show no Microsoft option. To re-enable it, set `MICROSOFT_ENABLED=true` in `deploy/.env` (passed on by
+> `deploy/docker-compose.yml`), register the Azure app as described under [Microsoft](#microsoft-outlookmicrosoft-365-graph-calendar-and-contacts-imapsmtp)
+> and restart the server.
+
 ## Redirect URI
 
 Both providers need the exact redirect URI of your server:
@@ -57,6 +65,8 @@ The server asks Google for offline access with a consent prompt every time, so e
 token. Disconnecting in My Cockpit revokes the token at Google.
 
 ## Microsoft (Outlook/Microsoft 365: Graph calendar and contacts, IMAP/SMTP)
+
+Deferred: only needed after setting `MICROSOFT_ENABLED=true` (see above).
 
 1. Open the [Microsoft Entra admin center](https://entra.microsoft.com/) → **Identity → Applications → App
    registrations → New registration**.
