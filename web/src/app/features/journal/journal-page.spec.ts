@@ -1073,6 +1073,124 @@ describe('JournalPage', () => {
       await settle();
       expect(text(root().querySelector('h1'))).toBe('Monday, October 26, 2026');
     });
+
+    it('stays on the old day while the server still says so, and asks again a minute later', async () => {
+      await openAtNoon('/journal');
+      await passMidnight();
+      // The browser's day is ahead of the server's (clock skew).
+      flushHeatmap(journalHeatmap(TODAY));
+      await settle();
+
+      http.expectNone((r) => r.url.startsWith(ENTRIES) || r.url === ON_THIS_DAY_URL);
+      expect(router.url).toBe('/journal');
+      expect(text(root().querySelector('h1'))).toBe('Sunday, October 25, 2026');
+      expect(text(root().querySelector('.relative'))).toBe('Today');
+
+      vi.advanceTimersByTime(DAY_CHECK_MS);
+      await settle();
+      flushHeatmap(journalHeatmap(TOMORROW));
+      await settle();
+      flushDay(TOMORROW);
+      await settle();
+      expect(text(root().querySelector('h1'))).toBe('Monday, October 26, 2026');
+    });
+
+    it('keeps a day saved while the new heatmap loads in that heatmap', async () => {
+      const before = journalHeatmap(TODAY, [{ date: '2026-10-20', mood: 3 }]);
+      vi.useFakeTimers({ toFake: ['Date', 'setInterval', 'clearInterval'] });
+      vi.setSystemTime(new Date(`${TODAY}T12:00:00Z`));
+      await open('/journal/2026-10-24', {}, before);
+      const page = harness.routeDebugElement?.componentInstance as JournalPage;
+      moodButton(4).click();
+      harness.detectChanges();
+
+      await passMidnight();
+      const heatmap = http.expectOne((r) => r.url === HEATMAP_URL);
+      // The save lands while the heatmap request runs; its answer does not know the day yet.
+      void page.flush();
+      await settle();
+      http
+        .expectOne((r) => r.method === 'PUT' && r.url === `${ENTRIES}/2026-10-24`)
+        .flush(journalEntry('2026-10-24', { bodyMd: '', mood: 4 }));
+      await settle();
+      heatmap.flush(journalHeatmap(TOMORROW, [{ date: '2026-10-20', mood: 3 }]));
+      await settle();
+
+      expect(heatmapDay(TOMORROW)).toBeTruthy();
+      expect(heatmapDay('2026-10-24').classList).toContain('entry');
+      expect(heatmapDay('2026-10-24').getAttribute('data-mood')).toBe('4');
+      expect(text(root().querySelector('app-journal-heatmap .count'))).toBe(
+        '2 entries in the last 12 months',
+      );
+      expect(state()).toBe('Saved');
+    });
+
+    it('shows only the newest heatmap when two day checks overlap and the newer answers first', async () => {
+      await openAtNoon('/journal');
+      await passMidnight();
+      document.dispatchEvent(new Event('visibilitychange'));
+      await settle();
+      const [older, newer] = http.match((r) => r.url === HEATMAP_URL);
+      expect(newer).toBeTruthy();
+
+      newer.flush(journalHeatmap(TOMORROW, [{ date: TODAY, mood: 2 }]));
+      await settle();
+      older.flush(journalHeatmap(TODAY));
+      await settle();
+      // The new day loads once.
+      flushDay(TOMORROW);
+      await settle();
+
+      expect(text(root().querySelector('h1'))).toBe('Monday, October 26, 2026');
+      expect(heatmapDay(TOMORROW).classList).toContain('selected');
+      expect(heatmapDay(TODAY).getAttribute('data-mood')).toBe('2');
+      expect(el('.next').disabled).toBe(true);
+    });
+
+    it('ignores the older of two overlapping day checks when it answers first', async () => {
+      await openAtNoon('/journal');
+      await passMidnight();
+      document.dispatchEvent(new Event('visibilitychange'));
+      await settle();
+      const [older, newer] = http.match((r) => r.url === HEATMAP_URL);
+
+      older.flush(journalHeatmap(TOMORROW, [{ date: TODAY, mood: 1 }]));
+      await settle();
+      http.expectNone((r) => r.url.startsWith(ENTRIES) || r.url === ON_THIS_DAY_URL);
+      expect(text(root().querySelector('h1'))).toBe('Sunday, October 25, 2026');
+
+      newer.flush(journalHeatmap(TOMORROW, [{ date: TODAY, mood: 5 }]));
+      await settle();
+      flushDay(TOMORROW);
+      await settle();
+      expect(text(root().querySelector('h1'))).toBe('Monday, October 26, 2026');
+      expect(heatmapDay(TODAY).getAttribute('data-mood')).toBe('5');
+    });
+
+    it('stops checking the day once the journal is left', async () => {
+      await openAtNoon('/journal');
+      void harness.navigateByUrl('/elsewhere');
+      await settle();
+      expect(router.url).toBe('/elsewhere');
+
+      await passMidnight();
+      document.dispatchEvent(new Event('visibilitychange'));
+      await settle();
+      http.expectNone((r) => r.url === HEATMAP_URL);
+    });
+
+    it('does not move on when the journal was left while the new heatmap loaded', async () => {
+      await openAtNoon('/journal');
+      await passMidnight();
+      const heatmap = http.expectOne((r) => r.url === HEATMAP_URL);
+      void harness.navigateByUrl('/elsewhere');
+      await settle();
+
+      heatmap.flush(journalHeatmap(TOMORROW));
+      await settle();
+      expect(router.url).toBe('/elsewhere');
+      http.expectNone((r) => r.url.startsWith(ENTRIES) || r.url === ON_THIS_DAY_URL);
+    });
   });
 
   describe('leaving a conflict', () => {
@@ -1184,6 +1302,55 @@ describe('JournalPage', () => {
       await settle();
       expect(ask).not.toHaveBeenCalled();
       expect(router.url).toBe('/journal/2026-10-22');
+    });
+
+    for (const [from, to] of [
+      ['/journal', `/journal/${TODAY}`],
+      [`/journal/${TODAY}`, '/journal'],
+    ] as const) {
+      it(`does not ask when the same day is opened by its other URL (${from} to ${to})`, async () => {
+        await open(from, { entry: journalEntry(TODAY, { bodyMd: 'Mine', version: 2 }) });
+        vi.useFakeTimers();
+        type('Mine, edited');
+        await vi.advanceTimersByTimeAsync(AUTOSAVE_DEBOUNCE_MS);
+        http.expectOne((r) => r.method === 'PUT').flush(...problem(412, 'Changed elsewhere.'));
+        await vi.advanceTimersByTimeAsync(0);
+        vi.useRealTimers();
+
+        void harness.navigateByUrl(to);
+        await settle();
+
+        expect(ask).not.toHaveBeenCalled();
+        expect(router.url).toBe(to);
+        expect(editor().value()).toBe('Mine, edited');
+        expect(state()).toBe('Not saved: changed elsewhere');
+        expect(puts()).toEqual([]);
+      });
+    }
+
+    it('saves nothing and stays when the conflict was resolved while asking', async () => {
+      await conflict();
+      let answer!: (choice: LeaveChoice) => void;
+      ask.mockReturnValue(new Promise<LeaveChoice>((resolve) => (answer = resolve)));
+      void harness.navigateByUrl('/journal/2026-10-22');
+      await pending();
+      expect(ask).toHaveBeenCalledTimes(1);
+
+      // Meanwhile the conflict is resolved by taking their version.
+      el('.use-theirs').click();
+      await pending();
+      http
+        .expectOne((r) => r.method === 'GET' && r.url === `${ENTRIES}/2026-10-24`)
+        .flush(journalEntry('2026-10-24', { bodyMd: 'Theirs', version: 3 }));
+      await pending();
+      answer('keep-mine');
+      await settle();
+
+      expect(router.url).toBe('/journal/2026-10-24');
+      http.expectNone((r) => r.url === `${ENTRIES}/2026-10-22`);
+      expect(editor().value()).toBe('Theirs');
+      expect(state()).toBe('Saved');
+      expect(puts()).toEqual([]);
     });
   });
 
