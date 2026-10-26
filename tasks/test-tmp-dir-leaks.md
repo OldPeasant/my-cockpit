@@ -15,9 +15,10 @@ Like `BackupRoundTripTest` before `backup-roundtrip-tmp-leak`, several server te
 `*BackupContributorTests` (files, gtd, calendar, mail, journal, contacts, notes, bookmarks).
 
 ## Acceptance criteria
-- [ ] Every server test class that creates a temp dir in a companion object (or another static place) deletes it
+- [x] Every server test class that creates a temp dir in a companion object (or another static place) deletes it
   after the class, also when a test fails (`@AfterAll` + `deleteRecursively()` as in `BackupRoundTripTest`); test
   behavior is unchanged
+  - verified (2026-10-26 09:15+0100 by dell26/agent-2): grep -rn createTempDirectory server/src/test/kotlin -> 12 classes with a companion temp dir (RestoreWebTests, RestoreCliTests, BackupSecretsTest, SpaFallbackTests, 8 *BackupContributorTests) + BackupRoundTripTest; each has @JvmStatic @AfterAll deleteRecursively() (added on main in 6b8afa8ae); no other static createTemp* in server tests
 - [ ] `cd server && ./gradlew check` passes, and the number of the affected temp dirs in /tmp is the same before
   and after the run
 - [ ] `sh scripts/check.sh` passes
