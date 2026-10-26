@@ -18,3 +18,4 @@ screens stay unchanged.
 
 ## Notes
 - ASSUMPTION (2026-10-26 10:55+0100 by dell26/agent-2): Android has no task detail screen and GtdTask has no createdAt: 'tap opens the task' shows a read-only task view inside the New screen (title, notes, created), and task creation time is read from the UUIDv7 id timestamp (non-v7 ids sort last), so gtd/data stays untouched.
+- ASSUMPTION (2026-10-26 10:55+0100 by dell26/agent-2): Mail has no local cache on Android (MailRepository, SPEC 9.3 caches only GTD lists/agenda): 'cached mail offline' = the last loaded unified-inbox page kept in memory (singleton, cleared on logout via SessionCache), shown read-only (no '-> Inbox task') with an offline banner; nothing mail-related is written to disk.
