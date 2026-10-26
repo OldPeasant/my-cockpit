@@ -13,9 +13,11 @@ import { MatButtonModule } from '@angular/material/button';
 import { HabitRequest, HabitResponse } from '../../api/generated';
 import { ApiError, NotificationService } from '../../core/http';
 import {
+  checkLabel,
   completionPercent,
   draftOf,
   emptyDraft,
+  errorMessage,
   HabitDraft,
   nextCount,
   scheduleLabel,
@@ -101,7 +103,7 @@ export default class HabitsPage implements OnInit {
       const habits = await this.service.list(this.archived());
       if (seq === this.loadSeq) this.habits.set(habits);
     } catch (error) {
-      if (seq === this.loadSeq) this.loadError.set(message(error));
+      if (seq === this.loadSeq) this.loadError.set(errorMessage(error));
     }
   }
 
@@ -156,7 +158,7 @@ export default class HabitsPage implements OnInit {
     } catch (error) {
       // Counted before the conflict reload starts, so the failed save does not drop its own reload.
       this.changeSeq++;
-      this.saveError.set(message(error));
+      this.saveError.set(errorMessage(error));
       if (habit && isConflict(error)) void this.reloadQuietly();
     } finally {
       this.saving.set(false);
@@ -195,17 +197,7 @@ export default class HabitsPage implements OnInit {
   }
 
   /** The label of the check button, for screen readers. */
-  protected checkLabel(habit: HabitResponse): string {
-    const name = habit.name;
-    if (habit.targetCount === 1) {
-      return habit.stats.doneToday
-        ? $localize`:@@habits.uncheck:Uncheck “${name}:name:” for today`
-        : $localize`:@@habits.check:Check “${name}:name:” for today`;
-    }
-    const count = habit.stats.todayCount;
-    const target = habit.targetCount;
-    return $localize`:@@habits.checkCount:“${name}:name:”: ${count}:count: of ${target}:target: today`;
-  }
+  protected readonly checkLabel = checkLabel;
 
   private replace(habit: HabitResponse): void {
     this.habits.update((habits) => habits?.map((h) => (h.id === habit.id ? habit : h)) ?? null);
@@ -256,7 +248,7 @@ export default class HabitsPage implements OnInit {
       if (error instanceof ApiError && error.status === 404) {
         this.habits.update((habits) => habits?.filter((h) => h.id !== habit.id) ?? null);
       } else {
-        this.rowError.set({ id: habit.id, message: message(error) });
+        this.rowError.set({ id: habit.id, message: errorMessage(error) });
         // Quietly, so another habit's open edit form keeps what the user typed.
         if (isConflict(error)) void this.reloadQuietly();
       }
@@ -276,10 +268,4 @@ function byName(habits: HabitResponse[]): HabitResponse[] {
 
 function isConflict(error: unknown): boolean {
   return error instanceof ApiError && (error.status === 409 || error.status === 412);
-}
-
-function message(error: unknown): string {
-  return error instanceof ApiError
-    ? error.userMessage
-    : $localize`:@@habits.error:Something went wrong.`;
 }
