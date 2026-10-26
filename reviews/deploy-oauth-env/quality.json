@@ -1,0 +1,16 @@
+{
+  "schema": 1,
+  "task": "deploy-oauth-env",
+  "reviewed_revision": "6cca17e2faa597e50ceb50ff1dea4fd86bc3f4ad",
+  "helpers": {
+    "test-writer": {"status": "completed", "report": "reviews/deploy-oauth-env/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/deploy-oauth-env/review.md"},
+    "fixer": {"status": "not_required", "reason": "test-writer and code-reviewer reported no defects"}
+  },
+  "fixes_required": false,
+  "findings": [],
+  "validation": [
+    {"command": "sh .tmp/cfg.sh (docker compose -f deploy/docker-compose.yml --env-file /dev/null config with COCKPIT_OAUTH_PUBLICURL set / unset / empty)", "result": "pass"},
+    {"command": "python3 tests/test_quality_gate.py (first stage of sh scripts/check.sh)", "result": "pass"}
+  ]
+}
