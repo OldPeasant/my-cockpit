@@ -176,6 +176,16 @@ class PushAndroidAdaptersTest {
     }
 
     @Test
+    fun `the instance fits the server's instance id pattern of the push registration path`() {
+        // UnifiedPushController in the server's core.push.api rejects other instance ids with 400.
+        val serverPattern = Regex("^[A-Za-z0-9._-]{1,128}$")
+
+        val created = PreferencesPushInstanceStore(context).getOrCreate()
+
+        assertTrue(created, serverPattern.matches(created))
+    }
+
+    @Test
     fun `clear forgets the instance and the next login gets a new one`() {
         val store = PreferencesPushInstanceStore(context)
         val first = store.getOrCreate()
