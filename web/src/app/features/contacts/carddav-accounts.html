@@ -1,0 +1,191 @@
+<section class="carddav" aria-labelledby="carddav-title">
+  <div class="carddav-head">
+    <h2 id="carddav-title" i18n="@@contacts.carddav.title">CardDAV address books</h2>
+    @if (!adding()) {
+      <button
+        mat-button
+        type="button"
+        class="add"
+        (click)="startAdd()"
+        i18n="@@contacts.carddav.add"
+      >
+        Add CardDAV account
+      </button>
+    }
+  </div>
+
+  @if (loadError(); as error) {
+    <p class="error" role="alert">
+      <ng-container i18n="@@contacts.carddav.loadFailed"
+        >The CardDAV accounts could not be loaded: {{ error }}</ng-container
+      >
+      <button mat-button type="button" (click)="load()" i18n="@@contacts.retry">Try again</button>
+    </p>
+  } @else if (accounts(); as list) {
+    @if (list.length) {
+      <ul class="list">
+        @for (a of list; track a.id) {
+          <li class="account" [attr.data-id]="a.id" [attr.data-state]="a.sync.state">
+            <span class="name">{{ a.name }}</span>
+            <span class="where">{{ a.username ? a.username + '@' : '' }}{{ host(a) }}</span>
+            <span class="state" [class.failed]="a.sync.state === 'ERROR'">
+              @if (isBusy(a.id) && confirmRemove() !== a.id) {
+                <ng-container i18n="@@contacts.carddav.syncing">Syncing…</ng-container>
+              } @else {
+                @switch (a.sync.state) {
+                  @case ('OK') {
+                    <ng-container i18n="@@contacts.carddav.synced"
+                      >Synced {{ a.sync.lastSuccessAt | date: 'short' }}</ng-container
+                    >
+                  }
+                  @case ('ERROR') {
+                    <ng-container i18n="@@contacts.carddav.failed"
+                      >Sync failed: {{ a.sync.lastError }}</ng-container
+                    >
+                  }
+                  @default {
+                    <ng-container i18n="@@contacts.carddav.never">Not synced yet</ng-container>
+                  }
+                }
+              }
+            </span>
+            <span class="actions">
+              @if (confirmRemove() === a.id) {
+                <span class="confirm" i18n="@@contacts.carddav.confirmRemove"
+                  >Stop syncing? Its contacts stay here.</span
+                >
+                <button
+                  mat-button
+                  type="button"
+                  class="remove-confirm"
+                  [disabled]="isBusy(a.id)"
+                  (click)="remove(a)"
+                  i18n="@@contacts.carddav.removeConfirm"
+                >
+                  Remove account
+                </button>
+                <button
+                  mat-button
+                  type="button"
+                  class="remove-cancel"
+                  (click)="confirmRemove.set(null)"
+                  i18n="@@contacts.form.cancel"
+                >
+                  Cancel
+                </button>
+              } @else {
+                <button
+                  mat-button
+                  type="button"
+                  class="sync-now"
+                  [disabled]="isBusy(a.id)"
+                  (click)="syncNow(a)"
+                  i18n="@@contacts.carddav.syncNow"
+                >
+                  Sync now
+                </button>
+                <button
+                  mat-button
+                  type="button"
+                  class="remove"
+                  [disabled]="isBusy(a.id)"
+                  (click)="confirmRemove.set(a.id)"
+                  i18n="@@contacts.carddav.remove"
+                >
+                  Remove
+                </button>
+              }
+            </span>
+            @if (actionError(); as e) {
+              @if (e.id === a.id) {
+                <p class="error" role="alert">{{ e.message }}</p>
+              }
+            }
+          </li>
+        }
+      </ul>
+    } @else if (!adding()) {
+      <p class="none" i18n="@@contacts.carddav.none">
+        No CardDAV account. Add one to sync contacts with Nextcloud, iCloud, Radicale or another
+        CardDAV server.
+      </p>
+    }
+  } @else {
+    <p class="none" role="status" i18n="@@contacts.carddav.loading">Loading CardDAV accounts…</p>
+  }
+
+  @if (adding()) {
+    @let f = form();
+    <form class="add-form" (submit)="$event.preventDefault(); add()" novalidate>
+      <label>
+        <span class="label" i18n="@@contacts.carddav.field.name">Name</span>
+        <input
+          name="name"
+          autocomplete="off"
+          maxlength="200"
+          [value]="f.name"
+          (input)="setField('name', $event)"
+        />
+      </label>
+      <label class="wide">
+        <span class="label" i18n="@@contacts.carddav.field.url">Server URL</span>
+        <input
+          name="url"
+          type="url"
+          autocomplete="off"
+          placeholder="https://dav.example.org/"
+          [value]="f.url"
+          (input)="setField('url', $event)"
+        />
+      </label>
+      <label>
+        <span class="label" i18n="@@contacts.carddav.field.username">User name</span>
+        <input
+          name="username"
+          autocomplete="off"
+          [value]="f.username"
+          (input)="setField('username', $event)"
+        />
+      </label>
+      <label>
+        <span class="label" i18n="@@contacts.carddav.field.password">Password or app password</span>
+        <input
+          name="password"
+          type="password"
+          autocomplete="new-password"
+          [value]="f.password"
+          (input)="setField('password', $event)"
+        />
+      </label>
+      <p class="hint wide" i18n="@@contacts.carddav.urlHint">
+        The address book URL, or the server URL: its first address book is synced.
+      </p>
+      @if (addError(); as error) {
+        <p class="error wide" role="alert" i18n="@@contacts.carddav.addFailed">
+          The account could not be added: {{ error }}
+        </p>
+      }
+      <div class="buttons wide">
+        <button
+          mat-flat-button
+          type="submit"
+          class="save"
+          [disabled]="saving()"
+          i18n="@@contacts.carddav.addSave"
+        >
+          Add account
+        </button>
+        <button
+          mat-button
+          type="button"
+          class="cancel"
+          [disabled]="saving()"
+          (click)="cancelAdd()"
+          i18n="@@contacts.form.cancel"
+        >
+          Cancel
+        </button>
+      </div>
+    </form>
+  }
+</section>

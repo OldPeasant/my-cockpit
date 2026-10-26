@@ -1,5 +1,18 @@
 <form class="contact-form" (submit)="$event.preventDefault(); submit()" novalidate>
   @let f = form();
+  @if (isNew() && carddavAccounts().length) {
+    <label class="save-to">
+      <span class="label" i18n="@@contacts.saveTo">Save to</span>
+      <select name="target" [value]="target()" (change)="setTarget($event)">
+        <option value="" i18n="@@contacts.saveTo.here">My Cockpit only</option>
+        @for (a of carddavAccounts(); track a.id) {
+          <option [value]="a.id" i18n="@@contacts.saveTo.carddav">
+            {{ a.name }} (CardDAV, synced)
+          </option>
+        }
+      </select>
+    </label>
+  }
   <fieldset class="names">
     <legend i18n="@@contacts.form.name">Name</legend>
     <label>

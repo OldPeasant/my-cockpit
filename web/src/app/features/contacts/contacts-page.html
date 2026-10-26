@@ -61,6 +61,8 @@
     </aside>
   }
 
+  <app-carddav-accounts />
+
   @if (importError(); as error) {
     <div class="import-report failed" role="alert">
       <p i18n="@@contacts.importFailed">The file could not be imported: {{ error }}</p>

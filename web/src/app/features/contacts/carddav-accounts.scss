@@ -1,0 +1,115 @@
+// The CardDAV accounts: the same quiet strip as the other sync accounts, a list of one line each.
+.carddav {
+  display: grid;
+  gap: var(--app-space-2);
+  margin-bottom: var(--app-space-4);
+  padding: var(--app-space-2) var(--app-space-3);
+  border-left: 3px solid var(--app-accent);
+  background: var(--app-surface-raised);
+  font: var(--mat-sys-body-medium);
+}
+
+.carddav-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--app-space-2);
+}
+
+h2 {
+  margin: 0;
+  font: var(--mat-sys-title-small);
+}
+
+p {
+  margin: 0;
+}
+
+.none,
+.where,
+.hint,
+.label,
+.confirm {
+  color: var(--app-fg-muted);
+}
+
+.error,
+.state.failed {
+  color: var(--mat-sys-error);
+}
+
+.list {
+  display: grid;
+  gap: var(--app-space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.account {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 var(--app-space-3);
+
+  .name {
+    font: var(--mat-sys-label-large);
+  }
+
+  .state {
+    flex: 1 1 12rem;
+  }
+
+  .actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: var(--app-space-1);
+  }
+
+  .error {
+    flex-basis: 100%;
+  }
+}
+
+.add-form {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+  gap: var(--app-space-2) var(--app-space-3);
+  padding-top: var(--app-space-2);
+
+  label {
+    display: grid;
+    gap: var(--app-space-1);
+  }
+
+  .label {
+    font: var(--mat-sys-label-medium);
+  }
+
+  .wide {
+    grid-column: 1 / -1;
+  }
+
+  input {
+    min-width: 0;
+    padding: var(--app-space-2);
+    border: 1px solid var(--app-border);
+    border-radius: var(--app-radius);
+    background: var(--app-bg);
+    color: inherit;
+    font: var(--mat-sys-body-large);
+
+    &:focus-visible {
+      outline: 2px solid var(--app-accent);
+      outline-offset: -1px;
+      border-color: transparent;
+    }
+  }
+
+  .buttons {
+    display: flex;
+    gap: var(--app-space-2);
+  }
+}

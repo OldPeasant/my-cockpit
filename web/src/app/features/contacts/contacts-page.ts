@@ -6,6 +6,7 @@ import { debounceTime, Subject } from 'rxjs';
 import { ContactResponse, OAuthConnectionResponse, SkippedVCardDto } from '../../api/generated';
 import { ChangeEventsService } from '../../core/events';
 import { ApiError, NotificationService } from '../../core/http';
+import { CardDavAccounts } from './carddav-accounts';
 import { initials, roleLine, sourceLabel } from './contact-display';
 import { ContactsService } from './contacts.service';
 
@@ -24,12 +25,12 @@ interface ImportResult {
 
 /**
  * Contacts (SPEC.md §8.3): all contacts by name, searched by name or email (`/contacts?q=…`), the
- * accounts they sync with, vCard import of a file and export of all contacts.
+ * accounts they sync with (CardDAV accounts managed here), vCard import of a file and export of all contacts.
  */
 @Component({
   selector: 'app-contacts-page',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [MatButtonModule, RouterLink],
+  imports: [CardDavAccounts, MatButtonModule, RouterLink],
   templateUrl: './contacts-page.html',
   styleUrl: './contacts-page.scss',
 })

@@ -6,6 +6,8 @@
   @if (isNew()) {
     <h1 id="contact-title" class="new-title" i18n="@@contacts.newTitle">New contact</h1>
     <app-contact-form
+      [carddavAccounts]="carddavAccounts()"
+      [(target)]="target"
       [busy]="saving()"
       [error]="saveError()"
       (save)="save($event)"

@@ -13,6 +13,7 @@ import { MatButtonModule } from '@angular/material/button';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { filter } from 'rxjs';
 import {
+  CardDavAccountResponse,
   ContactRelatedResponse,
   ContactRequest,
   ContactResponse,
@@ -74,6 +75,11 @@ export default class ContactDetail {
   protected readonly saveError = signal<string | null>(null);
   protected readonly deleting = signal(false);
 
+  /** The CardDAV accounts a new contact can be created in. */
+  protected readonly carddavAccounts = signal<CardDavAccountResponse[]>([]);
+  /** Where a new contact is created: a CardDAV account id, or '' for here only. */
+  protected readonly target = signal('');
+
   protected readonly ref = computed<ItemRefDto>(() => ({ type: 'CONTACT', id: this.id() }));
   protected readonly notesHtml = computed(() => {
     const notes = this.contact()?.notesMd;
@@ -123,7 +129,10 @@ export default class ContactDetail {
     this.account.set(null);
     this.saveError.set(null);
     this.editing.set(this.isNew());
-    if (this.isNew()) return;
+    if (this.isNew()) {
+      void this.loadCardDavAccounts(seq);
+      return;
+    }
     try {
       const contact = await this.service.get(this.id());
       if (seq !== this.loadSeq) return;
@@ -165,7 +174,10 @@ export default class ContactDetail {
     this.saveError.set(null);
     try {
       if (this.isNew()) {
-        const created = await this.service.create(request);
+        const target = this.target();
+        const created = target
+          ? await this.service.createIn(target, request)
+          : await this.service.create(request);
         this.notifications.info(
           $localize`:@@contacts.created:Contact “${created.displayName}:name:” created`,
         );
@@ -237,6 +249,17 @@ export default class ContactDetail {
       }
     } catch {
       // The contact stays; the next action shows the problem.
+    }
+  }
+
+  private async loadCardDavAccounts(seq: number): Promise<void> {
+    this.target.set('');
+    try {
+      const accounts = await this.service.carddavAccounts();
+      if (seq === this.loadSeq) this.carddavAccounts.set(accounts);
+    } catch {
+      this.carddavAccounts.set([]);
+      // Without them, the contact is created here only.
     }
   }
 

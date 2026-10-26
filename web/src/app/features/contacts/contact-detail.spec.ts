@@ -70,6 +70,8 @@ interface ChangeEvent {
   op: string;
 }
 
+const CARDDAV = '/api/v1/contacts/carddav-accounts';
+
 describe('ContactDetail', () => {
   let harness: RouterTestingHarness;
   let root: HTMLElement;
@@ -394,7 +396,10 @@ describe('ContactDetail', () => {
 
   it('creates a contact and opens it', async () => {
     await start('/contacts/new');
+    http.expectOne(CARDDAV).flush({ items: [] });
+    await settle();
     expect(text(root.querySelector('h1'))).toBe('New contact');
+    expect(root.querySelector('.save-to')).toBeNull();
     (root.querySelector('form') as HTMLFormElement).dispatchEvent(new Event('submit'));
     await settle();
     expect(text(root.querySelector('.form-error'))).toBe(
@@ -424,10 +429,12 @@ describe('ContactDetail', () => {
 
   it('leaves a new contact with Cancel', async () => {
     await start('/contacts/new?q=gr');
+    http.expectOne(CARDDAV).flush({ items: [] });
     (root.querySelector('button.cancel') as HTMLButtonElement).click();
     await settle();
     expect(TestBed.inject(Router).url).toBe('/contacts?q=gr');
     http.expectOne('/api/v1/oauth/connections').flush([]);
+    http.expectOne(CARDDAV).flush({ items: [] });
     http.expectOne((r) => r.url === '/api/v1/contacts').flush({ items: [] });
   });
 
@@ -442,6 +449,7 @@ describe('ContactDetail', () => {
     expect(notifications.info).toHaveBeenCalledWith('Moved “Ada Example” to the Trash');
     expect(TestBed.inject(Router).url).toBe('/contacts?q=ada');
     http.expectOne('/api/v1/oauth/connections').flush([]);
+    http.expectOne(CARDDAV).flush({ items: [] });
     http.expectOne((r) => r.url === '/api/v1/contacts').flush({ items: [] });
   });
 
@@ -654,6 +662,7 @@ describe('ContactDetail', () => {
     await settle();
     expect(notifications.info).toHaveBeenCalledWith('Moved “Ada Lovelace” to the Trash');
     http.expectOne('/api/v1/oauth/connections').flush([]);
+    http.expectOne(CARDDAV).flush({ items: [] });
     http.expectOne((r) => r.url === '/api/v1/contacts').flush({ items: [] });
   });
 
@@ -726,6 +735,7 @@ describe('ContactDetail', () => {
     await settle();
     expect(notifications.info).toHaveBeenCalledTimes(1);
     http.expectOne('/api/v1/oauth/connections').flush([]);
+    http.expectOne(CARDDAV).flush({ items: [] });
     http.expectOne((r) => r.url === '/api/v1/contacts').flush({ items: [] });
   });
 

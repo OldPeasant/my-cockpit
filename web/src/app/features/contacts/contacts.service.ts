@@ -1,20 +1,27 @@
 import { HttpContext } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
 import {
+  AddCardDavAccountRequest,
+  addCardDavAccount,
   Api,
+  CardDavAccountResponse,
   ContactPageResponse,
   ContactRelatedResponse,
   ContactRequest,
   ContactResponse,
+  createCardDavContact,
   createContact,
   deleteContact,
   exportContacts,
   getContact,
   getContactRelated,
   importContacts,
+  listCardDavAccounts,
   listContacts,
   listOAuthConnections,
   OAuthConnectionResponse,
+  removeCardDavAccount,
+  syncCardDavAccount,
   updateContact,
   VCardImportResponse,
 } from '../../api/generated';
@@ -55,6 +62,11 @@ export class ContactsService {
     return this.api.invoke(createContact, { body }, silent());
   }
 
+  /** Creates the contact in the address book of a CardDAV account; the next sync writes it there. */
+  createIn(accountId: string, body: ContactRequest): Promise<ContactResponse> {
+    return this.api.invoke(createCardDavContact, { id: accountId, body }, silent());
+  }
+
   update(contact: ContactResponse, body: ContactRequest): Promise<ContactResponse> {
     return this.api.invoke(
       updateContact,
@@ -90,6 +102,25 @@ export class ContactsService {
   async syncAccounts(): Promise<OAuthConnectionResponse[]> {
     const connections = await this.api.invoke(listOAuthConnections, undefined, silent());
     return connections.filter(syncsContacts);
+  }
+
+  /** The CardDAV accounts with their sync status, in the order they were added. */
+  async carddavAccounts(): Promise<CardDavAccountResponse[]> {
+    return (await this.api.invoke(listCardDavAccounts, undefined, silent())).items;
+  }
+
+  addCardDavAccount(body: AddCardDavAccountRequest): Promise<CardDavAccountResponse> {
+    return this.api.invoke(addCardDavAccount, { body }, silent());
+  }
+
+  /** Stops syncing the account; its contacts stay here. */
+  removeCardDavAccount(id: string): Promise<void> {
+    return this.api.invoke(removeCardDavAccount, { id }, silent());
+  }
+
+  /** Syncs the account now; a failing server shows in the returned status, not as an error. */
+  syncCardDavAccount(id: string): Promise<CardDavAccountResponse> {
+    return this.api.invoke(syncCardDavAccount, { id }, silent());
   }
 }
 

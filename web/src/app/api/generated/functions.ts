@@ -135,6 +135,18 @@ export type { CreateContact$Params as CreateContact$Params } from './fn/contacts
 export { createContact as createContact } from './fn/contacts/create-contact';
 export type { AutocompleteContacts$Params as AutocompleteContacts$Params } from './fn/contacts/autocomplete-contacts';
 export { autocompleteContacts as autocompleteContacts } from './fn/contacts/autocomplete-contacts';
+export type { ListCardDavAccounts$Params as ListCardDavAccounts$Params } from './fn/contacts/list-card-dav-accounts';
+export { listCardDavAccounts as listCardDavAccounts } from './fn/contacts/list-card-dav-accounts';
+export type { AddCardDavAccount$Params as AddCardDavAccount$Params } from './fn/contacts/add-card-dav-account';
+export { addCardDavAccount as addCardDavAccount } from './fn/contacts/add-card-dav-account';
+export type { GetCardDavAccount$Params as GetCardDavAccount$Params } from './fn/contacts/get-card-dav-account';
+export { getCardDavAccount as getCardDavAccount } from './fn/contacts/get-card-dav-account';
+export type { RemoveCardDavAccount$Params as RemoveCardDavAccount$Params } from './fn/contacts/remove-card-dav-account';
+export { removeCardDavAccount as removeCardDavAccount } from './fn/contacts/remove-card-dav-account';
+export type { CreateCardDavContact$Params as CreateCardDavContact$Params } from './fn/contacts/create-card-dav-contact';
+export { createCardDavContact as createCardDavContact } from './fn/contacts/create-card-dav-contact';
+export type { SyncCardDavAccount$Params as SyncCardDavAccount$Params } from './fn/contacts/sync-card-dav-account';
+export { syncCardDavAccount as syncCardDavAccount } from './fn/contacts/sync-card-dav-account';
 export type { ExportContacts$Params as ExportContacts$Params } from './fn/contacts/export-contacts';
 export { exportContacts as exportContacts } from './fn/contacts/export-contacts';
 export type { ImportContacts$Params as ImportContacts$Params } from './fn/contacts/import-contacts';

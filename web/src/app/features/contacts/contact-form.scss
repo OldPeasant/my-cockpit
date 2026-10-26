@@ -21,7 +21,15 @@ legend {
   font: var(--mat-sys-label-medium);
 }
 
+// Where a new contact goes: here only, or a CardDAV address book too.
+.save-to {
+  display: grid;
+  justify-items: start;
+  gap: var(--app-space-1);
+}
+
 input,
+select,
 textarea {
   min-width: 0;
   padding: var(--app-space-2);

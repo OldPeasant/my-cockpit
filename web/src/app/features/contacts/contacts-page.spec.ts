@@ -12,6 +12,7 @@ import { connection, contact } from './testing';
 
 const LIST = '/api/v1/contacts';
 const CONNECTIONS = '/api/v1/oauth/connections';
+const CARDDAV = '/api/v1/contacts/carddav-accounts';
 const ADA = contact('0192f0c4-0000-7000-8000-000000000001', {
   title: 'Engineer',
   organization: 'Example AG',
@@ -70,6 +71,7 @@ describe('ContactsPage', () => {
     await harness.navigateByUrl(url);
     root = harness.routeNativeElement as HTMLElement;
     http.expectOne(CONNECTIONS).flush(accounts);
+    http.expectOne(CARDDAV).flush({ items: [] });
     flushList(items, nextCursor);
     await settle();
   }
@@ -178,6 +180,7 @@ describe('ContactsPage', () => {
     await harness.navigateByUrl('/contacts');
     root = harness.routeNativeElement as HTMLElement;
     http.expectOne(CONNECTIONS).flush(null, { status: 500, statusText: 'Server Error' });
+    http.expectOne(CARDDAV).flush({ items: [] });
     http.expectOne((r) => r.url === LIST).flush(null, { status: 503, statusText: 'Unavailable' });
     await settle();
     expect(text(root.querySelector('.load-error'))).toContain('could not be loaded');

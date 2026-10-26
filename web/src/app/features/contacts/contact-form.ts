@@ -4,12 +4,13 @@ import {
   computed,
   effect,
   input,
+  model,
   output,
   signal,
   untracked,
 } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
-import { ContactRequest, ContactResponse } from '../../api/generated';
+import { CardDavAccountResponse, ContactRequest, ContactResponse } from '../../api/generated';
 import {
   AddressRow,
   ContactFormValue,
@@ -24,7 +25,8 @@ type ListField = 'emails' | 'phones' | 'addresses';
 
 /**
  * The fields of a contact to create (`contact` null) or change. Emits the request to send; the
- * page saves it and shows `error`.
+ * page saves it (in the `target` CardDAV account, when one is chosen for a new contact) and shows
+ * `error`.
  */
 @Component({
   selector: 'app-contact-form',
@@ -37,6 +39,10 @@ export class ContactForm {
   readonly contact = input<ContactResponse | null>(null);
   readonly busy = input(false);
   readonly error = input<string | null>(null);
+  /** The CardDAV accounts a new contact can be created in; the choice shows only when there are any. */
+  readonly carddavAccounts = input<CardDavAccountResponse[]>([]);
+  /** Where a new contact is created: a CardDAV account id, or '' for here only. */
+  readonly target = model('');
 
   readonly save = output<ContactRequest>();
   readonly cancelled = output<void>();
@@ -90,6 +96,10 @@ export class ContactForm {
       ...form,
       [list]: form[list].filter((_, i) => i !== index),
     }));
+  }
+
+  protected setTarget(event: Event): void {
+    this.target.set((event.target as HTMLSelectElement).value);
   }
 
   protected submit(): void {
