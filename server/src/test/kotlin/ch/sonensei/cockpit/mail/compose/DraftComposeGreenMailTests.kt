@@ -414,6 +414,37 @@ class DraftComposeGreenMailTests(
 	}
 
 	@Test
+	fun `a reply or forward addressed to no identity is From the account address unless an identity is default`() {
+		// A non-default identity the original was not addressed to: neither its From nor its Reply-To applies.
+		identities.save(
+			MailIdentity(account.id, "Jane Support", "support@example.test").apply { replyTo = "Help Desk <help@example.test>" },
+		)
+		remote { store -> store.getFolder("INBOX").appendMessages(arrayOf(original())) }
+		folders.findByAccountIdOrderByPathAsc(account.id).forEach { sync.syncFolder(it.id) }
+		val inbox = cached("INBOX").single()
+
+		val reply = draftRequest(post("/api/v1/mail/messages/${inbox.id}/reply")).andExpect { status { isCreated() } }.json()
+		reply["identityId"].isNull shouldBe true
+		reply["from"]["address"].asString() shouldBe EMAIL
+		reply["from"]["name"].asString() shouldBe "Jane Doe"
+		get(reply["id"].asString()).body["identityId"].isNull shouldBe true
+		val storedReply = onServer("Drafts").single { it.subject == "Re: Project status" }
+		(storedReply.from.single() as InternetAddress).let {
+			it.address shouldBe EMAIL
+			it.personal shouldBe "Jane Doe"
+		}
+		storedReply.getHeader("Reply-To") shouldBe null
+
+		val sales = identities.save(MailIdentity(account.id, "Jane Sales", "sales@example.test").apply { isDefault = true })
+		val forward = draftRequest(post("/api/v1/mail/messages/${inbox.id}/forward")).andExpect { status { isCreated() } }.json()
+		forward["identityId"].asString() shouldBe sales.id.toString()
+		forward["from"]["address"].asString() shouldBe "sales@example.test"
+		forward["from"]["name"].asString() shouldBe "Jane Sales"
+		(onServer("Drafts").single { it.subject == "Fwd: Project status" }.from.single() as InternetAddress).address shouldBe
+			"sales@example.test"
+	}
+
+	@Test
 	fun `a reply to a sent message threads under it and goes to its recipient`() {
 		val created = createDraft(subject = "Kickoff", html = "<p>Let us start.</p>")
 		draftRequest(post("/api/v1/mail/drafts/${created.body["id"].asString()}/send", created.etag)).andExpect { status { isOk() } }
