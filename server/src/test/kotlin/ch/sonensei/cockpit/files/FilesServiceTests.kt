@@ -457,6 +457,42 @@ class FilesServiceTests(
 			)
 	}
 
+	@Test
+	fun `freeFileName keeps an unused name and numbers a taken one, regardless of case`() {
+		val folder = service.createFolder("Inbox copies", null)
+
+		service.freeFileName(folder.id, "report.pdf") shouldBe "report.pdf"
+
+		store("Report.PDF", folder.id)
+		service.freeFileName(folder.id, "report.pdf") shouldBe "report (2).pdf"
+
+		store("report (2).pdf", folder.id)
+		store("REPORT (3).pdf", folder.id)
+		service.freeFileName(folder.id, "report.pdf") shouldBe "report (4).pdf"
+	}
+
+	@Test
+	fun `freeFileName ignores files in the Trash and in other folders`() {
+		val folder = service.createFolder("Inbox copies", null)
+		val other = service.createFolder("Elsewhere", null)
+		store("budget.csv", other.id)
+		store("budget.csv")
+		val trashed = store("budget.csv", folder.id)
+		service.deleteFile(trashed.id)
+
+		service.freeFileName(folder.id, "budget.csv") shouldBe "budget.csv"
+	}
+
+	@Test
+	fun `freeFileName validates and trims the name`() {
+		val folder = service.createFolder("Inbox copies", null)
+		store("notes.txt", folder.id)
+
+		service.freeFileName(folder.id, "  notes.txt ") shouldBe "notes (2).txt"
+		shouldThrow<InvalidRequestException> { service.freeFileName(folder.id, "a/b.txt") }
+		shouldThrow<InvalidRequestException> { service.freeFileName(folder.id, "  ") }
+	}
+
 	private fun searchDocumentCount(): Long =
 		jdbc.queryForObject("select count(*) from search_document where item_type in ('FILE', 'FOLDER')", Long::class.java)!!
 }

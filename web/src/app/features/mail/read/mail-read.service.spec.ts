@@ -77,6 +77,40 @@ describe('MailReadService', () => {
     expect((await result).name).toBe('report (2).pdf');
   });
 
+  it('downloads an attachment as a blob, silently, as a download unless asked inline', async () => {
+    const result = service.attachment(ID, '2');
+    const download = await request(`/api/v1/mail/messages/${ID}/attachments/2`);
+    expect(download.request.method).toBe('GET');
+    expect(download.request.responseType).toBe('blob');
+    expect(download.request.params.get('inline')).toBe('false');
+    expect(download.request.context.get(SILENT_ERRORS)).toBe(true);
+    download.flush(new Blob(['item,amount']));
+    expect(await (await result).text()).toBe('item,amount');
+
+    const preview = service.attachment(ID, '1.2', true);
+    const inline = await request(`/api/v1/mail/messages/${ID}/attachments/1.2`);
+    expect(inline.request.params.get('inline')).toBe('true');
+    inline.flush(new Blob(['png']));
+    await preview;
+  });
+
+  it('saves to Files silently and rejects with the server problem, without a second request', async () => {
+    const notifications = TestBed.inject(NotificationService);
+    const result = service.saveToFiles(ID, '1.2');
+    const save = await request(`/api/v1/mail/messages/${ID}/attachments/1.2/save-to-files`);
+    expect(save.request.context.get(SILENT_ERRORS)).toBe(true);
+    const failed = expect(result).rejects.toBeTruthy();
+    save.flush(
+      { status: 413, title: 'Content Too Large', detail: 'The file exceeds the maximum size' },
+      { status: 413, statusText: 'Content Too Large' },
+    );
+    await failed;
+    // Neither the old download nor the old upload of the interim solution runs.
+    http.expectNone(`/api/v1/mail/messages/${ID}/attachments/1.2`);
+    http.expectNone('/api/v1/files');
+    expect(notifications.error).not.toHaveBeenCalled();
+  });
+
   it('builds attachment URLs', () => {
     expect(attachmentUrl(ID, '1.2')).toBe(`/api/v1/mail/messages/${ID}/attachments/1.2`);
     expect(attachmentUrl(ID, '3', true)).toBe(

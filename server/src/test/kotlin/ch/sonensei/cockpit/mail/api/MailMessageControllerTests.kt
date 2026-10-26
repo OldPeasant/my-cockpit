@@ -1,5 +1,7 @@
 package ch.sonensei.cockpit.mail.api
 
+import ch.sonensei.cockpit.files.domain.FileItem
+import ch.sonensei.cockpit.files.infra.BlobTooLargeException
 import ch.sonensei.cockpit.mail.imap.MailConnectionError
 import ch.sonensei.cockpit.mail.imap.MailConnectionException
 import io.kotest.matchers.nulls.shouldNotBeNull
@@ -12,9 +14,11 @@ import org.junit.jupiter.api.Test
 import org.springframework.http.HttpHeaders
 import org.springframework.mock.web.MockHttpServletResponse
 import org.springframework.test.web.servlet.get
+import org.springframework.test.web.servlet.post
 import org.springframework.test.web.servlet.setup.MockMvcBuilders
 import java.io.IOException
 import java.io.OutputStream
+import java.time.Instant
 import java.util.UUID
 
 /**
@@ -23,10 +27,11 @@ import java.util.UUID
  */
 class MailMessageControllerTests {
 	private val reads = mockk<MailReadService>()
+	private val attachmentFiles = mockk<MailAttachmentFilesService>()
 	private val mockMvc =
 		MockMvcBuilders
 			.standaloneSetup(
-				MailMessageController(reads, mockk(), mockk(), mockk()),
+				MailMessageController(reads, mockk(), mockk(), attachmentFiles),
 			).setControllerAdvice(MailConnectionAdvice())
 			.build()
 	private val id = UUID.randomUUID()
@@ -146,6 +151,71 @@ class MailMessageControllerTests {
 		response.contentAsString shouldNotContain "errorCode"
 		(response.contentType ?: "") shouldNotContain "problem"
 	}
+
+	@Test
+	fun `saving an attachment to Files answers 201 with the file, its location and its version`() {
+		val stored = FileItem("budget (2).csv", UUID.randomUUID(), "text/csv", 30, "fictitious-sha256", "fictitious-key")
+		// Timestamps and version are set by JPA; the stub answers them like a persisted file.
+		val file =
+			mockk<FileItem> {
+				every { id } returns stored.id
+				every { name } returns stored.name
+				every { folderId } returns stored.folderId
+				every { mime } returns stored.mime
+				every { size } returns stored.size
+				every { sha256 } returns stored.sha256
+				every { createdAt } returns Instant.parse("2026-10-26T08:00:00Z")
+				every { updatedAt } returns Instant.parse("2026-10-26T08:00:00Z")
+				every { version } returns 3
+			}
+		every { attachmentFiles.saveToFiles(id, "1.2") } returns file
+
+		val response = saveToFiles("1.2")
+
+		response.status shouldBe 201
+		response.getHeader(HttpHeaders.LOCATION) shouldBe "/api/v1/files/${file.id}"
+		response.getHeader(HttpHeaders.ETAG) shouldBe "\"3\""
+		response.contentAsString shouldContain "\"name\":\"budget (2).csv\""
+		response.contentAsString shouldContain "\"folderId\":\"${file.folderId}\""
+		response.contentAsString shouldContain "\"id\":\"${file.id}\""
+	}
+
+	@Test
+	fun `an attachment over the maximum file size is 413 Problem Details`() {
+		every { attachmentFiles.saveToFiles(id, "2") } throws BlobTooLargeException(1024)
+
+		mockMvc.post("/api/v1/mail/messages/$id/attachments/2/save-to-files").andExpect {
+			status { isEqualTo(413) }
+			content { contentTypeCompatibleWith("application/problem+json") }
+			jsonPath("$.status") { value(413) }
+			jsonPath("$.detail") { value("The file exceeds the maximum size of 1024 bytes") }
+		}
+	}
+
+	@Test
+	fun `saving to Files while the connections are busy is 503 and on a mail server failure 502`() {
+		every { attachmentFiles.saveToFiles(id, "2") } throws MailConnectionException(MailConnectionError.POOL_EXHAUSTED)
+		mockMvc.post("/api/v1/mail/messages/$id/attachments/2/save-to-files").andExpect {
+			status { isServiceUnavailable() }
+			content { contentTypeCompatibleWith("application/problem+json") }
+			jsonPath("$.errorCode") { value("POOL_EXHAUSTED") }
+		}
+
+		every { attachmentFiles.saveToFiles(id, "2") } throws
+			MailConnectionException(MailConnectionError.CONNECTION_FAILED, IOException("* BYE secret server response for jane@example.test"))
+		val body =
+			mockMvc
+				.post("/api/v1/mail/messages/$id/attachments/2/save-to-files")
+				.andExpect {
+					status { isBadGateway() }
+					jsonPath("$.errorCode") { value("CONNECTION_FAILED") }
+				}.andReturn()
+				.response.contentAsString
+		body shouldNotContain "secret server response"
+	}
+
+	private fun saveToFiles(partId: String): MockHttpServletResponse =
+		mockMvc.post("/api/v1/mail/messages/$id/attachments/$partId/save-to-files").andReturn().response
 
 	private companion object {
 		val CONTENT = byteArrayOf(1, 2, 3)

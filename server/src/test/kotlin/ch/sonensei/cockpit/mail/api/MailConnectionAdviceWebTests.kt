@@ -2,6 +2,7 @@ package ch.sonensei.cockpit.mail.api
 
 import ch.sonensei.cockpit.core.auth.WithCockpitUser
 import ch.sonensei.cockpit.core.web.NotFoundException
+import ch.sonensei.cockpit.files.infra.BlobTooLargeException
 import ch.sonensei.cockpit.mail.compose.DraftService
 import ch.sonensei.cockpit.mail.gtd.MailGtdService
 import ch.sonensei.cockpit.mail.imap.MailConnectionError
@@ -11,6 +12,7 @@ import ch.sonensei.cockpit.support.PostgresTestBase
 import com.ninjasquad.springmockk.MockkBean
 import io.kotest.matchers.string.shouldNotContain
 import io.mockk.every
+import io.mockk.verify
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
@@ -47,6 +49,9 @@ class MailConnectionAdviceWebTests(
 	@MockkBean(relaxed = true)
 	private lateinit var drafts: DraftService
 
+	@MockkBean(relaxed = true)
+	private lateinit var attachmentFiles: MailAttachmentFilesService
+
 	private val id = UUID.fromString("01900000-0000-7000-8000-000000000042")
 
 	private fun serverFailure(error: MailConnectionError) =
@@ -58,8 +63,12 @@ class MailConnectionAdviceWebTests(
 		every { folders.sync(id) } throws serverFailure(error)
 		every { gtd.toTask(id) } throws serverFailure(error)
 		every { drafts.send(id, any()) } throws serverFailure(error)
+		every { attachmentFiles.saveToFiles(id, "2") } throws serverFailure(error)
 		return mapOf(
 			"MailMessageController" to { mockMvc.get("/api/v1/mail/messages/$id") },
+			"MailMessageController save-to-files" to {
+				mockMvc.post("/api/v1/mail/messages/$id/attachments/2/save-to-files") { with(csrf()) }
+			},
 			"MailAccountController" to { mockMvc.post("/api/v1/mail/accounts/$id/folders/sync") { with(csrf()) } },
 			"MailGtdController" to { mockMvc.post("/api/v1/mail/messages/$id/to-task") { with(csrf()) } },
 			"DraftController" to {
@@ -120,6 +129,31 @@ class MailConnectionAdviceWebTests(
 				}
 			}
 		}
+	}
+
+	@Test
+	fun `save-to-files answers a missing message or part with 404 and a too large one with 413 Problem Details`() {
+		every { attachmentFiles.saveToFiles(id, "9") } throws NotFoundException("Attachment not found")
+		mockMvc.post("/api/v1/mail/messages/$id/attachments/9/save-to-files") { with(csrf()) }.andExpect {
+			status { isNotFound() }
+			content { contentTypeCompatibleWith("application/problem+json") }
+			jsonPath("$.errorCode") { doesNotExist() }
+		}
+
+		every { attachmentFiles.saveToFiles(id, "3") } throws BlobTooLargeException(2048)
+		mockMvc.post("/api/v1/mail/messages/$id/attachments/3/save-to-files") { with(csrf()) }.andExpect {
+			status { isEqualTo(413) }
+			content { contentTypeCompatibleWith("application/problem+json") }
+			jsonPath("$.detail") { value("The file exceeds the maximum size of 2048 bytes") }
+		}
+	}
+
+	@Test
+	fun `save-to-files without a CSRF token is rejected and saves nothing`() {
+		mockMvc.post("/api/v1/mail/messages/$id/attachments/2/save-to-files").andExpect {
+			status { isForbidden() }
+		}
+		verify(exactly = 0) { attachmentFiles.saveToFiles(any(), any()) }
 	}
 
 	@Test
