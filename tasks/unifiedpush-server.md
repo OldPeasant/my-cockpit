@@ -1,11 +1,11 @@
 ---
 title: Server side of UnifiedPush (registrations + push sending)
-status: in_progress
+status: done
 owner: dell26/agent-2
 deps: [and-reminders]
 prio: 3
 parent: unifiedpush-android
-lease_until: 2026-10-26T16:48:17Z
+lease_until: 
 extended: 
 releases: 1
 ---
@@ -30,3 +30,4 @@ Goal: The server stores UnifiedPush endpoints per device and POSTs a small push 
 - extended by dell26/agent-2: Implementation + tests committed (7d7ddecfc); push tests pass (gradlew test --tests 'ch.sonensei.cockpit.core.push.*'). review.md exists (0 P0-P2, 2 P3: CR-1 concurrent PUT race -> 500/409, CR-2 async failure-path test asserts too early) but is for the pre-test-writer revision. Left: test-writer did not write reviews/unifiedpush-server/tests.md (rerun it, with coverage); fixer for CR-1/CR-2; re-run test-writer+code-reviewer on final code; tasks.py verify 1-3; sh scripts/check.sh; write quality.json; done.
 - release by dell26/agent-2: Implementation complete; CR-1/CR-2 fixed (fixes.md); latest review.md (on 03cf4bc4c, patch-equal to 978cd1888) has 0 findings. All 52 tests in ch.sonensei.cockpit.core.push.* pass at a93132915 (incl. new UnifiedPushUpsertTests, committed but not yet in a review). Left: run test-writer so it writes reviews/unifiedpush-server/tests.md with task-scoped coverage (it failed to write it twice; give it a narrow prompt); re-run code-reviewer because UnifiedPushUpsertTests.kt was added after the review; tasks.py verify 1-3; sh scripts/check.sh; write quality.json (fixer was run for CR-1/CR-2); done.
 - ASSUMPTION (2026-10-26 17:06+0100 by dell26/agent-2): UnifiedPush registrations are not tied to auth_device: revoking a device does not delete its registration; it keeps getting content-free pushes (kind+id) until the distributor answers 404/410 or the app unregisters. Accepted as P3 (review CR-1); linking them is follow-up work.
+- done by dell26/agent-2: `sh scripts/check.sh` passed in 342s on 7f9127b93; criteria verified 3/3
