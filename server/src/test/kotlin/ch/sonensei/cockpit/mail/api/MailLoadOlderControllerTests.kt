@@ -94,4 +94,57 @@ class MailLoadOlderControllerTests {
 
 		verify(exactly = 1) { older.hasOlder(any()) }
 	}
+
+	@Test
+	fun `load-older accepts the smallest limit and rejects a non-numeric one`() {
+		every { older.loadOlder(folderId, 1) } returns OlderMessagesResult(loaded = 1, hasMore = true)
+		mockMvc.post("/api/v1/mail/folders/$folderId/load-older?limit=1").andExpect {
+			status { isOk() }
+			jsonPath("$.loaded") { value(1) }
+			jsonPath("$.hasMore") { value(true) }
+		}
+
+		mockMvc.post("/api/v1/mail/folders/$folderId/load-older?limit=many").andExpect {
+			status { isBadRequest() }
+			content { contentTypeCompatibleWith("application/problem+json") }
+		}
+		verify(exactly = 1) { older.loadOlder(any(), any()) }
+	}
+
+	@Test
+	fun `a complete folder reports no older mail on its last page`() {
+		every { older.hasOlder(folderId) } returns false
+		every { reads.list(null, folderId, false, any()) } returns CursorPage(emptyList(), null)
+
+		mockMvc.get("/api/v1/mail/messages?folderId=$folderId").andExpect {
+			status { isOk() }
+			jsonPath("$.nextCursor") { value(null) }
+			jsonPath("$.hasOlder") { value(false) }
+		}
+	}
+
+	@Test
+	fun `an account Inbox list never offers older mail`() {
+		val accountId = UUID.randomUUID()
+		every { reads.list(accountId, null, false, any()) } returns CursorPage(emptyList(), null)
+
+		mockMvc.get("/api/v1/mail/messages?accountId=$accountId").andExpect {
+			status { isOk() }
+			jsonPath("$.hasOlder") { value(false) }
+		}
+		verify(exactly = 0) { older.hasOlder(any()) }
+	}
+
+	@Test
+	fun `a threaded folder list with its account offers older mail on the last page`() {
+		val accountId = UUID.randomUUID()
+		every { older.hasOlder(folderId) } returns true
+		every { reads.list(accountId, folderId, true, any()) } returns CursorPage(emptyList(), null)
+
+		mockMvc.get("/api/v1/mail/messages?accountId=$accountId&folderId=$folderId&threaded=true").andExpect {
+			status { isOk() }
+			jsonPath("$.hasOlder") { value(true) }
+		}
+		verify(exactly = 1) { older.hasOlder(folderId) }
+	}
 }

@@ -199,6 +199,43 @@ class MailLoadOlderGreenMailTests(
 	}
 
 	@Test
+	fun `account Inbox and unified lists never offer older mail, a limit out of range is 400`() {
+		val inbox = syncedInbox()
+
+		listOf(mapOf("accountId" to account.id.toString()), emptyMap()).forEach { params ->
+			mockMvc
+				.get("/api/v1/mail/messages") { params.forEach { (k, v) -> param(k, v) } }
+				.andExpect {
+					status { isOk() }
+					jsonPath("$.nextCursor") { value(null) }
+					jsonPath("$.hasOlder") { value(false) }
+				}
+		}
+
+		listOf("0", "201").forEach { limit ->
+			mockMvc
+				.post("/api/v1/mail/folders/${inbox.id}/load-older") {
+					with(csrf())
+					param("limit", limit)
+				}.andExpect {
+					status { isBadRequest() }
+					content { contentTypeCompatibleWith("application/problem+json") }
+				}
+		}
+		// Nothing was loaded by the rejected requests.
+		walk(inbox.id) shouldBe (listOf("New") to true)
+	}
+
+	@Test
+	fun `load-older without a CSRF token is rejected and loads nothing`() {
+		val inbox = syncedInbox()
+
+		mockMvc.post("/api/v1/mail/folders/${inbox.id}/load-older").andExpect { status { isForbidden() } }
+
+		walk(inbox.id) shouldBe (listOf("New") to true)
+	}
+
+	@Test
 	fun `an unreachable server is 502 with an error code`() {
 		val inbox = syncedInbox()
 		greenMail.stop()
