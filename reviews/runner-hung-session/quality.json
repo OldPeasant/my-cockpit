@@ -1,0 +1,23 @@
+{
+  "schema": 1,
+  "task": "runner-hung-session",
+  "reviewed_revision": "dce9be239a64a80aba2d11db909dd9e2b860d5c8",
+  "helpers": {
+    "test-writer": {"status": "completed", "report": "reviews/runner-hung-session/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/runner-hung-session/review.md"},
+    "fixer": {"status": "completed", "report": "reviews/runner-hung-session/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "--result-grace 0 or negative ended every session at its first poll; idle() returns None while unsettled and the option must be >= 1"},
+    {"id": "CR-2", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "background heuristic over-counted foreground Agent reports; now anchored to the launch acknowledgement in the first text block"},
+    {"id": "TW-1", "source": "test-writer", "severity": "Medium", "disposition": "fixed",
+     "note": "Settled.feed raised AttributeError on a non-object message/origin; isinstance guards added"}
+  ],
+  "validation": [
+    {"command": "python -m unittest tests.test_hung_session", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
