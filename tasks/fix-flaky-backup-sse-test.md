@@ -1,10 +1,11 @@
 ---
 title: BackupEventsStreamTests flakes under full-suite load (step was 'bookmarks: data', expected 'controllable: data')
-status: todo
-owner:
+status: in_progress
+owner: dell26/agent-1
 deps: []
 touches: [server/src/test/kotlin/ch/sonensei/cockpit/backup]
 prio: 2
+lease_until: 2026-10-26T13:52:34Z
 ---
 ## Goal
 `backup.BackupEventsStreamTests` "progress of a running backup reaches the SSE stream before the export
