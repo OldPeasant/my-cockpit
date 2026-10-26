@@ -16,3 +16,4 @@ After a backup restore, mail refs (detached rows, uid null) that a link or remin
 - [ ] Remove the restore warning about older linked emails in `MailBackupContributor.restoreWarnings` once it no longer applies
 
 ## Notes
+- ASSUMPTION (2026-10-26 04:06+0100 by dell26/agent-1): Added ReminderService.hasReminders (+ ReminderRepository.existsByItemTypeAndItemId) in core/reminders, outside touches, so the mail module asks through a service; fired reminders count too, matching what the backup exports. Since isLinked is shared, reconcile now also detaches (not deletes) reminder-only vanished messages. pruneDetached still runs only on a UIDVALIDITY resync, not on the first sync.
