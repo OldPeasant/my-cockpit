@@ -13,7 +13,9 @@ import java.util.Base64
  * - `android-fingerprints`: comma-separated SHA-256 fingerprints of the signing certificate(s), hex with or without
  *   colons (`keytool`/`apksigner` print them). Empty: no statement, so the app can't use passkeys.
  *
- * An invalid fingerprint fails the startup, so a typo doesn't silently turn passkeys off in the app.
+ * An invalid fingerprint, or fingerprints without a package, fail the startup, so a typo doesn't silently turn
+ * passkeys off in the app. This class is the only owner of this configuration: [PasskeyRelyingParties] accepts exactly
+ * the [origins] of the fingerprints `assetlinks.json` names.
  */
 @Component
 class AndroidAssetLinks(
@@ -30,9 +32,16 @@ class AndroidAssetLinks(
 			.map(::normalize)
 			.distinct()
 
+	init {
+		require(this.packageName.isNotEmpty() || this.fingerprints.isEmpty()) {
+			"cockpit.auth.passkey.android-package is blank, but android-fingerprints are configured: " +
+				"set the app's package name (applicationId), e.g. ch.sonensei.cockpit"
+		}
+	}
+
 	/** The statements of `assetlinks.json`: one for the app with all its fingerprints, none without fingerprints. */
 	fun statements(): List<AssetLinkStatement> =
-		if (fingerprints.isEmpty() || packageName.isEmpty()) {
+		if (fingerprints.isEmpty()) {
 			emptyList()
 		} else {
 			listOf(AssetLinkStatement(listOf(GET_LOGIN_CREDS), AssetLinkTarget("android_app", packageName, fingerprints)))

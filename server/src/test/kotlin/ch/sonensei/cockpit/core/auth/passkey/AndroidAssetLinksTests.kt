@@ -80,11 +80,20 @@ class AndroidAssetLinksTests {
 	}
 
 	@Test
-	fun `without fingerprints or without a package there is no statement`() {
+	fun `without fingerprints there is no statement and no origin, also without a package`() {
 		AndroidAssetLinks("ch.sonensei.cockpit", emptyList()).statements().shouldBeEmpty()
 		AndroidAssetLinks("ch.sonensei.cockpit", listOf("", " ")).statements().shouldBeEmpty()
 		AndroidAssetLinks("ch.sonensei.cockpit", emptyList()).origins().shouldBeEmpty()
-		AndroidAssetLinks("  ", listOf(COLONS)).statements().shouldBeEmpty()
+		AndroidAssetLinks("  ", emptyList()).statements().shouldBeEmpty()
+		AndroidAssetLinks("", listOf(" ")).origins().shouldBeEmpty()
+	}
+
+	@Test
+	fun `fingerprints with a blank package fail the construction, so the app origins can't be accepted unlisted`() {
+		for (packageName in listOf("", "  ")) {
+			val error = shouldThrow<IllegalArgumentException> { AndroidAssetLinks(packageName, listOf(COLONS)) }
+			error.message.shouldNotBeNull() shouldContain "cockpit.auth.passkey.android-package"
+		}
 	}
 
 	@Test
@@ -135,6 +144,15 @@ class AndroidAssetLinksTests {
 	@Test
 	fun `an invalid fingerprint in the environment fails the startup`() {
 		runner(mapOf("COCKPIT_AUTH_PASSKEY_ANDROID_FINGERPRINTS" to "AB:CD")).run { context ->
+			context.startupFailure.shouldNotBeNull()
+		}
+	}
+
+	@Test
+	fun `a blank package in the environment with fingerprints fails the startup`() {
+		runner(
+			mapOf("COCKPIT_AUTH_PASSKEY_ANDROID_PACKAGE" to "", "COCKPIT_AUTH_PASSKEY_ANDROID_FINGERPRINTS" to COLONS),
+		).run { context ->
 			context.startupFailure.shouldNotBeNull()
 		}
 	}
