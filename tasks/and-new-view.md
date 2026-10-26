@@ -15,7 +15,8 @@ screens stay unchanged.
 ## Acceptance criteria
 - [x] "New" screen in the app navigation: merged list newest first with source marker, filter All / GTD Inbox / Mail (remembered), tap opens the task or the mail read view, mail row offers "→ Inbox task"; shows cached data offline (mail part read-only offline)
   - verified (2026-10-26 11:41+0100 by dell26/agent-2): Robolectric/Compose: NewScreenInAppTest (real app+Hilt, More -> New, mail opens MailRead), NewRouteTest/NewScreenTest (merge newest first + source marker, filters All/GTD Inbox/Mail persisted in SharedPreferences, tap opens task view / mail read, -> Inbox task, offline banner + read-only mail from cache) via cd android && ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.newitems.*' -> 98 passed, 0 failed
-- [ ] `cd android && ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.newitems.*'` passes, covering merge order, each filter, offline state (Robolectric/Compose UI tests for screens); `./gradlew ktlintCheck lintDebug` passes
+- [x] `cd android && ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.newitems.*'` passes, covering merge order, each filter, offline state (Robolectric/Compose UI tests for screens); `./gradlew ktlintCheck lintDebug` passes
+  - verified (2026-10-26 11:41+0100 by dell26/agent-2): cd android && ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.newitems.*' ktlintCheck lintDebug -> BUILD SUCCESSFUL, 98 tests 0 failures/skips (NewModelsTest merge order + filters, NewViewModelTest offline/paging/logout race, Compose screen tests); sh scripts/check.sh -> all checks passed
 
 ## Notes
 - ASSUMPTION (2026-10-26 10:55+0100 by dell26/agent-2): Android has no task detail screen and GtdTask has no createdAt: 'tap opens the task' shows a read-only task view inside the New screen (title, notes, created), and task creation time is read from the UUIDv7 id timestamp (non-v7 ids sort last), so gtd/data stays untouched.
