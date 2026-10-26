@@ -1,10 +1,11 @@
 ---
 title: BackupJobService/RestoreService leak their lazy temp work dirs
-status: todo
-owner:
+status: in_progress
+owner: dell26/agent-2
 deps: []
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/backup/domain]
 prio: 2
+lease_until: 2026-10-26T08:45:38Z
 ---
 ## Goal
 `BackupJobService` (`workDir` = `Files.createTempDirectory("cockpit-backups")`) and `RestoreService`
