@@ -11,7 +11,8 @@ lease_until: 2026-10-26T11:45:02Z
 Weekly reviews (`weekly_review`, SPEC.md §8.6) in backups (SPEC.md §14), so "Last weekly review" and an open review survive a restore.
 
 ## Acceptance criteria
-- [ ] data/weekly_reviews.jsonl (id, startedAt, completedAt, step, timestamps); restored with the at-most-one-open-review rule intact
+- [x] data/weekly_reviews.jsonl (id, startedAt, completedAt, step, timestamps); restored with the at-most-one-open-review rule intact
+  - verified (2026-10-26 12:27+0100 by dell26/agent-2): cd server && ./gradlew test --tests '*ReviewBackupContributorTests' -> 11/11 passed (export of data/weekly_reviews.jsonl with id/createdAt/updatedAt/version/startedAt/completedAt/step; exact restore; >1 open review or unknown step rejected at RestoreService.validate and import, no rows written)
 - [ ] Round-trip test (`./gradlew test --tests '*BackupRoundTripTest'`) passes with this module's `BackupFixture` seeding an open and a completed review
 
 ## Notes
