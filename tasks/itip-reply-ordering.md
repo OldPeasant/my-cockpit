@@ -15,7 +15,8 @@ An older iTIP REPLY (lower SEQUENCE, or same SEQUENCE and older DTSTAMP) that ar
 ## Acceptance criteria
 - [x] A REPLY older than the last applied one for the same attendee/UID/RECURRENCE-ID is ignored; tests cover it
   - verified (2026-10-26 19:52+0100 by felix/agent-1): cd server && ./gradlew test --rerun --tests '*Itip*' --tests '*CalendarBackup*' (Postgres Testcontainer) -> 85 passed, 0 failed (ItipReplyProcessorTests 18 incl. older REPLY ignored/series-vs-occurrence, ItipReplyStampPersistenceTests 10 incl. per-attendee, ItipMessagesTests 26); ./gradlew integrationTest --tests '*ItipGreenMail*' -> 34 passed (stale REPLY over real SMTP/IMAP ignored); re-run ItipReplyStampPersistence/Processor/Messages by code-reviewer on HEAD -> 54 passed
-- [ ] The stored value survives backup/restore and is not lost on event edits via the API
+- [x] The stored value survives backup/restore and is not lost on event edits via the API
+  - verified (2026-10-26 19:52+0100 by felix/agent-1): cd server && ./gradlew test --rerun --tests '*CalendarBackup*' -> CalendarBackupContributorTests 24 passed (LOCAL stamps exported+restored unchanged, older REPLY still ignored after restore); ./gradlew integrationTest --tests '*ItipGreenMail*' -> 34 passed incl. 'older series and occurrence REPLYs stay ignored after the series and its override are edited via the API' (MockMvc PATCH)
 
 ## Notes
 - ASSUMPTION (2026-10-26 17:16+0100 by felix/agent-1): Per-attendee REPLY stamp kept in a new table calendar_itip_reply (event_id=series master, recurrence_id_at/date, lower-case email, SEQUENCE, DTSTAMP) instead of a field on the Attendee JSON: event edits via the API replace attendees and EventContent.propagate compares attendee lists, so a JSON field would be lost or break propagation; the table is untouched by edits and cascades with the event
