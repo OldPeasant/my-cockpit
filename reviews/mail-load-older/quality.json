@@ -1,0 +1,21 @@
+{
+  "schema": 1,
+  "task": "mail-load-older",
+  "reviewed_revision": "fd88c00df2b702e7bc2bdac7cd32c1590ce9da64",
+  "helpers": {
+    "test-writer": {"status": "completed", "report": "reviews/mail-load-older/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/mail-load-older/review.md"},
+    "fixer": {"status": "not_required", "reason": "No defects to fix: test-writer found no production bugs; the only review finding (CR-1, P3) is accepted as a known limitation because its fix lies in mail/sync, outside this task's touches"}
+  },
+  "fixes_required": false,
+  "findings": [
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P3", "disposition": "accepted",
+     "note": "UIDVALIDITY read after the sync lock is released; tiny race window, in-memory state resets on restart. Recorded as assumption on the task; fix would change OlderMessagesResult in mail/sync (outside touches)"}
+  ],
+  "validation": [
+    {"command": "cd server && ./gradlew test --tests 'ch.sonensei.cockpit.mail.api.*' --tests '*OpenApiContractTest'", "result": "pass"},
+    {"command": "cd server && ./gradlew integrationTest --tests 'ch.sonensei.cockpit.mail.api.MailLoadOlderGreenMailTests'", "result": "pass"},
+    {"command": "cd web && npm run api:gen (no diff)", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
