@@ -19,8 +19,7 @@ abstract class PostgresTestBase {
 		@ServiceConnection
 		val postgres: PostgreSQLContainer =
 			PostgreSQLContainer("postgres:16-alpine")
-				// A throwaway database needs no durability: without fsync the suite is not bound by the host's disk.
-				.withCommand("postgres", "-c", "max_connections=300", "-c", "fsync=off", "-c", "synchronous_commit=off", "-c", "full_page_writes=off")
+				.withCommand("postgres", "-c", "max_connections=300")
 				.apply { start() }
 	}
 }
