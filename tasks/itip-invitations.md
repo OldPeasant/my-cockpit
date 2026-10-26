@@ -5,7 +5,7 @@ owner: r1963macos/agent-1
 deps: [cal-local-api,mail-compose]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/calendar/itip,server/src/test/kotlin/ch/sonensei/cockpit/calendar/itip]
 prio: 3
-lease_until: 2026-10-26T12:38:36Z
+lease_until: 2026-10-26T12:42:48Z
 ---
 ## Goal
 Invite attendees by mail (SPEC.md §6.2).
