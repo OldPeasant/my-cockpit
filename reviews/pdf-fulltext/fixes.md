@@ -111,3 +111,95 @@ Remaining unresolved findings:
 ## Final status
 
 All validated findings fixed and validation passed.
+
+# Second round
+
+Date: 2026-10-26
+
+Task: pdf-fulltext - Full-text search in PDFs and text files
+
+Scope: Findings CR-1 to CR-3 of the second review round (`reviews/pdf-fulltext/review.md`, reviewed up to 550f26737). The fixes are in commit 7904fb972, made by an earlier fixer run that ended before it wrote this report. This run checked that commit against each finding and against the current code, and found nothing missing, so it changed no code. Base commit 3f51fea97, task commits 53918d98e..7904fb972.
+
+## Fixed findings
+
+### CR-1 (P2) - Shutdown during an extraction can permanently mark a healthy file `FAILED`
+
+Files changed (7904fb972):
+- `server/src/main/kotlin/ch/sonensei/cockpit/files/fulltext/FileTextJob.kt`
+- `server/src/main/kotlin/ch/sonensei/cockpit/files/fulltext/FileTextIndexer.kt`
+- `server/src/test/kotlin/ch/sonensei/cockpit/files/fulltext/FileTextJobTests.kt`
+- `server/src/test/kotlin/ch/sonensei/cockpit/files/fulltext/FileTextIndexerEdgeCaseTests.kt`
+
+Problem:
+`close()` called `shutdownNow()`, which interrupted the `file-text` thread without waiting for it. An interrupted channel read throws `ClosedByInterruptException`. That is an `IOException`, so `failed()` treated it as a parse failure and stored a permanent `FAILED` row, possibly while the DataSource was closing.
+
+Fix:
+The fix covers both options the review suggested.
+- The indexer stores nothing for an interrupted extraction. `failed()` returns without a row and stops the batch when the thread is interrupted, or when the cause chain (searched up to 10 levels) holds a `ClosedByInterruptException` or `InterruptedIOException`. `indexPending()` also checks the interrupt flag before each file.
+- The job stops cooperatively. A `stopping` flag makes later ticks do nothing, and the batch loop stops between batches. `close()` calls `shutdown()`, waits `SHUTDOWN_GRACE` (5 s) for the running extraction, and only then calls `shutdownNow()` and waits again. The job depends on the indexer and through it on the DataSource, so Spring destroys the job first, and no thread keeps writing while the pool closes.
+
+Tests: `an extraction interrupted by the shutdown stores nothing and stops the batch` (the extractor throws `ClosedByInterruptException`: no row for this file or the next one in the batch, and both are extracted on a later run), `an extraction failing while the thread is interrupted stores nothing`, `after close a tick starts nothing`, and `close lets the running extraction finish without interrupting it and starts no further batch`.
+
+Validation:
+- `./gradlew test --tests 'ch.sonensei.cockpit.files.*'` - Pass
+
+### CR-2 (P3) - A rename that changes nothing reads `file_text` without the file row lock
+
+Files changed (7904fb972):
+- `server/src/main/kotlin/ch/sonensei/cockpit/files/domain/FilesService.kt`
+- `server/src/test/kotlin/ch/sonensei/cockpit/files/fulltext/FileTextIndexerEdgeCaseTests.kt`
+
+Problem:
+A no-op `updateFile` (same name, same folder) made Hibernate issue no UPDATE, so `files.flush()` took no row lock. `indexed(file)` could then read `textOf` before a concurrent `FileTextIndexer.store()` committed, and overwrite the search body with `null` for good.
+
+Fix:
+`indexed(file: FileItem)` calls `texts.lockFile(file.id)` before `texts.textOf(file.id)`. `FileTextRepository.lockFile` already existed: `store()` uses it. It runs `select ... from file where id = ? for update` and returns `null` for a missing row. So every path that indexes a file now takes the file row lock before it reads `file_text` and writes `search_document`, whatever the dirty state. This is the same order `store()` uses. For a newly stored file that has not been flushed yet, `lockFile` returns `null` without an error, and `textOf` is `null` anyway, so nothing changes there.
+
+Test: `a rename that changes nothing waits for a running extraction and keeps its text`. It holds the file row lock and writes text as `store()` does, starts a same-name rename concurrently, and checks that the rename waits and that the text is still found afterwards. This run checked that the test catches the bug: with the `lockFile` call temporarily removed, the test fails. The mutation was reverted, and the working tree is unchanged.
+
+Validation:
+- `./gradlew test --tests '*FileTextIndexerEdgeCaseTests*rename that changes nothing*'` without the lock - Fail (as expected). With the lock - Pass, as part of the full files run.
+
+### CR-3 (P3) - Errors other than `StackOverflowError` escape the job unlogged
+
+Files changed (7904fb972):
+- `server/src/main/kotlin/ch/sonensei/cockpit/files/fulltext/FileTextIndexer.kt`
+- `server/src/test/kotlin/ch/sonensei/cockpit/files/fulltext/FileTextIndexerEdgeCaseTests.kt`
+
+Problem:
+An `OutOfMemoryError` or `LinkageError` from PDFBox escaped the job. It reached stderr through the JDK default handler, without the file id and outside SLF4J. The same newest file was parsed again on every tick, which blocked all older files.
+
+Fix:
+`index()` catches any other `Error`. It logs the error at ERROR through SLF4J with the file id, the exception class and the attempt number, never the message or contents, and then rethrows it, so the "file stays pending" policy is kept. The count is kept per file in memory. After `MAX_ERROR_ATTEMPTS` (3) such errors, the file is left out of `indexPending()` until the next start, so older files go on. A successful extraction or an ordinary failure clears the count.
+
+Test: `a file whose extraction keeps running out of memory is left out after repeated failures, older files go on`. It checks the 3 rethrows, that the older file is then extracted, and that a new indexer (a restart) tries the file again.
+
+Validation:
+- `./gradlew test --tests 'ch.sonensei.cockpit.files.*'` - Pass
+
+## Not fixed
+
+None.
+
+## Validation summary
+
+Focused tests:
+- `cd server && ./gradlew ktlintFormat` - Pass (nothing reformatted)
+- `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.files.*'` (Testcontainers Postgres) - BUILD SUCCESSFUL: 309 tests, 0 failures, 0 errors, 0 skipped (fulltext: Job 15, IndexerEdgeCase 19, Extractor 15, DriveOperations 7, Indexer 4)
+- CR-2 mutation check: the regression test fails without `texts.lockFile` - confirmed, then reverted
+
+Full test suite:
+- `cd server && ./gradlew check` (ktlint, detekt and all server tests) - BUILD SUCCESSFUL in 8m 43s: 4894 tests, 0 failures, 0 errors, 0 skipped
+
+Lint/type-check/build:
+- Included in `./gradlew check` - Pass
+
+`.taskcheck`:
+- Not run by the fixer (`sh scripts/check.sh` also covers web and android). The parent worker runs it. The server part passed.
+
+Remaining unresolved findings:
+0
+
+## Final status
+
+All validated findings fixed and validation passed.
