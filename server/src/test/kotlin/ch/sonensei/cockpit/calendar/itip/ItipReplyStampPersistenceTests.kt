@@ -176,20 +176,25 @@ class ItipReplyStampPersistenceTests(
 	}
 
 	@Test
-	fun `a REPLY without SEQUENCE and DTSTAMP is taken first, then loses against any REPLY that has them`() {
+	fun `a REPLY without SEQUENCE counts as SEQUENCE 0, and one without DTSTAMP as older than one with it`() {
 		val event = single()
 
 		answer(reply(event.id, "TENTATIVE")) shouldContainExactly listOf(event.id)
 		storedStamps().single().takeLast(2) shouldBe listOf(null, null)
-		// SEQUENCE 0 is newer than a missing SEQUENCE.
+		// Same SEQUENCE (0), and a DTSTAMP is newer than none.
 		answer(reply(event.id, "ACCEPTED", 0, "20261026T120000Z")) shouldContainExactly listOf(event.id)
-		// A missing SEQUENCE counts as oldest, whatever the DTSTAMP.
-		answer(reply(event.id, "DECLINED", stamp = "20261030T120000Z")).shouldBeEmpty()
+		// A missing SEQUENCE is 0: a newer DTSTAMP is taken, an older one is not.
+		answer(reply(event.id, "DECLINED", stamp = "20261030T120000Z")) shouldContainExactly listOf(event.id)
+		answer(reply(event.id, "ACCEPTED", stamp = "20261029T120000Z")).shouldBeEmpty()
 		// Same SEQUENCE without DTSTAMP is older than one with a DTSTAMP.
-		answer(reply(event.id, "DECLINED", 0)).shouldBeEmpty()
+		answer(reply(event.id, "ACCEPTED", 0)).shouldBeEmpty()
+		storedStamps().single().takeLast(2) shouldBe listOf(null, Instant.parse("2026-10-30T12:00:00Z"))
+		// A higher SEQUENCE wins over a missing one, whatever the DTSTAMP.
+		answer(reply(event.id, "ACCEPTED", 1, "20261020T120000Z")) shouldContainExactly listOf(event.id)
+		answer(reply(event.id, "DECLINED", stamp = "20261031T120000Z")).shouldBeEmpty()
 
 		status(event.id) shouldBe AttendeeStatus.ACCEPTED
-		storedStamps().single().takeLast(2) shouldBe listOf(0, Instant.parse("2026-10-26T12:00:00Z"))
+		storedStamps().single().takeLast(2) shouldBe listOf(1, Instant.parse("2026-10-20T12:00:00Z"))
 	}
 
 	@Test

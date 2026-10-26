@@ -311,25 +311,87 @@ class ItipReplyProcessorTests {
 		verify(exactly = 0) { events.saveAndFlush(any()) }
 	}
 
-	@Test
-	fun `REPLYs are ordered per occurrence, per event and per attendee`() {
+	/** A weekly series with one override on [OCCURRENCE], as loaded by the processor (the same instances every time). */
+	private fun seriesWithOverride(): Pair<CalendarEvent, CalendarEvent> {
 		val series = loaded().apply { rrule = "FREQ=WEEKLY" }
-		val occurrence = OccurrenceId(Instant.parse("2026-11-09T08:00:00Z"), null)
-		val override = loaded(UuidV7.generate()).apply { overrideOf(series, occurrence) }
+		val override = loaded(UuidV7.generate()).apply { overrideOf(series, OCCURRENCE) }
 		every { events.findById(eventId) } returns Optional.of(series)
 		every { events.findByParentEventIdOrderByIdAsc(eventId) } returns listOf(override)
 		every { events.saveAndFlush(any<CalendarEvent>()) } answers { firstArg() }
+		return series to override
+	}
+
+	@Test
+	fun `REPLYs are ordered per occurrence and per event`() {
+		val (_, override) = seriesWithOverride()
 		receive(reply("ACCEPTED", "20261026T120000Z", sequence = 5))
 		processor.process(messageId) shouldContainExactly listOf(eventId, override.id)
 
-		// An older answer for one occurrence has its own order, so does one for another event.
-		receive(reply("DECLINED", "20261026T110000Z", sequence = 1, recurrenceId = "20261109T080000Z"))
+		// A newer answer for one occurrence has its own stamp; an older answer for another event has its own order.
+		receive(reply("DECLINED", "20261026T130000Z", sequence = 5, recurrenceId = "20261109T080000Z"))
 		processor.process(messageId) shouldContainExactly listOf(override.id)
 		receive(reply("DECLINED", "20261026T110000Z", sequence = 1, uid = otherEventId))
 		processor.process(messageId) shouldContainExactly listOf(otherEventId)
 
 		storedStamps.keys.map { it.take(3) }.toSet() shouldBe
-			setOf(listOf(eventId, null, null), listOf(eventId, occurrence.at, null), listOf(otherEventId, null, null))
+			setOf(listOf(eventId, null, null), listOf(eventId, OCCURRENCE.at, null), listOf(otherEventId, null, null))
+	}
+
+	@Test
+	fun `an occurrence REPLY older than the last series REPLY is ignored, as the series answer set the occurrence too`() {
+		val (series, override) = seriesWithOverride()
+		receive(reply("ACCEPTED", "20261026T120000Z", sequence = 5))
+		processor.process(messageId) shouldContainExactly listOf(eventId, override.id)
+
+		// Lower SEQUENCE, and same SEQUENCE with an older DTSTAMP.
+		receive(reply("DECLINED", "20261027T120000Z", sequence = 1, recurrenceId = "20261109T080000Z"))
+		processor.process(messageId).shouldBeEmpty()
+		receive(reply("DECLINED", "20261026T110000Z", sequence = 5, recurrenceId = "20261109T080000Z"))
+		processor.process(messageId).shouldBeEmpty()
+
+		override.attendees.single().status shouldBe AttendeeStatus.ACCEPTED
+		series.attendees.single().status shouldBe AttendeeStatus.ACCEPTED
+		storedStamps.keys.map { it.take(3) } shouldContainExactly listOf(listOf(eventId, null, null))
+
+		// One as new as the series answer is still taken.
+		receive(reply("TENTATIVE", "20261026T120000Z", sequence = 5, recurrenceId = "20261109T080000Z"))
+		processor.process(messageId) shouldContainExactly listOf(override.id)
+	}
+
+	@Test
+	fun `a series REPLY leaves an override alone whose own answer is newer, and sets the others`() {
+		val (series, override) = seriesWithOverride()
+		receive(reply("DECLINED", "20261026T120000Z", sequence = 2, recurrenceId = "20261109T080000Z"))
+		processor.process(messageId) shouldContainExactly listOf(override.id)
+
+		// Older than the occurrence answer, but the first for the series: it sets the master only.
+		receive(reply("ACCEPTED", "20261026T130000Z", sequence = 1))
+		processor.process(messageId) shouldContainExactly listOf(eventId)
+		series.attendees.single().status shouldBe AttendeeStatus.ACCEPTED
+		override.attendees.single().status shouldBe AttendeeStatus.DECLINED
+
+		// Newer than the occurrence answer: it sets the override too.
+		receive(reply("TENTATIVE", "20261026T110000Z", sequence = 3))
+		processor.process(messageId) shouldContainExactly listOf(eventId, override.id)
+		override.attendees.single().status shouldBe AttendeeStatus.TENTATIVE
+	}
+
+	@Test
+	fun `a REPLY without SEQUENCE counts as SEQUENCE 0 across messages`() {
+		val saved = mutableListOf<CalendarEvent>()
+		every { events.saveAndFlush(capture(saved)) } answers { firstArg() }
+		receive(reply("ACCEPTED", "20261026T120000Z", sequence = 0))
+		processor.process(messageId) shouldContainExactly listOf(eventId)
+
+		// A client that omits SEQUENCE answers again later: newer, so taken.
+		receive(reply("DECLINED", "20261027T120000Z").replace("SEQUENCE:0\r\n", ""))
+		processor.process(messageId) shouldContainExactly listOf(eventId)
+
+		saved.map { it.attendees.single().status } shouldContainExactly listOf(AttendeeStatus.ACCEPTED, AttendeeStatus.DECLINED)
+		storedStamps.values.single().let {
+			it.sequence shouldBe null
+			it.stamp shouldBe Instant.parse("2026-10-27T12:00:00Z")
+		}
 	}
 
 	@Test
@@ -368,6 +430,7 @@ class ItipReplyProcessorTests {
 
 	private companion object {
 		const val ANNA = "anna@example.test"
+		val OCCURRENCE = OccurrenceId(Instant.parse("2026-11-09T08:00:00Z"), null)
 
 		/** Parts as read from a server (raw bytes): plain JavaMail has no handler to write a text/calendar String. */
 		val CALENDAR_HEADERS = InternetHeaders().apply { addHeader("Content-Type", "text/calendar; charset=UTF-8; method=REPLY") }

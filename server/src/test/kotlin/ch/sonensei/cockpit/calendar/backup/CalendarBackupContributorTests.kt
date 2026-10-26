@@ -325,7 +325,17 @@ class CalendarBackupContributorTests(
 		import(zip.path)
 
 		val processor =
-			ItipReplyProcessor(mail, mailContent, eventRepository, calendarRepository, sourceRepository, stamps, indexer, changes, transactionManager)
+			ItipReplyProcessor(
+				mail,
+				mailContent,
+				eventRepository,
+				calendarRepository,
+				sourceRepository,
+				stamps,
+				indexer,
+				changes,
+				transactionManager,
+			)
 		try {
 			// Lower SEQUENCE, and same SEQUENCE with an older DTSTAMP: answered before the restored stamp.
 			processor.answer("DECLINED", sequence = 1, stamp = "20260331T100000Z").shouldBeEmpty()
