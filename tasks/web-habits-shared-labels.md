@@ -14,7 +14,8 @@ extended: felix/agent-1
 `features/habits/habit-display.ts` and use them from both.
 
 ## Acceptance criteria
-- [ ] One shared implementation of the check label and error message, used by both components
+- [x] One shared implementation of the check label and error message, used by both components
+  - verified (2026-10-26 11:03+0100 by felix/agent-1): grep checkLabel/errorMessage in web/src: defined once in features/habits/habit-display.ts, imported by habits-page.ts and gtd/today/today-habits.ts, no local copies left; i18n ids @@habits.check/uncheck/checkCount/error unchanged (git diff 8ab942ce..HEAD); code-reviewer reviews/web-habits-shared-labels/review.md -> 0 findings
 - [ ] Existing Vitest tests of both still pass; `cd web && npm run check` passes
 
 ## Notes
