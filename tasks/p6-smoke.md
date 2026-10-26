@@ -14,3 +14,4 @@ Automate SPEC.md §13.2 Phase 6.
 - [ ] `web/e2e/phase6` covers steps 1–5 (step 2 via API instead of Android share); earlier phase specs pass
 
 ## Notes
+- ASSUMPTION (2026-10-26 06:32+0100 by dell26/agent-1): Step 2 (Android share -> Read later) bookmarks the e2e server's own page http://localhost:8080/ (title 'My Cockpit', favicon.svg): the e2e stack has no internet, so application-e2e.properties now sets cockpit.bookmarks.fetch.allow-private-networks=true (outside the task's touches, e2e profile only).
