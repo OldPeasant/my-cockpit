@@ -1,12 +1,13 @@
 ---
 title: Server side of UnifiedPush (registrations + push sending)
-status: in_progress
-owner: dell26/agent-2
+status: todo
+owner: 
 deps: [and-reminders]
 prio: 3
 parent: unifiedpush-android
-lease_until: 2026-10-26T15:57:46Z
-extended: dell26/agent-2
+lease_until: 
+extended: 
+releases: 1
 ---
 ## Goal
 Part of `unifiedpush-android` (UnifiedPush for Android), which was split.
@@ -24,3 +25,4 @@ Goal: The server stores UnifiedPush endpoints per device and POSTs a small push 
 - ASSUMPTION (2026-10-26 15:15+0100 by dell26/agent-2): PUT/DELETE /push/unifiedpush/{instanceId} answer 204, are idempotent and need no If-Match (a device-owned registration, not a user-edited entity); instanceId must match [A-Za-z0-9._-]{1,128}; endpoint must be an absolute http(s) URL (http allowed for a LAN ntfy).
 - ASSUMPTION (2026-10-26 15:15+0100 by dell26/agent-2): Pushes are sent after commit on a virtual-thread executor owned by PushDispatcher, with TTL 1 day and Urgency high (reminder) / normal (mail); no VAPID, since UnifiedPush distributors (ntfy) do not need it; the web-push task can reuse WebPushEncryption.
 - extended by dell26/agent-2: Implementation + tests committed (7d7ddecfc); push tests pass (gradlew test --tests 'ch.sonensei.cockpit.core.push.*'). review.md exists (0 P0-P2, 2 P3: CR-1 concurrent PUT race -> 500/409, CR-2 async failure-path test asserts too early) but is for the pre-test-writer revision. Left: test-writer did not write reviews/unifiedpush-server/tests.md (rerun it, with coverage); fixer for CR-1/CR-2; re-run test-writer+code-reviewer on final code; tasks.py verify 1-3; sh scripts/check.sh; write quality.json; done.
+- release by dell26/agent-2: Implementation complete; CR-1/CR-2 fixed (fixes.md); latest review.md (on 03cf4bc4c, patch-equal to 978cd1888) has 0 findings. All 52 tests in ch.sonensei.cockpit.core.push.* pass at a93132915 (incl. new UnifiedPushUpsertTests, committed but not yet in a review). Left: run test-writer so it writes reviews/unifiedpush-server/tests.md with task-scoped coverage (it failed to write it twice; give it a narrow prompt); re-run code-reviewer because UnifiedPushUpsertTests.kt was added after the review; tasks.py verify 1-3; sh scripts/check.sh; write quality.json (fixer was run for CR-1/CR-2); done.
