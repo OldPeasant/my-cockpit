@@ -13,7 +13,8 @@ import org.springframework.web.servlet.resource.PathResourceResolver
  * Serves the Angular build (copied into `classpath:/static/` by the Dockerfile) under `/` (SPEC.md §11).
  *
  * Client-side routes such as `/inbox` have no file, so they get `index.html` and the Angular router takes
- * over. Paths under `/api/` and `/actuator/` never fall back: an unknown API path stays a 404 instead of HTML.
+ * over. Paths under `/api/`, `/actuator/` and `/download/` (the Android app) never fall back: an unknown server
+ * path stays a 404 instead of HTML.
  * Everything is sent with `Cache-Control: no-cache`, so a deploy never leaves a stale `index.html`
  * pointing at deleted hashed bundles (unchanged files cost only a 304).
  * The chain runs without Spring's caching resolver: its cache has no size limit, and the fallback would add
@@ -50,7 +51,7 @@ class SpaFallbackResourceResolver : PathResourceResolver() {
 
 	companion object {
 		private const val INDEX = "index.html"
-		private val SERVER_PREFIXES = listOf("api", "actuator")
+		private val SERVER_PREFIXES = listOf("api", "actuator", "download")
 
 		/**
 		 * True for paths the Angular router owns: not under a server prefix and without a file extension in

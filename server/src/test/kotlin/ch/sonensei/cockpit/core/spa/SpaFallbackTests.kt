@@ -118,6 +118,17 @@ class SpaFallbackTests(
 	}
 
 	@Test
+	// Logged in, so the request gets past security; anonymous it would be a 401 anyway.
+	@WithCockpitUser
+	fun `unknown download path is 404, not index html`() {
+		for (path in listOf("/download/ios", "/download/", "/download")) {
+			withClue(path) {
+				mockMvc.get(path).andExpect { status { isNotFound() } }
+			}
+		}
+	}
+
+	@Test
 	fun `client route detection`() {
 		SpaFallbackResourceResolver.isClientRoute("") shouldBe true
 		SpaFallbackResourceResolver.isClientRoute("inbox") shouldBe true
@@ -127,6 +138,8 @@ class SpaFallbackTests(
 		SpaFallbackResourceResolver.isClientRoute("api") shouldBe false
 		SpaFallbackResourceResolver.isClientRoute("api/v1/tasks") shouldBe false
 		SpaFallbackResourceResolver.isClientRoute("actuator/health") shouldBe false
+		SpaFallbackResourceResolver.isClientRoute("download/ios") shouldBe false
+		SpaFallbackResourceResolver.isClientRoute("downloads") shouldBe true
 	}
 
 	@Test

@@ -52,6 +52,7 @@ class SpaFallbackResourceResolverTests {
 		val web = build(dir)
 		resolve("api/v1/tasks", web).shouldBeNull()
 		resolve("actuator/", web).shouldBeNull()
+		resolve("download/ios", web).shouldBeNull()
 		resolve("main-GONE.js", web).shouldBeNull()
 	}
 
