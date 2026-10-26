@@ -212,7 +212,8 @@ class Settled:
     unsettles it until the next result. Open tool calls (tool_use without its tool_result) and background
     tasks not yet reported by a task notification keep it unsettled too, so a running tool is never cut off."""
 
-    BACKGROUND_HINT = re.compile(r"background|async|agentId", re.I)
+    # the launch acknowledgement of a background Agent/Bash call; a finished Agent returns its full report instead
+    BACKGROUND_HINT = re.compile(r"\s*(async agent launched|command running in background)", re.I)
 
     def __init__(self):
         self.result, self.last = False, time.time()
@@ -231,12 +232,14 @@ class Settled:
         if not isinstance(ev, dict):
             return
         if ev.get("type") == "result":
-            if (ev.get("origin") or {}).get("kind") == "task-notification":
+            origin = ev.get("origin")
+            if isinstance(origin, dict) and origin.get("kind") == "task-notification":
                 self.background = max(0, self.background - 1)
             self.result = not ev.get("is_error") and ev.get("subtype", "success") == "success"
             return
         self.result = False
-        content = (ev.get("message") or {}).get("content")
+        msg = ev.get("message")
+        content = msg.get("content") if isinstance(msg, dict) else None
         for c in content if isinstance(content, list) else []:
             if not isinstance(c, dict):
                 continue
@@ -247,14 +250,30 @@ class Settled:
                 self.tools[c.get("id")] = bg
             elif c.get("type") == "tool_result" and c.get("tool_use_id") in self.tools:
                 # an Agent call returns at once when it went to the background, else when it is finished
-                if self.tools.pop(c["tool_use_id"]) and self.BACKGROUND_HINT.search(json.dumps(c.get("content"))):
+                if self.tools.pop(c["tool_use_id"]) and self.BACKGROUND_HINT.match(first_text(c.get("content"))):
                     self.background += 1
 
     def idle(self, now=None):
-        """Seconds the session has been quiet after its final result, else 0."""
+        """Seconds the session has been quiet after its final result, else None (not settled)."""
         if not self.result or self.tools or self.background:
-            return 0
+            return None
         return max(0.0, (now or time.time()) - self.last)
+
+
+def first_text(content):
+    """The first text of a tool_result's content (a string or a list of blocks)."""
+    for c in content if isinstance(content, list) else [content]:
+        t = c.get("text") if isinstance(c, dict) else c
+        if isinstance(t, str):
+            return t
+    return ""
+
+
+def positive(v):
+    n = int(v)
+    if n < 1:
+        raise argparse.ArgumentTypeError(f"must be >= 1, got {v}")
+    return n
 
 
 def repo_root():
@@ -837,8 +856,8 @@ def cmd_run(a):
                 if why:
                     kill_tree(p.pid)
                     p.wait()
-                elif settled.idle() >= a.result_grace:  # done, but the process doesn't exit: a normal exit
-                    quiet = int(settled.idle())
+                elif (q := settled.idle()) is not None and q >= a.result_grace:  # done, but the process doesn't exit
+                    quiet = int(q)
                     kill_tree(p.pid)
                     p.wait()
             drain(reader)
@@ -917,8 +936,8 @@ def main():
                    "budget to other agents before it may claim it again")
     s.add_argument("--blocked-retry", type=int, default=1800, help="seconds between retries of a task whose "
                    "pushes the remote refuses (blocked: no sessions on it meanwhile)")
-    s.add_argument("--result-grace", type=int, default=60, help="seconds a session may stay alive and silent "
-                   "after its final result before the runner ends it (as a normal exit)")
+    s.add_argument("--result-grace", type=positive, default=60, help="seconds (>= 1) a session may stay "
+                   "alive and silent after its final result before the runner ends it (as a normal exit)")
     s.set_defaults(f=cmd_start)
     sp.add_parser("status").set_defaults(f=cmd_status)
     s = sp.add_parser("stop"); s.set_defaults(f=cmd_stop)
@@ -930,7 +949,7 @@ def main():
     s.add_argument("--cmd", required=True); s.add_argument("--timeout", type=int, default=1800)
     s.add_argument("--limit-wait", type=int, default=900); s.add_argument("--task-budget", type=int, default=2)
     s.add_argument("--avoid", type=int, default=300); s.add_argument("--blocked-retry", type=int, default=1800)
-    s.add_argument("--result-grace", type=int, default=60)
+    s.add_argument("--result-grace", type=positive, default=60)
     s.set_defaults(f=cmd_run)
     a = p.parse_args(); a.f(a)
 

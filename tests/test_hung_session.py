@@ -5,7 +5,7 @@ back-off, its final result in the log line, the next task is claimed), any outpu
 period, and a session without a final result or with a tool still running is left to --timeout.
 Runs tasks.py and agents.py (with a scripted fake agent) against a local bare remote in a temp dir.
 Run: python3 tests/test_hung_session.py"""
-import json, re, sys, time, unittest
+import contextlib, io, json, re, sys, time, unittest
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -227,6 +227,16 @@ class Options(unittest.TestCase):
     def test_start_default_grace_is_60(self):
         self.assertEqual(self.parsed(["start", "1"], "cmd_start").result_grace, 60)
 
+    def test_grace_below_1_is_rejected(self):
+        # 0 would end every session at its first poll (CR-1)
+        run = ["run", "agent-1", ".", "--owner", "box/agent-1", "--cmd", "x", "--result-grace"]
+        for argv, fn in [(run + ["0"], "cmd_run"), (run + ["-5"], "cmd_run"),
+                         (["start", "1", "--result-grace", "0"], "cmd_start")]:
+            with self.subTest(argv=argv), contextlib.redirect_stderr(io.StringIO()), \
+                    self.assertRaises(SystemExit) as cm:
+                self.parsed(argv, fn)
+            self.assertEqual(cm.exception.code, 2)
+
 
 def ev(**kw):
     return json.dumps(kw)
@@ -254,10 +264,15 @@ class SettledUnit(unittest.TestCase):
         return s
 
     def quiet(self, s):
-        return s.idle(now=s.last + 100) > 0
+        return (s.idle(now=s.last + 100) or 0) > 0
 
     def test_result_then_silence_is_settled(self):
         self.assertTrue(self.quiet(self.feed(tool_use("t", "Bash"), tool_result("t", "x"), result())))
+
+    def test_unsettled_idle_is_none_so_no_grace_ends_it(self):
+        # an unsettled session must never satisfy `idle >= grace`, whatever the grace (CR-1)
+        for s in (Settled(), self.feed(result(), tool_use("t", "Bash"))):
+            self.assertIsNone(s.idle(now=s.last + 1000))
 
     def test_idle_counts_from_last_output(self):
         s = self.feed(result(), "plain text")
@@ -322,6 +337,20 @@ class SettledUnit(unittest.TestCase):
         s.feed(ev(type="system", message="retrying the request"))
         s.feed(ev(type="result", subtype="success", result="ok", origin="cli"))
         self.assertTrue(self.quiet(s))
+
+    def test_foreground_agent_report_mentioning_async_or_background_is_not_background(self):
+        # a finished sub-agent's report may talk about async code or background tasks (CR-2)
+        report = "Review done. Found an async race in the background job; agentId: abc (resume hint)."
+        for content in (report, [{"type": "text", "text": report}],
+                        [{"type": "text", "text": "Summary"}, {"type": "text", "text": "Async agent launched"}]):
+            with self.subTest(content=content):
+                s = self.feed(tool_use("a", "Agent", prompt="review"), tool_result("a", content), result())
+                self.assertTrue(self.quiet(s))
+
+    def test_launch_acknowledgement_in_block_list_is_background(self):
+        launched = [{"type": "text", "text": "Async agent launched successfully. agentId: q"}]
+        self.assertFalse(self.quiet(self.feed(tool_use("a", "Agent", prompt="x"), tool_result("a", launched),
+                                              result())))
 
     def test_finished_agent_without_background_hint_is_not_background(self):
         self.assertTrue(self.quiet(self.feed(tool_use("a", "Agent", prompt="x"), tool_result("a", "all fine"),
