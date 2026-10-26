@@ -1,11 +1,14 @@
 ---
 title: Mail sync: retake linked/reminded refs on the first sync after a restore
-status: in_progress
-owner: dell26/agent-1
+status: todo
+owner: 
 deps: [backup-contrib-mail,mail-sync-perf]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/mail/sync,server/src/test/kotlin/ch/sonensei/cockpit/mail/sync,server/src/main/kotlin/ch/sonensei/cockpit/mail/backup]
 prio: 2
-lease_until: 2026-10-26T03:46:48Z
+lease_until: 
+hold: Task is complete: all 3 criteria verified, quality evidence committed (quality gate passed in done). done refused only because .taskcheck fails in BackupRoundTripTest and FilesBackupContributorTests w
+releases: 0
+extended: 
 ---
 ## Goal
 After a backup restore, mail refs (detached rows, uid null) that a link or reminder points to are reattached by Message-ID even when the mail is older than the sync window (SPEC.md §10.2 "links survive"; review CR-1 of backup-contrib-mail).
@@ -20,3 +23,4 @@ After a backup restore, mail refs (detached rows, uid null) that a link or remin
 
 ## Notes
 - ASSUMPTION (2026-10-26 04:06+0100 by dell26/agent-1): Added ReminderService.hasReminders (+ ReminderRepository.existsByItemTypeAndItemId) in core/reminders, outside touches, so the mail module asks through a service; fired reminders count too, matching what the backup exports. Since isLinked is shared, reconcile now also detaches (not deletes) reminder-only vanished messages. pruneDetached still runs only on a UIDVALIDITY resync, not on the first sync.
+- hold by dell26/agent-1: Task is complete: all 3 criteria verified, quality evidence committed (quality gate passed in done). done refused only because .taskcheck fails in BackupRoundTripTest and FilesBackupContributorTests with 'java.io.IOException: Disk quota exceeded' (4592/4594 pass): host /tmp tmpfs (16G, 13G used) is full of ~200 leaked /tmp/cockpit-round-trip-data* dirs of 61MB each (task backup-round-trip-tmp-leak). A human must delete /tmp/cockpit-round-trip-data* (and cockpit-files-backup-data*, cockpit-mail-backup-data*), then unhold; the next owner only runs 'python tasks.py done mail-restore-retake-linked'.
