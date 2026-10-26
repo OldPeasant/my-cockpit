@@ -41,7 +41,7 @@ Re-run review of the final revision:
 | Step 2: URL shared to Read later (API as Android), title + favicon fetched, in the web queue | `2. a URL shared to Read later ...` | parent: same | Pass on 830125a25 (parent run); unchanged since. Favicon verified via API only, see "Unable to test" |
 | Step 3: today's journal entry with an image; 3x/week habit streak after 3 checks | `3. today's journal entry ...` | parent: same | Pass on 830125a25 (parent run); unchanged since |
 | Step 4: weekly review wizard end to end; dashboard "Last weekly review: today" | `4. a weekly review completed ...` | parent: same | Pass on 830125a25 (parent run); unchanged since |
-| Step 5: backup round trip covers all new entities | `5. the backup round trip ...` | parent: same | Pass on 830125a25 (parent run) for contacts, bookmarks, journal (incl. image), habits + checks. Weekly reviews: Not testable yet (no backup contributor, task backup-contrib-review is todo; spec annotates and auto-checks once present) |
+| Step 5: backup round trip covers all new entities | `5. the backup round trip ...` | parent: same | Pass on 830125a25 (parent run) and on 11e0ce729 (parent's full e2e run, as reported by the parent: 64 passed, all 5 phase 6 steps incl. the new step 1 birthday assertions; `sh scripts/check.sh` passed) for contacts, bookmarks, journal (incl. image), habits + checks. Weekly reviews: Not testable yet (no backup contributor, task backup-contrib-review not started yet; spec annotates and auto-checks once present) |
 | Earlier phase specs pass | phase 0-5 demo specs | parent: same | Pass on 830125a25 (parent run, 35 passed incl. phase 0-6); full e2e suite on 11e0ce729 being run by the parent |
 | Spec compiles, lints, is formatted | whole `web/e2e` (typecheck); `e2e/phase6`, `e2e/README.md` (lint/format) | `cd web && npm run e2e:typecheck`; `cd web && npx eslint e2e/phase6`; `cd web && npx prettier --check e2e/phase6 e2e/README.md` | Pass on 11e0ce729 (this re-run) |
 
@@ -117,7 +117,7 @@ Evidence:
 
 - Step 2 on Android (sharing from the share sheet): replaced by the equivalent API call, as the criterion allows. The device part is the human task h-android-device. No follow-up for this task.
 - Favicon on the web: the bookmarks page deliberately shows no remote favicon (CSP, IP leak; see `bookmarks-page.html`), so "favicon fetched" can only be shown via the API (`favicon` field). This is the intended behavior, not a gap.
-- Weekly reviews in the backup (SPEC.md §14 "all new entities"): there is no backup contributor yet (task backup-contrib-review, status todo, not a dep of p6-smoke). The spec annotates the run and checks "last weekly review" after the restore automatically once `data/weekly_reviews.json(l)` appears. Until that task lands, step 5 is only partially proven. The parent has already recorded this as an assumption.
+- Weekly reviews in the backup (SPEC.md §14 "all new entities"): there is no backup contributor yet (task backup-contrib-review, not started yet, not a dep of p6-smoke). The spec annotates the run and checks "last weekly review" after the restore automatically once `data/weekly_reviews.json(l)` appears. Until that task lands, step 5 is only partially proven. The parent has already recorded this as an assumption.
 - Playwright execution of the final revision and the server Gradle tests: not run by the test-writer (parent instruction / environment); the parent is running them on 11e0ce729.
 
 ## Summary
