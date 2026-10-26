@@ -1,11 +1,11 @@
 ---
 title: Serve /.well-known/assetlinks.json for the Android app (passkeys)
-status: in_progress
+status: done
 owner: dell26/agent-1
 deps: [and-passkeys,deploy-passkey-env]
 touches: [deploy,server/src/main/kotlin/ch/sonensei/cockpit/auth]
 prio: 2
-lease_until: 2026-10-26T07:19:33Z
+lease_until: 
 releases: 1
 extended: 
 ---
@@ -28,3 +28,4 @@ Found while reviewing and-passkeys (see passkeys-server assumption: assetlinks l
 - ASSUMPTION (2026-10-26 06:14+0100 by dell26/agent-2): PasskeyRelyingParties now always accepts android:apk-key-hash:<b64url> for each configured fingerprint in addition to origins/defaults, so the app origin needs no manual COCKPIT_AUTH_PASSKEY_ORIGINS entry (explicit origins still work).
 - ASSUMPTION (2026-10-26 06:14+0100 by dell26/agent-2): Endpoint is hidden from OpenAPI (not client API), Cache-Control public max-age=1h. Code lives in core/auth/passkey (task touches named server/.../auth which doesn't exist). If RP ID != COCKPIT_DOMAIN the operator must serve the file on the RP ID host (documented).
 - release by dell26/agent-2: over budget after 2 sessions (~46 min) and a review that decided nothing; still resumable: continue from wip/deploy-assetlinks (see git log)
+- done by dell26/agent-1: `sh scripts/check.sh` passed in 531s on 89b8c2300; criteria verified 3/3
