@@ -14,7 +14,8 @@ Notifications without an open tab (SPEC.md §4.6).
 
 ## Acceptance criteria
 - [ ] VAPID keys generated at first start, subscriptions API, service worker shows reminder/new-mail pushes; unsubscribe on 410
-- [ ] `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.core.push.*'` passes (Postgres via Testcontainers where persistence is involved)
+- [x] `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.core.push.*'` passes (Postgres via Testcontainers where persistence is involved)
+  - verified (2026-10-26 18:00+0100 by dell26/agent-1): server/gradlew -p server test --tests 'ch.sonensei.cockpit.core.push.*' (Postgres via Testcontainers/podman, after rebase on main b7f26df50) -> 107 tests in 16 classes, 0 failures (web-push: PushWebTests 18, PushDeliveryTests 13, PushEndToEndTests 5, relay/props/crypto 24)
 - [ ] Vitest component/service tests cover subscription flow; `cd web && npm run check` passes
 
 ## Notes
