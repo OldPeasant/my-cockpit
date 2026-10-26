@@ -352,6 +352,24 @@ class SettledUnit(unittest.TestCase):
         self.assertFalse(self.quiet(self.feed(tool_use("a", "Agent", prompt="x"), tool_result("a", launched),
                                               result())))
 
+    def test_task_tool_alias_counts_like_agent(self):
+        # older Claude Code versions name the sub-agent tool "Task"
+        s = self.feed(tool_use("k", "Task", prompt="x"), tool_result("k", "Async agent launched. agentId: k1"),
+                      result())
+        self.assertFalse(self.quiet(s))
+        s.feed(result(origin={"kind": "task-notification"}))
+        self.assertTrue(self.quiet(s))
+
+    def test_odd_content_blocks_are_skipped_and_textless_agent_result_is_not_background(self):
+        odd = ev(type="assistant", message={"content": ["stray", 7, None]})
+        textless = ev(type="user", message={"content": [{"type": "tool_result", "tool_use_id": "a"}]})
+        s = self.feed(odd, tool_use("a", "Agent", prompt="x"), textless, result())
+        self.assertTrue(self.quiet(s))
+
+    def test_tool_result_for_unknown_tool_use_is_ignored(self):
+        s = self.feed(result(), tool_result("never-started", "Async agent launched. agentId: u"), result())
+        self.assertTrue(self.quiet(s))
+
     def test_finished_agent_without_background_hint_is_not_background(self):
         self.assertTrue(self.quiet(self.feed(tool_use("a", "Agent", prompt="x"), tool_result("a", "all fine"),
                                              result())))
