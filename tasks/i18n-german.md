@@ -5,7 +5,7 @@ owner: dell26/agent-2
 deps: [p6-smoke]
 touches: [web/src/locale,web/angular.json,android/app/src/main/res/values-de]
 prio: 3
-lease_until: 2026-10-26T12:20:29Z
+lease_until: 2026-10-26T12:25:32Z
 ---
 ## Goal
 German translations (SPEC.md §4.2).
