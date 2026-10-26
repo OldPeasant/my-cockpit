@@ -186,6 +186,8 @@ export type { SearchGroupResponse } from './models/search-group-response';
 export type { SearchItemResponse } from './models/search-item-response';
 export type { SearchResponse } from './models/search-response';
 export type { SendDraftResponse } from './models/send-draft-response';
+export type { SendInvitationsRequest } from './models/send-invitations-request';
+export type { SendInvitationsResponse } from './models/send-invitations-response';
 export type { Settings } from './models/settings';
 export type { SettingsPatch } from './models/settings-patch';
 export type { SetupRequest } from './models/setup-request';
@@ -330,6 +332,8 @@ export type { DeleteEvent$Params as DeleteEvent$Params } from './fn/calendars/de
 export { deleteEvent as deleteEvent } from './fn/calendars/delete-event';
 export type { UpdateEvent$Params as UpdateEvent$Params } from './fn/calendars/update-event';
 export { updateEvent as updateEvent } from './fn/calendars/update-event';
+export type { SendEventInvitations$Params as SendEventInvitations$Params } from './fn/calendars/send-event-invitations';
+export { sendEventInvitations as sendEventInvitations } from './fn/calendars/send-event-invitations';
 export type { RespondToInvitation$Params as RespondToInvitation$Params } from './fn/calendars/respond-to-invitation';
 export { respondToInvitation as respondToInvitation } from './fn/calendars/respond-to-invitation';
 export type { ListCalendarSources$Params as ListCalendarSources$Params } from './fn/calendars/list-calendar-sources';

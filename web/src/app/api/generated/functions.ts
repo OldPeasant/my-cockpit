@@ -117,6 +117,8 @@ export type { DeleteEvent$Params as DeleteEvent$Params } from './fn/calendars/de
 export { deleteEvent as deleteEvent } from './fn/calendars/delete-event';
 export type { UpdateEvent$Params as UpdateEvent$Params } from './fn/calendars/update-event';
 export { updateEvent as updateEvent } from './fn/calendars/update-event';
+export type { SendEventInvitations$Params as SendEventInvitations$Params } from './fn/calendars/send-event-invitations';
+export { sendEventInvitations as sendEventInvitations } from './fn/calendars/send-event-invitations';
 export type { RespondToInvitation$Params as RespondToInvitation$Params } from './fn/calendars/respond-to-invitation';
 export { respondToInvitation as respondToInvitation } from './fn/calendars/respond-to-invitation';
 export type { ListCalendarSources$Params as ListCalendarSources$Params } from './fn/calendars/list-calendar-sources';

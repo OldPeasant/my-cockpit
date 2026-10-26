@@ -1833,6 +1833,83 @@ paths:
       summary: Change an event or occurrences of a series
       tags:
       - Calendars
+  /api/v1/calendar/events/{id}/invitations:
+    post:
+      description: "Mails an iTIP REQUEST or CANCEL (RFC 5546/6047) for an event of\
+        \ a local calendar over one of the user's mail accounts, from its default\
+        \ identity (else the account address). A series is sent with its overrides,\
+        \ an override on its own. A CANCEL also works for an event in the Trash. Nothing\
+        \ in the event changes."
+      operationId: sendEventInvitations
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+          format: uuid
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SendInvitationsRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SendInvitationsResponse"
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/SendInvitationsResponse"
+          description: Sent
+        "400":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: "Invalid request: missing method or account, an unknown mail\
+            \ account, an invalid address, a REQUEST to non-attendees, or a CANCEL\
+            \ for an event that goes ahead to both attendees and people no longer\
+            \ invited"
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: "No such event (or, for a REQUEST, it is in the Trash)"
+        "409":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: "The event is not in a local calendar (its provider invites),\
+            \ or there is nobody to send to"
+        "422":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: "The SMTP server refused the message (`errorCode` SEND_REJECTED,\
+            \ `rejectedRecipients`); nothing was sent"
+        "502":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: "The mail server failed (`errorCode`, e.g. CONNECTION_FAILED,\
+            \ AUTHENTICATION_FAILED)"
+        "503":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: All connections of the account are busy (`errorCode` POOL_EXHAUSTED);
+            retry later
+      summary: Send invitations for a local event
+      tags:
+      - Calendars
   /api/v1/calendar/events/{id}/respond:
     post:
       description: "Accepts, declines or tentatively accepts the invitation to an\
@@ -13754,6 +13831,51 @@ components:
             \ for Google and Microsoft)"
       required:
       - sentMessageId
+    SendInvitationsRequest:
+      type: object
+      description: Invitations to send for an event of a local calendar
+      properties:
+        accountId:
+          type: string
+          format: uuid
+          description: The mail account to send over; its address is the organizer
+        method:
+          type: string
+          description: "REQUEST invites (or tells about a change), CANCEL calls the\
+            \ event off"
+          enum:
+          - REQUEST
+          - CANCEL
+        recipients:
+          type: array
+          description: "Addresses to send to; default: every attendee but the organizer.\
+            \ A REQUEST only goes to attendees; a CANCEL to people no longer invited\
+            \ tells them so without cancelling the event"
+          items:
+            type: string
+            format: email
+          maxItems: 200
+          minItems: 1
+      required:
+      - accountId
+      - method
+    SendInvitationsResponse:
+      type: object
+      description: What was sent
+      properties:
+        method:
+          type: string
+          enum:
+          - REQUEST
+          - CANCEL
+        recipients:
+          type: array
+          description: The addresses the mail went to
+          items:
+            type: string
+      required:
+      - method
+      - recipients
     Settings:
       type: object
       additionalProperties: true

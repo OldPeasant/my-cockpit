@@ -180,6 +180,8 @@ export type { SearchGroupResponse } from './models/search-group-response';
 export type { SearchItemResponse } from './models/search-item-response';
 export type { SearchResponse } from './models/search-response';
 export type { SendDraftResponse } from './models/send-draft-response';
+export type { SendInvitationsRequest } from './models/send-invitations-request';
+export type { SendInvitationsResponse } from './models/send-invitations-response';
 export type { Settings } from './models/settings';
 export type { SettingsPatch } from './models/settings-patch';
 export type { SetupRequest } from './models/setup-request';
