@@ -5,7 +5,7 @@ owner: dell26/agent-1
 deps: [and-cal-agenda]
 touches: [android/app/src/main/java/ch/sonensei/cockpit/calendar/agenda,android/app/src/test/java/ch/sonensei/cockpit/calendar/agenda]
 prio: 2
-lease_until: 2026-10-26T00:34:56Z
+lease_until: 2026-10-26T00:40:00Z
 ---
 ## Goal
 SPEC.md §9.3 "Read cache": the last-loaded agenda is cached in Room and shown read-only with an
