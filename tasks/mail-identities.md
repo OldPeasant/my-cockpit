@@ -17,7 +17,8 @@ Settings → Mail (web-mail-accounts) only edits the account's primary identity 
 ## Acceptance criteria
 - [x] API: list/add/change/remove identities of an account (name, email, reply-to, signature override), ETag/If-Match, Problem Details; `api/openapi.yaml` and web client regenerated; server tests pass
   - verified (2026-10-26 06:58+0100 by dell26/agent-1): cd server && ./gradlew check -> BUILD SUCCESSFUL (4660 tests, ktlint clean); ./gradlew ktlintCheck test --tests MailIdentityWebTests jacocoTestReport at ef0da8140 -> 24/24 pass (list/add/PATCH/DELETE, ETag 412/428, Problem Details 400/404/409, 401); OpenApiContractTest passes so api/openapi.yaml matches server; web client regenerated (npm run api:gen) in 19048d81/dea927fe6
-- [ ] Settings → Mail lists an account's identities and adds/edits/removes them; Vitest tests cover it; `cd web && npm run check` passes
+- [x] Settings → Mail lists an account's identities and adds/edits/removes them; Vitest tests cover it; `cd web && npm run check` passes
+  - verified (2026-10-26 06:58+0100 by dell26/agent-1): cd web && npm run check at ef0da8140 -> lint ok, build ok, Vitest 175 files / 3665 tests passed incl. identities.spec.ts (25 tests: list, add, edit, remove, default flag, 409/412/404 refresh, disabled while saving)
 
 ## Notes
 - ASSUMPTION (2026-10-26 04:50+0100 by felix/agent-1): Identities are additional From addresses besides the account's own emailAddress (which stays the primary one, edited via the account); an identity may repeat the account address. Duplicate address within an account -> 409. Exposed isDefault (moves flag) since compose already starts with the default identity; new identities are appended (position = max+1), no reorder endpoint. Change events type MAIL_IDENTITY.
