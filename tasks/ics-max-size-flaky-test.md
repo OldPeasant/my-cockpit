@@ -7,7 +7,7 @@ touches: [server/src/main/kotlin/ch/sonensei/cockpit/calendar/infra/ics,server/s
 prio: 2
 lease_until: 
 extended: 
-hold: Task is complete: both criteria verified, review/test/quality evidence committed (cbad8b408). done refused only because .taskcheck fails in BackupRoundTripTest and FilesBackupContributorTests with 'ja
+hold: 
 releases: 0
 ---
 ## Goal
