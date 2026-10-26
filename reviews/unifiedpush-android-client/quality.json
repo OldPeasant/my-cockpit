@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "task": "unifiedpush-android-client",
-  "reviewed_revision": "e0f8983e1c8ac5239150cf711ac79a607054330a",
+  "reviewed_revision": "83603e8c2f3536694ca2e3d60ee5dd3bd7e8eec8",
   "helpers": {
     "test-writer": {"status": "completed", "report": "reviews/unifiedpush-android-client/tests.md"},
     "code-reviewer": {"status": "completed", "report": "reviews/unifiedpush-android-client/review.md"},
