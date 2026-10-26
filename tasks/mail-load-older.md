@@ -20,7 +20,8 @@ SPEC.md §7.2: headers are cached for the sync window, "older loaded on demand w
   - verified (2026-10-26 06:02+0100 by dell26/agent-2): MailLoadOlderControllerTests + MailLoadOlderGreenMailTests assert hasOlder on the last page of folderId lists (true until a load returns hasMore=false), false for unified/account-Inbox lists -> pass
 - [x] `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.mail.api.*'` passes plus an `external` GreenMail test: load older, then the list continues past the window
   - verified (2026-10-26 06:02+0100 by dell26/agent-2): cd server && ./gradlew test --tests 'ch.sonensei.cockpit.mail.api.*' -> BUILD SUCCESSFUL; ./gradlew integrationTest --tests 'ch.sonensei.cockpit.mail.api.MailLoadOlderGreenMailTests' (Docker) -> 6/6 incl. load older then list continues past the window
-- [ ] `api/openapi.yaml` regenerated and `OpenApiContractTest` passes without the flag; web client regenerated
+- [x] `api/openapi.yaml` regenerated and `OpenApiContractTest` passes without the flag; web client regenerated
+  - verified (2026-10-26 06:02+0100 by dell26/agent-2): cd server && ./gradlew test --tests '*OpenApiContractTest' without UPDATE_OPENAPI -> 1/1 pass, api/openapi.yaml unchanged; cd web && npm run api:gen -> no diff in web/src/app/api/generated (npm run api:check in check.sh passes)
 
 ## Notes
 - ASSUMPTION (2026-10-25 23:19+0100 by r1963macos/agent-1): Endpoint is POST /api/v1/mail/folders/{id}/load-older?limit= (1..200, default 100 = MailHeaderSyncService.DEFAULT_OLDER_LIMIT), no body; RemoteFolderNotFoundException maps to 404 like other reads of a folder gone from the server
