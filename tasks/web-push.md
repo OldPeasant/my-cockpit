@@ -6,6 +6,7 @@ deps: [reminders-core,web-reminders,app-icons]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/core/push,server/src/test/kotlin/ch/sonensei/cockpit/core/push,web/src/app/core/notifications,web/public]
 prio: 3
 lease_until: 2026-10-26T15:52:22Z
+extended: felix/agent-1
 ---
 ## Goal
 Notifications without an open tab (SPEC.md §4.6).
@@ -21,3 +22,4 @@ Notifications without an open tab (SPEC.md §4.6).
 - ASSUMPTION (2026-10-26 15:44+0100 by felix/agent-1): VAPID keys and push subscriptions are not in the backup (like sessions): restore empties both, the server generates new keys on next use and the web app replaces subscriptions made with an old key on its next start. VAPID subject = COCKPIT_PUSH_SUBJECT, default https://<COCKPIT_DOMAIN>.
 - ASSUMPTION (2026-10-26 15:44+0100 by felix/agent-1): Subscription endpoints must be https (no userinfo); there is no private-network/SSRF filter on push endpoints because only the authenticated single owner can register them. Unsubscribe is DELETE /api/v1/push/subscriptions with the endpoint in the JSON body so the capability URL stays out of access logs.
 - ASSUMPTION (2026-10-26 15:44+0100 by felix/agent-1): Service worker texts (EN/DE) live in public/push-sw.js and are chosen by ?lang=<LOCALE_ID> at registration, since the plain-JS worker can't use $localize; the worker is registered relative to the base href so the /de build gets its own scope.
+- extended by felix/agent-1: Impl committed (server core/push + web SW/subscription flow); test-writer tests committed in 2540d666 but tests.md report missing; review.md has CR-1 (P2: logout leaves browser push-subscribed) and CR-2..5 (P3, incl. no pushsubscriptionchange). Left: .taskcheck hung >10 min in 'server: ktlint + tests' after the new test-writer push tests (PushNotificationRelayTests/PushPropertiesTests/WebPushCryptoEdgeCaseTests suspects) - find and fix the hang; fixer for CR-1 (+P3 as judged); rerun test-writer (with tests.md) and code-reviewer on final code; verify 3 criteria; quality.json; done.
