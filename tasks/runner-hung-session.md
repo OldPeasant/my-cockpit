@@ -5,7 +5,7 @@ owner: dell26/agent-2
 deps: []
 touches: [agents.py,tests]
 prio: 1
-lease_until: 2026-10-26T00:22:02Z
+lease_until: 2026-10-26T00:27:01Z
 ---
 ## Goal
 A `claude -p` session that has printed its final successful `result` event but does not exit must not block
