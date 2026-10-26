@@ -5,7 +5,7 @@ owner: dell26/agent-2
 deps: [mail-identities]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/mail/compose]
 prio: 2
-lease_until: 2026-10-26T07:33:01Z
+lease_until: 2026-10-26T07:38:04Z
 ---
 ## Goal
 `DraftService.identity` starts a new draft with the default identity, else the FIRST identity of the
