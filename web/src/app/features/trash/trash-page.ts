@@ -155,7 +155,8 @@ export default class TrashPage implements OnInit {
 
   protected purgeLabel(item: TrashItemResponse): string {
     const title = item.title;
-    return $localize`:@@trash.purgeAria:Delete ${title}:title: permanently`;
+    // Starts with the visible text, which must be part of the accessible name (WCAG 2.5.3).
+    return $localize`:@@trash.purgeAria:Delete permanently: ${title}:title:`;
   }
 
   /**

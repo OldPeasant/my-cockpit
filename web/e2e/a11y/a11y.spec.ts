@@ -50,6 +50,10 @@ test.describe('accessibility', () => {
       const run = Date.now().toString(36);
       await createTask(context.request, { title: `Water the plants ${run}` });
       await createTask(context.request, { title: `Call the bank ${run}`, list: 'NEXT' });
+      await deleteTask(
+        context.request,
+        await createTask(context.request, { title: `Old flyer ${run}` }),
+      );
     } finally {
       await context.close();
     }
@@ -273,12 +277,21 @@ async function setServerTheme(request: APIRequestContext, theme: Theme | 'system
 async function createTask(
   request: APIRequestContext,
   task: { title: string; list?: string },
-): Promise<void> {
+): Promise<Task> {
   const response = await request.post('/api/v1/tasks', {
     headers: await xsrf(request),
     data: task,
   });
   expect(response.status(), 'create task').toBe(201);
+  return (await response.json()) as Task;
+}
+
+/** Moves [task] to the trash. */
+async function deleteTask(request: APIRequestContext, task: Task): Promise<void> {
+  const response = await request.delete(`/api/v1/tasks/${task.id}`, {
+    headers: { ...(await xsrf(request)), 'If-Match': `"${task.version}"` },
+  });
+  expect(response.status(), 'delete task').toBe(204);
 }
 
 async function listTasks(request: APIRequestContext, list: string): Promise<Task[]> {
@@ -288,10 +301,5 @@ async function listTasks(request: APIRequestContext, list: string): Promise<Task
 }
 
 async function emptyInbox(request: APIRequestContext): Promise<void> {
-  for (const task of await listTasks(request, 'INBOX')) {
-    const response = await request.delete(`/api/v1/tasks/${task.id}`, {
-      headers: { ...(await xsrf(request)), 'If-Match': `"${task.version}"` },
-    });
-    expect(response.status(), 'delete task').toBe(204);
-  }
+  for (const task of await listTasks(request, 'INBOX')) await deleteTask(request, task);
 }

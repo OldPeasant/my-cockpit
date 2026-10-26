@@ -129,7 +129,7 @@ describe('TrashPage', () => {
   }
 
   async function openPurge(title: string): Promise<void> {
-    byLabel(`Delete ${title} permanently`).click();
+    byLabel(`Delete permanently: ${title}`).click();
     await settle();
     await vi.waitFor(() => expect(dialogButton('Delete permanently')).toBeTruthy());
   }
@@ -206,7 +206,7 @@ describe('TrashPage', () => {
     byLabel('Restore Packing list').click();
     await settle();
     expect(byLabel('Restore Packing list').disabled).toBe(true);
-    expect(byLabel('Delete Packing list permanently').disabled).toBe(true);
+    expect(byLabel('Delete permanently: Packing list').disabled).toBe(true);
     http
       .expectOne({ method: 'POST', url: `${LIST}/NOTE/${NOTE_ID}/restore` })
       .flush(null, noContent);
@@ -361,7 +361,7 @@ describe('TrashPage', () => {
     const actions = [...row('Your invoice').querySelectorAll('.actions button')].map((b) =>
       b.getAttribute('aria-label'),
     );
-    expect(actions).toEqual(['Restore Your invoice', 'Delete Your invoice permanently']);
+    expect(actions).toEqual(['Restore Your invoice', 'Delete permanently: Your invoice']);
   });
 
   it('does nothing when the confirmation is dismissed with Escape', async () => {
@@ -376,7 +376,7 @@ describe('TrashPage', () => {
 
     http.expectNone(`${LIST}/NOTE/${NOTE_ID}`);
     expect(titles()).toContain('Packing list');
-    expect(byLabel('Delete Packing list permanently').disabled).toBe(false);
+    expect(byLabel('Delete permanently: Packing list').disabled).toBe(false);
   });
 
   it('disables the row while the permanent delete runs', async () => {
@@ -387,7 +387,7 @@ describe('TrashPage', () => {
     const req = await requestTo(`${LIST}/EMAIL/${MAIL_ID}`);
     await settle();
     expect(byLabel('Restore Your invoice').disabled).toBe(true);
-    expect(byLabel('Delete Your invoice permanently').disabled).toBe(true);
+    expect(byLabel('Delete permanently: Your invoice').disabled).toBe(true);
     expect(byLabel('Restore Packing list').disabled).toBe(false);
     req.flush(null, noContent);
     await settle();
@@ -503,7 +503,7 @@ describe('TrashPage', () => {
 
     byLabel('Restore Packing list').click();
     await settle();
-    const elsewhere = byLabel('Delete Book train to Lucerne permanently');
+    const elsewhere = byLabel('Delete permanently: Book train to Lucerne');
     elsewhere.focus();
     http.expectOne(`${LIST}/NOTE/${NOTE_ID}/restore`).flush(null, noContent);
     await settle();
