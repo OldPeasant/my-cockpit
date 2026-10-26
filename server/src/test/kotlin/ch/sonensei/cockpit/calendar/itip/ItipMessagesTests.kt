@@ -323,7 +323,7 @@ class ItipMessagesTests {
 	}
 
 	@Test
-	fun `answers are ordered by SEQUENCE, then DTSTAMP, unknown values first`() {
+	fun `answers are ordered by SEQUENCE (0 when missing), then DTSTAMP (missing first)`() {
 		val base = ItipReply(UID, null, "anna@example.test", AttendeeStatus.ACCEPTED)
 		val early = Instant.parse("2026-10-26T12:00:00Z")
 		val late = Instant.parse("2026-10-27T12:00:00Z")
@@ -334,10 +334,12 @@ class ItipMessagesTests {
 				base,
 				base.copy(sequence = 1, stamp = late),
 				base.copy(sequence = 1),
+				base.copy(stamp = late),
+				base.copy(sequence = 0, stamp = early),
 			)
 
 		replies.sortedWith(ItipReply.ORDER).map { it.sequence to it.stamp } shouldContainExactly
-			listOf(null to null, 0 to late, 1 to null, 1 to early, 1 to late)
+			listOf(null to null, 0 to early, 0 to late, null to late, 1 to null, 1 to early, 1 to late)
 		base.copy(email = "Anna@Example.test", uid = " $UID").key shouldBe base.key
 	}
 

@@ -8,6 +8,13 @@ import ch.sonensei.cockpit.calendar.api.CalendarEventService
 import ch.sonensei.cockpit.calendar.api.EventChanges
 import ch.sonensei.cockpit.calendar.api.FieldChange
 import ch.sonensei.cockpit.calendar.api.Timing
+import ch.sonensei.cockpit.calendar.itip.ItipReplyProcessor
+import ch.sonensei.cockpit.calendar.itip.ItipReplyStampRepository
+import ch.sonensei.cockpit.calendar.model.AttendeeStatus
+import ch.sonensei.cockpit.calendar.model.CalendarEventIndexer
+import ch.sonensei.cockpit.calendar.model.CalendarEventRepository
+import ch.sonensei.cockpit.calendar.model.CalendarRepository
+import ch.sonensei.cockpit.calendar.model.CalendarSourceRepository
 import ch.sonensei.cockpit.calendar.model.OccurrenceId
 import ch.sonensei.cockpit.calendar.sync.CalendarProviderException
 import ch.sonensei.cockpit.calendar.sync.CalendarSyncService
@@ -17,7 +24,13 @@ import ch.sonensei.cockpit.calendar.sync.FakeCalendarAdapterConfiguration
 import ch.sonensei.cockpit.calendar.sync.RemoteEvent
 import ch.sonensei.cockpit.calendar.sync.RemoteEventKey
 import ch.sonensei.cockpit.core.crypto.SecretCipher
+import ch.sonensei.cockpit.core.events.domain.ChangeEventPublisher
+import ch.sonensei.cockpit.core.persistence.UuidV7
 import ch.sonensei.cockpit.core.web.ConflictException
+import ch.sonensei.cockpit.mail.api.MailContentLoader
+import ch.sonensei.cockpit.mail.api.MailReadService
+import ch.sonensei.cockpit.mail.model.MailAddress
+import ch.sonensei.cockpit.mail.model.MailMessage
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.assertions.withClue
 import io.kotest.matchers.collections.shouldBeEmpty
@@ -25,11 +38,20 @@ import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.collections.shouldContainExactlyInAnyOrder
 import io.kotest.matchers.collections.shouldHaveSize
+import io.kotest.matchers.collections.shouldNotContain
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
 import io.kotest.matchers.string.shouldNotContain
+import io.mockk.every
+import io.mockk.mockk
+import jakarta.mail.Part
+import jakarta.mail.Session
+import jakarta.mail.internet.InternetHeaders
+import jakarta.mail.internet.MimeBodyPart
+import jakarta.mail.internet.MimeMessage
+import jakarta.mail.internet.MimeMultipart
 import net.fortuna.ical4j.data.CalendarBuilder
 import net.fortuna.ical4j.model.Component
 import net.fortuna.ical4j.model.Property
@@ -49,6 +71,7 @@ import org.springframework.context.annotation.Import
 import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.test.context.DynamicPropertyRegistry
 import org.springframework.test.context.DynamicPropertySource
+import org.springframework.transaction.PlatformTransactionManager
 import org.springframework.transaction.support.TransactionTemplate
 import tools.jackson.databind.JsonNode
 import java.io.StringReader
@@ -58,6 +81,7 @@ import java.sql.Date
 import java.sql.Timestamp
 import java.time.Instant
 import java.time.LocalDate
+import java.util.Properties
 import java.util.UUID
 import kotlin.io.path.outputStream
 import kotlin.io.path.readBytes
@@ -84,8 +108,19 @@ class CalendarBackupContributorTests(
 	@Autowired private val fake: FakeCalendarAdapter,
 	@Autowired private val jdbc: JdbcTemplate,
 	@Autowired private val transactions: TransactionTemplate,
+	@Autowired private val eventRepository: CalendarEventRepository,
+	@Autowired private val calendarRepository: CalendarRepository,
+	@Autowired private val sourceRepository: CalendarSourceRepository,
+	@Autowired private val stamps: ItipReplyStampRepository,
+	@Autowired private val indexer: CalendarEventIndexer,
+	@Autowired private val changes: ChangeEventPublisher,
+	@Autowired private val transactionManager: PlatformTransactionManager,
 ) {
 	@TempDir lateinit var work: Path
+
+	/** The mail module, for [ItipReplyProcessor]: only REPLYs this test hands over are "in the Inbox". */
+	private val mail = mockk<MailReadService>()
+	private val mailContent = mockk<MailContentLoader>()
 
 	@BeforeEach
 	fun wipe() {
@@ -247,6 +282,117 @@ class CalendarBackupContributorTests(
 		val text = events.joinToString("\n") { it.toString() }
 		listOf("Team sync", "Confidential agenda", "Offsite", "etag-").forEach { text shouldNotContain it }
 	}
+
+	// --- data/calendar_itip_replies.json ------------------------------------------------------------------------------
+
+	@Test
+	fun `iTIP REPLY stamps of local events are exported and restored unchanged, those of external events are not exported`() {
+		seedLocal()
+		seedExternal()
+		itipReply(id(40), id(25), "alex@example.test", sequence = 2, stamp = Instant.parse("2026-03-30T10:00:00Z"))
+		itipReply(id(41), id(20), "alex@example.test", at = Instant.parse("2026-03-09T08:00:00Z"), sequence = 0)
+		itipReply(id(42), id(23), "sam@example.test", date = LocalDate.parse("2026-03-14"), stamp = Instant.parse("2026-03-01T07:00:00Z"))
+		itipReply(id(43), id(25), "sam@example.test")
+		itipReply(id(44), id(30), "alex@example.test", sequence = 1)
+		val zip = export()
+
+		val exported = zip.json("data/calendar_itip_replies.json")
+		exported.map { UUID.fromString(it["id"].asString()) } shouldContainExactly (40..43).map(::id)
+		exported[1]["recurrenceIdAt"].asString() shouldBe "2026-03-09T08:00:00Z"
+		exported[2]["recurrenceIdDate"].asString() shouldBe "2026-03-14"
+		exported[3]["sequence"].isNull shouldBe true
+		val local = rows("select to_jsonb(r) from calendar_itip_reply r where id <> ? order by id", id(44))
+		wipe()
+
+		import(zip.path)
+
+		rows("select to_jsonb(r) from calendar_itip_reply r order by id") shouldBe local
+	}
+
+	@Test
+	fun `without iTIP REPLY stamps no stamp file is written`() {
+		seedLocal()
+
+		export().entryNames shouldNotContain "data/calendar_itip_replies.json"
+	}
+
+	@Test
+	fun `after a restore an iTIP REPLY older than the restored stamp is still ignored, a newer one is taken`() {
+		seedLocal()
+		itipReply(id(40), id(25), "alex@example.test", sequence = 2, stamp = Instant.parse("2026-03-30T10:00:00Z"))
+		val zip = export()
+		wipe()
+		import(zip.path)
+
+		val processor =
+			ItipReplyProcessor(
+				mail,
+				mailContent,
+				eventRepository,
+				calendarRepository,
+				sourceRepository,
+				stamps,
+				indexer,
+				changes,
+				transactionManager,
+			)
+		try {
+			// Lower SEQUENCE, and same SEQUENCE with an older DTSTAMP: answered before the restored stamp.
+			processor.answer("DECLINED", sequence = 1, stamp = "20260331T100000Z").shouldBeEmpty()
+			processor.answer("TENTATIVE", sequence = 2, stamp = "20260330T090000Z").shouldBeEmpty()
+			alexStatus() shouldBe AttendeeStatus.ACCEPTED
+
+			processor.answer("DECLINED", sequence = 2, stamp = "20260330T110000Z") shouldContainExactly listOf(id(25))
+			alexStatus() shouldBe AttendeeStatus.DECLINED
+		} finally {
+			processor.destroy()
+		}
+		// The restored row was advanced in place, not duplicated.
+		jdbc
+			.queryForList("select id, sequence, stamp from calendar_itip_reply")
+			.map { listOf(it["id"], it["sequence"], (it["stamp"] as Timestamp).toInstant()) } shouldContainExactly
+			listOf(listOf(id(40), 2, Instant.parse("2026-03-30T11:00:00Z")))
+	}
+
+	private fun ItipReplyProcessor.answer(
+		partStat: String,
+		sequence: Int,
+		stamp: String,
+	): List<UUID> {
+		val messageId = UuidV7.generate()
+		val message = MailMessage(UuidV7.generate(), UuidV7.generate(), 1L, messageId).apply { from = listOf(MailAddress("alex@example.test")) }
+		val ics =
+			listOf(
+				"BEGIN:VCALENDAR",
+				"VERSION:2.0",
+				"PRODID:-//Example//Fictitious Mail//EN",
+				"METHOD:REPLY",
+				"BEGIN:VEVENT",
+				"UID:${id(25)}",
+				"SEQUENCE:$sequence",
+				"DTSTAMP:$stamp",
+				"ATTENDEE;PARTSTAT=$partStat:mailto:alex@example.test",
+				"END:VEVENT",
+				"END:VCALENDAR",
+			).joinToString("\r\n", postfix = "\r\n")
+		val mime =
+			MimeMessage(Session.getInstance(Properties())).apply {
+				val headers = InternetHeaders().apply { addHeader("Content-Type", "text/calendar; charset=UTF-8; method=REPLY") }
+				setContent(MimeMultipart(MimeBodyPart(headers, ics.toByteArray())))
+				saveChanges()
+			}
+		every { mail.inInbox(messageId) } returns message
+		every { mailContent.withRemoteMessage<Any?>(message, any()) } answers { secondArg<(Part) -> Any?>().invoke(mime) }
+		return process(messageId)
+	}
+
+	private fun alexStatus(): AttendeeStatus =
+		eventRepository
+			.findById(id(25))
+			.get()
+			.attendees
+			.single { it.email == "alex@example.test" }
+			.status
 
 	// --- readable/calendar/ -----------------------------------------------------------------------------------------
 
@@ -984,6 +1130,28 @@ class CalendarBackupContributorTests(
 			event,
 			at?.let(Timestamp::from),
 			date?.let(Date::valueOf),
+		)
+	}
+
+	private fun itipReply(
+		id: UUID,
+		event: UUID,
+		email: String,
+		at: Instant? = null,
+		date: LocalDate? = null,
+		sequence: Int? = null,
+		stamp: Instant? = null,
+	) {
+		jdbc.update(
+			"""insert into calendar_itip_reply (id, event_id, recurrence_id_at, recurrence_id_date, email, sequence, stamp)
+			values (?, ?, ?, ?, ?, ?, ?)""",
+			id,
+			event,
+			at?.let(Timestamp::from),
+			date?.let(Date::valueOf),
+			email,
+			sequence,
+			stamp?.let(Timestamp::from),
 		)
 	}
 

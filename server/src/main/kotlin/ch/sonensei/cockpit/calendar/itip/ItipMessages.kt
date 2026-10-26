@@ -48,9 +48,12 @@ data class ItipReply(
 	val key: Triple<String, OccurrenceId?, String> get() = Triple(uid.trim(), recurrenceId, email.lowercase())
 
 	companion object {
-		/** Older answers first: by SEQUENCE, then DTSTAMP (missing values count as oldest). */
+		/**
+		 * Older answers first: by SEQUENCE (a missing one is 0, its default in RFC 5545 §3.8.7.4), then DTSTAMP (a missing
+		 * one counts as oldest).
+		 */
 		val ORDER: Comparator<ItipReply> =
-			compareBy<ItipReply, Int?>(nullsFirst()) { it.sequence }.thenBy(nullsFirst()) { it.stamp }
+			compareBy<ItipReply> { it.sequence ?: 0 }.thenBy(nullsFirst()) { it.stamp }
 	}
 }
 
