@@ -5,7 +5,7 @@ owner: felix/agent-1
 deps: [web-today-habits]
 touches: [web/src/app/features/habits,web/src/app/features/gtd/today]
 prio: 2
-lease_until: 2026-10-26T10:04:13Z
+lease_until: 2026-10-26T10:09:17Z
 extended: felix/agent-1
 ---
 ## Goal
