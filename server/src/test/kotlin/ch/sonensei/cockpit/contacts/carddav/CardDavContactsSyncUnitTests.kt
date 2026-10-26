@@ -476,13 +476,20 @@ class CardDavContactsSyncUnitTests {
 		saved += CardDavLink(trashed.id, account.id, "${BOOK}ada.vcf", etag = "\"e-old\"", syncedVersion = trashed.version)
 		every { contacts.findById(trashed.id) } returns Optional.of(trashed)
 		every { links.findById(any()) } answers { Optional.ofNullable(saved.firstOrNull { it.id == firstArg<UUID>() }) }
-		wireMock.stubFor(request("DELETE", anyUrl()).willReturn(aResponse().withStatus(500)))
+		// A refused write (not a 5xx, which fails the whole run), so the run goes on to the pull.
+		wireMock.stubFor(request("DELETE", anyUrl()).willReturn(aResponse().withStatus(403)))
 		stubReport("sync-collection", 207, syncAnswer(etagEntry("${BOOK}ada.vcf", "e-ada.vcf"), "tok-2"))
 		stubReport("addressbook-multiget", 207, multiget("ada.vcf" to "Ada Changed"))
 
-		sync.sync(account.id)
+		val state = sync.sync(account.id)
 
+		// The pull ran and fetched the changed card; only the refused DELETE counts as not synced.
+		state.lastError shouldBe "1 contacts could not be synced with the CardDAV server"
+		state.syncToken shouldBe "tok-2"
+		requests().count { it.bodyAsString.contains("sync-collection") } shouldBe 1
+		requests().count { it.bodyAsString.contains("addressbook-multiget") } shouldBe 1
 		trashed.isDeleted shouldBe true
+		verify(exactly = 0) { contacts.saveAndFlush(any<Contact>()) }
 		verify(exactly = 0) { service.update(any(), any(), any()) }
 		verify(exactly = 0) { service.createSynced(any(), any(), any()) }
 		saved.single().etag shouldBe "\"e-old\""

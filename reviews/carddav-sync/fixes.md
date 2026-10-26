@@ -4,7 +4,7 @@ Date: 2026-10-26
 
 Task: carddav-sync — CardDAV contacts sync
 
-Scope: current task; findings CR-2, CR-4 and (from the re-review, committed at e7b33c006) CR-5 of `reviews/carddav-sync/review.md` (base d6a1773e14b8e11dd032faac22eb397789050106, reviewed HEAD b6de0272b). CR-1 was addressed by earlier test commits; CR-3 is accepted as an assumption by the parent worker and was not in this fixer's scope.
+Scope: current task; findings CR-2, CR-4, CR-5 (re-review committed at e7b33c006) and CR-6 (re-review committed at 5691acec3) of `reviews/carddav-sync/review.md` (base d6a1773e14b8e11dd032faac22eb397789050106, reviewed HEAD b6de0272b). CR-1 was addressed by earlier test commits; CR-3 is accepted as an assumption by the parent worker and was not in this fixer's scope.
 
 ## Fixed findings
 
@@ -83,6 +83,26 @@ Tests:
 - Added `a card that changes at the server while the user has its contact in the Trash is left for the push to delete`. It covers the unchanged case where the link has an ETag:
   - Neither `update` nor `createSynced` is called, the contact stays in the Trash, and the link keeps its old ETag.
   - The push sends the DELETE.
+
+Validation:
+- Gradle could not be run by the fixer (permission). The parent worker runs it: see "Validation summary".
+
+### CR-6 — The test for a contact the user trashed never reached the pull
+
+Files changed:
+- `server/src/test/kotlin/ch/sonensei/cockpit/contacts/carddav/CardDavContactsSyncUnitTests.kt` (test only)
+
+Problem:
+The test `a card that changes at the server while the user has its contact in the Trash is left for the push to delete` answered the push's DELETE with 500. `CardDavClient` throws on any 5xx (`status >= 500`), so the run stopped before the pull. The guard for a contact the user trashed (link with an ETag) in `store` was never executed, and the test's assertions held without it.
+
+Fix:
+The DELETE is now answered with 403. The push counts it as a refused write and the run goes on to the pull. The test now also asserts:
+- The pull ran: one sync-collection REPORT and one addressbook-multiget for the changed card were sent, and the token moved to `tok-2`.
+- The run's error counts only the refused DELETE: "1 contacts could not be synced with the CardDAV server".
+- The contact stays in the Trash. It was not saved (`contacts.saveAndFlush` was not called, so no restore), and neither `service.update` nor `createSynced` was called.
+- The link keeps `"e-old"`, and exactly one DELETE was sent to the card.
+
+No production code changed.
 
 Validation:
 - Gradle could not be run by the fixer (permission). The parent worker runs it: see "Validation summary".
