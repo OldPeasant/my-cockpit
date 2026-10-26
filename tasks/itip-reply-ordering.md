@@ -7,8 +7,8 @@ touches: [server/src/main/kotlin/ch/sonensei/cockpit/calendar]
 prio: 2
 lease_until: 
 extended: 
-releases: 1
-hold: All work done and evidence committed (both criteria verified, review.md/tests.md/fixes.md/quality.json). Only 'done' is left: .taskcheck (sh scripts/check.sh) takes ~23 min on felix's machine (server 
+releases: 0
+hold: 
 ---
 ## Goal
 An older iTIP REPLY (lower SEQUENCE, or same SEQUENCE and older DTSTAMP) that arrives after a newer one from the same attendee must not overwrite the attendee status (RFC 5546 §2.1.5; review finding CR-3 of itip-invitations). Needs a per-attendee answered-at/sequence value: decide between an optional field on the Attendee JSON (mind EventCommands equality, backup, AttendeeDto) or an itip table with a Flyway migration.
