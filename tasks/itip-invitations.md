@@ -1,11 +1,11 @@
 ---
 title: Send invitations for local events (iTIP)
-status: todo
-owner: 
+status: in_progress
+owner: r1963macos/agent-1
 deps: [cal-local-api,mail-compose]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/calendar/itip,server/src/test/kotlin/ch/sonensei/cockpit/calendar/itip]
 prio: 3
-lease_until: 
+lease_until: 2026-10-26T14:03:03Z
 extended: 
 releases: 1
 ---
