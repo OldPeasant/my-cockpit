@@ -284,6 +284,97 @@ describe('MailIdentities', () => {
     expect(text()).toContain('No further identities.');
   });
 
+  it('adds a default identity with reply-to and keeps the signature as typed', async () => {
+    await load([]);
+    await click(button('Add identity'));
+    type('name', ' Billing ');
+    type('email', 'billing@mail.example.test');
+    type('replyTo', ' accounts@mail.example.test ');
+    type('signatureMd', '  -- \nBilling team');
+    root.querySelector<HTMLButtonElement>('mat-slide-toggle button')!.click();
+    await settle();
+    await click(button('Save identity'));
+
+    const req = http.expectOne({ method: 'POST', url: IDENTITIES });
+    expect(req.request.body).toEqual({
+      name: 'Billing',
+      email: 'billing@mail.example.test',
+      replyTo: 'accounts@mail.example.test',
+      signatureMd: '  -- \nBilling team',
+      isDefault: true,
+    });
+    req.flush(fakeIdentity(), { status: 201, statusText: 'Created' });
+    await reload([fakeIdentity()]);
+  });
+
+  it('sends a change only once while it is saving', async () => {
+    await load([fakeIdentity()]);
+    await click(button('Edit info@mail.example.test'));
+    const save = button('Save identity');
+    save.click();
+    await settle();
+    expect(save.disabled).toBe(true);
+    // A second submit (e.g. Enter in a field) while the first is pending.
+    root.querySelector('form')!.dispatchEvent(new Event('submit'));
+    await settle();
+
+    http
+      .expectOne({ method: 'PATCH', url: `${IDENTITIES}/i1` })
+      .flush(fakeIdentity({ version: 1 }));
+    await reload([fakeIdentity({ version: 1 })]);
+    expect(text()).toContain('info@mail.example.test saved.');
+  });
+
+  it('says that the list could not be read again after a change, and retries', async () => {
+    await load([fakeIdentity()]);
+    await click(button('Remove info@mail.example.test'));
+    await click(button('Remove identity'));
+    http
+      .expectOne({ method: 'DELETE', url: `${IDENTITIES}/i1` })
+      .flush(null, { status: 204, statusText: 'No Content' });
+    await tick();
+    const { body, options } = problem(503, 'Unavailable');
+    http.expectOne({ method: 'GET', url: IDENTITIES }).flush(body, options);
+    await settle();
+
+    expect(root.querySelector('[role="alert"]')?.textContent).toContain(
+      'Identities could not be loaded: Unavailable',
+    );
+    await click(button('Try again'));
+    http.expectOne({ method: 'GET', url: IDENTITIES }).flush({ items: [] });
+    await settle();
+    expect(text()).toContain('No further identities.');
+  });
+
+  it('shows the server message when adding fails for another reason', async () => {
+    await load([]);
+    await click(button('Add identity'));
+    type('email', 'info@mail.example.test');
+    await click(button('Save identity'));
+
+    const { body, options } = problem(500, 'Server error');
+    http.expectOne({ method: 'POST', url: IDENTITIES }).flush(body, options);
+    await settle();
+
+    const alert = root.querySelector('[role="alert"]')?.textContent ?? '';
+    expect(alert).toContain('Server error');
+    expect(alert).not.toContain('already has an identity');
+    expect(button('Save identity').disabled).toBe(false);
+  });
+
+  it('closes the removal question on cancel and when editing, without a request', async () => {
+    await load([fakeIdentity()]);
+    await click(button('Remove info@mail.example.test'));
+    expect(button('Remove info@mail.example.test').getAttribute('aria-expanded')).toBe('true');
+    await click(button('Cancel'));
+    expect(text()).not.toContain('Stop sending as');
+
+    await click(button('Remove info@mail.example.test'));
+    await click(button('Add identity'));
+    expect(text()).not.toContain('Stop sending as');
+    expect(root.querySelector('[role="group"][aria-label="New identity"] form')).not.toBeNull();
+  });
+
   it('keeps an identity whose removal failed and says why', async () => {
     await load([fakeIdentity()]);
     await click(button('Remove info@mail.example.test'));

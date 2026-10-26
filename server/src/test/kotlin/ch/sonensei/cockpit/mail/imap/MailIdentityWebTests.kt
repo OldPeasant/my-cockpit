@@ -274,6 +274,131 @@ class MailIdentityWebTests(
 	}
 
 	@Test
+	fun `create trims the name and stores empty reply-to and signature as absent`() {
+		create(mapOf("name" to "  Jane Doe  ", "email" to "info@example.test", "replyTo" to "", "signatureMd" to "")).andExpect {
+			status { isCreated() }
+			jsonPath("$.name") { value("Jane Doe") }
+			jsonPath("$.email") { value("info@example.test") }
+			jsonPath("$.replyTo") { doesNotExist() }
+			jsonPath("$.signatureMd") { doesNotExist() }
+		}
+		val stored = identities.findAll().single()
+		stored.replyTo shouldBe null
+		stored.signatureMd shouldBe null
+	}
+
+	@Test
+	fun `a missing email or a name over 200 characters is 400 and stores nothing`() {
+		create(mapOf("name" to "Jane")).andExpect {
+			status { isBadRequest() }
+			jsonPath("$.errors[0].field") { value("email") }
+		}
+		create(mapOf("name" to "x".repeat(201), "email" to "info@example.test")).andExpect {
+			status { isBadRequest() }
+			jsonPath("$.errors[0].field") { value("name") }
+		}
+		create(mapOf("name" to "x".repeat(200), "email" to "info@example.test")).andExpect { status { isCreated() } }
+		identities.count() shouldBe 1
+	}
+
+	@Test
+	fun `a new default publishes the change of the previous default`(events: ApplicationEvents) {
+		val first = createOk(mapOf("name" to "Jane", "email" to "a@example.test", "isDefault" to true))["id"].asString()
+		createOk(mapOf("name" to "Jane", "email" to "b@example.test", "isDefault" to true))
+
+		events
+			.stream(ChangeEvent::class.java)
+			.filter { it.type == MailIdentityService.IDENTITY_EVENT && it.op == ChangeOp.UPDATED }
+			.map { it.id.toString() }
+			.toList() shouldContainExactly listOf(first)
+		mockMvc.get("${base()}/$first").andExpect { header { string(HttpHeaders.ETAG, "\"1\"") } }
+	}
+
+	@Test
+	fun `making the current default the default again keeps the others unchanged`() {
+		val first = createOk(mapOf("name" to "Jane", "email" to "a@example.test", "isDefault" to true))["id"].asString()
+		val second = createOk(mapOf("name" to "Jane", "email" to "b@example.test"))["id"].asString()
+
+		patch(first, mapOf("isDefault" to true)).andExpect {
+			status { isOk() }
+			jsonPath("$.isDefault") { value(true) }
+		}
+		val stored = identities.findById(UUID.fromString(second)).get()
+		stored.isDefault shouldBe false
+		stored.version shouldBe 0
+	}
+
+	@Test
+	fun `a stale If-Match changes nothing`() {
+		val id = createOk(mapOf("name" to "Jane", "email" to "info@example.test", "isDefault" to true))["id"].asString()
+		patch(id, mapOf("name" to "Changed", "isDefault" to false), ifMatch = "\"5\"").andExpect {
+			status { isPreconditionFailed() }
+			content { contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON) }
+		}
+		val stored = identities.findById(UUID.fromString(id)).get()
+		stored.name shouldBe "Jane"
+		stored.isDefault shouldBe true
+	}
+
+	@Test
+	fun `a new identity comes after the highest position, also after a removal`() {
+		createOk(mapOf("name" to "Jane", "email" to "a@example.test"))
+		val middle = createOk(mapOf("name" to "Jane", "email" to "b@example.test"))["id"].asString()
+		createOk(mapOf("name" to "Jane", "email" to "c@example.test"))
+		delete(middle).andExpect { status { isNoContent() } }
+
+		createOk(mapOf("name" to "Jane", "email" to "d@example.test"))["position"].asInt() shouldBe 3
+		listEmails() shouldContainExactly listOf("a@example.test", "c@example.test", "d@example.test")
+	}
+
+	@Test
+	fun `a removed address can be added again`() {
+		val id = createOk(mapOf("name" to "Jane", "email" to "info@example.test"))["id"].asString()
+		delete(id).andExpect { status { isNoContent() } }
+		create(mapOf("name" to "Jane", "email" to "INFO@example.test")).andExpect { status { isCreated() } }
+	}
+
+	@Test
+	fun `an identity cannot be removed through another account`() {
+		val id = createOk(mapOf("name" to "Jane", "email" to "info@example.test"))["id"].asString()
+		val otherAccount = account("john@example.test").id
+		mockMvc
+			.delete("${base(otherAccount)}/$id") {
+				with(csrf())
+				header(HttpHeaders.IF_MATCH, "\"0\"")
+			}.andExpect { status { isNotFound() } }
+		listEmails() shouldContainExactly listOf("info@example.test")
+	}
+
+	@Test
+	fun `update sets a new reply-to and signature override and keeps the other fields`() {
+		val id = createOk(mapOf("name" to "Jane", "email" to "info@example.test"))["id"].asString()
+
+		patch(id, mapOf("replyTo" to "help@example.test", "signatureMd" to "-- \nJane")).andExpect {
+			status { isOk() }
+			jsonPath("$.replyTo") { value("help@example.test") }
+			jsonPath("$.signatureMd") { value("-- \nJane") }
+			jsonPath("$.name") { value("Jane") }
+			jsonPath("$.email") { value("info@example.test") }
+		}
+		val stored = identities.findById(UUID.fromString(id)).get()
+		stored.replyTo shouldBe "help@example.test"
+		stored.signatureMd shouldBe "-- \nJane"
+	}
+
+	@Test
+	fun `an update cannot empty the address of an identity`() {
+		val id = createOk(mapOf("name" to "Jane", "email" to "info@example.test"))["id"].asString()
+
+		patch(id, mapOf("email" to "")).andExpect {
+			status { isBadRequest() }
+			content { contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON) }
+			jsonPath("$.errors[0].field") { value("email") }
+		}
+		identities.findById(UUID.fromString(id)).get().email shouldBe "info@example.test"
+	}
+
+	@Test
 	fun `identities go with their account`() {
 		createOk(mapOf("name" to "Jane", "email" to "info@example.test"))
 		accounts.deleteById(accountId)
