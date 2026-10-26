@@ -305,6 +305,70 @@ class PushWebTests(
 		}
 	}
 
+	@Test
+	fun `a stored key pair the master key can't decrypt does not fail startup and is kept`() {
+		jdbc.execute("delete from push_vapid_key")
+		try {
+			// Version byte 1, then nonce and tag that fail authentication: like a key encrypted with another master key.
+			val foreign = Base64.getEncoder().encodeToString(ByteArray(40) { 1 })
+			insertVapidKey(privateKeyColumn = foreign)
+
+			shouldNotThrowAny { vapidKeys.generateAtStartup() }
+
+			shouldThrow<RuntimeException> { vapidKeys.current() }
+			withClue("the unreadable key is not silently replaced") { vapidKeyRows() shouldBe listOf(foreign) }
+		} finally {
+			restoreUsableKeyPair()
+		}
+	}
+
+	@Test
+	fun `a stored private key that is not a PKCS8 key does not fail startup`() {
+		jdbc.execute("delete from push_vapid_key")
+		try {
+			keys.saveAndFlush(
+				VapidKey(browser.p256dh, EncryptedSecret(Base64.getEncoder().encodeToString("not a key".toByteArray()))),
+			)
+
+			shouldNotThrowAny { vapidKeys.generateAtStartup() }
+
+			shouldThrow<RuntimeException> { vapidKeys.current() }
+			vapidKeyRows() shouldHaveSize 1
+		} finally {
+			restoreUsableKeyPair()
+		}
+	}
+
+	@Test
+	fun `startup generates the key pair when there is none`() {
+		jdbc.execute("delete from push_vapid_key")
+		try {
+			vapidKeys.generateAtStartup()
+
+			vapidKeyRows() shouldHaveSize 1
+			vapidKeys.current().publicKeyBase64Url shouldBe keys.findAll().single().publicKey
+		} finally {
+			restoreUsableKeyPair()
+		}
+	}
+
+	private fun insertVapidKey(privateKeyColumn: String) =
+		jdbc.update(
+			"""insert into push_vapid_key (id, created_at, updated_at, version, public_key, private_key)
+				values (?, now(), now(), 0, ?, ?)""",
+			UuidV7.generate(),
+			browser.p256dh,
+			privateKeyColumn,
+		)
+
+	private fun vapidKeyRows(): List<String> = jdbc.queryForList("select private_key from push_vapid_key", String::class.java)
+
+	/** Other tests expect the key pair generated at startup. */
+	private fun restoreUsableKeyPair() {
+		jdbc.execute("delete from push_vapid_key")
+		vapidKeys.current()
+	}
+
 	companion object {
 		const val BASE = "/api/v1/push"
 		const val SUBSCRIPTIONS = "$BASE/subscriptions"
