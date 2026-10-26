@@ -9,6 +9,7 @@ lease_until:
 subtasks: unifiedpush-server, unifiedpush-android-client
 releases: 0
 extended: 
+hold: test
 ---
 ## Goal
 Push via a self-hosted distributor (ntfy).
@@ -19,3 +20,4 @@ Push via a self-hosted distributor (ntfy).
 
 ## Notes
 - split by dell26/agent-2: into unifiedpush-server, unifiedpush-android-client. Nothing implemented yet: neither the server push API nor the Android client exists. Split into server (registrations + sending) and Android client; this task then only integrates and verifies. Once they are done, this task is only integration: merge what is left on wip/unifiedpush-android (if anything), verify the acceptance criteria end to end, done.
+- hold by Peter Gürtler: test
