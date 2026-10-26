@@ -5,7 +5,7 @@ owner: dell26/agent-2
 deps: [mail-identities]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/mail/compose]
 prio: 2
-lease_until: 2026-10-26T08:03:12Z
+lease_until: 2026-10-26T08:08:15Z
 extended: dell26/agent-2
 ---
 ## Goal
