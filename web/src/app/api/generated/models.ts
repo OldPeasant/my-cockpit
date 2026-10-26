@@ -161,6 +161,9 @@ export type { ProjectPageResponse } from './models/project-page-response';
 export type { ProjectPatchRequest } from './models/project-patch-request';
 export type { ProjectResponse } from './models/project-response';
 export type { ProtocolTestResponse } from './models/protocol-test-response';
+export type { PushSubscriptionKeys } from './models/push-subscription-keys';
+export type { PushSubscriptionRequest } from './models/push-subscription-request';
+export type { PushUnsubscribeRequest } from './models/push-unsubscribe-request';
 export type { RecoveryCodesResponse } from './models/recovery-codes-response';
 export type { RefreshRequest } from './models/refresh-request';
 export type { RegenerateRecoveryCodesRequest } from './models/regenerate-recovery-codes-request';
@@ -207,6 +210,7 @@ export type { UpdateMailFolderRequest } from './models/update-mail-folder-reques
 export type { UpdateMailIdentityRequest } from './models/update-mail-identity-request';
 export type { UploadResponse } from './models/upload-response';
 export type { UserJson } from './models/user-json';
+export type { VapidPublicKeyResponse } from './models/vapid-public-key-response';
 export type { VCardImportResponse } from './models/v-card-import-response';
 export type { WeeklyReviewResponse } from './models/weekly-review-response';
 export type { WeeklyReviewStatusResponse } from './models/weekly-review-status-response';

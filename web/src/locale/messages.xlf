@@ -102,7 +102,14 @@
         <source>Reminders appear inside My Cockpit while it is open.</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/core/notifications/reminder-notifications-toggle.html</context>
-          <context context-type="linenumber">30,34</context>
+          <context context-type="linenumber">30,32</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="reminders.push.active" datatype="html">
+        <source>Reminders and new mail also show while My Cockpit is closed.</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/core/notifications/reminder-notifications-toggle.html</context>
+          <context context-type="linenumber">34,37</context>
         </context-group>
       </trans-unit>
       <trans-unit id="reminders.untitled" datatype="html">

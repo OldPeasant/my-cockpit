@@ -8,6 +8,7 @@ import {
   signal,
 } from '@angular/core';
 import { MatSlideToggleChange, MatSlideToggleModule } from '@angular/material/slide-toggle';
+import { PushSubscriptionService } from './push-subscription.service';
 import { ReminderNotificationsService } from './reminder-notifications.service';
 
 let nextHintId = 0;
@@ -17,6 +18,7 @@ let nextHintId = 0;
  * for the browser's permission, so it must stay a direct user gesture. Explains why it can't be
  * switched on (no support, permission refused) and that reminders then show in the app. The
  * permission is re-read whenever the user comes back to the page, e.g. from the site settings.
+ * Says when notifications also arrive with no tab open (Web Push, see `provideReminderNotifications`).
  */
 @Component({
   selector: 'app-reminder-notifications-toggle',
@@ -31,6 +33,8 @@ export class ReminderNotificationsToggle {
   /** The hint describes the switch, so screen readers announce why it is unavailable. */
   protected readonly hintId = `app-reminder-notifications-hint-${nextHintId++}`;
   protected readonly permission = this.service.permission;
+  /** Whether notifications also come while no tab is open (Web Push). */
+  protected readonly pushActive = inject(PushSubscriptionService).active;
   protected readonly asking = signal(false);
   protected readonly checked = computed(
     () => this.service.switchedOn() && this.permission() === 'granted',

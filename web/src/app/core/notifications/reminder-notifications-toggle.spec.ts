@@ -1,9 +1,11 @@
+import { signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { provideRouter } from '@angular/router';
 import { EMPTY } from 'rxjs';
 import { ChangeEventsService } from '../events';
 import { BROWSER_NOTIFICATIONS, NotificationPermissionState } from './browser-notifications';
+import { PushSubscriptionService } from './push-subscription.service';
 import { ReminderNotificationsToggle } from './reminder-notifications-toggle';
 import {
   REMINDER_NOTIFICATIONS_STORAGE_KEY,
@@ -15,6 +17,7 @@ describe('ReminderNotificationsToggle', () => {
   let browser: FakeBrowserNotifications;
   let fixture: ComponentFixture<ReminderNotificationsToggle>;
   let root: HTMLElement;
+  const pushActive = signal(false);
 
   async function setup(permission: NotificationPermissionState): Promise<void> {
     browser = new FakeBrowserNotifications();
@@ -25,6 +28,7 @@ describe('ReminderNotificationsToggle', () => {
         { provide: BROWSER_NOTIFICATIONS, useValue: browser },
         { provide: ChangeEventsService, useValue: { messages$: () => EMPTY } },
         { provide: MatSnackBar, useValue: { open: vi.fn() } },
+        { provide: PushSubscriptionService, useValue: { active: pushActive } },
       ],
     });
     fixture = TestBed.createComponent(ReminderNotificationsToggle);
@@ -43,7 +47,10 @@ describe('ReminderNotificationsToggle', () => {
     await fixture.whenStable();
   }
 
-  beforeEach(() => localStorage.clear());
+  beforeEach(() => {
+    localStorage.clear();
+    pushActive.set(false);
+  });
   afterEach(() => localStorage.clear());
 
   it('asks for the permission when switched on, and is on once granted', async () => {
@@ -58,6 +65,17 @@ describe('ReminderNotificationsToggle', () => {
     expect(button().getAttribute('aria-checked')).toBe('true');
     expect(localStorage.getItem(REMINDER_NOTIFICATIONS_STORAGE_KEY)).toBe('on');
     expect(hint()).toBe('');
+  });
+
+  it('says when notifications also come with no tab open', async () => {
+    localStorage.setItem(REMINDER_NOTIFICATIONS_STORAGE_KEY, 'on');
+    await setup('granted');
+    expect(hint()).toBe('');
+
+    pushActive.set(true);
+    await fixture.whenStable();
+
+    expect(hint()).toBe('Reminders and new mail also show while My Cockpit is closed.');
   });
 
   it('springs back and explains the block when the permission is refused', async () => {
@@ -185,6 +203,7 @@ describe('ReminderNotificationsToggle', () => {
         { provide: BROWSER_NOTIFICATIONS, useValue: browser },
         { provide: ChangeEventsService, useValue: { messages$: () => EMPTY } },
         { provide: MatSnackBar, useValue: { open: vi.fn() } },
+        { provide: PushSubscriptionService, useValue: { active: pushActive } },
       ],
     });
     const service = TestBed.inject(ReminderNotificationsService);

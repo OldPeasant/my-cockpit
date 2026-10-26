@@ -29,6 +29,10 @@
         <ng-container i18n="@@reminders.permission.off"
           >Reminders appear inside My Cockpit while it is open.</ng-container
         >
+      } @else if (pushActive()) {
+        <ng-container i18n="@@reminders.push.active"
+          >Reminders and new mail also show while My Cockpit is closed.</ng-container
+        >
       }
     }
   }

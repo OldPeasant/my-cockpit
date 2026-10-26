@@ -118,6 +118,14 @@
           <context context-type="linenumber">30,34</context>
         </context-group>
       </trans-unit>
+      <trans-unit id="reminders.push.active" datatype="html">
+        <source>Reminders and new mail also show while My Cockpit is closed.</source>
+        <target state="translated">Erinnerungen und neue E-Mails erscheinen auch, wenn My Cockpit geschlossen ist.</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/core/notifications/reminder-notifications-toggle.html</context>
+          <context context-type="linenumber">34,37</context>
+        </context-group>
+      </trans-unit>
       <trans-unit id="reminders.untitled" datatype="html">
         <source>Reminder</source>
         <target state="translated">Erinnerung</target>
