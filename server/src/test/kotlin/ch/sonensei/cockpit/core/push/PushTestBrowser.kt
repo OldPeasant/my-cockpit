@@ -15,9 +15,10 @@ import javax.crypto.spec.SecretKeySpec
  * A browser's side of Web Push in tests: its subscription keys, and decrypting what the server sent (RFC 8291 from
  * the user agent's view, written out step by step instead of reusing the server's helpers).
  */
-class PushTestBrowser {
-	private val keyPair: KeyPair = WebPushCrypto.generateKeyPair()
-	val authSecret: ByteArray = ByteArray(16).also(SecureRandom()::nextBytes)
+class PushTestBrowser(
+	private val keyPair: KeyPair = WebPushCrypto.generateKeyPair(),
+	val authSecret: ByteArray = ByteArray(16).also(SecureRandom()::nextBytes),
+) {
 	val publicKey: ByteArray = WebPushCrypto.rawPublicKey(keyPair.public as ECPublicKey)
 
 	val p256dh: String get() = WebPushCrypto.encode(publicKey)

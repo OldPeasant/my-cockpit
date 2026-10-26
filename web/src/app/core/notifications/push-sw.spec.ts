@@ -16,11 +16,11 @@ interface FakeClient {
   navigate: ReturnType<typeof vi.fn>;
 }
 
-function worker(lang = 'en', clients: FakeClient[] = []) {
+function worker(lang = 'en', clients: FakeClient[] = [], scope = SCOPE) {
   const listeners: Record<string, (event: unknown) => void> = {};
   const self = {
-    location: { href: `${SCOPE}push-sw.js?lang=${lang}` },
-    registration: { scope: SCOPE, showNotification: vi.fn(() => Promise.resolve()) },
+    location: { href: `${scope}push-sw.js?lang=${lang}` },
+    registration: { scope, showNotification: vi.fn(() => Promise.resolve()) },
     clients: {
       matchAll: vi.fn(() => Promise.resolve(clients)),
       openWindow: vi.fn(() => Promise.resolve(null)),
@@ -40,6 +40,7 @@ function worker(lang = 'en', clients: FakeClient[] = []) {
 
   return {
     self,
+    dispatch,
     push: (message: unknown) =>
       dispatch('push', {
         data: message === undefined ? null : { json: () => message },
@@ -205,5 +206,110 @@ describe('push service worker', () => {
     expect(opened).toHaveLength(3);
     expect(opened[0]).toBe(SCOPE);
     for (const url of opened) expect(url.startsWith(SCOPE)).toBe(true);
+  });
+});
+
+describe('push service worker, edge cases', () => {
+  const DE_SCOPE = 'https://cockpit.example.test/de/';
+
+  it('activates at once and takes over open tabs', async () => {
+    const w = worker();
+
+    await w.dispatch('install', {});
+    await w.dispatch('activate', {});
+
+    expect(w.self.skipWaiting).toHaveBeenCalled();
+    expect(w.self.clients.claim).toHaveBeenCalled();
+  });
+
+  it('uses the language of a regional locale and falls back to English for others', async () => {
+    const swiss = worker('de-CH');
+    const french = worker('fr');
+
+    await swiss.push({ event: 'mail' });
+    await french.push({ event: 'mail' });
+
+    expect(swiss.shown()[0][0]).toBe('Neue E-Mail');
+    expect(french.shown()[0][0]).toBe('New mail');
+  });
+
+  it('shows the push when the only open tabs are hidden', async () => {
+    const w = worker('en', [client(`${SCOPE}inbox`, 'hidden')]);
+
+    await w.push(reminder);
+
+    expect(w.shown()).toHaveLength(1);
+  });
+
+  it('opens nothing for a reminder whose item is unavailable, and tags it generically without an id', async () => {
+    const w = worker();
+
+    await w.push({
+      event: 'reminder',
+      data: { id: 'r3', item: { available: false, title: 'Gone', deepLink: '/tasks/t9' } },
+    });
+    await w.push({ event: 'reminder', data: { item: { title: 'No id' } } });
+
+    expect(w.shown()[0][1].data.route).toBe('');
+    expect(w.shown()[0][1].tag).toBe('reminder-r3');
+    expect(w.shown()[1][1].tag).toBe('reminder');
+  });
+
+  it('shows one new mail without sender or subject with the generic title', async () => {
+    const w = worker();
+
+    await w.push({ event: 'mail', data: { count: 1, messages: [{ id: 'm2' }] } });
+    await w.push({ event: 'mail', data: { count: 1 } });
+
+    expect(w.shown()[0][0]).toBe('New mail');
+    expect(w.shown()[0][1]).toMatchObject({
+      body: '',
+      tag: 'mail',
+      data: { route: 'mail/messages/m2' },
+    });
+    expect(w.shown()[1][0]).toBe('New mail');
+    expect(w.shown()[1][1].data.route).toBe('mail');
+  });
+
+  it('counts all new mail when only the newest messages came along', async () => {
+    const w = worker();
+    const messages = Array.from({ length: 10 }, (_, i) => ({ id: `m${i}`, subject: `S${i}` }));
+
+    await w.push({ event: 'mail', data: { folderId: 'f2', count: 12, messages } });
+
+    expect(w.shown()[0][0]).toBe('12 new messages');
+    expect(String(w.shown()[0][1].body).split('\n')).toHaveLength(10);
+    expect(w.shown()[0][1].data.route).toBe('mail');
+  });
+
+  it('opens a new tab when focusing the open one fails', async () => {
+    const open = client(`${SCOPE}inbox`);
+    open.focus.mockRejectedValue(new Error('not allowed'));
+    const w = worker('en', [open]);
+
+    await w.click({ route: 'mail' });
+
+    expect(open.navigate).not.toHaveBeenCalled();
+    expect(w.self.clients.openWindow).toHaveBeenCalledWith(`${SCOPE}mail`);
+  });
+
+  it('ignores open tabs outside its scope, e.g. of the other locale build', async () => {
+    const english = client(`${SCOPE}inbox`);
+    const w = worker('de', [english], DE_SCOPE);
+
+    await w.click({ route: 'tasks/t1' });
+
+    expect(english.navigate).not.toHaveBeenCalled();
+    expect(w.self.clients.openWindow).toHaveBeenCalledWith(`${DE_SCOPE}tasks/t1`);
+  });
+
+  it('keeps a locale build worker inside its scope, also for routes that climb out of it', async () => {
+    const w = worker('de', [], DE_SCOPE);
+
+    await w.click({ route: '../admin' });
+    await w.push(reminder);
+
+    expect(w.self.clients.openWindow).toHaveBeenCalledWith(DE_SCOPE);
+    expect(w.shown()[0][1].icon).toBe(`${DE_SCOPE}apple-touch-icon.png`);
   });
 });

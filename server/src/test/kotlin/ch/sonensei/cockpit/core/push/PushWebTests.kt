@@ -1,6 +1,7 @@
 package ch.sonensei.cockpit.core.push
 
 import ch.sonensei.cockpit.core.auth.WithCockpitUser
+import ch.sonensei.cockpit.core.push.domain.PushService
 import ch.sonensei.cockpit.core.push.domain.VapidKeyService
 import ch.sonensei.cockpit.core.push.infra.PushSubscriptionRepository
 import ch.sonensei.cockpit.core.push.infra.VapidKeyRepository
@@ -27,6 +28,9 @@ import org.springframework.test.web.servlet.get
 import org.springframework.test.web.servlet.put
 import tools.jackson.databind.json.JsonMapper
 import java.util.Base64
+import java.util.concurrent.CyclicBarrier
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
 
 /** `/api/v1/push` over HTTP (SPEC.md §4.6), against Postgres. */
 @SpringBootTest
@@ -39,6 +43,7 @@ class PushWebTests(
 	@Autowired private val vapidKeys: VapidKeyService,
 	@Autowired private val jdbc: JdbcTemplate,
 	@Autowired private val jsonMapper: JsonMapper,
+	@Autowired private val push: PushService,
 ) : PostgresTestBase() {
 	private val browser = PushTestBrowser()
 
@@ -146,6 +151,139 @@ class PushWebTests(
 		mockMvc.get("$BASE/vapid-public-key").andExpect { status { isUnauthorized() } }
 		put(subscription()).andExpect { status { isUnauthorized() } }
 		subscriptions.findAll().shouldBeEmpty()
+	}
+
+	private fun delete(content: String) =
+		mockMvc.delete(SUBSCRIPTIONS) {
+			with(csrf())
+			contentType = MediaType.APPLICATION_JSON
+			this.content = content
+		}
+
+	@Test
+	fun `endpoints up to 2048 characters are accepted, longer ones are rejected`() {
+		val prefix = "https://push.example.test/send/"
+		val longest = prefix + "a".repeat(PushService.MAX_ENDPOINT_LENGTH - prefix.length)
+
+		put(subscription(endpoint = longest)).andExpect { status { isNoContent() } }
+		put(subscription(endpoint = longest + "a")).andExpect {
+			status { isBadRequest() }
+			jsonPath("$.errors[0].field") { value("endpoint") }
+		}
+
+		subscriptions.findAll().map { it.endpoint } shouldBe listOf(longest)
+	}
+
+	@Test
+	fun `endpoints without a host or with an unparsable URL are rejected, an upper-case scheme is fine`() {
+		listOf("https:opaque", "https:///no-host", "https://push.example.test/a b", "ftp://push.example.test/x", "   ")
+			.forEach { endpoint ->
+				withClue(endpoint) { put(subscription(endpoint = endpoint)).andExpect { status { isBadRequest() } } }
+			}
+		subscriptions.findAll().shouldBeEmpty()
+
+		put(subscription(endpoint = "HTTPS://push.example.test/send/upper")).andExpect { status { isNoContent() } }
+		subscriptions.findAll() shouldHaveSize 1
+	}
+
+	@Test
+	fun `rejected keys name the field in the problem details`() {
+		val compressed = WebPushCrypto.encode(byteArrayOf(2) + ByteArray(32) { 1 })
+
+		put(subscription(p256dh = compressed)).andExpect {
+			status { isBadRequest() }
+			jsonPath("$.errors[0].field") { value("keys.p256dh") }
+		}
+		put(subscription(auth = WebPushCrypto.encode(ByteArray(17)))).andExpect {
+			status { isBadRequest() }
+			jsonPath("$.errors[0].field") { value("keys.auth") }
+		}
+		put(subscription(auth = "not base64 !")).andExpect {
+			status { isBadRequest() }
+			jsonPath("$.errors[0].field") { value("keys.auth") }
+		}
+		put(subscription(auth = "")).andExpect { status { isBadRequest() } }
+
+		subscriptions.findAll().shouldBeEmpty()
+	}
+
+	@Test
+	fun `keys in padded standard base64 are accepted`() {
+		val p256dh = Base64.getEncoder().encodeToString(browser.publicKey)
+		val auth = Base64.getEncoder().encodeToString(browser.authSecret)
+
+		put(subscription(p256dh = p256dh, auth = auth)).andExpect { status { isNoContent() } }
+
+		subscriptions.findAll() shouldHaveSize 1
+	}
+
+	@Test
+	fun `unsubscribing needs an endpoint and leaves other subscriptions alone`() {
+		put(subscription()).andExpect { status { isNoContent() } }
+		put(subscription(endpoint = "$ENDPOINT-other")).andExpect { status { isNoContent() } }
+
+		delete("{}").andExpect {
+			status { isBadRequest() }
+			jsonPath("$.errors[0].field") { value("endpoint") }
+		}
+		delete(jsonMapper.writeValueAsString(mapOf("endpoint" to ENDPOINT))).andExpect { status { isNoContent() } }
+
+		subscriptions.findAll().map { it.endpoint } shouldBe listOf("$ENDPOINT-other")
+	}
+
+	@Test
+	@WithAnonymousUser
+	fun `unsubscribing needs a login`() {
+		delete(jsonMapper.writeValueAsString(mapOf("endpoint" to ENDPOINT))).andExpect { status { isUnauthorized() } }
+	}
+
+	@Test
+	fun `instances generating the key pair at the same time all end up with the one stored`() {
+		repeat(3) {
+			jdbc.execute("delete from push_vapid_key")
+			val threads = 6
+			val start = CyclicBarrier(threads)
+			val pool = Executors.newFixedThreadPool(threads)
+			try {
+				val results =
+					(1..threads)
+						.map {
+							pool.submit<String> {
+								start.await()
+								vapidKeys.current().publicKeyBase64Url
+							}
+						}.map { it.get(30, TimeUnit.SECONDS) }
+
+				results.toSet() shouldHaveSize 1
+				keys.findAll().single().publicKey shouldBe results.first()
+			} finally {
+				pool.shutdownNow()
+			}
+		}
+	}
+
+	@Test
+	fun `the same browser subscribing twice at the same time ends with one subscription`() {
+		val threads = 4
+		val start = CyclicBarrier(threads)
+		val pool = Executors.newFixedThreadPool(threads)
+		try {
+			val outcomes =
+				(1..threads)
+					.map {
+						pool.submit<Result<Unit>> {
+							start.await()
+							runCatching { push.subscribe(ENDPOINT, browser.p256dh, browser.auth) }.map { }
+						}
+					}.map { it.get(30, TimeUnit.SECONDS) }
+
+			subscriptions.findAll() shouldHaveSize 1
+			withClue("PUT is documented as idempotent; failures: ${outcomes.mapNotNull { it.exceptionOrNull() }}") {
+				outcomes.all { it.isSuccess } shouldBe true
+			}
+		} finally {
+			pool.shutdownNow()
+		}
 	}
 
 	companion object {

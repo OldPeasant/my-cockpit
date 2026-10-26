@@ -165,6 +165,128 @@ describe('PushSubscriptionService', () => {
     expect(notifications.error).not.toHaveBeenCalled();
   });
 
+  it('fails quietly, without a toast and without subscribing, when the server key is unavailable', async () => {
+    const result = service.sync();
+    (await next('GET', KEY_URL)).flush(
+      { status: 503, title: 'Service Unavailable' },
+      { status: 503, statusText: 'Service Unavailable' },
+    );
+
+    expect(await result).toBe(false);
+    expect(push.subscribed).toHaveLength(0);
+    expect(service.active()).toBe(false);
+    expect(notifications.error).not.toHaveBeenCalled();
+  });
+
+  it('keeps a subscription whose server key the browser does not report', async () => {
+    await push.subscribe(decodeBase64Url(KEY));
+    const existing = push.current!;
+    (existing as { applicationServerKey: ArrayBuffer | null }).applicationServerKey = null;
+
+    const result = service.sync();
+    (await next('GET', KEY_URL)).flush({ publicKey: NEW_KEY });
+    const put = await next('PUT', SUBSCRIPTIONS_URL);
+    expect(put.request.body.endpoint).toBe(existing.endpoint);
+    put.flush(null, { status: 204, statusText: 'No Content' });
+
+    expect(await result).toBe(true);
+    expect(existing.unsubscribed).toBe(false);
+    expect(push.subscribed).toHaveLength(1);
+  });
+
+  it('still replaces an old-key subscription when the server cannot remove it', async () => {
+    await push.subscribe(decodeBase64Url(KEY));
+    const old = push.current!;
+
+    const result = service.sync();
+    (await next('GET', KEY_URL)).flush({ publicKey: NEW_KEY });
+    (await next('DELETE', SUBSCRIPTIONS_URL)).error(new ProgressEvent('error'));
+    (await next('PUT', SUBSCRIPTIONS_URL)).flush(null, { status: 204, statusText: 'No Content' });
+
+    expect(await result).toBe(true);
+    expect(old.unsubscribed).toBe(true);
+    expect(push.subscribed).toHaveLength(2);
+    expect(notifications.error).not.toHaveBeenCalled();
+  });
+
+  it('sends empty keys when the browser reports none, and stays inactive when the server rejects them', async () => {
+    await push.subscribe(decodeBase64Url(KEY));
+    vi.spyOn(push.current!, 'toJSON').mockReturnValue({ endpoint: push.current!.endpoint });
+
+    const result = service.sync();
+    (await next('GET', KEY_URL)).flush({ publicKey: KEY });
+    const put = await next('PUT', SUBSCRIPTIONS_URL);
+    expect(put.request.body.keys).toEqual({ p256dh: '', auth: '' });
+    put.flush({ status: 400, title: 'Bad Request' }, { status: 400, statusText: 'Bad Request' });
+
+    expect(await result).toBe(false);
+    expect(service.active()).toBe(false);
+  });
+
+  it('sends no request when unsubscribing a browser that is not subscribed', async () => {
+    await service.unsubscribe();
+
+    backend.expectNone({ method: 'DELETE', url: SUBSCRIPTIONS_URL });
+    expect(service.active()).toBe(false);
+  });
+
+  it('becomes inactive when unsubscribing after a successful sync', async () => {
+    const on = service.sync();
+    (await next('GET', KEY_URL)).flush({ publicKey: KEY });
+    (await next('PUT', SUBSCRIPTIONS_URL)).flush(null, { status: 204, statusText: 'No Content' });
+    expect(await on).toBe(true);
+    expect(service.active()).toBe(true);
+
+    const off = service.unsubscribe();
+    expect(service.active()).toBe(true); // queued, not yet run
+    (await next('DELETE', SUBSCRIPTIONS_URL)).flush(null, {
+      status: 204,
+      statusText: 'No Content',
+    });
+    await off;
+
+    expect(service.active()).toBe(false);
+    expect(push.current).toBeNull();
+  });
+
+  it('runs a quick on/off in order, so it ends unsubscribed', async () => {
+    const on = service.sync();
+    const off = service.unsubscribe();
+
+    (await next('GET', KEY_URL)).flush({ publicKey: KEY });
+    backend.expectNone({ method: 'DELETE', url: SUBSCRIPTIONS_URL });
+    (await next('PUT', SUBSCRIPTIONS_URL)).flush(null, { status: 204, statusText: 'No Content' });
+    expect(await on).toBe(true);
+    const removed = await next('DELETE', SUBSCRIPTIONS_URL);
+    expect(removed.request.body).toEqual({ endpoint: 'https://push.example.test/send/1' });
+    removed.flush(null, { status: 204, statusText: 'No Content' });
+    await off;
+
+    expect(push.current).toBeNull();
+    expect(service.active()).toBe(false);
+  });
+
+  it('keeps working after a failed call', async () => {
+    push.failSubscribe = true;
+    const failed = service.sync();
+    (await next('GET', KEY_URL)).flush({ publicKey: KEY });
+    expect(await failed).toBe(false);
+
+    push.failSubscribe = false;
+    const retried = service.sync();
+    (await next('GET', KEY_URL)).flush({ publicKey: KEY });
+    (await next('PUT', SUBSCRIPTIONS_URL)).flush(null, { status: 204, statusText: 'No Content' });
+
+    expect(await retried).toBe(true);
+    expect(service.active()).toBe(true);
+  });
+
+  it('decodes base64url whose length needs one or two padding characters', () => {
+    expect(Array.from(decodeBase64Url('AQI'))).toEqual([1, 2]);
+    expect(Array.from(decodeBase64Url('AQ'))).toEqual([1]);
+    expect(Array.from(decodeBase64Url('AQID'))).toEqual([1, 2, 3]);
+  });
+
   it('runs a quick off/on in order', async () => {
     const off = service.unsubscribe();
     const on = service.sync();

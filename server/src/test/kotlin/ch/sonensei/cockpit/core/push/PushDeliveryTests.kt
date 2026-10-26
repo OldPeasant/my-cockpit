@@ -9,6 +9,7 @@ import ch.sonensei.cockpit.core.push.domain.PushService
 import ch.sonensei.cockpit.core.push.domain.PushSubscription
 import ch.sonensei.cockpit.core.push.domain.VapidKeyService
 import ch.sonensei.cockpit.core.push.infra.PushNotificationRelay
+import ch.sonensei.cockpit.core.push.infra.PushProperties
 import ch.sonensei.cockpit.core.push.infra.PushSubscriptionRepository
 import ch.sonensei.cockpit.core.push.infra.WebPushCrypto
 import ch.sonensei.cockpit.core.reminders.domain.ReminderService
@@ -57,6 +58,7 @@ class PushDeliveryTests(
 	@Autowired private val clock: MutableClock,
 	@Autowired private val transactions: TransactionTemplate,
 	@Autowired private val jsonMapper: JsonMapper,
+	@Autowired private val properties: PushProperties,
 ) : PostgresTestBase() {
 	private val server = WireMockServer(wireMockConfig().dynamicPort())
 	private val browser = PushTestBrowser()
@@ -178,6 +180,90 @@ class PushDeliveryTests(
 		push.send("mail", mapOf("subject" to "x".repeat(PushService.MAX_MESSAGE_BYTES)))
 
 		received().single() shouldBe mapOf("event" to "mail")
+	}
+
+	@Test
+	fun `nothing is sent without subscriptions`() {
+		push.send("mail", mapOf("count" to 1)) shouldBe 0
+
+		server.allServeEvents.shouldBeEmpty()
+	}
+
+	@Test
+	fun `a subscription whose keys no longer decode is skipped, the others still get the message`() {
+		subscriptions.save(PushSubscription("http://127.0.0.1:${server.port()}/push/broken", "not a key !", browser.auth))
+		subscribe("ok")
+
+		push.send("mail", mapOf("count" to 1)) shouldBe 1
+
+		server.allServeEvents.map { it.request.url } shouldContainExactly listOf("/push/ok")
+		subscriptions.findAll() shouldHaveSize 2
+	}
+
+	@Test
+	fun `a server error or a redirect of the push service keeps the subscription and is not followed`() {
+		subscribe("failing")
+		subscribe("moved")
+		server.stubFor(post(urlPathMatching("/push/failing")).willReturn(aResponse().withStatus(500)))
+		server.stubFor(
+			post(urlPathMatching("/push/moved"))
+				.willReturn(aResponse().withStatus(301).withHeader("Location", "http://127.0.0.1:${server.port()}/push/elsewhere")),
+		)
+
+		push.send("mail", mapOf("count" to 1)) shouldBe 0
+
+		server.allServeEvents.map { it.request.url }.sorted() shouldContainExactly listOf("/push/failing", "/push/moved")
+		subscriptions.findAll() shouldHaveSize 2
+	}
+
+	@Test
+	fun `the VAPID token is for the push service origin, names the configured subject and expires in 12 hours`() {
+		subscribe("a")
+
+		push.send("mail", mapOf("count" to 1))
+
+		val token =
+			server.allServeEvents
+				.single()
+				.request
+				.getHeader("Authorization")
+				.removePrefix("vapid t=")
+				.substringBefore(", k=")
+
+		@Suppress("UNCHECKED_CAST")
+		val claims = jsonMapper.readValue(WebPushCrypto.decode(token.split(".")[1]), Map::class.java) as Map<String, Any?>
+		claims["aud"] shouldBe "http://127.0.0.1:${server.port()}"
+		claims["sub"] shouldBe properties.subject
+		(claims["exp"] as Number).toLong() shouldBe clock.instant().plus(Duration.ofHours(12)).epochSecond
+	}
+
+	@Test
+	fun `a message of exactly the size limit keeps its data`() {
+		val overhead = push.message("mail", mapOf("subject" to "")).size
+		val fitting = mapOf("subject" to "x".repeat(PushService.MAX_MESSAGE_BYTES - overhead))
+		val tooLarge = mapOf("subject" to "x".repeat(PushService.MAX_MESSAGE_BYTES - overhead + 1))
+
+		push.message("mail", fitting).size shouldBe PushService.MAX_MESSAGE_BYTES
+		String(push.message("mail", fitting)) shouldBe jsonMapper.writeValueAsString(mapOf("event" to "mail", "data" to fitting))
+		String(push.message("mail", tooLarge)) shouldBe """{"event":"mail"}"""
+
+		subscribe("a")
+		push.send("mail", fitting) shouldBe 1
+		received().single()["data"] shouldBe fitting
+	}
+
+	@Test
+	fun `a notification published in a committed transaction is pushed after the commit`() {
+		subscribe("a")
+
+		transactions.execute {
+			events.publishEvent(ClientNotification("mail", mapOf("count" to 4)))
+			relay.awaitIdle()
+			server.allServeEvents.shouldBeEmpty()
+		}
+		relay.awaitIdle()
+
+		received().single() shouldBe mapOf("event" to "mail", "data" to mapOf("count" to 4))
 	}
 
 	@Test
