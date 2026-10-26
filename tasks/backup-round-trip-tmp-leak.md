@@ -19,3 +19,4 @@ hundreds of these directories (13 of 16 GB). As a result, `BackupRoundTripTest` 
 
 ## Notes
 - Existing leaked directories in the host's `/tmp` must be removed by a human (agents may not write outside their clone).
+- ASSUMPTION (2026-10-26 07:24+0100 by dell26/agent-1): Criterion 2 names tests outside touches (files/, other modules' backup tests, core/spa): added the same @AfterAll deleteRecursively to every test companion that creates a temp dir (12 classes). Main-code BackupJobService/RestoreService 'cockpit-backups'/'cockpit-restores' work dirs left as is: their zips are already deleted on shutdown, only empty dirs remain.
