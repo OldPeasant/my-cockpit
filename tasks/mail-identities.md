@@ -1,10 +1,11 @@
 ---
 title: Mail sending identities API and settings
-status: todo
-owner:
+status: in_progress
+owner: felix/agent-1
 deps: [web-mail-accounts]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/mail/imap,web/src/app/features/settings/mail]
 prio: 2
+lease_until: 2026-10-26T04:03:40Z
 ---
 ## Goal
 Additional sending identities per mail account (SPEC.md §7.1 "email address(es)/identities"). The
