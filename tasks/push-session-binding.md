@@ -22,3 +22,4 @@ closed, 12 h idle expiry, session revoked). Follow-up of review finding CR-1 in 
   together with its tests (keep the RFC 8291 vector test).
 - ASSUMPTION (2026-10-26 18:50+0100 by dell26/agent-1): Migration deletes existing push_subscription rows (they have no session); the web app re-registers on its next start (PushSubscriptionService.sync), so a browser at most misses pushes until it is opened again.
 - ASSUMPTION (2026-10-26 18:50+0100 by dell26/agent-1): PUT /api/v1/push/subscriptions without a browser session (device-token principal) answers 403 Problem Details: Web Push is browser-only, Android uses UnifiedPush.
+- ASSUMPTION (2026-10-26 18:50+0100 by dell26/agent-1): Expired-but-not-yet-deleted sessions: PushService.send deletes their subscriptions and only sends to subscriptions joined with a session whose expires_at > now; the auth_session row itself stays for the auth module's own cleanup. Subscription keys are now stored normalised as unpadded base64url.
