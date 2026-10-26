@@ -5,7 +5,7 @@ owner: dell26/agent-1
 deps: [and-reminders, unifiedpush-server, unifiedpush-android-client]
 touches: [android/app/src/main/java/ch/sonensei/cockpit/push,android/app/src/test/java/ch/sonensei/cockpit/push]
 prio: 3
-lease_until: 2026-10-26T23:28:56Z
+lease_until: 2026-10-26T23:34:00Z
 subtasks: unifiedpush-server, unifiedpush-android-client
 releases: 1
 extended: 
