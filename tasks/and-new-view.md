@@ -1,10 +1,11 @@
 ---
 title: Android combined New view
-status: todo
-owner:
+status: in_progress
+owner: dell26/agent-2
 deps: [and-inbox,and-mail-list-read,web-new-view]
 touches: [android/app/src/main/java/ch/sonensei/cockpit/newitems,android/app/src/test/java/ch/sonensei/cockpit/newitems,android/app/src/main/java/ch/sonensei/cockpit/ui/CockpitShell.kt]
 prio: 3
+lease_until: 2026-10-26T10:13:10Z
 ---
 ## Goal
 Android counterpart of the web "New" view (SPEC.md §5.3 "New view", §9.2 item 3): GTD Inbox items and
