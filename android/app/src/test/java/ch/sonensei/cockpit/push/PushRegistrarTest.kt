@@ -68,6 +68,16 @@ class PushRegistrarTest {
     }
 
     @Test
+    fun `an app start within the same login registers the stored instance again, not a new one`() {
+        store.instance = "0b4f7d58-34a2-4b1e-a9b3-6f3a1d2c9e01"
+
+        registrar.start()
+
+        assertEquals(listOf("0b4f7d58-34a2-4b1e-a9b3-6f3a1d2c9e01"), connector.registered)
+        assertEquals(0, store.created)
+    }
+
+    @Test
     fun `registers again after a new login`() {
         loggedInFlow.value = false
         registrar.start()

@@ -1,7 +1,9 @@
 package ch.sonensei.cockpit.push
 
 import ch.sonensei.cockpit.auth.AuthRepository
+import ch.sonensei.cockpit.auth.LoginResult
 import ch.sonensei.cockpit.auth.PersistentTokenStore
+import ch.sonensei.cockpit.auth.SecondFactor
 import ch.sonensei.cockpit.core.network.AuthSession
 import ch.sonensei.cockpit.core.network.AuthTokens
 import ch.sonensei.cockpit.core.network.LogoutReason
@@ -214,6 +216,52 @@ class PushInAppTest {
         assertEquals(listOf("instance-1"), recording.registered.toList())
     }
 
+    @Test
+    fun `a login through the login screen's repository registers with the distributor`() {
+        // The app started logged out: the registrar waits for the login of the real token store.
+        tokenStore.clear()
+        fakeStore.instance = null
+        registrar.start()
+        server.enqueue(
+            MockResponse
+                .Builder()
+                .code(200)
+                .addHeader("Content-Type", "application/json")
+                .body(TOKEN_BODY)
+                .build(),
+        )
+
+        val result =
+            runBlocking {
+                authRepository.login(server.url("/").toString(), "alex", "fictitious-password", SecondFactor.Totp("123456"))
+            }
+
+        assertEquals(LoginResult.Success, result)
+        waitFor { recording.registered.isNotEmpty() }
+        assertEquals(listOf("instance-1"), recording.registered.toList())
+        assertEquals("instance-1", store.current())
+    }
+
+    @Test
+    fun `the endpoint is sent to the server with the login's access token`() {
+        answer()
+
+        service().onNewEndpoint(PushEndpoint(ENDPOINT, null, false), INSTANCE)
+
+        val put = server.takeRequest(5, TimeUnit.SECONDS)!!
+        assertEquals("PUT", put.method)
+        assertEquals("Bearer access-fictitious", put.headers["Authorization"])
+    }
+
+    @Test
+    fun `the push service ignores a garbled push`() {
+        service().onMessage(PushMessage("""{"kind":"reminder","id":"not-a-uuid"}""".toByteArray(), true), INSTANCE)
+        service().onMessage(PushMessage("""{"kind":"calendar","id":"$ITEM_ID"}""".toByteArray(), true), INSTANCE)
+
+        assertEquals(0, recordingSync.reminderSyncs)
+        assertEquals(0, recordingNotifier.shown)
+    }
+
     private fun payload(kind: String) = """{"kind":"$kind","id":"$ITEM_ID"}""".toByteArray()
 
     private class RecordingConnector : UnifiedPushConnector {
@@ -237,5 +285,11 @@ class PushInAppTest {
         const val INSTANCE = "0b4f7d58-34a2-4b1e-a9b3-6f3a1d2c9e01"
         const val ITEM_ID = "0192f000-0000-7000-8000-000000000002"
         const val ENDPOINT = "https://ntfy.example.test/upFictitious?up=1"
+        val TOKEN_BODY =
+            """
+            {"accessToken":"access-1","accessTokenExpiresAt":"2026-10-20T12:15:00Z",
+             "deviceId":"$DEVICE_ID","refreshToken":"refresh-1",
+             "refreshTokenExpiresAt":"2027-01-18T12:00:00Z","tokenType":"Bearer"}
+            """.trimIndent()
     }
 }
