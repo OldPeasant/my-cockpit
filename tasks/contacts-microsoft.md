@@ -1,11 +1,13 @@
 ---
 title: Microsoft contacts sync
-status: todo
-owner:
+status: dropped
+owner: 
 deps: [contacts-api,oauth-connections]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/contacts/microsoft,server/src/test/kotlin/ch/sonensei/cockpit/contacts/microsoft]
 prio: 3
-hold: microsoft will come later
+hold: 
+lease_until: 
+extended: 
 ---
 ## Goal
 Two-way Graph contacts sync.
@@ -16,3 +18,4 @@ Two-way Graph contacts sync.
 
 ## Notes
 - hold by Peter Gürtler: microsoft will come later
+- dropped by Peter Gürtler: Microsoft deferred (ADR 0003)
