@@ -34,7 +34,8 @@ import java.util.concurrent.locks.ReentrantLock
  *   move their contact to the Trash, and the changed ones are fetched with `addressbook-multiget`. Without a token, or
  *   when the server refuses it (403/409/400: invalid token), everything is listed, and contacts whose card is missing
  *   are moved to the Trash (not the ones this run's push just created). A server without sync-collection is listed
- *   with PROPFIND every run. A card with the ETag already stored is skipped (e.g. the echo of a push).
+ *   with PROPFIND every run. A card with the ETag already stored is skipped (e.g. the echo of a push). A card back
+ *   under the href of a contact trashed because its card was gone restores that contact.
  *
  * HTTP calls run outside transactions; each contact is stored in its own one, so one card that does not fit (it is
  * skipped and logged by href) does not stop the run. The run's error (no contact data) is kept in
@@ -526,12 +527,14 @@ class CardDavContactsSync(
 			val contactId = link.contactId ?: return
 			if (!force && etag != null && etag == link.etag) return
 			val contact = contacts.findById(contactId).orElse(null) ?: return
-			// In the Trash here: the next push deletes the card (or, when it is restored, writes it). A card that was gone
-			// at the server (no ETag stored) and is back under the same href gets its ETag, so that push deletes it too
-			// instead of the link being dropped as done when the contact is purged.
 			if (contact.isDeleted) {
-				if (link.etag == null) link.etag = etag
-				return
+				// In the Trash here while the server has the card: the next push deletes it (or, when it is restored,
+				// writes it).
+				if (link.etag != null) return
+				// The card was gone at the server (or deleted by a push) and is back under the same href (undeleted or
+				// imported again there): the contact comes back from the Trash, as a restore there does, with the card.
+				contact.restore()
+				contacts.saveAndFlush(contact)
 			}
 			val updated = service.update(contact.id, changes) {}
 			link.etag = etag

@@ -395,7 +395,7 @@ class CardDavContactsSyncUnitTests {
 		saved.single().contactId shouldNotBe trashed.id
 	}
 
-	// --- CR-2: no repeated sync-collection without a token; CR-4: a card back under the href of a trashed contact
+	// --- CR-2: no repeated sync-collection without a token; CR-4/CR-5: a card back under the href of a trashed contact
 
 	@Test
 	fun `without a token a server that refuses sync-collection gets one REPORT, then PROPFIND`() {
@@ -430,35 +430,63 @@ class CardDavContactsSyncUnitTests {
 	}
 
 	@Test
-	fun `a card back under the href of a contact trashed after its removal gets its ETag, and the next push deletes it`() {
+	fun `a card back under the href of a contact the sync trashed restores the contact with the card, and nothing is deleted`() {
 		account.addressbookUrl = book()
 		account.syncToken = "tok-1"
 		val trashed =
 			Contact(displayName = "Ada Example", source = ContactSource.CARDDAV).apply { softDelete(Clock.fixed(NOW, ZoneOffset.UTC)) }
 		// Removed at the server earlier: the link stays without an ETag, the contact is in the Trash.
-		saved += CardDavLink(trashed.id, account.id, "${BOOK}ada.vcf", etag = null, syncedVersion = trashed.version)
+		saved += CardDavLink(trashed.id, account.id, "${BOOK}ada.vcf", etag = null, syncedVersion = -1)
 		every { contacts.findById(trashed.id) } returns Optional.of(trashed)
+		every { contacts.saveAndFlush(any<Contact>()) } answers { firstArg() }
 		every { links.findById(any()) } answers { Optional.ofNullable(saved.firstOrNull { it.id == firstArg<UUID>() }) }
+		val applied = slot<ContactChanges>()
+		every { service.update(trashed.id, capture(applied), any()) } returns trashed
 		stubReport("sync-collection", 207, syncAnswer(etagEntry("${BOOK}ada.vcf", "e-ada.vcf"), "tok-2"))
 		stubReport("addressbook-multiget", 207, multiget("ada.vcf" to "Ada Back"))
 
 		val first = sync.sync(account.id)
 
 		first.lastError.shouldBeNull()
-		saved.single().etag shouldBe "\"e-ada.vcf\""
-		verify(exactly = 0) { service.update(any(), any(), any()) }
+		trashed.isDeleted shouldBe false
+		verify(exactly = 1) { contacts.saveAndFlush(trashed) }
+		applied.captured.displayName?.value shouldBe "Ada Back"
 		verify(exactly = 0) { service.createSynced(any(), any(), any()) }
-		requests().filter { it.method.value() == "DELETE" }.shouldBeEmpty()
+		saved.single().contactId shouldBe trashed.id
+		saved.single().etag shouldBe "\"e-ada.vcf\""
+		saved.single().syncedVersion shouldBe trashed.version
 
-		wireMock.resetAll()
-		wireMock.stubFor(request("DELETE", urlPathEqualTo("${BOOK}ada.vcf")).willReturn(aResponse().withStatus(204)))
+		// The next run has nothing to push: the card stays at the server.
 		stubReport("sync-collection", 207, syncAnswer("", "tok-3"))
 
 		val second = sync.sync(account.id)
 
 		second.lastError.shouldBeNull()
+		requests().filter { it.method.value() == "DELETE" || it.method.value() == "PUT" }.shouldBeEmpty()
+		saved.single().etag shouldBe "\"e-ada.vcf\""
+	}
+
+	@Test
+	fun `a card that changes at the server while the user has its contact in the Trash is left for the push to delete`() {
+		account.addressbookUrl = book()
+		account.syncToken = "tok-1"
+		val trashed =
+			Contact(displayName = "Ada Example", source = ContactSource.CARDDAV).apply { softDelete(Clock.fixed(NOW, ZoneOffset.UTC)) }
+		// Trashed here while the card exists at the server (ETag stored); the delete at the server failed so far.
+		saved += CardDavLink(trashed.id, account.id, "${BOOK}ada.vcf", etag = "\"e-old\"", syncedVersion = trashed.version)
+		every { contacts.findById(trashed.id) } returns Optional.of(trashed)
+		every { links.findById(any()) } answers { Optional.ofNullable(saved.firstOrNull { it.id == firstArg<UUID>() }) }
+		wireMock.stubFor(request("DELETE", anyUrl()).willReturn(aResponse().withStatus(500)))
+		stubReport("sync-collection", 207, syncAnswer(etagEntry("${BOOK}ada.vcf", "e-ada.vcf"), "tok-2"))
+		stubReport("addressbook-multiget", 207, multiget("ada.vcf" to "Ada Changed"))
+
+		sync.sync(account.id)
+
+		trashed.isDeleted shouldBe true
+		verify(exactly = 0) { service.update(any(), any(), any()) }
+		verify(exactly = 0) { service.createSynced(any(), any(), any()) }
+		saved.single().etag shouldBe "\"e-old\""
 		requests().single { it.method.value() == "DELETE" }.url shouldBe "${BOOK}ada.vcf"
-		saved.single().etag.shouldBeNull()
 	}
 
 	@Test
