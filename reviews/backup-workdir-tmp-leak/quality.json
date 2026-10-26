@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "task": "backup-workdir-tmp-leak",
-  "reviewed_revision": "3fd960bf867a82404c515c30ada8b242f3b321d7",
+  "reviewed_revision": "a457c2ee96177c7005003443da468a87fe94c2fb",
   "helpers": {
     "test-writer": {"status": "completed", "report": "reviews/backup-workdir-tmp-leak/tests.md"},
     "code-reviewer": {"status": "completed", "report": "reviews/backup-workdir-tmp-leak/review.md"},
