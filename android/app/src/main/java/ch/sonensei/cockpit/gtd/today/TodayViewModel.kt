@@ -15,6 +15,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
 import java.time.Clock
 import java.time.Instant
 import java.time.LocalDate
@@ -38,8 +39,13 @@ data class TodayUiState(
     val offline: Boolean = false,
     val snackbar: CompletionSnackbar? = null,
     val today: LocalDate = LocalDate.MIN,
+    /** The last load of one of the two lists failed although the server was reachable. */
+    val loadFailed: Boolean = false,
 ) {
-    val loading: Boolean get() = refreshedAt == null && sections.isEmpty() && !offline
+    val loading: Boolean get() = refreshedAt == null && sections.isEmpty() && !offline && !loadFailed
+
+    /** Nothing to show and a list was never loaded because its load failed: the screen shows an error with a retry. */
+    val firstLoadFailed: Boolean get() = refreshedAt == null && sections.isEmpty() && loadFailed
 }
 
 /**
@@ -48,7 +54,7 @@ data class TodayUiState(
  */
 @HiltViewModel
 class TodayViewModel internal constructor(
-    tasks: TaskRepository,
+    private val tasks: TaskRepository,
     contexts: ContextRepository,
     completion: TaskCompletionRepository,
     private val clock: Clock,
@@ -79,8 +85,15 @@ class TodayViewModel internal constructor(
                 offline = due.offline || next.offline,
                 snackbar = done.snackbar,
                 today = today,
+                loadFailed = due.failure != null || next.failure != null,
             )
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), TodayUiState(today = LocalDate.now(clock)))
+
+    /** Loads both lists again after a failed load; the screen shows them loading meanwhile. */
+    fun retry() {
+        viewModelScope.launch { tasks.refresh(TaskView.TODAY) }
+        viewModelScope.launch { tasks.refresh(TaskView.NEXT) }
+    }
 
     fun complete(task: GtdTask) {
         if (!uiState.value.offline) completer.complete(task)

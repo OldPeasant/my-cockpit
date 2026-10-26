@@ -1,7 +1,10 @@
 package ch.sonensei.cockpit.gtd.next
 
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
@@ -15,6 +18,7 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
@@ -25,6 +29,7 @@ import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import ch.sonensei.cockpit.R
@@ -41,6 +46,8 @@ import java.util.UUID
 /** Test tags shared by the Next and Today screens. */
 object TaskListTags {
     const val OFFLINE = "tasks-offline"
+    const val ERROR = "tasks-error"
+    const val RETRY = "tasks-retry"
 
     fun row(id: UUID) = "task-row-$id"
 
@@ -64,6 +71,22 @@ fun OfflineBanner(
                 } ?: stringResource(R.string.tasks_offline_never)
             Text(text, style = MaterialTheme.typography.bodyMedium)
         }
+    }
+}
+
+/** The first load of the list failed although the server was reachable (SPEC.md §9.3): says so, with a retry. */
+@Composable
+fun LoadFailed(
+    retry: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        modifier.fillMaxSize().padding(32.dp),
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Text(stringResource(R.string.lists_error_failed), style = MaterialTheme.typography.bodyLarge, textAlign = TextAlign.Center)
+        TextButton(onClick = retry, modifier = Modifier.testTag(TaskListTags.RETRY)) { Text(stringResource(R.string.lists_retry)) }
     }
 }
 

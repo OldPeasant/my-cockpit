@@ -32,7 +32,9 @@ import ch.sonensei.cockpit.R
 import ch.sonensei.cockpit.gtd.data.GtdTask
 import ch.sonensei.cockpit.gtd.next.CompletionSnackbar
 import ch.sonensei.cockpit.gtd.next.CompletionSnackbarEffect
+import ch.sonensei.cockpit.gtd.next.LoadFailed
 import ch.sonensei.cockpit.gtd.next.OfflineBanner
+import ch.sonensei.cockpit.gtd.next.TaskListTags
 import ch.sonensei.cockpit.gtd.next.TaskRow
 import ch.sonensei.cockpit.ui.PlaceholderScreen
 import dagger.hilt.internal.GeneratedComponentManagerHolder
@@ -56,7 +58,7 @@ fun TodayRoute(
     viewModel: TodayViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
-    TodayContent(state, TodayCallbacks(viewModel::complete, viewModel::undo, viewModel::dismiss), modifier)
+    TodayContent(state, TodayCallbacks(viewModel::complete, viewModel::undo, viewModel::dismiss, viewModel::retry), modifier)
 }
 
 /** What the Today screen can ask for, so the screen can be tested without a view model. */
@@ -64,6 +66,7 @@ data class TodayCallbacks(
     val complete: (GtdTask) -> Unit = {},
     val undo: (CompletionSnackbar.Undo) -> Unit = {},
     val dismiss: (CompletionSnackbar) -> Unit = {},
+    val retry: () -> Unit = {},
 )
 
 object TodayTags {
@@ -97,6 +100,7 @@ fun TodayContent(
                         }
                     }
                 state.loading -> Centered(stringResource(R.string.tasks_loading), TodayTags.LOADING)
+                state.firstLoadFailed -> LoadFailed(callbacks.retry, Modifier.testTag(TaskListTags.ERROR))
                 else -> Centered(stringResource(R.string.today_empty), TodayTags.EMPTY)
             }
         }

@@ -5,11 +5,13 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.merge
 import kotlinx.coroutines.flow.onStart
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.SerializationException
@@ -32,6 +34,9 @@ class GtdConnectivity
         private val state = MutableStateFlow(false)
         val offline: StateFlow<Boolean> = state.asStateFlow()
 
+        /** Per view key, why its last finished load failed (a view whose last load worked or was offline has no entry). */
+        private val failures = MutableStateFlow<Map<String, RefreshResult.Failed>>(emptyMap())
+
         /** One lock per cached view: its loads run one after another, so the load that started last writes last. */
         private val viewLocks = ConcurrentHashMap<String, Mutex>()
 
@@ -40,9 +45,16 @@ class GtdConnectivity
         private var clears = 0L
 
         /**
+         * Why the last load of [view] failed, or `null` when it worked, could not reach the server ([offline] says so) or
+         * is running again (a retry), so a screen shows its loading state instead of the old error meanwhile.
+         */
+        fun failure(view: String): Flow<RefreshResult.Failed?> = failures.map { it[view] }.distinctUntilChanged()
+
+        /**
          * Loads [view] with [load] and, if that worked, stores the answer with [store]. Loads of the same view never
          * overlap, and an answer whose load started before the last [clearing] (a logout) is dropped as
-         * [RefreshResult.Failed], so it cannot bring the previous session's data back.
+         * [RefreshResult.Failed], so it cannot bring the previous session's data back. The outcome is kept as the
+         * view's [failure].
          */
         internal suspend fun <T> refreshing(
             view: String,
@@ -51,20 +63,28 @@ class GtdConnectivity
         ): RefreshResult =
             viewLocks.getOrPut(view) { Mutex() }.withLock {
                 val clearsAtStart = writeLock.withLock { clears }
-                refreshing {
-                    val loaded = load()
-                    writeLock.withLock {
-                        if (clears != clearsAtStart) throw SessionEnded()
-                        store(loaded)
+                failures.update { it - view }
+                val result =
+                    refreshing {
+                        val loaded = load()
+                        writeLock.withLock {
+                            if (clears != clearsAtStart) throw SessionEnded()
+                            store(loaded)
+                        }
                     }
+                // A load that outlived a logout must not show its failure in the next session.
+                if (result is RefreshResult.Failed) {
+                    writeLock.withLock { if (clears == clearsAtStart) failures.update { it + (view to result) } }
                 }
+                result
             }
 
-        /** Runs [clear] (dropping the cached data) while no cache write runs, then resets the offline flag. */
+        /** Runs [clear] (dropping the cached data) while no cache write runs, then resets the offline flag and the failures. */
         internal suspend fun clearing(clear: suspend () -> Unit) {
             writeLock.withLock {
                 clears++
                 clear()
+                failures.value = emptyMap()
             }
             reset()
         }

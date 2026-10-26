@@ -76,6 +76,7 @@ data class NextCallbacks(
     val complete: (GtdTask) -> Unit = {},
     val undo: (CompletionSnackbar.Undo) -> Unit = {},
     val dismiss: (CompletionSnackbar) -> Unit = {},
+    val retry: () -> Unit = {},
 ) {
     companion object {
         fun of(vm: NextViewModel) =
@@ -88,6 +89,7 @@ data class NextCallbacks(
                 vm::complete,
                 vm::undo,
                 vm::dismiss,
+                vm::retry,
             )
     }
 }
@@ -125,6 +127,7 @@ fun NextContent(
                 Text(
                     when {
                         state.loading -> stringResource(R.string.tasks_loading)
+                        state.firstLoadFailed -> stringResource(R.string.nav_next)
                         state.filter.activeCount > 0 ->
                             pluralStringResource(R.plurals.next_count_filtered, state.total, state.tasks.size, state.total)
                         else -> pluralStringResource(R.plurals.next_count, state.total, state.total)
@@ -152,6 +155,7 @@ fun NextContent(
                             TaskRow(task, contexts, state.today, state.offline, callbacks.complete)
                         }
                     }
+                state.firstLoadFailed -> LoadFailed(callbacks.retry, Modifier.testTag(TaskListTags.ERROR))
                 !state.loading -> Empty(state, callbacks)
             }
         }

@@ -66,12 +66,15 @@ data class GtdContext(
 /**
  * What a GTD screen shows: the last loaded [data] and whether the server is unreachable. While [offline], the data is the
  * cached copy from [refreshedAt] and must be shown read-only (with an "offline" banner). [refreshedAt] is `null` when
- * nothing was ever loaded for this view.
+ * nothing was ever loaded for this view. [failure] says why the last load of this view failed although the server was
+ * reachable (it rejected the request, its answer was unreadable, or the cache could not be written); `null` when it
+ * worked, was offline, or a new load is running.
  */
 data class Cached<T>(
     val data: T,
     val offline: Boolean,
     val refreshedAt: Instant?,
+    val failure: RefreshResult.Failed? = null,
 ) {
     val readOnly: Boolean get() = offline
 }

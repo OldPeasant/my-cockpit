@@ -16,6 +16,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
 import java.time.Clock
 import java.time.Instant
 import java.time.LocalDate
@@ -59,14 +60,19 @@ data class NextUiState(
     val offline: Boolean = false,
     val snackbar: CompletionSnackbar? = null,
     val today: LocalDate = LocalDate.MIN,
+    /** The last load of the Next list failed although the server was reachable. */
+    val loadFailed: Boolean = false,
 ) {
-    val loading: Boolean get() = refreshedAt == null && total == 0 && !offline
+    val loading: Boolean get() = refreshedAt == null && total == 0 && !offline && !loadFailed
+
+    /** Nothing was ever loaded and the last load failed: the screen shows an error with a retry instead of a list. */
+    val firstLoadFailed: Boolean get() = refreshedAt == null && total == 0 && loadFailed
 }
 
 /** The Next Actions view: the cached Next list, filtered, with completion and undo. */
 @HiltViewModel
 class NextViewModel internal constructor(
-    tasks: TaskRepository,
+    private val tasks: TaskRepository,
     contexts: ContextRepository,
     completion: TaskCompletionRepository,
     private val clock: Clock,
@@ -95,6 +101,7 @@ class NextViewModel internal constructor(
                 offline = next.offline,
                 snackbar = done.snackbar,
                 today = LocalDate.now(clock),
+                loadFailed = next.failure != null,
             )
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), NextUiState(today = LocalDate.now(clock)))
 
@@ -109,6 +116,11 @@ class NextViewModel internal constructor(
     fun toggleMaxMinutes(minutes: Int) = filter.update { it.copy(maxMinutes = if (it.maxMinutes == minutes) null else minutes) }
 
     fun clearFilter() = filter.update { NextFilter() }
+
+    /** Loads the Next list again after a failed load; the screen shows it loading meanwhile. */
+    fun retry() {
+        viewModelScope.launch { tasks.refresh(TaskView.NEXT) }
+    }
 
     fun complete(task: GtdTask) {
         if (!uiState.value.offline) completer.complete(task)

@@ -20,9 +20,10 @@ import javax.inject.Singleton
  * Observes the cached view as [Cached] values and, while observed, reloads it with [refresh] whenever [triggers] fire.
  * The cache is the single source: a reload replaces it, and the screen sees the new rows from Room. Every replace and
  * the logout clear write the view's [meta] row, so on each [meta] change the rows and their refresh time are [read]
- * again together.
+ * again together. A failed reload changes no row, so its outcome comes from the [connectivity]'s failure of [key].
  */
 private fun <E, T> cachedView(
+    key: String,
     meta: Flow<CacheMetaEntity?>,
     read: suspend () -> CachedRows<E>,
     connectivity: GtdConnectivity,
@@ -32,8 +33,8 @@ private fun <E, T> cachedView(
 ): Flow<Cached<List<T>>> =
     channelFlow {
         launch { triggers.conflate().collect { refresh() } }
-        combine(meta.map { read() }, connectivity.offline) { cached, offline ->
-            Cached(cached.rows.map(toDomain), offline, cached.meta?.let { Instant.ofEpochMilli(it.refreshedAtEpochMs) })
+        combine(meta.map { read() }, connectivity.offline, connectivity.failure(key)) { cached, offline, failure ->
+            Cached(cached.rows.map(toDomain), offline, cached.meta?.let { Instant.ofEpochMilli(it.refreshedAtEpochMs) }, failure)
         }.collect { send(it) }
     }
 
@@ -57,6 +58,7 @@ class TaskRepository internal constructor(
     /** The last loaded tasks of [view]; while collected, the view reloads on start and on task changes. */
     fun observe(view: TaskView): Flow<Cached<List<GtdTask>>> =
         cachedView(
+            key = view.name,
             meta = dao.observeMeta(view.name),
             read = { dao.taskRows(view.name) },
             connectivity = connectivity,
@@ -110,6 +112,7 @@ class ProjectRepository internal constructor(
     /** The last loaded projects; while collected, they reload on start and on project or task changes (stalled). */
     fun observe(): Flow<Cached<List<GtdProject>>> =
         cachedView(
+            key = CacheMetaEntity.PROJECTS,
             meta = dao.observeMeta(CacheMetaEntity.PROJECTS),
             read = dao::projectRows,
             connectivity = connectivity,
@@ -152,6 +155,7 @@ class ContextRepository internal constructor(
     /** The last loaded contexts; while collected, they reload on start and on context changes. */
     fun observe(): Flow<Cached<List<GtdContext>>> =
         cachedView(
+            key = CacheMetaEntity.CONTEXTS,
             meta = dao.observeMeta(CacheMetaEntity.CONTEXTS),
             read = dao::contextRows,
             connectivity = connectivity,
