@@ -17,3 +17,4 @@ Notifications without an open tab (SPEC.md §4.6).
 
 ## Notes
 - ASSUMPTION (2026-10-26 15:44+0100 by felix/agent-1): Web Push implemented with JDK crypto only (RFC 8291 aes128gcm + RFC 8292 VAPID, ~150 lines in core/push/infra/WebPushCrypto.kt) instead of adding the unmaintained nl.martijndwars:web-push library; round-trip and VAPID-signature tests cover it.
+- ASSUMPTION (2026-10-26 15:44+0100 by felix/agent-1): Push follows the existing 'reminders as browser notifications' switch (no separate setting): on + permission granted -> subscribe, otherwise unsubscribe. Pushed events are the existing SSE 'reminder' and 'mail' notifications (mail only for accounts with notifyNewMail); the service worker skips showing when a visible tab exists (SSE shows it) and reuses the reminder-<id> tag to avoid duplicates.
