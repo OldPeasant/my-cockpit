@@ -1,13 +1,13 @@
 ---
 title: Send invitations for local events (iTIP)
 status: in_progress
-owner: r1963macos/agent-1
+owner: dell26/agent-1
 deps: [cal-local-api,mail-compose]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/calendar/itip,server/src/test/kotlin/ch/sonensei/cockpit/calendar/itip]
 prio: 3
-lease_until: 2026-10-26T14:55:12Z
+lease_until: 2026-10-26T15:08:59Z
 extended: 
-releases: 1
+releases: 2
 ---
 ## Goal
 Invite attendees by mail (SPEC.md §6.2).
@@ -26,3 +26,4 @@ Invite attendees by mail (SPEC.md §6.2).
 - release by r1963macos/agent-1: Done: ItipMessages/ItipService (REQUEST/CANCEL text/calendar mails) + ItipReplyProcessor (incoming REPLY -> attendee status), unit tests + @ExternalTest ItipGreenMailTests incl. test-writer edge cases (c8cfb38f, ktlint clean). reviews/itip-invitations/review.md committed: 2 P2 (CR-1 uninvite-CANCEL must omit STATUS:CANCELLED and not go to still-invited attendees; CR-2 ItipReplyProcessor uses mail repositories directly, use a mail service instead), 2 P3 (REPLY ordering by DTSTAMP/SEQUENCE; reply lost on optimistic-lock conflict). LEFT: test-writer never wrote reviews/itip-invitations/tests.md (re-run it, incl. coverage); fixer for CR-1/CR-2 (P3 fix or record disposition); re-run test-writer + code-reviewer on final code; quality.json; tasks.py verify 1+2 (./gradlew test --tests '*itip*', ./gradlew integrationTest --tests '*ItipGreenMail*'); scripts/check.sh (server part took 13 min here under load, last run failed only on the now-fixed ktlint issue); done.
 - ASSUMPTION (2026-10-26 15:15+0100 by r1963macos/agent-1): CR-3 partial: only newest REPLY per attendee within one mail is applied (by SEQUENCE, then DTSTAMP); cross-message staleness check not implemented because it needs per-attendee answered-at storage (shared Attendee model or new table). Follow-up if needed.
 - ASSUMPTION (2026-10-26 15:16+0100 by r1963macos/agent-1): Uninvite CANCEL to a mix of still-invited and removed attendees of a live event is rejected with 400 instead of partially sent
+- release by r1963macos/agent-1: All code, tests, fixes done; both criteria verified; tests.md, fixes.md, review.md, quality.json committed (reviewed_revision 4745a792 = rebased 4432d5de, same task patch). Only blocker: done REFUSES because review.md line 92 (CR-5 suggested fix) contains the literal text '<title>', which the gate reads as a template placeholder. Left: re-run code-reviewer on HEAD asking it not to write angle-bracket placeholders (e.g. write 'No longer invited: {event title}'), commit it, set reviewed_revision to the new HEAD, run tasks.py done. No code changes needed.
