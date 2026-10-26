@@ -14,7 +14,8 @@ MailAccountController and MailGtdController (deferred review finding of mail-gtd
 (e.g. a `@RestControllerAdvice` scoped to the mail controllers) with the same Problem Details response.
 
 ## Acceptance criteria
-- [ ] A single MailConnectionException handler serves all mail controllers; the per-controller copies are gone
+- [x] A single MailConnectionException handler serves all mail controllers; the per-controller copies are gone
+  - verified (2026-10-26 04:10+0100 by felix/agent-1): git grep -n 'ExceptionHandler(MailConnectionException' server/src/main -> only mail/api/MailConnectionAdvice.kt:26 (@RestControllerAdvice basePackages=ch.sonensei.cockpit.mail); copies in MailMessageController, MailAccountController, MailGtdController, DraftController removed; MailConnectionAdviceWebTests hits all four controllers through the advice
 - [ ] Response (status, Problem Details type/title/detail) unchanged; existing mail controller tests pass (`cd server && ./gradlew test --tests 'ch.sonensei.cockpit.mail.*'`)
 
 ## Notes
