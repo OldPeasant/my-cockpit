@@ -19,7 +19,8 @@ display name. Found in mail-gtd, which works around it by writing mail escapes a
   - verified (2026-10-26 04:50+0100 by dell26/agent-2): ./gradlew test --tests 'ch.sonensei.cockpit.notes.*' (Gradle Test enableAssertions=true, -ea) -> NoteMarkdownTests 35 pass incl. repro '**F:** \[x <c@d.e> \n**T:** ...', backslash hard break, entities (&amp; &#91; &nbsp;) next to bold/autolinks/hard breaks, plainText and titleOf exact-text asserts
 - [x] `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.notes.*'` passes
   - verified (2026-10-26 04:50+0100 by dell26/agent-2): cd server && ./gradlew ktlintCheck test --tests 'ch.sonensei.cockpit.notes.*' -> BUILD SUCCESSFUL, 122 tests, 0 failures
-- [ ] mail-gtd's workaround is removed: `MailGtdService.neutralizeInlineLinks` keeps the mail's backslash escapes verbatim (no U+2216), its escape tests in `MailGtdWebTests` expect the original text, and `./gradlew test --tests 'ch.sonensei.cockpit.mail.gtd.*'` passes
+- [x] mail-gtd's workaround is removed: `MailGtdService.neutralizeInlineLinks` keeps the mail's backslash escapes verbatim (no U+2216), its escape tests in `MailGtdWebTests` expect the original text, and `./gradlew test --tests 'ch.sonensei.cockpit.mail.gtd.*'` passes
+  - verified (2026-10-26 04:50+0100 by dell26/agent-2): grep for U+2216 in server/src -> none; neutralizeInlineLinks only spaces '[[' pairs; MailGtdWebTests escape tests expect original backslashes; ./gradlew test --tests 'ch.sonensei.cockpit.mail.gtd.*' -> BUILD SUCCESSFUL, 52 tests, 0 failures
 
 ## Notes
 - Also check whether entity/numeric references (`&amp;`, `&#91;`, `&nbsp;`) next to bold/autolinks/hard breaks trip the same assertion (mail-gtd final review note).
