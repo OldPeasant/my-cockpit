@@ -5,7 +5,7 @@ owner: dell26/agent-1
 deps: [web-mail-accounts]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/mail/imap,web/src/app/features/settings/mail]
 prio: 2
-lease_until: 2026-10-26T06:18:57Z
+lease_until: 2026-10-26T06:24:00Z
 extended: 
 releases: 1
 ---
