@@ -1,10 +1,14 @@
 package ch.sonensei.cockpit.gtd.data
 
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.async
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.SerializationException
 import okhttp3.ResponseBody.Companion.toResponseBody
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import retrofit2.Response
@@ -104,5 +108,149 @@ class GtdRefreshSupportTest {
             connectivity.refreshing { throw HttpFailure(502) }
             connectivity.reset()
             assertFalse(connectivity.offline.value)
+        }
+
+    /** Loads [view] with [load] and stores nothing. */
+    private suspend fun GtdConnectivity.loadView(
+        view: String,
+        load: suspend () -> Int,
+    ): RefreshResult = refreshing(view, load, store = {})
+
+    private suspend fun GtdConnectivity.failureOf(view: String) = failure(view).first()
+
+    @Test
+    fun `a rejected or unreadable load is kept as the failure of its view`() =
+        runBlocking {
+            val connectivity = GtdConnectivity()
+            assertNull(connectivity.failureOf("NEXT"))
+
+            assertEquals(RefreshResult.Failed(403), connectivity.loadView("NEXT") { throw HttpFailure(403) })
+            assertEquals(RefreshResult.Failed(403), connectivity.failureOf("NEXT"))
+            assertFalse("a rejected load is not offline", connectivity.offline.value)
+
+            connectivity.loadView("NEXT") { throw SerializationException("fictitious unreadable body") }
+            assertEquals(RefreshResult.Failed(null), connectivity.failureOf("NEXT"))
+        }
+
+    @Test
+    fun `a successful load clears the failure of its view only`() =
+        runBlocking {
+            val connectivity = GtdConnectivity()
+            connectivity.loadView("NEXT") { throw HttpFailure(400) }
+            connectivity.loadView("TODAY") { throw HttpFailure(401) }
+
+            assertEquals(RefreshResult.Refreshed, connectivity.loadView("NEXT") { 7 })
+
+            assertNull(connectivity.failureOf("NEXT"))
+            assertEquals(RefreshResult.Failed(401), connectivity.failureOf("TODAY"))
+            assertNull("a view never loaded has no failure", connectivity.failureOf("INBOX"))
+        }
+
+    @Test
+    fun `an unreachable server is no failure and replaces an earlier one`() =
+        runBlocking {
+            val connectivity = GtdConnectivity()
+            connectivity.loadView("NEXT") { throw HttpFailure(400) }
+
+            assertEquals(RefreshResult.Offline, connectivity.loadView("NEXT") { throw IOException("fictitious unreachable server") })
+            assertNull(connectivity.failureOf("NEXT"))
+            assertTrue(connectivity.offline.value)
+
+            connectivity.loadView("NEXT") { throw HttpFailure(400) }
+            assertEquals(RefreshResult.Offline, connectivity.loadView("NEXT") { throw HttpFailure(503) })
+            assertNull(connectivity.failureOf("NEXT"))
+        }
+
+    @Test
+    fun `a running load hides the earlier failure until it fails again`() =
+        runBlocking {
+            val connectivity = GtdConnectivity()
+            connectivity.loadView("NEXT") { throw HttpFailure(400) }
+            val started = CompletableDeferred<Unit>()
+            val answer = CompletableDeferred<Unit>()
+
+            val retry =
+                async {
+                    connectivity.loadView("NEXT") {
+                        started.complete(Unit)
+                        answer.await()
+                        throw HttpFailure(409)
+                    }
+                }
+            started.await()
+            assertNull("a retry shows loading, not the old error", connectivity.failureOf("NEXT"))
+
+            answer.complete(Unit)
+            assertEquals(RefreshResult.Failed(409), retry.await())
+            assertEquals(RefreshResult.Failed(409), connectivity.failureOf("NEXT"))
+        }
+
+    @Test
+    fun `clearing drops the failures of every view`() =
+        runBlocking {
+            val connectivity = GtdConnectivity()
+            connectivity.loadView("NEXT") { throw HttpFailure(400) }
+            connectivity.loadView("TODAY") { throw HttpFailure(404) }
+
+            connectivity.clearing { }
+
+            assertNull(connectivity.failureOf("NEXT"))
+            assertNull(connectivity.failureOf("TODAY"))
+        }
+
+    @Test
+    fun `a rejected load that outlives a clearing does not record its failure`() =
+        runBlocking {
+            val connectivity = GtdConnectivity()
+            val started = CompletableDeferred<Unit>()
+            val answer = CompletableDeferred<Unit>()
+            val load =
+                async {
+                    connectivity.loadView("NEXT") {
+                        started.complete(Unit)
+                        answer.await()
+                        throw HttpFailure(400)
+                    }
+                }
+            started.await()
+
+            connectivity.clearing { }
+            answer.complete(Unit)
+
+            assertEquals(RefreshResult.Failed(400), load.await())
+            assertNull("the next session must not see the previous session's error", connectivity.failureOf("NEXT"))
+
+            // A load started after the clearing records its failure again.
+            connectivity.loadView("NEXT") { throw HttpFailure(400) }
+            assertEquals(RefreshResult.Failed(400), connectivity.failureOf("NEXT"))
+        }
+
+    @Test
+    fun `an answer dropped because of a clearing is neither stored nor recorded as a failure`() =
+        runBlocking {
+            val connectivity = GtdConnectivity()
+            val started = CompletableDeferred<Unit>()
+            val answer = CompletableDeferred<Unit>()
+            val stored = mutableListOf<Int>()
+            val load =
+                async {
+                    connectivity.refreshing(
+                        "NEXT",
+                        load = {
+                            started.complete(Unit)
+                            answer.await()
+                            1
+                        },
+                        store = { stored += it },
+                    )
+                }
+            started.await()
+
+            connectivity.clearing { }
+            answer.complete(Unit)
+
+            assertEquals(RefreshResult.Failed(null), load.await())
+            assertEquals(emptyList<Int>(), stored)
+            assertNull(connectivity.failureOf("NEXT"))
         }
 }

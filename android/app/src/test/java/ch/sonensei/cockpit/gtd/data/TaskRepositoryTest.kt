@@ -1,7 +1,10 @@
 package ch.sonensei.cockpit.gtd.data
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import mockwebserver3.MockWebServer
@@ -16,6 +19,7 @@ import org.junit.runner.RunWith
 import java.time.Instant
 import java.time.LocalDate
 import java.util.UUID
+import java.util.concurrent.CopyOnWriteArrayList
 
 @RunWith(AndroidJUnit4::class)
 class TaskRepositoryTest {
@@ -271,5 +275,95 @@ class TaskRepositoryTest {
             } finally {
                 restarted.close()
             }
+        }
+
+    @Test
+    fun `a rejected first load is reported as the view's failure, not as offline`() =
+        runBlocking {
+            dispatcher.enqueue("$TASKS|NEXT", status(403))
+
+            val cached = withTimeout(5_000) { gtd.tasks.observe(TaskView.NEXT).first { it.failure != null } }
+
+            assertEquals(RefreshResult.Failed(403), cached.failure)
+            assertEquals(emptyList<GtdTask>(), cached.data)
+            assertNull(cached.refreshedAt)
+            assertFalse(cached.offline)
+        }
+
+    @Test
+    fun `an unreadable first load is reported as a failure without a status`() =
+        runBlocking {
+            dispatcher.enqueue("$TASKS|NEXT", json("""{"items":[{"id":"x"}]}"""))
+
+            val cached = withTimeout(5_000) { gtd.tasks.observe(TaskView.NEXT).first { it.failure != null } }
+
+            assertEquals(RefreshResult.Failed(null), cached.failure)
+            assertEquals(emptyList<GtdTask>(), cached.data)
+            assertNull(cached.refreshedAt)
+        }
+
+    @Test
+    fun `a later successful refresh clears the failure and shows the loaded tasks`() =
+        runBlocking {
+            dispatcher.enqueue("$TASKS|NEXT", status(400))
+            dispatcher.enqueue("$TASKS|NEXT", json(taskPage(taskJson(1, "Call the plumber", "NEXT"))))
+            val seen = CopyOnWriteArrayList<Cached<List<GtdTask>>>()
+            val job = launch(Dispatchers.Default) { gtd.tasks.observe(TaskView.NEXT).collect { seen += it } }
+            withTimeout(5_000) { while (seen.lastOrNull()?.failure == null) delay(10) }
+            assertEquals(RefreshResult.Failed(400), seen.last().failure)
+
+            assertEquals(RefreshResult.Refreshed, gtd.tasks.refresh(TaskView.NEXT))
+
+            withTimeout(5_000) {
+                while (seen.last().failure != null || seen.last().data.map { it.title } != listOf("Call the plumber")) delay(10)
+            }
+            job.cancel()
+            assertEquals(Instant.parse("2026-10-20T10:00:00Z"), seen.last().refreshedAt)
+        }
+
+    @Test
+    fun `an unreachable server is reported as offline, not as a failure`() =
+        runBlocking {
+            dispatcher.enqueue("$TASKS|NEXT", status(400))
+            dispatcher.enqueue("$TASKS|NEXT", status(502))
+            assertEquals(RefreshResult.Failed(400), gtd.tasks.refresh(TaskView.NEXT))
+
+            assertEquals(RefreshResult.Offline, gtd.tasks.refresh(TaskView.NEXT))
+            assertNull(gtd.connectivity.failure("NEXT").first())
+
+            server.close()
+            val cached = withTimeout(5_000) { gtd.tasks.observe(TaskView.NEXT).first { it.offline } }
+            assertNull(cached.failure)
+            assertNull(cached.refreshedAt)
+        }
+
+    @Test
+    fun `logout clears the failure an observed view shows`() =
+        runBlocking {
+            dispatcher.enqueue("$TASKS|NEXT", status(400))
+            val seen = CopyOnWriteArrayList<Cached<List<GtdTask>>>()
+            val job = launch(Dispatchers.Default) { gtd.tasks.observe(TaskView.NEXT).collect { seen += it } }
+            withTimeout(5_000) { while (seen.lastOrNull()?.failure == null) delay(10) }
+
+            GtdDataModule.gtdCache(gtd.database, gtd.scheduler, gtd.connectivity).clear()
+
+            withTimeout(5_000) { while (seen.last().failure != null) delay(10) }
+            job.cancel()
+            assertNull(gtd.connectivity.failure("NEXT").first())
+            assertNull(seen.last().refreshedAt)
+        }
+
+    @Test
+    fun `a failure of one view does not show in another`() =
+        runBlocking {
+            dispatcher.enqueue("$TASKS|NEXT", status(403))
+            dispatcher.enqueue("$TASKS|overdue", json(taskPage()))
+            dispatcher.enqueue("$TASKS|today", json(taskPage(taskJson(2, "Return library books"))))
+
+            assertEquals(RefreshResult.Failed(403), gtd.tasks.refresh(TaskView.NEXT))
+            assertEquals(RefreshResult.Refreshed, gtd.tasks.refresh(TaskView.TODAY))
+
+            assertEquals(RefreshResult.Failed(403), gtd.connectivity.failure("NEXT").first())
+            assertNull(gtd.connectivity.failure("TODAY").first())
         }
 }

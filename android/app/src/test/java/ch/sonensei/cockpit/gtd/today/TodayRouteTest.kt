@@ -9,6 +9,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import ch.sonensei.cockpit.gtd.data.Cached
 import ch.sonensei.cockpit.gtd.data.ContextRepository
 import ch.sonensei.cockpit.gtd.data.GtdTask
+import ch.sonensei.cockpit.gtd.data.RefreshResult
 import ch.sonensei.cockpit.gtd.data.TaskList
 import ch.sonensei.cockpit.gtd.data.TaskRepository
 import ch.sonensei.cockpit.gtd.data.TaskView
@@ -76,5 +77,25 @@ class TodayRouteTest {
 
         coVerify { completion.undo(Completion(overdue.id, overdue.title, 2)) }
         composeRule.onNodeWithTag(TaskListTags.row(overdue.id)).assertIsDisplayed()
+    }
+
+    @Test
+    fun `after a failed first load the retry button reloads both lists`() {
+        val failing =
+            mockk<TaskRepository> {
+                every { observe(TaskView.TODAY) } returns
+                    MutableStateFlow(Cached(emptyList(), offline = false, refreshedAt = null, failure = RefreshResult.Failed(403)))
+                every { observe(TaskView.NEXT) } returns MutableStateFlow(Cached(emptyList(), offline = false, refreshedAt = null))
+                coEvery { refresh(any()) } returns RefreshResult.Failed(403)
+            }
+        val viewModel = TodayViewModel(failing, contexts, completion, Clock.fixed(loadedAt, ZoneOffset.UTC))
+        composeRule.setContent { CockpitTheme { TodayRoute(viewModel = viewModel) } }
+        composeRule.onNodeWithTag(TaskListTags.ERROR).assertIsDisplayed()
+
+        composeRule.onNodeWithTag(TaskListTags.RETRY).performClick()
+        composeRule.waitForIdle()
+
+        coVerify(timeout = 5_000) { failing.refresh(TaskView.TODAY) }
+        coVerify(timeout = 5_000) { failing.refresh(TaskView.NEXT) }
     }
 }

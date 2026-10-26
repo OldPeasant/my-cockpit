@@ -6,6 +6,7 @@ import ch.sonensei.cockpit.gtd.data.Creativity
 import ch.sonensei.cockpit.gtd.data.Energy
 import ch.sonensei.cockpit.gtd.data.GtdContext
 import ch.sonensei.cockpit.gtd.data.GtdTask
+import ch.sonensei.cockpit.gtd.data.RefreshResult
 import ch.sonensei.cockpit.gtd.data.TaskList
 import ch.sonensei.cockpit.gtd.data.TaskRepository
 import ch.sonensei.cockpit.gtd.data.TaskView
@@ -320,5 +321,76 @@ class NextViewModelTest {
     fun `today comes from the clock`() =
         test { vm ->
             assertEquals(LocalDate.of(2026, 10, 20), vm.uiState.value.today)
+        }
+
+    @Test
+    fun `a loaded list without a failure is neither failed nor loading`() =
+        test { vm ->
+            assertFalse(vm.uiState.value.loadFailed)
+            assertFalse(vm.uiState.value.firstLoadFailed)
+            assertFalse(vm.uiState.value.loading)
+        }
+
+    @Test
+    fun `a failed first load is an error instead of loading`() =
+        test { vm ->
+            nextFlow.value = Cached(emptyList(), offline = false, refreshedAt = null, failure = RefreshResult.Failed(403))
+            assertTrue(vm.uiState.value.loadFailed)
+            assertTrue(vm.uiState.value.firstLoadFailed)
+            assertFalse(vm.uiState.value.loading)
+
+            nextFlow.value = Cached(emptyList(), offline = false, refreshedAt = null, failure = RefreshResult.Failed(null))
+            assertTrue("an unreadable answer fails the same way", vm.uiState.value.firstLoadFailed)
+        }
+
+    @Test
+    fun `a failed reload keeps the cached tasks instead of the error`() =
+        test { vm ->
+            nextFlow.value = nextFlow.value.copy(failure = RefreshResult.Failed(400))
+            assertTrue(vm.uiState.value.loadFailed)
+            assertFalse(vm.uiState.value.firstLoadFailed)
+            assertFalse(vm.uiState.value.loading)
+            assertEquals(listOf(call, sketch, water), vm.shown)
+        }
+
+    @Test
+    fun `a failed reload of a list loaded empty before is the empty list, not the error`() =
+        test { vm ->
+            nextFlow.value = Cached(emptyList(), offline = false, refreshedAt = loadedAt, failure = RefreshResult.Failed(400))
+            assertFalse(vm.uiState.value.firstLoadFailed)
+            assertFalse(vm.uiState.value.loading)
+            assertEquals(0, vm.uiState.value.total)
+        }
+
+    @Test
+    fun `retry reloads the Next list, which shows loading again until its answer`() =
+        test { vm ->
+            nextFlow.value = Cached(emptyList(), offline = false, refreshedAt = null, failure = RefreshResult.Failed(403))
+            val answer = CompletableDeferred<RefreshResult>()
+            coEvery { tasks.refresh(TaskView.NEXT) } coAnswers {
+                // What the repository does: a running load clears the failure.
+                nextFlow.value = Cached(emptyList(), offline = false, refreshedAt = null)
+                answer.await()
+            }
+
+            vm.retry()
+
+            coVerify(exactly = 1) { tasks.refresh(TaskView.NEXT) }
+            assertTrue(vm.uiState.value.loading)
+            assertFalse(vm.uiState.value.firstLoadFailed)
+
+            nextFlow.value = Cached(emptyList(), offline = false, refreshedAt = null, failure = RefreshResult.Failed(403))
+            answer.complete(RefreshResult.Failed(403))
+            assertTrue("a failed retry shows the error again", vm.uiState.value.firstLoadFailed)
+        }
+
+    @Test
+    fun `retry reloads only the Next list`() =
+        test { vm ->
+            coEvery { tasks.refresh(any()) } returns RefreshResult.Refreshed
+            vm.retry()
+            coVerify(exactly = 1) { tasks.refresh(TaskView.NEXT) }
+            coVerify(exactly = 0) { tasks.refresh(TaskView.TODAY) }
+            coVerify(exactly = 0) { tasks.refresh(TaskView.INBOX) }
         }
 }

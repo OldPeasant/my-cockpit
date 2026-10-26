@@ -63,6 +63,7 @@ class TodayScreenTest {
                         complete = { calls += "complete ${it.title}" },
                         undo = { calls += "undo ${it.completion.title}" },
                         dismiss = { calls += "dismiss" },
+                        retry = { calls += "retry" },
                     ),
                 )
             }
@@ -152,6 +153,34 @@ class TodayScreenTest {
     fun `a refused completion shows why`() {
         show(loaded.copy(snackbar = CompletionSnackbar.Failed(CompletionMessage.CONFLICT)))
         composeRule.onNodeWithText("This task was changed elsewhere. The list now shows its current state.").assertIsDisplayed()
+    }
+
+    @Test
+    fun `a failed first load shows the error with a retry instead of loading`() {
+        show(TodayUiState(loadFailed = true, today = today))
+        composeRule.onNodeWithTag(TaskListTags.ERROR).assertIsDisplayed()
+        composeRule.onNodeWithText("The server could not send this list. Try again.").assertIsDisplayed()
+        composeRule.onNodeWithTag(TodayTags.LOADING).assertDoesNotExist()
+        composeRule.onNodeWithTag(TodayTags.EMPTY).assertDoesNotExist()
+
+        composeRule.onNodeWithTag(TaskListTags.RETRY).assertIsDisplayed().performClick()
+
+        assertEquals(listOf("retry"), calls)
+    }
+
+    @Test
+    fun `a failed reload keeps the sections without the error`() {
+        show(loaded.copy(loadFailed = true))
+        composeRule.onNodeWithTag(TodayTags.section(TodaySectionKind.OVERDUE)).assertIsDisplayed()
+        composeRule.onNodeWithTag(TaskListTags.ERROR).assertDoesNotExist()
+        composeRule.onNodeWithTag(TaskListTags.RETRY).assertDoesNotExist()
+    }
+
+    @Test
+    fun `a failed reload of a day loaded empty before says the day is empty`() {
+        show(TodayUiState(refreshedAt = Instant.parse("2026-10-20T09:00:00Z"), loadFailed = true, today = today))
+        composeRule.onNodeWithTag(TodayTags.EMPTY).assertIsDisplayed()
+        composeRule.onNodeWithTag(TaskListTags.ERROR).assertDoesNotExist()
     }
 
     @Test

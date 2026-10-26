@@ -194,4 +194,48 @@ class GtdCacheConsistencyTest {
 
             assertTrue("emissions $seen", seen.none { it.data.isNotEmpty() && it.refreshedAt == null })
         }
+
+    @Test
+    fun `a rejected load still running at logout does not show its failure in the next session`() =
+        runBlocking {
+            holdFirstAnswer()
+            dispatcher.enqueue("$TASKS|NEXT", status(400))
+            val load = async(Dispatchers.IO) { gtd.tasks.refresh(TaskView.NEXT) }
+            awaitRequests(1)
+
+            GtdDataModule.gtdCache(gtd.database, gtd.scheduler, gtd.connectivity).clear()
+            release.countDown()
+
+            assertEquals(RefreshResult.Failed(400), load.await())
+            assertNull(gtd.connectivity.failure("NEXT").first())
+        }
+
+    @Test
+    fun `an answer dropped because of a logout is not shown as a failure`() =
+        runBlocking {
+            holdFirstAnswer()
+            dispatcher.enqueue("$TASKS|NEXT", json(taskPage(taskJson(1, "Previous session", "NEXT"))))
+            val load = async(Dispatchers.IO) { gtd.tasks.refresh(TaskView.NEXT) }
+            awaitRequests(1)
+
+            GtdDataModule.gtdCache(gtd.database, gtd.scheduler, gtd.connectivity).clear()
+            release.countDown()
+
+            assertEquals(RefreshResult.Failed(null), load.await())
+            assertNull(gtd.connectivity.failure("NEXT").first())
+            assertNull(gtd.dao.observeMeta("NEXT").first())
+        }
+
+    @Test
+    fun `a failing cache write is reported as the view's failure`() =
+        runBlocking {
+            gtd.database.openHelper.writableDatabase.execSQL(
+                "CREATE TRIGGER fictitious_full_disk BEFORE INSERT ON cached_task BEGIN SELECT RAISE(ABORT, 'full'); END",
+            )
+            dispatcher.enqueue("$TASKS|INBOX", json(taskPage(taskJson(1, "Lost"))))
+
+            assertEquals(RefreshResult.Failed(null), gtd.tasks.refresh(TaskView.INBOX))
+
+            assertEquals(RefreshResult.Failed(null), gtd.connectivity.failure("INBOX").first())
+        }
 }

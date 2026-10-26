@@ -3,6 +3,7 @@ package ch.sonensei.cockpit.gtd.today
 import ch.sonensei.cockpit.gtd.data.Cached
 import ch.sonensei.cockpit.gtd.data.ContextRepository
 import ch.sonensei.cockpit.gtd.data.GtdTask
+import ch.sonensei.cockpit.gtd.data.RefreshResult
 import ch.sonensei.cockpit.gtd.data.TaskList
 import ch.sonensei.cockpit.gtd.data.TaskRepository
 import ch.sonensei.cockpit.gtd.data.TaskView
@@ -268,4 +269,71 @@ class TodayViewModelTest {
             assertEquals(listOf(overdue, due), vm.sections()[TodaySectionKind.OVERDUE])
         }
     }
+
+    @Test
+    fun `loaded lists without a failure are neither failed nor loading`() =
+        test { vm ->
+            assertFalse(vm.uiState.value.loadFailed)
+            assertFalse(vm.uiState.value.firstLoadFailed)
+            assertFalse(vm.uiState.value.loading)
+        }
+
+    @Test
+    fun `a failed first load of the Today view is an error instead of loading`() =
+        test { vm ->
+            todayFlow.value = Cached(emptyList(), offline = false, refreshedAt = null, failure = RefreshResult.Failed(403))
+            nextFlow.value = Cached(emptyList(), offline = false, refreshedAt = null)
+            assertTrue(vm.uiState.value.loadFailed)
+            assertTrue(vm.uiState.value.firstLoadFailed)
+            assertFalse(vm.uiState.value.loading)
+        }
+
+    @Test
+    fun `a failed first load of the Next view is an error too, even when the Today view loaded empty`() =
+        test { vm ->
+            todayFlow.value = Cached(emptyList(), offline = false, refreshedAt = loadedAt)
+            nextFlow.value = Cached(emptyList(), offline = false, refreshedAt = null, failure = RefreshResult.Failed(null))
+            assertTrue(vm.uiState.value.loadFailed)
+            assertTrue(vm.uiState.value.firstLoadFailed)
+            assertFalse(vm.uiState.value.loading)
+        }
+
+    @Test
+    fun `a failed reload keeps the sections instead of the error`() =
+        test { vm ->
+            todayFlow.value = todayFlow.value.copy(failure = RefreshResult.Failed(400))
+            assertTrue(vm.uiState.value.loadFailed)
+            assertFalse(vm.uiState.value.firstLoadFailed)
+            assertEquals(listOf(overdue), vm.sections()[TodaySectionKind.OVERDUE])
+        }
+
+    @Test
+    fun `a failed reload of lists loaded empty before is the empty day, not the error`() =
+        test { vm ->
+            todayFlow.value = Cached(emptyList(), offline = false, refreshedAt = loadedAt, failure = RefreshResult.Failed(400))
+            nextFlow.value = Cached(emptyList(), offline = false, refreshedAt = loadedAt)
+            assertFalse(vm.uiState.value.firstLoadFailed)
+            assertFalse(vm.uiState.value.loading)
+        }
+
+    @Test
+    fun `retry reloads both views, and the screen shows loading while they run`() =
+        test { vm ->
+            todayFlow.value = Cached(emptyList(), offline = false, refreshedAt = null, failure = RefreshResult.Failed(403))
+            nextFlow.value = Cached(emptyList(), offline = false, refreshedAt = null)
+            coEvery { tasks.refresh(TaskView.TODAY) } coAnswers {
+                // What the repository does: a running load clears the failure.
+                todayFlow.value = Cached(emptyList(), offline = false, refreshedAt = null)
+                RefreshResult.Refreshed
+            }
+            coEvery { tasks.refresh(TaskView.NEXT) } returns RefreshResult.Refreshed
+
+            vm.retry()
+
+            coVerify(exactly = 1) { tasks.refresh(TaskView.TODAY) }
+            coVerify(exactly = 1) { tasks.refresh(TaskView.NEXT) }
+            coVerify(exactly = 0) { tasks.refresh(TaskView.INBOX) }
+            assertTrue(vm.uiState.value.loading)
+            assertFalse(vm.uiState.value.firstLoadFailed)
+        }
 }

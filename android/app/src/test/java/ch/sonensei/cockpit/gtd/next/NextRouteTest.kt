@@ -12,6 +12,7 @@ import ch.sonensei.cockpit.gtd.data.Creativity
 import ch.sonensei.cockpit.gtd.data.Energy
 import ch.sonensei.cockpit.gtd.data.GtdContext
 import ch.sonensei.cockpit.gtd.data.GtdTask
+import ch.sonensei.cockpit.gtd.data.RefreshResult
 import ch.sonensei.cockpit.gtd.data.TaskList
 import ch.sonensei.cockpit.gtd.data.TaskRepository
 import ch.sonensei.cockpit.gtd.data.TaskView
@@ -125,5 +126,23 @@ class NextRouteTest {
 
         coVerify { completion.undo(Completion(call.id, call.title, 2)) }
         composeRule.onNodeWithTag(TaskListTags.row(call.id)).assertIsDisplayed()
+    }
+
+    @Test
+    fun `after a failed first load the retry button reloads the Next list`() {
+        val failing =
+            mockk<TaskRepository> {
+                every { observe(TaskView.NEXT) } returns
+                    MutableStateFlow(Cached(emptyList(), offline = false, refreshedAt = null, failure = RefreshResult.Failed(403)))
+                coEvery { refresh(TaskView.NEXT) } returns RefreshResult.Failed(403)
+            }
+        val viewModel = NextViewModel(failing, contexts, completion, Clock.fixed(loadedAt, ZoneOffset.UTC))
+        composeRule.setContent { CockpitTheme { NextRoute(viewModel = viewModel) } }
+        composeRule.onNodeWithTag(TaskListTags.ERROR).assertIsDisplayed()
+
+        composeRule.onNodeWithTag(TaskListTags.RETRY).performClick()
+        composeRule.waitForIdle()
+
+        coVerify(timeout = 5_000) { failing.refresh(TaskView.NEXT) }
     }
 }

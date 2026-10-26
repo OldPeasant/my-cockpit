@@ -174,4 +174,20 @@ class ProjectContextRepositoryTest {
             assertFalse(cached.offline)
             assertEquals(Instant.parse("2026-10-20T10:00:00Z"), cached.refreshedAt)
         }
+
+    @Test
+    fun `observed projects and contexts each report their own failed load`() =
+        runBlocking {
+            dispatcher.enqueue(PROJECTS, status(403))
+            dispatcher.enqueue(CONTEXTS, json("not json"))
+
+            val projects = withTimeout(5_000) { gtd.projects.observe().first { it.failure != null } }
+            assertEquals(RefreshResult.Failed(403), projects.failure)
+            assertNull("the contexts were not loaded yet", gtd.connectivity.failure(CacheMetaEntity.CONTEXTS).first())
+
+            val contexts = withTimeout(5_000) { gtd.contexts.observe().first { it.failure != null } }
+            assertEquals(RefreshResult.Failed(null), contexts.failure)
+            assertEquals(RefreshResult.Failed(403), gtd.connectivity.failure(CacheMetaEntity.PROJECTS).first())
+            assertNull("no task view failed", gtd.connectivity.failure(TaskView.NEXT.name).first())
+        }
 }

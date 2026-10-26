@@ -74,6 +74,7 @@ class NextScreenTest {
                 complete = { calls += "complete ${it.title}" },
                 undo = { calls += "undo ${it.completion.title}" },
                 dismiss = { calls += "dismiss" },
+                retry = { calls += "retry" },
             )
         composeRule.setContent { CockpitTheme { NextContent(state, callbacks) } }
     }
@@ -281,6 +282,55 @@ class NextScreenTest {
         composeRule.waitForIdle()
         assertEquals(listOf("dismiss"), calls)
         composeRule.onNodeWithText("Completed Water the plants").assertDoesNotExist()
+    }
+
+    @Test
+    fun `a failed first load shows the error with a retry instead of loading`() {
+        show(NextUiState(loadFailed = true, today = today))
+        composeRule.onNodeWithTag(TaskListTags.ERROR).assertIsDisplayed()
+        composeRule.onNodeWithText("The server could not send this list. Try again.").assertIsDisplayed()
+        composeRule.onNodeWithText("Next").assertIsDisplayed()
+        composeRule.onNodeWithText("Loading…").assertDoesNotExist()
+        composeRule.onNodeWithTag(NextTags.EMPTY).assertDoesNotExist()
+        composeRule.onNodeWithTag(NextTags.LIST).assertDoesNotExist()
+
+        composeRule
+            .onNodeWithTag(TaskListTags.RETRY)
+            .assertIsDisplayed()
+            .assertIsEnabled()
+            .performClick()
+
+        assertEquals(listOf("retry"), calls)
+    }
+
+    @Test
+    fun `while the retry runs the error gives way to loading, then to the list`() {
+        show(NextUiState(loadFailed = true, today = today))
+        composeRule.onNodeWithText("Retry").assertIsDisplayed()
+
+        state = NextUiState(today = today)
+        composeRule.onNodeWithText("Loading…").assertIsDisplayed()
+        composeRule.onNodeWithTag(TaskListTags.ERROR).assertDoesNotExist()
+
+        state = loaded
+        composeRule.onNodeWithText("Call the dentist").assertIsDisplayed()
+        composeRule.onNodeWithTag(TaskListTags.ERROR).assertDoesNotExist()
+    }
+
+    @Test
+    fun `a failed reload keeps the cached list without the error`() {
+        show(loaded.copy(loadFailed = true))
+        composeRule.onNodeWithText("2 next actions").assertIsDisplayed()
+        composeRule.onNodeWithText("Call the dentist").assertIsDisplayed()
+        composeRule.onNodeWithTag(TaskListTags.ERROR).assertDoesNotExist()
+        composeRule.onNodeWithTag(TaskListTags.RETRY).assertDoesNotExist()
+    }
+
+    @Test
+    fun `a failed reload of a list loaded empty before says the list is empty`() {
+        show(NextUiState(refreshedAt = Instant.parse("2026-10-20T09:00:00Z"), loadFailed = true, today = today))
+        composeRule.onNodeWithText("No next actions. Process your inbox to add some.").assertIsDisplayed()
+        composeRule.onNodeWithTag(TaskListTags.ERROR).assertDoesNotExist()
     }
 
     @Test
