@@ -1,0 +1,16 @@
+{
+  "schema": 1,
+  "task": "backup-roundtrip-tmp-leak",
+  "reviewed_revision": "2eac0d71d62d45e31e192c8945a92e9bf18fc001",
+  "helpers": {
+    "test-writer": {"status": "completed", "report": "reviews/backup-roundtrip-tmp-leak/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/backup-roundtrip-tmp-leak/review.md"},
+    "fixer": {"status": "not_required", "reason": "neither helper reported a finding; the change is a test-only cleanup hook"}
+  },
+  "fixes_required": false,
+  "findings": [],
+  "validation": [
+    {"command": "server/gradlew -p server test --tests 'ch.sonensei.cockpit.backup.*'", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
