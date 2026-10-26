@@ -16,3 +16,4 @@ Weekly reviews (`weekly_review`, SPEC.md §8.6) in backups (SPEC.md §14), so "L
 
 ## Notes
 Found while doing review-api: no backup task covered the review module.
+- ASSUMPTION (2026-10-26 11:44+0100 by dell26/agent-2): Weekly reviews go to data/weekly_reviews.jsonl as the task says, not weekly_reviews.json as SPEC 10.2 lists; no readable mirror (SPEC lists none, a review has no content). A backup with more than one open review or an unknown step is rejected as invalid at upload and import rather than repaired.
