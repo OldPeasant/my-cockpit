@@ -221,7 +221,7 @@ class ItipMessagesTests {
 	}
 
 	@Test
-	fun `a CANCEL to people no longer invited lists only them as attendees`() {
+	fun `a CANCEL to people no longer invited lists only them as attendees and does not cancel the event`() {
 		val calendar =
 			parsed(
 				ItipMessages.build(
@@ -235,7 +235,9 @@ class ItipMessagesTests {
 			)
 
 		val vevent = calendar.vevents().single()
-		vevent.text("STATUS") shouldBe "CANCELLED"
+		// Uninviting does not cancel the event (RFC 5546 §3.2.5): no STATUS at all.
+		vevent.text("STATUS").shouldBeNull()
+		vevent.all("STATUS").shouldBeEmpty()
 		vevent.all("ATTENDEE").map { it.value } shouldContainExactly listOf("mailto:carol@example.test", "mailto:dave@example.test")
 		vevent.all("ATTENDEE").forEach {
 			it.param("ROLE") shouldBe "REQ-PARTICIPANT"
@@ -299,12 +301,44 @@ class ItipMessagesTests {
 			reply(
 				"""
 				UID:$UID
+				SEQUENCE:2
 				DTSTAMP:20261026T120000Z
 				ATTENDEE;PARTSTAT=ACCEPTED;CN=Anna Example:mailto:anna@example.test
 				""",
 			)
 
-		ItipMessages.replies(text) shouldContainExactly listOf(ItipReply(UID, null, "anna@example.test", AttendeeStatus.ACCEPTED))
+		ItipMessages.replies(text) shouldContainExactly
+			listOf(ItipReply(UID, null, "anna@example.test", AttendeeStatus.ACCEPTED, 2, Instant.parse("2026-10-26T12:00:00Z")))
+	}
+
+	@Test
+	fun `a missing or unreadable SEQUENCE or DTSTAMP is read as unknown`() {
+		val text =
+			reply(
+				"UID:$UID\nSEQUENCE:one\nDTSTAMP:2026-10-26 12:00\nATTENDEE;PARTSTAT=ACCEPTED:mailto:anna@example.test",
+				"UID:$UID\nDTSTAMP:20261026T120000\nATTENDEE;PARTSTAT=DECLINED:mailto:bob@example.test",
+			)
+
+		ItipMessages.replies(text).map { it.sequence to it.stamp } shouldContainExactly listOf(null to null, null to null)
+	}
+
+	@Test
+	fun `answers are ordered by SEQUENCE, then DTSTAMP, unknown values first`() {
+		val base = ItipReply(UID, null, "anna@example.test", AttendeeStatus.ACCEPTED)
+		val early = Instant.parse("2026-10-26T12:00:00Z")
+		val late = Instant.parse("2026-10-27T12:00:00Z")
+		val replies =
+			listOf(
+				base.copy(sequence = 1, stamp = early),
+				base.copy(sequence = 0, stamp = late),
+				base,
+				base.copy(sequence = 1, stamp = late),
+				base.copy(sequence = 1),
+			)
+
+		replies.sortedWith(ItipReply.ORDER).map { it.sequence to it.stamp } shouldContainExactly
+			listOf(null to null, 0 to late, 1 to null, 1 to early, 1 to late)
+		base.copy(email = "Anna@Example.test", uid = " $UID").key shouldBe base.key
 	}
 
 	@Test

@@ -75,10 +75,13 @@ class ItipService(
 	/**
 	 * Sends [method] for event [id] over mail account [accountId]: to [recipients] (default: every attendee but the
 	 * organizer). A REQUEST only goes to attendees of the event; a CANCEL may also go to people that are no longer
-	 * attendees (they are told they are no longer invited), and also for an event in the Trash.
+	 * attendees (they are told they are no longer invited, without cancelling the event), and also for an event in the
+	 * Trash. A CANCEL for an event that is not in the Trash goes either to attendees or to people no longer invited,
+	 * not to both.
 	 *
 	 * @throws NotFoundException (404) when there is no such event
-	 * @throws InvalidRequestException (400) for an unknown mail account or recipients that are not allowed
+	 * @throws InvalidRequestException (400) for an unknown mail account or recipients that are not allowed (a REQUEST to
+	 *   non-attendees, a CANCEL for a live event to both attendees and non-attendees)
 	 * @throws ConflictException (409) when the event is not in a LOCAL calendar or there is nobody to send to
 	 * @throws ch.sonensei.cockpit.mail.compose.MailSendRejectedException when the SMTP server refused the message
 	 * @throws ch.sonensei.cockpit.mail.imap.MailConnectionException when the SMTP server failed
@@ -144,6 +147,13 @@ class ItipService(
 		if (recipients.isEmpty()) throw ConflictException("The event has no attendees to send the invitation to")
 		val content = if (event.isOverride || !event.isRecurring) listOf(event) else listOf(event) + overrides(event)
 		val uninvited = recipients.filter { address -> attendees.none { it.equals(address, ignoreCase = true) } }
+		if (method == ItipMethod.CANCEL && !trashed && uninvited.isNotEmpty() && uninvited.size < recipients.size) {
+			// One CANCEL cannot both cancel the event for attendees and uninvite others (RFC 5546 §3.2.5).
+			throw InvalidRequestException(
+				"recipients",
+				"may not mix attendees and people no longer invited in a CANCEL for an event that goes ahead",
+			)
+		}
 		val text =
 			ItipMessages.build(
 				method,

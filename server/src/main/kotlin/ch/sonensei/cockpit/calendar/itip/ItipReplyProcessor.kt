@@ -12,10 +12,8 @@ import ch.sonensei.cockpit.core.events.domain.ChangeOp
 import ch.sonensei.cockpit.core.items.domain.ItemType
 import ch.sonensei.cockpit.core.web.NotFoundException
 import ch.sonensei.cockpit.mail.api.MailContentLoader
+import ch.sonensei.cockpit.mail.api.MailReadService
 import ch.sonensei.cockpit.mail.imap.MailConnectionException
-import ch.sonensei.cockpit.mail.model.MailFolderRepository
-import ch.sonensei.cockpit.mail.model.MailFolderRole
-import ch.sonensei.cockpit.mail.model.MailMessageRepository
 import jakarta.mail.Multipart
 import jakarta.mail.Part
 import jakarta.mail.internet.ContentType
@@ -23,6 +21,7 @@ import jakarta.mail.internet.MimeUtility
 import jakarta.mail.internet.ParseException
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.DisposableBean
+import org.springframework.dao.OptimisticLockingFailureException
 import org.springframework.stereotype.Component
 import org.springframework.transaction.PlatformTransactionManager
 import org.springframework.transaction.event.TransactionalEventListener
@@ -42,12 +41,12 @@ import java.util.concurrent.TimeUnit
  * An answer is only taken when the event lists the attendee and the mail comes from the attendee's address, so a
  * stranger cannot change someone else's answer. An answer for the whole series updates the master and its overrides
  * that list the attendee; an answer for one occurrence updates its override, and is ignored when the occurrence has
- * none (the cockpit does not create overrides for answers). Replies that cannot be matched are skipped.
+ * none (the cockpit does not create overrides for answers). Replies that cannot be matched are skipped. When one
+ * message holds several answers of an attendee for the same event, only the newest (SEQUENCE, then DTSTAMP) counts.
  */
 @Component
 class ItipReplyProcessor(
-	private val messages: MailMessageRepository,
-	private val folders: MailFolderRepository,
+	private val mail: MailReadService,
 	private val loader: MailContentLoader,
 	private val events: CalendarEventRepository,
 	private val calendars: CalendarRepository,
@@ -58,7 +57,6 @@ class ItipReplyProcessor(
 ) : DisposableBean {
 	private val log = LoggerFactory.getLogger(javaClass)
 	private val tx = TransactionTemplate(transactionManager)
-	private val readTx = TransactionTemplate(transactionManager).apply { isReadOnly = true }
 
 	private val executor =
 		ThreadPoolExecutor(1, 1, 0, TimeUnit.MILLISECONDS, ArrayBlockingQueue(QUEUE_SIZE)) { runnable ->
@@ -97,12 +95,7 @@ class ItipReplyProcessor(
 	 * @throws MailConnectionException when the mail server cannot be reached or fails
 	 */
 	fun process(messageId: UUID): List<UUID> {
-		val message =
-			readTx.execute {
-				messages.findById(messageId).orElse(null)?.takeIf { message ->
-					message.isLocated && folders.findById(message.folderId!!).orElse(null)?.role == MailFolderRole.INBOX
-				}
-			} ?: return emptyList()
+		val message = mail.inInbox(messageId) ?: return emptyList()
 		val senders = message.from.map { it.address.lowercase() }.toSet()
 		if (senders.isEmpty()) return emptyList()
 		val calendars = loader.withRemoteMessage(message) { calendarParts(it) }
@@ -114,9 +107,32 @@ class ItipReplyProcessor(
 					emptyList()
 				}
 			}
-		val changed = replies.filter { it.email.lowercase() in senders }.flatMap { reply -> tx.execute { apply(reply) }!! }.distinct()
+		// Several answers of one attendee for the same event in one message: only the newest counts.
+		val newest =
+			replies
+				.filter { it.email.lowercase() in senders }
+				.groupBy { it.key }
+				.values
+				.map { it.maxWith(ItipReply.ORDER) }
+		val changed = newest.flatMap { reply -> applyRetrying(reply) }.distinct()
 		if (changed.isNotEmpty()) log.info("Message {}: invitation reply updated {} event(s)", messageId, changed.size)
 		return changed
+	}
+
+	/**
+	 * [apply]s [reply] in its own transaction; when a concurrent change of the event wins (optimistic locking), it is
+	 * tried again on the reloaded event, up to [MAX_ATTEMPTS] times in all.
+	 */
+	private fun applyRetrying(reply: ItipReply): List<UUID> {
+		var attempt = 1
+		while (true) {
+			try {
+				return tx.execute { apply(reply) }!!
+			} catch (e: OptimisticLockingFailureException) {
+				if (attempt >= MAX_ATTEMPTS) throw e
+				attempt++
+			}
+		}
 	}
 
 	/** Stores [reply] and returns the ids of the events whose attendee status changed. */
@@ -179,6 +195,7 @@ class ItipReplyProcessor(
 
 	private companion object {
 		const val QUEUE_SIZE = 1000
+		const val MAX_ATTEMPTS = 3
 		const val MAX_CALENDAR_BYTES = 1024 * 1024
 	}
 }

@@ -255,7 +255,7 @@ class ItipGreenMailTests(
 	}
 
 	@Test
-	fun `a CANCEL to someone no longer invited lists only them`() {
+	fun `a CANCEL to someone no longer invited lists only them and does not cancel the event`() {
 		val event = createEvent(attendees = listOf(ANNA))
 
 		itip.send(UUID.fromString(event), ItipMethod.CANCEL, account.id, listOf(CAROL))
@@ -263,7 +263,32 @@ class ItipGreenMailTests(
 		onServer("INBOX", ANNA_USER).shouldBeEmpty()
 		val vevent = ics(calendarPart(onServer("INBOX", CAROL_USER).single())).children("VEVENT").single()
 		vevent.all("ATTENDEE").map { it.value } shouldContainExactly listOf("mailto:$CAROL")
-		vevent.text("STATUS") shouldBe "CANCELLED"
+		vevent.all("STATUS").shouldBeEmpty()
+	}
+
+	@Test
+	fun `a CANCEL for a live event to attendees and people no longer invited at once is a bad request (400)`() {
+		val event = UUID.fromString(createEvent(attendees = listOf(ANNA, BOB)))
+
+		val error = assertThrows<InvalidRequestException> { itip.send(event, ItipMethod.CANCEL, account.id, listOf(ANNA, CAROL)) }
+
+		error.status shouldBe HttpStatus.BAD_REQUEST
+		error.fieldErrors.map { it.field } shouldContainExactly listOf("recipients")
+		nothingSent()
+	}
+
+	@Test
+	fun `a CANCEL for an event in the Trash may go to attendees and people no longer invited, cancelled for all`() {
+		val event = createEvent(attendees = listOf(ANNA))
+		api.deleteEvent(event).andExpect { status { is2xxSuccessful() } }
+
+		itip.send(UUID.fromString(event), ItipMethod.CANCEL, account.id, listOf(ANNA, CAROL))
+
+		listOf(ANNA_USER, CAROL_USER).forEach { user ->
+			val vevent = ics(calendarPart(onServer("INBOX", user).single())).children("VEVENT").single()
+			vevent.text("STATUS") shouldBe "CANCELLED"
+			vevent.all("ATTENDEE").map { it.value } shouldContainExactly listOf("mailto:$ANNA")
+		}
 	}
 
 	@Test
