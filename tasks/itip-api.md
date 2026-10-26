@@ -15,3 +15,4 @@ Let the user send invitations (REQUEST/CANCEL) for local events from the web UI 
 - [ ] Web event detail offers "Send invitations" for local events with attendees
 
 ## Notes
+- ASSUMPTION (2026-10-26 15:58+0100 by dell26/agent-1): Endpoint is POST /api/v1/calendar/events/{id}/invitations {method, accountId, recipients?} -> 200 {method, recipients}; no If-Match because sending does not change the event. SMTP refusal -> 422 SEND_REJECTED, mail server failure -> 502/503 with errorCode (same as DraftController).
