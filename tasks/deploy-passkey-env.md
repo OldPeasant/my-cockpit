@@ -6,9 +6,9 @@ deps: [passkeys-server]
 touches: [deploy/docker-compose.yml,deploy/.env.example,deploy/README.md]
 prio: 2
 lease_until: 
-releases: 2
+releases: 0
 extended: 
-hold: Work is complete (both criteria verified, quality evidence committed, reviewed_revision 2dc672c0) but r1963macos keeps getting this task and cannot run .taskcheck: the Docker daemon is down (369 Testc
+hold: 
 ---
 ## Goal
 The Android app's passkey origin (`android:apk-key-hash:...`) and optional RP overrides reach the server in the
