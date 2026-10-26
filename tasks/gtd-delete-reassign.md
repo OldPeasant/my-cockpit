@@ -16,7 +16,8 @@ Deleting a context/area with "move to another" must also reach items the list en
 `listTasks`/`listProjects` return (web-settings-gtd), so hidden items just lose the context/area.
 
 ## Acceptance criteria
-- [ ] `DELETE /api/v1/contexts/{id}?replaceWith=<id>` and `DELETE /api/v1/areas/{id}?moveTo=<id>` reassign all rows (incl. tickler/Trash) in one transaction; unknown target -> 400; integration tests
+- [x] `DELETE /api/v1/contexts/{id}?replaceWith=<id>` and `DELETE /api/v1/areas/{id}?moveTo=<id>` reassign all rows (incl. tickler/Trash) in one transaction; unknown target -> 400; integration tests
+  - verified (2026-10-26 04:48+0100 by dell26/agent-1): server/gradlew -p server test --tests 'ch.sonensei.cockpit.gtd.*' jacocoTestReport ktlintCheck (Testcontainers Postgres) on 4d2582b47 -> BUILD SUCCESSFUL, 419 tests 0 failures; AreaContextWebTests 20/20 (DELETE contexts ?replaceWith / areas ?moveTo reassign tickler/Trash/done tasks + trashed projects, unknown/self target -> 400 with no change), AreaContextDeleteRollbackTests 2/2 (failure after reassignment rolls back, i.e. one transaction); ktlint clean
 - [ ] `api/openapi.yaml` regenerated; Settings -> Tasks & projects uses the parameter instead of patching items client-side, and the tickler/Trash hint in the delete dialog is removed; Vitest tests updated; `cd web && npm run check` passes
 
 ## Notes
