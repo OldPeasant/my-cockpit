@@ -258,4 +258,118 @@ class CalendarViewModelCacheTest {
             assertNull(vm.uiState.value.cachedAt)
             assertEquals(CalendarMessage.FAILED, vm.uiState.value.message)
         }
+
+    /** A clock that can be moved to a later day while the view model is open. */
+    private class MovableClock(
+        var now: Instant,
+        private val zone: ZoneId,
+    ) : Clock() {
+        override fun getZone(): ZoneId = zone
+
+        override fun withZone(zone: ZoneId): Clock = MovableClock(now, zone)
+
+        override fun instant(): Instant = now
+    }
+
+    @Test
+    fun `an agenda refreshed on a later day replaces the cache with the days from the new today`() =
+        runTest(dispatcher) {
+            val cache = FakeCache()
+            val movable = MovableClock(now, zone)
+            val tomorrow = today.plusDays(1)
+            coEvery { repo.occurrences(today, today.plusDays(30), zone) } returns CalendarResult.Ok(listOf(event(1, today)))
+            coEvery { repo.occurrences(tomorrow, tomorrow.plusDays(30), zone) } returns
+                CalendarResult.Ok(listOf(event(2, tomorrow.plusDays(1))))
+            val vm = CalendarViewModel(repo, movable, Locale.GERMANY, cache)
+            vm.refresh()
+            advanceUntilIdle()
+            assertEquals(today, cache.agenda?.from)
+
+            val later = now.plusSeconds(86_400)
+            movable.now = later
+            vm.refresh()
+            advanceUntilIdle()
+
+            val expected = CachedAgenda(tomorrow, tomorrow.plusDays(30), listOf(work), listOf(event(2, tomorrow.plusDays(1))), later)
+            assertEquals(expected, cache.agenda)
+        }
+
+    @Test
+    fun `offline, a cache that ends before today is not shown, one ending tomorrow shows today`() =
+        runTest(dispatcher) {
+            coEvery { repo.calendars() } returns CalendarResult.Offline
+            coEvery { repo.occurrences(any(), any(), any()) } returns CalendarResult.Offline
+            val endsToday = CachedAgenda(today.minusDays(30), today, listOf(work), listOf(event(1, today.minusDays(1))), now)
+            val endsTomorrow = CachedAgenda(today.minusDays(29), today.plusDays(1), listOf(work), listOf(event(2, today)), now)
+            val past = viewModel(FakeCache(endsToday))
+            val lastDay = viewModel(FakeCache(endsTomorrow))
+
+            past.refresh()
+            lastDay.refresh()
+            advanceUntilIdle()
+
+            assertNull(past.uiState.value.cachedAt)
+            assertFalse(past.uiState.value.shown)
+            assertEquals(emptyList<Occurrence>(), past.uiState.value.occurrences)
+            assertEquals(CalendarMessage.OFFLINE, past.uiState.value.message)
+
+            assertEquals(now, lastDay.uiState.value.cachedAt)
+            assertEquals(listOf(event(2, today)), lastDay.uiState.value.occurrences)
+            assertEquals(today.plusDays(1), lastDay.uiState.value.to)
+        }
+
+    @Test
+    fun `offline, a week fully inside the cached days shows its cached events only`() =
+        runTest(dispatcher) {
+            // The week of Monday 19 October; the cache starts on that Monday.
+            val monday = LocalDate.parse("2026-10-19")
+            val nextMonday = monday.plusDays(7)
+            val cache =
+                FakeCache(
+                    CachedAgenda(
+                        monday,
+                        monday.plusDays(30),
+                        listOf(work),
+                        listOf(event(1, monday), event(2, nextMonday.minusDays(1)), event(3, nextMonday)),
+                        now.minusSeconds(3_600),
+                    ),
+                )
+            coEvery { repo.calendars() } returns CalendarResult.Offline
+            coEvery { repo.occurrences(any(), any(), any()) } returns CalendarResult.Offline
+            val vm = viewModel(cache)
+            vm.refresh()
+            advanceUntilIdle()
+
+            vm.select(CalendarView.WEEK)
+            advanceUntilIdle()
+
+            val state = vm.uiState.value
+            assertEquals(monday, state.from)
+            assertEquals(nextMonday, state.to)
+            assertEquals(listOf(event(1, monday), event(2, nextMonday.minusDays(1))), state.occurrences)
+            assertEquals(now.minusSeconds(3_600), state.cachedAt)
+            assertEquals(CalendarMessage.OFFLINE, state.message)
+            // Offline loads leave the cache as it was.
+            assertEquals(monday, cache.agenda?.from)
+        }
+
+    @Test
+    fun `days loaded on scrolling that fail are not appended to the cache`() =
+        runTest(dispatcher) {
+            val cache = FakeCache()
+            coEvery { repo.occurrences(today, today.plusDays(30), zone) } returns CalendarResult.Ok(listOf(event(1, today)))
+            coEvery { repo.occurrences(today.plusDays(30), today.plusDays(60), zone) } returnsMany
+                listOf(CalendarResult.Offline, CalendarResult.Failed(500))
+            val vm = viewModel(cache)
+            vm.refresh()
+            advanceUntilIdle()
+
+            vm.loadMore()
+            advanceUntilIdle()
+            vm.loadMore()
+            advanceUntilIdle()
+
+            assertEquals(emptyList<Triple<LocalDate, LocalDate, List<Occurrence>>>(), cache.appends)
+            assertEquals(today.plusDays(30), cache.agenda?.to)
+        }
 }

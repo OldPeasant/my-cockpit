@@ -126,4 +126,75 @@ class AgendaCacheTest {
             cache.store(after, CachedAgenda(day, day.plusDays(30), listOf(holidays), emptyList(), loadedAt))
             assertEquals(listOf(holidays), cache.read()?.calendars)
         }
+
+    @Test
+    fun `the session cache contributed for the logout clears the Room cache`() =
+        runBlocking {
+            cache.store(cache.session(), CachedAgenda(day, day.plusDays(30), listOf(work), listOf(meeting), loadedAt))
+
+            AgendaCacheModule.agendaSessionCache(cache).clear()
+
+            assertNull(cache.read())
+        }
+
+    @Test
+    fun `days loaded on scrolling after a logout are not appended`() =
+        runBlocking {
+            val before = cache.session()
+            cache.store(before, CachedAgenda(day, day.plusDays(30), listOf(work), listOf(meeting), loadedAt))
+            cache.clear()
+            val after = cache.session()
+            cache.store(after, CachedAgenda(day, day.plusDays(30), listOf(holidays), emptyList(), loadedAt))
+
+            // A chunk requested before the logout continues the new cache's days, but belongs to the previous session.
+            cache.append(before, day.plusDays(30), day.plusDays(60), listOf(later))
+
+            assertEquals(CachedAgenda(day, day.plusDays(30), listOf(holidays), emptyList(), loadedAt), cache.read())
+        }
+
+    @Test
+    fun `a write that fails leaves the cached agenda as it was and does not throw`() =
+        runBlocking {
+            val stored = CachedAgenda(day, day.plusDays(30), listOf(work, holidays), listOf(meeting), loadedAt)
+            cache.store(cache.session(), stored)
+            // Every new occurrence row fails, as on a full disk; the calendars were already replaced in the same write.
+            database.openHelper.writableDatabase.execSQL(
+                "CREATE TRIGGER no_space BEFORE INSERT ON cached_occurrence BEGIN SELECT RAISE(ABORT, 'database or disk is full'); END",
+            )
+
+            cache.store(cache.session(), CachedAgenda(day, day.plusDays(30), listOf(holidays), listOf(trip), loadedAt.plusSeconds(60)))
+            cache.append(cache.session(), day.plusDays(30), day.plusDays(60), listOf(later))
+
+            assertEquals(stored, cache.read())
+        }
+
+    @Test
+    fun `a cache that cannot be read reads as null and is not written`() =
+        runBlocking {
+            cache.store(cache.session(), CachedAgenda(day, day.plusDays(30), listOf(work), listOf(meeting), loadedAt))
+            database.openHelper.writableDatabase.execSQL("DROP TABLE cached_occurrence")
+
+            assertNull(cache.read())
+            cache.store(cache.session(), CachedAgenda(day, day.plusDays(30), listOf(work), listOf(meeting), loadedAt))
+            cache.append(cache.session(), day.plusDays(30), day.plusDays(60), listOf(later))
+            assertNull(cache.read())
+        }
+
+    @Test
+    fun `cached rows that cannot be parsed read as null`() =
+        runBlocking {
+            cache.store(cache.session(), CachedAgenda(day, day.plusDays(30), listOf(work), listOf(meeting), loadedAt))
+            val db = database.openHelper.writableDatabase
+
+            db.execSQL("UPDATE cached_occurrence SET eventId = 'not-a-uuid'")
+            assertNull(cache.read())
+
+            cache.store(cache.session(), CachedAgenda(day, day.plusDays(30), listOf(work), listOf(meeting), loadedAt))
+            db.execSQL("UPDATE agenda_cache_meta SET fromDate = 'not-a-date'")
+            assertNull(cache.read())
+
+            cache.store(cache.session(), CachedAgenda(day, day.plusDays(30), listOf(work), listOf(meeting), loadedAt))
+            db.execSQL("UPDATE cached_occurrence SET start = 'yesterday'")
+            assertNull(cache.read())
+        }
 }
