@@ -11,7 +11,8 @@ lease_until: 2026-10-26T03:31:38Z
 After a backup restore, mail refs (detached rows, uid null) that a link or reminder points to are reattached by Message-ID even when the mail is older than the sync window (SPEC.md §10.2 "links survive"; review CR-1 of backup-contrib-mail).
 
 ## Acceptance criteria
-- [ ] The first full sync of a folder (uidvalidity null) also runs the linked-refs retake (`retakeLinked`), covered by a `MailHeaderSyncService` test with a linked detached ref older than the window
+- [x] The first full sync of a folder (uidvalidity null) also runs the linked-refs retake (`retakeLinked`), covered by a `MailHeaderSyncService` test with a linked detached ref older than the window
+  - verified (2026-10-26 04:12+0100 by dell26/agent-1): cd server && ./gradlew test --tests '*MailHeaderSyncServiceTests' --tests '*MailBackupContributorTests' (Postgres Testcontainers) -> 44/44 + 21/21 pass, incl. 'the first sync after a restore takes over linked refs older than the window by Message-ID and prunes nothing' and the restore->first-sync end-to-end test
 - [ ] `MailHeaderStore.isLinked` also counts reminders (item_type EMAIL), so `pruneDetached` keeps reminder-only refs and `linkedDetachedMessageIds` retakes them; covered by a test
 - [ ] Remove the restore warning about older linked emails in `MailBackupContributor.restoreWarnings` once it no longer applies
 
