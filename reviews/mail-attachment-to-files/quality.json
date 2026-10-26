@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "task": "mail-attachment-to-files",
-  "reviewed_revision": "abc3e22d26a4bc872653912ac663cf551e3eb0ac",
+  "reviewed_revision": "bf6b358884c3a8549bef8ca06e455ae3ec8a7ce4",
   "helpers": {
     "test-writer": {"status": "completed", "report": "reviews/mail-attachment-to-files/tests.md"},
     "code-reviewer": {"status": "completed", "report": "reviews/mail-attachment-to-files/review.md"},
