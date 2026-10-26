@@ -188,6 +188,29 @@ describe('GtdSettingsService', () => {
     expect(notifications.error).not.toHaveBeenCalled();
   });
 
+  it('rejects with the 400 problem when the server refuses the target area, without a toast', async () => {
+    const done = service.deleteArea(WORK, 'a-gone');
+    const del = http.expectOne(
+      (r) => r.method === 'DELETE' && r.url === `/api/v1/areas/${WORK.id}`,
+    );
+    expect(del.request.params.get('moveTo')).toBe('a-gone');
+    expect(del.request.context.get(SILENT_ERRORS)).toBe(true);
+    del.flush(
+      {
+        status: 400,
+        title: 'Bad Request',
+        errors: [{ field: 'moveTo', message: 'must be another existing area' }],
+      },
+      { status: 400, statusText: 'Bad Request' },
+    );
+
+    const error = await done.catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(ApiError);
+    expect((error as ApiError).status).toBe(400);
+    expect(notifications.error).not.toHaveBeenCalled();
+    http.expectNone({ method: 'PATCH' });
+  });
+
   it('rejects a duplicate context name with the 409 problem, without a toast', async () => {
     const created = service.createContext('@home');
     const post = http.expectOne({ method: 'POST', url: '/api/v1/contexts' });
