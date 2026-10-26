@@ -13,7 +13,8 @@ The server clears `scheduledDate` when it releases a SCHEDULED task to NEXT, so 
 gtd-scheduled-marker added `TaskResponse.releasedOn` and `GET /api/v1/tasks?scheduled=today`; use them as the web does.
 
 ## Acceptance criteria
-- [ ] Android Today 'Scheduled for today' shows tasks released to Next today (via `scheduled=today` or `releasedOn`); unit tests cover it; `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` passes
+- [x] Android Today 'Scheduled for today' shows tasks released to Next today (via `scheduled=today` or `releasedOn`); unit tests cover it; `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` passes
+  - verified (2026-10-26 17:16+0100 by dell26/agent-1): sectionOf puts releasedOn==today tasks under SCHEDULED; releasedOn mapped through TaskResponse->Room cache (v2)->GtdTask and TaskLists; tests TodayViewModelTest (28), TaskRepositoryTest (19), TaskListsRepositoryTest (7) cover it; cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug on 8a3a65622 -> BUILD SUCCESSFUL, 0 failures
 
 ## Notes
 - Found by the code review of gtd-scheduled-marker (CR-1).
