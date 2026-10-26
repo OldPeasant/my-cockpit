@@ -262,6 +262,33 @@ class PushInAppTest {
         assertEquals(0, recordingNotifier.shown)
     }
 
+    @Test
+    fun `a push that arrives after a user logout is ignored`() {
+        answer()
+        answer()
+        runBlocking { authRepository.logout() }
+
+        service().onMessage(PushMessage(payload("mail"), true), INSTANCE)
+        service().onMessage(PushMessage(payload("reminder"), true), INSTANCE)
+
+        assertEquals(0, recordingNotifier.shown)
+        assertEquals(0, recordingSync.reminderSyncs)
+    }
+
+    @Test
+    fun `a user logout without a push registration only revokes the device`() {
+        // No distributor installed: nothing was registered, so there is no endpoint to delete or unregister.
+        fakeStore.instance = null
+        answer()
+
+        runBlocking { authRepository.logout() }
+
+        assertEquals("/api/v1/auth/devices/$DEVICE_ID", server.takeRequest(5, TimeUnit.SECONDS)!!.url.encodedPath)
+        assertEquals(1, server.requestCount)
+        assertTrue(recording.unregistered.isEmpty())
+        assertNull(tokenStore.current())
+    }
+
     private fun payload(kind: String) = """{"kind":"$kind","id":"$ITEM_ID"}""".toByteArray()
 
     private class RecordingConnector : UnifiedPushConnector {
