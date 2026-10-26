@@ -1,0 +1,20 @@
+{
+  "schema": 1,
+  "task": "p6-smoke",
+  "reviewed_revision": "11e0ce729f880c72ddf42d9edee3dfb2534cbbe6",
+  "helpers": {
+    "test-writer": {"status": "completed", "report": "reviews/p6-smoke/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/p6-smoke/review.md"},
+    "fixer": {"status": "completed", "report": "reviews/p6-smoke/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "web/e2e/README.md now documents the e2e profile's allow-private-networks bookmark fetches"}
+  ],
+  "validation": [
+    {"command": "npm --prefix web run e2e (podman-compose stack, all projects incl. phase-demos phase0-6)", "result": "pass"},
+    {"command": "cd web && npm run e2e:typecheck && npx eslint e2e/phase6 && npx prettier --check e2e/phase6 e2e/README.md", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
