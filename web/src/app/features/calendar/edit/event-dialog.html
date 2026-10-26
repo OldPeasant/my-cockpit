@@ -293,6 +293,18 @@
         Delete
       </button>
     }
+    @if (invitable() && !loading() && !loadFailed()) {
+      <button
+        mat-button
+        type="button"
+        class="invite"
+        [disabled]="saving()"
+        (click)="sendInvitations()"
+      >
+        <mat-icon>send</mat-icon>
+        <ng-container i18n="@@calendar.invite.open">Send invitations</ng-container>
+      </button>
+    }
     <span class="spacer"></span>
     <button mat-button type="button" [mat-dialog-close]="undefined" [disabled]="saving()">
       @if (readOnly()) {

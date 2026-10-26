@@ -4,11 +4,12 @@ import { MAT_DIALOG_DATA, MatDialogRef } from '@angular/material/dialog';
 import { MatSelectHarness } from '@angular/material/select/testing';
 import { provideRouter } from '@angular/router';
 import { CalendarResponse, EventResponse, OccurrenceResponse } from '../../../api/generated';
-import { ApiError } from '../../../core/http';
+import { ApiError, NotificationService } from '../../../core/http';
 import { LinksService } from '../../../shared/links';
 import { fakeCalendar, fakeEvent, fakeOccurrence } from '../views/testing';
 import { EventDialog, EventDialogData, scopesFor } from './event-dialog';
 import { EventEditService } from './event-edit.service';
+import { InvitationPrompt } from './invitation-dialog';
 import { ScopePrompt } from './scope-dialog';
 
 const settle = (): Promise<void> => new Promise((resolve) => setTimeout(resolve));
@@ -43,6 +44,8 @@ describe('EventDialog', () => {
     delete: ReturnType<typeof vi.fn>;
   };
   let scopes: { ask: ReturnType<typeof vi.fn> };
+  let invitations: { open: ReturnType<typeof vi.fn> };
+  let notifications: { info: ReturnType<typeof vi.fn>; error: ReturnType<typeof vi.fn> };
 
   const el = () => fixture.nativeElement as HTMLElement;
   const input = (name: string) =>
@@ -67,6 +70,8 @@ describe('EventDialog', () => {
       delete: vi.fn(() => Promise.resolve()),
     };
     scopes = { ask: vi.fn(() => Promise.resolve('THIS')) };
+    invitations = { open: vi.fn(() => Promise.resolve(undefined)) };
+    notifications = { info: vi.fn(), error: vi.fn() };
   });
 
   async function open(data: EventDialogData): Promise<void> {
@@ -78,6 +83,8 @@ describe('EventDialog', () => {
         { provide: MatDialogRef, useValue: ref },
         { provide: EventEditService, useValue: events },
         { provide: ScopePrompt, useValue: scopes },
+        { provide: InvitationPrompt, useValue: invitations },
+        { provide: NotificationService, useValue: notifications },
         // The contact link of a birthday navigates.
         provideRouter([{ path: '**', children: [] }]),
         // The event's linked items (overlay/event-links.spec.ts covers them).
@@ -927,6 +934,85 @@ describe('EventDialog', () => {
       expect(events.update).toHaveBeenCalledWith(expect.anything(), undefined, {
         title: 'Planning Q2',
       });
+    });
+  });
+
+  describe('invitations', () => {
+    const guests = [
+      { email: 'anna@example.test', status: 'NEEDS_ACTION' as const },
+      { email: 'ben@example.test', status: 'ACCEPTED' as const },
+    ];
+
+    it('sends invitations for a saved local event with guests and says so', async () => {
+      stored.set('e1', fakeEvent('e1', { title: 'Kickoff', attendees: guests }));
+      invitations.open.mockResolvedValue({
+        method: 'REQUEST',
+        recipients: ['anna@example.test', 'ben@example.test'],
+      });
+      await edit(fakeOccurrence('Kickoff', { eventId: 'e1' }));
+
+      el().querySelector<HTMLButtonElement>('button.invite')!.click();
+      await stable();
+
+      expect(invitations.open).toHaveBeenCalledExactlyOnceWith({
+        eventId: 'e1',
+        title: 'Kickoff',
+        attendees: ['anna@example.test', 'ben@example.test'],
+      });
+      expect(notifications.info).toHaveBeenCalledExactlyOnceWith('Invitation sent to 2 guest(s).');
+      expect(ref.close).not.toHaveBeenCalled();
+    });
+
+    it('reports a cancellation and nothing when the user cancels the dialog', async () => {
+      stored.set('e1', fakeEvent('e1', { attendees: guests }));
+      await edit(fakeOccurrence('Kickoff', { eventId: 'e1' }));
+
+      el().querySelector<HTMLButtonElement>('button.invite')!.click();
+      await stable();
+      expect(notifications.info).not.toHaveBeenCalled();
+
+      invitations.open.mockResolvedValue({ method: 'CANCEL', recipients: ['anna@example.test'] });
+      el().querySelector<HTMLButtonElement>('button.invite')!.click();
+      await stable();
+      expect(notifications.info).toHaveBeenCalledExactlyOnceWith(
+        'Cancellation sent to 1 guest(s).',
+      );
+    });
+
+    it('asks to save unsaved changes first', async () => {
+      stored.set('e1', fakeEvent('e1', { title: 'Kickoff', attendees: guests }));
+      await edit(fakeOccurrence('Kickoff', { eventId: 'e1' }));
+
+      type('title', 'Kickoff (moved)');
+      el().querySelector<HTMLButtonElement>('button.invite')!.click();
+      await stable();
+
+      expect(invitations.open).not.toHaveBeenCalled();
+      expect(alerts()).toContain('Save your changes before sending invitations.');
+    });
+
+    it('is not offered without saved guests, for synced events or in a new event', async () => {
+      stored.set('e1', fakeEvent('e1'));
+      await edit(fakeOccurrence('Solo', { eventId: 'e1' }));
+      expect(el().querySelector('button.invite')).toBeNull();
+      TestBed.resetTestingModule();
+
+      const google = fakeCalendar('google', { name: 'Google', sourceType: 'GOOGLE' });
+      stored.set('g1', fakeEvent('g1', { calendarId: 'google', attendees: guests }));
+      await edit(fakeOccurrence('Planning', { eventId: 'g1', calendarId: 'google' }), [
+        ...CALENDARS,
+        google,
+      ]);
+      expect(el().querySelector('button.invite')).toBeNull();
+      TestBed.resetTestingModule();
+
+      await open({
+        mode: 'create',
+        draft: { allDay: false, start: '2026-03-23T08:00:00Z', end: '2026-03-23T09:00:00Z' },
+        calendars: CALENDARS,
+        timeZone: 'Europe/Zurich',
+      });
+      expect(el().querySelector('button.invite')).toBeNull();
     });
   });
 

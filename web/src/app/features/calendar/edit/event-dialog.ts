@@ -16,7 +16,7 @@ import {
   EventPatchRequest,
   OccurrenceResponse,
 } from '../../../api/generated';
-import { ApiError } from '../../../core/http';
+import { ApiError, NotificationService } from '../../../core/http';
 import { EventLinks } from '../overlay/event-links';
 import {
   EditScope,
@@ -36,6 +36,7 @@ import {
   patchRequest,
 } from './event-form';
 import { isTimeZone, timeZones } from './event-times';
+import { InvitationPrompt } from './invitation-dialog';
 import { Repeat, REPEAT_PRESETS } from './recurrence';
 import { ScopePrompt } from './scope-dialog';
 
@@ -98,6 +99,8 @@ export class EventDialog {
   private readonly ref = inject<MatDialogRef<EventDialog, EventDialogResult>>(MatDialogRef);
   private readonly events = inject(EventEditService);
   private readonly scopes = inject(ScopePrompt);
+  private readonly invitations = inject(InvitationPrompt);
+  private readonly notifications = inject(NotificationService);
 
   protected readonly repeatPresets = REPEAT_PRESETS;
   protected readonly reminderPresets = REMINDER_PRESETS;
@@ -150,6 +153,16 @@ export class EventDialog {
   /** Attendees can be changed in local calendars only; providers own them elsewhere. */
   protected readonly attendeesEditable = computed(
     () => !this.readOnly() && (this.calendar()?.sourceType ?? 'LOCAL') === 'LOCAL',
+  );
+  /** The guests of the event as saved: invitations go out for the saved version. */
+  private readonly savedAttendees = signal<readonly string[]>([]);
+  /** Invitations are sent for saved events with guests in local calendars (SPEC.md §6.2). */
+  protected readonly invitable = computed(
+    () =>
+      this.data.mode === 'edit' &&
+      !this.virtual &&
+      this.attendeesEditable() &&
+      this.savedAttendees().length > 0,
   );
   /** The calendars an event can be saved to. */
   protected readonly targetCalendars = computed(() => {
@@ -341,6 +354,29 @@ export class EventDialog {
     });
   }
 
+  /** Sends invitations or a cancellation for the saved event to its guests by mail. */
+  protected async sendInvitations(): Promise<void> {
+    if (this.data.mode !== 'edit' || !this.invitable() || this.saving()) return;
+    this.error.set(null);
+    if (Object.keys(patchRequest(this.initial!, this.value(), true)).length > 0) {
+      this.error.set(
+        $localize`:@@calendar.invite.saveFirst:Save your changes before sending invitations.`,
+      );
+      return;
+    }
+    const sent = await this.invitations.open({
+      eventId: this.data.occurrence.eventId,
+      title: this.initial!.title,
+      attendees: this.savedAttendees(),
+    });
+    if (!sent) return;
+    this.notifications.info(
+      sent.method === 'CANCEL'
+        ? $localize`:@@calendar.invite.cancelSent:Cancellation sent to ${sent.recipients.length}:count: guest(s).`
+        : $localize`:@@calendar.invite.requestSent:Invitation sent to ${sent.recipients.length}:count: guest(s).`,
+    );
+  }
+
   private async run(action: () => Promise<EventDialogResult>): Promise<void> {
     this.saving.set(true);
     this.error.set(null);
@@ -380,6 +416,7 @@ export class EventDialog {
     this.customRule.set(value.repeat === 'custom' ? rrule : '');
     this.reminders.set(reminderMinutes);
     this.attendees.set(attendees);
+    this.savedAttendees.set(this.data.mode === 'edit' ? attendees.map((a) => a.email) : []);
     this.invalidTimes.set(false);
     if (this.readOnly()) this.form.disable();
     else {
