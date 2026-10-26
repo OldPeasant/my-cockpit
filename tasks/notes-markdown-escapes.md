@@ -1,10 +1,11 @@
 ---
 title: Robust plain text of note Markdown with backslash escapes
-status: todo
-owner:
+status: in_progress
+owner: dell26/agent-2
 deps: [mail-gtd]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/notes/domain/NoteMarkdown.kt,server/src/test/kotlin/ch/sonensei/cockpit/notes,server/src/main/kotlin/ch/sonensei/cockpit/mail/gtd/MailGtdService.kt,server/src/test/kotlin/ch/sonensei/cockpit/mail/gtd]
 prio: 2
+lease_until: 2026-10-26T03:27:01Z
 ---
 ## Goal
 `NoteMarkdown.plainText` (flexmark `TextCollectingVisitor`) miscounts Markdown backslash escapes next to bold text,
