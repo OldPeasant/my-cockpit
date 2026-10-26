@@ -14,7 +14,8 @@ CardDavAccountService, CardDavContactsSync.sync/createContact) and create contac
 ## Acceptance criteria
 - [ ] REST endpoints for CardDAV accounts (list/add/remove/sync now, status with lastError; password write-only), OpenAPI regenerated
 - [ ] web contacts settings: add/remove account, show sync state; new contact can target a CardDAV account
-- [ ] account config (password encrypted or omitted) covered by backup/restore and its round-trip test
+- [x] account config (password encrypted or omitted) covered by backup/restore and its round-trip test
+  - verified (2026-10-26 14:08+0100 by dell26/agent-1): cd server && ./gradlew test --tests '*CardDav*' --tests '*ContactsBackupContributorTests' --tests '*BackupRoundTrip*' -> 86 passed, 0 failed (BackupRoundTripTest incl. CardDAV accounts+links; ContactsBackupContributorTests 17: password only in encrypted secrets with passphrase, restored+re-encrypted on import, null without passphrase, accounts JSON has no password)
 
 ## Notes
 - ASSUMPTION (2026-10-26 13:28+0100 by dell26/agent-1): CardDAV account API at /api/v1/contacts/carddav-accounts (list/get/add/delete, POST /{id}/sync, POST /{id}/contacts to create a contact there); no edit endpoint: changing URL or password means removing and adding the account again
