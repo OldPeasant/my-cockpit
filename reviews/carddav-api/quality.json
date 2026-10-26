@@ -1,0 +1,36 @@
+{
+  "schema": 1,
+  "task": "carddav-api",
+  "reviewed_revision": "16e1708ff5794c96b7c33b8a17596bedc2cf0e26",
+  "helpers": {
+    "test-writer": {"status": "completed", "report": "reviews/carddav-api/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/carddav-api/review.md"},
+    "fixer": {"status": "completed", "report": "reviews/carddav-api/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P1", "disposition": "fixed",
+     "note": "server tests for the REST endpoints added (CardDavAccountWebTests)"},
+    {"id": "CR-2", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "409 on a new CardDAV contact no longer shown as an edit conflict"},
+    {"id": "CR-3", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "backup secret path covered by ContactsBackupContributorTests and the round-trip fixture"},
+    {"id": "CR-4", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "web specs for the accounts panel and Save to CardDAV account"},
+    {"id": "CR-5", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "contact fields validated before address book discovery"},
+    {"id": "CR-6", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "unused changed output removed"},
+    {"id": "CR-7", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "new message ids added to messages.xlf and German translations"},
+    {"id": "TW-1", "source": "test-writer", "severity": "P3", "disposition": "fixed",
+     "note": "older failed accounts request no longer clears the current list"},
+    {"id": "CR-8", "source": "code-reviewer", "severity": "P3", "disposition": "accepted",
+     "note": "contacts.retry has two source whitespace variants; no visible defect, locale spec passes; can be cleaned up with a separate id later"}
+  ],
+  "validation": [
+    {"command": "cd server && ./gradlew test --tests '*CardDav*' --tests '*ContactsBackupContributorTests' --tests '*BackupRoundTrip*' --tests '*OpenApiContractTest'", "result": "pass"},
+    {"command": "cd web && npx ng test --watch=false --include='src/app/features/contacts/**/*.spec.ts'", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
