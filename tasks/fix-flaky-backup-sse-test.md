@@ -16,6 +16,7 @@ event belongs to the gated `controllable` contributor, but other contributors' s
 ## Acceptance criteria
 - [x] the test waits for the gated contributor's step (or otherwise no longer depends on contributor order)
   - verified (2026-10-26 14:42+0100 by dell26/agent-1): BackupEventsStreamTests now reads UPDATED SSE events until the job is at 'controllable: data' with stepsDone+1 == events read, and drains stepsTotal+2-read; reviewed against BackupService.export ordering by code-reviewer and test-writer -> no dependency on contributor order
-- [ ] `cd server && ./gradlew test --tests '*BackupEventsStreamTests'` passes, and the full `./gradlew check` passes
+- [x] `cd server && ./gradlew test --tests '*BackupEventsStreamTests'` passes, and the full `./gradlew check` passes
+  - verified (2026-10-26 14:42+0100 by dell26/agent-1): cd server && ./gradlew test --tests '*BackupEventsStreamTests' -> 1 test, 0 failures; cd server && ./gradlew check -> exit 0, 4860 tests, 0 failures/errors; sh scripts/check.sh -> all checks passed
 
 ## Notes
