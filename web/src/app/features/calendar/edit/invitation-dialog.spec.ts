@@ -57,13 +57,16 @@ describe('InvitationDialog', () => {
     fixture.detectChanges();
   }
 
-  async function open(accounts: Promise<MailAccountResponse[]>): Promise<void> {
+  async function open(
+    accounts: Promise<MailAccountResponse[]>,
+    data: InvitationDialogData = DATA,
+  ): Promise<void> {
     ref = { close: vi.fn(), disableClose: false };
     service.accounts.mockReturnValue(accounts);
     TestBed.configureTestingModule({
       imports: [InvitationDialog],
       providers: [
-        { provide: MAT_DIALOG_DATA, useValue: DATA },
+        { provide: MAT_DIALOG_DATA, useValue: data },
         { provide: MatDialogRef, useValue: ref },
         { provide: InvitationService, useValue: service },
       ],
@@ -118,7 +121,26 @@ describe('InvitationDialog', () => {
   it('cannot send without a mail account', async () => {
     await open(Promise.resolve([]));
     expect(alerts()).toContain('Add a mail account in the settings to send invitations.');
+    expect(button('Try again')).toBeUndefined();
     expect(button('Send').disabled).toBe(true);
+  });
+
+  it('leaves the address of the chosen account out of the guests', async () => {
+    await open(
+      Promise.resolve([account('a1', 'jane@example.test'), account('a2', 'jd@example.test')]),
+      { ...DATA, attendees: ['Jane@Example.test', 'anna@example.test', 'jd@example.test'] },
+    );
+    const guests = () => el().querySelector('#calendar-invite-guests')!.textContent!;
+    expect(guests()).toContain('anna@example.test, jd@example.test');
+    expect(guests()).not.toContain('Jane@Example.test');
+
+    const select = await TestbedHarnessEnvironment.loader(fixture).getHarness(MatSelectHarness);
+    await select.open();
+    await select.clickOptions({ text: 'Jane a2 (jd@example.test)' });
+    fixture.detectChanges();
+
+    expect(guests()).toContain('Jane@Example.test, anna@example.test');
+    expect(guests()).not.toContain('jd@example.test');
   });
 
   it('shows a refusal of the mail server and stays open', async () => {
@@ -188,14 +210,32 @@ describe('InvitationDialog', () => {
 
     expect(el().textContent).not.toContain('Loading mail accounts…');
     expect(alerts()).toContain('Try again later');
+    expect(alerts()).not.toContain('Add a mail account in the settings to send invitations.');
     expect(button('Send').disabled).toBe(true);
     expect(service.send).not.toHaveBeenCalled();
+  });
+
+  it('loads the mail accounts again after a failure', async () => {
+    await open(Promise.reject(new ApiError(503, 'Service Unavailable', 'Try again later')));
+    service.accounts.mockReturnValue(Promise.resolve([account('a1', 'jane@example.test')]));
+
+    button('Try again').click();
+    await stable();
+
+    expect(service.accounts).toHaveBeenCalledTimes(2);
+    expect(alerts()).toEqual([]);
+    expect(button('Try again')).toBeUndefined();
+    expect(button('Send').disabled).toBe(false);
+    button('Send').click();
+    await stable();
+    expect(service.send).toHaveBeenCalledExactlyOnceWith('e1', 'REQUEST', 'a1');
   });
 
   it('shows a generic message when the mail accounts fail without an API error', async () => {
     await open(Promise.reject(new Error('fictitious failure')));
 
     expect(alerts()).toContain('The mail accounts could not be loaded.');
+    expect(alerts()).not.toContain('Add a mail account in the settings to send invitations.');
     expect(button('Send').disabled).toBe(true);
   });
 

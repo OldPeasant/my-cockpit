@@ -2,11 +2,13 @@ import { HttpContext } from '@angular/common/http';
 import {
   ChangeDetectionStrategy,
   Component,
+  computed,
   inject,
   Injectable,
   OnInit,
   signal,
 } from '@angular/core';
+import { toSignal } from '@angular/core/rxjs-interop';
 import { FormControl, ReactiveFormsModule, Validators } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import {
@@ -82,7 +84,7 @@ export class InvitationService {
       <p class="event-title">{{ data.title }}</p>
       <p class="note" id="calendar-invite-guests">
         <ng-container i18n="@@calendar.invite.to">To:</ng-container>
-        {{ data.attendees.join(', ') }}
+        {{ recipients().join(', ') }}
       </p>
 
       <mat-radio-group
@@ -103,6 +105,13 @@ export class InvitationService {
 
       @if (loading()) {
         <p class="note" role="status" i18n="@@calendar.invite.loading">Loading mail accounts…</p>
+      } @else if (loadError(); as message) {
+        <div class="load-failed">
+          <p class="error" role="alert">{{ message }}</p>
+          <button mat-stroked-button type="button" (click)="load()" i18n="@@calendar.retry">
+            Try again
+          </button>
+        </div>
       } @else if (accounts().length === 0) {
         <p class="error" role="alert" i18n="@@calendar.invite.noAccounts">
           Add a mail account in the settings to send invitations.
@@ -161,6 +170,12 @@ export class InvitationService {
       gap: var(--app-space-2);
       margin-bottom: var(--app-space-3);
     }
+    .load-failed {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: var(--app-space-2);
+    }
     .wide {
       width: 100%;
     }
@@ -182,16 +197,40 @@ export class InvitationDialog implements OnInit {
   });
   protected readonly accounts = signal<readonly MailAccountResponse[]>([]);
   protected readonly loading = signal(true);
+  /** Why the mail accounts could not be loaded, `null` when they were (or are loading). */
+  protected readonly loadError = signal<string | null>(null);
   protected readonly sending = signal(false);
+  /** Why the last send failed. */
   protected readonly error = signal<string | null>(null);
+  private readonly selectedAccountId = toSignal(this.accountId.valueChanges, {
+    initialValue: this.accountId.value,
+  });
+  /**
+   * The guests who get the mail: the server leaves out the organizer, so the address of the chosen
+   * account is left out here too (its default identity, which the server prefers, is not known here).
+   */
+  protected readonly recipients = computed(() => {
+    const id = this.selectedAccountId();
+    const organizer = this.accounts()
+      .find((account) => account.id === id)
+      ?.emailAddress.toLowerCase();
+    return this.data.attendees.filter((attendee) => attendee.toLowerCase() !== organizer);
+  });
 
-  async ngOnInit(): Promise<void> {
+  ngOnInit(): Promise<void> {
+    return this.load();
+  }
+
+  /** Loads the mail accounts and picks the first one. */
+  protected async load(): Promise<void> {
+    this.loading.set(true);
+    this.loadError.set(null);
     try {
       const accounts = await this.invitations.accounts();
       this.accounts.set(accounts);
       if (accounts.length) this.accountId.setValue(accounts[0].id);
     } catch (error) {
-      this.error.set(
+      this.loadError.set(
         error instanceof ApiError
           ? error.userMessage
           : $localize`:@@calendar.invite.accountsFailed:The mail accounts could not be loaded.`,
