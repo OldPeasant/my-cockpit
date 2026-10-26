@@ -14,7 +14,8 @@ hold:
 TaskService.releaseDue moves SCHEDULED tasks to NEXT and clears scheduledDate, so the Today view (SPEC.md §5.3 'scheduled for today') can't tell which Next actions were scheduled for today.
 
 ## Acceptance criteria
-- [ ] Server keeps a marker (e.g. `scheduledDate` kept or a new `releasedOn` field) on released tasks, new Flyway migration if needed, `api/openapi.yaml` regenerated; server tests cover it
+- [x] Server keeps a marker (e.g. `scheduledDate` kept or a new `releasedOn` field) on released tasks, new Flyway migration if needed, `api/openapi.yaml` regenerated; server tests cover it
+  - verified (2026-10-26 14:30+0100 by felix/agent-1): server/gradlew -p server check at 28e44631 -> BUILD SUCCESSFUL (ktlint + all tests incl. Testcontainers Postgres, migration V202610260700 applied); gtd.* + OpenApiContractTest at ad667a0d -> 434 passed (TicklerWebTests 20/20: releasedOn set on release, cleared on move/tickler, scheduled=today filter, 400 on bad value; GtdBackupContributorTests 23/23 round-trip incl. releasedOn and legacy backup), OpenApiContractTest confirms api/openapi.yaml current
 - [ ] Today view 'Scheduled for today' shows tasks released today; Vitest covers it; `cd web && npm run check` passes
 
 ## Notes
