@@ -1,11 +1,11 @@
 ---
 title: Ignore stale iTIP REPLYs across messages (per-attendee answered-at)
-status: todo
-owner: 
+status: in_progress
+owner: felix/agent-1
 deps: [itip-invitations]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/calendar]
 prio: 2
-lease_until: 
+lease_until: 2026-10-26T18:08:54Z
 extended: 
 releases: 1
 ---
