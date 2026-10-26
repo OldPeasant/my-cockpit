@@ -7,8 +7,8 @@ touches: [web/src/app/features/habits,web/src/app/features/gtd/today]
 prio: 2
 lease_until: 
 extended: 
-releases: 1
-hold: All work and quality evidence are committed (both criteria verified, review 0 findings, quality.json); only 'tasks.py done' is left. It cannot finish: in .taskcheck (scripts/check.sh) the server './gr
+releases: 0
+hold: 
 ---
 ## Goal
 `checkLabel()` and the error `message()` helper are copied in `features/habits/habits-page.ts` and
@@ -26,3 +26,4 @@ Follow-up from reviews/web-today-habits/review.md (CR-3, P3).
 - extended by felix/agent-1: Implementation committed (8a14cd9a: checkLabel/errorMessage moved to habit-display.ts, used by habits-page and today-habits). Tests + reviews/web-habits-shared-labels/{tests.md,review.md} committed in 082e245a; test-writer ran npm run check (pass, 3671 tests) and coverage; review has 0 findings. i18n ids confirmed unchanged (git diff 8a14cd9a~1 8a14cd9a | grep @@). Left: re-run code-reviewer if done treats the spec additions (committed after review) as stale; tasks.py verify #1/#2; run .taskcheck; write+commit quality.json (fixer not required); tasks.py done.
 - release by felix/agent-1: All work done and committed (5 local commits ahead of origin/main, backed up to wip/): checkLabel/errorMessage shared in features/habits/habit-display.ts, used by habits-page and today-habits; both criteria verified; tests.md, review.md (0 findings), quality.json (reviewed_revision 06172c40, fixer not required) committed. Only left: python tasks.py done web-habits-shared-labels. My run of done hung >20 min with no output (killed by tool timeout, beyond the 15 min check timeout) - run it with visible output (no pipe) to see where it stalls; if reviewed_revision is rejected after merging main, set it to the new HEAD hash (only tasks/reviews changed).
 - hold by felix/agent-1: All work and quality evidence are committed (both criteria verified, review 0 findings, quality.json); only 'tasks.py done' is left. It cannot finish: in .taskcheck (scripts/check.sh) the server './gradlew check' hangs. Test results stop at 13:38, the Testcontainers Postgres sits idle, and there was no progress for 20+ min in 2 sessions. done also did not enforce its 15 min TASK_CHECK_TIMEOUT (killed by an outer timeout 1500 -> exit 124). Not caused by this task (web-only change). A human must fix or unstick the hanging server test (and done's timeout), then run 'python tasks.py done web-habits-shared-labels'.
+- unhold by Peter Gürtler: finishing from a human machine
