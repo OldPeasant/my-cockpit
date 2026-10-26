@@ -121,7 +121,7 @@ class TicklerWebTests(
 	private fun stored(id: String): Pair<String, String?> =
 		jdbc.queryForObject("select list, tickler_date from task where id = ?", { rs, _ ->
 			rs.getString("list") to rs.getString("tickler_date")
-		}, UUID.fromString(id))!!
+		}, UUID.fromString(id))
 
 	private fun JsonNode.isAbsent(field: String): Boolean = get(field)?.isNull ?: true
 
