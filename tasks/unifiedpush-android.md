@@ -8,7 +8,7 @@ prio: 3
 lease_until: 2026-10-26T23:02:30Z
 subtasks: unifiedpush-server, unifiedpush-android-client
 releases: 0
-extended: 
+extended: dell26/agent-2
 hold: 
 ---
 ## Goal
@@ -23,3 +23,4 @@ Push via a self-hosted distributor (ntfy).
 - hold by Peter Gürtler: test
 - ASSUMPTION (2026-10-26 23:02+0100 by dell26/agent-2): No device/emulator/ntfy in the agent environment: end-to-end verified by combining server tests (WireMock distributor, RFC 8291 encryption, reminder+mail pushes) with Android tests (registration, PUT contract via generated client, message handling) plus a new app-side contract test pinning the server payload format; a manual on-device run with ntfy is left to the owner
 - ASSUMPTION (2026-10-26 23:34+0100 by dell26/agent-2): Reminder push now loads the pushed reminder by id (GET /reminders/{id}) and shows it once via ReminderScheduler.showFiredByServer (small addition in reminders/, outside touches); a redelivered push after a later sync may re-post (replace) the notification
+- extended by dell26/agent-2: Implementation, fixes (f0d873129) and fixer report done; push.* and reminders.ReminderShowFiredByServerTest pass. Left: code changed after review, so re-run test-writer (write reviews/unifiedpush-android/tests.md incl. coverage) and code-reviewer on final code; verify criteria #1 (combined server+android evidence, see assumption) and #2; write quality.json; run .taskcheck; done.
