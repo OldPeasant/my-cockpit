@@ -86,6 +86,8 @@ android {
 val e2eBaseUrl = providers.gradleProperty("e2eBaseUrl")
 
 tasks.withType<Test>().configureEach {
+    // Robolectric keeps an Android runtime per SDK config; with 2000+ tests the 512 MB default heap runs out.
+    maxHeapSize = "2g"
     extensions.configure<JacocoTaskExtension> {
         // Robolectric loads app classes without a code source location; without this JaCoCo records 0 coverage.
         isIncludeNoLocationClasses = true
