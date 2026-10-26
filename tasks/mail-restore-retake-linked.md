@@ -5,7 +5,7 @@ owner: dell26/agent-2
 deps: [backup-contrib-mail,mail-sync-perf]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/mail/sync,server/src/test/kotlin/ch/sonensei/cockpit/mail/sync,server/src/main/kotlin/ch/sonensei/cockpit/mail/backup]
 prio: 2
-lease_until: 2026-10-26T08:14:38Z
+lease_until: 2026-10-26T08:18:23Z
 hold: 
 releases: 0
 extended: 
