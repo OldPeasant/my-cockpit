@@ -85,18 +85,27 @@ class BackupEventsStreamTests(
 		val created = lines.awaitLine { it.startsWith("data:") && it.contains(job.id.toString()) }
 		created shouldContain "\"type\":\"${BackupJobService.EVENT_TYPE}\""
 		created shouldContain "\"op\":\"CREATED\""
-		val progress = lines.awaitLine { it.startsWith("data:") && it.contains(job.id.toString()) }
-		progress shouldContain "\"op\":\"UPDATED\""
+		// Other contributors may come before the gated one: read their steps until the gated step's own event arrived.
+		// Step n (counted from 0) is announced by the (n + 1)th UPDATED event.
+		var updates = 0
+		do {
+			lines.awaitUpdate(job.id)
+			updates++
+			val gated = jobs.get(job.id).let { it.step == GATED_STEP && it.stepsDone + 1 == updates }
+		} while (!gated)
 		// The export is still held inside its snapshot transaction, yet its progress has been delivered.
 		jobs.get(job.id).state shouldBe BackupJobState.RUNNING
-		jobs.get(job.id).step shouldBe "controllable: data"
+		jobs.get(job.id).step shouldBe GATED_STEP
 
 		contributor.gate!!.countDown()
 		awaitFinished(job.id) shouldBe BackupJobState.COMPLETED
-		// Every remaining step and the completion are announced too: 3 steps in total, "done", then COMPLETED.
-		repeat(4) { lines.awaitLine { it.startsWith("data:") && it.contains(job.id.toString()) } shouldContain "\"op\":\"UPDATED\"" }
+		// Every remaining step and the completion are announced too: all steps, "done", then COMPLETED.
+		repeat(jobs.get(job.id).stepsTotal + 2 - updates) { lines.awaitUpdate(job.id) }
 		response.body().close()
 	}
+
+	private fun BufferedReader.awaitUpdate(id: UUID) =
+		awaitLine { it.startsWith("data:") && it.contains(id.toString()) } shouldContain "\"op\":\"UPDATED\""
 
 	private fun awaitFinished(id: UUID): BackupJobState {
 		val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10)
@@ -121,5 +130,6 @@ class BackupEventsStreamTests(
 
 	private companion object {
 		const val TOKEN = "fictitious-backup-sse-session-token"
+		const val GATED_STEP = "controllable: data"
 	}
 }
