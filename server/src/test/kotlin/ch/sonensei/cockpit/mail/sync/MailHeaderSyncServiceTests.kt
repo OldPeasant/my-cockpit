@@ -753,6 +753,29 @@ class MailHeaderSyncServiceTests {
 	}
 
 	@Test
+	fun `the first sync after a restore takes over linked refs older than the window by Message-ID and prunes nothing`() {
+		// Restored refs are detached rows of a folder never synced (uidvalidity null); UID 2 is older than the window.
+		remote.uids = listOf(5)
+		every { store.linkedDetachedMessageIds(folder.id) } returns listOf("<2@example.test>")
+		every { store.locatedUids(folder.id) } returns listOf(5)
+		remote.messageIdMatches = listOf(2)
+
+		val result = service.syncFolder(folder.id)
+
+		remote.calls shouldContainExactly
+			listOf(
+				"uidsSince 2026-04-20T10:00:00Z",
+				"headers [5]",
+				"uidsWithMessageIds [<2@example.test>]",
+				"headers [2]",
+			)
+		upserted() shouldContainExactly listOf(5, 2)
+		result shouldBe FolderSyncResult(folder.id, full = true, created = 2, updated = 0, removed = 0)
+		verify(exactly = 0) { store.detachFolder(any()) }
+		verify(exactly = 0) { store.pruneDetached(any()) }
+	}
+
+	@Test
 	fun `a resync without linked detached rows does not search by Message-ID`() {
 		cachedState()
 		remote.status = remote.status.copy(uidValidity = 8)

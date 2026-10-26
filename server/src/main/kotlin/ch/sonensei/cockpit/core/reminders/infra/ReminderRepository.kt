@@ -21,6 +21,12 @@ interface ReminderRepository : JpaRepository<Reminder, UUID> {
 		itemId: UUID,
 	): List<Reminder>
 
+	/** Whether an item has any reminder, fired or not. */
+	fun existsByItemTypeAndItemId(
+		itemType: ItemType,
+		itemId: UUID,
+	): Boolean
+
 	/** Reminders of an item that have not fired yet, earliest first. */
 	fun findByItemTypeAndItemIdAndFiredAtIsNullOrderByRemindAtAscIdAsc(
 		itemType: ItemType,

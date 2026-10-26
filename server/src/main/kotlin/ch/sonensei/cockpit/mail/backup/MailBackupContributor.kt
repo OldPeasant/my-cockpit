@@ -30,8 +30,8 @@ import java.util.UUID
  *   connection ([OAuthBackupContributor]).
  * - `data/mail_message_refs.jsonl`: the cached messages that a link or a reminder points to, as refs (id, account,
  *   folder, Message-ID header) without headers or bodies, so those links survive. A ref is restored as a detached
- *   message row (no UID): the sync takes it over again when it finds the message by its Message-ID
- *   ([ch.sonensei.cockpit.mail.sync.MailHeaderStore]), and until then the views don't show it.
+ *   message row (no UID): the first sync of its folder takes it over again by its Message-ID, also when the message is older
+ *   than the sync window ([ch.sonensei.cockpit.mail.sync.MailHeaderSyncService]); until then the views don't show it.
  *
  * Rows are read and written with JDBC rather than JPA: a restore must keep ids, `created_at`, `updated_at` and
  * `version` exactly as backed up, which JPA auditing and versioning would overwrite.
@@ -105,9 +105,6 @@ class MailBackupContributor(
 				} else {
 					"The backup has no mail passwords: the passwords of $imap must be entered again"
 				}
-		}
-		if (reader.has(MESSAGE_REFS)) {
-			warnings += "Links and reminders to emails older than the sync window come back only once those emails are loaded again"
 		}
 		return warnings
 	}

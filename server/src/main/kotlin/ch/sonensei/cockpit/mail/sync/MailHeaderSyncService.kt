@@ -284,17 +284,17 @@ class MailHeaderSyncService(
 			remote.uidsSince(since).chunked(BATCH_SIZE).fold(StoreCounts()) { acc, uids ->
 				acc + store.upsert(account.id, folder.id, remote.headers(uids))
 			}
-		if (resync) {
-			counts += retakeLinked(account, folder, remote)
-			counts += StoreCounts(removed = store.pruneDetached(folder.id))
-		}
+		// Also on the first sync: rows restored from a backup are detached refs that links or reminders point to.
+		counts += retakeLinked(account, folder, remote)
+		if (resync) counts += StoreCounts(removed = store.pruneDetached(folder.id))
 		store.finish(folder.id, remote.status, clock.instant())
 		return FolderSyncResult(folder.id, full = true, counts.created, counts.updated, counts.removed)
 	}
 
 	/**
-	 * After the window pass of a resync: linked rows still detached may belong to messages older than the window that
-	 * are still in the folder. They are looked up by Message-ID so the links keep pointing at a located message.
+	 * After the window pass of a full sync: linked or reminded rows still detached (after a UIDVALIDITY change, or
+	 * restored from a backup) may belong to messages older than the window that are still in the folder. They are looked
+	 * up by Message-ID so the links and reminders keep pointing at a located message.
 	 */
 	private fun retakeLinked(
 		account: MailAccount,
