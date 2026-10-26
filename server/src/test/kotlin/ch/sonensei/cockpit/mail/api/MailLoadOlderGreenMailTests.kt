@@ -29,6 +29,7 @@ import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc
 import org.springframework.jdbc.core.JdbcTemplate
+import org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf
 import org.springframework.test.annotation.DirtiesContext
 import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.get
@@ -144,8 +145,10 @@ class MailLoadOlderGreenMailTests(
 		limit: Int,
 	): JsonNode =
 		mockMvc
-			.post("/api/v1/mail/folders/$folderId/load-older") { param("limit", "$limit") }
-			.andExpect { status { isOk() } }
+			.post("/api/v1/mail/folders/$folderId/load-older") {
+				with(csrf())
+				param("limit", "$limit")
+			}.andExpect { status { isOk() } }
 			.andReturn()
 			.response.contentAsString
 			.let(json::readTree)
@@ -180,7 +183,7 @@ class MailLoadOlderGreenMailTests(
 
 	@Test
 	fun `an unknown folder is 404, a folder deleted on the server too`() {
-		mockMvc.post("/api/v1/mail/folders/${UUID.randomUUID()}/load-older").andExpect {
+		mockMvc.post("/api/v1/mail/folders/${UUID.randomUUID()}/load-older") { with(csrf()) }.andExpect {
 			status { isNotFound() }
 			content { contentTypeCompatibleWith("application/problem+json") }
 		}
@@ -189,7 +192,7 @@ class MailLoadOlderGreenMailTests(
 		folderService.sync(account.id)
 		val archive = checkNotNull(folders.findByAccountIdAndPath(account.id, "Archive"))
 		remote { store -> store.getFolder("Archive").delete(true) }
-		mockMvc.post("/api/v1/mail/folders/${archive.id}/load-older").andExpect {
+		mockMvc.post("/api/v1/mail/folders/${archive.id}/load-older") { with(csrf()) }.andExpect {
 			status { isNotFound() }
 			content { contentTypeCompatibleWith("application/problem+json") }
 		}
@@ -200,7 +203,7 @@ class MailLoadOlderGreenMailTests(
 		val inbox = syncedInbox()
 		greenMail.stop()
 		try {
-			mockMvc.post("/api/v1/mail/folders/${inbox.id}/load-older").andExpect {
+			mockMvc.post("/api/v1/mail/folders/${inbox.id}/load-older") { with(csrf()) }.andExpect {
 				status { isBadGateway() }
 				jsonPath("$.errorCode") { value("CONNECTION_FAILED") }
 			}
