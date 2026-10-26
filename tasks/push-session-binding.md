@@ -20,3 +20,4 @@ closed, 12 h idle expiry, session revoked). Follow-up of review finding CR-1 in 
 - Also worth doing here: `core/push` holds two RFC 8291 encryptions (`infra/WebPushCrypto.encrypt` from web-push and
   `domain/WebPushEncryption` from UnifiedPush); let `PushService` use `WebPushEncryption` and drop the duplicate
   together with its tests (keep the RFC 8291 vector test).
+- ASSUMPTION (2026-10-26 18:50+0100 by dell26/agent-1): Migration deletes existing push_subscription rows (they have no session); the web app re-registers on its next start (PushSubscriptionService.sync), so a browser at most misses pushes until it is opened again.
