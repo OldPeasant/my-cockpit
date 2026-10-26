@@ -5,7 +5,7 @@ owner: dell26/agent-1
 deps: []
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/calendar/infra/ics,server/src/test/kotlin/ch/sonensei/cockpit/calendar/infra/ics]
 prio: 2
-lease_until: 2026-10-26T01:50:37Z
+lease_until: 2026-10-26T01:55:41Z
 ---
 ## Goal
 `IcsFeedClientTests` "a feed of exactly the maximum size is read, a larger Content-Length is refused before reading"
