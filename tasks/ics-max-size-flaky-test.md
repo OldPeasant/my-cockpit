@@ -1,12 +1,14 @@
 ---
 title: IcsFeedClient: refusing an oversized Content-Length sometimes surfaces as IOException ('could not be reached') instead of 'larger than'
-status: in_progress
-owner: dell26/agent-1
+status: todo
+owner: 
 deps: []
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/calendar/infra/ics,server/src/test/kotlin/ch/sonensei/cockpit/calendar/infra/ics]
 prio: 2
-lease_until: 2026-10-26T03:16:35Z
-extended: dell26/agent-1
+lease_until: 
+extended: 
+hold: Task is complete: both criteria verified, review/test/quality evidence committed (cbad8b408). done refused only because .taskcheck fails in BackupRoundTripTest and FilesBackupContributorTests with 'ja
+releases: 0
 ---
 ## Goal
 `IcsFeedClientTests` "a feed of exactly the maximum size is read, a larger Content-Length is refused before reading"
@@ -25,3 +27,4 @@ subscriber's `tooLarge` error, so `fetchOnce` maps it to "could not be reached".
 ## Notes
 - extended by dell26/agent-1: Fix + tests + review.md/tests.md committed (0 findings); AC1 verified. Left: AC2 needs 2+ more full 'cd server && ./gradlew check' runs (run 1 at 4acf6e3b8: IcsFeedClientTests 46/46 pass; 2 unrelated backup test failures from 'Disk quota exceeded' on host), then verify #2, write quality.json (reviewed_revision = HEAD, fixer not required), sh scripts/check.sh, done.
 - ASSUMPTION (2026-10-26 03:48+0100 by dell26/agent-1): AC2 counted as met: IcsFeedClientTests passed in 4 full 'gradlew -p server check' runs, though each build failed on 2 unrelated backup tests from 'Disk quota exceeded' (host /tmp full of BackupRoundTripTest's leaked dirs; new task backup-round-trip-tmp-leak)
+- hold by dell26/agent-1: Task is complete: both criteria verified, review/test/quality evidence committed (cbad8b408). done refused only because .taskcheck fails in BackupRoundTripTest and FilesBackupContributorTests with 'java.io.IOException: Disk quota exceeded': host /tmp (tmpfs 16G, 13G used) is full of leaked cockpit-round-trip-data* dirs (see task backup-round-trip-tmp-leak). A human must delete /tmp/cockpit-round-trip-data* (and cockpit-backups*), then unhold; the next owner only needs to run 'python tasks.py done ics-max-size-flaky-test'.
