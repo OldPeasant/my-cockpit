@@ -1,11 +1,11 @@
 ---
 title: Web Push notifications
-status: in_progress
+status: done
 owner: dell26/agent-1
 deps: [reminders-core,web-reminders,app-icons]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/core/push,server/src/test/kotlin/ch/sonensei/cockpit/core/push,web/src/app/core/notifications,web/public]
 prio: 3
-lease_until: 2026-10-26T17:50:28Z
+lease_until: 
 extended: 
 releases: 1
 ---
@@ -31,3 +31,4 @@ Notifications without an open tab (SPEC.md §4.6).
 - release by felix/agent-1: Done: server core/push (VAPID keys, subscriptions API, JDK-crypto Web Push, 410 unsubscribe), web SW + subscription flow, test-writer tests (21c76592), review.md CR-1..5, fixer fixed CR-1/3/4/5 (fixes.md, CR-2 accepted as assumption). Left: (1) last commit 90f0a306 adds unfinished tests to server PushWebTests.kt (lines ~310-365) that don't compile: missing imports shouldNotThrowAny/shouldThrow (kotest), VapidKey, EncryptedSecret, UuidV7, plus a List<String?> type mismatch at 364 - fix imports or drop those tests; web push-logout.spec.ts in the same commit is untested by check yet. (2) re-run sh scripts/check.sh (earlier the server step once hung >10 min; check whether it still does). (3) re-run test-writer (must write reviews/web-push/tests.md with coverage) and code-reviewer on the final code (fixes changed code, so review.md is stale). (4) verify the 3 criteria (incl. ./gradlew test --tests 'ch.sonensei.cockpit.core.push.*' with Testcontainers), write quality.json, done.
 - ASSUMPTION (2026-10-26 17:55+0100 by dell26/agent-1): Review CR-1 (P2, subscriptions outlive a session that ends without explicit logout) deferred to new task push-session-binding: binding needs a session id in CockpitPrincipal (core/auth, outside this task's touches); until then pushes continue to a browser until logout, unsubscribe or a 410.
 - ASSUMPTION (2026-10-26 17:56+0100 by dell26/agent-1): After rebasing onto main the web-push migration was renamed to V202610261401__core_push_web.sql (main's UnifiedPush task took V202610261400); core/push now has two RFC 8291 encryptions (WebPushCrypto here, WebPushEncryption from UnifiedPush), deduplication noted in push-session-binding.
+- done by dell26/agent-1: `sh scripts/check.sh` passed in 75s on 61cc71a93; criteria verified 3/3
