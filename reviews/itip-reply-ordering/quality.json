@@ -1,0 +1,23 @@
+{
+  "schema": 1,
+  "task": "itip-reply-ordering",
+  "reviewed_revision": "cbbee7d8db58354127f054df2d8ad2aefa2e124e",
+  "helpers": {
+    "test-writer": {"status": "completed", "report": "reviews/itip-reply-ordering/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/itip-reply-ordering/review.md"},
+    "fixer": {"status": "completed", "report": "reviews/itip-reply-ordering/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "series vs occurrence REPLY ordering: an older occurrence REPLY is ignored against the series stamp, a series REPLY skips overrides answered later"},
+    {"id": "CR-2", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "missing SEQUENCE now counts as 0 (RFC 5545 default)"}
+  ],
+  "validation": [
+    {"command": "cd server && ./gradlew test --rerun --tests '*Itip*' --tests '*CalendarBackup*' jacocoTestReport", "result": "pass"},
+    {"command": "cd server && ./gradlew integrationTest --rerun --tests '*ItipGreenMail*' ktlintCheck", "result": "pass"},
+    {"command": "cd server && ./gradlew check", "result": "pass"},
+    {"command": "cd server && ./gradlew test --tests '*ItipReplyStampPersistence*' --tests '*ItipReplyProcessorTests*' --tests '*ItipMessagesTests*' ktlintCheck", "result": "pass"}
+  ]
+}
