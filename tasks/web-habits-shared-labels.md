@@ -1,7 +1,7 @@
 ---
 title: Share habit check label/error helpers between Habits view and Today
-status: todo
-owner: 
+status: in_progress
+owner: Peter Gürtler
 deps: [web-today-habits]
 touches: [web/src/app/features/habits,web/src/app/features/gtd/today]
 prio: 2
