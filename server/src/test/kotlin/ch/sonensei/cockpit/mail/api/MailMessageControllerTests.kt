@@ -23,7 +23,12 @@ import java.util.UUID
  */
 class MailMessageControllerTests {
 	private val reads = mockk<MailReadService>()
-	private val mockMvc = MockMvcBuilders.standaloneSetup(MailMessageController(reads, mockk())).build()
+	private val mockMvc =
+		MockMvcBuilders
+			.standaloneSetup(
+				MailMessageController(reads, mockk()),
+			).setControllerAdvice(MailConnectionAdvice())
+			.build()
 	private val id = UUID.randomUUID()
 
 	/** The service hands [attachment] to the controller and streams [content] into the stream it opens. */

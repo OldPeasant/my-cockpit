@@ -5,12 +5,12 @@ import ch.qos.logback.classic.Logger
 import ch.qos.logback.classic.spi.ILoggingEvent
 import ch.qos.logback.core.read.ListAppender
 import ch.sonensei.cockpit.core.crypto.EncryptedSecret
+import ch.sonensei.cockpit.mail.api.MailConnectionAdvice
 import ch.sonensei.cockpit.mail.model.MailAccount
 import ch.sonensei.cockpit.mail.model.MailAccountType
 import ch.sonensei.cockpit.mail.model.MailSecurity
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldNotContain
-import io.mockk.mockk
 import jakarta.mail.AuthenticationFailedException
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeEach
@@ -21,7 +21,7 @@ import java.util.UUID
 
 /** Passwords, tokens and server responses never reach `toString`, INFO logs or the Problem Details body. */
 class MailSecretRedactionTests {
-	private val logger = LoggerFactory.getLogger(MailAccountController::class.java) as Logger
+	private val logger = LoggerFactory.getLogger(MailConnectionAdvice::class.java) as Logger
 	private val appender = ListAppender<ILoggingEvent>()
 	private var previousLevel: Level? = null
 
@@ -78,9 +78,9 @@ class MailSecretRedactionTests {
 	@Test
 	fun `a connection failure answers 502 with a fixed message and logs no server response at INFO`() {
 		val cause = AuthenticationFailedException("NO LOGIN failed for jane with fictitious-secret-1")
-		val controller = MailAccountController(mockk(), mockk())
+		val advice = MailConnectionAdvice()
 
-		val response = controller.handleConnectionFailure(MailConnectionException(MailConnectionError.AUTHENTICATION_FAILED, cause))
+		val response = advice.handleConnectionFailure(MailConnectionException(MailConnectionError.AUTHENTICATION_FAILED, cause))
 
 		response.statusCode shouldBe HttpStatus.BAD_GATEWAY
 		response.body!!.detail shouldBe MailConnectionError.AUTHENTICATION_FAILED.message
@@ -97,7 +97,7 @@ class MailSecretRedactionTests {
 	@Test
 	fun `an exhausted pool answers 503`() {
 		val response =
-			MailAccountController(mockk(), mockk()).handleConnectionFailure(MailConnectionException(MailConnectionError.POOL_EXHAUSTED))
+			MailConnectionAdvice().handleConnectionFailure(MailConnectionException(MailConnectionError.POOL_EXHAUSTED))
 
 		response.statusCode shouldBe HttpStatus.SERVICE_UNAVAILABLE
 		response.body!!.properties!!["errorCode"] shouldBe "POOL_EXHAUSTED"

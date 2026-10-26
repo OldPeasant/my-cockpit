@@ -4,6 +4,7 @@ import ch.sonensei.cockpit.core.web.PreconditionFailedException
 import ch.sonensei.cockpit.core.web.PreconditionRequiredException
 import ch.sonensei.cockpit.core.web.ProblemDetailsAdvice
 import ch.sonensei.cockpit.mail.api.MailAttachment
+import ch.sonensei.cockpit.mail.api.MailConnectionAdvice
 import ch.sonensei.cockpit.mail.imap.MailConnectionError
 import ch.sonensei.cockpit.mail.imap.MailConnectionException
 import ch.sonensei.cockpit.mail.model.MailAddress
@@ -46,7 +47,7 @@ class DraftControllerTests {
 	private val mockMvc =
 		MockMvcBuilders
 			.standaloneSetup(DraftController(drafts, correspondents, ComposeProperties(DataSize.ofBytes(MAX_SIZE))))
-			.setControllerAdvice(ProblemDetailsAdvice())
+			.setControllerAdvice(MailConnectionAdvice(), ProblemDetailsAdvice())
 			.build()
 	private val json = JsonMapper.builder().build()
 
