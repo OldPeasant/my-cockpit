@@ -28,8 +28,9 @@ import kotlin.math.ceil
  *
  * Requests go through MockMvc (security filters, controller, service, database; no network). Each endpoint gets
  * [WARMUP] unmeasured calls, then [SAMPLES] measured ones. The measured percentiles are written to
- * `build/reports/perf/perf-baseline.md` and printed, for docs/perf.md. Seeding uses fixed random seeds, so every run
- * gets the same data. Tagged `external` (slow): `./gradlew integrationTest --tests '*PerfBaselineTests'`.
+ * `build/reports/perf/perf-baseline.md` and printed, for docs/perf.md. Seeding uses a fixed random seed and
+ * row-derived ids, so every run gets the same data (dates relative to today). Tagged `external` (slow):
+ * `./gradlew integrationTest --tests '*PerfBaselineTests'`.
  */
 @ExternalTest
 @SpringBootTest
