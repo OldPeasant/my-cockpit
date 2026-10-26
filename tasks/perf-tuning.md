@@ -1,10 +1,11 @@
 ---
 title: Performance baseline and tuning
-status: todo
-owner:
+status: in_progress
+owner: dell26/agent-1
 deps: [p6-smoke]
 touches: [server/src/test/kotlin/ch/sonensei/cockpit/perf,server/src/main/resources/db/migration/perf,docs/perf.md]
 prio: 3
+lease_until: 2026-10-26T14:04:39Z
 ---
 ## Goal
 Fast with realistic data volumes.
