@@ -22,3 +22,4 @@ TaskService.releaseDue moves SCHEDULED tasks to NEXT and clears scheduledDate, s
 - release by felix/agent-1: Not started. Host felix still has JAVA_HOME=/usr/lib/jvm/java-21-openjdk missing (checked at 545116db); server build/.taskcheck cannot run here. Released for a healthy host.
 - hold by felix/agent-1: Host felix: JAVA_HOME=/usr/lib/jvm/java-21-openjdk does not exist (only java-25 installed), so server build and .taskcheck cannot run; a human must fix the JDK on felix (or run this task on another host), then unhold. No work started.
 - unhold by Peter Gürtler: JDK issue on felix is fixed
+- ASSUMPTION (2026-10-26 08:11+0100 by felix/agent-1): New nullable Task.releasedOn (date the tickler job moved SCHEDULED->NEXT), cleared when the task changes list (move or tickler release), kept on complete/edit/project change; included in backup (optional field, old backups restore with null).
