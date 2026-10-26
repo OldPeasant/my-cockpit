@@ -13,7 +13,8 @@ releases: 1
 An older iTIP REPLY (lower SEQUENCE, or same SEQUENCE and older DTSTAMP) that arrives after a newer one from the same attendee must not overwrite the attendee status (RFC 5546 §2.1.5; review finding CR-3 of itip-invitations). Needs a per-attendee answered-at/sequence value: decide between an optional field on the Attendee JSON (mind EventCommands equality, backup, AttendeeDto) or an itip table with a Flyway migration.
 
 ## Acceptance criteria
-- [ ] A REPLY older than the last applied one for the same attendee/UID/RECURRENCE-ID is ignored; tests cover it
+- [x] A REPLY older than the last applied one for the same attendee/UID/RECURRENCE-ID is ignored; tests cover it
+  - verified (2026-10-26 19:52+0100 by felix/agent-1): cd server && ./gradlew test --rerun --tests '*Itip*' --tests '*CalendarBackup*' (Postgres Testcontainer) -> 85 passed, 0 failed (ItipReplyProcessorTests 18 incl. older REPLY ignored/series-vs-occurrence, ItipReplyStampPersistenceTests 10 incl. per-attendee, ItipMessagesTests 26); ./gradlew integrationTest --tests '*ItipGreenMail*' -> 34 passed (stale REPLY over real SMTP/IMAP ignored); re-run ItipReplyStampPersistence/Processor/Messages by code-reviewer on HEAD -> 54 passed
 - [ ] The stored value survives backup/restore and is not lost on event edits via the API
 
 ## Notes
