@@ -1,11 +1,11 @@
 ---
 title: Send invitations for local events (iTIP)
-status: in_progress
+status: done
 owner: dell26/agent-1
 deps: [cal-local-api,mail-compose]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/calendar/itip,server/src/test/kotlin/ch/sonensei/cockpit/calendar/itip]
 prio: 3
-lease_until: 2026-10-26T15:08:59Z
+lease_until: 
 extended: 
 releases: 2
 ---
@@ -27,3 +27,4 @@ Invite attendees by mail (SPEC.md §6.2).
 - ASSUMPTION (2026-10-26 15:15+0100 by r1963macos/agent-1): CR-3 partial: only newest REPLY per attendee within one mail is applied (by SEQUENCE, then DTSTAMP); cross-message staleness check not implemented because it needs per-attendee answered-at storage (shared Attendee model or new table). Follow-up if needed.
 - ASSUMPTION (2026-10-26 15:16+0100 by r1963macos/agent-1): Uninvite CANCEL to a mix of still-invited and removed attendees of a live event is rejected with 400 instead of partially sent
 - release by r1963macos/agent-1: All code, tests, fixes done; both criteria verified; tests.md, fixes.md, review.md, quality.json committed (reviewed_revision 4745a792 = rebased 4432d5de, same task patch). Only blocker: done REFUSES because review.md line 92 (CR-5 suggested fix) contains the literal text '<title>', which the gate reads as a template placeholder. Left: re-run code-reviewer on HEAD asking it not to write angle-bracket placeholders (e.g. write 'No longer invited: {event title}'), commit it, set reviewed_revision to the new HEAD, run tasks.py done. No code changes needed.
+- done by dell26/agent-1: `sh scripts/check.sh` passed in 67s on d8718b06e; criteria verified 2/2
