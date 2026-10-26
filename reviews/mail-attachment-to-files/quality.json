@@ -1,0 +1,25 @@
+{
+  "schema": 1,
+  "task": "mail-attachment-to-files",
+  "reviewed_revision": "abc3e22d26a4bc872653912ac663cf551e3eb0ac",
+  "helpers": {
+    "test-writer": {"status": "completed", "report": "reviews/mail-attachment-to-files/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/mail-attachment-to-files/review.md"},
+    "fixer": {"status": "completed", "report": "reviews/mail-attachment-to-files/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "413/503 paths and name helpers untested; tests added in e037c1875 before the fixer ran (fixer: already resolved), confirmed resolved by the final review"},
+    {"id": "CR-2", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "local temp-file open/close failures reported as mail-server failures; fixed by fixer in aed1e4680"},
+    {"id": "CR-3", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "duplicated attachment lookup/streaming; shared MailReadService.copyAttachment, fixer in aed1e4680"}
+  ],
+  "validation": [
+    {"command": "server/gradlew -p server check --offline (4739 tests, 0 failures)", "result": "pass"},
+    {"command": "server/gradlew -p server integrationTest --offline --tests '*MailAttachmentToFilesGreenMailTests' (3 tests)", "result": "pass"},
+    {"command": "npm --prefix web run check (api:check, lint, 3665 tests, build)", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
