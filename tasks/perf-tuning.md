@@ -1,11 +1,11 @@
 ---
 title: Performance baseline and tuning
-status: in_progress
+status: done
 owner: dell26/agent-1
 deps: [p6-smoke]
 touches: [server/src/test/kotlin/ch/sonensei/cockpit/perf,server/src/main/resources/db/migration/perf,docs/perf.md]
 prio: 3
-lease_until: 2026-10-26T14:43:32Z
+lease_until: 
 ---
 ## Goal
 Fast with realistic data volumes.
@@ -19,3 +19,4 @@ Fast with realistic data volumes.
 - ASSUMPTION (2026-10-26 15:00+0100 by dell26/agent-1): Tuning touched core search (SearchDocumentRepository.fullText: materialized tsquery CTE, float recency boost) outside the task's touches; it was the only endpoint over 200 ms and the change keeps the ranking formula
 - ASSUMPTION (2026-10-26 15:00+0100 by dell26/agent-1): The 200 ms assertion runs on whatever machine executes integrationTest; on the shared agent machine timings vary up to ~2x, worst p95 measured is ~120 ms, so the margin is kept rather than loosening the limit
 - ASSUMPTION (2026-10-26 15:04+0100 by dell26/agent-1): The mail_message_sort index migration lives in db/migration/perf/ (module 'perf'), as the task's touches name, not in mail/; it passes MigrationConventionTests
+- done by dell26/agent-1: `sh scripts/check.sh` passed in 82s on d23b689a7; criteria verified 1/1
