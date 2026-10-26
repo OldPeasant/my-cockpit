@@ -110,9 +110,11 @@ class PushRegistrar internal constructor(
     /** At the start of a logout, while still logged in: the server forgets the endpoint of this login. */
     suspend fun deleteOnServer() {
         val instance = store.current() ?: return
+        // Set before waiting for the lock: the PUTs still waiting and later ones are dropped, even if the logout hook's
+        // timeout cancels this wait.
+        deleted = instance
         requests.withLock {
-            // Waits for a PUT already being sent, and drops the ones still waiting.
-            deleted = instance
+            // Waits for a PUT already being sent.
             bestEffort { api.unregisterUnifiedPush(instance) }
         }
     }

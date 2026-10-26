@@ -15,6 +15,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
@@ -380,6 +381,31 @@ class PushRegistrarTest {
 
         assertTrue(logout.isCompleted)
         assertEquals(listOf("PUT", "DELETE"), calls)
+    }
+
+    @Test
+    fun `endpoints waiting or arriving after the logout's delete timed out are dropped`() {
+        store.instance = "instance-1"
+        val putAnswer = CompletableDeferred<Response<Unit>>()
+        val api =
+            mockk<PushApi> {
+                coEvery { registerUnifiedPush(any(), any()) } coAnswers { putAnswer.await() }
+                coEvery { unregisterUnifiedPush(any()) } returns Response.success(Unit)
+            }
+        val ordered = PushRegistrar(session, api, connector, store, loggedInFlow, scope)
+
+        // A slow PUT holds the lock past the logout hook's timeout; a second endpoint waits behind it.
+        ordered.onNewEndpoint("instance-1", ENDPOINT, null, null)
+        ordered.onNewEndpoint("instance-1", ENDPOINT, null, null)
+        val deletedInTime = runBlocking { withTimeoutOrNull(100) { ordered.deleteOnServer() } }
+        assertNull("the delete must give up waiting for the lock", deletedInTime)
+        // Still logged in: the logout now revokes the device. Another endpoint arrives meanwhile.
+        ordered.onNewEndpoint("instance-1", ENDPOINT, null, null)
+
+        putAnswer.complete(Response.success(Unit))
+
+        coVerify(exactly = 1) { api.registerUnifiedPush(any(), any()) }
+        coVerify(exactly = 0) { api.unregisterUnifiedPush(any()) }
     }
 
     @Test

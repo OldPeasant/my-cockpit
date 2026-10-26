@@ -75,3 +75,55 @@ Remaining unresolved findings:
 ## Final status
 
 All validated findings fixed and validation passed. The only failure is an unrelated, order-dependent server test in `.taskcheck` that passes when run alone.
+
+# Round 2
+
+Date: 2026-10-26
+
+Task: unifiedpush-android-client (UnifiedPush Android client), second review round (`reviews/unifiedpush-android-client/review.md`, range 4acbc4be335ca1cfe8ee476142d291f3f912aa73..f4865e8644fc60afebadd3b7a064fa5705a06596)
+
+Scope: only finding CR-1 (P3) of the second review round, as the parent worker asked.
+
+## Fixed findings
+
+### CR-1 — A logout hook timeout during an in-flight PUT skips the DELETE and leaves `deleted` unset
+
+Files changed:
+- `android/app/src/main/java/ch/sonensei/cockpit/push/PushRegistrar.kt`
+- `android/app/src/test/java/ch/sonensei/cockpit/push/PushRegistrarTest.kt`
+
+Problem:
+`deleteOnServer()` set `deleted = instance` only after it got the `requests` lock. If a slow PUT held the lock longer than the 5 s logout hook timeout, the wait was cancelled, `deleted` stayed null, and a PUT queued on the lock (or arriving while the device was revoked) could still be sent after the logout.
+
+Fix:
+`deleteOnServer()` now sets `deleted = instance` before `requests.withLock { ... }`. Queued and later PUTs for that instance are dropped even when the lock wait is cancelled. The lock still makes the DELETE wait for a PUT already in flight. The comments now say this. New test `endpoints waiting or arriving after the logout's delete timed out are dropped`: one PUT holds the lock (a `CompletableDeferred`) and a second `onNewEndpoint` waits behind it. `deleteOnServer()` runs inside `withTimeoutOrNull(100)` and times out. A third `onNewEndpoint` arrives after the timeout. Then the first PUT completes. The test checks that exactly one PUT and no DELETE were sent.
+
+Validation:
+- `cd android && ./gradlew ktlintFormat testDebugUnitTest --tests 'ch.sonensei.cockpit.push.*'` — Pass (71 push tests, 0 failures; PushRegistrarTest 28/28)
+- Same PushRegistrarTest suite with `deleted = instance` temporarily moved back inside the lock — 1 of 28 failed (the new test), so the test catches the bug. The fix was restored afterwards.
+- `cd android && ./gradlew ktlintCheck testDebugUnitTest --tests 'ch.sonensei.cockpit.push.*'` on the final code — Pass
+
+## Not fixed
+
+None in this round's scope.
+
+## Validation summary
+
+Focused tests:
+- `cd android && ./gradlew ktlintCheck testDebugUnitTest --tests 'ch.sonensei.cockpit.push.*'` — Pass (71 tests, 0 failures)
+
+Full test suite:
+- Not run by the fixer in this round (the change is limited to the push package); the parent worker runs `sh scripts/check.sh`.
+
+Lint/type-check/build:
+- `./gradlew ktlintFormat` and `ktlintCheck` (Android) — Pass; Kotlin compile for the unit tests — Pass
+
+`.taskcheck`:
+- Not run in this round (left to the parent worker)
+
+Remaining unresolved findings:
+0 in this round
+
+## Final status
+
+All validated findings fixed and validation passed.
