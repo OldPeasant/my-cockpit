@@ -23,3 +23,4 @@ SPEC.md §9.3 "Read cache": the last-loaded agenda is cached in Room and shown r
 
 ## Notes
 - ASSUMPTION (2026-10-26 01:10+0100 by dell26/agent-1): The task had no acceptance criteria; I wrote them from SPEC 9.3 (cache the agenda loads in Room, show read-only with offline banner, cleared on logout).
+- ASSUMPTION (2026-10-26 01:10+0100 by dell26/agent-1): Only agenda loads are cached (day/week loads are not, they would replace it); offline, a day/week view fully inside the cached days is shown from that cache.
