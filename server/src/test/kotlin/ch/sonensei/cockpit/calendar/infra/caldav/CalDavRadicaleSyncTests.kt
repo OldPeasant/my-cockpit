@@ -364,7 +364,7 @@ class CalDavRadicaleSyncTests(
 	}
 
 	@Test
-	fun `Radicale refuses a request without credentials, so the sync runs authenticated`() {
+	fun `Radicale refuses a request without credentials`() {
 		val anonymous =
 			http.sendRetryingDrop(
 				HttpRequest.newBuilder(URI.create("${radicale.baseUrl()}$HOME")).method("PROPFIND", HttpRequest.BodyPublishers.noBody()).build(),
