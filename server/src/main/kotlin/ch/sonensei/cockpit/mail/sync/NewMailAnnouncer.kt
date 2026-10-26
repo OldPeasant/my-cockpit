@@ -4,6 +4,8 @@ import ch.sonensei.cockpit.core.events.domain.ChangeEventPublisher
 import ch.sonensei.cockpit.core.events.domain.ChangeOp
 import ch.sonensei.cockpit.core.events.domain.ClientNotification
 import ch.sonensei.cockpit.core.items.domain.ItemType
+import ch.sonensei.cockpit.core.push.domain.PushKind
+import ch.sonensei.cockpit.core.push.domain.PushMessage
 import ch.sonensei.cockpit.mail.model.MailAccount
 import ch.sonensei.cockpit.mail.model.MailFolder
 import ch.sonensei.cockpit.mail.model.MailFolderRole
@@ -42,7 +44,8 @@ data class NewMailNotification(
 /**
  * Announces messages that arrived in a folder since its previous sync (SPEC.md §7.2): an `EMAIL` CREATED change
  * event for each, and when they include unread ones in the Inbox of an account with [MailAccount.notifyNewMail], a
- * [NewMailNotification] (SSE event [EVENT_NAME]) for clients to show.
+ * [NewMailNotification] (SSE event [EVENT_NAME]) for clients to show, and a [PushMessage] with the newest one's id for
+ * the registered devices.
  */
 @Component
 class NewMailAnnouncer(
@@ -67,6 +70,7 @@ class NewMailAnnouncer(
 		val summaries =
 			unread.take(MAX_SUMMARIES).map { NewMailSummary(it.id, it.from.firstOrNull()?.toString(), it.subject, it.receivedAt) }
 		events.publishEvent(ClientNotification(EVENT_NAME, NewMailNotification(account.id, folder.id, unread.size, summaries)))
+		events.publishEvent(PushMessage(PushKind.MAIL, unread.first().id))
 	}
 
 	companion object {
