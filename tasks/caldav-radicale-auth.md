@@ -5,7 +5,7 @@ owner: dell26/agent-1
 deps: []
 touches: [server/src/test/kotlin/ch/sonensei/cockpit/calendar/infra/caldav]
 prio: 2
-lease_until: 2026-10-26T12:15:48Z
+lease_until: 2026-10-26T12:17:06Z
 ---
 ## Goal
 CalDavRadicaleSyncTests copies its Radicale config to /config/config, but the image fills its /config volume with
