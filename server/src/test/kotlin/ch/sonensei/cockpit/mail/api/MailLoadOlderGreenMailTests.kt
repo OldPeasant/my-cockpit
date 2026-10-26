@@ -182,6 +182,26 @@ class MailLoadOlderGreenMailTests(
 	}
 
 	@Test
+	fun `a folder fully inside the sync window offers older mail once, then loads nothing on every retry`() {
+		remote { store ->
+			store.getFolder("INBOX").appendMessages(
+				arrayOf(mail("<recent@example.test>", "Recent", Instant.now().minus(2, ChronoUnit.DAYS))),
+			)
+		}
+		folderService.sync(account.id)
+		val inbox = checkNotNull(folders.findByAccountIdAndPath(account.id, "INBOX"))
+		sync.syncFolder(inbox.id)
+		walk(inbox.id) shouldBe (listOf("Recent") to true)
+
+		repeat(2) {
+			val result = loadOlder(inbox.id, limit = 10)
+			result["loaded"].asInt() shouldBe 0
+			result["hasMore"].asBoolean() shouldBe false
+			walk(inbox.id) shouldBe (listOf("Recent") to false)
+		}
+	}
+
+	@Test
 	fun `an unknown folder is 404, a folder deleted on the server too`() {
 		mockMvc.post("/api/v1/mail/folders/${UUID.randomUUID()}/load-older") { with(csrf()) }.andExpect {
 			status { isNotFound() }
