@@ -3,6 +3,7 @@ import { TestBed } from '@angular/core/testing';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { provideRouter } from '@angular/router';
 import { EMPTY } from 'rxjs';
+import { AuthService } from '../auth/auth.service';
 import { ChangeEventsService } from '../events';
 import { BROWSER_NOTIFICATIONS, NotificationPermissionState } from './browser-notifications';
 import { provideReminderNotifications } from './provide-reminder-notifications';
@@ -15,10 +16,12 @@ import { FakeBrowserNotifications } from './testing';
 
 describe('provideReminderNotifications', () => {
   let enabled: ReturnType<typeof signal<boolean>>;
+  let loggedIn: ReturnType<typeof signal<boolean>>;
   let push: { sync: ReturnType<typeof vi.fn>; unsubscribe: ReturnType<typeof vi.fn> };
 
   function setup(initiallyEnabled: boolean): void {
     enabled = signal(initiallyEnabled);
+    loggedIn = signal(true);
     push = {
       sync: vi.fn(() => Promise.resolve(true)),
       unsubscribe: vi.fn(() => Promise.resolve()),
@@ -27,6 +30,7 @@ describe('provideReminderNotifications', () => {
       providers: [
         provideReminderNotifications(),
         { provide: ReminderNotificationsService, useValue: { enabled } },
+        { provide: AuthService, useValue: { loggedIn } },
         { provide: PushSubscriptionService, useValue: push },
       ],
     });
@@ -53,6 +57,25 @@ describe('provideReminderNotifications', () => {
     TestBed.tick();
     expect(push.unsubscribe).toHaveBeenCalledTimes(2);
   });
+
+  it('leaves push alone while logged out and subscribes again on the next login', () => {
+    setup(true);
+    expect(push.sync).toHaveBeenCalledTimes(1);
+
+    // Logout already ended the subscription; the server would answer 401 anyway.
+    loggedIn.set(false);
+    TestBed.tick();
+    enabled.set(false);
+    TestBed.tick();
+    enabled.set(true);
+    TestBed.tick();
+    expect(push.sync).toHaveBeenCalledTimes(1);
+    expect(push.unsubscribe).not.toHaveBeenCalled();
+
+    loggedIn.set(true);
+    TestBed.tick();
+    expect(push.sync).toHaveBeenCalledTimes(2);
+  });
 });
 
 describe('provideReminderNotifications with the real switch and permission', () => {
@@ -75,6 +98,7 @@ describe('provideReminderNotifications with the real switch and permission', () 
         { provide: ChangeEventsService, useValue: { messages$: () => EMPTY } },
         { provide: MatSnackBar, useValue: { open: vi.fn() } },
         { provide: PushSubscriptionService, useValue: push },
+        { provide: AuthService, useValue: { loggedIn: signal(true) } },
       ],
     });
     TestBed.inject(EnvironmentInjector);

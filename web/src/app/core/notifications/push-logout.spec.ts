@@ -20,6 +20,7 @@ const KEY =
   'BAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8gISIjJCUmJygpKissLS4vMDEyMzQ1Njc4OTo7PD0-P0A';
 const KEY_URL = '/api/v1/push/vapid-public-key';
 const SUBSCRIPTIONS_URL = '/api/v1/push/subscriptions';
+const LOGIN_URL = '/api/v1/auth/login';
 const LOGOUT_URL = '/api/v1/auth/logout';
 const NO_CONTENT = { status: 204, statusText: 'No Content' };
 
@@ -69,7 +70,14 @@ describe('Web Push across logout and a new login in the same tab', () => {
     throw new Error(`no ${method} ${url}`);
   }
 
+  async function login(): Promise<void> {
+    const done = TestBed.inject(AuthService).login({ username: 'demo', password: 'pw', totp: '1' });
+    (await next('POST', LOGIN_URL)).flush({ username: 'demo' });
+    await done;
+  }
+
   async function enterShellAndSubscribe(): Promise<void> {
+    await login();
     await harness.navigateByUrl('/');
     (await next('GET', KEY_URL)).flush({ publicKey: KEY });
     (await next('PUT', SUBSCRIPTIONS_URL)).flush(null, NO_CONTENT);
@@ -100,6 +108,7 @@ describe('Web Push across logout and a new login in the same tab', () => {
     await harness.navigateByUrl('/login');
 
     // Logging in again leads back into the shell without a page reload.
+    await login();
     await harness.navigateByUrl('/');
     (await next('GET', KEY_URL)).flush({ publicKey: KEY });
     (await next('PUT', SUBSCRIPTIONS_URL)).flush(null, NO_CONTENT);
