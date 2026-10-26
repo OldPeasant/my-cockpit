@@ -1,0 +1,23 @@
+{
+  "schema": 1,
+  "task": "cal-caldav-retry",
+  "reviewed_revision": "828b7ddb521d43c9b933649c516ee0b15d07f9b2",
+  "helpers": {
+    "test-writer": {"status": "completed", "report": "reviews/cal-caldav-retry/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/cal-caldav-retry/review.md"},
+    "fixer": {"status": "not_required", "reason": "no code findings: the final review has none; first-review CR-1 was missing criterion-3 evidence and notes (added by the parent), CR-2 was accepted as an assumption"}
+  },
+  "fixes_required": false,
+  "findings": [
+    {"id": "R1-CR-1", "source": "code-reviewer", "severity": "P1", "disposition": "fixed",
+     "note": "first review (b4b9a475e): criterion 3 lacked the 10-in-a-row evidence and the cause note; 10 consecutive --rerun runs passed, investigation added to tasks/cal-caldav-retry.md Notes"},
+    {"id": "R1-CR-2", "source": "code-reviewer", "severity": "P3", "disposition": "accepted",
+     "note": "first review: a retried If-Match write that already applied answers 412 -> reported as conflict; rare, recoverable, adapter outside the criteria; recorded with tasks.py assume"}
+  ],
+  "validation": [
+    {"command": "cd server && ./gradlew ktlintCheck test --tests '*CalDavClientTests'", "result": "pass"},
+    {"command": "cd server && ./gradlew test --tests 'ch.sonensei.cockpit.calendar.infra.caldav.*' jacocoTestReport", "result": "pass"},
+    {"command": "10x cd server && ./gradlew integrationTest --tests '*CalDavRadicaleSyncTests' --rerun (rootless Podman)", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
