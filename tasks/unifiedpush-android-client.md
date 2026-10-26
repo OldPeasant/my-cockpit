@@ -1,13 +1,13 @@
 ---
 title: Android UnifiedPush client
-status: in_progress
-owner: dell26/agent-2
+status: todo
+owner: 
 deps: [and-reminders, unifiedpush-server]
 prio: 3
 parent: unifiedpush-android
-lease_until: 2026-10-26T20:00:06Z
-extended: dell26/agent-2
-releases: 1
+lease_until: 
+extended: 
+releases: 2
 ---
 ## Goal
 Part of `unifiedpush-android` (UnifiedPush for Android), which was split.
@@ -28,3 +28,4 @@ Goal: The app registers with a UnifiedPush distributor (ntfy) and reacts to serv
 - extended by dell26/agent-2: Implementation + tests committed (d75f6b0b2..99a8fa85e). Left: 3 failing tests in push.* expose production bugs: (1) PushRegistrar lets checked exceptions (KeyStoreException) from the connector escape register/unregister (PushRegistrarTest:270,280) -> catch Exception, unregister must still forget the instance; (2) LibraryUnifiedPushConnector selects no distributor when several are installed without a link activity -> pick first installed. Then quality gate (test-writer, code-reviewer, fixer, reviews/unifiedpush-android-client/quality.json), tasks.py verify 1-3, done.
 - release by dell26/agent-2: Implementation complete (09ad3887b feat + fixes 00798e1dc, 58750bac3) with tests (394f10a34, 9f8db5df3, 489062419); push.* + AuthRepositoryLogoutHookTest pass locally. Left: quality gate only. reviews/unifiedpush-android-client/review.md (0 P0-P2, 2 P3) covers ceccb06 = pre-fix code, so it is STALE: re-run test-writer (no tests.md yet) and code-reviewer on HEAD, fixer if needed, write quality.json, record verify 1-3 (AC3 cmd: cd android && ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.push.*'), run .taskcheck, then done.
 - extended by dell26/agent-2: Implementation + fixes done (f9d2b644a..0efde6956); push.* tests pass locally (cd android && ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.push.*'). Left: quality gate only: run test-writer (no reviews/unifiedpush-android-client/tests.md yet) and code-reviewer on HEAD (existing review.md may predate fix b48f9aaa3 - check reviewed revision), fixer if needed, write quality.json, tasks.py verify 1-3, .taskcheck, done.
+- release by dell26/agent-2: Implementation is done and committed (push package, LogoutHook in AuthRepository, connector 3.3.5 in libs.versions.toml and the ARCHITECTURE stack table). fixes.md covers round-1 CR-1 (Mutex orders PUT/DELETE); CR-2 was left as is on purpose (assumption). .taskcheck ran with no failures in its output. Left: (1) round-2 review.md P3 CR-1: in PushRegistrar.deleteOnServer set deleted=instance BEFORE requests.withLock, so a lock wait that times out (5s LOGOUT_HOOK_TIMEOUT_MS) still drops queued PUTs, and add a test; run fixer for this. (2) test-writer was never run: tests.md is missing (needs task-scoped coverage). (3) Re-run code-reviewer on the final code. (4) tasks.py verify for AC1-3 (run: cd android && ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.push.*'). (5) Write quality.json, then done.
