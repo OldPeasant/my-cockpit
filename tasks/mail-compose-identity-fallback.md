@@ -1,10 +1,11 @@
 ---
 title: New mail starts From the account address unless an identity is default
-status: todo
-owner:
+status: in_progress
+owner: dell26/agent-2
 deps: [mail-identities]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/mail/compose]
 prio: 2
+lease_until: 2026-10-26T06:46:36Z
 ---
 ## Goal
 `DraftService.identity` starts a new draft with the default identity, else the FIRST identity of the
