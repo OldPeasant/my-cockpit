@@ -4,20 +4,20 @@ Date: 2026-10-26
 
 Task: runner-hung-session - Runner: end a session that hangs after its final result
 
-Scope: `git diff 54f311b0aa9b2bd39a0c90f492df5cdfdd1124d5..67e0c1b32c1607a39f4a0f064fd15312eb494911 -- agents.py tests/test_hung_session.py`. The range also holds heartbeat, claim and verify commits and other tasks' work (and-cal-cache, deploy-oauth-env, and-gtd-load-error). Those changes and all `tasks/` and `reviews/` files are out of scope. This is a re-review of the final code after the fixer resolved the earlier CR-1 and CR-2 findings and test-writer finding TW-1.
+Scope: `git diff f7162b92907a8dbfb1646f0b6f2e8ea1a4475c6a..c64755cbd207378f26a3c955e89262f324382af3 -- agents.py tests/test_hung_session.py`. This is a re-review of the final revision. Since the previous review (commit c5b455ec9), the only code change is c64755cbd, which adds 3 unit tests to `SettledUnit` in tests/test_hung_session.py. The `reviews/` files are out of scope, except that tests.md was read for context.
 
 Requirements:
 - tasks/runner-hung-session.md (acceptance criteria 1-3 and the recorded ASSUMPTION about background-task detection)
 - AGENTS.md (task protocol, Evidence, quality gate)
+- docs/QUALITY.md (review artifact contract)
 - docs/ARCHITECTURE.md (`tests/` runner tests run separately from `scripts/check.sh`)
-- reviews/runner-hung-session/fixes.md (the fixes to confirm)
-- Existing agents.py conventions (timeout, lease and stop handling, `kill_tree`, `detached`, `describe`)
+- Existing agents.py and tests/test_hung_session.py conventions
 
 Git range:
 - Branch: main
-- HEAD: 67e0c1b32c1607a39f4a0f064fd15312eb494911
-- Base/start: 54f311b0aa9b2bd39a0c90f492df5cdfdd1124d5
-- Commits reviewed: 3 task code commits (fcdf8eec8 implementation, 154b6ab86 tests, 67e0c1b32 fixes). The other 22 commits in the range do not touch agents.py or tests/test_hung_session.py. The working tree was clean.
+- HEAD: c64755cbd207378f26a3c955e89262f324382af3
+- Base/start: f7162b92907a8dbfb1646f0b6f2e8ea1a4475c6a (`git merge-base HEAD origin/main`)
+- Commits reviewed: 5 (7f77368c8 implementation, 28da0dd64 tests, 6b3d5c526 fixes, c5b455ec9 review only, c64755cbd tests). The working tree was clean.
 
 Summary: 0 P0, 0 P1, 0 P2, 0 P3
 
@@ -37,25 +37,21 @@ None.
 
 None.
 
-## Confirmation of earlier findings
+## What was checked in this revision
 
-- **CR-1 (grace 0 or negative kills every session): fixed.** `Settled.idle()` now returns `None` while the session is unsettled: no successful result yet, an open tool call, or a pending background task. The poll loop ends the session only when `q is not None and q >= a.result_grace` (agents.py:859). Separately, the argparse type `positive` rejects values below 1 for both `run` and `start` (agents.py:272-276, 939, 952). Either change alone would close the hole. Covered by `Options.test_grace_below_1_is_rejected` and `SettledUnit.test_unsettled_idle_is_none_so_no_grace_ends_it`.
-- **CR-2 (background heuristic over-counting): fixed.** `BACKGROUND_HINT` is now anchored with `re.match` to the launch acknowledgement phrases (`async agent launched` / `command running in background`). It is applied only to the first text of the tool_result content, through `first_text`, which handles both a string and a list of blocks (agents.py:216, 252, 263-269). A foreground report that mentions async, background or agentId, or that has the launch phrase in a later block, no longer counts as background. Covered by the two new `SettledUnit` tests. The runner test `PendingBackgroundAgentNotEnded` still shows that a real launch acknowledgement blocks the early end.
-- **TW-1 (AttributeError on a non-object `message`/`origin`): fixed.** There are now `isinstance(..., dict)` guards at agents.py:234-235 and 240-241. Covered by a unit test and by the runner test `UnusualJsonLineDoesNotCrashRunner`.
+- **agents.py has not changed since the last review.** `git diff 6b3d5c526 HEAD -- agents.py` is empty. 6b3d5c526 is the last commit that touches agents.py. The earlier review of this code, with CR-1, CR-2 and TW-1 confirmed fixed and the acceptance criteria checked, still applies.
+- **New test `test_task_tool_alias_counts_like_agent`.** It checks the `("Agent", "Task")` branch in `Settled.feed` (agents.py:246-248). A `Task` launch acknowledgement keeps the session unsettled until a `task-notification` result arrives. The test checks behavior through `idle()` and does not depend on implementation details.
+- **New test `test_odd_content_blocks_are_skipped_and_textless_agent_result_is_not_background`.** It covers the `isinstance(c, dict)` skip (agents.py:243-244). It also covers `first_text(None)` returning `""`, so a tool_result with no content is not counted as background. If either guard regressed, the test would fail with an AttributeError or with a wrong result.
+- **New test `test_tool_result_for_unknown_tool_use_is_ignored`.** It covers the `tool_use_id in self.tools` guard (agents.py:250). A launch acknowledgement for an id that was never opened does not increment `background`.
+- The three tests are deterministic. They use a fixed `now` and make no sleeps or subprocess calls. They match the style of the existing `SettledUnit` tests. No existing test was weakened, removed or skipped.
+- tests.md names commits f9778f9f2 and 632e53f47 as the coverage baseline and fix commit. Neither is on the current branch history, probably because of a rebase. `git diff f9778f9f2 HEAD -- agents.py` shows the same 93+/6- change as the task diff, so the measured changed lines are still the task's lines. This is a note about the report's wording, not a code finding.
 
-## Acceptance criteria check
+## Commands run
 
-1. **Early end after the grace period.** A successful result followed by `--result-grace` seconds (default 60, a command-line option, passed from `start` to `run`) of no output leads to `kill_tree()`. The runner then logs `session ended: idle <n>s after final result: <result>`. Every non-blank line resets `last`. Any stream-json event other than a result clears `result`, so a new turn started by a task notification unsettles the session until its own result arrives. Open tool_use ids and pending background launches block the early end. The stop flag, a lost lease and `--timeout` are still checked first. Met.
-2. **Treated like a normal exit 0.** When `quiet` is set, `rc` is forced to 0, so SIGTERM on POSIX and taskkill on Windows do not count as failures. `failed` and the crash back-off use `rc`. The log line uses `final[0]`. Budget accounting and the next claim run on the real task state. The runner tests `EndsAfterGrace` (claims b after a, no back-off) and `EndedSessionResumesUnfinishedTask` (the unfinished task is resumed) show this. Met.
-3. **Tests.** tests/test_hung_session.py uses a fake `--cmd` that prints a stream-json result and sleeps. It shows the session ending after the grace period and not after `--timeout`, output resetting the grace period, a session without a result running until `--timeout`, and a running tool not being cut off. I ran `python -m unittest tests.test_hung_session`: 27 tests passed in 138 s. I did not run `sh scripts/check.sh` in this review. fixes.md reports that it passed. The parent worker must record the `.taskcheck` evidence. Met. The criteria are not yet recorded with `tasks.py verify`, which is expected at this stage and is the parent worker's step.
-
-## Verified without findings
-
-- If a JSON `tool_use` has a non-object `input` or an unhashable `id`, `Settled.feed` still raises. I checked this with a direct call. This is not new: `describe()` already crashes on the same non-object `input` (`tool_doing` calls `inp.get`), it runs right after `Settled.feed`, and Claude Code's stream-json always sends an object there. So the change adds no new failure.
-- Losing the early end is the safe direction: background launches that never get a task notification, or several notifications combined into one result turn, leave the session running until `--timeout`. The recorded assumption accepts this.
-- `last` is set when a line is drained, not when it was written, so the quiet time can only be under-counted. Partial lines without a newline are not fed, which is fine for line-based stream-json.
-- The new code is platform-neutral: it reuses `kill_tree()` and `detached()`, the same as the timeout path.
-- The module docstring documents the new behavior and the option. No dependency or configuration file changed. No secrets or sensitive data are logged.
+- `python -m unittest tests.test_hung_session.Options tests.test_hung_session.SettledUnit` -> Ran 23 tests in 0.005s, OK
+- `python -m unittest tests.test_hung_session` -> Ran 30 tests in 138.210s, OK
+- `git diff 6b3d5c526 HEAD -- agents.py` -> empty (agents.py unchanged since the reviewed fix commit)
+- I did not run `sh scripts/check.sh` in this review. tests.md says it passed ("== all checks passed", exit 0, 250 s). The parent worker must record the `.taskcheck` evidence.
 
 ## Review conclusion
 
