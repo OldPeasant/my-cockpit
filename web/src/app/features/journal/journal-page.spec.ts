@@ -1328,6 +1328,131 @@ describe('JournalPage', () => {
       expect(state()).toBe('Not saved: changed elsewhere');
     });
 
+    it('stays when asked to while "Save my version" from the banner runs, and lets it finish', async () => {
+      await conflict();
+      el('.keep-mine').click();
+      await pending();
+      const reload = http.expectOne((r) => r.method === 'GET' && r.url === `${ENTRIES}/2026-10-24`);
+      ask.mockResolvedValue('stay');
+      void harness.navigateByUrl('/journal/2026-10-22');
+      await settle();
+      // Staying does not wait for the running save.
+      expect(ask).toHaveBeenCalledTimes(1);
+      expect(router.url).toBe('/journal/2026-10-24');
+
+      reload.flush(journalEntry('2026-10-24', { bodyMd: 'From the phone', version: 3 }));
+      await pending();
+      const save = http.expectOne((r) => r.method === 'PUT');
+      expect(save.request.headers.get('If-Match')).toBe('"3"');
+      save.flush(journalEntry('2026-10-24', { bodyMd: 'Mine, edited', version: 4 }));
+      await settle();
+
+      expect(router.url).toBe('/journal/2026-10-24');
+      expect(editor().value()).toBe('Mine, edited');
+      expect(state()).toBe('Saved');
+      http.expectNone((r) => r.url === `${ENTRIES}/2026-10-22`);
+    });
+
+    it('sends one reload and one save when "Save my version" is clicked twice while it runs', async () => {
+      await conflict();
+      el('.keep-mine').click();
+      await pending();
+      el('.keep-mine').click();
+      await pending();
+      const reload = http.match((r) => r.method === 'GET' && r.url === `${ENTRIES}/2026-10-24`);
+      expect(reload.length).toBe(1);
+
+      reload[0].flush(journalEntry('2026-10-24', { bodyMd: 'From the phone', version: 3 }));
+      await pending();
+      const save = http.match((r) => r.method === 'PUT');
+      expect(save.length).toBe(1);
+      expect(save[0].request.headers.get('If-Match')).toBe('"3"');
+      save[0].flush(journalEntry('2026-10-24', { bodyMd: 'Mine, edited', version: 4 }));
+      await settle();
+
+      expect(state()).toBe('Saved');
+      http.expectNone((r) => r.url.startsWith(ENTRIES));
+    });
+
+    it('starts a new "Save my version" after the previous one ended in a conflict again', async () => {
+      await conflict();
+      el('.keep-mine').click();
+      await pending();
+      http
+        .expectOne((r) => r.method === 'GET' && r.url === `${ENTRIES}/2026-10-24`)
+        .flush(journalEntry('2026-10-24', { bodyMd: 'From the phone', version: 3 }));
+      await pending();
+      http.expectOne((r) => r.method === 'PUT').flush(...problem(412, 'Changed again.'));
+      await settle();
+      expect(state()).toBe('Not saved: changed elsewhere');
+
+      // The finished attempt is not joined: a new click reloads and saves again.
+      el('.keep-mine').click();
+      await pending();
+      http
+        .expectOne((r) => r.method === 'GET' && r.url === `${ENTRIES}/2026-10-24`)
+        .flush(journalEntry('2026-10-24', { bodyMd: 'From the tablet', version: 5 }));
+      await pending();
+      const save = http.expectOne((r) => r.method === 'PUT');
+      expect(save.request.headers.get('If-Match')).toBe('"5"');
+      expect(save.request.body.bodyMd).toBe('Mine, edited');
+      save.flush(journalEntry('2026-10-24', { bodyMd: 'Mine, edited', version: 6 }));
+      await settle();
+
+      expect(state()).toBe('Saved');
+    });
+
+    it('still joins "Save my version" of the next day when the old day\'s one ends late', async () => {
+      await conflict();
+      el('.keep-mine').click();
+      await pending();
+      const oldReload = http.expectOne(
+        (r) => r.method === 'GET' && r.url === `${ENTRIES}/2026-10-24`,
+      );
+      ask.mockResolvedValue('discard');
+      void harness.navigateByUrl('/journal/2026-10-22');
+      await settle();
+      flushDay('2026-10-22', {
+        entry: journalEntry('2026-10-22', { bodyMd: 'Other day', version: 2 }),
+      });
+      await settle();
+
+      // The 22nd runs into a conflict too, and its "Save my version" starts.
+      vi.useFakeTimers();
+      type('Other day, edited');
+      await vi.advanceTimersByTimeAsync(AUTOSAVE_DEBOUNCE_MS);
+      http.expectOne((r) => r.method === 'PUT').flush(...problem(412, 'Changed elsewhere.'));
+      await vi.advanceTimersByTimeAsync(0);
+      vi.useRealTimers();
+      harness.detectChanges();
+      el('.keep-mine').click();
+      await pending();
+      const reload = http.expectOne((r) => r.method === 'GET' && r.url === `${ENTRIES}/2026-10-22`);
+
+      // The 24th's reload ends now: it must not forget the 22nd's running save.
+      oldReload.flush(journalEntry('2026-10-24', { bodyMd: 'From the phone', version: 3 }));
+      await settle();
+      ask.mockResolvedValue('keep-mine');
+      void harness.navigateByUrl('/journal/2026-10-20');
+      await pending();
+      expect(ask).toHaveBeenCalledTimes(2);
+      http.expectNone((r) => r.method === 'GET' && r.url === `${ENTRIES}/2026-10-22`);
+
+      reload.flush(journalEntry('2026-10-22', { bodyMd: 'From the phone', version: 3 }));
+      await pending();
+      const save = http.expectOne((r) => r.method === 'PUT');
+      expect(save.request.url).toBe(`${ENTRIES}/2026-10-22`);
+      expect(save.request.headers.get('If-Match')).toBe('"3"');
+      expect(save.request.body.bodyMd).toBe('Other day, edited');
+      save.flush(journalEntry('2026-10-22', { bodyMd: 'Other day, edited', version: 4 }));
+      await settle();
+      flushDay('2026-10-20');
+      await settle();
+
+      expect(router.url).toBe('/journal/2026-10-20');
+      expect(puts()).toEqual([]);
+    });
+
     it('asks before leaving the journal too', async () => {
       await conflict();
       void harness.navigateByUrl('/elsewhere');
