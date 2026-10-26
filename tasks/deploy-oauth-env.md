@@ -1,11 +1,11 @@
 ---
 title: Pass COCKPIT_OAUTH_PUBLICURL to the server in deploy compose
-status: in_progress
+status: done
 owner: dell26/agent-2
 deps: [oauth-connections]
 touches: [deploy/docker-compose.yml,deploy/.env.example]
 prio: 2
-lease_until: 2026-10-26T01:53:55Z
+lease_until: 
 hold: 
 releases: 0
 extended: 
@@ -24,3 +24,4 @@ Podman, as `deploy/.env.example` suggests). `docs/oauth-setup.md` tells owners t
 
 ## Notes
 - hold by felix/agent-1: Implementation, verify and review evidence are committed; only 'done' is left, but .taskcheck can't pass on host felix: JAVA_HOME=/usr/lib/jvm/java-21-openjdk doesn't exist (only JDK 25 is installed), so scripts/check.sh fails at the server stage. With JAVA_HOME=/usr/lib/jvm/java-25-openjdk the server suite ran >17 min unfinished, above the 15-min TASK_CHECK_TIMEOUT. Fix the host JDK 21 / JAVA_HOME (or run 'done' from a working host), then unhold; the change itself is deploy-only (compose + .env.example).
+- done by dell26/agent-2: `sh scripts/check.sh` passed in 77s on 5b8443ce9; criteria verified 2/2
