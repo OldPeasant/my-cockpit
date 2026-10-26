@@ -13,7 +13,8 @@ releases: 1
 Invite attendees by mail (SPEC.md §6.2).
 
 ## Acceptance criteria
-- [ ] REQUEST/CANCEL as text/calendar mails; incoming REPLY updates attendee status
+- [x] REQUEST/CANCEL as text/calendar mails; incoming REPLY updates attendee status
+  - verified (2026-10-26 15:35+0100 by r1963macos/agent-1): cd server && ./gradlew test --tests '*itip*' --tests '*MailReadServiceInInboxTests' ktlintCheck -> ItipMessagesTests 26/26, ItipReplyProcessorTests 11/11, MailReadServiceInInboxTests 4/4 pass, ktlint clean; ./gradlew integrationTest --tests '*ItipGreenMail*' -> 32/32 pass (REQUEST/CANCEL sent as text/calendar via GreenMail SMTP, incoming REPLY in Inbox updates PARTSTAT)
 - [ ] `external` GreenMail tests
 
 ## Notes
