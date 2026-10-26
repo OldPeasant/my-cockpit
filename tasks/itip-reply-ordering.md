@@ -1,12 +1,13 @@
 ---
 title: Ignore stale iTIP REPLYs across messages (per-attendee answered-at)
-status: in_progress
-owner: felix/agent-1
+status: todo
+owner: 
 deps: [itip-invitations]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/calendar]
 prio: 2
-lease_until: 2026-10-26T18:03:26Z
-extended: felix/agent-1
+lease_until: 
+extended: 
+releases: 1
 ---
 ## Goal
 An older iTIP REPLY (lower SEQUENCE, or same SEQUENCE and older DTSTAMP) that arrives after a newer one from the same attendee must not overwrite the attendee status (RFC 5546 §2.1.5; review finding CR-3 of itip-invitations). Needs a per-attendee answered-at/sequence value: decide between an optional field on the Attendee JSON (mind EventCommands equality, backup, AttendeeDto) or an itip table with a Flyway migration.
@@ -21,3 +22,4 @@ An older iTIP REPLY (lower SEQUENCE, or same SEQUENCE and older DTSTAMP) that ar
 - ASSUMPTION (2026-10-26 17:16+0100 by felix/agent-1): Backup: stamps of LOCAL events go to data/calendar_itip_replies.json (SPEC.md backup layout lists only the older calendar files); stamps of external events are not exported
 - extended by felix/agent-1: Implementation done and committed (calendar_itip_reply table, ItipReplyProcessor.takeStamp, backup export/restore of LOCAL stamps, unit+Postgres+GreenMail tests; e3f63d49 adds test-writer's backup round-trip and GreenMail stale-reply tests). review.md done: 0 P0/P1, P2 CR-1 (series vs occurrence REPLY ordering, covered by recorded assumption -> decide fix or accept), 1 P3. Left: test-writer report tests.md (with coverage) on final code, decide CR-1/P3 (fixer or 'not required'), re-review if code changes, tasks.py verify 1+2, quality.json, done. NOTE: sh scripts/check.sh hit a 10-min timeout inside 'server: ktlint + tests' -- find out whether the new tests hang (GreenMail/Testcontainers in check?) before running done.
 - ASSUMPTION (2026-10-26 18:11+0100 by felix/agent-1): Supersedes the earlier ordering assumption: a missing SEQUENCE counts as 0 (RFC 5545 default), a missing DTSTAMP as oldest among equal SEQUENCEs; an occurrence REPLY older than the attendee's series stamp is ignored, and a series REPLY skips overrides whose own occurrence stamp is newer (review CR-1/CR-2)
+- release by felix/agent-1: Code done and reviewed: calendar_itip_reply stamps, ItipReplyProcessor.takeStamp incl. series vs occurrence ordering (CR-1/CR-2 fixed, see fixes.md), backup export/restore of LOCAL stamps, unit+Postgres+GreenMail tests. review.md is a re-review of the final code with 0 findings. LEFT: (1) sh scripts/check.sh hangs in server ktlint + tests (timed out at 9 and 10 min, no output after the JVM warnings). Find out whether this task's GreenMail/Testcontainers tests run inside ./gradlew check and hang (they must stay out of .taskcheck) or whether it is a gradle lock/environment issue, and fix it. (2) Run test-writer on the final code to write reviews/itip-reply-ordering/tests.md with coverage (missing). (3) tasks.py verify 1 and 2 using the unit/Postgres/GreenMail/backup round-trip tests. (4) Write quality.json (CR-1/CR-2 fixed, re-review clean). (5) done.
