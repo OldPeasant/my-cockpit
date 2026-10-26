@@ -1,11 +1,11 @@
 ---
 title: Share habit check label/error helpers between Habits view and Today
-status: todo
-owner: 
+status: in_progress
+owner: felix/agent-1
 deps: [web-today-habits]
 touches: [web/src/app/features/habits,web/src/app/features/gtd/today]
 prio: 2
-lease_until: 
+lease_until: 2026-10-26T11:58:24Z
 extended: 
 releases: 1
 ---
