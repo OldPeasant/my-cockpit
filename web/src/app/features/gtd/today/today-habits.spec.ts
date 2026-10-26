@@ -3,6 +3,7 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { HabitResponse } from '../../../api/generated';
 import { provideHttp } from '../../../core/http';
+import { HabitsService } from '../../habits/habits.service';
 import { habit } from '../../habits/testing';
 import { TodayHabits } from './today-habits';
 
@@ -147,6 +148,19 @@ describe('TodayHabits', () => {
 
     expect(text(row(READ)!.querySelector('.error'))).toContain(
       '“Read 20 pages” could not be checked',
+    );
+    expect(checkButton(READ).disabled).toBe(false);
+  });
+
+  it('shows a generic message for a failed check that is not an API error', async () => {
+    await create([READ]);
+    vi.spyOn(TestBed.inject(HabitsService), 'setCheck').mockRejectedValue(new Error('boom'));
+
+    checkButton(READ).click();
+    await settle();
+
+    expect(text(row(READ)!.querySelector('.error'))).toBe(
+      '“Read 20 pages” could not be checked: Something went wrong.',
     );
     expect(checkButton(READ).disabled).toBe(false);
   });

@@ -1,14 +1,59 @@
+import { ApiError } from '../../core/http';
 import {
+  checkLabel,
   completionPercent,
   draftOf,
   draftProblem,
   emptyDraft,
+  errorMessage,
   nextCount,
   requestOf,
   scheduleLabel,
   todayProgress,
 } from './habit-display';
 import { habit } from './testing';
+
+describe('checkLabel', () => {
+  it('offers to check a once-a-day habit not done today', () => {
+    expect(checkLabel(habit('01', { name: 'Floss' }))).toBe('Check “Floss” for today');
+  });
+
+  it('offers to uncheck a once-a-day habit done today', () => {
+    const floss = habit('01', { name: 'Floss', stats: { todayCount: 1, doneToday: true } });
+    expect(checkLabel(floss)).toBe('Uncheck “Floss” for today');
+  });
+
+  it('reads the count of today against a target above 1', () => {
+    const water = (todayCount: number, doneToday = false) =>
+      habit('01', { name: 'Drink water', targetCount: 3, stats: { todayCount, doneToday } });
+    expect(checkLabel(water(0))).toBe('“Drink water”: 0 of 3 today');
+    expect(checkLabel(water(2))).toBe('“Drink water”: 2 of 3 today');
+    // Reaching the target does not switch to the check/uncheck wording.
+    expect(checkLabel(water(3, true))).toBe('“Drink water”: 3 of 3 today');
+    // The smallest target above 1, and a count above a lowered target.
+    expect(checkLabel(habit('02', { name: 'Walk', targetCount: 2 }))).toBe(
+      '“Walk”: 0 of 2 today',
+    );
+    expect(checkLabel(water(5, true))).toBe('“Drink water”: 5 of 3 today');
+  });
+});
+
+describe('errorMessage', () => {
+  it('shows the detail of an API error, else its title', () => {
+    expect(errorMessage(new ApiError(409, 'Conflict', 'The habit was changed elsewhere.'))).toBe(
+      'The habit was changed elsewhere.',
+    );
+    expect(errorMessage(new ApiError(0, 'The server cannot be reached.'))).toBe(
+      'The server cannot be reached.',
+    );
+  });
+
+  it('shows a generic message for anything that is not an API error', () => {
+    for (const error of [new Error('TypeError: x is undefined'), 'boom', undefined, null, {}]) {
+      expect(errorMessage(error)).toBe('Something went wrong.');
+    }
+  });
+});
 
 describe('habit display', () => {
   it('toggles a once-a-day habit between 0 and 1', () => {

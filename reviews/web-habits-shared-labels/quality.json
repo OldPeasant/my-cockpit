@@ -1,0 +1,16 @@
+{
+  "schema": 1,
+  "task": "web-habits-shared-labels",
+  "reviewed_revision": "06172c40582aaa541981d0d1fc7ba8e96164954c",
+  "helpers": {
+    "test-writer": {"status": "completed", "report": "reviews/web-habits-shared-labels/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/web-habits-shared-labels/review.md"},
+    "fixer": {"status": "not_required", "reason": "test-writer found no production bugs and code-reviewer reported 0 findings"}
+  },
+  "fixes_required": false,
+  "findings": [],
+  "validation": [
+    {"command": "cd web && npm run check", "result": "pass"},
+    {"command": "sh scripts/check.sh tfp web", "result": "pass"}
+  ]
+}

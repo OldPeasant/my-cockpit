@@ -1,4 +1,5 @@
 import { HabitRequest, HabitResponse } from '../../api/generated';
+import { ApiError } from '../../core/http';
 
 export type Weekday = HabitResponse['weekdays'][number];
 export type Schedule = HabitResponse['schedule'];
@@ -32,6 +33,26 @@ export function todayProgress(habit: HabitResponse): number {
 export function completionPercent(habit: HabitResponse): number | null {
   const rate = habit.stats.completionRateLast30Days;
   return rate === undefined || rate === null ? null : Math.round(rate * 100);
+}
+
+/** The label of a habit's check button, for screen readers. */
+export function checkLabel(habit: HabitResponse): string {
+  const name = habit.name;
+  if (habit.targetCount === 1) {
+    return habit.stats.doneToday
+      ? $localize`:@@habits.uncheck:Uncheck “${name}:name:” for today`
+      : $localize`:@@habits.check:Check “${name}:name:” for today`;
+  }
+  const count = habit.stats.todayCount;
+  const target = habit.targetCount;
+  return $localize`:@@habits.checkCount:“${name}:name:”: ${count}:count: of ${target}:target: today`;
+}
+
+/** The message to show for a failed habit request. */
+export function errorMessage(error: unknown): string {
+  return error instanceof ApiError
+    ? error.userMessage
+    : $localize`:@@habits.error:Something went wrong.`;
 }
 
 /** "Every day", "3× a week", "Mon, Wed, Fri"; with "· 2× a day" for a target above 1. */
