@@ -4,21 +4,29 @@ Date: 2026-10-26
 
 Task: itip-invitations - Send invitations for local events (iTIP)
 
-Scope: `git diff dc2d0063..HEAD -- server/` (task commits 7cf8814f, a08ff11e, ca4ebe4e; 0ad26b12 only adds `tasks/itip-api.md` and is outside the reviewed paths). Uncommitted test changes made at the same time by the test-writer are not part of this review.
+Scope: Re-review of the final code after the fixer pass: `git diff 35a77101..HEAD -- server` (task commits a7a704ab, 2ed127d1, 7df31077, 091d29b6, 800c4e03, 0df4bd14; 90e1856e only adds `tasks/itip-api.md` and touches no reviewed path). Production code was reviewed in full. Test files were checked for coverage of the fixes only, because a test-writer may be editing them at the same time. Uncommitted changes are not part of this review.
 
 Requirements:
-- `tasks/itip-invitations.md` acceptance criteria and its ASSUMPTION notes (no REST endpoint in this task; anti-spoofing by From address; occurrence REPLY without an override is ignored; SEQUENCE = event version)
+- `tasks/itip-invitations.md` acceptance criteria and its ASSUMPTION notes, including the newer ones: CR-3 is only partly fixed (in-message ordering only), and an uninvite CANCEL with mixed recipients is rejected with 400
 - SPEC.md §6.2 (Invitations), §4.2 conventions, logging rules in AGENTS.md
-- docs/ARCHITECTURE.md "Conventions" (modules talk through services and events, never through another module's repositories)
+- docs/ARCHITECTURE.md "Conventions" (modules talk through services and events)
 - RFC 5546 (iTIP), RFC 6047 (iMIP)
+- Previous review (findings CR-1..CR-4) and `reviews/itip-invitations/fixes.md`
 
 Git range:
 - Branch: main
-- HEAD: ca4ebe4e703ae8f5cc555c0f9dc84219263e9798
-- Base/start: dc2d00636310204390d9c1006d93519fb02c91a1
-- Commits reviewed: 3 (plus 0ad26b12, which changes no reviewed paths)
+- HEAD: 0df4bd143b24c205a78725be8f124872fa610696
+- Base/start: 35a771019003fe38dfb83cb9726695d905e419fe
+- Commits reviewed: 6 (plus 90e1856e, which changes no reviewed paths)
 
-Summary: 0 P0, 0 P1, 2 P2, 2 P3
+Summary: 0 P0, 0 P1, 0 P2, 2 P3
+
+## Status of earlier findings
+
+- **CR-1 (P2) An uninvite CANCEL set STATUS:CANCELLED and could also go to current attendees: Resolved.** `ItipMessages.build` (`ItipMessages.kt:99-108`) now writes `STATUS:CANCELLED` only for a full CANCEL. With `attendeesOnly` it removes STATUS and lists only the people who were uninvited. `ItipService.invitation` (`ItipService.kt:149-156`) rejects a live-event CANCEL whose recipients mix current attendees and non-attendees, using the existing 400 `InvalidRequestException`. A CANCEL for a trashed event is still a full cancellation for everyone (`attendeesOnly` is null when `trashed`). These GreenMail tests cover the change: `...does not cancel the event`, `...at once is a bad request (400)` and `...in the Trash may go to attendees and people no longer invited`. The 400 rule is recorded as an assumption.
+- **CR-2 (P2) ItipReplyProcessor used the mail repositories: Resolved.** The processor now depends only on `MailReadService` and `MailContentLoader` (`mail.api`). The new `MailReadService.inInbox` (`MailReadService.kt:94-100`) is read-only, has the same semantics as the old inline check, and no longer uses `folderId!!`. The returned entity's `from` field is converter-mapped (not lazy), so reading it after the read-only transaction is safe.
+- **CR-3 (P3) REPLY ordering: Partially fixed, and the rest is deferred with a recorded assumption.** Answers within one message are reduced to the newest by SEQUENCE, then DTSTAMP (`ItipReplyProcessor.kt:111-116`, `ItipReply.ORDER`). Answers in different messages are still not ordered, because that needs per-attendee storage. Kept below as a deferred P3.
+- **CR-4 (P3) A REPLY was lost on an optimistic-lock conflict: Resolved.** `applyRetrying` (`ItipReplyProcessor.kt:126-136`) runs each attempt in a new `TransactionTemplate` transaction. `apply` reloads the event on every attempt, and there are at most 3 attempts. `saveAndFlush` throws inside the transaction, so the rolled-back attempt is retried on fresh state. The change events are only delivered after commit (`@TransactionalEventListener`), so a rolled-back attempt does not leak notifications. `ItipReplyProcessorTests` covers this.
 
 ## P0 Critical
 
@@ -30,42 +38,31 @@ None.
 
 ## P2 Medium
 
-- [ ] **CR-1 | A CANCEL that uninvites attendees sets STATUS:CANCELLED and is also sent to attendees who are still invited**
-    - File: `server/src/main/kotlin/ch/sonensei/cockpit/calendar/itip/ItipMessages.kt:80-86`, `server/src/main/kotlin/ch/sonensei/cockpit/calendar/itip/ItipService.kt:146,154`
-    - Category: Correctness
-    - Problem: `build` always writes `STATUS:CANCELLED` for a CANCEL, also when `attendeesOnly` is set to uninvite particular people. RFC 5546 §3.2.5 (CANCEL table, STATUS) says STATUS is set to CANCELLED to cancel the whole event and "MUST NOT be included" when uninviting specific attendees. Also, `ItipService.invitation` computes `attendeesOnly` from only the non-attendees among the requested recipients, but sends the mail to every requested recipient. A CANCEL with `recipients = [current attendee, removed person]` therefore sends current attendees a CANCEL marked `STATUS:CANCELLED` for the event's UID. Their calendar clients will remove an event that is still going ahead. The unit test `a CANCEL to people no longer invited lists only them as attendees` and the GreenMail test `a CANCEL to someone no longer invited lists only them` assert the non-compliant `STATUS:CANCELLED`.
-    - Why it matters: Attendees can lose a meeting that is not cancelled. Clients that follow the RFC may also treat an uninvite as a cancellation of the whole event.
-    - Suggested fix: Leave out STATUS (or keep the event's own status) when `attendeesOnly` is used. In `ItipService`, reject mixing current attendees and non-attendees in one CANCEL for a live event with a 400, or send the uninvite only to the non-attendees. Change the two tests to match and add a test for mixed recipients.
-
-- [ ] **CR-2 | ItipReplyProcessor reads the mail module's repositories directly**
-    - File: `server/src/main/kotlin/ch/sonensei/cockpit/calendar/itip/ItipReplyProcessor.kt:16,18,49-50,101-104`
-    - Category: Architecture
-    - Problem: The calendar module injects `MailMessageRepository` and `MailFolderRepository` to load the message and check the folder role. docs/ARCHITECTURE.md "Conventions" says modules talk "through services and events, never through another module's repositories". In `server/src/main/kotlin`, this is the only class outside `mail/` that imports a `mail.model` repository. The mail module already has service entry points, such as `MailReadService.get(id)` and `MailContentLoader`.
-    - Why it matters: The calendar module now depends on mail's persistence model, such as `isLocated` and `folderId!!`. A refactoring inside the mail module would then break calendar code.
-    - Suggested fix: Add or use a mail-module service method, for example "is this message located in an Inbox, and who sent it", and call it from `ItipReplyProcessor` instead of the repositories.
+None.
 
 ## P3 Low
 
-- [ ] **CR-3 | REPLY ordering (SEQUENCE/DTSTAMP) is not checked, so an older answer can overwrite a newer one**
-    - File: `server/src/main/kotlin/ch/sonensei/cockpit/calendar/itip/ItipMessages.kt:108-128`, `server/src/main/kotlin/ch/sonensei/cockpit/calendar/itip/ItipReplyProcessor.kt:138-148`
+- [ ] **CR-3 | Cross-message REPLY ordering is still not checked (deferred)**
+    - File: `server/src/main/kotlin/ch/sonensei/cockpit/calendar/itip/ItipReplyProcessor.kt:110-117`
     - Category: Correctness
-    - Problem: `ItipReply` keeps no SEQUENCE or DTSTAMP, and `update` applies every matching REPLY that is processed. Any message that reaches the Inbox counts as a new arrival, including an old reply that a user moves back into the Inbox or a reply delivered late. Such a message replaces the attendee's newer answer. RFC 5546 §2.1.5 tells the Organizer CUA to use SEQUENCE and DTSTAMP to decide which REPLY is current.
-    - Why it matters: Attendee status can silently go back to an older answer.
-    - Suggested fix: Keep the REPLY's DTSTAMP and ignore replies older than the last one applied for that attendee, for example by storing a per-attendee "answered at" value. Then record the chosen rule with `tasks.py assume`.
+    - Problem: Only answers inside one message are ordered. An older REPLY that arrives later in a separate message, such as one delivered late or moved back into the Inbox, still overwrites a newer answer.
+    - Why it matters: In rare cases an attendee's status can go back to an older answer.
+    - Suggested fix: As recorded in the task assumption, a human has to decide where a per-attendee "answered at" value is stored (an `Attendee` JSON field or an itip table). Leaving it as it is for this task is acceptable, because the decision is documented.
 
-- [ ] **CR-4 | A REPLY that collides with a concurrent edit is lost and never retried**
-    - File: `server/src/main/kotlin/ch/sonensei/cockpit/calendar/itip/ItipReplyProcessor.kt:86-89,145`
+- [ ] **CR-5 | An uninvite CANCEL says "Cancelled" and "This event was cancelled" in its subject and text part**
+    - File: `server/src/main/kotlin/ch/sonensei/cockpit/calendar/itip/ItipService.kt:166,181`
     - Category: Quality
-    - Problem: `saveAndFlush` uses optimistic locking. If the user edits the same event while a reply is being applied, the `OptimisticLockingFailureException` is caught as a generic `RuntimeException` and logged at WARN, and the reply is dropped. Nothing processes the message again.
-    - Why it matters: In rare cases, an attendee's answer never shows up, and the only sign is a WARN log line.
-    - Suggested fix: Retry `apply` once or twice on an optimistic-lock failure. Each retry reloads the event in a new transaction.
+    - Problem: The subject prefix and plain-text summary depend only on `method`. An uninvite CANCEL, where `attendeesOnly` is set and the event goes ahead, therefore says the event was cancelled, while the calendar part (correctly, since CR-1) says the event is not cancelled.
+    - Why it matters: Recipients who read the text part, or whose client does not show the calendar part, get a wrong message: the event is not cancelled, they are just no longer invited. The calendar data stays correct.
+    - Suggested fix: When an uninvite is sent, use wording such as "No longer invited: <title>" / "You are no longer invited to: <title>". Optionally, assert the subject in the existing uninvite GreenMail test.
 
 ## Review conclusion
 
-Material issues found; fix before completing the task.
+No material issues found.
 
 Notes:
-- Criterion 1 (REQUEST/CANCEL as text/calendar mails; incoming REPLY updates attendee status) is implemented. The mail is multipart/alternative with a `text/calendar; method=...` part, From is the ORGANIZER, VALARMs are removed, overrides get the correct RECURRENCE-ID, and REPLYs are applied after header sync. The only exception is the CANCEL problem in CR-1. `ItipService.send` has no caller yet. That is the recorded assumption, and follow-up task `itip-api` covers it.
-- Criterion 2: `ItipGreenMailTests` is annotated `@ExternalTest` and covers sending, the error responses (404, 409, 400) and REPLY processing, including a spoofed sender, a non-Inbox folder, a synced calendar and series or occurrence replies. This review did not run any tests and did not check recorded `tasks.py verify` evidence. The task file still shows both criteria unticked, so the parent worker has to record that evidence.
-- Spoofing: a REPLY is only accepted if its From header matches the attendee, and only for LOCAL events that list that attendee. From headers can be forged, so this is a weak check. That limitation is recorded as an assumption in the task and is not reported as a finding.
-- Logging: only message and event ids, counts and exception class names are logged. No mail bodies, calendar contents or addresses are logged at INFO or above.
+- Criterion 1 (REQUEST/CANCEL as text/calendar mails; incoming REPLY updates attendee status) is implemented. The mail is multipart/alternative with a `text/calendar; method=...` part. The ORGANIZER is the account identity, VALARMs are removed and SEQUENCE is the event version. A REPLY is applied only for LOCAL, non-trashed events that list the sender as an attendee and only from an Inbox. `ItipService.send` has no caller yet. That is intended (recorded assumption; follow-up task `itip-api`).
+- Criterion 2: `ItipGreenMailTests` is `@ExternalTest` and covers the new CR-1 paths. This reviewer could not run tests: running Gradle was not permitted in this session. The parent worker must record the executed `./gradlew test --tests '*itip*'` and `./gradlew integrationTest --tests '*ItipGreenMail*'` results with `tasks.py verify`. The fix report states these passed: 26+4 unit tests and 32 GreenMail tests.
+- `MailReadService.kt` is outside the task's `touches`. The change is a minimal, additive read method that the parent approved, and it is the correct fix for CR-2.
+- Logging: only message ids, counts and exception class names are logged at INFO and WARN. No addresses, bodies or calendar contents are logged.
+- No secrets or personal data were found in the diff. The test addresses are fictitious.

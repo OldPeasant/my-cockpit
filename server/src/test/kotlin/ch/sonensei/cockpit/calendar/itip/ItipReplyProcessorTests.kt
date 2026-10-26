@@ -10,7 +10,11 @@ import ch.sonensei.cockpit.calendar.model.CalendarRepository
 import ch.sonensei.cockpit.calendar.model.CalendarSource
 import ch.sonensei.cockpit.calendar.model.CalendarSourceRepository
 import ch.sonensei.cockpit.calendar.model.CalendarSourceType
+import ch.sonensei.cockpit.calendar.model.OccurrenceId
+import ch.sonensei.cockpit.core.events.domain.ChangeEvent
 import ch.sonensei.cockpit.core.events.domain.ChangeEventPublisher
+import ch.sonensei.cockpit.core.events.domain.ChangeOp
+import ch.sonensei.cockpit.core.items.domain.ItemType
 import ch.sonensei.cockpit.core.persistence.UuidV7
 import ch.sonensei.cockpit.mail.api.MailContentLoader
 import ch.sonensei.cockpit.mail.api.MailReadService
@@ -33,12 +37,16 @@ import jakarta.mail.internet.MimeMultipart
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
+import org.springframework.dao.DataIntegrityViolationException
 import org.springframework.dao.OptimisticLockingFailureException
 import org.springframework.transaction.PlatformTransactionManager
+import java.time.Clock
 import java.time.Instant
 import java.time.ZoneId
+import java.time.ZoneOffset
 import java.util.Optional
 import java.util.Properties
+import java.util.UUID
 
 /**
  * [ItipReplyProcessor] with its collaborators mocked: the mail module is only reached through [MailReadService] and
@@ -59,11 +67,12 @@ class ItipReplyProcessorTests {
 	private val source = CalendarSource(CalendarSourceType.LOCAL, "Local")
 	private val calendar = Calendar(source.id, "Work")
 	private val eventId = UuidV7.generate()
+	private val otherEventId = UuidV7.generate()
 	private val messageId = UuidV7.generate()
 
 	/** A fresh copy of the stored event on every load, as JPA gives it in a new transaction. */
-	private fun loaded(): CalendarEvent =
-		CalendarEvent(calendar.id, "Project kickoff", eventId).apply {
+	private fun loaded(id: UUID = eventId): CalendarEvent =
+		CalendarEvent(calendar.id, "Project kickoff", id).apply {
 			setTimed(Instant.parse("2026-11-02T08:00:00Z"), Instant.parse("2026-11-02T09:00:00Z"), ZoneId.of("Europe/Zurich"))
 			attendees = listOf(Attendee(ANNA, "Anna Example"))
 		}
@@ -74,17 +83,24 @@ class ItipReplyProcessorTests {
 		every { sources.findById(source.id) } returns Optional.of(source)
 		every { events.findById(eventId) } answers { Optional.of(loaded()) }
 		every { events.findByParentEventIdOrderByIdAsc(eventId) } returns emptyList()
+		every { events.findById(otherEventId) } answers { Optional.of(loaded(otherEventId)) }
+		every { events.findByParentEventIdOrderByIdAsc(otherEventId) } returns emptyList()
 	}
 
-	private fun receive(vararg calendarParts: String) {
-		val message = MailMessage(UuidV7.generate(), UuidV7.generate(), 1L, messageId).apply { from = listOf(MailAddress(ANNA)) }
+	private fun receive(
+		vararg calendarParts: String,
+		sender: String? = ANNA,
+		headers: InternetHeaders = CALENDAR_HEADERS,
+	) {
+		val message =
+			MailMessage(UuidV7.generate(), UuidV7.generate(), 1L, messageId).apply { from = listOfNotNull(sender?.let(::MailAddress)) }
 		every { mail.inInbox(messageId) } returns message
 		val mime =
 			MimeMessage(Session.getInstance(Properties())).apply {
 				setFrom(InternetAddress(ANNA))
 				setContent(
 					MimeMultipart(
-						*calendarParts.map { MimeBodyPart(CALENDAR_HEADERS, it.toByteArray()) }.toTypedArray(),
+						*calendarParts.map { MimeBodyPart(headers, it.toByteArray()) }.toTypedArray(),
 					),
 				)
 				saveChanges()
@@ -96,6 +112,7 @@ class ItipReplyProcessorTests {
 		partStat: String,
 		stamp: String,
 		sequence: Int = 0,
+		uid: UUID = eventId,
 	): String =
 		listOf(
 			"BEGIN:VCALENDAR",
@@ -103,7 +120,7 @@ class ItipReplyProcessorTests {
 			"PRODID:-//Example//Fictitious Mail//EN",
 			"METHOD:REPLY",
 			"BEGIN:VEVENT",
-			"UID:$eventId",
+			"UID:$uid",
 			"SEQUENCE:$sequence",
 			"DTSTAMP:$stamp",
 			"ATTENDEE;PARTSTAT=$partStat:mailto:$ANNA",
@@ -164,6 +181,103 @@ class ItipReplyProcessorTests {
 		processor.process(messageId) shouldContainExactly listOf(eventId)
 
 		saved.map { it.attendees.single().status } shouldContainExactly listOf(AttendeeStatus.ACCEPTED)
+	}
+
+	// --- added by test-writer (re-run on the fixer's code) --------------------------------------------------------------
+
+	@Test
+	fun `answers for different events in one message are each applied, not merged as one attendee's answers`() {
+		receive(reply("ACCEPTED", "20261026T120000Z"), reply("DECLINED", "20261026T110000Z", uid = otherEventId))
+		val saved = mutableListOf<CalendarEvent>()
+		every { events.saveAndFlush(capture(saved)) } answers { firstArg() }
+
+		processor.process(messageId) shouldContainExactly listOf(eventId, otherEventId)
+
+		saved.map { it.id to it.attendees.single().status } shouldContainExactly
+			listOf(eventId to AttendeeStatus.ACCEPTED, otherEventId to AttendeeStatus.DECLINED)
+	}
+
+	@Test
+	fun `a failure that is no optimistic-locking conflict is not retried`() {
+		receive(reply("ACCEPTED", "20261026T120000Z"))
+		every { events.saveAndFlush(any<CalendarEvent>()) } throws DataIntegrityViolationException("broken row")
+
+		assertThrows<DataIntegrityViolationException> { processor.process(messageId) }
+
+		verify(exactly = 1) { events.saveAndFlush(any()) }
+	}
+
+	@Test
+	fun `a REPLY whose answer is already stored changes nothing`() {
+		receive(reply("NEEDS-ACTION", "20261026T120000Z"))
+
+		processor.process(messageId).shouldBeEmpty()
+
+		verify(exactly = 0) { events.saveAndFlush(any()) }
+		verify(exactly = 0) { changes.publish(any<Enum<*>>(), any(), any()) }
+	}
+
+	@Test
+	fun `a message without a sender is not read`() {
+		receive(reply("ACCEPTED", "20261026T120000Z"), sender = null)
+
+		processor.process(messageId).shouldBeEmpty()
+
+		verify(exactly = 0) { loader.withRemoteMessage<Any?>(any(), any()) }
+	}
+
+	@Test
+	fun `a series REPLY updates the master and its live overrides, not an override in the Trash`() {
+		val series = loaded().apply { rrule = "FREQ=WEEKLY" }
+		val live = loaded(UuidV7.generate()).apply { overrideOf(series, OccurrenceId(Instant.parse("2026-11-09T08:00:00Z"), null)) }
+		val trashed =
+			loaded(UuidV7.generate()).apply {
+				overrideOf(series, OccurrenceId(Instant.parse("2026-11-16T08:00:00Z"), null))
+				softDelete(Clock.fixed(Instant.parse("2026-10-25T09:00:00Z"), ZoneOffset.UTC))
+			}
+		every { events.findById(eventId) } returns Optional.of(series)
+		every { events.findByParentEventIdOrderByIdAsc(eventId) } returns listOf(live, trashed)
+		every { events.saveAndFlush(any<CalendarEvent>()) } answers { firstArg() }
+		receive(reply("ACCEPTED", "20261026T120000Z"))
+
+		processor.process(messageId) shouldContainExactly listOf(eventId, live.id)
+
+		trashed.attendees.single().status shouldBe AttendeeStatus.NEEDS_ACTION
+		verify(exactly = 0) { events.saveAndFlush(trashed) }
+	}
+
+	@Test
+	fun `a calendar part with an unknown charset is read as UTF-8, not dropped`() {
+		receive(
+			reply("TENTATIVE", "20261026T120000Z"),
+			headers = InternetHeaders().apply { addHeader("Content-Type", "text/calendar; charset=x-fictitious-charset; method=REPLY") },
+		)
+		val saved = slot<CalendarEvent>()
+		every { events.saveAndFlush(capture(saved)) } answers { saved.captured }
+
+		processor.process(messageId) shouldContainExactly listOf(eventId)
+
+		saved.captured.attendees
+			.single()
+			.status shouldBe AttendeeStatus.TENTATIVE
+	}
+
+	@Test
+	fun `only newly created mail messages are queued for checking`() {
+		every { mail.inInbox(any()) } returns null
+		val at = Instant.parse("2026-10-26T12:00:00Z")
+		try {
+			processor.onChange(ChangeEvent(ItemType.EVENT, UuidV7.generate(), ChangeOp.CREATED, at))
+			processor.onChange(ChangeEvent(ItemType.EMAIL, UuidV7.generate(), ChangeOp.UPDATED, at))
+			processor.onChange(ChangeEvent(ItemType.EMAIL, UuidV7.generate(), ChangeOp.DELETED, at))
+			processor.onChange(ChangeEvent(ItemType.EMAIL, messageId, ChangeOp.CREATED, at))
+
+			// One background thread works in order: had an earlier change been queued, it would have been read first.
+			verify(timeout = 5_000) { mail.inInbox(messageId) }
+			verify(exactly = 1) { mail.inInbox(any()) }
+		} finally {
+			processor.destroy()
+		}
 	}
 
 	private companion object {
