@@ -1,0 +1,16 @@
+{
+  "schema": 1,
+  "task": "mail-connection-errors",
+  "reviewed_revision": "51d66ff7273260c0fb35891fe6ef54fbc7fb4e22",
+  "helpers": {
+    "test-writer": {"status": "completed", "report": "reviews/mail-connection-errors/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/mail-connection-errors/review.md"},
+    "fixer": {"status": "not_required", "reason": "the final code review and the test report have no findings; CR-1 of the earlier, stale review (no HTTP-level test for MailAccountController) was already addressed by MailConnectionAdviceWebTests before the final review, which confirms it resolved"}
+  },
+  "fixes_required": false,
+  "findings": [],
+  "validation": [
+    {"command": "cd server && ./gradlew test --rerun --tests 'ch.sonensei.cockpit.mail.*' jacocoTestReport", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
