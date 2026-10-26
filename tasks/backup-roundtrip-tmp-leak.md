@@ -19,8 +19,9 @@ delete files outside their clone, so only a human can clean up after a leak: the
 - [x] `BackupRoundTripTest` deletes its data dir after the test class, also when a test fails (e.g. `@AfterAll`
   with `deleteRecursively()`, or a JUnit `@TempDir`); the backup/restore round trip it tests is unchanged
   - verified (2026-10-26 06:11+0100 by dell26/agent-1): BackupRoundTripTest.kt: companion @JvmStatic @AfterAll deleteDataDir() -> dataDir.toFile().deleteRecursively() (JUnit runs @AfterAll also after failed tests; test body/wipe/property source unchanged, confirmed by code-reviewer); round-trip test still passes (see 2)
-- [ ] `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.backup.*'` (Testcontainers Postgres) passes, and
+- [x] `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.backup.*'` (Testcontainers Postgres) passes, and
   the number of `/tmp/cockpit-round-trip-data*` dirs is the same before and after the run
+  - verified (2026-10-26 06:11+0100 by dell26/agent-1): server/gradlew -p server test --tests 'ch.sonensei.cockpit.backup.*' (Testcontainers Postgres via podman) -> BUILD SUCCESSFUL, 14 classes/176 tests, 0 failures incl. BackupRoundTripTest; python glob count of /tmp/cockpit-round-trip-data* = 10 before and 10 after
 - [ ] `sh scripts/check.sh` passes
 
 ## Notes
