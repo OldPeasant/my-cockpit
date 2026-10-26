@@ -1,0 +1,21 @@
+{
+  "schema": 1,
+  "task": "notes-markdown-escapes",
+  "reviewed_revision": "637743e0b6d8b4a47a1c4b9213eca29aaf75035f",
+  "helpers": {
+    "test-writer":   {"status": "completed", "report": "reviews/notes-markdown-escapes/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/notes-markdown-escapes/review.md"},
+    "fixer":         {"status": "completed", "report": "reviews/notes-markdown-escapes/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "TW-1", "source": "test-writer", "severity": "Medium", "disposition": "fixed",
+     "note": "titleOf kept the backslash of a hard line break; titleOf now uses the first non-blank line of plainText of the whole body (2b89d76f0)"},
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P3", "disposition": "accepted",
+     "note": "titleOf parses the whole body per displayTitle read; notes are small, correctness unaffected, optimization optional"}
+  ],
+  "validation": [
+    {"command": "cd server && ./gradlew ktlintCheck test --tests 'ch.sonensei.cockpit.notes.*' --tests 'ch.sonensei.cockpit.mail.gtd.*'", "result": "pass"},
+    {"command": "cd server && ./gradlew test --tests 'ch.sonensei.cockpit.mail.imap.ImapConnectionPoolTests' --tests 'ch.sonensei.cockpit.mail.sync.MailHeaderSyncServiceTests' (rerun of classes that failed with a mockk StackOverflowError in one full-suite run, unrelated to this task)", "result": "pass"}
+  ]
+}
