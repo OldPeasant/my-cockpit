@@ -17,3 +17,4 @@ gtd-scheduled-marker added `TaskResponse.releasedOn` and `GET /api/v1/tasks?sche
 
 ## Notes
 - Found by the code review of gtd-scheduled-marker (CR-1).
+- ASSUMPTION (2026-10-26 17:11+0100 by dell26/agent-1): Used TaskResponse.releasedOn (cached as a new column, GtdCacheDatabase v2 with the existing destructive fallback since it is only a cache) instead of a separate scheduled=today view; this required small edits in gtd/data and gtd/lists outside the task's touches
