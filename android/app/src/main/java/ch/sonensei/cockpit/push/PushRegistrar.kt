@@ -13,6 +13,8 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import java.util.concurrent.atomic.AtomicBoolean
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -52,6 +54,13 @@ class PushRegistrar internal constructor(
 
     private val started = AtomicBoolean(false)
 
+    /** Orders the endpoint PUT and the logout's DELETE, so the server never sees a PUT after the DELETE. */
+    private val requests = Mutex()
+
+    /** The instance whose endpoint the logout deleted on the server: a later endpoint of it is not sent. */
+    @Volatile
+    private var deleted: String? = null
+
     /** Registers now if logged in, and again after every later login. Called once, at app start. */
     fun start() {
         if (!started.compareAndSet(false, true)) return
@@ -77,14 +86,16 @@ class PushRegistrar internal constructor(
         auth: String?,
     ) {
         scope.launch {
-            // An endpoint of an older login (or one that arrives after the logout) is not sent.
-            if (!session.isLoggedIn || instance != store.current()) return@launch
-            val keys = p256dh != null && auth != null
-            bestEffort {
-                api.registerUnifiedPush(
-                    instance,
-                    UnifiedPushRegistrationRequest(endpoint, auth.takeIf { keys }, p256dh.takeIf { keys }),
-                )
+            requests.withLock {
+                // An endpoint of an older login (or one that arrives during or after the logout) is not sent.
+                if (!session.isLoggedIn || instance != store.current() || instance == deleted) return@launch
+                val keys = p256dh != null && auth != null
+                bestEffort {
+                    api.registerUnifiedPush(
+                        instance,
+                        UnifiedPushRegistrationRequest(endpoint, auth.takeIf { keys }, p256dh.takeIf { keys }),
+                    )
+                }
             }
         }
     }
@@ -99,7 +110,11 @@ class PushRegistrar internal constructor(
     /** At the start of a logout, while still logged in: the server forgets the endpoint of this login. */
     suspend fun deleteOnServer() {
         val instance = store.current() ?: return
-        bestEffort { api.unregisterUnifiedPush(instance) }
+        requests.withLock {
+            // Waits for a PUT already being sent, and drops the ones still waiting.
+            deleted = instance
+            bestEffort { api.unregisterUnifiedPush(instance) }
+        }
     }
 
     /** After a logout (of any kind): unregisters at the distributor and forgets the instance. */

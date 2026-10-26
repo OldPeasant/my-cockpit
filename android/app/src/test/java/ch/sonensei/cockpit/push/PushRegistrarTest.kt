@@ -4,12 +4,15 @@ import ch.sonensei.cockpit.core.network.AuthSession
 import ch.sonensei.cockpit.core.network.generated.apis.PushApi
 import ch.sonensei.cockpit.core.network.generated.infrastructure.Serializer
 import io.mockk.coEvery
+import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.serialization.json.Json
@@ -26,6 +29,7 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
+import retrofit2.Response
 import retrofit2.Retrofit
 import retrofit2.converter.kotlinx.serialization.asConverterFactory
 import java.security.KeyStoreException
@@ -303,6 +307,95 @@ class PushRegistrarTest {
         val outcome = runCatching { runBlocking { cancellable.deleteOnServer() } }
 
         assertTrue("expected the cancellation, got $outcome", outcome.exceptionOrNull() is CancellationException)
+    }
+
+    @Test
+    fun `an endpoint arriving after the logout's delete is not sent`() {
+        store.instance = "instance-1"
+        val api =
+            mockk<PushApi> {
+                coEvery { unregisterUnifiedPush(any()) } returns Response.success(Unit)
+                coEvery { registerUnifiedPush(any(), any()) } returns Response.success(Unit)
+            }
+        val ordered = PushRegistrar(session, api, connector, store, loggedInFlow, scope)
+
+        // Still logged in and the instance not yet cleared: the logout is between its DELETE and clear().
+        runBlocking { ordered.deleteOnServer() }
+        ordered.onNewEndpoint("instance-1", ENDPOINT, null, null)
+
+        coVerify(exactly = 1) { api.unregisterUnifiedPush("instance-1") }
+        coVerify(exactly = 0) { api.registerUnifiedPush(any(), any()) }
+    }
+
+    @Test
+    fun `an endpoint waiting while the logout's delete is sent is dropped`() {
+        store.instance = "instance-1"
+        val deleteAnswer = CompletableDeferred<Response<Unit>>()
+        val calls = mutableListOf<String>()
+        val api =
+            mockk<PushApi> {
+                coEvery { unregisterUnifiedPush(any()) } coAnswers {
+                    calls += "DELETE"
+                    deleteAnswer.await()
+                }
+                coEvery { registerUnifiedPush(any(), any()) } coAnswers {
+                    calls += "PUT"
+                    Response.success(Unit)
+                }
+            }
+        val ordered = PushRegistrar(session, api, connector, store, loggedInFlow, scope)
+
+        val logout = scope.launch { ordered.deleteOnServer() }
+        ordered.onNewEndpoint("instance-1", ENDPOINT, null, null)
+        deleteAnswer.complete(Response.success(Unit))
+
+        assertTrue(logout.isCompleted)
+        assertEquals(listOf("DELETE"), calls)
+        coVerify(exactly = 0) { api.registerUnifiedPush(any(), any()) }
+    }
+
+    @Test
+    fun `the logout's delete waits for an endpoint already being sent`() {
+        store.instance = "instance-1"
+        val putAnswer = CompletableDeferred<Response<Unit>>()
+        val calls = mutableListOf<String>()
+        val api =
+            mockk<PushApi> {
+                coEvery { registerUnifiedPush(any(), any()) } coAnswers {
+                    calls += "PUT"
+                    putAnswer.await()
+                }
+                coEvery { unregisterUnifiedPush(any()) } coAnswers {
+                    calls += "DELETE"
+                    Response.success(Unit)
+                }
+            }
+        val ordered = PushRegistrar(session, api, connector, store, loggedInFlow, scope)
+
+        ordered.onNewEndpoint("instance-1", ENDPOINT, null, null)
+        val logout = scope.launch { ordered.deleteOnServer() }
+        assertEquals("the delete must not overtake the PUT", listOf("PUT"), calls)
+
+        putAnswer.complete(Response.success(Unit))
+
+        assertTrue(logout.isCompleted)
+        assertEquals(listOf("PUT", "DELETE"), calls)
+    }
+
+    @Test
+    fun `the next login sends its endpoint again after a logout`() {
+        registrar.start()
+        answer()
+        runBlocking { registrar.deleteOnServer() }
+        registrar.clear()
+        loggedInFlow.value = false
+        loggedInFlow.value = true
+        answer()
+
+        registrar.onNewEndpoint("instance-2", ENDPOINT, null, null)
+
+        assertEquals("DELETE", server.takeRequest(1, TimeUnit.SECONDS)!!.method)
+        assertEquals("PUT", server.takeRequest(1, TimeUnit.SECONDS)!!.method)
     }
 
     private class FakeConnector : UnifiedPushConnector {
