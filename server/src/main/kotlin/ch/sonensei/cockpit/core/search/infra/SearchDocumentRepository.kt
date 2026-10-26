@@ -41,6 +41,10 @@ class SearchDocumentRepository(
 	/**
 	 * Documents matching [tsquery] (to_tsquery syntax) in the 'simple' or the 'english' config, best first: `ts_rank`
 	 * times a recency boost from 2 (changed [now]) falling towards 1 (half of that after 30 days).
+	 *
+	 * `materialized` builds the query once: in the generic plan of a prepared statement Postgres would otherwise call
+	 * `to_tsquery` again for every matching row, which doubled the time of a common word (docs/perf.md). The boost is
+	 * computed in floating point (`date_part`), not `numeric`.
 	 */
 	fun fullText(
 		tsquery: String,
@@ -49,10 +53,10 @@ class SearchDocumentRepository(
 		now: Instant,
 	): List<SearchHit> =
 		jdbc.query(
-			"""with q as (select to_tsquery('simple', :query) || to_tsquery('english', :query) as query)
+			"""with q as materialized (select to_tsquery('simple', :query) || to_tsquery('english', :query) as query)
 			select d.item_type, d.item_id, d.title, d.updated_at,
 			  ts_rank(d.tsv, q.query)
-			    * (1 + 1 / (1 + greatest(extract(epoch from (cast(:now as timestamptz) - d.updated_at)), 0) / 2592000.0))
+			    * (1 + 1 / (1 + greatest(date_part('epoch', cast(:now as timestamptz) - d.updated_at), 0) / 2592000.0))
 			    as score
 			from search_document d, q
 			where d.tsv @@ q.query and d.item_type in (:types)
