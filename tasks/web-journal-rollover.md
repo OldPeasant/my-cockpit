@@ -1,11 +1,11 @@
 ---
 title: Journal: Today rolls over at midnight, prompt before dropping conflicting edits
-status: in_progress
+status: done
 owner: dell26/agent-2
 deps: [web-journal]
 touches: [web/src/app/features/journal]
 prio: 2
-lease_until: 2026-10-26T10:09:18Z
+lease_until: 
 ---
 ## Goal
 Follow-ups from the web-journal review (reviews/web-journal/review.md, P3): a journal page left open
@@ -26,3 +26,4 @@ state are dropped without a prompt when the user opens another day.
 - ASSUMPTION (2026-10-26 10:14+0100 by dell26/agent-2): Midnight is detected client-side (every minute and on visibilitychange) from settings.timeZone, falling back to the browser's zone; the server's heatmap.to stays the source of 'today'. While the browser's day is ahead of the server's (clock skew, missing settings), the heatmap is re-requested once per minute until they agree.
 - ASSUMPTION (2026-10-26 10:14+0100 by dell26/agent-2): At midnight a /journal page whose day is in conflict does not prompt (the user may be away): it stays on the old day by replacing the URL with /journal/<old date>. A day opened by its date is kept; only labels and the heatmap move on.
 - ASSUMPTION (2026-10-26 10:14+0100 by dell26/agent-2): The conflict prompt is a MatDialog behind a canDeactivate guard (covers other days and leaving the journal); Escape/backdrop means Stay. After 'Discard my edits' was clicked in the banner, leaving no longer asks.
+- done by dell26/agent-2: `sh scripts/check.sh` passed in 67s on 79f51c1e1; criteria verified 4/4
